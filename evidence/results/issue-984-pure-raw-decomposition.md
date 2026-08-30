@@ -1,7 +1,7 @@
 # Issue #984 Pure Raw Death Decomposition
 
 - runner: issue984-pure-raw-decomposition-v1
-- source commit: `0f7d9be35d1a9fb61d2b0f152723c2903224053c`
+- source commit: `11d275316b54ea563784d75dcd9042f6cd6c05cf`
 - production baseline SHA: `ddaf1c03780bd47654b3468108b047dcd9adf4b8`
 - N=500 per build × encounter × depth × condition; seed=974-build-confidence
 - depths: B8, B13, B18, B21, B25, B30; builds: aoe-burst, single-efficient, sustain, hybrid-fallback; fixtures: 6
@@ -47,8 +47,8 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | --- | ---: | ---: | ---: |
 | aoe-burst | 3839 / 18000 (21.33%) | 5.29 | 3.44 |
 | single-efficient | 9129 / 18000 (50.72%) | 6.76 | 2.86 |
-| sustain | 6340 / 18000 (35.22%) | 7.56 | 5.03 |
-| hybrid-fallback | 12164 / 18000 (67.58%) | 6.37 | 2.93 |
+| sustain | 6340 / 18000 (35.22%) | 7.57 | 5.03 |
+| hybrid-fallback | 12164 / 18000 (67.58%) | 6.38 | 2.93 |
 
 ## Baseline by depth
 
@@ -75,8 +75,8 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B8 | magic-denial | hybrid-fallback | 132 / 500 | 4.06 | 3.95 | 16.06 | 1.95 | 3.00 | 65.01 |
 | B8 | mp-pressure | aoe-burst | 8 / 500 | 3.28 | 3.13 | 10.25 | 4.00 | 2.00 | 41.68 |
 | B8 | mp-pressure | single-efficient | 124 / 500 | 4.42 | 3.27 | 14.47 | 3.58 | 2.00 | 40.05 |
-| B8 | mp-pressure | sustain | 86 / 500 | 4.76 | 3.55 | 16.87 | 5.48 | 2.00 | 30.88 |
-| B8 | mp-pressure | hybrid-fallback | 181 / 500 | 4.06 | 3.27 | 13.29 | 4.00 | 2.00 | 28.79 |
+| B8 | mp-pressure | sustain | 86 / 500 | 4.77 | 3.55 | 16.80 | 5.48 | 2.00 | 30.88 |
+| B8 | mp-pressure | hybrid-fallback | 181 / 500 | 4.08 | 3.27 | 13.15 | 4.00 | 2.00 | 28.79 |
 | B8 | durable-single-target | aoe-burst | 135 / 500 | 6.33 | 2.78 | 17.58 | 2.78 | 1.00 | 68.11 |
 | B8 | durable-single-target | single-efficient | 209 / 500 | 7.52 | 2.00 | 15.03 | 2.00 | 1.00 | 70.00 |
 | B8 | durable-single-target | sustain | 43 / 500 | 8.38 | 4.00 | 33.51 | 4.00 | 1.00 | 50.56 |
@@ -86,9 +86,9 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B8 | protected-formation | sustain | 37 / 500 | 6.77 | 5.22 | 35.30 | 3.03 | 2.00 | 60.39 |
 | B8 | protected-formation | hybrid-fallback | 431 / 500 | 5.94 | 3.11 | 18.48 | 2.11 | 2.00 | 58.13 |
 | B8 | attrition-recovery-denial | aoe-burst | 3 / 500 | 3.36 | 4.67 | 15.67 | 2.00 | 3.00 | 0.00 |
-| B8 | attrition-recovery-denial | single-efficient | 136 / 500 | 5.49 | 4.01 | 22.01 | 2.95 | 3.00 | 36.56 |
+| B8 | attrition-recovery-denial | single-efficient | 136 / 500 | 5.52 | 4.01 | 21.35 | 2.95 | 3.00 | 36.56 |
 | B8 | attrition-recovery-denial | sustain | 0 / 500 | n/a | n/a | n/a | n/a | n/a | n/a |
-| B8 | attrition-recovery-denial | hybrid-fallback | 118 / 500 | 5.05 | 4.00 | 20.21 | 2.71 | 3.00 | 54.19 |
+| B8 | attrition-recovery-denial | hybrid-fallback | 118 / 500 | 5.06 | 4.00 | 19.73 | 2.71 | 3.00 | 54.19 |
 | B13 | swarm-action-pressure | aoe-burst | 7 / 500 | 3.89 | 5.29 | 20.57 | 2.71 | 3.00 | 46.14 |
 | B13 | swarm-action-pressure | single-efficient | 56 / 500 | 4.95 | 3.59 | 17.77 | 2.00 | 3.00 | 16.00 |
 | B13 | swarm-action-pressure | sustain | 57 / 500 | 6.70 | 5.47 | 36.65 | 4.21 | 3.00 | 58.33 |
@@ -97,10 +97,10 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B13 | magic-denial | single-efficient | 158 / 500 | 4.59 | 3.54 | 16.26 | 1.58 | 3.00 | 65.73 |
 | B13 | magic-denial | sustain | 47 / 500 | 4.97 | 7.11 | 35.34 | 2.98 | 3.00 | 90.82 |
 | B13 | magic-denial | hybrid-fallback | 180 / 500 | 4.52 | 3.42 | 15.46 | 1.45 | 3.00 | 76.11 |
-| B13 | mp-pressure | aoe-burst | 12 / 500 | 3.67 | 3.83 | 14.08 | 4.25 | 2.00 | 47.38 |
+| B13 | mp-pressure | aoe-burst | 12 / 500 | 3.69 | 3.83 | 13.83 | 4.25 | 2.00 | 47.38 |
 | B13 | mp-pressure | single-efficient | 139 / 500 | 4.70 | 2.94 | 13.82 | 3.35 | 2.00 | 42.18 |
-| B13 | mp-pressure | sustain | 134 / 500 | 5.09 | 4.14 | 21.08 | 5.82 | 2.00 | 32.31 |
-| B13 | mp-pressure | hybrid-fallback | 185 / 500 | 4.21 | 3.46 | 14.59 | 4.02 | 2.00 | 30.55 |
+| B13 | mp-pressure | sustain | 134 / 500 | 5.13 | 4.14 | 20.74 | 5.82 | 2.00 | 32.31 |
+| B13 | mp-pressure | hybrid-fallback | 185 / 500 | 4.25 | 3.46 | 14.25 | 4.02 | 2.00 | 30.55 |
 | B13 | durable-single-target | aoe-burst | 493 / 500 | 7.27 | 2.00 | 14.53 | 2.00 | 1.00 | 84.68 |
 | B13 | durable-single-target | single-efficient | 375 / 500 | 8.52 | 2.00 | 17.04 | 2.00 | 1.00 | 88.26 |
 | B13 | durable-single-target | sustain | 194 / 500 | 9.55 | 4.00 | 38.18 | 4.00 | 1.00 | 56.50 |
@@ -109,10 +109,10 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B13 | protected-formation | single-efficient | 365 / 500 | 7.23 | 2.41 | 17.45 | 2.02 | 2.00 | 71.72 |
 | B13 | protected-formation | sustain | 150 / 500 | 7.43 | 5.09 | 37.83 | 3.09 | 2.00 | 64.99 |
 | B13 | protected-formation | hybrid-fallback | 488 / 500 | 6.66 | 2.62 | 17.44 | 1.62 | 2.00 | 67.27 |
-| B13 | attrition-recovery-denial | aoe-burst | 7 / 500 | 3.85 | 3.86 | 14.86 | 2.00 | 3.00 | 0.00 |
-| B13 | attrition-recovery-denial | single-efficient | 219 / 500 | 6.28 | 3.72 | 23.38 | 2.86 | 3.00 | 42.38 |
+| B13 | attrition-recovery-denial | aoe-burst | 7 / 500 | 3.81 | 3.86 | 14.14 | 2.00 | 3.00 | 0.00 |
+| B13 | attrition-recovery-denial | single-efficient | 219 / 500 | 6.31 | 3.72 | 22.93 | 2.86 | 3.00 | 42.38 |
 | B13 | attrition-recovery-denial | sustain | 1 / 500 | 6.00 | 6.00 | 36.00 | 3.00 | 3.00 | 58.00 |
-| B13 | attrition-recovery-denial | hybrid-fallback | 281 / 500 | 5.61 | 3.62 | 20.29 | 2.42 | 3.00 | 62.48 |
+| B13 | attrition-recovery-denial | hybrid-fallback | 281 / 500 | 5.63 | 3.62 | 19.80 | 2.42 | 3.00 | 62.48 |
 | B18 | swarm-action-pressure | aoe-burst | 16 / 500 | 4.12 | 5.31 | 21.88 | 2.81 | 3.00 | 59.23 |
 | B18 | swarm-action-pressure | single-efficient | 78 / 500 | 5.29 | 3.58 | 18.94 | 1.96 | 3.00 | 17.79 |
 | B18 | swarm-action-pressure | sustain | 97 / 500 | 7.22 | 5.62 | 40.56 | 4.41 | 3.00 | 64.22 |
@@ -123,8 +123,8 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B18 | magic-denial | hybrid-fallback | 191 / 500 | 4.89 | 3.05 | 14.92 | 1.14 | 3.00 | 73.18 |
 | B18 | mp-pressure | aoe-burst | 19 / 500 | 4.21 | 3.47 | 14.63 | 3.84 | 2.00 | 46.91 |
 | B18 | mp-pressure | single-efficient | 155 / 500 | 5.35 | 2.86 | 15.28 | 3.28 | 2.00 | 45.42 |
-| B18 | mp-pressure | sustain | 125 / 500 | 5.66 | 4.47 | 25.32 | 5.79 | 2.00 | 33.84 |
-| B18 | mp-pressure | hybrid-fallback | 235 / 500 | 4.79 | 3.26 | 15.58 | 3.40 | 2.00 | 32.80 |
+| B18 | mp-pressure | sustain | 125 / 500 | 5.71 | 4.47 | 24.88 | 5.79 | 2.00 | 33.84 |
+| B18 | mp-pressure | hybrid-fallback | 235 / 500 | 4.84 | 3.26 | 15.11 | 3.40 | 2.00 | 32.80 |
 | B18 | durable-single-target | aoe-burst | 500 / 500 | 7.75 | 2.00 | 15.50 | 2.00 | 1.00 | 85.18 |
 | B18 | durable-single-target | single-efficient | 500 / 500 | 9.26 | 2.00 | 18.52 | 2.00 | 1.00 | 100.89 |
 | B18 | durable-single-target | sustain | 386 / 500 | 10.27 | 3.97 | 40.83 | 3.97 | 1.00 | 64.44 |
@@ -134,9 +134,9 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B18 | protected-formation | sustain | 408 / 500 | 8.30 | 4.27 | 35.41 | 2.27 | 2.00 | 86.84 |
 | B18 | protected-formation | hybrid-fallback | 500 / 500 | 7.35 | 2.00 | 14.70 | 1.00 | 2.00 | 68.23 |
 | B18 | attrition-recovery-denial | aoe-burst | 15 / 500 | 4.58 | 3.80 | 17.40 | 1.93 | 3.00 | 16.87 |
-| B18 | attrition-recovery-denial | single-efficient | 219 / 500 | 6.84 | 3.54 | 24.23 | 2.70 | 3.00 | 44.23 |
-| B18 | attrition-recovery-denial | sustain | 10 / 500 | 7.18 | 6.20 | 44.50 | 3.90 | 3.00 | 63.54 |
-| B18 | attrition-recovery-denial | hybrid-fallback | 317 / 500 | 5.59 | 3.39 | 18.99 | 2.02 | 3.00 | 73.96 |
+| B18 | attrition-recovery-denial | single-efficient | 219 / 500 | 6.86 | 3.54 | 23.82 | 2.70 | 3.00 | 44.23 |
+| B18 | attrition-recovery-denial | sustain | 10 / 500 | 7.20 | 6.20 | 43.20 | 3.90 | 3.00 | 63.54 |
+| B18 | attrition-recovery-denial | hybrid-fallback | 317 / 500 | 5.60 | 3.39 | 18.69 | 2.02 | 3.00 | 73.96 |
 | B21 | swarm-action-pressure | aoe-burst | 23 / 500 | 4.38 | 4.87 | 21.30 | 2.70 | 3.00 | 51.34 |
 | B21 | swarm-action-pressure | single-efficient | 105 / 500 | 5.69 | 3.49 | 19.85 | 1.88 | 3.00 | 17.96 |
 | B21 | swarm-action-pressure | sustain | 113 / 500 | 7.26 | 6.24 | 45.27 | 4.54 | 3.00 | 66.34 |
@@ -145,10 +145,10 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B21 | magic-denial | single-efficient | 221 / 500 | 5.33 | 3.00 | 16.00 | 1.07 | 3.00 | 76.81 |
 | B21 | magic-denial | sustain | 69 / 500 | 6.07 | 5.97 | 36.26 | 2.04 | 3.00 | 113.84 |
 | B21 | magic-denial | hybrid-fallback | 226 / 500 | 5.33 | 3.00 | 16.00 | 1.06 | 3.00 | 77.68 |
-| B21 | mp-pressure | aoe-burst | 23 / 500 | 4.20 | 3.78 | 15.87 | 3.83 | 2.00 | 53.27 |
+| B21 | mp-pressure | aoe-burst | 23 / 500 | 4.25 | 3.78 | 15.70 | 3.83 | 2.00 | 53.27 |
 | B21 | mp-pressure | single-efficient | 153 / 500 | 5.54 | 2.93 | 16.25 | 3.26 | 2.00 | 48.11 |
-| B21 | mp-pressure | sustain | 121 / 500 | 5.78 | 4.36 | 25.16 | 5.64 | 2.00 | 35.19 |
-| B21 | mp-pressure | hybrid-fallback | 261 / 500 | 4.85 | 3.03 | 14.67 | 3.16 | 2.00 | 35.44 |
+| B21 | mp-pressure | sustain | 121 / 500 | 5.85 | 4.36 | 24.55 | 5.64 | 2.00 | 35.19 |
+| B21 | mp-pressure | hybrid-fallback | 261 / 500 | 4.92 | 3.03 | 14.09 | 3.16 | 2.00 | 35.44 |
 | B21 | durable-single-target | aoe-burst | 500 / 500 | 8.50 | 2.00 | 16.99 | 2.00 | 1.00 | 85.82 |
 | B21 | durable-single-target | single-efficient | 500 / 500 | 10.27 | 2.00 | 20.53 | 2.00 | 1.00 | 101.61 |
 | B21 | durable-single-target | sustain | 500 / 500 | 11.50 | 3.00 | 34.50 | 3.00 | 1.00 | 65.40 |
@@ -157,10 +157,10 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B21 | protected-formation | single-efficient | 477 / 500 | 8.11 | 2.11 | 17.12 | 1.34 | 2.00 | 78.45 |
 | B21 | protected-formation | sustain | 497 / 500 | 8.76 | 4.01 | 35.13 | 2.01 | 2.00 | 94.13 |
 | B21 | protected-formation | hybrid-fallback | 500 / 500 | 7.88 | 2.00 | 15.77 | 1.00 | 2.00 | 69.47 |
-| B21 | attrition-recovery-denial | aoe-burst | 35 / 500 | 4.84 | 3.17 | 15.34 | 1.26 | 3.00 | 5.90 |
-| B21 | attrition-recovery-denial | single-efficient | 259 / 500 | 7.02 | 3.34 | 23.46 | 2.41 | 3.00 | 45.20 |
-| B21 | attrition-recovery-denial | sustain | 28 / 500 | 7.43 | 5.96 | 44.32 | 3.43 | 3.00 | 63.36 |
-| B21 | attrition-recovery-denial | hybrid-fallback | 340 / 500 | 5.76 | 3.25 | 18.72 | 1.73 | 3.00 | 77.25 |
+| B21 | attrition-recovery-denial | aoe-burst | 35 / 500 | 4.83 | 3.17 | 15.17 | 1.26 | 3.00 | 5.90 |
+| B21 | attrition-recovery-denial | single-efficient | 259 / 500 | 7.03 | 3.34 | 23.16 | 2.41 | 3.00 | 45.20 |
+| B21 | attrition-recovery-denial | sustain | 28 / 500 | 7.43 | 5.96 | 41.64 | 3.43 | 3.00 | 63.36 |
+| B21 | attrition-recovery-denial | hybrid-fallback | 340 / 500 | 5.74 | 3.25 | 18.21 | 1.73 | 3.00 | 77.25 |
 | B25 | swarm-action-pressure | aoe-burst | 20 / 500 | 4.39 | 5.15 | 22.60 | 2.60 | 3.00 | 48.37 |
 | B25 | swarm-action-pressure | single-efficient | 111 / 500 | 5.88 | 3.18 | 18.70 | 1.70 | 3.00 | 15.81 |
 | B25 | swarm-action-pressure | sustain | 145 / 500 | 7.49 | 6.39 | 47.91 | 4.52 | 3.00 | 70.50 |
@@ -171,8 +171,8 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B25 | magic-denial | hybrid-fallback | 219 / 500 | 5.64 | 3.00 | 16.91 | 1.11 | 3.00 | 75.25 |
 | B25 | mp-pressure | aoe-burst | 25 / 500 | 4.77 | 3.76 | 17.92 | 3.76 | 2.00 | 52.30 |
 | B25 | mp-pressure | single-efficient | 174 / 500 | 6.10 | 2.80 | 17.10 | 3.13 | 2.00 | 51.48 |
-| B25 | mp-pressure | sustain | 145 / 500 | 6.27 | 4.24 | 26.59 | 5.54 | 2.00 | 37.06 |
-| B25 | mp-pressure | hybrid-fallback | 285 / 500 | 5.22 | 2.86 | 14.94 | 2.84 | 2.00 | 37.85 |
+| B25 | mp-pressure | sustain | 145 / 500 | 6.32 | 4.24 | 25.99 | 5.54 | 2.00 | 37.06 |
+| B25 | mp-pressure | hybrid-fallback | 285 / 500 | 5.28 | 2.86 | 14.20 | 2.84 | 2.00 | 37.85 |
 | B25 | durable-single-target | aoe-burst | 500 / 500 | 8.76 | 2.00 | 17.53 | 2.00 | 1.00 | 86.48 |
 | B25 | durable-single-target | single-efficient | 500 / 500 | 10.53 | 2.00 | 21.06 | 2.00 | 1.00 | 102.34 |
 | B25 | durable-single-target | sustain | 500 / 500 | 11.76 | 3.00 | 35.27 | 3.00 | 1.00 | 68.05 |
@@ -181,10 +181,10 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B25 | protected-formation | single-efficient | 486 / 500 | 8.74 | 2.06 | 17.96 | 1.18 | 2.00 | 83.03 |
 | B25 | protected-formation | sustain | 500 / 500 | 9.50 | 4.00 | 38.00 | 2.00 | 2.00 | 94.30 |
 | B25 | protected-formation | hybrid-fallback | 500 / 500 | 8.63 | 2.00 | 17.26 | 1.00 | 2.00 | 70.31 |
-| B25 | attrition-recovery-denial | aoe-burst | 53 / 500 | 5.22 | 3.17 | 16.55 | 1.42 | 3.00 | 15.78 |
-| B25 | attrition-recovery-denial | single-efficient | 315 / 500 | 7.56 | 3.03 | 22.89 | 2.25 | 3.00 | 48.70 |
-| B25 | attrition-recovery-denial | sustain | 106 / 500 | 8.11 | 5.84 | 47.37 | 3.54 | 3.00 | 71.49 |
-| B25 | attrition-recovery-denial | hybrid-fallback | 403 / 500 | 6.24 | 2.95 | 18.42 | 1.57 | 3.00 | 79.02 |
+| B25 | attrition-recovery-denial | aoe-burst | 53 / 500 | 5.22 | 3.17 | 16.43 | 1.42 | 3.00 | 15.78 |
+| B25 | attrition-recovery-denial | single-efficient | 315 / 500 | 7.57 | 3.03 | 22.52 | 2.25 | 3.00 | 48.70 |
+| B25 | attrition-recovery-denial | sustain | 106 / 500 | 8.12 | 5.84 | 45.37 | 3.54 | 3.00 | 71.49 |
+| B25 | attrition-recovery-denial | hybrid-fallback | 403 / 500 | 6.22 | 2.95 | 18.01 | 1.57 | 3.00 | 79.02 |
 | B30 | swarm-action-pressure | aoe-burst | 65 / 500 | 4.95 | 3.40 | 16.82 | 1.43 | 3.00 | 20.66 |
 | B30 | swarm-action-pressure | single-efficient | 210 / 500 | 6.26 | 2.84 | 17.76 | 1.56 | 3.00 | 18.94 |
 | B30 | swarm-action-pressure | sustain | 192 / 500 | 7.81 | 6.35 | 49.61 | 4.15 | 3.00 | 70.02 |
@@ -193,10 +193,10 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B30 | magic-denial | single-efficient | 223 / 500 | 6.23 | 2.85 | 17.74 | 1.07 | 3.00 | 72.04 |
 | B30 | magic-denial | sustain | 98 / 500 | 7.01 | 5.03 | 35.29 | 2.00 | 3.00 | 94.00 |
 | B30 | magic-denial | hybrid-fallback | 223 / 500 | 6.25 | 2.84 | 17.73 | 1.08 | 3.00 | 71.22 |
-| B30 | mp-pressure | aoe-burst | 26 / 500 | 5.16 | 3.08 | 15.88 | 3.42 | 2.00 | 47.96 |
-| B30 | mp-pressure | single-efficient | 207 / 500 | 6.70 | 2.43 | 16.28 | 2.66 | 2.00 | 53.60 |
-| B30 | mp-pressure | sustain | 173 / 500 | 6.81 | 4.25 | 28.93 | 5.22 | 2.00 | 38.19 |
-| B30 | mp-pressure | hybrid-fallback | 300 / 500 | 5.77 | 2.52 | 14.54 | 2.50 | 2.00 | 38.86 |
+| B30 | mp-pressure | aoe-burst | 26 / 500 | 5.18 | 3.08 | 15.73 | 3.42 | 2.00 | 47.96 |
+| B30 | mp-pressure | single-efficient | 207 / 500 | 6.71 | 2.43 | 16.23 | 2.66 | 2.00 | 53.60 |
+| B30 | mp-pressure | sustain | 173 / 500 | 6.90 | 4.25 | 27.86 | 5.22 | 2.00 | 38.19 |
+| B30 | mp-pressure | hybrid-fallback | 300 / 500 | 5.86 | 2.52 | 13.78 | 2.50 | 2.00 | 38.86 |
 | B30 | durable-single-target | aoe-burst | 500 / 500 | 9.75 | 2.00 | 19.51 | 2.00 | 1.00 | 87.28 |
 | B30 | durable-single-target | single-efficient | 500 / 500 | 11.75 | 2.00 | 23.51 | 2.00 | 1.00 | 103.33 |
 | B30 | durable-single-target | sustain | 500 / 500 | 13.00 | 3.00 | 39.00 | 3.00 | 1.00 | 66.63 |
@@ -205,10 +205,10 @@ Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16
 | B30 | protected-formation | single-efficient | 500 / 500 | 9.51 | 2.00 | 19.02 | 1.00 | 2.00 | 88.44 |
 | B30 | protected-formation | sustain | 500 / 500 | 10.77 | 3.57 | 38.42 | 2.00 | 2.00 | 87.81 |
 | B30 | protected-formation | hybrid-fallback | 500 / 500 | 9.53 | 2.00 | 19.05 | 1.00 | 2.00 | 70.48 |
-| B30 | attrition-recovery-denial | aoe-burst | 62 / 500 | 5.65 | 3.13 | 17.68 | 1.27 | 3.00 | 13.19 |
-| B30 | attrition-recovery-denial | single-efficient | 338 / 500 | 8.26 | 2.61 | 21.55 | 1.92 | 3.00 | 46.87 |
-| B30 | attrition-recovery-denial | sustain | 224 / 500 | 8.80 | 5.80 | 51.05 | 3.66 | 3.00 | 75.44 |
-| B30 | attrition-recovery-denial | hybrid-fallback | 438 / 500 | 6.79 | 2.48 | 16.84 | 1.32 | 3.00 | 79.27 |
+| B30 | attrition-recovery-denial | aoe-burst | 62 / 500 | 5.65 | 3.13 | 17.58 | 1.27 | 3.00 | 13.19 |
+| B30 | attrition-recovery-denial | single-efficient | 338 / 500 | 8.27 | 2.61 | 21.00 | 1.92 | 3.00 | 46.87 |
+| B30 | attrition-recovery-denial | sustain | 224 / 500 | 8.82 | 5.80 | 48.92 | 3.66 | 3.00 | 75.44 |
+| B30 | attrition-recovery-denial | hybrid-fallback | 438 / 500 | 6.77 | 2.48 | 16.53 | 1.32 | 3.00 | 79.27 |
 
 ## Production encounter generation vs controlled fixtures
 
