@@ -348,11 +348,11 @@ Combat persona is the only independent variable. Exploration, budget, after-stai
 
 ## Table H — #983 death categories
 
-| persona | pure raw | mechanic-mediated raw lethal | direct mechanic | unknown/mixed |
-| --- | ---: | ---: | ---: | ---: |
-| balanced-combat | 74 (69.8%) | 1 (0.9%) | 24 (22.6%) | 7 (6.6%) |
-| mp-conservative | 215 (85.0%) | 0 (0.0%) | 30 (11.9%) | 8 (3.2%) |
-| burst-combat | 49 (73.1%) | 0 (0.0%) | 15 (22.4%) | 3 (4.5%) |
+| persona | runs | total deaths | death rate / all runs | pure raw deaths | pure raw / all runs | pure raw / deaths | mechanic-mediated raw lethal | direct mechanic | unknown/mixed |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| balanced-combat | 500 | 106 | 21.2% | 74 | 14.8% | 69.8% | 1 | 24 | 7 |
+| mp-conservative | 500 | 253 | 50.6% | 215 | 43.0% | 85.0% | 0 | 30 | 8 |
+| burst-combat | 500 | 67 | 13.4% | 49 | 9.8% | 73.1% | 0 | 15 | 3 |
 
 ## Table I — same-seed paired reach comparison
 
@@ -374,6 +374,7 @@ Combat persona is the only independent variable. Exploration, budget, after-stai
 
 entered = reached next floor + died + incomplete is asserted per persona × floor.
 Incomplete means exploration ended without death or transition; it is never relabeled as death.
+Table H uses all runs for death rate and pure-raw incidence; pure-raw/deaths is the separate share among deaths. With zero deaths, pureRawShareAmongDeaths is null and renders as n/a.
 Common support stops at the first encounter identity/composition mismatch. Post-divergence values are not paired.
 Hidden map/future encounter/future loot information is not passed to combat policy. #983 categories are exclusive and exhaustive.
 No production balance, production combat selector, or Stage 3 checkpoint continuation was changed.
@@ -385,10 +386,10 @@ No production balance, production combat selector, or Stage 3 checkpoint continu
 3. Mean depth: balanced-combat=1.61, mp-conservative=1.47, burst-combat=1.68. B21/B25/B30 are unobserved when no run reaches them.
 4. Normal attacks/encounter: balanced-combat=0.11, mp-conservative=2.20, burst-combat=0.03; MP-zero encounter share: balanced-combat=0.9%, mp-conservative=0.3%, burst-combat=0.4%.
 5. Rounds/enemy actions/encounter: balanced-combat=2.01/2.99, mp-conservative=3.68/4.64, burst-combat=1.49/2.16.
-6. Pure raw death share: balanced-combat=69.8%, mp-conservative=85.0%, burst-combat=73.1%.
+6. Pure raw death incidence (all runs; primary): balanced-combat=14.8%, mp-conservative=43.0%, burst-combat=9.8%; pure raw share among deaths (secondary): balanced-combat=69.8%, mp-conservative=85.0%, burst-combat=73.1%. Total death rate: balanced-combat=21.2%, mp-conservative=50.6%, burst-combat=13.4%.
 7. Same-seed dominance is shown in Table I; no aggregate conclusion is made from unmatched post-divergence encounters.
 8. Exploration incomplete remains a separate censor in Table C; zero reached depth is not reported as all-dead.
-9. Stage 1.5 MP hypothesis verdict: strengthened for the managed segment: mp-conservative reduced spell casts/MP spend but increased normal attacks, rounds, enemy actions, and normal damage; burst reduced combat duration/exposure on common support. The full end-to-end depth/death claim remains confounded after path divergence.
+9. Stage 1.5 MP hypothesis verdict: strengthened for the managed segment: an MP-conserving action policy reduced spell casts/MP spend but increased normal attacks, rounds, enemy actions, and normal damage; burst reduced combat duration/exposure on common support. This supports MP management → action choice → exposure, not MP shortage alone as a complete death cause; the full end-to-end depth/death claim remains confounded after path divergence.
 10. “AI was merely too weak” verdict: strengthened as a sensitivity factor, not sufficient as a sole explanation; burst improved shallow reach while mp-conservative worsened it, yet all policies remained shallow and B21+ unobserved.
 11. Game-structure bottleneck evidence: strengthened for the shallow natural progression ceiling, with exploration incomplete still contributing.
 12. Stage 3 checkpoint continuation: recommended once, under Case C, because persona results are mixed and shallow incomplete/death prevents a clean deep-depth comparison; it is not implemented in this PR.
@@ -397,3 +398,5 @@ No production balance, production combat selector, or Stage 3 checkpoint continu
 15. Production tuning: do not proceed from this measurement alone.
 
 ## Reproduction
+
+node scratch/measurements/issue990_phase3_stage2_combat_personas.js --runs 500 --seed issue990-phase3-stage1.5 --policies balanced-combat,mp-conservative,burst-combat --output evidence/results/issue-990-phase3-stage2.json --summary evidence/results/issue-990-phase3-stage2.md
