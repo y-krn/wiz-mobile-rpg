@@ -2244,7 +2244,9 @@ function createCombatMpMeasurement() {
   };
 }
 
-const STAGE15_MAX_FLOOR = 9;
+// Stage 1.5 consumes only B1-B9. Keep the same measurement-only telemetry
+// shape available through the natural target depth for Stage 2.
+const STAGE15_MAX_FLOOR = 30;
 const STAGE15_MP_BUCKETS = Object.freeze([
   "0%",
   "1-25%",
@@ -4542,6 +4544,7 @@ function createSimulationState(
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
     simPolicy: {
+      combatPolicy: scenario.combatPolicy || "balanced-combat",
       tacticalConsumablePolicy: SIM_412_POLICY,
       equipmentCraftPolicy,
       identificationPolicy,
@@ -5486,6 +5489,124 @@ function chooseSimulationAutoCombatAction(args) {
   });
 }
 
+export const COMBAT_POLICY_IDS = Object.freeze([
+  "balanced-combat",
+  "mp-conserving",
+  "burst-combat"
+]);
+
+export const COMBAT_POLICY_RULES = Object.freeze({
+  "balanced-combat": Object.freeze({
+    description: "Stage 1.5 legacy Mage selector; no new reserve rule"
+  }),
+  "mp-conserving": Object.freeze({
+    reserveMpRatio: 0.5,
+    lowPressureSingleEnemyMaxHp: 22,
+    dangerHpRatio: 0.45,
+    description: "physical attack by default; reserve 50% max MP in low-pressure fights"
+  }),
+  "burst-combat": Object.freeze({
+    description: "highest currently payable offensive damage spell, with physical fallback"
+  })
+});
+
+const BURST_MAGE_MULTI_SPELLS = Object.freeze([
+  "TILTOWAIT",
+  "MADALTO",
+  "LAHALITO",
+  "MAHALITO",
+  "HALITO"
+]);
+const BURST_MAGE_SINGLE_SPELLS = Object.freeze(["MAHALITO", "HALITO"]);
+
+function getLowestLivingEnemyIndex(monsters) {
+  let index = -1;
+  let hp = Infinity;
+  monsters.forEach((monster, monsterIndex) => {
+    if (monster.hp > 0 && monster.hp < hp) {
+      index = monsterIndex;
+      hp = monster.hp;
+    }
+  });
+  return index;
+}
+
+function getPolicySpellAction({ character, enemies, canCastSpell }, spellName, reserveMp = 0) {
+  const targetIdx = getLowestLivingEnemyIndex(enemies);
+  if (targetIdx < 0 || !hasSpell(character, spellName) || !canCastSpell(spellName, reserveMp)) {
+    return null;
+  }
+  return { type: "spell", targetIdx, spellName };
+}
+
+function selectBalancedCombatAction(context) {
+  return chooseSimulationAutoCombatAction({
+    character: context.character,
+    monsters: context.enemies,
+    roundNumber: context.roundNumber,
+    canCastSpell: context.canCastSpell
+  });
+}
+
+// Measurement-only policies receive only current combat state. They do not
+// receive the simulation state, maps, future encounters, RNG, or hidden data.
+function selectMpConservingCombatAction(context) {
+  const { character, enemies, roundNumber, encounterType } = context;
+  const living = enemies.filter(enemy => enemy.hp > 0);
+  const lowestHp = living.length ? Math.min(...living.map(enemy => enemy.hp)) : 0;
+  const targetIdx = getLowestLivingEnemyIndex(enemies);
+  if (targetIdx < 0) return null;
+  const rules = COMBAT_POLICY_RULES["mp-conserving"];
+  const hpRatio = character.hp === undefined
+    ? 1
+    : character.hp / Math.max(1, character.maxHp || character.hp);
+  const highThreat = living.length >= 2 || ["boss", "midboss", "elite"].includes(encounterType) || hpRatio <= rules.dangerHpRatio;
+  if (roundNumber === 1 && living.length >= 2) {
+    const crowdControl = getPolicySpellAction(context, "KATINO");
+    if (crowdControl) return crowdControl;
+  }
+  if (highThreat && living.length >= 2) {
+    const areaSpell = getPolicySpellAction(context, "LAHALITO");
+    if (areaSpell) return areaSpell;
+  }
+  const lowPressure = living.length === 1 && lowestHp <= rules.lowPressureSingleEnemyMaxHp && hpRatio > rules.dangerHpRatio;
+  if (!lowPressure) {
+    const reserveMp = Math.ceil((character.maxMp || character.mp || 0) * rules.reserveMpRatio);
+    const singleSpell = getPolicySpellAction(context, "HALITO", reserveMp);
+    if (singleSpell) return singleSpell;
+  }
+  if (highThreat && living.length === 1) {
+    const emergencySpell = getPolicySpellAction(context, "HALITO");
+    if (emergencySpell) return emergencySpell;
+  }
+  return { type: "fight", targetIdx };
+}
+
+function selectBurstCombatAction(context) {
+  const { enemies } = context;
+  const living = enemies.filter(enemy => enemy.hp > 0);
+  const targetIdx = getLowestLivingEnemyIndex(enemies);
+  if (targetIdx < 0) return null;
+  const candidates = living.length >= 2 ? BURST_MAGE_MULTI_SPELLS : BURST_MAGE_SINGLE_SPELLS;
+  for (const spellName of candidates) {
+    const action = getPolicySpellAction(context, spellName);
+    if (action) return action;
+  }
+  return { type: "fight", targetIdx };
+}
+
+const COMBAT_POLICY_SELECTORS = Object.freeze({
+  "balanced-combat": selectBalancedCombatAction,
+  "mp-conserving": selectMpConservingCombatAction,
+  "burst-combat": selectBurstCombatAction
+});
+
+export function selectSimulationCombatActionForPolicy(context) {
+  const selector = COMBAT_POLICY_SELECTORS[context.combatPolicy || "balanced-combat"];
+  if (!selector) throw new Error(`Unknown combat policy: ${context.combatPolicy}`);
+  return selector(context);
+}
+
 function chooseSimulationCombatActionForCharacter(character, monsters, roundNumber, healThreshold) {
   return chooseSimulationAutoCombatAction({
     character,
@@ -6406,10 +6527,18 @@ function selectCombatAction(state, metrics) {
   if (combatManaPotionAction) return combatManaPotionAction;
 
   const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
-  const sharedAutoAction = chooseSimulationAutoCombatAction({
+  const sharedAutoAction = selectSimulationCombatActionForPolicy({
+    combatPolicy: state.simPolicy.combatPolicy,
     character,
-    monsters,
+    enemies: monsters,
     roundNumber: state.combatState.roundNumber,
+    encounterType: state.combatState.isBoss
+      ? "boss"
+      : state.combatState.isMidboss
+        ? "midboss"
+        : state.combatState.isRoamingFlack
+          ? "elite"
+          : "normal",
     canCastSpell: (spellName, reserveMp) =>
       getSpellActionPayment(state, spellName, reserveMp)
   });
@@ -7174,9 +7303,16 @@ function runEncounter(
       outcome: null,
       hpBefore: encounterStartHp,
       mpBefore: encounterStartMp,
+      mpBeforeRatio: encounterStartMp / Math.max(1, encounterStartMaxMp),
       hpAfter: null,
       mpAfter: null,
+      mpAfterRatio: null,
       rounds: null,
+      enemyActions: null,
+      normalDamage: null,
+      spellCasts: null,
+      normalAttacks: null,
+      mpSpent: null,
       diagnosticUtility: null,
       deathCategory: null,
       stateDegradationEvidence: null
@@ -7248,10 +7384,15 @@ function runEncounter(
         : result === "death" ? "death" : result;
       encounterIdentity.hpAfter = state.party[0].hp;
       encounterIdentity.mpAfter = state.party[0].mp;
+      encounterIdentity.mpAfterRatio = getCharMaxMp(state.party[0])
+        ? state.party[0].mp / getCharMaxMp(state.party[0]) : 1;
       encounterIdentity.rounds = rounds;
       encounterIdentity.normalHits = telemetry.incomingHits;
       encounterIdentity.totalNormalDamage = telemetry.incomingDamage;
       encounterIdentity.enemyActions = telemetry.enemyActions;
+      encounterIdentity.spellCasts = stage15Encounter?.spellActions || 0;
+      encounterIdentity.normalAttacks = stage15Encounter?.normalAttacks || 0;
+      encounterIdentity.mpSpent = stage15Encounter?.combatMpSpent || 0;
       encounterIdentity.hpBeforeRatio = encounterStartHp / Math.max(1, encounterStartMaxHp);
       encounterIdentity.hpAfterRatio = state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0]));
       encounterIdentity.mpBeforeRatio = encounterStartMaxMp
@@ -7353,6 +7494,7 @@ function runEncounter(
     if (stage15Encounter) {
       stage15Encounter.result = result;
       stage15Encounter.rounds = rounds;
+      stage15Encounter.spellCasts = stage15Encounter.spellActions;
       stage15Encounter.enemyActions = telemetry.enemyActions;
       stage15Encounter.normalHits = telemetry.incomingHits;
       stage15Encounter.normalDamage = telemetry.incomingDamage;
