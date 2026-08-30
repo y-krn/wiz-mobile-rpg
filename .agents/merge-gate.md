@@ -48,6 +48,11 @@ insufficient.
 Evaluate required checks for the current pull request head only. Never reuse a
 result from an older head. Interpret check-run state as follows:
 
+For one unchanged head SHA, wait for required CI once and reuse that completed
+result for the remainder of the session. Re-fetch only when the head changes,
+the previously observed run was incomplete, or GitHub reports an ambiguous
+state. Do not repeatedly poll a completed successful head.
+
 | Observed state | Gate state |
 | --- | --- |
 | No check-run exists yet | `PENDING_NOT_REGISTERED` |

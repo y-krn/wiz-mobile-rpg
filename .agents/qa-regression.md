@@ -72,12 +72,57 @@ request area.
 - Identify missing negative cases for validation or state transitions.
 - Confirm failures can be reproduced with a specific command.
 
-## Required Verification
+## Verification cadence
+
+Use the smallest sufficient verification at each stage.
+
+### Inner loop
+
+During implementation, prefer the narrowest deterministic test or syntax
+check that covers the code just changed.
+
+When broader unit confidence is useful before the implementation is complete,
+use `npm run test:unit:fast`. Do not run repository-wide lint, the normal unit
+suite, browser suites, or the build after every edit.
+
+### Final local gate
+
+Before the first push, run the verification required by the completed change:
 
 - Logic changes: `npm run test:unit`
 - UI changes: `npm run test:browser`
 - Broad changes: `npm run test`
 - Build-sensitive changes: `npm run build`
+- Lint-covered source or documentation changes: `npm run lint`
+
+Batch related fixes before rerunning the final local gate.
+
+A passing local verification remains valid while the relevant working-tree
+content is unchanged. Git operations, commits, status checks, PR metadata
+changes, review inspection, and other metadata-only operations do not
+invalidate it.
+
+If code, tests, configuration, or other relevant content changes after the
+gate, rerun only the verification invalidated by that change.
+
+### CI gate
+
+After push, required CI is the authoritative verification for that pull
+request head.
+
+Do not repeat an already-passing verification without a concrete reason.
+Rerun it when relevant content changed, a failure needs reproduction, the
+environment difference matters, or additional evidence is explicitly
+required.
+
+### Unit suite levels
+
+- Targeted test: preferred implementation inner loop.
+- `npm run test:unit:fast`: broad smoke check; heavy tests may reduce their
+  workload through `FAST=1`.
+- `npm run test:unit`: normal local gate; all cheap tests run and heavy tests
+  are selected from the current diff and their source dependencies.
+- `npm run test:unit:full`: CI/full gate; all heavy tests are forced on.
 
 ## Must Not Do
 
