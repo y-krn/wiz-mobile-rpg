@@ -4,10 +4,10 @@
     "issue": 987,
     "runnerVersion": "issue987-production-frequency-v1",
     "schemaVersion": 1,
-    "sourceCommit": "65647b51bcad3e4aedd03ddc34910691b032d78c",
+    "sourceCommit": "21e3f9685b95b6f5fa82c781403c7dab0b3b2005",
     "gameplaySourceCommit": "1043e5147c2f43f3c7869a29e80dac522fac28e0",
-    "measurementRunnerCommit": "65647b51bcad3e4aedd03ddc34910691b032d78c",
-    "measurementRunnerDiffSha256": "739f7507c6c1960ba1919fc2d6e8c356ca241ee1b6de3d59b98fd4550bc6336e",
+    "measurementRunnerCommit": "21e3f9685b95b6f5fa82c781403c7dab0b3b2005",
+    "measurementRunnerDiffSha256": "84bf30ef20600e0287c34a89a45b0455e91e065f5c3fc5c56edf08a2212575e3",
     "originMainAncestor": true,
     "staleTreeAllowed": false,
     "workingTreeClean": true,
@@ -99072,7 +99072,7 @@
                 "candidatePureRawDeaths": 13131,
                 "pureRawDeathsAvoided": 430
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": 0.10373333333333329,
                 "hpPreservation": 0.1051267836257267,
                 "mpPreservation": -0.08093999999991053
@@ -99141,7 +99141,7 @@
                 "candidatePureRawDeaths": 11185,
                 "pureRawDeathsAvoided": 1416
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": 0.04393333333333327,
                 "hpPreservation": 0.06882861514782895,
                 "mpPreservation": -0.03631888888892232
@@ -99210,7 +99210,7 @@
                 "candidatePureRawDeaths": 16475,
                 "pureRawDeathsAvoided": 48
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": 0.2225333333333333,
                 "hpPreservation": 0.22013105402395594,
                 "mpPreservation": -0.10235740740725985
@@ -99279,7 +99279,7 @@
                 "candidatePureRawDeaths": 11185,
                 "pureRawDeathsAvoided": 3075
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": -0.05980000000000002,
                 "hpPreservation": -0.03629816847789774,
                 "mpPreservation": 0.04462111111098821
@@ -99348,7 +99348,7 @@
                 "candidatePureRawDeaths": 16475,
                 "pureRawDeathsAvoided": 700
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": 0.11880000000000002,
                 "hpPreservation": 0.11500427039822925,
                 "mpPreservation": -0.02141740740734932
@@ -99417,7 +99417,7 @@
                 "candidatePureRawDeaths": 16475,
                 "pureRawDeathsAvoided": 711
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": 0.17860000000000004,
                 "hpPreservation": 0.151302438876127,
                 "mpPreservation": -0.06603851851833753
@@ -162542,6 +162542,7 @@
             "dominantShare": 0.6369731800766283
           },
           "productionFrequencyWeightedDominance": {
+            "metric": "diagnostic utility",
             "weighting": "each generated encounter has equal weight within the requested depth sample; requested depths are equally sampled",
             "tiePolicy": "fractional utility ties",
             "votes": {
@@ -388864,7 +388865,7 @@
                 "candidatePureRawDeaths": 9120,
                 "pureRawDeathsAvoided": 426
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": 0.311,
                 "hpPreservation": 0.3059765501717236,
                 "mpPreservation": -0.09081296296290264
@@ -388933,7 +388934,7 @@
                 "candidatePureRawDeaths": 6291,
                 "pureRawDeathsAvoided": 1060
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": 0.07933333333333331,
                 "hpPreservation": 0.14054464379989673,
                 "mpPreservation": 0.03150185185181942
@@ -389002,7 +389003,7 @@
                 "candidatePureRawDeaths": 12058,
                 "pureRawDeathsAvoided": 68
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": 0.37727777777777777,
                 "hpPreservation": 0.36854405226027775,
                 "mpPreservation": -0.1293765432098659
@@ -389071,7 +389072,7 @@
                 "candidatePureRawDeaths": 6291,
                 "pureRawDeathsAvoided": 4150
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": -0.2316666666666667,
                 "hpPreservation": -0.16543190637182686,
                 "mpPreservation": 0.12231481481472206
@@ -389140,7 +389141,7 @@
                 "candidatePureRawDeaths": 12058,
                 "pureRawDeathsAvoided": 1145
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": 0.06627777777777777,
                 "hpPreservation": 0.06256750208855413,
                 "mpPreservation": -0.03856358024696327
@@ -389209,7 +389210,7 @@
                 "candidatePureRawDeaths": 12058,
                 "pureRawDeathsAvoided": 601
               },
-              "aggregateDifference": {
+              "leftMinusRight": {
                 "clearRate": 0.29794444444444446,
                 "hpPreservation": 0.227999408460381,
                 "mpPreservation": -0.16087839506168533
@@ -391787,6 +391788,7 @@
             "dominantShare": 0.5694444444444444
           },
           "productionFrequencyWeightedDominance": {
+            "metric": "diagnostic utility",
             "weighting": "equal controlled fixture-depth repetitions; not production frequency",
             "tiePolicy": "fractional utility ties",
             "votes": {

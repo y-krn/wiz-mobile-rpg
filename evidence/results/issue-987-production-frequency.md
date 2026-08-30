@@ -1,7 +1,7 @@
 # Issue #987 Production-frequency weighted pure raw / Build Sensitivity
 
 - runner: `issue987-production-frequency-v1`
-- source commit: `65647b51bcad3e4aedd03ddc34910691b032d78c`
+- source commit: `21e3f9685b95b6f5fa82c781403c7dab0b3b2005`
 - production baseline SHA: `1043e5147c2f43f3c7869a29e80dac522fac28e0`
 - generated encounters: **N=5000 per depth**; controlled stress: **N=500 per fixture × depth**
 - depths: B8, B13, B18, B21, B25, B30; builds: aoe-burst, single-efficient, sustain, hybrid-fallback
@@ -134,16 +134,365 @@ All counterfactual deltas are **candidate − baseline**; positive means improve
 - insufficient-sample family comparisons excluded: **6210**
 - family paired N: **342** build-pair×family entries recorded in JSON
 - equal-cell best-build coverage (not encounter-frequency weighted): **aoe-burst**, share **63.70%** across **87** depth×family cells
-- production-frequency-weighted best-build share: **sustain**, share **28.98%** across **30000** encounter samples
+- production-frequency-weighted best-build share (diagnostic utility): **sustain**, share **28.98%** across **30000** encounter samples
 
 | Build pair | Paired clear difference (left − right) | Paired HP difference (left − right) | Paired MP difference (left − right) |
 | --- | ---: | ---: | ---: |
-| aoe-burst vs single-efficient | -0.1037 | -0.1051 | 0.0809 |
-| aoe-burst vs sustain | -0.0439 | -0.0688 | 0.0363 |
-| aoe-burst vs hybrid-fallback | -0.2225 | -0.2201 | 0.1024 |
-| single-efficient vs sustain | 0.0598 | 0.0363 | -0.0446 |
-| single-efficient vs hybrid-fallback | -0.1188 | -0.1150 | 0.0214 |
-| sustain vs hybrid-fallback | -0.1786 | -0.1513 | 0.0660 |
+| aoe-burst vs single-efficient | 0.1037 | 0.1051 | -0.0809 |
+| aoe-burst vs sustain | 0.0439 | 0.0688 | -0.0363 |
+| aoe-burst vs hybrid-fallback | 0.2225 | 0.2201 | -0.1024 |
+| single-efficient vs sustain | -0.0598 | -0.0363 | 0.0446 |
+| single-efficient vs hybrid-fallback | 0.1188 | 0.1150 | -0.0214 |
+| sustain vs hybrid-fallback | 0.1786 | 0.1513 | -0.0660 |
+
+### Family paired sample sizes
+
+Every family/build-pair paired N is recorded here. N<30 is emitted as `insufficient_sample` and cannot enter strict reversal.
+
+| Build pair | Family | Paired N |
+| --- | --- | ---: |
+| aoe-burst vs hybrid-fallback | magic_denial | 984 |
+| aoe-burst vs single-efficient | magic_denial | 984 |
+| aoe-burst vs sustain | magic_denial | 984 |
+| single-efficient vs hybrid-fallback | magic_denial | 984 |
+| single-efficient vs sustain | magic_denial | 984 |
+| sustain vs hybrid-fallback | magic_denial | 984 |
+| aoe-burst vs hybrid-fallback | magic_denial+protected_formation | 162 |
+| aoe-burst vs single-efficient | magic_denial+protected_formation | 162 |
+| aoe-burst vs sustain | magic_denial+protected_formation | 162 |
+| single-efficient vs hybrid-fallback | magic_denial+protected_formation | 162 |
+| single-efficient vs sustain | magic_denial+protected_formation | 162 |
+| sustain vs hybrid-fallback | magic_denial+protected_formation | 162 |
+| aoe-burst vs hybrid-fallback | magic_denial+summon_split | 76 |
+| aoe-burst vs single-efficient | magic_denial+summon_split | 76 |
+| aoe-burst vs sustain | magic_denial+summon_split | 76 |
+| single-efficient vs hybrid-fallback | magic_denial+summon_split | 76 |
+| single-efficient vs sustain | magic_denial+summon_split | 76 |
+| sustain vs hybrid-fallback | magic_denial+summon_split | 76 |
+| aoe-burst vs hybrid-fallback | mp_drain | 341 |
+| aoe-burst vs single-efficient | mp_drain | 341 |
+| aoe-burst vs sustain | mp_drain | 341 |
+| single-efficient vs hybrid-fallback | mp_drain | 341 |
+| single-efficient vs sustain | mp_drain | 341 |
+| sustain vs hybrid-fallback | mp_drain | 341 |
+| aoe-burst vs hybrid-fallback | mp_drain+protected_formation | 78 |
+| aoe-burst vs single-efficient | mp_drain+protected_formation | 78 |
+| aoe-burst vs sustain | mp_drain+protected_formation | 78 |
+| single-efficient vs hybrid-fallback | mp_drain+protected_formation | 78 |
+| single-efficient vs sustain | mp_drain+protected_formation | 78 |
+| sustain vs hybrid-fallback | mp_drain+protected_formation | 78 |
+| aoe-burst vs hybrid-fallback | multi_action | 1100 |
+| aoe-burst vs single-efficient | multi_action | 1100 |
+| aoe-burst vs sustain | multi_action | 1100 |
+| single-efficient vs hybrid-fallback | multi_action | 1100 |
+| single-efficient vs sustain | multi_action | 1100 |
+| sustain vs hybrid-fallback | multi_action | 1100 |
+| aoe-burst vs hybrid-fallback | multi_enemy_ordinary | 5204 |
+| aoe-burst vs single-efficient | multi_enemy_ordinary | 5204 |
+| aoe-burst vs sustain | multi_enemy_ordinary | 5204 |
+| single-efficient vs hybrid-fallback | multi_enemy_ordinary | 5204 |
+| single-efficient vs sustain | multi_enemy_ordinary | 5204 |
+| sustain vs hybrid-fallback | multi_enemy_ordinary | 5204 |
+| aoe-burst vs hybrid-fallback | protected_formation | 2872 |
+| aoe-burst vs single-efficient | protected_formation | 2872 |
+| aoe-burst vs sustain | protected_formation | 2872 |
+| single-efficient vs hybrid-fallback | protected_formation | 2872 |
+| single-efficient vs sustain | protected_formation | 2872 |
+| sustain vs hybrid-fallback | protected_formation | 2872 |
+| aoe-burst vs hybrid-fallback | protected_formation+multi_action | 497 |
+| aoe-burst vs single-efficient | protected_formation+multi_action | 497 |
+| aoe-burst vs sustain | protected_formation+multi_action | 497 |
+| single-efficient vs hybrid-fallback | protected_formation+multi_action | 497 |
+| single-efficient vs sustain | protected_formation+multi_action | 497 |
+| sustain vs hybrid-fallback | protected_formation+multi_action | 497 |
+| aoe-burst vs hybrid-fallback | protected_formation+status_pressure | 211 |
+| aoe-burst vs single-efficient | protected_formation+status_pressure | 211 |
+| aoe-burst vs sustain | protected_formation+status_pressure | 211 |
+| single-efficient vs hybrid-fallback | protected_formation+status_pressure | 211 |
+| single-efficient vs sustain | protected_formation+status_pressure | 211 |
+| sustain vs hybrid-fallback | protected_formation+status_pressure | 211 |
+| aoe-burst vs hybrid-fallback | protected_formation+summon_split | 206 |
+| aoe-burst vs single-efficient | protected_formation+summon_split | 206 |
+| aoe-burst vs sustain | protected_formation+summon_split | 206 |
+| single-efficient vs hybrid-fallback | protected_formation+summon_split | 206 |
+| single-efficient vs sustain | protected_formation+summon_split | 206 |
+| sustain vs hybrid-fallback | protected_formation+summon_split | 206 |
+| aoe-burst vs hybrid-fallback | protected_formation+summon_split+status_pressure | 4 |
+| aoe-burst vs single-efficient | protected_formation+summon_split+status_pressure | 4 |
+| aoe-burst vs sustain | protected_formation+summon_split+status_pressure | 4 |
+| single-efficient vs hybrid-fallback | protected_formation+summon_split+status_pressure | 4 |
+| single-efficient vs sustain | protected_formation+summon_split+status_pressure | 4 |
+| sustain vs hybrid-fallback | protected_formation+summon_split+status_pressure | 4 |
+| aoe-burst vs hybrid-fallback | recovery_denial | 350 |
+| aoe-burst vs single-efficient | recovery_denial | 350 |
+| aoe-burst vs sustain | recovery_denial | 350 |
+| single-efficient vs hybrid-fallback | recovery_denial | 350 |
+| single-efficient vs sustain | recovery_denial | 350 |
+| sustain vs hybrid-fallback | recovery_denial | 350 |
+| aoe-burst vs hybrid-fallback | recovery_denial+protected_formation | 250 |
+| aoe-burst vs single-efficient | recovery_denial+protected_formation | 250 |
+| aoe-burst vs sustain | recovery_denial+protected_formation | 250 |
+| single-efficient vs hybrid-fallback | recovery_denial+protected_formation | 250 |
+| single-efficient vs sustain | recovery_denial+protected_formation | 250 |
+| sustain vs hybrid-fallback | recovery_denial+protected_formation | 250 |
+| aoe-burst vs hybrid-fallback | recovery_denial+protected_formation+status_pressure | 5 |
+| aoe-burst vs single-efficient | recovery_denial+protected_formation+status_pressure | 5 |
+| aoe-burst vs sustain | recovery_denial+protected_formation+status_pressure | 5 |
+| single-efficient vs hybrid-fallback | recovery_denial+protected_formation+status_pressure | 5 |
+| single-efficient vs sustain | recovery_denial+protected_formation+status_pressure | 5 |
+| sustain vs hybrid-fallback | recovery_denial+protected_formation+status_pressure | 5 |
+| aoe-burst vs hybrid-fallback | recovery_denial+protected_formation+summon_split | 8 |
+| aoe-burst vs single-efficient | recovery_denial+protected_formation+summon_split | 8 |
+| aoe-burst vs sustain | recovery_denial+protected_formation+summon_split | 8 |
+| single-efficient vs hybrid-fallback | recovery_denial+protected_formation+summon_split | 8 |
+| single-efficient vs sustain | recovery_denial+protected_formation+summon_split | 8 |
+| sustain vs hybrid-fallback | recovery_denial+protected_formation+summon_split | 8 |
+| aoe-burst vs hybrid-fallback | recovery_denial+regen | 89 |
+| aoe-burst vs single-efficient | recovery_denial+regen | 89 |
+| aoe-burst vs sustain | recovery_denial+regen | 89 |
+| single-efficient vs hybrid-fallback | recovery_denial+regen | 89 |
+| single-efficient vs sustain | recovery_denial+regen | 89 |
+| sustain vs hybrid-fallback | recovery_denial+regen | 89 |
+| aoe-burst vs hybrid-fallback | recovery_denial+regen+protected_formation | 8 |
+| aoe-burst vs single-efficient | recovery_denial+regen+protected_formation | 8 |
+| aoe-burst vs sustain | recovery_denial+regen+protected_formation | 8 |
+| single-efficient vs hybrid-fallback | recovery_denial+regen+protected_formation | 8 |
+| single-efficient vs sustain | recovery_denial+regen+protected_formation | 8 |
+| sustain vs hybrid-fallback | recovery_denial+regen+protected_formation | 8 |
+| aoe-burst vs hybrid-fallback | recovery_denial+regen+status_pressure | 3 |
+| aoe-burst vs single-efficient | recovery_denial+regen+status_pressure | 3 |
+| aoe-burst vs sustain | recovery_denial+regen+status_pressure | 3 |
+| single-efficient vs hybrid-fallback | recovery_denial+regen+status_pressure | 3 |
+| single-efficient vs sustain | recovery_denial+regen+status_pressure | 3 |
+| sustain vs hybrid-fallback | recovery_denial+regen+status_pressure | 3 |
+| aoe-burst vs hybrid-fallback | recovery_denial+regen+summon_split | 3 |
+| aoe-burst vs single-efficient | recovery_denial+regen+summon_split | 3 |
+| aoe-burst vs sustain | recovery_denial+regen+summon_split | 3 |
+| single-efficient vs hybrid-fallback | recovery_denial+regen+summon_split | 3 |
+| single-efficient vs sustain | recovery_denial+regen+summon_split | 3 |
+| sustain vs hybrid-fallback | recovery_denial+regen+summon_split | 3 |
+| aoe-burst vs hybrid-fallback | recovery_denial+status_pressure | 82 |
+| aoe-burst vs single-efficient | recovery_denial+status_pressure | 82 |
+| aoe-burst vs sustain | recovery_denial+status_pressure | 82 |
+| single-efficient vs hybrid-fallback | recovery_denial+status_pressure | 82 |
+| single-efficient vs sustain | recovery_denial+status_pressure | 82 |
+| sustain vs hybrid-fallback | recovery_denial+status_pressure | 82 |
+| aoe-burst vs hybrid-fallback | recovery_denial+summon_split | 88 |
+| aoe-burst vs single-efficient | recovery_denial+summon_split | 88 |
+| aoe-burst vs sustain | recovery_denial+summon_split | 88 |
+| single-efficient vs hybrid-fallback | recovery_denial+summon_split | 88 |
+| single-efficient vs sustain | recovery_denial+summon_split | 88 |
+| sustain vs hybrid-fallback | recovery_denial+summon_split | 88 |
+| aoe-burst vs hybrid-fallback | recovery_denial+summon_split+status_pressure | 3 |
+| aoe-burst vs single-efficient | recovery_denial+summon_split+status_pressure | 3 |
+| aoe-burst vs sustain | recovery_denial+summon_split+status_pressure | 3 |
+| single-efficient vs hybrid-fallback | recovery_denial+summon_split+status_pressure | 3 |
+| single-efficient vs sustain | recovery_denial+summon_split+status_pressure | 3 |
+| sustain vs hybrid-fallback | recovery_denial+summon_split+status_pressure | 3 |
+| aoe-burst vs hybrid-fallback | reflection_counter | 5340 |
+| aoe-burst vs single-efficient | reflection_counter | 5340 |
+| aoe-burst vs sustain | reflection_counter | 5340 |
+| single-efficient vs hybrid-fallback | reflection_counter | 5340 |
+| single-efficient vs sustain | reflection_counter | 5340 |
+| sustain vs hybrid-fallback | reflection_counter | 5340 |
+| aoe-burst vs hybrid-fallback | reflection_counter+magic_denial | 141 |
+| aoe-burst vs single-efficient | reflection_counter+magic_denial | 141 |
+| aoe-burst vs sustain | reflection_counter+magic_denial | 141 |
+| single-efficient vs hybrid-fallback | reflection_counter+magic_denial | 141 |
+| single-efficient vs sustain | reflection_counter+magic_denial | 141 |
+| sustain vs hybrid-fallback | reflection_counter+magic_denial | 141 |
+| aoe-burst vs hybrid-fallback | reflection_counter+magic_denial+protected_formation | 18 |
+| aoe-burst vs single-efficient | reflection_counter+magic_denial+protected_formation | 18 |
+| aoe-burst vs sustain | reflection_counter+magic_denial+protected_formation | 18 |
+| single-efficient vs hybrid-fallback | reflection_counter+magic_denial+protected_formation | 18 |
+| single-efficient vs sustain | reflection_counter+magic_denial+protected_formation | 18 |
+| sustain vs hybrid-fallback | reflection_counter+magic_denial+protected_formation | 18 |
+| aoe-burst vs hybrid-fallback | reflection_counter+magic_denial+summon_split | 5 |
+| aoe-burst vs single-efficient | reflection_counter+magic_denial+summon_split | 5 |
+| aoe-burst vs sustain | reflection_counter+magic_denial+summon_split | 5 |
+| single-efficient vs hybrid-fallback | reflection_counter+magic_denial+summon_split | 5 |
+| single-efficient vs sustain | reflection_counter+magic_denial+summon_split | 5 |
+| sustain vs hybrid-fallback | reflection_counter+magic_denial+summon_split | 5 |
+| aoe-burst vs hybrid-fallback | reflection_counter+mp_drain | 150 |
+| aoe-burst vs single-efficient | reflection_counter+mp_drain | 150 |
+| aoe-burst vs sustain | reflection_counter+mp_drain | 150 |
+| single-efficient vs hybrid-fallback | reflection_counter+mp_drain | 150 |
+| single-efficient vs sustain | reflection_counter+mp_drain | 150 |
+| sustain vs hybrid-fallback | reflection_counter+mp_drain | 150 |
+| aoe-burst vs hybrid-fallback | reflection_counter+mp_drain+protected_formation | 8 |
+| aoe-burst vs single-efficient | reflection_counter+mp_drain+protected_formation | 8 |
+| aoe-burst vs sustain | reflection_counter+mp_drain+protected_formation | 8 |
+| single-efficient vs hybrid-fallback | reflection_counter+mp_drain+protected_formation | 8 |
+| single-efficient vs sustain | reflection_counter+mp_drain+protected_formation | 8 |
+| sustain vs hybrid-fallback | reflection_counter+mp_drain+protected_formation | 8 |
+| aoe-burst vs hybrid-fallback | reflection_counter+multi_action | 244 |
+| aoe-burst vs single-efficient | reflection_counter+multi_action | 244 |
+| aoe-burst vs sustain | reflection_counter+multi_action | 244 |
+| single-efficient vs hybrid-fallback | reflection_counter+multi_action | 244 |
+| single-efficient vs sustain | reflection_counter+multi_action | 244 |
+| sustain vs hybrid-fallback | reflection_counter+multi_action | 244 |
+| aoe-burst vs hybrid-fallback | reflection_counter+protected_formation | 1606 |
+| aoe-burst vs single-efficient | reflection_counter+protected_formation | 1606 |
+| aoe-burst vs sustain | reflection_counter+protected_formation | 1606 |
+| single-efficient vs hybrid-fallback | reflection_counter+protected_formation | 1606 |
+| single-efficient vs sustain | reflection_counter+protected_formation | 1606 |
+| sustain vs hybrid-fallback | reflection_counter+protected_formation | 1606 |
+| aoe-burst vs hybrid-fallback | reflection_counter+protected_formation+multi_action | 24 |
+| aoe-burst vs single-efficient | reflection_counter+protected_formation+multi_action | 24 |
+| aoe-burst vs sustain | reflection_counter+protected_formation+multi_action | 24 |
+| single-efficient vs hybrid-fallback | reflection_counter+protected_formation+multi_action | 24 |
+| single-efficient vs sustain | reflection_counter+protected_formation+multi_action | 24 |
+| sustain vs hybrid-fallback | reflection_counter+protected_formation+multi_action | 24 |
+| aoe-burst vs hybrid-fallback | reflection_counter+protected_formation+status_pressure | 7 |
+| aoe-burst vs single-efficient | reflection_counter+protected_formation+status_pressure | 7 |
+| aoe-burst vs sustain | reflection_counter+protected_formation+status_pressure | 7 |
+| single-efficient vs hybrid-fallback | reflection_counter+protected_formation+status_pressure | 7 |
+| single-efficient vs sustain | reflection_counter+protected_formation+status_pressure | 7 |
+| sustain vs hybrid-fallback | reflection_counter+protected_formation+status_pressure | 7 |
+| aoe-burst vs hybrid-fallback | reflection_counter+protected_formation+summon_split | 7 |
+| aoe-burst vs single-efficient | reflection_counter+protected_formation+summon_split | 7 |
+| aoe-burst vs sustain | reflection_counter+protected_formation+summon_split | 7 |
+| single-efficient vs hybrid-fallback | reflection_counter+protected_formation+summon_split | 7 |
+| single-efficient vs sustain | reflection_counter+protected_formation+summon_split | 7 |
+| sustain vs hybrid-fallback | reflection_counter+protected_formation+summon_split | 7 |
+| aoe-burst vs hybrid-fallback | reflection_counter+recovery_denial | 91 |
+| aoe-burst vs single-efficient | reflection_counter+recovery_denial | 91 |
+| aoe-burst vs sustain | reflection_counter+recovery_denial | 91 |
+| single-efficient vs hybrid-fallback | reflection_counter+recovery_denial | 91 |
+| single-efficient vs sustain | reflection_counter+recovery_denial | 91 |
+| sustain vs hybrid-fallback | reflection_counter+recovery_denial | 91 |
+| aoe-burst vs hybrid-fallback | reflection_counter+recovery_denial+protected_formation | 5 |
+| aoe-burst vs single-efficient | reflection_counter+recovery_denial+protected_formation | 5 |
+| aoe-burst vs sustain | reflection_counter+recovery_denial+protected_formation | 5 |
+| single-efficient vs hybrid-fallback | reflection_counter+recovery_denial+protected_formation | 5 |
+| single-efficient vs sustain | reflection_counter+recovery_denial+protected_formation | 5 |
+| sustain vs hybrid-fallback | reflection_counter+recovery_denial+protected_formation | 5 |
+| aoe-burst vs hybrid-fallback | reflection_counter+recovery_denial+regen | 2 |
+| aoe-burst vs single-efficient | reflection_counter+recovery_denial+regen | 2 |
+| aoe-burst vs sustain | reflection_counter+recovery_denial+regen | 2 |
+| single-efficient vs hybrid-fallback | reflection_counter+recovery_denial+regen | 2 |
+| single-efficient vs sustain | reflection_counter+recovery_denial+regen | 2 |
+| sustain vs hybrid-fallback | reflection_counter+recovery_denial+regen | 2 |
+| aoe-burst vs hybrid-fallback | reflection_counter+recovery_denial+summon_split | 5 |
+| aoe-burst vs single-efficient | reflection_counter+recovery_denial+summon_split | 5 |
+| aoe-burst vs sustain | reflection_counter+recovery_denial+summon_split | 5 |
+| single-efficient vs hybrid-fallback | reflection_counter+recovery_denial+summon_split | 5 |
+| single-efficient vs sustain | reflection_counter+recovery_denial+summon_split | 5 |
+| sustain vs hybrid-fallback | reflection_counter+recovery_denial+summon_split | 5 |
+| aoe-burst vs hybrid-fallback | reflection_counter+regen | 94 |
+| aoe-burst vs single-efficient | reflection_counter+regen | 94 |
+| aoe-burst vs sustain | reflection_counter+regen | 94 |
+| single-efficient vs hybrid-fallback | reflection_counter+regen | 94 |
+| single-efficient vs sustain | reflection_counter+regen | 94 |
+| sustain vs hybrid-fallback | reflection_counter+regen | 94 |
+| aoe-burst vs hybrid-fallback | reflection_counter+regen+protected_formation | 6 |
+| aoe-burst vs single-efficient | reflection_counter+regen+protected_formation | 6 |
+| aoe-burst vs sustain | reflection_counter+regen+protected_formation | 6 |
+| single-efficient vs hybrid-fallback | reflection_counter+regen+protected_formation | 6 |
+| single-efficient vs sustain | reflection_counter+regen+protected_formation | 6 |
+| sustain vs hybrid-fallback | reflection_counter+regen+protected_formation | 6 |
+| aoe-burst vs hybrid-fallback | reflection_counter+regen+status_pressure | 1 |
+| aoe-burst vs single-efficient | reflection_counter+regen+status_pressure | 1 |
+| aoe-burst vs sustain | reflection_counter+regen+status_pressure | 1 |
+| single-efficient vs hybrid-fallback | reflection_counter+regen+status_pressure | 1 |
+| single-efficient vs sustain | reflection_counter+regen+status_pressure | 1 |
+| sustain vs hybrid-fallback | reflection_counter+regen+status_pressure | 1 |
+| aoe-burst vs hybrid-fallback | reflection_counter+regen+summon_split | 3 |
+| aoe-burst vs single-efficient | reflection_counter+regen+summon_split | 3 |
+| aoe-burst vs sustain | reflection_counter+regen+summon_split | 3 |
+| single-efficient vs hybrid-fallback | reflection_counter+regen+summon_split | 3 |
+| single-efficient vs sustain | reflection_counter+regen+summon_split | 3 |
+| sustain vs hybrid-fallback | reflection_counter+regen+summon_split | 3 |
+| aoe-burst vs hybrid-fallback | reflection_counter+status_pressure | 117 |
+| aoe-burst vs single-efficient | reflection_counter+status_pressure | 117 |
+| aoe-burst vs sustain | reflection_counter+status_pressure | 117 |
+| single-efficient vs hybrid-fallback | reflection_counter+status_pressure | 117 |
+| single-efficient vs sustain | reflection_counter+status_pressure | 117 |
+| sustain vs hybrid-fallback | reflection_counter+status_pressure | 117 |
+| aoe-burst vs hybrid-fallback | reflection_counter+summon_split | 235 |
+| aoe-burst vs single-efficient | reflection_counter+summon_split | 235 |
+| aoe-burst vs sustain | reflection_counter+summon_split | 235 |
+| single-efficient vs hybrid-fallback | reflection_counter+summon_split | 235 |
+| single-efficient vs sustain | reflection_counter+summon_split | 235 |
+| sustain vs hybrid-fallback | reflection_counter+summon_split | 235 |
+| aoe-burst vs hybrid-fallback | reflection_counter+summon_split+status_pressure | 5 |
+| aoe-burst vs single-efficient | reflection_counter+summon_split+status_pressure | 5 |
+| aoe-burst vs sustain | reflection_counter+summon_split+status_pressure | 5 |
+| single-efficient vs hybrid-fallback | reflection_counter+summon_split+status_pressure | 5 |
+| single-efficient vs sustain | reflection_counter+summon_split+status_pressure | 5 |
+| sustain vs hybrid-fallback | reflection_counter+summon_split+status_pressure | 5 |
+| aoe-burst vs hybrid-fallback | regen | 383 |
+| aoe-burst vs single-efficient | regen | 383 |
+| aoe-burst vs sustain | regen | 383 |
+| single-efficient vs hybrid-fallback | regen | 383 |
+| single-efficient vs sustain | regen | 383 |
+| sustain vs hybrid-fallback | regen | 383 |
+| aoe-burst vs hybrid-fallback | regen+protected_formation | 229 |
+| aoe-burst vs single-efficient | regen+protected_formation | 229 |
+| aoe-burst vs sustain | regen+protected_formation | 229 |
+| single-efficient vs hybrid-fallback | regen+protected_formation | 229 |
+| single-efficient vs sustain | regen+protected_formation | 229 |
+| sustain vs hybrid-fallback | regen+protected_formation | 229 |
+| aoe-burst vs hybrid-fallback | regen+protected_formation+status_pressure | 10 |
+| aoe-burst vs single-efficient | regen+protected_formation+status_pressure | 10 |
+| aoe-burst vs sustain | regen+protected_formation+status_pressure | 10 |
+| single-efficient vs hybrid-fallback | regen+protected_formation+status_pressure | 10 |
+| single-efficient vs sustain | regen+protected_formation+status_pressure | 10 |
+| sustain vs hybrid-fallback | regen+protected_formation+status_pressure | 10 |
+| aoe-burst vs hybrid-fallback | regen+protected_formation+summon_split | 4 |
+| aoe-burst vs single-efficient | regen+protected_formation+summon_split | 4 |
+| aoe-burst vs sustain | regen+protected_formation+summon_split | 4 |
+| single-efficient vs hybrid-fallback | regen+protected_formation+summon_split | 4 |
+| single-efficient vs sustain | regen+protected_formation+summon_split | 4 |
+| sustain vs hybrid-fallback | regen+protected_formation+summon_split | 4 |
+| aoe-burst vs hybrid-fallback | regen+status_pressure | 94 |
+| aoe-burst vs single-efficient | regen+status_pressure | 94 |
+| aoe-burst vs sustain | regen+status_pressure | 94 |
+| single-efficient vs hybrid-fallback | regen+status_pressure | 94 |
+| single-efficient vs sustain | regen+status_pressure | 94 |
+| sustain vs hybrid-fallback | regen+status_pressure | 94 |
+| aoe-burst vs hybrid-fallback | regen+summon_split | 94 |
+| aoe-burst vs single-efficient | regen+summon_split | 94 |
+| aoe-burst vs sustain | regen+summon_split | 94 |
+| single-efficient vs hybrid-fallback | regen+summon_split | 94 |
+| single-efficient vs sustain | regen+summon_split | 94 |
+| sustain vs hybrid-fallback | regen+summon_split | 94 |
+| aoe-burst vs hybrid-fallback | regen+summon_split+status_pressure | 5 |
+| aoe-burst vs single-efficient | regen+summon_split+status_pressure | 5 |
+| aoe-burst vs sustain | regen+summon_split+status_pressure | 5 |
+| single-efficient vs hybrid-fallback | regen+summon_split+status_pressure | 5 |
+| single-efficient vs sustain | regen+summon_split+status_pressure | 5 |
+| sustain vs hybrid-fallback | regen+summon_split+status_pressure | 5 |
+| aoe-burst vs hybrid-fallback | single_aggressor | 5706 |
+| aoe-burst vs single-efficient | single_aggressor | 5706 |
+| aoe-burst vs sustain | single_aggressor | 5706 |
+| single-efficient vs hybrid-fallback | single_aggressor | 5706 |
+| single-efficient vs sustain | single_aggressor | 5706 |
+| sustain vs hybrid-fallback | single_aggressor | 5706 |
+| aoe-burst vs hybrid-fallback | single_disruptor | 1524 |
+| aoe-burst vs single-efficient | single_disruptor | 1524 |
+| aoe-burst vs sustain | single_disruptor | 1524 |
+| single-efficient vs hybrid-fallback | single_disruptor | 1524 |
+| single-efficient vs sustain | single_disruptor | 1524 |
+| sustain vs hybrid-fallback | single_disruptor | 1524 |
+| aoe-burst vs hybrid-fallback | status_pressure | 367 |
+| aoe-burst vs single-efficient | status_pressure | 367 |
+| aoe-burst vs sustain | status_pressure | 367 |
+| single-efficient vs hybrid-fallback | status_pressure | 367 |
+| single-efficient vs sustain | status_pressure | 367 |
+| sustain vs hybrid-fallback | status_pressure | 367 |
+| aoe-burst vs hybrid-fallback | summon_split | 740 |
+| aoe-burst vs single-efficient | summon_split | 740 |
+| aoe-burst vs sustain | summon_split | 740 |
+| single-efficient vs hybrid-fallback | summon_split | 740 |
+| single-efficient vs sustain | summon_split | 740 |
+| sustain vs hybrid-fallback | summon_split | 740 |
+| aoe-burst vs hybrid-fallback | summon_split+status_pressure | 106 |
+| aoe-burst vs single-efficient | summon_split+status_pressure | 106 |
+| aoe-burst vs sustain | summon_split+status_pressure | 106 |
+| single-efficient vs hybrid-fallback | summon_split+status_pressure | 106 |
+| single-efficient vs sustain | summon_split+status_pressure | 106 |
+| sustain vs hybrid-fallback | summon_split+status_pressure | 106 |
 
 ## B. Controlled stress fixtures
 
@@ -205,16 +554,59 @@ All counterfactual deltas are **candidate − baseline**; positive means improve
 - insufficient-sample family comparisons excluded: **0**
 - family paired N: **36** build-pair×family entries recorded in JSON
 - equal-cell best-build coverage (not encounter-frequency weighted): **aoe-burst**, share **56.94%** across **36** depth×family cells
-- production-frequency-weighted best-build share: **aoe-burst**, share **42.81%** across **18000** encounter samples
+- production-frequency-weighted best-build share (diagnostic utility): **aoe-burst**, share **42.81%** across **18000** encounter samples
 
 | Build pair | Paired clear difference (left − right) | Paired HP difference (left − right) | Paired MP difference (left − right) |
 | --- | ---: | ---: | ---: |
-| aoe-burst vs single-efficient | -0.3110 | -0.3060 | 0.0908 |
-| aoe-burst vs sustain | -0.0793 | -0.1405 | -0.0315 |
-| aoe-burst vs hybrid-fallback | -0.3773 | -0.3685 | 0.1294 |
-| single-efficient vs sustain | 0.2317 | 0.1654 | -0.1223 |
-| single-efficient vs hybrid-fallback | -0.0663 | -0.0626 | 0.0386 |
-| sustain vs hybrid-fallback | -0.2979 | -0.2280 | 0.1609 |
+| aoe-burst vs single-efficient | 0.3110 | 0.3060 | -0.0908 |
+| aoe-burst vs sustain | 0.0793 | 0.1405 | 0.0315 |
+| aoe-burst vs hybrid-fallback | 0.3773 | 0.3685 | -0.1294 |
+| single-efficient vs sustain | -0.2317 | -0.1654 | 0.1223 |
+| single-efficient vs hybrid-fallback | 0.0663 | 0.0626 | -0.0386 |
+| sustain vs hybrid-fallback | 0.2979 | 0.2280 | -0.1609 |
+
+### Family paired sample sizes
+
+Every family/build-pair paired N is recorded here. N<30 is emitted as `insufficient_sample` and cannot enter strict reversal.
+
+| Build pair | Family | Paired N |
+| --- | --- | ---: |
+| aoe-burst vs hybrid-fallback | mp_drain | 3000 |
+| aoe-burst vs single-efficient | mp_drain | 3000 |
+| aoe-burst vs sustain | mp_drain | 3000 |
+| single-efficient vs hybrid-fallback | mp_drain | 3000 |
+| single-efficient vs sustain | mp_drain | 3000 |
+| sustain vs hybrid-fallback | mp_drain | 3000 |
+| aoe-burst vs hybrid-fallback | protected_formation | 3000 |
+| aoe-burst vs single-efficient | protected_formation | 3000 |
+| aoe-burst vs sustain | protected_formation | 3000 |
+| single-efficient vs hybrid-fallback | protected_formation | 3000 |
+| single-efficient vs sustain | protected_formation | 3000 |
+| sustain vs hybrid-fallback | protected_formation | 3000 |
+| aoe-burst vs hybrid-fallback | recovery_denial | 3000 |
+| aoe-burst vs single-efficient | recovery_denial | 3000 |
+| aoe-burst vs sustain | recovery_denial | 3000 |
+| single-efficient vs hybrid-fallback | recovery_denial | 3000 |
+| single-efficient vs sustain | recovery_denial | 3000 |
+| sustain vs hybrid-fallback | recovery_denial | 3000 |
+| aoe-burst vs hybrid-fallback | reflection_counter+magic_denial | 3000 |
+| aoe-burst vs single-efficient | reflection_counter+magic_denial | 3000 |
+| aoe-burst vs sustain | reflection_counter+magic_denial | 3000 |
+| single-efficient vs hybrid-fallback | reflection_counter+magic_denial | 3000 |
+| single-efficient vs sustain | reflection_counter+magic_denial | 3000 |
+| sustain vs hybrid-fallback | reflection_counter+magic_denial | 3000 |
+| aoe-burst vs hybrid-fallback | regen | 3000 |
+| aoe-burst vs single-efficient | regen | 3000 |
+| aoe-burst vs sustain | regen | 3000 |
+| single-efficient vs hybrid-fallback | regen | 3000 |
+| single-efficient vs sustain | regen | 3000 |
+| sustain vs hybrid-fallback | regen | 3000 |
+| aoe-burst vs hybrid-fallback | summon_split+multi_action | 3000 |
+| aoe-burst vs single-efficient | summon_split+multi_action | 3000 |
+| aoe-burst vs sustain | summon_split+multi_action | 3000 |
+| single-efficient vs hybrid-fallback | summon_split+multi_action | 3000 |
+| single-efficient vs sustain | summon_split+multi_action | 3000 |
+| sustain vs hybrid-fallback | summon_split+multi_action | 3000 |
 
 ## Interpretation and required decisions
 
