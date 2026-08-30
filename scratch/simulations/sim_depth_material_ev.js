@@ -11734,7 +11734,7 @@ function hasBuildCoreAffix(item) {
 }
 
 function createFloorSupplyStats() {
-  return Array.from({ length: 21 }, () => ({
+  return Array.from({ length: 41 }, () => ({
     equipment: 0,
     core: 0,
     cursed: 0,
