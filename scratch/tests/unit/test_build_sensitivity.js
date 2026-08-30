@@ -10,9 +10,29 @@ import {
 import { CORE_AFFIXES, SUPPORT_AFFIXES } from "../../../src/data/affixes.js";
 import { ITEMS } from "../../../src/data/items.js";
 import { SPELLS } from "../../../src/data/spells.js";
+import { getDepthScaling, scaleEnemyForDepth } from "../../../src/rules/depth_scaling.js";
 
 const coreIds = new Set(CORE_AFFIXES.map(affix => affix.id));
 const supportIds = new Set(SUPPORT_AFFIXES.map(affix => affix.id));
+
+const scalingProbe = { name: "scaling probe", hp: 100, atk: 20, def: 10, exp: 100 };
+const b8Probe = scaleEnemyForDepth(scalingProbe, 8);
+const b13Probe = scaleEnemyForDepth(scalingProbe, 13);
+const b18Probe = scaleEnemyForDepth(scalingProbe, 18);
+assert.equal(
+  b13Probe.maxHp,
+  b18Probe.maxHp,
+  "B11+ HP scaling should use the B10 ceiling"
+);
+assert.ok(
+  b18Probe.atk > b13Probe.atk,
+  "B13 and B18 must retain distinct ATK pressure"
+);
+assert.equal(
+  b8Probe.maxHp,
+  Math.round(scalingProbe.hp * getDepthScaling(8).enemy),
+  "the deep-band HP tuning must not change B8"
+);
 
 const first = createEncounterFixture("magic-denial", 13);
 const second = createEncounterFixture("magic-denial", 13);

@@ -14,17 +14,13 @@ export function getDepthScaling(floor) {
 export function scaleEnemyForDepth(monster, floor, { boss = false } = {}) {
   const scaling = getDepthScaling(floor);
   const bossMultiplier = boss ? 1.12 : 1;
-  const hpMultiplier = scaling.enemy * bossMultiplier;
-  const mechanicTraits = [
-    "multiAction", "summonAlly", "regen", "drainMp", "silence", "antiHeal",
-    "splitOnDeath", "reflectPhysical", "reflectMagic", "counterSpell", "guardAdjacent"
-  ];
-  const hasBuildTestMechanic = mechanicTraits.some(trait => monster.traits?.includes(trait));
+  // B11+ should expose composition and build weaknesses without extending
+  // every encounter's HP wall indefinitely. Keep ATK depth pressure intact so
+  // B13 and B18 remain distinct tests rather than identical stat cells.
   const deepBandStartEnemyScaling = getDepthScaling(10).enemy - 1;
-  const preDeepAttackGrowth = Math.min(scaling.enemy - 1, deepBandStartEnemyScaling);
-  const deepAttackGrowth = Math.max(0, scaling.enemy - 1 - deepBandStartEnemyScaling);
-  const deepAttackGrowthRate = hasBuildTestMechanic ? 0 : 0.58;
-  const attackMultiplier = 1 + preDeepAttackGrowth * 0.58 + deepAttackGrowth * deepAttackGrowthRate + (boss ? 0.08 : 0);
+  const hpGrowth = Math.min(scaling.enemy - 1, deepBandStartEnemyScaling);
+  const hpMultiplier = (1 + hpGrowth) * bossMultiplier;
+  const attackMultiplier = 1 + (scaling.enemy - 1) * 0.58 + (boss ? 0.08 : 0);
   const defenseMultiplier = 1 + (scaling.enemy - 1) * 0.34;
   const rewardMultiplier = scaling.reward * (boss ? 1.2 : 1);
   const hp = Math.max(1, Math.round(monster.hp * hpMultiplier));
