@@ -691,7 +691,7 @@ function renderStage15Sections(report) {
     "### Stage 1.5 answers",
     "",
     `1. Population bottleneck: ${personas.map(persona => `${persona}=B${bottleneck(persona)?.floor ?? "n/a"} (${percent(bottleneck(persona)?.conditionalSurvival)})`).join("; ")}.`,
-    `2. MP decline: ${personas.map(persona => { const records = observedFloors(persona); const first = records.find(value => value.exit.mpRatio < value.entry.mpRatio); return `${persona}=${first ? `B${first.floor}` : "not observed"}`; }).join("; ")}.`,
+    `2. MP decline: ${personas.map(persona => { const records = observedFloors(persona); const first = records.find(value => value.exit.mpRatio.mean < value.entry.mpRatio.mean); return `${persona}=${first ? `B${first.floor}` : "not observed"}`; }).join("; ")}.`,
     `3. HP vs MP: B5 entry survivor means are ${personas.map(persona => `${persona} HP ${percent(floor(persona, 5)?.entry.hpRatio.mean)}, MP ${percent(floor(persona, 5)?.entry.mpRatio.mean)}`).join("; ")}; this is conditional on B5 entry.`,
     `4. Main spells: ${personas.map(persona => { const spells = Object.values(diagnostics[persona]?.spellUsage || {}).sort((a, b) => b.castCount - a.castCount); return `${persona}=${spells[0]?.spellId || "none"}`; }).join("; ")}.`,
     `5. MP shortage changing action: blocked decisions=${personas.map(persona => `${persona} ${observedFloors(persona).reduce((sum, value) => sum + value.insufficientMpDecisionCount, 0)}`).join(", ")}; this is telemetry of denied spell opportunities, not a causal proof.`,
@@ -830,7 +830,7 @@ export function renderSummary(report) {
     "## Reproduction",
     "",
     "```sh",
-    `node scratch/measurements/issue990_phase3_stage1.js --runs ${report.measurement.configuration.runs} --seed ${report.measurement.configuration.seed} --personas ${personas.join(",")} --output evidence/results/issue-990-phase3-stage1.json --summary evidence/results/issue-990-phase3-stage1.md`,
+    `node ${report.measurement.configuration.runnerPath} --runs ${report.measurement.configuration.runs} --seed ${report.measurement.configuration.seed} --personas ${personas.join(",")} --output evidence/results/issue-990-phase3-stage1${report.stage15Diagnostics ? ".5" : ""}.json --summary evidence/results/issue-990-phase3-stage1${report.stage15Diagnostics ? ".5" : ""}.md`,
     "```",
     ""
   ];
