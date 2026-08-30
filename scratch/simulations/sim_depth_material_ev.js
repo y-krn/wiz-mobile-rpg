@@ -2244,7 +2244,9 @@ function createCombatMpMeasurement() {
   };
 }
 
-const STAGE15_MAX_FLOOR = 9;
+// Stage 1.5 consumes only B1-B9. Keep the same measurement-only telemetry
+// shape available through the natural target depth for Stage 2.
+const STAGE15_MAX_FLOOR = 30;
 const STAGE15_MP_BUCKETS = Object.freeze([
   "0%",
   "1-25%",
@@ -4542,6 +4544,7 @@ function createSimulationState(
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
     simPolicy: {
+      combatPolicy: scenario.combatPolicy || "balanced-combat",
       tacticalConsumablePolicy: SIM_412_POLICY,
       equipmentCraftPolicy,
       identificationPolicy,
@@ -5486,6 +5489,94 @@ function chooseSimulationAutoCombatAction(args) {
   });
 }
 
+export const COMBAT_POLICY_IDS = Object.freeze([
+  "balanced-combat",
+  "mp-conserving",
+  "burst-combat"
+]);
+
+const BURST_MAGE_ALL_SPELLS = Object.freeze(["TILTOWAIT", "MADALTO", "LAHALITO"]);
+const BURST_MAGE_SINGLE_SPELLS = Object.freeze(["MAHALITO", "HALITO"]);
+
+function getLowestLivingEnemyIndex(monsters) {
+  let index = -1;
+  let hp = Infinity;
+  monsters.forEach((monster, monsterIndex) => {
+    if (monster.hp > 0 && monster.hp < hp) {
+      index = monsterIndex;
+      hp = monster.hp;
+    }
+  });
+  return index;
+}
+
+function getPolicySpellAction({ character, enemies, canCastSpell }, spellName) {
+  const targetIdx = getLowestLivingEnemyIndex(enemies);
+  if (targetIdx < 0 || !hasSpell(character, spellName) || !canCastSpell(spellName, 0)) {
+    return null;
+  }
+  return { type: "spell", targetIdx, spellName };
+}
+
+function selectBalancedCombatAction(context) {
+  return chooseSimulationAutoCombatAction({
+    character: context.character,
+    monsters: context.enemies,
+    roundNumber: context.roundNumber,
+    canCastSpell: context.canCastSpell
+  });
+}
+
+// Measurement-only policies receive only current combat state. They do not
+// receive the simulation state, maps, future encounters, RNG, or hidden data.
+function selectMpConservingCombatAction(context) {
+  const { character, enemies, roundNumber } = context;
+  const living = enemies.filter(enemy => enemy.hp > 0);
+  const lowestHp = living.length ? Math.min(...living.map(enemy => enemy.hp)) : 0;
+  const targetIdx = getLowestLivingEnemyIndex(enemies);
+  if (targetIdx < 0) return null;
+  if (roundNumber === 1 && living.length >= 3) {
+    const crowdControl = getPolicySpellAction(context, "KATINO");
+    if (crowdControl) return crowdControl;
+  }
+  if (living.length >= 2 && lowestHp > 35) {
+    const cheapArea = getPolicySpellAction(context, "LAHALITO");
+    if (cheapArea) return cheapArea;
+  }
+  if (living.length === 1 && lowestHp > 22) {
+    const cheapSingle = getPolicySpellAction(context, "HALITO");
+    if (cheapSingle) return cheapSingle;
+  }
+  return { type: "fight", targetIdx };
+}
+
+function selectBurstCombatAction(context) {
+  const { enemies } = context;
+  const living = enemies.filter(enemy => enemy.hp > 0);
+  const targetIdx = getLowestLivingEnemyIndex(enemies);
+  if (targetIdx < 0) return null;
+  const candidates = living.length >= 2
+    ? BURST_MAGE_ALL_SPELLS
+    : BURST_MAGE_SINGLE_SPELLS;
+  for (const spellName of candidates) {
+    const action = getPolicySpellAction(context, spellName);
+    if (action) return action;
+  }
+  return { type: "fight", targetIdx };
+}
+
+const COMBAT_POLICY_SELECTORS = Object.freeze({
+  "balanced-combat": selectBalancedCombatAction,
+  "mp-conserving": selectMpConservingCombatAction,
+  "burst-combat": selectBurstCombatAction
+});
+
+export function selectSimulationCombatActionForPolicy(context) {
+  const selector = COMBAT_POLICY_SELECTORS[context.combatPolicy || "balanced-combat"];
+  if (!selector) throw new Error(`Unknown combat policy: ${context.combatPolicy}`);
+  return selector(context);
+}
+
 function chooseSimulationCombatActionForCharacter(character, monsters, roundNumber, healThreshold) {
   return chooseSimulationAutoCombatAction({
     character,
@@ -6406,9 +6497,10 @@ function selectCombatAction(state, metrics) {
   if (combatManaPotionAction) return combatManaPotionAction;
 
   const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
-  const sharedAutoAction = chooseSimulationAutoCombatAction({
+  const sharedAutoAction = selectSimulationCombatActionForPolicy({
+    combatPolicy: state.simPolicy.combatPolicy,
     character,
-    monsters,
+    enemies: monsters,
     roundNumber: state.combatState.roundNumber,
     canCastSpell: (spellName, reserveMp) =>
       getSpellActionPayment(state, spellName, reserveMp)
