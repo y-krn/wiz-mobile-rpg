@@ -491,6 +491,7 @@ const { triggerFlameTrap } = await import("../../../src/movement.js");
 const realFlameRandom = Math.random;
 state.floor = 5;
 state.gameState = "explore";
+state.activeTrapState = null;
 state.currentRun = null;
 state.party = [{
   name: "Robin",
@@ -566,6 +567,28 @@ if (state.party[0].hp !== 12 || !state.logs.some(log => log.includes("部分回�
 }
 
 state.party = [{
+  name: "Lina",
+  class: "Bishop",
+  level: 1,
+  hp: 50,
+  maxHp: 50,
+  status: "ok",
+  equipment: {}
+}];
+state.logs = [];
+flameRolls = [0.99, 0.99];
+Math.random = () => flameRolls.shift() ?? 0;
+try {
+  triggerFlameTrap();
+} finally {
+  Math.random = realFlameRandom;
+}
+if (state.party[0].hp !== 18) {
+  console.error(`FAIL: full flame failure should use the B5 damage maximum of 32, got ${50 - state.party[0].hp}.`);
+  process.exit(1);
+}
+
+state.party = [{
   name: "Arthur",
   class: "Fighter",
   level: 1,
@@ -604,6 +627,10 @@ try {
 }
 if (state.party[0].hp !== 15 || !state.logs.some(log => log.includes("部分回避"))) {
   console.error("FAIL: the partial success band should weaken the flame hit.");
+  process.exit(1);
+}
+if (state.gameState !== "explore" || state.activeTrapState !== null) {
+  console.error("FAIL: flame trap must not enter the ordinary trap encounter UI.");
   process.exit(1);
 }
 console.log("- common success, partial, full-failure, and trapGuard paths verified");
