@@ -1,6 +1,6 @@
 // sim-scope: run — measure the existing source-backed fromDrop chest path and its smash decisions
 /* global process */
-
+import "../simulations/simulation_preflight.js";
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 

@@ -67,4 +67,4 @@ const report = buildReport({
 assert.equal(report.status.liveTelemetry, "unexecuted");
 assert.equal(report.classification.productionTelemetry, "unexecuted");
 assert.match(renderMarkdown(report), /needs-more-measurement/);
-console.log("[PASS] issue #816 chest telemetry aggregation keeps ordinary and fromDrop separate");
+console.log("[PASS] chest telemetry aggregation keeps ordinary and fromDrop separate");
