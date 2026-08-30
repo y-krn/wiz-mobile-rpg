@@ -147,23 +147,27 @@ check("the elite matches the biome roster and exists in the monster table", () =
 });
 
 check("roaming elite same-template progression remains monotonic", () => {
-  const previousByName = new Map();
+  const templates = new Map();
   for (let floor = ELITE_MIN_FLOOR; floor <= 30; floor++) {
     const eliteName = getBiomeForFloor(floor).eliteName;
-    const template = MONSTERS.find(monster => monster.name === eliteName);
-    const scaled = scaleEnemyForDepth(template, floor);
-    const previous = previousByName.get(eliteName);
-    if (previous) {
-      assert.ok(scaled.hp >= previous.hp,
-        `B${floor}F ${eliteName} HP ${scaled.hp} must not fall below ${previous.hp}`);
-      assert.ok(scaled.atk >= previous.atk,
-        `B${floor}F ${eliteName} ATK ${scaled.atk} must not fall below ${previous.atk}`);
-      assert.ok(scaled.hp / previous.hp <= 1.16,
-        `B${floor}F ${eliteName} HP jumped from ${previous.hp} to ${scaled.hp}`);
-      assert.ok(scaled.atk / previous.atk <= 1.16,
-        `B${floor}F ${eliteName} ATK jumped from ${previous.atk} to ${scaled.atk}`);
+    templates.set(eliteName, MONSTERS.find(monster => monster.name === eliteName));
+  }
+  for (const [eliteName, template] of templates) {
+    let previous = null;
+    for (let floor = ELITE_MIN_FLOOR; floor <= 30; floor++) {
+      const scaled = scaleEnemyForDepth(template, floor);
+      if (previous) {
+        assert.ok(scaled.hp >= previous.hp,
+          `B${floor}F ${eliteName} HP ${scaled.hp} must not fall below ${previous.hp}`);
+        assert.ok(scaled.atk >= previous.atk,
+          `B${floor}F ${eliteName} ATK ${scaled.atk} must not fall below ${previous.atk}`);
+        assert.ok(scaled.hp / previous.hp <= 1.16,
+          `B${floor}F ${eliteName} HP jumped from ${previous.hp} to ${scaled.hp}`);
+        assert.ok(scaled.atk / previous.atk <= 1.16,
+          `B${floor}F ${eliteName} ATK jumped from ${previous.atk} to ${scaled.atk}`);
+      }
+      previous = scaled;
     }
-    previousByName.set(eliteName, scaled);
   }
 });
 
