@@ -4244,6 +4244,7 @@ function createSimulationState(
     },
     simDepartureCraftDemand: departureCraftDemand,
     simMaterialCompetition: materialCompetition,
+    simPersonaId: scenario.personaId || null,
     simHealPotionMerchantPurchases: 0,
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
@@ -8264,31 +8265,37 @@ function getUnidentifiedEffectDelta(character, item) {
   };
 }
 
-function getBaseEquipmentScore(character) {
+function getPersonaEquipmentWeight(scoringProfile, key) {
+  return Number.isFinite(Number(scoringProfile?.personaEquipmentWeights?.[key]))
+    ? Number(scoringProfile.personaEquipmentWeights[key])
+    : 1;
+}
+
+function getBaseEquipmentScore(character, scoringProfile = null) {
   return (
-    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk +
-    getCharDef(character) * EQUIPMENT_SCORE_WEIGHTS.defense +
-    getCharMaxHp(character) * EQUIPMENT_SCORE_WEIGHTS.maxHp +
-    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str +
-    getCharVit(character) * EQUIPMENT_SCORE_WEIGHTS.vit +
-    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int +
-    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie +
-    getCharAgi(character) * EQUIPMENT_SCORE_WEIGHTS.agi +
-    getCharAffixSum(character, "guardian") * EQUIPMENT_SCORE_WEIGHTS.guardian +
-    getCharAffixSum(character, "spellGuard") * EQUIPMENT_SCORE_WEIGHTS.spellGuard +
-    getCharAffixSum(character, "followUp") * EQUIPMENT_SCORE_WEIGHTS.followUp +
-    getCharAffixSum(character, "firstStrike") * EQUIPMENT_SCORE_WEIGHTS.firstStrike +
-    getCharAffixSum(character, "arcane") * EQUIPMENT_SCORE_WEIGHTS.arcane +
-    getCharAffixSum(character, "devotion") * EQUIPMENT_SCORE_WEIGHTS.devotion
+    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk * getPersonaEquipmentWeight(scoringProfile, "weaponAtk") +
+    getCharDef(character) * EQUIPMENT_SCORE_WEIGHTS.defense * getPersonaEquipmentWeight(scoringProfile, "defense") +
+    getCharMaxHp(character) * EQUIPMENT_SCORE_WEIGHTS.maxHp * getPersonaEquipmentWeight(scoringProfile, "maxHp") +
+    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str * getPersonaEquipmentWeight(scoringProfile, "str") +
+    getCharVit(character) * EQUIPMENT_SCORE_WEIGHTS.vit * getPersonaEquipmentWeight(scoringProfile, "vit") +
+    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int * getPersonaEquipmentWeight(scoringProfile, "int") +
+    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie * getPersonaEquipmentWeight(scoringProfile, "pie") +
+    getCharAgi(character) * EQUIPMENT_SCORE_WEIGHTS.agi * getPersonaEquipmentWeight(scoringProfile, "agi") +
+    getCharAffixSum(character, "guardian") * EQUIPMENT_SCORE_WEIGHTS.guardian * getPersonaEquipmentWeight(scoringProfile, "guardian") +
+    getCharAffixSum(character, "spellGuard") * EQUIPMENT_SCORE_WEIGHTS.spellGuard * getPersonaEquipmentWeight(scoringProfile, "spellGuard") +
+    getCharAffixSum(character, "followUp") * EQUIPMENT_SCORE_WEIGHTS.followUp * getPersonaEquipmentWeight(scoringProfile, "followUp") +
+    getCharAffixSum(character, "firstStrike") * EQUIPMENT_SCORE_WEIGHTS.firstStrike * getPersonaEquipmentWeight(scoringProfile, "firstStrike") +
+    getCharAffixSum(character, "arcane") * EQUIPMENT_SCORE_WEIGHTS.arcane * getPersonaEquipmentWeight(scoringProfile, "arcane") +
+    getCharAffixSum(character, "devotion") * EQUIPMENT_SCORE_WEIGHTS.devotion * getPersonaEquipmentWeight(scoringProfile, "devotion")
   );
 }
 
-function getOffenseEquipmentScore(character) {
+function getOffenseEquipmentScore(character, scoringProfile = null) {
   return (
-    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk +
-    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str +
-    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int +
-    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie
+    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk * getPersonaEquipmentWeight(scoringProfile, "weaponAtk") +
+    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str * getPersonaEquipmentWeight(scoringProfile, "str") +
+    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int * getPersonaEquipmentWeight(scoringProfile, "int") +
+    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie * getPersonaEquipmentWeight(scoringProfile, "pie")
   );
 }
 
@@ -8412,7 +8419,7 @@ function getCombatCoreScoreForId(character, scoringProfile, floor, coreId) {
   if (coreDefinition?.allowedClasses && !coreDefinition.allowedClasses.includes(character.class)) return 0;
   const classScoringProfile = getClassScoringProfile(scoringProfile, character);
   const params = coreDefinition.params;
-  const offenseScore = getOffenseEquipmentScore(character);
+  const offenseScore = getOffenseEquipmentScore(character, classScoringProfile);
   // 倍率コアは既存攻撃スコア×calibration実測稼働率×実params増分。
   if (coreId === "CORE_LAST_STAND") {
     return offenseScore * classScoringProfile.lowHpOffensiveRate * (params.damageMultiplier - 1);
@@ -8526,9 +8533,11 @@ function getEconomyCoreScore(character, scoringProfile, floor) {
 }
 
 function getEquipmentScore(character, scoringProfile, floor) {
-  return getBaseEquipmentScore(character) +
-    getCombatCoreScore(character, scoringProfile, floor) +
-    getEconomyCoreScore(character, scoringProfile, floor);
+  const combatCoreWeight = getPersonaEquipmentWeight(scoringProfile, "combatCore");
+  const economyCoreWeight = getPersonaEquipmentWeight(scoringProfile, "economyCore");
+  return getBaseEquipmentScore(character, scoringProfile) +
+    getCombatCoreScore(character, scoringProfile, floor) * combatCoreWeight +
+    getEconomyCoreScore(character, scoringProfile, floor) * economyCoreWeight;
 }
 
 function qualifiesAsBuildCore(candidateScore, currentScore) {
@@ -8575,7 +8584,7 @@ function createBuildSnapshot(state, scoringProfile, point) {
     };
     });
   const equipmentStatScore =
-    getBaseEquipmentScore(character) - getBaseEquipmentScore(withoutEquipment);
+    getBaseEquipmentScore(character, scoringProfile) - getBaseEquipmentScore(withoutEquipment, scoringProfile);
   const combatCoreScore = getCombatCoreScore(character, scoringProfile, state.floor);
   const combatCoreScoreById = getCombatCoreScoreById(
     character,
@@ -8629,6 +8638,48 @@ function createBuildSnapshot(state, scoringProfile, point) {
     resistanceScore:
       (supportAffixes.poisonWard || 0) + (supportAffixes.statusResistance || 0),
     equipment
+  };
+}
+
+function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
+  const build = createBuildSnapshot(state, scoringProfile, "checkpoint");
+  const character = state.party[0];
+  const previousEncounters = (metrics.encounterIdentityLog || []).slice(-3).map(encounter => ({
+    floor: encounter.floor,
+    normalHits: encounter.normalHits || 0,
+    totalNormalDamage: encounter.totalNormalDamage || 0,
+    enemyActions: encounter.enemyActions || 0,
+    rounds: encounter.rounds || 0
+  }));
+  return {
+    floor,
+    persona: state.simPersonaId || null,
+    worldSeed: state.currentRun.runSeed,
+    hp: character.hp,
+    maxHP: getCharMaxHp(character),
+    hpRatio: character.hp / Math.max(1, getCharMaxHp(character)),
+    mp: character.mp,
+    maxMP: getCharMaxMp(character),
+    mpRatio: character.mp / Math.max(1, getCharMaxMp(character)),
+    ATK: getCharWeaponAtk(character),
+    DEF: getCharDef(character),
+    spells: [...(character.spells || [])],
+    equippedBaseIds: build.equipment.map(item => item.id),
+    activeCoreIds: [...build.coreIds],
+    supportAffixes: { ...build.supportAffixes },
+    combatBuildScore: build.combatBuildScore,
+    equipmentChangesSoFar: metrics.equipmentUpgrades,
+    equipmentDropsSeen: metrics.equipmentFound,
+    encountersSoFar: state.currentRun.battles,
+    normalHitsReceivedSoFar: metrics.normalCombatTelemetry.incomingHits,
+    totalNormalDamageSoFar: metrics.normalCombatTelemetry.incomingDamage,
+    enemyActionsSoFar: metrics.normalCombatTelemetry.enemyActions,
+    roundsSoFar: metrics.normalCombatTelemetry.rounds,
+    stepsSoFar: metrics.steps,
+    exploredRatio: metrics.exploredRatioByFloor[floor] ?? null,
+    searchActionsSoFar: metrics.searchActions,
+    campUsageSoFar: state.currentRun.campRestCount || 0,
+    previousEncounterDamage: previousEncounters
   };
 }
 
@@ -9550,14 +9601,24 @@ function createFloorRoutePlan(
 // particular, this function deliberately does not inspect event, stairs, or
 // boss fields while selecting a frontier.  Those fields are observed only
 // when the movement step enters the cell.
-function createPartialInformationFloorRoutePlan(generated, floor) {
+function createPartialInformationFloorRoutePlan(generated, floor, personaPolicy = null) {
   const start = findFloorCell(generated.grid, cell => cell.type === "stairs-up");
   const walkableCells = generated.validation?.walkableCells || generated.grid.flat()
     .filter(cell => cell?.walls?.some(wall => !wall) || cell?.event || cell?.type !== "empty")
     .length;
+  const exploration = personaPolicy?.exploration || {};
+  // The player policy must not use the generated map's total walkable-cell or
+  // critical-path knowledge. Use the floor template's fixed budget instead;
+  // walkableCells remains a telemetry denominator only.
+  const template = getFloorTemplate(floor);
+  const templateFloorSteps = Math.max(
+    1,
+    Math.round(((template.criticalPathRange[0] + template.criticalPathRange[1]) / 2) * EXPLORATION_FACTOR)
+  );
   const explorationBudget = Math.max(
-    getFloorStepCount(generated, floor),
-    Math.ceil(Math.max(1, walkableCells) * EXPLORATION_FACTOR * 2.5) + 10
+    templateFloorSteps,
+    Math.ceil(templateFloorSteps * (Number(exploration.budgetMultiplier) || 2.5)) +
+      (Number(exploration.budgetExtraSteps) || 10)
   );
   return {
     routePolicy: "partial_information_exploration",
@@ -9572,6 +9633,7 @@ function createPartialInformationFloorRoutePlan(generated, floor) {
     avoidedPathExists: false,
     milestoneForced: false,
     walkableCells,
+    personaPolicy,
     start
   };
 }
@@ -9771,7 +9833,14 @@ function findKnownFrontier(generated, route) {
 function getPartialInformationTarget(route, generated, floor) {
   const milestone = floor % 5 === 0;
   if (route.discoveredBoss && !route.bossDefeated) return route.discoveredBoss;
-  if (route.discoveredStairs && (!milestone || route.bossDefeated)) return route.discoveredStairs;
+  if (route.discoveredStairs && (!milestone || route.bossDefeated)) {
+    const afterStairsSteps = Number(route.personaPolicy?.exploration?.afterStairsSteps) || 0;
+    if (route.postStairsExplorationRemaining > 0 && afterStairsSteps > 0) {
+      const frontier = findKnownFrontier(generated, route);
+      if (frontier) return frontier;
+    }
+    return route.discoveredStairs;
+  }
   return findKnownFrontier(generated, route);
 }
 
@@ -9971,7 +10040,9 @@ function createSimulationFloorRoute(generated, routePlan, state, floor, metrics)
       nextMoveAt: EXPLORATION_FACTOR,
       detourActive: false,
       detourTrapId: null,
-      detourTargetKey: null
+      detourTargetKey: null,
+      personaPolicy: routePlan.personaPolicy,
+      postStairsExplorationRemaining: 0
     };
     metrics.exploredCellsByFloor[floor] = 1;
     metrics.exploredCells++;
@@ -10191,7 +10262,8 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
   route.path = route.path.slice(1);
   if (route.partialInformation) {
     const nextKey = routeKey(next);
-    if (!route.knownCellKeys.has(nextKey)) {
+    const wasUnknown = !route.knownCellKeys.has(nextKey);
+    if (wasUnknown) {
       route.knownCellKeys.add(nextKey);
       metrics.exploredCells++;
       metrics.exploredCellsByFloor[floor] = (metrics.exploredCellsByFloor[floor] || 0) + 1;
@@ -10199,7 +10271,18 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
     const entered = generated.grid[next.y]?.[next.x];
     if (entered?.type === "stairs-down" && !route.discoveredStairs) {
       route.discoveredStairs = { ...next };
+      route.postStairsExplorationRemaining = Number(
+        route.personaPolicy?.exploration?.afterStairsSteps
+      ) || 0;
       metrics.stairsDiscoveryStepByFloor[floor] ||= step;
+    }
+    if (
+      route.discoveredStairs &&
+      route.postStairsExplorationRemaining > 0 &&
+      nextKey !== routeKey(route.discoveredStairs) &&
+      wasUnknown
+    ) {
+      route.postStairsExplorationRemaining--;
     }
     if (entered?.event === EVENT_TYPES.BOSS && entered.milestoneFloor === floor && !route.discoveredBoss) {
       route.discoveredBoss = { ...next };
@@ -12103,6 +12186,9 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     combatMaterialHitEvents: metrics.combatMaterialHitEvents,
     diagnostics: metrics.diagnostics,
     ...(metrics.buildSnapshots ? { buildSnapshots: metrics.buildSnapshots } : {}),
+    ...(metrics.checkpointSnapshots
+      ? { checkpointSnapshots: structuredClone(metrics.checkpointSnapshots) }
+      : {}),
     ...(metrics.equipmentTelemetry
       ? { equipmentTelemetry: metrics.equipmentTelemetry }
       : {})
@@ -12645,6 +12731,7 @@ export function simulateRun({
     combatMaterialHitEvents: 0,
     scoringProfile,
     buildSnapshots: collectBuildSnapshots && !collectDiagnostics ? [] : null,
+    checkpointSnapshots: scenario.collectCheckpointSnapshots ? [] : null,
     diagnostics: collectDiagnostics
       ? {
           level: diagnosticLevel,
@@ -12672,26 +12759,29 @@ export function simulateRun({
     if (buildSnapshots) {
       buildSnapshots.push(createBuildSnapshot(state, scoringProfile, "floor-start"));
     }
+    if (metrics.checkpointSnapshots) {
+      metrics.checkpointSnapshots.push(
+        createCheckpointSnapshot(state, metrics, scoringProfile, floor)
+      );
+    }
     const generated = getRunFloor({ runSeed, floor });
-    const bossExitPolicy = applyBossExitPolicy(
-      generated,
-      floor,
-      scenario.bossExitPolicy || "shortcut-0"
-    );
+    const bossExitPolicy = scenario.routePolicy === "partial_information_exploration"
+      ? { kind: "baseline", distance: null }
+      : applyBossExitPolicy(generated, floor, scenario.bossExitPolicy || "shortcut-0");
     const routePlan = scenario.routePolicy === "partial_information_exploration"
-      ? createPartialInformationFloorRoutePlan(generated, floor)
+      ? createPartialInformationFloorRoutePlan(generated, floor, scenario.personaPolicy)
       : createFloorRoutePlan(
           generated,
           floor,
           metrics.bossPolicy,
           bossExitPolicy
         );
-    const elitePlan = createEliteRoutePlan(
-      generated,
-      floor,
-      runSeed,
-      state.simPolicy.elitePolicy
-    );
+    // Partial-information personas do not schedule a roaming encounter from
+    // its future map position. The production movement/combat path still
+    // handles encounters that are actually observed.
+    const elitePlan = routePlan.partialInformation
+      ? { elite: null, extraSteps: 0, encounterStep: null, avoidNoRoute: false }
+      : createEliteRoutePlan(generated, floor, runSeed, state.simPolicy.elitePolicy);
     const staticFloorSteps = getFloorStepCount(generated, floor);
     let floorSteps = routePlan.floorSteps + elitePlan.extraSteps;
     const floorRoute = createSimulationFloorRoute(
@@ -12778,7 +12868,9 @@ export function simulateRun({
       avoidedPathExists: routePlan.avoidedPathExists,
       milestoneForced: routePlan.milestoneForced
     });
-    const chestSchedule = schedulePickedUpChests(countFloorChests(generated.grid), floorSteps);
+    const chestSchedule = routePlan.partialInformation
+      ? new Map()
+      : schedulePickedUpChests(countFloorChests(generated.grid), floorSteps);
     const secretRoomSchedule = scheduleSecretRoomSearches(
       secretRoomPlans,
       floorSteps,
@@ -12882,15 +12974,17 @@ export function simulateRun({
         metrics.encountersCausedByMovement++;
       }
       const floorTrapSchedule = new Map();
-      floorRoute.path.slice(1, 5).forEach((coord, index) => {
-        const upcomingTrap = generated.grid[coord.y]?.[coord.x]?.trap;
-        if (!upcomingTrap || upcomingTrap.state !== "hidden") return;
-        floorTrapSchedule.set(step + index, [{
-          trap: upcomingTrap,
-          previousCoord: index === 0 ? floorRoute.current : floorRoute.path[index],
-          step: step + index
-        }]);
-      });
+      if (!routePlan.partialInformation) {
+        floorRoute.path.slice(1, 5).forEach((coord, index) => {
+          const upcomingTrap = generated.grid[coord.y]?.[coord.x]?.trap;
+          if (!upcomingTrap || upcomingTrap.state !== "hidden") return;
+          floorTrapSchedule.set(step + index, [{
+            trap: upcomingTrap,
+            previousCoord: index === 0 ? floorRoute.current : floorRoute.path[index],
+            step: step + index
+          }]);
+        });
+      }
       const scheduledSecretRooms = secretRoomSchedule.get(step) || [];
       for (const secretPlan of scheduledSecretRooms) {
         const opened = resolveSecretRoomSearch({
