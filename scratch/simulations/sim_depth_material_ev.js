@@ -9,6 +9,7 @@ import { resolveMeasurementProvenance } from "../measurements/measurement_proven
 import { runSimTasks } from "./sim_parallel.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "../measurements/measurement_env_signature.js";
 import { reportMechanismFiring } from "../measurements/mechanism_wiring_report.js";
+import { classifyCausalDeath } from "../measurements/issue973_build_sensitivity.js";
 // Unit tests import this shared module for wiring checks, not measurements.
 const IS_TEST_PROCESS = process.env.SIM_SKIP_PROVENANCE === "1" ||
   basename(process.argv[1] || "").startsWith("test_");
@@ -240,6 +241,8 @@ const {
   MONSTERS,
   SPELLS
 } = await import("../../src/data.js");
+const { createBuildCharacter: createProductionBuildCharacter } =
+  await import("../measurements/issue973_build_sensitivity.js");
 
 // Candidate/masking list only; selection ranking lives in auto_action.js.
 const PRIEST_HEALING_SPELL_IDS = Object.freeze([
@@ -3925,33 +3928,14 @@ function createSimulationState(
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
   const startingBuild = scenario.startingBuild;
   if (startingBuild?.equipment && className === "Mage") {
-    character.equipment = Object.fromEntries(
-      Object.entries(startingBuild.equipment).map(([slot, definition]) => [slot, {
-        kind: "equipment",
-        instanceId: `phase2-start:${runSeed}:${slot}`,
-        baseId: definition.baseId,
-        rarity: "epic",
-        level: 1,
-        identified: true,
-        halfIdentified: false,
-        tags: [],
-        hintTags: [],
-        curseEffectId: null,
-        cursePower: 0,
-        curseSuspected: false,
-        affixes: (definition.supports || []).map(affix => ({
-          ...affix,
-          type: affix.id,
-          kind: "support"
-        })).concat(definition.coreId ? [{
-          id: definition.coreId,
-          type: definition.coreId,
-          kind: "core",
-          value: 1
-        }] : [])
-      }])
-    );
-    character.spells = [...(startingBuild.spells || character.spells)];
+    // Reuse the #975 production-shaped fixture conversion. This keeps the
+    // Phase 2 injected build semantically identical to the established build
+    // definitions (level, tags, core/support affixes, and derived stats).
+    const productionBuild = createProductionBuildCharacter(startingBuild.id);
+    character.equipment = structuredClone(productionBuild.equipment);
+    character.spells = [...productionBuild.spells];
+    character.hp = getCharMaxHp(character);
+    character.mp = getCharMaxMp(character);
   }
   const hpBaseBonus = Number(scenario.hpBaseBonus) || 0;
   if (hpBaseBonus !== 0) {
@@ -6695,7 +6679,8 @@ function runEncounter(
     isElite = false,
     roamingMonster = null,
     encounterCoord = null,
-    retreatCoord = null
+    retreatCoord = null,
+    encounterEventKey = null
   } = {}
 ) {
   const diagnosticLevel = metrics?.diagnosticLevel || "full";
@@ -6789,7 +6774,9 @@ function runEncounter(
     : (isMidboss ? "midboss" : (isElite ? "elite" : "normal"));
   const mpBlockedAtEncounterStart = metrics?.mpPressure?.combat?.total?.mpBlocked || 0;
   const encounterFloor = state.floor;
+  const encounterStartHp = state.party[0].hp;
   const encounterStartMp = state.party[0].mp;
+  const encounterStartMaxHp = getCharMaxHp(state.party[0]);
   const encounterStartMaxMp = getCharMaxMp(state.party[0]);
   const enemyTurnEventStart = metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0;
   let encounterMinimumMp = encounterStartMp;
@@ -6797,6 +6784,24 @@ function runEncounter(
   const startBuild = (isBoss || isMidboss || isElite) && metrics?.collectSpecialBattles
     ? createBuildSnapshot(state, metrics?.scoringProfile || null, `${encounterType}-start`)
     : null;
+  const encounterCoordinate = Number.isFinite(encounterCoord?.x) &&
+    Number.isFinite(encounterCoord?.y)
+    ? encounterCoord
+    : { x: state.x, y: state.y };
+  const eventBaseKey = `${state.currentRun?.runSeed || "run"}:B${encounterFloor}:${encounterType}:${encounterCoordinate.x},${encounterCoordinate.y}`;
+  const eventOrdinal = (metrics?.encounterEventCounts?.get(eventBaseKey) || 0) + 1;
+  metrics?.encounterEventCounts?.set(eventBaseKey, eventOrdinal);
+  const stableEventKey = encounterEventKey || `${eventBaseKey}:n${eventOrdinal}`;
+  const enemyNames = monsters.map(monster => monster.name);
+  const enemyCompositionKey = [...enemyNames].sort().join("|");
+  let encounterIdentity = null;
+  const causalEvidence = {
+    statusLockRounds: 0,
+    spellOpportunityLossRounds: 0,
+    mpStarvationRounds: 0,
+    reflectionDamageEvents: 0,
+    actionEconomyRounds: 0
+  };
   const bloodWandObservationStart = isBoss
     ? {
         spellCandidates: observations.bloodWandSpellOpportunities,
@@ -6824,12 +6829,25 @@ function runEncounter(
     lastRoundMaxHp: null
   };
   if (metrics?.encounterIdentityLog) {
-    metrics.encounterIdentityLog.push({
+    encounterIdentity = {
       floor: state.floor,
       type: encounterType,
       ordinal: metrics.encounterIdentityLog.length,
-      enemyNames: monsters.map(monster => monster.name)
-    });
+      eventOrdinal,
+      eventKey: stableEventKey,
+      enemyNames,
+      enemyCompositionKey,
+      outcome: null,
+      hpBefore: encounterStartHp,
+      mpBefore: encounterStartMp,
+      hpAfter: null,
+      mpAfter: null,
+      rounds: null,
+      diagnosticUtility: null,
+      deathCategory: null,
+      stateDegradationEvidence: null
+    };
+    metrics.encounterIdentityLog.push(encounterIdentity);
   }
   const encounterDiagnostic = diagnostics && (fullDiagnostics || compactDiagnostics)
     ? (fullDiagnostics
@@ -6889,6 +6907,59 @@ function runEncounter(
         floor: state.floor,
         amount: telemetry.incomingDamage
       };
+    }
+    if (encounterIdentity) {
+      encounterIdentity.outcome = result === "victory"
+        ? "clear"
+        : result === "death" ? "death" : result;
+      encounterIdentity.hpAfter = state.party[0].hp;
+      encounterIdentity.mpAfter = state.party[0].mp;
+      encounterIdentity.rounds = rounds;
+      encounterIdentity.normalHits = telemetry.incomingHits;
+      encounterIdentity.totalNormalDamage = telemetry.incomingDamage;
+      encounterIdentity.enemyActions = telemetry.enemyActions;
+      encounterIdentity.hpBeforeRatio = encounterStartHp / Math.max(1, encounterStartMaxHp);
+      encounterIdentity.hpAfterRatio = state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0]));
+      encounterIdentity.mpBeforeRatio = encounterStartMaxMp
+        ? encounterStartMp / encounterStartMaxMp : 1;
+      encounterIdentity.mpAfterRatio = getCharMaxMp(state.party[0])
+        ? state.party[0].mp / getCharMaxMp(state.party[0]) : 1;
+      encounterIdentity.diagnosticUtility = {
+        outcome: encounterIdentity.outcome,
+        hpRatio: encounterIdentity.hpAfterRatio,
+        mpRatio: encounterIdentity.mpAfterRatio,
+        rounds
+      };
+      if (result === "death") {
+        const deathCause = state.currentRun?.deathLogs?.at(-1)?.cause || "";
+        const directCause = /反射|反撃/.test(deathCause)
+          ? "reflection"
+          : /毒|状態異常/.test(deathCause) ? "status_damage" : "raw_damage";
+        const terminalMp = state.party[0].mp;
+        const evidence = {
+          statusLock: causalEvidence.statusLockRounds >= 2,
+          spellDenial: causalEvidence.spellOpportunityLossRounds >= 2,
+          mpStarvation: causalEvidence.mpStarvationRounds >= 2 &&
+            terminalMp <= Math.max(1, encounterStartMaxMp * 0.25),
+          reflection: causalEvidence.reflectionDamageEvents > 0,
+          actionEconomy: causalEvidence.actionEconomyRounds >= 2 &&
+            telemetry.incomingDamage > 0,
+          sustainFailure: false,
+          longFight: false
+        };
+        encounterIdentity.stateDegradationEvidence = {
+          ...evidence,
+          details: { ...causalEvidence, terminalMp }
+        };
+        encounterIdentity.deathAttribution = classifyCausalDeath({
+          outcome: "death",
+          directCause,
+          evidence,
+          deathRound: telemetry.lastRound
+        });
+        encounterIdentity.deathCategory = encounterIdentity.deathAttribution.finalExclusiveCategory ||
+          "unknown_or_mixed";
+      }
     }
     if (encounterDiagnostic) {
       encounterDiagnostic.result = result;
@@ -6953,6 +7024,7 @@ function runEncounter(
       state,
       startBuild,
       telemetry,
+      encounterIdentity,
       bloodWandObservations: bloodWandObservationStart
         ? {
             spellCandidates:
@@ -7058,6 +7130,7 @@ function runEncounter(
       ? null
       : structuredClone(state.combatState.monsters[action.targetIdx]);
     const monstersBeforeRound = structuredClone(state.combatState.monsters);
+    const enemyTurnEventsBeforeRound = metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0;
     const characterBeforeRound = structuredClone(character);
     const executionerTriggersBefore = state.simTelemetry?.executionerTriggers || 0;
     const bloodWandOpportunity = getBloodWandOpportunity(state, action, observations);
@@ -7156,6 +7229,25 @@ function runEncounter(
     observations.bloodWandHealActivations += Number(bloodWandActivationType === "heal");
     observations.coreActivationCounts.CORE_BLOOD_WAND += Number(Boolean(bloodWandActivationType));
     state = roundResult.state;
+    const roundEnemyActions = Math.max(
+      0,
+      (metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0) - enemyTurnEventsBeforeRound
+    );
+    const incapacitated = ["paralyzed", "paralyze", "sleep"].includes(characterBeforeRound.status);
+    causalEvidence.statusLockRounds += Number(incapacitated && roundEnemyActions > 0);
+    causalEvidence.spellOpportunityLossRounds += Number(
+      Boolean(pressureEvent?.mpBlocked && action.type !== "spell")
+    );
+    causalEvidence.mpStarvationRounds += Number(
+      Boolean(pressureEvent?.mpBlocked && state.party[0].mp <= characterBeforeRound.mp)
+    );
+    causalEvidence.reflectionDamageEvents += roundResult.logQueue.filter(({ msg = "" }) =>
+      /反射|反撃/.test(msg) && /ダメージ/.test(msg)
+    ).length;
+    causalEvidence.actionEconomyRounds += Number(
+      roundEnemyActions > livingMonsterCount && roundEnemyActions > 0 &&
+      roundResult.logQueue.some(({ msg = "" }) => msg.includes("ダメージ"))
+    );
     triggerChest ||= roundResult.logQueue.some(entry => entry?.triggerChest === true);
     const combatManaPotionUsed = action.type === "item" &&
       action.itemKey === "MANA_POTION" &&
@@ -8509,6 +8601,7 @@ function createBuildSnapshot(state, scoringProfile, point) {
     int: getCharInt(character),
     pie: getCharPie(character),
     agi: getCharAgi(character),
+    spells: [...(character.spells || [])],
     equipmentStatScore,
     combatCoreScore,
     combatCoreScoreAll,
@@ -9597,11 +9690,17 @@ function scheduleSecretRoomSearches(plans, floorSteps, routeLength) {
   return schedule;
 }
 
-function canTraverseKnownRouteEdge(generated, route, current, direction) {
+export function canTraverseKnownRouteEdge(generated, route, current, direction) {
   const cell = generated.grid[current.y]?.[current.x];
   const next = generated.grid[current.y + direction.dy]?.[current.x + direction.dx];
   if (!cell || !next || !route.knownCellKeys.has(routeKey(current))) return false;
-  return canTraverseRouteEdge(generated.grid, current, direction);
+  const nextCoord = { x: current.x + direction.dx, y: current.y + direction.dy };
+  const edgeKey = `${routeKey(current)}>${routeKey(nextCoord)}`;
+  const reverseEdgeKey = `${routeKey(nextCoord)}>${routeKey(current)}`;
+  const revealedSecret = route.revealedSecretDoorKeys?.has(edgeKey) ||
+    route.revealedSecretDoorKeys?.has(reverseEdgeKey);
+  if (cell.walls?.[direction.dir] && !revealedSecret) return false;
+  return !next.blockEnter?.[(direction.dir + 2) % 4];
 }
 
 function findPartialInformationPath(generated, route, target, blockedKeys = new Set()) {
@@ -9676,29 +9775,27 @@ function getPartialInformationTarget(route, generated, floor) {
   return findKnownFrontier(generated, route);
 }
 
-function getPartialSecretDoorPlan(generated, route) {
+export function getPartialSecretDoorPlan(route) {
   if (!route.current) return null;
-  const cell = generated.grid[route.current.y]?.[route.current.x];
-  if (!cell?.secretDoor || !cell.secretFound) return null;
-  for (const direction of ROUTE_DIRECTIONS) {
-    const next = generated.grid[route.current.y + direction.dy]?.[route.current.x + direction.dx];
-    // A failed production search does not reveal the door and does not make
-    // it permanently unavailable; the next visit may search it again.
-    if (!next || !cell.secretDoor[direction.dir] || cell.secretFound[direction.dir]) continue;
-    const key = `${routeKey(route.current)}>${routeKey(next)}`;
-    return {
-      source: { ...route.current },
-      room: { x: next.x, y: next.y },
-      direction: direction.dir,
-      key
-    };
-  }
-  return null;
+  const source = { ...route.current };
+  const sourceKey = routeKey(source);
+  const cursor = route.secretSearchDirectionByCell.get(sourceKey) || 0;
+  const direction = ROUTE_DIRECTIONS[cursor];
+  if (!direction) return null;
+  const next = { x: source.x + direction.dx, y: source.y + direction.dy };
+  if (next.x < 0 || next.y < 0) return null;
+  const key = `${sourceKey}>${routeKey(next)}`;
+  return { source, room: next, direction: direction.dir, key };
 }
 
 function resolvePartialSecretDoorSearch({ state, generated, route, floor, metrics, specialSchedule, step }) {
-  const plan = getPartialSecretDoorPlan(generated, route);
+  const plan = getPartialSecretDoorPlan(route);
   if (!plan) return false;
+  const sourceKey = routeKey(plan.source);
+  route.secretSearchDirectionByCell.set(
+    sourceKey,
+    (route.secretSearchDirectionByCell.get(sourceKey) || 0) + 1
+  );
   route.searchedSecretDoorKeys.add(plan.key);
   metrics.secretDoorCandidates++;
   metrics.secretSearchAttempts++;
@@ -9722,9 +9819,12 @@ function resolvePartialSecretDoorSearch({ state, generated, route, floor, metric
     metrics.secretSearchEncounterExposure += getEncounterChance(metrics.steps, state);
     return true;
   }
+  // Measurement boundary: after a player-like search action and its
+  // production success roll, resolve the generated map edge. The hidden
+  // secretDoor flag is never read while choosing whether/where to search.
   const source = generated.grid[plan.source.y][plan.source.x];
   const room = generated.grid[plan.room.y]?.[plan.room.x];
-  if (!source?.secretFound || !room?.secretFound) {
+  if (!source?.secretDoor?.[plan.direction] || !source?.secretFound || !room?.secretFound) {
     metrics.secretSearchFailures++;
     return true;
   }
@@ -9732,6 +9832,8 @@ function resolvePartialSecretDoorSearch({ state, generated, route, floor, metric
   room.secretFound[(plan.direction + 2) % 4] = true;
   metrics.secretSearchSuccesses++;
   metrics.secretRoomDiscoveries++;
+  route.revealedSecretDoorKeys.add(plan.key);
+  route.revealedSecretDoorKeys.add(`${routeKey(plan.room)}>${routeKey(plan.source)}`);
   metrics.secretSearchEncounterExposure += getEncounterChance(metrics.steps, state);
   return true;
 }
@@ -9857,6 +9959,8 @@ function createSimulationFloorRoute(generated, routePlan, state, floor, metrics)
       targets: [],
       knownCellKeys: new Set(start ? [routeKey(start)] : []),
       searchedSecretDoorKeys: new Set(),
+      secretSearchDirectionByCell: new Map(),
+      revealedSecretDoorKeys: new Set(),
       discoveredStairs: null,
       discoveredBoss: null,
       bossDefeated: false,
@@ -11985,6 +12089,9 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     encounterIdentityLog: metrics.encounterIdentityLog
       ? structuredClone(metrics.encounterIdentityLog)
       : null,
+    startingBuildSnapshot: metrics.startingBuildSnapshot
+      ? structuredClone(metrics.startingBuildSnapshot)
+      : null,
     encounterGroupCounts: Object.fromEntries(
       Object.entries(metrics.encounterGroupCounts).map(([band, groups]) => [band, { ...groups }])
     ),
@@ -12511,6 +12618,7 @@ export function simulateRun({
       enemyActions: 0
     },
     encounterIdentityLog: scenario.collectEncounterIdentities ? [] : null,
+    encounterEventCounts: new Map(),
     encounterGroupCounts: createEncounterGroupCounts(),
     encounterFallbacks: {},
     materialSources: {
@@ -12548,6 +12656,11 @@ export function simulateRun({
       : null
   };
   state.simTelemetry = metrics.killHeal;
+  metrics.startingBuildSnapshot = createBuildSnapshot(
+    state,
+    scoringProfile,
+    "starting-build"
+  );
   state.simStartingInventory.forEach(item => recordConsumableAcquisition(metrics, item));
   state.simDepartureCraftItems.forEach(item => recordConsumableAcquisition(metrics, item));
 
@@ -12794,7 +12907,10 @@ export function simulateRun({
           return finishRun(state, "death", metrics);
         }
       }
-      if (routePlan.partialInformation) {
+      if (
+        routePlan.partialInformation &&
+        !getPartialInformationTarget(floorRoute, generated, floor)
+      ) {
         resolvePartialSecretDoorSearch({
           state,
           generated,
@@ -13091,7 +13207,9 @@ export function simulateRun({
               isMidboss,
               isElite,
               roamingMonster: specialEvent?.roamingMonster || null,
-              encounterCoord: specialEvent,
+              encounterCoord: Number.isFinite(specialEvent?.x) && Number.isFinite(specialEvent?.y)
+                ? specialEvent
+                : floorRoute.current,
               retreatCoord: specialEvent?.retreatCoord || null
             }
           );

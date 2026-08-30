@@ -19,8 +19,8 @@ import {
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue990-partial-information-progression-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "issue990-partial-information-progression-v2";
+export const SCHEMA_VERSION = 2;
 export const DEFAULT_SEED = "issue990-phase2";
 export const DEFAULT_RUNS = 500;
 export const TARGET_DEPTH = 30;
@@ -67,22 +67,20 @@ function describe(values) {
 
 function classifyExclusiveDeath(result) {
   if (!result.died) return null;
-  if (["floor-trap", "chest-trap", "secret-room-chest-trap", "poison"].includes(result.deathEncounterType)) {
+  if (["floor-trap", "flame-trap", "chest-trap", "from-drop-chest-trap", "secret-room-chest-trap", "poison"].includes(result.deathEncounterType)) {
     return "direct_mechanic_death";
   }
-  // A mechanic is promoted only when the run exposes state degradation at the
-  // terminal encounter. Merely seeing a special mechanic remains pure/unknown.
-  if (result.mpDepletionCausedEnd) return "mechanic_mediated_raw_lethal";
-  if (["normal", "boss", "midboss", "elite"].includes(result.deathEncounterType) &&
-      number(result.deathSnapshot?.damage) > 0) {
-    return "pure_raw_damage";
-  }
-  return "unknown_or_mixed";
+  const terminal = (result.encounterIdentityLog || [])
+    .filter(identity => identity.outcome === "death")
+    .at(-1);
+  return EXCLUSIVE_DEATH_CATEGORIES.includes(terminal?.deathCategory)
+    ? terminal.deathCategory
+    : "unknown_or_mixed";
 }
 
 function equipmentSummary(result) {
   const snapshots = result.buildSnapshots || [];
-  const before = snapshots[0] || null;
+  const before = result.startingBuildSnapshot || snapshots[0] || null;
   const after = snapshots.filter(snapshot => snapshot.point === "equipment-update").at(-1) || before;
   const lastSwap = (result.equipmentTelemetry || []).filter(event => event.type === "swap").at(-1) || null;
   const beforeCores = new Set(before?.coreIds || []);
@@ -108,6 +106,16 @@ function compactResult(result, { buildId, arm, runIndex, worldSeed }) {
   const telemetry = result.normalCombatTelemetry || {};
   const equipment = equipmentSummary(result);
   const reachedDepth = Math.min(TARGET_DEPTH, number(result.reachedFloor));
+  const encounterIdentities = (result.encounterIdentityLog || []).map(identity => ({
+    ...identity,
+    diagnosticUtility: identity.diagnosticUtility && typeof identity.diagnosticUtility === "object"
+      ? calculateDiagnosticUtility(identity.diagnosticUtility)
+      : identity.diagnosticUtility
+  }));
+  const encounterMpBefore = mean(encounterIdentities.map(identity => identity.mpBefore).filter(Number.isFinite));
+  const encounterMpAfter = mean(encounterIdentities.map(identity => identity.mpAfter).filter(Number.isFinite));
+  const encounterMpConsumed = encounterIdentities.reduce((sum, identity) =>
+    sum + Math.max(0, number(identity.mpBefore) - number(identity.mpAfter)), 0);
   return {
     buildId,
     arm: arm.id,
@@ -146,14 +154,15 @@ function compactResult(result, { buildId, arm, runIndex, worldSeed }) {
     enemyActions: number(telemetry.enemyActions),
     hpBeforeLastEncounter: number(result.deathSnapshot?.hpBefore),
     hpAfterLastEncounter: number(result.deathSnapshot?.hpAfter),
-    mpBefore: number(result.combatMpMeasurement?.startMp?.mean),
-    mpAfter: number(result.finalMp),
-    mpConsumed: number(result.mpConsumed),
+    mpBefore: number(encounterMpBefore),
+    mpAfter: number(encounterMpAfter ?? result.finalMp),
+    mpConsumed: encounterMpConsumed,
     lethalHitMaxHp: number(result.deathSnapshot?.damageMaxHpRate),
     deathCategory: classifyExclusiveDeath(result),
     equipment,
+    startingBuildSnapshot: result.startingBuildSnapshot || null,
     depthEquipmentPowerProxy: equipment.scoreAfter,
-    encounterIdentities: result.encounterIdentityLog || [],
+    encounterIdentities,
     audit: {
       hiddenStairsUsed: false,
       hiddenBossUsed: false,
@@ -195,6 +204,7 @@ function aggregateRows(rows) {
     reachedRates: Object.fromEntries(Object.entries(reached).map(([depth, count]) => [depth, count / Math.max(1, rows.length)])),
     deathDepth: describe(deaths.map(row => row.deathDepth)),
     encountersExperienced: describe(rows.map(row => row.encounters)),
+    encountersPerFloor: describe(rows.map(row => row.encounters / Math.max(1, row.reachedDepth || 1))),
     stepsPerFloor: describe(rows.map(row => row.steps / Math.max(1, row.reachedDepth || 1))),
     exploredRatio: describe(rows.flatMap(row => Object.values(row.exploredRatioByFloor).map(Number))),
     searchActions: describe(rows.map(row => row.searchActions)),
@@ -209,6 +219,9 @@ function aggregateRows(rows) {
       totalNormalDamage: describe(rows.map(row => row.totalNormalDamage)),
       rounds: describe(rows.map(row => row.rounds)),
       enemyActions: describe(rows.map(row => row.enemyActions)),
+      mpBefore: describe(rows.map(row => row.mpBefore)),
+      mpAfter: describe(rows.map(row => row.mpAfter)),
+      mpConsumed: describe(rows.map(row => row.mpConsumed)),
       lethalHitMaxHp: describe(rows.map(row => row.lethalHitMaxHp).filter(value => value > 0))
     },
     equipment,
@@ -219,20 +232,31 @@ function aggregateRows(rows) {
   };
 }
 
+function eventPairKey(identity) {
+  return [
+    identity.eventKey,
+    identity.floor,
+    identity.eventOrdinal,
+    identity.enemyCompositionKey || [...(identity.enemyNames || [])].sort().join("|")
+  ].join("|");
+}
+
+function encounterEvents(rows, family = null) {
+  return rows.flatMap(row => row.encounterIdentities
+    .filter(identity => ["clear", "death"].includes(identity.outcome))
+    .filter(identity => !family || encounterFamily(identity) === family)
+    .map(identity => ({ ...identity, buildId: row.buildId, worldSeed: row.worldSeed })));
+}
+
 function pairedSummary(leftRows, rightRows, label, family = null) {
-  const rightBySeed = new Map(rightRows.map(row => [row.worldSeed, row]));
-  const hasCommonIdentity = (left, right) => {
-    const rightIds = new Set(right.encounterIdentities.map(identity => JSON.stringify(identity)));
-    return left.encounterIdentities.some(identity =>
-      (!family || encounterFamily(identity) === family) && rightIds.has(JSON.stringify(identity))
-    );
-  };
-  const pairs = leftRows
-    .filter(row => rightBySeed.has(row.worldSeed))
-    .map(left => [left, rightBySeed.get(left.worldSeed)])
-    .filter(([left, right]) => hasCommonIdentity(left, right));
-  const outcomeDifferences = pairs.map(([left, right]) => Number(right.cleared) - Number(left.cleared));
-  const utilityDifferences = pairs.map(([left, right]) => right.diagnosticUtility - left.diagnosticUtility);
+  const rightByEvent = new Map(
+    encounterEvents(rightRows, family).map(event => [eventPairKey(event), event])
+  );
+  const pairs = encounterEvents(leftRows, family)
+    .map(left => [left, rightByEvent.get(eventPairKey(left))])
+    .filter(([, right]) => Boolean(right));
+  const outcomeDifferences = pairs.map(([left, right]) => Number(right.outcome === "clear") - Number(left.outcome === "clear"));
+  const utilityDifferences = pairs.map(([left, right]) => number(right.diagnosticUtility) - number(left.diagnosticUtility));
   const outcome = bootstrapMeanCi(outcomeDifferences, `${BOOTSTRAP_SEED}:${label}:outcome`);
   const utility = bootstrapMeanCi(utilityDifferences, `${BOOTSTRAP_SEED}:${label}:utility`);
   return {
@@ -241,10 +265,29 @@ function pairedSummary(leftRows, rightRows, label, family = null) {
     status: pairs.length < STRICT_MIN_PAIRED_N ? "insufficient_sample" : "eligible",
     outcome,
     utility,
-    sameEncounterIdentityPairs: pairs.reduce((sum, [left, right]) => {
-      const rightIds = new Set(right.encounterIdentities.map(identity => JSON.stringify(identity)));
-      return sum + left.encounterIdentities.filter(identity => rightIds.has(JSON.stringify(identity))).length;
-    }, 0)
+    matchedEventKeys: pairs.map(([left]) => eventPairKey(left)),
+    matchedEncounterRecords: pairs.map(([left, right]) => ({
+      eventKey: left.eventKey,
+      floor: left.floor,
+      family: encounterFamily(left),
+      enemyCompositionKey: left.enemyCompositionKey,
+      left: {
+        buildId: left.buildId,
+        outcome: left.outcome,
+        hpAfter: left.hpAfter,
+        mpAfter: left.mpAfter,
+        rounds: left.rounds,
+        diagnosticUtility: left.diagnosticUtility
+      },
+      right: {
+        buildId: right.buildId,
+        outcome: right.outcome,
+        hpAfter: right.hpAfter,
+        mpAfter: right.mpAfter,
+        rounds: right.rounds,
+        diagnosticUtility: right.diagnosticUtility
+      }
+    }))
   };
 }
 
@@ -253,10 +296,6 @@ function encounterFamily(identity) {
   if (count >= 3) return "swarm";
   if (count === 1) return "single-target";
   return "formation";
-}
-
-function hasFamily(row, family) {
-  return row.encounterIdentities.some(identity => encounterFamily(identity) === family);
 }
 
 function strictPairIsSignificant(pair) {
@@ -278,9 +317,7 @@ function strictReversalSummary(rowsByBuild, buildIds) {
       const left = rowsByBuild[buildIds[leftIndex]];
       const right = rowsByBuild[buildIds[rightIndex]];
       const familyPairs = families.map(family => {
-        const familyLeft = left.filter(row => hasFamily(row, family));
-        const familyRight = right.filter(row => hasFamily(row, family));
-        return { family, pair: pairedSummary(familyLeft, familyRight, `${buildIds[leftIndex]}:${buildIds[rightIndex]}:${family}`, family) };
+        return { family, pair: pairedSummary(left, right, `${buildIds[leftIndex]}:${buildIds[rightIndex]}:${family}`, family) };
       });
       for (let first = 0; first < familyPairs.length; first++) {
         for (let second = first + 1; second < familyPairs.length; second++) {
@@ -289,14 +326,14 @@ function strictReversalSummary(rowsByBuild, buildIds) {
           const reversal = strictPairIsSignificant(firstPair) && strictPairIsSignificant(secondPair) &&
             Math.sign(firstPair.outcome.estimate) !== Math.sign(secondPair.outcome.estimate) &&
             Math.sign(firstPair.utility.estimate) !== Math.sign(secondPair.utility.estimate);
-          familyRows.push({ leftBuildId: buildIds[leftIndex], rightBuildId: buildIds[rightIndex], family: `${familyPairs[first].family} vs ${familyPairs[second].family}`, pairedN: Math.min(firstPair.pairedN, secondPair.pairedN), status: firstPair.status === "insufficient_sample" || secondPair.status === "insufficient_sample" ? "insufficient_sample" : "eligible", outcome: firstPair.outcome, utility: firstPair.utility, strictReversal: reversal });
+          familyRows.push({ leftBuildId: buildIds[leftIndex], rightBuildId: buildIds[rightIndex], family: `${familyPairs[first].family} vs ${familyPairs[second].family}`, pairedN: Math.min(firstPair.pairedN, secondPair.pairedN), status: firstPair.status === "insufficient_sample" || secondPair.status === "insufficient_sample" ? "insufficient_sample" : "eligible", outcome: firstPair.outcome, utility: firstPair.utility, matchedEncounterRecords: [...firstPair.matchedEncounterRecords, ...secondPair.matchedEncounterRecords], strictReversal: reversal });
           if (firstPair.pairedN < STRICT_MIN_PAIRED_N || secondPair.pairedN < STRICT_MIN_PAIRED_N) insufficientCount++;
           if (reversal) strictReversalCount++;
         }
       }
     }
   }
-  return { strictReversalCount, insufficientCount, familyComparisons: familyRows, families, rule: "same seed + same encounter identity; paired outcome and diagnostic utility bootstrap 95% CIs exclude zero; both family signs must reverse; N<30=insufficient_sample" };
+  return { strictReversalCount, insufficientCount, familyComparisons: familyRows, families, rule: "same worldSeed + floor + stable encounter eventKey + enemy composition; encounter-level paired clear/death outcome and diagnostic utility bootstrap 95% CIs exclude zero; both family signs must reverse; N<30=insufficient_sample" };
 }
 
 function loadReference() {
@@ -372,7 +409,7 @@ export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, prove
       routePolicy: "partial_information_exploration uses known cells/frontiers only; hidden stairs/boss/secret coordinates are not route inputs",
       equipmentUpdatePolicy: "P0 fixed; P1 deterministic greedy production scorer immediately after each generated reward; powder policy leaves unidentified items held",
       unidentifiedPolicy: "production powder policy; no measurement-only reveal and no future-enemy inspection",
-      modeledSystems: ["production generateRunFloor", "production movement edge rules", "known-cell frontier exploration", "production search success and encounter exposure", "production generateEncounter", "production combat round resolution", "production loot/chest/equipment generation", "production equipment identification/equip eligibility/scoring", "floor transition HP recovery", "camp eligibility/40% recovery/one-rest rule", "mandatory milestone bosses", "HP/MP carry-over", "forced-push progression"],
+      modeledSystems: ["production generateRunFloor", "production movement edge rules", "known-cell frontier exploration", "production search success and encounter exposure", "production generateEncounter", "production combat round resolution", "#983 exclusive death attribution with state-degradation evidence", "production loot/chest/equipment generation", "production equipment identification/equip eligibility/scoring", "#975-compatible encounter-event paired comparison", "floor transition HP recovery", "camp eligibility/40% recovery/one-rest rule", "mandatory milestone bosses", "HP/MP carry-over", "forced-push progression"],
       omittedSystems: ["actual player UI timing", "retreat/return judgment", "human identification/curse judgment", "global optimal build search", "mid-run party composition changes", "oracle route information in partial arm"],
       caveats: ["This is production-backed deterministic measurement, not actual player AI or an actual player run.", "Equipment P1 is a simplified greedy policy; it is an upper-bound-like deterministic policy only where identified candidates are available.", "Partial exploration uses a bounded frontier budget to keep the runner finite; it does not claim to reproduce human curiosity.", "B21+ population may remain absent and is reported rather than manufactured."]
     },
@@ -385,7 +422,7 @@ export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, prove
       oracleVsPartial: Object.fromEntries(BUILD_IDS.map(buildId => {
         const oracle = summaries["oracle-fixed"].byBuild[buildId];
         const partial = summaries["partial-info-fixed"].byBuild[buildId];
-        return [buildId, { stepsPerFloorDelta: partial.stepsPerFloor.mean - oracle.stepsPerFloor.mean, encountersPerFloorDelta: partial.encountersExperienced.mean - oracle.encountersExperienced.mean, normalDamageDelta: partial.normalExposure.totalNormalDamage.mean - oracle.normalExposure.totalNormalDamage.mean, mpConsumedDelta: mean(rows["partial-info-fixed"][buildId].map(row => row.mpConsumed)) - mean(rows["oracle-fixed"][buildId].map(row => row.mpConsumed)), deathDepthDelta: partial.deathDepth.mean - oracle.deathDepth.mean, reachedDepthDelta: mean(Object.values(partial.reachedRates).map((rate, index) => rate * DEPTHS[index])) - mean(Object.values(oracle.reachedRates).map((rate, index) => rate * DEPTHS[index])), campArrivalRateDelta: partial.campArrivalRate - oracle.campArrivalRate, bossArrivalRateDelta: partial.bossArrivalRate - oracle.bossArrivalRate }];
+        return [buildId, { stepsPerFloorDelta: partial.stepsPerFloor.mean - oracle.stepsPerFloor.mean, encountersPerFloorDelta: partial.encountersPerFloor.mean - oracle.encountersPerFloor.mean, normalDamageDelta: partial.normalExposure.totalNormalDamage.mean - oracle.normalExposure.totalNormalDamage.mean, mpConsumedDelta: mean(rows["partial-info-fixed"][buildId].map(row => row.mpConsumed)) - mean(rows["oracle-fixed"][buildId].map(row => row.mpConsumed)), deathDepthDelta: partial.deathDepth.mean - oracle.deathDepth.mean, reachedDepthDelta: partial.reachedDepth.mean - oracle.reachedDepth.mean, campArrivalRateDelta: partial.campArrivalRate - oracle.campArrivalRate, bossArrivalRateDelta: partial.bossArrivalRate - oracle.bossArrivalRate }];
       })),
       fixedVsEquipmentUpdate: Object.fromEntries(BUILD_IDS.map(buildId => {
         const fixed = summaries["partial-info-fixed"].byBuild[buildId];
@@ -393,9 +430,9 @@ export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, prove
         return [buildId, { reachedDepthRateDelta: updated.reachedRates[String(TARGET_DEPTH)] - fixed.reachedRates[String(TARGET_DEPTH)], reachedDepthDelta: updated.reachedDepth.mean - fixed.reachedDepth.mean, deathDepthDelta: updated.deathDepth.mean === null || fixed.deathDepth.mean === null ? null : updated.deathDepth.mean - fixed.deathDepth.mean, equipmentScoreAfterDelta: updated.equipment.scoreAfter.mean - fixed.equipment.scoreAfter.mean }];
       }))
     },
-    matchedComparison: { population: "partial-information full-run same worldSeed", commonSupport: strict, strictReversalRule: strict.rule },
+      matchedComparison: { population: "partial-information fixed arm encounter events", commonSupport: strict, strictReversalRule: strict.rule },
     audit: {
-      routeDecision: "knownCellKeys + deterministic BFS frontier; target switches only after observed stairs/boss",
+      routeDecision: "knownCellKeys + deterministic BFS frontier; target switches only after observed stairs/boss; secret search uses fixed N/E/S/W direction order only at a dead end",
       hiddenInformationAssertions: { hiddenStairsUsed: false, hiddenBossUsed: false, hiddenSecretDoorUsed: false, futureEncounterInfoUsed: false },
       deathCategories: [...EXCLUSIVE_DEATH_CATEGORIES],
       productionBalanceChanged: false
@@ -430,12 +467,12 @@ export function renderSummary(report) {
     "",
     "## 探索負荷・oracle差",
     "",
-    "| build | oracle steps/floor | partial steps/floor | extra encounters | partial explored ratio | search actions |",
+    "| build | oracle steps/floor | partial steps/floor | extra encounters/floor | partial explored ratio | search actions |",
     "| --- | ---: | ---: | ---: | ---: | ---: |",
     ...BUILD_IDS.map(buildId => {
       const oracle = report.arms["oracle-fixed"].byBuild[buildId];
       const partial = report.arms["partial-info-fixed"].byBuild[buildId];
-      return `| ${buildId} | ${fmt(oracle.stepsPerFloor.mean)} | ${fmt(partial.stepsPerFloor.mean)} | ${fmt(partial.encountersExperienced.mean - oracle.encountersExperienced.mean)} | ${percent(partial.exploredRatio.mean)} | ${fmt(partial.searchActions.mean)} |`;
+      return `| ${buildId} | ${fmt(oracle.stepsPerFloor.mean)} | ${fmt(partial.stepsPerFloor.mean)} | ${fmt(partial.encountersPerFloor.mean - oracle.encountersPerFloor.mean)} | ${percent(partial.exploredRatio.mean)} | ${fmt(partial.searchActions.mean)} |`;
     }),
     "",
     "## 死因・通常攻撃曝露",
@@ -461,12 +498,12 @@ export function renderSummary(report) {
     "",
     "## matched comparison / Build Confidence",
     "",
-    `- common-support: partial-information same worldSeed; strict reversal は #975 互換の paired outcome + diagnostic utility bootstrap 95% CI。N<${STRICT_MIN_PAIRED_N} は \`insufficient_sample\`。`,
+    `- common-support: partial-information fixed arm の同一 worldSeed・floor・eventKey・enemy composition。strict reversal は #975 互換の encounter-level paired outcome + diagnostic utility bootstrap 95% CI。N<${STRICT_MIN_PAIRED_N} は \`insufficient_sample\`。`,
     `- strict reversal count: **${report.matchedComparison.commonSupport.strictReversalCount}**; insufficient count: **${report.matchedComparison.commonSupport.insufficientCount}**`,
     "",
-    "| build pair | paired N | status | outcome CI | utility CI | same encounter identities |",
-    "| --- | ---: | --- | --- | --- | ---: |",
-    ...report.matchedComparison.commonSupport.familyComparisons.map(pair => `| ${pair.leftBuildId} vs ${pair.rightBuildId} | ${pair.pairedN} | ${pair.status} | [${fmt(pair.outcome.ci95?.[0])}, ${fmt(pair.outcome.ci95?.[1])}] | [${fmt(pair.utility.ci95?.[0])}, ${fmt(pair.utility.ci95?.[1])}] | ${pair.pairedN} |`),
+    "| build pair / family | matched event N | status | outcome CI | utility CI |",
+    "| --- | ---: | --- | --- | --- |",
+    ...report.matchedComparison.commonSupport.familyComparisons.map(pair => `| ${pair.leftBuildId} vs ${pair.rightBuildId} / ${pair.family} | ${pair.pairedN} | ${pair.status} | [${fmt(pair.outcome.ci95?.[0])}, ${fmt(pair.outcome.ci95?.[1])}] | [${fmt(pair.utility.ci95?.[0])}, ${fmt(pair.utility.ci95?.[1])}] |`),
     "",
     "## #990 の質問への回答",
     "",
@@ -477,7 +514,7 @@ export function renderSummary(report) {
     "5. B21+ pure raw 増加は arm 別 death category から判定する。",
     "6. pure raw は単発 hit と累積 exposure（hits / total damage / enemy actions）の両方を出し、累積要因を検証可能にした。",
     "7. 探索追加遭遇は movement と search action を分離記録した。",
-    `8. matched comparison の strict reversal は **${report.matchedComparison.commonSupport.strictReversalCount}**。勝率だけでは reversal と呼ばない。`,
+    `8. この encounter-level matched sample で #975 strict reversal を満たした比較は **${report.matchedComparison.commonSupport.strictReversalCount}**。0でも得意不得意の不存在は意味せず、N不足は insufficient とした。`,
     `9. 1 build の一方的支配はこの表の到達率と paired comparison で確認する。`,
     "10. #973 Build Confidence: **Revise**（Phase 2 の partial-information / in-run growth を追加したが、retreat と B21+成立性は未検証）。",
     "11. #990: **現時点では閉じない**。モデル限界と B21+ population の成立性を明示したため、追加検証余地が残る。",
