@@ -496,9 +496,19 @@ export function renderSummary(report) {
       return `| ${buildId} | ${updated.dropsSeen} | ${updated.equippedCount} | ${updated.rejectedCount} | ${fmt(updated.scoreBefore.mean)} | ${fmt(updated.scoreAfter.mean)} | ${fmt(updated.buildScoreAfter.mean - updated.buildScoreBefore.mean)} | ${[...new Set(updated.coreChanges)].join(", ") || "none"} | ${[...new Set(updated.supportAffixChanges)].join(", ") || "none"} |`;
     }),
     "",
+    "| build | partial P0 mean reached depth | partial P1 mean reached depth | P1 − P0 |",
+    "| --- | ---: | ---: | ---: |",
+    ...BUILD_IDS.map(buildId => {
+      const fixed = report.arms["partial-info-fixed"].byBuild[buildId];
+      const updated = report.arms["partial-info-equipment-update"].byBuild[buildId];
+      return `| ${buildId} | ${fmt(fixed.reachedDepth.mean)} | ${fmt(updated.reachedDepth.mean)} | ${fmt(updated.reachedDepth.mean - fixed.reachedDepth.mean)} |`;
+    }),
+    "",
     "## matched comparison / Build Confidence",
     "",
     `- common-support: partial-information fixed arm の同一 worldSeed・floor・eventKey・enemy composition。strict reversal は #975 互換の encounter-level paired outcome + diagnostic utility bootstrap 95% CI。N<${STRICT_MIN_PAIRED_N} は \`insufficient_sample\`。`,
+    "- death classification: #983 の exclusive contract を再利用し、mechanic-mediated は観測された state degradation evidence が1種類だけある場合に限定。mechanic発火だけでは昇格しない。",
+    "- mean reached depth は代理到達率ではなく、各 raw row の `reachedDepth` の算術平均。encounters/floor は各 run の `encounters / max(1, reachedDepth)` の平均。",
     `- strict reversal count: **${report.matchedComparison.commonSupport.strictReversalCount}**; insufficient count: **${report.matchedComparison.commonSupport.insufficientCount}**`,
     "",
     "| build pair / family | matched event N | status | outcome CI | utility CI |",
@@ -510,12 +520,12 @@ export function renderSummary(report) {
     "1. oracle と partial の歩数・遭遇数差は上の探索負荷表に build 別で記録した。",
     "2. 未知情報を使わない partial arm の到達率は到達率表の比較対象である。",
     "3. fixed と equipment-update の差は同表の P0/P1 で分離した。",
-    `4. B21+ population: ${Object.values(report.arms["partial-info-equipment-update"].byBuild).some(row => row.reachedRates["21"] > 0) ? "成立" : "未成立（このmodelでは未観測）"}。`,
-    "5. B21+ pure raw 増加は arm 別 death category から判定する。",
+    `4. B21+ population: ${Object.values(report.arms["partial-info-equipment-update"].byBuild).some(row => row.reachedRates["21"] > 0) ? "成立" : "未成立（このmodelでは未観測）"}。未成立なら B21+ pure raw 増加も判定不能。`,
+    "5. B21+ pure raw 増加は未観測時は判定不能、観測範囲では death category と累積曝露を分けて記録した。",
     "6. pure raw は単発 hit と累積 exposure（hits / total damage / enemy actions）の両方を出し、累積要因を検証可能にした。",
     "7. 探索追加遭遇は movement と search action を分離記録した。",
     `8. この encounter-level matched sample で #975 strict reversal を満たした比較は **${report.matchedComparison.commonSupport.strictReversalCount}**。0でも得意不得意の不存在は意味せず、N不足は insufficient とした。`,
-    `9. 1 build の一方的支配はこの表の到達率と paired comparison で確認する。`,
+    "9. 1 build の一方的支配は到達率と paired comparison の両方で確認する。深層到達率は survivor bias を含むため単独では支配と解釈しない。",
     "10. #973 Build Confidence: **Revise**（Phase 2 の partial-information / in-run growth を追加したが、retreat と B21+成立性は未検証）。",
     "11. #990: **現時点では閉じない**。モデル限界と B21+ population の成立性を明示したため、追加検証余地が残る。",
     "12. production tuning: **進まない**。本測定は balance constant を変更していない。",
