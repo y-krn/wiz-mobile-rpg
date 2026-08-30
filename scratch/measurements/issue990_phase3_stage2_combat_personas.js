@@ -456,7 +456,7 @@ function renderSummary(report) {
     "",
     "| policy | mean reached depth | B5 | B6 | B10 | B15 | pure raw death share | B3 MP% | B4 MP% | B5 MP% | rounds/encounter | enemy actions/encounter | normal damage/encounter |",
     "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...policies.map(policy => { const value = report.policies[policy]; return `| ${policy} | ${fmt(value.reachedDepth.mean)} | ${percent(value.reach["5"].rate)} | ${percent(value.reach["6"].rate)} | ${percent(value.reach["10"].rate)} | ${percent(value.reach["15"].rate)} | ${percent(sum(Object.values(value.deathCategories).map(item => item.count ? item.rate : 0)))} | ${percent(value.floors["3"].entry.mpRatio.mean)} | ${percent(value.floors["4"].entry.mpRatio.mean)} | ${percent(value.floors["5"].entry.mpRatio.mean)} | ${fmt(value.perEncounter.rounds)} | ${fmt(value.perEncounter.enemyActions)} | ${fmt(value.perEncounter.normalDamage)} |`; }),
+    ...policies.map(policy => { const value = report.policies[policy]; return `| ${policy} | ${fmt(value.reachedDepth.mean)} | ${percent(value.reach["5"].rate)} | ${percent(value.reach["6"].rate)} | ${percent(value.reach["10"].rate)} | ${percent(value.reach["15"].rate)} | ${percent(value.deathCategories.pure_raw_damage.rate)} | ${percent(value.floors["3"].entry.mpRatio.mean)} | ${percent(value.floors["4"].entry.mpRatio.mean)} | ${percent(value.floors["5"].entry.mpRatio.mean)} | ${fmt(value.perEncounter.rounds)} | ${fmt(value.perEncounter.enemyActions)} | ${fmt(value.perEncounter.normalDamage)} |`; }),
     "",
     "## Table G — Same-seed pair comparison",
     "",
