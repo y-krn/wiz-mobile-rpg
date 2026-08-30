@@ -3,16 +3,38 @@ import { MILESTONE_MERCHANT_STOCK, MILESTONE_UNCURSE_COST } from "../data/milest
 import { addLog, saveAutosave, state } from "../state.js";
 import { getCursedEquipment, purchaseMilestoneStock, purchaseMilestoneUncurse } from "../systems/milestone_merchant.js";
 import { getItemData } from "../rules/item_rules.js";
-import { canAffordMaterials } from "../rules/material_rules.js";
+import { MATERIAL_TYPES } from "../data/materials.js";
+import { canAffordMaterials, spendMaterials } from "../rules/material_rules.js";
 import { updateUI } from "../ui.js";
 import { createActionCard } from "./action_card.js";
 
 let selectedOffer = null;
+const INVENTORY_CAPACITY = 20;
 
 function formatCostWithBalance(cost, materials) {
   return Object.entries(cost || {})
     .map(([name, amount]) => `${name} ${amount}（所持 ${materials?.[name] || 0}）`)
     .join("・");
+}
+
+export function getAdditionalPurchaseCount(materials, cost, inventorySlots = Infinity) {
+  const slotLimit = Number.isFinite(inventorySlots)
+    ? Math.max(0, Math.floor(inventorySlots))
+    : Infinity;
+  if (slotLimit === 0) return 0;
+
+  let materialLimit = Infinity;
+  Object.entries(cost || {}).forEach(([name, amount]) => {
+    const quantity = Math.max(0, Math.floor(Number(amount) || 0));
+    if (quantity === 0) return;
+    materialLimit = Math.min(
+      materialLimit,
+      Math.floor(Math.max(0, Number(materials?.[name]) || 0) / quantity)
+    );
+  });
+
+  if (materialLimit === Infinity) return slotLimit;
+  return Math.max(0, Math.min(materialLimit, slotLimit));
 }
 
 function createSection(label, className = "") {
@@ -38,6 +60,47 @@ function getSelectedLabel() {
   }
   const entry = MILESTONE_MERCHANT_STOCK.find(item => item.id === selectedOffer.id);
   return entry ? `${getEntryDisplayName(entry)}を購入` : "商品を選択してください";
+}
+
+function getSelectedCost() {
+  if (!selectedOffer) return null;
+  if (selectedOffer.kind === "uncurse") return MILESTONE_UNCURSE_COST;
+  return MILESTONE_MERCHANT_STOCK.find(item => item.id === selectedOffer.id)?.cost || null;
+}
+
+function renderMaterialBalance(materials) {
+  const selectedCost = getSelectedCost();
+  const remaining = selectedCost ? spendMaterials(materials, selectedCost) || materials : materials;
+  const balance = createSection(
+    selectedCost
+      ? `購入確定前：${selectedOffer.kind === "uncurse" ? "解呪後" : "購入後"}の残素材`
+      : "素材残高",
+    "milestone-merchant-balance"
+  );
+  balance.setAttribute("aria-label", selectedCost ? "購入確定前の残素材" : "所持素材");
+
+  const balances = document.createElement("div");
+  balances.className = "milestone-merchant-balances solo-start-craft-balances";
+  balances.setAttribute("aria-live", "polite");
+  MATERIAL_TYPES.forEach(material => {
+    const original = Math.max(0, Math.floor(Number(materials?.[material]) || 0));
+    const next = Math.max(0, Math.floor(Number(remaining?.[material]) || 0));
+    if (original <= 0 && next <= 0) return;
+    const badge = document.createElement("span");
+    badge.className = "milestone-merchant-balance-item solo-start-craft-balance";
+    badge.dataset.material = material;
+    badge.dataset.balance = String(next);
+    badge.textContent = `${material} ${next}${next < original ? ` (-${original - next})` : ""}`;
+    balances.appendChild(badge);
+  });
+  if (balances.childElementCount === 0) {
+    const empty = document.createElement("span");
+    empty.className = "milestone-merchant-balance-empty";
+    empty.textContent = "所持素材なし";
+    balances.appendChild(empty);
+  }
+  balance.appendChild(balances);
+  return balance;
 }
 
 function renderConfirmFooter(optGrid) {
@@ -81,25 +144,27 @@ export function renderMilestoneMerchant(optGrid) {
   optGrid.classList.add("milestone-merchant-grid");
   if (isFresh) selectedOffer = null;
   const materials = state.currentRun?.materials || {};
-  const total = Object.values(materials).reduce((sum, value) => sum + value, 0);
-  const balance = createSection(`深層商人：素材 ${total}`, "milestone-merchant-balance");
-  balance.setAttribute("aria-label", "所持素材");
-  optGrid.appendChild(balance);
+  optGrid.appendChild(renderMaterialBalance(materials));
   optGrid.appendChild(createSection("購入できる品"));
 
   MILESTONE_MERCHANT_STOCK.forEach(entry => {
-    const affordable = canAffordMaterials(materials, entry.cost);
-    const full = entry.kind === "item" && state.inventory.length >= 20;
+    const inventorySlots = entry.kind === "item"
+      ? Math.max(0, INVENTORY_CAPACITY - state.inventory.length)
+      : Infinity;
+    const additionalPurchaseCount = getAdditionalPurchaseCount(materials, entry.cost, inventorySlots);
+    const full = entry.kind === "item" && inventorySlots === 0;
     const itemName = getEntryDisplayName(entry);
-    const status = full ? "バッグ満杯" : affordable ? "購入可能" : "素材不足";
+    const status = additionalPurchaseCount > 0
+      ? `あと${additionalPurchaseCount}個`
+      : `あと0個・${full ? "バッグ満杯" : "素材不足"}`;
     const button = createActionCard({
       name: itemName,
       description: getEntryDescription(entry),
       cost: `価格：${formatCostWithBalance(entry.cost, materials)} ・ ${status}`,
-      costClassName: !affordable || full ? "is-insufficient" : "",
+      costClassName: additionalPurchaseCount === 0 ? "is-insufficient" : "",
       className: "milestone-merchant-option",
       selected: selectedOffer?.kind === "stock" && selectedOffer.id === entry.id,
-      disabled: !affordable || full,
+      disabled: additionalPurchaseCount === 0,
       ariaPressed: selectedOffer?.kind === "stock" && selectedOffer.id === entry.id,
       dataset: { stockId: entry.id, stockKind: entry.kind },
       onClick: () => {

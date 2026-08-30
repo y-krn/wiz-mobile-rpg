@@ -517,8 +517,19 @@
   position: sticky;
   top: 0;
   z-index: 1;
+  display: grid;
+  gap: var(--sp-xxs);
   background: var(--hud-chrome-bg);
   border-bottom: 1px solid var(--border-color);
+}
+
+.milestone-merchant-balances {
+  padding-top: var(--sp-xxs);
+}
+
+.milestone-merchant-balance-empty {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
 }
 
 #merchant-confirm-footer {

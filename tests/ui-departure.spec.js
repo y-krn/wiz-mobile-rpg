@@ -83,20 +83,39 @@ for (const vp of VIEWPORTS) {
     expect((await uncurse.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('.milestone-merchant-option[data-stock-kind="equipment"]')).toHaveCount(0);
     await expect(powder).toContainText('価格');
+    await expect(powder).toContainText('霊粉 2（所持 9）');
+    await expect(powder).toContainText('あと4個');
+    await expect(page.locator('.milestone-merchant-balance-item[data-material="霊粉"]')).toHaveText('霊粉 9');
+    await expect(page.locator('.milestone-merchant-balance-item[data-material="獣の牙"]')).toHaveText('獣の牙 2');
     await expect(powder).toHaveAttribute('aria-pressed', 'false');
     await powder.click();
     await expect(powder).toHaveClass(/is-selected/);
+    await expect(page.locator('.milestone-merchant-balance')).toContainText('購入確定前：購入後の残素材');
+    await expect(page.locator('.milestone-merchant-balance-item[data-material="霊粉"]')).toHaveText('霊粉 7 (-2)');
     await expect(page.locator('#btn-merchant-confirm')).toBeEnabled();
     await expect(page.locator('#btn-merchant-confirm')).toContainText('購入');
     expect((await page.locator('#btn-merchant-confirm').boundingBox()).height).toBeGreaterThanOrEqual(44);
     await page.locator('#btn-merchant-confirm').click();
     await expect(page.locator('#log-content')).toContainText('鑑定粉を購入した');
+    await expect(powder).toContainText('あと3個');
+    await expect(page.locator('.milestone-merchant-balance-item[data-material="霊粉"]')).toHaveText('霊粉 7');
 
     const healPotion = page.locator('.milestone-merchant-option[data-stock-id="heal_potion"]');
     await healPotion.click();
     await expect(page.locator('.merchant-selection-summary')).toContainText('傷薬 (ディオス薬)を購入');
+    await expect(page.locator('.milestone-merchant-balance-item[data-material="獣の牙"]')).toHaveText('獣の牙 1 (-1)');
+    await expect(healPotion).toContainText('あと2個');
     await page.locator('#btn-merchant-confirm').click();
     await expect(page.locator('#log-content')).toContainText('傷薬 (ディオス薬)を購入した');
+    await expect(healPotion).toContainText('あと1個');
+
+    await uncurse.click();
+    await expect(page.locator('.milestone-merchant-balance')).toContainText('購入確定前：解呪後の残素材');
+    await expect(page.locator('.milestone-merchant-balance-item[data-material="霊粉"]')).toHaveText('霊粉 2 (-5)');
+    await expect(page.locator('.milestone-merchant-balance-item[data-material="呪布"]')).toHaveText('呪布 2 (-3)');
+    await expect(page.locator('.milestone-merchant-balance-item[data-material="黒角"]')).toHaveText('黒角 2 (-1)');
+    await page.locator('#btn-merchant-confirm').click();
+    await expect(page.locator('#log-content')).toContainText('ショートソード（未鑑定）の呪いを解いた');
 
     await page.evaluate(async () => {
       const { openSubmenu } = await import('/src/navigation.js');
@@ -112,6 +131,26 @@ for (const vp of VIEWPORTS) {
     expect(result).toEqual({ gameState: 'result', reason: 'milestone_portal' });
   });
 }
+
+test('Milestone merchant shows the blocking reason for material and bag limits', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createDefaultCurrentRun, state } = await import('/src/state.js');
+    const { openSubmenu } = await import('/src/navigation.js');
+    state.currentRun = createDefaultCurrentRun();
+    state.currentRun.materials = { '霊粉': 1, '獣の牙': 1 };
+    state.inventory = Array(20).fill('HEAL_POTION');
+    state.gameState = 'explore';
+    openSubmenu('milestone_merchant', '深層商人');
+  });
+
+  await expect(page.locator('[data-stock-id="heal_potion"]')).toBeDisabled();
+  await expect(page.locator('[data-stock-id="heal_potion"]')).toContainText('あと0個・バッグ満杯');
+  await expect(page.locator('[data-stock-id="identify_powder"]')).toBeDisabled();
+  await expect(page.locator('[data-stock-id="identify_powder"]')).toContainText('あと0個・素材不足');
+  await expect(page.locator('.milestone-merchant-balance-item[data-material="霊粉"]')).toHaveText('霊粉 1');
+});
 
 for (const vp of VIEWPORTS) {
   test(`Departure start button fits after selecting two crafts on ${vp.name}`, async ({ page }) => {
