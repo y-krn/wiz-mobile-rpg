@@ -31,6 +31,7 @@ assert.ok(
   b18Probe.atk > b13Probe.atk,
   "B13 and B18 must retain distinct ATK pressure"
 );
+assert.ok(b13Probe.atk >= b8Probe.atk, "deep ATK scaling must not regress after B8");
 assert.ok(b21Probe.maxHp >= b18Probe.maxHp, "B21 must not regress HP scaling");
 assert.ok(b25Probe.maxHp >= b21Probe.maxHp, "B25 must not regress HP scaling");
 assert.ok(b30Probe.maxHp >= b25Probe.maxHp, "B30 must not regress HP scaling");
