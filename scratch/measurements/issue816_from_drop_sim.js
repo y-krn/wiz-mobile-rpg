@@ -22,6 +22,7 @@ const SUM_FIELDS = Object.freeze([
   "rewardsAwarded", "rewardsLost", "trapsTriggered", "mainTownPortalRewards", "specialTownPortalRewards"
 ]);
 const ACTIONS = Object.freeze(["inspect", "open", "disarm", "trap_kit", "smash", "leave"]);
+const DECISION_ACTIONS = Object.freeze(["open", "disarm", "trap_kit", "smash", "leave"]);
 const SOURCES = Object.freeze(["ordinary", "secretRoom", "fromDrop"]);
 
 function createSourceTotals() {
@@ -50,7 +51,7 @@ function addRun(target, result) {
 function finalizeSourceTotals(totals) {
   return Object.fromEntries(SOURCES.map(source => {
     const value = totals[source];
-    const choices = ACTIONS.reduce((sum, action) => sum + value.actions[action], 0);
+    const choices = DECISION_ACTIONS.reduce((sum, action) => sum + value.actions[action], 0);
     return [source, {
       ...value,
       smashRate: {
