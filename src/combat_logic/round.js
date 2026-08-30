@@ -475,6 +475,23 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
   // Sort by Speed descending
   turns.sort((a, b) => b.speed - a.speed);
+  // Measurement-only exposure cap. With no simPolicy value the production
+  // turn order is unchanged. The cap applies to total monster turns, so it
+  // includes ordinary actions and trait-generated extra actions alike while
+  // preserving the original monster objects, traits, and composition.
+  const maxEnemyActionsPerRound = state.simPolicy?.measurementMaxEnemyActionsPerRound;
+  if (Number.isInteger(maxEnemyActionsPerRound) && maxEnemyActionsPerRound >= 0) {
+    let remainingEnemyActions = maxEnemyActionsPerRound;
+    for (let index = 0; index < turns.length; index++) {
+      if (turns[index].type !== "monster") continue;
+      if (remainingEnemyActions > 0) {
+        remainingEnemyActions--;
+      } else {
+        turns[index] = null;
+      }
+    }
+    turns.splice(0, turns.length, ...turns.filter(Boolean));
+  }
   if (state.simTelemetry?.measurementEnemyTurnEvents) {
     turns.forEach(turn => {
       if (turn.type === "monster") {

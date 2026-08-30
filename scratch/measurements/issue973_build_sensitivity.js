@@ -224,25 +224,43 @@ export function createEncounterFixture(encounterId, depth, counterfactual = null
       name: count > 1 ? `${name} ${String.fromCharCode(64 + count)}` : name
     };
   });
-  if (counterfactual?.kind === "multi_enemy_to_single") {
-    monsters = monsters.slice(0, 1);
-  }
-  if (counterfactual?.kind === "enemy_hp") {
-    const rate = Number(counterfactual.rate);
-    if (!Number.isFinite(rate) || rate <= 0 || rate > 1) {
-      throw new Error(`invalid measurement enemy HP rate: ${counterfactual.rate}`);
-    }
-    monsters = monsters.map(monster => {
-      const hp = Math.max(1, Math.round(monster.maxHp * rate));
-      return { ...monster, hp, maxHp: hp };
-    });
-  }
+  monsters = applyEncounterCounterfactual(monsters, counterfactual);
   return {
     id: definition.id,
     label: definition.label,
     monsterNames: [...definition.monsterNames],
     depth,
     monsters,
+    counterfactual: counterfactual ? structuredClone(counterfactual) : null
+  };
+}
+
+function applyEncounterCounterfactual(monsters, counterfactual) {
+  let adjusted = monsters;
+  if (counterfactual?.kind === "multi_enemy_to_single") adjusted = adjusted.slice(0, 1);
+  if (counterfactual?.kind === "enemy_hp") {
+    const rate = Number(counterfactual.rate);
+    if (!Number.isFinite(rate) || rate <= 0 || rate > 1) {
+      throw new Error(`invalid measurement enemy HP rate: ${counterfactual.rate}`);
+    }
+    adjusted = adjusted.map(monster => {
+      const hp = Math.max(1, Math.round(monster.maxHp * rate));
+      return { ...monster, hp, maxHp: hp };
+    });
+  }
+  return adjusted;
+}
+
+export function createGeneratedEncounterFixture(monsters, depth, counterfactual = null, encounterId = "production-generated") {
+  if (!Array.isArray(monsters) || monsters.length === 0) throw new Error("generated encounter must contain monsters");
+  if (!TARGET_DEPTHS.includes(depth)) throw new Error(`unsupported depth: ${depth}`);
+  const cloned = applyEncounterCounterfactual(structuredClone(monsters), counterfactual);
+  return {
+    id: encounterId,
+    label: "production generateEncounter sample",
+    monsterNames: cloned.map(monster => monster.name),
+    depth,
+    monsters: cloned,
     counterfactual: counterfactual ? structuredClone(counterfactual) : null
   };
 }
@@ -292,6 +310,9 @@ function createSimulationState(buildId, depth, monsters, seed, counterfactual = 
         : {}),
       ...(counterfactual?.kind === "normal_damage"
         ? { measurementNormalDamageRate: counterfactual.rate }
+        : {}),
+      ...(counterfactual?.kind === "enemy_action_exposure"
+        ? { measurementMaxEnemyActionsPerRound: counterfactual.maxActionsPerRound }
         : {})
     },
     simTelemetry: { executionerTriggers: 0, causalDamageEvents: [], causalHealEvents: [], measurementEnemyTurnEvents: [] },
@@ -768,9 +789,11 @@ function classifyFailure({
   };
 }
 
-export function runEncounterSample({ buildId, encounterId, depth, seed, counterfactual = null }) {
+export function runEncounterSample({ buildId, encounterId, depth, seed, counterfactual = null, generatedMonsters = null }) {
   return withSeed(seed, () => {
-    const fixture = createEncounterFixture(encounterId, depth, counterfactual);
+    const fixture = generatedMonsters
+      ? createGeneratedEncounterFixture(generatedMonsters, depth, counterfactual, encounterId)
+      : createEncounterFixture(encounterId, depth, counterfactual);
     const state = createSimulationState(buildId, depth, fixture.monsters, seed, counterfactual);
     const mechanisms = createMechanismCounts();
     const statusTrajectory = createStatusTrajectory();

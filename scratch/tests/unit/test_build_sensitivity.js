@@ -9,6 +9,7 @@ import {
   runMeasurement
 } from "../../measurements/issue973_build_sensitivity.js";
 import { COUNTERFACTUALS, runDecomposition } from "../../measurements/issue984_pure_raw_decomposition.js";
+import { COUNTERFACTUALS as PRODUCTION_COUNTERFACTUALS, runMeasurement as runProductionFrequencyMeasurement } from "../../measurements/issue987_production_frequency.js";
 import { CORE_AFFIXES, SUPPORT_AFFIXES } from "../../../src/data/affixes.js";
 import { ITEMS } from "../../../src/data/items.js";
 import { SPELLS } from "../../../src/data/spells.js";
@@ -50,6 +51,7 @@ assert.deepEqual(sampleA, sampleB, "production combat sample must be determinist
 assert.equal(sampleA.seed, sharedSeed, "the sample must retain the shared case seed");
 const c1 = COUNTERFACTUALS.find(condition => condition.id === "C1_multi_enemy_to_single");
 const c2 = COUNTERFACTUALS.find(condition => condition.id === "C2_disable_multi_action_extra");
+const w3 = PRODUCTION_COUNTERFACTUALS.find(condition => condition.id === "W3_enemy_action_exposure_1");
 assert.equal(c1.kind, "multi_enemy_to_single");
 assert.equal(createEncounterFixture("swarm-action-pressure", 13, c1).monsters.length, 1);
 assert.match(c1.id, /multi_enemy_to_single/);
@@ -84,6 +86,16 @@ assert.equal(c2.kind, "disable_multi_action_extra");
 assert.notEqual(
   createEncounterFixture("durable-single-target", 13, { kind: "enemy_hp", rate: 0.5 }).monsters[0].maxHp,
   createEncounterFixture("durable-single-target", 13).monsters[0].maxHp
+);
+const generatedStressMonsters = createEncounterFixture("swarm-action-pressure", 8).monsters;
+const w3Baseline = runEncounterSample({ buildId: "single-efficient", encounterId: "generated-stress", depth: 8, seed: "w3-test", generatedMonsters: generatedStressMonsters });
+const w3Sample = runEncounterSample({ buildId: "single-efficient", encounterId: "generated-stress", depth: 8, seed: "w3-test", counterfactual: w3, generatedMonsters: generatedStressMonsters });
+assert.ok(w3Baseline.trace.some(round => round.enemyTurnEvents.length > 1), "W3 baseline must expose multiple ordinary enemy turns");
+assert.ok(w3Sample.trace.every(round => round.enemyTurnEvents.length <= 1), "W3 must cap total enemy turns per round");
+assert.deepEqual(
+  w3Sample.fixture.scaledStats.map(monster => ({ name: monster.name, traits: monster.traits })),
+  w3Baseline.fixture.scaledStats.map(monster => ({ name: monster.name, traits: monster.traits })),
+  "W3 must preserve generated monster identity and traits"
 );
 
 const significantDifference = (estimate, significant = true) => ({
@@ -240,5 +252,18 @@ assert.ok(Object.hasOwn(measuredCell.pureRawMetrics, "lethalHitDamage"));
 assert.ok(Object.hasOwn(measuredCell.pureRawMetrics, "enemyActionsPerRound"));
 assert.ok(Object.hasOwn(measuredCell.pureRawMetrics, "enemyHpRemovalSpeed"));
 assert.equal(decomposition.productionEncounterDistribution.length, 6);
+
+const productionFrequency = runProductionFrequencyMeasurement({ seed: "issue987-unit", generatedRuns: 1, stressRuns: 1 });
+assert.deepEqual(productionFrequency.measurement.configuration.depths, [8, 13, 18, 21, 25, 30]);
+assert.equal(productionFrequency.productionFrequencyWeighted.distributions.every(item => item.runs === 1), true);
+assert.equal(productionFrequency.productionFrequencyWeighted.conditions[0].buildSensitivity.pairwiseOverall.length, 6);
+productionFrequency.productionFrequencyWeighted.conditions.forEach(condition => {
+  condition.views.forEach(view => {
+    const deathTotal = Object.values(view.exclusiveDeathCategories).reduce((sum, count) => sum + count, 0);
+    assert.equal(deathTotal, view.outcomes.death, "production weighted death categories must be exclusive");
+    const rawTotal = Object.values(view.legacyRawExclusiveCategories).reduce((sum, count) => sum + count, 0);
+    assert.equal(rawTotal, view.legacyRawDamageDeaths, "production weighted raw categories must be exhaustive");
+  });
+});
 
 console.log("[PASS] build definitions, fixture determinism, shared seeds, production combat determinism, provenance, status trajectory, and output schema verified");
