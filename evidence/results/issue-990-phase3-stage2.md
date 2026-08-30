@@ -12,7 +12,7 @@ Combat persona is the only independent variable. Exploration, budget, after-stai
 | persona | rule | explicit thresholds |
 | --- | --- | --- |
 | balanced-combat | Stage 1.5 legacy Mage selector; no new reserve rule | Stage 1.5 legacy Mage selector; no new reserve rule |
-| mp-conservative | physical attack by default; reserve 50% max MP in low-pressure fights | physical attack by default; reserve 50% max MP in low-pressure fights reserve=50.0%, weak-single max HP=22, danger HP=45.0% |
+| mp-conservative | low-pressure single enemy uses physical attack; otherwise HALITO preserves 50% max MP when payable; multi-enemy opens with KATINO then uses LAHALITO, while high-threat single fights may use emergency HALITO | low-pressure single enemy uses physical attack; otherwise HALITO preserves 50% max MP when payable; multi-enemy opens with KATINO then uses LAHALITO, while high-threat single fights may use emergency HALITO reserve=50.0%, weak-single max HP=22, danger HP=45.0% |
 | burst-combat | highest currently payable offensive damage spell, with physical fallback | highest currently payable offensive damage spell, with physical fallback |
 
 ## Table B — Reach / reached depth
