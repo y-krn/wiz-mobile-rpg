@@ -87,7 +87,7 @@ function aggregateFloor(records, floor) {
     .map(record => record.stage15Diagnostics?.byFloor?.[String(floor)])
     .filter(Boolean);
   const sums = field => sum(observed.map(record => record[field]));
-  const values = side => field => describe(observed.map(record => finite(record[side]?.[field])).filter(value => value !== null));
+  const values = side => field => describe(observed.map(record => finite(record[`${side}${field[0].toUpperCase()}${field.slice(1)}`])).filter(value => value !== null));
   const entered = observed.length;
   const reachedNextFloor = sums("reachedNextFloor");
   const died = sums("died");
