@@ -131,6 +131,8 @@ summarize = records => {
     else if (upperCut !== null && record.entryMpRatio > upperCut) cohorts.upper_resource.push(record);
     else cohorts.median_resource.push(record);
   }
+  summary.checkpointStateDistribution.equippedItemCount = quantiles(records.map(record => record.checkpointState.equippedItems.length));
+  summary.checkpointStateDistribution.equipmentRarity = Object.fromEntries(["magic", "rare", "epic", "other"].map(rarity => [rarity, quantiles(records.map(record => record.checkpointState.equipmentRarity[rarity] || 0))]));
   summary.resourceCohorts = { lowerCut, upperCut, definitions: { lower_resource: "entry MP ratio ≤ p25", median_resource: "p25 < entry MP ratio ≤ p75", upper_resource: "entry MP ratio > p75" }, results: Object.fromEntries(Object.entries(cohorts).map(([name, cohort]) => { const deaths = cohort.filter(record => record.died); const pure = cohort.filter(record => record.deathCategory === "pure_raw_damage"); return [name, { N: cohort.length, deaths: deaths.length, deathIncidence: ratio(deaths.length, cohort.length), pureRawDeaths: pure.length, pureRawIncidence: ratio(pure.length, cohort.length), pureRawShareAmongDeaths: ratio(pure.length, deaths.length) }]; })) };
   return summary;
 };
@@ -176,7 +178,7 @@ render = report => {
   const rows = CHECKPOINTS.map(checkpoint => {
     const d = report.checkpointStateAudits[checkpoint].distribution.checkpointStateDistribution;
     const values = distribution => [distribution.p10, distribution.p25, distribution.p50, distribution.p75, distribution.p90].map(fmt).join(" / ");
-    return `| B${checkpoint} | ${values(d.hpRatio)} | ${values(d.mpRatio)} | ${fmt(d.ATK.p50)} | ${fmt(d.DEF.p50)} | ${fmt(d.maxHP.p50)} | ${fmt(d.maxMP.p50)} | ${fmt(d.inventoryCount.p50)} | ${fmt(d.consumableCount.p50)} | ${fmt(d.coreCount.p50)} | ${fmt(d.supportCount.p50)} | ${fmt(d.buildScore.p50)} | ${percent(d.curseRate)} |`;
+    return `| B${checkpoint} | ${values(d.hpRatio)} | ${values(d.mpRatio)} | ${fmt(d.ATK.p50)} | ${fmt(d.DEF.p50)} | ${fmt(d.maxHP.p50)} | ${fmt(d.maxMP.p50)} | ${fmt(d.inventoryCount.p50)} | ${fmt(d.consumableCount.p50)} | ${fmt(d.coreCount.p50)} | ${fmt(d.supportCount.p50)} | ${fmt(d.buildScore.p50)} | ${percent(d.curseRate)} | ${["magic", "rare", "epic", "other"].map(rarity => fmt(d.equipmentRarity[rarity].p50)).join("/")} |`;
   }).join("\n");
   const tableStart = section.indexOf("| B10 |");
   const tableEnd = section.indexOf("\n\n", tableStart);
@@ -201,7 +203,7 @@ render = report => {
     "| #990 can close | Yes after evidence/regression review; Stage 3 measurement objective is complete. |"
   ].join("\n");
   fixedMarkdown = replaceSection(fixedMarkdown, "## Table J", "## Contracts and limitations", `## Table J — Final decision matrix\n\n| question | decision |\n| --- | --- |\n${finalRows}`);
-  return fixedMarkdown;
+  return fixedMarkdown.replace("| checkpoint | HP% | MP% | ATK | DEF | max HP | max MP | inventory | consumables | Core | Support | build score | curse |", "| checkpoint | HP ratio | MP ratio | ATK | DEF | max HP | max MP | inventory | consumables | Core | Support | build score | curse | rarity m/r/e/o |").replace("| --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- | ---: |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | --- |", 1);
 };
 
 export { runMeasurement, summarize, pairComparisons };

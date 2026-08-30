@@ -26,9 +26,10 @@ assert.equal(report.audit.rawFullCombatHistoriesStored, false);
 for (const checkpoint of CHECKPOINTS) {
   const audit = report.checkpointStateAudits[checkpoint];
   assert.equal(audit.N, 1);
-  for (const field of ["hpRatio", "mpRatio", "ATK", "DEF", "maxHP", "maxMP", "inventoryCount", "consumableCount", "coreCount", "supportCount", "equipmentChangesAccumulated", "buildScore"]) {
+  for (const field of ["hpRatio", "mpRatio", "ATK", "DEF", "maxHP", "maxMP", "inventoryCount", "consumableCount", "coreCount", "supportCount", "equipmentChangesAccumulated", "buildScore", "equippedItemCount"]) {
     assert.equal(typeof audit.distribution.checkpointStateDistribution[field].p50, "number", `B${checkpoint} state ${field}`);
   }
+  for (const rarity of ["magic", "rare", "epic", "other"]) assert.equal(typeof audit.distribution.checkpointStateDistribution.equipmentRarity[rarity].p50, "number", `B${checkpoint} rarity ${rarity}`);
   for (const policy of POLICIES) {
     const summary = report.policies[`B${checkpoint}:${policy}`];
     assert.equal(summary.N, 1);
@@ -37,6 +38,8 @@ for (const checkpoint of CHECKPOINTS) {
     assert.equal(summary.pureRawShareAmongDeaths, summary.deaths ? summary.pureRawDeaths / summary.deaths : null);
     assert.equal(Object.values(summary.deathCategories).reduce((total, value) => total + value.count, 0), summary.deaths);
     assert.ok(summary.checkpointSources);
+    assert.ok(summary.resourceCohorts.results.lower_resource);
+    assert.equal(typeof summary.normalDamage, "number");
   }
   const entryState = report.policies[`B${checkpoint}:balanced-combat`].entryHpRatio;
   for (const policy of POLICIES) assert.equal(report.policies[`B${checkpoint}:${policy}`].entryHpRatio.mean, entryState.mean, `same B${checkpoint} HP state`);
@@ -48,6 +51,8 @@ assert.ok(report.comparison.sameSeedPairs.every(pair => pair.commonSupport.encou
 assert.ok(report.comparison.sameSeedPairs.every(pair => pair.commonSupport.encounters <= pair.pairedN * 5));
 assert.ok(report.policyDefinitions.every(definition => definition.unchangedFrom === "Issue #1002 Stage 2"));
 assert.ok(report.checkpointProvenance[30].source.includes("production continuation"));
+assert.equal(report.finalAnalysis.buildConfidence, "Revise");
+assert.equal(report.finalAnalysis.close990, true);
 
 const repeat = runMeasurement({ seed: "issue990-stage3-regression", runs: 1 });
 assert.deepEqual(repeat, report, "checkpoint continuation must be deterministic");
