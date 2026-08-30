@@ -25,6 +25,16 @@ const ACTIONS = Object.freeze(["inspect", "open", "disarm", "trap_kit", "smash",
 const DECISION_ACTIONS = Object.freeze(["open", "disarm", "trap_kit", "smash", "leave"]);
 const SOURCES = Object.freeze(["ordinary", "secretRoom", "fromDrop"]);
 
+function wilsonInterval(successes, trials, z = 1.96) {
+  if (trials <= 0) return null;
+  const p = successes / trials;
+  const z2 = z * z;
+  const denominator = 1 + z2 / trials;
+  const center = (p + z2 / (2 * trials)) / denominator;
+  const margin = z * Math.sqrt((p * (1 - p) + z2 / (4 * trials)) / trials) / denominator;
+  return [Math.max(0, center - margin), Math.min(1, center + margin)];
+}
+
 function createSourceTotals() {
   return Object.fromEntries(SOURCES.map(source => [source, {
     ...Object.fromEntries(SUM_FIELDS.map(field => [field, 0])),
@@ -57,7 +67,9 @@ function finalizeSourceTotals(totals) {
       smashRate: {
         successes: value.actions.smash,
         trials: choices,
-        estimate: choices > 0 ? value.actions.smash / choices : null
+        estimate: choices > 0 ? value.actions.smash / choices : null,
+        ci95: wilsonInterval(value.actions.smash, choices),
+        confidence: choices >= 30 ? "sufficient" : choices > 0 ? "low-n" : "unobserved"
       },
       actionsPerChest: Object.fromEntries(
         ACTIONS.map(action => [action, value.generated > 0 ? value.actions[action] / value.generated : null])
