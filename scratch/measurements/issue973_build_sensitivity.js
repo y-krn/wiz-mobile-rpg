@@ -273,7 +273,7 @@ function createSimulationState(buildId, depth, monsters, seed) {
     identifyTickets: 0,
     gameState: "combat",
     simPolicy: {},
-    simTelemetry: { executionerTriggers: 0, causalDamageEvents: [] },
+    simTelemetry: { executionerTriggers: 0, causalDamageEvents: [], causalHealEvents: [] },
     combatFormulaTelemetry: createTelemetry(),
     combatState: {
       monsters,
@@ -390,6 +390,12 @@ function getStatusTransitions(before, after, messages, round) {
   }
   if (before.silenceTurns > 0 && after.silenceTurns <= 0) {
     events.push({ type: "status_remove", status: STATUS_EFFECT_IDS.SILENCE, round });
+  }
+  if (before.antiHealTurns <= 0 && after.antiHealTurns > 0) {
+    events.push({ type: "status_apply", status: "antiHeal", round });
+  }
+  if (before.antiHealTurns > 0 && after.antiHealTurns <= 0) {
+    events.push({ type: "status_remove", status: "antiHeal", round });
   }
   if (messages.some(message => /沈黙した/.test(message)) && !events.some(event => event.status === STATUS_EFFECT_IDS.SILENCE && event.type === "status_apply")) {
     events.push({ type: "status_apply", status: STATUS_EFFECT_IDS.SILENCE, round });
@@ -519,6 +525,130 @@ function chooseAction(state) {
   return { ...action, actorIdx: 0 };
 }
 
+function getActionEconomyStateDegradation(trace) {
+  return trace.flatMap((round, index) => {
+    if (!round.mechanisms.some(event => event.type === "action_economy")) return [];
+    const attackActions = round.enemyActions.filter(action => /の(?:攻撃|追撃|狙撃|自爆)/.test(action.message));
+    const attackSources = attackActions.map(action => action.message.match(/^\[ 敵 \] (.+?)の(?:攻撃|追撃|狙撃|自爆)/)?.[1]).filter(Boolean);
+    const repeatedAttacker = new Set(attackSources).size < attackSources.length;
+    const livingBefore = round.enemyState?.before?.filter(enemy => enemy.living).length || 0;
+    const livingAfter = round.enemyState?.after?.filter(enemy => enemy.living).length || 0;
+    const spawnedOrSplit = livingAfter > livingBefore;
+    const moreActionsThanEnemies = attackActions.length > Math.max(1, livingBefore);
+    const hpLossAfterMechanic = trace.slice(index).some(entry => entry.hp.delta < 0);
+    return (spawnedOrSplit || repeatedAttacker || moreActionsThanEnemies) && hpLossAfterMechanic
+      ? [round.round]
+      : [];
+  });
+}
+
+function getLongFightStateDegradation(trace, rounds) {
+  if (rounds < 8) return [];
+  return trace.flatMap(round => {
+    const hasRecoveryMechanic = round.mechanisms.some(event => event.type === "regen" || event.type === "guard");
+    if (!hasRecoveryMechanic) return [];
+    const beforeHp = (round.enemyState?.before || []).reduce((sum, enemy) => sum + enemy.hp, 0);
+    const afterHp = (round.enemyState?.after || []).reduce((sum, enemy) => sum + enemy.hp, 0);
+    const regenExtendedSurvival = afterHp > beforeHp;
+    const guardExtendedSurvival = round.mechanisms.some(event => event.type === "guard") &&
+      trace.some(entry => entry.round > round.round && entry.enemyState?.after?.some(enemy => enemy.living));
+    return regenExtendedSurvival || guardExtendedSurvival ? [round.round] : [];
+  });
+}
+
+function getSustainStateDegradation(trace) {
+  return trace.flatMap(round => {
+    const antiHealActive = round.stateDegradation.antiHealTurnsBefore > 0;
+    const suppressedHeal = (round.healEvents || []).some(event =>
+      event.antiHealTurns > 0 && event.potential > event.recovered
+    );
+    return antiHealActive && suppressedHeal ? [round.round] : [];
+  });
+}
+
+function getCausalEvidence({ trace, mechanisms, statusTrajectory, mpStarvationRounds, state, causalDamageEvents, deathRound, rounds }) {
+  const actionEconomyImpactRounds = getActionEconomyStateDegradation(trace)
+    .filter(round => round <= deathRound);
+  const longFightImpactRounds = getLongFightStateDegradation(trace, rounds)
+    .filter(round => round <= deathRound);
+  const sustainImpactRounds = getSustainStateDegradation(trace)
+    .filter(round => round <= deathRound);
+  const physicalFallbackRounds = trace.filter(round => round.round <= deathRound && round.physicalFallback).length;
+  const spellOpportunityLossRounds = trace.filter(round => round.round <= deathRound && round.spellCastOpportunityLoss).length;
+  const reflectionDamageEvents = causalDamageEvents.filter(event =>
+    event.round <= deathRound && ["reflect", "counter"].includes(event.attackType) && event.finalDamage > 0
+  ).length;
+  const terminalMp = trace.at(-1)?.mp.after ?? state.party[0].mp;
+  const maxMp = getCharMaxMp(state.party[0]);
+  const mpDegradation = mechanisms.mpDrain > 0 && (
+    physicalFallbackRounds > 0 ||
+    mpStarvationRounds > 0 ||
+    terminalMp / Math.max(1, maxMp) <= LOW_RESOURCE_THRESHOLD
+  );
+  const statusLockRounds = trace.filter(round =>
+    round.round <= deathRound && round.stateDegradation.incapacitated
+  ).length;
+  return {
+    statusLock: statusLockRounds > 0,
+    spellDenial: spellOpportunityLossRounds > 0,
+    mpStarvation: mpDegradation,
+    reflection: reflectionDamageEvents > 0,
+    actionEconomy: actionEconomyImpactRounds.length > 0,
+    sustainFailure: sustainImpactRounds.length > 0,
+    longFight: longFightImpactRounds.length > 0,
+    details: {
+      statusLockRounds,
+      spellOpportunityLossRounds,
+      mpDrainEvents: mechanisms.mpDrain,
+      mpStarvationRounds,
+      physicalFallbackRounds,
+      terminalMp,
+      terminalMpRatio: terminalMp / Math.max(1, maxMp),
+      reflectionDamageEvents,
+      actionEconomyImpactRounds,
+      sustainImpactRounds,
+      longFightImpactRounds
+    }
+  };
+}
+
+export function classifyCausalDeath({ outcome, directCause, evidence = {}, deathRound = null }) {
+  const validatedCandidates = [
+    ["status_lock_chain", evidence.statusLock],
+    ["spell_denial_chain", evidence.spellDenial],
+    ["mp_starvation_chain", evidence.mpStarvation],
+    ["reflection_chain", evidence.reflection],
+    ["action_economy_chain", evidence.actionEconomy],
+    ["sustain_failure_chain", evidence.sustainFailure],
+    ["long_fight_chain", evidence.longFight]
+  ].filter(([, present]) => present).map(([cause]) => cause);
+  const directMechanic = ["reflection", "counter", "spell_damage", "status_damage", "status_payoff"].includes(directCause);
+  let finalExclusiveCategory = null;
+  if (outcome === "death" && directMechanic) {
+    finalExclusiveCategory = "direct_mechanic_death";
+  } else if (outcome === "death" && directCause === "raw_damage") {
+    finalExclusiveCategory = validatedCandidates.length === 0
+      ? "pure_raw_damage"
+      : validatedCandidates.length === 1
+        ? "mechanic_mediated_raw_lethal"
+        : "unknown_or_mixed";
+  }
+  const contributingCause = finalExclusiveCategory === "pure_raw_damage"
+    ? "pure_raw_damage"
+    : finalExclusiveCategory === "mechanic_mediated_raw_lethal"
+      ? validatedCandidates[0]
+      : finalExclusiveCategory === "direct_mechanic_death"
+        ? directCause
+        : finalExclusiveCategory === "unknown_or_mixed" ? "unknown_or_mixed" : null;
+  return {
+    finalExclusiveCategory,
+    contributingCause,
+    contributingCauses: validatedCandidates,
+    deathRound,
+    validatedCandidates
+  };
+}
+
 function classifyFailure({
   outcome,
   lowResource,
@@ -570,63 +700,50 @@ function classifyFailure({
     ...(round.spellCastOpportunityLoss ? [{ type: "spell_denial", round: round.round }] : []),
     ...(round.physicalFallback ? [{ type: "physical_fallback", round: round.round }] : [])
   ]).filter(event => event.round <= deathRound);
-  const mechanismTypes = new Set(eventsBeforeDeath.map(event => event.type));
-  const candidates = [];
-  if (statusTrajectory.incapacitatedRounds > 0 && mechanismTypes.has("status_lock")) {
-    candidates.push("status_lock_chain");
-  }
-  if (statusTrajectory.silenceCastOpportunityLossRounds > 0) {
-    candidates.push("spell_denial_chain");
-  }
-  if (mpStarvationRounds > 0 && state.party[0].mp / Math.max(1, maxMp) <= LOW_RESOURCE_THRESHOLD) {
-    candidates.push("mp_starvation_chain");
-  }
-  if (mechanismTypes.has("reflection_chain") || directCause === "reflection") {
-    candidates.push("reflection_chain");
-  }
-  if (mechanismTypes.has("action_economy")) {
-    candidates.push("action_economy_chain");
-  }
-  if (mechanismTypes.has("sustain_failure")) {
-    candidates.push("sustain_failure_chain");
-  }
-  if (rounds >= 8 || (mechanismTypes.has("regen") && rounds >= 6)) {
-    candidates.push("long_fight_chain");
-  }
-  const uniqueCandidates = [...new Set(candidates)];
-  const isRawDamageDeath = outcome === "death" && directCause === "raw_damage";
-  const causalCategory = isRawDamageDeath
-    ? uniqueCandidates.length > 0 ? "mechanic_mediated_raw_damage" : "pure_raw_damage"
-    : uniqueCandidates.length > 0 ? uniqueCandidates.length === 1 ? uniqueCandidates[0] : "unknown_or_mixed" :
-      outcome === "death" || outcome === "timeout" ? "unknown_or_mixed" : lowResource ? "sustain_failure_chain" : null;
+  const stateDegradationEvidence = getCausalEvidence({
+    trace,
+    mechanisms,
+    statusTrajectory,
+    mpStarvationRounds,
+    state,
+    causalDamageEvents,
+    deathRound,
+    rounds
+  });
+  const causalDecision = classifyCausalDeath({
+    outcome,
+    directCause,
+    evidence: stateDegradationEvidence,
+    deathRound
+  });
   const primary = directCause === "raw_damage"
     ? "raw_damage_pressure"
-    : causalCategory || "unknown_or_mixed";
-  const contributingCause = uniqueCandidates.length === 1 ? uniqueCandidates[0] :
-    uniqueCandidates.length > 1 ? "unknown_or_mixed" :
-      isRawDamageDeath ? "pure_raw_damage" : causalCategory;
+    : causalDecision.finalExclusiveCategory;
   const causalMechanismEvents = trace.flatMap(round => [
     ...round.mechanisms,
     ...(round.spellCastOpportunityLoss ? [{ type: "spell_denial", round: round.round }] : []),
     ...(round.physicalFallback ? [{ type: "mp_starvation", round: round.round }] : [])
   ]);
-  const mechanismToDeath = uniqueCandidates.flatMap(type => causalMechanismEvents
-    .filter(event => event.type === type.replace("_chain", ""))
+  const mechanismToDeath = causalDecision.validatedCandidates.flatMap(type => causalMechanismEvents
+    .filter(event => event.type === type.replace("_chain", "") ||
+      (type === "long_fight_chain" && ["regen", "guard"].includes(event.type)))
     .map(event => ({ mechanism: type, firingRound: event.round, deathRound, roundsToDeath: Math.max(0, deathRound - event.round) })));
   return {
     directCause,
     directCauseEvent: lethalEvent,
     legacyPrimary,
     legacyCandidates: [...new Set(legacyCandidates)],
-    contributingCause,
-    contributingCauses: uniqueCandidates,
-    causalCategory,
+    contributingCause: causalDecision.contributingCause,
+    contributingCauses: causalDecision.contributingCauses,
+    finalExclusiveCategory: causalDecision.finalExclusiveCategory,
+    precedingMechanisms: eventsBeforeDeath,
+    stateDegradationEvidence,
     primary,
-    candidates: uniqueCandidates,
+    candidates: causalDecision.validatedCandidates,
     mechanismToDeath,
-    rationale: uniqueCandidates.length === 0
-      ? "no preceding causal mechanism observed"
-      : "preceding mechanism and state-degradation evidence retained"
+    rationale: causalDecision.validatedCandidates.length === 0
+      ? "no validated state-degradation mechanism observed"
+      : "mechanism and corresponding state-degradation evidence observed"
   };
 }
 
@@ -662,6 +779,7 @@ export function runEncounterSample({ buildId, encounterId, depth, seed }) {
         mpStarvationRounds++;
       }
       const causalEventStart = state.simTelemetry.causalDamageEvents.length;
+      const causalHealEventStart = state.simTelemetry.causalHealEvents.length;
       const result = runCombatRoundCalculation(state, { actions: [action] });
       rounds++;
       observeRound(mechanisms, action, result.logQueue);
@@ -696,6 +814,7 @@ export function runEncounterSample({ buildId, encounterId, depth, seed }) {
         spellCastOpportunityLoss,
         physicalFallback,
         damageEvents: roundCausalDamage,
+        healEvents: state.simTelemetry.causalHealEvents.slice(causalHealEventStart),
         stateDegradation: {
           hp: { before: characterStateBefore.hp, after: characterStateAfter.hp },
           mp: { before: characterStateBefore.mp, after: characterStateAfter.mp },
@@ -703,6 +822,8 @@ export function runEncounterSample({ buildId, encounterId, depth, seed }) {
           activeStatusesAfter: characterStateAfter.activeStatuses,
           silenceTurnsBefore: characterStateBefore.silenceTurns,
           silenceTurnsAfter: characterStateAfter.silenceTurns,
+          antiHealTurnsBefore: characterStateBefore.antiHealTurns,
+          antiHealTurnsAfter: characterStateAfter.antiHealTurns,
           incapacitated: messages.some(message => /動けない/.test(message))
         },
         enemyState: { before: enemyStateBefore, after: enemyStateAfter }
@@ -794,9 +915,9 @@ function createCaseAggregate(buildId, encounterId, depth) {
     deathFailureAttribution: {},
     directCauseCounts: {},
     contributingCauseCounts: {},
-    causalCategoryCounts: {},
+    finalExclusiveCategoryCounts: {},
     legacyRawDamageDeaths: 0,
-    legacyRawCausalCategoryCounts: {},
+    legacyRawExclusiveCategoryCounts: {},
     legacyRawContributingCauseCounts: {},
     fallbackActionCount: 0,
     spellCastOpportunityLossCount: 0,
@@ -839,10 +960,12 @@ function addSample(aggregate, sample, keepSamples) {
     if (sample.outcome === "death") increment(aggregate.deathFailureAttribution, sample.failure.primary);
     if (sample.failure.directCause) increment(aggregate.directCauseCounts, sample.failure.directCause);
     if (sample.failure.contributingCause) increment(aggregate.contributingCauseCounts, sample.failure.contributingCause);
-    if (sample.failure.causalCategory) increment(aggregate.causalCategoryCounts, sample.failure.causalCategory);
+    if (sample.outcome === "death" && sample.failure.finalExclusiveCategory) {
+      increment(aggregate.finalExclusiveCategoryCounts, sample.failure.finalExclusiveCategory);
+    }
     if (sample.failure.legacyPrimary === "raw_damage_pressure") {
       aggregate.legacyRawDamageDeaths++;
-      increment(aggregate.legacyRawCausalCategoryCounts, sample.failure.causalCategory || "unknown_or_mixed");
+      increment(aggregate.legacyRawExclusiveCategoryCounts, sample.failure.finalExclusiveCategory || "unknown_or_mixed");
       sample.failure.contributingCauses.forEach(cause => increment(aggregate.legacyRawContributingCauseCounts, cause));
     }
     aggregate.mechanicToDeathRounds.push(...sample.failure.mechanismToDeath.map(event => event.roundsToDeath));
@@ -871,13 +994,17 @@ function finalizeCase(aggregate) {
   const clearRate = aggregate.outcomes.clear / runs;
   const deathRate = aggregate.outcomes.death / runs;
   const lowResourceRuns = Object.values(aggregate.failureAttribution).reduce((sum, count) => sum + count, 0);
-  const rawDamageDeaths = aggregate.causalCategoryCounts.pure_raw_damage || 0;
-  const mechanicMediatedRawDeaths = aggregate.causalCategoryCounts.mechanic_mediated_raw_damage || 0;
-  const unknownDeaths = aggregate.causalCategoryCounts.unknown_or_mixed || 0;
-  const legacyRawPureDeaths = aggregate.legacyRawCausalCategoryCounts.pure_raw_damage || 0;
-  const legacyRawMechanicDeaths = aggregate.legacyRawCausalCategoryCounts.mechanic_mediated_raw_damage || 0;
-  const legacyRawUnknownDeaths = aggregate.legacyRawCausalCategoryCounts.unknown_or_mixed || 0;
-  const legacyRawOtherDeaths = Math.max(0, aggregate.legacyRawDamageDeaths - legacyRawPureDeaths - legacyRawMechanicDeaths - legacyRawUnknownDeaths);
+  const directRawLethalDeaths = aggregate.directCauseCounts.raw_damage || 0;
+  const finalExclusiveCategoryCounts = aggregate.finalExclusiveCategoryCounts;
+  const legacyRawExclusiveCategoryCounts = aggregate.legacyRawExclusiveCategoryCounts;
+  const legacyRawPureDeaths = legacyRawExclusiveCategoryCounts.pure_raw_damage || 0;
+  const legacyRawMechanicDeaths = legacyRawExclusiveCategoryCounts.mechanic_mediated_raw_lethal || 0;
+  const legacyRawDirectMechanicDeaths = legacyRawExclusiveCategoryCounts.direct_mechanic_death || 0;
+  const legacyRawUnknownDeaths = legacyRawExclusiveCategoryCounts.unknown_or_mixed || 0;
+  const legacyRawExclusiveTotal = Object.values(legacyRawExclusiveCategoryCounts).reduce((sum, count) => sum + count, 0);
+  if (legacyRawExclusiveTotal !== aggregate.legacyRawDamageDeaths) {
+    throw new Error(`legacy raw exclusive categories must sum to ${aggregate.legacyRawDamageDeaths}, got ${legacyRawExclusiveTotal}`);
+  }
   const sortedLatency = [...aggregate.mechanicToDeathRounds].sort((left, right) => left - right);
   const latencyPercentile = probability => sortedLatency.length === 0
     ? null
@@ -924,15 +1051,16 @@ function finalizeCase(aggregate) {
     causalAttribution: {
       directCauseCounts: aggregate.directCauseCounts,
       contributingCauseCounts: aggregate.contributingCauseCounts,
-      causalCategoryCounts: aggregate.causalCategoryCounts,
-      rawDamageDeaths,
-      pureRawDamageDeaths: rawDamageDeaths,
-      mechanicMediatedRawDamageDeaths: mechanicMediatedRawDeaths,
-      unknownDeaths,
-      rawDamageDeathShare: (rawDamageDeaths + mechanicMediatedRawDeaths) / Math.max(1, aggregate.outcomes.death),
-      pureRawShareOfRawDamageDeaths: rawDamageDeaths / Math.max(1, rawDamageDeaths + mechanicMediatedRawDeaths),
-      mechanicMediatedRawShareOfRawDamageDeaths: mechanicMediatedRawDeaths / Math.max(1, rawDamageDeaths + mechanicMediatedRawDeaths),
-      unknownShareOfDeaths: unknownDeaths / Math.max(1, aggregate.outcomes.death),
+      finalExclusiveCategoryCounts,
+      directRawLethalDeaths,
+      rawDamageDeaths: directRawLethalDeaths,
+      pureRawDamageDeaths: finalExclusiveCategoryCounts.pure_raw_damage || 0,
+      mechanicMediatedRawDamageDeaths: finalExclusiveCategoryCounts.mechanic_mediated_raw_lethal || 0,
+      unknownDeaths: finalExclusiveCategoryCounts.unknown_or_mixed || 0,
+      rawDamageDeathShare: directRawLethalDeaths / Math.max(1, aggregate.outcomes.death),
+      pureRawShareOfRawDamageDeaths: legacyRawPureDeaths / Math.max(1, aggregate.legacyRawDamageDeaths),
+      mechanicMediatedRawShareOfRawDamageDeaths: legacyRawMechanicDeaths / Math.max(1, aggregate.legacyRawDamageDeaths),
+      unknownShareOfDeaths: (finalExclusiveCategoryCounts.unknown_or_mixed || 0) / Math.max(1, aggregate.outcomes.death),
       mechanicToDeathRounds: {
         count: sortedLatency.length,
         mean: sortedLatency.length > 0 ? sortedLatency.reduce((sum, value) => sum + value, 0) / sortedLatency.length : null,
@@ -942,16 +1070,18 @@ function finalizeCase(aggregate) {
       fallbackActionCount: aggregate.fallbackActionCount,
       spellCastOpportunityLossCount: aggregate.spellCastOpportunityLossCount,
       legacyRawDamageDeaths: aggregate.legacyRawDamageDeaths,
-      legacyRawCausalCategoryCounts: aggregate.legacyRawCausalCategoryCounts,
+      legacyRawExclusiveCategoryCounts,
       legacyRawContributingCauseCounts: aggregate.legacyRawContributingCauseCounts,
       legacyRawPureDamageDeaths: legacyRawPureDeaths,
       legacyRawMechanicMediatedRawDamageDeaths: legacyRawMechanicDeaths,
+      legacyRawDirectMechanicDeaths,
       legacyRawUnknownDeaths,
-      legacyRawOtherDeaths,
       legacyRawPureShare: legacyRawPureDeaths / Math.max(1, aggregate.legacyRawDamageDeaths),
       legacyRawMechanicMediatedShare: legacyRawMechanicDeaths / Math.max(1, aggregate.legacyRawDamageDeaths),
+      legacyRawDirectMechanicShare: legacyRawDirectMechanicDeaths / Math.max(1, aggregate.legacyRawDamageDeaths),
       legacyRawUnknownShare: legacyRawUnknownDeaths / Math.max(1, aggregate.legacyRawDamageDeaths),
-      legacyRawOtherShare: legacyRawOtherDeaths / Math.max(1, aggregate.legacyRawDamageDeaths)
+      legacyRawSpecialMechanicDeaths: legacyRawMechanicDeaths + legacyRawDirectMechanicDeaths,
+      legacyRawSpecialMechanicShare: (legacyRawMechanicDeaths + legacyRawDirectMechanicDeaths) / Math.max(1, aggregate.legacyRawDamageDeaths)
     },
     resourceSignature: {
       hpConsumedRatio: 1 - aggregate.sumHpRatio / runs,
@@ -1258,25 +1388,27 @@ function buildCausalSummary(cases) {
     legacyRawDamageDeaths: 0,
     pureRawDamageDeaths: 0,
     mechanicMediatedRawDamageDeaths: 0,
+    directMechanicDeaths: 0,
     unknownDeaths: 0,
     directCauses: {},
     contributingCauses: {},
     causalCategories: {},
-    legacyRawCausalCategories: {},
+    legacyRawExclusiveCategories: {},
     legacyRawContributingCauses: {},
     mechanicToDeathRounds: []
   };
   cases.forEach(testCase => {
     totals.deaths += testCase.outcomes.death;
-    totals.directRawDamageDeaths += testCase.causalAttribution.rawDamageDeaths;
+    totals.directRawDamageDeaths += testCase.causalAttribution.directRawLethalDeaths;
     totals.legacyRawDamageDeaths += testCase.causalAttribution.legacyRawDamageDeaths;
     totals.pureRawDamageDeaths += testCase.causalAttribution.legacyRawPureDamageDeaths;
     totals.mechanicMediatedRawDamageDeaths += testCase.causalAttribution.legacyRawMechanicMediatedRawDamageDeaths;
+    totals.directMechanicDeaths = (totals.directMechanicDeaths || 0) + (testCase.causalAttribution.legacyRawDirectMechanicDeaths || 0);
     totals.unknownDeaths += testCase.causalAttribution.legacyRawUnknownDeaths;
     Object.entries(testCase.causalAttribution.directCauseCounts).forEach(([key, value]) => increment(totals.directCauses, key, value));
     Object.entries(testCase.causalAttribution.contributingCauseCounts).forEach(([key, value]) => increment(totals.contributingCauses, key, value));
-    Object.entries(testCase.causalAttribution.causalCategoryCounts).forEach(([key, value]) => increment(totals.causalCategories, key, value));
-    Object.entries(testCase.causalAttribution.legacyRawCausalCategoryCounts).forEach(([key, value]) => increment(totals.legacyRawCausalCategories, key, value));
+    Object.entries(testCase.causalAttribution.finalExclusiveCategoryCounts).forEach(([key, value]) => increment(totals.causalCategories, key, value));
+    Object.entries(testCase.causalAttribution.legacyRawExclusiveCategoryCounts).forEach(([key, value]) => increment(totals.legacyRawExclusiveCategories, key, value));
     Object.entries(testCase.causalAttribution.legacyRawContributingCauseCounts).forEach(([key, value]) => increment(totals.legacyRawContributingCauses, key, value));
     totals.mechanicToDeathRounds.push(...(testCase.traces || []).flatMap(run =>
       run.failure?.mechanismToDeath?.map(event => event.roundsToDeath) || []
@@ -1288,8 +1420,14 @@ function buildCausalSummary(cases) {
   return {
     ...totals,
     rawDamageDeaths: totals.legacyRawDamageDeaths,
+    directRawLethalDeaths: totals.directRawDamageDeaths,
+    directMechanicDeaths: totals.directMechanicDeaths || 0,
+    specialMechanicDeaths: totals.mechanicMediatedRawDamageDeaths + (totals.directMechanicDeaths || 0),
     pureRawShareOfRawDamageDeaths: totals.pureRawDamageDeaths / rawDenominator,
     mechanicMediatedRawShareOfRawDamageDeaths: totals.mechanicMediatedRawDamageDeaths / rawDenominator,
+    directMechanicShareOfRawDamageDeaths: (totals.directMechanicDeaths || 0) / rawDenominator,
+    specialMechanicShareOfRawDamageDeaths: (totals.mechanicMediatedRawDamageDeaths + (totals.directMechanicDeaths || 0)) / rawDenominator,
+    legacyRawExclusiveTotal: Object.values(totals.legacyRawExclusiveCategories).reduce((sum, count) => sum + count, 0),
     unknownShareOfDeaths: totals.unknownDeaths / Math.max(1, totals.deaths),
     mechanicToDeathRounds: {
       count: sortedLatency.length,
@@ -1353,7 +1491,7 @@ function buildAutoActionReview(cases) {
     representativeDeathTraces: BUILD_IDS.map(buildId => {
       for (const testCase of cases.filter(candidate => candidate.buildId === buildId)) {
         const traces = testCase.traces || [];
-        const selected = traces.find(run => run.outcome === "death" && run.failure?.causalCategory === "mechanic_mediated_raw_damage") ||
+        const selected = traces.find(run => run.outcome === "death" && run.failure?.finalExclusiveCategory === "mechanic_mediated_raw_lethal") ||
           traces.find(run => run.outcome === "death");
         if (selected) return {
           buildId,
@@ -1526,10 +1664,9 @@ function renderSummary(report) {
     "## Causal result",
     "",
     `- previous production baseline: #978 runner v6, deep primary raw damage **41,520 / 49,333 = 84.16%** (reproduced under the same seed policy before this observer was added)`,
-    `- deaths classified as legacy raw_damage_pressure: ${causal.legacyRawDamageDeaths} (direct raw damage observed independently: ${causal.directRawDamageDeaths})`,
-    `- pure raw damage: **${causal.pureRawDamageDeaths} / ${rawDeaths} = ${(causal.pureRawShareOfRawDamageDeaths * 100).toFixed(2)}%** of raw damage deaths`,
-    `- mechanic-mediated raw damage: **${causal.mechanicMediatedRawDamageDeaths} / ${rawDeaths} = ${(causal.mechanicMediatedRawShareOfRawDamageDeaths * 100).toFixed(2)}%** of raw damage deaths`,
-    `- unknown / mixed: **${causal.unknownDeaths} / ${Math.max(1, causal.deaths)} = ${(causal.unknownShareOfDeaths * 100).toFixed(2)}%** of deaths`,
+    `- legacy raw_damage_pressure denominator: **${causal.legacyRawDamageDeaths}** (direct raw lethal events observed: ${causal.directRawLethalDeaths})`,
+    `- exclusive breakdown: pure raw **${causal.pureRawDamageDeaths} / ${rawDeaths} = ${(causal.pureRawShareOfRawDamageDeaths * 100).toFixed(2)}%**; mechanic-mediated raw lethal **${causal.mechanicMediatedRawDamageDeaths} / ${rawDeaths} = ${(causal.mechanicMediatedRawShareOfRawDamageDeaths * 100).toFixed(2)}%**; direct mechanic **${causal.directMechanicDeaths} / ${rawDeaths} = ${(causal.directMechanicShareOfRawDamageDeaths * 100).toFixed(2)}%**; unknown/mixed **${causal.unknownDeaths} / ${rawDeaths} = ${(causal.unknownDeaths / rawDeaths * 100).toFixed(2)}%**; total=${causal.legacyRawExclusiveTotal}`,
+    `- special-mechanic-caused total (exclusive mechanic-mediated + direct mechanic): **${causal.specialMechanicDeaths} / ${rawDeaths} = ${(causal.specialMechanicShareOfRawDamageDeaths * 100).toFixed(2)}%**`,
     `- mechanic firing → death: count=${causal.mechanicToDeathRounds.count}, mean=${causal.mechanicToDeathRounds.mean === null ? "n/a" : causal.mechanicToDeathRounds.mean.toFixed(2)} rounds, p50=${causal.mechanicToDeathRounds.p50 ?? "n/a"}, p95=${causal.mechanicToDeathRounds.p95 ?? "n/a"}`,
     "",
     "## Falsification result",
@@ -1545,11 +1682,11 @@ function renderSummary(report) {
     "",
     "## Build × encounter × depth causal counts",
     "",
-    "Each row is N=500 for one build/fixture/depth. `pure/mech/unknown` are death counts.",
+    "Each row is N=500 for one build/fixture/depth. Counts are exclusive categories within the legacy raw denominator: `pure/mech-raw/direct-mechanic/unknown`.",
     "",
-    "| Depth | Encounter | Build | Clear / death | Pure raw | Mechanic raw | Unknown | Fallback | Mech→death mean |",
-    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...report.cases.map(testCase => `| B${testCase.depth} | ${testCase.encounterId} | ${testCase.buildId} | ${testCase.outcomes.clear} / ${testCase.outcomes.death} | ${testCase.causalAttribution.legacyRawPureDamageDeaths} | ${testCase.causalAttribution.legacyRawMechanicMediatedRawDamageDeaths} | ${testCase.causalAttribution.legacyRawUnknownDeaths} | ${testCase.causalAttribution.fallbackActionCount} | ${testCase.causalAttribution.mechanicToDeathRounds.mean === null ? "n/a" : testCase.causalAttribution.mechanicToDeathRounds.mean.toFixed(2)} |`),
+    "| Depth | Encounter | Build | Clear / death | Pure raw | Mechanic raw lethal | Direct mechanic | Unknown/mixed | Fallback | Mech→death mean |",
+    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...report.cases.map(testCase => `| B${testCase.depth} | ${testCase.encounterId} | ${testCase.buildId} | ${testCase.outcomes.clear} / ${testCase.outcomes.death} | ${testCase.causalAttribution.legacyRawPureDamageDeaths} | ${testCase.causalAttribution.legacyRawMechanicMediatedRawDamageDeaths} | ${testCase.causalAttribution.legacyRawDirectMechanicDeaths} | ${testCase.causalAttribution.legacyRawUnknownDeaths} | ${testCase.causalAttribution.fallbackActionCount} | ${testCase.causalAttribution.mechanicToDeathRounds.mean === null ? "n/a" : testCase.causalAttribution.mechanicToDeathRounds.mean.toFixed(2)} |`),
     "",
     "Direct cause is the lethal damage event. Contributing cause is assigned only when the trace contains state-degradation evidence before that event; `unknown_or_mixed` is retained for multiple or insufficient explanations. Each raw JSON trace retains round, HP/MP, player action, enemy action, status transitions, silence, MP drain, reflect, anti-heal, regen, summon, guard, multi-action, spell opportunity loss, physical fallback, damage source, and lethal event data.",
     "",

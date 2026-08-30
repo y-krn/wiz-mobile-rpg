@@ -136,6 +136,14 @@ export function applyKillAffixEffects(char, target, state, logQueue) {
         (state.simTelemetry.killHealPotentialHp || 0) + killHeal;
       state.simTelemetry.killHealRecoveredHp =
         (state.simTelemetry.killHealRecoveredHp || 0) + (char.hp - hpBefore);
+      state.simTelemetry.causalHealEvents ||= [];
+      state.simTelemetry.causalHealEvents.push({
+        round: state.combatState?.roundNumber ?? null,
+        source: "killHeal",
+        potential: killHeal,
+        recovered: char.hp - hpBefore,
+        antiHealTurns: char.antiHealTurns || 0
+      });
     }
   }
 
