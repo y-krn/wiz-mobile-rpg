@@ -4,6 +4,7 @@ import {
   deriveSharedCaseSeed,
   getBuildDefinitions,
   isSignificantReversal,
+  classifyCausalDeath,
   runEncounterSample,
   runMeasurement
 } from "../../measurements/issue973_build_sensitivity.js";
@@ -78,6 +79,53 @@ assert.equal(
   "outcome and utility encounter reversal must be significant"
 );
 
+const pureSynthetic = classifyCausalDeath({
+  outcome: "death",
+  directCause: "raw_damage",
+  evidence: { actionEconomy: false },
+  deathRound: 3
+});
+assert.equal(pureSynthetic.finalExclusiveCategory, "pure_raw_damage");
+assert.equal(pureSynthetic.contributingCause, "pure_raw_damage");
+
+const firingOnlySynthetic = classifyCausalDeath({
+  outcome: "death",
+  directCause: "raw_damage",
+  evidence: { actionEconomy: false, spellDenial: false },
+  deathRound: 3
+});
+assert.equal(
+  firingOnlySynthetic.finalExclusiveCategory,
+  "pure_raw_damage",
+  "mechanic firing without state degradation must not become mediated"
+);
+
+const mediatedSynthetic = classifyCausalDeath({
+  outcome: "death",
+  directCause: "raw_damage",
+  evidence: { spellDenial: true },
+  deathRound: 3
+});
+assert.equal(mediatedSynthetic.finalExclusiveCategory, "mechanic_mediated_raw_lethal");
+assert.equal(mediatedSynthetic.contributingCause, "spell_denial_chain");
+
+const directMechanicSynthetic = classifyCausalDeath({
+  outcome: "death",
+  directCause: "reflection",
+  evidence: { reflection: true },
+  deathRound: 2
+});
+assert.equal(directMechanicSynthetic.finalExclusiveCategory, "direct_mechanic_death");
+assert.equal(directMechanicSynthetic.contributingCause, "reflection");
+
+const mixedSynthetic = classifyCausalDeath({
+  outcome: "death",
+  directCause: "raw_damage",
+  evidence: { spellDenial: true, actionEconomy: true },
+  deathRound: 4
+});
+assert.equal(mixedSynthetic.finalExclusiveCategory, "unknown_or_mixed");
+
 const provenance = {
   sourceCommit: "source-commit",
   gameplaySourceCommit: "gameplay-commit",
@@ -90,7 +138,7 @@ const provenance = {
   baseCommit: "base-commit"
 };
 const report = runMeasurement({ seed: "schema-seed", runs: 1, provenance });
-assert.equal(report.schemaVersion, 5);
+assert.equal(report.schemaVersion, 7);
 assert.equal(report.measurement.sourceCommit, "source-commit");
 assert.equal(report.measurement.gameplaySourceCommit, "gameplay-commit");
 assert.equal(report.measurement.originMainAncestor, true);
@@ -114,6 +162,29 @@ assert.ok(Object.hasOwn(report.cases[0], "statusTrajectory"));
 assert.ok(Object.hasOwn(report.cases[0].statusTrajectory, "roundsObservedPerRun"));
 assert.ok(Object.hasOwn(report.cases[0].statusTrajectory, "incapacitatedRoundsPerRun"));
 assert.ok(Object.hasOwn(report.cases[0], "mpStarvationRoundsPerRun"));
+assert.ok(Object.hasOwn(report.cases[0], "causalAttribution"));
+assert.ok(Object.hasOwn(report.cases[0].causalAttribution, "pureRawDamageDeaths"));
+report.cases.forEach(testCase => {
+  const attribution = testCase.causalAttribution;
+  const finalTotal = Object.values(attribution.finalExclusiveCategoryCounts).reduce((sum, count) => sum + count, 0);
+  assert.equal(finalTotal, testCase.outcomes.death, "death runs must have one final exclusive category");
+  const exclusiveTotal = Object.values(attribution.legacyRawExclusiveCategoryCounts).reduce((sum, count) => sum + count, 0);
+  assert.equal(exclusiveTotal, attribution.legacyRawDamageDeaths, "legacy raw exclusive categories must be exhaustive");
+  (testCase.traces || []).forEach(run => {
+    assert.ok([
+      "pure_raw_damage",
+      "mechanic_mediated_raw_lethal",
+      "direct_mechanic_death",
+      "unknown_or_mixed"
+    ].includes(run.failure.finalExclusiveCategory), "every death trace has one exclusive category");
+  });
+});
+const tracedDeathCase = report.cases.find(testCase => testCase.traces?.length > 0);
+assert.ok(tracedDeathCase, "at least one death trace must be retained");
+assert.ok(Object.hasOwn(tracedDeathCase.traces[0].trace[0], "damageEvents"));
+assert.ok(Object.hasOwn(report, "causalSummary"));
+assert.ok(Object.hasOwn(report, "fixtureValidation"));
+assert.ok(Object.hasOwn(report, "autoActionReview"));
 assert.equal(report.pairwiseRanking[0].rankings.at(-1).metric, "pairedOutcomeAndUtility");
 
 console.log("[PASS] build definitions, fixture determinism, shared seeds, production combat determinism, provenance, status trajectory, and output schema verified");

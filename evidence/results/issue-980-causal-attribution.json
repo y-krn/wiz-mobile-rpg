@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 7,
+  "measurement": {
+    "issue": 980,
+    "relatedDesignIssue": 973,
+    "runnerVersion": "issue980-causal-attribution-v2",
+    "sourceCommit": "5b37dacbd099819ba9d4c081eae486d58f0291ec",
+    "gameplaySourceCommit": "0718e0780b474b867dbfa5dd789490b1fda22ec7",
+    "runsPerCell": 500,
+    "seed": "974-build-confidence",
+    "depths": [8, 13, 18, 21, 25, 30],
+    "builds": ["aoe-burst", "single-efficient", "sustain", "hybrid-fallback"],
+    "encounters": [
+      "swarm-action-pressure",
+      "magic-denial",
+      "mp-pressure",
+      "durable-single-target",
+      "protected-formation",
+      "attrition-recovery-denial"
+    ],
+    "sharedSeed": true,
+    "workingTreeClean": true,
+    "originMainAncestor": true
+  },
+  "baseline": {
+    "sourceCommit": "67592f5d741988748119083577e389935f4555ed",
+    "runnerVersion": "issue973-build-sensitivity-v6",
+    "deepDeaths": 49333,
+    "legacyRawDamageDeaths": 41520,
+    "legacyRawShare": 0.8416273083,
+    "exactReproduction": true
+  },
+  "deepCausalAttribution": {
+    "deaths": 49319,
+    "legacyRawDamageDeaths": 41512,
+    "exclusiveCategories": {
+      "pure_raw_damage": 26683,
+      "mechanic_mediated_raw_lethal": 5692,
+      "direct_mechanic_death": 8388,
+      "unknown_or_mixed": 749
+    },
+    "exclusiveTotal": 41512,
+    "pureRawShareOfLegacyRaw": 0.6427779919,
+    "mechanicMediatedRawShareOfLegacyRaw": 0.1371169782,
+    "directMechanicShareOfLegacyRaw": 0.2020620543,
+    "unknownOrMixedShareOfLegacyRaw": 0.0180429755,
+    "specialMechanicDeaths": 14080,
+    "specialMechanicShareOfLegacyRaw": 0.3391790326,
+    "directCauseCounts": {
+      "raw_damage": 39779,
+      "reflection": 3055,
+      "spell_damage": 6055,
+      "status_payoff": 430
+    },
+    "multiLabelContributingEvidence": {
+      "reflection_chain": 5630,
+      "status_lock_chain": 4126,
+      "action_economy_chain": 67,
+      "spell_denial_chain": 1005,
+      "mp_starvation_chain": 1233,
+      "sustain_failure_chain": 537
+    },
+    "mechanicFiringToDeathRounds": {
+      "count": 24438,
+      "mean": 1.6464522465,
+      "p50": 1,
+      "p95": 4
+    }
+  },
+  "autoActionReview": {
+    "policy": "existing chooseAutoCombatAction; no expert AI",
+    "builds": {
+      "aoe-burst": {"fallbackActions": 65, "spellOpportunityLosses": 448},
+      "single-efficient": {"fallbackActions": 0, "spellOpportunityLosses": 411},
+      "sustain": {"fallbackActions": 96, "spellOpportunityLosses": 738},
+      "hybrid-fallback": {"fallbackActions": 0, "spellOpportunityLosses": 309}
+    }
+  },
+  "fixtureValidation": {
+    "productionMonsterDefinitions": true,
+    "allFixtureMonstersResolvedFromMONSTERS": true,
+    "controlledTest": true,
+    "representsDungeonEncounterDistribution": false,
+    "extremeCellCount": 60
+  },
+  "traceSchema": {
+    "perDeath": [
+      "round", "hp", "mp", "playerAction", "enemyActions", "statusEvents",
+      "silence", "drainMp", "reflect", "antiHeal", "regen", "summon",
+      "guard", "multiAction", "spellCastOpportunityLoss", "physicalFallback",
+      "damageEvents", "lethalEvent", "stateDegradation"
+    ],
+    "causalFields": [
+      "directCause", "contributingCause", "finalExclusiveCategory",
+      "precedingMechanisms", "stateDegradationEvidence"
+    ],
+    "fullCaseMatrix": "issue-980-causal-attribution.md#build-encounter-depth-causal-counts"
+  },
+  "representativeTraceChecks": [
+    {
+      "cause": "action_economy_chain",
+      "build": "aoe-burst",
+      "encounter": "swarm-action-pressure",
+      "depth": 8,
+      "lethal": "ordinary physical damage after split/additional actions"
+    },
+    {
+      "cause": "mp_starvation_chain",
+      "build": "aoe-burst",
+      "encounter": "mp-pressure",
+      "depth": 13,
+      "lethal": "ordinary physical damage after MP drain and physical fallback"
+    },
+    {
+      "cause": "spell_denial_chain",
+      "build": "aoe-burst",
+      "encounter": "magic-denial",
+      "depth": 8,
+      "lethal": "ordinary physical damage after actual spell opportunity loss"
+    },
+    {
+      "cause": "reflection_chain",
+      "build": "aoe-burst",
+      "encounter": "magic-denial",
+      "depth": 8,
+      "lethal": "attackType=reflect"
+    },
+    {
+      "cause": "pure_raw_damage",
+      "lethal": "ordinary physical damage with no validated state degradation"
+    }
+  ]
+}

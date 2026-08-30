@@ -266,6 +266,9 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // existing telemetry anchors but do not change combat formulas.
     "src/combat_ui/combat_start.js",
     "src/combat_logic/round.js",
+    // Damage resolution owns the existing telemetry anchor; causal damage
+    // events are observation-only and must not be mistaken for balance edits.
+    "src/combat_logic/damage.js",
     "src/combat_logic/vulnerable.js",
     "src/result.js"
   ])
