@@ -22,10 +22,9 @@ const b18Probe = scaleEnemyForDepth(scalingProbe, 18);
 const b21Probe = scaleEnemyForDepth(scalingProbe, 21);
 const b25Probe = scaleEnemyForDepth(scalingProbe, 25);
 const b30Probe = scaleEnemyForDepth(scalingProbe, 30);
-assert.equal(
-  b13Probe.maxHp,
-  b18Probe.maxHp,
-  "B11+ HP scaling should use the B10 ceiling"
+assert.ok(
+  b13Probe.maxHp < b18Probe.maxHp,
+  "B11+ HP scaling should continue across B13 and B18"
 );
 assert.ok(
   b18Probe.atk > b13Probe.atk,

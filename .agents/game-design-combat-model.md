@@ -1104,21 +1104,28 @@ responses (`cureBeforePayoff`, `defendBeforePayoff`, `killBeforePayoff`, and
 application, payoff arrival, and response choice; live analytics transport is not required
 for the deterministic measurement.
 
-### 8.6 #976 deep-band build-test tuning
+### 8.6 #976 deep-band build-test diagnosis and tuning
 
-深層は raw stat wall ではなく build test として機能させる。#975 の同一 seed / N=500
-測定では B13/B18 の deep death `14,784/17,686 = 83.59%` が
-`raw_damage_pressure` で、magic denial、MP pressure、durable single、protected
-formation では mechanic payoff より通常攻撃死が先行していた。
+深層は raw stat wall ではなく build test として機能させる、という仮説を B21/B25/B30
+まで拡張して再検証した。#975 の B13/B18 だけの測定では deep death の
+`14,784/17,686 = 83.59%` が `raw_damage_pressure` だったが、拡張 baseline でも
+deep は `41,520/49,333 = 84.16%` で、主因は変わらなかった。magic denial、MP
+pressure、durable single、protected formation では mechanic payoff の前に通常攻撃で
+終わるセルが支配的で、swarm は action economy、attrition は resource/denial の差が
+残る。
 
-最小 tuning として、B11+ の enemy HP scaling のみ B10 水準で cap する。B1–B10 の
-HP は変更せず、enemy ATK scaling、player HP/DEF、Mage、trait、encounter size は
-変更しない。B13 と B18 は ATK scaling と composition により区別を保つ。
+B11+ enemy HP を B10 水準で永久 cap する案は B21/B25/B30 の HP multiplier を同じ
+`1.387` に固定し、深度差を圧縮したため採用しない。最終候補は B1–B10 を不変のまま、
+B11+ HP を B10 起点の半分の slope で成長させ、B10 の ATK multiplier を起点に B11+
+ATK slope を `0.125` とする。これは player HP/DEF、Mage、trait、encounter size を
+変更せず、B21+ の HP/難易度成長を再開しながら、raw attack が mechanic より先に終了させる
+圧力だけを限定的に緩和する。
 
-同条件の after は deep raw `12,751/15,308 = 83.30%`、strict paired reversal
-`44→50`。raw wall は 60% red flag をなお超えるため、これは解決ではなく、B11+ を
-「長期戦の数値壁」から「build差が見える評価帯」へ寄せる第一段階である。次の調整は
-この測定基準を維持し、mechanic hard counter や全build一律clear化を避けて別途判断する。
+同一 seed / N=500 の最終候補は deep raw `35,354/42,519 = 83.15%`、strict paired
+reversal `54→64`。60% red flag はなお超えるため、raw wall を解決した、または Build
+Test に置換したとは扱わない。measurement/diagnosis は Keep、permanent cap は Reject、
+上記の限定 tuning は Revise として記録する。以後もこの測定条件を維持し、mechanic hard
+counter や全build一律 clear 化を別の tuning で隠さない。
 
 ### 8.7 future owner decisions (not selected)
 
