@@ -1,9 +1,10 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "measurement": {
     "issue": 980,
-    "runnerVersion": "issue980-causal-attribution-v1",
-    "sourceCommit": "2e1e670dfd8e278ff5b163d7142c9eb477bca83f",
+    "relatedDesignIssue": 973,
+    "runnerVersion": "issue980-causal-attribution-v2",
+    "sourceCommit": "5b37dacbd099819ba9d4c081eae486d58f0291ec",
     "gameplaySourceCommit": "0718e0780b474b867dbfa5dd789490b1fda22ec7",
     "runsPerCell": 500,
     "seed": "974-build-confidence",
@@ -32,46 +33,36 @@
   "deepCausalAttribution": {
     "deaths": 49319,
     "legacyRawDamageDeaths": 41512,
-    "pureRawDamageDeaths": 25409,
-    "pureRawShareOfLegacyRaw": 0.6120880709,
-    "mechanicMediatedRawDamageDeaths": 7715,
-    "mechanicMediatedRawShareOfLegacyRaw": 0.1858498747,
-    "unknownOrMixedDeaths": 4704,
-    "unknownOrMixedShareOfLegacyRaw": 0.1133166313,
-    "unknownOrMixedShareOfAllDeaths": 0.0953790628,
-    "legacyRawOtherDeaths": 8388,
-    "legacyRawOtherShare": 0.2020620543,
-    "largestContributingCause": {
-      "cause": "reflection_chain",
-      "candidateObservations": 5630
+    "exclusiveCategories": {
+      "pure_raw_damage": 26683,
+      "mechanic_mediated_raw_lethal": 5692,
+      "direct_mechanic_death": 8388,
+      "unknown_or_mixed": 749
     },
-    "legacyRawContributingCauses": {
-      "reflection_chain": 5630,
-      "action_economy_chain": 4366,
-      "sustain_failure_chain": 1262,
-      "spell_denial_chain": 714,
-      "long_fight_chain": 167,
-      "mp_starvation_chain": 127,
-      "status_lock_chain": 81
-    },
+    "exclusiveTotal": 41512,
+    "pureRawShareOfLegacyRaw": 0.6427779919,
+    "mechanicMediatedRawShareOfLegacyRaw": 0.1371169782,
+    "directMechanicShareOfLegacyRaw": 0.2020620543,
+    "unknownOrMixedShareOfLegacyRaw": 0.0180429755,
+    "specialMechanicDeaths": 14080,
+    "specialMechanicShareOfLegacyRaw": 0.3391790326,
     "directCauseCounts": {
       "raw_damage": 39779,
       "reflection": 3055,
       "spell_damage": 6055,
       "status_payoff": 430
     },
-    "legacyRawCausalCategories": {
-      "pure_raw_damage": 25409,
-      "mechanic_mediated_raw_damage": 7715,
-      "reflection_chain": 2576,
-      "action_economy_chain": 1010,
-      "mp_starvation_chain": 43,
-      "long_fight_chain": 55,
-      "unknown_or_mixed": 4704
+    "multiLabelContributingEvidence": {
+      "reflection_chain": 5630,
+      "status_lock_chain": 4126,
+      "action_economy_chain": 67,
+      "spell_denial_chain": 1005,
+      "mp_starvation_chain": 1233,
+      "sustain_failure_chain": 537
     },
     "mechanicFiringToDeathRounds": {
-      "count": 29027,
-      "mean": 1.534812416,
+      "count": 24438,
+      "mean": 1.6464522465,
       "p50": 1,
       "p95": 4
     }
@@ -79,30 +70,10 @@
   "autoActionReview": {
     "policy": "existing chooseAutoCombatAction; no expert AI",
     "builds": {
-      "aoe-burst": {
-        "spellActionsPerCell": 95.362,
-        "physicalActionsPerCell": 0.13,
-        "fallbackActions": 65,
-        "spellOpportunityLosses": 448
-      },
-      "single-efficient": {
-        "spellActionsPerCell": 83.35,
-        "physicalActionsPerCell": 0,
-        "fallbackActions": 0,
-        "spellOpportunityLosses": 411
-      },
-      "sustain": {
-        "spellActionsPerCell": 135.064,
-        "physicalActionsPerCell": 0.192,
-        "fallbackActions": 96,
-        "spellOpportunityLosses": 738
-      },
-      "hybrid-fallback": {
-        "spellActionsPerCell": 77.658,
-        "physicalActionsPerCell": 0,
-        "fallbackActions": 0,
-        "spellOpportunityLosses": 309
-      }
+      "aoe-burst": {"fallbackActions": 65, "spellOpportunityLosses": 448},
+      "single-efficient": {"fallbackActions": 0, "spellOpportunityLosses": 411},
+      "sustain": {"fallbackActions": 96, "spellOpportunityLosses": 738},
+      "hybrid-fallback": {"fallbackActions": 0, "spellOpportunityLosses": 309}
     }
   },
   "fixtureValidation": {
@@ -114,31 +85,14 @@
   },
   "traceSchema": {
     "perDeath": [
-      "round",
-      "hp",
-      "mp",
-      "playerAction",
-      "enemyActions",
-      "statusEvents",
-      "silence",
-      "drainMp",
-      "reflect",
-      "antiHeal",
-      "regen",
-      "summon",
-      "guard",
-      "multiAction",
-      "spellCastOpportunityLoss",
-      "physicalFallback",
-      "damageEvents",
-      "lethalEvent",
-      "stateDegradation"
+      "round", "hp", "mp", "playerAction", "enemyActions", "statusEvents",
+      "silence", "drainMp", "reflect", "antiHeal", "regen", "summon",
+      "guard", "multiAction", "spellCastOpportunityLoss", "physicalFallback",
+      "damageEvents", "lethalEvent", "stateDegradation"
     ],
     "causalFields": [
-      "directCause",
-      "contributingCause",
-      "precedingMechanisms",
-      "mechanismToDeath"
+      "directCause", "contributingCause", "finalExclusiveCategory",
+      "precedingMechanisms", "stateDegradationEvidence"
     ],
     "fullCaseMatrix": "issue-980-causal-attribution.md#build-encounter-depth-causal-counts"
   },
@@ -148,7 +102,6 @@
       "build": "aoe-burst",
       "encounter": "swarm-action-pressure",
       "depth": 8,
-      "hp": [14, 8, 8, 6, 0],
       "lethal": "ordinary physical damage after split/additional actions"
     },
     {
@@ -156,7 +109,6 @@
       "build": "aoe-burst",
       "encounter": "mp-pressure",
       "depth": 13,
-      "mp": [15, 12, 8, 5, 3, 0],
       "lethal": "ordinary physical damage after MP drain and physical fallback"
     },
     {
@@ -164,8 +116,7 @@
       "build": "aoe-burst",
       "encounter": "magic-denial",
       "depth": 8,
-      "lostSpellOpportunities": 2,
-      "lethal": "ordinary physical damage after silence"
+      "lethal": "ordinary physical damage after actual spell opportunity loss"
     },
     {
       "cause": "reflection_chain",
@@ -176,7 +127,7 @@
     },
     {
       "cause": "pure_raw_damage",
-      "lethal": "ordinary physical damage with no preceding causal mechanism"
+      "lethal": "ordinary physical damage with no validated state degradation"
     }
   ]
 }
