@@ -17,7 +17,7 @@ Historical summaries, raw-result references, fixtures, and images belong in
 preserved for provenance and is not executable test input.
 
 Migration inventory (2026-08-27): 98 unit tests, 40 regression tests, 31
-simulation runners plus 2 simulation-infrastructure files, 14 measurement
+31 simulation runners plus 3 simulation-infrastructure files, 14 measurement
 tools, and 2 benchmarks. All 130 evidence files were moved without deletion.
 The ownership test enumerates these directories, so additions must either
 follow the matching naming rule or fail CI.

@@ -317,9 +317,9 @@ const {
 } = await import("../../src/systems/milestone_merchant.js");
 const { MILESTONE_MERCHANT_STOCK } = await import("../../src/data/milestone_merchant.js");
 const {
-  calculateCombatRecoveryAction,
   getStartingHealPotionCount
 } = await import("../../src/rules/recovery_rules.js");
+const { calculateCombatRecoveryAction } = await import("./sim_recovery_policy.js");
 const { getPerceptionIntent } = await import("../../src/systems/elite_perception.js");
 
 function getScholarMaterialBonus(monsters, state) {
