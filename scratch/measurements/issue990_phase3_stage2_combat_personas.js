@@ -415,6 +415,9 @@ function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, policies = P
       runnerVersion: RUNNER_VERSION,
       sourceCommit: provenance?.sourceCommit || null,
       mainBaselineSha: provenance?.baseCommit || null,
+      originMainAncestor: provenance?.originMainAncestor || null,
+      staleTreeAllowed: provenance?.staleTreeAllowed ?? null,
+      workingTreeClean: provenance?.workingTreeClean ?? null,
       measurementRunnerDiffSha256: provenance?.measurementRunnerDiffSha256 || null,
       environmentSignature,
       configuration: {
@@ -507,7 +510,7 @@ function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, policies = P
 }
 
 function renderFloorTable(report) {
-  const lines = ["## Table C — Floor survival B1-B10", "", "`reached next floor` means the run completed this floor and entered the next one. `incomplete` means neither death nor next-floor reach.", "", "| policy | floor | entered | reached next floor | died | incomplete | next-floor reach | incomplete reasons |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |"];
+  const lines = ["## Table C — Floor survival B1-B30 (B1-B10 focus)", "", "`reached next floor` means the run completed this floor and entered the next one. `incomplete` means neither death nor next-floor reach.", "", "| policy | floor | entered | reached next floor | died | incomplete | next-floor reach | incomplete reasons |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |"];
   for (const policy of report.measurement.configuration.policies) {
     for (const floor of report.measurement.configuration.floors) {
       const value = report.policies[policy].floors[String(floor)];
@@ -665,10 +668,10 @@ function renderSummary(report) {
     "6. Pure raw death share: " + policies.map(id => id + "=" + percent(policy(id).deathCategories.pure_raw_damage.rate)).join(", ") + ".",
     "7. Same-seed dominance is shown in Table I; no aggregate conclusion is made from unmatched post-divergence encounters.",
     "8. Exploration incomplete remains a separate censor in Table C; zero reached depth is not reported as all-dead.",
-    "9. Stage 1.5 MP hypothesis verdict: unresolved without causal proof; Stage 2 strengthens the exposure association only when paired common-support deltas agree with the direction.",
-    "10. “AI was merely too weak” verdict: mixed; combat policy changes are real, but no policy establishes a deep natural-progression population.",
+    "9. Stage 1.5 MP hypothesis verdict: strengthened for the managed segment: mp-conserving reduced spell casts/MP spend but increased normal attacks, rounds, enemy actions, and normal damage; burst reduced combat duration/exposure on common support. The full end-to-end depth/death claim remains confounded after path divergence.",
+    "10. “AI was merely too weak” verdict: strengthened as a sensitivity factor, not sufficient as a sole explanation; burst improved shallow reach while mp-conserving worsened it, yet all policies remained shallow and B21+ unobserved.",
     "11. Game-structure bottleneck evidence: strengthened for the shallow natural progression ceiling, with exploration incomplete still contributing.",
-    "12. Stage 3 checkpoint continuation: not implemented; defer the decision until Stage 2 review because B21+ is unobserved.",
+    "12. Stage 3 checkpoint continuation: recommended once, under Case C, because persona results are mixed and shallow incomplete/death prevents a clean deep-depth comparison; it is not implemented in this PR.",
     "13. #973 Build Confidence: Revise.",
     "14. #990 remains open pending Stage 2 review.",
     "15. Production tuning: do not proceed from this measurement alone.",
