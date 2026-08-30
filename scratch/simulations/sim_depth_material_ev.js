@@ -3923,6 +3923,36 @@ function createSimulationState(
   assignRunQuests(currentRun);
 
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
+  const startingBuild = scenario.startingBuild;
+  if (startingBuild?.equipment && className === "Mage") {
+    character.equipment = Object.fromEntries(
+      Object.entries(startingBuild.equipment).map(([slot, definition]) => [slot, {
+        kind: "equipment",
+        instanceId: `phase2-start:${runSeed}:${slot}`,
+        baseId: definition.baseId,
+        rarity: "epic",
+        level: 1,
+        identified: true,
+        halfIdentified: false,
+        tags: [],
+        hintTags: [],
+        curseEffectId: null,
+        cursePower: 0,
+        curseSuspected: false,
+        affixes: (definition.supports || []).map(affix => ({
+          ...affix,
+          type: affix.id,
+          kind: "support"
+        })).concat(definition.coreId ? [{
+          id: definition.coreId,
+          type: definition.coreId,
+          kind: "core",
+          value: 1
+        }] : [])
+      }])
+    );
+    character.spells = [...(startingBuild.spells || character.spells)];
+  }
   const hpBaseBonus = Number(scenario.hpBaseBonus) || 0;
   if (hpBaseBonus !== 0) {
     character.maxHp += hpBaseBonus;
@@ -4554,6 +4584,7 @@ function castExplorationSpell(state, spellName, metrics) {
   // Exploration spells are paid from MP only; do not use blood-wand HP payment.
   if (!payment.canCast || payment.resource !== "mp") return false;
   character.mp -= payment.cost;
+  metrics.mpConsumed += payment.cost;
   SPELL_EFFECTS[spellName]({ caster: character, target: state });
   metrics.explorationSpellUsage[spellName]++;
   return true;
@@ -6760,6 +6791,7 @@ function runEncounter(
   const encounterFloor = state.floor;
   const encounterStartMp = state.party[0].mp;
   const encounterStartMaxMp = getCharMaxMp(state.party[0]);
+  const enemyTurnEventStart = metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0;
   let encounterMinimumMp = encounterStartMp;
   const blockedRounds = [];
   const startBuild = (isBoss || isMidboss || isElite) && metrics?.collectSpecialBattles
@@ -6791,6 +6823,14 @@ function runEncounter(
     lastRoundHpAfter: null,
     lastRoundMaxHp: null
   };
+  if (metrics?.encounterIdentityLog) {
+    metrics.encounterIdentityLog.push({
+      floor: state.floor,
+      type: encounterType,
+      ordinal: metrics.encounterIdentityLog.length,
+      enemyNames: monsters.map(monster => monster.name)
+    });
+  }
   const encounterDiagnostic = diagnostics && (fullDiagnostics || compactDiagnostics)
     ? (fullDiagnostics
       ? {
@@ -6837,6 +6877,11 @@ function runEncounter(
     )
     : null;
   const finishEncounter = (result, rounds, healPotionsUsed, greaterHealPotionsUsed) => {
+    telemetry.enemyActions = Math.max(
+      0,
+      (metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0) - enemyTurnEventStart
+    );
+    telemetry.enemyActionsPerRound = telemetry.enemyActions / Math.max(1, rounds);
     if (metrics && telemetry.incomingDamage > 0) {
       metrics.damageHpBySource[encounterType] += telemetry.incomingDamage;
       metrics.lastDamageEvent = {
@@ -7043,6 +7088,7 @@ function runEncounter(
     const diagnosticCureCountsBefore = encounterDiagnostic && fullDiagnostics
       ? countInventoryItems(state.inventory)
       : null;
+    const mpBeforeRound = state.party[0].mp;
     const physicalHitsBeforeRound = state.combatFormulaTelemetry?.physicalPlayerHits.length || 0;
     const physicalMissesBeforeRound = state.combatFormulaTelemetry?.physicalPlayerMisses?.length || 0;
     let roundResult;
@@ -7062,6 +7108,7 @@ function runEncounter(
       metrics,
       roundResult.state.combatFormulaTelemetry?.physicalPlayerHits.slice(physicalHitsBeforeRound) || []
     );
+    metrics.mpConsumed += Math.max(0, mpBeforeRound - state.party[0].mp);
     recordHitEvasionMetrics(
       metrics,
       roundResult.state.combatFormulaTelemetry?.physicalPlayerHits.slice(physicalHitsBeforeRound) || [],
@@ -7315,7 +7362,9 @@ function applyPostCombatRecovery(state, metrics = null) {
     if (!spellName) break;
     const payment = getRecoverySpellPayment(spellName);
     const hpBefore = character.hp;
+    const mpBeforePayment = character.mp;
     character.mp -= payment.cost;
+    if (metrics) metrics.mpConsumed += Math.max(0, mpBeforePayment - character.mp);
     SPELL_EFFECTS[spellName]({ caster: character, target: character });
     const postCombatHealingHp = Math.max(0, character.hp - hpBefore);
     const spellUsage = metrics?.spellUsage?.[spellName];
@@ -7705,11 +7754,7 @@ function handleMilestoneMerchantVisit(state, scenario, metrics, scoringProfile) 
   maybePurchaseMerchantStrengthPotion(state, scenario, metrics);
   maybePurchaseMerchantManaPotion(state, metrics);
   if (uncursePurchases > 0) {
-    recordEquipmentUpgrades(
-      metrics,
-      equipGreedyUpgrades(state, metrics, scoringProfile),
-      state.floor
-    );
+    applySimulationEquipmentPolicy(state, metrics, scoringProfile, state.floor);
   }
 }
 
@@ -9287,6 +9332,7 @@ function createFloorRoutePlan(
 
   if (!start || !stairs) {
     return {
+      routePolicy: "omniscient_shortest_route",
       path: [],
       routeEvents,
       floorSteps: getFloorStepCount(generated, floor),
@@ -9389,6 +9435,7 @@ function createFloorRoutePlan(
       )
     : null;
   return {
+    routePolicy: "omniscient_shortest_route",
     path,
     routeEvents,
     routeDistance,
@@ -9402,6 +9449,37 @@ function createFloorRoutePlan(
     avoidedPathExists,
     milestoneForced,
     bossExitDistance
+  };
+}
+
+// Phase 2 route state.  The generated map remains the production map used by
+// movement, but route decisions are made from `knownCellKeys` only.  In
+// particular, this function deliberately does not inspect event, stairs, or
+// boss fields while selecting a frontier.  Those fields are observed only
+// when the movement step enters the cell.
+function createPartialInformationFloorRoutePlan(generated, floor) {
+  const start = findFloorCell(generated.grid, cell => cell.type === "stairs-up");
+  const walkableCells = generated.validation?.walkableCells || generated.grid.flat()
+    .filter(cell => cell?.walls?.some(wall => !wall) || cell?.event || cell?.type !== "empty")
+    .length;
+  const explorationBudget = Math.max(
+    getFloorStepCount(generated, floor),
+    Math.ceil(Math.max(1, walkableCells) * EXPLORATION_FACTOR * 2.5) + 10
+  );
+  return {
+    routePolicy: "partial_information_exploration",
+    partialInformation: true,
+    path: start ? [{ ...start }] : [],
+    routeEvents: [],
+    routeDistance: explorationBudget,
+    bossToStairsDistance: null,
+    naturalBossToStairsDistance: null,
+    floorSteps: explorationBudget,
+    specialCells: [],
+    avoidedPathExists: false,
+    milestoneForced: false,
+    walkableCells,
+    start
   };
 }
 
@@ -9519,6 +9597,145 @@ function scheduleSecretRoomSearches(plans, floorSteps, routeLength) {
   return schedule;
 }
 
+function canTraverseKnownRouteEdge(generated, route, current, direction) {
+  const cell = generated.grid[current.y]?.[current.x];
+  const next = generated.grid[current.y + direction.dy]?.[current.x + direction.dx];
+  if (!cell || !next || !route.knownCellKeys.has(routeKey(current))) return false;
+  return canTraverseRouteEdge(generated.grid, current, direction);
+}
+
+function findPartialInformationPath(generated, route, target, blockedKeys = new Set()) {
+  if (!route.current || !target) return null;
+  const startKey = routeKey(route.current);
+  const targetKey = routeKey(target);
+  const queue = [{ ...route.current }];
+  const previous = new Map([[startKey, null]]);
+  for (const current of queue) {
+    if (routeKey(current) === targetKey) break;
+    for (const direction of ROUTE_DIRECTIONS) {
+      if (!canTraverseKnownRouteEdge(generated, route, current, direction)) continue;
+      const next = {
+        x: current.x + direction.dx,
+        y: current.y + direction.dy
+      };
+      const nextKey = routeKey(next);
+      if (previous.has(nextKey) || (blockedKeys.has(nextKey) && nextKey !== targetKey)) continue;
+      // An unknown cell is a valid frontier destination, but its interior is
+      // not known yet and therefore cannot be used as a transit node.
+      if (!route.knownCellKeys.has(nextKey) && nextKey !== targetKey) continue;
+      previous.set(nextKey, routeKey(current));
+      queue.push(next);
+    }
+  }
+  if (!previous.has(targetKey)) return null;
+  const path = [];
+  let cursor = targetKey;
+  while (cursor) {
+    const [x, y] = cursor.split(",").map(Number);
+    path.push({ x, y });
+    cursor = previous.get(cursor);
+  }
+  return path.reverse();
+}
+
+function findKnownFrontier(generated, route) {
+  if (!route.current) return null;
+  const candidates = [];
+  const queue = [{ ...route.current }];
+  const distance = new Map([[routeKey(route.current), 0]]);
+  for (const current of queue) {
+    const currentDistance = distance.get(routeKey(current));
+    for (const direction of ROUTE_DIRECTIONS) {
+      if (!canTraverseKnownRouteEdge(generated, route, current, direction)) continue;
+      const next = {
+        x: current.x + direction.dx,
+        y: current.y + direction.dy
+      };
+      const nextKey = routeKey(next);
+      if (!route.knownCellKeys.has(nextKey)) {
+        candidates.push({ coord: next, distance: currentDistance + 1 });
+        continue;
+      }
+      if (distance.has(nextKey)) continue;
+      distance.set(nextKey, currentDistance + 1);
+      queue.push(next);
+    }
+  }
+  candidates.sort((left, right) =>
+    left.distance - right.distance ||
+    left.coord.y - right.coord.y ||
+    left.coord.x - right.coord.x
+  );
+  return candidates[0]?.coord || null;
+}
+
+function getPartialInformationTarget(route, generated, floor) {
+  const milestone = floor % 5 === 0;
+  if (route.discoveredBoss && !route.bossDefeated) return route.discoveredBoss;
+  if (route.discoveredStairs && (!milestone || route.bossDefeated)) return route.discoveredStairs;
+  return findKnownFrontier(generated, route);
+}
+
+function getPartialSecretDoorPlan(generated, route) {
+  if (!route.current) return null;
+  const cell = generated.grid[route.current.y]?.[route.current.x];
+  if (!cell?.secretDoor || !cell.secretFound) return null;
+  for (const direction of ROUTE_DIRECTIONS) {
+    const next = generated.grid[route.current.y + direction.dy]?.[route.current.x + direction.dx];
+    // A failed production search does not reveal the door and does not make
+    // it permanently unavailable; the next visit may search it again.
+    if (!next || !cell.secretDoor[direction.dir] || cell.secretFound[direction.dir]) continue;
+    const key = `${routeKey(route.current)}>${routeKey(next)}`;
+    return {
+      source: { ...route.current },
+      room: { x: next.x, y: next.y },
+      direction: direction.dir,
+      key
+    };
+  }
+  return null;
+}
+
+function resolvePartialSecretDoorSearch({ state, generated, route, floor, metrics, specialSchedule, step }) {
+  const plan = getPartialSecretDoorPlan(generated, route);
+  if (!plan) return false;
+  route.searchedSecretDoorKeys.add(plan.key);
+  metrics.secretDoorCandidates++;
+  metrics.secretSearchAttempts++;
+  metrics.searchActions++;
+  metrics.secretSearchExtraSteps++;
+  const searchEncounter = (!state.repelTurns || state.repelTurns <= 0) &&
+    Math.random() < getEncounterChance(metrics.steps, state);
+  if (searchEncounter) {
+    metrics.encountersCausedBySearchAction++;
+    metrics.secretSearchEncounterExposure++;
+    const event = { type: "normal", searchEncounter: true, step };
+    specialSchedule.set(step + 1, [
+      ...(specialSchedule.get(step + 1) || []),
+      event
+    ]);
+    return true;
+  }
+  const chance = calculateSecretSearchSuccessRateForSimulation(state.party, floor);
+  if (Math.random() >= chance) {
+    metrics.secretSearchFailures++;
+    metrics.secretSearchEncounterExposure += getEncounterChance(metrics.steps, state);
+    return true;
+  }
+  const source = generated.grid[plan.source.y][plan.source.x];
+  const room = generated.grid[plan.room.y]?.[plan.room.x];
+  if (!source?.secretFound || !room?.secretFound) {
+    metrics.secretSearchFailures++;
+    return true;
+  }
+  source.secretFound[plan.direction] = true;
+  room.secretFound[(plan.direction + 2) % 4] = true;
+  metrics.secretSearchSuccesses++;
+  metrics.secretRoomDiscoveries++;
+  metrics.secretSearchEncounterExposure += getEncounterChance(metrics.steps, state);
+  return true;
+}
+
 function calculateSecretSearchSuccessRateForSimulation(party, floor) {
   let rate = 0.35;
   const scouts = party.filter(character =>
@@ -9631,6 +9848,31 @@ function resolveFlameTrapAtStep({
 
 function createSimulationFloorRoute(generated, routePlan, state, floor, metrics) {
   const start = findFloorCell(generated.grid, cell => cell.type === "stairs-up");
+  if (routePlan.partialInformation) {
+    const route = {
+      partialInformation: true,
+      current: start ? { ...start } : null,
+      path: start ? [{ ...start }] : [],
+      targetIndex: 0,
+      targets: [],
+      knownCellKeys: new Set(start ? [routeKey(start)] : []),
+      searchedSecretDoorKeys: new Set(),
+      discoveredStairs: null,
+      discoveredBoss: null,
+      bossDefeated: false,
+      floorComplete: false,
+      knownTrapKeys: new Set(),
+      processedEventKeys: new Set(),
+      replanStates: new Set(),
+      nextMoveAt: EXPLORATION_FACTOR,
+      detourActive: false,
+      detourTrapId: null,
+      detourTargetKey: null
+    };
+    metrics.exploredCellsByFloor[floor] = 1;
+    metrics.exploredCells++;
+    return route;
+  }
   const stairs = findFloorCell(generated.grid, cell => cell.type === "stairs-down");
   const targets = [
     ...(routePlan.routeEvents || []),
@@ -9656,6 +9898,32 @@ function createSimulationFloorRoute(generated, routePlan, state, floor, metrics)
 
 function replanSimulationFloorRoute(route, generated, state, floor, metrics, step) {
   if (!route.current) return { path: [], cycleDetected: false };
+  if (route.partialInformation) {
+    const target = getPartialInformationTarget(route, generated, floor);
+    if (!target) {
+      route.path = [{ ...route.current }];
+      return { path: route.path, directPath: null, alternatePath: null, detours: false };
+    }
+    const targetKey = routeKey(target);
+    const stateKey = `${routeKey(route.current)}>${targetKey}>` +
+      [...route.knownTrapKeys].sort().join("|");
+    const cycleDetected = route.replanStates.has(stateKey);
+    route.replanStates.add(stateKey);
+    route.path = findPartialInformationPath(
+      generated,
+      route,
+      target,
+      new Set()
+    ) || [route.current];
+    route.partialTargetKey = targetKey;
+    return {
+      path: route.path,
+      directPath: route.path,
+      alternatePath: null,
+      detours: false,
+      cycleDetected
+    };
+  }
   while (
     route.targetIndex < route.targets.length &&
     routeKey(route.targets[route.targetIndex]) === routeKey(route.current)
@@ -9817,13 +10085,38 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
   state.y = next.y;
   route.current = { ...next };
   route.path = route.path.slice(1);
+  if (route.partialInformation) {
+    const nextKey = routeKey(next);
+    if (!route.knownCellKeys.has(nextKey)) {
+      route.knownCellKeys.add(nextKey);
+      metrics.exploredCells++;
+      metrics.exploredCellsByFloor[floor] = (metrics.exploredCellsByFloor[floor] || 0) + 1;
+    }
+    const entered = generated.grid[next.y]?.[next.x];
+    if (entered?.type === "stairs-down" && !route.discoveredStairs) {
+      route.discoveredStairs = { ...next };
+      metrics.stairsDiscoveryStepByFloor[floor] ||= step;
+    }
+    if (entered?.event === EVENT_TYPES.BOSS && entered.milestoneFloor === floor && !route.discoveredBoss) {
+      route.discoveredBoss = { ...next };
+      metrics.bossDiscoveryStepByFloor[floor] ||= step;
+    }
+  }
   const candidate = route.targets[route.targetIndex];
-  const event = candidate && candidate.type !== "stairs-down" &&
+  const enteredCell = generated.grid[next.y]?.[next.x];
+  const partialEvent = route.partialInformation && enteredCell?.event
+    ? { x: next.x, y: next.y, type: enteredCell.event, milestone: enteredCell.milestoneFloor === floor }
+    : null;
+  const event = partialEvent || (candidate && candidate.type !== "stairs-down" &&
     routeKey(candidate) === routeKey(next) &&
     !route.processedEventKeys.has(routeKey(candidate))
     ? candidate
-    : null;
+    : null);
   if (event) route.processedEventKeys.add(routeKey(event));
+  if (route.partialInformation && enteredCell?.type === "stairs-down") {
+    const milestone = floor % 5 === 0;
+    if (!milestone || route.bossDefeated) route.floorComplete = true;
+  }
   if (route.detourActive && route.detourTargetKey === routeKey(next)) {
     finalizeTrapRouteDetour(metrics);
     route.detourActive = false;
@@ -9831,7 +10124,13 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
     route.detourTrapId = null;
     route.detourTargetKey = null;
   }
-  return { moved: true, previous, current: { ...next }, event };
+  return {
+    moved: true,
+    previous,
+    current: { ...next },
+    event,
+    floorComplete: route.floorComplete
+  };
 }
 
 function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
@@ -10593,11 +10892,7 @@ function resolveSimulationChest({
       !(chestItems.mainItemLost && index === chestItems.mainItemIndex)
     ).length;
   }
-  recordEquipmentUpgrades(
-    metrics,
-    equipGreedyUpgrades(state, metrics, scoringProfile),
-    floor
-  );
+  applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor);
   return true;
 }
 
@@ -10815,6 +11110,19 @@ function recordEquipmentUpgrades(metrics, upgrades, floor) {
   metrics.equipmentUpgrades += upgrades;
   if (floor <= EARLY_BUILD_MAX_FLOOR) metrics.earlyEquipmentUpgrades += upgrades;
   else metrics.deepEquipmentUpgrades += upgrades;
+}
+
+// Phase 2: P0 keeps generated drops fixed; P1 uses the existing production
+// greedy scorer immediately after each reward. No future encounter data is
+// passed to this decision.
+function applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor) {
+  if (metrics.equipmentUpdatePolicy === "fixed") return 0;
+  const upgrades = equipGreedyUpgrades(state, metrics, scoringProfile);
+  recordEquipmentUpgrades(metrics, upgrades, floor);
+  if (metrics.buildSnapshots) {
+    metrics.buildSnapshots.push(createBuildSnapshot(state, scoringProfile, "equipment-update"));
+  }
+  return upgrades;
 }
 
 function createEquipmentCraftAggregate() {
@@ -11231,6 +11539,21 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     metaMaterials: { ...state.metaMaterials },
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     steps: metrics.steps,
+    routePolicy: metrics.routePolicy,
+    equipmentUpdatePolicy: metrics.equipmentUpdatePolicy,
+    mpConsumed: metrics.mpConsumed,
+    exploredCells: metrics.exploredCells,
+    exploredCellsByFloor: { ...metrics.exploredCellsByFloor },
+    exploredRatioByFloor: { ...metrics.exploredRatioByFloor },
+    stepsByFloor: { ...metrics.stepsByFloor },
+    searchActions: metrics.searchActions,
+    encountersCausedByMovement: metrics.encountersCausedByMovement,
+    encountersCausedBySearchAction: metrics.encountersCausedBySearchAction,
+    stairsDiscoveryStepByFloor: { ...metrics.stairsDiscoveryStepByFloor },
+    bossDiscoveryStepByFloor: { ...metrics.bossDiscoveryStepByFloor },
+    floorClearStepByFloor: { ...metrics.floorClearStepByFloor },
+    floorTransitionStepByFloor: { ...metrics.floorTransitionStepByFloor },
+    partialExplorationState: metrics.partialExplorationState || null,
     battles: state.currentRun.battles,
     chestsOpenedInRun: state.currentRun.chestsOpened,
     chestPath: structuredClone(metrics.chestPath),
@@ -11659,6 +11982,9 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     dragonKeysAcquired: metrics.dragonKeysAcquired,
     dragonKeyUses: metrics.dragonKeyUses,
     normalCombatTelemetry: metrics.normalCombatTelemetry,
+    encounterIdentityLog: metrics.encounterIdentityLog
+      ? structuredClone(metrics.encounterIdentityLog)
+      : null,
     encounterGroupCounts: Object.fromEntries(
       Object.entries(metrics.encounterGroupCounts).map(([band, groups]) => [band, { ...groups }])
     ),
@@ -11707,9 +12033,10 @@ export function simulateRun({
   encounterRateOverride = null,
   collectBuildSnapshots = false,
   collectEquipmentTelemetry = false,
-  collectCombatFormula = false
+  collectCombatFormula = false,
+  worldSeed = null
 }) {
-  const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
+  const runSeed = worldSeed || `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   if (SIM_INDEPENDENT_RUN_RANDOM) {
     // Keep each class/run on an independent deterministic stream. Otherwise a
     // Priest-only spell change can shift the shared stream and make Fighter,
@@ -11760,6 +12087,20 @@ export function simulateRun({
     `${runSeed}:${scenario.materialDropOverride?.id || "baseline"}`
   );
   const metrics = {
+    routePolicy: scenario.routePolicy || "omniscient_shortest_route",
+    equipmentUpdatePolicy: scenario.equipmentUpdatePolicy || "deterministic_greedy",
+    mpConsumed: 0,
+    exploredCells: 0,
+    exploredCellsByFloor: {},
+    exploredRatioByFloor: {},
+    stepsByFloor: {},
+    searchActions: 0,
+    encountersCausedByMovement: 0,
+    encountersCausedBySearchAction: 0,
+    stairsDiscoveryStepByFloor: {},
+    bossDiscoveryStepByFloor: {},
+    floorClearStepByFloor: {},
+    floorTransitionStepByFloor: {},
     runtimeCalls,
     runtimeDiagnostics,
     steps: 0,
@@ -12085,6 +12426,7 @@ export function simulateRun({
         sources: {},
         builds: {}
       },
+      measurementEnemyTurnEvents: scenario.collectEncounterIdentities ? [] : null,
       enemyStatusGrammar: createEnemyStatusGrammarMetrics()
     },
     statusCureItemsAcquired: {
@@ -12164,8 +12506,11 @@ export function simulateRun({
       incomingHits: 0,
       incomingDamage: 0,
       maxIncomingHit: 0,
-      heavyHitCount: 0
+      heavyHitCount: 0,
+      rounds: 0,
+      enemyActions: 0
     },
+    encounterIdentityLog: scenario.collectEncounterIdentities ? [] : null,
     encounterGroupCounts: createEncounterGroupCounts(),
     encounterFallbacks: {},
     materialSources: {
@@ -12220,12 +12565,14 @@ export function simulateRun({
       floor,
       scenario.bossExitPolicy || "shortcut-0"
     );
-    const routePlan = createFloorRoutePlan(
-      generated,
-      floor,
-      metrics.bossPolicy,
-      bossExitPolicy
-    );
+    const routePlan = scenario.routePolicy === "partial_information_exploration"
+      ? createPartialInformationFloorRoutePlan(generated, floor)
+      : createFloorRoutePlan(
+          generated,
+          floor,
+          metrics.bossPolicy,
+          bossExitPolicy
+        );
     const elitePlan = createEliteRoutePlan(
       generated,
       floor,
@@ -12242,7 +12589,14 @@ export function simulateRun({
       metrics
     );
     routePlan.path = [floorRoute.current, ...floorRoute.path.slice(1)];
-    const secretRoomPlans = findSecretRoomPlans(generated, routePlan);
+    if (routePlan.partialInformation) {
+      metrics.exploredRatioByFloor[floor] =
+        (metrics.exploredCellsByFloor[floor] || 0) / Math.max(1, routePlan.walkableCells);
+    }
+    // Only the oracle may schedule hidden secret rooms from the full map.
+    const secretRoomPlans = routePlan.partialInformation
+      ? []
+      : findSecretRoomPlans(generated, routePlan);
     metrics.eliteAvoidDetourSteps += state.simPolicy.elitePolicy === "avoid"
       ? elitePlan.extraSteps
       : 0;
@@ -12323,6 +12677,7 @@ export function simulateRun({
 
     stepLoop: for (let step = 1; step <= floorSteps; step++) {
       metrics.steps++;
+      metrics.stepsByFloor[floor] = (metrics.stepsByFloor[floor] || 0) + 1;
       state.simPolicy.statusCureRemainingSteps =
         Math.max(0, floorSteps - step + 1) +
         Array.from(
@@ -12383,6 +12738,10 @@ export function simulateRun({
         step
       );
       routePlan.path = [floorRoute.current, ...floorRoute.path.slice(1)];
+      if (routePlan.partialInformation) {
+        metrics.exploredRatioByFloor[floor] =
+          (metrics.exploredCellsByFloor[floor] || 0) / Math.max(1, routePlan.walkableCells);
+      }
       if (movement.trapResult?.pitfallTriggered) {
         floorEndedByPitfall = true;
         break stepLoop;
@@ -12390,6 +12749,10 @@ export function simulateRun({
       if (!isAlive(state.party[0])) {
         metrics.deathEncounterType = "floor-trap";
         return finishRun(state, "death", metrics);
+      }
+      if (routePlan.partialInformation && movement.floorComplete) {
+        metrics.floorClearStepByFloor[floor] = step;
+        break stepLoop;
       }
       floorSteps = Math.max(
         floorSteps,
@@ -12402,6 +12765,9 @@ export function simulateRun({
         ...(specialSchedule.get(step) || []),
         ...(movement.event ? [movement.event] : [])
       ];
+      if (movement.event && [EVENT_TYPES.BOSS, "midboss"].includes(movement.event.type)) {
+        metrics.encountersCausedByMovement++;
+      }
       const floorTrapSchedule = new Map();
       floorRoute.path.slice(1, 5).forEach((coord, index) => {
         const upcomingTrap = generated.grid[coord.y]?.[coord.x]?.trap;
@@ -12427,6 +12793,17 @@ export function simulateRun({
           metrics.deathEncounterType = "secret-room-chest-trap";
           return finishRun(state, "death", metrics);
         }
+      }
+      if (routePlan.partialInformation) {
+        resolvePartialSecretDoorSearch({
+          state,
+          generated,
+          route: floorRoute,
+          floor,
+          metrics,
+          specialSchedule,
+          step
+        });
       }
       applyIssue412TacticalItem({
         state,
@@ -12578,11 +12955,7 @@ export function simulateRun({
           !chestItems.lostRewardIndices?.includes(itemIndex) &&
           !(chestItems.mainItemLost && itemIndex === chestItems.mainItemIndex)
         ).length;
-        recordEquipmentUpgrades(
-          metrics,
-          equipGreedyUpgrades(state, metrics, scoringProfile),
-          floor
-        );
+        applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor);
       }
       if (!isAlive(state.party[0])) {
         metrics.deathEncounterType = "chest-trap";
@@ -12600,6 +12973,9 @@ export function simulateRun({
           Math.random() < getEncounterChance(step, state)
         ));
       if (forcedNormalEncounter) metrics.issue412.forcedNormalEncounters++;
+      if (scheduledSpecials.length === 0 && hasRandomEncounter) {
+        metrics.encountersCausedByMovement++;
+      }
       if (scheduledSpecials.length === 0 && !hasRandomEncounter) continue;
       const encountersThisStep = scheduledSpecials.length > 0
         ? scheduledSpecials
@@ -12616,8 +12992,10 @@ export function simulateRun({
         const isBoss = specialEvent?.type === EVENT_TYPES.BOSS;
         const isMidboss = specialEvent?.type === "midboss";
         const isElite = specialEvent?.type === "elite";
+        const isChest = specialEvent?.type === EVENT_TYPES.CHEST;
         const isMerchant = specialEvent?.type === EVENT_TYPES.MERCHANT;
         const isMilestonePortal = specialEvent?.type === EVENT_TYPES.RETURN_PORTAL;
+        const isSearchEncounter = Boolean(specialEvent?.searchEncounter);
         if (isBoss && specialEvent.milestone) {
           metrics.milestoneEventTrace.push({
             floor,
@@ -12645,6 +13023,22 @@ export function simulateRun({
               metrics.milestonePortalRetreats++;
               return finishRun(state, "retreat", metrics, "milestone_portal");
             }
+          }
+          continue;
+        }
+        if (isChest) {
+          const opened = resolveSimulationChest({
+            state,
+            floor,
+            metrics,
+            scenario,
+            supplyOverride,
+            scoringProfile,
+            source: "ordinary"
+          });
+          if (!opened || !isAlive(state.party[0])) {
+            metrics.deathEncounterType = "chest-trap";
+            return finishRun(state, "death", metrics);
           }
           continue;
         }
@@ -12711,6 +13105,9 @@ export function simulateRun({
             });
           }
           if (combatResult.result === "victory") {
+            if (routePlan.partialInformation && isBoss && specialEvent.milestone) {
+              floorRoute.bossDefeated = true;
+            }
             const hpGrowthBonus = Number(state.simPolicy.hpGrowthBonus) || 0;
             const levelsGained = Math.max(0, state.party[0].level - levelBeforeCombat);
             if (hpGrowthBonus !== 0 && levelsGained > 0) {
@@ -12763,6 +13160,9 @@ export function simulateRun({
               combatResult.telemetry.incomingHits;
             metrics.normalCombatTelemetry.incomingDamage +=
               combatResult.telemetry.incomingDamage;
+            metrics.normalCombatTelemetry.rounds += combatResult.rounds;
+            metrics.normalCombatTelemetry.enemyActions +=
+              combatResult.telemetry.enemyActions || 0;
             metrics.normalCombatTelemetry.maxIncomingHit = Math.max(
               metrics.normalCombatTelemetry.maxIncomingHit,
               combatResult.telemetry.maxIncomingHit
@@ -12823,7 +13223,7 @@ export function simulateRun({
             metrics.eliteExpGained += state.party[0].exp - expBeforeCombat;
           }
 
-          if (specialEvent && !isElite) {
+          if (specialEvent && !isElite && !isSearchEncounter) {
             const keyCountBefore = state.inventory.filter(
               item => (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY"
             ).length;
@@ -12978,11 +13378,7 @@ export function simulateRun({
             floor,
             "combat"
           );
-          recordEquipmentUpgrades(
-            metrics,
-            equipGreedyUpgrades(state, metrics, scoringProfile),
-            floor
-          );
+          applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor);
           applyPostCombatRecovery(state, metrics);
           const combatRecoveryItem = useHealPotionIfNeeded(state, metrics);
           addRecoveryPotionUse(metrics, combatRecoveryItem);
@@ -13019,6 +13415,15 @@ export function simulateRun({
     if (floor === FLAME_TRAP_MODEL.floor) {
       recordB5HpSnapshot(state, metrics, floorSteps);
       metrics.b5FloorActive = false;
+    }
+    if (routePlan.partialInformation && !floorRoute.floorComplete) {
+      metrics.partialExplorationState = {
+        floor,
+        current: floorRoute.current ? { ...floorRoute.current } : null,
+        knownCells: floorRoute.knownCellKeys.size,
+        target: getPartialInformationTarget(floorRoute, generated, floor)
+      };
+      return finishRun(state, "retreat", metrics, "partial-information-budget-exhausted");
     }
     applySimulatedCampRest(state, metrics.coreObservations, metrics);
     if (isMilestoneFloor(floor)) {
