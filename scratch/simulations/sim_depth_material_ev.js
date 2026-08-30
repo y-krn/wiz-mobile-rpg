@@ -9213,6 +9213,44 @@ function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
   };
 }
 
+// Measurement-only checkpoint transport.  This is intentionally separate from
+// the production save shape: it carries the live production-backed run state
+// between a prefix measurement and a continuation measurement, while omitting
+// the generated map/combat object and telemetry references.
+function snapshotCheckpointState(state) {
+  const snapshot = structuredClone(state);
+  snapshot.map = null;
+  snapshot.combatState = null;
+  snapshot.encounterRateOverride = null;
+  snapshot.simTelemetry = null;
+  return snapshot;
+}
+
+function hydrateCheckpointState(state, checkpointState, scenario, runSeed) {
+  if (!checkpointState) return;
+  const configuredPolicy = structuredClone(state.simPolicy);
+  Object.assign(state, structuredClone(checkpointState));
+  state.map = null;
+  state.combatState = null;
+  state.encounterRateOverride = null;
+  state.roamingMonsters = [];
+  state.currentRun.runSeed = runSeed;
+  state.currentRun.startFloor = state.floor;
+  state.floor = Number.isInteger(Number(state.floor))
+    ? Number(state.floor)
+    : Number(scenario.startFloor) || 1;
+  state.simPolicy = {
+    ...configuredPolicy,
+    ...(state.simPolicy || {}),
+    combatPolicy: scenario.combatPolicy || configuredPolicy.combatPolicy || "balanced-combat"
+  };
+  // Continuation metrics count only what happens after the checkpoint. The
+  // queues themselves remain part of the checkpoint state for real supply
+  // accounting, while the synthetic "starting" arrays are not re-counted.
+  state.simStartingInventory = [];
+  state.simDepartureCraftItems = [];
+}
+
 function createDeathStateSnapshot(state, scoringProfile) {
   const character = state.party[0];
   const build = createBuildSnapshot(state, scoringProfile, "death");
@@ -12788,7 +12826,9 @@ export function simulateRun({
   collectBuildSnapshots = false,
   collectEquipmentTelemetry = false,
   collectCombatFormula = false,
-  worldSeed = null
+  worldSeed = null,
+  checkpointState = null,
+  captureCheckpointAtFloor = null
 }) {
   const runSeed = worldSeed || `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   if (SIM_INDEPENDENT_RUN_RANDOM) {
@@ -12807,6 +12847,7 @@ export function simulateRun({
     keyItems,
     unlockedMilestones
   );
+  hydrateCheckpointState(state, checkpointState, scenario, runSeed);
   state.simPolicy.statusCureTargetDepth = targetDepth;
   if (CORE_WORKSHOP_GATE_MODE === "off") {
     state.party[0].unlockedAffixIds = [...ALL_CORE_AFFIX_IDS];
@@ -13390,6 +13431,13 @@ export function simulateRun({
     if (floorStart) {
       state.x = floorStart.x;
       state.y = floorStart.y;
+    }
+    if (captureCheckpointAtFloor === floor) {
+      return {
+        checkpointFloor: floor,
+        checkpointState: snapshotCheckpointState(state),
+        checkpointSnapshot: createCheckpointSnapshot(state, metrics, scoringProfile, floor)
+      };
     }
     if (floor === FLAME_TRAP_MODEL.floor) {
       const entrant = state.party[0];
