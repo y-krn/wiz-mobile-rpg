@@ -107,10 +107,24 @@ function compactResult(result, { buildId, arm, runIndex, worldSeed }) {
   const equipment = equipmentSummary(result);
   const reachedDepth = Math.min(TARGET_DEPTH, number(result.reachedFloor));
   const encounterIdentities = (result.encounterIdentityLog || []).map(identity => ({
-    ...identity,
+    floor: identity.floor,
+    type: identity.type,
+    ordinal: identity.ordinal,
+    eventOrdinal: identity.eventOrdinal,
+    eventKey: identity.eventKey,
+    enemyNames: identity.enemyNames,
+    enemyCompositionKey: identity.enemyCompositionKey,
+    outcome: identity.outcome,
+    hpBefore: identity.hpBefore,
+    mpBefore: identity.mpBefore,
+    hpAfter: identity.hpAfter,
+    mpAfter: identity.mpAfter,
+    rounds: identity.rounds,
     diagnosticUtility: identity.diagnosticUtility && typeof identity.diagnosticUtility === "object"
       ? calculateDiagnosticUtility(identity.diagnosticUtility)
-      : identity.diagnosticUtility
+      : identity.diagnosticUtility,
+    deathCategory: identity.deathCategory,
+    stateDegradationEvidence: identity.stateDegradationEvidence
   }));
   const encounterMpBefore = mean(encounterIdentities.map(identity => identity.mpBefore).filter(Number.isFinite));
   const encounterMpAfter = mean(encounterIdentities.map(identity => identity.mpAfter).filter(Number.isFinite));
@@ -547,7 +561,9 @@ export async function main(argv = process.argv.slice(2)) {
   const summaryPath = resolve(options.summary);
   fs.mkdirSync(dirname(outputPath), { recursive: true });
   fs.mkdirSync(dirname(summaryPath), { recursive: true });
-  fs.writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`);
+  // Raw encounter event records are already normalized above. Compact JSON
+  // keeps the N=500 evidence below repository hosting file limits.
+  fs.writeFileSync(outputPath, `${JSON.stringify(report)}\n`);
   fs.writeFileSync(summaryPath, renderSummary(report));
   console.log(`Wrote Issue #990 Phase 2 JSON evidence: ${outputPath}`);
   console.log(`Wrote Issue #990 Phase 2 Markdown evidence: ${summaryPath}`);
