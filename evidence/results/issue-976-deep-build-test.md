@@ -101,3 +101,5 @@ Each entry is `clear/death` over N=500.
 5. **Dominance / hard counter:** best cells は Sustain 10 / AoE 8 の分散で、80% dominance なし。新規 hard-counter flag なし。ただし Hybrid の denial cells 0% clear は既存の弱点として残る。
 6. **B11+ の評価:** B13/B18 の clear/death と build差は明確に広がり、単なる数値壁からは一歩近づいた。ただし raw share は 60% red flag を大きく上回るため、完全な Build Test とはまだ言えない。
 7. **#973 Build Confidence:** **Revise**。encounter-conditioned build confidence と strict reversal は支持するが、深層では raw wall がなお支配的で、仮説は「build test が常に主役」ではなく「HP wall を越えた後に build cost が露呈する」形へ修正が必要。
+
+Closes #976
