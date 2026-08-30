@@ -8,7 +8,8 @@ B8/B13/B18/B21/B25/B30.
 
 - Runner: `scratch/measurements/issue973_build_sensitivity.js`, `issue973-build-sensitivity-v6`, schema 5.
 - Gameplay base: `fb5ebe98aa20a48ccf5dbe539472c06f69e03fba` (`origin/main`).
-- Final source: `ecaccaa59e7381da51bf320737c01cf590ca01ba`.
+- Production source after revert: `fb5ebe98aa20a48ccf5dbe539472c06f69e03fba` (unchanged from `origin/main`).
+- Candidate measurement source: `ecaccaa59e7381da51bf320737c01cf590ca01ba` (historical tuning experiment only; not production).
 - Runner diff SHA-256: `a88743a9053615d2e16a3735c1e7508326172e2a4c9cbf84981eb608e45bd24d`.
 - Environment: Node `v26.7.0`, signature `5c9c62de42f8e64b`.
 - Seed: `issue974-v0`; N=500 per build × encounter × depth; 4 Mage builds × 6 encounters.
@@ -41,11 +42,11 @@ late to become the primary failure. The recurrent Hybrid Fallback 0/500 clear in
 durable cells is an existing hard-counter-shaped weakness; this tuning did not introduce a
 new mechanic or conceal it.
 
-## B8/B13/B18/B21/B25/B30 scaling and final candidate
+## B8/B13/B18/B21/B25/B30 candidate scaling (not applied)
 
-The final candidate leaves B1-B10 unchanged, uses a B10-anchored 50% HP slope for B11+,
-and uses a B10-anchored 0.125 ATK slope for B11+. B21+ therefore resumes growth instead of
-remaining at a permanent B10 HP ceiling.
+The best experimental candidate left B1-B10 unchanged, used a B10-anchored 50% HP slope for
+B11+, and used a B10-anchored 0.125 ATK slope for B11+. These values are recorded to show the
+limits of the sweep; they were not applied to production.
 
 | Depth | HP multiplier | ATK multiplier | Mean clear | Mean death | Raw primary / deaths | Post HP / MP | Resource signature (HP used / MP used / spells / physical) | Strict reversals |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |
@@ -56,9 +57,9 @@ remaining at a permanent B10 HP ceiling.
 | B25 | 1.8161 | 1.3319 | 0.248 | 9,028 | 7,528/9,028 = 83.4% | 0.220 / 0.671 | 0.780 / 0.329 / 2.950 / 0.007 | 12 |
 | B30 | 1.9782 | 1.3726 | 0.211 | 9,474 | 7,855/9,474 = 82.9% | 0.188 / 0.667 | 0.812 / 0.333 / 2.923 / 0.006 | 3 |
 
-B21+ remains harder: mean clear falls B21 `0.277` → B25 `0.248` → B30 `0.211`,
-post-combat HP falls `0.245` → `0.220` → `0.188`, and HP/ATK multipliers continue to
-rise. This is a depth curve, not a B10-valued stat cell repeated forever.
+B21+ in that experimental candidate remained harder: mean clear fell B21 `0.277` → B25
+`0.248` → B30 `0.211`, post-combat HP fell `0.245` → `0.220` → `0.188`, and HP/ATK
+multipliers continued to rise. This validates the candidate's shape, not a production decision.
 
 ## Small tuning sweep
 
@@ -75,13 +76,14 @@ range; dominance lists the observed best-cell counts.
 | Nonlinear HP + flat B10-anchored deep ATK | 82.82% | 58 | 72 | 0.211 | AoE 20, Sustain 16 | reject: best raw share, but ATK/depth contrast too compressed |
 | **Nonlinear HP + B10-anchored deep ATK slope 0.125** | **83.15%** | **64** | **74** | **0.271** | **AoE 20, Sustain 16** | **selected revised tuning** |
 
-The selected row is the Pareto compromise: it improves the raw wall over the extended
-baseline, keeps strict reversals above baseline, has no 80% dominant build, and retains
-monotonic B21+ HP/ATK progression. It does not make the 60% red flag pass.
+The last row was the best experimental Pareto compromise: it improved the raw wall over the
+extended baseline, kept strict reversals above baseline, had no 80% dominant build, and
+retained monotonic B21+ HP/ATK progression. It does not make the 60% red flag pass and is not
+adopted in production.
 
-## Final clear/death by encounter × build × depth
+## Candidate clear/death by encounter × build × depth
 
-Each entry is `clear/death` over N=500 for the selected tuning.
+Each entry is `clear/death` over N=500 for the best experimental candidate, not production.
 
 | Depth | Encounter | AoE Burst | Single Efficient | Sustain | Hybrid Fallback |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -156,23 +158,33 @@ Sustain `0.592`, Hybrid `0.002`. These differences are not a uniform clear-rate 
 2. **Final wall change:** on the same extended v6 runner, raw share is `84.16%→83.15%`
    (`-1.01pt`); against the original #975 B13/B18 reference it is `83.59%→83.15%`
    (`-0.44pt`). The deep share is still far above the 60% red flag.
-3. **Changed lever:** reject the B11+ permanent HP cap. Use a B10-anchored nonlinear HP
-   slope and a limited B10-anchored B11+ ATK slope. This preserves B8, avoids player/Mage
-   buffs, keeps the measurement condition unchanged, resumes B21+ growth, and targets the
-   diagnosed “raw attack ends the test before composition mechanics pay off” interaction.
+3. **Production decision:** do not apply any HP/ATK tuning from this sweep. The permanent
+   cap and the nonlinear/ATK candidates were useful counterfactuals, but even the best one
+   only moved the raw share from 84.16% to 83.15%. The production source is restored to
+   main, with no player/Mage or enemy balance change in this PR.
 4. **Strict significant reversals:** `54→64` on the extended same-runner comparison;
    maintained and increased, not erased.
 5. **Dominance / hard counter:** no single build is dominant (best cells AoE 20 / Sustain
    16, 55.6% / 44.4% of 36 ranking cells). Existing hard-counter-shaped Hybrid denial and
    durable cells remain, so the tuning is not claimed to remove hard counters.
-6. **B11+ conclusion:** B21/B25/B30 are no longer identical B10 HP cells and their clear
-   rates/HP/ATK continue to worsen with depth, so the band is closer to a build test. Because
-   primary raw attribution remains 83.15%, it is not yet a successful replacement of the
-   raw stat wall.
-7. **Design status:** measurement/diagnosis **Keep**; production tuning **Revise** (the
-   permanent cap is rejected and replaced by the selected limited tuning); #973 Build
-   Confidence **Revise** (encounter-conditioned build differences and strict reversals are
-   real, but the hypothesis must include a remaining raw-wall qualifier).
+6. **B11+ conclusion:** the raw wall reproduced at B21/B25/B30. The best experimental
+   candidate preserved build-conditioned differences, but primary raw attribution remained
+   83.15%, so it is not a successful replacement of the raw stat wall.
+7. **Design status:** measurement/diagnosis **Keep**; production tuning **Reject** (no
+   production HP/ATK change is adopted in this PR); #973 Build Confidence **Revise**
+   (encounter-conditioned build differences and strict reversals are real, but the next
+   hypothesis must explain the remaining raw attribution).
+
+## Next investigation hypotheses
+
+- `raw_damage_pressure` classification may be too coarse.
+- A special ability may fire first, but the run may be classified as raw because the final
+  lethal event is an ordinary attack.
+- The encounter fixture may not represent actual play sufficiently.
+- Auto action may not use each build's capabilities appropriately.
+- Enemy composition may be producing an extreme result.
+- The causal chain `mechanic fires → state worsens → ordinary attack kills` needs explicit
+  event-level tracing.
 
 The roaming elite regression remains split into same-template progression and biome-transition
 continuity checks; the boundary check is not weakened by comparing only same-name elites.

@@ -10,45 +10,17 @@ import {
 import { CORE_AFFIXES, SUPPORT_AFFIXES } from "../../../src/data/affixes.js";
 import { ITEMS } from "../../../src/data/items.js";
 import { SPELLS } from "../../../src/data/spells.js";
-import { getDepthScaling, scaleEnemyForDepth } from "../../../src/rules/depth_scaling.js";
 
 const coreIds = new Set(CORE_AFFIXES.map(affix => affix.id));
 const supportIds = new Set(SUPPORT_AFFIXES.map(affix => affix.id));
 
-const scalingProbe = { name: "scaling probe", hp: 100, atk: 20, def: 10, exp: 100 };
-const b8Probe = scaleEnemyForDepth(scalingProbe, 8);
-const b13Probe = scaleEnemyForDepth(scalingProbe, 13);
-const b18Probe = scaleEnemyForDepth(scalingProbe, 18);
-const b21Probe = scaleEnemyForDepth(scalingProbe, 21);
-const b25Probe = scaleEnemyForDepth(scalingProbe, 25);
-const b30Probe = scaleEnemyForDepth(scalingProbe, 30);
-assert.ok(
-  b13Probe.maxHp < b18Probe.maxHp,
-  "B11+ HP scaling should continue across B13 and B18"
-);
-assert.ok(
-  b18Probe.atk > b13Probe.atk,
-  "B13 and B18 must retain distinct ATK pressure"
-);
-assert.ok(b13Probe.atk >= b8Probe.atk, "deep ATK scaling must not regress after B8");
-assert.ok(b21Probe.maxHp > b18Probe.maxHp, "B21 must resume HP scaling");
-assert.ok(b25Probe.maxHp > b21Probe.maxHp, "B25 must continue HP scaling");
-assert.ok(b30Probe.maxHp > b25Probe.maxHp, "B30 must continue HP scaling");
-assert.ok(b30Probe.atk > b21Probe.atk, "B21+ must retain ATK progression");
-assert.equal(
-  b8Probe.maxHp,
-  Math.round(scalingProbe.hp * getDepthScaling(8).enemy),
-  "the deep-band HP tuning must not change B8"
-);
-
 const first = createEncounterFixture("magic-denial", 13);
 const second = createEncounterFixture("magic-denial", 13);
 assert.deepEqual(first, second, "production encounter fixtures must be deterministic");
-assert.ok(
-  createEncounterFixture("magic-denial", 21).monsters.every((monster, index) =>
-    monster.maxHp >= first.monsters[index].maxHp
-  ),
-  "deep HP scaling must not regress in fixture stats"
+assert.notDeepEqual(
+  first.monsters.map(monster => monster.maxHp),
+  createEncounterFixture("magic-denial", 18).monsters.map(monster => monster.maxHp),
+  "depth scaling must remain visible in fixture stats"
 );
 
 const builds = getBuildDefinitions();

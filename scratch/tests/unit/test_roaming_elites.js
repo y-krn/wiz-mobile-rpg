@@ -146,46 +146,23 @@ check("the elite matches the biome roster and exists in the monster table", () =
   }
 });
 
-check("roaming elite same-template progression remains monotonic", () => {
-  const templates = new Map();
-  for (let floor = ELITE_MIN_FLOOR; floor <= 30; floor++) {
-    const eliteName = getBiomeForFloor(floor).eliteName;
-    templates.set(eliteName, MONSTERS.find(monster => monster.name === eliteName));
-  }
-  for (const [eliteName, template] of templates) {
-    let previous = null;
-    for (let floor = ELITE_MIN_FLOOR; floor <= 30; floor++) {
-      const scaled = scaleEnemyForDepth(template, floor);
-      if (previous) {
-        assert.ok(scaled.hp >= previous.hp,
-          `B${floor}F ${eliteName} HP ${scaled.hp} must not fall below ${previous.hp}`);
-        assert.ok(scaled.atk >= previous.atk,
-          `B${floor}F ${eliteName} ATK ${scaled.atk} must not fall below ${previous.atk}`);
-        assert.ok(scaled.hp / previous.hp <= 1.16,
-          `B${floor}F ${eliteName} HP jumped from ${previous.hp} to ${scaled.hp}`);
-        assert.ok(scaled.atk / previous.atk <= 1.16,
-          `B${floor}F ${eliteName} ATK jumped from ${previous.atk} to ${scaled.atk}`);
-      }
-      previous = scaled;
-    }
-  }
-});
-
-check("roaming elite biome transitions remain continuous", () => {
+check("roaming elite effective HP and ATK rise without biome-boundary spikes", () => {
   let previous = null;
   for (let floor = ELITE_MIN_FLOOR; floor <= 30; floor++) {
     const eliteName = getBiomeForFloor(floor).eliteName;
     const template = MONSTERS.find(monster => monster.name === eliteName);
     const scaled = scaleEnemyForDepth(template, floor);
-    if (previous && previous.name !== eliteName) {
-      const hpRatio = Math.max(scaled.hp, previous.hp) / Math.max(1, Math.min(scaled.hp, previous.hp));
-      const atkRatio = Math.max(scaled.atk, previous.atk) / Math.max(1, Math.min(scaled.atk, previous.atk));
-      assert.ok(hpRatio <= 1.16,
-        `B${floor}F biome transition HP changed from ${previous.hp} to ${scaled.hp}`);
-      assert.ok(atkRatio <= 1.16,
-        `B${floor}F biome transition ATK changed from ${previous.atk} to ${scaled.atk}`);
+    if (previous) {
+      assert.ok(scaled.hp >= previous.hp,
+        `B${floor}F ${eliteName} HP ${scaled.hp} must not fall below ${previous.hp}`);
+      assert.ok(scaled.atk >= previous.atk,
+        `B${floor}F ${eliteName} ATK ${scaled.atk} must not fall below ${previous.atk}`);
+      assert.ok(scaled.hp / previous.hp <= 1.16,
+        `B${floor}F ${eliteName} HP jumped from ${previous.hp} to ${scaled.hp}`);
+      assert.ok(scaled.atk / previous.atk <= 1.16,
+        `B${floor}F ${eliteName} ATK jumped from ${previous.atk} to ${scaled.atk}`);
     }
-    previous = { name: eliteName, hp: scaled.hp, atk: scaled.atk };
+    previous = scaled;
   }
 });
 
