@@ -32,16 +32,26 @@ export function recordReceivedDamage(
   options = {}
 ) {
   const attackType = options.attackType ?? (options.spell ? "spell" : "physical");
+  const numericHpBefore = Number(playerHpBefore);
+  const numericHpAfter = Number(char?.hp);
+  const numericFinalDamage = Number(finalDamage);
+  const appliedFinalDamage = Number.isFinite(numericHpBefore) && Number.isFinite(numericHpAfter)
+    ? Math.max(0, numericHpBefore - Math.max(0, numericHpAfter))
+    : Number.isFinite(numericHpBefore) && Number.isFinite(numericFinalDamage)
+      ? Math.max(0, Math.min(Math.max(0, numericFinalDamage), Math.max(0, numericHpBefore)))
+      : finalDamage;
+  // rawDamage intentionally keeps its legacy meaning. For normal physical
+  // hits it is the post-DEF, pre-other-mitigation value, not preDefDamage.
   state?.simTelemetry?.causalDamageEvents?.push({
     round: state?.combatState?.roundNumber ?? null,
     source: sourceName,
     attackType,
     causalType: options.causalType ?? attackType,
     rawDamage,
-    finalDamage,
+    finalDamage: appliedFinalDamage,
     hpBefore: playerHpBefore,
-    hpAfter: Math.max(0, playerHpBefore - finalDamage),
-    lethal: playerHpBefore > 0 && finalDamage >= playerHpBefore
+    hpAfter: Math.max(0, playerHpBefore - appliedFinalDamage),
+    lethal: playerHpBefore > 0 && appliedFinalDamage >= playerHpBefore
   });
   trackDamageReceived({
     floor: state?.floor,
@@ -49,7 +59,9 @@ export function recordReceivedDamage(
     enemyId: sourceName,
     attackType,
     rawDamage,
-    finalDamage,
+    finalDamage: appliedFinalDamage,
+    preDefDamage: options.preDefDamage,
+    postDefDamage: options.postDefDamage,
     finalDef: options.finalDef,
     defResistance: options.defResistance,
     character: char,
