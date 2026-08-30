@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 6,
+  "measurement": {
+    "issue": 980,
+    "runnerVersion": "issue980-causal-attribution-v1",
+    "sourceCommit": "2e1e670dfd8e278ff5b163d7142c9eb477bca83f",
+    "gameplaySourceCommit": "0718e0780b474b867dbfa5dd789490b1fda22ec7",
+    "runsPerCell": 500,
+    "seed": "974-build-confidence",
+    "depths": [8, 13, 18, 21, 25, 30],
+    "builds": ["aoe-burst", "single-efficient", "sustain", "hybrid-fallback"],
+    "encounters": [
+      "swarm-action-pressure",
+      "magic-denial",
+      "mp-pressure",
+      "durable-single-target",
+      "protected-formation",
+      "attrition-recovery-denial"
+    ],
+    "sharedSeed": true,
+    "workingTreeClean": true,
+    "originMainAncestor": true
+  },
+  "baseline": {
+    "sourceCommit": "67592f5d741988748119083577e389935f4555ed",
+    "runnerVersion": "issue973-build-sensitivity-v6",
+    "deepDeaths": 49333,
+    "legacyRawDamageDeaths": 41520,
+    "legacyRawShare": 0.8416273083,
+    "exactReproduction": true
+  },
+  "deepCausalAttribution": {
+    "deaths": 49319,
+    "legacyRawDamageDeaths": 41512,
+    "pureRawDamageDeaths": 25409,
+    "pureRawShareOfLegacyRaw": 0.6120880709,
+    "mechanicMediatedRawDamageDeaths": 7715,
+    "mechanicMediatedRawShareOfLegacyRaw": 0.1858498747,
+    "unknownOrMixedDeaths": 4704,
+    "unknownOrMixedShareOfLegacyRaw": 0.1133166313,
+    "unknownOrMixedShareOfAllDeaths": 0.0953790628,
+    "legacyRawOtherDeaths": 8388,
+    "legacyRawOtherShare": 0.2020620543,
+    "largestContributingCause": {
+      "cause": "reflection_chain",
+      "candidateObservations": 5630
+    },
+    "legacyRawContributingCauses": {
+      "reflection_chain": 5630,
+      "action_economy_chain": 4366,
+      "sustain_failure_chain": 1262,
+      "spell_denial_chain": 714,
+      "long_fight_chain": 167,
+      "mp_starvation_chain": 127,
+      "status_lock_chain": 81
+    },
+    "directCauseCounts": {
+      "raw_damage": 39779,
+      "reflection": 3055,
+      "spell_damage": 6055,
+      "status_payoff": 430
+    },
+    "legacyRawCausalCategories": {
+      "pure_raw_damage": 25409,
+      "mechanic_mediated_raw_damage": 7715,
+      "reflection_chain": 2576,
+      "action_economy_chain": 1010,
+      "mp_starvation_chain": 43,
+      "long_fight_chain": 55,
+      "unknown_or_mixed": 4704
+    },
+    "mechanicFiringToDeathRounds": {
+      "count": 29027,
+      "mean": 1.534812416,
+      "p50": 1,
+      "p95": 4
+    }
+  },
+  "autoActionReview": {
+    "policy": "existing chooseAutoCombatAction; no expert AI",
+    "builds": {
+      "aoe-burst": {
+        "spellActionsPerCell": 95.362,
+        "physicalActionsPerCell": 0.13,
+        "fallbackActions": 65,
+        "spellOpportunityLosses": 448
+      },
+      "single-efficient": {
+        "spellActionsPerCell": 83.35,
+        "physicalActionsPerCell": 0,
+        "fallbackActions": 0,
+        "spellOpportunityLosses": 411
+      },
+      "sustain": {
+        "spellActionsPerCell": 135.064,
+        "physicalActionsPerCell": 0.192,
+        "fallbackActions": 96,
+        "spellOpportunityLosses": 738
+      },
+      "hybrid-fallback": {
+        "spellActionsPerCell": 77.658,
+        "physicalActionsPerCell": 0,
+        "fallbackActions": 0,
+        "spellOpportunityLosses": 309
+      }
+    }
+  },
+  "fixtureValidation": {
+    "productionMonsterDefinitions": true,
+    "allFixtureMonstersResolvedFromMONSTERS": true,
+    "controlledTest": true,
+    "representsDungeonEncounterDistribution": false,
+    "extremeCellCount": 60
+  },
+  "traceSchema": {
+    "perDeath": [
+      "round",
+      "hp",
+      "mp",
+      "playerAction",
+      "enemyActions",
+      "statusEvents",
+      "silence",
+      "drainMp",
+      "reflect",
+      "antiHeal",
+      "regen",
+      "summon",
+      "guard",
+      "multiAction",
+      "spellCastOpportunityLoss",
+      "physicalFallback",
+      "damageEvents",
+      "lethalEvent",
+      "stateDegradation"
+    ],
+    "causalFields": [
+      "directCause",
+      "contributingCause",
+      "precedingMechanisms",
+      "mechanismToDeath"
+    ],
+    "fullCaseMatrix": "issue-980-causal-attribution.md#build-encounter-depth-causal-counts"
+  },
+  "representativeTraceChecks": [
+    {
+      "cause": "action_economy_chain",
+      "build": "aoe-burst",
+      "encounter": "swarm-action-pressure",
+      "depth": 8,
+      "hp": [14, 8, 8, 6, 0],
+      "lethal": "ordinary physical damage after split/additional actions"
+    },
+    {
+      "cause": "mp_starvation_chain",
+      "build": "aoe-burst",
+      "encounter": "mp-pressure",
+      "depth": 13,
+      "mp": [15, 12, 8, 5, 3, 0],
+      "lethal": "ordinary physical damage after MP drain and physical fallback"
+    },
+    {
+      "cause": "spell_denial_chain",
+      "build": "aoe-burst",
+      "encounter": "magic-denial",
+      "depth": 8,
+      "lostSpellOpportunities": 2,
+      "lethal": "ordinary physical damage after silence"
+    },
+    {
+      "cause": "reflection_chain",
+      "build": "aoe-burst",
+      "encounter": "magic-denial",
+      "depth": 8,
+      "lethal": "attackType=reflect"
+    },
+    {
+      "cause": "pure_raw_damage",
+      "lethal": "ordinary physical damage with no preceding causal mechanism"
+    }
+  ]
+}
