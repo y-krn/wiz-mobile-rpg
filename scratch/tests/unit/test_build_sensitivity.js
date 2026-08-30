@@ -19,6 +19,9 @@ const scalingProbe = { name: "scaling probe", hp: 100, atk: 20, def: 10, exp: 10
 const b8Probe = scaleEnemyForDepth(scalingProbe, 8);
 const b13Probe = scaleEnemyForDepth(scalingProbe, 13);
 const b18Probe = scaleEnemyForDepth(scalingProbe, 18);
+const b21Probe = scaleEnemyForDepth(scalingProbe, 21);
+const b25Probe = scaleEnemyForDepth(scalingProbe, 25);
+const b30Probe = scaleEnemyForDepth(scalingProbe, 30);
 assert.equal(
   b13Probe.maxHp,
   b18Probe.maxHp,
@@ -28,6 +31,10 @@ assert.ok(
   b18Probe.atk > b13Probe.atk,
   "B13 and B18 must retain distinct ATK pressure"
 );
+assert.ok(b21Probe.maxHp >= b18Probe.maxHp, "B21 must not regress HP scaling");
+assert.ok(b25Probe.maxHp >= b21Probe.maxHp, "B25 must not regress HP scaling");
+assert.ok(b30Probe.maxHp >= b25Probe.maxHp, "B30 must not regress HP scaling");
+assert.ok(b30Probe.atk > b21Probe.atk, "B21+ must retain ATK progression");
 assert.equal(
   b8Probe.maxHp,
   Math.round(scalingProbe.hp * getDepthScaling(8).enemy),
@@ -37,10 +44,11 @@ assert.equal(
 const first = createEncounterFixture("magic-denial", 13);
 const second = createEncounterFixture("magic-denial", 13);
 assert.deepEqual(first, second, "production encounter fixtures must be deterministic");
-assert.deepEqual(
-  first.monsters.map(monster => monster.maxHp),
-  createEncounterFixture("magic-denial", 18).monsters.map(monster => monster.maxHp),
-  "B11+ HP scaling should use the B10 ceiling in fixture stats"
+assert.ok(
+  createEncounterFixture("magic-denial", 21).monsters.every((monster, index) =>
+    monster.maxHp >= first.monsters[index].maxHp
+  ),
+  "deep HP scaling must not regress in fixture stats"
 );
 
 const builds = getBuildDefinitions();
@@ -118,11 +126,11 @@ assert.equal(report.measurement.staleTreeAllowed, false);
 assert.equal(report.measurement.workingTreeClean, true);
 assert.equal(report.measurement.pairedRankingPolicy.bootstrapIterations, 2000);
 assert.equal(report.measurement.configuration.runs, 1);
-assert.deepEqual(report.measurement.configuration.depths, [8, 13, 18]);
+assert.deepEqual(report.measurement.configuration.depths, [8, 13, 18, 21, 25, 30]);
 assert.equal(report.builds.length, 4);
 assert.equal(report.encounters.length, 6);
-assert.equal(report.cases.length, 72);
-assert.equal(report.pairwiseRanking.length, 18);
+assert.equal(report.cases.length, 144);
+assert.equal(report.pairwiseRanking.length, 36);
 assert.ok(Array.isArray(report.rawRankReversals));
 assert.ok(Array.isArray(report.rankReversals));
 assert.equal(report.redFlags.flags.length, 6);
