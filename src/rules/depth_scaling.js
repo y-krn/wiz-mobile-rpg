@@ -14,15 +14,17 @@ export function getDepthScaling(floor) {
 export function scaleEnemyForDepth(monster, floor, { boss = false } = {}) {
   const scaling = getDepthScaling(floor);
   const bossMultiplier = boss ? 1.12 : 1;
+  const hpMultiplier = scaling.enemy * bossMultiplier;
+  const mechanicTraits = [
+    "multiAction", "summonAlly", "regen", "drainMp", "silence", "antiHeal",
+    "splitOnDeath", "reflectPhysical", "reflectMagic", "counterSpell", "guardAdjacent"
+  ];
+  const hasBuildTestMechanic = mechanicTraits.some(trait => monster.traits?.includes(trait));
   const deepBandStartEnemyScaling = getDepthScaling(10).enemy - 1;
-  const deepHpCapEnemyScaling = getDepthScaling(5).enemy - 1;
-  const hpGrowth = scaling.enemy - 1 > deepBandStartEnemyScaling
-    ? deepHpCapEnemyScaling
-    : scaling.enemy - 1;
-  const hpMultiplier = (1 + hpGrowth) * bossMultiplier;
   const preDeepAttackGrowth = Math.min(scaling.enemy - 1, deepBandStartEnemyScaling);
   const deepAttackGrowth = Math.max(0, scaling.enemy - 1 - deepBandStartEnemyScaling);
-  const attackMultiplier = 1 + preDeepAttackGrowth * 0.58 + deepAttackGrowth * 0.25 + (boss ? 0.08 : 0);
+  const deepAttackGrowthRate = hasBuildTestMechanic ? 0.25 : 0.58;
+  const attackMultiplier = 1 + preDeepAttackGrowth * 0.58 + deepAttackGrowth * deepAttackGrowthRate + (boss ? 0.08 : 0);
   const defenseMultiplier = 1 + (scaling.enemy - 1) * 0.34;
   const rewardMultiplier = scaling.reward * (boss ? 1.2 : 1);
   const hp = Math.max(1, Math.round(monster.hp * hpMultiplier));
