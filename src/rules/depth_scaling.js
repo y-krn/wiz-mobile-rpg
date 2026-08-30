@@ -15,7 +15,8 @@ export function scaleEnemyForDepth(monster, floor, { boss = false } = {}) {
   const scaling = getDepthScaling(floor);
   const bossMultiplier = boss ? 1.12 : 1;
   const deepBandStartEnemyScaling = getDepthScaling(10).enemy - 1;
-  const hpMultiplier = (1 + Math.min(scaling.enemy - 1, deepBandStartEnemyScaling)) * bossMultiplier;
+  const deepHpCapEnemyScaling = getDepthScaling(5).enemy - 1;
+  const hpMultiplier = (1 + Math.min(scaling.enemy - 1, deepHpCapEnemyScaling)) * bossMultiplier;
   const preDeepAttackGrowth = Math.min(scaling.enemy - 1, deepBandStartEnemyScaling);
   const deepAttackGrowth = Math.max(0, scaling.enemy - 1 - deepBandStartEnemyScaling);
   const attackMultiplier = 1 + preDeepAttackGrowth * 0.58 + deepAttackGrowth * 0.25 + (boss ? 0.08 : 0);
