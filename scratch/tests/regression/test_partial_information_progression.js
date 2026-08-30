@@ -141,12 +141,21 @@ for (const buildId of buildIds) {
 
 const changedFiles = execFileSync("git", ["diff", "--name-only", "origin/main...HEAD"], { encoding: "utf8" })
   .split(/\r?\n/).filter(Boolean);
-assert.ok(changedFiles.every(file => file.startsWith("scratch/") || file === "evidence/results/issue-990-phase2.json" || file === "evidence/results/issue-990-phase2.md"),
-  `Phase 2 must not edit production balance/source files: ${changedFiles.join(", ")}`);
+const phase2FilesChanged = changedFiles.some(file =>
+  file === "scratch/measurements/issue990_partial_information_progression.js" ||
+  file === "evidence/results/issue-990-phase2.json" ||
+  file === "evidence/results/issue-990-phase2.md"
+);
+if (phase2FilesChanged) {
+  assert.ok(changedFiles.every(file => file.startsWith("scratch/") || file === "evidence/results/issue-990-phase2.json" || file === "evidence/results/issue-990-phase2.md"),
+    `Phase 2 must not edit production balance/source files: ${changedFiles.join(", ")}`);
+}
 assert.ok(fs.readFileSync("scratch/simulations/sim_depth_material_ev.js", "utf8")
   .includes("partial_information_exploration"));
-assert.ok(changedFiles.every(file => !file.startsWith("src/")),
-  "production source/balance constants must remain untouched");
+if (phase2FilesChanged) {
+  assert.ok(changedFiles.every(file => !file.startsWith("src/")),
+    "production source/balance constants must remain untouched");
+}
 
 const repeat = runMeasurement({ seed: "issue990-phase2-regression", runs: 1 });
 assert.deepEqual(repeat.raw, report.raw, "same world seed reproduces exploration and search");

@@ -919,7 +919,8 @@ check("chest action fields preserve valid values and coerce malformed input", ()
   trackRunStart(run, decisionPlayer, decisionState);
   trackChestAction({ lootHint: { aura: "strong" } }, "disarm", {
     trap: "poison needle",
-    hasTrapKit: 1
+    hasTrapKit: 1,
+    rewardCategories: ["weapon", "usable", "unsupported"]
   });
   trackChestAction({ lootHint: { aura: { migrated: true } } }, { migrated: true }, {
     trap: "migrated trap",
@@ -932,9 +933,16 @@ check("chest action fields preserve valid values and coerce malformed input", ()
       action: chestEvents[0].properties.action,
       trap: chestEvents[0].properties.trap,
       hasTrapKit: chestEvents[0].properties.hasTrapKit,
+      rewardCategories: chestEvents[0].properties.rewardCategories,
       lootAura: chestEvents[0].properties.lootAura
     },
-    { action: "disarm", trap: "poison needle", hasTrapKit: true, lootAura: "strong" }
+    {
+      action: "disarm",
+      trap: "poison needle",
+      hasTrapKit: true,
+      rewardCategories: ["weapon", "usable", "other"],
+      lootAura: "strong"
+    }
   );
   assert.deepEqual(
     {
