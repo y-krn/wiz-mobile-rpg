@@ -1,7 +1,7 @@
 # Issue #984 Pure Raw Death Decomposition
 
 - runner: issue984-pure-raw-decomposition-v1
-- source commit: `11d275316b54ea563784d75dcd9042f6cd6c05cf`
+- source commit: `50d8ac894c4ef9409f068974efac242952e695e4`
 - production baseline SHA: `ddaf1c03780bd47654b3468108b047dcd9adf4b8`
 - N=500 per build × encounter × depth × condition; seed=974-build-confidence
 - depths: B8, B13, B18, B21, B25, B30; builds: aoe-burst, single-efficient, sustain, hybrid-fallback; fixtures: 6
@@ -20,21 +20,21 @@ Modeled: production monster definitions/depth scaling, auto-action, spell/status
 
 ## Counterfactual paired comparison
 
-Reduction is the paired change in pure-raw incidence, not a tuning target. A candidate may shift a death to another category; those shifts remain visible in JSON.
+Reduction is the paired change in pure-raw incidence, not a tuning target. A candidate may shift a death to another category; those shifts remain visible in JSON. Total-death change is shown separately to expose label shifts.
 
-| Condition | Baseline pure raw | Counterfactual pure raw | Reduction | Baseline pure raw runs avoided |
-| --- | ---: | ---: | ---: | ---: |
-| C4_single_hit_damage | 31472 | 14944 | 22.96pp | 53.70% |
-| C3_fight_duration | 31472 | 19856 | 16.13pp | 42.88% |
-| C1_enemy_count | 31472 | 27480 | 5.54pp | 38.42% |
-| C2_enemy_action_count | 31472 | 32995 | -2.12pp | 2.40% |
+| Condition | Baseline pure raw | Counterfactual pure raw | Pure-raw reduction | Total death reduction | Baseline pure raw runs avoided |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| C4_single_hit_damage | 31472 | 14944 | 22.96pp | 23.11pp | 53.70% |
+| C3_fight_duration | 31472 | 19856 | 16.13pp | 24.68pp | 42.88% |
+| C1_enemy_count | 31472 | 27480 | 5.54pp | 25.39pp | 38.42% |
+| C2_enemy_action_count | 31472 | 32995 | -2.12pp | -1.30pp | 2.40% |
 
-Measured contribution order: C4_single_hit_damage 22.96pp > C3_fight_duration 16.13pp > C1_enemy_count 5.54pp > C2_enemy_action_count -2.12pp. This ranks fixed experiments; it does not recommend applying them in production.
+Measured pure-raw order: C4_single_hit_damage 22.96pp > C3_fight_duration 16.13pp > C1_enemy_count 5.54pp > C2_enemy_action_count -2.12pp. This ranks fixed experiments; it does not recommend applying them in production.
 
 ## Required answers
 
-1. **主因:** C4_single_hit_damage has the largest isolated paired reduction; other effects are C3_fight_duration 16.13pp, C1_enemy_count 5.54pp, C2_enemy_action_count -2.12pp. Multiple factors remain if their reductions are material; no 60% threshold is used.
-2. **寄与順位:** 1. C4_single_hit_damage、2. C3_fight_duration、3. C1_enemy_count、4. C2_enemy_action_count。
+1. **主因:** C4_single_hit_damage has the largest isolated pure-raw reduction (22.96pp); C3 (16.13pp) and C1 (5.54pp) are also material. C2 does not improve the metric and is negative after label shifts.
+2. **寄与順位:** 1. C4_single_hit_damage、2. C3_fight_duration、3. C1_enemy_count、4. C2_enemy_action_count。Pure-raw ranking is not a claim that the factors are additive.
 3. **Build差:** build-specific pure-raw rates and metrics are reported below and in all 144 baseline cells; the structure is not identical across builds.
 4. **Depth差:** depth rows plus each cell's rounds, incoming attacks, total normal damage, enemy count, and HP-removal speed show what changes from B8 to B30; depth is not treated as an independent cause.
 5. **Fixture極端さ:** controlled fixtures average 2.33 enemies; production generation sampled at the same depths averages 1.64. The JSON records per-depth sizes and compositions.

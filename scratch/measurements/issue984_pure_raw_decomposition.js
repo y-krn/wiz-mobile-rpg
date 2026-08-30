@@ -55,12 +55,13 @@ function describe(values) {
 function byRound(records, field) {
   const buckets = new Map();
   records.forEach(record => (record[field] || []).forEach(entry => {
-    const values = buckets.get(entry.round) || [];
-    values.push(entry.value);
-    buckets.set(entry.round, values);
+    const current = buckets.get(entry.round) || { values: [], after: [] };
+    current.values.push(entry.value);
+    if (entry.after !== undefined) current.after.push(entry.after);
+    buckets.set(entry.round, current);
   }));
   return [...buckets.entries()].sort(([left], [right]) => left - right)
-    .map(([round, values]) => ({ round, ...describe(values) }));
+    .map(([round, bucket]) => ({ round, ...describe(bucket.values), ...(bucket.after.length ? { after: describe(bucket.after) } : {}) }));
 }
 
 function getRoundMetric(sample) {
