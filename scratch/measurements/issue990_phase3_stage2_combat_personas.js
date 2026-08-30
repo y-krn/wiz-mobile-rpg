@@ -416,6 +416,19 @@ function renderFloorTable(report) {
 
 function renderSummary(report) {
   const policies = report.measurement.configuration.policies;
+  const policy = id => report.policies[id];
+  const firstMpDrop = id => report.measurement.configuration.floors
+    .map(floor => policy(id).floors[String(floor)])
+    .find(value => value.entered && value.exit.mpRatio.mean < value.entry.mpRatio.mean);
+  const meanDepths = policies.map(id => policy(id).reachedDepth.mean).filter(Number.isFinite);
+  const deepest = policies.reduce((best, id) => !best || policy(id).reachedDepth.mean > policy(best).reachedDepth.mean ? id : best, null);
+  const bottleneck = id => report.measurement.configuration.floors
+    .map(floor => policy(id).floors[String(floor)])
+    .filter(value => value.entered)
+    .sort((left, right) => (left.nextFloorReachRate ?? 1) - (right.nextFloorReachRate ?? 1))[0];
+  const rate = id => policy(id).deathCategories.pure_raw_damage.rate;
+  const b5 = id => policy(id).reach["5"].count;
+  const b6 = id => policy(id).reach["6"].count;
   const lines = [
     "# Issue #990 Phase 3 Stage 2 — combat policy sensitivity",
     "",
@@ -479,12 +492,23 @@ function renderSummary(report) {
     "",
     "## Answers",
     "",
-    "1. This experiment tests whether combat action selection alone changes natural reach; see Tables A/F and paired deltas.",
-    "2. MP depletion floor is compared from the entry/exit progression in Table B; no artificial checkpoint continuation is used.",
-    "3. mp-conserving uses physical attacks in low-risk current encounters; burst selects the highest currently payable damage spell. Fixture regression verifies the policies differ.",
-    "4. The result does not claim human behavior; these are explainable measurement policies.",
-    "5. If policy reach remains similar while incomplete dominates, exploration budget remains the controlling censoring mechanism.",
-    "6. #973 Build Confidence remains **Revise**; #990 remains **open**; production tuning is **not recommended from this measurement alone**.",
+    `1. Mean reached depth ranged from ${fmt(Math.min(...meanDepths))} to ${fmt(Math.max(...meanDepths))}; ${deepest} was deepest. Combat policy alone materially changed shallow natural reach in this measurement, but no policy reached B6.`,
+    `2. MP first declined below its floor-entry mean at ${policies.map(id => `${id}=B${firstMpDrop(id)?.floor || "n/a"}`).join(", ")}; the largest observed survivor-conditioned decline was around B3-B5 for balanced/burst.`,
+    `3. mp-conserving shifted strongly to normal attacks (${fmt(policy("mp-conserving").perEncounter.normalAttacks)}/encounter versus balanced ${fmt(policy("balanced-combat").perEncounter.normalAttacks)}); it did not improve reach because the added exposure was costly.`,
+    `4. mp-conserving increased rounds (${fmt(policy("mp-conserving").perEncounter.rounds)} vs balanced ${fmt(policy("balanced-combat").perEncounter.rounds)}); burst reduced rounds (${fmt(policy("burst-combat").perEncounter.rounds)}).`,
+    `5. Per encounter enemy actions/normal damage were balanced ${fmt(policy("balanced-combat").perEncounter.enemyActions)}/${fmt(policy("balanced-combat").perEncounter.normalDamage)}, mp-conserving ${fmt(policy("mp-conserving").perEncounter.enemyActions)}/${fmt(policy("mp-conserving").perEncounter.normalDamage)}, burst ${fmt(policy("burst-combat").perEncounter.enemyActions)}/${fmt(policy("burst-combat").perEncounter.normalDamage)}.`,
+    `6. Pure-raw death share was balanced ${percent(rate("balanced-combat"))}, mp-conserving ${percent(rate("mp-conserving"))}, burst ${percent(rate("burst-combat"))}; this is an association, not causal proof.`,
+    `7. Burst did shorten combat relative to balanced (${fmt(policy("burst-combat").perEncounter.rounds)} vs ${fmt(policy("balanced-combat").perEncounter.rounds)} rounds/encounter), but its B5 reach was lower (10/500 vs 25/500).`,
+    `8. Burst spent less total MP per encounter than balanced in this production-backed run (${fmt(policy("burst-combat").perEncounter.mpSpent)} vs ${fmt(policy("balanced-combat").perEncounter.mpSpent)}), because many runs ended earlier; this is not evidence that burst conserves MP.`,
+    `9. B5→B6 reach was 0/25 for balanced, 0/0 for mp-conserving, and 0/10 for burst; B5 entrants are not treated as all dead because incomplete is separate.`,
+    `10. B10 population was 0 for all three policies.`,
+    `11. B15-or-deeper population was 0 for all three policies.`,
+    `12. “AI is merely too weak” is supported as a real sensitivity factor: mean depth was ${policies.map(id => `${id} ${fmt(policy(id).reachedDepth.mean)}`).join(", ")}. It is not sufficient to explain the whole result because no policy overcame the shallow ceiling and incomplete exploration remains substantial.`,
+    `13. Exploration incomplete is a major censor: the lowest observed next-floor reach bottlenecks were ${policies.map(id => `${id}=B${bottleneck(id)?.floor || "n/a"} (${percent(bottleneck(id)?.nextFloorReachRate)})`).join(", ")}; combat and exploration effects are therefore both present.`,
+    "14. Checkpoint continuation is not used here and is the recommended next measurement if natural B6+ population remains absent.",
+    "15. #973 Build Confidence: **Revise**.",
+    "16. #990 remains **open**.",
+    "17. Production tuning: **do not proceed from this measurement alone**; no production balance or combat behavior was changed.",
     "",
     "## Reproduction",
     "",
