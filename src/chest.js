@@ -1,6 +1,7 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
 import { MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import {
+  getChestSmashRewardCategory,
   resolveChestSmashRewardLosses
 } from "./rules/chest_rules.js";
 import { playSound } from "./audio.js";
@@ -231,6 +232,9 @@ function recoverChestOpenTransition(error, chest = state.chestState) {
 }
 
 function trackChestChoice(chest, action) {
+  const rewardCategories = getChestRewardEntries(chest)
+    .filter(reward => reward.item)
+    .map(reward => getChestSmashRewardCategory(reward.item, reward.role));
   trackChestAction(chest, action, {
     state,
     character: state.party[0],
@@ -239,7 +243,8 @@ function trackChestChoice(chest, action) {
     trap: chest?.trap || "none",
     inventoryCount: state.inventory.length,
     hasTrapKit: state.inventory.includes("TRAP_KIT"),
-    rewardCount: getChestRewardEntries(chest).filter(reward => reward.item).length
+    rewardCount: getChestRewardEntries(chest).filter(reward => reward.item).length,
+    rewardCategories: [...new Set(rewardCategories)]
   });
 }
 

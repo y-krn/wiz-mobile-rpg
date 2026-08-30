@@ -673,6 +673,11 @@ export function trackChestAction(chest, action, details = {}) {
     inventoryCount: boundedFiniteOrNull(details.inventoryCount),
     hasTrapKit: Boolean(details.hasTrapKit),
     rewardCount: boundedFiniteOrNull(details.rewardCount),
+    rewardCategories: normalizeBoundedEnumArray(
+      details.rewardCategories,
+      SAFE_CHEST_REWARD_CATEGORIES,
+      SAFE_CHEST_REWARD_CATEGORIES.size
+    ),
     lootAura: normalizeOptionalStableValue(chest?.lootHint?.aura, SAFE_CHEST_AURAS)
   });
 }
