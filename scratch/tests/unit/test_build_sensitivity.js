@@ -8,6 +8,7 @@ import {
   runEncounterSample,
   runMeasurement
 } from "../../measurements/issue973_build_sensitivity.js";
+import { COUNTERFACTUALS, runDecomposition } from "../../measurements/issue984_pure_raw_decomposition.js";
 import { CORE_AFFIXES, SUPPORT_AFFIXES } from "../../../src/data/affixes.js";
 import { ITEMS } from "../../../src/data/items.js";
 import { SPELLS } from "../../../src/data/spells.js";
@@ -47,6 +48,43 @@ const sampleA = runEncounterSample({ buildId: "hybrid-fallback", encounterId: "m
 const sampleB = runEncounterSample({ buildId: "hybrid-fallback", encounterId: "mp-pressure", depth: 13, seed: sharedSeed });
 assert.deepEqual(sampleA, sampleB, "production combat sample must be deterministic");
 assert.equal(sampleA.seed, sharedSeed, "the sample must retain the shared case seed");
+const c1 = COUNTERFACTUALS.find(condition => condition.id === "C1_multi_enemy_to_single");
+const c2 = COUNTERFACTUALS.find(condition => condition.id === "C2_disable_multi_action_extra");
+assert.equal(c1.kind, "multi_enemy_to_single");
+assert.equal(createEncounterFixture("swarm-action-pressure", 13, c1).monsters.length, 1);
+assert.match(c1.id, /multi_enemy_to_single/);
+assert.doesNotMatch(c1.id, /enemy_count_only/);
+const c2Baseline = runEncounterSample({
+  buildId: "single-efficient",
+  encounterId: "swarm-action-pressure",
+  depth: 8,
+  seed: "c2-test"
+});
+const c2Sample = runEncounterSample({
+  buildId: "single-efficient",
+  encounterId: "swarm-action-pressure",
+  depth: 8,
+  seed: "c2-test",
+  counterfactual: c2
+});
+assert.ok(
+  c2Baseline.trace.some(round => round.enemyTurnEvents.some(event => event.extraMultiAction)),
+  "baseline must reach a multiAction extra turn for the C2 control"
+);
+assert.ok(
+  c2Sample.trace.every(round => round.enemyTurnEvents.every(event => !event.extraMultiAction)),
+  "C2 must suppress only multiAction extra turns"
+);
+assert.equal(
+  c2Sample.trace[0].enemyTurnEvents.filter(event => !event.extraMultiAction).length,
+  3,
+  "C2 must retain one ordinary action for each of three living enemies"
+);
+assert.equal(c2.kind, "disable_multi_action_extra");
+assert.notEqual(
+  createEncounterFixture("durable-single-target", 13, { kind: "enemy_hp", rate: 0.5 }).monsters[0].maxHp,
+  createEncounterFixture("durable-single-target", 13).monsters[0].maxHp
+);
 
 const significantDifference = (estimate, significant = true) => ({
   estimate,
@@ -186,5 +224,21 @@ assert.ok(Object.hasOwn(report, "causalSummary"));
 assert.ok(Object.hasOwn(report, "fixtureValidation"));
 assert.ok(Object.hasOwn(report, "autoActionReview"));
 assert.equal(report.pairwiseRanking[0].rankings.at(-1).metric, "pairedOutcomeAndUtility");
+
+const decomposition = runDecomposition({ seed: "issue984-unit", runs: 1 });
+assert.deepEqual(
+  decomposition.conditions.map(condition => condition.id),
+  COUNTERFACTUALS.map(condition => condition.id)
+);
+assert.equal(decomposition.conditions.find(condition => condition.id === "baseline").cases.length, 144);
+decomposition.conditions.filter(condition => condition.id !== "baseline").forEach(condition => {
+  assert.equal(condition.paired.pairedRuns, 144);
+  assert.equal(condition.cases[0].pureRawMetrics.sampleCount, condition.cases[0].pureRawDamageDeaths);
+});
+const measuredCell = decomposition.conditions[0].cases[0];
+assert.ok(Object.hasOwn(measuredCell.pureRawMetrics, "lethalHitDamage"));
+assert.ok(Object.hasOwn(measuredCell.pureRawMetrics, "enemyActionsPerRound"));
+assert.ok(Object.hasOwn(measuredCell.pureRawMetrics, "enemyHpRemovalSpeed"));
+assert.equal(decomposition.productionEncounterDistribution.length, 6);
 
 console.log("[PASS] build definitions, fixture determinism, shared seeds, production combat determinism, provenance, status trajectory, and output schema verified");
