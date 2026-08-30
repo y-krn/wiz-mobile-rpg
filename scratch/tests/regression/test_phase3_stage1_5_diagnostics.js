@@ -16,6 +16,7 @@ const report = runMeasurement({
 });
 
 assert.equal(report.schemaVersion, 2);
+assert.equal(report.measurement.stage, 1.5);
 assert.equal(report.measurement.runnerVersion, "issue990-phase3-stage1.5-v1");
 assert.equal(report.measurement.configuration.startFloor, 1);
 assert.equal(report.measurement.configuration.forcedPush, true);

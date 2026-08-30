@@ -323,6 +323,7 @@ function stage15Aggregate(rows, floor) {
     entry,
     exit,
     mpSpent: scalar("mpSpent"),
+    combatMpSpent: scalar("combatMpSpent"),
     mpRecovered: scalar("mpRecovered"),
     manaPotionUses: scalar("manaPotionUses"),
     campMpRecovery: scalar("campMpRecovery"),
@@ -430,7 +431,7 @@ function aggregateStage15(rowsByPersona) {
     const combatTotals = floors => {
       const encounters = floors.reduce((sum, floor) => sum + floor.encounters, 0);
       const perEncounter = field => encounters ? floors.reduce((sum, floor) => sum + floor[field], 0) / encounters : null;
-      return { encounters, spellCastsPerEncounter: perEncounter("spellActions"), mpSpentPerEncounter: floors.reduce((sum, floor) => sum + floor.mpSpent, 0) / Math.max(1, encounters), normalAttacksPerEncounter: perEncounter("normalAttackActions"), roundsPerEncounter: perEncounter("rounds"), enemyActionsPerEncounter: perEncounter("enemyActions") };
+      return { encounters, spellCastsPerEncounter: perEncounter("spellActions"), mpSpentPerEncounter: floors.reduce((sum, floor) => sum + floor.combatMpSpent, 0) / Math.max(1, encounters), normalAttacksPerEncounter: perEncounter("normalAttackActions"), roundsPerEncounter: perEncounter("rounds"), enemyActionsPerEncounter: perEncounter("enemyActions") };
     };
     return [persona, { floors, representativeSamples, mpBuckets: mergeStage15Buckets(rows), spellUsage, b5MpSurvival: aggregateB5MpSurvival(rows), combat: combatTotals(Object.values(floors)) }];
   });
@@ -561,7 +562,7 @@ export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, perso
     measurement: {
       issue: 990,
       phase: 3,
-      stage: 1,
+      stage: collectStage15Diagnostics ? 1.5 : 1,
       runnerVersion,
       sourceCommit: provenance?.sourceCommit || null,
       mainBaselineSha: provenance?.baseCommit || null,

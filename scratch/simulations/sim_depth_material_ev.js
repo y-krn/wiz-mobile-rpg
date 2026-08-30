@@ -2273,6 +2273,7 @@ function createStage15FloorTelemetry(floor) {
     exitMaxMp: null,
     exitMpRatio: null,
     mpSpent: 0,
+    combatMpSpent: 0,
     mpRecovered: 0,
     manaPotionUses: 0,
     campMpRecovery: 0,
@@ -2424,6 +2425,7 @@ function recordStage15Encounter(metrics, encounter) {
   if (!floorTelemetry) return;
   floorTelemetry.encounters++;
   floorTelemetry.combatActions += encounter.combatActions;
+  floorTelemetry.combatMpSpent += encounter.combatMpSpent;
   floorTelemetry.spellActions += encounter.spellActions;
   floorTelemetry.normalAttackActions += encounter.normalAttacks;
   floorTelemetry.defensiveSupportActions += encounter.defensiveSupportActions;
@@ -7060,6 +7062,7 @@ function runEncounter(
         defensiveSupportActions: 0,
         itemActions: 0,
         failedNoopActions: 0,
+        combatMpSpent: 0,
         insufficientMpDecisionCount: 0,
         insufficientMpRounds: 0,
         insufficientMpNormalAttackRounds: 0,
@@ -7502,6 +7505,9 @@ function runEncounter(
     const mpAfterRound = roundResult.state.party[0].mp;
     metrics.mpConsumed += Math.max(0, mpBeforeRound - mpAfterRound);
     recordStage15MpSpend(metrics, Math.max(0, mpBeforeRound - mpAfterRound));
+    if (stage15Encounter) {
+      stage15Encounter.combatMpSpent += Math.max(0, mpBeforeRound - mpAfterRound);
+    }
     if (!(action.type === "item" && action.itemKey === "MANA_POTION")) {
       recordStage15MpDelta(metrics, 0, Math.max(0, mpAfterRound - mpBeforeRound), "other");
     }
