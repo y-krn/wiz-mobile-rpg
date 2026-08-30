@@ -9,6 +9,7 @@ import {
   runMeasurement
 } from "../../measurements/issue973_build_sensitivity.js";
 import { COUNTERFACTUALS, runDecomposition } from "../../measurements/issue984_pure_raw_decomposition.js";
+import { COUNTERFACTUALS as PRODUCTION_COUNTERFACTUALS, isStrictSignificantReversal, MIN_STRICT_PAIRED_N, runMeasurement as runProductionFrequencyMeasurement } from "../../measurements/issue987_production_frequency.js";
 import { CORE_AFFIXES, SUPPORT_AFFIXES } from "../../../src/data/affixes.js";
 import { ITEMS } from "../../../src/data/items.js";
 import { SPELLS } from "../../../src/data/spells.js";
@@ -50,6 +51,7 @@ assert.deepEqual(sampleA, sampleB, "production combat sample must be determinist
 assert.equal(sampleA.seed, sharedSeed, "the sample must retain the shared case seed");
 const c1 = COUNTERFACTUALS.find(condition => condition.id === "C1_multi_enemy_to_single");
 const c2 = COUNTERFACTUALS.find(condition => condition.id === "C2_disable_multi_action_extra");
+const w3 = PRODUCTION_COUNTERFACTUALS.find(condition => condition.id === "W3_enemy_action_exposure_1");
 assert.equal(c1.kind, "multi_enemy_to_single");
 assert.equal(createEncounterFixture("swarm-action-pressure", 13, c1).monsters.length, 1);
 assert.match(c1.id, /multi_enemy_to_single/);
@@ -85,6 +87,16 @@ assert.notEqual(
   createEncounterFixture("durable-single-target", 13, { kind: "enemy_hp", rate: 0.5 }).monsters[0].maxHp,
   createEncounterFixture("durable-single-target", 13).monsters[0].maxHp
 );
+const generatedStressMonsters = createEncounterFixture("swarm-action-pressure", 8).monsters;
+const w3Baseline = runEncounterSample({ buildId: "single-efficient", encounterId: "generated-stress", depth: 8, seed: "w3-test", generatedMonsters: generatedStressMonsters });
+const w3Sample = runEncounterSample({ buildId: "single-efficient", encounterId: "generated-stress", depth: 8, seed: "w3-test", counterfactual: w3, generatedMonsters: generatedStressMonsters });
+assert.ok(w3Baseline.trace.some(round => round.enemyTurnEvents.length > 1), "W3 baseline must expose multiple ordinary enemy turns");
+assert.ok(w3Sample.trace.every(round => round.enemyTurnEvents.length <= 1), "W3 must cap total enemy turns per round");
+assert.deepEqual(
+  w3Sample.fixture.scaledStats.map(monster => ({ name: monster.name, traits: monster.traits })),
+  w3Baseline.fixture.scaledStats.map(monster => ({ name: monster.name, traits: monster.traits })),
+  "W3 must preserve generated monster identity and traits"
+);
 
 const significantDifference = (estimate, significant = true) => ({
   estimate,
@@ -115,6 +127,32 @@ assert.equal(
   isSignificantReversal(utilityOnlyReversalA, bothMetricsReversalB),
   true,
   "outcome and utility encounter reversal must be significant"
+);
+const strictSyntheticPair = (clear, utility, pairedRuns = 500) => ({
+  pairedRuns,
+  clearDifferences: Array(pairedRuns).fill(clear),
+  hpDifferences: [],
+  mpDifferences: [],
+  utilityDifferences: Array(pairedRuns).fill(utility),
+  baselinePureRawDeaths: 0,
+  candidatePureRawDeaths: 0,
+  pureRawDeathsAvoided: 0,
+  dimensions: {}
+});
+assert.equal(
+  isStrictSignificantReversal(strictSyntheticPair(0.4, 0.3), strictSyntheticPair(0.2, -0.3)),
+  false,
+  "clear-only reversal must not be strict when outcome does not reverse"
+);
+assert.equal(
+  isStrictSignificantReversal(strictSyntheticPair(0.4, 0.3), strictSyntheticPair(-0.2, -0.3)),
+  true,
+  "strict reversal requires significant outcome and utility sign reversals"
+);
+assert.equal(
+  isStrictSignificantReversal(strictSyntheticPair(0.4, 0.3, MIN_STRICT_PAIRED_N - 1), strictSyntheticPair(-0.2, -0.3)),
+  false,
+  "insufficient paired family samples must not be strict"
 );
 
 const pureSynthetic = classifyCausalDeath({
@@ -240,5 +278,29 @@ assert.ok(Object.hasOwn(measuredCell.pureRawMetrics, "lethalHitDamage"));
 assert.ok(Object.hasOwn(measuredCell.pureRawMetrics, "enemyActionsPerRound"));
 assert.ok(Object.hasOwn(measuredCell.pureRawMetrics, "enemyHpRemovalSpeed"));
 assert.equal(decomposition.productionEncounterDistribution.length, 6);
+
+const productionFrequency = runProductionFrequencyMeasurement({ seed: "issue987-unit", generatedRuns: 1, stressRuns: 1 });
+assert.deepEqual(productionFrequency.measurement.configuration.depths, [8, 13, 18, 21, 25, 30]);
+assert.equal(productionFrequency.productionFrequencyWeighted.distributions.every(item => item.runs === 1), true);
+assert.equal(productionFrequency.productionFrequencyWeighted.conditions[0].buildSensitivity.pairwiseOverall.length, 6);
+const productionBaseline = productionFrequency.productionFrequencyWeighted.conditions.find(condition => condition.id === "baseline");
+const productionW1 = productionFrequency.productionFrequencyWeighted.conditions.find(condition => condition.id === "W1_normal_damage_075");
+const overallView = condition => condition.views.find(view => Object.keys(view.dimensions).length === 0);
+const w1Pair = productionW1.pairedAgainstBaseline.find(pair => Object.keys(pair.dimensions).length === 0);
+assert.ok(Math.abs(w1Pair.clearRateDelta.estimate - (overallView(productionW1).clearRate - overallView(productionBaseline).clearRate)) < 1e-12);
+assert.equal(Object.hasOwn(w1Pair, "clearRateDifference"), false, "counterfactual delta direction must be explicit");
+const sensitivity = productionBaseline.buildSensitivity;
+assert.ok(sensitivity.equalCellCoverage, "equal-cell coverage must be reported separately");
+assert.ok(sensitivity.productionFrequencyWeightedDominance, "frequency-weighted dominance must be reported separately");
+assert.notEqual(sensitivity.equalCellCoverage.weighting, sensitivity.productionFrequencyWeightedDominance.weighting);
+assert.ok(Math.abs(Object.values(sensitivity.productionFrequencyWeightedDominance.shares).reduce((sum, share) => sum + share, 0) - 1) < 1e-12);
+productionFrequency.productionFrequencyWeighted.conditions.forEach(condition => {
+  condition.views.forEach(view => {
+    const deathTotal = Object.values(view.exclusiveDeathCategories).reduce((sum, count) => sum + count, 0);
+    assert.equal(deathTotal, view.outcomes.death, "production weighted death categories must be exclusive");
+    const rawTotal = Object.values(view.legacyRawExclusiveCategories).reduce((sum, count) => sum + count, 0);
+    assert.equal(rawTotal, view.legacyRawDamageDeaths, "production weighted raw categories must be exhaustive");
+  });
+});
 
 console.log("[PASS] build definitions, fixture determinism, shared seeds, production combat determinism, provenance, status trajectory, and output schema verified");
