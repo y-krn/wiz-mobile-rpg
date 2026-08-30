@@ -162,6 +162,8 @@ function aggregateFloor(records, floor) {
     normalDamage: total("normalDamage"),
     equipmentDrops: total("equipmentDrops"),
     steps: total("steps"),
+    combatsEnteredLowMp: total("combatsEnteredLowMp"),
+    combatsEnteredZeroMp: total("combatsEnteredZeroMp"),
     insufficientMpDecisions: total("insufficientMpDecisionCount"),
     insufficientMpRounds: total("insufficientMpRounds"),
     perEncounter: {
@@ -679,7 +681,7 @@ function renderSummary(report) {
       " --output evidence/results/issue-990-phase3-stage2.json --summary evidence/results/issue-990-phase3-stage2.md",
     ""
   ];
-  return lines.join("\\n");
+  return lines.join("\n");
 }
 function parseArgs(argv) {
   const options = {};
