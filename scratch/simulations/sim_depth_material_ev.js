@@ -2244,10 +2244,260 @@ function createCombatMpMeasurement() {
   };
 }
 
+const STAGE15_MAX_FLOOR = 9;
+const STAGE15_MP_BUCKETS = Object.freeze([
+  "0%",
+  "1-25%",
+  "26-50%",
+  "51-75%",
+  "76-100%"
+]);
+
+function createStage15FloorTelemetry(floor) {
+  return {
+    floor,
+    entered: 1,
+    survived: 0,
+    died: 0,
+    incomplete: 0,
+    entryHp: null,
+    entryMaxHp: null,
+    entryHpRatio: null,
+    exitHp: null,
+    exitMaxHp: null,
+    exitHpRatio: null,
+    entryMp: null,
+    entryMaxMp: null,
+    entryMpRatio: null,
+    exitMp: null,
+    exitMaxMp: null,
+    exitMpRatio: null,
+    mpSpent: 0,
+    mpRecovered: 0,
+    manaPotionUses: 0,
+    campMpRecovery: 0,
+    otherMpRecovery: 0,
+    damageTaken: 0,
+    healing: 0,
+    healPotionUses: 0,
+    encounters: 0,
+    combatActions: 0,
+    spellActions: 0,
+    normalAttackActions: 0,
+    defensiveSupportActions: 0,
+    itemActions: 0,
+    failedNoopActions: 0,
+    rounds: 0,
+    enemyActions: 0,
+    normalHits: 0,
+    normalDamage: 0,
+    insufficientMpDecisionCount: 0,
+    insufficientMpRounds: 0,
+    insufficientMpNormalAttackRounds: 0,
+    combatsEnteredLowMp: 0,
+    combatsEnteredZeroMp: 0,
+    equipmentDrops: 0,
+    equipmentChanges: 0,
+    steps: 0,
+    exploredRatio: null,
+    closed: false
+  };
+}
+
+function createStage15MpBucket() {
+  return {
+    encounters: 0,
+    clear: 0,
+    death: 0,
+    pureRawDeaths: 0,
+    rounds: 0,
+    enemyActions: 0,
+    normalHits: 0,
+    normalDamage: 0,
+    spellCasts: 0,
+    normalAttacks: 0
+  };
+}
+
+function createStage15Diagnostics() {
+  return {
+    byFloor: {},
+    mpBuckets: Object.fromEntries(STAGE15_MP_BUCKETS.map(bucket => [bucket, createStage15MpBucket()])),
+    spellUsage: {},
+    b5Entry: null,
+    currentFloor: null
+  };
+}
+
+function stage15MpBucket(mp, maxMp) {
+  const ratio = Number(mp) / Math.max(1, Number(maxMp));
+  if (ratio <= 0) return "0%";
+  if (ratio <= 0.25) return "1-25%";
+  if (ratio <= 0.50) return "26-50%";
+  if (ratio <= 0.75) return "51-75%";
+  return "76-100%";
+}
+
+function stage15Floor(metrics, floor = metrics?.stage15Diagnostics?.currentFloor) {
+  if (!metrics?.stage15Diagnostics || !Number.isInteger(Number(floor))) return null;
+  const normalizedFloor = Number(floor);
+  if (normalizedFloor < 1 || normalizedFloor > STAGE15_MAX_FLOOR) return null;
+  return metrics.stage15Diagnostics.byFloor[String(normalizedFloor)] || null;
+}
+
+function startStage15Floor(state, metrics, floor) {
+  if (!metrics?.stage15Diagnostics || floor > STAGE15_MAX_FLOOR) return;
+  const character = state.party[0];
+  const telemetry = metrics.stage15Diagnostics.byFloor[String(floor)] ||=
+    createStage15FloorTelemetry(floor);
+  telemetry.entryHp = character.hp;
+  telemetry.entryMaxHp = getCharMaxHp(character);
+  telemetry.entryHpRatio = character.hp / Math.max(1, telemetry.entryMaxHp);
+  telemetry.entryMp = character.mp;
+  telemetry.entryMaxMp = getCharMaxMp(character);
+  telemetry.entryMpRatio = character.mp / Math.max(1, telemetry.entryMaxMp);
+  metrics.stage15Diagnostics.currentFloor = floor;
+  if (floor === 5) {
+    metrics.stage15Diagnostics.b5Entry = {
+      hp: character.hp,
+      maxHp: telemetry.entryMaxHp,
+      hpRatio: telemetry.entryHpRatio,
+      mp: character.mp,
+      maxMp: telemetry.entryMaxMp,
+      mpRatio: telemetry.entryMpRatio
+    };
+  }
+}
+
+function recordStage15MpDelta(metrics, before, after, source = "other") {
+  const telemetry = stage15Floor(metrics);
+  if (!telemetry) return;
+  const delta = Number(after) - Number(before);
+  if (!Number.isFinite(delta)) return;
+  if (delta < 0) telemetry.mpSpent += -delta;
+  if (delta > 0) {
+    telemetry.mpRecovered += delta;
+    if (source === "manaPotion" || source === "combatManaPotion") {
+      telemetry.manaPotionUses++;
+    } else if (source === "camp") {
+      telemetry.campMpRecovery += delta;
+    } else {
+      telemetry.otherMpRecovery += delta;
+    }
+  }
+}
+
+function recordStage15MpSpend(metrics, amount) {
+  const telemetry = stage15Floor(metrics);
+  const spent = Math.max(0, Number(amount) || 0);
+  if (telemetry && spent > 0) telemetry.mpSpent += spent;
+}
+
+function recordStage15Healing(metrics, amount, source = "other") {
+  const telemetry = stage15Floor(metrics);
+  const healing = Math.max(0, Number(amount) || 0);
+  if (!telemetry || healing <= 0) return;
+  telemetry.healing += healing;
+  if (source === "potion") telemetry.healPotionUses++;
+}
+
+function finalizeStage15Floor(state, metrics, floor, status) {
+  const telemetry = stage15Floor(metrics, floor);
+  if (!telemetry || telemetry.closed) return;
+  const character = state.party[0];
+  telemetry.exitHp = character.hp;
+  telemetry.exitMaxHp = getCharMaxHp(character);
+  telemetry.exitHpRatio = character.hp / Math.max(1, telemetry.exitMaxHp);
+  telemetry.exitMp = character.mp;
+  telemetry.exitMaxMp = getCharMaxMp(character);
+  telemetry.exitMpRatio = character.mp / Math.max(1, telemetry.exitMaxMp);
+  telemetry.survived = Number(status === "survived");
+  telemetry.died = Number(status === "died");
+  telemetry.incomplete = Number(status === "incomplete");
+  telemetry.closed = true;
+}
+
+function recordStage15Encounter(metrics, encounter) {
+  const diagnostics = metrics?.stage15Diagnostics;
+  if (!diagnostics || !encounter || encounter.floor > STAGE15_MAX_FLOOR) return;
+  const floorTelemetry = stage15Floor(metrics, encounter.floor);
+  if (!floorTelemetry) return;
+  floorTelemetry.encounters++;
+  floorTelemetry.combatActions += encounter.combatActions;
+  floorTelemetry.spellActions += encounter.spellActions;
+  floorTelemetry.normalAttackActions += encounter.normalAttacks;
+  floorTelemetry.defensiveSupportActions += encounter.defensiveSupportActions;
+  floorTelemetry.itemActions += encounter.itemActions;
+  floorTelemetry.failedNoopActions += encounter.failedNoopActions;
+  floorTelemetry.rounds += encounter.rounds;
+  floorTelemetry.enemyActions += encounter.enemyActions;
+  floorTelemetry.normalHits += encounter.normalHits;
+  floorTelemetry.normalDamage += encounter.normalDamage;
+  floorTelemetry.damageTaken += encounter.normalDamage;
+  floorTelemetry.insufficientMpDecisionCount += encounter.insufficientMpDecisionCount;
+  floorTelemetry.insufficientMpRounds += encounter.insufficientMpRounds;
+  floorTelemetry.insufficientMpNormalAttackRounds += encounter.insufficientMpNormalAttackRounds;
+  floorTelemetry.combatsEnteredLowMp += Number(encounter.startMpRatio <= 0.25);
+  floorTelemetry.combatsEnteredZeroMp += Number(encounter.startMp <= 0);
+
+  const bucket = diagnostics.mpBuckets[encounter.mpBucket];
+  bucket.encounters++;
+  bucket.clear += Number(encounter.result === "victory");
+  bucket.death += Number(encounter.result === "death");
+  bucket.pureRawDeaths += Number(encounter.deathCategory === "pure_raw_damage");
+  bucket.rounds += encounter.rounds;
+  bucket.enemyActions += encounter.enemyActions;
+  bucket.normalHits += encounter.normalHits;
+  bucket.normalDamage += encounter.normalDamage;
+  bucket.spellCasts += encounter.spellCasts;
+  bucket.normalAttacks += encounter.normalAttacks;
+  Object.entries(encounter.spellUsage).forEach(([spellId, usage]) => {
+    const target = diagnostics.spellUsage[spellId] ||= {
+      castCount: 0,
+      successfulCasts: 0,
+      totalMpSpent: 0,
+      targetTypes: {}
+    };
+    target.castCount += usage.castCount;
+    target.successfulCasts += usage.successfulCasts;
+    target.totalMpSpent += usage.totalMpSpent;
+    Object.entries(usage.targetTypes).forEach(([type, count]) => {
+      target.targetTypes[type] = (target.targetTypes[type] || 0) + count;
+    });
+  });
+}
+
+function stage15SpellTargetType(spellName) {
+  const target = SPELLS[spellName]?.target;
+  if (typeof target === "string") return target;
+  if (Array.isArray(target)) return target.join("+");
+  return "unknown";
+}
+
+function snapshotStage15Diagnostics(diagnostics) {
+  if (!diagnostics) return null;
+  const floors = Object.fromEntries(Object.entries(diagnostics.byFloor).map(([floor, value]) => {
+    const { closed, ...snapshot } = value;
+    return [floor, snapshot];
+  }));
+  return {
+    byFloor: floors,
+    mpBuckets: Object.fromEntries(Object.entries(diagnostics.mpBuckets).map(([bucket, value]) => [bucket, { ...value }])),
+    spellUsage: Object.fromEntries(Object.entries(diagnostics.spellUsage).map(([spellId, value]) => [spellId, {
+      ...value,
+      targetTypes: { ...value.targetTypes }
+    }])),
+    b5Entry: diagnostics.b5Entry ? { ...diagnostics.b5Entry } : null
+  };
+}
+
 function recordCombatMpRecovery(metrics, source, amount) {
-  if (!metrics?.combatMpMeasurement || amount <= 0) return;
-  metrics.combatMpMeasurement.recoveryBySource[source] =
-    (metrics.combatMpMeasurement.recoveryBySource[source] || 0) + amount;
+  if (amount <= 0) return;
+  if (metrics?.combatMpMeasurement) {
+    metrics.combatMpMeasurement.recoveryBySource[source] =
+      (metrics.combatMpMeasurement.recoveryBySource[source] || 0) + amount;
+  }
+  recordStage15MpDelta(metrics, 0, amount, source);
 }
 
 function getCombatMpFloorBucket(measurement, floor) {
@@ -4570,6 +4820,19 @@ function castExplorationSpell(state, spellName, metrics) {
   if (!payment.canCast || payment.resource !== "mp") return false;
   character.mp -= payment.cost;
   metrics.mpConsumed += payment.cost;
+  recordStage15MpSpend(metrics, payment.cost);
+  if (metrics.stage15Diagnostics) {
+    const usage = metrics.stage15Diagnostics.spellUsage[spellName] ||= {
+      castCount: 0,
+      successfulCasts: 0,
+      totalMpSpent: 0,
+      targetTypes: {}
+    };
+    usage.castCount++;
+    usage.successfulCasts++;
+    usage.totalMpSpent += payment.cost;
+    usage.targetTypes.utility = (usage.targetTypes.utility || 0) + 1;
+  }
   SPELL_EFFECTS[spellName]({ caster: character, target: state });
   metrics.explorationSpellUsage[spellName]++;
   return true;
@@ -5036,6 +5299,7 @@ function recordRecoveryHealing(metrics, itemKey, level, requestedHp, actualHp) {
     stats.actualHp += actual;
     stats.overhealHp += Math.max(0, requested - actual);
   });
+  recordStage15Healing(metrics, actual, "potion");
 }
 
 function recordHealPotionConsumption(state, metrics, count = 1) {
@@ -6782,6 +7046,31 @@ function runEncounter(
   const enemyTurnEventStart = metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0;
   let encounterMinimumMp = encounterStartMp;
   const blockedRounds = [];
+  const stage15Encounter = metrics?.stage15Diagnostics && encounterFloor <= STAGE15_MAX_FLOOR
+    ? {
+        floor: encounterFloor,
+        result: null,
+        startMp: encounterStartMp,
+        startMpRatio: encounterStartMp / Math.max(1, encounterStartMaxMp),
+        mpBucket: stage15MpBucket(encounterStartMp, encounterStartMaxMp),
+        combatActions: 0,
+        spellActions: 0,
+        spellCasts: 0,
+        normalAttacks: 0,
+        defensiveSupportActions: 0,
+        itemActions: 0,
+        failedNoopActions: 0,
+        insufficientMpDecisionCount: 0,
+        insufficientMpRounds: 0,
+        insufficientMpNormalAttackRounds: 0,
+        rounds: 0,
+        enemyActions: 0,
+        normalHits: 0,
+        normalDamage: 0,
+        deathCategory: null,
+        spellUsage: {}
+      }
+    : null;
   const startBuild = (isBoss || isMidboss || isElite) && metrics?.collectSpecialBattles
     ? createBuildSnapshot(state, metrics?.scoringProfile || null, `${encounterType}-start`)
     : null;
@@ -7017,6 +7306,15 @@ function runEncounter(
       rounds,
       state.party[0].mp
     );
+    if (stage15Encounter) {
+      stage15Encounter.result = result;
+      stage15Encounter.rounds = rounds;
+      stage15Encounter.enemyActions = telemetry.enemyActions;
+      stage15Encounter.normalHits = telemetry.incomingHits;
+      stage15Encounter.normalDamage = telemetry.incomingDamage;
+      stage15Encounter.deathCategory = encounterIdentity?.deathCategory || null;
+      recordStage15Encounter(metrics, stage15Encounter);
+    }
     return {
       result,
       rounds,
@@ -7069,6 +7367,25 @@ function runEncounter(
       policyProbeAction
     );
     if (pressureEvent?.mpBlocked) blockedRounds.push(roundNumber);
+    if (stage15Encounter) {
+      stage15Encounter.combatActions++;
+      stage15Encounter.insufficientMpDecisionCount += Number(Boolean(pressureEvent?.mpBlocked));
+      stage15Encounter.insufficientMpRounds += Number(Boolean(pressureEvent?.mpBlocked));
+      if (action.type === "spell") {
+        stage15Encounter.spellActions++;
+        stage15Encounter.spellCasts++;
+        if (!String(SPELLS[action.spellName]?.target || "").includes("enemy") || action.spellName === "KATINO") {
+          stage15Encounter.defensiveSupportActions++;
+        }
+      } else if (action.type === "fight") {
+        stage15Encounter.normalAttacks++;
+        stage15Encounter.insufficientMpNormalAttackRounds += Number(Boolean(pressureEvent?.mpBlocked));
+      } else if (action.type === "item") {
+        stage15Encounter.itemActions++;
+      } else {
+        stage15Encounter.failedNoopActions++;
+      }
+    }
     recordSpellSelectionMetrics(state, metrics, action);
     const actionTarget = action.targetIdx === undefined
       ? null
@@ -7182,13 +7499,35 @@ function runEncounter(
       metrics,
       roundResult.state.combatFormulaTelemetry?.physicalPlayerHits.slice(physicalHitsBeforeRound) || []
     );
-    metrics.mpConsumed += Math.max(0, mpBeforeRound - state.party[0].mp);
+    const mpAfterRound = roundResult.state.party[0].mp;
+    metrics.mpConsumed += Math.max(0, mpBeforeRound - mpAfterRound);
+    recordStage15MpSpend(metrics, Math.max(0, mpBeforeRound - mpAfterRound));
+    if (!(action.type === "item" && action.itemKey === "MANA_POTION")) {
+      recordStage15MpDelta(metrics, 0, Math.max(0, mpAfterRound - mpBeforeRound), "other");
+    }
     recordHitEvasionMetrics(
       metrics,
       roundResult.state.combatFormulaTelemetry?.physicalPlayerHits.slice(physicalHitsBeforeRound) || [],
       roundResult.state.combatFormulaTelemetry?.physicalPlayerMisses.slice(physicalMissesBeforeRound) || []
     );
     recordSpellApplicationMetrics(metrics, action, roundResult.logQueue);
+    if (stage15Encounter && action.type === "spell") {
+      const applied = roundResult.logQueue.some(({ msg = "" }) =>
+        msg.startsWith("[味方]") && msg.includes("唱えた") && !msg.includes("唱えようとした")
+      );
+      const usage = stage15Encounter.spellUsage[action.spellName] ||= {
+        castCount: 0,
+        successfulCasts: 0,
+        totalMpSpent: 0,
+        targetTypes: {}
+      };
+      const targetType = stage15SpellTargetType(action.spellName);
+      usage.castCount++;
+      usage.successfulCasts += Number(applied);
+      usage.totalMpSpent += Math.max(0, mpBeforeRound - mpAfterRound);
+      usage.targetTypes[targetType] = (usage.targetTypes[targetType] || 0) + 1;
+      stage15Encounter.failedNoopActions += Number(!applied);
+    }
     removeRaceEffectScale(roundResult?.state);
     removeCountermeasureScale(roundResult?.state);
     const enemyBlindApplications = roundResult.logQueue.filter(entry =>
@@ -7458,8 +7797,10 @@ function applyPostCombatRecovery(state, metrics = null) {
     const mpBeforePayment = character.mp;
     character.mp -= payment.cost;
     if (metrics) metrics.mpConsumed += Math.max(0, mpBeforePayment - character.mp);
+    if (metrics) recordStage15MpDelta(metrics, mpBeforePayment, character.mp);
     SPELL_EFFECTS[spellName]({ caster: character, target: character });
     const postCombatHealingHp = Math.max(0, character.hp - hpBefore);
+    recordStage15Healing(metrics, postCombatHealingHp, "spell");
     const spellUsage = metrics?.spellUsage?.[spellName];
     if (spellUsage) {
       spellUsage.postCombatCasts++;
@@ -10442,6 +10783,7 @@ function applySimulatedCampRest(state, observations, metrics = null) {
   }
   if (metrics) {
     metrics.campHealingHp += hpGain;
+    recordStage15Healing(metrics, hpGain, "camp");
     recordCombatMpRecovery(metrics, "camp", mpGain);
     if (extraCamp) {
       metrics.extraCampRestCount++;
@@ -11530,6 +11872,18 @@ function createRunDiagnosticsRecord(state, outcome, metrics, terminationReason) 
 }
 
 function finishRun(state, outcome, metrics, terminationReason = null) {
+  if (metrics.stage15Diagnostics) {
+    const activeFloor = metrics.stage15Diagnostics.currentFloor;
+    const activeTelemetry = stage15Floor(metrics, activeFloor);
+    if (activeTelemetry && !activeTelemetry.closed) {
+      finalizeStage15Floor(
+        state,
+        metrics,
+        activeFloor,
+        outcome === "death" ? "died" : "incomplete"
+      );
+    }
+  }
   const detourActive = metrics.trapRoute.detourActive;
   finalizeTrapRouteDetour(metrics);
   if (detourActive) {
@@ -11715,6 +12069,17 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
       "finish"
     );
     metrics.diagnostics.deathLogs = structuredClone(state.currentRun.deathLogs || []);
+  }
+  if (metrics.stage15Diagnostics) {
+    Object.values(metrics.stage15Diagnostics.byFloor).forEach(telemetry => {
+      const floorKey = String(telemetry.floor);
+      telemetry.steps = metrics.stepsByFloor[floorKey] || 0;
+      telemetry.equipmentDrops = metrics.equipmentFoundByFloor[telemetry.floor] || 0;
+      telemetry.equipmentChanges = (metrics.equipmentTelemetry || [])
+        .filter(event => event.floor === telemetry.floor && event.type === "swap")
+        .length;
+      telemetry.exploredRatio = metrics.exploredRatioByFloor[telemetry.floor] ?? null;
+    });
   }
   return {
     survived: outcome === "retreat",
@@ -12133,6 +12498,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     mpDepletionCausedEnd,
     mpPressure: finalizeSpellPressureMetrics(metrics.mpPressure),
     combatMpMeasurement: snapshotCombatMpMeasurement(metrics.combatMpMeasurement),
+    stage15Diagnostics: snapshotStage15Diagnostics(metrics.stage15Diagnostics),
     combatPolicyProbe: { ...metrics.combatPolicyProbe },
     fleeCount: metrics.fleeCount,
     bossPolicy: metrics.bossPolicy,
@@ -12433,6 +12799,9 @@ export function simulateRun({
     explorationSpellUsage: createExplorationSpellUsageMetrics(),
     mpPressure: createSpellPressureMetrics(),
     combatMpMeasurement: createCombatMpMeasurement(),
+    stage15Diagnostics: scenario.collectStage15Diagnostics
+      ? createStage15Diagnostics()
+      : null,
     combatPolicyProbe: createCombatPolicyProbeMetrics(),
     mpBlockedTerminalEncounter: false,
     lightActiveSteps: 0,
@@ -12758,6 +13127,7 @@ export function simulateRun({
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
   for (let floor = startFloor; floor < targetDepth; floor++) {
     state.floor = floor;
+    startStage15Floor(state, metrics, floor);
     applyTrapBonusExposureCeiling(state, floor);
     const buildSnapshots = metrics.diagnostics?.buildSnapshots || metrics.buildSnapshots;
     if (buildSnapshots) {
@@ -13621,6 +13991,7 @@ export function simulateRun({
     }
 
     if (floorEndedByPitfall) {
+      finalizeStage15Floor(state, metrics, floor, "survived");
       if (floor === FLAME_TRAP_MODEL.floor) {
         recordB5HpSnapshot(state, metrics, floorSteps);
         metrics.b5FloorActive = false;
@@ -13655,10 +14026,11 @@ export function simulateRun({
       ) {
         return finishRun(state, "retreat", metrics, "milestone-retreat");
       }
-      if (!state.currentRun?.defeatedMilestones?.includes(floor)) {
+    if (!state.currentRun?.defeatedMilestones?.includes(floor)) {
         return finishRun(state, "retreat", metrics, "milestone-boss-blocked");
       }
     }
+    finalizeStage15Floor(state, metrics, floor, "survived");
     descendToNextFloor(state, floor + 1, metrics, { stairsHeal: true });
     if (useTownPortalIfNeeded(state, scenario, metrics, "floor-transition")) {
       return finishRun(state, "retreat", metrics, "town-portal");
