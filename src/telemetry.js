@@ -753,6 +753,8 @@ export function trackDamageReceived(damage) {
     enemyId: normalizeEnemyId(damage?.enemyId),
     attackType: normalizeStableValue(damage?.attackType, SAFE_ATTACK_TYPES),
     rawDamage: boundedFiniteOrNull(damage?.rawDamage),
+    preDefDamage: boundedFiniteOrNull(damage?.preDefDamage),
+    postDefDamage: boundedFiniteOrNull(damage?.postDefDamage),
     finalDamage: boundedFiniteOrNull(damage?.finalDamage),
     finalDef: boundedFiniteOrNull(damage?.finalDef),
     defResistance: boundedFiniteOrNull(damage?.defResistance, -1, 1),

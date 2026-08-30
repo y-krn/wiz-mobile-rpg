@@ -32,6 +32,7 @@ import {
 } from "../../../src/telemetry.js";
 import { recordReceivedDamage } from "../../../src/combat_logic/damage.js";
 import { getMpWardDef } from "../../../src/combat_logic/mp_ward.js";
+import { runCombatRoundCalculation } from "../../../src/combat_logic/round.js";
 
 let failures = 0;
 
@@ -520,6 +521,115 @@ check("combat start joins player and equipment snapshots without duplicating the
   assert.equal(damage.mpWardDef, 1);
   assert.equal(Object.hasOwn(damage, "equipmentIds"), false);
   assert.equal(Object.hasOwn(damage, "equipmentAffixTypes"), false);
+});
+
+check("physical damage telemetry exposes formula stages and clamps applied damage", () => {
+  const events = [];
+  const causalDamageEvents = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
+
+  const character = { class: "Fighter", hp: 1, mp: 0, vit: 10, equipment: {} };
+  recordReceivedDamage(
+    { floor: 2, simTelemetry: { causalDamageEvents } },
+    character,
+    "ゴブリンの呪術師",
+    6,
+    4,
+    5,
+    { attackType: "physical", preDefDamage: 10, finalDef: 4, defResistance: 0.5, postDefDamage: 6 }
+  );
+
+  const damage = events.find(event => event.name === "damage_received").properties;
+  assert.equal(damage.rawDamage, 6);
+  assert.equal(damage.preDefDamage, 10);
+  assert.equal(damage.finalDef, 4);
+  assert.equal(damage.defResistance, 0.5);
+  assert.equal(damage.postDefDamage, 6);
+  assert.equal(damage.finalDamage, 4);
+  assert.equal(damage.playerHpBefore, 5);
+  assert.equal(damage.playerHpAfter, 1);
+  assert.ok(damage.preDefDamage >= damage.postDefDamage);
+  assert.ok(damage.postDefDamage >= damage.finalDamage);
+
+  const lethalCharacter = { class: "Fighter", hp: 0, mp: 0, vit: 10, equipment: {} };
+  recordReceivedDamage(
+    { floor: 2, simTelemetry: { causalDamageEvents } },
+    lethalCharacter,
+    "ゴブリンの呪術師",
+    12,
+    10,
+    3,
+    { attackType: "physical", preDefDamage: 12, finalDef: 0, defResistance: 0, postDefDamage: 12 }
+  );
+  assert.equal(events.at(-1).properties.finalDamage, 3);
+  assert.equal(causalDamageEvents.at(-1).finalDamage, 3);
+});
+
+check("normal physical combat hits forward formula stages to damage telemetry", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const character = {
+    ...decisionPlayer,
+    class: "Fighter",
+    name: "Tester",
+    hp: 20,
+    maxHp: 20,
+    mp: 0,
+    maxMp: 0,
+    vit: 10,
+    equipment: {}
+  };
+  const monster = {
+    name: "ゴブリンの呪術師",
+    hp: 100,
+    maxHp: 100,
+    atk: 4,
+    def: 0,
+    row: "front",
+    status: "ok",
+    spell: null
+  };
+  const state = {
+    party: [character],
+    combatState: { monsters: [monster], roundNumber: 1, phase: "choose_actions", retreatPosition: null },
+    inventory: [],
+    firstKills: [],
+    codex: null,
+    currentRun: { itemsFound: [], equipmentFound: [], deathLogs: [] },
+    floorChestsTotal: [],
+    roamingMonsters: [],
+    floor: 1,
+    x: 5,
+    y: 5,
+    combatFormulaTelemetry: {
+      physicalPlayerHits: [],
+      physicalPlayerMisses: [],
+      physicalMonsterHits: [],
+      targetedBonuses: [],
+      mitigations: [],
+      mitigationCalls: []
+    }
+  };
+  trackRunStart({ ...run, characterClass: "Fighter" }, character, state);
+  trackCombatStart({ floor: 1, player: character, monsters: [monster] }, state);
+
+  const originalRandom = Math.random;
+  Math.random = () => 0;
+  try {
+    runCombatRoundCalculation(state, { actions: [{ type: "defend", actorIdx: 0 }] });
+  } finally {
+    Math.random = originalRandom;
+  }
+
+  const damage = events.find(event => event.name === "damage_received").properties;
+  assert.equal(damage.attackType, "physical");
+  assert.equal(damage.preDefDamage, 4);
+  assert.equal(damage.finalDef, 2);
+  assert.equal(damage.postDefDamage, 2);
+  assert.equal(damage.rawDamage, 1);
+  assert.equal(damage.finalDamage, 1);
 });
 
 check("defense breakdown fields stay bounded and unknown values become null", () => {

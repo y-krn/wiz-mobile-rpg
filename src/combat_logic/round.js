@@ -1355,6 +1355,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           recordReceivedDamage(state, target, mon.name, preMitigationDmg, dmg, playerHpBefore, {
             attackType: "physical",
             causalType: statusPayoff ? "status_payoff" : isSnipeAttack ? "snipe" : "normal",
+            preDefDamage: preDefDmg,
+            postDefDamage: formulaDmg,
             finalDef,
             defResistance,
             isDefending
