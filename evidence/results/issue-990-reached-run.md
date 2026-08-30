@@ -1,7 +1,7 @@
 # Issue #990 omniscient shortest-route progression measurement
 
 - runner: `issue990-reached-run-v2`
-- source commit: `511703c11e09431d5d5bcf9e9f077949a5a055a5`
+- source commit: `167c15986d5861aae5146507596fc0cf8330b74f`
 - production baseline SHA: `f01a08733cc81998e522fa9d1c1cdd8f3714bf2b`
 - started runs/build: **N=500**
 - depth: B1-B30
@@ -11,6 +11,8 @@
 The run uses production `generateRunFloor`, production encounter chance, production `generateEncounter`, production combat resolution, HP/MP carry-over, floor-transition recovery, and production camp-rest helpers. Four builds share each run seed, generated floor, route, trigger stream, and encounter identity. Only the build's survival path determines which later encounters it can experience.
 
 Route validity is intentionally limited: this is a production-map omniscient shortest-route measurement, not an actual player run. The route knows stairs and milestone-boss coordinates from the complete generated grid and traverses generated secret-door edges from the start. Production players learn stairs/bosses by exploration and can only use a secret door after discovering it; the measurement does not model that extra walking or search turns.
+
+Recovery uses the production camp helpers: camp entry is eligible only at a camp floor after the preceding milestone is defeated; rest is once per camp, restores 40% of missing HP/MP with ceiling and applies CORE_CAMP_MASTER when present. Floor transition recovery is production 15% of max HP, HP-only, capped at max. No automatic camp is granted after an uncleared milestone.
 
 Loot/equipment upgrades, inventory decisions, retreat decisions, roaming elites, traps/non-combat damage, and midbosses are omitted and explicitly recorded in JSON. A fixed build is therefore not a complete player-run reproduction. No production constants were changed.
 

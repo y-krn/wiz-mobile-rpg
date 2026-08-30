@@ -15,6 +15,8 @@ No production balance value was changed. #987 W3's one-enemy-action-per-round ca
 - Runner: `scratch/measurements/issue990_reached_run.js`
 - Regression: `scratch/tests/regression/test_reached_run_measurement.js`
 - Measurement: N=500 per build, seed `990-reached-run`, runner `issue990-reached-run-v2`
+- Evidence source commit: `167c15986d5861aae5146507596fc0cf8330b74f`
+- Environment signature: `e2d6a636d3ac4380`
 - Production baseline: `f01a08733cc81998e522fa9d1c1cdd8f3714bf2b`
 
 The JSON separates started runs, reached depth, death depth, encounters experienced, and target-depth conditional populations. It records family/enemy-count slices, HP/MP before and after, rounds, normal hits, damage per normal hit, total normal damage, enemy actions, exclusive death categories, and the death-adjacent 1/2/3 encounter windows.
