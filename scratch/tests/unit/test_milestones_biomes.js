@@ -7,6 +7,7 @@ import { getMilestoneEventCounts, generateRunFloor } from "../../../src/run_map_
 import { getDepthMaterialExpectedQuantity } from "../../../src/rules/material_rules.js";
 import { revealEquipmentOnEquip } from "../../../src/systems/identification.js";
 import { purchaseMilestoneStock, purchaseMilestoneUncurse } from "../../../src/systems/milestone_merchant.js";
+import { getAdditionalPurchaseCount } from "../../../src/menu/milestone_merchant.js";
 import { recordMilestoneVictory } from "../../../src/state/run_state.js";
 
 const failures = [];
@@ -74,6 +75,13 @@ check("深層商人は装備を売らず、素材で補給品を購入する", (
   assert.equal(purchaseMilestoneStock(state, "identify_powder").ok, true);
   assert.equal(state.identifyTickets, 1);
   assert.equal(state.currentRun.materials["霊粉"], 0);
+});
+
+check("深層商人の追加購入数は素材とバッグ容量の厳しい方に揃える", () => {
+  assert.equal(getAdditionalPurchaseCount({ "獣の牙": 5, "硬い皮": 2 }, { "獣の牙": 2, "硬い皮": 1 }), 2);
+  assert.equal(getAdditionalPurchaseCount({ "獣の牙": 5 }, { "獣の牙": 2 }, 1), 1);
+  assert.equal(getAdditionalPurchaseCount({ "獣の牙": 5 }, { "獣の牙": 2 }, 0), 0);
+  assert.equal(getAdditionalPurchaseCount({ "獣の牙": 1 }, { "獣の牙": 2 }), 0);
 });
 
 check("深層商人は正規の目薬を霊粉1で販売し、既存購入制約を守る", () => {
