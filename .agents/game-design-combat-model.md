@@ -1104,7 +1104,23 @@ responses (`cureBeforePayoff`, `defendBeforePayoff`, `killBeforePayoff`, and
 application, payoff arrival, and response choice; live analytics transport is not required
 for the deterministic measurement.
 
-### 8.6 future owner decisions (not selected)
+### 8.6 #976 deep-band build-test tuning
+
+深層は raw stat wall ではなく build test として機能させる。#975 の同一 seed / N=500
+測定では B13/B18 の deep death `14,784/17,686 = 83.59%` が
+`raw_damage_pressure` で、magic denial、MP pressure、durable single、protected
+formation では mechanic payoff より通常攻撃死が先行していた。
+
+最小 tuning として、B11+ の enemy HP scaling のみ B10 水準で cap する。B1–B10 の
+HP は変更せず、enemy ATK scaling、player HP/DEF、Mage、trait、encounter size は
+変更しない。B13 と B18 は ATK scaling と composition により区別を保つ。
+
+同条件の after は deep raw `12,751/15,308 = 83.30%`、strict paired reversal
+`44→50`。raw wall は 60% red flag をなお超えるため、これは解決ではなく、B11+ を
+「長期戦の数値壁」から「build差が見える評価帯」へ寄せる第一段階である。次の調整は
+この測定基準を維持し、mechanic hard counter や全build一律clear化を避けて別途判断する。
+
+### 8.7 future owner decisions (not selected)
 
 追加の vulnerable producer/source、敵側耐性・免疫、出血の cure item、出血を
 `CORE_EXECUTIONER` 対象へ広げること、追加の status stacking、action-denial mechanics
