@@ -20,7 +20,7 @@ Loot/equipment upgrades, inventory decisions, retreat decisions, roaming elites,
 
 `startedRuns`, `reachedDepth`, `deathDepthDistribution`, and `encountersExperienced` are separate. The reached-run views below are conditional populations; a deep encounter being overrepresented there does not prove that its build is intrinsically stronger against that encounter.
 
-| Build | Started | Reached B30 | Deaths at B30 | Encounters experienced | Actions/round | Pure raw among B21+ reached runs |
+| Build | Started | Reached B30 | Deaths at B30 | Encounters experienced | Actions/round | Pure raw through B21 among B21 reachers |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | aoe-burst | 500 | 0.00% | 0 | 8543 | 1.53 | n/a (unobserved, oracle survivors) |
 | single-efficient | 500 | 0.00% | 0 | 10605 | 1.52 | n/a (unobserved, oracle survivors) |

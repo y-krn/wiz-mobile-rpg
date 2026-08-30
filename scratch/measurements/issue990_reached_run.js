@@ -523,7 +523,7 @@ export function renderSummary(report) {
     "Loot/equipment upgrades, inventory decisions, retreat decisions, roaming elites, traps/non-combat damage, and midbosses are omitted and explicitly recorded in JSON. A fixed build is therefore not a complete player-run reproduction. No production constants were changed.", "",
     "## Survivor-bias split", "",
     "`startedRuns`, `reachedDepth`, `deathDepthDistribution`, and `encountersExperienced` are separate. The reached-run views below are conditional populations; a deep encounter being overrepresented there does not prove that its build is intrinsically stronger against that encounter.", "",
-    "| Build | Started | Reached B30 | Deaths at B30 | Encounters experienced | Actions/round | Pure raw among B21+ reached runs |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |"
+    "| Build | Started | Reached B30 | Deaths at B30 | Encounters experienced | Actions/round | Pure raw through B21 among B21 reachers |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |"
   ];
   BUILD_IDS.forEach(buildId => lines.push(renderBuildRow(buildId, oracle[buildId])));
   lines.push("", "## Build reach and death depth", "", "The JSON contains B1-B30 reach/death counts and Wilson intervals. Death depth is the depth where the terminating encounter occurred; a run dying on B30 has reached B30.", "", "| Build | B5 reach | B10 reach | B15 reach | B20 reach | B21+ reach | B30 reach |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |");

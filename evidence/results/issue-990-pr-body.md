@@ -31,6 +31,8 @@ The following are omitted: loot/equipment upgrades, inventory decisions, retreat
 
 All four builds share run seeds, floor maps, route, trigger stream, and encounter identity. Later encounters are still conditional on each build surviving to them, but the route itself is not player-like. The report never labels this arm `actual run` or `actual reached-run`; it uses `oracleShortestRoute` and `oracle-route reached-depth populations`.
 
+`reachedRunPopulations.B21.encountersExperienced` means the encounters from B1 through B21 experienced by runs that reached B21 or deeper. It is not a B21+ encounter-only population; the corresponding evidence label is `Pure raw through B21 among B21 reachers`.
+
 | Build | B5 | B10 | B15 | B20 | B21+ | B30 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | AoE Burst Mage | 472/500 (94.40%) | 54/500 (10.80%) | 0 | 0 | 0 | 0 |
