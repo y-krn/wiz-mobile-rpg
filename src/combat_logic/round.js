@@ -1320,6 +1320,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           target.hp = Math.max(0, target.hp - dmg);
           recordReceivedDamage(state, target, mon.name, preMitigationDmg, dmg, playerHpBefore, {
             attackType: "physical",
+            causalType: statusPayoff ? "status_payoff" : isSnipeAttack ? "snipe" : "normal",
             finalDef,
             defResistance,
             isDefending

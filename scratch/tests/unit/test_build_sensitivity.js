@@ -90,7 +90,7 @@ const provenance = {
   baseCommit: "base-commit"
 };
 const report = runMeasurement({ seed: "schema-seed", runs: 1, provenance });
-assert.equal(report.schemaVersion, 5);
+assert.equal(report.schemaVersion, 6);
 assert.equal(report.measurement.sourceCommit, "source-commit");
 assert.equal(report.measurement.gameplaySourceCommit, "gameplay-commit");
 assert.equal(report.measurement.originMainAncestor, true);
@@ -114,6 +114,12 @@ assert.ok(Object.hasOwn(report.cases[0], "statusTrajectory"));
 assert.ok(Object.hasOwn(report.cases[0].statusTrajectory, "roundsObservedPerRun"));
 assert.ok(Object.hasOwn(report.cases[0].statusTrajectory, "incapacitatedRoundsPerRun"));
 assert.ok(Object.hasOwn(report.cases[0], "mpStarvationRoundsPerRun"));
+assert.ok(Object.hasOwn(report.cases[0], "causalAttribution"));
+assert.ok(Object.hasOwn(report.cases[0].causalAttribution, "pureRawDamageDeaths"));
+assert.ok(Object.hasOwn(report.cases[0].traces[0].trace[0], "damageEvents"));
+assert.ok(Object.hasOwn(report, "causalSummary"));
+assert.ok(Object.hasOwn(report, "fixtureValidation"));
+assert.ok(Object.hasOwn(report, "autoActionReview"));
 assert.equal(report.pairwiseRanking[0].rankings.at(-1).metric, "pairedOutcomeAndUtility");
 
 console.log("[PASS] build definitions, fixture determinism, shared seeds, production combat determinism, provenance, status trajectory, and output schema verified");
