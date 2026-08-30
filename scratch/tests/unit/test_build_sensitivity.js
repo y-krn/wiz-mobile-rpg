@@ -37,10 +37,10 @@ assert.equal(
 const first = createEncounterFixture("magic-denial", 13);
 const second = createEncounterFixture("magic-denial", 13);
 assert.deepEqual(first, second, "production encounter fixtures must be deterministic");
-assert.notDeepEqual(
+assert.deepEqual(
   first.monsters.map(monster => monster.maxHp),
   createEncounterFixture("magic-denial", 18).monsters.map(monster => monster.maxHp),
-  "depth scaling must remain visible in fixture stats"
+  "B11+ HP scaling should use the B10 ceiling in fixture stats"
 );
 
 const builds = getBuildDefinitions();

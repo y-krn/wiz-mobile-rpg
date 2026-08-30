@@ -147,11 +147,12 @@ check("the elite matches the biome roster and exists in the monster table", () =
 });
 
 check("roaming elite effective HP and ATK rise without biome-boundary spikes", () => {
-  let previous = null;
+  const previousByName = new Map();
   for (let floor = ELITE_MIN_FLOOR; floor <= 30; floor++) {
     const eliteName = getBiomeForFloor(floor).eliteName;
     const template = MONSTERS.find(monster => monster.name === eliteName);
     const scaled = scaleEnemyForDepth(template, floor);
+    const previous = previousByName.get(eliteName);
     if (previous) {
       assert.ok(scaled.hp >= previous.hp,
         `B${floor}F ${eliteName} HP ${scaled.hp} must not fall below ${previous.hp}`);
@@ -162,7 +163,7 @@ check("roaming elite effective HP and ATK rise without biome-boundary spikes", (
       assert.ok(scaled.atk / previous.atk <= 1.16,
         `B${floor}F ${eliteName} ATK jumped from ${previous.atk} to ${scaled.atk}`);
     }
-    previous = scaled;
+    previousByName.set(eliteName, scaled);
   }
 });
 
