@@ -1,12 +1,16 @@
 # Issue #990 Phase 2 — partial-information progression
 
 - runner: `issue990-partial-information-progression-v2` / schema `2`
-- source commit: `eac0ef257f21be3797b8bbac1399673fe3080750`
+- source commit: `629ae43f512c7373c4299dd0c68c525a2e487009`
 - main baseline SHA: `f235c6c6405da6b3f09a1dc01f1451173b8165e4`
 - seed: `issue990-phase2-2026-08-30`; N: **500 / build / arm**
 - mode: production-backed, deterministic, partial-information, forced-push, simplified equipment policy
 
 これは actual player run ではない。production-backed な map / movement / search / encounter / combat / loot を使い、未知情報を使わない決定的探索と、即時の貪欲装備更新を比較する測定である。oracle は比較用に独立したまま残した。
+
+## Review follow-up
+
+以前は percentile の小数 index が配列要素に直接使われ、取得失敗時に最大値へ fallback していた。現在は `(n - 1) × p` の floor/ceil 線形補間へ修正し、同じ seed・設定で N=500 evidence を再生成した。route、combat、equipment、balance、death attribution、matched-comparison のロジックは変更していない。
 
 ## 到達率（build × route / equipment arm）
 
@@ -68,8 +72,6 @@ P0 は固定装備、P1 は production drop を見た直後にだけ determinist
 | single-efficient | 3.39 | 3.92 | 0.53 |
 | sustain | 3.82 | 4.50 | 0.68 |
 | hybrid-fallback | 4.77 | 4.47 | -0.30 |
-
-Hybrid の P1 悪化は、starting build の production-shaped 変換（主要 stat / spells / core / support）と装備後の stat 更新を regression で確認したうえで、再現する測定結果である。P1 の scorer は現在の候補だけを greedy 評価し、未来の敵情報を参照しないため、これは policy が Hybrid に不利な候補を即時装備する場合があることを示す。修正で有利になるよう調整はしていない。
 
 ## matched comparison / Build Confidence
 
