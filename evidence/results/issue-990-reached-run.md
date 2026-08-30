@@ -1,16 +1,18 @@
-# Issue #990 actual reached-run progression measurement
+# Issue #990 omniscient shortest-route progression measurement
 
-- runner: `issue990-reached-run-v1`
-- source commit: `c3166dc7c64e49d6a41dd236b21801fdfe38a46a`
+- runner: `issue990-reached-run-v2`
+- source commit: `511703c11e09431d5d5bcf9e9f077949a5a055a5`
 - production baseline SHA: `f01a08733cc81998e522fa9d1c1cdd8f3714bf2b`
 - started runs/build: **N=500**
 - depth: B1-B30
 
 ## Scope and validity
 
-The run uses production `generateRunFloor`, production encounter chance, production `generateEncounter`, and production combat resolution. Four builds share each run seed, generated floor, route, trigger stream, and encounter identity. Only the build's survival path determines which later encounters it can experience.
+The run uses production `generateRunFloor`, production encounter chance, production `generateEncounter`, production combat resolution, HP/MP carry-over, floor-transition recovery, and production camp-rest helpers. Four builds share each run seed, generated floor, route, trigger stream, and encounter identity. Only the build's survival path determines which later encounters it can experience.
 
-Loot/equipment decisions, manual inventory, retreats, roaming AI, traps, and midboss cells are omitted and explicitly recorded in JSON. No production constants were changed.
+Route validity is intentionally limited: this is a production-map omniscient shortest-route measurement, not an actual player run. The route knows stairs and milestone-boss coordinates from the complete generated grid and traverses generated secret-door edges from the start. Production players learn stairs/bosses by exploration and can only use a secret door after discovering it; the measurement does not model that extra walking or search turns.
+
+Loot/equipment upgrades, inventory decisions, retreat decisions, roaming elites, traps/non-combat damage, and midbosses are omitted and explicitly recorded in JSON. A fixed build is therefore not a complete player-run reproduction. No production constants were changed.
 
 ## Survivor-bias split
 
@@ -18,10 +20,10 @@ Loot/equipment decisions, manual inventory, retreats, roaming AI, traps, and mid
 
 | Build | Started | Reached B30 | Deaths at B30 | Encounters experienced | Actions/round | Pure raw among B21+ reached runs |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| aoe-burst | 500 | 0.00% | 0 | 8543 | 1.53 | n/a (unobserved) |
-| single-efficient | 500 | 0.00% | 0 | 10605 | 1.52 | n/a (unobserved) |
-| sustain | 500 | 0.00% | 0 | 11527 | 1.52 | n/a (unobserved) |
-| hybrid-fallback | 500 | 0.00% | 0 | 11799 | 1.51 | n/a (unobserved) |
+| aoe-burst | 500 | 0.00% | 0 | 8543 | 1.53 | n/a (unobserved, oracle survivors) |
+| single-efficient | 500 | 0.00% | 0 | 10605 | 1.52 | n/a (unobserved, oracle survivors) |
+| sustain | 500 | 0.00% | 0 | 11527 | 1.52 | n/a (unobserved, oracle survivors) |
+| hybrid-fallback | 500 | 0.00% | 0 | 11799 | 1.51 | n/a (unobserved, oracle survivors) |
 
 ## Build reach and death depth
 
@@ -34,9 +36,9 @@ The JSON contains B1-B30 reach/death counts and Wilson intervals. Death depth is
 | sustain | 99.80% | 38.80% | 0.20% | 0.00% | 0.00% | 0.00% |
 | hybrid-fallback | 100.00% | 44.00% | 5.60% | 0.00% | 0.00% | 0.00% |
 
-## Actual reached-run encounter metrics
+## Oracle-route reached-depth encounter metrics
 
-Each target-depth population includes only runs with `reachedDepth >= target`; its encounters are limited to floors through that target. This is intentionally not a global full-run frequency.
+Each target-depth population includes only runs with `reachedDepth >= target`; its encounters are limited to floors through that target. This is an oracle-route conditional population, not a global full-run frequency and not an actual-run distribution.
 
 | Build | Target population | Encounter N | Family/enemy-count slices | Normal hit | Normal hits | Total normal damage | HP before→after | MP before→after | Rounds | Enemy actions |
 | --- | ---: | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: |
@@ -70,31 +72,31 @@ Each target-depth population includes only runs with `reachedDepth >= target`; i
 | hybrid-fallback | B30 reached | 0 | see JSON | n/a | n/a | n/a | n/a→n/a | n/a→n/a | n/a | n/a |
 ## Death windows and pure raw exposure
 Every death window stores the last one, two, and three experienced encounters and their normal-damage window; pure_raw_damage remains exclusive.
-The JSON retains family and enemy-count slices plus per-death windows. `lethalHitOverMaxHp`, normal-hit damage, normal-hit count, and total normal damage separate single-hit pressure from cumulative exposure.
+The JSON retains family and enemy-count slices plus per-death windows. `lethalHitOverMaxHp`, normal-hit damage, normal-hit count, and total normal damage separate single-hit pressure from cumulative exposure. These are observed relationships in the modeled arm, not causal proof.
 Matched common-support minimum paired N: 30.
 Strict significant reversals: 10.
 Insufficient comparisons: 301.
 ## Three-arm comparison
-The following metrics use each arm's own weighting. #987 arms are imported unchanged; #990 actual is weighted by encounters that the build actually experienced.
+The following metrics use each arm's own weighting. #987 arms are imported unchanged; #990 is weighted by encounters observed under the oracle shortest-route arm.
 
 | Arm / build | Weighting | Pure raw | Normal hit | Normal hits | Total normal damage | Rounds | Actions/round | Post HP | Post MP |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | controlled stress / overall | fixture stress | 43.50% | 6.38 | 2.90 | 18.48 | 2.72 | 2.07 | 0.21 | 0.70 |
 | #987 generated weighted / overall | production `generateEncounter()` | 38.51% | 6.66 | 2.01 | 13.37 | 2.13 | 1.59 | 0.46 | 0.76 |
-| aoe-burst | actual reached-run | 2.10% | 1.80 | 1.85 | 3.51 | 2.39 | 1.53 | 0.92 | 0.48 |
+| aoe-burst | oracle shortest-route | 2.10% | 1.80 | 1.85 | 3.51 | 2.39 | 1.53 | 0.92 | 0.48 |
 | #987 generated / aoe-burst | 18.07% | 5.59 | 1.57 | 8.80 | 2.16 | 1.63 | 0.56 | 0.70 |
 | controlled / aoe-burst | 21.39% | 5.02 | 2.18 | 10.94 | 2.65 | 2.15 | 0.41 | 0.65 |
-| single-efficient | actual reached-run | 1.22% | 2.29 | 1.61 | 3.77 | 2.15 | 1.52 | 0.93 | 0.51 |
+| single-efficient | oracle shortest-route | 1.22% | 2.29 | 1.61 | 3.77 | 2.15 | 1.52 | 0.93 | 0.51 |
 | #987 generated / single-efficient | 43.77% | 6.67 | 1.69 | 11.26 | 1.81 | 1.53 | 0.46 | 0.79 |
 | controlled / single-efficient | 50.67% | 6.33 | 2.60 | 16.46 | 2.32 | 2.01 | 0.10 | 0.74 |
-| sustain | actual reached-run | 1.27% | 2.71 | 1.80 | 5.23 | 2.36 | 1.52 | 0.93 | 0.55 |
+| sustain | oracle shortest-route | 1.27% | 2.71 | 1.80 | 5.23 | 2.36 | 1.52 | 0.93 | 0.55 |
 | #987 generated / sustain | 37.28% | 7.55 | 2.76 | 20.85 | 2.62 | 1.59 | 0.49 | 0.74 |
 | controlled / sustain | 34.95% | 7.30 | 4.16 | 30.37 | 3.77 | 1.93 | 0.27 | 0.62 |
-| hybrid-fallback | actual reached-run | 2.39% | 2.50 | 1.47 | 3.73 | 2.13 | 1.51 | 0.91 | 0.47 |
+| hybrid-fallback | oracle shortest-route | 2.39% | 2.50 | 1.47 | 3.73 | 2.13 | 1.51 | 0.91 | 0.47 |
 | #987 generated / hybrid-fallback | 54.92% | 6.26 | 2.01 | 12.56 | 1.91 | 1.61 | 0.34 | 0.81 |
 | controlled / hybrid-fallback | 66.99% | 6.10 | 2.65 | 16.16 | 2.16 | 2.21 | 0.04 | 0.78 |
 
-## Actual death categories
+## Oracle-route death categories
 
 Counts are deaths among started runs; encounter pure-raw rates above use experienced encounters as their denominator.
 
@@ -139,11 +141,13 @@ Only event keys shared by builds are paired. Family entries below N=30 are recor
 
 ## Build Confidence and decision
 
-- #987 generated-frequency best-build share: **sustain 28.98%**; this is not actual reach dominance.
-- actual reach dominance (highest reached depth per shared seed): {"aoe-burst":0.053666666666666654,"single-efficient":0.17599999999999993,"sustain":0.3386666666666667,"hybrid-fallback":0.4316666666666668}.
-- matched pair results are the build-vs-build evidence; deep reached-run composition alone is not interpreted as encounter strength.
+- #987 generated-frequency best-build share: **sustain 28.98%**; this is not reach dominance.
+- oracle-route highest-depth dominance on shared seeds: {"aoe-burst":0.053666666666666654,"single-efficient":0.17599999999999993,"sustain":0.3386666666666667,"hybrid-fallback":0.4316666666666668}. This is a modeled survival/reach result, not proof of deep-encounter superiority.
+- matched pair results are the build-vs-build evidence; survivor-conditioned deep composition alone is not interpreted as encounter strength.
 - #975-compatible strict reversal: paired clear outcome + diagnostic utility bootstrap 95% CIs, both sign-reversed; N<30 is insufficient and excluded.
+- B21/B25/B30 pure-raw pressure: **unobserved** in the baseline (all 2,000 build-runs died before B20); this is not 0% pressure.
 - #973 Build Confidence: **Revise** until omitted loot/retreat decisions and non-combat deaths are either modeled or bounded by a follow-up.
+- #990: **keep open**; this PR is a measurement foundation and shallow-result report, not deep reached-run validation.
 - production tuning: **Do not proceed from this measurement alone**. If a separate tuning issue follows, investigate normal physical damage/action exposure with depth/family-specific paired validation first.
 
 ## Reproduction
