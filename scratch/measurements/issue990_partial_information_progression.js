@@ -51,15 +51,25 @@ function mean(values) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
-function describe(values) {
+export function percentile(sorted, probability) {
+  if (!sorted.length) return null;
+  if (sorted.length === 1) return sorted[0];
+  const index = (sorted.length - 1) * probability;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  if (lower === upper) return sorted[lower];
+  const weight = index - lower;
+  return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+}
+
+export function describe(values) {
   const finite = values.filter(Number.isFinite).sort((a, b) => a - b);
   if (!finite.length) return { n: 0, mean: null, p50: null, p90: null, min: null, max: null };
-  const percentile = p => finite[(finite.length - 1) * p] ?? finite.at(-1);
   return {
     n: finite.length,
     mean: mean(finite),
-    p50: percentile(0.50),
-    p90: percentile(0.90),
+    p50: percentile(finite, 0.50),
+    p90: percentile(finite, 0.90),
     min: finite[0],
     max: finite.at(-1)
   };

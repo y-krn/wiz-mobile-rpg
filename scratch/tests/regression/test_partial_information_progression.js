@@ -9,12 +9,28 @@ import {
   createBuildCharacter,
   BUILD_IDS
 } from "../../measurements/issue973_build_sensitivity.js";
-import { runMeasurement } from "../../measurements/issue990_partial_information_progression.js";
+import {
+  describe,
+  percentile,
+  runMeasurement
+} from "../../measurements/issue990_partial_information_progression.js";
 import { getCharDef, getCharMaxHp, getCharMaxMp, getCharWeaponAtk } from "../../../src/data.js";
 
 const report = runMeasurement({ seed: "issue990-phase2-regression", runs: 1 });
 assert.equal(report.schemaVersion, 2);
 assert.match(report.measurement.runnerVersion, /-v2$/);
+
+const oddPercentiles = describe([1, 2, 3, 4, 5]);
+assert.equal(percentile([1, 2, 3, 4, 5], 0.5), 3);
+assert.equal(oddPercentiles.p50, 3);
+assert.equal(oddPercentiles.p90, 4.6);
+assert.notEqual(oddPercentiles.p90, oddPercentiles.max,
+  "p90 must not fall back to max for a fractional percentile index");
+assert.equal(oddPercentiles.min, 1);
+assert.equal(oddPercentiles.max, 5);
+const evenPercentiles = describe([1, 2, 3, 4]);
+assert.equal(evenPercentiles.p50, 2.5);
+assert.equal(evenPercentiles.p90, 3.7);
 const armIds = Object.keys(report.arms);
 assert.deepEqual(armIds, ["oracle-fixed", "partial-info-fixed", "partial-info-equipment-update"]);
 assert.equal(report.measurement.configuration.builds.length, 4);
