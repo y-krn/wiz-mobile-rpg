@@ -14,12 +14,16 @@ export function getDepthScaling(floor) {
 export function scaleEnemyForDepth(monster, floor, { boss = false } = {}) {
   const scaling = getDepthScaling(floor);
   const bossMultiplier = boss ? 1.12 : 1;
+  // Keep B1-B10 unchanged, slow the deep HP wall without making B11+ flat,
+  // and let the HP curve continue past the B20/B21 boundary.
   const deepBandCap = getDepthScaling(10).enemy;
   const hpMultiplier = (
     scaling.floor <= 10
       ? scaling.enemy
       : deepBandCap + (scaling.enemy - deepBandCap) * 0.5
   ) * bossMultiplier;
+  // The B10 anchor avoids a biome/depth discontinuity. Deep ATK still grows,
+  // but at a lower rate so ordinary attacks do not end every test first.
   const attackAtDeepBandStart = 1 + (deepBandCap - 1) * 0.58;
   const attackMultiplier = (
     scaling.floor <= 10
