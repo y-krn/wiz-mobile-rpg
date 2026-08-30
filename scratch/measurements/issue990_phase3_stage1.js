@@ -454,6 +454,25 @@ function checkpointMean(summary, field) { return summary?.[field]?.mean ?? null;
 
 export function renderSummary(report) {
   const personas = report.measurement.configuration.personas;
+  const summaries = Object.fromEntries(personas.map(persona => [persona, report.naturalProgression[persona].summary]));
+  const meanDepths = personas.map(persona => summaries[persona].reachedDepth.mean).filter(Number.isFinite);
+  const deepestPersona = personas.slice().sort((left, right) => summaries[right].reachedDepth.mean - summaries[left].reachedDepth.mean)[0] || "n/a";
+  const deepestMean = summaries[deepestPersona]?.reachedDepth.mean ?? null;
+  const shallowestMean = meanDepths.length ? Math.min(...meanDepths) : null;
+  const reversePairObserved = Object.values(report.comparison.personaPairs).some(pair => pair.leftReachedDeeper > 0 && pair.rightReachedDeeper > 0);
+  const getExposure = (persona, field) => summaries[persona]?.exposure[field]?.mean ?? null;
+  const getCheckpoint = (persona, field, depth = 5) => summaries[persona]?.checkpoints[String(depth)]?.[field]?.mean ?? null;
+  const explorerSteps = getExposure("explorer", "stepsPerFloor");
+  const explorerDrops = getExposure("explorer", "equipmentDropsPerFloor");
+  const explorerChanges = getExposure("explorer", "equipmentChangesPerFloor");
+  const explorerDamage = getExposure("explorer", "normalDamagePerFloor");
+  const referencePersona = summaries.balanced ? "balanced" : personas[0];
+  const referenceSteps = getExposure(referencePersona, "stepsPerFloor");
+  const referenceDrops = getExposure(referencePersona, "equipmentDropsPerFloor");
+  const referenceChanges = getExposure(referencePersona, "equipmentChangesPerFloor");
+  const referenceDamage = getExposure(referencePersona, "normalDamagePerFloor");
+  const b5ToB10 = report.conditionalSurvival[deepestPersona]?.["B5->B10"];
+  const rawShares = personas.map(persona => summaries[persona].deathCategories.pure_raw.rate).filter(Number.isFinite);
   const lines = [
     "# Issue #990 Phase 3 Stage 1 — virtual player population",
     "",
@@ -522,19 +541,19 @@ export function renderSummary(report) {
     "",
     "## Answers",
     "",
-    "1. 到達深度は persona の route・装備評価・資源閾値に応じて変化する。Table 1 と同一seed pair を併読する。",
-    `2. 最深到達 persona: ${personas.slice().sort((a, b) => report.naturalProgression[b].summary.reachedDepth.mean - report.naturalProgression[a].summary.reachedDepth.mean)[0] || "n/a"}（平均到達深度）。`,
-    `3. 全面支配: ${Object.values(report.comparison.personaPairs).some(pair => pair.leftReachedDeeper > 0 && pair.rightReachedDeeper > 0) ? "観測なしではない。pairごとの入れ替わりを確認する。" : "同一seed pairで明確な入れ替わりは未観測。"}`,
-    "4. 探索量と装備成長は correlation と checkpoint equipment changes に分離して記録し、因果とは解釈しない。",
-    "5. 探索量と HP/MP 消耗は normal damage / checkpoint HP・MP と併せて比較する。",
-    "6. 階段直行の有利不利は stairs-first の到達率、steps、damage、conditional survival で判定する。",
-    "7. cautious の深層有利不利は同じseedの到達分布と checkpoint resource state の結果に限定して解釈する。",
-    "8. aggressive の戦闘短縮は enemy actions/round、rounds/floor、normal damage/floor で確認する。",
-    `9. B21+ population: ${personas.map(persona => `${persona}=${report.b21Plus[persona]["21"].count}`).join(", ")}。0件は unobserved とする。`,
-    "10. population bottleneck は conditional survival の最小 observed rate。分母0は unobserved のまま扱う。",
-    "11. bottleneck 前後の HP/MP/ATK/DEF/build/exposure は checkpointPopulation と deathSummaries.precedingCheckpoints に保存した。",
-    "12. pure raw の傾向は persona 別 death category の件数・割合で報告し、共通増加とは仮定しない。",
-    "13. Phase 2 の単一AI弱さだけという説明は、5つの単純方針の same-seed 分布で更新する。",
+    `1. 到達深度の平均は ${fmt(shallowestMean)}〜${fmt(deepestMean)}（幅 ${fmt(deepestMean === null || shallowestMean === null ? null : deepestMean - shallowestMean)}）。explorer の B5 到達率は ${percent(summaries.explorer?.reached["5"]?.rate)} で、他の ${referencePersona} は ${percent(summaries[referencePersona]?.reached["5"]?.rate)}。`,
+    `2. 最深到達 persona: ${deepestPersona}（平均 ${fmt(deepestMean)} floor）。`,
+    `3. 全面支配: ${reversePairObserved ? "なし。同一seedで両方向の深度逆転を観測した。" : "同一seedで両方向の深度逆転は未観測。"}`,
+    `4. 探索量と装備成長: explorer は ${fmt(explorerSteps)} steps/floor、${fmt(explorerDrops)} drops/floor、${fmt(explorerChanges)} changes/floor。${referencePersona} は ${fmt(referenceSteps)}、${fmt(referenceDrops)}、${fmt(referenceChanges)} で、探索増加はdropと変更数を増やす方向だった。`,
+    `5. 探索量と HP/MP 消耗: explorer の normal damage は ${fmt(explorerDamage)}/floor、B5 HP/MP は ${percent(getCheckpoint("explorer", "hpRatio"))}/${percent(getCheckpoint("explorer", "mpRatio"))}。${referencePersona} は ${fmt(referenceDamage)}/floor、${percent(getCheckpoint(referencePersona, "hpRatio"))}/${percent(getCheckpoint(referencePersona, "mpRatio"))} で、探索型の曝露増加と資源低下が同時に観測された。`,
+    `6. 階段直行: stairs-first の B5 到達率は ${percent(summaries["stairs-first"]?.reached["5"]?.rate)}、B5→B10 は ${report.conditionalSurvival["stairs-first"]?.["B5->B10"]?.status === "unobserved" ? "n/a" : percent(report.conditionalSurvival["stairs-first"]?.["B5->B10"]?.rate)}。この N では生存優位は確認できない。`,
+    `7. cautious: B5 到達率 ${percent(summaries.cautious?.reached["5"]?.rate)}、平均深度 ${fmt(summaries.cautious?.reachedDepth.mean)} で、stairs-first/balanced と同程度。深層生存への優位は観測できない。`,
+    `8. aggressive: ${fmt(getExposure("aggressive", "enemyActionsPerFloor"))} enemy actions/floor、${fmt(getExposure("aggressive", "roundsPerFloor"))} rounds/floor。${referencePersona} の ${fmt(getExposure(referencePersona, "enemyActionsPerFloor"))}/${fmt(getExposure(referencePersona, "roundsPerFloor"))} とほぼ同じで、明確な短縮は確認できない。`,
+    `9. B21+ population: ${personas.map(persona => `${persona}=B21 ${report.b21Plus[persona]["21"].count}, B25 ${report.b21Plus[persona]["25"].count}, B30 ${report.b21Plus[persona]["30"].count}`).join("; ")}。全て unobserved。`,
+    `10. population bottleneck: B5→B10 は ${b5ToB10?.status === "unobserved" ? "unobserved" : `${percent(b5ToB10.rate)} (n=${b5ToB10.denominator})`}。B10以降は全personaで分母0のため unobserved。`,
+    `11. B5 は観測された最後の checkpoint で、explorer は HP/MP ${percent(getCheckpoint("explorer", "hpRatio"))}/${percent(getCheckpoint("explorer", "mpRatio"))}、ATK/DEF ${fmt(getCheckpoint("explorer", "ATK"))}/${fmt(getCheckpoint("explorer", "DEF"))}。B10到達者がいないため、B5→B10の後比較は行わず、deathSummaries に保存した。`,
+    `12. pure raw: persona別割合は ${percent(Math.min(...rawShares))}〜${percent(Math.max(...rawShares))}。explorerだけ低めだが、全persona共通の増加とは言えない。`,
+    "13. Phase 2 の「AIが弱すぎただけ」という説明は部分的に残るが、explorer の B5 差に対して全personaが同じ B5→B10 で崩れるため、ゲーム構造側のボトルネックも残る。",
     "14. #973 Build Confidence: **Revise**。Stage 1 は persona run reach の測定であり、#975 encounter-level build confidence を置換しない。",
     "15. #990 は **open のまま**。",
     "16. Stage 2 は checkpoint population をレビューしてから進める。",

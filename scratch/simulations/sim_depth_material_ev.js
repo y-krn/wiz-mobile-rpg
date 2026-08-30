@@ -8676,7 +8676,7 @@ function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
     enemyActionsSoFar: metrics.normalCombatTelemetry.enemyActions,
     roundsSoFar: metrics.normalCombatTelemetry.rounds,
     stepsSoFar: metrics.steps,
-    exploredRatio: metrics.exploredRatioByFloor[floor] ?? null,
+    exploredRatio: metrics.exploredRatioByFloor[floor] ?? 0,
     searchActionsSoFar: metrics.searchActions,
     campUsageSoFar: state.currentRun.campRestCount || 0,
     previousEncounterDamage: previousEncounters
@@ -9762,6 +9762,10 @@ export function canTraverseKnownRouteEdge(generated, route, current, direction) 
   const revealedSecret = route.revealedSecretDoorKeys?.has(edgeKey) ||
     route.revealedSecretDoorKeys?.has(reverseEdgeKey);
   if (cell.walls?.[direction.dir] && !revealedSecret) return false;
+  // The destination's entrance geometry is not known until the cell is
+  // entered. A frontier destination is therefore accepted from the known
+  // source edge without peeking at the destination cell.
+  if (!route.knownCellKeys.has(routeKey(nextCoord))) return true;
   return !next.blockEnter?.[(direction.dir + 2) % 4];
 }
 

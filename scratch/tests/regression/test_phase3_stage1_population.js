@@ -63,6 +63,11 @@ for (const persona of personaIds) {
     }
   }
   for (const category of DEATH_CATEGORIES) assert.ok(Object.hasOwn(summary.deathCategories, category));
+  assert.equal(
+    DEATH_CATEGORIES.reduce((sum, category) => sum + summary.deathCategories[category].count, 0),
+    summary.deaths,
+    `${persona} death categories are exhaustive and exclusive`
+  );
 }
 
 assert.equal(report.raw, undefined, "full raw runs are not durable evidence");
