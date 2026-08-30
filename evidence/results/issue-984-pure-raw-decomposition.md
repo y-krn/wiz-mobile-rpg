@@ -1,7 +1,7 @@
 # Issue #984 Pure Raw Death Decomposition
 
 - runner: issue984-pure-raw-decomposition-v2
-- source commit: `7c29445c95de5511b3a9c45acd95e1f4f0e9d3bc`
+- source commit: `a93d226357f2eb1a8530a8d19280b46c864fbefc`
 - production baseline SHA: `61258b13ed5819ffd5e6fb373cbe9077b29102b0`
 - N=500 per build × encounter × depth × condition; seed=974-build-confidence
 - depths: B8, B13, B18, B21, B25, B30; builds: aoe-burst, single-efficient, sustain, hybrid-fallback; fixtures: 6
@@ -35,13 +35,14 @@ Measured fixed-condition effects: C4_single_hit_damage 22.96pp; C3_fight_duratio
 
 ## Required answers
 
-1. **主因:** C4_single_hit_damage shows the largest isolated pure-raw reduction (22.96pp); C3's enemy-HP reduction/shortening is also large (16.13pp). C1's multi-enemy-to-single simplification is material (5.54pp), but its enemy-count-only contribution cannot be separated.
-2. **寄与順位:** C4 is the largest isolated effect and C3 is also large; C1 is a mixed composition simplification; C2 tests only multiAction extra actions. These fixed experiments are not additive and do not establish a total-enemy-action ranking.
-3. **Build差:** build-specific pure-raw rates and metrics are reported below and in all 144 baseline cells; the structure is not identical across builds.
-4. **Depth差:** depth rows plus each cell's rounds, incoming attacks, total normal damage, enemy count, and HP-removal speed show what changes from B8 to B30; stronger normal hits are the clearest depth signal, with processing-time interaction secondary.
-5. **Fixture極端さ:** controlled fixtures average 2.33 enemies; production generation sampled at the same depths averages 1.64. The JSON records per-depth sizes and compositions. This is generated-distribution sampling, not observed full-run encounter frequency, and controlled death rates are not global game death rates.
-6. **次の本番レバー:** **まだ触らない**。Production-frequency-weighted measurement comes first; this evidence does not authorize changing enemy HP/ATK, Mage, defense, pools, encounter generation, or action rules.
-7. **#973 Build Confidence:** **Revise** — build interaction is measurable, but counterfactual scope and encounter weighting must be clarified before a production decision.
+1. **Single-hit normal physical damage:** C4 shows the largest isolated pure-raw reduction (22.96pp).
+2. **Fight duration / processing time:** C3's enemy-HP reduction/shortening is also large (16.13pp).
+3. **Multi-enemy → single:** C1 is material (5.54pp), but it combines enemy count, composition, role/trait, targeting, and interactions; enemy-count-only contribution is unresolved.
+4. **MultiAction extra action:** C2 did not improve pure raw; multiAction extra actions were not supported as the main cause in this controlled measurement.
+5. **Total enemy action count:** unresolved. C2 leaves one ordinary action per living enemy, so it does not independently test total enemy actions per round.
+6. **Controlled fixtures vs production generation:** controlled fixtures average 2.33 enemies; production generation sampled at the same depths averages 1.64. The latter is generated-distribution sampling, not observed full-run encounter frequency; controlled death rates are not global game death rates.
+7. **Next production lever:** **まだ触らない**。Production-frequency-weighted measurement comes first; this evidence does not authorize changing enemy HP/ATK, Mage, defense, pools, encounter generation, or action rules.
+8. **#973 Build Confidence:** **Revise** — build interaction is measurable, but counterfactual scope and encounter weighting must be clarified before a production decision.
 
 ## Baseline by build
 
