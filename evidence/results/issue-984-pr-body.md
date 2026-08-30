@@ -11,6 +11,15 @@ Evidence:
 - [JSON evidence](evidence/results/issue-984-pure-raw-decomposition.json)
 - [Markdown evidence](evidence/results/issue-984-pure-raw-decomposition.md)
 
+## Counterfactual scope
+
+- **C1_multi_enemy_to_single:** `monsters.slice(0, 1)`. This simplifies a multi-enemy fixture to its first production monster, changing enemy count, composition, later enemy role/trait, target priority, and multi-enemy interactions together. It is not an enemy-count-only experiment.
+- **C2_disable_multi_action_extra:** suppresses only the extra action queued by the `multiAction` trait. Ordinary multiple enemies still retain one normal action each per round; this does not set total enemy actions per round to one. Total enemy-action-count contribution remains unresolved.
+- **C3_fight_duration:** enemy HP ×0.50 only; enemy ATK and other enemy stats unchanged.
+- **C4_single_hit_damage:** normal physical incoming damage ×0.50 after ordinary mitigation; status-payoff and snipe physical damage unchanged.
+
+All conditions use the exact same derived case seed for paired comparison. The unit regression fixes that baseline reaches a multiAction extra turn, C2 removes only that extra turn, and C2 still retains three ordinary enemy turns for a three-enemy fixture.
+
 ## Result
 
 The current-main baseline re-run produced 31,472 pure raw deaths in 72,000 controlled paired runs (43.71% incidence). PR #983's reference classification remains 26,683 / 41,512 = 64.28% within its legacy raw-death denominator; these are different denominators and are both retained.
@@ -19,28 +28,30 @@ Paired counterfactuals:
 
 | Condition | Pure-raw reduction | Total-death reduction | Interpretation |
 | --- | ---: | ---: | --- |
-| C4 normal physical damage ×0.50 | 22.96pp | 23.11pp | largest isolated effect: single-hit damage |
+| C4 normal physical damage ×0.50 | 22.96pp | 23.11pp | largest isolated effect: single-hit normal physical damage |
 | C3 enemy HP ×0.50, ATK unchanged | 16.13pp | 24.68pp | material effect: fight duration / processing time |
-| C1 multi-enemy fixtures reduced to one | 5.54pp | 25.39pp | material overall effect, but fixture/build dependent |
-| C2 one action per enemy per round | -2.12pp | -1.30pp | no improvement; label shifts expose why |
+| C1 multi-enemy → single simplification | 5.54pp | 25.39pp | mixed composition simplification; not enemy-count-only |
+| C2 disable multiAction extra | -2.12pp | -1.30pp | multiAction extra action not supported as the main cause in this controlled experiment |
 
-C2 suppresses only the multi-action extra action and does not reduce ordinary enemy count. Its pure-raw increase is partly a causal-label shift from action-economy-mediated deaths into pure raw; total deaths also increase slightly, so action count is not supported as the main lever by this experiment.
+C2 suppresses only the multiAction extra action and does not reduce ordinary enemy count or total enemy actions to one. Its pure-raw increase is partly a causal-label shift from action-economy-mediated deaths into pure raw; this result does not independently measure total enemy-action-count contribution.
 
 ## Required answers
 
-1. **主因:** single-hit normal physical damage is the largest isolated pure-raw contributor (C4, 22.96pp). Fight duration (C3, 16.13pp) and enemy count/concentration (C1, 5.54pp) are also material. Action count (C2) is not supported as a primary cause.
+1. **Single-hit normal physical damage:** halving ordinary normal physical damage produced the largest isolated pure-raw reduction (22.96pp). This is an experiment result, not a production tuning recommendation.
 
-2. **寄与順位:** C4 single-hit damage > C3 fight duration > C1 enemy count/concentration > C2 action count. The order is an experiment ranking, not an additive decomposition.
+2. **Fight duration / processing time:** halving enemy HP with ATK unchanged produced a large pure-raw reduction (16.13pp), supporting a material duration/processing effect.
 
-3. **Build差:** yes. Baseline pure-raw incidence is AoE Burst 21.33%, Single Efficient 50.72%, Sustain 35.22%, Hybrid/Fallback 67.58%. Pure-raw death structures are therefore not interchangeable; the full 144-cell matrix includes hit size, received hit count, total normal damage, rounds, enemy count, and HP-removal speed per build × encounter × depth.
+3. **Multi-enemy → single:** the simplification reduced pure raw by 5.54pp, but this combines enemy-count, composition, role/trait, targeting, and multi-enemy-interaction changes. Enemy count alone cannot be assigned 5.54pp.
 
-4. **Depth差:** B8→B30 pure-raw incidence rises 22.46%→57.96%. Among pure-raw deaths, mean normal hit rises 5.16→7.82, lethal hit 5.70→8.37, and normal damage total 19.77→23.48. Initial controlled-fixture enemy count stays 2.33 on average, while received normal attacks and rounds do not rise. All-run enemy HP removal speed rises 60.15→67.19 per round. The dominant depth signal is therefore stronger hits, with fight duration/processing capacity as a secondary interaction.
+4. **MultiAction extra action:** C2 did not improve pure raw in this controlled measurement. The supported statement is only that `multiAction`-trait extra actions were not supported as the main pure-raw cause here.
 
-5. **Fixture極端さ:** the six controlled fixtures are fixed hand-picked stress cases, not dungeon-frequency samples. They average 2.33 enemies with count distribution 1/6 one-enemy, 2/6 two-enemy, 3/6 three-enemy. Production generation sampled at the same target depths averages 1.64 enemies; its three-enemy share is 0–4.4% by depth, versus 50% of controlled fixtures. Production compositions are included separately in the JSON. Controlled results must not be read as global death rates.
+5. **Total enemy action count:** unresolved. C2 does not reduce ordinary one-action-per-living-enemy turns, so this measurement does not independently identify the contribution of total enemy actions per round.
 
-6. **次に本番で触るレバー:** none yet. Do not tune enemy HP/ATK, Mage, defense, encounter pools, or action rules from this controlled result alone. The next measurement should apply production-frequency weighting and then test whether a targeted lever preserves build differentiation.
+6. **Controlled fixtures vs production generation:** fixtures average 2.33 enemies and have 3-enemy fixtures in 50% of the six cases. A separate `generateEncounter()` distribution sample at the same depths averages 1.64 enemies, with 3-enemy compositions at 0–4.4%. This is generated-distribution sampling, not observed full-run encounter frequency; controlled death rates are not global game death rates.
 
-7. **#973 Build Confidence:** **Revise**. Build interaction is real and strongly different across fixtures/depths, but the former raw label concealed a large pure-raw component and the controlled fixture mix over-represents extreme multi-enemy/stress compositions.
+7. **Next production lever:** do not tune production yet. Run production-frequency-weighted measurement first, then test whether any targeted lever preserves build differentiation.
+
+8. **#973 Build Confidence:** **Revise**. Build interaction is real, but C1/C2 have narrower meanings than their original labels and controlled fixture weighting is not dungeon frequency.
 
 ## Verification
 
@@ -48,4 +59,4 @@ C2 suppresses only the multi-action extra action and does not reduce ordinary en
 - `npm run test:unit` — 148 passed, 3 skipped
 - `npm run build`
 - `node --check` for the Issue #984 runner, #983 runner, and combat round module
-- N=500 paired measurement with clean-tree provenance; source SHA and baseline SHA are recorded in the JSON/Markdown evidence
+- N=500 paired measurement with seed `974-build-confidence`, clean-tree provenance, latest `origin/main` base `61258b13ed5819ffd5e6fb373cbe9077b29102b0`
