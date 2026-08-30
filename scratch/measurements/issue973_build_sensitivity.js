@@ -21,14 +21,14 @@ import { hasStatusEffect, STATUS_EFFECT_IDS } from "../../src/combat_logic/statu
 import { readSimScopeDeclaration, printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 
-export const RUNNER_VERSION = "issue980-causal-attribution-v1";
+export const RUNNER_VERSION = "issue980-causal-attribution-v2";
 export const TARGET_DEPTHS = Object.freeze([8, 13, 18, 21, 25, 30]);
 export const DEFAULT_SEED = "974-build-confidence";
 export const DEFAULT_RUNS = 100;
 export const MAX_ROUNDS = 200;
 export const LOW_RESOURCE_THRESHOLD = 0.25;
 export const BOOTSTRAP_ITERATIONS = 2000;
-export const CAUSAL_SCHEMA_VERSION = 6;
+export const CAUSAL_SCHEMA_VERSION = 7;
 
 const TRACKED_STATUS_IDS = Object.freeze([
   STATUS_EFFECT_IDS.POISONED,

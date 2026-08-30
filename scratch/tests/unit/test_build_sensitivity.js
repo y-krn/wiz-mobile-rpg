@@ -138,7 +138,7 @@ const provenance = {
   baseCommit: "base-commit"
 };
 const report = runMeasurement({ seed: "schema-seed", runs: 1, provenance });
-assert.equal(report.schemaVersion, 6);
+assert.equal(report.schemaVersion, 7);
 assert.equal(report.measurement.sourceCommit, "source-commit");
 assert.equal(report.measurement.gameplaySourceCommit, "gameplay-commit");
 assert.equal(report.measurement.originMainAncestor, true);
