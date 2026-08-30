@@ -12,7 +12,10 @@ import {
   TARGET_DEPTHS,
   createBuildCharacter,
   createEncounterFixture,
+  calculateDiagnosticUtility,
+  bootstrapMeanCi,
   getBuildDefinitions,
+  isSignificantReversal,
   runEncounterSample
 } from "./issue973_build_sensitivity.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
@@ -22,6 +25,7 @@ export const RUNNER_VERSION = "issue987-production-frequency-v1";
 export const DEFAULT_SEED = "987-production-frequency";
 export const DEFAULT_GENERATED_RUNS = 5000;
 export const DEFAULT_STRESS_RUNS = 500;
+export const MIN_STRICT_PAIRED_N = 30;
 export const COUNTERFACTUALS = Object.freeze([
   { id: "baseline", label: "baseline", kind: "baseline" },
   { id: "W1_normal_damage_075", label: "W1: normal physical damage ×0.75", kind: "normal_damage", rate: 0.75 },
@@ -203,16 +207,17 @@ function addPair(pair, baseline, candidate) {
   const baselinePure = baseline.outcome === "death" && baseline.failure?.finalExclusiveCategory === "pure_raw_damage";
   const candidatePure = candidate.outcome === "death" && candidate.failure?.finalExclusiveCategory === "pure_raw_damage";
   pair.baselinePureRawDeaths += Number(baselinePure); pair.candidatePureRawDeaths += Number(candidatePure); pair.pureRawDeathsAvoided += Number(baselinePure && !candidatePure);
-  pair.clearDifferences.push(Number(baseline.outcome === "clear") - Number(candidate.outcome === "clear"));
-  pair.hpDifferences.push(baseline.hpRatio - candidate.hpRatio); pair.mpDifferences.push(baseline.mpRatio - candidate.mpRatio);
-  const utility = sample => (sample.outcome === "clear" ? 1 : 0) + sample.hpRatio * 0.25 + sample.mpRatio * 0.25 - sample.rounds * 0.1 / 200;
-  pair.utilityDifferences.push(utility(baseline) - utility(candidate));
+  pair.clearDifferences.push(Number(candidate.outcome === "clear") - Number(baseline.outcome === "clear"));
+  pair.hpDifferences.push(candidate.hpRatio - baseline.hpRatio); pair.mpDifferences.push(candidate.mpRatio - baseline.mpRatio);
+  pair.utilityDifferences.push(calculateDiagnosticUtility(candidate) - calculateDiagnosticUtility(baseline));
 }
 
-function finalizePair(pair) {
+function finalizePair(pair, seed = "issue987:pair") {
   return {
-    dimensions: pair.dimensions, pairedRuns: pair.pairedRuns, clearRateDifference: normalCi(pair.clearDifferences), hpPreservationDifference: normalCi(pair.hpDifferences),
-    mpPreservationDifference: normalCi(pair.mpDifferences), utilityDifference: normalCi(pair.utilityDifferences), baselinePureRawDeaths: pair.baselinePureRawDeaths,
+    dimensions: pair.dimensions, pairedRuns: pair.pairedRuns, clearRateDelta: normalCi(pair.clearDifferences), hpPreservationDelta: normalCi(pair.hpDifferences),
+    mpPreservationDelta: normalCi(pair.mpDifferences), utilityDelta: normalCi(pair.utilityDifferences), bootstrap: pair.pairedRuns >= MIN_STRICT_PAIRED_N ? {
+      outcomeDelta: bootstrapMeanCi(pair.clearDifferences, `${seed}:outcome`), utilityDelta: bootstrapMeanCi(pair.utilityDifferences, `${seed}:utility`)
+    } : null, baselinePureRawDeaths: pair.baselinePureRawDeaths,
     candidatePureRawDeaths: pair.candidatePureRawDeaths, pureRawDeathsAvoided: pair.pureRawDeathsAvoided
   };
 }
@@ -248,7 +253,40 @@ function addBuildPairs(buildPairs, meta, samplesByBuild) {
   }
 }
 
-function buildSensitivity(views, buildPairs) {
+function finalizeBestShare(votes, totalWeight, weighting, tiePolicy) {
+  const shares = Object.fromEntries(BUILD_IDS.map(buildId => [buildId, totalWeight > 0 ? votes[buildId] / totalWeight : null]));
+  const dominant = Object.entries(shares).filter(([, share]) => share !== null).sort(([, left], [, right]) => right - left)[0];
+  return { weighting, tiePolicy, votes, totalWeight, shares, dominantBuild: dominant?.[0] || null, dominantShare: dominant?.[1] ?? null };
+}
+
+function createFrequencyDominance() {
+  return { votes: Object.fromEntries(BUILD_IDS.map(buildId => [buildId, 0])), encounters: 0, familyDepthVotes: new Map() };
+}
+
+function observeFrequencyDominance(dominance, depth, family, samplesByBuild) {
+  const utilities = BUILD_IDS.map(buildId => calculateDiagnosticUtility(samplesByBuild[buildId].baseline));
+  const bestUtility = Math.max(...utilities); const winners = BUILD_IDS.filter((buildId, index) => Math.abs(utilities[index] - bestUtility) <= 1e-12);
+  const vote = 1 / winners.length;
+  dominance.encounters++;
+  const cellKey = `B${depth}:${family}`; const cellVotes = dominance.familyDepthVotes.get(cellKey) || { votes: Object.fromEntries(BUILD_IDS.map(buildId => [buildId, 0])), encounters: 0 };
+  cellVotes.encounters++; winners.forEach(buildId => { dominance.votes[buildId] += vote; cellVotes.votes[buildId] += vote; }); dominance.familyDepthVotes.set(cellKey, cellVotes);
+}
+
+function finalizeFrequencyDominance(dominance, weighting) {
+  const familyDepth = [...dominance.familyDepthVotes.entries()].map(([cell, value]) => ({ cell, ...finalizeBestShare(value.votes, value.encounters, "family-depth encounter utility; frequency-weighted within generated encounters", "fractional utility ties") }));
+  return { ...finalizeBestShare(dominance.votes, dominance.encounters, weighting, "fractional utility ties"), familyDepth };
+}
+
+function strictComparison(result) {
+  return { pairedN: result.pairedRuns, outcomeDifference: result.bootstrap?.outcomeDelta || { estimate: null, ci95: [null, null], significant: false }, utilityDifference: result.bootstrap?.utilityDelta || { estimate: null, ci95: [null, null], significant: false } };
+}
+
+export function isStrictSignificantReversal(leftPair, rightPair, seed = "issue987:strict") {
+  if (leftPair.pairedRuns < MIN_STRICT_PAIRED_N || rightPair.pairedRuns < MIN_STRICT_PAIRED_N) return false;
+  return isSignificantReversal(strictComparison(finalizePair(leftPair, `${seed}:left`)), strictComparison(finalizePair(rightPair, `${seed}:right`)));
+}
+
+function buildSensitivity(views, buildPairs, frequencyDominance = null, weighting = "not applicable") {
   const pairwiseOverall = [];
   for (let leftIndex = 0; leftIndex < BUILD_IDS.length; leftIndex++) for (let rightIndex = leftIndex + 1; rightIndex < BUILD_IDS.length; rightIndex++) {
     const leftBuildId = BUILD_IDS[leftIndex]; const rightBuildId = BUILD_IDS[rightIndex];
@@ -263,12 +301,19 @@ function buildSensitivity(views, buildPairs) {
     const entries = familyPairsByBuildPair.get(buildPair) || new Map();
     entries.set(family, pair); familyPairsByBuildPair.set(buildPair, entries);
   });
-  const strictSignificantReversals = [];
+  const strictSignificantReversals = []; const insufficientSample = []; let eligibleFamilyPairComparisons = 0;
   familyPairsByBuildPair.forEach((families, buildPair) => {
     const entries = [...families.entries()];
     for (let first = 0; first < entries.length; first++) for (let second = first + 1; second < entries.length; second++) {
-      const [leftFamily, leftPair] = entries[first]; const [rightFamily, rightPair] = entries[second]; const left = finalizePair(leftPair); const right = finalizePair(rightPair);
-      if (left.clearRateDifference.significant && right.clearRateDifference.significant && Math.sign(left.clearRateDifference.estimate) !== Math.sign(right.clearRateDifference.estimate)) strictSignificantReversals.push({ buildPair, leftFamily, rightFamily, left, right });
+      const [leftFamily, leftPair] = entries[first]; const [rightFamily, rightPair] = entries[second];
+      if (leftPair.pairedRuns < MIN_STRICT_PAIRED_N || rightPair.pairedRuns < MIN_STRICT_PAIRED_N) {
+        insufficientSample.push({ buildPair, leftFamily, rightFamily, leftPairedN: leftPair.pairedRuns, rightPairedN: rightPair.pairedRuns, status: "insufficient_sample" });
+        continue;
+      }
+      eligibleFamilyPairComparisons++;
+      const left = finalizePair(leftPair, `issue987:strict:${buildPair}:${leftFamily}`); const right = finalizePair(rightPair, `issue987:strict:${buildPair}:${rightFamily}`);
+      const leftComparison = strictComparison(left); const rightComparison = strictComparison(right);
+      if (isSignificantReversal(leftComparison, rightComparison)) strictSignificantReversals.push({ buildPair, leftFamily, rightFamily, leftPairedN: leftPair.pairedRuns, rightPairedN: rightPair.pairedRuns, left, right });
     }
   });
   const cellKeys = new Set([...views.keys()].filter(key => key.startsWith("cell:")).map(key => key.split(":").slice(0, 3).join(":")));
@@ -277,13 +322,21 @@ function buildSensitivity(views, buildPairs) {
     const candidates = BUILD_IDS.map(buildId => views.get(`${cellKey}:${buildId}`)).filter(Boolean);
     if (candidates.length === 0) return;
     const best = Math.max(...candidates.map(candidate => candidate.outcomes.clear / candidate.runs));
-    candidates.filter(candidate => candidate.outcomes.clear / candidate.runs === best).forEach(candidate => increment(bestCounts, candidate.dimensions.buildId));
+    const winners = candidates.filter(candidate => candidate.outcomes.clear / candidate.runs === best); winners.forEach(candidate => { bestCounts[candidate.dimensions.buildId] += 1 / winners.length; });
   });
-  const bestCellCount = Object.values(bestCounts).reduce((sum, count) => sum + count, 0);
-  return { pairwiseOverall, strictSignificantReversals, buildDominance: { bestCounts, bestCellCount, dominantBuild: bestCellCount ? Object.entries(bestCounts).sort(([, left], [, right]) => right - left)[0][0] : null, dominantShare: bestCellCount ? Math.max(...Object.values(bestCounts)) / bestCellCount : null } };
+  const bestCellCount = cellKeys.size;
+  return {
+    pairwiseOverall,
+    strictSignificantReversals,
+    strictReversalSummary: { minimumPairedN: MIN_STRICT_PAIRED_N, bootstrapIterations: 2000, criterion: "paired outcome and utility bootstrap 95% CIs exclude zero in both families, and both metrics reverse sign", eligibleFamilyPairComparisons, insufficientSampleComparisons: insufficientSample.length, strictSignificantReversalCount: strictSignificantReversals.length },
+    insufficientSample,
+    familyPairSampleSizes: [...buildPairs.entries()].filter(([key]) => key.startsWith("family:")).map(([key, pair]) => { const parts = key.split(":"); return { family: parts[1], leftBuildId: parts.at(-2), rightBuildId: parts.at(-1), pairedN: pair.pairedRuns }; }),
+    equalCellCoverage: finalizeBestShare(bestCounts, bestCellCount, "equal depth×family cell weighting; not encounter-frequency weighted", "fractional clear-rate ties"),
+    productionFrequencyWeightedDominance: frequencyDominance ? finalizeFrequencyDominance(frequencyDominance, weighting) : null
+  };
 }
 
-function runConditionSet({ seed, depth, index, encounterId, monsters, viewsByCondition, pairsByCondition, buildPairViews }) {
+function runConditionSet({ seed, depth, index, encounterId, monsters, viewsByCondition, pairsByCondition, buildPairViews, frequencyDominance = null }) {
   const combatSeed = `issue987:combat:${seed}:B${depth}:${index}:${encounterId}`;
   const samplesByBuild = {};
   for (const buildId of BUILD_IDS) {
@@ -297,33 +350,34 @@ function runConditionSet({ seed, depth, index, encounterId, monsters, viewsByCon
       else { samplesByBuild[buildId][condition.id] = sample; addToPairs(pairsByCondition.get(condition.id), meta, samplesByBuild[buildId].baseline, sample); }
     }
   }
+  if (frequencyDominance) observeFrequencyDominance(frequencyDominance, depth, encounterFamily(monsters), samplesByBuild);
   addBuildPairs(buildPairViews.buildPairs, { depth, family: encounterFamily(monsters) }, Object.fromEntries(BUILD_IDS.map(buildId => [buildId, samplesByBuild[buildId].baseline])));
 }
 
 function makeConditionViews() { return new Map(COUNTERFACTUALS.map(condition => [condition.id, new Map()])); }
 
 function runProductionFrequency({ seed, generatedRuns }) {
-  const distributions = TARGET_DEPTHS.map(depth => createDistribution(depth, generatedRuns)); const viewsByCondition = makeConditionViews();
+  const distributions = TARGET_DEPTHS.map(depth => createDistribution(depth, generatedRuns)); const viewsByCondition = makeConditionViews(); const frequencyDominance = createFrequencyDominance();
   const pairsByCondition = new Map(COUNTERFACTUALS.slice(1).map(condition => [condition.id, new Map()])); const buildPairViews = new Map(); buildPairViews.buildPairs = buildPairMap();
   for (const depth of TARGET_DEPTHS) {
     const distribution = distributions.find(item => item.depth === depth);
     for (let index = 0; index < generatedRuns; index++) {
       const generated = generateEncounter({ floor: depth }, false, false, false, null, createRng(`issue987:generate:${seed}:B${depth}:${index}`));
       observeGeneratedEncounter(distribution, generated.monsters);
-      runConditionSet({ seed, depth, index, encounterId: `generated-${index}`, monsters: generated.monsters, viewsByCondition, pairsByCondition, buildPairViews });
+      runConditionSet({ seed, depth, index, encounterId: `generated-${index}`, monsters: generated.monsters, viewsByCondition, pairsByCondition, buildPairViews, frequencyDominance });
     }
   }
-  return { samplePolicy: { generatedRunsPerDepth: generatedRuns, generationSeed: "issue987:generate:<root>:B<depth>:<index>", sameEncounterForBuilds: true }, distributions: distributions.map(finalizeDistribution), conditions: COUNTERFACTUALS.map(condition => ({ ...condition, views: summarizeViews(viewsByCondition.get(condition.id)), pairedAgainstBaseline: condition.kind === "baseline" ? null : summarizePairs(pairsByCondition.get(condition.id)), buildSensitivity: condition.kind === "baseline" ? buildSensitivity(viewsByCondition.get(condition.id), buildPairViews.buildPairs) : null })) };
+  return { samplePolicy: { generatedRunsPerDepth: generatedRuns, generationSeed: "issue987:generate:<root>:B<depth>:<index>", sameEncounterForBuilds: true }, distributions: distributions.map(finalizeDistribution), conditions: COUNTERFACTUALS.map(condition => ({ ...condition, views: summarizeViews(viewsByCondition.get(condition.id)), pairedAgainstBaseline: condition.kind === "baseline" ? null : summarizePairs(pairsByCondition.get(condition.id)), buildSensitivity: condition.kind === "baseline" ? buildSensitivity(viewsByCondition.get(condition.id), buildPairViews.buildPairs, frequencyDominance, "each generated encounter has equal weight within the requested depth sample; requested depths are equally sampled") : null })) };
 }
 
 function runControlledStress({ seed, stressRuns }) {
-  const viewsByCondition = makeConditionViews(); const pairsByCondition = new Map(COUNTERFACTUALS.slice(1).map(condition => [condition.id, new Map()])); const buildPairViews = new Map(); buildPairViews.buildPairs = buildPairMap();
+  const viewsByCondition = makeConditionViews(); const pairsByCondition = new Map(COUNTERFACTUALS.slice(1).map(condition => [condition.id, new Map()])); const buildPairViews = new Map(); buildPairViews.buildPairs = buildPairMap(); const frequencyDominance = createFrequencyDominance();
   const fixtures = ["swarm-action-pressure", "magic-denial", "mp-pressure", "durable-single-target", "protected-formation", "attrition-recovery-denial"]; const fixtureCatalog = [];
   for (const depth of TARGET_DEPTHS) for (const encounterId of fixtures) {
     const fixture = createEncounterFixture(encounterId, depth); fixtureCatalog.push({ depth, encounterId, enemyCount: fixture.monsters.length, family: encounterFamily(fixture.monsters), monsterNames: fixture.monsters.map(monster => baseMonsterName(monster.name)) });
-    for (let index = 0; index < stressRuns; index++) runConditionSet({ seed: `stress:${seed}`, depth, index, encounterId, monsters: fixture.monsters, viewsByCondition, pairsByCondition, buildPairViews });
+    for (let index = 0; index < stressRuns; index++) runConditionSet({ seed: `stress:${seed}`, depth, index, encounterId, monsters: fixture.monsters, viewsByCondition, pairsByCondition, buildPairViews, frequencyDominance });
   }
-  return { samplePolicy: { stressRunsPerFixtureDepth: stressRuns, fixtureWeighting: "equal named fixture cells; controlled stress only" }, fixtures: fixtureCatalog, conditions: COUNTERFACTUALS.map(condition => ({ ...condition, views: summarizeViews(viewsByCondition.get(condition.id)), pairedAgainstBaseline: condition.kind === "baseline" ? null : summarizePairs(pairsByCondition.get(condition.id)), buildSensitivity: condition.kind === "baseline" ? buildSensitivity(viewsByCondition.get(condition.id), buildPairViews.buildPairs) : null })) };
+  return { samplePolicy: { stressRunsPerFixtureDepth: stressRuns, fixtureWeighting: "equal named fixture cells; controlled stress only" }, fixtures: fixtureCatalog, conditions: COUNTERFACTUALS.map(condition => ({ ...condition, views: summarizeViews(viewsByCondition.get(condition.id)), pairedAgainstBaseline: condition.kind === "baseline" ? null : summarizePairs(pairsByCondition.get(condition.id)), buildSensitivity: condition.kind === "baseline" ? buildSensitivity(viewsByCondition.get(condition.id), buildPairViews.buildPairs, frequencyDominance, "equal controlled fixture-depth repetitions; not production frequency") : null })) };
 }
 
 function measurementMetadata({ seed, generatedRuns, stressRuns, provenance, environmentSignature }) {
@@ -353,18 +407,19 @@ function renderCounterfactuals(conditionSet) {
   const baseline = conditionById(conditionSet, "baseline");
   return conditionSet.filter(condition => condition.id !== "baseline").map(condition => {
     const baselineOverall = baseline.views.find(view => Object.keys(view.dimensions).length === 0); const candidateOverall = condition.views.find(view => Object.keys(view.dimensions).length === 0); const paired = condition.pairedAgainstBaseline.find(pair => Object.keys(pair.dimensions).length === 0);
-    return `| ${condition.id} | ${(baselineOverall.pureRawRate * 100).toFixed(2)}% | ${(candidateOverall.pureRawRate * 100).toFixed(2)}% | ${(paired.clearRateDifference.estimate * 100).toFixed(2)}pp | ${(paired.hpPreservationDifference.estimate * 100).toFixed(2)}pp | ${(paired.mpPreservationDifference.estimate * 100).toFixed(2)}pp |`;
+    return `| ${condition.id} | ${(baselineOverall.pureRawRate * 100).toFixed(2)}% | ${(candidateOverall.pureRawRate * 100).toFixed(2)}% | ${(paired.clearRateDelta.estimate * 100).toFixed(2)}pp | ${(paired.hpPreservationDelta.estimate * 100).toFixed(2)}pp | ${(paired.mpPreservationDelta.estimate * 100).toFixed(2)}pp |`;
   }).join("\n");
 }
 
 function renderSensitivity(sensitivity) {
-  return [`- strict significant reversal count: **${sensitivity.strictSignificantReversals.length}**`, `- build dominance: **${sensitivity.buildDominance.dominantBuild || "n/a"}**, best-cell share **${sensitivity.buildDominance.dominantShare === null ? "n/a" : (sensitivity.buildDominance.dominantShare * 100).toFixed(2) + "%"}**`, "", "| Build pair | Paired clear difference | HP preservation difference | MP preservation difference |", "| --- | ---: | ---: | ---: |", ...sensitivity.pairwiseOverall.map(row => `| ${row.leftBuildId} vs ${row.rightBuildId} | ${format(row.paired?.clearRateDifference.estimate)} | ${format(row.paired?.hpPreservationDifference.estimate)} | ${format(row.paired?.mpPreservationDifference.estimate)} |`)].join("\n");
+  const equal = sensitivity.equalCellCoverage; const weighted = sensitivity.productionFrequencyWeightedDominance;
+  return [`- strict significant reversal count: **${sensitivity.strictReversalSummary.strictSignificantReversalCount}**`, `- strict reversal rule: paired outcome + utility bootstrap 95% CIs, both signs reversed; minimum paired N **${sensitivity.strictReversalSummary.minimumPairedN}**`, `- insufficient-sample family comparisons excluded: **${sensitivity.strictReversalSummary.insufficientSampleComparisons}**`, `- family paired N: **${sensitivity.familyPairSampleSizes.length}** build-pair×family entries recorded in JSON`, `- equal-cell best-build coverage (not encounter-frequency weighted): **${equal.dominantBuild || "n/a"}**, share **${equal.dominantShare === null ? "n/a" : (equal.dominantShare * 100).toFixed(2) + "%"}** across **${equal.totalWeight}** depth×family cells`, `- production-frequency-weighted best-build share: **${weighted?.dominantBuild || "n/a"}**, share **${weighted?.dominantShare === null || weighted?.dominantShare === undefined ? "n/a" : (weighted.dominantShare * 100).toFixed(2) + "%"}** across **${weighted?.totalWeight || 0}** encounter samples`, "", "| Build pair | Paired clear difference (left − right) | Paired HP difference (left − right) | Paired MP difference (left − right) |", "| --- | ---: | ---: | ---: |", ...sensitivity.pairwiseOverall.map(row => `| ${row.leftBuildId} vs ${row.rightBuildId} | ${format(row.paired?.clearRateDelta.estimate)} | ${format(row.paired?.hpPreservationDelta.estimate)} | ${format(row.paired?.mpPreservationDelta.estimate)} |`)].join("\n");
 }
 
 export function runMeasurement({ seed = DEFAULT_SEED, generatedRuns = DEFAULT_GENERATED_RUNS, stressRuns = DEFAULT_STRESS_RUNS, provenance = null, environmentSignature = null } = {}) {
   if (!Number.isInteger(generatedRuns) || generatedRuns < 1) throw new Error(`generatedRuns must be a positive integer: ${generatedRuns}`); if (!Number.isInteger(stressRuns) || stressRuns < 1) throw new Error(`stressRuns must be a positive integer: ${stressRuns}`);
   const productionFrequencyWeighted = runProductionFrequency({ seed, generatedRuns }); const controlledStressFixtures = runControlledStress({ seed, stressRuns });
-  return { schemaVersion: SCHEMA_VERSION, measurement: measurementMetadata({ seed, generatedRuns, stressRuns, provenance, environmentSignature }), builds: getBuildDefinitions().map(build => ({ id: build.id, label: build.label, className: "Mage", equipment: build.equipment, spells: build.spells })), productionFrequencyWeighted, controlledStressFixtures, interpretation: { exclusiveDeathClassification: "pure_raw_damage / mechanic_mediated_raw_lethal / direct_mechanic_death / unknown_or_mixed; every death is assigned exactly one category and legacy raw categories are exhaustive within raw_damage_pressure", productionWeighting: "weighted by observed production generateEncounter sample frequency at each depth; never equal-weighted controlled fixtures", controlledWeighting: "named stress fixtures are equal-weighted probes and deliberately do not estimate dungeon frequency", W1: "fixed normal physical damage rate ×0.75; measurement-only", W2: "fixed enemy HP rate ×0.75; measurement-only", W3: "fixed cap of one total enemy turn per round after speed ordering; composition, identity, traits, and normal resolution otherwise unchanged; artificial counterfactual", buildSensitivity: "paired clear-rate differences, post-combat HP/MP preservation, strict significant reversals, and build dominance are reported for weighted and controlled baseline conditions" } };
+  return { schemaVersion: SCHEMA_VERSION, measurement: measurementMetadata({ seed, generatedRuns, stressRuns, provenance, environmentSignature }), builds: getBuildDefinitions().map(build => ({ id: build.id, label: build.label, className: "Mage", equipment: build.equipment, spells: build.spells })), productionFrequencyWeighted, controlledStressFixtures, interpretation: { exclusiveDeathClassification: "pure_raw_damage / mechanic_mediated_raw_lethal / direct_mechanic_death / unknown_or_mixed; every death is assigned exactly one category and legacy raw categories are exhaustive within raw_damage_pressure", productionWeighting: "weighted by observed production generateEncounter sample frequency at each depth; never equal-weighted controlled fixtures", controlledWeighting: "named stress fixtures are equal-weighted probes and deliberately do not estimate dungeon frequency", W1: "fixed normal physical damage rate ×0.75; measurement-only", W2: "fixed enemy HP rate ×0.75; measurement-only", W3: "fixed cap of one total enemy turn per round after speed ordering; composition, identity, traits, and normal resolution otherwise unchanged; artificial counterfactual", counterfactualDeltaConvention: "all counterfactual deltas are candidate minus baseline; positive means candidate improvement", strictReversal: `#975-compatible paired outcome + diagnostic utility bootstrap 95% CI sign reversal; minimum paired N=${MIN_STRICT_PAIRED_N}; insufficient samples are excluded and recorded separately`, equalCellCoverage: "depth×family cells receive equal weight and are not encounter-frequency weighted", productionFrequencyWeightedDominance: "each generated encounter receives equal weight within each sampled depth; the best diagnostic-utility build receives a fractional vote on ties; requested depths are equally sampled", buildSensitivity: "paired clear-rate differences, post-combat HP/MP preservation, strict significant reversals, equal-cell coverage, and production-frequency-weighted best-build share are reported for weighted and controlled baseline conditions" } };
 }
 
 export function renderSummary(report) {
@@ -376,7 +431,7 @@ export function renderSummary(report) {
   lines.push("- runner: `" + RUNNER_VERSION + "`", "- source commit: `" + (report.measurement.sourceCommit || "in-process") + "`", "- production baseline SHA: `" + (report.measurement.productionBaselineSha || "in-process") + "`", "- generated encounters: **N=" + report.measurement.configuration.generatedRunsPerDepth + " per depth**; controlled stress: **N=" + report.measurement.configuration.controlledStressRunsPerFixtureDepth + " per fixture × depth**", "- depths: " + TARGET_DEPTHS.map(depth => "B" + depth).join(", ") + "; builds: " + BUILD_IDS.join(", "), "");
   lines.push("## Scope and validity", "", "The weighted arm samples the real production generateEncounter path at each requested depth and reuses each generated encounter, identity, trait, role, and composition for all four Mage builds and all paired counterfactuals. This is a generated-distribution estimate, not a full-run encounter-frequency estimate: traversal, event selection, bosses/midbosses/roaming encounters, survival, retreat, and progression can reweight actual play.", "", "Deaths use #983's exclusive categories. Mechanism firing alone is not promoted to mediated causality; the imported classifier requires corresponding state-degradation evidence. Every death and every legacy raw death has exactly one final category.", "", "## Production encounter distribution", "", "| Depth | Generated N | Mean enemy count | Size distribution |", "| --- | ---: | ---: | --- |");
   report.productionFrequencyWeighted.distributions.forEach(distribution => lines.push("| B" + distribution.depth + " | " + distribution.runs + " | " + format(distribution.averageEnemyCount) + " | " + Object.entries(distribution.sizeCounts).map(([size, data]) => size + ":" + (data.rate * 100).toFixed(2) + "%").join(", ") + " |"));
-  lines.push("", "## A. Production-frequency weighted", "", "Overall: **" + weightedOverall.pureRawDeaths + " / " + weightedOverall.runs + " = " + (weightedOverall.pureRawRate * 100).toFixed(2) + "% pure raw**, clear " + (weightedOverall.clearRate * 100).toFixed(2) + "%, death " + (weightedOverall.deathRate * 100).toFixed(2) + "%. Normal hit mean/p50/p90/p95: **" + format(weightedOverall.metrics.normalHitDamage.mean) + " / " + format(weightedOverall.metrics.normalHitDamage.p50) + " / " + format(weightedOverall.metrics.normalHitDamage.p90) + " / " + format(weightedOverall.metrics.normalHitDamage.p95) + "**; lethal hit/maxHP mean: **" + format(weightedOverall.metrics.lethalHitOverMaxHp.mean) + "**.", "", renderAggregateTable(weightedBaseline.views.filter(view => hasOnlyDimension(view, "buildId")), "Build"), renderAggregateTable(weightedBaseline.views.filter(view => hasOnlyDimension(view, "depth")), "Depth"), renderAggregateTable(weightedBaseline.views.filter(view => hasOnlyDimension(view, "enemyCount")), "Enemy count"), renderAggregateTable(weightedBaseline.views.filter(view => hasOnlyDimension(view, "family")), "Encounter family"), "### Weighted paired counterfactuals", "", "| Condition | Baseline pure raw | Candidate pure raw | Paired clear-rate delta | HP preservation delta | MP preservation delta |", "| --- | ---: | ---: | ---: | ---: | ---: |", renderCounterfactuals(report.productionFrequencyWeighted.conditions), "", "### Weighted Build Sensitivity", "", renderSensitivity(weightedBaseline.buildSensitivity), "", "## B. Controlled stress fixtures", "", "Equal-weight stress overall: **" + stressOverall.pureRawDeaths + " / " + stressOverall.runs + " = " + (stressOverall.pureRawRate * 100).toFixed(2) + "% pure raw**, clear " + (stressOverall.clearRate * 100).toFixed(2) + "%. This arm is not a production estimate; it retains the six hand-picked #980/#984 probes as stress tests.", "", renderAggregateTable(stressBaseline.views.filter(view => hasOnlyDimension(view, "buildId")), "Controlled build"), renderAggregateTable(stressBaseline.views.filter(view => hasOnlyDimension(view, "depth")), "Controlled depth"), renderAggregateTable(stressBaseline.views.filter(view => hasOnlyDimension(view, "enemyCount")), "Controlled enemy count"), renderAggregateTable(stressBaseline.views.filter(view => hasOnlyDimension(view, "family")), "Controlled encounter family"), "### Controlled paired counterfactuals", "", "| Condition | Baseline pure raw | Candidate pure raw | Paired clear-rate delta | HP preservation delta | MP preservation delta |", "| --- | ---: | ---: | ---: | ---: | ---: |", renderCounterfactuals(report.controlledStressFixtures.conditions), "", "### Controlled Build Sensitivity", "", renderSensitivity(stressBaseline.buildSensitivity), "", "## Interpretation and required decisions", "", "1. W1/W2/W3 are fixed causal probes, not production proposals; W3 limits total enemy turns after speed ordering and answers exposure sensitivity, not a natural gameplay replacement.", "2. Build Confidence is evaluated from weighted pairwise clear-rate differences, HP/MP preservation, strict significant family reversals, and dominance share. A reversal is strict only when paired 95% CI excludes zero in both family slices and signs differ.", "3. No production balance lever is recommended from this measurement alone. If a later tuning Issue is opened, the first candidate must come from this evidence rather than controlled-fixture averages.", "", "## Reproduction", "", "```sh", "node scratch/measurements/issue987_production_frequency.js --runs 5000 --stress-runs 500 --seed 987-production-frequency --output evidence/results/issue-987-production-frequency.json --summary evidence/results/issue-987-production-frequency.md", "```", "");
+  lines.push("", "## A. Production-frequency weighted", "", "Overall: **" + weightedOverall.pureRawDeaths + " / " + weightedOverall.runs + " = " + (weightedOverall.pureRawRate * 100).toFixed(2) + "% pure raw**, clear " + (weightedOverall.clearRate * 100).toFixed(2) + "%, death " + (weightedOverall.deathRate * 100).toFixed(2) + "%. Normal hit mean/p50/p90/p95: **" + format(weightedOverall.metrics.normalHitDamage.mean) + " / " + format(weightedOverall.metrics.normalHitDamage.p50) + " / " + format(weightedOverall.metrics.normalHitDamage.p90) + " / " + format(weightedOverall.metrics.normalHitDamage.p95) + "**; lethal hit/maxHP mean: **" + format(weightedOverall.metrics.lethalHitOverMaxHp.mean) + "**.", "", renderAggregateTable(weightedBaseline.views.filter(view => hasOnlyDimension(view, "buildId")), "Build"), renderAggregateTable(weightedBaseline.views.filter(view => hasOnlyDimension(view, "depth")), "Depth"), renderAggregateTable(weightedBaseline.views.filter(view => hasOnlyDimension(view, "enemyCount")), "Enemy count"), renderAggregateTable(weightedBaseline.views.filter(view => hasOnlyDimension(view, "family")), "Encounter family"), "### Weighted paired counterfactuals", "", "All counterfactual deltas are **candidate − baseline**; positive means improvement.", "", "| Condition | Baseline pure raw | Candidate pure raw | Clear-rate delta (candidate − baseline) | HP delta (candidate − baseline) | MP delta (candidate − baseline) |", "| --- | ---: | ---: | ---: | ---: | ---: |", renderCounterfactuals(report.productionFrequencyWeighted.conditions), "", "### Weighted Build Sensitivity", "", renderSensitivity(weightedBaseline.buildSensitivity), "", "## B. Controlled stress fixtures", "", "Equal-weight stress overall: **" + stressOverall.pureRawDeaths + " / " + stressOverall.runs + " = " + (stressOverall.pureRawRate * 100).toFixed(2) + "% pure raw**, clear " + (stressOverall.clearRate * 100).toFixed(2) + "%. This arm is not a production estimate; it retains the six hand-picked #980/#984 probes as stress tests.", "", renderAggregateTable(stressBaseline.views.filter(view => hasOnlyDimension(view, "buildId")), "Controlled build"), renderAggregateTable(stressBaseline.views.filter(view => hasOnlyDimension(view, "depth")), "Controlled depth"), renderAggregateTable(stressBaseline.views.filter(view => hasOnlyDimension(view, "enemyCount")), "Controlled enemy count"), renderAggregateTable(stressBaseline.views.filter(view => hasOnlyDimension(view, "family")), "Controlled encounter family"), "### Controlled paired counterfactuals", "", "All counterfactual deltas are **candidate − baseline**; positive means improvement.", "", "| Condition | Baseline pure raw | Candidate pure raw | Clear-rate delta (candidate − baseline) | HP delta (candidate − baseline) | MP delta (candidate − baseline) |", "| --- | ---: | ---: | ---: | ---: | ---: |", renderCounterfactuals(report.controlledStressFixtures.conditions), "", "### Controlled Build Sensitivity", "", renderSensitivity(stressBaseline.buildSensitivity), "", "## Interpretation and required decisions", "", "1. W1/W2/W3 are fixed causal probes, not production proposals; W3 limits total enemy turns after speed ordering and answers exposure sensitivity, not a natural gameplay replacement.", "2. Build Confidence uses #975-compatible paired outcome + utility bootstrap reversals, minimum family paired N, aggregate clear/HP/MP, equal-cell coverage, and production-frequency-weighted best-build share.", "3. Equal-cell coverage gives every observed depth×family cell one vote; it is not encounter-frequency weighted. The generated-encounter dominance share is the frequency-weighted metric within the requested depth sample.", "4. No production balance lever is recommended from this measurement alone. If a later tuning Issue is opened, the first candidate must come from this evidence rather than controlled-fixture averages.", "", "## Reproduction", "", "```sh", "node scratch/measurements/issue987_production_frequency.js --runs 5000 --stress-runs 500 --seed 987-production-frequency --output evidence/results/issue-987-production-frequency.json --summary evidence/results/issue-987-production-frequency.md", "```", "");
   return lines.join("\n");
 }
 

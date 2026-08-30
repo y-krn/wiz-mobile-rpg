@@ -1158,7 +1158,7 @@ export function deriveSharedCaseSeed(rootSeed, runIndex, depth, encounterId) {
   return deriveCaseSeed(rootSeed, runIndex, depth, encounterId);
 }
 
-function calculateDiagnosticUtility(sample) {
+export function calculateDiagnosticUtility(sample) {
   // This is a measurement-only utility, not a gameplay formula: clear is the
   // primary outcome, with post-combat resources and duration as diagnostics.
   return (sample.outcome === "clear" ? 1 : 0) +
@@ -1176,7 +1176,7 @@ function percentile(sortedValues, probability) {
   return sortedValues[lower] + (sortedValues[upper] - sortedValues[lower]) * (index - lower);
 }
 
-function bootstrapMeanCi(values, seed) {
+export function bootstrapMeanCi(values, seed) {
   if (values.length === 0) return { estimate: null, ci95: [null, null], significant: false };
   const estimate = values.reduce((sum, value) => sum + value, 0) / values.length;
   if (values.length < 2) return { estimate, ci95: [estimate, estimate], significant: false };
