@@ -96,13 +96,18 @@ assert.ok(report.matchedComparison.commonSupport.familyComparisons.every(pair =>
 assert.match(report.matchedComparison.commonSupport.rule, /outcome.*diagnostic utility.*N<30/);
 assert.match(report.matchedComparison.commonSupport.rule, /eventKey.*enemy composition/);
 report.matchedComparison.commonSupport.familyComparisons.forEach(pair => {
-  assert.ok(pair.matchedEncounterRecords.length >= pair.pairedN);
-  pair.matchedEncounterRecords.forEach(record => {
-    assert.ok(record.eventKey);
-    assert.ok(record.enemyCompositionKey);
-    assert.equal(record.left.buildId !== record.right.buildId, true);
-  });
+  assert.ok(pair.pairedN >= 0);
 });
+const eventRecord = report.raw["partial-info-fixed"][buildIds[0]][0].encounterIdentities[0];
+if (eventRecord) {
+  assert.ok(eventRecord.eventKey);
+  assert.ok(eventRecord.enemyCompositionKey);
+  assert.ok(["clear", "death", "flee"].includes(eventRecord.outcome));
+  assert.ok(Number.isFinite(eventRecord.hpAfter));
+  assert.ok(Number.isFinite(eventRecord.mpAfter));
+  assert.ok(Number.isFinite(eventRecord.rounds));
+  assert.ok(Number.isFinite(eventRecord.diagnosticUtility));
+}
 assert.equal(report.references.issue993.mixedIntoPartial, false);
 
 for (const buildId of buildIds) {

@@ -265,29 +265,7 @@ function pairedSummary(leftRows, rightRows, label, family = null) {
     status: pairs.length < STRICT_MIN_PAIRED_N ? "insufficient_sample" : "eligible",
     outcome,
     utility,
-    matchedEventKeys: pairs.map(([left]) => eventPairKey(left)),
-    matchedEncounterRecords: pairs.map(([left, right]) => ({
-      eventKey: left.eventKey,
-      floor: left.floor,
-      family: encounterFamily(left),
-      enemyCompositionKey: left.enemyCompositionKey,
-      left: {
-        buildId: left.buildId,
-        outcome: left.outcome,
-        hpAfter: left.hpAfter,
-        mpAfter: left.mpAfter,
-        rounds: left.rounds,
-        diagnosticUtility: left.diagnosticUtility
-      },
-      right: {
-        buildId: right.buildId,
-        outcome: right.outcome,
-        hpAfter: right.hpAfter,
-        mpAfter: right.mpAfter,
-        rounds: right.rounds,
-        diagnosticUtility: right.diagnosticUtility
-      }
-    }))
+    matchedEventKeySample: pairs.slice(0, 10).map(([left]) => eventPairKey(left))
   };
 }
 
@@ -326,7 +304,7 @@ function strictReversalSummary(rowsByBuild, buildIds) {
           const reversal = strictPairIsSignificant(firstPair) && strictPairIsSignificant(secondPair) &&
             Math.sign(firstPair.outcome.estimate) !== Math.sign(secondPair.outcome.estimate) &&
             Math.sign(firstPair.utility.estimate) !== Math.sign(secondPair.utility.estimate);
-          familyRows.push({ leftBuildId: buildIds[leftIndex], rightBuildId: buildIds[rightIndex], family: `${familyPairs[first].family} vs ${familyPairs[second].family}`, pairedN: Math.min(firstPair.pairedN, secondPair.pairedN), status: firstPair.status === "insufficient_sample" || secondPair.status === "insufficient_sample" ? "insufficient_sample" : "eligible", outcome: firstPair.outcome, utility: firstPair.utility, matchedEncounterRecords: [...firstPair.matchedEncounterRecords, ...secondPair.matchedEncounterRecords], strictReversal: reversal });
+          familyRows.push({ leftBuildId: buildIds[leftIndex], rightBuildId: buildIds[rightIndex], family: `${familyPairs[first].family} vs ${familyPairs[second].family}`, pairedN: Math.min(firstPair.pairedN, secondPair.pairedN), status: firstPair.status === "insufficient_sample" || secondPair.status === "insufficient_sample" ? "insufficient_sample" : "eligible", outcome: firstPair.outcome, utility: firstPair.utility, strictReversal: reversal });
           if (firstPair.pairedN < STRICT_MIN_PAIRED_N || secondPair.pairedN < STRICT_MIN_PAIRED_N) insufficientCount++;
           if (reversal) strictReversalCount++;
         }
