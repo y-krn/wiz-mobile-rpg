@@ -351,11 +351,13 @@ its own steps, encounters, and other trap effects. Simulation alignment must
 preserve the meaningful disarm and forced-breakthrough choices.
 
 `trapBonus` remains the single support affix for floor/chest trap disarm and
-existing equipment/class passive bonuses. On B5F, the `trapBonus` investment
-also contributes to the automatic flame-trap on-trigger avoidance roll through
-the character-stats helper. Chest traps keep a risk/reward branch: every class
-can leave, smash for a weaker trap effect with possible consumable loss, or use
-a kit, while specialist classes retain safer disarm rates.
+existing equipment/class passive bonuses. On B5F, the automatic flame trap uses
+the same floor-trap success roll and partial-success band as a `damage` floor
+trap, without exposing a trap encounter menu. Its effect uses the ordinary
+floor-dependent damage range and the same weakened, scout, and `trapGuard`
+mitigations. Chest traps keep a risk/reward branch: every class can leave,
+smash for a weaker trap effect with possible consumable loss, or use a kit,
+while specialist classes retain safer disarm rates.
 
 Unidentified equipment sits on the same ladder: presence (a drop),
 identification (base type visible), detail (identified affixes). Pillar 3's

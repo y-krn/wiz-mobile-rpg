@@ -49,8 +49,14 @@ if (detectRateCalls.length === 0) {
   ) {
     failures.push(`${depthSimulationName}: retired trap affix identifiers must not remain in the canonical sim`);
   }
-  if (!/getPartyFlameTrapWarningAvoidanceChance\s*\(\s*state\.party\s*\)/.test(depthSimulationSource)) {
-    failures.push(`${depthSimulationName}: flame warning avoidance must use the src helper`);
+  if (!/calculateFloorTrapSuccessRate\s*\(/.test(depthSimulationSource)) {
+    failures.push(`${depthSimulationName}: flame trap success rate must use the src floor-trap helper`);
+  }
+  if (!/resolveTrapAction\s*\(/.test(depthSimulationSource)) {
+    failures.push(`${depthSimulationName}: flame trap outcome must use the src trap roll helper`);
+  }
+  if (!/resolveFloorTrapEffect\s*\(/.test(depthSimulationSource)) {
+    failures.push(`${depthSimulationName}: flame trap damage must use the src floor-trap effect helper`);
   }
   if (/FLAME_TRAP_(TRAP_GUARD_OVERRIDE|WARNING_AVOIDANCE_CHANCE|DAMAGE_MULTIPLIER)/.test(depthSimulationSource)) {
     failures.push(`${depthSimulationName}: removed flame-trap what-if overrides must not bypass src behavior`);

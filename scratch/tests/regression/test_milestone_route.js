@@ -15,7 +15,7 @@ const baseScenario = {
 function run(scenario, targetDepth) {
   resetSimulationRandom(123);
   return simulateRun({
-    className: "Fighter",
+    className: "Thief",
     startFloor: 1,
     targetDepth,
     runIndex: 0,
