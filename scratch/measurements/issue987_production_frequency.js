@@ -339,7 +339,7 @@ function measurementMetadata({ seed, generatedRuns, stressRuns, provenance, envi
 
 function summarizeViews(views) { return [...views.values()].map(finalizeAggregate).sort((left, right) => JSON.stringify(left.dimensions).localeCompare(JSON.stringify(right.dimensions))); }
 function summarizePairs(pairs) { return [...pairs.values()].map(finalizePair); }
-function conditionById(report, id) { return report.conditions.find(condition => condition.id === id); }
+function conditionById(conditions, id) { return conditions.find(condition => condition.id === id); }
 function format(value) { return value === null || value === undefined ? "n/a" : Number(value).toFixed(4); }
 function getMeta(monsters, depth, buildId, encounterId) { return { depth, buildId, encounterId, enemyCount: monsters.length, family: encounterFamily(monsters) }; }
 
