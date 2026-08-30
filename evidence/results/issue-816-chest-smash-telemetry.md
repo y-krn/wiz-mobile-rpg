@@ -54,6 +54,24 @@ node scratch/measurements/issue816_chest_telemetry.js \
   --summary /private/tmp/issue-816-chest-telemetry.md
 ```
 
+## 独立レビュー証跡
+
+| 項目 | 値 |
+| --- | --- |
+| verdict | `APPROVE`（P0–P2 指摘なし） |
+| reviewed head | `3b0083b9bba7422ff02b143516ce816f383ad59c` |
+| reviewed base | `f235c6c6405da6b3f09a1dc01f1451173b8165e4` |
+| PR差分 | 9 files |
+| PR差分SHA-256 | `020bc1bc694548ecc1c566db017b89ccd9144014ba5acfd7f3cc36d6be52a08d` |
+
+差分対象は `evidence/results/issue-816-chest-smash-telemetry.md`、
+`scratch/measurements/issue816_chest_telemetry.js`、
+`scratch/measurements/issue816_from_drop_sim.js`、
+`scratch/simulations/simulation_manifest.js`、
+`scratch/tests/regression/test_sim_follow_gate.js`、
+`scratch/tests/unit/test_chest_telemetry_aggregation.js`、
+`scratch/tests/unit/test_telemetry.js`、`src/chest.js`、`src/telemetry.js`。
+
 ## 区分と次の判断
 
 | 経路 | 区分 | 解釈 |
