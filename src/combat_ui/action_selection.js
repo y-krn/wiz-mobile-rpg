@@ -10,7 +10,7 @@ import { resolveCombatRound } from "./round_runner.js";
 import { openCombatTargetMenu } from "./target_menu.js";
 import { openCombatSpellMenu } from "./spell_menu.js";
 import { openCombatItemMenu } from "./item_menu.js";
-import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
+import { COMBAT_SPELL_TARGETS, getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 import {
   trackCombatDecisionCancel,
   trackCombatDecisionPending
@@ -31,8 +31,6 @@ function canAdvanceCombatRound() {
   return !state.transitioning && isUsableCombatScreen(state, menuContext) &&
     state.combatState?.phase === "choose_actions" && hasCombatRoundActor(state.party);
 }
-
-const COMBAT_SPELL_TARGETS = ["single_enemy", "all_enemies", "single_ally", "all_allies"];
 
 function isValidEnemyTarget(targetIdx) {
   const monsters = state.combatState?.monsters;

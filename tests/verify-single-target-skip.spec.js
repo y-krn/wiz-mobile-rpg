@@ -12,8 +12,8 @@ async function openApp(page) {
   await page.waitForLoadState('networkidle');
 }
 
-async function setupExplore(page, { partySize = 1, fullHp = false } = {}) {
-  await page.evaluate(async ({ nextPartySize, nextFullHp }) => {
+async function setupExplore(page, { partySize = 1, fullHp = false, spellKeys = null } = {}) {
+  await page.evaluate(async ({ nextPartySize, nextFullHp, nextSpellKeys }) => {
     const { state, initNewGame, createSoloCharacter } = await import('/src/state.js');
     const { executeEnterDungeon } = await import('/src/movement.js');
     const { spellMenuState } = await import('/src/spell_menu.js');
@@ -34,11 +34,12 @@ async function setupExplore(page, { partySize = 1, fullHp = false } = {}) {
     party.forEach((char, index) => {
       char.hp = nextFullHp ? char.maxHp : char.maxHp - index - 2;
     });
+    if (nextSpellKeys) first.spells = nextSpellKeys;
     spellMenuState.filter = 'all';
     spellMenuState.selectedKey = null;
     state.gameState = 'explore';
     updateUI();
-  }, { nextPartySize: partySize, nextFullHp: fullHp });
+  }, { nextPartySize: partySize, nextFullHp: fullHp, nextSpellKeys: spellKeys });
 }
 
 async function setupCombat(page, { woundedCount = 1, deadSecond = false, spellKeys = null } = {}) {
@@ -127,6 +128,42 @@ test('explore disables recovery when every ally is at full HP', async ({ page })
   await page.getByRole('button', { name: /^DIOS MP/ }).click();
   await expect(page.locator('#btn-spell-cast-action')).toBeDisabled();
   await expect(page.locator('#spell-overlay')).toContainText('対象なし');
+});
+
+test('explore disables MABARRIER while combat keeps it available and resets stale turns', async ({ page }) => {
+  await openApp(page);
+  await setupExplore(page, { partySize: 1, spellKeys: ['MABARRIER'] });
+
+  await page.locator('#btn-cast').click();
+  const exploreBarrier = page.locator('#spell-overlay .spell-item-row-card').filter({ hasText: 'MABARRIER' });
+  await expect(exploreBarrier).toHaveClass(/disabled/);
+  await expect(page.locator('#spell-overlay .spell-detail-placeholder')).toBeVisible();
+
+  await setupCombat(page, { woundedCount: 1, spellKeys: ['MABARRIER'] });
+  await page.locator('#btn-combat-spell').click();
+  const combatBarrier = page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^MABARRIER$/ }) });
+  await expect(combatBarrier).not.toHaveClass(/disabled-unavailable/);
+  await combatBarrier.click();
+
+  const combatAction = await page.evaluate(async () => {
+    const { combatSelection } = await import('/src/combat.js');
+    return combatSelection.actions[0];
+  });
+  expect(combatAction).toMatchObject({ type: 'spell', spellName: 'MABARRIER' });
+
+  const resetResult = await page.evaluate(async () => {
+    const { state, initNewGame, createSoloCharacter } = await import('/src/state.js');
+    const { executeEnterDungeon } = await import('/src/movement.js');
+    const { startCombat } = await import('/src/combat.js');
+    initNewGame();
+    const caster = createSoloCharacter('Priest');
+    caster.mabarrierTurns = 3;
+    state.party = [caster];
+    executeEnterDungeon(1);
+    startCombat(false);
+    return { mabarrierTurns: state.party[0].mabarrierTurns, gameState: state.gameState };
+  });
+  expect(resetResult).toEqual({ mabarrierTurns: undefined, gameState: 'combat' });
 });
 
 for (const viewport of OTHER_MOBILE_VIEWPORTS) {

@@ -31,6 +31,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
 
   state.party.forEach(char => {
     char.buffs = [];
+    delete char.mabarrierTurns;
   });
 
   const { monsters, isRare } = generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster);
