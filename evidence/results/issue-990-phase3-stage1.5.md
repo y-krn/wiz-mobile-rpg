@@ -1,6 +1,6 @@
 # Issue #990 Phase 3 Stage 1.5 — shallow MP/combat diagnosis
 
-- runner: `issue990-phase3-stage1.5-v1` / schema `2`
+- runner: `issue990-phase3-stage1.5-v2` / schema `3`
 - seed: `issue990-phase3-stage1`; N: **500 / persona**
 - production-backed, deterministic, B1-start, same-seed, forced-push; retreat behavior is not modeled
 
@@ -169,56 +169,89 @@ Only reached checkpoint snapshots and at most 50 representative samples per pers
 Stage 1.5 measures B1–B9 only. It does not alter Mage combat action selection, production balance, or retreat behavior.
 Stage 1 interpretation: these are five measurement policies sharing the same basic combat policy; Stage 1 did not implement five fully distinct combat AIs.
 B5 checkpoint values below are conditional on reaching B5 (survivor bias). Floor exit is sampled after floor recovery/camp and before the transition recovery; the next floor entry includes transition recovery.
+In Table A, `reached next floor` means the run completed the current floor and actually transitioned to floor+1. `incomplete` means the run ended without death before that transition. Every row satisfies entered = reached next floor + died + incomplete.
 
 ### Table A — Floor survival
 
-| persona | floor | entered | survived | died | next-floor survival |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| cautious | B1 | 500 | 168 | 67 | 33.6% |
-| cautious | B2 | 168 | 98 | 7 | 58.3% |
-| cautious | B3 | 98 | 49 | 14 | 50.0% |
-| cautious | B4 | 49 | 25 | 11 | 51.0% |
-| cautious | B5 | 25 | 0 | 19 | 0.0% |
-| cautious | B6 | 0 | 0 | 0 | n/a |
-| cautious | B7 | 0 | 0 | 0 | n/a |
-| cautious | B8 | 0 | 0 | 0 | n/a |
-| cautious | B9 | 0 | 0 | 0 | n/a |
-| aggressive | B1 | 500 | 166 | 69 | 33.2% |
-| aggressive | B2 | 166 | 96 | 9 | 57.8% |
-| aggressive | B3 | 96 | 48 | 15 | 50.0% |
-| aggressive | B4 | 48 | 24 | 11 | 50.0% |
-| aggressive | B5 | 24 | 0 | 17 | 0.0% |
-| aggressive | B6 | 0 | 0 | 0 | n/a |
-| aggressive | B7 | 0 | 0 | 0 | n/a |
-| aggressive | B8 | 0 | 0 | 0 | n/a |
-| aggressive | B9 | 0 | 0 | 0 | n/a |
-| explorer | B1 | 500 | 216 | 74 | 43.2% |
-| explorer | B2 | 216 | 140 | 10 | 64.8% |
-| explorer | B3 | 140 | 78 | 31 | 55.7% |
-| explorer | B4 | 78 | 37 | 23 | 47.4% |
-| explorer | B5 | 37 | 0 | 32 | 0.0% |
-| explorer | B6 | 0 | 0 | 0 | n/a |
-| explorer | B7 | 0 | 0 | 0 | n/a |
-| explorer | B8 | 0 | 0 | 0 | n/a |
-| explorer | B9 | 0 | 0 | 0 | n/a |
-| stairs-first | B1 | 500 | 168 | 68 | 33.6% |
-| stairs-first | B2 | 168 | 98 | 7 | 58.3% |
-| stairs-first | B3 | 98 | 49 | 15 | 50.0% |
-| stairs-first | B4 | 49 | 25 | 11 | 51.0% |
-| stairs-first | B5 | 25 | 0 | 19 | 0.0% |
-| stairs-first | B6 | 0 | 0 | 0 | n/a |
-| stairs-first | B7 | 0 | 0 | 0 | n/a |
-| stairs-first | B8 | 0 | 0 | 0 | n/a |
-| stairs-first | B9 | 0 | 0 | 0 | n/a |
-| balanced | B1 | 500 | 167 | 69 | 33.4% |
-| balanced | B2 | 167 | 97 | 8 | 58.1% |
-| balanced | B3 | 97 | 49 | 14 | 50.5% |
-| balanced | B4 | 49 | 25 | 11 | 51.0% |
-| balanced | B5 | 25 | 0 | 19 | 0.0% |
-| balanced | B6 | 0 | 0 | 0 | n/a |
-| balanced | B7 | 0 | 0 | 0 | n/a |
-| balanced | B8 | 0 | 0 | 0 | n/a |
-| balanced | B9 | 0 | 0 | 0 | n/a |
+| persona | floor | entered | reached next floor | died | incomplete | next-floor reach |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| cautious | B1 | 500 | 168 | 67 | 265 | 33.6% |
+| cautious | B2 | 168 | 98 | 7 | 63 | 58.3% |
+| cautious | B3 | 98 | 49 | 14 | 35 | 50.0% |
+| cautious | B4 | 49 | 25 | 11 | 13 | 51.0% |
+| cautious | B5 | 25 | 0 | 19 | 6 | 0.0% |
+| cautious | B6 | 0 | 0 | 0 | 0 | n/a |
+| cautious | B7 | 0 | 0 | 0 | 0 | n/a |
+| cautious | B8 | 0 | 0 | 0 | 0 | n/a |
+| cautious | B9 | 0 | 0 | 0 | 0 | n/a |
+| aggressive | B1 | 500 | 166 | 69 | 265 | 33.2% |
+| aggressive | B2 | 166 | 96 | 9 | 61 | 57.8% |
+| aggressive | B3 | 96 | 48 | 15 | 33 | 50.0% |
+| aggressive | B4 | 48 | 24 | 11 | 13 | 50.0% |
+| aggressive | B5 | 24 | 0 | 17 | 7 | 0.0% |
+| aggressive | B6 | 0 | 0 | 0 | 0 | n/a |
+| aggressive | B7 | 0 | 0 | 0 | 0 | n/a |
+| aggressive | B8 | 0 | 0 | 0 | 0 | n/a |
+| aggressive | B9 | 0 | 0 | 0 | 0 | n/a |
+| explorer | B1 | 500 | 216 | 74 | 210 | 43.2% |
+| explorer | B2 | 216 | 140 | 10 | 66 | 64.8% |
+| explorer | B3 | 140 | 78 | 31 | 31 | 55.7% |
+| explorer | B4 | 78 | 37 | 23 | 18 | 47.4% |
+| explorer | B5 | 37 | 0 | 32 | 5 | 0.0% |
+| explorer | B6 | 0 | 0 | 0 | 0 | n/a |
+| explorer | B7 | 0 | 0 | 0 | 0 | n/a |
+| explorer | B8 | 0 | 0 | 0 | 0 | n/a |
+| explorer | B9 | 0 | 0 | 0 | 0 | n/a |
+| stairs-first | B1 | 500 | 168 | 68 | 264 | 33.6% |
+| stairs-first | B2 | 168 | 98 | 7 | 63 | 58.3% |
+| stairs-first | B3 | 98 | 49 | 15 | 34 | 50.0% |
+| stairs-first | B4 | 49 | 25 | 11 | 13 | 51.0% |
+| stairs-first | B5 | 25 | 0 | 19 | 6 | 0.0% |
+| stairs-first | B6 | 0 | 0 | 0 | 0 | n/a |
+| stairs-first | B7 | 0 | 0 | 0 | 0 | n/a |
+| stairs-first | B8 | 0 | 0 | 0 | 0 | n/a |
+| stairs-first | B9 | 0 | 0 | 0 | 0 | n/a |
+| balanced | B1 | 500 | 167 | 69 | 264 | 33.4% |
+| balanced | B2 | 167 | 97 | 8 | 62 | 58.1% |
+| balanced | B3 | 97 | 49 | 14 | 34 | 50.5% |
+| balanced | B4 | 49 | 25 | 11 | 13 | 51.0% |
+| balanced | B5 | 25 | 0 | 19 | 6 | 0.0% |
+| balanced | B6 | 0 | 0 | 0 | 0 | n/a |
+| balanced | B7 | 0 | 0 | 0 | 0 | n/a |
+| balanced | B8 | 0 | 0 | 0 | 0 | n/a |
+| balanced | B9 | 0 | 0 | 0 | 0 | n/a |
+
+### Incomplete termination reasons
+
+Reason categories are measurement-only labels; raw termination reasons are retained for audit. `stairs_not_discovered` is a route-budget stop before stairs became known, while `boss_milestone_progression_failure` covers an unmet mandatory milestone boss.
+
+| persona | floor | incomplete | categorized reasons | raw termination reasons |
+| --- | ---: | ---: | --- | --- |
+| cautious | B1 | 265 | stairs_not_discovered:265 | partial-information-budget-exhausted:265 |
+| cautious | B2 | 63 | stairs_not_discovered:63 | partial-information-budget-exhausted:63 |
+| cautious | B3 | 35 | stairs_not_discovered:35 | partial-information-budget-exhausted:35 |
+| cautious | B4 | 13 | stairs_not_discovered:13 | partial-information-budget-exhausted:13 |
+| cautious | B5 | 6 | boss_milestone_progression_failure:3, stairs_not_discovered:3 | partial-information-budget-exhausted:6 |
+| aggressive | B1 | 265 | stairs_not_discovered:265 | partial-information-budget-exhausted:265 |
+| aggressive | B2 | 61 | stairs_not_discovered:61 | partial-information-budget-exhausted:61 |
+| aggressive | B3 | 33 | stairs_not_discovered:33 | partial-information-budget-exhausted:33 |
+| aggressive | B4 | 13 | stairs_not_discovered:13 | partial-information-budget-exhausted:13 |
+| aggressive | B5 | 7 | boss_milestone_progression_failure:4, stairs_not_discovered:3 | partial-information-budget-exhausted:7 |
+| explorer | B1 | 210 | stairs_not_discovered:210 | partial-information-budget-exhausted:210 |
+| explorer | B2 | 66 | stairs_not_discovered:66 | partial-information-budget-exhausted:66 |
+| explorer | B3 | 31 | stairs_not_discovered:31 | partial-information-budget-exhausted:31 |
+| explorer | B4 | 18 | stairs_not_discovered:18 | partial-information-budget-exhausted:18 |
+| explorer | B5 | 5 | boss_milestone_progression_failure:2, stairs_not_discovered:3 | partial-information-budget-exhausted:5 |
+| stairs-first | B1 | 264 | stairs_not_discovered:264 | partial-information-budget-exhausted:264 |
+| stairs-first | B2 | 63 | stairs_not_discovered:63 | partial-information-budget-exhausted:63 |
+| stairs-first | B3 | 34 | stairs_not_discovered:34 | partial-information-budget-exhausted:34 |
+| stairs-first | B4 | 13 | stairs_not_discovered:13 | partial-information-budget-exhausted:13 |
+| stairs-first | B5 | 6 | boss_milestone_progression_failure:3, stairs_not_discovered:3 | partial-information-budget-exhausted:6 |
+| balanced | B1 | 264 | stairs_not_discovered:264 | partial-information-budget-exhausted:264 |
+| balanced | B2 | 62 | stairs_not_discovered:62 | partial-information-budget-exhausted:62 |
+| balanced | B3 | 34 | stairs_not_discovered:34 | partial-information-budget-exhausted:34 |
+| balanced | B4 | 13 | stairs_not_discovered:13 | partial-information-budget-exhausted:13 |
+| balanced | B5 | 6 | boss_milestone_progression_failure:3, stairs_not_discovered:3 | partial-information-budget-exhausted:6 |
 
 ### Table B — HP/MP progression
 
@@ -414,7 +447,7 @@ Representative samples are capped at 50 snapshots per persona × floor; individu
 
 ### Stage 1.5 answers
 
-1. Population bottleneck: cautious=B5 (0.0%); aggressive=B5 (0.0%); explorer=B5 (0.0%); stairs-first=B5 (0.0%); balanced=B5 (0.0%).
+1. Population bottleneck: cautious=B5->B6 reach 0.0% (died=19, incomplete=6); aggressive=B5->B6 reach 0.0% (died=17, incomplete=7); explorer=B5->B6 reach 0.0% (died=32, incomplete=5); stairs-first=B5->B6 reach 0.0% (died=19, incomplete=6); balanced=B5->B6 reach 0.0% (died=19, incomplete=6). B5→B6 reach 0% is not equivalent to every B5 entrant dying.
 2. MP decline: cautious=B1; aggressive=B1; explorer=B1; stairs-first=B1; balanced=B1.
 3. HP vs MP: B5 entry survivor means are cautious HP 91.0%, MP 18.1%; aggressive HP 93.1%, MP 18.3%; explorer HP 89.5%, MP 15.4%; stairs-first HP 91.2%, MP 17.7%; balanced HP 91.7%, MP 17.7%; this is conditional on B5 entry.
 4. Main spells: cautious=HALITO; aggressive=HALITO; explorer=HALITO; stairs-first=HALITO; balanced=HALITO.
@@ -424,7 +457,7 @@ Representative samples are capped at 50 snapshots per persona × floor; individu
 8. Low-MP combats and normal damage: higher in at least one persona.
 9. Low-MP combats and pure raw death: cautious=34.3%; aggressive=35.9%; explorer=34.5%; stairs-first=34.3%; balanced=34.4%; do not treat this association as causation.
 10. B5 MP and later survival: see Table F; buckets with N<5 are explicitly insufficient.
-11. B5 HP ~90% is survivor-conditioned and cannot be read as the all-run state; floor entrant/death counts in Table A expose that selection.
+11. B5 HP ~90% is survivor-conditioned and cannot be read as the all-run state; Table A and the termination-reason table show that B5 entrants split into death and incomplete outcomes, rather than all dying.
 12. aggressive combat behavior: 1.87 casts/encounter vs balanced 1.87; the shared selector means aggressive was not independently aggressive.
 13. cautious MP conservation: 0.91 MP/encounter vs balanced 0.90; cautious did not implement combat-level MP conservation.
 14. explorer tradeoff: explorer vs balanced is shown in Tables B/C and Stage 1 exposure; extra exploration should be interpreted as both equipment opportunity and additional exposure, not as a guaranteed benefit.
