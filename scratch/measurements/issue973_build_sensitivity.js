@@ -38,8 +38,8 @@ const TRACKED_STATUS_IDS = Object.freeze([
   STATUS_EFFECT_IDS.SILENCE
 ]);
 
-const BUILD_IDS = Object.freeze(["aoe-burst", "single-efficient", "sustain", "hybrid-fallback"]);
-const ENCOUNTER_IDS = Object.freeze([
+export const BUILD_IDS = Object.freeze(["aoe-burst", "single-efficient", "sustain", "hybrid-fallback"]);
+export const ENCOUNTER_IDS = Object.freeze([
   "swarm-action-pressure",
   "magic-denial",
   "mp-pressure",
@@ -209,12 +209,12 @@ function getMonsterByName(name) {
   return monster;
 }
 
-export function createEncounterFixture(encounterId, depth) {
+export function createEncounterFixture(encounterId, depth, counterfactual = null) {
   const definition = ENCOUNTER_DEFINITIONS.find(candidate => candidate.id === encounterId);
   if (!definition) throw new Error(`unknown encounter: ${encounterId}`);
   if (!TARGET_DEPTHS.includes(depth)) throw new Error(`unsupported depth: ${depth}`);
   const nameCounts = new Map();
-  const monsters = definition.monsterNames.map(name => {
+  let monsters = definition.monsterNames.map(name => {
     const template = getMonsterByName(name);
     const count = (nameCounts.get(name) || 0) + 1;
     nameCounts.set(name, count);
@@ -224,12 +224,26 @@ export function createEncounterFixture(encounterId, depth) {
       name: count > 1 ? `${name} ${String.fromCharCode(64 + count)}` : name
     };
   });
+  if (counterfactual?.kind === "enemy_count") {
+    monsters = monsters.slice(0, 1);
+  }
+  if (counterfactual?.kind === "enemy_hp") {
+    const rate = Number(counterfactual.rate);
+    if (!Number.isFinite(rate) || rate <= 0 || rate > 1) {
+      throw new Error(`invalid measurement enemy HP rate: ${counterfactual.rate}`);
+    }
+    monsters = monsters.map(monster => {
+      const hp = Math.max(1, Math.round(monster.maxHp * rate));
+      return { ...monster, hp, maxHp: hp };
+    });
+  }
   return {
     id: definition.id,
     label: definition.label,
     monsterNames: [...definition.monsterNames],
     depth,
-    monsters
+    monsters,
+    counterfactual: counterfactual ? structuredClone(counterfactual) : null
   };
 }
 
@@ -246,7 +260,7 @@ function createTelemetry() {
   };
 }
 
-function createSimulationState(buildId, depth, monsters, seed) {
+function createSimulationState(buildId, depth, monsters, seed, counterfactual = null) {
   const character = createBuildCharacter(buildId);
   const currentRun = createDefaultCurrentRun();
   currentRun.runSeed = seed;
@@ -272,7 +286,14 @@ function createSimulationState(buildId, depth, monsters, seed) {
     floorChestsTotal: [],
     identifyTickets: 0,
     gameState: "combat",
-    simPolicy: {},
+    simPolicy: {
+      ...(counterfactual?.kind === "enemy_action_count"
+        ? { measurementMaxActionsPerEnemy: 1 }
+        : {}),
+      ...(counterfactual?.kind === "normal_damage"
+        ? { measurementNormalDamageRate: counterfactual.rate }
+        : {})
+    },
     simTelemetry: { executionerTriggers: 0, causalDamageEvents: [], causalHealEvents: [] },
     combatFormulaTelemetry: createTelemetry(),
     combatState: {
@@ -747,10 +768,10 @@ function classifyFailure({
   };
 }
 
-export function runEncounterSample({ buildId, encounterId, depth, seed }) {
+export function runEncounterSample({ buildId, encounterId, depth, seed, counterfactual = null }) {
   return withSeed(seed, () => {
-    const fixture = createEncounterFixture(encounterId, depth);
-    const state = createSimulationState(buildId, depth, fixture.monsters, seed);
+    const fixture = createEncounterFixture(encounterId, depth, counterfactual);
+    const state = createSimulationState(buildId, depth, fixture.monsters, seed, counterfactual);
     const mechanisms = createMechanismCounts();
     const statusTrajectory = createStatusTrajectory();
     let rounds = 0;
@@ -889,6 +910,7 @@ export function runEncounterSample({ buildId, encounterId, depth, seed }) {
       fixture: {
         encounterId,
         depth,
+        counterfactual: counterfactual ? structuredClone(counterfactual) : null,
         monsterNames: fixture.monsters.map(monster => monster.name),
         productionDefinition: true,
         scaledStats: fixture.monsters.map(monster => ({

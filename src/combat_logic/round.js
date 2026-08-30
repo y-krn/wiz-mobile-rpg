@@ -460,7 +460,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         idx,
         speed
       });
-      if (hasTrait(mon, "multiAction") && mon.multiActionQueued) {
+      if (hasTrait(mon, "multiAction") && mon.multiActionQueued && state.simPolicy?.measurementMaxActionsPerEnemy !== 1) {
         turns.push({
           type: "monster",
           mon,
@@ -917,7 +917,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
       }
 
-      if (hasTrait(mon, "multiAction")) {
+      if (hasTrait(mon, "multiAction") && state.simPolicy?.measurementMaxActionsPerEnemy !== 1) {
         if (!mon.multiActionQueued && Math.random() < (mon.traitChance ?? 0.35)) {
           mon.multiActionQueued = true;
           logQueue.push({ msg: `[警告] ${mon.name}の目が血走り、凶暴化している！次のターン、連続攻撃の予兆！`, sound: "cast_spell" });
@@ -1309,6 +1309,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const preMitigationDmg = dmg;
           const playerHpBefore = target.hp;
           dmg = reduceIncomingDamage(target, dmg, { dragon: isMonDragon, logQueue, state });
+          const measurementNormalDamageRate = Number(state.simPolicy?.measurementNormalDamageRate);
+          if (!statusPayoff && !isSnipeAttack && Number.isFinite(measurementNormalDamageRate) && measurementNormalDamageRate > 0 && measurementNormalDamageRate < 1) {
+            dmg = Math.max(1, Math.round(dmg * measurementNormalDamageRate));
+          }
           // #611: 敵→プレイヤー物理攻撃の計装。既定 no-op。
           state.combatFormulaTelemetry?.physicalMonsterHits.push({
             floor: state.floor,
