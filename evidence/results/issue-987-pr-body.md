@@ -13,7 +13,7 @@ Closes #987
 ## Provenance and sample
 
 - Production baseline: `1043e5147c2f43f3c7869a29e80dac522fac28e0` (latest `origin/main`)
-- Runner source: `65647b51bcad3e4aedd03ddc34910691b032d78c`
+- Runner source: `a1623a3feea6b369756dc8338746c4aec6d07ab5`
 - Seed: `987-production-frequency`
 - Environment signature: `b8ce5a65042dab88`
 - Production arm: 6 depths × 5,000 generated encounters × 4 builds = 120,000 runs per condition

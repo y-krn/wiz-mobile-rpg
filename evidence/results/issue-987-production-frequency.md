@@ -1,7 +1,7 @@
 # Issue #987 Production-frequency weighted pure raw / Build Sensitivity
 
 - runner: `issue987-production-frequency-v1`
-- source commit: `21e3f9685b95b6f5fa82c781403c7dab0b3b2005`
+- source commit: `a1623a3feea6b369756dc8338746c4aec6d07ab5`
 - production baseline SHA: `1043e5147c2f43f3c7869a29e80dac522fac28e0`
 - generated encounters: **N=5000 per depth**; controlled stress: **N=500 per fixture × depth**
 - depths: B8, B13, B18, B21, B25, B30; builds: aoe-burst, single-efficient, sustain, hybrid-fallback
@@ -123,9 +123,9 @@ All counterfactual deltas are **candidate − baseline**; positive means improve
 
 | Condition | Baseline pure raw | Candidate pure raw | Clear-rate delta (candidate − baseline) | HP delta (candidate − baseline) | MP delta (candidate − baseline) |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| W1_normal_damage_075 | 38.51% | 32.69% | 5.69pp | 5.39pp | -2.58pp |
-| W2_enemy_hp_075 | 38.51% | 33.75% | 6.48pp | 6.29pp | 2.71pp |
-| W3_enemy_action_exposure_1 | 38.51% | 33.96% | 7.02pp | 6.70pp | -6.04pp |
+| W1_normal_damage_075 | 38.51% | 32.69% | +5.69pp | +5.39pp | -2.58pp |
+| W2_enemy_hp_075 | 38.51% | 33.75% | +6.48pp | +6.29pp | +2.71pp |
+| W3_enemy_action_exposure_1 | 38.51% | 33.96% | +7.02pp | +6.70pp | -6.04pp |
 
 ### Weighted Build Sensitivity
 
@@ -543,9 +543,9 @@ All counterfactual deltas are **candidate − baseline**; positive means improve
 
 | Condition | Baseline pure raw | Candidate pure raw | Clear-rate delta (candidate − baseline) | HP delta (candidate − baseline) | MP delta (candidate − baseline) |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| W1_normal_damage_075 | 43.50% | 33.36% | 9.65pp | 8.77pp | -4.28pp |
-| W2_enemy_hp_075 | 43.50% | 37.66% | 9.21pp | 8.63pp | 3.25pp |
-| W3_enemy_action_exposure_1 | 43.50% | 32.49% | 14.19pp | 14.06pp | -8.96pp |
+| W1_normal_damage_075 | 43.50% | 33.36% | +9.65pp | +8.77pp | -4.28pp |
+| W2_enemy_hp_075 | 43.50% | 37.66% | +9.21pp | +8.63pp | +3.25pp |
+| W3_enemy_action_exposure_1 | 43.50% | 32.49% | +14.19pp | +14.06pp | -8.96pp |
 
 ### Controlled Build Sensitivity
 
