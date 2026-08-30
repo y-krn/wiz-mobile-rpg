@@ -21,8 +21,8 @@ import { hasStatusEffect, STATUS_EFFECT_IDS } from "../../src/combat_logic/statu
 import { readSimScopeDeclaration, printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 
-export const RUNNER_VERSION = "issue973-build-sensitivity-v5";
-export const TARGET_DEPTHS = Object.freeze([8, 13, 18]);
+export const RUNNER_VERSION = "issue973-build-sensitivity-v6";
+export const TARGET_DEPTHS = Object.freeze([8, 13, 18, 21, 25, 30]);
 export const DEFAULT_SEED = "974-build-confidence";
 export const DEFAULT_RUNS = 100;
 export const MAX_ROUNDS = 200;
@@ -1002,7 +1002,7 @@ function buildMeasurementMetadata({ seed, runs, provenance, envSignature }) {
       "shops, consumables, retreat, and route choice",
       "loot/material economy and between-encounter progression"
     ],
-    fixturePolicy: "named production monster definitions scaled at B8/B13/B18; no synthetic monster, trait, spell, affix, or balance value"
+    fixturePolicy: "named production monster definitions scaled at B8/B13/B18/B21/B25/B30; no synthetic monster, trait, spell, affix, or balance value"
   };
 }
 

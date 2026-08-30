@@ -1104,7 +1104,28 @@ responses (`cureBeforePayoff`, `defendBeforePayoff`, `killBeforePayoff`, and
 application, payoff arrival, and response choice; live analytics transport is not required
 for the deterministic measurement.
 
-### 8.6 future owner decisions (not selected)
+### 8.6 #976 deep-band build-test diagnosis
+
+深層の通常ダメージ壁を B21/B25/B30 まで拡張して再検証した。#975 の B13/B18 だけの
+測定では deep death の `14,784/17,686 = 83.59%` が `raw_damage_pressure` だった。
+拡張した production baseline でも `41,520/49,333 = 84.16%` であり、HP/ATK scaling
+を複数案で緩めても最良で約 83% にしか下がらなかった。一方、strict paired reversal
+は `54→64` と維持・増加した。したがって、単純な depth scaling が唯一または主要な
+原因とはまだ判断できない。
+
+この Issue では production の enemy HP/ATK を変更しない。B11+ enemy HP の永久 cap、
+B11–B20 cap + B21+ 再成長、nonlinear HP、deep ATK slope `0.25`、flat ATK、slope
+`0.125` の候補はすべて同一条件の evidence として比較したが、採用案にはしない。
+measurement/diagnosis は Keep、production tuning は Reject（次の調査前に確定しない）、
+#973 Build Confidence は Revise とする。
+
+次の調査では、`raw_damage_pressure` の分類が粗すぎないか、特殊能力が発火した後に最後の
+通常攻撃で死んだだけのケースを raw と数えていないか、fixture が実戦を表現しているか、
+auto action が build の能力を適切に使っているか、enemy composition が極端な結果を作って
+いないか、そして mechanic 発動 → 状態悪化 → 通常攻撃死の因果関係を追跡できているかを
+分解する。測定条件・閾値・regression coverage はこの結論に合わせて緩めない。
+
+### 8.7 future owner decisions (not selected)
 
 追加の vulnerable producer/source、敵側耐性・免疫、出血の cure item、出血を
 `CORE_EXECUTIONER` 対象へ広げること、追加の status stacking、action-denial mechanics
