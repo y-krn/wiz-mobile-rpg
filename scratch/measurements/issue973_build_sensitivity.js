@@ -819,7 +819,12 @@ function addSample(aggregate, sample, keepSamples) {
     if (sample.failure.causalCategory) increment(aggregate.causalCategoryCounts, sample.failure.causalCategory);
     aggregate.mechanicToDeathRounds.push(...sample.failure.mechanismToDeath.map(event => event.roundsToDeath));
   }
-  aggregate.traces.push({ seed: sample.seed, outcome: sample.outcome, rounds: sample.rounds, failure: sample.failure, trace: sample.trace });
+  // Causal adjudication is only needed for terminal failures. Clear/timeout
+  // populations retain aggregate action/resource metrics, while every death
+  // run retains its compact event trace for review.
+  if (sample.outcome === "death") {
+    aggregate.traces.push({ seed: sample.seed, outcome: sample.outcome, rounds: sample.rounds, failure: sample.failure, trace: sample.trace });
+  }
   if (keepSamples) aggregate.samples.push(sample);
 }
 
