@@ -396,6 +396,7 @@ function summarizePairs(pairs) { return [...pairs.values()].map(finalizePair); }
 function conditionById(conditions, id) { return conditions.find(condition => condition.id === id); }
 function hasOnlyDimension(view, key) { return Object.keys(view.dimensions).length === 1 && Object.hasOwn(view.dimensions, key); }
 function format(value) { return value === null || value === undefined ? "n/a" : Number(value).toFixed(4); }
+function formatSignedPp(value) { const numeric = Number(value) * 100; return (numeric > 0 ? "+" : "") + numeric.toFixed(2) + "pp"; }
 function getMeta(monsters, depth, buildId, encounterId) { return { depth, buildId, encounterId, enemyCount: monsters.length, family: encounterFamily(monsters) }; }
 
 function renderAggregateTable(views, title) {
@@ -407,7 +408,7 @@ function renderCounterfactuals(conditionSet) {
   const baseline = conditionById(conditionSet, "baseline");
   return conditionSet.filter(condition => condition.id !== "baseline").map(condition => {
     const baselineOverall = baseline.views.find(view => Object.keys(view.dimensions).length === 0); const candidateOverall = condition.views.find(view => Object.keys(view.dimensions).length === 0); const paired = condition.pairedAgainstBaseline.find(pair => Object.keys(pair.dimensions).length === 0);
-    return `| ${condition.id} | ${(baselineOverall.pureRawRate * 100).toFixed(2)}% | ${(candidateOverall.pureRawRate * 100).toFixed(2)}% | ${(paired.clearRateDelta.estimate * 100).toFixed(2)}pp | ${(paired.hpPreservationDelta.estimate * 100).toFixed(2)}pp | ${(paired.mpPreservationDelta.estimate * 100).toFixed(2)}pp |`;
+    return `| ${condition.id} | ${(baselineOverall.pureRawRate * 100).toFixed(2)}% | ${(candidateOverall.pureRawRate * 100).toFixed(2)}% | ${formatSignedPp(paired.clearRateDelta.estimate)} | ${formatSignedPp(paired.hpPreservationDelta.estimate)} | ${formatSignedPp(paired.mpPreservationDelta.estimate)} |`;
   }).join("\n");
 }
 
