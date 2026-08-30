@@ -352,7 +352,7 @@ export function validatePolicyFixture() {
   const enemies = [{ hp: 18, status: "ok" }];
   const canCastSpell = spellName => ["HALITO", "MAHALITO", "LAHALITO", "TILTOWAIT"].includes(spellName);
   const actions = Object.fromEntries(POLICIES.map(combatPolicy => [combatPolicy, selectSimulationCombatActionForPolicy({ combatPolicy, character, enemies, roundNumber: 1, canCastSpell })]));
-  if (actions["mp-conserving"].type !== "fight") throw new Error("mp-conserving fixture did not conserve MP");
+  if (actions["mp-conservative"].type !== "fight") throw new Error("mp-conservative fixture did not conserve MP");
   if (actions["burst-combat"].spellName !== "MAHALITO") throw new Error("burst fixture did not select high damage spell");
   if (actions["balanced-combat"].spellName !== "HALITO") throw new Error("balanced fixture changed unexpectedly");
   return { fixture: "single enemy hp=18, Mage MP=10, known HALITO/MAHALITO/LAHALITO/TILTOWAIT", actions };
@@ -443,7 +443,7 @@ function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, policies = P
     },
     policyDefinitions: selected.map(id => ({
       id,
-      label: id === "balanced-combat" ? "current Stage 1.5 selector" : id === "mp-conserving" ? "current-state threat gate, physical attack by default" : "highest currently payable damage spell",
+      label: id === "balanced-combat" ? "current Stage 1.5 selector" : id === "mp-conservative" ? "current-state threat gate, physical attack by default" : "highest currently payable damage spell",
       rules: COMBAT_POLICY_RULES[id]
     })),
     commonScenario: {
@@ -660,16 +660,16 @@ function renderSummary(report) {
     "",
     "## Key answers",
     "",
-    "1. All three policies have a deterministic fixture-level action difference; balanced preserves the Stage 1.5 selector, mp-conserving defaults to physical attacks in low-pressure fights, and burst selects the highest currently payable offensive spell.",
-    "2. mp-conserving reserve rule: " + (report.policyDefinitions.find(definition => definition.id === "mp-conserving")?.rules.reserveMpRatio === undefined ? "n/a" : percent(report.policyDefinitions.find(definition => definition.id === "mp-conserving").rules.reserveMpRatio)) + " of max MP in low-pressure fights.",
+    "1. All three policies have a deterministic fixture-level action difference; balanced preserves the Stage 1.5 selector, mp-conservative defaults to physical attacks in low-pressure fights, and burst selects the highest currently payable offensive spell.",
+    "2. mp-conservative reserve rule: " + (report.policyDefinitions.find(definition => definition.id === "mp-conservative")?.rules.reserveMpRatio === undefined ? "n/a" : percent(report.policyDefinitions.find(definition => definition.id === "mp-conservative").rules.reserveMpRatio)) + " of max MP in low-pressure fights.",
     "3. Mean depth: " + policies.map(id => id + "=" + fmt(policy(id).reachedDepth.mean)).join(", ") + ". B21/B25/B30 are unobserved when no run reaches them.",
     "4. Normal attacks/encounter: " + policies.map(id => id + "=" + fmt(policy(id).perEncounter.normalAttacks)).join(", ") + "; MP-zero encounter share: " + policies.map(id => id + "=" + percent(policy(id).mpZeroEncounterRate)).join(", ") + ".",
     "5. Rounds/enemy actions/encounter: " + policies.map(id => id + "=" + fmt(policy(id).perEncounter.rounds) + "/" + fmt(policy(id).perEncounter.enemyActions)).join(", ") + ".",
     "6. Pure raw death share: " + policies.map(id => id + "=" + percent(policy(id).deathCategories.pure_raw_damage.rate)).join(", ") + ".",
     "7. Same-seed dominance is shown in Table I; no aggregate conclusion is made from unmatched post-divergence encounters.",
     "8. Exploration incomplete remains a separate censor in Table C; zero reached depth is not reported as all-dead.",
-    "9. Stage 1.5 MP hypothesis verdict: strengthened for the managed segment: mp-conserving reduced spell casts/MP spend but increased normal attacks, rounds, enemy actions, and normal damage; burst reduced combat duration/exposure on common support. The full end-to-end depth/death claim remains confounded after path divergence.",
-    "10. “AI was merely too weak” verdict: strengthened as a sensitivity factor, not sufficient as a sole explanation; burst improved shallow reach while mp-conserving worsened it, yet all policies remained shallow and B21+ unobserved.",
+    "9. Stage 1.5 MP hypothesis verdict: strengthened for the managed segment: mp-conservative reduced spell casts/MP spend but increased normal attacks, rounds, enemy actions, and normal damage; burst reduced combat duration/exposure on common support. The full end-to-end depth/death claim remains confounded after path divergence.",
+    "10. “AI was merely too weak” verdict: strengthened as a sensitivity factor, not sufficient as a sole explanation; burst improved shallow reach while mp-conservative worsened it, yet all policies remained shallow and B21+ unobserved.",
     "11. Game-structure bottleneck evidence: strengthened for the shallow natural progression ceiling, with exploration incomplete still contributing.",
     "12. Stage 3 checkpoint continuation: recommended once, under Case C, because persona results are mixed and shallow incomplete/death prevents a clean deep-depth comparison; it is not implemented in this PR.",
     "13. #973 Build Confidence: Revise.",
@@ -691,7 +691,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (["--runs", "--seed", "--policies", "--output", "--summary"].includes(arg)) options[arg.slice(2)] = argv[++index];
-    else if (arg === "--help") { console.log("Usage: node scratch/measurements/issue990_phase3_stage2_combat_personas.js --runs 500 --seed issue990-phase3-stage1.5 --policies balanced-combat,mp-conserving,burst-combat --output evidence/results/issue-990-phase3-stage2.json --summary evidence/results/issue-990-phase3-stage2.md"); process.exit(0); }
+    else if (arg === "--help") { console.log("Usage: node scratch/measurements/issue990_phase3_stage2_combat_personas.js --runs 500 --seed issue990-phase3-stage1.5 --policies balanced-combat,mp-conservative,burst-combat --output evidence/results/issue-990-phase3-stage2.json --summary evidence/results/issue-990-phase3-stage2.md"); process.exit(0); }
     else throw new Error(`unknown option: ${arg}`);
   }
   return {

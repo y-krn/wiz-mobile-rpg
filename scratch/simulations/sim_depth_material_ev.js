@@ -5491,7 +5491,7 @@ function chooseSimulationAutoCombatAction(args) {
 
 export const COMBAT_POLICY_IDS = Object.freeze([
   "balanced-combat",
-  "mp-conserving",
+  "mp-conservative",
   "burst-combat"
 ]);
 
@@ -5499,7 +5499,7 @@ export const COMBAT_POLICY_RULES = Object.freeze({
   "balanced-combat": Object.freeze({
     description: "Stage 1.5 legacy Mage selector; no new reserve rule"
   }),
-  "mp-conserving": Object.freeze({
+  "mp-conservative": Object.freeze({
     reserveMpRatio: 0.5,
     lowPressureSingleEnemyMaxHp: 22,
     dangerHpRatio: 0.45,
@@ -5556,7 +5556,7 @@ function selectMpConservingCombatAction(context) {
   const lowestHp = living.length ? Math.min(...living.map(enemy => enemy.hp)) : 0;
   const targetIdx = getLowestLivingEnemyIndex(enemies);
   if (targetIdx < 0) return null;
-  const rules = COMBAT_POLICY_RULES["mp-conserving"];
+  const rules = COMBAT_POLICY_RULES["mp-conservative"];
   const hpRatio = character.hp === undefined
     ? 1
     : character.hp / Math.max(1, character.maxHp || character.hp);
@@ -5597,7 +5597,7 @@ function selectBurstCombatAction(context) {
 
 const COMBAT_POLICY_SELECTORS = Object.freeze({
   "balanced-combat": selectBalancedCombatAction,
-  "mp-conserving": selectMpConservingCombatAction,
+  "mp-conservative": selectMpConservingCombatAction,
   "burst-combat": selectBurstCombatAction
 });
 

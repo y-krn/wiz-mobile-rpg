@@ -12,13 +12,13 @@ import {
   selectSimulationCombatActionForPolicy
 } from "../../simulations/sim_depth_material_ev.js";
 
-assert.deepEqual(POLICIES, ["balanced-combat", "mp-conserving", "burst-combat"]);
+assert.deepEqual(POLICIES, ["balanced-combat", "mp-conservative", "burst-combat"]);
 assert.deepEqual(COMBAT_POLICY_IDS, POLICIES);
-assert.equal(COMBAT_POLICY_RULES["mp-conserving"].reserveMpRatio, 0.5);
+assert.equal(COMBAT_POLICY_RULES["mp-conservative"].reserveMpRatio, 0.5);
 assert.deepEqual(FLOORS.slice(0, 15), Array.from({ length: 15 }, (_, index) => index + 1));
 assert.deepEqual(validatePolicyFixture().actions, {
   "balanced-combat": { type: "spell", targetIdx: 0, spellName: "HALITO" },
-  "mp-conserving": { type: "fight", targetIdx: 0 },
+  "mp-conservative": { type: "fight", targetIdx: 0 },
   "burst-combat": { type: "spell", targetIdx: 0, spellName: "MAHALITO" }
 });
 
@@ -60,15 +60,15 @@ for (const policy of POLICIES) {
 
 assert.equal(report.comparison.personaPairs.length, 3);
 assert.ok(report.comparison.personaPairs.every(pair => pair.commonSupport));
-assert.ok(report.policies["mp-conserving"].totals.normalAttacks > report.policies["balanced-combat"].totals.normalAttacks);
-assert.ok(report.policies["mp-conserving"].totals.spellCasts < report.policies["balanced-combat"].totals.spellCasts);
+assert.ok(report.policies["mp-conservative"].totals.normalAttacks > report.policies["balanced-combat"].totals.normalAttacks);
+assert.ok(report.policies["mp-conservative"].totals.spellCasts < report.policies["balanced-combat"].totals.spellCasts);
 assert.notEqual(report.policies["burst-combat"].totals.spellCasts, report.policies["balanced-combat"].totals.spellCasts);
 assert.equal(report.raw, undefined);
 assert.equal(JSON.stringify(report).includes("encounterTrace"), false);
 const repeat = runMeasurement({ seed: "issue990-stage2-regression", runs: 1 });
 assert.deepEqual(repeat, report, "same seed and runIndex are deterministic");
 assert.equal(selectSimulationCombatActionForPolicy({
-  combatPolicy: "mp-conserving",
+  combatPolicy: "mp-conservative",
   character: { class: "Mage", spells: ["HALITO"], mp: 1, maxMp: 1 },
   enemies: [{ hp: 10, status: "ok" }],
   roundNumber: 1,
