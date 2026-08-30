@@ -1,7 +1,7 @@
 # Issue #984 Pure Raw Death Decomposition
 
 - runner: issue984-pure-raw-decomposition-v1
-- source commit: `50d8ac894c4ef9409f068974efac242952e695e4`
+- source commit: `b47f22e5be05767cbcce815e4e772502e444b3f0`
 - production baseline SHA: `ddaf1c03780bd47654b3468108b047dcd9adf4b8`
 - N=500 per build × encounter × depth × condition; seed=974-build-confidence
 - depths: B8, B13, B18, B21, B25, B30; builds: aoe-burst, single-efficient, sustain, hybrid-fallback; fixtures: 6
