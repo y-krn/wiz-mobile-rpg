@@ -895,8 +895,8 @@ export async function main(argv = process.argv.slice(2), overrides = {}) {
   const options = parseArgs(argv);
   if (!options.output || !options.summary) throw new Error("--output and --summary are required");
   const stage15 = Boolean(overrides.stage15 || options.stage15);
-  const runnerVersion = stage15 ? "issue990-phase3-stage1.5-v1" : RUNNER_VERSION;
-  const schemaVersion = stage15 ? 2 : SCHEMA_VERSION;
+  const runnerVersion = stage15 ? "issue990-phase3-stage1.5-v2" : RUNNER_VERSION;
+  const schemaVersion = stage15 ? 3 : SCHEMA_VERSION;
   const runnerPath = stage15 ? "scratch/measurements/issue990_phase3_stage1_5.js" : "scratch/measurements/issue990_phase3_stage1.js";
   const provenance = requireRunnerProvenance({
     fetchOriginMain: false,
