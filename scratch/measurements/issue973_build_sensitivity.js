@@ -224,7 +224,7 @@ export function createEncounterFixture(encounterId, depth, counterfactual = null
       name: count > 1 ? `${name} ${String.fromCharCode(64 + count)}` : name
     };
   });
-  if (counterfactual?.kind === "enemy_count") {
+  if (counterfactual?.kind === "multi_enemy_to_single") {
     monsters = monsters.slice(0, 1);
   }
   if (counterfactual?.kind === "enemy_hp") {
@@ -287,14 +287,14 @@ function createSimulationState(buildId, depth, monsters, seed, counterfactual = 
     identifyTickets: 0,
     gameState: "combat",
     simPolicy: {
-      ...(counterfactual?.kind === "enemy_action_count"
+      ...(counterfactual?.kind === "disable_multi_action_extra"
         ? { measurementMaxActionsPerEnemy: 1 }
         : {}),
       ...(counterfactual?.kind === "normal_damage"
         ? { measurementNormalDamageRate: counterfactual.rate }
         : {})
     },
-    simTelemetry: { executionerTriggers: 0, causalDamageEvents: [], causalHealEvents: [] },
+    simTelemetry: { executionerTriggers: 0, causalDamageEvents: [], causalHealEvents: [], measurementEnemyTurnEvents: [] },
     combatFormulaTelemetry: createTelemetry(),
     combatState: {
       monsters,
@@ -801,6 +801,7 @@ export function runEncounterSample({ buildId, encounterId, depth, seed, counterf
       }
       const causalEventStart = state.simTelemetry.causalDamageEvents.length;
       const causalHealEventStart = state.simTelemetry.causalHealEvents.length;
+      const enemyTurnEventStart = state.simTelemetry.measurementEnemyTurnEvents.length;
       const result = runCombatRoundCalculation(state, { actions: [action] });
       rounds++;
       observeRound(mechanisms, action, result.logQueue);
@@ -830,6 +831,7 @@ export function runEncounterSample({ buildId, encounterId, depth, seed, counterf
             physicalFallback ? "physical_fallback" : action.type === "spell" ? "spell_cast" : action.type
         },
         enemyActions: getEnemyActions(messages, rounds),
+        enemyTurnEvents: state.simTelemetry.measurementEnemyTurnEvents.slice(enemyTurnEventStart),
         statusEvents,
         mechanisms: roundMechanisms,
         spellCastOpportunityLoss,

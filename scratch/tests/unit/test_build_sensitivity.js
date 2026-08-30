@@ -48,7 +48,39 @@ const sampleA = runEncounterSample({ buildId: "hybrid-fallback", encounterId: "m
 const sampleB = runEncounterSample({ buildId: "hybrid-fallback", encounterId: "mp-pressure", depth: 13, seed: sharedSeed });
 assert.deepEqual(sampleA, sampleB, "production combat sample must be deterministic");
 assert.equal(sampleA.seed, sharedSeed, "the sample must retain the shared case seed");
-assert.equal(createEncounterFixture("swarm-action-pressure", 13, { kind: "enemy_count" }).monsters.length, 1);
+const c1 = COUNTERFACTUALS.find(condition => condition.id === "C1_multi_enemy_to_single");
+const c2 = COUNTERFACTUALS.find(condition => condition.id === "C2_disable_multi_action_extra");
+assert.equal(c1.kind, "multi_enemy_to_single");
+assert.equal(createEncounterFixture("swarm-action-pressure", 13, c1).monsters.length, 1);
+assert.match(c1.id, /multi_enemy_to_single/);
+assert.doesNotMatch(c1.id, /enemy_count_only/);
+const c2Baseline = runEncounterSample({
+  buildId: "single-efficient",
+  encounterId: "swarm-action-pressure",
+  depth: 8,
+  seed: "c2-test"
+});
+const c2Sample = runEncounterSample({
+  buildId: "single-efficient",
+  encounterId: "swarm-action-pressure",
+  depth: 8,
+  seed: "c2-test",
+  counterfactual: c2
+});
+assert.ok(
+  c2Baseline.trace.some(round => round.enemyTurnEvents.some(event => event.extraMultiAction)),
+  "baseline must reach a multiAction extra turn for the C2 control"
+);
+assert.ok(
+  c2Sample.trace.every(round => round.enemyTurnEvents.every(event => !event.extraMultiAction)),
+  "C2 must suppress only multiAction extra turns"
+);
+assert.equal(
+  c2Sample.trace[0].enemyTurnEvents.filter(event => !event.extraMultiAction).length,
+  3,
+  "C2 must retain one ordinary action for each of three living enemies"
+);
+assert.equal(c2.kind, "disable_multi_action_extra");
 assert.notEqual(
   createEncounterFixture("durable-single-target", 13, { kind: "enemy_hp", rate: 0.5 }).monsters[0].maxHp,
   createEncounterFixture("durable-single-target", 13).monsters[0].maxHp

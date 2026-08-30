@@ -458,14 +458,16 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         type: "monster",
         mon,
         idx,
-        speed
+        speed,
+        measurementExtraMultiAction: false
       });
       if (hasTrait(mon, "multiAction") && mon.multiActionQueued && state.simPolicy?.measurementMaxActionsPerEnemy !== 1) {
         turns.push({
           type: "monster",
           mon,
           idx,
-          speed: speed - 1
+          speed: speed - 1,
+          measurementExtraMultiAction: true
         });
       }
     }
@@ -473,6 +475,17 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
   // Sort by Speed descending
   turns.sort((a, b) => b.speed - a.speed);
+  if (state.simTelemetry?.measurementEnemyTurnEvents) {
+    turns.forEach(turn => {
+      if (turn.type === "monster") {
+        state.simTelemetry.measurementEnemyTurnEvents.push({
+          round: roundNumber,
+          monster: turn.mon.name,
+          extraMultiAction: Boolean(turn.measurementExtraMultiAction)
+        });
+      }
+    });
+  }
   const firstMonsterIndex = turns.findIndex(turn => turn.type === "monster");
   turns.forEach((turn, index) => {
     if (turn.type === "char") {
