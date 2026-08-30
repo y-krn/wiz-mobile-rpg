@@ -7,6 +7,7 @@ import { dungeonRenderer as renderer } from "./renderer.js";
 import {
   CURE_SPELL_KEYS,
   HEAL_SPELL_KEYS,
+  isSpellAvailableInContext,
   getSpellAllyTargetIndices,
   getSpellAllyTargetStatus
 } from "./rules/spell_targeting.js";
@@ -18,9 +19,10 @@ export let spellMenuState = {
 };
 
 function executeUtilitySpell() {
-  if (!isUsableSpellForActor(state.party, menuContext.actorIdx, menuContext.spellName, "utility")) return;
-  const caster = state.party[menuContext.actorIdx];
   const spell = SPELLS[menuContext.spellName];
+  if (!isUsableSpellForActor(state.party, menuContext.actorIdx, menuContext.spellName, "utility") ||
+      !isSpellAvailableInContext(spell, "exploration")) return;
+  const caster = state.party[menuContext.actorIdx];
   const payment = paySpellCost(caster, spell.cost);
   if (!payment.canCast) return;
   trackExplorationDecision("spell", {
@@ -38,9 +40,10 @@ function executeUtilitySpell() {
 }
 
 function executeAllySpell(targetIdx) {
-  if (!isUsableSpellForActor(state.party, menuContext.actorIdx, menuContext.spellName, ["single_ally", "all_allies"])) return;
-  const caster = state.party[menuContext.actorIdx];
   const spell = SPELLS[menuContext.spellName];
+  if (!isUsableSpellForActor(state.party, menuContext.actorIdx, menuContext.spellName, ["single_ally", "all_allies"]) ||
+      !isSpellAvailableInContext(spell, "exploration")) return;
+  const caster = state.party[menuContext.actorIdx];
   const payment = paySpellCost(caster, spell.cost);
   if (!payment.canCast) return;
   trackExplorationDecision("spell", {
@@ -68,9 +71,8 @@ export function getSpellUsability(caster, spKey) {
   const spell = SPELLS[spKey];
   if (!spell) return { usable: false, reason: "不明" };
 
-  // Check if combat-only spell
-  const isCombatOnly = (spell.target === "single_enemy" || spell.target === "all_enemies");
-  if (isCombatOnly) {
+  // Check if the spell is available while exploring.
+  if (!isSpellAvailableInContext(spell, "exploration")) {
     return { usable: false, reason: "戦闘のみ" };
   }
 

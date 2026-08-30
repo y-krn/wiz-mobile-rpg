@@ -18,6 +18,31 @@ export const HEAL_SPELL_KEYS = Object.freeze([
 
 export const CURE_SPELL_KEYS = Object.freeze(Object.keys(STATUS_CURE_RULES));
 
+export const COMBAT_SPELL_TARGETS = Object.freeze([
+  "single_enemy",
+  "all_enemies",
+  "single_ally",
+  "all_allies"
+]);
+
+export const EXPLORATION_SPELL_TARGETS = Object.freeze([
+  "utility",
+  "single_ally",
+  "all_allies"
+]);
+
+export function isSpellAvailableInContext(spell, context) {
+  if (!spell) return false;
+
+  const allowedTargets = context === "combat"
+    ? COMBAT_SPELL_TARGETS
+    : context === "exploration"
+      ? EXPLORATION_SPELL_TARGETS
+      : null;
+  if (!allowedTargets?.includes(spell.target)) return false;
+  return context === "combat" || !spell.combatOnly;
+}
+
 export function getSpellAllyTargetStatus(spellKey, char) {
   if (!char || char.status === "dead") {
     return { isDisabled: true, reason: "対象外", isRecommended: false };
