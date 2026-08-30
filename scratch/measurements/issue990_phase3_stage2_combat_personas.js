@@ -220,7 +220,18 @@ function deathSummary(records) {
   if (sum(Object.values(summary).map(value => value.count)) !== deaths.length) {
     throw new Error("#983 death categories are not exhaustive");
   }
-  return summary;
+  const pureRawDeathCount = summary.pure_raw_damage.count;
+  return {
+    categories: summary,
+    metrics: {
+      totalDeathCount: deaths.length,
+      totalDeathRate: ratio(deaths.length, records.length),
+      pureRawDeathCount,
+      pureRawDeathIncidence: ratio(pureRawDeathCount, records.length),
+      pureRawShareAmongDeaths: ratio(pureRawDeathCount, deaths.length),
+      pureRawShareDenominator: deaths.length ? "total deaths" : "zero deaths; null (rendered n/a)"
+    }
+  };
 }
 
 function aggregatePolicy(records) {
@@ -232,12 +243,14 @@ function aggregatePolicy(records) {
   const floors = Object.fromEntries(FLOORS.map(floor => [String(floor), aggregateFloor(records, floor)]));
   const encounters = sum(Object.values(floors).map(value => value.encounters));
   const totals = field => sum(Object.values(floors).map(value => value[field]));
+  const deathSummaryResult = deathSummary(records);
   return {
     runs: records.length,
     reachedDepth: reached,
     reach,
     floors,
-    deathCategories: deathSummary(records),
+    deathCategories: deathSummaryResult.categories,
+    deathMetrics: deathSummaryResult.metrics,
     deathDepth: describe(records.filter(record => record.died).map(record => record.deathDepth).filter(Number.isFinite)),
     totals: {
       encounters,
@@ -617,14 +630,16 @@ function renderSummary(report) {
     "",
     "## Table H — #983 death categories",
     "",
-    "| persona | pure raw | mechanic-mediated raw lethal | direct mechanic | unknown/mixed |",
-    "| --- | ---: | ---: | ---: | ---: |",
+    "| persona | runs | total deaths | death rate / all runs | pure raw deaths | pure raw / all runs | pure raw / deaths | mechanic-mediated raw lethal | direct mechanic | unknown/mixed |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ...policies.map(id => {
-      const value = policy(id).deathCategories;
-      return "| " + id + " | " + value.pure_raw_damage.count + " (" + percent(value.pure_raw_damage.rate) +
-        ") | " + value.mechanic_mediated_raw_lethal.count + " (" + percent(value.mechanic_mediated_raw_lethal.rate) +
-        ") | " + value.direct_mechanic_death.count + " (" + percent(value.direct_mechanic_death.rate) +
-        ") | " + value.unknown_or_mixed.count + " (" + percent(value.unknown_or_mixed.rate) + ") |";
+      const categories = policy(id).deathCategories;
+      const metrics = policy(id).deathMetrics;
+      return "| " + id + " | " + policy(id).runs + " | " + metrics.totalDeathCount +
+        " | " + percent(metrics.totalDeathRate) + " | " + metrics.pureRawDeathCount +
+        " | " + percent(metrics.pureRawDeathIncidence) + " | " + percent(metrics.pureRawShareAmongDeaths) +
+        " | " + categories.mechanic_mediated_raw_lethal.count + " | " + categories.direct_mechanic_death.count +
+        " | " + categories.unknown_or_mixed.count + " |";
     }),
     "",
     "## Table I — same-seed paired reach comparison",
@@ -654,6 +669,7 @@ function renderSummary(report) {
     "",
     "entered = reached next floor + died + incomplete is asserted per persona × floor.",
     "Incomplete means exploration ended without death or transition; it is never relabeled as death.",
+    "Table H uses all runs for death rate and pure-raw incidence; pure-raw/deaths is the separate share among deaths. With zero deaths, pureRawShareAmongDeaths is null and renders as n/a.",
     "Common support stops at the first encounter identity/composition mismatch. Post-divergence values are not paired.",
     "Hidden map/future encounter/future loot information is not passed to combat policy. #983 categories are exclusive and exhaustive.",
     "No production balance, production combat selector, or Stage 3 checkpoint continuation was changed.",
@@ -665,10 +681,10 @@ function renderSummary(report) {
     "3. Mean depth: " + policies.map(id => id + "=" + fmt(policy(id).reachedDepth.mean)).join(", ") + ". B21/B25/B30 are unobserved when no run reaches them.",
     "4. Normal attacks/encounter: " + policies.map(id => id + "=" + fmt(policy(id).perEncounter.normalAttacks)).join(", ") + "; MP-zero encounter share: " + policies.map(id => id + "=" + percent(policy(id).mpZeroEncounterRate)).join(", ") + ".",
     "5. Rounds/enemy actions/encounter: " + policies.map(id => id + "=" + fmt(policy(id).perEncounter.rounds) + "/" + fmt(policy(id).perEncounter.enemyActions)).join(", ") + ".",
-    "6. Pure raw death share: " + policies.map(id => id + "=" + percent(policy(id).deathCategories.pure_raw_damage.rate)).join(", ") + ".",
+    "6. Pure raw death incidence (all runs; primary): " + policies.map(id => id + "=" + percent(policy(id).deathMetrics.pureRawDeathIncidence)).join(", ") + "; pure raw share among deaths (secondary): " + policies.map(id => id + "=" + percent(policy(id).deathMetrics.pureRawShareAmongDeaths)).join(", ") + ". Total death rate: " + policies.map(id => id + "=" + percent(policy(id).deathMetrics.totalDeathRate)).join(", ") + ".",
     "7. Same-seed dominance is shown in Table I; no aggregate conclusion is made from unmatched post-divergence encounters.",
     "8. Exploration incomplete remains a separate censor in Table C; zero reached depth is not reported as all-dead.",
-    "9. Stage 1.5 MP hypothesis verdict: strengthened for the managed segment: mp-conservative reduced spell casts/MP spend but increased normal attacks, rounds, enemy actions, and normal damage; burst reduced combat duration/exposure on common support. The full end-to-end depth/death claim remains confounded after path divergence.",
+    "9. Stage 1.5 MP hypothesis verdict: strengthened for the managed segment: an MP-conserving action policy reduced spell casts/MP spend but increased normal attacks, rounds, enemy actions, and normal damage; burst reduced combat duration/exposure on common support. This supports MP management → action choice → exposure, not MP shortage alone as a complete death cause; the full end-to-end depth/death claim remains confounded after path divergence.",
     "10. “AI was merely too weak” verdict: strengthened as a sensitivity factor, not sufficient as a sole explanation; burst improved shallow reach while mp-conservative worsened it, yet all policies remained shallow and B21+ unobserved.",
     "11. Game-structure bottleneck evidence: strengthened for the shallow natural progression ceiling, with exploration incomplete still contributing.",
     "12. Stage 3 checkpoint continuation: recommended once, under Case C, because persona results are mixed and shallow incomplete/death prevents a clean deep-depth comparison; it is not implemented in this PR.",
@@ -703,7 +719,7 @@ function parseArgs(argv) {
   };
 }
 
-export { runMeasurement, renderSummary };
+export { runMeasurement, renderSummary, deathSummary };
 
 export async function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv);

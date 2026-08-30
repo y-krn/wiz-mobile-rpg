@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import {
   FLOORS,
   POLICIES,
+  deathSummary,
+  renderSummary,
   runMeasurement,
   SCHEMA_VERSION,
   validatePolicyFixture
@@ -44,6 +46,13 @@ assert.equal(report.commonScenario.potionThresholds.manaPotion, 0.55);
 
 for (const policy of POLICIES) {
   const summary = report.policies[policy];
+  const metrics = summary.deathMetrics;
+  const categoryCount = Object.values(summary.deathCategories).reduce((total, value) => total + value.count, 0);
+  assert.equal(metrics.totalDeathCount, categoryCount);
+  assert.equal(metrics.pureRawDeathCount, summary.deathCategories.pure_raw_damage.count);
+  assert.equal(metrics.totalDeathRate, metrics.totalDeathCount / summary.runs);
+  assert.equal(metrics.pureRawDeathIncidence, metrics.pureRawDeathCount / summary.runs);
+  assert.equal(metrics.pureRawShareAmongDeaths, metrics.totalDeathCount ? metrics.pureRawDeathCount / metrics.totalDeathCount : null);
   for (const floor of FLOORS) {
     const value = summary.floors[String(floor)];
     assert.equal(value.entered, value.reachedNextFloor + value.died + value.incomplete, `${policy} B${floor} floor partition`);
@@ -57,6 +66,19 @@ for (const policy of POLICIES) {
     assert.ok(Object.hasOwn(summary.deathCategories, category));
   }
 }
+
+const zeroDeath = deathSummary([]);
+assert.equal(zeroDeath.metrics.totalDeathCount, 0);
+assert.equal(zeroDeath.metrics.totalDeathRate, null);
+assert.equal(zeroDeath.metrics.pureRawDeathCount, 0);
+assert.equal(zeroDeath.metrics.pureRawDeathIncidence, null);
+assert.equal(zeroDeath.metrics.pureRawShareAmongDeaths, null);
+assert.equal(zeroDeath.metrics.pureRawShareDenominator, "zero deaths; null (rendered n/a)");
+const rendered = renderSummary(report);
+assert.match(rendered, /death rate \/ all runs/);
+assert.match(rendered, /pure raw \/ all runs/);
+assert.match(rendered, /pure raw \/ deaths/);
+assert.match(rendered, /Pure raw death incidence \(all runs; primary\)/);
 
 assert.equal(report.comparison.personaPairs.length, 3);
 assert.ok(report.comparison.personaPairs.every(pair => pair.commonSupport));
