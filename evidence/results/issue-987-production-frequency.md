@@ -1,7 +1,7 @@
 # Issue #987 Production-frequency weighted pure raw / Build Sensitivity
 
 - runner: `issue987-production-frequency-v1`
-- source commit: `e288cf28675b386908c935c0c9d1737536c2e9f9`
+- source commit: `65647b51bcad3e4aedd03ddc34910691b032d78c`
 - production baseline SHA: `1043e5147c2f43f3c7869a29e80dac522fac28e0`
 - generated encounters: **N=5000 per depth**; controlled stress: **N=500 per fixture × depth**
 - depths: B8, B13, B18, B21, B25, B30; builds: aoe-burst, single-efficient, sustain, hybrid-fallback
@@ -119,25 +119,31 @@ Overall: **46213 / 120000 = 38.51% pure raw**, clear 47.63%, death 52.36%. Norma
 
 ### Weighted paired counterfactuals
 
-| Condition | Baseline pure raw | Candidate pure raw | Paired clear-rate delta | HP preservation delta | MP preservation delta |
+All counterfactual deltas are **candidate − baseline**; positive means improvement.
+
+| Condition | Baseline pure raw | Candidate pure raw | Clear-rate delta (candidate − baseline) | HP delta (candidate − baseline) | MP delta (candidate − baseline) |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| W1_normal_damage_075 | 38.51% | 32.69% | -5.69pp | -5.39pp | 2.58pp |
-| W2_enemy_hp_075 | 38.51% | 33.75% | -6.48pp | -6.29pp | -2.71pp |
-| W3_enemy_action_exposure_1 | 38.51% | 33.96% | -7.02pp | -6.70pp | 6.04pp |
+| W1_normal_damage_075 | 38.51% | 32.69% | 5.69pp | 5.39pp | -2.58pp |
+| W2_enemy_hp_075 | 38.51% | 33.75% | 6.48pp | 6.29pp | 2.71pp |
+| W3_enemy_action_exposure_1 | 38.51% | 33.96% | 7.02pp | 6.70pp | -6.04pp |
 
 ### Weighted Build Sensitivity
 
-- strict significant reversal count: **153**
-- build dominance: **aoe-burst**, best-cell share **46.25%**
+- strict significant reversal count: **88**
+- strict reversal rule: paired outcome + utility bootstrap 95% CIs, both signs reversed; minimum paired N **30**
+- insufficient-sample family comparisons excluded: **6210**
+- family paired N: **342** build-pair×family entries recorded in JSON
+- equal-cell best-build coverage (not encounter-frequency weighted): **aoe-burst**, share **63.70%** across **87** depth×family cells
+- production-frequency-weighted best-build share: **sustain**, share **28.98%** across **30000** encounter samples
 
-| Build pair | Paired clear difference | HP preservation difference | MP preservation difference |
+| Build pair | Paired clear difference (left − right) | Paired HP difference (left − right) | Paired MP difference (left − right) |
 | --- | ---: | ---: | ---: |
-| aoe-burst vs single-efficient | 0.1037 | 0.1051 | -0.0809 |
-| aoe-burst vs sustain | 0.0439 | 0.0688 | -0.0363 |
-| aoe-burst vs hybrid-fallback | 0.2225 | 0.2201 | -0.1024 |
-| single-efficient vs sustain | -0.0598 | -0.0363 | 0.0446 |
-| single-efficient vs hybrid-fallback | 0.1188 | 0.1150 | -0.0214 |
-| sustain vs hybrid-fallback | 0.1786 | 0.1513 | -0.0660 |
+| aoe-burst vs single-efficient | -0.1037 | -0.1051 | 0.0809 |
+| aoe-burst vs sustain | -0.0439 | -0.0688 | 0.0363 |
+| aoe-burst vs hybrid-fallback | -0.2225 | -0.2201 | 0.1024 |
+| single-efficient vs sustain | 0.0598 | 0.0363 | -0.0446 |
+| single-efficient vs hybrid-fallback | -0.1188 | -0.1150 | 0.0214 |
+| sustain vs hybrid-fallback | -0.1786 | -0.1513 | 0.0660 |
 
 ## B. Controlled stress fixtures
 
@@ -184,31 +190,38 @@ Equal-weight stress overall: **31320 / 72000 = 43.50% pure raw**, clear 23.03%. 
 
 ### Controlled paired counterfactuals
 
-| Condition | Baseline pure raw | Candidate pure raw | Paired clear-rate delta | HP preservation delta | MP preservation delta |
+All counterfactual deltas are **candidate − baseline**; positive means improvement.
+
+| Condition | Baseline pure raw | Candidate pure raw | Clear-rate delta (candidate − baseline) | HP delta (candidate − baseline) | MP delta (candidate − baseline) |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| W1_normal_damage_075 | 43.50% | 33.36% | -9.65pp | -8.77pp | 4.28pp |
-| W2_enemy_hp_075 | 43.50% | 37.66% | -9.21pp | -8.63pp | -3.25pp |
-| W3_enemy_action_exposure_1 | 43.50% | 32.49% | -14.19pp | -14.06pp | 8.96pp |
+| W1_normal_damage_075 | 43.50% | 33.36% | 9.65pp | 8.77pp | -4.28pp |
+| W2_enemy_hp_075 | 43.50% | 37.66% | 9.21pp | 8.63pp | 3.25pp |
+| W3_enemy_action_exposure_1 | 43.50% | 32.49% | 14.19pp | 14.06pp | -8.96pp |
 
 ### Controlled Build Sensitivity
 
 - strict significant reversal count: **18**
-- build dominance: **aoe-burst**, best-cell share **46.30%**
+- strict reversal rule: paired outcome + utility bootstrap 95% CIs, both signs reversed; minimum paired N **30**
+- insufficient-sample family comparisons excluded: **0**
+- family paired N: **36** build-pair×family entries recorded in JSON
+- equal-cell best-build coverage (not encounter-frequency weighted): **aoe-burst**, share **56.94%** across **36** depth×family cells
+- production-frequency-weighted best-build share: **aoe-burst**, share **42.81%** across **18000** encounter samples
 
-| Build pair | Paired clear difference | HP preservation difference | MP preservation difference |
+| Build pair | Paired clear difference (left − right) | Paired HP difference (left − right) | Paired MP difference (left − right) |
 | --- | ---: | ---: | ---: |
-| aoe-burst vs single-efficient | 0.3110 | 0.3060 | -0.0908 |
-| aoe-burst vs sustain | 0.0793 | 0.1405 | 0.0315 |
-| aoe-burst vs hybrid-fallback | 0.3773 | 0.3685 | -0.1294 |
-| single-efficient vs sustain | -0.2317 | -0.1654 | 0.1223 |
-| single-efficient vs hybrid-fallback | 0.0663 | 0.0626 | -0.0386 |
-| sustain vs hybrid-fallback | 0.2979 | 0.2280 | -0.1609 |
+| aoe-burst vs single-efficient | -0.3110 | -0.3060 | 0.0908 |
+| aoe-burst vs sustain | -0.0793 | -0.1405 | -0.0315 |
+| aoe-burst vs hybrid-fallback | -0.3773 | -0.3685 | 0.1294 |
+| single-efficient vs sustain | 0.2317 | 0.1654 | -0.1223 |
+| single-efficient vs hybrid-fallback | -0.0663 | -0.0626 | 0.0386 |
+| sustain vs hybrid-fallback | -0.2979 | -0.2280 | 0.1609 |
 
 ## Interpretation and required decisions
 
 1. W1/W2/W3 are fixed causal probes, not production proposals; W3 limits total enemy turns after speed ordering and answers exposure sensitivity, not a natural gameplay replacement.
-2. Build Confidence is evaluated from weighted pairwise clear-rate differences, HP/MP preservation, strict significant family reversals, and dominance share. A reversal is strict only when paired 95% CI excludes zero in both family slices and signs differ.
-3. No production balance lever is recommended from this measurement alone. If a later tuning Issue is opened, the first candidate must come from this evidence rather than controlled-fixture averages.
+2. Build Confidence uses #975-compatible paired outcome + utility bootstrap reversals, minimum family paired N, aggregate clear/HP/MP, equal-cell coverage, and production-frequency-weighted best-build share.
+3. Equal-cell coverage gives every observed depth×family cell one vote; it is not encounter-frequency weighted. The generated-encounter dominance share is the frequency-weighted metric within the requested depth sample.
+4. No production balance lever is recommended from this measurement alone. If a later tuning Issue is opened, the first candidate must come from this evidence rather than controlled-fixture averages.
 
 ## Reproduction
 
