@@ -12,6 +12,9 @@ for (const requiredCall of ["generateRunFloor", "generateEncounter", "calculateE
 const report = runMeasurement({ seed: "issue990-regression", runs: 1 });
 assert.deepEqual(report.measurement.configuration.builds, [...BUILD_IDS]);
 assert.equal(report.measurement.configuration.startedRunsPerBuild, 1);
+assert.equal(report.measurement.routePolicy.name, "omniscient_shortest_route");
+assert.equal(report.measurement.routePolicy.playerEquivalent, false);
+assert.match(report.measurement.routePolicy.secretDoorKnowledge, /known and traversable from the start/);
 assert.equal(report.references.generatedFrequency.bestBuildShare.dominantBuild, "sustain");
 assert.equal(report.matchedCommonSupport.minimumPairedN, 30);
 
@@ -20,12 +23,16 @@ assert.ok(firstRuns.every(run => Number.isInteger(run.eventCount)), "each build 
 assert.ok(report.matchedCommonSupport.buildPairs.some(pair => pair.commonSupportPairedN > 0), "shared seed must produce common-support encounters");
 
 for (const buildId of BUILD_IDS) {
-  const result = report.actualReachedRun[buildId];
+  const result = report.oracleShortestRoute[buildId];
   assert.equal(result.allRuns.startedRuns, 1);
   assert.ok(result.allRuns.reachedDepth["1"].reached === 1);
   assert.ok(Object.hasOwn(result.reachedRunPopulations, "B30"));
   assert.ok(Array.isArray(result.allRuns.deathWindows));
 }
 
-console.log("issue-990 reached-run production path and survivor-bias schema: PASS");
+const repeat = runMeasurement({ seed: "issue990-regression", runs: 1 });
+assert.deepEqual(repeat.oracleShortestRoute, report.oracleShortestRoute, "same seed must reproduce oracle-route results");
+assert.equal(report.measurement.seedPolicy.sharedAcrossBuilds, true);
+assert.match(report.measurement.survivorBias, /not actual-run distributions/);
 
+console.log("issue-990 oracle-route production path, survivor-bias schema, and determinism: PASS");

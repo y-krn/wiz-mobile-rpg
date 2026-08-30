@@ -1,4 +1,4 @@
-// sim-scope: run — production-backed full-run Mage progression measurement
+// sim-scope: run — production combat/encounter measurement under an omniscient route policy
 /* global console, process */
 
 import fs from "node:fs";
@@ -9,6 +9,7 @@ import { createRng } from "../../src/seed_rng.js";
 import { generateRunFloor } from "../../src/run_map_generator.js";
 import { generateEncounter } from "../../src/combat_ui/encounter.js";
 import { calculateEncounterChance } from "../../src/movement.js";
+import { beginCampEntry, completeCampEntry, isCampEntryEligible, restAtCamp } from "../../src/systems/camp_rest.js";
 import { getCharMaxHp, getCharMaxMp } from "../../src/rules/character_stats.js";
 import {
   BUILD_IDS,
@@ -21,13 +22,22 @@ import {
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue990-reached-run-v1";
+export const RUNNER_VERSION = "issue990-reached-run-v2";
 export const DEFAULT_SEED = "990-reached-run";
 export const DEFAULT_RUNS = 500;
 export const MAX_DEPTH = 30;
 export const REACHED_RUN_TARGET_DEPTHS = Object.freeze([5, 10, 15, 20, 21, 25, 30]);
 export const MIN_STRICT_PAIRED_N = 30;
 export const SCHEMA_VERSION = 1;
+
+export const ROUTE_POLICY = Object.freeze({
+  name: "omniscient_shortest_route",
+  mapKnowledge: "full generated floor grid is available before movement",
+  stairsKnowledge: "stairs coordinates are known before movement by the measurement oracle",
+  bossKnowledge: "mandatory milestone boss coordinates are known before movement by the measurement oracle",
+  secretDoorKnowledge: "generated secret doors are known and traversable from the start by the measurement oracle",
+  playerEquivalent: false
+});
 
 const EXCLUSIVE_CATEGORIES = Object.freeze([
   "pure_raw_damage",
@@ -99,8 +109,9 @@ function canTraverse(grid, current, direction) {
   const cell = grid[current.y]?.[current.x];
   const next = grid[current.y + direction.dy]?.[current.x + direction.dx];
   if (!cell || !next || (cell.walls[direction.dir] && !cell.secretDoor?.[direction.dir])) return false;
-  // Production milestone placement validates reachability with revealGimmicks;
-  // the measurement route uses that same revealed graph for mandatory bosses.
+  // This is deliberately an oracle-only route. Production movement requires a
+  // discovered secret door; the oracle knows the generated map and therefore
+  // can include secret-door edges. Results must not be called actual runs.
   return (!cell.walls[direction.dir] || cell.secretDoor?.[direction.dir]) &&
     !next.blockEnter?.[(direction.dir + 2) % 4];
 }
@@ -220,13 +231,13 @@ function applyTransitionRecovery(character) {
   return { hp: Math.max(0, hp), mp: 0, kind: "floor_transition_15pct_hp" };
 }
 
-function applyCampRecovery(character, floor) {
-  if (floor <= 1 || floor % 5 !== 1) return null;
-  const maxHp = getCharMaxHp(character); const maxMp = getCharMaxMp(character);
-  const hp = Math.min(maxHp - character.hp, Math.ceil((maxHp - character.hp) * 0.4));
-  const mp = Math.min(maxMp - character.mp, Math.ceil((maxMp - character.mp) * 0.4));
-  character.hp += Math.max(0, hp); character.mp += Math.max(0, mp);
-  return { hp: Math.max(0, hp), mp: Math.max(0, mp), kind: "camp_40pct_missing" };
+function applyCampRecovery(character, floor, currentRun) {
+  const stateLike = { floor, party: [character], currentRun };
+  if (!isCampEntryEligible(stateLike, floor) || !beginCampEntry(stateLike, floor)) return null;
+  const result = restAtCamp(stateLike);
+  completeCampEntry(stateLike, floor);
+  if (!result.available) return null;
+  return { hp: result.hpRecovered, mp: result.mpRecovered, coreUsers: result.coreUsers, kind: "production_camp_rest" };
 }
 
 function makeFloorPlans(runSeed) {
@@ -244,13 +255,14 @@ function runBuild({ rootSeed, runIndex, buildId, floorPlans }) {
   const runSeed = `${rootSeed}:run:${runIndex}`;
   let character = createBuildCharacter(buildId); let reachedDepth = 0; let deathDepth = null;
   const events = []; const recovery = []; const triggerRng = createRng(`${runSeed}:encounter-triggers`);
+  const currentRun = { defeatedMilestones: [], campRested: {}, completedCampEntryFloors: [], pendingCampEntryFloor: null };
   let outcome = "reached_max_depth";
 
   for (const plan of floorPlans) {
     const { floor, generated, route } = plan;
     reachedDepth = floor;
     if (floor > 1) recovery.push({ floor, ...applyTransitionRecovery(character) });
-    const camp = applyCampRecovery(character, floor);
+    const camp = applyCampRecovery(character, floor, currentRun);
     if (camp) recovery.push({ floor, ...camp });
     let step = 0;
     for (let routeIndex = 1; routeIndex < route.length; routeIndex++) {
@@ -282,6 +294,9 @@ function runBuild({ rootSeed, runIndex, buildId, floorPlans }) {
       if (sample.outcome === "death") {
         outcome = "death"; deathDepth = floor;
         break;
+      }
+      if (sample.outcome === "clear" && isBoss && !currentRun.defeatedMilestones.includes(floor)) {
+        currentRun.defeatedMilestones.push(floor);
       }
     }
     if (outcome === "death") break;
@@ -343,7 +358,7 @@ function finalizeRunPopulation(runs, buildId, targetDepth = null) {
   };
 }
 
-function aggregateActual(runsByBuild) {
+function aggregateOracleRoute(runsByBuild) {
   return Object.fromEntries(BUILD_IDS.map(buildId => {
     const runs = runsByBuild.get(buildId); const byTarget = {};
     for (const depth of REACHED_RUN_TARGET_DEPTHS) byTarget[`B${depth}`] = finalizeRunPopulation(runs, buildId, depth);
@@ -437,15 +452,22 @@ function measurementMetadata({ seed, runs, provenance, environmentSignature }) {
     measurementRunnerCommit: provenance?.measurementRunnerCommit || null, measurementRunnerDiffSha256: provenance?.measurementRunnerDiffSha256 || null,
     productionBaselineSha: provenance?.baseCommit || null, originMainAncestor: provenance?.originMainAncestor ?? null,
     workingTreeClean: provenance?.workingTreeClean ?? null, environmentSignature,
-    configuration: { seed, startedRunsPerBuild: runs, maxDepth: MAX_DEPTH, reachedRunTargetDepths: [...REACHED_RUN_TARGET_DEPTHS], builds: [...BUILD_IDS], minStrictPairedN: MIN_STRICT_PAIRED_N },
+    configuration: { seed, startedRunsPerBuild: runs, maxDepth: MAX_DEPTH, reachedRunTargetDepths: [...REACHED_RUN_TARGET_DEPTHS], builds: [...BUILD_IDS], minStrictPairedN: MIN_STRICT_PAIRED_N, routePolicy: ROUTE_POLICY.name },
     seedPolicy: {
       run: "<root>:run:<index>", map: "generateRunFloor({runSeed,floor,parentStairsCoord})",
       trigger: "<runSeed>:encounter-triggers", encounter: "<runSeed>:B<floor>:step<step>:event<index>:generation",
       combat: "<runSeed>:B<floor>:step<step>:event<index>:combat", sharedAcrossBuilds: true
     },
-    modeled: ["production generateRunFloor and floor progression", "production movement encounter chance", "production generateEncounter selection/generation", "production combat round resolution and auto-action", "HP/MP carry-over", "floor transition HP recovery", "camp recovery after milestone", "mandatory milestone bosses", "#983 exclusive death classification", "#975-compatible strict reversal"],
-    omitted: ["loot/equipment upgrades and inventory choices", "manual inventory judgement", "retreat judgement and roaming elite AI", "trap resolution and non-combat damage", "midbosses (generateRunFloor production path has milestone bosses but no midboss cells)", "production balance tuning"],
-    survivorBias: "reached-run distributions are conditional on each build reaching the target depth; started runs, reached depth, death depth, and encounters experienced are separately reported"
+    routePolicy: ROUTE_POLICY,
+    productionKnowledge: {
+      stairs: "coordinate is not known at run start; the player discovers stairs by entering the stairs cell; movement.js only provides a nearby wind omen within sensory range",
+      boss: "coordinate is not known at run start; movement.js provides a nearby boss/midboss aura within sensory range and starts the encounter on cell entry",
+      secretDoor: "a hidden door is not traversable while secretFound is false; an adjacent search action may reveal it, with arcaneSense providing a local hint but not global coordinates",
+      extraWalking: "not measured; the oracle route is a shortest-path lower bound and omits exploration detours, failed searches, and search-turn encounter exposure"
+    },
+    modeled: ["production generateRunFloor and floor progression", "production movement encounter chance", "production generateEncounter selection/generation", "production combat round resolution and auto-action", "HP/MP carry-over", "production 15% max-HP floor-transition recovery", "production isCampEntryEligible/beginCampEntry/restAtCamp/completeCampEntry", "production 40% missing HP/MP camp recovery and CORE_CAMP_MASTER multiplier", "mandatory milestone bosses", "#983 exclusive death classification", "#975-compatible strict reversal"],
+    omitted: ["partial-information exploration and search-turn cost", "loot/equipment upgrades and inventory choices", "manual inventory judgement", "retreat judgement", "roaming elite encounters/AI", "trap resolution and non-combat damage", "midboss encounters", "production balance tuning"],
+    survivorBias: "oracle-route reached-depth distributions are conditional on each build reaching the target depth; they are not actual-run distributions. Started runs, reached depth, death depth, and encounters experienced are separately reported. Deep composition must not be interpreted as intrinsic encounter strength."
   };
 }
 
@@ -454,7 +476,7 @@ function percent(value) { return value === null || value === undefined ? "n/a" :
 function renderBuildRow(buildId, result) {
   const all = result.allRuns; const b21 = result.reachedRunPopulations.B21;
   const reach30 = all.reachedDepth["30"].reachRate;
-  return `| ${buildId} | ${all.startedRuns} | ${percent(reach30)} | ${all.deathDepthDistribution.B30.count} | ${all.encountersExperienced.encounters} | ${format(all.encountersExperienced.metrics.actionsPerRound.mean)} | ${percent(b21.encountersExperienced.pureRawRate)} (${b21.populationStatus}) |`;
+  return `| ${buildId} | ${all.startedRuns} | ${percent(reach30)} | ${all.deathDepthDistribution.B30.count} | ${all.encountersExperienced.encounters} | ${format(all.encountersExperienced.metrics.actionsPerRound.mean)} | ${percent(b21.encountersExperienced.pureRawRate)} (${b21.populationStatus}, oracle survivors) |`;
 }
 
 function referenceMetric(view, metric, field = "mean") {
@@ -465,8 +487,8 @@ function renderReferenceRow(label, view) {
   return `| ${label} | ${percent(view?.pureRawRate)} | ${format(referenceMetric(view, "normalHitDamage"))} | ${format(referenceMetric(view, "normalAttacksReceived"))} | ${format(referenceMetric(view, "totalNormalDamage"))} | ${format(referenceMetric(view, "rounds"))} | ${format(referenceMetric(view, "totalEnemyActionsPerRound"))} | ${format(referenceMetric(view, "postCombatHpRatio"))} | ${format(referenceMetric(view, "postCombatMpRatio"))} |`;
 }
 
-function renderActualOverallRow(buildId, view) {
-  return `| ${buildId} | actual reached-run | ${percent(view.pureRawRate)} | ${format(view.metrics.damagePerNormalHit.mean)} | ${format(view.metrics.normalHitsReceived.mean)} | ${format(view.metrics.totalNormalDamage.mean)} | ${format(view.metrics.rounds.mean)} | ${format(view.metrics.actionsPerRound.mean)} | ${format(view.metrics.hpAfter.mean)} | ${format(view.metrics.mpAfter.mean)} |`;
+function renderOracleOverallRow(buildId, view) {
+  return `| ${buildId} | oracle shortest-route | ${percent(view.pureRawRate)} | ${format(view.metrics.damagePerNormalHit.mean)} | ${format(view.metrics.normalHitsReceived.mean)} | ${format(view.metrics.totalNormalDamage.mean)} | ${format(view.metrics.rounds.mean)} | ${format(view.metrics.actionsPerRound.mean)} | ${format(view.metrics.hpAfter.mean)} | ${format(view.metrics.mpAfter.mean)} |`;
 }
 
 function pureRawDeathWindowStats(result) {
@@ -487,50 +509,51 @@ function compactRunRecords(runsByBuild) {
 }
 
 export function renderSummary(report) {
-  const actual = report.actualReachedRun;
+  const oracle = report.oracleShortestRoute;
   const lines = [
-    "# Issue #990 actual reached-run progression measurement", "",
+    "# Issue #990 omniscient shortest-route progression measurement", "",
     `- runner: \`${RUNNER_VERSION}\``,
     `- source commit: \`${report.measurement.sourceCommit || "in-process"}\``,
     `- production baseline SHA: \`${report.measurement.productionBaselineSha || "in-process"}\``,
     `- started runs/build: **N=${report.measurement.configuration.startedRunsPerBuild}**`, `- depth: B1-B${MAX_DEPTH}`,
     "", "## Scope and validity", "",
-    "The run uses production `generateRunFloor`, production encounter chance, production `generateEncounter`, and production combat resolution. Four builds share each run seed, generated floor, route, trigger stream, and encounter identity. Only the build's survival path determines which later encounters it can experience.", "",
-    "Loot/equipment decisions, manual inventory, retreats, roaming AI, traps, and midboss cells are omitted and explicitly recorded in JSON. No production constants were changed.", "",
+    "The run uses production `generateRunFloor`, production encounter chance, production `generateEncounter`, production combat resolution, HP/MP carry-over, floor-transition recovery, and production camp-rest helpers. Four builds share each run seed, generated floor, route, trigger stream, and encounter identity. Only the build's survival path determines which later encounters it can experience.", "",
+    "Route validity is intentionally limited: this is a production-map omniscient shortest-route measurement, not an actual player run. The route knows stairs and milestone-boss coordinates from the complete generated grid and traverses generated secret-door edges from the start. Production players learn stairs/bosses by exploration and can only use a secret door after discovering it; the measurement does not model that extra walking or search turns.", "",
+    "Loot/equipment upgrades, inventory decisions, retreat decisions, roaming elites, traps/non-combat damage, and midbosses are omitted and explicitly recorded in JSON. A fixed build is therefore not a complete player-run reproduction. No production constants were changed.", "",
     "## Survivor-bias split", "",
     "`startedRuns`, `reachedDepth`, `deathDepthDistribution`, and `encountersExperienced` are separate. The reached-run views below are conditional populations; a deep encounter being overrepresented there does not prove that its build is intrinsically stronger against that encounter.", "",
     "| Build | Started | Reached B30 | Deaths at B30 | Encounters experienced | Actions/round | Pure raw among B21+ reached runs |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |"
   ];
-  BUILD_IDS.forEach(buildId => lines.push(renderBuildRow(buildId, actual[buildId])));
+  BUILD_IDS.forEach(buildId => lines.push(renderBuildRow(buildId, oracle[buildId])));
   lines.push("", "## Build reach and death depth", "", "The JSON contains B1-B30 reach/death counts and Wilson intervals. Death depth is the depth where the terminating encounter occurred; a run dying on B30 has reached B30.", "", "| Build | B5 reach | B10 reach | B15 reach | B20 reach | B21+ reach | B30 reach |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
   BUILD_IDS.forEach(buildId => {
-    const d = actual[buildId].allRuns.reachedDepth;
+    const d = oracle[buildId].allRuns.reachedDepth;
     lines.push(`| ${buildId} | ${percent(d["5"].reachRate)} | ${percent(d["10"].reachRate)} | ${percent(d["15"].reachRate)} | ${percent(d["20"].reachRate)} | ${percent(d["21"].reachRate)} | ${percent(d["30"].reachRate)} |`);
   });
-  lines.push("", "## Actual reached-run encounter metrics", "", "Each target-depth population includes only runs with `reachedDepth >= target`; its encounters are limited to floors through that target. This is intentionally not a global full-run frequency.", "", "| Build | Target population | Encounter N | Family/enemy-count slices | Normal hit | Normal hits | Total normal damage | HP before→after | MP before→after | Rounds | Enemy actions |", "| --- | ---: | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: |");
+  lines.push("", "## Oracle-route reached-depth encounter metrics", "", "Each target-depth population includes only runs with `reachedDepth >= target`; its encounters are limited to floors through that target. This is an oracle-route conditional population, not a global full-run frequency and not an actual-run distribution.", "", "| Build | Target population | Encounter N | Family/enemy-count slices | Normal hit | Normal hits | Total normal damage | HP before→after | MP before→after | Rounds | Enemy actions |", "| --- | ---: | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: |");
   BUILD_IDS.forEach(buildId => [5, 10, 15, 20, 21, 25, 30].forEach(depth => {
-    const view = actual[buildId].reachedRunPopulations[`B${depth}`].encountersExperienced;
+    const view = oracle[buildId].reachedRunPopulations[`B${depth}`].encountersExperienced;
     lines.push(`| ${buildId} | B${depth} reached | ${view.encounters} | see JSON | ${format(view.metrics.damagePerNormalHit.mean)} | ${format(view.metrics.normalHitsReceived.mean)} | ${format(view.metrics.totalNormalDamage.mean)} | ${format(view.metrics.hpBefore.mean)}→${format(view.metrics.hpAfter.mean)} | ${format(view.metrics.mpBefore.mean)}→${format(view.metrics.mpAfter.mean)} | ${format(view.metrics.rounds.mean)} | ${format(view.metrics.enemyActions.mean)} |`);
   }));
-  lines.push("## Death windows and pure raw exposure", "Every death window stores the last one, two, and three experienced encounters and their normal-damage window; pure_raw_damage remains exclusive.", "The JSON retains family and enemy-count slices plus per-death windows. `lethalHitOverMaxHp`, normal-hit damage, normal-hit count, and total normal damage separate single-hit pressure from cumulative exposure.", `Matched common-support minimum paired N: ${report.matchedCommonSupport.minimumPairedN}.`, `Strict significant reversals: ${report.matchedCommonSupport.strictSignificantReversalCount}.`, `Insufficient comparisons: ${report.matchedCommonSupport.insufficientSampleComparisons}.`, "## Three-arm comparison", "The following metrics use each arm's own weighting. #987 arms are imported unchanged; #990 actual is weighted by encounters that the build actually experienced.", "", "| Arm / build | Weighting | Pure raw | Normal hit | Normal hits | Total normal damage | Rounds | Actions/round | Post HP | Post MP |", "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+  lines.push("## Death windows and pure raw exposure", "Every death window stores the last one, two, and three experienced encounters and their normal-damage window; pure_raw_damage remains exclusive.", "The JSON retains family and enemy-count slices plus per-death windows. `lethalHitOverMaxHp`, normal-hit damage, normal-hit count, and total normal damage separate single-hit pressure from cumulative exposure. These are observed relationships in the modeled arm, not causal proof.", `Matched common-support minimum paired N: ${report.matchedCommonSupport.minimumPairedN}.`, `Strict significant reversals: ${report.matchedCommonSupport.strictSignificantReversalCount}.`, `Insufficient comparisons: ${report.matchedCommonSupport.insufficientSampleComparisons}.`, "## Three-arm comparison", "The following metrics use each arm's own weighting. #987 arms are imported unchanged; #990 is weighted by encounters observed under the oracle shortest-route arm.", "", "| Arm / build | Weighting | Pure raw | Normal hit | Normal hits | Total normal damage | Rounds | Actions/round | Post HP | Post MP |", "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
   const controlled = report.references.controlledStress.overall;
   const generated = report.references.generatedFrequency.overall;
   lines.push(`| controlled stress / overall | fixture stress | ${percent(controlled?.pureRawRate)} | ${format(referenceMetric(controlled, "normalHitDamage"))} | ${format(referenceMetric(controlled, "normalAttacksReceived"))} | ${format(referenceMetric(controlled, "totalNormalDamage"))} | ${format(referenceMetric(controlled, "rounds"))} | ${format(referenceMetric(controlled, "totalEnemyActionsPerRound"))} | ${format(referenceMetric(controlled, "postCombatHpRatio"))} | ${format(referenceMetric(controlled, "postCombatMpRatio"))} |`);
   lines.push(`| #987 generated weighted / overall | production \`generateEncounter()\` | ${percent(generated?.pureRawRate)} | ${format(referenceMetric(generated, "normalHitDamage"))} | ${format(referenceMetric(generated, "normalAttacksReceived"))} | ${format(referenceMetric(generated, "totalNormalDamage"))} | ${format(referenceMetric(generated, "rounds"))} | ${format(referenceMetric(generated, "totalEnemyActionsPerRound"))} | ${format(referenceMetric(generated, "postCombatHpRatio"))} | ${format(referenceMetric(generated, "postCombatMpRatio"))} |`);
   BUILD_IDS.forEach(buildId => {
-    const actualView = actual[buildId].allRuns.encountersExperienced;
+    const oracleView = oracle[buildId].allRuns.encountersExperienced;
     const generatedView = report.references.generatedFrequency.byBuild.find(view => view.dimensions.buildId === buildId);
     const controlledView = report.references.controlledStress.byBuild.find(view => view.dimensions.buildId === buildId);
-    lines.push(renderActualOverallRow(buildId, actualView), renderReferenceRow(`#987 generated / ${buildId}`, generatedView), renderReferenceRow(`controlled / ${buildId}`, controlledView));
+    lines.push(renderOracleOverallRow(buildId, oracleView), renderReferenceRow(`#987 generated / ${buildId}`, generatedView), renderReferenceRow(`controlled / ${buildId}`, controlledView));
   });
-  lines.push("", "## Actual death categories", "", "Counts are deaths among started runs; encounter pure-raw rates above use experienced encounters as their denominator.", "", "| Build | Pure raw | Mechanic-mediated raw lethal | Direct mechanic death | Unknown/mixed |", "| --- | ---: | ---: | ---: | ---: |");
+  lines.push("", "## Oracle-route death categories", "", "Counts are deaths among started runs; encounter pure-raw rates above use experienced encounters as their denominator.", "", "| Build | Pure raw | Mechanic-mediated raw lethal | Direct mechanic death | Unknown/mixed |", "| --- | ---: | ---: | ---: | ---: |");
   BUILD_IDS.forEach(buildId => {
-    const categories = actual[buildId].allRuns.deathCategories;
+    const categories = oracle[buildId].allRuns.deathCategories;
     lines.push(`| ${buildId} | ${categories.pure_raw_damage} | ${categories.mechanic_mediated_raw_lethal} | ${categories.direct_mechanic_death} | ${categories.unknown_or_mixed} |`);
   });
   lines.push("", "## Pure raw death windows", "", "Lookback 1 is the lethal encounter, lookback 2 and 3 are the immediately preceding encounters. These are conditional on pure_raw_damage deaths and are not a full-run frequency.", "", "| Build / lookback | N | Damage/normal hit | Lethal hit/maxHP | Normal hits | Total normal damage | HP before |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
   BUILD_IDS.forEach(buildId => {
-    const stats = pureRawDeathWindowStats(actual[buildId]);
+    const stats = pureRawDeathWindowStats(oracle[buildId]);
     [1, 2, 3].forEach(lookback => {
       const row = stats[`lookback${lookback}`];
       lines.push(`| ${buildId} / ${lookback} | ${row.count} | ${format(row.damagePerNormalHit)} | ${format(row.lethalHitOverMaxHp)} | ${format(row.normalHits)} | ${format(row.totalNormalDamage)} | ${format(row.hpBefore)} |`);
@@ -538,7 +561,7 @@ export function renderSummary(report) {
   });
   lines.push("", "## Matched common-support comparison", "", "Only event keys shared by builds are paired. Family entries below N=30 are recorded as insufficient_sample and are excluded from strict reversal counts.", "", "| Pair | Common N | Clear difference | HP difference | MP difference | Strict reversals | Insufficient family comparisons |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
   report.matchedCommonSupport.buildPairs.forEach(pair => lines.push(`| ${pair.leftBuildId} vs ${pair.rightBuildId} | ${pair.commonSupportPairedN} | ${format(pair.allCommonSupport.clearDifference?.estimate, 4)} | ${format(pair.allCommonSupport.hpDifference?.estimate, 4)} | ${format(pair.allCommonSupport.mpDifference?.estimate, 4)} | ${pair.strictSignificantReversals.length} | ${pair.insufficientSampleComparisons.length} |`));
-  lines.push("", "## Build Confidence and decision", "", `- #987 generated-frequency best-build share: **${report.references.generatedFrequency.bestBuildShare?.dominantBuild || "n/a"} ${percent(report.references.generatedFrequency.bestBuildShare?.dominantShare)}**; this is not actual reach dominance.`, `- actual reach dominance (highest reached depth per shared seed): ${JSON.stringify(report.buildConfidence.actualReachDominance.shares)}.`, "- matched pair results are the build-vs-build evidence; deep reached-run composition alone is not interpreted as encounter strength.", "- #975-compatible strict reversal: paired clear outcome + diagnostic utility bootstrap 95% CIs, both sign-reversed; N<30 is insufficient and excluded.", "- #973 Build Confidence: **Revise** until omitted loot/retreat decisions and non-combat deaths are either modeled or bounded by a follow-up.", "- production tuning: **Do not proceed from this measurement alone**. If a separate tuning issue follows, investigate normal physical damage/action exposure with depth/family-specific paired validation first.", "", "## Reproduction", "", "```sh", "node scratch/measurements/issue990_reached_run.js --runs 500 --seed 990-reached-run --output evidence/results/issue-990-reached-run.json --summary evidence/results/issue-990-reached-run.md", "```");
+  lines.push("", "## Build Confidence and decision", "", `- #987 generated-frequency best-build share: **${report.references.generatedFrequency.bestBuildShare?.dominantBuild || "n/a"} ${percent(report.references.generatedFrequency.bestBuildShare?.dominantShare)}**; this is not reach dominance.`, `- oracle-route highest-depth dominance on shared seeds: ${JSON.stringify(report.buildConfidence.oracleRouteDominance.shares)}. This is a modeled survival/reach result, not proof of deep-encounter superiority.`, "- matched pair results are the build-vs-build evidence; survivor-conditioned deep composition alone is not interpreted as encounter strength.", "- #975-compatible strict reversal: paired clear outcome + diagnostic utility bootstrap 95% CIs, both sign-reversed; N<30 is insufficient and excluded.", "- B21/B25/B30 pure-raw pressure: **unobserved** in the baseline (all 2,000 build-runs died before B20); this is not 0% pressure.", "- #973 Build Confidence: **Revise** until omitted loot/retreat decisions and non-combat deaths are either modeled or bounded by a follow-up.", "- #990: **keep open**; this PR is a measurement foundation and shallow-result report, not deep reached-run validation.", "- production tuning: **Do not proceed from this measurement alone**. If a separate tuning issue follows, investigate normal physical damage/action exposure with depth/family-specific paired validation first.", "", "## Reproduction", "", "```sh", "node scratch/measurements/issue990_reached_run.js --runs 500 --seed 990-reached-run --output evidence/results/issue-990-reached-run.json --summary evidence/results/issue-990-reached-run.md", "```");
   return lines.join("\n");
 }
 
@@ -549,15 +572,15 @@ export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, prove
     const runSeed = `${seed}:run:${runIndex}`; const floorPlans = makeFloorPlans(runSeed);
     BUILD_IDS.forEach(buildId => runsByBuild.get(buildId).push(runBuild({ rootSeed: seed, runIndex, buildId, floorPlans })));
   }
-  const actualReachedRun = aggregateActual(runsByBuild);
+  const oracleShortestRoute = aggregateOracleRoute(runsByBuild);
   const matchedCommonSupport = pairRecords(runsByBuild);
   const references = loadReference();
   return {
     schemaVersion: SCHEMA_VERSION,
     measurement: measurementMetadata({ seed, runs, provenance, environmentSignature }),
-    actualReachedRun,
+    oracleShortestRoute,
     matchedCommonSupport,
-    buildConfidence: { actualReachDominance: reachDominance(runsByBuild), generatedFrequencyBestBuildShare: references.generatedFrequency.bestBuildShare, interpretation: "deep reached-run distributions are survivor-conditioned" },
+    buildConfidence: { oracleRouteDominance: reachDominance(runsByBuild), generatedFrequencyBestBuildShare: references.generatedFrequency.bestBuildShare, interpretation: "oracle-route reached-depth distributions are survivor-conditioned and are not actual-run distributions" },
     references,
     runRecords: compactRunRecords(runsByBuild)
   };
@@ -579,7 +602,7 @@ function parseArgs(argv) {
 
 export async function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv); const runs = options.runs ?? DEFAULT_RUNS; const seed = options.seed || DEFAULT_SEED;
-  const provenance = requireRunnerProvenance({ fetchOriginMain: false, measurementRunnerPaths: ["scratch/measurements/issue990_reached_run.js", "scratch/measurements/issue973_build_sensitivity.js", "src/run_map_generator.js", "src/combat_ui/encounter.js", "src/movement.js", "src/combat_logic/round.js", "scratch/measurements/measurement_provenance.js", "scratch/measurements/measurement_env_signature.js"] });
+  const provenance = requireRunnerProvenance({ fetchOriginMain: false, measurementRunnerPaths: ["scratch/measurements/issue990_reached_run.js", "scratch/measurements/issue973_build_sensitivity.js", "src/run_map_generator.js", "src/systems/camp_rest.js", "src/combat_ui/encounter.js", "src/movement.js", "src/combat_logic/round.js", "scratch/measurements/measurement_provenance.js", "scratch/measurements/measurement_env_signature.js"] });
   const environmentSignature = printEnvSignatureBanner({ runnerVersion: RUNNER_VERSION, seed, runs, depths: [1, MAX_DEPTH], builds: BUILD_IDS, counterfactuals: [] }, { label: "issue990 reached-run env" });
   const report = runMeasurement({ seed, runs, provenance, environmentSignature });
   const outputPath = resolve(options.output); const summaryPath = resolve(options.summary);
