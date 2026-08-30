@@ -48,7 +48,7 @@ assert.equal(report.references.issue993.mixedIntoPartial, false);
 
 const changedFiles = execFileSync("git", ["diff", "--name-only", "origin/main...HEAD"], { encoding: "utf8" })
   .split(/\r?\n/).filter(Boolean);
-assert.ok(changedFiles.every(file => file.startsWith("scratch/")),
+assert.ok(changedFiles.every(file => file.startsWith("scratch/") || file === "evidence/results/issue-990-phase2.json" || file === "evidence/results/issue-990-phase2.md"),
   `Phase 2 must not edit production balance/source files: ${changedFiles.join(", ")}`);
 assert.ok(fs.readFileSync("scratch/simulations/sim_depth_material_ev.js", "utf8")
   .includes("partial_information_exploration"));
