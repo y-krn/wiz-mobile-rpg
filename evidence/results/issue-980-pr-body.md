@@ -19,6 +19,8 @@ The latest-main causal run has 49,319 deep deaths and 41,512 legacy raw-labeled 
 
 Every death has exactly one exclusive final category: `pure_raw_damage`, `mechanic_mediated_raw_lethal`, `direct_mechanic_death`, or `unknown_or_mixed`. Multi-label contributing observations are separate evidence and are never used as the exclusive denominator.
 
+`directCause` is the last lethal event. `contributingCause` is assigned only when the preceding mechanic has matching `stateDegradationEvidence`: silence requires spell opportunity loss, MP drain requires low-MP/cast failure/fallback, reflection requires actual reflect damage, action-economy mechanics require increased enemy actions followed by HP loss, anti-heal requires suppressed recovery, and regen/guard requires observed long-fight survival extension. Mechanic firing alone is not causal.
+
 1. Of the former 83% raw label, **pure raw damage was 26,683 / 41,512 = 64.28%**.
 2. **Mechanic-mediated raw lethal deaths were 5,692 / 41,512 = 13.71%**.
 3. **Direct mechanic deaths were 8,388 / 41,512 = 20.21%**.
