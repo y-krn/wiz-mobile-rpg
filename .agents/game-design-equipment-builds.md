@@ -6,8 +6,42 @@ Implementation history: PR #126 (Phase 1), #127 (Phase 2), #128 (Phase 3),
 #129 (Phase 4). The inscription and curse-sealing portions of Phase 4 were removed in #668 because they were unreachable from the current game screens; enhancement and polishing remain pending UI wiring after the #669 decision.
 
 **Direction change (2026-07-18).** This document reflects the pivot to a solo
-depth-attack roguelite. It is subordinate to `.agents/game-design-core-loop.md`
-and `.agents/game-design.md`; resolve conflicts toward those documents.
+depth-attack roguelite. It is subordinate to the Core Loop vNext contract in
+`.agents/game-design-core-loop.md` and to `.agents/game-design.md`; resolve
+conflicts toward those documents.
+
+## Core Loop vNext alignment
+
+**Canonical source:** [#973 comment 5479686603](https://github.com/y-krn/wiz-mobile-rpg/issues/973#issuecomment-5479686603).
+This section records the equipment/build implications of that source. It is a
+**design target / vNext contract**, not a claim that the current generator,
+Workshop, or result flow already implements every rule.
+
+- A run's build is improvised from unknown dungeon loot. Loot can reinforce
+  the current approach, convert its costs (HP, MP, status, or another
+  resource), or change its direction. The build is evaluated by the depth and
+  resource trial it survives, not by a collection score.
+- The bag is fixed at 20 ordinary slots. Equipped items are outside it;
+  spare equipment, consumables, unknown items, curios, and Wings compete for
+  one slot each. There are no permanent capacity increases or dedicated
+  safety/treasure/Wing compartments.
+- Unknown equipment follows signs → observation → trial → full understanding.
+  The Codex stores observed facts and hypotheses, but does not reveal an
+  undiscovered answer, hidden totals, or an optimal build.
+- Recovered dungeon equipment is not permanent combat equipment for the next
+  run. Between-run Workshop progression may broaden what can exist, but does
+  not provide a permanently superior item tier or target a specific build's
+  appearance rate.
+
+### Current implementation boundary
+
+The current code already has core/support affix data, dungeon equipment
+generation, unidentified-item handling, a 20-slot bag, equipment actions, and
+Workshop unlock data. These are implementation surfaces, not proof that the
+vNext role model or all outcome handling is complete. In particular, the
+current code's affix activation and floor-pool behavior must not be described
+as the final vNext build contract until the relevant implementation issue is
+complete.
 
 # Overview
 
@@ -16,7 +50,9 @@ redesigned into a 2-tier affix system of “core” and “support.” The syner
 (`SYNERGIES` / `getActiveSynergyMod`) was retired in Phase 1. The current design assumes 1 solo character,
 and effects belong to the wearer.
 
-Goal: effective build space ≈ `CORE_AFFIXES.length` cores × 2〜3 class fits × support configurations ≈ 60〜80.
+Build-space goal: create many viable improvised builds through a main axis,
+support configuration, and resource competition. Do not use a target count or
+Core count as the definition of a completed build.
 
 # Equipment Codex Direction (#826)
 
@@ -45,10 +81,15 @@ files remain authoritative for current values.
 
 # Overall Structure
 
-- **Core types** (`CORE_AFFIXES`): Rule-changing effects. Dungeon-sourced only. Milestone merchants do not sell equipment.
-  For 1 item, at most 1 core (enforced during generation). A 1-character loadout has no upper limit on the number of equipped items,
-  and all cores are active simultaneously as long as the slots allow (#311 removed the 1-core limit; it accounted for 50% of unequipped reasons,
-  and was the main reason lower-tier cores could not compete).
+- **Core types** (`CORE_AFFIXES`): Rule-changing effects. Dungeon-sourced
+  only; milestone merchants do not sell equipment. One item has at most one
+  Core, but the total number of Cores has no immediate hard cap.
+- Core count alone is not the build contract. A run should have a discernible
+  main axis and supporting axes, with equipment slots, the 20-slot bag, and
+  consumables creating resource competition. Individual Core effects remain
+  condition-driven; main/support describes the build's prioritization and
+  resource competition, not a fixed activation cap. Do not use “Core 1+ plus
+  filled slots” as a completion test.
 - Equipment with a core has its base shifted during generation toward a same-slot candidate the party can equip
   (`src/systems/equipment_generation.js`). Class equipment restrictions themselves remain as part of class identity,
   so the core itself is not wasted. If a shield core is generated for a class that cannot equip shields, it
@@ -98,15 +139,14 @@ The current design assumes 1 solo character. 忍び足・賞金稼ぎ・学者�
 In implementation, existing helpers such as `getPartyCoreParams` / `partyHasCoreAffix` continue to be used,
 and their effects are inactive when the wearer is hp0 / dead / ash.
 
-Unidentified equipment is now evaluated at the mechanism layer while equipped:
-base stats, support/core affixes, and both positive and negative curse modifiers
-apply to derived stats and combat, while `getItemData()` and equipment detail UI
-continue to mask the corresponding information until identification. The
-慧眼 registry entry remains for save/content compatibility; Issue #775 changes
-no affix values, material costs, drop rates, or other economy constants.
-Equipping cursed unidentified equipment and triggering its curse is intended
-behavior. The item remains unidentified, but `curseLocked` exposes only the
-existence of the curse and prevents ordinary removal.
+Unknown equipment is evaluated at the mechanism layer while equipped: base
+stats, support/core affixes, and both positive and negative curse modifiers
+may apply while the UI masks their details. This is current implementation
+context, not a replacement for the vNext information ladder: the intended
+player experience is signs → observation → trial → full understanding, with
+the risk and return value of acting before full understanding preserved.
+Equipping cursed unknown equipment and triggering its curse remains a valid
+implementation path, but it must not silently reveal the answer in the Codex.
 
 # Support Affixes (`SUPPORT_AFFIXES`)
 
@@ -224,7 +264,12 @@ weapon atk, and spell dice remain unchanged.
 - Equipment curse generation follows `IDENTIFICATION_BALANCE` in
   `src/rules/identification_rules.js`; core-bearing equipment receives the
   configured core bonus on top of the floor-scaled base chance.
-- Floor-specific core pool weights: B1-B2=mostly economy, B3+=mostly combat
+- Floor pools are an implementation mechanism for the vNext five-floor
+  resource chapters, not a promise that deeper floors only provide bigger
+  combat numbers. B1–5 should establish and reinforce a build; B6+ should
+  continue supplying counterplay, cost-conversion, and direction-change
+  possibilities appropriate to the current band. Exact weights and rates are
+  source/simulation values and must not be copied here as fixed canon.
 - Core sources are dungeon-only. Milestone merchants do not sell equipment.
 
 ### Monster equipment rewards
@@ -236,19 +281,30 @@ Monster equipment is unidentified and generated by
 than being replaced by the floor-based `IDENTIFICATION_BALANCE` odds. Those
 modules are the source of truth; rarity values are not duplicated here.
 
-# Workshop (Phase 4)
+# Workshop and equipment actions
 
-The unreachable inscription and curse-sealing features from PR #129 were removed in #668.
-This “Workshop” is distinct from the permanent unlock tree in `.agents/game-design.md`.
-The remaining polishing implementation is also unreachable from current screens and is tracked by #669.
+The **meta Workshop** and the **equipment action surface** must not be
+conflated. The vNext meta Workshop expands what can exist in future runs; it
+does not increase the appearance rate of a chosen build, create a permanent
+superior combat tier, or preserve recovered dungeon equipment as next-run
+gear. It is horizontal possibility expansion, not a targeted build shop.
 
-Boundary: **only support affixes can be polished**. Cores cannot be created, granted, moved, or removed in
-the Workshop.
+The unreachable inscription and curse-sealing features from PR #129 were
+removed in #668. The current enhancement/polishing rules and their UI wiring
+are retained as implementation history and follow-up scope; they are not
+evidence that the full vNext Workshop contract is complete.
+
+For the current equipment-action rules, only support affixes can be polished;
+cores cannot be created, granted, moved, or removed by that action surface.
 
 - **Polishing**: Multiplies the value of 1 support affix by 1.5 (round up). 1 time per item
   (`polished` flag). Cores are excluded. Cost: `AFFIX_BALANCE.polishCost`
 
-## Issue #669 Decision (2026-08-16)
+## Historical implementation decision: Issue #669 (2026-08-16)
+
+The following records the current implementation boundary and the reasoning
+behind deferred UI work. It does not override the vNext Workshop contract
+above.
 
 The three unreachable equipment actions are judged separately by depth impact
 and core-build impact. Numeric changes do not add affix slots, so they are not
