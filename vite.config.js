@@ -15,6 +15,10 @@ const release = (() => {
   }
 })();
 
+const shouldUploadSourcemaps =
+  process.env.SENTRY_UPLOAD_SOURCEMAPS === "true" &&
+  Boolean(process.env.SENTRY_AUTH_TOKEN);
+
 export default defineConfig({
   define: {
     // ブラウザSDKへ埋め込む。plugin側のrelease名と一致させる。
@@ -24,16 +28,20 @@ export default defineConfig({
     sourcemap: true, // Source map generation must be turned on
   },
   plugins: [
-    // Put the Sentry vite plugin after all other plugins
-    sentryVitePlugin({
-      authToken: process.env.SENTRY_AUTH_TOKEN,
-      org: "wiz-mobile-rpg",
-      project: "javascript",
-      release: { name: release },
-      sourcemaps: {
-        // upload後にmapを削除し、公開配信(dist/*.map)によるソース露出を防ぐ。
-        filesToDeleteAfterUpload: ["./dist/**/*.map"],
-      },
-    }),
+    ...(shouldUploadSourcemaps
+      ? [
+          // Put the Sentry vite plugin after all other plugins
+          sentryVitePlugin({
+            authToken: process.env.SENTRY_AUTH_TOKEN,
+            org: "wiz-mobile-rpg",
+            project: "javascript",
+            release: { name: release },
+            sourcemaps: {
+              // upload後にmapを削除し、公開配信(dist/*.map)によるソース露出を防ぐ。
+              filesToDeleteAfterUpload: ["./dist/**/*.map"],
+            },
+          }),
+        ]
+      : []),
   ],
 });
