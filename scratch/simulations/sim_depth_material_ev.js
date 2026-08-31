@@ -1686,11 +1686,11 @@ function createCoreObservations() {
     diosHealActions: 0,
     trappedChests: 0,
     expectedTrapDisarms: 0,
-    expectedTrapDisarmsByFloor: Array(21).fill(0),
-    pickedChestsByFloor: Array(21).fill(0),
-    campBonusHpByFloor: Array(21).fill(0),
-    campBonusMpByFloor: Array(21).fill(0),
-    scholarMaterialBonusByFloor: Array(21).fill(0),
+    expectedTrapDisarmsByFloor: Array(41).fill(0),
+    pickedChestsByFloor: Array(41).fill(0),
+    campBonusHpByFloor: Array(41).fill(0),
+    campBonusMpByFloor: Array(41).fill(0),
+    scholarMaterialBonusByFloor: Array(41).fill(0),
     disruptorKills: 0,
     amplifierKills: 0,
     bountyBonusMaterials: 0,
@@ -2987,9 +2987,9 @@ function createOutcomeAggregate() {
     survived: 0,
     died: 0,
     reachedFloor: 0,
-    entrantsByFloor: Array(21).fill(0),
-    deathsByFloor: Array(21).fill(0),
-    retreatsByFloor: Array(21).fill(0),
+    entrantsByFloor: Array(41).fill(0),
+    deathsByFloor: Array(41).fill(0),
+    retreatsByFloor: Array(41).fill(0),
     terminationReasons: {},
     finalHp: [],
     finalHpRate: [],
@@ -9213,6 +9213,44 @@ function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
   };
 }
 
+// Measurement-only checkpoint transport.  This is intentionally separate from
+// the production save shape: it carries the live production-backed run state
+// between a prefix measurement and a continuation measurement, while omitting
+// the generated map/combat object and telemetry references.
+function snapshotCheckpointState(state) {
+  const snapshot = structuredClone(state);
+  snapshot.map = null;
+  snapshot.combatState = null;
+  snapshot.encounterRateOverride = null;
+  snapshot.simTelemetry = null;
+  return snapshot;
+}
+
+function hydrateCheckpointState(state, checkpointState, scenario, runSeed) {
+  if (!checkpointState) return;
+  const configuredPolicy = structuredClone(state.simPolicy);
+  Object.assign(state, structuredClone(checkpointState));
+  state.map = null;
+  state.combatState = null;
+  state.encounterRateOverride = null;
+  state.roamingMonsters = [];
+  state.currentRun.runSeed = runSeed;
+  state.currentRun.startFloor = state.floor;
+  state.floor = Number.isInteger(Number(state.floor))
+    ? Number(state.floor)
+    : Number(scenario.startFloor) || 1;
+  state.simPolicy = {
+    ...configuredPolicy,
+    ...(state.simPolicy || {}),
+    combatPolicy: scenario.combatPolicy || configuredPolicy.combatPolicy || "balanced-combat"
+  };
+  // Continuation metrics count only what happens after the checkpoint. The
+  // queues themselves remain part of the checkpoint state for real supply
+  // accounting, while the synthetic "starting" arrays are not re-counted.
+  state.simStartingInventory = [];
+  state.simDepartureCraftItems = [];
+}
+
 function createDeathStateSnapshot(state, scoringProfile) {
   const character = state.party[0];
   const build = createBuildSnapshot(state, scoringProfile, "death");
@@ -11696,7 +11734,7 @@ function hasBuildCoreAffix(item) {
 }
 
 function createFloorSupplyStats() {
-  return Array.from({ length: 21 }, () => ({
+  return Array.from({ length: 41 }, () => ({
     equipment: 0,
     core: 0,
     cursed: 0,
@@ -12788,7 +12826,9 @@ export function simulateRun({
   collectBuildSnapshots = false,
   collectEquipmentTelemetry = false,
   collectCombatFormula = false,
-  worldSeed = null
+  worldSeed = null,
+  checkpointState = null,
+  captureCheckpointAtFloor = null
 }) {
   const runSeed = worldSeed || `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   if (SIM_INDEPENDENT_RUN_RANDOM) {
@@ -12807,6 +12847,7 @@ export function simulateRun({
     keyItems,
     unlockedMilestones
   );
+  hydrateCheckpointState(state, checkpointState, scenario, runSeed);
   state.simPolicy.statusCureTargetDepth = targetDepth;
   if (CORE_WORKSHOP_GATE_MODE === "off") {
     state.party[0].unlockedAffixIds = [...ALL_CORE_AFFIX_IDS];
@@ -12907,7 +12948,7 @@ export function simulateRun({
     unidentifiedWearCount: 0,
     curseHitCount: 0,
     equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
-    equipmentFoundByFloor: Array(21).fill(0),
+    equipmentFoundByFloor: Array(41).fill(0),
     curseGeneration: createCurseGenerationCounts(),
     supportAffixFoundById: {},
     trapBonusItemsFound: 0,
@@ -12927,10 +12968,10 @@ export function simulateRun({
     coreEquipmentFound: 0,
     coreEquipmentFoundById: {},
     coreEquipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
-    coreEquipmentFoundByFloor: Array(21).fill(0),
+    coreEquipmentFoundByFloor: Array(41).fill(0),
     coreEquipmentFoundByGroupAndFloor: {
-      combat: Array(21).fill(0),
-      economy: Array(21).fill(0)
+      combat: Array(41).fill(0),
+      economy: Array(41).fill(0)
     },
     coreEquipmentInstanceIds: new Set(),
     coreEncounteredIds: new Set(),
@@ -13093,15 +13134,15 @@ export function simulateRun({
     pickupAttemptsBySource: { chest: 0, combat: 0, material: 0 },
     pickupRejectionsBySource: { chest: 0, combat: 0, material: 0 },
     pickupRejectionsByCategory: { item: 0, equipment: 0, material: 0 },
-    chestsOpenedByFloor: Array(21).fill(0),
-    chestTrappedByFloor: Array(21).fill(0),
+    chestsOpenedByFloor: Array(41).fill(0),
+    chestTrappedByFloor: Array(41).fill(0),
     chestDisarmAttempts: 0,
-    chestDisarmAttemptsByFloor: Array(21).fill(0),
+    chestDisarmAttemptsByFloor: Array(41).fill(0),
     chestDisarmSuccesses: 0,
-    chestDisarmSuccessesByFloor: Array(21).fill(0),
-    chestDisarmKitUsesByFloor: Array(21).fill(0),
-    chestDisarmDirectAttemptsByFloor: Array(21).fill(0),
-    chestForcedByFloor: Array(21).fill(0),
+    chestDisarmSuccessesByFloor: Array(41).fill(0),
+    chestDisarmKitUsesByFloor: Array(41).fill(0),
+    chestDisarmDirectAttemptsByFloor: Array(41).fill(0),
+    chestForcedByFloor: Array(41).fill(0),
     blindApplicationsBySource: { chest: 0, floor: 0, enemy: 0 },
     chestDisarmByBlindStatus: {
       clear: createChestDisarmBlindStatusMetric(),
@@ -13228,9 +13269,9 @@ export function simulateRun({
       merchant: 0
     },
     chestTownPortalMainRewardReplacements: 0,
-    chestTownPortalMainRewardReplacementsByFloor: Array(21).fill(0),
+    chestTownPortalMainRewardReplacementsByFloor: Array(41).fill(0),
     chestSpecialPortalOffers: 0,
-    chestSpecialPortalOffersByFloor: Array(21).fill(0),
+    chestSpecialPortalOffersByFloor: Array(41).fill(0),
     merchantWingAttempts: 0,
     merchantWingsPurchased: 0,
     merchantPurchaseFloors: [],
@@ -13390,6 +13431,13 @@ export function simulateRun({
     if (floorStart) {
       state.x = floorStart.x;
       state.y = floorStart.y;
+    }
+    if (captureCheckpointAtFloor === floor) {
+      return {
+        checkpointFloor: floor,
+        checkpointState: snapshotCheckpointState(state),
+        checkpointSnapshot: createCheckpointSnapshot(state, metrics, scoringProfile, floor)
+      };
     }
     if (floor === FLAME_TRAP_MODEL.floor) {
       const entrant = state.party[0];
@@ -14332,10 +14380,10 @@ function simulateCase({
     timeCost: 0,
     campRestCount: 0,
     reachedFloor: 0,
-    entrantsByFloor: Array(21).fill(0),
-    breakthroughsByFloor: Array(21).fill(0),
-    deathsByFloor: Array(21).fill(0),
-    retreatsByFloor: Array(21).fill(0),
+    entrantsByFloor: Array(41).fill(0),
+    breakthroughsByFloor: Array(41).fill(0),
+    deathsByFloor: Array(41).fill(0),
+    retreatsByFloor: Array(41).fill(0),
     meanStats: createMeanStats([
       "bankedMaterials",
       "netBankedMaterials",
@@ -14505,9 +14553,9 @@ function simulateCase({
     portalUseFloorCounts: {},
     portalUseHpBands: { "0-20%": 0, "21-35%": 0, "36-55%": 0, "56%+": 0 },
     chestTownPortalMainRewardReplacements: 0,
-    chestTownPortalMainRewardReplacementsByFloor: Array(21).fill(0),
+    chestTownPortalMainRewardReplacementsByFloor: Array(41).fill(0),
     chestSpecialPortalOffers: 0,
-    chestSpecialPortalOffersByFloor: Array(21).fill(0),
+    chestSpecialPortalOffersByFloor: Array(41).fill(0),
     fleeCount: 0,
     runsWithFlee: 0,
     eliteEncounters: 0,
