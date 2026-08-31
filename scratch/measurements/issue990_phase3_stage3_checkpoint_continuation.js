@@ -151,15 +151,37 @@ function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, provenance, 
 
 function deriveFinalAnalysis(report) {
   const pureRawByCheckpoint = Object.fromEntries(CHECKPOINTS.map(checkpoint => [checkpoint, Object.fromEntries(POLICIES.map(policy => [policy, report.policies[`B${checkpoint}:${policy}`].pureRawIncidence]))]));
-  const deep = CHECKPOINTS.filter(checkpoint => checkpoint >= 21).flatMap(checkpoint => POLICIES.map(policy => report.policies[`B${checkpoint}:${policy}`]));
+  const deepCheckpoints = CHECKPOINTS.filter(checkpoint => checkpoint >= 21);
+  const deep = deepCheckpoints.flatMap(checkpoint => POLICIES.map(policy => report.policies[`B${checkpoint}:${policy}`]));
   const deepPureRange = { min: Math.min(...deep.map(summary => summary.pureRawIncidence)), max: Math.max(...deep.map(summary => summary.pureRawIncidence)) };
-  return { pureRawByCheckpoint, pureRawDepthConclusion: "not monotonic; deep normal damage rises while pure-raw incidence remains material but varies by checkpoint", deepPolicyGap: { min: Math.min(...CHECKPOINTS.filter(checkpoint => checkpoint >= 21).map(checkpoint => Math.max(...POLICIES.map(policy => report.policies[`B${checkpoint}:${policy}`].pureRawIncidence)) - Math.min(...POLICIES.map(policy => report.policies[`B${checkpoint}:${policy}`].pureRawIncidence)))), max: Math.max(...CHECKPOINTS.filter(checkpoint => checkpoint >= 21).map(checkpoint => Math.max(...POLICIES.map(policy => report.policies[`B${checkpoint}:${policy}`].pureRawIncidence)) - Math.min(...POLICIES.map(policy => report.policies[`B${checkpoint}:${policy}`].pureRawIncidence)))) }, deepPureRawRange: deepPureRange, burstAdvantageB21Plus: "not retained", conservativePenaltyB21Plus: "present at B21, largely converged by B25/B30", ordinaryDamageCause: "mixed: MP/action choice changes attacks and exposure, while depth-scaled normal damage remains material", deepRawWall: "strong for survival/death incidence; pure raw is a major but non-exclusive death cause", buildConfidence: "Revise", firstProductionLever: "depth-aware normal-attack coefficient", close990: true };
+  const deepPolicyGaps = deepCheckpoints.map(checkpoint => Math.max(...POLICIES.map(policy => report.policies[`B${checkpoint}:${policy}`].pureRawIncidence)) - Math.min(...POLICIES.map(policy => report.policies[`B${checkpoint}:${policy}`].pureRawIncidence)));
+  return {
+    experimentType: "shallow-origin-frozen-state-deep-stress-test",
+    naturalDeepCheckpointDistribution: "not observed",
+    productionDeepBalance: "not established",
+    deepStressResult: "shallow-origin frozen checkpoint states are almost completely eliminated in B21+ stress-test arms",
+    combatPolicyConclusion: "Stage 2 mechanism remains visible at B10; B21+ policy comparison is censored by near-immediate failure, so apparent convergence is not proof that policy differences disappear",
+    pureRawByCheckpoint,
+    pureRawDepthConclusion: "not monotonic; normal damage per encounter rises while pure-raw incidence remains material but varies by checkpoint",
+    deepPolicyGap: { min: Math.min(...deepPolicyGaps), max: Math.max(...deepPolicyGaps) },
+    deepPureRawRange: deepPureRange,
+    burstAdvantageB21Plus: "not established as retained; stress-test censoring limits the comparison",
+    conservativePenaltyB21Plus: "visible at B21, but its persistence cannot be separated from early-failure censoring",
+    ordinaryDamageCause: "mixed: MP/action choice changes attacks and exposure, while depth-scaled normal damage remains material; Stage 3 does not isolate a production lever",
+    deepRawWall: "not established for production; observed only as a shallow-origin stress-test outcome",
+    buildConfidence: "Revise",
+    productionTuning: "not justified by Stage 3 deep checkpoint evidence alone",
+    nextDesignFocus: "ordinary damage × encounter duration × action exposure",
+    firstProductionLever: "undecided",
+    close990: true
+  };
 }
 
 const runMeasurementStage3 = runMeasurement;
 runMeasurement = options => {
   const report = runMeasurementStage3(options);
   report.finalAnalysis = deriveFinalAnalysis(report);
+  report.audit.deepCheckpointPopulationRepresentsNaturalReach = false;
   return report;
 };
 
@@ -192,17 +214,20 @@ render = report => {
   fixedMarkdown = replaceSection(fixedMarkdown, "## Table I", "## Table J", `## Table I — Depth trend B10→B30\n\n| continuation | balanced | mp-conservative | burst |\n| --- | ---: | ---: | ---: |\n${depthRows}`);
   const cohortRows = CHECKPOINTS.flatMap(checkpoint => POLICIES.map(policy => { const cohorts = report.policies[`B${checkpoint}:${policy}`].resourceCohorts.results; return `| B${checkpoint} | ${policy} | ${Object.values(cohorts).map(cohort => `${cohort.N}/${percent(cohort.pureRawIncidence)}`).join(" | ")} |`; })).join("\n");
   fixedMarkdown = fixedMarkdown.replace("## Table J", `## Resource cohorts — checkpoint state sensitivity\n\nCohorts are defined from entry MP ratio within each checkpoint arm: lower ≤ p25, median p25–p75, upper > p75. Cells are N/pure-raw incidence (all-run denominator).\n\n| checkpoint | persona | lower-resource | median-resource | upper-resource |\n| --- | --- | ---: | ---: | ---: |\n${cohortRows}\n\n## Table J`);
+  fixedMarkdown = fixedMarkdown.replace("## Table C — Continuation survival by checkpoint/persona", "All B10+ results below are synthetic frozen-state stress-test results, not natural B1-start reach distributions or production B21+ survival estimates.\n\n## Table C — Continuation survival by checkpoint/persona");
   const finalRows = [
-    "| deep policy separation | Weakened/partly converged at B21+: death incidence is 99.6–100.0%; pure-raw gaps are 5.0–7.8 percentage points, with B25 balanced and conservative nearly equal. |",
-    "| burst advantage at B21+ | Not retained: burst pure-raw incidence is above balanced at B21, B25, and B30. |",
-    "| conservative penalty at B21+ | Present at B21 (+5.4pp vs balanced), then largely converged by B25/B30 (+0.2/+1.6pp). |",
-    "| causal interpretation | Mixed: MP/action choice changes normal attacks and exposure, while deep normal damage rises; the arm does not isolate one-hit strength from duration/action exposure. |",
-    "| deep raw wall | Yes for deep survival/death, but pure raw is 24.4–39.8% of all runs, so mechanics/unknown categories remain material. |",
-    "| #973 Build Confidence | Revise. This synthetic bounded population does not establish a trustworthy deep build reach distribution; policy differences weaken with depth. |",
-    "| production tuning | Proceed only after review; no tuning in this PR. First lever: depth-aware normal-attack coefficient, avoiding a blanket enemy-ATK change. |",
-    "| #990 can close | Yes after evidence/regression review; Stage 3 measurement objective is complete. |"
+    "| deep stress result | Shallow-origin frozen states are almost completely eliminated at B21+ in the stress-test arms. |",
+    "| production B21+ survival wall | Not established; the checkpoint population does not model natural deep progression. |",
+    "| natural deep checkpoint distribution | Not observed. B10–B30 are under-progressed synthetic/frozen-state arms. |",
+    "| combat policy | Stage 2's mechanism remains visible at B10; B21+ comparison is censored by near-immediate failure, so convergence is not conclusive. |",
+    "| pure raw | Material but non-monotonic; insufficient to call a production raw wall. |",
+    "| #973 Build Confidence | Revise; deep validation remains unresolved rather than rejected. |",
+    "| production tuning | Not justified from Stage 3 alone; no specific production nerf is supported. |",
+    "| first production lever | Undecided; requires separate design review of ordinary damage × duration × action exposure. |",
+    "| #990 can close | Yes; the measurement program reached its useful limit, not because production B21+ balance was validated. |"
   ].join("\n");
   fixedMarkdown = replaceSection(fixedMarkdown, "## Table J", "## Contracts and limitations", `## Table J — Final decision matrix\n\n| question | decision |\n| --- | --- |\n${finalRows}`);
+  fixedMarkdown = fixedMarkdown.replace("Stage 3 is the final measurement. No Stage 3.5/4 or additional AI diagnosis is planned. No production tuning is included. Close #990 after review if the measurement and regression gates pass.", "Stage 3 is the final measurement and is interpreted as a shallow-origin frozen-state deep stress test. It does not establish production B21+ balance, natural deep checkpoint distributions, or a specific production nerf. No Stage 3.5/4 or additional AI diagnosis is planned. #990 can close because the measurement program reached its useful limit and further synthetic continuation would add little trustworthy information.");
   return fixedMarkdown.replace("| checkpoint | HP% | MP% | ATK | DEF | max HP | max MP | inventory | consumables | Core | Support | build score | curse |", "| checkpoint | HP ratio | MP ratio | ATK | DEF | max HP | max MP | inventory | consumables | Core | Support | build score | curse | rarity m/r/e/o |").replace("| --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- | ---: |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | --- |", 1);
 };
 

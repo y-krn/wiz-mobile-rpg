@@ -22,6 +22,7 @@ assert.equal(report.audit.hiddenFutureCombatInfoUsed, false);
 assert.equal(report.audit.hiddenMapInfoUsed, false);
 assert.equal(report.audit.hiddenFutureLootUsed, false);
 assert.equal(report.audit.rawFullCombatHistoriesStored, false);
+assert.equal(report.audit.deepCheckpointPopulationRepresentsNaturalReach, false);
 
 for (const checkpoint of CHECKPOINTS) {
   const audit = report.checkpointStateAudits[checkpoint];
@@ -51,7 +52,12 @@ assert.ok(report.comparison.sameSeedPairs.every(pair => pair.commonSupport.encou
 assert.ok(report.comparison.sameSeedPairs.every(pair => pair.commonSupport.encounters <= pair.pairedN * 5));
 assert.ok(report.policyDefinitions.every(definition => definition.unchangedFrom === "Issue #1002 Stage 2"));
 assert.ok(report.checkpointProvenance[30].source.includes("production continuation"));
+assert.equal(report.finalAnalysis.experimentType, "shallow-origin-frozen-state-deep-stress-test");
+assert.equal(report.finalAnalysis.productionDeepBalance, "not established");
+assert.equal(report.finalAnalysis.naturalDeepCheckpointDistribution, "not observed");
 assert.equal(report.finalAnalysis.buildConfidence, "Revise");
+assert.equal(report.finalAnalysis.productionTuning, "not justified by Stage 3 deep checkpoint evidence alone");
+assert.equal(report.finalAnalysis.firstProductionLever, "undecided");
 assert.equal(report.finalAnalysis.close990, true);
 
 const repeat = runMeasurement({ seed: "issue990-stage3-regression", runs: 1 });
