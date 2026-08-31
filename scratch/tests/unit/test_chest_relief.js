@@ -709,7 +709,7 @@ await test("fromDrop の実生成・dispatch 経路は手動叩き壊しを sour
   assert.equal(chestTelemetryEvents().find(event => event.name === "chest_smash_result").properties.chestSource, "fromDrop");
 });
 
-await test("致死的な通常解除失敗は既存どおり報酬を付与してからゲームオーバーへ進む", () => {
+await test("致死的な通常解除失敗は未確定の宝箱報酬を失ってゲームオーバーへ進む", () => {
   const doomed = makeCharacter("Ninja");
   doomed.hp = 1;
   resetChest({ trap: "poison needle", item: "HEAL_POTION", party: [doomed] });
@@ -723,7 +723,8 @@ await test("致死的な通常解除失敗は既存どおり報酬を付与し�
     global.setTimeout = originalSetTimeout;
   }
   assert.equal(doomed.status, "dead");
-  assert.equal(state.inventory.includes("HEAL_POTION"), true);
+  assert.equal(state.inventory.includes("HEAL_POTION"), false);
+  assert.equal(state.currentRun.lostObjectLoot[0], "HEAL_POTION");
   assert.equal(state.currentRun.itemsFound.includes("HEAL_POTION"), true);
   assert.ok(Object.values(state.currentRun.materials).some(quantity => quantity > 0));
 });

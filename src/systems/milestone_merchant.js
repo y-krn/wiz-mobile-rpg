@@ -2,6 +2,7 @@ import { MILESTONE_MERCHANT_STOCK, MILESTONE_UNCURSE_COST } from "../data/milest
 import { canAffordMaterials, spendMaterials } from "../rules/material_rules.js";
 import { isCurseLocked } from "../rules/identification_rules.js";
 import { purifyEquipmentCurse } from "./identification.js";
+import { recordDungeonObjectLoot } from "../state/run_loot.js";
 
 export function purchaseMilestoneStock(stateLike, stockId) {
   const entry = MILESTONE_MERCHANT_STOCK.find(item => item.id === stockId);
@@ -11,7 +12,10 @@ export function purchaseMilestoneStock(stateLike, stockId) {
   if (entry.kind === "item" && (stateLike.inventory?.length || 0) >= 20) return { ok: false, reason: "inventory_full" };
   stateLike.currentRun.materials = spendMaterials(materials, entry.cost);
   if (entry.kind === "identify") stateLike.identifyTickets = (stateLike.identifyTickets || 0) + 1;
-  else stateLike.inventory.push(entry.itemId);
+  else {
+    stateLike.inventory.push(entry.itemId);
+    recordDungeonObjectLoot(stateLike, entry.itemId);
+  }
   return { ok: true, entry };
 }
 

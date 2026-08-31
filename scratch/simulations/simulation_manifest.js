@@ -168,6 +168,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/data/equipment_tables.js", domains: ["equipment"] },
     { pattern: "src/data/materials.js", domains: ["drops"] },
     { pattern: "src/data/progression.js", domains: ["progression"] },
+    { pattern: "src/state/inventory_state.js", domains: ["economy"] },
+    { pattern: "src/state/run_loot.js", domains: ["economy"] },
     { pattern: "src/rules/character_stats.js", domains: ["combat", "equipment"] },
     { pattern: "src/rules/trap_effect_rules.js", domains: ["traps"] },
     { pattern: "src/rules/item_rules.js", domains: ["equipment"] },
@@ -198,6 +200,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
     { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },
     { pattern: "src/systems/equipment_discard.js", domains: ["equipment"] },
+    { pattern: "src/systems/milestone_merchant.js", domains: ["economy"] },
     { pattern: "src/rules/chest_rules.js", domains: ["chests", "equipment", "traps"] },
     { pattern: "src/systems/leveling.js", domains: ["progression"] },
     { pattern: "src/combat_ui/combat_start.js", domains: ["combat"] }

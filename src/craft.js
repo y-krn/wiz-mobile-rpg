@@ -2,6 +2,7 @@ import { state, saveAutosave, addLog } from "./state.js";
 import { getItemData } from "./data.js";
 import { playSound } from "./audio.js";
 import { AFFIX_BALANCE, getAffixDefinition } from "./data/affixes.js";
+import { replaceRunObjectLoot } from "./state/run_loot.js";
 
 export const CRAFT_RECIPES = [
   {
@@ -44,7 +45,7 @@ export const CRAFT_RECIPES = [
     resultId: "TOWN_PORTAL",
     name: "帰還の翼",
     departureCost: { mode: "any", total: 8 },
-    desc: "任意のフロアから撤退し、素材を100%持ち帰る。"
+    desc: "任意のフロアから安全に撤退し、未確定戦果を選んで持ち帰る。素材は100%持ち帰る。"
   },
   {
     resultId: "GREATER_HEAL",
@@ -156,6 +157,7 @@ export function executeEnhance(itemIdx) {
   upgradedItem.enhanceLevel = (upgradedItem.enhanceLevel || 0) + 1;
 
   // 更新
+  replaceRunObjectLoot(state, eqItem, upgradedItem);
   if (isEquipped) {
     state.party[actorIdx].equipment[slot] = upgradedItem;
   } else {
@@ -234,6 +236,7 @@ export function executePolish(itemIdx, affixIdx) {
   for (const [mat, reqQty] of Object.entries(cost.mats)) {
     state.metaMaterials[mat] -= reqQty;
   }
+  replaceRunObjectLoot(state, eqItem, polishedItem);
   if (isEquipped) {
     state.party[actorIdx].equipment[slot] = polishedItem;
   } else {

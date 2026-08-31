@@ -1,5 +1,6 @@
 import { state } from "./state_core.js";
 import { getItemBaseId, isSpecialOrQuestItem } from "../data.js";
+import { recordDungeonObjectLoot } from "./run_loot.js";
 
 export function addInventoryItemToState(targetState, item, options = {}) {
   const allowQuestOverflow = options.allowQuestOverflow ?? false;
@@ -20,6 +21,7 @@ export function addInventoryItemToState(targetState, item, options = {}) {
   }
   
   targetState.inventory.push(item);
+  if (options.dungeonLoot) recordDungeonObjectLoot(targetState, item);
   return true;
 }
 

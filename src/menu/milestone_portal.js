@@ -9,7 +9,7 @@ export function renderMilestonePortal(optGrid) {
   const retreat = document.createElement("button");
   retreat.type = "button";
   retreat.className = "btn btn-neon btn-block milestone-portal-action";
-  retreat.textContent = "撤退して素材を100%持ち帰る";
+  retreat.textContent = "撤退して素材を100%、戦果を選んで持ち帰る";
   retreat.addEventListener("click", () => {
     trackExplorationDecision("return", { state, source: "return_portal" });
     triggerRunResult("milestone_portal");

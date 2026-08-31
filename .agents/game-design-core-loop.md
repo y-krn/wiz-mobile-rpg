@@ -138,6 +138,13 @@ current loot code still has historical floor-pool assumptions. Those are
 transition-state facts to be reconciled by implementation issues, not vNext
 design decisions.
 
+Issue #1006 implements the object-loot ownership slice of this contract:
+dungeon loot remains unbanked until a terminal, unused Town preparation items
+return to Town storage, and the result screen records returned and lost loot.
+The Return Wing rescue list includes equipped loot and uses the shared salvage
+count; materials and quest/progression ownership remain on their existing
+contracts.
+
 ## Historical loop (superseded)
 
 The following earlier loop is retained only as a record of the pre-vNext

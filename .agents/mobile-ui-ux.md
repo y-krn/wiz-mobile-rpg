@@ -112,6 +112,12 @@ behavior may be relevant.
   overlay must retain at least two `--tap-min` bag rows for tapping.
 - Keep primary equipment actions outside the scrolling region; the content may
   scroll, but identify/equip/remove/back controls stay fixed and reachable.
+
+- Return Wing rescue: show the full unbanked object-loot list, not only bag
+  entries; mark equipped candidates explicitly, cap selection at the shared
+  salvage count, and keep the final rescue action at the shared tap minimum.
+  The Wing is consumed only when the rescue decision is confirmed, so Back
+  remains a safe cancellation path.
 - When the vertical budget is insufficient, consider splitting the screen
   instead of reallocating the same fixed space. After three reallocations on
   one screen, question the structure before adjusting another height.

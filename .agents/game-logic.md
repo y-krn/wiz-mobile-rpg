@@ -75,6 +75,18 @@ map is preserved for `RunFloorRecoveryError` handling rather than silently
 regenerated. Normalization starts from a structured clone so migration repairs
 cannot mutate caller-owned or state-shared nested data.
 
+## Object-loot ownership contract (#1006)
+
+`state.inventory` and `party[*].equipment` describe placement only. During an
+active run, `currentRun.townInventory` contains the Town-provided preparation
+items still unused, and `currentRun.unbankedObjectLoot` contains stable loot
+entries acquired in the dungeon. Loot remains unbanked when equipped. The
+terminal transition records `bankedObjectLoot`/`lostObjectLoot`, returns unused
+Town items to `state.storage`, and clears active ownership. Portal settles all
+unbanked entries, Wing settles only its selected IDs, and death/abandon settle
+none. Push never invokes settlement. These fields are additive save data and
+normalize to empty collections for older current-version saves.
+
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with the mechanic

@@ -10,6 +10,7 @@ import { resolveCombatRound } from "./round_runner.js";
 import { openCombatTargetMenu } from "./target_menu.js";
 import { openCombatSpellMenu } from "./spell_menu.js";
 import { openCombatItemMenu } from "./item_menu.js";
+import { openSubmenu } from "../navigation.js";
 import { COMBAT_SPELL_TARGETS, getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 import {
   trackCombatDecisionCancel,
@@ -247,6 +248,12 @@ export function selectCombatAction(type) {
       const item = ITEMS[itemKey];
       if (!item || item.type !== "usable" || item.campOnly) {
         addLog("戦闘中その道具は使用できません。");
+        return;
+      }
+      if (itemKey === "TOWN_PORTAL") {
+        menuContext.itemKey = itemKey;
+        menuContext.itemIdx = itemIdx;
+        openSubmenu("item_target_select", "帰還の翼：救出する戦果を選択");
         return;
       }
       const enqueueAllyItem = (targetIdx) => {

@@ -42,6 +42,13 @@ export {
 } from "./state/inventory_state.js";
 
 export {
+  RETURN_WING_SALVAGE_COUNT,
+  recordDungeonObjectLoot,
+  consumeRunObjectLoot,
+  settleRunObjectLoot
+} from "./state/run_loot.js";
+
+export {
   recordEquipmentDiscovery,
   recordEquipmentAffixDiscovery,
   getMonsterCodexKey,

@@ -19,6 +19,10 @@ import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { trackExplorationDecision } from "../telemetry.js";
 import { applyExplorationItem } from "../systems/exploration_items.js";
+import { consumeRunObjectLoot, RETURN_WING_SALVAGE_COUNT } from "../state/run_loot.js";
+
+let selectedWingLootIds = new Set();
+let selectedWingRunSeed = null;
 
 function getSecretSearchDirs() {
   return [
@@ -205,6 +209,7 @@ function useExplorationItem(itemKey, itemIdx, item) {
   const result = applyExplorationItem(state, itemKey);
   if (!result.ok) return;
   state.inventory.splice(itemIdx, 1);
+  consumeRunObjectLoot(state, itemKey);
   trackExplorationDecision("item", {
     state,
     character: state.party[0],
@@ -239,6 +244,7 @@ export function renderItemDirectionSelect(optGrid) {
       createNoiseEvent(x, y);
       const effect = applyExplorationItem(state, "NOISE_BALL");
       state.inventory.splice(menuContext.itemIdx, 1);
+      consumeRunObjectLoot(state, "NOISE_BALL");
       trackExplorationDecision("item", {
         state,
         character: state.party[0],
@@ -264,7 +270,8 @@ export function renderItemTargetSelect(optGrid) {
   if (!item || item.type !== "usable") return;
 
   if (menuContext.itemKey === "TOWN_PORTAL") {
-    optGrid.appendChild(createRunStakesSummary());
+    renderReturnWingSelection(optGrid);
+    return;
   }
 
   state.party.forEach((char, targetIdx) => {
@@ -302,17 +309,14 @@ export function renderItemTargetSelect(optGrid) {
           itemKey: menuContext.itemKey
         });
         if (menuContext.itemKey === "TOWN_PORTAL") {
-          addLog("帰還のスクロールを読んだ！冒険者は眩い光に包まれ、一瞬でお城へ戻った！");
-          playSound("cast_spell");
-          state.inventory.splice(menuContext.itemIdx, 1);
-          closeSubmenu();
-          triggerRunResult("escape_scroll");
+          useReturnWing();
           return;
         }
         const log = item.effect(char, state.party);
         addLog(log);
         playSound("heal");
         state.inventory.splice(menuContext.itemIdx, 1);
+        consumeRunObjectLoot(state, menuContext.itemKey);
         saveAutosave();
         goBackSubmenu();
       });
@@ -324,6 +328,82 @@ export function renderItemTargetSelect(optGrid) {
 
     optGrid.appendChild(btn);
   });
+}
+
+function isEquippedLoot(entry) {
+  return state.party?.some(char => Object.values(char.equipment || {}).some(item => (
+    item === entry.item || (
+      item && entry.item && typeof item === "object" && typeof entry.item === "object" &&
+      item.instanceId && item.instanceId === entry.item.instanceId
+    )
+  )));
+}
+
+function renderReturnWingSelection(optGrid) {
+  const run = state.currentRun;
+  const loot = run?.unbankedObjectLoot || [];
+  if (selectedWingRunSeed !== run?.runSeed) {
+    selectedWingRunSeed = run?.runSeed || null;
+    selectedWingLootIds = new Set();
+  }
+
+  optGrid.innerHTML = "";
+
+  optGrid.appendChild(createRunStakesSummary());
+  const heading = document.createElement("div");
+  heading.className = "detail-placeholder";
+  heading.textContent = `帰還の翼：救出する戦果を${RETURN_WING_SALVAGE_COUNT}個まで選択`;
+  optGrid.appendChild(heading);
+
+  if (loot.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "list-empty";
+    empty.textContent = "未確定戦果はありません。翼だけを消費して帰還します。";
+    optGrid.appendChild(empty);
+  }
+
+  loot.forEach(entry => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `btn btn-block ${selectedWingLootIds.has(entry.id) ? "btn-neon" : "btn-outline"}`;
+    const item = getItemData(entry.item);
+    const location = isEquippedLoot(entry) ? "（装備中）" : "";
+    button.textContent = `${item?.name || "不明な品"}${location}`;
+    button.setAttribute("aria-pressed", String(selectedWingLootIds.has(entry.id)));
+    button.addEventListener("click", () => {
+      if (selectedWingLootIds.has(entry.id)) {
+        selectedWingLootIds.delete(entry.id);
+      } else if (selectedWingLootIds.size < RETURN_WING_SALVAGE_COUNT) {
+        selectedWingLootIds.add(entry.id);
+      }
+      renderReturnWingSelection(optGrid);
+    });
+    optGrid.appendChild(button);
+  });
+
+  const confirm = document.createElement("button");
+  confirm.id = "btn-wing-salvage-confirm";
+  confirm.type = "button";
+  confirm.className = "btn btn-neon btn-block";
+  confirm.textContent = `選択した${selectedWingLootIds.size}個を救出して帰還`;
+  confirm.addEventListener("click", useReturnWing);
+  optGrid.appendChild(confirm);
+}
+
+function useReturnWing() {
+  if (menuContext.itemKey !== "TOWN_PORTAL" || !state.currentRun) return false;
+  const itemIndex = state.inventory.findIndex(item => getItemData(item)?.id === "TOWN_PORTAL");
+  if (itemIndex < 0) return false;
+  const selectedIds = [...selectedWingLootIds];
+  state.inventory.splice(itemIndex, 1);
+  consumeRunObjectLoot(state, "TOWN_PORTAL");
+  addLog("帰還の翼を掲げた！選んだ戦果を抱え、冒険者は安全にお城へ戻った！");
+  playSound("cast_spell");
+  closeSubmenu();
+  triggerRunResult("escape_scroll", { salvageIds: selectedIds });
+  selectedWingLootIds = new Set();
+  selectedWingRunSeed = null;
+  return true;
 }
 
 export function renderGameOverMain(optGrid) {
