@@ -2,7 +2,7 @@
 
 - runner: issue990-phase3-stage3-v1 / schema 1
 - seed: issue990-phase3-stage3; N=500 / checkpoint × persona
-- source: aab49c7e2657aff63e607f8752c1e9b88ed6e698; latest main baseline: 8b6c2a48e823343bc4417afdcc03ede498d87b16
+- source: 98672f5789c7ec322e56095ea95eb225e9d82f66; latest main baseline: 8b6c2a48e823343bc4417afdcc03ede498d87b16
 - no production source, combat, enemy, Mage, item, exploration, or balance changes
 - checkpoint continuation is a measurement device, not an actual player reach-rate claim
 
@@ -27,6 +27,8 @@
 | B21 | 1.00 / 1.00 / 1.00 / 1.00 / 1.00 | 0.00 / 0.04 / 0.08 / 0.17 / 0.33 | 1.50 | 5.00 | 31.00 | 21.00 | 2.00 | 0.00 | 2.00 | 0.00 | 17.00 | 70.0% | 1.00/1.00/0.00/0.00 |
 | B25 | 1.00 / 1.00 / 1.00 / 1.00 / 1.00 | 0.00 / 0.04 / 0.08 / 0.17 / 0.33 | 1.50 | 5.00 | 31.00 | 21.00 | 2.00 | 0.00 | 2.00 | 0.00 | 17.00 | 70.0% | 1.00/1.00/0.00/0.00 |
 | B30 | 1.00 / 1.00 / 1.00 / 1.00 / 1.00 | 0.00 / 0.04 / 0.08 / 0.17 / 0.33 | 1.50 | 5.00 | 31.00 | 21.00 | 2.00 | 0.00 | 2.00 | 0.00 | 17.00 | 70.0% | 1.00/1.00/0.00/0.00 |
+
+All B10+ results below are synthetic frozen-state stress-test results, not natural B1-start reach distributions or production B21+ survival estimates.
 
 ## Table C — Continuation survival by checkpoint/persona
 
@@ -196,14 +198,15 @@ Cohorts are defined from entry MP ratio within each checkpoint arm: lower ≤ p2
 
 | question | decision |
 | --- | --- |
-| deep policy separation | Weakened/partly converged at B21+: death incidence is 99.6–100.0%; pure-raw gaps are 5.0–7.8 percentage points, with B25 balanced and conservative nearly equal. |
-| burst advantage at B21+ | Not retained: burst pure-raw incidence is above balanced at B21, B25, and B30. |
-| conservative penalty at B21+ | Present at B21 (+5.4pp vs balanced), then largely converged by B25/B30 (+0.2/+1.6pp). |
-| causal interpretation | Mixed: MP/action choice changes normal attacks and exposure, while deep normal damage rises; the arm does not isolate one-hit strength from duration/action exposure. |
-| deep raw wall | Yes for deep survival/death, but pure raw is 24.4–39.8% of all runs, so mechanics/unknown categories remain material. |
-| #973 Build Confidence | Revise. This synthetic bounded population does not establish a trustworthy deep build reach distribution; policy differences weaken with depth. |
-| production tuning | Proceed only after review; no tuning in this PR. First lever: depth-aware normal-attack coefficient, avoiding a blanket enemy-ATK change. |
-| #990 can close | Yes after evidence/regression review; Stage 3 measurement objective is complete. |
+| deep stress result | Shallow-origin frozen states are almost completely eliminated at B21+ in the stress-test arms. |
+| production B21+ survival wall | Not established; the checkpoint population does not model natural deep progression. |
+| natural deep checkpoint distribution | Not observed. B10–B30 are under-progressed synthetic/frozen-state arms. |
+| combat policy | Stage 2's mechanism remains visible at B10; B21+ comparison is censored by near-immediate failure, so convergence is not conclusive. |
+| pure raw | Material but non-monotonic; insufficient to call a production raw wall. |
+| #973 Build Confidence | Revise; deep validation remains unresolved rather than rejected. |
+| production tuning | Not justified from Stage 3 alone; no specific production nerf is supported. |
+| first production lever | Undecided; requires separate design review of ordinary damage × duration × action exposure. |
+| #990 can close | Yes; the measurement program reached its useful limit, not because production B21+ balance was validated. |
 
 ## Contracts and limitations
 
@@ -220,4 +223,4 @@ node scratch/measurements/issue990_phase3_stage3_checkpoint_continuation.js --ru
 
 ## Final report
 
-Stage 3 is the final measurement. No Stage 3.5/4 or additional AI diagnosis is planned. No production tuning is included. Close #990 after review if the measurement and regression gates pass.
+Stage 3 is the final measurement and is interpreted as a shallow-origin frozen-state deep stress test. It does not establish production B21+ balance, natural deep checkpoint distributions, or a specific production nerf. No Stage 3.5/4 or additional AI diagnosis is planned. #990 can close because the measurement program reached its useful limit and further synthetic continuation would add little trustworthy information.

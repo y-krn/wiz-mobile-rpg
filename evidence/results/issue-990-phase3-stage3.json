@@ -5,12 +5,12 @@
     "phase": 3,
     "stage": 3,
     "runnerVersion": "issue990-phase3-stage3-v1",
-    "sourceCommit": "aab49c7e2657aff63e607f8752c1e9b88ed6e698",
+    "sourceCommit": "98672f5789c7ec322e56095ea95eb225e9d82f66",
     "mainBaselineSha": "8b6c2a48e823343bc4417afdcc03ede498d87b16",
     "originMainAncestor": true,
     "staleTreeAllowed": false,
     "workingTreeClean": true,
-    "measurementRunnerDiffSha256": "1ae5960aa820fba24bf3373294cdf24dba4ea588a5fe303fc0c5347f9dd8afff",
+    "measurementRunnerDiffSha256": "c7b0b8d98c971e79916def141b9f5dc6898ce6090b36c19756944befc9b9f421",
     "environmentSignature": "ed61ac01fab747f4",
     "configuration": {
       "seed": "issue990-phase3-stage3",
@@ -18988,7 +18988,8 @@
       "direct_mechanic_death",
       "unknown_or_mixed"
     ],
-    "deathCategoryContract": "all deaths exactly one exclusive #983 category; pure raw incidence denominator is all runs"
+    "deathCategoryContract": "all deaths exactly one exclusive #983 category; pure raw incidence denominator is all runs",
+    "deepCheckpointPopulationRepresentsNaturalReach": false
   },
   "modeledSystems": [
     "production checkpoint prefix/continuation state",
@@ -19015,6 +19016,11 @@
     }
   },
   "finalAnalysis": {
+    "experimentType": "shallow-origin-frozen-state-deep-stress-test",
+    "naturalDeepCheckpointDistribution": "not observed",
+    "productionDeepBalance": "not established",
+    "deepStressResult": "shallow-origin frozen checkpoint states are almost completely eliminated in B21+ stress-test arms",
+    "combatPolicyConclusion": "Stage 2 mechanism remains visible at B10; B21+ policy comparison is censored by near-immediate failure, so apparent convergence is not proof that policy differences disappear",
     "pureRawByCheckpoint": {
       "10": {
         "balanced-combat": 0.38,
@@ -19047,7 +19053,7 @@
         "burst-combat": 0.334
       }
     },
-    "pureRawDepthConclusion": "not monotonic; deep normal damage rises while pure-raw incidence remains material but varies by checkpoint",
+    "pureRawDepthConclusion": "not monotonic; normal damage per encounter rises while pure-raw incidence remains material but varies by checkpoint",
     "deepPolicyGap": {
       "min": 0.050000000000000044,
       "max": 0.07800000000000001
@@ -19056,12 +19062,14 @@
       "min": 0.244,
       "max": 0.398
     },
-    "burstAdvantageB21Plus": "not retained",
-    "conservativePenaltyB21Plus": "present at B21, largely converged by B25/B30",
-    "ordinaryDamageCause": "mixed: MP/action choice changes attacks and exposure, while depth-scaled normal damage remains material",
-    "deepRawWall": "strong for survival/death incidence; pure raw is a major but non-exclusive death cause",
+    "burstAdvantageB21Plus": "not established as retained; stress-test censoring limits the comparison",
+    "conservativePenaltyB21Plus": "visible at B21, but its persistence cannot be separated from early-failure censoring",
+    "ordinaryDamageCause": "mixed: MP/action choice changes attacks and exposure, while depth-scaled normal damage remains material; Stage 3 does not isolate a production lever",
+    "deepRawWall": "not established for production; observed only as a shallow-origin stress-test outcome",
     "buildConfidence": "Revise",
-    "firstProductionLever": "depth-aware normal-attack coefficient",
+    "productionTuning": "not justified by Stage 3 deep checkpoint evidence alone",
+    "nextDesignFocus": "ordinary damage × encounter duration × action exposure",
+    "firstProductionLever": "undecided",
     "close990": true
   }
 }
