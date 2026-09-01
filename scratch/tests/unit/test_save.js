@@ -111,6 +111,24 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.deepEqual(state.codex.monsters["ワーウルフ"].encounterFloors, { "3": 1, "4": 1 });
 });
 
+check("save/load preserves a quest item after 20 regular inventory items", () => {
+  const previousInventory = state.inventory;
+  try {
+    state.inventory = Array.from({ length: 20 }, (_, index) => index % 2 ? "HEAL_POTION" : "ANTIDOTE");
+    state.inventory.push("DRAGON_KEY");
+
+    const payload = createSavePayload();
+    state.inventory = [];
+    applySavePayload(JSON.parse(JSON.stringify(payload)));
+
+    assert.equal(state.inventory.length, 21);
+    assert.deepEqual(state.inventory.slice(0, 20), payload.inventory.slice(0, 20));
+    assert.equal(state.inventory[20], "DRAGON_KEY");
+  } finally {
+    state.inventory = previousInventory;
+  }
+});
+
 check("partial current-version payloads receive safe defaults", () => {
   const partialPayload = {
     version: SAVE_VERSION,
