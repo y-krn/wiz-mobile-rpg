@@ -325,7 +325,8 @@ function normalizeRunHistoryEntry(entry) {
       .map(unlock => ({
         nodeId: typeof unlock.nodeId === "string" ? unlock.nodeId : "",
         name: typeof unlock.name === "string" ? unlock.name : "",
-        description: typeof unlock.description === "string" ? unlock.description : ""
+        description: typeof unlock.description === "string" ? unlock.description : "",
+        matchedSignals: arrayOr(unlock.matchedSignals).filter(signal => typeof signal === "string").slice(0, 6)
       }))
       .filter(unlock => unlock.nodeId);
   }
@@ -482,7 +483,8 @@ function normalizeCurrentRun(run) {
     .map(unlock => ({
       nodeId: typeof unlock.nodeId === "string" ? unlock.nodeId : "",
       name: typeof unlock.name === "string" ? unlock.name : "",
-      description: typeof unlock.description === "string" ? unlock.description : ""
+      description: typeof unlock.description === "string" ? unlock.description : "",
+      matchedSignals: arrayOr(unlock.matchedSignals).filter(signal => typeof signal === "string").slice(0, 6)
     }))
     .filter(unlock => unlock.nodeId);
   normalized.returnProcessing = isRecord(normalized.returnProcessing)

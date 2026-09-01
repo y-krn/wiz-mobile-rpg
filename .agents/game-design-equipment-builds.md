@@ -410,15 +410,17 @@ ordinary equipment swaps.
 
 ## Returned equipment is history, not next-run gear (#1011)
 
-Dungeon equipment remains an in-run build decision. A Portal or Wing can place
-the resolved object in Town storage, but the next departure does not load that
-object as permanent battle equipment. Death and Abandon can still preserve a
-coarse Codex observation and Castle history for a lost item without preserving
-its combat values.
+Dungeon equipment remains an in-run build decision. A Portal or Wing can
+confirm the resolved object for the terminal result, but it does not enter Town
+storage or the next departure's battle inventory. Death and Abandon can still
+preserve a coarse Codex observation and Castle history for a lost item without
+preserving its combat values.
 
 Return processing may automatically expose one existing side-grade pool node
-at a depth gate after equipment is recovered. This is horizontal possibility
-space only: it does not add a superior tier, increase a specific item's drop
-rate, select a build, or dilute the authored candidate structure.
+at a depth gate after equipment is recovered. The candidate is selected from
+the recovered item's authored core, role, tag, type, and knowledge signals,
+not from a fixed unlock chain or the current build. This is horizontal
+possibility space only: it does not add a superior tier, increase a specific
+item's drop rate, select a build, or dilute the authored candidate structure.
 The generator uses a same-slot reserved replacement when the possibility
 becomes eligible, keeping the authored core candidate count stable.

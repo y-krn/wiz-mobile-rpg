@@ -54,7 +54,8 @@ function setupRun(deepestFloor = 5) {
   assert.deepEqual(state.workshop.lateralUnlocks, ["pool_opener"]);
   assert.ok(getWorkshopGrants(state.workshop).affixIds.includes("CORE_OPENER"));
   assert.equal(state.party[0].equipment.weapon, null);
-  assert.equal(state.storage.includes(sword), true);
+  assert.equal(state.storage.includes(sword), false, "recovered dungeon equipment is not permanent storage");
+  assert.equal(state.storage.includes("HEAL_POTION"), true, "unused Town preparation returns to storage");
   assert.ok(result.insights.some(insight => insight.id === "variantEquipment"));
   console.log("[PASS] portal return records compact Castle/Codex facts and opens one lateral Workshop possibility");
 }
@@ -74,26 +75,37 @@ function setupRun(deepestFloor = 5) {
 {
   const first = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
     deepestFloor: 4,
-    hasRecoveredEquipment: true
+    recoveredEquipment: [{ baseId: "LONG_SWORD", tags: ["ambush"], knowledgeStage: "discovery" }]
   });
   assert.equal(first.unlocked, null);
   const second = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
     deepestFloor: 10,
-    hasRecoveredEquipment: true
+    recoveredEquipment: [{ baseId: "LONG_SWORD", tags: ["ambush"], knowledgeStage: "discovery" }]
   });
   assert.equal(second.unlocked.id, "pool_opener");
   assert.equal(second.workshop.lateralUnlocks.length, 1);
-  const third = applyAutomaticWorkshopUnlock(second.workshop, {
-    deepestFloor: 10,
-    hasRecoveredEquipment: true
+  assert.deepEqual(second.matchedSignals.sort(), ["knowledge", "tag", "type"].sort());
+  const pivotResult = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
+    deepestFloor: 15,
+    recoveredEquipment: [{ baseId: "LONG_SWORD", tags: ["iron", "blade"], lootRole: "pivot", knowledgeStage: "observation" }]
   });
-  assert.equal(third.unlocked.id, "pool_trap_eater");
+  assert.equal(pivotResult.unlocked.id, "pool_giant_slayer", "the returned role selects a related side-grade");
+  const searchResult = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
+    deepestFloor: 25,
+    recoveredEquipment: [{ baseId: "RING_LUK", tags: ["search"], lootRole: "convert", knowledgeStage: "trial" }]
+  });
+  assert.equal(searchResult.unlocked.id, "pool_tomb_raider", "the returned search signal selects a different side-grade");
+  const unrelated = applyAutomaticWorkshopUnlock(second.workshop, {
+    deepestFloor: 10,
+    recoveredEquipment: [{ baseId: "LONG_SWORD", tags: ["iron", "blade"], lootRole: "pivot", knowledgeStage: "discovery" }]
+  });
+  assert.equal(unrelated.unlocked, null, "a returned result cannot advance an unrelated fixed chain");
   const noReservedShieldSlot = applyAutomaticWorkshopUnlock({
     ranks: {},
     lateralUnlocks: ["pool_opener", "pool_trap_eater", "pool_giant_slayer"]
   }, {
     deepestFloor: 20,
-    hasRecoveredEquipment: true
+    recoveredEquipment: [{ baseId: "LONG_SWORD", tags: ["iron", "blade"], lootRole: "pivot", knowledgeStage: "observation" }]
   });
   assert.equal(noReservedShieldSlot.unlocked, null);
   console.log("[PASS] lateral unlock gates are depth-based, one-per-return, and do not require a target build");

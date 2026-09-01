@@ -4,6 +4,8 @@ import {
   WORKSHOP_NODES,
   WORKSHOP_LATERAL_UNLOCKS
 } from "../data/workshop.js";
+import { getAffixDefinition } from "../data/affixes.js";
+import { getItemData } from "../rules/item_rules.js";
 import {
   getDepartureCraftCost as getDepartureCraftCostSummary,
   spendDepartureCraftRecipes
@@ -159,30 +161,97 @@ export function getWorkshopGrants(workshop) {
   return grants;
 }
 
+const KNOWLEDGE_STAGE_SCORE = Object.freeze({ discovery: 1, observation: 2, trial: 3, full: 4 });
+
+function getRecoveredEquipmentSignals(item) {
+  const data = getItemData(item) || {};
+  const affixes = Array.isArray(item?.affixes) ? item.affixes : [];
+  const definitions = affixes.map(getAffixDefinition).filter(Boolean);
+  return {
+    coreIds: new Set(definitions.filter(definition => definition.kind === "core").map(definition => definition.id)),
+    buildRoles: new Set([
+      item?.buildRole,
+      ...(Array.isArray(item?.buildRoles) ? item.buildRoles : []),
+      ...definitions.map(definition => definition.buildRole)
+    ].filter(Boolean)),
+    lootRoles: new Set(item?.lootRole ? [item.lootRole] : []),
+    tags: new Set([
+      ...(Array.isArray(item?.tags) ? item.tags : []),
+      ...(Array.isArray(data.tags) ? data.tags : [])
+    ]),
+    types: new Set(data.type ? [data.type] : []),
+    knowledgeStage: typeof item?.knowledgeStage === "string" ? item.knowledgeStage : "discovery"
+  };
+}
+
+function scoreLateralCandidate(candidate, signals) {
+  const matchedSignals = [];
+  let score = 0;
+  if (candidate.relatedCoreIds?.some(id => signals.coreIds.has(id))) {
+    score += 100;
+    matchedSignals.push("core");
+  }
+  if (candidate.relatedBuildRoles?.some(role => signals.buildRoles.has(role))) {
+    score += 10;
+    matchedSignals.push("buildRole");
+  }
+  if (candidate.relatedLootRoles?.some(role => signals.lootRoles.has(role))) {
+    score += 8;
+    matchedSignals.push("lootRole");
+  }
+  if (candidate.relatedTags?.some(tag => signals.tags.has(tag))) {
+    score += 5;
+    matchedSignals.push("tag");
+  }
+  if (candidate.relatedTypes?.some(type => signals.types.has(type))) {
+    score += 2;
+    matchedSignals.push("type");
+  }
+  if (candidate.relatedKnowledgeStages?.includes(signals.knowledgeStage)) {
+    score += KNOWLEDGE_STAGE_SCORE[signals.knowledgeStage] || 0;
+    matchedSignals.push("knowledge");
+  }
+  return { score, matchedSignals };
+}
+
+function getAutomaticWorkshopCandidates(workshop, recoveredEquipment, deepestFloor) {
+  const available = WORKSHOP_LATERAL_UNLOCKS.filter(({ nodeId, minDepth }) => (
+    deepestFloor >= minDepth
+    && !workshop.lateralUnlocks.includes(nodeId)
+    && getWorkshopRank(workshop, nodeId) <= 0
+  ));
+  return available
+    .map(candidate => {
+      const matches = (recoveredEquipment || [])
+        .map(item => scoreLateralCandidate(candidate, getRecoveredEquipmentSignals(item)))
+        .filter(match => match.score > 0)
+        .sort((left, right) => right.score - left.score)[0];
+      return matches ? { candidate, ...matches } : null;
+    })
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score || left.candidate.nodeId.localeCompare(right.candidate.nodeId));
+}
+
 /**
- * Apply the automatic, depth-gated Workshop result for a returned equipment
- * run. The player never selects a build or a candidate here; the next
- * authored possibility is simply made eligible. Existing manually purchased
- * nodes are skipped, and one return can grant at most one node.
+ * Apply one automatic Workshop side-grade based on the recovered equipment's
+ * authored signals. The player never selects a build or a candidate; the
+ * return result only makes a related existing possibility eligible. Existing
+ * manually purchased nodes are skipped, and one return can grant at most one
+ * node.
  */
-export function applyAutomaticWorkshopUnlock(workshop, { deepestFloor = 1, hasRecoveredEquipment = false } = {}) {
+export function applyAutomaticWorkshopUnlock(workshop, { deepestFloor = 1, recoveredEquipment = [] } = {}) {
   const next = {
     ...(workshop || {}),
     ranks: { ...(workshop?.ranks || {}) },
     lateralUnlocks: Array.isArray(workshop?.lateralUnlocks) ? [...workshop.lateralUnlocks] : []
   };
-  if (!hasRecoveredEquipment) return { workshop: next, unlocked: null };
+  const candidateMatch = getAutomaticWorkshopCandidates(next, recoveredEquipment, deepestFloor)[0];
+  if (!candidateMatch) return { workshop: next, unlocked: null, matchedSignals: [] };
 
-  const candidate = WORKSHOP_LATERAL_UNLOCKS.find(({ nodeId, minDepth }) => (
-    deepestFloor >= minDepth &&
-    !next.lateralUnlocks.includes(nodeId) &&
-    getWorkshopRank(next, nodeId) <= 0
-  ));
-  if (!candidate) return { workshop: next, unlocked: null };
-
+  const { candidate, matchedSignals } = candidateMatch;
   next.lateralUnlocks.push(candidate.nodeId);
   const node = WORKSHOP_NODE_BY_ID.get(candidate.nodeId);
-  return { workshop: next, unlocked: node || null };
+  return { workshop: next, unlocked: node || null, matchedSignals };
 }
 
 export function applyWorkshopToCharacter(character, workshop) {

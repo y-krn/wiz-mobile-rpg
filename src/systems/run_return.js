@@ -123,14 +123,15 @@ export function processRunReturn(stateLike, outcome, salvageIds = null) {
   const recoveredEquipment = (run.bankedObjectLoot || []).filter(item => EQUIPMENT_TYPES.has(getItemData(item)?.type));
   const workshopResult = applyAutomaticWorkshopUnlock(stateLike.workshop, {
     deepestFloor: run.deepestFloor,
-    hasRecoveredEquipment: (outcome === "retreat" || outcome === "wing") && recoveredEquipment.length > 0
+    recoveredEquipment: (outcome === "retreat" || outcome === "wing") ? recoveredEquipment : []
   });
   stateLike.workshop = workshopResult.workshop;
   run.workshopUnlocks = workshopResult.unlocked
     ? [{
       nodeId: workshopResult.unlocked.id,
       name: workshopResult.unlocked.name,
-      description: workshopResult.unlocked.description
+      description: workshopResult.unlocked.description,
+      matchedSignals: workshopResult.matchedSignals
     }]
     : [];
 

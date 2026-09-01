@@ -320,12 +320,13 @@ flag, hidden affixes, and curse binding continue to survive save/load.
 
 Materials keep the rules above. Separately, dungeon-acquired equipment,
 consumables, Return Wings, and valuable objects are unbanked object loot until
-the run ends. A milestone Portal banks all of it; a Return Wing consumes itself
-and banks only the selected small subset (initial count 2); death and abandon
-lose the unbanked subset. Unused Town preparation consumables are returned to
+the run ends. A milestone Portal confirms all of it for the terminal result; a
+Return Wing consumes itself and confirms only the selected small subset
+(initial count 2); death and abandon lose the unbanked subset. Unused Town
+preparation consumables are returned to
 Town storage at every run terminal, while consumed Town items are not restored.
-Equipped state does not imply banked ownership, and returned equipment is not
-automatically carried into the next run.
+Equipped state does not imply banked ownership. Returned dungeon equipment is
+terminal-result evidence only; it does not enter Town storage or the next run.
 
 ## Workshop (Between Runs)
 

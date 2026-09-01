@@ -159,8 +159,10 @@ function appendToTownStorage(stateLike, items) {
 
 /**
  * Resolve object ownership at a run terminal. Town-owned items that were not
- * consumed are always returned. Dungeon loot is returned only for a portal or
- * for explicitly selected Return Wing salvage; death and abandon lose it.
+ * consumed are always returned to permanent storage. Dungeon loot is confirmed
+ * only for the terminal result: a portal or explicitly selected Return Wing
+ * salvage can display/rescue it, but it never becomes next-run storage; death
+ * and abandon lose it.
  */
 export function settleRunObjectLoot(stateLike, outcome, salvageIds = null) {
   const run = getRun(stateLike);
@@ -176,9 +178,10 @@ export function settleRunObjectLoot(stateLike, outcome, salvageIds = null) {
       ? takeByIds(unbanked, salvageIds).slice(0, RETURN_WING_SALVAGE_COUNT)
       : [];
   const lostLoot = unbanked.filter(entry => !returnedLoot.some(item => item.id === entry.id));
-  const bankedItems = [...townItems, ...returnedLoot.map(entry => entry.item)];
+  const returnedDungeonItems = returnedLoot.map(entry => entry.item);
+  const bankedItems = [...townItems, ...returnedDungeonItems];
 
-  appendToTownStorage(stateLike, bankedItems);
+  appendToTownStorage(stateLike, townItems);
   removeTrackedItemsFromEquipment(stateLike, unbanked, stateLike.inventory, townItems);
   removeTrackedItemsFromInventory(stateLike, [
     ...townItems,
