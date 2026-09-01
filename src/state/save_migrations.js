@@ -391,6 +391,13 @@ function normalizeCurrentRun(run) {
   });
 
   normalized.quests = normalized.quests.filter(isRecord);
+  normalized.townInventory = normalized.townInventory.filter(item => item != null);
+  normalized.unbankedObjectLoot = normalized.unbankedObjectLoot
+    .filter(entry => isRecord(entry) && typeof entry.id === "string" && entry.item != null);
+  normalized.bankedObjectLoot = normalized.bankedObjectLoot.filter(item => item != null);
+  normalized.lostObjectLoot = normalized.lostObjectLoot.filter(item => item != null);
+  normalized.returnedTownItems = normalized.returnedTownItems.filter(item => item != null);
+  normalized.lootSequence = Math.max(0, Math.floor(Number(normalized.lootSequence) || 0));
   normalized.deathLogs = normalized.deathLogs
     .map(normalizeDeathLogEntry)
     .filter(isRecord);

@@ -5,8 +5,9 @@ import { bankRunMaterials } from "./rules/material_rules.js";
 import { updateRunQuests } from "./systems/run_quests.js";
 import { findMapCellByType } from "./rules/map_queries.js";
 import { trackCombatEnd, trackRunEnd } from "./telemetry.js";
+import { settleRunObjectLoot } from "./state/run_loot.js";
 
-export function triggerRunResult(reason) {
+export function triggerRunResult(reason, { salvageIds = null } = {}) {
   if (!state.currentRun || state.gameState === "result" || state.currentRun.returnReason) return;
 
   state.party.forEach(char => {
@@ -20,6 +21,10 @@ export function triggerRunResult(reason) {
   const isDeathLike = outcome === "death" || outcome === "abandon";
   run.returnReason = reason;
   run.outcome = outcome;
+  const objectLootOutcome = reason === "escape_scroll"
+    ? "wing"
+    : isSuccess ? "retreat" : "loss";
+  settleRunObjectLoot(state, objectLootOutcome, salvageIds);
   if (isDeath && !run.deathLogs?.at(-1)) {
     const activeEnemy = state.combatState?.monsters?.find(monster => monster.hp > 0);
     if (activeEnemy && state.party[0]) {

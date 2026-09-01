@@ -647,6 +647,12 @@ for (const vp of VIEWPORTS) {
           expect(button.box.right).toBeLessThanOrEqual(vp.width);
         }
       }
+      expect(observed.portal.buttons.map(button => button.text)).toContain(
+        '撤退して素材を100%、未確定戦果をすべて持ち帰る'
+      );
+      expect(observed.portal.buttons.map(button => button.text)).not.toContain(
+        '撤退して素材を100%、戦果を選んで持ち帰る'
+      );
     });
 
     test('Movement-triggered event and trap panels ignore immediate taps', async ({ page }) => {

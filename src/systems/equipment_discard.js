@@ -2,6 +2,7 @@ import { state, addLog, saveAutosave } from "../state.js";
 import { getItemData } from "../data.js";
 import { playSound } from "../audio.js";
 import { trackEquipmentDecision } from "../telemetry.js";
+import { consumeRunObjectLoot } from "../state/run_loot.js";
 
 const EQUIPMENT_TYPES = new Set(["weapon", "shield", "armor", "accessory"]);
 
@@ -90,6 +91,7 @@ export function discardEquipmentItems(entries, { stateLike = state, character = 
   });
 
   const displayNames = validEntries.map(({ itemKey, item }) => getDisplayName(itemKey, item));
+  validEntries.forEach(({ itemKey }) => consumeRunObjectLoot(stateLike, itemKey));
   [...validEntries]
     .sort((a, b) => b.index - a.index)
     .forEach(({ index }) => stateLike.inventory.splice(index, 1));

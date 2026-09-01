@@ -1,5 +1,5 @@
 import { state, saveGame, saveAutosave, addLog } from "../state.js";
-import { getClassJpName, getItemBaseId } from "../data.js";
+import { getClassJpName, getItemBaseId, getItemData } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
 import { getFloorLabel } from "../data/floor_themes.js";
@@ -63,6 +63,29 @@ function getQuestHtml(run) {
   }).join("");
 }
 
+function getObjectLootNames(items) {
+  return (items || []).map(item => getItemData(item)?.name || getItemBaseId(item) || "不明な品");
+}
+
+function getObjectLootHtml(run) {
+  const banked = getObjectLootNames([
+    ...(run.returnedTownItems || []),
+    ...(run.bankedObjectLoot || [])
+  ]);
+  const lost = getObjectLootNames(run.lostObjectLoot);
+  if (banked.length === 0 && lost.length === 0) return "";
+  const formatItems = items => items.length > 0
+    ? items.map(item => `<span class="result-object-loot-chip">${item}</span>`).join("")
+    : '<span class="list-empty">なし</span>';
+  return `
+    <section class="result-focus-section" aria-labelledby="result-object-loot-title">
+      <h2 class="result-section-heading" id="result-object-loot-title"><span>戦果の帰還</span></h2>
+      <div class="result-object-loot-group returned"><small>持ち帰り</small><div>${formatItems(banked)}</div></div>
+      ${lost.length > 0 ? `<div class="result-object-loot-group lost"><small>失われた戦果</small><div>${formatItems(lost)}</div></div>` : ""}
+    </section>
+  `;
+}
+
 function leaveResult(overlay) {
   overlay.style.display = "none";
   state.gameState = "town";
@@ -112,6 +135,7 @@ export function renderResultScreen() {
         </div>
         ${codexTotal > 0 ? `<div class="result-codex-bonus"><span>初討伐メタ報酬</span><div>${formatMaterials(run.codexRewards)}</div></div>` : ""}
       </section>
+      ${getObjectLootHtml(run)}
       <section class="result-focus-section" aria-labelledby="result-quest-title">
         <h2 class="result-section-heading" id="result-quest-title"><span>ランクエスト</span></h2>
         <div class="result-quest-list">${getQuestHtml(run)}</div>

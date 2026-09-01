@@ -303,6 +303,17 @@ run-outcome, material-banking, and 20-slot inventory paths. Their existence
 does not mean the vNext confirmation, salvage-selection, or loss semantics
 are complete; implementation issues must identify and close those slices.
 
+### vNext object-loot ownership (Issue #1006)
+
+Materials keep the rules above. Separately, dungeon-acquired equipment,
+consumables, Return Wings, and valuable objects are unbanked object loot until
+the run ends. A milestone Portal banks all of it; a Return Wing consumes itself
+and banks only the selected small subset (initial count 2); death and abandon
+lose the unbanked subset. Unused Town preparation consumables are returned to
+Town storage at every run terminal, while consumed Town items are not restored.
+Equipped state does not imply banked ownership, and returned equipment is not
+automatically carried into the next run.
+
 ## Workshop (Between Runs)
 
 ### Design target / vNext contract

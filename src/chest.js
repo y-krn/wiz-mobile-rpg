@@ -20,6 +20,7 @@ import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
 import { getItemBaseId } from "./rules/item_rules.js";
+import { consumeRunObjectLoot } from "./state/run_loot.js";
 import { trackChestAction, trackChestSmashResult } from "./telemetry.js";
 import {
   CHEST_PHASES,
@@ -468,6 +469,7 @@ export function useTrapKit() {
 
   trackChestChoice(state.chestState, "trap_kit");
   state.inventory.splice(kitIndex, 1);
+  consumeRunObjectLoot(state, "TRAP_KIT");
   state.chestState.trap = "none";
   addLog("罠外しキットを使い、宝箱の罠を確実に解除した。キットは壊れた。");
   playSound("heal");
@@ -641,7 +643,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     // Award Item
     if (chest.item) {
       const item = getItemData(chest.item);
-      const added = addInventoryItem(chest.item);
+      const added = addInventoryItem(chest.item, { dungeonLoot: true });
       if (added) {
         awardedRewardCount++;
         recordEquipmentDiscovery(chest.item);
@@ -662,7 +664,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     }
 
     if (chest.specialItem) {
-      const added = addInventoryItem(chest.specialItem);
+      const added = addInventoryItem(chest.specialItem, { dungeonLoot: true });
       if (added) {
         awardedRewardCount++;
         recordEquipmentDiscovery(chest.specialItem);
@@ -682,7 +684,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
 
     if (chest.accessoryItem) {
       const item = getItemData(chest.accessoryItem);
-      const added = addInventoryItem(chest.accessoryItem);
+      const added = addInventoryItem(chest.accessoryItem, { dungeonLoot: true });
       if (added) {
         awardedRewardCount++;
         recordEquipmentDiscovery(chest.accessoryItem);

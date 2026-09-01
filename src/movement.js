@@ -797,6 +797,8 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
     ...workshopGrants.returnItems,
     ...craftGrants.items
   ];
+  state.currentRun.townInventory = state.inventory.slice();
+  state.currentRun.unbankedObjectLoot = [];
   state.party.forEach(char => {
     char.runTrapAttackBonus = 0;
   });
