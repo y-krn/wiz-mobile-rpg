@@ -88,6 +88,14 @@ function setupRun(deepestFloor = 5) {
     hasRecoveredEquipment: true
   });
   assert.equal(third.unlocked.id, "pool_trap_eater");
+  const noReservedShieldSlot = applyAutomaticWorkshopUnlock({
+    ranks: {},
+    lateralUnlocks: ["pool_opener", "pool_trap_eater", "pool_giant_slayer"]
+  }, {
+    deepestFloor: 20,
+    hasRecoveredEquipment: true
+  });
+  assert.equal(noReservedShieldSlot.unlocked, null);
   console.log("[PASS] lateral unlock gates are depth-based, one-per-return, and do not require a target build");
 }
 
