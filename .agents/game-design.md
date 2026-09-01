@@ -345,6 +345,10 @@ The Workshop should broaden combinations involving HP, MP, status, actions,
 and curses while keeping the run's improvised build and resource competition
 as the source of power.
 
+Automatic pool unlocks use reserved same-slot side-grade slots: an unlocked
+possibility replaces its authored baseline slot rather than adding a new
+weighted candidate and diluting the existing supply.
+
 Issue #1009 implements the loot-side boundary of that rule. `lootRole` selects
 a soft supply target, which weights matching affix/Core candidates while
 retaining crossover; `buildRole` and `buildRoles` describe the resulting

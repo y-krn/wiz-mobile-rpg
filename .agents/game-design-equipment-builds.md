@@ -420,3 +420,5 @@ Return processing may automatically expose one existing side-grade pool node
 at a depth gate after equipment is recovered. This is horizontal possibility
 space only: it does not add a superior tier, increase a specific item's drop
 rate, select a build, or dilute the authored candidate structure.
+The generator uses a same-slot reserved replacement when the possibility
+becomes eligible, keeping the authored core candidate count stable.
