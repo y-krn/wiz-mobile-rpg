@@ -338,6 +338,18 @@ The Workshop should broaden combinations involving HP, MP, status, actions,
 and curses while keeping the run's improvised build and resource competition
 as the source of power.
 
+Issue #1009 implements the loot-side boundary of that rule. `lootRole` selects
+a soft supply target, which weights matching affix/Core candidates while
+retaining crossover; `buildRole` and `buildRoles` describe the resulting
+affix composition. The B1–B30 candidate tables widen deep supply without
+removing old bases, and `LOOT_ROLE_SUPPLY_BY_BAND` keeps every role available
+with increasing deep-role weight. Generation does not inspect current
+equipment or fill missing slots. Core entries explicitly classify their
+`buildAxis` as `main` or `auxiliary`, while Support entries use `support`.
+An equipment decision that changes the `main` Core axis is observable as a
+build transition; auxiliary Core and Support changes remain ordinary swaps.
+This is lightweight observation, not full telemetry analysis.
+
 ### Current implementation boundary
 
 The current repository still exposes a material-funded permanent-unlock tree

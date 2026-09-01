@@ -16,7 +16,7 @@ import { CLASSES } from "./data/classes.js";
 import { ITEMS } from "./data/items.js";
 import { MONSTERS } from "./data/monsters.js";
 import { SPELLS } from "./data/spells.js";
-import { getAffixDefinition } from "./data/affixes.js";
+import { getAffixDefinition, LOOT_BUILD_ROLES } from "./data/affixes.js";
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
@@ -108,6 +108,7 @@ const SAFE_CHEST_REWARD_CATEGORIES = new Set(Object.keys(CHEST_SMASH_REWARD_LOSS
 const SAFE_CHEST_ACTIONS = new Set(["open", "leave", "disarm", "trap_kit", "smash"]);
 const SAFE_CHEST_TRAPS = new Set(["none", "poison needle", "gas bomb", "teleporter", "flash bomb"]);
 const SAFE_CHEST_AURAS = new Set(["weak", "medium", "strong"]);
+const SAFE_BUILD_ROLES = new Set(Object.values(LOOT_BUILD_ROLES));
 const MAX_ENEMY_SNAPSHOT = 8;
 const MAX_AFFIX_SNAPSHOT = 24;
 const MAX_RESOURCE_VALUE = 1_000_000;
@@ -269,6 +270,36 @@ function getAffixSummary(itemKey) {
     supportCount: affixes.filter(affix => (affix?.kind || "support") === "support").length,
     types: [...new Set(normalizedTypes)].slice(0, 8)
   };
+}
+
+function getEquipmentBuildRole(itemKey) {
+  if (!itemKey || typeof itemKey !== "object") return null;
+  const affixes = Array.isArray(itemKey.affixes) ? itemKey.affixes : [];
+  const coreRole = affixes
+    .filter(affix => (affix?.kind || getAffixDefinition(affix)?.kind) === "core")
+    .map(affix => getAffixDefinition(affix)?.buildRole)
+    .find(role => SAFE_BUILD_ROLES.has(role));
+  return coreRole || affixes
+    .map(affix => getAffixDefinition(affix)?.buildRole)
+    .find(role => SAFE_BUILD_ROLES.has(role))
+    || (SAFE_BUILD_ROLES.has(itemKey.buildRole) ? itemKey.buildRole : null);
+}
+
+function getEquipmentMainAxisIds(itemKey) {
+  return new Set((itemKey && typeof itemKey === "object" && Array.isArray(itemKey.affixes)
+    ? itemKey.affixes
+    : [])
+    .filter(affix => (affix?.kind || getAffixDefinition(affix)?.kind) === "core")
+    .filter(affix => getAffixDefinition(affix)?.buildAxis === "main")
+    .map(affix => getAffixDefinition(affix)?.id || affix.id || affix.type));
+}
+
+function isBuildTransition(action, candidateKey, currentKey) {
+  if (action !== "equip") return false;
+  const candidateAxes = getEquipmentMainAxisIds(candidateKey);
+  const currentAxes = getEquipmentMainAxisIds(currentKey);
+  return candidateAxes.size !== currentAxes.size
+    || [...candidateAxes].some(axis => !currentAxes.has(axis));
 }
 
 export function buildPlayerSnapshot(character, { floor = 1 } = {}) {
@@ -906,12 +937,19 @@ export function trackEquipmentDecision(action, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
   const preview = details.preview || {};
   const diffRows = Array.isArray(preview.rows) ? preview.rows : [];
+  const candidateBuildRole = getEquipmentBuildRole(details.candidateKey);
+  const currentBuildRole = getEquipmentBuildRole(details.currentKey ?? preview.oldEq);
   capture("equipment_decision", {
     runId,
     ...safeDecisionContext({ state: details.state, character: details.character }),
     action: normalizeDecisionAction(action),
     candidateId: getSafeItemId(details.candidateKey),
     currentEquipmentId: getSafeItemId(details.currentKey ?? preview.oldEq),
+    candidateBuildRole,
+    currentBuildRole,
+    buildDecision: isBuildTransition(action, details.candidateKey, details.currentKey ?? preview.oldEq)
+      ? "transition"
+      : "swap",
     slot: normalizeOptionalStableValue(preview.slot, new Set(EQUIPMENT_SLOTS.map(entry => entry.id))),
     candidateRarity: details.candidateKey?.identified === true ? normalizeRarity(preview.item?.rarity) : null,
     candidateIdentified: details.candidateKey == null || typeof details.candidateKey !== "object" || details.candidateKey.identified === true,

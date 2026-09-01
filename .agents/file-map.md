@@ -22,7 +22,9 @@ to verify the change.
 - Progression/economy design: `.agents/game-design.md`
 - Equipment affixes (cores/supports), workshop inscriptions/polish/seal:
   `src/data/affixes.js`, `src/rules/affix_rules.js`, `src/craft.js`,
-  `src/systems/equipment_generation.js`, `.agents/game-design-equipment-builds.md`
+  `src/data/equipment_tables.js`, `src/rules/chest_rules.js`,
+  `src/systems/equipment_generation.js`,
+  `scratch/tests/unit/test_loot_supply.js`, `.agents/game-design-equipment-builds.md`
 
 ## Module Boundaries
 

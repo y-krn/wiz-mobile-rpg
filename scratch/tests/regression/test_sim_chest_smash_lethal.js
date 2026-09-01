@@ -18,7 +18,10 @@ const runConfig = {
   scenario: {
     chestTrapPolicy: "legacy",
     trapPolicy: "disabled",
-    hpBaseBonus: -10
+      // The #1009 role-targeted affix supply changes the deterministic loot
+      // path; keep the fixture's purpose (a lethal chest trap) at the new
+      // threshold rather than restoring the old affix selection.
+      hpBaseBonus: -12
   },
   encounterRateOverride: () => 0
 };
@@ -30,15 +33,15 @@ assert.equal(first.outcome, "death");
 assert.equal(first.deathEncounterType, "chest-trap");
 assert.equal(first.finalHp, 0);
 assert.equal(first.chestForcedByFloor[1], 2);
-assert.equal(first.chestsOpened, 13);
+assert.equal(first.chestsOpened, 11);
 assert.equal(first.chestsOpenedInRun, first.chestsOpened);
 
 // The deterministic lethal chest awards neither its generated materials nor
 // its rewards/current-run records. These values cover the preceding live
 // chest awards and make a post-death award regression observable.
-assert.equal(first.materialAcquiredBySource.chest, 23);
-assert.equal(first.carriedMaterials, 23);
-assert.equal(first.equipmentFoundBySource.chest, 6);
+assert.equal(first.materialAcquiredBySource.chest, 18);
+assert.equal(first.carriedMaterials, 18);
+assert.equal(first.equipmentFoundBySource.chest, 5);
 
 assert.deepEqual(
   {

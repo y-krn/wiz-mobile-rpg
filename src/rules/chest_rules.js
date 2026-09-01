@@ -1,4 +1,5 @@
 import { ITEMS } from "../data/items.js";
+import { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { getCharAffixSum, isSpecialOrQuestItem } from "./item_rules.js";
 import { recordRuntimeCall } from "../runtime_diagnostics.js";
@@ -113,25 +114,42 @@ export function calculateChestMainItemForcedLossRate(item) {
   return getChestSmashRewardLossChance(item);
 }
 
-export const CHEST_ITEM_CANDIDATES_BY_FLOOR = Object.freeze({
+export const CHEST_ITEM_CANDIDATES_BY_FLOOR = {
   1: ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "WAKE_POWDER"],
   2: ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "MANA_POTION", "HOLY_WATER", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"],
   3: ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "VENOM_FANG", "LONG_SWORD", "MACE", "SACRED_MACE", "SAGE_STAFF", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"],
   // B4F: 標準宝箱は上位の店売り装備のみを落とす
   4: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"],
   5: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"]
-});
+};
+
+const DEEP_CHEST_UTILITY = ["GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"];
+for (let floor = 6; floor <= 30; floor += 1) {
+  CHEST_ITEM_CANDIDATES_BY_FLOOR[floor] = [...new Set([
+    ...EQUIPMENT_CANDIDATES_BY_FLOOR[floor].filter(baseId => !RESTRICTED_CHEST_BASES.includes(baseId)),
+    ...DEEP_CHEST_UTILITY
+  ])];
+}
+Object.freeze(CHEST_ITEM_CANDIDATES_BY_FLOOR);
 
 // Combat-generated reward chests keep the pre-#791 main-reward pool and
 // ordering. Their legacy TOWN_PORTAL entries are independent of the new
 // ordinary-floor special reward and must remain reachable.
-export const CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP = Object.freeze({
+export const CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP = {
   1: ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "WAKE_POWDER"],
   2: ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"],
   3: ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "VENOM_FANG", "LONG_SWORD", "MACE", "SACRED_MACE", "SAGE_STAFF", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"],
   4: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"],
   5: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"]
-});
+};
+for (let floor = 6; floor <= 30; floor += 1) {
+  CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[floor] = [...new Set([
+    ...EQUIPMENT_CANDIDATES_BY_FLOOR[floor],
+    "TOWN_PORTAL",
+    ...DEEP_CHEST_UTILITY
+  ])];
+}
+Object.freeze(CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP);
 
 export function rollChestSpecialReward(floor, rng) {
   const chance = CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR[Math.min(5, floor)] || 0;
@@ -237,9 +255,10 @@ export function rollChestReward({
     return { item, consumedFirstChestGuarantee: floor === 1 };
   }
 
-  const chestFloor = Math.min(5, floor);
+  const balanceFloor = Math.min(5, floor);
+  const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
   // 想定外の floor で候補キーが欠けても quest を出さない保険として fallback を残す。
-  let candidates = itemCandidates || CHEST_ITEM_CANDIDATES_BY_FLOOR[chestFloor]
+  let candidates = itemCandidates || CHEST_ITEM_CANDIDATES_BY_FLOOR[candidateFloor]
     || Object.keys(ITEMS).filter(key => ITEMS[key].type !== "quest");
   if (itemCandidateFilter) {
     candidates = candidates.filter(itemCandidateFilter);
@@ -253,9 +272,9 @@ export function rollChestReward({
 
   const isDangerousTrap = DANGEROUS_TRAPS.includes(trap);
   let randChance;
-  if (chestFloor === 4) {
+  if (balanceFloor === 4) {
     randChance = isDangerousTrap ? 0.80 : 0.70;
-  } else if (chestFloor === 5) {
+  } else if (balanceFloor === 5) {
     randChance = 0.90;
   } else {
     // B1F/B2F/B3F

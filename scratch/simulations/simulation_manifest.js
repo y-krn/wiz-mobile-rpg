@@ -165,6 +165,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/data/monsters.js", domains: ["combat", "status"] },
     // Biome landmark signatures are render-only and intentionally map to no balance domain.
     { pattern: "src/data/biomes.js", domains: [] },
+    { pattern: "src/data/affixes.js", domains: ["equipment"] },
     { pattern: "src/data/equipment_tables.js", domains: ["equipment"] },
     { pattern: "src/data/materials.js", domains: ["drops"] },
     { pattern: "src/data/progression.js", domains: ["progression"] },
