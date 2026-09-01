@@ -325,8 +325,10 @@ Return Wing consumes itself and confirms only the selected small subset
 (initial count 2); death and abandon lose the unbanked subset. Unused Town
 preparation consumables are returned to
 Town storage at every run terminal, while consumed Town items are not restored.
-Equipped state does not imply banked ownership. Returned dungeon equipment is
-terminal-result evidence only; it does not enter Town storage or the next run.
+Returned dungeon consumables and Return Wings become Town preparation stock;
+returned dungeon equipment remains terminal-result evidence only and does not
+enter Town storage or the next run. Equipped state does not imply banked
+ownership.
 
 ## Workshop (Between Runs)
 
@@ -487,6 +489,8 @@ possibility automatically after a deep equipment return, but never grants a
 vertical tier or a target-build/drop-rate advantage.
 
 All ordinary dungeon objects are processed automatically at the result
-boundary. Returned equipment is Town storage only and is excluded from the
-next run's starting battle inventory; Death and Abandon discard unbanked
-dungeon objects while retaining only their permitted history and knowledge.
+boundary. Returned dungeon consumables become Town preparation stock, while
+returned equipment is converted to terminal evidence only and is excluded from
+Town storage and the next run's starting battle inventory. Death and Abandon
+discard unbanked dungeon objects while retaining only their permitted history
+and knowledge.

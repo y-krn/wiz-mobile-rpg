@@ -140,7 +140,7 @@ for (const outcome of ["death", "abandon"]) {
 setupRun();
 addDungeonLoot("GREATER_HEAL");
 settleRunObjectLoot(state, "retreat");
-assert.deepEqual(state.storage, ["HEAL_POTION", "TOWN_PORTAL"]);
+assert.deepEqual(state.storage, ["HEAL_POTION", "TOWN_PORTAL", "GREATER_HEAL"]);
 assert.deepEqual(state.currentRun.lostObjectLoot, []);
 console.log("[PASS] portal confirms all dungeon object loot without storing equipment");
 
@@ -149,6 +149,6 @@ state.currentRun.materials = { "獣の牙": 4 };
 addDungeonLoot("GREATER_HEAL");
 triggerRunResult("milestone_portal");
 assert.equal(state.gameState, "result");
-assert.deepEqual(state.storage, ["HEAL_POTION", "TOWN_PORTAL"]);
+assert.deepEqual(state.storage, ["HEAL_POTION", "TOWN_PORTAL", "GREATER_HEAL"]);
 assert.deepEqual(state.currentRun.bankedObjectLoot, ["GREATER_HEAL"]);
 console.log("[PASS] safe portal result settles object loot through the run terminal");

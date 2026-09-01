@@ -56,6 +56,7 @@ function setupRun(deepestFloor = 5) {
   assert.equal(state.party[0].equipment.weapon, null);
   assert.equal(state.storage.includes(sword), false, "recovered dungeon equipment is not permanent storage");
   assert.equal(state.storage.includes("HEAL_POTION"), true, "unused Town preparation returns to storage");
+  assert.equal(state.storage.includes("GREATER_HEAL"), true, "recovered dungeon consumables return to preparation storage");
   assert.ok(result.insights.some(insight => insight.id === "variantEquipment"));
   console.log("[PASS] portal return records compact Castle/Codex facts and opens one lateral Workshop possibility");
 }
