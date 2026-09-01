@@ -67,7 +67,7 @@ import assert from "assert";
       const { generateRandomEquipment, ITEMS } = await import("../../../src/data.js");
       const assert = await import("assert");
 
-      console.log("Starting Chest Guarantee & Smart Drop Verification Tests...");
+      console.log("Starting Chest Guarantee & non-adaptive loot Verification Tests...");
 
       // Test 1: B1F 3-Chest Equipment Guarantee
       initNewGame();
@@ -115,7 +115,7 @@ import assert from "assert";
 
       console.log("-> [PASS] B1F 3rd Chest Guarantee verified");
 
-      // Test 2: Smart Drop Bias (Prioritize missing slots)
+      // Test 2: Non-adaptive equipment supply across all slots
       initNewGame();
       state.floor = 1;
 
