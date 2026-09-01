@@ -1,7 +1,14 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { getClassPassiveBonus } from "./class_rules.js";
 import { formatAffixText } from "../data/affixes.js";
-import { getScaledCurseModifier } from "./identification_rules.js";
+import {
+  getKnowledgeHintTags,
+  getKnowledgeStage,
+  getKnowledgeStageLabel,
+  getScaledCurseModifier,
+  SENSORY_HINT_LABELS,
+  KNOWLEDGE_STAGES
+} from "./identification_rules.js";
 
 export function getItemBaseId(item) {
   if (!item) return "";
@@ -144,53 +151,45 @@ export function getItemData(itemOrKey) {
         }
       }
 
-      if (itemOrKey.halfIdentified) {
-        const hintLabels = {
-          fire_rite: "火葬", holy: "聖", spirit: "霊", poison: "毒",
-          dragon: "竜", iron: "鉄", blood: "血", curse: "呪",
-          ward: "守勢", appraisal: "鑑定", beast: "獣", ambush: "奇襲",
-          blade: "刃", trap: "罠", search: "探索", exorcism: "退魔",
-          analysis: "解析", follow_up: "連撃", record: "記録", evasion: "回避",
-          decay: "衰"
-        };
-        const hints = itemOrKey.hintTags ? itemOrKey.hintTags.map(t => hintLabels[t] || t).join("・") : "なし";
-        const curseText = itemOrKey.curseSuspected ? "呪いの疑いあり。" : "呪いの兆候なし。";
-        const unidentName = itemOrKey.unidentifiedName || "簡易鑑定された装備品";
-        return {
-          ...base,
-          id: itemOrKey,
-          name: `${unidentName} (簡易鑑定済)`,
-          desc: `${unidentName}。気配: ${hints}。${curseText} 完全鑑定で真価が確定します。`,
-          atk: curseAtk,
-          def: curseDef,
-          affixes: [],
-          hpBonus: curseHp,
-          mpBonus: curseMp,
-          statsBonus: {},
-          trapBonus: 0,
-          affixBonus: {},
-          classes: base.classes,
-          type: base.type
-        };
-      } else {
-        const unidentName = itemOrKey.unidentifiedName || "未鑑定の装備品";
-        return {
-          ...base,
-          id: itemOrKey,
-          name: unidentName,
-          desc: `${unidentName}。付与効果は不明。鑑定粉を使うか、装備して正体を確かめます。`,
-          atk: curseAtk,
-          def: curseDef,
-          affixes: [],
-          hpBonus: curseHp,
-          mpBonus: curseMp,
-          statsBonus: {},
-          trapBonus: 0,
-          affixBonus: {},
-          classes: base.classes,
-          type: base.type
-        };
-      }
+      const knowledgeStage = getKnowledgeStage(itemOrKey);
+      const hints = getKnowledgeHintTags(itemOrKey)
+        .map(tag => SENSORY_HINT_LABELS[tag] || tag)
+        .join("・") || "まだ読み取れない";
+      const curseText = itemOrKey.curseSuspected
+        ? "呪いの疑いあり。"
+        : "呪いの兆候なし。";
+      const unidentName = itemOrKey.unidentifiedName || "未鑑定の装備品";
+      const primaryAffix = knowledgeStage === KNOWLEDGE_STAGES.TRIAL
+        ? itemOrKey.affixes?.[0]
+        : null;
+      const primaryEffect = primaryAffix ? formatAffixText(primaryAffix, ": ") : "";
+      const stageText = knowledgeStage === KNOWLEDGE_STAGES.DISCOVERY
+        ? `兆候: ${hints}。`
+        : knowledgeStage === KNOWLEDGE_STAGES.OBSERVATION
+          ? `観察: ${hints}。`
+          : `試用: ${primaryEffect || "主な性質を感じ取った"}。`;
+      const disclosureNote = knowledgeStage === KNOWLEDGE_STAGES.DISCOVERY
+        ? "付与効果は不明。"
+        : "付与効果の一部はまだ不明。";
+      return {
+        ...base,
+        id: itemOrKey,
+        name: `${unidentName}${knowledgeStage === KNOWLEDGE_STAGES.OBSERVATION ? "（観察済）" : knowledgeStage === KNOWLEDGE_STAGES.TRIAL ? "（試用済）" : ""}`,
+        desc: `${unidentName}。${stageText}${disclosureNote}${curseText} 鑑定粉を使うか、装備して主な手応えを確かめます。`,
+        knowledgeStage,
+        knowledgeStageLabel: getKnowledgeStageLabel(knowledgeStage),
+        primaryEffect,
+        atk: curseAtk,
+        def: curseDef,
+        affixes: [],
+        hpBonus: curseHp,
+        mpBonus: curseMp,
+        statsBonus: {},
+        trapBonus: 0,
+        affixBonus: {},
+        classes: base.classes,
+        type: base.type
+      };
     }
     
     // 鑑定済み状態

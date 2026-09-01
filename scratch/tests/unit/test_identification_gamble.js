@@ -209,9 +209,11 @@ test("save→load roundtripでマスク・確定中身・呪い固定・鑑定�
   applySavePayload(payload);
 
   assert.equal(state.inventory[0].identified, false);
+  assert.equal(state.inventory[0].knowledgeStage, "discovery");
   assert.deepEqual(state.inventory[0].affixes, masked.affixes);
   assert.equal(getItemData(state.inventory[0]).affixes.length, 0);
   assert.equal(state.party[0].equipment.weapon.identified, false);
+  assert.equal(state.party[0].equipment.weapon.knowledgeStage, "trial");
   assert.equal(state.party[0].equipment.weapon.halfIdentified, false);
   assert.equal(state.party[0].equipment.weapon.curseEffectId, cursed.curseEffectId);
   assert.equal(state.party[0].equipment.weapon.cursePower, cursed.cursePower);

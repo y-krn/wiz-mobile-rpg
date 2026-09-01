@@ -303,6 +303,12 @@ run-outcome, material-banking, and fixed 20-slot inventory slices. Remaining
 vNext work must identify its own contract boundary rather than reopening these
 ownership or capacity rules.
 
+Unknown equipment now persists its information state per item: discovery,
+observation, trial, or full understanding. Dungeon carrying and equipment use
+may disclose truthful signs and the main function, while complete
+identification remains the exact-detail path. The compatibility `identified`
+flag, hidden affixes, and curse binding continue to survive save/load.
+
 ### vNext object-loot ownership (Issue #1006)
 
 Materials keep the rules above. Separately, dungeon-acquired equipment,

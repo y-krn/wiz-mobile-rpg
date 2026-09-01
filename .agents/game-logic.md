@@ -61,7 +61,8 @@ current version remains `13`; unknown legacy fields are ignored, while an
 older/incompatible version or an unreadable payload uses `loadGame()`'s existing
 backup/fresh-game fallback.
 
-Persisted gameplay data includes coordinates, party/inventory, maps and visited
+Persisted gameplay data includes coordinates, party/inventory (including each
+unknown equipment item's knowledge stage, observed hints, and trial count), maps and visited
 maps, exploration timers, chest/kill/run records, codex/progression, seed,
 supported combat state, roaming/noise state, storage/workshop/materials/key
 items, dungeon memory, and the last 30 log entries. Defaults cover missing

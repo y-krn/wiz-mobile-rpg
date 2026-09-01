@@ -1,4 +1,11 @@
-import { IDENTIFICATION_BALANCE, isCurseLocked } from "../rules/identification_rules.js";
+import {
+  IDENTIFICATION_BALANCE,
+  KNOWLEDGE_STAGES,
+  getKnowledgeHintTags,
+  getKnowledgeStage,
+  isCurseLocked,
+  setKnowledgeStage
+} from "../rules/identification_rules.js";
 import { getCharAffixSum } from "../rules/item_rules.js";
 import { recordEquipmentAffixDiscovery } from "../state/codex_state.js";
 
@@ -17,14 +24,50 @@ export function identifyEquipment(stateLike, item, character = null, rng = Math.
   if (consumesPowder) {
     stateLike.identifyTickets -= IDENTIFICATION_BALANCE.identifyCost;
   }
-  item.identified = true;
-  item.halfIdentified = true;
+  setKnowledgeStage(item, KNOWLEDGE_STAGES.FULL);
   recordEquipmentAffixDiscovery(item, stateLike);
   return { ok: true, cursed: Boolean(item.curseEffectId) };
 }
 
+export function observeEquipment(item) {
+  if (!item || typeof item !== "object") return { changed: false, stage: KNOWLEDGE_STAGES.FULL };
+  const currentStage = getKnowledgeStage(item);
+  if (currentStage === KNOWLEDGE_STAGES.FULL || currentStage === KNOWLEDGE_STAGES.TRIAL) {
+    return { changed: false, stage: currentStage };
+  }
+
+  const knownTags = new Set(getKnowledgeHintTags(item));
+  const actualTags = Array.isArray(item.tags) ? item.tags : [];
+  const nextHint = actualTags.find(tag => !knownTags.has(tag));
+  const stageChanged = currentStage === KNOWLEDGE_STAGES.DISCOVERY;
+  if (!stageChanged && !nextHint) {
+    return { changed: false, stage: currentStage };
+  }
+  if (nextHint) item.observedHintTags = [...knownTags, nextHint];
+  if (stageChanged) setKnowledgeStage(item, KNOWLEDGE_STAGES.OBSERVATION);
+  item.observationCount = Math.max(0, Number(item.observationCount) || 0) + 1;
+  return {
+    changed: true,
+    stage: KNOWLEDGE_STAGES.OBSERVATION,
+    hintTag: nextHint || null
+  };
+}
+
+export function observeCarriedEquipment(stateLike) {
+  if (!stateLike || typeof stateLike !== "object") return 0;
+  const items = [
+    ...(Array.isArray(stateLike.inventory) ? stateLike.inventory : []),
+    ...(Array.isArray(stateLike.party) ? stateLike.party.flatMap(char => Object.values(char?.equipment || {})) : [])
+  ];
+  return items.reduce((count, item) => count + (observeEquipment(item).changed ? 1 : 0), 0);
+}
+
 export function revealEquipmentOnEquip(item) {
   if (!item || typeof item !== "object") return { revealed: false, cursed: false };
+  if (getKnowledgeStage(item) !== KNOWLEDGE_STAGES.FULL) {
+    setKnowledgeStage(item, KNOWLEDGE_STAGES.TRIAL);
+    item.trialCount = Math.max(0, Number(item.trialCount) || 0) + 1;
+  }
   if (item.curseEffectId) item.curseLocked = true;
   return { revealed: false, cursed: isCurseLocked(item) };
 }

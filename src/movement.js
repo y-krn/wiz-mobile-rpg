@@ -26,6 +26,7 @@ import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "./rules/trap_eff
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
+import { observeCarriedEquipment } from "./systems/identification.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -33,12 +34,23 @@ const ENCOUNTER_LOW_RATE = 0.04;
 const MILWA_ENCOUNTER_REDUCTION = 0.03;
 const LOMILWA_ENCOUNTER_REDUCTION = 0.05;
 
+function isCarriedObservationDue(previousSteps, nextSteps) {
+  const interval = IDENTIFICATION_BALANCE.carriedObservationStepInterval;
+  return previousSteps === 0 || Math.floor(nextSteps / interval) > Math.floor(previousSteps / interval);
+}
+
 export function recordExplorationSteps(count = 1) {
   if (!state.currentRun) return;
+  const previousSteps = state.currentRun.steps;
   state.currentRun.steps += count;
   if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
   const key = String(state.floor);
   state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + count;
+  // Carrying gives the first observation early; later signs require a
+  // meaningful low-frequency exploration pulse instead of every step.
+  if (isCarriedObservationDue(previousSteps, state.currentRun.steps) && observeCarriedEquipment(state) > 0) {
+    addLog("【観察】持ち歩く装備から新たな兆候を読み取った。");
+  }
 }
 
 export function getCurrentFloorExplorationSteps() {
