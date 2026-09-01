@@ -36,6 +36,7 @@ const {
   RETURN_WING_SALVAGE_COUNT,
   consumeRunObjectLoot,
   recordDungeonObjectLoot,
+  replaceRunObjectLoot,
   settleRunObjectLoot
 } = await import("../../../src/state/run_loot.js");
 const { triggerRunResult } = await import("../../../src/result.js");
@@ -82,7 +83,7 @@ assert.equal(consumeRunObjectLoot(state, "HEAL_POTION"), true);
 state.inventory.splice(0, 1);
 assert.deepEqual(state.currentRun.townInventory, ["TOWN_PORTAL"]);
 assert.equal(state.currentRun.unbankedObjectLoot.length, 3);
-console.log("[PASS] consumed town item is not restored and dungeon duplicate remains unbanked");
+console.log("[PASS] duplicate item use consumes Town ownership first by explicit current-action policy");
 
 const pushStorage = state.storage.slice();
 assert.deepEqual(pushStorage, [], "push does not settle object loot");
@@ -98,6 +99,18 @@ assert.equal(state.currentRun.lostObjectLoot.length, 2);
 assert.equal(state.party[0].equipment.weapon, null, "run-ending clears equipped loot placement");
 assert.equal(state.currentRun.unbankedObjectLoot.length, 0);
 console.log(`[PASS] wing salvages at most ${RETURN_WING_SALVAGE_COUNT} selected object loot entries including equipment`);
+
+setupRun();
+const townSword = { baseId: "LONG_SWORD", identified: true, instanceId: "town-sword" };
+const dungeonSword = { baseId: "LONG_SWORD", identified: false, instanceId: "dungeon-sword" };
+const upgradedDungeonSword = { ...dungeonSword, enhanceLevel: 1 };
+state.inventory = [townSword, dungeonSword];
+state.currentRun.townInventory = [townSword];
+recordDungeonObjectLoot(state, dungeonSword);
+assert.equal(replaceRunObjectLoot(state, dungeonSword, upgradedDungeonSword), true);
+assert.equal(state.currentRun.townInventory[0], townSword);
+assert.equal(state.currentRun.unbankedObjectLoot[0].item, upgradedDungeonSword);
+console.log("[PASS] duplicate equipment replacement prefers matching ownership identity");
 
 function runTerminal(outcome) {
   setupRun();

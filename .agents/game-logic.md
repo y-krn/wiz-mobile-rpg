@@ -87,6 +87,13 @@ unbanked entries, Wing settles only its selected IDs, and death/abandon settle
 none. Push never invokes settlement. These fields are additive save data and
 normalize to empty collections for older current-version saves.
 
+Until the individual-item bag contract is added, item-use actions receive only
+the base item ID. When Town and dungeon entries share that ID, the resolver
+deliberately consumes Town stock first; object identity or `instanceId` is used
+first when available for equipment replacement, with the same Town-first
+fallback for legacy primitive IDs. A future individual-selection UI must pass
+the ownership entry ID instead of relying on this fallback.
+
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with the mechanic

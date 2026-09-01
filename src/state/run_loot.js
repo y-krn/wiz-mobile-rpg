@@ -36,6 +36,9 @@ export function consumeRunObjectLoot(stateLike, item) {
   const run = getRun(stateLike);
   if (!run) return false;
   const itemId = getItemId(item);
+  // Current item-use actions carry only a base item ID, not an ownership ID.
+  // Until individual selection exists, consume confirmed Town stock first so
+  // a dungeon duplicate does not unexpectedly restore a Town preparation item.
   const townIndex = (run.townInventory || []).findIndex(entry => getItemId(entry) === itemId);
   if (townIndex !== -1) {
     run.townInventory.splice(townIndex, 1);
@@ -54,18 +57,36 @@ export function replaceRunObjectLoot(stateLike, previousItem, nextItem) {
   const run = getRun(stateLike);
   if (!run) return false;
   const previousId = getItemId(previousItem);
-  const matches = (candidate, expected) => candidate === expected || (
-    previousId && getItemId(candidate) === previousId
+  const sameInstance = (candidate, expected) => candidate === expected || (
+    candidate && expected && typeof candidate === "object" && typeof expected === "object" &&
+    candidate.instanceId && candidate.instanceId === expected.instanceId
   );
 
-  const townIndex = (run.townInventory || []).findIndex(item => matches(item, previousItem));
+  const townIndex = (run.townInventory || []).findIndex(item => sameInstance(item, previousItem));
   if (townIndex !== -1) {
     run.townInventory[townIndex] = nextItem;
     return true;
   }
-  const unbankedEntry = (run.unbankedObjectLoot || []).find(entry => matches(entry?.item, previousItem));
+  const unbankedEntry = (run.unbankedObjectLoot || []).find(entry => sameInstance(entry?.item, previousItem));
   if (unbankedEntry) {
     unbankedEntry.item = nextItem;
+    return true;
+  }
+
+  // Primitive IDs and legacy objects without instanceId are not individually
+  // addressable yet. Keep the explicit fallback policy consistent with use.
+  const townFallbackIndex = previousId
+    ? (run.townInventory || []).findIndex(item => getItemId(item) === previousId)
+    : -1;
+  if (townFallbackIndex !== -1) {
+    run.townInventory[townFallbackIndex] = nextItem;
+    return true;
+  }
+  const unbankedFallback = previousId
+    ? (run.unbankedObjectLoot || []).find(entry => getItemId(entry?.item) === previousId)
+    : null;
+  if (unbankedFallback) {
+    unbankedFallback.item = nextItem;
     return true;
   }
   return false;
