@@ -34,6 +34,13 @@ the replacement solo depth-attack roguelite.
 
 One currency, one sink, one question:
 
+Five-floor trial implementation (#1010) is a run-pacing layer, not a new
+economy or currency. A deterministic main/sub theme pair changes the soft
+weight of existing encounter costs and the fourth-floor opportunity rate;
+Portal signals describe the already-resolved next band without exposing exact
+odds. It must not create a build-specific loot guarantee or a mandatory
+consumable tax.
+
 ```text
 run ends -> outcome determines what value is recovered ->
 Castle records what happened, Codex records what was understood, Workshop

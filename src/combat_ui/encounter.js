@@ -6,15 +6,27 @@ import {
 } from "../data.js";
 import { isEncounterCompositionAllowed, pickEncounterSize } from "../rules/encounter_rules.js";
 import { scaleEnemyForDepth } from "../rules/depth_scaling.js";
+import { getBandIndexForFloor, getBandTrialForFloor, getFloorRole } from "../rules/floor_trials.js";
 
 export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster = null, rng = Math.random) {
   const monsters = [];
   let isRare = false;
+  const runSeed = state.currentRun?.runSeed;
+  const bandIndex = getBandIndexForFloor(state.floor);
+  const storedTrial = state.currentRun?.trialBands?.[bandIndex] || null;
+  const trial = runSeed ? getBandTrialForFloor(runSeed, state.floor, storedTrial) : null;
+  const floorRole = getFloorRole(state.floor);
 
   if (isBoss) {
     const bossName = getBiomeForFloor(state.floor).bossName;
     const bossTemplate = MONSTERS.find(m => m.name === bossName);
-    monsters.push(scaleEnemyForDepth(bossTemplate, state.floor, { boss: true }));
+    monsters.push({
+      ...scaleEnemyForDepth(bossTemplate, state.floor, { boss: true }),
+      // A guardian is a high-density confirmation of what this band already
+      // taught. These IDs are internal and do not add a new boss rule.
+      trialThemeIds: trial ? [trial.mainId, trial.subId] : [],
+      trialDensity: trial ? "high" : null
+    });
   } else if (isMidboss) {
     const midbossTemplate = MONSTERS.find(m => m.name === "デーモンガード");
     monsters.push({
@@ -29,10 +41,11 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
     monsters.push(scaleEnemyForDepth(eliteTemplate, state.floor));
   } else {
     // Regular random encounter
-    const poolNames = getEncounterPoolForFloor(state.floor);
+    const poolNames = getEncounterPoolForFloor(state.floor, { trial });
     const poolTemplates = poolNames.map(name => MONSTERS.find(monster => monster.name === name)).filter(Boolean);
     const maxPoolLevel = Math.max(...poolTemplates.map(monster => monster.level));
-    const rareChance = ((state.floor - 1) % 5) === 3 ? 0.18 : 0.08;
+    const rareMultiplier = trial && floorRole.id === "temptation" ? 1.38 : 1;
+    const rareChance = Math.min(0.5, (((state.floor - 1) % 5) === 3 ? 0.18 : 0.08) * rareMultiplier);
     const treasureCandidates = MONSTERS.filter(m => m.treasureRare && m.level <= maxPoolLevel + 1);
     const isTreasureEncounter = (rng() < rareChance) && (treasureCandidates.length > 0);
     
@@ -43,7 +56,10 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
     } else {
       const tempMonsters = [];
       const pool = poolTemplates;
-      const targetSize = pickEncounterSize(getEncounterSizeWeightsForFloor(state.floor), rng);
+      const targetSize = pickEncounterSize(
+        getEncounterSizeWeightsForFloor(state.floor, { trial }),
+        rng
+      );
 
       while (tempMonsters.length < targetSize) {
         const candidates = pool.filter(template =>
@@ -72,5 +88,10 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
     }
   }
 
-  return { monsters, isRare };
+  return {
+    monsters,
+    isRare,
+    trial,
+    floorRole: floorRole.id
+  };
 }

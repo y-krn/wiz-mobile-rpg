@@ -134,9 +134,13 @@ issues must state which contract slice they implement.
 The current workshop UI/data still exposes a permanent-unlock tree. Issue
 #1009 now gives equipment and ordinary chest supply explicit B1–B30 candidate
 tables, preserves old bases in deeper pools, and attaches the three loot roles
-with soft band weights. Five-floor resource trials and the full Workshop
-contract remain transition-state work; these role labels do not target the
-current build or impose a Core activation cap.
+with soft band weights. Issue #1010 now selects a deterministic main theme and
+sub-theme per five-floor band, applies them as soft encounter/enemy weights,
+and carries the selected IDs through the Guardian and next-Portal clue. The
+five floor roles (introduction, development, change, temptation, settlement)
+are generation tendencies, not a scripted event sequence; player-facing clues
+remain coarse and do not expose theme IDs or probabilities. These role labels
+do not target the current build or impose a Core activation cap.
 
 Issue #1006 implements the object-loot ownership slice of this contract:
 dungeon loot remains unbanked until a terminal, unused Town preparation items

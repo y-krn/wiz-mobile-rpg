@@ -44,6 +44,16 @@ enemy stats or encounter size. This principle applies to every five-floor
 biome cycle and keeps early status pressure distinct from the biome's visual
 identity.
 
+### Five-floor trial signals (#1010)
+
+Biome continues to answer “where am I?” while the run-specific trial answers
+which existing costs are likely to matter in this band. The internal main and
+sub-theme labels are not player-facing content. Portal copy is selected from
+coarse sensory signals shared across themes and roles, based on the resolved
+next-band encounter profile; it must not become a one-to-one tag dictionary or
+show exact theme, probability, or threat values. Guardian copy confirms the
+pressure already encountered without introducing a surprise rule.
+
 The biome Visual Signature includes spatial silhouette as well as color and ambient treatment: `corridorWidth`, `ceilingHeight`, `wallLean`, and `ceilingStyle` describe the stable pseudo-3D geometry seen during exploration. The renderer interprets this geometry generically through the shared projection; it must not enumerate biome IDs. Geometry is presentation-only, derived from floor → biome → `visualSignature`, and is not persisted or used by map generation, movement, or balance rules.
 
 ### Landmark signature

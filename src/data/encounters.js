@@ -1,5 +1,11 @@
 import { BIOMES, getBiomeForFloor } from "./biomes.js";
 import { ENEMY_ROLES, MONSTERS } from "./monsters.js";
+import {
+  getBandTrialForFloor,
+  getFloorRole,
+  getTrialAffinityWeight,
+  getTrialEncounterSizeWeights
+} from "../rules/floor_trials.js";
 
 export const ENCOUNTER_COMPOSITION_RULES = Object.freeze({
   minSize: 1,
@@ -48,31 +54,38 @@ function getLocalFloor(floor) {
   return ((Math.max(1, Math.floor(Number(floor) || 1)) - 1) % 5) + 1;
 }
 
-export function getEncounterWeightForFloor(name, floor) {
+export function getEncounterWeightForFloor(name, floor, { trial = null } = {}) {
   const localFloor = getLocalFloor(floor);
   const monster = MONSTER_BY_NAME.get(name);
   if (!monster) return 1;
   const isStatusThreat = monster.isBlinding || monster.isSleepInflicting;
   if (isStatusThreat) {
     if (localFloor < EARLY_STATUS_THREAT_UNLOCK_LOCAL_FLOOR) return 0;
-    return STATUS_THREAT_WEIGHTS_BY_LOCAL_FLOOR[localFloor];
+    const baseWeight = STATUS_THREAT_WEIGHTS_BY_LOCAL_FLOOR[localFloor];
+    return trial ? baseWeight * getTrialAffinityWeight(monster, trial, getFloorRole(floor)) : baseWeight;
   }
-  return 1;
+  return trial ? getTrialAffinityWeight(monster, trial, getFloorRole(floor)) : 1;
 }
 
-function getWeightedEncounterPoolForFloor(floor) {
+function getWeightedEncounterPoolForFloor(floor, options = {}) {
   const pool = getBiomeForFloor(floor).enemyPool;
+  const trial = options.trial || (options.runSeed
+    ? getBandTrialForFloor(options.runSeed, floor, options.storedTrial)
+    : null);
   return pool.flatMap(name => Array.from(
-    { length: getEncounterWeightForFloor(name, floor) },
+    { length: Math.max(0, Math.round(getEncounterWeightForFloor(name, floor, { trial }) * (trial ? 10 : 1))) },
     () => name
   ));
 }
 
-export function getEncounterPoolForFloor(floor) {
-  return getWeightedEncounterPoolForFloor(floor);
+export function getEncounterPoolForFloor(floor, options = {}) {
+  return getWeightedEncounterPoolForFloor(floor, options);
 }
 
-export function getEncounterSizeWeightsForFloor(floor) {
+export function getEncounterSizeWeightsForFloor(floor, options = {}) {
   const localFloor = ((Math.max(1, floor) - 1) % 5) + 1;
-  return ENCOUNTER_SIZE_WEIGHTS[localFloor];
+  const baseWeights = ENCOUNTER_SIZE_WEIGHTS[localFloor];
+  if (!options.trial && !options.runSeed) return baseWeights;
+  const trial = options.trial || getBandTrialForFloor(options.runSeed, floor, options.storedTrial);
+  return getTrialEncounterSizeWeights(trial, getFloorRole(floor), baseWeights);
 }

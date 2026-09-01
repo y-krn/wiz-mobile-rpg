@@ -34,7 +34,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     delete char.mabarrierTurns;
   });
 
-  const { monsters, isRare } = generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster);
+  const { monsters, isRare, trial, floorRole } = generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster);
 
   if (state.alarmActive) {
     const mult = state.alarmWeakened ? 1.10 : 1.20;
@@ -53,6 +53,9 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
 
   if (isBoss || isMidboss || isRoamingFlack) {
     addLog("【⚠️強敵遭遇！】周囲の空気が張り詰める...！");
+    if (isBoss && trial) {
+      addLog("【帯の決算】これまでに見た気配が、階層守護者に集約されている…！");
+    }
   } else if (isRare) {
     addLog("【✨希少遭遇！】珍しい魔物が現れた！");
   }
@@ -69,7 +72,13 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     roundNumber: 1,
     retreatPosition: getRetreatPosition(),
     loggedCoreActivations: [],
-    pendingOutcome: null
+    pendingOutcome: null,
+    trialBand: trial ? {
+      bandIndex: trial.bandIndex,
+      mainId: trial.mainId,
+      subId: trial.subId,
+      floorRole
+    } : null
   };
   trackCombatStart({
     floor: state.floor,

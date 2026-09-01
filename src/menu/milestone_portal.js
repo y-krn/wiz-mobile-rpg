@@ -3,6 +3,37 @@ import { triggerRunResult } from "../result.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { state } from "../state.js";
 import { trackExplorationDecision } from "../telemetry.js";
+import {
+  getBandIndexForFloor,
+  getBandClue,
+  getBandTrialForFloor,
+  getStoredBandTrial
+} from "../rules/floor_trials.js";
+
+function createNextBandClue() {
+  const nextFloor = state.floor + 1;
+  const runSeed = state.currentRun?.runSeed;
+  if (!runSeed) return null;
+  const bandIndex = getBandIndexForFloor(nextFloor);
+  const trial = getBandTrialForFloor(runSeed, nextFloor, state.currentRun?.trialBands?.[bandIndex]);
+  const storedTrial = getStoredBandTrial(trial);
+  if (storedTrial && !state.currentRun.trialBands?.[bandIndex]) {
+    state.currentRun.trialBands ||= {};
+    state.currentRun.trialBands[bandIndex] = storedTrial;
+  }
+  const clue = getBandClue(trial, nextFloor);
+  if (!clue) return null;
+
+  const section = document.createElement("section");
+  section.className = "milestone-portal-clue";
+  section.setAttribute("aria-label", "次の階層帯の兆候");
+  const title = document.createElement("strong");
+  title.textContent = "次の階層帯の兆候";
+  const text = document.createElement("p");
+  text.textContent = clue;
+  section.append(title, text);
+  return section;
+}
 
 export function renderMilestonePortal(optGrid) {
   optGrid.innerHTML = "";
@@ -22,5 +53,6 @@ export function renderMilestonePortal(optGrid) {
     trackExplorationDecision("continue", { state, source: "return_portal" });
     closeSubmenu();
   });
-  optGrid.append(createRunStakesSummary(), retreat, continueButton);
+  const clue = createNextBandClue();
+  optGrid.append(createRunStakesSummary(), ...(clue ? [clue] : []), retreat, continueButton);
 }

@@ -142,6 +142,26 @@
   min-height: var(--tap-min);
 }
 
+.milestone-portal-clue {
+  display: grid;
+  gap: var(--sp-xs);
+  padding: var(--sp-sm);
+  border: 1px solid var(--border-color);
+  background: var(--hud-chrome-bg);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.milestone-portal-clue strong {
+  color: var(--neon-cyan);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.milestone-portal-clue p {
+  margin: 0;
+}
+
 .solo-start-craft-stepper {
   display: grid;
   grid-column: 1 / -1;

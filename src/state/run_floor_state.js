@@ -1,6 +1,7 @@
 import { generateRunFloor } from "../run_map_generator.js";
 import { createFloorElite } from "../systems/roaming_elites.js";
 import { getFloorTemplate } from "../data/floor_templates.js";
+import { getBandIndexForFloor, getBandTrialForFloor, getStoredBandTrial } from "../rules/floor_trials.js";
 import { markMapChanged } from "./state_core.js";
 
 function createVisitedGrid(grid) {
@@ -118,11 +119,29 @@ function spawnFloorElite(stateLike, floor, runSeed, mapData) {
   stateLike.roamingMonsters.push(elite);
 }
 
+function cacheBandTrial(stateLike, floor) {
+  const runSeed = stateLike.currentRun?.runSeed;
+  if (!runSeed || !stateLike.currentRun || stateLike.currentRun.returnReason) return;
+  const bandIndex = getBandIndexForFloor(floor);
+  stateLike.currentRun.trialBands ||= {};
+  const existingTrial = stateLike.currentRun.trialBands[bandIndex];
+  const trial = getBandTrialForFloor(runSeed, floor, existingTrial);
+  const storedTrial = getStoredBandTrial(trial);
+  if (storedTrial && (
+    existingTrial?.bandIndex !== storedTrial.bandIndex ||
+    existingTrial?.mainId !== storedTrial.mainId ||
+    existingTrial?.subId !== storedTrial.subId
+  )) {
+    stateLike.currentRun.trialBands[bandIndex] = storedTrial;
+  }
+}
+
 export function ensureRunFloor(stateLike, floor) {
   const index = floor - 1;
   const existingMap = stateLike.maps?.[index];
   const isActiveRun = Boolean(stateLike.currentRun?.runSeed && !stateLike.currentRun.returnReason);
   const isActiveFloor = floor === stateLike.floor;
+  cacheBandTrial(stateLike, floor);
   if (isUsableFloorMap(existingMap, isActiveRun ? floor : null)) {
     const visitedMap = stateLike.visitedMaps?.[index];
     if (!isUsableVisitedMap(existingMap, visitedMap)) {
