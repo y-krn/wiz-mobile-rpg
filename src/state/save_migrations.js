@@ -412,6 +412,12 @@ function normalizeCurrentRun(run) {
   normalized.bankedObjectLoot = normalized.bankedObjectLoot.filter(item => item != null);
   normalized.lostObjectLoot = normalized.lostObjectLoot.filter(item => item != null);
   normalized.returnedTownItems = normalized.returnedTownItems.filter(item => item != null);
+  normalized.trialBands = Object.fromEntries(
+    Object.entries(normalized.trialBands).filter(([bandIndex, trial]) =>
+      Number.isInteger(Number(bandIndex)) && Number(bandIndex) >= 0 &&
+      isRecord(trial) && typeof trial.mainId === "string" && typeof trial.subId === "string"
+    )
+  );
   normalized.lootSequence = Math.max(0, Math.floor(Number(normalized.lootSequence) || 0));
   normalized.deathLogs = normalized.deathLogs
     .map(normalizeDeathLogEntry)

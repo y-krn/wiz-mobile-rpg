@@ -110,6 +110,23 @@ remain valid. `equipment_decision.buildDecision = "transition"` is reserved
 for a change to the explicit `main` Core axis; auxiliary Core and Support
 changes remain an ordinary `"swap"`.
 
+## Five-floor trial contract (#1010)
+
+`src/rules/floor_trials.js` derives one main and one sub-theme per five-floor
+band from `currentRun.runSeed` and the band index. The selected IDs are cached
+in `currentRun.trialBands`; older saves can reconstruct the same selection from
+their existing `runSeed`. Main-theme repetition is soft-weighted rather than
+hard-banned. Floor roles are also weights: introduction, development, change,
+temptation, and settlement affect existing encounter composition, enemy
+affinity, and rare-encounter selection without disabling a player action.
+
+Boss encounters carry the same selected IDs and inherit representative existing
+enemy traits/behavior as a high-density confirmation of known pressure. The
+Guardian therefore changes actual targeting, status, defense, or queued-action
+behavior without adding a new rule. Portal clues use coarse signals from the
+resolved next band and never reveal theme names, exact probabilities, or a
+threat meter.
+
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with the mechanic

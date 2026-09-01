@@ -123,6 +123,9 @@ reachable action.
   salvage count, and keep the final rescue action at the shared tap minimum.
   The Wing is consumed only when the rescue decision is confirmed, so Back
   remains a safe cancellation path.
+- Milestone Portal clue: show one concise, coarse next-band signal above the
+  primary retreat/continue actions. Keep it readable on narrow screens and do
+  not render internal theme names, probabilities, or a threat meter.
 - Bag capacity: show the fixed 20-slot count in item/chest/equipment flows;
   full-bag loot rejection and full-bag equipment removal must explain the
   available discard path without making the player infer why an action failed.

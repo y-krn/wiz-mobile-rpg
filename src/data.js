@@ -23,7 +23,21 @@ export * from "./data/key_items.js";
 export * from "./data/status_treatments.js";
 export * from "./data/floor_templates.js";
 export * from "./data/encounters.js";
+export * from "./data/floor_trials.js";
 export * from "./data/biomes.js";
+export {
+  getBandIndexForFloor,
+  getFloorRole,
+  getBandTrialForRun,
+  getBandTrialForFloor,
+  getStoredBandTrial,
+  getTrialAffinityWeight,
+  getTrialAffinityMatches,
+  getTrialEncounterSizeWeights,
+  getTrialRareWeight,
+  getBandClue,
+  getTrialGuardianPressures
+} from "./rules/floor_trials.js";
 export * from "./rules/depth_scaling.js";
 
 
