@@ -285,6 +285,29 @@ fire   = 1 + getCharAffixSum(caster, "fireRite") / 100
 preTarget = round(base * statMultiplier(stat) * spellPower * arcane * fire)
 ```
 
+### 1.4 徘徊エリートの個体特性
+
+徘徊エリートは通常遭遇の上位版ではなく、探索の長居に対する任意の脅威
+イベントである。B3F以降のフロア生成時に毎回固定配置せず、entry 抽選または
+一定歩数以降の決定的な追加抽選で配置する。追加抽選の前には数値ゲージや正確な
+カウントダウンではなく、段階的な omen を表示する。出現後は既存の roaming AI と
+知覚 (`ELITE_PERCEPTIONS`) をそのまま使い、階をまたいで追跡しない。
+
+個体ごとに `combatTrait` を1つだけ run seed から決定し、知覚とは独立に組み合わせる。
+trait は戦闘開始ログで説明し、挙動でも識別できるものとする。
+
+- `berserk`: HPが半分以下になると通常攻撃が強化される。
+- `armored`: 物理耐性が高く、呪文が弱点になる。
+- `spell_eater`: 呪文でダメージを受けると短時間攻撃力が上がる。
+- `regenerator`: 毎ターン、失ったHPの一部を回復する。
+- `executioner`: 瀕死の冒険者を優先して狙い、攻撃も強化する。
+
+trait の executable な値と適用段階は `src/systems/roaming_elites.js`、
+`src/combat_logic/monster_traits.js`、`src/combat_logic/round.js`、
+`src/combat_logic/spell_resolution.js` を正本とする。trait は敵のHP/ATKを一律に
+乱数補正する仕組みではなく、攻撃手段・対象選択・戦闘時間の判断を変えるための
+counterplay 軸である。
+
 `spellPower` は全ての攻撃呪文に共通する項で、`arcane` は攻撃側だけの固有項、
 `fireRite` は火系だけの固有項である。従って `arcane` を共通項の代用品にはしない。
 回復呪文は同じ位置で次の式を使う。
@@ -845,6 +868,7 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
 | #558 Mage `trapGuard=60` が Fighter `40` を上回る | 非対称 #9、決定 3 と職業軸 | 罠 sustain を damage compensation に使わず、職業軸を罠・戦闘・resource に分けて評価する。#558 の passive 値は変更しない。 |
 | #731 攻撃呪文の装備成長 | 非対称 #2、決定 2 | 「術力」`spellPower` を武器・鎧・盾と装身具から供給し、stat 直後の pre-target / pre-clamp に適用する。攻撃・回復の両方へ適用し、`arcane` / `devotion` / `fireRite` は固有項として残す。 |
 | #728 PR4 物理ヒット最低1 / ミス0 | 非対称 #1、決定 1 | 命中判定後の `applyPhysicalResistance` から player→enemy 通常/追撃、enemy→player 通常/逃走追撃へ続く各物理段階を `max(1, ...)` にする。盲目 miss / evasive avoid は式へ進まず0。targeted affix、guard、defend、incoming mitigation、会心の倍率・順序、spell minimum は維持し、負値が HP を回復させないことを focused test で確認する。 |
+| #998 徘徊エリートのイベント化と個体特性 | 探索リスクと独立 combat trait | B3F以降の固定配置を廃止し、floor entry / prolonged exploration の決定的な抽選へ分離する。既存の知覚軸を維持し、`combatTrait` を1個だけ付与して戦闘開始時に説明する。 |
 | #721 monster drop の旧 positional API | 本書の範囲外 | ダメージモデルの判断対象ではない。配下の配線欠陥として記録だけし、コードを変更しない。 |
 | #717 Mage physical が成立しない | 非対称 #1・#2・#3・#9 | #722/#731 の呪文成長を先に適用し、#730で hidden fallback を廃止した。#717の通常攻撃は共通物理式で扱い、値変更は行わない。 |
 
