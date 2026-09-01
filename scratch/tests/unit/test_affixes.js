@@ -53,6 +53,7 @@ assert.deepStrictEqual(
     cost: 10,
     params: { hitChanceBonus: 1 },
     buildRole: "reinforce",
+    buildAxis: "auxiliary",
     poolGroup: "combat",
     enabled: true
   },

@@ -274,7 +274,6 @@ function getAffixSummary(itemKey) {
 
 function getEquipmentBuildRole(itemKey) {
   if (!itemKey || typeof itemKey !== "object") return null;
-  if (SAFE_BUILD_ROLES.has(itemKey.buildRole)) return itemKey.buildRole;
   const affixes = Array.isArray(itemKey.affixes) ? itemKey.affixes : [];
   const coreRole = affixes
     .filter(affix => (affix?.kind || getAffixDefinition(affix)?.kind) === "core")
@@ -282,25 +281,25 @@ function getEquipmentBuildRole(itemKey) {
     .find(role => SAFE_BUILD_ROLES.has(role));
   return coreRole || affixes
     .map(affix => getAffixDefinition(affix)?.buildRole)
-    .find(role => SAFE_BUILD_ROLES.has(role)) || null;
+    .find(role => SAFE_BUILD_ROLES.has(role))
+    || (SAFE_BUILD_ROLES.has(itemKey.buildRole) ? itemKey.buildRole : null);
 }
 
-function getEquipmentCoreIds(itemKey) {
+function getEquipmentMainAxisIds(itemKey) {
   return new Set((itemKey && typeof itemKey === "object" && Array.isArray(itemKey.affixes)
     ? itemKey.affixes
     : [])
     .filter(affix => (affix?.kind || getAffixDefinition(affix)?.kind) === "core")
+    .filter(affix => getAffixDefinition(affix)?.buildAxis === "main")
     .map(affix => getAffixDefinition(affix)?.id || affix.id || affix.type));
 }
 
 function isBuildTransition(action, candidateKey, currentKey) {
   if (action !== "equip") return false;
-  const candidateRole = getEquipmentBuildRole(candidateKey);
-  const currentRole = getEquipmentBuildRole(currentKey);
-  if (candidateRole && currentRole && candidateRole !== currentRole) return true;
-  const candidateCores = getEquipmentCoreIds(candidateKey);
-  const currentCores = getEquipmentCoreIds(currentKey);
-  return candidateCores.size > 0 && [...candidateCores].some(core => !currentCores.has(core));
+  const candidateAxes = getEquipmentMainAxisIds(candidateKey);
+  const currentAxes = getEquipmentMainAxisIds(currentKey);
+  return candidateAxes.size !== currentAxes.size
+    || [...candidateAxes].some(axis => !currentAxes.has(axis));
 }
 
 export function buildPlayerSnapshot(character, { floor = 1 } = {}) {

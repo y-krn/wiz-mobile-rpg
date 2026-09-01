@@ -51,7 +51,14 @@ export function rollLootBuildRole(floor = 1, rng = Math.random) {
   return getLootBuildRoleForRoll(floor, rng());
 }
 
-export function rollAffixes(pool, count, rng = Math.random, budget = Infinity) {
+const LOOT_ROLE_MATCH_WEIGHT = 4;
+
+function getRoleAdjustedWeight(affix, lootRole) {
+  if (!lootRole || !affix.buildRole) return affix.weight;
+  return affix.weight * (affix.buildRole === lootRole ? LOOT_ROLE_MATCH_WEIGHT : 1);
+}
+
+export function rollAffixes(pool, count, rng = Math.random, budget = Infinity, lootRole = null) {
   const affixes = [];
   const selectedIds = new Set();
   let remainingBudget = budget;
@@ -62,10 +69,10 @@ export function rollAffixes(pool, count, rng = Math.random, budget = Infinity) {
       return !selectedIds.has(id) && (aff.cost || 0) <= remainingBudget;
     });
     if (available.length === 0) break;
-    const totalWeight = available.reduce((sum, aff) => sum + aff.weight, 0);
+    const totalWeight = available.reduce((sum, aff) => sum + getRoleAdjustedWeight(aff, lootRole), 0);
     let roll = rng() * totalWeight;
     const chosen = available.find(aff => {
-      roll -= aff.weight;
+      roll -= getRoleAdjustedWeight(aff, lootRole);
       return roll <= 0;
     }) || available[available.length - 1];
     affixes.push({
@@ -94,7 +101,7 @@ function withSupportDefinition(candidate) {
   };
 }
 
-function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null) {
+function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null, lootRole = null) {
   const budget = getAffixBudget(rarity, floor);
   const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
     ? AFFIX_BALANCE.corePoolWeights.shallow
@@ -122,27 +129,37 @@ function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCo
 
   if (corePool.length === 0) {
     const count = AFFIX_BALANCE.legacySupportCounts[source][rarity] || 1;
-    return rollAffixes(supportPool, count, rng, budget);
+    return rollAffixes(supportPool, count, rng, budget, lootRole);
   }
 
   const composition = AFFIX_BALANCE.rollComposition[rarity]
     || AFFIX_BALANCE.rollComposition.magic;
   if (typeof composition.coreChance === "number") {
     if (rng() >= composition.coreChance) {
-      return rollAffixes(supportPool, composition.support, rng, budget);
+      return rollAffixes(supportPool, composition.support, rng, budget, lootRole);
     }
-    return rollAffixes(corePool, Math.max(1, composition.core || 1), rng, budget);
+    return rollAffixes(corePool, Math.max(1, composition.core || 1), rng, budget, lootRole);
   }
 
   const coreCount = Math.max(0, composition.core || 0);
   const coreAffixes = coreCount > 0
-    ? rollAffixes(corePool, coreCount, rng, budget)
+    ? rollAffixes(corePool, coreCount, rng, budget, lootRole)
     : [];
   const remainingBudget = budget - coreAffixes.reduce((sum, affix) => {
     return sum + (CORE_AFFIXES.find(definition => definition.id === affix.id)?.cost || 0);
   }, 0);
-  const supportAffixes = rollAffixes(supportPool, composition.support, rng, remainingBudget);
+  const supportAffixes = rollAffixes(supportPool, composition.support, rng, remainingBudget, lootRole);
   return [...coreAffixes, ...supportAffixes];
+}
+
+function getDominantBuildRole(affixes, fallbackRole) {
+  const counts = new Map();
+  affixes.forEach(affix => {
+    if (affix.buildRole) counts.set(affix.buildRole, (counts.get(affix.buildRole) || 0) + 1);
+  });
+  return [...counts.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .map(([role]) => role)[0] || fallbackRole;
 }
 
 export function buildUnidentifiedMeta(
@@ -209,9 +226,9 @@ export function generateRandomEquipment(floor, options) {
     }
   }
 
-  // Consume the historical pre-selection roll to keep seeded streams stable.
-  // Candidate selection is intentionally independent of the current loadout.
-  rng();
+  // Reuse the historical pre-selection roll for the role target so seeded
+  // streams stay stable. Candidate selection remains independent of the loadout.
+  const lootRole = rollLootBuildRole(floor, rng);
   const baseRoll = rng();
   let baseId = baseCandidates[Math.floor(baseRoll * baseCandidates.length)];
   let baseItem = ITEMS[baseId];
@@ -229,8 +246,6 @@ export function generateRandomEquipment(floor, options) {
     else rarity = "magic";
   }
 
-  const buildRole = getLootBuildRoleForRoll(floor, baseRoll);
-  
   const possibleAffixes = [];
   const addAffix = (minFloor, type, getVal, weight = 3) => {
     if (floor < minFloor) return;
@@ -344,7 +359,9 @@ export function generateRandomEquipment(floor, options) {
   addAffix(1, "contractReward", () => 10, 2);
   
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party);
+  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party, lootRole);
+  const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
+  const buildRole = getDominantBuildRole(affixes, lootRole);
 
   // #311: コアは誰も装備できないベースに乗ると丸ごと死ぬ。職業ごとの装備制限そのものは
   // 個性として残し、コアが付いたときだけベースを同スロットの装備可能候補へ寄せる。
@@ -448,7 +465,8 @@ export function generateRandomEquipment(floor, options) {
     unidentifiedName: meta.unidentifiedName,
     affixes,
     buildRole,
-    buildRoles: [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))]
+    buildRoles,
+    lootRole
   };
 }
 
@@ -472,6 +490,7 @@ export function generateRandomAccessory(floor, options) {
     }
   }
 
+  const lootRole = rollLootBuildRole(floor, rng);
   const baseRoll = rng();
   const baseId = baseCandidates[Math.floor(baseRoll * baseCandidates.length)];
   const baseItem = ITEMS[baseId];
@@ -487,8 +506,6 @@ export function generateRandomAccessory(floor, options) {
     if (roll < epicChance) rarity = "epic";
     else if (roll < rareChance) rarity = "rare";
   }
-
-  const buildRole = getLootBuildRoleForRoll(floor, baseRoll);
 
   const availableWeight = (minFloor, weight) => floor >= minFloor ? weight : 0;
   const accessoryAffixPool = [
@@ -531,7 +548,9 @@ export function generateRandomAccessory(floor, options) {
     .filter(Boolean);
 
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party);
+  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party, lootRole);
+  const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
+  const buildRole = getDominantBuildRole(affixes, lootRole);
   const tags = [...(baseItem.tags || [])];
   affixes.forEach(aff => {
     const affixTags = {
@@ -602,6 +621,7 @@ export function generateRandomAccessory(floor, options) {
     unidentifiedName: meta.unidentifiedName,
     affixes,
     buildRole,
-    buildRoles: [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))]
+    buildRoles,
+    lootRole
   };
 }

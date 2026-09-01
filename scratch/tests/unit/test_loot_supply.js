@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   CORE_AFFIXES,
+  LOOT_BUILD_AXES,
   LOOT_BUILD_ROLES,
   LOOT_ROLE_SUPPLY_BY_BAND,
   SUPPORT_AFFIXES,
@@ -57,7 +58,9 @@ assert.equal(rollLootBuildRole(1, () => 0.751), "convert");
 assert.equal(rollLootBuildRole(1, () => 0.951), "pivot");
 
 CORE_AFFIXES.forEach(affix => assert.ok(roleIds.has(affix.buildRole), `${affix.id} has a loot role`));
+CORE_AFFIXES.forEach(affix => assert.ok([LOOT_BUILD_AXES.MAIN, LOOT_BUILD_AXES.AUXILIARY].includes(affix.buildAxis), `${affix.id} has a core axis`));
 SUPPORT_AFFIXES.forEach(affix => assert.ok(roleIds.has(affix.buildRole), `${affix.id} has a loot role`));
+SUPPORT_AFFIXES.forEach(affix => assert.equal(affix.buildAxis, LOOT_BUILD_AXES.SUPPORT));
 
 for (const floor of [1, 6, 11, 16, 21, 30]) {
   const item = generateRandomEquipment(floor, { forceRarity: "epic", rng: lcg(floor) });
@@ -73,6 +76,27 @@ const supportOnlyItem = generateRandomEquipment(1, {
 assert.ok(supportOnlyItem.affixes.length > 0);
 assert.ok(supportOnlyItem.affixes.every(affix => affix.kind === "support" && roleIds.has(affix.buildRole)));
 assert.ok(supportOnlyItem.buildRoles.includes(supportOnlyItem.affixes[0].buildRole));
+
+function collectAffixRoleRates(floor) {
+  const counts = { reinforce: 0, convert: 0, pivot: 0 };
+  let total = 0;
+  for (let seed = 1; seed <= 1000; seed += 1) {
+    const item = generateRandomEquipment(floor, { forceRarity: "epic", allowCores: false, rng: lcg(seed) });
+    item.affixes.forEach(affix => {
+      if (Object.hasOwn(counts, affix.buildRole)) {
+        counts[affix.buildRole] += 1;
+        total += 1;
+      }
+    });
+  }
+  return Object.fromEntries(Object.entries(counts).map(([role, count]) => [role, count / total]));
+}
+
+const shallowAffixRates = collectAffixRoleRates(1);
+const deepAffixRates = collectAffixRoleRates(21);
+assert.ok(deepAffixRates.convert > shallowAffixRates.convert, "deep loot increases actual convert affixes");
+assert.ok(deepAffixRates.pivot > shallowAffixRates.pivot, "deep loot increases actual pivot affixes");
+assert.ok(deepAffixRates.reinforce < shallowAffixRates.reinforce, "deep loot reduces actual reinforce affixes");
 
 const emptyLoadout = [{
   class: "Fighter",

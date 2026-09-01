@@ -338,12 +338,14 @@ the data source for departure craft through `src/systems/workshop.js` and
 
 ## Loot roles and current Core inventory audit (#1009)
 
-Generated loot carries `buildRole` (`reinforce`, `convert`, or `pivot`) and
-`buildRoles` derived from its affixes. `LOOT_ROLE_SUPPLY_BY_BAND` is the source
-of truth for the B1–B30 role weights: 75/20/5, 60/30/10, 55/30/15, 50/35/15,
-and 45/35/20. Every band retains all three roles, so the authored ratios are
-soft discovery bands rather than hard unlocks. Candidate bases are also
-explicit through B30 and keep earlier items eligible at depth.
+Generated loot carries a selected `lootRole` target and `buildRole` /
+`buildRoles` derived from the actual affix composition. The target softly
+weights matching Core and Support candidates while retaining cross-over, so
+`LOOT_ROLE_SUPPLY_BY_BAND` changes the effects players actually discover. It
+is the source of truth for the B1–B30 role weights: 75/20/5, 60/30/10,
+55/30/15, 50/35/15, and 45/35/20. Every band retains all three roles, so the
+authored ratios are soft discovery bands rather than hard unlocks. Candidate
+bases are also explicit through B30 and keep earlier items eligible at depth.
 
 The current Core registry is intentionally not capped. Its role audit is:
 
@@ -351,10 +353,18 @@ The current Core registry is intentionally not capped. Its role audit is:
 - Convert: 血杖, 罠喰い, 呪飼いの鎖, 反撃の棘, 薄氷の誓約, 盗掘王, 野営の達人.
 - Pivot: 巨人殺し, 守護者殺し, 執行人, 忍び足, 慧眼, 賞金稼ぎ, 学者の眼.
 
+The current Core axis audit is explicit in each registry entry's `buildAxis`:
+
+- Main axis: 背水, 先手必勝, 血杖, 罠喰い, 呪飼いの鎖, 巨人殺し, 反撃の棘,
+  執行人, 薄氷の誓約, 忍び足, 盗掘王, 野営の達人.
+- Auxiliary axis: 必中, 浄化の環, 守護者殺し, 慧眼, 賞金稼ぎ, 学者の眼.
+- Support axis: every entry in `SUPPORT_AFFIXES`.
+
 This is a role label for supply and observation, not an activation limit.
 Loot generation never reads the current equipped loadout; a different main
 axis is observed as a build transition only when an equipment decision changes
-the role/core axis, separately from an ordinary equipment swap.
+the explicit `main` Core set. Auxiliary Core and Support changes remain
+ordinary equipment swaps.
 
 - Core evaluation rule: **an unconditional +15% equivalent is the upper limit when converted by expected uptime**.
   Example: 背水 +40% × 20% uptime ≈ +8% effective.

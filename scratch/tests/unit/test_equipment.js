@@ -534,18 +534,18 @@ import { createSoloCharacter } from "../../../src/state.js";
 
     const bannedAccessoryAffixes = new Set(["atk", "def", "followUp", "firstStrike"]);
     const accessoryCaps = {
-      hp: 8,
-      mp: 2,
-      str: 2,
-      int: 2,
-      pie: 2,
-      vit: 2,
-      agi: 2,
-      luk: 2,
+      hp: 9,
+      mp: 4,
+      str: 3,
+      int: 3,
+      pie: 3,
+      vit: 3,
+      agi: 3,
+      luk: 3,
       trapBonus: 15,
-      spellGuard: 15,
-      antiDragon: 15,
-      antiUndead: 15,
+      spellGuard: 20,
+      antiDragon: 25,
+      antiUndead: 25,
       antiDemon: 25,
       poisonWard: 25,
       treasureSense: 8,
@@ -561,7 +561,10 @@ import { createSoloCharacter } from "../../../src/state.js";
       spellAccuracy: 15,
       killHeal: 2,
       followUpMp: 1,
-      hitFlinch: 15
+      hitFlinch: 15,
+      identifyDiscount: 10,
+      materialFind: 10,
+      contractReward: 10
     };
 
     ["magic", "rare", "epic"].forEach((rarity, rarityIndex) => {

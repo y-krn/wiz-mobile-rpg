@@ -99,12 +99,14 @@ the ownership entry ID instead of relying on this fallback.
 `src/data/equipment_tables.js` and `src/rules/chest_rules.js` expose explicit
 B1–B30 candidate pools. Deep pools retain earlier bases and add horizontal
 possibilities; they do not fall back to B5. `src/data/affixes.js` owns the
-three role labels and their five-floor supply weights, while
-`src/systems/equipment_generation.js` rolls them from the supplied RNG and
-never uses current equipment to choose a missing slot. Generated equipment
-stores `buildRole`/`buildRoles` as additive metadata, so existing saves remain
-valid. `equipment_decision.buildDecision = "transition"` is reserved for a
-role/core-axis change and is distinct from an ordinary `"swap"`.
+three role labels, Core `buildAxis` values, and their five-floor supply
+weights, while `src/systems/equipment_generation.js` rolls a `lootRole` target
+and uses it to softly weight actual affix choices. Generation never uses
+current equipment to choose a missing slot. Generated equipment stores
+`lootRole` plus `buildRole`/`buildRoles` as additive metadata, so existing saves
+remain valid. `equipment_decision.buildDecision = "transition"` is reserved
+for a change to the explicit `main` Core axis; auxiliary Core and Support
+changes remain an ordinary `"swap"`.
 
 ## Initial File Routing
 

@@ -129,6 +129,12 @@ export const LOOT_BUILD_ROLES = Object.freeze({
   PIVOT: "pivot"
 });
 
+export const LOOT_BUILD_AXES = Object.freeze({
+  MAIN: "main",
+  AUXILIARY: "auxiliary",
+  SUPPORT: "support"
+});
+
 // These weights are the authored supply target for the five-floor chapters.
 // They shape what a run may discover; they never inspect the current build.
 export const LOOT_ROLE_SUPPLY_BY_BAND = Object.freeze([
@@ -180,6 +186,7 @@ function support(id, jpName, desc, category, options = {}) {
     desc,
     cost: AFFIX_BALANCE.supportCosts[id],
     buildRole: options.buildRole || SUPPORT_BUILD_ROLES[id] || LOOT_BUILD_ROLES.REINFORCE,
+    buildAxis: options.buildAxis || LOOT_BUILD_AXES.SUPPORT,
     enabled: options.enabled ?? true,
     unit: options.unit ?? "",
     ...options
@@ -253,6 +260,7 @@ export const CORE_AFFIXES = [
     // （自攻撃直前にHP25%以下だったturnは実測0.3%）。逃走判断より上へ出す（#272）。
     params: { hpThreshold: 0.40, damageMultiplier: 1.4 },
     buildRole: "reinforce",
+    buildAxis: "main",
     poolGroup: "combat",
     enabled: true
   },
@@ -265,6 +273,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { followUpChance: 1 },
     buildRole: "reinforce",
+    buildAxis: "main",
     poolGroup: "combat",
     enabled: true
   },
@@ -277,6 +286,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { hitChanceBonus: 1 },
     buildRole: "reinforce",
+    buildAxis: "auxiliary",
     poolGroup: "combat",
     enabled: true
   },
@@ -289,6 +299,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { hpCostMultiplier: 2 },
     buildRole: "convert",
+    buildAxis: "main",
     poolGroup: "combat",
     enabled: true
   },
@@ -307,6 +318,7 @@ export const CORE_AFFIXES = [
       targetTags: ["undead", "spirit", "demon"]
     },
     buildRole: "reinforce",
+    buildAxis: "auxiliary",
     poolGroup: "combat",
     enabled: true
   },
@@ -320,6 +332,7 @@ export const CORE_AFFIXES = [
     params: { attackPerDisarm: 2, maxAttack: 20 },
     allowedClasses: ["Thief", "Ranger", "Ninja"],
     buildRole: "convert",
+    buildAxis: "main",
     poolGroup: "combat",
     enabled: true
   },
@@ -332,6 +345,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { statsPerCurse: 3 },
     buildRole: "convert",
+    buildAxis: "main",
     poolGroup: "combat",
     enabled: true
   },
@@ -344,6 +358,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { damageMultiplier: 1.3 },
     buildRole: "pivot",
+    buildAxis: "main",
     poolGroup: "combat",
     enabled: true
   },
@@ -356,6 +371,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { damageMultiplier: 1.25 },
     buildRole: "pivot",
+    buildAxis: "auxiliary",
     poolGroup: "combat",
     enabled: true
   },
@@ -368,6 +384,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { counterChance: 0.3, counterPower: 0.5 },
     buildRole: "convert",
+    buildAxis: "main",
     poolGroup: "combat",
     enabled: true
   },
@@ -380,6 +397,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { status: "poisoned", statusChance: 0.35, damageMultiplier: 1.4 },
     buildRole: "pivot",
+    buildAxis: "main",
     poolGroup: "combat",
     enabled: true
   },
@@ -392,6 +410,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { hpThreshold: 0.50, damageMultiplier: 1.35, incomingDamageMultiplier: 1.20 },
     buildRole: "convert",
+    buildAxis: "main",
     poolGroup: "combat",
     enabled: true
   },
@@ -404,6 +423,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { detectionRangeMultiplier: 0.5, auraRangeBonus: 1 },
     buildRole: "pivot",
+    buildAxis: "main",
     poolGroup: "economy",
     enabled: true
   },
@@ -416,6 +436,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { materialBonus: 1, trapTierBonus: 1 },
     buildRole: "convert",
+    buildAxis: "main",
     poolGroup: "economy",
     enabled: true
   },
@@ -428,6 +449,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { applyUnidentifiedEffects: true, hideUntilIdentified: true },
     buildRole: "pivot",
+    buildAxis: "auxiliary",
     poolGroup: "economy",
     enabled: true
   },
@@ -440,6 +462,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { recoveryMultiplier: 2 },
     buildRole: "convert",
+    buildAxis: "main",
     poolGroup: "economy",
     enabled: true
   },
@@ -452,6 +475,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { contractCountMultiplier: 2 },
     buildRole: "pivot",
+    buildAxis: "auxiliary",
     poolGroup: "economy",
     enabled: true
   },
@@ -464,6 +488,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { guaranteedMaterialDrop: true },
     buildRole: "pivot",
+    buildAxis: "auxiliary",
     poolGroup: "economy",
     enabled: true
   }
