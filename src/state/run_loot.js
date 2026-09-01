@@ -1,4 +1,4 @@
-import { getItemBaseId, isSpecialOrQuestItem } from "../rules/item_rules.js";
+import { getItemBaseId, getItemData, isSpecialOrQuestItem } from "../rules/item_rules.js";
 
 // This is intentionally separate from equipped/unbagged state. An item can be
 // equipped and still remain an unbanked dungeon result until the run ends.
@@ -157,10 +157,16 @@ function appendToTownStorage(stateLike, items) {
   stateLike.storage.push(...items);
 }
 
+function isTownPreparationItem(item) {
+  return getItemData(item)?.type === "usable";
+}
+
 /**
  * Resolve object ownership at a run terminal. Town-owned items that were not
- * consumed are always returned. Dungeon loot is returned only for a portal or
- * for explicitly selected Return Wing salvage; death and abandon lose it.
+ * consumed are always returned to permanent storage. Returned dungeon
+ * consumables are also Town preparation stock, while recovered equipment is
+ * confirmed only for the terminal result and never becomes next-run storage;
+ * death and abandon lose unbanked dungeon loot.
  */
 export function settleRunObjectLoot(stateLike, outcome, salvageIds = null) {
   const run = getRun(stateLike);
@@ -176,9 +182,11 @@ export function settleRunObjectLoot(stateLike, outcome, salvageIds = null) {
       ? takeByIds(unbanked, salvageIds).slice(0, RETURN_WING_SALVAGE_COUNT)
       : [];
   const lostLoot = unbanked.filter(entry => !returnedLoot.some(item => item.id === entry.id));
-  const bankedItems = [...townItems, ...returnedLoot.map(entry => entry.item)];
+  const returnedDungeonItems = returnedLoot.map(entry => entry.item);
+  const bankedItems = [...townItems, ...returnedDungeonItems];
+  const returnedPreparationItems = returnedDungeonItems.filter(isTownPreparationItem);
 
-  appendToTownStorage(stateLike, bankedItems);
+  appendToTownStorage(stateLike, [...townItems, ...returnedPreparationItems]);
   removeTrackedItemsFromEquipment(stateLike, unbanked, stateLike.inventory, townItems);
   removeTrackedItemsFromInventory(stateLike, [
     ...townItems,

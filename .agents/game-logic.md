@@ -91,9 +91,10 @@ active run, `currentRun.townInventory` contains the Town-provided preparation
 items still unused, and `currentRun.unbankedObjectLoot` contains stable loot
 entries acquired in the dungeon. Loot remains unbanked when equipped. The
 terminal transition records `bankedObjectLoot`/`lostObjectLoot`, returns unused
-Town items to `state.storage`, and clears active ownership. Portal settles all
-unbanked entries, Wing settles only its selected IDs, and death/abandon settle
-none. Push never invokes settlement. These fields are additive save data and
+Town items and returned dungeon consumables to `state.storage`, and clears active
+ownership. Recovered dungeon equipment remains terminal evidence rather than
+permanent storage. Portal settles all unbanked entries, Wing settles only its
+selected IDs, and death/abandon settle none. Push never invokes settlement. These fields are additive save data and
 normalize to empty collections for older current-version saves.
 
 The bag contract is fixed at 20 ordinary slots, with one array entry per item
@@ -189,6 +190,16 @@ behavior, or flow wiring are affected.
 - Do not rewrite unrelated game systems while reviewing one mechanic.
 - Do not accept hidden changes to item, enemy, or class balance without calling
   them out.
+
+## Terminal return processing (#1011)
+
+`src/systems/run_return.js` is the single boundary for terminal object
+settlement plus Castle/Codex/Workshop records. Callers provide the resolved
+outcome (`retreat`, `wing`, `death`, or `abandon`) and must not duplicate loot
+ownership rules. Settlement happens before the result summary: unused Town
+preparations and returned dungeon consumables go to storage, recovered equipment
+remains terminal evidence, unbanked objects are lost on Death/Abandon, and
+compact history facts never become combat state.
 
 ## Output
 

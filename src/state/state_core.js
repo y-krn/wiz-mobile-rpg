@@ -92,7 +92,7 @@ export const state = {
   controlsGuardUntil: 0,
   cleared: false,
   metaMaterials: {},
-  workshop: { ranks: {} },
+  workshop: { ranks: {}, lateralUnlocks: [] },
   keyItems: [],
 
   // Dynamic getters for floor-specific maps to maintain backwards compatibility

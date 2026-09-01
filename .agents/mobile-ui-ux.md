@@ -171,6 +171,13 @@ reachable action.
 - Do not redesign unrelated screens.
 - Do not prioritize visual novelty over thumb reach and clarity.
 
+## Return result hierarchy (#1011)
+
+Result screens surface ordinary object settlement, the representative item,
+at most five meaningful facts, coarse Codex insight, and Workshop horizontal
+unlock in that order. Keep lost and rescued states explicit, and make clear
+that recovered equipment is not usable as next-run battle gear.
+
 ## Output
 
 Use the repository review output format from `.agents/README.md`.

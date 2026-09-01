@@ -320,12 +320,15 @@ flag, hidden affixes, and curse binding continue to survive save/load.
 
 Materials keep the rules above. Separately, dungeon-acquired equipment,
 consumables, Return Wings, and valuable objects are unbanked object loot until
-the run ends. A milestone Portal banks all of it; a Return Wing consumes itself
-and banks only the selected small subset (initial count 2); death and abandon
-lose the unbanked subset. Unused Town preparation consumables are returned to
+the run ends. A milestone Portal confirms all of it for the terminal result; a
+Return Wing consumes itself and confirms only the selected small subset
+(initial count 2); death and abandon lose the unbanked subset. Unused Town
+preparation consumables are returned to
 Town storage at every run terminal, while consumed Town items are not restored.
-Equipped state does not imply banked ownership, and returned equipment is not
-automatically carried into the next run.
+Returned dungeon consumables and Return Wings become Town preparation stock;
+returned dungeon equipment remains terminal-result evidence only and does not
+enter Town storage or the next run. Equipped state does not imply banked
+ownership.
 
 ## Workshop (Between Runs)
 
@@ -344,6 +347,10 @@ possibility expansion, not a targeted build shop:
 The Workshop should broaden combinations involving HP, MP, status, actions,
 and curses while keeping the run's improvised build and resource competition
 as the source of power.
+
+Automatic pool unlocks use reserved same-slot side-grade slots: an unlocked
+possibility replaces its authored baseline slot rather than adding a new
+weighted candidate and diluting the existing supply.
 
 Issue #1009 implements the loot-side boundary of that rule. `lootRole` selects
 a soft supply target, which weights matching affix/Core candidates while
@@ -470,3 +477,20 @@ history; any future contract change must preserve the depth question.
 - Permanent bag expansion or dedicated loot/safety compartments.
 - Making identify resources cheap enough that the identify-or-gamble choice
   disappears (see pillar 3).
+
+## Castle / Codex / Workshop return processing (#1011)
+
+Castle records the run outcome and its evidence: depth, return route,
+representative item, recovered/rescued/lost object counts, and a bounded list
+of meaningful individual facts. Codex stores finite coarse insights from
+encountered equipment; it never answers exact probabilities, hidden candidate
+totals, or the optimal build. Workshop can unlock an existing side-grade
+possibility automatically after a deep equipment return, but never grants a
+vertical tier or a target-build/drop-rate advantage.
+
+All ordinary dungeon objects are processed automatically at the result
+boundary. Returned dungeon consumables become Town preparation stock, while
+returned equipment is converted to terminal evidence only and is excluded from
+Town storage and the next run's starting battle inventory. Death and Abandon
+discard unbanked dungeon objects while retaining only their permitted history
+and knowledge.

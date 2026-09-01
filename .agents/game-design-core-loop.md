@@ -600,3 +600,18 @@ separate from recovery, retreat, and trap-kit roles.
   referenced here (encounter counts, scaling curves, material income).
 - `.agents/game-logic.md`: checklist for implementing generation, combat,
   and run-state changes.
+
+## Castle Return Contract (#1011)
+
+Every terminal route is resolved in Town-facing records: Portal returns all
+unbanked dungeon objects, Wing rescues the selected shared-cap subset, and
+Death/Abandon return none of those objects. Ordinary loot is settled
+automatically before the result screen; the next run starts from Town
+preparations, never from recovered dungeon equipment.
+
+The Castle keeps one representative item and at most five compact meaningful
+item facts per run. These facts describe what happened (returned, rescued,
+lost, or observed); they do not retain a full item as a combat bonus. The
+Codex records only finite, coarse observations, while Workshop return rewards
+make existing side-grade possibilities eligible horizontally. No return path
+reveals exact drop rates, candidate totals, or a target build.

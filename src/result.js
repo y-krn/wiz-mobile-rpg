@@ -5,7 +5,7 @@ import { bankRunMaterials } from "./rules/material_rules.js";
 import { updateRunQuests } from "./systems/run_quests.js";
 import { findMapCellByType } from "./rules/map_queries.js";
 import { trackCombatEnd, trackRunEnd } from "./telemetry.js";
-import { settleRunObjectLoot } from "./state/run_loot.js";
+import { processRunReturn } from "./systems/run_return.js";
 
 export function triggerRunResult(reason, { salvageIds = null } = {}) {
   if (!state.currentRun || state.gameState === "result" || state.currentRun.returnReason) return;
@@ -24,7 +24,7 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
   const objectLootOutcome = reason === "escape_scroll"
     ? "wing"
     : isSuccess ? "retreat" : "loss";
-  settleRunObjectLoot(state, objectLootOutcome, salvageIds);
+  processRunReturn(state, objectLootOutcome, salvageIds);
   if (isDeath && !run.deathLogs?.at(-1)) {
     const activeEnemy = state.combatState?.monsters?.find(monster => monster.hp > 0);
     if (activeEnemy && state.party[0]) {
@@ -148,6 +148,11 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
     outcome,
     milestones: recordResult.milestones,
     recordUpdates: recordResult.updates,
+    representativeItem: run.representativeItem,
+    meaningfulItemHistory: run.meaningfulItemHistory,
+    codexInsights: run.codexInsights,
+    workshopUnlocks: run.workshopUnlocks,
+    returnProcessing: run.returnProcessing,
     deathCause: run.deathLogs?.at(-1)?.type && run.deathLogs?.at(-1)?.source
       ? {
         floor: run.deathLogs.at(-1).floor,

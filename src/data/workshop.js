@@ -161,3 +161,60 @@ export const WORKSHOP_CLASS_NODES = Object.freeze([]);
 export const WORKSHOP_NODES = Object.freeze([...WORKSHOP_BASE_NODES, ...WORKSHOP_CLASS_NODES]);
 
 export const WORKSHOP_NODE_BY_ID = new Map(WORKSHOP_NODES.map(node => [node.id, node]));
+
+// Return processing may open one existing side-grade pool automatically after
+// a meaningful deep return. These are not new tiers or targeted drop boosts:
+// they only make an already-authored possibility eligible in a future run.
+// The depth gates prevent repeated shallow returns from farming the whole list.
+export const WORKSHOP_LATERAL_UNLOCKS = Object.freeze([
+  Object.freeze({
+    nodeId: "pool_opener",
+    minDepth: 5,
+    relatedCoreIds: ["CORE_OPENER"],
+    relatedBuildRoles: ["reinforce"],
+    relatedLootRoles: ["reinforce"],
+    relatedTags: ["ambush"],
+    relatedTypes: ["weapon", "accessory"],
+    relatedKnowledgeStages: ["discovery", "observation"]
+  }),
+  Object.freeze({
+    nodeId: "pool_trap_eater",
+    minDepth: 10,
+    relatedCoreIds: ["CORE_TRAP_EATER"],
+    relatedBuildRoles: ["convert"],
+    relatedLootRoles: ["convert"],
+    relatedTags: ["trap", "poison", "ward"],
+    relatedTypes: ["accessory", "armor"],
+    relatedKnowledgeStages: ["observation", "trial", "full"]
+  }),
+  Object.freeze({
+    nodeId: "pool_giant_slayer",
+    minDepth: 15,
+    relatedCoreIds: ["CORE_GIANT_SLAYER"],
+    relatedBuildRoles: ["pivot"],
+    relatedLootRoles: ["pivot"],
+    relatedTags: ["iron", "blade"],
+    relatedTypes: ["weapon"],
+    relatedKnowledgeStages: ["observation", "trial", "full"]
+  }),
+  Object.freeze({
+    nodeId: "pool_tomb_raider",
+    minDepth: 25,
+    relatedCoreIds: ["CORE_TOMB_RAIDER"],
+    relatedBuildRoles: ["convert"],
+    relatedLootRoles: ["convert"],
+    relatedTags: ["search", "treasure"],
+    relatedTypes: ["accessory", "weapon"],
+    relatedKnowledgeStages: ["trial", "full"]
+  }),
+  Object.freeze({
+    nodeId: "pool_scholar_eye",
+    minDepth: 30,
+    relatedCoreIds: ["CORE_SCHOLAR_EYE"],
+    relatedBuildRoles: ["pivot"],
+    relatedLootRoles: ["pivot"],
+    relatedTags: ["appraisal", "analysis", "spirit"],
+    relatedTypes: ["weapon", "accessory"],
+    relatedKnowledgeStages: ["trial", "full"]
+  })
+]);

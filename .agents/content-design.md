@@ -130,6 +130,14 @@ layout.
 - Do not introduce new terminology when existing terms are enough.
 - Do not accept text that is likely to overflow mobile controls.
 
+## Return-result content contract (#1011)
+
+The result screen highlights the representative item, a small meaningful
+history, new coarse Codex insights, and any horizontal Workshop possibility.
+Use short labels such as returned, rescued, lost, and observed. Never present
+full affix/stat details as a Castle reward, and never present exact rates,
+candidate totals, or a recommended build as a Codex answer.
+
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
