@@ -306,6 +306,16 @@ check("trial themes bias elite combat traits without removing variants", () => {
     spawnReason: "prolonged"
   });
   assert.deepEqual(elite.trialThemeIds, [trial.mainId, trial.subId]);
+  const storedTrial = { bandIndex: 0, mainId: "resource", subId: "status" };
+  const storedElite = createFloorElite({
+    runSeed: "ELITE-TRIAL-LINK",
+    floor: ELITE_MIN_FLOOR,
+    mapData: generateRunFloor({ runSeed: "ELITE-TRIAL-LINK", floor: ELITE_MIN_FLOOR }),
+    spawnReason: "prolonged",
+    storedTrial
+  });
+  assert.deepEqual(storedElite.trialThemeIds, ["resource", "status"]);
+  assert.equal(storedElite.combatTrait, getEliteCombatTrait("ELITE-TRIAL-LINK", ELITE_MIN_FLOOR, storedTrial));
 });
 
 check("combat traits change the relevant combat decisions", () => {

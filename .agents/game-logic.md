@@ -76,6 +76,14 @@ map is preserved for `RunFloorRecoveryError` handling rather than silently
 regenerated. Normalization starts from a structured clone so migration repairs
 cannot mutate caller-owned or state-shared nested data.
 
+Roaming elite lifecycle is part of `currentRun.eliteFloors`, keyed by floor. Each
+entry records whether the entry roll was resolved, whether the elite spawned or
+was defeated, the qualitative warning stage, consumed prolonged-check indices,
+the internal Greed action pressure, whether the exit stairs were found, and
+dedupe keys for one-time optional-area actions. This state is normalized and
+persisted with the run so walking alone cannot advance the threat and save/load
+cannot reroll an entry roll, a prolonged check, or a warning.
+
 ## Object-loot ownership contract (#1006)
 
 `state.inventory` and `party[*].equipment` describe placement only. During an

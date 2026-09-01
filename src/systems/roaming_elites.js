@@ -88,9 +88,9 @@ export function getEliteCombatTraitWeights(trial, role = null) {
   return weights;
 }
 
-export function getEliteCombatTrait(runSeed, floor) {
+export function getEliteCombatTrait(runSeed, floor, storedTrial = null) {
   const rng = createRng(`${runSeed}:elite-combat-trait:B${floor}`);
-  const trial = getBandTrialForFloor(runSeed, floor);
+  const trial = getBandTrialForFloor(runSeed, floor, storedTrial);
   const weights = getEliteCombatTraitWeights(trial, getFloorRole(floor));
   const total = ELITE_COMBAT_TRAITS.reduce((sum, trait) => sum + weights[trait], 0);
   let threshold = rng() * total;
@@ -207,7 +207,7 @@ export function findEliteStart(grid, start, rng = Math.random) {
   return candidates[Math.floor(rng() * candidates.length)];
 }
 
-export function createFloorElite({ runSeed, floor, mapData, spawnReason = "entry", spawnOrigin = null }) {
+export function createFloorElite({ runSeed, floor, mapData, spawnReason = "entry", spawnOrigin = null, storedTrial = null }) {
   if (!Number.isInteger(floor) || floor < ELITE_MIN_FLOOR || !runSeed || !mapData?.grid) return null;
   if (spawnReason === "entry" && !shouldSpawnElite(floor, runSeed)) return null;
   if (spawnReason !== "entry" && spawnReason !== "prolonged") return null;
@@ -217,8 +217,8 @@ export function createFloorElite({ runSeed, floor, mapData, spawnReason = "entry
   const origin = spawnOrigin || start;
   const spot = findEliteStart(grid, origin, createRng(`${runSeed}:elite-spawn:B${floor}`));
   if (!spot) return null;
-  const combatTrait = getEliteCombatTrait(runSeed, floor);
-  const trial = getBandTrialForFloor(runSeed, floor);
+  const combatTrait = getEliteCombatTrait(runSeed, floor, storedTrial);
+  const trial = getBandTrialForFloor(runSeed, floor, storedTrial);
 
   return {
     id: getEliteId(floor),
@@ -271,6 +271,7 @@ export function progressEliteThreat(stateLike) {
       floor,
       mapData: { grid },
       spawnReason: "prolonged",
+      storedTrial: currentRun.trialBands?.[Math.floor((floor - 1) / 5)],
       spawnOrigin: Number.isInteger(stateLike.x) && Number.isInteger(stateLike.y)
         ? { x: stateLike.x, y: stateLike.y }
         : null

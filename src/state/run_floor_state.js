@@ -115,7 +115,14 @@ export class RunFloorRecoveryError extends Error {
 function spawnFloorElite(stateLike, floor, runSeed, mapData) {
   const floorState = markEliteEntryRollResolved(stateLike, floor);
   if (floorState.spawned || floorState.defeated) return;
-  const elite = createFloorElite({ runSeed, floor, mapData, spawnReason: "entry" });
+  const bandIndex = getBandIndexForFloor(floor);
+  const elite = createFloorElite({
+    runSeed,
+    floor,
+    mapData,
+    spawnReason: "entry",
+    storedTrial: stateLike.currentRun?.trialBands?.[bandIndex]
+  });
   if (!elite) return;
   stateLike.roamingMonsters ||= [];
   if (stateLike.roamingMonsters.some(monster => monster.id === elite.id)) return;
