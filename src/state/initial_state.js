@@ -75,6 +75,8 @@ export const createDefaultCurrentRun = () => ({
   // Deterministic five-floor trial selections are cached so old saves and
   // future generator changes cannot reroll an already decided band.
   trialBands: {},
+  eliteOmenSteps: {},
+  eliteDefeatedFloors: [],
   defeatedMilestones: [],
   visitedMilestoneMerchants: [],
   quests: [],

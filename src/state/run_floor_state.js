@@ -110,9 +110,10 @@ export class RunFloorRecoveryError extends Error {
   }
 }
 
-// 徘徊エリートは階を生成した瞬間に置く。撃破済みの階はmapsが残るためここまで来ない。
+// 徘徊エリートは階生成時のseed抽選に通った場合だけ置く。撃破済みの階は
+// mapsが残るためここまで来ず、長居による追加出現はmovement側から判定する。
 function spawnFloorElite(stateLike, floor, runSeed, mapData) {
-  const elite = createFloorElite({ runSeed, floor, mapData });
+  const elite = createFloorElite({ runSeed, floor, mapData, spawnReason: "entry" });
   if (!elite) return;
   stateLike.roamingMonsters ||= [];
   if (stateLike.roamingMonsters.some(monster => monster.id === elite.id)) return;

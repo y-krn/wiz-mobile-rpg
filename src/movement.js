@@ -16,7 +16,7 @@ import {
   resolveExplorationPoisonStep
 } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/elite_perception.js";
-import { ELITE_PATROL_RADIUS } from "./systems/roaming_elites.js";
+import { ELITE_PATROL_RADIUS, progressEliteThreat } from "./systems/roaming_elites.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.js";
 import { RUN_QUEST_TEMPLATES } from "./data/run_quests.js";
@@ -960,6 +960,12 @@ export function advanceRoamingTurn(playerMoved) {
 export function processExplorationResolution(prevX, prevY) {
   const wiped = applyExplorationPoison();
   if (wiped) return;
+
+  const eliteProgress = progressEliteThreat(state);
+  eliteProgress.omens.forEach(omen => addLog(`[予兆] ${omen}`));
+  if (eliteProgress.spawned) {
+    addLog(`【気配】${eliteProgress.spawned.name}の殺気が、この階に満ちた……`);
+  }
 
   // 1. Check if player stepped onto Flack
   if (checkRoamingMonsterEncounter()) {

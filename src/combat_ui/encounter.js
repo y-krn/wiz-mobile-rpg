@@ -12,6 +12,11 @@ import {
   getFloorRole,
   getTrialGuardianPressures
 } from "../rules/floor_trials.js";
+import {
+  applyEliteCombatTraitStats,
+  getEliteCombatTrait,
+  ELITE_COMBAT_TRAIT_LABELS
+} from "../systems/roaming_elites.js";
 
 export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster = null, rng = Math.random) {
   const monsters = [];
@@ -63,8 +68,16 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
   } else if (isRoamingFlack) {
     const eliteName = roamingMonster?.name || getBiomeForFloor(state.floor).eliteName;
     const eliteTemplate = MONSTERS.find(m => m.name === eliteName) || MONSTERS.find(m => m.name === "フラック");
+    const combatTrait = roamingMonster?.combatTrait || (state.currentRun?.runSeed
+      ? getEliteCombatTrait(state.currentRun.runSeed, state.floor)
+      : null);
     // 深層でも脅威として成立させるため、通常敵と同じ深度スケールを掛ける。
-    monsters.push(scaleEnemyForDepth(eliteTemplate, state.floor));
+    monsters.push(applyEliteCombatTraitStats({
+      ...scaleEnemyForDepth(eliteTemplate, state.floor),
+      combatTrait,
+      combatTraitLabel: roamingMonster?.combatTraitLabel || ELITE_COMBAT_TRAIT_LABELS[combatTrait],
+      spawnReason: roamingMonster?.spawnReason
+    }, roamingMonster?.combatTrait));
   } else {
     // Regular random encounter
     const poolNames = getEncounterPoolForFloor(state.floor, { trial });

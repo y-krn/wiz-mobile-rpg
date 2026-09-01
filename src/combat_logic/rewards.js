@@ -337,6 +337,12 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   } else if (state.combatState.isRoamingFlack) {
     const defeatedId = state.combatState.roamingMonsterId;
     const eliteName = state.combatState.monsters?.[0]?.name || "強敵";
+    if (state.currentRun) {
+      state.currentRun.eliteDefeatedFloors ||= [];
+      if (!state.currentRun.eliteDefeatedFloors.includes(state.floor)) {
+        state.currentRun.eliteDefeatedFloors.push(state.floor);
+      }
+    }
     state.roamingMonsters = state.roamingMonsters.filter(rm => {
       if (defeatedId) return rm.id !== defeatedId;
       return !(rm.floor === state.floor && rm.x === state.x && rm.y === state.y);
