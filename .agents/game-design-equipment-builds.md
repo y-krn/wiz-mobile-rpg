@@ -407,3 +407,16 @@ ordinary equipment swaps.
 - Measure expected core uptime → adjust `AFFIX_BALANCE` (pending live-play data).
 - When implementing the fatigue system: consider adding the 「疲労中ペナルティ半減」 support affix.
 - The codex core discovery record (17-type collection display) is not implemented — use a separate Issue if implementing it.
+
+## Returned equipment is history, not next-run gear (#1011)
+
+Dungeon equipment remains an in-run build decision. A Portal or Wing can place
+the resolved object in Town storage, but the next departure does not load that
+object as permanent battle equipment. Death and Abandon can still preserve a
+coarse Codex observation and Castle history for a lost item without preserving
+its combat values.
+
+Return processing may automatically expose one existing side-grade pool node
+at a depth gate after equipment is recovered. This is horizontal possibility
+space only: it does not add a superior tier, increase a specific item's drop
+rate, select a build, or dilute the authored candidate structure.

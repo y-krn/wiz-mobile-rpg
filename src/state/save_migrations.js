@@ -307,6 +307,28 @@ function normalizeRunHistoryEntry(entry) {
   if (Object.hasOwn(normalized, "bankedMaterials") && !isRecord(normalized.bankedMaterials)) {
     normalized.bankedMaterials = {};
   }
+  if (Object.hasOwn(normalized, "representativeItem")) {
+    normalized.representativeItem = normalizeReturnItemRecord(normalized.representativeItem);
+  }
+  if (Object.hasOwn(normalized, "meaningfulItemHistory")) {
+    normalized.meaningfulItemHistory = arrayOr(normalized.meaningfulItemHistory)
+      .map(normalizeReturnItemRecord)
+      .filter(isRecord)
+      .slice(0, 5);
+  }
+  if (Object.hasOwn(normalized, "codexInsights")) {
+    normalized.codexInsights = normalizeRunInsights(normalized.codexInsights);
+  }
+  if (Object.hasOwn(normalized, "workshopUnlocks")) {
+    normalized.workshopUnlocks = arrayOr(normalized.workshopUnlocks)
+      .filter(isRecord)
+      .map(unlock => ({
+        nodeId: typeof unlock.nodeId === "string" ? unlock.nodeId : "",
+        name: typeof unlock.name === "string" ? unlock.name : "",
+        description: typeof unlock.description === "string" ? unlock.description : ""
+      }))
+      .filter(unlock => unlock.nodeId);
+  }
   return normalized;
 }
 
@@ -323,6 +345,43 @@ function normalizeDeathLogEntry(entry) {
 }
 
 const EQUIPMENT_RARITIES = new Set(["common", "magic", "rare", "epic", "legendary"]);
+
+const RETURN_ITEM_TYPES = new Set(["weapon", "shield", "armor", "accessory", "usable", "item"]);
+
+function normalizeReturnItemRecord(record) {
+  if (!isRecord(record) || typeof record.baseId !== "string") return null;
+  return {
+    baseId: record.baseId,
+    name: typeof record.name === "string" ? record.name : record.baseId,
+    type: RETURN_ITEM_TYPES.has(record.type) ? record.type : "item",
+    rarity: EQUIPMENT_RARITIES.has(record.rarity) ? record.rarity : "common",
+    knowledgeStage: typeof record.knowledgeStage === "string" ? record.knowledgeStage : "unknown",
+    status: ["returned", "rescued", "lost", "observed"].includes(record.status) ? record.status : "observed",
+    wasEquipped: record.wasEquipped === true,
+    depth: Math.max(1, integerOr(record.depth, 1))
+  };
+}
+
+function normalizeRunInsights(insights) {
+  return arrayOr(insights)
+    .filter(isRecord)
+    .map(insight => ({
+      id: typeof insight.id === "string" ? insight.id : "",
+      label: typeof insight.label === "string" ? insight.label : ""
+    }))
+    .filter(insight => insight.id)
+    .slice(0, 20);
+}
+
+function normalizeCodexInsightRecord(record) {
+  if (!isRecord(record) || typeof record.id !== "string") return null;
+  return {
+    id: record.id,
+    count: Math.max(0, integerOr(record.count, 0)),
+    firstFloor: Math.max(1, integerOr(record.firstFloor, 1)),
+    lastFloor: Math.max(1, integerOr(record.lastFloor, 1))
+  };
+}
 
 function normalizeEquipmentCodexRecord(record) {
   if (!isRecord(record)) return null;
@@ -412,6 +471,28 @@ function normalizeCurrentRun(run) {
   normalized.bankedObjectLoot = normalized.bankedObjectLoot.filter(item => item != null);
   normalized.lostObjectLoot = normalized.lostObjectLoot.filter(item => item != null);
   normalized.returnedTownItems = normalized.returnedTownItems.filter(item => item != null);
+  normalized.representativeItem = normalizeReturnItemRecord(normalized.representativeItem);
+  normalized.meaningfulItemHistory = normalized.meaningfulItemHistory
+    .map(normalizeReturnItemRecord)
+    .filter(isRecord)
+    .slice(0, 5);
+  normalized.codexInsights = normalizeRunInsights(normalized.codexInsights);
+  normalized.workshopUnlocks = normalized.workshopUnlocks
+    .filter(isRecord)
+    .map(unlock => ({
+      nodeId: typeof unlock.nodeId === "string" ? unlock.nodeId : "",
+      name: typeof unlock.name === "string" ? unlock.name : "",
+      description: typeof unlock.description === "string" ? unlock.description : ""
+    }))
+    .filter(unlock => unlock.nodeId);
+  normalized.returnProcessing = isRecord(normalized.returnProcessing)
+    ? {
+      outcome: typeof normalized.returnProcessing.outcome === "string" ? normalized.returnProcessing.outcome : "",
+      returnedObjectCount: Math.max(0, integerOr(normalized.returnProcessing.returnedObjectCount, 0)),
+      lostObjectCount: Math.max(0, integerOr(normalized.returnProcessing.lostObjectCount, 0)),
+      recoveredEquipmentCount: Math.max(0, integerOr(normalized.returnProcessing.recoveredEquipmentCount, 0))
+    }
+    : null;
   normalized.trialBands = Object.fromEntries(
     Object.entries(normalized.trialBands).filter(([bandIndex, trial]) =>
       Number.isInteger(Number(bandIndex)) && Number(bandIndex) >= 0 &&
@@ -604,6 +685,12 @@ export function normalizeSavePayload(data) {
       .map(([name, record]) => [name, normalizeMonsterCodexRecord(record)])
       .filter(([, record]) => record !== null)
   );
+  normalized.codex.insights = Object.values(Object.fromEntries(
+    arrayOr(normalized.codex.insights)
+      .map(normalizeCodexInsightRecord)
+      .filter(isRecord)
+      .map(insight => [insight.id, insight])
+  )).slice(0, 20);
   if (normalized.codex && normalized.codex.events) {
     delete normalized.codex.events.omens;
   }
@@ -619,6 +706,10 @@ export function normalizeSavePayload(data) {
   normalized.cleared = typeof data.cleared === "boolean" ? data.cleared : false;
   normalized.metaMaterials = recordOr(data.metaMaterials, {});
   normalized.workshop = recordOr(data.workshop, { ranks: {} });
+  normalized.workshop.ranks = recordOr(normalized.workshop.ranks, {});
+  normalized.workshop.lateralUnlocks = [...new Set(
+    arrayOr(normalized.workshop.lateralUnlocks).filter(nodeId => typeof nodeId === "string")
+  )];
   normalized.keyItems = arrayOr(data.keyItems);
   refundRetiredWorkshopNodes(normalized);
   normalized.dungeonMemory = {

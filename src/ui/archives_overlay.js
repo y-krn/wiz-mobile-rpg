@@ -2,6 +2,7 @@ import { state, createDefaultCodex } from "../state.js";
 import { getMonsterResistanceStatus, getClassJpName, getAffixDefinition, MONSTERS, ITEMS } from "../data.js";
 import { updateUI } from "./ui_root.js";
 import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
+import { CODEX_INSIGHT_DEFINITIONS } from "../state/codex_state.js";
 
 export const archivesState = {
   tab: "monsters",
@@ -29,7 +30,7 @@ function trackArchivesListScroll(body) {
 export function getMonsterCodexDetailHtml(m, record) {
   const enc = record ? record.encountered : 0;
   const kil = record ? record.killed : 0;
-  
+
   if (enc === 0) {
     return `<div style="text-align: center; padding: 20px; color: var(--text-muted);">遭遇したことがありません</div>`;
   }
@@ -316,6 +317,15 @@ export function getEventsCodexHtml() {
   `;
   html += `</div>`;
   
+  const insights = Array.isArray(state.codex?.insights) ? state.codex.insights : [];
+  html += `<div><div class="archives-section-title">🧭 探索から得た気づき</div>`;
+  html += insights.length > 0
+    ? `<div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px;">
+        ${insights.map(insight => `<div style="display: flex; justify-content: space-between; gap: 8px;"><span>${CODEX_INSIGHT_DEFINITIONS[insight.id] || "新しい傾向"}</span><span style="color: var(--text-muted);">${insight.count || 1}回</span></div>`).join("")}
+      </div>`
+    : `<div class="codex-muted">帰還時に観測した傾向が、ここへ少しずつ記録されます。</div>`;
+  html += `</div>`;
+
   // スタッツセクション
   const stats = state.codex?.stats || { totalRuns: 0, totalDeaths: 0, deepestFloor: 1, totalKills: 0, totalChests: 0 };
   const records = state.records || { deepestRetreat: 0, deepestDeath: 0, deepestByClass: {}, totalRuns: 0 };
@@ -353,6 +363,8 @@ export function getRunHistoryHtml() {
     const resColor = h.result === "returned" ? "var(--neon-green)" : "var(--neon-red)";
     const outcomeText = getRunOutcomeLabel(h);
     const outcomeColor = getRunOutcomeColor(h);
+    const representative = h.representativeItem;
+    const returnProcessing = h.returnProcessing || {};
     
     html += `
       <div style="background-color: #1a1a24; border: 1px solid #333; border-radius: 4px; padding: 6px 8px;">
@@ -365,6 +377,8 @@ export function getRunHistoryHtml() {
           <div>撃破数: ${h.kills} 匹</div>
           <div>宝箱開封: ${h.chestsOpened} 個</div>
           <div>持帰素材: ${Object.values(h.bankedMaterials || {}).reduce((sum, quantity) => sum + quantity, 0)} 個</div>
+          <div>代表品: ${representative ? `${representative.name}（${representative.status === "lost" ? "喪失" : representative.status === "rescued" ? "救出" : representative.status === "returned" ? "帰還" : "観測"}）` : "なし"}</div>
+          <div>物品: 帰還${returnProcessing.returnedObjectCount || 0} / 喪失${returnProcessing.lostObjectCount || 0}</div>
         </div>
       </div>
     `;

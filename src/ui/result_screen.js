@@ -3,6 +3,7 @@ import { getClassJpName, getItemBaseId, getItemData } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
 import { getFloorLabel } from "../data/floor_themes.js";
+import { setRepresentativeItem } from "../systems/run_return.js";
 
 const ACHIEVEMENT_LABELS = {
   first_b5_reached: "初めてB5Fへ到達",
@@ -86,6 +87,51 @@ function getObjectLootHtml(run) {
   `;
 }
 
+const RETURN_RARITY_LABELS = {
+  common: "通常",
+  magic: "魔法",
+  rare: "希少",
+  epic: "逸品",
+  legendary: "伝説"
+};
+
+function getReturnItemStatusLabel(status) {
+  return status === "lost" ? "喪失" : status === "rescued" ? "救出" : status === "returned" ? "帰還" : "観測";
+}
+
+function getReturnProcessingHtml(run) {
+  const representative = run.representativeItem;
+  const history = Array.isArray(run.meaningfulItemHistory) ? run.meaningfulItemHistory : [];
+  const insights = Array.isArray(run.codexInsights) ? run.codexInsights : [];
+  const unlocks = Array.isArray(run.workshopUnlocks) ? run.workshopUnlocks : [];
+  if (!representative && history.length === 0 && insights.length === 0 && unlocks.length === 0) return "";
+
+  return `
+    <section class="result-focus-section" aria-labelledby="result-return-record-title">
+      <h2 class="result-section-heading" id="result-return-record-title"><span>帰還の記録</span></h2>
+      ${representative ? `
+        <div class="result-return-representative">
+          <small>${representative.status === "lost" ? "失われた代表品" : "今回の代表品"}</small>
+          <strong>${representative.name}</strong>
+          <span>${RETURN_RARITY_LABELS[representative.rarity] || "通常"} / ${getReturnItemStatusLabel(representative.status)}</span>
+        </div>
+      ` : ""}
+      ${history.length > 0 ? `
+        <div class="result-return-history">
+          <small>重要な個体履歴（能力値への恒久ボーナスなし）</small>
+          ${history.map((item, index) => `<div><span>${item.name}</span><span>${getReturnItemStatusLabel(item.status)} / B${item.depth}F <button type="button" class="result-return-representative-button" data-return-history-index="${index}">代表に設定</button></span></div>`).join("")}
+        </div>
+      ` : ""}
+      ${insights.length > 0 ? `
+        <div class="result-return-insights"><small>図鑑に記録した新しい気づき</small>${insights.map(insight => `<div>${insight.label}</div>`).join("")}</div>
+      ` : ""}
+      ${unlocks.length > 0 ? `
+        <div class="result-return-unlocks"><small>工房で横方向に解禁</small>${unlocks.map(unlock => `<div><strong>${unlock.name}</strong><span>${unlock.description}</span></div>`).join("")}</div>
+      ` : ""}
+    </section>
+  `;
+}
+
 function leaveResult(overlay) {
   overlay.style.display = "none";
   state.gameState = "town";
@@ -136,6 +182,7 @@ export function renderResultScreen() {
         ${codexTotal > 0 ? `<div class="result-codex-bonus"><span>初討伐メタ報酬</span><div>${formatMaterials(run.codexRewards)}</div></div>` : ""}
       </section>
       ${getObjectLootHtml(run)}
+      ${getReturnProcessingHtml(run)}
       <section class="result-focus-section" aria-labelledby="result-quest-title">
         <h2 class="result-section-heading" id="result-quest-title"><span>ランクエスト</span></h2>
         <div class="result-quest-list">${getQuestHtml(run)}</div>
@@ -158,5 +205,16 @@ export function renderResultScreen() {
       playSound(isSuccess ? "heal" : "bump");
     }
     leaveResult(overlay);
+  });
+
+  (overlay.querySelectorAll?.("[data-return-history-index]") || []).forEach(button => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.returnHistoryIndex);
+      const item = run.meaningfulItemHistory?.[index];
+      if (!item || !setRepresentativeItem(state, item)) return;
+      saveGame();
+      saveAutosave();
+      renderResultScreen();
+    });
   });
 }

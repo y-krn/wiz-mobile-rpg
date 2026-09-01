@@ -470,3 +470,18 @@ history; any future contract change must preserve the depth question.
 - Permanent bag expansion or dedicated loot/safety compartments.
 - Making identify resources cheap enough that the identify-or-gamble choice
   disappears (see pillar 3).
+
+## Castle / Codex / Workshop return processing (#1011)
+
+Castle records the run outcome and its evidence: depth, return route,
+representative item, recovered/rescued/lost object counts, and a bounded list
+of meaningful individual facts. Codex stores finite coarse insights from
+encountered equipment; it never answers exact probabilities, hidden candidate
+totals, or the optimal build. Workshop can unlock an existing side-grade
+possibility automatically after a deep equipment return, but never grants a
+vertical tier or a target-build/drop-rate advantage.
+
+All ordinary dungeon objects are processed automatically at the result
+boundary. Returned equipment is Town storage only and is excluded from the
+next run's starting battle inventory; Death and Abandon discard unbanked
+dungeon objects while retaining only their permitted history and knowledge.

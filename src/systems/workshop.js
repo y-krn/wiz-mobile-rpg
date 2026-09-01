@@ -1,7 +1,8 @@
 import { CRAFT_RECIPES } from "../craft.js";
 import {
   WORKSHOP_NODE_BY_ID,
-  WORKSHOP_NODES
+  WORKSHOP_NODES,
+  WORKSHOP_LATERAL_UNLOCKS
 } from "../data/workshop.js";
 import {
   getDepartureCraftCost as getDepartureCraftCostSummary,
@@ -10,7 +11,7 @@ import {
 import { spendMaterials } from "../rules/material_rules.js";
 
 export function createDefaultWorkshopState() {
-  return { ranks: {} };
+  return { ranks: {}, lateralUnlocks: [] };
 }
 
 export function getWorkshopRank(workshop, nodeId) {
@@ -29,6 +30,9 @@ export function isWorkshopNodeUnlocked(node, keyItems) {
 export function purchaseWorkshopNode(metaMaterials, workshop, nodeId, keyItems = []) {
   const node = WORKSHOP_NODE_BY_ID.get(nodeId);
   if (!node) return { ok: false, reason: "unknown_node" };
+  if (workshop?.lateralUnlocks?.includes(nodeId)) {
+    return { ok: false, reason: "already_unlocked" };
+  }
   if (!isWorkshopNodeUnlocked(node, keyItems)) {
     return { ok: false, reason: "missing_key_item" };
   }
@@ -135,9 +139,11 @@ export function getWorkshopGrants(workshop) {
     identifyPowder: 0,
     returnItems: []
   };
+  const lateralUnlocks = Array.isArray(workshop?.lateralUnlocks) ? workshop.lateralUnlocks : [];
   WORKSHOP_NODES.forEach(node => {
     const rank = getWorkshopRank(workshop, node.id);
-    if (rank <= 0) return;
+    const lateral = lateralUnlocks.includes(node.id);
+    if (rank <= 0 && !lateral) return;
     if (node.grants.startingGear) grants.startingGear.push(node.grants.startingGear);
     grants.affixIds.push(...(node.grants.affixIds || []));
     grants.spellIds.push(...(node.grants.spellIds || []));
@@ -145,7 +151,35 @@ export function getWorkshopGrants(workshop) {
     grants.identifyPowder += rank * (node.grants.identifyPowder || 0);
     if (node.grants.returnItem) grants.returnItems.push(node.grants.returnItem);
   });
+  grants.affixIds = [...new Set(grants.affixIds)];
+  grants.spellIds = [...new Set(grants.spellIds)];
   return grants;
+}
+
+/**
+ * Apply the automatic, depth-gated Workshop result for a returned equipment
+ * run. The player never selects a build or a candidate here; the next
+ * authored possibility is simply made eligible. Existing manually purchased
+ * nodes are skipped, and one return can grant at most one node.
+ */
+export function applyAutomaticWorkshopUnlock(workshop, { deepestFloor = 1, hasRecoveredEquipment = false } = {}) {
+  const next = {
+    ...(workshop || {}),
+    ranks: { ...(workshop?.ranks || {}) },
+    lateralUnlocks: Array.isArray(workshop?.lateralUnlocks) ? [...workshop.lateralUnlocks] : []
+  };
+  if (!hasRecoveredEquipment) return { workshop: next, unlocked: null };
+
+  const candidate = WORKSHOP_LATERAL_UNLOCKS.find(({ nodeId, minDepth }) => (
+    deepestFloor >= minDepth &&
+    !next.lateralUnlocks.includes(nodeId) &&
+    getWorkshopRank(next, nodeId) <= 0
+  ));
+  if (!candidate) return { workshop: next, unlocked: null };
+
+  next.lateralUnlocks.push(candidate.nodeId);
+  const node = WORKSHOP_NODE_BY_ID.get(candidate.nodeId);
+  return { workshop: next, unlocked: node || null };
 }
 
 export function applyWorkshopToCharacter(character, workshop) {

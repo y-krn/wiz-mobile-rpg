@@ -182,6 +182,15 @@ behavior, or flow wiring are affected.
 - Do not accept hidden changes to item, enemy, or class balance without calling
   them out.
 
+## Terminal return processing (#1011)
+
+`src/systems/run_return.js` is the single boundary for terminal object
+settlement plus Castle/Codex/Workshop records. Callers provide the resolved
+outcome (`retreat`, `wing`, `death`, or `abandon`) and must not duplicate loot
+ownership rules. Settlement happens before the result summary: Town
+preparations and recovered objects go to storage, unbanked objects are lost
+on Death/Abandon, and compact history facts never become combat state.
+
 ## Output
 
 Use the repository review output format from `.agents/README.md`.

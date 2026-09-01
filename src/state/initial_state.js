@@ -13,6 +13,7 @@ export function generateRandomSeed() {
 export const createDefaultCodex = () => ({
   monsters: {},
   equipment: {},
+  insights: [],
   events: {
     traps: {
       "poison needle": { triggered: 0, disarmed: 0, firstFloor: 0 },
@@ -60,6 +61,11 @@ export const createDefaultCurrentRun = () => ({
   bankedObjectLoot: [],
   lostObjectLoot: [],
   returnedTownItems: [],
+  representativeItem: null,
+  meaningfulItemHistory: [],
+  codexInsights: [],
+  workshopUnlocks: [],
+  returnProcessing: null,
   lootSequence: 0,
   itemsFound: [],
   equipmentFound: [],
