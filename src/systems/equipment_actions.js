@@ -14,6 +14,8 @@ import {
 import { identifyEquipment, revealEquipmentOnEquip } from "./identification.js";
 import { executeEnhance, executePolish } from "../craft.js";
 import { discardEquipmentItems } from "./equipment_discard.js";
+import { addInventoryItemToState } from "../state/inventory_state.js";
+import { hasInventorySpace } from "../rules/item_inventory.js";
 
 function getPreviewForDiscard(character, itemKey, requestedSlot = null) {
   try {
@@ -70,8 +72,11 @@ export function unequipEquipment({ actorIdx, slot } = {}) {
   const character = state.party[actorIdx];
   const itemKey = getEquipmentSlotValue(character?.equipment, slot);
   const item = getItemData(itemKey);
-  if (!character || !item || state.inventory.length >= 20 || isCurseLocked(itemKey)) {
-    return { ok: false };
+  if (!character || !item || isCurseLocked(itemKey)) {
+    return { ok: false, reason: "invalid_unequip" };
+  }
+  if (!hasInventorySpace(state.inventory)) {
+    return { ok: false, reason: "inventory_full" };
   }
 
   const telemetryPreview = getUnequipPreview(character, slot, { floor: state.floor });
@@ -82,7 +87,7 @@ export function unequipEquipment({ actorIdx, slot } = {}) {
     preview: telemetryPreview
   });
   character.equipment[slot] = null;
-  state.inventory.push(itemKey);
+  addInventoryItemToState(state, itemKey);
   addLog(`${character.name}は${item.name}を外した。`);
   playSound("move");
   saveAutosave();

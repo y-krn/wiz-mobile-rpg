@@ -1,4 +1,4 @@
-import { SOLO_CLASSES, addLog, createSoloCharacter, state } from "../state.js";
+import { SOLO_CLASSES, addLog, createSoloCharacter, state, INVENTORY_CAPACITY } from "../state.js";
 import { getClassJpName } from "../data.js";
 import { ELITE_CLASSES } from "../data/classes.js";
 import { executeEnterDungeon } from "../movement.js";
@@ -97,6 +97,8 @@ function changeDepartureCraftQuantity(optGrid, className, startingGear, recipeId
   if (next === current) return;
   const candidateIds = getSelectedRecipeIds();
   if (delta > 0) candidateIds.push(recipeId);
+  const fixedStartingItems = getWorkshopGrants(state.workshop).returnItems.length;
+  if (delta > 0 && candidateIds.length + fixedStartingItems > INVENTORY_CAPACITY) return;
   if (delta > 0 && !canAffordDepartureCraft(state.metaMaterials, candidateIds)) return;
   if (next === 0) {
     departureCraftQuantities.delete(recipeId);
@@ -117,6 +119,7 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
   summary.setAttribute("aria-live", "polite");
   const selectedRecipeIds = getSelectedRecipeIds();
   const selectedRecipes = getDepartureCraftRecipes(selectedRecipeIds);
+  const fixedStartingItems = getWorkshopGrants(state.workshop).returnItems.length;
   const selectedCost = getDepartureCraftCost(selectedRecipeIds);
   const summaryTitle = document.createElement("div");
   summaryTitle.className = "solo-start-craft-summary-title";
@@ -144,10 +147,12 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
 
   getSortedCraftRecipes(CRAFT_RECIPES).forEach(recipe => {
     const quantity = getDepartureCraftQuantity(recipe.resultId);
-    const canAdd = canAffordDepartureCraft(state.metaMaterials, [
-      ...selectedRecipeIds,
-      recipe.resultId
-    ]);
+    const canAdd = selectedRecipeIds.length + fixedStartingItems < INVENTORY_CAPACITY &&
+      !(recipe.resultId === "TOWN_PORTAL" && selectedRecipeIds.includes(recipe.resultId)) &&
+      canAffordDepartureCraft(state.metaMaterials, [
+        ...selectedRecipeIds,
+        recipe.resultId
+      ]);
     const additionalCraftable = getAdditionalCraftableCount(
       state.metaMaterials,
       selectedRecipeIds,
@@ -168,7 +173,11 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
 
     const availability = canAdd
       ? `あと${additionalCraftable}個`
-      : "あと0個・素材不足";
+      : selectedRecipeIds.length + fixedStartingItems >= INVENTORY_CAPACITY
+        ? "あと0個・バッグ上限（20枠）"
+        : recipe.resultId === "TOWN_PORTAL" && selectedRecipeIds.includes(recipe.resultId)
+          ? "あと0個・帰還の翼は1個まで"
+          : "あと0個・素材不足";
     const payment = getDepartureCraftCost([recipe.resultId]);
     const hasEmptyMaterial = Object.keys(payment.typed || {}).some(
       material => (selectedBalance?.[material] || 0) <= 0

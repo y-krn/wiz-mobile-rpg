@@ -298,10 +298,10 @@ requires discarding something. Town-brought consumables are consumed only when
 used and unused stock returns after the run; dungeon-acquired consumables are
 unconfirmed run loot. No permanent bag expansion is part of vNext.
 
-**Current implementation status:** the repository has partial Return Wing,
-run-outcome, material-banking, and 20-slot inventory paths. Their existence
-does not mean the vNext confirmation, salvage-selection, or loss semantics
-are complete; implementation issues must identify and close those slices.
+**Current implementation status:** the repository implements the Return Wing,
+run-outcome, material-banking, and fixed 20-slot inventory slices. Remaining
+vNext work must identify its own contract boundary rather than reopening these
+ownership or capacity rules.
 
 ### vNext object-loot ownership (Issue #1006)
 

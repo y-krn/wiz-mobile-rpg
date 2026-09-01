@@ -86,6 +86,7 @@ export function renderChestMenu({
   const infoPanel = document.createElement("div");
   infoPanel.className = "chest-info-panel";
   infoPanel.innerHTML = `
+    <div class="chest-inventory-status ${inventory.length >= 20 ? "full" : ""}">バッグ：${inventory.length}/20枠${inventory.length >= 20 ? "（満杯・報酬は自動取得されません）" : `（空き${20 - inventory.length}枠）`}</div>
     <div>${getRiskText(floor)}</div>
     <div style="margin-top:4px;">${getInspectionText(chest)}</div>
     ${lootText}

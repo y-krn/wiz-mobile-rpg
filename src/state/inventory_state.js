@@ -1,6 +1,14 @@
 import { state } from "./state_core.js";
 import { getItemBaseId, isSpecialOrQuestItem } from "../data.js";
 import { recordDungeonObjectLoot } from "./run_loot.js";
+import { getInventoryRemainingSlots as getRemainingSlots, hasInventorySpace } from "../rules/item_inventory.js";
+
+export { INVENTORY_CAPACITY, getInventoryUsedSlots, hasInventorySpace } from "../rules/item_inventory.js";
+
+export function getInventoryRemainingSlots(inventory) {
+  return getRemainingSlots(inventory);
+}
+
 
 export function addInventoryItemToState(targetState, item, options = {}) {
   const allowQuestOverflow = options.allowQuestOverflow ?? false;
@@ -8,7 +16,8 @@ export function addInventoryItemToState(targetState, item, options = {}) {
   
   const isQuestItem = isSpecialOrQuestItem(itemId);
   
-  if (targetState.inventory.length >= 20 && !allowQuestOverflow && !isQuestItem) {
+  if (!Array.isArray(targetState.inventory)) targetState.inventory = [];
+  if (!hasInventorySpace(targetState.inventory) && !allowQuestOverflow && !isQuestItem) {
     return false;
   }
 

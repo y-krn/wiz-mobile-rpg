@@ -4,6 +4,7 @@ import { generateRandomSeed, createDefaultCodex, createDefaultCurrentRun } from 
 import { getIdentificationGambleProfile } from "../rules/identification_rules.js";
 import { normalizeRecords } from "./records_state.js";
 import { findMapCellByType } from "../rules/map_queries.js";
+import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
 import { addMaterials } from "../rules/material_rules.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
@@ -536,7 +537,7 @@ export function normalizeSavePayload(data) {
   normalized.prevX = integerOr(data.prevX, defaultStart.x);
   normalized.prevY = integerOr(data.prevY, defaultStart.y);
   normalized.party = arrayOr(data.party).filter(isRecord).slice(0, 1);
-  normalized.inventory = arrayOr(data.inventory);
+  normalized.inventory = arrayOr(data.inventory).slice(0, INVENTORY_CAPACITY);
   normalized.seed = typeof data.seed === "string" && data.seed ? data.seed : generateRandomSeed();
   normalized.lightTurns = numberOr(data.lightTurns, 0);
   normalized.lightPower = typeof data.lightPower === "string" ? data.lightPower : "";

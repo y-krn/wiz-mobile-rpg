@@ -38,7 +38,11 @@ export {
 } from "./state/records_state.js";
 
 export {
-  addInventoryItem
+  addInventoryItem,
+  getInventoryRemainingSlots,
+  getInventoryUsedSlots,
+  hasInventorySpace,
+  INVENTORY_CAPACITY
 } from "./state/inventory_state.js";
 
 export {

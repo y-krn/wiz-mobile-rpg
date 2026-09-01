@@ -1,5 +1,6 @@
 import { ITEMS } from "../data/items.js";
 import { MILESTONE_MERCHANT_STOCK, MILESTONE_UNCURSE_COST } from "../data/milestone_merchant.js";
+import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { addLog, saveAutosave, state } from "../state.js";
 import { getCursedEquipment, purchaseMilestoneStock, purchaseMilestoneUncurse } from "../systems/milestone_merchant.js";
 import { getItemData } from "../rules/item_rules.js";
@@ -9,8 +10,6 @@ import { updateUI } from "../ui.js";
 import { createActionCard } from "./action_card.js";
 
 let selectedOffer = null;
-const INVENTORY_CAPACITY = 20;
-
 function formatCostWithBalance(cost, materials) {
   return Object.entries(cost || {})
     .map(([name, amount]) => `${name} ${amount}（所持 ${materials?.[name] || 0}）`)

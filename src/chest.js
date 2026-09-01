@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
+import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, INVENTORY_CAPACITY } from "./state.js";
 import { MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import {
   getChestSmashRewardCategory,
@@ -674,7 +674,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
         const alreadyHasWing = state.inventory.some(item => getItemBaseId(item) === "TOWN_PORTAL");
         if (alreadyHasWing) {
           addLog("帰還の翼はすでに所持している。");
-        } else if (state.inventory.length >= 20) {
+        } else if (state.inventory.length >= INVENTORY_CAPACITY) {
           addLog("[!] バッグがいっぱいで [帰還の翼] を持ち帰れなかった！");
         } else {
           addLog("帰還の翼を持ち帰れなかった。");

@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
+import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
 import { trackRunStart } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
@@ -793,10 +793,12 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   const craftGrants = getDepartureCraftGrants(departureCraft);
   state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder +
     workshopGrants.identifyPowder + craftGrants.identifyPowder;
-  state.inventory = [
-    ...workshopGrants.returnItems,
-    ...craftGrants.items
-  ];
+  state.inventory = [];
+  [...workshopGrants.returnItems, ...craftGrants.items].forEach(item => {
+    if (!addInventoryItem(item)) {
+      addLog(`[!] バッグが満杯（${INVENTORY_CAPACITY}/${INVENTORY_CAPACITY}）で${item}を持ち込めなかった。`);
+    }
+  });
   state.currentRun.townInventory = state.inventory.slice();
   state.currentRun.unbankedObjectLoot = [];
   state.party.forEach(char => {

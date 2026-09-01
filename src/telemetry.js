@@ -23,6 +23,7 @@ import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
 import { getMpWardDef } from "./combat_logic/mp_ward.js";
+import { INVENTORY_CAPACITY } from "./rules/item_inventory.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -38,7 +39,6 @@ const VALID_COMBAT_RESULTS = new Set([
 ]);
 const VALID_DEATH_TYPES = new Set(["combat", "trap", "status"]);
 const PRE_INIT_BUFFER_LIMIT = 64;
-const INVENTORY_CAPACITY = 20;
 const SNAPSHOT_STAT_KEYS = [
   "spellGuard",
   "poisonWard",
