@@ -4,7 +4,7 @@ import { menuContext, goBackSubmenu } from "../navigation.js";
 import { getMonsterCodexKey } from "../state.js";
 import { combatCallbacks } from "./combat_state.js";
 import { isSpellTargetAvailable, getSpellCombatSummary } from "./spell_menu.js";
-import { getUsableInventoryItems } from "../rules/item_inventory.js";
+import { getUsableInventoryItems, INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 import {
   STATUS_EFFECT_IDS,
@@ -258,6 +258,11 @@ export function renderCombatOverlay() {
     // Items grid
     const itemGrid = document.createElement("div");
     itemGrid.className = "combat-selection-grid";
+
+    const capacity = document.createElement("div");
+    capacity.className = `inventory-capacity-status ${state.inventory.length >= INVENTORY_CAPACITY ? "full" : ""}`;
+    capacity.textContent = `バッグ ${state.inventory.length}/${INVENTORY_CAPACITY}枠`;
+    itemGrid.appendChild(capacity);
 
     const usableItems = getUsableInventoryItems(state.inventory);
     if (usableItems.length === 0) {

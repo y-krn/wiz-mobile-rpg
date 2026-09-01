@@ -35,13 +35,13 @@ Workshop, or result flow already implements every rule.
 
 ### Current implementation boundary
 
-The current code already has core/support affix data, dungeon equipment
-generation, unidentified-item handling, a 20-slot bag, equipment actions, and
-Workshop unlock data. These are implementation surfaces, not proof that the
-vNext role model or all outcome handling is complete. In particular, the
-current code's affix activation and floor-pool behavior must not be described
-as the final vNext build contract until the relevant implementation issue is
-complete.
+The current code implements core/support affix data, dungeon equipment
+generation, unidentified-item handling, the fixed 20-slot bag, equipment
+actions, and Workshop unlock data. These are implementation surfaces, not proof
+that the vNext role model or all outcome handling is complete. In particular,
+the current code's affix activation and floor-pool behavior must not be
+described as the final vNext build contract until the relevant implementation
+issue is complete.
 
 # Overview
 

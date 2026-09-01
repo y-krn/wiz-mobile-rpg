@@ -91,6 +91,20 @@ assert.equal(unequipResult.ok, true);
 assert.equal(state.party[0].equipment.weapon, null);
 assert.deepEqual(state.inventory, [candidate]);
 
+const fullBagCharacter = makeCharacter({ weapon: equipped });
+resetState({
+  character: fullBagCharacter,
+  inventory: Array.from({ length: 20 }, (_, index) => makeEquipment(
+    index % 2 === 0 ? "SHORT_SWORD" : "LEATHER_ARMOR",
+    { instanceId: `full-bag-${index}` }
+  ))
+});
+const fullBagUnequip = unequipEquipment({ actorIdx: 0, slot: "weapon" });
+assert.equal(fullBagUnequip.ok, false);
+assert.equal(fullBagUnequip.reason, "inventory_full");
+assert.equal(state.party[0].equipment.weapon, equipped, "full bag must not silently drop the equipped item");
+assert.equal(state.inventory.length, 20);
+
 const locked = makeEquipment("LONG_SWORD", { curseEffectId: "curse_hollow_soul", curseLocked: true });
 const lockedCharacter = makeCharacter({ weapon: locked });
 assert.equal(canEquipEquipment(lockedCharacter, candidate, "weapon").ok, false);

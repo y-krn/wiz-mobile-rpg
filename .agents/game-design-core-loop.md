@@ -125,13 +125,11 @@ current-runtime guarantees.
 
 ### Current implementation boundary
 
-The current codebase contains partial and legacy implementations for Return
-Wing, 20-slot inventory, unidentified equipment, workshop purchases, codex
-records, and run outcomes. Those systems are useful implementation context but
-are not evidence that the full contract above is live. Follow-up gameplay
-issues must state which contract slice they implement and must not describe
-unimplemented Portal confirmation, Wing salvage selection, or band-specific
-resource trials as current behavior.
+The current codebase contains the implemented Return Wing object-loot
+settlement, fixed 20-slot inventory, unidentified equipment, workshop
+purchases, codex records, and run outcomes. Band-specific resource trials and
+the remaining broader vNext content are still transition-state work; follow-up
+issues must state which contract slice they implement.
 
 The current workshop UI/data still exposes a permanent-unlock tree and the
 current loot code still has historical floor-pool assumptions. Those are
@@ -144,6 +142,11 @@ return to Town storage, and the result screen records returned and lost loot.
 The Return Wing rescue list includes equipped loot and uses the shared salvage
 count; materials and quest/progression ownership remain on their existing
 contracts.
+
+Issue #1007 implements the shared bag slice: every carried ordinary item uses
+one of 20 fixed slots, equipped items stay outside the bag, consumables do not
+stack, and full-bag pickup, equipment removal, and discard decisions are shown
+explicitly in the relevant UI.
 
 ## Historical loop (superseded)
 

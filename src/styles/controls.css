@@ -887,6 +887,23 @@
   box-sizing: border-box;
 }
 
+.chest-inventory-status,
+.inventory-capacity-status {
+  color: var(--neon-cyan);
+  font-family: var(--font-mono);
+  font-weight: bold;
+  margin-bottom: var(--sp-xs);
+}
+
+.inventory-capacity-status.full,
+.chest-inventory-status.full {
+  color: var(--neon-red);
+}
+
+.inventory-capacity-status:not(.full) {
+  color: var(--neon-cyan);
+}
+
 .chest-loot-hint {
   border-top: 1px dashed var(--border-strong);
   margin-top: var(--sp-xs);

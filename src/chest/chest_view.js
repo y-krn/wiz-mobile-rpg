@@ -1,4 +1,6 @@
 // balance-impact: none — this module only renders the existing chest menu.
+import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
+
 const TRAP_LABELS = Object.freeze({
   "poison needle": "毒針",
   "gas bomb": "ガス爆弾",
@@ -86,6 +88,7 @@ export function renderChestMenu({
   const infoPanel = document.createElement("div");
   infoPanel.className = "chest-info-panel";
   infoPanel.innerHTML = `
+    <div class="chest-inventory-status ${inventory.length >= INVENTORY_CAPACITY ? "full" : ""}">バッグ：${inventory.length}/${INVENTORY_CAPACITY}枠${inventory.length >= INVENTORY_CAPACITY ? "（満杯・報酬は自動取得されません）" : `（空き${INVENTORY_CAPACITY - inventory.length}枠）`}</div>
     <div>${getRiskText(floor)}</div>
     <div style="margin-top:4px;">${getInspectionText(chest)}</div>
     ${lootText}

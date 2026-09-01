@@ -118,6 +118,9 @@ behavior may be relevant.
   salvage count, and keep the final rescue action at the shared tap minimum.
   The Wing is consumed only when the rescue decision is confirmed, so Back
   remains a safe cancellation path.
+- Bag capacity: show the fixed 20-slot count in item/chest/equipment flows;
+  full-bag loot rejection and full-bag equipment removal must explain the
+  available discard path without making the player infer why an action failed.
 - When the vertical budget is insufficient, consider splitting the screen
   instead of reallocating the same fixed space. After three reallocations on
   one screen, question the structure before adjusting another height.

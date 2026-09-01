@@ -1,4 +1,4 @@
-import { state, saveAutosave } from "./state.js";
+import { state, saveAutosave, addLog, INVENTORY_CAPACITY } from "./state.js";
 import {
   getClassJpName,
   getCharMaxHp,
@@ -52,6 +52,7 @@ export let equipState = {
   selectedActorIdx: -1,
   selectedIsEquipped: false,
   selectedDiscardIndices: new Set(),
+  pendingUnequip: null,
   listScrollTop: 0,
   prevGameState: null
 };
@@ -82,6 +83,7 @@ export function openEquipOverlay(actorIdx = 0) {
   equipState.actorIdx = actorIdx;
   clearSelection();
   clearDiscardSelection();
+  equipState.pendingUnequip = null;
 
   const overlay = document.getElementById("equip-overlay");
   if (overlay) {
@@ -121,12 +123,14 @@ function clearDiscardSelection() {
 function enterOrganizeMode() {
   clearSelection();
   clearDiscardSelection();
+  equipState.pendingUnequip = null;
   equipState.mode = "organize";
   renderEquip();
 }
 
 function exitOrganizeMode() {
   clearDiscardSelection();
+  equipState.pendingUnequip = null;
   equipState.mode = "equip";
   renderEquip();
 }
@@ -137,6 +141,7 @@ export function resetEquipState() {
   equipState.actorIdx = 0;
   clearSelection();
   clearDiscardSelection();
+  equipState.pendingUnequip = null;
   equipState.listScrollTop = 0;
   equipState.prevGameState = null;
 }
@@ -252,14 +257,40 @@ function discardEquipment(itemIdx, expectedItemKey) {
 }
 
 function discardSelectedEquipment() {
+  const pendingUnequip = equipState.pendingUnequip;
+  if (pendingUnequip && equipState.selectedDiscardIndices.size !== 1) {
+    addLog("装備を外す前に、バッグから破棄する装備を1件選んでください。");
+    return false;
+  }
   const result = discardEquipmentSelection(equipState.selectedDiscardIndices, {
     actorIdx: equipState.actorIdx
   });
   if (!result.ok) return false;
+  if (pendingUnequip) {
+    const unequipResult = unequipEquipment(pendingUnequip);
+    if (!unequipResult.ok) {
+      addLog("バッグを整理しましたが、装備を外せませんでした。");
+      return false;
+    }
+    equipState.pendingUnequip = null;
+    equipState.mode = "equip";
+  }
   clearDiscardSelection();
   renderEquip();
   updateUI();
   return true;
+}
+
+function requestUnequipAfterDiscard() {
+  equipState.pendingUnequip = {
+    actorIdx: equipState.actorIdx,
+    slot: equipState.selectedSlot
+  };
+  clearSelection();
+  clearDiscardSelection();
+  equipState.mode = "organize";
+  renderEquip();
+  updateUI();
 }
 
 function getItemSummary(item) {
@@ -295,7 +326,7 @@ function createHeader(overlay, char) {
   statusBar.className = "equip-status-bar";
   statusBar.innerHTML = `
     <span>素材 ${Object.values(state.currentRun?.materials || {}).reduce((sum, quantity) => sum + quantity, 0)}</span>
-    <span class="${state.inventory.length >= 20 ? "full" : ""}">バッグ ${state.inventory.length}/20</span>
+    <span class="${state.inventory.length >= INVENTORY_CAPACITY ? "full" : ""}">バッグ ${state.inventory.length}/${INVENTORY_CAPACITY}</span>
   `;
   header.appendChild(statusBar);
 
@@ -324,8 +355,12 @@ function createFooter(overlay, { organizing = false } = {}) {
     const discardButton = document.createElement("button");
     discardButton.type = "button";
     discardButton.className = "btn btn-danger btn-block equip-bulk-discard";
-    discardButton.disabled = equipState.selectedDiscardIndices.size === 0;
-    discardButton.textContent = `選択した装備を破棄（${equipState.selectedDiscardIndices.size}件）`;
+    discardButton.disabled = equipState.pendingUnequip
+      ? equipState.selectedDiscardIndices.size !== 1
+      : equipState.selectedDiscardIndices.size === 0;
+    discardButton.textContent = equipState.pendingUnequip
+      ? `1件破棄して装備を外す（${equipState.selectedDiscardIndices.size}件選択）`
+      : `選択した装備を破棄（${equipState.selectedDiscardIndices.size}件）`;
     discardButton.setAttribute("aria-describedby", "equip-organize-help");
     discardButton.addEventListener("click", discardSelectedEquipment);
     discardRow.appendChild(discardButton);
@@ -421,7 +456,9 @@ function createOrganizeControls() {
   const help = document.createElement("p");
   help.id = "equip-organize-help";
   help.className = "equip-organize-help";
-  help.textContent = "不要なバッグ装備を選んでください。装備中のアイテムは整理対象から除外されます。";
+  help.textContent = equipState.pendingUnequip
+    ? `バッグが満杯（${INVENTORY_CAPACITY}/${INVENTORY_CAPACITY}）です。装備を外すため、破棄する装備を1件選んでください。`
+    : "不要なバッグ装備を選んでください。装備中のアイテムは整理対象から除外されます。";
   controls.appendChild(help);
 
   const risks = getSelectedDiscardRiskCounts();
@@ -1079,7 +1116,7 @@ function createDetailPanel(char) {
   });
 
   if (isEquipped) {
-    const bagFull = state.inventory.length >= 20;
+    const bagFull = state.inventory.length >= INVENTORY_CAPACITY;
     const locked = isCurseLocked(itemKey);
     const actionBtn = document.createElement("button");
     actionBtn.type = "button";
@@ -1092,11 +1129,14 @@ function createDetailPanel(char) {
       detailCol.appendChild(actions);
       return detailCol;
     }
-    actionBtn.className = bagFull ? "btn btn-block equip-action-btn disabled" : "btn btn-neon btn-block equip-action-btn";
-    actionBtn.disabled = bagFull;
-    actionBtn.textContent = bagFull ? "バッグが満杯です" : "外す";
+    actionBtn.className = bagFull ? "btn btn-danger btn-block equip-action-btn" : "btn btn-neon btn-block equip-action-btn";
+    actionBtn.disabled = false;
+    actionBtn.textContent = bagFull ? "整理してから外す" : "外す";
     actionBtn.addEventListener("click", () => {
-      if (bagFull) return;
+      if (bagFull) {
+        requestUnequipAfterDiscard();
+        return;
+      }
       const result = unequipEquipment({
         actorIdx: equipState.actorIdx,
         slot: equipState.selectedSlot

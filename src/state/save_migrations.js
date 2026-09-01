@@ -1,9 +1,10 @@
-import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT } from "../data.js";
+import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT, getItemBaseId, isSpecialOrQuestItem } from "../data.js";
 import { generateRandomMap, removeIsolatedInternalWalls } from "../map_generator.js";
 import { generateRandomSeed, createDefaultCodex, createDefaultCurrentRun } from "./initial_state.js";
 import { getIdentificationGambleProfile } from "../rules/identification_rules.js";
 import { normalizeRecords } from "./records_state.js";
 import { findMapCellByType } from "../rules/map_queries.js";
+import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
 import { addMaterials } from "../rules/material_rules.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
@@ -117,6 +118,16 @@ function integerOr(value, fallback) {
 
 function numberOr(value, fallback) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeInventory(inventory) {
+  let regularItemCount = 0;
+  return inventory.filter(item => {
+    if (isSpecialOrQuestItem(getItemBaseId(item))) return true;
+    if (regularItemCount >= INVENTORY_CAPACITY) return false;
+    regularItemCount++;
+    return true;
+  });
 }
 
 function createDefaultVisitedMaps(maps) {
@@ -536,7 +547,7 @@ export function normalizeSavePayload(data) {
   normalized.prevX = integerOr(data.prevX, defaultStart.x);
   normalized.prevY = integerOr(data.prevY, defaultStart.y);
   normalized.party = arrayOr(data.party).filter(isRecord).slice(0, 1);
-  normalized.inventory = arrayOr(data.inventory);
+  normalized.inventory = normalizeInventory(arrayOr(data.inventory));
   normalized.seed = typeof data.seed === "string" && data.seed ? data.seed : generateRandomSeed();
   normalized.lightTurns = numberOr(data.lightTurns, 0);
   normalized.lightPower = typeof data.lightPower === "string" ? data.lightPower : "";

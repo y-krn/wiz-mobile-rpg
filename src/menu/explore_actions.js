@@ -1,4 +1,4 @@
-import { state, initNewGame, saveAutosave, addLog, markMapChanged, recordCharDeath, formatCharDeathLog } from "../state.js";
+import { state, initNewGame, saveAutosave, addLog, markMapChanged, recordCharDeath, formatCharDeathLog, INVENTORY_CAPACITY } from "../state.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
@@ -179,6 +179,11 @@ export function renderExploreManagement(optGrid) {
 }
 
 export function renderItemInventory(optGrid) {
+  const capacity = document.createElement("div");
+  capacity.className = `inventory-capacity-status ${state.inventory.length >= INVENTORY_CAPACITY ? "full" : ""}`;
+  capacity.setAttribute("role", "status");
+  capacity.textContent = `バッグ ${state.inventory.length}/${INVENTORY_CAPACITY}枠`;
+  optGrid.appendChild(capacity);
   const usableItems = getUsableInventoryItems(state.inventory);
   if (usableItems.length === 0) {
     const btn = document.createElement("button");
