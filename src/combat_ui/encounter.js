@@ -69,7 +69,7 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
     const eliteName = roamingMonster?.name || getBiomeForFloor(state.floor).eliteName;
     const eliteTemplate = MONSTERS.find(m => m.name === eliteName) || MONSTERS.find(m => m.name === "フラック");
     const combatTrait = roamingMonster?.combatTrait || (state.currentRun?.runSeed
-      ? getEliteCombatTrait(state.currentRun.runSeed, state.floor)
+      ? getEliteCombatTrait(state.currentRun.runSeed, state.floor, storedTrial)
       : null);
     // 深層でも脅威として成立させるため、通常敵と同じ深度スケールを掛ける。
     monsters.push(applyEliteCombatTraitStats({
@@ -79,7 +79,7 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
       trialThemeIds: roamingMonster?.trialThemeIds || (trial ? [trial.mainId, trial.subId] : []),
       trialRole: roamingMonster?.trialRole || floorRole.id,
       spawnReason: roamingMonster?.spawnReason
-    }, roamingMonster?.combatTrait));
+    }, combatTrait));
   } else {
     // Regular random encounter
     const poolNames = getEncounterPoolForFloor(state.floor, { trial });

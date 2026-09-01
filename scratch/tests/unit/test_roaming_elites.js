@@ -20,6 +20,7 @@ import { getCampRestStatus, restAtCamp } from "../../../src/systems/camp_rest.js
 import { generateRunFloor } from "../../../src/run_map_generator.js";
 import { scaleEnemyForDepth } from "../../../src/rules/depth_scaling.js";
 import { getBandTrialForFloor } from "../../../src/rules/floor_trials.js";
+import { generateEncounter } from "../../../src/combat_ui/encounter.js";
 
 const FAST = process.env.FAST === "1";
 const SEED_COUNT = Number(process.env.ELITE_SEEDS) || (FAST ? 20 : 60);
@@ -316,6 +317,27 @@ check("trial themes bias elite combat traits without removing variants", () => {
   });
   assert.deepEqual(storedElite.trialThemeIds, ["resource", "status"]);
   assert.equal(storedElite.combatTrait, getEliteCombatTrait("ELITE-TRIAL-LINK", ELITE_MIN_FLOOR, storedTrial));
+});
+
+check("legacy elite saves recover the stored trial trait and stats", () => {
+  const storedTrial = { bandIndex: 0, mainId: "resource", subId: "status" };
+  const encounter = generateEncounter({
+    floor: ELITE_MIN_FLOOR,
+    currentRun: {
+      runSeed: "ENCOUNTER-FALLBACK-0",
+      trialBands: { 0: storedTrial }
+    }
+  }, false, false, true, {
+    id: "RUN_ELITE_B3",
+    name: getBiomeForFloor(ELITE_MIN_FLOOR).eliteName,
+    kind: "elite"
+  });
+  const [monster] = encounter.monsters;
+  assert.equal(monster.combatTrait, "armored");
+  assert.equal(monster.combatTraitLabel, "重装：物理に強く、呪文に弱い");
+  assert.ok(monster.physResist >= 0.45);
+  assert.ok(monster.magicResist <= -0.35);
+  assert.deepEqual(monster.trialThemeIds, ["resource", "status"]);
 });
 
 check("combat traits change the relevant combat decisions", () => {
