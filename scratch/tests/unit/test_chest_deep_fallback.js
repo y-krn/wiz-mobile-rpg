@@ -4,6 +4,7 @@ import {
   CHEST_ITEM_CANDIDATES_BY_FLOOR,
   rollChestReward
 } from "../../../src/rules/chest_rules.js";
+import { RESTRICTED_CHEST_BASES } from "../../../src/data/equipment_tables.js";
 
 const failures = [];
 const B1_GEAR = new Set([
@@ -64,9 +65,10 @@ await test("floor 6/20 use the authored deep chest pool without quest or B1 gear
     const candidates = captureCandidates(floor);
     assert.notDeepEqual(candidates, b5Candidates);
     assert.ok(candidates.includes("HOLY_BLADE"));
-    if (floor >= 11) assert.ok(candidates.includes("LEGENDARY_SWORD"));
+    if (floor >= 11) assert.ok(!candidates.includes("LEGENDARY_SWORD"));
     assert.ok(candidates.every(item => ITEMS[item]?.type !== "quest"));
     assert.ok(candidates.every(item => !B1_GEAR.has(item)));
+    assert.ok(candidates.every(item => !RESTRICTED_CHEST_BASES.includes(item)));
   }
 });
 

@@ -6,7 +6,7 @@ import {
   SUPPORT_AFFIXES,
   getLootRoleSupply
 } from "../../../src/data/affixes.js";
-import { EQUIPMENT_CANDIDATES_BY_FLOOR } from "../../../src/data/equipment_tables.js";
+import { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../../../src/data/equipment_tables.js";
 import {
   generateRandomEquipment,
   rollLootBuildRole
@@ -47,6 +47,7 @@ for (let floor = 1; floor <= 30; floor += 1) {
 assert.notDeepEqual(EQUIPMENT_CANDIDATES_BY_FLOOR[6], EQUIPMENT_CANDIDATES_BY_FLOOR[5]);
 assert.ok(EQUIPMENT_CANDIDATES_BY_FLOOR[6].includes("HOLY_BLADE"));
 assert.ok(EQUIPMENT_CANDIDATES_BY_FLOOR[11].includes("LEGENDARY_SWORD"));
+assert.ok(CHEST_ITEM_CANDIDATES_BY_FLOOR[20].every(baseId => !RESTRICTED_CHEST_BASES.includes(baseId)));
 
 assert.equal(getLootRoleSupply(1).id, "B1_5");
 assert.equal(getLootRoleSupply(10).id, "B6_10");
@@ -63,6 +64,15 @@ for (const floor of [1, 6, 11, 16, 21, 30]) {
   assert.ok(roleIds.has(item.buildRole), `B${floor} generated item has a role`);
   assert.ok(item.buildRoles.every(role => roleIds.has(role)));
 }
+
+const supportOnlyItem = generateRandomEquipment(1, {
+  forceRarity: "magic",
+  allowCores: false,
+  rng: () => 0
+});
+assert.ok(supportOnlyItem.affixes.length > 0);
+assert.ok(supportOnlyItem.affixes.every(affix => affix.kind === "support" && roleIds.has(affix.buildRole)));
+assert.ok(supportOnlyItem.buildRoles.includes(supportOnlyItem.affixes[0].buildRole));
 
 const emptyLoadout = [{
   class: "Fighter",

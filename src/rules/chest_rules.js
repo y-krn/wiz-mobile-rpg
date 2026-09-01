@@ -1,5 +1,5 @@
 import { ITEMS } from "../data/items.js";
-import { EQUIPMENT_CANDIDATES_BY_FLOOR } from "../data/equipment_tables.js";
+import { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { getCharAffixSum, isSpecialOrQuestItem } from "./item_rules.js";
 import { recordRuntimeCall } from "../runtime_diagnostics.js";
@@ -126,7 +126,7 @@ export const CHEST_ITEM_CANDIDATES_BY_FLOOR = {
 const DEEP_CHEST_UTILITY = ["GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"];
 for (let floor = 6; floor <= 30; floor += 1) {
   CHEST_ITEM_CANDIDATES_BY_FLOOR[floor] = [...new Set([
-    ...EQUIPMENT_CANDIDATES_BY_FLOOR[floor],
+    ...EQUIPMENT_CANDIDATES_BY_FLOOR[floor].filter(baseId => !RESTRICTED_CHEST_BASES.includes(baseId)),
     ...DEEP_CHEST_UTILITY
   ])];
 }

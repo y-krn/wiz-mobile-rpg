@@ -89,7 +89,8 @@ function withSupportDefinition(candidate) {
     ...candidate,
     id: definition.id,
     kind: definition.kind,
-    cost: definition.cost
+    cost: definition.cost,
+    buildRole: definition.buildRole
   };
 }
 
