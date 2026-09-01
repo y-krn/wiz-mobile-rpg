@@ -148,7 +148,10 @@ equipping it advances trial while leaving the exact affix list hidden. Full
 identification sets the compatibility `identified` flag and records the
 affixes in the Codex. This preserves the risk and return value of acting before
 full understanding without turning a hint into a one-to-one hidden-tag
-dictionary.
+dictionary. Carrying causes the first observation near the start of a run;
+additional carried signs are only checked at a low-frequency exploration pulse
+(every eight exploration steps), so walking a few steps cannot mechanically
+disclose the full tag set.
 Equipping cursed unknown equipment and triggering its curse remains a valid
 implementation path, but it must not silently reveal the answer in the Codex.
 

@@ -478,7 +478,8 @@ while specialist classes retain safer disarm rates.
 
 Unidentified equipment follows four explicit knowledge stages: discovery
 (type/quality and one or two truthful sensory signs), observation (carrying it
-or encountering a related situation can add a sign), trial (equipping or using
+or encountering a related situation can add a sign; carried observations begin
+early but additional signs use a low-frequency exploration pulse), trial (equipping or using
 it makes the main function judgeable), and full understanding (Town recovery or
 complete identification exposes the exact stored detail). Pillar 3's gamble is
 the choice to act from the partial-information stages without paying for full

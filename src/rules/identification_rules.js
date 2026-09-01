@@ -16,7 +16,8 @@ export const IDENTIFICATION_BALANCE = {
   heavyCurseSharePerFloor: 0.05,
   maxHeavyCurseShare: 0.6,
   qualityPerFloor: 0.06,
-  maxQualityMultiplier: 1.75
+  maxQualityMultiplier: 1.75,
+  carriedObservationStepInterval: 8
 };
 
 export const KNOWLEDGE_STAGES = Object.freeze({

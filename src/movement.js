@@ -34,13 +34,21 @@ const ENCOUNTER_LOW_RATE = 0.04;
 const MILWA_ENCOUNTER_REDUCTION = 0.03;
 const LOMILWA_ENCOUNTER_REDUCTION = 0.05;
 
+function isCarriedObservationDue(previousSteps, nextSteps) {
+  const interval = IDENTIFICATION_BALANCE.carriedObservationStepInterval;
+  return previousSteps === 0 || Math.floor(nextSteps / interval) > Math.floor(previousSteps / interval);
+}
+
 export function recordExplorationSteps(count = 1) {
   if (!state.currentRun) return;
+  const previousSteps = state.currentRun.steps;
   state.currentRun.steps += count;
   if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
   const key = String(state.floor);
   state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + count;
-  if (observeCarriedEquipment(state) > 0) {
+  // Carrying gives the first observation early; later signs require a
+  // meaningful low-frequency exploration pulse instead of every step.
+  if (isCarriedObservationDue(previousSteps, state.currentRun.steps) && observeCarriedEquipment(state) > 0) {
     addLog("【観察】持ち歩く装備から新たな兆候を読み取った。");
   }
 }
