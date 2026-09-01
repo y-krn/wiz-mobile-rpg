@@ -1,5 +1,5 @@
 import { generateRunFloor } from "../run_map_generator.js";
-import { createFloorElite } from "../systems/roaming_elites.js";
+import { createFloorElite, markEliteEntryRollResolved } from "../systems/roaming_elites.js";
 import { getFloorTemplate } from "../data/floor_templates.js";
 import { getBandIndexForFloor, getBandTrialForFloor, getStoredBandTrial } from "../rules/floor_trials.js";
 import { markMapChanged } from "./state_core.js";
@@ -113,11 +113,14 @@ export class RunFloorRecoveryError extends Error {
 // 徘徊エリートは階生成時のseed抽選に通った場合だけ置く。撃破済みの階は
 // mapsが残るためここまで来ず、長居による追加出現はmovement側から判定する。
 function spawnFloorElite(stateLike, floor, runSeed, mapData) {
+  const floorState = markEliteEntryRollResolved(stateLike, floor);
+  if (floorState.spawned || floorState.defeated) return;
   const elite = createFloorElite({ runSeed, floor, mapData, spawnReason: "entry" });
   if (!elite) return;
   stateLike.roamingMonsters ||= [];
   if (stateLike.roamingMonsters.some(monster => monster.id === elite.id)) return;
   stateLike.roamingMonsters.push(elite);
+  floorState.spawned = true;
 }
 
 function cacheBandTrial(stateLike, floor) {
@@ -144,6 +147,7 @@ export function ensureRunFloor(stateLike, floor) {
   const isActiveFloor = floor === stateLike.floor;
   cacheBandTrial(stateLike, floor);
   if (isUsableFloorMap(existingMap, isActiveRun ? floor : null)) {
+    if (isActiveRun) markEliteEntryRollResolved(stateLike, floor);
     const visitedMap = stateLike.visitedMaps?.[index];
     if (!isUsableVisitedMap(existingMap, visitedMap)) {
       if (isActiveRun && isActiveFloor && stateLike._freshRunFloor !== floor) {

@@ -76,6 +76,8 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
       ...scaleEnemyForDepth(eliteTemplate, state.floor),
       combatTrait,
       combatTraitLabel: roamingMonster?.combatTraitLabel || ELITE_COMBAT_TRAIT_LABELS[combatTrait],
+      trialThemeIds: roamingMonster?.trialThemeIds || (trial ? [trial.mainId, trial.subId] : []),
+      trialRole: roamingMonster?.trialRole || floorRole.id,
       spawnReason: roamingMonster?.spawnReason
     }, roamingMonster?.combatTrait));
   } else {

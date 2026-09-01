@@ -11,6 +11,7 @@ import { triggerRunResult } from "../result.js";
 import { setupChestState } from "../chest.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 import { trackCombatStart } from "../telemetry.js";
+import { recordEliteGreedAction } from "../systems/roaming_elites.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;
@@ -27,6 +28,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
   state.gameState = "combat";
   if (state.currentRun) {
     state.currentRun.battles++;
+    if (!isBoss && !isMidboss && !isRoamingFlack) recordEliteGreedAction(state, "battle");
   }
 
   state.party.forEach(char => {

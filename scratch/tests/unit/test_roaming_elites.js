@@ -4,10 +4,12 @@ import {
   createFloorElite,
   getElitePerception,
   getEliteCombatTrait,
+  getEliteCombatTraitWeights,
   progressEliteThreat,
   shouldSpawnElite,
   shouldSpawnEliteAfterExploration,
-  applyEliteCombatTraitStats
+  applyEliteCombatTraitStats,
+  recordEliteGreedAction
 } from "../../../src/systems/roaming_elites.js";
 import { getEliteAttackMultiplier, triggerEliteSpellEater } from "../../../src/combat_logic/monster_traits.js";
 import { ELITE_PERCEPTIONS } from "../../../src/systems/elite_perception.js";
@@ -17,6 +19,7 @@ import { ensureRunFloor, resetRunFloors } from "../../../src/state/run_floor_sta
 import { getCampRestStatus, restAtCamp } from "../../../src/systems/camp_rest.js";
 import { generateRunFloor } from "../../../src/run_map_generator.js";
 import { scaleEnemyForDepth } from "../../../src/rules/depth_scaling.js";
+import { getBandTrialForFloor } from "../../../src/rules/floor_trials.js";
 
 const FAST = process.env.FAST === "1";
 const SEED_COUNT = Number(process.env.ELITE_SEEDS) || (FAST ? 20 : 60);
@@ -198,19 +201,24 @@ check("prolonged exploration can spawn an absent entry elite", () => {
     .find(seed => !shouldSpawnElite(ELITE_MIN_FLOOR, seed) && shouldSpawnEliteAfterExploration({
       floor: ELITE_MIN_FLOOR,
       runSeed: seed,
-      steps: 40
+      greedScore: 12,
+      checkIndex: 1
     }));
   assert.ok(runSeed, "a seed should exercise the prolonged spawn route");
   const generated = generateRunFloor({ runSeed, floor: ELITE_MIN_FLOOR });
+  const start = findCell(generated.grid, "stairs-up");
   const stateLike = {
     floor: ELITE_MIN_FLOOR,
     maps: [null, null, generated.grid],
     currentRun: {
       runSeed,
-      floorSteps: { [ELITE_MIN_FLOOR]: 40 },
+      floorSteps: { [ELITE_MIN_FLOOR]: 400 },
+      eliteFloors: { [ELITE_MIN_FLOOR]: { greedScore: 12, prolongedChecks: 0, warningStage: 0 } },
       eliteOmenSteps: {},
       eliteDefeatedFloors: []
     },
+    x: start.x,
+    y: start.y,
     roamingMonsters: []
   };
   const result = progressEliteThreat(stateLike);
@@ -226,7 +234,8 @@ check("prolonged spawn and omen sequence survive a save/load round trip", () => 
     maps: [null, null, generated.grid],
     currentRun: {
       runSeed,
-      floorSteps: { [ELITE_MIN_FLOOR]: 39 },
+      floorSteps: { [ELITE_MIN_FLOOR]: 390 },
+      eliteFloors: { [ELITE_MIN_FLOOR]: { greedScore: 0, prolongedChecks: 0, warningStage: 0 } },
       eliteOmenSteps: {},
       eliteDefeatedFloors: []
     },
@@ -234,19 +243,26 @@ check("prolonged spawn and omen sequence survive a save/load round trip", () => 
   });
   const original = createState();
   progressEliteThreat(original);
-  original.currentRun.floorSteps[ELITE_MIN_FLOOR] = 50;
+  original.currentRun.eliteFloors[ELITE_MIN_FLOOR].greedScore = 12;
   const reloaded = JSON.parse(JSON.stringify(original));
   progressEliteThreat(original);
   progressEliteThreat(reloaded);
   assert.deepEqual(reloaded.roamingMonsters, original.roamingMonsters);
-  assert.deepEqual(reloaded.currentRun.eliteOmenSteps, original.currentRun.eliteOmenSteps);
+  assert.deepEqual(reloaded.currentRun.eliteFloors, original.currentRun.eliteFloors);
 });
 
 check("defeated floors never respawn during prolonged exploration", () => {
   const stateLike = createRunState("ELITE-DEFEATED-PROLONGED");
   ensureRunFloor(stateLike, ELITE_MIN_FLOOR);
   stateLike.floor = ELITE_MIN_FLOOR;
-  stateLike.currentRun.floorSteps = { [ELITE_MIN_FLOOR]: 100 };
+  stateLike.currentRun.floorSteps = { [ELITE_MIN_FLOOR]: 1000 };
+  stateLike.currentRun.eliteFloors[String(ELITE_MIN_FLOOR)] = {
+    greedScore: 100,
+    prolongedChecks: 0,
+    warningStage: 0,
+    defeated: true,
+    spawned: true
+  };
   stateLike.currentRun.eliteDefeatedFloors = [ELITE_MIN_FLOOR];
   stateLike.roamingMonsters = [];
   const result = progressEliteThreat(stateLike);
@@ -259,6 +275,37 @@ check("combat trait is one deterministic axis with at least four variants", () =
   assert.ok(traits.size >= 4);
   const sameSeed = getEliteCombatTrait("ELITE-TRAIT-SAME", 5);
   assert.equal(sameSeed, getEliteCombatTrait("ELITE-TRAIT-SAME", 5));
+});
+
+check("walking alone does not advance elite threat, while value actions do", () => {
+  const stateLike = createRunState("ELITE-GREED-ACTIONS");
+  stateLike.floor = ELITE_MIN_FLOOR;
+  stateLike.currentRun.floorSteps = { [ELITE_MIN_FLOOR]: 1000 };
+  progressEliteThreat(stateLike);
+  assert.equal(stateLike.currentRun.eliteFloors[String(ELITE_MIN_FLOOR)].greedScore, 0);
+  stateLike.currentRun.eliteFloors[String(ELITE_MIN_FLOOR)].greedScore = 0;
+  recordEliteGreedAction(stateLike, "new_room");
+  assert.equal(stateLike.currentRun.eliteFloors[String(ELITE_MIN_FLOOR)].greedScore, 1);
+});
+
+check("trial themes bias elite combat traits without removing variants", () => {
+  const trial = getBandTrialForFloor("ELITE-TRIAL-LINK", ELITE_MIN_FLOOR);
+  const weights = getEliteCombatTraitWeights(trial);
+  assert.ok(Object.values(weights).every(weight => weight > 0));
+  const resourceTrial = {
+    ...trial,
+    main: { id: "resource" },
+    sub: { id: "resource" }
+  };
+  assert.ok(getEliteCombatTraitWeights(resourceTrial).spell_eater > weights.spell_eater ||
+    getEliteCombatTraitWeights(resourceTrial).spell_eater > 1);
+  const elite = createFloorElite({
+    runSeed: "ELITE-TRIAL-LINK",
+    floor: ELITE_MIN_FLOOR,
+    mapData: generateRunFloor({ runSeed: "ELITE-TRIAL-LINK", floor: ELITE_MIN_FLOOR }),
+    spawnReason: "prolonged"
+  });
+  assert.deepEqual(elite.trialThemeIds, [trial.mainId, trial.subId]);
 });
 
 check("combat traits change the relevant combat decisions", () => {

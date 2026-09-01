@@ -16,7 +16,11 @@ import {
   resolveExplorationPoisonStep
 } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/elite_perception.js";
-import { ELITE_PATROL_RADIUS, progressEliteThreat } from "./systems/roaming_elites.js";
+import {
+  ELITE_PATROL_RADIUS,
+  progressEliteThreat,
+  recordEliteGreedAction
+} from "./systems/roaming_elites.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.js";
 import { RUN_QUEST_TEMPLATES } from "./data/run_quests.js";
@@ -195,7 +199,7 @@ export function handleMove(action) {
       tickExplorationSpellEffects();
       
       // Mark as visited
-      markMapCellVisited(state.x, state.y);
+      if (markMapCellVisited(state.x, state.y)) recordEliteGreedAction(state, "new_room");
 
       processExplorationResolution(prevX, prevY);
     }
@@ -220,7 +224,7 @@ export function handleMove(action) {
       state.y = backY;
       recordExplorationSteps();
       tickExplorationSpellEffects();
-      markMapCellVisited(state.x, state.y);
+      if (markMapCellVisited(state.x, state.y)) recordEliteGreedAction(state, "new_room");
       
       processExplorationResolution(prevX, prevY);
     }
@@ -483,6 +487,7 @@ export function applyStairsHeal(cell) {
   const stairsId = `${state.floor}:${state.x},${state.y}`;
   if (state.currentRun.discoveredStairs.includes(stairsId)) return 0;
   state.currentRun.discoveredStairs.push(stairsId);
+  if (cell.type === "stairs-down") recordEliteGreedAction(state, "stairs_found");
 
   let total = 0;
   state.party.forEach(char => {
@@ -572,6 +577,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 
   // Spring encounter
   if (cell.event === EVENT_TYPES.SPRING) {
+    recordEliteGreedAction(state, "optional_area", 1, `${state.floor}:${state.x},${state.y}:spring`);
     const skin = getFloorTheme(state.floor)?.eventSkins.spring || "怪しい泉";
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.spring.found++;
@@ -581,6 +587,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   }
 
   if (cell.event === EVENT_TYPES.CAMP) {
+    recordEliteGreedAction(state, "optional_area", 1, `${state.floor}:${state.x},${state.y}:camp`);
     const skin = getFloorTheme(state.floor)?.eventSkins.camp || "野営地";
     openGuardedSubmenu(EVENT_TYPES.CAMP, `${skin}。腰を落ち着けられる場所を確かめる。`);
     return;
@@ -588,6 +595,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 
   // Tablet encounter
   if (cell.event === EVENT_TYPES.TABLET) {
+    recordEliteGreedAction(state, "optional_area", 1, `${state.floor}:${state.x},${state.y}:tablet`);
     const skin = getFloorTheme(state.floor)?.eventSkins.tablet || "謎の石碑";
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.tablet.found++;
@@ -602,6 +610,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       addLog("深層商人は守護者を退けるまで取引に応じない。");
       return;
     }
+    recordEliteGreedAction(state, "optional_area", 1, `${state.floor}:${state.x},${state.y}:merchant`);
     state.currentRun.visitedMilestoneMerchants ||= [];
     if (!state.currentRun.visitedMilestoneMerchants.includes(state.floor)) {
       state.currentRun.visitedMilestoneMerchants.push(state.floor);

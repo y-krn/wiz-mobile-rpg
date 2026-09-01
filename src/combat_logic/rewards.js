@@ -342,6 +342,13 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       if (!state.currentRun.eliteDefeatedFloors.includes(state.floor)) {
         state.currentRun.eliteDefeatedFloors.push(state.floor);
       }
+      state.currentRun.eliteFloors ||= {};
+      state.currentRun.eliteFloors[String(state.floor)] = {
+        ...(state.currentRun.eliteFloors[String(state.floor)] || {}),
+        entryRollResolved: true,
+        spawned: true,
+        defeated: true
+      };
     }
     state.roamingMonsters = state.roamingMonsters.filter(rm => {
       if (defeatedId) return rm.id !== defeatedId;

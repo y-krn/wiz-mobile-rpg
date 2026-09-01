@@ -287,11 +287,13 @@ preTarget = round(base * statMultiplier(stat) * spellPower * arcane * fire)
 
 ### 1.4 徘徊エリートの個体特性
 
-徘徊エリートは通常遭遇の上位版ではなく、探索の長居に対する任意の脅威
-イベントである。B3F以降のフロア生成時に毎回固定配置せず、entry 抽選または
-一定歩数以降の決定的な追加抽選で配置する。追加抽選の前には数値ゲージや正確な
-カウントダウンではなく、段階的な omen を表示する。出現後は既存の roaming AI と
-知覚 (`ELITE_PERCEPTIONS`) をそのまま使い、階をまたいで追跡しない。
+徘徊エリートは通常遭遇の上位版ではなく、探索の価値を取りに行く行動へ反応する
+任意の脅威イベントである。B3F以降のフロア生成時に毎回固定配置せず、entry 抽選
+または新規セルの発見、通常戦闘、宝箱開封、任意施設、階段発見後の追加探索で蓄積する
+決定的な追加抽選で配置する。単純な歩数増加だけでは追加抽選は進まない。追加抽選の
+前には数値ゲージや正確なカウントダウンではなく、行動圧から導く段階的な omen を
+表示する。出現後は既存の roaming AI と知覚 (`ELITE_PERCEPTIONS`) をそのまま使い、
+階をまたいで追跡しない。
 
 個体ごとに `combatTrait` を1つだけ run seed から決定し、知覚とは独立に組み合わせる。
 trait は戦闘開始ログで説明し、挙動でも識別できるものとする。
@@ -307,6 +309,12 @@ trait の executable な値と適用段階は `src/systems/roaming_elites.js`、
 `src/combat_logic/spell_resolution.js` を正本とする。trait は敵のHP/ATKを一律に
 乱数補正する仕組みではなく、攻撃手段・対象選択・戦闘時間の判断を変えるための
 counterplay 軸である。
+
+5階帯の主題・副題は `getBandTrialForFloor()` で解決し、主題・副題に対応する
+combat trait の重みを上げてから run seed で1個を決める。従って trait は完全な
+roulette ではなく帯の支払いを濃く表現するが、全 trait と全組合せは残る。強敵の
+`trialThemeIds` / `trialRole` は戦闘個体へ引き継ぎ、通常の Guardian と同じ帯の文脈で
+検証できるようにする。
 
 `spellPower` は全ての攻撃呪文に共通する項で、`arcane` は攻撃側だけの固有項、
 `fireRite` は火系だけの固有項である。従って `arcane` を共通項の代用品にはしない。

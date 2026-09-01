@@ -36,6 +36,7 @@ import {
   rollChestEncounter
 } from "./chest/chest_domain.js";
 import { renderChestMenu } from "./chest/chest_view.js";
+import { recordEliteGreedAction } from "./systems/roaming_elites.js";
 
 export { CHEST_PHASES, CHEST_PHASE_TRANSITIONS, generateChestMaterials };
 
@@ -529,6 +530,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
 
     if (state.currentRun) {
       state.currentRun.chestsOpened++;
+      recordEliteGreedAction(state, "chest");
     }
 
     const translateTrap = (t) => {
