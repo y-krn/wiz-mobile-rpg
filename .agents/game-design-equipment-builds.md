@@ -223,9 +223,10 @@ All existing floor availability gates are intentionally kept. A gate such as
 the pool?”, not “how strong is the rolled support?”. Keeping these gates stops
 late conditional/utility effects from diluting shallow pools and preserves
 the authored discovery order; rarity now supplies the quality axis instead of
-duplicating that ordering in the value. The fixed equipment base candidate
-tables still reuse the B5 table for deeper floors; extending those tables is
-separate scope for a future issue.
+duplicating that ordering in the value. Since #1009, equipment and ordinary
+chest base candidates are explicit through B30. B6+ keeps earlier bases and
+adds horizontal candidates, while the role supply below provides soft
+crossing between bands; there is no B5 fallback path for deep loot.
 
 The original proposal, “half the fatigue penalty,” was shelved because the fatigue system is not implemented (consider
 adding it as a conditional when implemented).
@@ -334,6 +335,26 @@ the data source for departure craft through `src/systems/workshop.js` and
 `src/rules/craft_rules.js`.
 
 # Balance Framework
+
+## Loot roles and current Core inventory audit (#1009)
+
+Generated loot carries `buildRole` (`reinforce`, `convert`, or `pivot`) and
+`buildRoles` derived from its affixes. `LOOT_ROLE_SUPPLY_BY_BAND` is the source
+of truth for the B1–B30 role weights: 75/20/5, 60/30/10, 55/30/15, 50/35/15,
+and 45/35/20. Every band retains all three roles, so the authored ratios are
+soft discovery bands rather than hard unlocks. Candidate bases are also
+explicit through B30 and keep earlier items eligible at depth.
+
+The current Core registry is intentionally not capped. Its role audit is:
+
+- Reinforce: 背水, 先手必勝, 必中, 浄化の環.
+- Convert: 血杖, 罠喰い, 呪飼いの鎖, 反撃の棘, 薄氷の誓約, 盗掘王, 野営の達人.
+- Pivot: 巨人殺し, 守護者殺し, 執行人, 忍び足, 慧眼, 賞金稼ぎ, 学者の眼.
+
+This is a role label for supply and observation, not an activation limit.
+Loot generation never reads the current equipped loadout; a different main
+axis is observed as a build transition only when an equipment decision changes
+the role/core axis, separately from an ordinary equipment swap.
 
 - Core evaluation rule: **an unconditional +15% equivalent is the upper limit when converted by expected uptime**.
   Example: 背水 +40% × 20% uptime ≈ +8% effective.

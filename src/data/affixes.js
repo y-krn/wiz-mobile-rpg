@@ -123,6 +123,53 @@ export const AFFIX_BALANCE = {
   }
 };
 
+export const LOOT_BUILD_ROLES = Object.freeze({
+  REINFORCE: "reinforce",
+  CONVERT: "convert",
+  PIVOT: "pivot"
+});
+
+// These weights are the authored supply target for the five-floor chapters.
+// They shape what a run may discover; they never inspect the current build.
+export const LOOT_ROLE_SUPPLY_BY_BAND = Object.freeze([
+  Object.freeze({ id: "B1_5", minFloor: 1, maxFloor: 5, weights: Object.freeze({ reinforce: 75, convert: 20, pivot: 5 }) }),
+  Object.freeze({ id: "B6_10", minFloor: 6, maxFloor: 10, weights: Object.freeze({ reinforce: 60, convert: 30, pivot: 10 }) }),
+  Object.freeze({ id: "B11_15", minFloor: 11, maxFloor: 15, weights: Object.freeze({ reinforce: 55, convert: 30, pivot: 15 }) }),
+  Object.freeze({ id: "B16_20", minFloor: 16, maxFloor: 20, weights: Object.freeze({ reinforce: 50, convert: 35, pivot: 15 }) }),
+  Object.freeze({ id: "B21_PLUS", minFloor: 21, maxFloor: Infinity, weights: Object.freeze({ reinforce: 45, convert: 35, pivot: 20 }) })
+]);
+
+export function getLootRoleSupply(floor = 1) {
+  const normalizedFloor = Math.max(1, Number.isFinite(Number(floor)) ? Number(floor) : 1);
+  return LOOT_ROLE_SUPPLY_BY_BAND.find(band => normalizedFloor >= band.minFloor && normalizedFloor <= band.maxFloor)
+    || LOOT_ROLE_SUPPLY_BY_BAND[0];
+}
+
+export function getLootBuildRoleForRoll(floor = 1, roll = 0) {
+  const { weights } = getLootRoleSupply(floor);
+  const totalWeight = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
+  let remaining = Math.max(0, Math.min(0.999999999, Number(roll) || 0)) * totalWeight;
+  return Object.entries(weights).find(([, weight]) => {
+    remaining -= weight;
+    return remaining <= 0;
+  })?.[0] || LOOT_BUILD_ROLES.REINFORCE;
+}
+
+const SUPPORT_BUILD_ROLES = Object.freeze({
+  atk: "reinforce", def: "reinforce", str: "reinforce", int: "reinforce", pie: "reinforce",
+  vit: "reinforce", agi: "reinforce", luk: "reinforce", hp: "reinforce", mp: "reinforce",
+  antiUndead: "reinforce", antiDragon: "reinforce", antiDemon: "reinforce", spellPower: "reinforce",
+  arcane: "reinforce", devotion: "reinforce", guardian: "convert", firstStrike: "reinforce",
+  poisonWard: "convert", spellGuard: "convert", trapBonus: "convert", frontGuard: "convert",
+  rearEvasion: "convert", firstStrikeDefense: "convert", statusResistance: "convert", killHeal: "convert",
+  followUpMp: "convert", poisonAtk: "convert", bleedingAtk: "convert", stairsHeal: "convert",
+  deepAssault: "pivot", followUp: "pivot", treasureSense: "pivot", arcaneSense: "pivot",
+  hearRange: "pivot", traceRead: "pivot", fullHpDamage: "pivot", firstTurnAttack: "pivot",
+  antiBeast: "pivot", antiSpirit: "pivot", lastSurvivorStats: "pivot", spellAccuracy: "pivot",
+  hitFlinch: "pivot", victoryMaterial: "pivot", identifyDiscount: "pivot", materialFind: "pivot",
+  contractReward: "pivot"
+});
+
 function support(id, jpName, desc, category, options = {}) {
   return {
     id,
@@ -132,6 +179,7 @@ function support(id, jpName, desc, category, options = {}) {
     jpName,
     desc,
     cost: AFFIX_BALANCE.supportCosts[id],
+    buildRole: options.buildRole || SUPPORT_BUILD_ROLES[id] || LOOT_BUILD_ROLES.REINFORCE,
     enabled: options.enabled ?? true,
     unit: options.unit ?? "",
     ...options
@@ -204,6 +252,7 @@ export const CORE_AFFIXES = [
     // 閾値25%は撤退・逃走を選ぶ水準より下にあり、窓へ入る前に戦闘が終わっていた
     // （自攻撃直前にHP25%以下だったturnは実測0.3%）。逃走判断より上へ出す（#272）。
     params: { hpThreshold: 0.40, damageMultiplier: 1.4 },
+    buildRole: "reinforce",
     poolGroup: "combat",
     enabled: true
   },
@@ -215,6 +264,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { followUpChance: 1 },
+    buildRole: "reinforce",
     poolGroup: "combat",
     enabled: true
   },
@@ -226,6 +276,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { hitChanceBonus: 1 },
+    buildRole: "reinforce",
     poolGroup: "combat",
     enabled: true
   },
@@ -237,6 +288,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { hpCostMultiplier: 2 },
+    buildRole: "convert",
     poolGroup: "combat",
     enabled: true
   },
@@ -254,6 +306,7 @@ export const CORE_AFFIXES = [
       fullMpHpRecovery: 2,
       targetTags: ["undead", "spirit", "demon"]
     },
+    buildRole: "reinforce",
     poolGroup: "combat",
     enabled: true
   },
@@ -266,6 +319,7 @@ export const CORE_AFFIXES = [
     cost: 10,
     params: { attackPerDisarm: 2, maxAttack: 20 },
     allowedClasses: ["Thief", "Ranger", "Ninja"],
+    buildRole: "convert",
     poolGroup: "combat",
     enabled: true
   },
@@ -277,6 +331,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { statsPerCurse: 3 },
+    buildRole: "convert",
     poolGroup: "combat",
     enabled: true
   },
@@ -288,6 +343,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { damageMultiplier: 1.3 },
+    buildRole: "pivot",
     poolGroup: "combat",
     enabled: true
   },
@@ -299,6 +355,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { damageMultiplier: 1.25 },
+    buildRole: "pivot",
     poolGroup: "combat",
     enabled: true
   },
@@ -310,6 +367,7 @@ export const CORE_AFFIXES = [
     slot: "shield",
     cost: 10,
     params: { counterChance: 0.3, counterPower: 0.5 },
+    buildRole: "convert",
     poolGroup: "combat",
     enabled: true
   },
@@ -321,6 +379,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { status: "poisoned", statusChance: 0.35, damageMultiplier: 1.4 },
+    buildRole: "pivot",
     poolGroup: "combat",
     enabled: true
   },
@@ -332,6 +391,7 @@ export const CORE_AFFIXES = [
     slot: "armor",
     cost: 10,
     params: { hpThreshold: 0.50, damageMultiplier: 1.35, incomingDamageMultiplier: 1.20 },
+    buildRole: "convert",
     poolGroup: "combat",
     enabled: true
   },
@@ -343,6 +403,7 @@ export const CORE_AFFIXES = [
     slot: "armor",
     cost: 10,
     params: { detectionRangeMultiplier: 0.5, auraRangeBonus: 1 },
+    buildRole: "pivot",
     poolGroup: "economy",
     enabled: true
   },
@@ -354,6 +415,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { materialBonus: 1, trapTierBonus: 1 },
+    buildRole: "convert",
     poolGroup: "economy",
     enabled: true
   },
@@ -365,6 +427,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { applyUnidentifiedEffects: true, hideUntilIdentified: true },
+    buildRole: "pivot",
     poolGroup: "economy",
     enabled: true
   },
@@ -376,6 +439,7 @@ export const CORE_AFFIXES = [
     slot: "armor",
     cost: 10,
     params: { recoveryMultiplier: 2 },
+    buildRole: "convert",
     poolGroup: "economy",
     enabled: true
   },
@@ -387,6 +451,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { contractCountMultiplier: 2 },
+    buildRole: "pivot",
     poolGroup: "economy",
     enabled: true
   },
@@ -398,6 +463,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { guaranteedMaterialDrop: true },
+    buildRole: "pivot",
     poolGroup: "economy",
     enabled: true
   }

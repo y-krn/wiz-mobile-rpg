@@ -64,6 +64,13 @@ style to reveal an undiscovered trap. Style changes are presentation-only:
 chest rewards and actions, trap type/discovery information and effects, stair
 movement, spawn rates, and balance remain unchanged.
 
+Loot content uses the same separation: base-item candidates answer what may
+appear at B1–B30, while `buildRole` in the affix registry explains whether a
+find reinforces, converts a cost, or pivots the run. The role is mechanical
+metadata and does not make a current-build-specific promise. Earlier bases
+remain valid in deep pools so depth does not turn the existing collection into
+obsolete filler.
+
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with `src/data.js`

@@ -4,6 +4,7 @@ import {
   AFFIX_BALANCE,
   CORE_AFFIXES,
   SUPPORT_AFFIXES,
+  getLootBuildRoleForRoll,
   getAffixBudget,
   getSupportValueByRarity
 } from "../data/affixes.js";
@@ -46,6 +47,10 @@ export function pickCurseEffectId(rng, heavyCurseShare) {
   return pool[Math.floor(rng() * pool.length)];
 }
 
+export function rollLootBuildRole(floor = 1, rng = Math.random) {
+  return getLootBuildRoleForRoll(floor, rng());
+}
+
 export function rollAffixes(pool, count, rng = Math.random, budget = Infinity) {
   const affixes = [];
   const selectedIds = new Set();
@@ -67,7 +72,8 @@ export function rollAffixes(pool, count, rng = Math.random, budget = Infinity) {
       id: chosen.id || chosen.type,
       kind: chosen.kind || "support",
       type: chosen.type || chosen.id,
-      value: chosen.getVal ? chosen.getVal() : (chosen.value ?? 1)
+      value: chosen.getVal ? chosen.getVal() : (chosen.value ?? 1),
+      buildRole: chosen.buildRole || null
     });
     selectedIds.add(chosen.id || chosen.type);
     remainingBudget -= chosen.cost || 0;
@@ -109,6 +115,7 @@ function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCo
       ...affix,
       type: affix.id,
       value: 1,
+      buildRole: affix.buildRole,
       weight: poolWeights[affix.poolGroup] || 1
     })) : [];
 
@@ -177,41 +184,17 @@ export function generateRandomEquipment(floor, options) {
     requireGenerationOptions(options, "generateRandomEquipment");
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "equipment", floor });
   const gambleProfile = getIdentificationGambleProfile(floor);
-  let baseCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[floor] || EQUIPMENT_CANDIDATES_BY_FLOOR[5];
+  const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
+  let baseCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[candidateFloor]
+    || EQUIPMENT_CANDIDATES_BY_FLOOR[30];
 
   // 通常チェストなど高級ベースを出したくないソースでは除外する。
   if (excludeHighEnd) {
     baseCandidates = baseCandidates.filter(baseId => !RESTRICTED_CHEST_BASES.includes(baseId));
   }
 
-  let priorityType = null;
   if (party && party.length > 0) {
     const livingParty = party.filter(char => char.status !== "dead");
-    const missingCount = { weapon: 0, shield: 0, armor: 0 };
-
-    if (livingParty.length > 0) {
-      livingParty.forEach(char => {
-        if (!char.equipment || !char.equipment.weapon) {
-          missingCount.weapon++;
-        }
-        const canEquipShield = !["Mage", "Thief", "Ninja"].includes(char.class);
-        if (canEquipShield && (!char.equipment || !char.equipment.shield)) {
-          missingCount.shield++;
-        }
-        if (!char.equipment || !char.equipment.armor || typeof char.equipment.armor === "string") {
-          missingCount.armor++;
-        }
-      });
-    }
-
-    let maxMissing = 0;
-    for (const [slot, count] of Object.entries(missingCount)) {
-      if (count > maxMissing) {
-        maxMissing = count;
-        priorityType = slot;
-      }
-    }
-
     let usableCandidates = baseCandidates.filter(baseId => {
       const item = ITEMS[baseId];
       if (!item) return false;
@@ -225,18 +208,11 @@ export function generateRandomEquipment(floor, options) {
     }
   }
 
-  // Smart Drop (70%): Prioritize a missing equipment slot without disabling the class filter.
-  if (rng() < 0.70 && priorityType) {
-    const typeCandidates = baseCandidates.filter(baseId => {
-      const item = ITEMS[baseId];
-      return item && item.type === priorityType;
-    });
-    if (typeCandidates.length > 0) {
-      baseCandidates = typeCandidates;
-    }
-  }
-  
-  let baseId = baseCandidates[Math.floor(rng() * baseCandidates.length)];
+  // Consume the historical pre-selection roll to keep seeded streams stable.
+  // Candidate selection is intentionally independent of the current loadout.
+  rng();
+  const baseRoll = rng();
+  let baseId = baseCandidates[Math.floor(baseRoll * baseCandidates.length)];
   let baseItem = ITEMS[baseId];
   if (!baseItem) return null;
   
@@ -251,6 +227,8 @@ export function generateRandomEquipment(floor, options) {
     else if (roll < rareChance) rarity = "rare";
     else rarity = "magic";
   }
+
+  const buildRole = getLootBuildRoleForRoll(floor, baseRoll);
   
   const possibleAffixes = [];
   const addAffix = (minFloor, type, getVal, weight = 3) => {
@@ -467,7 +445,9 @@ export function generateRandomEquipment(floor, options) {
     cursePower: gambleProfile.cursePower,
     curseSuspected: meta.curseSuspected,
     unidentifiedName: meta.unidentifiedName,
-    affixes
+    affixes,
+    buildRole,
+    buildRoles: [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))]
   };
 }
 
@@ -476,7 +456,9 @@ export function generateRandomAccessory(floor, options) {
     requireGenerationOptions(options, "generateRandomAccessory");
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "accessory", floor });
   const gambleProfile = getIdentificationGambleProfile(floor);
-  let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[floor] || ACCESSORY_CANDIDATES_BY_FLOOR[5];
+  const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
+  let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[candidateFloor]
+    || ACCESSORY_CANDIDATES_BY_FLOOR[30];
 
   if (party && party.length > 0) {
     const livingParty = party.filter(char => char.status !== "dead");
@@ -489,7 +471,8 @@ export function generateRandomAccessory(floor, options) {
     }
   }
 
-  const baseId = baseCandidates[Math.floor(rng() * baseCandidates.length)];
+  const baseRoll = rng();
+  const baseId = baseCandidates[Math.floor(baseRoll * baseCandidates.length)];
   const baseItem = ITEMS[baseId];
   if (!baseItem) return null;
 
@@ -503,6 +486,8 @@ export function generateRandomAccessory(floor, options) {
     if (roll < epicChance) rarity = "epic";
     else if (roll < rareChance) rarity = "rare";
   }
+
+  const buildRole = getLootBuildRoleForRoll(floor, baseRoll);
 
   const availableWeight = (minFloor, weight) => floor >= minFloor ? weight : 0;
   const accessoryAffixPool = [
@@ -614,6 +599,8 @@ export function generateRandomAccessory(floor, options) {
     cursePower: gambleProfile.cursePower,
     curseSuspected: meta.curseSuspected,
     unidentifiedName: meta.unidentifiedName,
-    affixes
+    affixes,
+    buildRole,
+    buildRoles: [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))]
   };
 }

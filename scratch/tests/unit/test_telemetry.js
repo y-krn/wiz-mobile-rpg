@@ -449,6 +449,21 @@ check("decision events share context and keep action identifiers stable", () => 
       rows: [{ key: "attack", diff: 2 }]
     }
   });
+  trackEquipmentDecision("equip", {
+    state: decisionState,
+    character: decisionPlayer,
+    candidateKey: {
+      baseId: "SHORT_SWORD",
+      buildRole: "pivot",
+      affixes: [{ id: "CORE_GIANT_SLAYER", kind: "core" }]
+    },
+    currentKey: {
+      baseId: "WAND",
+      buildRole: "reinforce",
+      affixes: [{ id: "CORE_LAST_STAND", kind: "core" }]
+    },
+    preview: { item: { rarity: "rare" }, slot: "weapon", primaryDiff: 1, rows: [] }
+  });
   const combatEvent = events.find(event => event.name === "combat_decision");
   const explorationEvent = events.find(event => event.name === "exploration_decision");
   const equipmentEvent = events.find(event => event.name === "equipment_decision");
@@ -460,6 +475,10 @@ check("decision events share context and keep action identifiers stable", () => 
   assert.equal(equipmentEvent.properties.action, "compare");
   assert.equal(equipmentEvent.properties.candidateId, "DAGGER");
   assert.deepEqual(equipmentEvent.properties.comparisonDiffs, [2]);
+  const transitionEvent = events.find(event => event.name === "equipment_decision" && event.properties.action === "equip");
+  assert.equal(transitionEvent.properties.buildDecision, "transition");
+  assert.equal(transitionEvent.properties.candidateBuildRole, "pivot");
+  assert.equal(transitionEvent.properties.currentBuildRole, "reinforce");
 });
 
 check("combat end numeric fields stay bounded", () => {

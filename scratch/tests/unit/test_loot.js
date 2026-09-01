@@ -155,10 +155,11 @@ import assert from "assert";
       }
 
       console.log(`Simulation stats (100 seeds): Weapons: ${weapons}, Shields: ${shields}, Armors: ${armors}`);
-      assert.ok(armors > weapons, `Armors (${armors}) should be prioritized over weapons (${weapons}) due to missing slot count`);
+      assert.equal(weapons + shields + armors, 100);
+      assert.ok(weapons > 0 && shields > 0 && armors > 0, "deep-independent B1 supply keeps every equipment slot available");
 
-      console.log("-> [PASS] Smart Drop priority bias verified");
-      console.log("All Chest Guarantee & Smart Drop Verification Tests PASSED!");
+      console.log("-> [PASS] non-adaptive equipment supply verified");
+      console.log("All Chest Guarantee & non-adaptive loot verification Tests PASSED!");
     })();
   })();
 
@@ -508,9 +509,9 @@ import assert from "assert";
       console.log("[PASS] Unidentified names verified.");
 
       // ----------------------------------------------------
-      // Test 2: Smart Drop Validation
+      // Test 2: Class-compatible candidate validation
       // ----------------------------------------------------
-      console.log("Running Test 2: Smart Drop Validation...");
+      console.log("Running Test 2: Class-compatible candidate validation...");
 
       // Mock party: Mage only (only ARCANE_ROBE is usable among B4F candidates)
       state.party = [
@@ -519,7 +520,8 @@ import assert from "assert";
 
       // Try generating 200 random equipments at floor 4.
       // Usable by Mage: "ARCANE_ROBE"
-      // Smart drop (70%) should force ARCANE_ROBE.
+      // Class filtering may keep the candidate pool to ARCANE_ROBE, but the
+      // current equipment is never used to fill a missing slot.
       let arcaneRobeCount = 0;
       const totalTrials = 200;
       for (let i = 0; i < totalTrials; i++) {
@@ -531,8 +533,8 @@ import assert from "assert";
 
       const rate = arcaneRobeCount / totalTrials;
       console.log(`ARCANE_ROBE count: ${arcaneRobeCount}/${totalTrials} (${(rate*100).toFixed(1)}%)`);
-      assert.ok(rate > 0.40, "Smart drop rate for ARCANE_ROBE should be > 40%");
-      console.log("[PASS] Smart drop verified.");
+      assert.equal(rate, 1, "Mage-only B4 candidate pool should stay class-compatible");
+      console.log("[PASS] class-compatible candidate filtering verified.");
 
       // ----------------------------------------------------
       // Test 3: Loot Hint (宝気) in Chests

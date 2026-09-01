@@ -57,12 +57,14 @@ function rollAtReplacementThreshold(floor) {
   return { reward, consumed };
 }
 
-await test("floor 6/20 reuse the B5 chest pool without quest or B1 gear", () => {
+await test("floor 6/20 use the authored deep chest pool without quest or B1 gear", () => {
   const b5Candidates = CHEST_ITEM_CANDIDATES_BY_FLOOR[5];
 
   for (const floor of [6, 20]) {
     const candidates = captureCandidates(floor);
-    assert.deepEqual(candidates, b5Candidates);
+    assert.notDeepEqual(candidates, b5Candidates);
+    assert.ok(candidates.includes("HOLY_BLADE"));
+    if (floor >= 11) assert.ok(candidates.includes("LEGENDARY_SWORD"));
     assert.ok(candidates.every(item => ITEMS[item]?.type !== "quest"));
     assert.ok(candidates.every(item => !B1_GEAR.has(item)));
   }

@@ -52,6 +52,7 @@ assert.deepStrictEqual(
     slot: "weapon",
     cost: 10,
     params: { hitChanceBonus: 1 },
+    buildRole: "reinforce",
     poolGroup: "combat",
     enabled: true
   },
@@ -123,7 +124,7 @@ for (let seed = 1; seed <= 5000 && !generatedPhysicalAccuracyCore; seed++) {
 assert.ok(generatedPhysicalAccuracyCore, "physical accuracy core enters the weapon generation pool");
 assert.deepStrictEqual(
   generatedPhysicalAccuracyCore.affixes.find(affix => affix.id === "CORE_PHYSICAL_ACCURACY"),
-  { id: "CORE_PHYSICAL_ACCURACY", kind: "core", type: "CORE_PHYSICAL_ACCURACY", value: 1 },
+  { id: "CORE_PHYSICAL_ACCURACY", kind: "core", type: "CORE_PHYSICAL_ACCURACY", value: 1, buildRole: "reinforce" },
   "generated physical accuracy core uses the canonical core payload"
 );
 

@@ -332,6 +332,15 @@ The Workshop should broaden combinations involving HP, MP, status, actions,
 and curses while keeping the run's improvised build and resource competition
 as the source of power.
 
+Issue #1009 implements the loot-side boundary of that rule. `buildRole` marks
+reinforcement, cost conversion, or direction change on generated equipment;
+the B1–B30 candidate tables widen deep supply without removing old bases, and
+`LOOT_ROLE_SUPPLY_BY_BAND` keeps every role available with increasing deep-role
+weight. Generation does not inspect current equipment or fill missing slots.
+An equipment decision that changes the role/core axis is observable as a build
+transition, distinct from an ordinary swap; this is lightweight observation,
+not full telemetry analysis.
+
 ### Current implementation boundary
 
 The current repository still exposes a material-funded permanent-unlock tree
