@@ -73,7 +73,9 @@ function getWeightedEncounterPoolForFloor(floor, options = {}) {
     ? getBandTrialForFloor(options.runSeed, floor, options.storedTrial)
     : null);
   return pool.flatMap(name => Array.from(
-    { length: Math.max(0, Math.round(getEncounterWeightForFloor(name, floor, { trial }) * (trial ? 10 : 1))) },
+    { length: trial
+        ? Math.max(1, Math.round(getEncounterWeightForFloor(name, floor, { trial }) * 10))
+        : Math.max(0, getEncounterWeightForFloor(name, floor, { trial })) },
     () => name
   ));
 }

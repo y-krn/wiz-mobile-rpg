@@ -7,6 +7,7 @@ import {
   getBandIndexForFloor,
   getBandTrialForFloor,
   getFloorRole,
+  getTrialAffinityMatches,
   getTrialAffinityWeight
 } from "../../../src/rules/floor_trials.js";
 import { getEncounterPoolForFloor, getEncounterWeightForFloor } from "../../../src/data/encounters.js";
@@ -79,7 +80,58 @@ const guardian = generateEncounter({
 }, true, false, false, null, () => 0.5);
 assert.deepEqual(guardian.monsters[0].trialThemeIds, [guardian.trial.mainId, guardian.trial.subId]);
 assert.equal(guardian.monsters[0].trialDensity, "high");
+assert.equal(guardian.monsters[0].trialPressures.length, 2);
+assert.ok(guardian.monsters[0].trialPressures.every(pressure => pressure.sourceName));
 assert.equal(guardian.floorRole, "settlement");
+
+const forcedManyAndEndurance = generateEncounter({
+  floor: 5,
+  currentRun: {
+    runSeed,
+    trialBands: { 0: { bandIndex: 0, mainId: "many_battles", subId: "endurance" } }
+  }
+}, true, false, false, null, () => 0.5).monsters[0];
+const forcedOpeningAndResource = generateEncounter({
+  floor: 5,
+  currentRun: {
+    runSeed,
+    trialBands: { 0: { bandIndex: 0, mainId: "opening", subId: "resource" } }
+  }
+}, true, false, false, null, () => 0.5).monsters[0];
+assert.ok(forcedManyAndEndurance.traits?.some(trait => ["splitOnDeath", "summonAlly", "regen", "guardAdjacent"].includes(trait)));
+assert.ok(forcedOpeningAndResource.isSniper || forcedOpeningAndResource.traits?.includes("targetLowHp") || forcedOpeningAndResource.traits?.includes("drainMp"));
+assert.notDeepEqual(
+  { traits: forcedManyAndEndurance.traits, isSniper: forcedManyAndEndurance.isSniper, magicResist: forcedManyAndEndurance.magicResist },
+  { traits: forcedOpeningAndResource.traits, isSniper: forcedOpeningAndResource.isSniper, magicResist: forcedOpeningAndResource.magicResist },
+  "different trial pairs must change Guardian combat characteristics"
+);
+
+const roleTrial = {
+  main: FLOOR_TRIALS.find(theme => theme.id === "many_battles"),
+  sub: FLOOR_TRIALS.find(theme => theme.id === "short_battle")
+};
+const mainOnly = MONSTERS.find(monster => {
+  const matches = getTrialAffinityMatches(monster, roleTrial);
+  return matches.mainMatch && !matches.subMatch;
+});
+const subOnly = MONSTERS.find(monster => {
+  const matches = getTrialAffinityMatches(monster, roleTrial);
+  return !matches.mainMatch && matches.subMatch;
+});
+const both = MONSTERS.find(monster => {
+  const matches = getTrialAffinityMatches(monster, roleTrial);
+  return matches.mainMatch && matches.subMatch;
+});
+const neither = MONSTERS.find(monster => !getTrialAffinityMatches(monster, roleTrial).mainMatch && !getTrialAffinityMatches(monster, roleTrial).subMatch);
+assert.ok(mainOnly && subOnly && both && neither, "test trial must cover all affinity classes");
+for (const role of [FLOOR_ROLES[0], FLOOR_ROLES[1], FLOOR_ROLES[2]]) {
+  assert.equal(getTrialAffinityWeight(mainOnly, roleTrial, role), role.mainWeight);
+  assert.equal(getTrialAffinityWeight(subOnly, roleTrial, role), role.subWeight);
+  assert.ok(Math.abs(
+    getTrialAffinityWeight(both, roleTrial, role) - role.mainWeight * role.subWeight * 1.08
+  ) < 1e-12);
+  assert.equal(getTrialAffinityWeight(neither, roleTrial, role), 1);
+}
 
 const currentRun = createDefaultCurrentRun();
 currentRun.runSeed = runSeed;

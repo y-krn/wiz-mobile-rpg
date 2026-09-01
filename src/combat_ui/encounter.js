@@ -6,7 +6,12 @@ import {
 } from "../data.js";
 import { isEncounterCompositionAllowed, pickEncounterSize } from "../rules/encounter_rules.js";
 import { scaleEnemyForDepth } from "../rules/depth_scaling.js";
-import { getBandIndexForFloor, getBandTrialForFloor, getFloorRole } from "../rules/floor_trials.js";
+import {
+  getBandIndexForFloor,
+  getBandTrialForFloor,
+  getFloorRole,
+  getTrialGuardianPressures
+} from "../rules/floor_trials.js";
 
 export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster = null, rng = Math.random) {
   const monsters = [];
@@ -20,13 +25,34 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
   if (isBoss) {
     const bossName = getBiomeForFloor(state.floor).bossName;
     const bossTemplate = MONSTERS.find(m => m.name === bossName);
-    monsters.push({
+    const guardian = {
       ...scaleEnemyForDepth(bossTemplate, state.floor, { boss: true }),
       // A guardian is a high-density confirmation of what this band already
       // taught. These IDs are internal and do not add a new boss rule.
       trialThemeIds: trial ? [trial.mainId, trial.subId] : [],
-      trialDensity: trial ? "high" : null
-    });
+      trialDensity: trial ? "high" : null,
+      trialPressures: []
+    };
+    if (trial) {
+      const biomeNames = getBiomeForFloor(state.floor).enemyPool;
+      const candidateTemplates = [
+        ...biomeNames.map(name => MONSTERS.find(monster => monster.name === name)).filter(Boolean),
+        ...MONSTERS
+      ].filter((template, index, all) => all.findIndex(candidate => candidate.name === template.name) === index);
+      const pressures = getTrialGuardianPressures(trial, candidateTemplates, { maxLevel: bossTemplate.level });
+      pressures.forEach(pressure => {
+        guardian.trialPressures.push({
+          role: pressure.role,
+          themeId: pressure.themeId,
+          sourceName: pressure.sourceName
+        });
+        guardian.traits = [...new Set([...(guardian.traits || []), ...pressure.traits])];
+        Object.entries(pressure.behavior).forEach(([key, value]) => {
+          if (guardian[key] === undefined) guardian[key] = value;
+        });
+      });
+    }
+    monsters.push(guardian);
   } else if (isMidboss) {
     const midbossTemplate = MONSTERS.find(m => m.name === "デーモンガード");
     monsters.push({

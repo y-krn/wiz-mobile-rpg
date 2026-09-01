@@ -32,9 +32,11 @@ export {
   getBandTrialForFloor,
   getStoredBandTrial,
   getTrialAffinityWeight,
+  getTrialAffinityMatches,
   getTrialEncounterSizeWeights,
   getTrialRareWeight,
-  getBandClue
+  getBandClue,
+  getTrialGuardianPressures
 } from "./rules/floor_trials.js";
 export * from "./rules/depth_scaling.js";
 

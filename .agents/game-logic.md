@@ -120,9 +120,12 @@ hard-banned. Floor roles are also weights: introduction, development, change,
 temptation, and settlement affect existing encounter composition, enemy
 affinity, and rare-encounter selection without disabling a player action.
 
-Boss encounters carry the same selected IDs as a high-density confirmation of
-known pressure. Portal clues use coarse signals from the resolved next band and
-never reveal theme names, exact probabilities, or a threat meter.
+Boss encounters carry the same selected IDs and inherit representative existing
+enemy traits/behavior as a high-density confirmation of known pressure. The
+Guardian therefore changes actual targeting, status, defense, or queued-action
+behavior without adding a new rule. Portal clues use coarse signals from the
+resolved next band and never reveal theme names, exact probabilities, or a
+threat meter.
 
 ## Initial File Routing
 
