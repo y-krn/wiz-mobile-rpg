@@ -74,6 +74,12 @@ assert.ok(
 const trialPool = getEncounterPoolForFloor(7, { trial });
 assert.ok(trialPool.includes(nonMatching.name), "non-matching enemies remain possible");
 
+const b1TrialPool = getEncounterPoolForFloor(1, {
+  trial: getBandTrialForFloor(runSeed, 1)
+});
+assert.equal(b1TrialPool.includes("フラッシュバット"), false, "trial must not bypass B1 blind threat gate");
+assert.equal(b1TrialPool.includes("まどろみ胞子"), false, "trial must not bypass B1 sleep threat gate");
+
 const guardian = generateEncounter({
   floor: 10,
   currentRun: { runSeed, trialBands: {} }

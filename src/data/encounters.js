@@ -3,6 +3,7 @@ import { ENEMY_ROLES, MONSTERS } from "./monsters.js";
 import {
   getBandTrialForFloor,
   getFloorRole,
+  getTrialAffinityMatches,
   getTrialAffinityWeight,
   getTrialEncounterSizeWeights
 } from "../rules/floor_trials.js";
@@ -72,12 +73,28 @@ function getWeightedEncounterPoolForFloor(floor, options = {}) {
   const trial = options.trial || (options.runSeed
     ? getBandTrialForFloor(options.runSeed, floor, options.storedTrial)
     : null);
-  return pool.flatMap(name => Array.from(
-    { length: trial
-        ? Math.max(1, Math.round(getEncounterWeightForFloor(name, floor, { trial }) * 10))
-        : Math.max(0, getEncounterWeightForFloor(name, floor, { trial })) },
-    () => name
-  ));
+  if (!trial) {
+    return pool.flatMap(name => Array.from(
+      { length: Math.max(0, getEncounterWeightForFloor(name, floor, { trial })) },
+      () => name
+    ));
+  }
+
+  const fallbackName = pool.find((name, index) => {
+    const monster = MONSTER_BY_NAME.get(name);
+    const matches = getTrialAffinityMatches(monster, trial);
+    return index > 0 && getEncounterWeightForFloor(name, floor, { trial }) > 0 &&
+      !matches.mainMatch && !matches.subMatch;
+  }) || pool.find(name => getEncounterWeightForFloor(name, floor, { trial }) > 0);
+  return pool.flatMap(name => {
+    const weight = getEncounterWeightForFloor(name, floor, { trial });
+    if (weight <= 0) {
+      // Preserve the deterministic selection slots while reallocating a hard-
+      // gated enemy's slot to an eligible enemy. The gated name never returns.
+      return fallbackName ? [fallbackName] : [];
+    }
+    return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => name);
+  });
 }
 
 export function getEncounterPoolForFloor(floor, options = {}) {
