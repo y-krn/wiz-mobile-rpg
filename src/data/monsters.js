@@ -284,6 +284,7 @@ export function describeMonsterResistances(monster, record) {
 
 export function describeMonsterTraits(monster, record = null) {
   const descriptions = [];
+  if (monster.combatTraitLabel) descriptions.push(monster.combatTraitLabel);
   const statusPrefix = monster.statusChance >= 0.5 ? "高確率で" : "";
   const statusTraits = [
     ["isPoisonous", "毒を付与"],

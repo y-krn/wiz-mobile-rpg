@@ -58,7 +58,8 @@ import {
 } from "./vulnerable.js";
 import {
   hasTrait,
-  processMonsterDefeat
+  processMonsterDefeat,
+  getEliteAttackMultiplier
 } from "./monster_traits.js";
 
 import { applyCombatRewards } from "./rewards.js";
@@ -870,9 +871,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (statusPatternResult?.handled) return;
       const statusPayoff = statusPatternResult?.payoff || null;
 
-      if (hasTrait(mon, "regen") && mon.hp < mon.maxHp) {
+      if ((hasTrait(mon, "regen") || mon.combatTrait === "regenerator") && mon.hp < mon.maxHp) {
         recordMonsterAction(mon, "自己再生", state);
-        const heal = mon.regenAmount ?? Math.max(1, Math.floor(mon.maxHp * 0.12));
+        const heal = mon.combatTrait === "regenerator"
+          ? Math.max(1, Math.floor(mon.maxHp * 0.10))
+          : mon.regenAmount ?? Math.max(1, Math.floor(mon.maxHp * 0.12));
         mon.hp = Math.min(mon.maxHp, mon.hp + heal);
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は再生し、HPが${heal}回復した。` });
       }
@@ -1108,12 +1111,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       if (!targetSelect) {
-        targetCandidates = hasTrait(mon, "targetLowHp")
+        targetCandidates = (hasTrait(mon, "targetLowHp") || mon.combatTrait === "executioner")
           ? getLivingTargetCandidates(state.party, "lowHp")
           : getLivingTargetCandidates(state.party);
 
         if (targetCandidates.length === 0) return;
-        targetSelect = hasTrait(mon, "targetLowHp") ? targetCandidates[0] : targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
+        targetSelect = (hasTrait(mon, "targetLowHp") || mon.combatTrait === "executioner")
+          ? targetCandidates[0] : targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
       }
 
       const target = targetSelect.c;
@@ -1315,6 +1319,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           } else {
             finalAtk = baseAtk + Math.floor(Math.random() * 4);
           }
+          finalAtk = Math.max(1, Math.round(finalAtk * getEliteAttackMultiplier(mon, target)));
           const frontGuard = targetSelect.i < 2 ? getCharAffixSum(target, "frontGuard") : 0;
           const firstStrikeDefense = target.combatFirstStrikeActive ? getCharAffixSum(target, "firstStrikeDefense") : 0;
           const finalDef = calculatePhysicalDefenseFormula({

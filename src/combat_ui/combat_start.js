@@ -11,6 +11,7 @@ import { triggerRunResult } from "../result.js";
 import { setupChestState } from "../chest.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 import { trackCombatStart } from "../telemetry.js";
+import { recordEliteGreedAction } from "../systems/roaming_elites.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;
@@ -27,6 +28,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
   state.gameState = "combat";
   if (state.currentRun) {
     state.currentRun.battles++;
+    if (!isBoss && !isMidboss && !isRoamingFlack) recordEliteGreedAction(state, "battle");
   }
 
   state.party.forEach(char => {
@@ -55,6 +57,10 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     addLog("【⚠️強敵遭遇！】周囲の空気が張り詰める...！");
     if (isBoss && trial) {
       addLog("【帯の決算】これまでに見た気配が、階層守護者に集約されている…！");
+    }
+    if (isRoamingFlack) {
+      const traitLabels = monsters.map(monster => monster.combatTraitLabel).filter(Boolean);
+      if (traitLabels.length > 0) addLog(`【個体特性】${traitLabels.join(" / ")}`);
     }
   } else if (isRare) {
     addLog("【✨希少遭遇！】珍しい魔物が現れた！");

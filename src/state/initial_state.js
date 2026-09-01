@@ -75,6 +75,11 @@ export const createDefaultCurrentRun = () => ({
   // Deterministic five-floor trial selections are cached so old saves and
   // future generator changes cannot reroll an already decided band.
   trialBands: {},
+  // Per-floor elite lifecycle and greed-trigger state. This is persisted so
+  // entry/prolonged rolls and qualitative warnings cannot reroll on load.
+  eliteFloors: {},
+  eliteOmenSteps: {},
+  eliteDefeatedFloors: [],
   defeatedMilestones: [],
   visitedMilestoneMerchants: [],
   quests: [],

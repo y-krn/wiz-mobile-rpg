@@ -142,6 +142,13 @@ are generation tendencies, not a scripted event sequence; player-facing clues
 remain coarse and do not expose theme IDs or probabilities. These role labels
 do not target the current build or impose a Core activation cap.
 
+Issue #998 now makes roaming elites an optional deep-floor risk event. Entry
+presence is seed-deterministic, while prolonged presence is driven by saved
+value-seeking actions (new area discovery, battles, chests, optional facilities,
+and exploration after finding the exit stairs); walking alone does not advance
+the threat. The elite's combat trait is weighted by the current band's main and
+sub-theme, preserving deterministic replay and meaningful trait variation.
+
 Issue #1006 implements the object-loot ownership slice of this contract:
 dungeon loot remains unbanked until a terminal, unused Town preparation items
 return to Town storage, and the result screen records returned and lost loot.

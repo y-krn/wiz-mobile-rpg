@@ -418,6 +418,35 @@ function normalizeCurrentRun(run) {
       isRecord(trial) && typeof trial.mainId === "string" && typeof trial.subId === "string"
     )
   );
+  normalized.eliteFloors = Object.fromEntries(
+    Object.entries(normalized.eliteFloors).filter(([floor, elite]) =>
+      /^\d+$/.test(floor) && Number(floor) >= 1 && isRecord(elite)
+    ).map(([floor, elite]) => [floor, {
+      entryRollResolved: elite.entryRollResolved === true,
+      spawned: elite.spawned === true,
+      defeated: elite.defeated === true,
+      warningStage: Math.min(3, Math.max(0, integerOr(elite.warningStage, 0))),
+      prolongedChecks: Math.max(0, integerOr(elite.prolongedChecks, 0)),
+      greedScore: Math.max(0, numberOr(elite.greedScore, 0)),
+      stairsFound: elite.stairsFound === true,
+      actionKeys: arrayOr(elite.actionKeys).filter(key => typeof key === "string").slice(-100)
+    }])
+  );
+  Object.entries(recordOr(normalized.eliteOmenSteps, {})).forEach(([floor, omenSteps]) => {
+    if (!/^\d+$/.test(floor) || !Array.isArray(omenSteps)) return;
+    const elite = normalized.eliteFloors[floor] || {
+      entryRollResolved: false,
+      spawned: false,
+      defeated: false,
+      warningStage: 0,
+      prolongedChecks: 0,
+      greedScore: 0,
+      stairsFound: false,
+      actionKeys: []
+    };
+    elite.warningStage = Math.max(elite.warningStage, Math.min(3, omenSteps.length));
+    normalized.eliteFloors[floor] = elite;
+  });
   normalized.lootSequence = Math.max(0, Math.floor(Number(normalized.lootSequence) || 0));
   normalized.deathLogs = normalized.deathLogs
     .map(normalizeDeathLogEntry)
