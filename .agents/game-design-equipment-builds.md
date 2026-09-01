@@ -141,10 +141,14 @@ and their effects are inactive when the wearer is hp0 / dead / ash.
 
 Unknown equipment is evaluated at the mechanism layer while equipped: base
 stats, support/core affixes, and both positive and negative curse modifiers
-may apply while the UI masks their details. This is current implementation
-context, not a replacement for the vNext information ladder: the intended
-player experience is signs → observation → trial → full understanding, with
-the risk and return value of acting before full understanding preserved.
+may apply while the UI masks their details. Each generated item persists a
+`knowledgeStage` (`discovery`, `observation`, `trial`, or `full`) plus its
+truthful observed hint tags. Carrying an item can advance observation, and
+equipping it advances trial while leaving the exact affix list hidden. Full
+identification sets the compatibility `identified` flag and records the
+affixes in the Codex. This preserves the risk and return value of acting before
+full understanding without turning a hint into a one-to-one hidden-tag
+dictionary.
 Equipping cursed unknown equipment and triggering its curse remains a valid
 implementation path, but it must not silently reveal the answer in the Codex.
 

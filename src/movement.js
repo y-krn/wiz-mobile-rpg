@@ -26,6 +26,7 @@ import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "./rules/trap_eff
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
+import { observeCarriedEquipment } from "./systems/identification.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -39,6 +40,9 @@ export function recordExplorationSteps(count = 1) {
   if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
   const key = String(state.floor);
   state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + count;
+  if (observeCarriedEquipment(state) > 0) {
+    addLog("【観察】持ち歩く装備から新たな兆候を読み取った。");
+  }
 }
 
 export function getCurrentFloorExplorationSteps() {

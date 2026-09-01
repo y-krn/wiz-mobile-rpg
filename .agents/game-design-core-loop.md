@@ -476,10 +476,14 @@ mitigations. Chest traps keep a risk/reward branch: every class can leave,
 smash for a weaker trap effect with possible consumable loss, or use a kit,
 while specialist classes retain safer disarm rates.
 
-Unidentified equipment sits on the same ladder: presence (a drop),
-identification (base type visible), detail (identified affixes). Pillar 3's
-gamble is the choice to act from the identification rung without paying for
-detail.
+Unidentified equipment follows four explicit knowledge stages: discovery
+(type/quality and one or two truthful sensory signs), observation (carrying it
+or encountering a related situation can add a sign), trial (equipping or using
+it makes the main function judgeable), and full understanding (Town recovery or
+complete identification exposes the exact stored detail). Pillar 3's gamble is
+the choice to act from the partial-information stages without paying for full
+detail; exact hidden values, probabilities, and undiscovered affix names remain
+masked until full understanding.
 
 ## Combat
 

@@ -687,6 +687,18 @@
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.equip-knowledge-status,
+.equip-detail-trial-effect {
+  border-left: 2px solid var(--neon-amber);
+  color: var(--text-main);
+  font-size: var(--fs-sm);
+  padding-left: var(--sp-xs);
+}
+
+.equip-detail-trial-effect {
+  color: var(--neon-green);
+}
+
 .equip-detail-compat {
   display: flex;
   align-items: center;

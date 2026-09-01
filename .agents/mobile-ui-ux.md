@@ -113,6 +113,11 @@ behavior may be relevant.
 - Keep primary equipment actions outside the scrolling region; the content may
   scroll, but identify/equip/remove/back controls stay fixed and reachable.
 
+Unknown equipment shows its current knowledge stage and truthful sensory signs
+in the detail view; trial state may show the main observed function without
+revealing the remaining exact affixes. Identification remains a fixed,
+reachable action.
+
 - Return Wing rescue: show the full unbanked object-loot list, not only bag
   entries; mark equipped candidates explicitly, cap selection at the shared
   salvage count, and keep the final rescue action at the shared tap minimum.

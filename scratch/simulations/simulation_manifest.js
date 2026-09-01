@@ -173,6 +173,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/character_stats.js", domains: ["combat", "equipment"] },
     { pattern: "src/rules/trap_effect_rules.js", domains: ["traps"] },
     { pattern: "src/rules/item_rules.js", domains: ["equipment"] },
+    { pattern: "src/rules/identification_rules.js", domains: ["equipment"] },
     { pattern: "src/systems/identification.js", domains: ["equipment"] },
     { pattern: "src/rules/depth_scaling.js", domains: ["combat", "maps"] },
     { pattern: "src/rules/equipment_slots.js", domains: ["equipment"] },

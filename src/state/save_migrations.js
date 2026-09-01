@@ -1,7 +1,7 @@
 import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT } from "../data.js";
 import { generateRandomMap, removeIsolatedInternalWalls } from "../map_generator.js";
 import { generateRandomSeed, createDefaultCodex, createDefaultCurrentRun } from "./initial_state.js";
-import { getIdentificationGambleProfile } from "../rules/identification_rules.js";
+import { getIdentificationGambleProfile, getKnowledgeHintTags, getKnowledgeStage } from "../rules/identification_rules.js";
 import { normalizeRecords } from "./records_state.js";
 import { findMapCellByType } from "../rules/map_queries.js";
 import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
@@ -217,9 +217,13 @@ function normalizeCharEquipment(char) {
 }
 
 function backfillItemAffixes(item) {
-  if (!item || typeof item !== "object" || !Array.isArray(item.affixes)) return;
+  if (!item || typeof item !== "object" || !item.baseId) return;
+  item.knowledgeStage = getKnowledgeStage(item);
+  item.observedHintTags = getKnowledgeHintTags(item);
+  item.observationCount = Math.max(0, integerOr(item.observationCount, 0));
+  item.trialCount = Math.max(0, integerOr(item.trialCount, 0));
   item.cursePower ??= getIdentificationGambleProfile(item.level || 1).cursePower;
-  item.affixes.forEach(affix => {
+  (Array.isArray(item.affixes) ? item.affixes : []).forEach(affix => {
     if (!affix || typeof affix !== "object") return;
     affix.id ||= affix.type;
     affix.kind ||= affix.id?.startsWith("CORE_") ? "core" : "support";

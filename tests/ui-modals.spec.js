@@ -713,11 +713,14 @@ for (const vp of VIEWPORTS) {
     await expect(unidentifiedSword.locator('.equip-rarity-badge')).toHaveCount(0);
     await unidentifiedSword.click();
     await expect(page.locator('.equip-detail-content')).toContainText('比較不能');
+    await expect(page.locator('.equip-detail-content')).toContainText('知識段階: 発見');
+    await expect(page.locator('.equip-detail-content')).toContainText('兆候:');
     const identifyButton = page.getByRole('button', { name: /鑑定する/ });
     await expect(identifyButton).toBeVisible();
     expect((await identifyButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await identifyButton.click();
     await expect(page.locator('.equip-detail-content')).not.toContainText('比較不能');
+    await expect(page.locator('.equip-detail-content')).toContainText('知識段階: 完全理解');
     await expect(page.locator('.equip-detail-rarity')).toHaveText('RARE');
     await page.getByRole('button', { name: '一覧へ戻る' }).click();
     const identifiedSword = page.locator('.equip-item-row.rarity-rare', { hasText: 'ショートソード' }).first();
@@ -746,10 +749,17 @@ for (const vp of VIEWPORTS) {
     await expect.poll(() => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const item = state.party[0].equipment.armor;
-      return { identified: item.identified, halfIdentified: item.halfIdentified, curseLocked: item.curseLocked };
-    })).toEqual({ identified: false, halfIdentified: false, curseLocked: true });
+      return {
+        identified: item.identified,
+        halfIdentified: item.halfIdentified,
+        knowledgeStage: item.knowledgeStage,
+        curseLocked: item.curseLocked
+      };
+    })).toEqual({ identified: false, halfIdentified: false, knowledgeStage: 'trial', curseLocked: true });
     await page.locator('.equip-item-row', { hasText: '呪い・外せない' }).click();
     await expect(page.locator('.equip-detail-content')).toContainText('呪いで固定中');
+    await expect(page.locator('.equip-detail-content')).toContainText('知識段階: 試用');
+    await expect(page.locator('.equip-detail-content')).toContainText('主な手応え:');
     await expect(page.locator('.equip-affix-details')).toContainText('呪われている（効果不明）');
     await expect(page.locator('.equip-affix-details')).not.toContainText('魂喰い');
     const removeButton = page.getByRole('button', { name: /深層商人で解呪できます/ });

@@ -10,7 +10,14 @@ import {
   isCurseLocked
 } from "./data.js";
 import { CURSE_EFFECTS } from "./data/items.js";
-import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
+import {
+  IDENTIFICATION_BALANCE,
+  getKnowledgeHintTags,
+  getKnowledgeStage,
+  getKnowledgeStageLabel,
+  KNOWLEDGE_STAGES,
+  SENSORY_HINT_LABELS
+} from "./rules/identification_rules.js";
 import { updateUI } from "./ui.js";
 import {
   getEnhanceCost,
@@ -278,6 +285,14 @@ function getItemSummary(item) {
   return "";
 }
 
+function getKnowledgeSummary(itemKey) {
+  if (!itemKey || typeof itemKey !== "object") return "";
+  const hints = getKnowledgeHintTags(itemKey)
+    .map(tag => SENSORY_HINT_LABELS[tag] || tag)
+    .join("・");
+  return `${getKnowledgeStageLabel(itemKey)}${hints ? ` / ${hints}` : ""}`;
+}
+
 function createHeader(overlay, char) {
   const header = document.createElement("div");
   header.className = "equip-header-area";
@@ -511,7 +526,7 @@ function createEquipmentList(char, savedScrollTop) {
     const summary = document.createElement("span");
     summary.className = "equip-item-row-tag";
     summary.textContent = comparisonTarget
-      ? `${label} ${item ? `/ ${isCurseLocked(itemKey) ? "🔒 呪い・外せない" : (isIdentified(itemKey) ? getItemSummary(item) : "比較不能")}` : ""}`
+      ? `${label} ${item ? `/ ${isCurseLocked(itemKey) ? "🔒 呪い・外せない" : (isIdentified(itemKey) ? getItemSummary(item) : getKnowledgeSummary(itemKey))}` : ""}`
       : `${label}${isCurseLocked(itemKey) ? " / 🔒 呪い・外せない" : ""}`;
     left.appendChild(summary);
     row.appendChild(left);
@@ -637,7 +652,7 @@ function createEquipmentList(char, savedScrollTop) {
 
       const summary = document.createElement("span");
       summary.className = "equip-item-row-tag";
-      summary.textContent = `${EQUIPMENT_TYPE_LABELS[item.type]} / ${isIdentified(itemKey) ? getItemSummary(item) : "比較不能"}`;
+      summary.textContent = `${EQUIPMENT_TYPE_LABELS[item.type]} / ${isIdentified(itemKey) ? getItemSummary(item) : getKnowledgeSummary(itemKey)}`;
       left.appendChild(summary);
       row.appendChild(left);
 
@@ -649,7 +664,7 @@ function createEquipmentList(char, savedScrollTop) {
       const badge = document.createElement("span");
       if (!isIdentified(itemKey)) {
         badge.className = "equip-row-badge unident";
-        badge.textContent = "? 未鑑定";
+        badge.textContent = `? ${getKnowledgeStageLabel(itemKey)}`;
         badge.style.background = "rgba(255, 170, 0, 0.2)";
         badge.style.color = "rgb(255, 170, 0)";
       } else if (!availability.ok) {
@@ -972,6 +987,7 @@ function createDetailPanel(char) {
   const itemKey = getSelectedItemKey() || equipState.selectedKey;
   const item = getItemData(itemKey);
   const hidden = !isIdentified(itemKey);
+  const knowledgeStage = getKnowledgeStage(itemKey);
   const isEquipped = equipState.selectedIsEquipped;
 
   let preview;
@@ -1036,6 +1052,11 @@ function createDetailPanel(char) {
       statGrid.appendChild(createStatPill(row));
     });
     content.appendChild(statGrid);
+  } else if (preview && availability.ok && hidden && knowledgeStage === KNOWLEDGE_STAGES.TRIAL && item.primaryEffect) {
+    const trialEffect = document.createElement("div");
+    trialEffect.className = "equip-detail-trial-effect";
+    trialEffect.textContent = `主な手応え: ${item.primaryEffect}`;
+    content.appendChild(trialEffect);
   } else if (preview && availability.ok && hidden) {
     const hiddenStats = document.createElement("div");
     hiddenStats.className = "equip-detail-placeholder";
@@ -1048,6 +1069,11 @@ function createDetailPanel(char) {
   context.appendChild(desc);
   context.appendChild(targetSummary);
   content.appendChild(context);
+
+  const knowledge = document.createElement("div");
+  knowledge.className = "equip-knowledge-status";
+  knowledge.textContent = `知識段階: ${getKnowledgeStageLabel(knowledgeStage)}`;
+  content.appendChild(knowledge);
 
   const affixDetails = createAffixDetails(itemKey);
   if (affixDetails) content.appendChild(affixDetails);

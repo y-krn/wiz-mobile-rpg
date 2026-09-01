@@ -303,6 +303,12 @@ run-outcome, material-banking, and 20-slot inventory paths. Their existence
 does not mean the vNext confirmation, salvage-selection, or loss semantics
 are complete; implementation issues must identify and close those slices.
 
+Unknown equipment now persists its information state per item: discovery,
+observation, trial, or full understanding. Dungeon carrying and equipment use
+may disclose truthful signs and the main function, while complete
+identification remains the exact-detail path. The compatibility `identified`
+flag, hidden affixes, and curse binding continue to survive save/load.
+
 ### vNext object-loot ownership (Issue #1006)
 
 Materials keep the rules above. Separately, dungeon-acquired equipment,
