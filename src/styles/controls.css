@@ -805,7 +805,9 @@
   min-height: 0;
 }
 #controls-panel.departure-mode #departure-start-footer {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(var(--tap-min), auto);
 }
 #submenu-title {
   padding: 0 2px var(--sp-xs);

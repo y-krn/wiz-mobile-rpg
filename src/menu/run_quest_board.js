@@ -125,3 +125,7 @@ export function consumeSelectedRunQuestTemplateIds() {
   boardCandidates = null;
   return selected;
 }
+
+export function getPendingRunQuestTemplateIds() {
+  return pendingTemplateIds ? [...pendingTemplateIds] : [];
+}

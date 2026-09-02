@@ -17,11 +17,18 @@ import { CRAFT_RECIPES } from "../craft.js";
 import { getSortedCraftRecipes } from "../rules/craft_rules.js";
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
 import { getEquipmentSlotsForType } from "../rules/equipment_slots.js";
-import { consumeSelectedRunQuestTemplateIds } from "./run_quest_board.js";
+import {
+  consumeSelectedRunQuestTemplateIds,
+  getPendingRunQuestTemplateIds
+} from "./run_quest_board.js";
 import { createActionCard } from "./action_card.js";
+import { RUN_QUEST_TEMPLATES } from "../data/run_quests.js";
+import { getFloorTheme } from "../data/floor_themes.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
+const DEPARTURE_BAG_CAPACITY = INVENTORY_CAPACITY;
+const DEPARTURE_ITEM_LIMITS = Object.freeze({ TOWN_PORTAL: 1 });
 
 function formatCraftPayment(payment) {
   const typed = Object.entries(payment?.typed || {})
@@ -87,6 +94,128 @@ function getSelectedRecipeIds() {
   );
 }
 
+function getSelectedBagItems(recipeIds = getSelectedRecipeIds()) {
+  const fixedItems = getWorkshopGrants(state.workshop).returnItems || [];
+  const craftedItems = getDepartureCraftRecipes(recipeIds)
+    .filter(recipe => !recipe.identifyPowder)
+    .map(recipe => recipe.resultId);
+  return [...fixedItems, ...craftedItems];
+}
+
+function getCraftSelectionBlockReason(recipe, selectedRecipeIds) {
+  const selectedItems = getSelectedBagItems(selectedRecipeIds);
+  if (!recipe.identifyPowder && selectedItems.length >= DEPARTURE_BAG_CAPACITY) {
+    return "バッグ上限（20枠）";
+  }
+  const itemLimit = DEPARTURE_ITEM_LIMITS[recipe.resultId];
+  if (itemLimit && selectedItems.filter(itemId => itemId === recipe.resultId).length >= itemLimit) {
+    return "帰還の翼は1個まで";
+  }
+  if (!canAffordDepartureCraft(state.metaMaterials, [...selectedRecipeIds, recipe.resultId])) {
+    return "素材不足";
+  }
+  return "";
+}
+
+function getCraftAvailability(recipe, selectedRecipeIds) {
+  const reason = getCraftSelectionBlockReason(recipe, selectedRecipeIds);
+  if (reason) return `あと0個・${reason}`;
+  const availableSlots = recipe.identifyPowder
+    ? Infinity
+    : DEPARTURE_BAG_CAPACITY - getSelectedBagItems(selectedRecipeIds).length;
+  const additional = getAdditionalCraftableCount(
+    state.metaMaterials,
+    selectedRecipeIds,
+    recipe.resultId,
+    Number.isFinite(availableSlots) ? availableSlots : 99
+  );
+  return `あと${Math.min(additional, DEPARTURE_ITEM_LIMITS[recipe.resultId] || additional)}個`;
+}
+
+function getFloorBand(floor) {
+  if (floor === 1) return "浅層";
+  if (floor >= 15) return "深層";
+  return "中層";
+}
+
+function getShortItemName(itemId) {
+  const name = ITEMS[itemId]?.name || itemId;
+  return name.replace(/\s*[（(].*?[）)]/g, "").replace("帰還の翼", "翼");
+}
+
+function appendPreparationRow(container, label, value, className = "") {
+  const row = document.createElement("div");
+  row.className = `solo-preparation-row${className ? ` ${className}` : ""}`;
+  const rowLabel = document.createElement("span");
+  rowLabel.textContent = label;
+  const rowValue = document.createElement("strong");
+  rowValue.textContent = value;
+  row.append(rowLabel, rowValue);
+  container.appendChild(row);
+}
+
+function renderPreparationSummary(optGrid, className, startingGear) {
+  const selectedRecipeIds = getSelectedRecipeIds();
+  const selectedItems = getSelectedBagItems(selectedRecipeIds);
+  const craftedItemCount = selectedRecipeIds.filter(recipeId => (
+    !getDepartureCraftRecipes([recipeId])[0]?.identifyPowder
+  )).length;
+  const summary = document.createElement("section");
+  summary.className = "solo-start-craft-summary solo-preparation-summary";
+  summary.setAttribute("aria-label", "今回の出発条件");
+  summary.setAttribute("aria-live", "polite");
+
+  const heading = document.createElement("div");
+  heading.className = "solo-preparation-heading";
+  const title = document.createElement("strong");
+  title.textContent = "今回の出発条件";
+  const count = document.createElement("span");
+  count.className = "solo-start-craft-summary-title";
+  count.textContent = `持ち込み ${selectedItems.length}/${DEPARTURE_BAG_CAPACITY}（出発クラフト ${craftedItemCount}品）`;
+  heading.append(title, count);
+  summary.appendChild(heading);
+
+  const slotNote = document.createElement("div");
+  slotNote.className = "solo-preparation-slot-note";
+  slotNote.textContent = `空き ${DEPARTURE_BAG_CAPACITY - selectedItems.length}枠：戦果を持ち帰る余地`;
+  summary.appendChild(slotNote);
+
+  const slots = document.createElement("div");
+  slots.className = "solo-preparation-slots";
+  slots.setAttribute("aria-label", `持ち込みバッグ ${selectedItems.length}/${DEPARTURE_BAG_CAPACITY}`);
+  for (let index = 0; index < DEPARTURE_BAG_CAPACITY; index += 1) {
+    const slot = document.createElement("span");
+    const itemId = selectedItems[index];
+    slot.className = `solo-preparation-slot${itemId ? " is-filled" : " is-open"}`;
+    slot.dataset.slotIndex = String(index + 1);
+    slot.textContent = itemId ? getShortItemName(itemId) : "空き";
+    slot.setAttribute("aria-label", itemId
+      ? `${index + 1}枠目：${ITEMS[itemId]?.name || itemId}`
+      : `${index + 1}枠目：戦果を持ち帰る余地`);
+    slots.appendChild(slot);
+  }
+  summary.appendChild(slots);
+
+  const conditions = document.createElement("div");
+  conditions.className = "solo-preparation-conditions";
+  appendPreparationRow(conditions, "クラス", getClassJpName(className));
+  appendPreparationRow(
+    conditions,
+    "開始装備",
+    startingGear ? `${ITEMS[startingGear]?.name || startingGear}（バッグ外）` : "なし（バッグ外）",
+    "solo-preparation-equipment"
+  );
+  const pendingQuestIds = getPendingRunQuestTemplateIds();
+  const questNames = pendingQuestIds
+    .map(id => RUN_QUEST_TEMPLATES.find(template => template.id === id)?.name)
+    .filter(Boolean);
+  appendPreparationRow(conditions, "選択依頼", questNames.length > 0 ? questNames.join("・") : "自動で1〜2件");
+  appendPreparationRow(conditions, "開始階", "下のボタンで最終確認");
+  summary.appendChild(conditions);
+
+  optGrid.appendChild(summary);
+}
+
 function getDepartureCraftQuantity(recipeId) {
   return departureCraftQuantities.get(recipeId) || 0;
 }
@@ -95,11 +224,10 @@ function changeDepartureCraftQuantity(optGrid, className, startingGear, recipeId
   const current = getDepartureCraftQuantity(recipeId);
   const next = Math.max(0, current + delta);
   if (next === current) return;
-  const candidateIds = getSelectedRecipeIds();
-  if (delta > 0) candidateIds.push(recipeId);
-  const fixedStartingItems = getWorkshopGrants(state.workshop).returnItems.length;
-  if (delta > 0 && candidateIds.length + fixedStartingItems > INVENTORY_CAPACITY) return;
-  if (delta > 0 && !canAffordDepartureCraft(state.metaMaterials, candidateIds)) return;
+  if (delta > 0) {
+    const recipe = CRAFT_RECIPES.find(candidate => candidate.resultId === recipeId);
+    if (!recipe || getCraftSelectionBlockReason(recipe, getSelectedRecipeIds())) return;
+  }
   if (next === 0) {
     departureCraftQuantities.delete(recipeId);
   } else {
@@ -114,21 +242,11 @@ function clearDepartureStartFooter() {
 }
 
 function renderDepartureCraftOptions(optGrid, className, startingGear) {
-  const summary = document.createElement("div");
-  summary.className = "solo-start-craft-summary";
-  summary.setAttribute("aria-live", "polite");
   const selectedRecipeIds = getSelectedRecipeIds();
-  const selectedRecipes = getDepartureCraftRecipes(selectedRecipeIds);
-  const fixedStartingItems = getWorkshopGrants(state.workshop).returnItems.length;
+  renderPreparationSummary(optGrid, className, startingGear);
   const selectedCost = getDepartureCraftCost(selectedRecipeIds);
-  const summaryTitle = document.createElement("div");
-  summaryTitle.className = "solo-start-craft-summary-title";
-  summaryTitle.textContent = selectedRecipes.length > 0
-    ? `出発クラフト ${selectedRecipes.length}品：${formatCraftPayment(selectedCost)}`
-    : "出発クラフト 0品：何も持たずに出発可";
-  summary.appendChild(summaryTitle);
-
   const selectedBalance = getDepartureCraftBalance(state.metaMaterials, selectedRecipeIds);
+  const summary = optGrid.querySelector(".solo-preparation-summary");
   const balances = document.createElement("div");
   balances.className = "solo-start-craft-balances";
   MATERIAL_TYPES.forEach(material => {
@@ -142,22 +260,18 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
     badge.textContent = `${material} ${remaining}${remaining < original ? ` (-${original - remaining})` : ""}`;
     balances.appendChild(badge);
   });
+  balances.setAttribute("aria-label", `クラフト後の残素材：${formatCraftPayment(selectedCost)}`);
   summary.appendChild(balances);
-  optGrid.appendChild(summary);
+
+  const craftHeading = document.createElement("h3");
+  craftHeading.className = "solo-preparation-section-heading";
+  craftHeading.textContent = "持ち込む道具を選ぶ";
+  optGrid.appendChild(craftHeading);
 
   getSortedCraftRecipes(CRAFT_RECIPES).forEach(recipe => {
     const quantity = getDepartureCraftQuantity(recipe.resultId);
-    const canAdd = selectedRecipeIds.length + fixedStartingItems < INVENTORY_CAPACITY &&
-      !(recipe.resultId === "TOWN_PORTAL" && selectedRecipeIds.includes(recipe.resultId)) &&
-      canAffordDepartureCraft(state.metaMaterials, [
-        ...selectedRecipeIds,
-        recipe.resultId
-      ]);
-    const additionalCraftable = getAdditionalCraftableCount(
-      state.metaMaterials,
-      selectedRecipeIds,
-      recipe.resultId
-    );
+    const availability = getCraftAvailability(recipe, selectedRecipeIds);
+    const canAdd = !getCraftSelectionBlockReason(recipe, selectedRecipeIds);
     const stepper = document.createElement("div");
     stepper.className = "solo-start-craft-stepper";
     const decrement = document.createElement("button");
@@ -171,13 +285,6 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
       changeDepartureCraftQuantity(optGrid, className, startingGear, recipe.resultId, -1);
     });
 
-    const availability = canAdd
-      ? `あと${additionalCraftable}個`
-      : selectedRecipeIds.length + fixedStartingItems >= INVENTORY_CAPACITY
-        ? "あと0個・バッグ上限（20枠）"
-        : recipe.resultId === "TOWN_PORTAL" && selectedRecipeIds.includes(recipe.resultId)
-          ? "あと0個・帰還の翼は1個まで"
-          : "あと0個・素材不足";
     const payment = getDepartureCraftCost([recipe.resultId]);
     const hasEmptyMaterial = Object.keys(payment.typed || {}).some(
       material => (selectedBalance?.[material] || 0) <= 0
@@ -215,13 +322,20 @@ function renderStartFloorChoices(optGrid, className, startingGear) {
 
   renderDepartureCraftOptions(optGrid, className, startingGear);
 
+  const floorHeading = document.createElement("div");
+  floorHeading.className = "solo-start-floor-heading";
+  floorHeading.innerHTML = "<strong>開始階を選ぶ</strong><span>深度帯を主情報に、素材倍率は補足表示</span>";
+  if (footer) footer.appendChild(floorHeading);
+
   const floors = [1, ...(state.unlockedMilestones || [])];
   floors.forEach(floor => {
     const multiplier = floor === 1 ? 1 : MATERIAL_DROP_BALANCE.milestoneStartMultiplier;
+    const theme = getFloorTheme(floor);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "btn btn-neon btn-block solo-start-floor-option";
-    button.innerHTML = `<strong>B${floor}Fから開始</strong><span>素材収入 ${Math.round(multiplier * 100)}%</span>`;
+    button.innerHTML = `<strong>B${floor}Fから開始 · ${getFloorBand(floor)}</strong><span>${theme.name} / 素材収入 ${Math.round(multiplier * 100)}%</span>`;
+    button.dataset.startFloor = String(floor);
     button.addEventListener("click", () => startRun(className, startingGear, floor));
     if (footer) footer.appendChild(button);
   });
