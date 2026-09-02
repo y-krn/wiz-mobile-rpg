@@ -427,6 +427,10 @@ export function updateUI() {
   setDockActionRole(document.getElementById("btn-combat-cancel"), "back");
   const wingConfirm = document.getElementById("btn-wing-salvage-confirm");
   if (wingConfirm) setDockActionRole(wingConfirm, "confirm");
+  if (gameState === "trap_encounter") {
+    setDockActionRole(document.getElementById("btn-trap-disarm"), "confirm");
+    setDockActionRole(document.getElementById("btn-trap-force"), "confirm");
+  }
 
   if (gameState === "explore") {
     document.getElementById("explore-controls").classList.add("active");

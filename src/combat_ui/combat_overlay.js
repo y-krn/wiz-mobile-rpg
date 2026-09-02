@@ -12,6 +12,7 @@ import {
   VULNERABLE_DAMAGE_MULTIPLIER
 } from "../combat_logic/status_effects.js";
 import { getScreenViewState, getUsableSpellKeys } from "../state/view_state.js";
+import { createBagCapacitySummary } from "../ui/bag_summary.js";
 
 function getEnemyResistanceStatus(monster) {
   const record = state.codex?.monsters?.[getMonsterCodexKey(monster)];
@@ -268,10 +269,12 @@ export function renderCombatOverlay() {
     const itemGrid = document.createElement("div");
     itemGrid.className = "combat-selection-grid";
 
-    const capacity = document.createElement("div");
-    capacity.className = `inventory-capacity-status ${state.inventory.length >= INVENTORY_CAPACITY ? "full" : ""}`;
-    capacity.textContent = `バッグ ${state.inventory.length}/${INVENTORY_CAPACITY}枠`;
-    itemGrid.appendChild(capacity);
+    itemGrid.appendChild(createBagCapacitySummary(state.inventory, {
+      className: "inventory-capacity-status",
+      note: state.inventory.length >= INVENTORY_CAPACITY
+        ? "満杯。戦闘中は新しい戦果を拾えません。戦闘後に装備画面で整理します。"
+        : "戦闘中に使う道具。装備品は装備画面で確認します。"
+    }));
 
     const usableItems = getUsableInventoryItems(state.inventory);
     if (usableItems.length === 0) {

@@ -48,6 +48,8 @@ import {
   unequipEquipment
 } from "./systems/equipment_actions.js";
 import { trackEquipmentDecision } from "./telemetry.js";
+import { appendOwnershipBadge, getItemOwnership, setDockActionRole } from "./ui/common_shell.js";
+import { createBagCapacitySummary } from "./ui/bag_summary.js";
 
 export let equipState = {
   mode: "equip",
@@ -339,10 +341,13 @@ function createHeader(overlay, char) {
 
   const statusBar = document.createElement("div");
   statusBar.className = "equip-status-bar";
-  statusBar.innerHTML = `
-    <span>素材 ${Object.values(state.currentRun?.materials || {}).reduce((sum, quantity) => sum + quantity, 0)}</span>
-    <span class="${state.inventory.length >= INVENTORY_CAPACITY ? "full" : ""}">バッグ ${state.inventory.length}/${INVENTORY_CAPACITY}</span>
-  `;
+  const materials = document.createElement("span");
+  materials.textContent = `素材 ${Object.values(state.currentRun?.materials || {}).reduce((sum, quantity) => sum + quantity, 0)}`;
+  statusBar.appendChild(materials);
+  statusBar.appendChild(createBagCapacitySummary(state.inventory, {
+    className: "equip-bag-summary",
+    showNote: false
+  }));
   header.appendChild(statusBar);
 
   const attack = getCharAttackBreakdown(char);
@@ -434,6 +439,7 @@ function createFooter(overlay, { organizing = false } = {}) {
   const btnClose = document.createElement("button");
   btnClose.id = "btn-equip-close";
   btnClose.className = "btn btn-danger";
+  setDockActionRole(btnClose, "back");
   btnClose.textContent = "閉じる";
   btnClose.addEventListener("click", closeEquipOverlay);
   closeRow.appendChild(btnClose);
@@ -695,6 +701,9 @@ function createEquipmentList(char, savedScrollTop) {
 
       const badges = document.createElement("span");
       badges.className = "equip-item-row-badges";
+      const ownership = getItemOwnership(itemKey, { state });
+      row.dataset.ownership = ownership;
+      appendOwnershipBadge(badges, ownership);
       const rarityBadge = createRarityBadge(itemKey);
       if (rarityBadge) badges.appendChild(rarityBadge);
 
@@ -1136,6 +1145,7 @@ function createDetailPanel(char) {
   backToListBtn.type = "button";
   backToListBtn.className = "btn btn-block equip-action-btn";
   backToListBtn.textContent = "一覧へ戻る";
+  setDockActionRole(backToListBtn, "back");
   backToListBtn.addEventListener("click", () => {
     clearSelection();
     renderEquip();
@@ -1158,6 +1168,7 @@ function createDetailPanel(char) {
     actionBtn.className = bagFull ? "btn btn-danger btn-block equip-action-btn" : "btn btn-neon btn-block equip-action-btn";
     actionBtn.disabled = false;
     actionBtn.textContent = bagFull ? "整理してから外す" : "外す";
+    setDockActionRole(actionBtn, "confirm");
     actionBtn.addEventListener("click", () => {
       if (bagFull) {
         requestUnequipAfterDiscard();
@@ -1183,6 +1194,7 @@ function createDetailPanel(char) {
       identifyBtn.textContent = canIdentify
         ? `鑑定する（鑑定粉1 / 所持${state.identifyTickets || 0}）`
         : "鑑定粉がありません";
+      setDockActionRole(identifyBtn, "confirm");
       identifyBtn.addEventListener("click", () => {
         const result = identifyEquipmentAt({
           inventoryIndex: equipState.selectedIdx,
@@ -1201,7 +1213,19 @@ function createDetailPanel(char) {
     actionBtn.type = "button";
     actionBtn.className = availability.ok ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
     actionBtn.disabled = !availability.ok;
-    actionBtn.textContent = availability.ok ? (hidden ? "未鑑定で装備する" : "装備する") : "装備できません";
+    const oldEquipment = preview?.oldEq ? getItemData(preview.oldEq) : null;
+    actionBtn.textContent = availability.ok
+      ? (hidden
+        ? "未鑑定で装備する"
+        : oldEquipment
+          ? `装備する（${oldEquipment.name}をバッグへ）`
+          : "装備する")
+      : "装備できません";
+    if (availability.ok) {
+      actionBtn.setAttribute("aria-label", "装備する");
+      if (oldEquipment) actionBtn.title = `${oldEquipment.name}はバッグへ戻ります`;
+    }
+    setDockActionRole(actionBtn, "confirm");
     actionBtn.addEventListener("click", () => {
       if (!availability.ok) return;
       const result = equipEquipment({
@@ -1221,6 +1245,7 @@ function createDetailPanel(char) {
       discardBtn.type = "button";
       discardBtn.className = "btn btn-danger btn-block equip-action-btn";
       discardBtn.textContent = "破棄する";
+      setDockActionRole(discardBtn, "confirm");
       discardBtn.addEventListener("click", () => {
         discardEquipment(equipState.selectedIdx, itemKey);
       });
