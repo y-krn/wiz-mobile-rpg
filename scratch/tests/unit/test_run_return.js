@@ -74,6 +74,16 @@ function setupRun(deepestFloor = 5) {
 }
 
 {
+  const { state, sword } = setupRun(5);
+  sword.identified = false;
+  sword.unidentifiedName = "未鑑定の長剣";
+  const result = processRunReturn(state, "retreat");
+  assert.equal(result.representativeItem.name, "未鑑定の長剣");
+  assert.equal(result.meaningfulItemHistory[0].name, "未鑑定の長剣");
+  console.log("[PASS] unidentified return records keep the representative name concealed");
+}
+
+{
   const first = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
     deepestFloor: 4,
     recoveredEquipment: [{ baseId: "LONG_SWORD", tags: ["ambush"], knowledgeStage: "discovery" }]
