@@ -115,14 +115,15 @@ test('combat result observations are cleared at combat boundaries', async ({ pag
       scope: 'combat:1',
       kind: 'result',
     });
-    const { combatSelection } = await import('/src/combat.js');
-    const { resolveCombatRound } = await import('/src/combat.js');
+    const { combatSelection, resolveCombatRound, resumeCombat } = await import('/src/combat.js');
+    resumeCombat();
+    const afterResume = Object.values(state.currentRun.eventObservations).filter(entry => entry.kind === 'result' && entry.lifecycle === 'active').length;
     combatSelection.actions = [{ type: 'defend', actorIdx: 0 }];
     combatSelection.charIdx = 1;
     resolveCombatRound();
     const afterRoundStart = Object.values(state.currentRun.eventObservations).filter(entry => entry.kind === 'result' && entry.lifecycle === 'active').length;
-    return { before, afterCombatStart, afterRoundStart };
+    return { before, afterCombatStart, afterResume, afterRoundStart };
   });
 
-  expect(result).toEqual({ before: 1, afterCombatStart: 0, afterRoundStart: 0 });
+  expect(result).toEqual({ before: 1, afterCombatStart: 0, afterResume: 1, afterRoundStart: 0 });
 });

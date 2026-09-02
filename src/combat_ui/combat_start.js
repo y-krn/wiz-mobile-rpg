@@ -126,7 +126,6 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
 export function resumeCombat() {
   if (!state.combatState) return;
 
-  clearEventObservations({ scopePrefix: "combat:" });
   state.combatState.phase = "choose_actions";
   combatSelection.charIdx = 0;
   combatSelection.actions = [];
