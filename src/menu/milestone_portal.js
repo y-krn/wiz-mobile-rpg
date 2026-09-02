@@ -2,7 +2,7 @@ import { closeSubmenu } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { state } from "../state.js";
-import { trackExplorationDecision } from "../telemetry.js";
+import { trackExplorationDecision, trackPortalDecision } from "../telemetry.js";
 import {
   getBandIndexForFloor,
   getBandClue,
@@ -35,6 +35,15 @@ function createNextBandClue() {
   return section;
 }
 
+function getNextBandTrialIds() {
+  const nextFloor = state.floor + 1;
+  const runSeed = state.currentRun?.runSeed;
+  if (!runSeed) return {};
+  const bandIndex = getBandIndexForFloor(nextFloor);
+  const trial = getBandTrialForFloor(runSeed, nextFloor, state.currentRun?.trialBands?.[bandIndex]);
+  return { nextBandMainId: trial?.mainId, nextBandSubId: trial?.subId };
+}
+
 export function renderMilestonePortal(optGrid) {
   optGrid.innerHTML = "";
   const retreat = document.createElement("button");
@@ -43,6 +52,7 @@ export function renderMilestonePortal(optGrid) {
   retreat.textContent = "撤退して素材を100%、未確定戦果をすべて持ち帰る";
   retreat.addEventListener("click", () => {
     trackExplorationDecision("return", { state, source: "return_portal" });
+    trackPortalDecision("return", { state, portalType: "milestone_portal", ...getNextBandTrialIds() });
     triggerRunResult("milestone_portal");
   });
   const continueButton = document.createElement("button");
@@ -51,6 +61,7 @@ export function renderMilestonePortal(optGrid) {
   continueButton.textContent = "探索を続ける";
   continueButton.addEventListener("click", () => {
     trackExplorationDecision("continue", { state, source: "return_portal" });
+    trackPortalDecision("push", { state, portalType: "milestone_portal", ...getNextBandTrialIds() });
     closeSubmenu();
   });
   const clue = createNextBandClue();

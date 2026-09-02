@@ -163,6 +163,15 @@ behavior, or flow wiring are affected.
 
 ## Review Checklist
 
+### Telemetry-only state boundary (#1012)
+
+Telemetry hooks are observation-only: no RNG calls, gameplay mutations,
+save-schema additions, or control-flow decisions. Run and loot IDs are stable
+within the active runtime run, lifecycle events are deduplicated at the
+semantic boundary, and save/load does not replay a completed event as a new
+gameplay action. Production object-loot ownership remains in
+`src/state/run_loot.js`; telemetry mirrors it but never resolves ownership.
+
 - Rules match the stated design goal.
 - State mutations are localized and predictable.
 - Existing save data shape is preserved or migration risk is explicitly handled.

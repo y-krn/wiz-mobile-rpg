@@ -1,4 +1,5 @@
 import { getItemBaseId, getItemData, isSpecialOrQuestItem } from "../rules/item_rules.js";
+import { trackLootLifecycle } from "../telemetry.js";
 
 // This is intentionally separate from equipped/unbagged state. An item can be
 // equipped and still remain an unbanked dungeon result until the run ends.
@@ -14,6 +15,21 @@ function getItemId(item) {
   return getItemBaseId(item);
 }
 
+export function findRunObjectLootEntry(stateLike, item) {
+  const run = getRun(stateLike);
+  if (!run) return null;
+  const itemId = getItemId(item);
+  const entries = Array.isArray(run.unbankedObjectLoot) ? run.unbankedObjectLoot : [];
+  const sameInstance = (candidate, expected) => candidate === expected || (
+    candidate && expected && typeof candidate === "object" && typeof expected === "object" &&
+    candidate.instanceId && candidate.instanceId === expected.instanceId
+  );
+  return entries.find(entry => sameInstance(entry?.item, item))
+    || ((run.townInventory || []).some(entry => getItemId(entry) === itemId)
+      ? null
+      : entries.find(entry => getItemId(entry?.item) === itemId) || null);
+}
+
 function isBankableObject(item) {
   const itemId = getItemId(item);
   return Boolean(itemId) && !isSpecialOrQuestItem(itemId);
@@ -24,11 +40,28 @@ function nextLootId(run) {
   return `${run.startedAt || "run"}:loot:${run.lootSequence}`;
 }
 
-export function recordDungeonObjectLoot(stateLike, item) {
+export function recordDungeonObjectLoot(
+  stateLike,
+  item,
+  { source = "dungeon", foundAlreadyTracked = false } = {}
+) {
   const run = getRun(stateLike);
   if (!run || !isBankableObject(item)) return false;
+  const id = nextLootId(run);
+  if (!foundAlreadyTracked) {
+    trackLootLifecycle("found", { state: stateLike, itemKey: item, source, lootId: id });
+  }
   run.unbankedObjectLoot ||= [];
-  run.unbankedObjectLoot.push({ id: nextLootId(run), item });
+  // Keep the persisted ledger shape unchanged; source is telemetry context
+  // only and is not part of save compatibility.
+  run.unbankedObjectLoot.push({ id, item });
+  trackLootLifecycle("bagged", {
+    state: stateLike,
+    itemKey: item,
+    source,
+    lootId: id,
+    ownership: "unbanked"
+  });
   return true;
 }
 
@@ -185,6 +218,24 @@ export function settleRunObjectLoot(stateLike, outcome, salvageIds = null) {
   const returnedDungeonItems = returnedLoot.map(entry => entry.item);
   const bankedItems = [...townItems, ...returnedDungeonItems];
   const returnedPreparationItems = returnedDungeonItems.filter(isTownPreparationItem);
+
+  returnedLoot.forEach(entry => trackLootLifecycle(
+    outcome === "wing" ? "salvaged" : "banked",
+    {
+      state: stateLike,
+      itemKey: entry.item,
+      source: "dungeon",
+      lootId: entry.id,
+      ownership: "town"
+    }
+  ));
+  lostLoot.forEach(entry => trackLootLifecycle("lost", {
+    state: stateLike,
+    itemKey: entry.item,
+    source: "dungeon",
+    lootId: entry.id,
+    ownership: "unbanked"
+  }));
 
   appendToTownStorage(stateLike, [...townItems, ...returnedPreparationItems]);
   removeTrackedItemsFromEquipment(stateLike, unbanked, stateLike.inventory, townItems);

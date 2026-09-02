@@ -17,9 +17,9 @@ import {
 } from "../combat_logic/status_effects.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
-import { trackExplorationDecision } from "../telemetry.js";
+import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision } from "../telemetry.js";
 import { applyExplorationItem } from "../systems/exploration_items.js";
-import { consumeRunObjectLoot, RETURN_WING_SALVAGE_COUNT } from "../state/run_loot.js";
+import { consumeRunObjectLoot, findRunObjectLootEntry, RETURN_WING_SALVAGE_COUNT } from "../state/run_loot.js";
 
 let selectedWingLootIds = new Set();
 let selectedWingRunSeed = null;
@@ -213,6 +213,13 @@ export function renderItemInventory(optGrid) {
 function useExplorationItem(itemKey, itemIdx, item) {
   const result = applyExplorationItem(state, itemKey);
   if (!result.ok) return;
+  trackLootLifecycle("tried", {
+    state,
+    character: state.party[0],
+    itemKey,
+    lootId: findRunObjectLootEntry(state, itemKey)?.id,
+    source: "dungeon"
+  });
   state.inventory.splice(itemIdx, 1);
   consumeRunObjectLoot(state, itemKey);
   trackExplorationDecision("item", {
@@ -248,6 +255,13 @@ export function renderItemDirectionSelect(optGrid) {
       }
       createNoiseEvent(x, y);
       const effect = applyExplorationItem(state, "NOISE_BALL");
+      trackLootLifecycle("tried", {
+        state,
+        character: state.party[0],
+        itemKey: "NOISE_BALL",
+        lootId: findRunObjectLootEntry(state, "NOISE_BALL")?.id,
+        source: "dungeon"
+      });
       state.inventory.splice(menuContext.itemIdx, 1);
       consumeRunObjectLoot(state, "NOISE_BALL");
       trackExplorationDecision("item", {
@@ -317,6 +331,13 @@ export function renderItemTargetSelect(optGrid) {
           useReturnWing();
           return;
         }
+        trackLootLifecycle("tried", {
+          state,
+          character: char,
+          itemKey: menuContext.itemKey,
+          lootId: findRunObjectLootEntry(state, menuContext.itemKey)?.id,
+          source: "dungeon"
+        });
         const log = item.effect(char, state.party);
         addLog(log);
         playSound("heal");
@@ -400,6 +421,13 @@ function useReturnWing() {
   const itemIndex = state.inventory.findIndex(item => getItemData(item)?.id === "TOWN_PORTAL");
   if (itemIndex < 0) return false;
   const selectedIds = [...selectedWingLootIds];
+  trackPortalDecision("return", {
+    state,
+    character: state.party[0],
+    portalType: "return_wing",
+    wingOwned: true,
+    wingSalvageCount: selectedIds.length
+  });
   state.inventory.splice(itemIndex, 1);
   consumeRunObjectLoot(state, "TOWN_PORTAL");
   addLog("帰還の翼を掲げた！選んだ戦果を抱え、冒険者は安全にお城へ戻った！");

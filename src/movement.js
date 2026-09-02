@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
-import { trackRunStart } from "./telemetry.js";
+import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -247,6 +247,24 @@ export function findCellCoordsByType(grid, type) {
 
 export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false, onLanding = null) {
   state.transitioning = true;
+
+  if (!isPitfall) {
+    trackFloorExploration({
+      state,
+      floor: state.floor,
+      stairsDiscovered: true,
+      floorCompleted: true
+    });
+    state.roamingMonsters
+      ?.filter(monster => monster.floor === state.floor && (monster.x !== state.x || monster.y !== state.y))
+      .forEach(elite => trackEliteDecision("avoid", {
+        state,
+        elite,
+        contactMode: "unknown",
+        distance: Math.abs(elite.x - state.x) + Math.abs(elite.y - state.y),
+        elitePolicy: "avoid"
+      }));
+  }
   
   if (isPitfall) {
     addLog("【⚠️落とし穴】足元が抜けた！暗闇へ落下していく…");
@@ -488,6 +506,18 @@ export function applyStairsHeal(cell) {
   if (state.currentRun.discoveredStairs.includes(stairsId)) return 0;
   state.currentRun.discoveredStairs.push(stairsId);
   if (cell.type === "stairs-down") recordEliteGreedAction(state, "stairs_found");
+
+  const floorStepsAtDiscovery = getCurrentFloorExplorationSteps();
+  trackStairsDiscovery({
+    state,
+    floor: state.floor,
+    stairsType: cell.type,
+    stepsAtDiscovery: floorStepsAtDiscovery,
+    stepsBeforeDiscovery: floorStepsAtDiscovery,
+    hpRate: state.party?.[0]?.hp / Math.max(1, getCharMaxHp(state.party?.[0])),
+    mpRate: state.party?.[0]?.mp / Math.max(1, state.party?.[0]?.maxMp || 1),
+    explorationMode: "discovery"
+  });
 
   let total = 0;
   state.party.forEach(char => {
@@ -861,6 +891,20 @@ export function checkRoamingMonsterEncounter() {
     rm => rm.floor === state.floor && rm.x === state.x && rm.y === state.y
   );
   if (elite) {
+    trackEliteDecision("pursue", {
+      state,
+      elite,
+      contactMode: "player_step",
+      distance: 0,
+      elitePolicy: "engage"
+    });
+    trackEliteDecision("contact", {
+      state,
+      elite,
+      contactMode: "player_step",
+      distance: 0,
+      elitePolicy: "engage"
+    });
     beginRoamingMonsterCombat(elite);
     return true;
   }
@@ -934,6 +978,7 @@ export function moveRoamingMonsters(playerMoved = true) {
   state.roamingMonsters.forEach(monster => {
     if (monster.floor !== currentFloor) return;
 
+    const wasDetected = Boolean(monster.detected);
     const intent = getPerceptionIntent({
       monster,
       player: { x: state.x, y: state.y, dir: state.dir, dx: DX, dy: DY },
@@ -943,6 +988,16 @@ export function moveRoamingMonsters(playerMoved = true) {
       rangeMultiplier: sneakStep?.detectionRangeMultiplier || 1
     });
     monster.detected = intent.detected;
+    if (!wasDetected && intent.detected) {
+      trackEliteDecision("approach", {
+        state,
+        elite: monster,
+        contactMode: "elite_step",
+        distance: Math.abs(monster.x - state.x) + Math.abs(monster.y - state.y),
+        detected: true,
+        elitePolicy: "adaptive"
+      });
+    }
     for (let step = 0; step < intent.speed; step++) {
       const neighbors = getPassableNeighbors(monster, Boolean(intent.target));
       if (!neighbors.length) break;

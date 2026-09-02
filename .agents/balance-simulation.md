@@ -1523,3 +1523,16 @@ documentation, and the focused schema regression test changed.
 | identifyDiscount | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | 鑑定費用を軽減する。 cost=1 unit=% | C/sim-missing | 145/145/30/0/0 | 20.7% [14.9,28.0] | — (sim-missing) |
 | materialFind | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | 素材発見率が10%増加する。 cost=2 unit=% | C/sim-missing | 154/154/37/0/0 | 24.0% [18.0,31.4] | — (sim-missing) |
 | contractReward | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | ランクエスト報酬が10%増加する。 cost=2 unit=% | C/sim-missing | 158/158/34/0/0 | 21.5% [15.8,28.6] | — (sim-missing) |
+
+## Issue #1012 observability acceptance measurement
+
+Use `scratch/measurements/issue1012_observability.js` for the deterministic
+acceptance record. It calls the canonical run simulator and reports exploration
+before/after stairs, Portal decisions, equipment swaps versus Main Core build
+shifts, and elite outcomes. It records seed, N, source SHA, runner SHA, and
+schema version. It is an observability measurement, not a balance threshold
+run, and must not restart the historical #990 measurement.
+
+The canonical simulator does not own the production object-loot ledger. The
+runner therefore reports loot ownership and death-loss as `not_modeled`; do not
+interpret those fields as zero or substitute them into material EV.

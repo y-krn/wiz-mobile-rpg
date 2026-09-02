@@ -276,7 +276,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   }
 
   if (dropEquipment) {
-    const added = addInventoryItemToState(state, dropEquipment, { dungeonLoot: true });
+    const added = addInventoryItemToState(state, dropEquipment, { dungeonLoot: true, source: "combat" });
     if (added) {
       recordEquipmentDiscovery(dropEquipment, state);
       if (state.currentRun) {
@@ -300,7 +300,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
 
   const dropAccessory = rollCombatAccessoryDrop(state, rng);
   if (dropAccessory) {
-    const added = addInventoryItemToState(state, dropAccessory, { dungeonLoot: true });
+    const added = addInventoryItemToState(state, dropAccessory, { dungeonLoot: true, source: "combat" });
     if (added) {
       recordEquipmentDiscovery(dropAccessory, state);
       if (state.currentRun) {
