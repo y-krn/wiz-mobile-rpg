@@ -507,12 +507,13 @@ export function applyStairsHeal(cell) {
   state.currentRun.discoveredStairs.push(stairsId);
   if (cell.type === "stairs-down") recordEliteGreedAction(state, "stairs_found");
 
+  const floorStepsAtDiscovery = getCurrentFloorExplorationSteps();
   trackStairsDiscovery({
     state,
     floor: state.floor,
     stairsType: cell.type,
-    stepsAtDiscovery: state.currentRun.steps,
-    stepsBeforeDiscovery: state.currentRun.steps,
+    stepsAtDiscovery: floorStepsAtDiscovery,
+    stepsBeforeDiscovery: floorStepsAtDiscovery,
     hpRate: state.party?.[0]?.hp / Math.max(1, getCharMaxHp(state.party?.[0])),
     mpRate: state.party?.[0]?.mp / Math.max(1, state.party?.[0]?.maxMp || 1),
     explorationMode: "discovery"

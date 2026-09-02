@@ -27,8 +27,9 @@ export function resolvePlayerItem(char, act, state, logQueue) {
     trackPortalDecision("return", {
       state,
       character: char,
-      portalType: "town_portal",
-      wingOwned: true
+      portalType: "return_wing",
+      wingOwned: true,
+      wingSalvageCount: 0
     });
     state.inventory.splice(inventoryIdx, 1);
     consumeRunObjectLoot(state, act.itemKey);

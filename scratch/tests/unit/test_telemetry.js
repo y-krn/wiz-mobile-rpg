@@ -39,6 +39,7 @@ import {
 import { recordReceivedDamage } from "../../../src/combat_logic/damage.js";
 import { getMpWardDef } from "../../../src/combat_logic/mp_ward.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic/round.js";
+import { resolvePlayerItem } from "../../../src/combat_logic/item_resolution.js";
 
 let failures = 0;
 
@@ -572,6 +573,30 @@ check("return-wing snapshots distinguish the Wing from escape scrolls", () => {
   assert.equal(resourceSnapshot.consumableWingCount, 1);
   assert.equal(resourceSnapshot.consumableEscapeScrollCount, 1);
   assert.equal(resourceSnapshot.consumableReturnCount, 2);
+});
+
+check("combat Wing use is recorded as a return-wing decision", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const combatState = {
+    floor: 2,
+    inventory: ["TOWN_PORTAL"],
+    party: [decisionPlayer],
+    currentRun: {
+      ...decisionState.currentRun,
+      townInventory: ["TOWN_PORTAL"],
+      unbankedObjectLoot: []
+    }
+  };
+  trackRunStart(run, decisionPlayer, combatState);
+  const logQueue = [];
+  const result = resolvePlayerItem(decisionPlayer, { itemKey: "TOWN_PORTAL" }, combatState, logQueue);
+  const portal = events.find(event => event.name === "portal_decision").properties;
+  assert.equal(result.escaped, true);
+  assert.equal(portal.portalType, "return_wing");
+  assert.equal(portal.decision, "return");
+  assert.equal(portal.wingSalvageCount, 0);
+  assert.equal(combatState.inventory.length, 0);
 });
 
 check("combat end numeric fields stay bounded", () => {
