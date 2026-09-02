@@ -576,6 +576,9 @@ function createEquipmentList(char, savedScrollTop) {
 
     const badges = document.createElement("span");
     badges.className = "equip-item-row-badges";
+    const ownership = getItemOwnership(itemKey, { state });
+    row.dataset.ownership = ownership;
+    appendOwnershipBadge(badges, ownership);
     const stateBadge = document.createElement("span");
     stateBadge.className = "equip-row-badge equipped";
     stateBadge.textContent = "装備中";

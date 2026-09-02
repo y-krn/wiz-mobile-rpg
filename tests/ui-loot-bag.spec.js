@@ -93,3 +93,33 @@ test('trial knowledge is qualitative and does not expose an exact hidden affix v
   expect(detail).not.toContain('4.5');
   expect(detail).not.toContain('atk');
 });
+
+test('equipped dungeon gear keeps its unconfirmed ownership badge @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { openEquipOverlay } = await import('/src/equip.js');
+    const dungeonItem = {
+      kind: 'equipment', instanceId: 'equipped-dungeon-unconfirmed', baseId: 'SHORT_SWORD',
+      rarity: 'rare', level: 1, identified: false, knowledgeStage: 'discovery',
+      tags: ['blade'], hintTags: ['blade'], observedHintTags: [], affixes: [],
+    };
+    state.party = [createSoloCharacter('Fighter')];
+    state.party[0].equipment.weapon = dungeonItem;
+    state.currentRun = {
+      townInventory: [],
+      unbankedObjectLoot: [{ id: 'loot-equipped-dungeon-unconfirmed', item: dungeonItem }],
+      lostObjectLoot: [],
+      materials: {},
+    };
+    state.inventory = [dungeonItem];
+    state.gameState = 'explore';
+    openEquipOverlay(0);
+  });
+
+  const equippedRow = page.locator('.equip-equipped-row[data-slot-id="weapon"]');
+  await expect(equippedRow).toHaveAttribute('data-ownership', 'dungeon-unconfirmed');
+  await expect(equippedRow.locator('.ownership-badge')).toContainText('迷宮で取得・未確定');
+  await expect(equippedRow.locator('.equip-row-badge.equipped')).toHaveText('装備中');
+});
