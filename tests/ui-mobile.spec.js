@@ -155,6 +155,7 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('#submenu-controls')).toBeVisible();
       await page.getByRole('button', { name: /戦士/ }).click();
       await page.getByRole('button', { name: /B1Fから開始/ }).click();
+      await page.getByRole('button', { name: '迷宮へ向かう' }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
 
       const panelBox = await page.locator('#controls-panel').boundingBox();
@@ -821,6 +822,7 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('#submenu-title')).toContainText('クラスを選択');
       await page.getByRole('button', { name: /盗賊/ }).click();
       await page.getByRole('button', { name: /B1Fから開始/ }).click();
+      await page.getByRole('button', { name: '迷宮へ向かう' }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
       const character = await page.evaluate(async () => {
         const { state } = await import('/src/state.js');

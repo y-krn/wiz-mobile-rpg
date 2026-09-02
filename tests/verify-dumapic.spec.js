@@ -20,6 +20,7 @@ for (const vp of VIEWPORTS) {
     await page.click('#btn-town-dungeon');
     await page.getByRole('button', { name: /魔術師/ }).click();
     await page.getByRole('button', { name: /B1Fから開始/ }).click();
+    await page.getByRole('button', { name: '迷宮へ向かう' }).click();
 
     // 3. Open Spell overlay
     await page.click('#btn-cast');

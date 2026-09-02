@@ -544,3 +544,14 @@
   justify-content: center;
   gap: 2px;
 }
+
+.solo-start-floor-option.is-selected,
+.solo-start-confirm {
+  border-color: var(--neon-cyan);
+  box-shadow: var(--neon-glow-cyan);
+}
+
+.solo-start-confirm {
+  grid-column: 1 / -1;
+  min-height: var(--tap-min);
+}

@@ -8,6 +8,7 @@ for (const vp of VIEWPORTS) {
     await page.locator('#btn-town-dungeon').click();
     await page.getByRole('button', { name: /戦士/ }).click();
     await page.getByRole('button', { name: /B1Fから開始/ }).click();
+    await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#btn-abandon-run')).toHaveCount(0);
     await expect(page.locator('#explore-controls .action-grid button')).toHaveText([
       'バッグ', '魔法', '装備', '冒険管理'

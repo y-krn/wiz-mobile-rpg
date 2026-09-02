@@ -27,6 +27,7 @@ import { getFloorTheme } from "../data/floor_themes.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
+let selectedStartFloor = null;
 const DEPARTURE_BAG_CAPACITY = INVENTORY_CAPACITY;
 const DEPARTURE_ITEM_LIMITS = Object.freeze({ TOWN_PORTAL: 1 });
 
@@ -210,7 +211,10 @@ function renderPreparationSummary(optGrid, className, startingGear) {
     .map(id => RUN_QUEST_TEMPLATES.find(template => template.id === id)?.name)
     .filter(Boolean);
   appendPreparationRow(conditions, "選択依頼", questNames.length > 0 ? questNames.join("・") : "自動で1〜2件");
-  appendPreparationRow(conditions, "開始階", "下のボタンで最終確認");
+  const startFloorLabel = selectedStartFloor === null
+    ? "未選択"
+    : `B${selectedStartFloor}F・${getFloorBand(selectedStartFloor)}（${getFloorTheme(selectedStartFloor).name}）`;
+  appendPreparationRow(conditions, "開始階", startFloorLabel);
   summary.appendChild(conditions);
 
   optGrid.appendChild(summary);
@@ -333,12 +337,27 @@ function renderStartFloorChoices(optGrid, className, startingGear) {
     const theme = getFloorTheme(floor);
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "btn btn-neon btn-block solo-start-floor-option";
+    button.className = `btn btn-neon btn-block solo-start-floor-option${selectedStartFloor === floor ? " is-selected" : ""}`;
     button.innerHTML = `<strong>B${floor}Fから開始 · ${getFloorBand(floor)}</strong><span>${theme.name} / 素材収入 ${Math.round(multiplier * 100)}%</span>`;
     button.dataset.startFloor = String(floor);
-    button.addEventListener("click", () => startRun(className, startingGear, floor));
+    button.setAttribute("aria-pressed", String(selectedStartFloor === floor));
+    button.addEventListener("click", () => {
+      selectedStartFloor = floor;
+      renderStartFloorChoices(optGrid, className, startingGear);
+    });
     if (footer) footer.appendChild(button);
   });
+
+  const startButton = document.createElement("button");
+  startButton.id = "btn-departure-start";
+  startButton.type = "button";
+  startButton.className = "btn btn-neon btn-block solo-start-confirm";
+  startButton.textContent = "迷宮へ向かう";
+  startButton.disabled = selectedStartFloor === null;
+  startButton.addEventListener("click", () => {
+    if (selectedStartFloor !== null) startRun(className, startingGear, selectedStartFloor);
+  });
+  if (footer) footer.appendChild(startButton);
 }
 
 export function renderSoloStart(optGrid) {
@@ -346,6 +365,7 @@ export function renderSoloStart(optGrid) {
   optGrid.className = "submenu-grid solo-start-grid";
   clearDepartureStartFooter();
   departureCraftQuantities = new Map();
+  selectedStartFloor = null;
 
   SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className)).forEach(className => {
     const character = createSoloCharacter(className);
