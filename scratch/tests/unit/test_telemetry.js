@@ -27,6 +27,12 @@ import {
   trackDamageReceived,
   trackEvent,
   trackExplorationDecision,
+  trackEliteDecision,
+  trackFloorExploration,
+  trackLootLifecycle,
+  trackPortalDecision,
+  trackStairsDiscovery,
+  trackValuableLocation,
   trackRunEnd,
   trackRunStart
 } from "../../../src/telemetry.js";
@@ -517,6 +523,48 @@ check("decision events share context and keep action identifiers stable", () => 
     && event.properties.currentEquipmentId === "DAGGER");
   assert.equal(supportSwapEvent.properties.buildDecision, "swap");
   assert.equal(auxiliaryCoreSwapEvent.properties.buildDecision, "swap");
+});
+
+check("vNext telemetry separates lifecycle, exploration, portal, and elite observations", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const state = {
+    ...decisionState,
+    gameState: "explore",
+    x: 4,
+    y: 5,
+    currentRun: {
+      ...decisionState.currentRun,
+      runSeed: "telemetry-test",
+      unbankedObjectLoot: [{ id: "run:loot:3", item: { baseId: "DAGGER", identified: false, rarity: "rare" } }],
+      floorSteps: { "2": 9 }
+    }
+  };
+  trackRunStart(run, decisionPlayer, state);
+  const item = { baseId: "DAGGER", identified: false, rarity: "rare" };
+  trackLootLifecycle("found", { state, itemKey: item, source: "chest" });
+  trackLootLifecycle("bagged", { state, itemKey: item, source: "chest", lootId: "run:loot:3" });
+  trackLootLifecycle("bagged", { state, itemKey: item, source: "chest", lootId: "run:loot:3" });
+  trackStairsDiscovery({ state, floor: 2, stairsType: "stairs-down", stepsAtDiscovery: 9, hpRate: 0.5, mpRate: 0.25 });
+  trackFloorExploration({ state, floor: 2, stairsDiscovered: true, floorCompleted: true });
+  trackValuableLocation("chest", "discovered", { state, floor: 2, x: 4, y: 5, source: "chest" });
+  trackValuableLocation("chest", "skipped", { state, floor: 2, x: 4, y: 5, source: "chest" });
+  trackPortalDecision("push", { state, portalType: "milestone_portal", nextBandMainId: "short_battle" });
+  trackEliteDecision("avoid", { state, elite: { id: "RUN_ELITE_B2", name: "いにしえの竜 A", floor: 2 }, distance: 4, elitePolicy: "avoid" });
+  const names = events.map(event => event.name);
+  assert.ok(names.includes("loot_lifecycle"));
+  assert.ok(names.includes("stairs_discovered"));
+  assert.ok(names.includes("floor_exploration"));
+  assert.ok(names.includes("valuable_location"));
+  assert.ok(names.includes("portal_decision"));
+  assert.ok(names.includes("elite_decision"));
+  assert.equal(events.filter(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "bagged").length, 1);
+  const portal = events.find(event => event.name === "portal_decision");
+  assert.equal(portal.properties.decision, "push");
+  assert.equal(portal.properties.unbankedObjectLootCount, 1);
+  const elite = events.find(event => event.name === "elite_decision");
+  assert.equal(elite.properties.eliteId, "RUN_ELITE_B2");
+  assert.equal(elite.properties.elitePolicy, "avoid");
 });
 
 check("combat end numeric fields stay bounded", () => {

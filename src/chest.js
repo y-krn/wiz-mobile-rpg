@@ -21,7 +21,7 @@ import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
 import { getItemBaseId } from "./rules/item_rules.js";
 import { consumeRunObjectLoot } from "./state/run_loot.js";
-import { trackChestAction, trackChestSmashResult } from "./telemetry.js";
+import { trackChestAction, trackChestSmashResult, trackValuableLocation } from "./telemetry.js";
 import {
   CHEST_PHASES,
   CHEST_PHASE_TRANSITIONS,
@@ -145,6 +145,13 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
     fromDrop: options.fromDrop ?? false,
     lootHint: encounter.lootHint
   };
+  trackValuableLocation("chest", "discovered", {
+    state,
+    floor: state.floor,
+    x: state.x,
+    y: state.y,
+    source: options.fromDrop ? "combat" : "chest"
+  });
 
   // Transition to chest submenu
   openChestMenu();
@@ -185,6 +192,13 @@ export function leaveChest() {
   if (!chestActionAllowed([CHEST_PHASES.MENU])) return false;
   const chest = state.chestState;
   trackChestChoice(chest, "leave");
+  trackValuableLocation("chest", "skipped", {
+    state,
+    floor: state.floor,
+    x: chest.x,
+    y: chest.y,
+    source: chest.fromDrop ? "combat" : "chest"
+  });
   addLog("宝箱を開けずに立ち去った。");
   // Clear chest event on current cell
   state.map[state.y][state.x].event = null;
@@ -525,6 +539,13 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     menuContext.type = "chest_result";
     const chest = state.chestState;
     if (options.recordAction !== false && !smash) trackChestChoice(chest, "open");
+    trackValuableLocation("chest", "opened", {
+      state,
+      floor: state.floor,
+      x: chest.x,
+      y: chest.y,
+      source: chest.fromDrop ? "combat" : "chest"
+    });
     const tombRaiderActivated = applyTombRaiderTrapTier(chest, opener);
 
     if (state.currentRun) {
@@ -643,7 +664,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     // Award Item
     if (chest.item) {
       const item = getItemData(chest.item);
-      const added = addInventoryItem(chest.item, { dungeonLoot: true });
+      const added = addInventoryItem(chest.item, { dungeonLoot: true, source: "chest" });
       if (added) {
         awardedRewardCount++;
         recordEquipmentDiscovery(chest.item);
@@ -664,7 +685,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     }
 
     if (chest.specialItem) {
-      const added = addInventoryItem(chest.specialItem, { dungeonLoot: true });
+      const added = addInventoryItem(chest.specialItem, { dungeonLoot: true, source: "chest" });
       if (added) {
         awardedRewardCount++;
         recordEquipmentDiscovery(chest.specialItem);
@@ -684,7 +705,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
 
     if (chest.accessoryItem) {
       const item = getItemData(chest.accessoryItem);
-      const added = addInventoryItem(chest.accessoryItem, { dungeonLoot: true });
+      const added = addInventoryItem(chest.accessoryItem, { dungeonLoot: true, source: "chest" });
       if (added) {
         awardedRewardCount++;
         recordEquipmentDiscovery(chest.accessoryItem);

@@ -593,3 +593,5 @@ separate from recovery, retreat, and trap-kit roles.
   referenced here (encounter counts, scaling curves, material income).
 - `.agents/game-logic.md`: checklist for implementing generation, combat,
   and run-state changes.
+- `.agents/game-design-telemetry.md`: observation schema for stairs, valuable
+  locations, loot ownership, build shifts, Portal/Wing, and elite decisions.

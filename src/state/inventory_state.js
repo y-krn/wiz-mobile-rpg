@@ -1,6 +1,7 @@
 import { state } from "./state_core.js";
 import { getItemBaseId, isSpecialOrQuestItem } from "../data.js";
 import { recordDungeonObjectLoot } from "./run_loot.js";
+import { trackLootLifecycle } from "../telemetry.js";
 import { getInventoryRemainingSlots as getRemainingSlots, hasInventorySpace } from "../rules/item_inventory.js";
 
 export { INVENTORY_CAPACITY, getInventoryUsedSlots, hasInventorySpace } from "../rules/item_inventory.js";
@@ -15,9 +16,21 @@ export function addInventoryItemToState(targetState, item, options = {}) {
   const itemId = getItemBaseId(item);
   
   const isQuestItem = isSpecialOrQuestItem(itemId);
-  
+
   if (!Array.isArray(targetState.inventory)) targetState.inventory = [];
   if (!hasInventorySpace(targetState.inventory) && !allowQuestOverflow && !isQuestItem) {
+    if (options.dungeonLoot) {
+      trackLootLifecycle("found", {
+        state: targetState,
+        itemKey: item,
+        source: options.source || "dungeon"
+      });
+      trackLootLifecycle("rejected", {
+        state: targetState,
+        itemKey: item,
+        source: options.source || "dungeon"
+      });
+    }
     return false;
   }
 
@@ -25,12 +38,28 @@ export function addInventoryItemToState(targetState, item, options = {}) {
   if (itemId === "TOWN_PORTAL") {
     const hasLimitedItem = targetState.inventory.some(i => getItemBaseId(i) === itemId);
     if (hasLimitedItem) {
+      if (options.dungeonLoot) {
+        trackLootLifecycle("found", {
+          state: targetState,
+          itemKey: item,
+          source: options.source || "dungeon"
+        });
+        trackLootLifecycle("rejected", {
+          state: targetState,
+          itemKey: item,
+          source: options.source || "dungeon"
+        });
+      }
       return false;
     }
   }
   
   targetState.inventory.push(item);
-  if (options.dungeonLoot) recordDungeonObjectLoot(targetState, item);
+  if (options.dungeonLoot) {
+    recordDungeonObjectLoot(targetState, item, {
+      source: options.source || "dungeon"
+    });
+  }
   return true;
 }
 

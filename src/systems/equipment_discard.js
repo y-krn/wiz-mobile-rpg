@@ -1,8 +1,8 @@
 import { state, addLog, saveAutosave } from "../state.js";
 import { getItemData } from "../data.js";
 import { playSound } from "../audio.js";
-import { trackEquipmentDecision } from "../telemetry.js";
-import { consumeRunObjectLoot } from "../state/run_loot.js";
+import { trackEquipmentDecision, trackLootLifecycle } from "../telemetry.js";
+import { consumeRunObjectLoot, findRunObjectLootEntry } from "../state/run_loot.js";
 
 const EQUIPMENT_TYPES = new Set(["weapon", "shield", "armor", "accessory"]);
 
@@ -63,7 +63,7 @@ export function discardEquipmentItems(entries, { stateLike = state, character = 
   const validEntries = uniqueEntries.map((entry) => {
     const itemKey = stateLike.inventory[entry.index];
     const item = getItemData(itemKey);
-    return { ...entry, itemKey, item };
+    return { ...entry, itemKey, item, lootId: findRunObjectLootEntry(stateLike, itemKey)?.id };
   });
   if (validEntries.some(({ itemKey, item, index, expectedItemKey }) => (
     index < 0 || index >= stateLike.inventory.length ||
@@ -92,6 +92,13 @@ export function discardEquipmentItems(entries, { stateLike = state, character = 
 
   const displayNames = validEntries.map(({ itemKey, item }) => getDisplayName(itemKey, item));
   validEntries.forEach(({ itemKey }) => consumeRunObjectLoot(stateLike, itemKey));
+  validEntries.forEach(({ itemKey, lootId }) => trackLootLifecycle("discarded", {
+    state: stateLike,
+    character,
+    itemKey,
+    lootId,
+    source: "dungeon"
+  }));
   [...validEntries]
     .sort((a, b) => b.index - a.index)
     .forEach(({ index }) => stateLike.inventory.splice(index, 1));

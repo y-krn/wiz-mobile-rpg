@@ -373,6 +373,10 @@ axis is observed as a build transition only when an equipment decision changes
 the explicit `main` Core set. Auxiliary Core and Support changes remain
 ordinary equipment swaps.
 
+Production telemetry exposes this distinction as `equipment_decision.buildDecision`
+and emits a separate `build_shift` event only for the Main Core axis change.
+The event is an observation boundary, not a new build rule.
+
 - Core evaluation rule: **an unconditional +15% equivalent is the upper limit when converted by expected uptime**.
   Example: 背水 +40% × 20% uptime ≈ +8% effective.
 - Only 1 tuning knob: `AFFIX_BALANCE` (cost / budget / role composition /

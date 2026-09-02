@@ -14378,6 +14378,7 @@ function simulateCase({
     secretRoomRewardAttempts: 0,
     chestDropGenerated: 0,
     timeCost: 0,
+    vnextStairs: {},
     campRestCount: 0,
     reachedFloor: 0,
     entrantsByFloor: Array(41).fill(0),
@@ -14404,6 +14405,10 @@ function simulateCase({
     earlyEquipmentUpgrades: 0,
     deepEquipmentUpgrades: 0,
     equipmentFound: 0,
+    vnextEquipment: {
+      swapEvents: 0,
+      buildShiftEvents: 0
+    },
     equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
@@ -14629,8 +14634,24 @@ function simulateCase({
         identificationPolicy: identificationPolicy.id || identificationPolicy
       },
       workshop: scenario.workshop || { ranks: {} },
-      collectCombatFormula: SIM_737_DAMAGE_AUDIT_ENABLED || SIM_728_HIT_EVASION_ENABLED
+      collectCombatFormula: SIM_737_DAMAGE_AUDIT_ENABLED || SIM_728_HIT_EVASION_ENABLED,
+      collectEquipmentTelemetry: Boolean(scenario.collectVNextObservability)
     });
+    if (scenario.collectVNextObservability) {
+      (result.equipmentTelemetry || []).forEach(event => {
+        if (event.type !== "swap") return;
+        totals.vnextEquipment.swapEvents++;
+        if (event.oldCoreId && event.candidateCoreId && event.oldCoreId !== event.candidateCoreId) {
+          totals.vnextEquipment.buildShiftEvents++;
+        }
+      });
+      Object.entries(result.stairsDiscoveryStepByFloor || {}).forEach(([floor, step]) => {
+        totals.vnextStairs[floor] ||= { discoveredRuns: 0, discoveryStepTotal: 0, floorStepTotal: 0 };
+        totals.vnextStairs[floor].discoveredRuns++;
+        totals.vnextStairs[floor].discoveryStepTotal += Number(step) || 0;
+        totals.vnextStairs[floor].floorStepTotal += Number(result.stepsByFloor?.[floor]) || 0;
+      });
+    }
     if (scenario.departureCraftMeasurement) {
       departureCraftBanksByClass[className] = { ...result.metaMaterials };
     }
@@ -15132,6 +15153,29 @@ function simulateCase({
     averageEarlyEquipmentUpgrades: totals.earlyEquipmentUpgrades / RUNS_PER_CASE,
     averageDeepEquipmentUpgrades: totals.deepEquipmentUpgrades / RUNS_PER_CASE,
     averageEquipmentFound: totals.equipmentFound / RUNS_PER_CASE,
+    vnextObservability: scenario.collectVNextObservability
+      ? {
+          equipment: {
+            swapEvents: totals.vnextEquipment.swapEvents,
+            buildShiftEvents: totals.vnextEquipment.buildShiftEvents
+          },
+          exploration: Object.fromEntries(
+            Object.entries(totals.vnextStairs).map(([floor, values]) => [floor, {
+              discoveredRate: values.discoveredRuns / RUNS_PER_CASE,
+              meanDiscoveryStep: values.discoveredRuns > 0
+                ? values.discoveryStepTotal / values.discoveredRuns
+                : null,
+              meanFloorStepsAmongDiscovered: values.discoveredRuns > 0
+                ? values.floorStepTotal / values.discoveredRuns
+                : null
+            }])
+          ),
+          objectLootLifecycle: {
+            status: "not_modeled",
+            reason: "canonical simulator tracks equipment/material outcomes but not production object-loot ownership"
+          }
+        }
+      : null,
     averageEquipmentFoundBySource: Object.fromEntries(
       Object.entries(totals.equipmentFoundBySource).map(([source, amount]) => [
         source,
@@ -16690,7 +16734,7 @@ function printFailureComment(results) {
 }
 
 export function runDepthSimulationTask(
-  { kind, scenarioId, identificationPolicyId = "powder", className = null },
+  { kind, scenarioId, identificationPolicyId = "powder", className = null, collectVNextObservability = false, scenarioOverrides = {} },
   { scoringProfile, scoringProfiles = {}, scoringProfilesByScenario = {} }
 ) {
   resetSimulationRandom(SIM_SEED);
@@ -16706,7 +16750,9 @@ export function runDepthSimulationTask(
     const scenario = getScenarioById(scenarioId);
     const measurementScenario = {
       ...scenario,
-      departureCraftMeasurement: true
+      departureCraftMeasurement: true,
+      collectVNextObservability,
+      ...scenarioOverrides
     };
     return TARGET_DEPTHS.map(targetDepth =>
       snapshotDepthResult(simulateCase({
@@ -16763,7 +16809,7 @@ export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount, 
 }
 
 export function runCalibratedDepthSimulationTask(
-  { kind, scenarioId = null, identificationPolicyId = "powder", runCount, className = null },
+  { kind, scenarioId = null, identificationPolicyId = "powder", runCount, className = null, collectVNextObservability = false, scenarioOverrides = {} },
   context
 ) {
   const classNames = resolveSimulationClassNames(className);
@@ -16785,7 +16831,7 @@ export function runCalibratedDepthSimulationTask(
     scenarioId,
     profile: calibration.profile,
     results: runDepthSimulationTask(
-      { kind, scenarioId, identificationPolicyId, className },
+      { kind, scenarioId, identificationPolicyId, className, collectVNextObservability, scenarioOverrides },
       {
         ...context,
         scoringProfile: calibration.profile,

@@ -1,7 +1,8 @@
 import { ITEMS } from "../data.js";
 import { getCharAgi } from "../rules/character_stats.js";
 import { getBuffTotal } from "./status_effects.js";
-import { consumeRunObjectLoot } from "../state/run_loot.js";
+import { consumeRunObjectLoot, findRunObjectLootEntry } from "../state/run_loot.js";
+import { trackLootLifecycle, trackPortalDecision } from "../telemetry.js";
 
 /**
  * Resolves player item usage.
@@ -14,7 +15,21 @@ export function resolvePlayerItem(char, act, state, logQueue) {
     logQueue.push({ msg: `[味方] ${char.name}は道具を使おうとしたが、もうバッグに残っていない！` });
     return { escaped: false };
   }
+  const lootEntry = findRunObjectLootEntry(state, act.itemKey);
+  trackLootLifecycle("tried", {
+    state,
+    character: char,
+    itemKey: act.itemKey,
+    lootId: lootEntry?.id,
+    source: "combat"
+  });
   if (act.itemKey === "TOWN_PORTAL") {
+    trackPortalDecision("return", {
+      state,
+      character: char,
+      portalType: "town_portal",
+      wingOwned: true
+    });
     state.inventory.splice(inventoryIdx, 1);
     consumeRunObjectLoot(state, act.itemKey);
     logQueue.push({

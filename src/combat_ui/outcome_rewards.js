@@ -68,7 +68,7 @@ function applyGiveKeyRewards(stateLike, rng) {
   });
   if (rewardEquip) {
     rewardEquip.identified = false;
-    const added = addInventoryItemToState(stateLike, rewardEquip, { dungeonLoot: true });
+    const added = addInventoryItemToState(stateLike, rewardEquip, { dungeonLoot: true, source: "combat" });
     if (added) {
       recordEquipmentDiscovery(rewardEquip, stateLike);
       if (defeatedMonster) recordMonsterLoot(defeatedMonster, getItemData(rewardEquip)?.name, stateLike);
@@ -85,7 +85,7 @@ function applyGiveKeyRewards(stateLike, rng) {
       party: stateLike.party
     });
     if (rewardAccessory) {
-      const added = addInventoryItemToState(stateLike, rewardAccessory, { dungeonLoot: true });
+      const added = addInventoryItemToState(stateLike, rewardAccessory, { dungeonLoot: true, source: "combat" });
       if (added) {
         recordEquipmentDiscovery(rewardAccessory, stateLike);
         if (defeatedMonster) recordMonsterLoot(defeatedMonster, getItemData(rewardAccessory)?.name, stateLike);

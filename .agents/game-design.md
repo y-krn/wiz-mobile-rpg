@@ -446,6 +446,11 @@ history; any future contract change must preserve the depth question.
 
 ## Records And Codex
 
+Core Loop vNext observation events are specified separately in
+`.agents/game-design-telemetry.md`. They measure Castle/Codex-relevant facts
+such as object-loot ownership and meaningful build shifts, but do not change
+the persistence contract or define balance targets.
+
 - **Castle = what happened:** record outcome, depth, Portal/Wing/Death/Abandon,
   representative items, recovered/rescued/lost value, and meaningful item
   history. Generate display copy from persisted facts; do not save prose as a

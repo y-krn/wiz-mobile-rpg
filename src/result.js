@@ -110,7 +110,8 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
       floor: state.floor,
       turns: state.combatState?.roundNumber,
       player: state.party[0],
-      monsters: state.combatState?.monsters
+      monsters: state.combatState?.monsters,
+      isRoamingFlack: state.combatState?.isRoamingFlack
     }, state);
   }
   trackRunEnd(run, outcome, state);

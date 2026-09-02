@@ -25,6 +25,7 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: "scratch/measurements/issue990_phase3_stage1_5.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue990_phase3_stage2_combat_personas.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue990_phase3_stage3_checkpoint_continuation.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/measurements/issue1012_observability.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/simulations/sim_balance.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_camp_recovery.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_caster_pack.js", lifecycle: "historical", scope: "formula" },
@@ -280,6 +281,11 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/systems/equipment_discard.js",
     "src/menu/explore_actions.js",
     "src/movement.js",
+    "src/menu/milestone_portal.js",
+    "src/combat_logic/item_resolution.js",
+    "src/state/inventory_state.js",
+    "src/state/run_loot.js",
+    "src/systems/milestone_merchant.js",
     // Codex observations share combat entry/resolution paths with the
     // existing telemetry anchors but do not change combat formulas.
     "src/combat_ui/combat_start.js",
@@ -550,7 +556,12 @@ export function currentChangedFiles({ baseRef = process.env.BASE_REF || "origin/
 const TELEMETRY_CONTEXT_KEYS = new Set([
   "state", "character", "combat", "actorIdx", "targetIdx", "spellName", "itemKey",
   "currentKey", "candidateKey", "preview", "source", "charOriginalIdx", "dir",
-  "itemAction", "direction"
+  "itemAction", "direction", "lootId", "portalType", "wingOwned", "wingSalvageCount",
+  "nextBandMainId", "nextBandSubId", "floor", "stairsType", "stepsAtDiscovery",
+  "stepsBeforeDiscovery", "stepsAfterStairs", "hpRate", "mpRate", "stairsDiscovered",
+  "floorCompleted", "chestsDiscovered", "chestsSkipped", "explorationMode", "x", "y",
+  "locationType", "action", "elite", "monster", "contactMode", "distance", "detected",
+  "elitePolicy", "item", "ownership", "lootSequence"
 ]);
 
 function isTelemetryImport(line) {
