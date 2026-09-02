@@ -43,6 +43,22 @@ assert.deepEqual(
   ["バッグがいっぱいでアイテムを持ち帰れなかった！"]
 );
 
+const activeCombatResult = {
+  "combat-result:active": {
+    key: "combat-result:active",
+    scope: "combat:1",
+    text: "反射でダメージを受けた。",
+    kind: "result",
+    lifecycle: "active",
+  }
+};
+const resultEntries = getEventStripEntries(
+  ["反射でダメージを受けた。", "通常ログ"],
+  { activeObservations: activeCombatResult }
+);
+assert.deepEqual(resultEntries.results.map(entry => entry.text), ["反射でダメージを受けた。"]);
+assert.deepEqual(resultEntries.transient.map(entry => entry.text), ["通常ログ"]);
+
 const persistentObservations = Object.fromEntries([
   ...Array.from({ length: 4 }, (_, index) => [`trap:${index}`, {
     key: `trap:${index}`,
