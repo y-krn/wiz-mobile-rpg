@@ -45,6 +45,32 @@ export const SENSORY_HINT_LABELS = Object.freeze({
   decay: "衰"
 });
 
+const TRIAL_HINT_LABELS = Object.freeze({
+  atk: "攻撃の手応え",
+  def: "守りの手応え",
+  hp: "生命力の手応え",
+  mp: "魔力の手応え",
+  str: "力への傾き",
+  int: "知性への傾き",
+  pie: "信仰への傾き",
+  vit: "頑健さへの傾き",
+  agi: "素早さへの傾き",
+  luk: "運への傾き",
+  trapBonus: "罠への適性",
+  treasureSense: "宝への感覚",
+  spellPower: "術の手応え",
+  arcane: "秘術の手応え",
+  devotion: "神聖さの手応え",
+  guardian: "守りの気配",
+  poisonWard: "毒への耐性",
+  firstStrike: "先手の気配"
+});
+
+/** Describe a trial qualitatively; exact hidden values stay undisclosed. */
+export function getKnowledgeTrialHint(affix) {
+  return TRIAL_HINT_LABELS[affix?.type] || "特性の手応え";
+}
+
 export function getKnowledgeStage(item) {
   if (!item || typeof item !== "object") return KNOWLEDGE_STAGES.FULL;
   // `identified` is the compatibility flag used by all existing stat and UI

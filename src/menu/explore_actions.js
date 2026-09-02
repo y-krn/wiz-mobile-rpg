@@ -21,6 +21,7 @@ import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision } fro
 import { applyExplorationItem } from "../systems/exploration_items.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry, RETURN_WING_SALVAGE_COUNT } from "../state/run_loot.js";
 import { appendOwnershipBadge, getItemOwnership } from "../ui/common_shell.js";
+import { createBagCapacitySummary } from "../ui/bag_summary.js";
 
 let selectedWingLootIds = new Set();
 let selectedWingRunSeed = null;
@@ -180,11 +181,12 @@ export function renderExploreManagement(optGrid) {
 }
 
 export function renderItemInventory(optGrid) {
-  const capacity = document.createElement("div");
-  capacity.className = `inventory-capacity-status ${state.inventory.length >= INVENTORY_CAPACITY ? "full" : ""}`;
-  capacity.setAttribute("role", "status");
-  capacity.textContent = `バッグ ${state.inventory.length}/${INVENTORY_CAPACITY}枠`;
-  optGrid.appendChild(capacity);
+  optGrid.appendChild(createBagCapacitySummary(state.inventory, {
+    className: "inventory-capacity-status",
+    note: state.inventory.length >= INVENTORY_CAPACITY
+      ? "満杯。拾得物は自動取得されません。必要なら装備画面の整理モードへ。"
+      : "道具を使う画面。装備品は装備画面で確認します。"
+  }));
   const usableItems = getUsableInventoryItems(state.inventory);
   if (usableItems.length === 0) {
     const btn = document.createElement("button");

@@ -304,6 +304,29 @@
   padding: 6px 8px;
 }
 
+.equip-status-bar .equip-bag-summary {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  margin-left: var(--sp-sm);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.equip-bag-summary .bag-capacity-heading {
+  gap: var(--sp-xs);
+}
+
+.equip-bag-summary .bag-capacity-label,
+.equip-bag-summary .bag-capacity-space {
+  font-size: var(--fs-xs);
+}
+
+.equip-bag-summary .bag-slot-grid {
+  width: 100%;
+}
+
 .equip-status-bar .full {
   color: var(--neon-red);
   font-weight: bold;

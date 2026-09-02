@@ -58,6 +58,7 @@ assert.equal(getKnowledgeStage(item), KNOWLEDGE_STAGES.TRIAL);
 assert.equal(item.trialCount, 1);
 assert.match(getItemData(item).desc, /試用:/);
 assert.ok(getItemData(item).primaryEffect, "trial exposes a main effect without exposing all affixes");
+assert.doesNotMatch(getItemData(item).primaryEffect, /\d/, "trial keeps exact hidden values undisclosed");
 assert.deepEqual(getItemData(item).affixes, []);
 
 const holder = { identifyTickets: 1 };

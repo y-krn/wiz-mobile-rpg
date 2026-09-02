@@ -59,6 +59,10 @@ export function equipEquipment({ inventoryIndex, actorIdx, requestedSlot = null 
   trackLootLifecycle("adopted", { state, character, itemKey, lootId, source: "dungeon" });
   const item = getItemData(itemKey);
   addLog(`${character.name}は${item.name}を装備した。`);
+  if (oldEq) {
+    const oldItem = getItemData(oldEq);
+    addLog(`${oldItem?.name || "装備品"}はバッグへ戻った。`);
+  }
   if (reveal.revealed) {
     addLog(reveal.cursed
       ? `[呪い発動] ${item.name}は外せなくなった！`

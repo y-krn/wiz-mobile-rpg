@@ -5,6 +5,7 @@ import {
   getKnowledgeHintTags,
   getKnowledgeStage,
   getKnowledgeStageLabel,
+  getKnowledgeTrialHint,
   getScaledCurseModifier,
   SENSORY_HINT_LABELS,
   KNOWLEDGE_STAGES
@@ -162,7 +163,7 @@ export function getItemData(itemOrKey) {
       const primaryAffix = knowledgeStage === KNOWLEDGE_STAGES.TRIAL
         ? itemOrKey.affixes?.[0]
         : null;
-      const primaryEffect = primaryAffix ? formatAffixText(primaryAffix, ": ") : "";
+      const primaryEffect = primaryAffix ? getKnowledgeTrialHint(primaryAffix) : "";
       const stageText = knowledgeStage === KNOWLEDGE_STAGES.DISCOVERY
         ? `兆候: ${hints}。`
         : knowledgeStage === KNOWLEDGE_STAGES.OBSERVATION
