@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { applySavePayload, createSavePayload } from "../../../src/state/save_payload.js";
-import { SAVE_PAYLOAD_FIELDS, SAVE_VERSION, migrateSavePayload } from "../../../src/state/save_migrations.js";
+import { SAVE_PAYLOAD_FIELDS, SAVE_VERSION, migrateSavePayload, normalizeSavePayload } from "../../../src/state/save_migrations.js";
 import { SOLO_CLASSES, createDefaultCurrentRun, createSoloCharacter, initNewGame, loadGame, state } from "../../../src/state.js";
 import { menuContext, menuHistory, openGuardedSubmenu } from "../../../src/navigation.js";
 import { equipState } from "../../../src/equip.js";
@@ -100,7 +100,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.equal(state.party[0].hp, 4);
   assert.equal(state.gameState, "town");
   assert.deepEqual(state.metaMaterials, { "獣の牙": 7, "竜鱗": 2 });
-  assert.deepEqual(state.workshop, { ranks: { gear_rapier: 1, stat_str: 3 } });
+  assert.deepEqual(state.workshop, { ranks: { gear_rapier: 1, stat_str: 3 }, lateralUnlocks: [] });
   assert.deepEqual(state.keyItems, ["FORGE_SEAL", "ABYSS_SEAL"]);
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
   assert.deepEqual(state.records, { deepestRetreat: 12, deepestDeath: 9, deepestByClass: { Mage: 12 }, totalRuns: 7 });
@@ -109,6 +109,23 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.deepEqual(state.codex.monsters["ワーウルフ"].observedConditions, ["麻痺を受けた"]);
   assert.deepEqual(state.codex.monsters["ワーウルフ"].observedLoot, ["獣の牙"]);
   assert.deepEqual(state.codex.monsters["ワーウルフ"].encounterFloors, { "3": 1, "4": 1 });
+});
+
+check("older saves receive empty Castle/Codex/Workshop return fields", () => {
+  const oldShape = structuredClone(createSavePayload());
+  delete oldShape.codex.insights;
+  oldShape.workshop = { ranks: {} };
+  for (const key of ["representativeItem", "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing"]) {
+    delete oldShape.currentRun[key];
+  }
+  const normalized = normalizeSavePayload(oldShape);
+  assert.deepEqual(normalized.codex.insights, []);
+  assert.deepEqual(normalized.workshop.lateralUnlocks, []);
+  assert.equal(normalized.currentRun.representativeItem, null);
+  assert.deepEqual(normalized.currentRun.meaningfulItemHistory, []);
+  assert.deepEqual(normalized.currentRun.codexInsights, []);
+  assert.deepEqual(normalized.currentRun.workshopUnlocks, []);
+  assert.equal(normalized.currentRun.returnProcessing, null);
 });
 
 check("save/load preserves a quest item after 20 regular inventory items", () => {
@@ -295,6 +312,9 @@ check("malformed current-run collections receive safe defaults", () => {
   assert.deepEqual(normalized.currentRun.materials, {});
   assert.deepEqual(normalized.currentRun.bankedMaterials, {});
   assert.deepEqual(normalized.currentRun.campRested, {});
+  assert.deepEqual(normalized.currentRun.eliteFloors, {});
+  assert.deepEqual(normalized.currentRun.eliteOmenSteps, {});
+  assert.deepEqual(normalized.currentRun.eliteDefeatedFloors, []);
   assert.deepEqual(normalized.currentRun.defeatsByRole, {});
   assert.deepEqual(normalized.currentRun.codexRewards, {});
 });

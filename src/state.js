@@ -54,6 +54,8 @@ export {
 
 export {
   recordEquipmentDiscovery,
+  recordRunInsights,
+  CODEX_INSIGHT_DEFINITIONS,
   recordEquipmentAffixDiscovery,
   getMonsterCodexKey,
   createMonsterCodexRecord,

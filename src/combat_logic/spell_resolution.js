@@ -1,7 +1,7 @@
 import { SPELLS } from "../data.js";
 import { recordCharDeath, queueCharDeathLog, recordMonsterResistanceDiscovery } from "../state.js";
 import { getEffectiveMagicResist, applyMagicResistBuffs, applyKillAffixEffects, logCoreActivation, recordReceivedDamage } from "./damage.js";
-import { hasTrait, processMonsterDefeat } from "./monster_traits.js";
+import { hasTrait, processMonsterDefeat, triggerEliteSpellEater } from "./monster_traits.js";
 import {
   clearCharIncapacitationOnDamage,
   clearBleedingStatus,
@@ -147,6 +147,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       });
     }
     target.hp = Math.max(0, target.hp - resolvedDamage);
+    if (resolvedDamage > 0) triggerEliteSpellEater(target, logQueue);
     const wakeSuffix = resolvedDamage > 0 && wakeSleepingMonsterOnDamage(target) ? `${target.name}は目を覚ました！` : "";
     const vulnerableSuffix = vulnerableResult.consumed
       ? `（脆弱で+${vulnerableResult.damageContribution}）`
@@ -201,6 +202,9 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       hit.vulnerableDamageContribution = actualBonus;
       vulnerableBonuses.push(`${hit.target.name} +${actualBonus}`);
     });
+    affectedMonsters
+      .filter(mon => beforeHp[monsters.indexOf(mon)] > mon.hp)
+      .forEach(mon => triggerEliteSpellEater(mon, logQueue));
     result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));
     // #611: 範囲攻撃呪文の計装。既定 no-op、乱数消費・分岐は変更しない。
     if (state.combatFormulaTelemetry) {

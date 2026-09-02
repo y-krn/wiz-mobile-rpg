@@ -567,6 +567,13 @@ check("vNext telemetry separates lifecycle, exploration, portal, and elite obser
   assert.equal(elite.properties.elitePolicy, "avoid");
 });
 
+check("return-wing snapshots distinguish the Wing from escape scrolls", () => {
+  const resourceSnapshot = buildResourceSnapshot({ inventory: ["TOWN_PORTAL", "ESCAPE_SCROLL"] });
+  assert.equal(resourceSnapshot.consumableWingCount, 1);
+  assert.equal(resourceSnapshot.consumableEscapeScrollCount, 1);
+  assert.equal(resourceSnapshot.consumableReturnCount, 2);
+});
+
 check("combat end numeric fields stay bounded", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });

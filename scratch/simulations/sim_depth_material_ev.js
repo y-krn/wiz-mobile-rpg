@@ -8624,6 +8624,13 @@ function getItemCoreId(item) {
   return affix ? (affix.id || affix.type) : null;
 }
 
+function getItemMainAxisIds(item) {
+  if (!item || typeof item !== "object") return [];
+  return [...new Set((item.affixes || [])
+    .map(affix => affix.id || affix.type)
+    .filter(id => CORE_AFFIX_BY_ID.get(id)?.buildAxis === "main"))];
+}
+
 function getMatchingSupportIdsForCore(coreId) {
   if (MATCHING_DEFINITION === "broad") return ALL_ENABLED_SUPPORT_IDS;
   return CORE_SUPPORT_SYNERGY[coreId] || [];
@@ -9409,6 +9416,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
             floor: state.floor,
             oldCoreId: getItemCoreId(oldEquipment),
             candidateCoreId: blockedCoreId,
+            oldMainAxisIds: getItemMainAxisIds(oldEquipment),
+            candidateMainAxisIds: getItemMainAxisIds(inventoryItem),
             oldCursed: true
           });
         }
@@ -9548,6 +9557,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         scoreAfter: getEquipmentScore(character, scoringProfile, state.floor),
         oldCoreId: best.oldCoreId,
         candidateCoreId: selectedCandidateCoreId,
+        oldMainAxisIds: getItemMainAxisIds(best.oldEquipment),
+        candidateMainAxisIds: getItemMainAxisIds(selectedCandidate),
         oldCursed: Boolean(best.oldEquipment && isCurseLocked(best.oldEquipment)),
         candidateCursed: Boolean(isCurseLocked(best.candidate)),
         replacement: Boolean(best.oldEquipment)
@@ -14641,7 +14652,10 @@ function simulateCase({
       (result.equipmentTelemetry || []).forEach(event => {
         if (event.type !== "swap") return;
         totals.vnextEquipment.swapEvents++;
-        if (event.oldCoreId && event.candidateCoreId && event.oldCoreId !== event.candidateCoreId) {
+        const oldMainAxisIds = new Set(event.oldMainAxisIds || []);
+        const candidateMainAxisIds = new Set(event.candidateMainAxisIds || []);
+        if (oldMainAxisIds.size !== candidateMainAxisIds.size ||
+          [...oldMainAxisIds].some(id => !candidateMainAxisIds.has(id))) {
           totals.vnextEquipment.buildShiftEvents++;
         }
       });
@@ -15167,6 +15181,12 @@ function simulateCase({
                 : null,
               meanFloorStepsAmongDiscovered: values.discoveredRuns > 0
                 ? values.floorStepTotal / values.discoveredRuns
+                : null,
+              meanStepsBeforeStairs: values.discoveredRuns > 0
+                ? values.discoveryStepTotal / values.discoveredRuns
+                : null,
+              meanStepsAfterStairs: values.discoveredRuns > 0
+                ? (values.floorStepTotal - values.discoveryStepTotal) / values.discoveredRuns
                 : null
             }])
           ),

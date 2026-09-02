@@ -169,6 +169,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/data/biomes.js", domains: [] },
     { pattern: "src/data/affixes.js", domains: ["equipment"] },
     { pattern: "src/data/equipment_tables.js", domains: ["equipment"] },
+    { pattern: "src/data/workshop.js", domains: ["workshop"] },
     { pattern: "src/data/materials.js", domains: ["drops"] },
     { pattern: "src/data/progression.js", domains: ["progression"] },
     { pattern: "src/state/inventory_state.js", domains: ["economy"] },
@@ -206,11 +207,16 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
     { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },
     { pattern: "src/systems/equipment_discard.js", domains: ["equipment"] },
+    { pattern: "src/systems/run_return.js", domains: ["economy", "progression", "workshop"] },
+    { pattern: "src/systems/workshop.js", domains: ["workshop"] },
     { pattern: "src/combat_ui/encounter.js", domains: ["combat"] },
     { pattern: "src/systems/milestone_merchant.js", domains: ["economy"] },
     { pattern: "src/rules/chest_rules.js", domains: ["chests", "equipment", "traps"] },
     { pattern: "src/systems/leveling.js", domains: ["progression"] },
-    { pattern: "src/combat_ui/combat_start.js", domains: ["combat"] }
+    { pattern: "src/combat_ui/combat_start.js", domains: ["combat"] },
+    { pattern: "src/combat_ui/encounter.js", domains: ["combat", "maps"] },
+    { pattern: "src/state/run_floor_state.js", domains: ["maps"] },
+    { pattern: "src/systems/roaming_elites.js", domains: ["combat", "maps"] }
   ].map(rule => ({ ...rule, domains: Object.freeze([...rule.domains]) }))),
   balanceImpactNone: Object.freeze([
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",

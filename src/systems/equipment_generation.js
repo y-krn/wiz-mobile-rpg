@@ -31,6 +31,20 @@ const WORKSHOP_LOCKED_AFFIX_IDS = new Set([
   "CORE_THIN_ICE_PACT"
 ]);
 
+// Lateral Workshop unlocks occupy a reserved same-slot core slot. Enabling a
+// side-grade therefore replaces one authored baseline possibility instead of
+// diluting every existing core's chance by adding another candidate.
+const WORKSHOP_LATERAL_REPLACEMENTS = new Map([
+  ["CORE_BLOOD_WAND", "CORE_LAST_STAND"],
+  ["CORE_OPENER", "CORE_PURIFY_RING"],
+  ["CORE_TRAP_EATER", "CORE_CURSE_KEEPER"],
+  ["CORE_GIANT_SLAYER", "CORE_PHYSICAL_ACCURACY"],
+  ["CORE_TOMB_RAIDER", "CORE_BOUNTY_HUNTER"],
+  ["CORE_SCHOLAR_EYE", "CORE_KEEN_EYE"],
+  ["CORE_MILESTONE_BREAKER", "CORE_GIANT_SLAYER"],
+  ["CORE_THIN_ICE_PACT", "CORE_SNEAK_STEP"]
+]);
+
 function requireGenerationOptions(options, functionName) {
   if (options === undefined) return {};
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
@@ -106,18 +120,35 @@ function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCo
   const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
     ? AFFIX_BALANCE.corePoolWeights.shallow
     : AFFIX_BALANCE.corePoolWeights.deep;
+  const isPartyEligible = affix => !affix.allowedClasses
+    || !party?.length
+    || !party.some(char => char?.status !== "dead")
+    || party.some(char => char?.status !== "dead" && affix.allowedClasses.includes(char.class));
+  const activeUnlocks = Array.isArray(unlockedAffixIds) ? new Set(unlockedAffixIds) : null;
+  const activeLateralUnlocks = Array.isArray(party?.[0]?.lateralUnlockAffixIds)
+    ? new Set(party[0].lateralUnlockAffixIds)
+    : new Set();
+  const reservedReplacements = activeLateralUnlocks.size > 0
+    ? new Set([...WORKSHOP_LATERAL_REPLACEMENTS.entries()]
+      .filter(([lateralId, replacementId]) => replacementId
+        && activeLateralUnlocks.has(lateralId)
+        && CORE_AFFIXES.some(affix => affix.id === lateralId
+          && affix.enabled
+          && affix.slot === slot
+          && affix.cost <= budget
+          && isPartyEligible(affix)))
+      .map(([, replacementId]) => replacementId))
+    : new Set();
   const corePool = allowCores ? CORE_AFFIXES
     .filter(affix => affix.enabled
       && affix.slot === slot
       && affix.cost <= budget
-      && (!affix.allowedClasses
-        || !party?.length
-        || !party.some(char => char?.status !== "dead")
-        || party.some(char => char?.status !== "dead" && affix.allowedClasses.includes(char.class)))
+      && isPartyEligible(affix)
+      && !reservedReplacements.has(affix.id)
       && (
         !WORKSHOP_LOCKED_AFFIX_IDS.has(affix.id) ||
-        !Array.isArray(unlockedAffixIds) ||
-        unlockedAffixIds.includes(affix.id)
+        !activeUnlocks ||
+        activeUnlocks.has(affix.id)
       ))
     .map(affix => ({
       ...affix,

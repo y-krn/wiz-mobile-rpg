@@ -142,6 +142,13 @@ are generation tendencies, not a scripted event sequence; player-facing clues
 remain coarse and do not expose theme IDs or probabilities. These role labels
 do not target the current build or impose a Core activation cap.
 
+Issue #998 now makes roaming elites an optional deep-floor risk event. Entry
+presence is seed-deterministic, while prolonged presence is driven by saved
+value-seeking actions (new area discovery, battles, chests, optional facilities,
+and exploration after finding the exit stairs); walking alone does not advance
+the threat. The elite's combat trait is weighted by the current band's main and
+sub-theme, preserving deterministic replay and meaningful trait variation.
+
 Issue #1006 implements the object-loot ownership slice of this contract:
 dungeon loot remains unbanked until a terminal, unused Town preparation items
 return to Town storage, and the result screen records returned and lost loot.
@@ -595,3 +602,18 @@ separate from recovery, retreat, and trap-kit roles.
   and run-state changes.
 - `.agents/game-design-telemetry.md`: observation schema for stairs, valuable
   locations, loot ownership, build shifts, Portal/Wing, and elite decisions.
+
+## Castle Return Contract (#1011)
+
+Every terminal route is resolved in Town-facing records: Portal returns all
+unbanked dungeon objects, Wing rescues the selected shared-cap subset, and
+Death/Abandon return none of those objects. Ordinary loot is settled
+automatically before the result screen; the next run starts from Town
+preparations, never from recovered dungeon equipment.
+
+The Castle keeps one representative item and at most five compact meaningful
+item facts per run. These facts describe what happened (returned, rescued,
+lost, or observed); they do not retain a full item as a combat bonus. The
+Codex records only finite, coarse observations, while Workshop return rewards
+make existing side-grade possibilities eligible horizontally. No return path
+reveals exact drop rates, candidate totals, or a target build.

@@ -279,6 +279,11 @@ function getItemCategory(itemKey) {
   return "utility";
 }
 
+function getReturnWingCount(stateSnapshot) {
+  const inventory = Array.isArray(stateSnapshot?.inventory) ? stateSnapshot.inventory : [];
+  return inventory.filter(itemKey => getSafeItemId(itemKey) === "TOWN_PORTAL").length;
+}
+
 function getAffixSummary(itemKey) {
   const affixes = itemKey && typeof itemKey === "object" && Array.isArray(itemKey.affixes)
     ? itemKey.affixes.slice(0, MAX_AFFIX_SNAPSHOT)
@@ -427,6 +432,8 @@ export function buildResourceSnapshot(stateSnapshot) {
     consumableCureCount: categoryCounts.cure || 0,
     consumableManaCount: categoryCounts.mana || 0,
     consumableReturnCount: categoryCounts.return || 0,
+    consumableWingCount: getReturnWingCount(stateSnapshot),
+    consumableEscapeScrollCount: inventory.filter(itemKey => getSafeItemId(itemKey) === "ESCAPE_SCROLL").length,
     consumableCombatCount: categoryCounts.combat || 0,
     consumableUtilityCount: categoryCounts.utility || 0,
     inventoryFreeSlots: Math.max(0, INVENTORY_CAPACITY - inventory.length),
@@ -839,7 +846,7 @@ export function trackPortalDecision(decision, details = {}) {
     freeInventorySlots: buildResourceSnapshot(stateSnapshot).inventoryFreeSlots,
     unbankedObjectLootCount: summary.count,
     unbankedObjectLootValueProxy: summary.valueProxy,
-    wingOwned: Boolean(details.wingOwned),
+    wingOwned: details.wingOwned ?? getReturnWingCount(stateSnapshot) > 0,
     wingSalvageCount: boundedFiniteOrNull(details.wingSalvageCount, 0, 2),
     nextBandMainId: normalizeOptionalStableValue(details.nextBandMainId, SAFE_BAND_TRIAL_IDS),
     nextBandSubId: normalizeOptionalStableValue(details.nextBandSubId, SAFE_BAND_TRIAL_IDS)
@@ -975,7 +982,7 @@ export function trackRunStart(run, character, stateSnapshot = null) {
     equipmentIds: buildEquipmentSnapshot(character).equipmentIds,
     startingInventoryCount: buildResourceSnapshot(stateSnapshot).inventoryCount,
     startingInventoryFreeSlots: buildResourceSnapshot(stateSnapshot).inventoryFreeSlots,
-    startingWingCount: buildResourceSnapshot(stateSnapshot).consumableReturnCount,
+    startingWingCount: buildResourceSnapshot(stateSnapshot).consumableWingCount,
     startingUnbankedObjectLootCount: getUnbankedLootSummary(stateSnapshot).count
   });
 }
