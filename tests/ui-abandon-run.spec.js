@@ -10,7 +10,7 @@ for (const vp of VIEWPORTS) {
     await page.getByRole('button', { name: /B1Fから開始/ }).click();
     await expect(page.locator('#btn-abandon-run')).toHaveCount(0);
     await expect(page.locator('#explore-controls .action-grid button')).toHaveText([
-      '道具', '呪文', '装備', '冒険管理'
+      'バッグ', '魔法', '装備', '冒険管理'
     ]);
     const actionLayout = await page.locator('#explore-controls .action-grid button').evaluateAll((buttons) => buttons.map((button) => {
       const rect = button.getBoundingClientRect();

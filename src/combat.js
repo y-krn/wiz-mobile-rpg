@@ -6,6 +6,8 @@ export {
 export {
   combatSelection,
   toggleCombatAuto,
+  repeatLastCombatAction,
+  getRepeatActionStatus,
   advanceActionSelection,
   selectCombatAction,
   cancelCombatAction

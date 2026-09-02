@@ -14,7 +14,7 @@ import { getRendererInput } from "./state/renderer_view.js";
 import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
 import { handleMove, enterDungeon, resumePendingCampEntry } from "./movement.js";
 import { handleExploreAction, handleTownOption } from "./menu.js";
-import { selectCombatAction, cancelCombatAction, toggleCombatAuto, resumeCombat } from "./combat.js";
+import { selectCombatAction, cancelCombatAction, toggleCombatAuto, repeatLastCombatAction, resumeCombat } from "./combat.js";
 
 // Re-exports for external use and backward compatibility
 export { updateUI } from "./ui.js";
@@ -184,6 +184,7 @@ function bindButtons() {
   bindCombatAction("btn-combat-fight", () => selectCombatAction("fight"));
   bindCombatAction("btn-combat-spell", () => selectCombatAction("spell"));
   bindCombatAction("btn-combat-item", () => selectCombatAction("item"));
+  bindCombatAction("btn-combat-repeat", () => repeatLastCombatAction());
   bindCombatAction("btn-combat-auto", () => toggleCombatAuto());
   bindCombatAction("btn-combat-defend", () => selectCombatAction("defend"));
   bindCombatAction("btn-combat-run", () => selectCombatAction("run"));

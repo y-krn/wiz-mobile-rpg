@@ -37,11 +37,13 @@ export function resolveCombatRound() {
     backBtn.style.display = "none";
   }
   
+  const executedActions = combatSelection.actions.map(action => ({ ...action }));
   const { logQueue, state: nextState } = runCombatRoundCalculation(state, combatSelection);
   
   // Apply state mutations calculated in pure combat_logic
   state.party = nextState.party;
   state.combatState = nextState.combatState;
+  state.combatState.lastActions = executedActions;
   state.inventory = nextState.inventory;
   state.firstKills = nextState.firstKills;
   state.codex = nextState.codex;

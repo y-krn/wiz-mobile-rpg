@@ -3,7 +3,7 @@ import { getIsMuted } from "../audio.js";
 import { menuContext } from "../navigation.js";
 import { renderEquip } from "../equip.js";
 import { renderSpellOverlay } from "../spell_menu.js";
-import { renderCombatOverlay, combatSelection } from "../combat.js";
+import { renderCombatOverlay, combatSelection, getRepeatActionStatus } from "../combat.js";
 import { updateSoloHUD } from "./solo_hud.js";
 import { updateCombatPrompt } from "./combat_prompt.js";
 import { updateViewportHUD } from "./viewport_hud.js";
@@ -380,7 +380,7 @@ export function updateUI() {
     if (entry.dataset) entry.dataset.eventKind = kind;
     const label = document.createElement("span");
     label.className = "event-strip-item-label";
-    label.textContent = kind === "unresolved" ? "未解決" : "直近";
+    label.textContent = kind === "unresolved" ? "未解決" : kind === "result" ? "結果" : "直近";
     if (typeof entry.prepend === "function") {
       entry.prepend(label);
     } else {
@@ -388,8 +388,9 @@ export function updateUI() {
     }
     logContent.appendChild(entry);
   };
-  [...eventEntries.unresolved, ...eventEntries.transient]
-    .slice(-RECENT_LOG_LINES)
+  const persistentEvents = [...eventEntries.unresolved, ...(eventEntries.results || [])].slice(-4);
+  const transientBudget = Math.max(0, RECENT_LOG_LINES - persistentEvents.length);
+  [...persistentEvents, ...eventEntries.transient.slice(-transientBudget)]
     .forEach(appendEventEntry);
   restoreScrollState(logPanel, logScrollState);
 
@@ -505,6 +506,17 @@ export function updateUI() {
           autoBtn.classList.remove("active");
           autoBtn.textContent = "オート";
         }
+      }
+      const repeatBtn = document.getElementById("btn-combat-repeat");
+      if (repeatBtn) {
+        const repeatStatus = getRepeatActionStatus();
+        repeatBtn.disabled = !repeatStatus.available;
+        repeatBtn.title = repeatStatus.available
+          ? "前回の行動をこのターンに1回だけ再実行"
+          : repeatStatus.reason;
+        repeatBtn.setAttribute("aria-label", repeatStatus.available
+          ? "前回の行動を1ターン再実行"
+          : `前回の行動は使用不可: ${repeatStatus.reason}`);
       }
     }
     updateCombatPrompt();

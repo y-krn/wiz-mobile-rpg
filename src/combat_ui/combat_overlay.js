@@ -91,10 +91,12 @@ export function renderCombatOverlay() {
       // Enemy targets
       const monsters = state.combatState.monsters;
       monsters.forEach((m, idx) => {
-        const card = document.createElement("div");
-        card.className = "combat-target-card enemy";
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "btn combat-target-card enemy";
         if (m.hp <= 0) {
           card.classList.add("dead");
+          card.disabled = true;
         }
 
         const hpPct = m.maxHp > 0 ? (m.hp / m.maxHp) * 100 : 0;
@@ -137,6 +139,7 @@ export function renderCombatOverlay() {
           </div>
           ${omenHtml}
         `;
+        card.setAttribute("aria-label", `${m.name}、HP ${m.hp}/${m.maxHp}${m.hp > 0 ? "、攻撃対象にする" : "、戦闘不能"}`);
 
         if (m.hp > 0) {
           card.addEventListener("click", () => {
@@ -154,13 +157,15 @@ export function renderCombatOverlay() {
         : getItemAllyTargetIndices(state.party);
       const availableTargetIndices = new Set(targetIndices);
       state.party.forEach((char, idx) => {
-        const card = document.createElement("div");
-        card.className = "combat-target-card ally";
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "btn combat-target-card ally";
         
         const disabled = !availableTargetIndices.has(idx);
 
         if (disabled) {
           card.classList.add(char.status === "dead" ? "dead" : "blocked");
+          card.disabled = true;
         }
 
         const maxHp = getCharMaxHp(char);
@@ -181,6 +186,7 @@ export function renderCombatOverlay() {
           <div class="card-mp-text">MP: ${char.mp}/${maxMp}</div>
           ` : ""}
         `;
+        card.setAttribute("aria-label", `${char.name}、HP ${char.hp}/${maxHp}${maxMp > 0 ? `、MP ${char.mp}/${maxMp}` : ""}${disabled ? "、対象外" : "、対象にする"}`);
 
         if (!disabled) {
           card.addEventListener("click", () => {
@@ -208,8 +214,9 @@ export function renderCombatOverlay() {
       const spell = SPELLS[spKey];
       if (spell.campOnly) return;
       
-      const card = document.createElement("div");
-      card.className = "combat-item-card spell";
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "btn combat-item-card spell";
       
       const payment = getSpellPayment(caster, spell.cost);
       const mpCheck = !payment.canCast;
@@ -221,6 +228,7 @@ export function renderCombatOverlay() {
       } else if (!targetCheck) {
         card.classList.add("disabled-unavailable");
       }
+      card.disabled = disabled;
 
       const summary = getSpellCombatSummary(spKey);
       
@@ -243,6 +251,7 @@ export function renderCombatOverlay() {
           ${reasonBadgeHTML}
         </div>
       `;
+      card.setAttribute("aria-label", `${spell.name}、${payment.resource === "hp" ? `${payment.cost}HP` : `${spell.cost}MP`}、${summary.effect}${disabled ? "、使用不可" : ""}`);
 
       if (!disabled) {
         card.addEventListener("click", () => {
@@ -272,18 +281,21 @@ export function renderCombatOverlay() {
       itemGrid.appendChild(emptyMsg);
     } else {
       usableItems.forEach(({ itemKey, idx, item }) => {
-        const card = document.createElement("div");
-        card.className = "combat-item-card item";
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "btn combat-item-card item";
 
         const usableCheck = item.campOnly;
         if (usableCheck) {
           card.classList.add("disabled");
         }
+        card.disabled = usableCheck;
 
         card.innerHTML = `
           <div class="item-card-title">${item.name}</div>
           <div class="item-card-desc">${item.desc || "消費アイテム"}</div>
         `;
+        card.setAttribute("aria-label", `${item.name}${usableCheck ? "、戦闘中は使用不可" : "、使用する"}`);
 
         if (!usableCheck) {
           card.addEventListener("click", () => {
@@ -308,10 +320,11 @@ export function renderCombatOverlay() {
   closeRow.className = "bottom-actions-row";
 
   const btnBack = document.createElement("button");
-  btnBack.className = "btn btn-danger btn-combat-back";
+  btnBack.type = "button";
+  btnBack.className = "btn btn-danger btn-combat-back dock-action-back";
+  btnBack.dataset.actionRole = "back";
+  btnBack.setAttribute("aria-label", "選択をやめて戦闘へ戻る");
   btnBack.textContent = "◀ 戻る (キャンセル)";
-  btnBack.style.width = "100%";
-  btnBack.style.minHeight = "44px";
   btnBack.addEventListener("click", () => {
     goBackSubmenu();
   });

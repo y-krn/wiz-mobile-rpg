@@ -78,6 +78,9 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     roundNumber: 1,
     retreatPosition: getRetreatPosition(),
     loggedCoreActivations: [],
+    // The last resolved turn is a one-turn repeat candidate. It is checked
+    // against live actors, targets, resources, and inventory before reuse.
+    lastActions: null,
     pendingOutcome: null,
     trialBand: trial ? {
       bandIndex: trial.bandIndex,

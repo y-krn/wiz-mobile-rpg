@@ -12,12 +12,75 @@ import { openCombatSpellMenu } from "./spell_menu.js";
 import { openCombatItemMenu } from "./item_menu.js";
 import { openSubmenu } from "../navigation.js";
 import { COMBAT_SPELL_TARGETS, getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
+import { getItemBaseId } from "../rules/item_rules.js";
 import {
   trackCombatDecisionCancel,
   trackCombatDecisionPending
 } from "../telemetry.js";
 
+// balance-impact: none — repeat is a UI input shortcut and reuses existing combat rules.
+
 export { combatSelection };
+
+function getCurrentSelectionActor() {
+  const livingChars = getLivingCharacters();
+  return livingChars[combatSelection.charIdx] || null;
+}
+
+function getLastActionForCurrentActor() {
+  const current = getCurrentSelectionActor();
+  if (!current || !Array.isArray(state.combatState?.lastActions)) return null;
+  return state.combatState.lastActions.find(action => action?.actorIdx === current.index) || null;
+}
+
+function isRepeatableAction(action, actorIdx) {
+  if (!action || action.actorIdx !== actorIdx) return false;
+  if (action.type === "fight") {
+    return isValidEnemyTarget(action.targetIdx);
+  }
+  if (action.type === "defend" || action.type === "run") return true;
+  if (action.type === "spell") {
+    const spell = SPELLS[action.spellName];
+    if (!spell || !isUsableSpellForActor(state.party, actorIdx, action.spellName, COMBAT_SPELL_TARGETS) ||
+        !getSpellPayment(state.party[actorIdx], spell.cost).canCast) return false;
+    if (spell.target === "single_enemy") return isValidEnemyTarget(action.targetIdx);
+    if (spell.target === "single_ally") {
+      return isValidAllyTarget(action.targetIdx, getSpellAllyTargetIndices(action.spellName, state.party));
+    }
+    if (spell.target === "all_enemies") {
+      return state.combatState?.monsters?.some(monster => monster.hp > 0) === true;
+    }
+    return getSpellAllyTargetIndices(action.spellName, state.party).length > 0;
+  }
+  if (action.type === "item") {
+    const itemKey = state.inventory?.[action.itemIdx];
+    if (getItemBaseId(itemKey) !== getItemBaseId(action.itemKey)) return false;
+    const item = ITEMS[getItemBaseId(itemKey)];
+    if (!item || item.type !== "usable" || item.campOnly || getItemBaseId(itemKey) === "TOWN_PORTAL") return false;
+    return isValidAllyTarget(action.targetIdx, getItemAllyTargetIndices(state.party));
+  }
+  return false;
+}
+
+export function getRepeatActionStatus() {
+  if (!canActInCombat()) return { available: false, reason: "戦闘中ではありません" };
+  const current = getCurrentSelectionActor();
+  const action = getLastActionForCurrentActor();
+  if (!current || !action) return { available: false, reason: "前回の行動がありません" };
+  if (!isRepeatableAction(action, current.index)) {
+    return { available: false, reason: "前回の行動は現在の条件では成立しません" };
+  }
+  return { available: true, action, actorIdx: current.index };
+}
+
+export function repeatLastCombatAction() {
+  const status = getRepeatActionStatus();
+  if (!status.available) return false;
+  combatSelection.actions.push({ ...status.action, actorIdx: status.actorIdx });
+  combatSelection.charIdx++;
+  advanceActionSelection();
+  return true;
+}
 
 function canActInCombat() {
   return isActionableCombatScreen(state, menuContext) && hasUsableCombatActor(state.party) &&
