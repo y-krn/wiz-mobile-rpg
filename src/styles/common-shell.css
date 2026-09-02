@@ -1,0 +1,140 @@
+/* Shared vNext shell contract. Existing IDs remain stable for screen modules. */
+[data-shell-region] {
+  min-width: 0;
+}
+
+#game-header[data-shell-region="minimal-hud"],
+#viewport-panel[data-shell-region="dungeon-view"],
+#log-panel[data-shell-region="current-event-strip"],
+#controls-panel[data-shell-region="action-dock"] {
+  position: relative;
+}
+
+#controls-panel[data-shell-region="action-dock"] {
+  --dock-accent: var(--neutral-iron);
+  border-top-color: color-mix(in srgb, var(--dock-accent) 48%, transparent);
+}
+
+#controls-panel[data-dock-state="compact"] {
+  --dock-accent: var(--semantic-life);
+}
+
+#controls-panel[data-dock-state="decision"] {
+  --dock-accent: var(--semantic-selected);
+}
+
+#controls-panel[data-dock-state="expanded"] {
+  --dock-accent: var(--semantic-discovery);
+}
+
+#log-panel[data-shell-region="current-event-strip"] {
+  padding-top: var(--sp-md);
+}
+
+#log-content .event-strip-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-sm);
+  min-width: 0;
+}
+
+#log-content .event-strip-item-label {
+  flex: 0 0 auto;
+  min-width: 3.5em;
+  padding: 1px var(--sp-xs);
+  border: 1px solid var(--neutral-iron);
+  border-radius: var(--radius-xs);
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+  text-align: center;
+}
+
+#log-content .event-strip-item--unresolved {
+  padding: var(--sp-xs) var(--sp-sm);
+  border-left: 2px solid var(--semantic-danger);
+  background: color-mix(in srgb, var(--semantic-danger) 7%, transparent);
+}
+
+#log-content .event-strip-item--unresolved .event-strip-item-label {
+  border-color: var(--semantic-danger);
+  color: var(--semantic-danger);
+}
+
+#log-content .event-strip-item--transient .event-strip-item-label {
+  border-color: var(--neutral-iron);
+}
+
+.ownership-aware-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-xs);
+  min-width: 0;
+}
+
+.ownership-aware-row > .btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ownership-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 0;
+  align-self: center;
+  padding: 0 var(--sp-xs);
+  border-left: 1px solid currentColor;
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ownership-badge--town-confirmed {
+  color: var(--semantic-life);
+}
+
+.ownership-badge--dungeon-unconfirmed {
+  color: var(--semantic-unknown);
+}
+
+.ownership-badge--wing-selected {
+  color: var(--semantic-selected);
+}
+
+.ownership-badge--lost {
+  color: var(--semantic-danger);
+}
+
+.dock-action-back,
+.dock-action-confirm {
+  min-height: var(--tap-min);
+}
+
+.dock-action-back {
+  color: var(--neutral-iron);
+}
+
+.dock-action-confirm {
+  border-color: var(--semantic-selected);
+  color: var(--semantic-selected);
+}
+
+@media (max-height: 700px) {
+  #log-panel[data-shell-region="current-event-strip"] {
+    min-height: var(--tap-min);
+    max-height: calc(var(--tap-min) * 2);
+  }
+
+  #controls-panel[data-dock-state="expanded"] {
+    max-height: 46svh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #controls-panel[data-shell-region="action-dock"],
+  #controls-panel[data-shell-region="action-dock"] * {
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+  }
+}
