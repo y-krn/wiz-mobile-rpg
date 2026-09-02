@@ -20,6 +20,7 @@ async function startSoloRun(page) {
   await page.locator('#btn-town-dungeon').click();
   await page.getByRole('button', { name: /戦士/ }).click();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  await page.getByRole('button', { name: '迷宮へ向かう' }).click();
   await expect(page.locator('#explore-controls')).toBeVisible();
 }
 

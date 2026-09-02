@@ -135,6 +135,21 @@
   align-content: start;
 }
 
+.solo-start-floor-heading {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--sp-xxs);
+  padding: var(--sp-xs) var(--sp-xxs);
+  color: var(--neon-amber);
+  font-size: var(--fs-md);
+}
+
+.solo-start-floor-heading span,
+.solo-start-floor-option span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
 .solo-start-change,
 .solo-start-floor-option,
 .solo-start-craft-option,
@@ -348,6 +363,95 @@
   overflow-wrap: anywhere;
 }
 
+.solo-preparation-summary {
+  gap: var(--sp-xs);
+  color: var(--text-main);
+}
+
+.solo-preparation-heading {
+  display: grid;
+  gap: var(--sp-xxs);
+  color: var(--neon-amber);
+}
+
+.solo-preparation-heading .solo-start-craft-summary-title {
+  color: var(--neon-cyan);
+}
+
+.solo-preparation-slot-note {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+
+.solo-preparation-slots {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sp-xxs);
+}
+
+.solo-preparation-slot {
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--sp-xs) var(--sp-xxs);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.solo-preparation-slot.is-filled {
+  border-color: color-mix(in srgb, var(--neon-cyan) 55%, var(--border-color));
+  background: rgba(155, 215, 210, 0.1);
+  color: var(--neon-cyan);
+}
+
+.solo-preparation-slot.is-open {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.solo-preparation-conditions {
+  display: grid;
+  gap: var(--sp-xxs);
+  padding-top: var(--sp-xs);
+  border-top: 1px solid var(--border-color);
+}
+
+.solo-preparation-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: var(--sp-sm);
+  align-items: baseline;
+  font-size: var(--fs-xs);
+}
+
+.solo-preparation-row > span {
+  color: var(--text-muted);
+}
+
+.solo-preparation-row > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.solo-preparation-equipment > strong {
+  color: var(--neon-purple);
+}
+
+.solo-preparation-section-heading {
+  grid-column: 1 / -1;
+  padding: var(--sp-xs) var(--sp-xxs) 0;
+  color: var(--neon-amber);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
 .solo-start-craft-summary-title {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -429,12 +533,6 @@
   color: var(--neon-cyan);
 }
 
-.solo-start-craft-option span,
-.solo-start-floor-option span {
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-}
-
 .solo-start-craft-option .solo-start-craft-cost.is-insufficient {
   color: var(--text-danger, var(--neon-red));
 }
@@ -444,4 +542,15 @@
   flex-direction: column;
   justify-content: center;
   gap: 2px;
+}
+
+.solo-start-floor-option.is-selected,
+.solo-start-confirm {
+  border-color: var(--neon-cyan);
+  box-shadow: var(--neon-glow-cyan);
+}
+
+.solo-start-confirm {
+  grid-column: 1 / -1;
+  min-height: var(--tap-min);
 }

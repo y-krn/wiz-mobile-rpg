@@ -14,6 +14,7 @@ for (const vp of VIEWPORTS) {
     await expect(shortcut).toContainText('素材収入 60%');
     expect((await shortcut.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await shortcut.click();
+    await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     const started = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return { floor: state.floor, startFloor: state.currentRun.startFloor, count: state.party.length };
@@ -210,6 +211,7 @@ for (const vp of VIEWPORTS) {
   test(`Departure start clears floor buttons before opening a submenu on ${vp.name}`, async ({ page }) => {
     await openDeparturePreparation(page, vp);
     await page.getByRole('button', { name: /B1Fから開始/ }).click();
+    await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#explore-controls')).toBeVisible();
 
     await page.evaluate(async () => {
@@ -377,8 +379,89 @@ test('Departure craft allows empty-handed departure without materials', async ({
   await expect(page.locator('.solo-start-craft-balance')).toHaveCount(0);
   await expect(page.locator('.solo-start-floor-option').first()).toBeEnabled();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  await page.getByRole('button', { name: '迷宮へ向かう' }).click();
   await expect(page.locator('#explore-controls')).toBeVisible();
   expect(await page.evaluate(async () => (await import('/src/state.js')).state.inventory)).toEqual([]);
+});
+
+test('Preparation keeps run conditions and all 20 bag slots visible', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openSubmenu } = await import('/src/navigation.js');
+    state.gameState = 'town';
+    state.metaMaterials = { '獣の牙': 10, '硬い皮': 10 };
+    state.workshop = { ranks: { gear_fighter_saber: 1 } };
+    state.unlockedMilestones = [5];
+    openSubmenu('run_quest_board', '依頼板 - 潜行の目的');
+  });
+
+  const questName = await page.locator('.run-quest-card').first().locator('strong').textContent();
+  await page.locator('.run-quest-card').first().click();
+  await page.getByRole('button', { name: '選択した依頼で潜行準備へ' }).click();
+  await page.getByRole('button', { name: /戦士 \+ 鍛錬サーベル/ }).click();
+
+  const summary = page.locator('.solo-preparation-summary');
+  await expect(summary).toContainText('今回の出発条件');
+  await expect(summary).toContainText('戦士');
+  await expect(summary).toContainText('鍛錬サーベル（バッグ外）');
+  await expect(summary).toContainText(questName);
+  await expect(summary.locator('.solo-preparation-slot')).toHaveCount(20);
+  await expect(summary.locator('.solo-preparation-slot.is-open')).toHaveCount(20);
+  await expect(summary).toContainText('持ち込み 0/20');
+  await expect(summary).toContainText('戦果を持ち帰る余地');
+  await expect(summary).toContainText('開始階未選択');
+  await expect(page.getByRole('button', { name: '迷宮へ向かう' })).toBeDisabled();
+
+  const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
+  await heal.click();
+  await expect(summary).toContainText('持ち込み 1/20');
+  await expect(summary.locator('.solo-preparation-slot.is-filled')).toHaveCount(1);
+  await expect(summary.locator('.solo-preparation-slot.is-open')).toHaveCount(19);
+  await expect(page.getByRole('button', { name: /B5Fから開始/ })).toContainText('素材収入 60%');
+
+  const milestoneStart = page.getByRole('button', { name: /B5Fから開始/ });
+  await milestoneStart.click();
+  await expect(summary).toContainText('開始階B5F・中層');
+  await expect(milestoneStart).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: '迷宮へ向かう' })).toBeEnabled();
+  await expect(page.locator('#explore-controls')).toBeHidden();
+});
+
+test('Preparation explains bag cap and Return Wing individual limit', async ({ page }) => {
+  await openDeparturePreparation(page, { width: 390, height: 844, name: 'iPhone 13' });
+  const portal = page.locator('[data-recipe-id="TOWN_PORTAL"]');
+  await portal.click();
+  await expect(portal).toBeDisabled();
+  await expect(portal).toContainText('あと0個・帰還の翼は1個まで');
+
+  await page.getByRole('button', { name: /クラスを選び直す/ }).click();
+  await page.evaluate(async () => {
+    (await import('/src/state.js')).state.metaMaterials = { '獣の牙': 20, '硬い皮': 20 };
+  });
+  await page.locator('.solo-class-option').first().click();
+  const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
+  for (let index = 0; index < 20; index += 1) await heal.click();
+  await expect(page.locator('.solo-preparation-summary')).toContainText('持ち込み 20/20');
+  await expect(page.locator('.solo-preparation-slot.is-filled')).toHaveCount(20);
+  await expect(heal).toBeDisabled();
+  await expect(heal).toContainText('あと0個・バッグ上限（20枠）');
+});
+
+test('Preparation remains usable at 320x568', async ({ page }) => {
+  await openDeparturePreparation(page, { width: 320, height: 568, name: 'small phone' }, [5, 10]);
+  const layout = await page.evaluate(() => ({
+    hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    slots: document.querySelectorAll('.solo-preparation-slot').length,
+    starts: [...document.querySelectorAll('.solo-start-floor-option')].map(button => {
+      const box = button.getBoundingClientRect();
+      return { top: box.top, bottom: box.bottom, height: box.height };
+    }),
+  }));
+  expect(layout.hasHorizontalOverflow).toBe(false);
+  expect(layout.slots).toBe(20);
+  expect(layout.starts.every(({ top, bottom, height }) => top >= 0 && bottom <= 568 && height >= 44)).toBe(true);
 });
 
 for (const vp of VIEWPORTS) {
@@ -452,6 +535,7 @@ for (const vp of VIEWPORTS) {
     await page.getByRole('button', { name: /戦士/ }).click();
     await page.locator('[data-recipe-id="HEAL_POTION"]').click();
     await page.getByRole('button', { name: /B1Fから開始/ }).click();
+    await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#explore-controls')).toBeVisible();
 
     const pausedDeparture = await page.evaluate(async () => {
@@ -504,6 +588,7 @@ for (const vp of VIEWPORTS) {
     await page.getByRole('button', { name: /戦士/ }).click();
     await page.locator('[data-recipe-id="HEAL_POTION"]').click();
     await page.getByRole('button', { name: /B5Fから開始/ }).click();
+    await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#explore-controls')).toBeVisible();
     await page.waitForFunction(() => (
       window.__dungeonSceneDraws?.some((draw) => draw.kind === 'corridor')
