@@ -143,7 +143,7 @@ export function addLog(msg) {
 // Event Strip observations are a small, persisted lifecycle ledger separate
 // from the human-readable log. This lets a signal be replaced or resolved
 // without treating old log text as current fact.
-export function addEventLog(msg, { key = null, scope = "run" } = {}) {
+export function addEventLog(msg, { key = null, scope = "run", kind = "unresolved" } = {}) {
   addLog(msg);
   if (!key || !state.currentRun) return;
   state.currentRun.eventObservations ||= {};
@@ -151,6 +151,7 @@ export function addEventLog(msg, { key = null, scope = "run" } = {}) {
     key,
     scope,
     text: String(msg ?? ""),
+    kind: kind === "result" ? "result" : "unresolved",
     lifecycle: "active"
   };
 }

@@ -40,7 +40,6 @@
         <div id="records-strip" class="records-strip" aria-label="潜行記録"></div>
         <!-- Text HUD representation of surrounding walls for accessibility & navigation -->
         <div id="viewport-hud" aria-live="polite"></div>
-        <div id="combat-overlay" class="combat-overlay-container" style="display: none;"></div>
         <div id="result-overlay" class="result-overlay-container" style="display: none;"></div>
       </div>
 
@@ -74,15 +73,15 @@
         <div id="explore-controls" class="controls-group active">
           <div class="dpad">
             <button id="btn-turn-left" class="btn btn-neon btn-dpad" title="左を向く" aria-label="左を向く">◀</button>
-            <button id="btn-move-forward" class="btn btn-neon btn-dpad" title="前進" aria-label="前進">▲</button>
+            <button id="btn-move-forward" class="btn btn-neon btn-dpad" title="前進" aria-label="前進" data-primary-action="forward">進む</button>
             <button id="btn-turn-right" class="btn btn-neon btn-dpad" title="右を向く" aria-label="右を向く">▶</button>
             <div></div>
             <button id="btn-move-backward" class="btn btn-neon btn-dpad" title="後退" aria-label="後退">▼</button>
             <button id="btn-search" class="btn btn-neon btn-dpad" title="調べる" aria-label="調べる">調べる</button>
           </div>
           <div class="action-grid">
-            <button id="btn-inspect" class="btn btn-neon btn-action">道具</button>
-            <button id="btn-cast" class="btn btn-neon btn-action">呪文</button>
+            <button id="btn-inspect" class="btn btn-neon btn-action" aria-label="バッグ">バッグ</button>
+            <button id="btn-cast" class="btn btn-neon btn-action" aria-label="魔法">魔法</button>
             <button id="btn-item" class="btn btn-neon btn-action">装備</button>
             <button id="btn-explore-management" class="btn btn-neon btn-action">冒険管理</button>
           </div>
@@ -92,12 +91,14 @@
         <div id="combat-controls" class="controls-group">
           <div id="combat-prompt">行動を選択してください</div>
           <div class="combat-grid">
-            <button id="btn-combat-fight" class="btn btn-neon btn-combat">戦う</button>
-            <button id="btn-combat-spell" class="btn btn-neon btn-combat">呪文</button>
+            <button id="btn-combat-fight" class="btn btn-neon btn-combat">攻撃</button>
+            <button id="btn-combat-spell" class="btn btn-neon btn-combat">魔法</button>
             <button id="btn-combat-item" class="btn btn-neon btn-combat">道具</button>
-            <button id="btn-combat-auto" class="btn btn-neon btn-combat">オート</button>
+            <button id="btn-combat-repeat" class="btn btn-neon btn-combat" disabled>↻ 前回の行動</button>
+            <!-- Kept as a compatibility hook for saved/test state; Auto is not a visible combat action. -->
+            <button id="btn-combat-auto" class="btn btn-neon btn-combat" hidden aria-hidden="true">オート</button>
             <button id="btn-combat-defend" class="btn btn-neon btn-combat">防御</button>
-            <button id="btn-combat-run" class="btn btn-neon btn-combat">逃げる</button>
+            <button id="btn-combat-run" class="btn btn-neon btn-combat">逃走</button>
             <button id="btn-combat-cancel" class="btn btn-neon btn-combat dock-action-back" data-action-role="back">キャンセル</button>
           </div>
         </div>
@@ -123,6 +124,9 @@
           <div id="merchant-confirm-footer" aria-label="商人の確定操作"></div>
           <button id="btn-submenu-back" class="btn btn-secondary btn-block dock-action-back" data-action-role="back">戻る</button>
         </div>
+
+        <!-- Combat target/spell/item choices use the same Action Dock surface. -->
+        <div id="combat-overlay" class="combat-overlay-container" role="region" aria-label="戦闘の選択" style="display: none;"></div>
 
         <!-- Trap controls (shown in trap encounter) -->
         <div id="trap-controls" class="controls-group">

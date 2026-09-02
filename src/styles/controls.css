@@ -596,19 +596,35 @@
 }
 
 #btn-combat-auto {
+  display: none;
+}
+
+#btn-combat-repeat {
+  grid-column: 1 / span 2;
+  grid-row: 2;
+  border-color: var(--semantic-selected);
+  color: var(--semantic-selected);
+}
+
+#btn-combat-repeat:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+#btn-combat-auto {
   grid-column: 1;
   grid-row: 2;
 }
 
 #btn-combat-defend {
-  grid-column: 2;
+  grid-column: 3;
   grid-row: 2;
   border-color: var(--neon-cyan);
   color: var(--neon-cyan);
 }
 
 #btn-combat-run {
-  grid-column: 3;
+  grid-column: 4;
   grid-row: 2;
 }
 
@@ -618,8 +634,8 @@
 }
 
 #btn-combat-cancel {
-  grid-column: 4;
-  grid-row: 2;
+  grid-column: 1 / -1;
+  grid-row: 3;
   border-color: var(--border-strong) !important;
   color: var(--text-muted) !important;
   background: linear-gradient(180deg, rgba(26, 32, 36, 0.96), rgba(17, 23, 27, 0.96));

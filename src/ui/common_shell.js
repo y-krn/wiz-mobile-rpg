@@ -73,8 +73,20 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
   const unresolved = activeObservations !== undefined
     ? Object.values(activeObservations || {})
       .filter(entry => entry?.lifecycle === "active" && entry.text)
+      .filter(entry => entry.kind !== "result")
       .map(entry => ({
         kind: "unresolved",
+        text: entry.text,
+        key: entry.key,
+        scope: entry.scope,
+        lifecycle: entry.lifecycle
+      }))
+    : [];
+  const results = activeObservations !== undefined
+    ? Object.values(activeObservations || {})
+      .filter(entry => entry?.lifecycle === "active" && entry.text && entry.kind === "result")
+      .map(entry => ({
+        kind: "result",
         text: entry.text,
         key: entry.key,
         scope: entry.scope,
@@ -89,6 +101,7 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
   });
   return {
     unresolved: unresolved.slice(-unresolvedLimit),
+    results: results.slice(-unresolvedLimit),
     transient: transient.slice(-transientLimit)
   };
 }
