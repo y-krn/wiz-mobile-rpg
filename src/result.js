@@ -109,12 +109,6 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
     state.deathLogs = state.deathLogs.slice(0, 20);
   }
 
-  // Departure items are confirmed ownership. Only the dungeon rewards
-  // recorded in this run are removed on death/abandon; the Result screen can
-  // therefore report the same boundary without implying that a failed run
-  // returned newly found loot to Town.
-  if (isDeathLike) removeUnbankedLoot(run);
-
   if (isDeath) {
     trackCombatEnd("gameover", {
       floor: state.floor,

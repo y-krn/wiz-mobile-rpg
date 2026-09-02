@@ -60,6 +60,8 @@ test('Death result preserves departure items and removes dungeon loot', async ({
     state.currentRun = createDefaultCurrentRun();
     state.currentRun.characterClass = 'Fighter';
     state.currentRun.departureItems = ['TRAP_KIT'];
+    state.currentRun.townInventory = ['TRAP_KIT'];
+    state.currentRun.unbankedObjectLoot = [{ id: 'run_loot_1', item: found }];
     state.currentRun.equipmentFound = [found];
     state.currentRun.deepestFloor = 3;
     state.floor = 3;
@@ -67,13 +69,15 @@ test('Death result preserves departure items and removes dungeon loot', async ({
     triggerRunResult('gameover');
     return {
       inventory: state.inventory,
+      storage: state.storage,
       state: state.gameState,
       lost: document.querySelector('[data-result-loot] .result-loot-lost')?.textContent || '',
       returned: document.querySelector('[data-result-loot] .result-loot-carried')?.textContent || ''
     };
   });
 
-  expect(loot.inventory).toEqual(['TRAP_KIT']);
+  expect(loot.inventory).toEqual([]);
+  expect(loot.storage).toContain('TRAP_KIT');
   expect(loot.state).toBe('result');
   expect(loot.lost).toContain('未鑑定の短剣');
   expect(loot.returned).toContain('罠外しキット');

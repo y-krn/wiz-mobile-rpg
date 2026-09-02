@@ -213,7 +213,7 @@ function appendDeathCountermeasure(optGrid, summary) {
   actions.className = "death-countermeasure-actions";
   appendCountermeasureButton(actions, "出発準備", countermeasure.prep, "solo_start", "潜行の準備");
   if (countermeasure.workshop) {
-    appendCountermeasureButton(actions, "工房", countermeasure.workshop, "workshop_main", "工房 - 恒久アンロック");
+    appendCountermeasureButton(actions, "工房", countermeasure.workshop, "workshop_main", "工房 - 広がった可能性");
   }
   panel.appendChild(actions);
   optGrid.appendChild(panel);

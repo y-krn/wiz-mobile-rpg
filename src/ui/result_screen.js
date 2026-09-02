@@ -90,13 +90,22 @@ function getFoundItems(run) {
 }
 
 function getDepartureItems(run) {
-  return Array.isArray(run.departureItems) ? run.departureItems : [];
+  if (Array.isArray(run.returnedTownItems) && run.returnedTownItems.length > 0) {
+    return run.returnedTownItems;
+  }
+  if (Array.isArray(run.departureItems) && run.departureItems.length > 0) {
+    return run.departureItems;
+  }
+  return Array.isArray(run.returnedTownItems) ? run.returnedTownItems : [];
 }
 
 function getResultLoot(run, outcome) {
   const found = getFoundItems(run);
-  const explicitReturned = run.recoveredItems || run.salvagedItems;
-  const explicitLost = run.lostObjectLoot || run.lostItems;
+  const explicitReturned = run.recoveredItems || run.salvagedItems || [
+    ...(run.returnedTownItems || []),
+    ...(run.bankedObjectLoot || [])
+  ];
+  const explicitLost = run.lostObjectLoot;
   if (Array.isArray(explicitReturned) || Array.isArray(explicitLost)) {
     return {
       returned: Array.isArray(explicitReturned) ? explicitReturned : [],
@@ -162,8 +171,10 @@ function getMemoryHtml(run, outcome) {
 }
 
 function getDiscoveryHtml(run) {
-  const codex = (run.codexDiscoveries || []).map(name => `<li>${escapeHtml(name)}をCodexに記録</li>`);
-  const workshop = (run.workshopDiscoveries || []).map(name => `<li>${escapeHtml(name)}に関わる可能性が開いた</li>`);
+  const codex = (run.codexInsights?.length ? [] : run.codexDiscoveries || [])
+    .map(name => `<li>${escapeHtml(name)}をCodexに記録</li>`);
+  const workshop = (run.workshopUnlocks?.length ? [] : run.workshopDiscoveries || [])
+    .map(name => `<li>${escapeHtml(name)}に関わる可能性が開いた</li>`);
   if (!codex.length && !workshop.length) return "";
   return `
     <section class="result-discovery-section" aria-label="新しく増えた記録と可能性" data-result-discoveries>
@@ -209,29 +220,6 @@ function getQuestHtml(run) {
       </div>
     `;
   }).join("");
-}
-
-function getObjectLootNames(items) {
-  return (items || []).map(item => getItemData(item)?.name || getItemBaseId(item) || "不明な品");
-}
-
-function getObjectLootHtml(run) {
-  const banked = getObjectLootNames([
-    ...(run.returnedTownItems || []),
-    ...(run.bankedObjectLoot || [])
-  ]);
-  const lost = getObjectLootNames(run.lostObjectLoot);
-  if (banked.length === 0 && lost.length === 0) return "";
-  const formatItems = items => items.length > 0
-    ? items.map(item => `<span class="result-object-loot-chip">${item}</span>`).join("")
-    : '<span class="list-empty">なし</span>';
-  return `
-    <section class="result-focus-section" aria-labelledby="result-object-loot-title">
-      <h2 class="result-section-heading" id="result-object-loot-title"><span>戦果の帰還</span></h2>
-      <div class="result-object-loot-group returned"><small>持ち帰り</small><div>${formatItems(banked)}</div></div>
-      ${lost.length > 0 ? `<div class="result-object-loot-group lost"><small>失われた戦果</small><div>${formatItems(lost)}</div></div>` : ""}
-    </section>
-  `;
 }
 
 const RETURN_RARITY_LABELS = {
@@ -322,6 +310,7 @@ export function renderResultScreen() {
       ${getRecordHtml(run)}
       ${getLootHtml(run, outcome)}
       ${getDiscoveryHtml(run)}
+      ${getReturnProcessingHtml(run)}
       <section class="result-focus-section" aria-labelledby="result-material-title">
         <h2 class="result-section-heading" id="result-material-title">
           <span>素材収支</span><strong>${rawTotal} → ${bankedTotal}</strong>
@@ -333,8 +322,6 @@ export function renderResultScreen() {
         </div>
         ${codexTotal > 0 ? `<div class="result-codex-bonus"><span>初討伐メタ報酬</span><div>${formatMaterials(run.codexRewards)}</div></div>` : ""}
       </section>
-      ${getObjectLootHtml(run)}
-      ${getReturnProcessingHtml(run)}
       <section class="result-focus-section" aria-labelledby="result-quest-title">
         <h2 class="result-section-heading" id="result-quest-title"><span>ランクエスト</span></h2>
         <div class="result-quest-list">${getQuestHtml(run)}</div>
