@@ -26,7 +26,7 @@ export { selectCombatAction, cancelCombatAction, resolveCombatRound, triggerGame
 let renderer = null;
 let animationFrameId = null;
 let lastTime = null;
-const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover";
+const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, viewport-fit=cover";
 
 export function initGame() {
   setUiUpdateCallback(updateUI);
@@ -234,59 +234,8 @@ function bindButtons() {
     btnLogOverlayClose.addEventListener("click", () => closeLogOverlay());
   }
 
-  // Prevent iOS/PWA pinch, double-tap zoom, and viewport drift during rapid gameplay taps.
-  const shouldPreventGesture = (target) => {
-    return target && target.closest("#game-container");
-  };
-
-  document.addEventListener("gesturestart", (e) => {
-    if (shouldPreventGesture(e.target)) e.preventDefault();
-  });
-  document.addEventListener("gesturechange", (e) => {
-    if (shouldPreventGesture(e.target)) e.preventDefault();
-  });
-  document.addEventListener("gestureend", (e) => {
-    if (shouldPreventGesture(e.target)) e.preventDefault();
-  });
-
-  // Prevent pinch zoom via multi-touch gestures.
-  document.addEventListener("touchstart", (e) => {
-    if (e.touches.length > 1 && shouldPreventGesture(e.target)) {
-      e.preventDefault();
-      lockViewportScale();
-    }
-  }, { passive: false });
-
-  document.addEventListener("touchmove", (e) => {
-    if (e.touches.length > 1 && shouldPreventGesture(e.target)) {
-      e.preventDefault();
-      lockViewportScale();
-    }
-  }, { passive: false });
-
-  document.addEventListener("dblclick", (e) => {
-    if (shouldPreventGesture(e.target)) {
-      e.preventDefault();
-      lockViewportScale();
-    }
-  }, { passive: false });
-
-  // Prevent double-tap zoom on non-interactive background elements.
-  let lastTouchEnd = 0;
-  document.addEventListener("touchend", (e) => {
-    const now = (new Date()).getTime();
-    if (now - lastTouchEnd <= 300) {
-      const isInteractive = e.target.tagName === "BUTTON" || 
-                            e.target.tagName === "A" || 
-                            e.target.closest("button") || 
-                            e.target.closest(".btn");
-      if (!isInteractive && shouldPreventGesture(e.target)) {
-        e.preventDefault();
-      }
-    }
-    lastTouchEnd = now;
-  }, { passive: false });
-
+  // Keep the viewport metadata stable across browser UI changes without
+  // intercepting pinch/double-tap gestures that users may need for zoom.
   window.addEventListener("resize", lockViewportScale);
   window.addEventListener("orientationchange", lockViewportScale);
   if (window.visualViewport) {

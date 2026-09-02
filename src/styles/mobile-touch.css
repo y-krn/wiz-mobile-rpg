@@ -9,7 +9,7 @@
 .dpad .btn,
 .combat-grid,
 .combat-grid .btn {
-  touch-action: none;
+  touch-action: manipulation;
 }
 
 .submenu-grid,

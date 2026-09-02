@@ -26,7 +26,7 @@ import {
 
 let floorStingerTimer = null;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
-const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover";
+const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, viewport-fit=cover";
 const FLOOR_THEME_STYLE_PROPERTIES = [
   "--biome-wall-color",
   "--biome-glow",
@@ -203,7 +203,7 @@ export function resetViewportZoom() {
     ? viewport.getAttribute("content")
     : null;
   if (currentContent !== LOCKED_VIEWPORT) {
-    // Keep PWA gameplay locked to device scale; repeated taps can otherwise trigger iOS zoom.
+    // Keep the app's viewport definition stable without disabling user zoom.
     viewport.setAttribute("content", LOCKED_VIEWPORT);
   }
 }
@@ -244,6 +244,7 @@ export function updateUI() {
       container.classList.remove(`floor-theme-b${i}`);
     }
     container.classList.toggle("result-mode", gameState === "result");
+    container.classList.toggle("combat-screen-mode", gameState === "combat");
     container.classList.toggle(
       "event-mode",
       gameState === "trap_encounter" || view.isEventSubmenu
@@ -417,6 +418,7 @@ export function updateUI() {
     setActionDockState(controlsPanel, getDockStateForView(view));
     controlsPanel.classList.toggle("explore-mode", gameState === "explore");
     controlsPanel.classList.toggle("combat-mode", isUsableCombatScreen);
+    controlsPanel.classList.toggle("combat-overlay-mode", isCombatOverlaySubmenu);
     controlsPanel.classList.toggle("town-mode", gameState === "town");
     controlsPanel.classList.toggle("submenu-mode", gameState === "submenu");
     controlsPanel.classList.toggle("departure-mode", departurePrepSubmenu);
