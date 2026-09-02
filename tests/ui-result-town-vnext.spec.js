@@ -123,6 +123,10 @@ test('Castle presents death causes as facts with preparation choices', async ({ 
   });
   await page.locator('#btn-town-castle').click();
   await page.getByRole('button', { name: '全滅ログ確認' }).click();
-  await expect(page.locator('.death-countermeasure')).toContainText('候補');
-  await expect(page.locator('.death-countermeasure')).not.toContainText('最多死因への準備');
+  const countermeasure = page.locator('.death-countermeasure');
+  await expect(countermeasure).toContainText('準備を見直す');
+  await expect(countermeasure).toContainText('広がった可能性を見る');
+  for (const specificSolution of ['罠外しキット', '罠喰いの記憶', '解毒薬', '目薬', '守りの薬', '生命鍛錬']) {
+    await expect(countermeasure).not.toContainText(specificSolution);
+  }
 });

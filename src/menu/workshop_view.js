@@ -10,6 +10,8 @@ import {
   purchaseWorkshopNode
 } from "../systems/workshop.js";
 
+const WORKSHOP_VNEXT_CATEGORIES = new Set(["startingGear", "pools", "convenience"]);
+
 function formatCost(cost) {
   return Object.entries(cost || {}).map(([name, quantity]) => `${name}×${quantity}`).join(" / ");
 }
@@ -59,7 +61,9 @@ export function renderWorkshop(optGrid) {
   renderBalance(optGrid);
   Object.entries(WORKSHOP_CATEGORIES).forEach(([category, label]) => {
     const nodes = WORKSHOP_NODES.filter(node => (
-      node.category === category && isWorkshopNodeUnlocked(node, state.keyItems)
+      WORKSHOP_VNEXT_CATEGORIES.has(category)
+      && node.category === category
+      && isWorkshopNodeUnlocked(node, state.keyItems)
     ));
     if (nodes.length === 0) return;
     const heading = document.createElement("h3");

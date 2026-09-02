@@ -152,53 +152,7 @@ function formatDeathCause(summary) {
   return summary.source;
 }
 
-function getDeathCountermeasure(summary) {
-  if (summary.type === "trap") {
-    return {
-      title: "罠への備え",
-      prep: {
-        name: "罠外しキット",
-        detail: "出発準備で作成。宝箱の罠を確実に解除する。"
-      },
-      workshop: {
-        name: "罠喰いの記憶",
-        detail: "工房で解放。罠解除成功時、遠征中の攻撃力が増加する。"
-      }
-    };
-  }
-  if (summary.type === "status" && summary.source === "毒") {
-    return {
-      title: "毒への備え",
-      prep: {
-        name: "解毒薬",
-        detail: "出発準備で作成。毒状態を解除する。"
-      }
-    };
-  }
-  if (summary.type === "status") {
-    return {
-      title: "状態異常への備え",
-      prep: {
-        name: "目薬",
-        detail: "出発準備で作成。盲目状態を解除する。"
-      }
-    };
-  }
-  return {
-    title: "戦闘への備え",
-    prep: {
-      name: "守りの薬",
-      detail: "出発準備で作成。その戦闘の物理ダメージを軽減する。"
-    },
-    workshop: {
-      name: "生命鍛錬",
-      detail: "工房で解放。生命を恒久的に1増加する。"
-    }
-  };
-}
-
 function appendDeathCountermeasure(optGrid, summary) {
-  const countermeasure = getDeathCountermeasure(summary);
   const panel = document.createElement("section");
   panel.className = "death-countermeasure";
   const heading = document.createElement("h3");
@@ -206,24 +160,22 @@ function appendDeathCountermeasure(optGrid, summary) {
   panel.appendChild(heading);
   const note = document.createElement("p");
   note.className = "death-countermeasure-note";
-  note.textContent = `記録された${countermeasure.title}は事実の整理です。次の備えは候補から選べます。`;
+  note.textContent = `${formatDeathCause(summary)} / B${summary.floor}F / ${summary.count}件。次の潜行では複数の備えを比較できます。`;
   panel.appendChild(note);
 
   const actions = document.createElement("div");
   actions.className = "death-countermeasure-actions";
-  appendCountermeasureButton(actions, "出発準備", countermeasure.prep, "solo_start", "潜行の準備");
-  if (countermeasure.workshop) {
-    appendCountermeasureButton(actions, "工房", countermeasure.workshop, "workshop_main", "工房 - 広がった可能性");
-  }
+  appendDeathReviewButton(actions, "準備を見直す", "クラス・持込品・開始地点を比較する。", "solo_start", "潜行の準備");
+  appendDeathReviewButton(actions, "広がった可能性を見る", "記録から横方向の候補を確認する。", "workshop_main", "工房 - 広がった可能性");
   panel.appendChild(actions);
   optGrid.appendChild(panel);
 }
 
-function appendCountermeasureButton(container, prefix, measure, submenuType, title) {
+function appendDeathReviewButton(container, label, detail, submenuType, title) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "btn btn-neon btn-block death-countermeasure-button";
-  button.innerHTML = `<strong>${prefix}：${measure.name}</strong><span>${measure.detail}</span>`;
+  button.innerHTML = `<strong>${label}</strong><span>${detail}</span>`;
   button.addEventListener("click", () => openSubmenu(submenuType, title));
   container.appendChild(button);
 }

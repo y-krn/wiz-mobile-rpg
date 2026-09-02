@@ -1218,10 +1218,10 @@ for (const vp of VIEWPORTS) {
       state.gameState = 'town';
       state.metaMaterials = { '獣の牙': 20, '鉄片': 10 };
       state.workshop = { ranks: {} };
-      openSubmenu('workshop_main', '工房 - 恒久アンロック');
+      openSubmenu('workshop_main', '工房 - 広がった可能性');
     });
 
-    await expect(page.locator('.workshop-node')).toHaveCount(18);
+    await expect(page.locator('.workshop-node')).toHaveCount(12);
 
     const layout = await page.locator('.workshop-node').evaluateAll((buttons) => ({
       buttons: buttons.map((button) => button.getBoundingClientRect().toJSON()),
