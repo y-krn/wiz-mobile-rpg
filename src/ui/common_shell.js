@@ -15,14 +15,16 @@ export const OWNERSHIP_STATES = Object.freeze({
   TOWN_CONFIRMED: "town-confirmed",
   DUNGEON_UNCONFIRMED: "dungeon-unconfirmed",
   WING_SELECTED: "wing-selected",
-  LOST: "lost"
+  LOST: "lost",
+  AMBIGUOUS: "ambiguous"
 });
 
 export const OWNERSHIP_LABELS = Object.freeze({
   [OWNERSHIP_STATES.TOWN_CONFIRMED]: "街から持込・確定済み",
   [OWNERSHIP_STATES.DUNGEON_UNCONFIRMED]: "迷宮で取得・未確定",
   [OWNERSHIP_STATES.WING_SELECTED]: "翼で救出選択中",
-  [OWNERSHIP_STATES.LOST]: "喪失済み"
+  [OWNERSHIP_STATES.LOST]: "喪失済み",
+  [OWNERSHIP_STATES.AMBIGUOUS]: "所有元不明・要確認"
 });
 
 const UNRESOLVED_EVENT_PATTERNS = Object.freeze([
@@ -36,9 +38,8 @@ const UNRESOLVED_EVENT_PATTERNS = Object.freeze([
 ]);
 
 function sameItem(candidate, expected) {
-  if (candidate === expected) return true;
   if (!candidate || !expected || typeof candidate !== "object" || typeof expected !== "object") return false;
-  return Boolean(candidate.instanceId && expected.instanceId && candidate.instanceId === expected.instanceId);
+  return candidate === expected || Boolean(candidate.instanceId && expected.instanceId && candidate.instanceId === expected.instanceId);
 }
 
 function includesItem(items, item) {
@@ -58,15 +59,26 @@ export function classifyEventLine(line) {
   };
 }
 
-export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit = 8 } = {}) {
+export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit = 8, activeObservations = undefined } = {}) {
   const lines = (Array.isArray(logs) ? logs : [])
     .flatMap(message => String(message ?? "").split("\n"))
     .filter(Boolean);
-  const unresolved = [];
+  const unresolved = activeObservations !== undefined
+    ? Object.values(activeObservations || {})
+      .filter(entry => entry?.lifecycle === "active" && entry.text)
+      .map(entry => ({
+        kind: "unresolved",
+        text: entry.text,
+        key: entry.key,
+        scope: entry.scope,
+        lifecycle: entry.lifecycle
+      }))
+    : [];
   const transient = [];
   lines.forEach(line => {
     const entry = classifyEventLine(line);
-    (entry.kind === "unresolved" ? unresolved : transient).push(entry);
+    if (entry.kind === "unresolved" && activeObservations === undefined) unresolved.push(entry);
+    if (entry.kind === "transient") transient.push(entry);
   });
   return {
     unresolved: unresolved.slice(-unresolvedLimit),
@@ -108,10 +120,10 @@ export function setDockActionRole(element, role) {
 }
 
 export function getOwnershipLabel(ownership) {
-  return OWNERSHIP_LABELS[ownership] || OWNERSHIP_LABELS[OWNERSHIP_STATES.TOWN_CONFIRMED];
+  return OWNERSHIP_LABELS[ownership] || OWNERSHIP_LABELS[OWNERSHIP_STATES.AMBIGUOUS];
 }
 
-export function getItemOwnership(item, { state = null, selectedLootIds = null } = {}) {
+export function getItemOwnership(item, { state = null, selectedLootIds = null, lootEntryId = null } = {}) {
   const run = state?.currentRun;
   const lost = run?.lostObjectLoot;
   if (includesItem(lost, item)) return OWNERSHIP_STATES.LOST;
@@ -119,16 +131,27 @@ export function getItemOwnership(item, { state = null, selectedLootIds = null } 
   const unbanked = Array.isArray(run?.unbankedObjectLoot) ? run.unbankedObjectLoot : [];
   const itemId = getItemBaseId(item);
   const townItems = run?.townInventory;
-  if (includesItem(townItems, item)) return OWNERSHIP_STATES.TOWN_CONFIRMED;
-
-  const unbankedEntry = unbanked.find(entry => sameItem(entry?.item, item));
+  const unbankedEntry = lootEntryId
+    ? unbanked.find(entry => entry?.id === lootEntryId)
+    : unbanked.find(entry => sameItem(entry?.item, item));
   if (unbankedEntry) {
     if (selectedLootIds?.has?.(unbankedEntry.id)) return OWNERSHIP_STATES.WING_SELECTED;
     return OWNERSHIP_STATES.DUNGEON_UNCONFIRMED;
   }
+  if (includesItem(townItems, item)) return OWNERSHIP_STATES.TOWN_CONFIRMED;
 
-  // Legacy primitive items have no instance identity. Prefer Town stock for
-  // an ambiguous duplicate because it is the only safe confirmed ownership.
+  // Primitive IDs and legacy objects without instanceId cannot identify one
+  // of two equal-baseId items. Never present a guessed confirmed state.
+  const townCount = Array.isArray(townItems)
+    ? townItems.filter(candidate => getItemBaseId(candidate) === itemId).length
+    : 0;
+  const unbankedCount = unbanked.filter(entry => getItemBaseId(entry?.item) === itemId).length;
+  const lostCount = Array.isArray(lost)
+    ? lost.filter(candidate => getItemBaseId(candidate) === itemId).length
+    : 0;
+  if ((townCount > 0 && unbankedCount > 0)
+    || (townCount > 0 && lostCount > 0)
+    || (unbankedCount > 0 && lostCount > 0)) return OWNERSHIP_STATES.AMBIGUOUS;
   if (hasBaseId(townItems, item)) return OWNERSHIP_STATES.TOWN_CONFIRMED;
   if (hasBaseId(lost, item)) return OWNERSHIP_STATES.LOST;
   if (unbanked.find(entry => itemId && getItemBaseId(entry?.item) === itemId)) {

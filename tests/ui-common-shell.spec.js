@@ -9,6 +9,14 @@ test.describe('Common UI vNext shell @smoke', () => {
       const { updateUI, openLogOverlay } = await import('/src/ui.js');
       state.party = [createSoloCharacter('Mage')];
       state.currentRun = createDefaultCurrentRun();
+      state.currentRun.eventObservations = {
+        'trap:1:3:3': {
+          key: 'trap:1:3:3',
+          scope: 'trap:1',
+          text: '【痕跡】隣接する床に罠の気配がある。',
+          lifecycle: 'active',
+        },
+      };
       state.gameState = 'explore';
       state.transitioning = false;
       state.logs = [
@@ -105,6 +113,29 @@ test.describe('Common UI vNext shell @smoke', () => {
     expect(ownership).toEqual([
       { ownership: 'town-confirmed', badge: '街から持込・確定済み' },
       { ownership: 'dungeon-unconfirmed', badge: '迷宮で取得・未確定' },
+    ]);
+  });
+
+  test('does not guess ownership for duplicate primitive items', async ({ page }) => {
+    await page.goto('/');
+    const ownership = await page.evaluate(async () => {
+      const { state, createDefaultCurrentRun } = await import('/src/state.js');
+      const { renderItemInventory } = await import('/src/menu/explore_actions.js');
+      state.currentRun = createDefaultCurrentRun();
+      state.currentRun.townInventory = ['HEAL_POTION'];
+      state.currentRun.unbankedObjectLoot = [{ id: 'loot-primitive', item: 'HEAL_POTION' }];
+      state.inventory = ['HEAL_POTION', 'HEAL_POTION'];
+      const grid = document.createElement('div');
+      renderItemInventory(grid);
+      return Array.from(grid.querySelectorAll('button[data-ownership]')).map(button => ({
+        ownership: button.dataset.ownership,
+        badge: button.parentElement.querySelector('.ownership-badge')?.textContent,
+      }));
+    });
+
+    expect(ownership).toEqual([
+      { ownership: 'ambiguous', badge: '所有元不明・要確認' },
+      { ownership: 'ambiguous', badge: '所有元不明・要確認' },
     ]);
   });
 });

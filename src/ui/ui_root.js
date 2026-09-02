@@ -371,7 +371,8 @@ export function updateUI() {
   logContent.replaceChildren();
   const eventEntries = getEventStripEntries(state.logs, {
     unresolvedLimit: 4,
-    transientLimit: RECENT_LOG_LINES - 4
+    transientLimit: RECENT_LOG_LINES - 4,
+    activeObservations: state.currentRun?.eventObservations
   });
   const appendEventEntry = ({ kind, text }) => {
     const entry = createLogEntry(text);

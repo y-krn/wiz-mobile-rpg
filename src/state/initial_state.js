@@ -60,6 +60,7 @@ export const createDefaultCurrentRun = () => ({
   unbankedObjectLoot: [],
   bankedObjectLoot: [],
   lostObjectLoot: [],
+  eventObservations: {},
   returnedTownItems: [],
   representativeItem: null,
   meaningfulItemHistory: [],

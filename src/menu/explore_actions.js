@@ -405,7 +405,11 @@ function renderReturnWingSelection(optGrid) {
     const item = getItemData(entry.item);
     const location = isEquippedLoot(entry) ? "（装備中）" : "";
     button.textContent = `${item?.name || "不明な品"}${location}`;
-    const ownership = getItemOwnership(entry.item, { state, selectedLootIds: selectedWingLootIds });
+    const ownership = getItemOwnership(entry.item, {
+      state,
+      selectedLootIds: selectedWingLootIds,
+      lootEntryId: entry.id
+    });
     button.dataset.ownership = ownership;
     row.appendChild(button);
     appendOwnershipBadge(row, ownership);

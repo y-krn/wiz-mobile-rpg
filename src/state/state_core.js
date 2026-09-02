@@ -140,6 +140,44 @@ export function addLog(msg) {
   }
 }
 
+// Event Strip observations are a small, persisted lifecycle ledger separate
+// from the human-readable log. This lets a signal be replaced or resolved
+// without treating old log text as current fact.
+export function addEventLog(msg, { key = null, scope = "run" } = {}) {
+  addLog(msg);
+  if (!key || !state.currentRun) return;
+  state.currentRun.eventObservations ||= {};
+  state.currentRun.eventObservations[key] = {
+    key,
+    scope,
+    text: String(msg ?? ""),
+    lifecycle: "active"
+  };
+}
+
+export function resolveEventObservation(key) {
+  const observations = state.currentRun?.eventObservations;
+  if (!key || !observations?.[key]) return false;
+  observations[key].lifecycle = "resolved";
+  return true;
+}
+
+export function clearEventObservations({ scope = null, scopePrefix = null, keepKeys = [] } = {}) {
+  const observations = state.currentRun?.eventObservations;
+  if (!observations) return 0;
+  const keep = new Set(keepKeys);
+  let cleared = 0;
+  Object.values(observations).forEach(observation => {
+    const scopeMatches = (scope && observation.scope === scope)
+      || (scopePrefix && observation.scope?.startsWith(scopePrefix));
+    if (scopeMatches && !keep.has(observation.key) && observation.lifecycle === "active") {
+      observation.lifecycle = "resolved";
+      cleared++;
+    }
+  });
+  return cleared;
+}
+
 export function recordCharDeath(stateObj, char, cause, details = null) {
   if (!stateObj.currentRun) return null;
   if (!stateObj.currentRun.deathLogs) {

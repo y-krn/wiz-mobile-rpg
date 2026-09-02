@@ -33,13 +33,17 @@ Issues must reuse these roles and the existing Dock position.
 
 ## Event information audit
 
-`#log-content` shows a short current-event view. Lines classified as
-`unresolved` remain visible even after unrelated transient logs are added.
+`#log-content` shows a short current-event view. Active observations are kept
+in `currentRun.eventObservations`, each with a stable `key`, `scope`, and
+`lifecycle`. The common state API replaces an observation when the same key is
+seen again and marks it `resolved` when the underlying fact is settled or its
+scope changes. Only active observations are shown as `unresolved`; old log
+text remains available in history but is not treated as current fact.
 The expandable `#log-overlay-body` remains the access path to the complete
 stored history, so compacting the strip does not remove log-only information.
 When a future mechanic has an unresolved fact that is not represented by a log
-line, it must call the common Event Strip API or add a persistent log entry
-before hiding any other log surface.
+line, it must call `addEventLog()` with a stable lifecycle key and resolve or
+clear it when the fact changes before hiding any other log surface.
 
 ## Ownership display
 
@@ -52,7 +56,11 @@ rules. The four labels are:
 - `dungeon-unconfirmed`: 迷宮で取得・未確定
 - `wing-selected`: 翼で救出選択中
 - `lost`: 喪失済み
+- `ambiguous`: 所有元不明・要確認
 
-The owning screen remains responsible for choosing when a badge is relevant.
+Rows with stable object or loot-entry identity should pass that identity to
+`getItemOwnership()`. Primitive or legacy duplicate base IDs are intentionally
+shown as `ambiguous` instead of being guessed as Town-owned. The owning screen
+remains responsible for choosing when a badge is relevant.
 The next migration Issues should use the same badge for Bag, Portal, Wing, and
 Result contexts rather than inventing per-screen wording.
