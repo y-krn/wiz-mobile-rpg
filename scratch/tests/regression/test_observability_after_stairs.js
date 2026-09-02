@@ -32,4 +32,4 @@ assert.ok(
   "observability simulation must measure both sides of stairs exploration"
 );
 assert.ok(task.results.every(result => result.vnextObservability?.objectLootLifecycle?.status === "not_modeled"));
-console.log("Issue #1012 observability simulation measures stairs before/after exploration: PASS");
+console.log("Observability simulation measures stairs before/after exploration: PASS");
