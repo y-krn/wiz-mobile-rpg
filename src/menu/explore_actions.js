@@ -20,6 +20,7 @@ import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision } from "../telemetry.js";
 import { applyExplorationItem } from "../systems/exploration_items.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry, RETURN_WING_SALVAGE_COUNT } from "../state/run_loot.js";
+import { appendOwnershipBadge, getItemOwnership } from "../ui/common_shell.js";
 
 let selectedWingLootIds = new Set();
 let selectedWingRunSeed = null;
@@ -193,9 +194,15 @@ export function renderItemInventory(optGrid) {
     optGrid.appendChild(btn);
   } else {
     usableItems.forEach(({ itemKey, idx, item }) => {
+      const row = document.createElement("div");
+      row.className = "ownership-aware-row";
       const btn = document.createElement("button");
       btn.className = "btn btn-neon btn-block";
       btn.textContent = item.name;
+      const ownership = getItemOwnership(item, { state });
+      btn.dataset.ownership = ownership;
+      row.appendChild(btn);
+      appendOwnershipBadge(row, ownership);
       btn.addEventListener("click", () => {
         menuContext.itemKey = itemKey;
         menuContext.itemIdx = idx;
@@ -205,7 +212,7 @@ export function renderItemInventory(optGrid) {
         }
         openSubmenu(item.exploreDirectional ? "item_direction_select" : "item_target_select", item.exploreDirectional ? `${item.name}を投げる方向:` : `${item.name}の対象を選択:`);
       });
-      optGrid.appendChild(btn);
+      optGrid.appendChild(row);
     });
   }
 }
@@ -389,13 +396,24 @@ function renderReturnWingSelection(optGrid) {
   }
 
   loot.forEach(entry => {
+    const row = document.createElement("div");
+    row.className = "ownership-aware-row";
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `btn btn-block ${selectedWingLootIds.has(entry.id) ? "btn-neon" : "btn-outline"}`;
+    const selected = selectedWingLootIds.has(entry.id);
+    button.className = `btn btn-block ${selected ? "btn-neon" : "btn-outline"}`;
     const item = getItemData(entry.item);
     const location = isEquippedLoot(entry) ? "（装備中）" : "";
     button.textContent = `${item?.name || "不明な品"}${location}`;
-    button.setAttribute("aria-pressed", String(selectedWingLootIds.has(entry.id)));
+    const ownership = getItemOwnership(entry.item, {
+      state,
+      selectedLootIds: selectedWingLootIds,
+      lootEntryId: entry.id
+    });
+    button.dataset.ownership = ownership;
+    row.appendChild(button);
+    appendOwnershipBadge(row, ownership);
+    button.setAttribute("aria-pressed", String(selected));
     button.addEventListener("click", () => {
       if (selectedWingLootIds.has(entry.id)) {
         selectedWingLootIds.delete(entry.id);
@@ -404,7 +422,7 @@ function renderReturnWingSelection(optGrid) {
       }
       renderReturnWingSelection(optGrid);
     });
-    optGrid.appendChild(button);
+    optGrid.appendChild(row);
   });
 
   const confirm = document.createElement("button");

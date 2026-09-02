@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, INVENTORY_CAPACITY } from "./state.js";
+import { state, saveAutosave, addLog, addEventLog, clearEventObservations, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, INVENTORY_CAPACITY } from "./state.js";
 import { MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import {
   getChestSmashRewardCategory,
@@ -60,7 +60,15 @@ function clearChestInspectionState(chest) {
 
 function finishChest(chest) {
   transitionChestPhase(chest, CHEST_PHASES.TERMINAL);
+  clearEventObservations({ scope: `chest:${state.floor}:${chest?.x}:${chest?.y}` });
   state.chestState = null;
+}
+
+function getChestObservationOptions(chest) {
+  return {
+    key: `chest:${state.floor}:${chest?.x}:${chest?.y}:unresolved`,
+    scope: `chest:${state.floor}:${chest?.x}:${chest?.y}`
+  };
 }
 
 function translateTrap(trap) {
@@ -89,7 +97,7 @@ function inspectChest() {
   if (identifiedTrap === chest.trap) {
     addLog(`調査結果：[${translateTrap(chest.trap)}]の罠のようだ！`);
   } else {
-    addLog(`調査結果：[${translateTrap(identifiedTrap)}]の罠の可能性が高い。（不確実）`);
+    addEventLog(`調査結果：[${translateTrap(identifiedTrap)}]の罠の可能性が高い。（不確実）`, getChestObservationOptions(chest));
   }
   playSound("move");
   openChestMenu();

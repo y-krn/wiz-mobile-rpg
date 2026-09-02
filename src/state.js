@@ -1,6 +1,9 @@
 export {
   state,
   addLog,
+  addEventLog,
+  resolveEventObservation,
+  clearEventObservations,
   recordCharDeath,
   formatCharDeathLog,
   queueCharDeathLog,

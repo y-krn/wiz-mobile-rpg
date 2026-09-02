@@ -13,6 +13,12 @@ import { formatRunQuestProgress } from "../systems/run_quests.js";
 import { updateRecordsStrip } from "./records_view.js";
 import { getScreenViewState } from "../state/view_state.js";
 import {
+  getDockStateForView,
+  getEventStripEntries,
+  setActionDockState,
+  setDockActionRole
+} from "./common_shell.js";
+import {
   MILESTONE_CLEARED_STRUCTURE_MESSAGE,
   MILESTONE_STRUCTURE_MESSAGE
 } from "./milestone_disclosure.js";
@@ -363,9 +369,28 @@ export function updateUI() {
   const logPanel = document.getElementById("log-panel");
   const logScrollState = captureScrollState(logPanel);
   logContent.replaceChildren();
-  flattenLogLines(state.logs).slice(-RECENT_LOG_LINES).forEach(line => {
-    logContent.appendChild(createLogEntry(line));
+  const eventEntries = getEventStripEntries(state.logs, {
+    unresolvedLimit: 4,
+    transientLimit: RECENT_LOG_LINES - 4,
+    activeObservations: state.currentRun?.eventObservations
   });
+  const appendEventEntry = ({ kind, text }) => {
+    const entry = createLogEntry(text);
+    entry.classList.add("event-strip-item", `event-strip-item--${kind}`);
+    if (entry.dataset) entry.dataset.eventKind = kind;
+    const label = document.createElement("span");
+    label.className = "event-strip-item-label";
+    label.textContent = kind === "unresolved" ? "未解決" : "直近";
+    if (typeof entry.prepend === "function") {
+      entry.prepend(label);
+    } else {
+      entry.appendChild(label);
+    }
+    logContent.appendChild(entry);
+  };
+  [...eventEntries.unresolved, ...eventEntries.transient]
+    .slice(-RECENT_LOG_LINES)
+    .forEach(appendEventEntry);
   restoreScrollState(logPanel, logScrollState);
 
   // Keep the full-log overlay content fresh if it happens to be open
@@ -383,6 +408,7 @@ export function updateUI() {
 
   const controlsPanel = document.getElementById("controls-panel");
   if (controlsPanel) {
+    setActionDockState(controlsPanel, getDockStateForView(view));
     controlsPanel.classList.toggle("explore-mode", gameState === "explore");
     controlsPanel.classList.toggle("combat-mode", isUsableCombatScreen);
     controlsPanel.classList.toggle("town-mode", gameState === "town");
@@ -393,6 +419,11 @@ export function updateUI() {
     controlsPanel.classList.toggle("chest-menu-mode", view.isSubmenu && view.menuType === "chest_menu");
     controlsPanel.classList.toggle("trap-mode", gameState === "trap_encounter");
   }
+
+  setDockActionRole(document.getElementById("btn-submenu-back"), "back");
+  setDockActionRole(document.getElementById("btn-combat-cancel"), "back");
+  const wingConfirm = document.getElementById("btn-wing-salvage-confirm");
+  if (wingConfirm) setDockActionRole(wingConfirm, "confirm");
 
   if (gameState === "explore") {
     document.getElementById("explore-controls").classList.add("active");

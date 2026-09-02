@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
+import { state, saveAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
@@ -284,6 +284,8 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
 
   setTimeout(() => {
     ensureRunFloor(state, nextFloor);
+    clearEventObservations({ scopePrefix: "aura:" });
+    clearEventObservations({ scopePrefix: "trap:" });
     state.floor = nextFloor;
     state.sessionMaxFloor = Math.max(state.sessionMaxFloor, state.floor);
     if (state.currentRun) {
@@ -368,6 +370,11 @@ function checkSensoryAura() {
   const baseSenseRange = lightSenseRange;
   const soundRange = baseSenseRange + hearRangeBonus + (sneakStep?.auraRangeBonus || 0);
   const arcaneRange = baseSenseRange;
+  const activeObservationKeys = new Set();
+  const observe = (key, text) => {
+    activeObservationKeys.add(key);
+    addEventLog(text, { key, scope: `aura:${state.floor}` });
+  };
   
   let nearestSpring = null;
   let nearestBoss = null;
@@ -420,43 +427,43 @@ function checkSensoryAura() {
     } else {
       dirStr = dx < 0 ? "西" : "東";
     }
-    addLog(`【気配】${dirStr}の方から${aura?.boss || "ただならぬ魔力の気配を感じる…"}`);
+    observe(`aura:${state.floor}:boss:${nearestBoss.x}:${nearestBoss.y}`, `【気配】${dirStr}の方から${aura?.boss || "ただならぬ魔力の気配を感じる…"}`);
   }
 
   // 2. Spring water sound
   if (minDistSpring <= soundRange && nearestSpring) {
-    addLog(`【気配】${aura?.spring || "近くからかすかに水音が聞こえる…"}`);
+    observe(`aura:${state.floor}:spring:${nearestSpring.x}:${nearestSpring.y}`, `【気配】${aura?.spring || "近くからかすかに水音が聞こえる…"}`);
   }
 
   // 3. Tablet magic wave
   if (minDistTablet <= arcaneRange && nearestTablet) {
     if (arcaneSense >= 1) {
-      addLog(`【気配】${getRelativeDirectionText(nearestTablet.x, nearestTablet.y, px, py)}に${aura?.tablet || "弱い魔力の波動を感じる…"}`);
+      observe(`aura:${state.floor}:tablet:${nearestTablet.x}:${nearestTablet.y}`, `【気配】${getRelativeDirectionText(nearestTablet.x, nearestTablet.y, px, py)}に${aura?.tablet || "弱い魔力の波動を感じる…"}`);
     } else {
-      addLog(`【気配】${aura?.tablet || "近くの壁から弱い魔力の波動を感じる…"}`);
+      observe(`aura:${state.floor}:tablet:${nearestTablet.x}:${nearestTablet.y}`, `【気配】${aura?.tablet || "近くの壁から弱い魔力の波動を感じる…"}`);
     }
   }
 
   // 4. Merchant footsteps/presence
   if (minDistMerchant <= soundRange && nearestMerchant) {
-    addLog(`【気配】${aura?.merchant || "近くから静かな衣擦れの音が聞こえる気がする…"}`);
+    observe(`aura:${state.floor}:merchant:${nearestMerchant.x}:${nearestMerchant.y}`, `【気配】${aura?.merchant || "近くから静かな衣擦れの音が聞こえる気がする…"}`);
   }
 
   // 5. Down stairs wind draft
   if (minDistDownStairs <= soundRange && nearestDownStairs) {
-    addLog(`【気配】${aura?.stairs || "下へ続く空洞から、冷たい風が流れてきている…"}`);
+    observe(`aura:${state.floor}:stairs:${nearestDownStairs.x}:${nearestDownStairs.y}`, `【気配】${aura?.stairs || "下へ続く空洞から、冷たい風が流れてきている…"}`);
   }
 
   // 6. Chest hidden treasure vibe
   if (minDistChest <= baseSenseRange && nearestChest) {
-    addLog(`【気配】${aura?.chest || "この近くに何かが隠されている気がする…"}`);
+    observe(`aura:${state.floor}:chest:${nearestChest.x}:${nearestChest.y}`, `【気配】${aura?.chest || "この近くに何かが隠されている気がする…"}`);
   }
 
   // 7. Hidden door wall sense
   if (arcaneSense >= 2) {
     const secretDir = getAdjacentHiddenSecretDoorDir();
     if (secretDir !== null) {
-      addLog(`【気配】${DIR_NAMES[secretDir]}の壁の向こうに空洞の気配がある…`);
+      observe(`aura:${state.floor}:secret:${state.x}:${state.y}:${secretDir}`, `【気配】${DIR_NAMES[secretDir]}の壁の向こうに空洞の気配がある…`);
     }
   }
 
@@ -474,10 +481,15 @@ function checkSensoryAura() {
     });
     const roamingRange = nearest?.kind === "elite" ? 5 + hearRangeBonus : 3 + hearRangeBonus;
     if (nearest && minFlackDist <= roamingRange) {
-      addLog(`【⚠️警告】近くから桁違いの殺気が漂ってくる…強敵「${nearest.name}」が近くにいる！`);
+      const threatKey = `aura:${state.floor}:roaming:${nearest.id || nearest.name || `${nearest.x}:${nearest.y}`}`;
+      observe(threatKey, `【⚠️警告】近くから桁違いの殺気が漂ってくる…強敵「${nearest.name}」が近くにいる！`);
       playSound("miss");
     }
   }
+
+  // A floor move, defeated/left encounter, or leaving an aura's range marks
+  // the previous observation resolved. The log remains available in history.
+  clearEventObservations({ scopePrefix: "aura:", keepKeys: activeObservationKeys });
 }
 
 function getRelativeDirectionText(x, y, px, py) {
@@ -1028,7 +1040,12 @@ export function processExplorationResolution(prevX, prevY) {
   const eliteProgress = progressEliteThreat(state);
   eliteProgress.omens.forEach(omen => addLog(`[予兆] ${omen}`));
   if (eliteProgress.spawned) {
-    addLog(`【気配】${eliteProgress.spawned.name}の殺気が、この階に満ちた……`);
+    const spawned = eliteProgress.spawned;
+    const key = `aura:${state.floor}:roaming:${spawned.id || spawned.name || `${spawned.x}:${spawned.y}`}`;
+    addEventLog(`【気配】${spawned.name}の殺気が、この階に満ちた……`, {
+      key,
+      scope: `aura:${state.floor}`
+    });
   }
 
   // 1. Check if player stepped onto Flack

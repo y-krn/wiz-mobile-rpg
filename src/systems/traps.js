@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "../state.js";
+import { state, saveAutosave, addLog, addEventLog, resolveEventObservation, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "../state.js";
 import { updateUI } from "../ui.js";
 import { playSound } from "../audio.js";
 import { triggerGameOver } from "../combat.js";
@@ -18,6 +18,12 @@ import { ensureRunFloor } from "../state/run_floor_state.js";
 
 // balance-impact: none — death log delivery only; trap effects and damage are unchanged.
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
+
+function getTrapObservationKey(trap) {
+  return trap?.position
+    ? `trap:${state.floor}:${trap.position.x}:${trap.position.y}`
+    : null;
+}
 
 export function increaseChestTrapTier(trap, levels = 1) {
   const index = CHEST_TRAP_TIERS.indexOf(trap);
@@ -120,15 +126,22 @@ export function detectAdjacentTraps() {
 
   const lead = found[0];
   if (traceRead >= 2) {
-    addLog(`【痕跡】隣接する床に${getExpectedEffectText(lead)}の罠がある。`);
+    addEventLog(`【痕跡】隣接する床に${getExpectedEffectText(lead)}の罠がある。`, {
+      key: getTrapObservationKey(lead),
+      scope: `trap:${state.floor}`
+    });
   } else {
-    addLog("【痕跡】隣接する床に罠の気配がある。");
+    addEventLog("【痕跡】隣接する床に罠の気配がある。", {
+      key: getTrapObservationKey(lead),
+      scope: `trap:${state.floor}`
+    });
   }
   playSound("miss");
   return true;
 }
 
 export function triggerPitfall(trap, isPartialSuccess = false) {
+  resolveEventObservation(getTrapObservationKey(trap));
   const nextFloor = state.floor + 1;
   const nextMap = ensureRunFloor(state, nextFloor);
   
@@ -229,6 +242,7 @@ export function triggerPitfall(trap, isPartialSuccess = false) {
 }
 
 export function triggerTrap(trap, isPartialSuccess = false) {
+  resolveEventObservation(getTrapObservationKey(trap));
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor: state.floor,
@@ -354,6 +368,7 @@ export function handleTrapAction(action) {
         addLog("[味方] 【回避成功】慎重に縁を伝い、落とし穴を渡りきった！");
         playSound("item");
         trap.state = "disabled";
+        resolveEventObservation(getTrapObservationKey(trap));
         markMapChanged();
         if (state.currentRun) state.currentRun.trapsDisarmed++;
         recordTrapCodex("pitfall", "disarmed");
@@ -400,6 +415,7 @@ export function handleTrapAction(action) {
     // 解除は成功・部分成功・失敗のいずれでも罠を使い切って通過する。
     // 同じ罠を再度踏んで判定を引き直せる状態を残さない。
     trap.state = "disabled";
+    resolveEventObservation(getTrapObservationKey(trap));
     markMapChanged();
     completePendingMove();
     endTrapEncounter();
