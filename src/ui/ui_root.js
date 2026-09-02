@@ -388,7 +388,9 @@ export function updateUI() {
     }
     logContent.appendChild(entry);
   };
-  const persistentEvents = [...eventEntries.unresolved, ...(eventEntries.results || [])].slice(-4);
+  // Keep unresolved observations in their own four-slot contract so a burst
+  // of combat results cannot hide a threat or trap that still needs a decision.
+  const persistentEvents = [...eventEntries.unresolved, ...(eventEntries.results || [])];
   const transientBudget = Math.max(0, RECENT_LOG_LINES - persistentEvents.length);
   [...persistentEvents, ...eventEntries.transient.slice(-transientBudget)]
     .forEach(appendEventEntry);

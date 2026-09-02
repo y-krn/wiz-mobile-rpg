@@ -43,6 +43,25 @@ assert.deepEqual(
   ["バッグがいっぱいでアイテムを持ち帰れなかった！"]
 );
 
+const persistentObservations = Object.fromEntries([
+  ...Array.from({ length: 4 }, (_, index) => [`trap:${index}`, {
+    key: `trap:${index}`,
+    scope: "trap:1",
+    text: `【痕跡】罠 ${index + 1}`,
+    lifecycle: "active",
+  }]),
+  ...Array.from({ length: 4 }, (_, index) => [`combat-result:${index}`, {
+    key: `combat-result:${index}`,
+    scope: "combat:1",
+    text: `【戦闘結果】反射 ${index + 1}`,
+    kind: "result",
+    lifecycle: "active",
+  }]),
+]);
+const persistentEntries = getEventStripEntries([], { activeObservations: persistentObservations });
+assert.equal(persistentEntries.unresolved.length, 4);
+assert.equal(persistentEntries.results.length, 4);
+
 state.logs = [];
 state.currentRun = { eventObservations: {} };
 addEventLog("【気配】観測中", { key: "test:observation", scope: "test" });

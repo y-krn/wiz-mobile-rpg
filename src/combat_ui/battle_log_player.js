@@ -1,4 +1,4 @@
-import { state, saveAutosave, addEventLog, addLog } from "../state.js";
+import { state, saveAutosave, addEventLog, addLog, clearEventObservations } from "../state.js";
 import { playSound } from "../audio.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
 import { updateUI } from "../ui.js";
@@ -12,6 +12,7 @@ import { triggerGameOver } from "./game_over.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 
 function cleanupCombatState() {
+  clearEventObservations({ scopePrefix: "combat:" });
   state.combatState = null;
   state.party.forEach(char => {
     delete char.buffs;
@@ -210,5 +211,5 @@ export function playBattleLogs(queue, index) {
 }
 
 function isImportantCombatResult(message) {
-  return typeof message === "string" && /反射|効かな|効き|状態異常|毒|盲目|麻痺|睡眠|出血|脆弱|倒れた|ダメージ|回復|逃走|逃げ|防御|MP不足/.test(message);
+  return typeof message === "string" && /反射|効かな|無効|状態異常|毒状態|盲目|麻痺|睡眠|出血|脆弱|耐性|弱点|倒れた|力尽きた|逃走|逃げ|MP不足/.test(message);
 }

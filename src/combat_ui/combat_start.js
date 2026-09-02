@@ -1,4 +1,4 @@
-import { state, addLog, saveAutosave, recordMonsterEncounter } from "../state.js";
+import { state, addLog, saveAutosave, recordMonsterEncounter, clearEventObservations } from "../state.js";
 import { menuContext, menuHistory } from "../navigation.js";
 import { combatSelection } from "./combat_state.js";
 import { generateEncounter } from "./encounter.js";
@@ -26,6 +26,7 @@ function getRetreatPosition() {
 
 export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null) {
   state.gameState = "combat";
+  clearEventObservations({ scopePrefix: "combat:" });
   if (state.currentRun) {
     state.currentRun.battles++;
     if (!isBoss && !isMidboss && !isRoamingFlack) recordEliteGreedAction(state, "battle");
@@ -125,6 +126,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
 export function resumeCombat() {
   if (!state.combatState) return;
 
+  clearEventObservations({ scopePrefix: "combat:" });
   state.combatState.phase = "choose_actions";
   combatSelection.charIdx = 0;
   combatSelection.actions = [];

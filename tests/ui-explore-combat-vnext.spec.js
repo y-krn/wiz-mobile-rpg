@@ -65,6 +65,14 @@ test('important combat results remain in the Event Strip with ordinary logs', as
     state.party = [createSoloCharacter('Mage')];
     state.currentRun = createDefaultCurrentRun();
     state.gameState = 'explore';
+    state.currentRun.eventObservations = {
+      'trap:test:1': {
+        key: 'trap:test:1',
+        scope: 'trap:1',
+        text: '【痕跡】強敵の近くに罠の気配がある。',
+        lifecycle: 'active',
+      },
+    };
     state.logs = Array.from({ length: 20 }, (_, index) => `通常ログ ${index + 1}`);
     addEventLog('【戦闘結果】反射され、敵にダメージを与えられなかった。', {
       key: 'combat-result:test:1',
@@ -74,10 +82,47 @@ test('important combat results remain in the Event Strip with ordinary logs', as
     updateUI();
     return {
       resultText: document.querySelector('#log-content [data-event-kind="result"]')?.textContent,
+      unresolvedText: document.querySelector('#log-content [data-event-kind="unresolved"]')?.textContent,
       transientCount: document.querySelectorAll('#log-content [data-event-kind="transient"]').length,
     };
   });
 
   expect(result.resultText).toContain('反射');
+  expect(result.unresolvedText).toContain('罠の気配');
   expect(result.transientCount).toBeLessThanOrEqual(8);
+});
+
+test('combat result observations are cleared at combat boundaries', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const { state, createDefaultCurrentRun, createSoloCharacter, addEventLog } = await import('/src/state.js');
+    const { startCombat } = await import('/src/combat.js');
+    state.party = [createSoloCharacter('Fighter')];
+    state.currentRun = createDefaultCurrentRun();
+    state.gameState = 'explore';
+    state.transitioning = false;
+    addEventLog('【戦闘結果】反射された。', {
+      key: 'combat-result:test:boundary',
+      scope: 'combat:1',
+      kind: 'result',
+    });
+    const before = Object.values(state.currentRun.eventObservations).filter(entry => entry.kind === 'result' && entry.lifecycle === 'active').length;
+    startCombat(false, false);
+    const afterCombatStart = Object.values(state.currentRun.eventObservations).filter(entry => entry.kind === 'result' && entry.lifecycle === 'active').length;
+
+    addEventLog('【戦闘結果】無効化された。', {
+      key: 'combat-result:test:round',
+      scope: 'combat:1',
+      kind: 'result',
+    });
+    const { combatSelection } = await import('/src/combat.js');
+    const { resolveCombatRound } = await import('/src/combat.js');
+    combatSelection.actions = [{ type: 'defend', actorIdx: 0 }];
+    combatSelection.charIdx = 1;
+    resolveCombatRound();
+    const afterRoundStart = Object.values(state.currentRun.eventObservations).filter(entry => entry.kind === 'result' && entry.lifecycle === 'active').length;
+    return { before, afterCombatStart, afterRoundStart };
+  });
+
+  expect(result).toEqual({ before: 1, afterCombatStart: 0, afterRoundStart: 0 });
 });
