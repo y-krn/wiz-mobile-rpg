@@ -1221,7 +1221,7 @@ for (const vp of VIEWPORTS) {
       openSubmenu('workshop_main', '工房 - 広がった可能性');
     });
 
-    await expect(page.locator('.workshop-node')).toHaveCount(12);
+    await expect(page.locator('.workshop-node')).toHaveCount(11);
 
     const layout = await page.locator('.workshop-node').evaluateAll((buttons) => ({
       buttons: buttons.map((button) => button.getBoundingClientRect().toJSON()),

@@ -63,15 +63,17 @@ test('Castle to workshop transition keeps the workshop grid readable', async ({ 
       bloodWandDesc: findNodeDesc('血杖の記憶'),
       deepSpellsDesc: findNodeDesc('深層呪文写本'),
       permanentStatsDesc: findNodeDesc('生命鍛錬'),
+      identifyPowderDesc: findNodeDesc('鑑定粉の備蓄'),
     };
   });
 
   expect(workshopLayout.style).toBeNull();
   expect(workshopLayout.display).toBe('grid');
   expect(workshopLayout.workshopClass).toBe(true);
-  expect(workshopLayout.nodeCount).toBe(12);
+  expect(workshopLayout.nodeCount).toBe(11);
   expect(workshopLayout.clippedNodeCount).toBe(0);
   expect(workshopLayout.permanentStatsDesc).toBeUndefined();
+  expect(workshopLayout.identifyPowderDesc).toBeUndefined();
   // #566: 抽選プールノードは affix/spell の実効果を表示する。フォールバック
   // （node.description の定型文）に落ちた場合、これらの語は含まれず失敗する。
   expect(workshopLayout.bloodWandDesc).toContain('MP不足時');
