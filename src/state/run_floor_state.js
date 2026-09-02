@@ -1,6 +1,7 @@
 import { generateRunFloor } from "../run_map_generator.js";
-import { createFloorElite } from "../systems/roaming_elites.js";
+import { createFloorElite, markEliteEntryRollResolved } from "../systems/roaming_elites.js";
 import { getFloorTemplate } from "../data/floor_templates.js";
+import { getBandIndexForFloor, getBandTrialForFloor, getStoredBandTrial } from "../rules/floor_trials.js";
 import { markMapChanged } from "./state_core.js";
 
 function createVisitedGrid(grid) {
@@ -109,13 +110,41 @@ export class RunFloorRecoveryError extends Error {
   }
 }
 
-// 徘徊エリートは階を生成した瞬間に置く。撃破済みの階はmapsが残るためここまで来ない。
+// 徘徊エリートは階生成時のseed抽選に通った場合だけ置く。撃破済みの階は
+// mapsが残るためここまで来ず、長居による追加出現はmovement側から判定する。
 function spawnFloorElite(stateLike, floor, runSeed, mapData) {
-  const elite = createFloorElite({ runSeed, floor, mapData });
+  const floorState = markEliteEntryRollResolved(stateLike, floor);
+  if (floorState.spawned || floorState.defeated) return;
+  const bandIndex = getBandIndexForFloor(floor);
+  const elite = createFloorElite({
+    runSeed,
+    floor,
+    mapData,
+    spawnReason: "entry",
+    storedTrial: stateLike.currentRun?.trialBands?.[bandIndex]
+  });
   if (!elite) return;
   stateLike.roamingMonsters ||= [];
   if (stateLike.roamingMonsters.some(monster => monster.id === elite.id)) return;
   stateLike.roamingMonsters.push(elite);
+  floorState.spawned = true;
+}
+
+function cacheBandTrial(stateLike, floor) {
+  const runSeed = stateLike.currentRun?.runSeed;
+  if (!runSeed || !stateLike.currentRun || stateLike.currentRun.returnReason) return;
+  const bandIndex = getBandIndexForFloor(floor);
+  stateLike.currentRun.trialBands ||= {};
+  const existingTrial = stateLike.currentRun.trialBands[bandIndex];
+  const trial = getBandTrialForFloor(runSeed, floor, existingTrial);
+  const storedTrial = getStoredBandTrial(trial);
+  if (storedTrial && (
+    existingTrial?.bandIndex !== storedTrial.bandIndex ||
+    existingTrial?.mainId !== storedTrial.mainId ||
+    existingTrial?.subId !== storedTrial.subId
+  )) {
+    stateLike.currentRun.trialBands[bandIndex] = storedTrial;
+  }
 }
 
 export function ensureRunFloor(stateLike, floor) {
@@ -123,7 +152,9 @@ export function ensureRunFloor(stateLike, floor) {
   const existingMap = stateLike.maps?.[index];
   const isActiveRun = Boolean(stateLike.currentRun?.runSeed && !stateLike.currentRun.returnReason);
   const isActiveFloor = floor === stateLike.floor;
+  cacheBandTrial(stateLike, floor);
   if (isUsableFloorMap(existingMap, isActiveRun ? floor : null)) {
+    if (isActiveRun) markEliteEntryRollResolved(stateLike, floor);
     const visitedMap = stateLike.visitedMaps?.[index];
     if (!isUsableVisitedMap(existingMap, visitedMap)) {
       if (isActiveRun && isActiveFloor && stateLike._freshRunFloor !== floor) {

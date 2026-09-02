@@ -7,7 +7,8 @@ to verify the change.
 ## Core Flow
 
 - App bootstrap: `index.html`, `src/main.js`, `src/game.js`
-- Persistent state and save shape: `src/state.js`, `src/state/*`
+- Persistent state and save shape: `src/state.js`, `src/state/*`; active-run
+  object-loot ownership and terminal settlement: `src/state/run_loot.js`
 - Static game data and formulas: `src/data.js`, `src/data/*`,
   `src/rules/*`, `src/systems/*`, `src/constants/*`
 - Global UI rendering and HUD: `src/ui.js`, `src/ui/*`
@@ -21,7 +22,9 @@ to verify the change.
 - Progression/economy design: `.agents/game-design.md`
 - Equipment affixes (cores/supports), workshop inscriptions/polish/seal:
   `src/data/affixes.js`, `src/rules/affix_rules.js`, `src/craft.js`,
-  `src/systems/equipment_generation.js`, `.agents/game-design-equipment-builds.md`
+  `src/data/equipment_tables.js`, `src/rules/chest_rules.js`,
+  `src/systems/equipment_generation.js`,
+  `scratch/tests/unit/test_loot_supply.js`, `.agents/game-design-equipment-builds.md`
 
 ## Module Boundaries
 
@@ -66,17 +69,19 @@ to verify the change.
 | App startup, button binding, viewport lock | `src/game.js`, `src/main.js` | `index.html`, `src/navigation.js`, `src/ui.js` | `npm run build`, `npm run test:browser` |
 | Global HUD, logs, goal banner, overlays | `src/ui.js`, `src/ui/*`, `src/styles/app-shell.css` | `src/state.js`, `src/state/*`, screen module being rendered, relevant `src/styles/overlays-*.css` | `npm run test:browser` |
 | Town menu and generic submenu flow | `src/menu.js`, `src/menu/*`, `src/navigation.js`, `src/styles/controls.css` | `src/ui.js`, `src/ui/*`, `src/styles/buttons.css`, `src/styles/mobile-touch.css` | `npm run test:browser` |
-| Equipment and inventory | `src/equip.js`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/state.js`, `src/state/*` | `src/menu.js`, `src/menu/*`, `src/chest.js`, `src/styles/overlays-equip.css` | `npm run test:unit`, `npm run test:browser` |
+| Equipment and inventory | `src/equip.js`, `src/data.js`, `src/data/*`, `src/rules/item_inventory.js`, `src/rules/*`, `src/state.js`, `src/state/*` | `src/menu.js`, `src/menu/*`, `src/chest.js`, `src/styles/overlays-equip.css` | `npm run test:unit`, `npm run test:browser` |
 | Spells, camp recovery, utility effects | `src/spell_menu.js`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*` | `src/state.js`, `src/state/*`, `src/menu.js`, `src/menu/*`, `src/combat.js`, `src/combat_ui/*` | `npm run test:unit`, `npm run test:browser` |
 | Dungeon movement and cell events | `src/movement.js`, `src/map_generator.js` | `src/state.js`, `src/state/*`, `src/data.js`, `src/data/*`, `src/constants/*`, `src/renderer.js`, `src/result.js` | `npm run test:unit` |
 | Map generation and reachability | `src/run_map_generator.js` (`generateRunFloor`, run-floor composition), `src/map_generator.js` (base map generation), `src/seed_rng.js` | `scratch/tests/unit/test_map_reachability.js`, `scratch/tests/unit/test_reachability_loop.js` | `npm run test:unit` |
 | Combat UI and action selection | `src/combat.js`, `src/combat_ui/*`, `src/ui.js`, `src/ui/*`, `src/styles/overlays-combat.css`, `src/styles/controls.css` | `src/combat_logic.js`, `src/combat_logic/*`, `src/data.js`, `src/data/*`, `src/state.js`, `src/state/*` | `npm run test:unit`, `npm run test:browser` |
 | Combat rules and deterministic resolution | `src/combat_logic.js`, `src/combat_logic/*`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*` | `src/combat.js`, `src/combat_ui/*`, `src/state.js`, `src/state/*` | `npm run test:unit` |
 | Enemies, items, spells, classes, formulas | `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*`, `src/constants/*` | `src/combat_logic.js`, `src/combat_logic/*`, `src/state.js`, `src/state/*`, affected screen module | `npm run test:unit` |
+| Five-floor trials, band roles, Portal clues | `src/data/floor_trials.js`, `src/rules/floor_trials.js` | `src/data/encounters.js`, `src/combat_ui/encounter.js`, `src/combat_ui/combat_start.js`, `src/menu/milestone_portal.js`, `src/state/run_floor_state.js` | `npm run test:unit`, `npm run test:browser` |
 | Affix cores/supports, budgets, seal/polish rules | `src/data/affixes.js`, `src/rules/affix_rules.js`, `.agents/game-design-equipment-builds.md` | `src/systems/equipment_generation.js`, `src/craft.js`, `src/combat_logic/damage.js`, `src/combat_logic/round.js`, `scratch/tests/unit/test_affixes.js`, `scratch/tests/unit/test_core_affixes.js` | `npm run test:unit` |
 | Treasure chest, traps, drops | `src/chest.js`, `src/data.js`, `src/data/*`, `src/systems/*` | `src/state.js`, `src/state/*`, `src/combat.js`, `src/combat_ui/*` | `npm run test:unit` |
 | Run quests and codex/progress tracking | `src/data/run_quests.js`, `src/systems/run_quests.js`, `src/state.js`, `src/state/*` | `src/ui.js`, `src/ui/*`, `src/result.js`, `scratch/tests/unit/test_run_quests_records.js` | `npm run test:unit`, `npm run test:browser` |
-| Run result, rewards, return reasons | `src/result.js`, `src/state.js`, `src/state/*` | `src/chest.js`, `src/combat.js`, `src/combat_logic/*` | `npm run test:unit`, `npm run test:browser` |
+| Run result, rewards, return reasons | `src/result.js`, `src/systems/run_return.js`, `src/state.js`, `src/state/*` | `src/chest.js`, `src/combat.js`, `src/combat_logic/*`, `src/ui/result_screen.js` | `npm run test:unit`, `npm run test:browser` |
+| Core Loop vNext telemetry and observability | `src/telemetry.js`, `.agents/game-design-telemetry.md` | `src/state/run_loot.js`, `src/state/inventory_state.js`, `src/movement.js`, `src/chest.js`, portal/equipment/elite callers, `scratch/measurements/issue1012_observability.js` | `npm run test:unit`, `npm run build`, `npm run lint` |
 | Progression economy, materials, workshop, post-clear loop | `.agents/game-design.md`, `src/data.js`, `src/data/*`, `src/state.js`, `src/state/*` | `src/systems/*`, `src/combat_logic.js`, `src/combat_logic/*`, `src/chest.js`, `src/menu.js`, `src/menu/*`, `src/result.js`, `scratch/tests/*/test_*.js`, `tests/*.spec.js` | `npm run test:unit`, `npm run build`, `npm run test:browser` |
 | Audio toggle or sound effects | `src/audio.js`, `src/game.js` | Calling module for the changed event | `npm run build` |
 | Input guards and error telemetry | `src/controls_guard.js`, `src/error_context.js`, `src/sentry.js` | `src/game.js`, `src/navigation.js`, `src/state/save_storage.js`, `scratch/tests/unit/test_transition_input_guard.js` | `npm run lint`, `npm run test:unit` |

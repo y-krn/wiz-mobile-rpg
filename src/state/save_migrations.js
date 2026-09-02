@@ -1,9 +1,10 @@
-import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT } from "../data.js";
+import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT, getItemBaseId, isSpecialOrQuestItem } from "../data.js";
 import { generateRandomMap, removeIsolatedInternalWalls } from "../map_generator.js";
 import { generateRandomSeed, createDefaultCodex, createDefaultCurrentRun } from "./initial_state.js";
-import { getIdentificationGambleProfile } from "../rules/identification_rules.js";
+import { getIdentificationGambleProfile, getKnowledgeHintTags, getKnowledgeStage } from "../rules/identification_rules.js";
 import { normalizeRecords } from "./records_state.js";
 import { findMapCellByType } from "../rules/map_queries.js";
+import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
 import { addMaterials } from "../rules/material_rules.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
@@ -119,6 +120,16 @@ function numberOr(value, fallback) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function normalizeInventory(inventory) {
+  let regularItemCount = 0;
+  return inventory.filter(item => {
+    if (isSpecialOrQuestItem(getItemBaseId(item))) return true;
+    if (regularItemCount >= INVENTORY_CAPACITY) return false;
+    regularItemCount++;
+    return true;
+  });
+}
+
 function createDefaultVisitedMaps(maps) {
   return maps.map(map => Array.isArray(map)
     ? map.map(row => Array.isArray(row) ? row.map(() => false) : [])
@@ -217,9 +228,13 @@ function normalizeCharEquipment(char) {
 }
 
 function backfillItemAffixes(item) {
-  if (!item || typeof item !== "object" || !Array.isArray(item.affixes)) return;
+  if (!item || typeof item !== "object" || !item.baseId) return;
+  item.knowledgeStage = getKnowledgeStage(item);
+  item.observedHintTags = getKnowledgeHintTags(item);
+  item.observationCount = Math.max(0, integerOr(item.observationCount, 0));
+  item.trialCount = Math.max(0, integerOr(item.trialCount, 0));
   item.cursePower ??= getIdentificationGambleProfile(item.level || 1).cursePower;
-  item.affixes.forEach(affix => {
+  (Array.isArray(item.affixes) ? item.affixes : []).forEach(affix => {
     if (!affix || typeof affix !== "object") return;
     affix.id ||= affix.type;
     affix.kind ||= affix.id?.startsWith("CORE_") ? "core" : "support";
@@ -292,6 +307,29 @@ function normalizeRunHistoryEntry(entry) {
   if (Object.hasOwn(normalized, "bankedMaterials") && !isRecord(normalized.bankedMaterials)) {
     normalized.bankedMaterials = {};
   }
+  if (Object.hasOwn(normalized, "representativeItem")) {
+    normalized.representativeItem = normalizeReturnItemRecord(normalized.representativeItem);
+  }
+  if (Object.hasOwn(normalized, "meaningfulItemHistory")) {
+    normalized.meaningfulItemHistory = arrayOr(normalized.meaningfulItemHistory)
+      .map(normalizeReturnItemRecord)
+      .filter(isRecord)
+      .slice(0, 5);
+  }
+  if (Object.hasOwn(normalized, "codexInsights")) {
+    normalized.codexInsights = normalizeRunInsights(normalized.codexInsights);
+  }
+  if (Object.hasOwn(normalized, "workshopUnlocks")) {
+    normalized.workshopUnlocks = arrayOr(normalized.workshopUnlocks)
+      .filter(isRecord)
+      .map(unlock => ({
+        nodeId: typeof unlock.nodeId === "string" ? unlock.nodeId : "",
+        name: typeof unlock.name === "string" ? unlock.name : "",
+        description: typeof unlock.description === "string" ? unlock.description : "",
+        matchedSignals: arrayOr(unlock.matchedSignals).filter(signal => typeof signal === "string").slice(0, 6)
+      }))
+      .filter(unlock => unlock.nodeId);
+  }
   return normalized;
 }
 
@@ -308,6 +346,43 @@ function normalizeDeathLogEntry(entry) {
 }
 
 const EQUIPMENT_RARITIES = new Set(["common", "magic", "rare", "epic", "legendary"]);
+
+const RETURN_ITEM_TYPES = new Set(["weapon", "shield", "armor", "accessory", "usable", "item"]);
+
+function normalizeReturnItemRecord(record) {
+  if (!isRecord(record) || typeof record.baseId !== "string") return null;
+  return {
+    baseId: record.baseId,
+    name: typeof record.name === "string" ? record.name : record.baseId,
+    type: RETURN_ITEM_TYPES.has(record.type) ? record.type : "item",
+    rarity: EQUIPMENT_RARITIES.has(record.rarity) ? record.rarity : "common",
+    knowledgeStage: typeof record.knowledgeStage === "string" ? record.knowledgeStage : "unknown",
+    status: ["returned", "rescued", "lost", "observed"].includes(record.status) ? record.status : "observed",
+    wasEquipped: record.wasEquipped === true,
+    depth: Math.max(1, integerOr(record.depth, 1))
+  };
+}
+
+function normalizeRunInsights(insights) {
+  return arrayOr(insights)
+    .filter(isRecord)
+    .map(insight => ({
+      id: typeof insight.id === "string" ? insight.id : "",
+      label: typeof insight.label === "string" ? insight.label : ""
+    }))
+    .filter(insight => insight.id)
+    .slice(0, 20);
+}
+
+function normalizeCodexInsightRecord(record) {
+  if (!isRecord(record) || typeof record.id !== "string") return null;
+  return {
+    id: record.id,
+    count: Math.max(0, integerOr(record.count, 0)),
+    firstFloor: Math.max(1, integerOr(record.firstFloor, 1)),
+    lastFloor: Math.max(1, integerOr(record.lastFloor, 1))
+  };
+}
 
 function normalizeEquipmentCodexRecord(record) {
   if (!isRecord(record)) return null;
@@ -391,6 +466,71 @@ function normalizeCurrentRun(run) {
   });
 
   normalized.quests = normalized.quests.filter(isRecord);
+  normalized.townInventory = normalized.townInventory.filter(item => item != null);
+  normalized.unbankedObjectLoot = normalized.unbankedObjectLoot
+    .filter(entry => isRecord(entry) && typeof entry.id === "string" && entry.item != null);
+  normalized.bankedObjectLoot = normalized.bankedObjectLoot.filter(item => item != null);
+  normalized.lostObjectLoot = normalized.lostObjectLoot.filter(item => item != null);
+  normalized.returnedTownItems = normalized.returnedTownItems.filter(item => item != null);
+  normalized.representativeItem = normalizeReturnItemRecord(normalized.representativeItem);
+  normalized.meaningfulItemHistory = normalized.meaningfulItemHistory
+    .map(normalizeReturnItemRecord)
+    .filter(isRecord)
+    .slice(0, 5);
+  normalized.codexInsights = normalizeRunInsights(normalized.codexInsights);
+  normalized.workshopUnlocks = normalized.workshopUnlocks
+    .filter(isRecord)
+    .map(unlock => ({
+      nodeId: typeof unlock.nodeId === "string" ? unlock.nodeId : "",
+      name: typeof unlock.name === "string" ? unlock.name : "",
+      description: typeof unlock.description === "string" ? unlock.description : "",
+      matchedSignals: arrayOr(unlock.matchedSignals).filter(signal => typeof signal === "string").slice(0, 6)
+    }))
+    .filter(unlock => unlock.nodeId);
+  normalized.returnProcessing = isRecord(normalized.returnProcessing)
+    ? {
+      outcome: typeof normalized.returnProcessing.outcome === "string" ? normalized.returnProcessing.outcome : "",
+      returnedObjectCount: Math.max(0, integerOr(normalized.returnProcessing.returnedObjectCount, 0)),
+      lostObjectCount: Math.max(0, integerOr(normalized.returnProcessing.lostObjectCount, 0)),
+      recoveredEquipmentCount: Math.max(0, integerOr(normalized.returnProcessing.recoveredEquipmentCount, 0))
+    }
+    : null;
+  normalized.trialBands = Object.fromEntries(
+    Object.entries(normalized.trialBands).filter(([bandIndex, trial]) =>
+      Number.isInteger(Number(bandIndex)) && Number(bandIndex) >= 0 &&
+      isRecord(trial) && typeof trial.mainId === "string" && typeof trial.subId === "string"
+    )
+  );
+  normalized.eliteFloors = Object.fromEntries(
+    Object.entries(normalized.eliteFloors).filter(([floor, elite]) =>
+      /^\d+$/.test(floor) && Number(floor) >= 1 && isRecord(elite)
+    ).map(([floor, elite]) => [floor, {
+      entryRollResolved: elite.entryRollResolved === true,
+      spawned: elite.spawned === true,
+      defeated: elite.defeated === true,
+      warningStage: Math.min(3, Math.max(0, integerOr(elite.warningStage, 0))),
+      prolongedChecks: Math.max(0, integerOr(elite.prolongedChecks, 0)),
+      greedScore: Math.max(0, numberOr(elite.greedScore, 0)),
+      stairsFound: elite.stairsFound === true,
+      actionKeys: arrayOr(elite.actionKeys).filter(key => typeof key === "string").slice(-100)
+    }])
+  );
+  Object.entries(recordOr(normalized.eliteOmenSteps, {})).forEach(([floor, omenSteps]) => {
+    if (!/^\d+$/.test(floor) || !Array.isArray(omenSteps)) return;
+    const elite = normalized.eliteFloors[floor] || {
+      entryRollResolved: false,
+      spawned: false,
+      defeated: false,
+      warningStage: 0,
+      prolongedChecks: 0,
+      greedScore: 0,
+      stairsFound: false,
+      actionKeys: []
+    };
+    elite.warningStage = Math.max(elite.warningStage, Math.min(3, omenSteps.length));
+    normalized.eliteFloors[floor] = elite;
+  });
+  normalized.lootSequence = Math.max(0, Math.floor(Number(normalized.lootSequence) || 0));
   normalized.deathLogs = normalized.deathLogs
     .map(normalizeDeathLogEntry)
     .filter(isRecord);
@@ -529,7 +669,7 @@ export function normalizeSavePayload(data) {
   normalized.prevX = integerOr(data.prevX, defaultStart.x);
   normalized.prevY = integerOr(data.prevY, defaultStart.y);
   normalized.party = arrayOr(data.party).filter(isRecord).slice(0, 1);
-  normalized.inventory = arrayOr(data.inventory);
+  normalized.inventory = normalizeInventory(arrayOr(data.inventory));
   normalized.seed = typeof data.seed === "string" && data.seed ? data.seed : generateRandomSeed();
   normalized.lightTurns = numberOr(data.lightTurns, 0);
   normalized.lightPower = typeof data.lightPower === "string" ? data.lightPower : "";
@@ -576,6 +716,12 @@ export function normalizeSavePayload(data) {
       .map(([name, record]) => [name, normalizeMonsterCodexRecord(record)])
       .filter(([, record]) => record !== null)
   );
+  normalized.codex.insights = Object.values(Object.fromEntries(
+    arrayOr(normalized.codex.insights)
+      .map(normalizeCodexInsightRecord)
+      .filter(isRecord)
+      .map(insight => [insight.id, insight])
+  )).slice(0, 20);
   if (normalized.codex && normalized.codex.events) {
     delete normalized.codex.events.omens;
   }
@@ -591,6 +737,10 @@ export function normalizeSavePayload(data) {
   normalized.cleared = typeof data.cleared === "boolean" ? data.cleared : false;
   normalized.metaMaterials = recordOr(data.metaMaterials, {});
   normalized.workshop = recordOr(data.workshop, { ranks: {} });
+  normalized.workshop.ranks = recordOr(normalized.workshop.ranks, {});
+  normalized.workshop.lateralUnlocks = [...new Set(
+    arrayOr(normalized.workshop.lateralUnlocks).filter(nodeId => typeof nodeId === "string")
+  )];
   normalized.keyItems = arrayOr(data.keyItems);
   refundRetiredWorkshopNodes(normalized);
   normalized.dungeonMemory = {

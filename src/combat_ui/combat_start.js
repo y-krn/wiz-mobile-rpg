@@ -1,4 +1,4 @@
-import { state, addLog, saveAutosave, recordMonsterEncounter } from "../state.js";
+import { state, addLog, saveAutosave, recordMonsterEncounter, clearEventObservations } from "../state.js";
 import { menuContext, menuHistory } from "../navigation.js";
 import { combatSelection } from "./combat_state.js";
 import { generateEncounter } from "./encounter.js";
@@ -11,6 +11,7 @@ import { triggerRunResult } from "../result.js";
 import { setupChestState } from "../chest.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 import { trackCombatStart } from "../telemetry.js";
+import { recordEliteGreedAction } from "../systems/roaming_elites.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;
@@ -25,8 +26,10 @@ function getRetreatPosition() {
 
 export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null) {
   state.gameState = "combat";
+  clearEventObservations({ scopePrefix: "combat:" });
   if (state.currentRun) {
     state.currentRun.battles++;
+    if (!isBoss && !isMidboss && !isRoamingFlack) recordEliteGreedAction(state, "battle");
   }
 
   state.party.forEach(char => {
@@ -34,7 +37,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     delete char.mabarrierTurns;
   });
 
-  const { monsters, isRare } = generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster);
+  const { monsters, isRare, trial, floorRole } = generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster);
 
   if (state.alarmActive) {
     const mult = state.alarmWeakened ? 1.10 : 1.20;
@@ -53,6 +56,13 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
 
   if (isBoss || isMidboss || isRoamingFlack) {
     addLog("【⚠️強敵遭遇！】周囲の空気が張り詰める...！");
+    if (isBoss && trial) {
+      addLog("【帯の決算】これまでに見た気配が、階層守護者に集約されている…！");
+    }
+    if (isRoamingFlack) {
+      const traitLabels = monsters.map(monster => monster.combatTraitLabel).filter(Boolean);
+      if (traitLabels.length > 0) addLog(`【個体特性】${traitLabels.join(" / ")}`);
+    }
   } else if (isRare) {
     addLog("【✨希少遭遇！】珍しい魔物が現れた！");
   }
@@ -69,7 +79,16 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     roundNumber: 1,
     retreatPosition: getRetreatPosition(),
     loggedCoreActivations: [],
-    pendingOutcome: null
+    // The last resolved turn is a one-turn repeat candidate. It is checked
+    // against live actors, targets, resources, and inventory before reuse.
+    lastActions: null,
+    pendingOutcome: null,
+    trialBand: trial ? {
+      bandIndex: trial.bandIndex,
+      mainId: trial.mainId,
+      subId: trial.subId,
+      floorRole
+    } : null
   };
   trackCombatStart({
     floor: state.floor,

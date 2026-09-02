@@ -109,6 +109,22 @@
 .result-material-chip strong { color: var(--neon-green); }
 .result-codex-bonus { margin-top: var(--sp-xs); padding-top: var(--sp-xs); border-top: 1px dashed var(--border-color); color: var(--neon-amber); font-size: var(--fs-xs); }
 .result-codex-bonus > div { margin-top: var(--sp-xs); color: var(--text-main); }
+.result-object-loot-group { margin-top: var(--sp-sm); }
+.result-object-loot-group small { display: block; margin-bottom: var(--sp-xs); color: var(--text-muted); }
+.result-object-loot-group.lost small { color: var(--neon-red); }
+.result-object-loot-chip { display: inline-flex; margin: 0 var(--sp-xs) var(--sp-xs) 0; padding: 2px var(--sp-xs); border: 1px solid var(--border-color); color: var(--text-main); font-size: var(--fs-xs); }
+.result-object-loot-group.returned .result-object-loot-chip { border-color: var(--neon-green); }
+.result-object-loot-group.lost .result-object-loot-chip { border-color: var(--neon-red); color: var(--text-muted); }
+.result-return-representative { display: grid; gap: var(--sp-xxs); margin-top: var(--sp-sm); padding: var(--sp-sm); border-left: 2px solid var(--neon-amber); background: rgba(255, 179, 0, 0.06); }
+.result-return-representative small, .result-return-history > small, .result-return-insights > small, .result-return-unlocks > small { color: var(--text-muted); }
+.result-return-representative strong { color: var(--neon-amber); }
+.result-return-representative span, .result-return-history, .result-return-insights, .result-return-unlocks { font-size: var(--fs-xs); }
+.result-return-history, .result-return-insights, .result-return-unlocks { display: grid; gap: var(--sp-xxs); margin-top: var(--sp-sm); }
+.result-return-history > div, .result-return-unlocks > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-sm); }
+.result-return-history > div > span:last-child { color: var(--text-muted); text-align: right; }
+.result-return-representative-button { min-height: var(--tap-min); margin-left: var(--sp-xxs); padding: 2px var(--sp-xs); border: 1px solid var(--neon-cyan); background: transparent; color: var(--neon-cyan); font: inherit; }
+.result-return-unlocks strong { color: var(--neon-green); }
+.result-return-unlocks span { color: var(--text-muted); text-align: right; }
 .result-quest-list { display: grid; gap: var(--sp-xs); margin-top: var(--sp-sm); }
 .result-quest-row { display: grid; grid-template-columns: auto 1fr auto; gap: var(--sp-sm); align-items: center; font-size: var(--fs-xs); }
 .result-quest-row > span { color: var(--neon-red); }

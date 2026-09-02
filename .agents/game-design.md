@@ -6,6 +6,12 @@ and run quests. It is the economy-level refinement of
 `.agents/game-design-core-loop.md` (core loop, pillars, pacing targets).
 Resolve conflicts toward that document.
 
+**Canonical vNext source:** [#973 comment 5479686603](https://github.com/y-krn/wiz-mobile-rpg/issues/973#issuecomment-5479686603).
+The Core Loop vNext contract is the design target for Town, Castle, Codex,
+Workshop, inventory, and run outcomes. Older economy decisions and measured
+values remain historical evidence when explicitly labeled; they are not
+current vNext behavior.
+
 Exploration trap principles are canonical in the `Trap exploration design`
 section of `.agents/game-design-core-loop.md` (Issue #931). This document owns
 the trap-sustain and counterplay values recorded below; it does not redefine
@@ -28,9 +34,17 @@ the replacement solo depth-attack roguelite.
 
 One currency, one sink, one question:
 
+Five-floor trial implementation (#1010) is a run-pacing layer, not a new
+economy or currency. A deterministic main/sub theme pair changes the soft
+weight of existing encounter costs and the fourth-floor opportunity rate;
+Portal signals describe the already-resolved next band without exposing exact
+odds. It must not create a build-specific loot guarantee or a mandatory
+consumable tax.
+
 ```text
-run ends -> materials banked (100% retreat / 30% death) ->
-workshop unlocks make the next run start slightly stronger or smarter ->
+run ends -> outcome determines what value is recovered ->
+Castle records what happened, Codex records what was understood, Workshop
+expands what may exist in future runs ->
 descend again
 ```
 
@@ -265,20 +279,101 @@ departure-craft costs are not part of this correction.
 - Deeper floors pay more of everything; a milestone-start run applies a
   material-income penalty so record runs and material runs stay distinct.
 
-## Banking Rule
+## Run outcome and inventory contract
 
-- Retreat (milestone portal or return item): bank 100% of run materials.
-- Death: bank 30%.
-- Materials spent at a milestone merchant during the run are gone either
-  way — spending mid-run is itself a push-your-luck decision.
-- No other leakage or bonus paths. Keep the rule explainable in one line.
+The object-loot outcome contract is canonical in
+`.agents/game-design-core-loop.md` and supersedes the old percentage-only
+banking description:
+
+- Portal confirms all unconfirmed object loot and ends the run safely.
+- Push confirms nothing and destroys nothing; it keeps unconfirmed loot at
+  risk until the next Portal.
+- Wing is a manually activated, immediately safe escape. Its candidate pool is
+  the run's unconfirmed object loot, including dungeon equipment that was
+  identified after acquisition but is currently equipped; only a small
+  selected number is rescued. It is consumed and at most one is carried into
+  a run.
+- Death loses unconfirmed object loot by default.
+- Abandon has the same unconfirmed-loot loss as Death but remains a distinct
+  run outcome and is not a free Wing.
+
+The bag is fixed at 20 ordinary slots. Equipped items are outside the bag;
+spare equipment, consumables, unknown items, curios, and Wings compete for
+one slot each. Town supplies use the same bag, items do not gain special
+Safety/Wing/treasure compartments, and removing equipment into a full bag
+requires discarding something. Town-brought consumables are consumed only when
+used and unused stock returns after the run; dungeon-acquired consumables are
+unconfirmed run loot. No permanent bag expansion is part of vNext.
+
+**Current implementation status:** the repository implements the Return Wing,
+run-outcome, material-banking, and fixed 20-slot inventory slices. Remaining
+vNext work must identify its own contract boundary rather than reopening these
+ownership or capacity rules.
+
+Unknown equipment now persists its information state per item: discovery,
+observation, trial, or full understanding. Dungeon carrying and equipment use
+may disclose truthful signs and the main function, while complete
+identification remains the exact-detail path. The compatibility `identified`
+flag, hidden affixes, and curse binding continue to survive save/load.
+
+### vNext object-loot ownership (Issue #1006)
+
+Materials keep the rules above. Separately, dungeon-acquired equipment,
+consumables, Return Wings, and valuable objects are unbanked object loot until
+the run ends. A milestone Portal confirms all of it for the terminal result; a
+Return Wing consumes itself and confirms only the selected small subset
+(initial count 2); death and abandon lose the unbanked subset. Unused Town
+preparation consumables are returned to
+Town storage at every run terminal, while consumed Town items are not restored.
+Returned dungeon consumables and Return Wings become Town preparation stock;
+returned dungeon equipment remains terminal-result evidence only and does not
+enter Town storage or the next run. Equipped state does not imply banked
+ownership.
 
 ## Workshop (Between Runs)
 
-The workshop is the only material sink between runs, with two systems:
-permanent unlocks and departure craft.
+### Design target / vNext contract
 
-Permanent unlocks include:
+The Workshop expands what may exist in future runs. It is horizontal
+possibility expansion, not a targeted build shop:
+
+- do not increase the appearance rate of a chosen item, affix, or build;
+- do not add a permanently superior combat tier;
+- do not preserve recovered dungeon equipment as next-run combat gear;
+- prefer small unlocks that come automatically from adventure results rather
+  than a farmable target path;
+- adding candidates must not simply dilute the existing candidate supply.
+
+The Workshop should broaden combinations involving HP, MP, status, actions,
+and curses while keeping the run's improvised build and resource competition
+as the source of power.
+
+Automatic pool unlocks use reserved same-slot side-grade slots: an unlocked
+possibility replaces its authored baseline slot rather than adding a new
+weighted candidate and diluting the existing supply.
+
+Issue #1009 implements the loot-side boundary of that rule. `lootRole` selects
+a soft supply target, which weights matching affix/Core candidates while
+retaining crossover; `buildRole` and `buildRoles` describe the resulting
+affix composition. The B1–B30 candidate tables widen deep supply without
+removing old bases, and `LOOT_ROLE_SUPPLY_BY_BAND` keeps every role available
+with increasing deep-role weight. Generation does not inspect current
+equipment or fill missing slots. Core entries explicitly classify their
+`buildAxis` as `main` or `auxiliary`, while Support entries use `support`.
+An equipment decision that changes the `main` Core axis is observable as a
+build transition; auxiliary Core and Support changes remain ordinary swaps.
+This is lightweight observation, not full telemetry analysis.
+
+### Current implementation boundary
+
+The current repository still exposes a material-funded permanent-unlock tree
+for classes, starting options, spell/affix pools, convenience, and capped
+stats, plus separate departure craft. Those nodes and costs are retained as
+implementation history and compatibility context. They must not be described
+as the final vNext contract until the corresponding implementation issues
+reconcile them with the horizontal possibility model.
+
+Historical workshop categories include:
 
 1. New classes.
 2. Starting-gear options (choices offered at run start, not carried gear).
@@ -309,11 +404,10 @@ node still costs 10 existing materials: `鉄片7 + 竜鱗3` for the B5 branch an
 they do not gate existing nodes, increase material income, raise stat caps, or
 add a retreat guarantee. This phase intentionally does not change `SAVE_VERSION`.
 
-Departure craft is the separate run-start path: choose quantities per recipe,
-pay their material costs for that run, and carry the crafted consumables into
-the run. There is no recipe-count or item-count cap; the available material
-balance is the only purchase limit. Leaving without crafted items remains
-valid.
+Departure craft remains a separate current run-start path: choose quantities
+per recipe, pay their material costs for that run, and carry the crafted
+consumables into the run. Its vNext boundary is the shared 20-slot bag; do not
+hide a capacity problem by inventing arbitrary per-item carry caps.
 
 Defer: dismantling, random-property crafting, and any feature that replaces
 the in-run build system. Builds live inside the run.
@@ -351,21 +445,29 @@ Stock, priced in materials:
 
 ## Run Quests
 
-The old contracts board is retired. Each run starts with 1–2 auto-assigned
-quests ("reach B10", "defeat 3 disruptors"), paying a material bonus on
-completion. Quests must point the player deeper or into risk, never into
-farming loops on known ground.
+Run-scoped contracts/quests are optional supporting content, not a second
+progression axis. They must point the player deeper or into meaningful risk,
+expire with the run, and never create a shallow farming loop. The current
+departure-board selection flow and its reward values are implementation
+history; any future contract change must preserve the depth question.
 
 ## Records And Codex
 
-- Records: deepest floor (retreat and death separately), per-class deepest,
-  total runs.
-- Codex is kept; first-kill rewards pay a one-time material bonus.
-- Split-spawned enemies stay excluded from codex and first-kill rewards.
-- The enemy codex records facts observed during adventures rather than exposing
-  hidden data as a strategy guide. Combat actions, conditions, resistances,
-  loot, and encounter floors are added only when observed; unknown information
-  remains unknown without revealing its total or an optimal answer.
+Core Loop vNext observation events are specified separately in
+`.agents/game-design-telemetry.md`. They measure Castle/Codex-relevant facts
+such as object-loot ownership and meaningful build shifts, but do not change
+the persistence contract or define balance targets.
+
+- **Castle = what happened:** record outcome, depth, Portal/Wing/Death/Abandon,
+  representative items, recovered/rescued/lost value, and meaningful item
+  history. Generate display copy from persisted facts; do not save prose as a
+  substitute for facts.
+- **Codex = what was understood:** record observed facts and hypotheses about
+  equipment and enemies. Unknown items progress from signs to observation to
+  trial to full understanding. Do not reveal undiscovered affixes, hidden
+  totals, or an optimal build.
+- Existing first-kill and split-spawn rules remain implementation details and
+  historical evidence until rechecked against the vNext information contract.
 
 ## Avoid
 
@@ -374,7 +476,26 @@ farming loops on known ground.
   at profit.
 - Uncapped permanent stats, or unlocks that raise material income enough to
   make farming dominate descending.
-- Equipment persistence across runs (rejected approach C; v2 decision at
-  the earliest).
+- Recovered dungeon equipment becoming permanent next-run combat gear.
+- Workshop paths that target a chosen build by increasing its appearance rate
+  or by exposing a permanently superior tier.
+- Permanent bag expansion or dedicated loot/safety compartments.
 - Making identify resources cheap enough that the identify-or-gamble choice
   disappears (see pillar 3).
+
+## Castle / Codex / Workshop return processing (#1011)
+
+Castle records the run outcome and its evidence: depth, return route,
+representative item, recovered/rescued/lost object counts, and a bounded list
+of meaningful individual facts. Codex stores finite coarse insights from
+encountered equipment; it never answers exact probabilities, hidden candidate
+totals, or the optimal build. Workshop can unlock an existing side-grade
+possibility automatically after a deep equipment return, but never grants a
+vertical tier or a target-build/drop-rate advantage.
+
+All ordinary dungeon objects are processed automatically at the result
+boundary. Returned dungeon consumables become Town preparation stock, while
+returned equipment is converted to terminal evidence only and is excluded from
+Town storage and the next run's starting battle inventory. Death and Abandon
+discard unbanked dungeon objects while retaining only their permitted history
+and knowledge.

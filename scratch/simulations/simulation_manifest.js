@@ -15,9 +15,17 @@ const canonicalRunnerPath = "scratch/simulations/sim_depth_material_ev.js";
 // candidate, but lifecycle validation must reject it until it is classified.
 export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: canonicalRunnerPath, lifecycle: "canonical", scope: "run" },
+  { path: "scratch/simulations/sim_recovery_policy.js", lifecycle: "historical", scope: "infra" },
   { path: "scratch/measurements/issue624_commit_depth.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue700_gate_metrics.js", lifecycle: "historical", scope: "infra" },
   { path: "scratch/measurements/issue706_depth_enemy_pools.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/measurements/issue990_partial_information_progression.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/measurements/issue816_from_drop_sim.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/measurements/issue990_phase3_stage1.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/measurements/issue990_phase3_stage1_5.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/measurements/issue990_phase3_stage2_combat_personas.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/measurements/issue990_phase3_stage3_checkpoint_continuation.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/measurements/issue1012_observability.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/simulations/sim_balance.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_camp_recovery.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_caster_pack.js", lifecycle: "historical", scope: "formula" },
@@ -155,17 +163,25 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/combat_logic/targeting.js", domains: ["combat"] },
     { pattern: "src/data.js", domains: ["combat", "equipment", "maps", "progression", "status", "recovery"] },
     { pattern: "src/data/encounters.js", domains: ["combat", "maps"] },
+    { pattern: "src/data/floor_trials.js", domains: ["combat", "maps"] },
     { pattern: "src/data/monsters.js", domains: ["combat", "status"] },
     // Biome landmark signatures are render-only and intentionally map to no balance domain.
     { pattern: "src/data/biomes.js", domains: [] },
+    { pattern: "src/data/affixes.js", domains: ["equipment"] },
     { pattern: "src/data/equipment_tables.js", domains: ["equipment"] },
+    { pattern: "src/data/workshop.js", domains: ["workshop"] },
     { pattern: "src/data/materials.js", domains: ["drops"] },
     { pattern: "src/data/progression.js", domains: ["progression"] },
+    { pattern: "src/state/inventory_state.js", domains: ["economy"] },
+    { pattern: "src/state/run_loot.js", domains: ["economy"] },
+    { pattern: "src/state/run_floor_state.js", domains: ["maps", "combat"] },
     { pattern: "src/rules/character_stats.js", domains: ["combat", "equipment"] },
     { pattern: "src/rules/trap_effect_rules.js", domains: ["traps"] },
     { pattern: "src/rules/item_rules.js", domains: ["equipment"] },
+    { pattern: "src/rules/identification_rules.js", domains: ["equipment"] },
     { pattern: "src/systems/identification.js", domains: ["equipment"] },
     { pattern: "src/rules/depth_scaling.js", domains: ["combat", "maps"] },
+    { pattern: "src/rules/floor_trials.js", domains: ["combat", "maps"] },
     { pattern: "src/rules/equipment_slots.js", domains: ["equipment"] },
     { pattern: "src/rules/leveling.js", domains: ["progression"] },
     { pattern: "src/rules/map_queries.js", domains: ["maps"] },
@@ -191,20 +207,28 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
     { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },
     { pattern: "src/systems/equipment_discard.js", domains: ["equipment"] },
+    { pattern: "src/systems/run_return.js", domains: ["economy", "progression", "workshop"] },
+    { pattern: "src/systems/workshop.js", domains: ["workshop"] },
+    { pattern: "src/combat_ui/encounter.js", domains: ["combat"] },
+    { pattern: "src/systems/milestone_merchant.js", domains: ["economy"] },
     { pattern: "src/rules/chest_rules.js", domains: ["chests", "equipment", "traps"] },
     { pattern: "src/systems/leveling.js", domains: ["progression"] },
-    { pattern: "src/combat_ui/combat_start.js", domains: ["combat"] }
+    { pattern: "src/combat_ui/combat_start.js", domains: ["combat"] },
+    { pattern: "src/combat_ui/encounter.js", domains: ["combat", "maps"] },
+    { pattern: "src/state/run_floor_state.js", domains: ["maps"] },
+    { pattern: "src/systems/roaming_elites.js", domains: ["combat", "maps"] }
   ].map(rule => ({ ...rule, domains: Object.freeze([...rule.domains]) }))),
   balanceImpactNone: Object.freeze([
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
     "src/combat_ui/spell_summary.js", "src/combat_ui/combat_overlay.js", "src/spell_menu.js",
-    "src/combat_ui/action_selection.js",
+    "src/combat_ui/action_selection.js", "src/combat_ui/battle_log_player.js", "src/combat_ui/round_runner.js",
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**", "src/renderer.js", "src/rules/map_movement.js", "src/state.js", "src/state/view_state.js", "src/state/renderer_view.js",
     "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js", "src/state/save_migrations.js", "src/state/save_payload.js",
     "src/error_context.js", "src/controls_guard.js", "src/state/codex_state.js",
-    "src/state/initial_state.js", "src/state/records_state.js", "src/result.js",
+    "src/state/initial_state.js", "src/state/records_state.js", "src/state/state_core.js", "src/result.js",
     "src/data/spells.js", "src/data/status_treatments.js", "src/systems/spell_effects.js",
-    "src/runtime_diagnostics.js", "src/telemetry.js", "src/systems/traps.js"
+    "src/runtime_diagnostics.js", "src/telemetry.js", "src/systems/traps.js",
+    "src/rules/item_inventory.js"
   ]),
   // A one-off no-impact declaration is recognized only when its marker is
   // added in the same production diff. This keeps mapped modules such as
@@ -263,6 +287,11 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/systems/equipment_discard.js",
     "src/menu/explore_actions.js",
     "src/movement.js",
+    "src/menu/milestone_portal.js",
+    "src/combat_logic/item_resolution.js",
+    "src/state/inventory_state.js",
+    "src/state/run_loot.js",
+    "src/systems/milestone_merchant.js",
     // Codex observations share combat entry/resolution paths with the
     // existing telemetry anchors but do not change combat formulas.
     "src/combat_ui/combat_start.js",
@@ -533,7 +562,12 @@ export function currentChangedFiles({ baseRef = process.env.BASE_REF || "origin/
 const TELEMETRY_CONTEXT_KEYS = new Set([
   "state", "character", "combat", "actorIdx", "targetIdx", "spellName", "itemKey",
   "currentKey", "candidateKey", "preview", "source", "charOriginalIdx", "dir",
-  "itemAction", "direction"
+  "itemAction", "direction", "lootId", "portalType", "wingOwned", "wingSalvageCount",
+  "nextBandMainId", "nextBandSubId", "floor", "stairsType", "stepsAtDiscovery",
+  "stepsBeforeDiscovery", "stepsAfterStairs", "hpRate", "mpRate", "stairsDiscovered",
+  "floorCompleted", "chestsDiscovered", "chestsSkipped", "explorationMode", "x", "y",
+  "locationType", "action", "elite", "monster", "contactMode", "distance", "detected",
+  "elitePolicy", "item", "ownership", "lootSequence"
 ]);
 
 function isTelemetryImport(line) {

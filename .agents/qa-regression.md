@@ -87,6 +87,17 @@ suite, browser suites, or the build after every edit.
 
 ### Final local gate
 
+### Core Loop vNext telemetry (#1012)
+
+- Assert lifecycle stages are bounded and use the same run/loot sequence.
+- Assert stairs and floor summaries separate before/after exploration.
+- Assert Portal/Wing Push/Return and elite decisions retain HP, bag, ownership,
+  and floor context without changing gameplay state.
+- Assert duplicate terminal/location events are suppressed and no telemetry
+  path consumes simulation RNG.
+- Run the issue-specific deterministic measurement with `--runs 1` as a smoke
+  check; use an explicit temporary output path for larger N.
+
 Before the first push, run the verification required by the completed change:
 
 - Logic changes: `npm run test:unit`

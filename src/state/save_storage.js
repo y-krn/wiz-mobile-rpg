@@ -100,7 +100,7 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.transitioning = false;
   state.cleared = false;
   state.metaMaterials = {};
-  state.workshop = { ranks: {} };
+  state.workshop = { ranks: {}, lateralUnlocks: [] };
   state.keyItems = [];
   state.logs = ["クラスを選び、ひとりで迷宮へ潜ろう。"];
   markMapChanged();

@@ -1,6 +1,7 @@
-import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
+import { state, saveAutosave, addLog, addEventLog, clearEventObservations, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, INVENTORY_CAPACITY } from "./state.js";
 import { MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import {
+  getChestSmashRewardCategory,
   resolveChestSmashRewardLosses
 } from "./rules/chest_rules.js";
 import { playSound } from "./audio.js";
@@ -19,7 +20,8 @@ import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
 import { getItemBaseId } from "./rules/item_rules.js";
-import { trackChestAction, trackChestSmashResult } from "./telemetry.js";
+import { consumeRunObjectLoot } from "./state/run_loot.js";
+import { trackChestAction, trackChestSmashResult, trackValuableLocation } from "./telemetry.js";
 import {
   CHEST_PHASES,
   CHEST_PHASE_TRANSITIONS,
@@ -34,6 +36,7 @@ import {
   rollChestEncounter
 } from "./chest/chest_domain.js";
 import { renderChestMenu } from "./chest/chest_view.js";
+import { recordEliteGreedAction } from "./systems/roaming_elites.js";
 
 export { CHEST_PHASES, CHEST_PHASE_TRANSITIONS, generateChestMaterials };
 
@@ -57,7 +60,15 @@ function clearChestInspectionState(chest) {
 
 function finishChest(chest) {
   transitionChestPhase(chest, CHEST_PHASES.TERMINAL);
+  clearEventObservations({ scope: `chest:${state.floor}:${chest?.x}:${chest?.y}` });
   state.chestState = null;
+}
+
+function getChestObservationOptions(chest) {
+  return {
+    key: `chest:${state.floor}:${chest?.x}:${chest?.y}:unresolved`,
+    scope: `chest:${state.floor}:${chest?.x}:${chest?.y}`
+  };
 }
 
 function translateTrap(trap) {
@@ -86,7 +97,7 @@ function inspectChest() {
   if (identifiedTrap === chest.trap) {
     addLog(`調査結果：[${translateTrap(chest.trap)}]の罠のようだ！`);
   } else {
-    addLog(`調査結果：[${translateTrap(identifiedTrap)}]の罠の可能性が高い。（不確実）`);
+    addEventLog(`調査結果：[${translateTrap(identifiedTrap)}]の罠の可能性が高い。（不確実）`, getChestObservationOptions(chest));
   }
   playSound("move");
   openChestMenu();
@@ -143,6 +154,13 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
     fromDrop: options.fromDrop ?? false,
     lootHint: encounter.lootHint
   };
+  trackValuableLocation("chest", "discovered", {
+    state,
+    floor: state.floor,
+    x: state.x,
+    y: state.y,
+    source: options.fromDrop ? "combat" : "chest"
+  });
 
   // Transition to chest submenu
   openChestMenu();
@@ -183,6 +201,13 @@ export function leaveChest() {
   if (!chestActionAllowed([CHEST_PHASES.MENU])) return false;
   const chest = state.chestState;
   trackChestChoice(chest, "leave");
+  trackValuableLocation("chest", "skipped", {
+    state,
+    floor: state.floor,
+    x: chest.x,
+    y: chest.y,
+    source: chest.fromDrop ? "combat" : "chest"
+  });
   addLog("宝箱を開けずに立ち去った。");
   // Clear chest event on current cell
   state.map[state.y][state.x].event = null;
@@ -231,6 +256,9 @@ function recoverChestOpenTransition(error, chest = state.chestState) {
 }
 
 function trackChestChoice(chest, action) {
+  const rewardCategories = getChestRewardEntries(chest)
+    .filter(reward => reward.item)
+    .map(reward => getChestSmashRewardCategory(reward.item, reward.role));
   trackChestAction(chest, action, {
     state,
     character: state.party[0],
@@ -239,7 +267,8 @@ function trackChestChoice(chest, action) {
     trap: chest?.trap || "none",
     inventoryCount: state.inventory.length,
     hasTrapKit: state.inventory.includes("TRAP_KIT"),
-    rewardCount: getChestRewardEntries(chest).filter(reward => reward.item).length
+    rewardCount: getChestRewardEntries(chest).filter(reward => reward.item).length,
+    rewardCategories: [...new Set(rewardCategories)]
   });
 }
 
@@ -463,6 +492,7 @@ export function useTrapKit() {
 
   trackChestChoice(state.chestState, "trap_kit");
   state.inventory.splice(kitIndex, 1);
+  consumeRunObjectLoot(state, "TRAP_KIT");
   state.chestState.trap = "none";
   addLog("罠外しキットを使い、宝箱の罠を確実に解除した。キットは壊れた。");
   playSound("heal");
@@ -518,10 +548,18 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     menuContext.type = "chest_result";
     const chest = state.chestState;
     if (options.recordAction !== false && !smash) trackChestChoice(chest, "open");
+    trackValuableLocation("chest", "opened", {
+      state,
+      floor: state.floor,
+      x: chest.x,
+      y: chest.y,
+      source: chest.fromDrop ? "combat" : "chest"
+    });
     const tombRaiderActivated = applyTombRaiderTrapTier(chest, opener);
 
     if (state.currentRun) {
       state.currentRun.chestsOpened++;
+      recordEliteGreedAction(state, "chest");
     }
 
     const translateTrap = (t) => {
@@ -636,7 +674,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     // Award Item
     if (chest.item) {
       const item = getItemData(chest.item);
-      const added = addInventoryItem(chest.item);
+      const added = addInventoryItem(chest.item, { dungeonLoot: true, source: "chest" });
       if (added) {
         awardedRewardCount++;
         recordEquipmentDiscovery(chest.item);
@@ -657,7 +695,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     }
 
     if (chest.specialItem) {
-      const added = addInventoryItem(chest.specialItem);
+      const added = addInventoryItem(chest.specialItem, { dungeonLoot: true, source: "chest" });
       if (added) {
         awardedRewardCount++;
         recordEquipmentDiscovery(chest.specialItem);
@@ -667,7 +705,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
         const alreadyHasWing = state.inventory.some(item => getItemBaseId(item) === "TOWN_PORTAL");
         if (alreadyHasWing) {
           addLog("帰還の翼はすでに所持している。");
-        } else if (state.inventory.length >= 20) {
+        } else if (state.inventory.length >= INVENTORY_CAPACITY) {
           addLog("[!] バッグがいっぱいで [帰還の翼] を持ち帰れなかった！");
         } else {
           addLog("帰還の翼を持ち帰れなかった。");
@@ -677,7 +715,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
 
     if (chest.accessoryItem) {
       const item = getItemData(chest.accessoryItem);
-      const added = addInventoryItem(chest.accessoryItem);
+      const added = addInventoryItem(chest.accessoryItem, { dungeonLoot: true, source: "chest" });
       if (added) {
         awardedRewardCount++;
         recordEquipmentDiscovery(chest.accessoryItem);

@@ -2,6 +2,22 @@ import { ITEMS } from "../data/items.js";
 import { ITEM_CATEGORY, ITEM_CATEGORY_ORDER } from "../constants/item_categories.js";
 import { getItemBaseId } from "./item_rules.js";
 
+// balance-impact: none — this module centralizes the fixed bag boundary only.
+export const INVENTORY_CAPACITY = 20;
+
+export function getInventoryUsedSlots(inventory) {
+  return Array.isArray(inventory) ? inventory.length : 0;
+}
+
+export function getInventoryRemainingSlots(inventory) {
+  return Math.max(0, INVENTORY_CAPACITY - getInventoryUsedSlots(inventory));
+}
+
+export function hasInventorySpace(inventory, count = 1) {
+  const requested = Math.max(0, Math.floor(Number(count) || 0));
+  return getInventoryRemainingSlots(inventory) >= requested;
+}
+
 const ITEM_DEFINITION_ORDER = new Map(Object.keys(ITEMS).map((itemKey, index) => [itemKey, index]));
 const FALLBACK_CATEGORY_ORDER = ITEM_CATEGORY_ORDER.length;
 

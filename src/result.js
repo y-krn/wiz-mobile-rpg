@@ -5,57 +5,9 @@ import { bankRunMaterials } from "./rules/material_rules.js";
 import { updateRunQuests } from "./systems/run_quests.js";
 import { findMapCellByType } from "./rules/map_queries.js";
 import { trackCombatEnd, trackRunEnd } from "./telemetry.js";
+import { processRunReturn } from "./systems/run_return.js";
 
-function removeUnbankedLoot(run) {
-  const found = [...(run.itemsFound || []), ...(run.equipmentFound || [])].filter(Boolean);
-  const departure = [
-    ...(run.departureItems || []),
-    ...Object.values(run.departureEquipment || {})
-  ].filter(Boolean);
-  const protectedCounts = departure.reduce((counts, item) => {
-    const baseId = getItemBaseId(item);
-    if (baseId) counts[baseId] = (counts[baseId] || 0) + 1;
-    return counts;
-  }, {});
-  const protectedInstances = new Set(
-    departure.map(item => typeof item === "object" ? item.instanceId : null).filter(Boolean)
-  );
-
-  found.forEach(item => {
-    const baseId = getItemBaseId(item);
-    if (!baseId) return;
-    const instanceId = typeof item === "object" ? item.instanceId : null;
-    let inventoryIndex = -1;
-    if (instanceId) {
-      inventoryIndex = state.inventory.findIndex(candidate => candidate?.instanceId === instanceId);
-    } else if (typeof item === "object") {
-      inventoryIndex = state.inventory.findIndex(candidate => candidate === item);
-    }
-    if (inventoryIndex < 0) {
-      const matching = state.inventory
-        .map((candidate, index) => ({ candidate, index }))
-        .filter(({ candidate }) => getItemBaseId(candidate) === baseId);
-      if (matching.length > (protectedCounts[baseId] || 0)) {
-        inventoryIndex = matching.at(-1).index;
-      }
-    }
-    if (inventoryIndex >= 0) state.inventory.splice(inventoryIndex, 1);
-
-    if (instanceId || typeof item === "object") {
-      state.party.forEach(char => {
-        Object.entries(char.equipment || {}).forEach(([slot, equipped]) => {
-          const sameInstance = instanceId && equipped?.instanceId === instanceId;
-          const isDepartureGear = equipped && (
-            protectedInstances.has(equipped.instanceId) || departure.includes(equipped)
-          );
-          if (!isDepartureGear && (sameInstance || equipped === item)) char.equipment[slot] = null;
-        });
-      });
-    }
-  });
-}
-
-export function triggerRunResult(reason) {
+export function triggerRunResult(reason, { salvageIds = null } = {}) {
   if (!state.currentRun || state.gameState === "result" || state.currentRun.returnReason) return;
 
   state.party.forEach(char => {
@@ -69,6 +21,10 @@ export function triggerRunResult(reason) {
   const isDeathLike = outcome === "death" || outcome === "abandon";
   run.returnReason = reason;
   run.outcome = outcome;
+  const objectLootOutcome = reason === "escape_scroll"
+    ? "wing"
+    : isSuccess ? "retreat" : "loss";
+  processRunReturn(state, objectLootOutcome, salvageIds);
   if (isDeath && !run.deathLogs?.at(-1)) {
     const activeEnemy = state.combatState?.monsters?.find(monster => monster.hp > 0);
     if (activeEnemy && state.party[0]) {
@@ -164,7 +120,8 @@ export function triggerRunResult(reason) {
       floor: state.floor,
       turns: state.combatState?.roundNumber,
       player: state.party[0],
-      monsters: state.combatState?.monsters
+      monsters: state.combatState?.monsters,
+      isRoamingFlack: state.combatState?.isRoamingFlack
     }, state);
   }
   trackRunEnd(run, outcome, state);
@@ -202,6 +159,11 @@ export function triggerRunResult(reason) {
     outcome,
     milestones: recordResult.milestones,
     recordUpdates: recordResult.updates,
+    representativeItem: run.representativeItem,
+    meaningfulItemHistory: run.meaningfulItemHistory,
+    codexInsights: run.codexInsights,
+    workshopUnlocks: run.workshopUnlocks,
+    returnProcessing: run.returnProcessing,
     deathCause: run.deathLogs?.at(-1)?.type && run.deathLogs?.at(-1)?.source
       ? {
         floor: run.deathLogs.at(-1).floor,

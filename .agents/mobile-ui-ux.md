@@ -112,6 +112,23 @@ behavior may be relevant.
   overlay must retain at least two `--tap-min` bag rows for tapping.
 - Keep primary equipment actions outside the scrolling region; the content may
   scroll, but identify/equip/remove/back controls stay fixed and reachable.
+
+Unknown equipment shows its current knowledge stage and truthful sensory signs
+in the detail view; trial state may show the main observed function without
+revealing the remaining exact affixes. Identification remains a fixed,
+reachable action.
+
+- Return Wing rescue: show the full unbanked object-loot list, not only bag
+  entries; mark equipped candidates explicitly, cap selection at the shared
+  salvage count, and keep the final rescue action at the shared tap minimum.
+  The Wing is consumed only when the rescue decision is confirmed, so Back
+  remains a safe cancellation path.
+- Milestone Portal clue: show one concise, coarse next-band signal above the
+  primary retreat/continue actions. Keep it readable on narrow screens and do
+  not render internal theme names, probabilities, or a threat meter.
+- Bag capacity: show the fixed 20-slot count in item/chest/equipment flows;
+  full-bag loot rejection and full-bag equipment removal must explain the
+  available discard path without making the player infer why an action failed.
 - When the vertical budget is insufficient, consider splitting the screen
   instead of reallocating the same fixed space. After three reallocations on
   one screen, question the structure before adjusting another height.
@@ -153,6 +170,13 @@ behavior may be relevant.
   clear.
 - Do not redesign unrelated screens.
 - Do not prioritize visual novelty over thumb reach and clarity.
+
+## Return result hierarchy (#1011)
+
+Result screens surface ordinary object settlement, the representative item,
+at most five meaningful facts, coarse Codex insight, and Workshop horizontal
+unlock in that order. Keep lost and rescued states explicit, and make clear
+that recovered equipment is not usable as next-run battle gear.
 
 ## Output
 

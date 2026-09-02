@@ -9,6 +9,7 @@ import { resolveMeasurementProvenance } from "../measurements/measurement_proven
 import { runSimTasks } from "./sim_parallel.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "../measurements/measurement_env_signature.js";
 import { reportMechanismFiring } from "../measurements/mechanism_wiring_report.js";
+import { classifyCausalDeath } from "../measurements/issue973_build_sensitivity.js";
 // Unit tests import this shared module for wiring checks, not measurements.
 const IS_TEST_PROCESS = process.env.SIM_SKIP_PROVENANCE === "1" ||
   basename(process.argv[1] || "").startsWith("test_");
@@ -240,6 +241,8 @@ const {
   MONSTERS,
   SPELLS
 } = await import("../../src/data.js");
+const { createBuildCharacter: createProductionBuildCharacter } =
+  await import("../measurements/issue973_build_sensitivity.js");
 
 // Candidate/masking list only; selection ranking lives in auto_action.js.
 const PRIEST_HEALING_SPELL_IDS = Object.freeze([
@@ -317,9 +320,9 @@ const {
 } = await import("../../src/systems/milestone_merchant.js");
 const { MILESTONE_MERCHANT_STOCK } = await import("../../src/data/milestone_merchant.js");
 const {
-  calculateCombatRecoveryAction,
   getStartingHealPotionCount
 } = await import("../../src/rules/recovery_rules.js");
+const { calculateCombatRecoveryAction } = await import("./sim_recovery_policy.js");
 const { getPerceptionIntent } = await import("../../src/systems/elite_perception.js");
 
 function getScholarMaterialBonus(monsters, state) {
@@ -1683,11 +1686,11 @@ function createCoreObservations() {
     diosHealActions: 0,
     trappedChests: 0,
     expectedTrapDisarms: 0,
-    expectedTrapDisarmsByFloor: Array(21).fill(0),
-    pickedChestsByFloor: Array(21).fill(0),
-    campBonusHpByFloor: Array(21).fill(0),
-    campBonusMpByFloor: Array(21).fill(0),
-    scholarMaterialBonusByFloor: Array(21).fill(0),
+    expectedTrapDisarmsByFloor: Array(41).fill(0),
+    pickedChestsByFloor: Array(41).fill(0),
+    campBonusHpByFloor: Array(41).fill(0),
+    campBonusMpByFloor: Array(41).fill(0),
+    scholarMaterialBonusByFloor: Array(41).fill(0),
     disruptorKills: 0,
     amplifierKills: 0,
     bountyBonusMaterials: 0,
@@ -2241,10 +2244,305 @@ function createCombatMpMeasurement() {
   };
 }
 
+// Stage 1.5 consumes only B1-B9. Keep the same measurement-only telemetry
+// shape available through the natural target depth for Stage 2.
+const STAGE15_MAX_FLOOR = 30;
+const STAGE15_MP_BUCKETS = Object.freeze([
+  "0%",
+  "1-25%",
+  "26-50%",
+  "51-75%",
+  "76-100%"
+]);
+const STAGE15_INCOMPLETE_REASON_IDS = Object.freeze([
+  "exploration_route_budget_exhausted",
+  "step_limit",
+  "encounter_limit",
+  "stairs_not_discovered",
+  "boss_milestone_progression_failure",
+  "simulation_guard_safety_limit",
+  "other"
+]);
+
+function createStage15IncompleteReasons() {
+  return Object.fromEntries(STAGE15_INCOMPLETE_REASON_IDS.map(reason => [reason, 0]));
+}
+
+function classifyStage15IncompleteReason(terminationReason, context = {}) {
+  if (terminationReason === "partial-information-budget-exhausted") {
+    if (!context.stairsDiscovered) return "stairs_not_discovered";
+    if (context.milestone && !context.bossDefeated) {
+      return "boss_milestone_progression_failure";
+    }
+    return "exploration_route_budget_exhausted";
+  }
+  if (["milestone-boss-blocked", "milestone-retreat"].includes(terminationReason)) {
+    return "boss_milestone_progression_failure";
+  }
+  if (terminationReason === "step-limit") return "step_limit";
+  if (terminationReason === "encounter-limit") return "encounter_limit";
+  if (terminationReason === "simulation-guard" || terminationReason === "safety-limit") {
+    return "simulation_guard_safety_limit";
+  }
+  return "other";
+}
+
+function createStage15FloorTelemetry(floor) {
+  return {
+    floor,
+    entered: 1,
+    reachedNextFloor: 0,
+    died: 0,
+    incomplete: 0,
+    incompleteReasons: createStage15IncompleteReasons(),
+    incompleteTerminationReasons: {},
+    entryHp: null,
+    entryMaxHp: null,
+    entryHpRatio: null,
+    exitHp: null,
+    exitMaxHp: null,
+    exitHpRatio: null,
+    entryMp: null,
+    entryMaxMp: null,
+    entryMpRatio: null,
+    exitMp: null,
+    exitMaxMp: null,
+    exitMpRatio: null,
+    mpSpent: 0,
+    combatMpSpent: 0,
+    mpRecovered: 0,
+    manaPotionUses: 0,
+    campMpRecovery: 0,
+    otherMpRecovery: 0,
+    damageTaken: 0,
+    healing: 0,
+    healPotionUses: 0,
+    encounters: 0,
+    combatActions: 0,
+    spellActions: 0,
+    normalAttackActions: 0,
+    defensiveSupportActions: 0,
+    itemActions: 0,
+    failedNoopActions: 0,
+    rounds: 0,
+    enemyActions: 0,
+    normalHits: 0,
+    normalDamage: 0,
+    insufficientMpDecisionCount: 0,
+    insufficientMpRounds: 0,
+    insufficientMpNormalAttackRounds: 0,
+    combatsEnteredLowMp: 0,
+    combatsEnteredZeroMp: 0,
+    equipmentDrops: 0,
+    equipmentChanges: 0,
+    steps: 0,
+    exploredRatio: null,
+    closed: false
+  };
+}
+
+function createStage15MpBucket() {
+  return {
+    encounters: 0,
+    clear: 0,
+    death: 0,
+    pureRawDeaths: 0,
+    rounds: 0,
+    enemyActions: 0,
+    normalHits: 0,
+    normalDamage: 0,
+    spellCasts: 0,
+    normalAttacks: 0
+  };
+}
+
+function createStage15Diagnostics() {
+  return {
+    byFloor: {},
+    mpBuckets: Object.fromEntries(STAGE15_MP_BUCKETS.map(bucket => [bucket, createStage15MpBucket()])),
+    spellUsage: {},
+    b5Entry: null,
+    currentFloor: null
+  };
+}
+
+function stage15MpBucket(mp, maxMp) {
+  const ratio = Number(mp) / Math.max(1, Number(maxMp));
+  if (ratio <= 0) return "0%";
+  if (ratio <= 0.25) return "1-25%";
+  if (ratio <= 0.50) return "26-50%";
+  if (ratio <= 0.75) return "51-75%";
+  return "76-100%";
+}
+
+function stage15Floor(metrics, floor = metrics?.stage15Diagnostics?.currentFloor) {
+  if (!metrics?.stage15Diagnostics || !Number.isInteger(Number(floor))) return null;
+  const normalizedFloor = Number(floor);
+  if (normalizedFloor < 1 || normalizedFloor > STAGE15_MAX_FLOOR) return null;
+  return metrics.stage15Diagnostics.byFloor[String(normalizedFloor)] || null;
+}
+
+function startStage15Floor(state, metrics, floor) {
+  if (!metrics?.stage15Diagnostics || floor > STAGE15_MAX_FLOOR) return;
+  const character = state.party[0];
+  const telemetry = metrics.stage15Diagnostics.byFloor[String(floor)] ||=
+    createStage15FloorTelemetry(floor);
+  telemetry.entryHp = character.hp;
+  telemetry.entryMaxHp = getCharMaxHp(character);
+  telemetry.entryHpRatio = character.hp / Math.max(1, telemetry.entryMaxHp);
+  telemetry.entryMp = character.mp;
+  telemetry.entryMaxMp = getCharMaxMp(character);
+  telemetry.entryMpRatio = character.mp / Math.max(1, telemetry.entryMaxMp);
+  metrics.stage15Diagnostics.currentFloor = floor;
+  if (floor === 5) {
+    metrics.stage15Diagnostics.b5Entry = {
+      hp: character.hp,
+      maxHp: telemetry.entryMaxHp,
+      hpRatio: telemetry.entryHpRatio,
+      mp: character.mp,
+      maxMp: telemetry.entryMaxMp,
+      mpRatio: telemetry.entryMpRatio
+    };
+  }
+}
+
+function recordStage15MpDelta(metrics, before, after, source = "other") {
+  const telemetry = stage15Floor(metrics);
+  if (!telemetry) return;
+  const delta = Number(after) - Number(before);
+  if (!Number.isFinite(delta)) return;
+  if (delta < 0) telemetry.mpSpent += -delta;
+  if (delta > 0) {
+    telemetry.mpRecovered += delta;
+    if (source === "manaPotion" || source === "combatManaPotion") {
+      telemetry.manaPotionUses++;
+    } else if (source === "camp") {
+      telemetry.campMpRecovery += delta;
+    } else {
+      telemetry.otherMpRecovery += delta;
+    }
+  }
+}
+
+function recordStage15MpSpend(metrics, amount) {
+  const telemetry = stage15Floor(metrics);
+  const spent = Math.max(0, Number(amount) || 0);
+  if (telemetry && spent > 0) telemetry.mpSpent += spent;
+}
+
+function recordStage15Healing(metrics, amount, source = "other") {
+  const telemetry = stage15Floor(metrics);
+  const healing = Math.max(0, Number(amount) || 0);
+  if (!telemetry || healing <= 0) return;
+  telemetry.healing += healing;
+  if (source === "potion") telemetry.healPotionUses++;
+}
+
+function finalizeStage15Floor(state, metrics, floor, status, terminationReason = null, terminationContext = null) {
+  const telemetry = stage15Floor(metrics, floor);
+  if (!telemetry || telemetry.closed) return;
+  const character = state.party[0];
+  telemetry.exitHp = character.hp;
+  telemetry.exitMaxHp = getCharMaxHp(character);
+  telemetry.exitHpRatio = character.hp / Math.max(1, telemetry.exitMaxHp);
+  telemetry.exitMp = character.mp;
+  telemetry.exitMaxMp = getCharMaxMp(character);
+  telemetry.exitMpRatio = character.mp / Math.max(1, telemetry.exitMaxMp);
+  telemetry.reachedNextFloor = Number(status === "survived");
+  telemetry.died = Number(status === "died");
+  telemetry.incomplete = Number(status === "incomplete");
+  if (telemetry.incomplete) {
+    const reason = classifyStage15IncompleteReason(terminationReason, terminationContext || {});
+    telemetry.incompleteReasons[reason]++;
+    const rawReason = terminationReason || "unknown";
+    telemetry.incompleteTerminationReasons[rawReason] =
+      (telemetry.incompleteTerminationReasons[rawReason] || 0) + 1;
+  }
+  telemetry.closed = true;
+}
+
+function recordStage15Encounter(metrics, encounter) {
+  const diagnostics = metrics?.stage15Diagnostics;
+  if (!diagnostics || !encounter || encounter.floor > STAGE15_MAX_FLOOR) return;
+  const floorTelemetry = stage15Floor(metrics, encounter.floor);
+  if (!floorTelemetry) return;
+  floorTelemetry.encounters++;
+  floorTelemetry.combatActions += encounter.combatActions;
+  floorTelemetry.combatMpSpent += encounter.combatMpSpent;
+  floorTelemetry.spellActions += encounter.spellActions;
+  floorTelemetry.normalAttackActions += encounter.normalAttacks;
+  floorTelemetry.defensiveSupportActions += encounter.defensiveSupportActions;
+  floorTelemetry.itemActions += encounter.itemActions;
+  floorTelemetry.failedNoopActions += encounter.failedNoopActions;
+  floorTelemetry.rounds += encounter.rounds;
+  floorTelemetry.enemyActions += encounter.enemyActions;
+  floorTelemetry.normalHits += encounter.normalHits;
+  floorTelemetry.normalDamage += encounter.normalDamage;
+  floorTelemetry.damageTaken += encounter.normalDamage;
+  floorTelemetry.insufficientMpDecisionCount += encounter.insufficientMpDecisionCount;
+  floorTelemetry.insufficientMpRounds += encounter.insufficientMpRounds;
+  floorTelemetry.insufficientMpNormalAttackRounds += encounter.insufficientMpNormalAttackRounds;
+  floorTelemetry.combatsEnteredLowMp += Number(encounter.startMpRatio <= 0.25);
+  floorTelemetry.combatsEnteredZeroMp += Number(encounter.startMp <= 0);
+
+  const bucket = diagnostics.mpBuckets[encounter.mpBucket];
+  bucket.encounters++;
+  bucket.clear += Number(encounter.result === "victory");
+  bucket.death += Number(encounter.result === "death");
+  bucket.pureRawDeaths += Number(encounter.deathCategory === "pure_raw_damage");
+  bucket.rounds += encounter.rounds;
+  bucket.enemyActions += encounter.enemyActions;
+  bucket.normalHits += encounter.normalHits;
+  bucket.normalDamage += encounter.normalDamage;
+  bucket.spellCasts += encounter.spellCasts;
+  bucket.normalAttacks += encounter.normalAttacks;
+  Object.entries(encounter.spellUsage).forEach(([spellId, usage]) => {
+    const target = diagnostics.spellUsage[spellId] ||= {
+      castCount: 0,
+      successfulCasts: 0,
+      totalMpSpent: 0,
+      targetTypes: {}
+    };
+    target.castCount += usage.castCount;
+    target.successfulCasts += usage.successfulCasts;
+    target.totalMpSpent += usage.totalMpSpent;
+    Object.entries(usage.targetTypes).forEach(([type, count]) => {
+      target.targetTypes[type] = (target.targetTypes[type] || 0) + count;
+    });
+  });
+}
+
+function stage15SpellTargetType(spellName) {
+  const target = SPELLS[spellName]?.target;
+  if (typeof target === "string") return target;
+  if (Array.isArray(target)) return target.join("+");
+  return "unknown";
+}
+
+function snapshotStage15Diagnostics(diagnostics) {
+  if (!diagnostics) return null;
+  const floors = Object.fromEntries(Object.entries(diagnostics.byFloor).map(([floor, value]) => {
+    const { closed, ...snapshot } = value;
+    return [floor, snapshot];
+  }));
+  return {
+    byFloor: floors,
+    mpBuckets: Object.fromEntries(Object.entries(diagnostics.mpBuckets).map(([bucket, value]) => [bucket, { ...value }])),
+    spellUsage: Object.fromEntries(Object.entries(diagnostics.spellUsage).map(([spellId, value]) => [spellId, {
+      ...value,
+      targetTypes: { ...value.targetTypes }
+    }])),
+    b5Entry: diagnostics.b5Entry ? { ...diagnostics.b5Entry } : null
+  };
+}
+
 function recordCombatMpRecovery(metrics, source, amount) {
-  if (!metrics?.combatMpMeasurement || amount <= 0) return;
-  metrics.combatMpMeasurement.recoveryBySource[source] =
-    (metrics.combatMpMeasurement.recoveryBySource[source] || 0) + amount;
+  if (amount <= 0) return;
+  if (metrics?.combatMpMeasurement) {
+    metrics.combatMpMeasurement.recoveryBySource[source] =
+      (metrics.combatMpMeasurement.recoveryBySource[source] || 0) + amount;
+  }
+  recordStage15MpDelta(metrics, 0, amount, source);
 }
 
 function getCombatMpFloorBucket(measurement, floor) {
@@ -2689,9 +2987,9 @@ function createOutcomeAggregate() {
     survived: 0,
     died: 0,
     reachedFloor: 0,
-    entrantsByFloor: Array(21).fill(0),
-    deathsByFloor: Array(21).fill(0),
-    retreatsByFloor: Array(21).fill(0),
+    entrantsByFloor: Array(41).fill(0),
+    deathsByFloor: Array(41).fill(0),
+    retreatsByFloor: Array(41).fill(0),
     terminationReasons: {},
     finalHp: [],
     finalHpRate: [],
@@ -3923,6 +4221,17 @@ function createSimulationState(
   assignRunQuests(currentRun);
 
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
+  const startingBuild = scenario.startingBuild;
+  if (startingBuild?.equipment && className === "Mage") {
+    // Reuse the #975 production-shaped fixture conversion. This keeps the
+    // Phase 2 injected build semantically identical to the established build
+    // definitions (level, tags, core/support affixes, and derived stats).
+    const productionBuild = createProductionBuildCharacter(startingBuild.id);
+    character.equipment = structuredClone(productionBuild.equipment);
+    character.spells = [...productionBuild.spells];
+    character.hp = getCharMaxHp(character);
+    character.mp = getCharMaxMp(character);
+  }
   const hpBaseBonus = Number(scenario.hpBaseBonus) || 0;
   if (hpBaseBonus !== 0) {
     character.maxHp += hpBaseBonus;
@@ -4230,10 +4539,12 @@ function createSimulationState(
     },
     simDepartureCraftDemand: departureCraftDemand,
     simMaterialCompetition: materialCompetition,
+    simPersonaId: scenario.personaId || null,
     simHealPotionMerchantPurchases: 0,
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
     simPolicy: {
+      combatPolicy: scenario.combatPolicy || "balanced-combat",
       tacticalConsumablePolicy: SIM_412_POLICY,
       equipmentCraftPolicy,
       identificationPolicy,
@@ -4554,6 +4865,20 @@ function castExplorationSpell(state, spellName, metrics) {
   // Exploration spells are paid from MP only; do not use blood-wand HP payment.
   if (!payment.canCast || payment.resource !== "mp") return false;
   character.mp -= payment.cost;
+  metrics.mpConsumed += payment.cost;
+  recordStage15MpSpend(metrics, payment.cost);
+  if (metrics.stage15Diagnostics) {
+    const usage = metrics.stage15Diagnostics.spellUsage[spellName] ||= {
+      castCount: 0,
+      successfulCasts: 0,
+      totalMpSpent: 0,
+      targetTypes: {}
+    };
+    usage.castCount++;
+    usage.successfulCasts++;
+    usage.totalMpSpent += payment.cost;
+    usage.targetTypes.utility = (usage.targetTypes.utility || 0) + 1;
+  }
   SPELL_EFFECTS[spellName]({ caster: character, target: state });
   metrics.explorationSpellUsage[spellName]++;
   return true;
@@ -5020,6 +5345,7 @@ function recordRecoveryHealing(metrics, itemKey, level, requestedHp, actualHp) {
     stats.actualHp += actual;
     stats.overhealHp += Math.max(0, requested - actual);
   });
+  recordStage15Healing(metrics, actual, "potion");
 }
 
 function recordHealPotionConsumption(state, metrics, count = 1) {
@@ -5161,6 +5487,124 @@ function chooseSimulationAutoCombatAction(args) {
     ...args,
     character
   });
+}
+
+export const COMBAT_POLICY_IDS = Object.freeze([
+  "balanced-combat",
+  "mp-conservative",
+  "burst-combat"
+]);
+
+export const COMBAT_POLICY_RULES = Object.freeze({
+  "balanced-combat": Object.freeze({
+    description: "Stage 1.5 legacy Mage selector; no new reserve rule"
+  }),
+  "mp-conservative": Object.freeze({
+    reserveMpRatio: 0.5,
+    lowPressureSingleEnemyMaxHp: 22,
+    dangerHpRatio: 0.45,
+    description: "low-pressure single enemy uses physical attack; otherwise HALITO preserves 50% max MP when payable; multi-enemy opens with KATINO then uses LAHALITO, while high-threat single fights may use emergency HALITO"
+  }),
+  "burst-combat": Object.freeze({
+    description: "highest currently payable offensive damage spell, with physical fallback"
+  })
+});
+
+const BURST_MAGE_MULTI_SPELLS = Object.freeze([
+  "TILTOWAIT",
+  "MADALTO",
+  "LAHALITO",
+  "MAHALITO",
+  "HALITO"
+]);
+const BURST_MAGE_SINGLE_SPELLS = Object.freeze(["MAHALITO", "HALITO"]);
+
+function getLowestLivingEnemyIndex(monsters) {
+  let index = -1;
+  let hp = Infinity;
+  monsters.forEach((monster, monsterIndex) => {
+    if (monster.hp > 0 && monster.hp < hp) {
+      index = monsterIndex;
+      hp = monster.hp;
+    }
+  });
+  return index;
+}
+
+function getPolicySpellAction({ character, enemies, canCastSpell }, spellName, reserveMp = 0) {
+  const targetIdx = getLowestLivingEnemyIndex(enemies);
+  if (targetIdx < 0 || !hasSpell(character, spellName) || !canCastSpell(spellName, reserveMp)) {
+    return null;
+  }
+  return { type: "spell", targetIdx, spellName };
+}
+
+function selectBalancedCombatAction(context) {
+  return chooseSimulationAutoCombatAction({
+    character: context.character,
+    monsters: context.enemies,
+    roundNumber: context.roundNumber,
+    canCastSpell: context.canCastSpell
+  });
+}
+
+// Measurement-only policies receive only current combat state. They do not
+// receive the simulation state, maps, future encounters, RNG, or hidden data.
+function selectMpConservingCombatAction(context) {
+  const { character, enemies, roundNumber, encounterType } = context;
+  const living = enemies.filter(enemy => enemy.hp > 0);
+  const lowestHp = living.length ? Math.min(...living.map(enemy => enemy.hp)) : 0;
+  const targetIdx = getLowestLivingEnemyIndex(enemies);
+  if (targetIdx < 0) return null;
+  const rules = COMBAT_POLICY_RULES["mp-conservative"];
+  const hpRatio = character.hp === undefined
+    ? 1
+    : character.hp / Math.max(1, character.maxHp || character.hp);
+  const highThreat = living.length >= 2 || ["boss", "midboss", "elite"].includes(encounterType) || hpRatio <= rules.dangerHpRatio;
+  if (roundNumber === 1 && living.length >= 2) {
+    const crowdControl = getPolicySpellAction(context, "KATINO");
+    if (crowdControl) return crowdControl;
+  }
+  if (highThreat && living.length >= 2) {
+    const areaSpell = getPolicySpellAction(context, "LAHALITO");
+    if (areaSpell) return areaSpell;
+  }
+  const lowPressure = living.length === 1 && lowestHp <= rules.lowPressureSingleEnemyMaxHp && hpRatio > rules.dangerHpRatio;
+  if (!lowPressure) {
+    const reserveMp = Math.ceil((character.maxMp || character.mp || 0) * rules.reserveMpRatio);
+    const singleSpell = getPolicySpellAction(context, "HALITO", reserveMp);
+    if (singleSpell) return singleSpell;
+  }
+  if (highThreat && living.length === 1) {
+    const emergencySpell = getPolicySpellAction(context, "HALITO");
+    if (emergencySpell) return emergencySpell;
+  }
+  return { type: "fight", targetIdx };
+}
+
+function selectBurstCombatAction(context) {
+  const { enemies } = context;
+  const living = enemies.filter(enemy => enemy.hp > 0);
+  const targetIdx = getLowestLivingEnemyIndex(enemies);
+  if (targetIdx < 0) return null;
+  const candidates = living.length >= 2 ? BURST_MAGE_MULTI_SPELLS : BURST_MAGE_SINGLE_SPELLS;
+  for (const spellName of candidates) {
+    const action = getPolicySpellAction(context, spellName);
+    if (action) return action;
+  }
+  return { type: "fight", targetIdx };
+}
+
+const COMBAT_POLICY_SELECTORS = Object.freeze({
+  "balanced-combat": selectBalancedCombatAction,
+  "mp-conservative": selectMpConservingCombatAction,
+  "burst-combat": selectBurstCombatAction
+});
+
+export function selectSimulationCombatActionForPolicy(context) {
+  const selector = COMBAT_POLICY_SELECTORS[context.combatPolicy || "balanced-combat"];
+  if (!selector) throw new Error(`Unknown combat policy: ${context.combatPolicy}`);
+  return selector(context);
 }
 
 function chooseSimulationCombatActionForCharacter(character, monsters, roundNumber, healThreshold) {
@@ -6083,10 +6527,18 @@ function selectCombatAction(state, metrics) {
   if (combatManaPotionAction) return combatManaPotionAction;
 
   const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
-  const sharedAutoAction = chooseSimulationAutoCombatAction({
+  const sharedAutoAction = selectSimulationCombatActionForPolicy({
+    combatPolicy: state.simPolicy.combatPolicy,
     character,
-    monsters,
+    enemies: monsters,
     roundNumber: state.combatState.roundNumber,
+    encounterType: state.combatState.isBoss
+      ? "boss"
+      : state.combatState.isMidboss
+        ? "midboss"
+        : state.combatState.isRoamingFlack
+          ? "elite"
+          : "normal",
     canCastSpell: (spellName, reserveMp) =>
       getSpellActionPayment(state, spellName, reserveMp)
   });
@@ -6664,7 +7116,8 @@ function runEncounter(
     isElite = false,
     roamingMonster = null,
     encounterCoord = null,
-    retreatCoord = null
+    retreatCoord = null,
+    encounterEventKey = null
   } = {}
 ) {
   const diagnosticLevel = metrics?.diagnosticLevel || "full";
@@ -6758,13 +7211,60 @@ function runEncounter(
     : (isMidboss ? "midboss" : (isElite ? "elite" : "normal"));
   const mpBlockedAtEncounterStart = metrics?.mpPressure?.combat?.total?.mpBlocked || 0;
   const encounterFloor = state.floor;
+  const encounterStartHp = state.party[0].hp;
   const encounterStartMp = state.party[0].mp;
+  const encounterStartMaxHp = getCharMaxHp(state.party[0]);
   const encounterStartMaxMp = getCharMaxMp(state.party[0]);
+  const enemyTurnEventStart = metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0;
   let encounterMinimumMp = encounterStartMp;
   const blockedRounds = [];
+  const stage15Encounter = metrics?.stage15Diagnostics && encounterFloor <= STAGE15_MAX_FLOOR
+    ? {
+        floor: encounterFloor,
+        result: null,
+        startMp: encounterStartMp,
+        startMpRatio: encounterStartMp / Math.max(1, encounterStartMaxMp),
+        mpBucket: stage15MpBucket(encounterStartMp, encounterStartMaxMp),
+        combatActions: 0,
+        spellActions: 0,
+        spellCasts: 0,
+        normalAttacks: 0,
+        defensiveSupportActions: 0,
+        itemActions: 0,
+        failedNoopActions: 0,
+        combatMpSpent: 0,
+        insufficientMpDecisionCount: 0,
+        insufficientMpRounds: 0,
+        insufficientMpNormalAttackRounds: 0,
+        rounds: 0,
+        enemyActions: 0,
+        normalHits: 0,
+        normalDamage: 0,
+        deathCategory: null,
+        spellUsage: {}
+      }
+    : null;
   const startBuild = (isBoss || isMidboss || isElite) && metrics?.collectSpecialBattles
     ? createBuildSnapshot(state, metrics?.scoringProfile || null, `${encounterType}-start`)
     : null;
+  const encounterCoordinate = Number.isFinite(encounterCoord?.x) &&
+    Number.isFinite(encounterCoord?.y)
+    ? encounterCoord
+    : { x: state.x, y: state.y };
+  const eventBaseKey = `${state.currentRun?.runSeed || "run"}:B${encounterFloor}:${encounterType}:${encounterCoordinate.x},${encounterCoordinate.y}`;
+  const eventOrdinal = (metrics?.encounterEventCounts?.get(eventBaseKey) || 0) + 1;
+  metrics?.encounterEventCounts?.set(eventBaseKey, eventOrdinal);
+  const stableEventKey = encounterEventKey || `${eventBaseKey}:n${eventOrdinal}`;
+  const enemyNames = monsters.map(monster => monster.name);
+  const enemyCompositionKey = [...enemyNames].sort().join("|");
+  let encounterIdentity = null;
+  const causalEvidence = {
+    statusLockRounds: 0,
+    spellOpportunityLossRounds: 0,
+    mpStarvationRounds: 0,
+    reflectionDamageEvents: 0,
+    actionEconomyRounds: 0
+  };
   const bloodWandObservationStart = isBoss
     ? {
         spellCandidates: observations.bloodWandSpellOpportunities,
@@ -6791,6 +7291,34 @@ function runEncounter(
     lastRoundHpAfter: null,
     lastRoundMaxHp: null
   };
+  if (metrics?.encounterIdentityLog) {
+    encounterIdentity = {
+      floor: state.floor,
+      type: encounterType,
+      ordinal: metrics.encounterIdentityLog.length,
+      eventOrdinal,
+      eventKey: stableEventKey,
+      enemyNames,
+      enemyCompositionKey,
+      outcome: null,
+      hpBefore: encounterStartHp,
+      mpBefore: encounterStartMp,
+      mpBeforeRatio: encounterStartMp / Math.max(1, encounterStartMaxMp),
+      hpAfter: null,
+      mpAfter: null,
+      mpAfterRatio: null,
+      rounds: null,
+      enemyActions: null,
+      normalDamage: null,
+      spellCasts: null,
+      normalAttacks: null,
+      mpSpent: null,
+      diagnosticUtility: null,
+      deathCategory: null,
+      stateDegradationEvidence: null
+    };
+    metrics.encounterIdentityLog.push(encounterIdentity);
+  }
   const encounterDiagnostic = diagnostics && (fullDiagnostics || compactDiagnostics)
     ? (fullDiagnostics
       ? {
@@ -6837,6 +7365,11 @@ function runEncounter(
     )
     : null;
   const finishEncounter = (result, rounds, healPotionsUsed, greaterHealPotionsUsed) => {
+    telemetry.enemyActions = Math.max(
+      0,
+      (metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0) - enemyTurnEventStart
+    );
+    telemetry.enemyActionsPerRound = telemetry.enemyActions / Math.max(1, rounds);
     if (metrics && telemetry.incomingDamage > 0) {
       metrics.damageHpBySource[encounterType] += telemetry.incomingDamage;
       metrics.lastDamageEvent = {
@@ -6844,6 +7377,64 @@ function runEncounter(
         floor: state.floor,
         amount: telemetry.incomingDamage
       };
+    }
+    if (encounterIdentity) {
+      encounterIdentity.outcome = result === "victory"
+        ? "clear"
+        : result === "death" ? "death" : result;
+      encounterIdentity.hpAfter = state.party[0].hp;
+      encounterIdentity.mpAfter = state.party[0].mp;
+      encounterIdentity.mpAfterRatio = getCharMaxMp(state.party[0])
+        ? state.party[0].mp / getCharMaxMp(state.party[0]) : 1;
+      encounterIdentity.rounds = rounds;
+      encounterIdentity.normalHits = telemetry.incomingHits;
+      encounterIdentity.totalNormalDamage = telemetry.incomingDamage;
+      encounterIdentity.enemyActions = telemetry.enemyActions;
+      encounterIdentity.spellCasts = stage15Encounter?.spellActions || 0;
+      encounterIdentity.normalAttacks = stage15Encounter?.normalAttacks || 0;
+      encounterIdentity.mpSpent = stage15Encounter?.combatMpSpent || 0;
+      encounterIdentity.hpBeforeRatio = encounterStartHp / Math.max(1, encounterStartMaxHp);
+      encounterIdentity.hpAfterRatio = state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0]));
+      encounterIdentity.mpBeforeRatio = encounterStartMaxMp
+        ? encounterStartMp / encounterStartMaxMp : 1;
+      encounterIdentity.mpAfterRatio = getCharMaxMp(state.party[0])
+        ? state.party[0].mp / getCharMaxMp(state.party[0]) : 1;
+      encounterIdentity.diagnosticUtility = {
+        outcome: encounterIdentity.outcome,
+        hpRatio: encounterIdentity.hpAfterRatio,
+        mpRatio: encounterIdentity.mpAfterRatio,
+        rounds
+      };
+      if (result === "death") {
+        const deathCause = state.currentRun?.deathLogs?.at(-1)?.cause || "";
+        const directCause = /反射|反撃/.test(deathCause)
+          ? "reflection"
+          : /毒|状態異常/.test(deathCause) ? "status_damage" : "raw_damage";
+        const terminalMp = state.party[0].mp;
+        const evidence = {
+          statusLock: causalEvidence.statusLockRounds >= 2,
+          spellDenial: causalEvidence.spellOpportunityLossRounds >= 2,
+          mpStarvation: causalEvidence.mpStarvationRounds >= 2 &&
+            terminalMp <= Math.max(1, encounterStartMaxMp * 0.25),
+          reflection: causalEvidence.reflectionDamageEvents > 0,
+          actionEconomy: causalEvidence.actionEconomyRounds >= 2 &&
+            telemetry.incomingDamage > 0,
+          sustainFailure: false,
+          longFight: false
+        };
+        encounterIdentity.stateDegradationEvidence = {
+          ...evidence,
+          details: { ...causalEvidence, terminalMp }
+        };
+        encounterIdentity.deathAttribution = classifyCausalDeath({
+          outcome: "death",
+          directCause,
+          evidence,
+          deathRound: telemetry.lastRound
+        });
+        encounterIdentity.deathCategory = encounterIdentity.deathAttribution.finalExclusiveCategory ||
+          "unknown_or_mixed";
+      }
     }
     if (encounterDiagnostic) {
       encounterDiagnostic.result = result;
@@ -6900,6 +7491,16 @@ function runEncounter(
       rounds,
       state.party[0].mp
     );
+    if (stage15Encounter) {
+      stage15Encounter.result = result;
+      stage15Encounter.rounds = rounds;
+      stage15Encounter.spellCasts = stage15Encounter.spellActions;
+      stage15Encounter.enemyActions = telemetry.enemyActions;
+      stage15Encounter.normalHits = telemetry.incomingHits;
+      stage15Encounter.normalDamage = telemetry.incomingDamage;
+      stage15Encounter.deathCategory = encounterIdentity?.deathCategory || null;
+      recordStage15Encounter(metrics, stage15Encounter);
+    }
     return {
       result,
       rounds,
@@ -6908,6 +7509,7 @@ function runEncounter(
       state,
       startBuild,
       telemetry,
+      encounterIdentity,
       bloodWandObservations: bloodWandObservationStart
         ? {
             spellCandidates:
@@ -6951,6 +7553,25 @@ function runEncounter(
       policyProbeAction
     );
     if (pressureEvent?.mpBlocked) blockedRounds.push(roundNumber);
+    if (stage15Encounter) {
+      stage15Encounter.combatActions++;
+      stage15Encounter.insufficientMpDecisionCount += Number(Boolean(pressureEvent?.mpBlocked));
+      stage15Encounter.insufficientMpRounds += Number(Boolean(pressureEvent?.mpBlocked));
+      if (action.type === "spell") {
+        stage15Encounter.spellActions++;
+        stage15Encounter.spellCasts++;
+        if (!String(SPELLS[action.spellName]?.target || "").includes("enemy") || action.spellName === "KATINO") {
+          stage15Encounter.defensiveSupportActions++;
+        }
+      } else if (action.type === "fight") {
+        stage15Encounter.normalAttacks++;
+        stage15Encounter.insufficientMpNormalAttackRounds += Number(Boolean(pressureEvent?.mpBlocked));
+      } else if (action.type === "item") {
+        stage15Encounter.itemActions++;
+      } else {
+        stage15Encounter.failedNoopActions++;
+      }
+    }
     recordSpellSelectionMetrics(state, metrics, action);
     const actionTarget = action.targetIdx === undefined
       ? null
@@ -7013,6 +7634,7 @@ function runEncounter(
       ? null
       : structuredClone(state.combatState.monsters[action.targetIdx]);
     const monstersBeforeRound = structuredClone(state.combatState.monsters);
+    const enemyTurnEventsBeforeRound = metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0;
     const characterBeforeRound = structuredClone(character);
     const executionerTriggersBefore = state.simTelemetry?.executionerTriggers || 0;
     const bloodWandOpportunity = getBloodWandOpportunity(state, action, observations);
@@ -7043,6 +7665,7 @@ function runEncounter(
     const diagnosticCureCountsBefore = encounterDiagnostic && fullDiagnostics
       ? countInventoryItems(state.inventory)
       : null;
+    const mpBeforeRound = state.party[0].mp;
     const physicalHitsBeforeRound = state.combatFormulaTelemetry?.physicalPlayerHits.length || 0;
     const physicalMissesBeforeRound = state.combatFormulaTelemetry?.physicalPlayerMisses?.length || 0;
     let roundResult;
@@ -7062,12 +7685,38 @@ function runEncounter(
       metrics,
       roundResult.state.combatFormulaTelemetry?.physicalPlayerHits.slice(physicalHitsBeforeRound) || []
     );
+    const mpAfterRound = roundResult.state.party[0].mp;
+    metrics.mpConsumed += Math.max(0, mpBeforeRound - mpAfterRound);
+    recordStage15MpSpend(metrics, Math.max(0, mpBeforeRound - mpAfterRound));
+    if (stage15Encounter) {
+      stage15Encounter.combatMpSpent += Math.max(0, mpBeforeRound - mpAfterRound);
+    }
+    if (!(action.type === "item" && action.itemKey === "MANA_POTION")) {
+      recordStage15MpDelta(metrics, 0, Math.max(0, mpAfterRound - mpBeforeRound), "other");
+    }
     recordHitEvasionMetrics(
       metrics,
       roundResult.state.combatFormulaTelemetry?.physicalPlayerHits.slice(physicalHitsBeforeRound) || [],
       roundResult.state.combatFormulaTelemetry?.physicalPlayerMisses.slice(physicalMissesBeforeRound) || []
     );
     recordSpellApplicationMetrics(metrics, action, roundResult.logQueue);
+    if (stage15Encounter && action.type === "spell") {
+      const applied = roundResult.logQueue.some(({ msg = "" }) =>
+        msg.startsWith("[味方]") && msg.includes("唱えた") && !msg.includes("唱えようとした")
+      );
+      const usage = stage15Encounter.spellUsage[action.spellName] ||= {
+        castCount: 0,
+        successfulCasts: 0,
+        totalMpSpent: 0,
+        targetTypes: {}
+      };
+      const targetType = stage15SpellTargetType(action.spellName);
+      usage.castCount++;
+      usage.successfulCasts += Number(applied);
+      usage.totalMpSpent += Math.max(0, mpBeforeRound - mpAfterRound);
+      usage.targetTypes[targetType] = (usage.targetTypes[targetType] || 0) + 1;
+      stage15Encounter.failedNoopActions += Number(!applied);
+    }
     removeRaceEffectScale(roundResult?.state);
     removeCountermeasureScale(roundResult?.state);
     const enemyBlindApplications = roundResult.logQueue.filter(entry =>
@@ -7109,6 +7758,25 @@ function runEncounter(
     observations.bloodWandHealActivations += Number(bloodWandActivationType === "heal");
     observations.coreActivationCounts.CORE_BLOOD_WAND += Number(Boolean(bloodWandActivationType));
     state = roundResult.state;
+    const roundEnemyActions = Math.max(
+      0,
+      (metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0) - enemyTurnEventsBeforeRound
+    );
+    const incapacitated = ["paralyzed", "paralyze", "sleep"].includes(characterBeforeRound.status);
+    causalEvidence.statusLockRounds += Number(incapacitated && roundEnemyActions > 0);
+    causalEvidence.spellOpportunityLossRounds += Number(
+      Boolean(pressureEvent?.mpBlocked && action.type !== "spell")
+    );
+    causalEvidence.mpStarvationRounds += Number(
+      Boolean(pressureEvent?.mpBlocked && state.party[0].mp <= characterBeforeRound.mp)
+    );
+    causalEvidence.reflectionDamageEvents += roundResult.logQueue.filter(({ msg = "" }) =>
+      /反射|反撃/.test(msg) && /ダメージ/.test(msg)
+    ).length;
+    causalEvidence.actionEconomyRounds += Number(
+      roundEnemyActions > livingMonsterCount && roundEnemyActions > 0 &&
+      roundResult.logQueue.some(({ msg = "" }) => msg.includes("ダメージ"))
+    );
     triggerChest ||= roundResult.logQueue.some(entry => entry?.triggerChest === true);
     const combatManaPotionUsed = action.type === "item" &&
       action.itemKey === "MANA_POTION" &&
@@ -7315,9 +7983,13 @@ function applyPostCombatRecovery(state, metrics = null) {
     if (!spellName) break;
     const payment = getRecoverySpellPayment(spellName);
     const hpBefore = character.hp;
+    const mpBeforePayment = character.mp;
     character.mp -= payment.cost;
+    if (metrics) metrics.mpConsumed += Math.max(0, mpBeforePayment - character.mp);
+    if (metrics) recordStage15MpDelta(metrics, mpBeforePayment, character.mp);
     SPELL_EFFECTS[spellName]({ caster: character, target: character });
     const postCombatHealingHp = Math.max(0, character.hp - hpBefore);
+    recordStage15Healing(metrics, postCombatHealingHp, "spell");
     const spellUsage = metrics?.spellUsage?.[spellName];
     if (spellUsage) {
       spellUsage.postCombatCasts++;
@@ -7705,11 +8377,7 @@ function handleMilestoneMerchantVisit(state, scenario, metrics, scoringProfile) 
   maybePurchaseMerchantStrengthPotion(state, scenario, metrics);
   maybePurchaseMerchantManaPotion(state, metrics);
   if (uncursePurchases > 0) {
-    recordEquipmentUpgrades(
-      metrics,
-      equipGreedyUpgrades(state, metrics, scoringProfile),
-      state.floor
-    );
+    applySimulationEquipmentPolicy(state, metrics, scoringProfile, state.floor);
   }
 }
 
@@ -7956,6 +8624,13 @@ function getItemCoreId(item) {
   return affix ? (affix.id || affix.type) : null;
 }
 
+function getItemMainAxisIds(item) {
+  if (!item || typeof item !== "object") return [];
+  return [...new Set((item.affixes || [])
+    .map(affix => affix.id || affix.type)
+    .filter(id => CORE_AFFIX_BY_ID.get(id)?.buildAxis === "main"))];
+}
+
 function getMatchingSupportIdsForCore(coreId) {
   if (MATCHING_DEFINITION === "broad") return ALL_ENABLED_SUPPORT_IDS;
   return CORE_SUPPORT_SYNERGY[coreId] || [];
@@ -8127,31 +8802,37 @@ function getUnidentifiedEffectDelta(character, item) {
   };
 }
 
-function getBaseEquipmentScore(character) {
+function getPersonaEquipmentWeight(scoringProfile, key) {
+  return Number.isFinite(Number(scoringProfile?.personaEquipmentWeights?.[key]))
+    ? Number(scoringProfile.personaEquipmentWeights[key])
+    : 1;
+}
+
+function getBaseEquipmentScore(character, scoringProfile = null) {
   return (
-    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk +
-    getCharDef(character) * EQUIPMENT_SCORE_WEIGHTS.defense +
-    getCharMaxHp(character) * EQUIPMENT_SCORE_WEIGHTS.maxHp +
-    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str +
-    getCharVit(character) * EQUIPMENT_SCORE_WEIGHTS.vit +
-    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int +
-    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie +
-    getCharAgi(character) * EQUIPMENT_SCORE_WEIGHTS.agi +
-    getCharAffixSum(character, "guardian") * EQUIPMENT_SCORE_WEIGHTS.guardian +
-    getCharAffixSum(character, "spellGuard") * EQUIPMENT_SCORE_WEIGHTS.spellGuard +
-    getCharAffixSum(character, "followUp") * EQUIPMENT_SCORE_WEIGHTS.followUp +
-    getCharAffixSum(character, "firstStrike") * EQUIPMENT_SCORE_WEIGHTS.firstStrike +
-    getCharAffixSum(character, "arcane") * EQUIPMENT_SCORE_WEIGHTS.arcane +
-    getCharAffixSum(character, "devotion") * EQUIPMENT_SCORE_WEIGHTS.devotion
+    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk * getPersonaEquipmentWeight(scoringProfile, "weaponAtk") +
+    getCharDef(character) * EQUIPMENT_SCORE_WEIGHTS.defense * getPersonaEquipmentWeight(scoringProfile, "defense") +
+    getCharMaxHp(character) * EQUIPMENT_SCORE_WEIGHTS.maxHp * getPersonaEquipmentWeight(scoringProfile, "maxHp") +
+    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str * getPersonaEquipmentWeight(scoringProfile, "str") +
+    getCharVit(character) * EQUIPMENT_SCORE_WEIGHTS.vit * getPersonaEquipmentWeight(scoringProfile, "vit") +
+    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int * getPersonaEquipmentWeight(scoringProfile, "int") +
+    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie * getPersonaEquipmentWeight(scoringProfile, "pie") +
+    getCharAgi(character) * EQUIPMENT_SCORE_WEIGHTS.agi * getPersonaEquipmentWeight(scoringProfile, "agi") +
+    getCharAffixSum(character, "guardian") * EQUIPMENT_SCORE_WEIGHTS.guardian * getPersonaEquipmentWeight(scoringProfile, "guardian") +
+    getCharAffixSum(character, "spellGuard") * EQUIPMENT_SCORE_WEIGHTS.spellGuard * getPersonaEquipmentWeight(scoringProfile, "spellGuard") +
+    getCharAffixSum(character, "followUp") * EQUIPMENT_SCORE_WEIGHTS.followUp * getPersonaEquipmentWeight(scoringProfile, "followUp") +
+    getCharAffixSum(character, "firstStrike") * EQUIPMENT_SCORE_WEIGHTS.firstStrike * getPersonaEquipmentWeight(scoringProfile, "firstStrike") +
+    getCharAffixSum(character, "arcane") * EQUIPMENT_SCORE_WEIGHTS.arcane * getPersonaEquipmentWeight(scoringProfile, "arcane") +
+    getCharAffixSum(character, "devotion") * EQUIPMENT_SCORE_WEIGHTS.devotion * getPersonaEquipmentWeight(scoringProfile, "devotion")
   );
 }
 
-function getOffenseEquipmentScore(character) {
+function getOffenseEquipmentScore(character, scoringProfile = null) {
   return (
-    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk +
-    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str +
-    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int +
-    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie
+    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk * getPersonaEquipmentWeight(scoringProfile, "weaponAtk") +
+    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str * getPersonaEquipmentWeight(scoringProfile, "str") +
+    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int * getPersonaEquipmentWeight(scoringProfile, "int") +
+    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie * getPersonaEquipmentWeight(scoringProfile, "pie")
   );
 }
 
@@ -8275,7 +8956,7 @@ function getCombatCoreScoreForId(character, scoringProfile, floor, coreId) {
   if (coreDefinition?.allowedClasses && !coreDefinition.allowedClasses.includes(character.class)) return 0;
   const classScoringProfile = getClassScoringProfile(scoringProfile, character);
   const params = coreDefinition.params;
-  const offenseScore = getOffenseEquipmentScore(character);
+  const offenseScore = getOffenseEquipmentScore(character, classScoringProfile);
   // 倍率コアは既存攻撃スコア×calibration実測稼働率×実params増分。
   if (coreId === "CORE_LAST_STAND") {
     return offenseScore * classScoringProfile.lowHpOffensiveRate * (params.damageMultiplier - 1);
@@ -8389,9 +9070,11 @@ function getEconomyCoreScore(character, scoringProfile, floor) {
 }
 
 function getEquipmentScore(character, scoringProfile, floor) {
-  return getBaseEquipmentScore(character) +
-    getCombatCoreScore(character, scoringProfile, floor) +
-    getEconomyCoreScore(character, scoringProfile, floor);
+  const combatCoreWeight = getPersonaEquipmentWeight(scoringProfile, "combatCore");
+  const economyCoreWeight = getPersonaEquipmentWeight(scoringProfile, "economyCore");
+  return getBaseEquipmentScore(character, scoringProfile) +
+    getCombatCoreScore(character, scoringProfile, floor) * combatCoreWeight +
+    getEconomyCoreScore(character, scoringProfile, floor) * economyCoreWeight;
 }
 
 function qualifiesAsBuildCore(candidateScore, currentScore) {
@@ -8438,7 +9121,7 @@ function createBuildSnapshot(state, scoringProfile, point) {
     };
     });
   const equipmentStatScore =
-    getBaseEquipmentScore(character) - getBaseEquipmentScore(withoutEquipment);
+    getBaseEquipmentScore(character, scoringProfile) - getBaseEquipmentScore(withoutEquipment, scoringProfile);
   const combatCoreScore = getCombatCoreScore(character, scoringProfile, state.floor);
   const combatCoreScoreById = getCombatCoreScoreById(
     character,
@@ -8464,6 +9147,7 @@ function createBuildSnapshot(state, scoringProfile, point) {
     int: getCharInt(character),
     pie: getCharPie(character),
     agi: getCharAgi(character),
+    spells: [...(character.spells || [])],
     equipmentStatScore,
     combatCoreScore,
     combatCoreScoreAll,
@@ -8492,6 +9176,86 @@ function createBuildSnapshot(state, scoringProfile, point) {
       (supportAffixes.poisonWard || 0) + (supportAffixes.statusResistance || 0),
     equipment
   };
+}
+
+function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
+  const build = createBuildSnapshot(state, scoringProfile, "checkpoint");
+  const character = state.party[0];
+  const previousEncounters = (metrics.encounterIdentityLog || []).slice(-3).map(encounter => ({
+    floor: encounter.floor,
+    normalHits: encounter.normalHits || 0,
+    totalNormalDamage: encounter.totalNormalDamage || 0,
+    enemyActions: encounter.enemyActions || 0,
+    rounds: encounter.rounds || 0
+  }));
+  return {
+    floor,
+    persona: state.simPersonaId || null,
+    worldSeed: state.currentRun.runSeed,
+    hp: character.hp,
+    maxHP: getCharMaxHp(character),
+    hpRatio: character.hp / Math.max(1, getCharMaxHp(character)),
+    mp: character.mp,
+    maxMP: getCharMaxMp(character),
+    mpRatio: character.mp / Math.max(1, getCharMaxMp(character)),
+    ATK: getCharWeaponAtk(character),
+    DEF: getCharDef(character),
+    spells: [...(character.spells || [])],
+    equippedBaseIds: build.equipment.map(item => item.id),
+    activeCoreIds: [...build.coreIds],
+    supportAffixes: { ...build.supportAffixes },
+    combatBuildScore: build.combatBuildScore,
+    equipmentChangesSoFar: metrics.equipmentUpgrades,
+    equipmentDropsSeen: metrics.equipmentFound,
+    encountersSoFar: state.currentRun.battles,
+    normalHitsReceivedSoFar: metrics.normalCombatTelemetry.incomingHits,
+    totalNormalDamageSoFar: metrics.normalCombatTelemetry.incomingDamage,
+    enemyActionsSoFar: metrics.normalCombatTelemetry.enemyActions,
+    roundsSoFar: metrics.normalCombatTelemetry.rounds,
+    stepsSoFar: metrics.steps,
+    exploredRatio: metrics.exploredRatioByFloor[floor] ?? 0,
+    searchActionsSoFar: metrics.searchActions,
+    campUsageSoFar: state.currentRun.campRestCount || 0,
+    previousEncounterDamage: previousEncounters
+  };
+}
+
+// Measurement-only checkpoint transport.  This is intentionally separate from
+// the production save shape: it carries the live production-backed run state
+// between a prefix measurement and a continuation measurement, while omitting
+// the generated map/combat object and telemetry references.
+function snapshotCheckpointState(state) {
+  const snapshot = structuredClone(state);
+  snapshot.map = null;
+  snapshot.combatState = null;
+  snapshot.encounterRateOverride = null;
+  snapshot.simTelemetry = null;
+  return snapshot;
+}
+
+function hydrateCheckpointState(state, checkpointState, scenario, runSeed) {
+  if (!checkpointState) return;
+  const configuredPolicy = structuredClone(state.simPolicy);
+  Object.assign(state, structuredClone(checkpointState));
+  state.map = null;
+  state.combatState = null;
+  state.encounterRateOverride = null;
+  state.roamingMonsters = [];
+  state.currentRun.runSeed = runSeed;
+  state.currentRun.startFloor = state.floor;
+  state.floor = Number.isInteger(Number(state.floor))
+    ? Number(state.floor)
+    : Number(scenario.startFloor) || 1;
+  state.simPolicy = {
+    ...configuredPolicy,
+    ...(state.simPolicy || {}),
+    combatPolicy: scenario.combatPolicy || configuredPolicy.combatPolicy || "balanced-combat"
+  };
+  // Continuation metrics count only what happens after the checkpoint. The
+  // queues themselves remain part of the checkpoint state for real supply
+  // accounting, while the synthetic "starting" arrays are not re-counted.
+  state.simStartingInventory = [];
+  state.simDepartureCraftItems = [];
 }
 
 function createDeathStateSnapshot(state, scoringProfile) {
@@ -8652,6 +9416,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
             floor: state.floor,
             oldCoreId: getItemCoreId(oldEquipment),
             candidateCoreId: blockedCoreId,
+            oldMainAxisIds: getItemMainAxisIds(oldEquipment),
+            candidateMainAxisIds: getItemMainAxisIds(inventoryItem),
             oldCursed: true
           });
         }
@@ -8791,6 +9557,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         scoreAfter: getEquipmentScore(character, scoringProfile, state.floor),
         oldCoreId: best.oldCoreId,
         candidateCoreId: selectedCandidateCoreId,
+        oldMainAxisIds: getItemMainAxisIds(best.oldEquipment),
+        candidateMainAxisIds: getItemMainAxisIds(selectedCandidate),
         oldCursed: Boolean(best.oldEquipment && isCurseLocked(best.oldEquipment)),
         candidateCursed: Boolean(isCurseLocked(best.candidate)),
         replacement: Boolean(best.oldEquipment)
@@ -9287,6 +10055,7 @@ function createFloorRoutePlan(
 
   if (!start || !stairs) {
     return {
+      routePolicy: "omniscient_shortest_route",
       path: [],
       routeEvents,
       floorSteps: getFloorStepCount(generated, floor),
@@ -9389,6 +10158,7 @@ function createFloorRoutePlan(
       )
     : null;
   return {
+    routePolicy: "omniscient_shortest_route",
     path,
     routeEvents,
     routeDistance,
@@ -9402,6 +10172,48 @@ function createFloorRoutePlan(
     avoidedPathExists,
     milestoneForced,
     bossExitDistance
+  };
+}
+
+// Phase 2 route state.  The generated map remains the production map used by
+// movement, but route decisions are made from `knownCellKeys` only.  In
+// particular, this function deliberately does not inspect event, stairs, or
+// boss fields while selecting a frontier.  Those fields are observed only
+// when the movement step enters the cell.
+function createPartialInformationFloorRoutePlan(generated, floor, personaPolicy = null) {
+  const start = findFloorCell(generated.grid, cell => cell.type === "stairs-up");
+  const walkableCells = generated.validation?.walkableCells || generated.grid.flat()
+    .filter(cell => cell?.walls?.some(wall => !wall) || cell?.event || cell?.type !== "empty")
+    .length;
+  const exploration = personaPolicy?.exploration || {};
+  // The player policy must not use the generated map's total walkable-cell or
+  // critical-path knowledge. Use the floor template's fixed budget instead;
+  // walkableCells remains a telemetry denominator only.
+  const template = getFloorTemplate(floor);
+  const templateFloorSteps = Math.max(
+    1,
+    Math.round(((template.criticalPathRange[0] + template.criticalPathRange[1]) / 2) * EXPLORATION_FACTOR)
+  );
+  const explorationBudget = Math.max(
+    templateFloorSteps,
+    Math.ceil(templateFloorSteps * (Number(exploration.budgetMultiplier) || 2.5)) +
+      (Number(exploration.budgetExtraSteps) || 10)
+  );
+  return {
+    routePolicy: "partial_information_exploration",
+    partialInformation: true,
+    path: start ? [{ ...start }] : [],
+    routeEvents: [],
+    routeDistance: explorationBudget,
+    bossToStairsDistance: null,
+    naturalBossToStairsDistance: null,
+    floorSteps: explorationBudget,
+    specialCells: [],
+    avoidedPathExists: false,
+    milestoneForced: false,
+    walkableCells,
+    personaPolicy,
+    start
   };
 }
 
@@ -9519,6 +10331,165 @@ function scheduleSecretRoomSearches(plans, floorSteps, routeLength) {
   return schedule;
 }
 
+export function canTraverseKnownRouteEdge(generated, route, current, direction) {
+  const cell = generated.grid[current.y]?.[current.x];
+  const next = generated.grid[current.y + direction.dy]?.[current.x + direction.dx];
+  if (!cell || !next || !route.knownCellKeys.has(routeKey(current))) return false;
+  const nextCoord = { x: current.x + direction.dx, y: current.y + direction.dy };
+  const edgeKey = `${routeKey(current)}>${routeKey(nextCoord)}`;
+  const reverseEdgeKey = `${routeKey(nextCoord)}>${routeKey(current)}`;
+  const revealedSecret = route.revealedSecretDoorKeys?.has(edgeKey) ||
+    route.revealedSecretDoorKeys?.has(reverseEdgeKey);
+  if (cell.walls?.[direction.dir] && !revealedSecret) return false;
+  // The destination's entrance geometry is not known until the cell is
+  // entered. A frontier destination is therefore accepted from the known
+  // source edge without peeking at the destination cell.
+  if (!route.knownCellKeys.has(routeKey(nextCoord))) return true;
+  return !next.blockEnter?.[(direction.dir + 2) % 4];
+}
+
+function findPartialInformationPath(generated, route, target, blockedKeys = new Set()) {
+  if (!route.current || !target) return null;
+  const startKey = routeKey(route.current);
+  const targetKey = routeKey(target);
+  const queue = [{ ...route.current }];
+  const previous = new Map([[startKey, null]]);
+  for (const current of queue) {
+    if (routeKey(current) === targetKey) break;
+    for (const direction of ROUTE_DIRECTIONS) {
+      if (!canTraverseKnownRouteEdge(generated, route, current, direction)) continue;
+      const next = {
+        x: current.x + direction.dx,
+        y: current.y + direction.dy
+      };
+      const nextKey = routeKey(next);
+      if (previous.has(nextKey) || (blockedKeys.has(nextKey) && nextKey !== targetKey)) continue;
+      // An unknown cell is a valid frontier destination, but its interior is
+      // not known yet and therefore cannot be used as a transit node.
+      if (!route.knownCellKeys.has(nextKey) && nextKey !== targetKey) continue;
+      previous.set(nextKey, routeKey(current));
+      queue.push(next);
+    }
+  }
+  if (!previous.has(targetKey)) return null;
+  const path = [];
+  let cursor = targetKey;
+  while (cursor) {
+    const [x, y] = cursor.split(",").map(Number);
+    path.push({ x, y });
+    cursor = previous.get(cursor);
+  }
+  return path.reverse();
+}
+
+function findKnownFrontier(generated, route) {
+  if (!route.current) return null;
+  const candidates = [];
+  const queue = [{ ...route.current }];
+  const distance = new Map([[routeKey(route.current), 0]]);
+  for (const current of queue) {
+    const currentDistance = distance.get(routeKey(current));
+    for (const direction of ROUTE_DIRECTIONS) {
+      if (!canTraverseKnownRouteEdge(generated, route, current, direction)) continue;
+      const next = {
+        x: current.x + direction.dx,
+        y: current.y + direction.dy
+      };
+      const nextKey = routeKey(next);
+      if (!route.knownCellKeys.has(nextKey)) {
+        candidates.push({ coord: next, distance: currentDistance + 1 });
+        continue;
+      }
+      if (distance.has(nextKey)) continue;
+      distance.set(nextKey, currentDistance + 1);
+      queue.push(next);
+    }
+  }
+  candidates.sort((left, right) =>
+    left.distance - right.distance ||
+    left.coord.y - right.coord.y ||
+    left.coord.x - right.coord.x
+  );
+  return candidates[0]?.coord || null;
+}
+
+function getPartialInformationTarget(route, generated, floor) {
+  const milestone = floor % 5 === 0;
+  if (route.discoveredBoss && !route.bossDefeated) return route.discoveredBoss;
+  if (route.discoveredStairs && (!milestone || route.bossDefeated)) {
+    const afterStairsSteps = Number(route.personaPolicy?.exploration?.afterStairsSteps) || 0;
+    if (route.postStairsExplorationRemaining > 0 && afterStairsSteps > 0) {
+      const frontier = findKnownFrontier(generated, route);
+      if (frontier) return frontier;
+    }
+    return route.discoveredStairs;
+  }
+  return findKnownFrontier(generated, route);
+}
+
+export function getPartialSecretDoorPlan(route) {
+  if (!route.current) return null;
+  const source = { ...route.current };
+  const sourceKey = routeKey(source);
+  const cursor = route.secretSearchDirectionByCell.get(sourceKey) || 0;
+  const direction = ROUTE_DIRECTIONS[cursor];
+  if (!direction) return null;
+  const next = { x: source.x + direction.dx, y: source.y + direction.dy };
+  if (next.x < 0 || next.y < 0) return null;
+  const key = `${sourceKey}>${routeKey(next)}`;
+  return { source, room: next, direction: direction.dir, key };
+}
+
+function resolvePartialSecretDoorSearch({ state, generated, route, floor, metrics, specialSchedule, step }) {
+  const plan = getPartialSecretDoorPlan(route);
+  if (!plan) return false;
+  const sourceKey = routeKey(plan.source);
+  route.secretSearchDirectionByCell.set(
+    sourceKey,
+    (route.secretSearchDirectionByCell.get(sourceKey) || 0) + 1
+  );
+  route.searchedSecretDoorKeys.add(plan.key);
+  metrics.secretDoorCandidates++;
+  metrics.secretSearchAttempts++;
+  metrics.searchActions++;
+  metrics.secretSearchExtraSteps++;
+  const searchEncounter = (!state.repelTurns || state.repelTurns <= 0) &&
+    Math.random() < getEncounterChance(metrics.steps, state);
+  if (searchEncounter) {
+    metrics.encountersCausedBySearchAction++;
+    metrics.secretSearchEncounterExposure++;
+    const event = { type: "normal", searchEncounter: true, step };
+    specialSchedule.set(step + 1, [
+      ...(specialSchedule.get(step + 1) || []),
+      event
+    ]);
+    return true;
+  }
+  const chance = calculateSecretSearchSuccessRateForSimulation(state.party, floor);
+  if (Math.random() >= chance) {
+    metrics.secretSearchFailures++;
+    metrics.secretSearchEncounterExposure += getEncounterChance(metrics.steps, state);
+    return true;
+  }
+  // Measurement boundary: after a player-like search action and its
+  // production success roll, resolve the generated map edge. The hidden
+  // secretDoor flag is never read while choosing whether/where to search.
+  const source = generated.grid[plan.source.y][plan.source.x];
+  const room = generated.grid[plan.room.y]?.[plan.room.x];
+  if (!source?.secretDoor?.[plan.direction] || !source?.secretFound || !room?.secretFound) {
+    metrics.secretSearchFailures++;
+    return true;
+  }
+  source.secretFound[plan.direction] = true;
+  room.secretFound[(plan.direction + 2) % 4] = true;
+  metrics.secretSearchSuccesses++;
+  metrics.secretRoomDiscoveries++;
+  route.revealedSecretDoorKeys.add(plan.key);
+  route.revealedSecretDoorKeys.add(`${routeKey(plan.room)}>${routeKey(plan.source)}`);
+  metrics.secretSearchEncounterExposure += getEncounterChance(metrics.steps, state);
+  return true;
+}
+
 function calculateSecretSearchSuccessRateForSimulation(party, floor) {
   let rate = 0.35;
   const scouts = party.filter(character =>
@@ -9631,6 +10602,35 @@ function resolveFlameTrapAtStep({
 
 function createSimulationFloorRoute(generated, routePlan, state, floor, metrics) {
   const start = findFloorCell(generated.grid, cell => cell.type === "stairs-up");
+  if (routePlan.partialInformation) {
+    const route = {
+      partialInformation: true,
+      current: start ? { ...start } : null,
+      path: start ? [{ ...start }] : [],
+      targetIndex: 0,
+      targets: [],
+      knownCellKeys: new Set(start ? [routeKey(start)] : []),
+      searchedSecretDoorKeys: new Set(),
+      secretSearchDirectionByCell: new Map(),
+      revealedSecretDoorKeys: new Set(),
+      discoveredStairs: null,
+      discoveredBoss: null,
+      bossDefeated: false,
+      floorComplete: false,
+      knownTrapKeys: new Set(),
+      processedEventKeys: new Set(),
+      replanStates: new Set(),
+      nextMoveAt: EXPLORATION_FACTOR,
+      detourActive: false,
+      detourTrapId: null,
+      detourTargetKey: null,
+      personaPolicy: routePlan.personaPolicy,
+      postStairsExplorationRemaining: 0
+    };
+    metrics.exploredCellsByFloor[floor] = 1;
+    metrics.exploredCells++;
+    return route;
+  }
   const stairs = findFloorCell(generated.grid, cell => cell.type === "stairs-down");
   const targets = [
     ...(routePlan.routeEvents || []),
@@ -9656,6 +10656,32 @@ function createSimulationFloorRoute(generated, routePlan, state, floor, metrics)
 
 function replanSimulationFloorRoute(route, generated, state, floor, metrics, step) {
   if (!route.current) return { path: [], cycleDetected: false };
+  if (route.partialInformation) {
+    const target = getPartialInformationTarget(route, generated, floor);
+    if (!target) {
+      route.path = [{ ...route.current }];
+      return { path: route.path, directPath: null, alternatePath: null, detours: false };
+    }
+    const targetKey = routeKey(target);
+    const stateKey = `${routeKey(route.current)}>${targetKey}>` +
+      [...route.knownTrapKeys].sort().join("|");
+    const cycleDetected = route.replanStates.has(stateKey);
+    route.replanStates.add(stateKey);
+    route.path = findPartialInformationPath(
+      generated,
+      route,
+      target,
+      new Set()
+    ) || [route.current];
+    route.partialTargetKey = targetKey;
+    return {
+      path: route.path,
+      directPath: route.path,
+      alternatePath: null,
+      detours: false,
+      cycleDetected
+    };
+  }
   while (
     route.targetIndex < route.targets.length &&
     routeKey(route.targets[route.targetIndex]) === routeKey(route.current)
@@ -9817,13 +10843,52 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
   state.y = next.y;
   route.current = { ...next };
   route.path = route.path.slice(1);
+  if (route.partialInformation) {
+    const nextKey = routeKey(next);
+    const wasUnknown = !route.knownCellKeys.has(nextKey);
+    if (wasUnknown) {
+      route.knownCellKeys.add(nextKey);
+      metrics.exploredCells++;
+      metrics.exploredCellsByFloor[floor] = (metrics.exploredCellsByFloor[floor] || 0) + 1;
+    }
+    const entered = generated.grid[next.y]?.[next.x];
+    if (entered?.type === "stairs-down" && !route.discoveredStairs) {
+      route.discoveredStairs = { ...next };
+      route.postStairsExplorationRemaining = Number(
+        route.personaPolicy?.exploration?.afterStairsSteps
+      ) || 0;
+      metrics.stairsDiscoveryStepByFloor[floor] ||= step;
+    }
+    if (
+      route.discoveredStairs &&
+      route.postStairsExplorationRemaining > 0 &&
+      nextKey !== routeKey(route.discoveredStairs) &&
+      wasUnknown
+    ) {
+      route.postStairsExplorationRemaining--;
+    }
+    if (entered?.event === EVENT_TYPES.BOSS && entered.milestoneFloor === floor && !route.discoveredBoss) {
+      route.discoveredBoss = { ...next };
+      metrics.bossDiscoveryStepByFloor[floor] ||= step;
+    }
+  }
   const candidate = route.targets[route.targetIndex];
-  const event = candidate && candidate.type !== "stairs-down" &&
+  const enteredCell = generated.grid[next.y]?.[next.x];
+  const partialEvent = route.partialInformation && enteredCell?.event
+    ? { x: next.x, y: next.y, type: enteredCell.event, milestone: enteredCell.milestoneFloor === floor }
+    : null;
+  const event = partialEvent || (candidate && candidate.type !== "stairs-down" &&
     routeKey(candidate) === routeKey(next) &&
     !route.processedEventKeys.has(routeKey(candidate))
     ? candidate
-    : null;
+    : null);
   if (event) route.processedEventKeys.add(routeKey(event));
+  if (route.partialInformation && enteredCell?.type === "stairs-down") {
+    const milestone = floor % 5 === 0;
+    if ((!milestone || route.bossDefeated) && route.postStairsExplorationRemaining <= 0) {
+      route.floorComplete = true;
+    }
+  }
   if (route.detourActive && route.detourTargetKey === routeKey(next)) {
     finalizeTrapRouteDetour(metrics);
     route.detourActive = false;
@@ -9831,7 +10896,13 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
     route.detourTrapId = null;
     route.detourTargetKey = null;
   }
-  return { moved: true, previous, current: { ...next }, event };
+  return {
+    moved: true,
+    previous,
+    current: { ...next },
+    event,
+    floorComplete: route.floorComplete
+  };
 }
 
 function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
@@ -9952,6 +11023,7 @@ function applySimulatedCampRest(state, observations, metrics = null) {
   }
   if (metrics) {
     metrics.campHealingHp += hpGain;
+    recordStage15Healing(metrics, hpGain, "camp");
     recordCombatMpRecovery(metrics, "camp", mpGain);
     if (extraCamp) {
       metrics.extraCampRestCount++;
@@ -10593,11 +11665,7 @@ function resolveSimulationChest({
       !(chestItems.mainItemLost && index === chestItems.mainItemIndex)
     ).length;
   }
-  recordEquipmentUpgrades(
-    metrics,
-    equipGreedyUpgrades(state, metrics, scoringProfile),
-    floor
-  );
+  applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor);
   return true;
 }
 
@@ -10679,7 +11747,7 @@ function hasBuildCoreAffix(item) {
 }
 
 function createFloorSupplyStats() {
-  return Array.from({ length: 21 }, () => ({
+  return Array.from({ length: 41 }, () => ({
     equipment: 0,
     core: 0,
     cursed: 0,
@@ -10815,6 +11883,19 @@ function recordEquipmentUpgrades(metrics, upgrades, floor) {
   metrics.equipmentUpgrades += upgrades;
   if (floor <= EARLY_BUILD_MAX_FLOOR) metrics.earlyEquipmentUpgrades += upgrades;
   else metrics.deepEquipmentUpgrades += upgrades;
+}
+
+// Phase 2: P0 keeps generated drops fixed; P1 uses the existing production
+// greedy scorer immediately after each reward. No future encounter data is
+// passed to this decision.
+function applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor) {
+  if (metrics.equipmentUpdatePolicy === "fixed") return 0;
+  const upgrades = equipGreedyUpgrades(state, metrics, scoringProfile);
+  recordEquipmentUpgrades(metrics, upgrades, floor);
+  if (metrics.buildSnapshots) {
+    metrics.buildSnapshots.push(createBuildSnapshot(state, scoringProfile, "equipment-update"));
+  }
+  return upgrades;
 }
 
 function createEquipmentCraftAggregate() {
@@ -11030,7 +12111,21 @@ function createRunDiagnosticsRecord(state, outcome, metrics, terminationReason) 
   };
 }
 
-function finishRun(state, outcome, metrics, terminationReason = null) {
+function finishRun(state, outcome, metrics, terminationReason = null, terminationContext = null) {
+  if (metrics.stage15Diagnostics) {
+    const activeFloor = metrics.stage15Diagnostics.currentFloor;
+    const activeTelemetry = stage15Floor(metrics, activeFloor);
+    if (activeTelemetry && !activeTelemetry.closed) {
+      finalizeStage15Floor(
+        state,
+        metrics,
+        activeFloor,
+        outcome === "death" ? "died" : "incomplete",
+        terminationReason,
+        terminationContext
+      );
+    }
+  }
   const detourActive = metrics.trapRoute.detourActive;
   finalizeTrapRouteDetour(metrics);
   if (detourActive) {
@@ -11217,6 +12312,17 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     );
     metrics.diagnostics.deathLogs = structuredClone(state.currentRun.deathLogs || []);
   }
+  if (metrics.stage15Diagnostics) {
+    Object.values(metrics.stage15Diagnostics.byFloor).forEach(telemetry => {
+      const floorKey = String(telemetry.floor);
+      telemetry.steps = metrics.stepsByFloor[floorKey] || 0;
+      telemetry.equipmentDrops = metrics.equipmentFoundByFloor[telemetry.floor] || 0;
+      telemetry.equipmentChanges = (metrics.equipmentTelemetry || [])
+        .filter(event => event.floor === telemetry.floor && event.type === "swap")
+        .length;
+      telemetry.exploredRatio = metrics.exploredRatioByFloor[telemetry.floor] ?? null;
+    });
+  }
   return {
     survived: outcome === "retreat",
     died: outcome === "death",
@@ -11231,6 +12337,21 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     metaMaterials: { ...state.metaMaterials },
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     steps: metrics.steps,
+    routePolicy: metrics.routePolicy,
+    equipmentUpdatePolicy: metrics.equipmentUpdatePolicy,
+    mpConsumed: metrics.mpConsumed,
+    exploredCells: metrics.exploredCells,
+    exploredCellsByFloor: { ...metrics.exploredCellsByFloor },
+    exploredRatioByFloor: { ...metrics.exploredRatioByFloor },
+    stepsByFloor: { ...metrics.stepsByFloor },
+    searchActions: metrics.searchActions,
+    encountersCausedByMovement: metrics.encountersCausedByMovement,
+    encountersCausedBySearchAction: metrics.encountersCausedBySearchAction,
+    stairsDiscoveryStepByFloor: { ...metrics.stairsDiscoveryStepByFloor },
+    bossDiscoveryStepByFloor: { ...metrics.bossDiscoveryStepByFloor },
+    floorClearStepByFloor: { ...metrics.floorClearStepByFloor },
+    floorTransitionStepByFloor: { ...metrics.floorTransitionStepByFloor },
+    partialExplorationState: metrics.partialExplorationState || null,
     battles: state.currentRun.battles,
     chestsOpenedInRun: state.currentRun.chestsOpened,
     chestPath: structuredClone(metrics.chestPath),
@@ -11619,6 +12740,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     mpDepletionCausedEnd,
     mpPressure: finalizeSpellPressureMetrics(metrics.mpPressure),
     combatMpMeasurement: snapshotCombatMpMeasurement(metrics.combatMpMeasurement),
+    stage15Diagnostics: snapshotStage15Diagnostics(metrics.stage15Diagnostics),
     combatPolicyProbe: { ...metrics.combatPolicyProbe },
     fleeCount: metrics.fleeCount,
     bossPolicy: metrics.bossPolicy,
@@ -11659,6 +12781,12 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     dragonKeysAcquired: metrics.dragonKeysAcquired,
     dragonKeyUses: metrics.dragonKeyUses,
     normalCombatTelemetry: metrics.normalCombatTelemetry,
+    encounterIdentityLog: metrics.encounterIdentityLog
+      ? structuredClone(metrics.encounterIdentityLog)
+      : null,
+    startingBuildSnapshot: metrics.startingBuildSnapshot
+      ? structuredClone(metrics.startingBuildSnapshot)
+      : null,
     encounterGroupCounts: Object.fromEntries(
       Object.entries(metrics.encounterGroupCounts).map(([band, groups]) => [band, { ...groups }])
     ),
@@ -11670,6 +12798,9 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     combatMaterialHitEvents: metrics.combatMaterialHitEvents,
     diagnostics: metrics.diagnostics,
     ...(metrics.buildSnapshots ? { buildSnapshots: metrics.buildSnapshots } : {}),
+    ...(metrics.checkpointSnapshots
+      ? { checkpointSnapshots: structuredClone(metrics.checkpointSnapshots) }
+      : {}),
     ...(metrics.equipmentTelemetry
       ? { equipmentTelemetry: metrics.equipmentTelemetry }
       : {})
@@ -11707,9 +12838,12 @@ export function simulateRun({
   encounterRateOverride = null,
   collectBuildSnapshots = false,
   collectEquipmentTelemetry = false,
-  collectCombatFormula = false
+  collectCombatFormula = false,
+  worldSeed = null,
+  checkpointState = null,
+  captureCheckpointAtFloor = null
 }) {
-  const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
+  const runSeed = worldSeed || `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   if (SIM_INDEPENDENT_RUN_RANDOM) {
     // Keep each class/run on an independent deterministic stream. Otherwise a
     // Priest-only spell change can shift the shared stream and make Fighter,
@@ -11726,6 +12860,7 @@ export function simulateRun({
     keyItems,
     unlockedMilestones
   );
+  hydrateCheckpointState(state, checkpointState, scenario, runSeed);
   state.simPolicy.statusCureTargetDepth = targetDepth;
   if (CORE_WORKSHOP_GATE_MODE === "off") {
     state.party[0].unlockedAffixIds = [...ALL_CORE_AFFIX_IDS];
@@ -11760,6 +12895,20 @@ export function simulateRun({
     `${runSeed}:${scenario.materialDropOverride?.id || "baseline"}`
   );
   const metrics = {
+    routePolicy: scenario.routePolicy || "omniscient_shortest_route",
+    equipmentUpdatePolicy: scenario.equipmentUpdatePolicy || "deterministic_greedy",
+    mpConsumed: 0,
+    exploredCells: 0,
+    exploredCellsByFloor: {},
+    exploredRatioByFloor: {},
+    stepsByFloor: {},
+    searchActions: 0,
+    encountersCausedByMovement: 0,
+    encountersCausedBySearchAction: 0,
+    stairsDiscoveryStepByFloor: {},
+    bossDiscoveryStepByFloor: {},
+    floorClearStepByFloor: {},
+    floorTransitionStepByFloor: {},
     runtimeCalls,
     runtimeDiagnostics,
     steps: 0,
@@ -11812,7 +12961,7 @@ export function simulateRun({
     unidentifiedWearCount: 0,
     curseHitCount: 0,
     equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
-    equipmentFoundByFloor: Array(21).fill(0),
+    equipmentFoundByFloor: Array(41).fill(0),
     curseGeneration: createCurseGenerationCounts(),
     supportAffixFoundById: {},
     trapBonusItemsFound: 0,
@@ -11832,10 +12981,10 @@ export function simulateRun({
     coreEquipmentFound: 0,
     coreEquipmentFoundById: {},
     coreEquipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
-    coreEquipmentFoundByFloor: Array(21).fill(0),
+    coreEquipmentFoundByFloor: Array(41).fill(0),
     coreEquipmentFoundByGroupAndFloor: {
-      combat: Array(21).fill(0),
-      economy: Array(21).fill(0)
+      combat: Array(41).fill(0),
+      economy: Array(41).fill(0)
     },
     coreEquipmentInstanceIds: new Set(),
     coreEncounteredIds: new Set(),
@@ -11895,6 +13044,9 @@ export function simulateRun({
     explorationSpellUsage: createExplorationSpellUsageMetrics(),
     mpPressure: createSpellPressureMetrics(),
     combatMpMeasurement: createCombatMpMeasurement(),
+    stage15Diagnostics: scenario.collectStage15Diagnostics
+      ? createStage15Diagnostics()
+      : null,
     combatPolicyProbe: createCombatPolicyProbeMetrics(),
     mpBlockedTerminalEncounter: false,
     lightActiveSteps: 0,
@@ -11995,15 +13147,15 @@ export function simulateRun({
     pickupAttemptsBySource: { chest: 0, combat: 0, material: 0 },
     pickupRejectionsBySource: { chest: 0, combat: 0, material: 0 },
     pickupRejectionsByCategory: { item: 0, equipment: 0, material: 0 },
-    chestsOpenedByFloor: Array(21).fill(0),
-    chestTrappedByFloor: Array(21).fill(0),
+    chestsOpenedByFloor: Array(41).fill(0),
+    chestTrappedByFloor: Array(41).fill(0),
     chestDisarmAttempts: 0,
-    chestDisarmAttemptsByFloor: Array(21).fill(0),
+    chestDisarmAttemptsByFloor: Array(41).fill(0),
     chestDisarmSuccesses: 0,
-    chestDisarmSuccessesByFloor: Array(21).fill(0),
-    chestDisarmKitUsesByFloor: Array(21).fill(0),
-    chestDisarmDirectAttemptsByFloor: Array(21).fill(0),
-    chestForcedByFloor: Array(21).fill(0),
+    chestDisarmSuccessesByFloor: Array(41).fill(0),
+    chestDisarmKitUsesByFloor: Array(41).fill(0),
+    chestDisarmDirectAttemptsByFloor: Array(41).fill(0),
+    chestForcedByFloor: Array(41).fill(0),
     blindApplicationsBySource: { chest: 0, floor: 0, enemy: 0 },
     chestDisarmByBlindStatus: {
       clear: createChestDisarmBlindStatusMetric(),
@@ -12085,6 +13237,7 @@ export function simulateRun({
         sources: {},
         builds: {}
       },
+      measurementEnemyTurnEvents: scenario.collectEncounterIdentities ? [] : null,
       enemyStatusGrammar: createEnemyStatusGrammarMetrics()
     },
     statusCureItemsAcquired: {
@@ -12129,9 +13282,9 @@ export function simulateRun({
       merchant: 0
     },
     chestTownPortalMainRewardReplacements: 0,
-    chestTownPortalMainRewardReplacementsByFloor: Array(21).fill(0),
+    chestTownPortalMainRewardReplacementsByFloor: Array(41).fill(0),
     chestSpecialPortalOffers: 0,
-    chestSpecialPortalOffersByFloor: Array(21).fill(0),
+    chestSpecialPortalOffersByFloor: Array(41).fill(0),
     merchantWingAttempts: 0,
     merchantWingsPurchased: 0,
     merchantPurchaseFloors: [],
@@ -12164,8 +13317,12 @@ export function simulateRun({
       incomingHits: 0,
       incomingDamage: 0,
       maxIncomingHit: 0,
-      heavyHitCount: 0
+      heavyHitCount: 0,
+      rounds: 0,
+      enemyActions: 0
     },
+    encounterIdentityLog: scenario.collectEncounterIdentities ? [] : null,
+    encounterEventCounts: new Map(),
     encounterGroupCounts: createEncounterGroupCounts(),
     encounterFallbacks: {},
     materialSources: {
@@ -12192,6 +13349,7 @@ export function simulateRun({
     combatMaterialHitEvents: 0,
     scoringProfile,
     buildSnapshots: collectBuildSnapshots && !collectDiagnostics ? [] : null,
+    checkpointSnapshots: scenario.collectCheckpointSnapshots ? [] : null,
     diagnostics: collectDiagnostics
       ? {
           level: diagnosticLevel,
@@ -12203,35 +13361,46 @@ export function simulateRun({
       : null
   };
   state.simTelemetry = metrics.killHeal;
+  metrics.startingBuildSnapshot = createBuildSnapshot(
+    state,
+    scoringProfile,
+    "starting-build"
+  );
   state.simStartingInventory.forEach(item => recordConsumableAcquisition(metrics, item));
   state.simDepartureCraftItems.forEach(item => recordConsumableAcquisition(metrics, item));
 
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
   for (let floor = startFloor; floor < targetDepth; floor++) {
     state.floor = floor;
+    startStage15Floor(state, metrics, floor);
     applyTrapBonusExposureCeiling(state, floor);
     const buildSnapshots = metrics.diagnostics?.buildSnapshots || metrics.buildSnapshots;
     if (buildSnapshots) {
       buildSnapshots.push(createBuildSnapshot(state, scoringProfile, "floor-start"));
     }
+    if (metrics.checkpointSnapshots) {
+      metrics.checkpointSnapshots.push(
+        createCheckpointSnapshot(state, metrics, scoringProfile, floor)
+      );
+    }
     const generated = getRunFloor({ runSeed, floor });
-    const bossExitPolicy = applyBossExitPolicy(
-      generated,
-      floor,
-      scenario.bossExitPolicy || "shortcut-0"
-    );
-    const routePlan = createFloorRoutePlan(
-      generated,
-      floor,
-      metrics.bossPolicy,
-      bossExitPolicy
-    );
-    const elitePlan = createEliteRoutePlan(
-      generated,
-      floor,
-      runSeed,
-      state.simPolicy.elitePolicy
-    );
+    const bossExitPolicy = scenario.routePolicy === "partial_information_exploration"
+      ? { kind: "baseline", distance: null }
+      : applyBossExitPolicy(generated, floor, scenario.bossExitPolicy || "shortcut-0");
+    const routePlan = scenario.routePolicy === "partial_information_exploration"
+      ? createPartialInformationFloorRoutePlan(generated, floor, scenario.personaPolicy)
+      : createFloorRoutePlan(
+          generated,
+          floor,
+          metrics.bossPolicy,
+          bossExitPolicy
+        );
+    // Partial-information personas do not schedule a roaming encounter from
+    // its future map position. The production movement/combat path still
+    // handles encounters that are actually observed.
+    const elitePlan = routePlan.partialInformation
+      ? { elite: null, extraSteps: 0, encounterStep: null, avoidNoRoute: false }
+      : createEliteRoutePlan(generated, floor, runSeed, state.simPolicy.elitePolicy);
     const staticFloorSteps = getFloorStepCount(generated, floor);
     let floorSteps = routePlan.floorSteps + elitePlan.extraSteps;
     const floorRoute = createSimulationFloorRoute(
@@ -12242,7 +13411,14 @@ export function simulateRun({
       metrics
     );
     routePlan.path = [floorRoute.current, ...floorRoute.path.slice(1)];
-    const secretRoomPlans = findSecretRoomPlans(generated, routePlan);
+    if (routePlan.partialInformation) {
+      metrics.exploredRatioByFloor[floor] =
+        (metrics.exploredCellsByFloor[floor] || 0) / Math.max(1, routePlan.walkableCells);
+    }
+    // Only the oracle may schedule hidden secret rooms from the full map.
+    const secretRoomPlans = routePlan.partialInformation
+      ? []
+      : findSecretRoomPlans(generated, routePlan);
     metrics.eliteAvoidDetourSteps += state.simPolicy.elitePolicy === "avoid"
       ? elitePlan.extraSteps
       : 0;
@@ -12268,6 +13444,13 @@ export function simulateRun({
     if (floorStart) {
       state.x = floorStart.x;
       state.y = floorStart.y;
+    }
+    if (captureCheckpointAtFloor === floor) {
+      return {
+        checkpointFloor: floor,
+        checkpointState: snapshotCheckpointState(state),
+        checkpointSnapshot: createCheckpointSnapshot(state, metrics, scoringProfile, floor)
+      };
     }
     if (floor === FLAME_TRAP_MODEL.floor) {
       const entrant = state.party[0];
@@ -12311,7 +13494,9 @@ export function simulateRun({
       avoidedPathExists: routePlan.avoidedPathExists,
       milestoneForced: routePlan.milestoneForced
     });
-    const chestSchedule = schedulePickedUpChests(countFloorChests(generated.grid), floorSteps);
+    const chestSchedule = routePlan.partialInformation
+      ? new Map()
+      : schedulePickedUpChests(countFloorChests(generated.grid), floorSteps);
     const secretRoomSchedule = scheduleSecretRoomSearches(
       secretRoomPlans,
       floorSteps,
@@ -12323,6 +13508,7 @@ export function simulateRun({
 
     stepLoop: for (let step = 1; step <= floorSteps; step++) {
       metrics.steps++;
+      metrics.stepsByFloor[floor] = (metrics.stepsByFloor[floor] || 0) + 1;
       state.simPolicy.statusCureRemainingSteps =
         Math.max(0, floorSteps - step + 1) +
         Array.from(
@@ -12383,6 +13569,10 @@ export function simulateRun({
         step
       );
       routePlan.path = [floorRoute.current, ...floorRoute.path.slice(1)];
+      if (routePlan.partialInformation) {
+        metrics.exploredRatioByFloor[floor] =
+          (metrics.exploredCellsByFloor[floor] || 0) / Math.max(1, routePlan.walkableCells);
+      }
       if (movement.trapResult?.pitfallTriggered) {
         floorEndedByPitfall = true;
         break stepLoop;
@@ -12390,6 +13580,10 @@ export function simulateRun({
       if (!isAlive(state.party[0])) {
         metrics.deathEncounterType = "floor-trap";
         return finishRun(state, "death", metrics);
+      }
+      if (routePlan.partialInformation && movement.floorComplete) {
+        metrics.floorClearStepByFloor[floor] = step;
+        break stepLoop;
       }
       floorSteps = Math.max(
         floorSteps,
@@ -12402,16 +13596,21 @@ export function simulateRun({
         ...(specialSchedule.get(step) || []),
         ...(movement.event ? [movement.event] : [])
       ];
+      if (movement.event && [EVENT_TYPES.BOSS, "midboss"].includes(movement.event.type)) {
+        metrics.encountersCausedByMovement++;
+      }
       const floorTrapSchedule = new Map();
-      floorRoute.path.slice(1, 5).forEach((coord, index) => {
-        const upcomingTrap = generated.grid[coord.y]?.[coord.x]?.trap;
-        if (!upcomingTrap || upcomingTrap.state !== "hidden") return;
-        floorTrapSchedule.set(step + index, [{
-          trap: upcomingTrap,
-          previousCoord: index === 0 ? floorRoute.current : floorRoute.path[index],
-          step: step + index
-        }]);
-      });
+      if (!routePlan.partialInformation) {
+        floorRoute.path.slice(1, 5).forEach((coord, index) => {
+          const upcomingTrap = generated.grid[coord.y]?.[coord.x]?.trap;
+          if (!upcomingTrap || upcomingTrap.state !== "hidden") return;
+          floorTrapSchedule.set(step + index, [{
+            trap: upcomingTrap,
+            previousCoord: index === 0 ? floorRoute.current : floorRoute.path[index],
+            step: step + index
+          }]);
+        });
+      }
       const scheduledSecretRooms = secretRoomSchedule.get(step) || [];
       for (const secretPlan of scheduledSecretRooms) {
         const opened = resolveSecretRoomSearch({
@@ -12427,6 +13626,20 @@ export function simulateRun({
           metrics.deathEncounterType = "secret-room-chest-trap";
           return finishRun(state, "death", metrics);
         }
+      }
+      if (
+        routePlan.partialInformation &&
+        !getPartialInformationTarget(floorRoute, generated, floor)
+      ) {
+        resolvePartialSecretDoorSearch({
+          state,
+          generated,
+          route: floorRoute,
+          floor,
+          metrics,
+          specialSchedule,
+          step
+        });
       }
       applyIssue412TacticalItem({
         state,
@@ -12578,11 +13791,7 @@ export function simulateRun({
           !chestItems.lostRewardIndices?.includes(itemIndex) &&
           !(chestItems.mainItemLost && itemIndex === chestItems.mainItemIndex)
         ).length;
-        recordEquipmentUpgrades(
-          metrics,
-          equipGreedyUpgrades(state, metrics, scoringProfile),
-          floor
-        );
+        applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor);
       }
       if (!isAlive(state.party[0])) {
         metrics.deathEncounterType = "chest-trap";
@@ -12600,6 +13809,9 @@ export function simulateRun({
           Math.random() < getEncounterChance(step, state)
         ));
       if (forcedNormalEncounter) metrics.issue412.forcedNormalEncounters++;
+      if (scheduledSpecials.length === 0 && hasRandomEncounter) {
+        metrics.encountersCausedByMovement++;
+      }
       if (scheduledSpecials.length === 0 && !hasRandomEncounter) continue;
       const encountersThisStep = scheduledSpecials.length > 0
         ? scheduledSpecials
@@ -12616,8 +13828,10 @@ export function simulateRun({
         const isBoss = specialEvent?.type === EVENT_TYPES.BOSS;
         const isMidboss = specialEvent?.type === "midboss";
         const isElite = specialEvent?.type === "elite";
+        const isChest = specialEvent?.type === EVENT_TYPES.CHEST;
         const isMerchant = specialEvent?.type === EVENT_TYPES.MERCHANT;
         const isMilestonePortal = specialEvent?.type === EVENT_TYPES.RETURN_PORTAL;
+        const isSearchEncounter = Boolean(specialEvent?.searchEncounter);
         if (isBoss && specialEvent.milestone) {
           metrics.milestoneEventTrace.push({
             floor,
@@ -12645,6 +13859,22 @@ export function simulateRun({
               metrics.milestonePortalRetreats++;
               return finishRun(state, "retreat", metrics, "milestone_portal");
             }
+          }
+          continue;
+        }
+        if (isChest) {
+          const opened = resolveSimulationChest({
+            state,
+            floor,
+            metrics,
+            scenario,
+            supplyOverride,
+            scoringProfile,
+            source: "ordinary"
+          });
+          if (!opened || !isAlive(state.party[0])) {
+            metrics.deathEncounterType = "chest-trap";
+            return finishRun(state, "death", metrics);
           }
           continue;
         }
@@ -12697,7 +13927,9 @@ export function simulateRun({
               isMidboss,
               isElite,
               roamingMonster: specialEvent?.roamingMonster || null,
-              encounterCoord: specialEvent,
+              encounterCoord: Number.isFinite(specialEvent?.x) && Number.isFinite(specialEvent?.y)
+                ? specialEvent
+                : floorRoute.current,
               retreatCoord: specialEvent?.retreatCoord || null
             }
           );
@@ -12711,6 +13943,9 @@ export function simulateRun({
             });
           }
           if (combatResult.result === "victory") {
+            if (routePlan.partialInformation && isBoss && specialEvent.milestone) {
+              floorRoute.bossDefeated = true;
+            }
             const hpGrowthBonus = Number(state.simPolicy.hpGrowthBonus) || 0;
             const levelsGained = Math.max(0, state.party[0].level - levelBeforeCombat);
             if (hpGrowthBonus !== 0 && levelsGained > 0) {
@@ -12763,6 +13998,9 @@ export function simulateRun({
               combatResult.telemetry.incomingHits;
             metrics.normalCombatTelemetry.incomingDamage +=
               combatResult.telemetry.incomingDamage;
+            metrics.normalCombatTelemetry.rounds += combatResult.rounds;
+            metrics.normalCombatTelemetry.enemyActions +=
+              combatResult.telemetry.enemyActions || 0;
             metrics.normalCombatTelemetry.maxIncomingHit = Math.max(
               metrics.normalCombatTelemetry.maxIncomingHit,
               combatResult.telemetry.maxIncomingHit
@@ -12823,7 +14061,7 @@ export function simulateRun({
             metrics.eliteExpGained += state.party[0].exp - expBeforeCombat;
           }
 
-          if (specialEvent && !isElite) {
+          if (specialEvent && !isElite && !isSearchEncounter) {
             const keyCountBefore = state.inventory.filter(
               item => (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY"
             ).length;
@@ -12978,11 +14216,7 @@ export function simulateRun({
             floor,
             "combat"
           );
-          recordEquipmentUpgrades(
-            metrics,
-            equipGreedyUpgrades(state, metrics, scoringProfile),
-            floor
-          );
+          applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor);
           applyPostCombatRecovery(state, metrics);
           const combatRecoveryItem = useHealPotionIfNeeded(state, metrics);
           addRecoveryPotionUse(metrics, combatRecoveryItem);
@@ -13009,6 +14243,7 @@ export function simulateRun({
     }
 
     if (floorEndedByPitfall) {
+      finalizeStage15Floor(state, metrics, floor, "survived");
       if (floor === FLAME_TRAP_MODEL.floor) {
         recordB5HpSnapshot(state, metrics, floorSteps);
         metrics.b5FloorActive = false;
@@ -13019,6 +14254,26 @@ export function simulateRun({
     if (floor === FLAME_TRAP_MODEL.floor) {
       recordB5HpSnapshot(state, metrics, floorSteps);
       metrics.b5FloorActive = false;
+    }
+    if (routePlan.partialInformation && !floorRoute.floorComplete) {
+      metrics.partialExplorationState = {
+        floor,
+        current: floorRoute.current ? { ...floorRoute.current } : null,
+        knownCells: floorRoute.knownCellKeys.size,
+        target: getPartialInformationTarget(floorRoute, generated, floor)
+      };
+      return finishRun(
+        state,
+        "retreat",
+        metrics,
+        "partial-information-budget-exhausted",
+        {
+          milestone: floor % 5 === 0,
+          stairsDiscovered: Boolean(floorRoute.discoveredStairs),
+          bossDiscovered: Boolean(floorRoute.discoveredBoss),
+          bossDefeated: Boolean(floorRoute.bossDefeated)
+        }
+      );
     }
     applySimulatedCampRest(state, metrics.coreObservations, metrics);
     if (isMilestoneFloor(floor)) {
@@ -13034,10 +14289,21 @@ export function simulateRun({
       ) {
         return finishRun(state, "retreat", metrics, "milestone-retreat");
       }
-      if (!state.currentRun?.defeatedMilestones?.includes(floor)) {
-        return finishRun(state, "retreat", metrics, "milestone-boss-blocked");
+    if (!state.currentRun?.defeatedMilestones?.includes(floor)) {
+        return finishRun(
+          state,
+          "retreat",
+          metrics,
+          "milestone-boss-blocked",
+          {
+            milestone: true,
+            stairsDiscovered: true,
+            bossDefeated: false
+          }
+        );
       }
     }
+    finalizeStage15Floor(state, metrics, floor, "survived");
     descendToNextFloor(state, floor + 1, metrics, { stairsHeal: true });
     if (useTownPortalIfNeeded(state, scenario, metrics, "floor-transition")) {
       return finishRun(state, "retreat", metrics, "town-portal");
@@ -13125,12 +14391,13 @@ function simulateCase({
     secretRoomRewardAttempts: 0,
     chestDropGenerated: 0,
     timeCost: 0,
+    vnextStairs: {},
     campRestCount: 0,
     reachedFloor: 0,
-    entrantsByFloor: Array(21).fill(0),
-    breakthroughsByFloor: Array(21).fill(0),
-    deathsByFloor: Array(21).fill(0),
-    retreatsByFloor: Array(21).fill(0),
+    entrantsByFloor: Array(41).fill(0),
+    breakthroughsByFloor: Array(41).fill(0),
+    deathsByFloor: Array(41).fill(0),
+    retreatsByFloor: Array(41).fill(0),
     meanStats: createMeanStats([
       "bankedMaterials",
       "netBankedMaterials",
@@ -13151,6 +14418,10 @@ function simulateCase({
     earlyEquipmentUpgrades: 0,
     deepEquipmentUpgrades: 0,
     equipmentFound: 0,
+    vnextEquipment: {
+      swapEvents: 0,
+      buildShiftEvents: 0
+    },
     equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
@@ -13300,9 +14571,9 @@ function simulateCase({
     portalUseFloorCounts: {},
     portalUseHpBands: { "0-20%": 0, "21-35%": 0, "36-55%": 0, "56%+": 0 },
     chestTownPortalMainRewardReplacements: 0,
-    chestTownPortalMainRewardReplacementsByFloor: Array(21).fill(0),
+    chestTownPortalMainRewardReplacementsByFloor: Array(41).fill(0),
     chestSpecialPortalOffers: 0,
-    chestSpecialPortalOffersByFloor: Array(21).fill(0),
+    chestSpecialPortalOffersByFloor: Array(41).fill(0),
     fleeCount: 0,
     runsWithFlee: 0,
     eliteEncounters: 0,
@@ -13376,8 +14647,27 @@ function simulateCase({
         identificationPolicy: identificationPolicy.id || identificationPolicy
       },
       workshop: scenario.workshop || { ranks: {} },
-      collectCombatFormula: SIM_737_DAMAGE_AUDIT_ENABLED || SIM_728_HIT_EVASION_ENABLED
+      collectCombatFormula: SIM_737_DAMAGE_AUDIT_ENABLED || SIM_728_HIT_EVASION_ENABLED,
+      collectEquipmentTelemetry: Boolean(scenario.collectVNextObservability)
     });
+    if (scenario.collectVNextObservability) {
+      (result.equipmentTelemetry || []).forEach(event => {
+        if (event.type !== "swap") return;
+        totals.vnextEquipment.swapEvents++;
+        const oldMainAxisIds = new Set(event.oldMainAxisIds || []);
+        const candidateMainAxisIds = new Set(event.candidateMainAxisIds || []);
+        if (oldMainAxisIds.size !== candidateMainAxisIds.size ||
+          [...oldMainAxisIds].some(id => !candidateMainAxisIds.has(id))) {
+          totals.vnextEquipment.buildShiftEvents++;
+        }
+      });
+      Object.entries(result.stairsDiscoveryStepByFloor || {}).forEach(([floor, step]) => {
+        totals.vnextStairs[floor] ||= { discoveredRuns: 0, discoveryStepTotal: 0, floorStepTotal: 0 };
+        totals.vnextStairs[floor].discoveredRuns++;
+        totals.vnextStairs[floor].discoveryStepTotal += Number(step) || 0;
+        totals.vnextStairs[floor].floorStepTotal += Number(result.stepsByFloor?.[floor]) || 0;
+      });
+    }
     if (scenario.departureCraftMeasurement) {
       departureCraftBanksByClass[className] = { ...result.metaMaterials };
     }
@@ -13879,6 +15169,35 @@ function simulateCase({
     averageEarlyEquipmentUpgrades: totals.earlyEquipmentUpgrades / RUNS_PER_CASE,
     averageDeepEquipmentUpgrades: totals.deepEquipmentUpgrades / RUNS_PER_CASE,
     averageEquipmentFound: totals.equipmentFound / RUNS_PER_CASE,
+    vnextObservability: scenario.collectVNextObservability
+      ? {
+          equipment: {
+            swapEvents: totals.vnextEquipment.swapEvents,
+            buildShiftEvents: totals.vnextEquipment.buildShiftEvents
+          },
+          exploration: Object.fromEntries(
+            Object.entries(totals.vnextStairs).map(([floor, values]) => [floor, {
+              discoveredRate: values.discoveredRuns / RUNS_PER_CASE,
+              meanDiscoveryStep: values.discoveredRuns > 0
+                ? values.discoveryStepTotal / values.discoveredRuns
+                : null,
+              meanFloorStepsAmongDiscovered: values.discoveredRuns > 0
+                ? values.floorStepTotal / values.discoveredRuns
+                : null,
+              meanStepsBeforeStairs: values.discoveredRuns > 0
+                ? values.discoveryStepTotal / values.discoveredRuns
+                : null,
+              meanStepsAfterStairs: values.discoveredRuns > 0
+                ? (values.floorStepTotal - values.discoveryStepTotal) / values.discoveredRuns
+                : null
+            }])
+          ),
+          objectLootLifecycle: {
+            status: "not_modeled",
+            reason: "canonical simulator tracks equipment/material outcomes but not production object-loot ownership"
+          }
+        }
+      : null,
     averageEquipmentFoundBySource: Object.fromEntries(
       Object.entries(totals.equipmentFoundBySource).map(([source, amount]) => [
         source,
@@ -15437,7 +16756,7 @@ function printFailureComment(results) {
 }
 
 export function runDepthSimulationTask(
-  { kind, scenarioId, identificationPolicyId = "powder", className = null },
+  { kind, scenarioId, identificationPolicyId = "powder", className = null, collectVNextObservability = false, scenarioOverrides = {} },
   { scoringProfile, scoringProfiles = {}, scoringProfilesByScenario = {} }
 ) {
   resetSimulationRandom(SIM_SEED);
@@ -15453,7 +16772,9 @@ export function runDepthSimulationTask(
     const scenario = getScenarioById(scenarioId);
     const measurementScenario = {
       ...scenario,
-      departureCraftMeasurement: true
+      departureCraftMeasurement: true,
+      collectVNextObservability,
+      ...scenarioOverrides
     };
     return TARGET_DEPTHS.map(targetDepth =>
       snapshotDepthResult(simulateCase({
@@ -15510,7 +16831,7 @@ export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount, 
 }
 
 export function runCalibratedDepthSimulationTask(
-  { kind, scenarioId = null, identificationPolicyId = "powder", runCount, className = null },
+  { kind, scenarioId = null, identificationPolicyId = "powder", runCount, className = null, collectVNextObservability = false, scenarioOverrides = {} },
   context
 ) {
   const classNames = resolveSimulationClassNames(className);
@@ -15532,7 +16853,7 @@ export function runCalibratedDepthSimulationTask(
     scenarioId,
     profile: calibration.profile,
     results: runDepthSimulationTask(
-      { kind, scenarioId, identificationPolicyId, className },
+      { kind, scenarioId, identificationPolicyId, className, collectVNextObservability, scenarioOverrides },
       {
         ...context,
         scoringProfile: calibration.profile,

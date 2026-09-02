@@ -1,4 +1,8 @@
 // balance-impact: none — this module only renders the existing chest menu.
+import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
+import { createBagCapacitySummary } from "../ui/bag_summary.js";
+import { setDockActionRole } from "../ui/common_shell.js";
+
 const TRAP_LABELS = Object.freeze({
   "poison needle": "毒針",
   "gas bomb": "ガス爆弾",
@@ -39,13 +43,14 @@ function getInspectionText(chest) {
   return `推定: <strong style="color:var(--neon-cyan)">${translateTrap(chest.identifiedTrap)}</strong> / 信頼度 <span style="color:${reliabilityColor}">${reliability}</span><br>${uncertainty}`;
 }
 
-function createButton({ id, className, text, onClick, title }) {
+function createButton({ id, className, text, onClick, title, role = null }) {
   const button = document.createElement("button");
   if (id) button.id = id;
   button.className = className;
   button.textContent = text;
   button.style.minHeight = "44px";
   if (title) button.title = title;
+  if (role) setDockActionRole(button, role);
   if (onClick) button.addEventListener("click", onClick);
   return button;
 }
@@ -85,12 +90,24 @@ export function renderChestMenu({
 </div>`;
   const infoPanel = document.createElement("div");
   infoPanel.className = "chest-info-panel";
-  infoPanel.innerHTML = `
+  infoPanel.appendChild(createBagCapacitySummary(inventory, {
+    className: "chest-inventory-status",
+    note: inventory.length >= INVENTORY_CAPACITY
+      ? "満杯。報酬は自動取得されません。開封前に装備画面で整理できます。"
+      : "装備中の品は枠外。開封後の報酬だけが空き枠を使います。"
+  }));
+  const detailsMarkup = `
     <div>${getRiskText(floor)}</div>
     <div style="margin-top:4px;">${getInspectionText(chest)}</div>
     ${lootText}
     ${helpText}
   `;
+  if (typeof infoPanel.insertAdjacentHTML === "function") {
+    infoPanel.insertAdjacentHTML("beforeend", detailsMarkup);
+  } else {
+    // Unit tests use a deliberately small DOM mock; preserve its contract.
+    infoPanel.innerHTML = detailsMarkup;
+  }
   optGrid.appendChild(infoPanel);
 
   const inspectButton = createButton({
@@ -110,7 +127,7 @@ export function renderChestMenu({
   if (!chest.inspected) {
     disarmText = "解除（要調査）";
     disarmHandler = null;
-  } else if (!chest.identifiedTrap) {
+  } else if (!chest.identifiedTrap || chest.identifiedTrap === "none") {
     disarmText = "解除不要";
     disarmHandler = null;
   }
@@ -118,7 +135,8 @@ export function renderChestMenu({
     id: "btn-chest-disarm",
     className: "btn btn-neon btn-block",
     text: disarmText,
-    onClick: disarmHandler
+    onClick: disarmHandler,
+    role: "confirm"
   });
   if (!disarmHandler) {
     disarmButton.disabled = true;
@@ -131,20 +149,23 @@ export function renderChestMenu({
       id: "btn-chest-trap-kit",
       className: "btn btn-neon btn-block",
       text: "キットで解除",
-      onClick: onTrapKit
+      onClick: onTrapKit,
+      role: "confirm"
     }));
   }
   optGrid.appendChild(createButton({
     id: "btn-chest-open",
     className: "btn btn-neon btn-block",
     text: "宝箱を開ける",
-    onClick: onOpen
+    onClick: onOpen,
+    role: "confirm"
   }));
   const smashButton = createButton({
     id: "btn-chest-smash",
     className: "btn btn-danger btn-block",
     text: "叩き壊す",
     title: "罠を弱める代わりに、報酬が壊れることがあります",
+    role: "confirm",
     onClick: () => {
       smashButton.disabled = true;
       onSmash?.();
@@ -154,7 +175,8 @@ export function renderChestMenu({
   optGrid.appendChild(createButton({
     className: "btn btn-danger btn-block",
     text: "立ち去る",
-    onClick: onLeave
+    onClick: onLeave,
+    role: "back"
   }));
   document.getElementById("btn-submenu-back").style.display = "none";
 }

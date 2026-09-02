@@ -44,6 +44,16 @@ enemy stats or encounter size. This principle applies to every five-floor
 biome cycle and keeps early status pressure distinct from the biome's visual
 identity.
 
+### Five-floor trial signals (#1010)
+
+Biome continues to answer “where am I?” while the run-specific trial answers
+which existing costs are likely to matter in this band. The internal main and
+sub-theme labels are not player-facing content. Portal copy is selected from
+coarse sensory signals shared across themes and roles, based on the resolved
+next-band encounter profile; it must not become a one-to-one tag dictionary or
+show exact theme, probability, or threat values. Guardian copy confirms the
+pressure already encountered without introducing a surprise rule.
+
 The biome Visual Signature includes spatial silhouette as well as color and ambient treatment: `corridorWidth`, `ceilingHeight`, `wallLean`, and `ceilingStyle` describe the stable pseudo-3D geometry seen during exploration. The renderer interprets this geometry generically through the shared projection; it must not enumerate biome IDs. Geometry is presentation-only, derived from floor → biome → `visualSignature`, and is not persisted or used by map generation, movement, or balance rules.
 
 ### Landmark signature
@@ -63,6 +73,13 @@ branch on floor number or biome ID, persist a style ID in save data, or use a
 style to reveal an undiscovered trap. Style changes are presentation-only:
 chest rewards and actions, trap type/discovery information and effects, stair
 movement, spawn rates, and balance remain unchanged.
+
+Loot content uses the same separation: base-item candidates answer what may
+appear at B1–B30, while `buildRole` in the affix registry explains whether a
+find reinforces, converts a cost, or pivots the run. The role is mechanical
+metadata and does not make a current-build-specific promise. Earlier bases
+remain valid in deep pools so depth does not turn the existing collection into
+obsolete filler.
 
 ## Initial File Routing
 
@@ -112,6 +129,14 @@ layout.
 - Do not propose large content batches without a clear progression target.
 - Do not introduce new terminology when existing terms are enough.
 - Do not accept text that is likely to overflow mobile controls.
+
+## Return-result content contract (#1011)
+
+The result screen highlights the representative item, a small meaningful
+history, new coarse Codex insights, and any horizontal Workshop possibility.
+Use short labels such as returned, rescued, lost, and observed. Never present
+full affix/stat details as a Castle reward, and never present exact rates,
+candidate totals, or a recommended build as a Codex answer.
 
 ## Output
 

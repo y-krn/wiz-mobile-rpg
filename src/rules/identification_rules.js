@@ -1,3 +1,5 @@
+// balance-impact: none — this change records information disclosure state;
+// curse generation, affix values, and identification costs remain unchanged.
 export const IDENTIFICATION_BALANCE = {
   startingPowder: 2,
   identifyCost: 1,
@@ -14,8 +16,99 @@ export const IDENTIFICATION_BALANCE = {
   heavyCurseSharePerFloor: 0.05,
   maxHeavyCurseShare: 0.6,
   qualityPerFloor: 0.06,
-  maxQualityMultiplier: 1.75
+  maxQualityMultiplier: 1.75,
+  carriedObservationStepInterval: 8
 };
+
+export const KNOWLEDGE_STAGES = Object.freeze({
+  DISCOVERY: "discovery",
+  OBSERVATION: "observation",
+  TRIAL: "trial",
+  FULL: "full"
+});
+
+const KNOWLEDGE_STAGE_SET = new Set(Object.values(KNOWLEDGE_STAGES));
+
+export const KNOWLEDGE_STAGE_LABELS = Object.freeze({
+  discovery: "発見",
+  observation: "観察",
+  trial: "試用",
+  full: "完全理解"
+});
+
+export const SENSORY_HINT_LABELS = Object.freeze({
+  fire_rite: "火葬", holy: "聖", spirit: "霊", poison: "毒",
+  dragon: "竜", iron: "鉄", blood: "血", curse: "呪",
+  ward: "守勢", appraisal: "鑑定", beast: "獣", ambush: "奇襲",
+  blade: "刃", trap: "罠", search: "探索", exorcism: "退魔",
+  analysis: "解析", follow_up: "連撃", record: "記録", evasion: "回避",
+  decay: "衰"
+});
+
+const TRIAL_HINT_LABELS = Object.freeze({
+  atk: "攻撃の手応え",
+  def: "守りの手応え",
+  hp: "生命力の手応え",
+  mp: "魔力の手応え",
+  str: "力への傾き",
+  int: "知性への傾き",
+  pie: "信仰への傾き",
+  vit: "頑健さへの傾き",
+  agi: "素早さへの傾き",
+  luk: "運への傾き",
+  trapBonus: "罠への適性",
+  treasureSense: "宝への感覚",
+  spellPower: "術の手応え",
+  arcane: "秘術の手応え",
+  devotion: "神聖さの手応え",
+  guardian: "守りの気配",
+  poisonWard: "毒への耐性",
+  firstStrike: "先手の気配"
+});
+
+/** Describe a trial qualitatively; exact hidden values stay undisclosed. */
+export function getKnowledgeTrialHint(affix) {
+  return TRIAL_HINT_LABELS[affix?.type] || "特性の手応え";
+}
+
+export function getKnowledgeStage(item) {
+  if (!item || typeof item !== "object") return KNOWLEDGE_STAGES.FULL;
+  // `identified` is the compatibility flag used by all existing stat and UI
+  // callers. It always wins over a missing or stale additive stage field.
+  if (item.identified === true) return KNOWLEDGE_STAGES.FULL;
+  if (KNOWLEDGE_STAGE_SET.has(item.knowledgeStage)) return item.knowledgeStage;
+  // Older saves used halfIdentified for the intermediate disclosure state.
+  if (item.halfIdentified === true) return KNOWLEDGE_STAGES.OBSERVATION;
+  return KNOWLEDGE_STAGES.DISCOVERY;
+}
+
+export function getKnowledgeStageLabel(itemOrStage) {
+  const stage = typeof itemOrStage === "string"
+    ? itemOrStage
+    : getKnowledgeStage(itemOrStage);
+  return KNOWLEDGE_STAGE_LABELS[stage] || KNOWLEDGE_STAGE_LABELS.discovery;
+}
+
+export function getKnowledgeHintTags(item) {
+  if (!item || typeof item !== "object") return [];
+  const actualTags = new Set(Array.isArray(item.tags) ? item.tags : []);
+  return [...new Set([
+    ...(Array.isArray(item.hintTags) ? item.hintTags : []),
+    ...(Array.isArray(item.observedHintTags) ? item.observedHintTags : [])
+  ])].filter(tag => actualTags.has(tag));
+}
+
+export function setKnowledgeStage(item, stage) {
+  if (!item || typeof item !== "object" || !KNOWLEDGE_STAGE_SET.has(stage)) return false;
+  item.knowledgeStage = stage;
+  if (stage === KNOWLEDGE_STAGES.FULL) {
+    item.identified = true;
+    item.halfIdentified = true;
+  } else {
+    item.identified = false;
+  }
+  return true;
+}
 
 export function getIdentificationGambleProfile(floor = 1) {
   const depth = Math.max(1, Number(floor) || 1);

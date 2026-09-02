@@ -68,12 +68,14 @@ export function renderWorkshop(optGrid) {
     optGrid.appendChild(heading);
     nodes.forEach(node => {
       const rank = getWorkshopRank(state.workshop, node.id);
+      const lateralUnlocked = state.workshop?.lateralUnlocks?.includes(node.id);
       const maxRank = node.maxRank || 1;
       const cost = getWorkshopNodeCost(node, rank);
       const button = document.createElement("button");
       button.className = "btn btn-neon btn-block workshop-node";
-      button.innerHTML = `<strong>${node.name} ${maxRank > 1 ? `${rank}/${maxRank}` : ""}</strong><span>${describeWorkshopNode(node)}</span><small>${cost ? formatCost(cost) : "習得済み"}</small>`;
-      button.disabled = rank >= maxRank;
+      const status = lateralUnlocked ? "帰還記録から自動解禁" : cost ? formatCost(cost) : "習得済み";
+      button.innerHTML = `<strong>${node.name} ${maxRank > 1 ? `${rank}/${maxRank}` : ""}</strong><span>${describeWorkshopNode(node)}</span><small>${status}</small>`;
+      button.disabled = rank >= maxRank || lateralUnlocked;
       button.addEventListener("click", () => {
         const result = purchaseWorkshopNode(
           state.metaMaterials,
@@ -86,6 +88,8 @@ export function renderWorkshop(optGrid) {
             ? "工房: 素材が不足している。"
             : result.reason === "missing_key_item"
               ? "工房: 対応する印が必要だ。"
+              : result.reason === "already_unlocked"
+                ? "工房: 帰還記録からすでに解禁されている。"
               : "工房: これ以上習得できない。";
           addLog(message);
           return;

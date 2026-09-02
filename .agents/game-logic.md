@@ -61,7 +61,8 @@ current version remains `13`; unknown legacy fields are ignored, while an
 older/incompatible version or an unreadable payload uses `loadGame()`'s existing
 backup/fresh-game fallback.
 
-Persisted gameplay data includes coordinates, party/inventory, maps and visited
+Persisted gameplay data includes coordinates, party/inventory (including each
+unknown equipment item's knowledge stage, observed hints, and trial count), maps and visited
 maps, exploration timers, chest/kill/run records, codex/progression, seed,
 supported combat state, roaming/noise state, storage/workshop/materials/key
 items, dungeon memory, and the last 30 log entries. Defaults cover missing
@@ -74,6 +75,66 @@ archive fields while preserving valid legacy records. A malformed active-run
 map is preserved for `RunFloorRecoveryError` handling rather than silently
 regenerated. Normalization starts from a structured clone so migration repairs
 cannot mutate caller-owned or state-shared nested data.
+
+Roaming elite lifecycle is part of `currentRun.eliteFloors`, keyed by floor. Each
+entry records whether the entry roll was resolved, whether the elite spawned or
+was defeated, the qualitative warning stage, consumed prolonged-check indices,
+the internal Greed action pressure, whether the exit stairs were found, and
+dedupe keys for one-time optional-area actions. This state is normalized and
+persisted with the run so walking alone cannot advance the threat and save/load
+cannot reroll an entry roll, a prolonged check, or a warning.
+
+## Object-loot ownership contract (#1006)
+
+`state.inventory` and `party[*].equipment` describe placement only. During an
+active run, `currentRun.townInventory` contains the Town-provided preparation
+items still unused, and `currentRun.unbankedObjectLoot` contains stable loot
+entries acquired in the dungeon. Loot remains unbanked when equipped. The
+terminal transition records `bankedObjectLoot`/`lostObjectLoot`, returns unused
+Town items and returned dungeon consumables to `state.storage`, and clears active
+ownership. Recovered dungeon equipment remains terminal evidence rather than
+permanent storage. Portal settles all unbanked entries, Wing settles only its
+selected IDs, and death/abandon settle none. Push never invokes settlement. These fields are additive save data and
+normalize to empty collections for older current-version saves.
+
+The bag contract is fixed at 20 ordinary slots, with one array entry per item
+and no consumable stacking. Item-use actions still receive only the base item
+ID; when Town and dungeon entries share that ID, the resolver deliberately
+consumes Town stock first. Object identity or `instanceId` is used first when
+available for equipment replacement, with the same Town-first fallback for
+legacy primitive IDs. A future individual-selection UI may pass the ownership
+entry ID instead of relying on this fallback.
+
+## Loot generation contract (#1009)
+
+`src/data/equipment_tables.js` and `src/rules/chest_rules.js` expose explicit
+B1–B30 candidate pools. Deep pools retain earlier bases and add horizontal
+possibilities; they do not fall back to B5. `src/data/affixes.js` owns the
+three role labels, Core `buildAxis` values, and their five-floor supply
+weights, while `src/systems/equipment_generation.js` rolls a `lootRole` target
+and uses it to softly weight actual affix choices. Generation never uses
+current equipment to choose a missing slot. Generated equipment stores
+`lootRole` plus `buildRole`/`buildRoles` as additive metadata, so existing saves
+remain valid. `equipment_decision.buildDecision = "transition"` is reserved
+for a change to the explicit `main` Core axis; auxiliary Core and Support
+changes remain an ordinary `"swap"`.
+
+## Five-floor trial contract (#1010)
+
+`src/rules/floor_trials.js` derives one main and one sub-theme per five-floor
+band from `currentRun.runSeed` and the band index. The selected IDs are cached
+in `currentRun.trialBands`; older saves can reconstruct the same selection from
+their existing `runSeed`. Main-theme repetition is soft-weighted rather than
+hard-banned. Floor roles are also weights: introduction, development, change,
+temptation, and settlement affect existing encounter composition, enemy
+affinity, and rare-encounter selection without disabling a player action.
+
+Boss encounters carry the same selected IDs and inherit representative existing
+enemy traits/behavior as a high-density confirmation of known pressure. The
+Guardian therefore changes actual targeting, status, defense, or queued-action
+behavior without adding a new rule. Portal clues use coarse signals from the
+resolved next band and never reveal theme names, exact probabilities, or a
+threat meter.
 
 ## Initial File Routing
 
@@ -102,6 +163,15 @@ behavior, or flow wiring are affected.
 
 ## Review Checklist
 
+### Telemetry-only state boundary (#1012)
+
+Telemetry hooks are observation-only: no RNG calls, gameplay mutations,
+save-schema additions, or control-flow decisions. Run and loot IDs are stable
+within the active runtime run, lifecycle events are deduplicated at the
+semantic boundary, and save/load does not replay a completed event as a new
+gameplay action. Production object-loot ownership remains in
+`src/state/run_loot.js`; telemetry mirrors it but never resolves ownership.
+
 - Rules match the stated design goal.
 - State mutations are localized and predictable.
 - Existing save data shape is preserved or migration risk is explicitly handled.
@@ -129,6 +199,16 @@ behavior, or flow wiring are affected.
 - Do not rewrite unrelated game systems while reviewing one mechanic.
 - Do not accept hidden changes to item, enemy, or class balance without calling
   them out.
+
+## Terminal return processing (#1011)
+
+`src/systems/run_return.js` is the single boundary for terminal object
+settlement plus Castle/Codex/Workshop records. Callers provide the resolved
+outcome (`retreat`, `wing`, `death`, or `abandon`) and must not duplicate loot
+ownership rules. Settlement happens before the result summary: unused Town
+preparations and returned dungeon consumables go to storage, recovered equipment
+remains terminal evidence, unbanked objects are lost on Death/Abandon, and
+compact history facts never become combat state.
 
 ## Output
 

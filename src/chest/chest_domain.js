@@ -159,7 +159,7 @@ export function rollChestEncounter({
       trap,
       firstChestGuaranteed,
       itemCandidates: fromDrop
-        ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[Math.min(5, floor)]
+        ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1))]
         : null
     });
     item = reward.item;

@@ -1,5 +1,5 @@
-import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
-import { trackRunStart } from "./telemetry.js";
+import { state, saveAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
+import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -16,7 +16,11 @@ import {
   resolveExplorationPoisonStep
 } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/elite_perception.js";
-import { ELITE_PATROL_RADIUS } from "./systems/roaming_elites.js";
+import {
+  ELITE_PATROL_RADIUS,
+  progressEliteThreat,
+  recordEliteGreedAction
+} from "./systems/roaming_elites.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.js";
 import { RUN_QUEST_TEMPLATES } from "./data/run_quests.js";
@@ -26,6 +30,7 @@ import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "./rules/trap_eff
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
+import { observeCarriedEquipment } from "./systems/identification.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -33,12 +38,23 @@ const ENCOUNTER_LOW_RATE = 0.04;
 const MILWA_ENCOUNTER_REDUCTION = 0.03;
 const LOMILWA_ENCOUNTER_REDUCTION = 0.05;
 
+function isCarriedObservationDue(previousSteps, nextSteps) {
+  const interval = IDENTIFICATION_BALANCE.carriedObservationStepInterval;
+  return previousSteps === 0 || Math.floor(nextSteps / interval) > Math.floor(previousSteps / interval);
+}
+
 export function recordExplorationSteps(count = 1) {
   if (!state.currentRun) return;
+  const previousSteps = state.currentRun.steps;
   state.currentRun.steps += count;
   if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
   const key = String(state.floor);
   state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + count;
+  // Carrying gives the first observation early; later signs require a
+  // meaningful low-frequency exploration pulse instead of every step.
+  if (isCarriedObservationDue(previousSteps, state.currentRun.steps) && observeCarriedEquipment(state) > 0) {
+    addLog("【観察】持ち歩く装備から新たな兆候を読み取った。");
+  }
 }
 
 export function getCurrentFloorExplorationSteps() {
@@ -183,7 +199,7 @@ export function handleMove(action) {
       tickExplorationSpellEffects();
       
       // Mark as visited
-      markMapCellVisited(state.x, state.y);
+      if (markMapCellVisited(state.x, state.y)) recordEliteGreedAction(state, "new_room");
 
       processExplorationResolution(prevX, prevY);
     }
@@ -208,7 +224,7 @@ export function handleMove(action) {
       state.y = backY;
       recordExplorationSteps();
       tickExplorationSpellEffects();
-      markMapCellVisited(state.x, state.y);
+      if (markMapCellVisited(state.x, state.y)) recordEliteGreedAction(state, "new_room");
       
       processExplorationResolution(prevX, prevY);
     }
@@ -231,6 +247,24 @@ export function findCellCoordsByType(grid, type) {
 
 export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false, onLanding = null) {
   state.transitioning = true;
+
+  if (!isPitfall) {
+    trackFloorExploration({
+      state,
+      floor: state.floor,
+      stairsDiscovered: true,
+      floorCompleted: true
+    });
+    state.roamingMonsters
+      ?.filter(monster => monster.floor === state.floor && (monster.x !== state.x || monster.y !== state.y))
+      .forEach(elite => trackEliteDecision("avoid", {
+        state,
+        elite,
+        contactMode: "unknown",
+        distance: Math.abs(elite.x - state.x) + Math.abs(elite.y - state.y),
+        elitePolicy: "avoid"
+      }));
+  }
   
   if (isPitfall) {
     addLog("【⚠️落とし穴】足元が抜けた！暗闇へ落下していく…");
@@ -250,6 +284,8 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
 
   setTimeout(() => {
     ensureRunFloor(state, nextFloor);
+    clearEventObservations({ scopePrefix: "aura:" });
+    clearEventObservations({ scopePrefix: "trap:" });
     state.floor = nextFloor;
     state.sessionMaxFloor = Math.max(state.sessionMaxFloor, state.floor);
     if (state.currentRun) {
@@ -334,6 +370,11 @@ function checkSensoryAura() {
   const baseSenseRange = lightSenseRange;
   const soundRange = baseSenseRange + hearRangeBonus + (sneakStep?.auraRangeBonus || 0);
   const arcaneRange = baseSenseRange;
+  const activeObservationKeys = new Set();
+  const observe = (key, text) => {
+    activeObservationKeys.add(key);
+    addEventLog(text, { key, scope: `aura:${state.floor}` });
+  };
   
   let nearestSpring = null;
   let nearestBoss = null;
@@ -386,43 +427,43 @@ function checkSensoryAura() {
     } else {
       dirStr = dx < 0 ? "西" : "東";
     }
-    addLog(`【気配】${dirStr}の方から${aura?.boss || "ただならぬ魔力の気配を感じる…"}`);
+    observe(`aura:${state.floor}:boss:${nearestBoss.x}:${nearestBoss.y}`, `【気配】${dirStr}の方から${aura?.boss || "ただならぬ魔力の気配を感じる…"}`);
   }
 
   // 2. Spring water sound
   if (minDistSpring <= soundRange && nearestSpring) {
-    addLog(`【気配】${aura?.spring || "近くからかすかに水音が聞こえる…"}`);
+    observe(`aura:${state.floor}:spring:${nearestSpring.x}:${nearestSpring.y}`, `【気配】${aura?.spring || "近くからかすかに水音が聞こえる…"}`);
   }
 
   // 3. Tablet magic wave
   if (minDistTablet <= arcaneRange && nearestTablet) {
     if (arcaneSense >= 1) {
-      addLog(`【気配】${getRelativeDirectionText(nearestTablet.x, nearestTablet.y, px, py)}に${aura?.tablet || "弱い魔力の波動を感じる…"}`);
+      observe(`aura:${state.floor}:tablet:${nearestTablet.x}:${nearestTablet.y}`, `【気配】${getRelativeDirectionText(nearestTablet.x, nearestTablet.y, px, py)}に${aura?.tablet || "弱い魔力の波動を感じる…"}`);
     } else {
-      addLog(`【気配】${aura?.tablet || "近くの壁から弱い魔力の波動を感じる…"}`);
+      observe(`aura:${state.floor}:tablet:${nearestTablet.x}:${nearestTablet.y}`, `【気配】${aura?.tablet || "近くの壁から弱い魔力の波動を感じる…"}`);
     }
   }
 
   // 4. Merchant footsteps/presence
   if (minDistMerchant <= soundRange && nearestMerchant) {
-    addLog(`【気配】${aura?.merchant || "近くから静かな衣擦れの音が聞こえる気がする…"}`);
+    observe(`aura:${state.floor}:merchant:${nearestMerchant.x}:${nearestMerchant.y}`, `【気配】${aura?.merchant || "近くから静かな衣擦れの音が聞こえる気がする…"}`);
   }
 
   // 5. Down stairs wind draft
   if (minDistDownStairs <= soundRange && nearestDownStairs) {
-    addLog(`【気配】${aura?.stairs || "下へ続く空洞から、冷たい風が流れてきている…"}`);
+    observe(`aura:${state.floor}:stairs:${nearestDownStairs.x}:${nearestDownStairs.y}`, `【気配】${aura?.stairs || "下へ続く空洞から、冷たい風が流れてきている…"}`);
   }
 
   // 6. Chest hidden treasure vibe
   if (minDistChest <= baseSenseRange && nearestChest) {
-    addLog(`【気配】${aura?.chest || "この近くに何かが隠されている気がする…"}`);
+    observe(`aura:${state.floor}:chest:${nearestChest.x}:${nearestChest.y}`, `【気配】${aura?.chest || "この近くに何かが隠されている気がする…"}`);
   }
 
   // 7. Hidden door wall sense
   if (arcaneSense >= 2) {
     const secretDir = getAdjacentHiddenSecretDoorDir();
     if (secretDir !== null) {
-      addLog(`【気配】${DIR_NAMES[secretDir]}の壁の向こうに空洞の気配がある…`);
+      observe(`aura:${state.floor}:secret:${state.x}:${state.y}:${secretDir}`, `【気配】${DIR_NAMES[secretDir]}の壁の向こうに空洞の気配がある…`);
     }
   }
 
@@ -440,10 +481,15 @@ function checkSensoryAura() {
     });
     const roamingRange = nearest?.kind === "elite" ? 5 + hearRangeBonus : 3 + hearRangeBonus;
     if (nearest && minFlackDist <= roamingRange) {
-      addLog(`【⚠️警告】近くから桁違いの殺気が漂ってくる…強敵「${nearest.name}」が近くにいる！`);
+      const threatKey = `aura:${state.floor}:roaming:${nearest.id || nearest.name || `${nearest.x}:${nearest.y}`}`;
+      observe(threatKey, `【⚠️警告】近くから桁違いの殺気が漂ってくる…強敵「${nearest.name}」が近くにいる！`);
       playSound("miss");
     }
   }
+
+  // A floor move, defeated/left encounter, or leaving an aura's range marks
+  // the previous observation resolved. The log remains available in history.
+  clearEventObservations({ scopePrefix: "aura:", keepKeys: activeObservationKeys });
 }
 
 function getRelativeDirectionText(x, y, px, py) {
@@ -471,6 +517,19 @@ export function applyStairsHeal(cell) {
   const stairsId = `${state.floor}:${state.x},${state.y}`;
   if (state.currentRun.discoveredStairs.includes(stairsId)) return 0;
   state.currentRun.discoveredStairs.push(stairsId);
+  if (cell.type === "stairs-down") recordEliteGreedAction(state, "stairs_found");
+
+  const floorStepsAtDiscovery = getCurrentFloorExplorationSteps();
+  trackStairsDiscovery({
+    state,
+    floor: state.floor,
+    stairsType: cell.type,
+    stepsAtDiscovery: floorStepsAtDiscovery,
+    stepsBeforeDiscovery: floorStepsAtDiscovery,
+    hpRate: state.party?.[0]?.hp / Math.max(1, getCharMaxHp(state.party?.[0])),
+    mpRate: state.party?.[0]?.mp / Math.max(1, state.party?.[0]?.maxMp || 1),
+    explorationMode: "discovery"
+  });
 
   let total = 0;
   state.party.forEach(char => {
@@ -560,6 +619,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 
   // Spring encounter
   if (cell.event === EVENT_TYPES.SPRING) {
+    recordEliteGreedAction(state, "optional_area", 1, `${state.floor}:${state.x},${state.y}:spring`);
     const skin = getFloorTheme(state.floor)?.eventSkins.spring || "怪しい泉";
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.spring.found++;
@@ -569,6 +629,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   }
 
   if (cell.event === EVENT_TYPES.CAMP) {
+    recordEliteGreedAction(state, "optional_area", 1, `${state.floor}:${state.x},${state.y}:camp`);
     const skin = getFloorTheme(state.floor)?.eventSkins.camp || "野営地";
     openGuardedSubmenu(EVENT_TYPES.CAMP, `${skin}。腰を落ち着けられる場所を確かめる。`);
     return;
@@ -576,6 +637,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 
   // Tablet encounter
   if (cell.event === EVENT_TYPES.TABLET) {
+    recordEliteGreedAction(state, "optional_area", 1, `${state.floor}:${state.x},${state.y}:tablet`);
     const skin = getFloorTheme(state.floor)?.eventSkins.tablet || "謎の石碑";
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.tablet.found++;
@@ -590,6 +652,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       addLog("深層商人は守護者を退けるまで取引に応じない。");
       return;
     }
+    recordEliteGreedAction(state, "optional_area", 1, `${state.floor}:${state.x},${state.y}:merchant`);
     state.currentRun.visitedMilestoneMerchants ||= [];
     if (!state.currentRun.visitedMilestoneMerchants.includes(state.floor)) {
       state.currentRun.visitedMilestoneMerchants.push(state.floor);
@@ -793,17 +856,14 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   const craftGrants = getDepartureCraftGrants(departureCraft);
   state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder +
     workshopGrants.identifyPowder + craftGrants.identifyPowder;
-  state.inventory = [
-    ...workshopGrants.returnItems,
-    ...craftGrants.items
-  ];
-  // Keep the ownership boundary explicit for Result/Town. These are the
-  // confirmed items brought into this run; dungeon rewards are recorded
-  // separately as they are acquired.
-  state.currentRun.departureItems = state.inventory.slice();
-  state.currentRun.departureEquipment = { ...(state.party[0]?.equipment || {}) };
-  state.currentRun.firstKillsBefore = [...(state.firstKills || [])];
-  state.currentRun.keyItemsBefore = [...(state.keyItems || [])];
+  state.inventory = [];
+  [...workshopGrants.returnItems, ...craftGrants.items].forEach(item => {
+    if (!addInventoryItem(item)) {
+      addLog(`[!] バッグが満杯（${INVENTORY_CAPACITY}/${INVENTORY_CAPACITY}）で${item}を持ち込めなかった。`);
+    }
+  });
+  state.currentRun.townInventory = state.inventory.slice();
+  state.currentRun.unbankedObjectLoot = [];
   state.party.forEach(char => {
     char.runTrapAttackBonus = 0;
   });
@@ -843,6 +903,20 @@ export function checkRoamingMonsterEncounter() {
     rm => rm.floor === state.floor && rm.x === state.x && rm.y === state.y
   );
   if (elite) {
+    trackEliteDecision("pursue", {
+      state,
+      elite,
+      contactMode: "player_step",
+      distance: 0,
+      elitePolicy: "engage"
+    });
+    trackEliteDecision("contact", {
+      state,
+      elite,
+      contactMode: "player_step",
+      distance: 0,
+      elitePolicy: "engage"
+    });
     beginRoamingMonsterCombat(elite);
     return true;
   }
@@ -916,6 +990,7 @@ export function moveRoamingMonsters(playerMoved = true) {
   state.roamingMonsters.forEach(monster => {
     if (monster.floor !== currentFloor) return;
 
+    const wasDetected = Boolean(monster.detected);
     const intent = getPerceptionIntent({
       monster,
       player: { x: state.x, y: state.y, dir: state.dir, dx: DX, dy: DY },
@@ -925,6 +1000,16 @@ export function moveRoamingMonsters(playerMoved = true) {
       rangeMultiplier: sneakStep?.detectionRangeMultiplier || 1
     });
     monster.detected = intent.detected;
+    if (!wasDetected && intent.detected) {
+      trackEliteDecision("approach", {
+        state,
+        elite: monster,
+        contactMode: "elite_step",
+        distance: Math.abs(monster.x - state.x) + Math.abs(monster.y - state.y),
+        detected: true,
+        elitePolicy: "adaptive"
+      });
+    }
     for (let step = 0; step < intent.speed; step++) {
       const neighbors = getPassableNeighbors(monster, Boolean(intent.target));
       if (!neighbors.length) break;
@@ -951,6 +1036,17 @@ export function advanceRoamingTurn(playerMoved) {
 export function processExplorationResolution(prevX, prevY) {
   const wiped = applyExplorationPoison();
   if (wiped) return;
+
+  const eliteProgress = progressEliteThreat(state);
+  eliteProgress.omens.forEach(omen => addLog(`[予兆] ${omen}`));
+  if (eliteProgress.spawned) {
+    const spawned = eliteProgress.spawned;
+    const key = `aura:${state.floor}:roaming:${spawned.id || spawned.name || `${spawned.x}:${spawned.y}`}`;
+    addEventLog(`【気配】${spawned.name}の殺気が、この階に満ちた……`, {
+      key,
+      scope: `aura:${state.floor}`
+    });
+  }
 
   // 1. Check if player stepped onto Flack
   if (checkRoamingMonsterEncounter()) {

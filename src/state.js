@@ -1,6 +1,9 @@
 export {
   state,
   addLog,
+  addEventLog,
+  resolveEventObservation,
+  clearEventObservations,
   recordCharDeath,
   formatCharDeathLog,
   queueCharDeathLog,
@@ -38,11 +41,24 @@ export {
 } from "./state/records_state.js";
 
 export {
-  addInventoryItem
+  addInventoryItem,
+  getInventoryRemainingSlots,
+  getInventoryUsedSlots,
+  hasInventorySpace,
+  INVENTORY_CAPACITY
 } from "./state/inventory_state.js";
 
 export {
+  RETURN_WING_SALVAGE_COUNT,
+  recordDungeonObjectLoot,
+  consumeRunObjectLoot,
+  settleRunObjectLoot
+} from "./state/run_loot.js";
+
+export {
   recordEquipmentDiscovery,
+  recordRunInsights,
+  CODEX_INSIGHT_DEFINITIONS,
   recordEquipmentAffixDiscovery,
   getMonsterCodexKey,
   createMonsterCodexRecord,

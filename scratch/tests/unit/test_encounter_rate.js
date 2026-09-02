@@ -9,6 +9,8 @@ import {
 const original = {
   floor: state.floor,
   currentRun: state.currentRun,
+  inventory: state.inventory,
+  party: state.party,
   lightTurns: state.lightTurns,
   lightPower: state.lightPower
 };
@@ -68,8 +70,36 @@ test("recordExplorationSteps updates total and current floor only", () => {
   assert.deepEqual(state.currentRun.floorSteps, { 2: 9, 3: 6 });
 });
 
+test("carried observation does not reveal every tag in a few steps", () => {
+  const item = {
+    kind: "equipment",
+    identified: false,
+    knowledgeStage: "discovery",
+    tags: ["blade", "fire_rite", "curse", "iron", "ward"],
+    hintTags: ["blade"],
+    observedHintTags: []
+  };
+  state.floor = 1;
+  state.currentRun = { steps: 0, floorSteps: { 1: 0 } };
+  state.inventory = [item];
+  state.party = [];
+
+  recordExplorationSteps();
+  assert.equal(item.knowledgeStage, "observation");
+  assert.equal(item.observedHintTags.length, 2);
+
+  recordExplorationSteps(6);
+  assert.equal(item.observedHintTags.length, 2, "ordinary steps do not add more signs");
+
+  recordExplorationSteps();
+  assert.equal(item.observedHintTags.length, 3, "the low-frequency pulse adds one sign");
+  assert.ok(item.observedHintTags.length < item.tags.length, "a few steps do not disclose every tag");
+});
+
 state.floor = original.floor;
 state.currentRun = original.currentRun;
+state.inventory = original.inventory;
+state.party = original.party;
 state.lightTurns = original.lightTurns;
 state.lightPower = original.lightPower;
 

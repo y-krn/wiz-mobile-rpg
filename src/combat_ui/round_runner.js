@@ -1,4 +1,4 @@
-import { state, saveAutosave } from "../state.js";
+import { state, saveAutosave, clearEventObservations } from "../state.js";
 import { menuContext } from "../navigation.js";
 import { hasCombatRoundActor, isUsableCombatScreen } from "../state/view_state.js";
 import { runCombatRoundCalculation } from "../combat_logic.js";
@@ -30,6 +30,7 @@ export function resolveCombatRound() {
   if (state.transitioning || !isUsableCombatScreen(state, menuContext) ||
       state.combatState?.phase !== "choose_actions" || !hasCombatRoundActor(state.party)) return;
   state.gameState = "combat";
+  clearEventObservations({ scopePrefix: "combat:" });
   state.combatState.phase = "resolving";
   trackCombatDecisionCommit();
   const backBtn = document.getElementById("btn-submenu-back");
@@ -37,11 +38,13 @@ export function resolveCombatRound() {
     backBtn.style.display = "none";
   }
   
+  const executedActions = combatSelection.actions.map(action => ({ ...action }));
   const { logQueue, state: nextState } = runCombatRoundCalculation(state, combatSelection);
   
   // Apply state mutations calculated in pure combat_logic
   state.party = nextState.party;
   state.combatState = nextState.combatState;
+  state.combatState.lastActions = executedActions;
   state.inventory = nextState.inventory;
   state.firstKills = nextState.firstKills;
   state.codex = nextState.codex;

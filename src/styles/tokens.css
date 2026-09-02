@@ -10,6 +10,18 @@
   --text-secondary: #a5b0b3;
   --vital-hp: #b7dfc1;
   --vital-mp: #9bd7d2;
+  /* Shared semantic palette: color communicates state, never a recommendation. */
+  --semantic-life: var(--vital-hp);
+  --semantic-magic: var(--vital-mp);
+  --semantic-unknown: #c8b8e6;
+  --semantic-discovery: #e2b36f;
+  --semantic-curse: #d18acb;
+  --semantic-danger: #e07870;
+  --semantic-selected: #f0cf83;
+  --neutral-iron: #83949a;
+  --neutral-brass: #a99270;
+  --text-tertiary: #7f9098;
+  --text-disabled: #5f6c72;
   --shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.28);
   --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.035), inset 0 -12px 28px rgba(0, 0, 0, 0.16);
   

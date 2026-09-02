@@ -1,4 +1,4 @@
-import { state, saveAutosave } from "./state.js";
+import { state, saveAutosave, addLog, INVENTORY_CAPACITY } from "./state.js";
 import {
   getClassJpName,
   getCharMaxHp,
@@ -10,7 +10,14 @@ import {
   isCurseLocked
 } from "./data.js";
 import { CURSE_EFFECTS } from "./data/items.js";
-import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
+import {
+  IDENTIFICATION_BALANCE,
+  getKnowledgeHintTags,
+  getKnowledgeStage,
+  getKnowledgeStageLabel,
+  KNOWLEDGE_STAGES,
+  SENSORY_HINT_LABELS
+} from "./rules/identification_rules.js";
 import { updateUI } from "./ui.js";
 import {
   getEnhanceCost,
@@ -41,6 +48,8 @@ import {
   unequipEquipment
 } from "./systems/equipment_actions.js";
 import { trackEquipmentDecision } from "./telemetry.js";
+import { appendOwnershipBadge, getItemOwnership, setDockActionRole } from "./ui/common_shell.js";
+import { createBagCapacitySummary } from "./ui/bag_summary.js";
 
 export let equipState = {
   mode: "equip",
@@ -52,6 +61,7 @@ export let equipState = {
   selectedActorIdx: -1,
   selectedIsEquipped: false,
   selectedDiscardIndices: new Set(),
+  pendingUnequip: null,
   listScrollTop: 0,
   prevGameState: null
 };
@@ -82,6 +92,7 @@ export function openEquipOverlay(actorIdx = 0) {
   equipState.actorIdx = actorIdx;
   clearSelection();
   clearDiscardSelection();
+  equipState.pendingUnequip = null;
 
   const overlay = document.getElementById("equip-overlay");
   if (overlay) {
@@ -121,12 +132,14 @@ function clearDiscardSelection() {
 function enterOrganizeMode() {
   clearSelection();
   clearDiscardSelection();
+  equipState.pendingUnequip = null;
   equipState.mode = "organize";
   renderEquip();
 }
 
 function exitOrganizeMode() {
   clearDiscardSelection();
+  equipState.pendingUnequip = null;
   equipState.mode = "equip";
   renderEquip();
 }
@@ -137,6 +150,7 @@ export function resetEquipState() {
   equipState.actorIdx = 0;
   clearSelection();
   clearDiscardSelection();
+  equipState.pendingUnequip = null;
   equipState.listScrollTop = 0;
   equipState.prevGameState = null;
 }
@@ -252,14 +266,40 @@ function discardEquipment(itemIdx, expectedItemKey) {
 }
 
 function discardSelectedEquipment() {
+  const pendingUnequip = equipState.pendingUnequip;
+  if (pendingUnequip && equipState.selectedDiscardIndices.size !== 1) {
+    addLog("装備を外す前に、バッグから破棄する装備を1件選んでください。");
+    return false;
+  }
   const result = discardEquipmentSelection(equipState.selectedDiscardIndices, {
     actorIdx: equipState.actorIdx
   });
   if (!result.ok) return false;
+  if (pendingUnequip) {
+    const unequipResult = unequipEquipment(pendingUnequip);
+    if (!unequipResult.ok) {
+      addLog("バッグを整理しましたが、装備を外せませんでした。");
+      return false;
+    }
+    equipState.pendingUnequip = null;
+    equipState.mode = "equip";
+  }
   clearDiscardSelection();
   renderEquip();
   updateUI();
   return true;
+}
+
+function requestUnequipAfterDiscard() {
+  equipState.pendingUnequip = {
+    actorIdx: equipState.actorIdx,
+    slot: equipState.selectedSlot
+  };
+  clearSelection();
+  clearDiscardSelection();
+  equipState.mode = "organize";
+  renderEquip();
+  updateUI();
 }
 
 function getItemSummary(item) {
@@ -278,6 +318,14 @@ function getItemSummary(item) {
   return "";
 }
 
+function getKnowledgeSummary(itemKey) {
+  if (!itemKey || typeof itemKey !== "object") return "";
+  const hints = getKnowledgeHintTags(itemKey)
+    .map(tag => SENSORY_HINT_LABELS[tag] || tag)
+    .join("・");
+  return `${getKnowledgeStageLabel(itemKey)}${hints ? ` / ${hints}` : ""}`;
+}
+
 function createHeader(overlay, char) {
   const header = document.createElement("div");
   header.className = "equip-header-area";
@@ -293,10 +341,13 @@ function createHeader(overlay, char) {
 
   const statusBar = document.createElement("div");
   statusBar.className = "equip-status-bar";
-  statusBar.innerHTML = `
-    <span>素材 ${Object.values(state.currentRun?.materials || {}).reduce((sum, quantity) => sum + quantity, 0)}</span>
-    <span class="${state.inventory.length >= 20 ? "full" : ""}">バッグ ${state.inventory.length}/20</span>
-  `;
+  const materials = document.createElement("span");
+  materials.textContent = `素材 ${Object.values(state.currentRun?.materials || {}).reduce((sum, quantity) => sum + quantity, 0)}`;
+  statusBar.appendChild(materials);
+  statusBar.appendChild(createBagCapacitySummary(state.inventory, {
+    className: "equip-bag-summary",
+    showNote: false
+  }));
   header.appendChild(statusBar);
 
   const attack = getCharAttackBreakdown(char);
@@ -324,8 +375,12 @@ function createFooter(overlay, { organizing = false } = {}) {
     const discardButton = document.createElement("button");
     discardButton.type = "button";
     discardButton.className = "btn btn-danger btn-block equip-bulk-discard";
-    discardButton.disabled = equipState.selectedDiscardIndices.size === 0;
-    discardButton.textContent = `選択した装備を破棄（${equipState.selectedDiscardIndices.size}件）`;
+    discardButton.disabled = equipState.pendingUnequip
+      ? equipState.selectedDiscardIndices.size !== 1
+      : equipState.selectedDiscardIndices.size === 0;
+    discardButton.textContent = equipState.pendingUnequip
+      ? `1件破棄して装備を外す（${equipState.selectedDiscardIndices.size}件選択）`
+      : `選択した装備を破棄（${equipState.selectedDiscardIndices.size}件）`;
     discardButton.setAttribute("aria-describedby", "equip-organize-help");
     discardButton.addEventListener("click", discardSelectedEquipment);
     discardRow.appendChild(discardButton);
@@ -384,6 +439,7 @@ function createFooter(overlay, { organizing = false } = {}) {
   const btnClose = document.createElement("button");
   btnClose.id = "btn-equip-close";
   btnClose.className = "btn btn-danger";
+  setDockActionRole(btnClose, "back");
   btnClose.textContent = "閉じる";
   btnClose.addEventListener("click", closeEquipOverlay);
   closeRow.appendChild(btnClose);
@@ -421,7 +477,9 @@ function createOrganizeControls() {
   const help = document.createElement("p");
   help.id = "equip-organize-help";
   help.className = "equip-organize-help";
-  help.textContent = "不要なバッグ装備を選んでください。装備中のアイテムは整理対象から除外されます。";
+  help.textContent = equipState.pendingUnequip
+    ? `バッグが満杯（${INVENTORY_CAPACITY}/${INVENTORY_CAPACITY}）です。装備を外すため、破棄する装備を1件選んでください。`
+    : "不要なバッグ装備を選んでください。装備中のアイテムは整理対象から除外されます。";
   controls.appendChild(help);
 
   const risks = getSelectedDiscardRiskCounts();
@@ -511,13 +569,16 @@ function createEquipmentList(char, savedScrollTop) {
     const summary = document.createElement("span");
     summary.className = "equip-item-row-tag";
     summary.textContent = comparisonTarget
-      ? `${label} ${item ? `/ ${isCurseLocked(itemKey) ? "🔒 呪い・外せない" : (isIdentified(itemKey) ? getItemSummary(item) : "比較不能")}` : ""}`
+      ? `${label} ${item ? `/ ${isCurseLocked(itemKey) ? "🔒 呪い・外せない" : (isIdentified(itemKey) ? getItemSummary(item) : getKnowledgeSummary(itemKey))}` : ""}`
       : `${label}${isCurseLocked(itemKey) ? " / 🔒 呪い・外せない" : ""}`;
     left.appendChild(summary);
     row.appendChild(left);
 
     const badges = document.createElement("span");
     badges.className = "equip-item-row-badges";
+    const ownership = getItemOwnership(itemKey, { state });
+    row.dataset.ownership = ownership;
+    appendOwnershipBadge(badges, ownership);
     const stateBadge = document.createElement("span");
     stateBadge.className = "equip-row-badge equipped";
     stateBadge.textContent = "装備中";
@@ -637,19 +698,22 @@ function createEquipmentList(char, savedScrollTop) {
 
       const summary = document.createElement("span");
       summary.className = "equip-item-row-tag";
-      summary.textContent = `${EQUIPMENT_TYPE_LABELS[item.type]} / ${isIdentified(itemKey) ? getItemSummary(item) : "比較不能"}`;
+      summary.textContent = `${EQUIPMENT_TYPE_LABELS[item.type]} / ${isIdentified(itemKey) ? getItemSummary(item) : getKnowledgeSummary(itemKey)}`;
       left.appendChild(summary);
       row.appendChild(left);
 
       const badges = document.createElement("span");
       badges.className = "equip-item-row-badges";
+      const ownership = getItemOwnership(itemKey, { state });
+      row.dataset.ownership = ownership;
+      appendOwnershipBadge(badges, ownership);
       const rarityBadge = createRarityBadge(itemKey);
       if (rarityBadge) badges.appendChild(rarityBadge);
 
       const badge = document.createElement("span");
       if (!isIdentified(itemKey)) {
         badge.className = "equip-row-badge unident";
-        badge.textContent = "? 未鑑定";
+        badge.textContent = `? ${getKnowledgeStageLabel(itemKey)}`;
         badge.style.background = "rgba(255, 170, 0, 0.2)";
         badge.style.color = "rgb(255, 170, 0)";
       } else if (!availability.ok) {
@@ -972,6 +1036,7 @@ function createDetailPanel(char) {
   const itemKey = getSelectedItemKey() || equipState.selectedKey;
   const item = getItemData(itemKey);
   const hidden = !isIdentified(itemKey);
+  const knowledgeStage = getKnowledgeStage(itemKey);
   const isEquipped = equipState.selectedIsEquipped;
 
   let preview;
@@ -1036,6 +1101,11 @@ function createDetailPanel(char) {
       statGrid.appendChild(createStatPill(row));
     });
     content.appendChild(statGrid);
+  } else if (preview && availability.ok && hidden && knowledgeStage === KNOWLEDGE_STAGES.TRIAL && item.primaryEffect) {
+    const trialEffect = document.createElement("div");
+    trialEffect.className = "equip-detail-trial-effect";
+    trialEffect.textContent = `主な手応え: ${item.primaryEffect}`;
+    content.appendChild(trialEffect);
   } else if (preview && availability.ok && hidden) {
     const hiddenStats = document.createElement("div");
     hiddenStats.className = "equip-detail-placeholder";
@@ -1048,6 +1118,11 @@ function createDetailPanel(char) {
   context.appendChild(desc);
   context.appendChild(targetSummary);
   content.appendChild(context);
+
+  const knowledge = document.createElement("div");
+  knowledge.className = "equip-knowledge-status";
+  knowledge.textContent = `知識段階: ${getKnowledgeStageLabel(knowledgeStage)}`;
+  content.appendChild(knowledge);
 
   const affixDetails = createAffixDetails(itemKey);
   if (affixDetails) content.appendChild(affixDetails);
@@ -1073,13 +1148,14 @@ function createDetailPanel(char) {
   backToListBtn.type = "button";
   backToListBtn.className = "btn btn-block equip-action-btn";
   backToListBtn.textContent = "一覧へ戻る";
+  setDockActionRole(backToListBtn, "back");
   backToListBtn.addEventListener("click", () => {
     clearSelection();
     renderEquip();
   });
 
   if (isEquipped) {
-    const bagFull = state.inventory.length >= 20;
+    const bagFull = state.inventory.length >= INVENTORY_CAPACITY;
     const locked = isCurseLocked(itemKey);
     const actionBtn = document.createElement("button");
     actionBtn.type = "button";
@@ -1092,11 +1168,15 @@ function createDetailPanel(char) {
       detailCol.appendChild(actions);
       return detailCol;
     }
-    actionBtn.className = bagFull ? "btn btn-block equip-action-btn disabled" : "btn btn-neon btn-block equip-action-btn";
-    actionBtn.disabled = bagFull;
-    actionBtn.textContent = bagFull ? "バッグが満杯です" : "外す";
+    actionBtn.className = bagFull ? "btn btn-danger btn-block equip-action-btn" : "btn btn-neon btn-block equip-action-btn";
+    actionBtn.disabled = false;
+    actionBtn.textContent = bagFull ? "整理してから外す" : "外す";
+    setDockActionRole(actionBtn, "confirm");
     actionBtn.addEventListener("click", () => {
-      if (bagFull) return;
+      if (bagFull) {
+        requestUnequipAfterDiscard();
+        return;
+      }
       const result = unequipEquipment({
         actorIdx: equipState.actorIdx,
         slot: equipState.selectedSlot
@@ -1117,6 +1197,7 @@ function createDetailPanel(char) {
       identifyBtn.textContent = canIdentify
         ? `鑑定する（鑑定粉1 / 所持${state.identifyTickets || 0}）`
         : "鑑定粉がありません";
+      setDockActionRole(identifyBtn, "confirm");
       identifyBtn.addEventListener("click", () => {
         const result = identifyEquipmentAt({
           inventoryIndex: equipState.selectedIdx,
@@ -1135,7 +1216,19 @@ function createDetailPanel(char) {
     actionBtn.type = "button";
     actionBtn.className = availability.ok ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
     actionBtn.disabled = !availability.ok;
-    actionBtn.textContent = availability.ok ? (hidden ? "未鑑定で装備する" : "装備する") : "装備できません";
+    const oldEquipment = preview?.oldEq ? getItemData(preview.oldEq) : null;
+    actionBtn.textContent = availability.ok
+      ? (hidden
+        ? "未鑑定で装備する"
+        : oldEquipment
+          ? `装備する（${oldEquipment.name}をバッグへ）`
+          : "装備する")
+      : "装備できません";
+    if (availability.ok) {
+      actionBtn.setAttribute("aria-label", "装備する");
+      if (oldEquipment) actionBtn.title = `${oldEquipment.name}はバッグへ戻ります`;
+    }
+    setDockActionRole(actionBtn, "confirm");
     actionBtn.addEventListener("click", () => {
       if (!availability.ok) return;
       const result = equipEquipment({
@@ -1155,6 +1248,7 @@ function createDetailPanel(char) {
       discardBtn.type = "button";
       discardBtn.className = "btn btn-danger btn-block equip-action-btn";
       discardBtn.textContent = "破棄する";
+      setDockActionRole(discardBtn, "confirm");
       discardBtn.addEventListener("click", () => {
         discardEquipment(equipState.selectedIdx, itemKey);
       });

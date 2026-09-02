@@ -3,7 +3,7 @@
 import { state, addLog, saveAutosave } from "../state.js";
 import { getItemData } from "../data.js";
 import { playSound } from "../audio.js";
-import { trackEquipmentDecision } from "../telemetry.js";
+import { trackEquipmentDecision, trackLootLifecycle } from "../telemetry.js";
 import { canEquipEquipment } from "../rules/equipment_rules.js";
 import { isCurseLocked } from "../rules/identification_rules.js";
 import {
@@ -14,6 +14,9 @@ import {
 import { identifyEquipment, revealEquipmentOnEquip } from "./identification.js";
 import { executeEnhance, executePolish } from "../craft.js";
 import { discardEquipmentItems } from "./equipment_discard.js";
+import { addInventoryItemToState } from "../state/inventory_state.js";
+import { findRunObjectLootEntry } from "../state/run_loot.js";
+import { hasInventorySpace } from "../rules/item_inventory.js";
 
 function getPreviewForDiscard(character, itemKey, requestedSlot = null) {
   try {
@@ -38,6 +41,7 @@ export function equipEquipment({ inventoryIndex, actorIdx, requestedSlot = null 
 
   const slot = availability.slot;
   const oldEq = getEquipmentSlotValue(character.equipment, slot);
+  const lootId = findRunObjectLootEntry(state, itemKey)?.id;
   const telemetryPreview = getEquipmentPreview(character, itemKey, slot, { floor: state.floor });
   trackEquipmentDecision("equip", {
     state,
@@ -52,8 +56,13 @@ export function equipEquipment({ inventoryIndex, actorIdx, requestedSlot = null 
   else state.inventory.splice(inventoryIndex, 1);
 
   const reveal = revealEquipmentOnEquip(itemKey);
+  trackLootLifecycle("adopted", { state, character, itemKey, lootId, source: "dungeon" });
   const item = getItemData(itemKey);
   addLog(`${character.name}は${item.name}を装備した。`);
+  if (oldEq) {
+    const oldItem = getItemData(oldEq);
+    addLog(`${oldItem?.name || "装備品"}はバッグへ戻った。`);
+  }
   if (reveal.revealed) {
     addLog(reveal.cursed
       ? `[呪い発動] ${item.name}は外せなくなった！`
@@ -70,8 +79,11 @@ export function unequipEquipment({ actorIdx, slot } = {}) {
   const character = state.party[actorIdx];
   const itemKey = getEquipmentSlotValue(character?.equipment, slot);
   const item = getItemData(itemKey);
-  if (!character || !item || state.inventory.length >= 20 || isCurseLocked(itemKey)) {
-    return { ok: false };
+  if (!character || !item || isCurseLocked(itemKey)) {
+    return { ok: false, reason: "invalid_unequip" };
+  }
+  if (!hasInventorySpace(state.inventory)) {
+    return { ok: false, reason: "inventory_full" };
   }
 
   const telemetryPreview = getUnequipPreview(character, slot, { floor: state.floor });
@@ -82,7 +94,7 @@ export function unequipEquipment({ actorIdx, slot } = {}) {
     preview: telemetryPreview
   });
   character.equipment[slot] = null;
-  state.inventory.push(itemKey);
+  addInventoryItemToState(state, itemKey);
   addLog(`${character.name}は${item.name}を外した。`);
   playSound("move");
   saveAutosave();
@@ -92,6 +104,7 @@ export function unequipEquipment({ actorIdx, slot } = {}) {
 export function identifyEquipmentAt({ inventoryIndex, actorIdx, requestedSlot = null } = {}) {
   const item = state.inventory[inventoryIndex];
   const character = state.party[actorIdx];
+  const lootId = findRunObjectLootEntry(state, item)?.id;
   const telemetryPreview = getEquipmentPreview(character, item, requestedSlot, { floor: state.floor });
   trackEquipmentDecision("identify", {
     state,
@@ -101,6 +114,8 @@ export function identifyEquipmentAt({ inventoryIndex, actorIdx, requestedSlot = 
   });
   const result = identifyEquipment(state, item, character);
   if (!result.ok) return result;
+
+  trackLootLifecycle("identified", { state, character, itemKey: item, lootId, source: "dungeon" });
 
   const revealedData = getItemData(item);
   addLog(`[鑑定] ${revealedData.name}。${result.cursed ? "呪いを確認した。" : "呪いはない。"}`);

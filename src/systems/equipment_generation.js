@@ -4,6 +4,7 @@ import {
   AFFIX_BALANCE,
   CORE_AFFIXES,
   SUPPORT_AFFIXES,
+  getLootBuildRoleForRoll,
   getAffixBudget,
   getSupportValueByRarity
 } from "../data/affixes.js";
@@ -30,6 +31,20 @@ const WORKSHOP_LOCKED_AFFIX_IDS = new Set([
   "CORE_THIN_ICE_PACT"
 ]);
 
+// Lateral Workshop unlocks occupy a reserved same-slot core slot. Enabling a
+// side-grade therefore replaces one authored baseline possibility instead of
+// diluting every existing core's chance by adding another candidate.
+const WORKSHOP_LATERAL_REPLACEMENTS = new Map([
+  ["CORE_BLOOD_WAND", "CORE_LAST_STAND"],
+  ["CORE_OPENER", "CORE_PURIFY_RING"],
+  ["CORE_TRAP_EATER", "CORE_CURSE_KEEPER"],
+  ["CORE_GIANT_SLAYER", "CORE_PHYSICAL_ACCURACY"],
+  ["CORE_TOMB_RAIDER", "CORE_BOUNTY_HUNTER"],
+  ["CORE_SCHOLAR_EYE", "CORE_KEEN_EYE"],
+  ["CORE_MILESTONE_BREAKER", "CORE_GIANT_SLAYER"],
+  ["CORE_THIN_ICE_PACT", "CORE_SNEAK_STEP"]
+]);
+
 function requireGenerationOptions(options, functionName) {
   if (options === undefined) return {};
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
@@ -46,7 +61,18 @@ export function pickCurseEffectId(rng, heavyCurseShare) {
   return pool[Math.floor(rng() * pool.length)];
 }
 
-export function rollAffixes(pool, count, rng = Math.random, budget = Infinity) {
+export function rollLootBuildRole(floor = 1, rng = Math.random) {
+  return getLootBuildRoleForRoll(floor, rng());
+}
+
+const LOOT_ROLE_MATCH_WEIGHT = 4;
+
+function getRoleAdjustedWeight(affix, lootRole) {
+  if (!lootRole || !affix.buildRole) return affix.weight;
+  return affix.weight * (affix.buildRole === lootRole ? LOOT_ROLE_MATCH_WEIGHT : 1);
+}
+
+export function rollAffixes(pool, count, rng = Math.random, budget = Infinity, lootRole = null) {
   const affixes = [];
   const selectedIds = new Set();
   let remainingBudget = budget;
@@ -57,17 +83,18 @@ export function rollAffixes(pool, count, rng = Math.random, budget = Infinity) {
       return !selectedIds.has(id) && (aff.cost || 0) <= remainingBudget;
     });
     if (available.length === 0) break;
-    const totalWeight = available.reduce((sum, aff) => sum + aff.weight, 0);
+    const totalWeight = available.reduce((sum, aff) => sum + getRoleAdjustedWeight(aff, lootRole), 0);
     let roll = rng() * totalWeight;
     const chosen = available.find(aff => {
-      roll -= aff.weight;
+      roll -= getRoleAdjustedWeight(aff, lootRole);
       return roll <= 0;
     }) || available[available.length - 1];
     affixes.push({
       id: chosen.id || chosen.type,
       kind: chosen.kind || "support",
       type: chosen.type || chosen.id,
-      value: chosen.getVal ? chosen.getVal() : (chosen.value ?? 1)
+      value: chosen.getVal ? chosen.getVal() : (chosen.value ?? 1),
+      buildRole: chosen.buildRole || null
     });
     selectedIds.add(chosen.id || chosen.type);
     remainingBudget -= chosen.cost || 0;
@@ -83,58 +110,87 @@ function withSupportDefinition(candidate) {
     ...candidate,
     id: definition.id,
     kind: definition.kind,
-    cost: definition.cost
+    cost: definition.cost,
+    buildRole: definition.buildRole
   };
 }
 
-function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null) {
+function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null, lootRole = null) {
   const budget = getAffixBudget(rarity, floor);
   const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
     ? AFFIX_BALANCE.corePoolWeights.shallow
     : AFFIX_BALANCE.corePoolWeights.deep;
+  const isPartyEligible = affix => !affix.allowedClasses
+    || !party?.length
+    || !party.some(char => char?.status !== "dead")
+    || party.some(char => char?.status !== "dead" && affix.allowedClasses.includes(char.class));
+  const activeUnlocks = Array.isArray(unlockedAffixIds) ? new Set(unlockedAffixIds) : null;
+  const activeLateralUnlocks = Array.isArray(party?.[0]?.lateralUnlockAffixIds)
+    ? new Set(party[0].lateralUnlockAffixIds)
+    : new Set();
+  const reservedReplacements = activeLateralUnlocks.size > 0
+    ? new Set([...WORKSHOP_LATERAL_REPLACEMENTS.entries()]
+      .filter(([lateralId, replacementId]) => replacementId
+        && activeLateralUnlocks.has(lateralId)
+        && CORE_AFFIXES.some(affix => affix.id === lateralId
+          && affix.enabled
+          && affix.slot === slot
+          && affix.cost <= budget
+          && isPartyEligible(affix)))
+      .map(([, replacementId]) => replacementId))
+    : new Set();
   const corePool = allowCores ? CORE_AFFIXES
     .filter(affix => affix.enabled
       && affix.slot === slot
       && affix.cost <= budget
-      && (!affix.allowedClasses
-        || !party?.length
-        || !party.some(char => char?.status !== "dead")
-        || party.some(char => char?.status !== "dead" && affix.allowedClasses.includes(char.class)))
+      && isPartyEligible(affix)
+      && !reservedReplacements.has(affix.id)
       && (
         !WORKSHOP_LOCKED_AFFIX_IDS.has(affix.id) ||
-        !Array.isArray(unlockedAffixIds) ||
-        unlockedAffixIds.includes(affix.id)
+        !activeUnlocks ||
+        activeUnlocks.has(affix.id)
       ))
     .map(affix => ({
       ...affix,
       type: affix.id,
       value: 1,
+      buildRole: affix.buildRole,
       weight: poolWeights[affix.poolGroup] || 1
     })) : [];
 
   if (corePool.length === 0) {
     const count = AFFIX_BALANCE.legacySupportCounts[source][rarity] || 1;
-    return rollAffixes(supportPool, count, rng, budget);
+    return rollAffixes(supportPool, count, rng, budget, lootRole);
   }
 
   const composition = AFFIX_BALANCE.rollComposition[rarity]
     || AFFIX_BALANCE.rollComposition.magic;
   if (typeof composition.coreChance === "number") {
     if (rng() >= composition.coreChance) {
-      return rollAffixes(supportPool, composition.support, rng, budget);
+      return rollAffixes(supportPool, composition.support, rng, budget, lootRole);
     }
-    return rollAffixes(corePool, Math.max(1, composition.core || 1), rng, budget);
+    return rollAffixes(corePool, Math.max(1, composition.core || 1), rng, budget, lootRole);
   }
 
   const coreCount = Math.max(0, composition.core || 0);
   const coreAffixes = coreCount > 0
-    ? rollAffixes(corePool, coreCount, rng, budget)
+    ? rollAffixes(corePool, coreCount, rng, budget, lootRole)
     : [];
   const remainingBudget = budget - coreAffixes.reduce((sum, affix) => {
     return sum + (CORE_AFFIXES.find(definition => definition.id === affix.id)?.cost || 0);
   }, 0);
-  const supportAffixes = rollAffixes(supportPool, composition.support, rng, remainingBudget);
+  const supportAffixes = rollAffixes(supportPool, composition.support, rng, remainingBudget, lootRole);
   return [...coreAffixes, ...supportAffixes];
+}
+
+function getDominantBuildRole(affixes, fallbackRole) {
+  const counts = new Map();
+  affixes.forEach(affix => {
+    if (affix.buildRole) counts.set(affix.buildRole, (counts.get(affix.buildRole) || 0) + 1);
+  });
+  return [...counts.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .map(([role]) => role)[0] || fallbackRole;
 }
 
 export function buildUnidentifiedMeta(
@@ -177,41 +233,17 @@ export function generateRandomEquipment(floor, options) {
     requireGenerationOptions(options, "generateRandomEquipment");
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "equipment", floor });
   const gambleProfile = getIdentificationGambleProfile(floor);
-  let baseCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[floor] || EQUIPMENT_CANDIDATES_BY_FLOOR[5];
+  const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
+  let baseCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[candidateFloor]
+    || EQUIPMENT_CANDIDATES_BY_FLOOR[30];
 
   // 通常チェストなど高級ベースを出したくないソースでは除外する。
   if (excludeHighEnd) {
     baseCandidates = baseCandidates.filter(baseId => !RESTRICTED_CHEST_BASES.includes(baseId));
   }
 
-  let priorityType = null;
   if (party && party.length > 0) {
     const livingParty = party.filter(char => char.status !== "dead");
-    const missingCount = { weapon: 0, shield: 0, armor: 0 };
-
-    if (livingParty.length > 0) {
-      livingParty.forEach(char => {
-        if (!char.equipment || !char.equipment.weapon) {
-          missingCount.weapon++;
-        }
-        const canEquipShield = !["Mage", "Thief", "Ninja"].includes(char.class);
-        if (canEquipShield && (!char.equipment || !char.equipment.shield)) {
-          missingCount.shield++;
-        }
-        if (!char.equipment || !char.equipment.armor || typeof char.equipment.armor === "string") {
-          missingCount.armor++;
-        }
-      });
-    }
-
-    let maxMissing = 0;
-    for (const [slot, count] of Object.entries(missingCount)) {
-      if (count > maxMissing) {
-        maxMissing = count;
-        priorityType = slot;
-      }
-    }
-
     let usableCandidates = baseCandidates.filter(baseId => {
       const item = ITEMS[baseId];
       if (!item) return false;
@@ -225,18 +257,11 @@ export function generateRandomEquipment(floor, options) {
     }
   }
 
-  // Smart Drop (70%): Prioritize a missing equipment slot without disabling the class filter.
-  if (rng() < 0.70 && priorityType) {
-    const typeCandidates = baseCandidates.filter(baseId => {
-      const item = ITEMS[baseId];
-      return item && item.type === priorityType;
-    });
-    if (typeCandidates.length > 0) {
-      baseCandidates = typeCandidates;
-    }
-  }
-  
-  let baseId = baseCandidates[Math.floor(rng() * baseCandidates.length)];
+  // Reuse the historical pre-selection roll for the role target so seeded
+  // streams stay stable. Candidate selection remains independent of the loadout.
+  const lootRole = rollLootBuildRole(floor, rng);
+  const baseRoll = rng();
+  let baseId = baseCandidates[Math.floor(baseRoll * baseCandidates.length)];
   let baseItem = ITEMS[baseId];
   if (!baseItem) return null;
   
@@ -251,7 +276,7 @@ export function generateRandomEquipment(floor, options) {
     else if (roll < rareChance) rarity = "rare";
     else rarity = "magic";
   }
-  
+
   const possibleAffixes = [];
   const addAffix = (minFloor, type, getVal, weight = 3) => {
     if (floor < minFloor) return;
@@ -365,7 +390,9 @@ export function generateRandomEquipment(floor, options) {
   addAffix(1, "contractReward", () => 10, 2);
   
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party);
+  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party, lootRole);
+  const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
+  const buildRole = getDominantBuildRole(affixes, lootRole);
 
   // #311: コアは誰も装備できないベースに乗ると丸ごと死ぬ。職業ごとの装備制限そのものは
   // 個性として残し、コアが付いたときだけベースを同スロットの装備可能候補へ寄せる。
@@ -461,13 +488,19 @@ export function generateRandomEquipment(floor, options) {
     level: floor,
     identified: false,
     halfIdentified: false,
+    knowledgeStage: "discovery",
+    observationCount: 0,
+    trialCount: 0,
     tags,
     hintTags: meta.hintTags,
     curseEffectId,
     cursePower: gambleProfile.cursePower,
     curseSuspected: meta.curseSuspected,
     unidentifiedName: meta.unidentifiedName,
-    affixes
+    affixes,
+    buildRole,
+    buildRoles,
+    lootRole
   };
 }
 
@@ -476,7 +509,9 @@ export function generateRandomAccessory(floor, options) {
     requireGenerationOptions(options, "generateRandomAccessory");
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "accessory", floor });
   const gambleProfile = getIdentificationGambleProfile(floor);
-  let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[floor] || ACCESSORY_CANDIDATES_BY_FLOOR[5];
+  const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
+  let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[candidateFloor]
+    || ACCESSORY_CANDIDATES_BY_FLOOR[30];
 
   if (party && party.length > 0) {
     const livingParty = party.filter(char => char.status !== "dead");
@@ -489,7 +524,9 @@ export function generateRandomAccessory(floor, options) {
     }
   }
 
-  const baseId = baseCandidates[Math.floor(rng() * baseCandidates.length)];
+  const lootRole = rollLootBuildRole(floor, rng);
+  const baseRoll = rng();
+  const baseId = baseCandidates[Math.floor(baseRoll * baseCandidates.length)];
   const baseItem = ITEMS[baseId];
   if (!baseItem) return null;
 
@@ -545,7 +582,9 @@ export function generateRandomAccessory(floor, options) {
     .filter(Boolean);
 
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party);
+  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party, lootRole);
+  const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
+  const buildRole = getDominantBuildRole(affixes, lootRole);
   const tags = [...(baseItem.tags || [])];
   affixes.forEach(aff => {
     const affixTags = {
@@ -608,12 +647,18 @@ export function generateRandomAccessory(floor, options) {
     level: floor,
     identified: false,
     halfIdentified: false,
+    knowledgeStage: "discovery",
+    observationCount: 0,
+    trialCount: 0,
     tags,
     hintTags: meta.hintTags,
     curseEffectId,
     cursePower: gambleProfile.cursePower,
     curseSuspected: meta.curseSuspected,
     unidentifiedName: meta.unidentifiedName,
-    affixes
+    affixes,
+    buildRole,
+    buildRoles,
+    lootRole
   };
 }

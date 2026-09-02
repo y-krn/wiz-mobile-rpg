@@ -142,6 +142,181 @@
   min-height: var(--tap-min);
 }
 
+.milestone-portal-vitals,
+.milestone-portal-loot,
+.milestone-portal-choices,
+.milestone-portal-confirmation,
+.milestone-portal-confirmation-actions {
+  display: grid;
+  gap: var(--sp-xs);
+  grid-column: 1 / -1;
+}
+
+.milestone-portal-vitals,
+.milestone-portal-loot,
+.milestone-portal-confirmation {
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+}
+
+.milestone-portal-section-title,
+.milestone-portal-confirmation-title,
+.milestone-portal-side-info-label {
+  color: var(--neon-cyan);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+}
+
+.milestone-portal-party,
+.milestone-portal-loot-list {
+  display: grid;
+  gap: var(--sp-xs);
+}
+
+.milestone-portal-vital-row,
+.milestone-portal-loot-row,
+.milestone-portal-section-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-sm);
+  min-width: 0;
+}
+
+.milestone-portal-vital-name,
+.milestone-portal-loot-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.milestone-portal-hp {
+  color: var(--semantic-life);
+  white-space: nowrap;
+}
+
+.milestone-portal-mp {
+  color: var(--semantic-magic);
+  white-space: nowrap;
+}
+
+.milestone-portal-loot-count {
+  color: var(--semantic-unknown);
+  font-family: var(--font-mono);
+}
+
+.milestone-portal-loot-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: var(--sp-xs) 0;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+}
+
+.milestone-portal-loot-detail,
+.milestone-portal-note,
+.milestone-portal-choice-description,
+.milestone-portal-confirmation p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+}
+
+.milestone-portal-loot-row .ownership-badge {
+  grid-column: 1 / -1;
+  justify-self: start;
+  border-left: 0;
+  padding-left: 0;
+}
+
+.milestone-portal-section-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.milestone-portal-materials {
+  gap: var(--sp-xs);
+}
+
+.milestone-portal-choice-card {
+  display: grid;
+  gap: var(--sp-xs);
+  padding: var(--sp-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.milestone-portal-choice-label {
+  color: var(--semantic-selected);
+  font-family: var(--font-mono);
+  font-size: var(--fs-lg);
+}
+
+.milestone-portal-choice,
+.wing-selection-heading,
+.wing-selection-status,
+.wing-selection-candidate-count {
+  min-height: var(--tap-min);
+}
+
+.milestone-portal-choice {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+}
+
+.milestone-portal-choice:active {
+  border-color: var(--semantic-selected);
+  box-shadow: var(--neon-glow-yellow);
+}
+
+.milestone-portal-change {
+  color: var(--text-secondary);
+}
+
+.wing-selection-heading,
+.wing-selection-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+}
+
+.wing-selection-candidate-count {
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.wing-selection-status {
+  color: var(--semantic-selected);
+  font-family: var(--font-mono);
+}
+
+.milestone-portal-clue {
+  display: grid;
+  gap: var(--sp-xs);
+  padding: var(--sp-sm);
+  border: 1px solid var(--border-color);
+  background: var(--hud-chrome-bg);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.milestone-portal-clue strong {
+  color: var(--neon-cyan);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.milestone-portal-clue p {
+  margin: 0;
+}
+
 .solo-start-craft-stepper {
   display: grid;
   grid-column: 1 / -1;

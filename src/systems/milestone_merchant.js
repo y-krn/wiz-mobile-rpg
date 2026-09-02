@@ -2,16 +2,27 @@ import { MILESTONE_MERCHANT_STOCK, MILESTONE_UNCURSE_COST } from "../data/milest
 import { canAffordMaterials, spendMaterials } from "../rules/material_rules.js";
 import { isCurseLocked } from "../rules/identification_rules.js";
 import { purifyEquipmentCurse } from "./identification.js";
+import { addInventoryItemToState } from "../state/inventory_state.js";
+import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 
 export function purchaseMilestoneStock(stateLike, stockId) {
   const entry = MILESTONE_MERCHANT_STOCK.find(item => item.id === stockId);
   if (!entry) return { ok: false, reason: "unknown_stock" };
   const materials = stateLike.currentRun?.materials;
   if (!materials || !canAffordMaterials(materials, entry.cost)) return { ok: false, reason: "insufficient_materials" };
-  if (entry.kind === "item" && (stateLike.inventory?.length || 0) >= 20) return { ok: false, reason: "inventory_full" };
+  if (entry.kind === "item" && (stateLike.inventory?.length || 0) >= INVENTORY_CAPACITY) return { ok: false, reason: "inventory_full" };
+  if (entry.kind === "item" && entry.itemId === "TOWN_PORTAL" && stateLike.inventory?.some(item => item === entry.itemId || item?.baseId === entry.itemId)) {
+    return { ok: false, reason: "already_owned" };
+  }
   stateLike.currentRun.materials = spendMaterials(materials, entry.cost);
   if (entry.kind === "identify") stateLike.identifyTickets = (stateLike.identifyTickets || 0) + 1;
-  else stateLike.inventory.push(entry.itemId);
+  else {
+    const added = addInventoryItemToState(stateLike, entry.itemId, {
+      dungeonLoot: true,
+      source: "merchant"
+    });
+    if (!added) return { ok: false, reason: "inventory_full" };
+  }
   return { ok: true, entry };
 }
 

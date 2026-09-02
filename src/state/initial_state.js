@@ -13,6 +13,7 @@ export function generateRandomSeed() {
 export const createDefaultCodex = () => ({
   monsters: {},
   equipment: {},
+  insights: [],
   events: {
     traps: {
       "poison needle": { triggered: 0, disarmed: 0, firstFloor: 0 },
@@ -55,6 +56,18 @@ export const createDefaultCurrentRun = () => ({
   expGained: 0,
   materials: {},
   bankedMaterials: {},
+  townInventory: [],
+  unbankedObjectLoot: [],
+  bankedObjectLoot: [],
+  lostObjectLoot: [],
+  eventObservations: {},
+  returnedTownItems: [],
+  representativeItem: null,
+  meaningfulItemHistory: [],
+  codexInsights: [],
+  workshopUnlocks: [],
+  returnProcessing: null,
+  lootSequence: 0,
   itemsFound: [],
   equipmentFound: [],
   firstKills: [],
@@ -66,6 +79,14 @@ export const createDefaultCurrentRun = () => ({
   campRested: {},
   pendingCampEntryFloor: null,
   completedCampEntryFloors: [],
+  // Deterministic five-floor trial selections are cached so old saves and
+  // future generator changes cannot reroll an already decided band.
+  trialBands: {},
+  // Per-floor elite lifecycle and greed-trigger state. This is persisted so
+  // entry/prolonged rolls and qualitative warnings cannot reroll on load.
+  eliteFloors: {},
+  eliteOmenSteps: {},
+  eliteDefeatedFloors: [],
   defeatedMilestones: [],
   visitedMilestoneMerchants: [],
   quests: [],

@@ -4,6 +4,59 @@ import { getItemData } from "../data.js";
 // balance-impact: none — this module records observed equipment knowledge only;
 // equipment generation, drop rates, and affix values remain unchanged.
 
+export const CODEX_INSIGHT_DEFINITIONS = Object.freeze({
+  resourceTradeoff: "回収品には、HPやMPの支払い方を変える性質がある。",
+  hazardTradeoff: "状態異常や罠への備えが、別の力と組み合わさることがある。",
+  actionTradeoff: "行動順や撃破条件を、戦い方そのものへ変える品がある。",
+  curseTradeoff: "大きな力と拘束を併せ持つ品が存在する。",
+  variantEquipment: "同じ装備種でも、異なる性質を持つ個体が存在する。"
+});
+
+const INSIGHT_TAGS = Object.freeze({
+  resourceTradeoff: new Set(["blood", "spirit"]),
+  hazardTradeoff: new Set(["poison", "trap", "ward"]),
+  actionTradeoff: new Set(["ambush", "evasion", "search"]),
+  curseTradeoff: new Set(["curse"])
+});
+
+export function recordRunInsights(stateLike = state, items = [], floor = stateLike?.floor) {
+  if (!stateLike?.codex) return [];
+  stateLike.codex.insights = Array.isArray(stateLike.codex.insights)
+    ? stateLike.codex.insights
+    : [];
+  const tags = new Set((items || []).flatMap(item => (
+    Array.isArray(item?.tags) ? item.tags : getItemData(item)?.tags || []
+  )));
+  const keys = Object.entries(INSIGHT_TAGS)
+    .filter(([, matchingTags]) => [...matchingTags].some(tag => tags.has(tag)))
+    .map(([key]) => key);
+  if (items.some(item => getItemData(item)?.type && ["weapon", "shield", "armor", "accessory"].includes(getItemData(item).type))) {
+    keys.push("variantEquipment");
+  }
+
+  const newInsights = [];
+  [...new Set(keys)].forEach(key => {
+    const existing = stateLike.codex.insights.find(insight => insight.id === key);
+    if (existing) {
+      existing.count = Math.max(0, Number(existing.count) || 0) + 1;
+      existing.lastFloor = Math.max(1, Number(floor) || 1);
+      return;
+    }
+    const insight = {
+      id: key,
+      count: 1,
+      firstFloor: Math.max(1, Number(floor) || 1),
+      lastFloor: Math.max(1, Number(floor) || 1)
+    };
+    stateLike.codex.insights.push(insight);
+    newInsights.push(insight);
+  });
+  // Insight is a finite, coarse research record. It is intentionally bounded
+  // and never stores rates, candidate totals, or an item-to-build answer.
+  stateLike.codex.insights = stateLike.codex.insights.slice(0, 20);
+  return newInsights;
+}
+
 export function getMonsterCodexKey(monsterOrName) {
   const name = typeof monsterOrName === "string" ? monsterOrName : monsterOrName?.name;
   return typeof name === "string" ? name.replace(/\s[A-Z]$/, "") : "";

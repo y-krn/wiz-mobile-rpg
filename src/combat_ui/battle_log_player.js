@@ -1,15 +1,18 @@
-import { state, saveAutosave, addLog } from "../state.js";
+import { state, saveAutosave, addEventLog, addLog, clearEventObservations } from "../state.js";
 import { playSound } from "../audio.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
 import { updateUI } from "../ui.js";
 import { openGuardedSubmenu, resetSubmenuBackButton } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
+
+// balance-impact: none — combat result presentation only; resolution remains in combat_logic.
 import { setupChestState } from "../chest.js";
 import { checkCombatStatus } from "./combat_status.js";
 import { triggerGameOver } from "./game_over.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 
 function cleanupCombatState() {
+  clearEventObservations({ scopePrefix: "combat:" });
   state.combatState = null;
   state.party.forEach(char => {
     delete char.buffs;
@@ -65,7 +68,15 @@ export function playBattleLogs(queue, index) {
   if (log.flash && renderer) renderer.triggerFlash(200);
   if (log.floatText && renderer) renderer.addDamageText(log.floatText, log.floatColor);
 
-  addLog(log.msg);
+  if (isImportantCombatResult(log.msg)) {
+    addEventLog(log.msg, {
+      key: `combat-result:${state.combatState?.roundNumber ?? "unknown"}:${index}`,
+      scope: `combat:${state.combatState?.roundNumber ?? "unknown"}`,
+      kind: "result"
+    });
+  } else {
+    addLog(log.msg);
+  }
   updateUI();
 
   if (log.runEscape) {
@@ -197,4 +208,8 @@ export function playBattleLogs(queue, index) {
   setTimeout(() => {
     playBattleLogs(queue, index + 1);
   }, delay);
+}
+
+function isImportantCombatResult(message) {
+  return typeof message === "string" && /反射|効かな|無効|状態異常|毒状態|盲目|麻痺|睡眠|出血|脆弱|耐性|弱点|倒れた|力尽きた|逃走|逃げ|MP不足/.test(message);
 }

@@ -513,7 +513,7 @@ seed=494、各職・条件 N=500、6工房シナリオ、B20終了で、固定�
 - トレードオフ: 現行固定35/35に対し、生還率は **45.3%→40.9%**、bank保持率は
   **0.5731→0.5397**、素材EV/時間は **0.1561→0.1480**。深度・到達性を優先する既定値として記録し、
   bank/EVを別監視指標に残す。
-- 反映先: `scratch/simulations/sim_depth_material_ev.js` の既定/preset、`src/rules/recovery_rules.js` のsim helper既定、
+- 反映先: `scratch/simulations/sim_depth_material_ev.js` の既定/preset、`scratch/simulations/sim_recovery_policy.js` のsim helper既定、
   #461基準線runner。ゲーム本体のaction loopはhelperを呼ばず、ゲームプレイの逃走成功率は変更しない。
 - 実施: #461基準線の再集計、#264の傷薬本数掃引・回復単価掃引の採用値再測定。
   詳細は
@@ -1523,3 +1523,16 @@ documentation, and the focused schema regression test changed.
 | identifyDiscount | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | 鑑定費用を軽減する。 cost=1 unit=% | C/sim-missing | 145/145/30/0/0 | 20.7% [14.9,28.0] | — (sim-missing) |
 | materialFind | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | 素材発見率が10%増加する。 cost=2 unit=% | C/sim-missing | 154/154/37/0/0 | 24.0% [18.0,31.4] | — (sim-missing) |
 | contractReward | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | ランクエスト報酬が10%増加する。 cost=2 unit=% | C/sim-missing | 158/158/34/0/0 | 21.5% [15.8,28.6] | — (sim-missing) |
+
+## Issue #1012 observability acceptance measurement
+
+Use `scratch/measurements/issue1012_observability.js` for the deterministic
+acceptance record. It calls the canonical run simulator and reports exploration
+before/after stairs, Portal decisions, equipment swaps versus Main Core build
+shifts, and elite outcomes. It records seed, N, source SHA, runner SHA, and
+schema version. It is an observability measurement, not a balance threshold
+run, and must not restart the historical #990 measurement.
+
+The canonical simulator does not own the production object-loot ledger. The
+runner therefore reports loot ownership and death-loss as `not_modeled`; do not
+interpret those fields as zero or substitute them into material EV.

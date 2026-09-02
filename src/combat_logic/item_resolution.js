@@ -1,6 +1,8 @@
 import { ITEMS } from "../data.js";
 import { getCharAgi } from "../rules/character_stats.js";
 import { getBuffTotal } from "./status_effects.js";
+import { consumeRunObjectLoot, findRunObjectLootEntry } from "../state/run_loot.js";
+import { trackLootLifecycle, trackPortalDecision } from "../telemetry.js";
 
 /**
  * Resolves player item usage.
@@ -13,8 +15,24 @@ export function resolvePlayerItem(char, act, state, logQueue) {
     logQueue.push({ msg: `[味方] ${char.name}は道具を使おうとしたが、もうバッグに残っていない！` });
     return { escaped: false };
   }
+  const lootEntry = findRunObjectLootEntry(state, act.itemKey);
+  trackLootLifecycle("tried", {
+    state,
+    character: char,
+    itemKey: act.itemKey,
+    lootId: lootEntry?.id,
+    source: "combat"
+  });
   if (act.itemKey === "TOWN_PORTAL") {
+    trackPortalDecision("return", {
+      state,
+      character: char,
+      portalType: "return_wing",
+      wingOwned: true,
+      wingSalvageCount: 0
+    });
     state.inventory.splice(inventoryIdx, 1);
+    consumeRunObjectLoot(state, act.itemKey);
     logQueue.push({
       msg: `[味方] ${char.name}は帰還のスクロールを読んだ！冒険者はお城へ導かれる！`,
       sound: "cast_spell",
@@ -24,6 +42,7 @@ export function resolvePlayerItem(char, act, state, logQueue) {
   }
   if (act.itemKey === "ESCAPE_SCROLL") {
     state.inventory.splice(inventoryIdx, 1);
+    consumeRunObjectLoot(state, act.itemKey);
     const charAgi = getCharAgi(char) + getBuffTotal(char, "agi");
     const avgEnemyAgi = 10;
     const baseChance = 0.75;
@@ -50,6 +69,7 @@ export function resolvePlayerItem(char, act, state, logQueue) {
   const oldStatus = target.status;
   const log = item.effect(target, state.party);
   state.inventory.splice(inventoryIdx, 1);
+  consumeRunObjectLoot(state, act.itemKey);
   let floatText = undefined;
   let floatColor = "#00ff66";
   if (act.itemKey === "HEAL_POTION" || act.itemKey === "GREATER_HEAL" || act.itemKey === "HOLY_WATER") {

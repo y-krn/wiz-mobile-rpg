@@ -12,30 +12,162 @@ This document is the durable design record for the pivot. Where an older
 ticket or document assumes a 6-character party, a fixed map, or the town gold
 economy, this document wins.
 
-## Core Loop
+## Core Loop vNext Canonical Contract
+
+**Canonical source:** [#973 comment 5479686603](https://github.com/y-krn/wiz-mobile-rpg/issues/973#issuecomment-5479686603).
+That comment is the current design authority. Earlier issue comments and
+measurements remain history; when they conflict with this section, this
+section wins.
+
+> Make an improvised build every run, expose it to a different resource trial
+> in each depth band, and decide how much of the value earned in that run to
+> risk before returning.
+
+This is a **design target / vNext contract**, not a claim that every part is
+implemented in the current game.
+
+### Run loop
 
 ```text
-town (meta screen): pick class and starting gear
+town: choose class, starting options, and optional departure supplies
         ↓
-town (departure board): optionally choose 1–2 goals from 3 varied contracts
+descend and explore a generated floor
         ↓
-descend from B1F at Lv1 (or an unlocked milestone start)
+fight, pay resources, identify or gamble on loot, and assemble the run build
         ↓
-explore generated floors, fight, pick up unidentified gear,
-build the character within the run
+at each 5-floor band: face that band's resource trial and decide whether to
+continue toward the next Portal
         ↓
-every 5th floor: milestone (boss, return portal, merchant)
+Portal / Push / Wing / Death / Abandon resolves the run's stakes
         ↓
-"retreat with everything, abandon with the same loss as death, or push one more floor?"
+Castle records what happened; Codex records what was understood; Workshop
+expands what may exist in future runs
         ↓
-retreat = keep 100% of materials; death/abandon = keep 30%
-        ↓
-spend materials on permanent unlocks in the workshop
-        ↓
-descend again, deeper than before
+descend again with the resulting knowledge and meta progression
 ```
 
-**Decided: departure contracts are player-selected (Issue #694, 2026-08-25).**
+### Run outcome contract
+
+- **Portal = safe victory.** Confirm all unconfirmed object loot, end the run,
+  and return safely. There is no post-return danger, hidden tax, or extraction
+  minigame.
+- **Push = defer the confirmation decision.** Push does not destroy anything;
+  it skips the current confirmation opportunity and keeps the unconfirmed
+  results at stake until the next Portal.
+- **Wing = controlled loss-cutting.** A Wing is a manually chosen, immediate
+  safe escape. The candidate pool is the run's unconfirmed object loot,
+  including dungeon equipment that was identified after acquisition but is
+  currently equipped; the player selects only a small number to rescue. It
+  never triggers automatically or kills the player after activation; the
+  canonical starting value is `salvageCount = 2` (the number remains a tuning
+  decision), the Wing is consumed, and at most one may be carried into a run.
+- **Death = lose the gamble.** Unconfirmed object loot is lost by default.
+  Basic progression, knowledge, and adventure records may persist under their
+  own contracts.
+- **Abandon = the same loot loss as Death, with a distinct outcome record.**
+  Abandon is not a free Wing.
+
+The vNext contract intentionally does not express Death or Retreat as a
+percentage of banked materials. Material banking, if changed by an
+implementation issue, must not be used as a substitute for the object-loot
+outcome contract.
+
+### Bag and value competition
+
+The bag is fixed at 20 slots and is itself part of the push-your-luck design:
+
+- equipped equipment is outside the bag; spare equipment, consumables,
+  unknown items, curios, and Wings each use one ordinary slot and do not stack
+  by default;
+- town-brought consumables use the same 20 slots as dungeon finds;
+- town-brought consumables are consumed only when used and unused stock returns
+  after the run; dungeon-acquired consumables are unconfirmed run loot;
+- there are no permanent capacity increases or Safety/Wing/treasure-only
+  compartments;
+- removing equipment returns it to the bag, so a full bag requires discarding
+  something before the swap can complete.
+
+The resulting roles are: equipped items provide power; spare equipment
+provides adaptation; consumables provide safety; unknown items combine future
+build potential, return value, and danger; curios provide return value and
+information; Wings reduce loss and create room for one more risk.
+
+### Five-floor bands and build meaning
+
+Each five-floor band between Portals is a **resource-allocation chapter**, not
+just a stronger copy of the previous floors. A run receives a band theme and a
+sub-theme, and the band asks a different question about HP, MP, status,
+information, actions, or inventory pressure. Strong enemies are temptations
+and risks of greedy exploration, not a mandatory fixed encounter on every
+floor.
+
+Loot has three roles: **reinforcement** extends the current way of fighting;
+**cost conversion** changes what the player pays (HP, MP, status, or another
+resource); and **direction change** replaces the main way of fighting. The
+initial tuning targets are 75/20/5% in B1–5, 60/30/10% in B6–10, 55/30/15%
+in B11–15, 50/35/15% in B16–20, and 45/35/20% in B21+ (reinforcement /
+cost conversion / direction change). These are vNext tuning targets, not
+current-runtime guarantees.
+
+### Town meta roles
+
+- **Castle = what happened:** run outcome, depth, Portal/Wing/Death/Abandon,
+  representative items, recovered/rescued/lost value, and meaningful item
+  history.
+- **Codex = what was understood:** observed facts and hypotheses. Unknown
+  items progress from signs to observation to trial to full understanding;
+  the Codex must not reveal the answer or an optimal build directly.
+- **Workshop = what may exist:** it expands the horizontal possibility space
+  for future runs. It does not target a specific build, raise that build's
+  appearance rate, or provide permanent superior combat equipment. Small
+  unlocks should generally come from adventure results rather than a farmable
+  target path.
+
+### Current implementation boundary
+
+The current codebase contains the implemented Return Wing object-loot
+settlement, fixed 20-slot inventory, unidentified equipment, workshop
+purchases, codex records, and run outcomes. Band-specific resource trials and
+the remaining broader vNext content are still transition-state work; follow-up
+issues must state which contract slice they implement.
+
+The current workshop UI/data still exposes a permanent-unlock tree. Issue
+#1009 now gives equipment and ordinary chest supply explicit B1–B30 candidate
+tables, preserves old bases in deeper pools, and attaches the three loot roles
+with soft band weights. Issue #1010 now selects a deterministic main theme and
+sub-theme per five-floor band, applies them as soft encounter/enemy weights,
+and carries the selected IDs through the Guardian and next-Portal clue. The
+five floor roles (introduction, development, change, temptation, settlement)
+are generation tendencies, not a scripted event sequence; player-facing clues
+remain coarse and do not expose theme IDs or probabilities. These role labels
+do not target the current build or impose a Core activation cap.
+
+Issue #998 now makes roaming elites an optional deep-floor risk event. Entry
+presence is seed-deterministic, while prolonged presence is driven by saved
+value-seeking actions (new area discovery, battles, chests, optional facilities,
+and exploration after finding the exit stairs); walking alone does not advance
+the threat. The elite's combat trait is weighted by the current band's main and
+sub-theme, preserving deterministic replay and meaningful trait variation.
+
+Issue #1006 implements the object-loot ownership slice of this contract:
+dungeon loot remains unbanked until a terminal, unused Town preparation items
+return to Town storage, and the result screen records returned and lost loot.
+The Return Wing rescue list includes equipped loot and uses the shared salvage
+count; materials and quest/progression ownership remain on their existing
+contracts.
+
+Issue #1007 implements the shared bag slice: every carried ordinary item uses
+one of 20 fixed slots, equipped items stay outside the bag, consumables do not
+stack, and full-bag pickup, equipment removal, and discard decisions are shown
+explicitly in the relevant UI.
+
+## Historical loop (superseded)
+
+The following earlier loop is retained only as a record of the pre-vNext
+contract and must not be used as implementation guidance.
+
+**Historical decision: departure contracts are player-selected (Issue #694,
+2026-08-25).**
 The town's departure board presents three varied candidates: one depth goal, one
 hunt goal, and one trapless-depth goal. The player may accept one or two before
 class and starting-floor preparation; the selected templates resolve their
@@ -52,7 +184,7 @@ not a persistent checklist or a reason to farm shallow floors. Completed
 contracts still award their existing materials during the run, and the active
 contract list remains visible in the run HUD and result screen.
 
-**Decided: the castle is a preparation loop, not only a record viewer**
+**Historical decision: the castle is a preparation loop, not only a record viewer**
 (2026-08-16). The castle keeps structured death causes (floor, category, and
 source) and presents them in descending frequency. The most frequent cause
 must name an existing departure-preparation item or workshop node and link to
@@ -66,7 +198,7 @@ floor, retreat and death recorded separately) is always visible on the title
 screen, in town, and on the run result. Abandon is tracked as its own run
 ending without entering death metrics.
 
-**Decided: the castle is the player's adventure chronicle** (Issue #813,
+**Historical decision: the castle is the player's adventure chronicle** (Issue #813,
 2026-08-26). The castle presents recent runs as factual adventure entries,
 then personal bests, first achievements, B5/B10 trends, and structured death
 causes. Retreat, death, and abandon remain distinct outcomes, and the display
@@ -76,7 +208,7 @@ kept separately so the chronicle remains useful after older entries roll off.
 This changes information presentation and record keeping only; it does not
 change depth, combat, hazard, reward, or material rules.
 
-**Decided: Return Wing is an independent special chest reward (Issue #791,
+**Historical decision: Return Wing is an independent special chest reward (Issue #791,
 2026-08-22).** `TOWN_PORTAL` is not part of the ordinary chest main-reward
 candidate pools. A chest first resolves its normal main reward, then performs a
 separate Return Wing roll, so obtaining a Wing cannot consume the ordinary
@@ -156,18 +288,19 @@ protect the existing fromDrop behavior.
    descent decision harder, or record it. A system that creates a separate
    goal (farming loops, side economies) competes with the question and should
    be redesigned or cut.
-2. **Push-your-luck with real stakes.** Retreat (via milestone portal or a
-   finite return item) banks everything; death forfeits 70% of materials.
-   The recurring decision "bank now or push one more floor?" must never be
-   fully purchasable away, and must stay a decision — never a die roll the
-   player cannot influence.
+2. **Push-your-luck with explicit outcomes.** Portal, Push, Wing, Death, and
+   Abandon are distinct player-facing contracts. Their meaning is defined in
+   the vNext outcome section above; do not replace those object-loot stakes
+   with a percentage-only banking rule or an automatic escape.
 3. **In-run builds from unknown loot.** The character is assembled during the
    run from found equipment and skills. Loot is unidentified by default:
-   spend a scarce identify resource, or equip it blind and risk a curse. The
-   identify-or-gamble moment is this game's signature hook; protect its
-   frequency and its stakes.
+   spend a scarce identify resource, or act from the partial-information rung
+   and risk a curse. The identify-or-gamble moment is this game's signature
+   hook; protect its frequency and its stakes.
 
-**Decided: the core experience is improvised build completion** (2026-07-24).
+**Historical measurement: the core experience is improvised build completion**
+(2026-07-24). The vNext contract above supersedes its percentage and phase
+assumptions, while the build-first motive remains valid.
 Pillar 3 is the game's primary motive:
 the player improvises a build from what drops (not a planned collection), and
 **depth is the arena that tests that build's quality** — the floor reached is
@@ -359,10 +492,15 @@ mitigations. Chest traps keep a risk/reward branch: every class can leave,
 smash for a weaker trap effect with possible consumable loss, or use a kit,
 while specialist classes retain safer disarm rates.
 
-Unidentified equipment sits on the same ladder: presence (a drop),
-identification (base type visible), detail (identified affixes). Pillar 3's
-gamble is the choice to act from the identification rung without paying for
-detail.
+Unidentified equipment follows four explicit knowledge stages: discovery
+(type/quality and one or two truthful sensory signs), observation (carrying it
+or encountering a related situation can add a sign; carried observations begin
+early but additional signs use a low-frequency exploration pulse), trial (equipping or using
+it makes the main function judgeable), and full understanding (Town recovery or
+complete identification exposes the exact stored detail). Pillar 3's gamble is
+the choice to act from the partial-information stages without paying for full
+detail; exact hidden values, probabilities, and undiscovered affix names remain
+masked until full understanding.
 
 ## Combat
 
@@ -462,3 +600,20 @@ separate from recovery, retreat, and trap-kit roles.
   referenced here (encounter counts, scaling curves, material income).
 - `.agents/game-logic.md`: checklist for implementing generation, combat,
   and run-state changes.
+- `.agents/game-design-telemetry.md`: observation schema for stairs, valuable
+  locations, loot ownership, build shifts, Portal/Wing, and elite decisions.
+
+## Castle Return Contract (#1011)
+
+Every terminal route is resolved in Town-facing records: Portal returns all
+unbanked dungeon objects, Wing rescues the selected shared-cap subset, and
+Death/Abandon return none of those objects. Ordinary loot is settled
+automatically before the result screen; the next run starts from Town
+preparations, never from recovered dungeon equipment.
+
+The Castle keeps one representative item and at most five compact meaningful
+item facts per run. These facts describe what happened (returned, rescued,
+lost, or observed); they do not retain a full item as a combat bonus. The
+Codex records only finite, coarse observations, while Workshop return rewards
+make existing side-grade possibilities eligible horizontally. No return path
+reveals exact drop rates, candidate totals, or a target build.

@@ -27,12 +27,19 @@ import {
   trackDamageReceived,
   trackEvent,
   trackExplorationDecision,
+  trackEliteDecision,
+  trackFloorExploration,
+  trackLootLifecycle,
+  trackPortalDecision,
+  trackStairsDiscovery,
+  trackValuableLocation,
   trackRunEnd,
   trackRunStart
 } from "../../../src/telemetry.js";
 import { recordReceivedDamage } from "../../../src/combat_logic/damage.js";
 import { getMpWardDef } from "../../../src/combat_logic/mp_ward.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic/round.js";
+import { resolvePlayerItem } from "../../../src/combat_logic/item_resolution.js";
 
 let failures = 0;
 
@@ -449,6 +456,21 @@ check("decision events share context and keep action identifiers stable", () => 
       rows: [{ key: "attack", diff: 2 }]
     }
   });
+  trackEquipmentDecision("equip", {
+    state: decisionState,
+    character: decisionPlayer,
+    candidateKey: {
+      baseId: "SHORT_SWORD",
+      buildRole: "pivot",
+      affixes: [{ id: "CORE_GIANT_SLAYER", kind: "core" }]
+    },
+    currentKey: {
+      baseId: "WAND",
+      buildRole: "reinforce",
+      affixes: [{ id: "CORE_LAST_STAND", kind: "core" }]
+    },
+    preview: { item: { rarity: "rare" }, slot: "weapon", primaryDiff: 1, rows: [] }
+  });
   const combatEvent = events.find(event => event.name === "combat_decision");
   const explorationEvent = events.find(event => event.name === "exploration_decision");
   const equipmentEvent = events.find(event => event.name === "equipment_decision");
@@ -460,6 +482,121 @@ check("decision events share context and keep action identifiers stable", () => 
   assert.equal(equipmentEvent.properties.action, "compare");
   assert.equal(equipmentEvent.properties.candidateId, "DAGGER");
   assert.deepEqual(equipmentEvent.properties.comparisonDiffs, [2]);
+  const transitionEvent = events.find(event => event.name === "equipment_decision" && event.properties.action === "equip");
+  assert.equal(transitionEvent.properties.buildDecision, "transition");
+  assert.equal(transitionEvent.properties.candidateBuildRole, "pivot");
+  assert.equal(transitionEvent.properties.currentBuildRole, "reinforce");
+
+  trackEquipmentDecision("equip", {
+    state: decisionState,
+    character: decisionPlayer,
+    candidateKey: {
+      baseId: "DAGGER",
+      buildRole: "pivot",
+      affixes: [{ id: "followUp", kind: "support" }]
+    },
+    currentKey: {
+      baseId: "WAND",
+      buildRole: "reinforce",
+      affixes: [{ id: "atk", kind: "support" }]
+    },
+    preview: { item: { rarity: "rare" }, slot: "weapon", rows: [] }
+  });
+  trackEquipmentDecision("equip", {
+    state: decisionState,
+    character: decisionPlayer,
+    candidateKey: {
+      baseId: "SHORT_SWORD",
+      affixes: [
+        { id: "CORE_LAST_STAND", kind: "core" },
+        { id: "CORE_PHYSICAL_ACCURACY", kind: "core" }
+      ]
+    },
+    currentKey: {
+      baseId: "DAGGER",
+      affixes: [{ id: "CORE_LAST_STAND", kind: "core" }]
+    },
+    preview: { item: { rarity: "rare" }, slot: "weapon", rows: [] }
+  });
+  const supportSwapEvent = events.find(event => event.name === "equipment_decision" && event.properties.candidateId === "DAGGER" && event.properties.action === "equip");
+  const auxiliaryCoreSwapEvent = events.find(event => event.name === "equipment_decision"
+    && event.properties.candidateId === "SHORT_SWORD"
+    && event.properties.currentEquipmentId === "DAGGER");
+  assert.equal(supportSwapEvent.properties.buildDecision, "swap");
+  assert.equal(auxiliaryCoreSwapEvent.properties.buildDecision, "swap");
+});
+
+check("vNext telemetry separates lifecycle, exploration, portal, and elite observations", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const state = {
+    ...decisionState,
+    gameState: "explore",
+    x: 4,
+    y: 5,
+    currentRun: {
+      ...decisionState.currentRun,
+      runSeed: "telemetry-test",
+      unbankedObjectLoot: [{ id: "run:loot:3", item: { baseId: "DAGGER", identified: false, rarity: "rare" } }],
+      floorSteps: { "2": 9 }
+    }
+  };
+  trackRunStart(run, decisionPlayer, state);
+  const item = { baseId: "DAGGER", identified: false, rarity: "rare" };
+  trackLootLifecycle("found", { state, itemKey: item, source: "chest" });
+  trackLootLifecycle("bagged", { state, itemKey: item, source: "chest", lootId: "run:loot:3" });
+  trackLootLifecycle("bagged", { state, itemKey: item, source: "chest", lootId: "run:loot:3" });
+  trackStairsDiscovery({ state, floor: 2, stairsType: "stairs-down", stepsAtDiscovery: 9, hpRate: 0.5, mpRate: 0.25 });
+  trackFloorExploration({ state, floor: 2, stairsDiscovered: true, floorCompleted: true });
+  trackValuableLocation("chest", "discovered", { state, floor: 2, x: 4, y: 5, source: "chest" });
+  trackValuableLocation("chest", "skipped", { state, floor: 2, x: 4, y: 5, source: "chest" });
+  trackPortalDecision("push", { state, portalType: "milestone_portal", nextBandMainId: "short_battle" });
+  trackEliteDecision("avoid", { state, elite: { id: "RUN_ELITE_B2", name: "いにしえの竜 A", floor: 2 }, distance: 4, elitePolicy: "avoid" });
+  const names = events.map(event => event.name);
+  assert.ok(names.includes("loot_lifecycle"));
+  assert.ok(names.includes("stairs_discovered"));
+  assert.ok(names.includes("floor_exploration"));
+  assert.ok(names.includes("valuable_location"));
+  assert.ok(names.includes("portal_decision"));
+  assert.ok(names.includes("elite_decision"));
+  assert.equal(events.filter(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "bagged").length, 1);
+  const portal = events.find(event => event.name === "portal_decision");
+  assert.equal(portal.properties.decision, "push");
+  assert.equal(portal.properties.unbankedObjectLootCount, 1);
+  const elite = events.find(event => event.name === "elite_decision");
+  assert.equal(elite.properties.eliteId, "RUN_ELITE_B2");
+  assert.equal(elite.properties.elitePolicy, "avoid");
+});
+
+check("return-wing snapshots distinguish the Wing from escape scrolls", () => {
+  const resourceSnapshot = buildResourceSnapshot({ inventory: ["TOWN_PORTAL", "ESCAPE_SCROLL"] });
+  assert.equal(resourceSnapshot.consumableWingCount, 1);
+  assert.equal(resourceSnapshot.consumableEscapeScrollCount, 1);
+  assert.equal(resourceSnapshot.consumableReturnCount, 2);
+});
+
+check("combat Wing use is recorded as a return-wing decision", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const combatState = {
+    floor: 2,
+    inventory: ["TOWN_PORTAL"],
+    party: [decisionPlayer],
+    currentRun: {
+      ...decisionState.currentRun,
+      townInventory: ["TOWN_PORTAL"],
+      unbankedObjectLoot: []
+    }
+  };
+  trackRunStart(run, decisionPlayer, combatState);
+  const logQueue = [];
+  const result = resolvePlayerItem(decisionPlayer, { itemKey: "TOWN_PORTAL" }, combatState, logQueue);
+  const portal = events.find(event => event.name === "portal_decision").properties;
+  assert.equal(result.escaped, true);
+  assert.equal(portal.portalType, "return_wing");
+  assert.equal(portal.decision, "return");
+  assert.equal(portal.wingSalvageCount, 0);
+  assert.equal(combatState.inventory.length, 0);
 });
 
 check("combat end numeric fields stay bounded", () => {
@@ -919,7 +1056,8 @@ check("chest action fields preserve valid values and coerce malformed input", ()
   trackRunStart(run, decisionPlayer, decisionState);
   trackChestAction({ lootHint: { aura: "strong" } }, "disarm", {
     trap: "poison needle",
-    hasTrapKit: 1
+    hasTrapKit: 1,
+    rewardCategories: ["weapon", "usable", "unsupported"]
   });
   trackChestAction({ lootHint: { aura: { migrated: true } } }, { migrated: true }, {
     trap: "migrated trap",
@@ -932,9 +1070,16 @@ check("chest action fields preserve valid values and coerce malformed input", ()
       action: chestEvents[0].properties.action,
       trap: chestEvents[0].properties.trap,
       hasTrapKit: chestEvents[0].properties.hasTrapKit,
+      rewardCategories: chestEvents[0].properties.rewardCategories,
       lootAura: chestEvents[0].properties.lootAura
     },
-    { action: "disarm", trap: "poison needle", hasTrapKit: true, lootAura: "strong" }
+    {
+      action: "disarm",
+      trap: "poison needle",
+      hasTrapKit: true,
+      rewardCategories: ["weapon", "usable", "other"],
+      lootAura: "strong"
+    }
   );
   assert.deepEqual(
     {

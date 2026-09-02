@@ -276,7 +276,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   }
 
   if (dropEquipment) {
-    const added = addInventoryItemToState(state, dropEquipment);
+    const added = addInventoryItemToState(state, dropEquipment, { dungeonLoot: true, source: "combat" });
     if (added) {
       recordEquipmentDiscovery(dropEquipment, state);
       if (state.currentRun) {
@@ -300,7 +300,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
 
   const dropAccessory = rollCombatAccessoryDrop(state, rng);
   if (dropAccessory) {
-    const added = addInventoryItemToState(state, dropAccessory);
+    const added = addInventoryItemToState(state, dropAccessory, { dungeonLoot: true, source: "combat" });
     if (added) {
       recordEquipmentDiscovery(dropAccessory, state);
       if (state.currentRun) {
@@ -337,6 +337,19 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   } else if (state.combatState.isRoamingFlack) {
     const defeatedId = state.combatState.roamingMonsterId;
     const eliteName = state.combatState.monsters?.[0]?.name || "強敵";
+    if (state.currentRun) {
+      state.currentRun.eliteDefeatedFloors ||= [];
+      if (!state.currentRun.eliteDefeatedFloors.includes(state.floor)) {
+        state.currentRun.eliteDefeatedFloors.push(state.floor);
+      }
+      state.currentRun.eliteFloors ||= {};
+      state.currentRun.eliteFloors[String(state.floor)] = {
+        ...(state.currentRun.eliteFloors[String(state.floor)] || {}),
+        entryRollResolved: true,
+        spawned: true,
+        defeated: true
+      };
+    }
     state.roamingMonsters = state.roamingMonsters.filter(rm => {
       if (defeatedId) return rm.id !== defeatedId;
       return !(rm.floor === state.floor && rm.x === state.x && rm.y === state.y);
