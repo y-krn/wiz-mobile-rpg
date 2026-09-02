@@ -533,7 +533,6 @@
   color: var(--neon-cyan);
 }
 
-.solo-start-craft-option span,
 .solo-start-craft-option .solo-start-craft-cost.is-insufficient {
   color: var(--text-danger, var(--neon-red));
 }
