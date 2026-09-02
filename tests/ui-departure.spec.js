@@ -115,15 +115,17 @@ for (const vp of VIEWPORTS) {
     await expect(page.locator('.milestone-merchant-balance-item[data-material="呪布"]')).toHaveText('呪布 2 (-3)');
     await expect(page.locator('.milestone-merchant-balance-item[data-material="黒角"]')).toHaveText('黒角 2 (-1)');
     await page.locator('#btn-merchant-confirm').click();
-    await expect(page.locator('#log-content')).toContainText('ショートソード（未鑑定）の呪いを解いた');
+    await expect(page.locator('#log-content')).toContainText('ショートソード（未鑑定）（試用済）の呪いを解いた');
 
     await page.evaluate(async () => {
       const { openSubmenu } = await import('/src/navigation.js');
       openSubmenu('milestone_portal', '帰還の門');
     });
-    const retreat = page.getByRole('button', { name: /素材を100%持ち帰る/ });
+    const retreat = page.getByRole('button', { name: '撤退して素材を100%、未確定戦果をすべて持ち帰る' });
     expect((await retreat.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await retreat.click();
+    await expect(page.locator('.milestone-portal-confirmation')).toContainText('Returnを確定しますか？');
+    await page.locator('#btn-portal-confirm').click();
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return { gameState: state.gameState, reason: state.currentRun.returnReason };

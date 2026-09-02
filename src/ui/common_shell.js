@@ -70,6 +70,11 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
   const lines = (Array.isArray(logs) ? logs : [])
     .flatMap(message => String(message ?? "").split("\n"))
     .filter(Boolean);
+  const activeObservationTexts = activeObservations === undefined
+    ? null
+    : new Set(Object.values(activeObservations || {})
+      .filter(entry => entry?.lifecycle === "active" && entry.text)
+      .map(entry => entry.text));
   const unresolved = activeObservations !== undefined
     ? Object.values(activeObservations || {})
       .filter(entry => entry?.lifecycle === "active" && entry.text)
@@ -97,7 +102,7 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
   lines.forEach(line => {
     const entry = classifyEventLine(line);
     if (entry.kind === "unresolved" && activeObservations === undefined) unresolved.push(entry);
-    if (entry.kind === "transient") transient.push(entry);
+    if (entry.kind === "transient" && !activeObservationTexts?.has(entry.text)) transient.push(entry);
   });
   return {
     unresolved: unresolved.slice(-unresolvedLimit),
