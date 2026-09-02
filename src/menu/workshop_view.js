@@ -10,6 +10,11 @@ import {
   purchaseWorkshopNode
 } from "../systems/workshop.js";
 
+function isWorkshopVnextNode(node) {
+  const grants = node.grants || {};
+  return Boolean(grants.startingGear || grants.affixIds?.length || grants.spellIds?.length);
+}
+
 function formatCost(cost) {
   return Object.entries(cost || {}).map(([name, quantity]) => `${name}×${quantity}`).join(" / ");
 }
@@ -48,10 +53,20 @@ function renderBalance(container) {
 export function renderWorkshop(optGrid) {
   optGrid.className = "submenu-grid workshop-grid";
   optGrid.innerHTML = "";
+  const intro = document.createElement("div");
+  intro.className = "workshop-purpose";
+  intro.dataset.workshopPurpose = "possibilities";
+  intro.innerHTML = `
+    <strong>次の潜行で試せる可能性を増やす場所</strong>
+    <span>記録から候補を広げます。どれが最適かは、あなたの潜行で確かめてください。</span>
+  `;
+  optGrid.appendChild(intro);
   renderBalance(optGrid);
   Object.entries(WORKSHOP_CATEGORIES).forEach(([category, label]) => {
     const nodes = WORKSHOP_NODES.filter(node => (
-      node.category === category && isWorkshopNodeUnlocked(node, state.keyItems)
+      node.category === category
+      && isWorkshopVnextNode(node)
+      && isWorkshopNodeUnlocked(node, state.keyItems)
     ));
     if (nodes.length === 0) return;
     const heading = document.createElement("h3");

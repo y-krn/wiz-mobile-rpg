@@ -3,7 +3,7 @@ import { test, expect } from './fixtures/browser-health.js';
 const TOWN_SUBMENUS = [
   ['castle_main', 'おしろ - 記録'],
   ['castle_death_logs', 'おしろ - 全滅ログ'],
-  ['workshop_main', '工房 - 恒久アンロック'],
+  ['workshop_main', '工房 - 広がった可能性'],
 ];
 
 async function openTownSubmenu(page, type, title) {
@@ -70,7 +70,7 @@ for (const viewport of [
   { width: 390, height: 844 },
   { width: 430, height: 932 },
 ]) {
-  test(`Milestone key items reveal matching workshop branches at ${viewport.width}px`, async ({ page }) => {
+  test(`Workshop keeps lateral candidates visible without vertical stat branches at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/');
 
@@ -82,21 +82,24 @@ for (const viewport of [
       state.metaMaterials = { '鉄片': 10, '黒角': 10, '竜鱗': 10 };
       state.workshop = { ranks: {} };
       state.keyItems = nextKeyItems;
-      openSubmenu('workshop_main', '工房 - 恒久アンロック');
+      openSubmenu('workshop_main', '工房 - 広がった可能性');
     }, keyItems);
 
     await openWorkshop([]);
-    await expect(page.locator('.workshop-node')).toHaveCount(18);
+    await expect(page.locator('.workshop-node')).toHaveCount(11);
     await expect(page.getByRole('button', { name: /守護者殺し/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /薄氷の誓約/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /生命鍛錬/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /鑑定粉の備蓄/ })).toHaveCount(0);
+    await expect(page.locator('.workshop-category').filter({ hasText: '恒久ステータス' })).toHaveCount(0);
 
     await openWorkshop(['FORGE_SEAL']);
-    await expect(page.locator('.workshop-node')).toHaveCount(19);
+    await expect(page.locator('.workshop-node')).toHaveCount(12);
     await expect(page.getByRole('button', { name: /守護者殺し/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /薄氷の誓約/ })).toHaveCount(0);
 
     await openWorkshop(['FORGE_SEAL', 'ABYSS_SEAL']);
-    await expect(page.locator('.workshop-node')).toHaveCount(20);
+    await expect(page.locator('.workshop-node')).toHaveCount(13);
     await expect(page.getByRole('button', { name: /薄氷の誓約/ })).toBeVisible();
 
     const layout = await page.locator('.workshop-node').evaluateAll((buttons) => ({

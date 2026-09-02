@@ -11,6 +11,7 @@ import { renderResultScreen } from "./result_screen.js";
 import { getDepthCorruption, getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
 import { formatRunQuestProgress } from "../systems/run_quests.js";
 import { updateRecordsStrip } from "./records_view.js";
+import { renderTownHome } from "./town_home.js";
 import { getScreenViewState } from "../state/view_state.js";
 import {
   getDockStateForView,
@@ -233,6 +234,8 @@ export function updateUI() {
   const merchantSubmenu = view.isSubmenu && view.menuType === "milestone_merchant";
   const townSubmenu = view.isTownSubmenu;
   const isTownLikeGoal = gameState === "town" || departurePrepSubmenu;
+
+  if (gameState === "town") renderTownHome();
 
   // Reset/Apply floor-theme class on #game-container
   const container = document.getElementById("game-container");

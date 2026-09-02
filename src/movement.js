@@ -864,6 +864,10 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   });
   state.currentRun.townInventory = state.inventory.slice();
   state.currentRun.unbankedObjectLoot = [];
+  state.currentRun.departureItems = state.inventory.slice();
+  state.currentRun.departureEquipment = { ...(state.party[0]?.equipment || {}) };
+  state.currentRun.firstKillsBefore = [...(state.firstKills || [])];
+  state.currentRun.keyItemsBefore = [...(state.keyItems || [])];
   state.party.forEach(char => {
     char.runTrapAttackBonus = 0;
   });

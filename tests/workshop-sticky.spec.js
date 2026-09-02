@@ -17,7 +17,7 @@ async function openWorkshop(page, viewport) {
     state.gameState = 'town';
     state.metaMaterials = { '獣の牙': 20, '鉄片': 10 };
     state.workshop = { ranks: {} };
-    openSubmenu('workshop_main', '工房 - 恒久アンロック');
+    openSubmenu('workshop_main', '工房 - 広がった可能性');
   });
   await expect(page.locator('#submenu-options.workshop-grid')).toBeVisible();
 }

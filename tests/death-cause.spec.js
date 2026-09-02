@@ -190,8 +190,12 @@ for (const viewport of [
     await expect(summaryRows.nth(0)).toContainText('B5F 火炎の罠 ×2');
     await expect(summaryRows.nth(1)).toContainText('B3F ゴブリンとの戦闘 ×1');
     await expect(page.locator('.death-unclassified-note')).toContainText('1件');
-    await expect(page.locator('.death-countermeasure')).toContainText('罠外しキット');
-    await expect(page.locator('.death-countermeasure')).toContainText('罠喰いの記憶');
+    const countermeasure = page.locator('.death-countermeasure');
+    await expect(countermeasure).toContainText('準備を見直す');
+    await expect(countermeasure).toContainText('広がった可能性を見る');
+    for (const specificSolution of ['罠外しキット', '罠喰いの記憶', '解毒薬', '目薬', '守りの薬', '生命鍛錬']) {
+      await expect(countermeasure).not.toContainText(specificSolution);
+    }
 
     const layout = await page.evaluate(() => ({
       horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -207,11 +211,12 @@ for (const viewport of [
       expect(button.right).toBeLessThanOrEqual(viewport.width);
     }
 
-    await page.getByRole('button', { name: /出発準備：罠外しキット/ }).click();
+    await page.getByRole('button', { name: /^準備を見直す/ }).click();
     await expect(page.locator('.solo-class-option').first()).toBeVisible();
     await page.locator('#btn-submenu-back').click();
-    await page.getByRole('button', { name: /工房：罠喰いの記憶/ }).click();
-    await expect(page.locator('.workshop-node').filter({ hasText: '罠喰いの記憶' })).toBeVisible();
+    await page.getByRole('button', { name: /^広がった可能性を見る/ }).click();
+    await expect(page.locator('.workshop-purpose[data-workshop-purpose="possibilities"]')).toBeVisible();
+    await expect(page.getByRole('button', { name: /生命鍛錬/ })).toHaveCount(0);
   });
 }
 

@@ -1,5 +1,5 @@
 import { state, saveGame, saveAutosave, addLog, finalizeRunRecords, recordCharDeath, formatCharDeathLog, normalizeDeathSource, HISTORY_LIMIT } from "./state.js";
-import { START_X, START_Y, DIR_N, getPartyMaxAffix } from "./data.js";
+import { START_X, START_Y, DIR_N, getItemBaseId, getPartyMaxAffix } from "./data.js";
 import { updateUI } from "./ui.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
 import { updateRunQuests } from "./systems/run_quests.js";
@@ -38,6 +38,10 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
     }
   }
   updateRunQuests(run, getPartyMaxAffix(state.party, "contractReward"));
+  const previousFirstKills = new Set(run.firstKillsBefore || []);
+  run.codexDiscoveries = (state.firstKills || []).filter(name => !previousFirstKills.has(name));
+  const previousKeyItems = new Set(run.keyItemsBefore || []);
+  run.workshopDiscoveries = (state.keyItems || []).filter(keyItem => !previousKeyItems.has(keyItem));
   run.materialsBeforeBanking = { ...(run.materials || {}) };
   run.goldEarned = Number(run.goldEarned ?? run.gold) || 0;
   run.lootCount = Number(run.lootCount) || Object.values(run.materialsBeforeBanking)
@@ -162,6 +166,15 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
       }
       : null
   };
+  runSummary.foundItems = [...(run.itemsFound || []), ...(run.equipmentFound || [])]
+    .map(item => ({
+      baseId: getItemBaseId(item),
+      kind: typeof item === "object" ? item.kind || "equipment" : "item",
+      identified: typeof item === "object" ? item.identified !== false : true
+    }))
+    .filter(item => item.baseId);
+  runSummary.codexDiscoveries = [...(run.codexDiscoveries || [])];
+  runSummary.workshopDiscoveries = [...(run.workshopDiscoveries || [])];
   state.runHistory ||= [];
   state.runHistory.unshift(runSummary);
   state.runHistory = state.runHistory.slice(0, HISTORY_LIMIT);

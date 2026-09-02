@@ -92,6 +92,12 @@ export const createDefaultCurrentRun = () => ({
   quests: [],
   defeatsByRole: {},
   codexRewards: {},
+  departureItems: [],
+  departureEquipment: {},
+  firstKillsBefore: [],
+  keyItemsBefore: [],
+  codexDiscoveries: [],
+  workshopDiscoveries: [],
   recordResult: null
 });
 
