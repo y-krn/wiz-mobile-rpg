@@ -134,3 +134,42 @@ test('Wing shows every unbanked candidate, includes equipped loot, and cancels s
   expect(afterConfirm.lost).toBe(1);
   expect(afterConfirm.equipped).toBeNull();
 });
+
+test('Wing excludes the dungeon-found wing from salvage candidates', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await seedPortalRun(page);
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { menuContext, openSubmenu } = await import('/src/navigation.js');
+    state.currentRun.townInventory = [];
+    state.currentRun.unbankedObjectLoot.unshift({ id: 'loot-wing', item: 'TOWN_PORTAL' });
+    state.inventory = ['TOWN_PORTAL'];
+    menuContext.itemKey = 'TOWN_PORTAL';
+    menuContext.itemIdx = 0;
+    openSubmenu('item_target_select', '帰還の翼の対象');
+  });
+
+  await expect(page.locator('[data-loot-id="loot-wing"]')).toHaveCount(0);
+  await expect(page.locator('.wing-selection-candidate-count')).toHaveText('救出候補 3点');
+  await expect(page.locator('.wing-selection-status')).toHaveText('救出選択 0/2点');
+
+  await page.locator('[data-loot-id="loot-sword"]').click();
+  await page.locator('[data-loot-id="loot-potion"]').click();
+  await page.locator('#btn-wing-salvage-confirm').click();
+  await expect(page.locator('#result-overlay')).toBeVisible();
+
+  const settled = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      inventory: state.inventory.slice(),
+      banked: state.currentRun.bankedObjectLoot.map(item => item.baseId || item),
+      lost: state.currentRun.lostObjectLoot.map(item => item.baseId || item),
+      unbanked: state.currentRun.unbankedObjectLoot,
+    };
+  });
+  expect(settled.inventory).toEqual([]);
+  expect(settled.banked).toEqual(['LONG_SWORD', 'GREATER_HEAL']);
+  expect(settled.lost).toEqual(['SHORT_SWORD']);
+  expect(settled.unbanked).toEqual([]);
+});

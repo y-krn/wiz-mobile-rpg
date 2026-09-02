@@ -2,7 +2,7 @@ import { state, initNewGame, saveAutosave, addLog, markMapChanged, recordCharDea
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getClassJpName, getItemData, getPartyMaxAffix, DX, DY, DIR_NAMES } from "../data.js";
+import { isSpellcaster, getClassJpName, getItemData, getItemBaseId, getPartyMaxAffix, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
 import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getCurrentExplorationCell, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
 import { completeCampEntry, getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
@@ -374,17 +374,29 @@ function isEquippedLoot(entry) {
   )));
 }
 
+function getActiveWingLootId() {
+  const selectedInventoryItem = state.inventory?.[menuContext.itemIdx];
+  const activeWing = getItemBaseId(selectedInventoryItem) === "TOWN_PORTAL"
+    ? selectedInventoryItem
+    : menuContext.itemKey;
+  if (getItemBaseId(activeWing) !== "TOWN_PORTAL") return null;
+  return findRunObjectLootEntry(state, activeWing)?.id || null;
+}
+
 function renderReturnWingSelection(optGrid, { preserveSelection = false } = {}) {
   const run = state.currentRun;
   if (!preserveSelection) {
     selectedWingLootIds = new Set();
     selectedWingRunSeed = run?.runSeed || null;
   }
-  const loot = run?.unbankedObjectLoot || [];
+  const activeWingLootId = getActiveWingLootId();
+  const loot = (run?.unbankedObjectLoot || []).filter(entry => entry.id !== activeWingLootId);
   if (selectedWingRunSeed !== run?.runSeed) {
     selectedWingRunSeed = run?.runSeed || null;
     selectedWingLootIds = new Set();
   }
+  const availableLootIds = new Set(loot.map(entry => entry.id));
+  selectedWingLootIds = new Set([...selectedWingLootIds].filter(id => availableLootIds.has(id)));
 
   optGrid.innerHTML = "";
 
@@ -400,6 +412,12 @@ function renderReturnWingSelection(optGrid, { preserveSelection = false } = {}) 
   selectionStatus.dataset.selectedCount = String(selectedWingLootIds.size);
   selectionStatus.textContent = `救出選択 ${selectedWingLootIds.size}/${RETURN_WING_SALVAGE_COUNT}点`;
   optGrid.appendChild(selectionStatus);
+
+  const candidateCount = document.createElement("div");
+  candidateCount.className = "wing-selection-candidate-count";
+  candidateCount.dataset.candidateCount = String(loot.length);
+  candidateCount.textContent = `救出候補 ${loot.length}点`;
+  optGrid.appendChild(candidateCount);
 
   if (loot.length === 0) {
     const empty = document.createElement("div");

@@ -254,7 +254,8 @@
 
 .milestone-portal-choice,
 .wing-selection-heading,
-.wing-selection-status {
+.wing-selection-status,
+.wing-selection-candidate-count {
   min-height: var(--tap-min);
 }
 
@@ -282,6 +283,13 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
+}
+
+.wing-selection-candidate-count {
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
 }
 
 .wing-selection-status {
