@@ -44,13 +44,16 @@ stored history, so compacting the strip does not remove log-only information.
 When a future mechanic has an unresolved fact that is not represented by a log
 line, it must call `addEventLog()` with a stable lifecycle key and resolve or
 clear it when the fact changes before hiding any other log surface.
+Confirmed one-time outcomes such as bag-full or failed carry messages remain
+ordinary recent log lines and are classified as `transient`; they must not be
+registered as active observations.
 
 ## Ownership display
 
 `getItemOwnership()` and `appendOwnershipBadge()` expose the shared display
 contract. They read existing `townInventory`, `unbankedObjectLoot`, and result
 arrays; they do not add inventory slots, alter settlement, or change save
-rules. The four labels are:
+rules. The shared labels are:
 
 - `town-confirmed`: 街から持込・確定済み
 - `dungeon-unconfirmed`: 迷宮で取得・未確定

@@ -12,6 +12,7 @@ import { state, addEventLog, resolveEventObservation } from "../../../src/state.
 
 assert.equal(classifyEventLine("【気配】壁の向こうで音がした。").kind, "unresolved");
 assert.equal(classifyEventLine("戦闘に勝利した。").kind, "transient");
+assert.equal(classifyEventLine("バッグがいっぱいでアイテムを持ち帰れなかった！").kind, "transient");
 
 const events = getEventStripEntries([
   "【痕跡】隣接する床に罠の気配がある。",
@@ -36,6 +37,10 @@ observation["aura:1:boss:4:4"].lifecycle = "resolved";
 assert.equal(
   getEventStripEntries(["【気配】強敵が近い。", "通常ログ"], { activeObservations: observation }).unresolved.length,
   0
+);
+assert.deepEqual(
+  getEventStripEntries(["バッグがいっぱいでアイテムを持ち帰れなかった！"], { activeObservations: {} }).transient.map(entry => entry.text),
+  ["バッグがいっぱいでアイテムを持ち帰れなかった！"]
 );
 
 state.logs = [];

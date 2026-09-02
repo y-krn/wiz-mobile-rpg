@@ -859,10 +859,7 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   state.inventory = [];
   [...workshopGrants.returnItems, ...craftGrants.items].forEach(item => {
     if (!addInventoryItem(item)) {
-      addEventLog(`[!] バッグが満杯（${INVENTORY_CAPACITY}/${INVENTORY_CAPACITY}）で${item}を持ち込めなかった。`, {
-        key: `bag:town:${item}`,
-        scope: "bag:town"
-      });
+      addLog(`[!] バッグが満杯（${INVENTORY_CAPACITY}/${INVENTORY_CAPACITY}）で${item}を持ち込めなかった。`);
     }
   });
   state.currentRun.townInventory = state.inventory.slice();

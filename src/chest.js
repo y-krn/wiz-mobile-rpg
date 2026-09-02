@@ -690,7 +690,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
         }
         addLog(`アイテム: [${item.name}] を手に入れた！`);
       } else {
-        addEventLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`, getChestObservationOptions(chest));
+        addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
       }
     }
 
@@ -706,9 +706,9 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
         if (alreadyHasWing) {
           addLog("帰還の翼はすでに所持している。");
         } else if (state.inventory.length >= INVENTORY_CAPACITY) {
-          addEventLog("[!] バッグがいっぱいで [帰還の翼] を持ち帰れなかった！", getChestObservationOptions(chest));
+          addLog("[!] バッグがいっぱいで [帰還の翼] を持ち帰れなかった！");
         } else {
-          addEventLog("帰還の翼を持ち帰れなかった。", getChestObservationOptions(chest));
+          addLog("帰還の翼を持ち帰れなかった。");
         }
       }
     }
@@ -727,7 +727,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
         }
         addLog(`装身具: [${item.name}] を手に入れた！`);
       } else {
-        addEventLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`, getChestObservationOptions(chest));
+        addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
       }
     }
 

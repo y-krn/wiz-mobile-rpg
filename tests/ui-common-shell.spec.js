@@ -138,4 +138,25 @@ test.describe('Common UI vNext shell @smoke', () => {
       { ownership: 'ambiguous', badge: '所有元不明・要確認' },
     ]);
   });
+
+  test('keeps confirmed bag-loss results as transient events', async ({ page }) => {
+    await page.goto('/');
+    const result = await page.evaluate(async () => {
+      const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
+      const { updateUI } = await import('/src/ui.js');
+      state.party = [createSoloCharacter('Mage')];
+      state.currentRun = createDefaultCurrentRun();
+      state.gameState = 'explore';
+      state.logs = ['[!] バッグがいっぱいで [帰還の翼] を持ち帰れなかった！'];
+      updateUI();
+      const entry = document.querySelector('#log-content [data-event-kind="transient"]');
+      return {
+        kind: entry?.dataset.eventKind,
+        text: entry?.textContent,
+      };
+    });
+
+    expect(result.kind).toBe('transient');
+    expect(result.text).toContain('持ち帰れなかった');
+  });
 });

@@ -31,10 +31,14 @@ const UNRESOLVED_EVENT_PATTERNS = Object.freeze([
   /【気配】/,
   /【痕跡】/,
   /不確実/,
-  /未知/,
+  /未知/
+]);
+
+const TRANSIENT_RESULT_PATTERNS = Object.freeze([
   /バッグが満杯/,
   /バッグ.*いっぱい/,
-  /持ち帰れなかった/
+  /持ち帰れなかった/,
+  /持ち込めなかった/
 ]);
 
 function sameItem(candidate, expected) {
@@ -54,7 +58,10 @@ function hasBaseId(items, item) {
 export function classifyEventLine(line) {
   const text = typeof line === "string" ? line : String(line ?? "");
   return {
-    kind: UNRESOLVED_EVENT_PATTERNS.some(pattern => pattern.test(text)) ? "unresolved" : "transient",
+    kind: UNRESOLVED_EVENT_PATTERNS.some(pattern => pattern.test(text)
+      && !TRANSIENT_RESULT_PATTERNS.some(resultPattern => resultPattern.test(text)))
+      ? "unresolved"
+      : "transient",
     text
   };
 }
