@@ -797,6 +797,13 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
     ...workshopGrants.returnItems,
     ...craftGrants.items
   ];
+  // Keep the ownership boundary explicit for Result/Town. These are the
+  // confirmed items brought into this run; dungeon rewards are recorded
+  // separately as they are acquired.
+  state.currentRun.departureItems = state.inventory.slice();
+  state.currentRun.departureEquipment = { ...(state.party[0]?.equipment || {}) };
+  state.currentRun.firstKillsBefore = [...(state.firstKills || [])];
+  state.currentRun.keyItemsBefore = [...(state.keyItems || [])];
   state.party.forEach(char => {
     char.runTrapAttackBonus = 0;
   });

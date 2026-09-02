@@ -1,5 +1,5 @@
 import { state, saveGame, saveAutosave, addLog } from "../state.js";
-import { getClassJpName, getItemBaseId } from "../data.js";
+import { getClassJpName, getItemBaseId, getItemData } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
 import { getFloorLabel } from "../data/floor_themes.js";
@@ -16,13 +16,160 @@ function formatMaterials(materials) {
   return entries.map(([name, quantity]) => `<span class="result-material-chip">${name}<strong>×${quantity}</strong></span>`).join("");
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function getOutcomeMeta(reason) {
+  if (reason === "milestone_portal") {
+    return {
+      key: "portal",
+      label: "帰還の門から帰還",
+      detail: "未確定の戦果をすべて確定して、街へ戻った。",
+      success: true
+    };
+  }
+  if (reason === "escape_scroll") {
+    return {
+      key: "wing",
+      label: "帰還の翼で離脱",
+      detail: "帰還の翼を使い、追加の危険を受けずに街へ戻った。",
+      success: true
+    };
+  }
+  if (reason === "gameover") {
+    return {
+      key: "death",
+      label: "迷宮で死亡",
+      detail: "物は失っても、今回の記録と新しい知識は残る。",
+      success: false
+    };
+  }
+  if (reason === "abandon") {
+    return {
+      key: "abandon",
+      label: "冒険を断念",
+      detail: "持ち帰っていない戦果を手放し、街へ戻った。",
+      success: false
+    };
+  }
+  return {
+    key: "stairs",
+    label: "階段から帰還",
+    detail: "今回の戦果を確定して、街へ戻った。",
+    success: true
+  };
+}
+
 function getReasonText(reason) {
-  if (reason === "escape_scroll") return "帰還の翼で撤退";
-  if (reason === "milestone_portal") return "帰還の門で撤退";
-  if (reason === "stairs") return "階段から帰還";
-  if (reason === "gameover") return "迷宮で死亡";
-  if (reason === "abandon") return "冒険を断念";
-  return "潜行終了";
+  return getOutcomeMeta(reason).label;
+}
+
+function itemTypeLabel(item) {
+  const type = getItemData(item)?.type;
+  return type === "weapon" ? "武器" : type === "shield" ? "盾" : type === "armor" ? "防具" : type === "accessory" ? "装身具" : "道具";
+}
+
+function getItemLabel(item) {
+  const data = getItemData(item);
+  if (!data) return getItemBaseId(item) || "不明な戦果";
+  if (typeof item === "object" && item.identified === false) {
+    return item.unidentifiedName || `未鑑定の${itemTypeLabel(item)}`;
+  }
+  return data.name;
+}
+
+function getFoundItems(run) {
+  return [...(run.itemsFound || []), ...(run.equipmentFound || [])].filter(Boolean);
+}
+
+function getDepartureItems(run) {
+  return Array.isArray(run.departureItems) ? run.departureItems : [];
+}
+
+function getResultLoot(run, outcome) {
+  const found = getFoundItems(run);
+  const explicitReturned = run.recoveredItems || run.salvagedItems;
+  const explicitLost = run.lostObjectLoot || run.lostItems;
+  if (Array.isArray(explicitReturned) || Array.isArray(explicitLost)) {
+    return {
+      returned: Array.isArray(explicitReturned) ? explicitReturned : [],
+      lost: Array.isArray(explicitLost) ? explicitLost : []
+    };
+  }
+  return outcome.success
+    ? { returned: found, lost: [] }
+    : { returned: [], lost: found };
+}
+
+function formatLootList(items, emptyText) {
+  if (!items.length) return `<span class="list-empty">${emptyText}</span>`;
+  return items.map(item => `<span class="result-loot-chip">${escapeHtml(getItemLabel(item))}</span>`).join("");
+}
+
+function getLootHtml(run, outcome) {
+  const { returned, lost } = getResultLoot(run, outcome);
+  const departure = getDepartureItems(run);
+  return `
+    <section class="result-focus-section result-loot-section" aria-labelledby="result-loot-title" data-result-loot>
+      <h2 class="result-section-heading" id="result-loot-title"><span>戦果のゆくえ</span><strong>${returned.length ? `${returned.length}点を回収` : lost.length ? `${lost.length}点を喪失` : "記録なし"}</strong></h2>
+      <div class="result-loot-note">持込品は確定済みの所有物。Dungeon戦果とは別に扱われます。</div>
+      <div class="result-loot-group result-loot-returned">
+        <small>${outcome.key === "wing" ? "翼で救出した戦果" : "街へ回収した戦果"}</small>
+        <div>${formatLootList(returned, "なし")}</div>
+      </div>
+      ${lost.length > 0 ? `<div class="result-loot-group result-loot-lost"><small>Dungeonで失われた戦果</small><div>${formatLootList(lost, "なし")}</div></div>` : ""}
+      <div class="result-loot-group result-loot-carried"><small>持込品（未使用分）</small><div>${formatLootList(departure, "なし")}</div></div>
+    </section>
+  `;
+}
+
+function getRepresentativeFacts(run, outcome) {
+  const facts = [outcome.detail, `${getFloorLabel(state, run.deepestFloor)}まで到達`];
+  const death = run.deathLogs?.at(-1);
+  if (outcome.key === "death" && death) {
+    facts.push(`死因: ${death.cause || death.source || "原因未記録"}`);
+  }
+  const found = getFoundItems(run);
+  if (found.length > 0) facts.push(`代表的な戦果: ${getItemLabel(found[0])}`);
+  if (run.defeatedMilestones?.length > 0) {
+    facts.push(`階層守護者を${run.defeatedMilestones.at(-1)}Fで撃破`);
+  }
+  if (run.codexDiscoveries?.length > 0) {
+    facts.push(`Codexに新規記録: ${run.codexDiscoveries.slice(0, 2).join(" / ")}`);
+  }
+  if (run.workshopDiscoveries?.length > 0) {
+    facts.push("Workshopに新しい可能性が開いた");
+  }
+  return [...new Set(facts)].slice(0, 5);
+}
+
+function getMemoryHtml(run, outcome) {
+  return `
+    <section class="result-memory-section" aria-labelledby="result-memory-title" data-result-memory>
+      <div class="result-memory-heading"><span class="result-section-kicker">今回の記憶</span><h2 id="result-memory-title">物は失う。物語は残る。</h2></div>
+      <ul class="result-memory-list">
+        ${getRepresentativeFacts(run, outcome).map(fact => `<li>${escapeHtml(fact)}</li>`).join("")}
+      </ul>
+    </section>
+  `;
+}
+
+function getDiscoveryHtml(run) {
+  const codex = (run.codexDiscoveries || []).map(name => `<li>${escapeHtml(name)}をCodexに記録</li>`);
+  const workshop = (run.workshopDiscoveries || []).map(name => `<li>${escapeHtml(name)}に関わる可能性が開いた</li>`);
+  if (!codex.length && !workshop.length) return "";
+  return `
+    <section class="result-discovery-section" aria-label="新しく増えた記録と可能性" data-result-discoveries>
+      ${codex.length ? `<div><h2>新しく分かったこと</h2><ul>${codex.join("")}</ul></div>` : ""}
+      ${workshop.length ? `<div><h2>広がった可能性</h2><ul>${workshop.join("")}</ul></div>` : ""}
+    </section>
+  `;
 }
 
 function getRecordHtml(run) {
@@ -89,18 +236,23 @@ export function renderResultScreen() {
   if (!overlay || !state.currentRun) return;
 
   const run = state.currentRun;
-  const isSuccess = run.returnReason !== "gameover" && run.returnReason !== "abandon";
+  const outcome = getOutcomeMeta(run.returnReason);
+  const isSuccess = outcome.success;
   const rawTotal = Object.values(run.materialsBeforeBanking || {}).reduce((sum, quantity) => sum + quantity, 0);
   const bankedTotal = Object.values(run.bankedMaterials || {}).reduce((sum, quantity) => sum + quantity, 0);
   const codexTotal = Object.values(run.codexRewards || {}).reduce((sum, quantity) => sum + quantity, 0);
 
   overlay.innerHTML = `
-    <div class="result-header ${isSuccess ? "success" : "failed"}">
+    <div class="result-header ${outcome.success ? "success" : "failed"} result-outcome-${outcome.key}" data-result-outcome="${outcome.key}">
       <span class="result-outcome">${getReasonText(run.returnReason)}</span>
       <h1 class="result-title">今回の深度 <strong>B${run.deepestFloor}F</strong></h1>
+      <p class="result-outcome-detail">${outcome.detail}</p>
     </div>
     <div class="result-body">
+      ${getMemoryHtml(run, outcome)}
       ${getRecordHtml(run)}
+      ${getLootHtml(run, outcome)}
+      ${getDiscoveryHtml(run)}
       <section class="result-focus-section" aria-labelledby="result-material-title">
         <h2 class="result-section-heading" id="result-material-title">
           <span>素材収支</span><strong>${rawTotal} → ${bankedTotal}</strong>
@@ -119,7 +271,7 @@ export function renderResultScreen() {
       <div class="result-run-note">${getEvaluationText(run, isSuccess)}</div>
     </div>
     <div class="result-footer-actions">
-      <button id="btn-result-castle" class="btn btn-neon btn-block">街へ戻る</button>
+      <button id="btn-result-castle" class="btn btn-neon btn-block" data-result-next="town">街へ戻る</button>
     </div>
   `;
 

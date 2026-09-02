@@ -1,10 +1,59 @@
 import { state, saveGame, saveAutosave, addLog, finalizeRunRecords, recordCharDeath, formatCharDeathLog, normalizeDeathSource, HISTORY_LIMIT } from "./state.js";
-import { START_X, START_Y, DIR_N, getPartyMaxAffix } from "./data.js";
+import { START_X, START_Y, DIR_N, getItemBaseId, getPartyMaxAffix } from "./data.js";
 import { updateUI } from "./ui.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
 import { updateRunQuests } from "./systems/run_quests.js";
 import { findMapCellByType } from "./rules/map_queries.js";
 import { trackCombatEnd, trackRunEnd } from "./telemetry.js";
+
+function removeUnbankedLoot(run) {
+  const found = [...(run.itemsFound || []), ...(run.equipmentFound || [])].filter(Boolean);
+  const departure = [
+    ...(run.departureItems || []),
+    ...Object.values(run.departureEquipment || {})
+  ].filter(Boolean);
+  const protectedCounts = departure.reduce((counts, item) => {
+    const baseId = getItemBaseId(item);
+    if (baseId) counts[baseId] = (counts[baseId] || 0) + 1;
+    return counts;
+  }, {});
+  const protectedInstances = new Set(
+    departure.map(item => typeof item === "object" ? item.instanceId : null).filter(Boolean)
+  );
+
+  found.forEach(item => {
+    const baseId = getItemBaseId(item);
+    if (!baseId) return;
+    const instanceId = typeof item === "object" ? item.instanceId : null;
+    let inventoryIndex = -1;
+    if (instanceId) {
+      inventoryIndex = state.inventory.findIndex(candidate => candidate?.instanceId === instanceId);
+    } else if (typeof item === "object") {
+      inventoryIndex = state.inventory.findIndex(candidate => candidate === item);
+    }
+    if (inventoryIndex < 0) {
+      const matching = state.inventory
+        .map((candidate, index) => ({ candidate, index }))
+        .filter(({ candidate }) => getItemBaseId(candidate) === baseId);
+      if (matching.length > (protectedCounts[baseId] || 0)) {
+        inventoryIndex = matching.at(-1).index;
+      }
+    }
+    if (inventoryIndex >= 0) state.inventory.splice(inventoryIndex, 1);
+
+    if (instanceId || typeof item === "object") {
+      state.party.forEach(char => {
+        Object.entries(char.equipment || {}).forEach(([slot, equipped]) => {
+          const sameInstance = instanceId && equipped?.instanceId === instanceId;
+          const isDepartureGear = equipped && (
+            protectedInstances.has(equipped.instanceId) || departure.includes(equipped)
+          );
+          if (!isDepartureGear && (sameInstance || equipped === item)) char.equipment[slot] = null;
+        });
+      });
+    }
+  });
+}
 
 export function triggerRunResult(reason) {
   if (!state.currentRun || state.gameState === "result" || state.currentRun.returnReason) return;
@@ -33,6 +82,10 @@ export function triggerRunResult(reason) {
     }
   }
   updateRunQuests(run, getPartyMaxAffix(state.party, "contractReward"));
+  const previousFirstKills = new Set(run.firstKillsBefore || []);
+  run.codexDiscoveries = (state.firstKills || []).filter(name => !previousFirstKills.has(name));
+  const previousKeyItems = new Set(run.keyItemsBefore || []);
+  run.workshopDiscoveries = (state.keyItems || []).filter(keyItem => !previousKeyItems.has(keyItem));
   run.materialsBeforeBanking = { ...(run.materials || {}) };
   run.goldEarned = Number(run.goldEarned ?? run.gold) || 0;
   run.lootCount = Number(run.lootCount) || Object.values(run.materialsBeforeBanking)
@@ -100,6 +153,12 @@ export function triggerRunResult(reason) {
     state.deathLogs = state.deathLogs.slice(0, 20);
   }
 
+  // Departure items are confirmed ownership. Only the dungeon rewards
+  // recorded in this run are removed on death/abandon; the Result screen can
+  // therefore report the same boundary without implying that a failed run
+  // returned newly found loot to Town.
+  if (isDeathLike) removeUnbankedLoot(run);
+
   if (isDeath) {
     trackCombatEnd("gameover", {
       floor: state.floor,
@@ -151,6 +210,15 @@ export function triggerRunResult(reason) {
       }
       : null
   };
+  runSummary.foundItems = [...(run.itemsFound || []), ...(run.equipmentFound || [])]
+    .map(item => ({
+      baseId: getItemBaseId(item),
+      kind: typeof item === "object" ? item.kind || "equipment" : "item",
+      identified: typeof item === "object" ? item.identified !== false : true
+    }))
+    .filter(item => item.baseId);
+  runSummary.codexDiscoveries = [...(run.codexDiscoveries || [])];
+  runSummary.workshopDiscoveries = [...(run.workshopDiscoveries || [])];
   state.runHistory ||= [];
   state.runHistory.unshift(runSummary);
   state.runHistory = state.runHistory.slice(0, HISTORY_LIMIT);

@@ -104,12 +104,47 @@
 
         <!-- Town controls (shown in town mode) -->
         <div id="town-controls" class="controls-group">
-          <div class="town-grid">
-            <button id="btn-town-dungeon" class="btn btn-neon btn-town">迷宮に入る</button>
-            <button id="btn-town-quest-board" class="btn btn-neon btn-town">依頼板</button>
-            <button id="btn-town-castle" class="btn btn-neon btn-town">おしろ (記録)</button>
-            <button id="btn-town-workshop" class="btn btn-neon btn-town" style="border-color: var(--neon-green); color: var(--neon-green);">工房</button>
-            <button id="btn-town-archives" class="btn btn-neon btn-town">書庫 (図鑑・記録)</button>
+          <div class="town-grid" data-town-home>
+            <section class="town-home-section town-home-last-run" aria-labelledby="town-last-run-title">
+              <div class="town-home-section-heading">
+                <span class="town-home-kicker">前回の冒険</span>
+                <h2 id="town-last-run-title">記憶へ定着した出来事</h2>
+              </div>
+              <div id="town-last-run-summary" class="town-last-run-summary" aria-live="polite"></div>
+              <button id="btn-town-castle" class="btn btn-neon btn-town">
+                <strong>冒険記録を見る</strong><span>おしろ — 何が起きたか</span>
+              </button>
+            </section>
+
+            <section class="town-home-section" aria-labelledby="town-next-run-title">
+              <div class="town-home-section-heading">
+                <span class="town-home-kicker">次の潜行</span>
+                <h2 id="town-next-run-title">次はどう賭けるか</h2>
+              </div>
+              <div class="town-home-actions">
+                <button id="btn-town-dungeon" class="btn btn-neon btn-town">
+                  <strong>準備を整える</strong><span>クラスと開始地点を選ぶ</span>
+                </button>
+                <button id="btn-town-quest-board" class="btn btn-neon btn-town">
+                  <strong>今回の依頼を選ぶ</strong><span>この潜行の目的を決める</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="town-home-section" aria-labelledby="town-memory-title">
+              <div class="town-home-section-heading">
+                <span class="town-home-kicker">蓄積した記録</span>
+                <h2 id="town-memory-title">迷宮から得た知識と可能性</h2>
+              </div>
+              <div class="town-home-actions">
+                <button id="btn-town-archives" class="btn btn-neon btn-town">
+                  <strong>迷宮について分かったこと</strong><span>書庫 — Codex</span>
+                </button>
+                <button id="btn-town-workshop" class="btn btn-neon btn-town">
+                  <strong>広がった可能性を見る</strong><span>工房 — Workshop</span>
+                </button>
+              </div>
+            </section>
           </div>
         </div>
 

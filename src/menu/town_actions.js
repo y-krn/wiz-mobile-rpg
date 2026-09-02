@@ -19,7 +19,7 @@ export function handleTownOption(option) {
   } else if (option === "run_quest_board") {
     openSubmenu("run_quest_board", "依頼板 - 潜行の目的");
   } else if (option === "workshop") {
-    openSubmenu("workshop_main", "工房 - 恒久アンロック");
+    openSubmenu("workshop_main", "工房 - 広がった可能性");
   } else if (option === "archives") {
     openArchivesOverlay();
   }
@@ -202,8 +202,12 @@ function appendDeathCountermeasure(optGrid, summary) {
   const panel = document.createElement("section");
   panel.className = "death-countermeasure";
   const heading = document.createElement("h3");
-  heading.textContent = `最多死因への準備：${countermeasure.title}`;
+  heading.textContent = `この記録から見直せること`;
   panel.appendChild(heading);
+  const note = document.createElement("p");
+  note.className = "death-countermeasure-note";
+  note.textContent = `記録された${countermeasure.title}は事実の整理です。次の備えは候補から選べます。`;
+  panel.appendChild(note);
 
   const actions = document.createElement("div");
   actions.className = "death-countermeasure-actions";

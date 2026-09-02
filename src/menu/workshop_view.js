@@ -48,6 +48,14 @@ function renderBalance(container) {
 export function renderWorkshop(optGrid) {
   optGrid.className = "submenu-grid workshop-grid";
   optGrid.innerHTML = "";
+  const intro = document.createElement("div");
+  intro.className = "workshop-purpose";
+  intro.dataset.workshopPurpose = "possibilities";
+  intro.innerHTML = `
+    <strong>次の潜行で試せる可能性を増やす場所</strong>
+    <span>記録から候補を広げます。どれが最適かは、あなたの潜行で確かめてください。</span>
+  `;
+  optGrid.appendChild(intro);
   renderBalance(optGrid);
   Object.entries(WORKSHOP_CATEGORIES).forEach(([category, label]) => {
     const nodes = WORKSHOP_NODES.filter(node => (
