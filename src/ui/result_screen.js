@@ -90,22 +90,19 @@ function getFoundItems(run) {
 }
 
 function getDepartureItems(run) {
-  if (Array.isArray(run.returnedTownItems) && run.returnedTownItems.length > 0) {
+  if (Array.isArray(run.returnedTownItems)) {
     return run.returnedTownItems;
   }
-  if (Array.isArray(run.departureItems) && run.departureItems.length > 0) {
-    return run.departureItems;
-  }
-  return Array.isArray(run.returnedTownItems) ? run.returnedTownItems : [];
+  return Array.isArray(run.departureItems) ? run.departureItems : [];
 }
 
 function getResultLoot(run, outcome) {
   const found = getFoundItems(run);
-  const explicitReturned = run.recoveredItems || run.salvagedItems || [
-    ...(run.returnedTownItems || []),
+  const explicitReturned = Array.isArray(run.recoveredItems) ? run.recoveredItems
+    : Array.isArray(run.salvagedItems) ? run.salvagedItems : [
     ...(run.bankedObjectLoot || [])
   ];
-  const explicitLost = run.lostObjectLoot;
+  const explicitLost = Array.isArray(run.lostObjectLoot) ? run.lostObjectLoot : null;
   if (Array.isArray(explicitReturned) || Array.isArray(explicitLost)) {
     return {
       returned: Array.isArray(explicitReturned) ? explicitReturned : [],

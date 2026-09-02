@@ -13,6 +13,7 @@ test('Result leads with run memory and keeps loot ownership explicit', async ({ 
     run.characterClass = 'Fighter';
     run.itemsFound = ['HEAL_POTION'];
     run.equipmentFound = [{ kind: 'equipment', baseId: 'SHORT_SWORD', identified: false, unidentifiedName: '未鑑定の短剣' }];
+    run.returnedTownItems = ['TRAP_KIT'];
     run.departureItems = ['TRAP_KIT'];
     run.codexDiscoveries = ['ゴブリン'];
     run.workshopDiscoveries = ['FORGE_SEAL'];
@@ -31,6 +32,8 @@ test('Result leads with run memory and keeps loot ownership explicit', async ({ 
   await expect(page.locator('[data-result-memory]')).toContainText('代表的な戦果');
   await expect(page.locator('[data-result-loot]')).toContainText('持込品（未使用分）');
   await expect(page.locator('[data-result-loot]')).toContainText('罠外しキット');
+  expect(await page.locator('[data-result-loot]').textContent()).toMatch(/罠外しキット/);
+  expect((await page.locator('[data-result-loot]').textContent()).match(/罠外しキット/g)).toHaveLength(1);
   await expect(page.locator('[data-result-discoveries]')).toContainText('Codex');
   await expect(page.locator('[data-result-discoveries]')).toContainText('可能性');
   const order = await page.locator('.result-body').evaluate((body) =>

@@ -42,10 +42,11 @@ function wasEquipped(stateLike, item) {
 
 function createItemSnapshot(stateLike, item, deepestFloor) {
   const data = getItemData(item) || {};
+  const identified = typeof item !== "object" || item.identified !== false;
   return {
     item,
     baseId: itemId(item),
-    name: data.name || itemId(item) || "不明な品",
+    name: identified ? data.name || itemId(item) || "不明な品" : item.unidentifiedName || "未鑑定の品",
     type: data.type || "item",
     rarity: typeof item?.rarity === "string" ? item.rarity : "common",
     knowledgeStage: typeof item?.knowledgeStage === "string" ? item.knowledgeStage : "unknown",
