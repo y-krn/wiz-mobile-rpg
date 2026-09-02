@@ -10885,7 +10885,9 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
   if (event) route.processedEventKeys.add(routeKey(event));
   if (route.partialInformation && enteredCell?.type === "stairs-down") {
     const milestone = floor % 5 === 0;
-    if (!milestone || route.bossDefeated) route.floorComplete = true;
+    if ((!milestone || route.bossDefeated) && route.postStairsExplorationRemaining <= 0) {
+      route.floorComplete = true;
+    }
   }
   if (route.detourActive && route.detourTargetKey === routeKey(next)) {
     finalizeTrapRouteDetour(metrics);
