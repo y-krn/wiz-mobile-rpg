@@ -4,7 +4,7 @@ test('Explore and Combat share the common Dock grammar at 320x568 @e2e @smoke', 
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto('/');
   await page.locator('#btn-town-dungeon').click();
-  await page.getByRole('button', { name: /戦士/ }).click();
+  await page.getByRole('button', { name: /鋼の前線キット/ }).click();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
 

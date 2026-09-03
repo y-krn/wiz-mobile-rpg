@@ -400,11 +400,11 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   const questName = await page.locator('.run-quest-card').first().locator('strong').textContent();
   await page.locator('.run-quest-card').first().click();
   await page.getByRole('button', { name: '選択した依頼で潜行準備へ' }).click();
-  await page.getByRole('button', { name: /戦士 \+ 鍛錬サーベル/ }).click();
+  await page.getByRole('button', { name: /鋼の前線キット \+ 鍛錬サーベル/ }).click();
 
   const summary = page.locator('.solo-preparation-summary');
   await expect(summary).toContainText('今回の出発条件');
-  await expect(summary).toContainText('戦士');
+  await expect(summary).toContainText('鋼の前線キット');
   await expect(summary).toContainText('鍛錬サーベル（バッグ外）');
   await expect(summary).toContainText(questName);
   await expect(summary.locator('.solo-preparation-slot')).toHaveCount(20);
@@ -436,11 +436,11 @@ test('Preparation explains bag cap and Return Wing individual limit', async ({ p
   await expect(portal).toBeDisabled();
   await expect(portal).toContainText('あと0個・帰還の翼は1個まで');
 
-  await page.getByRole('button', { name: /クラスを選び直す/ }).click();
+  await page.getByRole('button', { name: /開始キットを選び直す/ }).click();
   await page.evaluate(async () => {
     (await import('/src/state.js')).state.metaMaterials = { '獣の牙': 20, '硬い皮': 20 };
   });
-  await page.locator('.solo-class-option').first().click();
+  await page.locator('.solo-starting-kit-option').first().click();
   const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
   for (let index = 0; index < 20; index += 1) await heal.click();
   await expect(page.locator('.solo-preparation-summary')).toContainText('持ち込み 20/20');
