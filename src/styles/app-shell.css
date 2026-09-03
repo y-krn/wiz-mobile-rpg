@@ -424,3 +424,50 @@
     padding-bottom: 6px;
   }
 }
+
+/* Combat selection overlays live inside the Action Dock. Let the dock own the
+   remaining shell height so the overlay's scroll body and footer stay above
+   the persistent party HUD. */
+#controls-panel.combat-overlay-mode {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+/* At the 320x568 lower bound, a standalone safe area leaves only 476px for
+   the app content. Keep the combat Dock and Solo HUD intact by reserving the
+   smallest readable map/log budget instead of letting flex overflow the HUD. */
+@media (max-height: 600px) {
+  #viewport-panel {
+    min-height: 68px;
+  }
+
+  #log-panel {
+    flex: 0 0 48px;
+    min-height: 48px;
+    max-height: 48px;
+  }
+
+  /* Combat keeps the goal available as a compact, scrollable summary while
+     preserving the Dock and Solo HUD at the short-screen lower bound. */
+  #game-container.combat-screen-mode #goal-banner {
+    min-height: 40px;
+    max-height: 40px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* Long submenus give their rows the remaining space and scroll internally;
+     the party HUD must remain anchored above the bottom safe area. */
+  #controls-panel.submenu-mode {
+    flex: 0 1 auto;
+    max-height: calc(100% - 298px);
+    overflow: hidden;
+  }
+
+  #controls-panel.combat-overlay-mode {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+}
