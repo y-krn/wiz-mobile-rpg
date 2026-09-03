@@ -270,6 +270,12 @@ export const SIMULATION_MANIFEST = Object.freeze({
       reason: "milestone stairs presentation gate only; movement costs and facility rules remain unchanged",
       kind: "presentation"
     },
+    {
+      pattern: "src/rules/affix_rules.js",
+      marker: "// balance-impact: none",
+      reason: "affix activation copy only; affix rules and combat effects remain unchanged",
+      kind: "presentation"
+    },
   ].map(declaration => Object.freeze({ ...declaration }))),
   // Exact paths whose current callers may receive telemetry-only edits. A
   // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
@@ -956,14 +962,16 @@ function isStandaloneBalanceImpactNoneDeclaration(text, declaration) {
 const PRESENTATION_BOUNDARY_CALL = /^(?:addLog|playSound|openGuardedSubmenu)\s*\(/;
 
 function hasOnlyPresentationChanges(diff, file) {
-  if (file !== "src/movement.js" || typeof diff !== "string") return false;
+  if (typeof diff !== "string") return false;
+  const isAllowedLine = file === "src/movement.js"
+    ? text => !text || text.startsWith("//") || text === "return;" || PRESENTATION_BOUNDARY_CALL.test(text)
+    : file === "src/rules/affix_rules.js"
+      ? text => !text || text.startsWith("//") || text.startsWith("CORE_BOUNTY_HUNTER:")
+      : () => false;
   return diff.split(/\r?\n/).filter(line =>
     (line.startsWith("+") || line.startsWith("-")) &&
     !line.startsWith("+++") && !line.startsWith("---")
-  ).map(line => line.slice(1).trim()).every(text =>
-    !text || text.startsWith("//") || text === "return;" ||
-    PRESENTATION_BOUNDARY_CALL.test(text)
-  );
+  ).map(line => line.slice(1).trim()).every(isAllowedLine);
 }
 
 const STATE_BOUNDARY_ROOTS = /\b(?:state\.(?:chestState|gameState|transitioning)|menuContext|menuHistory)\b/;

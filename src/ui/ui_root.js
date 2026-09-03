@@ -418,7 +418,7 @@ export function updateUI() {
     setActionDockState(controlsPanel, getDockStateForView(view));
     controlsPanel.classList.toggle("explore-mode", gameState === "explore");
     controlsPanel.classList.toggle("combat-mode", isUsableCombatScreen);
-    controlsPanel.classList.toggle("combat-overlay-mode", isCombatOverlaySubmenu);
+    controlsPanel.classList.toggle("combat-overlay-mode", view.isUsableCombatOverlaySubmenu);
     controlsPanel.classList.toggle("town-mode", gameState === "town");
     controlsPanel.classList.toggle("submenu-mode", gameState === "submenu");
     controlsPanel.classList.toggle("departure-mode", departurePrepSubmenu);

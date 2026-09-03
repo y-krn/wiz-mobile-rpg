@@ -124,7 +124,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       quest.type === "role_kill" && nonFledMonsters.some(monster => !monster.hasSplit && monster.role === quest.role)
     );
     updateRunQuests(state.currentRun, getPartyMaxAffix(state.party, "contractReward")).forEach(quest => {
-      logQueue.push({ msg: `【ランクエスト達成】${quest.name}：素材ボーナスを獲得した。`, sound: "item" });
+      logQueue.push({ msg: `【依頼達成】${quest.name}：素材ボーナスを獲得した。`, sound: "item" });
     });
   }
 
