@@ -16,11 +16,16 @@ for (const vp of VIEWPORTS) {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
 
-    // 1. Mageを選択して潜行
+    // 1. 旧クラス由来の呪文経路は開始キットとは独立して検証する
     await page.click('#btn-town-dungeon');
-    await page.getByRole('button', { name: /術式の旅装キット/ }).click();
-    await page.getByRole('button', { name: /B1Fから開始/ }).click();
-    await page.getByRole('button', { name: '迷宮へ向かう' }).click();
+    await page.evaluate(async () => {
+      const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
+      state.party = [createSoloCharacter('Mage')];
+      state.currentRun = createDefaultCurrentRun();
+      state.floor = 1;
+      state.gameState = 'explore';
+      (await import('/src/ui.js')).updateUI();
+    });
 
     // 3. Open Spell overlay
     await page.click('#btn-cast');

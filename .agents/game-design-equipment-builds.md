@@ -44,9 +44,10 @@ described as the final vNext build contract until the relevant implementation
 issue is complete.
 
 Issue #1042 migration status: departure now uses four starting kits with
-ordinary gear and records `startingKit` on the run. Equipment bases, affixes,
-Core eligibility, and equipment actions no longer consult class restrictions;
-legacy class data remains only for the progression, spell, trap, and telemetry
+ordinary gear applied to a shared neutral character baseline and records
+`startingKit` on the run. Equipment bases, affixes, Core eligibility, and
+equipment actions no longer consult class restrictions; a fixed compatibility
+class value is retained only for the progression, spell, trap, and telemetry
 follow-ups listed by the issue.
 
 # Overview

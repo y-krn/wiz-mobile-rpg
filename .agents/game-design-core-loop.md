@@ -143,11 +143,11 @@ remain coarse and do not expose theme IDs or probabilities. These role labels
 do not target the current build or impose a Core activation cap.
 
 Issue #1042 moves the departure choice from class to four starting-kit IDs.
-Each kit supplies ordinary starting gear and preserves a temporary legacy class
-field only for progression, spell, trap, and telemetry follow-ups. Starting-kit
-choice has no class passive, growth, equipment restriction, Core eligibility, or
-loot-pool authority; those responsibilities are explicit follow-up work where
-still needed.
+Each kit supplies ordinary starting gear to a shared neutral character baseline.
+The temporary compatibility class value is the same for every kit and has no
+class passive, initial spell list, class growth, equipment restriction, Core
+eligibility, or loot-pool authority; class-owned progression, spell, trap, and
+telemetry paths remain explicit follow-up work where still needed.
 
 Issue #998 now makes roaming elites an optional deep-floor risk event. Entry
 presence is seed-deterministic, while prolonged presence is driven by saved

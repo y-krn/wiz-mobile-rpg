@@ -1,4 +1,5 @@
 import { START_X, START_Y } from "../data.js";
+import { ITEMS } from "../data/items.js";
 import { findMapCellByType } from "../rules/map_queries.js";
 
 export function generateRandomSeed() {
@@ -309,17 +310,6 @@ const SOLO_CLASS_PRESETS = [
 
 export const SOLO_CLASSES = SOLO_CLASS_PRESETS.map(({ class: className }) => className);
 
-// Starting kits are the vNext ownership boundary for departure choices. The
-// legacy class on the character is retained temporarily for the class-owned
-// progression, spell, trap, and telemetry paths listed in #1042; it is not the
-// source of departure, equipment, or loot permissions.
-const STARTING_KIT_LEGACY_CLASSES = Object.freeze({
-  vanguard: "Fighter",
-  scout: "Thief",
-  devotion: "Priest",
-  arcana: "Mage"
-});
-
 export const STARTING_KITS = Object.freeze([
   Object.freeze({
     id: "vanguard",
@@ -357,12 +347,47 @@ export function createSoloCharacter(className) {
   return structuredClone(preset);
 }
 
+// Starting kits are the vNext ownership boundary for departure choices. This
+// baseline deliberately has no class passive, spell list, class growth, or
+// class permission; the temporary compatibility value is identical for every
+// kit and is not a gameplay choice.
+const STARTING_KIT_CHARACTER_BASELINE = Object.freeze({
+  name: "冒険者",
+  class: "Adventurer",
+  level: 1,
+  exp: 0,
+  hp: 20,
+  maxHp: 20,
+  mp: 0,
+  maxMp: 0,
+  str: 10,
+  int: 10,
+  pie: 10,
+  vit: 10,
+  agi: 10,
+  luk: 10,
+  status: "ok",
+  spells: [],
+  equipment: {
+    weapon: null,
+    shield: null,
+    armor: null,
+    accessory: null,
+    accessory2: null
+  }
+});
+
 export function createStartingKitCharacter(startingKitId) {
-  const legacyClass = STARTING_KIT_LEGACY_CLASSES[startingKitId];
   const kit = getStartingKit(startingKitId);
-  if (!kit || !legacyClass) return null;
-  const character = createSoloCharacter(legacyClass);
+  if (!kit) return null;
+  const character = structuredClone(STARTING_KIT_CHARACTER_BASELINE);
   character.startingKit = kit.id;
+  kit.gear.forEach(itemId => {
+    const slot = ITEMS[itemId]?.type;
+    if (slot && Object.hasOwn(character.equipment, slot)) {
+      character.equipment[slot] = itemId;
+    }
+  });
   return character;
 }
 
