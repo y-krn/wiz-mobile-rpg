@@ -196,6 +196,8 @@ test('Issue #1031 primary run path reaches Town again through UI actions @e2e @s
   await expect(page.locator('#submenu-controls')).toBeVisible();
   await page.locator('.solo-class-option').first().click();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  const departButton = page.getByRole('button', { name: '迷宮へ向かう' });
+  if (await departButton.isVisible()) await departButton.click();
   await expectSingleDock('explore-controls');
   expect(await screen()).toMatchObject({ gameState: 'explore' });
 
