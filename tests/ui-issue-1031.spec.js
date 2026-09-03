@@ -163,7 +163,7 @@ for (const viewport of VIEWPORTS) {
 }
 
 test('Issue #1031 primary run path reaches Town again through UI actions @e2e @smoke', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 430, height: 932 });
   await page.goto('/');
   await page.waitForLoadState('networkidle');
   await page.addStyleTag({ content: ':root { --safe-area-top: 59px; --safe-area-bottom: 34px; }' });
