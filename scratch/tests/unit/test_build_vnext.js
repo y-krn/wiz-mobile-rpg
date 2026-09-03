@@ -17,6 +17,8 @@ assert.equal(createDefaultCurrentRun().startingKit, null);
 
 const baselineKeys = ["name", "class", "level", "exp", "hp", "maxHp", "mp", "maxMp", "str", "int", "pie", "vit", "agi", "luk", "status", "spells"];
 const baseline = createStartingKitCharacter(STARTING_KITS[0].id);
+assert.equal(baseline.class, "Fighter", "starting kits use a registered compatibility class for legacy progression");
+const baselinePassive = getClassPassive(baseline);
 for (const kit of STARTING_KITS) {
   const character = createStartingKitCharacter(kit.id);
   assert.equal(character.startingKit, kit.id);
@@ -35,16 +37,20 @@ for (const kit of STARTING_KITS) {
     Object.fromEntries(baselineKeys.map(key => [key, baseline[key]])),
     `${kit.id} must use the common neutral character baseline`
   );
-  assert.deepEqual(getClassPassive(character), { label: "", bonuses: {} });
+  assert.deepEqual(getClassPassive(character), baselinePassive, `${kit.id} must use the common compatibility passive`);
 }
 
 const levelledCharacters = STARTING_KITS.map(kit => {
   const character = createStartingKitCharacter(kit.id);
   character.exp = Number.MAX_SAFE_INTEGER;
-  checkCharLevelUp(character, { rng: () => 0.5 });
+  assert.equal(checkCharLevelUp(character, { rng: () => 0.5 }), true, `${kit.id} must reach level 2`);
+  assert.equal(checkCharLevelUp(character, { rng: () => 0.5 }), true, `${kit.id} must reach level 3`);
   return Object.fromEntries(baselineKeys.map(key => [key, character[key]]));
 });
 levelledCharacters.slice(1).forEach(character => assert.deepEqual(character, levelledCharacters[0], "kit choice must not change level growth"));
+assert.equal(levelledCharacters[0].level, 3);
+assert.equal(levelledCharacters[0].maxHp, 36, "compatibility progression must retain Fighter HP growth through level 3");
+assert.equal(levelledCharacters[0].str, 11, "compatibility progression must retain Fighter main-stat growth at level 3");
 
 const fighter = createStartingKitCharacter("vanguard");
 assert.equal(canEquipEquipment(fighter, "ARCH_WAND").ok, true, "equipment permission is no longer class-owned");

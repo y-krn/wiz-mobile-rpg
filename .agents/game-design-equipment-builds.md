@@ -46,9 +46,10 @@ issue is complete.
 Issue #1042 migration status: departure now uses four starting kits with
 ordinary gear applied to a shared neutral character baseline and records
 `startingKit` on the run. Equipment bases, affixes, Core eligibility, and
-equipment actions no longer consult class restrictions; a fixed compatibility
-class value is retained only for the progression, spell, trap, and telemetry
-follow-ups listed by the issue.
+equipment actions no longer consult class restrictions; the registered
+`Fighter` compatibility class is shared by every kit so existing progression
+consumers retain their current rules, while progression, spell, trap, and
+telemetry migration remain follow-ups listed by the issue.
 
 # Overview
 

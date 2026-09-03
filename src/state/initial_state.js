@@ -348,12 +348,13 @@ export function createSoloCharacter(className) {
 }
 
 // Starting kits are the vNext ownership boundary for departure choices. This
-// baseline deliberately has no class passive, spell list, class growth, or
-// class permission; the temporary compatibility value is identical for every
-// kit and is not a gameplay choice.
+// baseline deliberately has no kit-specific passive, spell list, class growth,
+// or class permission. The registered compatibility class is fixed to Fighter
+// so legacy progression consumers retain their current rules; it is identical
+// for every kit and is not a gameplay choice.
 const STARTING_KIT_CHARACTER_BASELINE = Object.freeze({
   name: "冒険者",
-  class: "Adventurer",
+  class: "Fighter",
   level: 1,
   exp: 0,
   hp: 20,
