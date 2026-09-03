@@ -41,6 +41,10 @@
   flex-direction: column;
 }
 
+#controls-panel.combat-overlay-mode .combat-overlay-body {
+  height: auto;
+}
+
 .combat-target-grid {
   flex: 1;
   display: grid;

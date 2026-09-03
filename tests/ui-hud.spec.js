@@ -120,7 +120,7 @@ for (const vp of VIEWPORTS) {
     await expect(result).toContainText('今回の深度 B13F');
     await expect(result).toContainText('NEW DEPTH RECORD');
     await expect(result).toContainText('素材収支');
-    await expect(result).toContainText('ランクエスト');
+    await expect(result).toContainText('今回の依頼');
     const button = page.locator('#btn-result-castle');
     const buttonBox = await button.boundingBox();
     expect(buttonBox.height).toBeGreaterThanOrEqual(44);

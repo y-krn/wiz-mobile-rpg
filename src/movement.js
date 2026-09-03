@@ -294,7 +294,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
       }
       state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
       updateRunQuests(state.currentRun, getPartyMaxAffix(state.party, "contractReward")).forEach(quest => {
-        addLog(`【ランクエスト達成】${quest.name}：素材ボーナスを獲得した。`);
+        addLog(`【依頼達成】${quest.name}：素材ボーナスを獲得した。`);
       });
     }
 
@@ -883,7 +883,7 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   const firstVisit = revealFloor(state, floor);
   addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
   addLog(`鑑定粉を${state.identifyTickets}個持って潜行を開始した。`);
-  addLog(`ランクエスト：${state.currentRun.quests.map(quest => quest.name).join(" / ")}`);
+  addLog(`依頼：${state.currentRun.quests.map(quest => quest.name).join(" / ")}`);
   checkFloorOmenMessage();
   playSound("move");
   saveAutosave();

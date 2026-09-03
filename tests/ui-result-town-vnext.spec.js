@@ -103,6 +103,7 @@ test('Town home is organized as previous run, next descent, and accumulated know
   await expect(home.locator('.town-home-section').nth(0)).toContainText('前回の冒険');
   await expect(home.locator('.town-home-section').nth(0)).toContainText('死亡');
   await expect(home.locator('.town-home-section').nth(1)).toContainText('次の潜行');
+  await expect(home.locator('#town-next-run-title')).toHaveText('次の潜行に備える');
   await expect(home.locator('.town-home-section').nth(2)).toContainText('蓄積した記録');
   await expect(page.locator('#btn-town-dungeon')).toContainText('準備を整える');
   await expect(page.locator('#btn-town-quest-board')).toContainText('今回の依頼を選ぶ');

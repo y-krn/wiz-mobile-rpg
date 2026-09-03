@@ -320,7 +320,7 @@ export function renderResultScreen() {
         ${codexTotal > 0 ? `<div class="result-codex-bonus"><span>初討伐メタ報酬</span><div>${formatMaterials(run.codexRewards)}</div></div>` : ""}
       </section>
       <section class="result-focus-section" aria-labelledby="result-quest-title">
-        <h2 class="result-section-heading" id="result-quest-title"><span>ランクエスト</span></h2>
+        <h2 class="result-section-heading" id="result-quest-title"><span>今回の依頼</span></h2>
         <div class="result-quest-list">${getQuestHtml(run)}</div>
       </section>
       <div class="result-run-note">${getEvaluationText(run, isSuccess)}</div>

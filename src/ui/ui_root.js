@@ -416,6 +416,7 @@ export function updateUI() {
   const controlsPanel = document.getElementById("controls-panel");
   if (controlsPanel) {
     setActionDockState(controlsPanel, getDockStateForView(view));
+    controlsPanel.classList.toggle("combat-overlay-mode", view.isUsableCombatOverlaySubmenu);
     controlsPanel.classList.toggle("explore-mode", gameState === "explore");
     controlsPanel.classList.toggle("combat-mode", isUsableCombatScreen);
     controlsPanel.classList.toggle("combat-overlay-mode", isCombatOverlaySubmenu);

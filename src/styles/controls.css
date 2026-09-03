@@ -55,6 +55,32 @@
   background: linear-gradient(180deg, #24191c 0%, #171317 100%);
 }
 
+/* Combat choice screens are rendered inside the Dock. Let the Dock own the
+   available vertical space and keep the choice list as the only scroll region;
+   an absolutely positioned overlay otherwise gets clipped to the compact
+   combat action buttons and the shell below intercepts taps. */
+#controls-panel.combat-overlay-mode {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: min(62svh, 520px);
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+#controls-panel.combat-overlay-mode > #combat-controls {
+  display: none;
+}
+
+#controls-panel.combat-overlay-mode > #combat-overlay {
+  position: static;
+  inset: auto;
+  width: 100%;
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 #controls-panel.town-mode {
   flex: 1 1 auto;
   min-height: 0;
