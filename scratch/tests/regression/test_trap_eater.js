@@ -114,19 +114,13 @@ async function test(name, fn) {
   }
 }
 
-await test("CORE_TRAP_EATER is eligible only for Thief, Ranger, and Ninja", () => {
-  for (const className of ["Thief", "Ranger", "Ninja"]) {
+await test("CORE_TRAP_EATER is eligible for every class", () => {
+  for (const className of ["Fighter", "Thief", "Ranger", "Ninja", "Priest", "Mage", "Samurai", "Bishop"]) {
     const char = makeChar(className);
     assert.deepEqual(getCharCoreParams(char, "CORE_TRAP_EATER"), {
       attackPerDisarm: 2,
       maxAttack: 20
     });
-  }
-  for (const className of ["Fighter", "Priest", "Mage", "Samurai", "Bishop"]) {
-    const char = makeChar(className);
-    assert.equal(getCharCoreParams(char, "CORE_TRAP_EATER"), null);
-    char.runTrapAttackBonus = 20;
-    assert.equal(getCharTrapEaterBonus(char), 0);
   }
 });
 

@@ -9,7 +9,10 @@ const baseScenario = {
   startingGreaterHeals: 5,
   trapPolicy: "disabled",
   useTownPortal: false,
-  fleePolicy: "never"
+  fleePolicy: "never",
+  // Keep this route probe focused on milestone routing; class-independent
+  // loot is intentionally allowed to change the combat build.
+  hpBaseBonus: 1000
 };
 
 function run(scenario, targetDepth) {

@@ -17,7 +17,10 @@ export {
   createDefaultCodex,
   createDefaultCurrentRun,
   SOLO_CLASSES,
-  createSoloCharacter
+  createSoloCharacter,
+  STARTING_KITS,
+  getStartingKit,
+  createStartingKitCharacter
 } from "./state/initial_state.js";
 
 export {

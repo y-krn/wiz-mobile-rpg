@@ -41,6 +41,7 @@ export const createDefaultCodex = () => ({
 export const createDefaultCurrentRun = () => ({
   startedAt: 0,
   startFloor: 1,
+  startingKit: null,
   deepestFloor: 1,
   steps: 0,
   floorSteps: {},
@@ -308,10 +309,61 @@ const SOLO_CLASS_PRESETS = [
 
 export const SOLO_CLASSES = SOLO_CLASS_PRESETS.map(({ class: className }) => className);
 
+// Starting kits are the vNext ownership boundary for departure choices. The
+// legacy class on the character is retained temporarily for the class-owned
+// progression, spell, trap, and telemetry paths listed in #1042; it is not the
+// source of departure, equipment, or loot permissions.
+const STARTING_KIT_LEGACY_CLASSES = Object.freeze({
+  vanguard: "Fighter",
+  scout: "Thief",
+  devotion: "Priest",
+  arcana: "Mage"
+});
+
+export const STARTING_KITS = Object.freeze([
+  Object.freeze({
+    id: "vanguard",
+    name: "鋼の前線キット",
+    description: "ショートソード・スモールシールド・レザーアーマー",
+    gear: Object.freeze(["SHORT_SWORD", "SMALL_SHIELD", "LEATHER_ARMOR"])
+  }),
+  Object.freeze({
+    id: "scout",
+    name: "軽装探索キット",
+    description: "ショートソード・スモールシールド・レザーアーマー",
+    gear: Object.freeze(["SHORT_SWORD", "SMALL_SHIELD", "LEATHER_ARMOR"])
+  }),
+  Object.freeze({
+    id: "devotion",
+    name: "祈りの旅装キット",
+    description: "メイス・スモールシールド・ローブ",
+    gear: Object.freeze(["MACE", "SMALL_SHIELD", "ROBE"])
+  }),
+  Object.freeze({
+    id: "arcana",
+    name: "術式の旅装キット",
+    description: "魔術師の杖・ローブ",
+    gear: Object.freeze(["WAND", "ROBE"])
+  })
+]);
+
+export function getStartingKit(startingKitId) {
+  return STARTING_KITS.find(kit => kit.id === startingKitId) || null;
+}
+
 export function createSoloCharacter(className) {
   const preset = SOLO_CLASS_PRESETS.find(char => char.class === className);
   if (!preset) return null;
   return structuredClone(preset);
+}
+
+export function createStartingKitCharacter(startingKitId) {
+  const legacyClass = STARTING_KIT_LEGACY_CLASSES[startingKitId];
+  const kit = getStartingKit(startingKitId);
+  if (!kit || !legacyClass) return null;
+  const character = createSoloCharacter(legacyClass);
+  character.startingKit = kit.id;
+  return character;
 }
 
 export function findSuitableRoamingMonsterStart(mapData) {

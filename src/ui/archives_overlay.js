@@ -208,7 +208,6 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
   const foundFloors = getEquipmentFoundFloors(record);
   const knownTags = getKnownEquipmentTags(item, record);
   const affixDetails = getEquipmentAffixDetails(record);
-  const classes = item.classes?.map(getClassJpName).join("・") || "全員";
   const baseStat = item.atk !== undefined
     ? `<p><strong>基礎攻撃力:</strong> ${item.atk}</p>`
     : item.def !== undefined
@@ -225,7 +224,7 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
       <div class="codex-info-section">
         <div class="codex-subtitle">基本情報</div>
         ${baseStat}
-        <p><strong>装備可能:</strong> ${classes}</p>
+        <p><strong>装備:</strong> 全員（ビルド自由）</p>
         <p class="codex-item-description">${item.desc || "説明は記録されていない。"}</p>
       </div>
       <div class="codex-info-section">

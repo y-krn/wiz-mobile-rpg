@@ -509,32 +509,37 @@ import assert from "assert";
       console.log("[PASS] Unidentified names verified.");
 
       // ----------------------------------------------------
-      // Test 2: Class-compatible candidate validation
+      // Test 2: Class-independent candidate validation
       // ----------------------------------------------------
-      console.log("Running Test 2: Class-compatible candidate validation...");
+      console.log("Running Test 2: Class-independent candidate validation...");
 
-      // Mock party: Mage only (only ARCANE_ROBE is usable among B4F candidates)
+      // A Mage party still receives the complete floor pool. Equipment class
+      // metadata is descriptive and must not prune dungeon supply.
       state.party = [
-        { name: "MageChar", class: "Mage", status: "ok", equipment: {} }
+        {
+          name: "MageChar",
+          class: "Mage",
+          status: "ok",
+          equipment: {
+            weapon: "WAND",
+            shield: "DRAGON_CHARM",
+            armor: "ROBE"
+          }
+        }
       ];
 
       // Try generating 200 random equipments at floor 4.
-      // Usable by Mage: "ARCANE_ROBE"
-      // Class filtering may keep the candidate pool to ARCANE_ROBE, but the
-      // current equipment is never used to fill a missing slot.
-      let arcaneRobeCount = 0;
+      const generatedBaseIds = new Set();
       const totalTrials = 200;
       for (let i = 0; i < totalTrials; i++) {
         const eq = generateRandomEquipment(4, null, Math.random, state.party);
-        if (eq.baseId === "ARCANE_ROBE") {
-          arcaneRobeCount++;
-        }
+        generatedBaseIds.add(eq.baseId);
       }
 
-      const rate = arcaneRobeCount / totalTrials;
-      console.log(`ARCANE_ROBE count: ${arcaneRobeCount}/${totalTrials} (${(rate*100).toFixed(1)}%)`);
-      assert.equal(rate, 1, "Mage-only B4 candidate pool should stay class-compatible");
-      console.log("[PASS] class-compatible candidate filtering verified.");
+      assert.ok(generatedBaseIds.has("ARCANE_ROBE"), "B4 pool should include Mage-favored armor");
+      assert.ok(generatedBaseIds.has("LONG_SWORD"), "B4 pool should include cross-class weapon supply");
+      console.log(`Generated B4 bases: ${[...generatedBaseIds].join(", ")}`);
+      console.log("[PASS] class-independent candidate supply verified.");
 
       // ----------------------------------------------------
       // Test 3: Loot Hint (宝気) in Chests

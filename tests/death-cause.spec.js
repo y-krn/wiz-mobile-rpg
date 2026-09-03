@@ -212,7 +212,7 @@ for (const viewport of [
     }
 
     await page.getByRole('button', { name: /^準備を見直す/ }).click();
-    await expect(page.locator('.solo-class-option').first()).toBeVisible();
+    await expect(page.locator('.solo-starting-kit-option').first()).toBeVisible();
     await page.locator('#btn-submenu-back').click();
     await page.getByRole('button', { name: /^広がった可能性を見る/ }).click();
     await expect(page.locator('.workshop-purpose[data-workshop-purpose="possibilities"]')).toBeVisible();

@@ -96,7 +96,7 @@ function renderBoard(optGrid) {
   confirm.disabled = selectedTemplateIds.size === 0;
   confirm.addEventListener("click", () => {
     pendingTemplateIds = [...selectedTemplateIds];
-    openSubmenu("solo_start", "クラスを選択：依頼を受けて潜行");
+    openSubmenu("solo_start", "開始キットを選択：依頼を受けて潜行");
   });
   optGrid.appendChild(confirm);
 
@@ -106,7 +106,7 @@ function renderBoard(optGrid) {
   skip.textContent = "依頼を選ばず出発準備へ";
   skip.addEventListener("click", () => {
     pendingTemplateIds = null;
-    openSubmenu("solo_start", "クラスを選択：潜行ごとにLv1から開始");
+    openSubmenu("solo_start", "開始キットを選択：潜行ごとにLv1から開始");
   });
   optGrid.appendChild(skip);
 }

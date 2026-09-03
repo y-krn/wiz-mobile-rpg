@@ -801,7 +801,7 @@ export function triggerFlameTrap() {
 }
 
 export function enterDungeon() {
-  openSubmenu("solo_start", "クラスを選択：潜行ごとにLv1から開始");
+  openSubmenu("solo_start", "開始キットを選択：潜行ごとにLv1から開始");
 }
 
 function assignSelectedRunQuests(run, templateIds) {
@@ -831,7 +831,7 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   state.currentRun.runSeed = `${state.seed}:run:${state.currentRun.startedAt}`;
   state.currentRun.startFloor = floor;
   state.currentRun.deepestFloor = floor;
-  state.currentRun.characterClass = state.party[0]?.class || null;
+  state.currentRun.startingKit = state.party[0]?.startingKit || null;
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
   if (Array.isArray(runQuestTemplateIds) && runQuestTemplateIds.length > 0) {

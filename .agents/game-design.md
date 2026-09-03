@@ -30,6 +30,14 @@ gold, identification-in-town, crafting, contracts board, B5F clear flow) was
 retired with the party-based game. This document defines the meta economy for
 the replacement solo depth-attack roguelite.
 
+**Build vNext migration status (Issue #1042, 2026-09-03).** The departure
+screen chooses a named `startingKit` built from ordinary equipment bases. Class
+labels no longer authorize equipment, prune Loot candidates, or gate Core
+generation/effects. The legacy `class` field and its passive, level-growth,
+spell, MP-item, trap, and telemetry consumers remain explicit follow-up
+dependencies; this document's older class-balance sections are historical until
+those responsibilities are migrated.
+
 ## Goal
 
 One currency, one sink, one question:

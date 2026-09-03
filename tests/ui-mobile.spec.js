@@ -153,7 +153,7 @@ for (const vp of VIEWPORTS) {
     test('Dungeon exploration controls stay compact after entering the dungeon @visual', async ({ page }) => {
       await page.locator('#btn-town-dungeon').click();
       await expect(page.locator('#submenu-controls')).toBeVisible();
-      await page.getByRole('button', { name: /戦士/ }).click();
+      await page.getByRole('button', { name: /鋼の前線キット/ }).click();
       await page.getByRole('button', { name: /B1Fから開始/ }).click();
       await page.getByRole('button', { name: '迷宮へ向かう' }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
@@ -817,18 +817,18 @@ for (const vp of VIEWPORTS) {
       expect(scrolledLayout.last.top, `Last town button should remain below the top of the town grid on ${vp.name}`).toBeGreaterThanOrEqual(scrolledLayout.grid.top - 1);
     });
 
-    test('Class selection starts exactly one Lv1 solo character', async ({ page }) => {
+    test('Starting kit selection starts exactly one Lv1 solo character', async ({ page }) => {
       await page.locator('#btn-town-dungeon').click();
-      await expect(page.locator('#submenu-title')).toContainText('クラスを選択');
-      await page.getByRole('button', { name: /盗賊/ }).click();
+      await expect(page.locator('#submenu-title')).toContainText('開始キットを選択');
+      await page.getByRole('button', { name: /軽装探索キット/ }).click();
       await page.getByRole('button', { name: /B1Fから開始/ }).click();
       await page.getByRole('button', { name: '迷宮へ向かう' }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
       const character = await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
-        return { count: state.party.length, className: state.party[0].class, level: state.party[0].level };
+        return { count: state.party.length, startingKit: state.party[0].startingKit, level: state.party[0].level };
       });
-      expect(character).toEqual({ count: 1, className: 'Thief', level: 1 });
+      expect(character).toEqual({ count: 1, startingKit: 'scout', level: 1 });
       await expect(page.locator('#character-hud .character-card')).toHaveCount(1);
     });
   });

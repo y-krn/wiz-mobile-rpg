@@ -29,7 +29,7 @@ implemented in the current game.
 ### Run loop
 
 ```text
-town: choose class, starting options, and optional departure supplies
+town: choose a starting kit, starting options, and optional departure supplies
         ↓
 descend and explore a generated floor
         ↓
@@ -141,6 +141,13 @@ five floor roles (introduction, development, change, temptation, settlement)
 are generation tendencies, not a scripted event sequence; player-facing clues
 remain coarse and do not expose theme IDs or probabilities. These role labels
 do not target the current build or impose a Core activation cap.
+
+Issue #1042 moves the departure choice from class to four starting-kit IDs.
+Each kit supplies ordinary starting gear and preserves a temporary legacy class
+field only for progression, spell, trap, and telemetry follow-ups. Starting-kit
+choice has no class passive, growth, equipment restriction, Core eligibility, or
+loot-pool authority; those responsibilities are explicit follow-up work where
+still needed.
 
 Issue #998 now makes roaming elites an optional deep-floor risk event. Entry
 presence is seed-deterministic, while prolonged presence is driven by saved
@@ -459,7 +466,7 @@ Responsibilities are separated as follows:
 
 | Layer | Owns | Does not own |
 | --- | --- | --- |
-| Map generation | Connectivity, floor reachability, trap placement, density, and internal route diagnostics | A guarantee of a safe or trap-free route; class balance |
+| Map generation | Connectivity, floor reachability, trap placement, density, and internal route diagnostics | A guarantee of a safe or trap-free route; build balance |
 | Trap rules/effects | Discovery state, disarm/forced-traversal resolution, damage, status, and mitigation rules | The player's route preference |
 | Class and equipment | Discovery/identification advantages, disarm success, and safe-breakthrough advantages | Map connectivity or a universal trap bypass |
 | Movement/UI | Ordinary directional movement, map information, and available direct responses | A dedicated `迂回` action or fixed `choke`/`avoidable` display |
@@ -484,13 +491,14 @@ its own steps, encounters, and other trap effects. Simulation alignment must
 preserve the meaningful disarm and forced-breakthrough choices.
 
 `trapBonus` remains the single support affix for floor/chest trap disarm and
-existing equipment/class passive bonuses. On B5F, the automatic flame trap uses
+existing equipment bonuses. On B5F, the automatic flame trap uses
 the same floor-trap success roll and partial-success band as a `damage` floor
 trap, without exposing a trap encounter menu. Its effect uses the ordinary
 floor-dependent damage range and the same weakened, scout, and `trapGuard`
-mitigations. Chest traps keep a risk/reward branch: every class can leave,
-smash for a weaker trap effect with possible consumable loss, or use a kit,
-while specialist classes retain safer disarm rates.
+mitigations. Chest traps keep a risk/reward branch: every character can leave,
+smash for a weaker trap effect with possible consumable loss, or use a kit.
+Specialist class rates remain legacy follow-up scope while class data is removed
+from equipment and loot authority.
 
 Unidentified equipment follows four explicit knowledge stages: discovery
 (type/quality and one or two truthful sensory signs), observation (carrying it

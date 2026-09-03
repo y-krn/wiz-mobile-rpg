@@ -102,7 +102,7 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.metaMaterials = {};
   state.workshop = { ranks: {}, lateralUnlocks: [] };
   state.keyItems = [];
-  state.logs = ["クラスを選び、ひとりで迷宮へ潜ろう。"];
+    state.logs = ["開始キットを選び、ひとりで迷宮へ潜ろう。"];
   markMapChanged();
   saveAutosave();
 }
@@ -225,7 +225,7 @@ export function loadGame() {
     localStorage.removeItem(BACKUP_KEY);
     localStorage.removeItem(OLD_SAVE_KEY);
     initNewGame();
-    state.logs = ["旧バージョンのセーブはソロ仕様と互換性がないため破棄しました。クラスを選んで新しく開始してください。"];
+    state.logs = ["旧バージョンのセーブはソロ仕様と互換性がないため破棄しました。開始キットを選んで新しく開始してください。"];
     saveAutosave();
     return;
   }

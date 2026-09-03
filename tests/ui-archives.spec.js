@@ -151,7 +151,7 @@ test('Equipment archives present observed knowledge without exposing affix ids o
   await page.locator('#archives-overlay .codex-row', { hasText: 'フレイムソード' }).click();
   const detail = page.locator('#archives-overlay .codex-detail');
   await expect(detail).toContainText('基礎攻撃力: 21');
-  await expect(detail).toContainText('装備可能: 戦士・侍・野伏');
+  await expect(detail).toContainText('装備: 全員（ビルド自由）');
   await expect(detail).toContainText('火のルーンを刻んだ剣');
   await expect(detail).toContainText('初陣');
   await expect(detail).toContainText('B3F');

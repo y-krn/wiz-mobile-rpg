@@ -18,7 +18,7 @@ for (const vp of VIEWPORTS) {
 
     // 1. Mageを選択して潜行
     await page.click('#btn-town-dungeon');
-    await page.getByRole('button', { name: /魔術師/ }).click();
+    await page.getByRole('button', { name: /術式の旅装キット/ }).click();
     await page.getByRole('button', { name: /B1Fから開始/ }).click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
 

@@ -6,7 +6,7 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.locator('#btn-town-dungeon').click();
-    await page.getByRole('button', { name: /戦士/ }).click();
+    await page.getByRole('button', { name: /鋼の前線キット/ }).click();
     await page.getByRole('button', { name: /B1Fから開始/ }).click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#btn-abandon-run')).toHaveCount(0);

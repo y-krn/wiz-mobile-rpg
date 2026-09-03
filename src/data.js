@@ -95,7 +95,7 @@ for (const [key, val] of Object.entries(STATIC_ITEMS)) {
 // Legacy positional facade kept for scratch simulations and compatibility.
 // Production callers should import systems/equipment_generation.js and pass
 // one options object.
-// Pass `party` explicitly for class-compatible candidates and affix eligibility;
+// Pass `party` explicitly for lateral unlock and build-role generation state;
 // callers holding state should pass state.party.
 export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true) {
   return newGenerateRandomEquipment(floor, { forceRarity, rng, party, excludeHighEnd, allowCores });

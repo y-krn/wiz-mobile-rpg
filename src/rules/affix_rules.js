@@ -40,7 +40,6 @@ export function getCharCoreParams(char, coreId) {
   const entry = getEquippedCoreEntries(char).find(({ affix }) => (affix.id || affix.type) === coreId);
   if (!entry) return null;
   const definition = getAffixDefinition(coreId);
-  if (definition?.allowedClasses && !definition.allowedClasses.includes(char?.class)) return null;
   return definition?.params || null;
 }
 

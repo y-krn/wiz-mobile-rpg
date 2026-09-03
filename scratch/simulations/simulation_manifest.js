@@ -167,7 +167,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/data/monsters.js", domains: ["combat", "status"] },
     // Biome landmark signatures are render-only and intentionally map to no balance domain.
     { pattern: "src/data/biomes.js", domains: [] },
-    { pattern: "src/data/affixes.js", domains: ["equipment"] },
+    { pattern: "src/data/affixes.js", domains: ["combat", "equipment", "traps"] },
     { pattern: "src/data/equipment_tables.js", domains: ["equipment"] },
     { pattern: "src/data/workshop.js", domains: ["workshop"] },
     { pattern: "src/data/materials.js", domains: ["drops"] },
@@ -176,6 +176,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/state/run_loot.js", domains: ["economy"] },
     { pattern: "src/state/run_floor_state.js", domains: ["maps", "combat"] },
     { pattern: "src/rules/character_stats.js", domains: ["combat", "equipment"] },
+    { pattern: "src/rules/affix_rules.js", domains: ["combat", "traps"] },
     { pattern: "src/rules/trap_effect_rules.js", domains: ["traps"] },
     { pattern: "src/rules/item_rules.js", domains: ["equipment"] },
     { pattern: "src/rules/identification_rules.js", domains: ["equipment"] },
