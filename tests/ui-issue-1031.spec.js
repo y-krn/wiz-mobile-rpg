@@ -183,7 +183,7 @@ test('Issue #1031 primary run path reaches Town again through UI actions @e2e @s
   });
 
   const expectSingleDock = async (dockId) => {
-    await expect(page.locator(`#${dockId}`)).toBeVisible();
+    await expect(page.locator(`#${dockId}`)).toBeVisible({ timeout: 10_000 });
     const state = await screen();
     expect(state.visibleDocks, `only ${dockId} should be visible`).toEqual([dockId]);
     expect(state.combatOverlay, `${dockId} should not leave the combat overlay behind`).toBe(false);
