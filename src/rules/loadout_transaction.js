@@ -77,8 +77,7 @@ function copyDraft(draft) {
   return {
     ...draft,
     party: cloneParty(draft.party),
-    inventory: [...draft.inventory],
-    discardedItems: [...(draft.discardedItems || [])]
+    inventory: [...draft.inventory]
   };
 }
 
@@ -138,8 +137,7 @@ export function createLoadoutDraft(stateLike) {
     party: cloneParty(stateLike?.party),
     inventory: Array.isArray(stateLike?.inventory) ? [...stateLike.inventory] : [],
     baseParty: cloneParty(stateLike?.party),
-    baseInventory: Array.isArray(stateLike?.inventory) ? [...stateLike.inventory] : [],
-    discardedItems: []
+    baseInventory: Array.isArray(stateLike?.inventory) ? [...stateLike.inventory] : []
   };
   draft.party.forEach(normalizeDraftActor);
   return draft;
@@ -163,23 +161,12 @@ export function getLoadoutDraftChanges(draft) {
     const key = itemIdentity(item);
     currentItems.set(key, (currentItems.get(key) || 0) + 1);
   });
-  const discardedFromBase = draft.baseInventory.filter(item => {
+  const discarded = draft.baseInventory.filter(item => {
     const key = itemIdentity(item);
     const count = currentItems.get(key) || 0;
     if (count <= 0) return true;
     currentItems.set(key, count - 1);
     return false;
-  });
-  const discarded = [];
-  const discardedKeys = new Set();
-  [...discardedFromBase, ...(draft.discardedItems || [])].forEach(item => {
-    const key = itemIdentity(item);
-    if (discardedKeys.has(key) || currentItems.has(key)) {
-      discardedKeys.add(key);
-      return;
-    }
-    discardedKeys.add(key);
-    discarded.push(item);
   });
   return { equipment, runes, discarded };
 }
@@ -278,7 +265,6 @@ export function stageDiscardInventoryItem(draft, inventoryIndex) {
   if (!item) return { ok: false, reason: "装備品が見つかりません" };
   const next = copyDraft(draft);
   removeInventoryAt(next, inventoryIndex, item);
-  next.discardedItems.push(item);
   return { ok: true, draft: next, item };
 }
 
