@@ -73,7 +73,8 @@ medium. `char.spells[]` remains readable only for legacy character fixtures;
 it is not a starting-kit truth source. Socketed Runes are medium-side build
 state and do not consume bag slots. Spare `RUNE_<spell>` objects are ordinary
 one-slot dungeon loot. Equipping a medium never restores current MP; when the
-derived max MP falls, current MP is clamped to the new maximum.
+derived max MP falls, current MP is clamped to the new maximum. Swapping or
+unequipping a medium safely returns its socketed Runes to the ordinary bag.
 
 The arcana starting kit uses the regular WAND medium and the regular HALITO
 Rune (cost 1), which provides the minimum one-cast magic trial without a
