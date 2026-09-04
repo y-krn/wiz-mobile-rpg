@@ -37,12 +37,10 @@ import {
   getUnequipPreview,
   isEquipmentItem
 } from "./rules/equipment_preview.js";
-import { canEquipEquipment } from "./rules/equipment_rules.js";
 import {
   discardEquipmentAt,
   discardEquipmentSelection,
   enhanceEquipment,
-  equipEquipment,
   identifyEquipmentAt,
   polishEquipment,
   unequipEquipment
@@ -56,7 +54,20 @@ import {
   getRuneItemId,
   getRuneSpellKey
 } from "./rules/magic_rules.js";
-import { socketRuneFromInventory, unsocketRuneToInventory } from "./systems/magic_actions.js";
+import { consumeExplorationTurn } from "./movement.js";
+import {
+  createLoadoutDraft,
+  getLoadoutDraftChanges,
+  getLoadoutEquipAvailability,
+  getLoadoutValidationSummary,
+  isLoadoutDraftDirty,
+  stageDiscardInventoryItem,
+  stageEquip,
+  stageSocketRune,
+  stageUnequip,
+  stageUnsocketRune
+} from "./rules/loadout_transaction.js";
+import { commitLoadoutDraft } from "./systems/loadout_transaction.js";
 
 export let equipState = {
   mode: "equip",
@@ -70,7 +81,8 @@ export let equipState = {
   selectedDiscardIndices: new Set(),
   pendingUnequip: null,
   listScrollTop: 0,
-  prevGameState: null
+  prevGameState: null,
+  draft: null
 };
 
 const EQUIP_FILTERS = [
@@ -90,8 +102,10 @@ const RARITY_LABELS = {
 };
 
 export function openEquipOverlay(actorIdx = 0) {
+  if (state.gameState === "combat") return false;
   if (state.gameState !== "equip_overlay") {
     equipState.prevGameState = state.gameState;
+    equipState.draft = createLoadoutDraft(state);
   }
   state.gameState = "equip_overlay";
   equipState.mode = "equip";
@@ -107,6 +121,38 @@ export function openEquipOverlay(actorIdx = 0) {
   }
   renderEquip();
   updateUI();
+  return true;
+}
+
+function getDraftParty() {
+  return equipState.draft?.party || state.party;
+}
+
+function getDraftInventory() {
+  return equipState.draft?.inventory || state.inventory;
+}
+
+function cancelEquipDraft() {
+  equipState.draft = null;
+  closeEquipOverlay();
+}
+
+function commitEquipDraft() {
+  const consumesExplorationTurn = equipState.prevGameState === "explore";
+  const result = commitLoadoutDraft(equipState.draft, { stateLike: state });
+  if (!result.ok) {
+    addLog(result.errors?.join(" ") || "装備変更を確定できません。");
+    renderEquip();
+    updateUI();
+    return false;
+  }
+  if (!result.changed) return cancelEquipDraft();
+  equipState.draft = null;
+  closeEquipOverlay();
+  if (consumesExplorationTurn) consumeExplorationTurn();
+  saveAutosave();
+  updateUI();
+  return true;
 }
 
 export function closeEquipOverlay() {
@@ -120,7 +166,7 @@ export function closeEquipOverlay() {
   } else {
     state.gameState = "explore";
   }
-  saveAutosave();
+  equipState.draft = null;
   updateUI();
 }
 
@@ -160,6 +206,7 @@ export function resetEquipState() {
   equipState.pendingUnequip = null;
   equipState.listScrollTop = 0;
   equipState.prevGameState = null;
+  equipState.draft = null;
 }
 
 function isIdentified(itemKey) {
@@ -231,7 +278,7 @@ export function getItemUseStatus(char, itemKey) {
 
 function getEquipmentItems() {
   const typePriority = { weapon: 0, shield: 1, armor: 2, accessory: 3 };
-  return state.inventory
+  return getDraftInventory()
     .map((itemKey, idx) => ({ itemKey, idx, item: getItemData(itemKey) }))
     .filter(({ item }) => {
       if (!isEquipmentItem(item)) return false;
@@ -281,8 +328,9 @@ function createRunePanel(char) {
       button.className = "btn equip-rune-action";
       button.textContent = "外す";
       button.addEventListener("click", () => {
-        const result = unsocketRuneToInventory({ actorIdx: equipState.actorIdx, spellKey });
+        const result = stageUnsocketRune(equipState.draft, { actorIdx: equipState.actorIdx, spellKey });
         if (!result.ok) return;
+        equipState.draft = result.draft;
         renderEquip();
         updateUI();
       });
@@ -292,7 +340,7 @@ function createRunePanel(char) {
     panel.appendChild(activeList);
   }
 
-  const spareRunes = state.inventory
+  const spareRunes = getDraftInventory()
     .map((itemKey, idx) => ({ itemKey, idx }))
     .filter(({ itemKey }) => Boolean(getRuneSpellKey(itemKey)));
   if (spareRunes.length > 0) {
@@ -310,8 +358,9 @@ function createRunePanel(char) {
       button.disabled = !medium || activeRunes.length >= medium.runeSlots;
       button.textContent = "socket";
       button.addEventListener("click", () => {
-        const result = socketRuneFromInventory({ actorIdx: equipState.actorIdx, inventoryIndex: idx });
+        const result = stageSocketRune(equipState.draft, { actorIdx: equipState.actorIdx, inventoryIndex: idx });
         if (!result.ok) return;
+        equipState.draft = result.draft;
         renderEquip();
         updateUI();
       });
@@ -325,7 +374,7 @@ function createRunePanel(char) {
 
 function isItemEquipped(itemKey) {
   try {
-    return state.party.some((char) => {
+    return getDraftParty().some((char) => {
       try {
         return Object.values(char.equipment || {}).some((equippedKey) => equippedKey === itemKey);
       } catch {
@@ -338,6 +387,17 @@ function isItemEquipped(itemKey) {
 }
 
 function discardEquipment(itemIdx, expectedItemKey) {
+  if (equipState.draft) {
+    const itemName = getItemData(expectedItemKey)?.name || "装備品";
+    if (!confirm(`この${itemName}を破棄しますか？この変更は確定時に反映されます。`)) return false;
+    const staged = stageDiscardInventoryItem(equipState.draft, itemIdx);
+    if (!staged.ok) return false;
+    equipState.draft = staged.draft;
+    clearSelection();
+    renderEquip();
+    updateUI();
+    return true;
+  }
   const result = discardEquipmentAt(itemIdx, expectedItemKey, {
     actorIdx: equipState.actorIdx,
     requestedSlot: equipState.selectedSlot
@@ -355,11 +415,41 @@ function discardSelectedEquipment() {
     addLog("装備を外す前に、バッグから破棄する装備を1件選んでください。");
     return false;
   }
-  const result = discardEquipmentSelection(equipState.selectedDiscardIndices, {
-    actorIdx: equipState.actorIdx
-  });
-  if (!result.ok) return false;
-  if (pendingUnequip) {
+  if (equipState.draft) {
+    const selectedItems = [...equipState.selectedDiscardIndices]
+      .map(index => getDraftInventory()[index])
+      .filter(Boolean);
+    const risks = selectedItems.flatMap(item => getDiscardRisk(item));
+    const riskCounts = risks.reduce((counts, risk) => {
+      counts[risk] = (counts[risk] || 0) + 1;
+      return counts;
+    }, {});
+    const warning = Object.entries(riskCounts).length > 0
+      ? ` 注意: ${Object.entries(riskCounts).map(([risk, count]) => `${risk} ${count}件`).join("、")}`
+      : "";
+    if (!confirm(`選択した${equipState.selectedDiscardIndices.size}件の装備を破棄しますか？${warning}この変更は確定時に反映されます。`)) return false;
+    let draft = equipState.draft;
+    [...equipState.selectedDiscardIndices]
+      .sort((a, b) => b - a)
+      .forEach(index => {
+        const staged = stageDiscardInventoryItem(draft, index);
+        if (staged.ok) draft = staged.draft;
+      });
+    if (pendingUnequip) {
+      const staged = stageUnequip(draft, pendingUnequip);
+      if (!staged.ok) return false;
+      draft = staged.draft;
+      equipState.pendingUnequip = null;
+      equipState.mode = "equip";
+    }
+    equipState.draft = draft;
+  } else {
+    const result = discardEquipmentSelection(equipState.selectedDiscardIndices, {
+      actorIdx: equipState.actorIdx
+    });
+    if (!result.ok) return false;
+  }
+  if (pendingUnequip && !equipState.draft) {
     const unequipResult = unequipEquipment(pendingUnequip);
     if (!unequipResult.ok) {
       addLog("バッグを整理しましたが、装備を外せませんでした。");
@@ -434,7 +524,7 @@ function createHeader(overlay, char) {
   const materials = document.createElement("span");
   materials.textContent = `素材 ${Object.values(state.currentRun?.materials || {}).reduce((sum, quantity) => sum + quantity, 0)}`;
   statusBar.appendChild(materials);
-  statusBar.appendChild(createBagCapacitySummary(state.inventory, {
+  statusBar.appendChild(createBagCapacitySummary(getDraftInventory(), {
     className: "equip-bag-summary",
     showNote: false
   }));
@@ -455,9 +545,24 @@ function createHeader(overlay, char) {
   overlay.appendChild(header);
 }
 
+function createTransactionStatus() {
+  const status = document.createElement("div");
+  status.className = "equip-transaction-status";
+  const summary = getLoadoutDraftChanges(equipState.draft);
+  const validation = getLoadoutValidationSummary(equipState.draft);
+  const changed = summary.equipment.length + summary.runes.length + summary.discarded.length;
+  status.textContent = changed > 0
+    ? `変更予定 ${summary.equipment.length}枠 / Rune ${summary.runes.length}件${summary.discarded.length ? ` / 破棄 ${summary.discarded.length}件` : ""}。${validation.message}`
+    : "装備変更は未確定です。編集は無料です。";
+  status.setAttribute("role", "status");
+  status.dataset.valid = validation.ok ? "true" : "false";
+  return status;
+}
+
 function createFooter(overlay, { organizing = false } = {}) {
   const footer = document.createElement("div");
   footer.className = "bottom-actions-container";
+  const draftDirty = Boolean(equipState.draft && isLoadoutDraftDirty(equipState.draft));
 
   if (organizing) {
     const discardRow = document.createElement("div");
@@ -496,7 +601,7 @@ function createFooter(overlay, { organizing = false } = {}) {
 
   const actorRow = document.createElement("div");
   actorRow.className = "bottom-actions-row equip-actor-row";
-  state.party.forEach((liveChar, idx) => {
+  getDraftParty().forEach((liveChar, idx) => {
     const char = createEquipmentPreviewChar(liveChar);
     const btn = document.createElement("button");
     btn.type = "button";
@@ -516,7 +621,19 @@ function createFooter(overlay, { organizing = false } = {}) {
   footer.appendChild(actorRow);
 
   const closeRow = document.createElement("div");
-  closeRow.className = "bottom-actions-row";
+  closeRow.className = `bottom-actions-row ${draftDirty ? "equip-transaction-actions" : ""}`.trim();
+  if (draftDirty) {
+    closeRow.appendChild(createTransactionStatus());
+    const commit = document.createElement("button");
+    commit.type = "button";
+    commit.id = "btn-equip-commit";
+    commit.className = "btn btn-neon btn-block equip-action-btn";
+    commit.textContent = "確定する（探索時間が進む）";
+    commit.disabled = !isLoadoutDraftDirty(equipState.draft) || !getLoadoutValidationSummary(equipState.draft).ok;
+    setDockActionRole(commit, "confirm");
+    commit.addEventListener("click", commitEquipDraft);
+    closeRow.appendChild(commit);
+  }
   if (!organizing) {
     const organizeEntry = document.createElement("button");
     organizeEntry.type = "button";
@@ -530,8 +647,11 @@ function createFooter(overlay, { organizing = false } = {}) {
   btnClose.id = "btn-equip-close";
   btnClose.className = "btn btn-danger";
   setDockActionRole(btnClose, "back");
-  btnClose.textContent = "閉じる";
-  btnClose.addEventListener("click", closeEquipOverlay);
+  btnClose.textContent = draftDirty ? "キャンセル" : "閉じる";
+  btnClose.addEventListener("click", () => {
+    if (draftDirty) cancelEquipDraft();
+    else closeEquipOverlay();
+  });
   closeRow.appendChild(btnClose);
   footer.appendChild(closeRow);
 
@@ -541,7 +661,7 @@ function createFooter(overlay, { organizing = false } = {}) {
 function getSelectedDiscardRiskCounts() {
   const counts = {};
   equipState.selectedDiscardIndices.forEach((index) => {
-    getDiscardRisk(state.inventory[index]).forEach((risk) => {
+    getDiscardRisk(getDraftInventory()[index]).forEach((risk) => {
       counts[risk] = (counts[risk] || 0) + 1;
     });
   });
@@ -764,7 +884,11 @@ function createEquipmentList(char, savedScrollTop) {
       const selected = !equipState.selectedIsEquipped && equipState.selectedIdx === idx;
       const selectedForDiscard = equipState.selectedDiscardIndices.has(idx);
       const preview = getEquipmentPreview(char, itemKey, equipState.selectedSlot, { floor: state.floor });
-      const availability = canEquipEquipment(char, itemKey, preview?.slot);
+      const availability = getLoadoutEquipAvailability(equipState.draft, {
+        actorIdx: equipState.actorIdx,
+        item: itemKey,
+        requestedSlot: preview?.slot
+      });
       const row = document.createElement("button");
       row.type = "button";
       row.className = `equip-item-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${selectedForDiscard ? "discard-selected" : ""} ${availability.ok ? "" : "not-equipable"}`.trim();
@@ -919,17 +1043,21 @@ function createAffixDetails(itemKey) {
 function getSelectedItemKey() {
   if (equipState.selectedIsEquipped) {
     return getEquipmentSlotValue(
-      state.party[equipState.actorIdx]?.equipment,
+      getDraftParty()[equipState.actorIdx]?.equipment,
       equipState.selectedSlot
     );
   }
-  return state.inventory[equipState.selectedIdx] || null;
+  return getDraftInventory()[equipState.selectedIdx] || null;
 }
 
 function getSelectedWorkshopTarget() {
   return equipState.selectedIsEquipped
     ? { type: "equipped", actorIdx: equipState.actorIdx, slot: equipState.selectedSlot }
     : { type: "inventory", index: equipState.selectedIdx };
+}
+
+function refreshDraftAfterLiveMutation() {
+  if (equipState.draft) equipState.draft = createLoadoutDraft(state);
 }
 
 function createMaterialCost(cost) {
@@ -993,6 +1121,7 @@ function createWorkshopPanel(itemKey) {
   }
 
   const enhanceCost = getEnhanceCost(itemKey);
+  const loadoutPending = isLoadoutDraftDirty(equipState.draft);
   if (!enhanceCost) {
     const unavailable = document.createElement("span");
     unavailable.className = "equip-workshop-unavailable";
@@ -1010,10 +1139,13 @@ function createWorkshopPanel(itemKey) {
     const enhanceButton = document.createElement("button");
     enhanceButton.type = "button";
     enhanceButton.className = "btn btn-neon btn-block equip-workshop-action";
-    enhanceButton.disabled = !canAfford;
-    enhanceButton.textContent = canAfford ? "強化する" : "強化素材が不足しています";
+    enhanceButton.disabled = !canAfford || loadoutPending;
+    enhanceButton.textContent = loadoutPending
+      ? "確定後に工房を利用できます"
+      : canAfford ? "強化する" : "強化素材が不足しています";
     enhanceButton.addEventListener("click", () => {
       if (!enhanceEquipment(target)) return;
+      refreshDraftAfterLiveMutation();
       equipState.selectedKey = getSelectedItemKey();
       renderEquip();
       updateUI();
@@ -1047,10 +1179,13 @@ function createWorkshopPanel(itemKey) {
       const polishButton = document.createElement("button");
       polishButton.type = "button";
       polishButton.className = "btn btn-neon equip-workshop-action";
-      polishButton.disabled = !canAfford;
-      polishButton.textContent = canAfford ? "研磨する" : "研磨素材が不足しています";
+      polishButton.disabled = !canAfford || loadoutPending;
+      polishButton.textContent = loadoutPending
+        ? "確定後に工房を利用できます"
+        : canAfford ? "研磨する" : "研磨素材が不足しています";
       polishButton.addEventListener("click", () => {
         if (!polishEquipment(target, index)) return;
+        refreshDraftAfterLiveMutation();
         equipState.selectedKey = getSelectedItemKey();
         renderEquip();
         updateUI();
@@ -1138,7 +1273,11 @@ function createDetailPanel(char) {
     availability = { ok: true, reason: "" };
   } else {
     preview = getEquipmentPreview(char, itemKey, equipState.selectedSlot, { floor: state.floor });
-    availability = canEquipEquipment(char, itemKey, preview?.slot);
+    availability = getLoadoutEquipAvailability(equipState.draft, {
+      actorIdx: equipState.actorIdx,
+      item: itemKey,
+      requestedSlot: preview?.slot
+    });
   }
 
   const content = document.createElement("div");
@@ -1253,7 +1392,7 @@ function createDetailPanel(char) {
   });
 
   if (isEquipped) {
-    const bagFull = state.inventory.length >= INVENTORY_CAPACITY;
+    const bagFull = getDraftInventory().length >= INVENTORY_CAPACITY;
     const locked = isCurseLocked(itemKey);
     const actionBtn = document.createElement("button");
     actionBtn.type = "button";
@@ -1275,11 +1414,12 @@ function createDetailPanel(char) {
         requestUnequipAfterDiscard();
         return;
       }
-      const result = unequipEquipment({
+      const result = stageUnequip(equipState.draft, {
         actorIdx: equipState.actorIdx,
         slot: equipState.selectedSlot
       });
       if (!result.ok) return;
+      equipState.draft = result.draft;
       clearSelection();
       renderEquip();
       updateUI();
@@ -1290,9 +1430,12 @@ function createDetailPanel(char) {
       const identifyBtn = document.createElement("button");
       identifyBtn.type = "button";
       const canIdentify = (state.identifyTickets || 0) >= IDENTIFICATION_BALANCE.identifyCost;
-      identifyBtn.className = canIdentify ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
-      identifyBtn.disabled = !canIdentify;
-      identifyBtn.textContent = canIdentify
+      const loadoutPending = isLoadoutDraftDirty(equipState.draft);
+      identifyBtn.className = canIdentify && !loadoutPending ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
+      identifyBtn.disabled = !canIdentify || loadoutPending;
+      identifyBtn.textContent = loadoutPending
+        ? "確定後に鑑定できます"
+        : canIdentify
         ? `鑑定する（鑑定粉1 / 所持${state.identifyTickets || 0}）`
         : "鑑定粉がありません";
       setDockActionRole(identifyBtn, "confirm");
@@ -1303,6 +1446,7 @@ function createDetailPanel(char) {
           requestedSlot: equipState.selectedSlot
         });
         if (!result.ok) return;
+        refreshDraftAfterLiveMutation();
         equipState.selectedKey = result.itemKey;
         renderEquip();
         updateUI();
@@ -1329,12 +1473,13 @@ function createDetailPanel(char) {
     setDockActionRole(actionBtn, "confirm");
     actionBtn.addEventListener("click", () => {
       if (!availability.ok) return;
-      const result = equipEquipment({
+      const result = stageEquip(equipState.draft, {
         inventoryIndex: equipState.selectedIdx,
         actorIdx: equipState.actorIdx,
         requestedSlot: equipState.selectedSlot
       });
       if (!result.ok) return;
+      equipState.draft = result.draft;
       clearSelection();
       renderEquip();
       updateUI();
@@ -1368,7 +1513,7 @@ export function renderEquip() {
   const detailMode = equipState.selectedKey !== null;
   overlay.innerHTML = "";
 
-  const liveChar = state.party[equipState.actorIdx];
+  const liveChar = getDraftParty()[equipState.actorIdx];
   if (!liveChar) {
     closeEquipOverlay();
     return;

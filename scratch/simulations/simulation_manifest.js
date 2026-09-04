@@ -189,6 +189,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/floor_trials.js", domains: ["combat", "maps"] },
     { pattern: "src/rules/equipment_slots.js", domains: ["equipment"] },
     { pattern: "src/rules/equipment_hands.js", domains: ["equipment"] },
+    { pattern: "src/rules/loadout_transaction.js", domains: ["equipment"] },
     { pattern: "src/rules/guard_rules.js", domains: ["combat"] },
     { pattern: "src/data/guard_profiles.js", domains: ["combat", "equipment"] },
     { pattern: "src/rules/leveling.js", domains: ["progression"] },
@@ -216,6 +217,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
     { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },
     { pattern: "src/systems/equipment_discard.js", domains: ["equipment"] },
+    { pattern: "src/systems/loadout_transaction.js", domains: ["equipment", "maps"] },
     { pattern: "src/systems/run_return.js", domains: ["economy", "progression", "workshop"] },
     { pattern: "src/systems/workshop.js", domains: ["workshop"] },
     { pattern: "src/combat_ui/encounter.js", domains: ["combat"] },
@@ -301,6 +303,9 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/equip.js",
     "src/systems/equipment_actions.js",
     "src/systems/equipment_discard.js",
+    // Loadout commit records equipment decisions alongside the atomic state
+    // transition and consumes one exploration turn at its caller.
+    "src/systems/loadout_transaction.js",
     "src/menu/explore_actions.js",
     "src/movement.js",
     "src/menu/milestone_portal.js",
