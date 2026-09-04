@@ -434,6 +434,7 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | `max(0, str - 10)` | STR 10 を基準にし、10 未満のペナルティを 0 にする | character stats の基礎値と関数の実装 | STR 10 を中立点とし、低 STR 職のペナルティだけを除く。STR 10 超の職差は残す |
 | 負の呪い `atk` | `cursePower` 適用後の raw 値を丸めてから実効単位へ揃える | `getScaledCurseModifier` と `CURSE_EFFECTS` | 旧来の「raw を丸めてから物理式の1.5倍」を、保存値を実効単位にした後も同じ順序で保つ。呪いの閾値判定や他の負項は変更しない |
 | `randRoll` | 武器の `randRange` による一様整数を加算。fallback は `[0,4]` | `getCharWeaponPhysicalRandomRange` / `rollCharWeaponPhysicalRandom` と `round.js` | 武器ごとの手触りを作る #727 の変更。全武器の端点平均は2.0に揃え、平均威力を変えず分散だけ変える。固定データで武器の authored identity を維持する |
+| `behaviorProfile` | 武器データが `light` / `blade` / `impact` / `heavy` / `medium` の少数 profile を所有し、命中安定性・DEFへの支払い・一撃圧力・媒体の物理控えめを既存物理式へ接続 | `src/data/weapon_behavior_profiles.js`、`getWeaponBehaviorProfile`、`resolveWeaponAttack` | #1052。`攻撃` verb は増やさず、profile は同じ resolver で通常攻撃・追撃・反撃・auto/simulation見積りへ反映する。impact は高DEFを相対的に有利にするが hard counter ではなく、heavy は #1049 の両手／盾喪失と一体の commitment とする |
 | `evasionChance` / `hitChance` / `physicalAccuracy` | `evasive` trait を持つ敵だけが明示的な回避率を持ち、プレイヤー AGI で命中率を補正。`CORE_PHYSICAL_ACCURACY` は +1.00 を加えて上限へ到達させる | `src/data/monsters.js`、`getMonsterEvasionChance`、`getPhysicalHitChance`、`round.js` | 外れる軸を実データへ接続する PR1 と、同じ攻撃者側 stage で回避を打ち消す PR2。通常対象は常に 1.00、盲目は PR3、物理ヒット最低1 / ミス0は PR4 |
 | `defResistance` | `def / (def + k_direction)` の逓減抵抗 | `getPhysicalDefenseResistance` と `getEffectiveDef` | 敵分布（中央値5、p75=8、最大18）を #716 の物理耐性段階へ接続し、有限値では100%に到達しない。`k_direction` は旧式の適用段階差を含めて実遭遇分布で校正する |
 | `meleeMod` | 職業別 map、現行値は全て 1 | `getMeleeModifiers`。derived stats との共有を意図したコメント | 拡張点の存在は source の説明がある。現行の職業差を作る設計根拠はない |
@@ -765,6 +766,18 @@ telemetry は既存の 4.1 #7 を「変更した」とした理由
 `state.combatFormulaTelemetry.physicalPlayerHits` を使い、既定オフのまま
 `randRoll` を実測する。
 
+### 4.2 #1052 weapon behavior
+
+武器の `behaviorProfile` は、武器の装備そのものが通常の `攻撃` verb の
+支払い方を変えるための build ownership である。profile は
+`getWeaponBehaviorProfile` で解決し、`resolveWeaponAttack` が命中後の
+raw damage、profile固有の物理DEF曲線、最終物理damageを一度に返す。
+`round.js`、`damage.js`、auto-policy、simulation はこの返り値を使い、
+同じ武器を別の式で見積もらない。profileの表示ラベルは装備詳細へ出すが、
+敵の種類を読んで最適解を直接提示したり、class/stat permissionを追加したり
+しない。medium は物理profileの主役ではなく、maxMP / Rune slots の
+ownershipを維持する。
+
 ## 5. 決めるべきこと 7 項目の結論
 
 ### 1. 軽減は減算か乗算か
@@ -906,6 +919,7 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
 | #599 lv5以上の呪文が到達帯に届かない | 非対称 #2・#3、決定 2・3 | spell growth と level gate を同じ到達分布で再設計する。到達値・習得値の変更は #599。 |
 | #558 Mage `trapGuard=60` が Fighter `40` を上回る | 非対称 #9、決定 3 と職業軸 | 罠 sustain を damage compensation に使わず、職業軸を罠・戦闘・resource に分けて評価する。#558 の passive 値は変更しない。 |
 | #731 攻撃呪文の装備成長 | 非対称 #2、決定 2 | 「術力」`spellPower` を武器・鎧・盾と装身具から供給し、stat 直後の pre-target / pre-clamp に適用する。攻撃・回復の両方へ適用し、`arcane` / `devotion` / `fireRite` は固有項として残す。 |
+| #1052 weapon behaviorを既存の攻撃verbへ接続 | 装備を通常攻撃のbuild ownershipへ接続 | weapon dataの少数 `behaviorProfile` を `resolveWeaponAttack` へ集約し、light / blade / impact / heavy / mediumの差を通常攻撃・追撃・反撃・auto/simulation見積りで共有する。heavyの両手／盾喪失は #1049 のhand contractを使い、class/stat permissionや追加attack verbは設けない。 |
 | #728 PR4 物理ヒット最低1 / ミス0 | 非対称 #1、決定 1 | 命中判定後の `applyPhysicalResistance` から player→enemy 通常/追撃、enemy→player 通常/逃走追撃へ続く各物理段階を `max(1, ...)` にする。盲目 miss / evasive avoid は式へ進まず0。targeted affix、guard、defend、incoming mitigation、会心の倍率・順序、spell minimum は維持し、負値が HP を回復させないことを focused test で確認する。 |
 | #998 徘徊エリートのイベント化と個体特性 | 探索リスクと独立 combat trait | B3F以降の固定配置を廃止し、floor entry / prolonged exploration の決定的な抽選へ分離する。既存の知覚軸を維持し、`combatTrait` を1個だけ付与して戦闘開始時に説明する。 |
 | #721 monster drop の旧 positional API | 本書の範囲外 | ダメージモデルの判断対象ではない。配下の配線欠陥として記録だけし、コードを変更しない。 |

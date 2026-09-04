@@ -6,7 +6,8 @@ import {
   getCharAttackBreakdown,
   formatAffixText,
   canUseManaItems,
-  isCurseLocked
+  isCurseLocked,
+  getWeaponBehaviorProfile
 } from "./data.js";
 import { CURSE_EFFECTS } from "./data/items.js";
 import {
@@ -389,7 +390,10 @@ function getItemSummary(item) {
   const handText = ["weapon", "shield"].includes(item.type)
     ? ` / ${item.hands === 2 ? "両手" : "片手"}`
     : "";
-  if (item.type === "weapon") return `攻撃 +${item.atk || 0}${handText}`;
+  if (item.type === "weapon") {
+    const behavior = getWeaponBehaviorProfile(item);
+    return `攻撃 +${item.atk || 0}${handText} / ${behavior.label}: ${behavior.description}`;
+  }
   if (item.type === "shield") return `防御 +${item.def || 0}${handText}`;
   if (item.type === "armor") return `防御 +${item.def || 0}`;
   if (item.type === "accessory") {
@@ -1155,7 +1159,13 @@ function createDetailPanel(char) {
   titleBlock.appendChild(titleLine);
   const desc = document.createElement("div");
   desc.className = "equip-detail-desc";
-  desc.innerHTML = item.desc || getItemSummary(item);
+  desc.textContent = item.desc || getItemSummary(item);
+  if (!hidden && item.type === "weapon") {
+    const behavior = getWeaponBehaviorProfile(item);
+    const behaviorNote = document.createElement("div");
+    behaviorNote.textContent = `戦い方: ${behavior.label} — ${behavior.description}`;
+    desc.appendChild(behaviorNote);
+  }
   heading.appendChild(titleBlock);
 
   const targetSummary = document.createElement("div");

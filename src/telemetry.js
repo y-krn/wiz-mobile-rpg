@@ -24,6 +24,7 @@ import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.
 import { getBuffTotal } from "./combat_logic/status_effects.js";
 import { getMpWardDef } from "./combat_logic/mp_ward.js";
 import { INVENTORY_CAPACITY } from "./rules/item_inventory.js";
+import { getWeaponBehaviorProfile } from "./data/weapon_behavior_profiles.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -74,6 +75,7 @@ const SAFE_GAME_STATES = new Set([
 const SAFE_COMBAT_PHASES = new Set(["choose_actions", "resolving"]);
 const SAFE_ATTACK_TYPES = new Set(["physical", "normal", "spell", "breath", "special", "flee", "reflect", "counter", "other"]);
 const SAFE_GUARD_PROFILE_IDS = new Set(["universal_brace", "light", "physical", "arcane", "dragon", "aegis"]);
+const SAFE_WEAPON_BEHAVIOR_PROFILE_IDS = new Set(["light", "blade", "impact", "heavy", "medium"]);
 // Keep this in sync with the production codex progression in
 // src/state/codex_state.js.
 const SAFE_RARITIES = new Set(["common", "magic", "rare", "epic", "legendary"]);
@@ -355,6 +357,10 @@ export function buildPlayerSnapshot(character, { floor = 1 } = {}) {
     attack: boundedFiniteOrNull(derived.attack ?? attack.total),
     attackBase: boundedFiniteOrNull(attack.base),
     attackEquipment: boundedFiniteOrNull(attack.equipment),
+    weaponBehaviorProfileId: normalizeStableValue(
+      getWeaponBehaviorProfile(character).id,
+      SAFE_WEAPON_BEHAVIOR_PROFILE_IDS
+    ),
     defense: boundedFiniteOrNull(derived.defense),
     magic: boundedFiniteOrNull(derived.magic),
     healing: boundedFiniteOrNull(derived.healing),

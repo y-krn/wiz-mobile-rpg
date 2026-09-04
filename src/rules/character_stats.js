@@ -3,6 +3,7 @@ import { getCharAllStatsAffixBonus, getCharCoreParams } from "./affix_rules.js";
 import { getSpellStatBonus } from "./spell_rules.js";
 import { calculateDisarmRate } from "./trap_rules.js";
 import { getMediumMaxMpBonus } from "./magic_rules.js";
+import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
 
 export function getCharStr(char) {
   if (!char) return 0;
@@ -102,7 +103,8 @@ export function getPhysicalHitChance(char, target) {
     ? (agi - 10) * PHYSICAL_HIT_AGI_SCALE
     : 0;
   const physicalAccuracy = getCharCoreParams(char, "CORE_PHYSICAL_ACCURACY")?.hitChanceBonus || 0;
-  const chance = 1 - evasionChance + agiBonus + physicalAccuracy;
+  const behaviorHitChanceBonus = getWeaponBehaviorProfile(char).hitChanceBonus;
+  const chance = 1 - evasionChance + agiBonus + physicalAccuracy + behaviorHitChanceBonus;
   return Math.max(PHYSICAL_HIT_CHANCE_MIN, Math.min(1, chance));
 }
 
@@ -327,6 +329,46 @@ export function calculatePhysicalAttackFormula({
     physResist
   );
   return applyPhysicalResistance(rawDamage, resistance);
+}
+
+// Resolve every player physical attack from one profile-aware path. The
+// existing formula remains available for display and compatibility callers;
+// this resolver is the combat, policy, and simulation source of truth for
+// weapon-owned behavior.
+export function resolveWeaponAttack({
+  char,
+  weaponAtk = 0,
+  buffAtk = 0,
+  str = 10,
+  randRoll = 0,
+  def = 0,
+  physResist = 0,
+  meleeMod = 1,
+  fixedDamageBonus = 0
+} = {}) {
+  const behavior = getWeaponBehaviorProfile(char);
+  const fixedBonus = Number.isFinite(Number(fixedDamageBonus)) ? Number(fixedDamageBonus) : 0;
+  const baseRaw = calculatePhysicalAttackRawFormula({
+    weaponAtk,
+    buffAtk,
+    str,
+    randRoll,
+    meleeMod
+  });
+  const formulaRaw = baseRaw * behavior.rawDamageMultiplier + fixedBonus;
+  const defResistance = getPhysicalDefenseResistance(def, behavior.physicalDefenseScale);
+  const physicalResistance = combinePhysicalResistances(defResistance, physResist);
+  const damage = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, physicalResistance)));
+
+  return {
+    behavior,
+    behaviorProfileId: behavior.id,
+    baseRaw,
+    formulaRaw,
+    defResistance,
+    physicalResistance,
+    damage
+  };
 }
 
 export function calculatePhysicalDefenseFormula({

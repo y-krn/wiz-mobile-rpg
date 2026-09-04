@@ -4,6 +4,7 @@ export * from "./constants/map.js";
 export * from "./constants/events.js";
 export * from "./data/progression.js";
 export * from "./data/magic.js";
+export * from "./data/weapon_behavior_profiles.js";
 export * from "./rules/class_rules.js";
 export * from "./rules/magic_rules.js";
 export {

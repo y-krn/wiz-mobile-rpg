@@ -7,7 +7,7 @@ import {
   rollCharWeaponPhysicalRandom,
   PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
   getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharTrapEaterBonus,
-  calculatePhysicalAttackRawFormula, calculatePhysicalAttackFormula,
+  resolveWeaponAttack,
   calculatePhysicalDefenseFormula, applyPhysicalResistance,
   getPhysicalDefenseResistance
 } from "../data.js";
@@ -21,7 +21,6 @@ import {
 import {
   getMeleeModifiers,
   getEffectiveDef,
-  getEffectivePhysicalResistance,
   getEffectiveAtk,
   applyTargetedDamageBonus,
   reduceIncomingDamage,
@@ -609,11 +608,16 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const randRoll = rollCharWeaponPhysicalRandom(char);
           const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
-          const formulaRaw = calculatePhysicalAttackRawFormula({
-            weaponAtk, buffAtk, str, randRoll, meleeMod, fixedDamageBonus: trapEaterBonus
+          const weaponAttack = resolveWeaponAttack({
+            char,
+            weaponAtk, buffAtk, str, randRoll, meleeMod,
+            def,
+            physResist: finalTarget.physResist,
+            fixedDamageBonus: trapEaterBonus
           });
-          const physicalResistance = getEffectivePhysicalResistance(finalTarget);
-          dmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, physicalResistance)));
+          const { behavior } = weaponAttack;
+          const { formulaRaw, physicalResistance } = weaponAttack;
+          dmg = weaponAttack.damage;
           const formulaDmg = dmg;
 
           const isBlindApplied = char.status === "blind";
@@ -653,9 +657,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             className: char.class,
             weaponAtk, buffAtk, str, randRoll, def, meleeMod,
             trapEaterBonus,
-            defResistance: getPhysicalDefenseResistance(def),
+            defResistance: weaponAttack.defResistance,
             physicalResistance,
             formulaRaw, formulaDmg, isBlindApplied,
+            weaponBehaviorProfileId: weaponAttack.behaviorProfileId,
+            weaponBehaviorHitChanceBonus: behavior.hitChanceBonus,
+            weaponBehaviorDefenseScale: behavior.physicalDefenseScale,
+            weaponBehaviorDamageMultiplier: behavior.rawDamageMultiplier,
             physResistApplied: Boolean(finalTarget.physResist),
             targetEvasionChance: getMonsterEvasionChance(finalTarget),
             hitChance,
@@ -772,9 +780,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
               const trapEaterBonus = getCharTrapEaterBonus(char);
               const str = getCharStr(char);
-              const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
               const def = getEffectiveDef(finalTarget);
-              const followUpRaw = calculatePhysicalAttackFormula({
+              const followUpAttack = resolveWeaponAttack({
+                char,
                 weaponAtk,
                 str,
                 randRoll: followUpDmgRand,
@@ -783,7 +791,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 meleeMod: 0.7,
                 fixedDamageBonus: trapEaterBonus
               });
-              let followUpDmg = Math.max(1, Math.floor(followUpRaw * meleeMod));
+              let followUpDmg = followUpAttack.damage;
               tryApplyExecutionerSetup(char, finalTarget, { logQueue });
               followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
               finalTarget.hp = Math.max(0, finalTarget.hp - followUpDmg);
