@@ -113,6 +113,18 @@ state.party = previousParty;
 state.inventory = previousInventory;
 state.logs = previousLogs;
 
+const nonWeaponCharacter = createStartingKitCharacter("arcana");
+state.party = [nonWeaponCharacter];
+state.inventory = Array(20).fill("MAGE_CLOAK");
+assert.equal(equipEquipment({ inventoryIndex: 0, actorIdx: 0 }).ok, true,
+  "full bag does not block unrelated armor changes");
+assert.deepEqual(getActiveSpellKeys(nonWeaponCharacter), ["HALITO"],
+  "armor changes keep the active weapon Medium Rune");
+assert.equal(state.inventory.filter(item => item === "RUNE_HALITO").length, 0,
+  "non-weapon changes never duplicate socketed Runes");
+state.party = previousParty;
+state.inventory = previousInventory;
+
 const objectMediumCharacter = createStartingKitCharacter("arcana");
 delete objectMediumCharacter.mediumState;
 objectMediumCharacter.equipment.weapon = { baseId: "WAND", instanceId: "wand-instance-1" };

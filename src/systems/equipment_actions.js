@@ -25,7 +25,8 @@ import {
 } from "../rules/magic_rules.js";
 import { getCharMaxMp } from "../rules/character_stats.js";
 
-function getSocketedRuneItemIds(character) {
+function getSocketedRuneItemIds(character, slot) {
+  if (slot !== "weapon") return [];
   return getActiveRuneSpellKeys(character)
     .map(getRuneItemId)
     .filter(Boolean);
@@ -59,7 +60,7 @@ export function equipEquipment({ inventoryIndex, actorIdx, requestedSlot = null 
 
   const slot = availability.slot;
   const oldEq = getEquipmentSlotValue(character.equipment, slot);
-  const socketedRuneIds = getSocketedRuneItemIds(character);
+  const socketedRuneIds = getSocketedRuneItemIds(character, slot);
   if (!hasInventorySpace(state.inventory, socketedRuneIds.length)) {
     return { ok: false, reason: "inventory_full_for_runes" };
   }
@@ -109,7 +110,7 @@ export function unequipEquipment({ actorIdx, slot } = {}) {
   if (!character || !item || isCurseLocked(itemKey)) {
     return { ok: false, reason: "invalid_unequip" };
   }
-  const socketedRuneIds = getSocketedRuneItemIds(character);
+  const socketedRuneIds = getSocketedRuneItemIds(character, slot);
   if (!hasInventorySpace(state.inventory, 1 + socketedRuneIds.length)) {
     return { ok: false, reason: "inventory_full" };
   }
