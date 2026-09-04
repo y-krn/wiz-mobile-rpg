@@ -1192,7 +1192,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                   isDefending
                 });
                 wakeSleepingCharOnDamage(c);
-                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
+                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}` });
                 if (c.hp === 0) {
                   c.status = "dead";
                   const deathLog = recordCharDeath(state, c, `${mon.name}のラハリト`, { type: "combat", source: mon.name });
@@ -1241,7 +1241,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                   isDefending
                 });
                 wakeSleepingCharOnDamage(c);
-                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
+                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(軽減)" : ""}` });
                 if (c.hp === 0) {
                   c.status = "dead";
                   const deathLog = recordCharDeath(state, c, `${mon.name}のマダルト`, { type: "combat", source: mon.name });
@@ -1277,7 +1277,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           });
           wakeSleepingCharOnDamage(target);
           logQueue.push({
-            msg: `[ 敵 ] ${mon.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${isDefending ? "(半減)" : ""}`,
+            msg: `[ 敵 ] ${mon.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${isDefending ? "(軽減)" : ""}`,
             sound: "cast_spell",
             shake: 8,
             floatText: `${dmg}`,
@@ -1313,7 +1313,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 isDefending
               });
               wakeSleepingCharOnDamage(c);
-              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(半減)" : ""}` });
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(軽減)" : ""}` });
               if (c.hp === 0) {
                 c.status = "dead";
                 const deathLog = recordCharDeath(state, c, `${mon.name}のティルトウェイト`, { type: "combat", source: mon.name });

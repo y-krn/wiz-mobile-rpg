@@ -79,7 +79,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "フラック", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
           if (c.hp === 0) {
             c.status = "dead";
             const deathLog = recordCharDeath(state, c, "フラックのラハリト", { type: "combat", source: "フラック" });
@@ -273,7 +273,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "breath", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
           if (c.hp === 0) {
             c.status = "dead";
             const deathLog = recordCharDeath(state, c, "いにしえの竜の炎の息", { type: "combat", source: "いにしえの竜" });
@@ -309,7 +309,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
           if (c.hp === 0) {
             c.status = "dead";
             const deathLog = recordCharDeath(state, c, "いにしえの竜のマダルト", { type: "combat", source: "いにしえの竜" });

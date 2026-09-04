@@ -110,7 +110,7 @@ assert.equal(resolveGuardMitigation(magicShield, 100, {
   attackType: "special",
   baseMultiplier: 0.4
 }), 40);
-assert.equal(getGuardProfile(character({ shield: "SMALL_SHIELD" })).statusChanceMultiplier, 0.65);
+assert.equal(getGuardProfile(character({ shield: "SMALL_SHIELD" })).statusChanceMultiplier, 0.5);
 
 const migrated = normalizeSavePayload({
   party: [{

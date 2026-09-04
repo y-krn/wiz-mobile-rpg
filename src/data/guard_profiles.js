@@ -13,7 +13,7 @@ export const GUARD_PROFILES = Object.freeze({
     id: "light",
     label: "軽盾の守り",
     damageMultipliers: Object.freeze({ physical: 0.45, spell: 0.5, breath: 0.5, special: 0.5 }),
-    statusChanceMultiplier: 0.65
+    statusChanceMultiplier: 0.5
   }),
   physical: Object.freeze({
     id: "physical",
