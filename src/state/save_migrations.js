@@ -232,12 +232,14 @@ function normalizeCharEquipment(char) {
     if (!Number.isFinite(char.mp)) char.mp = 0;
     if (!char.mediumState || typeof char.mediumState !== "object") {
       const weapon = char.equipment.weapon;
-      const mediumKey = typeof weapon === "object"
-        ? weapon.instanceId || weapon.baseId || weapon.id
-        : weapon;
+      const mediumBaseId = getItemBaseId(weapon);
+      const mediumKey = typeof weapon === "object" && weapon.instanceId
+        ? weapon.instanceId
+        : mediumBaseId;
+      const hasMedium = MEDIUM_IDS.includes(mediumBaseId);
       char.mediumState = {
-        mediumKey: MEDIUM_IDS.includes(mediumKey) ? mediumKey : null,
-        socketedRunes: char.startingKit === "arcana" && MEDIUM_IDS.includes(mediumKey)
+        mediumKey: hasMedium ? mediumKey : null,
+        socketedRunes: char.startingKit === "arcana" && hasMedium
           ? [BASIC_RUNE_ITEM_ID]
           : []
       };

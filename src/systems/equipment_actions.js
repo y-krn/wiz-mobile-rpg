@@ -17,8 +17,24 @@ import { discardEquipmentItems } from "./equipment_discard.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
 import { findRunObjectLootEntry } from "../state/run_loot.js";
 import { hasInventorySpace } from "../rules/item_inventory.js";
-import { clampCurrentMpToMax, syncMediumState } from "../rules/magic_rules.js";
+import {
+  clampCurrentMpToMax,
+  getActiveRuneSpellKeys,
+  getRuneItemId,
+  syncMediumState
+} from "../rules/magic_rules.js";
 import { getCharMaxMp } from "../rules/character_stats.js";
+
+function getSocketedRuneItemIds(character) {
+  return getActiveRuneSpellKeys(character)
+    .map(getRuneItemId)
+    .filter(Boolean);
+}
+
+function returnSocketedRunes(runeIds) {
+  runeIds.forEach(runeId => addInventoryItemToState(state, runeId));
+  return runeIds.length > 0;
+}
 
 function getPreviewForDiscard(character, itemKey, requestedSlot = null) {
   try {
@@ -43,6 +59,10 @@ export function equipEquipment({ inventoryIndex, actorIdx, requestedSlot = null 
 
   const slot = availability.slot;
   const oldEq = getEquipmentSlotValue(character.equipment, slot);
+  const socketedRuneIds = getSocketedRuneItemIds(character);
+  if (!hasInventorySpace(state.inventory, socketedRuneIds.length)) {
+    return { ok: false, reason: "inventory_full_for_runes" };
+  }
   const lootId = findRunObjectLootEntry(state, itemKey)?.id;
   const telemetryPreview = getEquipmentPreview(character, itemKey, slot, { floor: state.floor });
   trackEquipmentDecision("equip", {
@@ -58,6 +78,9 @@ export function equipEquipment({ inventoryIndex, actorIdx, requestedSlot = null 
   clampCurrentMpToMax(character, getCharMaxMp);
   if (oldEq) state.inventory[inventoryIndex] = oldEq;
   else state.inventory.splice(inventoryIndex, 1);
+  if (returnSocketedRunes(socketedRuneIds)) {
+    addLog(`${character.name}のsocket中Runeがバッグに戻った。`);
+  }
 
   const reveal = revealEquipmentOnEquip(itemKey);
   trackLootLifecycle("adopted", { state, character, itemKey, lootId, source: "dungeon" });
@@ -86,7 +109,8 @@ export function unequipEquipment({ actorIdx, slot } = {}) {
   if (!character || !item || isCurseLocked(itemKey)) {
     return { ok: false, reason: "invalid_unequip" };
   }
-  if (!hasInventorySpace(state.inventory)) {
+  const socketedRuneIds = getSocketedRuneItemIds(character);
+  if (!hasInventorySpace(state.inventory, 1 + socketedRuneIds.length)) {
     return { ok: false, reason: "inventory_full" };
   }
 
@@ -101,6 +125,9 @@ export function unequipEquipment({ actorIdx, slot } = {}) {
   syncMediumState(character);
   clampCurrentMpToMax(character, getCharMaxMp);
   addInventoryItemToState(state, itemKey);
+  if (returnSocketedRunes(socketedRuneIds)) {
+    addLog(`${character.name}のsocket中Runeがバッグに戻った。`);
+  }
   addLog(`${character.name}は${item.name}を外した。`);
   playSound("move");
   saveAutosave();

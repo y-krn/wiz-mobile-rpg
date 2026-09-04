@@ -11,6 +11,7 @@ import {
   canUseManaItems
 } from "../../../src/data.js";
 import { STARTING_KITS, createStartingKitCharacter, state } from "../../../src/state.js";
+import { SAVE_VERSION, migrateSavePayload } from "../../../src/state/save_migrations.js";
 import { getChestItemCandidatesByFloor } from "../../../src/rules/chest_rules.js";
 import {
   getActiveSpellKeys,
@@ -22,6 +23,7 @@ import {
 import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.js";
 import { chooseAutoCombatAction, getAutoHealTargetIdx } from "../../../src/combat_logic/auto_action.js";
 import { socketRuneFromInventory, unsocketRuneToInventory } from "../../../src/systems/magic_actions.js";
+import { equipEquipment, unequipEquipment } from "../../../src/systems/equipment_actions.js";
 
 for (const kit of STARTING_KITS) {
   const character = createStartingKitCharacter(kit.id);
@@ -89,6 +91,40 @@ assert.equal(unsocketRuneToInventory({ actorIdx: 0, spellKey: "HALITO" }).ok, tr
 assert.deepEqual(state.inventory, ["RUNE_HALITO"]);
 state.party = previousParty;
 state.inventory = previousInventory;
+
+const previousLogs = state.logs;
+state.logs = [];
+const transitionCharacter = createStartingKitCharacter("arcana");
+state.party = [transitionCharacter];
+state.inventory = ["SAGE_STAFF", "RUNE_DIOS"];
+transitionCharacter.mp = 3;
+assert.equal(equipEquipment({ inventoryIndex: 0, actorIdx: 0 }).ok, true);
+assert.equal(transitionCharacter.equipment.weapon, "SAGE_STAFF");
+assert.equal(getActiveSpellKeys(transitionCharacter).length, 0, "new medium starts with no active Rune");
+assert.ok(state.inventory.includes("WAND"), "old medium returns to the bag");
+assert.ok(state.inventory.includes("RUNE_HALITO"), "socketed Rune returns to the bag on medium swap");
+const diosIndex = state.inventory.indexOf("RUNE_DIOS");
+assert.equal(socketRuneFromInventory({ actorIdx: 0, inventoryIndex: diosIndex }).ok, true);
+assert.equal(unequipEquipment({ actorIdx: 0, slot: "weapon" }).ok, true);
+assert.equal(transitionCharacter.equipment.weapon, null);
+assert.ok(state.inventory.includes("SAGE_STAFF"), "unequipped medium returns to the bag");
+assert.ok(state.inventory.includes("RUNE_DIOS"), "socketed Rune returns on medium unequip");
+state.party = previousParty;
+state.inventory = previousInventory;
+state.logs = previousLogs;
+
+const objectMediumCharacter = createStartingKitCharacter("arcana");
+delete objectMediumCharacter.mediumState;
+objectMediumCharacter.equipment.weapon = { baseId: "WAND", instanceId: "wand-instance-1" };
+const migratedObjectMedium = migrateSavePayload({
+  version: SAVE_VERSION,
+  party: [objectMediumCharacter],
+  inventory: [],
+  logs: ["resume"]
+});
+assert.equal(migratedObjectMedium.party[0].mediumState.mediumKey, "wand-instance-1");
+assert.deepEqual(migratedObjectMedium.party[0].mediumState.socketedRunes, ["RUNE_HALITO"],
+  "object-form medium migration keeps Arcana Rune active");
 
 // Swapping away from a medium disables its active build and never restores MP.
 fighter.mp = 3;
