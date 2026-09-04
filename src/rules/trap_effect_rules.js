@@ -2,6 +2,7 @@ import {
   FORCE_DAMAGE_MULTIPLIER,
   SCOUT_TRAP_DAMAGE_MULTIPLIER
 } from "./trap_rules.js";
+import { getCharMaxMp } from "./character_stats.js";
 
 const CHEST_POISON_NEEDLE_DAMAGE = Object.freeze({ full: 12, weakened: 6 });
 const CHEST_GAS_BOMB_RANGE = Object.freeze({
@@ -247,7 +248,7 @@ export function resolveFloorTrapEffect({
     const baseMax = Math.max(2, Math.floor(floor * 1.2));
     const range = baseMax - baseMin + 1;
     effect.partyMpDrain = party.map(char => {
-      if (char?.status === "dead" || char?.maxMp <= 0) return 0;
+      if (char?.status === "dead" || getCharMaxMp(char) <= 0) return 0;
       const rawDrain = Math.floor(rng() * range) + baseMin;
       return Math.max(1, Math.floor(rawDrain * powerMultiplier));
     });

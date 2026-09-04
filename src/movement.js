@@ -1,6 +1,6 @@
 import { state, saveAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery } from "./telemetry.js";
-import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum } from "./data.js";
+import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
@@ -527,7 +527,7 @@ export function applyStairsHeal(cell) {
     stepsAtDiscovery: floorStepsAtDiscovery,
     stepsBeforeDiscovery: floorStepsAtDiscovery,
     hpRate: state.party?.[0]?.hp / Math.max(1, getCharMaxHp(state.party?.[0])),
-    mpRate: state.party?.[0]?.mp / Math.max(1, state.party?.[0]?.maxMp || 1),
+    mpRate: state.party?.[0]?.mp / Math.max(1, getCharMaxMp(state.party?.[0]) || 1),
     explorationMode: "discovery"
   });
 
