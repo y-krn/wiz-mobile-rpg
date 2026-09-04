@@ -174,7 +174,7 @@ export function renderSpellOverlay() {
 
       btn.className = `spell-caster-btn ${isCurrent ? "active" : ""} ${isDisabled ? "disabled" : ""}`;
       
-      const mpInfo = reason ? `<span class="caster-btn-reason">${reason}</span>` : `MP ${char.mp}/${char.maxMp}`;
+      const mpInfo = reason ? `<span class="caster-btn-reason">${reason}</span>` : `MP ${char.mp}/${getCharMaxMp(char)}`;
 
       btn.innerHTML = `
         <div class="caster-btn-name">${char.name}</div>

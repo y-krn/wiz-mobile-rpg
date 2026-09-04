@@ -43,7 +43,7 @@ export function getActiveRuneSpellKeys(char) {
   const mediumKey = getMediumIdentity(getEquippedMedium(char).item);
   if (char.mediumState?.mediumKey !== mediumKey) return [];
   const seen = new Set();
-  return (char.mediumState.socketedRunes || [])
+  return (Array.isArray(char.mediumState.socketedRunes) ? char.mediumState.socketedRunes : [])
     .map(normalizeRuneSpellKey)
     .filter(spellKey => spellKey && !seen.has(spellKey) && seen.add(spellKey))
     .slice(0, getMediumRuneCapacity(char));
@@ -73,7 +73,10 @@ export function syncMediumState(char, { preserveRunes = false } = {}) {
   } else if (char.mediumState?.mediumKey !== mediumKey) {
     char.mediumState = { mediumKey, socketedRunes: previousRunes || [] };
   } else {
-    char.mediumState.socketedRunes = (char.mediumState.socketedRunes || [])
+    const socketedRunes = Array.isArray(char.mediumState.socketedRunes)
+      ? char.mediumState.socketedRunes
+      : [];
+    char.mediumState.socketedRunes = socketedRunes
       .map(normalizeRuneSpellKey)
       .filter(Boolean)
       .map(spellKey => getRuneItemId(spellKey) || spellKey)
@@ -89,7 +92,7 @@ export function socketRune(char, rune) {
   if (!medium || !spellKey) return { ok: false, reason: "medium_or_rune_missing" };
   syncMediumState(char);
   const runes = char.mediumState.socketedRunes;
-  if (runes.includes(spellKey)) return { ok: false, reason: "already_socketed" };
+  if (runes.some(rune => normalizeRuneSpellKey(rune) === spellKey)) return { ok: false, reason: "already_socketed" };
   if (runes.length >= medium.runeSlots) return { ok: false, reason: "capacity" };
   runes.push(getRuneItemId(spellKey) || spellKey);
   return { ok: true, spellKey, runeSlots: medium.runeSlots };
@@ -97,9 +100,11 @@ export function socketRune(char, rune) {
 
 export function unsocketRune(char, spellKey) {
   if (!char?.startingKit) return { ok: false, reason: "legacy_character" };
-  const index = char.mediumState?.socketedRunes?.findIndex(rune => normalizeRuneSpellKey(rune) === spellKey) ?? -1;
+  const runes = Array.isArray(char.mediumState?.socketedRunes) ? char.mediumState.socketedRunes : [];
+  const index = runes.findIndex(rune => normalizeRuneSpellKey(rune) === spellKey);
   if (index < 0) return { ok: false, reason: "not_socketed" };
-  char.mediumState.socketedRunes.splice(index, 1);
+  runes.splice(index, 1);
+  char.mediumState.socketedRunes = runes;
   return { ok: true, spellKey };
 }
 

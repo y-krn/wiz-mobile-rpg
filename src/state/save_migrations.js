@@ -242,6 +242,7 @@ function normalizeCharEquipment(char) {
           : []
       };
     }
+    if (!Array.isArray(char.mediumState.socketedRunes)) char.mediumState.socketedRunes = [];
   }
 }
 

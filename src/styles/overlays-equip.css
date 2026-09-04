@@ -1098,6 +1098,48 @@
   color: var(--neon-amber);
 }
 
+.equip-rune-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+  margin-bottom: var(--sp-sm);
+}
+
+.equip-rune-help {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  margin: 0;
+  padding: 0 4px;
+}
+
+.equip-rune-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+}
+
+.equip-rune-row {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(155, 215, 210, 0.22);
+  border-radius: var(--radius-xs);
+  display: flex;
+  gap: var(--sp-sm);
+  justify-content: space-between;
+  min-height: var(--tap-min);
+  padding: 4px 8px;
+}
+
+.equip-rune-row.active {
+  border-color: rgba(191, 90, 242, 0.5);
+}
+
+.equip-rune-action {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 4px 10px;
+}
+
 .equip-type-heading {
   border-bottom: 1px solid rgba(155, 215, 210, 0.22);
   color: var(--text-muted);

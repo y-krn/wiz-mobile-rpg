@@ -10,7 +10,7 @@ import {
   canUsePriestSpells,
   canUseManaItems
 } from "../../../src/data.js";
-import { STARTING_KITS, createStartingKitCharacter } from "../../../src/state.js";
+import { STARTING_KITS, createStartingKitCharacter, state } from "../../../src/state.js";
 import { CHEST_ITEM_CANDIDATES_BY_FLOOR } from "../../../src/rules/chest_rules.js";
 import {
   getActiveSpellKeys,
@@ -21,6 +21,7 @@ import {
 } from "../../../src/rules/magic_rules.js";
 import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.js";
 import { chooseAutoCombatAction, getAutoHealTargetIdx } from "../../../src/combat_logic/auto_action.js";
+import { socketRuneFromInventory, unsocketRuneToInventory } from "../../../src/systems/magic_actions.js";
 
 for (const kit of STARTING_KITS) {
   const character = createStartingKitCharacter(kit.id);
@@ -66,6 +67,28 @@ assert.equal(socketRune(fighter, "RUNE_DIOS").ok, true);
 assert.deepEqual(getActiveSpellKeys(fighter), ["DIOS"]);
 assert.equal(getMediumRuneCapacity(fighter), 1);
 assert.equal(socketRune(fighter, "RUNE_HALITO").reason, "capacity");
+
+const sage = createStartingKitCharacter("arcana");
+sage.equipment.weapon = "SAGE_STAFF";
+syncMediumState(sage);
+assert.equal(socketRune(sage, "RUNE_DIOS").ok, true);
+assert.equal(socketRune(sage, "RUNE_DIOS").reason, "already_socketed");
+
+const previousParty = state.party;
+const previousInventory = state.inventory;
+globalThis.localStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {}
+};
+state.party = [sage];
+state.inventory = ["RUNE_HALITO"];
+assert.equal(socketRuneFromInventory({ actorIdx: 0, inventoryIndex: 0 }).ok, true);
+assert.deepEqual(state.inventory, []);
+assert.equal(unsocketRuneToInventory({ actorIdx: 0, spellKey: "HALITO" }).ok, true);
+assert.deepEqual(state.inventory, ["RUNE_HALITO"]);
+state.party = previousParty;
+state.inventory = previousInventory;
 
 // Swapping away from a medium disables its active build and never restores MP.
 fighter.mp = 3;
