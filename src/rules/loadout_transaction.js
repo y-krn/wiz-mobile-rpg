@@ -174,7 +174,7 @@ export function getLoadoutDraftChanges(draft) {
   const discardedKeys = new Set();
   [...discardedFromBase, ...(draft.discardedItems || [])].forEach(item => {
     const key = itemIdentity(item);
-    if (discardedKeys.has(key)) return;
+    if (discardedKeys.has(key) || currentItems.has(key)) return;
     discardedKeys.add(key);
     discarded.push(item);
   });
