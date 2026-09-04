@@ -277,6 +277,24 @@ d0 = max(1, floor(finalAtk * (1 - defResistance)))
 最低 1 で保持する。miss / avoid はこの経路に入らず 0 であり、負の入力も最終 damage
 へ渡さないため、`target.hp = max(0, hp - damage)` が HP を回復させることはない。
 
+### 1.2.2 共通Guard resolver（Issue #1049）
+
+`defend` は盾の有無にかかわらず使える universal brace であり、incoming
+damage の式を置き換えるのではなく、式の出力から追加軽減へ進む共通段階である。
+`src/rules/guard_rules.js` の `getGuardProfile` / `resolveGuardMitigation`
+が source of truth で、武器・呪文・ブレス・ボス特殊攻撃・逃走追撃は同じ
+resolver を参照する。盾なしは `universal_brace`、盾ありは item data の
+`guardProfile` を使い、物理・呪文・ブレス・special の倍率と状態異常成功率の
+対応範囲を変える。具体的な profile 値は暫定であり、この Issue の全面的な
+Guard balance tuning を意味しない。
+
+状態異常 setup は damage と別の判定なので `resolveGuardStatusChance` を使う。
+状態異常 payoff の物理ダメージは通常の physical Guard 段階を通る。毒耐性・
+魔法耐性・`guardian`・`GUARD_POTION`・竜耐性は既存の `reduceIncomingDamage`
+段階に残し、Guard と二重に一つの効果へ統合しない。telemetry は同じ resolved
+damage と `guardProfileId` を記録し、simulation は production の round
+resolution を通る。
+
 ### 1.3 攻撃呪文の全文
 
 対象は damage を返す 6 呪文である。`KATINO` など状態異常だけの呪文はこの式に

@@ -82,6 +82,7 @@ import {
   tryApplyExecutionerSetup
 } from "../rules/affix_rules.js";
 import { getClassCriticalChance } from "../rules/class_rules.js";
+import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
 
 export { getMpWardDef };
 
@@ -223,6 +224,13 @@ function isStatusCureAction(action, status) {
     : action.type === "spell" && cureSpells.includes(action.spellName || action.spell);
 }
 
+function getCombatGuardedStatusChance(char, baseChance, combatSelection, actorIdx) {
+  const isDefending = combatSelection.actions.some(action =>
+    action.actorIdx === actorIdx && action.type === "defend"
+  );
+  return resolveGuardStatusChance(char, baseChance, { isDefending });
+}
+
 function resolveEnemyStatusPattern(monster, state, monsters, combatSelection, logQueue, roundNumber) {
   const pattern = MONSTER_STATUS_ATTACK_PATTERNS[monster.statusAttackPattern];
   const patternActive = pattern && !monster.isBoss && !monster.isMidboss &&
@@ -283,7 +291,12 @@ function resolveEnemyStatusPattern(monster, state, monsters, combatSelection, lo
   const targetSelect = candidates[Math.floor(Math.random() * candidates.length)];
   if (Math.random() >= pattern.setupChance) return null;
   recordEnemyStatusPattern(state, "attemptsByEnemyFloor", monster, targetSelect.c);
-  if (Math.random() >= getStatusEffectChance(targetSelect.c, 1)) {
+  if (Math.random() >= getCombatGuardedStatusChance(
+    targetSelect.c,
+    getStatusEffectChance(targetSelect.c, 1),
+    combatSelection,
+    targetSelect.i
+  )) {
     recordEnemyStatusPattern(state, "resistedByEnemyFloor", monster, targetSelect.c);
     logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は不屈の意志で${pattern.status === "poisoned" ? "毒" : "盲目"}を退けた！`, sound: "miss" });
     return { handled: true };
@@ -352,6 +365,7 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   let dmg = formulaDmg;
   const preMitigationDmg = dmg;
   const playerHpBefore = target.hp;
+  dmg = resolveGuardMitigation(target, dmg, { attackType: "physical" });
   dmg = reduceIncomingDamage(target, dmg, { logQueue, state });
   state.combatFormulaTelemetry?.physicalMonsterHits.push({
     floor: state.floor,
@@ -987,7 +1001,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         const targetSelect = pickTarget(state.party);
         if (targetSelect) {
           recordMonsterAction(mon, "沈黙", state);
-          if (Math.random() >= getStatusEffectChance(targetSelect.c, 1)) {
+          if (Math.random() >= getCombatGuardedStatusChance(
+            targetSelect.c,
+            getStatusEffectChance(targetSelect.c, 1),
+            combatSelection,
+            targetSelect.i
+          )) {
             logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は不屈の意志で沈黙を退けた！`, sound: "miss" });
           } else {
             recordMonsterCondition(mon, "沈黙を受けた", state);
@@ -1002,7 +1021,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         const targetSelect = pickTarget(state.party, "lowHp");
         if (targetSelect) {
           recordMonsterAction(mon, "回復を阻害", state);
-          if (Math.random() >= getStatusEffectChance(targetSelect.c, 1)) {
+          if (Math.random() >= getCombatGuardedStatusChance(
+            targetSelect.c,
+            getStatusEffectChance(targetSelect.c, 1),
+            combatSelection,
+            targetSelect.i
+          )) {
             logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は不屈の意志で呪いを退けた！`, sound: "miss" });
           } else {
             recordMonsterCondition(mon, "回復阻害を受けた", state);
@@ -1149,7 +1173,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               if (c.status !== "dead") {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
                 let dmg = Math.floor(Math.random() * 15) + 10;
-                if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+                dmg = resolveGuardMitigation(c, dmg, {
+                  isDefending,
+                  attackType: mon.tags?.includes("dragon") ? "breath" : "spell"
+                });
                 const rawDamage = dmg;
                 const playerHpBefore = c.hp;
                 dmg = reduceIncomingDamage(c, dmg, {
@@ -1194,7 +1221,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               if (c.status !== "dead") {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
                 let dmg = Math.floor(Math.random() * 20) + 15;
-                if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+                dmg = resolveGuardMitigation(c, dmg, {
+                  isDefending,
+                  attackType: mon.tags?.includes("dragon") ? "breath" : "spell"
+                });
                 const rawDamage = dmg;
                 const playerHpBefore = c.hp;
                 dmg = reduceIncomingDamage(c, dmg, {
@@ -1229,7 +1259,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           recordMonsterAction(mon, "HALITO", state);
           let dmg = Math.floor(Math.random() * 10) + 5;
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
-          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+          dmg = resolveGuardMitigation(target, dmg, { isDefending, attackType: "spell" });
           const rawDamage = dmg;
           const playerHpBefore = target.hp;
           dmg = reduceIncomingDamage(target, dmg, {
@@ -1262,7 +1292,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             if (c.status !== "dead") {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
-              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              dmg = resolveGuardMitigation(c, dmg, {
+                isDefending,
+                attackType: mon.tags?.includes("dragon") ? "breath" : "spell"
+              });
               const rawDamage = dmg;
               const playerHpBefore = c.hp;
               dmg = reduceIncomingDamage(c, dmg, {
@@ -1336,7 +1369,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const formulaRaw = finalAtk;
           let dmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, defResistance)));
           const formulaDmg = dmg;
-          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+          dmg = resolveGuardMitigation(target, dmg, {
+            isDefending,
+            attackType: "physical"
+          });
 
           const isBlindTargetApplied = target.status === "blind";
 
@@ -1415,7 +1451,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const poisonChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
           const patternActive = mon.statusAttackPattern && !mon.isBoss && !mon.isMidboss &&
             !state.combatState?.isBoss && !state.combatState?.isMidboss;
-          if (mon.isPoisonous && !patternActive && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, poisonChance)) {
+          if (mon.isPoisonous && !patternActive && target.hp > 0 && target.status === "ok" && Math.random() < resolveGuardStatusChance(target, getStatusEffectChance(target, poisonChance), { isDefending })) {
             const ward = getCharAffixSum(target, "poisonWard");
             if (ward > 0 && Math.random() * 100 < ward) {
               logQueue.push({
@@ -1437,7 +1473,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply paralyze effect if monster is paralyzing and target survives
           const paralyzeChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isParalyzing && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, paralyzeChance)) {
+          if (mon.isParalyzing && target.hp > 0 && target.status === "ok" && Math.random() < resolveGuardStatusChance(target, getStatusEffectChance(target, paralyzeChance), { isDefending })) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED, { source: "monster" });
             recordMonsterCondition(mon, "麻痺を受けた", state);
             logQueue.push({
@@ -1448,7 +1484,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply sleep effect if monster can induce sleep and target survives
           const sleepChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isSleepInflicting && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, sleepChance)) {
+          if (mon.isSleepInflicting && target.hp > 0 && target.status === "ok" && Math.random() < resolveGuardStatusChance(target, getStatusEffectChance(target, sleepChance), { isDefending })) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.SLEEP, { remainingTurns: 2, source: "monster" });
             recordMonsterCondition(mon, "睡眠を受けた", state);
             logQueue.push({
@@ -1459,7 +1495,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply blind effect if monster is blinding and target survives
           const blindChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isBlinding && !patternActive && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, blindChance)) {
+          if (mon.isBlinding && !patternActive && target.hp > 0 && target.status === "ok" && Math.random() < resolveGuardStatusChance(target, getStatusEffectChance(target, blindChance), { isDefending })) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.BLIND, { source: "monster" });
             recordMonsterCondition(mon, "盲目を受けた", state);
             logQueue.push({

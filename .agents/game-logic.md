@@ -12,6 +12,13 @@ existing state and data structures.
 - Deterministic resolution, random behavior, save/state shape, and flow wiring
 - Facade-to-concrete module behavior for mechanics
 
+Equipment loadouts use the two-hand invariant from `src/rules/equipment_hands.js`:
+weapon/medium hands plus shield hands must remain at or below two after every
+single equipment action. Invalid replacements are rejected before mutation;
+the existing shield is never silently discarded. Active `defend` resolution is
+owned by `src/rules/guard_rules.js`, and combat callers must not reintroduce
+per-attack half-damage or status-block branches outside that resolver.
+
 Target files are determined from the relevant rows in `.agents/file-map.md`.
 
 ## Chest Transition Contract

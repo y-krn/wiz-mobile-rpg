@@ -386,8 +386,11 @@ function requestUnequipAfterDiscard() {
 }
 
 function getItemSummary(item) {
-  if (item.type === "weapon") return `攻撃 +${item.atk || 0}`;
-  if (item.type === "shield") return `防御 +${item.def || 0}`;
+  const handText = ["weapon", "shield"].includes(item.type)
+    ? ` / ${item.hands === 2 ? "両手" : "片手"}`
+    : "";
+  if (item.type === "weapon") return `攻撃 +${item.atk || 0}${handText}`;
+  if (item.type === "shield") return `防御 +${item.def || 0}${handText}`;
   if (item.type === "armor") return `防御 +${item.def || 0}`;
   if (item.type === "accessory") {
     if (item.hpBonus) return `HP +${item.hpBonus}`;

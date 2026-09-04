@@ -3,10 +3,10 @@ import { SPELLS } from "./spells.js";
 // Mediums reuse the weapon slot. Capacity is an equipped-item property, not a
 // compatibility class or level property. Values are structural vNext defaults.
 export const MEDIUMS = Object.freeze({
-  WAND: Object.freeze({ id: "WAND", maxMpBonus: 2, runeSlots: 1 }),
-  SAGE_STAFF: Object.freeze({ id: "SAGE_STAFF", maxMpBonus: 3, runeSlots: 2 }),
-  ARCH_WAND: Object.freeze({ id: "ARCH_WAND", maxMpBonus: 4, runeSlots: 3 }),
-  HOLY_STAFF: Object.freeze({ id: "HOLY_STAFF", maxMpBonus: 2, runeSlots: 1 })
+  WAND: Object.freeze({ id: "WAND", hands: 1, maxMpBonus: 2, runeSlots: 1 }),
+  SAGE_STAFF: Object.freeze({ id: "SAGE_STAFF", hands: 2, maxMpBonus: 3, runeSlots: 2 }),
+  ARCH_WAND: Object.freeze({ id: "ARCH_WAND", hands: 2, maxMpBonus: 4, runeSlots: 3 }),
+  HOLY_STAFF: Object.freeze({ id: "HOLY_STAFF", hands: 1, maxMpBonus: 2, runeSlots: 1 })
 });
 
 export const MEDIUM_IDS = Object.freeze(Object.keys(MEDIUMS));

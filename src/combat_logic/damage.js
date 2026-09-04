@@ -21,6 +21,14 @@ import {
 import { resolvePurifyRecovery } from "../rules/purify_rules.js";
 import { getMpWardDef } from "./mp_ward.js";
 import { trackDamageReceived } from "../telemetry.js";
+import {
+  getGuardProfile,
+  getGuardProfileId,
+  resolveGuardMitigation,
+  resolveGuardStatusChance
+} from "../rules/guard_rules.js";
+
+export { getGuardProfile, getGuardProfileId, resolveGuardMitigation, resolveGuardStatusChance };
 
 export function recordReceivedDamage(
   state,
@@ -69,7 +77,8 @@ export function recordReceivedDamage(
     playerHpAfter: char?.hp,
     playerMp: char?.mp,
     mpWardActive: getMpWardDef(char) > 0,
-    isDefending: options.isDefending
+    isDefending: options.isDefending,
+    guardProfileId: getGuardProfileId(char)
   });
 }
 
@@ -348,14 +357,21 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
     if (c.status === "dead") return;
     const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
     let dmg = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
-    if (isDefending) dmg = Math.max(1, Math.round(dmg * (options.defendRate ?? 0.5)));
+    dmg = resolveGuardMitigation(c, dmg, {
+      isDefending,
+      attackType: options.attackType,
+      spell: options.spell,
+      dragon: options.dragon,
+      baseMultiplier: options.defendRate
+    });
     const rawDamage = dmg;
     const playerHpBefore = c.hp;
     dmg = reduceIncomingDamage(c, dmg, {
       spell: options.spell,
       dragon: options.dragon,
       logQueue,
-      state
+      state,
+      isDefending
     });
     c.hp = Math.max(0, c.hp - dmg);
     recordReceivedDamage(state, c, sourceName, rawDamage, dmg, playerHpBefore, {

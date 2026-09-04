@@ -55,6 +55,8 @@ assert.equal(levelledCharacters[0].mp, 1, "level up must not grow universal base
 assert.deepEqual(levelledCharacters[0].spells, [], "level up must not grant spells");
 
 const fighter = createStartingKitCharacter("vanguard");
+assert.equal(canEquipEquipment(fighter, "ARCH_WAND").ok, false, "a 2H medium cannot coexist with the starting shield");
+fighter.equipment.shield = null;
 assert.equal(canEquipEquipment(fighter, "ARCH_WAND").ok, true, "equipment permission is no longer class-owned");
 
 const mageParty = [createStartingKitCharacter("arcana")];

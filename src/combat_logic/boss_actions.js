@@ -10,6 +10,7 @@ import {
   getMilestoneBossRule,
   shouldBreakMilestoneBossGuard
 } from "../rules/boss_rules.js";
+import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
 
 function resolveB5MilestoneBossAction(mon, state, logQueue) {
   const rule = getMilestoneBossRule(
@@ -71,7 +72,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 16) + 10; // 10-25 DMG
-          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+          dmg = resolveGuardMitigation(c, dmg, { isDefending, attackType: "spell" });
           const rawDamage = dmg;
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue, state });
@@ -135,7 +136,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 16) + 15; // 15-30 DMG
-          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+          dmg = resolveGuardMitigation(c, dmg, { isDefending, attackType: "spell" });
           const rawDamage = dmg;
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue, state });
@@ -171,10 +172,15 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           sound: "cast_spell"
         });
 
-        if (isDefending && Math.random() < 0.50) {
-          logQueue.push({ msg: `[ 敵 ] しかし、${target.name}は身を守り呪いを防いだ！` });
-        } else if (Math.random() >= getStatusEffectChance(target, 1)) {
-          logQueue.push({ msg: `[ 敵 ] ${target.name}は不屈の意志で呪いを退けた！` });
+        const guardedChance = resolveGuardStatusChance(
+          target,
+          getStatusEffectChance(target, 1),
+          { isDefending }
+        );
+        if (Math.random() >= guardedChance) {
+          logQueue.push({ msg: isDefending
+            ? `[ 敵 ] しかし、${target.name}は身を守り呪いを防いだ！`
+            : `[ 敵 ] ${target.name}は不屈の意志で呪いを退けた！` });
         } else {
           const gazeRoll = Math.random();
           if (gazeRoll < 0.50) {
@@ -220,8 +226,14 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 31) + 45; // 45-75 DMG
           if (isDefending) {
-            dmg = Math.max(1, Math.round(dmg * 0.4));
+            dmg = resolveGuardMitigation(c, dmg, {
+              isDefending,
+              attackType: "special",
+              baseMultiplier: 0.4
+            });
             logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを大幅に軽減した！` });
+          } else {
+            dmg = resolveGuardMitigation(c, dmg, { attackType: "special" });
           }
           const rawDamage = dmg;
           const playerHpBefore = c.hp;
@@ -254,7 +266,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 13) + 12; // 12-24 DMG
-          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+          dmg = resolveGuardMitigation(c, dmg, { isDefending, attackType: "breath" });
           const rawDamage = dmg;
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
@@ -290,7 +302,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 21) + 15; // 15-35 DMG
-          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+          dmg = resolveGuardMitigation(c, dmg, { isDefending, attackType: "spell" });
           const rawDamage = dmg;
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
