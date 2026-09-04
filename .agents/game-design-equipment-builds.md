@@ -493,6 +493,7 @@ non-empty commit consumes one exploration turn. The commit validates the
 projected hands, Rune capacity, curse locks, MP clamp, and final 20-slot bag,
 then applies placement atomically. A 2H weapon explicitly returns the displaced
 shield to the same draft bag. Cancel, no-op close, and invalid commit do not
-advance exploration time. Unknown gear remains a real trial only when the
+advance exploration time. The caller supplies the actual world turn cost, so
+Town/Camp commits remain zero. Unknown gear remains a real trial only when the
 committed loadout adopts it; preview does not disclose or simulate hidden
 effects.

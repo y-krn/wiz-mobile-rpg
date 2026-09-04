@@ -17,7 +17,8 @@ function describeChange(change) {
   return `${from} → ${to}`;
 }
 
-export function commitLoadoutDraft(draft, { stateLike = state } = {}) {
+export function commitLoadoutDraft(draft, { stateLike = state, turnCost = 0 } = {}) {
+  const resolvedTurnCost = turnCost === 1 ? 1 : 0;
   if (stateLike.gameState === "combat") return { ok: false, reason: "combat_locked" };
   if (!isLoadoutDraftDirty(draft)) return { ok: true, changed: false, turnCost: 0, changes: getLoadoutDraftChanges(draft) };
   const validation = validateLoadoutDraft(draft);
@@ -96,7 +97,7 @@ export function commitLoadoutDraft(draft, { stateLike = state } = {}) {
     equipmentChanges: changes.equipment.length,
     runeChanges: changes.runes.length,
     discardedItems: changes.discarded.length,
-    turnCost: 1
+    turnCost: resolvedTurnCost
   });
-  return { ok: true, changed: true, turnCost: 1, changes };
+  return { ok: true, changed: true, turnCost: resolvedTurnCost, changes };
 }

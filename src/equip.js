@@ -139,7 +139,8 @@ function cancelEquipDraft() {
 
 function commitEquipDraft() {
   const consumesExplorationTurn = equipState.prevGameState === "explore";
-  const result = commitLoadoutDraft(equipState.draft, { stateLike: state });
+  const turnCost = consumesExplorationTurn ? 1 : 0;
+  const result = commitLoadoutDraft(equipState.draft, { stateLike: state, turnCost });
   if (!result.ok) {
     addLog(result.errors?.join(" ") || "装備変更を確定できません。");
     renderEquip();
@@ -149,7 +150,7 @@ function commitEquipDraft() {
   if (!result.changed) return cancelEquipDraft();
   equipState.draft = null;
   closeEquipOverlay();
-  if (consumesExplorationTurn) consumeExplorationTurn();
+  if (turnCost === 1) consumeExplorationTurn();
   saveAutosave();
   updateUI();
   return true;

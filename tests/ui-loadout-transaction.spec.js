@@ -67,6 +67,41 @@ test('canceling a dirty loadout draft leaves the live run untouched @smoke', asy
   })).toEqual({ weapon: 'DAGGER', inventory: ['SHORT_SWORD'], steps: 4 });
 });
 
+test('committing outside exploration does not advance exploration time @smoke', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { openEquipOverlay } = await import('/src/equip.js');
+    const character = createSoloCharacter('Fighter');
+    character.equipment.weapon = 'DAGGER';
+    state.party = [character];
+    state.inventory = ['SHORT_SWORD'];
+    state.currentRun = { steps: 4, floorSteps: { '1': 4 }, materials: {}, runSeed: 'town-ui' };
+    state.gameState = 'town';
+    openEquipOverlay(0);
+  });
+  await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
+  await page.getByRole('button', { name: '装備する' }).click();
+  await page.locator('#btn-equip-commit').click();
+  await expect(page.locator('#equip-overlay')).toBeHidden();
+  expect(await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      weapon: state.party[0].equipment.weapon,
+      inventory: state.inventory,
+      steps: state.currentRun.steps,
+      floorSteps: state.currentRun.floorSteps['1'],
+      gameState: state.gameState,
+    };
+  })).toEqual({
+    weapon: 'SHORT_SWORD',
+    inventory: ['DAGGER'],
+    steps: 4,
+    floorSteps: 4,
+    gameState: 'town',
+  });
+});
+
 test('committing a loadout consumes the normal exploration poison tick @smoke', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(async () => {

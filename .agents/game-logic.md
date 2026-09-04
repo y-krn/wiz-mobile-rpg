@@ -226,7 +226,8 @@ inventory remain unchanged until `commitLoadoutDraft()` succeeds. A successful
 non-empty dungeon commit is one exploration turn, regardless of change count;
 cancel, no-op, and invalid drafts cost zero. The caller then uses the same
 exploration-turn boundary as movement so spell durations, prolonged-stay
-pressure, and roaming state advance normally. Unknown equipment is only
+pressure, and roaming state advance normally. The caller supplies the actual
+world turn cost, so Town/Camp commits remain zero. Unknown equipment is only
 revealed when the committed placement is applied; draft comparison never adds
 a free trial.
 
