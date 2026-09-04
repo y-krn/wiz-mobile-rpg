@@ -72,7 +72,7 @@ const SAFE_GAME_STATES = new Set([
   "result"
 ]);
 const SAFE_COMBAT_PHASES = new Set(["choose_actions", "resolving"]);
-const SAFE_ATTACK_TYPES = new Set(["physical", "normal", "spell", "flee", "reflect", "counter", "other"]);
+const SAFE_ATTACK_TYPES = new Set(["physical", "normal", "spell", "breath", "special", "flee", "reflect", "counter", "other"]);
 const SAFE_GUARD_PROFILE_IDS = new Set(["universal_brace", "light", "physical", "arcane", "dragon", "aegis"]);
 // Keep this in sync with the production codex progression in
 // src/state/codex_state.js.

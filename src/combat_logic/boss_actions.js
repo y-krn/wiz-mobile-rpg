@@ -239,7 +239,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
-          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
+          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "special", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
           logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
           if (c.hp === 0) {
@@ -271,7 +271,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
-          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
+          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "breath", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
           logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
           if (c.hp === 0) {

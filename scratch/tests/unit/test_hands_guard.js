@@ -14,6 +14,8 @@ import {
 } from "../../../src/rules/guard_rules.js";
 import { state } from "../../../src/state/state_core.js";
 import { equipEquipment } from "../../../src/systems/equipment_actions.js";
+import { normalizeSavePayload } from "../../../src/state/save_migrations.js";
+import { recordReceivedDamage } from "../../../src/combat_logic/damage.js";
 
 globalThis.localStorage = {
   getItem: () => null,
@@ -109,5 +111,31 @@ assert.equal(resolveGuardMitigation(magicShield, 100, {
   baseMultiplier: 0.4
 }), 40);
 assert.equal(getGuardProfile(character({ shield: "SMALL_SHIELD" })).statusChanceMultiplier, 0.65);
+
+const migrated = normalizeSavePayload({
+  party: [{
+    startingKit: "arcana",
+    equipment: { weapon: "SAGE_STAFF", shield: "SMALL_SHIELD" }
+  }],
+  inventory: [],
+  storage: []
+});
+assert.equal(migrated.party[0].equipment.shield, null, "legacy 2H + shield loadout is repaired");
+assert.deepEqual(migrated.storage, ["SMALL_SHIELD"], "displaced shield is preserved in storage");
+assert.equal(getEquipmentHands(migrated.party[0].equipment.weapon), 2);
+
+const causalDamageEvents = [];
+const telemetryCharacter = character({ shield: "MAGIC_SHIELD" });
+telemetryCharacter.hp = 18;
+recordReceivedDamage(
+  { floor: 5, simTelemetry: { causalDamageEvents } },
+  telemetryCharacter,
+  "いにしえの竜",
+  10,
+  5,
+  23,
+  { attackType: "breath", isDefending: true }
+);
+assert.equal(causalDamageEvents.at(-1).attackType, "breath", "Guarded breath keeps its attack type in simulation telemetry");
 
 console.log("[PASS] hands ownership and common guard resolver");

@@ -1172,10 +1172,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             state.party.forEach((c, charIdx) => {
               if (c.status !== "dead") {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+                const attackType = mon.tags?.includes("dragon") ? "breath" : "spell";
                 let dmg = Math.floor(Math.random() * 15) + 10;
                 dmg = resolveGuardMitigation(c, dmg, {
                   isDefending,
-                  attackType: mon.tags?.includes("dragon") ? "breath" : "spell"
+                  attackType
                 });
                 const rawDamage = dmg;
                 const playerHpBefore = c.hp;
@@ -1187,7 +1188,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 });
                 c.hp = Math.max(0, c.hp - dmg);
                 recordReceivedDamage(state, c, mon.name, rawDamage, dmg, playerHpBefore, {
-                  attackType: "spell",
+                  attackType,
                   isDefending
                 });
                 wakeSleepingCharOnDamage(c);
@@ -1220,10 +1221,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             state.party.forEach((c, charIdx) => {
               if (c.status !== "dead") {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+                const attackType = mon.tags?.includes("dragon") ? "breath" : "spell";
                 let dmg = Math.floor(Math.random() * 20) + 15;
                 dmg = resolveGuardMitigation(c, dmg, {
                   isDefending,
-                  attackType: mon.tags?.includes("dragon") ? "breath" : "spell"
+                  attackType
                 });
                 const rawDamage = dmg;
                 const playerHpBefore = c.hp;
@@ -1235,7 +1237,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 });
                 c.hp = Math.max(0, c.hp - dmg);
                 recordReceivedDamage(state, c, mon.name, rawDamage, dmg, playerHpBefore, {
-                  attackType: "spell",
+                  attackType,
                   isDefending
                 });
                 wakeSleepingCharOnDamage(c);
@@ -1291,10 +1293,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           state.party.forEach((c, charIdx) => {
             if (c.status !== "dead") {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+              const attackType = mon.tags?.includes("dragon") ? "breath" : "spell";
               let dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
               dmg = resolveGuardMitigation(c, dmg, {
                 isDefending,
-                attackType: mon.tags?.includes("dragon") ? "breath" : "spell"
+                attackType
               });
               const rawDamage = dmg;
               const playerHpBefore = c.hp;
@@ -1306,7 +1309,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               });
               c.hp = Math.max(0, c.hp - dmg);
               recordReceivedDamage(state, c, mon.name, rawDamage, dmg, playerHpBefore, {
-                attackType: "spell",
+                attackType,
                 isDefending
               });
               wakeSleepingCharOnDamage(c);
