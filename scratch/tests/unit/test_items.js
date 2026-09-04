@@ -389,8 +389,8 @@ import { state } from "../../../src/state.js";
         `${className} mana item gate should match the spell gates.`
       );
     }
-    assert.strictEqual(canUseManaItems({ class: "Ranger", level: 2 }), false, "Ranger should need level 3 for mana items.");
-    assert.strictEqual(canUseManaItems({ class: "Samurai", level: 2 }), false, "Samurai should need level 3 for mana items.");
+    assert.strictEqual(canUseManaItems({ class: "Ranger", level: 2 }), true, "Ranger mana permission must not be level-gated.");
+    assert.strictEqual(canUseManaItems({ class: "Samurai", level: 2 }), true, "Samurai mana permission must not be level-gated.");
 
     for (const [itemKey, recovery] of [["MANA_POTION", 3], ["ETHER", 8]]) {
       const item = ITEMS[itemKey];

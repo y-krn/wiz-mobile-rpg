@@ -2,7 +2,7 @@ import { state, initNewGame, saveAutosave, addLog, markMapChanged, recordCharDea
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getClassJpName, getItemData, getItemBaseId, getPartyMaxAffix, DX, DY, DIR_NAMES } from "../data.js";
+import { isSpellcaster, getItemData, getItemBaseId, getPartyMaxAffix, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
 import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getCurrentExplorationCell, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
 import { completeCampEntry, getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
@@ -311,7 +311,7 @@ export function renderItemTargetSelect(optGrid) {
     btn.style.justifyContent = "center";
     btn.style.padding = "6px 12px";
 
-    const charName = `${char.name} (Lv.${char.level} ${getClassJpName(char.class)})`;
+    const charName = `${char.name} (Lv.${char.level})`;
     const hpmpText = `HP: ${char.hp}/${char.maxHp} | MP: ${char.mp}/${char.maxMp}`;
 
     const useStatus = getItemUseStatus(char, menuContext.itemKey);

@@ -91,18 +91,8 @@ export function logCoreActivation(
   });
 }
 
-export function getMeleeModifiers(char) {
-  const classMeleeRates = {
-    Fighter: 1.00,
-    Samurai: 1.00,
-    Ninja: 1.00,
-    Ranger: 1.00,
-    Thief: 1.00,
-    Priest: 1.00,
-    Bishop: 1.00,
-    Mage: 1.00
-  };
-  return classMeleeRates[char.class] ?? 1.00;
+export function getMeleeModifiers() {
+  return 1.00;
 }
 
 export { getEffectiveDef } from "../rules/character_stats.js";

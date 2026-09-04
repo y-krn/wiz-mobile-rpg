@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { getCharMaxHp, getCharMaxMp, getClassJpName, isSpellcaster } from "../data.js";
+import { getCharMaxHp, getCharMaxMp, isSpellcaster } from "../data.js";
 
 export function updateSoloHUD() {
   const hud = document.getElementById("character-hud");
@@ -10,7 +10,7 @@ export function updateSoloHUD() {
   if (!char) {
     const empty = document.createElement("div");
     empty.className = "list-empty";
-    empty.textContent = "クラス未選択";
+    empty.textContent = "冒険者未選択";
     hud.appendChild(empty);
     return;
   }
@@ -35,7 +35,7 @@ export function updateSoloHUD() {
   card.innerHTML = `
     <div class="character-identity">
       <strong>${char.name}</strong>
-      <span>${getClassJpName(char.class)} Lv.${char.level}</span>
+      <span>Lv.${char.level}</span>
     </div>
     <div class="character-vitals">
       <div class="bar-container hp-row">

@@ -11,12 +11,8 @@ export const CLASSES = {
 
 export const ELITE_CLASSES = ["Samurai", "Bishop", "Ranger", "Ninja"];
 
-// #267: 後衛はソロ化で前衛の壁を失い、MP枯渇後は str7-9 の物理しか残らない。
-// spellCycleMp = 攻撃呪文が指定回数ヒットするごとにMP+1（火力窓の延長）。
-// mpWard = 攻撃呪文を撃てるMPが残る間だけ def 加算（MP連動の障壁）。
-// trapGuard = 罠のHPダメージを軽減する。罠優位の浅層で基本職のsustainを補う。
-// killHeal = 敵撃破時にHPを回復する。既存の撃破trigger経路をクラス固有値で使う。
-// いずれも常時の回復薬供給ではなく、探索・戦闘の行動に結びつくクラス個性を保つ。
+// Legacy class data remains readable for old character fixtures and saves.
+// Starting-kit characters bypass it at the class_rules boundary.
 export const CLASS_PASSIVES = {
   Mage: { label: "魔導適性", bonuses: { arcane: 20, trapGuard: 60, killMp: 1, spellCycleMp: 2, mpWard: 1, killHeal: 8 } },
   Priest: { label: "祈祷・退魔適性", bonuses: { devotion: 20, antiUndead: 20, killMp: 1, spellCycleMp: 2, mpWard: 4 } },

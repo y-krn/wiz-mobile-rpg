@@ -243,14 +243,14 @@ import {
       assert.strictEqual(char.str, 15, "str should not change");
       assert.strictEqual(char.vit, 15, "vit should not change");
 
-      // Level 2 -> 3 (Multiple of 3, either str or vit should increase by 1)
+      // Level 2 -> 3 keeps all base stats unchanged.
       char.exp = 800;
       lvlUp = checkCharLevelUp(char);
       assert.ok(lvlUp, "Should level up to 3");
       assert.strictEqual(char.level, 3, "Level should be 3");
       
       const totalStats = char.str + char.vit;
-      assert.strictEqual(totalStats, 31, "Either str or vit should increase by 1 at Level 3");
+      assert.strictEqual(totalStats, 30, "Level 3 must not grow a class main stat");
       console.log("[PASS] level up scaling suppression verified.");
     };
 

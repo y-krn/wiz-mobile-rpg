@@ -1,5 +1,4 @@
 import { state } from "../state.js";
-import { getClassJpName } from "../data.js";
 import { combatSelection } from "../combat.js";
 import { getScreenViewState } from "../state/view_state.js";
 import { menuContext } from "../navigation.js";
@@ -18,8 +17,7 @@ export function updateCombatPrompt() {
   if (!view.isActionableCombat || state.combatState.phase === "resolving") {
     prompt.textContent = "ターン解決中...";
   } else if (currentSelect) {
-    const classJp = getClassJpName(currentSelect.c.class);
-    prompt.textContent = `${currentSelect.c.name} (${classJp}) の行動を選択：`;
+    prompt.textContent = `${currentSelect.c.name} の行動を選択：`;
   } else {
     prompt.textContent = "ターン解決中...";
   }

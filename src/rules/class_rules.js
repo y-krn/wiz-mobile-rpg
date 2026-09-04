@@ -1,5 +1,7 @@
 import { CLASSES, CLASS_PASSIVES } from "../data/classes.js";
 
+const EMPTY_CLASS_PASSIVE = Object.freeze({ label: "", bonuses: Object.freeze({}) });
+
 export const MANA_ITEM_CLASSES = Object.freeze([
   "Priest",
   "Mage",
@@ -11,14 +13,14 @@ export const MANA_ITEM_CLASSES = Object.freeze([
 export function canUsePriestSpells(char) {
   if (!char) return false;
   if (char.class === "Priest" || char.class === "Bishop") return true;
-  if (char.class === "Ranger" && char.level >= 3) return true;
+  if (char.class === "Ranger") return true;
   return false;
 }
 
 export function canUseMageSpells(char) {
   if (!char) return false;
   if (char.class === "Mage" || char.class === "Bishop") return true;
-  if (char.class === "Samurai" && char.level >= 3) return true;
+  if (char.class === "Samurai") return true;
   return false;
 }
 
@@ -45,7 +47,8 @@ export function getClassJpName(cls) {
 }
 
 export function getClassPassive(char) {
-  return CLASS_PASSIVES[char?.class] || { label: "", bonuses: {} };
+  if (char?.startingKit) return EMPTY_CLASS_PASSIVE;
+  return CLASS_PASSIVES[char?.class] || EMPTY_CLASS_PASSIVE;
 }
 
 export function getClassPassiveBonus(char, affixType) {
@@ -53,6 +56,7 @@ export function getClassPassiveBonus(char, affixType) {
 }
 
 export function getClassCriticalChance(char) {
+  if (char?.startingKit) return 0;
   const rule = CLASSES[char?.class]?.criticalChance;
   const level = Number(char?.level);
   if (!rule || !Number.isFinite(level)) return 0;

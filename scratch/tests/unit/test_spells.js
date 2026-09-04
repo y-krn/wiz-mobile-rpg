@@ -342,7 +342,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       spells: []
     };
     checkCharLevelUp(priest, { rng: () => 0.5 });
-    assert.ok(priest.spells.includes("WEAKEN"), "Priest should learn WEAKEN at Level 4");
+    assert.deepStrictEqual(priest.spells, [], "Level 4 must not grant Priest spells");
 
     // Bishop L4
     const bishop = {
@@ -356,7 +356,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       spells: []
     };
     checkCharLevelUp(bishop, { rng: () => 0.5 });
-    assert.ok(bishop.spells.includes("WEAKEN"), "Bishop should learn WEAKEN at Level 4");
+    assert.deepStrictEqual(bishop.spells, [], "Level 4 must not grant Bishop spells");
 
     // Ranger L5
     const ranger = {
@@ -370,7 +370,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       spells: []
     };
     checkCharLevelUp(ranger, { rng: () => 0.5 });
-    assert.ok(ranger.spells.includes("WEAKEN"), "Ranger should learn WEAKEN at Level 5");
+    assert.deepStrictEqual(ranger.spells, [], "Level 5 must not grant Ranger spells");
   }
 
   // Test 2: Spell Effect and getEffectiveAtk
@@ -1079,7 +1079,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       spells: []
     };
     checkCharLevelUp(priest, { rng: () => 0.5 });
-    assert.ok(priest.spells.includes("MADI"), "Priest should learn MADI at Level 5");
+    assert.deepStrictEqual(priest.spells, [], "Level 5 must not grant Priest spells");
 
     // Ranger L6
     const ranger = {
@@ -1091,7 +1091,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       spells: []
     };
     checkCharLevelUp(ranger, { rng: () => 0.5 });
-    assert.ok(ranger.spells.includes("MADI"), "Ranger should learn MADI at Level 6");
+    assert.deepStrictEqual(ranger.spells, [], "Level 6 must not grant Ranger spells");
 
     // Bishop L7
     const bishop = {
@@ -1103,7 +1103,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       spells: []
     };
     checkCharLevelUp(bishop, { rng: () => 0.5 });
-    assert.ok(bishop.spells.includes("MADI"), "Bishop should learn MADI at Level 7");
+    assert.deepStrictEqual(bishop.spells, [], "Level 7 must not grant Bishop spells");
   }
 
   // Test 2: Spell Effect (Direct invocation)

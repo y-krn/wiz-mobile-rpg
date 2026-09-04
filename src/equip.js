@@ -1,6 +1,5 @@
 import { state, saveAutosave, addLog, INVENTORY_CAPACITY } from "./state.js";
 import {
-  getClassJpName,
   getCharMaxHp,
   getCharMaxMp,
   getItemData,
@@ -414,7 +413,7 @@ function createFooter(overlay, { organizing = false } = {}) {
     btn.setAttribute("aria-pressed", idx === equipState.actorIdx ? "true" : "false");
     btn.innerHTML = `
       <span>${char.name}</span>
-      <small>${getClassJpName(char.class)} Lv.${char.level} / HP ${char.hp}/${getCharMaxHp(char)}</small>
+      <small>Lv.${char.level} / HP ${char.hp}/${getCharMaxHp(char)}</small>
     `;
     btn.addEventListener("click", () => {
       equipState.actorIdx = idx;
@@ -1073,9 +1072,9 @@ function createDetailPanel(char) {
   const targetSummary = document.createElement("div");
   targetSummary.className = "equip-target-summary";
   targetSummary.textContent = char.name;
-  const targetClass = document.createElement("small");
-  targetClass.textContent = `${getClassJpName(char.class)} Lv.${char.level}`;
-  targetSummary.appendChild(targetClass);
+  const targetLevel = document.createElement("small");
+  targetLevel.textContent = `Lv.${char.level}`;
+  targetSummary.appendChild(targetLevel);
   content.appendChild(heading);
 
   const exchange = document.createElement("div");

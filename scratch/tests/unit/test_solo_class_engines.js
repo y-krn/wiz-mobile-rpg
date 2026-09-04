@@ -123,7 +123,7 @@ test("僧侶と魔術師は攻撃呪文2hitごとにMPを1回復する", () => {
   }
 });
 
-test("基本4職のHP順序は基礎値・レベル成長とも不変", () => {
+test("legacy class fixtures share the universal level growth", () => {
   const baseHp = Object.fromEntries(SOLO_CLASSES.map(className => [
     className,
     createSoloCharacter(className).maxHp
@@ -140,14 +140,11 @@ test("基本4職のHP順序は基礎値・レベル成長とも不変", () => {
     return character.maxHp - before;
   };
   const hpGrowth = Object.fromEntries(SOLO_CLASSES.map(className => [className, growth(className)]));
-  assert.ok(hpGrowth.Fighter > hpGrowth.Thief);
-  assert.ok(hpGrowth.Thief > hpGrowth.Priest);
-  assert.ok(hpGrowth.Priest >= hpGrowth.Mage);
   assert.deepEqual(
     { baseHp, hpGrowth },
     {
       baseHp: { Fighter: 20, Thief: 15, Priest: 14, Mage: 14, Samurai: 18, Bishop: 11, Ranger: 16, Ninja: 15 },
-      hpGrowth: { Fighter: 7, Thief: 5, Priest: 4, Mage: 4, Samurai: 6, Bishop: 4, Ranger: 5, Ninja: 5 }
+      hpGrowth: { Fighter: 5, Thief: 5, Priest: 5, Mage: 5, Samurai: 5, Bishop: 5, Ranger: 5, Ninja: 5 }
     }
   );
 });

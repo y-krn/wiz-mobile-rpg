@@ -16,7 +16,10 @@ const run = policy => simulateRun({
   scenario: {
     equipmentCraftPolicy: policy,
     chestTrapPolicy: "disabled",
-    trapPolicy: "disabled"
+    trapPolicy: "disabled",
+    // Keep this policy probe alive through the workshop supply point after
+    // the universal level-growth change, without changing its assertions.
+    hpBaseBonus: 100
   }
 });
 
