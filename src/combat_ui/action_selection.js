@@ -13,6 +13,7 @@ import { openCombatItemMenu } from "./item_menu.js";
 import { openSubmenu } from "../navigation.js";
 import { COMBAT_SPELL_TARGETS, getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 import { getItemBaseId } from "../rules/item_rules.js";
+import { getActiveSpellKeys } from "../rules/magic_rules.js";
 import {
   trackCombatDecisionCancel,
   trackCombatDecisionPending
@@ -213,7 +214,7 @@ export function selectCombatAction(type) {
     });
   } else if (type === "spell") {
     // Show available caster spells
-    if (!Array.isArray(char.spells) || char.spells.length === 0) {
+    if (getActiveSpellKeys(char).length === 0) {
       addLog(`${char.name}は唱えられる呪文を持っていません。`);
       return;
     }

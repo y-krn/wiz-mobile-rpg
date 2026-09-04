@@ -1,4 +1,5 @@
 import { MANA_ITEM_CLASSES } from "../rules/class_rules.js";
+import { RUNES } from "./magic.js";
 
 export const ITEMS = {
   // Weapons
@@ -84,7 +85,8 @@ export const ITEMS = {
   STR_POTION: { id: "STR_POTION", name: "剛力の薬", type: "usable", desc: "使用すると数ターンの間、攻撃力が上昇する。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
   GUARD_POTION: { id: "GUARD_POTION", name: "守りの薬", type: "usable", desc: "その戦闘の間、物理ダメージを40%軽減する。逃走時の追撃にも効く。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
   HASTE_POTION: { id: "HASTE_POTION", name: "疾風の薬", type: "usable", desc: "使用すると数ターンの間、敏捷性が上昇する。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
-  TRAP_KIT: { id: "TRAP_KIT", name: "罠外しキット", type: "usable", desc: "宝箱の罠を1つ確実に外す。[全員用]" }
+  TRAP_KIT: { id: "TRAP_KIT", name: "罠外しキット", type: "usable", desc: "宝箱の罠を1つ確実に外す。[全員用]" },
+  ...RUNES
 };
 
 export const CURSE_EFFECTS = {

@@ -11,6 +11,7 @@ import { consumeVulnerableDamage } from "./vulnerable.js";
 import { getSpellPayment, paySpellCost } from "../rules/affix_rules.js";
 import { getClassPassiveBonus } from "../rules/class_rules.js";
 import { getCharMaxMp } from "../rules/character_stats.js";
+import { getActiveSpellKeys } from "../rules/magic_rules.js";
 
 /**
  * Resolves player spell casting logic.
@@ -80,6 +81,10 @@ function applyReflectionDamage(char, state, sources, logQueue) {
 
 export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks = {}) {
   const spell = SPELLS[act.spellName];
+  if (!spell || (char?.startingKit && !getActiveSpellKeys(char).includes(act.spellName))) {
+    logQueue.push({ msg: `[味方] ${char.name}はそのRuneを装備していないため、呪文を唱えられない！` });
+    return;
+  }
   const clearBleedingOnDefeat = (target, reason) => {
     if (!clearBleedingStatus(target)) return;
     hooks.onBleedingClear?.(target, reason);

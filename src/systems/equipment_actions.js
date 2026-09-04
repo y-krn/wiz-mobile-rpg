@@ -17,6 +17,8 @@ import { discardEquipmentItems } from "./equipment_discard.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
 import { findRunObjectLootEntry } from "../state/run_loot.js";
 import { hasInventorySpace } from "../rules/item_inventory.js";
+import { clampCurrentMpToMax, syncMediumState } from "../rules/magic_rules.js";
+import { getCharMaxMp } from "../rules/character_stats.js";
 
 function getPreviewForDiscard(character, itemKey, requestedSlot = null) {
   try {
@@ -52,6 +54,8 @@ export function equipEquipment({ inventoryIndex, actorIdx, requestedSlot = null 
   });
 
   character.equipment[slot] = itemKey;
+  syncMediumState(character);
+  clampCurrentMpToMax(character, getCharMaxMp);
   if (oldEq) state.inventory[inventoryIndex] = oldEq;
   else state.inventory.splice(inventoryIndex, 1);
 
@@ -94,6 +98,8 @@ export function unequipEquipment({ actorIdx, slot } = {}) {
     preview: telemetryPreview
   });
   character.equipment[slot] = null;
+  syncMediumState(character);
+  clampCurrentMpToMax(character, getCharMaxMp);
   addInventoryItemToState(state, itemKey);
   addLog(`${character.name}は${item.name}を外した。`);
   playSound("move");

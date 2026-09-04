@@ -1,5 +1,6 @@
 import { START_X, START_Y } from "../data.js";
 import { ITEMS } from "../data/items.js";
+import { BASE_STARTING_MP, BASIC_RUNE_ITEM_ID } from "../data/magic.js";
 import { findMapCellByType } from "../rules/map_queries.js";
 
 export function generateRandomSeed() {
@@ -359,8 +360,8 @@ const STARTING_KIT_CHARACTER_BASELINE = Object.freeze({
   exp: 0,
   hp: 20,
   maxHp: 20,
-  mp: 0,
-  maxMp: 0,
+  mp: BASE_STARTING_MP,
+  maxMp: BASE_STARTING_MP,
   str: 10,
   int: 10,
   pie: 10,
@@ -369,6 +370,7 @@ const STARTING_KIT_CHARACTER_BASELINE = Object.freeze({
   luk: 10,
   status: "ok",
   spells: [],
+  mediumState: { mediumKey: null, socketedRunes: [] },
   equipment: {
     weapon: null,
     shield: null,
@@ -389,6 +391,12 @@ export function createStartingKitCharacter(startingKitId) {
       character.equipment[slot] = itemId;
     }
   });
+  if (kit.id === "arcana") {
+    character.mediumState = {
+      mediumKey: character.equipment.weapon,
+      socketedRunes: [BASIC_RUNE_ITEM_ID]
+    };
+  }
   return character;
 }
 

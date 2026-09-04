@@ -1,4 +1,6 @@
 import { CLASSES, CLASS_PASSIVES } from "../data/classes.js";
+import { SPELLS } from "../data/spells.js";
+import { getActiveSpellKeys } from "./magic_rules.js";
 
 const EMPTY_CLASS_PASSIVE = Object.freeze({ label: "", bonuses: Object.freeze({}) });
 
@@ -12,6 +14,7 @@ export const MANA_ITEM_CLASSES = Object.freeze([
 
 export function canUsePriestSpells(char) {
   if (!char) return false;
+  if (char.startingKit) return getActiveSpellKeys(char).some(spellKey => SPELLS[spellKey]?.type === "priest");
   if (char.class === "Priest" || char.class === "Bishop") return true;
   if (char.class === "Ranger") return true;
   return false;
@@ -19,16 +22,19 @@ export function canUsePriestSpells(char) {
 
 export function canUseMageSpells(char) {
   if (!char) return false;
+  if (char.startingKit) return getActiveSpellKeys(char).some(spellKey => SPELLS[spellKey]?.type === "mage");
   if (char.class === "Mage" || char.class === "Bishop") return true;
   if (char.class === "Samurai") return true;
   return false;
 }
 
 export function isSpellcaster(char) {
+  if (char?.startingKit) return getActiveSpellKeys(char).length > 0;
   return canUsePriestSpells(char) || canUseMageSpells(char);
 }
 
 export function canUseManaItems(char) {
+  if (char?.startingKit) return Number(char.maxMp) > 0;
   return MANA_ITEM_CLASSES.includes(char?.class) && isSpellcaster(char);
 }
 

@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { getCharMaxHp, getCharMaxMp, isSpellcaster } from "../data.js";
+import { getCharMaxHp, getCharMaxMp } from "../data.js";
 
 export function updateSoloHUD() {
   const hud = document.getElementById("character-hud");
@@ -43,7 +43,7 @@ export function updateSoloHUD() {
         <div class="bar"><div class="bar-fill hp" style="width: ${hpPct}%"></div></div>
         <span class="bar-value">${char.hp}/${maxHp}</span>
       </div>
-      <div class="bar-container mp-row" ${isSpellcaster(char) ? "" : "hidden"}>
+      <div class="bar-container mp-row" ${maxMp > 0 ? "" : "hidden"}>
         <span class="bar-label">MP</span>
         <div class="bar"><div class="bar-fill mp" style="width: ${mpPct}%"></div></div>
         <span class="bar-value">${char.mp}/${maxMp}</span>

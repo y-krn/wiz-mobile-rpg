@@ -1,6 +1,7 @@
 import { STARTING_KITS, addLog, createStartingKitCharacter, getStartingKit, state, INVENTORY_CAPACITY } from "../state.js";
 import { executeEnterDungeon } from "../movement.js";
 import { ITEMS } from "../data/items.js";
+import { getCharMaxMp } from "../data.js";
 import {
   applyWorkshopToCharacter,
   canAffordDepartureCraft,
@@ -22,6 +23,7 @@ import {
 import { createActionCard } from "./action_card.js";
 import { RUN_QUEST_TEMPLATES } from "../data/run_quests.js";
 import { getFloorTheme } from "../data/floor_themes.js";
+import { isMedium, syncMediumState } from "../rules/magic_rules.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
@@ -81,7 +83,11 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
   if (startingGear) {
     const item = ITEMS[startingGear];
     const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
-    if (slot) character.equipment[slot] = startingGear;
+    if (slot) {
+      const preserveRunes = startingKitId === "arcana" && isMedium(startingGear);
+      character.equipment[slot] = startingGear;
+      syncMediumState(character, { preserveRunes });
+    }
   }
   state.party = [character];
   addLog(`${kit.name}で単独潜行を開始する。`);
@@ -370,7 +376,7 @@ export function renderSoloStart(optGrid) {
     const character = createStartingKitCharacter(kit.id);
     const button = document.createElement("button");
     button.className = "btn btn-neon btn-block solo-starting-kit-option";
-    button.innerHTML = `<strong>${kit.name}</strong><span>${kit.description} · HP ${character.maxHp} / MP ${character.maxMp}</span>`;
+    button.innerHTML = `<strong>${kit.name}</strong><span>${kit.description} · HP ${character.maxHp} / MP ${getCharMaxMp(character)}</span>`;
     button.addEventListener("click", () => renderStartFloorChoices(optGrid, kit.id, null));
     optGrid.appendChild(button);
 

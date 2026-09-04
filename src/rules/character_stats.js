@@ -2,6 +2,7 @@ import { getEquippedItemData, getCharAffixSum } from "./item_rules.js";
 import { getCharAllStatsAffixBonus, getCharCoreParams } from "./affix_rules.js";
 import { getSpellStatBonus } from "./spell_rules.js";
 import { calculateDisarmRate } from "./trap_rules.js";
+import { getMediumMaxMpBonus } from "./magic_rules.js";
 
 export function getCharStr(char) {
   if (!char) return 0;
@@ -152,7 +153,7 @@ export function getCharMaxMp(char) {
     });
   }
   // MP 0は非術者の正当な容量なので、負値だけを0へ戻す。
-  return Math.max(0, char.maxMp + bonus);
+  return Math.max(0, char.maxMp + bonus + getMediumMaxMpBonus(char));
 }
 
 export function getCharTrapBonus(char) {

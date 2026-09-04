@@ -10,6 +10,7 @@ import { addMaterials } from "../rules/material_rules.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 import { isUsableFloorCell, isUsableFloorMap } from "./run_floor_state.js";
 import { isUsableCombatState } from "./view_state.js";
+import { BASE_STARTING_MP, BASIC_RUNE_ITEM_ID, MEDIUM_IDS } from "../data/magic.js";
 
 export function migrateCharSpells(char) {
   if (!char.spells) char.spells = [];
@@ -223,8 +224,25 @@ function normalizeCharEquipment(char) {
     weapon: char.equipment?.weapon ?? null,
     shield: char.equipment?.shield ?? null,
     armor: char.equipment?.armor ?? null,
-    accessory: char.equipment?.accessory ?? null
+    accessory: char.equipment?.accessory ?? null,
+    accessory2: char.equipment?.accessory2 ?? null
   };
+  if (char.startingKit) {
+    if (!Number.isFinite(char.maxMp) || char.maxMp < BASE_STARTING_MP) char.maxMp = BASE_STARTING_MP;
+    if (!Number.isFinite(char.mp)) char.mp = 0;
+    if (!char.mediumState || typeof char.mediumState !== "object") {
+      const weapon = char.equipment.weapon;
+      const mediumKey = typeof weapon === "object"
+        ? weapon.instanceId || weapon.baseId || weapon.id
+        : weapon;
+      char.mediumState = {
+        mediumKey: MEDIUM_IDS.includes(mediumKey) ? mediumKey : null,
+        socketedRunes: char.startingKit === "arcana" && MEDIUM_IDS.includes(mediumKey)
+          ? [BASIC_RUNE_ITEM_ID]
+          : []
+      };
+    }
+  }
 }
 
 function backfillItemAffixes(item) {
