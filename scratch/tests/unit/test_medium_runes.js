@@ -11,7 +11,7 @@ import {
   canUseManaItems
 } from "../../../src/data.js";
 import { STARTING_KITS, createStartingKitCharacter, state } from "../../../src/state.js";
-import { CHEST_ITEM_CANDIDATES_BY_FLOOR } from "../../../src/rules/chest_rules.js";
+import { getChestItemCandidatesByFloor } from "../../../src/rules/chest_rules.js";
 import {
   getActiveSpellKeys,
   getMediumRuneCapacity,
@@ -101,7 +101,7 @@ assert.equal(fighter.mp, 1);
 for (const runeId of RUNE_ITEM_IDS) {
   assert.equal(ITEMS[runeId].type, "rune");
   assert.ok(SPELLS[ITEMS[runeId].spellKey]);
-  assert.ok(CHEST_ITEM_CANDIDATES_BY_FLOOR[1].includes(runeId), `${runeId} is a normal chest candidate`);
+  assert.ok(getChestItemCandidatesByFloor(1, { includeRunes: true }).includes(runeId), `${runeId} is a normal chest candidate`);
 }
 
 console.log("[PASS] medium and Rune ownership");

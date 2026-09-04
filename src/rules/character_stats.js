@@ -153,7 +153,8 @@ export function getCharMaxMp(char) {
     });
   }
   // MP 0は非術者の正当な容量なので、負値だけを0へ戻す。
-  return Math.max(0, char.maxMp + bonus + getMediumMaxMpBonus(char));
+  const mediumBonus = char.startingKit ? getMediumMaxMpBonus(char) : 0;
+  return Math.max(0, char.maxMp + bonus + mediumBonus);
 }
 
 export function getCharTrapBonus(char) {
