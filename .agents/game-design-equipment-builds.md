@@ -51,6 +51,28 @@ equipment actions no longer consult class restrictions; the registered
 consumers retain their current rules, while progression, spell, trap, and
 telemetry migration remain follow-ups listed by the issue.
 
+## Hands and active Guard (Issue #1049)
+
+The weapon slot is a shared two-hand resource; there are still no right-hand
+or left-hand UI slots. Weapon and medium data carry `hands: 1 | 2`, shields
+carry `hands: 1`, and a replacement is accepted only when the resulting
+loadout uses at most two hands. The initial assignments are:
+
+- 1H: DAGGER, WAND, SHORT_SWORD, FIGHTER_SABER, RAPIER, NINJA_DAGGER,
+  VENOM_FANG, LONG_SWORD, NINJA_BLADE, FLAME_SWORD, MOONSHADOW, MACE,
+  SACRED_MACE, HOLY_STAFF, and HOLY_BLADE.
+- 2H: SAGE_STAFF, ARCH_WAND, CLAYMORE, KATANA, LEGENDARY_SWORD, and
+  SEALED_EXCALIBUR.
+- Every shield consumes 1H, including DRAGON_CHARM and LEGENDARY_SHIELD.
+
+The equipment action boundary rejects an invalid replacement with a player-
+visible reason and never removes the existing shield implicitly. `防御` is a
+universal action even without a shield. Its mitigation and status-response
+semantics come from the common Guard resolver; a shield adds a profile that
+changes the active Guard's physical, spell, breath, special, or status scope.
+Armor remains passive DEF and does not replace the active Guard identity owned
+by shields.
+
 # Overview
 
 To address the lack of build diversity (effective build count ≈ only 8 class choices), equipment was

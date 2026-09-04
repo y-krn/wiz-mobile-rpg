@@ -11,6 +11,7 @@ import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 import { isUsableFloorCell, isUsableFloorMap } from "./run_floor_state.js";
 import { isUsableCombatState } from "./view_state.js";
 import { BASE_STARTING_MP, BASIC_RUNE_ITEM_ID, MEDIUM_IDS } from "../data/magic.js";
+import { getEquipmentHands } from "../rules/equipment_hands.js";
 
 export function migrateCharSpells(char) {
   if (!char.spells) char.spells = [];
@@ -217,7 +218,7 @@ function normalizePersistedGameState(gameState, currentRun, combatState) {
 // 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
 // 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
 // 例: 2: (d) => { d.materials = Object.fromEntries(...); return d; }
-function normalizeCharEquipment(char) {
+function normalizeCharEquipment(char, normalized) {
   if (!char) return;
   if (!Array.isArray(char.spells)) char.spells = [];
   char.equipment = {
@@ -227,6 +228,14 @@ function normalizeCharEquipment(char) {
     accessory: char.equipment?.accessory ?? null,
     accessory2: char.equipment?.accessory2 ?? null
   };
+  if (getEquipmentHands(char.equipment.weapon) + getEquipmentHands(char.equipment.shield) > 2) {
+    // A pre-hands save may contain a two-hand weapon and a shield. Preserve
+    // both items while making the loaded equipment valid; storage is the
+    // safe holding area for the displaced shield.
+    normalized.storage ||= [];
+    normalized.storage.push(char.equipment.shield);
+    char.equipment.shield = null;
+  }
   if (char.startingKit) {
     if (!Number.isFinite(char.maxMp) || char.maxMp < BASE_STARTING_MP) char.maxMp = BASE_STARTING_MP;
     if (!Number.isFinite(char.mp)) char.mp = 0;
@@ -774,7 +783,7 @@ export function normalizeSavePayload(data) {
     )
   };
 
-  normalized.party.forEach(normalizeCharEquipment);
+  normalized.party.forEach(char => normalizeCharEquipment(char, normalized));
   backfillAffixMetadata(normalized);
   normalized.party.forEach(migrateCharSpells);
   discardTransientRunAffixState(normalized);

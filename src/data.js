@@ -41,6 +41,8 @@ export {
   getTrialGuardianPressures
 } from "./rules/floor_trials.js";
 export * from "./rules/depth_scaling.js";
+export * from "./rules/equipment_hands.js";
+export * from "./rules/guard_rules.js";
 
 
 // Re-export constants/data with wrapper compatibility

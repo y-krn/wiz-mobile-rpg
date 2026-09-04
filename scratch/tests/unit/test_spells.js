@@ -887,7 +887,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       // 最終ダメージが 6 になっているか確認。
       const logChar0 = resultDmg.logQueue.find(log => log.msg?.includes("PriestCharは") && log.msg?.includes("炎ダメージを受けた"));
       assert.ok(logChar0.msg.includes("6の炎ダメージを受けた"), `防御とマバリア適用時のダメージ検証。ログ: ${logChar0.msg}`);
-      assert.ok(logChar0.msg.includes("(半減)"), "防御ログが含まれていること");
+      assert.ok(logChar0.msg.includes("(軽減)"), "防御ログが含まれていること");
       
       // 1-3. 軽減上限 (60%) の検証
       // spellGuard 装備 (40% 軽減) と MABARRIER (30% 軽減) がある場合、

@@ -16,6 +16,7 @@ import { CRAFT_RECIPES } from "../craft.js";
 import { getSortedCraftRecipes } from "../rules/craft_rules.js";
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
 import { getEquipmentSlotsForType } from "../rules/equipment_slots.js";
+import { getEquipmentHandConflict } from "../rules/equipment_hands.js";
 import {
   consumeSelectedRunQuestTemplateIds,
   getPendingRunQuestTemplateIds
@@ -60,6 +61,15 @@ function formatCraftPaymentWithBalance(recipe, balance) {
 }
 
 function startRun(startingKitId, startingGear = null, startFloor = 1) {
+  const kit = getStartingKit(startingKitId);
+  const character = applyWorkshopToCharacter(createStartingKitCharacter(startingKitId), state.workshop);
+  const item = ITEMS[startingGear];
+  const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
+  const handConflict = slot ? getEquipmentHandConflict(character, startingGear, slot) : null;
+  if (handConflict) {
+    addLog(`[開始不可] ${handConflict.message}`);
+    return;
+  }
   clearDepartureStartFooter();
   const runQuestTemplateIds = consumeSelectedRunQuestTemplateIds();
   const selectedRecipeIds = getSelectedRecipeIds();
@@ -78,11 +88,7 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
     }
   }
   departureCraftQuantities = new Map();
-  const kit = getStartingKit(startingKitId);
-  const character = applyWorkshopToCharacter(createStartingKitCharacter(startingKitId), state.workshop);
   if (startingGear) {
-    const item = ITEMS[startingGear];
-    const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
     if (slot) {
       const preserveRunes = startingKitId === "arcana" && isMedium(startingGear);
       character.equipment[slot] = startingGear;
@@ -385,8 +391,17 @@ export function renderSoloStart(optGrid) {
       if (!item) return;
       const option = document.createElement("button");
       option.className = "btn btn-neon btn-block solo-starting-kit-option";
-      option.innerHTML = `<strong>${kit.name} + ${item.name}</strong><span>工房アンロック装備</span>`;
-      option.addEventListener("click", () => renderStartFloorChoices(optGrid, kit.id, itemId));
+      const conflict = getEquipmentHandConflict(
+        createStartingKitCharacter(kit.id),
+        itemId,
+        getEquipmentSlotsForType(item.type)[0]?.id
+      );
+      option.disabled = Boolean(conflict);
+      option.title = conflict?.message || "";
+      option.innerHTML = conflict
+        ? `<strong>${kit.name} + ${item.name}</strong><span>選択不可：${conflict.message}</span>`
+        : `<strong>${kit.name} + ${item.name}</strong><span>工房アンロック装備</span>`;
+      if (!conflict) option.addEventListener("click", () => renderStartFloorChoices(optGrid, kit.id, itemId));
       optGrid.appendChild(option);
     });
   });
