@@ -4,6 +4,7 @@ import {
   createLoadoutDraft,
   getLoadoutDraftChanges,
   isLoadoutDraftDirty,
+  stageDiscardInventoryItem,
   stageEquip,
   stageSocketRune,
   stageUnequip,
@@ -11,6 +12,7 @@ import {
 } from "../../../src/rules/loadout_transaction.js";
 import { commitLoadoutDraft } from "../../../src/systems/loadout_transaction.js";
 import { getActiveRuneSpellKeys } from "../../../src/rules/magic_rules.js";
+import { recordDungeonObjectLoot } from "../../../src/state/run_loot.js";
 
 globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 
@@ -68,5 +70,15 @@ assert.equal(staged.ok, true);
 assert.equal(validateLoadoutDraft(staged.draft).ok, false, "returned gear cannot hide a 21st bag slot");
 assert.equal(commitLoadoutDraft(staged.draft, { stateLike: state }).ok, false);
 assert.equal(state.party[0].equipment.weapon, "SHORT_SWORD", "invalid commit leaves live state unchanged");
+
+const lateLoot = { baseId: "DAGGER", instanceId: "late-loot", type: "weapon", identified: true };
+resetState(createStartingKitCharacter("vanguard"), [lateLoot]);
+recordDungeonObjectLoot(state, lateLoot);
+draft = createLoadoutDraft(state);
+const discardedLateLoot = stageDiscardInventoryItem(draft, 0);
+assert.equal(discardedLateLoot.ok, true);
+const lateLootCommit = commitLoadoutDraft(discardedLateLoot.draft, { stateLike: state });
+assert.equal(lateLootCommit.ok, true);
+assert.deepEqual(state.currentRun.unbankedObjectLoot, [], "discarded late loot must leave the run ledger");
 
 console.log("[PASS] loadout drafts validate and commit atomically");

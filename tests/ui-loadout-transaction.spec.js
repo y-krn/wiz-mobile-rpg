@@ -66,3 +66,32 @@ test('canceling a dirty loadout draft leaves the live run untouched @smoke', asy
     return { weapon: state.party[0].equipment.weapon, inventory: state.inventory, steps: state.currentRun.steps };
   })).toEqual({ weapon: 'DAGGER', inventory: ['SHORT_SWORD'], steps: 4 });
 });
+
+test('committing a loadout consumes the normal exploration poison tick @smoke', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { openEquipOverlay } = await import('/src/equip.js');
+    const character = createSoloCharacter('Fighter');
+    character.equipment.weapon = 'DAGGER';
+    character.hp = 10;
+    character.status = 'poisoned';
+    state.party = [character];
+    state.inventory = ['SHORT_SWORD'];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'poison-ui' };
+    state.floor = 1;
+    state.gameState = 'explore';
+    window.__loadoutTestRandom = Math.random;
+    Math.random = () => 0;
+    openEquipOverlay(0);
+  });
+  await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
+  await page.getByRole('button', { name: '装備する' }).click();
+  await page.locator('#btn-equip-commit').click();
+  const result = await page.evaluate(async () => {
+    Math.random = window.__loadoutTestRandom;
+    const { state } = await import('/src/state.js');
+    return { hp: state.party[0].hp, steps: state.currentRun.steps };
+  });
+  expect(result).toEqual({ hp: 9, steps: 1 });
+});

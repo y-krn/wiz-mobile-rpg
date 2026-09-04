@@ -115,6 +115,7 @@ export function consumeExplorationTurn() {
   if (!state.currentRun) return { ok: false, encounter: false };
   recordExplorationSteps(1);
   tickExplorationSpellEffects();
+  if (applyExplorationPoison()) return { ok: true, encounter: false, wiped: true };
   const eliteProgress = progressEliteThreat(state);
   eliteProgress.omens.forEach(omen => addLog(`[予兆] ${omen}`));
   if (eliteProgress.spawned) {

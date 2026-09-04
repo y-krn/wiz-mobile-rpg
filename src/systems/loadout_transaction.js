@@ -4,7 +4,7 @@ import { getCharMaxMp } from "../rules/character_stats.js";
 import { getLoadoutDraftChanges, isLoadoutDraftDirty, validateLoadoutDraft } from "../rules/loadout_transaction.js";
 import { trackEquipmentDecision, trackLoadoutTransaction, trackLootLifecycle } from "../telemetry.js";
 import { getEquipmentPreview, getUnequipPreview } from "../rules/equipment_preview.js";
-import { findRunObjectLootEntry } from "../state/run_loot.js";
+import { consumeRunObjectLoot, findRunObjectLootEntry } from "../state/run_loot.js";
 import { revealEquipmentOnEquip } from "./identification.js";
 
 function getName(item) {
@@ -56,6 +56,19 @@ export function commitLoadoutDraft(draft, { stateLike = state } = {}) {
   stateLike.party.forEach(character => {
     if (!Number.isFinite(character.mp)) return;
     character.mp = Math.min(character.mp, Math.max(0, getCharMaxMp(character)));
+  });
+
+  changes.discarded.forEach(itemKey => {
+    const character = previousParty?.[0];
+    const lootId = findRunObjectLootEntry(stateLike, itemKey)?.id;
+    consumeRunObjectLoot(stateLike, itemKey);
+    trackLootLifecycle("discarded", {
+      state: stateLike,
+      character,
+      itemKey,
+      lootId,
+      source: "dungeon"
+    });
   });
 
   changes.equipment
