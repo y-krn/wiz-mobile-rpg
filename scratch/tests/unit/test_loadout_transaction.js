@@ -81,4 +81,19 @@ const lateLootCommit = commitLoadoutDraft(discardedLateLoot.draft, { stateLike: 
 assert.equal(lateLootCommit.ok, true);
 assert.deepEqual(state.currentRun.unbankedObjectLoot, [], "discarded late loot must leave the run ledger");
 
+const equippedLoot = { baseId: "SMALL_SHIELD", instanceId: "equipped-loot", type: "shield", identified: true };
+const equippedCharacter = createStartingKitCharacter("vanguard");
+equippedCharacter.equipment.shield = equippedLoot;
+resetState(equippedCharacter, []);
+recordDungeonObjectLoot(state, equippedLoot);
+draft = createLoadoutDraft(state);
+staged = stageUnequip(draft, { actorIdx: 0, slot: "shield" });
+assert.equal(staged.ok, true);
+const returnedLoot = staged.draft.inventory.indexOf(equippedLoot);
+const discardedReturnedLoot = stageDiscardInventoryItem(staged.draft, returnedLoot);
+assert.equal(discardedReturnedLoot.ok, true);
+const discardedEquippedCommit = commitLoadoutDraft(discardedReturnedLoot.draft, { stateLike: state });
+assert.equal(discardedEquippedCommit.ok, true);
+assert.deepEqual(state.currentRun.unbankedObjectLoot, [], "discarded equipped loot must leave the run ledger");
+
 console.log("[PASS] loadout drafts validate and commit atomically");
