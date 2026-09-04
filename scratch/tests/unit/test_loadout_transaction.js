@@ -72,9 +72,11 @@ assert.equal(commitLoadoutDraft(staged.draft, { stateLike: state }).ok, false);
 assert.equal(state.party[0].equipment.weapon, "SHORT_SWORD", "invalid commit leaves live state unchanged");
 
 const lateLoot = { baseId: "DAGGER", instanceId: "late-loot", type: "weapon", identified: true };
-resetState(createStartingKitCharacter("vanguard"), [lateLoot]);
-recordDungeonObjectLoot(state, lateLoot);
+resetState(createStartingKitCharacter("vanguard"), []);
 draft = createLoadoutDraft(state);
+state.inventory.push(lateLoot);
+recordDungeonObjectLoot(state, lateLoot);
+draft.inventory.push(lateLoot);
 const discardedLateLoot = stageDiscardInventoryItem(draft, 0);
 assert.equal(discardedLateLoot.ok, true);
 const lateLootCommit = commitLoadoutDraft(discardedLateLoot.draft, { stateLike: state });
