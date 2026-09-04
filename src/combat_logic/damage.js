@@ -5,7 +5,7 @@ import {
   getCharWeaponAtk,
   getCharTrapEaterBonus,
   getCharStr,
-  calculatePhysicalAttackFormula,
+  resolveWeaponAttack,
   combinePhysicalResistances,
   getPhysicalDefenseResistance,
   getEffectiveDef
@@ -203,14 +203,16 @@ export function tryApplyHitFlinch(char, target, logQueue, rng = Math.random) {
 export function tryThornCounter(char, monster, actorIdx, state, logQueue, rng = Math.random) {
   const thorn = getCharCoreParams(char, "CORE_THORN_SHIELD");
   if (!thorn || char.hp <= 0 || monster.hp <= 0 || rng() >= thorn.counterChance) return 0;
-  const base = Math.max(1, Math.floor(calculatePhysicalAttackFormula({
+  const resolved = resolveWeaponAttack({
+    char,
     weaponAtk: getCharWeaponAtk(char),
     fixedDamageBonus: getCharTrapEaterBonus(char),
     str: getCharStr(char),
     def: getEffectiveDef(monster),
     physResist: monster.physResist,
     meleeMod: getMeleeModifiers(char, actorIdx)
-  })));
+  });
+  const base = resolved.damage;
   const damage = Math.max(1, Math.round(base * thorn.counterPower));
   monster.hp = Math.max(0, monster.hp - damage);
   logCoreActivation(state, logQueue, char, "CORE_THORN_SHIELD", { once: false });

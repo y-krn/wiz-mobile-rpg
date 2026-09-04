@@ -290,6 +290,33 @@ not have a second random-width rule. The old follow-up roll was `0..2` (mean
 keeps weapon feel consistent between the main attack and follow-up. The #732 physical mitigation expression,
 weapon atk, and spell dice remain unchanged.
 
+## Weapon behavior profiles (#1052)
+
+Every weapon also owns one `behaviorProfile` from the small registry in
+`src/data/weapon_behavior_profiles.js`. `src/rules/character_stats.js` exposes
+`resolveWeaponAttack`, while `src/data.js` exposes `getWeaponBehaviorProfile`,
+as the shared source of truth used by player attacks, follow-ups, thorn counters,
+auto-policy damage estimates, and production-backed simulations. The Combat Dock remains the one
+universal `攻撃` action; the profile changes how that action pays its costs.
+
+The authored assignments are:
+
+- `light`: `DAGGER`, `RAPIER`, `NINJA_DAGGER`, `VENOM_FANG`, `NINJA_BLADE`, `MOONSHADOW`
+- `blade`: `SHORT_SWORD`, `FIGHTER_SABER`, `LONG_SWORD`, `FLAME_SWORD`, `HOLY_BLADE`
+- `impact`: `MACE`, `SACRED_MACE`
+- `heavy`: `CLAYMORE`, `KATANA`, `LEGENDARY_SWORD`, `SEALED_EXCALIBUR`
+- `medium`: `WAND`, `SAGE_STAFF`, `ARCH_WAND`, `HOLY_STAFF`
+
+`light` improves hit stability against evasive targets. `blade` is the neutral
+baseline. `impact` pays less of the target's physical DEF resistance, with a
+small hit-stability trade-off, so it is relatively better against high DEF but
+never makes other weapons invalid. `heavy` increases single-hit pressure with
+a small hit-stability trade-off and is only available as a two-hand weapon, so
+its shield loss remains part of the commitment. `medium` keeps physical output
+modest while preserving its max-MP and Rune-slot ownership. These are behavior
+sidegrades, not class or stat permissions, and profile differences are kept in
+the resolver rather than duplicated in auto or simulation code.
+
 # Generation and Acquisition Rules
 
 - Rarity composition: Magic=support1 or core1 (configured by

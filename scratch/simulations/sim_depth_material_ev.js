@@ -230,7 +230,7 @@ const {
   getCharPie,
   getCharStr,
   getCharTrapBonus,
-  calculatePhysicalAttackFormula,
+  resolveWeaponAttack,
   getCharTrapEaterBonus,
   getTrapEaterBonusAfterDisarm,
   getCharVit,
@@ -5960,7 +5960,8 @@ function getEvPhysicalDamageEstimate(state, monster) {
   const character = state.party[0];
   const buffAtk = getBuffTotal(character, "atk") + getBuffTotal(character, "str");
   const meleeMod = getMeleeModifiers(character, 0, { state });
-  const formulaDamage = calculatePhysicalAttackFormula({
+  const resolved = resolveWeaponAttack({
+    char: character,
     weaponAtk: getCharWeaponAtk(character),
     fixedDamageBonus: getCharTrapEaterBonus(character),
     buffAtk,
@@ -5970,7 +5971,7 @@ function getEvPhysicalDamageEstimate(state, monster) {
     physResist: monster?.physResist,
     meleeMod
   });
-  return Math.max(1, Math.floor(formulaDamage));
+  return resolved.damage;
 }
 
 function getEvDamageEstimate(state) {
