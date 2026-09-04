@@ -49,8 +49,10 @@ const levelledCharacters = STARTING_KITS.map(kit => {
 });
 levelledCharacters.slice(1).forEach(character => assert.deepEqual(character, levelledCharacters[0], "kit choice must not change level growth"));
 assert.equal(levelledCharacters[0].level, 3);
-assert.equal(levelledCharacters[0].maxHp, 36, "compatibility progression must retain Fighter HP growth through level 3");
-assert.equal(levelledCharacters[0].str, 11, "compatibility progression must retain Fighter main-stat growth at level 3");
+assert.equal(levelledCharacters[0].maxHp, 30, "level 2→3 uses the universal +5 HP baseline");
+assert.equal(levelledCharacters[0].str, 10, "level up must not grow the compatibility main stat");
+assert.equal(levelledCharacters[0].mp, 0, "level up must not grow compatibility MP");
+assert.deepEqual(levelledCharacters[0].spells, [], "level up must not grant spells");
 
 const fighter = createStartingKitCharacter("vanguard");
 assert.equal(canEquipEquipment(fighter, "ARCH_WAND").ok, true, "equipment permission is no longer class-owned");

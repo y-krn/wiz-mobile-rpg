@@ -1,6 +1,6 @@
 import { state, saveAutosave, addLog } from "./state.js";
 import { getScreenViewState, getUsableSpellKeys, isUsableSpellForActor } from "./state/view_state.js";
-import { getClassJpName, isSpellcaster, SPELLS, getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp } from "./data.js";
+import { isSpellcaster, SPELLS, getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp } from "./data.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -177,7 +177,7 @@ export function renderSpellOverlay() {
 
       btn.innerHTML = `
         <div class="caster-btn-name">${char.name}</div>
-        <div class="caster-btn-meta">${getClassJpName(char.class)} ${mpInfo}</div>
+        <div class="caster-btn-meta">${mpInfo}</div>
       `;
 
       if (isDisabled && !isCurrent) {
@@ -398,7 +398,6 @@ export function renderSpellOverlay() {
 
       card.innerHTML = `
         <div class="target-card-name">${char.name}</div>
-        <div class="target-card-class">${getClassJpName(char.class)}</div>
         ${hpOrStatusHtml}
         <div class="target-card-status" style="color: ${statusColor}; font-weight: bold; font-size: 11px; margin-top: 4px;">
           ${reason}${statusSuffix}
@@ -479,7 +478,7 @@ export function renderSpellOverlay() {
           <span class="spell-detail-target">対象: ${targetJp}</span>
         </div>
         <div class="spell-detail-caster-row">
-          術者: ${caster.name}（${getClassJpName(caster.class)}） / HP: <span class="detail-hp-val">${caster.hp}/${getCharMaxHp(caster)}</span>${caster.status !== "ok" ? ` / 状態: ${caster.status.toUpperCase()}` : ""}
+          術者: ${caster.name} / HP: <span class="detail-hp-val">${caster.hp}/${getCharMaxHp(caster)}</span>${caster.status !== "ok" ? ` / 状態: ${caster.status.toUpperCase()}` : ""}
         </div>
         <div class="spell-detail-mp-row">
           消費MP: <span class="detail-mp-val">${spell.cost}</span> / 現在MP: <span class="detail-mp-val">${caster.mp}</span>

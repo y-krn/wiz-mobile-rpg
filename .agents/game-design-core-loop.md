@@ -151,6 +151,12 @@ progression, spell, trap, and telemetry migration remain explicit follow-up
 work where still needed. Equipment restriction, Core eligibility, and loot-pool
 authority are not delegated to that compatibility value.
 
+Issue #1044 narrows the active level contract on that shared baseline: the
+common EXP table grants only fixed `+5 max HP` durability per level. Active
+starting-kit runs do not gain class main stats, MP, level spells, class/level
+critical or melee scaling, or class passive bonuses. The compatibility class
+and legacy consumers remain readable at migration boundaries.
+
 Issue #998 now makes roaming elites an optional deep-floor risk event. Entry
 presence is seed-deterministic, while prolonged presence is driven by saved
 value-seeking actions (new area discovery, battles, chests, optional facilities,

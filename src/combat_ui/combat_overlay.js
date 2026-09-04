@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { getMonsterResistanceStatus, SPELLS, getClassJpName, getCharMaxHp, getCharMaxMp, getSpellPayment } from "../data.js";
+import { getMonsterResistanceStatus, SPELLS, getCharMaxHp, getCharMaxMp, getSpellPayment } from "../data.js";
 import { menuContext, goBackSubmenu } from "../navigation.js";
 import { getMonsterCodexKey } from "../state.js";
 import { combatCallbacks } from "./combat_state.js";
@@ -175,7 +175,7 @@ export function renderCombatOverlay() {
         const mpPct = maxMp > 0 ? (char.mp / maxMp) * 100 : 0;
         
         card.innerHTML = `
-          <div class="card-title">${char.name} <span class="card-class-tag">${getClassJpName(char.class)}</span></div>
+          <div class="card-title">${char.name}</div>
           <div class="card-hp-bar-container">
             <div class="card-hp-bar" style="width: ${hpPct}%"></div>
           </div>

@@ -90,7 +90,7 @@ test('Incapacitated combatants advance the round without exposing action control
       transitioning: true,
     });
   }
-  expect(result.mixedBefore).toContain('僧侶');
+  expect(result.mixedBefore).toBe('Maria の行動を選択：');
   expect(result.mixedAfterSelection).toEqual({
     actionCount: 1,
     actorIdx: 1,

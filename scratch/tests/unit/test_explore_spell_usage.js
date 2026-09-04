@@ -32,9 +32,8 @@ function check(condition, message) {
 const scenario = {
   ...getScenarioById("workshop-complete"),
   simDiagnosticLevel: "off",
-  // The vNext pool intentionally exposes every base to every build. Keep
-  // this spell reachability probe alive long enough to exercise level-based
-  // exploration spell unlocks instead of asserting incidental survival.
+  // Keep this probe alive long enough to verify that exploration spells are
+  // not acquired implicitly from leveling.
   hpBaseBonus: 1000
 };
 const scoringProfile = calibrateCoreScoringProfile(
@@ -73,11 +72,11 @@ for (let runIndex = 0; runIndex < RUNS; runIndex++) {
 }
 
 check(usageTotals.MILWA > 0, "MILWA was never cast");
-check(usageTotals.LOMILWA > 0, "LOMILWA was never cast");
-check(usageTotals.MASFEAL > 0, "MASFEAL was never cast");
+check(usageTotals.LOMILWA === 0, "LOMILWA was unexpectedly acquired from leveling");
+check(usageTotals.MASFEAL === 0, "MASFEAL was unexpectedly acquired from leveling");
 check(usageTotals.DUMAPIC === 0, "DUMAPIC unexpectedly affected exploration");
 check(lightActiveSteps > 0, "light was never active");
-check(masfealActiveSteps > 0, "MASFEAL was never active");
+check(masfealActiveSteps === 0, "MASFEAL was unexpectedly active");
 
 if (failures.length > 0) {
   failures.forEach(failure => console.error(`[FAIL] ${failure}`));
@@ -85,6 +84,6 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `[PASS] exploration spell usage: MILWA=${usageTotals.MILWA}, ` +
+  `[PASS] exploration spell ownership: MILWA=${usageTotals.MILWA}, ` +
     `LOMILWA=${usageTotals.LOMILWA}, MASFEAL=${usageTotals.MASFEAL}`
 );

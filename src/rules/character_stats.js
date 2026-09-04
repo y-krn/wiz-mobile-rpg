@@ -186,7 +186,7 @@ export function getCharWeaponAtk(char) {
   const wpId = char.equipment.weapon;
   if (wpId) {
     atk += getEquippedItemData(char, wpId)?.atk || 0;
-  } else if (char.class === "Ninja") {
+  } else if (char.class === "Ninja" && !char.startingKit) {
     atk += 3 * char.level;
   }
   

@@ -3,6 +3,16 @@
 Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、実測、設計判断を
 ここに固定する。
 
+## Build vNext override (Issue #1044)
+
+The formulas and class-growth decisions below are historical for legacy class
+fixtures and saved runs. For active `startingKit` characters, level is a
+common run-local floor: it uses the shared EXP table and adds only the fixed
+`+5 max HP` durability increment. It does not grow base stats or MP, grant
+spells, or contribute class/level critical or melee scaling. Compatibility
+class data remains readable at legacy boundaries until the deferred ownership
+work is complete.
+
 ## 正本の範囲
 
 - この文書は、**式の構造・項の意味・適用順・モデルの性質**の正本である。
@@ -34,8 +44,9 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
    プレイヤー表示「術力」、内部 ID `spellPower` とし、武器・鎧・盾と装身具の
    support pool から供給する。既存の `arcane` は攻撃呪文の明示入力、`devotion`
    は回復呪文の明示入力として共通項の上に残す。
-3. レベルは、ビルドを置き換えない小さな戦闘力として、**物理と呪文の両方に
-   明示的に寄与する**。正確な曲線は別の測定で決める。
+3. レベルは、ビルドを置き換えない共通の耐久 floor として、active
+   `startingKit` run では fixed `+5 max HP` のみを与える。MP、base stat、
+   spell、class/level critical/melee scaling は別の build ownershipへ委譲する。
 4. タグ特効は攻撃手段を問わず共通プールへ集約し、一度だけ適用する。対象の
    `undead` / `dragon` / `demon` ごとに装備・職業の共通特効と呪文固有寄与を加算し、
    その合計を 1 回だけ乗算する。BADIOS の `spirit` 寄与は共通 3 タグ外のため、既存
@@ -83,8 +94,9 @@ damage も変更しない。
 
 `floor`、`round`、`max` は JavaScript の現在の実装どおりである。
 
-- `weaponAtk`: `getCharWeaponAtk(char)`。武器、Ninja の武器なし攻撃
-  `2 * level`、武器以外の装備の `atk` を合算する。罠喰いは別項とする。
+- `weaponAtk`: `getCharWeaponAtk(char)`。武器、legacy Ninja の武器なし攻撃
+  `2 * level`、武器以外の装備の `atk` を合算する。active `startingKit`
+  は compatibility class による素手加算を受けない。罠喰いは別項とする。
 - `trapEaterBonus`: Thief / Ranger / Ninja が宝箱罠の解除に成功した回数に
   応じて +2、run 中は最大+20。床罠の解除・強行突破・破壊では発火しない。
 - `firstTurnAttack`: 1 ラウンド目だけ `getCharAffixSum(char, "firstTurnAttack")`
@@ -211,9 +223,10 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
 8. 対象の `canReceiveCritical` が false でなく、職業データから解決した
    `criticalChance` が当選した時だけ
    `final = max(1, d5 * 3)` とする。それ以外は `final = d5`。
-   `criticalChance` は `src/data/classes.js` の職業定義から共通 resolver で取得し、
-   Ninja は `min(0.15, 0.05 + 0.01 * char.level)`、他職は0とする。通常対象の
-   `canReceiveCritical` は true、既存ボスの property は false とし、段1では挙動を変えない。
+   `criticalChance` は legacy character では `src/data/classes.js` の職業定義から
+   共通 resolver で取得し、Ninja は `min(0.15, 0.05 + 0.01 * char.level)`、他職は0とする。
+   active `startingKit` では常に0とする。通常対象の `canReceiveCritical` は true、
+   既存ボスの property は false とする。
    `physicalPlayerHits.criticalChance` は #611 の既存 consumer 互換性のため、
    実際に会心判定可能なヒットだけ数値を記録し、非Ninjaまたは会心不可対象は null とする。
 ```
@@ -710,12 +723,12 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 | ---: | --- | --- | --- | --- |
 | 1 | 物理は旧来 `-floor(def/2)`、呪文は `×(1-magicResist)` | **結論（#732、#966で再校正）** | 旧式は `def` と `magicResist` が別 input・別順序で、同じ低 damage 帯に別の clamp を持っていた。現行は `defResistance = def/(def+k_direction)` とし、`physResist` と -1〜0.9 の加算poolへ統合する。公式値はプレイヤー→敵 `k_out=40`、敵→プレイヤー `k_in=4`。#966のformula-scope比較では scale=8 が深層目標に近い一方、production-backed runでB5到達率を大幅に損なったため不採用とし、scale=4を保守的な第一候補として採用する。scale=4はscale=2より浅層の1ダメージ張り付きを緩和し、scale=8ほど深度攻略を阻害しない。#716の段階表示は active DEF buff/debuff を含む `getEffectiveDef` から求めた最終physical poolを読む。 | 決定 1 |
 | 2 | 物理は装備で伸び、呪文は固定 dice と +40% stat cap | **結論（#731で修正）** | core-loop 正本は run 内 loot build を depth の評価軸にする。physical は B1→B10 で Fighter 20.45→51.70、spell は観測 Mage B1→B10 25.58→32.19で、呪文の伸びが上位呪文の習得と偶然の build に依存していた。#731 で共通の `spellPower`（術力）を導入し、`arcane` / `devotion` / `fireRite` は固有項として残した。 | 決定 2 |
-| 3 | レベルはほぼ damage に寄与せず、呪文だけ level gate を持つ | **結論（#733）** | `str`/`int` の base はレベルで自動増加せず、spell learn は lv2/3/6/8に固定されていた。レベルアップ時はダメージ式へ level 項を追加せず、職業の主能力値を3レベルごとに確定で+1する。主能力値は `src/data/classes.js` を正本とし、Fighter=STR、Thief=AGI、Priest=PIE、Mage=INT、Samurai=STR、Bishop=INT、Ranger=AGI、Ninja=AGI とする。STRは物理攻撃、AGIは回避対象への命中と盗賊/野伏/忍者の身軽さ、INTは攻撃呪文、PIEは回復呪文の実際の入力軸に対応する。2レベルごとの成長や別の直接level項は、Lv3.77帯で強く、Ninjaの既存level依存weaponAtk/criticalと二重になるため採用しない。 | 決定 3、#733 |
+| 3 | レベルはほぼ damage に寄与せず、呪文だけ level gate を持つ | **#1044でactive runをcommon durabilityへ縮小** | Legacy class fixturesは旧#733の記録を保持する。active `startingKit` runは共通EXP表で level を進め、+5 max HPのみを得る。base stat、MP、spell、critical、meleeのclass/level寄与は持たず、残る ownershipは後続Issueへ委譲する。 | #1044 |
 | 4 | `antiUndead` / `antiDragon` / `antiDemon` は物理のみ | **欠陥（配線漏れ）。共通 stage へ集約して修正** | #719 実装前は `applyTargetedDamageBonus` の物理経路だけがタグ特効を持ち、攻撃呪文は `getDamageAffixResult` を直接呼んで stage を飛ばしていた。結論としてタグ特効を `getDamageAffixResult` の共通 stage へ移し、BADIOS の +50/+30/+30 も同じ加算プールへ入れる。共通 anti tag と固有寄与を合計して一度だけ乗算するため、攻撃手段非依存・同一タグの二重乗算なしとなる。 | 決定 4、#719 |
 | 5 | raw の `weaponAtk + buffAtk` を物理入力単位へ 1.5 倍 | **#720で解消** | 旧式は設計根拠のない hidden weight で、表示の `+20` が実効 `+30`になっていた。#720 で各 data source を実効値へ吸収し、0.5 を保持した合計を floor する。`str` の下限は別判断として `max(0, str - 10)` を採用した。 | 決定 5、#718、#720 |
 | 6 | raw `atk` / `str` buff を同じ物理入力単位へ変換 | **#720で整理** | `STR_POTION` は実効 `atk +15` として付与する。将来の `str` buff も同じ入力単位で扱い、同じ意味の buff を別単位にしない。 | 決定 5 |
 | 7 | physical は武器ごとの `randRange`、spell は呪文ごとの幅 | **変更した（#727）** | `src/data/items.js` の全 weapon が inclusive な `randRange` を持ち、`rollCharWeaponPhysicalRandom` が本体と追撃へ同じ幅を供給する。狭い `[1,3]` / 固定 `[2,2]` と広い `[0,4]` を使うが、全範囲の平均は 2.0 に揃え、武器 atk・式の他項・spell range は変えない。物理を一律 0–4 として spell と別 identity にするだけでは、同じ atk の武器を区別できないため、#727 でこの判定を覆した。 | 決定 2、#727、分散方針 |
-| 8 | 会心は Ninja の非 boss のみ | **欠陥（未文書化）** | source は `char.class === "Ninja" && !target.isBoss` の呼び出し側分岐だけで、class data と既存設計正本に会心 passive の記録がない。実測 critical は Ninja 6.760%、他 7 職 0%。boss 除外の理由も正本にない。 | 決定 6 |
+| 8 | 会心は Ninja の非 boss のみ | **legacy compatibility only; active runはneutralized** | legacy sourceは `char.class === "Ninja" && !target.isBoss` を保持する。active `startingKit` は compatibility classをidentityに使わず、resolverが0を返す。 | #1044 |
 | 9 | Mage/Bishop に undocumented `magicBolt` fallback | **案A: 廃止（#730で結論）** | #722 は未文書の職業補償を使わないと定め、#731/#722 決定2は呪文を `spellPower` と装備・run 内ビルドで明示的に成長させた。通常攻撃へ隠れた第2式を残す理由はなく、Mage/Bishopも他職と同じ物理式・命中・最低1・会心順序へ戻す。適用順は #731 の呪文成長配線を先に行い、#730 で fallback と専用 telemetry を削除する。 | #722 決定2、#731、#730 |
 | 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **#713 trap 部分を適用、spell は監査のみ** | `calculateDisarmRate` の適性職 cap は90→100へ変更し、確率の安全上限だけを残して trapBonus を無価値にしない。`getSpellStatBonus` はレビュー対象として確認したが、global spell scaling の変更は trap calibration と別 concern のため本 Issue では変更しない。`getPartyFlameTrapWarningAvoidanceChance` の0.74は別の発動回避効果の確率 clampで、trapBonus全体を無価値にはしないため変更しない。その他の `Math.min` は HP/MP、配列・確率・状態値の安全 clamp、または別 system の投資上限であり、#713の trapBonus floor value の測定対象外。 |
 を通るため、本体と追撃で幅が分岐しない。旧 follow-up は `0..2`（平均1）だったが、

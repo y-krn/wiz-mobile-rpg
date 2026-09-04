@@ -398,6 +398,10 @@ function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, policies = P
         scoringProfile: { ...scoringProfile, personaEquipmentWeights: balancedExploration.equipmentWeights },
         scenario: {
           ...baseScenario,
+          // MAHALITO is an explicit build resource here. Leveling no longer
+          // unlocks it, but this fixture still needs a high-damage option to
+          // keep the combat-policy contrast observable.
+          startingBuild: { id: "single-efficient", equipment: {} },
           routePolicy: "partial_information_exploration",
           equipmentUpdatePolicy: "deterministic_greedy",
           personaId: "stage2-balanced-exploration",

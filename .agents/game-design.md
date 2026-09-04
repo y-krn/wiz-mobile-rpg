@@ -507,3 +507,23 @@ returned equipment is converted to terminal evidence only and is excluded from
 Town storage and the next run's starting battle inventory. Death and Abandon
 discard unbanked dungeon objects while retaining only their permitted history
 and knowledge.
+
+## Build vNext level boundary (#1044)
+
+Starting kits share one compatibility character baseline. Level is a run-local
+minimum floor: every successful level-up uses the common EXP table and adds a
+fixed `+5 max HP` baseline, restoring the same HP amount. It does not add MP,
+base stats, spells, critical chance, melee scaling, Core permission, or Rune
+permission. The value is intentionally provisional until universal MP and
+medium/Rune ownership are implemented.
+
+`CLASS_PASSIVES` and the legacy class critical/melee tables are retained only
+as compatibility surfaces; production resolvers return neutral values. Active
+run UI identifies the adventurer by name, level, and current equipment rather
+than displaying the compatibility class. Historical class fields in saves,
+telemetry, and old records remain readable until their ownership is migrated.
+
+Deferred ownership: universal MP, spell/Rune ownership, mana-item permission,
+and any useful former class passive become medium, Rune, Core, or Support
+systems in the follow-up issues. Base stats remain compatibility fields and are
+not permission gates.

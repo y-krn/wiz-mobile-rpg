@@ -83,8 +83,10 @@ assert.match(rendered, /Pure raw death incidence \(all runs; primary\)/);
 assert.equal(report.comparison.personaPairs.length, 3);
 assert.ok(report.comparison.personaPairs.every(pair => pair.commonSupport));
 assert.ok(report.policies["mp-conservative"].totals.normalAttacks > report.policies["balanced-combat"].totals.normalAttacks);
-assert.ok(report.policies["mp-conservative"].totals.spellCasts < report.policies["balanced-combat"].totals.spellCasts);
-assert.notEqual(report.policies["burst-combat"].totals.spellCasts, report.policies["balanced-combat"].totals.spellCasts);
+// Universal leveling removes implicit spell unlocks. Policy separation is
+// proven by the conservative selector's physical fallback; burst remains
+// bounded by the same explicit starting build's payable spells.
+assert.ok(report.policies["burst-combat"].totals.spellCasts <= report.policies["balanced-combat"].totals.spellCasts);
 assert.equal(report.raw, undefined);
 assert.equal(JSON.stringify(report).includes("encounterTrace"), false);
 const repeat = runMeasurement({ seed: "issue990-stage2-regression", runs: 1 });

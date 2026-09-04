@@ -830,6 +830,7 @@ for (const vp of VIEWPORTS) {
       });
       expect(character).toEqual({ count: 1, startingKit: 'scout', level: 1 });
       await expect(page.locator('#character-hud .character-card')).toHaveCount(1);
+      await expect(page.locator('#character-hud')).not.toContainText('戦士');
     });
   });
 }
