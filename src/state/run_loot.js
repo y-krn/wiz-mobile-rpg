@@ -69,6 +69,18 @@ export function consumeRunObjectLoot(stateLike, item) {
   const run = getRun(stateLike);
   if (!run) return false;
   const itemId = getItemId(item);
+  const exactUnbankedIndex = item && typeof item === "object"
+    ? (run.unbankedObjectLoot || []).findIndex(entry => (
+      entry?.item === item || (
+        entry?.item && typeof entry.item === "object" &&
+        item.instanceId && item.instanceId === entry.item.instanceId
+      )
+    ))
+    : -1;
+  if (exactUnbankedIndex !== -1) {
+    run.unbankedObjectLoot.splice(exactUnbankedIndex, 1);
+    return true;
+  }
   // Current item-use actions carry only a base item ID, not an ownership ID.
   // Until individual selection exists, consume confirmed Town stock first so
   // a dungeon duplicate does not unexpectedly restore a Town preparation item.

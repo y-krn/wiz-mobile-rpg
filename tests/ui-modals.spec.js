@@ -222,9 +222,12 @@ for (const vp of VIEWPORTS) {
     await page.locator('.equip-item-row', { hasText: 'ショートソード' }).click();
     await assertPreviewStateUnchanged();
     await page.getByRole('button', { name: '装備する' }).click();
+    await page.locator('#btn-equip-commit').click();
+    await page.evaluate(async () => (await import('/src/equip.js')).openEquipOverlay(0));
     await expect(page.locator('.equip-equipped-row[data-slot-id="weapon"]')).toContainText('ショートソード');
     await page.locator('.equip-equipped-row[data-slot-id="weapon"]').click();
     await page.getByRole('button', { name: '外す' }).click();
+    await page.locator('#btn-equip-commit').click();
     await expect(page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' })).toHaveCount(1);
     expect(await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -371,6 +374,7 @@ for (const vp of VIEWPORTS) {
       await dialog.accept();
     });
     await discardButton.click();
+    await page.getByRole('button', { name: /確定する（探索時間が進む）/ }).click();
     await expect.poll(() => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return state.inventory.map((item) => item.instanceId);
@@ -442,7 +446,6 @@ for (const vp of VIEWPORTS) {
     await expect(page.getByRole('checkbox', { name: /メイス/ })).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByRole('checkbox', { name: /メイス/ }).locator('.equip-discard-indicator')).toHaveText('☑');
     await page.getByRole('button', { name: '通常表示に戻る' }).click();
-    await expect(page.getByRole('button', { name: /整理モード/ })).toBeVisible();
     await expect(page.locator('.equip-status-bar')).toContainText('バッグ 5/20');
     await page.getByRole('button', { name: /整理モード/ }).click();
 
@@ -464,6 +467,7 @@ for (const vp of VIEWPORTS) {
       await dialog.accept();
     });
     await bulkDiscard.click();
+    await page.getByRole('button', { name: /確定する（探索時間が進む）/ }).click();
 
     await expect.poll(() => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -474,8 +478,7 @@ for (const vp of VIEWPORTS) {
       event.name === 'equipment_decision' && event.properties.action === 'discard'
     )).length)).toBe(3);
 
-    await page.getByRole('button', { name: '通常表示に戻る' }).click();
-    await expect(page.getByRole('button', { name: /整理モード/ })).toBeVisible();
+    await expect(page.locator('#equip-overlay')).toBeHidden();
   });
 
   test(`Equipment detail can return to the list at ${vp.width}x${vp.height}`, async ({ page }) => {
@@ -736,16 +739,22 @@ for (const vp of VIEWPORTS) {
     }
     await page.getByRole('button', { name: '装飾2: なし' }).click();
     await page.getByRole('button', { name: '装備する' }).click();
+    await page.getByRole('button', { name: /確定する（探索時間が進む）/ }).click();
     await expect.poll(() => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return state.party[0].equipment.accessory2?.instanceId || null;
     })).toBe('ui_accessory');
+    await page.evaluate(async () => (await import('/src/equip.js')).openEquipOverlay(0));
 
     await page.locator('.equip-item-row', { hasText: 'レザーアーマー（未鑑定）' }).click();
     await expect(page.locator('.equip-affix-details')).toHaveCount(0);
-    const gambleButton = page.getByRole('button', { name: '未鑑定で装備する' });
+    const gambleButton = page.locator('button.equip-action-btn').filter({ hasText: '未鑑定で装備する' });
+    await expect(gambleButton).toBeVisible();
+    await gambleButton.scrollIntoViewIfNeeded();
     expect((await gambleButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await gambleButton.click();
+    await page.getByRole('button', { name: /確定する（探索時間が進む）/ }).click();
+    await page.evaluate(async () => (await import('/src/equip.js')).openEquipOverlay(0));
     await expect.poll(() => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const item = state.party[0].equipment.armor;

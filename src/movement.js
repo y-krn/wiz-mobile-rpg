@@ -107,6 +107,27 @@ export function tickExplorationSpellEffects() {
 
 }
 
+// Every successful dungeon action that consumes exploration time uses this
+// boundary. Loadout commit is intentionally one call regardless of how many
+// slots changed, so duration effects and roaming pressure stay in lockstep
+// with ordinary exploration turns.
+export function consumeExplorationTurn() {
+  if (!state.currentRun) return { ok: false, encounter: false };
+  recordExplorationSteps(1);
+  tickExplorationSpellEffects();
+  if (applyExplorationPoison()) return { ok: true, encounter: false, wiped: true };
+  const eliteProgress = progressEliteThreat(state);
+  eliteProgress.omens.forEach(omen => addLog(`[予兆] ${omen}`));
+  if (eliteProgress.spawned) {
+    const spawned = eliteProgress.spawned;
+    addEventLog(`【気配】${spawned.name}の殺気が、この階に満ちた……`, {
+      key: `aura:${state.floor}:roaming:${spawned.id || spawned.name || `${spawned.x}:${spawned.y}`}`,
+      scope: `aura:${state.floor}`
+    });
+  }
+  return { ok: true, encounter: advanceRoamingTurn(false) };
+}
+
 function isBlockedByOneWayPassage(x, y, dir) {
   return isMapDirectionBlocked(state.map, x, y, dir) && !state.map?.[y]?.[x]?.walls?.[dir];
 }

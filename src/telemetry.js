@@ -609,6 +609,8 @@ function normalizeDecisionAction(action) {
     continue: "continue",
     descend: "descend",
     compare: "compare",
+    commit: "commit",
+    cancel: "cancel",
     equip: "equip",
     unequip: "unequip",
     discard: "discard",
@@ -1240,6 +1242,19 @@ export function trackEquipmentDecision(action, details = {}) {
       reason: "main_core_axis_changed"
     });
   }
+}
+
+export function trackLoadoutTransaction(action, details = {}) {
+  if (!isTelemetryAvailable() || !runId) return;
+  capture("loadout_transaction", {
+    runId,
+    ...safeDecisionContext({ state: details.state, character: details.character }),
+    action: normalizeDecisionAction(action),
+    equipmentChangeCount: boundedFiniteOrNull(details.equipmentChanges, 0, EQUIPMENT_SLOTS.length * 8),
+    runeChangeCount: boundedFiniteOrNull(details.runeChanges, 0, EQUIPMENT_SLOTS.length * 8),
+    discardedItemCount: boundedFiniteOrNull(details.discardedItems, 0, INVENTORY_CAPACITY),
+    turnCost: boundedFiniteOrNull(details.turnCost, 0, 1)
+  });
 }
 
 export function __setTelemetryClientForTests(testClient) {

@@ -217,6 +217,20 @@ preparations and returned dungeon consumables go to storage, recovered equipment
 remains terminal evidence, unbanked objects are lost on Death/Abandon, and
 compact history facts never become combat state.
 
+## Dungeon loadout transaction (#1054)
+
+`src/rules/loadout_transaction.js` owns a side-effect-free projected loadout.
+Equipment, shield conflicts, Medium/Rune sockets, curse locks, and the final
+20-slot bag boundary are validated against that projection. The live party and
+inventory remain unchanged until `commitLoadoutDraft()` succeeds. A successful
+non-empty dungeon commit is one exploration turn, regardless of change count;
+cancel, no-op, and invalid drafts cost zero. The caller then uses the same
+exploration-turn boundary as movement so spell durations, prolonged-stay
+pressure, and roaming state advance normally. The caller supplies the actual
+world turn cost, so Town/Camp commits remain zero. Unknown equipment is only
+revealed when the committed placement is applied; draft comparison never adds
+a free trial.
+
 ## Output
 
 Use the repository review output format from `.agents/README.md`.

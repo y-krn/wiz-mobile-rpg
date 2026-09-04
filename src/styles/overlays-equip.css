@@ -1075,6 +1075,27 @@
   grid-template-columns: 1fr;
 }
 
+.equip-transaction-actions {
+  align-items: stretch;
+  display: grid;
+  gap: var(--sp-xs);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.equip-transaction-status {
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  grid-column: 1 / -1;
+  padding: 6px 8px;
+}
+
+.equip-transaction-status[data-valid="false"] {
+  border-color: rgba(255, 59, 48, 0.55);
+  color: var(--neon-red);
+}
+
 /* Equipment list hierarchy: section headings stay visible while bag types scroll. */
 .equip-section-heading {
   align-items: center;
