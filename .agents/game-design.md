@@ -60,6 +60,27 @@ Every economic knob must serve "descend again, deeper." Any loop that pays
 better than descending (farming a shallow biome forever, merchant arbitrage)
 is a bug in the economy.
 
+## Magic ownership (Issue #1046)
+
+Starting-kit runs use a universal base `maxMP=1` and `currentMP=1`; level and
+the compatibility `char.class` do not grant magic. A medium is an ordinary
+weapon-slot item. The current medium contributes its own max-MP capacity and
+Rune slots only while equipped. The structural medium defaults are WAND +2/1,
+SAGE_STAFF +3/2, ARCH_WAND +4/3, and HOLY_STAFF +2/1 (max MP / Rune slots).
+
+The active spell set is exactly the Rune spell keys socketed in the equipped
+medium. `char.spells[]` remains readable only for legacy character fixtures;
+it is not a starting-kit truth source. Socketed Runes are medium-side build
+state and do not consume bag slots. Spare `RUNE_<spell>` objects are ordinary
+one-slot dungeon loot. Equipping a medium never restores current MP; when the
+derived max MP falls, current MP is clamped to the new maximum. Swapping or
+unequipping a medium safely returns its socketed Runes to the ordinary bag.
+
+The arcana starting kit uses the regular WAND medium and the regular HALITO
+Rune (cost 1), which provides the minimum one-cast magic trial without a
+class/origin passive. Rune supply is added to ordinary chest candidate pools
+without reading the current build or pairing a medium with a Rune.
+
 ## Status Effects And Counterplay
 
 - Exploration poison is a finite exploration risk, not a permanent per-step

@@ -1,6 +1,6 @@
 import { state, saveAutosave, addLog } from "./state.js";
 import { getScreenViewState, getUsableSpellKeys, isUsableSpellForActor } from "./state/view_state.js";
-import { isSpellcaster, SPELLS, getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp } from "./data.js";
+import { isSpellcaster, SPELLS, getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp, getCharMaxMp } from "./data.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -12,6 +12,7 @@ import {
   getSpellAllyTargetStatus
 } from "./rules/spell_targeting.js";
 import { trackExplorationDecision } from "./telemetry.js";
+import { getActiveSpellKeys } from "./rules/magic_rules.js";
 
 export let spellMenuState = {
   filter: "all", // "all", "usable", "heal", "utility", "combat"
@@ -135,7 +136,7 @@ export function renderSpellOverlay() {
     spellMenuState.selectedKey = null;
     
     // Choose first living caster
-    const firstCasterIdx = state.party.findIndex(c => c.status !== "dead" && isSpellcaster(c) && c.maxMp > 0);
+    const firstCasterIdx = state.party.findIndex(c => c.status !== "dead" && isSpellcaster(c) && getCharMaxMp(c) > 0);
     menuContext.actorIdx = firstCasterIdx !== -1 ? firstCasterIdx : 0;
     menuContext.type = "spell_select";
     menuType = getSafeMenuType();
@@ -155,7 +156,7 @@ export function renderSpellOverlay() {
 
     state.party.forEach((char, idx) => {
       // Hide characters who can't cast spells entirely
-      if (!isSpellcaster(char) || char.maxMp === 0) return;
+      if (!isSpellcaster(char) || getCharMaxMp(char) === 0) return;
 
       const btn = document.createElement("button");
       btn.type = "button";
@@ -166,14 +167,14 @@ export function renderSpellOverlay() {
       if (char.status === "dead") {
         isDisabled = true;
         reason = "死亡";
-      } else if (char.mp <= 0 && !getUsableSpellKeys(char.spells).some(spellKey => getSpellPayment(char, SPELLS[spellKey].cost).canCast)) {
+      } else if (char.mp <= 0 && !getUsableSpellKeys(getActiveSpellKeys(char)).some(spellKey => getSpellPayment(char, SPELLS[spellKey].cost).canCast)) {
         isDisabled = true;
         reason = "MP枯渇";
       }
 
       btn.className = `spell-caster-btn ${isCurrent ? "active" : ""} ${isDisabled ? "disabled" : ""}`;
       
-      const mpInfo = reason ? `<span class="caster-btn-reason">${reason}</span>` : `MP ${char.mp}/${char.maxMp}`;
+      const mpInfo = reason ? `<span class="caster-btn-reason">${reason}</span>` : `MP ${char.mp}/${getCharMaxMp(char)}`;
 
       btn.innerHTML = `
         <div class="caster-btn-name">${char.name}</div>
@@ -199,7 +200,7 @@ export function renderSpellOverlay() {
     listContainer.className = "spell-item-list";
 
     const caster = state.party[menuContext.actorIdx];
-    const casterSpells = caster ? getUsableSpellKeys(caster.spells) : [];
+    const casterSpells = caster ? getUsableSpellKeys(getActiveSpellKeys(caster)) : [];
 
     // Filter spells
     const filteredSpells = casterSpells.filter(spKey => {

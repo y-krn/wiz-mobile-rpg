@@ -3,6 +3,7 @@ import { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/e
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { getCharAffixSum, isSpecialOrQuestItem } from "./item_rules.js";
 import { recordRuntimeCall } from "../runtime_diagnostics.js";
+import { RUNE_ITEM_IDS } from "../data/magic.js";
 
 // 宝箱の抽選ルール。`src/chest.js` の UI/state 遷移とバランスsimの双方がここを叩く。
 // sim 側で写経すると src の変更に追随せず、深層のバランスを無音で誤って測るため
@@ -151,6 +152,13 @@ for (let floor = 6; floor <= 30; floor += 1) {
 }
 Object.freeze(CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP);
 
+export function getChestItemCandidatesByFloor(floor, { fromDrop = false, includeRunes = false } = {}) {
+  const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
+  const table = fromDrop ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP : CHEST_ITEM_CANDIDATES_BY_FLOOR;
+  const candidates = table[candidateFloor] || Object.keys(ITEMS).filter(key => ITEMS[key].type !== "quest");
+  return includeRunes ? [...new Set([...candidates, ...RUNE_ITEM_IDS])] : candidates;
+}
+
 export function rollChestSpecialReward(floor, rng) {
   const chance = CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR[Math.min(5, floor)] || 0;
   return chance > 0 && rng() < chance ? "TOWN_PORTAL" : null;
@@ -258,8 +266,11 @@ export function rollChestReward({
   const balanceFloor = Math.min(5, floor);
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
   // 想定外の floor で候補キーが欠けても quest を出さない保険として fallback を残す。
-  let candidates = itemCandidates || CHEST_ITEM_CANDIDATES_BY_FLOOR[candidateFloor]
-    || Object.keys(ITEMS).filter(key => ITEMS[key].type !== "quest");
+  const includeRunes = party?.some(character => character.startingKit) === true;
+  let candidates = itemCandidates || getChestItemCandidatesByFloor(candidateFloor, { includeRunes });
+  if (itemCandidates && includeRunes) {
+    candidates = [...new Set([...candidates, ...RUNE_ITEM_IDS])];
+  }
   if (itemCandidateFilter) {
     candidates = candidates.filter(itemCandidateFilter);
   }

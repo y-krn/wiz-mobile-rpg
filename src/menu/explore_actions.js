@@ -2,7 +2,7 @@ import { state, initNewGame, saveAutosave, addLog, markMapChanged, recordCharDea
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getItemData, getItemBaseId, getPartyMaxAffix, DX, DY, DIR_NAMES } from "../data.js";
+import { isSpellcaster, getItemData, getItemBaseId, getPartyMaxAffix, getCharMaxMp, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
 import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getCurrentExplorationCell, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
 import { completeCampEntry, getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
@@ -148,7 +148,7 @@ export function handleExploreAction(action) {
   } else if (action === "manage") {
     openSubmenu("explore_management", "冒険管理");
   } else if (action === "spell") {
-    const firstCasterIdx = state.party.findIndex(c => c.status !== "dead" && isSpellcaster(c) && c.maxMp > 0);
+    const firstCasterIdx = state.party.findIndex(c => c.status !== "dead" && isSpellcaster(c) && getCharMaxMp(c) > 0);
     menuContext.actorIdx = firstCasterIdx !== -1 ? firstCasterIdx : 0;
     openSubmenu("spell_select", "呪文選択:");
   } else if (action === "tool") {
@@ -312,7 +312,7 @@ export function renderItemTargetSelect(optGrid) {
     btn.style.padding = "6px 12px";
 
     const charName = `${char.name} (Lv.${char.level})`;
-    const hpmpText = `HP: ${char.hp}/${char.maxHp} | MP: ${char.mp}/${char.maxMp}`;
+    const hpmpText = `HP: ${char.hp}/${char.maxHp} | MP: ${char.mp}/${getCharMaxMp(char)}`;
 
     const useStatus = getItemUseStatus(char, menuContext.itemKey);
     const isAllowed = useStatus.usable;
@@ -553,8 +553,9 @@ export function renderEventSpring(optGrid) {
       addLog("[!] 泉の水は清らかだった！冒険者のHPが20回復した。");
     } else if (rand < 0.70) {
       state.party.forEach(char => {
-        if (char.status !== "dead" && char.maxMp > 0) {
-          char.mp = Math.min(char.maxMp, char.mp + 3);
+        const maxMp = getCharMaxMp(char);
+        if (char.status !== "dead" && maxMp > 0) {
+          char.mp = Math.min(maxMp, char.mp + 3);
         }
       });
       playSound("heal");

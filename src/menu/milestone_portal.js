@@ -4,7 +4,7 @@ import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
 import { appendOwnershipBadge, getItemOwnership } from "../ui/common_shell.js";
 import { state } from "../state.js";
-import { getItemData } from "../data.js";
+import { getCharMaxMp, getItemData } from "../data.js";
 import { trackExplorationDecision, trackPortalDecision } from "../telemetry.js";
 import {
   getBandIndexForFloor,
@@ -65,7 +65,7 @@ function createPortalVitals() {
     hp.textContent = `HP ${character.hp ?? 0}/${character.maxHp ?? 0}`;
     const mp = document.createElement("span");
     mp.className = "milestone-portal-mp";
-    mp.textContent = `MP ${character.mp ?? 0}/${character.maxMp ?? 0}`;
+    mp.textContent = `MP ${character.mp ?? 0}/${getCharMaxMp(character)}`;
     row.append(name, hp, mp);
     party.appendChild(row);
   });

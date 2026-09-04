@@ -49,6 +49,13 @@ import {
 import { trackEquipmentDecision } from "./telemetry.js";
 import { appendOwnershipBadge, getItemOwnership, setDockActionRole } from "./ui/common_shell.js";
 import { createBagCapacitySummary } from "./ui/bag_summary.js";
+import {
+  getActiveRuneSpellKeys,
+  getEquippedMedium,
+  getRuneItemId,
+  getRuneSpellKey
+} from "./rules/magic_rules.js";
+import { socketRuneFromInventory, unsocketRuneToInventory } from "./systems/magic_actions.js";
 
 export let equipState = {
   mode: "equip",
@@ -236,6 +243,83 @@ function getEquipmentItems() {
       if (priA !== priB) return priA - priB;
       return a.idx - b.idx;
     });
+}
+
+function createRunePanel(char) {
+  if (!char.startingKit) return null;
+
+  const panel = document.createElement("section");
+  panel.className = "equip-rune-panel";
+  const heading = document.createElement("h2");
+  heading.className = "equip-section-heading";
+  const medium = getEquippedMedium(char);
+  const activeRunes = getActiveRuneSpellKeys(char);
+  heading.textContent = medium
+    ? `Rune（${activeRunes.length}/${medium.runeSlots}）`
+    : "Rune（媒体なし）";
+  panel.appendChild(heading);
+
+  const help = document.createElement("p");
+  help.className = "equip-rune-help";
+  help.textContent = medium
+    ? `${getItemData(medium.item)?.name || medium.id}にsocket中のRuneがactive。`
+    : "武器 slot にMediumを装備するとRuneをsocketできます。";
+  panel.appendChild(help);
+
+  if (medium && activeRunes.length > 0) {
+    const activeList = document.createElement("div");
+    activeList.className = "equip-rune-list";
+    activeRunes.forEach(spellKey => {
+      const row = document.createElement("div");
+      row.className = "equip-rune-row active";
+      const label = document.createElement("span");
+      label.textContent = getItemData(getRuneItemId(spellKey))?.name || spellKey;
+      row.appendChild(label);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn equip-rune-action";
+      button.textContent = "外す";
+      button.addEventListener("click", () => {
+        const result = unsocketRuneToInventory({ actorIdx: equipState.actorIdx, spellKey });
+        if (!result.ok) return;
+        renderEquip();
+        updateUI();
+      });
+      row.appendChild(button);
+      activeList.appendChild(row);
+    });
+    panel.appendChild(activeList);
+  }
+
+  const spareRunes = state.inventory
+    .map((itemKey, idx) => ({ itemKey, idx }))
+    .filter(({ itemKey }) => Boolean(getRuneSpellKey(itemKey)));
+  if (spareRunes.length > 0) {
+    const spareList = document.createElement("div");
+    spareList.className = "equip-rune-list";
+    spareRunes.forEach(({ itemKey, idx }) => {
+      const row = document.createElement("div");
+      row.className = "equip-rune-row";
+      const label = document.createElement("span");
+      label.textContent = getItemData(itemKey)?.name || "Rune";
+      row.appendChild(label);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-neon equip-rune-action";
+      button.disabled = !medium || activeRunes.length >= medium.runeSlots;
+      button.textContent = "socket";
+      button.addEventListener("click", () => {
+        const result = socketRuneFromInventory({ actorIdx: equipState.actorIdx, inventoryIndex: idx });
+        if (!result.ok) return;
+        renderEquip();
+        updateUI();
+      });
+      row.appendChild(button);
+      spareList.appendChild(row);
+    });
+    panel.appendChild(spareList);
+  }
+  return panel;
 }
 
 function isItemEquipped(itemKey) {
@@ -641,6 +725,8 @@ function createEquipmentList(char, savedScrollTop) {
   headingBag.className = "equip-section-heading";
   headingBag.textContent = "バッグの装備品";
   bagSection.appendChild(headingBag);
+  const runePanel = createRunePanel(char);
+  if (runePanel) bagSection.appendChild(runePanel);
   if (equipState.mode === "organize") {
     bagSection.appendChild(createOrganizeControls());
   }

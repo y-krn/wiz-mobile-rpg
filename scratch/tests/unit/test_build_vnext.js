@@ -51,7 +51,7 @@ levelledCharacters.slice(1).forEach(character => assert.deepEqual(character, lev
 assert.equal(levelledCharacters[0].level, 3);
 assert.equal(levelledCharacters[0].maxHp, 30, "level 2→3 uses the universal +5 HP baseline");
 assert.equal(levelledCharacters[0].str, 10, "level up must not grow the compatibility main stat");
-assert.equal(levelledCharacters[0].mp, 0, "level up must not grow compatibility MP");
+assert.equal(levelledCharacters[0].mp, 1, "level up must not grow universal base MP");
 assert.deepEqual(levelledCharacters[0].spells, [], "level up must not grant spells");
 
 const fighter = createStartingKitCharacter("vanguard");

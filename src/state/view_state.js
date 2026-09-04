@@ -1,6 +1,8 @@
 import { EVENT_SUBMENU_TYPES, ITEM_SUBMENU_TYPES } from "../constants/events.js";
 import { SPELLS } from "../data/spells.js";
 import { isSpellcaster } from "../rules/class_rules.js";
+import { getActiveSpellKeys } from "../rules/magic_rules.js";
+import { getCharMaxMp } from "../rules/character_stats.js";
 
 // Canonical boundary shape shared by navigation, UI, and the renderer.
 // Gameplay state remains owned by state/state_core.js; this module only
@@ -46,7 +48,7 @@ function isUsableMapCell(cell) {
 function getUsableCaster(party, actorIdx) {
   if (!Array.isArray(party) || !Number.isInteger(actorIdx) || actorIdx < 0 || !Object.hasOwn(party, actorIdx)) return null;
   const actor = party[actorIdx];
-  if (!isRecord(actor) || actor.status === "dead" || !isSpellcaster(actor) || !Number.isFinite(actor.maxMp) || actor.maxMp <= 0 || !Array.isArray(actor.spells)) return null;
+  if (!isRecord(actor) || actor.status === "dead" || !isSpellcaster(actor) || getCharMaxMp(actor) <= 0) return null;
   return actor;
 }
 
@@ -64,7 +66,7 @@ export function getUsableSpellKeys(spellKeys) {
 
 export function isUsableSpellForActor(party, actorIdx, spellName, targetTypes = null) {
   const caster = getUsableCaster(party, actorIdx);
-  if (!caster || !isUsableSpellKey(spellName) || !getUsableSpellKeys(caster.spells).includes(spellName)) return false;
+  if (!caster || !isUsableSpellKey(spellName) || !getUsableSpellKeys(getActiveSpellKeys(caster)).includes(spellName)) return false;
   if (targetTypes === null) return true;
   const acceptedTargets = Array.isArray(targetTypes) ? targetTypes : [targetTypes];
   return acceptedTargets.includes(SPELLS[spellName].target);

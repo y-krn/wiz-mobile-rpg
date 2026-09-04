@@ -13,6 +13,7 @@ import {
 } from "../combat_logic/status_effects.js";
 import { getScreenViewState, getUsableSpellKeys } from "../state/view_state.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
+import { getActiveSpellKeys } from "../rules/magic_rules.js";
 
 function getEnemyResistanceStatus(monster) {
   const record = state.codex?.monsters?.[getMonsterCodexKey(monster)];
@@ -211,7 +212,7 @@ export function renderCombatOverlay() {
     const casterIdx = menuContext.actorIdx;
     const caster = state.party[casterIdx];
 
-    getUsableSpellKeys(caster.spells).forEach(spKey => {
+    getUsableSpellKeys(getActiveSpellKeys(caster)).forEach(spKey => {
       const spell = SPELLS[spKey];
       if (spell.campOnly) return;
       
