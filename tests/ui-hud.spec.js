@@ -25,7 +25,7 @@ test('Debug reset clears all progression and persists the initial state', async 
   page.once('dialog', dialog => dialog.accept());
   await resetButton.click();
   await expect(page.locator('#town-controls')).toBeVisible();
-  await expect(page.locator('#log-content')).toContainText('クラスを選び、ひとりで迷宮へ潜ろう。');
+  await expect(page.locator('#log-content')).toContainText('開始キットを選び、ひとりで迷宮へ潜ろう。');
 
   const readProgress = () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');

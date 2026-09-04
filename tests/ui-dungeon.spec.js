@@ -1569,7 +1569,7 @@ test('Combat autosave resumes action selection without persisting resolving phas
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.locator('#btn-town-dungeon').click();
-  await page.getByRole('button', { name: /戦士/ }).click();
+  await page.getByRole('button', { name: /鋼の前線キット/ }).click();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
   await expect(page.locator('#explore-controls')).toBeVisible();

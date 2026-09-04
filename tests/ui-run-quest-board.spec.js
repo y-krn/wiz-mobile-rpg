@@ -26,7 +26,7 @@ for (const viewport of [
       buttons.map(button => button.dataset.questTemplateId)
     ));
     await page.getByRole('button', { name: '選択した依頼で潜行準備へ' }).click();
-    await page.locator('.solo-class-option').first().click();
+    await page.locator('.solo-starting-kit-option').first().click();
     await page.getByRole('button', { name: /B1Fから開始/ }).click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#explore-controls')).toBeVisible();
@@ -44,7 +44,7 @@ for (const viewport of [
 test('依頼板を使わず出発すると現行のランダム依頼が割り当てられる', async ({ page }) => {
   await page.goto('/');
   await page.locator('#btn-town-dungeon').click();
-  await page.locator('.solo-class-option').first().click();
+  await page.locator('.solo-starting-kit-option').first().click();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
 

@@ -116,7 +116,7 @@
   align-content: start;
 }
 
-.solo-class-option {
+.solo-starting-kit-option {
   display: flex;
   min-height: var(--tap-min);
   flex-direction: column;
@@ -124,7 +124,7 @@
   gap: 2px;
 }
 
-.solo-class-option span {
+.solo-starting-kit-option span {
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }

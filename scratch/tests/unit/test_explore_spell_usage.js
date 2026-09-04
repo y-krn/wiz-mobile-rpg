@@ -31,7 +31,11 @@ function check(condition, message) {
 
 const scenario = {
   ...getScenarioById("workshop-complete"),
-  simDiagnosticLevel: "off"
+  simDiagnosticLevel: "off",
+  // The vNext pool intentionally exposes every base to every build. Keep
+  // this spell reachability probe alive long enough to exercise level-based
+  // exploration spell unlocks instead of asserting incidental survival.
+  hpBaseBonus: 1000
 };
 const scoringProfile = calibrateCoreScoringProfile(
   12,

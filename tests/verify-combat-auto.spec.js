@@ -8,10 +8,10 @@ test('Combat Auto button exposes its active state @e2e @smoke', async ({ page })
   await page.goto('/');
   await expect(page.locator('#btn-town-dungeon')).toBeVisible();
 
-  // 1. クラスを選び、単独で迷宮に入る
+  // 1. 開始キットを選び、単独で迷宮に入る
   const enterBtn = page.locator('#btn-town-dungeon');
   await enterBtn.click();
-  await page.getByRole('button', { name: /戦士/ }).click();
+  await page.getByRole('button', { name: /鋼の前線キット/ }).click();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
 
@@ -51,7 +51,7 @@ test('Canceled combat choices do not emit decision telemetry @e2e @smoke', async
   await page.evaluate(() => localStorage.clear());
   await page.goto('/');
   await page.locator('#btn-town-dungeon').click();
-  await page.getByRole('button', { name: /戦士/ }).click();
+  await page.getByRole('button', { name: /鋼の前線キット/ }).click();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
 

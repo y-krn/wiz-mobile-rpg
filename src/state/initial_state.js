@@ -1,4 +1,5 @@
 import { START_X, START_Y } from "../data.js";
+import { ITEMS } from "../data/items.js";
 import { findMapCellByType } from "../rules/map_queries.js";
 
 export function generateRandomSeed() {
@@ -41,6 +42,7 @@ export const createDefaultCodex = () => ({
 export const createDefaultCurrentRun = () => ({
   startedAt: 0,
   startFloor: 1,
+  startingKit: null,
   deepestFloor: 1,
   steps: 0,
   floorSteps: {},
@@ -308,10 +310,86 @@ const SOLO_CLASS_PRESETS = [
 
 export const SOLO_CLASSES = SOLO_CLASS_PRESETS.map(({ class: className }) => className);
 
+export const STARTING_KITS = Object.freeze([
+  Object.freeze({
+    id: "vanguard",
+    name: "鋼の前線キット",
+    description: "ショートソード・スモールシールド・レザーアーマー",
+    gear: Object.freeze(["SHORT_SWORD", "SMALL_SHIELD", "LEATHER_ARMOR"])
+  }),
+  Object.freeze({
+    id: "scout",
+    name: "軽装探索キット",
+    description: "ショートソード・スモールシールド・レザーアーマー",
+    gear: Object.freeze(["SHORT_SWORD", "SMALL_SHIELD", "LEATHER_ARMOR"])
+  }),
+  Object.freeze({
+    id: "devotion",
+    name: "祈りの旅装キット",
+    description: "メイス・スモールシールド・ローブ",
+    gear: Object.freeze(["MACE", "SMALL_SHIELD", "ROBE"])
+  }),
+  Object.freeze({
+    id: "arcana",
+    name: "術式の旅装キット",
+    description: "魔術師の杖・ローブ",
+    gear: Object.freeze(["WAND", "ROBE"])
+  })
+]);
+
+export function getStartingKit(startingKitId) {
+  return STARTING_KITS.find(kit => kit.id === startingKitId) || null;
+}
+
 export function createSoloCharacter(className) {
   const preset = SOLO_CLASS_PRESETS.find(char => char.class === className);
   if (!preset) return null;
   return structuredClone(preset);
+}
+
+// Starting kits are the vNext ownership boundary for departure choices. This
+// baseline deliberately has no kit-specific passive, spell list, class growth,
+// or class permission. The registered compatibility class is fixed to Fighter
+// so legacy progression consumers retain their current rules; it is identical
+// for every kit and is not a gameplay choice.
+const STARTING_KIT_CHARACTER_BASELINE = Object.freeze({
+  name: "冒険者",
+  class: "Fighter",
+  level: 1,
+  exp: 0,
+  hp: 20,
+  maxHp: 20,
+  mp: 0,
+  maxMp: 0,
+  str: 10,
+  int: 10,
+  pie: 10,
+  vit: 10,
+  agi: 10,
+  luk: 10,
+  status: "ok",
+  spells: [],
+  equipment: {
+    weapon: null,
+    shield: null,
+    armor: null,
+    accessory: null,
+    accessory2: null
+  }
+});
+
+export function createStartingKitCharacter(startingKitId) {
+  const kit = getStartingKit(startingKitId);
+  if (!kit) return null;
+  const character = structuredClone(STARTING_KIT_CHARACTER_BASELINE);
+  character.startingKit = kit.id;
+  kit.gear.forEach(itemId => {
+    const slot = ITEMS[itemId]?.type;
+    if (slot && Object.hasOwn(character.equipment, slot)) {
+      character.equipment[slot] = itemId;
+    }
+  });
+  return character;
 }
 
 export function findSuitableRoamingMonsterStart(mapData) {

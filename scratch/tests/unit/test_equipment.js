@@ -391,10 +391,8 @@ import { createSoloCharacter } from "../../../src/state.js";
       allowCores: false
     });
     const mageDropData = ITEMS[mageDrop.baseId];
-    assert.ok(
-      mageDropData && (!mageDropData.classes || mageDropData.classes.some(cls => mageParty.some(char => char.class === cls))),
-      `class filter must stay active when the 70% priority roll misses: ${mageDrop.baseId}`
-    );
+    assert.ok(mageDropData, `floor candidate must resolve without a class filter: ${mageDrop.baseId}`);
+    assert.strictEqual(mageDrop.baseId, "BATTLE_GARB", "a Mage can receive a base historically restricted to another class");
 
     const unsupportedParty = [{
       class: "UnsupportedClass",
@@ -407,7 +405,7 @@ import { createSoloCharacter } from "../../../src/state.js";
       party: unsupportedParty,
       allowCores: false
     });
-    assert.ok(fallbackDrop, "zero class-filter candidates must fall back to the base pool");
+    assert.ok(fallbackDrop, "an unsupported legacy class still receives the floor pool");
     assert.ok(
       EQUIPMENT_CANDIDATES_BY_FLOOR[4].includes(fallbackDrop.baseId),
       `fallback must return an item from the floor pool: ${fallbackDrop.baseId}`

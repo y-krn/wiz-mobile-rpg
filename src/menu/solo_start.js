@@ -1,6 +1,4 @@
-import { SOLO_CLASSES, addLog, createSoloCharacter, state, INVENTORY_CAPACITY } from "../state.js";
-import { getClassJpName } from "../data.js";
-import { ELITE_CLASSES } from "../data/classes.js";
+import { STARTING_KITS, addLog, createStartingKitCharacter, getStartingKit, state, INVENTORY_CAPACITY } from "../state.js";
 import { executeEnterDungeon } from "../movement.js";
 import { ITEMS } from "../data/items.js";
 import {
@@ -59,7 +57,7 @@ function formatCraftPaymentWithBalance(recipe, balance) {
   return [typed, any].filter(Boolean).join("・") || "素材0個";
 }
 
-function startRun(className, startingGear = null, startFloor = 1) {
+function startRun(startingKitId, startingGear = null, startFloor = 1) {
   clearDepartureStartFooter();
   const runQuestTemplateIds = consumeSelectedRunQuestTemplateIds();
   const selectedRecipeIds = getSelectedRecipeIds();
@@ -78,14 +76,15 @@ function startRun(className, startingGear = null, startFloor = 1) {
     }
   }
   departureCraftQuantities = new Map();
-  const character = applyWorkshopToCharacter(createSoloCharacter(className), state.workshop);
+  const kit = getStartingKit(startingKitId);
+  const character = applyWorkshopToCharacter(createStartingKitCharacter(startingKitId), state.workshop);
   if (startingGear) {
     const item = ITEMS[startingGear];
     const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
     if (slot) character.equipment[slot] = startingGear;
   }
   state.party = [character];
-  addLog(`${character.name}（${getClassJpName(className)}）が単独で潜行を開始する。`);
+  addLog(`${kit.name}で単独潜行を開始する。`);
   executeEnterDungeon(startFloor, { departureCraft, runQuestTemplateIds });
 }
 
@@ -155,7 +154,7 @@ function appendPreparationRow(container, label, value, className = "") {
   container.appendChild(row);
 }
 
-function renderPreparationSummary(optGrid, className, startingGear) {
+function renderPreparationSummary(optGrid, startingKitId, startingGear) {
   const selectedRecipeIds = getSelectedRecipeIds();
   const selectedItems = getSelectedBagItems(selectedRecipeIds);
   const craftedItemCount = selectedRecipeIds.filter(recipeId => (
@@ -199,7 +198,7 @@ function renderPreparationSummary(optGrid, className, startingGear) {
 
   const conditions = document.createElement("div");
   conditions.className = "solo-preparation-conditions";
-  appendPreparationRow(conditions, "クラス", getClassJpName(className));
+  appendPreparationRow(conditions, "開始キット", getStartingKit(startingKitId)?.name || "—");
   appendPreparationRow(
     conditions,
     "開始装備",
@@ -224,7 +223,7 @@ function getDepartureCraftQuantity(recipeId) {
   return departureCraftQuantities.get(recipeId) || 0;
 }
 
-function changeDepartureCraftQuantity(optGrid, className, startingGear, recipeId, delta) {
+function changeDepartureCraftQuantity(optGrid, startingKitId, startingGear, recipeId, delta) {
   const current = getDepartureCraftQuantity(recipeId);
   const next = Math.max(0, current + delta);
   if (next === current) return;
@@ -237,7 +236,7 @@ function changeDepartureCraftQuantity(optGrid, className, startingGear, recipeId
   } else {
     departureCraftQuantities.set(recipeId, next);
   }
-  renderStartFloorChoices(optGrid, className, startingGear);
+  renderStartFloorChoices(optGrid, startingKitId, startingGear);
 }
 
 function clearDepartureStartFooter() {
@@ -245,9 +244,9 @@ function clearDepartureStartFooter() {
   if (footer) footer.replaceChildren();
 }
 
-function renderDepartureCraftOptions(optGrid, className, startingGear) {
+function renderDepartureCraftOptions(optGrid, startingKitId, startingGear) {
   const selectedRecipeIds = getSelectedRecipeIds();
-  renderPreparationSummary(optGrid, className, startingGear);
+  renderPreparationSummary(optGrid, startingKitId, startingGear);
   const selectedCost = getDepartureCraftCost(selectedRecipeIds);
   const selectedBalance = getDepartureCraftBalance(state.metaMaterials, selectedRecipeIds);
   const summary = optGrid.querySelector(".solo-preparation-summary");
@@ -286,7 +285,7 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
     decrement.textContent = "−";
     decrement.disabled = quantity === 0;
     decrement.addEventListener("click", () => {
-      changeDepartureCraftQuantity(optGrid, className, startingGear, recipe.resultId, -1);
+      changeDepartureCraftQuantity(optGrid, startingKitId, startingGear, recipe.resultId, -1);
     });
 
     const payment = getDepartureCraftCost([recipe.resultId]);
@@ -304,7 +303,7 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
       ariaPressed: quantity > 0,
       dataset: { recipeId: recipe.resultId },
       onClick: () => {
-        changeDepartureCraftQuantity(optGrid, className, startingGear, recipe.resultId, 1);
+        changeDepartureCraftQuantity(optGrid, startingKitId, startingGear, recipe.resultId, 1);
       }
     });
     stepper.append(decrement, button);
@@ -312,19 +311,19 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
   });
 }
 
-function renderStartFloorChoices(optGrid, className, startingGear) {
+function renderStartFloorChoices(optGrid, startingKitId, startingGear) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-floor-grid";
   const footer = document.getElementById("departure-start-footer");
   if (footer) footer.replaceChildren();
-  const changeClass = document.createElement("button");
-  changeClass.type = "button";
-  changeClass.className = "btn btn-block solo-start-change";
-  changeClass.textContent = "クラスを選び直す";
-  changeClass.addEventListener("click", () => renderSoloStart(optGrid));
-  optGrid.appendChild(changeClass);
+  const changeKit = document.createElement("button");
+  changeKit.type = "button";
+  changeKit.className = "btn btn-block solo-start-change";
+  changeKit.textContent = "開始キットを選び直す";
+  changeKit.addEventListener("click", () => renderSoloStart(optGrid));
+  optGrid.appendChild(changeKit);
 
-  renderDepartureCraftOptions(optGrid, className, startingGear);
+  renderDepartureCraftOptions(optGrid, startingKitId, startingGear);
 
   const floorHeading = document.createElement("div");
   floorHeading.className = "solo-start-floor-heading";
@@ -343,7 +342,7 @@ function renderStartFloorChoices(optGrid, className, startingGear) {
     button.setAttribute("aria-pressed", String(selectedStartFloor === floor));
     button.addEventListener("click", () => {
       selectedStartFloor = floor;
-      renderStartFloorChoices(optGrid, className, startingGear);
+      renderStartFloorChoices(optGrid, startingKitId, startingGear);
     });
     if (footer) footer.appendChild(button);
   });
@@ -355,7 +354,7 @@ function renderStartFloorChoices(optGrid, className, startingGear) {
   startButton.textContent = "迷宮へ向かう";
   startButton.disabled = selectedStartFloor === null;
   startButton.addEventListener("click", () => {
-    if (selectedStartFloor !== null) startRun(className, startingGear, selectedStartFloor);
+    if (selectedStartFloor !== null) startRun(startingKitId, startingGear, selectedStartFloor);
   });
   if (footer) footer.appendChild(startButton);
 }
@@ -367,21 +366,21 @@ export function renderSoloStart(optGrid) {
   departureCraftQuantities = new Map();
   selectedStartFloor = null;
 
-  SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className)).forEach(className => {
-    const character = createSoloCharacter(className);
+  STARTING_KITS.forEach(kit => {
+    const character = createStartingKitCharacter(kit.id);
     const button = document.createElement("button");
-    button.className = "btn btn-neon btn-block solo-class-option";
-    button.innerHTML = `<strong>${getClassJpName(className)}</strong><span>HP ${character.maxHp} / MP ${character.maxMp}</span>`;
-    button.addEventListener("click", () => renderStartFloorChoices(optGrid, className, null));
+    button.className = "btn btn-neon btn-block solo-starting-kit-option";
+    button.innerHTML = `<strong>${kit.name}</strong><span>${kit.description} · HP ${character.maxHp} / MP ${character.maxMp}</span>`;
+    button.addEventListener("click", () => renderStartFloorChoices(optGrid, kit.id, null));
     optGrid.appendChild(button);
 
     getWorkshopGrants(state.workshop).startingGear.forEach(itemId => {
       const item = ITEMS[itemId];
-      if (!item || (item.classes && !item.classes.includes(className))) return;
+      if (!item) return;
       const option = document.createElement("button");
-      option.className = "btn btn-neon btn-block solo-class-option";
-      option.innerHTML = `<strong>${getClassJpName(className)} + ${item.name}</strong><span>工房アンロック装備</span>`;
-      option.addEventListener("click", () => renderStartFloorChoices(optGrid, className, itemId));
+      option.className = "btn btn-neon btn-block solo-starting-kit-option";
+      option.innerHTML = `<strong>${kit.name} + ${item.name}</strong><span>工房アンロック装備</span>`;
+      option.addEventListener("click", () => renderStartFloorChoices(optGrid, kit.id, itemId));
       optGrid.appendChild(option);
     });
   });

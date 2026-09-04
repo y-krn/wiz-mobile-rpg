@@ -43,6 +43,14 @@ the current code's affix activation and floor-pool behavior must not be
 described as the final vNext build contract until the relevant implementation
 issue is complete.
 
+Issue #1042 migration status: departure now uses four starting kits with
+ordinary gear applied to a shared neutral character baseline and records
+`startingKit` on the run. Equipment bases, affixes, Core eligibility, and
+equipment actions no longer consult class restrictions; the registered
+`Fighter` compatibility class is shared by every kit so existing progression
+consumers retain their current rules, while progression, spell, trap, and
+telemetry migration remain follow-ups listed by the issue.
+
 # Overview
 
 To address the lack of build diversity (effective build count ≈ only 8 class choices), equipment was
@@ -90,10 +98,9 @@ files remain authoritative for current values.
   condition-driven; main/support describes the build's prioritization and
   resource competition, not a fixed activation cap. Do not use “Core 1+ plus
   filled slots” as a completion test.
-- Equipment with a core has its base shifted during generation toward a same-slot candidate the party can equip
-  (`src/systems/equipment_generation.js`). Class equipment restrictions themselves remain as part of class identity,
-  so the core itself is not wasted. If a shield core is generated for a class that cannot equip shields, it
-  remains a dead card because there is no replacement candidate.
+- Equipment bases are independently rolled from the floor candidate table, and
+  Core effects do not impose a class fit. Cross-slot and crossover outcomes are
+  intentional build trade-offs (`src/systems/equipment_generation.js`).
 - **Support count**: `SUPPORT_AFFIXES.length` (source of truth: `src/data/affixes.js`). Numeric and minor effects.
   The polishing implementation can overwrite them.
 - No cores that are pure numeric upgrades. Every core is a sidegrade.
@@ -113,7 +120,7 @@ The actual value of each effect parameter is defined by `params` in `src/data/af
 | 必中 | CORE_PHYSICAL_ACCURACY | Physical attacks against evasive targets always hit | Weapon |
 | 血杖 | CORE_BLOOD_WAND | When MP is insufficient, a spell can be cast by paying HP (cost×2) (HP minimum 1) | Weapon |
 | 浄化の環 | CORE_PURIFY_RING | For each undead・spirit・demon kill, recover MP1 when MP is not full, or HP2 when full | Accessory |
-| 罠喰い | CORE_TRAP_EATER | Thief / Ranger / Ninja: successful chest-trap disarm grants +2 fixed physical damage during the expedition (cap +20, reset on return) | Accessory |
+| 罠喰い | CORE_TRAP_EATER | Successful chest-trap disarm grants +2 fixed physical damage during the expedition (cap +20, reset on return) | Accessory |
 | 呪飼いの鎖 | CORE_CURSE_KEEPER | +3 to all stats for each equipped curse | Accessory |
 | 巨人殺し | CORE_GIANT_SLAYER | +30% damage dealt to enemies with higher maxHP than self | Weapon |
 | 守護者殺し | CORE_MILESTONE_BREAKER | +25% damage dealt to milestone bosses | Weapon |

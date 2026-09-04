@@ -211,7 +211,7 @@ export function resetViewportZoom() {
 export function getCurrentGoal() {
   const view = getScreenViewState(state, menuContext);
   if (view.gameState === "town" || view.isDeparturePrepSubmenu) {
-    return "開始地点とクラスを選び、自己最深記録を更新せよ";
+    return "開始地点と開始キットを選び、自己最深記録を更新せよ";
   }
 
   if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {

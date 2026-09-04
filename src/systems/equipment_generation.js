@@ -120,10 +120,6 @@ function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCo
   const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
     ? AFFIX_BALANCE.corePoolWeights.shallow
     : AFFIX_BALANCE.corePoolWeights.deep;
-  const isPartyEligible = affix => !affix.allowedClasses
-    || !party?.length
-    || !party.some(char => char?.status !== "dead")
-    || party.some(char => char?.status !== "dead" && affix.allowedClasses.includes(char.class));
   const activeUnlocks = Array.isArray(unlockedAffixIds) ? new Set(unlockedAffixIds) : null;
   const activeLateralUnlocks = Array.isArray(party?.[0]?.lateralUnlockAffixIds)
     ? new Set(party[0].lateralUnlockAffixIds)
@@ -135,15 +131,13 @@ function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCo
         && CORE_AFFIXES.some(affix => affix.id === lateralId
           && affix.enabled
           && affix.slot === slot
-          && affix.cost <= budget
-          && isPartyEligible(affix)))
+          && affix.cost <= budget))
       .map(([, replacementId]) => replacementId))
     : new Set();
   const corePool = allowCores ? CORE_AFFIXES
     .filter(affix => affix.enabled
       && affix.slot === slot
       && affix.cost <= budget
-      && isPartyEligible(affix)
       && !reservedReplacements.has(affix.id)
       && (
         !WORKSHOP_LOCKED_AFFIX_IDS.has(affix.id) ||
@@ -240,21 +234,6 @@ export function generateRandomEquipment(floor, options) {
   // 通常チェストなど高級ベースを出したくないソースでは除外する。
   if (excludeHighEnd) {
     baseCandidates = baseCandidates.filter(baseId => !RESTRICTED_CHEST_BASES.includes(baseId));
-  }
-
-  if (party && party.length > 0) {
-    const livingParty = party.filter(char => char.status !== "dead");
-    let usableCandidates = baseCandidates.filter(baseId => {
-      const item = ITEMS[baseId];
-      if (!item) return false;
-      return livingParty.some(char => {
-        return !item.classes || item.classes.includes(char.class);
-      });
-    });
-
-    if (usableCandidates.length > 0) {
-      baseCandidates = usableCandidates;
-    }
   }
 
   // Reuse the historical pre-selection roll for the role target so seeded
@@ -394,24 +373,6 @@ export function generateRandomEquipment(floor, options) {
   const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
   const buildRole = getDominantBuildRole(affixes, lootRole);
 
-  // #311: コアは誰も装備できないベースに乗ると丸ごと死ぬ。職業ごとの装備制限そのものは
-  // 個性として残し、コアが付いたときだけベースを同スロットの装備可能候補へ寄せる。
-  if (party?.length > 0 && affixes.some(affix => affix.kind === "core")) {
-    const livingParty = party.filter(char => char.status !== "dead");
-    const usableByParty = item =>
-      !item.classes || livingParty.some(char => item.classes.includes(char.class));
-    if (livingParty.length > 0 && !usableByParty(baseItem)) {
-      const sameSlotUsable = baseCandidates.filter(candidateId => {
-        const candidate = ITEMS[candidateId];
-        return candidate && candidate.type === baseItem.type && usableByParty(candidate);
-      });
-      if (sameSlotUsable.length > 0) {
-        baseId = sameSlotUsable[Math.floor(rng() * sameSlotUsable.length)];
-        baseItem = ITEMS[baseId];
-      }
-    }
-  }
-  
   const instanceId = `eq_${rng().toString(36).substr(2, 9)}`;
 
   // tags, curse, unidentified information generation
@@ -512,17 +473,6 @@ export function generateRandomAccessory(floor, options) {
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
   let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[candidateFloor]
     || ACCESSORY_CANDIDATES_BY_FLOOR[30];
-
-  if (party && party.length > 0) {
-    const livingParty = party.filter(char => char.status !== "dead");
-    const usableCandidates = baseCandidates.filter(baseId => {
-      const item = ITEMS[baseId];
-      return item && livingParty.some(char => !item.classes || item.classes.includes(char.class));
-    });
-    if (usableCandidates.length > 0) {
-      baseCandidates = usableCandidates;
-    }
-  }
 
   const lootRole = rollLootBuildRole(floor, rng);
   const baseRoll = rng();

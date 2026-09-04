@@ -57,7 +57,7 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
     state.records,
     run,
     outcome,
-    run.characterClass || state.party[0]?.class
+    null
   );
   state.records = recordResult.records;
   run.recordResult = recordResult;
@@ -137,7 +137,7 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
     id: `run_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     endedAt: Date.now(),
     runNumber: recordResult.runNumber,
-    className: run.characterClass || state.party[0]?.class || null,
+    startingKit: run.startingKit || state.party[0]?.startingKit || null,
     result: isSuccess ? "returned" : "failed",
     deepestFloor: run.deepestFloor,
     kills: run.kills,

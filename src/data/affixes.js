@@ -330,7 +330,6 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { attackPerDisarm: 2, maxAttack: 20 },
-    allowedClasses: ["Thief", "Ranger", "Ninja"],
     buildRole: "convert",
     buildAxis: "main",
     poolGroup: "combat",

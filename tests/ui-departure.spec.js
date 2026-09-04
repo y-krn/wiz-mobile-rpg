@@ -9,7 +9,7 @@ for (const vp of VIEWPORTS) {
       state.unlockedMilestones = [5];
     });
     await page.locator('#btn-town-dungeon').click();
-    await page.getByRole('button', { name: /戦士/ }).first().click();
+    await page.getByRole('button', { name: /鋼の前線キット/ }).first().click();
     const shortcut = page.getByRole('button', { name: /B5Fから開始/ });
     await expect(shortcut).toContainText('素材収入 60%');
     expect((await shortcut.boundingBox()).height).toBeGreaterThanOrEqual(44);
@@ -199,11 +199,11 @@ for (const vp of VIEWPORTS) {
     expect(await start.evaluate((element) => Boolean(element.closest('#submenu-options')))).toBe(false);
   });
 
-  test(`Departure class reselection clears start buttons on ${vp.name}`, async ({ page }) => {
+  test(`Departure kit reselection clears start buttons on ${vp.name}`, async ({ page }) => {
     await openDeparturePreparation(page, vp);
     await expect(page.getByRole('button', { name: /B1Fから開始/ })).toBeVisible();
-    await page.getByRole('button', { name: 'クラスを選び直す' }).click();
-    await expect(page.locator('.solo-class-option').first()).toBeVisible();
+    await page.getByRole('button', { name: '開始キットを選び直す' }).click();
+    await expect(page.locator('.solo-starting-kit-option').first()).toBeVisible();
     await expect(page.locator('.solo-start-floor-option')).toHaveCount(0);
     await expect(page.locator('#departure-start-footer .solo-start-floor-option')).toHaveCount(0);
   });
@@ -246,13 +246,13 @@ for (const vp of VIEWPORTS) {
       openSubmenu('solo_start', '単独潜行');
     });
 
-    await page.locator('.solo-class-option').first().click();
+    await page.locator('.solo-starting-kit-option').first().click();
     await expect(page.locator('#game-container')).toHaveClass(/departure-mode/);
     await expect(page.locator('#controls-panel')).toHaveClass(/departure-mode/);
     await expect(page.locator('#log-panel')).toBeHidden();
     await expect(page.locator('#viewport-panel')).toBeHidden();
     const goalBanner = page.locator('#goal-banner');
-    await expect(goalBanner).toContainText('🎯 目標: 開始地点とクラスを選び、自己最深記録を更新せよ');
+    await expect(goalBanner).toContainText('🎯 目標: 開始地点と開始キットを選び、自己最深記録を更新せよ');
     await expect(goalBanner).not.toContainText('探索率:');
     await expect(goalBanner.locator('.goal-stats-container')).toHaveCount(0);
     const summary = page.locator('.solo-start-craft-summary');
@@ -343,7 +343,7 @@ test('Departure craft disables the plus button at the displayed boundary', async
     openSubmenu('solo_start', '単独潜行');
   });
 
-  await page.locator('.solo-class-option').first().click();
+  await page.locator('.solo-starting-kit-option').first().click();
   const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
   await expect(heal).toContainText('硬い皮 1/2');
   await expect(heal).toContainText('獣の牙 1/2');
@@ -372,7 +372,7 @@ test('Departure craft allows empty-handed departure without materials', async ({
     openSubmenu('solo_start', '単独潜行');
   });
 
-  await page.locator('.solo-class-option').first().click();
+  await page.locator('.solo-starting-kit-option').first().click();
   const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
   await expect(heal).toBeDisabled();
   await expect(heal).toContainText('あと0個・素材不足');
@@ -400,11 +400,11 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   const questName = await page.locator('.run-quest-card').first().locator('strong').textContent();
   await page.locator('.run-quest-card').first().click();
   await page.getByRole('button', { name: '選択した依頼で潜行準備へ' }).click();
-  await page.getByRole('button', { name: /戦士 \+ 鍛錬サーベル/ }).click();
+  await page.getByRole('button', { name: /鋼の前線キット \+ 鍛錬サーベル/ }).click();
 
   const summary = page.locator('.solo-preparation-summary');
   await expect(summary).toContainText('今回の出発条件');
-  await expect(summary).toContainText('戦士');
+  await expect(summary).toContainText('鋼の前線キット');
   await expect(summary).toContainText('鍛錬サーベル（バッグ外）');
   await expect(summary).toContainText(questName);
   await expect(summary.locator('.solo-preparation-slot')).toHaveCount(20);
@@ -436,11 +436,11 @@ test('Preparation explains bag cap and Return Wing individual limit', async ({ p
   await expect(portal).toBeDisabled();
   await expect(portal).toContainText('あと0個・帰還の翼は1個まで');
 
-  await page.getByRole('button', { name: /クラスを選び直す/ }).click();
+  await page.getByRole('button', { name: /開始キットを選び直す/ }).click();
   await page.evaluate(async () => {
     (await import('/src/state.js')).state.metaMaterials = { '獣の牙': 20, '硬い皮': 20 };
   });
-  await page.locator('.solo-class-option').first().click();
+  await page.locator('.solo-starting-kit-option').first().click();
   const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
   for (let index = 0; index < 20; index += 1) await heal.click();
   await expect(page.locator('.solo-preparation-summary')).toContainText('持ち込み 20/20');
@@ -532,7 +532,7 @@ for (const vp of VIEWPORTS) {
     });
 
     await page.locator('#btn-town-dungeon').click();
-    await page.getByRole('button', { name: /戦士/ }).click();
+    await page.getByRole('button', { name: /鋼の前線キット/ }).click();
     await page.locator('[data-recipe-id="HEAL_POTION"]').click();
     await page.getByRole('button', { name: /B1Fから開始/ }).click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
@@ -585,7 +585,7 @@ for (const vp of VIEWPORTS) {
       window.__canvasText = [];
     });
     await page.locator('#btn-town-dungeon').click();
-    await page.getByRole('button', { name: /戦士/ }).click();
+    await page.getByRole('button', { name: /鋼の前線キット/ }).click();
     await page.locator('[data-recipe-id="HEAL_POTION"]').click();
     await page.getByRole('button', { name: /B5Fから開始/ }).click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
