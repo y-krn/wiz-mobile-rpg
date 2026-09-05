@@ -26,7 +26,6 @@ const testRoots = [
   path.join(repoRoot, 'scratch/tests/unit'),
   path.join(repoRoot, 'scratch/tests/regression'),
 ];
-const srcDir = path.join(repoRoot, 'src');
 const startTime = Date.now();
 
 const toRepoPath = filePath => path.relative(repoRoot, filePath).split(path.sep).join('/');
@@ -98,12 +97,7 @@ function collectHeavyDependencies(testFile) {
 
     for (const specifier of findRelativeImports(absolutePath)) {
       const dependency = resolveRelativeImport(absolutePath, specifier);
-      const relativeToSrc = path.relative(srcDir, dependency);
-      const isInSrc = relativeToSrc !== '..' &&
-        !relativeToSrc.startsWith(`..${path.sep}`) &&
-        !path.isAbsolute(relativeToSrc);
-
-      if (isInSrc) dependencies.add(toRepoPath(dependency));
+      dependencies.add(toRepoPath(dependency));
       visit(dependency);
     }
   }
@@ -263,8 +257,9 @@ const scheduledTests = [
 ];
 
 console.log(`Found ${testFiles.length} test files.`);
+const skipReason = process.env.FAST === '1' ? 'fast mode' : 'deps unchanged';
 for (const file of skippedHeavyTests) {
-  console.log(`skip: ${file} (deps unchanged)`);
+  console.log(`skip: ${file} (${skipReason})`);
 }
 
 const results = await runPool(scheduledTests);
