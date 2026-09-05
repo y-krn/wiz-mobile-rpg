@@ -11,6 +11,7 @@
 - Runs: `N=500` per band, three representative floors per band
 - Decisions: three ordinary chest bundles per run; each bundle contains the production main reward and accessory path
 - Provenance: origin/main ancestor `true`, working tree clean `true`, measured-path diff SHA-256 `0d4bcded8376b9c7e3563c488bf0a1020cbed75513125f82acab3059d4dd2aad`
+- Determinism: two identical N=500 reruns at the committed head produced report SHA-256 `770212225a7314676fb40f59e49b35ee3a2e97fcbcdd9ea254c55c7febdf8a40`
 - Modeled source: `rollChestReward`, `rollChestAccessory`, `getChestItemCandidatesByFloor`, `RUNE_SUPPLY_BANDS`, `EQUIPMENT_CANDIDATES_BY_FLOOR`, production equip validation/preview
 
 ## Supply result
