@@ -33,7 +33,6 @@ test.describe('Common UI vNext shell @smoke', () => {
       const regions = Array.from(document.querySelectorAll('[data-shell-region]'))
         .map(element => element.dataset.shellRegion);
       const dock = document.querySelector('#controls-panel');
-      const rect = selector => document.querySelector(selector).getBoundingClientRect().toJSON();
       return {
         regions,
         dockState: dock.dataset.dockState,
@@ -42,7 +41,10 @@ test.describe('Common UI vNext shell @smoke', () => {
         historyLines: document.querySelectorAll('#log-overlay-body .log-entry').length,
         buttons: Array.from(document.querySelectorAll('#explore-controls button'))
           .filter(button => getComputedStyle(button).display !== 'none')
-          .map(button => rect(`#${button.id}`).height),
+          .map(button => {
+            const box = document.querySelector(`#${button.id}`).getBoundingClientRect();
+            return { width: box.width, height: box.height };
+          }),
         viewportWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,
       };
@@ -56,7 +58,7 @@ test.describe('Common UI vNext shell @smoke', () => {
     expect(shell.unresolvedText).toContain('未解決');
     expect(shell.historyLines).toBe(21);
     expect(shell.buttons.length).toBeGreaterThan(0);
-    expect(shell.buttons.every(height => height >= 44)).toBe(true);
+    expect(shell.buttons.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
     expect(shell.scrollWidth).toBeLessThanOrEqual(shell.viewportWidth + 1);
   });
 

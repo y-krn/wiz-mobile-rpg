@@ -20,7 +20,7 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('#btn-town-dungeon')).toBeVisible();
     });
 
-    test('Check all visible buttons are at least 44px high and key actions are at the bottom @visual', async ({ page }) => {
+    test('Check visible interactive controls meet a 44x44px activation area and key actions are reachable @visual', async ({ page }) => {
       const verifyScreenButtons = async (screenName) => {
         let buttons = await page.locator('button:visible, [role="button"]:visible, .btn:visible, .equip-item-row:visible, .char-row:visible, .archives-tab:visible').all();
 
@@ -73,7 +73,7 @@ for (const vp of VIEWPORTS) {
           const id = await btn.getAttribute('id') || '';
           const className = await btn.getAttribute('class') || '';
 
-          // Check minimum height (ignore helper icons or very specific small tags if any, but regular buttons must be >= 44px)
+          expect(box.width, `Button "${text}" (id: ${id}, class: ${className}) on ${screenName} should be >= 44px wide. Found: ${box.width}px`).toBeGreaterThanOrEqual(44);
           expect(box.height, `Button "${text}" (id: ${id}, class: ${className}) on ${screenName} should be >= 44px high. Found: ${box.height}px`).toBeGreaterThanOrEqual(44);
 
           // Verify if key action button is located in the bottom reach zone
@@ -166,6 +166,7 @@ for (const vp of VIEWPORTS) {
       for (const btn of exploreButtons) {
         const box = await btn.boundingBox();
         const text = (await btn.textContent()).trim();
+        expect(box.width, `Explore button "${text}" should remain wide enough to tap on ${vp.name}`).toBeGreaterThanOrEqual(44);
         expect(box.height, `Explore button "${text}" should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
       }
     });
@@ -180,6 +181,7 @@ for (const vp of VIEWPORTS) {
 
       const box = await dungeonStartButton.boundingBox();
       expect(box.height, `Few-button submenu row should stay compact on ${vp.name}`).toBeLessThanOrEqual(64);
+      expect(box.width, `Few-button submenu row should remain wide enough to tap on ${vp.name}`).toBeGreaterThanOrEqual(44);
       expect(box.height, `Few-button submenu row should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
     });
 
@@ -225,6 +227,7 @@ for (const vp of VIEWPORTS) {
       expect(layout.controlsDisplay).toBe('none');
       expect(layout.viewport.height, `Result viewport should use most available height on ${vp.name}`).toBeGreaterThan(vp.height * 0.65);
       expect(layout.overlay.height, `Result overlay should fill expanded viewport on ${vp.name}`).toBeCloseTo(layout.viewport.height, 1);
+      expect(layout.button.width, `Result return button should remain wide enough to tap on ${vp.name}`).toBeGreaterThanOrEqual(44);
       expect(layout.button.height, `Result return button should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
       expect(layout.button.top, `Result return button should stay in bottom thumb zone on ${vp.name}`).toBeGreaterThan(vp.height * 0.5);
       expect(layout.party.bottom, `Solo HUD should stay visible below result viewport on ${vp.name}`).toBeLessThanOrEqual(layout.height);
@@ -329,6 +332,7 @@ for (const vp of VIEWPORTS) {
       ]);
       expect(layout.hasHorizontalOverflow, `Chest menu should not create horizontal overflow on ${vp.name}`).toBe(false);
       for (const button of layout.buttons) {
+        expect(button.rect.width, `Chest action buttons should remain wide enough to tap on ${vp.name}`).toBeGreaterThanOrEqual(44);
         expect(button.rect.height, `Chest action buttons should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
       }
       expect(layout.options.bottom, `Scrollable chest actions should stay within controls on ${vp.name}`).toBeLessThanOrEqual(layout.controls.bottom);
@@ -380,6 +384,7 @@ for (const vp of VIEWPORTS) {
       }));
       expect(rewardLayout.hasHorizontalOverflow, `Pending reward surface should not overflow on ${vp.name}`).toBe(false);
       for (const button of rewardLayout.buttons) {
+        expect(button.rect.width, `Pending reward action "${button.text}" should remain wide enough to tap on ${vp.name}`).toBeGreaterThanOrEqual(44);
         expect(button.rect.height, `Pending reward action "${button.text}" should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
         expect(button.rect.bottom, `Pending reward action "${button.text}" should stay within controls on ${vp.name}`).toBeLessThanOrEqual(rewardLayout.controls.bottom);
       }
@@ -484,6 +489,7 @@ for (const vp of VIEWPORTS) {
       expect(stairsLayout.hasHorizontalOverflow).toBe(false);
       expect(stairsLayout.buttons).toHaveLength(2);
       for (const button of stairsLayout.buttons) {
+        expect(button.width).toBeGreaterThanOrEqual(44);
         expect(button.height).toBeGreaterThanOrEqual(44);
       }
       await waitForControlsReady(page);
@@ -638,6 +644,7 @@ for (const vp of VIEWPORTS) {
         expect(surface.box.left).toBeGreaterThanOrEqual(0);
         expect(surface.box.right).toBeLessThanOrEqual(vp.width);
         for (const button of surface.buttons) {
+          expect(button.box.width).toBeGreaterThanOrEqual(44);
           expect(button.box.height).toBeGreaterThanOrEqual(44);
           expect(button.box.left).toBeGreaterThanOrEqual(0);
           expect(button.box.right).toBeLessThanOrEqual(vp.width);
@@ -706,6 +713,7 @@ for (const vp of VIEWPORTS) {
 
       const rest = page.getByRole('button', { name: '休息する' });
       await expect(rest).toBeVisible();
+      expect((await rest.boundingBox()).width).toBeGreaterThanOrEqual(44);
       expect((await rest.boundingBox()).height).toBeGreaterThanOrEqual(44);
       await rest.click();
       await expect(page.locator('#log-content')).toContainText('野営地で休息した');
