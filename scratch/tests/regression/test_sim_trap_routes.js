@@ -71,5 +71,18 @@ assert.equal(
 assert.ok(route.detourNormalEncounters > 0, "detours must process normal encounters");
 assert.ok(route.detourOtherTrapEncounters > 0, "detours must process other floor traps normally");
 assert.ok(route.decisions.every(decision => decision.selected === "detour"));
+const flameObservations = result.trapResolutionObservations.filter(
+  observation => observation.source === "flame"
+);
+assert.equal(flameObservations.length, result.flameTrapActivations);
+assert.equal(
+  flameObservations.filter(observation => observation.outcome === "disarmed").length,
+  result.flameTrapDisarmed
+);
+assert.equal(
+  flameObservations.filter(observation => observation.outcome === "triggered").length,
+  result.flameTrapActivations - result.flameTrapDisarmed
+);
+assert.ok(flameObservations.every(observation => observation.action === "disarm"));
 
 console.log("[PASS] #933 known floor traps use deterministic ordinary route selection diagnostics");

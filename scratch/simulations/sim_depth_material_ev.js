@@ -10563,6 +10563,7 @@ function resolveFlameTrapAtStep({
   metrics.b5FlameActivationSteps.push(step);
   recordB5HpSnapshot(state, metrics, step);
   const trap = { type: "damage", id: "flame" };
+  const trapId = `flame:${state.floor}:${step}`;
   const activeCharacter = state.party.find(character => isAlive(character));
   const successRate = activeCharacter
     ? calculateSimulationFloorTrapSuccessRate({
@@ -10580,9 +10581,32 @@ function resolveFlameTrapAtStep({
   });
   if (resolution.outcome === "disarmed") {
     metrics.flameTrapDisarmed++;
+    recordSimulationTrapResolution(metrics, "disarmed", {
+      state,
+      trap,
+      trapId,
+      source: "flame",
+      action: "disarm",
+      successRate,
+      identified: true,
+      x: state.x,
+      y: state.y
+    });
     recordB5HpSnapshot(state, metrics, step);
     return true;
   }
+  recordSimulationTrapResolution(metrics, "triggered", {
+    state,
+    trap,
+    trapId,
+    source: "flame",
+    action: "disarm",
+    successRate,
+    partialSuccess: resolution.partialSuccess,
+    identified: true,
+    x: state.x,
+    y: state.y
+  });
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor: state.floor,
