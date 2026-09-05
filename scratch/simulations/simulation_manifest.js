@@ -15,6 +15,7 @@ const canonicalRunnerPath = "scratch/simulations/sim_depth_material_ev.js";
 // candidate, but lifecycle validation must reject it until it is classified.
 export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: canonicalRunnerPath, lifecycle: "canonical", scope: "run" },
+  { path: "scratch/simulations/sim_issue_1056_pending_rewards.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_recovery_policy.js", lifecycle: "historical", scope: "infra" },
   { path: "scratch/measurements/issue624_commit_depth.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue700_gate_metrics.js", lifecycle: "historical", scope: "infra" },
@@ -218,6 +219,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },
     { pattern: "src/systems/equipment_discard.js", domains: ["equipment"] },
     { pattern: "src/systems/loadout_transaction.js", domains: ["equipment", "maps"] },
+    { pattern: "src/pending_rewards.js", domains: ["chests", "equipment", "economy", "maps"] },
+    { pattern: "src/rules/pending_reward_bundle.js", domains: ["economy"] },
     { pattern: "src/systems/run_return.js", domains: ["economy", "progression", "workshop"] },
     { pattern: "src/systems/workshop.js", domains: ["workshop"] },
     { pattern: "src/combat_ui/encounter.js", domains: ["combat"] },
@@ -313,6 +316,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/state/inventory_state.js",
     "src/state/run_loot.js",
     "src/systems/milestone_merchant.js",
+    "src/pending_rewards.js",
     // Codex observations share combat entry/resolution paths with the
     // existing telemetry anchors but do not change combat formulas.
     "src/combat_ui/combat_start.js",

@@ -53,6 +53,8 @@ export {
 
 export {
   RETURN_WING_SALVAGE_COUNT,
+  createPendingObjectLootEntry,
+  adoptPendingObjectLoot,
   recordDungeonObjectLoot,
   consumeRunObjectLoot,
   settleRunObjectLoot

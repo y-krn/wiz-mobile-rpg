@@ -231,6 +231,23 @@ world turn cost, so Town/Camp commits remain zero. Unknown equipment is only
 revealed when the committed placement is applied; draft comparison never adds
 a free trial.
 
+## Pending reward bundle (#1056)
+
+Chest object rewards are first held in `currentRun.pendingRewardBundle`, which
+is separate from both `state.inventory` and `unbankedObjectLoot`. The bundle is
+the unresolved discovery record: all main/special/accessory object rewards from
+one event remain comparable until each is explicitly taken or left. Only taken
+entries are then placed into the final 20-slot bag or an adopted loadout and
+copied into `unbankedObjectLoot`; left entries never pass through inventory and
+are recorded as a discovered-but-left lifecycle event. Resource rewards remain
+outside this bundle.
+
+The bundle is persisted as additive run data so reload cannot reroll or lose an
+unresolved event. While it exists, movement and submenu back navigation are
+blocked. A bag-only resolution costs zero exploration turns. A resolution that
+commits a known gear/Rune loadout uses the #1054 atomic commit and costs one
+normal exploration turn for the whole resolution.
+
 ## Output
 
 Use the repository review output format from `.agents/README.md`.

@@ -393,6 +393,36 @@ function normalizeReturnItemRecord(record) {
   };
 }
 
+function normalizePendingRewardBundle(bundle) {
+  if (!isRecord(bundle) || !Array.isArray(bundle.entries)) return null;
+  const entries = bundle.entries
+    .filter(entry => isRecord(entry) && typeof entry.id === "string" && entry.item != null)
+    .map(entry => ({
+      id: entry.id,
+      role: typeof entry.role === "string" ? entry.role : "object",
+      item: entry.item,
+      decision: ["take", "leave"].includes(entry.decision) ? entry.decision : null,
+      loadoutAction: isRecord(entry.loadoutAction)
+        ? {
+          type: ["equip", "socket"].includes(entry.loadoutAction.type) ? entry.loadoutAction.type : "",
+          actorIdx: Number.isInteger(entry.loadoutAction.actorIdx) ? entry.loadoutAction.actorIdx : 0,
+          requestedSlot: typeof entry.loadoutAction.requestedSlot === "string" ? entry.loadoutAction.requestedSlot : ""
+        }
+        : null
+    }));
+  if (entries.length === 0) return null;
+  return {
+    id: typeof bundle.id === "string" ? bundle.id : `${entries[0].id}:bundle`,
+    source: typeof bundle.source === "string" ? bundle.source : "dungeon",
+    floor: Math.max(1, integerOr(bundle.floor, 1)),
+    x: Number.isInteger(bundle.x) ? bundle.x : null,
+    y: Number.isInteger(bundle.y) ? bundle.y : null,
+    entries,
+    discardIndexes: [...new Set(arrayOr(bundle.discardIndexes)
+      .filter(index => Number.isInteger(index) && index >= 0))]
+  };
+}
+
 function normalizeRunInsights(insights) {
   return arrayOr(insights)
     .filter(isRecord)
@@ -502,6 +532,7 @@ function normalizeCurrentRun(run) {
   normalized.bankedObjectLoot = normalized.bankedObjectLoot.filter(item => item != null);
   normalized.lostObjectLoot = normalized.lostObjectLoot.filter(item => item != null);
   normalized.returnedTownItems = normalized.returnedTownItems.filter(item => item != null);
+  normalized.pendingRewardBundle = normalizePendingRewardBundle(normalized.pendingRewardBundle);
   normalized.representativeItem = normalizeReturnItemRecord(normalized.representativeItem);
   normalized.meaningfulItemHistory = normalized.meaningfulItemHistory
     .map(normalizeReturnItemRecord)

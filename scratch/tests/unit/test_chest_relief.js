@@ -86,6 +86,7 @@ const {
   triggerChestTrap,
   useTrapKit
 } = await import("../../../src/chest.js");
+const { resolvePendingRewardBundle } = await import("../../../src/pending_rewards.js");
 const {
   __setTelemetryClientForTests,
   trackRunStart
@@ -162,6 +163,26 @@ function chestTelemetryEvents() {
   return telemetryEvents.filter(event => event.name.startsWith("chest_"));
 }
 
+function resolveAllPendingRewards() {
+  const bundle = state.currentRun?.pendingRewardBundle;
+  if (!bundle) return null;
+  bundle.entries.forEach(entry => { entry.decision = "take"; });
+  bundle.discardIndexes = [];
+  return resolvePendingRewardBundle(state);
+}
+
+function openAndResolve(...args) {
+  const result = openChestDirectly(...args);
+  if (result) resolveAllPendingRewards();
+  return result;
+}
+
+function smashAndResolve(...args) {
+  const result = smashChest(...args);
+  if (result) resolveAllPendingRewards();
+  return result;
+}
+
 await test("宝箱の合法フェーズ遷移表を固定する", () => {
   assert.deepEqual(CHEST_PHASE_TRANSITIONS[CHEST_PHASES.MENU], [
     CHEST_PHASES.MENU,
@@ -191,11 +212,12 @@ await test("開封はmenuからrewardを経てterminalになり検査状態を�
   state.chestState.identifiedTrap = "none";
   state.chestState.inspectChance = 0.85;
 
-  assert.equal(openChestDirectly(state.party[0], () => 0.99), true);
+  assert.equal(openAndResolve(state.party[0], () => 0.99), true);
   assert.equal(state.chestState, null);
+  resolveAllPendingRewards();
   assert.equal(state.gameState, "explore");
   assert.equal(state.inventory.includes("HEAL_POTION"), true);
-  assert.equal(openChestDirectly(state.party[0], () => 0.99), false);
+  assert.equal(openAndResolve(state.party[0], () => 0.99), false);
 });
 
 await test("無効・反復入力はphaseと報酬を変更しない", () => {
@@ -271,7 +293,7 @@ await test("fromDrop宝箱はsave/load後も同じ未開封報酬を保持する
     { ...expectedChest, phase: CHEST_PHASES.MENU }
   );
 
-  assert.equal(openChestDirectly(state.party[0], () => 0.99), true);
+  assert.equal(openAndResolve(state.party[0], () => 0.99), true);
   assert.equal(state.inventory.includes(expectedChest.item), true);
 });
 
@@ -566,24 +588,24 @@ await test("叩き壊すの複数報酬はmain・special・accessoryを独立判
 
 await test("叩き壊すはusableを50%で破損し、境界では残る", () => {
   resetChest({ trap: "none", item: "HEAL_POTION", accessoryItem: "AMULET_HP" });
-  smashChest(sequence([0.499, 0.99, 0.99, 0.99]));
+  smashAndResolve(sequence([0.499, 0.99, 0.99, 0.99]));
   assert.equal(state.inventory.includes("HEAL_POTION"), false);
   assert.equal(state.inventory.includes("AMULET_HP"), true);
   assert.ok(Object.values(state.currentRun.materials).reduce((sum, qty) => sum + qty, 0) > 0);
 
   resetChest({ trap: "none", item: "HEAL_POTION" });
-  smashChest(sequence([0.50, 0.99, 0.99, 0.99]));
+  smashAndResolve(sequence([0.50, 0.99, 0.99, 0.99]));
   assert.equal(state.inventory.includes("HEAL_POTION"), true);
 
   resetChest({ trap: "none", item: "DAGGER" });
-  smashChest(sequence([0.25, 0.99, 0.99]));
+  smashAndResolve(sequence([0.25, 0.99, 0.99]));
   assert.equal(state.inventory.includes("DAGGER"), true);
   assert.ok(state.logs.includes("叩き壊した衝撃に耐え、報酬は無事だった。"));
 });
 
 await test("叩き壊すの装備品1件損失ログは名前を含めない", () => {
   resetChest({ trap: "none", item: "DAGGER" });
-  smashChest(sequence([0, 0.99, 0.99]));
+  smashAndResolve(sequence([0, 0.99, 0.99]));
   assert.equal(state.inventory.includes("DAGGER"), false);
   assert.ok(state.logs.includes("叩き壊した衝撃で、装備品が壊れていた。"));
   assert.equal(state.logs.some(log => log.includes("ダガー")), false);
@@ -596,7 +618,7 @@ await test("叩き壊すは報酬破壊を記録へ残さず、特殊報酬を�
     specialItem: "TOWN_PORTAL",
     accessoryItem: "AMULET_HP"
   });
-  smashChest(sequence([0.249, 0.249, 0.99, 0.99, 0.99]));
+  smashAndResolve(sequence([0.249, 0.249, 0.99, 0.99, 0.99]));
   assert.equal(state.inventory.includes("DAGGER"), false);
   assert.equal(state.inventory.includes("AMULET_HP"), false);
   assert.equal(state.inventory.includes("TOWN_PORTAL"), true);
@@ -608,7 +630,7 @@ await test("叩き壊すは報酬破壊を記録へ残さず、特殊報酬を�
 
 await test("通常開封・成功解除・キット解除は報酬を失わない", () => {
   resetChest({ trap: "none", item: "HEAL_POTION", accessoryItem: "AMULET_HP" });
-  openChestDirectly(state.party[0], () => 0);
+  openAndResolve(state.party[0], () => 0);
   assert.equal(state.inventory.includes("HEAL_POTION"), true);
   assert.equal(state.inventory.includes("AMULET_HP"), true);
 
@@ -619,13 +641,14 @@ await test("通常開封・成功解除・キット解除は報酬を失わな�
     resetChest({ trap: "poison needle", item: "HEAL_POTION", accessoryItem: "AMULET_HP", party: [disarmer] });
     state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
     executeDisarm(disarmer, () => 0);
+    resolveAllPendingRewards();
     assert.equal(state.inventory.includes("HEAL_POTION"), true);
     assert.equal(state.inventory.includes("AMULET_HP"), true);
 
     resetChest({ trap: "poison needle", item: "HEAL_POTION", accessoryItem: "AMULET_HP" });
     state.inventory = ["TRAP_KIT"];
     assert.equal(useTrapKit(), true);
-    openChestDirectly(state.party[0], () => 0);
+    openAndResolve(state.party[0], () => 0);
     assert.equal(state.inventory.includes("HEAL_POTION"), true);
     assert.equal(state.inventory.includes("AMULET_HP"), true);
   } finally {
@@ -638,7 +661,7 @@ await test("宝箱の実アクションを選択単位で記録し、自動開�
   global.setTimeout = callback => { callback(); return 0; };
   try {
     resetChest({ trap: "none", item: "DAGGER" });
-    openChestDirectly(state.party[0], () => 0.99);
+    openAndResolve(state.party[0], () => 0.99);
     assert.deepEqual(chestTelemetryEvents().map(event => event.properties.action), ["open"]);
 
     const disarmer = makeCharacter("Ninja");
@@ -724,7 +747,7 @@ await test("致死的な通常解除失敗は未確定の宝箱報酬を失っ�
   }
   assert.equal(doomed.status, "dead");
   assert.equal(state.inventory.includes("HEAL_POTION"), false);
-  assert.equal(state.currentRun.lostObjectLoot[0], "HEAL_POTION");
+  assert.equal(state.currentRun.lostObjectLoot.length, 0, "unopened lethal chests never create an adopted loot entry");
   assert.equal(state.currentRun.itemsFound.includes("HEAL_POTION"), true);
   assert.ok(Object.values(state.currentRun.materials).some(quantity => quantity > 0));
 });

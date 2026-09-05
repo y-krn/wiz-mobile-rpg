@@ -1,5 +1,5 @@
-import { state, saveAutosave, addLog, addEventLog, clearEventObservations, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, INVENTORY_CAPACITY } from "./state.js";
-import { MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
+import { state, saveAutosave, addLog, addEventLog, clearEventObservations, recordEquipmentDiscovery, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
+import { MAP_WIDTH, MAP_HEIGHT, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import {
   getChestSmashRewardCategory,
   resolveChestSmashRewardLosses
@@ -19,7 +19,6 @@ import {
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
-import { getItemBaseId } from "./rules/item_rules.js";
 import { consumeRunObjectLoot } from "./state/run_loot.js";
 import { trackChestAction, trackChestSmashResult, trackValuableLocation } from "./telemetry.js";
 import {
@@ -37,6 +36,7 @@ import {
 } from "./chest/chest_domain.js";
 import { renderChestMenu } from "./chest/chest_view.js";
 import { recordEliteGreedAction } from "./systems/roaming_elites.js";
+import { openPendingRewardMenu, stagePendingRewardBundle } from "./pending_rewards.js";
 
 export { CHEST_PHASES, CHEST_PHASE_TRANSITIONS, generateChestMaterials };
 
@@ -669,66 +669,26 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
       state.codex.events.facilities.chest.opened++;
     }
   
-    let awardedRewardCount = 0;
-
-    // Award Item
-    if (chest.item) {
-      const item = getItemData(chest.item);
-      const added = addInventoryItem(chest.item, { dungeonLoot: true, source: "chest" });
-      if (added) {
-        awardedRewardCount++;
-        recordEquipmentDiscovery(chest.item);
-        if (state.currentRun) {
-          if (typeof chest.item === "string") {
-            state.currentRun.itemsFound.push(chest.item);
-          } else {
-            state.currentRun.equipmentFound.push(chest.item);
-            if (state.floor === 1) {
-              state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
-            }
-          }
-        }
-        addLog(`アイテム: [${item.name}] を手に入れた！`);
-      } else {
-        addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
-      }
-    }
-
-    if (chest.specialItem) {
-      const added = addInventoryItem(chest.specialItem, { dungeonLoot: true, source: "chest" });
-      if (added) {
-        awardedRewardCount++;
-        recordEquipmentDiscovery(chest.specialItem);
-        if (state.currentRun) state.currentRun.itemsFound.push(chest.specialItem);
-        addLog("箱の底に帰還の翼が残されていた――帰還の翼を手に入れた。");
-      } else {
-        const alreadyHasWing = state.inventory.some(item => getItemBaseId(item) === "TOWN_PORTAL");
-        if (alreadyHasWing) {
-          addLog("帰還の翼はすでに所持している。");
-        } else if (state.inventory.length >= INVENTORY_CAPACITY) {
-          addLog("[!] バッグがいっぱいで [帰還の翼] を持ち帰れなかった！");
-        } else {
-          addLog("帰還の翼を持ち帰れなかった。");
+    const objectRewards = getChestRewardEntries(chest).filter(reward => reward.item);
+    let awardedRewardCount = objectRewards.length;
+    objectRewards.forEach(({ item }) => {
+      recordEquipmentDiscovery(item);
+      if (state.currentRun) {
+        if (typeof item === "string") state.currentRun.itemsFound.push(item);
+        else {
+          state.currentRun.equipmentFound.push(item);
+          if (state.floor === 1) state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
         }
       }
-    }
-
-    if (chest.accessoryItem) {
-      const item = getItemData(chest.accessoryItem);
-      const added = addInventoryItem(chest.accessoryItem, { dungeonLoot: true, source: "chest" });
-      if (added) {
-        awardedRewardCount++;
-        recordEquipmentDiscovery(chest.accessoryItem);
-        if (state.currentRun) {
-          state.currentRun.equipmentFound.push(chest.accessoryItem);
-          if (state.floor === 1) {
-            state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
-          }
-        }
-        addLog(`装身具: [${item.name}] を手に入れた！`);
-      } else {
-        addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
-      }
+    });
+    const pendingBundle = stagePendingRewardBundle(state, objectRewards, {
+      source: chest.fromDrop ? "combat" : "chest",
+      floor: state.floor,
+      x: chest.x,
+      y: chest.y
+    });
+    if (pendingBundle) {
+      addLog(`戦果 ${objectRewards.length}件をまとめて解決する。`);
     }
 
     // Clear the original chest cell even if a trap moved the party.
@@ -748,7 +708,11 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
       resetSubmenuBackButton();
       state.transitioning = false;
       finishChest(chest);
-      state.gameState = "explore";
+      if (pendingBundle) {
+        openPendingRewardMenu();
+      } else {
+        state.gameState = "explore";
+      }
       saveAutosave();
       updateUI();
       return true;

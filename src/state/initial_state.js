@@ -61,6 +61,7 @@ export const createDefaultCurrentRun = () => ({
   bankedMaterials: {},
   townInventory: [],
   unbankedObjectLoot: [],
+  pendingRewardBundle: null,
   bankedObjectLoot: [],
   lostObjectLoot: [],
   eventObservations: {},

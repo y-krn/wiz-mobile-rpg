@@ -99,6 +99,7 @@ function restorePreviousGameState(view) {
 
 export function closeSubmenu() {
   const view = getScreenViewState(state, menuContext);
+  if (view.menuType === "pending_rewards") return false;
   if (view.isSubmenu) {
     if (view.isCombatOverlaySubmenu && view.isUsableCombatOverlaySubmenu) {
       state.gameState = "combat";
@@ -125,6 +126,7 @@ export function closeSubmenu() {
 export function goBackSubmenu() {
   if (state.transitioning) return;
   const view = getScreenViewState(state, menuContext);
+  if (view.menuType === "pending_rewards") return;
   if (view.isSubmenu && menuHistory.length > 0) {
     const prev = normalizeMenuHistoryEntry(menuHistory.pop());
     if (!prev) {

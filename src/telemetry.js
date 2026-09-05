@@ -114,7 +114,7 @@ const SAFE_CHEST_AURAS = new Set(["weak", "medium", "strong"]);
 const SAFE_BUILD_ROLES = new Set(Object.values(LOOT_BUILD_ROLES));
 const SAFE_LOOT_STAGES = new Set([
   "found", "bagged", "tried", "identified", "adopted", "discarded",
-  "banked", "salvaged", "lost", "rejected"
+  "banked", "salvaged", "lost", "rejected", "left"
 ]);
 const SAFE_LOOT_SOURCES = new Set([
   "combat", "chest", "merchant", "workshop", "departure-craft", "dungeon", "other"

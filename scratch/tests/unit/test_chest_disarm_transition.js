@@ -47,6 +47,7 @@ global.localStorage = {
 const { state } = await import("../../../src/state.js");
 const { createDefaultCurrentRun } = await import("../../../src/state/initial_state.js");
 const { CHEST_PHASES, setupChestState, executeDisarm } = await import("../../../src/chest.js");
+const { resolvePendingRewardBundle } = await import("../../../src/pending_rewards.js");
 
 const failures = [];
 
@@ -83,6 +84,13 @@ function waitForChestTransition() {
   return new Promise(resolve => setTimeout(resolve, 1600));
 }
 
+function resolvePendingRewardsByLeavingThem() {
+  const bundle = state.currentRun.pendingRewardBundle;
+  if (!bundle) return;
+  bundle.entries.forEach(entry => { entry.decision = "leave"; });
+  assert.equal(resolvePendingRewardBundle(state).ok, true);
+}
+
 async function test(name, fn) {
   try {
     await fn();
@@ -102,6 +110,8 @@ await test("successful disarm leaves transition state and returns to exploration
   await waitForChestTransition();
 
   assert.equal(state.transitioning, false);
+  assert.equal(state.gameState, "submenu");
+  resolvePendingRewardsByLeavingThem();
   assert.equal(state.gameState, "explore");
   assert.equal(state.chestState, null);
 });

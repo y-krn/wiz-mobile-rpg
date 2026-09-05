@@ -10,9 +10,11 @@ import { renderStairsDown } from "./stairs_down.js";
 import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderExploreManagement } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 import { normalizeSubmenuType } from "../state/view_state.js";
+import { openPendingRewardMenu } from "../pending_rewards.js";
 
 const SUBMENU_RENDERERS = {
   chest_menu: () => openChestMenu(),
+  pending_rewards: () => openPendingRewardMenu(),
   workshop_main: (optGrid) => renderWorkshop(optGrid),
   run_quest_board: (optGrid) => renderRunQuestBoard(optGrid),
   milestone_merchant: (optGrid) => renderMilestoneMerchant(optGrid),
