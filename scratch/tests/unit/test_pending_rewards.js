@@ -165,6 +165,23 @@ assert.equal(
 );
 __resetTelemetryForTests();
 
+const trialStageItem = {
+  ...unknownTrial,
+  instanceId: "pending-trial-stage",
+  curseEffectId: null,
+  curseLocked: false,
+  trialCount: 1,
+  knowledgeStage: "trial"
+};
+resetState(Array.from({ length: 19 }, () => "HEAL_POTION"));
+state.party[0].equipment.weapon = "DAGGER";
+const trialStageBundle = stagePendingRewardBundle(state, [{ role: "main", item: trialStageItem }]);
+trialStageBundle.entries[0].decision = "take";
+trialStageBundle.entries[0].loadoutAction = { type: "equip", actorIdx: 0 };
+const trialStageResolved = resolvePendingRewardBundle(state);
+assert.equal(trialStageResolved.ok, true, "trial-stage pending gear uses the normal equip path");
+assert.equal(trialStageItem.trialCount, 1, "pending normal re-equip does not count as another trial");
+
 resetState([]);
 const saveBundle = stagePendingRewardBundle(state, [{ role: "main", item: "HEAL_POTION" }]);
 saveBundle.entries[0].decision = "take";

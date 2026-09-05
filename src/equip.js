@@ -1275,6 +1275,8 @@ function createDetailPanel(char) {
   const item = getItemData(itemKey);
   const hidden = !isIdentified(itemKey);
   const knowledgeStage = getKnowledgeStage(itemKey);
+  const trialRequired = knowledgeStage === KNOWLEDGE_STAGES.DISCOVERY
+    || knowledgeStage === KNOWLEDGE_STAGES.OBSERVATION;
   const isEquipped = equipState.selectedIsEquipped;
 
   let preview;
@@ -1467,13 +1469,13 @@ function createDetailPanel(char) {
 
     const actionBtn = document.createElement("button");
     actionBtn.type = "button";
-    const trialBlockedOutsideExplore = hidden && equipState.prevGameState !== "explore";
+    const trialBlockedOutsideExplore = trialRequired && equipState.prevGameState !== "explore";
     const actionAvailable = availability.ok && !trialBlockedOutsideExplore;
     actionBtn.className = actionAvailable ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
     actionBtn.disabled = !actionAvailable;
     const oldEquipment = preview?.oldEq ? getItemData(preview.oldEq) : null;
     actionBtn.textContent = actionAvailable
-      ? (hidden
+      ? (trialRequired
         ? "試す（探索時間が進む）"
         : oldEquipment
           ? `装備する（${oldEquipment.name}をバッグへ）`
@@ -1482,13 +1484,13 @@ function createDetailPanel(char) {
         ? "探索中のみ試せます"
         : "装備できません";
     if (actionAvailable) {
-      actionBtn.setAttribute("aria-label", hidden ? "試す" : "装備する");
+      actionBtn.setAttribute("aria-label", trialRequired ? "試す" : "装備する");
       if (oldEquipment) actionBtn.title = `${oldEquipment.name}はバッグへ戻ります`;
     }
     setDockActionRole(actionBtn, "confirm");
     actionBtn.addEventListener("click", () => {
       if (!availability.ok) return;
-      const result = hidden
+      const result = trialRequired
         ? stageTrialEquip(equipState.draft, {
           inventoryIndex: equipState.selectedIdx,
           actorIdx: equipState.actorIdx,

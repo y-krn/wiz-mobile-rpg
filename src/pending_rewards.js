@@ -97,11 +97,13 @@ function itemName(item) {
 
 function isKnownLoadoutItem(item) {
   return (isEquipmentItem(getItemData(item)) || Boolean(getRuneSpellKey(item))) &&
-    getKnowledgeStage(item) === KNOWLEDGE_STAGES.FULL;
+    [KNOWLEDGE_STAGES.TRIAL, KNOWLEDGE_STAGES.FULL].includes(getKnowledgeStage(item));
 }
 
-function isUnknownLoadoutItem(item) {
-  return isEquipmentItem(getItemData(item)) && getKnowledgeStage(item) !== KNOWLEDGE_STAGES.FULL;
+function isUntriedLoadoutItem(item) {
+  const stage = getKnowledgeStage(item);
+  return isEquipmentItem(getItemData(item))
+    && (stage === KNOWLEDGE_STAGES.DISCOVERY || stage === KNOWLEDGE_STAGES.OBSERVATION);
 }
 
 function normalizeDiscardIndexes(bundle, inventory) {
@@ -122,7 +124,7 @@ function getPendingActionEntry(bundle, entry) {
   if (!action.type || !["equip", "socket", "trial"].includes(action.type)) {
     return { reason: "不明な装備操作です。" };
   }
-  if (action.type === "trial" && !isUnknownLoadoutItem(entry.item)) {
+  if (action.type === "trial" && !isUntriedLoadoutItem(entry.item)) {
     return { reason: "試用できる未鑑定装備ではありません。" };
   }
   if (action.type !== "trial" && !isKnownLoadoutItem(entry.item)) {
@@ -384,7 +386,7 @@ function renderPendingRewardMenu() {
         updateUI();
       }));
     }
-    if (isUnknownLoadoutItem(entry.item)) {
+    if (isUntriedLoadoutItem(entry.item)) {
       actions.appendChild(createActionButton("試す（探索時間が進む）", "btn btn-neon", () => {
         entry.decision = "take";
         entry.loadoutAction = { type: "trial", actorIdx: 0, requestedSlot: null };

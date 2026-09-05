@@ -102,8 +102,10 @@ function getSlotItem(character, slot) {
   return character?.equipment?.[slot] || null;
 }
 
-function isUnknownEquipment(item) {
-  return isEquipmentItem(getItemData(item)) && getKnowledgeStage(item) !== KNOWLEDGE_STAGES.FULL;
+function isUntriedEquipment(item) {
+  const stage = getKnowledgeStage(item);
+  return isEquipmentItem(getItemData(item))
+    && (stage === KNOWLEDGE_STAGES.DISCOVERY || stage === KNOWLEDGE_STAGES.OBSERVATION);
 }
 
 function getEquipmentChanges(before, after) {
@@ -211,7 +213,7 @@ export function getLoadoutEquipAvailability(draft, { actorIdx, item, requestedSl
 export function stageEquip(draft, { actorIdx, inventoryIndex, requestedSlot = null } = {}) {
   const candidate = draft?.inventory?.[inventoryIndex];
   if (draft?.trialAction) return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
-  if (isUnknownEquipment(candidate)) {
+  if (isUntriedEquipment(candidate)) {
     return { ok: false, reason: "未鑑定装備は『試す』から実際に装備してください。" };
   }
   const availability = getLoadoutEquipAvailability(draft, { actorIdx, item: candidate, requestedSlot });
@@ -240,7 +242,7 @@ export function stageEquip(draft, { actorIdx, inventoryIndex, requestedSlot = nu
 export function stageTrialEquip(draft, { actorIdx, inventoryIndex = null, item = null, requestedSlot = null, lootId = null } = {}) {
   if (!draft || draft.trialAction) return { ok: false, reason: "試用は同時に1件だけ確定できます。" };
   const candidate = Number.isInteger(inventoryIndex) ? draft.inventory?.[inventoryIndex] : item;
-  if (!isUnknownEquipment(candidate)) {
+  if (!isUntriedEquipment(candidate)) {
     return { ok: false, reason: "試用できる未鑑定装備がありません。" };
   }
   const priorChanges = getLoadoutDraftChanges(draft);
@@ -356,7 +358,7 @@ export function validateLoadoutDraft(draft) {
   const equipmentChanges = getEquipmentChanges(baseParty, draft);
   equipmentChanges.forEach(({ actorIdx, slot, from, to }) => {
     if (from && !sameItem(from, to) && isCurseLocked(from)) errors.push("呪いで固定された装備は外せません。");
-    if (to && isUnknownEquipment(to)) {
+    if (to && isUntriedEquipment(to)) {
       const isTrialTarget = draft.trialAction
         && draft.trialAction.actorIdx === actorIdx
         && draft.trialAction.slot === slot

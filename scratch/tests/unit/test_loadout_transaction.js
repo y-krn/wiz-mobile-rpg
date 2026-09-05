@@ -193,6 +193,36 @@ assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at
 assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at(-1)?.properties.lootSequence, 7);
 assert.equal(telemetryEvents.filter(event => event.name === "loadout_transaction").at(-1)?.properties.mode, "trial");
 
+// Use the same trial-stage lifecycle for a non-cursed item; cursed trial gear remains locked.
+unknownTrial.curseEffectId = null;
+unknownTrial.curseLocked = false;
+const triedLifecycleCount = telemetryEvents.filter(event => (
+  event.name === "loot_lifecycle" && event.properties.lifecycleStage === "tried"
+)).length;
+draft = createLoadoutDraft(state);
+staged = stageUnequip(draft, { actorIdx: 0, slot: "weapon" });
+assert.equal(staged.ok, true);
+const unequipCommit = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: 1 });
+assert.equal(unequipCommit.ok, true);
+draft = createLoadoutDraft(state);
+staged = stageEquip(draft, {
+  actorIdx: 0,
+  inventoryIndex: draft.inventory.indexOf(unknownTrial),
+  requestedSlot: "weapon"
+});
+assert.equal(staged.ok, true, "a trial-stage item can return through the normal loadout path");
+const reEquipCommit = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: 1 });
+assert.equal(reEquipCommit.ok, true);
+assert.equal(unknownTrial.knowledgeStage, "trial");
+assert.equal(unknownTrial.trialCount, 1, "normal re-equip does not count as another trial");
+assert.equal(
+  telemetryEvents.filter(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "tried").length,
+  triedLifecycleCount,
+  "normal re-equip does not re-emit tried telemetry"
+);
+assert.equal(telemetryEvents.filter(event => event.name === "equipment_decision").at(-1)?.properties.action, "equip");
+assert.equal(telemetryEvents.filter(event => event.name === "loadout_transaction").at(-1)?.properties.mode, "loadout");
+
 const combatTrialCharacter = createStartingKitCharacter("vanguard");
 const combatTrialState = {
   ...state,

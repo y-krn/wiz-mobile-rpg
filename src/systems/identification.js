@@ -64,11 +64,14 @@ export function observeCarriedEquipment(stateLike) {
 
 export function revealEquipmentOnEquip(item) {
   if (!item || typeof item !== "object") return { revealed: false, cursed: false };
-  if (getKnowledgeStage(item) !== KNOWLEDGE_STAGES.FULL) {
+  const currentStage = getKnowledgeStage(item);
+  const shouldTrial = currentStage === KNOWLEDGE_STAGES.DISCOVERY
+    || currentStage === KNOWLEDGE_STAGES.OBSERVATION;
+  if (shouldTrial) {
     setKnowledgeStage(item, KNOWLEDGE_STAGES.TRIAL);
     item.trialCount = Math.max(0, Number(item.trialCount) || 0) + 1;
   }
-  if (item.curseEffectId) item.curseLocked = true;
+  if (item.curseEffectId && currentStage !== KNOWLEDGE_STAGES.TRIAL) item.curseLocked = true;
   return { revealed: false, cursed: isCurseLocked(item) };
 }
 
