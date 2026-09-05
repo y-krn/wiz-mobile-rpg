@@ -45,7 +45,6 @@
 }
 
 .pending-reward-discard-row input {
-  /* tap-token-guard: allow — native checkbox sits inside the 44px row */
   width: 20px;
   height: 20px;
 }

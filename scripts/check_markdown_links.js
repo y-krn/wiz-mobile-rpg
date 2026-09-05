@@ -59,9 +59,10 @@ function checkMarkdown(filePath) {
     }
     const fileRelativeTarget = path.resolve(path.dirname(filePath), decoded);
     // Evidence reports historically use repository-root-relative destinations
-    // without a leading slash. Prefer normal Markdown file-relative links,
-    // then accept that repository convention when the root target exists.
-    const targets = [fileRelativeTarget, path.resolve(ROOT, decoded)];
+    // without a leading slash. Prefer normal Markdown file-relative links;
+    // only evidence reports may use that repository convention as a fallback.
+    const targets = [fileRelativeTarget];
+    if (toRepoPath(filePath).startsWith("evidence/")) targets.push(path.resolve(ROOT, decoded));
     if (targets.some((target) => isWithinRoot(target) && fs.existsSync(target))) continue;
     const line = source.slice(0, match.index).split("\n").length;
     diagnostics.push({ file: toRepoPath(filePath), line, message: rawDestination });
