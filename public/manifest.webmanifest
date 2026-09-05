@@ -1,7 +1,7 @@
 {
-  "name": "Wiz-Mobile: Neon Dungeon",
-  "short_name": "Neon Dungeon",
-  "description": "ネオンに彩られた3D迷宮を探索するモバイルRPG。",
+  "name": "DEPTHWARD",
+  "short_name": "DEPTHWARD",
+  "description": "より深く。何かを持ち帰るための深層アタック型モバイルRPG。",
   "lang": "ja",
   "dir": "ltr",
   "start_url": ".",
