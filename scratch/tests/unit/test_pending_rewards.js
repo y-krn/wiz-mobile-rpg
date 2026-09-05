@@ -63,6 +63,36 @@ rejectedBundle.entries[0].decision = "take";
 assert.equal(resolvePendingRewardBundle(state).ok, false, "full bags require an explicit discard");
 assert.equal(state.currentRun.pendingRewardBundle !== null, true);
 
+resetState(Array.from({ length: 20 }, () => "HEAL_POTION"));
+state.party[0].equipment.weapon = null;
+const fullBagEquipBundle = stagePendingRewardBundle(state, [{ role: "main", item: "DAGGER" }]);
+fullBagEquipBundle.entries[0].decision = "take";
+fullBagEquipBundle.entries[0].loadoutAction = { type: "equip", actorIdx: 0 };
+const fullBagEquipResolved = resolvePendingRewardBundle(state);
+assert.equal(fullBagEquipResolved.ok, true, "20/20 bag can equip pending gear into an empty slot");
+assert.equal(state.inventory.length, 20);
+assert.equal(state.party[0].equipment.weapon, "DAGGER");
+
+resetState(Array.from({ length: 20 }, () => "HEAL_POTION"));
+state.party = [createStartingKitCharacter("arcana")];
+state.party[0].mediumState.socketedRunes = [];
+const fullBagRuneBundle = stagePendingRewardBundle(state, [{ role: "main", item: "RUNE_DIOS" }]);
+fullBagRuneBundle.entries[0].decision = "take";
+fullBagRuneBundle.entries[0].loadoutAction = { type: "socket", actorIdx: 0 };
+const fullBagRuneResolved = resolvePendingRewardBundle(state);
+assert.equal(fullBagRuneResolved.ok, true, "20/20 bag can socket pending Rune into an empty slot");
+assert.equal(state.inventory.length, 20);
+assert.deepEqual(state.party[0].mediumState.socketedRunes, ["RUNE_DIOS"]);
+
+resetState(Array.from({ length: 20 }, () => "HEAL_POTION"));
+const replacementBundle = stagePendingRewardBundle(state, [{ role: "main", item: "DAGGER" }]);
+replacementBundle.entries[0].decision = "take";
+replacementBundle.entries[0].loadoutAction = { type: "equip", actorIdx: 0 };
+const replacementResolved = resolvePendingRewardBundle(state);
+assert.equal(replacementResolved.ok, false, "replacing gear with a full bag requires room for the displaced item");
+assert.equal(state.inventory.length, 20);
+assert.equal(state.currentRun.pendingRewardBundle !== null, true);
+
 resetState([]);
 const loadoutBundle = stagePendingRewardBundle(state, [{ role: "main", item: "DAGGER" }]);
 loadoutBundle.entries[0].decision = "take";

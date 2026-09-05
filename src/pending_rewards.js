@@ -139,24 +139,27 @@ function validateResolution(stateLike, bundle) {
   if (taken.some(entry => getItemData(entry.item)?.id === "TOWN_PORTAL" && inventory.some(item => getItemData(item)?.id === "TOWN_PORTAL"))) {
     return { ok: false, reason: "帰還の翼はすでに所持しています。置いていくを選んでください。" };
   }
-  const plan = resolvePendingRewardPlan({
-    bagCount: inventory.length,
-    rewardCount: bundle.entries.length,
-    takeCount: taken.length,
-    discardCount: discardIndexes.length,
-    loadoutChanged: bundle.entries.some(entry => entry.loadoutAction)
-  });
-  if (!plan.ok) {
-    const finalBagCount = inventory.length - discardIndexes.length + taken.length;
-    return { ok: false, reason: `最終バッグが${finalBagCount}/20枠です。既存品を選んで置いてください。` };
-  }
+  const hasLoadoutAction = bundle.entries.some(entry => entry.loadoutAction);
+  let plan = null;
   let loadoutDraft = null;
-  if (bundle.entries.some(entry => entry.loadoutAction)) {
+  if (hasLoadoutAction) {
     const projected = buildPendingLoadoutDraft(stateLike, bundle, taken, discardIndexes);
     if (!projected.ok) return projected;
     const draftValidation = validateLoadoutDraft(projected.draft);
     if (!draftValidation.ok) return { ok: false, reason: draftValidation.errors.join(" ") };
     loadoutDraft = projected.draft;
+  } else {
+    plan = resolvePendingRewardPlan({
+      bagCount: inventory.length,
+      rewardCount: bundle.entries.length,
+      takeCount: taken.length,
+      discardCount: discardIndexes.length,
+      loadoutChanged: false
+    });
+    if (!plan.ok) {
+      const finalBagCount = inventory.length - discardIndexes.length + taken.length;
+      return { ok: false, reason: `最終バッグが${finalBagCount}/20枠です。既存品を選んで置いてください。` };
+    }
   }
   return {
     ok: true,
