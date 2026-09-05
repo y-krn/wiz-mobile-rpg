@@ -237,7 +237,7 @@ export function stageEquip(draft, { actorIdx, inventoryIndex, requestedSlot = nu
   return { ok: true, draft: next, slot: availability.slot, item, oldItem };
 }
 
-export function stageTrialEquip(draft, { actorIdx, inventoryIndex = null, item = null, requestedSlot = null } = {}) {
+export function stageTrialEquip(draft, { actorIdx, inventoryIndex = null, item = null, requestedSlot = null, lootId = null } = {}) {
   if (!draft || draft.trialAction) return { ok: false, reason: "試用は同時に1件だけ確定できます。" };
   const candidate = Number.isInteger(inventoryIndex) ? draft.inventory?.[inventoryIndex] : item;
   if (!isUnknownEquipment(candidate)) {
@@ -265,7 +265,7 @@ export function stageTrialEquip(draft, { actorIdx, inventoryIndex = null, item =
     addInventory(next, shield);
   }
   normalizeDraftActor(character);
-  next.trialAction = { actorIdx, slot: availability.slot, item: candidate };
+  next.trialAction = { actorIdx, slot: availability.slot, item: candidate, lootId };
   return { ok: true, draft: next, slot: availability.slot, item: candidate, oldItem };
 }
 

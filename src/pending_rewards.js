@@ -210,7 +210,8 @@ function buildPendingLoadoutDraft(stateLike, bundle, taken, discardIndexes) {
       ? stageTrialEquip(draft, {
         actorIdx: entry.loadoutAction.actorIdx ?? 0,
         item: entry.item,
-        requestedSlot: entry.loadoutAction.requestedSlot || null
+        requestedSlot: entry.loadoutAction.requestedSlot || null,
+        lootId: entry.id
       })
       : inventoryIndex < 0
       ? { ok: false, reason: `${itemName(entry.item)}をdraftに置けません。` }

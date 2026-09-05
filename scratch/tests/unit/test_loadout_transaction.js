@@ -177,7 +177,7 @@ resetState(trialCharacter, [unknownTrial]);
 state.gameState = "explore";
 draft = createLoadoutDraft(state);
 assert.equal(stageEquip(draft, { actorIdx: 0, inventoryIndex: 0 }).ok, false, "unknown equipment cannot enter the normal loadout path");
-staged = stageTrialEquip(draft, { actorIdx: 0, inventoryIndex: 0 });
+staged = stageTrialEquip(draft, { actorIdx: 0, inventoryIndex: 0, lootId: "loadout-test:loot:7" });
 assert.equal(staged.ok, true);
 assert.equal(state.party[0].equipment.weapon, "DAGGER", "trial staging does not mutate live equipment");
 assert.equal(staged.draft.trialAction.item, unknownTrial);
@@ -190,6 +190,7 @@ assert.equal(unknownTrial.trialCount, 1);
 assert.equal(unknownTrial.curseLocked, true, "curse locks only at the trial commit");
 assert.equal(telemetryEvents.filter(event => event.name === "equipment_decision").at(-1)?.properties.action, "trial");
 assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at(-1)?.properties.lifecycleStage, "tried");
+assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at(-1)?.properties.lootSequence, 7);
 assert.equal(telemetryEvents.filter(event => event.name === "loadout_transaction").at(-1)?.properties.mode, "trial");
 
 const combatTrialCharacter = createStartingKitCharacter("vanguard");

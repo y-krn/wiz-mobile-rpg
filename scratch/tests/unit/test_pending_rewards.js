@@ -11,6 +11,11 @@ import {
   resolvePendingRewardBundle,
   stagePendingRewardBundle
 } from "../../../src/pending_rewards.js";
+import {
+  __resetTelemetryForTests,
+  __setTelemetryClientForTests,
+  trackRunStart
+} from "../../../src/telemetry.js";
 
 globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 const dummyElement = () => ({
@@ -134,6 +139,9 @@ const unknownTrial = {
 };
 resetState(Array.from({ length: 19 }, () => "HEAL_POTION"));
 state.party[0].equipment.weapon = "DAGGER";
+const telemetryEvents = [];
+__setTelemetryClientForTests({ capture: (name, properties) => telemetryEvents.push({ name, properties }) });
+trackRunStart({ characterClass: "Fighter", startFloor: 1 }, state.party[0], state);
 const trialBundle = stagePendingRewardBundle(state, [{ role: "main", item: unknownTrial }]);
 trialBundle.entries[0].decision = "take";
 trialBundle.entries[0].loadoutAction = { type: "trial", actorIdx: 0 };
@@ -145,6 +153,17 @@ assert.equal(state.inventory.length, 20, "displaced gear returns without a hidde
 assert.equal(state.party[0].equipment.weapon, unknownTrial);
 assert.equal(unknownTrial.knowledgeStage, "trial");
 assert.equal(unknownTrial.curseLocked, true);
+assert.equal(
+  telemetryEvents.filter(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "tried").at(-1)?.properties.lootSequence,
+  1,
+  "pending trial keeps its loot sequence through the commit"
+);
+assert.equal(
+  telemetryEvents.filter(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "bagged").at(-1)?.properties.lootSequence,
+  1,
+  "pending trial adoption keeps the same loot sequence"
+);
+__resetTelemetryForTests();
 
 resetState([]);
 const saveBundle = stagePendingRewardBundle(state, [{ role: "main", item: "HEAL_POTION" }]);

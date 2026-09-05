@@ -96,7 +96,9 @@ export function commitLoadoutDraft(draft, { stateLike = state, turnCost = 0, wor
         state: stateLike,
         character,
         itemKey: change.to,
-        lootId: findRunObjectLootEntry(stateLike, change.to)?.id,
+        lootId: trialTarget
+          ? (draft.trialAction.lootId || findRunObjectLootEntry(stateLike, change.to)?.id)
+          : findRunObjectLootEntry(stateLike, change.to)?.id,
         source: "dungeon"
       });
       if (reveal.cursed) addLog(`[呪い装備] ${getName(change.to)}は外せない。`);
