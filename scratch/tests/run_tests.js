@@ -15,6 +15,9 @@ const HEAVY_TESTS = {
   'test_stairs_min_distance.js': 4,
   'test_reachability_loop.js': 4,
   'test_shared_wall_corridors.js': 3,
+  'test_observability_after_stairs.js': 1,
+  'test_explore_spell_usage.js': 1,
+  'test_heal_priority_policy.js': 1,
 };
 const heavyTestFiles = Object.keys(HEAVY_TESTS);
 
@@ -78,7 +81,12 @@ function findRelativeImports(filePath) {
 function collectHeavyDependencies(testFile) {
   const ownedTestPath = testFile.includes('/')
     ? testFile
-    : `scratch/tests/unit/${testFile}`;
+    : ['unit', 'regression']
+      .map(directory => `scratch/tests/${directory}/${testFile}`)
+      .find(candidate => fs.existsSync(path.join(repoRoot, candidate)));
+  if (!ownedTestPath) {
+    throw new Error(`Heavy test is not owned by a test directory: ${testFile}`);
+  }
   const testPath = path.join(repoRoot, ownedTestPath);
   const dependencies = new Set([toRepoPath(testPath)]);
   const visited = new Set();
@@ -95,8 +103,7 @@ function collectHeavyDependencies(testFile) {
         !relativeToSrc.startsWith(`..${path.sep}`) &&
         !path.isAbsolute(relativeToSrc);
 
-      if (!isInSrc) continue;
-      dependencies.add(toRepoPath(dependency));
+      if (isInSrc) dependencies.add(toRepoPath(dependency));
       visit(dependency);
     }
   }
@@ -125,6 +132,10 @@ function findChangedFiles() {
 function selectHeavyTests() {
   if (process.env.FULL_TEST === '1') {
     return new Set(heavyTestFiles);
+  }
+
+  if (process.env.FAST === '1') {
+    return new Set();
   }
 
   try {
