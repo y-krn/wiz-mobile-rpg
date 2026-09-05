@@ -1,8 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = join(process.cwd(), 'tests');
-const forbiddenFile = /(?:^|[\\/])(?:issue-|ui-issue-|verify-).*\.spec\.js$/i;
+const SOURCE_SUFFIXES = ['.spec.js', '.cases.js'];
+const forbiddenFile = /(?:^|[\\/])(?:issue-|ui-issue-|verify-).*(?:\.spec|\.cases)\.js$/i;
 const forbiddenTitle = /\bIssue\s*#\d+\b|\btest(?:\.describe)?\s*\([^\n]*\bverify[- ]/i;
 
 function collectFiles(directory) {
@@ -12,15 +13,24 @@ function collectFiles(directory) {
   });
 }
 
-const failures = [];
-for (const file of collectFiles(root).filter(file => file.endsWith('.spec.js'))) {
-  const name = relative(root, file);
-  const source = readFileSync(file, 'utf8');
+export function checkFile(name, source) {
+  const failures = [];
   if (forbiddenFile.test(name)) failures.push(`${name}: Issue/verify filename is not allowed`);
   if (forbiddenTitle.test(source)) failures.push(`${name}: Issue/verify naming is not allowed in spec text`);
+  return failures;
 }
 
-if (failures.length > 0) {
-  console.error(failures.join('\n'));
-  process.exitCode = 1;
+export function findFailures(root) {
+  return collectFiles(root)
+    .filter(file => SOURCE_SUFFIXES.some(suffix => file.endsWith(suffix)))
+    .flatMap(file => checkFile(relative(root, file), readFileSync(file, 'utf8')));
+}
+
+const isMainModule = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+if (isMainModule) {
+  const failures = findFailures(join(process.cwd(), 'tests'));
+  if (failures.length > 0) {
+    console.error(failures.join('\n'));
+    process.exitCode = 1;
+  }
 }
