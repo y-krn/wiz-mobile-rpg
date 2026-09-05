@@ -9,6 +9,7 @@ import { getFloorLabel, getFloorTheme, revealFloor } from "./data/floor_themes.j
 import { ensureRunFloor, isUsableFloorCell, resetRunFloors } from "./state/run_floor_state.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
+import { hasPendingRewardBundle } from "./pending_rewards.js";
 import { menuContext, openGuardedSubmenu, openSubmenu } from "./navigation.js";
 import { detectAdjacentTraps, startTrapEncounter, triggerTrap, triggerPitfall } from "./systems/traps.js";
 import {
@@ -171,7 +172,7 @@ export function getCurrentExplorationCell() {
 }
 
 export function handleMove(action) {
-  if (state.transitioning || state.gameState !== "explore") return;
+  if (state.transitioning || state.gameState !== "explore" || hasPendingRewardBundle(state)) return;
   playSound("move");
   
   state.prevX = state.x;

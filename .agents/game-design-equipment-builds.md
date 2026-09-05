@@ -497,3 +497,14 @@ advance exploration time. The caller supplies the actual world turn cost, so
 Town/Camp commits remain zero. Unknown gear remains a real trial only when the
 committed loadout adopts it; preview does not disclose or simulate hidden
 effects.
+
+## Pickup staging (#1056)
+
+An opened chest stages its main, special/Wing, and accessory object rewards as
+one pending bundle before any bag mutation. The player resolves the complete
+bundle against the current bag: take, leave, or explicitly discard existing
+items. The final placement must be at most 20 ordinary slots, and a left
+reward is never briefly inserted into the bag. Known equipment and Rune can be
+included in the same #1054 loadout draft; unknown equipment may be carried or
+left but is not offered a free equip/socket trial. Materials and identification
+powder continue to resolve as non-object resources outside the bundle.

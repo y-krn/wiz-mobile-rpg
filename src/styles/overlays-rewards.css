@@ -1,0 +1,54 @@
+.pending-reward-grid {
+  gap: 10px;
+}
+
+.pending-reward-intro,
+.pending-reward-bag-status,
+.pending-reward-card,
+.pending-reward-discard-row {
+  background: var(--panel-background, rgba(8, 12, 24, 0.82));
+  border: 1px solid var(--line-color, rgba(95, 219, 255, 0.28));
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.pending-reward-intro {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.pending-reward-card {
+  display: grid;
+  gap: 6px;
+}
+
+.pending-reward-card small {
+  color: var(--text-muted);
+}
+
+.pending-reward-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+.pending-reward-grid h4 {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+}
+
+.pending-reward-discard-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.pending-reward-discard-row input {
+  width: 20px;
+  height: 20px;
+}
+
+.pending-reward-confirm:disabled {
+  opacity: 0.55;
+}

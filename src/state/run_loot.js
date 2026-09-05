@@ -40,6 +40,34 @@ function nextLootId(run) {
   return `${run.startedAt || "run"}:loot:${run.lootSequence}`;
 }
 
+export function createPendingObjectLootEntry(
+  stateLike,
+  item,
+  { source = "dungeon", role = "object" } = {}
+) {
+  const run = getRun(stateLike);
+  if (!run || !isBankableObject(item)) return null;
+  const id = nextLootId(run);
+  trackLootLifecycle("found", { state: stateLike, itemKey: item, source, lootId: id });
+  return { id, role, item };
+}
+
+export function adoptPendingObjectLoot(stateLike, entry, { source = "dungeon" } = {}) {
+  const run = getRun(stateLike);
+  if (!run || !entry?.id || !isBankableObject(entry.item)) return false;
+  run.unbankedObjectLoot ||= [];
+  if (run.unbankedObjectLoot.some(candidate => candidate?.id === entry.id)) return false;
+  run.unbankedObjectLoot.push({ id: entry.id, item: entry.item });
+  trackLootLifecycle("bagged", {
+    state: stateLike,
+    itemKey: entry.item,
+    source,
+    lootId: entry.id,
+    ownership: "unbanked"
+  });
+  return true;
+}
+
 export function recordDungeonObjectLoot(
   stateLike,
   item,
