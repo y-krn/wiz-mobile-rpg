@@ -17,8 +17,8 @@ const INTERACTIVE_SELECTOR_RE = /(^|[\s,>+~])(?:button\b|a\b|input\b|select\b|te
 const RAW_TAP_PROPS = new Set(["width", "height", "min-width", "min-height"]);
 const ALLOW_RE = /tap-token-guard:\s*allow/;
 // The pending-reward row owns a native checkbox whose visual control is 20px;
-// its surrounding row supplies the 44px tap target. Track the exception in
-// #1062 instead of changing production CSS in this lint-expansion PR.
+// its surrounding row supplies the 44px tap target. Keep this exception
+// selector-scoped so other interactive controls remain covered by the rule.
 const NATIVE_SMALL_CONTROL_RE = /\.pending-reward-discard-row\s+input\b/i;
 
 const messages = stylelint.utils.ruleMessages(ruleName, {
