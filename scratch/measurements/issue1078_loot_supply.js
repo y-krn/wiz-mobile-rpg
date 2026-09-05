@@ -56,8 +56,17 @@ function createDistribution() {
   return { 0: 0, 1: 0, "2+": 0 };
 }
 
+function createMainAxisCoreDistribution() {
+  return { 0: 0, 1: 0, 2: 0, 3: 0, "4+": 0 };
+}
+
 function recordDistribution(distribution, value) {
   const bucket = value >= 2 ? "2+" : String(Math.max(0, value));
+  distribution[bucket] = (distribution[bucket] || 0) + 1;
+}
+
+function recordMainAxisCoreDistribution(distribution, value) {
+  const bucket = value >= 4 ? "4+" : String(Math.max(0, value));
   distribution[bucket] = (distribution[bucket] || 0) + 1;
 }
 
@@ -203,7 +212,7 @@ function createBandAggregate(band) {
       truePivotAdoption: createDistribution(),
       coreFinds: createDistribution(),
       coreEquipped: createDistribution(),
-      simultaneouslyEquippedMainAxisCores: createDistribution()
+      simultaneouslyEquippedMainAxisCores: createMainAxisCoreDistribution()
     },
     adoption: {
       equipmentCandidates: 0,
@@ -446,7 +455,7 @@ function measureBand(band, { seed, runs }) {
     recordDistribution(aggregate.perRunDistributions.truePivotAdoption, perRun.truePivotAdoptions);
     recordDistribution(aggregate.perRunDistributions.coreFinds, perRun.coreFinds);
     recordDistribution(aggregate.perRunDistributions.coreEquipped, perRun.coreEquipped);
-    recordDistribution(
+    recordMainAxisCoreDistribution(
       aggregate.perRunDistributions.simultaneouslyEquippedMainAxisCores,
       getEquippedMainAxisCoreCount(adoptionCharacter)
     );
@@ -488,8 +497,8 @@ function createInvarianceRunState() {
 
 function rollVariantSequence(variant, { seed, runs }) {
   const sequence = [];
-  const currentRun = createInvarianceRunState();
   for (let runIndex = 0; runIndex < runs; runIndex++) {
+    const currentRun = createInvarianceRunState();
     BAND_DEFINITIONS.forEach(band => {
       band.floors.forEach((floor, decisionIndex) => {
         const bundle = rollBundle({

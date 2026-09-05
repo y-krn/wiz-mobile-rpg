@@ -261,20 +261,21 @@ function getSafeItemId(itemKey) {
   return typeof id === "string" && Object.hasOwn(ITEMS, id) ? id : "other";
 }
 
-function getLootSupplyFields(itemKey) {
+function getLootSupplyFields(itemKey, floor = null) {
   const itemId = getSafeItemId(itemKey);
   const rune = RUNES[itemId];
   const lootRole = normalizeOptionalStableValue(itemKey?.lootRole, SAFE_BUILD_ROLES);
   const itemType = getItemData(itemKey)?.type;
-  const generatedEquipmentTier = itemKey
-    && itemKey.level !== null
-    && itemKey.level !== undefined
+  const equipmentFloor = itemKey?.level ?? floor;
+  const equipmentSupplyTier = itemKey
+    && equipmentFloor !== null
+    && equipmentFloor !== undefined
     && ["weapon", "armor", "shield", "accessory"].includes(itemType)
-    ? getLootRoleSupply(itemKey.level).id
+    ? getLootRoleSupply(equipmentFloor).id
     : null;
   const lootTier = normalizeOptionalStableValue(
     itemKey?.lootTier ?? itemKey?.supplyTier ?? itemKey?.supplyBand
-      ?? rune?.supplyTier ?? generatedEquipmentTier,
+      ?? rune?.supplyTier ?? equipmentSupplyTier,
     SAFE_LOOT_TIERS
   );
   return {
@@ -893,7 +894,7 @@ export function trackLootLifecycle(stage, details = {}) {
     identified: details.itemKey == null || typeof details.itemKey !== "object" || details.itemKey.identified === true,
     rarity: details.itemKey?.identified === true ? normalizeRarity(details.itemKey?.rarity) : null,
     buildRole: getEquipmentBuildRole(details.itemKey),
-    ...getLootSupplyFields(details.itemKey),
+    ...getLootSupplyFields(details.itemKey, stateSnapshot?.floor),
     valueProxy: getLootValueProxy(details.itemKey),
     unbankedObjectLootCount: summary.count,
     unbankedObjectLootValueProxy: summary.valueProxy

@@ -569,7 +569,7 @@ check("vNext telemetry separates lifecycle, exploration, portal, and elite obser
   assert.equal(lifecycle.properties.floor, 2);
   assert.equal(lifecycle.properties.source, "chest");
   assert.equal(lifecycle.properties.lootRole, null);
-  assert.equal(lifecycle.properties.lootTier, null);
+  assert.equal(lifecycle.properties.lootTier, "B1_5");
   const generatedLoot = {
     baseId: "DAGGER",
     level: 2,
