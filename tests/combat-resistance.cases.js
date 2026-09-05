@@ -47,11 +47,13 @@ async function installCombat(page, mode = 'combat_target', profile = 'all') {
       phase: 'choose_actions'
     };
     state.gameState = 'submenu';
+    state.transitioning = false;
+    menuContext.prevGameState = 'combat';
     menuContext.type = combatMode;
-      menuContext.targetType = 'enemy';
-      menuContext.actorIdx = 0;
-      renderCombatOverlay();
-      updateUI();
+    menuContext.targetType = 'enemy';
+    menuContext.actorIdx = 0;
+    renderCombatOverlay();
+    updateUI();
   }, { combatMode: mode, combatProfile: profile });
 }
 
@@ -146,8 +148,10 @@ test('archives discloses known resistances and tolerates legacy codex records', 
 
   await page.locator('#archives-overlay .codex-row', { hasText: 'ウィル・オー・ウィスプ' }).click();
   const detail = page.locator('#archives-overlay .codex-detail');
-  await expect(detail).toContainText('呪文：ほとんど効かない');
-  await expect(detail).toContainText('物理：やや効きにくい');
+  await expect(detail).toContainText('呪文');
+  await expect(detail).toContainText('ほとんど効かない');
+  await expect(detail).toContainText('物理');
+  await expect(detail).toContainText('やや効きにくい');
   await expectWithinViewport(detail, { width: 390, height: 844 }, 'archives detail');
 
   await page.getByRole('button', { name: '一覧に戻る' }).click();

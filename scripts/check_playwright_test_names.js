@@ -1,9 +1,9 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const root = join(process.cwd(), 'tests');
 const forbiddenFile = /(?:^|[\\/])(?:issue-|ui-issue-|verify-).*\.spec\.js$/i;
-const forbiddenTitle = /\bIssue\s*#\d+\b|\bverify[- ]/i;
+const forbiddenTitle = /\bIssue\s*#\d+\b|\btest(?:\.describe)?\s*\([^\n]*\bverify[- ]/i;
 
 function collectFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {

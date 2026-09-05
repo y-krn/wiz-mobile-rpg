@@ -131,11 +131,16 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
   await page.locator('#btn-move-forward').click();
   await expect(page.locator('#submenu-controls')).toBeVisible();
   await expect(page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button')).toBeVisible();
+  await expect.poll(async () => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { isControlsGuarded } = await import('/src/controls_guard.js');
+    return !state.transitioning && !isControlsGuarded();
+  })).toBe(true);
   expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'milestone_portal' });
   expect((await screen()).visibleDocks).toEqual(['submenu-controls']);
 
   // Portal Return -> Result -> Town -> Preparation remains one UI-operated chain.
-  await page.locator('.milestone-portal-choice-card[data-portal-decision="return"] > button').click();
+  await page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button').click();
   await expect(page.locator('.milestone-portal-confirmation')).toBeVisible();
   await page.locator('#btn-portal-confirm').click();
   await expect(page.locator('#result-overlay')).toBeVisible();

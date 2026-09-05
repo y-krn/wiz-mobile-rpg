@@ -1058,7 +1058,8 @@
   }
 
   .equip-detail-col {
-    flex-basis: 17%;
+    /* Leave enough room for the bag's two tap rows at 320x568. */
+    flex-basis: 15%;
   }
 }
 
