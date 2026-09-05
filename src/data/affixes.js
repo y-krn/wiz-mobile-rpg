@@ -225,7 +225,7 @@ export const SUPPORT_AFFIXES = [
   support("spellGuard", "魔除け", "呪文ダメージを軽減する。", "basic", { unit: "%" }),
   support("trapBonus", "罠解除", "罠解除率が増加する。", "basic", { unit: "%" }),
   support("trapGuard", "罠守", "罠によるHPダメージを軽減する。", "basic", { unit: "%" }),
-  support("treasureSense", "宝探", "宝の発見率が増加する。", "basic", { unit: "%" }),
+  support("treasureSense", "宝探", "宝箱の罠調査と戦利品の気配を読み取る精度が増加する。", "basic", { unit: "%" }),
   support("arcaneSense", "霊視", "魔力感知範囲が増加する。", "basic", { unit: "Lv" }),
   support("hearRange", "聴覚", "聴覚範囲が増加する。", "basic"),
   support("traceRead", "痕跡", "痕跡判読範囲が増加する。", "basic", { unit: "Lv" }),

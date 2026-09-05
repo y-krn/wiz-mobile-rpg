@@ -285,6 +285,9 @@ conversion and cap.
 
 Exploration information supports (`treasureSense`, `hearRange`, and
 `traceRead`) provide facts or signs rather than permission to use an action.
+`treasureSense` specifically improves chest-trap inspection reliability and can
+reveal an affix signal in the chest loot hint; it never changes reward
+candidate lists, item/replacement weights, or Medium/Rune pairing.
 Tools such as `TRAP_KIT` trade a consumable for deterministic disarm; their
 availability is evaluated by the Core/resource layer, while the plain disarm
 roll remains a Build rule. Starting kits do not grant a permanent exploration

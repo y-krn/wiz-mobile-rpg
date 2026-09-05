@@ -14,6 +14,7 @@ import {
   rollLootBuildRole
 } from "../../../src/systems/equipment_generation.js";
 import { CHEST_ITEM_CANDIDATES_BY_FLOOR, getChestItemCandidatesByFloor, rollChestReward } from "../../../src/rules/chest_rules.js";
+import { calculateChestInspectionChance, createChestLootHint } from "../../../src/chest/chest_domain.js";
 import { ITEMS } from "../../../src/data/items.js";
 
 const roleIds = new Set(Object.values(LOOT_BUILD_ROLES));
@@ -162,8 +163,35 @@ function createBuildVariant({ startingKit, treasureSense, hp, mp }) {
   }];
 }
 
-const buildA = createBuildVariant({ startingKit: "arcana", treasureSense: 25, hp: 1, mp: 0 });
+const buildA = createBuildVariant({ startingKit: "arcana", treasureSense: 5, hp: 1, mp: 0 });
 const buildB = createBuildVariant({ startingKit: "vanguard", treasureSense: 0, hp: 100, mp: 20 });
+const sensedInspection = calculateChestInspectionChance({ party: buildA });
+const baselineInspection = calculateChestInspectionChance({ party: buildB });
+assert.ok(
+  sensedInspection.chance > baselineInspection.chance,
+  "treasureSense must improve chest trap inspection reliability"
+);
+assert.equal(baselineInspection.chance, 0.30);
+assert.equal(sensedInspection.chance, 0.35);
+
+const hintedEquipment = {
+  kind: "equipment",
+  rarity: "rare",
+  affixes: [{ type: "trapBonus", value: 5 }]
+};
+const sensedLootHint = createChestLootHint({
+  item: hintedEquipment,
+  party: buildA,
+  rng: () => 0.99
+});
+const baselineLootHint = createChestLootHint({
+  item: hintedEquipment,
+  party: buildB,
+  rng: () => 0.99
+});
+assert.match(sensedLootHint.label, /気配:技巧/);
+assert.equal(baselineLootHint.label, "装備品の反応あり");
+
 const chestRunState = { chestsOpened: 1, equipmentFound: [{}], b1ChestsOpened: 1, b1EquipFound: 1 };
 const chestResultFor = (party, seed) => rollChestReward({
   floor: 3,

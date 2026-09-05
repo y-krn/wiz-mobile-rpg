@@ -78,6 +78,9 @@ export function getChestRewardEntries(chest) {
   ];
 }
 
+// treasureSense is information-only: it improves trap inspection reliability
+// and can reveal an affix signal in the loot hint. Reward candidates, item
+// chances, replacement weights, and Medium/Rune pairing remain build-blind.
 export function calculateChestInspectionChance({ party = [], lightPower = "", lightTurns = 0 } = {}) {
   const inspector = getActiveChestCharacter(party);
   let chance = 0.30 + getPartyMaxAffix(party, "treasureSense") / 100;
