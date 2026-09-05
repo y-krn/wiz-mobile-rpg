@@ -1380,6 +1380,29 @@ clean tree and provenance fields captured by
 `scratch/measurements/measurement_provenance.js`; raw stdout remains temporary
 and untracked.
 
+The #1075 coverage run used
+`SIM_SEED=231 SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 SIM_SCENARIOS=workshop-complete SIM_CORE_WORKSHOP_GATE=off node scratch/simulations/sim_depth_material_ev.js`.
+It ran from source/runner commit `ee9e2d923d06b32c406d9fba5871f67c8fba0b15`
+against gameplay base `8461d8a38c80a2921ed1f7dec81957e4d6dd0053` with
+`originMainAncestor=true`, `workingTreeClean=true`, and
+`staleTreeAllowed=false`. The measurement runner diff SHA-256 was
+`0f0501b37f23dbaaf6c7f08a2f82cc785f7e5484d2a81d263c66ffb2318a577d`; the
+temporary stdout SHA-256 was
+`1e165a1ae511c40fc71f2bb6a109de0cf256fc191b519d6ef7b37ac92ffc3f94`.
+The emitted reachability map contained 66 active dimensions (13 Core / 53
+Support) and no retired Core ID. Its migrated Support rows were:
+
+| migrated Support | R/C/E/Q/A |
+| --- | ---: |
+| `lowHpDamage` | 4/4/0/0/0 |
+| `firstStrikeFollowUp` | 2/2/1/0/0 |
+| `physicalAccuracy` | 3/3/0/0/0 |
+| `highHpTargetDamage` | 0/0/0/0/0 |
+| `bossDamage` | 0/0/0/0/0 |
+
+The zero rows are finite-run observations, not source-wiring failures; direct
+generation and rule tests cover those Support paths.
+
 The inventory below is a **historical #679 measurement** from the previous
 18-Core/47-Support registry. Its rows, counts, hashes, and output are retained
 for provenance only and are superseded by the current #1075 contract above.
