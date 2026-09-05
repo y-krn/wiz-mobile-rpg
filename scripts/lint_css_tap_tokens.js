@@ -13,9 +13,13 @@ const DIMENSION_PROPS = new Set([
   "max-height",
   "line-height",
 ]);
-const INTERACTIVE_SELECTOR_RE = /(^|[\s,>+~])(?:button\b|\.btn(?:\b|-)|#btn(?:\b|-)|\[role=(["'])?button\2\])/;
+const INTERACTIVE_SELECTOR_RE = /(^|[\s,>+~])(?:button\b|a\b|input\b|select\b|textarea\b|summary\b|\.btn(?:\b|-)|#btn(?:\b|-)|\[role\s*=\s*(["'])?(?:button|link|tab|menuitem|option)\2\]|\[(?:data-action|data-click|onclick|tabindex)(?:\s*=|\s*\]))/i;
 const RAW_TAP_PROPS = new Set(["width", "height", "min-width", "min-height"]);
 const ALLOW_RE = /tap-token-guard:\s*allow/;
+// The pending-reward row owns a native checkbox whose visual control is 20px;
+// its surrounding row supplies the 44px tap target. Track the exception in
+// #1062 instead of changing production CSS in this lint-expansion PR.
+const NATIVE_SMALL_CONTROL_RE = /\.pending-reward-discard-row\s+input\b/i;
 
 const messages = stylelint.utils.ruleMessages(ruleName, {
   rejected: (prop, value, reason) => `Expected "${prop}: ${value}" to use --tap-min/--tap-lg (${reason})`,
@@ -23,6 +27,14 @@ const messages = stylelint.utils.ruleMessages(ruleName, {
 
 function isInteractiveSelector(selector) {
   return INTERACTIVE_SELECTOR_RE.test(selector.replace(/\/\*[\s\S]*?\*\//g, " "));
+}
+
+function hasPointerCursor(cssRule) {
+  return cssRule.nodes?.some((node) => node.type === "decl" && node.prop === "cursor" && node.value === "pointer") ?? false;
+}
+
+function isNativeSmallControlSelector(selector) {
+  return NATIVE_SMALL_CONTROL_RE.test(selector.replace(/\/\*[\s\S]*?\*\//g, " "));
 }
 
 function hasAllowComment(decl) {
@@ -55,7 +67,8 @@ const rule = (primary) => {
     if (!validOptions || primary === false) return;
 
     root.walkRules((cssRule) => {
-      if (!isInteractiveSelector(cssRule.selector)) return;
+      if (isNativeSmallControlSelector(cssRule.selector)) return;
+      if (!isInteractiveSelector(cssRule.selector) && !hasPointerCursor(cssRule)) return;
 
       cssRule.walkDecls((decl) => {
         if (!DIMENSION_PROPS.has(decl.prop) || hasAllowComment(decl)) return;
