@@ -43,10 +43,6 @@ function hasAllowComment(decl) {
     .some((text) => ALLOW_RE.test(text));
 }
 
-function hasRuleAllowComment(cssRule) {
-  return cssRule.nodes?.some((node) => node.type === "comment" && ALLOW_RE.test(node.text)) ?? false;
-}
-
 function getViolation(prop, value) {
   const pixelValues = [...value.matchAll(PX_RE)].map((match) => Number(match[1]));
   const usesTapToken = TAP_TOKEN_RE.test(value);
@@ -75,7 +71,7 @@ const rule = (primary) => {
       if (!isInteractiveSelector(cssRule.selector) && !hasPointerCursor(cssRule)) return;
 
       cssRule.walkDecls((decl) => {
-        if (!DIMENSION_PROPS.has(decl.prop) || hasRuleAllowComment(cssRule) || hasAllowComment(decl)) return;
+        if (!DIMENSION_PROPS.has(decl.prop) || hasAllowComment(decl)) return;
 
         const reason = getViolation(decl.prop, decl.value);
         if (!reason) return;
