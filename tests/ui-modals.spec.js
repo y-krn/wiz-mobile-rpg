@@ -672,10 +672,13 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createSoloCharacter, createDefaultCurrentRun, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
       state.party = [createSoloCharacter('Fighter')];
       state.identifyTickets = 4;
+      state.currentRun = createDefaultCurrentRun();
+      state.currentRun.runSeed = 'ui-modals-trial';
+      state.gameState = 'explore';
       state.inventory = [
         {
           kind: 'equipment', instanceId: 'ui_safe', baseId: 'SHORT_SWORD', rarity: 'rare', level: 3,
