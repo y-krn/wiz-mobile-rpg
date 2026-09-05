@@ -183,7 +183,9 @@ const { calculateChestInspectionChance } = await import("../../src/chest/chest_d
 const {
   AFFIX_BALANCE,
   CORE_AFFIXES,
-  SUPPORT_AFFIXES
+  SUPPORT_AFFIXES,
+  getAffixDefinition,
+  getAffixKind
 } = await import("../../src/data/affixes.js");
 const { ITEMS } = await import("../../src/data/items.js");
 const { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } = await import("../../src/data/materials.js");
@@ -1505,15 +1507,19 @@ const ECONOMY_CORE_KEEP_RATIO = 0.95;
 const HOLD_ONLY_ECONOMY_CORE_IDS = new Set(["CORE_SNEAK_STEP", "CORE_KEEN_EYE"]);
 // #443の測定定義。ゲームルールではなく、core+対応support endpoint用。
 const CORE_SUPPORT_SYNERGY = Object.freeze({
-  CORE_LAST_STAND: ["hp", "vit", "guardian", "killHeal"],
-  CORE_OPENER: ["firstStrike", "firstTurnAttack", "fullHpDamage", "followUp"],
   CORE_BLOOD_WAND: ["hp", "vit", "int", "pie", "arcane", "devotion"],
   CORE_PURIFY_RING: ["antiUndead", "antiDemon", "arcane", "devotion"],
   CORE_TRAP_EATER: ["trapBonus"],
   CORE_CURSE_KEEPER: [],
-  CORE_GIANT_SLAYER: ["antiDragon", "antiBeast", "antiSpirit"],
   CORE_THORN_SHIELD: ["guardian", "def", "vit", "hitFlinch"],
-  CORE_EXECUTIONER: []
+  CORE_EXECUTIONER: ["poisonAtk", "bleedingAtk", "statusResistance"],
+  CORE_THIN_ICE_PACT: ["lowHpDamage", "guardian"],
+  CORE_SNEAK_STEP: ["hearRange", "traceRead", "arcaneSense"],
+  CORE_TOMB_RAIDER: ["treasureSense", "materialFind"],
+  CORE_KEEN_EYE: ["identifyDiscount", "arcaneSense"],
+  CORE_CAMP_MASTER: ["stairsHeal", "hp"],
+  CORE_BOUNTY_HUNTER: ["contractReward"],
+  CORE_SCHOLAR_EYE: ["materialFind", "arcaneSense"]
 });
 const ENABLED_SUPPORT_AFFIXES = SUPPORT_AFFIXES.filter(affix => affix.enabled);
 const ALL_ENABLED_SUPPORT_IDS = ENABLED_SUPPORT_AFFIXES.map(affix => affix.id);
@@ -1719,7 +1725,13 @@ function createCoreObservations() {
     tombRaiderMaterialBonusTotal: 0,
     trapEaterAttackGainTotal: 0,
     coreOpportunityCounts: createCoreMeasurementCounts(),
-    coreActivationCounts: createCoreMeasurementCounts()
+    coreActivationCounts: createCoreMeasurementCounts(),
+    supportOpportunityCounts: Object.fromEntries(
+      ENABLED_SUPPORT_AFFIXES.map(affix => [affix.id, 0])
+    ),
+    supportActivationCounts: Object.fromEntries(
+      ENABLED_SUPPORT_AFFIXES.map(affix => [affix.id, 0])
+    )
   };
 }
 
@@ -6592,9 +6604,6 @@ const BLOOD_WAND_ACTIVATION_LOG = getCoreLogText("CORE_BLOOD_WAND");
 
 function countLoggedCoreActivations(observations, logQueue) {
   const loggedCoreIds = [
-    "CORE_LAST_STAND",
-    "CORE_OPENER",
-    "CORE_GIANT_SLAYER",
     "CORE_THORN_SHIELD",
     "CORE_BOUNTY_HUNTER",
     "CORE_EXECUTIONER"
@@ -6698,8 +6707,6 @@ function recordRoundCoreObservations(
   observations.executionerStatusSetupSurvivals += executionerSetupEvents.filter(
     entry => entry.targetRef?.hp > 0
   ).length;
-  const lastStandParams = getCharCoreParams(characterBefore, "CORE_LAST_STAND");
-  const giantSlayerParams = getCharCoreParams(characterBefore, "CORE_GIANT_SLAYER");
   const executionerParams = getCharCoreParams(characterBefore, "CORE_EXECUTIONER");
   const bloodWandParams = getCharCoreParams(characterBefore, "CORE_BLOOD_WAND");
   const curseKeeperParams = getCharCoreParams(characterBefore, "CORE_CURSE_KEEPER");
@@ -6724,22 +6731,28 @@ function recordRoundCoreObservations(
 
   if (offensive) {
     observations.offensiveTurns++;
-    const lastStand = CORE_AFFIX_BY_ID.get("CORE_LAST_STAND").params;
+    const lowHpDamageParams = getAffixDefinition("lowHpDamage")?.params;
     const hpAtAction = getHpAtOffensiveAction(logQueue, characterBefore, action);
     if (
       hpAtAction !== null &&
-      hpAtAction / Math.max(1, getCharMaxHp(characterBefore)) <= lastStand.hpThreshold
+      hpAtAction / Math.max(1, getCharMaxHp(characterBefore)) <= (lowHpDamageParams?.hpThreshold ?? 0.4)
     ) {
       observations.lowHpOffensiveTurns++;
-      if (lastStandParams) {
-        observations.coreOpportunityCounts.CORE_LAST_STAND++;
+      if (getCharAffixSum(characterBefore, "lowHpDamage") > 0) {
+        observations.supportOpportunityCounts.lowHpDamage++;
+        observations.supportActivationCounts.lowHpDamage++;
       }
     }
     if (targetBeforeRound?.maxHp > getCharMaxHp(characterBefore)) {
       observations.giantTargetTurns++;
-      if (giantSlayerParams) {
-        observations.coreOpportunityCounts.CORE_GIANT_SLAYER++;
+      if (getCharAffixSum(characterBefore, "highHpTargetDamage") > 0) {
+        observations.supportOpportunityCounts.highHpTargetDamage++;
+        observations.supportActivationCounts.highHpTargetDamage++;
       }
+    }
+    if (targetBeforeRound?.isBoss && getCharAffixSum(characterBefore, "bossDamage") > 0) {
+      observations.supportOpportunityCounts.bossDamage++;
+      observations.supportActivationCounts.bossDamage++;
     }
     const statusTarget = targetBeforeRound?.status && !["ok", "dead"].includes(targetBeforeRound.status);
     const setupTarget = executionerSetupEvents.length > 0;
@@ -6771,10 +6784,15 @@ function recordRoundCoreObservations(
     observations.fightDamage += sumLoggedDamage(logQueue, characterAfter, "fight");
     observations.openerFirstStrikeFightTurns += Number(firstStrikeSucceeded);
     if (
-      firstStrikeSucceeded &&
-      getCharCoreParams(characterBefore, "CORE_OPENER")
+      targetBeforeRound?.traits?.includes("evasive") &&
+      getCharAffixSum(characterBefore, "physicalAccuracy") > 0
     ) {
-      observations.coreOpportunityCounts.CORE_OPENER++;
+      observations.supportOpportunityCounts.physicalAccuracy++;
+      observations.supportActivationCounts.physicalAccuracy++;
+    }
+    if (firstStrikeSucceeded && getCharAffixSum(characterBefore, "firstStrikeFollowUp") > 0) {
+      observations.supportOpportunityCounts.firstStrikeFollowUp++;
+      observations.supportActivationCounts.firstStrikeFollowUp++;
     }
   } else if (spell?.target?.includes("enemy") && action.spellName !== "KATINO") {
     observations.spellDamageActions++;
@@ -8674,7 +8692,7 @@ function getItemSupportIds(item) {
   if (!item || typeof item !== "object") return [];
   return (item.affixes || [])
     .map(affix => affix.id || affix.type)
-    .filter(id => id && !CORE_AFFIX_IDS.has(id));
+    .filter(id => id && getAffixKind(id) === "support");
 }
 
 function itemHasMatchingSupportForCore(item, coreId) {
@@ -8692,8 +8710,8 @@ function applySupportSupplyCeiling(item) {
 
   let supportIndex = 0;
   item.affixes = item.affixes.map(affix => {
-    const id = affix.id || affix.type;
-    if (CORE_AFFIX_IDS.has(id)) return affix;
+    const kind = getAffixKind(affix);
+    if (kind !== "support") return affix;
     const supportId = matchingIds[supportIndex % matchingIds.length];
     supportIndex++;
     return {
@@ -8991,20 +9009,8 @@ function getCombatCoreScoreForId(character, scoringProfile, floor, coreId) {
   const classScoringProfile = getClassScoringProfile(scoringProfile, character);
   const params = coreDefinition.params;
   const offenseScore = getOffenseEquipmentScore(character, classScoringProfile);
-  // 倍率コアは既存攻撃スコア×calibration実測稼働率×実params増分。
-  if (coreId === "CORE_LAST_STAND") {
-    return offenseScore * classScoringProfile.lowHpOffensiveRate * (params.damageMultiplier - 1);
-  }
-  if (coreId === "CORE_GIANT_SLAYER") {
-    return offenseScore * classScoringProfile.giantTargetRate * (params.damageMultiplier - 1);
-  }
   if (coreId === "CORE_EXECUTIONER") {
     return offenseScore * classScoringProfile.statusTargetRate * (params.damageMultiplier - 1);
-  }
-  // 追撃100%を既存followUpの%重みへ載せ、実先制成功率だけ稼働させる。
-  if (coreId === "CORE_OPENER") {
-    return classScoringProfile.openerFirstStrikeRate *
-      params.followUpChance * 100 * EQUIPMENT_SCORE_WEIGHTS.followUp;
   }
   // MP不足時の追加詠唱は、実測spell/fightダメージ差。回復詠唱は実測DIOS回復量をHP重み換算。
   if (coreId === "CORE_BLOOD_WAND") {
@@ -9133,9 +9139,10 @@ function createBuildSnapshot(state, scoringProfile, point) {
       : (item?.affixes || []);
     affixes.forEach(affix => {
       const id = affix.id || affix.type;
-      if (CORE_AFFIX_IDS.has(id)) {
+      const kind = getAffixKind(affix);
+      if (kind === "core") {
         coreIds.push(id);
-      } else {
+      } else if (kind === "support") {
         supportAffixes[id] = (supportAffixes[id] || 0) + (affix.value || 0);
       }
     });
@@ -9149,9 +9156,9 @@ function createBuildSnapshot(state, scoringProfile, point) {
       def: item?.def || 0,
       affixes: affixes.map(affix => ({
         id: affix.id || affix.type,
-        kind: affix.kind || (CORE_AFFIX_IDS.has(affix.id || affix.type) ? "core" : "support"),
+        kind: getAffixKind(affix),
         value: affix.value || 0
-      }))
+      })).filter(affix => affix.kind)
     };
     });
   const equipmentStatScore =
@@ -11935,7 +11942,7 @@ function createSupportCountDistribution() {
 
 function recordSupportCount(metrics, item, rarity) {
   const supportCount = Array.isArray(item?.affixes)
-    ? item.affixes.filter(affix => affix.kind !== "core").length
+    ? item.affixes.filter(affix => getAffixKind(affix) === "support").length
     : 0;
   const bucket = supportCount >= 4 ? "4+" : String(supportCount);
   metrics.supportCountDistribution[bucket]++;
@@ -11972,7 +11979,7 @@ function recordEquipmentAcquisitions(metrics, equipmentItems, floor, source = "o
         (metrics.trapBonusFoundByValue[value] || 0) + 1;
     });
     (item?.affixes || [])
-      .filter(affix => affix.kind !== "core")
+      .filter(affix => getAffixKind(affix) === "support")
       .forEach(affix => {
         const id = affix.id || affix.type;
         metrics.supportAffixFoundById[id] =
@@ -12448,6 +12455,11 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     const reachability = metrics.affixReachability.byId[affix.id];
     reachability.conditionEligible = metrics.coreObservations.coreOpportunityCounts[affix.id] || 0;
     reachability.application = metrics.coreObservations.coreActivationCounts[affix.id] || 0;
+  });
+  ENABLED_SUPPORT_AFFIXES.forEach(affix => {
+    const reachability = metrics.affixReachability.byId[affix.id];
+    reachability.conditionEligible = metrics.coreObservations.supportOpportunityCounts[affix.id] || 0;
+    reachability.application = metrics.coreObservations.supportActivationCounts[affix.id] || 0;
   });
   if (metrics.diagnostics && metrics.diagnosticLevel === "full") {
     metrics.diagnostics.finalBuild = createBuildSnapshot(
@@ -15762,12 +15774,12 @@ export {
 function printCoreScoringProfile(profile, policy = null) {
   console.log(`\n【core期待戦闘価値 calibration（B1→B20）${policy ? ` / ${policy.label}` : ""}】`);
   console.log(
-    `背水: 自攻撃直前HP${formatPercent(CORE_AFFIX_BY_ID.get("CORE_LAST_STAND").params.hpThreshold)}` +
-    `以下turn率=${formatPercent(profile.lowHpOffensiveRate)}; 攻撃score×率×(1.4-1)`
+    `窮地の猛攻support: 自攻撃直前HP40%以下turn率=${formatPercent(profile.lowHpOffensiveRate)}; ` +
+    "条件付きsupportの実発動観測"
   );
   console.log(
-    `先手必勝: 先制成功fight率=${formatPercent(profile.openerFirstStrikeRate)}; ` +
-    "率×100%追撃×followUp重み0.15"
+    `先手連撃support: 先制成功fight率=${formatPercent(profile.openerFirstStrikeRate)}; ` +
+    "先制時の追撃率加算を実発動観測"
   );
   console.log(
     `血杖: HP支払い候補 攻撃=${formatPercent(profile.bloodWandSpellOpportunityRate)} ` +
@@ -15819,8 +15831,8 @@ function printCoreScoringProfile(profile, policy = null) {
     "呪い数×全能力+3×既存能力重み合計（legacyでは0、powder/gambleでは実測）"
   );
   console.log(
-    `巨人殺し: 自分よりmaxHP高い敵への攻撃turn率=${formatPercent(profile.giantTargetRate)}; ` +
-    "攻撃score×率×(1.3-1)"
+    `巨体狙いsupport: 自分よりmaxHP高い敵への攻撃turn率=${formatPercent(profile.giantTargetRate)}; ` +
+    "条件付きsupportの実発動観測"
   );
   console.log(
     `反撃の棘: 物理被弾率=${formatPercent(profile.incomingPhysicalHitRate)}; ` +

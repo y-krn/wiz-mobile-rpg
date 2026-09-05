@@ -36,7 +36,7 @@ function createState({ agi = 10, monster, physicalAccuracy = false } = {}) {
               kind: "equipment",
               baseId: "SHORT_SWORD",
               identified: true,
-              affixes: [{ id: "CORE_PHYSICAL_ACCURACY", type: "CORE_PHYSICAL_ACCURACY", kind: "core" }]
+              affixes: [{ id: "physicalAccuracy", type: "physicalAccuracy", kind: "support", value: 10 }]
             }
           : null,
         shield: null,
@@ -126,13 +126,17 @@ assert.deepEqual(miss.state.combatFormulaTelemetry.physicalPlayerMisses[0], {
 });
 assert.match(miss.logQueue.map(entry => entry.msg).join("\n"), /霧のようにかわした/);
 
-const guaranteedHit = runAttack({ monster: liveEvasiveTarget, physicalAccuracy: true }, [0, 0, 0.9999, 0]);
-assert.equal(guaranteedHit.state.combatFormulaTelemetry.physicalPlayerHits.length, 1);
-assert.equal(guaranteedHit.state.combatFormulaTelemetry.physicalPlayerMisses.length, 0);
-assert.equal(
-  guaranteedHit.state.combatFormulaTelemetry.physicalPlayerHits[0].hitChance,
-  1,
-  "必中 core caps evasive-target physical hit chance at 100%"
+const supportedTarget = { traits: ["evasive"], evasionChance: 0.3 };
+assert.ok(Math.abs(getPhysicalHitChance({
+  agi: 10,
+  equipment: { weapon: { affixes: [{ type: "physicalAccuracy", value: 10 }] } }
+}, supportedTarget) - 0.8) < 1e-9);
+const supportedHit = runAttack({ monster: supportedTarget, physicalAccuracy: true }, [0, 0, 0.79, 0]);
+assert.equal(supportedHit.state.combatFormulaTelemetry.physicalPlayerHits.length, 1);
+assert.equal(supportedHit.state.combatFormulaTelemetry.physicalPlayerMisses.length, 0);
+assert.ok(
+  Math.abs(supportedHit.state.combatFormulaTelemetry.physicalPlayerHits[0].hitChance - 0.8) < 1e-9,
+  "physical accuracy Support adds a bounded percentage to evasive-target hit chance"
 );
 
 const normalCoreHit = runAttack({ monster: liveNormalTarget, physicalAccuracy: true }, [0, 0, 0.9999, 0]);
@@ -140,7 +144,7 @@ assert.equal(normalCoreHit.state.combatFormulaTelemetry.physicalPlayerHits.lengt
 assert.equal(
   normalCoreHit.state.combatFormulaTelemetry.physicalPlayerHits[0].hitChance,
   1,
-  "必中 core does not change normal-target behavior"
+  "physical accuracy Support does not change normal-target behavior"
 );
 
 const normalHit = runAttack({ monster: liveNormalTarget }, [0, 0, 0, 0]);

@@ -68,11 +68,11 @@ const BUILD_DEFINITIONS = Object.freeze([
     label: "Single-target / Efficient Mage",
     spells: ["MAHALITO", "HALITO"],
     equipment: {
-      weapon: { baseId: "SAGE_STAFF", coreId: "CORE_GIANT_SLAYER" },
+      weapon: { baseId: "SAGE_STAFF", coreId: "CORE_EXECUTIONER" },
       armor: { baseId: "MAGE_CLOAK", supports: [{ id: "spellPower", value: 20 }, { id: "arcane", value: 15 }] },
       accessory: { baseId: "AMULET_MP", supports: [{ id: "spellPower", value: 20 }] }
     },
-    note: "単体 spell と実在する巨人殺し core で高HP単体を試験する。"
+    note: "単体 spell と現行の執行人 core で状態異常対象を試験する。"
   },
   {
     id: "sustain",

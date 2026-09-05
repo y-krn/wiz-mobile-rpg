@@ -120,13 +120,13 @@ damage も変更しない。
   0 とし、敵全体へ一律には配らない。対象は斥候・獣・コウモリ・暗殺者など、
   速さや身軽さを役割／種族で読める個体に限る。
 - `hitChance`: `evasive` trait を持つ対象に対する物理攻撃の命中率。
-  `clamp(0.50, 1.00, 1 - evasionChance + (getCharAgi(char) - 10) * 0.01)` とする。
+  `clamp(0.50, 1.00, 1 - evasionChance + (getCharAgi(char) - 10) * 0.01 + physicalAccuracy)` とする。
   trait がない対象は 1.00 とし、AGI 10 を中立点にする。命中率の hard cap は 1.00、
   回避による下限は 0.50 とする。
-- `physicalAccuracy`: `CORE_PHYSICAL_ACCURACY`（表示「必中」）が有効な装備者へ
-  加える攻撃者側命中率ボーナス。core の `params.hitChanceBonus = 1` を 100
-  percentage points として 1 回だけ加え、最終 `hitChance` を 1.00 に clamp
-  する。同じ core を複数装備してもこの段階の効果は 1.00 を超えて積み上がらない。
+- `physicalAccuracy`: `physicalAccuracy` Support の値を percentage points から
+  0–1 へ変換して加える攻撃者側命中率ボーナス。現行値は rarity ごとに
+  +5 / +8 / +10% で、必中を保証しない。最終 `hitChance` は従来どおり
+  1.00 へ clamp し、通常対象の 1.00 や盲目 miss は変更しない。
 - `magicResist`: spell resolution が一時的に適用する
   `getEffectiveMagicResist` の値。敵の base と buff を合成し、-1〜0.9 に clamp
   する。
@@ -146,7 +146,7 @@ hitChance = clamp(0.50, 1.00,
                   1 - targetEvasion + (getCharAgi(char) - 10) * 0.01
                   + physicalAccuracy)
                 // targetEvasion == 0 の対象は hitChance = 1.00
-physicalAccuracy = getCharCoreParams(char, "CORE_PHYSICAL_ACCURACY")?.hitChanceBonus || 0
+physicalAccuracy = getCharAffixSum(char, "physicalAccuracy") / 100
 
 weapon = getCharWeaponAtk(char)
        + (roundNumber == 1 ? getCharAffixSum(char, "firstTurnAttack") : 0)
@@ -177,10 +177,9 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
 
 1. 対象が `evasive` trait を持ち、`random() >= hitChance` の場合は AVOID とし、
    以降の式へ進まない。`hitChance == 1.00` の通常対象は判定を省略する。
-   `CORE_PHYSICAL_ACCURACY`（表示「必中」）はこの攻撃者側の命中率へ
-   `hitChanceBonus = 1` を加算し、PR1 の evasive 対象に対して `hitChance = 1.00`
-   を保証する。通常対象の 1.00 は PR1/PR2 とも変わらない。盲目 miss はこの
-   別ステージであり、必中 core は PR3 の盲目仕様を変更しない。
+   `physicalAccuracy` Support はこの攻撃者側の命中率へ rarity 値を加算する。
+   evasive 対象の命中率は上がるが、Support は `hitChance = 1.00` を保証しない。
+   通常対象の 1.00 は変わらず、盲目 miss はこの別ステージである。
 
 2. 盲目の攻撃者は step 0 で 50% miss 判定を受ける。命中した場合は
    `d1 = d0` とし、命中時ダメージを半減しない。
@@ -206,14 +205,14 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
    複数タグは加算プールへ合流するため、旧 `else-if` の優先順とは挙動が変わる。
    物理と攻撃呪文はこの stage を共有し、1攻撃につき一度だけ通る。
 
-7. 同じ `getDamageAffixResult` 内で core / support / milestone exposure を適用する。
+7. 同じ `getDamageAffixResult` 内で retained Core / Support / milestone exposure を適用する。
 
-   core の順序:
-   LAST_STAND -> GIANT_SLAYER -> EXECUTIONER
-   -> MILESTONE_BREAKER -> THIN_ICE_PACT
+   retained Core の順序:
+   EXECUTIONER -> THIN_ICE_PACT
 
-   support の順序:
-   deepAssault (B3 以降)、fullHpDamage (満 HP)、antiBeast (beast)、
+   Support の順序:
+   lowHpDamage (HP ≤40%)、highHpTargetDamage (target maxHP)、bossDamage
+   (boss)、deepAssault (B3 以降)、fullHpDamage (満 HP)、antiBeast (beast)、
    antiSpirit (spirit) の合計を 1 個の乗数にする。
    その後 milestone boss exposure を乗算する。
    物理呼び出しの戻り値は max(1, round(input * multiplier))。呪文呼び出しも
@@ -436,7 +435,7 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | 負の呪い `atk` | `cursePower` 適用後の raw 値を丸めてから実効単位へ揃える | `getScaledCurseModifier` と `CURSE_EFFECTS` | 旧来の「raw を丸めてから物理式の1.5倍」を、保存値を実効単位にした後も同じ順序で保つ。呪いの閾値判定や他の負項は変更しない |
 | `randRoll` | 武器の `randRange` による一様整数を加算。fallback は `[0,4]` | `getCharWeaponPhysicalRandomRange` / `rollCharWeaponPhysicalRandom` と `round.js` | 武器ごとの手触りを作る #727 の変更。全武器の端点平均は2.0に揃え、平均威力を変えず分散だけ変える。固定データで武器の authored identity を維持する |
 | `behaviorProfile` | 武器データが `light` / `blade` / `impact` / `heavy` / `medium` の少数 profile を所有し、命中安定性・DEFへの支払い・一撃圧力・媒体の物理控えめを既存物理式へ接続 | `src/data/weapon_behavior_profiles.js`、`getWeaponBehaviorProfile`、`resolveWeaponAttack` | #1052。`攻撃` verb は増やさず、profile は同じ resolver で通常攻撃・追撃・反撃・auto/simulation見積りへ反映する。impact は高DEFを相対的に有利にするが hard counter ではなく、heavy は #1049 の両手／盾喪失と一体の commitment とする |
-| `evasionChance` / `hitChance` / `physicalAccuracy` | `evasive` trait を持つ敵だけが明示的な回避率を持ち、プレイヤー AGI で命中率を補正。`CORE_PHYSICAL_ACCURACY` は +1.00 を加えて上限へ到達させる | `src/data/monsters.js`、`getMonsterEvasionChance`、`getPhysicalHitChance`、`round.js` | 外れる軸を実データへ接続する PR1 と、同じ攻撃者側 stage で回避を打ち消す PR2。通常対象は常に 1.00、盲目は PR3、物理ヒット最低1 / ミス0は PR4 |
+| `evasionChance` / `hitChance` / `physicalAccuracy` | `evasive` trait を持つ敵だけが明示的な回避率を持ち、プレイヤー AGI と `physicalAccuracy` Support で命中率を補正。Support は +5〜+10 percentage pointsで、必中を保証しない | `src/data/monsters.js`、`getMonsterEvasionChance`、`getPhysicalHitChance`、`round.js` | 外れる軸を実データへ接続し、通常対象は常に 1.00、盲目は別stage、物理ヒット最低1 / ミス0は維持する |
 | `defResistance` | `def / (def + k_direction)` の逓減抵抗 | `getPhysicalDefenseResistance` と `getEffectiveDef` | 敵分布（中央値5、p75=8、最大18）を #716 の物理耐性段階へ接続し、有限値では100%に到達しない。`k_direction` は旧式の適用段階差を含めて実遭遇分布で校正する |
 | `meleeMod` | 職業別 map、現行値は全て 1 | `getMeleeModifiers`。derived stats との共有を意図したコメント | 拡張点の存在は source の説明がある。現行の職業差を作る設計根拠はない |
 | `max(1, floor(...))` | #728 PR4後の命中済み物理式出力 clamp | `applyPhysicalResistance` と player/enemy physical caller | 高 DEF でもヒットは1を保証する。盲目 miss / evasive avoid は式へ進まず0、呪文も最低1を維持する |
@@ -444,7 +443,7 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | 盲目 | 攻撃者側で 50% miss 判定のみ | `.agents/game-design.md` の combat disruption と本 Issue #728 PR3 | 命中時のダメージ補正は行わず、プレイヤー・敵の物理攻撃で同じ treatment policy を使う |
 | `physResist` | `defResistance` と加算し、-1〜0.9へ clamp した最終 poolを一度だけ乗算 | `combinePhysicalResistances` と `getEffectivePhysicalResistance` | #719のタグ特効と同じ加算poolの前例を採用。順序依存の二重乗算を避け、表示は最終poolを段階化する |
 | タグ特効 | 対象タグの `anti<Tag>` と呪文固有寄与を加算し、共通 stage で各攻撃1回 | `getDamageAffixResult`、support affix registry、`SPELLS.BADIOS.intrinsicTagBonus` | 特効という build input は equipment-builds 正本にある。物理・攻撃呪文を同じ stage へ接続し、同じタグの乗算を重ねない |
-| core / support | core 5 種、条件 support、boss exposure を乗算 | `getDamageAffixResult` と equipment-builds の core/support 方針 | build の rule-changing effect である点は意図。物理と呪文の共通 hook から分けた理由は根拠不明 |
+| core / support | retained Core、条件 Support、boss exposure を乗算 | `getDamageAffixResult` と equipment-builds の core/support 方針 | ルール変更は retained Core、数値・確率の補強は Support とする #1075 の所有権境界。物理と呪文は共通 hookを使う |
 | guard | targeted bonus の後に `guard.damageRate` | `round.js` | encounter-local guard の軽減であることは source から分かる。順序の設計記録は根拠不明 |
 | 会心 | guard 後、対象 `canReceiveCritical` が有効な時だけ、職業データの確率を level に適用、×3 | `src/data/classes.js`、`getClassCriticalChance`、`round.js`、`src/data/monsters.js` | 全職共通の解決段階。段1ではNinjaの既存確率・level依存・非ボス限定を、class data と target property へ移しただけで挙動を変えない。非Ninjaは確率0 |
 

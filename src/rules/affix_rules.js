@@ -1,4 +1,3 @@
-// balance-impact: none — player-facing affix activation copy only; combat rules unchanged.
 import { getAffixDefinition } from "../data/affixes.js";
 import { getCharAffixSum } from "./item_rules.js";
 import { getMilestoneBossExposureMultiplier } from "./boss_rules.js";
@@ -10,7 +9,7 @@ function getEquippedCoreEntries(char) {
     if (!item || typeof item !== "object") return [];
     return (item.affixes || []).flatMap(affix => {
       const definition = getAffixDefinition(affix);
-      const isCore = (affix.kind || definition?.kind) === "core" && definition?.enabled;
+      const isCore = definition?.kind === "core" && definition.enabled;
       return isCore ? [{ affix, item }] : [];
     });
   });
@@ -24,7 +23,7 @@ export function hasCoreAffix(item) {
   if (!item || typeof item !== "object") return false;
   return (item.affixes || []).some(affix => {
     const definition = getAffixDefinition(affix);
-    return (affix.kind || definition?.kind) === "core";
+    return definition?.kind === "core" && definition.enabled;
   });
 }
 
@@ -141,28 +140,10 @@ export function getDamageAffixResult(
     });
   }
 
-  const lastStand = getCharCoreParams(char, "CORE_LAST_STAND");
-  if (lastStand && char.hp / Math.max(1, maxHp) <= lastStand.hpThreshold) {
-    multiplier *= lastStand.damageMultiplier;
-    coreIds.push("CORE_LAST_STAND");
-  }
-
-  const giantSlayer = getCharCoreParams(char, "CORE_GIANT_SLAYER");
-  if (giantSlayer && target?.maxHp > maxHp) {
-    multiplier *= giantSlayer.damageMultiplier;
-    coreIds.push("CORE_GIANT_SLAYER");
-  }
-
   const executioner = getCharCoreParams(char, "CORE_EXECUTIONER");
   if (executioner && hasStatusEffectForDamage(target)) {
     multiplier *= executioner.damageMultiplier;
     coreIds.push("CORE_EXECUTIONER");
-  }
-
-  const milestoneBreaker = getCharCoreParams(char, "CORE_MILESTONE_BREAKER");
-  if (milestoneBreaker && target?.isBoss) {
-    multiplier *= milestoneBreaker.damageMultiplier;
-    coreIds.push("CORE_MILESTONE_BREAKER");
   }
 
   const thinIcePact = getCharCoreParams(char, "CORE_THIN_ICE_PACT");
@@ -172,6 +153,19 @@ export function getDamageAffixResult(
   }
 
   let supportPercent = 0;
+  const lowHpDamage = getAffixDefinition("lowHpDamage");
+  if (
+    lowHpDamage?.params?.hpThreshold !== undefined
+    && char.hp / Math.max(1, maxHp) <= lowHpDamage.params.hpThreshold
+  ) {
+    supportPercent += getCharAffixSum(char, "lowHpDamage");
+  }
+  if (target?.maxHp > maxHp) {
+    supportPercent += getCharAffixSum(char, "highHpTargetDamage");
+  }
+  if (target?.isBoss) {
+    supportPercent += getCharAffixSum(char, "bossDamage");
+  }
   if (floor >= 3) supportPercent += getCharAffixSum(char, "deepAssault");
   if (char.hp >= maxHp) supportPercent += getCharAffixSum(char, "fullHpDamage");
   if (target?.tags?.includes("beast")) supportPercent += getCharAffixSum(char, "antiBeast");
@@ -258,8 +252,10 @@ export function getSpellAccuracyBonus(char) {
 }
 
 export function getFollowUpChance(char, baseChance, firstStrikeSucceeded) {
-  const opener = firstStrikeSucceeded ? getCharCoreParams(char, "CORE_OPENER") : null;
-  return opener ? opener.followUpChance * 100 : baseChance;
+  const firstStrikeBonus = firstStrikeSucceeded
+    ? getCharAffixSum(char, "firstStrikeFollowUp")
+    : 0;
+  return Math.min(100, Math.max(0, baseChance + firstStrikeBonus));
 }
 
 export function getTrapEaterBonusAfterDisarm(char, currentBonus = 0) {
@@ -271,14 +267,10 @@ export function getTrapEaterBonusAfterDisarm(char, currentBonus = 0) {
 export function getCoreLogText(coreId) {
   const name = getAffixDefinition(coreId)?.jpName || coreId;
   const messages = {
-    CORE_LAST_STAND: "刃が燃え上がった！",
-    CORE_OPENER: "先制の勢いで追撃した！",
     CORE_BLOOD_WAND: "生命を魔力へ変えた！",
     CORE_PURIFY_RING: "邪気を祓い、力を取り戻した！",
     CORE_TRAP_EATER: "罠の力を喰らい、与えるダメージが増した！",
     CORE_CURSE_KEEPER: "呪いを飼い慣らし、力へ変えた！",
-    CORE_GIANT_SLAYER: "巨躯を断つ一撃が冴えた！",
-    CORE_MILESTONE_BREAKER: "守護者を討つ一撃が冴えた！",
     CORE_THORN_SHIELD: "棘が攻撃者へ牙を剥いた！",
     CORE_EXECUTIONER: "弱った敵へ執行の刃を振るった！",
     CORE_THIN_ICE_PACT: "薄氷の誓約が危険な力を引き出した！",

@@ -399,6 +399,16 @@ An equipment decision that changes the `main` Core axis is observable as a
 build transition; auxiliary Core and Support changes remain ordinary swaps.
 This is lightweight observation, not full telemetry analysis.
 
+### Core/support ownership boundary (#1075)
+
+The active registry contains exactly 13 rule-changing Cores: 9 on the Main
+axis and 4 on the Auxiliary axis. Numeric or probability-only reinforcement
+belongs to Support; the active registry contains 53 Support entries. The five
+former numeric Core concepts (low-HP damage, first-strike follow-up, physical
+accuracy, high-max-HP target damage, and boss damage) are now bounded Support
+values. Their historical Core IDs are not active in generation, Workshop,
+display, telemetry, or simulation, and existing saves are not migrated.
+
 ### Current implementation boundary
 
 The current repository still exposes a material-funded permanent-unlock tree
@@ -418,7 +428,8 @@ Historical workshop categories include:
 5. Convenience: +1 starting identify resource, a starting return item, and
    similar small run-start kits.
 
-Current workshop expansion (issue #410) adds measured sidegrade cores
+Historical workshop expansion (issue #410; superseded by #1075 for the five
+migrated numeric concepts) added measured sidegrade cores
 先手必勝・罠喰い・巨人殺し・反撃の棘・盗掘王・学者の眼, a Fighter starting-gear
 option (FIGHTER_SABER, atk8), and one permanent convenience node that grants
 +1 starting identify powder. The six pre-existing core IDs are workshop-gated at the
@@ -431,10 +442,10 @@ this expansion. The node data and material costs are source-of-truth in
 `src/data/workshop.js`; advanced classes remain deferred. Core measurement gaps
 are tracked separately in issue #416.
 
-Issue #413 Phase 1 adds two non-consumable meta key items. The first B5 and B10
-milestone boss victories grant `FORGE_SEAL` and `ABYSS_SEAL`, respectively. Each
-key reveals one new workshop branch and remains outside run inventory. The gated
-node still costs 10 existing materials: `鉄片7 + 竜鱗3` for the B5 branch and
+Historical Issue #413 Phase 1 added two non-consumable meta key items. The first B5 and B10
+milestone boss victories granted `FORGE_SEAL` and `ABYSS_SEAL`, respectively. Each
+key revealed one new workshop branch and remained outside run inventory. The gated
+node then cost 10 existing materials: `鉄片7 + 竜鱗3` for the B5 branch and
 `黒角7 + 竜鱗3` for the B10 branch. The branches add one sidegrade core each;
 they do not gate existing nodes, increase material income, raise stat caps, or
 add a retreat guarantee. This phase intentionally does not change `SAVE_VERSION`.
