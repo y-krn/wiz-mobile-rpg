@@ -31,24 +31,24 @@ const soloThief = {
 };
 
 check(
-  "chest Thief base chance",
+  "chest chance is universal",
   calculateChestDisarmChance({ className: "Thief" }),
-  0.85
+  0.25
 );
 check(
-  "chest non-apt blind chance",
+  "chest blind chance",
   calculateChestDisarmChance({ className: "Fighter", blind: true }),
   0.125
 );
 check(
-  "floor Thief B1 rate",
+  "floor rate ignores class and level",
   calculateFloorTrapSuccessRate({
     trap: { type: "damage" },
     className: "Thief",
     level: 1,
     floor: 1
   }),
-  81
+  85
 );
 
 const poison = resolveChestTrapEffect({
@@ -74,7 +74,7 @@ const fighterDamage = resolveFloorTrapEffect({
   party: [soloFighter],
   rng: () => 0
 });
-check("floor damage without scout", fighterDamage.partyDamage[0], 8);
+check("floor damage is not class-mitigated", fighterDamage.partyDamage[0], 8);
 
 const thiefDamage = resolveFloorTrapEffect({
   trap: { type: "damage" },
@@ -82,7 +82,7 @@ const thiefDamage = resolveFloorTrapEffect({
   party: [soloThief],
   rng: () => 0
 });
-check("floor damage with scout mitigation", thiefDamage.partyDamage[0], 5);
+check("floor damage is the same for every class", thiefDamage.partyDamage[0], 8);
 const expectedFighterDamage = calculateFloorTrapExpectedDamage({
   trap: { type: "damage" },
   floor: 1,
@@ -94,11 +94,7 @@ const expectedThiefDamage = calculateFloorTrapExpectedDamage({
   party: [soloThief]
 })[0];
 check("expected damage follows full effect", expectedFighterDamage, 12);
-check(
-  "expected damage follows scout mitigation",
-  expectedThiefDamage,
-  8
-);
+check("expected damage has no scout mitigation", expectedThiefDamage, 12);
 check(
   "expected full gas risk uses source range",
   calculateChestTrapExpectedRisk({

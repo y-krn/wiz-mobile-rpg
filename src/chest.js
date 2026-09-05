@@ -20,7 +20,7 @@ import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
 import { consumeRunObjectLoot } from "./state/run_loot.js";
-import { trackChestAction, trackChestSmashResult, trackValuableLocation } from "./telemetry.js";
+import { trackChestAction, trackChestSmashResult, trackTrapResolution, trackValuableLocation } from "./telemetry.js";
 import {
   CHEST_PHASES,
   CHEST_PHASE_TRANSITIONS,
@@ -40,8 +40,6 @@ import { openPendingRewardMenu, stagePendingRewardBundle } from "./pending_rewar
 
 export { CHEST_PHASES, CHEST_PHASE_TRANSITIONS, generateChestMaterials };
 
-// balance-impact: none — this change adds only the chest phase/state boundary;
-// reward and trap formulas remain covered by the chest balance mapping.
 function transitionChestPhase(chest, nextPhase) {
   if (!canTransitionChestPhase(chest, nextPhase)) return false;
   chest.phase = nextPhase;
@@ -94,6 +92,19 @@ function inspectChest() {
   chest.inspected = true;
   chest.inspectChance = chance;
   chest.identifiedTrap = identifiedTrap;
+  if (chest.trap && chest.trap !== "none") {
+    trackTrapResolution("observed", {
+      state,
+      character: getActiveChestCharacter(state.party),
+      source: "chest",
+      trap: chest.trap,
+      action: "inspect",
+      successRate: chance * 100,
+      identified: identifiedTrap === chest.trap,
+      x: chest.x,
+      y: chest.y
+    });
+  }
   if (identifiedTrap === chest.trap) {
     addLog(`調査結果：[${translateTrap(chest.trap)}]の罠のようだ！`);
   } else {
@@ -201,6 +212,17 @@ export function leaveChest() {
   if (!chestActionAllowed([CHEST_PHASES.MENU])) return false;
   const chest = state.chestState;
   trackChestChoice(chest, "leave");
+  if (chest.trap && chest.trap !== "none") {
+    trackTrapResolution("avoided", {
+      state,
+      character: getActiveChestCharacter(state.party),
+      source: "chest",
+      trap: chest.trap,
+      action: "leave",
+      x: chest.x,
+      y: chest.y
+    });
+  }
   trackValuableLocation("chest", "skipped", {
     state,
     floor: state.floor,
@@ -294,8 +316,8 @@ export function executeDisarm(char, rng = Math.random) {
   transitionChestPhase(state.chestState, CHEST_PHASES.RESOLVING);
 
   applyTombRaiderTrapTier(state.chestState, char);
+  const trap = state.chestState.trap;
   const chance = calculateChestDisarmChance({
-    className: char.class,
     trapBonus: getCharTrapBonus(char),
     blind: char.status === "blind"
   });
@@ -308,30 +330,40 @@ export function executeDisarm(char, rng = Math.random) {
       addLog(`解除成功！${char.name}は無事に罠を解除した。`);
       const tKey = state.chestState.trap;
       if (state.codex && state.codex.events && state.codex.events.traps) {
-      if (state.codex.events.traps[tKey]) {
-        state.codex.events.traps[tKey].disarmed++;
-        if (state.codex.events.traps[tKey].firstFloor === 0) {
-          state.codex.events.traps[tKey].firstFloor = state.floor;
+        if (state.codex.events.traps[tKey]) {
+          state.codex.events.traps[tKey].disarmed++;
+          if (state.codex.events.traps[tKey].firstFloor === 0) {
+            state.codex.events.traps[tKey].firstFloor = state.floor;
+          }
         }
       }
+      if (state.currentRun) {
+        state.currentRun.trapsDisarmed++;
+      }
+      trackTrapResolution("disarmed", {
+        state,
+        character: char,
+        source: "chest",
+        trap,
+        action: "disarm",
+        successRate: chance * 100,
+        x: state.chestState?.x,
+        y: state.chestState?.y
+      });
+      const previousTrapBonus = char.runTrapAttackBonus || 0;
+      char.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(char, previousTrapBonus);
+      if (char.runTrapAttackBonus > previousTrapBonus) {
+        addLog(getCoreLogText("CORE_TRAP_EATER"));
+      }
+      state.chestState.trap = "none";
+      playSound("heal");
+    } else {
+      addLog(`解除失敗！${char.name}は罠を作動させてしまった！`);
+      if (state.currentRun) {
+        state.currentRun.trapsTriggered++;
+      }
+      triggerChestTrap(char, false, rng, "disarm");
     }
-    if (state.currentRun) {
-      state.currentRun.trapsDisarmed++;
-    }
-    const previousTrapBonus = char.runTrapAttackBonus || 0;
-    char.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(char, previousTrapBonus);
-    if (char.runTrapAttackBonus > previousTrapBonus) {
-      addLog(getCoreLogText("CORE_TRAP_EATER"));
-    }
-    state.chestState.trap = "none";
-    playSound("heal");
-  } else {
-    addLog(`解除失敗！${char.name}は罠を作動させてしまった！`);
-    if (state.currentRun) {
-      state.currentRun.trapsTriggered++;
-    }
-    triggerChestTrap(char, false, rng);
-  }
   } catch (error) {
     recoverChestDisarmTransition(error);
     return false;
@@ -362,9 +394,19 @@ export function executeDisarm(char, rng = Math.random) {
   return true;
 }
 
-export function triggerChestTrap(char, weakened = false, rng = Math.random) {
+export function triggerChestTrap(char, weakened = false, rng = Math.random, action = "open") {
   if (!state.chestState || state.chestState.trap === "none") return;
   const trap = state.chestState.trap;
+  trackTrapResolution("triggered", {
+    state,
+    character: char,
+    source: "chest",
+    trap,
+    action,
+    partialSuccess: weakened,
+    x: state.chestState.x,
+    y: state.chestState.y
+  });
   if (state.codex && state.codex.events && state.codex.events.traps) {
     if (state.codex.events.traps[trap]) {
       state.codex.events.traps[trap].triggered++;
@@ -490,10 +532,35 @@ export function useTrapKit() {
   const kitIndex = state.inventory.indexOf("TRAP_KIT");
   if (kitIndex < 0) return false;
 
+  const trap = state.chestState.trap;
+  if (!trap || trap === "none") return false;
+  const activeCharacter = getActiveChestCharacter(state.party);
   trackChestChoice(state.chestState, "trap_kit");
+  trackTrapResolution("disarmed", {
+    state,
+    character: activeCharacter,
+    source: "chest",
+    trap,
+    action: "trap_kit",
+    toolId: "TRAP_KIT",
+    toolUsed: true,
+    successRate: 100,
+    x: state.chestState.x,
+    y: state.chestState.y
+  });
   state.inventory.splice(kitIndex, 1);
   consumeRunObjectLoot(state, "TRAP_KIT");
   state.chestState.trap = "none";
+  if (activeCharacter) {
+    const previousTrapBonus = activeCharacter.runTrapAttackBonus || 0;
+    activeCharacter.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(
+      activeCharacter,
+      previousTrapBonus
+    );
+    if (activeCharacter.runTrapAttackBonus > previousTrapBonus) {
+      addLog(getCoreLogText("CORE_TRAP_EATER"));
+    }
+  }
   addLog("罠外しキットを使い、宝箱の罠を確実に解除した。キットは壊れた。");
   playSound("heal");
   return true;
@@ -512,7 +579,7 @@ export function smashChest(rng = Math.random) {
 
     if (chest.trap && chest.trap !== "none") {
       if (state.currentRun) state.currentRun.trapsTriggered++;
-      triggerChestTrap(trapTarget, true, rng);
+      triggerChestTrap(trapTarget, true, rng, "smash");
     }
 
     return openChestDirectly(null, rng, {
@@ -577,7 +644,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
       if (state.currentRun) {
         state.currentRun.trapsTriggered++;
       }
-      triggerChestTrap(trapTarget, false, rng);
+      triggerChestTrap(trapTarget, false, rng, smash ? "smash" : "open");
     }
 
     // Smash has a deliberate two-stage risk: the weakened trap resolves first,

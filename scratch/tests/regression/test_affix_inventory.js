@@ -23,7 +23,7 @@ const expectedIds = [
   ...SUPPORT_AFFIXES.filter(affix => affix.enabled)
 ].map(affix => affix.id);
 
-assert.equal(expectedIds.length, 65, "Issue #679 enabled affix count");
+assert.equal(expectedIds.length, 66, "Issue #679 enabled affix count");
 assert.equal(new Set(expectedIds).size, expectedIds.length, "Issue #679 IDs are unique");
 assert.deepEqual([...ISSUE679_AFFIX_FUNNEL_FIELDS], expectedFunnelFields);
 
@@ -40,8 +40,8 @@ for (const id of expectedIds) {
 
 assert.deepEqual(ISSUE679_CLASSIFICATION_AGGREGATE, {
   core: { A: 11, B: 0, C: 3, D: 4 },
-  support: { A: 0, B: 0, C: 47, D: 0 },
-  combined: { A: 11, B: 0, C: 50, D: 4 }
+  support: { A: 0, B: 0, C: 48, D: 0 },
+  combined: { A: 11, B: 0, C: 51, D: 4 }
 });
 assert.deepEqual([...ISSUE679_PROVENANCE_FIELDS], [
   "gameplaySourceCommit",

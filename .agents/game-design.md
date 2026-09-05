@@ -30,13 +30,17 @@ gold, identification-in-town, crafting, contracts board, B5F clear flow) was
 retired with the party-based game. This document defines the meta economy for
 the replacement solo depth-attack roguelite.
 
-**Build vNext migration status (Issue #1042, 2026-09-03).** The departure
-screen chooses a named `startingKit` built from ordinary equipment bases. Class
-labels no longer authorize equipment, prune Loot candidates, or gate Core
-generation/effects. The legacy `class` field and its passive, level-growth,
-spell, MP-item, trap, and telemetry consumers remain explicit follow-up
-dependencies; this document's older class-balance sections are historical until
-those responsibilities are migrated.
+**Build vNext migration status (Issues #1042 and #1073, 2026-09-05).** The
+departure screen chooses a named `startingKit` built from ordinary equipment
+bases. Class labels no longer authorize equipment, prune Loot candidates, or
+gate Core generation/effects. Exploration is now fully run-local Build-owned:
+all characters share inspect, detect, disarm, and avoid verbs; `trapBonus`,
+`treasureSense`, `hearRange`, `traceRead`, and `trapGuard` come from current
+equipment, Support, and tools, while Core owns resource exchange and explicit
+condition evaluation only. Starting kits provide no permanent exploration
+bonus. The legacy `class` field remains for combat compatibility and for
+historical measurements, not exploration success, information, mitigation, or
+telemetry dimensions.
 
 ## Goal
 
@@ -131,25 +135,27 @@ they trade an equipment affix opportunity against carrying treatment items, so
 they must be included in future supply comparisons. The 20-slot inventory
 capacity is unchanged.
 
-## 基本4職の罠sustain（Issue #516）
+## 探索Buildの罠所有権（Issue #1073）
 
-- 戦士は `trapGuard=40`、魔術師は `trapGuard=60` をクラス固有passiveとして持つ。
-  正本は `src/data/classes.js`、適用処理は
-  `src/rules/trap_effect_rules.js` の `applyTrapGuardToEffect` とする。
-- 軽減対象は床罠・宝箱罠・B5F限定の火炎の罠のHPダメージ成分だけで、正のダメージは
-  最低1を維持する。床罠の発見・解除、MP drain、毒・盲目・転送などの非HP効果は変更しない。
-  盗賊・僧侶と上級4職の既存passiveも変更しない。
-- 火炎の罠はB5Fの通常歩行で5%発火し、発火時に「熱気の気配」をログ表示する。
-  装備と職業パッシブの `trapBonus` の合算値（`getCharTrapBonus`）は、
-  `src/rules/character_stats.js` の `getPartyFlameTrapWarningAvoidanceChance` で
-  発動時に確率で罠を無効化する回避判定の確率へ変換する。式の正本は同関数（線形係数0.8、上限0.74）であり、
-  発動時の回避判定に成功した場合は被弾しない。
-- これは回復薬の常時供給ではなく、罠優位の浅層で戦士・魔術師が薬を使い切るまでの
-  時間を延ばす設計である。期待されるプレイヤー影響は、罠を踏んだ際の即時HP損失と
-  浅層の薬枯渇を緩和し、盗賊・僧侶の到達性を維持すること。
-- Issue #516 の再現可能な測定値と採用候補の比較は
+- 罠の inspect / detect / disarm / avoid は全キャラクター共通の動詞であり、
+  `class`、AGI、LUK、Level は探索成功率の入力ではない。床罠・宝箱罠・B5F
+  火炎罠の解除・回避率は、現在の装備・Support・道具から得る `trapBonus`
+  が所有する。
+- `treasureSense`、`hearRange`、`traceRead` は罠や地点の事実・兆候を提示する
+  情報 Support であり、行動の権限を付与しない。探索UIは事実、兆候、成功、
+  リスク、資源を提示し、内部の `choke` / `avoidable` を回答や罠属性として
+  表示しない。
+- `trapGuard` は装備／Supportだけから得る、罠効果のHPダメージ成分専用の軽減
+  で、既定値は0。状態異常、MP drain、転送、警報、detect、inspect、disarm
+  には影響せず、Coreからは供給しない。
+- `TRAP_KIT` などの道具とCoreは資源交換・条件評価を担当し、道具の所持数、
+  バッグ、装備枠、affix枠、消耗品という機会費用を伴う。plain disarmの成功率
+  や汎用ダメージ軽減をCoreの昇格で与えない。starting kitにも永続探索ボーナス
+  を付けない。
+- Issue #516 のクラス固有 `trapGuard` 値と、旧来のクラス探索差は歴史的測定値
+  として保持するが、現行実装の正本ではない。再現可能な旧測定値は
   `evidence/results/issue-516-class-sustain.md`、#461再基準線は
-  `evidence/results/issue-461-baseline.md` を正本とする。
+  `evidence/results/issue-461-baseline.md` を参照する。
 
 ## 基本4職の撃破sustain（Issue #528）
 
@@ -197,8 +203,8 @@ capacity is unchanged.
   `14 / 4..6`（基礎HP / レベル成長）。正本は `src/state/initial_state.js` と
   `src/systems/leveling.js`。
 - 魔術師はHPを盛らず、#537時点では `trapGuard=70`、`mpWard=10`、`killHeal=10`で
-  浅層の罠・MP・撃破後回復を補った。上位呪文導入後の採用値は下記「上位呪文と
-  魔術師sustain（Issue #538）」へ更新した。正本は `src/data/classes.js`。
+  浅層の罠・MP・撃破後回復を補った。これは historical な class-passive 測定であり、
+  現行 #1073 では `trapGuard` を装備／SupportだけのHP-damage専用入力へ移行した。
 - Issue #537 focused sweep（上位呪文導入前、seed=461、各候補・職N=500、calibration
   N=100）では、`HP14 / trapGuard70 / mpWard10 / killHeal10`がB5死亡 **8.16%**、
   B10到達 **26.6%**、平均floor **7.39**、戦闘 **54.27turn/run**、被弾
@@ -216,9 +222,9 @@ capacity is unchanged.
 - 基本4職の戦闘自動選択は `src/combat_logic/auto_action.js` の共有関数を正本とする。
   魔術師は敵数・残HP・残MPに応じて単体/全体の上位呪文を選び、僧侶は回復要求時に
   `MADIOS`→`DIOS`を選ぶ。`DIOS`を持つ僧侶は攻撃呪文後にMP1を残す。
-- 上位呪文導入後、魔術師passiveは `trapGuard=60`、`mpWard=8`、`killHeal=8`を採用する。
-  罠軽減・MP障壁・撃破回復を同時に下げても、HP順序（戦士 > 盗賊 > 僧侶 ≧ 魔術師）を
-  変えず、過剰な撃破回復5倍を是正する。正本は `src/data/classes.js`。
+- #538時点では上位呪文導入後の魔術師passiveとして `trapGuard=60`、`mpWard=8`、
+  `killHeal=8`を採用した。これは historical な class-passive 測定であり、現行 #1073
+  では `trapGuard` の class passive を削除して装備／SupportだけのHP-damage専用入力へ移行した。
 - seed=461、同一runner、各case・職N=3000、calibration N=1000の補正掃引では、
   現行70/10/10のMage B5死亡 **6.0% [5.1,7.0]**、B10到達 **37.2% [35.5,38.9]**に
   対し、採用60/8/8はB5死亡 **11.2% [9.9,12.5]**、B10到達 **28.2% [26.6,29.8]**。

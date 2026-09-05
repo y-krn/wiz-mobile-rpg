@@ -17,7 +17,7 @@ import {
 } from "../combat_logic/status_effects.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
-import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision } from "../telemetry.js";
+import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision, trackTrapResolution } from "../telemetry.js";
 import { applyExplorationItem } from "../systems/exploration_items.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry, RETURN_WING_SALVAGE_COUNT } from "../state/run_loot.js";
 import { appendOwnershipBadge, getItemOwnership } from "../ui/common_shell.js";
@@ -53,21 +53,8 @@ function getSecretDoorCandidate() {
 }
 
 function calculateSecretSearchSuccessRate() {
-  let rate = 0.35;
-  const scouts = state.party.filter(c => ["Thief", "Ninja", "Ranger"].includes(c.class) && c.hp > 0);
-  if (scouts.length > 0) {
-    const bestScout = scouts
-      .map(c => {
-        let bonus = 0;
-        if (c.class === "Thief") bonus = 0.20;
-        else if (c.class === "Ninja") bonus = 0.15;
-        else if (c.class === "Ranger") bonus = 0.10;
-        return bonus + (c.luk + c.agi) * 0.01;
-      })
-      .sort((a, b) => b - a)[0];
-    rate += bestScout;
-  }
-  rate -= (state.floor - 1) * 0.05;
+  const arcaneSense = Math.max(0, getPartyMaxAffix(state.party, "arcaneSense"));
+  const rate = 0.35 + arcaneSense / 100 - (state.floor - 1) * 0.05;
   return Math.max(0.10, Math.min(0.95, rate));
 }
 
@@ -222,6 +209,24 @@ export function renderItemInventory(optGrid) {
 function useExplorationItem(itemKey, itemIdx, item) {
   const result = applyExplorationItem(state, itemKey);
   if (!result.ok) return;
+  if (itemKey === "TRAP_SENSE_STONE") {
+    result.revealed.forEach(({ x, y }) => {
+      const trap = state.map?.[y]?.[x]?.trap;
+      trackTrapResolution("observed", {
+        state,
+        character: state.party[0],
+        source: "floor",
+        trap,
+        action: "detect",
+        successRate: 100,
+        identified: true,
+        toolId: "TRAP_SENSE_STONE",
+        toolUsed: true,
+        x,
+        y
+      });
+    });
+  }
   trackLootLifecycle("tried", {
     state,
     character: state.party[0],
@@ -672,7 +677,7 @@ export function renderEventTablet(optGrid) {
       const hints = [
         "『光は闇を照らし、ロミルワは永遠のミニマップをもたらす。』",
         "『いにしえの竜は極大爆裂呪文ティルトウェイトを放つ。十分に対抗せよ。』",
-        "『忍者は武器を持たぬとき、その真の力を発揮する。』",
+        "『迷宮では装備と道具の組み合わせが、生存と成果を分ける。』",
         "『毒針の罠は、解毒薬かラツモフィスの呪文で治療可能である。』",
         "『地下3階の奥にはデーモンガードが「竜の鍵」を守っているという。』",
         "『さまよう商人は迷宮の奥深くで究極の霊薬エリクサーを売っている。』"

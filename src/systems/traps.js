@@ -15,8 +15,8 @@ import {
 } from "../rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "../rules/trap_effect_rules.js";
 import { ensureRunFloor } from "../state/run_floor_state.js";
+import { trackTrapResolution } from "../telemetry.js";
 
-// balance-impact: none — death log delivery only; trap effects and damage are unchanged.
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
 
 function getTrapObservationKey(trap) {
@@ -52,8 +52,6 @@ export function calculateSuccessRate(trap) {
 
   return calculateFloorTrapSuccessRate({
     trap,
-    className: char.class,
-    level: char.level,
     floor: state.floor,
     // 罠解除は宝箱罠と共通ステータス。getCharTrapBonus は 0.1 = 10% の小数を返すため、
     // 0〜100 スケールの calculateDisarmRate 用に整数パーセントへ戻す。
@@ -118,6 +116,16 @@ export function detectAdjacentTraps() {
 
     trap.state = "discovered";
     if (traceRead > 0) trap.traceReadLevel = traceRead;
+    trackTrapResolution("observed", {
+      state,
+      character: getActiveCharacter(),
+      source: "floor",
+      trap,
+      action: "detect",
+      identified: traceRead >= 2,
+      x,
+      y
+    });
     found.push(trap);
   }
 
@@ -140,8 +148,18 @@ export function detectAdjacentTraps() {
   return true;
 }
 
-export function triggerPitfall(trap, isPartialSuccess = false) {
+export function triggerPitfall(trap, isPartialSuccess = false, action = "trigger") {
   resolveEventObservation(getTrapObservationKey(trap));
+  trackTrapResolution("triggered", {
+    state,
+    character: getActiveCharacter(),
+    source: "floor",
+    trap,
+    action,
+    partialSuccess: isPartialSuccess,
+    x: trap?.position?.x,
+    y: trap?.position?.y
+  });
   const nextFloor = state.floor + 1;
   const nextMap = ensureRunFloor(state, nextFloor);
   
@@ -201,10 +219,6 @@ export function triggerPitfall(trap, isPartialSuccess = false) {
     }), {
       trapGuardByParty: state.party.map(char => getCharAffixSum(char, "trapGuard"))
     });
-    if (effect.scoutMitigated) {
-      addLog("[味方] 盗賊の素早い身のこなしにより、着地時の衝撃が和らいだ！");
-    }
-
     state.party.forEach((c, index) => {
       const dmg = effect.partyDamage[index];
       if (dmg > 0) {
@@ -241,8 +255,18 @@ export function triggerPitfall(trap, isPartialSuccess = false) {
   descendToFloor(nextFloor, landingCoord, true, onLanding);
 }
 
-export function triggerTrap(trap, isPartialSuccess = false) {
+export function triggerTrap(trap, isPartialSuccess = false, action = "trigger") {
   resolveEventObservation(getTrapObservationKey(trap));
+  trackTrapResolution("triggered", {
+    state,
+    character: getActiveCharacter(),
+    source: "floor",
+    trap,
+    action,
+    partialSuccess: isPartialSuccess,
+    x: trap?.position?.x,
+    y: trap?.position?.y
+  });
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor: state.floor,
@@ -252,11 +276,6 @@ export function triggerTrap(trap, isPartialSuccess = false) {
   }), {
     trapGuardByParty: state.party.map(char => getCharAffixSum(char, "trapGuard"))
   });
-
-  // 探索能力に応じた失敗時の被害軽減（ThiefやNinjaが生存していると30%軽減）
-  if (effect.scoutMitigated && !isPartialSuccess) {
-    addLog("[味方] 盗賊の素早い身のこなしにより、罠の被害が抑えられた！");
-  }
 
   playSound("chest_trap");
   
@@ -341,7 +360,7 @@ export function handleTrapAction(action) {
       markMapChanged();
       state.gameState = "explore";
       state.activeTrapState = null;
-      triggerPitfall(trap, resolution.partialSuccess);
+      triggerPitfall(trap, resolution.partialSuccess, "force");
       return;
     }
 
@@ -349,7 +368,7 @@ export function handleTrapAction(action) {
     addLog("罠を承知で強引に駆け抜けた！");
     trap.state = "disabled";
     markMapChanged();
-    if (triggerTrap(trap, resolution.partialSuccess)) return;
+    if (triggerTrap(trap, resolution.partialSuccess, "force")) return;
     completePendingMove();
     endTrapEncounter();
     return;
@@ -372,6 +391,16 @@ export function handleTrapAction(action) {
         markMapChanged();
         if (state.currentRun) state.currentRun.trapsDisarmed++;
         recordTrapCodex("pitfall", "disarmed");
+        trackTrapResolution("disarmed", {
+          state,
+          character: getActiveCharacter(),
+          source: "floor",
+          trap,
+          action: "disarm",
+          successRate,
+          x: trap?.position?.x,
+          y: trap?.position?.y
+        });
         completePendingMove();
         endTrapEncounter();
       } else {
@@ -382,7 +411,7 @@ export function handleTrapAction(action) {
         recordTrapCodex("pitfall", "triggered");
         state.gameState = "explore";
         state.activeTrapState = null;
-        triggerPitfall(trap, false);
+        triggerPitfall(trap, false, "disarm");
       }
       return;
     }
@@ -396,20 +425,30 @@ export function handleTrapAction(action) {
       playSound("item");
       if (state.currentRun) state.currentRun.trapsDisarmed++;
       recordTrapCodex(codexTrapType, "disarmed");
+      trackTrapResolution("disarmed", {
+        state,
+        character: getActiveCharacter(),
+        source: "floor",
+        trap,
+        action: "disarm",
+        successRate,
+        x: trap?.position?.x,
+        y: trap?.position?.y
+      });
     } else if (resolution.partialSuccess) {
       addLog("[味方] 【部分成功】完全には解除できなかったが、被害を最小限に抑えた！");
       if (state.currentRun) state.currentRun.trapsTriggered++;
       recordTrapCodex(codexTrapType, "triggered");
       trap.state = "disabled";
       markMapChanged();
-      if (triggerTrap(trap, true)) return;
+      if (triggerTrap(trap, true, "disarm")) return;
     } else {
       addLog("【解除失敗】仕掛けが暴発した！");
       if (state.currentRun) state.currentRun.trapsTriggered++;
       recordTrapCodex(codexTrapType, "triggered");
       trap.state = "disabled";
       markMapChanged();
-      if (triggerTrap(trap, false)) return;
+      if (triggerTrap(trap, false, "disarm")) return;
     }
 
     // 解除は成功・部分成功・失敗のいずれでも罠を使い切って通過する。

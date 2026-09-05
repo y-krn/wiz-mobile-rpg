@@ -170,17 +170,16 @@ const {
   calculateFloorTrapActionExpectedDamage,
   calculateFloorTrapSuccessRate,
   FLOOR_DISARM_CALIBRATION,
-  isDisarmAptClass,
   resolveTrapAction
 } = await import("../../src/rules/trap_rules.js");
 const {
   applyTrapGuardToEffect,
   calculateChestTrapExpectedRisk,
   calculateFloorTrapExpectedDamage,
-  hasTrapScout,
   resolveChestTrapEffect,
   resolveFloorTrapEffect
 } = await import("../../src/rules/trap_effect_rules.js");
+const { calculateChestInspectionChance } = await import("../../src/chest/chest_domain.js");
 const {
   AFFIX_BALANCE,
   CORE_AFFIXES,
@@ -1539,8 +1538,8 @@ export const ISSUE679_PROVENANCE_FIELDS = Object.freeze([
 ]);
 export const ISSUE679_CLASSIFICATION_AGGREGATE = Object.freeze({
   core: Object.freeze({ A: 11, B: 0, C: 3, D: 4 }),
-  support: Object.freeze({ A: 0, B: 0, C: 47, D: 0 }),
-  combined: Object.freeze({ A: 11, B: 0, C: 50, D: 4 })
+  support: Object.freeze({ A: 0, B: 0, C: 48, D: 0 }),
+  combined: Object.freeze({ A: 11, B: 0, C: 51, D: 4 })
 });
 
 // Issue #679: retain the real-run equipment funnel without changing selection
@@ -1729,33 +1728,17 @@ function getSimulationTrapOverride(state) {
 }
 
 function getSimulationTrapBonus(character, state = null) {
-  if (state?.simPolicy?.ignoreThiefSustain && character?.class === "Thief") {
-    return 0;
-  }
   const trapOverride = getSimulationTrapOverride(state)?.trapBonus;
-  const override = trapOverride;
-  const overrideApplies = trapOverride &&
-    (!getSimulationTrapOverride(state)?.className ||
-      getSimulationTrapOverride(state).className === character?.class);
-  const passiveOverrideApplies = trapOverride &&
-    character?.class === "Thief" &&
-    Object.hasOwn(trapOverride, "passiveApt");
-  const passiveBonus = passiveOverrideApplies
-    ? Number(trapOverride.passiveApt)
-    : 15;
-  const equipmentScale = overrideApplies && Number.isFinite(Number(trapOverride?.equipmentScale))
+  const equipmentScale = trapOverride && Number.isFinite(Number(trapOverride.equipmentScale))
     ? Math.max(0, Number(trapOverride.equipmentScale))
     : 1;
-  const actual = Math.max(0, (getCharTrapBonus(character) * 100 -
-    (character?.class === "Thief" ? 15 : 0) +
-    (passiveOverrideApplies ? passiveBonus : 0)) * equipmentScale +
-    (passiveOverrideApplies ? passiveBonus : character?.class === "Thief" ? 15 : 0)) / 100;
+  const actual = Math.max(0, getCharTrapBonus(character) * equipmentScale);
   const exposureValue = Number(state?.simPolicy?.trapBonusExposureValue || 0);
   if (state?.simPolicy?.trapBonusExposureApplied && exposureValue > 0) {
     return Math.max(actual, exposureValue / 100);
   }
-  if (overrideApplies && actual > 0) {
-    const multiplier = Number(override.multiplier);
+  if (trapOverride && actual > 0) {
+    const multiplier = Number(trapOverride.multiplier);
     if (Number.isFinite(multiplier) && multiplier >= 0) {
       return actual * multiplier;
     }
@@ -1766,73 +1749,58 @@ function getSimulationTrapBonus(character, state = null) {
   return trapBonus;
 }
 
-function getSimulationTrapParty(state) {
-  if (!state?.simPolicy?.ignoreThiefSustain) return state.party;
-  return state.party.map(character => character?.class === "Thief"
-    ? { ...character, class: "Fighter" }
-    : character
-  );
-}
-
-function getSimulationDetectRate(state, floor) {
+function getSimulationDetectRate(state) {
+  const detectionSupport = state.party.filter(character => isAlive(character)).reduce((max, character) =>
+    Math.max(max, getCharAffixSum(character, "traceRead")), 0);
   if (state.simPolicy.floorTrapDetection === "certain") {
-    return { rate: 1, cap: 1, scoutBonus: 0 };
+    return { rate: 1, cap: 1, detectionSupport };
   }
   return {
-    rate: calculateDetectRate({ floor, scoutBonus: 0 }),
+    rate: calculateDetectRate(),
     cap: 1,
-    scoutBonus: 0
+    detectionSupport
   };
 }
 
-function getSimulationTrapBonusMax(character, state = null) {
+function getSimulationTrapBonusMax(state = null) {
   const override = getSimulationTrapOverride(state)?.trapBonus;
-  const overrideApplies = override &&
-    (!getSimulationTrapOverride(state)?.className ||
-      getSimulationTrapOverride(state).className === character?.class);
-  const apt = !(state?.simPolicy?.ignoreThiefSustain && character?.class === "Thief") &&
-    isDisarmAptClass(character?.class);
-  const value = overrideApplies ? (apt ? override?.maxApt : override?.maxNonApt) : null;
+  // Historical calibration fixtures use class-shaped key names; every accepted
+  // value is a universal calibration input in the current Build-owned model.
+  const value = override?.max ?? override?.maxApt ?? override?.maxNonApt;
   return value !== null && value !== undefined && Number.isFinite(Number(value))
     ? Math.max(0, Number(value))
-    : apt ? FLOOR_DISARM_CALIBRATION.aptMax : FLOOR_DISARM_CALIBRATION.nonAptMax;
+    : FLOOR_DISARM_CALIBRATION.max;
 }
 
 function calculateSimulationFloorTrapSuccessRate({
   state,
   trap,
-  className,
-  level,
   floor,
   affixBonus
 } = {}) {
   const trapOverride = getSimulationTrapOverride(state);
   const override = trapOverride?.trapBonus;
-  const overrideApplies = override &&
-    (!trapOverride?.className || trapOverride.className === className);
-  if (!overrideApplies || (!Object.hasOwn(override, "maxApt") &&
-    !Object.hasOwn(override, "maxNonApt"))) {
+  const hasUniversalCalibrationOverride = override && [
+    "base", "universalBase", "difficultyScale", "min", "max", "baseApt", "baseNonApt",
+    "minApt", "minNonApt", "maxApt", "maxNonApt"
+  ].some(key => Object.hasOwn(override, key));
+  if (!hasUniversalCalibrationOverride) {
     return calculateFloorTrapSuccessRate({
       trap,
-      className,
-      level,
       floor,
       affixBonus
     });
   }
-  const apt = !(state?.simPolicy?.ignoreThiefSustain && className === "Thief") &&
-    isDisarmAptClass(className);
-  const base = apt
-    ? Number(override.baseApt ?? FLOOR_DISARM_CALIBRATION.aptBase)
-    : Number(override.baseNonApt ?? FLOOR_DISARM_CALIBRATION.nonAptBase);
-  const levelGain = apt
-    ? Math.max(1, Math.floor(Number(level) || 1)) * FLOOR_DISARM_CALIBRATION.aptLevelGain
-    : Math.max(1, Math.floor(Number(level) || 1)) * FLOOR_DISARM_CALIBRATION.nonAptLevelGain;
-  const depthLoss = (Math.max(1, Math.floor(Number(floor) || 1)) - 1) *
-    FLOOR_DISARM_CALIBRATION.depthLoss;
-  const min = apt ? FLOOR_DISARM_CALIBRATION.aptMin : FLOOR_DISARM_CALIBRATION.nonAptMin;
-  const max = getSimulationTrapBonusMax({ class: className }, state);
-  const raw = base + levelGain - depthLoss + (Number(affixBonus) || 0);
+  const base = Number(override.universalBase ?? override.base ?? override.baseApt ??
+    override.baseNonApt ?? FLOOR_DISARM_CALIBRATION.universalBase);
+  const difficultyScale = Number(override.difficultyScale ?? FLOOR_DISARM_CALIBRATION.difficultyScale);
+  const difficulty = Number.isFinite(Number(trap?.difficulty))
+    ? Math.max(0, Number(trap.difficulty))
+    : FLOOR_DISARM_CALIBRATION.defaultDifficultyPerFloor +
+      Math.max(1, Math.floor(Number(floor) || 1)) * FLOOR_DISARM_CALIBRATION.defaultDifficultyFloorScale;
+  const min = Number(override.min ?? override.minApt ?? override.minNonApt ?? FLOOR_DISARM_CALIBRATION.min);
+  const max = Number(override.max ?? override.maxApt ?? override.maxNonApt ?? FLOOR_DISARM_CALIBRATION.max);
+  const raw = base - difficulty * difficultyScale + (Number(affixBonus) || 0);
   const rate = Math.round(Math.max(min, Math.min(max, raw)));
   return trap?.type === "pitfall" ? Math.min(100, rate + 20) : rate;
 }
@@ -1843,8 +1811,7 @@ function getFloorDisarmPolicyThreshold(state, trap) {
     return policy.floorDisarmMinRate;
   }
   return calculateFloorDisarmEvThreshold({
-    trapType: trap?.type,
-    scoutMitigated: hasTrapScout(getSimulationTrapParty(state))
+    trapType: trap?.type
   });
 }
 
@@ -1859,7 +1826,7 @@ function getFloorTrapExpectedDamageForAction(state, trap, floor, weakened) {
   return calculateFloorTrapExpectedDamage({
     trap,
     floor: effectFloor,
-    party: getSimulationTrapParty(state),
+    party: state.party,
     weakened
   }).reduce((sum, damage) => sum + damage, 0);
 }
@@ -1870,16 +1837,12 @@ function getFloorTrapActionPlan(state, trap, floor) {
   const successRate = calculateSimulationFloorTrapSuccessRate({
     state,
     trap,
-    className: character.class,
-    level: character.level,
     floor,
     affixBonus: Math.round(trapBonus * 100)
   });
   const baseSuccessRate = calculateSimulationFloorTrapSuccessRate({
     state,
     trap: trap.type === "pitfall" ? { ...trap, type: "damage" } : trap,
-    className: character.class,
-    level: character.level,
     floor,
     affixBonus: Math.round(trapBonus * 100)
   });
@@ -1892,7 +1855,7 @@ function getFloorTrapActionPlan(state, trap, floor) {
     action,
     successRate,
     baseSuccessRate,
-    maxRate: getSimulationTrapBonusMax(character, state),
+    maxRate: getSimulationTrapBonusMax(state),
     trapBonus,
     expectedDamage: calculateFloorTrapActionExpectedDamage({
       action,
@@ -1941,6 +1904,8 @@ function createTrapAggregate() {
     detectionCapHits: 0,
     disarmCapHits: 0,
     planEvaluations: 0,
+    resolutionCounts: { observed: 0, disarmed: 0, avoided: 0, triggered: 0 },
+    resolutionObservationCount: 0,
     runsWithHealPotionShortage: 0,
     combatDamageHp: 0,
     stairsHealingHp: 0,
@@ -3135,6 +3100,10 @@ function addTrapAggregate(target, result) {
   target.detectionCapHits += result.trapDetectionCapHits;
   target.disarmCapHits += result.trapDisarmCapHits;
   target.planEvaluations += result.trapPlanEvaluations;
+  Object.entries(result.trapResolutionCounts || {}).forEach(([outcome, count]) => {
+    target.resolutionCounts[outcome] = (target.resolutionCounts[outcome] || 0) + count;
+  });
+  target.resolutionObservationCount += (result.trapResolutionObservations || []).length;
   target.runsWithHealPotionShortage += Number(result.trapHealPotionShortages > 0);
   target.combatDamageHp += result.combatDamageHp;
   target.stairsHealingHp += result.stairsHealingHp;
@@ -3248,6 +3217,8 @@ function finalizeTrapAggregate(aggregate) {
       ])
     ),
     averageTrapDetections: aggregate.detections / runs,
+    trapResolutionCounts: { ...aggregate.resolutionCounts },
+    trapResolutionObservationCount: aggregate.resolutionObservationCount,
     trapDetectionCapHitRate: aggregate.detectionAttempts > 0
       ? aggregate.detectionCapHits / aggregate.detectionAttempts
       : 0,
@@ -4580,7 +4551,6 @@ function createSimulationState(
       trapPolicy: trapPolicies.floor,
       chestTrapPolicy: trapPolicies.chest,
       floorTrapDetection: scenario.floorTrapDetection || "source",
-      ignoreThiefSustain: Boolean(scenario.ignoreThiefSustain),
       trapOverride: scenario.trapOverride || null,
       trapBonusValueOverride: scenario.trapBonusValueOverride || null,
       trapBonusExposure: scenario.trapBonusExposure || null,
@@ -8068,6 +8038,67 @@ function recordTrapActivation(metrics, source, type) {
   metrics.trapActivationsByType[type] = (metrics.trapActivationsByType[type] || 0) + 1;
 }
 
+function getSimulationTrapBuildSnapshot(state, character = null) {
+  const actor = character || state.party.find(candidate => isAlive(candidate)) || state.party[0] || null;
+  const activeParty = state.party.filter(candidate => isAlive(candidate));
+  const trapGuardByParty = getSimulationTrapGuardByParty(state);
+  const maxAffix = type => activeParty.reduce((max, candidate) =>
+    Math.max(max, getCharAffixSum(candidate, type)), 0);
+  const coreIds = [...new Set(activeParty.flatMap(candidate =>
+    getEquippedCoreAffixes(candidate).map(affix => affix.id || affix.type)
+  ))];
+  const trapGuard = activeParty.reduce((max, candidate) => {
+    const partyIndex = state.party.indexOf(candidate);
+    return Math.max(max, trapGuardByParty[partyIndex] || 0);
+  }, 0);
+  return {
+    trapBonus: Math.round(getSimulationTrapBonus(actor, state) * 100),
+    trapGuard: Math.max(0, Math.round(trapGuard)),
+    detectionSupport: Math.max(0, Math.round(maxAffix("traceRead"))),
+    treasureSense: Math.round(maxAffix("treasureSense")),
+    hearRange: Math.max(0, Math.round(maxAffix("hearRange"))),
+    traceRead: Math.max(0, Math.round(maxAffix("traceRead"))),
+    trapKitCount: state.inventory.filter(item => item === "TRAP_KIT").length,
+    coreIds,
+    coreTrapEater: coreIds.includes("CORE_TRAP_EATER"),
+    coreTombRaider: coreIds.includes("CORE_TOMB_RAIDER")
+  };
+}
+
+function recordSimulationTrapResolution(
+  metrics,
+  outcome,
+  { state, trap, source = "floor", action = "trigger", successRate = null, partialSuccess, identified, toolId = null, toolUsed = false, trapId: suppliedTrapId, x, y } = {}
+) {
+  const outcomes = metrics.trapResolutionCounts;
+  if (!outcomes || outcomes[outcome] === undefined) return;
+  const trapX = x ?? trap?.position?.x ?? null;
+  const trapY = y ?? trap?.position?.y ?? null;
+  const trapId = suppliedTrapId || trap?.id || `${source}:${state.floor}:${trapX ?? "none"}:${trapY ?? "none"}`;
+  const key = `${source}:${trapId}:${outcome}`;
+  if (metrics.trapResolutionKeys.has(key)) return;
+  metrics.trapResolutionKeys.add(key);
+  outcomes[outcome]++;
+  const build = getSimulationTrapBuildSnapshot(state);
+  metrics.trapResolutionObservations.push({
+    source,
+    trapId,
+    trapType: trap?.type || trap || "none",
+    outcome,
+    action,
+    floor: state.floor,
+    x: trapX,
+    y: trapY,
+    successRate,
+    trapDifficulty: Number.isFinite(Number(trap?.difficulty)) ? Number(trap.difficulty) : null,
+    partialSuccess: partialSuccess === undefined ? null : Boolean(partialSuccess),
+    identified: identified === undefined ? null : Boolean(identified),
+    toolId,
+    toolUsed: Boolean(toolUsed),
+    ...build
+  });
+}
+
 function createChestDisarmBlindStatusMetric() {
   return {
     decisions: 0,
@@ -8120,9 +8151,11 @@ function getSimulationTrapGuardByParty(state) {
   const override = state.simPolicy?.trapGuardOverride;
   const overrides = Array.isArray(override) ? override : [override];
   return state.party.map(character => {
+    // What-if guard values are run-local build controls. Class-targeted
+    // overrides are intentionally ignored so simulation cannot reintroduce a
+    // class exploration permission.
     const matchedOverride = overrides.find(candidate =>
-      candidate?.className === character.class ||
-      (Array.isArray(candidate?.classNames) && candidate.classNames.includes(character.class))
+      candidate && !candidate.className && !candidate.classNames
     );
     if (!matchedOverride) return getCharAffixSum(character, "trapGuard");
     if (Number.isFinite(Number(matchedOverride.value))) {
@@ -8244,7 +8277,7 @@ function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor,
-    party: getSimulationTrapParty(state),
+    party: state.party,
     weakened,
     rng: Math.random
   }), { trapGuardByParty: getSimulationTrapGuardByParty(state) });
@@ -8991,7 +9024,7 @@ function getCombatCoreScoreForId(character, scoringProfile, floor, coreId) {
   // 罠出現と実解除率からrun当たり累積攻撃を算出。上限・増分とも実params。
   if (coreId === "CORE_TRAP_EATER") {
     const expectedRemainingDisarms =
-      classScoringProfile.expectedTrapDisarmsFromFloor[Math.max(1, Math.floor(floor))] || 0;
+      scoringProfile.expectedTrapDisarmsFromFloor[Math.max(1, Math.floor(floor))] || 0;
     const expectedAttack = Math.min(
       params.maxAttack,
       expectedRemainingDisarms * params.attackPerDisarm
@@ -10260,16 +10293,18 @@ function recordChestPathAction(metrics, source, action) {
   path.actions[action]++;
 }
 
-function recordChestInspection(metrics, source, character, rng) {
+function recordChestInspection(metrics, source, party, rng, state) {
   const chestPath = metrics.chestPath?.[source];
   if (chestPath) {
     chestPath.opened++;
     chestPath.inspected++;
   }
   recordChestPathAction(metrics, source, "inspect");
-  const chance = (
-    character.class === "Thief" && isAlive(character) ? 0.85 : 0.30
-  ) / (character.status === "blind" ? 2 : 1);
+  const chance = calculateChestInspectionChance({
+    party,
+    lightPower: state?.lightPower,
+    lightTurns: state?.lightTurns
+  }).chance;
   const inspected = rng() < chance;
   if (chestPath) chestPath[inspected ? "inspectSuccesses" : "inspectFailures"]++;
   return inspected;
@@ -10492,20 +10527,10 @@ function resolvePartialSecretDoorSearch({ state, generated, route, floor, metric
 }
 
 function calculateSecretSearchSuccessRateForSimulation(party, floor) {
-  let rate = 0.35;
-  const scouts = party.filter(character =>
-    ["Thief", "Ninja", "Ranger"].includes(character.class) && character.hp > 0
-  );
-  if (scouts.length > 0) {
-    const bestScout = Math.max(...scouts.map(character => {
-      const classBonus = character.class === "Thief"
-        ? 0.20
-        : character.class === "Ninja" ? 0.15 : 0.10;
-      return classBonus + (character.luk + character.agi) * 0.01;
-    }));
-    rate += bestScout;
-  }
-  rate -= (floor - 1) * 0.05;
+  const arcaneSense = Math.max(...party
+    .filter(character => character.hp > 0)
+    .map(character => getCharAffixSum(character, "arcaneSense")), 0);
+  const rate = 0.35 + arcaneSense / 100 - (floor - 1) * 0.05;
   return Math.max(0.10, Math.min(0.95, rate));
 }
 
@@ -10537,15 +10562,13 @@ function resolveFlameTrapAtStep({
   metrics.flameTrapActivations++;
   metrics.b5FlameActivationSteps.push(step);
   recordB5HpSnapshot(state, metrics, step);
-  const trap = { type: "damage" };
-  const trapParty = getSimulationTrapParty(state);
-  const activeCharacter = trapParty.find(character => isAlive(character));
+  const trap = { type: "damage", id: "flame" };
+  const trapId = `flame:${state.floor}:${step}`;
+  const activeCharacter = state.party.find(character => isAlive(character));
   const successRate = activeCharacter
     ? calculateSimulationFloorTrapSuccessRate({
       state,
       trap,
-      className: activeCharacter.class,
-      level: activeCharacter.level,
       floor: state.floor,
       affixBonus: Math.round(getSimulationTrapBonus(activeCharacter, state) * 100)
     })
@@ -10558,13 +10581,36 @@ function resolveFlameTrapAtStep({
   });
   if (resolution.outcome === "disarmed") {
     metrics.flameTrapDisarmed++;
+    recordSimulationTrapResolution(metrics, "disarmed", {
+      state,
+      trap,
+      trapId,
+      source: "flame",
+      action: "disarm",
+      successRate,
+      identified: true,
+      x: state.x,
+      y: state.y
+    });
     recordB5HpSnapshot(state, metrics, step);
     return true;
   }
+  recordSimulationTrapResolution(metrics, "triggered", {
+    state,
+    trap,
+    trapId,
+    source: "flame",
+    action: "disarm",
+    successRate,
+    partialSuccess: resolution.partialSuccess,
+    identified: true,
+    x: state.x,
+    y: state.y
+  });
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor: state.floor,
-    party: trapParty,
+    party: state.party,
     weakened: resolution.partialSuccess,
     rng: Math.random
   }), { trapGuardByParty: getSimulationTrapGuardByParty(state) });
@@ -10804,6 +10850,16 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
       if (Math.random() < detection.rate) {
         trap.state = "discovered";
         metrics.trapDetections++;
+        recordSimulationTrapResolution(metrics, "observed", {
+          state,
+          trap,
+          source: "floor",
+          action: "detect",
+          successRate: detection.rate * 100,
+          identified: detection.detectionSupport >= 2,
+          x: next.x,
+          y: next.y
+        });
         route.knownTrapKeys.add(routeKey(next));
         metrics.trapRoute.currentFloor = floor;
         const choice = replanSimulationFloorRoute(route, generated, state, floor, metrics, step);
@@ -10811,6 +10867,15 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
         next = route.path[1];
         if (!next) return { moved: false };
         if (routeKey(next) !== routeKey(trap.position)) {
+          recordSimulationTrapResolution(metrics, "avoided", {
+            state,
+            trap,
+            source: "floor",
+            action: "move",
+            identified: true,
+            x: trap.position?.x,
+            y: trap.position?.y
+          });
           nextCell = generated.grid[next.y]?.[next.x];
         }
       }
@@ -10908,6 +10973,7 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
 
 function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   const { trap, previousCoord, step } = scheduled;
+  metrics.runtimeDiagnostics?.onCall("traps.floor-resolution");
   metrics.trapEncounterCount++;
   metrics.trapEncounterBySource.floor++;
   if (
@@ -10925,18 +10991,23 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   metrics.trapPlanEvaluations++;
   metrics.trapDisarmRateCounts[actionPlan.baseSuccessRate] =
     (metrics.trapDisarmRateCounts[actionPlan.baseSuccessRate] || 0) + 1;
+  const activeParty = state.party.filter(character => isAlive(character));
+  const detectionSupport = Math.max(
+    ...activeParty.map(character => getCharAffixSum(character, "traceRead")),
+    0
+  );
+  const trapGuard = Math.max(
+    ...getSimulationTrapGuardByParty(state)
+      .filter((_, index) => isAlive(state.party[index])),
+    0
+  );
   metrics.trapDisarmObservations.push({
     floor,
-    level: state.party[0]?.level || 1,
-    className: state.party[0]?.class || null,
     rate: actionPlan.baseSuccessRate,
     maxRate: actionPlan.maxRate,
     trapBonus: Math.round(actionPlan.trapBonus * 100),
-    equipmentTrapBonus: Math.max(
-      0,
-      Math.round(actionPlan.trapBonus * 100) -
-        (state.party[0]?.class === "Thief" ? 15 : 0)
-    ),
+    detectionSupport,
+    trapGuard,
     capBinding: actionPlan.baseSuccessRate >= actionPlan.maxRate
   });
   if (actionPlan.baseSuccessRate >= actionPlan.maxRate) {
@@ -10961,6 +11032,16 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   if (action === "force") metrics.trapForced++;
   if (action === "disarm") metrics.trapDisarmAttempts++;
   if (resolution.outcome === "disarmed") {
+    recordSimulationTrapResolution(metrics, "disarmed", {
+      state,
+      trap,
+      source: "floor",
+      action: "disarm",
+      successRate: actionPlan.successRate,
+      identified: trap.state === "discovered",
+      x: trap.position?.x,
+      y: trap.position?.y
+    });
     trap.state = "disabled";
     state.currentRun.trapsDisarmed++;
     metrics.trapDisarms++;
@@ -10979,6 +11060,17 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   }
   trap.state = "disabled";
   state.currentRun.trapsTriggered++;
+  recordSimulationTrapResolution(metrics, "triggered", {
+    state,
+    trap,
+    source: "floor",
+    action: action === "force" ? "force" : action === "trigger" ? "hidden" : "disarm",
+    successRate: actionPlan.successRate,
+    partialSuccess: resolution.partialSuccess,
+    identified: action !== "trigger",
+    x: trap.position?.x,
+    y: trap.position?.y
+  });
   if (trap.type === "pitfall") {
     descendToNextFloor(state, floor + 1);
     applyFloorTrapEffect(state, trap, state.floor, resolution.partialSuccess, metrics);
@@ -11216,32 +11308,34 @@ function resolveChestTrapForSimulation(
 ) {
   const character = state.party[0];
   const chestPath = metrics.chestPath?.[chestSource];
-  const inspected = chestSource === "ordinary"
-    ? (() => {
-        if (chestPath) {
-          chestPath.opened++;
-          chestPath.inspected++;
-          chestPath.inspectSuccesses++;
-        }
-        recordChestPathAction(metrics, chestSource, "inspect");
-        return true;
-      })()
-    : recordChestInspection(metrics, chestSource, character, rng);
+  const inspected = recordChestInspection(metrics, chestSource, state.party, rng, state);
   const falseTraps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
   const identifiedTrap = chestSource === "ordinary"
     ? trap
     : inspected
     ? trap
     : falseTraps[Math.floor(rng() * falseTraps.length)];
+  if (trap !== "none") {
+    recordSimulationTrapResolution(metrics, "observed", {
+      state,
+      trap,
+      source: "chest",
+      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      action: "inspect",
+      successRate: calculateChestInspectionChance({
+        party: state.party,
+        lightPower: state.lightPower,
+        lightTurns: state.lightTurns
+      }).chance * 100,
+      identified: identifiedTrap === trap
+    });
+  }
   const blindStatus = character.status === "blind" ? "blind" : "clear";
   const disarmBlindMetric = metrics.chestDisarmByBlindStatus[blindStatus];
   metrics.trapEncounterCount++;
   metrics.trapEncounterBySource.chest++;
   metrics.chestTrappedByFloor[floor]++;
   const chance = calculateChestDisarmChance({
-    className: state.simPolicy.ignoreThiefSustain && character.class === "Thief"
-      ? "Fighter"
-      : character.class,
     trapBonus: getSimulationTrapBonus(character, state),
     blind: character.status === "blind"
   });
@@ -11299,9 +11393,25 @@ function resolveChestTrapForSimulation(
           ? "disarm"
           : action
   );
-  if (action === "leave") return { mainItemLost: false, action };
+  if (action === "leave") {
+    recordSimulationTrapResolution(metrics, "avoided", {
+      state,
+      trap,
+      source: "chest",
+      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      action: "leave"
+    });
+    return { mainItemLost: false, action };
+  }
   if (action === "open") {
     if (trap === "none") return { mainItemLost: false, action };
+    recordSimulationTrapResolution(metrics, "triggered", {
+      state,
+      trap,
+      source: "chest",
+      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      action: "open"
+    });
     state.currentRun.trapsTriggered++;
     metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
     applyChestTrapEffect(state, trap, false, metrics);
@@ -11313,6 +11423,16 @@ function resolveChestTrapForSimulation(
   }
 
   if (action === "kit" && kitIndex >= 0) {
+    recordSimulationTrapResolution(metrics, "disarmed", {
+      state,
+      trap,
+      source: "chest",
+      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      action: "trap_kit",
+      successRate: 100,
+      toolId: "TRAP_KIT",
+      toolUsed: true
+    });
     state.inventory.splice(kitIndex, 1);
     recordTrapKitConsumption(state, metrics);
     metrics.chestDisarmAttempts++;
@@ -11335,6 +11455,14 @@ function resolveChestTrapForSimulation(
     metrics.trapDisarmAttempts++;
     disarmBlindMetric.attempts++;
     if (rng() < chance) {
+      recordSimulationTrapResolution(metrics, "disarmed", {
+        state,
+        trap,
+        source: "chest",
+        trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+        action: "disarm",
+        successRate: chance * 100
+      });
       state.currentRun.trapsDisarmed++;
       metrics.trapDisarms++;
       metrics.chestDisarmSuccesses++;
@@ -11346,6 +11474,14 @@ function resolveChestTrapForSimulation(
       return { mainItemLost: false, action };
     }
     disarmBlindMetric.failures++;
+    recordSimulationTrapResolution(metrics, "triggered", {
+      state,
+      trap,
+      source: "chest",
+      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      action: "disarm",
+      successRate: chance * 100
+    });
     state.currentRun.trapsTriggered++;
     metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
     applyChestTrapEffect(state, trap, false, metrics);
@@ -11356,6 +11492,14 @@ function resolveChestTrapForSimulation(
   }
 
   metrics.trapForced++;
+  recordSimulationTrapResolution(metrics, "triggered", {
+    state,
+    trap,
+    source: "chest",
+    trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+    action: "smash",
+    partialSuccess: true
+  });
   metrics.chestForcedByFloor[floor]++;
   state.currentRun.trapsTriggered++;
   metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
@@ -11500,7 +11644,7 @@ function rollChestItems(
   addReward("extraHealPotion", extraHealPotion);
   const trapResult = trap === "none"
     ? (() => {
-        recordChestInspection(metrics, chestSource, state.party[0], rng);
+        recordChestInspection(metrics, chestSource, state.party, rng, state);
         recordChestPathAction(metrics, chestSource, "open");
         return { mainItemLost: false, action: "open" };
       })()
@@ -12647,6 +12791,10 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     trapDisarmObservations: metrics.trapDisarmObservations.map(observation => ({
       ...observation
     })),
+    trapResolutionCounts: { ...metrics.trapResolutionCounts },
+    trapResolutionObservations: metrics.trapResolutionObservations.map(observation => ({
+      ...observation
+    })),
     trapPlanEvaluations: metrics.trapPlanEvaluations,
     trapPlanActionCounts: { ...metrics.trapPlanActionCounts },
     trapActivationCauses: { ...metrics.trapActivationCauses },
@@ -12661,7 +12809,6 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     trapDetectionAttempts: metrics.trapDetectionAttempts,
     trapDetectionRateCounts: { ...metrics.trapDetectionRateCounts },
     trapDetectionCapHits: metrics.trapDetectionCapHits,
-    scoutBonusDetectionAttempts: metrics.scoutBonusDetectionAttempts,
     trapTeleports: metrics.trapTeleports,
     finalHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
     finalGreaterHeals: state.inventory.filter(item => item === "GREATER_HEAL").length,
@@ -13182,6 +13329,9 @@ export function simulateRun({
     trapDisarmRateCounts: {},
     trapDisarmCapHits: 0,
     trapDisarmObservations: [],
+    trapResolutionCounts: { observed: 0, disarmed: 0, avoided: 0, triggered: 0 },
+    trapResolutionObservations: [],
+    trapResolutionKeys: new Set(),
     trapPlanEvaluations: 0,
     trapPlanActionCounts: {},
     trapActivationCauses: {
@@ -13210,7 +13360,6 @@ export function simulateRun({
     trapDetectionAttempts: 0,
     trapDetectionRateCounts: {},
     trapDetectionCapHits: 0,
-    scoutBonusDetectionAttempts: 0,
     trapTeleports: 0,
     combatDamageHp: 0,
     incomingHits: 0,
@@ -14590,20 +14739,11 @@ function simulateCase({
   const merchantStockByClass = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createMerchantStockMetrics()])
   );
-  const classTrapTotals = Object.fromEntries(
+  const classConsumableTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapAggregate()])
   );
   const classIssue412Totals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createIssue412Aggregate()])
-  );
-  const classFlameTrapTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createFlameTrapAggregate()])
-  );
-  const classB5GateTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createB5GateAggregate()])
-  );
-  const classTrapBonusTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createTrapBonusAggregate()])
   );
   const classMpPressureTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createSpellPressureMetrics()])
@@ -14784,9 +14924,7 @@ function simulateCase({
       });
     });
     addFlameTrapAggregate(totals.flameTrap, result);
-    addFlameTrapAggregate(classFlameTrapTotals[className], result);
     addB5GateAggregate(totals.b5Gate, result);
-    addB5GateAggregate(classB5GateTotals[className], result);
     const workshopEffects = totals.workshopEffectsByClass[className];
     workshopEffects.runs++;
     Object.entries(result.workshopEffects.stats).forEach(([stat, amount]) => {
@@ -14803,11 +14941,10 @@ function simulateCase({
     }
     workshopEffects.startingGearAttackDelta += result.workshopEffects.startingGearAttackDelta;
     addTrapAggregate(totals.trap, result);
-    addTrapAggregate(classTrapTotals[className], result);
+    addTrapAggregate(classConsumableTotals[className], result);
     addIssue412Aggregate(totals.issue412, result.issue412);
     addIssue412Aggregate(classIssue412Totals[className], result.issue412);
     addTrapBonusAggregate(totals.trapBonus, result);
-    addTrapBonusAggregate(classTrapBonusTotals[className], result);
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
     if (Object.hasOwn(totals.outcomeCounts, result.outcome)) {
@@ -15060,7 +15197,7 @@ function simulateCase({
   const trapPolicies = resolveTrapPolicies(scenario);
   const trapSummary = finalizeTrapAggregate(totals.trap);
   const consumablesByClass = Object.fromEntries(
-    Object.entries(classTrapTotals).map(([className, aggregate]) => [
+    Object.entries(classConsumableTotals).map(([className, aggregate]) => [
       className,
       buildConsumableClassSummary(finalizeTrapAggregate(aggregate))
     ])
@@ -15408,18 +15545,6 @@ function simulateCase({
     flameTrap: finalizeFlameTrapAggregate(totals.flameTrap),
     b5Gate: finalizeB5GateAggregate(totals.b5Gate),
     averageFlameTrapActivations: totals.flameTrap.activations / RUNS_PER_CASE,
-    flameTrapByClass: Object.fromEntries(
-      Object.entries(classFlameTrapTotals).map(([className, aggregate]) => [
-        className,
-        finalizeFlameTrapAggregate(aggregate)
-      ])
-    ),
-    b5GateByClass: Object.fromEntries(
-      Object.entries(classB5GateTotals).map(([className, aggregate]) => [
-        className,
-        finalizeB5GateAggregate(aggregate)
-      ])
-    ),
     outcomesByClass: Object.fromEntries(
       Object.entries(totals.outcomesByClass).map(([className, aggregate]) => [
         className,
@@ -15452,18 +15577,6 @@ function simulateCase({
       ? finalizeDamageEstimateAggregate(totals.damageEstimateAudit)
       : null,
     trapBonusSupply: finalizeTrapBonusAggregate(totals.trapBonus),
-    trapBonusSupplyByClass: Object.fromEntries(
-      Object.entries(classTrapBonusTotals).map(([className, aggregate]) => [
-        className,
-        finalizeTrapBonusAggregate(aggregate)
-      ])
-    ),
-    trapMetricsByClass: Object.fromEntries(
-      Object.entries(classTrapTotals).map(([className, aggregate]) => [
-        className,
-        finalizeTrapAggregate(aggregate)
-      ])
-    ),
     averageTownPortalsUsed: totals.townPortalsUsed / RUNS_PER_CASE,
     averagePortalAcquisitions: Object.fromEntries(
       Object.entries(totals.portalAcquisitions).map(([source, amount]) => [
@@ -15688,14 +15801,11 @@ function printCoreScoringProfile(profile, policy = null) {
       "min(20, 現floor以降の解除回数×攻撃+2)×weaponAtk重み2"
   );
   if (profile.byClass) {
-    console.log("職業別calibration（全coreスコアへ適用）:");
+    console.log("職業別calibration（戦闘coreスコアへ適用; 罠指標は全体集計）:");
     SIM_CLASSES.forEach(className => {
       const classProfile = profile.byClass[className];
       console.log(
-        `  ${className}: 罠解除/run=${classProfile.expectedTrapDisarmsPerRun.toFixed(3)}, ` +
-        `罠喰い残り B1=${classProfile.expectedTrapDisarmsFromFloor[1].toFixed(3)}, ` +
-        `B10=${classProfile.expectedTrapDisarmsFromFloor[10].toFixed(3)}, ` +
-        `低HP攻撃=${formatPercent(classProfile.lowHpOffensiveRate)}, ` +
+        `  ${className}: 低HP攻撃=${formatPercent(classProfile.lowHpOffensiveRate)}, ` +
         `巨人対象=${formatPercent(classProfile.giantTargetRate)}, ` +
         `先制戦闘=${formatPercent(classProfile.openerFirstStrikeRate)}, ` +
         `物理被弾=${formatPercent(classProfile.incomingPhysicalHitRate)}, ` +
@@ -15875,131 +15985,115 @@ function formatDistributionStats(stats, multiplier = 1, digits = 1) {
 }
 
 function printB5GateDiagnostics(result) {
-  if (!result?.b5GateByClass) return;
+  if (!result?.b5Gate) return;
+  const stats = result.b5Gate;
   console.log(`\n【${result.label} B5F 火炎診断（同一 B20 撤退条件）】`);
   console.log(
-    "職業 | N | entrant | 試行歩/run(全) | 試行歩/entrant | 発動/entrant | 完全回避/entrant | 被害HP/entrant | B5突破 | B5死亡 | B5撤退"
+    "全体 | N | entrant | 試行歩/run(全) | 試行歩/entrant | 発動/entrant | 完全回避/entrant | 被害HP/entrant | B5突破 | B5死亡 | B5撤退"
   );
-  Object.entries(result.b5GateByClass).forEach(([className, stats]) => {
-    console.log(
-      `${className.padEnd(6)} | ${String(stats.runs).padStart(3)} | ` +
-      `${formatPercent(stats.entrantRate)} | ` +
-      `${stats.averageFlameTrapEligibleStepsAllRuns.toFixed(2).padStart(13)} | ` +
-      `${stats.averageFlameTrapEligibleSteps.toFixed(2).padStart(14)} | ` +
-      `${stats.averageFlameTrapActivations.toFixed(2).padStart(12)} | ` +
-      `${stats.averageFlameTrapDisarmed.toFixed(2).padStart(15)} | ` +
-      `${stats.averageFlameTrapDamageHp.toFixed(2).padStart(14)} | ` +
-      `${formatWilson(stats.breakthroughRuns, stats.entrants)} | ` +
-      `${formatWilson(stats.deathRuns, stats.entrants)} | ` +
-      `${formatWilson(stats.retreatRuns, stats.entrants)}`
-    );
-  });
+  console.log(
+    `全体 | ${String(stats.runs).padStart(3)} | ` +
+    `${formatPercent(stats.entrantRate)} | ` +
+    `${stats.averageFlameTrapEligibleStepsAllRuns.toFixed(2).padStart(13)} | ` +
+    `${stats.averageFlameTrapEligibleSteps.toFixed(2).padStart(14)} | ` +
+    `${stats.averageFlameTrapActivations.toFixed(2).padStart(12)} | ` +
+    `${stats.averageFlameTrapDisarmed.toFixed(2).padStart(15)} | ` +
+    `${stats.averageFlameTrapDamageHp.toFixed(2).padStart(14)} | ` +
+    `${formatWilson(stats.breakthroughRuns, stats.entrants)} | ` +
+    `${formatWilson(stats.deathRuns, stats.entrants)} | ` +
+    `${formatWilson(stats.retreatRuns, stats.entrants)}`
+  );
   console.log("HP分布（B5 entrant、絶対HP: 入場 / 生存中の最低 / 最低HP比）");
-  Object.entries(result.b5GateByClass).forEach(([className, stats]) => {
-    console.log(
-      `${className.padEnd(6)} | 入場 ${formatDistributionStats(stats.entrantHp)} | ` +
-      `最低+ ${formatDistributionStats(stats.minimumPositiveHp)} | ` +
-      `入場比 ${formatDistributionStats(stats.entrantHpRate, 100)}% | ` +
-      `最低比 ${formatDistributionStats(stats.minimumPositiveHpRate, 100)}%`
-    );
-  });
+  console.log(
+    `全体 | 入場 ${formatDistributionStats(stats.entrantHp)} | ` +
+    `最低+ ${formatDistributionStats(stats.minimumPositiveHp)} | ` +
+    `入場比 ${formatDistributionStats(stats.entrantHpRate, 100)}% | ` +
+    `最低比 ${formatDistributionStats(stats.minimumPositiveHpRate, 100)}%`
+  );
   console.log("B5死亡の時系列分類（direct / 火炎発動後の他要因 / 火炎発動なしの他要因）");
-  Object.entries(result.b5GateByClass).forEach(([className, stats]) => {
-    const deathDenominator = Math.max(1, stats.deathRuns);
-    const formatCause = count => `${count}/${stats.deathRuns} (${((count / deathDenominator) * 100).toFixed(1)}%)`;
-    console.log(
-      `${className.padEnd(6)} | direct=${formatCause(stats.directDeaths)} | ` +
-      `afterFlame=${formatCause(stats.deathsAfterFlame)} | ` +
-      `noFlame=${formatCause(stats.deathsWithoutFlame)} | ` +
-      `afterFlame<=5steps=${stats.deathsAfterFlameWithinFiveSteps} | ` +
-      `causes=${JSON.stringify(stats.deathCauseCounts)}`
-    );
-  });
+  const deathDenominator = Math.max(1, stats.deathRuns);
+  const formatCause = count => `${count}/${stats.deathRuns} (${((count / deathDenominator) * 100).toFixed(1)}%)`;
+  console.log(
+    `全体 | direct=${formatCause(stats.directDeaths)} | ` +
+    `afterFlame=${formatCause(stats.deathsAfterFlame)} | ` +
+    `noFlame=${formatCause(stats.deathsWithoutFlame)} | ` +
+    `afterFlame<=5steps=${stats.deathsAfterFlameWithinFiveSteps} | ` +
+    `causes=${JSON.stringify(stats.deathCauseCounts)}`
+  );
 }
 
 function printTrapMetrics(result) {
+  const metrics = result;
+  const flame = result.flameTrap;
+  const route = metrics.route;
   console.log(
-    `\n【${result.label} 罠計測 / 職業別 / 床罠=${result.trapPolicy}, ` +
+    `\n【${result.label} 罠計測 / 全体 / 床罠=${result.trapPolicy}, ` +
     `宝箱=${result.chestTrapPolicy}, 通常探索の既知罠経路選択】`
   );
   console.log(
-    "職業    | 発動/run | 察知/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 出発入手 | 宝箱入手 | 商人入手 | 開始消費 | 出発消費 | 宝箱消費 | 商人消費 | 解除 | 強行 | kit入手 | kit使用 | 出発kit入手 | 出発kit消費"
+    "全体    | 発動/run | 察知/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 出発入手 | 宝箱入手 | 商人入手 | 開始消費 | 出発消費 | 宝箱消費 | 商人消費 | 解除 | 強行 | kit入手 | kit使用 | 出発kit入手 | 出発kit消費"
   );
   console.log(
     "--------|----------|----------|----------|------------|------------|----------|----------|--------|----------|----------|----------|----------|----------|----------|----------|----------|------|------|--------|--------|------------|------------"
   );
-  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
-    const acquired = metrics.averageHealPotionsAcquiredBySource;
-    const consumed = metrics.averageHealPotionsConsumedBySource;
-    const kitsAcquired = metrics.averageTrapKitsAcquiredBySource;
-    const kitsConsumed = metrics.averageTrapKitsConsumedBySource;
-    console.log(
-      `${className.padEnd(7)} | ${metrics.averageTrapActivations.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapDetections.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapDamageHp.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageCombatDamageHp.toFixed(2).padStart(10)} | ` +
-      `${metrics.averageTrapHealPotionsUsed.toFixed(2).padStart(10)} | ` +
-      `${metrics.averageHealPotionsConsumed.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapHealPotionShortages.toFixed(2).padStart(8)} | ` +
-      `${formatPercent(metrics.trapHealPotionShortageRunRate).padStart(6)} | ` +
-      `${acquired.starting.toFixed(2).padStart(8)} | ${acquired.departureCraft.toFixed(2).padStart(8)} | ` +
-      `${acquired.chest.toFixed(2).padStart(8)} | ` +
-      `${acquired.merchant.toFixed(2).padStart(8)} | ` +
-      `${consumed.starting.toFixed(2).padStart(8)} | ${consumed.departureCraft.toFixed(2).padStart(8)} | ` +
-      `${consumed.chest.toFixed(2).padStart(8)} | ` +
-      `${consumed.merchant.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapDisarms.toFixed(2).padStart(4)} | ` +
-      `${metrics.averageTrapForced.toFixed(2).padStart(4)} | ${metrics.averageTrapKitsAcquired.toFixed(2).padStart(6)} | ` +
-      `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)} | ` +
-      `${kitsAcquired.departureCraft.toFixed(2).padStart(8)} | ` +
-      `${kitsConsumed.departureCraft.toFixed(2).padStart(8)}`
-    );
-  });
+  const acquired = metrics.averageHealPotionsAcquiredBySource;
+  const consumed = metrics.averageHealPotionsConsumedBySource;
+  const kitsAcquired = metrics.averageTrapKitsAcquiredBySource;
+  const kitsConsumed = metrics.averageTrapKitsConsumedBySource;
+  console.log(
+    `全体    | ${metrics.averageTrapActivations.toFixed(2).padStart(8)} | ` +
+    `${metrics.averageTrapDetections.toFixed(2).padStart(8)} | ` +
+    `${metrics.averageTrapDamageHp.toFixed(2).padStart(8)} | ` +
+    `${metrics.averageCombatDamageHp.toFixed(2).padStart(10)} | ` +
+    `${metrics.averageTrapHealPotionsUsed.toFixed(2).padStart(10)} | ` +
+    `${metrics.averageHealPotionsConsumed.toFixed(2).padStart(8)} | ` +
+    `${metrics.averageTrapHealPotionShortages.toFixed(2).padStart(8)} | ` +
+    `${formatPercent(metrics.trapHealPotionShortageRunRate).padStart(6)} | ` +
+    `${acquired.starting.toFixed(2).padStart(8)} | ${acquired.departureCraft.toFixed(2).padStart(8)} | ` +
+    `${acquired.chest.toFixed(2).padStart(8)} | ${acquired.merchant.toFixed(2).padStart(8)} | ` +
+    `${consumed.starting.toFixed(2).padStart(8)} | ${consumed.departureCraft.toFixed(2).padStart(8)} | ` +
+    `${consumed.chest.toFixed(2).padStart(8)} | ${consumed.merchant.toFixed(2).padStart(8)} | ` +
+    `${metrics.averageTrapDisarms.toFixed(2).padStart(4)} | ` +
+    `${metrics.averageTrapForced.toFixed(2).padStart(4)} | ${metrics.averageTrapKitsAcquired.toFixed(2).padStart(6)} | ` +
+    `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)} | ` +
+    `${kitsAcquired.departureCraft.toFixed(2).padStart(8)} | ${kitsConsumed.departureCraft.toFixed(2).padStart(8)}`
+  );
+  console.log(`罠解像度: ${JSON.stringify(metrics.trapResolutionCounts)} / 観測=${metrics.trapResolutionObservationCount}`);
   console.log("火炎の罠（B5Fのみ・既存罠経路外） | 発動/run | 完全回避/run | 被害HP/run | 死亡者/run | 試行対象歩/run");
-  Object.entries(result.flameTrapByClass || {}).forEach(([className, metrics]) => {
-    console.log(
-      `${className.padEnd(30)} | ` +
-      `${metrics.averageFlameTrapActivations.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageFlameTrapDisarmed.toFixed(2).padStart(11)} | ` +
-      `${metrics.averageFlameTrapDamageHp.toFixed(2).padStart(9)} | ` +
-      `${metrics.averageFlameTrapDeaths.toFixed(2).padStart(10)} | ` +
-      `${metrics.averageFlameTrapEligibleSteps.toFixed(2).padStart(11)}`
-    );
-  });
+  console.log(
+    `全体                           | ${flame.averageFlameTrapActivations.toFixed(2).padStart(8)} | ` +
+    `${flame.averageFlameTrapDisarmed.toFixed(2).padStart(11)} | ` +
+    `${flame.averageFlameTrapDamageHp.toFixed(2).padStart(9)} | ` +
+    `${flame.averageFlameTrapDeaths.toFixed(2).padStart(10)} | ` +
+    `${flame.averageFlameTrapEligibleSteps.toFixed(2).padStart(11)}`
+  );
   console.log("既知罠の経路選択 | 発見済み遭遇/run | 別経路選択/run | 別経路なし/run | 実追加歩/run | 迂回中通常遭遇/run | 迂回中他罠/run | 解除/run | 強行/run | 死亡/run | 撤退/run");
-  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
-    const route = metrics.route;
-    console.log(
-      `${className.padEnd(7)} | ${route.averageDiscoveredTrapEncounters.toFixed(2).padStart(15)} | ` +
-      `${route.averageDetourSelections.toFixed(2).padStart(14)} | ` +
-      `${route.averageNoAlternateRoute.toFixed(2).padStart(12)} | ` +
-      `${route.averageDetourExtraSteps.toFixed(2).padStart(10)} | ` +
-      `${route.averageDetourNormalEncounters.toFixed(2).padStart(16)} | ` +
-      `${route.averageDetourOtherTrapEncounters.toFixed(2).padStart(12)} | ` +
-      `${route.averageActionSelections.disarm.toFixed(2).padStart(6)} | ` +
-      `${route.averageActionSelections.force.toFixed(2).padStart(5)} | ` +
-      `${route.averageDetourDeaths.toFixed(2).padStart(6)} | ` +
-      `${route.averageDetourRetreats.toFixed(2).padStart(6)}`
-    );
-  });
+  console.log(
+    `全体    | ${route.averageDiscoveredTrapEncounters.toFixed(2).padStart(15)} | ` +
+    `${route.averageDetourSelections.toFixed(2).padStart(14)} | ` +
+    `${route.averageNoAlternateRoute.toFixed(2).padStart(12)} | ` +
+    `${route.averageDetourExtraSteps.toFixed(2).padStart(10)} | ` +
+    `${route.averageDetourNormalEncounters.toFixed(2).padStart(16)} | ` +
+    `${route.averageDetourOtherTrapEncounters.toFixed(2).padStart(12)} | ` +
+    `${route.averageActionSelections.disarm.toFixed(2).padStart(6)} | ` +
+    `${route.averageActionSelections.force.toFixed(2).padStart(5)} | ` +
+    `${route.averageDetourDeaths.toFixed(2).padStart(6)} | ` +
+    `${route.averageDetourRetreats.toFixed(2).padStart(6)}`
+  );
   console.log("商人傷薬 | 試行/run | 失敗理由/run");
-  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
-    const failures = Object.entries(metrics.averageHealPotionMerchantFailures)
-      .map(([reason, count]) => `${reason}=${count.toFixed(2)} (${metrics.healPotionMerchantFailureCounts[reason]})`)
-      .join(", ") || "なし";
-    console.log(
-      `${className.padEnd(7)} | ${metrics.averageHealPotionMerchantAttempts.toFixed(2).padStart(8)} ` +
-      `(${metrics.healPotionMerchantAttempts}/${metrics.runs}) | ${failures}`
-    );
-  });
+  const failures = Object.entries(metrics.averageHealPotionMerchantFailures)
+    .map(([reason, count]) => `${reason}=${count.toFixed(2)} (${metrics.healPotionMerchantFailureCounts[reason]})`)
+    .join(", ") || "なし";
+  console.log(
+    `全体    | ${metrics.averageHealPotionMerchantAttempts.toFixed(2).padStart(8)} ` +
+    `(${metrics.healPotionMerchantAttempts}/${metrics.runs}) | ${failures}`
+  );
   console.log("非薬回復HP/run (camp / stairsHeal / DIOS)");
-  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
-    console.log(
-      `${className.padEnd(7)} | ${metrics.averageCampHealingHp.toFixed(2).padStart(5)} / ` +
-      `${metrics.averageStairsHealingHp.toFixed(2).padStart(5)} / ` +
-      `${metrics.averageDiosHealingHp.toFixed(2).padStart(6)}`
-    );
-  });
+  console.log(
+    `全体    | ${metrics.averageCampHealingHp.toFixed(2).padStart(5)} / ` +
+    `${metrics.averageStairsHealingHp.toFixed(2).padStart(5)} / ` +
+    `${metrics.averageDiosHealingHp.toFixed(2).padStart(6)}`
+  );
 }
 
 function printConsumableSummary(result) {
@@ -16498,16 +16592,6 @@ function printTrapBonusSupplyMetrics(result) {
     `  trapBonus供給: 装備${supply.equipmentItems}, 付与装備率=${formatPercent(supply.trapBonusItemRate)}, ` +
     `値別=${values}`
   );
-  const classParts = Object.entries(result.trapBonusSupplyByClass)
-    .map(([className, classSupply]) => {
-      const classValues = Object.entries(classSupply.averageTrapBonusByValue)
-        .sort(([left], [right]) => Number(left) - Number(right))
-        .map(([value, average]) => `${value}%:${average.toFixed(3)}`)
-        .join(", ") || "なし";
-      return `${className} ${formatPercent(classSupply.trapBonusItemRate)} [${classValues}]`;
-    })
-    .join(" / ");
-  console.log(`  trapBonus職業別: ${classParts}`);
 }
 
 function printCoreRetentionDetail(result) {
@@ -17010,8 +17094,7 @@ console.log(
   "既知床罠: 通常探索の経路コストに反映し、発見前はルート選択へ利用しない"
 );
 console.log(
-  `罠解除EV閾値: 床非pitfall scoutなし=${calculateFloorDisarmEvThreshold({ trapType: "damage" }).toFixed(2)}%, ` +
-  `scoutあり=${calculateFloorDisarmEvThreshold({ trapType: "damage", scoutMitigated: true }).toFixed(2)}%, ` +
+  `罠解除EV閾値: 床非pitfall=${calculateFloorDisarmEvThreshold({ trapType: "damage" }).toFixed(2)}%, ` +
   `pitfall=${calculateFloorDisarmEvThreshold({ trapType: "pitfall" }).toFixed(2)}%, ` +
   `宝箱代表閾値=${(CHEST_DISARM_REPRESENTATIVE_THRESHOLD * 100).toFixed(2)}%（実判定はtrap/effect/content/kitのEV）`
 );

@@ -21,6 +21,7 @@ import {
   trackCombatDecisionPending,
   trackEquipmentDecision,
   trackChestAction,
+  trackTrapResolution,
   trackChestSmashResult,
   trackBleedingEvent,
   trackVulnerableEvent,
@@ -479,9 +480,13 @@ check("decision events share context and keep action identifiers stable", () => 
   assert.equal(combatEvent.properties.enemyCount, 2);
   assert.equal(explorationEvent.properties.action, "heal");
   assert.equal(explorationEvent.properties.source, "event_camp");
+  assert.equal(Object.hasOwn(explorationEvent.properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(explorationEvent.properties, "level"), false);
   assert.equal(equipmentEvent.properties.action, "compare");
   assert.equal(equipmentEvent.properties.candidateId, "DAGGER");
   assert.deepEqual(equipmentEvent.properties.comparisonDiffs, [2]);
+  assert.equal(Object.hasOwn(equipmentEvent.properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(equipmentEvent.properties, "level"), false);
   const transitionEvent = events.find(event => event.name === "equipment_decision" && event.properties.action === "equip");
   assert.equal(transitionEvent.properties.buildDecision, "transition");
   assert.equal(transitionEvent.properties.candidateBuildRole, "pivot");
@@ -566,6 +571,8 @@ check("vNext telemetry separates lifecycle, exploration, portal, and elite obser
   const elite = events.find(event => event.name === "elite_decision");
   assert.equal(elite.properties.eliteId, "RUN_ELITE_B2");
   assert.equal(elite.properties.elitePolicy, "avoid");
+  assert.equal(Object.hasOwn(elite.properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(elite.properties, "level"), false);
 });
 
 check("return-wing snapshots distinguish the Wing from escape scrolls", () => {
@@ -1043,11 +1050,46 @@ check("chest and run events include common resource and status context", () => {
   trackRunEnd(run, "retreat", { ...decisionState, gameState: "result" });
   const chestEvent = events.find(event => event.name === "chest_action");
   const endEvent = events.find(event => event.name === "run_end");
-  assert.equal(chestEvent.properties.playerClass, "Mage");
+  assert.equal(Object.hasOwn(chestEvent.properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(chestEvent.properties, "level"), false);
   assert.equal(chestEvent.properties.status, "poisoned");
+  assert.equal(chestEvent.properties.affixTrapGuard, 0);
   assert.equal(chestEvent.properties.inventoryCapacity, 20);
   assert.equal(endEvent.properties.hpRate, 0.75);
   assert.equal(endEvent.properties.runMaterialCount, 3);
+});
+
+check("trap resolution telemetry records build-owned exploration facts", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackTrapResolution("triggered", {
+    state: { ...decisionState, gameState: "explore" },
+    character: decisionPlayer,
+    source: "floor",
+    trap: { type: "damage", difficulty: 42, position: { x: 1, y: 2 } },
+    action: "disarm",
+    successRate: 55,
+    partialSuccess: true,
+    identified: true,
+    toolId: "TRAP_KIT",
+    toolUsed: true
+  });
+  const event = events.find(candidate => candidate.name === "trap_resolution");
+  assert.equal(event.properties.source, "floor");
+  assert.equal(event.properties.trapType, "damage");
+  assert.equal(event.properties.outcome, "triggered");
+  assert.equal(event.properties.action, "disarm");
+  assert.equal(event.properties.successRate, 55);
+  assert.equal(event.properties.trapDifficulty, 42);
+  assert.equal(event.properties.partialSuccess, true);
+  assert.equal(event.properties.identified, true);
+  assert.equal(event.properties.toolId, "TRAP_KIT");
+  assert.equal(event.properties.toolUsed, true);
+  assert.equal(Object.hasOwn(event.properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(event.properties, "level"), false);
+  assert.equal(Object.hasOwn(event.properties, "agi"), false);
+  assert.equal(Object.hasOwn(event.properties, "luk"), false);
 });
 
 check("chest action fields preserve valid values and coerce malformed input", () => {

@@ -482,7 +482,9 @@ function runCanonicalSmoke() {
     className: "Fighter",
     startFloor: 1,
     targetDepth: 8,
-    runIndex: 0,
+    // The universal exploration resolver changes the fixed seed's entry path;
+    // the adjacent deterministic run still exercises the intended traversal.
+    runIndex: 1,
     seriesId: "simulation-follow-smoke",
     scoringProfile: null,
     scenario: smokeScenario,

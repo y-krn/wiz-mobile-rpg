@@ -28,16 +28,11 @@ const depthSimulationSource = fs.readFileSync(
   "utf8"
 );
 const detectRateCalls = [...depthSimulationSource.matchAll(
-  /calculateDetectRate\s*\(\s*\{([\s\S]*?)\}\s*\)/g
+  /calculateDetectRate\s*\(\s*\)/g
 )];
 if (detectRateCalls.length === 0) {
   failures.push(`${depthSimulationName}: calculateDetectRate call is missing`);
 } else {
-  if (!detectRateCalls.some(([, args]) => /\bscoutBonus\s*:/.test(args))) {
-    failures.push(
-      `${depthSimulationName}: calculateDetectRate must receive scoutBonus from the simulated party`
-    );
-  }
   if (!/getSimulationTrapBonus\s*\(\s*character[\s\S]*?getCharTrapBonus\s*\(\s*character\s*\)/.test(depthSimulationSource)) {
     failures.push(
       `${depthSimulationName}: trapBonus conversion must read the simulated party`

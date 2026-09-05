@@ -48,8 +48,10 @@ ordinary gear applied to a shared neutral character baseline and records
 `startingKit` on the run. Equipment bases, affixes, Core eligibility, and
 equipment actions no longer consult class restrictions; the registered
 `Fighter` compatibility class is shared by every kit so existing progression
-consumers retain their current rules, while progression, spell, trap, and
-telemetry migration remain follow-ups listed by the issue.
+consumers retain their current rules. Issue #1073 completes the exploration
+slice: progression and combat may still read compatibility class data, but
+trap success, information, mitigation, and exploration telemetry use only the
+current run-local Build, tools, and resource state.
 
 ## Hands and active Guard (Issue #1049)
 
@@ -201,7 +203,7 @@ Trial.
 # Support Affixes (`SUPPORT_AFFIXES`)
 
 - basic (migrated from existing effects in Phase 1): str/int/pie/vit/agi/luk, hp/mp, atk/def,
-  antiUndead/antiDragon/antiDemon, poisonWard, spellGuard, trapBonus,
+  antiUndead/antiDragon/antiDemon, poisonWard, spellGuard, trapBonus, trapGuard,
   treasureSense, arcaneSense, hearRange, traceRead, followUp, spellPower,
   arcane, devotion, guardian, firstStrike
 - conditional (Phase 2): deepAssault (attack+ from B3F onward) / frontGuard /
@@ -237,6 +239,7 @@ values.
 | hp / mp | 3 / 1 | 6 / 2 | 9 / 4 |
 | str / int / pie / vit / agi / luk | 1 | 2 | 3 |
 | trapBonus | 5% | 10% | 15% |
+| trapGuard | 10% | 20% | 30% |
 | spellGuard | 10% | 15% | 20% |
 | antiUndead / antiDragon / antiDemon | 15% | 20% | 25% |
 | poisonWard | 20% | 35% | 50% |
@@ -260,13 +263,25 @@ The three anti-* supports intentionally share one 15/20/25 rule; their
 different enemy tags and floor gates remain their only generation differences.
 
 `trapBonus` is the single support affix for floor/chest-trap disarm and the B5F
-flame-trap avoidance roll. Each equipment generator now has one trapBonus
-entry with weight 3, the combined weight of the former duplicate branches;
-the old branch-specific floor values are replaced by the common rarity values
-above. This removes ambiguous duplicate generation while retaining the
+flame-trap avoidance roll. `trapGuard` is a separate Support affix that only
+reduces the HP-damage component of a trap effect. Neither support depends on
+class or Level. Each equipment generator now has one trapBonus entry with
+weight 3, the combined weight of the former duplicate branches, and armor,
+shields, and accessories may also roll trapGuard with its own opportunity
+cost. The old branch-specific floor values are replaced by the common rarity
+values above. This removes ambiguous duplicate generation while retaining the
 intended high-priority trap-support weight. The fixed `THIEF_EYE` accessory is
-a separate source and is not part of this sweep. For the B5F flame trap,
-`src/rules/character_stats.js` is the source of truth for conversion and cap.
+a separate legacy-compatible source and is available to every character. For
+the B5F flame trap, `src/rules/character_stats.js` is the source of truth for
+conversion and cap.
+
+Exploration information supports (`treasureSense`, `hearRange`, and
+`traceRead`) provide facts or signs rather than permission to use an action.
+Tools such as `TRAP_KIT` trade a consumable for deterministic disarm; their
+availability is evaluated by the Core/resource layer, while the plain disarm
+roll remains a Build rule. Starting kits do not grant a permanent exploration
+bonus: any `trapBonus`, information support, or `trapGuard` advantage must be
+earned through the current equipment, Support, or tool state.
 
 All existing floor availability gates are intentionally kept. A gate such as
 `minFloor` or `weight: floor >= N ? x : 0` answers “when may this support enter

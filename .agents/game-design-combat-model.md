@@ -97,8 +97,9 @@ damage も変更しない。
 - `weaponAtk`: `getCharWeaponAtk(char)`。武器、legacy Ninja の武器なし攻撃
   `2 * level`、武器以外の装備の `atk` を合算する。active `startingKit`
   は compatibility class による素手加算を受けない。罠喰いは別項とする。
-- `trapEaterBonus`: Thief / Ranger / Ninja が宝箱罠の解除に成功した回数に
-  応じて +2、run 中は最大+20。床罠の解除・強行突破・破壊では発火しない。
+- `trapEaterBonus`: `CORE_TRAP_EATER` を装備したキャラクターが宝箱罠の解除に
+  成功した回数に応じて +2、run 中は最大+20。解除動詞は全員共通で、成功率は
+  装備／Support／道具の Build から来る。床罠の解除・強行突破・破壊では発火しない。
 - `firstTurnAttack`: 1 ラウンド目だけ `getCharAffixSum(char, "firstTurnAttack")`
   を `weaponAtk` に加える。
 - `buffAtk`: `getBuffTotal(char, "atk") + getBuffTotal(char, "str")`。
@@ -428,7 +429,7 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | 項 | 現在の形 | 確認できる根拠 | 設計上の扱い |
 | --- | --- | --- | --- |
 | `weaponAtk` | 武器・非武器装備・Ninja素手を実効単位で合算し、1ターン目補正を加える | `getCharWeaponAtk` と `round.js`。装備ビルド正本は `atk` と core を build 軸にする | 全入力源を同じ単位で扱い、個別 source を丸めずに `buffAtk` と合計してから floor する。罠喰いは weaponAtk へ混ぜない |
-| `trapEaterBonus` | Thief / Ranger / Ninja の宝箱罠解除成功ごとに +2、run 中は最大+20 | `CORE_TRAP_EATER.params`、`getCharTrapEaterBonus`、`chest.js` の成功枝 | weaponAtk / meleeMod の外側で raw physical damage へ固定加算し、表示の内訳と同じ単位にする |
+| `trapEaterBonus` | `CORE_TRAP_EATER` を装備したキャラクターの宝箱罠解除成功ごとに +2、run 中は最大+20 | `CORE_TRAP_EATER.params`、`getCharTrapEaterBonus`、`chest.js` の直接／キット成功枝 | weaponAtk / meleeMod の外側で raw physical damage へ固定加算し、表示の内訳と同じ単位にする |
 | `buffAtk` | `atk` buff と `str` buff を実効単位で合算 | `round.js` の呼び出し経路。`STR_POTION` は `atk +15` を 5 turn 付与する | `atk` / `str` の buff は同じ入力単位で扱う。`str` buff の live producer は未確認だが、将来の追加でも別単位にしない |
 | `floor(weapon + buff)` | 実効単位の weapon / buff を合計してから切り捨て | `calculatePhysicalAttackFormula` と各 caller の入力組み立て | 0.5 単位を保持し、丸めは合計後に一度だけ行う。旧式の hidden coefficient は採用しない |
 | `max(0, str - 10)` | STR 10 を基準にし、10 未満のペナルティを 0 にする | character stats の基礎値と関数の実装 | STR 10 を中立点とし、低 STR 職のペナルティだけを除く。STR 10 超の職差は残す |
@@ -749,7 +750,7 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 | 7 | physical は武器ごとの `randRange`、spell は呪文ごとの幅 | **変更した（#727）** | `src/data/items.js` の全 weapon が inclusive な `randRange` を持ち、`rollCharWeaponPhysicalRandom` が本体と追撃へ同じ幅を供給する。狭い `[1,3]` / 固定 `[2,2]` と広い `[0,4]` を使うが、全範囲の平均は 2.0 に揃え、武器 atk・式の他項・spell range は変えない。物理を一律 0–4 として spell と別 identity にするだけでは、同じ atk の武器を区別できないため、#727 でこの判定を覆した。 | 決定 2、#727、分散方針 |
 | 8 | 会心は Ninja の非 boss のみ | **legacy compatibility only; active runはneutralized** | legacy sourceは `char.class === "Ninja" && !target.isBoss` を保持する。active `startingKit` は compatibility classをidentityに使わず、resolverが0を返す。 | #1044 |
 | 9 | Mage/Bishop に undocumented `magicBolt` fallback | **案A: 廃止（#730で結論）** | #722 は未文書の職業補償を使わないと定め、#731/#722 決定2は呪文を `spellPower` と装備・run 内ビルドで明示的に成長させた。通常攻撃へ隠れた第2式を残す理由はなく、Mage/Bishopも他職と同じ物理式・命中・最低1・会心順序へ戻す。適用順は #731 の呪文成長配線を先に行い、#730 で fallback と専用 telemetry を削除する。 | #722 決定2、#731、#730 |
-| 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **#713 trap 部分を適用、spell は監査のみ** | `calculateDisarmRate` の適性職 cap は90→100へ変更し、確率の安全上限だけを残して trapBonus を無価値にしない。`getSpellStatBonus` はレビュー対象として確認したが、global spell scaling の変更は trap calibration と別 concern のため本 Issue では変更しない。`getPartyFlameTrapWarningAvoidanceChance` の0.74は別の発動回避効果の確率 clampで、trapBonus全体を無価値にはしないため変更しない。その他の `Math.min` は HP/MP、配列・確率・状態値の安全 clamp、または別 system の投資上限であり、#713の trapBonus floor value の測定対象外。 |
+| 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **#713 trap 部分を適用、spell は監査のみ（trap portionは#1073で更新）** | `calculateDisarmRate` の旧適性職 cap と class-based calibration は historical evidence として保持する。現行の `calculateDisarmRate` は class / AGI / LUK / Level を読まず、universal calibration と `trapBonus` だけを使う。`getSpellStatBonus` はレビュー対象だが、global spell scaling の変更は本 Issue の範囲外。`getPartyFlameTrapWarningAvoidanceChance` の0.74は別の発動回避効果の確率 clampであり、trapBonus全体の権限ではない。その他の `Math.min` は HP/MP、配列・確率・状態値の安全 clamp、または別 system の投資上限である。 |
 を通るため、本体と追撃で幅が分岐しない。旧 follow-up は `0..2`（平均1）だったが、
 #727後は武器幅（全武器平均2）を使う。これは本体と追撃で武器の手触りを一致させる
 ための意図した変更であり、平均ダメージが変わる影響は depth sim の結果とともにPRへ記録する。
@@ -856,8 +857,9 @@ level contribution の exact curve と、spell learn level を到達 3.77 帯で
 0.5 単位を許したまま全 source の合計後に一度だけ floorする。罠喰いだけは
 `weaponAtk` へ混ぜず、`meleeMod` の影響を受けない固定 damage 項として raw physical
 damage へ加算する。表示（基礎・装備・罠喰い・合計）と telemetry の
-`trapEaterBonus` はこの同じ単位を使う。CORE_TRAP_EATER は Thief / Ranger / Ninja
-だけに有効で、宝箱罠の解除成功ごとに +2、run 中の上限は +20、帰還で0へ戻す。
+`trapEaterBonus` はこの同じ単位を使う。CORE_TRAP_EATER は class に依存せず、
+装備したキャラクターが宝箱罠の解除（直接解除またはキット）に成功するごとに +2、
+run 中の上限は +20、帰還で0へ戻す。
 
 **STR は `max(0, str - 10)` を採用する。** STR 10 を中立点として、STR 10 未満の
 ペナルティだけを除き、STR 10 超の職差は残す。全職の素の STR（レベルでは増えない）
@@ -898,9 +900,10 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
 - `game-design.md` の blind は combat disruption であり、物理攻撃者の 50% miss
   を維持する。#728 PR3 で命中時の半減・1.5倍という二重罰を廃止し、
   プレイヤー・敵の物理攻撃を同じ treatment policy に揃える。
-- `game-design.md` の Mage `trapGuard=60` / Fighter `trapGuard=40` は罠 sustain
-  の正本であり、damage power と同じ単位ではない。#558 の職業主軸は、罠・戦闘・
-  resource を別軸で評価することで本書の hidden damage fallback と分離する。
+- `game-design.md` に残る Mage `trapGuard=60` / Fighter `trapGuard=40` は #516/#558 の
+  historical sustain evidence であり、現行の罠正本ではない。#1073では
+  `trapGuard` を装備／SupportだけのHP-damage専用入力に移し、damage powerと同じ
+  hidden class fallbackにしない。罠・戦闘・resourceは引き続き別軸で評価する。
 - `game-design-equipment-builds.md` の core/support は in-run build の rule-changing
   input であり、`getDamageAffixResult` の順序・値は source が正本。本書はその
   effect を物理だけに閉じないという決定を追加する。
@@ -913,11 +916,11 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
 | --- | --- | --- |
 | #719 タグ特効が呪文に乗らない | 非対称 #4、決定 4 | 配線漏れと確定。`getDamageAffixResult` の共通 target-tag stage へ集約し、BADIOS の +50/+30/+30 も共通値へ加算する。`spirit` +30 は既存 `antiSpirit` の support pool へ加算する。 |
 | #720 物理式の ×1.5 と `(str - 10)` | 非対称 #5・#6、決定 5 | hidden weight を data source へ吸収し、0.5 単位を許して表示と実効を揃える。STR は `max(0, str - 10)` とし、STR 10 未満のペナルティだけを除く。係数除去と基準線変更はコミットを分けて検証する。 |
-| #718 罠喰いの表示・実効不一致 | 非対称 #5・#6、決定 5 | `weaponAtk` から分離し、Thief / Ranger / Ninja の宝箱罠解除成功ごとに固定 +2、上限+20を加算する。装備画面へ基礎・装備・罠喰い・合計のrun内訳を表示する。 |
+| #718 罠喰いの表示・実効不一致 | 非対称 #5・#6、決定 5（historical; #1073で探索側を再定義） | `weaponAtk` から分離し、旧仕様では特定classの宝箱罠解除成功ごとに固定 +2、上限+20を加算した。現行の罠解除権限は class ではなく Build / tool にあり、Coreの罠喰いはその既存のrun内報酬としてのみ扱う。 |
 | #716 敵の耐性が表示されない | 非対称 #1、決定 1 | 軽減率を player decision と一致させる。表示文言と耐性値の調査・UI変更は #716。 |
 | #713 盗賊の解除率が90に張り付く | 非対称 #10、決定 7 | hard cap で投資を無価値にしない。逓減または超過変換を #713 で測る。 |
 | #599 lv5以上の呪文が到達帯に届かない | 非対称 #2・#3、決定 2・3 | spell growth と level gate を同じ到達分布で再設計する。到達値・習得値の変更は #599。 |
-| #558 Mage `trapGuard=60` が Fighter `40` を上回る | 非対称 #9、決定 3 と職業軸 | 罠 sustain を damage compensation に使わず、職業軸を罠・戦闘・resource に分けて評価する。#558 の passive 値は変更しない。 |
+| #558 Mage `trapGuard=60` が Fighter `40` を上回る | 非対称 #9、決定 3 と職業軸（historical; #1073でsuperseded） | 旧測定では罠 sustain を damage compensation と分離した。現行は `trapGuard` を装備／Supportへ移し、class passive値を削除して、罠・戦闘・resourceをBuildとCoreの別軸で評価する。 |
 | #731 攻撃呪文の装備成長 | 非対称 #2、決定 2 | 「術力」`spellPower` を武器・鎧・盾と装身具から供給し、stat 直後の pre-target / pre-clamp に適用する。攻撃・回復の両方へ適用し、`arcane` / `devotion` / `fireRite` は固有項として残す。 |
 | #1052 weapon behaviorを既存の攻撃verbへ接続 | 装備を通常攻撃のbuild ownershipへ接続 | weapon dataの少数 `behaviorProfile` を `resolveWeaponAttack` へ集約し、light / blade / impact / heavy / mediumの差を通常攻撃・追撃・反撃・auto/simulation見積りで共有する。heavyの両手／盾喪失は #1049 のhand contractを使い、class/stat permissionや追加attack verbは設けない。 |
 | #728 PR4 物理ヒット最低1 / ミス0 | 非対称 #1、決定 1 | 命中判定後の `applyPhysicalResistance` から player→enemy 通常/追撃、enemy→player 通常/逃走追撃へ続く各物理段階を `max(1, ...)` にする。盲目 miss / evasive avoid は式へ進まず0。targeted affix、guard、defend、incoming mitigation、会心の倍率・順序、spell minimum は維持し、負値が HP を回復させないことを focused test で確認する。 |

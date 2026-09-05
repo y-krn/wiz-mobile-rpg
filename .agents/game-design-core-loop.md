@@ -437,17 +437,17 @@ map coordinates as a navigation target. This keeps the spell at the
 presence/inference rung of the information ladder while leaving identification
 and detail to sight, equipment, and player exploration.
 
-### Trap exploration design (Issue #931)
+### Trap exploration design (Issue #931; exploration ownership migration #1073)
 
 Traps are terrain and exploration information, not an isolated event that asks
 the player to choose a trap-specific escape command. A trap changes the value
 of the available routes and the player's willingness to spend steps, exposure,
 or HP to continue. The design is governed by these three responses:
 
-- **Disarm** resolves a known trap before entering its cell. It is a
-  class-sensitive and equipment-sensitive way to make the route safer; the
-  Thief's exploration identity is discovery, identification, and disarm, with
-  safe breakthrough as the resulting advantage.
+- **Disarm** resolves a known trap before entering its cell. Every character
+  has the same inspect, detect, disarm, and avoid verbs; the success roll is
+  owned by the run-local build (`trapBonus`) supplied by equipment or tools,
+  not by class, AGI/LUK, or Level.
 - **Forced breakthrough** enters a known trapped cell and accepts the trap's
   effect. It must remain possible even when the trap is on a choke point, with
   the existing weakened-effect rules providing the cost of taking this route.
@@ -476,17 +476,18 @@ Responsibilities are separated as follows:
 | --- | --- | --- |
 | Map generation | Connectivity, floor reachability, trap placement, density, and internal route diagnostics | A guarantee of a safe or trap-free route; build balance |
 | Trap rules/effects | Discovery state, disarm/forced-traversal resolution, damage, status, and mitigation rules | The player's route preference |
-| Class and equipment | Discovery/identification advantages, disarm success, and safe-breakthrough advantages | Map connectivity or a universal trap bypass |
+| Run-local Build (equipment, Support, tools) | Discovery/identification information, `trapBonus` disarm success, and `trapGuard` HP-damage mitigation | Map connectivity, class permission, or a universal trap bypass |
+| Core / resource systems | Tool and resource availability plus explicit condition evaluation (for example, whether a kit can be spent) | Plain disarm success or generic trap-damage reduction |
 | Movement/UI | Ordinary directional movement, map information, and available direct responses | A dedicated `迂回` action or fixed `choke`/`avoidable` display |
 | Balance Simulation | A measurable approximation of route choice and disarm/force decisions, plus outcome telemetry | Defining new gameplay rules or making the game conform to a simulation shortcut |
 
 Before balance changes, measure the layers separately: map structure and route
-cost; trap type, intensity, and effect; class/equipment discovery,
-identification, disarm, and mitigation; then Simulation policy choices and
-outcomes. A change in one layer must not be attributed to another layer merely
-because the aggregate run result moved. The Simulation follows the game's
-rules and source helpers; the game rules do not change to fit a Simulation
-policy.
+cost; trap type, intensity, and effect; run-local Build information, disarm,
+mitigation, and tool opportunity cost; then Simulation policy choices and
+outcomes. Class and Level are not exploration dimensions. A change in one
+layer must not be attributed to another layer merely because the aggregate run
+result moved. The Simulation follows the game's rules and source helpers; the
+game rules do not change to fit a Simulation policy.
 
 The game implementation presents discovered floor traps as map information and
 offers only `disarm` or `force` when the player attempts to enter one. A player
@@ -498,15 +499,22 @@ Choosing another route advances through ordinary movement and therefore carries
 its own steps, encounters, and other trap effects. Simulation alignment must
 preserve the meaningful disarm and forced-breakthrough choices.
 
-`trapBonus` remains the single support affix for floor/chest trap disarm and
-existing equipment bonuses. On B5F, the automatic flame trap uses
-the same floor-trap success roll and partial-success band as a `damage` floor
-trap, without exposing a trap encounter menu. Its effect uses the ordinary
-floor-dependent damage range and the same weakened, scout, and `trapGuard`
-mitigations. Chest traps keep a risk/reward branch: every character can leave,
-smash for a weaker trap effect with possible consumable loss, or use a kit.
-Specialist class rates remain legacy follow-up scope while class data is removed
-from equipment and loot authority.
+`trapBonus` remains the single Support affix for floor/chest trap disarm and
+the B5F flame-trap avoidance roll. Detection and information are likewise
+Build-owned: `treasureSense`, `hearRange`, and `traceRead` can expose facts or
+signs, but do not grant a class-specific permission. `trapGuard` is an
+equipment/Support-only mitigation of the HP-damage component of trap effects;
+it defaults to zero and does not change status, MP, teleport, alarm, detect,
+inspect, or disarm behavior. It is not promoted by a Core.
+
+On B5F, the automatic flame trap uses the same floor-trap success roll and
+partial-success band as a `damage` floor trap, without exposing a trap
+encounter menu. Chest traps keep a risk/reward branch: every character can
+inspect, leave, smash for a weaker trap effect with possible consumable loss,
+or spend a kit. Equipment slots, affixes, bag space, and consumable counts are
+the explicit opportunity costs. The player-facing UI shows facts, signs,
+success, risk, and resource state; internal `choke`/`avoidable` diagnostics
+are never answer choices or player-facing trap properties.
 
 Unidentified equipment follows four explicit knowledge stages: discovery
 (type/quality and one or two truthful sensory signs), observation (carrying it
@@ -597,7 +605,7 @@ Phase 1 exploration candidates:
   drop opportunities.
 - 探知石 reveals nearby floor traps without improving disarm rate. It is
   useful before committing to a risky corridor, but is wasteful where no trap
-  is nearby and does not replace class or equipment trap advantages.
+  is nearby and does not replace equipment Support or tool opportunity costs.
 
 Supply is intentional: 鳴らし玉 and 静寂の香 are departure-craft choices;
 探知石 is an in-run chest/deep-merchant adaptation item. They must remain

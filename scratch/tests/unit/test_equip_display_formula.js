@@ -327,8 +327,6 @@ check(
   "trap display calls the real floor disarm formula",
   getCharDerivedStats(trapChar, { floor: 5 }).trap,
   calculateDisarmRate({
-    className: trapChar.class,
-    level: trapChar.level,
     floor: 5,
     affixBonus: trapAffixBonus
   })
@@ -336,7 +334,7 @@ check(
 check(
   "trap display does not add unrelated LUK",
   getCharDerivedStats(trapChar, { floor: 5 }).trap,
-  44
+  74
 );
 
 const speedTreasureChar = makeChar({

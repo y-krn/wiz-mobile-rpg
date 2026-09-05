@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 
 import {
-  CHEST_DISARM_BASE_CHANCE_BY_CLASS,
   calculateChestDisarmChance
 } from "../../../src/rules/trap_rules.js";
 import {
@@ -23,15 +22,9 @@ function check(label, callback) {
 }
 
 check("blind halves each class chest disarm chance", () => {
-  Object.entries(CHEST_DISARM_BASE_CHANCE_BY_CLASS).forEach(([className, chance]) => {
-    assert.equal(
-      calculateChestDisarmChance({ className, blind: false }),
-      chance
-    );
-    assert.equal(
-      calculateChestDisarmChance({ className, blind: true }),
-      chance / 2
-    );
+  ["Fighter", "Thief", "Mage", "Ranger"].forEach(className => {
+    assert.equal(calculateChestDisarmChance({ className, blind: false }), 0.25);
+    assert.equal(calculateChestDisarmChance({ className, blind: true }), 0.125);
   });
 });
 

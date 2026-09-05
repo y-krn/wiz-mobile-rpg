@@ -1,29 +1,19 @@
-const DISARM_APT_CLASSES = new Set(["Thief", "Ninja", "Ranger"]);
-
 export const FLOOR_DISARM_CALIBRATION = Object.freeze({
-  aptBase: 80,
-  nonAptBase: 40,
-  aptLevelGain: 1.0,
-  nonAptLevelGain: 0.5,
-  depthLoss: 2.0,
-  aptMin: 20,
-  nonAptMin: 5,
-  // Probability safety bound: apt trapBonus investment must remain effective.
-  aptMax: 100,
-  nonAptMax: 60
+  // Exploration verbs are universal. Difficulty is supplied by the trap (or
+  // by the floor fallback below); Build support is the only run-local bonus.
+  universalBase: 95,
+  difficultyScale: 0.35,
+  min: 5,
+  max: 95,
+  defaultDifficultyPerFloor: 15,
+  defaultDifficultyFloorScale: 15
 });
 
-export const CHEST_DISARM_BASE_CHANCE_BY_CLASS = Object.freeze({
-  Thief: 0.85,
-  Ninja: 0.70,
-  Ranger: 0.60,
-  default: 0.25
-});
+export const CHEST_DISARM_BASE_CHANCE = 0.25;
 
 export const FORCE_DAMAGE_MULTIPLIER = 0.5;
 export const PARTIAL_SUCCESS_BAND = 15;
 export const PITFALL_EDGE_BONUS = 20;
-export const SCOUT_TRAP_DAMAGE_MULTIPLIER = 0.7;
 export const DETECT_RATE_CAP = 1;
 
 export const CHEST_WEAKENED_RISK_MULTIPLIER = 0.5;
@@ -37,17 +27,13 @@ function clampUnit(value) {
 }
 
 // 解除と強行の期待被害を等しくするsuccessRate。trap_effect_rules.jsの
-// scout条件とpartial bandを入力へ反映し、sim側の閾値写経を防ぐ。
-export function calculateFloorDisarmEvThreshold({
-  trapType,
-  scoutMitigated = false
-} = {}) {
+// partial bandを入力へ反映し、sim側の閾値写経を防ぐ。
+export function calculateFloorDisarmEvThreshold({ trapType } = {}) {
   const isPitfall = trapType === "pitfall";
   const partialBand = isPitfall ? 0 : PARTIAL_SUCCESS_BAND;
   const partialMultiplier = FORCE_DAMAGE_MULTIPLIER;
-  const fullMultiplier = scoutMitigated ? SCOUT_TRAP_DAMAGE_MULTIPLIER : 1;
-  const forcedMultiplier = FORCE_DAMAGE_MULTIPLIER *
-    (scoutMitigated && isPitfall ? SCOUT_TRAP_DAMAGE_MULTIPLIER : 1);
+  const fullMultiplier = 1;
+  const forcedMultiplier = FORCE_DAMAGE_MULTIPLIER;
   if (fullMultiplier <= 0) return 100;
   const threshold = 100 - partialBand - (
     100 * forcedMultiplier - partialBand * partialMultiplier
@@ -172,50 +158,51 @@ export function calculateChestDisarmActionEv({
   };
 }
 
-export function isDisarmAptClass(className) {
-  return DISARM_APT_CLASSES.has(className);
-}
-
-// 解除率はクラス適性で二極化する。適性は深層でも主軸として機能し、
-// 非適性は浅層の安いギャンブルに留めて強行と回り込みへ寄せる。
-export function calculateDisarmRate({ className, level, floor, affixBonus = 0 }) {
-  const lv = Math.max(1, Math.floor(Number(level) || 1));
+function getDefaultFloorDifficulty(floor = 1) {
   const depth = Math.max(1, Math.floor(Number(floor) || 1));
-  const apt = isDisarmAptClass(className);
-
-  const base = apt
-    ? FLOOR_DISARM_CALIBRATION.aptBase
-    : FLOOR_DISARM_CALIBRATION.nonAptBase;
-  const levelGain = apt
-    ? lv * FLOOR_DISARM_CALIBRATION.aptLevelGain
-    : lv * FLOOR_DISARM_CALIBRATION.nonAptLevelGain;
-  const depthLoss = (depth - 1) * FLOOR_DISARM_CALIBRATION.depthLoss;
-  const min = apt
-    ? FLOOR_DISARM_CALIBRATION.aptMin
-    : FLOOR_DISARM_CALIBRATION.nonAptMin;
-  const max = apt
-    ? FLOOR_DISARM_CALIBRATION.aptMax
-    : FLOOR_DISARM_CALIBRATION.nonAptMax;
-
-  const raw = base + levelGain - depthLoss + affixBonus;
-  return Math.round(Math.max(min, Math.min(max, raw)));
+  return FLOOR_DISARM_CALIBRATION.defaultDifficultyPerFloor +
+    depth * FLOOR_DISARM_CALIBRATION.defaultDifficultyFloorScale;
 }
 
-export function calculateChestDisarmChance({ className, trapBonus = 0, blind = false }) {
-  const base = CHEST_DISARM_BASE_CHANCE_BY_CLASS[className] ||
-    CHEST_DISARM_BASE_CHANCE_BY_CLASS.default;
-  const chance = base + trapBonus;
+function getTrapDifficulty({ trap, floor } = {}) {
+  const explicitDifficulty = Number(trap?.difficulty);
+  return Number.isFinite(explicitDifficulty) && explicitDifficulty >= 0
+    ? explicitDifficulty
+    : getDefaultFloorDifficulty(floor);
+}
+
+// Level and class are intentionally not accepted inputs. Passing stale fields
+// from old callers is harmless, but they cannot affect the run-local result.
+export function calculateDisarmRate({ floor = 1, difficulty, affixBonus = 0 } = {}) {
+  const normalizedDifficulty = Number.isFinite(Number(difficulty))
+    ? Math.max(0, Number(difficulty))
+    : getDefaultFloorDifficulty(floor);
+  const buildBonus = Number.isFinite(Number(affixBonus)) ? Number(affixBonus) : 0;
+  const raw = FLOOR_DISARM_CALIBRATION.universalBase -
+    normalizedDifficulty * FLOOR_DISARM_CALIBRATION.difficultyScale +
+    buildBonus;
+  return Math.round(Math.max(
+    FLOOR_DISARM_CALIBRATION.min,
+    Math.min(FLOOR_DISARM_CALIBRATION.max, raw)
+  ));
+}
+
+export function calculateChestDisarmChance({ trapBonus = 0, blind = false } = {}) {
+  const buildBonus = Number.isFinite(Number(trapBonus)) ? Math.max(0, Number(trapBonus)) : 0;
+  const chance = Math.min(1, CHEST_DISARM_BASE_CHANCE + buildBonus);
   return blind ? chance / 2 : chance;
 }
 
 export function calculateFloorTrapSuccessRate({
   trap,
-  className,
-  level,
   floor,
   affixBonus = 0
-}) {
-  const rate = calculateDisarmRate({ className, level, floor, affixBonus });
+} = {}) {
+  const rate = calculateDisarmRate({
+    floor,
+    difficulty: getTrapDifficulty({ trap, floor }),
+    affixBonus
+  });
   return trap?.type === "pitfall" ? Math.min(100, rate + PITFALL_EDGE_BONUS) : rate;
 }
 
