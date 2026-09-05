@@ -13,7 +13,7 @@ const DIMENSION_PROPS = new Set([
   "max-height",
   "line-height",
 ]);
-const INTERACTIVE_SELECTOR_RE = /(^|[\s,>+~])(?:button\b|\.btn(?:\b|-)|#btn(?:\b|-)|\[role=(["'])?button\2\])/;
+const INTERACTIVE_SELECTOR_RE = /(^|[\s,>+~])(?:button\b|a\b|input\b|select\b|textarea\b|summary\b|\.btn(?:\b|-)|#btn(?:\b|-)|\[role\s*=\s*(["'])?(?:button|link|tab|menuitem|option)\2\]|\[(?:data-action|data-click|onclick|tabindex)(?:\s*=|\s*\]))/i;
 const RAW_TAP_PROPS = new Set(["width", "height", "min-width", "min-height"]);
 const ALLOW_RE = /tap-token-guard:\s*allow/;
 
@@ -25,10 +25,18 @@ function isInteractiveSelector(selector) {
   return INTERACTIVE_SELECTOR_RE.test(selector.replace(/\/\*[\s\S]*?\*\//g, " "));
 }
 
+function hasPointerCursor(cssRule) {
+  return cssRule.nodes?.some((node) => node.type === "decl" && node.prop === "cursor" && node.value === "pointer") ?? false;
+}
+
 function hasAllowComment(decl) {
   return [decl.raws?.before, decl.raws?.between, decl.raws?.after, decl.prev()?.text, decl.next()?.text]
     .filter(Boolean)
     .some((text) => ALLOW_RE.test(text));
+}
+
+function hasRuleAllowComment(cssRule) {
+  return cssRule.nodes?.some((node) => node.type === "comment" && ALLOW_RE.test(node.text)) ?? false;
 }
 
 function getViolation(prop, value) {
@@ -55,10 +63,10 @@ const rule = (primary) => {
     if (!validOptions || primary === false) return;
 
     root.walkRules((cssRule) => {
-      if (!isInteractiveSelector(cssRule.selector)) return;
+      if (!isInteractiveSelector(cssRule.selector) && !hasPointerCursor(cssRule)) return;
 
       cssRule.walkDecls((decl) => {
-        if (!DIMENSION_PROPS.has(decl.prop) || hasAllowComment(decl)) return;
+        if (!DIMENSION_PROPS.has(decl.prop) || hasRuleAllowComment(cssRule) || hasAllowComment(decl)) return;
 
         const reason = getViolation(decl.prop, decl.value);
         if (!reason) return;

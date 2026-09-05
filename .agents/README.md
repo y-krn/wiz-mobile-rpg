@@ -20,6 +20,15 @@ The codebase uses thin facade modules. Facade-to-concrete-module mappings are
 defined in `.agents/file-map.md` under `## Module Boundaries`. When a task
 touches a facade, inspect the concrete module before drawing conclusions.
 
+## Static check ownership
+
+`npm run lint:docs` checks inline project-path references and source-driven
+design-document coverage. `npm run lint:markdown` checks Markdown link
+destinations, including the repository-root-relative convention used by
+evidence reports; it does not duplicate the inline-code or design-canon checks.
+`npm run lint:workflow` parses every GitHub Actions workflow and validates its
+basic `name`/`on`/`jobs`/step shape before CI runs.
+
 ## Review checklists
 
 1. `qa-regression.md`

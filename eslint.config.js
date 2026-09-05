@@ -3,7 +3,17 @@ import globals from "globals";
 
 export default [
   {
-    ignores: ["dist/**", "node_modules/**", "scratch/**", "test-results/**", "*.log"],
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "test-results/**",
+      "*.log",
+      "scratch/benchmarks/**",
+      "scratch/measurements/**",
+      "scratch/simulations/**",
+      "scratch/tests/unit/**",
+      "scratch/tests/regression/**",
+    ],
   },
   js.configs.recommended,
   {
@@ -24,6 +34,14 @@ export default [
   },
   {
     files: ["scripts/**/*.js"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.node,
+    },
+  },
+  {
+    files: ["scratch/tests/run_tests.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
