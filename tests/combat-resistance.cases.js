@@ -79,7 +79,7 @@ for (const viewport of VIEWPORTS) {
     await expectWithinViewport(wisp, viewport, 'wisp target card');
 
     await page.screenshot({
-      path: `output/playwright/issue-716-after-${viewport.width}x${viewport.height}.png`,
+      path: `output/playwright/combat-resistance-${viewport.width}x${viewport.height}.png`,
       fullPage: true,
     });
 

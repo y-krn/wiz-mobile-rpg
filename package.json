@@ -24,9 +24,10 @@
     "test:browser:full": "node scripts/dependency-preflight.js && playwright test",
     "lint:css": "stylelint \"src/style.css\" \"src/styles/**/*.css\"",
     "lint:docs": "node scripts/check_doc_paths.js",
+    "lint:tests": "node scripts/check_playwright_test_names.js",
     "lint:markdown": "node scripts/check_markdown_links.js",
     "lint:workflow": "node scripts/check_workflow_yaml.js",
-    "lint": "npm run lint:css && npm run lint:docs && npm run lint:markdown && npm run lint:workflow && eslint . --cache"
+    "lint": "npm run lint:css && npm run lint:docs && npm run lint:tests && npm run lint:markdown && npm run lint:workflow && eslint . --cache"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

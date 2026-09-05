@@ -1,4 +1,6 @@
 import { test, expect } from './fixtures/browser-health.js';
+import './shell-layout.cases.js';
+import './mobile-viewport.cases.js';
 
 test.describe('Common UI vNext shell @smoke', () => {
   test('exposes the four shell regions and preserves unresolved events at 320x568', async ({ page }) => {

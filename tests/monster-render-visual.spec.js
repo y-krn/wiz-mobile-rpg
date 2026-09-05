@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import './monster-variants.cases.js';
 
 const phase = process.env.MONSTER_VOLUME_PHASE || 'after';
 const screenshotPath = `output/playwright/monster-render-${phase}.png`;

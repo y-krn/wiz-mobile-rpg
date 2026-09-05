@@ -25,6 +25,9 @@ if (!process.argv.some(argument => argument.includes('workerProcessEntry'))) {
 
 export default defineConfig({
   testDir: './tests',
+  // Domain entrypoints are the only discovered files. Their .cases.js
+  // modules are imported intentionally so one concern owns the test lifecycle.
+  testMatch: '**/*.spec.js',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import './departure-flow.cases.js';
 import { VIEWPORTS, openDeparturePreparation } from './ui-ux-helpers.js';
 for (const vp of VIEWPORTS) {
   test(`Milestone start, merchant, and portal stay thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
