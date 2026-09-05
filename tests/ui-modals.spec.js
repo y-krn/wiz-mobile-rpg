@@ -612,11 +612,12 @@ for (const vp of VIEWPORTS) {
           identified: true, affixes: [
             { id: 'atk', type: 'atk', kind: 'support', value: 3 },
             { id: 'def', type: 'def', kind: 'support', value: 2 },
+            { id: 'physicalAccuracy', type: 'physicalAccuracy', kind: 'support', value: 10 },
           ]
         },
         {
           kind: 'equipment', instanceId: 'ui_polish_core', baseId: 'MACE', rarity: 'magic', level: 1,
-          identified: true, affixes: [{ id: 'CORE_LAST_STAND', type: 'CORE_LAST_STAND', kind: 'core' }]
+          identified: true, affixes: [{ id: 'CORE_EXECUTIONER', type: 'CORE_EXECUTIONER', kind: 'core' }]
         },
         {
           kind: 'equipment', instanceId: 'ui_polish_unidentified', baseId: 'WAND', rarity: 'magic', level: 1,
@@ -643,7 +644,7 @@ for (const vp of VIEWPORTS) {
       state.metaMaterials['魔石片'] = 2;
       renderEquip();
     });
-    await expect(polishSection.getByRole('button', { name: '研磨する' })).toHaveCount(2);
+    await expect(polishSection.getByRole('button', { name: '研磨する' })).toHaveCount(3);
     const polishButton = polishSection.getByRole('button', { name: '研磨する' }).nth(1);
     await expect(polishButton).toBeEnabled();
     await polishButton.scrollIntoViewIfNeeded();
@@ -654,9 +655,11 @@ for (const vp of VIEWPORTS) {
     await expect.poll(() => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return { values: state.inventory[0].affixes.map((affix) => affix.value), polished: state.inventory[0].polished };
-    })).toEqual({ values: [3, 3], polished: true });
+    })).toEqual({ values: [3, 3, 10], polished: true });
     await expect(page.locator('.equip-affix-details')).toContainText('攻撃: +3');
     await expect(page.locator('.equip-affix-details')).toContainText('防御: +3');
+    await expect(page.locator('.equip-affix-details')).toContainText('物理命中: +10%');
+    await expect(page.locator('.equip-affix-details')).not.toContainText('◆');
     await expect(panel).toContainText('研磨済み（この装備は1回まで）');
 
     await page.getByRole('button', { name: '一覧へ戻る' }).click();
@@ -1233,7 +1236,7 @@ for (const vp of VIEWPORTS) {
       openSubmenu('workshop_main', '工房 - 広がった可能性');
     });
 
-    await expect(page.locator('.workshop-node')).toHaveCount(11);
+    await expect(page.locator('.workshop-node')).toHaveCount(9);
 
     const layout = await page.locator('.workshop-node').evaluateAll((buttons) => ({
       buttons: buttons.map((button) => button.getBoundingClientRect().toJSON()),

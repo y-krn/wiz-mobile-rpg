@@ -262,6 +262,11 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "trapBonus") prefix = "技巧の";
       else if (primaryAff.type === "trapGuard") prefix = "罠守の";
       else if (primaryAff.type === "followUp") prefix = "連撃の";
+      else if (primaryAff.type === "firstStrikeFollowUp") prefix = "先手連撃の";
+      else if (primaryAff.type === "physicalAccuracy") prefix = "正確な";
+      else if (primaryAff.type === "lowHpDamage") prefix = "窮地の";
+      else if (primaryAff.type === "highHpTargetDamage") prefix = "巨体狙いの";
+      else if (primaryAff.type === "bossDamage") prefix = "守護者狙いの";
       else if (primaryAff.type === "spellPower") prefix = "術力の";
       else if (primaryAff.type === "arcane") prefix = "秘術の";
       else if (primaryAff.type === "devotion") prefix = "神聖な";

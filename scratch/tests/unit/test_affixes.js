@@ -22,14 +22,14 @@ function lcg(seed) {
   };
 }
 
-assert.strictEqual(SUPPORT_AFFIXES.length, 48, "support registry count");
-assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 48, "enabled support count");
+assert.strictEqual(SUPPORT_AFFIXES.length, 53, "support registry count");
+assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 53, "enabled support count");
 assert.deepStrictEqual(
   Object.fromEntries(["basic", "conditional", "trigger", "economy"].map(category => [
     category,
     SUPPORT_AFFIXES.filter(affix => affix.category === category).length
   ])),
-  { basic: 27, conditional: 11, trigger: 7, economy: 3 }
+  { basic: 28, conditional: 14, trigger: 8, economy: 3 }
 );
 SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.kind, "support");
@@ -37,28 +37,38 @@ SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.cost, AFFIX_BALANCE.supportCosts[affix.id]);
 });
 
-assert.strictEqual(CORE_AFFIXES.length, 18, "core registry count");
+assert.strictEqual(CORE_AFFIXES.length, 13, "core registry count");
 assert.ok(CORE_AFFIXES.every(affix => affix.kind === "core" && affix.cost === 10));
 assert.ok(CORE_AFFIXES.every(affix => affix.enabled), "all registered cores are enabled");
-assert.strictEqual(new Set(CORE_AFFIXES.map(affix => affix.id)).size, 18, "core IDs unique");
-assert.ok(formatAffixText(CORE_AFFIXES[0]).startsWith("◆背水: HP40%以下"));
+assert.strictEqual(new Set(CORE_AFFIXES.map(affix => affix.id)).size, 13, "core IDs unique");
+assert.ok(formatAffixText(CORE_AFFIXES[0]).startsWith("◆血杖: MP不足時"));
 assert.deepStrictEqual(
-  getAffixDefinition("CORE_PHYSICAL_ACCURACY"),
+  getAffixDefinition("CORE_BLOOD_WAND"),
   {
-    id: "CORE_PHYSICAL_ACCURACY",
+    id: "CORE_BLOOD_WAND",
     kind: "core",
-    jpName: "必中",
-    desc: "回避対象への物理攻撃が必ず命中する。",
+    jpName: "血杖",
+    desc: "MP不足時、消費MPの2倍のHPで呪文を発動できる。",
     slot: "weapon",
     cost: 10,
-    params: { hitChanceBonus: 1 },
-    buildRole: "reinforce",
-    buildAxis: "auxiliary",
+    params: { hpCostMultiplier: 2 },
+    buildRole: "convert",
+    buildAxis: "main",
     poolGroup: "combat",
     enabled: true
   },
-  "physical accuracy core keeps its canonical identity and value"
+  "retained core keeps its canonical identity and value"
 );
+for (const retiredId of [
+  "CORE_LAST_STAND",
+  "CORE_OPENER",
+  "CORE_PHYSICAL_ACCURACY",
+  "CORE_GIANT_SLAYER",
+  "CORE_MILESTONE_BREAKER"
+]) {
+  assert.equal(getAffixDefinition(retiredId), null, `${retiredId} is retired from the active registry`);
+  assert.doesNotMatch(formatAffixText({ id: retiredId, type: retiredId, kind: "core", value: 1 }), /◆|CORE_/);
+}
 assert.ok(
   getAffixDefinition("guardian").desc.includes("HP25%以下"),
   "guardian description states its activation condition"
@@ -115,18 +125,23 @@ for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
   }
 }
 
-let generatedPhysicalAccuracyCore = null;
-for (let seed = 1; seed <= 5000 && !generatedPhysicalAccuracyCore; seed++) {
-  const item = generateRandomEquipment(5, { forceRarity: "epic", rng: lcg(seed) });
-  if (item.affixes.some(affix => affix.id === "CORE_PHYSICAL_ACCURACY")) {
-    generatedPhysicalAccuracyCore = item;
+for (const [type, generator, floor] of [
+  ["physicalAccuracy", generateRandomEquipment, 2],
+  ["lowHpDamage", generateRandomEquipment, 2],
+  ["highHpTargetDamage", generateRandomEquipment, 2],
+  ["bossDamage", generateRandomEquipment, 2],
+  ["firstStrikeFollowUp", generateRandomAccessory, 2]
+]) {
+  for (const rarity of ["magic", "rare", "epic"]) {
+    const generated = findGeneratedAffix(generator, floor, type, 5000, rarity);
+    assert.ok(generated, `${type} enters the compatible Support generation pool`);
+    assert.equal(generated.affix.kind, "support");
+    assert.equal(generated.affix.value, getSupportValueByRarity(type, rarity));
   }
 }
-assert.ok(generatedPhysicalAccuracyCore, "physical accuracy core enters the weapon generation pool");
-assert.deepStrictEqual(
-  generatedPhysicalAccuracyCore.affixes.find(affix => affix.id === "CORE_PHYSICAL_ACCURACY"),
-  { id: "CORE_PHYSICAL_ACCURACY", kind: "core", type: "CORE_PHYSICAL_ACCURACY", value: 1, buildRole: "reinforce" },
-  "generated physical accuracy core uses the canonical core payload"
+assert.ok(
+  getSupportValueByRarity("firstStrikeFollowUp", "epic") < 100,
+  "first-strike follow-up support never guarantees a follow-up"
 );
 
 for (const generator of [generateRandomEquipment, generateRandomAccessory]) {

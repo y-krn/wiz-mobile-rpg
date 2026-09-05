@@ -27,6 +27,12 @@ Build snapshot は class、Level、AGI、LUK を含めず、`trapBonus`、
 Core、資源状態だけを記録する。Combat の class 記録はこの境界の外であり、
 探索の成功・情報・軽減の所有権を示すものではない。
 
+Core dimension は `CORE_AFFIXES` の active definition だけを許可する。
+Issue #1075 で移管された5つの旧 numeric Core ID は Core ID として記録せず、
+対応する `lowHpDamage`、`firstStrikeFollowUp`、`physicalAccuracy`、
+`highHpTargetDamage`、`bossDamage` は通常の Support snapshot／equipment
+affix type として記録する。
+
 ## 決定論的測定
 
 `scratch/measurements/issue1012_observability.js` は canonical runner `scratch/simulations/sim_depth_material_ev.js` を使い、同じ seed/config で階段発見、Portal、装備交換/build shift、エリート回避・接触を集計する。出力には source SHA、runner SHA、seed、N、scenario、schemaVersion を記録する。これは balance tuning や Issue #990 の再開ではない。

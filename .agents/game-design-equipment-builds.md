@@ -125,7 +125,7 @@ files remain authoritative for current values.
 - Equipment bases are independently rolled from the floor candidate table, and
   Core effects do not impose a class fit. Cross-slot and crossover outcomes are
   intentional build trade-offs (`src/systems/equipment_generation.js`).
-- **Support count**: `SUPPORT_AFFIXES.length` (source of truth: `src/data/affixes.js`). Numeric and minor effects.
+- **Support count**: `SUPPORT_AFFIXES.length` (currently 53; source of truth: `src/data/affixes.js`). Numeric and minor effects.
   The polishing implementation can overwrite them.
 - No cores that are pure numeric upgrades. Every core is a sidegrade.
 - Registry: `src/data/affixes.js` (data only). Rule and effect helpers:
@@ -139,18 +139,25 @@ The actual value of each effect parameter is defined by `params` in `src/data/af
 
 | Name | id | Effect | Slot |
 |------|----|------|------|
-| 背水 | CORE_LAST_STAND | +40% damage dealt at HP ≤40% | Weapon |
-| 先手必勝 | CORE_OPENER | On a successful first strike, a follow-up attack is guaranteed on the first hit | Accessory |
-| 必中 | CORE_PHYSICAL_ACCURACY | Physical attacks against evasive targets always hit | Weapon |
 | 血杖 | CORE_BLOOD_WAND | When MP is insufficient, a spell can be cast by paying HP (cost×2) (HP minimum 1) | Weapon |
 | 浄化の環 | CORE_PURIFY_RING | For each undead・spirit・demon kill, recover MP1 when MP is not full, or HP2 when full | Accessory |
 | 罠喰い | CORE_TRAP_EATER | Successful chest-trap disarm grants +2 fixed physical damage during the expedition (cap +20, reset on return) | Accessory |
 | 呪飼いの鎖 | CORE_CURSE_KEEPER | +3 to all stats for each equipped curse | Accessory |
-| 巨人殺し | CORE_GIANT_SLAYER | +30% damage dealt to enemies with higher maxHP than self | Weapon |
-| 守護者殺し | CORE_MILESTONE_BREAKER | +25% damage dealt to milestone bosses | Weapon |
 | 反撃の棘 | CORE_THORN_SHIELD | 30% chance to counterattack at 50% power when hit | Shield |
 | 執行人 | CORE_EXECUTIONER | Before each attack, 35% chance to poison the target; 1.4× damage dealt to enemies with status ailments | Weapon |
 | 薄氷の誓約 | CORE_THIN_ICE_PACT | At HP ≤50%, +35% damage dealt and +20% damage taken | Armor |
+
+The following numeric effects are Support, not Core. Their rarity values are
+`magic / rare / epic`; they never preserve the retired Core guarantee or
+multiplier.
+
+| Name | id | Effect | Values | Slot |
+|------|----|------|--------|------|
+| 窮地の猛攻 | `lowHpDamage` | HP ≤40%で与ダメージ増加 | +10 / +12 / +15% | Weapon |
+| 先手連撃 | `firstStrikeFollowUp` | 先制成功時に追撃率を加算 | +15 / +20 / +25% | Accessory |
+| 物理命中 | `physicalAccuracy` | 回避対象への物理命中率を加算 | +5 / +8 / +10% | Weapon |
+| 巨体狙い | `highHpTargetDamage` | 自分より最大HPが高い敵への与ダメージ増加 | +10 / +12 / +15% | Weapon |
+| 守護者狙い | `bossDamage` | 階層守護者への与ダメージ増加 | +10 / +12 / +15% | Weapon |
 
 “First strike” in this game refers to speed-based preemptive action: only when acting before the enemy in round 1
 does `combatFirstStrikeActive` become active, and it disappears at the end of the round.
@@ -205,12 +212,13 @@ Trial.
 - basic (migrated from existing effects in Phase 1): str/int/pie/vit/agi/luk, hp/mp, atk/def,
   antiUndead/antiDragon/antiDemon, poisonWard, spellGuard, trapBonus, trapGuard,
   treasureSense, arcaneSense, hearRange, traceRead, followUp, spellPower,
-  arcane, devotion, guardian, firstStrike
+  arcane, devotion, guardian, firstStrike, physicalAccuracy
 - conditional (Phase 2): deepAssault (attack+ from B3F onward) / frontGuard /
   rearEvasion / fullHpDamage / firstTurnAttack / antiBeast / antiSpirit /
-  firstStrikeDefense / lastSurvivorStats / statusResistance / spellAccuracy
+  firstStrikeDefense / lastSurvivorStats / statusResistance / spellAccuracy /
+  lowHpDamage / highHpTargetDamage / bossDamage
 - trigger (Phase 2/3): killHeal / followUpMp / hitFlinch / poisonAtk / bleedingAtk /
-  victoryMaterial / stairsHeal
+  victoryMaterial / stairsHeal / firstStrikeFollowUp
 - economy (Phase 3): identifyDiscount / materialFind / contractReward
 
 `materialFind` / `contractReward` obtain the equipment values of 1 solo character via
@@ -439,17 +447,17 @@ is the source of truth for the B1–B30 role weights: 75/20/5, 60/30/10,
 authored ratios are soft discovery bands rather than hard unlocks. Candidate
 bases are also explicit through B30 and keep earlier items eligible at depth.
 
-The current Core registry is intentionally not capped. Its role audit is:
+The current Core registry has exactly 13 enabled entries. Its role audit is:
 
-- Reinforce: 背水, 先手必勝, 必中, 浄化の環.
+- Reinforce: 浄化の環.
 - Convert: 血杖, 罠喰い, 呪飼いの鎖, 反撃の棘, 薄氷の誓約, 盗掘王, 野営の達人.
-- Pivot: 巨人殺し, 守護者殺し, 執行人, 忍び足, 慧眼, 賞金稼ぎ, 学者の眼.
+- Pivot: 執行人, 忍び足, 慧眼, 賞金稼ぎ, 学者の眼.
 
 The current Core axis audit is explicit in each registry entry's `buildAxis`:
 
-- Main axis: 背水, 先手必勝, 血杖, 罠喰い, 呪飼いの鎖, 巨人殺し, 反撃の棘,
+- Main axis: 血杖, 罠喰い, 呪飼いの鎖, 反撃の棘,
   執行人, 薄氷の誓約, 忍び足, 盗掘王, 野営の達人.
-- Auxiliary axis: 必中, 浄化の環, 守護者殺し, 慧眼, 賞金稼ぎ, 学者の眼.
+- Auxiliary axis: 浄化の環, 慧眼, 賞金稼ぎ, 学者の眼.
 - Support axis: every entry in `SUPPORT_AFFIXES`.
 
 This is a role label for supply and observation, not an activation limit.
@@ -462,8 +470,22 @@ Production telemetry exposes this distinction as `equipment_decision.buildDecisi
 and emits a separate `build_shift` event only for the Main Core axis change.
 The event is an observation boundary, not a new build rule.
 
-- Core evaluation rule: **an unconditional +15% equivalent is the upper limit when converted by expected uptime**.
-  Example: 背水 +40% × 20% uptime ≈ +8% effective.
+### Core ownership cleanup (#1075)
+
+The current ownership split is **9 Main Core entries, 4 Auxiliary Core
+entries, and 53 Support entries**. `CORE_LAST_STAND`, `CORE_OPENER`,
+`CORE_PHYSICAL_ACCURACY`, `CORE_GIANT_SLAYER`, and `CORE_MILESTONE_BREAKER`
+are historical IDs only; they are absent from the active registry, Workshop
+grants, Core loot candidates, UI Core grouping, telemetry Core dimensions, and
+the canonical simulator. Their five concepts are supplied by the Support
+entries above with bounded numeric/probability values. No save migration is
+performed: old raw records are ignored by active effect, UI, and telemetry
+classification.
+
+- Core evaluation rule: retained Core entries own resource exchange, path,
+  target, or meaning-changing mechanics. Numeric reinforcement belongs to
+  Support and uses the active registry value; migrated Support values must not
+  inherit the retired Core magnitudes.
 - Only 1 tuning knob: `AFFIX_BALANCE` (cost / budget / role composition /
   curse rate / polish cost). Do not hardcode numbers
   on the hook side.
@@ -495,7 +517,9 @@ The event is an observation boundary, not a new build rule.
 
 - Measure expected core uptime → adjust `AFFIX_BALANCE` (pending live-play data).
 - When implementing the fatigue system: consider adding the 「疲労中ペナルティ半減」 support affix.
-- The codex core discovery record (17-type collection display) is not implemented — use a separate Issue if implementing it.
+- The codex core discovery record (17-type collection display) is a
+  historical target and is not implemented; the current registry has 13 Core
+  entries. Use a separate Issue if implementing a current collection display.
 
 ## Returned equipment is history, not next-run gear (#1011)
 

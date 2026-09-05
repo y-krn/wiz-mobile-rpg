@@ -21,13 +21,10 @@ const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, 
 // standalone loot generation and tests.
 const WORKSHOP_LOCKED_AFFIX_IDS = new Set([
   "CORE_BLOOD_WAND",
-  "CORE_OPENER",
   "CORE_TRAP_EATER",
-  "CORE_GIANT_SLAYER",
   "CORE_THORN_SHIELD",
   "CORE_TOMB_RAIDER",
   "CORE_SCHOLAR_EYE",
-  "CORE_MILESTONE_BREAKER",
   "CORE_THIN_ICE_PACT"
 ]);
 
@@ -35,13 +32,9 @@ const WORKSHOP_LOCKED_AFFIX_IDS = new Set([
 // side-grade therefore replaces one authored baseline possibility instead of
 // diluting every existing core's chance by adding another candidate.
 const WORKSHOP_LATERAL_REPLACEMENTS = new Map([
-  ["CORE_BLOOD_WAND", "CORE_LAST_STAND"],
-  ["CORE_OPENER", "CORE_PURIFY_RING"],
   ["CORE_TRAP_EATER", "CORE_CURSE_KEEPER"],
-  ["CORE_GIANT_SLAYER", "CORE_PHYSICAL_ACCURACY"],
   ["CORE_TOMB_RAIDER", "CORE_BOUNTY_HUNTER"],
   ["CORE_SCHOLAR_EYE", "CORE_KEEN_EYE"],
-  ["CORE_MILESTONE_BREAKER", "CORE_GIANT_SLAYER"],
   ["CORE_THIN_ICE_PACT", "CORE_SNEAK_STEP"]
 ]);
 
@@ -349,6 +342,10 @@ export function generateRandomEquipment(floor, options) {
   }
   if (baseItem.type === "weapon") {
     addAffix(2, "fullHpDamage", () => getSupportValueByRarity("fullHpDamage", rarity), 2);
+    addAffix(2, "lowHpDamage", () => getSupportValueByRarity("lowHpDamage", rarity), 2);
+    addAffix(2, "highHpTargetDamage", () => getSupportValueByRarity("highHpTargetDamage", rarity), 1);
+    addAffix(2, "bossDamage", () => getSupportValueByRarity("bossDamage", rarity), 1);
+    addAffix(2, "physicalAccuracy", () => getSupportValueByRarity("physicalAccuracy", rarity), 1);
     addAffix(1, "firstTurnAttack", () => getSupportValueByRarity("firstTurnAttack", rarity), 2);
     addAffix(2, "antiBeast", () => getSupportValueByRarity("antiBeast", rarity), 1);
     addAffix(2, "antiSpirit", () => getSupportValueByRarity("antiSpirit", rarity), 1);
@@ -519,6 +516,7 @@ export function generateRandomAccessory(floor, options) {
     { type: "traceRead", getVal: () => getSupportValueByRarity("traceRead", rarity), weight: 2 },
     { type: "deepAssault", getVal: () => getSupportValueByRarity("deepAssault", rarity), weight: availableWeight(3, 2) },
     { type: "fullHpDamage", getVal: () => getSupportValueByRarity("fullHpDamage", rarity), weight: availableWeight(2, 2) },
+    { type: "firstStrikeFollowUp", getVal: () => getSupportValueByRarity("firstStrikeFollowUp", rarity), weight: availableWeight(2, 2) },
     { type: "antiBeast", getVal: () => getSupportValueByRarity("antiBeast", rarity), weight: availableWeight(2, 1) },
     { type: "antiSpirit", getVal: () => getSupportValueByRarity("antiSpirit", rarity), weight: availableWeight(2, 1) },
     { type: "lastSurvivorStats", getVal: () => getSupportValueByRarity("lastSurvivorStats", rarity), weight: availableWeight(3, 1) },

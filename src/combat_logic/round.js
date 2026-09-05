@@ -28,8 +28,7 @@ import {
   recordReceivedDamage,
   applyKillAffixEffects,
   tryApplyHitFlinch,
-  tryThornCounter,
-  logCoreActivation
+  tryThornCounter
 } from "./damage.js";
 import { getMpWardDef } from "./mp_ward.js";
 import {
@@ -75,7 +74,6 @@ import { resolveBossAction } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
 import { resolvePlayerSpell } from "./spell_resolution.js";
 import {
-  getCharCoreParams,
   getFollowUpChance,
   getStatusEffectChance,
   tryApplyExecutionerSetup
@@ -763,18 +761,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // followUp (追撃)
           if (!isBlindMiss && finalTarget.hp > 0) {
-            const opener = char.combatFirstStrikeActive
-              ? getCharCoreParams(char, "CORE_OPENER")
-              : null;
             const followUpChance = getFollowUpChance(
               char,
               getCharAffixSum(char, "followUp"),
               char.combatFirstStrikeActive
             );
             if (followUpChance > 0 && Math.random() * 100 < followUpChance) {
-              if (opener) {
-                logCoreActivation(state, logQueue, char, "CORE_OPENER", { once: false });
-              }
               const followUpDmgRand = rollCharWeaponPhysicalRandom(char);
               const firstTurnAttack = roundNumber === 1 ? getCharAffixSum(char, "firstTurnAttack") : 0;
               const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;

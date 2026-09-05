@@ -1361,15 +1361,69 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 
 Use the repository review output format from `.agents/README.md`.
 
-## Issue #679 Phase 1 — enabled core/SUPPORT reachability inventory (2026-08-23)
+## Issue #1075 current Core/Support registry and simulation boundary
 
-This is a measurement record, not gameplay canon. The source registry is authoritative: **18 enabled cores** and **47 enabled SUPPORT affixes**; this reconciles with the current assertions in `scratch/tests/unit/test_affixes.js` and `scratch/tests/unit/test_core_affixes.js` (support categories 26 basic / 11 conditional / 7 trigger / 3 economy). No registry values, enable flags, or production wiring were changed.
+This is the current source contract for Core ownership and reachability. The
+active registry contains **13 enabled Cores** (9 Main and 4 Auxiliary) and
+**53 enabled Support affixes**. The five former numeric Core concepts are
+represented by bounded Support entries: `lowHpDamage`,
+`firstStrikeFollowUp`, `physicalAccuracy`, `highHpTargetDamage`, and
+`bossDamage`. Their former `CORE_*` IDs are not active dimensions.
+
+The canonical simulator derives its Core and Support dimensions from the
+enabled source registries. It records the five migrated concepts in the
+Support snapshot and Support reachability counters, while retained Cores are
+measured by their active IDs. No retired ID may appear in Core slots, loot
+candidates, UI grouping, telemetry, or simulator output. A #1075 measurement
+must use the production-backed runner after committing the change, with a
+clean tree and provenance fields captured by
+`scratch/measurements/measurement_provenance.js`; raw stdout remains temporary
+and untracked.
+
+The #1075 coverage run used
+`SIM_SEED=231 SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 SIM_SCENARIOS=workshop-complete SIM_CORE_WORKSHOP_GATE=off node scratch/simulations/sim_depth_material_ev.js`.
+It ran from source/runner commit `ee9e2d923d06b32c406d9fba5871f67c8fba0b15`
+against gameplay base `8461d8a38c80a2921ed1f7dec81957e4d6dd0053` with
+`originMainAncestor=true`, `workingTreeClean=true`, and
+`staleTreeAllowed=false`. The measurement runner diff SHA-256 was
+`0f0501b37f23dbaaf6c7f08a2f82cc785f7e5484d2a81d263c66ffb2318a577d`; the
+temporary stdout SHA-256 was
+`1e165a1ae511c40fc71f2bb6a109de0cf256fc191b519d6ef7b37ac92ffc3f94`.
+The emitted reachability map contained 66 active dimensions (13 Core / 53
+Support) and no retired Core ID. Its migrated Support rows were:
+
+| migrated Support | R/C/E/Q/A |
+| --- | ---: |
+| `lowHpDamage` | 4/4/0/0/0 |
+| `firstStrikeFollowUp` | 2/2/1/0/0 |
+| `physicalAccuracy` | 3/3/0/0/0 |
+| `highHpTargetDamage` | 0/0/0/0/0 |
+| `bossDamage` | 0/0/0/0/0 |
+
+The zero rows are finite-run observations, not source-wiring failures; direct
+generation and rule tests cover those Support paths.
+
+The inventory below is a **historical #679 measurement** from the previous
+18-Core/47-Support registry. Its rows, counts, hashes, and output are retained
+for provenance only and are superseded by the current #1075 contract above.
+
+## Issue #679 Phase 1 — enabled core/SUPPORT reachability inventory (historical; superseded by #1075, 2026-08-23)
+
+This is a historical measurement record, not current gameplay canon. At the
+pinned #679 source snapshot, the registry had **18 enabled cores** and **47
+enabled SUPPORT affixes**; those counts and the retired IDs in the tables
+below no longer reconcile with the current assertions. No registry values,
+enable flags, or production wiring were changed by #679.
 
 ### Classification correction (2026-08-23)
 
 This correction supersedes the SUPPORT classification in the [prior completion record](https://github.com/y-krn/wiz-mobile-rpg/issues/679#issuecomment-5384541391). The raw measurements, recorded/acquired reward counts, Wilson intervals, provenance hashes, and simulator output are unchanged; only the interpretation/status labels and funnel label were corrected. The corrected aggregate is **CORE A11/B0/C3/D4** and **SUPPORT A0/B0/C47/D0** (combined **A11/B0/C50/D4**).
 
-Classification rule: a missing per-mechanism simulator probe is **C/sim-missing even when equipped N<30**. **D** applies only when the required runtime observation probe exists but equipped N<30. Therefore every SUPPORT row below is C/sim-missing because the current simulator has no per-SUPPORT condition/application probe.
+Classification rule at the historical #679 snapshot: a missing per-mechanism
+simulator probe was **C/sim-missing even when equipped N<30**. **D** applied
+only when the required runtime observation probe existed but equipped N<30.
+Therefore every SUPPORT row below was C/sim-missing because that pinned
+simulator had no per-SUPPORT condition/application probe.
 
 ### Measurement path and provenance
 
