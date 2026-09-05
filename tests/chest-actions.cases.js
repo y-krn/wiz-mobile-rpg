@@ -11,7 +11,7 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
 
   // 1. Initial State Setup (No trap: direct opening is deterministic)
   await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
+    const { state, createDefaultCurrentRun } = await import('/src/state.js');
     const { setupChestState } = await import('/src/chest.js');
     
     state.party = [
@@ -25,6 +25,8 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
         equipment: { weapon: null, shield: null, armor: null }
       }
     ];
+    state.currentRun = createDefaultCurrentRun();
+    state.gameState = 'explore';
     // Force transition to chest menu
     setupChestState("none", null, "HEAL_POTION");
   });
@@ -40,15 +42,29 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
       hasChest: Boolean(state.chestState),
       menuType: menuContext.type,
       potionCount: state.inventory.filter(item => item === 'HEAL_POTION').length,
+      pending: Boolean(state.currentRun?.pendingRewardBundle),
     };
   })).toEqual({
-    gameState: 'explore',
-    transitioning: false,
-    hasChest: false,
-    menuType: 'chest_result',
-    potionCount: 1,
-  });
+      gameState: 'submenu',
+      transitioning: false,
+      hasChest: false,
+      menuType: 'pending_rewards',
+      potionCount: 0,
+      pending: true,
+    });
   await expect(page.getByText('宝箱を開けるキャラクターを選択：')).toHaveCount(0);
+  await page.locator('.pending-reward-card').getByRole('button', { name: '持つ', exact: true }).click();
+  await page.locator('#btn-pending-reward-confirm').click();
+  await expect.poll(async () => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { menuContext } = await import('/src/navigation.js');
+    return {
+      gameState: state.gameState,
+      menuType: menuContext.type,
+      potionCount: state.inventory.filter(item => item === 'HEAL_POTION').length,
+      pending: Boolean(state.currentRun?.pendingRewardBundle),
+    };
+  })).toEqual({ gameState: 'explore', menuType: '', potionCount: 1, pending: false });
 
   // 3. A trapped chest enters disarm resolution directly from the chest menu.
   await page.evaluate(async () => {
@@ -68,8 +84,21 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
   await expect(page.getByText('罠を解除するキャラクターを選択：')).toHaveCount(0);
   await expect.poll(async () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
-    return { gameState: state.gameState, transitioning: state.transitioning, hasChest: Boolean(state.chestState) };
-  }), { timeout: 5000 }).toEqual({ gameState: 'explore', transitioning: false, hasChest: false });
+    const { menuContext } = await import('/src/navigation.js');
+    return {
+      gameState: state.gameState,
+      transitioning: state.transitioning,
+      hasChest: Boolean(state.chestState),
+      menuType: menuContext.type,
+      pending: Boolean(state.currentRun?.pendingRewardBundle),
+    };
+  }), { timeout: 5000 }).toEqual({
+    gameState: 'submenu',
+    transitioning: false,
+    hasChest: false,
+    menuType: 'pending_rewards',
+    pending: true,
+  });
 
 });
 

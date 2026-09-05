@@ -1,4 +1,6 @@
 import { test, expect } from './fixtures/browser-health.js';
+import './dungeon-landmarks.cases.js';
+import './dungeon-chest.cases.js';
 
 const VIEWPORTS = [
   { width: 360, height: 800 },

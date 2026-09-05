@@ -860,10 +860,10 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     expect(detailNameMetrics.textOverflow, `detail name should not ellipsize on ${vp.name}`).toBe('clip');
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
 
-    console.log(`[ISSUE-715 AFTER] ${vp.width}x${vp.height} equipped rows remain available in the list screen; selected comparison is shown in the detail screen`);
+    console.log(`[equipment-comparison] ${vp.width}x${vp.height} equipped rows remain available in the list screen; selected comparison is shown in the detail screen`);
 
     await page.screenshot({
-      path: `output/playwright/issue-715-after-${vp.width}x${vp.height}.png`,
+      path: `output/playwright/equipment-comparison-${vp.width}x${vp.height}.png`,
       fullPage: true,
     });
   });
@@ -959,9 +959,9 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
       expect(box?.y + box?.height, `${await button.textContent()} should fit the viewport on ${vp.name}`).toBeLessThanOrEqual(vp.height);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
-    console.log(`[ISSUE-740 AFTER UNIDENTIFIED] ${vp.width}x${vp.height} ${JSON.stringify(unidentifiedMetrics)}`);
+    console.log(`[equipment-identification-unidentified] ${vp.width}x${vp.height} ${JSON.stringify(unidentifiedMetrics)}`);
     await page.screenshot({
-      path: `output/playwright/issue-740-after-unidentified-${vp.width}x${vp.height}.png`,
+      path: `output/playwright/equipment-identification-unidentified-${vp.width}x${vp.height}.png`,
       fullPage: true,
     });
 
@@ -988,7 +988,7 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     });
     expect(comparisonMetrics.gridVisibleRatio, `comparison grid should be fully visible on ${vp.name}`).toBe(1);
     expect(comparisonMetrics.contentScrollTop, `comparison should not require content scrolling on ${vp.name}`).toBe(0);
-    console.log(`[ISSUE-740 AFTER IDENTIFIED] ${vp.width}x${vp.height} ${JSON.stringify(comparisonMetrics)}`);
+    console.log(`[equipment-identification-identified] ${vp.width}x${vp.height} ${JSON.stringify(comparisonMetrics)}`);
 
     const backButton = page.getByRole('button', { name: '一覧へ戻る' });
     await expect(backButton).toBeVisible();

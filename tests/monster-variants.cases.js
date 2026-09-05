@@ -44,7 +44,7 @@ async function setupCombatScene(page) {
 
 test('Zombie visual variants stay deterministic and readable on a mobile canvas @visual', async ({ page }) => {
   await setupCombatScene(page);
-  await page.screenshot({ path: 'output/playwright/issue-710-monsters-after.png', fullPage: true });
+  await page.screenshot({ path: 'output/playwright/monster-variants-after.png', fullPage: true });
 
   const metrics = await page.evaluate(async (monsters) => {
     const { dungeonRenderer } = await import('/src/renderer.js');
@@ -137,13 +137,13 @@ test('Zombie visual variants stay deterministic and readable on a mobile canvas 
     dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
     return { before, after };
   });
-  console.log(`[issue-710-performance] before=${JSON.stringify(timing.before)} after=${JSON.stringify(timing.after)}`);
+  console.log(`[monster-variants-performance] before=${JSON.stringify(timing.before)} after=${JSON.stringify(timing.after)}`);
   expect(timing.after.p50Ms).toBeLessThanOrEqual(timing.before.p50Ms + 0.02);
 
   await page.evaluate(() => {
     document.documentElement.style.filter = 'grayscale(1)';
   });
-  await page.screenshot({ path: 'output/playwright/issue-710-monsters-monochrome.png', fullPage: true });
+  await page.screenshot({ path: 'output/playwright/monster-variants-monochrome.png', fullPage: true });
 
   await setupCombatScene(page);
   await page.evaluate(async () => {
@@ -151,5 +151,5 @@ test('Zombie visual variants stay deterministic and readable on a mobile canvas 
     dungeonRenderer.drawMonsterDetails = () => {};
     dungeonRenderer.draw();
   });
-  await page.screenshot({ path: 'output/playwright/issue-710-monsters-before.png', fullPage: true });
+  await page.screenshot({ path: 'output/playwright/monster-variants-before.png', fullPage: true });
 });

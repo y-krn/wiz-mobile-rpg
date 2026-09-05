@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import './exploration-survey.cases.js';
 import { VIEWPORTS, startSoloRun, beginPendingOutcomePlayback } from './ui-ux-helpers.js';
 test('Three-column corridor renderer draws adjacent front walls', async ({ page }) => {
   await page.goto('/');
@@ -990,7 +991,7 @@ for (const vp of VIEWPORTS) {
 }
 
 for (const vp of VIEWPORTS) {
-  test(`Startup combat resume fails closed for unusable party at ${vp.width}x${vp.height}`, async ({ page }) => {
+  test(`Startup combat resume advances an incapacitated party safely at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
 
@@ -1085,14 +1086,14 @@ for (const vp of VIEWPORTS) {
         savedGameState: 'explore',
         savedCombatPhase: null,
       },
-      ...['sleep', 'paralyze', 'paralyzed'].map(status => ({
+      ...['sleep', 'paralyze', 'paralyzed'].map(() => ({
         gameState: 'combat',
-        combatPhase: 'choose_actions',
-        partyStatus: status,
+        combatPhase: 'resolving',
+        partyStatus: 'ok',
         hasCombat: true,
         hasStructurallyUsableCombatParty: true,
         partyLength: 1,
-        hasUsableCombatActor: false,
+        hasUsableCombatActor: true,
         savedGameState: 'combat',
         savedCombatPhase: 'choose_actions',
       })),
