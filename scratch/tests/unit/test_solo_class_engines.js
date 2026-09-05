@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
-import { getCharAffixSum, getCharDerivedStats, getCharTrapBonus } from "../../../src/data.js";
+import { getCharAffixSum, getCharDerivedStats } from "../../../src/data.js";
 import { applyKillAffixEffects, getMeleeModifiers } from "../../../src/combat_logic/damage.js";
 import { getMpWardDef } from "../../../src/combat_logic/round.js";
-import { CLASS_PASSIVES } from "../../../src/data/classes.js";
 import { getClassPassiveBonus } from "../../../src/rules/class_rules.js";
 import { applyTrapGuardToEffect } from "../../../src/rules/trap_effect_rules.js";
 import { calculateChestDisarmChance } from "../../../src/rules/trap_rules.js";
@@ -76,43 +75,30 @@ test("盗賊は技巧を35%回避へ転用する", () => {
   assert.equal(getCharAffixSum(thief, "evasion"), 35);
 });
 
-test("盗賊の罠パッシブは呼び出し元の罠解除率へ届く", () => {
+test("探索判定はクラス・レベルではなくBuild補正を使う", () => {
   const thief = createSoloCharacter("Thief");
-  const passive = CLASS_PASSIVES.Thief.bonuses;
-  const originalTrapBonus = passive.trapBonus;
-
-  try {
-    const withPassive = getCharDerivedStats(thief, { floor: 5 }).trap;
-    const chestWithPassive = calculateChestDisarmChance({
-      className: thief.class,
-      trapBonus: getCharTrapBonus(thief)
-    });
-    assert.equal(getCharAffixSum(thief, "trapBonus"), 15);
-
-    passive.trapBonus = 0;
-    const withoutPassive = getCharDerivedStats(thief, { floor: 5 }).trap;
-    const chestWithoutPassive = calculateChestDisarmChance({
-      className: thief.class,
-      trapBonus: getCharTrapBonus(thief)
-    });
-
-    assert.equal(withPassive, 88);
-    assert.equal(withoutPassive, 73);
-    assert.equal(withPassive - withoutPassive, 15);
-    assert.ok(Math.abs(chestWithPassive - chestWithoutPassive - 0.15) < 1e-12);
-  } finally {
-    passive.trapBonus = originalTrapBonus;
-  }
+  const fighter = createSoloCharacter("Fighter");
+  assert.equal(getCharAffixSum(thief, "trapBonus"), 0);
+  assert.equal(getCharDerivedStats(thief, { floor: 5 }).trap, 64);
+  assert.equal(getCharDerivedStats(fighter, { floor: 5 }).trap, 64);
+  assert.equal(calculateChestDisarmChance({ className: thief.class }), 0.25);
+  assert.equal(calculateChestDisarmChance({ className: fighter.class }), 0.25);
 });
 
-test("戦士と魔術師は罠被害を職業passiveで軽減する", () => {
-  assert.equal(getCharAffixSum(createSoloCharacter("Fighter"), "trapGuard"), 40);
-  assert.equal(getCharAffixSum(createSoloCharacter("Mage"), "trapGuard"), 60);
+test("trapGuardは職業passiveではなくHPダメージだけを軽減する", () => {
+  assert.equal(getCharAffixSum(createSoloCharacter("Fighter"), "trapGuard"), 0);
+  assert.equal(getCharAffixSum(createSoloCharacter("Mage"), "trapGuard"), 0);
   const effect = applyTrapGuardToEffect(
-    { targetDamage: 12, partyDamage: [10, 10] },
+    { targetDamage: 12, partyDamage: [10, 10], partyMpDrain: [4, 5], partyBlind: [true, false], teleported: true },
     { trapGuardByParty: [40, 50], targetIndex: 0 }
   );
-  assert.deepEqual(effect, { targetDamage: 7, partyDamage: [6, 5] });
+  assert.deepEqual(effect, {
+    targetDamage: 7,
+    partyDamage: [6, 5],
+    partyMpDrain: [4, 5],
+    partyBlind: [true, false],
+    teleported: true
+  });
 });
 
 // #267: 後衛の火力窓とMP連動障壁

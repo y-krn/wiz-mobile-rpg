@@ -22,14 +22,14 @@ function lcg(seed) {
   };
 }
 
-assert.strictEqual(SUPPORT_AFFIXES.length, 47, "support registry count");
-assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 47, "enabled support count");
+assert.strictEqual(SUPPORT_AFFIXES.length, 48, "support registry count");
+assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 48, "enabled support count");
 assert.deepStrictEqual(
   Object.fromEntries(["basic", "conditional", "trigger", "economy"].map(category => [
     category,
     SUPPORT_AFFIXES.filter(affix => affix.category === category).length
   ])),
-  { basic: 26, conditional: 11, trigger: 7, economy: 3 }
+  { basic: 27, conditional: 11, trigger: 7, economy: 3 }
 );
 SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.kind, "support");
@@ -223,6 +223,18 @@ for (const [generator, floor] of trapBonusValues) {
     const deep = findGeneratedAffix(generator, 5, "trapBonus", 5000, rarity);
     assert.strictEqual(shallow?.affix.value, getSupportValueByRarity("trapBonus", rarity), `trapBonus ${rarity} on B${floor}`);
     assert.strictEqual(deep?.affix.value, shallow?.affix.value, `trapBonus ${rarity} is floor-independent`);
+  }
+}
+
+for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
+  for (const rarity of ["magic", "rare", "epic"]) {
+    const generated = findGeneratedAffix(generator, 2, "trapGuard", 5000, rarity);
+    assert.ok(generated, `${generator.name} should offer trapGuard (${rarity})`);
+    assert.strictEqual(
+      generated.affix.value,
+      getSupportValueByRarity("trapGuard", rarity),
+      `${generator.name} trapGuard ${rarity} value`
+    );
   }
 }
 

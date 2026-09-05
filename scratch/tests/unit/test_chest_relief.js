@@ -739,7 +739,7 @@ await test("致死的な通常解除失敗は未確定の宝箱報酬を失っ�
   const originalSetTimeout = global.setTimeout;
   global.setTimeout = callback => { callback(); return 0; };
   try {
-    // Ninja's 70% disarm boundary fails; the full trap then deals lethal damage.
+    // The universal 25% chest disarm boundary fails; the full trap then deals lethal damage.
     state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
     executeDisarm(doomed, sequence([0.70, 0, 0, 0, 0]));
   } finally {
@@ -781,21 +781,29 @@ await test("キットは1個消費して確定解除し、解除数を増やさ�
   assert.equal(state.currentRun.trapsDisarmed, 4);
 });
 
-await test("忍者の解除率は0.70", () => {
+await test("罠なし宝箱ではキットを消費しない", () => {
+  resetChest({ trap: "none" });
+  state.inventory = ["TRAP_KIT"];
+  assert.equal(useTrapKit(), false);
+  assert.deepEqual(state.inventory, ["TRAP_KIT"]);
+  assert.equal(state.chestState.trap, "none");
+});
+
+await test("宝箱解除率はクラスによらず0.25", () => {
   const originalSetTimeout = global.setTimeout;
   global.setTimeout = () => 0;
   try {
     const successNinja = makeCharacter("Ninja", "Success Ninja");
     resetChest({ trap: "poison needle", party: [successNinja] });
     state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
-    executeDisarm(successNinja, () => 0.699);
+    executeDisarm(successNinja, () => 0.249);
     assert.equal(state.currentRun.trapsDisarmed, 1);
     assert.equal(state.currentRun.trapsTriggered, 0);
 
     const failedNinja = makeCharacter("Ninja", "Failed Ninja");
     resetChest({ trap: "poison needle", party: [failedNinja] });
     state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
-    executeDisarm(failedNinja, () => 0.70);
+    executeDisarm(failedNinja, () => 0.25);
     assert.equal(state.currentRun.trapsDisarmed, 0);
     assert.equal(state.currentRun.trapsTriggered, 1);
   } finally {

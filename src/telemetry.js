@@ -11,12 +11,12 @@ import {
   getCharStr,
   getCharVit
 } from "./rules/character_stats.js";
-import { getCharAffixSum, getItemBaseId, getItemData } from "./rules/item_rules.js";
+import { getCharAffixSum, getItemBaseId, getItemData, getPartyMaxAffix } from "./rules/item_rules.js";
 import { CLASSES } from "./data/classes.js";
 import { ITEMS } from "./data/items.js";
 import { MONSTERS } from "./data/monsters.js";
 import { SPELLS } from "./data/spells.js";
-import { getAffixDefinition, LOOT_BUILD_ROLES } from "./data/affixes.js";
+import { CORE_AFFIXES, getAffixDefinition, LOOT_BUILD_ROLES } from "./data/affixes.js";
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
@@ -50,7 +50,10 @@ const SNAPSHOT_STAT_KEYS = [
   "spellPower",
   "devotion",
   "treasureSense",
-  "trapBonus"
+  "trapBonus",
+  "trapGuard",
+  "hearRange",
+  "traceRead"
 ];
 const SAFE_STATUSES = new Set(["ok", "poisoned", "blind", "paralyzed", "paralyze", "sleep", "dead", "ash"]);
 const SAFE_CELL_TYPES = new Set(["empty", "floor", "stairs-up", "stairs-down", "pitfall", "room"]);
@@ -91,7 +94,8 @@ const SAFE_VULNERABLE_HIT_TYPES = new Set(["physical", "spell"]);
 const SAFE_COMPARISON_STAT_KEYS = new Set([
   "attack", "defense", "maxHp", "maxMp", "str", "int", "pie", "vit", "agi", "luk",
   "magic", "healing", "speed", "trap", "treasure", "spellGuard", "antiDragon",
-  "antiUndead", "firstStrike", "poisonWard", "poisonAtk"
+  "antiUndead", "firstStrike", "poisonWard", "poisonAtk", "trapBonus", "trapGuard",
+  "treasureSense", "hearRange", "traceRead", "arcaneSense"
 ]);
 const SAFE_RETURN_REASONS = new Set([
   "gameover",
@@ -110,6 +114,17 @@ const SAFE_CHEST_REWARD_ROLES = new Set(["main", "special", "accessory"]);
 const SAFE_CHEST_REWARD_CATEGORIES = new Set(Object.keys(CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY));
 const SAFE_CHEST_ACTIONS = new Set(["open", "leave", "disarm", "trap_kit", "smash"]);
 const SAFE_CHEST_TRAPS = new Set(["none", "poison needle", "gas bomb", "teleporter", "flash bomb"]);
+const SAFE_TRAP_OUTCOMES = new Set(["observed", "disarmed", "avoided", "triggered"]);
+const SAFE_TRAP_SOURCES = new Set(["floor", "chest", "flame"]);
+const SAFE_TRAP_ACTIONS = new Set([
+  "detect", "inspect", "disarm", "force", "move", "trap_kit", "open", "smash", "leave", "trigger", "hidden"
+]);
+const SAFE_TRAP_TYPES = new Set([
+  "none", "damage", "mpDrain", "alarm", "pitfall",
+  "poison needle", "gas bomb", "teleporter", "flash bomb"
+]);
+const SAFE_TRAP_TOOL_IDS = new Set(["TRAP_KIT", "TRAP_SENSE_STONE"]);
+const SAFE_CORE_IDS = new Set(CORE_AFFIXES.map(affix => affix.id));
 const SAFE_CHEST_AURAS = new Set(["weak", "medium", "strong"]);
 const SAFE_BUILD_ROLES = new Set(Object.values(LOOT_BUILD_ROLES));
 const SAFE_LOOT_STAGES = new Set([
@@ -490,6 +505,83 @@ export function buildDecisionContext({ state: stateSnapshot = null, character = 
   };
 }
 
+// Exploration telemetry deliberately omits class, level, and combat stats.
+// Those dimensions remain valid for combat events, but they must not become a
+// hidden permission or identity for universal exploration verbs.
+export function buildExplorationContext({ state: stateSnapshot = null, character = null } = {}) {
+  const actor = character || stateSnapshot?.party?.find(char => char?.hp > 0) || stateSnapshot?.party?.[0];
+  const player = buildPlayerSnapshot(actor, { floor: stateSnapshot?.floor ?? 1 });
+  const playerKeys = [
+    "hp", "maxHp", "mp", "maxMp", "hpRate", "mpRate", "status", "statuses", "statusCount",
+    "affixTrapBonus", "affixTrapGuard", "affixTreasureSense", "affixHearRange", "affixTraceRead",
+    "affixArcaneSense"
+  ];
+  return {
+    ...Object.fromEntries(playerKeys
+      .filter(key => Object.hasOwn(player, key))
+      .map(key => [key, player[key]])),
+    ...buildEquipmentSnapshot(actor),
+    ...buildResourceSnapshot(stateSnapshot),
+    ...buildEnvironmentSnapshot(stateSnapshot)
+  };
+}
+
+function safeExplorationContext(options) {
+  try {
+    return buildExplorationContext(options);
+  } catch {
+    return {};
+  }
+}
+
+function normalizeTrapType(trap) {
+  const type = typeof trap === "string" ? trap : trap?.type;
+  return normalizeStableValue(type || "none", SAFE_TRAP_TYPES);
+}
+
+function normalizeTrapSource(source) {
+  return normalizeStableValue(source, SAFE_TRAP_SOURCES);
+}
+
+function getExplorationCoreIds(party = []) {
+  const ids = [];
+  party.slice(0, MAX_ENEMY_SNAPSHOT).forEach(character => {
+    Object.values(character?.equipment || {}).forEach(itemKey => {
+      if (!itemKey || typeof itemKey !== "object" || !Array.isArray(itemKey.affixes)) return;
+      itemKey.affixes.forEach(affix => {
+        const definition = getAffixDefinition(affix);
+        if (affix?.kind !== "core" && definition?.kind !== "core") return;
+        const id = definition?.id || affix?.id || affix?.type;
+        ids.push(SAFE_CORE_IDS.has(id) ? id : "other");
+      });
+    });
+  });
+  return [...new Set(ids)].slice(0, MAX_AFFIX_SNAPSHOT);
+}
+
+function buildTrapBuildSnapshot(stateSnapshot, character) {
+  const party = Array.isArray(stateSnapshot?.party) ? stateSnapshot.party : [];
+  const actor = character || party.find(char => char?.hp > 0) || party[0] || null;
+  const maxAffix = type => getPartyMaxAffix(party, type);
+  const inventory = Array.isArray(stateSnapshot?.inventory) ? stateSnapshot.inventory : [];
+  const coreIds = getExplorationCoreIds(party);
+  return {
+    trapBonus: boundedFiniteOrNull(actor ? getCharAffixSum(actor, "trapBonus") : 0, -100, 100),
+    trapGuard: boundedFiniteOrNull(maxAffix("trapGuard"), 0, 100),
+    detectionSupport: boundedFiniteOrNull(maxAffix("traceRead"), 0, 100),
+    treasureSense: boundedFiniteOrNull(maxAffix("treasureSense"), -100, 100),
+    hearRange: boundedFiniteOrNull(maxAffix("hearRange"), 0, 100),
+    traceRead: boundedFiniteOrNull(maxAffix("traceRead"), 0, 100),
+    trapKitCount: boundedFiniteOrNull(inventory.filter(item => getSafeItemId(item) === "TRAP_KIT").length, 0, INVENTORY_CAPACITY),
+    availableToolIds: [...new Set(inventory
+      .map(item => getSafeItemId(item))
+      .filter(item => SAFE_TRAP_TOOL_IDS.has(item)))],
+    coreIds,
+    coreTrapEater: coreIds.includes("CORE_TRAP_EATER"),
+    coreTombRaider: coreIds.includes("CORE_TOMB_RAIDER")
+  };
+}
+
 export function normalizeEnemyId(name) {
   const normalized = String(name ?? "").replace(/\s[A-Z]$/, "").trim();
   return SAFE_ENEMY_IDS.has(normalized) ? normalized : "other";
@@ -756,7 +848,7 @@ export function trackLootLifecycle(stage, details = {}) {
   const summary = getUnbankedLootSummary(stateSnapshot);
   capture("loot_lifecycle", {
     runId,
-    ...safeDecisionContext({ state: stateSnapshot, character: details.character }),
+    ...safeExplorationContext({ state: stateSnapshot, character: details.character }),
     lifecycleStage: normalizedStage,
     lootSequence,
     itemId: getSafeItemId(details.itemKey),
@@ -782,7 +874,7 @@ export function trackStairsDiscovery(details = {}) {
   stairsStepByFloor.set(String(floor), boundedFiniteOrNull(details.stepsAtDiscovery));
   capture("stairs_discovered", {
     runId,
-    ...safeDecisionContext({ state: details.state, character: details.character }),
+    ...safeExplorationContext({ state: details.state, character: details.character }),
     floor,
     stairsType,
     stepsAtDiscovery: boundedFiniteOrNull(details.stepsAtDiscovery),
@@ -802,7 +894,7 @@ export function trackFloorExploration(details = {}) {
   exploredFloorKeys.add(key);
   capture("floor_exploration", {
     runId,
-    ...safeDecisionContext({ state: details.state, character: details.character }),
+    ...safeExplorationContext({ state: details.state, character: details.character }),
     floor,
     stepsBeforeStairs: boundedFiniteOrNull(details.stepsBeforeStairs ?? stairsStepByFloor.get(key)),
     stepsAfterStairs: boundedFiniteOrNull(
@@ -832,7 +924,7 @@ export function trackValuableLocation(locationType, action, details = {}) {
   if (hasSemanticEvent(semanticKey)) return;
   capture("valuable_location", {
     runId,
-    ...safeDecisionContext({ state: details.state, character: details.character }),
+    ...safeExplorationContext({ state: details.state, character: details.character }),
     floor,
     locationType: normalizedType,
     action: normalizedAction,
@@ -848,11 +940,11 @@ export function trackPortalDecision(decision, details = {}) {
   const summary = getUnbankedLootSummary(stateSnapshot);
   capture("portal_decision", {
     runId,
-    ...safeDecisionContext({ state: stateSnapshot, character: details.character }),
+    ...safeExplorationContext({ state: stateSnapshot, character: details.character }),
     portalType: normalizeStableValue(details.portalType, SAFE_PORTAL_TYPES),
     decision: normalizedDecision,
-    hpRate: boundedFiniteOrNull(details.hpRate ?? safeDecisionContext({ state: stateSnapshot, character: details.character }).hpRate, 0, 1),
-    mpRate: boundedFiniteOrNull(details.mpRate ?? safeDecisionContext({ state: stateSnapshot, character: details.character }).mpRate, 0, 1),
+    hpRate: boundedFiniteOrNull(details.hpRate ?? safeExplorationContext({ state: stateSnapshot, character: details.character }).hpRate, 0, 1),
+    mpRate: boundedFiniteOrNull(details.mpRate ?? safeExplorationContext({ state: stateSnapshot, character: details.character }).mpRate, 0, 1),
     freeInventorySlots: buildResourceSnapshot(stateSnapshot).inventoryFreeSlots,
     unbankedObjectLootCount: summary.count,
     unbankedObjectLootValueProxy: summary.valueProxy,
@@ -869,7 +961,7 @@ export function trackEliteDecision(decision, details = {}) {
   const elite = details.elite || details.monster || null;
   capture("elite_decision", {
     runId,
-    ...safeDecisionContext({ state: stateSnapshot, character: details.character, combat: details.combat }),
+    ...safeExplorationContext({ state: stateSnapshot, character: details.character }),
     floor: boundedFiniteOrNull(details.floor ?? elite?.floor ?? stateSnapshot?.floor),
     decision: normalizeStableValue(decision, SAFE_ELITE_DECISIONS),
     eliteId: normalizeEliteId(elite),
@@ -924,10 +1016,9 @@ export function trackChestAction(chest, action, details = {}) {
 
   capture("chest_action", {
     runId,
-    ...safeDecisionContext({
+    ...safeExplorationContext({
       state: details.state,
-      character: details.character,
-      combat: details.combat
+      character: details.character
     }),
     floor: boundedFiniteOrNull(details.floor),
     chestSource: chest?.fromDrop ? "fromDrop" : "ordinary",
@@ -944,6 +1035,51 @@ export function trackChestAction(chest, action, details = {}) {
       SAFE_CHEST_REWARD_CATEGORIES.size
     ),
     lootAura: normalizeOptionalStableValue(chest?.lootHint?.aura, SAFE_CHEST_AURAS)
+  });
+}
+
+export function trackTrapResolution(outcome, details = {}) {
+  if (!isTelemetryAvailable() || !runId) return;
+
+  const normalizedOutcome = normalizeStableValue(outcome, SAFE_TRAP_OUTCOMES);
+  const stateSnapshot = details.state || null;
+  const floor = boundedFiniteOrNull(details.floor ?? stateSnapshot?.floor);
+  const x = boundedFiniteOrNull(details.x ?? details.trap?.position?.x, 0, 1000);
+  const y = boundedFiniteOrNull(details.y ?? details.trap?.position?.y, 0, 1000);
+  const source = normalizeTrapSource(details.source);
+  const trapType = normalizeTrapType(details.trapType ?? details.trap);
+  const location = `${floor}:${x ?? "none"}:${y ?? "none"}`;
+  const semanticKey = `trap_resolution:${source}:${location}:${trapType}:${normalizedOutcome}`;
+  if (hasSemanticEvent(semanticKey)) return;
+
+  const build = buildTrapBuildSnapshot(stateSnapshot, details.character);
+  capture("trap_resolution", {
+    runId,
+    ...safeExplorationContext({ state: stateSnapshot, character: details.character }),
+    floor,
+    source,
+    trapType,
+    outcome: normalizedOutcome,
+    action: normalizeStableValue(details.action, SAFE_TRAP_ACTIONS),
+    successRate: boundedFiniteOrNull(details.successRate, 0, 100),
+    trapDifficulty: boundedFiniteOrNull(details.trap?.difficulty ?? details.trapDifficulty, 0, 1000),
+    partialSuccess: details.partialSuccess === undefined ? undefined : Boolean(details.partialSuccess),
+    identified: details.identified === undefined ? undefined : Boolean(details.identified),
+    x,
+    y,
+    toolId: normalizeOptionalStableValue(details.toolId, SAFE_TRAP_TOOL_IDS),
+    toolUsed: Boolean(details.toolUsed),
+    trapBonus: build.trapBonus,
+    trapGuard: build.trapGuard,
+    detectionSupport: build.detectionSupport,
+    treasureSense: build.treasureSense,
+    hearRange: build.hearRange,
+    traceRead: build.traceRead,
+    trapKitCount: build.trapKitCount,
+    availableToolIds: build.availableToolIds,
+    coreIds: build.coreIds,
+    coreTrapEater: build.coreTrapEater,
+    coreTombRaider: build.coreTombRaider
   });
 }
 
@@ -1192,7 +1328,7 @@ export function trackExplorationDecision(action, details = {}) {
   const spellTarget = spellId && spellId !== "other" ? SPELLS[spellId]?.target : null;
   capture("exploration_decision", {
     runId,
-    ...safeDecisionContext({ state: details.state, character: details.character }),
+    ...safeExplorationContext({ state: details.state, character: details.character }),
     action: normalizeDecisionAction(action),
     source: normalizeStableValue(details.source, SAFE_CELL_EVENTS),
     spellId,
@@ -1215,7 +1351,7 @@ export function trackEquipmentDecision(action, details = {}) {
     : "swap";
   capture("equipment_decision", {
     runId,
-    ...safeDecisionContext({ state: details.state, character: details.character }),
+    ...safeExplorationContext({ state: details.state, character: details.character }),
     action: normalizeDecisionAction(action),
     candidateId: getSafeItemId(details.candidateKey),
     currentEquipmentId: getSafeItemId(details.currentKey ?? preview.oldEq),
@@ -1234,7 +1370,7 @@ export function trackEquipmentDecision(action, details = {}) {
   if (buildDecision === "transition") {
     capture("build_shift", {
       runId,
-      ...safeDecisionContext({ state: details.state, character: details.character }),
+      ...safeExplorationContext({ state: details.state, character: details.character }),
       action: normalizeDecisionAction(action),
       fromBuildRole: currentBuildRole,
       toBuildRole: candidateBuildRole,
@@ -1249,7 +1385,7 @@ export function trackLoadoutTransaction(action, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
   capture("loadout_transaction", {
     runId,
-    ...safeDecisionContext({ state: details.state, character: details.character }),
+    ...safeExplorationContext({ state: details.state, character: details.character }),
     action: normalizeDecisionAction(action),
     equipmentChangeCount: boundedFiniteOrNull(details.equipmentChanges, 0, EQUIPMENT_SLOTS.length * 8),
     runeChangeCount: boundedFiniteOrNull(details.runeChanges, 0, EQUIPMENT_SLOTS.length * 8),

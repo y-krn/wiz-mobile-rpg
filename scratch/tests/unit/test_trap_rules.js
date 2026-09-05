@@ -1,7 +1,7 @@
 const {
-  isDisarmAptClass,
   calculateChestDisarmActionEv,
   calculateChestDisarmEvThreshold,
+  calculateChestDisarmChance,
   calculateDisarmRate,
   calculateFloorDisarmEvThreshold,
   calculateFloorTrapActionExpectedDamage,
@@ -10,8 +10,7 @@ const {
   CHEST_WEAKENED_RISK_MULTIPLIER,
   FORCE_DAMAGE_MULTIPLIER,
   PARTIAL_SUCCESS_BAND,
-  PITFALL_EDGE_BONUS,
-  SCOUT_TRAP_DAMAGE_MULTIPLIER
+  PITFALL_EDGE_BONUS
 } = await import("../../../src/rules/trap_rules.js");
 
 console.log("=== TRAP RULES VERIFICATION ===");
@@ -32,41 +31,31 @@ function assertClose(actual, expected, label) {
   console.log(`- ${label}: ${actual}`);
 }
 
-console.log("\n[1] Aptitude class detection:");
-for (const cls of ["Thief", "Ninja", "Ranger"]) {
-  assertEqual(isDisarmAptClass(cls), true, `${cls} is apt`);
-}
-for (const cls of ["Fighter", "Mage", "Priest", "Bishop", "Lord", "Samurai"]) {
-  assertEqual(isDisarmAptClass(cls), false, `${cls} is not apt`);
-}
+console.log("\n[1] Universal disarm rate:");
+assertEqual(calculateDisarmRate({ className: "Thief", level: 1, floor: 1 }), 85, "Thief-shaped caller B1");
+assertEqual(calculateDisarmRate({ className: "Fighter", level: 99, floor: 1 }), 85, "Fighter-shaped caller B1");
+assertEqual(calculateDisarmRate({ className: "Mage", level: 1, floor: 10 }), 37, "Mage-shaped caller B10");
+assertEqual(calculateDisarmRate({ className: "Ninja", level: 20, floor: 20 }), 5, "Ninja-shaped caller B20");
+assertEqual(calculateDisarmRate({ className: "Thief", level: 30, floor: 1, difficulty: 0 }), 95, "universal upper clamp");
+assertEqual(calculateDisarmRate({ className: "Thief", level: 1, floor: 60 }), 5, "universal lower clamp");
 
-console.log("\n[2] Disarm rate (apt):");
-assertEqual(calculateDisarmRate({ className: "Thief", level: 1, floor: 1 }), 81, "Thief lv1 B1");
-assertEqual(calculateDisarmRate({ className: "Thief", level: 10, floor: 10 }), 72, "Thief lv10 B10");
-assertEqual(calculateDisarmRate({ className: "Ninja", level: 20, floor: 20 }), 62, "Ninja lv20 B20");
-assertEqual(calculateDisarmRate({ className: "Thief", level: 30, floor: 1 }), 100, "apt upper clamp");
-assertEqual(calculateDisarmRate({ className: "Thief", level: 1, floor: 60 }), 20, "apt lower clamp");
-
-console.log("\n[3] Disarm rate (non-apt):");
-assertEqual(calculateDisarmRate({ className: "Fighter", level: 1, floor: 1 }), 41, "Fighter lv1 B1");
-assertEqual(calculateDisarmRate({ className: "Fighter", level: 10, floor: 10 }), 27, "Fighter lv10 B10");
-assertEqual(calculateDisarmRate({ className: "Mage", level: 20, floor: 20 }), 12, "Mage lv20 B20");
-assertEqual(calculateDisarmRate({ className: "Fighter", level: 60, floor: 1 }), 60, "non-apt upper clamp");
-assertEqual(calculateDisarmRate({ className: "Fighter", level: 1, floor: 30 }), 5, "non-apt lower clamp");
-
-console.log("\n[4] Affix bonus:");
+console.log("\n[2] Build bonus and chest chance:");
 assertEqual(
   calculateDisarmRate({ className: "Fighter", level: 1, floor: 1, affixBonus: 10 }),
-  51,
-  "Fighter lv1 B1 +10 affix"
+  95,
+  "universal B1 +10 affix"
 );
 assertEqual(
   calculateDisarmRate({ className: "Thief", level: 1, floor: 1, affixBonus: 50 }),
-  100,
+  95,
   "affix cannot exceed upper clamp"
 );
+assertEqual(calculateChestDisarmChance(), 0.25, "universal chest base chance");
+assertEqual(calculateChestDisarmChance({ className: "Thief" }), 0.25, "class-shaped chest caller is ignored");
+assertEqual(calculateChestDisarmChance({ trapBonus: 0.10 }), 0.35, "chest trapBonus");
+assertEqual(calculateChestDisarmChance({ className: "Fighter", blind: true }), 0.125, "blind halves universal chest chance");
 
-console.log("\n[5] Detect rate:");
+console.log("\n[3] Detect rate:");
 assertEqual(calculateDetectRate({ floor: 1 }), 1, "B1 detect");
 assertEqual(calculateDetectRate({ floor: 11 }), 1, "B11 detect");
 assertEqual(calculateDetectRate({ floor: 30 }), 1, "B30 detect (clamped)");
@@ -75,33 +64,21 @@ assertEqual(calculateDetectRate({ floor: 20 }), 1, "B20 detect");
 assertEqual(calculateDetectRate({ floor: 20, scoutBonus: 0.15 }), 1, "B20 scout bonus no longer changes detect");
 assertEqual(calculateDetectRate({ floor: 20, scoutBonus: 0.30 }), 1, "B20 full scout bonus no longer changes detect");
 
-console.log("\n[6] Constants:");
+console.log("\n[4] Constants:");
 assertEqual(FORCE_DAMAGE_MULTIPLIER, 0.5, "force damage multiplier");
 assertEqual(PARTIAL_SUCCESS_BAND, 15, "partial success band");
 assertEqual(PITFALL_EDGE_BONUS, 20, "pitfall edge bonus");
-assertEqual(SCOUT_TRAP_DAMAGE_MULTIPLIER, 0.7, "scout damage multiplier");
 
-console.log("\n[7] EV disarm thresholds:");
+console.log("\n[5] EV disarm thresholds:");
 assertClose(
   calculateFloorDisarmEvThreshold({ trapType: "damage" }),
   (100 - PARTIAL_SUCCESS_BAND) * (1 - FORCE_DAMAGE_MULTIPLIER),
   "non-pitfall threshold without scout"
 );
 assertClose(
-  calculateFloorDisarmEvThreshold({ trapType: "damage", scoutMitigated: true }),
-  (100 - PARTIAL_SUCCESS_BAND) *
-    (1 - FORCE_DAMAGE_MULTIPLIER / SCOUT_TRAP_DAMAGE_MULTIPLIER),
-  "non-pitfall threshold with scout"
-);
-assertClose(
   calculateFloorDisarmEvThreshold({ trapType: "pitfall" }),
   100 * (1 - FORCE_DAMAGE_MULTIPLIER),
   "pitfall threshold without scout"
-);
-assertClose(
-  calculateFloorDisarmEvThreshold({ trapType: "pitfall", scoutMitigated: true }),
-  100 * (1 - FORCE_DAMAGE_MULTIPLIER),
-  "pitfall threshold with scout"
 );
 assertClose(
   calculateChestDisarmEvThreshold(),
@@ -163,7 +140,7 @@ assertEqual(
   "surplus kit can be spent"
 );
 
-console.log("\n[8] Trap action and avoidance EV:");
+console.log("\n[6] Trap action and avoidance EV:");
 const nonPitfallThreshold = calculateFloorDisarmEvThreshold({ trapType: "damage" });
 const forceExpectedDamage = calculateFloorTrapActionExpectedDamage({
   action: "force",

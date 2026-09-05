@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
-import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery } from "./telemetry.js";
+import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -42,6 +42,28 @@ const LOMILWA_ENCOUNTER_REDUCTION = 0.05;
 function isCarriedObservationDue(previousSteps, nextSteps) {
   const interval = IDENTIFICATION_BALANCE.carriedObservationStepInterval;
   return previousSteps === 0 || Math.floor(nextSteps / interval) > Math.floor(previousSteps / interval);
+}
+
+function recordAdjacentTrapAvoidance(destinationX, destinationY) {
+  const cell = state.map?.[state.y]?.[state.x];
+  if (!cell) return;
+  for (let dir = 0; dir < 4; dir++) {
+    if (cell.walls?.[dir]) continue;
+    const x = state.x + DX[dir];
+    const y = state.y + DY[dir];
+    if (x === destinationX && y === destinationY) continue;
+    const trap = state.map?.[y]?.[x]?.trap;
+    if (!trap || trap.state !== "discovered") continue;
+    trackTrapResolution("avoided", {
+      state,
+      character: state.party?.find(char => char?.hp > 0 && !["dead", "ash"].includes(char.status)),
+      source: "floor",
+      trap,
+      action: "move",
+      x,
+      y
+    });
+  }
 }
 
 export function recordExplorationSteps(count = 1) {
@@ -213,6 +235,7 @@ export function handleMove(action) {
         updateUI();
         return;
       }
+      recordAdjacentTrapAvoidance(nextX, nextY);
       state.x = nextX;
       state.y = nextY;
       
@@ -242,6 +265,7 @@ export function handleMove(action) {
         updateUI();
         return;
       }
+      recordAdjacentTrapAvoidance(backX, backY);
       state.x = backX;
       state.y = backY;
       recordExplorationSteps();
@@ -765,8 +789,6 @@ export function triggerFlameTrap() {
   const successRate = activeCharacter
     ? calculateFloorTrapSuccessRate({
       trap,
-      className: activeCharacter.class,
-      level: activeCharacter.level,
       floor: state.floor,
       affixBonus: Math.round(getCharAffixSum(activeCharacter, "trapBonus"))
     })
@@ -778,6 +800,16 @@ export function triggerFlameTrap() {
     rng: Math.random
   });
   if (resolution.outcome === "disarmed") {
+    trackTrapResolution("disarmed", {
+      state,
+      character: activeCharacter,
+      source: "flame",
+      trap,
+      action: "disarm",
+      successRate,
+      x: state.x,
+      y: state.y
+    });
     addLog("熱気の気配を感じ、とっさに身をかわした！");
     saveAutosave();
     updateUI();
@@ -789,6 +821,17 @@ export function triggerFlameTrap() {
   } else {
     addLog("天井から猛烈な火炎ブレスが吹き出した！");
   }
+  trackTrapResolution("triggered", {
+    state,
+    character: activeCharacter,
+    source: "flame",
+    trap,
+    action: "disarm",
+    successRate,
+    partialSuccess: resolution.partialSuccess,
+    x: state.x,
+    y: state.y
+  });
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor: state.floor,

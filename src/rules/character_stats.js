@@ -409,8 +409,6 @@ export function getCharDerivedStats(char, { floor = 1 } = {}) {
     ),
     speed: getCharAgi(char),
     trap: calculateDisarmRate({
-      className: char.class,
-      level: char.level,
       floor,
       affixBonus: trapAffixBonus
     }),

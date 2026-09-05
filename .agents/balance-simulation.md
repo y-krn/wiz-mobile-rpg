@@ -1014,10 +1014,12 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   戦士・魔術師より低い。**盲目ループは職業格差の一因**と固定するが、観測測定のため単独因果量は識別しない。
 - 全体では盲目状態の解除試行3,939件中成功931件、失敗3,008件、罠発動9,523件、罠HP被害24,962。
   盲目罠HP被害後のB5撤退は **18.5% (583/3,153)** で、罠発動数だけでなくHP被害経路も追跡した。
-- `trapGuard` は `src/data/classes.js` の実在値を sim の
-  `getSimulationTrapGuardByParty`→`applyTrapGuardToEffect` で使用・適用する。閃光罠効果通過
+- これは Issue #512 の historical measurement であり、当時の
+  `src/data/classes.js` の class passive `trapGuard` を sim の
+  `getSimulationTrapGuardByParty`→`applyTrapGuardToEffect` で使用・適用していた。閃光罠効果通過
   **52,730件**、非ゼロguard通過 **27,741件**、盲目効果不変 **52,730件**。軽減対象はHP damageのみで、
-  閃光罠の盲目へは効かない。現行床罠に盲目効果はない。
+  閃光罠の盲目へは効かない。現行床罠に盲目効果はない。現行 #1073 では class passive を削除し、
+  `trapGuard` は装備／Supportだけから得るHP-damage専用のBuild入力へ移行した。
 - 対策は追加しない。解除率半減を撤廃すると#480の宝箱EV分岐と経路構成が同時に動くため、
   #511の解除条件、`blind ? chance / 2 : chance`、現行EV方針、#517の`trapGuard`を維持する。
 - 詳細JSON/MDは `evidence/results/issue-512-chest-blind-loop.md` に固定し、raw JSONL/summary JSONは追跡しない。
@@ -1397,7 +1399,7 @@ Core slots are mutually exclusive: weapon 6, accessory 8, armor 3, shield 1. SUP
 | CORE_PHYSICAL_ACCURACY | combat/weapon | all floors when unlocked | {"hitChanceBonus":1} | all | C/sim-missing | 226/226/24/0/0 | 10.6% [7.2,15.3] | — |
 | CORE_BLOOD_WAND | combat/weapon | all floors when unlocked | {"hpCostMultiplier":2} | all | D | 217/217/26/21/17 | 12.0% [8.3,17.0] | 81.0% [60.0,92.3] |
 | CORE_PURIFY_RING | combat/accessory | all floors when unlocked | {"mpRecovery":1,"fullMpHpRecovery":2,"targetTags":["undead","spirit","demon"]} | all | D | 197/197/21/51/48 | 10.7% [7.1,15.7] | 94.1% [84.1,98.0] |
-| CORE_TRAP_EATER | combat/accessory | all floors when unlocked | {"attackPerDisarm":2,"maxAttack":20} | Thief,Ranger,Ninja | D | 77/77/15/112/112 | 19.5% [12.2,29.7] | 100.0% [96.7,100.0] |
+| CORE_TRAP_EATER | combat/accessory | all floors when unlocked | {"attackPerDisarm":2,"maxAttack":20} | Thief,Ranger,Ninja (historical gate) | D | 77/77/15/112/112 | 19.5% [12.2,29.7] | 100.0% [96.7,100.0] |
 | CORE_CURSE_KEEPER | combat/accessory | all floors when unlocked | {"statsPerCurse":3} | all | A | 177/177/44/1423/1423 | 24.9% [19.1,31.7] | 100.0% [99.7,100.0] |
 | CORE_GIANT_SLAYER | combat/weapon | all floors when unlocked | {"damageMultiplier":1.3} | all | A | 242/242/70/644/227 | 28.9% [23.6,34.9] | 35.2% [31.7,39.0] |
 | CORE_MILESTONE_BREAKER | combat/weapon | all floors when unlocked | {"damageMultiplier":1.25} | all | C/sim-missing | 239/239/22/0/0 | 9.2% [6.2,13.5] | — |
@@ -1431,7 +1433,7 @@ label below means missing measurement probe, not missing source wiring.
 | CORE_PHYSICAL_ACCURACY | `CORE_AFFIXES`; weapon slot and normal core gates | Same candidate/equip path | `src/rules/character_stats.js:getPhysicalHitChance` → `src/combat_logic/round.js` physical attack resolution | C/sim-missing (Q/A=0/0; no per-mechanism probe) | <!-- doc-path-ignore -->
 | CORE_BLOOD_WAND | `CORE_AFFIXES`; weapon slot and workshop unlock gate | Same candidate/equip path | `src/rules/affix_rules.js:getSpellPayment` / `paySpellCost` → `src/combat_logic/spell_resolution.js` and `src/spell_menu.js` | D (probe present, equipped N<30) | <!-- doc-path-ignore -->
 | CORE_PURIFY_RING | `CORE_AFFIXES`; accessory slot | Same candidate/equip path | `src/combat_logic/damage.js:applyKillAffixEffects` → `src/rules/purify_rules.js:resolvePurifyRecovery` | D (probe present, equipped N<30) | <!-- doc-path-ignore -->
-| CORE_TRAP_EATER | `CORE_AFFIXES`; accessory slot, class gate, and workshop unlock gate | Same candidate/equip path | `src/rules/affix_rules.js:getTrapEaterBonusAfterDisarm` → `src/chest.js` chest disarm path | D (probe present, equipped N<30) | <!-- doc-path-ignore -->
+| CORE_TRAP_EATER | `CORE_AFFIXES`; accessory slot and workshop unlock gate | Same candidate/equip path | `src/rules/affix_rules.js:getTrapEaterBonusAfterDisarm` → `src/chest.js` direct／kit chest-disarm path | D (probe present, equipped N<30; historical class gate removed by #1073) | <!-- doc-path-ignore -->
 | CORE_CURSE_KEEPER | `CORE_AFFIXES`; accessory slot | Same candidate/equip path | `src/rules/affix_rules.js:getCharAllStatsAffixBonus` → `src/rules/character_stats.js:getCharStr/getCharVit/getCharInt/getCharPie/getCharAgi/getCharLuk` | A | <!-- doc-path-ignore -->
 | CORE_THORN_SHIELD | `CORE_AFFIXES`; shield slot and workshop unlock gate | Same candidate/equip path | `src/combat_logic/damage.js:tryThornCounter` → `src/combat_logic/round.js` enemy attack resolution | A | <!-- doc-path-ignore -->
 | CORE_EXECUTIONER | `CORE_AFFIXES`; weapon slot | Same candidate/equip path | `src/rules/affix_rules.js:tryApplyExecutionerSetup` and `getDamageAffixResult` → round/spell offensive paths | A | <!-- doc-path-ignore -->

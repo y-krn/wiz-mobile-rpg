@@ -286,6 +286,10 @@ export function generateRandomEquipment(floor, options) {
     addAffix(1, "trapBonus", () => getSupportValueByRarity("trapBonus", rarity), 3);
   }
 
+  if (baseItem.type === "armor" || baseItem.type === "shield") {
+    addAffix(1, "trapGuard", () => getSupportValueByRarity("trapGuard", rarity), 2);
+  }
+
   const isFollowUpEligible = ["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "SHORT_SWORD", "RAPIER", "FLAME_SWORD", "BATTLE_GARB"].includes(baseId);
   if (isFollowUpEligible) {
     addAffix(2, "followUp", () => Math.floor(rng() * 6) + 10, 2); // 10-15%
@@ -502,6 +506,7 @@ export function generateRandomAccessory(floor, options) {
     { type: "agi", getVal: () => getSupportValueByRarity("agi", rarity), weight: 2 },
     { type: "luk", getVal: () => getSupportValueByRarity("luk", rarity), weight: 2 },
     { type: "trapBonus", getVal: () => getSupportValueByRarity("trapBonus", rarity), weight: 3 },
+    { type: "trapGuard", getVal: () => getSupportValueByRarity("trapGuard", rarity), weight: 2 },
     { type: "spellGuard", getVal: () => getSupportValueByRarity("spellGuard", rarity), weight: 1 },
     { type: "antiDragon", getVal: () => getSupportValueByRarity("antiDragon", rarity), weight: availableWeight(4, 1) },
     { type: "antiUndead", getVal: () => getSupportValueByRarity("antiUndead", rarity), weight: availableWeight(3, 1) },
@@ -547,6 +552,7 @@ export function generateRandomAccessory(floor, options) {
       agi: "ambush",
       luk: "search",
       trapBonus: "trap",
+      trapGuard: "trap",
       spellGuard: "ward",
       antiDragon: "dragon",
       antiUndead: "holy",

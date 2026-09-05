@@ -24,7 +24,14 @@ function run() {
     runIndex: 32,
     seriesId: "issue-933-route",
     scoringProfile: null,
-    scenario,
+    scenario: {
+      ...scenario,
+      // Keep this route fixture in the hard-trap branch without restoring a
+      // class-specific exploration permission. The override is universal and
+      // represents a run-local calibration, so the detour assertions remain
+      // independent of class and level.
+      trapOverride: { trapBonus: { universalBase: 40 } }
+    },
     encounterRateOverride: () => 0.1
   });
 }

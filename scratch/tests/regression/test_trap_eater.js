@@ -49,7 +49,7 @@ const {
   getCharCoreParams,
   getTrapEaterBonusAfterDisarm
 } = await import("../../../src/rules/affix_rules.js");
-const { CHEST_PHASES, setupChestState, executeDisarm } = await import("../../../src/chest.js");
+const { CHEST_PHASES, setupChestState, executeDisarm, useTrapKit } = await import("../../../src/chest.js");
 const { handleTrapAction } = await import("../../../src/systems/traps.js");
 const { triggerRunResult } = await import("../../../src/result.js");
 
@@ -140,6 +140,17 @@ await test("successful chest disarm triggers the bonus for eligible class", asyn
   assert.equal(state.party[0].runTrapAttackBonus, 2);
   state.chestState = null;
   await new Promise(resolve => setTimeout(resolve, 1600));
+});
+
+await test("TRAP_KIT chest disarm triggers the same bonus", () => {
+  const char = makeChar("Mage");
+  prepareState(char);
+  state.inventory = ["TRAP_KIT"];
+  setupChestState("poison needle", null, "HEAL_POTION");
+  state.chestState.phase = CHEST_PHASES.MENU;
+  assert.equal(useTrapKit(), true);
+  assert.equal(char.runTrapAttackBonus, 2);
+  assert.deepEqual(state.inventory, []);
 });
 
 await test("floor-trap disarm does not trigger CORE_TRAP_EATER", () => {
