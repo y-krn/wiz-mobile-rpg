@@ -6,7 +6,7 @@
 - Runner version/schema: `issue1078-loot-supply-v1` / `1`
 - Scope: `formula` (production chest and equipment-generation functions)
 - Base: `origin/main` at `b92cc8add08fdbbd800d9688ed20d9a786927be9`; freshness was verified by fetch before the run
-- Measured head/runner commit: `015515a8f336e726541e84d4769befeec62d2efb`
+- Measured head/runner commit: `015515a8f336e726541e84d4769befeec62d2efb` (pre-follow-up measurement code adjustment; see the current runner for the per-run state reset and exact main-axis buckets)
 - Seed: `1078`
 - Runs: `N=500` per band, three representative floors per band
 - Decisions: three ordinary chest bundles per run; each bundle contains the production main reward and accessory path
