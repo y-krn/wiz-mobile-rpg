@@ -19,7 +19,7 @@ const ALLOW_RE = /tap-token-guard:\s*allow/;
 // The pending-reward row owns a native checkbox whose visual control is 20px;
 // its surrounding row supplies the 44px tap target. Track the exception in
 // #1062 instead of changing production CSS in this lint-expansion PR.
-const NATIVE_SMALL_CONTROL_RE = /(?:input\s*\[\s*type\s*=\s*(["']?)(?:checkbox|radio)\1\s*\]|\.pending-reward-discard-row\s+input\b)/i;
+const NATIVE_SMALL_CONTROL_RE = /\.pending-reward-discard-row\s+input\b/i;
 
 const messages = stylelint.utils.ruleMessages(ruleName, {
   rejected: (prop, value, reason) => `Expected "${prop}: ${value}" to use --tap-min/--tap-lg (${reason})`,

@@ -13,8 +13,6 @@ export default {
     "comment-empty-line-before": null,
     "custom-property-empty-line-before": null,
     "declaration-block-no-redundant-longhand-properties": null,
-    // Existing duplicate declaration is tracked separately in #1063.
-    "declaration-block-no-duplicate-properties": null,
     "declaration-block-no-shorthand-property-overrides": null,
     "declaration-block-single-line-max-declarations": null,
     "declaration-empty-line-before": null,
