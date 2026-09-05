@@ -15,6 +15,9 @@ const HEAVY_TESTS = {
   'test_stairs_min_distance.js': 4,
   'test_reachability_loop.js': 4,
   'test_shared_wall_corridors.js': 3,
+  'test_observability_after_stairs.js': 1,
+  'test_explore_spell_usage.js': 1,
+  'test_heal_priority_policy.js': 1,
 };
 const heavyTestFiles = Object.keys(HEAVY_TESTS);
 
@@ -23,7 +26,6 @@ const testRoots = [
   path.join(repoRoot, 'scratch/tests/unit'),
   path.join(repoRoot, 'scratch/tests/regression'),
 ];
-const srcDir = path.join(repoRoot, 'src');
 const startTime = Date.now();
 
 const toRepoPath = filePath => path.relative(repoRoot, filePath).split(path.sep).join('/');
@@ -78,7 +80,12 @@ function findRelativeImports(filePath) {
 function collectHeavyDependencies(testFile) {
   const ownedTestPath = testFile.includes('/')
     ? testFile
-    : `scratch/tests/unit/${testFile}`;
+    : ['unit', 'regression']
+      .map(directory => `scratch/tests/${directory}/${testFile}`)
+      .find(candidate => fs.existsSync(path.join(repoRoot, candidate)));
+  if (!ownedTestPath) {
+    throw new Error(`Heavy test is not owned by a test directory: ${testFile}`);
+  }
   const testPath = path.join(repoRoot, ownedTestPath);
   const dependencies = new Set([toRepoPath(testPath)]);
   const visited = new Set();
@@ -90,12 +97,6 @@ function collectHeavyDependencies(testFile) {
 
     for (const specifier of findRelativeImports(absolutePath)) {
       const dependency = resolveRelativeImport(absolutePath, specifier);
-      const relativeToSrc = path.relative(srcDir, dependency);
-      const isInSrc = relativeToSrc !== '..' &&
-        !relativeToSrc.startsWith(`..${path.sep}`) &&
-        !path.isAbsolute(relativeToSrc);
-
-      if (!isInSrc) continue;
       dependencies.add(toRepoPath(dependency));
       visit(dependency);
     }
@@ -125,6 +126,10 @@ function findChangedFiles() {
 function selectHeavyTests() {
   if (process.env.FULL_TEST === '1') {
     return new Set(heavyTestFiles);
+  }
+
+  if (process.env.FAST === '1') {
+    return new Set();
   }
 
   try {
@@ -252,8 +257,9 @@ const scheduledTests = [
 ];
 
 console.log(`Found ${testFiles.length} test files.`);
+const skipReason = process.env.FAST === '1' ? 'fast mode' : 'deps unchanged';
 for (const file of skippedHeavyTests) {
-  console.log(`skip: ${file} (deps unchanged)`);
+  console.log(`skip: ${file} (${skipReason})`);
 }
 
 const results = await runPool(scheduledTests);
