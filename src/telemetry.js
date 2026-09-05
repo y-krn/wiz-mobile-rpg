@@ -258,7 +258,9 @@ function normalizeRarity(value) {
 function getSafeItemId(itemKey) {
   if (itemKey === null || itemKey === undefined || itemKey === "") return null;
   const id = getItemBaseId(itemKey);
-  return typeof id === "string" && Object.hasOwn(ITEMS, id) ? id : "other";
+  const isKnownItem = typeof id === "string"
+    && (Object.hasOwn(ITEMS, id) || Object.hasOwn(RUNES, id));
+  return isKnownItem ? id : "other";
 }
 
 function getLootSupplyFields(itemKey, floor = null) {
