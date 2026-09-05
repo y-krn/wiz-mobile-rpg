@@ -8,11 +8,13 @@ import {
   getLootRoleSupply
 } from "../../../src/data/affixes.js";
 import { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../../../src/data/equipment_tables.js";
+import { RUNE_SUPPLY_BANDS, getRuneItemIdsByFloor } from "../../../src/data/magic.js";
 import {
   generateRandomEquipment,
   rollLootBuildRole
 } from "../../../src/systems/equipment_generation.js";
-import { CHEST_ITEM_CANDIDATES_BY_FLOOR } from "../../../src/rules/chest_rules.js";
+import { CHEST_ITEM_CANDIDATES_BY_FLOOR, getChestItemCandidatesByFloor, rollChestReward } from "../../../src/rules/chest_rules.js";
+import { calculateChestInspectionChance, createChestLootHint } from "../../../src/chest/chest_domain.js";
 import { ITEMS } from "../../../src/data/items.js";
 
 const roleIds = new Set(Object.values(LOOT_BUILD_ROLES));
@@ -49,6 +51,34 @@ assert.notDeepEqual(EQUIPMENT_CANDIDATES_BY_FLOOR[6], EQUIPMENT_CANDIDATES_BY_FL
 assert.ok(EQUIPMENT_CANDIDATES_BY_FLOOR[6].includes("HOLY_BLADE"));
 assert.ok(EQUIPMENT_CANDIDATES_BY_FLOOR[11].includes("LEGENDARY_SWORD"));
 assert.ok(CHEST_ITEM_CANDIDATES_BY_FLOOR[20].every(baseId => !RESTRICTED_CHEST_BASES.includes(baseId)));
+
+for (const floor of [5, 10, 11, 20]) {
+  const equipmentCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[floor];
+  for (const profile of ["light", "blade", "impact", "heavy", "medium"]) {
+    assert.ok(
+      equipmentCandidates.some(baseId => ITEMS[baseId]?.behaviorProfile === profile),
+      `B${floor} keeps ${profile} weapon choices`
+    );
+  }
+  assert.ok(equipmentCandidates.some(baseId => ITEMS[baseId]?.type === "shield"), `B${floor} keeps shields`);
+  assert.ok(equipmentCandidates.some(baseId => ITEMS[baseId]?.type === "armor"), `B${floor} keeps armor`);
+  assert.ok(
+    equipmentCandidates.some(baseId => ITEMS[baseId]?.type === "weapon" && ITEMS[baseId]?.hands === 2),
+    `B${floor} keeps two-hand choices`
+  );
+  const chestEquipment = getChestItemCandidatesByFloor(floor)
+    .filter(baseId => ["weapon", "armor", "shield"].includes(ITEMS[baseId]?.type));
+  assert.ok(chestEquipment.some(baseId => ITEMS[baseId]?.behaviorProfile === "impact"), `B${floor} chest keeps impact`);
+  assert.ok(chestEquipment.some(baseId => ITEMS[baseId]?.behaviorProfile === "heavy"), `B${floor} chest keeps heavy`);
+  assert.ok(chestEquipment.some(baseId => ITEMS[baseId]?.behaviorProfile === "medium"), `B${floor} chest keeps medium`);
+}
+
+for (const [index, band] of RUNE_SUPPLY_BANDS.entries()) {
+  const expected = RUNE_SUPPLY_BANDS
+    .slice(0, index + 1)
+    .flatMap(supplyBand => supplyBand.spellKeys.map(spellKey => `RUNE_${spellKey}`));
+  assert.deepEqual(getRuneItemIdsByFloor(band.minFloor), expected, `${band.id} Rune band is cumulative`);
+}
 
 assert.equal(getLootRoleSupply(1).id, "B1_5");
 assert.equal(getLootRoleSupply(10).id, "B6_10");
@@ -97,6 +127,90 @@ const deepAffixRates = collectAffixRoleRates(21);
 assert.ok(deepAffixRates.convert > shallowAffixRates.convert, "deep loot increases actual convert affixes");
 assert.ok(deepAffixRates.pivot > shallowAffixRates.pivot, "deep loot increases actual pivot affixes");
 assert.ok(deepAffixRates.reinforce < shallowAffixRates.reinforce, "deep loot reduces actual reinforce affixes");
+
+const coreRates = {};
+for (const rarity of ["magic", "rare"]) {
+  let coreItems = 0;
+  for (let seed = 1; seed <= 1000; seed += 1) {
+    const item = generateRandomEquipment(5, { forceRarity: rarity, rng: lcg(seed) });
+    const coreCount = item.affixes.filter(affix => affix.kind === "core").length;
+    assert.ok(coreCount <= 1, `${rarity} item never carries multiple Cores`);
+    coreItems += Number(coreCount > 0);
+  }
+  coreRates[rarity] = coreItems / 1000;
+}
+assert.ok(coreRates.magic > 0 && coreRates.magic < 0.25, "Magic Core remains a meaningful minority");
+assert.ok(coreRates.rare > 0 && coreRates.rare < 0.50, "Rare Core does not fill the removed Core hole");
+
+function createBuildVariant({ startingKit, treasureSense, hp, mp }) {
+  return [{
+    startingKit,
+    class: "Fighter",
+    status: "ok",
+    hp,
+    maxHp: 100,
+    mp,
+    maxMp: 20,
+    equipment: {
+      weapon: {
+        baseId: "WAND",
+        identified: true,
+        affixes: treasureSense ? [{ id: "treasureSense", type: "treasureSense", kind: "support", value: treasureSense }] : []
+      },
+      shield: { baseId: "SMALL_SHIELD", identified: true, affixes: [] },
+      armor: { baseId: "LEATHER_ARMOR", identified: true, affixes: [] }
+    }
+  }];
+}
+
+const buildA = createBuildVariant({ startingKit: "arcana", treasureSense: 5, hp: 1, mp: 0 });
+const buildB = createBuildVariant({ startingKit: "vanguard", treasureSense: 0, hp: 100, mp: 20 });
+const sensedInspection = calculateChestInspectionChance({ party: buildA });
+const baselineInspection = calculateChestInspectionChance({ party: buildB });
+assert.ok(
+  sensedInspection.chance > baselineInspection.chance,
+  "treasureSense must improve chest trap inspection reliability"
+);
+assert.equal(baselineInspection.chance, 0.30);
+assert.equal(sensedInspection.chance, 0.35);
+
+const hintedEquipment = {
+  kind: "equipment",
+  rarity: "rare",
+  affixes: [{ type: "trapBonus", value: 5 }]
+};
+const sensedLootHint = createChestLootHint({
+  item: hintedEquipment,
+  party: buildA,
+  rng: () => 0.99
+});
+const baselineLootHint = createChestLootHint({
+  item: hintedEquipment,
+  party: buildB,
+  rng: () => 0.99
+});
+assert.match(sensedLootHint.label, /気配:技巧/);
+assert.equal(baselineLootHint.label, "装備品の反応あり");
+
+const chestRunState = { chestsOpened: 1, equipmentFound: [{}], b1ChestsOpened: 1, b1EquipFound: 1 };
+const chestResultFor = (party, seed) => rollChestReward({
+  floor: 3,
+  rng: lcg(seed),
+  party,
+  currentRun: chestRunState,
+  trap: "none"
+});
+const chestSequenceFor = party => Array.from({ length: 500 }, (_, index) => {
+  const result = chestResultFor(party, 1078 + index);
+  return result.item && typeof result.item === "object"
+    ? { baseId: result.item.baseId, rarity: result.item.rarity, affixes: result.item.affixes, lootRole: result.item.lootRole }
+    : result.item;
+});
+assert.deepEqual(
+  chestSequenceFor(buildA),
+  chestSequenceFor(buildB),
+  "chest candidates and replacement weights are invariant to current build, HP/MP, and starting kit"
+);
 
 const emptyLoadout = [{
   class: "Fighter",

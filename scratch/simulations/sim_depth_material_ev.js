@@ -11552,6 +11552,7 @@ function rollChestItems(
     currentRun: state.currentRun,
     trap,
     firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
+    includeRunes: !fromDrop && RETURN_WING_REWARD_MODE !== "baseline",
     coreMinFloor: getChestCoreMinFloor(supplyOverride, "equipment"),
     itemCandidates: fromDrop
       ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[Math.min(5, floor)] || []

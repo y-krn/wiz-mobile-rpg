@@ -565,6 +565,27 @@ check("vNext telemetry separates lifecycle, exploration, portal, and elite obser
   assert.ok(names.includes("portal_decision"));
   assert.ok(names.includes("elite_decision"));
   assert.equal(events.filter(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "bagged").length, 1);
+  const lifecycle = events.find(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "bagged");
+  assert.equal(lifecycle.properties.floor, 2);
+  assert.equal(lifecycle.properties.source, "chest");
+  assert.equal(lifecycle.properties.lootRole, null);
+  assert.equal(lifecycle.properties.lootTier, "B1_5");
+  const generatedLoot = {
+    baseId: "DAGGER",
+    level: 2,
+    identified: true,
+    rarity: "rare",
+    lootRole: "pivot"
+  };
+  trackLootLifecycle("adopted", { state, itemKey: generatedLoot, source: "chest", lootId: "run:loot:5" });
+  const adoptedLoot = events.find(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "adopted");
+  assert.equal(adoptedLoot.properties.lootRole, "pivot");
+  assert.equal(adoptedLoot.properties.lootTier, "B1_5");
+  const rune = { baseId: "RUNE_DIOS", identified: true };
+  trackLootLifecycle("left", { state, itemKey: rune, source: "chest", lootId: "run:loot:4" });
+  const leftRune = events.find(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "left");
+  assert.equal(leftRune.properties.lootTier, "shallow");
+  assert.equal(leftRune.properties.runeSupplyBand, "shallow");
   const portal = events.find(event => event.name === "portal_decision");
   assert.equal(portal.properties.decision, "push");
   assert.equal(portal.properties.unbankedObjectLootCount, 1);

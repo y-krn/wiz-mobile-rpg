@@ -348,7 +348,7 @@ const speedTreasureChar = makeChar({
 const speedTreasureStats = getCharDerivedStats(speedTreasureChar);
 check("speed is the same AGI base used by turn order", speedTreasureStats.speed, getCharAgi(speedTreasureChar));
 check(
-  "treasure is the same treasureSense sum used by chest rewards",
+  "treasure is the same treasureSense sum used by chest information",
   speedTreasureStats.treasure,
   getCharAffixSum(speedTreasureChar, "treasureSense")
 );

@@ -399,6 +399,26 @@ An equipment decision that changes the `main` Core axis is observable as a
 build transition; auxiliary Core and Support changes remain ordinary swaps.
 This is lightweight observation, not full telemetry analysis.
 
+### Build-blind loot supply (#1078)
+
+Issue #1078 makes the supply band explicit at the production candidate layer.
+Rune access is cumulative metadata in `RUNE_SUPPLY_BANDS`, keyed only by floor
+band; it does not use `SPELLS.level`, class, current Medium, socketed Rune,
+current Core/Support, build role, or HP/MP state. Ordinary chest rewards use
+the same floor-scoped Rune candidates, so a Medium and its Runes are separate
+choices rather than a paired answer.
+
+Equipment candidates are cumulative through B5 and remain cumulative when the
+deep additions unlock. B4/B5 and B6+ therefore retain light, blade, impact,
+heavy, medium, shield, armor, and both one- and two-hand choices instead of
+turning depth into a base-stat treadmill. Magic and Rare generated equipment
+uses a minority Core chance; Epic keeps its authored one-Core composition.
+The #1075 ownership cleanup is not compensated by raising ordinary Core rates.
+The production-backed formula audit is
+`scratch/measurements/issue1078_loot_supply.js`; its adoption counts use
+production equip validation and preview math only as a neutral measurement
+policy, not as a player-facing optimal-role selector.
+
 ### Core/support ownership boundary (#1075)
 
 The active registry contains exactly 13 rule-changing Cores: 9 on the Main

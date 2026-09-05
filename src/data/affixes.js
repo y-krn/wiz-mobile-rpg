@@ -111,17 +111,17 @@ export const AFFIX_BALANCE = {
     highHpTargetDamage: { magic: 10, rare: 12, epic: 15 },
     bossDamage: { magic: 10, rare: 12, epic: 15 }
   },
-  // #270: 実src経路のsim（N=500、工房解放済み・帰還の翼あり）で
-  // 前半core遭遇 44.2%→65.4%、前半core装備 36.2%→58.2%。
-  // 注: sim内オーバーライドでの試算値(67.6%/61.8%)は乱数消費順が異なるため一致しない。
+  // #1078: Core is a meaningful discovery, not the default affix on ordinary
+  // equipment.  A generated item still has at most one Core; the floor and
+  // workshop gates decide whether its pool is available.
   budgetsByRarityAndFloor: {
     magic: [0, 10, 10, 10, 10, 10],
     rare: [0, 10, 10, 10, 10, 10],
     epic: [0, 12, 13, 14, 15, 16]
   },
   rollComposition: {
-    magic: { support: 1, core: 1, coreChance: 1.00 },
-    rare: { support: 2, core: 1, coreChance: 0.75 },
+    magic: { support: 1, core: 1, coreChance: 0.10 },
+    rare: { support: 2, core: 1, coreChance: 0.25 },
     epic: { support: 2, core: 1 }
   },
   legacySupportCounts: {
@@ -225,7 +225,7 @@ export const SUPPORT_AFFIXES = [
   support("spellGuard", "魔除け", "呪文ダメージを軽減する。", "basic", { unit: "%" }),
   support("trapBonus", "罠解除", "罠解除率が増加する。", "basic", { unit: "%" }),
   support("trapGuard", "罠守", "罠によるHPダメージを軽減する。", "basic", { unit: "%" }),
-  support("treasureSense", "宝探", "宝の発見率が増加する。", "basic", { unit: "%" }),
+  support("treasureSense", "宝探", "宝箱の罠調査と戦利品の気配を読み取る精度が増加する。", "basic", { unit: "%" }),
   support("arcaneSense", "霊視", "魔力感知範囲が増加する。", "basic", { unit: "Lv" }),
   support("hearRange", "聴覚", "聴覚範囲が増加する。", "basic"),
   support("traceRead", "痕跡", "痕跡判読範囲が増加する。", "basic", { unit: "Lv" }),

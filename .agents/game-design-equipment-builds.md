@@ -285,6 +285,9 @@ conversion and cap.
 
 Exploration information supports (`treasureSense`, `hearRange`, and
 `traceRead`) provide facts or signs rather than permission to use an action.
+`treasureSense` specifically improves chest-trap inspection reliability and can
+reveal an affix signal in the chest loot hint; it never changes reward
+candidate lists, item/replacement weights, or Medium/Rune pairing.
 Tools such as `TRAP_KIT` trade a consumable for deterministic disarm; their
 availability is evaluated by the Core/resource layer, while the plain disarm
 roll remains a Build rule. Starting kits do not grant a permanent exploration
@@ -469,6 +472,22 @@ ordinary equipment swaps.
 Production telemetry exposes this distinction as `equipment_decision.buildDecision`
 and emits a separate `build_shift` event only for the Main Core axis change.
 The event is an observation boundary, not a new build rule.
+
+### Build-blind supply bands (#1078)
+
+Loot candidate and weight decisions are independent of the current loadout,
+starting kit, socketed Rune, current Core/Support, build role, and HP/MP
+shortage. Workshop permanent pool unlocks remain world-state inputs. Rune
+availability is a cumulative floor-band metadata rule in
+`src/data/magic.js`, and ordinary chest generation consumes that same source;
+it never pairs a Rune with a Medium.
+
+Equipment generation retains earlier horizontal bases as later bands unlock.
+The production audit records object decisions, equipment/Rune/consumable
+exposure, Core/Support and role composition, pivot adoption, Medium/Rune
+co-occurrence, and matched starting-kit/current-build invariance. Its neutral
+adoption policy delegates equipability and preview math to production and is
+measurement evidence only, not an optimal loot recommendation.
 
 ### Core ownership cleanup (#1075)
 
