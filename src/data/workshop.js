@@ -54,28 +54,12 @@ const WORKSHOP_BASE_NODES = [
     grants: { spellIds: ["MADALTO", "DIALMA"] }
   },
   {
-    id: "pool_opener",
-    category: "pools",
-    name: "先手必勝の記憶",
-    description: "先手必勝コアを出現候補に追加する。",
-    costs: [{ "鉄片": 7, "毒腺": 3 }],
-    grants: { affixIds: ["CORE_OPENER"] }
-  },
-  {
     id: "pool_trap_eater",
     category: "pools",
     name: "罠喰いの記憶",
     description: "罠喰いコアを出現候補に追加する。",
     costs: [{ "硬い皮": 7, "鉄片": 3 }],
     grants: { affixIds: ["CORE_TRAP_EATER"] }
-  },
-  {
-    id: "pool_giant_slayer",
-    category: "pools",
-    name: "巨人殺しの記憶",
-    description: "巨人殺しコアを出現候補に追加する。",
-    costs: [{ "獣の牙": 7, "黒角": 3 }],
-    grants: { affixIds: ["CORE_GIANT_SLAYER"] }
   },
   {
     id: "pool_thorn_shield",
@@ -100,15 +84,6 @@ const WORKSHOP_BASE_NODES = [
     description: "学者の眼コアを出現候補に追加する。",
     costs: [{ "霊粉": 7, "骨片": 3 }],
     grants: { affixIds: ["CORE_SCHOLAR_EYE"] }
-  },
-  {
-    id: "pool_milestone_breaker",
-    category: "milestoneBuild",
-    name: "守護者殺しの記憶",
-    description: "階層守護者特化コアを出現候補に追加する。",
-    costs: [{ "鉄片": 7, "竜鱗": 3 }],
-    requiresKeyItem: KEY_ITEMS.FORGE_SEAL,
-    grants: { affixIds: ["CORE_MILESTONE_BREAKER"] }
   },
   {
     id: "pool_thin_ice_pact",
@@ -168,16 +143,6 @@ export const WORKSHOP_NODE_BY_ID = new Map(WORKSHOP_NODES.map(node => [node.id, 
 // The depth gates prevent repeated shallow returns from farming the whole list.
 export const WORKSHOP_LATERAL_UNLOCKS = Object.freeze([
   Object.freeze({
-    nodeId: "pool_opener",
-    minDepth: 5,
-    relatedCoreIds: ["CORE_OPENER"],
-    relatedBuildRoles: ["reinforce"],
-    relatedLootRoles: ["reinforce"],
-    relatedTags: ["ambush"],
-    relatedTypes: ["weapon", "accessory"],
-    relatedKnowledgeStages: ["discovery", "observation"]
-  }),
-  Object.freeze({
     nodeId: "pool_trap_eater",
     minDepth: 10,
     relatedCoreIds: ["CORE_TRAP_EATER"],
@@ -185,16 +150,6 @@ export const WORKSHOP_LATERAL_UNLOCKS = Object.freeze([
     relatedLootRoles: ["convert"],
     relatedTags: ["trap", "poison", "ward"],
     relatedTypes: ["accessory", "armor"],
-    relatedKnowledgeStages: ["observation", "trial", "full"]
-  }),
-  Object.freeze({
-    nodeId: "pool_giant_slayer",
-    minDepth: 15,
-    relatedCoreIds: ["CORE_GIANT_SLAYER"],
-    relatedBuildRoles: ["pivot"],
-    relatedLootRoles: ["pivot"],
-    relatedTags: ["iron", "blade"],
-    relatedTypes: ["weapon"],
     relatedKnowledgeStages: ["observation", "trial", "full"]
   }),
   Object.freeze({

@@ -50,7 +50,12 @@ export const AFFIX_BALANCE = {
     stairsHeal: 1,
     identifyDiscount: 1,
     materialFind: 2,
-    contractReward: 2
+    contractReward: 2,
+    lowHpDamage: 3,
+    firstStrikeFollowUp: 3,
+    physicalAccuracy: 2,
+    highHpTargetDamage: 3,
+    bossDamage: 3
   },
   // Shared spell power uses rarity for value. Floor only controls whether a
   // generator pool can offer the affix; it never scales the rolled value.
@@ -99,7 +104,12 @@ export const AFFIX_BALANCE = {
     bleedingAtk: { magic: 8, rare: 10, epic: 12 },
     lastSurvivorStats: { magic: 2, rare: 3, epic: 3 },
     statusResistance: { magic: 12, rare: 16, epic: 20 },
-    stairsHeal: { magic: 2, rare: 3, epic: 4 }
+    stairsHeal: { magic: 2, rare: 3, epic: 4 },
+    lowHpDamage: { magic: 10, rare: 12, epic: 15 },
+    firstStrikeFollowUp: { magic: 15, rare: 20, epic: 25 },
+    physicalAccuracy: { magic: 5, rare: 8, epic: 10 },
+    highHpTargetDamage: { magic: 10, rare: 12, epic: 15 },
+    bossDamage: { magic: 10, rare: 12, epic: 15 }
   },
   // #270: 実src経路のsim（N=500、工房解放済み・帰還の翼あり）で
   // 前半core遭遇 44.2%→65.4%、前半core装備 36.2%→58.2%。
@@ -174,6 +184,8 @@ const SUPPORT_BUILD_ROLES = Object.freeze({
   deepAssault: "pivot", followUp: "pivot", treasureSense: "pivot", arcaneSense: "pivot",
   hearRange: "pivot", traceRead: "pivot", fullHpDamage: "pivot", firstTurnAttack: "pivot",
   antiBeast: "pivot", antiSpirit: "pivot", lastSurvivorStats: "pivot", spellAccuracy: "pivot",
+  lowHpDamage: "reinforce", firstStrikeFollowUp: "reinforce", physicalAccuracy: "reinforce",
+  highHpTargetDamage: "pivot", bossDamage: "pivot",
   hitFlinch: "pivot", victoryMaterial: "pivot", identifyDiscount: "pivot", materialFind: "pivot",
   contractReward: "pivot"
 });
@@ -223,6 +235,7 @@ export const SUPPORT_AFFIXES = [
   support("devotion", "回復威力", "回復威力が増加する。", "basic", { unit: "%" }),
   support("guardian", "守護", "HP25%以下のとき、物理ダメージを軽減する。", "basic", { unit: "%" }),
   support("firstStrike", "先制", "先制率が増加する。", "basic"),
+  support("physicalAccuracy", "物理命中", "回避対象への物理命中率が増加する。", "basic", { unit: "%" }),
 
   support("deepAssault", "深層攻勢", "B3F以深で与ダメージが増加する。", "conditional", { unit: "%" }),
   support("frontGuard", "前衛堅守", "前列で防御力が増加する。", "conditional"),
@@ -235,6 +248,15 @@ export const SUPPORT_AFFIXES = [
   support("lastSurvivorStats", "孤軍", "単独生存時に全能力が増加する。", "conditional"),
   support("statusResistance", "不屈", "状態異常への耐性が増加する。", "conditional", { unit: "%" }),
   support("spellAccuracy", "精唱", "呪文命中率が増加する。", "conditional", { unit: "%" }),
+  support("lowHpDamage", "窮地の猛攻", "HP40%以下で与ダメージが増加する。", "conditional", {
+    unit: "%",
+    params: { hpThreshold: 0.40 }
+  }),
+  support("highHpTargetDamage", "巨体狙い", "自分より最大HPが高い敵への与ダメージが増加する。", "conditional", {
+    unit: "%",
+    params: { targetMaxHpMultiplier: 1 }
+  }),
+  support("bossDamage", "守護者狙い", "階層守護者への与ダメージが増加する。", "conditional", { unit: "%" }),
 
   support("killHeal", "吸命", "敵撃破時にHPを2回復する。", "trigger"),
   support("followUpMp", "連環", "追撃時にMPを1回復する。", "trigger"),
@@ -245,6 +267,7 @@ export const SUPPORT_AFFIXES = [
   support("bleedingAtk", "裂傷", "攻撃命中時に低確率で敵を出血させる。後続の通常攻撃で追加ダメージ。", "trigger", { unit: "%" }),
   support("victoryMaterial", "拾得", "勝利時に低確率で素材を得る。", "trigger", { unit: "%" }),
   support("stairsHeal", "踏破の息吹", "階段発見時にHPを回復する。", "trigger"),
+  support("firstStrikeFollowUp", "先手連撃", "先制成功時、追撃率が増加する。", "trigger", { unit: "%" }),
 
   support("identifyDiscount", "鑑定眼", "鑑定費用を軽減する。", "economy", { unit: "%" }),
   support("materialFind", "素材探し", "素材発見率が10%増加する。", "economy", { unit: "%" }),
@@ -252,47 +275,6 @@ export const SUPPORT_AFFIXES = [
 ];
 
 export const CORE_AFFIXES = [
-  {
-    id: "CORE_LAST_STAND",
-    kind: "core",
-    jpName: "背水",
-    desc: "HP40%以下で与ダメージが40%増加する。",
-    slot: "weapon",
-    cost: 10,
-    // 閾値25%は撤退・逃走を選ぶ水準より下にあり、窓へ入る前に戦闘が終わっていた
-    // （自攻撃直前にHP25%以下だったturnは実測0.3%）。逃走判断より上へ出す（#272）。
-    params: { hpThreshold: 0.40, damageMultiplier: 1.4 },
-    buildRole: "reinforce",
-    buildAxis: "main",
-    poolGroup: "combat",
-    enabled: true
-  },
-  {
-    id: "CORE_OPENER",
-    kind: "core",
-    jpName: "先手必勝",
-    desc: "先制成功時、初撃に追撃が必ず発生する。",
-    slot: "accessory",
-    cost: 10,
-    params: { followUpChance: 1 },
-    buildRole: "reinforce",
-    buildAxis: "main",
-    poolGroup: "combat",
-    enabled: true
-  },
-  {
-    id: "CORE_PHYSICAL_ACCURACY",
-    kind: "core",
-    jpName: "必中",
-    desc: "回避対象への物理攻撃が必ず命中する。",
-    slot: "weapon",
-    cost: 10,
-    params: { hitChanceBonus: 1 },
-    buildRole: "reinforce",
-    buildAxis: "auxiliary",
-    poolGroup: "combat",
-    enabled: true
-  },
   {
     id: "CORE_BLOOD_WAND",
     kind: "core",
@@ -348,32 +330,6 @@ export const CORE_AFFIXES = [
     params: { statsPerCurse: 3 },
     buildRole: "convert",
     buildAxis: "main",
-    poolGroup: "combat",
-    enabled: true
-  },
-  {
-    id: "CORE_GIANT_SLAYER",
-    kind: "core",
-    jpName: "巨人殺し",
-    desc: "自分より最大HPが高い敵への与ダメージが30%増加する。",
-    slot: "weapon",
-    cost: 10,
-    params: { damageMultiplier: 1.3 },
-    buildRole: "pivot",
-    buildAxis: "main",
-    poolGroup: "combat",
-    enabled: true
-  },
-  {
-    id: "CORE_MILESTONE_BREAKER",
-    kind: "core",
-    jpName: "守護者殺し",
-    desc: "階層守護者への与ダメージが25%増加する。",
-    slot: "weapon",
-    cost: 10,
-    params: { damageMultiplier: 1.25 },
-    buildRole: "pivot",
-    buildAxis: "auxiliary",
     poolGroup: "combat",
     enabled: true
   },
@@ -507,14 +463,22 @@ export function getAffixDefinition(affixOrId) {
   return AFFIX_BY_ID.get(id) || null;
 }
 
+export function getAffixKind(affixOrId) {
+  const definition = getAffixDefinition(affixOrId);
+  return definition?.enabled ? definition.kind : null;
+}
+
 export function formatAffixText(affix, supportSeparator = ": ") {
   const definition = getAffixDefinition(affix);
-  if ((affix.kind || definition?.kind) === "core") {
-    return `◆${definition?.jpName || affix.id || affix.type}: ${definition?.desc || affix.desc || "特殊効果"}`;
+  if (!definition?.enabled) {
+    return "（現行対象外の特性）";
   }
-  const label = definition?.jpName || affix.type || affix.id;
+  if (definition.kind === "core") {
+    return `◆${definition.jpName}: ${definition.desc || "特殊効果"}`;
+  }
+  const label = definition.jpName;
   const sign = affix.value >= 0 ? "+" : "";
-  const unit = definition?.unit || "";
+  const unit = definition.unit || "";
   const valueText = unit === "Lv" ? affix.value : `${sign}${affix.value}`;
   return `${label}${supportSeparator}${valueText}${unit}`;
 }

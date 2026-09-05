@@ -16,7 +16,7 @@ import { CLASSES } from "./data/classes.js";
 import { ITEMS } from "./data/items.js";
 import { MONSTERS } from "./data/monsters.js";
 import { SPELLS } from "./data/spells.js";
-import { CORE_AFFIXES, getAffixDefinition, LOOT_BUILD_ROLES } from "./data/affixes.js";
+import { CORE_AFFIXES, getAffixDefinition, getAffixKind, LOOT_BUILD_ROLES } from "./data/affixes.js";
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
@@ -312,8 +312,8 @@ function getAffixSummary(itemKey) {
   });
   return {
     count: affixes.length,
-    coreCount: affixes.filter(affix => (affix?.kind || "support") === "core").length,
-    supportCount: affixes.filter(affix => (affix?.kind || "support") === "support").length,
+    coreCount: affixes.filter(affix => getAffixKind(affix) === "core").length,
+    supportCount: affixes.filter(affix => getAffixKind(affix) === "support").length,
     types: [...new Set(normalizedTypes)].slice(0, 8)
   };
 }
@@ -322,7 +322,7 @@ function getEquipmentBuildRole(itemKey) {
   if (!itemKey || typeof itemKey !== "object") return null;
   const affixes = Array.isArray(itemKey.affixes) ? itemKey.affixes : [];
   const coreRole = affixes
-    .filter(affix => (affix?.kind || getAffixDefinition(affix)?.kind) === "core")
+    .filter(affix => getAffixKind(affix) === "core")
     .map(affix => getAffixDefinition(affix)?.buildRole)
     .find(role => SAFE_BUILD_ROLES.has(role));
   return coreRole || affixes
@@ -335,7 +335,7 @@ function getEquipmentMainAxisIds(itemKey) {
   return new Set((itemKey && typeof itemKey === "object" && Array.isArray(itemKey.affixes)
     ? itemKey.affixes
     : [])
-    .filter(affix => (affix?.kind || getAffixDefinition(affix)?.kind) === "core")
+    .filter(affix => getAffixKind(affix) === "core")
     .filter(affix => getAffixDefinition(affix)?.buildAxis === "main")
     .map(affix => getAffixDefinition(affix)?.id || affix.id || affix.type));
 }
@@ -550,7 +550,7 @@ function getExplorationCoreIds(party = []) {
       if (!itemKey || typeof itemKey !== "object" || !Array.isArray(itemKey.affixes)) return;
       itemKey.affixes.forEach(affix => {
         const definition = getAffixDefinition(affix);
-        if (affix?.kind !== "core" && definition?.kind !== "core") return;
+        if (getAffixKind(affix) !== "core") return;
         const id = definition?.id || affix?.id || affix?.type;
         ids.push(SAFE_CORE_IDS.has(id) ? id : "other");
       });

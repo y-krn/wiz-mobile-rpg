@@ -463,12 +463,12 @@ check("decision events share context and keep action identifiers stable", () => 
     candidateKey: {
       baseId: "SHORT_SWORD",
       buildRole: "pivot",
-      affixes: [{ id: "CORE_GIANT_SLAYER", kind: "core" }]
+      affixes: [{ id: "CORE_EXECUTIONER", kind: "core" }]
     },
     currentKey: {
       baseId: "WAND",
-      buildRole: "reinforce",
-      affixes: [{ id: "CORE_LAST_STAND", kind: "core" }]
+      buildRole: "convert",
+      affixes: [{ id: "CORE_BLOOD_WAND", kind: "core" }]
     },
     preview: { item: { rarity: "rare" }, slot: "weapon", primaryDiff: 1, rows: [] }
   });
@@ -490,7 +490,7 @@ check("decision events share context and keep action identifiers stable", () => 
   const transitionEvent = events.find(event => event.name === "equipment_decision" && event.properties.action === "equip");
   assert.equal(transitionEvent.properties.buildDecision, "transition");
   assert.equal(transitionEvent.properties.candidateBuildRole, "pivot");
-  assert.equal(transitionEvent.properties.currentBuildRole, "reinforce");
+  assert.equal(transitionEvent.properties.currentBuildRole, "convert");
 
   trackEquipmentDecision("equip", {
     state: decisionState,
@@ -513,13 +513,13 @@ check("decision events share context and keep action identifiers stable", () => 
     candidateKey: {
       baseId: "SHORT_SWORD",
       affixes: [
-        { id: "CORE_LAST_STAND", kind: "core" },
-        { id: "CORE_PHYSICAL_ACCURACY", kind: "core" }
+        { id: "CORE_BLOOD_WAND", kind: "core" },
+        { id: "CORE_PURIFY_RING", kind: "core" }
       ]
     },
     currentKey: {
       baseId: "DAGGER",
-      affixes: [{ id: "CORE_LAST_STAND", kind: "core" }]
+      affixes: [{ id: "CORE_BLOOD_WAND", kind: "core" }]
     },
     preview: { item: { rarity: "rare" }, slot: "weapon", rows: [] }
   });

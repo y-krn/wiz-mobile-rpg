@@ -5,6 +5,7 @@ import {
   getItemData,
   getCharAttackBreakdown,
   formatAffixText,
+  getAffixKind,
   canUseManaItems,
   isCurseLocked,
   getWeaponBehaviorProfile
@@ -1016,7 +1017,7 @@ function createAffixDetails(itemKey) {
   ];
 
   if (itemKey.identified === true) groups.forEach(group => {
-    const affixes = itemKey.affixes.filter(affix => (affix.kind || "support") === group.kind);
+    const affixes = itemKey.affixes.filter(affix => getAffixKind(affix) === group.kind);
     if (affixes.length === 0) return;
     const section = document.createElement("div");
     section.className = `equip-affix-group ${group.kind}`;
@@ -1089,7 +1090,7 @@ function getSupportAffixes(itemKey) {
   if (!itemKey || typeof itemKey !== "object" || !Array.isArray(itemKey.affixes)) return [];
   return itemKey.affixes.flatMap((affix, index) => {
     const definition = getAffixDefinition(affix);
-    const kind = affix.kind || definition?.kind || "support";
+    const kind = getAffixKind(affix);
     return kind === "support" && definition?.enabled ? [{ affix, definition, index }] : [];
   });
 }
@@ -1218,8 +1219,7 @@ function createWorkshopPanel(itemKey) {
     } else if (itemKey.polished) {
       unavailable.textContent = "研磨済み（この装備は1回まで）";
     } else if ((itemKey.affixes || []).some((affix) => {
-      const definition = getAffixDefinition(affix);
-      return (affix.kind || definition?.kind || "support") === "core";
+      return getAffixKind(affix) === "core";
     })) {
       unavailable.textContent = "コアは研磨対象外です";
     } else {
