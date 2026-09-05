@@ -10,6 +10,19 @@ export const EQUIPMENT_CANDIDATES_BY_FLOOR = {
   5: ["LONG_SWORD", "CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "KATANA", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "NINJA_SUIT", "BATTLE_GARB", "SORCERER_ROBE", "DRAGON_SCALE"]
 };
 
+// A new depth band adds possibilities but does not invalidate established
+// bases.  The explicit B4/B5 union also keeps the early impact and low-end
+// medium choices alive after heavy and high-end weapons appear.
+for (const floor of [4, 5]) {
+  const earlierEquipment = Array.from({ length: floor - 1 }, (_, index) =>
+    EQUIPMENT_CANDIDATES_BY_FLOOR[index + 1]
+  ).flat();
+  EQUIPMENT_CANDIDATES_BY_FLOOR[floor] = [...new Set([
+    ...earlierEquipment,
+    ...EQUIPMENT_CANDIDATES_BY_FLOOR[floor]
+  ])];
+}
+
 // B5 was previously reused for every deeper floor. Keep earlier equipment in
 // the pool, then widen the authored base space in later bands. This is a
 // horizontal supply change: old gear remains eligible instead of being

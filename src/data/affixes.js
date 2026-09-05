@@ -111,17 +111,17 @@ export const AFFIX_BALANCE = {
     highHpTargetDamage: { magic: 10, rare: 12, epic: 15 },
     bossDamage: { magic: 10, rare: 12, epic: 15 }
   },
-  // #270: 実src経路のsim（N=500、工房解放済み・帰還の翼あり）で
-  // 前半core遭遇 44.2%→65.4%、前半core装備 36.2%→58.2%。
-  // 注: sim内オーバーライドでの試算値(67.6%/61.8%)は乱数消費順が異なるため一致しない。
+  // #1078: Core is a meaningful discovery, not the default affix on ordinary
+  // equipment.  A generated item still has at most one Core; the floor and
+  // workshop gates decide whether its pool is available.
   budgetsByRarityAndFloor: {
     magic: [0, 10, 10, 10, 10, 10],
     rare: [0, 10, 10, 10, 10, 10],
     epic: [0, 12, 13, 14, 15, 16]
   },
   rollComposition: {
-    magic: { support: 1, core: 1, coreChance: 1.00 },
-    rare: { support: 2, core: 1, coreChance: 0.75 },
+    magic: { support: 1, core: 1, coreChance: 0.10 },
+    rare: { support: 2, core: 1, coreChance: 0.25 },
     epic: { support: 2, core: 1 }
   },
   legacySupportCounts: {

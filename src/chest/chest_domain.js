@@ -155,6 +155,7 @@ export function rollChestEncounter({
       currentRun,
       trap,
       firstChestGuaranteed,
+      includeRunes: !fromDrop,
       itemCandidates: fromDrop
         ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1))]
         : null

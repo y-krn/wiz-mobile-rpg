@@ -470,6 +470,22 @@ Production telemetry exposes this distinction as `equipment_decision.buildDecisi
 and emits a separate `build_shift` event only for the Main Core axis change.
 The event is an observation boundary, not a new build rule.
 
+### Build-blind supply bands (#1078)
+
+Loot candidate and weight decisions are independent of the current loadout,
+starting kit, socketed Rune, current Core/Support, build role, and HP/MP
+shortage. Workshop permanent pool unlocks remain world-state inputs. Rune
+availability is a cumulative floor-band metadata rule in
+`src/data/magic.js`, and ordinary chest generation consumes that same source;
+it never pairs a Rune with a Medium.
+
+Equipment generation retains earlier horizontal bases as later bands unlock.
+The production audit records object decisions, equipment/Rune/consumable
+exposure, Core/Support and role composition, pivot adoption, Medium/Rune
+co-occurrence, and matched starting-kit/current-build invariance. Its neutral
+adoption policy delegates equipability and preview math to production and is
+measurement evidence only, not an optimal loot recommendation.
+
 ### Core ownership cleanup (#1075)
 
 The current ownership split is **9 Main Core entries, 4 Auxiliary Core

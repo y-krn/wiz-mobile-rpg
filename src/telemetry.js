@@ -16,7 +16,14 @@ import { CLASSES } from "./data/classes.js";
 import { ITEMS } from "./data/items.js";
 import { MONSTERS } from "./data/monsters.js";
 import { SPELLS } from "./data/spells.js";
-import { CORE_AFFIXES, getAffixDefinition, getAffixKind, LOOT_BUILD_ROLES } from "./data/affixes.js";
+import {
+  CORE_AFFIXES,
+  getAffixDefinition,
+  getAffixKind,
+  getLootRoleSupply,
+  LOOT_BUILD_ROLES,
+  LOOT_ROLE_SUPPLY_BY_BAND
+} from "./data/affixes.js";
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
@@ -25,6 +32,7 @@ import { getBuffTotal } from "./combat_logic/status_effects.js";
 import { getMpWardDef } from "./combat_logic/mp_ward.js";
 import { INVENTORY_CAPACITY } from "./rules/item_inventory.js";
 import { getWeaponBehaviorProfile } from "./data/weapon_behavior_profiles.js";
+import { RUNE_SUPPLY_BANDS, RUNES } from "./data/magic.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -135,6 +143,10 @@ const SAFE_LOOT_SOURCES = new Set([
   "combat", "chest", "merchant", "workshop", "departure-craft", "dungeon", "other"
 ]);
 const SAFE_LOOT_OWNERSHIPS = new Set(["town", "dungeon", "unbanked", "unknown"]);
+const SAFE_LOOT_TIERS = new Set([
+  ...LOOT_ROLE_SUPPLY_BY_BAND.map(band => band.id),
+  ...RUNE_SUPPLY_BANDS.map(band => band.id)
+]);
 const SAFE_PORTAL_TYPES = new Set(["milestone_portal", "town_portal", "return_wing"]);
 const SAFE_PORTAL_DECISIONS = new Set(["push", "return"]);
 const SAFE_BAND_TRIAL_IDS = new Set([
@@ -247,6 +259,29 @@ function getSafeItemId(itemKey) {
   if (itemKey === null || itemKey === undefined || itemKey === "") return null;
   const id = getItemBaseId(itemKey);
   return typeof id === "string" && Object.hasOwn(ITEMS, id) ? id : "other";
+}
+
+function getLootSupplyFields(itemKey) {
+  const itemId = getSafeItemId(itemKey);
+  const rune = RUNES[itemId];
+  const lootRole = normalizeOptionalStableValue(itemKey?.lootRole, SAFE_BUILD_ROLES);
+  const itemType = getItemData(itemKey)?.type;
+  const generatedEquipmentTier = itemKey
+    && itemKey.level !== null
+    && itemKey.level !== undefined
+    && ["weapon", "armor", "shield", "accessory"].includes(itemType)
+    ? getLootRoleSupply(itemKey.level).id
+    : null;
+  const lootTier = normalizeOptionalStableValue(
+    itemKey?.lootTier ?? itemKey?.supplyTier ?? itemKey?.supplyBand
+      ?? rune?.supplyTier ?? generatedEquipmentTier,
+    SAFE_LOOT_TIERS
+  );
+  return {
+    lootRole,
+    lootTier,
+    runeSupplyBand: normalizeOptionalStableValue(rune?.supplyBand, SAFE_LOOT_TIERS)
+  };
 }
 
 function getSafeSpellId(spellKey) {
@@ -858,6 +893,7 @@ export function trackLootLifecycle(stage, details = {}) {
     identified: details.itemKey == null || typeof details.itemKey !== "object" || details.itemKey.identified === true,
     rarity: details.itemKey?.identified === true ? normalizeRarity(details.itemKey?.rarity) : null,
     buildRole: getEquipmentBuildRole(details.itemKey),
+    ...getLootSupplyFields(details.itemKey),
     valueProxy: getLootValueProxy(details.itemKey),
     unbankedObjectLootCount: summary.count,
     unbankedObjectLootValueProxy: summary.valueProxy
