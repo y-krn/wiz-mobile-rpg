@@ -1,4 +1,4 @@
-# Wiz-Mobile: Neon Dungeon
+# DEPTHWARD
 
 モバイルブラウザ向けの、Wizardry 系ソロ深度アタック型ローグライト。
 迷宮を探索し、より深い階層を目指す。

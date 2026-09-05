@@ -7,6 +7,7 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
+    "generate:icons": "node scripts/generate_icons.js",
     "test": "npm run test:unit:full && npm run test:browser",
     "test:unit": "node scratch/tests/run_tests.js",
     "test:unit:fast": "FAST=1 node scratch/tests/run_tests.js",
