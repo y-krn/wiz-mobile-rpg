@@ -6,11 +6,11 @@
 - Runner version/schema: `issue1078-loot-supply-v1` / `1`
 - Scope: `formula` (production chest and equipment-generation functions)
 - Base: `origin/main` at `b92cc8add08fdbbd800d9688ed20d9a786927be9`; freshness was verified by fetch before the run
-- Measured head/runner commit: `015515a8f336e726541e84d4769befeec62d2efb` (pre-follow-up measurement code adjustment; see the current runner for the per-run state reset and exact main-axis buckets)
+- Measured head/runner commit: `e2ff36d777759a3713f479d3e33207265880e5cc`
 - Seed: `1078`
 - Runs: `N=500` per band, three representative floors per band
 - Decisions: three ordinary chest bundles per run; each bundle contains the production main reward and accessory path
-- Provenance: origin/main ancestor `true`, working tree clean `true`, measured-path diff SHA-256 `cb33f17423809c12396e08ad0e206d44f2977e6e2d91cbb64fafa8c55b699813`
+- Provenance: origin/main ancestor `true`, working tree clean `true`, measured-path diff SHA-256 `0d4bcded8376b9c7e3563c488bf0a1020cbed75513125f82acab3059d4dd2aad`
 - Modeled source: `rollChestReward`, `rollChestAccessory`, `getChestItemCandidatesByFloor`, `RUNE_SUPPLY_BANDS`, `EQUIPMENT_CANDIDATES_BY_FLOOR`, production equip validation/preview
 
 ## Supply result
@@ -39,6 +39,10 @@ Core find and equip distributions (`0 / 1 / 2+`) were:
 | B1–5 | `410 / 84 / 6` | `417 / 78 / 5` | `439 / 60 / 1` |
 | B6–10 | `310 / 162 / 28` | `326 / 148 / 26` | `357 / 130 / 13` |
 | B11+ | `286 / 168 / 46` | `300 / 160 / 40` | `323 / 156 / 21` |
+
+The exact Main-axis Core distribution (`0 / 1 / 2 / 3 / 4+`) was
+`439 / 60 / 1 / 0 / 0`, `357 / 130 / 13 / 0 / 0`, and
+`323 / 156 / 18 / 3 / 0` for the same three bands.
 
 Generated equipment carried at most one Core in all measured items. Core-item
 counts were 96/668, 218/917, and 269/873 from B1–5 through B11+; the rest of
