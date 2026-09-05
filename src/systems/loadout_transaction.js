@@ -17,10 +17,17 @@ function describeChange(change) {
   return `${from} → ${to}`;
 }
 
-export function commitLoadoutDraft(draft, { stateLike = state, turnCost = 0 } = {}) {
+export function commitLoadoutDraft(draft, { stateLike = state, turnCost = 0, worldAction = null } = {}) {
   const resolvedTurnCost = turnCost === 1 ? 1 : 0;
   if (stateLike.gameState === "combat") return { ok: false, reason: "combat_locked" };
   if (!isLoadoutDraftDirty(draft)) return { ok: true, changed: false, turnCost: 0, changes: getLoadoutDraftChanges(draft) };
+  const isTrial = Boolean(draft?.trialAction);
+  if (isTrial && stateLike.gameState !== "explore" && worldAction !== "explore") {
+    return { ok: false, reason: "未鑑定装備の試用は探索中のみ実行できます。" };
+  }
+  if (isTrial && resolvedTurnCost !== 1) {
+    return { ok: false, reason: "試用には探索時間1ターンが必要です。" };
+  }
   const validation = validateLoadoutDraft(draft);
   if (!validation.ok) return { ok: false, reason: "invalid_draft", errors: validation.errors };
 
@@ -31,7 +38,11 @@ export function commitLoadoutDraft(draft, { stateLike = state, turnCost = 0 } = 
     const preview = change.to
       ? getEquipmentPreview(character, change.to, change.slot, { floor: stateLike.floor })
       : getUnequipPreview(character, change.slot, { floor: stateLike.floor });
-    trackEquipmentDecision(change.to ? "equip" : "unequip", {
+    const trialTarget = isTrial && change.to && draft.trialAction
+      && draft.trialAction.actorIdx === change.actorIdx
+      && draft.trialAction.slot === change.slot
+      && change.to === draft.trialAction.item;
+    trackEquipmentDecision(change.to ? (trialTarget ? "trial" : "equip") : "unequip", {
       state: stateLike,
       character,
       candidateKey: change.to,
@@ -77,7 +88,11 @@ export function commitLoadoutDraft(draft, { stateLike = state, turnCost = 0 } = 
     .forEach(change => {
       const reveal = revealEquipmentOnEquip(change.to);
       const character = stateLike.party?.[change.actorIdx];
-      trackLootLifecycle("adopted", {
+      const trialTarget = isTrial && draft.trialAction
+        && draft.trialAction.actorIdx === change.actorIdx
+        && draft.trialAction.slot === change.slot
+        && change.to === draft.trialAction.item;
+      trackLootLifecycle(trialTarget ? "tried" : "adopted", {
         state: stateLike,
         character,
         itemKey: change.to,
@@ -91,12 +106,15 @@ export function commitLoadoutDraft(draft, { stateLike = state, turnCost = 0 } = 
     .map(change => describeChange(change))
     .join(" / ");
   const runeCount = changes.runes.reduce((sum, change) => sum + Math.max(change.from.length, change.to.length), 0);
-  addLog(`装備変更を確定した。${equipmentText}${runeCount ? ` / Rune変更 ${runeCount}件` : ""}`);
+  addLog(isTrial
+    ? `試用を確定した。${equipmentText}（探索時間が進む）`
+    : `装備変更を確定した。${equipmentText}${runeCount ? ` / Rune変更 ${runeCount}件` : ""}`);
   trackLoadoutTransaction("commit", {
     state: stateLike,
     equipmentChanges: changes.equipment.length,
     runeChanges: changes.runes.length,
     discardedItems: changes.discarded.length,
+    mode: isTrial ? "trial" : "loadout",
     turnCost: resolvedTurnCost
   });
   return { ok: true, changed: true, turnCost: resolvedTurnCost, changes };

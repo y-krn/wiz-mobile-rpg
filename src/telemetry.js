@@ -612,6 +612,7 @@ function normalizeDecisionAction(action) {
     commit: "commit",
     cancel: "cancel",
     equip: "equip",
+    trial: "trial",
     unequip: "unequip",
     discard: "discard",
     identify: "identify",
@@ -1253,6 +1254,7 @@ export function trackLoadoutTransaction(action, details = {}) {
     equipmentChangeCount: boundedFiniteOrNull(details.equipmentChanges, 0, EQUIPMENT_SLOTS.length * 8),
     runeChangeCount: boundedFiniteOrNull(details.runeChanges, 0, EQUIPMENT_SLOTS.length * 8),
     discardedItemCount: boundedFiniteOrNull(details.discardedItems, 0, INVENTORY_CAPACITY),
+    mode: normalizeStableValue(details.mode, new Set(["loadout", "trial"])),
     turnCost: boundedFiniteOrNull(details.turnCost, 0, 1)
   });
 }

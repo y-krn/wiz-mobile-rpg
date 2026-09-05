@@ -16,6 +16,7 @@ const canonicalRunnerPath = "scratch/simulations/sim_depth_material_ev.js";
 export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: canonicalRunnerPath, lifecycle: "canonical", scope: "run" },
   { path: "scratch/simulations/sim_issue_1056_pending_rewards.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/simulations/sim_issue_1064_unknown_trial.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_recovery_policy.js", lifecycle: "historical", scope: "infra" },
   { path: "scratch/measurements/issue624_commit_depth.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue700_gate_metrics.js", lifecycle: "historical", scope: "infra" },

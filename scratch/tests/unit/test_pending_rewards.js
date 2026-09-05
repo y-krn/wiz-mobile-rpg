@@ -115,6 +115,37 @@ assert.equal(runeResolved.ok, true, "known Rune can join the same loadout transa
 assert.equal(runeResolved.turnCost, 1);
 assert.equal(state.currentRun.unbankedObjectLoot.length, 1);
 
+const unknownTrial = {
+  kind: "equipment",
+  instanceId: "pending-unknown-trial",
+  baseId: "SHORT_SWORD",
+  rarity: "rare",
+  level: 2,
+  identified: false,
+  knowledgeStage: "discovery",
+  trialCount: 0,
+  tags: ["blade"],
+  hintTags: ["blade"],
+  observedHintTags: [],
+  curseEffectId: "curse_blood_thirst",
+  cursePower: 1,
+  curseSuspected: true,
+  affixes: []
+};
+resetState(Array.from({ length: 19 }, () => "HEAL_POTION"));
+state.party[0].equipment.weapon = "DAGGER";
+const trialBundle = stagePendingRewardBundle(state, [{ role: "main", item: unknownTrial }]);
+trialBundle.entries[0].decision = "take";
+trialBundle.entries[0].loadoutAction = { type: "trial", actorIdx: 0 };
+const trialResolved = resolvePendingRewardBundle(state);
+assert.equal(trialResolved.ok, true, "pending unknown equipment uses the dedicated trial path");
+assert.equal(trialResolved.turnCost, 1);
+assert.equal(state.currentRun.steps, 1, "pending trial costs one exploration turn total");
+assert.equal(state.inventory.length, 20, "displaced gear returns without a hidden 21st slot");
+assert.equal(state.party[0].equipment.weapon, unknownTrial);
+assert.equal(unknownTrial.knowledgeStage, "trial");
+assert.equal(unknownTrial.curseLocked, true);
+
 resetState([]);
 const saveBundle = stagePendingRewardBundle(state, [{ role: "main", item: "HEAL_POTION" }]);
 saveBundle.entries[0].decision = "take";
