@@ -29,6 +29,36 @@ function isInteractiveSelector(selector) {
   return INTERACTIVE_SELECTOR_RE.test(selector.replace(/\/\*[\s\S]*?\*\//g, " "));
 }
 
+function splitSelectors(selector) {
+  const selectors = [];
+  let start = 0;
+  let depth = 0;
+  let quote = "";
+  const source = selector.replace(/\/\*[\s\S]*?\*\//g, " ");
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === "\\") index += 1;
+      else if (character === quote) quote = "";
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === "(" || character === "[") {
+      depth += 1;
+    } else if (character === ")" || character === "]") {
+      depth = Math.max(0, depth - 1);
+    } else if (character === "," && depth === 0) {
+      selectors.push(source.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+
+  selectors.push(source.slice(start).trim());
+  return selectors.filter(Boolean);
+}
+
 function hasPointerCursor(cssRule) {
   return cssRule.nodes?.some((node) => node.type === "decl" && node.prop === "cursor" && node.value === "pointer") ?? false;
 }
@@ -67,8 +97,10 @@ const rule = (primary) => {
     if (!validOptions || primary === false) return;
 
     root.walkRules((cssRule) => {
-      if (isNativeSmallControlSelector(cssRule.selector)) return;
-      if (!isInteractiveSelector(cssRule.selector) && !hasPointerCursor(cssRule)) return;
+      const hasLintableSelector = splitSelectors(cssRule.selector).some((selector) =>
+        !isNativeSmallControlSelector(selector) && (isInteractiveSelector(selector) || hasPointerCursor(cssRule))
+      );
+      if (!hasLintableSelector) return;
 
       cssRule.walkDecls((decl) => {
         if (!DIMENSION_PROPS.has(decl.prop) || hasAllowComment(decl)) return;

@@ -37,4 +37,13 @@ const unrelatedControlWarnings = await lint(`
 `);
 assert.equal(unrelatedControlWarnings.length, 1, "the exception should not cover other controls in the row");
 
+const mixedSelectorWarnings = await lint(`
+  .pending-reward-discard-row input,
+  .other-row input {
+    width: 20px;
+    height: 20px;
+  }
+`);
+assert.equal(mixedSelectorWarnings.length, 2, "a mixed selector rule should still lint the non-exempt selector");
+
 console.log("[PASS] CSS tap lint selector exception");
