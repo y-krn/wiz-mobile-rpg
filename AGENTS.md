@@ -56,8 +56,9 @@ possible.
 When relying on a base ref such as `origin/main`, record the chosen base SHA,
 its source, and whether freshness was verified. A locally readable ref alone
 is not evidence that the base is latest; if freshness cannot be verified, say
-so. Base updates, review evidence, and current-head CI decisions remain
-governed by `.agents/merge-gate.md`.
+so. Fetch only when needed and when the environment permits it. Base updates,
+review evidence, and current-head CI decisions remain governed by
+`.agents/merge-gate.md`.
 
 ## Principles
 
