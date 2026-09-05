@@ -6,12 +6,13 @@
 - Runner version/schema: `issue1078-loot-supply-v1` / `1`
 - Scope: `formula` (production chest and equipment-generation functions)
 - Base: `origin/main` at `b92cc8add08fdbbd800d9688ed20d9a786927be9`; freshness was verified by fetch before the run
-- Measured head/runner commit: `5ef2336b97238deef5dc0c793d47f679c2a785d0`
+- Measured source/runner commit: `c1c18df088a43b34ee2e980d443634fdd565fe41`
 - Seed: `1078`
 - Runs: `N=500` per band, three representative floors per band
 - Decisions: three ordinary chest bundles per run; each bundle contains the production main reward and accessory path
-- Provenance: origin/main ancestor `true`, working tree clean `true`, measured-path diff SHA-256 `0d4bcded8376b9c7e3563c488bf0a1020cbed75513125f82acab3059d4dd2aad`
-- Determinism: two identical N=500 reruns at the committed head produced report SHA-256 `770212225a7314676fb40f59e49b35ee3a2e97fcbcdd9ea254c55c7febdf8a40`
+- Provenance: origin/main ancestor `true`, working tree clean `true`, measured-path diff SHA-256 `2996f21b72fa84aa4bd47d173f55435c655fa8e4fca58aeb1bc99696b17aa3b4`
+- Determinism: two identical N=500 reruns at the measured source commit produced report SHA-256 `92f931c90a1e96448a19d089ef87d2ec04a09e428eb5912126105774bef21a8d`
+- This evidence-only record was committed after the measurement; it does not change any measured source or runner path.
 - Modeled source: `rollChestReward`, `rollChestAccessory`, `getChestItemCandidatesByFloor`, `RUNE_SUPPLY_BANDS`, `EQUIPMENT_CANDIDATES_BY_FLOOR`, production equip validation/preview
 
 ## Supply result
