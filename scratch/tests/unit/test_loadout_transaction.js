@@ -6,6 +6,7 @@ import {
   isLoadoutDraftDirty,
   stageDiscardInventoryItem,
   stageEquip,
+  stageTrialEquip,
   stageSocketRune,
   stageUnequip,
   validateLoadoutDraft
@@ -151,6 +152,87 @@ assert.equal(
   transactionCount,
   "invalid commits must not emit a paid transaction"
 );
+
+const unknownTrial = {
+  kind: "equipment",
+  instanceId: "unknown-trial-sword",
+  baseId: "SHORT_SWORD",
+  rarity: "rare",
+  level: 2,
+  identified: false,
+  halfIdentified: false,
+  knowledgeStage: "discovery",
+  trialCount: 0,
+  tags: ["blade"],
+  hintTags: ["blade"],
+  observedHintTags: [],
+  curseEffectId: "curse_blood_thirst",
+  cursePower: 1,
+  curseSuspected: true,
+  affixes: []
+};
+const trialCharacter = createStartingKitCharacter("vanguard");
+trialCharacter.equipment.weapon = "DAGGER";
+resetState(trialCharacter, [unknownTrial]);
+state.gameState = "explore";
+draft = createLoadoutDraft(state);
+assert.equal(stageEquip(draft, { actorIdx: 0, inventoryIndex: 0 }).ok, false, "unknown equipment cannot enter the normal loadout path");
+staged = stageTrialEquip(draft, { actorIdx: 0, inventoryIndex: 0, lootId: "loadout-test:loot:7" });
+assert.equal(staged.ok, true);
+assert.equal(state.party[0].equipment.weapon, "DAGGER", "trial staging does not mutate live equipment");
+assert.equal(staged.draft.trialAction.item, unknownTrial);
+assert.equal(validateLoadoutDraft(staged.draft).ok, true);
+const trialCommit = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: 1 });
+assert.equal(trialCommit.ok, true);
+assert.equal(state.party[0].equipment.weapon, unknownTrial);
+assert.equal(unknownTrial.knowledgeStage, "trial");
+assert.equal(unknownTrial.trialCount, 1);
+assert.equal(unknownTrial.curseLocked, true, "curse locks only at the trial commit");
+assert.equal(telemetryEvents.filter(event => event.name === "equipment_decision").at(-1)?.properties.action, "trial");
+assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at(-1)?.properties.lifecycleStage, "tried");
+assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at(-1)?.properties.lootSequence, 7);
+assert.equal(telemetryEvents.filter(event => event.name === "loadout_transaction").at(-1)?.properties.mode, "trial");
+
+// Use the same trial-stage lifecycle for a non-cursed item; cursed trial gear remains locked.
+unknownTrial.curseEffectId = null;
+unknownTrial.curseLocked = false;
+const triedLifecycleCount = telemetryEvents.filter(event => (
+  event.name === "loot_lifecycle" && event.properties.lifecycleStage === "tried"
+)).length;
+draft = createLoadoutDraft(state);
+staged = stageUnequip(draft, { actorIdx: 0, slot: "weapon" });
+assert.equal(staged.ok, true);
+const unequipCommit = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: 1 });
+assert.equal(unequipCommit.ok, true);
+draft = createLoadoutDraft(state);
+staged = stageEquip(draft, {
+  actorIdx: 0,
+  inventoryIndex: draft.inventory.indexOf(unknownTrial),
+  requestedSlot: "weapon"
+});
+assert.equal(staged.ok, true, "a trial-stage item can return through the normal loadout path");
+const reEquipCommit = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: 1 });
+assert.equal(reEquipCommit.ok, true);
+assert.equal(unknownTrial.knowledgeStage, "trial");
+assert.equal(unknownTrial.trialCount, 1, "normal re-equip does not count as another trial");
+assert.equal(
+  telemetryEvents.filter(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "tried").length,
+  triedLifecycleCount,
+  "normal re-equip does not re-emit tried telemetry"
+);
+assert.equal(telemetryEvents.filter(event => event.name === "equipment_decision").at(-1)?.properties.action, "equip");
+assert.equal(telemetryEvents.filter(event => event.name === "loadout_transaction").at(-1)?.properties.mode, "loadout");
+
+const combatTrialCharacter = createStartingKitCharacter("vanguard");
+const combatTrialState = {
+  ...state,
+  party: [combatTrialCharacter],
+  inventory: [unknownTrial],
+  gameState: "explore"
+};
+const combatTrial = stageTrialEquip(createLoadoutDraft(combatTrialState), { actorIdx: 0, inventoryIndex: 0 });
+combatTrialState.gameState = "combat";
+assert.equal(commitLoadoutDraft(combatTrial.draft, { stateLike: combatTrialState, turnCost: 1 }).ok, false, "combat cannot commit a trial");
 __resetTelemetryForTests();
 
 console.log("[PASS] loadout drafts validate and commit atomically");

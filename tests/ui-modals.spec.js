@@ -748,7 +748,7 @@ for (const vp of VIEWPORTS) {
 
     await page.locator('.equip-item-row', { hasText: 'レザーアーマー（未鑑定）' }).click();
     await expect(page.locator('.equip-affix-details')).toHaveCount(0);
-    const gambleButton = page.locator('button.equip-action-btn').filter({ hasText: '未鑑定で装備する' });
+    const gambleButton = page.locator('button.equip-action-btn').filter({ hasText: '試す（探索時間が進む）' });
     await expect(gambleButton).toBeVisible();
     await gambleButton.scrollIntoViewIfNeeded();
     expect((await gambleButton.boundingBox()).height).toBeGreaterThanOrEqual(44);

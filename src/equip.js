@@ -63,6 +63,7 @@ import {
   isLoadoutDraftDirty,
   stageDiscardInventoryItem,
   stageEquip,
+  stageTrialEquip,
   stageSocketRune,
   stageUnequip,
   stageUnsocketRune
@@ -140,7 +141,11 @@ function cancelEquipDraft() {
 function commitEquipDraft() {
   const consumesExplorationTurn = equipState.prevGameState === "explore";
   const turnCost = consumesExplorationTurn ? 1 : 0;
-  const result = commitLoadoutDraft(equipState.draft, { stateLike: state, turnCost });
+  const result = commitLoadoutDraft(equipState.draft, {
+    stateLike: state,
+    turnCost,
+    worldAction: equipState.draft?.trialAction ? "explore" : null
+  });
   if (!result.ok) {
     addLog(result.errors?.join(" ") || "装備変更を確定できません。");
     renderEquip();
@@ -552,7 +557,10 @@ function createTransactionStatus() {
   const summary = getLoadoutDraftChanges(equipState.draft);
   const validation = getLoadoutValidationSummary(equipState.draft);
   const changed = summary.equipment.length + summary.runes.length + summary.discarded.length;
-  status.textContent = changed > 0
+  const trial = Boolean(equipState.draft?.trialAction);
+  status.textContent = trial
+    ? `試用予定 1件。${validation.message}`
+    : changed > 0
     ? `変更予定 ${summary.equipment.length}枠 / Rune ${summary.runes.length}件${summary.discarded.length ? ` / 破棄 ${summary.discarded.length}件` : ""}。${validation.message}`
     : "装備変更は未確定です。編集は無料です。";
   status.setAttribute("role", "status");
@@ -629,7 +637,9 @@ function createFooter(overlay, { organizing = false } = {}) {
     commit.type = "button";
     commit.id = "btn-equip-commit";
     commit.className = "btn btn-neon btn-block equip-action-btn";
-    commit.textContent = "確定する（探索時間が進む）";
+    commit.textContent = equipState.draft?.trialAction
+      ? "試す内容を確定する（探索時間が進む）"
+      : "確定する（探索時間が進む）";
     commit.disabled = !isLoadoutDraftDirty(equipState.draft) || !getLoadoutValidationSummary(equipState.draft).ok;
     setDockActionRole(commit, "confirm");
     commit.addEventListener("click", commitEquipDraft);
@@ -1265,6 +1275,8 @@ function createDetailPanel(char) {
   const item = getItemData(itemKey);
   const hidden = !isIdentified(itemKey);
   const knowledgeStage = getKnowledgeStage(itemKey);
+  const trialRequired = knowledgeStage === KNOWLEDGE_STAGES.DISCOVERY
+    || knowledgeStage === KNOWLEDGE_STAGES.OBSERVATION;
   const isEquipped = equipState.selectedIsEquipped;
 
   let preview;
@@ -1457,28 +1469,38 @@ function createDetailPanel(char) {
 
     const actionBtn = document.createElement("button");
     actionBtn.type = "button";
-    actionBtn.className = availability.ok ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
-    actionBtn.disabled = !availability.ok;
+    const trialBlockedOutsideExplore = trialRequired && equipState.prevGameState !== "explore";
+    const actionAvailable = availability.ok && !trialBlockedOutsideExplore;
+    actionBtn.className = actionAvailable ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
+    actionBtn.disabled = !actionAvailable;
     const oldEquipment = preview?.oldEq ? getItemData(preview.oldEq) : null;
-    actionBtn.textContent = availability.ok
-      ? (hidden
-        ? "未鑑定で装備する"
+    actionBtn.textContent = actionAvailable
+      ? (trialRequired
+        ? "試す（探索時間が進む）"
         : oldEquipment
           ? `装備する（${oldEquipment.name}をバッグへ）`
           : "装備する")
-      : "装備できません";
-    if (availability.ok) {
-      actionBtn.setAttribute("aria-label", "装備する");
+      : trialBlockedOutsideExplore
+        ? "探索中のみ試せます"
+        : "装備できません";
+    if (actionAvailable) {
+      actionBtn.setAttribute("aria-label", trialRequired ? "試す" : "装備する");
       if (oldEquipment) actionBtn.title = `${oldEquipment.name}はバッグへ戻ります`;
     }
     setDockActionRole(actionBtn, "confirm");
     actionBtn.addEventListener("click", () => {
       if (!availability.ok) return;
-      const result = stageEquip(equipState.draft, {
-        inventoryIndex: equipState.selectedIdx,
-        actorIdx: equipState.actorIdx,
-        requestedSlot: equipState.selectedSlot
-      });
+      const result = trialRequired
+        ? stageTrialEquip(equipState.draft, {
+          inventoryIndex: equipState.selectedIdx,
+          actorIdx: equipState.actorIdx,
+          requestedSlot: equipState.selectedSlot
+        })
+        : stageEquip(equipState.draft, {
+          inventoryIndex: equipState.selectedIdx,
+          actorIdx: equipState.actorIdx,
+          requestedSlot: equipState.selectedSlot
+        });
       if (!result.ok) return;
       equipState.draft = result.draft;
       clearSelection();

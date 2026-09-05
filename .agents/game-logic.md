@@ -227,9 +227,13 @@ non-empty dungeon commit is one exploration turn, regardless of change count;
 cancel, no-op, and invalid drafts cost zero. The caller then uses the same
 exploration-turn boundary as movement so spell durations, prolonged-stay
 pressure, and roaming state advance normally. The caller supplies the actual
-world turn cost, so Town/Camp commits remain zero. Unknown equipment is only
-revealed when the committed placement is applied; draft comparison never adds
-a free trial.
+world turn cost, so Town/Camp commits remain zero. Unknown equipment is
+rejected by the normal path and uses a dedicated Trial projection instead:
+only a successful exploration Trial applies the placement, advances knowledge
+to `trial`, increments `trialCount`, and locks a curse while consuming one
+turn. Draft comparison remains read-only, combat rejects Trial, and the
+pending-reward path connects an unknown item directly to the projected final
+state without a hidden inventory slot.
 
 ## Pending reward bundle (#1056)
 

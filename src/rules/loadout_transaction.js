@@ -1,5 +1,5 @@
 import { getItemData } from "./item_rules.js";
-import { isCurseLocked } from "./identification_rules.js";
+import { isCurseLocked, getKnowledgeStage, KNOWLEDGE_STAGES } from "./identification_rules.js";
 import { getEquipmentSlot } from "./equipment_slots.js";
 import { getTargetSlot, isEquipmentItem } from "./equipment_preview.js";
 import { getEquipmentHands, getCharacterEquipmentHands, MAX_EQUIPMENT_HANDS } from "./equipment_hands.js";
@@ -102,6 +102,12 @@ function getSlotItem(character, slot) {
   return character?.equipment?.[slot] || null;
 }
 
+function isUntriedEquipment(item) {
+  const stage = getKnowledgeStage(item);
+  return isEquipmentItem(getItemData(item))
+    && (stage === KNOWLEDGE_STAGES.DISCOVERY || stage === KNOWLEDGE_STAGES.OBSERVATION);
+}
+
 function getEquipmentChanges(before, after) {
   const changes = [];
   const partySize = Math.max(before.party.length, after.party.length);
@@ -139,7 +145,8 @@ export function createLoadoutDraft(stateLike) {
     inventory: Array.isArray(stateLike?.inventory) ? [...stateLike.inventory] : [],
     baseParty: cloneParty(stateLike?.party),
     baseInventory: Array.isArray(stateLike?.inventory) ? [...stateLike.inventory] : [],
-    discardedItems: []
+    discardedItems: [],
+    trialAction: null
   };
   draft.party.forEach(normalizeDraftActor);
   return draft;
@@ -205,6 +212,10 @@ export function getLoadoutEquipAvailability(draft, { actorIdx, item, requestedSl
 
 export function stageEquip(draft, { actorIdx, inventoryIndex, requestedSlot = null } = {}) {
   const candidate = draft?.inventory?.[inventoryIndex];
+  if (draft?.trialAction) return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
+  if (isUntriedEquipment(candidate)) {
+    return { ok: false, reason: "未鑑定装備は『試す』から実際に装備してください。" };
+  }
   const availability = getLoadoutEquipAvailability(draft, { actorIdx, item: candidate, requestedSlot });
   if (!availability.ok) return availability;
   const next = copyDraft(draft);
@@ -228,7 +239,40 @@ export function stageEquip(draft, { actorIdx, inventoryIndex, requestedSlot = nu
   return { ok: true, draft: next, slot: availability.slot, item, oldItem };
 }
 
+export function stageTrialEquip(draft, { actorIdx, inventoryIndex = null, item = null, requestedSlot = null, lootId = null } = {}) {
+  if (!draft || draft.trialAction) return { ok: false, reason: "試用は同時に1件だけ確定できます。" };
+  const candidate = Number.isInteger(inventoryIndex) ? draft.inventory?.[inventoryIndex] : item;
+  if (!isUntriedEquipment(candidate)) {
+    return { ok: false, reason: "試用できる未鑑定装備がありません。" };
+  }
+  const priorChanges = getLoadoutDraftChanges(draft);
+  if (priorChanges.equipment.length > 0 || priorChanges.runes.length > 0) {
+    return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
+  }
+  const availability = getLoadoutEquipAvailability(draft, { actorIdx, item: candidate, requestedSlot });
+  if (!availability.ok) return availability;
+
+  const next = copyDraft(draft);
+  const character = getDraftActor(next, actorIdx);
+  if (Number.isInteger(inventoryIndex)) removeInventoryAt(next, inventoryIndex, candidate);
+  const oldItem = getSlotItem(character, availability.slot);
+  const oldRuneIds = availability.slot === "weapon" ? getRuneIds(character) : [];
+  character.equipment[availability.slot] = candidate;
+  if (oldItem) addInventory(next, oldItem);
+  if (availability.slot === "weapon") oldRuneIds.forEach(runeId => addInventory(next, runeId));
+
+  if (availability.slot === "weapon" && getEquipmentHands(candidate) === 2 && character.equipment.shield) {
+    const shield = character.equipment.shield;
+    character.equipment.shield = null;
+    addInventory(next, shield);
+  }
+  normalizeDraftActor(character);
+  next.trialAction = { actorIdx, slot: availability.slot, item: candidate, lootId };
+  return { ok: true, draft: next, slot: availability.slot, item: candidate, oldItem };
+}
+
 export function stageUnequip(draft, { actorIdx, slot } = {}) {
+  if (draft?.trialAction) return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
   const equipmentSlot = getEquipmentSlot(slot);
   const character = getDraftActor(draft, actorIdx);
   const item = getSlotItem(character, equipmentSlot?.id);
@@ -247,6 +291,7 @@ export function stageUnequip(draft, { actorIdx, slot } = {}) {
 }
 
 export function stageSocketRune(draft, { actorIdx, inventoryIndex } = {}) {
+  if (draft?.trialAction) return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
   const character = getDraftActor(draft, actorIdx);
   const rune = draft?.inventory?.[inventoryIndex];
   if (!character || !getRuneSpellKey(rune)) return { ok: false, reason: "媒体またはRuneがありません" };
@@ -259,6 +304,7 @@ export function stageSocketRune(draft, { actorIdx, inventoryIndex } = {}) {
 }
 
 export function stageUnsocketRune(draft, { actorIdx, spellKey } = {}) {
+  if (draft?.trialAction) return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
   const character = getDraftActor(draft, actorIdx);
   const runeId = getRuneItemId(spellKey);
   if (!character || !runeId) return { ok: false, reason: "Runeがありません" };
@@ -271,6 +317,7 @@ export function stageUnsocketRune(draft, { actorIdx, spellKey } = {}) {
 }
 
 export function stageDiscardInventoryItem(draft, inventoryIndex) {
+  if (draft?.trialAction) return { ok: false, reason: "試用内容を先に確定するか、キャンセルしてください。" };
   const item = draft?.inventory?.[inventoryIndex];
   if (!item) return { ok: false, reason: "装備品が見つかりません" };
   const next = copyDraft(draft);
@@ -308,9 +355,24 @@ export function validateLoadoutDraft(draft) {
 
   if (draft.inventory.length > 20) errors.push(`バッグが満杯です（${draft.inventory.length}/20）。返却先を整理してください。`);
   const baseParty = { party: draft.baseParty };
-  getEquipmentChanges(baseParty, draft).forEach(({ from, to }) => {
+  const equipmentChanges = getEquipmentChanges(baseParty, draft);
+  equipmentChanges.forEach(({ actorIdx, slot, from, to }) => {
     if (from && !sameItem(from, to) && isCurseLocked(from)) errors.push("呪いで固定された装備は外せません。");
+    if (to && isUntriedEquipment(to)) {
+      const isTrialTarget = draft.trialAction
+        && draft.trialAction.actorIdx === actorIdx
+        && draft.trialAction.slot === slot
+        && sameItem(draft.trialAction.item, to);
+      if (!isTrialTarget) errors.push("未鑑定装備は試用transactionでのみ装備できます。");
+    }
   });
+  if (draft.trialAction) {
+    const trialChanges = equipmentChanges.filter(change => change.to && sameItem(change.to, draft.trialAction.item));
+    if (trialChanges.length !== 1) errors.push("試用対象の装備変更を確認できません。");
+    if (equipmentChanges.some(change => !sameItem(change.to, draft.trialAction.item) && change.to !== null)) {
+      errors.push("試用は通常の装備変更と同じ取引に混ぜられません。");
+    }
+  }
   return { ok: errors.length === 0, errors };
 }
 

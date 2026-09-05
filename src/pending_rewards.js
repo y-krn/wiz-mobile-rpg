@@ -15,6 +15,7 @@ import {
   createLoadoutDraft,
   stageDiscardInventoryItem,
   stageEquip,
+  stageTrialEquip,
   stageSocketRune,
   validateLoadoutDraft
 } from "./rules/loadout_transaction.js";
@@ -96,7 +97,13 @@ function itemName(item) {
 
 function isKnownLoadoutItem(item) {
   return (isEquipmentItem(getItemData(item)) || Boolean(getRuneSpellKey(item))) &&
-    getKnowledgeStage(item) === KNOWLEDGE_STAGES.FULL;
+    [KNOWLEDGE_STAGES.TRIAL, KNOWLEDGE_STAGES.FULL].includes(getKnowledgeStage(item));
+}
+
+function isUntriedLoadoutItem(item) {
+  const stage = getKnowledgeStage(item);
+  return isEquipmentItem(getItemData(item))
+    && (stage === KNOWLEDGE_STAGES.DISCOVERY || stage === KNOWLEDGE_STAGES.OBSERVATION);
 }
 
 function normalizeDiscardIndexes(bundle, inventory) {
@@ -114,15 +121,23 @@ function getPendingActionEntry(bundle, entry) {
   const action = entry.loadoutAction;
   if (!action) return null;
   if (entry.decision !== "take") return { reason: "装備候補は持つを選んでください。" };
-  if (!isKnownLoadoutItem(entry.item)) return { reason: "未鑑定品はこの解決で装備できません。" };
-  if (!action.type || !["equip", "socket"].includes(action.type)) {
+  if (!action.type || !["equip", "socket", "trial"].includes(action.type)) {
     return { reason: "不明な装備操作です。" };
+  }
+  if (action.type === "trial" && !isUntriedLoadoutItem(entry.item)) {
+    return { reason: "試用できる未鑑定装備ではありません。" };
+  }
+  if (action.type !== "trial" && !isKnownLoadoutItem(entry.item)) {
+    return { reason: "未鑑定品は『試す』から実際に装備してください。" };
   }
   if (action.type === "socket" && !getRuneSpellKey(entry.item)) {
     return { reason: "Rune以外はsocketできません。" };
   }
   if (action.type === "equip" && getRuneSpellKey(entry.item)) {
     return { reason: "Runeはsocket候補にしてください。" };
+  }
+  if (action.type === "trial" && getRuneSpellKey(entry.item)) {
+    return { reason: "Runeは試用できません。" };
   }
   return null;
 }
@@ -140,6 +155,12 @@ function validateResolution(stateLike, bundle) {
     return { ok: false, reason: "帰還の翼はすでに所持しています。置いていくを選んでください。" };
   }
   const hasLoadoutAction = bundle.entries.some(entry => entry.loadoutAction);
+  const trialEntries = bundle.entries.filter(entry => entry.loadoutAction?.type === "trial");
+  const normalLoadoutEntries = bundle.entries.filter(entry => ["equip", "socket"].includes(entry.loadoutAction?.type));
+  if (trialEntries.length > 1) return { ok: false, reason: "試用できる装備は1件ずつ確定してください。" };
+  if (trialEntries.length > 0 && normalLoadoutEntries.length > 0) {
+    return { ok: false, reason: "試用は通常の装備変更と同じ戦果解決に混ぜられません。" };
+  }
   let plan = null;
   let loadoutDraft = null;
   if (hasLoadoutAction) {
@@ -179,15 +200,24 @@ function findDraftItemIndex(draft, item) {
 
 function buildPendingLoadoutDraft(stateLike, bundle, taken, discardIndexes) {
   let draft = createLoadoutDraft(stateLike);
-  taken.forEach(entry => draft.inventory.push(entry.item));
+  const trialEntries = bundle.entries.filter(entry => entry.loadoutAction?.type === "trial");
+  taken.filter(entry => !trialEntries.includes(entry)).forEach(entry => draft.inventory.push(entry.item));
   [...discardIndexes].sort((left, right) => right - left).forEach(index => {
     const staged = stageDiscardInventoryItem(draft, index);
     if (staged.ok) draft = staged.draft;
   });
   for (const entry of bundle.entries.filter(candidate => candidate.loadoutAction)) {
     const inventoryIndex = findDraftItemIndex(draft, entry.item);
-    if (inventoryIndex < 0) return { ok: false, reason: `${itemName(entry.item)}をdraftに置けません。` };
-    const staged = entry.loadoutAction.type === "socket"
+    const staged = entry.loadoutAction.type === "trial"
+      ? stageTrialEquip(draft, {
+        actorIdx: entry.loadoutAction.actorIdx ?? 0,
+        item: entry.item,
+        requestedSlot: entry.loadoutAction.requestedSlot || null,
+        lootId: entry.id
+      })
+      : inventoryIndex < 0
+      ? { ok: false, reason: `${itemName(entry.item)}をdraftに置けません。` }
+      : entry.loadoutAction.type === "socket"
       ? stageSocketRune(draft, { actorIdx: entry.loadoutAction.actorIdx ?? 0, inventoryIndex })
       : stageEquip(draft, {
         actorIdx: entry.loadoutAction.actorIdx ?? 0,
@@ -241,7 +271,7 @@ export function resolvePendingRewardBundle(stateLike = state) {
   if (actionEntries.length > 0) {
     const draft = validation.loadoutDraft;
     if (!draft) return { ok: false, reason: "装備変更のdraftを作成できません。" };
-    commitResult = commitLoadoutDraft(draft, { stateLike, turnCost: 1 });
+    commitResult = commitLoadoutDraft(draft, { stateLike, turnCost: 1, worldAction: "explore" });
     if (!commitResult.ok) return commitResult;
   } else {
     discarded = discardDirectInventoryItems(stateLike, validation.discardIndexes);
@@ -327,7 +357,9 @@ function renderPendingRewardMenu() {
     heading.textContent = `${item?.name || "戦果"}（${entry.role}）`;
     card.appendChild(heading);
     const detail = document.createElement("small");
-    detail.textContent = entry.decision === "take" ? "持つ" : entry.decision === "leave" ? "置いていく" : "未決定";
+    detail.textContent = entry.loadoutAction?.type === "trial"
+      ? "試す（探索時間が進む）"
+      : entry.decision === "take" ? "持つ" : entry.decision === "leave" ? "置いていく" : "未決定";
     card.appendChild(detail);
     const actions = document.createElement("div");
     actions.className = "pending-reward-actions";
@@ -349,6 +381,15 @@ function renderPendingRewardMenu() {
       actions.appendChild(createActionButton("装備して持つ", "btn btn-neon", () => {
         entry.decision = "take";
         entry.loadoutAction = { type: "equip", actorIdx: 0, requestedSlot: null };
+        saveAutosave();
+        renderPendingRewardMenu();
+        updateUI();
+      }));
+    }
+    if (isUntriedLoadoutItem(entry.item)) {
+      actions.appendChild(createActionButton("試す（探索時間が進む）", "btn btn-neon", () => {
+        entry.decision = "take";
+        entry.loadoutAction = { type: "trial", actorIdx: 0, requestedSlot: null };
         saveAutosave();
         renderPendingRewardMenu();
         updateUI();

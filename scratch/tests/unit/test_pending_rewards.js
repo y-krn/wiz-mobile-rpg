@@ -11,6 +11,11 @@ import {
   resolvePendingRewardBundle,
   stagePendingRewardBundle
 } from "../../../src/pending_rewards.js";
+import {
+  __resetTelemetryForTests,
+  __setTelemetryClientForTests,
+  trackRunStart
+} from "../../../src/telemetry.js";
 
 globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 const dummyElement = () => ({
@@ -114,6 +119,68 @@ const runeResolved = resolvePendingRewardBundle(state);
 assert.equal(runeResolved.ok, true, "known Rune can join the same loadout transaction");
 assert.equal(runeResolved.turnCost, 1);
 assert.equal(state.currentRun.unbankedObjectLoot.length, 1);
+
+const unknownTrial = {
+  kind: "equipment",
+  instanceId: "pending-unknown-trial",
+  baseId: "SHORT_SWORD",
+  rarity: "rare",
+  level: 2,
+  identified: false,
+  knowledgeStage: "discovery",
+  trialCount: 0,
+  tags: ["blade"],
+  hintTags: ["blade"],
+  observedHintTags: [],
+  curseEffectId: "curse_blood_thirst",
+  cursePower: 1,
+  curseSuspected: true,
+  affixes: []
+};
+resetState(Array.from({ length: 19 }, () => "HEAL_POTION"));
+state.party[0].equipment.weapon = "DAGGER";
+const telemetryEvents = [];
+__setTelemetryClientForTests({ capture: (name, properties) => telemetryEvents.push({ name, properties }) });
+trackRunStart({ characterClass: "Fighter", startFloor: 1 }, state.party[0], state);
+const trialBundle = stagePendingRewardBundle(state, [{ role: "main", item: unknownTrial }]);
+trialBundle.entries[0].decision = "take";
+trialBundle.entries[0].loadoutAction = { type: "trial", actorIdx: 0 };
+const trialResolved = resolvePendingRewardBundle(state);
+assert.equal(trialResolved.ok, true, "pending unknown equipment uses the dedicated trial path");
+assert.equal(trialResolved.turnCost, 1);
+assert.equal(state.currentRun.steps, 1, "pending trial costs one exploration turn total");
+assert.equal(state.inventory.length, 20, "displaced gear returns without a hidden 21st slot");
+assert.equal(state.party[0].equipment.weapon, unknownTrial);
+assert.equal(unknownTrial.knowledgeStage, "trial");
+assert.equal(unknownTrial.curseLocked, true);
+assert.equal(
+  telemetryEvents.filter(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "tried").at(-1)?.properties.lootSequence,
+  1,
+  "pending trial keeps its loot sequence through the commit"
+);
+assert.equal(
+  telemetryEvents.filter(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "bagged").at(-1)?.properties.lootSequence,
+  1,
+  "pending trial adoption keeps the same loot sequence"
+);
+__resetTelemetryForTests();
+
+const trialStageItem = {
+  ...unknownTrial,
+  instanceId: "pending-trial-stage",
+  curseEffectId: null,
+  curseLocked: false,
+  trialCount: 1,
+  knowledgeStage: "trial"
+};
+resetState(Array.from({ length: 19 }, () => "HEAL_POTION"));
+state.party[0].equipment.weapon = "DAGGER";
+const trialStageBundle = stagePendingRewardBundle(state, [{ role: "main", item: trialStageItem }]);
+trialStageBundle.entries[0].decision = "take";
+trialStageBundle.entries[0].loadoutAction = { type: "equip", actorIdx: 0 };
+const trialStageResolved = resolvePendingRewardBundle(state);
+assert.equal(trialStageResolved.ok, true, "trial-stage pending gear uses the normal equip path");
+assert.equal(trialStageItem.trialCount, 1, "pending normal re-equip does not count as another trial");
 
 resetState([]);
 const saveBundle = stagePendingRewardBundle(state, [{ role: "main", item: "HEAL_POTION" }]);

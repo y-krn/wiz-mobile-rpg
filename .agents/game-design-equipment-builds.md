@@ -184,6 +184,20 @@ disclose the full tag set.
 Equipping cursed unknown equipment and triggering its curse remains a valid
 implementation path, but it must not silently reveal the answer in the Codex.
 
+### Unknown Trial world action (#1064)
+
+`試す` is the committed world action for unknown equipment, not a free preview.
+The pre-action surface may show only qualitative signs and may be cancelled;
+the committed result keeps the item equipped, advances `knowledgeStage` to
+`trial`, increments `trialCount`, and locks any curse at the same atomic
+boundary. A successful dungeon Trial consumes exactly one exploration turn and
+cannot be undone inside the transaction. Bag capacity, displaced equipment,
+hand count, curse locks, and current-MP clamping are validated on the projected
+final state before the live state is replaced. Pending chest rewards connect
+directly to this projection, so a Trial never creates a hidden 21st bag slot.
+Known loadout edits remain a separate transaction, and combat cannot start a
+Trial.
+
 # Support Affixes (`SUPPORT_AFFIXES`)
 
 - basic (migrated from existing effects in Phase 1): str/int/pie/vit/agi/luk, hp/mp, atk/def,
