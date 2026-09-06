@@ -117,7 +117,6 @@ const miss = runAttack({ monster: liveEvasiveTarget }, [0, 0, 0.85]);
 assert.equal(miss.state.combatFormulaTelemetry.physicalPlayerHits.length, 0);
 assert.deepEqual(miss.state.combatFormulaTelemetry.physicalPlayerMisses[0], {
   floor: 1,
-  className: "Fighter",
   targetName: liveEvasiveTarget.name,
   targetRole: liveEvasiveTarget.role,
   targetEvasionChance: liveEvasiveTarget.evasionChance,

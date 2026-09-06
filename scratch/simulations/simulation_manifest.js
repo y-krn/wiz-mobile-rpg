@@ -194,6 +194,9 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/floor_trials.js", domains: ["combat", "maps"] },
     { pattern: "src/rules/equipment_slots.js", domains: ["equipment"] },
     { pattern: "src/rules/equipment_hands.js", domains: ["equipment"] },
+    // Build Snapshot is a bounded observation identity; it does not own a
+    // gameplay formula, reward, or resource mutation.
+    { pattern: "src/rules/build_snapshot.js", domains: [] },
     { pattern: "src/rules/loadout_transaction.js", domains: ["equipment"] },
     { pattern: "src/rules/guard_rules.js", domains: ["combat"] },
     { pattern: "src/data/guard_profiles.js", domains: ["combat", "equipment"] },

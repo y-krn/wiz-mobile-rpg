@@ -109,7 +109,7 @@ function recordBleedingEvent(state, event, target, metadata = {}) {
   }
   trackBleedingEvent(event, {
     floor: state?.floor,
-    playerClass: state?.party?.[0]?.class,
+    character: state?.party?.[0],
     enemyId: target?.name,
     isBoss: Boolean(target?.isBoss || state?.combatState?.isBoss),
     isMidboss: Boolean(target?.isMidboss || state?.combatState?.isMidboss),
@@ -366,7 +366,6 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   dmg = reduceIncomingDamage(target, dmg, { logQueue, state });
   state.combatFormulaTelemetry?.physicalMonsterHits.push({
     floor: state.floor,
-    targetClassName: target.class,
     finalAtk, finalDef, defResistance, formulaRaw, formulaDmg,
     isDefending: false, isBlindTargetApplied: false, isSnipeAttack: false,
     preMitigationDmg, finalDmg: dmg, attackType: "flee"
@@ -584,7 +583,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           shake = 0;
           state.combatFormulaTelemetry?.physicalPlayerMisses?.push({
             floor: state.floor,
-            className: char.class,
             targetName: finalTarget.name,
             targetRole: finalTarget.role,
             targetEvasionChance: getMonsterEvasionChance(finalTarget),
@@ -652,7 +650,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // が未設定なら no-op（既定オフ）。ここまでの分岐・乱数消費は変更しない。
           state.combatFormulaTelemetry?.physicalPlayerHits.push({
             floor: state.floor,
-            className: char.class,
             weaponAtk, buffAtk, str, randRoll, def, meleeMod,
             trapEaterBonus,
             defResistance: weaponAttack.defResistance,
@@ -1390,7 +1387,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // #611: 敵→プレイヤー物理攻撃の計装。既定 no-op。
           state.combatFormulaTelemetry?.physicalMonsterHits.push({
             floor: state.floor,
-            targetClassName: target.class,
             finalAtk, finalDef, defResistance, preDefDmg, formulaRaw, formulaDmg,
             isDefending, isBlindTargetApplied, isSnipeAttack,
             preMitigationDmg, finalDmg: dmg, attackType: "normal"

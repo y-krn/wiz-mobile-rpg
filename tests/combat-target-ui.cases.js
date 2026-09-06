@@ -10,12 +10,16 @@ const VIEWPORTS = [
 async function installCombat(page, partyFactory) {
   await page.goto('/');
   await page.evaluate(async (partyClasses) => {
-    const { state, createSoloCharacter } = await import('/src/state.js');
+    const { state, createStartingKitCharacter } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');
     const { combatSelection } = await import('/src/combat.js');
     const { updateUI } = await import('/src/ui.js');
 
-    state.party = partyClasses.map(className => createSoloCharacter(className));
+    state.party = partyClasses.map(className => {
+      const character = createStartingKitCharacter(className === 'Mage' ? 'arcana' : 'vanguard');
+      character.class = className;
+      return character;
+    });
     state.combatState = {
       phase: 'choose_actions',
       monsters: [
@@ -86,7 +90,6 @@ for (const viewport of VIEWPORTS) {
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       state.party[0].mp = state.party[0].maxMp = 10;
-      state.party[0].spells = ['HALITO'];
     });
 
     await page.locator('#btn-combat-spell').click();

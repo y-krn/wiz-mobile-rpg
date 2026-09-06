@@ -3,19 +3,30 @@
 
 import { createHash } from "node:crypto";
 
-export const BALANCE_MEASUREMENT_SCHEMA_VERSION = 1;
-export const BALANCE_MEASUREMENT_RUNNER_VERSION = "standard-v1";
+export const BALANCE_MEASUREMENT_SCHEMA_VERSION = 2;
+export const BALANCE_MEASUREMENT_RUNNER_VERSION = "standard-v2-build-snapshot";
 export const STANDARD_BALANCE_CONFIG = Object.freeze({
   profile: BALANCE_MEASUREMENT_RUNNER_VERSION,
   seed: 843,
   runs: 500,
   calibrationRuns: 100,
   identificationPolicy: "powder",
-  classNames: Object.freeze(["Fighter", "Thief", "Priest", "Mage"]),
+  fixtureIds: Object.freeze([
+    "light-shield",
+    "heavy-two-hand",
+    "medium-shallow-rune",
+    "medium-multi-rune",
+    "exploration-support",
+    "main-core-conversion"
+  ]),
   scenarioIds: Object.freeze(["workshop-empty", "workshop-complete"]),
   targetDepths: Object.freeze([5, 10, 15, 20]),
-  seedPolicy: "Each scenario/class task resets the canonical simulator to seed; run index is deterministic."
+  seedPolicy: "Each scenario/fixture task resets the canonical simulator to seed; run index is deterministic."
 });
+
+function getAxisIds(config) {
+  return config.fixtureIds || config.classNames || [];
+}
 
 const Z95 = 1.959963984540054;
 const RATE_METRIC_NAMES = new Set([
@@ -331,32 +342,40 @@ export function renderDiagnosticsMarkdown(cases) {
 }
 
 export function summarizeSimulationResults({ config, provenance, scenarioResults, nodeVersion = process.version, execution = null }) {
-  const cases = scenarioResults.map(({ scenarioId, results, classResults }) => {
-    const selectedClassResults = classResults || [{ className: null, results }];
+  const cases = scenarioResults.map(({ scenarioId, results, classResults, fixtureResults }) => {
+    const selectedClassResults = fixtureResults || classResults || [{ className: null, results }];
     const summarizedByClass = selectedClassResults.map(classResult => ({
       className: classResult.className,
       depths: summarizeClassDepths(config, classResult)
     }));
+    const fixtureSnapshots = fixtureResults
+      ? Object.fromEntries(fixtureResults.map(({ className, results: fixtureRunResults }) => [
+          className,
+          fixtureRunResults.find(result => result.buildSnapshotsByFixtureId)
+            ?.buildSnapshotsByFixtureId?.[className] || null
+        ]))
+      : null;
     return {
       scenarioId,
       targetDepths: config.targetDepths,
+      ...(fixtureResults ? { fixtureSnapshots } : {}),
       depths: config.targetDepths.map(depth => {
         const depthByClass = Object.fromEntries(
           summarizedByClass.map(({ className, depths }) => [className || "overall", depths[depth]])
         );
-        const first = depthByClass.overall || depthByClass[config.classNames?.[0]];
+        const first = depthByClass.overall || depthByClass[getAxisIds(config)?.[0]];
         return {
           depth,
           runs: first?.metrics ? first.metrics.reachedRate.trials : 0,
-          ...(classResults
+          ...(fixtureResults || classResults
             ? {
-                metricsByClass: Object.fromEntries(
+                metricsByFixtureId: Object.fromEntries(
                   summarizedByClass.map(({ className, depths }) => [className, depths[depth].metrics])
                 ),
-                outcomeCountsByClass: Object.fromEntries(
+                outcomeCountsByFixtureId: Object.fromEntries(
                   summarizedByClass.map(({ className, depths }) => [className, depths[depth].outcomeCounts])
                 ),
-                diagnosticsByClass: Object.fromEntries(
+                diagnosticsByFixtureId: Object.fromEntries(
                   summarizedByClass.map(({ className, depths }) => [className, depths[depth].diagnostics])
                 )
               }
@@ -464,8 +483,9 @@ function evaluateMetric(baseline, candidate, rule) {
 
 function measurementMetricEntries(report) {
   return report.cases.flatMap(testCase => testCase.depths.flatMap(depth => {
-    const metricSets = depth.metricsByClass
-      ? Object.entries(depth.metricsByClass).map(([className, metrics]) => ({ className, metrics }))
+    const byAxis = depth.metricsByFixtureId || depth.metricsByClass;
+    const metricSets = byAxis
+      ? Object.entries(byAxis).map(([className, metrics]) => ({ className, metrics }))
       : [{ className: null, metrics: depth.metrics }];
     return metricSets.flatMap(({ className, metrics }) =>
       Object.entries(metrics || {})

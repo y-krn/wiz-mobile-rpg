@@ -113,7 +113,6 @@ export function getDamageAffixResult(
       before,
       after,
       floor: state?.floor ?? floor ?? null,
-      className: char.class,
       ...extra
     });
   };
