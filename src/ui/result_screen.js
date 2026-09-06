@@ -189,8 +189,10 @@ function getRecordHtml(run) {
   const updateLabels = [...new Set([
     ...(result.updates || []),
     ...(result.milestones || []).map(id => ACHIEVEMENT_LABELS[id] || id)
-  ])];
-  const hasDepthRecord = (result.updates || []).some(update => update === "最深到達記録" || update === "撤退最深" || update === "死亡最深");
+  ])].filter(update => typeof update === "string" && (
+    ["最深到達記録", "撤退最深", "死亡最深"].includes(update) || !update.endsWith("最深")
+  ));
+  const hasDepthRecord = (result.updates || []).some(update => ["最深到達記録", "撤退最深", "死亡最深"].includes(update));
   return `
     <div class="result-record-new" role="status" aria-live="polite">
       <span class="result-record-kicker">${hasDepthRecord ? "NEW DEPTH RECORD" : "ADVENTURE RECORD"}</span>

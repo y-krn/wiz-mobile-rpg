@@ -34,9 +34,14 @@ function runNumber(run, index, totalRuns) {
   return Number(run?.runNumber) > 0 ? run.runNumber : Math.max(1, totalRuns - index);
 }
 
-function classLabel(run) {
-  if (run?.startingKit) return getStartingKit(run.startingKit)?.name || "開始キット";
-  return "冒険者";
+function runOriginLabel(run) {
+  if (run?.startingKit) return `開始キット: ${getStartingKit(run.startingKit)?.name || "記録済み"}`;
+  return "開始時の選択は旧記録のため残っていません";
+}
+
+function meaningfulFactLabel(run) {
+  const item = run?.representativeItem?.name || run?.meaningfulItemHistory?.[0]?.name;
+  return item ? `代表的な戦果: ${item}` : null;
 }
 
 function decisionText(run) {
@@ -67,12 +72,13 @@ function getHistoryCards(history, totalRuns) {
           <strong>第${number}回の冒険</strong>
           <span>${outcomeLabel(run)}</span>
         </div>
-        <div class="adventure-run-class">${escapeHtml(classLabel(run))}</div>
+        <div class="adventure-run-origin">${escapeHtml(runOriginLabel(run))}</div>
         <div class="adventure-run-depth">${floorText(run.deepestFloor)}まで到達</div>
         <div class="adventure-run-facts">
           <span>${Number(run.kills) || 0}体を倒した</span>
           <span>宝箱を${Number(run.chestsOpened) || 0}個開けた</span>
         </div>
+        ${meaningfulFactLabel(run) ? `<div class="adventure-run-fact">${escapeHtml(meaningfulFactLabel(run))}</div>` : ""}
         <p class="adventure-run-decision">${decisionText(run)}</p>
         ${badges.length > 0 ? `<div class="adventure-run-badges">${badges.map(badge => `<span>${escapeHtml(badge)}</span>`).join("")}</div>` : ""}
       </article>

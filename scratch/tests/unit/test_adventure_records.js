@@ -19,7 +19,7 @@ check("run終了時に自己ベスト・到達分布・初回達成を事実と�
     kills: 14,
     chestsOpened: 5,
     materials: { "獣の牙": 7 },
-  }, "retreat", "Fighter");
+  }, "retreat");
 
   assert.equal(first.runNumber, 1);
   assert.deepEqual(first.records.personalBests, {
@@ -36,17 +36,18 @@ check("run終了時に自己ベスト・到達分布・初回達成を事実と�
     "B10+": 0,
   });
   assert.deepEqual(first.milestones, ["first_b5_reached"]);
+  assert.equal(Object.hasOwn(first.records, "deepestByClass"), false);
 });
 
 check("B5突破・B10到達と構造化死因を集計し、撤退と死亡を分離する", () => {
-  const first = finalizeRunRecords({}, { deepestFloor: 5 }, "retreat", "Fighter");
+  const first = finalizeRunRecords({}, { deepestFloor: 5 }, "retreat");
   const second = finalizeRunRecords(first.records, {
     deepestFloor: 11,
     kills: 21,
     chestsOpened: 7,
     goldEarned: 1840,
     deathLogs: [{ floor: 11, type: "trap", source: "fire_trap", cause: "火炎の罠" }],
-  }, "death", "Mage");
+  }, "death");
 
   assert.equal(second.records.deepestRetreat, 5);
   assert.equal(second.records.deepestDeath, 11);

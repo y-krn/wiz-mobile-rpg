@@ -250,14 +250,16 @@ function normalizeRunOutcome(run) {
 function normalizeRunHistoryEntry(entry) {
   if (!isRecord(entry)) return null;
   const normalized = normalizeRunOutcome(entry);
+  // Class identity was part of the retired record axis. Keep old history
+  // readable through its factual fields, but never carry the identity into
+  // the current model or UI fallback path.
+  delete normalized.className;
+  delete normalized.class;
   if ([
-    "runNumber", "className", "kills", "chestsOpened", "goldEarned", "lootCount",
+    "runNumber", "kills", "chestsOpened", "goldEarned", "lootCount",
     "milestones", "recordUpdates", "deathCause"
   ].some(key => Object.hasOwn(entry, key))) {
     normalized.runNumber = Math.max(0, integerOr(entry.runNumber, 0));
-    normalized.className = typeof entry.className === "string"
-      ? entry.className
-      : typeof entry.class === "string" ? entry.class : null;
     normalized.kills = Math.max(0, integerOr(entry.kills, 0));
     normalized.chestsOpened = Math.max(0, integerOr(entry.chestsOpened, 0));
     normalized.goldEarned = Math.max(0, integerOr(entry.goldEarned, 0));
@@ -694,6 +696,13 @@ export function normalizeSavePayload(data) {
   normalized.currentRun = currentRun;
   if (normalized.currentRun) {
     normalized.currentRun = normalizeCurrentRun(normalized.currentRun);
+    if (isRecord(normalized.currentRun.recordResult)) {
+      delete normalized.currentRun.recordResult.className;
+      normalized.currentRun.recordResult.updates = arrayOr(normalized.currentRun.recordResult.updates)
+        .filter(update => typeof update === "string" && (
+          update === "最深到達記録" || update === "撤退最深" || update === "死亡最深" || !update.endsWith("最深")
+        ));
+    }
     delete normalized.currentRun.seenOmenFloors;
     delete normalized.currentRun.matchedOmenFloors;
   }

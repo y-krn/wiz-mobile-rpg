@@ -48,7 +48,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   state.workshop = { ranks: { gear_rapier: 1, stat_str: 3 } };
   state.keyItems = ["FORGE_SEAL", "ABYSS_SEAL"];
   state.unlockedMilestones = [5, 10];
-  state.records = { deepestRetreat: 12, deepestDeath: 9, deepestByClass: { Mage: 12 }, totalRuns: 7 };
+  state.records = { deepestRetreat: 12, deepestDeath: 9, totalRuns: 7 };
   state.currentRun = createDefaultCurrentRun();
   state.currentRun.quests = [{ id: "depth", currentValue: 4, targetValue: 5, completed: false }];
   state.codex.monsters = {
@@ -72,6 +72,9 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.equal(payload.gameState, "town");
   assert.deepEqual(payload.unlockedMilestones, [5, 10]);
   assert.deepEqual(payload.records, state.records);
+  state.records.deepestByClass = { Mage: 12 };
+  assert.equal(Object.hasOwn(createSavePayload().records, "deepestByClass"), false);
+  delete state.records.deepestByClass;
   assert.equal(payload.currentRun.quests[0].currentValue, 4);
   assert.deepEqual(Object.keys(payload).sort(), [...SAVE_PAYLOAD_FIELDS].sort());
   state.transitioning = true;
@@ -104,7 +107,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.deepEqual(state.workshop, { ranks: { gear_rapier: 1, stat_str: 3 }, lateralUnlocks: [] });
   assert.deepEqual(state.keyItems, ["FORGE_SEAL", "ABYSS_SEAL"]);
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
-  assert.deepEqual(state.records, { deepestRetreat: 12, deepestDeath: 9, deepestByClass: { Mage: 12 }, totalRuns: 7 });
+  assert.deepEqual(state.records, { deepestRetreat: 12, deepestDeath: 9, totalRuns: 7 });
   assert.equal(state.currentRun.quests[0].currentValue, 4);
   assert.deepEqual(state.codex.monsters["ワーウルフ"].observedActions, ["通常攻撃"]);
   assert.deepEqual(state.codex.monsters["ワーウルフ"].observedConditions, ["麻痺を受けた"]);
@@ -127,6 +130,24 @@ check("older saves receive empty Castle/Codex/Workshop return fields", () => {
   assert.deepEqual(normalized.currentRun.codexInsights, []);
   assert.deepEqual(normalized.currentRun.workshopUnlocks, []);
   assert.equal(normalized.currentRun.returnProcessing, null);
+});
+
+check("legacy class records and history identity are discarded during normalization", () => {
+  const payload = structuredClone(createSavePayload());
+  payload.records = { deepestRetreat: 4, deepestDeath: 3, deepestByClass: { Mage: 9 }, totalRuns: 2 };
+  payload.runHistory = [{ className: "Mage", class: "Mage", startingKit: "scout", deepestFloor: 4 }];
+  payload.currentRun = { ...createDefaultCurrentRun(), recordResult: {
+    updated: true,
+    className: "Mage",
+    updates: ["Mage最深", "撤退最深", "最深到達記録"],
+  } };
+
+  const normalized = normalizeSavePayload(payload);
+  assert.equal(Object.hasOwn(normalized.records, "deepestByClass"), false);
+  assert.equal(Object.hasOwn(normalized.runHistory[0], "className"), false);
+  assert.equal(Object.hasOwn(normalized.runHistory[0], "class"), false);
+  assert.equal(Object.hasOwn(normalized.currentRun.recordResult, "className"), false);
+  assert.deepEqual(normalized.currentRun.recordResult.updates, ["撤退最深", "最深到達記録"]);
 });
 
 check("save/load preserves a quest item after 20 regular inventory items", () => {

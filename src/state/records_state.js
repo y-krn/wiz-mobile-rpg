@@ -3,7 +3,6 @@ export const HISTORY_LIMIT = 20;
 export const createDefaultRecords = () => ({
   deepestRetreat: 0,
   deepestDeath: 0,
-  deepestByClass: {},
   totalRuns: 0,
   personalBests: {
     deepestFloor: 0,
@@ -64,21 +63,17 @@ function normalizeDeathCause(entry) {
 }
 
 export function normalizeRecords(records = {}, options = {}) {
-  const legacy = {
+  const base = {
     deepestRetreat: Math.max(0, Math.floor(Number(records.deepestRetreat) || 0)),
     deepestDeath: Math.max(0, Math.floor(Number(records.deepestDeath) || 0)),
-    deepestByClass: Object.fromEntries(Object.entries(records.deepestByClass || {}).map(([className, floor]) => [
-      className,
-      Math.max(0, Math.floor(Number(floor) || 0))
-    ])),
     totalRuns: Math.max(0, Math.floor(Number(records.totalRuns) || 0)),
   };
   const includeAdventure = options.includeAdventure === true || [
     "personalBests", "adventureStats", "firstAchievements", "deathCauses"
   ].some(key => Object.hasOwn(records, key));
-  if (!includeAdventure) return legacy;
+  if (!includeAdventure) return base;
   return {
-    ...legacy,
+    ...base,
     personalBests: {
       deepestFloor: toCount(records.personalBests?.deepestFloor),
       kills: toCount(records.personalBests?.kills),
@@ -136,7 +131,7 @@ function updateDeathCause(records, run) {
   }
 }
 
-export function finalizeRunRecords(records, run, outcome, className) {
+export function finalizeRunRecords(records, run, outcome) {
   const next = normalizeRecords(records, { includeAdventure: true });
   const depth = Math.max(1, Math.floor(Number(run?.deepestFloor) || 1));
   const runNumber = next.totalRuns + 1;
@@ -152,11 +147,6 @@ export function finalizeRunRecords(records, run, outcome, className) {
     next[outcomeKey] = depth;
     updates.push(outcome === "death" ? "死亡最深" : "撤退最深");
   }
-  if (className && depth > (next.deepestByClass[className] || 0)) {
-    next.deepestByClass[className] = depth;
-    updates.push(`${className}最深`);
-  }
-
   const bests = next.personalBests;
   const runKills = toCount(run?.kills);
   const runChests = toCount(run?.chestsOpened);
@@ -197,7 +187,6 @@ export function finalizeRunRecords(records, run, outcome, className) {
     runNumber,
     depth,
     outcome,
-    className,
     personalBestUpdates: bestUpdates
       .filter(([key, value]) => value > 0 && value === bests[key])
       .map(([, , label]) => label)
