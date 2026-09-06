@@ -1,0 +1,8 @@
+{
+  "numericBalanceChange": "none",
+  "additionalObservation": [
+    "The measurement adds production-backed unconfirmed object-loot stake and lifecycle evidence to the existing Build Snapshot payment vector."
+  ],
+  "balanceIssueCandidates": [],
+  "basis": "Issue #1100 is an observation pass. The same canonical payment vector is retained, while object-loot composition and settlement are measured through currentRun.unbankedObjectLoot and its production loot IDs. No balance value or player recommendation is inferred from this pass."
+}

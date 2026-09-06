@@ -43,10 +43,13 @@ Full bags may therefore produce `found` followed by `rejected` without a
 `bagged` event. Telemetry must not turn a rejected find into a free inventory
 slot or a player-facing reward.
 
-The canonical simulator does not model the production object-loot ownership
-ledger; loot and death-loss values therefore remain `not_modeled`, not zero.
-Issue #1098 schema and lifecycle provenance are recorded in the measurement
-report event schema.
+The canonical simulator's Issue #1100 measurement path invokes the production
+object-loot ownership ledger and rereads it for stake snapshots; it does not
+create a second ownership ledger. Loot and death-loss observations are
+therefore available by production loot ID. Explicit `discarded`/`left` stages
+remain `not_modeled` when the canonical run does not emit those interaction
+events. Issue #1098 schema and lifecycle provenance are recorded in the
+measurement report event schema.
 
 The same run, loot sequence, lifecycle stage, location/action pair, or floor
 summary is emitted at most once. Save/load replay does not invent a new
@@ -112,7 +115,7 @@ about the loop, not a new rule and not a player-facing optimal-role selector.
 Forced calibration that makes an affix or event fire must be reported as such
 and kept separate from natural selection.
 
-### Build payment vector measurement (#1096)
+### Build payment vector measurement (#1096, #1100)
 
 The #1096 measurement runner records the resource and decision vectors paid by
 each resolved Build Snapshot across the standard six fixtures and workshop
@@ -122,11 +125,12 @@ records retain means, quantiles, counts, outcome/death distributions, and
 provenance; Markdown is a durable review summary.
 
 Portal events carry HP/MP rate, inventory occupancy/free slots, carried
-materials, source, and explicit null placeholders for unconfirmed object loot.
-Those nulls mean the production object-loot lifecycle is not modeled by the
-canonical simulator, not that the run had no unconfirmed loot. Rune object-loot
-and Core/Support object-loot adoption therefore remain `not_modeled`; the
-equipment-affix exposure/adoption/firing fields are bounded observation
+materials, source, and the production-backed unconfirmed object-loot count.
+Issue #1100 stake snapshots add composition, location, Rune supply band,
+Core/Support/Main/Aux, reinforce/convert/pivot, identification/curse, and
+same-ID lifecycle counts across reward, Portal, Wing, and terminal boundaries.
+Item value proxy plus explicit `discarded`/`left` events remain `not_modeled`;
+the equipment-affix exposure/adoption/firing fields are bounded observation
 proxies, including Support ids with exposure but no observed firing. Status
 mitigation events come from the production status-resistance and Guard chance
 resolvers when combat telemetry is enabled. The measurement is observation-only and cannot change combat, drop,
