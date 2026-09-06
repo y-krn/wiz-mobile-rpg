@@ -12342,6 +12342,10 @@ function createBuildPaymentRunSnapshot(state, metrics, outcome) {
     ),
     identifyDiscount: observedExplorationUse("identifyDiscount", metrics.identificationCount || 0)
   };
+  const finalMp = state.party[0].mp;
+  const finalMaxMp = Math.max(1, getCharMaxMp(state.party[0]));
+  const finalMpRate = Math.min(1, Math.max(0, finalMp / finalMaxMp));
+  const finalMpOverMax = Math.max(0, finalMp - finalMaxMp);
   return {
     actionCounts,
     combatCount: state.currentRun.battles,
@@ -12426,7 +12430,8 @@ function createBuildPaymentRunSnapshot(state, metrics, outcome) {
     terminalResourceState: {
       outcome,
       hpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
-      mpRate: state.party[0].mp / Math.max(1, getCharMaxMp(state.party[0])),
+      mpRate: finalMpRate,
+      mpOverMax: finalMpOverMax,
       inventorySlots: state.inventory.length,
       inventoryFreeSlots: Math.max(0, 20 - state.inventory.length),
       unconfirmedObjectLootCount: null,
@@ -12435,8 +12440,9 @@ function createBuildPaymentRunSnapshot(state, metrics, outcome) {
     },
     finalHp: state.party[0].hp,
     finalHpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
-    finalMp: state.party[0].mp,
-    finalMpRate: state.party[0].mp / Math.max(1, getCharMaxMp(state.party[0]))
+    finalMp,
+    finalMpRate,
+    finalMpOverMax
   };
 }
 
@@ -14731,7 +14737,7 @@ function createBuildPaymentAggregate() {
   const numericNames = [
     "combatCount", "combatRounds", "damageTakenHp", "healingHp", "mpSpent",
     "mpStarvationEvents", "guardMitigationHp", "guardMitigationEvents",
-    "statusMitigationEvents", "finalHp", "finalHpRate", "finalMp", "finalMpRate",
+    "statusMitigationEvents", "finalHp", "finalHpRate", "finalMp", "finalMpRate", "finalMpOverMax",
     "finalBagSlots"
   ];
   return {
@@ -14748,6 +14754,7 @@ function createBuildPaymentAggregate() {
       outcomeCounts: {},
       hpRate: createNumericDistribution(),
       mpRate: createNumericDistribution(),
+      mpOverMax: createNumericDistribution(),
       inventorySlots: createNumericDistribution(),
       inventoryFreeSlots: createNumericDistribution(),
       carriedMaterials: createNumericDistribution()
@@ -14827,6 +14834,9 @@ function addBuildPaymentResourceState(target, event) {
     ["inventoryFreeSlots", event.inventoryFreeSlots],
     ["carriedMaterials", event.carriedMaterials]
   ].forEach(([name, value]) => addNumericSample(target[name], Number(value)));
+  if (Object.prototype.hasOwnProperty.call(event, "mpOverMax")) {
+    addNumericSample(target.mpOverMax, Number(event.mpOverMax));
+  }
 }
 
 function addBuildPaymentRunAggregate(target, payment) {
@@ -14839,7 +14849,7 @@ function addBuildPaymentRunAggregate(target, payment) {
   [
     "combatCount", "combatRounds", "damageTakenHp", "healingHp", "mpSpent",
     "mpStarvationEvents", "guardMitigationHp", "guardMitigationEvents",
-    "statusMitigationEvents", "finalHp", "finalHpRate", "finalMp", "finalMpRate"
+    "statusMitigationEvents", "finalHp", "finalHpRate", "finalMp", "finalMpRate", "finalMpOverMax"
   ].forEach(name => addNumericSample(target.numeric[name], Number(payment[name])));
   Object.entries(payment.statusMitigationByType || {}).forEach(([type, count]) => {
     target.statusMitigationByType[type] =
@@ -14943,7 +14953,8 @@ function finalizeBuildPaymentAggregate(aggregate) {
       finalHp: summarizeNumericDistribution(aggregate.numeric.finalHp),
       finalHpRate: summarizeNumericDistribution(aggregate.numeric.finalHpRate),
       finalMp: summarizeNumericDistribution(aggregate.numeric.finalMp),
-      finalMpRate: summarizeNumericDistribution(aggregate.numeric.finalMpRate)
+      finalMpRate: summarizeNumericDistribution(aggregate.numeric.finalMpRate),
+      finalMpOverMax: summarizeNumericDistribution(aggregate.numeric.finalMpOverMax)
     },
     guard: {
       mitigationHp: summarizeNumericDistribution(aggregate.numeric.guardMitigationHp),
@@ -14997,6 +15008,7 @@ function finalizeBuildPaymentAggregate(aggregate) {
       outcomeCounts: { ...aggregate.terminalResourceState.outcomeCounts },
       hpRate: summarizeNumericDistribution(aggregate.terminalResourceState.hpRate),
       mpRate: summarizeNumericDistribution(aggregate.terminalResourceState.mpRate),
+      mpOverMax: summarizeNumericDistribution(aggregate.terminalResourceState.mpOverMax),
       inventorySlots: summarizeNumericDistribution(aggregate.terminalResourceState.inventorySlots),
       inventoryFreeSlots: summarizeNumericDistribution(aggregate.terminalResourceState.inventoryFreeSlots),
       carriedMaterials: summarizeNumericDistribution(aggregate.terminalResourceState.carriedMaterials),

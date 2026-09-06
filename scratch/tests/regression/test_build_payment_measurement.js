@@ -21,7 +21,10 @@ const payment = {
     healingHp: distribution(),
     mpSpent: distribution(),
     finalHp: distribution(),
-    finalMp: distribution()
+    finalHpRate: distribution(),
+    finalMp: distribution(),
+    finalMpRate: distribution(),
+    finalMpOverMax: distribution()
   },
   guard: {
     mitigationHp: distribution(),
@@ -36,11 +39,12 @@ const payment = {
   terminalResourceState: {
     hpRate: distribution(),
     mpRate: distribution(),
+    mpOverMax: distribution(),
     inventorySlots: distribution(),
     inventoryFreeSlots: distribution(),
     carriedMaterials: distribution()
   },
-  portal: { resourceState: resourceState() }
+  portal: { useEvents: 0, milestoneDecisions: 0, resourceState: resourceState() }
 };
 
 const cases = STANDARD_BALANCE_CONFIG.scenarioIds.flatMap(scenarioId =>

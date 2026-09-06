@@ -152,7 +152,7 @@ export function buildIssue1096Report({ config, provenance, taskResults, executio
       modeled: [
         "canonical outcome/death cause/deepest floor",
         "attack/spell/guard/item/flee/noop actions, combat rounds",
-        "HP damage/healing, MP spent/starvation, Guard physical mitigation/status resistance",
+        "HP damage/healing, MP spent/starvation, bounded terminal MP rate and over-max diagnostic, Guard physical mitigation/status resistance",
         "fixture Rune cast mix/unused sockets, Core/Support exposure/adoption/firing",
         "exploration Support resolved values and observed-use proxies",
         "equipment exposure/adoption/discard/build shift, final bag occupancy",
@@ -229,6 +229,18 @@ export function validateIssue1096Report(report) {
           throw new Error(`issue #1096 Portal resource distribution missing: ${name}`);
         }
       });
+    ["resources.finalHpRate", "resources.finalMpRate", "terminalResourceState.hpRate", "terminalResourceState.mpRate"]
+      .forEach(path => {
+        const value = path.split(".").reduce((current, key) => current?.[key], measuredCase.payment);
+        if (!value || value.min < 0 || value.max > 1) {
+          throw new Error(`issue #1096 bounded resource rate violation: ${path}`);
+        }
+      });
+    const portal = measuredCase.payment.portal || {};
+    const portalEventCount = (Number(portal.useEvents) || 0) + (Number(portal.milestoneDecisions) || 0);
+    if (measuredCase.payment.portal.resourceState.hpRate.n !== portalEventCount) {
+      throw new Error("issue #1096 Portal resource samples do not match Portal events");
+    }
   });
   if (report.measurement?.determinism?.checked && !report.measurement.determinism.matching) {
     throw new Error("issue #1096 determinism check failed");
