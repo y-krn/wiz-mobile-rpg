@@ -26,8 +26,8 @@ representative set of observable outcomes:
 
 - a legal input reaches the intended next boundary and applies its complete
   effect;
-- back or cancel before commitment leaves the pending outcome and live state
-  unchanged;
+- where the flow defines navigation-only cancellation, back or cancel before
+  commitment leaves the pending outcome and live state unchanged;
 - missing, stale, invalid, repeated, and guarded input is rejected without a
   duplicate effect or unintended navigation; and
 - terminal, interrupted, failure, and recovery paths finish in a valid state
@@ -63,6 +63,10 @@ no-op, and canceled operations should leave live state and action cost unchanged
 unless the mechanic explicitly says otherwise; a successful operation should
 apply every expected mutation once at its defined action boundary.
 
+When a flow exposes a preview or inspection step, assert that it does not grant
+discovery, knowledge, progression, or other commit-only effects; the owning
+action must apply those effects exactly once.
+
 When rewards or items cross an ownership boundary, cover unresolved, taken,
 left, intermediate, and terminal outcomes that the changed flow can reach.
 Assert placement, ownership, settlement, and evidence separately so a passing
@@ -94,6 +98,9 @@ When a change crosses module boundaries, test the public/facade path and the
 concrete path that owns the behavior when both are supported. Check that
 callers do not duplicate state mutation and that direct imports and re-exports
 remain behaviorally aligned.
+
+When browser behavior changes, cover representative supported mobile widths and
+the primary touch flow in addition to the relevant desktop or default path.
 
 ## Initial File Routing
 

@@ -65,6 +65,9 @@ module names, and exact scenario inventories.
 - Multi-part changes validate a side-effect-free projection before committing.
   If any constraint fails, live state remains unchanged; a valid commit applies
   its complete result atomically.
+- Previews, inspection, and projected comparisons are observation-only.
+  Discovery, knowledge, or progression changes occur only in the committed
+  action that owns them.
 - Capacity, compatibility, lock, and placement constraints are checked against
   the projected result. Rejecting a replacement never silently discards the
   existing valid placement.
@@ -119,12 +122,10 @@ module names, and exact scenario inventories.
 
 ## Initial File Routing
 
-Before searching broadly, read `.agents/file-map.md`. Start with the mechanic
-module named by the request, then inspect the concrete module behind any facade
-(`src/state.js`, `src/data.js`, `src/combat.js`, `src/combat_logic.js`,
-`src/menu.js`, or `src/ui.js`). Expand to state, data/rules, systems, and direct
-callers only when the state shape, formulas, random behavior, or flow wiring is
-affected.
+Before searching broadly, read `.agents/file-map.md` and start with the row for
+the request. Follow its facade-to-concrete-module mapping when present. Expand
+to state, data/rules, systems, and direct callers only when the state shape,
+formulas, random behavior, or flow wiring is affected.
 
 ## Inputs
 
