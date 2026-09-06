@@ -1,156 +1,130 @@
 # Game Logic Checklist
 
-## Role
+## Role and ownership
 
 Review game mechanics for correctness, maintainability, and compatibility with
 existing state and data structures.
 
+This checklist owns domain invariants: what must remain true about mechanics,
+state, transitions, ownership, and persistence. `.agents/qa-regression.md` owns
+the verification strategy for proving those invariants. Source and tests own
+the concrete state shapes, transition tables, field allowlists, selectors,
+module names, and exact scenario inventories.
+
 ## Scope
 
-- Combat, movement, map generation, state transitions, data/rule/system
-  boundaries, and compatibility
-- Deterministic resolution, random behavior, save/state shape, and flow wiring
+- Combat, movement, map generation, state transitions, and flow wiring
+- Deterministic resolution, random behavior, save/state compatibility, and
+  data/rule/system boundaries
+- Ownership, inventory, rewards, terminal outcomes, and observation boundaries
 - Facade-to-concrete module behavior for mechanics
 
-Equipment loadouts use the two-hand invariant from `src/rules/equipment_hands.js`:
-weapon/medium hands plus shield hands must remain at or below two after every
-single equipment action. Invalid replacements are rejected before mutation;
-the existing shield is never silently discarded. Active `defend` resolution is
-owned by `src/rules/guard_rules.js`, and combat callers must not reintroduce
-per-attack half-damage or status-block branches outside that resolver.
+## Durable invariants
 
-Target files are determined from the relevant rows in `.agents/file-map.md`.
+### Action and transition integrity
 
-## Chest Transition Contract
+- Every player action resolves against the current valid state. Invalid,
+  stale, or repeated input is rejected without applying a partial effect.
+- A mechanic has an explicit legal transition path. Navigation-only back or
+  cancel before commitment returns to the prior choice without consuming or
+  mutating the pending outcome.
+- A committed action settles its gameplay effects and terminal transition at
+  most once. Input guards and idempotent boundaries prevent duplicate rewards,
+  traps, mutations, navigation, or other observable effects.
+- Interrupted, lethal, abandoned, and recovery paths preserve the player's
+  visible intent and leave the system at a valid next boundary.
+- A grouped player action has one defined world-time boundary. The cost is
+  applied at that boundary, not once per internal sub-change; invalid, no-op,
+  and canceled actions do not advance time unless the mechanic explicitly
+  requires it.
 
-`state.chestState.phase` is transient runtime state. The legal phases and
-transitions are:
+### State and persistence boundaries
 
-| Phase | Legal input and output |
-| --- | --- |
-| `menu` | A live chest at the current cell. Inspect stays in `menu`; kit disarm stays in `menu` with `trap: "none"`; disarm selection enters `disarm_select`; opener selection enters `open_select`; smash or direct open enters `resolving`; leave enters `terminal`. |
-| `disarm_select` | Back/cancel returns to `menu`; a live eligible character enters `resolving`. |
-| `open_select` | Back/cancel returns to `menu`; a live eligible character enters `resolving`. |
-| `resolving` | A trap is resolved at most once, then enters `reward`; an interrupted or lethal smash may enter `terminal`. Repeated actions are rejected while `state.transitioning` is true. |
-| `reward` | Generated materials, identification powder, and the existing main/special/accessory rewards are applied once, then enter `terminal`. |
-| `terminal` | No chest action is legal. The chest state is cleared and exploration or game-over owns the next screen. |
+- Runtime interaction state, overlays, guards, and session-only counters do not
+  cross a persistence boundary unless resuming that exact state is an explicit
+  part of the mechanic.
+- Persisted interactions resume at a safe, normalized boundary. A transient
+  event that can be reconstructed returns to a stable screen instead of
+  serializing implementation phases; an event with no reconstruction path is
+  persisted only through its explicit resumable record.
+- Persistence is an allowlist, not a snapshot of live state. Unknown runtime
+  data is excluded, and compatibility changes are additive or deliberately
+  migrated.
+- Normalization and migration validate a complete candidate before mutating
+  live state. They operate on isolated input data, repair only supported
+  structures, and fail safely on malformed or incompatible input.
+- Safe failure preserves valid progress or routes it to an explicit recovery
+  path; it does not silently regenerate, partially apply, reroll, or replay a
+  completed outcome.
 
-The selection screens are navigation-only: their back/cancel path must restore
-the chest menu without consuming a trap or reward. Ordinary active chest phase
-state is never written to a save payload; saves flatten those encounters to
-`explore` and reload with `chestState: null`, leaving the map event to be
-entered again. The exception is an unopened `fromDrop` chest, which has no map
-event to re-enter: its reward/trap state is saved, its phase is normalized to
-`menu`, and load restores the chest menu. This keeps inspection, disarm, smash,
-and reward bookkeeping out of later phases while preserving reward, trap,
-telemetry, and navigation behavior.
+### Rule ownership and atomicity
 
-## Save/Apply State-Shape Contract (#835)
+- Each shared mechanic has one authoritative rule path. Callers compose that
+  rule and must not reimplement a second version with subtly different
+  constraints, mitigation, targeting, generation, or settlement behavior.
+- Multi-part changes validate a side-effect-free projection before committing.
+  If any constraint fails, live state remains unchanged; a valid commit applies
+  its complete result atomically.
+- Capacity, compatibility, lock, and placement constraints are checked against
+  the projected result. Rejecting a replacement never silently discards the
+  existing valid placement.
+- Ownership, placement, reward generation, reward settlement, and persistence
+  are separate concerns. A transition may coordinate them, but no concern is
+  implicitly completed merely because another one changed.
 
-`createSavePayload()` is the persistence allowlist. The fields in
-`SAVE_PAYLOAD_FIELDS` are persisted; unknown keys and the following runtime-only
-fields are intentionally omitted: `menuContext`, `menuHistory`, `equipState`,
-`transitioning`, `controlsGuardUntil`, `mapRevision`, and `sessionMaxFloor`.
-`gameState` is persisted only as a stable screen (`town`, `explore`, `combat`,
-`result`, `gameover`, or `victory`). Submenu, equipment-overlay, ordinary chest,
-and trap-encounter state is flattened to a stable screen. The exception is an
-unopened `chestState.fromDrop`, which is persisted with phase `menu` because no
-map event can recreate it. Unknown direct screens and unsupported submenu parent
-screens fall back to `explore` during an active run and `town` otherwise.
+### Ownership and reward settlement
 
-At the apply boundary, `normalizeSavePayload()` validates the top-level object,
-filters or defaults malformed collections, restores missing scalar defaults,
-and canonicalizes supported nested state before any mutation of `state`.
-`migrateSavePayload()` then applies current-version compatibility transforms:
-character equipment/spell defaults, affix/status metadata, run outcomes,
-retired workshop refunds, map cell defaults, and removed legacy fields. The
-current version remains `13`; unknown legacy fields are ignored, while an
-older/incompatible version or an unreadable payload uses `loadGame()`'s existing
-backup/fresh-game fallback.
+- Preparation items, items acquired during an active run, unresolved rewards,
+  placed items, and terminal evidence have explicit ownership semantics. A
+  placed item is not automatically banked, and terminal evidence is not
+  automatically permanent inventory.
+- An unresolved multi-choice outcome remains separate from final inventory
+  until the player explicitly takes or leaves each applicable entry. Only the
+  chosen outcome is placed or settled; an unchosen entry does not pass through
+  an unrelated inventory path.
+- Intermediate checkpoints and terminal outcomes settle ownership according
+  to their declared rules. Terminal settlement has one authority, and callers
+  do not duplicate or bypass it.
+- Stable object identity is preferred when resolving duplicate-looking items;
+  any legacy fallback is deterministic and preserves the declared ownership
+  priority.
 
-Persisted gameplay data includes coordinates, party/inventory (including each
-unknown equipment item's knowledge stage, observed hints, and trial count), maps and visited
-maps, exploration timers, chest/kill/run records, codex/progression, seed,
-supported combat state, roaming/noise state, storage/workshop/materials/key
-items, dungeon memory, and the last 30 log entries. Defaults cover missing
-optional values (empty collections, town/standard coordinates, zero timers,
-fresh codex/records, and the standard dungeon-memory seed). `floorChestsTotal`
-is derived from loaded maps when absent. Combat is resumed only when it has a
-non-empty, object-shaped monster list; otherwise the screen falls back safely.
-Run-history and death-log arrays discard non-record entries and repair malformed
-archive fields while preserving valid legacy records. A malformed active-run
-map is preserved for `RunFloorRecoveryError` handling rather than silently
-regenerated. Normalization starts from a structured clone so migration repairs
-cannot mutate caller-owned or state-shared nested data.
+### Determinism and derived behavior
 
-Roaming elite lifecycle is part of `currentRun.eliteFloors`, keyed by floor. Each
-entry records whether the entry roll was resolved, whether the elite spawned or
-was defeated, the qualitative warning stage, consumed prolonged-check indices,
-the internal Greed action pressure, whether the exit stairs were found, and
-dedupe keys for one-time optional-area actions. This state is normalized and
-persisted with the run so walking alone cannot advance the threat and save/load
-cannot reroll an entry roll, a prolonged check, or a warning.
+- Seeded behavior is reproducible wherever repeatability is part of the
+  contract. Save/load, inspection, or telemetry must not consume gameplay RNG
+  or reroll an already resolved result.
+- Generated content uses declared context such as depth, role, or band rather
+  than incidental current placement. Candidate pools retain the intended
+  earlier possibilities when expanding into deeper content; accidental generic
+  fallbacks are not a substitute for an explicit pool.
+- Derived selections that span turns or persistence boundaries are cached or
+  reconstructed from stable inputs. Repetition, weighting, and hard exclusion
+  are distinct policies and must not be conflated.
+- Contextual content changes the intended composition or pressure by reusing
+  authoritative existing rules. It must not create a shadow rule that silently
+  disables a player action.
+- Player-facing clues preserve intended information boundaries: unresolved
+  internal weights, exact probabilities, and hidden meters are not exposed
+  unless the mechanic explicitly makes them visible.
 
-## Object-loot ownership contract (#1006)
+### Observation boundaries
 
-`state.inventory` and `party[*].equipment` describe placement only. During an
-active run, `currentRun.townInventory` contains the Town-provided preparation
-items still unused, and `currentRun.unbankedObjectLoot` contains stable loot
-entries acquired in the dungeon. Loot remains unbanked when equipped. The
-terminal transition records `bankedObjectLoot`/`lostObjectLoot`, returns unused
-Town items and returned dungeon consumables to `state.storage`, and clears active
-ownership. Recovered dungeon equipment remains terminal evidence rather than
-permanent storage. Portal settles all unbanked entries, Wing settles only its
-selected IDs, and death/abandon settle none. Push never invokes settlement. These fields are additive save data and
-normalize to empty collections for older current-version saves.
-
-The bag contract is fixed at 20 ordinary slots, with one array entry per item
-and no consumable stacking. Item-use actions still receive only the base item
-ID; when Town and dungeon entries share that ID, the resolver deliberately
-consumes Town stock first. Object identity or `instanceId` is used first when
-available for equipment replacement, with the same Town-first fallback for
-legacy primitive IDs. A future individual-selection UI may pass the ownership
-entry ID instead of relying on this fallback.
-
-## Loot generation contract (#1009)
-
-`src/data/equipment_tables.js` and `src/rules/chest_rules.js` expose explicit
-B1–B30 candidate pools. Deep pools retain earlier bases and add horizontal
-possibilities; they do not fall back to B5. `src/data/affixes.js` owns the
-three role labels, Core `buildAxis` values, and their five-floor supply
-weights, while `src/systems/equipment_generation.js` rolls a `lootRole` target
-and uses it to softly weight actual affix choices. Generation never uses
-current equipment to choose a missing slot. Generated equipment stores
-`lootRole` plus `buildRole`/`buildRoles` as additive metadata, so existing saves
-remain valid. `equipment_decision.buildDecision = "transition"` is reserved
-for a change to the explicit `main` Core axis; auxiliary Core and Support
-changes remain an ordinary `"swap"`.
-
-## Five-floor trial contract (#1010)
-
-`src/rules/floor_trials.js` derives one main and one sub-theme per five-floor
-band from `currentRun.runSeed` and the band index. The selected IDs are cached
-in `currentRun.trialBands`; older saves can reconstruct the same selection from
-their existing `runSeed`. Main-theme repetition is soft-weighted rather than
-hard-banned. Floor roles are also weights: introduction, development, change,
-temptation, and settlement affect existing encounter composition, enemy
-affinity, and rare-encounter selection without disabling a player action.
-
-Boss encounters carry the same selected IDs and inherit representative existing
-enemy traits/behavior as a high-density confirmation of known pressure. The
-Guardian therefore changes actual targeting, status, defense, or queued-action
-behavior without adding a new rule. Portal clues use coarse signals from the
-resolved next band and never reveal theme names, exact probabilities, or a
-threat meter.
+- Telemetry and other observation hooks are side-effect free: they do not call
+  gameplay RNG, mutate gameplay state, extend the save schema, or decide
+  control flow.
+- Runtime and loot identifiers remain stable for the active run. Events are
+  deduplicated at the semantic boundary, and loading a save does not replay a
+  completed gameplay action as a new event.
 
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with the mechanic
 module named by the request, then inspect the concrete module behind any facade
 (`src/state.js`, `src/data.js`, `src/combat.js`, `src/combat_logic.js`,
-`src/menu.js`, or `src/ui.js`). Expand to state, data/rules,
-systems, and direct callers only when the state shape, formulas, random
-behavior, or flow wiring are affected.
+`src/menu.js`, or `src/ui.js`). Expand to state, data/rules, systems, and direct
+callers only when the state shape, formulas, random behavior, or flow wiring is
+affected.
 
 ## Inputs
 
@@ -162,95 +136,35 @@ behavior, or flow wiring are affected.
 ## Agent Skills
 
 - No skill is mandatory by default; prioritize direct source and test review.
-- Recommended when the change touches frontend state wiring or rendered game
-  flow as well as logic: `build-web-apps:frontend-testing-debugging`.
-- Recommended when browser reproduction is needed for a game-flow bug:
-  `webapp-testing` or `playwright`.
-- Do not load UI or writing skills for pure mechanics reviews.
+- Use a frontend-testing or browser skill when the change also affects rendered
+  game flow or requires browser reproduction.
+- Do not load browser-focused skills for a pure mechanics or data review.
 
 ## Review Checklist
 
-### Telemetry-only state boundary (#1012)
-
-Telemetry hooks are observation-only: no RNG calls, gameplay mutations,
-save-schema additions, or control-flow decisions. Run and loot IDs are stable
-within the active runtime run, lifecycle events are deduplicated at the
-semantic boundary, and save/load does not replay a completed event as a new
-gameplay action. Production object-loot ownership remains in
-`src/state/run_loot.js`; telemetry mirrors it but never resolves ownership.
-
-- Rules match the stated design goal.
-- State mutations are localized and predictable.
-- Existing save data shape is preserved or migration risk is explicitly handled.
-- Random behavior is deterministic when seeded tests require it.
-- Combat, inventory, equipment, run quest, and reward flows remain consistent.
-- Facade files remain thin and do not hide divergent behavior from direct
-  module imports.
-- Shared rules such as inventory addition, equipment generation, and target
-  selection are not duplicated with slightly different constraints.
+- The relevant invariant and player-visible intent are explicit.
+- State mutations are localized, predictable, and atomic at their action
+  boundary.
+- Existing save compatibility and transient/persistent boundaries are
+  preserved or deliberately migrated.
+- Seeded random behavior remains deterministic where required.
+- Combat, inventory, equipment, run, reward, and terminal flows use the same
+  authoritative rules across callers.
+- Facades remain thin and do not hide divergent behavior from direct imports.
+- Observation hooks remain separate from gameplay decisions and mutations.
 - Edge cases are handled only where they can happen in the current game flow.
-- Names and structure follow existing project style.
-- The change does not introduce unnecessary generic systems.
-
-## Required Verification
-
-- `npm run test:unit`
-- Targeted scratch test for new deterministic logic, if existing tests do not
-  cover it.
-- `npm run build` when module boundaries or imports change.
+- Names and structure follow existing project style without adding a generic
+  system for a single mechanic.
 
 ## Must Not Do
 
 - Do not broaden mechanics beyond the requested feature.
-- Do not introduce new abstractions for a single use case.
+- Do not replace executable safeguards with prose or remove tests because a
+  checklist was generalized.
 - Do not rewrite unrelated game systems while reviewing one mechanic.
-- Do not accept hidden changes to item, enemy, or class balance without calling
-  them out.
-
-## Terminal return processing (#1011)
-
-`src/systems/run_return.js` is the single boundary for terminal object
-settlement plus Castle/Codex/Workshop records. Callers provide the resolved
-outcome (`retreat`, `wing`, `death`, or `abandon`) and must not duplicate loot
-ownership rules. Settlement happens before the result summary: unused Town
-preparations and returned dungeon consumables go to storage, recovered equipment
-remains terminal evidence, unbanked objects are lost on Death/Abandon, and
-compact history facts never become combat state.
-
-## Dungeon loadout transaction (#1054)
-
-`src/rules/loadout_transaction.js` owns a side-effect-free projected loadout.
-Equipment, shield conflicts, Medium/Rune sockets, curse locks, and the final
-20-slot bag boundary are validated against that projection. The live party and
-inventory remain unchanged until `commitLoadoutDraft()` succeeds. A successful
-non-empty dungeon commit is one exploration turn, regardless of change count;
-cancel, no-op, and invalid drafts cost zero. The caller then uses the same
-exploration-turn boundary as movement so spell durations, prolonged-stay
-pressure, and roaming state advance normally. The caller supplies the actual
-world turn cost, so Town/Camp commits remain zero. Unknown equipment is
-rejected by the normal path and uses a dedicated Trial projection instead:
-only a successful exploration Trial applies the placement, advances knowledge
-to `trial`, increments `trialCount`, and locks a curse while consuming one
-turn. Draft comparison remains read-only, combat rejects Trial, and the
-pending-reward path connects an unknown item directly to the projected final
-state without a hidden inventory slot.
-
-## Pending reward bundle (#1056)
-
-Chest object rewards are first held in `currentRun.pendingRewardBundle`, which
-is separate from both `state.inventory` and `unbankedObjectLoot`. The bundle is
-the unresolved discovery record: all main/special/accessory object rewards from
-one event remain comparable until each is explicitly taken or left. Only taken
-entries are then placed into the final 20-slot bag or an adopted loadout and
-copied into `unbankedObjectLoot`; left entries never pass through inventory and
-are recorded as a discovered-but-left lifecycle event. Resource rewards remain
-outside this bundle.
-
-The bundle is persisted as additive run data so reload cannot reroll or lose an
-unresolved event. While it exists, movement and submenu back navigation are
-blocked. A bag-only resolution costs zero exploration turns. A resolution that
-commits a known gear/Rune loadout uses the #1054 atomic commit and costs one
-normal exploration turn for the whole resolution.
+- Do not accept hidden changes to item, enemy, class, or economy behavior
+  without calling them out.
+- Do not prescribe implementation details when the invariant can stand alone.
 
 ## Output
 
