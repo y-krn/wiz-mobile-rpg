@@ -81,7 +81,11 @@ function applyReflectionDamage(char, state, sources, logQueue) {
 
 export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks = {}) {
   const spell = SPELLS[act.spellName];
-  if (!spell || (char?.startingKit && !getActiveSpellKeys(char).includes(act.spellName))) {
+  // Current characters are socket-backed. Keep the direct-action path for
+  // historical scratch/class records, whose learned spells are intentionally
+  // adapted outside production permission resolution.
+  const hasSocketBackedState = Boolean(char?.startingKit || char?.mediumState);
+  if (!spell || (hasSocketBackedState && !getActiveSpellKeys(char).includes(act.spellName))) {
     logQueue.push({ msg: `[味方] ${char.name}はそのRuneを装備していないため、呪文を唱えられない！` });
     return;
   }

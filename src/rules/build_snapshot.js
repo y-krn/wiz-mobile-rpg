@@ -83,7 +83,6 @@ function getWeaponProfile(character) {
 }
 
 function getActiveRuneIds(character) {
-  if (!character?.startingKit) return [];
   try {
     return getActiveRuneSpellKeys(character)
       .filter(spellKey => typeof spellKey === "string" && spellKey.length > 0);
@@ -93,11 +92,18 @@ function getActiveRuneIds(character) {
 }
 
 function getSupportValues(character, party) {
+  // Affix totals may include legacy class passives. Build identity is
+  // equipment/build state only, so explicitly neutralize that compatibility
+  // input before reading the shared affix calculator.
+  const equipmentOnlyCharacter = character ? { ...character, class: null } : character;
+  const equipmentOnlyParty = (party || [character]).map(member =>
+    member ? { ...member, class: null } : member
+  );
   const supportValues = Object.fromEntries(
-    SUPPORT_SNAPSHOT_IDS.map(id => [id, boundedSupportValue(getPartyMaxAffix([character], id))])
+    SUPPORT_SNAPSHOT_IDS.map(id => [id, boundedSupportValue(getPartyMaxAffix([equipmentOnlyCharacter], id))])
   );
   const explorationSupportValues = Object.fromEntries(
-    EXPLORATION_SUPPORT_IDS.map(id => [id, boundedSupportValue(getPartyMaxAffix(party || [character], id))])
+    EXPLORATION_SUPPORT_IDS.map(id => [id, boundedSupportValue(getPartyMaxAffix(equipmentOnlyParty, id))])
   );
   return { supportValues, explorationSupportValues };
 }

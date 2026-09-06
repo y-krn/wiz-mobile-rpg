@@ -45,4 +45,12 @@ assert.equal(
   snapshots["medium-shallow-rune"].identity
 );
 
+const withoutStartingKit = createBuildFixture("medium-multi-rune");
+delete withoutStartingKit.startingKit;
+assert.deepEqual(
+  resolveBuildSnapshot(withoutStartingKit),
+  snapshots["medium-multi-rune"],
+  "Medium/socket state remains authoritative without startingKit"
+);
+
 console.log("[PASS] Build Snapshot resolver schema, bounds, and deterministic identity");

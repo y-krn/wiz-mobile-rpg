@@ -251,6 +251,13 @@ const { BUILD_FIXTURE_IDS, createBuildFixture } =
 const { getActiveSpellKeys } = await import("../../src/rules/magic_rules.js");
 const { resolveBuildSnapshot } = await import("../../src/rules/build_snapshot.js");
 
+// Historical class-axis simulations keep their old learned spell list in
+// scratch only. Production auto/combat permission is always socket-backed.
+function getSimulationActiveSpellKeys(character) {
+  if (character?.startingKit || character?.mediumState) return getActiveSpellKeys(character);
+  return Array.isArray(character?.spells) ? [...character.spells] : [];
+}
+
 // Candidate/masking list only; selection ranking lives in auto_action.js.
 const PRIEST_HEALING_SPELL_IDS = Object.freeze([
   "DIALMA",
@@ -4638,7 +4645,7 @@ function recordB5HpSnapshot(state, metrics, step = null) {
 }
 
 function hasSpell(character, spellName) {
-  return getActiveSpellKeys(character).includes(spellName);
+  return getSimulationActiveSpellKeys(character).includes(spellName);
 }
 
 function getSpellActionPayment(
@@ -5465,16 +5472,16 @@ function chooseSimulationAutoCombatAction(args) {
   }
   const isPriest = !args.character.startingKit && args.character.class === "Priest";
   const maskedSpellIds = isPriest ? getSimulationPriestHealingSpellIds() : null;
-  if (!maskedSpellIds || !getActiveSpellKeys(args.character).length) return chooseAutoCombatAction(args);
-  const character = {
-    ...args.character,
-    spells: getActiveSpellKeys(args.character).filter(spellName =>
+  const activeSpellKeys = getSimulationActiveSpellKeys(args.character);
+  if (!maskedSpellIds || !activeSpellKeys.length) {
+    return chooseAutoCombatAction({ ...args, activeSpellKeys });
+  }
+  const filteredSpellKeys = activeSpellKeys.filter(spellName =>
       !PRIEST_HEALING_SPELL_IDS.includes(spellName) || maskedSpellIds.includes(spellName)
-    )
-  };
+  );
   return chooseAutoCombatAction({
     ...args,
-    character
+    activeSpellKeys: filteredSpellKeys
   });
 }
 
@@ -5597,11 +5604,13 @@ export function selectSimulationCombatActionForPolicy(context) {
 }
 
 function chooseSimulationCombatActionForCharacter(character, monsters, roundNumber, healThreshold) {
+  const activeSpellKeys = getSimulationActiveSpellKeys(character);
   return chooseSimulationAutoCombatAction({
     character,
     monsters,
     roundNumber,
-    healingTargetIdx: getAutoHealTargetIdx(character, healThreshold),
+    healingTargetIdx: getAutoHealTargetIdx(character, healThreshold, activeSpellKeys),
+    activeSpellKeys,
     canCastSpell: (spellName, reserveMp) => {
       const spell = SPELLS[spellName];
       if (!spell) return false;
@@ -5659,14 +5668,17 @@ function getCombatManaPotionAction(state) {
 
 function getCombatPolicyProbeAction(state) {
   const character = state.party[0];
+  const activeSpellKeys = getSimulationActiveSpellKeys(character);
   return chooseSimulationAutoCombatAction({
     character,
     monsters: state.combatState.monsters,
     roundNumber: state.combatState.roundNumber,
     healingTargetIdx: getAutoHealTargetIdx(
       character,
-      state.simPolicy.healPotionThreshold
+      state.simPolicy.healPotionThreshold,
+      activeSpellKeys
     ),
+    activeSpellKeys,
     // Diagnostic only: let the existing selector reveal its preferred spell,
     // then ask getSpellPayment whether the source can actually pay for it.
     canCastSpell: () => true
@@ -5716,7 +5728,7 @@ function recordCombatPolicyProbe(state, metrics, probeAction, actualAction) {
   const monsters = state.combatState?.monsters || [];
   const hasLivingTarget = monsters.some(monster => monster.hp > 0);
   if (!hasLivingTarget) probe.noLivingTarget++;
-  const activeSpellIds = getActiveSpellKeys(state.party[0]);
+  const activeSpellIds = getSimulationActiveSpellKeys(state.party[0]);
   const knownEnemySpell = activeSpellIds.some(spellName =>
     SPELLS[spellName]?.target?.includes("enemy")
   );
@@ -5769,28 +5781,32 @@ function recordCombatSpellPressure(state, metrics, actualAction, probeAction = n
 }
 
 function getSimulationPreferredOffensiveSpellName(character, monsters, canCastSpell) {
+  const activeSpellKeys = getSimulationActiveSpellKeys(character);
   if (ISSUE538_LEGACY_SPELL_POLICY && !character.startingKit && character.class === "Mage") {
     return hasSpell(character, "HALITO") ? "HALITO" : null;
   }
-  return getPreferredOffensiveSpellName(character, monsters, canCastSpell);
+  return getPreferredOffensiveSpellName(character, monsters, canCastSpell, activeSpellKeys);
 }
 
 function getDiosCombatAction(state) {
   const character = state.party[0];
+  const activeSpellKeys = getSimulationActiveSpellKeys(character);
   const healingSpellIds = getSimulationPriestHealingSpellIds();
   const healingTargetIdx = getAutoHealTargetIdx(
     character,
-    state.simPolicy.healPotionThreshold
+    state.simPolicy.healPotionThreshold,
+    activeSpellKeys
   );
   if (
     healingTargetIdx === null ||
-    !getActiveSpellKeys(character).some(spellName => healingSpellIds.includes(spellName))
+    !activeSpellKeys.some(spellName => healingSpellIds.includes(spellName))
   ) return null;
   const action = chooseSimulationAutoCombatAction({
     character,
     monsters: state.combatState?.monsters || [],
     roundNumber: state.combatState?.roundNumber || 1,
     healingTargetIdx,
+    activeSpellKeys,
     canCastSpell: (spellName, reserveMp) =>
       getSpellActionPayment(state, spellName, reserveMp, { minHpAfterPaymentRate: null })
   });
@@ -9171,7 +9187,7 @@ function createBuildSnapshot(state, scoringProfile, point) {
     int: getCharInt(character),
     pie: getCharPie(character),
     agi: getCharAgi(character),
-    spells: [...getActiveSpellKeys(character)],
+    spells: [...getSimulationActiveSpellKeys(character)],
     equipmentStatScore,
     combatCoreScore,
     combatCoreScoreAll,
@@ -9224,7 +9240,7 @@ function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
     mpRatio: character.mp / Math.max(1, getCharMaxMp(character)),
     ATK: getCharWeaponAtk(character),
     DEF: getCharDef(character),
-    spells: [...getActiveSpellKeys(character)],
+    spells: [...getSimulationActiveSpellKeys(character)],
     equippedBaseIds: build.equipment.map(item => item.id),
     activeCoreIds: [...build.coreIds],
     supportAffixes: { ...build.supportAffixes },
