@@ -15,9 +15,9 @@ global.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () =
 function createState(monster = {}) {
   return {
     party: [{
-      name: "Tester", class: "Fighter", level: 1,
+      name: "Tester", level: 1,
       hp: 100, maxHp: 100, mp: 0, maxMp: 0,
-      str: 15, int: 8, pie: 8, vit: 10, agi: 100, luk: 10, status: "ok", spells: [],
+      str: 15, int: 8, pie: 8, vit: 10, agi: 100, luk: 10, status: "ok",
       equipment: {
         weapon: {
           baseId: "SHORT_SWORD", identified: true,

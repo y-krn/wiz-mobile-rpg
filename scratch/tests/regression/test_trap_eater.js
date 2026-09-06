@@ -61,10 +61,9 @@ const coreItem = {
   affixes: [{ id: "CORE_TRAP_EATER", type: "CORE_TRAP_EATER", kind: "core", value: 1 }]
 };
 
-function makeChar(className = "Thief") {
+function makeChar() {
   return {
     name: "Trap Eater",
-    class: className,
     level: 1,
     hp: 100,
     maxHp: 100,
@@ -114,14 +113,12 @@ async function test(name, fn) {
   }
 }
 
-await test("CORE_TRAP_EATER is eligible for every class", () => {
-  for (const className of ["Fighter", "Thief", "Ranger", "Ninja", "Priest", "Mage", "Samurai", "Bishop"]) {
-    const char = makeChar(className);
-    assert.deepEqual(getCharCoreParams(char, "CORE_TRAP_EATER"), {
-      attackPerDisarm: 2,
-      maxAttack: 20
-    });
-  }
+await test("CORE_TRAP_EATER is eligible for the classless build", () => {
+  const char = makeChar();
+  assert.deepEqual(getCharCoreParams(char, "CORE_TRAP_EATER"), {
+    attackPerDisarm: 2,
+    maxAttack: 20
+  });
 });
 
 await test("bonus uses +2 per successful disarm and caps at +20", () => {

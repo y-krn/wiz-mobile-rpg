@@ -31,7 +31,6 @@ async function runTests() {
   // Test 3: check actual recovery effect execution
   const char = {
     name: "テスト戦士",
-    class: "Fighter",
     hp: 5,
     maxHp: 20,
     mp: 0,
@@ -48,7 +47,6 @@ async function runTests() {
   assert(typeof poison.effect === "function", "ANTIDOTE has effect function");
   const poisonedChar = {
     name: "テスト盗賊",
-    class: "Thief",
     hp: 10,
     maxHp: 10,
     status: "poisoned"

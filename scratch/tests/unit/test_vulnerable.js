@@ -20,7 +20,7 @@ global.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () =
 
 function createCombatState(target = {}) {
   const caster = {
-    name: "Mage", class: "Mage", level: 5, hp: 100, maxHp: 100, mp: 10, maxMp: 10,
+    name: "RuneCaster", level: 5, hp: 100, maxHp: 100, mp: 10, maxMp: 10,
     str: 10, int: 10, pie: 10, vit: 10, agi: 10, luk: 10, status: "ok",
     equipment: { weapon: "ARCH_WAND", shield: null, armor: null, accessory: null },
     mediumState: { mediumKey: "ARCH_WAND", socketedRunes: ["RUNE_VULNERA", "RUNE_MAHALITO", "RUNE_LAHALITO"] }

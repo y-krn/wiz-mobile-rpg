@@ -84,16 +84,14 @@ function unknownItem({ cursed = false, level = 5 } = {}) {
 function character(equipment = {}) {
   return {
     name: "Tester",
-    class: "Fighter",
     hp: 20,
     status: "ok",
     equipment: { weapon: null, shield: null, armor: null, accessory: null, ...equipment }
   };
 }
 
-function characterWithIdentifyDiscount({ className = "Fighter", affixValue = 0 } = {}) {
+function characterWithIdentifyDiscount({ affixValue = 0 } = {}) {
   const char = character();
-  char.class = className;
   char.equipment.accessory = {
     ...unknownItem(),
     identified: true,

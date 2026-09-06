@@ -18,7 +18,7 @@ assert.equal(
 
 const inspection = resolveChestInspection({
   chest: { trap: "gas bomb" },
-  party: [{ class: "Fighter", status: "ok" }],
+  party: [{ status: "ok" }],
   lightPower: "lomilwa",
   rng: (() => {
     const rolls = [0.54, 0];

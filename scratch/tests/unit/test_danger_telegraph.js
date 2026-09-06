@@ -15,7 +15,6 @@ function assert(condition, label, detail) {
 function createPartyMember(name = "戦士") {
   return {
     name,
-    class: "Fighter",
     level: 1,
     hp: 100,
     maxHp: 100,
@@ -29,7 +28,6 @@ function createPartyMember(name = "戦士") {
     agi: 1,
     luk: 1,
     equipment: {},
-    spells: [],
     exp: 0
   };
 }

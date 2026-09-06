@@ -380,7 +380,6 @@ import { createStartingKitCharacter } from "../../../src/state.js";
     }
 
     const mageParty = [{
-      class: "Mage",
       status: "ok",
       equipment: { weapon: null, shield: null, armor: null }
     }];
@@ -472,7 +471,6 @@ import { createStartingKitCharacter } from "../../../src/state.js";
   await (async () => {
     const baseChar = {
       name: "Tester",
-      class: "Fighter",
       level: 1,
       hp: 20,
       maxHp: 20,

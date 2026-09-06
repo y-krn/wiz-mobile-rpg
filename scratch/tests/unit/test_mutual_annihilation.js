@@ -19,9 +19,9 @@ function check(cond, label, detail = "") {
 
 function mkChar(name, hp, status = "ok") {
   return {
-    name, hp, maxHp: 5, status, level: 1, class: "Fighter",
+    name, hp, maxHp: 5, status, level: 1,
     str: 5, int: 5, pie: 5, vit: 1, agi: 1, luk: 5,
-    equipment: {}, spells: [], mp: 0, maxMp: 0, exp: 0
+    equipment: {}, mp: 0, maxMp: 0, exp: 0
   };
 }
 function baseState(party, monsters) {

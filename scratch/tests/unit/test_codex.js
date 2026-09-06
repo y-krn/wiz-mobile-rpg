@@ -185,7 +185,7 @@ Object.defineProperty(global, "navigator", {
   state.floor = 1;
   state.inventory = [randEquip];
   state.party = [
-    { name: "Arthur", class: "Fighter", level: 3, hp: 0, status: "dead", equipment: { weapon: null, armor: null, shield: null } }
+    { name: "Arthur", level: 3, hp: 0, status: "dead", equipment: { weapon: null, armor: null, shield: null } }
   ];
 
   // Trigger GameOver
@@ -202,7 +202,7 @@ Object.defineProperty(global, "navigator", {
   assert.match(getDeathLogsHtml(), /<strong>Lv:<\/strong> 3/, "Death log HTML should display the character level");
   latestDeath.character = null;
   assert.match(getDeathLogsHtml(), /<strong>Lv:<\/strong> \?/, "Death log HTML should fall back when character data is missing");
-  latestDeath.character = { name: "Arthur", class: "Fighter", level: 3 };
+  latestDeath.character = { name: "Arthur", level: 3 };
 
 
   // Test 5: Persistence (Save & Load)

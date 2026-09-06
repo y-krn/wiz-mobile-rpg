@@ -9,17 +9,13 @@ const VIEWPORTS = [
 
 async function installCombat(page, partyFactory) {
   await page.goto('/');
-  await page.evaluate(async (partyClasses) => {
+  await page.evaluate(async (partyKits) => {
     const { state, createStartingKitCharacter } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');
     const { combatSelection } = await import('/src/combat.js');
     const { updateUI } = await import('/src/ui.js');
 
-    state.party = partyClasses.map(className => {
-      const character = createStartingKitCharacter(className === 'Mage' ? 'arcana' : 'vanguard');
-      character.class = className;
-      return character;
-    });
+    state.party = partyKits.map(kitId => createStartingKitCharacter(kitId));
     state.combatState = {
       phase: 'choose_actions',
       monsters: [
@@ -47,7 +43,7 @@ async function installCombat(page, partyFactory) {
 for (const viewport of VIEWPORTS) {
   test(`攻撃から Action Dock の敵対象を選んで行動を確定できる (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await installCombat(page, ['Fighter', 'Mage']);
+    await installCombat(page, ['vanguard', 'arcana']);
 
     await page.locator('#btn-combat-fight').click();
     const overlay = page.locator('#combat-overlay');
@@ -86,7 +82,7 @@ for (const viewport of VIEWPORTS) {
 
   test(`単体魔法から Action Dock の敵対象を選んで行動を確定できる (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await installCombat(page, ['Mage', 'Fighter']);
+    await installCombat(page, ['arcana', 'vanguard']);
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       state.party[0].mp = state.party[0].maxMp = 10;

@@ -13,6 +13,19 @@ import {
   COMBAT_POLICY_RULES,
   selectSimulationCombatActionForPolicy
 } from "../../simulations/sim_depth_material_ev.js";
+import { createStartingKitCharacter } from "../../../src/state.js";
+import { getRuneItemId, syncMediumState } from "../../../src/rules/magic_rules.js";
+
+function createPolicyCharacter(spellKeys, mp) {
+  const character = createStartingKitCharacter("arcana");
+  character.equipment.weapon = "ARCH_WAND";
+  character.equipment.shield = null;
+  syncMediumState(character);
+  character.mediumState.socketedRunes = spellKeys.map(getRuneItemId);
+  character.mp = mp;
+  character.maxMp = mp;
+  return character;
+}
 
 assert.deepEqual(POLICIES, ["balanced-combat", "mp-conservative", "burst-combat"]);
 assert.deepEqual(COMBAT_POLICY_IDS, POLICIES);
@@ -93,21 +106,21 @@ const repeat = runMeasurement({ seed: "issue990-stage2-regression", runs: 1 });
 assert.deepEqual(repeat, report, "same seed and runIndex are deterministic");
 assert.equal(selectSimulationCombatActionForPolicy({
   combatPolicy: "mp-conservative",
-  character: { class: "Mage", spells: ["HALITO"], mp: 1, maxMp: 1 },
+  character: createPolicyCharacter(["HALITO"], 1),
   enemies: [{ hp: 10, status: "ok" }],
   roundNumber: 1,
   canCastSpell: () => true
 }).type, "fight");
 const currentStateAction = selectSimulationCombatActionForPolicy({
   combatPolicy: "burst-combat",
-  character: { class: "Mage", spells: ["HALITO", "MAHALITO"], mp: 4, maxMp: 4 },
+  character: createPolicyCharacter(["HALITO", "MAHALITO"], 4),
   enemies: [{ hp: 30, status: "ok" }],
   roundNumber: 1,
   canCastSpell: spellName => spellName === "MAHALITO"
 });
 const futureInfoAction = selectSimulationCombatActionForPolicy({
   combatPolicy: "burst-combat",
-  character: { class: "Mage", spells: ["HALITO", "MAHALITO"], mp: 4, maxMp: 4 },
+  character: createPolicyCharacter(["HALITO", "MAHALITO"], 4),
   enemies: [{ hp: 30, status: "ok" }],
   roundNumber: 1,
   canCastSpell: spellName => spellName === "MAHALITO",

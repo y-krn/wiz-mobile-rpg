@@ -10,7 +10,6 @@ console.log("=== TICKET-048 CURSE MOD TEST ===");
 // 共通のベースキャラクター
 const baseChar = {
   name: "Hero",
-  class: "Thief",
   level: 5,
   hp: 40,
   maxHp: 40,

@@ -7,7 +7,8 @@ const VIEWPORTS = [
 
 async function installCombat(page, mode = 'combat_target', profile = 'all') {
   await page.evaluate(async ({ combatMode, combatProfile }) => {
-      const { state } = await import('/src/state.js');
+      const { state, createStartingKitCharacter } = await import('/src/state.js');
+      const { getRuneItemId, syncMediumState } = await import('/src/rules/magic_rules.js');
       const { MONSTERS } = await import('/src/data.js');
       const { menuContext } = await import('/src/navigation.js');
       const { updateUI } = await import('/src/ui.js');
@@ -20,16 +21,15 @@ async function installCombat(page, mode = 'combat_target', profile = 'all') {
     const wisp = copyMonster('ウィル・オー・ウィスプ');
     const golem = copyMonster('アイアンゴーレム');
     const slime = copyMonster('マッドスライム');
-    state.party = [{
-      name: 'Arthur',
-      class: 'Mage',
-      hp: 20,
-      maxHp: 20,
-      mp: 20,
-      maxMp: 20,
-      status: 'ok',
-      spells: ['HALITO', 'LAHALITO']
-    }];
+    const caster = createStartingKitCharacter('arcana');
+    caster.name = 'Arthur';
+    caster.equipment.weapon = 'ARCH_WAND';
+    caster.equipment.shield = null;
+    syncMediumState(caster);
+    caster.mediumState.socketedRunes = ['HALITO', 'LAHALITO'].map(getRuneItemId);
+    caster.hp = caster.maxHp = 20;
+    caster.mp = caster.maxMp = 20;
+    state.party = [caster];
     state.codex.monsters = {
       [wisp.name]: { encountered: 1, killed: 0, magicResistKnown: true },
       [golem.name]: { encountered: 1, killed: 0, magicResistKnown: true, physResistKnown: true },

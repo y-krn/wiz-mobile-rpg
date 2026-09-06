@@ -46,7 +46,7 @@ console.log("=== TABLET EVENT GOLD REMOVAL VERIFICATION ===");
 state.floor = 1;
 state.gold = 500;
 state.party = [
-  { name: "戦士", status: "alive", exp: 0, class: "Fighter", hp: 20, maxHp: 20 }
+  { name: "冒険者", status: "alive", exp: 0, hp: 20, maxHp: 20 }
 ];
 state.logs = [];
 state.maps[0] = [

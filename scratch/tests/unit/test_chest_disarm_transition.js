@@ -66,7 +66,6 @@ function prepareChest() {
   state.maps[0][1][1].event = "chest";
   state.party = [{
     name: "Robin",
-    class: "Thief",
     level: 1,
     hp: 100,
     maxHp: 100,

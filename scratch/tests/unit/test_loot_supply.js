@@ -145,7 +145,6 @@ assert.ok(coreRates.rare > 0 && coreRates.rare < 0.50, "Rare Core does not fill 
 function createBuildVariant({ startingKit, treasureSense, hp, mp }) {
   return [{
     startingKit,
-    class: "Fighter",
     status: "ok",
     hp,
     maxHp: 100,
@@ -213,12 +212,10 @@ assert.deepEqual(
 );
 
 const emptyLoadout = [{
-  class: "Fighter",
   status: "ok",
   equipment: { weapon: null, shield: null, armor: null }
 }];
 const occupiedLoadout = [{
-  class: "Fighter",
   status: "ok",
   equipment: { weapon: { baseId: "SHORT_SWORD" }, shield: null, armor: null }
 }];

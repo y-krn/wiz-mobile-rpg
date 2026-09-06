@@ -16,7 +16,6 @@ function createState({ agi = 10, monster, physicalAccuracy = false } = {}) {
   return {
     party: [{
       name: "Tester",
-      class: "Fighter",
       level: 1,
       hp: 100,
       maxHp: 100,
@@ -29,7 +28,6 @@ function createState({ agi = 10, monster, physicalAccuracy = false } = {}) {
       agi,
       luk: 10,
       status: "ok",
-      spells: [],
       equipment: {
         weapon: physicalAccuracy
           ? {

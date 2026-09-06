@@ -80,7 +80,6 @@ check("PostHog ingest rewrites precede the SPA fallback", () => {
 });
 
 const run = {
-  characterClass: "Mage",
   startedAt: Date.now() - 100,
   startFloor: 1,
   deepestFloor: 4,
@@ -99,7 +98,7 @@ check("telemetry without a client is a complete no-op", () => {
   __resetTelemetryForTests();
   assert.doesNotThrow(() => {
     trackEvent("run_start", { value: undefined });
-    trackRunStart(run, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+    trackRunStart(run, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
     trackCombatStart({ floor: 1, player: {}, monsters: [] });
     trackDamageReceived({ enemyId: "Goblin A", rawDamage: 1, finalDamage: 1 });
     trackCombatEnd("endCombat", { monsters: [] });
@@ -114,8 +113,8 @@ check("capture exceptions do not escape into gameplay", () => {
     }
   });
   assert.doesNotThrow(() => {
-    trackRunStart(run, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
-    trackCombatStart({ floor: 1, player: { class: "Mage", hp: 14, mp: 12 }, monsters: [] });
+    trackRunStart(run, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+    trackCombatStart({ floor: 1, player: { hp: 14, mp: 12 }, monsters: [] });
     trackDamageReceived({ enemyId: "Goblin A", rawDamage: 3, finalDamage: 1 });
     trackCombatEnd("endCombat", { monsters: [] });
     trackRunEnd(run, "death");
@@ -157,7 +156,7 @@ check("run end sends the existing death-log cause with normalized fields", () =>
     deathLogs: [{ type: "status", source: "ゾンビ A", cause: "毒のダメージ" }],
     freeTextDeathCause: "must not be sent"
   };
-  trackRunStart(runWithDeathCause, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+  trackRunStart(runWithDeathCause, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
   trackRunEnd(runWithDeathCause, "death");
   const properties = events.at(-1).properties;
   assert.equal(properties.outcome, "death");
@@ -171,7 +170,6 @@ check("run end sends the existing death-log cause with normalized fields", () =>
 });
 
 const decisionPlayer = {
-  class: "Mage",
   level: 3,
   hp: 18,
   maxHp: 24,
@@ -429,7 +427,7 @@ check("canonical legendary rarity remains allowlisted", () => {
 check("decision events share context and keep action identifiers stable", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
-  trackRunStart({ ...run, characterClass: "Mage" }, decisionPlayer, decisionState);
+  trackRunStart(run, decisionPlayer, decisionState);
   trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
   trackCombatDecision("fight", {
     state: decisionState,
@@ -735,7 +733,7 @@ check("physical damage telemetry exposes formula stages and clamps applied damag
   trackRunStart(run, decisionPlayer, decisionState);
   trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
 
-  const character = { class: "Fighter", hp: 1, mp: 0, vit: 10, equipment: {} };
+  const character = { hp: 1, mp: 0, vit: 10, equipment: {} };
   recordReceivedDamage(
     { floor: 2, simTelemetry: { causalDamageEvents } },
     character,
@@ -758,7 +756,7 @@ check("physical damage telemetry exposes formula stages and clamps applied damag
   assert.ok(damage.preDefDamage >= damage.postDefDamage);
   assert.ok(damage.postDefDamage >= damage.finalDamage);
 
-  const lethalCharacter = { class: "Fighter", hp: 0, mp: 0, vit: 10, equipment: {} };
+  const lethalCharacter = { hp: 0, mp: 0, vit: 10, equipment: {} };
   recordReceivedDamage(
     { floor: 2, simTelemetry: { causalDamageEvents } },
     lethalCharacter,
@@ -777,7 +775,6 @@ check("normal physical combat hits forward formula stages to damage telemetry", 
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
   const character = {
     ...decisionPlayer,
-    class: "Fighter",
     name: "Tester",
     hp: 20,
     maxHp: 20,
@@ -817,7 +814,7 @@ check("normal physical combat hits forward formula stages to damage telemetry", 
       mitigationCalls: []
     }
   };
-  trackRunStart({ ...run, characterClass: "Fighter" }, character, state);
+  trackRunStart(run, character, state);
   trackCombatStart({ floor: 1, player: character, monsters: [monster] }, state);
 
   const originalRandom = Math.random;
@@ -1199,8 +1196,8 @@ check("chest action fields preserve valid values and coerce malformed input", ()
 check("lifecycle events emitted before SDK initialization are flushed in order", () => {
   const events = [];
   __setTelemetryInitializationForTests({ enabled: true });
-  trackRunStart(run, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
-  trackCombatStart({ floor: 1, player: { class: "Mage", hp: 14, mp: 12 }, monsters: [] });
+  trackRunStart(run, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+  trackCombatStart({ floor: 1, player: { hp: 14, mp: 12 }, monsters: [] });
   trackDamageReceived({ enemyId: "ゴブリン A", rawDamage: 2, finalDamage: 1 });
   trackCombatEnd("endCombat", { floor: 1, turns: 1, player: { hp: 12, mp: 12 }, monsters: [] });
   trackRunEnd(run, "retreat");
@@ -1237,8 +1234,8 @@ check("runtime correlation IDs do not consume Math.random", () => {
   };
   try {
     __setTelemetryClientForTests({ capture() {} });
-    trackRunStart(run, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
-    trackCombatStart({ floor: 1, player: { class: "Mage", hp: 14, mp: 12 }, monsters: [{ name: "ゴブリン A" }] });
+  trackRunStart(run, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+  trackCombatStart({ floor: 1, player: { hp: 14, mp: 12 }, monsters: [{ name: "ゴブリン A" }] });
     trackCombatEnd("endCombat", { floor: 1, turns: 1, player: { hp: 14, mp: 12 }, monsters: [] });
     trackRunEnd(run, "retreat");
   } finally {
@@ -1250,12 +1247,12 @@ check("runtime correlation IDs do not consume Math.random", () => {
 check("damage telemetry omits the removed class MP ward", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
-  trackRunStart(run, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
-  trackCombatStart({ floor: 1, player: { class: "Mage", hp: 14, mp: 0 }, monsters: [] });
+  trackRunStart(run, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+  trackCombatStart({ floor: 1, player: { hp: 14, mp: 0 }, monsters: [] });
 
-  const emptyMp = { class: "Mage", hp: 10, mp: 0, vit: 10, equipment: {} };
+  const emptyMp = { hp: 10, mp: 0, vit: 10, equipment: {} };
   recordReceivedDamage({ floor: 1 }, emptyMp, "ゴブリン A", 2, 2, 12, { attackType: "physical", finalDef: 2 });
-  const activeMp = { class: "Mage", hp: 10, mp: 1, vit: 10, equipment: {} };
+  const activeMp = { hp: 10, mp: 1, vit: 10, equipment: {} };
   recordReceivedDamage({ floor: 1 }, activeMp, "ゴブリン A", 2, 2, 12, { attackType: "physical", finalDef: 2 });
 
   const damageEvents = events.filter(event => event.name === "damage_received");
@@ -1277,8 +1274,8 @@ check("telemetry lifecycle preserves a fixed random sequence", () => {
     Math.random = () => sequence[index++];
     if (withTelemetry) {
       __setTelemetryClientForTests({ capture() {} });
-      trackRunStart(run, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
-      trackCombatStart({ floor: 1, player: { class: "Mage", hp: 14, mp: 12 }, monsters: [] });
+      trackRunStart(run, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+      trackCombatStart({ floor: 1, player: { hp: 14, mp: 12 }, monsters: [] });
       trackDamageReceived({ enemyId: "ゴブリン A", rawDamage: 2, finalDamage: 1 });
       trackCombatEnd("endCombat", { floor: 1, turns: 1, player: { hp: 13, mp: 12 }, monsters: [] });
       trackRunEnd(run, "retreat");

@@ -10,11 +10,10 @@ global.localStorage = {
   removeItem: () => {}
 };
 
-function createState({ className = "Fighter", level = 10, targetOverrides = {} } = {}) {
+function createState({ level = 10, targetOverrides = {} } = {}) {
   return {
     party: [{
       name: "Tester",
-      class: className,
       level,
       hp: 100,
       maxHp: 100,
@@ -27,7 +26,6 @@ function createState({ className = "Fighter", level = 10, targetOverrides = {} }
       agi: 100,
       luk: 10,
       status: "ok",
-      spells: [],
       equipment: { weapon: null, shield: null, armor: null, accessory: null }
     }],
     combatState: {
@@ -74,24 +72,24 @@ function run(state) {
   }
 }
 
-const ninjaHit = run(createState({ className: "Ninja" }));
-assert.equal(ninjaHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false, "legacy class must not grant critical");
-assert.equal(ninjaHit.state.combatFormulaTelemetry.physicalPlayerHits[0].criticalChance, null);
+const baselineHit = run(createState());
+assert.equal(baselineHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false, "classless builds do not grant critical");
+assert.equal(baselineHit.state.combatFormulaTelemetry.physicalPlayerHits[0].criticalChance, null);
 
-const bossHit = run(createState({ className: "Ninja", targetOverrides: { isBoss: true, canReceiveCritical: false } }));
+const bossHit = run(createState({ targetOverrides: { isBoss: true, canReceiveCritical: false } }));
 assert.equal(bossHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false, "boss critical exclusion");
 assert.equal(bossHit.state.combatFormulaTelemetry.physicalPlayerHits[0].criticalChance, null, "boss critical telemetry remains ineligible");
 
-const nonNinjaHit = run(createState({ className: "Fighter" }));
-assert.equal(nonNinjaHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false, "non-Ninja critical remains disabled");
-assert.equal(nonNinjaHit.state.combatFormulaTelemetry.physicalPlayerHits[0].criticalChance, null, "non-Ninja critical telemetry remains ineligible");
+const secondHit = run(createState());
+assert.equal(secondHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false, "critical remains disabled");
+assert.equal(secondHit.state.combatFormulaTelemetry.physicalPlayerHits[0].criticalChance, null, "critical telemetry remains ineligible");
 
-const propertyBlockedHit = run(createState({ className: "Ninja", targetOverrides: { canReceiveCritical: false } }));
+const propertyBlockedHit = run(createState({ targetOverrides: { canReceiveCritical: false } }));
 assert.equal(propertyBlockedHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false, "target property blocks critical");
 assert.equal(propertyBlockedHit.state.combatFormulaTelemetry.physicalPlayerHits[0].criticalChance, null, "blocked target is excluded from critical telemetry");
 
-function createLegacyCombatPayload({ className = "Ninja", targetOverrides = {} } = {}) {
-  state.party = createState({ className }).party;
+function createLegacyCombatPayload({ targetOverrides = {} } = {}) {
+  state.party = createState().party;
   state.combatState = {
     monsters: [{
       name: "Target",
@@ -138,7 +136,7 @@ assert.equal(legacyBossPayload.combatState.monsters[0].canReceiveCritical, undef
 
 const legacyNonBossRound = runLoadedLegacyCombat();
 assert.equal(legacyNonBossRound.state.combatState.monsters[0].canReceiveCritical, true, "legacy non-boss is backfilled as critical-eligible");
-assert.equal(legacyNonBossRound.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false, "legacy class must not grant critical");
+assert.equal(legacyNonBossRound.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false, "classless builds do not grant critical");
 assert.equal(legacyNonBossRound.state.combatFormulaTelemetry.physicalPlayerHits[0].criticalChance, null);
 
 console.log("Critical common mechanism tests passed.");

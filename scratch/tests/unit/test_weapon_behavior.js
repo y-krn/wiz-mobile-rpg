@@ -31,7 +31,6 @@ assert.deepEqual(Object.keys(WEAPON_BEHAVIOR_PROFILES).sort(), ["blade", "heavy"
 
 function character(weapon) {
   return {
-    class: "Fighter",
     level: 1,
     str: 10,
     equipment: { weapon, shield: null, armor: null, accessory: null, accessory2: null }
@@ -62,4 +61,3 @@ assert.equal(heavy.behavior.rawDamageMultiplier, 1.1);
 assert.equal(impact.behavior.physicalDefenseScale, 52);
 
 console.log("[PASS] weapon behavior profiles and shared resolver");
-
