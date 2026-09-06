@@ -12281,7 +12281,7 @@ function sumNumericObjectValues(value) {
   return Object.values(value || {}).reduce((sum, amount) => sum + (Number(amount) || 0), 0);
 }
 
-function createBuildPaymentRunSnapshot(state, metrics) {
+function createBuildPaymentRunSnapshot(state, metrics, outcome) {
   const stage = metrics.stage15Diagnostics?.byFloor || {};
   const actionCounts = {
     attack: 0,
@@ -12299,11 +12299,13 @@ function createBuildPaymentRunSnapshot(state, metrics) {
     actionCounts.flee += floor.fleeActions || 0;
     actionCounts.noop += floor.failedNoopActions || 0;
   });
-  const mitigations = metrics.combatFormulaTelemetry?.mitigations || [];
+  const mitigations = state.combatFormulaTelemetry?.mitigations || [];
   const guardMitigations = mitigations.filter(mitigation => mitigation.type === "physGuard");
-  const statusResistanceEvents = sumNumericObjectValues(
-    metrics.killHeal?.enemyStatusGrammar?.resistedByEnemyFloor
-  );
+  const statusMitigations = state.combatFormulaTelemetry?.statusMitigations || [];
+  const statusMitigationByType = statusMitigations.reduce((counts, mitigation) => {
+    counts[mitigation.type] = (counts[mitigation.type] || 0) + 1;
+    return counts;
+  }, {});
   const swaps = (metrics.equipmentTelemetry || []).filter(event => event.type === "swap");
   const resolverBuild = metrics.buildSnapshot || {};
   const activeRuneIds = resolverBuild.activeRuneSpellIds || [];
@@ -12327,7 +12329,10 @@ function createBuildPaymentRunSnapshot(state, metrics) {
     trapGuard: observedExplorationUse("trapGuard", metrics.trapActivations || 0),
     treasureSense: observedExplorationUse("treasureSense", metrics.chestsOpened || 0),
     arcaneSense: observedExplorationUse("arcaneSense", metrics.secretSearchAttempts || 0),
-    hearRange: observedExplorationUse("hearRange", metrics.specialCellsDetected || 0),
+    hearRange: observedExplorationUse(
+      "hearRange",
+      metrics.specialCellsDetected ? sumNumericObjectValues(metrics.specialCellsDetected) : 0
+    ),
     traceRead: observedExplorationUse("traceRead", metrics.secretSearchAttempts || 0),
     materialFind: observedExplorationUse(
       "materialFind",
@@ -12349,8 +12354,9 @@ function createBuildPaymentRunSnapshot(state, metrics) {
       0
     ),
     guardMitigationEvents: guardMitigations.length,
-    statusMitigationEvents: statusResistanceEvents,
-    statusMitigationSource: "enemyStatusGrammar.resistedByEnemyFloor",
+    statusMitigationEvents: statusMitigations.length,
+    statusMitigationByType,
+    statusMitigationSource: "combatFormulaTelemetry.statusMitigations",
     runeCastCounts,
     runeSlots: {
       capacity: resolverBuild.runeSlotCapacity || 0,
@@ -12376,7 +12382,14 @@ function createBuildPaymentRunSnapshot(state, metrics) {
     loot: {
       equipmentExposure: metrics.equipmentFound,
       equipmentAdopted: swaps.length,
-      equipmentDiscarded: Math.max(0, metrics.equipmentFound - swaps.length),
+      equipmentUnadoptedExposureProxy: Math.max(0, metrics.equipmentFound - swaps.length),
+      equipmentDisposition: {
+        status: "not_modeled",
+        adopted: swaps.length,
+        left: null,
+        discarded: null,
+        reason: "canonical simulator does not retain a production object-loot disposition ledger"
+      },
       buildShiftCount: swaps.filter(event => {
         const before = new Set(event.oldMainAxisIds || []);
         const after = new Set(event.candidateMainAxisIds || []);
@@ -12407,6 +12420,16 @@ function createBuildPaymentRunSnapshot(state, metrics) {
       wingUses: metrics.portalUsesBySource?.merchant || 0,
       useEvents: structuredClone(metrics.portalUseEvents),
       milestoneDecisions: structuredClone(metrics.milestoneDecisions)
+    },
+    terminalResourceState: {
+      outcome,
+      hpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
+      mpRate: state.party[0].mp / Math.max(1, getCharMaxMp(state.party[0])),
+      inventorySlots: state.inventory.length,
+      inventoryFreeSlots: Math.max(0, 20 - state.inventory.length),
+      unconfirmedObjectLootCount: null,
+      unconfirmedObjectLootValueProxy: null,
+      carriedMaterials: totalMaterials(state.currentRun.materials)
     },
     finalHp: state.party[0].hp,
     finalHpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
@@ -12633,7 +12656,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     });
   }
   const buildPayment = metrics.stage15Diagnostics
-    ? createBuildPaymentRunSnapshot(state, metrics)
+    ? createBuildPaymentRunSnapshot(state, metrics, outcome)
     : null;
   return {
     className: state.currentRun.characterClass,
@@ -13211,7 +13234,8 @@ export function simulateRun({
       spellMonsterHits: [],
       mitigations: [],
       mitigationCalls: [],
-      targetedBonuses: []
+      targetedBonuses: [],
+      statusMitigations: []
     };
   }
   const materialOverrideRandom = createMaterialOverrideRandom(
@@ -14718,6 +14742,14 @@ function createBuildPaymentAggregate() {
       ])
     ),
     numeric: Object.fromEntries(numericNames.map(name => [name, createNumericDistribution()])),
+    terminalResourceState: {
+      outcomeCounts: {},
+      hpRate: createNumericDistribution(),
+      mpRate: createNumericDistribution(),
+      inventorySlots: createNumericDistribution(),
+      inventoryFreeSlots: createNumericDistribution(),
+      carriedMaterials: createNumericDistribution()
+    },
     runeCastCounts: {},
     runeSlots: { capacity: 0, active: 0, unused: 0 },
     ownership: {
@@ -14726,10 +14758,18 @@ function createBuildPaymentAggregate() {
       explorationSupportValues: null,
       explorationSupportObservedUse: {}
     },
+    statusMitigationByType: {},
     loot: {
       equipmentExposure: 0,
       equipmentAdopted: 0,
-      equipmentDiscarded: 0,
+      equipmentUnadoptedExposureProxy: 0,
+      equipmentDisposition: {
+        status: "not_modeled",
+        adopted: 0,
+        left: null,
+        discarded: null,
+        reason: "canonical simulator does not retain a production object-loot disposition ledger"
+      },
       buildShiftCount: 0,
       finalBagSlots: createNumericDistribution(),
       rune: { status: "not_modeled", reason: null },
@@ -14799,6 +14839,10 @@ function addBuildPaymentRunAggregate(target, payment) {
     "mpStarvationEvents", "guardMitigationHp", "guardMitigationEvents",
     "statusMitigationEvents", "finalHp", "finalHpRate", "finalMp", "finalMpRate"
   ].forEach(name => addNumericSample(target.numeric[name], Number(payment[name])));
+  Object.entries(payment.statusMitigationByType || {}).forEach(([type, count]) => {
+    target.statusMitigationByType[type] =
+      (target.statusMitigationByType[type] || 0) + (Number(count) || 0);
+  });
   addNumericSample(target.loot.finalBagSlots, Number(payment.loot?.finalBagSlots));
   Object.entries(payment.runeCastCounts || {}).forEach(([runeId, count]) => {
     target.runeCastCounts[runeId] = (target.runeCastCounts[runeId] || 0) + (Number(count) || 0);
@@ -14834,9 +14878,13 @@ function addBuildPaymentRunAggregate(target, payment) {
     target.ownership.explorationSupportObservedUse[name] =
       (target.ownership.explorationSupportObservedUse[name] || 0) + (Number(count) || 0);
   });
-  ["equipmentExposure", "equipmentAdopted", "equipmentDiscarded", "buildShiftCount"].forEach(name => {
+  ["equipmentExposure", "equipmentAdopted", "buildShiftCount"].forEach(name => {
     target.loot[name] += Number(payment.loot?.[name]) || 0;
   });
+  target.loot.equipmentUnadoptedExposureProxy +=
+    Number(payment.loot?.equipmentUnadoptedExposureProxy) || 0;
+  target.loot.equipmentDisposition.adopted +=
+    Number(payment.loot?.equipmentDisposition?.adopted) || 0;
   ["core", "support"].forEach(kind => {
     ["exposure", "adopted"].forEach(name => {
       target.loot[kind][name] += Number(payment.loot?.[kind]?.[name]) || 0;
@@ -14860,6 +14908,12 @@ function addBuildPaymentRunAggregate(target, payment) {
     addBuildPaymentResourceState(target.portal.resourceState, event);
     addBuildPaymentResourceState(target.portal.resourceStateByDecision.milestone, event);
   });
+  const terminal = payment.terminalResourceState;
+  if (terminal) {
+    target.terminalResourceState.outcomeCounts[terminal.outcome] =
+      (target.terminalResourceState.outcomeCounts[terminal.outcome] || 0) + 1;
+    addBuildPaymentResourceState(target.terminalResourceState, terminal);
+  }
 }
 
 function finalizeBuildPaymentAggregate(aggregate) {
@@ -14893,7 +14947,8 @@ function finalizeBuildPaymentAggregate(aggregate) {
       mitigationHp: summarizeNumericDistribution(aggregate.numeric.guardMitigationHp),
       mitigationEvents: summarizeNumericDistribution(aggregate.numeric.guardMitigationEvents),
       statusMitigationEvents: summarizeNumericDistribution(aggregate.numeric.statusMitigationEvents),
-      statusMitigationSource: "enemyStatusGrammar.resistedByEnemyFloor"
+      statusMitigationByType: { ...aggregate.statusMitigationByType },
+      statusMitigationSource: "combatFormulaTelemetry.statusMitigations"
     },
     runes: {
       slots: {
@@ -14917,9 +14972,16 @@ function finalizeBuildPaymentAggregate(aggregate) {
     loot: {
       equipmentExposure: aggregate.loot.equipmentExposure,
       equipmentAdopted: aggregate.loot.equipmentAdopted,
-      equipmentDiscarded: aggregate.loot.equipmentDiscarded,
+      equipmentUnadoptedExposureProxy: aggregate.loot.equipmentUnadoptedExposureProxy,
       buildShiftCount: aggregate.loot.buildShiftCount,
       finalBagSlots: summarizeNumericDistribution(aggregate.loot.finalBagSlots),
+      equipmentDisposition: {
+        ...aggregate.loot.equipmentDisposition,
+        left: null,
+        discarded: null,
+        status: "not_modeled",
+        reason: "canonical simulator does not retain a production object-loot disposition ledger"
+      },
       rune: { ...aggregate.loot.rune },
       core: { ...aggregate.loot.core },
       support: {
@@ -14927,6 +14989,19 @@ function finalizeBuildPaymentAggregate(aggregate) {
         byId: Object.fromEntries(
           Object.entries(aggregate.loot.support.byId).map(([id, values]) => [id, { ...values }])
         )
+      }
+    },
+    terminalResourceState: {
+      outcomeCounts: { ...aggregate.terminalResourceState.outcomeCounts },
+      hpRate: summarizeNumericDistribution(aggregate.terminalResourceState.hpRate),
+      mpRate: summarizeNumericDistribution(aggregate.terminalResourceState.mpRate),
+      inventorySlots: summarizeNumericDistribution(aggregate.terminalResourceState.inventorySlots),
+      inventoryFreeSlots: summarizeNumericDistribution(aggregate.terminalResourceState.inventoryFreeSlots),
+      carriedMaterials: summarizeNumericDistribution(aggregate.terminalResourceState.carriedMaterials),
+      unconfirmedObjectLoot: {
+        status: "not_modeled",
+        count: null,
+        valueProxy: null
       }
     },
     portal: {

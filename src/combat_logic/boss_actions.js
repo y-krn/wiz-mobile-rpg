@@ -174,8 +174,8 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
 
         const guardedChance = resolveGuardStatusChance(
           target,
-          getStatusEffectChance(target, 1),
-          { isDefending }
+          getStatusEffectChance(target, 1, { telemetry: state.combatFormulaTelemetry }),
+          { isDefending, telemetry: state.combatFormulaTelemetry }
         );
         if (Math.random() >= guardedChance) {
           logQueue.push({ msg: isDefending

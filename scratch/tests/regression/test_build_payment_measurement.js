@@ -26,9 +26,20 @@ const payment = {
   guard: {
     mitigationHp: distribution(),
     mitigationEvents: distribution(),
-    statusMitigationEvents: distribution()
+    statusMitigationEvents: distribution(),
+    statusMitigationSource: "combatFormulaTelemetry.statusMitigations"
   },
-  loot: { finalBagSlots: distribution() },
+  loot: {
+    finalBagSlots: distribution(),
+    equipmentDisposition: { status: "not_modeled", left: null, discarded: null }
+  },
+  terminalResourceState: {
+    hpRate: distribution(),
+    mpRate: distribution(),
+    inventorySlots: distribution(),
+    inventoryFreeSlots: distribution(),
+    carriedMaterials: distribution()
+  },
   portal: { resourceState: resourceState() }
 };
 

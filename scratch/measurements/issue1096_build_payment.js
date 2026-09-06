@@ -212,6 +212,16 @@ export function validateIssue1096Report(report) {
         throw new Error(`issue #1096 distribution N mismatch: ${path}`);
       }
     });
+    if (measuredCase.payment.guard.statusMitigationSource !== "combatFormulaTelemetry.statusMitigations") {
+      throw new Error("issue #1096 status mitigation provenance is not production combat telemetry");
+    }
+    ["hpRate", "mpRate", "inventorySlots", "inventoryFreeSlots", "carriedMaterials"]
+      .forEach(name => {
+        const value = measuredCase.payment.terminalResourceState?.[name];
+        if (!value || value.n !== config.runs) {
+          throw new Error(`issue #1096 terminal resource distribution N mismatch: ${name}`);
+        }
+      });
     ["hpRate", "mpRate", "inventorySlots", "inventoryFreeSlots", "carriedMaterials"]
       .forEach(name => {
         const value = measuredCase.payment.portal?.resourceState?.[name];

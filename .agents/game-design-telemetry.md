@@ -114,7 +114,9 @@ Those nulls mean the production object-loot lifecycle is not modeled by the
 canonical simulator, not that the run had no unconfirmed loot. Rune object-loot
 and Core/Support object-loot adoption therefore remain `not_modeled`; the
 equipment-affix exposure/adoption/firing fields are bounded observation
-proxies, including Support ids with exposure but no observed firing. The measurement is observation-only and cannot change combat, drop,
+proxies, including Support ids with exposure but no observed firing. Status
+mitigation events come from the production status-resistance and Guard chance
+resolvers when combat telemetry is enabled. The measurement is observation-only and cannot change combat, drop,
 ownership, or Wing rules.
 
 ## Boundaries

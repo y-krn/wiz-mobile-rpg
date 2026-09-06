@@ -204,7 +204,7 @@ N>=500 guard for deliberate measurement runs.
 `scratch/measurements/issue1096_build_payment.js` is the dedicated observation
 runner for the six Build Snapshot fixtures. It delegates to the canonical
 `simulateRun` path and measures per-run action mix, combat/round cost, HP/MP
-pressure, Guard mitigation, Rune casts and unused sockets, Core/Support
+pressure, physical and status Guard mitigation, Rune casts and unused sockets, Core/Support
 exposure/adoption/firing/dead-support observations, exploration Support observed-use proxies, equipment
 adoption/build shifts, bag occupancy, and Portal Push/Return/Wing resource
 state. A deliberate measurement uses the standard two workshop scenarios, B5,

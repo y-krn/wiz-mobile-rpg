@@ -53,10 +53,20 @@ export function resolveGuardMitigation(
 export function resolveGuardStatusChance(
   char,
   baseChance,
-  { isDefending = false } = {}
+  { isDefending = false, telemetry = null } = {}
 ) {
   const chance = Number(baseChance);
   const normalizedChance = Number.isFinite(chance) ? Math.max(0, Math.min(1, chance)) : 0;
   if (!isDefending) return normalizedChance;
-  return Math.max(0, Math.min(1, normalizedChance * getGuardProfile(char).statusChanceMultiplier));
+  const resolvedChance = Math.max(0, Math.min(1, normalizedChance * getGuardProfile(char).statusChanceMultiplier));
+  if (telemetry && resolvedChance < normalizedChance) {
+    telemetry.statusMitigations ||= [];
+    telemetry.statusMitigations.push({
+      type: "guardStatus",
+      before: normalizedChance,
+      after: resolvedChance,
+      reduction: normalizedChance - resolvedChance
+    });
+  }
+  return resolvedChance;
 }
