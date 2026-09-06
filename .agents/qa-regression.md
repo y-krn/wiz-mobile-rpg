@@ -17,6 +17,23 @@ inventories.
 - Test configuration, package scripts, and changed source behavior
 - Facade wiring, concrete module behavior, and change-specific integration risk
 
+## Playwright test ownership and discovery
+
+- Playwright discovers only test files ending in `.spec.js` under `tests/` as
+  domain entrypoints, as set by `playwright.config.js`; the current suite can
+  be enumerated with
+  `npx playwright test --list`.
+- Focused test modules ending in `.cases.js` under `tests/` are
+  lifecycle-owned by exactly one domain entrypoint and are imported from that
+  entrypoint. They must not be discovered as independent suites or imported by
+  another case module.
+- `scripts/check_playwright_test_ownership.js` enforces that ownership graph;
+  `scripts/check_playwright_test_names.js` enforces stable filenames and test
+  titles. These rules are run by `npm run lint:tests`.
+- Shared browser health and console-error policy belongs in
+  `tests/fixtures/browser-health.js`. Browser tests cover user-visible flows;
+  rule-only behavior belongs in deterministic unit tests when appropriate.
+
 ## Verification patterns
 
 ### State-transition coverage
