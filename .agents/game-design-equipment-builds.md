@@ -40,24 +40,24 @@ cap.
 
 | Name | id | Durable role |
 | --- | --- | --- |
-| 血杖 | `CORE_BLOOD_WAND` | Convert an insufficient spell resource into an HP cost. |
-| 浄化の環 | `CORE_PURIFY_RING` | Turn qualifying victories into a recovery choice between MP and HP. |
-| 罠喰い | `CORE_TRAP_EATER` | Make successful chest-trap disarms build toward physical pressure during the run. |
-| 呪飼いの鎖 | `CORE_CURSE_KEEPER` | Turn equipped curses into a risky all-stat exchange. |
-| 反撃の棘 | `CORE_THORN_SHIELD` | Make being hit create a counterattack opportunity. |
-| 執行人 | `CORE_EXECUTIONER` | Set up a status before an attack and reward attacking afflicted targets. |
-| 薄氷の誓約 | `CORE_THIN_ICE_PACT` | Trade low-HP danger for greater outgoing pressure. |
+| 血杖 | `CORE_BLOOD_WAND` | When a spell lacks MP, convert the missing resource into an HP payment, keeping magic available at lethal risk. |
+| 浄化の環 | `CORE_PURIFY_RING` | On an undead, spirit, or demon victory, recover MP when it is not full and recover HP when it is full. |
+| 罠喰い | `CORE_TRAP_EATER` | Each successful chest-trap disarm accumulates temporary physical pressure for the run; floor traps and forced breakthroughs do not. |
+| 呪飼いの鎖 | `CORE_CURSE_KEEPER` | Each equipped curse increases all stats, trading immediate power for the curse's binding and identification risk. |
+| 反撃の棘 | `CORE_THORN_SHIELD` | After the wearer is hit, create a chance for a partial counterattack; the opportunity competes with the shield slot and Guard profile. |
+| 執行人 | `CORE_EXECUTIONER` | Before an attack, set up poison on a valid target and reward attacking targets already carrying a combat status. |
+| 薄氷の誓約 | `CORE_THIN_ICE_PACT` | At low HP, increase outgoing pressure while also increasing incoming danger, making survival itself the cost of power. |
 
 ## Economy / Exploration
 
 | Name | id | Durable role |
 | --- | --- | --- |
-| 忍び足 | `CORE_SNEAK_STEP` | Reduce the cost of reading a dangerous route. |
-| 盗掘王 | `CORE_TOMB_RAIDER` | Trade greater chest material opportunity for greater trap pressure. |
-| 慧眼 | `CORE_KEEN_EYE` | Let the player act on an unknown item while preserving hidden detail. |
-| 野営の達人 | `CORE_CAMP_MASTER` | Make a camp recovery choice more valuable. |
-| 賞金稼ぎ | `CORE_BOUNTY_HUNTER` | Make chosen run objectives pay more attention to target defeats. |
-| 学者の眼 | `CORE_SCHOLAR_EYE` | Turn new codex knowledge into a material opportunity. |
+| 忍び足 | `CORE_SNEAK_STEP` | Reduce the cost of reading a dangerous route by narrowing gatekeeper/boss detection pressure and improving environmental signs. |
+| 盗掘王 | `CORE_TOMB_RAIDER` | Increase chest-material opportunity while increasing trap intensity, turning greed into a route and resource trade-off. |
+| 慧眼 | `CORE_KEEN_EYE` | Permit an unknown item to be equipped while its exact details remain hidden, preserving the trial gamble. |
+| 野営の達人 | `CORE_CAMP_MASTER` | Increase the recovery returned by choosing to rest at camp, trading the opportunity to continue immediately. |
+| 賞金稼ぎ | `CORE_BOUNTY_HUNTER` | Make selected run-objective target defeats count more, rewarding a deliberate hunt instead of passive depth. |
+| 学者の眼 | `CORE_SCHOLAR_EYE` | Turn an enemy not yet understood into a material opportunity, linking knowledge to exploration without revealing an optimal route. |
 
 The Core registry must preserve these pool meanings. A rule-changing effect
 should not be copied as several numeric Supports merely to increase supply, and

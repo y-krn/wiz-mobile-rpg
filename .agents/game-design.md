@@ -184,8 +184,8 @@ retreat valve must still preserve the gap between retreat and death.
 Merchants do not sell ordinary dungeon equipment. Equipment remains the main
 source of improvised builds and the identify-or-gamble hook.
 
-A breather after a milestone may offer recovery and preparation before the next
-floor. Rest should be a choice about resources, not a guaranteed replacement for
+A guaranteed breather after a milestone offers recovery and preparation before
+the next floor. Rest should be a choice about resources, not a replacement for
 route risk or a second safe-return system.
 
 ## Run quests

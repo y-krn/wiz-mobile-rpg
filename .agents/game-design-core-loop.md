@@ -137,7 +137,7 @@ second inventory.
 - Milestones occur every five floors. A defeated milestone guardian opens an
   optional shortcut, while the original route remains available so the player
   can visit the merchant or Portal.
-- The floor after a milestone may offer a guaranteed breather before normal
+- The floor after a milestone provides a guaranteed breather before normal
   exploration. Rest is a resource choice, not a free replacement for the
   descent decision.
 - Biomes rotate on a five-floor rhythm. Their enemy themes, hazards, landmarks,

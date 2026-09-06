@@ -66,16 +66,14 @@ meaning.
   information-disclosure principles, floor density and pacing targets,
   push-your-luck structure, and FOE/camp direction. Check any feature or
   balance proposal against it.
-- `game-design-combat-model.md`: physical and offensive-spell formulas,
-  application order, measured contribution breakdowns, and the seven model
-  decisions from Issue #722. Source values remain in `src/`.
-- `game-design.md`: current progression/economy design for XP, milestone merchants,
-  materials, workshop, reward roles, and post-clear save behavior.
-- `game-design-equipment-builds.md`: the core/support affix system —
-  `CORE_AFFIXES` and `SUPPORT_AFFIXES` (counts: `CORE_AFFIXES.length` /
-  `SUPPORT_AFFIXES.length`), budget-based generation, inscriptions, polish, and
-  curse-seal rules. The source of truth is `src/data/affixes.js`. Canonical for
-  any change to affixes, `AFFIX_BALANCE`, `CORE_SEAL_RULES`, or workshop actions.
+- `game-design-combat-model.md`: physical and offensive-spell model structure,
+  application order, counterplay, and combat information disclosure. Executable
+  values remain in source and tests.
+- `game-design.md`: economy meaning for materials, resource ownership, status
+  counterplay, milestone merchants, run quests, and future possibility space.
+- `game-design-equipment-builds.md`: the Core/Support build model, equipment
+  knowledge, hands and Guard trade-offs, and horizontal supply principles. The
+  authoritative affix data boundary is `src/data/affixes.js`.
 
 ## File routing
 
