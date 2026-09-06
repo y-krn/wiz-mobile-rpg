@@ -66,19 +66,18 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 // ========================================================================
 (() => {
   function createCaster(overrides = {}) {
-    const spellName = overrides.spellName || "HALITO";
     return {
       name: "MageChar",
+      class: "Mage",
       hp: 30,
       maxHp: 30,
       mp: 10,
       status: "ok",
+      mediumState: { mediumKey: "ARCH_WAND", socketedRunes: ["RUNE_HALITO", "RUNE_LAHALITO", "RUNE_KATINO"] },
       int: 10,
       pie: 10,
-      equipment: { weapon: "WAND", shield: null, armor: null, accessory: null },
-      mediumState: { mediumKey: "WAND", socketedRunes: [`RUNE_${spellName}`] },
-      ...overrides,
-      mediumState: { mediumKey: "WAND", socketedRunes: [`RUNE_${spellName}`], ...overrides.mediumState }
+      equipment: { weapon: "ARCH_WAND", shield: null, armor: null },
+      ...overrides
     };
   }
 
@@ -132,7 +131,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
   {
     console.log("- Test 2: AoE spell reflects per target and still hits non-reflectors");
-    const caster = createCaster({ spellName: "LAHALITO" });
+    const caster = createCaster();
     const state = createState(caster);
     const monsters = [
       {
@@ -166,7 +165,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
   {
     console.log("- Test 3: multiple AoE reflectors combine reflected damage");
-    const caster = createCaster({ spellName: "LAHALITO" });
+    const caster = createCaster();
     const state = createState(caster);
     const monsters = [
       {
@@ -209,18 +208,14 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       party: [
         {
           name: "MageChar",
+          class: "Mage",
           level: 5,
           hp: 30,
           maxHp: 30,
           mp: 10,
           maxMp: 10,
           status: "ok",
-          str: 10,
-          int: 10,
-          pie: 10,
-          vit: 10,
-          agi: 50,
-          luk: 10,
+          buffs: [{ type: "firstStrike", value: 100, turns: 99 }],
           equipment: { weapon: "WAND", shield: null, armor: null },
           mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_KATINO"] },
           ...partyOverrides
@@ -327,21 +322,58 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 (() => {
   console.log("Starting WEAKEN spell tests...");
 
-  // Test 1: Leveling never grants spells implicitly
+  // Test 1: Spell Acquisition
   {
-    console.log("- Test 1: levels do not grant learned spells");
-    for (const level of [3, 4, 5]) {
-      const character = { level, exp: 99999, maxHp: 30, hp: 30, maxMp: 10, mp: 10 };
-      checkCharLevelUp(character, { rng: () => 0.5 });
-      assert.equal(Object.hasOwn(character, "spells"), false, `level ${level + 1} must not create a learned spell list`);
-    }
+    console.log("- Test 1: WEAKEN is learned at correct levels");
+
+    // Priest L4
+    const priest = {
+      class: "Priest",
+      level: 3,
+      exp: 99999, // enough exp to level up
+      maxHp: 30,
+      hp: 30,
+      maxMp: 10,
+      mp: 10,
+      spells: []
+    };
+    checkCharLevelUp(priest, { rng: () => 0.5 });
+    assert.deepStrictEqual(priest.spells, [], "Level 4 must not grant Priest spells");
+
+    // Bishop L4
+    const bishop = {
+      class: "Bishop",
+      level: 3,
+      exp: 99999,
+      maxHp: 30,
+      hp: 30,
+      maxMp: 10,
+      mp: 10,
+      spells: []
+    };
+    checkCharLevelUp(bishop, { rng: () => 0.5 });
+    assert.deepStrictEqual(bishop.spells, [], "Level 4 must not grant Bishop spells");
+
+    // Ranger L5
+    const ranger = {
+      class: "Ranger",
+      level: 4,
+      exp: 99999,
+      maxHp: 30,
+      hp: 30,
+      maxMp: 10,
+      mp: 10,
+      spells: []
+    };
+    checkCharLevelUp(ranger, { rng: () => 0.5 });
+    assert.deepStrictEqual(ranger.spells, [], "Level 5 must not grant Ranger spells");
   }
 
   // Test 2: Spell Effect and getEffectiveAtk
   {
     console.log("- Test 2: WEAKEN effect decreases effective ATK");
 
-    const caster = { name: "RuneCaster", int: 10 };
+    const caster = { name: "PriestChar", class: "Priest", int: 10 };
     const monster1 = { name: "Giant1", hp: 50, atk: 15, buffs: [] };
     const monster2 = { name: "Giant2", hp: 50, atk: 2, buffs: [] }; // test min clamp (min 1)
 
@@ -371,6 +403,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       party: [
         {
           name: "FighterChar",
+          class: "Fighter",
           level: 5,
           hp: 100,
           maxHp: 100,
@@ -382,6 +415,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
         },
         {
           name: "PriestChar",
+          class: "Priest",
           level: 5,
           hp: 50,
           maxHp: 50,
@@ -390,7 +424,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
           status: "ok",
           str: 10, int: 10, pie: 15, vit: 10, agi: 50, luk: 10,
           equipment: { weapon: "WAND", shield: null, armor: null },
-          mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_WEAKEN"] }
+          mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_WEAKEN"] },
+          buffs: [{ type: "firstStrike", value: 100, turns: 99 }]
         }
       ],
       combatState: {
@@ -449,19 +484,16 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   function createParalyzedState(partyStatuses, allParalyzedTurns = 0) {
     const party = partyStatuses.map((status, idx) => ({
       name: `Char${idx}`,
+      class: "Fighter",
       level: 1,
       hp: status === "dead" ? 0 : 30,
       maxHp: 30,
       mp: 0,
       maxMp: 0,
       status: status,
-      str: 10,
-      int: 10,
-      pie: 10,
-      vit: 10,
-      agi: 10,
-      luk: 10,
       equipment: { weapon: null, shield: null, armor: null },
+      buffs: [{ type: "firstStrike", value: 100, turns: 99 }],
+      spells: [],
       exp: 0
     }));
 
@@ -591,19 +623,16 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       party: [
         {
           name: "Char0",
+          class: "Fighter",
           level: 1,
           hp: 30,
           maxHp: 30,
           mp: 0,
           maxMp: 0,
           status: "ok",
-          str: 10,
-          int: 10,
-          pie: 10,
-          vit: 10,
-          agi: 10,
-          luk: 10,
-          equipment: { weapon: null, shield: null, armor: null },
+      equipment: { weapon: null, shield: null, armor: null },
+      buffs: [{ type: "firstStrike", value: 100, turns: 99 }],
+          spells: [],
           exp: 0,
           ...partyOverrides
         }
@@ -728,6 +757,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     const party = [
       {
         name: "PriestChar",
+        class: "Priest",
         level: 5,
         hp: 30,
         maxHp: 30,
@@ -735,11 +765,13 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
         maxMp: 10,
         status: "ok",
         str: 10, int: 10, pie: 15, vit: 10, agi: 15, luk: 10,
-        equipment: { weapon: "ARCH_WAND", shield: null, armor: null },
-        mediumState: { mediumKey: "ARCH_WAND", socketedRunes: ["RUNE_DIOS", "RUNE_MABARRIER"] }
+        equipment: { weapon: "WAND", shield: null, armor: null },
+        mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_MABARRIER"] },
+        buffs: [{ type: "firstStrike", value: 100, turns: 99 }]
       },
       {
         name: "MageChar",
+        class: "Mage",
         level: 5,
         hp: 20,
         maxHp: 20,
@@ -748,7 +780,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
         status: "ok",
         str: 10, int: 16, pie: 10, vit: 10, agi: 12, luk: 10,
         equipment: { weapon: "ARCH_WAND", shield: null, armor: null },
-        mediumState: { mediumKey: "ARCH_WAND", socketedRunes: ["RUNE_HALITO", "RUNE_MONTINO", "RUNE_MORLIS"] }
+        mediumState: { mediumKey: "ARCH_WAND", socketedRunes: ["RUNE_HALITO", "RUNE_MONTINO", "RUNE_MORLIS"] },
+        buffs: [{ type: "firstStrike", value: 100, turns: 99 }]
       }
     ];
 
@@ -1021,14 +1054,45 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 (() => {
   console.log("Starting MADI spell tests...");
 
-  // Test 1: Leveling never grants spells implicitly
+  // Test 1: Spell Acquisition
   {
-    console.log("- Test 1: levels do not grant learned spells");
-    for (const level of [4, 5, 6]) {
-      const character = { level, exp: 99999, maxHp: 30, hp: 30, maxMp: 10, mp: 10 };
-      checkCharLevelUp(character, { rng: () => 0.5 });
-      assert.equal(Object.hasOwn(character, "spells"), false, `level ${level + 1} must not create a learned spell list`);
-    }
+    console.log("- Test 1: MADI is learned at correct levels");
+
+    // Priest L5
+    const priest = {
+      class: "Priest",
+      level: 4,
+      exp: 99999,
+      maxHp: 30, hp: 30,
+      maxMp: 10, mp: 10,
+      spells: []
+    };
+    checkCharLevelUp(priest, { rng: () => 0.5 });
+    assert.deepStrictEqual(priest.spells, [], "Level 5 must not grant Priest spells");
+
+    // Ranger L6
+    const ranger = {
+      class: "Ranger",
+      level: 5,
+      exp: 99999,
+      maxHp: 30, hp: 30,
+      maxMp: 10, mp: 10,
+      spells: []
+    };
+    checkCharLevelUp(ranger, { rng: () => 0.5 });
+    assert.deepStrictEqual(ranger.spells, [], "Level 6 must not grant Ranger spells");
+
+    // Bishop L7
+    const bishop = {
+      class: "Bishop",
+      level: 6,
+      exp: 99999,
+      maxHp: 30, hp: 30,
+      maxMp: 10, mp: 10,
+      spells: []
+    };
+    checkCharLevelUp(bishop, { rng: () => 0.5 });
+    assert.deepStrictEqual(bishop.spells, [], "Level 7 must not grant Bishop spells");
   }
 
   // Test 2: Spell Effect (Direct invocation)
@@ -1037,6 +1101,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
     const caster = {
       name: "PriestChar",
+      class: "Fighter",
       pie: 10,
       equipment: {}
     };
@@ -1069,8 +1134,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     };
     const boostedTarget = { name: "BoostedTarget", hp: 10, maxHp: 200, status: "ok" };
     const boostedResult = SPELL_EFFECTS.MADI({ caster, target: boostedTarget, rng: () => 0.5 });
-    assert.strictEqual(boostedTarget.hp, 109, "PIE and devotion should boost MADI on the selected ally");
-    assert.strictEqual(boostedResult.heal, 99, "MADI should report boosted actual healing");
+    assert.strictEqual(boostedTarget.hp, 100, "devotion should boost MADI on the selected ally");
+    assert.strictEqual(boostedResult.heal, 90, "MADI should report boosted actual healing");
 
     const fullTarget = { name: "FullTarget", hp: 100, maxHp: 100, status: "ok" };
     const resultAllFull = SPELL_EFFECTS.MADI({ caster, target: fullTarget, rng: () => 0.5 });
@@ -1095,14 +1160,14 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     const combatState = {
       party: [
         {
-          name: "Frontliner", level: 5, hp: 10, maxHp: 100, mp: 0, maxMp: 0, status: "ok",
-          str: 15, int: 10, pie: 10, vit: 15, agi: 10, luk: 10, equipment: {}
+          name: "FighterChar", class: "Fighter", level: 5, hp: 10, maxHp: 100, mp: 0, maxMp: 0, status: "ok",
+          equipment: {}
         },
         {
-          name: "RuneHealer", level: 5, hp: 50, maxHp: 50, mp: 10, maxMp: 10, status: "ok",
-          str: 10, int: 10, pie: 15, vit: 10, agi: 50, luk: 10,
-          equipment: { weapon: "WAND", shield: null, armor: null },
-          mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_MADI"] }
+          name: "PriestChar", class: "Priest", level: 5, hp: 50, maxHp: 50, mp: 10, maxMp: 10, status: "ok",
+          equipment: { weapon: "WAND" },
+          mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_MADI"] },
+          buffs: [{ type: "firstStrike", value: 100, turns: 99 }]
         }
       ],
       combatState: {
@@ -1140,6 +1205,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   function castWithSpellPower(spellPower) {
     const caster = {
       name: "SpellPower Mage",
+      class: "Mage",
       level: 1,
       hp: 30,
       maxHp: 30,
@@ -1210,6 +1276,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   function healWithSpellPower(spellPower) {
     const caster = {
       name: "SpellPower Priest",
+      class: "Priest",
       level: 5,
       hp: 30,
       maxHp: 30,
@@ -1236,6 +1303,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     };
     const target = {
       name: "Wounded Ally",
+      class: "Fighter",
       level: 1,
       hp: 10,
       maxHp: 200,

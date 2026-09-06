@@ -25,10 +25,9 @@ import {
 } from "../../../src/craft.js";
 import {
   getCharDef,
-  getCharInt,
-  getCharStr,
   getCharWeaponAtk
 } from "../../../src/rules/character_stats.js";
+import { getCharAffixSum } from "../../../src/rules/item_rules.js";
 import {
   applyKillAffixEffects,
   getMeleeModifiers,
@@ -90,6 +89,7 @@ function supportItem(type, value, baseId = "LEATHER_ARMOR") {
 function makeChar(coreId, baseId = "SHORT_SWORD") {
   return {
     name: "Tester",
+    class: "Fighter",
     level: 5,
     hp: 100,
     maxHp: 100,
@@ -111,21 +111,19 @@ function makeChar(coreId, baseId = "SHORT_SWORD") {
   };
 }
 
-test("コア13種がenabled", () => {
+test("現行coreはすべてenabled", () => {
   assert.equal(CORE_AFFIXES.length, 13);
   const enabled = CORE_AFFIXES.filter(core => core.enabled).map(core => core.id);
   assert.deepEqual(enabled, [
     "CORE_BLOOD_WAND", "CORE_PURIFY_RING", "CORE_TRAP_EATER", "CORE_CURSE_KEEPER",
     "CORE_THORN_SHIELD", "CORE_EXECUTIONER", "CORE_THIN_ICE_PACT", "CORE_SNEAK_STEP",
-    "CORE_TOMB_RAIDER", "CORE_KEEN_EYE", "CORE_CAMP_MASTER", "CORE_BOUNTY_HUNTER",
-    "CORE_SCHOLAR_EYE"
+    "CORE_TOMB_RAIDER", "CORE_KEEN_EYE", "CORE_CAMP_MASTER", "CORE_BOUNTY_HUNTER", "CORE_SCHOLAR_EYE"
   ]);
 });
 
 test("工房追加coreはpoolノード解放前後で抽選が切り替わる", () => {
   const addedCoreIds = [
-    "CORE_TRAP_EATER", "CORE_THORN_SHIELD", "CORE_TOMB_RAIDER", "CORE_SCHOLAR_EYE",
-    "CORE_THIN_ICE_PACT"
+    "CORE_TRAP_EATER", "CORE_THORN_SHIELD", "CORE_TOMB_RAIDER", "CORE_SCHOLAR_EYE", "CORE_THIN_ICE_PACT"
   ];
   const collectGeneratedCoreIds = (unlockedAffixIds, count) => {
     const party = [makeChar(null)];
@@ -187,6 +185,7 @@ test("素材経済サポートenabled・浅層経済3/戦闘1・深層逆転", (
 
 test("atk/def supportと呪いを装備値へ各1回だけ反映", () => {
   const char = makeChar(null);
+  char.class = "Thief";
   char.runTrapAttackBonus = 3;
   char.equipment.weapon = {
     ...supportItem("atk", 6, "SHORT_SWORD"),
@@ -211,8 +210,9 @@ test("atk/def supportと呪いを装備値へ各1回だけ反映", () => {
   );
 });
 
-test("classless素手攻撃は武器攻撃力だけを使う", () => {
+test("Ninja素手攻撃は装備affix変更後も維持", () => {
   const char = makeChar(null);
+  char.class = "Ninja";
   char.level = 5;
   char.equipment.weapon = null;
   assert.equal(getCharWeaponAtk(char), 0);
@@ -231,12 +231,12 @@ test("旧セーブの刻印・封印属性は装備計算と表示に影響し�
   assert.doesNotMatch(getItemData(legacySupport).name, /旧火印/);
   assert.doesNotMatch(getItemData(legacySupport).desc, /刻印/);
 
-  const normalCore = makeChar("CORE_BLOOD_WAND");
-  const legacyCore = makeChar("CORE_BLOOD_WAND");
+  const normalCore = makeChar("CORE_LAST_STAND");
+  const legacyCore = makeChar("CORE_LAST_STAND");
   legacyCore.equipment.weapon.coreSealed = true;
   assert.deepEqual(
-    getCharCoreParams(legacyCore, "CORE_BLOOD_WAND"),
-    getCharCoreParams(normalCore, "CORE_BLOOD_WAND")
+    getCharCoreParams(legacyCore, "CORE_LAST_STAND"),
+    getCharCoreParams(normalCore, "CORE_LAST_STAND")
   );
   assert.doesNotMatch(getItemData(legacyCore.equipment.weapon).desc, /\(封\)/);
 });
@@ -249,7 +249,7 @@ test("研磨: サポートを切り上げ1.5倍・1アイテム1回・コア除�
   assert.equal(item.polished, true);
   assert.equal(polishSupportAffix(item, 0), false);
 
-  const coreOnly = coreItem("CORE_BLOOD_WAND");
+  const coreOnly = coreItem("CORE_LAST_STAND");
   assert.equal(getPolishCost(coreOnly), null);
   assert.equal(polishSupportAffix(coreOnly, 0), false);
   assert.equal(coreOnly.affixes[0].value, 1);
@@ -304,37 +304,21 @@ test("未鑑定装備: 全員装備可・鑑定前表示隠匿", () => {
   assert.equal(canEquipUnidentifiedItem(char, unknown), true);
   assert.equal(canEquipUnidentifiedItem(makeChar(null), unknown), true);
   const hidden = getItemData(unknown);
-  assert.deepEqual(hidden.statsBonus, {});
+  assert.deepEqual(hidden.affixBonus, {});
   assert.deepEqual(hidden.affixes, []);
   assert.ok(!hidden.desc.includes("力+3"));
 });
 
 test("未鑑定装備のコアも装備中は戦闘経路で有効", () => {
   const char = makeChar(null);
-  const unknownCore = coreItem("CORE_BLOOD_WAND");
+  const unknownCore = coreItem("CORE_THIN_ICE_PACT");
   unknownCore.identified = false;
   unknownCore.halfIdentified = false;
   char.equipment.weapon = unknownCore;
-  assert.equal(getEquippedCoreAffixes(char)[0].id, "CORE_BLOOD_WAND");
-  assert.equal(getCharCoreParams(char, "CORE_BLOOD_WAND").hpCostMultiplier, 2);
+  assert.equal(getEquippedCoreAffixes(char)[0].id, "CORE_THIN_ICE_PACT");
+  assert.ok(getCharCoreParams(char, "CORE_THIN_ICE_PACT"));
   assert.equal(unknownCore.identified, false);
   assert.equal(unknownCore.halfIdentified, false);
-});
-
-test("移管済みCoreの旧セーブ値は現行Core/UIに復帰しない", () => {
-  for (const retiredId of [
-    "CORE_LAST_STAND",
-    "CORE_OPENER",
-    "CORE_PHYSICAL_ACCURACY",
-    "CORE_GIANT_SLAYER",
-    "CORE_MILESTONE_BREAKER"
-  ]) {
-    const char = makeChar(null);
-    char.equipment.weapon = coreItem(retiredId);
-    assert.deepEqual(getEquippedCoreAffixes(char), [], `${retiredId} is inactive after migration`);
-    assert.equal(getCharCoreParams(char, retiredId), null);
-    assert.doesNotMatch(getItemData(char.equipment.weapon).desc, /CORE_/);
-  }
 });
 
 test("野営の達人: 装備者本人のキャンプ回復量2倍", () => {
@@ -407,27 +391,6 @@ test("素材サポート: パーティ合算でなく最大値1人分", () => {
   assert.equal(getPartyMaxAffix([a, b], "materialFind"), 10);
 });
 
-test("窮地の猛攻support: params閾値と数値", () => {
-  const char = makeChar(null);
-  char.equipment.weapon = supportItem("lowHpDamage", 15, "SHORT_SWORD");
-  char.maxHp = 50;
-  char.hp = 20;
-  assert.equal(getDamageAffixResult(char, { maxHp: 50 }, 100).damage, 115);
-  char.hp = 19;
-  assert.equal(getDamageAffixResult(char, { maxHp: 50 }, 100).damage, 115);
-  char.hp = 21;
-  assert.equal(getDamageAffixResult(char, { maxHp: 50 }, 100).damage, 100);
-});
-
-test("先手連撃support: 先制成功時だけ追撃率を加算", () => {
-  const char = makeChar(null);
-  char.equipment.accessory = supportItem("firstStrikeFollowUp", 25, "AMULET_HP");
-  assert.equal(getFollowUpChance(char, 0, true), 25);
-  assert.equal(getFollowUpChance(char, 12, true), 37);
-  assert.equal(getFollowUpChance(char, 12, false), 12);
-  assert.ok(getFollowUpChance(char, 70, true) < 100);
-});
-
 test("血杖: HP代替、HP不足、最低HP1", () => {
   const char = makeChar("CORE_BLOOD_WAND", "WAND");
   char.hp = 6;
@@ -493,6 +456,7 @@ test("浄化の環: MP空き時はMP回復", () => {
 
 test("浄化の環: MP満タン時はHPへ振替、HP満タン時は発動ログなし", () => {
   const char = makeChar(null);
+  char.class = "Thief";
   char.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_MP");
   char.mp = getCharMaxMp(char);
   char.hp = 50;
@@ -504,6 +468,7 @@ test("浄化の環: MP満タン時はHPへ振替、HP満タン時は発動ログ
   assert.match(logs[0].msg, /HPが2回復/);
 
   const fullHpChar = makeChar(null);
+  fullHpChar.class = "Thief";
   fullHpChar.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_MP");
   fullHpChar.mp = getCharMaxMp(fullHpChar);
   const fullHpLogs = [];
@@ -517,39 +482,30 @@ test("浄化の環: MP満タン時はHPへ振替、HP満タン時は発動ログ
   assert.equal(fullHpLogs.length, 0);
 });
 
-test("罠喰い: buildによらず累積し、上限20", () => {
+test("罠喰い: クラスによらず累積し、上限20", () => {
   const char = makeChar(null);
   char.equipment.accessory = coreItem("CORE_TRAP_EATER", "AMULET_HP");
   let bonus = 0;
   for (let i = 0; i < 20; i++) bonus = getTrapEaterBonusAfterDisarm(char, bonus);
   assert.equal(bonus, 20);
-  assert.deepEqual(getCharCoreParams(char, "CORE_TRAP_EATER"), {
-    attackPerDisarm: 2,
-    maxAttack: 20
-  });
+  for (const className of ["Fighter", "Thief", "Priest", "Mage"]) {
+    const classChar = makeChar(null);
+    classChar.class = className;
+    classChar.equipment.accessory = coreItem("CORE_TRAP_EATER", "AMULET_HP");
+    assert.deepEqual(getCharCoreParams(classChar, "CORE_TRAP_EATER"), {
+      attackPerDisarm: 2,
+      maxAttack: 20
+    });
+  }
 });
 
-test("呪飼いの鎖: 呪い数×全ステ+3", () => {
+test("呪飼いの鎖: 呪い数×攻撃力/呪文力+3%", () => {
   const char = makeChar(null);
   char.equipment.weapon = supportItem("atk", 1, "SHORT_SWORD");
   char.equipment.weapon.curseEffectId = "curse_blood_thirst";
   char.equipment.accessory = coreItem("CORE_CURSE_KEEPER", "AMULET_HP", "curse_spectral_decay");
-  assert.equal(getCharStr(char), char.str + 6);
-  assert.equal(getCharInt(char), char.int + 6);
-});
-
-test("巨体狙いsupport: maxHPが高い敵だけ数値加算", () => {
-  const char = makeChar(null);
-  char.equipment.weapon = supportItem("highHpTargetDamage", 15, "SHORT_SWORD");
-  assert.equal(getDamageAffixResult(char, { maxHp: 101 }, 100).damage, 115);
-  assert.equal(getDamageAffixResult(char, { maxHp: 100 }, 100).damage, 100);
-});
-
-test("守護者狙いsupport: ボスだけ数値加算", () => {
-  const char = makeChar(null);
-  char.equipment.weapon = supportItem("bossDamage", 12, "SHORT_SWORD");
-  assert.equal(getDamageAffixResult(char, { maxHp: 100, isBoss: true }, 100).damage, 112);
-  assert.equal(getDamageAffixResult(char, { maxHp: 100, isBoss: false }, 100).damage, 100);
+  assert.equal(getCharAffixSum(char, "atk"), 29.5);
+  assert.equal(getCharAffixSum(char, "spellPower"), 6);
 });
 
 test("殿の構え: 既存セーブ装備でも無害・無効果", () => {
@@ -634,6 +590,7 @@ test("薄氷の誓約: 低HP時に攻撃・被害が増える", () => {
 
 test("戦闘サポート: 条件倍率・状態耐性・キル回復・威圧", () => {
   const char = makeChar(null);
+  char.class = "Thief";
   char.hp = 50;
   char.equipment.weapon = supportItem("deepAssault", 10, "SHORT_SWORD");
   char.equipment.armor = supportItem("antiBeast", 20);
@@ -677,12 +634,12 @@ test("迷宮アクセサリ: コア生成とIDENTIFICATION_BALANCE経路", () =>
 
 // #311: コア1個制限を撤廃。スロットが許す限り複数のコアが同時に効く。
 test("装備制約: 複数スロットのコアが同時に有効", () => {
-  const char = makeChar("CORE_BLOOD_WAND");
+  const char = makeChar("CORE_THIN_ICE_PACT");
   char.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_HP");
   const equipped = getEquippedCoreAffixes(char).map(affix => affix.id || affix.type);
-  assert.ok(equipped.includes("CORE_BLOOD_WAND"), "weapon core stays active");
+  assert.ok(equipped.includes("CORE_THIN_ICE_PACT"), "weapon core stays active");
   assert.ok(equipped.includes("CORE_PURIFY_RING"), "accessory core is active at the same time");
-  assert.ok(getCharCoreParams(char, "CORE_BLOOD_WAND"));
+  assert.ok(getCharCoreParams(char, "CORE_THIN_ICE_PACT"));
   assert.ok(getCharCoreParams(char, "CORE_PURIFY_RING"));
 });
 

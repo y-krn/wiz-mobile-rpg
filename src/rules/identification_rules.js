@@ -50,12 +50,6 @@ const TRIAL_HINT_LABELS = Object.freeze({
   def: "守りの手応え",
   hp: "生命力の手応え",
   mp: "魔力の手応え",
-  str: "力への傾き",
-  int: "知性への傾き",
-  pie: "信仰への傾き",
-  vit: "頑健さへの傾き",
-  agi: "素早さへの傾き",
-  luk: "運への傾き",
   trapBonus: "罠への手応え",
   trapGuard: "罠への備え",
   treasureSense: "宝への感覚",
@@ -64,7 +58,13 @@ const TRIAL_HINT_LABELS = Object.freeze({
   devotion: "神聖さの手応え",
   guardian: "守りの気配",
   poisonWard: "毒への耐性",
-  firstStrike: "先手の気配"
+  firstStrike: "先手の気配",
+  physicalAccuracy: "命中の手応え",
+  escapeChance: "離脱の手応え",
+  followUp: "追撃の気配",
+  spellAccuracy: "詠唱の手応え",
+  rearEvasion: "回避の気配",
+  firstStrikeFollowUp: "先手連撃の気配"
 });
 
 /** Describe a trial qualitatively; exact hidden values stay undisclosed. */

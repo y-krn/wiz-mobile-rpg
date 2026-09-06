@@ -9,8 +9,7 @@ global.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () =
 
 import { runCombatRoundCalculation } from "../../src/combat_logic.js";
 import { MONSTERS, SPELLS } from "../../src/data.js";
-import { getSpellStatBonus } from "../../src/rules/spell_rules.js";
-import { getCharInt, getCharPie, getCharMaxHp } from "../../src/rules/character_stats.js";
+import { getCharMaxHp } from "../../src/rules/character_stats.js";
 import { requireRunnerProvenance } from "../measurements/measurement_provenance.js";
 
 export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
@@ -19,7 +18,7 @@ export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 SPELLS.ZILWAN = {
   name: "ZILWAN", type: "mage", level: 4, cost: 3, target: "single_enemy",
   effect: (caster, target) => {
-    let dmg = Math.round((Math.floor(Math.random() * 11) + 10) * (caster ? getSpellStatBonus(getCharInt(caster)) : 1));
+    let dmg = Math.round(Math.floor(Math.random() * 11) + 10);
     const tags = target.tags || [];
     let mult = (tags.includes("undead") || tags.includes("dragon") || tags.includes("demon")) ? (target.isBoss ? 1.3 : 2.0) : 0.5;
     dmg = Math.round(dmg * mult);
@@ -38,8 +37,7 @@ SPELLS.WEAKEN = { // enemy physical ATK down
 SPELLS.MADI = { // group heal, spread thin
   name: "MADI", type: "priest", level: 5, cost: 5, target: "all_allies",
   effect: (caster, allies) => {
-    const b = caster ? getSpellStatBonus(getCharPie(caster)) : 1;
-    allies.forEach(t => { if (t.status !== "dead") t.hp = Math.min(getCharMaxHp(t), t.hp + Math.round((Math.floor(Math.random() * 16) + 25) * b)); });
+    allies.forEach(t => { if (t.status !== "dead") t.hp = Math.min(getCharMaxHp(t), t.hp + Math.round(Math.floor(Math.random() * 16) + 25)); });
     return { log: "MADI" };
   }
 };
@@ -47,10 +45,10 @@ SPELLS.MADI = { // group heal, spread thin
 function createParty(level = 5) {
   const s = level - 5;
   return [
-    { name: "Fighter", class: "Fighter", level, hp: 55 + s*9, maxHp: 55 + s*9, mp: 0, maxMp: 0, status: "ok", str: 15, int: 8, pie: 8, vit: 14, agi: 12, luk: 10, equipment: { weapon: { name: "ロングソード", atk: 12 }, shield: { name: "ヒーターシールド", def: 5 }, armor: { name: "鎖帷子", def: 6 } }, spells: [] },
-    { name: "Samurai", class: "Samurai", level, hp: 48 + s*8, maxHp: 48 + s*8, mp: Math.max(0, 4 + s), maxMp: Math.max(0, 4 + s), status: "ok", str: 14, int: 11, pie: 8, vit: 12, agi: 13, luk: 9, equipment: { weapon: { name: "刀", atk: 14 }, shield: null, armor: { name: "ハラアテ", def: 4 } }, spells: ["HALITO"] },
-    { name: "Priest", class: "Priest", level, hp: 36 + s*6, maxHp: 36 + s*6, mp: Math.max(0, 12 + s*2), maxMp: Math.max(0, 12 + s*2), status: "ok", str: 10, int: 10, pie: 15, vit: 10, agi: 11, luk: 10, equipment: { weapon: { name: "メイス", atk: 8 }, shield: { name: "ターゲットシールド", def: 3 }, armor: { name: "革鎧", def: 3 } }, spells: ["DIOS", "MABARRIER"] },
-    { name: "Mage", class: "Mage", level, hp: 24 + s*4, maxHp: 24 + s*4, mp: Math.max(0, 10 + s*2), maxMp: Math.max(0, 10 + s*2), status: "ok", str: 8, int: 16, pie: 8, vit: 9, agi: 12, luk: 11, equipment: { weapon: { name: "スタッフ", atk: 4 }, shield: null, armor: { name: "ローブ", def: 1 } }, spells: ["HALITO", "MAHALITO", "LAHALITO", "MONTINO"] }
+    { name: "Fighter", class: "Fighter", level, hp: 55 + s*9, maxHp: 55 + s*9, mp: 0, maxMp: 0, status: "ok", equipment: { weapon: { name: "ロングソード", atk: 12 }, shield: { name: "ヒーターシールド", def: 5 }, armor: { name: "鎖帷子", def: 6 } }, spells: [] },
+    { name: "Samurai", class: "Samurai", level, hp: 48 + s*8, maxHp: 48 + s*8, mp: Math.max(0, 4 + s), maxMp: Math.max(0, 4 + s), status: "ok", equipment: { weapon: { name: "刀", atk: 14 }, shield: null, armor: { name: "ハラアテ", def: 4 } }, spells: ["HALITO"] },
+    { name: "Priest", class: "Priest", level, hp: 36 + s*6, maxHp: 36 + s*6, mp: Math.max(0, 12 + s*2), maxMp: Math.max(0, 12 + s*2), status: "ok", equipment: { weapon: { name: "メイス", atk: 8 }, shield: { name: "ターゲットシールド", def: 3 }, armor: { name: "革鎧", def: 3 } }, spells: ["DIOS", "MABARRIER"] },
+    { name: "Mage", class: "Mage", level, hp: 24 + s*4, maxHp: 24 + s*4, mp: Math.max(0, 10 + s*2), maxMp: Math.max(0, 10 + s*2), status: "ok", equipment: { weapon: { name: "スタッフ", atk: 4 }, shield: null, armor: { name: "ローブ", def: 1 } }, spells: ["HALITO", "MAHALITO", "LAHALITO", "MONTINO"] }
   ];
 }
 function getMonster(name, o = {}) {

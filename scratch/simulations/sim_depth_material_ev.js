@@ -223,18 +223,13 @@ const {
   generateRandomAccessory,
   generateRandomEquipment,
   getCharAffixSum,
-  getCharAgi,
   getCharDef,
-  getCharInt,
   getCharMaxHp,
   getCharMaxMp,
-  getCharPie,
-  getCharStr,
   getCharTrapBonus,
   resolveWeaponAttack,
   getCharTrapEaterBonus,
   getTrapEaterBonusAfterDisarm,
-  getCharVit,
   getCharWeaponAtk,
   getItemData,
   getEquippedItemData,
@@ -1222,63 +1217,28 @@ const REQUESTED_DEPARTURE_CRAFT_IDS = String(SIM_ENV.DEPARTURE_CRAFT_IDS || "")
 const ACTIVE_DEPARTURE_CRAFT_IDS = [...REQUESTED_DEPARTURE_CRAFT_IDS];
 const WORKSHOP_STATE_RANKS = Object.freeze({
   empty: Object.freeze({}),
-  stats: Object.freeze({
-    stat_str: 4,
-    stat_int: 1,
-    stat_vit: 3,
-    stat_agi: 1,
-    stat_luk: 1
-  }),
+  stats: Object.freeze({}),
   statsWithConvenience: Object.freeze({
-    stat_str: 4,
-    stat_int: 1,
-    stat_vit: 3,
-    stat_agi: 1,
-    stat_luk: 1,
     convenience_identify_powder: 1
   }),
   gear: Object.freeze({
     gear_rapier: 1,
     gear_fighter_saber: 1,
-    stat_str: 5,
-    stat_int: 2,
-    stat_pie: 2,
-    stat_vit: 5,
-    stat_agi: 2,
-    stat_luk: 3
   }),
   gearWithPure: Object.freeze({
     gear_rapier: 1,
     gear_fighter_saber: 1,
     convenience_identify_powder: 1,
-    stat_str: 5,
-    stat_int: 2,
-    stat_pie: 2,
-    stat_vit: 5,
-    stat_agi: 2,
-    stat_luk: 3
   }),
   bloodWand: Object.freeze({
     gear_rapier: 1,
     pool_blood_wand: 1,
-    stat_str: 5,
-    stat_int: 4,
-    stat_pie: 4,
-    stat_vit: 5,
-    stat_agi: 4,
-    stat_luk: 5
   }),
   bloodWandDeepSpells: Object.freeze({
     gear_rapier: 1,
     gear_sage_staff: 1,
     pool_blood_wand: 1,
     pool_deep_spells: 1,
-    stat_str: 5,
-    stat_int: 5,
-    stat_pie: 3,
-    stat_vit: 5,
-    stat_agi: 5,
-    stat_luk: 5
   }),
   corePools: Object.freeze({
     gear_rapier: 1,
@@ -1289,12 +1249,6 @@ const WORKSHOP_STATE_RANKS = Object.freeze({
     pool_thorn_shield: 1,
     pool_tomb_raider: 1,
     pool_scholar_eye: 1,
-    stat_str: 5,
-    stat_int: 4,
-    stat_pie: 4,
-    stat_vit: 5,
-    stat_agi: 4,
-    stat_luk: 5
   }),
   complete: Object.freeze({
     gear_rapier: 1,
@@ -1309,12 +1263,6 @@ const WORKSHOP_STATE_RANKS = Object.freeze({
     pool_tomb_raider: 1,
     pool_scholar_eye: 1,
     convenience_identify_powder: 1,
-    stat_str: 5,
-    stat_int: 5,
-    stat_pie: 5,
-    stat_vit: 5,
-    stat_agi: 5,
-    stat_luk: 5
   })
 });
 
@@ -1640,7 +1588,7 @@ const TOMB_RAIDER_TRAP_RISK_DISCOUNT = 0.5;
 
 const CORE_SCORING_COVERAGE_NOTES = Object.freeze({
   CORE_CURSE_KEEPER:
-    "getBaseEquipmentScore→getCharStr/Vit/Int/Pie/Agi→getCharAllStatsAffixBonusで実効果を一度だけ反映",
+    "getBaseEquipmentScore→equipment/explicit affixesで実効果を一度だけ反映",
   CORE_SNEAK_STEP:
     "getPerceptionIntentの実適用を別計測。combat scoreへ任意のscalarは加えず、economy core保持閾値95%を適用",
   CORE_TOMB_RAIDER:
@@ -1729,8 +1677,8 @@ function createCoreObservations() {
     bountyBonusMaterials: 0,
     curseSamples: 0,
     equippedCurseTotal: 0,
-    curseKeeperStrGainTotal: 0,
-    curseKeeperStrGainCases: 0,
+    curseKeeperAtkGainTotal: 0,
+    curseKeeperAtkGainCases: 0,
     sneakStepReducedDetectionCases: 0,
     keenEyeEffectApplications: 0,
     keenEyeEffectDelta: {
@@ -4259,8 +4207,6 @@ function createSimulationState(
     character.maxHp += hpBaseBonus;
     character.hp += hpBaseBonus;
   }
-  const intBonus = Number(scenario.intBonus) || 0;
-  if (intBonus !== 0) character.int += intBonus;
   const workshopGrants = getWorkshopGrants(workshop);
   const identificationPolicy = scenario.identificationPolicy || "powder";
   // legacyは実装外反実仮想として開始粉を使わず、powder/gambleは実runの初期支給を使う。
@@ -5994,14 +5940,13 @@ function getDamageEstimateActionTotals(audit) {
 
 function getEvPhysicalDamageEstimate(state, monster) {
   const character = state.party[0];
-  const buffAtk = getBuffTotal(character, "atk") + getBuffTotal(character, "str");
+  const buffAtk = getBuffTotal(character, "atk");
   const meleeMod = getMeleeModifiers(character, 0, { state });
   const resolved = resolveWeaponAttack({
     char: character,
     weaponAtk: getCharWeaponAtk(character),
     fixedDamageBonus: getCharTrapEaterBonus(character),
     buffAtk,
-    str: getCharStr(character),
     randRoll: 2,
     def: getEffectiveDef(monster),
     physResist: monster?.physResist,
@@ -6794,14 +6739,14 @@ function recordRoundCoreObservations(
     observations.equippedCurseTotal += equippedCurseCount;
     if (curseKeeperParams && equippedCurseCount > 0) {
       observations.coreOpportunityCounts.CORE_CURSE_KEEPER++;
-      const strGain = Math.max(
+      const atkGain = Math.max(
         0,
-        getCharStr(characterBefore) -
-          getCharStrWithoutCore(characterBefore, "CORE_CURSE_KEEPER")
+        getCharWeaponAtk(characterBefore) -
+          getWeaponAtkWithoutCore(characterBefore, "CORE_CURSE_KEEPER")
       );
-      observations.curseKeeperStrGainTotal += strGain;
-      observations.curseKeeperStrGainCases++;
-      observations.coreActivationCounts.CORE_CURSE_KEEPER += Number(strGain > 0);
+      observations.curseKeeperAtkGainTotal += atkGain;
+      observations.curseKeeperAtkGainCases++;
+      observations.coreActivationCounts.CORE_CURSE_KEEPER += Number(atkGain > 0);
     }
   }
 
@@ -7160,8 +7105,6 @@ function runEncounter(
     monsters.forEach(monster => {
       monster.maxHp = Math.round(monster.maxHp * multiplier);
       monster.hp = monster.maxHp;
-      if (monster.str) monster.str = Math.round(monster.str * multiplier);
-      if (monster.int) monster.int = Math.round(monster.int * multiplier);
     });
     state.alarmActive = false;
     state.alarmWeakened = false;
@@ -7756,8 +7699,7 @@ function runEncounter(
     ).length;
     recordBlindApplications(metrics, "enemy", enemyBlindApplications);
     const characterSpeed =
-      getCharAgi(character) +
-      getBuffTotal(character, "agi") +
+      getBuffTotal(character, "firstStrike") +
       Math.floor(roundRandomDraws[0] * 10) +
       getCharAffixSum(character, "firstStrike");
     const livingMonsterCount = monstersBeforeRound.filter(monster => monster.hp > 0).length;
@@ -8868,7 +8810,7 @@ function applySupportSupplyCeilingToItems(items) {
   return items.map(applySupportSupplyCeiling);
 }
 
-function getCharStrWithoutCore(character, coreId) {
+function getWeaponAtkWithoutCore(character, coreId) {
   const baseline = {
     ...character,
     equipment: { ...(character.equipment || {}) }
@@ -8876,7 +8818,7 @@ function getCharStrWithoutCore(character, coreId) {
   Object.entries(baseline.equipment || {}).forEach(([slot, item]) => {
     if (getItemCoreId(item) === coreId) baseline.equipment[slot] = null;
   });
-  return getCharStr(baseline);
+  return getCharWeaponAtk(baseline);
 }
 
 function getUnidentifiedEffectDelta(character, item) {
@@ -8894,10 +8836,6 @@ function getUnidentifiedEffectDelta(character, item) {
     antiUndead: (appliedData.affixBonus?.antiUndead || 0) - (hiddenData.affixBonus?.antiUndead || 0),
     antiDragon: (appliedData.affixBonus?.antiDragon || 0) - (hiddenData.affixBonus?.antiDragon || 0)
   };
-  ["str", "int", "pie", "vit", "agi", "luk"].forEach(stat => {
-    delta[stat] = (appliedData.statsBonus?.[stat] || 0) -
-      (hiddenData.statsBonus?.[stat] || 0);
-  });
   return {
     changed: Object.values(delta).some(value => value !== 0),
     delta
@@ -8915,11 +8853,6 @@ function getBaseEquipmentScore(character, scoringProfile = null) {
     getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk * getPersonaEquipmentWeight(scoringProfile, "weaponAtk") +
     getCharDef(character) * EQUIPMENT_SCORE_WEIGHTS.defense * getPersonaEquipmentWeight(scoringProfile, "defense") +
     getCharMaxHp(character) * EQUIPMENT_SCORE_WEIGHTS.maxHp * getPersonaEquipmentWeight(scoringProfile, "maxHp") +
-    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str * getPersonaEquipmentWeight(scoringProfile, "str") +
-    getCharVit(character) * EQUIPMENT_SCORE_WEIGHTS.vit * getPersonaEquipmentWeight(scoringProfile, "vit") +
-    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int * getPersonaEquipmentWeight(scoringProfile, "int") +
-    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie * getPersonaEquipmentWeight(scoringProfile, "pie") +
-    getCharAgi(character) * EQUIPMENT_SCORE_WEIGHTS.agi * getPersonaEquipmentWeight(scoringProfile, "agi") +
     getCharAffixSum(character, "guardian") * EQUIPMENT_SCORE_WEIGHTS.guardian * getPersonaEquipmentWeight(scoringProfile, "guardian") +
     getCharAffixSum(character, "spellGuard") * EQUIPMENT_SCORE_WEIGHTS.spellGuard * getPersonaEquipmentWeight(scoringProfile, "spellGuard") +
     getCharAffixSum(character, "followUp") * EQUIPMENT_SCORE_WEIGHTS.followUp * getPersonaEquipmentWeight(scoringProfile, "followUp") +
@@ -8932,9 +8865,7 @@ function getBaseEquipmentScore(character, scoringProfile = null) {
 function getOffenseEquipmentScore(character, scoringProfile = null) {
   return (
     getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk * getPersonaEquipmentWeight(scoringProfile, "weaponAtk") +
-    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str * getPersonaEquipmentWeight(scoringProfile, "str") +
-    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int * getPersonaEquipmentWeight(scoringProfile, "int") +
-    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie * getPersonaEquipmentWeight(scoringProfile, "pie")
+    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk
   );
 }
 
@@ -9235,11 +9166,6 @@ function createBuildSnapshot(state, scoringProfile, point) {
     maxMp: getCharMaxMp(character),
     atk: getCharWeaponAtk(character),
     def: getCharDef(character),
-    str: getCharStr(character),
-    vit: getCharVit(character),
-    int: getCharInt(character),
-    pie: getCharPie(character),
-    agi: getCharAgi(character),
     spells: [...getSimulationActiveSpellKeys(character)],
     equipmentStatScore,
     combatCoreScore,
@@ -17303,8 +17229,8 @@ function printCoreRetentionDetail(result) {
       )}`;
     }
     if (coreId === "CORE_CURSE_KEEPER") {
-      const cases = observations.curseKeeperStrGainCases || 0;
-      const total = observations.curseKeeperStrGainTotal || 0;
+      const cases = observations.curseKeeperAtkGainCases || 0;
+      const total = observations.curseKeeperAtkGainTotal || 0;
       return `常時適用（定義上100%）; STR差合計=+${total}（適用N=${cases}, 平均=+${
         cases > 0 ? (total / cases).toFixed(2) : "0.00"
       }/適用round）`;
@@ -17398,11 +17324,8 @@ function printCoreRetentionDetail(result) {
 
 function printWorkshopEffects(result) {
   const grants = getWorkshopGrants(result.workshop);
-  const stats = Object.entries(grants.stats)
-    .map(([stat, amount]) => `${stat}+${amount}`)
-    .join(", ") || "なし";
   console.log(
-    `工房付与内訳: stats=${stats}, 初期装備候補=${grants.startingGear.join(",") || "なし"}, ` +
+    `工房付与内訳: 初期装備候補=${grants.startingGear.join(",") || "なし"}, ` +
     `affix=${grants.affixIds.join(",") || "なし"}, ` +
     `spell=${grants.spellIds.join(",") || "なし"}`
   );

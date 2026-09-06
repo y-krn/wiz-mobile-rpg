@@ -8,7 +8,7 @@ global.localStorage = {
 };
 
 import assert from "assert";
-import { calculatePhysicalAttackFormula, getCharAgi, getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharStr, getCharTrapBonus, generateRandomAccessory, getItemData } from "../../../src/data.js";
+import { calculatePhysicalAttackFormula, getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharTrapBonus, generateRandomAccessory, getItemData } from "../../../src/data.js";
 import { migrateSavePayload, SAVE_VERSION } from "../../../src/state/save_migrations.js";
 import { createStartingKitCharacter } from "../../../src/state.js";
 
@@ -323,14 +323,14 @@ import { createStartingKitCharacter } from "../../../src/state.js";
     assert.ok(!Object.hasOwn(craftModule, "executeDismantle"));
 
     const additions = {
-      SAGE_STAFF: { floor: 3, type: "weapon", stat: "atk", value: 3, namePart: "杖" },
-      ARCH_WAND: { floor: 5, type: "weapon", stat: "atk", value: 4.5, namePart: "杖" },
-      SORCERER_ROBE: { floor: 5, type: "armor", stat: "def", value: 6, namePart: "ローブ" },
-      VENOM_FANG: { floor: 3, type: "weapon", stat: "atk", value: 13.5, namePart: "短剣" },
-      NINJA_BLADE: { floor: 4, type: "weapon", stat: "atk", value: 21, namePart: "剣" },
-      MOONSHADOW: { floor: 5, type: "weapon", stat: "atk", value: 30, namePart: "剣" },
-      HOLY_STAFF: { floor: 4, type: "weapon", stat: "atk", value: 9, namePart: "杖" },
-      FLAME_SWORD: { floor: 4, type: "weapon", stat: "atk", value: 21, namePart: "剣" }
+      SAGE_STAFF: { floor: 3, type: "weapon", stat: "atk", value: 3, classes: ["Priest", "Mage", "Bishop"], namePart: "杖" },
+      ARCH_WAND: { floor: 5, type: "weapon", stat: "atk", value: 4.5, classes: ["Mage", "Bishop"], namePart: "杖" },
+      SORCERER_ROBE: { floor: 5, type: "armor", stat: "def", value: 6, classes: ["Mage", "Bishop"], namePart: "ローブ" },
+      VENOM_FANG: { floor: 3, type: "weapon", stat: "atk", value: 13.5, classes: ["Thief", "Ninja"], namePart: "短剣" },
+      NINJA_BLADE: { floor: 4, type: "weapon", stat: "atk", value: 21, classes: ["Thief", "Ninja"], namePart: "剣" },
+      MOONSHADOW: { floor: 5, type: "weapon", stat: "atk", value: 30, classes: ["Thief", "Ninja"], namePart: "剣" },
+      HOLY_STAFF: { floor: 4, type: "weapon", stat: "atk", value: 9, classes: ["Priest", "Bishop"], namePart: "杖" },
+      FLAME_SWORD: { floor: 4, type: "weapon", stat: "atk", value: 21, classes: ["Fighter", "Samurai", "Ranger"], namePart: "剣" }
     };
 
     const expectedAffixes = {
@@ -380,6 +380,7 @@ import { createStartingKitCharacter } from "../../../src/state.js";
     }
 
     const mageParty = [{
+      class: "Mage",
       status: "ok",
       equipment: { weapon: null, shield: null, armor: null }
     }];
@@ -417,7 +418,6 @@ import { createStartingKitCharacter } from "../../../src/state.js";
       assert.ok(item, `${baseId} must exist in ITEMS`);
       assert.strictEqual(item.type, expected.type);
       assert.strictEqual(item[expected.stat], expected.value);
-      assert.deepStrictEqual(item.classes, expected.classes);
       assert.ok(EQUIPMENT_CANDIDATES_BY_FLOOR[expected.floor].includes(baseId), `${baseId} must drop on B${expected.floor}F`);
 
       const { found, unidentifiedName } = collectAffixTypes(baseId, expected.floor);
@@ -471,6 +471,7 @@ import { createStartingKitCharacter } from "../../../src/state.js";
   await (async () => {
     const baseChar = {
       name: "Tester",
+      class: "Fighter",
       level: 1,
       hp: 20,
       maxHp: 20,
@@ -494,11 +495,11 @@ import { createStartingKitCharacter } from "../../../src/state.js";
     const mpChar = { ...baseChar, maxMp: 4, equipment: { ...baseChar.equipment, accessory: "AMULET_MP" } };
     assert.strictEqual(getCharMaxMp(mpChar), 7);
 
-    const strChar = { ...baseChar, equipment: { ...baseChar.equipment, accessory: "RING_STR" } };
-    assert.strictEqual(getCharStr(strChar), 12);
+    const attackChar = { ...baseChar, equipment: { ...baseChar.equipment, accessory: "RING_STR" } };
+    assert.strictEqual(getItemData("RING_STR").atk, 2);
 
     const agiChar = { ...baseChar, equipment: { ...baseChar.equipment, accessory: "RING_AGI" } };
-    assert.strictEqual(getCharAgi(agiChar), 11);
+    assert.strictEqual(getCharAffixSum(agiChar, "physicalAccuracy"), 5);
 
     const trapChar = { ...baseChar, equipment: { ...baseChar.equipment, accessory: "THIEF_EYE" } };
     assert.strictEqual(getCharTrapBonus(trapChar), 0.1);
@@ -532,14 +533,12 @@ import { createStartingKitCharacter } from "../../../src/state.js";
     const accessoryCaps = {
       hp: 9,
       mp: 4,
-      str: 3,
-      int: 3,
-      pie: 3,
-      vit: 3,
-      agi: 3,
-      luk: 3,
       trapBonus: 15,
+      trapGuard: 30,
       spellGuard: 20,
+      physicalAccuracy: 10,
+      escapeChance: 20,
+      spellPower: 20,
       antiDragon: 25,
       antiUndead: 25,
       antiDemon: 25,
@@ -550,9 +549,9 @@ import { createStartingKitCharacter } from "../../../src/state.js";
       traceRead: 3,
       deepAssault: 15,
       fullHpDamage: 15,
+      firstStrikeFollowUp: 25,
       antiBeast: 25,
       antiSpirit: 25,
-      lastSurvivorStats: 3,
       statusResistance: 20,
       spellAccuracy: 15,
       killHeal: 2,

@@ -177,8 +177,8 @@ test("未鑑定装備の賭けは状態を維持し、効果を適用して呪�
   assert.equal(cursed.halfIdentified, false);
   assert.equal(cursed.curseLocked, true);
   const char = character({ weapon: cursed });
-  const expectedVit = Math.round(CURSE_EFFECTS.curse_hollow_soul.mod.vit * cursed.cursePower);
-  assert.equal(getCharAffixSum(char, "vit"), expectedVit);
+  const expectedHp = Math.round(CURSE_EFFECTS.curse_hollow_soul.mod.hp * cursed.cursePower);
+  assert.equal(getCharAffixSum(char, "hp"), expectedHp);
 });
 
 test("解呪処理は支払いを担当せず、固定と負効果だけを除く", () => {

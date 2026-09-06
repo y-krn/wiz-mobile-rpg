@@ -12,34 +12,33 @@ global.localStorage = {
   removeItem: () => {}
 };
 
-function createState({ agi = 10, monster, physicalAccuracy = false } = {}) {
+function createState({ physicalAccuracy = 0, monster, accuracyCore = false } = {}) {
   return {
     party: [{
       name: "Tester",
+      class: "Fighter",
       level: 1,
       hp: 100,
       maxHp: 100,
       mp: 0,
       maxMp: 0,
-      str: 15,
-      int: 8,
-      pie: 8,
-      vit: 10,
-      agi,
-      luk: 10,
       status: "ok",
+      buffs: [{ type: "firstStrike", value: 100 }],
+      spells: [],
       equipment: {
-        weapon: physicalAccuracy
+        weapon: accuracyCore
           ? {
               kind: "equipment",
               baseId: "SHORT_SWORD",
               identified: true,
-              affixes: [{ id: "physicalAccuracy", type: "physicalAccuracy", kind: "support", value: 10 }]
+              affixes: [{ id: "CORE_PHYSICAL_ACCURACY", type: "CORE_PHYSICAL_ACCURACY", kind: "core" }]
             }
           : null,
         shield: null,
         armor: null,
-        accessory: null
+        accessory: physicalAccuracy > 0
+          ? { baseId: "RING_AGI", identified: true, affixes: [{ type: "physicalAccuracy", value: physicalAccuracy }] }
+          : null
       }
     }],
     combatState: {
@@ -74,11 +73,11 @@ function createState({ agi = 10, monster, physicalAccuracy = false } = {}) {
   };
 }
 
-function runAttack({ agi = 10, monster, physicalAccuracy = false }, randomValues) {
+function runAttack({ monster, accuracyCore = false, physicalAccuracy = 0 } = {}, randomValues) {
   const originalRandom = Math.random;
   Math.random = () => randomValues.shift() ?? 0;
   try {
-    return runCombatRoundCalculation(createState({ agi, monster, physicalAccuracy }), {
+    return runCombatRoundCalculation(createState({ monster, accuracyCore, physicalAccuracy }), {
       actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
     });
   } finally {
@@ -93,15 +92,22 @@ assert.equal(getMonsterEvasionChance({ traits: ["guardAdjacent"], evasionChance:
 assert.equal(getMonsterEvasionChance({ traits: ["evasive"], evasionChance: 0.2 }), 0.2);
 
 const target = { traits: ["evasive"], evasionChance: 0.2 };
-assert.equal(getPhysicalHitChance({ agi: 10 }, target), 0.8);
-assert.equal(getPhysicalHitChance({ agi: 20 }, target), 0.9);
-assert.ok(Math.abs(getPhysicalHitChance({ agi: 0 }, target) - 0.7) < 1e-9);
-assert.equal(getPhysicalHitChance({ agi: 0 }, { traits: [] }), 1);
+const accuracyChar = physicalAccuracy => ({
+  equipment: {
+    accessory: physicalAccuracy > 0
+      ? { baseId: "RING_AGI", identified: true, affixes: [{ type: "physicalAccuracy", value: physicalAccuracy }] }
+      : null
+  }
+});
+assert.equal(getPhysicalHitChance(accuracyChar(0), target), 0.8);
+assert.ok(Math.abs(getPhysicalHitChance(accuracyChar(10), target) - 0.95) < 1e-9);
+assert.equal(getPhysicalHitChance(accuracyChar(20), target), 1);
+assert.equal(getPhysicalHitChance({ physicalAccuracy: 0 }, { traits: [] }), 1);
 
 const liveEvasiveTarget = evasiveMonsters[0];
 const liveNormalTarget = MONSTERS.find(monster => !monster.traits?.includes("evasive"));
 assert.ok(liveNormalTarget, "real monster data must retain normal targets");
-assert.equal(getPhysicalHitChance({ agi: 0 }, liveNormalTarget), 1);
+assert.equal(getPhysicalHitChance({ physicalAccuracy: 0 }, liveNormalTarget), 1);
 
 const hit = runAttack({ monster: liveEvasiveTarget }, [0, 0, 0.84, 0]);
 assert.equal(hit.state.combatFormulaTelemetry.physicalPlayerHits.length, 1);
@@ -123,25 +129,21 @@ assert.deepEqual(miss.state.combatFormulaTelemetry.physicalPlayerMisses[0], {
 });
 assert.match(miss.logQueue.map(entry => entry.msg).join("\n"), /霧のようにかわした/);
 
-const supportedTarget = { traits: ["evasive"], evasionChance: 0.3 };
-assert.ok(Math.abs(getPhysicalHitChance({
-  agi: 10,
-  equipment: { weapon: { affixes: [{ type: "physicalAccuracy", value: 10 }] } }
-}, supportedTarget) - 0.8) < 1e-9);
-const supportedHit = runAttack({ monster: supportedTarget, physicalAccuracy: true }, [0, 0, 0.79, 0]);
-assert.equal(supportedHit.state.combatFormulaTelemetry.physicalPlayerHits.length, 1);
-assert.equal(supportedHit.state.combatFormulaTelemetry.physicalPlayerMisses.length, 0);
-assert.ok(
-  Math.abs(supportedHit.state.combatFormulaTelemetry.physicalPlayerHits[0].hitChance - 0.8) < 1e-9,
-  "physical accuracy Support adds a bounded percentage to evasive-target hit chance"
+const guaranteedHit = runAttack({ monster: liveEvasiveTarget, physicalAccuracy: 50 }, [0, 0, 0.9999, 0]);
+assert.equal(guaranteedHit.state.combatFormulaTelemetry.physicalPlayerHits.length, 1);
+assert.equal(guaranteedHit.state.combatFormulaTelemetry.physicalPlayerMisses.length, 0);
+assert.equal(
+  guaranteedHit.state.combatFormulaTelemetry.physicalPlayerHits[0].hitChance,
+  1,
+  "必中 core caps evasive-target physical hit chance at 100%"
 );
 
-const normalCoreHit = runAttack({ monster: liveNormalTarget, physicalAccuracy: true }, [0, 0, 0.9999, 0]);
+const normalCoreHit = runAttack({ monster: liveNormalTarget, accuracyCore: true }, [0, 0, 0.9999, 0]);
 assert.equal(normalCoreHit.state.combatFormulaTelemetry.physicalPlayerHits.length, 1);
 assert.equal(
   normalCoreHit.state.combatFormulaTelemetry.physicalPlayerHits[0].hitChance,
   1,
-  "physical accuracy Support does not change normal-target behavior"
+  "必中 core does not change normal-target behavior"
 );
 
 const normalHit = runAttack({ monster: liveNormalTarget }, [0, 0, 0, 0]);

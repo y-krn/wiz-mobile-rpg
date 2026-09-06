@@ -138,9 +138,7 @@ export function getStartingKit(startingKitId) {
 
 // Starting kits are the vNext ownership boundary for departure choices. This
 // baseline deliberately has no kit-specific passive, spell list, class growth,
-// or class permission. Six base abilities remain universal inputs to the
-// existing combat and exploration formulas; equipment, Core, and Support own
-// build identity.
+// or class permission. Equipment, Core, and Support own build identity.
 const STARTING_KIT_CHARACTER_BASELINE = Object.freeze({
   name: "冒険者",
   level: 1,
@@ -149,12 +147,6 @@ const STARTING_KIT_CHARACTER_BASELINE = Object.freeze({
   maxHp: 20,
   mp: BASE_STARTING_MP,
   maxMp: BASE_STARTING_MP,
-  str: 10,
-  int: 10,
-  pie: 10,
-  vit: 10,
-  agi: 10,
-  luk: 10,
   status: "ok",
   mediumState: { mediumKey: null, socketedRunes: [] },
   equipment: {

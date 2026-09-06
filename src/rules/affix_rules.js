@@ -80,13 +80,6 @@ export function getEquippedCurseCount(char) {
   }).length;
 }
 
-export function getCharAllStatsAffixBonus(char) {
-  let bonus = char?.combatLastSurvivor ? getCharAffixSum(char, "lastSurvivorStats") : 0;
-  const params = getCharCoreParams(char, "CORE_CURSE_KEEPER");
-  if (params) bonus += getEquippedCurseCount(char) * params.statsPerCurse;
-  return bonus;
-}
-
 const TARGET_TAG_AFFIXES = Object.freeze([
   { tag: "undead", affixType: "antiUndead" },
   { tag: "dragon", affixType: "antiDragon" },

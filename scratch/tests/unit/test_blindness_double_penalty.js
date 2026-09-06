@@ -11,18 +11,15 @@ function createState({ characterStatus = "ok", monsterStatus = "ok", agi = 1 } =
   return {
     party: [{
       name: "Tester",
+      class: "Fighter",
       level: 1,
       hp: 100,
       maxHp: 100,
       mp: 0,
       maxMp: 0,
-      str: 15,
-      int: 8,
-      pie: 8,
-      vit: 10,
-      agi,
-      luk: 10,
       status: characterStatus,
+      buffs: [{ type: "firstStrike", value: 100 }],
+      spells: [],
       equipment: {
         weapon: null,
         shield: null,

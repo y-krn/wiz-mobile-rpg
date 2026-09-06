@@ -138,7 +138,6 @@ export function getWorkshopGrants(workshop) {
     affixIds: [],
     lateralAffixIds: [],
     spellIds: [],
-    stats: {},
     identifyPowder: 0,
     returnItems: []
   };
@@ -151,7 +150,6 @@ export function getWorkshopGrants(workshop) {
     grants.affixIds.push(...(node.grants.affixIds || []));
     if (lateral) grants.lateralAffixIds.push(...(node.grants.affixIds || []));
     grants.spellIds.push(...(node.grants.spellIds || []));
-    if (node.grants.stat) grants.stats[node.grants.stat] = rank * node.grants.amount;
     grants.identifyPowder += rank * (node.grants.identifyPowder || 0);
     if (node.grants.returnItem) grants.returnItems.push(node.grants.returnItem);
   });
@@ -256,9 +254,6 @@ export function applyAutomaticWorkshopUnlock(workshop, { deepestFloor = 1, recov
 
 export function applyWorkshopToCharacter(character, workshop) {
   const grants = getWorkshopGrants(workshop);
-  Object.entries(grants.stats).forEach(([stat, amount]) => {
-    character[stat] = (character[stat] || 0) + amount;
-  });
   character.unlockedAffixIds = grants.affixIds;
   character.lateralUnlockAffixIds = grants.lateralAffixIds;
   character.unlockedSpellIds = grants.spellIds;

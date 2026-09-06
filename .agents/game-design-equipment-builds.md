@@ -85,8 +85,8 @@ control when a possibility can enter the supply, not silently turn the same
 Support into a larger number. Support creates an opportunity cost in a slot,
 rarity, bag decision, or competing resource.
 
-- basic: `atk`, `def`, `str`, `int`, `pie`, `vit`, `agi`, `luk`, `hp`, `mp`, `antiUndead`, `antiDragon`, `antiDemon`, `poisonWard`, `spellGuard`, `trapBonus`, `trapGuard`, `treasureSense`, `arcaneSense`, `hearRange`, `traceRead`, `followUp`, `spellPower`, `arcane`, `devotion`, `guardian`, `firstStrike`, `physicalAccuracy`
-- conditional: `deepAssault`, `frontGuard`, `rearEvasion`, `fullHpDamage`, `firstTurnAttack`, `antiBeast`, `antiSpirit`, `firstStrikeDefense`, `lastSurvivorStats`, `statusResistance`, `spellAccuracy`, `lowHpDamage`, `highHpTargetDamage`, `bossDamage`
+- basic: `atk`, `def`, `hp`, `mp`, `antiUndead`, `antiDragon`, `antiDemon`, `poisonWard`, `spellGuard`, `trapBonus`, `trapGuard`, `treasureSense`, `arcaneSense`, `hearRange`, `traceRead`, `followUp`, `spellPower`, `arcane`, `devotion`, `guardian`, `firstStrike`, `physicalAccuracy`, `escapeChance`
+- conditional: `deepAssault`, `frontGuard`, `rearEvasion`, `fullHpDamage`, `firstTurnAttack`, `antiBeast`, `antiSpirit`, `firstStrikeDefense`, `statusResistance`, `spellAccuracy`, `lowHpDamage`, `highHpTargetDamage`, `bossDamage`
 - trigger: `killHeal`, `followUpMp`, `hitFlinch`, `poisonAtk`, `bleedingAtk`, `victoryMaterial`, `stairsHeal`, `firstStrikeFollowUp`
 - economy: `identifyDiscount`, `materialFind`, `contractReward`
 

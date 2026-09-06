@@ -47,9 +47,8 @@ export const ITEMS = {
   // Accessories
   AMULET_HP: { id: "AMULET_HP", name: "生命の護符", type: "accessory", hpBonus: 10, desc: "生命力を高める小さな護符。最大HP+10 [全員用]", tags: ["ward"] },
   AMULET_MP: { id: "AMULET_MP", name: "魔力の護符", type: "accessory", mpBonus: 3, desc: "魔力を蓄える小さな護符。最大MP+3 [全員用]", tags: ["spirit"] },
-  RING_STR: { id: "RING_STR", name: "力の指輪", type: "accessory", statsBonus: { str: 2 }, desc: "腕力を引き出す指輪。力+2 [全員用]", tags: ["iron"] },
-  RING_AGI: { id: "RING_AGI", name: "韋駄天の指輪", type: "accessory", statsBonus: { agi: 1 }, desc: "身のこなしを軽くする指輪。素早さ+1 [全員用]", tags: ["ambush"] },
-  RING_LUK: { id: "RING_LUK", name: "幸運の指輪", type: "accessory", statsBonus: { luk: 2 }, desc: "運を呼ぶ指輪。運+2 [全員用]", tags: ["search"] },
+  RING_STR: { id: "RING_STR", name: "力の指輪", type: "accessory", atk: 2, desc: "攻撃性能を高める指輪。攻撃力+2 [全員用]", tags: ["iron"] },
+  RING_AGI: { id: "RING_AGI", name: "韋駄天の指輪", type: "accessory", affixBonus: { physicalAccuracy: 5 }, desc: "狙いを研ぎ澄ます指輪。物理命中+5% [全員用]", tags: ["ambush"] },
   THIEF_EYE: { id: "THIEF_EYE", name: "罠見の片眼鏡", type: "accessory", trapBonus: 10, desc: "罠の癖を見抜く片眼鏡。罠解除+10% [全員用]", tags: ["trap"] },
   WARD_CHARM: { id: "WARD_CHARM", name: "守護の護符", type: "accessory", affixBonus: { spellGuard: 15 }, desc: "呪文を逸らす守り札。魔法耐性+15% [全員用]", tags: ["ward"] },
   DRAGON_RING: { id: "DRAGON_RING", name: "竜除けの指輪", type: "accessory", affixBonus: { antiDragon: 20 }, desc: "竜への備えを刻んだ指輪。竜特効+20% [全員用]", tags: ["dragon"] },
@@ -129,14 +128,14 @@ export const CURSE_EFFECTS = {
     name: "鉛足の呪い",
     desc: "防御力+6 / 素早さ-4",
     tags: ["curse", "ward"],
-    mod: { def: 6, agi: -4 }
+    mod: { def: 6, firstStrike: -4 }
   },
   curse_hollow_soul: {
     id: "curse_hollow_soul",
     name: "虚魂の呪い",
     desc: "呪文威力+15% / 生命-4",
     tags: ["curse", "spirit"],
-    mod: { arcane: 15, vit: -4 }
+    mod: { arcane: 15, hp: -4 }
   },
   curse_withering: {
     id: "curse_withering",
@@ -165,9 +164,9 @@ export const CURSE_EFFECTS = {
   curse_dulled_senses: {
     id: "curse_dulled_senses",
     name: "鈍麻の呪い",
-    desc: "素早さ-5 / 毒耐性-20%",
+    desc: "先制-5 / 毒耐性-20%",
     tags: ["curse", "poison"],
-    mod: { agi: -5, poisonWard: -20 },
+    mod: { firstStrike: -5, poisonWard: -20 },
     heavy: true
   }
 };

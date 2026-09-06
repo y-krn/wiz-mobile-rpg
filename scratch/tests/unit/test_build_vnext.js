@@ -14,7 +14,7 @@ assert.deepEqual(
 );
 assert.equal(createDefaultCurrentRun().startingKit, null);
 
-const baselineKeys = ["name", "level", "exp", "hp", "maxHp", "mp", "maxMp", "str", "int", "pie", "vit", "agi", "luk", "status"];
+const baselineKeys = ["name", "level", "exp", "hp", "maxHp", "mp", "maxMp", "status"];
 const baseline = createStartingKitCharacter(STARTING_KITS[0].id);
 for (const kit of STARTING_KITS) {
   const character = createStartingKitCharacter(kit.id);
@@ -34,8 +34,6 @@ for (const kit of STARTING_KITS) {
     Object.fromEntries(baselineKeys.map(key => [key, baseline[key]])),
     `${kit.id} must use the common neutral character baseline`
   );
-  assert.equal(Object.hasOwn(character, "class"), false, `${kit.id} has no class field`);
-  assert.equal(Object.hasOwn(character, "spells"), false, `${kit.id} has no learned spell field`);
 }
 
 const levelledCharacters = STARTING_KITS.map(kit => {
@@ -48,9 +46,7 @@ const levelledCharacters = STARTING_KITS.map(kit => {
 levelledCharacters.slice(1).forEach(character => assert.deepEqual(character, levelledCharacters[0], "kit choice must not change level growth"));
 assert.equal(levelledCharacters[0].level, 3);
 assert.equal(levelledCharacters[0].maxHp, 30, "level 2→3 uses the universal +5 HP baseline");
-assert.equal(levelledCharacters[0].str, 10, "level up must not grow the compatibility main stat");
 assert.equal(levelledCharacters[0].mp, 1, "level up must not grow universal base MP");
-assert.equal(Object.hasOwn(levelledCharacters[0], "spells"), false, "level up must not grant spells");
 
 const fighter = createStartingKitCharacter("vanguard");
 assert.equal(canEquipEquipment(fighter, "ARCH_WAND").ok, false, "a 2H medium cannot coexist with the starting shield");

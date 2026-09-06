@@ -119,7 +119,7 @@ export const ITEM_EFFECTS = {
     return `${char.name}は守りの薬を使用し、体を守る膜が張られた！`;
   },
   HASTE_POTION: ({ char }) => {
-    addCharBuff(char, "agi", 5, 5);
-    return `${char.name}は疾風の薬を使用し、敏捷性が上昇した！`;
+    addCharBuff(char, "firstStrike", 5, 5);
+    return `${char.name}は疾風の薬を使用し、先手を取りやすくなった！`;
   }
 };

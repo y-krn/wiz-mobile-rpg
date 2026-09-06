@@ -44,8 +44,6 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     monsters.forEach(m => {
       m.hp = Math.round(m.hp * mult);
       m.maxHp = Math.round(m.maxHp * mult);
-      if (m.str) m.str = Math.round(m.str * mult);
-      if (m.int) m.int = Math.round(m.int * mult);
     });
     addLog(`【⚠️警告】警報により魔物が活性化している！(HP/攻撃力+${Math.round((mult - 1) * 100)}%)`);
     state.alarmActive = false;

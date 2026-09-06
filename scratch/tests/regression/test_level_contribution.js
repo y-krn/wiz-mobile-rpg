@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { STARTING_KITS, createStartingKitCharacter } from "../../../src/state.js";
 import { getCharDerivedStats, getCharWeaponAtk } from "../../../src/rules/character_stats.js";
-import { getSpellStatBonus } from "../../../src/rules/spell_rules.js";
 import { checkCharLevelUp } from "../../../src/systems/leveling.js";
 
 function levelUpTo(character, targetLevel) {
@@ -16,7 +15,6 @@ const levelledCharacters = STARTING_KITS.map(kit => {
   const initial = {
     stats: Object.fromEntries(["str", "int", "pie", "vit", "agi", "luk"].map(stat => [stat, character[stat]])),
     mp: character.mp,
-    hasLegacySpells: Object.hasOwn(character, "spells")
   };
   levelUpTo(character, 6);
   assert.equal(character.maxHp, 45, `${kit.id} gets five universal HP gains`);
@@ -26,7 +24,7 @@ const levelledCharacters = STARTING_KITS.map(kit => {
     `${kit.id} level-up must not grow base stats`
   );
   assert.equal(character.mp, initial.mp, `${kit.id} level-up must not grow MP`);
-  assert.equal(Object.hasOwn(character, "spells"), initial.hasLegacySpells, `${kit.id} level-up must not grant spells`);
+  assert.equal(Object.hasOwn(character, "spells"), false, `${kit.id} has no legacy spell list`);
   return character;
 });
 
@@ -44,8 +42,5 @@ assert.equal(after.attack, before.attack, "level must not add a combat stat cont
 assert.equal(after.magic, before.magic, "level must not add magic stat contribution");
 assert.equal(after.healing, before.healing, "level must not add healing stat contribution");
 
-assert.equal(getSpellStatBonus(29), 1.38, "spell stat bonus is below cap at stat 29");
-assert.equal(getSpellStatBonus(30), 1.4, "spell stat bonus reaches +40% at stat 30");
-assert.equal(getSpellStatBonus(40), 1.4, "spell stat bonus remains capped above stat 30");
 
 console.log("[PASS] Issue #1044 universal level contribution checks");

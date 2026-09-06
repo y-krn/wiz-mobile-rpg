@@ -1,15 +1,9 @@
 // Pure equipment stat/slot calculations used by the overlay and action layer.
 // This module never reads or mutates the live game state.
 import {
-  getCharAgi,
   getCharDerivedStats,
-  getCharInt,
-  getCharLuk,
   getCharMaxHp,
-  getCharMaxMp,
-  getCharPie,
-  getCharStr,
-  getCharVit
+  getCharMaxMp
 } from "./character_stats.js";
 import { getCharAffixSum, getItemData } from "./item_rules.js";
 import { isCurseLocked } from "./identification_rules.js";
@@ -24,12 +18,6 @@ export const EQUIPMENT_PREVIEW_STATS = [
   { key: "defense", label: "防御" },
   { key: "maxHp", label: "最大HP" },
   { key: "maxMp", label: "最大MP" },
-  { key: "str", label: "力" },
-  { key: "int", label: "知恵" },
-  { key: "pie", label: "信仰" },
-  { key: "vit", label: "生命" },
-  { key: "agi", label: "素早さ" },
-  { key: "luk", label: "運" },
   { key: "magic", label: "魔力" },
   { key: "healing", label: "回復" },
   { key: "speed", label: "速度" },
@@ -76,12 +64,6 @@ function getDisplayStats(char, floor) {
     ...derived,
     maxHp: getCharMaxHp(char),
     maxMp: getCharMaxMp(char),
-    str: getCharStr(char),
-    int: getCharInt(char),
-    pie: getCharPie(char),
-    vit: getCharVit(char),
-    agi: getCharAgi(char),
-    luk: getCharLuk(char),
     spellGuard: getCharAffixSum(char, "spellGuard"),
     antiDragon: getCharAffixSum(char, "antiDragon"),
     antiUndead: getCharAffixSum(char, "antiUndead"),

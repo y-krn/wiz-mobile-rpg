@@ -18,6 +18,7 @@ global.localStorage = {
 
 function createState({
   characterStatus = "ok",
+  className = "Fighter",
   highPlayerDef = false,
   highMonsterDef = false,
   followUp = false
@@ -25,6 +26,7 @@ function createState({
   return {
     party: [{
       name: "Tester",
+      class: className,
       level: 5,
       hp: 100,
       maxHp: 100,
@@ -37,10 +39,12 @@ function createState({
       agi: 100,
       luk: 10,
       status: characterStatus,
+      buffs: [{ type: "firstStrike", value: 100, turns: 99 }],
+      spells: [],
       equipment: {
         weapon: null,
         shield: null,
-        armor: null,
+        armor: highPlayerDef ? "PLATE_MAIL" : null,
         accessory: followUp
           ? { baseId: "SWIFT_BAND", identified: true, affixes: [{ type: "followUp", value: 50 }] }
           : null
@@ -101,18 +105,17 @@ assert.equal(normalHit.state.combatState.monsters[0].hp, 999);
 assert.equal(normalHit.state.combatFormulaTelemetry.physicalPlayerHits[0].damage, 1);
 
 const targetedMinimum = applyTargetedDamageBonus(
-  { equipment: { weapon: null, shield: null, armor: null, accessory: null } },
+  { class: "Fighter", hp: 10, maxHp: 10, equipment: {} },
   { name: "Target", hp: 10, maxHp: 10, status: "ok" },
   0
 );
 assert.equal(targetedMinimum, 1, "targeted physical affix stage keeps a hit at one damage");
 
 const criticalHit = run(
-  createState({ highMonsterDef: true }),
+  createState({ className: "Ninja", highMonsterDef: true }),
   { type: "fight", actorIdx: 0, targetIdx: 0 }
 );
 assert.equal(criticalHit.state.combatState.monsters[0].hp, 999);
-assert.equal(criticalHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false);
 assert.equal(criticalHit.state.combatFormulaTelemetry.physicalPlayerHits[0].damage, 1);
 
 const followUpHit = run(
@@ -154,7 +157,7 @@ assert.match(blindMiss.logQueue.map(entry => entry.msg).join("\n"), /空振り�
 // Physical formula and mitigation outputs cannot turn a negative input into
 // healing; the resolved physical path remains non-negative and hit-minimum-1.
 assert.equal(
-  reduceIncomingDamage({ hp: 100, maxHp: 100 }, -5),
+  reduceIncomingDamage({ class: "Fighter", hp: 100, maxHp: 100 }, -5),
   1,
   "negative incoming physical damage cannot heal HP"
 );

@@ -100,7 +100,8 @@ test("queues lethal magic-reflect damage before the death log", () => {
       luk: 8,
       status: "ok",
       equipment: { weapon: "WAND", shield: null, armor: null, accessory: null },
-      mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_HALITO"] }
+      mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_HALITO"] },
+      buffs: [{ type: "firstStrike", value: 100, turns: 99 }]
     },
     monster: {
       name: "呪いの小鏡",

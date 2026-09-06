@@ -1,13 +1,10 @@
 import { KEY_ITEMS } from "./key_items.js";
 
-const statCosts = material => [1, 2, 3, 4, 5].map(quantity => ({ [material]: quantity }));
-
 export const WORKSHOP_CATEGORIES = Object.freeze({
   startingGear: "初期装備候補",
   pools: "出現候補",
   milestoneBuild: "深層ビルド",
   abyssBuild: "深淵ビルド",
-  permanentStats: "恒久ステータス",
   convenience: "利便"
 });
 
@@ -101,22 +98,6 @@ const WORKSHOP_BASE_NODES = [
     costs: [{ "霊粉": 5, "呪布": 2 }],
     grants: { identifyPowder: 1 }
   },
-  ...[
-    ["str", "力", "獣の牙"],
-    ["int", "知恵", "魔石片"],
-    ["pie", "信仰", "霊粉"],
-    ["vit", "生命", "硬い皮"],
-    ["agi", "素早さ", "毒腺"],
-    ["luk", "運", "骨片"]
-  ].map(([stat, label, material]) => ({
-    id: `stat_${stat}`,
-    category: "permanentStats",
-    name: `${label}鍛錬`,
-    description: `${label}を1増加する。上限5段。`,
-    maxRank: 5,
-    costs: statCosts(material),
-    grants: { stat, amount: 1 }
-  })),
 ];
 
 // 出発クラフトは潜行ごとに素材を支払う恒常シンク。個数上限は設けず、

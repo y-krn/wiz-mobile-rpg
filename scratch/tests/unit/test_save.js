@@ -45,7 +45,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   state.party[0].hp = 4;
   state.gameState = "submenu";
   state.metaMaterials = { "獣の牙": 7, "竜鱗": 2 };
-  state.workshop = { ranks: { gear_rapier: 1, stat_str: 3 } };
+  state.workshop = { ranks: { gear_rapier: 1 } };
   state.keyItems = ["FORGE_SEAL", "ABYSS_SEAL"];
   state.unlockedMilestones = [5, 10];
   state.records = { deepestRetreat: 12, deepestDeath: 9, totalRuns: 7 };
@@ -104,7 +104,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.equal(state.party[0].hp, 4);
   assert.equal(state.gameState, "town");
   assert.deepEqual(state.metaMaterials, { "獣の牙": 7, "竜鱗": 2 });
-  assert.deepEqual(state.workshop, { ranks: { gear_rapier: 1, stat_str: 3 }, lateralUnlocks: [] });
+  assert.deepEqual(state.workshop, { ranks: { gear_rapier: 1 }, lateralUnlocks: [] });
   assert.deepEqual(state.keyItems, ["FORGE_SEAL", "ABYSS_SEAL"]);
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
   assert.deepEqual(state.records, { deepestRetreat: 12, deepestDeath: 9, totalRuns: 7 });
@@ -130,6 +130,27 @@ check("older saves receive empty Castle/Codex/Workshop return fields", () => {
   assert.deepEqual(normalized.currentRun.codexInsights, []);
   assert.deepEqual(normalized.currentRun.workshopUnlocks, []);
   assert.equal(normalized.currentRun.returnProcessing, null);
+});
+
+check("vNext migration removes legacy stats and translates equipment affixes", () => {
+  const legacyPayload = structuredClone(createSavePayload());
+  const character = legacyPayload.party[0];
+  Object.assign(character, { str: 15, int: 12, pie: 11, vit: 14, agi: 13, luk: 9 });
+  character.equipment.weapon = {
+    baseId: "SHORT_SWORD",
+    identified: true,
+    statsBonus: { str: 2, vit: 3 },
+    affixes: [{ type: "luk", value: 99 }]
+  };
+  legacyPayload.workshop.ranks.stat_str = 4;
+  const normalized = normalizeSavePayload(legacyPayload);
+  assert.deepEqual(
+    Object.keys(normalized.party[0]).filter(key => ["str", "int", "pie", "vit", "agi", "luk"].includes(key)),
+    []
+  );
+  assert.deepEqual(normalized.party[0].equipment.weapon.affixes.map(affix => affix.type), ["atk", "def"]);
+  assert.equal(normalized.party[0].equipment.weapon.statsBonus, undefined);
+  assert.equal(normalized.workshop.ranks.stat_str, undefined);
 });
 
 check("legacy class records and history identity are discarded during normalization", () => {

@@ -6,20 +6,16 @@ import { hasStatusEffect, STATUS_EFFECT_IDS } from "../../../src/combat_logic/st
 function createCharacter(overrides = {}) {
   return {
     name: "冒険者",
+    class: "Fighter",
     level: 1,
     hp: 100,
     maxHp: 100,
     mp: 0,
     maxMp: 0,
     status: "ok",
-    str: 10,
-    int: 10,
-    pie: 10,
-    vit: 10,
-    agi: 20,
-    luk: 10,
     equipment: {},
-    buffs: [],
+    spells: [],
+    buffs: [{ type: "firstStrike", value: 100, turns: 99 }],
     ...overrides
   };
 }

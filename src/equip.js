@@ -497,8 +497,6 @@ function getItemSummary(item) {
     if (item.hpBonus) return `HP +${item.hpBonus}`;
     if (item.mpBonus) return `MP +${item.mpBonus}`;
     if (item.trapBonus) return `罠 +${item.trapBonus}%`;
-    const stat = Object.entries(item.statsBonus || {}).find(([, value]) => value);
-    if (stat) return `${stat[0].toUpperCase()} +${stat[1]}`;
     const affix = Object.entries(item.affixBonus || {}).find(([, value]) => value);
     if (affix) return `${affix[0]} +${affix[1]}%`;
   }

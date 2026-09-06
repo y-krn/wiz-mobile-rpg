@@ -1,7 +1,7 @@
 import {
   MONSTERS,
   MONSTER_STATUS_ATTACK_PATTERNS,
-  getCharStr, getCharAgi, getCharVit,
+
   getPhysicalHitChance, getMonsterEvasionChance,
   getCharWeaponAtk, getCharDef,
   rollCharWeaponPhysicalRandom,
@@ -347,7 +347,6 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   const finalAtk = getEffectiveAtk(attacker) + Math.floor(Math.random() * 4);
   const finalDef = calculatePhysicalDefenseFormula({
     baseDef: getCharDef(target),
-    vit: getCharVit(target),
   });
   const formulaRaw = finalAtk;
   const defResistance = getPhysicalDefenseResistance(
@@ -451,7 +450,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   state.party.forEach((char, idx) => {
     if (char.status !== "dead") {
       const chosen = combatSelection.actions.find(a => a.actorIdx === idx);
-      const speed = getCharAgi(char) + getBuffTotal(char, "agi") + Math.floor(Math.random() * 10) + getCharAffixSum(char, "firstStrike");
+      const speed = Math.floor(Math.random() * 10) + getBuffTotal(char, "firstStrike") + getCharAffixSum(char, "firstStrike");
       turns.push({
         type: "char",
         char,
@@ -600,14 +599,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const firstTurnAttack = roundNumber === 1 ? getCharAffixSum(char, "firstTurnAttack") : 0;
           const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
           const trapEaterBonus = getCharTrapEaterBonus(char);
-          const str = getCharStr(char);
-          const buffAtk = getBuffTotal(char, "atk") + getBuffTotal(char, "str");
+          const buffAtk = getBuffTotal(char, "atk");
           const randRoll = rollCharWeaponPhysicalRandom(char);
           const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
           const weaponAttack = resolveWeaponAttack({
             char,
-            weaponAtk, buffAtk, str, randRoll, meleeMod,
+            weaponAtk, buffAtk, randRoll, meleeMod,
             def,
             physResist: finalTarget.physResist,
             fixedDamageBonus: trapEaterBonus
@@ -646,7 +644,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // が未設定なら no-op（既定オフ）。ここまでの分岐・乱数消費は変更しない。
           state.combatFormulaTelemetry?.physicalPlayerHits.push({
             floor: state.floor,
-            weaponAtk, buffAtk, str, randRoll, def, meleeMod,
+            weaponAtk, buffAtk, randRoll, def, meleeMod,
             trapEaterBonus,
             defResistance: weaponAttack.defResistance,
             physicalResistance,
@@ -764,12 +762,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const firstTurnAttack = roundNumber === 1 ? getCharAffixSum(char, "firstTurnAttack") : 0;
               const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
               const trapEaterBonus = getCharTrapEaterBonus(char);
-              const str = getCharStr(char);
               const def = getEffectiveDef(finalTarget);
               const followUpAttack = resolveWeaponAttack({
                 char,
                 weaponAtk,
-                str,
                 randRoll: followUpDmgRand,
                 def,
                 physResist: finalTarget.physResist,
@@ -1360,7 +1356,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const firstStrikeDefense = target.combatFirstStrikeActive ? getCharAffixSum(target, "firstStrikeDefense") : 0;
           const finalDef = calculatePhysicalDefenseFormula({
             baseDef: getCharDef(target),
-            vit: getCharVit(target),
             bonusDef: getBuffTotal(target, "def") + frontGuard + firstStrikeDefense,
             tempDefDown: target.tempDefDown || 0
           });

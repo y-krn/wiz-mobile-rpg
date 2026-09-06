@@ -713,14 +713,14 @@ check("combat start joins player and equipment snapshots without duplicating the
   assert.equal(combatStart.buildSnapshot.schemaVersion, 1);
   assert.equal(combatStart.buildSnapshot.weaponProfile, "medium");
   assert.equal(combatStart.level, decisionPlayer.level);
-  assert.equal(combatStart.str, decisionPlayer.str);
-  assert.equal(combatStart.vit, decisionPlayer.vit);
+  assert.equal(Object.hasOwn(combatStart, "str"), false);
+  assert.equal(Object.hasOwn(combatStart, "vit"), false);
   assert.deepEqual(combatStart.equipmentIds, ["WAND", null, "ROBE", null, null]);
   assert.equal(combatStart.equipmentRarities.length, 5);
   assert.equal(combatStart.equipmentEnhancementLevels.length, 5);
   assert.equal(damage.equipmentDef, 3);
   assert.equal(damage.baseDef, 3);
-  assert.equal(damage.vitContribution, 2);
+  assert.equal(Object.hasOwn(damage, "vitContribution"), false);
   assert.equal(Object.hasOwn(damage, "mpWardDef"), false);
   assert.equal(Object.hasOwn(damage, "equipmentIds"), false);
   assert.equal(Object.hasOwn(damage, "equipmentAffixTypes"), false);
@@ -828,10 +828,10 @@ check("normal physical combat hits forward formula stages to damage telemetry", 
   const damage = events.find(event => event.name === "damage_received").properties;
   assert.equal(damage.attackType, "physical");
   assert.equal(damage.preDefDamage, 4);
-  assert.equal(damage.finalDef, 2);
-  assert.equal(damage.postDefDamage, 2);
-  assert.equal(damage.rawDamage, 1);
-  assert.equal(damage.finalDamage, 1);
+  assert.equal(damage.finalDef, 0);
+  assert.equal(damage.postDefDamage, 4);
+  assert.equal(damage.rawDamage, 2);
+  assert.equal(damage.finalDamage, 2);
 });
 
 check("defense breakdown fields stay bounded and unknown values become null", () => {
@@ -845,13 +845,12 @@ check("defense breakdown fields stay bounded and unknown values become null", ()
     finalDamage: 1,
     defenseBreakdown: {
       equipmentDef: Number.MAX_VALUE,
-      vitContribution: "invalid",
       tempDefDown: -Number.MAX_VALUE
     }
   });
   const damage = events.find(event => event.name === "damage_received").properties;
   assert.equal(damage.equipmentDef, 1_000_000);
-  assert.equal(damage.vitContribution, null);
+  assert.equal(Object.hasOwn(damage, "vitContribution"), false);
   assert.equal(damage.tempDefDown, -1_000_000);
   assert.equal(damage.buffDef, null);
 });
@@ -1250,16 +1249,16 @@ check("damage telemetry omits the removed class MP ward", () => {
   trackRunStart(run, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
   trackCombatStart({ floor: 1, player: { hp: 14, mp: 0 }, monsters: [] });
 
-  const emptyMp = { hp: 10, mp: 0, vit: 10, equipment: {} };
+  const emptyMp = { hp: 10, mp: 0, equipment: {} };
   recordReceivedDamage({ floor: 1 }, emptyMp, "ゴブリン A", 2, 2, 12, { attackType: "physical", finalDef: 2 });
-  const activeMp = { hp: 10, mp: 1, vit: 10, equipment: {} };
+  const activeMp = { hp: 10, mp: 1, equipment: {} };
   recordReceivedDamage({ floor: 1 }, activeMp, "ゴブリン A", 2, 2, 12, { attackType: "physical", finalDef: 2 });
 
   const damageEvents = events.filter(event => event.name === "damage_received");
   assert.equal(Object.hasOwn(damageEvents[0].properties, "mpWardActive"), false);
   assert.equal(Object.hasOwn(damageEvents[1].properties, "mpWardActive"), false);
   assert.equal(damageEvents[0].properties.equipmentDef, 0);
-  assert.equal(damageEvents[0].properties.vitContribution, 2);
+  assert.equal(Object.hasOwn(damageEvents[0].properties, "vitContribution"), false);
   assert.equal(damageEvents[0].properties.buffDef, 0);
   assert.equal(Object.hasOwn(damageEvents[0].properties, "mpWardDef"), false);
   assert.equal(Object.hasOwn(damageEvents[1].properties, "mpWardDef"), false);
