@@ -104,13 +104,14 @@ role, information-disclosure rule, or economy meaning; load
   context.
 - The content can be verified with existing tests or a small targeted check.
 
-## Return-result content contract
+## Return-result content review
 
-The result view should summarize the representative item, a small meaningful
-history, newly understood coarse facts, and any horizontal future possibility.
-Use short factual labels such as returned, rescued, lost, and observed. Do not
-present full hidden affix/stat detail, exact rates, candidate totals, or a
-recommended build as a reward or knowledge answer.
+Review result content against the Castle/Codex/Workshop return semantics in
+`.agents/game-design-core-loop.md`. Check that copy is factual and concise,
+uses labels such as returned, rescued, lost, and observed where appropriate,
+and does not expose hidden exact affix/stat detail, rates, candidate totals, or
+an optimal-build recommendation. The durable return hierarchy and semantics
+belong to the core-loop canon rather than this checklist.
 
 ## Required Verification
 
