@@ -61,9 +61,9 @@ test('important combat results remain in the Event Strip with ordinary logs', as
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   const result = await page.evaluate(async () => {
-    const { state, createDefaultCurrentRun, createSoloCharacter, addEventLog } = await import('/src/state.js');
+    const { state, createDefaultCurrentRun, createStartingKitCharacter, addEventLog } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
-    state.party = [createSoloCharacter('Mage')];
+    state.party = [createStartingKitCharacter('arcana')];
     state.currentRun = createDefaultCurrentRun();
     state.gameState = 'explore';
     state.currentRun.eventObservations = {
@@ -96,9 +96,9 @@ test('important combat results remain in the Event Strip with ordinary logs', as
 test('combat result observations are cleared at combat boundaries', async ({ page }) => {
   await page.goto('/');
   const result = await page.evaluate(async () => {
-    const { state, createDefaultCurrentRun, createSoloCharacter, addEventLog } = await import('/src/state.js');
+    const { state, createDefaultCurrentRun, createStartingKitCharacter, addEventLog } = await import('/src/state.js');
     const { startCombat } = await import('/src/combat.js');
-    state.party = [createSoloCharacter('Fighter')];
+    state.party = [createStartingKitCharacter('vanguard')];
     state.currentRun = createDefaultCurrentRun();
     state.gameState = 'explore';
     state.transitioning = false;

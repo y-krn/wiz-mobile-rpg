@@ -58,7 +58,7 @@ global.localStorage = {
   removeItem() {}
 };
 
-const { state, createDefaultCodex, createDefaultCurrentRun, createSoloCharacter } =
+const { state, createDefaultCodex, createDefaultCurrentRun, createStartingKitCharacter } =
   await import("../../../src/state.js");
 const { setupChestState, openChestDirectly, smashChest } = await import("../../../src/chest.js");
 const { resolvePendingRewardBundle } = await import("../../../src/pending_rewards.js");
@@ -132,7 +132,7 @@ function prepareLiveChest(inventory = []) {
   state.y = 1;
   state.maps[1] = makeMap();
   state.maps[1][1][1].event = "chest";
-  state.party = [createSoloCharacter("Fighter")];
+  state.party = [createStartingKitCharacter("vanguard")];
   state.inventory = [...inventory];
   state.currentRun = createDefaultCurrentRun();
   state.currentRun.startFloor = 1;

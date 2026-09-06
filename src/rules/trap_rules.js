@@ -224,7 +224,7 @@ export function resolveTrapAction({ action, trap, successRate, rng = Math.random
   return { outcome: "triggered", partialSuccess: false };
 }
 
-// 察知はクラス非依存。罠がルート選択の障害物である以上、
+// 察知は全員共通。罠がルート選択の障害物である以上、
 // 情報を全員へ確定配布し、踏むかどうかをプレイヤーへ戻す。
 export function calculateDetectRate() {
   return DETECT_RATE_CAP;

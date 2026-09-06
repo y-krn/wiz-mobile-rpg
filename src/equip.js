@@ -6,10 +6,10 @@ import {
   getCharAttackBreakdown,
   formatAffixText,
   getAffixKind,
-  canUseManaItems,
   isCurseLocked,
   getWeaponBehaviorProfile
 } from "./data.js";
+import { canUseManaItems } from "./rules/magic_rules.js";
 import { CURSE_EFFECTS } from "./data/items.js";
 import {
   IDENTIFICATION_BALANCE,

@@ -9,7 +9,6 @@ const {
   resetSimulationRandom,
   simulateRun
 } = await import("./sim_depth_material_ev.js");
-const { SOLO_CLASSES } = await import("../../src/state/initial_state.js");
 
 const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 800));
 const CALIBRATION_RUNS = Math.max(
@@ -24,7 +23,7 @@ const CRAFT_RECIPE_IDS = [
   "TRAP_KIT",
   "IDENTIFY_POWDER"
 ];
-const B1_CLASSES = SOLO_CLASSES;
+const B1_CLASSES = ["Fighter", "Thief", "Priest", "Mage"];
 const CLASS_LABELS = {
   Fighter: "戦士",
   Thief: "盗賊",

@@ -7,9 +7,9 @@ test.describe('Common UI vNext shell @smoke', () => {
     await page.setViewportSize({ width: 320, height: 568 });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
+      const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
       const { updateUI, openLogOverlay } = await import('/src/ui.js');
-      state.party = [createSoloCharacter('Mage')];
+      state.party = [createStartingKitCharacter('arcana')];
       state.currentRun = createDefaultCurrentRun();
       state.currentRun.eventObservations = {
         'trap:1:3:3': {
@@ -66,10 +66,10 @@ test.describe('Common UI vNext shell @smoke', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     const states = await page.evaluate(async () => {
-      const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
+      const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
       const { updateUI } = await import('/src/ui.js');
-      state.party = [createSoloCharacter('Mage')];
+      state.party = [createStartingKitCharacter('arcana')];
       state.currentRun = createDefaultCurrentRun();
       state.transitioning = false;
       state.combatState = { phase: 'choose_actions', monsters: [{ name: '検証敵', hp: 1, maxHp: 1 }] };
@@ -146,9 +146,9 @@ test.describe('Common UI vNext shell @smoke', () => {
   test('keeps confirmed bag-loss results as transient events', async ({ page }) => {
     await page.goto('/');
     const result = await page.evaluate(async () => {
-      const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
+      const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
       const { updateUI } = await import('/src/ui.js');
-      state.party = [createSoloCharacter('Mage')];
+      state.party = [createStartingKitCharacter('arcana')];
       state.currentRun = createDefaultCurrentRun();
       state.gameState = 'explore';
       state.logs = ['[!] バッグがいっぱいで [帰還の翼] を持ち帰れなかった！'];

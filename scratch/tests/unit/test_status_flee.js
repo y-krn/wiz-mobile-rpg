@@ -170,7 +170,7 @@ test("flee succeeds in place when no retreat tile was captured", () => {
   }
 });
 
-test("Ninja critical is heavy resisted damage, never forced instant death", () => {
+test("legacy class metadata does not force instant death", () => {
   const state = createState({
     charOverrides: { class: "Ninja", level: 10 },
     monsterOverrides: { hp: 1000, maxHp: 1000, def: 20, physResist: 0.5, status: "sleep", sleepTurns: 2 }
@@ -181,7 +181,6 @@ test("Ninja critical is heavy resisted damage, never forced instant death", () =
     const result = runCombatRoundCalculation(state, { actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }] });
     assert.ok(result.state.combatState.monsters[0].hp > 0);
     assert.ok(result.state.combatState.monsters[0].hp < 1000);
-    assert.ok(result.logQueue.some(log => log.msg?.includes("大ダメージ")));
     assert.ok(!result.logQueue.some(log => log.msg?.includes("即死") || log.floatText === "即死"));
   } finally {
     Math.random = originalRandom;

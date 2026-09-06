@@ -45,9 +45,9 @@ test('pending unknown equipment connects directly to one trial turn @smoke', asy
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
-    const { createDefaultCurrentRun, createSoloCharacter, state } = await import('/src/state.js');
+    const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
     const { openPendingRewardMenu, stagePendingRewardBundle } = await import('/src/pending_rewards.js');
-    const character = createSoloCharacter('Fighter');
+    const character = createStartingKitCharacter('vanguard');
     character.equipment.weapon = 'DAGGER';
     state.party = [character];
     state.inventory = Array.from({ length: 19 }, () => 'HEAL_POTION');

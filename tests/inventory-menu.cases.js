@@ -13,7 +13,7 @@ for (const viewport of VIEWPORTS) {
     await page.waitForLoadState('networkidle');
 
     const result = await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
       const { renderItemInventory } = await import('/src/menu/explore_actions.js');
       const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
@@ -21,7 +21,7 @@ for (const viewport of VIEWPORTS) {
       const { dungeonRenderer } = await import('/src/renderer.js');
       const { updateUI } = await import('/src/ui.js');
 
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.party[0].hp = 1;
       state.gameState = 'explore';
       state.combatState = null;
@@ -129,12 +129,12 @@ test('combat item cards keep long descriptions visible and scroll the list on sh
   await page.waitForLoadState('networkidle');
 
   const metrics = await page.evaluate(async () => {
-    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');
     const { ITEMS } = await import('/src/data/items.js');
     const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
 
-    state.party = [createSoloCharacter('Fighter')];
+    state.party = [createStartingKitCharacter('vanguard')];
     state.gameState = 'submenu';
     state.combatState = {
       phase: 'choose_actions',
@@ -187,13 +187,13 @@ test('exploration tactical consumables use directly without target selection @e2
   await page.waitForLoadState('networkidle');
 
   const result = await page.evaluate(async () => {
-    const { createSoloCharacter, initNewGame, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
     const { executeEnterDungeon } = await import('/src/movement.js');
     const { renderItemInventory } = await import('/src/menu/explore_actions.js');
     const { updateUI } = await import('/src/ui.js');
 
     initNewGame();
-    state.party = [createSoloCharacter('Fighter')];
+    state.party = [createStartingKitCharacter('vanguard')];
     executeEnterDungeon(1);
     state.inventory = ['SILENCE_INCENSE', 'TRAP_SENSE_STONE'];
     updateUI();

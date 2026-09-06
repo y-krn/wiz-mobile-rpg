@@ -17,11 +17,9 @@ Object.defineProperty(globalThis, "localStorage", {
 });
 
 const {
-  SOLO_CLASSES,
   createDefaultCurrentRun,
-  createSoloCharacter
+  createStartingKitCharacter
 } = await import("../../src/state/initial_state.js");
-const { ELITE_CLASSES } = await import("../../src/data/classes.js");
 const { generateEncounter } = await import("../../src/combat_ui/encounter.js");
 const { runCombatRoundCalculation } = await import("../../src/combat_logic.js");
 const { SPELL_EFFECTS } = await import("../../src/systems/spell_effects.js");
@@ -54,7 +52,7 @@ const INITIAL_HEAL_POTIONS = 0;
 const HEAL_POTION_THRESHOLD = 0.35;
 // 仮値・感度分析対象: 最大HPの35%以下なら次の自ターンで逃走する。
 const FLEE_HP_THRESHOLD = 0.35;
-const SIM_CLASSES = SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className));
+const SIM_CLASSES = ["vanguard", "scout", "devotion", "arcana"];
 const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
   weaponAtk: 2,
   defense: 2,
@@ -98,12 +96,12 @@ function createSimulationState(className, runSeed) {
   currentRun.runSeed = runSeed;
   currentRun.startFloor = 1;
   currentRun.deepestFloor = 1;
-  currentRun.characterClass = className;
+  currentRun.characterClass = null;
   currentRun.floorsVisited = [1];
   assignRunQuests(currentRun);
 
   return {
-    party: [createSoloCharacter(className)],
+    party: [createStartingKitCharacter(className)],
     combatState: null,
     inventory: [
       ...Array(INITIAL_HEAL_POTIONS).fill("HEAL_POTION")

@@ -4,7 +4,7 @@ test('Result leads with run memory and keeps loot ownership explicit', async ({ 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
-    const { createDefaultCurrentRun, createSoloCharacter, state } = await import('/src/state.js');
+    const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
     const run = createDefaultCurrentRun();
     run.returnReason = 'milestone_portal';
@@ -21,7 +21,7 @@ test('Result leads with run memory and keeps loot ownership explicit', async ({ 
     run.bankedMaterials = { '獣の牙': 8 };
     run.recordResult = { updated: true, updates: ['最深到達記録'], depth: 5 };
     run.quests = [];
-    state.party = [createSoloCharacter('Fighter')];
+    state.party = [createStartingKitCharacter('vanguard')];
     state.currentRun = run;
     state.gameState = 'result';
     updateUI();
@@ -54,11 +54,11 @@ test('Death result preserves departure items and removes dungeon loot', async ({
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/');
   const loot = await page.evaluate(async () => {
-    const { createDefaultCurrentRun, createSoloCharacter, initNewGame, state } = await import('/src/state.js');
+    const { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
     const { triggerRunResult } = await import('/src/result.js');
     initNewGame();
     const found = { kind: 'equipment', baseId: 'SHORT_SWORD', instanceId: 'run_loot_1', identified: false, unidentifiedName: '未鑑定の短剣' };
-    state.party = [createSoloCharacter('Fighter')];
+    state.party = [createStartingKitCharacter('vanguard')];
     state.inventory = ['TRAP_KIT', found];
     state.currentRun = createDefaultCurrentRun();
     state.currentRun.characterClass = 'Fighter';

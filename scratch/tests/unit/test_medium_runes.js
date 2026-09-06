@@ -5,11 +5,7 @@ import {
   RUNE_ITEM_IDS,
   RUNE_SUPPLY_BANDS,
   SPELLS,
-  getCharMaxMp,
-  isSpellcaster,
-  canUseMageSpells,
-  canUsePriestSpells,
-  canUseManaItems
+  getCharMaxMp
 } from "../../../src/data.js";
 import { getRuneItemIdsByFloor } from "../../../src/data/magic.js";
 import { STARTING_KITS, createStartingKitCharacter, state } from "../../../src/state.js";
@@ -17,7 +13,9 @@ import { SAVE_VERSION, migrateSavePayload } from "../../../src/state/save_migrat
 import { getChestItemCandidatesByFloor } from "../../../src/rules/chest_rules.js";
 import {
   getActiveSpellKeys,
+  isSpellcaster,
   getMediumRuneCapacity,
+  canUseManaItems,
   socketRune,
   syncMediumState,
   clampCurrentMpToMax
@@ -31,7 +29,7 @@ for (const kit of STARTING_KITS) {
   const character = createStartingKitCharacter(kit.id);
   assert.equal(character.maxMp, BASE_STARTING_MP, `${kit.id} uses universal base MP`);
   assert.equal(character.mp, BASE_STARTING_MP, `${kit.id} starts with one MP`);
-  assert.deepEqual(character.spells, [], `${kit.id} has no permanent spell truth`);
+  assert.equal(Object.hasOwn(character, "spells"), false, `${kit.id} has no permanent spell truth`);
 }
 
 const arcana = createStartingKitCharacter("arcana");
@@ -39,8 +37,6 @@ assert.equal(getCharMaxMp(arcana), 3, "WAND contributes medium capacity");
 assert.equal(getMediumRuneCapacity(arcana), 1);
 assert.deepEqual(getActiveSpellKeys(arcana), ["HALITO"]);
 assert.equal(isSpellcaster(arcana), true);
-assert.equal(canUseMageSpells(arcana), true);
-assert.equal(canUsePriestSpells(arcana), false);
 assert.equal(canUseManaItems(arcana), true);
 
 arcana.class = "Ranger";
@@ -61,8 +57,6 @@ assert.match(staleSpellLog[0].msg, /Rune/);
 arcana.class = "Priest";
 arcana.spells = ["DIOS"];
 assert.deepEqual(getActiveSpellKeys(arcana), ["HALITO"]);
-assert.equal(canUsePriestSpells(arcana), false);
-assert.equal(canUseMageSpells(arcana), true);
 
 const fighter = createStartingKitCharacter("vanguard");
 fighter.equipment.weapon = "WAND";

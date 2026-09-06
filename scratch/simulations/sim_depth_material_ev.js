@@ -38,10 +38,9 @@ Object.defineProperty(globalThis, "localStorage", {
 });
 
 const {
-  SOLO_CLASSES,
   createDefaultCodex,
   createDefaultCurrentRun,
-  createSoloCharacter
+  createStartingKitCharacter
 } = await import("../../src/state/initial_state.js");
 const { state: productionState, recordCharDeath } = await import("../../src/state.js");
 const { calculateEncounterChance } = await import("../../src/movement.js");
@@ -49,7 +48,6 @@ const {
   applyExplorationItem,
   SILENCE_INCENSE_ENCOUNTER_MULTIPLIER
 } = await import("../../src/systems/exploration_items.js");
-const { ELITE_CLASSES } = await import("../../src/data/classes.js");
 const { generateEncounter } = await import("../../src/combat_ui/encounter.js");
 const { applyPendingOutcomeRewards } = await import("../../src/combat_ui/outcome_rewards.js");
 const { runCombatRoundCalculation } = await import("../../src/combat_logic.js");
@@ -296,7 +294,7 @@ const { scaleEnemyForDepth } = await import("../../src/rules/depth_scaling.js");
 const { ITEM_EFFECTS } = await import("../../src/systems/item_effects.js");
 const { getUsableInventoryItems } = await import("../../src/rules/item_inventory.js");
 const { getEffectiveHealAmount } = await import("../../src/rules/item_rules.js");
-const { canUseManaItems } = await import("../../src/rules/class_rules.js");
+const { canUseManaItems } = await import("../../src/rules/magic_rules.js");
 const {
   clearCharIncapacitationOnDamage,
   getBuffTotal,
@@ -1454,7 +1452,16 @@ const RESOLVED_SCENARIO_IDS = new Set(
 const ACTIVE_SCENARIOS = REQUESTED_SCENARIO_IDS.size === 0
   ? DEPTH_SCENARIOS.filter(scenario => DEFAULT_DEPTH_SCENARIO_IDS.has(scenario.id))
   : DEPTH_SCENARIOS.filter(scenario => RESOLVED_SCENARIO_IDS.has(scenario.id));
-const SIM_CLASSES = SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className));
+// Historical reports still use the old axis labels, but every simulated
+// character now comes from a current starting kit. The labels are report
+// dimensions only and never become a production character.class field.
+const SIM_CLASSES = Object.freeze(["Fighter", "Thief", "Priest", "Mage"]);
+const SIM_CLASS_STARTING_KITS = Object.freeze({
+  Fighter: "vanguard",
+  Thief: "scout",
+  Priest: "devotion",
+  Mage: "arcana"
+});
 
 function resolveSimulationClassNames(className = null) {
   if (className === null || className === undefined) return SIM_CLASSES;
@@ -4224,7 +4231,7 @@ function createSimulationState(
   currentRun.runSeed = runSeed;
   currentRun.startFloor = startFloor;
   currentRun.deepestFloor = startFloor;
-  currentRun.characterClass = buildFixtureId ? null : className;
+  currentRun.characterClass = null;
   currentRun.buildFixtureId = buildFixtureId;
   currentRun.floorsVisited = [startFloor];
   currentRun.campRestCount = 0;
@@ -4232,7 +4239,10 @@ function createSimulationState(
 
   const character = buildFixtureId
     ? createBuildFixture(buildFixtureId)
-    : applyWorkshopToCharacter(createSoloCharacter(className), workshop);
+    : applyWorkshopToCharacter(
+        createStartingKitCharacter(SIM_CLASS_STARTING_KITS[className] || "vanguard"),
+        workshop
+      );
   const startingBuild = scenario.startingBuild;
   if (startingBuild?.equipment && !buildFixtureId && className === "Mage") {
     // Reuse the #975 production-shaped fixture conversion. This keeps the
@@ -4240,7 +4250,7 @@ function createSimulationState(
     // definitions (level, tags, core/support affixes, and derived stats).
     const productionBuild = createProductionBuildCharacter(startingBuild.id);
     character.equipment = structuredClone(productionBuild.equipment);
-    character.spells = [...productionBuild.spells];
+    character.mediumState = structuredClone(productionBuild.mediumState);
     character.hp = getCharMaxHp(character);
     character.mp = getCharMaxMp(character);
   }
@@ -4251,11 +4261,6 @@ function createSimulationState(
   }
   const intBonus = Number(scenario.intBonus) || 0;
   if (intBonus !== 0) character.int += intBonus;
-  if (scenario.disablePriestHealing && !buildFixtureId && className === "Priest") {
-    character.spells = character.spells.filter(
-      spell => !PRIEST_HEALING_SPELL_IDS.includes(spell)
-    );
-  }
   const workshopGrants = getWorkshopGrants(workshop);
   const identificationPolicy = scenario.identificationPolicy || "powder";
   // legacyは実装外反実仮想として開始粉を使わず、powder/gambleは実runの初期支給を使う。

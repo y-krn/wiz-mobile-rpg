@@ -191,7 +191,7 @@ for (const vp of VIEWPORTS) {
         const { createDefaultCurrentRun } = await import('/src/state/initial_state.js');
         const { updateUI } = await import('/src/ui.js');
 
-        state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
+        state.party = [(await import('/src/state.js')).createStartingKitCharacter('arcana')];
         state.gameState = 'result';
         state.currentRun = createDefaultCurrentRun();
         state.currentRun.returnReason = 'stairs';
@@ -242,7 +242,7 @@ for (const vp of VIEWPORTS) {
         const { createDefaultCurrentRun } = await import('/src/state/initial_state.js');
         const { openChestMenu } = await import('/src/chest.js');
 
-        state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
+        state.party = [(await import('/src/state.js')).createStartingKitCharacter('arcana')];
         state.gameState = 'combat';
         state.floor = 5;
         state.currentRun = createDefaultCurrentRun();
@@ -397,7 +397,7 @@ for (const vp of VIEWPORTS) {
         const { updateUI } = await import('/src/ui.js');
 
         Math.random = () => 0.1;
-        state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
+        state.party = [(await import('/src/state.js')).createStartingKitCharacter('arcana')];
         state.gameState = 'explore';
         state.floor = 2;
         state.inventory = [];
@@ -525,10 +525,10 @@ for (const vp of VIEWPORTS) {
 
     test('Milestone stairs disclose facility state without adding actions', async ({ page }) => {
       const observed = await page.evaluate(async () => {
-        const { createDefaultCurrentRun, createSoloCharacter, state } = await import('/src/state.js');
+        const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
         const { checkCellEvents, executeEnterDungeon } = await import('/src/movement.js');
 
-        state.party = [createSoloCharacter('Fighter')];
+        state.party = [createStartingKitCharacter('vanguard')];
         state.gameState = 'town';
         executeEnterDungeon(1);
 
@@ -597,11 +597,11 @@ for (const vp of VIEWPORTS) {
 
     test('Run stake summary appears only at retreat decisions', async ({ page }) => {
       const observed = await page.evaluate(async () => {
-        const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
+        const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
         const { menuContext, openSubmenu } = await import('/src/navigation.js');
         const { updateUI } = await import('/src/ui.js');
 
-        state.party = [createSoloCharacter('Fighter')];
+        state.party = [createStartingKitCharacter('vanguard')];
         state.currentRun = createDefaultCurrentRun();
         state.currentRun.materials = { '獣の牙': 5, '鉄片': 3, '霊粉': 2 };
         state.gameState = 'explore';
@@ -685,7 +685,7 @@ for (const vp of VIEWPORTS) {
         state.controlsGuardUntil = 0;
         const userSubmenu = clickProbe(document.getElementById('submenu-controls'));
 
-        state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
+        state.party = [(await import('/src/state.js')).createStartingKitCharacter('arcana')];
         startTrapEncounter({ type: 'damage', state: 'discovered', floorId: 'B1', difficulty: 10 });
         const trap = clickProbe(document.getElementById('trap-controls'));
         return { event, userSubmenu, trap };
@@ -700,7 +700,7 @@ for (const vp of VIEWPORTS) {
       await page.evaluate(async () => {
         const { state, createDefaultCurrentRun } = await import('/src/state.js');
         const { openSubmenu } = await import('/src/navigation.js');
-        state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
+        state.party = [(await import('/src/state.js')).createStartingKitCharacter('arcana')];
         state.party.forEach(char => {
           char.hp = Math.max(1, Math.floor(char.maxHp / 2));
           char.mp = Math.floor(char.maxMp / 2);
@@ -729,9 +729,9 @@ for (const vp of VIEWPORTS) {
 
     test('Milestone floor entry opens Camp before exploration and both choices finish the entry', async ({ page }) => {
       const started = await page.evaluate(async () => {
-        const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
+        const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
         const { startCampEntryIfEligible } = await import('/src/movement.js');
-        state.party = [createSoloCharacter('Fighter')];
+        state.party = [createStartingKitCharacter('vanguard')];
         state.floor = 6;
         state.gameState = 'explore';
         state.currentRun = createDefaultCurrentRun();

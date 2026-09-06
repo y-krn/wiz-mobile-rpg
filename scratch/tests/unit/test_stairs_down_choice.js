@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { createDefaultCurrentRun, createSoloCharacter, state } from "../../../src/state.js";
+import { createDefaultCurrentRun, createStartingKitCharacter, state } from "../../../src/state.js";
 import { menuContext } from "../../../src/navigation.js";
 import { checkCellEvents } from "../../../src/movement.js";
 import {
@@ -34,7 +34,7 @@ function withDocumentStub(fn) {
 }
 
 function setupStairsCell(floor) {
-  state.party = [createSoloCharacter("Fighter")];
+  state.party = [createStartingKitCharacter("vanguard")];
   state.floor = floor;
   state.maps[floor - 1] = [[{ type: "stairs-down", event: null }]];
   state.x = 0;

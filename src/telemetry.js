@@ -28,9 +28,9 @@ import { DIR_NAMES } from "./constants/directions.js";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
-import { getMpWardDef } from "./combat_logic/mp_ward.js";
 import { INVENTORY_CAPACITY } from "./rules/item_inventory.js";
 import { getWeaponBehaviorProfile } from "./data/weapon_behavior_profiles.js";
+import { getActiveRuneSpellKeys, getRuneItemId } from "./rules/magic_rules.js";
 import { RUNE_SUPPLY_BANDS, RUNES } from "./data/magic.js";
 import { resolveBuildSnapshot } from "./rules/build_snapshot.js";
 import { buildObjectLootStakeSnapshot } from "./rules/object_loot_stake.js";
@@ -412,6 +412,7 @@ export function buildPlayerSnapshot(character, { floor = 1 } = {}) {
     // Malformed optional state must never interfere with gameplay.
   }
   const snapshot = {
+    startingKit: normalizeOptionalStableValue(character.startingKit, new Set(["vanguard", "scout", "devotion", "arcana"])),
     level: boundedFiniteOrNull(character.level),
     hp: boundedFiniteOrNull(character.hp),
     maxHp: boundedFiniteOrNull(getCharMaxHp(character)),
@@ -470,6 +471,9 @@ export function buildEquipmentSnapshot(character) {
       cursed: Boolean(itemKey?.curseEffectId || itemKey?.curseLocked)
     };
   });
+  const activeRuneIds = getActiveRuneSpellKeys(character)
+    .map(getRuneItemId)
+    .filter(Boolean);
   return {
     equipmentIds: equipment.map(item => item.id),
     equipmentSlots: equipment.map(item => item.slot),
@@ -480,7 +484,8 @@ export function buildEquipmentSnapshot(character) {
     equipmentCoreAffixCounts: equipment.map(item => item.coreAffixCount),
     equipmentSupportAffixCounts: equipment.map(item => item.supportAffixCount),
     equipmentAffixTypes: equipment.flatMap(item => item.affixTypes).slice(0, 24),
-    equipmentCursed: equipment.map(item => item.cursed)
+    equipmentCursed: equipment.map(item => item.cursed),
+    activeRuneIds
   };
 }
 
@@ -697,7 +702,6 @@ function normalizeDefenseBreakdown(breakdown) {
     buffDef: normalize(breakdown.buffDef),
     frontGuardDef: normalize(breakdown.frontGuardDef),
     firstStrikeDefense: normalize(breakdown.firstStrikeDefense),
-    mpWardDef: normalize(breakdown.mpWardDef),
     tempDefDown: normalize(breakdown.tempDefDown)
   };
 }
@@ -712,14 +716,13 @@ function buildDefenseBreakdown(character, finalDef, damage) {
     const equipmentDef = getCharDef(character);
     const vit = getCharVit(character);
     const vitContribution = Math.floor(vit / 4);
-    const mpWardDef = getMpWardDef(character);
     const buffDef = attackType === "flee" ? 0 : getBuffTotal(character, "def");
     const tempDefDown = attackType === "flee" ? 0 : (character.tempDefDown || 0);
     const firstStrikeDefense = attackType === "physical" && character.combatFirstStrikeActive
       ? getCharAffixSum(character, "firstStrikeDefense")
       : 0;
     const frontGuardDef = attackType === "physical"
-      ? Number(finalDef) - (equipmentDef + vitContribution + buffDef + firstStrikeDefense + mpWardDef - tempDefDown)
+      ? Number(finalDef) - (equipmentDef + vitContribution + buffDef + firstStrikeDefense - tempDefDown)
       : 0;
     return {
       // The live formula's baseDef input is the player's effective equipment DEF;
@@ -730,7 +733,6 @@ function buildDefenseBreakdown(character, finalDef, damage) {
       buffDef,
       frontGuardDef,
       firstStrikeDefense,
-      mpWardDef,
       tempDefDown
     };
   } catch {
@@ -1299,7 +1301,6 @@ export function trackDamageReceived(damage) {
     playerHpBefore: boundedFiniteOrNull(damage?.playerHpBefore),
     playerHpAfter: boundedFiniteOrNull(damage?.playerHpAfter),
     playerMp: boundedFiniteOrNull(damage?.playerMp),
-    mpWardActive: Boolean(damage?.mpWardActive),
     isDefending: Boolean(damage?.isDefending),
     guardProfileId: normalizeStableValue(damage?.guardProfileId, SAFE_GUARD_PROFILE_IDS)
   });

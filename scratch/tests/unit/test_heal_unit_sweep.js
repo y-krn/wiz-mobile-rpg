@@ -3,7 +3,7 @@
 process.env.SIM_SEED ||= "483";
 process.env.SIM_SCENARIOS ||= "workshop-complete";
 
-const { createSoloCharacter } = await import("../../../src/state/initial_state.js");
+const { createStartingKitCharacter } = await import("../../../src/state/initial_state.js");
 const { getCharMaxHp } = await import("../../../src/data.js");
 const { getSimulationHealAmount } = await import("../../simulations/sim_depth_material_ev.js");
 
@@ -13,7 +13,7 @@ function check(name, condition) {
 }
 
 function makeState(floor, healPotionAmountOverride = null) {
-  const character = createSoloCharacter("Fighter");
+  const character = createStartingKitCharacter("vanguard");
   return {
     floor,
     party: [character],

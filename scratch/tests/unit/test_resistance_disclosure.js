@@ -11,7 +11,7 @@ import {
   getMonsterCodexKey,
   recordMonsterResistanceDiscovery
 } from "../../../src/state/codex_state.js";
-import { createSoloCharacter } from "../../../src/state/initial_state.js";
+import { createStartingKitCharacter } from "../../../src/state/initial_state.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic/round.js";
 import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.js";
 
@@ -42,7 +42,7 @@ function run() {
   assert.deepEqual(statuses.map(status => status.description), ["ほとんど効かない", "未判明"]);
   assert.deepEqual(describeMonsterResistances(wisp, createMonsterCodexRecord()), []);
 
-  const fighter = createSoloCharacter("Fighter");
+  const fighter = createStartingKitCharacter("vanguard");
   const target = { ...wisp, hp: 1000, maxHp: 1000, buffs: [] };
   const roundState = {
     party: [fighter],
@@ -76,7 +76,7 @@ function run() {
     assert.equal(result.state.codex.monsters[wisp.name].magicResistKnown, false);
     assert.ok(result.state.codex.monsters[wisp.name].observedActions.includes("通常攻撃"));
 
-    const mage = createSoloCharacter("Mage");
+    const mage = createStartingKitCharacter("arcana");
     mage.mp = mage.maxMp = 20;
     const spellState = {
       floor: 1,

@@ -105,213 +105,6 @@ export const createDefaultCurrentRun = () => ({
   recordResult: null
 });
 
-const SOLO_CLASS_PRESETS = [
-  {
-    name: "Arthur",
-    class: "Fighter",
-    level: 1,
-    exp: 0,
-    hp: 20,
-    maxHp: 20,
-    mp: 0,
-    maxMp: 0,
-    str: 15,
-    int: 7,
-    pie: 8,
-    vit: 14,
-    agi: 10,
-    luk: 9,
-    status: "ok",
-    equipment: {
-      weapon: "SHORT_SWORD",
-      shield: "SMALL_SHIELD",
-      armor: "LEATHER_ARMOR",
-      accessory: null,
-      accessory2: null
-    }
-  },
-  {
-    name: "Robin",
-    class: "Thief",
-    level: 1,
-    exp: 0,
-    hp: 15,
-    maxHp: 15,
-    mp: 0,
-    maxMp: 0,
-    str: 10,
-    int: 9,
-    pie: 7,
-    vit: 10,
-    agi: 16,
-    luk: 15,
-    status: "ok",
-    equipment: {
-      weapon: "SHORT_SWORD",
-      shield: "SMALL_SHIELD",
-      armor: "LEATHER_ARMOR",
-      accessory: null,
-      accessory2: null
-    }
-  },
-  {
-    name: "Maria",
-    class: "Priest",
-    level: 1,
-    exp: 0,
-    hp: 14,
-    maxHp: 14,
-    // #267: B5到達時点の残MPが平均1.64しかなく、ボス戦の呪文使用ターンが0.80turn
-    // （必要17.80turnに対し）だった。火力窓を延長するため +6。
-    mp: 13,
-    maxMp: 13,
-    str: 9,
-    int: 10,
-    pie: 15,
-    vit: 11,
-    agi: 9,
-    luk: 10,
-    status: "ok",
-    spells: ["DIOS", "MILWA", "DIURCO", "BADIOS"],
-    equipment: {
-      weapon: "MACE",
-      shield: "SMALL_SHIELD",
-      armor: "ROBE",
-      accessory: null,
-      accessory2: null
-    }
-  },
-  {
-    name: "Ged",
-    class: "Mage",
-    level: 1,
-    exp: 0,
-    // #537: HP順序（戦士 > 盗賊 > 僧侶 ≧ 魔術師）を守り、耐久はpassiveで補う。
-    hp: 14,
-    maxHp: 14,
-    // #267: B5到達時点の残MPが平均2.95、ボス戦の呪文使用ターンが0.96turn だった。+6。
-    mp: 12,
-    maxMp: 12,
-    str: 7,
-    int: 16,
-    pie: 9,
-    vit: 8,
-    agi: 11,
-    luk: 9,
-    status: "ok",
-    spells: ["HALITO", "DUMAPIC"],
-    equipment: {
-      weapon: "WAND",
-      shield: null,
-      armor: "ROBE",
-      accessory: null,
-      accessory2: null
-    }
-  },
-  {
-    name: "Ken",
-    class: "Samurai",
-    level: 1,
-    exp: 0,
-    hp: 18,
-    maxHp: 18,
-    mp: 0,
-    maxMp: 0,
-    str: 14,
-    int: 10,
-    pie: 8,
-    vit: 12,
-    agi: 10,
-    luk: 8,
-    status: "ok",
-    spells: [],
-    equipment: {
-      weapon: "SHORT_SWORD",
-      shield: "SMALL_SHIELD",
-      armor: "LEATHER_ARMOR",
-      accessory: null,
-      accessory2: null
-    }
-  },
-  {
-    name: "Sophia",
-    class: "Bishop",
-    level: 1,
-    exp: 0,
-    hp: 11,
-    maxHp: 11,
-    mp: 3,
-    maxMp: 3,
-    str: 9,
-    int: 12,
-    pie: 12,
-    vit: 10,
-    agi: 9,
-    luk: 9,
-    status: "ok",
-    spells: ["DIOS", "HALITO"],
-    equipment: {
-      weapon: "WAND",
-      shield: null,
-      armor: "ROBE",
-      accessory: null,
-      accessory2: null
-    }
-  },
-  {
-    name: "Kael",
-    class: "Ranger",
-    level: 1,
-    exp: 0,
-    hp: 16,
-    maxHp: 16,
-    mp: 0,
-    maxMp: 0,
-    str: 11,
-    int: 8,
-    pie: 11,
-    vit: 11,
-    agi: 12,
-    luk: 10,
-    status: "ok",
-    spells: [],
-    equipment: {
-      weapon: "SHORT_SWORD",
-      shield: "SMALL_SHIELD",
-      armor: "LEATHER_ARMOR",
-      accessory: null,
-      accessory2: null
-    }
-  },
-  {
-    name: "Hanzo",
-    class: "Ninja",
-    level: 1,
-    exp: 0,
-    hp: 15,
-    maxHp: 15,
-    mp: 0,
-    maxMp: 0,
-    str: 12,
-    int: 8,
-    pie: 8,
-    vit: 12,
-    agi: 12,
-    luk: 12,
-    status: "ok",
-    spells: [],
-    equipment: {
-      weapon: null,
-      shield: null,
-      armor: "NINJA_SUIT",
-      accessory: null,
-      accessory2: null
-    }
-  }
-];
-
-export const SOLO_CLASSES = SOLO_CLASS_PRESETS.map(({ class: className }) => className);
-
 export const STARTING_KITS = Object.freeze([
   Object.freeze({
     id: "vanguard",
@@ -343,20 +136,13 @@ export function getStartingKit(startingKitId) {
   return STARTING_KITS.find(kit => kit.id === startingKitId) || null;
 }
 
-export function createSoloCharacter(className) {
-  const preset = SOLO_CLASS_PRESETS.find(char => char.class === className);
-  if (!preset) return null;
-  return structuredClone(preset);
-}
-
 // Starting kits are the vNext ownership boundary for departure choices. This
 // baseline deliberately has no kit-specific passive, spell list, class growth,
-// or class permission. The registered compatibility class is fixed to Fighter
-// so legacy progression consumers retain their current rules; it is identical
-// for every kit and is not a gameplay choice.
+// or class permission. Six base abilities remain universal inputs to the
+// existing combat and exploration formulas; equipment, Core, and Support own
+// build identity.
 const STARTING_KIT_CHARACTER_BASELINE = Object.freeze({
   name: "冒険者",
-  class: "Fighter",
   level: 1,
   exp: 0,
   hp: 20,
@@ -370,7 +156,6 @@ const STARTING_KIT_CHARACTER_BASELINE = Object.freeze({
   agi: 10,
   luk: 10,
   status: "ok",
-  spells: [],
   mediumState: { mediumKey: null, socketedRunes: [] },
   equipment: {
     weapon: null,

@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
-import { getClassCriticalChance } from "../../../src/rules/class_rules.js";
-import { CLASSES } from "../../../src/data/classes.js";
 import { applySavePayload, createSavePayload } from "../../../src/state/save_payload.js";
 import { migrateSavePayload } from "../../../src/state/save_migrations.js";
 import { state } from "../../../src/state/state_core.js";
@@ -76,15 +74,9 @@ function run(state) {
   }
 }
 
-for (const className of Object.keys(CLASSES).filter(name => name !== "Ninja")) {
-  assert.equal(getClassCriticalChance({ class: className, level: 10 }), 0, `${className} critical chance`);
-}
-assert.equal(getClassCriticalChance({ class: "Ninja", level: 0 }), 0.05, "Ninja base critical chance");
-assert.equal(getClassCriticalChance({ class: "Ninja", level: 10 }), 0.15, "Ninja critical cap");
-
 const ninjaHit = run(createState({ className: "Ninja" }));
-assert.equal(ninjaHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, true, "Ninja non-boss critical");
-assert.equal(ninjaHit.state.combatFormulaTelemetry.physicalPlayerHits[0].criticalChance, 0.15);
+assert.equal(ninjaHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false, "legacy class must not grant critical");
+assert.equal(ninjaHit.state.combatFormulaTelemetry.physicalPlayerHits[0].criticalChance, null);
 
 const bossHit = run(createState({ className: "Ninja", targetOverrides: { isBoss: true, canReceiveCritical: false } }));
 assert.equal(bossHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false, "boss critical exclusion");
@@ -146,7 +138,7 @@ assert.equal(legacyBossPayload.combatState.monsters[0].canReceiveCritical, undef
 
 const legacyNonBossRound = runLoadedLegacyCombat();
 assert.equal(legacyNonBossRound.state.combatState.monsters[0].canReceiveCritical, true, "legacy non-boss is backfilled as critical-eligible");
-assert.equal(legacyNonBossRound.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, true, "legacy Ninja non-boss remains critical-eligible");
-assert.equal(legacyNonBossRound.state.combatFormulaTelemetry.physicalPlayerHits[0].criticalChance, 0.15);
+assert.equal(legacyNonBossRound.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false, "legacy class must not grant critical");
+assert.equal(legacyNonBossRound.state.combatFormulaTelemetry.physicalPlayerHits[0].criticalChance, null);
 
 console.log("Critical common mechanism tests passed.");

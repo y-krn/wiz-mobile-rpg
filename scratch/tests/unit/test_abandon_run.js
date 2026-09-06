@@ -32,13 +32,13 @@ global.document = {
 global.window = { innerWidth: 390, innerHeight: 844, addEventListener: () => {} };
 Object.defineProperty(global, "navigator", { value: { userAgent: "node" }, configurable: true });
 
-const { state, initNewGame, createDefaultCurrentRun, createSoloCharacter, createDefaultCodex } = await import("../../../src/state.js");
+const { state, initNewGame, createDefaultCurrentRun, createStartingKitCharacter, createDefaultCodex } = await import("../../../src/state.js");
 const { createSavePayload, applySavePayload } = await import("../../../src/state/save_payload.js");
 const { triggerRunResult } = await import("../../../src/result.js");
 
 function setupRun() {
   initNewGame();
-  state.party = [createSoloCharacter("Fighter")];
+  state.party = [createStartingKitCharacter("vanguard")];
   state.currentRun = createDefaultCurrentRun();
   state.currentRun.characterClass = "Fighter";
   state.currentRun.deepestFloor = 5;

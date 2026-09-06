@@ -6,17 +6,19 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createRng } from "../../src/seed_rng.js";
-import { createDefaultCodex, createDefaultCurrentRun, createSoloCharacter } from "../../src/state/initial_state.js";
+import { createDefaultCodex, createDefaultCurrentRun, createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { createDefaultRecords } from "../../src/state/records_state.js";
 import { runCombatRoundCalculation } from "../../src/combat_logic/round.js";
 import { chooseAutoCombatAction } from "../../src/combat_logic/auto_action.js";
 import { MONSTERS, MONSTER_STATUS_ATTACK_PATTERNS } from "../../src/data/monsters.js";
 import { SPELLS } from "../../src/data/spells.js";
+import { RUNES } from "../../src/data/magic.js";
 import { ITEMS } from "../../src/data/items.js";
 import { CORE_AFFIXES, SUPPORT_AFFIXES } from "../../src/data/affixes.js";
 import { scaleEnemyForDepth } from "../../src/rules/depth_scaling.js";
 import { getCharMaxHp, getCharMaxMp } from "../../src/rules/character_stats.js";
 import { getSpellPayment, getCoreLogText } from "../../src/rules/affix_rules.js";
+import { getActiveSpellKeys, getMediumRuneCapacity } from "../../src/rules/magic_rules.js";
 import { hasStatusEffect, STATUS_EFFECT_IDS } from "../../src/combat_logic/status_effects.js";
 import { readSimScopeDeclaration, printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
@@ -187,17 +189,21 @@ function createFixtureEquipment(build, slot, definition) {
 export function createBuildCharacter(buildId) {
   const build = BUILD_DEFINITIONS.find(candidate => candidate.id === buildId);
   if (!build) throw new Error(`unknown build: ${buildId}`);
-  const character = createSoloCharacter("Mage");
+  const character = createStartingKitCharacter("arcana");
   character.equipment = {};
   Object.entries(build.equipment).forEach(([slot, definition]) => {
     character.equipment[slot] = createFixtureEquipment(build, slot, definition);
   });
-  character.spells = [...build.spells];
+  const runeIds = build.spells.map(spellName => RUNES[`RUNE_${spellName}`]?.id).filter(Boolean);
   build.spells.forEach(spellName => {
-    if (!SPELLS[spellName] || SPELLS[spellName].type !== "mage") {
-      throw new Error(`${build.id}: ${spellName} is not a production Mage spell`);
+    if (!SPELLS[spellName] || !RUNES[`RUNE_${spellName}`]) {
+      throw new Error(`${build.id}: ${spellName} is not a production Rune spell`);
     }
   });
+  character.mediumState = {
+    mediumKey: character.equipment.weapon.instanceId,
+    socketedRunes: runeIds.slice(0, getMediumRuneCapacity(character))
+  };
   character.hp = getCharMaxHp(character);
   character.mp = getCharMaxMp(character);
   return character;
@@ -543,14 +549,14 @@ function observeRound(mechanisms, action, logs) {
 }
 
 function hasOffensiveSpellOpportunity(character) {
-  return character.spells.some(spellName => {
+  return getActiveSpellKeys(character).some(spellName => {
     const spell = SPELLS[spellName];
     return spell?.target?.includes("enemy");
   });
 }
 
 function hasCastableOffensiveSpell(character) {
-  return character.spells.some(spellName => {
+  return getActiveSpellKeys(character).some(spellName => {
     const spell = SPELLS[spellName];
     return spell?.target?.includes("enemy") && getSpellPayment(character, spell.cost).canCast;
   });
@@ -836,7 +842,7 @@ export function runEncounterSample({
       if (
         action.type === "fight" &&
         hasSpellOpportunity &&
-        characterBefore.spells.every(spellName => {
+        getActiveSpellKeys(characterBefore).every(spellName => {
           const spell = SPELLS[spellName];
           return !spell?.target?.includes("enemy") || !getSpellPayment(characterBefore, spell.cost).canCast;
         })
@@ -1661,7 +1667,7 @@ export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, prove
       label: build.label,
       className: "Mage",
       expressible: true,
-      spells: [...build.spells],
+      activeSpellKeys: getActiveSpellKeys(createBuildCharacter(build.id)),
       equipment: structuredClone(build.equipment),
       coreIds: Object.values(build.equipment).map(item => item.coreId).filter(Boolean),
       supportIds: Object.values(build.equipment).flatMap(item => (item.supports || []).map(support => support.id)),

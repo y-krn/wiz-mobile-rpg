@@ -1,4 +1,3 @@
-import { getClassJpName } from "../data.js";
 import { DEATH_TYPE_LABELS, getStartingKit, summarizeDeathLogs } from "../state.js";
 
 const ACHIEVEMENT_LABELS = {
@@ -37,9 +36,7 @@ function runNumber(run, index, totalRuns) {
 
 function classLabel(run) {
   if (run?.startingKit) return getStartingKit(run.startingKit)?.name || "開始キット";
-  return run?.className || run?.class
-    ? getClassJpName(run.className || run.class)
-    : "冒険者";
+  return "冒険者";
 }
 
 function decisionText(run) {

@@ -22,7 +22,8 @@ function createCombatState(target = {}) {
   const caster = {
     name: "Mage", class: "Mage", level: 5, hp: 100, maxHp: 100, mp: 10, maxMp: 10,
     str: 10, int: 10, pie: 10, vit: 10, agi: 10, luk: 10, status: "ok",
-    spells: ["VULNERA", "MAHALITO"], equipment: { weapon: null, shield: null, armor: null, accessory: null }
+    equipment: { weapon: "ARCH_WAND", shield: null, armor: null, accessory: null },
+    mediumState: { mediumKey: "ARCH_WAND", socketedRunes: ["RUNE_VULNERA", "RUNE_MAHALITO", "RUNE_LAHALITO"] }
   };
   return {
     party: [caster],
@@ -68,21 +69,21 @@ Math.random = originalRandom;
 assert.equal(hasStatusEffect(spellTarget, STATUS_EFFECT_IDS.VULNERABLE), false);
 assert.equal(spellState.simTelemetry.vulnerable.consumed, 1);
 assert.equal(spellState.simTelemetry.vulnerable.qualifyingHitTypes.spell, 1);
-assert.equal(spellState.combatFormulaTelemetry.spellHits.at(-1).damage, 45);
-assert.equal(spellState.combatFormulaTelemetry.spellHits.at(-1).vulnerableDamageContribution, 9);
-assert.match(spellLogs.map(entry => entry.msg).join("\n"), /脆弱で\+9/);
+assert.equal(spellState.combatFormulaTelemetry.spellHits.at(-1).damage, 38);
+assert.equal(spellState.combatFormulaTelemetry.spellHits.at(-1).vulnerableDamageContribution, 8);
+assert.match(spellLogs.map(entry => entry.msg).join("\n"), /脆弱で\+8/);
 
 const areaState = createCombatState();
-areaState.party[0].spells.push("LAHALITO");
+areaState.party[0].mediumState.socketedRunes.push("RUNE_LAHALITO");
 const areaTarget = areaState.combatState.monsters[0];
 applyStatusEffect(areaTarget, STATUS_EFFECT_IDS.VULNERABLE, { remainingTurns: 3, source: "VULNERA" });
 const areaRandom = Math.random;
 Math.random = () => 0;
 resolvePlayerSpell(areaState.party[0], { spellName: "LAHALITO", targetIdx: -1 }, areaState, [areaTarget], []);
 Math.random = areaRandom;
-assert.equal(areaTarget.hp, 977);
+assert.equal(areaTarget.hp, 981);
 assert.equal(areaState.combatFormulaTelemetry.spellHits.at(-1).vulnerableConsumed, true);
-assert.equal(areaState.combatFormulaTelemetry.spellHits.at(-1).vulnerableDamageContribution, 5);
+assert.equal(areaState.combatFormulaTelemetry.spellHits.at(-1).vulnerableDamageContribution, 4);
 
 const physicalState = createCombatState({
   statusEffects: { vulnerable: { id: "vulnerable", remainingTurns: 3, stacks: 1, source: "VULNERA" } }

@@ -1,6 +1,6 @@
 import { EVENT_SUBMENU_TYPES, ITEM_SUBMENU_TYPES } from "../constants/events.js";
 import { SPELLS } from "../data/spells.js";
-import { isSpellcaster } from "../rules/class_rules.js";
+import { isSpellcaster } from "../rules/magic_rules.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
 import { getCharMaxMp } from "../rules/character_stats.js";
 

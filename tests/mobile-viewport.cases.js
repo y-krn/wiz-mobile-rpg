@@ -138,9 +138,9 @@ for (const viewport of [
     await page.goto('/');
     await page.evaluate(async () => {
       localStorage.clear();
-      const { state, createSoloCharacter } = await import('/src/state.js');
+      const { state, createStartingKitCharacter } = await import('/src/state.js');
       const { executeEnterDungeon } = await import('/src/movement.js');
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.gameState = 'town';
       executeEnterDungeon(1);
     });

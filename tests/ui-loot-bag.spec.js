@@ -11,7 +11,7 @@ for (const viewport of [
     await page.waitForLoadState('networkidle');
 
     const result = await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
       const { renderItemInventory } = await import('/src/menu/explore_actions.js');
       const { renderChestMenu } = await import('/src/chest/chest_view.js');
@@ -24,7 +24,7 @@ for (const viewport of [
         rarity: 'rare', level: 1, identified: false, knowledgeStage: 'discovery',
         tags: ['blade'], hintTags: ['blade'], observedHintTags: [], affixes: [],
       };
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.currentRun = {
         townInventory: [townItem],
         unbankedObjectLoot: [{ id: 'loot-dungeon-bag-item', item: dungeonItem }],
@@ -75,9 +75,9 @@ test('trial knowledge is qualitative and does not expose an exact hidden affix v
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
-    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { openEquipOverlay } = await import('/src/equip.js');
-    state.party = [createSoloCharacter('Fighter')];
+    state.party = [createStartingKitCharacter('vanguard')];
     state.inventory = [{
       kind: 'equipment', instanceId: 'trial-hidden-value', baseId: 'SHORT_SWORD',
       rarity: 'rare', level: 1, identified: false, knowledgeStage: 'trial',
@@ -98,14 +98,14 @@ test('equipped dungeon gear keeps its unconfirmed ownership badge @smoke', async
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
-    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { openEquipOverlay } = await import('/src/equip.js');
     const dungeonItem = {
       kind: 'equipment', instanceId: 'equipped-dungeon-unconfirmed', baseId: 'SHORT_SWORD',
       rarity: 'rare', level: 1, identified: false, knowledgeStage: 'discovery',
       tags: ['blade'], hintTags: ['blade'], observedHintTags: [], affixes: [],
     };
-    state.party = [createSoloCharacter('Fighter')];
+    state.party = [createStartingKitCharacter('vanguard')];
     state.party[0].equipment.weapon = dungeonItem;
     state.currentRun = {
       townInventory: [],

@@ -48,7 +48,7 @@ export function recordVulnerableEvent(state, event, target, metadata = {}) {
 
   trackVulnerableEvent(event, {
     floor: state?.floor,
-    character: state?.party?.[0],
+     character: state?.party?.[0],
     enemyId: target?.name,
     isBoss: Boolean(target?.isBoss || state?.combatState?.isBoss),
     isMidboss: Boolean(target?.isMidboss || state?.combatState?.isMidboss),

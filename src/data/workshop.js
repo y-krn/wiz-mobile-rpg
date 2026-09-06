@@ -8,8 +8,7 @@ export const WORKSHOP_CATEGORIES = Object.freeze({
   milestoneBuild: "深層ビルド",
   abyssBuild: "深淵ビルド",
   permanentStats: "恒久ステータス",
-  convenience: "利便",
-  classes: "クラス"
+  convenience: "利便"
 });
 
 const WORKSHOP_BASE_NODES = [
@@ -130,10 +129,7 @@ export const RETIRED_WORKSHOP_NODES = Object.freeze([
   { id: "kit_return_wing", costs: [{ "黒角": 4, "竜鱗": 1 }] }
 ]);
 
-// 全クラス開放済み。将来は同じshapeのnode追加だけで拡張できる。
-export const WORKSHOP_CLASS_NODES = Object.freeze([]);
-
-export const WORKSHOP_NODES = Object.freeze([...WORKSHOP_BASE_NODES, ...WORKSHOP_CLASS_NODES]);
+export const WORKSHOP_NODES = Object.freeze([...WORKSHOP_BASE_NODES]);
 
 export const WORKSHOP_NODE_BY_ID = new Map(WORKSHOP_NODES.map(node => [node.id, node]));
 

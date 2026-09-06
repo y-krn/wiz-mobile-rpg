@@ -9,10 +9,10 @@ const VIEWPORTS = [
 
 async function seedPortalRun(page) {
   await page.evaluate(async () => {
-    const { createDefaultCurrentRun, createSoloCharacter, state } = await import('/src/state.js');
+    const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
     const { openSubmenu } = await import('/src/navigation.js');
 
-    state.party = [createSoloCharacter('Fighter')];
+    state.party = [createStartingKitCharacter('vanguard')];
     state.party[0].hp = 12;
     state.party[0].mp = 0;
     state.currentRun = createDefaultCurrentRun();

@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { applySavePayload, createSavePayload } from "../../../src/state/save_payload.js";
 import { SAVE_PAYLOAD_FIELDS, SAVE_VERSION, migrateSavePayload, normalizeSavePayload } from "../../../src/state/save_migrations.js";
-import { SOLO_CLASSES, createDefaultCurrentRun, createSoloCharacter, initNewGame, loadGame, state } from "../../../src/state.js";
+import { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, loadGame, state } from "../../../src/state.js";
 import { menuContext, menuHistory, openGuardedSubmenu } from "../../../src/navigation.js";
 import { equipState } from "../../../src/equip.js";
 import { EVENT_TYPES } from "../../../src/data.js";
@@ -27,20 +27,21 @@ function check(label, test) {
   }
 }
 
-check("all class choices create one fresh Lv1 character", () => {
-  assert.equal(SOLO_CLASSES.length, 8);
-  for (const className of SOLO_CLASSES) {
-    const character = createSoloCharacter(className);
-    assert.equal(character.class, className);
+check("all starting kits create one fresh Lv1 character", () => {
+  for (const kitId of ["vanguard", "scout", "devotion", "arcana"]) {
+    const character = createStartingKitCharacter(kitId);
+    assert.equal(character.startingKit, kitId);
     assert.equal(character.level, 1);
     assert.equal(character.exp, 0);
     assert.equal(character.status, "ok");
+    assert.equal(Object.hasOwn(character, "class"), false);
+    assert.equal(Object.hasOwn(character, "spells"), false);
   }
-  assert.notStrictEqual(createSoloCharacter("Fighter"), createSoloCharacter("Fighter"));
+  assert.notStrictEqual(createStartingKitCharacter("vanguard"), createStartingKitCharacter("vanguard"));
 });
 
 check("solo save/load roundtrip preserves one character and stable screen", () => {
-  state.party = [createSoloCharacter("Mage"), createSoloCharacter("Fighter")];
+  state.party = [createStartingKitCharacter("arcana"), createStartingKitCharacter("vanguard")];
   state.party[0].hp = 4;
   state.gameState = "submenu";
   state.metaMaterials = { "獣の牙": 7, "竜鱗": 2 };
@@ -96,7 +97,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   state.currentRun = null;
   applySavePayload(JSON.parse(JSON.stringify(payload)));
   assert.equal(state.party.length, 1);
-  assert.equal(state.party[0].class, "Mage");
+  assert.equal(Object.hasOwn(state.party[0], "class"), false);
   assert.equal(state.party[0].hp, 4);
   assert.equal(state.gameState, "town");
   assert.deepEqual(state.metaMaterials, { "獣の牙": 7, "竜鱗": 2 });
@@ -149,7 +150,7 @@ check("save/load preserves a quest item after 20 regular inventory items", () =>
 check("partial current-version payloads receive safe defaults", () => {
   const partialPayload = {
     version: SAVE_VERSION,
-    party: [createSoloCharacter("Thief")],
+    party: [createStartingKitCharacter("scout")],
     gameState: "equip_overlay",
     transitioning: true,
     dumapicTurns: 30,
@@ -160,7 +161,7 @@ check("partial current-version payloads receive safe defaults", () => {
 
   applySavePayload(migrateSavePayload(partialPayload));
 
-  assert.equal(state.party[0].class, "Thief");
+  assert.equal(Object.hasOwn(state.party[0], "class"), false);
   assert.equal(state.gameState, "explore");
   assert.equal(state.floor, 1);
   assert.equal(state.maps.length, 5);
@@ -344,7 +345,7 @@ check("non-active malformed visited maps default to safe grids", () => {
 check("save bounds normalize floor and coordinates to a traversable cell", () => {
   initNewGame();
   state.currentRun = null;
-  state.party = [createSoloCharacter("Fighter")];
+  state.party = [createStartingKitCharacter("vanguard")];
   const basePayload = createSavePayload();
   const start = basePayload.maps[0]
     .flatMap((row, y) => row.map((cell, x) => cell.type === "stairs-up" ? { x, y } : null))
@@ -460,13 +461,13 @@ check("malformed direct payloads fail before state mutation", () => {
 check("malformed primary save falls back to a valid backup", () => {
   saveValues.clear();
   const backupPayload = createSavePayload();
-  backupPayload.party = [createSoloCharacter("Bishop")];
+  backupPayload.party = [createStartingKitCharacter("devotion")];
   saveValues.set("mobile_wiz_rpg_autosave", "{not-json");
   saveValues.set("mobile_wiz_rpg_backup", JSON.stringify(backupPayload));
 
   loadGame();
 
-  assert.equal(state.party[0].class, "Bishop");
+  assert.equal(Object.hasOwn(state.party[0], "class"), false);
 });
 
 check("legacy event cooldown field is ignored during load", () => {
@@ -529,15 +530,17 @@ check("fixed spring and tablet cells still open their facilities", () => {
   }
 });
 
-check("legacy saves are rejected instead of migrated", () => {
-  assert.throws(
-    () => migrateSavePayload({ version: SAVE_VERSION - 1 }),
-    error => error?.name === "IncompatibleSaveVersionError"
-  );
+check("supported legacy saves are migrated without class fields", () => {
+  const migrated = migrateSavePayload({
+    version: SAVE_VERSION - 1,
+    party: [{ class: "Mage", spells: ["HALITO"], level: 1, hp: 20, maxHp: 20 }]
+  });
+  assert.equal(Object.hasOwn(migrated.party[0], "class"), false);
+  assert.equal(Object.hasOwn(migrated.party[0], "spells"), false);
 });
 
 check("floor transition applies provisional 15 percent solo heal", () => {
-  state.party = [createSoloCharacter("Fighter")];
+  state.party = [createStartingKitCharacter("vanguard")];
   state.party[0].hp = 10;
   state.logs = [];
   const healed = applyFloorTransitionHeal();
@@ -552,7 +555,7 @@ check("下り階段サブメニュー中のセーブはexploreに畳まれる", 
     getElementById: () => ({ style: {}, textContent: "", className: "", innerHTML: "" })
   };
   try {
-    state.party = [createSoloCharacter("Fighter")];
+    state.party = [createStartingKitCharacter("vanguard")];
     state.floor = 3;
     state.gameState = "explore";
     state.currentRun = createDefaultCurrentRun();

@@ -1,5 +1,4 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
-import { getClassPassiveBonus } from "./class_rules.js";
 import { formatAffixText } from "../data/affixes.js";
 import {
   getKnowledgeHintTags,
@@ -106,7 +105,7 @@ export function getCharAffixSum(char, affixType) {
       sum += 30;
     }
   }
-  const total = sum + getClassPassiveBonus(char, affixType);
+  const total = sum;
   const caps = {
     poisonWard: 75,
     firstStrike: 15,
@@ -188,7 +187,6 @@ export function getItemData(itemOrKey) {
         statsBonus: {},
         trapBonus: 0,
         affixBonus: {},
-        classes: base.classes,
         type: base.type
       };
     }
@@ -329,7 +327,6 @@ export function getItemData(itemOrKey) {
       mpBonus,
       statsBonus,
       trapBonus,
-      classes: base.classes,
       type: base.type
     };
   }

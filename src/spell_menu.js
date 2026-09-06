@@ -1,6 +1,7 @@
 import { state, saveAutosave, addLog } from "./state.js";
 import { getScreenViewState, getUsableSpellKeys, isUsableSpellForActor } from "./state/view_state.js";
-import { isSpellcaster, SPELLS, getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp, getCharMaxMp } from "./data.js";
+import { SPELLS, getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp, getCharMaxMp } from "./data.js";
+import { isSpellcaster } from "./rules/magic_rules.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";

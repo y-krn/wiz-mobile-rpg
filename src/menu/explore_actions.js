@@ -2,7 +2,8 @@ import { state, initNewGame, saveAutosave, addLog, markMapChanged, recordCharDea
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getItemData, getItemBaseId, getPartyMaxAffix, getCharMaxMp, DX, DY, DIR_NAMES } from "../data.js";
+import { getItemData, getItemBaseId, getPartyMaxAffix, getCharMaxMp, DX, DY, DIR_NAMES } from "../data.js";
+import { isSpellcaster } from "../rules/magic_rules.js";
 import { triggerRunResult } from "../result.js";
 import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getCurrentExplorationCell, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
 import { completeCampEntry, getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";

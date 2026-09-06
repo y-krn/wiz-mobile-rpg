@@ -1,5 +1,5 @@
 import { state, saveGame, saveAutosave, addLog } from "../state.js";
-import { getClassJpName, getItemBaseId, getItemData } from "../data.js";
+import { getItemBaseId, getItemData } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
 import { getFloorLabel } from "../data/floor_themes.js";
@@ -189,10 +189,8 @@ function getRecordHtml(run) {
   const updateLabels = [...new Set([
     ...(result.updates || []),
     ...(result.milestones || []).map(id => ACHIEVEMENT_LABELS[id] || id)
-  ])].map(update => update === `${result.className}最深`
-    ? `${getClassJpName(result.className)}最深`
-    : update);
-  const hasDepthRecord = (result.updates || []).some(update => update === "最深到達記録" || update === "撤退最深" || update === "死亡最深" || update === `${result.className}最深`);
+  ])];
+  const hasDepthRecord = (result.updates || []).some(update => update === "最深到達記録" || update === "撤退最深" || update === "死亡最深");
   return `
     <div class="result-record-new" role="status" aria-live="polite">
       <span class="result-record-kicker">${hasDepthRecord ? "NEW DEPTH RECORD" : "ADVENTURE RECORD"}</span>

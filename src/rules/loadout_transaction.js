@@ -26,8 +26,7 @@ function cloneCharacter(character) {
     equipment,
     mediumState: character.mediumState && typeof character.mediumState === "object"
       ? { ...character.mediumState, socketedRunes: [...(character.mediumState.socketedRunes || [])] }
-      : character.mediumState,
-    spells: Array.isArray(character.spells) ? [...character.spells] : character.spells
+      : character.mediumState
   };
 }
 
@@ -66,7 +65,7 @@ function getDraftActor(draft, actorIdx) {
 }
 
 function normalizeDraftActor(character) {
-  if (!character?.startingKit) return character;
+  if (!character) return character;
   syncMediumState(character);
   const maxMp = Math.max(0, getCharMaxMp(character));
   if (Number.isFinite(character.mp)) character.mp = Math.min(character.mp, maxMp);

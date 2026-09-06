@@ -23,7 +23,7 @@ for (const vp of VIEWPORTS) {
     expect(started).toEqual({ floor: 5, startFloor: 5, count: 1 });
 
     await page.evaluate(async () => {
-      const { createDefaultCurrentRun, createSoloCharacter, state } = await import('/src/state.js');
+      const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
       const { revealEquipmentOnEquip } = await import('/src/systems/identification.js');
       const { openSubmenu } = await import('/src/navigation.js');
       const cursed = {
@@ -32,7 +32,7 @@ for (const vp of VIEWPORTS) {
         affixes: [], unidentifiedName: 'ショートソード（未鑑定）',
       };
       revealEquipmentOnEquip(cursed);
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.party[0].equipment.weapon = cursed;
       state.currentRun = createDefaultCurrentRun();
       state.currentRun.startFloor = 5;

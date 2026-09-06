@@ -56,14 +56,14 @@ test('Canceled combat choices do not emit decision telemetry @e2e @smoke', async
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
 
   const result = await page.evaluate(async () => {
-    const { state, createSoloCharacter } = await import('/src/state.js');
+    const { state, createStartingKitCharacter } = await import('/src/state.js');
     const { startCombat, selectCombatAction, cancelCombatAction } = await import('/src/combat.js');
     const { combatCallbacks, combatSelection } = await import('/src/combat_ui/combat_state.js');
     const { __setTelemetryClientForTests, trackRunStart } = await import('/src/telemetry.js');
 
     const events = [];
     __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
-    state.party = [state.party[0], createSoloCharacter('Mage')];
+    state.party = [state.party[0], createStartingKitCharacter('arcana')];
     trackRunStart(state.currentRun, state.party[0], state);
     startCombat(false, false);
     combatSelection.charIdx = 0;
@@ -109,9 +109,9 @@ for (const vp of COMBAT_OVERLAY_VIEWPORTS) {
     await expect(page.locator('#btn-town-dungeon')).toBeVisible();
 
     await page.evaluate(async () => {
-      const { state, createSoloCharacter } = await import('/src/state.js');
+      const { state, createStartingKitCharacter } = await import('/src/state.js');
       const { startCombat } = await import('/src/combat.js');
-      state.party = [createSoloCharacter('Priest')];
+      state.party = [createStartingKitCharacter('devotion')];
       state.inventory = ['HEAL_POTION'];
       state.gameState = 'explore';
       state.floor = 1;

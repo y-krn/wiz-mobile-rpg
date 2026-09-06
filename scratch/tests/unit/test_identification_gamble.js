@@ -150,8 +150,7 @@ test("鑑定割引は0%/上限50%と中間値のrngで粉消費を分岐する",
   assert.equal(maxDiscountHolder.identifyTickets, 1);
 
   const combinedCharacter = characterWithIdentifyDiscount({
-    className: "Bishop",
-    affixValue: 15
+    affixValue: 35
   });
   assert.equal(getCharAffixSum(combinedCharacter, "identifyDiscount"), 35);
 

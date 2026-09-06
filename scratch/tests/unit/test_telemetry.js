@@ -38,7 +38,6 @@ import {
   trackRunStart
 } from "../../../src/telemetry.js";
 import { recordReceivedDamage } from "../../../src/combat_logic/damage.js";
-import { getMpWardDef } from "../../../src/combat_logic/mp_ward.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic/round.js";
 import { resolvePlayerItem } from "../../../src/combat_logic/item_resolution.js";
 
@@ -724,7 +723,7 @@ check("combat start joins player and equipment snapshots without duplicating the
   assert.equal(damage.equipmentDef, 3);
   assert.equal(damage.baseDef, 3);
   assert.equal(damage.vitContribution, 2);
-  assert.equal(damage.mpWardDef, 1);
+  assert.equal(Object.hasOwn(damage, "mpWardDef"), false);
   assert.equal(Object.hasOwn(damage, "equipmentIds"), false);
   assert.equal(Object.hasOwn(damage, "equipmentAffixTypes"), false);
 });
@@ -1248,7 +1247,7 @@ check("runtime correlation IDs do not consume Math.random", () => {
   assert.equal(randomCalls, 0);
 });
 
-check("damage telemetry matches the live MP ward formula at zero and nonzero MP", () => {
+check("damage telemetry omits the removed class MP ward", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
   trackRunStart(run, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
@@ -1260,15 +1259,13 @@ check("damage telemetry matches the live MP ward formula at zero and nonzero MP"
   recordReceivedDamage({ floor: 1 }, activeMp, "ゴブリン A", 2, 2, 12, { attackType: "physical", finalDef: 2 });
 
   const damageEvents = events.filter(event => event.name === "damage_received");
-  assert.equal(damageEvents[0].properties.mpWardActive, getMpWardDef(emptyMp) > 0);
-  assert.equal(damageEvents[1].properties.mpWardActive, getMpWardDef(activeMp) > 0);
-  assert.equal(damageEvents[0].properties.mpWardActive, false);
-  assert.equal(damageEvents[1].properties.mpWardActive, true);
+  assert.equal(Object.hasOwn(damageEvents[0].properties, "mpWardActive"), false);
+  assert.equal(Object.hasOwn(damageEvents[1].properties, "mpWardActive"), false);
   assert.equal(damageEvents[0].properties.equipmentDef, 0);
   assert.equal(damageEvents[0].properties.vitContribution, 2);
   assert.equal(damageEvents[0].properties.buffDef, 0);
-  assert.equal(damageEvents[0].properties.mpWardDef, 0);
-  assert.equal(damageEvents[1].properties.mpWardDef, 1);
+  assert.equal(Object.hasOwn(damageEvents[0].properties, "mpWardDef"), false);
+  assert.equal(Object.hasOwn(damageEvents[1].properties, "mpWardDef"), false);
 });
 
 check("telemetry lifecycle preserves a fixed random sequence", () => {

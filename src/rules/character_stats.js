@@ -155,7 +155,7 @@ export function getCharMaxMp(char) {
     });
   }
   // MP 0は非術者の正当な容量なので、負値だけを0へ戻す。
-  const mediumBonus = char.startingKit ? getMediumMaxMpBonus(char) : 0;
+  const mediumBonus = getMediumMaxMpBonus(char);
   return Math.max(0, char.maxMp + bonus + mediumBonus);
 }
 
@@ -190,8 +190,6 @@ export function getCharWeaponAtk(char) {
   const wpId = char.equipment.weapon;
   if (wpId) {
     atk += getEquippedItemData(char, wpId)?.atk || 0;
-  } else if (char.class === "Ninja" && !char.startingKit) {
-    atk += 3 * char.level;
   }
   
   if (char.equipment) {
@@ -292,8 +290,8 @@ export function applyPhysicalResistance(rawDamage, resistance = 0) {
 
 // Keep the physical formula in one place for combat and static equipment
 // comparison. Weapon and attack-buff inputs are already in effective units;
-// context-dependent inputs (rolls, target defense, target physResist, and
-// class modifiers) stay with the caller.
+// context-dependent inputs (rolls, target defense, and target physResist) stay
+// with the caller.
 export function calculatePhysicalAttackRawFormula({
   weaponAtk = 0,
   buffAtk = 0,

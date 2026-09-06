@@ -5,7 +5,7 @@ test('Incapacitated combatants advance the round without exposing action control
   await page.waitForLoadState('networkidle');
 
   const result = await page.evaluate(async () => {
-    const { createSoloCharacter, initNewGame, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');
     const { applyStatusEffect, STATUS_EFFECT_IDS } = await import('/src/combat_logic/status_effects.js');
     const { advanceActionSelection, selectCombatAction, combatSelection } = await import('/src/combat.js');
@@ -14,7 +14,7 @@ test('Incapacitated combatants advance the round without exposing action control
     initNewGame();
     const resetCombat = (statuses, isAuto = false) => {
       state.party = statuses.map((status, index) => {
-        const actor = createSoloCharacter(index === 0 ? 'Fighter' : 'Priest');
+        const actor = createStartingKitCharacter(index === 0 ? 'vanguard' : 'devotion');
         actor.hp = 99999;
         if (['sleep', 'paralyze', 'paralyzed'].includes(status)) {
           const effectId = status === 'sleep' ? STATUS_EFFECT_IDS.SLEEP : STATUS_EFFECT_IDS.PARALYZED;
@@ -90,7 +90,7 @@ test('Incapacitated combatants advance the round without exposing action control
       transitioning: true,
     });
   }
-  expect(result.mixedBefore).toBe('Maria の行動を選択：');
+  expect(result.mixedBefore).toBe('冒険者 の行動を選択：');
   expect(result.mixedAfterSelection).toEqual({
     actionCount: 1,
     actorIdx: 1,

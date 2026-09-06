@@ -12,7 +12,7 @@ import { CRAFT_RECIPES } from "../../../src/craft.js";
 import { ENCOUNTER_POOLS } from "../../../src/data/encounters.js";
 import { MONSTERS } from "../../../src/data/monsters.js";
 import { checkCharLevelUp } from "../../../src/data.js";
-import { createSoloCharacter } from "../../../src/state.js";
+import { createStartingKitCharacter } from "../../../src/state.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
 import {
   canMeleeTargetEnemy,
@@ -107,7 +107,7 @@ import {
     // 3. reflectMagic (魔法反射) のテスト
     const testMagicReflect = () => {
       const party = [
-        { name: "魔術師", class: "Mage", status: "ok", hp: 50, maxHp: 50, mp: 10, level: 1, equipment: { weapon: "WAND" }, spells: ["HALITO"], str: 8, int: 15, pie: 8, vit: 10, agi: 12, luk: 8, buffs: [] }
+        { name: "魔術師", class: "Mage", status: "ok", hp: 50, maxHp: 50, mp: 10, level: 1, equipment: { weapon: "WAND" }, mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_HALITO"] }, str: 8, int: 15, pie: 8, vit: 10, agi: 12, luk: 8, buffs: [] }
       ];
       const monsters = [
         { name: "呪いの小鏡", hp: 30, maxHp: 30, atk: 5, def: 1, traits: ["reflectMagic"], buffs: [] }
@@ -192,7 +192,7 @@ import {
     // 6. silence (沈黙) のテスト
     const testSilence = () => {
       const party = [
-        { name: "魔術師", class: "Mage", status: "ok", hp: 50, maxHp: 50, mp: 10, level: 1, equipment: { weapon: "WAND" }, spells: ["HALITO"], str: 8, int: 15, pie: 8, vit: 10, agi: 12, luk: 8, silenceTurns: 2, buffs: [{ type: "silence", value: 1, turns: 2 }] }
+        { name: "魔術師", class: "Mage", status: "ok", hp: 50, maxHp: 50, mp: 10, level: 1, equipment: { weapon: "WAND" }, mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_HALITO"] }, str: 8, int: 15, pie: 8, vit: 10, agi: 12, luk: 8, silenceTurns: 2, buffs: [{ type: "silence", value: 1, turns: 2 }] }
       ];
       const monsters = [
         { name: "コボルトの斥候", hp: 20, maxHp: 20, atk: 5, def: 1, traits: [], buffs: [] }
@@ -387,10 +387,10 @@ import {
     console.log("=== START ENEMY ROW SYSTEM VERIFICATION ===");
 
     // 1. Create a party
-    const arthur = createSoloCharacter("Fighter");
-    const robin = createSoloCharacter("Thief");
-    const maria = createSoloCharacter("Priest");
-    const ged = createSoloCharacter("Mage");
+    const arthur = createStartingKitCharacter("vanguard");
+    const robin = createStartingKitCharacter("scout");
+    const maria = createStartingKitCharacter("devotion");
+    const ged = createStartingKitCharacter("arcana");
     const party = [arthur, robin, maria, ged];
 
     // Base State setup
@@ -437,6 +437,8 @@ import {
     // Maria (Priest) casts HALITO (single target damage) on targetIdx: 1.
     // Give Maria enough MP
     stateB.party[2].mp = 10;
+    stateB.party[2].equipment.weapon = "WAND";
+    stateB.party[2].mediumState = { mediumKey: "WAND", socketedRunes: ["RUNE_HALITO"] };
     const selectionB = {
       actions: [
         { actorIdx: 2, type: "spell", spellName: "HALITO", targetIdx: 1 }
@@ -457,6 +459,8 @@ import {
     // Scenario C: All-enemy spell (LAHALITO) hits every monster.
     const stateC = createBaseState(monstersA);
     stateC.party[3].mp = 10; // Ged
+    stateC.party[3].equipment.weapon = "SAGE_STAFF";
+    stateC.party[3].mediumState = { mediumKey: "SAGE_STAFF", socketedRunes: ["RUNE_LAHALITO"] };
     const selectionC = {
       actions: [
         { actorIdx: 3, type: "spell", spellName: "LAHALITO", targetIdx: -1 }

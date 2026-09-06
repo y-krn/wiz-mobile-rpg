@@ -170,3 +170,21 @@ formulas, random behavior, or flow wiring is affected.
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
+
+## Classless current-run contract (#1102)
+
+The current run has no character class, learned-spell list, class growth, or
+class permission. The six base abilities (`str`, `int`, `pie`, `vit`, `agi`,
+`luk`) and level growth are universal inputs. Build identity and specialization
+come from equipped gear, Core/Support affixes, the equipped medium, and
+socketed Runes.
+
+Active spells are derived only from the equipped medium and its socketed Runes.
+Mana items are available to any character with positive maximum MP. Trap
+detection, disarm, chest inspection, critical, barehanded attack, and evasion
+use universal rules plus equipment/affixes; they do not branch on a class name.
+
+Save normalization drops legacy `class` and `spells` fields from current
+characters and never reconstructs learned spells. Historical run records may
+retain a legacy class field as archive evidence, but it is not loaded into the
+current party or used by gameplay. See `.agents/legacy-class-model.md`.

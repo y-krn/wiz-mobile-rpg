@@ -9,11 +9,11 @@ const VIEWPORTS = [
 
 async function seedState(page, mode) {
   await page.evaluate(async (nextMode) => {
-    const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
+    const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
     const { menuContext, openSubmenu } = await import('/src/navigation.js');
     const { updateUI } = await import('/src/ui.js');
 
-    state.party = [createSoloCharacter(nextMode === 'spell' ? 'Mage' : 'Fighter')];
+    state.party = [createStartingKitCharacter(nextMode === 'spell' ? 'arcana' : 'vanguard')];
     state.currentRun = createDefaultCurrentRun();
     state.inventory = Array.from({ length: nextMode === 'inventory' ? 20 : 3 }, () => 'HEAL_POTION');
     state.gameState = 'explore';

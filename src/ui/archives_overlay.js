@@ -1,5 +1,5 @@
 import { state, createDefaultCodex } from "../state.js";
-import { getMonsterResistanceStatus, getClassJpName, getAffixDefinition, MONSTERS, ITEMS } from "../data.js";
+import { getMonsterResistanceStatus, getAffixDefinition, MONSTERS, ITEMS } from "../data.js";
 import { updateUI } from "./ui_root.js";
 import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
 import { CODEX_INSIGHT_DEFINITIONS } from "../state/codex_state.js";
@@ -327,11 +327,7 @@ export function getEventsCodexHtml() {
 
   // スタッツセクション
   const stats = state.codex?.stats || { totalRuns: 0, totalDeaths: 0, deepestFloor: 1, totalKills: 0, totalChests: 0 };
-  const records = state.records || { deepestRetreat: 0, deepestDeath: 0, deepestByClass: {}, totalRuns: 0 };
-  const classRecords = Object.entries(records.deepestByClass || {})
-    .sort((a, b) => b[1] - a[1])
-    .map(([className, floor]) => `${getClassJpName(className)}: B${floor}F`)
-    .join(" / ") || "記録なし";
+  const records = state.records || { deepestRetreat: 0, deepestDeath: 0, totalRuns: 0 };
   html += `<div><div class="archives-section-title">📊 累計スタッツ</div>`;
   html += `
     <div style="background-color: #14141a; border: 1px solid var(--neon-cyan); border-radius: 4px; padding: 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
@@ -341,7 +337,6 @@ export function getEventsCodexHtml() {
       <div>死亡最深: <strong style="color: var(--neon-red);">${records.deepestDeath ? `B${records.deepestDeath}F` : "未記録"}</strong></div>
       <div>累計撃破: <strong style="color: var(--neon-green);">${stats.totalKills}</strong> 匹</div>
       <div style="grid-column: span 2;">宝箱開封: <strong style="color: var(--neon-yellow);">${stats.totalChests}</strong> 個</div>
-      <div style="grid-column: span 2;">クラス最深: <strong>${classRecords}</strong></div>
     </div>
   `;
   html += `</div>`;
