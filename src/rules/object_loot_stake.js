@@ -1,18 +1,16 @@
 import { getItemBaseId, getItemData } from "./item_rules.js";
 import { getAffixDefinition } from "../data/affixes.js";
-import { MEDIUMS } from "../data/magic.js";
+import { MEDIUMS, RUNE_SUPPLY_BANDS } from "../data/magic.js";
 import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
 import { getRuneSpellKey } from "./magic_rules.js";
 import { INVENTORY_CAPACITY } from "./item_inventory.js";
 
 const EQUIPMENT_TYPES = new Set(["weapon", "shield", "armor", "accessory"]);
 const IDENTIFICATION_STAGES = new Set(["unknown", "discovery", "observation", "trial", "full"]);
-const RUNE_SUPPLY_BANDS = [
-  { max: 0, id: "none" },
-  { max: 1, id: "low" },
-  { max: 3, id: "medium" },
-  { max: Infinity, id: "high" }
-];
+const RUNE_SUPPLY_BAND_IDS = Object.freeze([
+  ...RUNE_SUPPLY_BANDS.map(band => band.id),
+  "other"
+]);
 
 function sameItem(left, right) {
   if (left === right) return true;
@@ -104,13 +102,19 @@ function getWeaponBehavior(item) {
   return getWeaponBehaviorProfile({ ...data, equipment: { weapon: item } }).id;
 }
 
-function getRuneSupplyBand(runeCount) {
-  return RUNE_SUPPLY_BANDS.find(band => runeCount <= band.max)?.id || "high";
+function createRuneSupplyBandComposition() {
+  return Object.fromEntries(RUNE_SUPPLY_BAND_IDS.map(band => [band, 0]));
+}
+
+function getRuneSupplyBand(item) {
+  const supplyBand = getItemData(item)?.supplyBand;
+  return RUNE_SUPPLY_BAND_IDS.includes(supplyBand) ? supplyBand : "other";
 }
 
 function emptyComposition() {
   return {
     category: { equipment: 0, rune: 0, consumable: 0, other: 0 },
+    runeSupplyBand: createRuneSupplyBandComposition(),
     location: { bag: 0, equipped: 0, active_rune: 0, other: 0 },
     equipmentSlot: { weapon: 0, shield: 0, armor: 0, accessory: 0, other: 0 },
     weaponBehavior: { light: 0, blade: 0, impact: 0, heavy: 0, medium: 0, other: 0 },
@@ -151,8 +155,10 @@ export function buildObjectLootStakeSnapshot(stateLike) {
     const weaponBehavior = getWeaponBehavior(item);
     const identificationStage = getIdentificationStage(item);
     const isRune = category === "rune";
+    const runeSupplyBand = isRune ? getRuneSupplyBand(item) : null;
 
     composition.category[category] += 1;
+    if (runeSupplyBand) composition.runeSupplyBand[runeSupplyBand] += 1;
     composition.location[location.id] += 1;
     composition.equipmentSlot[slot || "other"] += 1;
     if (weaponBehavior) composition.weaponBehavior[weaponBehavior] += 1;
@@ -174,7 +180,7 @@ export function buildObjectLootStakeSnapshot(stateLike) {
       equipmentSlot: slot,
       weaponBehavior,
       medium: Boolean(data.type === "weapon" && MEDIUMS[itemBaseId(item)]),
-      runeSupplyBand: isRune ? "rune" : null,
+      runeSupplyBand,
       coreCount: affixes.coreCount,
       supportCount: affixes.supportCount,
       coreMainAxisCount: affixes.coreMainAxisCount,
@@ -196,7 +202,7 @@ export function buildObjectLootStakeSnapshot(stateLike) {
     mediumCount,
     shieldCount,
     armorCount,
-    runeSupplyBand: getRuneSupplyBand(runeCount),
+    runeSupplyBandComposition: composition.runeSupplyBand,
     coreCount: details.reduce((sum, detail) => sum + detail.coreCount, 0),
     supportCount: details.reduce((sum, detail) => sum + detail.supportCount, 0),
     coreMainAxisCount: details.reduce((sum, detail) => sum + detail.coreMainAxisCount, 0),

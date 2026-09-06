@@ -494,7 +494,7 @@ export function useTrapKit() {
   const lootId = findRunObjectLootEntry(state, "TRAP_KIT")?.id;
   state.inventory.splice(kitIndex, 1);
   consumeRunObjectLoot(state, "TRAP_KIT");
-  trackLootLifecycle("consumed", {
+  if (lootId) trackLootLifecycle("consumed", {
     state,
     itemKey: "TRAP_KIT",
     lootId,

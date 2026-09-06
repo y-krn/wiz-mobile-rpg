@@ -781,6 +781,24 @@ await test("キットは1個消費して確定解除し、解除数を増やさ�
   assert.equal(state.currentRun.trapsDisarmed, 4);
 });
 
+await test("Town所持の重複キットは戦利品lifecycleを出さず、Dungeon取得キットだけ追跡する", () => {
+  resetChest({ trap: "teleporter" });
+  state.inventory = ["TRAP_KIT"];
+  state.currentRun.townInventory = ["TRAP_KIT"];
+  state.currentRun.unbankedObjectLoot = [{ id: "run:loot:9", item: "TRAP_KIT" }];
+  assert.equal(useTrapKit(), true);
+  assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").length, 0);
+
+  resetChest({ trap: "teleporter" });
+  state.inventory = ["TRAP_KIT"];
+  state.currentRun.townInventory = [];
+  state.currentRun.unbankedObjectLoot = [{ id: "run:loot:10", item: "TRAP_KIT" }];
+  assert.equal(useTrapKit(), true);
+  const lifecycle = telemetryEvents.filter(event => event.name === "loot_lifecycle");
+  assert.deepEqual(lifecycle.map(event => event.properties.lifecycleStage), ["consumed"]);
+  assert.equal(lifecycle[0].properties.lootSequence, 10);
+});
+
 await test("忍者の解除率は0.70", () => {
   const originalSetTimeout = global.setTimeout;
   global.setTimeout = () => 0;

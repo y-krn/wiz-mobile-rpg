@@ -223,7 +223,7 @@ function useExplorationItem(itemKey, itemIdx, item) {
   const result = applyExplorationItem(state, itemKey);
   if (!result.ok) return;
   const lootId = findRunObjectLootEntry(state, itemKey)?.id;
-  trackLootLifecycle("tried", {
+  if (lootId) trackLootLifecycle("tried", {
     state,
     character: state.party[0],
     itemKey,
@@ -232,7 +232,7 @@ function useExplorationItem(itemKey, itemIdx, item) {
   });
   state.inventory.splice(itemIdx, 1);
   consumeRunObjectLoot(state, itemKey);
-  trackLootLifecycle("consumed", {
+  if (lootId) trackLootLifecycle("consumed", {
     state,
     character: state.party[0],
     itemKey,
@@ -273,7 +273,7 @@ export function renderItemDirectionSelect(optGrid) {
       createNoiseEvent(x, y);
       const effect = applyExplorationItem(state, "NOISE_BALL");
       const lootId = findRunObjectLootEntry(state, "NOISE_BALL")?.id;
-      trackLootLifecycle("tried", {
+      if (lootId) trackLootLifecycle("tried", {
         state,
         character: state.party[0],
         itemKey: "NOISE_BALL",
@@ -282,7 +282,7 @@ export function renderItemDirectionSelect(optGrid) {
       });
       state.inventory.splice(menuContext.itemIdx, 1);
       consumeRunObjectLoot(state, "NOISE_BALL");
-      trackLootLifecycle("consumed", {
+      if (lootId) trackLootLifecycle("consumed", {
         state,
         character: state.party[0],
         itemKey: "NOISE_BALL",
@@ -357,7 +357,7 @@ export function renderItemTargetSelect(optGrid) {
           return;
         }
         const lootId = findRunObjectLootEntry(state, menuContext.itemKey)?.id;
-        trackLootLifecycle("tried", {
+        if (lootId) trackLootLifecycle("tried", {
           state,
           character: char,
           itemKey: menuContext.itemKey,
@@ -369,7 +369,7 @@ export function renderItemTargetSelect(optGrid) {
         playSound("heal");
         state.inventory.splice(menuContext.itemIdx, 1);
         consumeRunObjectLoot(state, menuContext.itemKey);
-        trackLootLifecycle("consumed", {
+        if (lootId) trackLootLifecycle("consumed", {
           state,
           character: char,
           itemKey: menuContext.itemKey,
@@ -507,7 +507,7 @@ function useReturnWing() {
   state.inventory.splice(itemIndex, 1);
   const lootId = findRunObjectLootEntry(state, "TOWN_PORTAL")?.id;
   consumeRunObjectLoot(state, "TOWN_PORTAL");
-  trackLootLifecycle("consumed", {
+  if (lootId) trackLootLifecycle("consumed", {
     state,
     character: state.party[0],
     itemKey: "TOWN_PORTAL",

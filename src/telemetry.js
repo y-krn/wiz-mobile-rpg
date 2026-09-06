@@ -14,6 +14,7 @@ import {
 import { getCharAffixSum, getItemBaseId, getItemData } from "./rules/item_rules.js";
 import { CLASSES } from "./data/classes.js";
 import { ITEMS } from "./data/items.js";
+import { RUNE_SUPPLY_BANDS } from "./data/magic.js";
 import { MONSTERS } from "./data/monsters.js";
 import { SPELLS } from "./data/spells.js";
 import { getAffixDefinition, LOOT_BUILD_ROLES } from "./data/affixes.js";
@@ -144,7 +145,10 @@ const SAFE_LOOT_LOCATIONS = new Set(["bag", "equipped", "active_rune", "other"])
 const SAFE_EQUIPMENT_SLOTS = new Set(["weapon", "shield", "armor", "accessory", "other"]);
 const SAFE_WEAPON_BEHAVIORS = new Set(["light", "blade", "impact", "heavy", "medium", "other"]);
 const SAFE_IDENTIFICATION_STAGES = new Set(["unknown", "discovery", "observation", "trial", "full"]);
-const SAFE_RUNE_SUPPLY_BANDS = new Set(["none", "low", "medium", "high"]);
+const SAFE_RUNE_SUPPLY_BANDS = new Set([
+  ...RUNE_SUPPLY_BANDS.map(band => band.id),
+  "other"
+]);
 const LOOT_VALUE_BY_RARITY = Object.freeze({ common: 1, magic: 2, rare: 4, epic: 7, legendary: 12 });
 const MAX_ENEMY_SNAPSHOT = 8;
 const MAX_AFFIX_SNAPSHOT = 24;
@@ -764,6 +768,7 @@ function normalizeStakeSnapshot(snapshot) {
     equipmentSlot: normalizeStableValue(detail.equipmentSlot, SAFE_EQUIPMENT_SLOTS),
     weaponBehavior: normalizeOptionalStableValue(detail.weaponBehavior, SAFE_WEAPON_BEHAVIORS),
     medium: Boolean(detail.medium),
+    runeSupplyBand: normalizeOptionalStableValue(detail.runeSupplyBand, SAFE_RUNE_SUPPLY_BANDS),
     coreCount: boundedFiniteOrNull(detail.coreCount, 0, 10),
     supportCount: boundedFiniteOrNull(detail.supportCount, 0, 10),
     coreMainAxisCount: boundedFiniteOrNull(detail.coreMainAxisCount, 0, 10),
@@ -787,7 +792,7 @@ function normalizeStakeSnapshot(snapshot) {
     mediumCount: boundedFiniteOrNull(snapshot?.mediumCount, 0, INVENTORY_CAPACITY),
     shieldCount: boundedFiniteOrNull(snapshot?.shieldCount, 0, INVENTORY_CAPACITY),
     armorCount: boundedFiniteOrNull(snapshot?.armorCount, 0, INVENTORY_CAPACITY),
-    runeSupplyBand: normalizeStableValue(snapshot?.runeSupplyBand, SAFE_RUNE_SUPPLY_BANDS),
+    runeSupplyBandComposition: normalizeComposition(snapshot?.runeSupplyBandComposition, SAFE_RUNE_SUPPLY_BANDS),
     coreCount: boundedFiniteOrNull(snapshot?.coreCount, 0, INVENTORY_CAPACITY * 10),
     supportCount: boundedFiniteOrNull(snapshot?.supportCount, 0, INVENTORY_CAPACITY * 10),
     coreMainAxisCount: boundedFiniteOrNull(snapshot?.coreMainAxisCount, 0, INVENTORY_CAPACITY * 10),

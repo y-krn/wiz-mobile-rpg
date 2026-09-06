@@ -16,13 +16,16 @@ export function resolvePlayerItem(char, act, state, logQueue) {
     return { escaped: false };
   }
   const lootEntry = findRunObjectLootEntry(state, act.itemKey);
-  trackLootLifecycle("tried", {
-    state,
-    character: char,
-    itemKey: act.itemKey,
-    lootId: lootEntry?.id,
-    source: "combat"
-  });
+  const lootId = lootEntry?.id || null;
+  if (lootId) {
+    trackLootLifecycle("tried", {
+      state,
+      character: char,
+      itemKey: act.itemKey,
+      lootId,
+      source: "combat"
+    });
+  }
   if (act.itemKey === "TOWN_PORTAL") {
     trackPortalDecision("return", {
       state,
@@ -33,11 +36,11 @@ export function resolvePlayerItem(char, act, state, logQueue) {
     });
     state.inventory.splice(inventoryIdx, 1);
     consumeRunObjectLoot(state, act.itemKey);
-    trackLootLifecycle("consumed", {
+    if (lootId) trackLootLifecycle("consumed", {
       state,
       character: char,
       itemKey: act.itemKey,
-      lootId: lootEntry?.id,
+      lootId,
       source: "combat"
     });
     logQueue.push({
@@ -50,11 +53,11 @@ export function resolvePlayerItem(char, act, state, logQueue) {
   if (act.itemKey === "ESCAPE_SCROLL") {
     state.inventory.splice(inventoryIdx, 1);
     consumeRunObjectLoot(state, act.itemKey);
-    trackLootLifecycle("consumed", {
+    if (lootId) trackLootLifecycle("consumed", {
       state,
       character: char,
       itemKey: act.itemKey,
-      lootId: lootEntry?.id,
+      lootId,
       source: "combat"
     });
     const charAgi = getCharAgi(char) + getBuffTotal(char, "agi");
@@ -84,11 +87,11 @@ export function resolvePlayerItem(char, act, state, logQueue) {
   const log = item.effect(target, state.party);
   state.inventory.splice(inventoryIdx, 1);
   consumeRunObjectLoot(state, act.itemKey);
-  trackLootLifecycle("consumed", {
+  if (lootId) trackLootLifecycle("consumed", {
     state,
     character: char,
     itemKey: act.itemKey,
-    lootId: lootEntry?.id,
+    lootId,
     source: "combat"
   });
   let floatText = undefined;

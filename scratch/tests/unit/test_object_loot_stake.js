@@ -62,7 +62,8 @@ assert.deepEqual(snapshot.composition.location, { bag: 2, equipped: 1, active_ru
 assert.equal(snapshot.mediumCount, 1);
 assert.equal(snapshot.runeCount, 1);
 assert.equal(snapshot.activeRuneCount, 1);
-assert.equal(snapshot.runeSupplyBand, "low");
+assert.deepEqual(snapshot.runeSupplyBandComposition, { shallow: 1, early_mid: 0, mid: 0, deep: 0, other: 0 });
+assert.equal(snapshot.details[1].runeSupplyBand, "shallow");
 assert.equal(snapshot.coreCount, 2);
 assert.equal(snapshot.supportCount, 1);
 assert.equal(snapshot.coreMainAxisCount, 2);
@@ -90,8 +91,10 @@ assert.equal(stake.properties.snapshotPoint, "portal_decision");
 assert.equal(stake.properties.unconfirmedObjectCount, 4);
 assert.equal(stake.properties.unconfirmedObjectLocation.active_rune, 1);
 assert.equal(stake.properties.unconfirmedObjectComposition.rune, 1);
+assert.deepEqual(stake.properties.runeSupplyBandComposition, { shallow: 1, early_mid: 0, mid: 0, deep: 0, other: 0 });
 assert.equal(stake.properties.coreMainAxisCount, 2);
 assert.equal(stake.properties.bagFreeSlots, 17);
 assert.equal(stake.properties.unconfirmedObjectDetails[1].lootSequence, 2);
+assert.equal(stake.properties.unconfirmedObjectDetails[1].runeSupplyBand, "shallow");
 
 console.log("[PASS] production-backed object-loot stake snapshots classify ownership and lifecycle stages");

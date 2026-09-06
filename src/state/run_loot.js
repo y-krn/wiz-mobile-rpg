@@ -24,10 +24,14 @@ export function findRunObjectLootEntry(stateLike, item) {
     candidate && expected && typeof candidate === "object" && typeof expected === "object" &&
     candidate.instanceId && candidate.instanceId === expected.instanceId
   );
-  return entries.find(entry => sameInstance(entry?.item, item))
-    || ((run.townInventory || []).some(entry => getItemId(entry) === itemId)
-      ? null
-      : entries.find(entry => getItemId(entry?.item) === itemId) || null);
+  const exactEntry = entries.find(entry => sameInstance(entry?.item, item));
+  // Object actions carry instance identity and may intentionally select a
+  // dungeon item despite a Town duplicate. String-key actions do not carry
+  // ownership identity, so preserve the existing Town-first consumption
+  // policy and do not attribute them to an unbanked dungeon entry.
+  if (exactEntry && item && typeof item === "object") return exactEntry;
+  if ((run.townInventory || []).some(entry => getItemId(entry) === itemId)) return null;
+  return exactEntry || entries.find(entry => getItemId(entry?.item) === itemId) || null;
 }
 
 function isBankableObject(item) {
