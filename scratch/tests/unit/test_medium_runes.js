@@ -39,23 +39,20 @@ assert.deepEqual(getActiveSpellKeys(arcana), ["HALITO"]);
 assert.equal(isSpellcaster(arcana), true);
 assert.equal(canUseManaItems(arcana), true);
 
-arcana.class = "Ranger";
 assert.deepEqual(chooseAutoCombatAction({
   character: arcana,
   monsters: [{ hp: 30, status: "ok", tags: [] }],
   roundNumber: 2,
   canCastSpell: () => true
 }), { type: "spell", targetIdx: 0, spellName: "HALITO" });
-assert.equal(getAutoHealTargetIdx(arcana), null, "mage Rune remains non-healing after class mutation");
+assert.equal(getAutoHealTargetIdx(arcana), null, "HALITO Rune remains non-healing");
 
 const staleSpellLog = [];
 resolvePlayerSpell(arcana, { spellName: "DIOS", targetIdx: 0 }, { party: [arcana], floor: 1 }, [], staleSpellLog);
 assert.equal(arcana.mp, 1, "combat resolution rejects a spell absent from the active Rune set");
 assert.match(staleSpellLog[0].msg, /Rune/);
 
-// The compatibility class and char.spells[] cannot grant or remove a Rune-owned spell.
-arcana.class = "Priest";
-arcana.spells = ["DIOS"];
+// Active spell ownership comes only from the equipped medium's Rune.
 assert.deepEqual(getActiveSpellKeys(arcana), ["HALITO"]);
 
 const fighter = createStartingKitCharacter("vanguard");

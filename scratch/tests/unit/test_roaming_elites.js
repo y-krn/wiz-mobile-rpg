@@ -357,7 +357,7 @@ check("camp rest no longer depends on defeating anything", () => {
   const stateLike = {
     floor: 2,
     currentRun: { campRested: {} },
-    party: [{ name: "テスト", hp: 1, maxHp: 40, mp: 0, class: "FIGHTER", level: 1, status: "ok" }]
+    party: [{ name: "テスト", hp: 1, maxHp: 40, mp: 0, level: 1, status: "ok" }]
   };
   assert.equal(getCampRestStatus(stateLike).available, true, "camp must be usable without any kill");
   restAtCamp(stateLike);

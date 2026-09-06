@@ -22,7 +22,6 @@ globalThis.localStorage = {
 function makeCharacter(equipment = {}) {
   return {
     name: "装備テスト",
-    class: "Fighter",
     level: 1,
     hp: 20,
     mp: 0,

@@ -18,13 +18,11 @@ function check(label, actual, expected) {
 }
 
 const soloFighter = {
-  class: "Fighter",
   hp: 20,
   maxMp: 0,
   status: "ok"
 };
 const soloThief = {
-  class: "Thief",
   hp: 20,
   maxMp: 0,
   status: "ok"
@@ -32,19 +30,18 @@ const soloThief = {
 
 check(
   "chest chance is universal",
-  calculateChestDisarmChance({ className: "Thief" }),
+  calculateChestDisarmChance({}),
   0.25
 );
 check(
   "chest blind chance",
-  calculateChestDisarmChance({ className: "Fighter", blind: true }),
+  calculateChestDisarmChance({ blind: true }),
   0.125
 );
 check(
   "floor rate ignores class and level",
   calculateFloorTrapSuccessRate({
     trap: { type: "damage" },
-    className: "Thief",
     level: 1,
     floor: 1
   }),

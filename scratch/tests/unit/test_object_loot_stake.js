@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createVNextCharacter } from "../fixtures/vnext_character.js";
 
 const { buildObjectLootStakeSnapshot } = await import("../../../src/rules/object_loot_stake.js");
 const {
@@ -34,16 +35,14 @@ const state = {
   floor: 3,
   gameState: "explore",
   inventory: ["HEAL_POTION", armor, "RUNE_MAHALITO"],
-  party: [{
-    class: "Mage",
+  party: [createVNextCharacter("arcana", {
     hp: 20,
     maxHp: 20,
     mp: 4,
     maxMp: 10,
     equipment: { weapon: staff, shield: null, armor: null, accessory: null },
-    startingKit: "caster",
     mediumState: { mediumKey: "stake-staff", socketedRunes: ["RUNE_HALITO"] }
-  }],
+  })],
   currentRun: {
     startedAt: 100,
     unbankedObjectLoot: [
@@ -75,7 +74,7 @@ assert.equal(snapshot.bagFreeSlots, 17);
 const events = [];
 __resetTelemetryForTests();
 __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
-trackRunStart({ characterClass: "Mage", startFloor: 1 }, state.party[0], state);
+trackRunStart({ characterClass: null, startFloor: 1 }, state.party[0], state);
 trackLootLifecycle("consumed", {
   state,
   itemKey: "HEAL_POTION",

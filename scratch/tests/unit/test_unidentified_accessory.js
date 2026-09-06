@@ -6,7 +6,6 @@ console.log("=== UNIDENTIFIED ACCESSORY BONUS LEAK TEST ===");
 
 const char = {
   name: "TestHero",
-  class: "Thief",
   level: 5,
   hp: 20,
   maxHp: 20,

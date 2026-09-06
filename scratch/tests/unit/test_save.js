@@ -423,6 +423,7 @@ check("malformed history entries are filtered without changing valid records", (
 
 check("save normalization does not mutate caller-owned nested data", () => {
   const payload = createSavePayload();
+  // Compatibility input only: current fixtures are classless vNext builds.
   payload.party[0].spells = undefined;
   payload.party[0].runTrapAttackBonus = 7;
   payload.currentRun = createDefaultCurrentRun();
@@ -531,6 +532,8 @@ check("fixed spring and tablet cells still open their facilities", () => {
 });
 
 check("supported legacy saves are migrated without class fields", () => {
+  // Historical compatibility boundary; this is intentionally not a current
+  // gameplay fixture.
   const migrated = migrateSavePayload({
     version: SAVE_VERSION - 1,
     party: [{ class: "Mage", spells: ["HALITO"], level: 1, hp: 20, maxHp: 20 }]

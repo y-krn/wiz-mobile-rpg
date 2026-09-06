@@ -12,12 +12,20 @@ async function openApp(page) {
   await page.waitForLoadState('networkidle');
 }
 
-async function setupExplore(page, { partySize = 1, fullHp = false, spellKeys = null } = {}) {
+async function setupExplore(page, { partySize = 1, fullHp = false, spellKeys = ['DIOS'] } = {}) {
   await page.evaluate(async ({ nextPartySize, nextFullHp, nextSpellKeys }) => {
     const { state, initNewGame, createStartingKitCharacter } = await import('/src/state.js');
     const { executeEnterDungeon } = await import('/src/movement.js');
     const { spellMenuState } = await import('/src/spell_menu.js');
     const { updateUI } = await import('/src/ui.js');
+    const equipRunes = (character, keys) => {
+      character.equipment.weapon = 'ARCH_WAND';
+      character.equipment.shield = null;
+      character.mediumState = {
+        mediumKey: 'ARCH_WAND',
+        socketedRunes: keys.map(key => `RUNE_${key}`),
+      };
+    };
 
     initNewGame();
     const first = createStartingKitCharacter('devotion');
@@ -34,7 +42,7 @@ async function setupExplore(page, { partySize = 1, fullHp = false, spellKeys = n
     party.forEach((char, index) => {
       char.hp = nextFullHp ? char.maxHp : char.maxHp - index - 2;
     });
-    if (nextSpellKeys) first.spells = nextSpellKeys;
+    equipRunes(first, nextSpellKeys);
     spellMenuState.filter = 'all';
     spellMenuState.selectedKey = null;
     state.gameState = 'explore';
@@ -42,13 +50,21 @@ async function setupExplore(page, { partySize = 1, fullHp = false, spellKeys = n
   }, { nextPartySize: partySize, nextFullHp: fullHp, nextSpellKeys: spellKeys });
 }
 
-async function setupCombat(page, { woundedCount = 1, deadSecond = false, spellKeys = null } = {}) {
+async function setupCombat(page, { woundedCount = 1, deadSecond = false, spellKeys = ['DIOS'] } = {}) {
   await page.evaluate(async ({ nextWoundedCount, nextDeadSecond, nextSpellKeys }) => {
     const { state, initNewGame, createStartingKitCharacter } = await import('/src/state.js');
     const { executeEnterDungeon } = await import('/src/movement.js');
     const { combatSelection } = await import('/src/combat.js');
     const { menuContext } = await import('/src/navigation.js');
     const { updateUI } = await import('/src/ui.js');
+    const equipRunes = (character, keys) => {
+      character.equipment.weapon = 'ARCH_WAND';
+      character.equipment.shield = null;
+      character.mediumState = {
+        mediumKey: 'ARCH_WAND',
+        socketedRunes: keys.map(key => `RUNE_${key}`),
+      };
+    };
 
     initNewGame();
     const first = createStartingKitCharacter('devotion');
@@ -64,7 +80,7 @@ async function setupCombat(page, { woundedCount = 1, deadSecond = false, spellKe
       second.hp = second.maxHp - 3;
     }
     first.hp = nextWoundedCount > 0 ? first.maxHp - 2 : first.maxHp;
-    if (nextSpellKeys) first.spells = nextSpellKeys;
+    equipRunes(first, nextSpellKeys);
     state.party = [first, second];
     state.inventory = ['HEAL_POTION'];
     state.combatState = {

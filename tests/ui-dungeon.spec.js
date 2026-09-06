@@ -557,7 +557,6 @@ for (const vp of VIEWPORTS) {
       };
       const resetContext = (map) => {
         state.party = [createStartingKitCharacter('devotion')];
-        state.party[0].spells = [];
         state.maps[0] = map;
         state.floor = 1;
         state.x = 0;
@@ -655,8 +654,17 @@ for (const vp of VIEWPORTS) {
         phase: 'choose_actions',
         monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
       };
-      state.party = [createStartingKitCharacter('devotion')];
-      state.party[0].spells = ['DIOS'];
+      const setRunes = (character, spellKeys) => {
+        character.equipment.weapon = 'ARCH_WAND';
+        character.equipment.shield = null;
+        character.mediumState = {
+          mediumKey: 'ARCH_WAND',
+          socketedRunes: spellKeys.map(key => `RUNE_${key}`),
+        };
+      };
+      const caster = createStartingKitCharacter('devotion');
+      setRunes(caster, ['DIOS']);
+      state.party = [caster];
       state.floor = 1;
       state.x = 1;
       state.y = 1;
@@ -721,7 +729,7 @@ for (const vp of VIEWPORTS) {
       const deadCasterOverlay = overlaySnapshot(document.getElementById('combat-overlay'));
 
       state.party[0].status = 'ok';
-      state.party[0].spells = ['HALITO'];
+      setRunes(state.party[0], ['HALITO']);
       state.gameState = 'submenu';
       menuContext.prevGameState = 'explore';
       menuContext.type = 'spell_target_ally';
@@ -736,7 +744,7 @@ for (const vp of VIEWPORTS) {
       }
       const incompatibleSpellTargetOverlay = overlaySnapshot(document.getElementById('spell-overlay'));
 
-      state.party[0].spells = ['DIOS'];
+      setRunes(state.party[0], ['DIOS']);
       let unownedSpellError = null;
       try {
         updateUI();
@@ -776,7 +784,7 @@ for (const vp of VIEWPORTS) {
         children: invalidSpellOverlayElement.children.length,
       };
 
-      state.party[0].spells = ['UNKNOWN'];
+      setRunes(state.party[0], ['UNKNOWN']);
       state.gameState = 'submenu';
       menuContext.prevGameState = 'explore';
       menuContext.type = 'spell_select';
@@ -1113,9 +1121,14 @@ for (const vp of VIEWPORTS) {
       const { selectCombatAction } = await import('/src/combat.js');
       const { getScreenViewState } = await import('/src/state/view_state.js');
 
-      const reset = (spells = ['HALITO']) => {
+      const reset = (spellKeys = ['HALITO']) => {
         const actor = createStartingKitCharacter('devotion');
-        actor.spells = spells;
+        actor.equipment.weapon = 'ARCH_WAND';
+        actor.equipment.shield = null;
+        actor.mediumState = {
+          mediumKey: 'ARCH_WAND',
+          socketedRunes: spellKeys.map(key => `RUNE_${key}`),
+        };
         state.party = [actor];
         state.inventory = ['HEAL_POTION'];
         state.combatState = {
@@ -1364,8 +1377,11 @@ for (const vp of VIEWPORTS) {
       const { combatCallbacks } = await import('/src/combat_ui/combat_state.js');
       const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
 
-      state.party = [createStartingKitCharacter('devotion')];
-      state.party[0].spells = ['HALITO'];
+      const caster = createStartingKitCharacter('devotion');
+      caster.equipment.weapon = 'ARCH_WAND';
+      caster.equipment.shield = null;
+      caster.mediumState = { mediumKey: 'ARCH_WAND', socketedRunes: ['RUNE_HALITO'] };
+      state.party = [caster];
       state.inventory = ['HEAL_POTION'];
       state.gameState = 'submenu';
       state.transitioning = false;

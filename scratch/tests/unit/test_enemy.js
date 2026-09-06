@@ -50,7 +50,7 @@ import {
     // 1. guardAdjacent / guardAdjacentReduce (庇う) のテスト
     const testGuard = () => {
       const party = [
-        { name: "戦士", class: "Fighter", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 1, equipment: { weapon: "LONG_SWORD" }, str: 15, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
+        { name: "前衛", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 1, equipment: { weapon: "LONG_SWORD" }, str: 15, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
       ];
       const monsters = [
         { name: "錆びた盾兵", hp: 30, maxHp: 30, atk: 5, def: 5, traits: ["guardAdjacent"], buffs: [] },
@@ -83,7 +83,7 @@ import {
     // 2. reflectPhysical (物理反射) のテスト
     const testPhysicalReflect = () => {
       const party = [
-        { name: "戦士", class: "Fighter", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 1, equipment: { weapon: "LONG_SWORD" }, str: 15, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
+        { name: "前衛", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 1, equipment: { weapon: "LONG_SWORD" }, str: 15, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
       ];
       const monsters = [
         { name: "針甲虫", hp: 30, maxHp: 30, atk: 5, def: 1, traits: ["reflectPhysical"], buffs: [] }
@@ -107,7 +107,7 @@ import {
     // 3. reflectMagic (魔法反射) のテスト
     const testMagicReflect = () => {
       const party = [
-        { name: "魔術師", class: "Mage", status: "ok", hp: 50, maxHp: 50, mp: 10, level: 1, equipment: { weapon: "WAND" }, mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_HALITO"] }, str: 8, int: 15, pie: 8, vit: 10, agi: 12, luk: 8, buffs: [] }
+        { name: "術式使い", status: "ok", hp: 50, maxHp: 50, mp: 10, level: 1, equipment: { weapon: "WAND" }, mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_HALITO"] }, str: 8, int: 15, pie: 8, vit: 10, agi: 12, luk: 8, buffs: [] }
       ];
       const monsters = [
         { name: "呪いの小鏡", hp: 30, maxHp: 30, atk: 5, def: 1, traits: ["reflectMagic"], buffs: [] }
@@ -139,7 +139,7 @@ import {
     // 4. splitOnDeath (分裂スライム) のテスト
     const testSplitOnDeath = () => {
       const party = [
-        { name: "戦士", class: "Fighter", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 10, equipment: { weapon: "LONG_SWORD" }, str: 30, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
+        { name: "前衛", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 10, equipment: { weapon: "LONG_SWORD" }, str: 30, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
       ];
       const monsters = [
         { name: "分裂スライム", hp: 1, maxHp: 20, atk: 5, def: 0, traits: ["splitOnDeath"], exp: 100, gold: 10, buffs: [] }
@@ -168,7 +168,7 @@ import {
     // 5. regen (再生) のテスト
     const testRegen = () => {
       const party = [
-        { name: "戦士", class: "Fighter", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 1, equipment: { weapon: "LONG_SWORD" }, str: 15, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
+        { name: "前衛", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 1, equipment: { weapon: "LONG_SWORD" }, str: 15, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
       ];
       const monsters = [
         { name: "竜血の再生者", hp: 50, maxHp: 80, atk: 5, def: 10, traits: ["regen"], buffs: [] }
@@ -192,7 +192,7 @@ import {
     // 6. silence (沈黙) のテスト
     const testSilence = () => {
       const party = [
-        { name: "魔術師", class: "Mage", status: "ok", hp: 50, maxHp: 50, mp: 10, level: 1, equipment: { weapon: "WAND" }, mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_HALITO"] }, str: 8, int: 15, pie: 8, vit: 10, agi: 12, luk: 8, silenceTurns: 2, buffs: [{ type: "silence", value: 1, turns: 2 }] }
+        { name: "術式使い", status: "ok", hp: 50, maxHp: 50, mp: 10, level: 1, equipment: { weapon: "WAND" }, mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_HALITO"] }, str: 8, int: 15, pie: 8, vit: 10, agi: 12, luk: 8, silenceTurns: 2, buffs: [{ type: "silence", value: 1, turns: 2 }] }
       ];
       const monsters = [
         { name: "コボルトの斥候", hp: 20, maxHp: 20, atk: 5, def: 1, traits: [], buffs: [] }
@@ -219,7 +219,6 @@ import {
     const testLevelUpScaling = () => {
       const char = {
         name: "戦士",
-        class: "Fighter",
         level: 1,
         exp: 0,
         hp: 20,
@@ -232,7 +231,6 @@ import {
         vit: 15,
         agi: 10,
         luk: 10,
-        spells: []
       };
 
       // Level 1 -> 2 (Not multiple of 3, stats should not change)

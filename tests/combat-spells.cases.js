@@ -11,7 +11,6 @@ test('combat spell cards expose tags and enter enemy targeting through the cast 
 
     const caster = createStartingKitCharacter('arcana');
     caster.mp = caster.maxMp = 10;
-    caster.spells = ['HALITO'];
     state.party = [caster];
     state.combatState = {
       phase: 'choose_actions',

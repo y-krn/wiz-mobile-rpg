@@ -49,7 +49,6 @@ function makeChar(overrides = {}) {
   const { equipment = {}, ...rest } = overrides;
   return {
     name: "検証キャラクター",
-    class: "Fighter",
     level: 1,
     str: 14,
     int: 14,
@@ -122,7 +121,6 @@ integerFormulaCases.forEach(({ label, input, expected }) => {
 });
 
 const oddWeapon = makeChar({
-  class: "Thief",
   equipment: { weapon: makeItem("NINJA_DAGGER") }
 });
 check("odd weapon attack display is an integer", Number.isInteger(getCharDerivedStats(oddWeapon).attack), true);
@@ -195,7 +193,6 @@ check(
 const normalAttackState = makeCombatState(
   {
     name: "通常攻撃検証",
-    class: "Fighter",
     level: 1,
     hp: 100,
     maxHp: 100,
@@ -243,7 +240,6 @@ check(
 const incomingDamageState = makeCombatState(
   {
     name: "被弾経路検証",
-    class: "Fighter",
     level: 1,
     hp: 100,
     maxHp: 100,

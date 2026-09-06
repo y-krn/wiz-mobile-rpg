@@ -16,7 +16,6 @@ function createState({ status = "ok", isBoss = false, retreatPosition = null, ch
   return {
     party: [{
       name: "Solo",
-      class: "Fighter",
       level: 5,
       hp: 100,
       maxHp: 100,
@@ -29,7 +28,6 @@ function createState({ status = "ok", isBoss = false, retreatPosition = null, ch
       agi: 100,
       luk: 10,
       status,
-      spells: [],
       equipment: { weapon: "SHORT_SWORD", shield: null, armor: null, accessory: null },
       ...charOverrides
     }],
@@ -170,9 +168,9 @@ test("flee succeeds in place when no retreat tile was captured", () => {
   }
 });
 
-test("legacy class metadata does not force instant death", () => {
+test("character metadata does not force instant death", () => {
   const state = createState({
-    charOverrides: { class: "Ninja", level: 10 },
+    charOverrides: { level: 10 },
     monsterOverrides: { hp: 1000, maxHp: 1000, def: 20, physResist: 0.5, status: "sleep", sleepTurns: 2 }
   });
   const originalRandom = Math.random;

@@ -87,7 +87,6 @@ if (calculateSuccessRate(testTrap) !== 0) {
 // Every character uses the same floor rule; only run-local equipment can add a bonus.
 state.party = [{
   name: "Robin",
-  class: "Thief",
   level: 5,
   hp: 20,
   maxHp: 20,
@@ -121,7 +120,6 @@ testTrap.difficulty = 30;
 state.floor = 5;
 const makeCharacter = equipment => [{
   name: "Robin",
-  class: "Thief",
   level: 1,
   hp: 20,
   maxHp: 20,
@@ -179,8 +177,8 @@ console.log("PASS: Success rate calculations verified.");
 // 3. Verify Trap Triggers and Damage/Effect Reduction
 console.log("\n[3] Verifying trap effects and damage scaling:");
 state.party = [
-  { name: "Arthur", class: "Fighter", level: 1, hp: 20, maxHp: 20, status: "ok" },
-  { name: "Maria", class: "Priest", level: 1, hp: 12, maxHp: 12, status: "ok", maxMp: 5, mp: 5 }
+  { name: "Arthur", level: 1, hp: 20, maxHp: 20, status: "ok" },
+  { name: "Maria", level: 1, hp: 12, maxHp: 12, status: "ok", maxMp: 5, mp: 5 }
 ];
 state.floor = 1;
 
@@ -188,9 +186,9 @@ state.floor = 1;
 const dmgTrap = { type: "damage", state: "discovered" };
 triggerTrap(dmgTrap, false);
 let arthurDmg = 20 - state.party[0].hp;
-console.log(`- Fighter HP after trap: ${state.party[0].hp}/20 (Took ${arthurDmg} damage)`);
+console.log(`- Frontliner HP after trap: ${state.party[0].hp}/20 (Took ${arthurDmg} damage)`);
 if (arthurDmg <= 0) {
-  console.error("FAIL: Fighter took no damage.");
+  console.error("FAIL: frontliner took no damage.");
   process.exit(1);
 }
 
@@ -203,9 +201,9 @@ state.party.forEach(c => {
 // Test MP Drain trap
 const mpTrap = { type: "mpDrain", state: "discovered" };
 triggerTrap(mpTrap, false);
-console.log(`- Priest MP after drain: ${state.party[1].mp}/5`);
+console.log(`- Support caster MP after drain: ${state.party[1].mp}/5`);
 if (state.party[1].mp >= 5) {
-  console.error("FAIL: Priest MP was not drained.");
+  console.error("FAIL: support caster MP was not drained.");
   process.exit(1);
 }
 
@@ -286,7 +284,7 @@ state.maps = [grid];
 state.floor = 1;
 state.x = 1;
 state.y = 1;
-state.party = [{ name: "Robin", class: "Fighter", level: 1, hp: 20, maxHp: 20, luk: 10, agi: 10, status: "ok" }];
+state.party = [{ name: "Robin", level: 1, hp: 20, maxHp: 20, luk: 10, agi: 10, status: "ok" }];
 
 // Force detection to always succeed
 const realRandom = Math.random;
@@ -331,7 +329,6 @@ state.floor = 10;
 state.maps = Array.from({ length: 10 }, () => grid);
 state.party = [{
   name: "Robin",
-  class: "Fighter",
   level: 1,
   hp: 20,
   maxHp: 20,
@@ -358,7 +355,7 @@ if (calculateSuccessRate({ type: "damage" }) !== 52) {
   console.error("FAIL: trapBonus should add 15 points to the B10 universal disarm rate.");
   process.exit(1);
 }
-console.log("- trapBonus investment raises Fighter disarm rate without detection coupling");
+console.log("- trapBonus investment raises disarm rate without detection coupling");
 
 // 6. Three-choice trap encounter
 console.log("\n[6] Verifying trap encounter choices:");
@@ -384,7 +381,7 @@ function setupEncounter(trapType) {
   state.y = 1;
   state.gameState = "explore";
   state.party = [{
-    name: "Robin", class: "Fighter", level: 1,
+    name: "Robin", level: 1,
     hp: 20, maxHp: 20, mp: 5, maxMp: 5,
     luk: 10, agi: 10, status: "ok"
   }];
@@ -493,7 +490,6 @@ state.activeTrapState = null;
 state.currentRun = null;
 state.party = [{
   name: "Robin",
-  class: "Thief",
   level: 4,
   hp: 20,
   maxHp: 20,
@@ -515,7 +511,6 @@ if (state.party[0].hp !== 20 || !state.logs.some(log => log.includes("身をか�
 
 state.party = [{
   name: "Arthur",
-  class: "Fighter",
   level: 1,
   hp: 20,
   maxHp: 20,
@@ -543,7 +538,6 @@ if (state.party[0].hp !== 20 || !state.logs.some(log => log.includes("身をか�
 
 state.party = [{
   name: "Robin",
-  class: "Thief",
   level: 4,
   hp: 20,
   maxHp: 20,
@@ -566,7 +560,6 @@ if (state.party[0].hp !== 12 || !state.logs.some(log => log.includes("部分回�
 
 state.party = [{
   name: "Lina",
-  class: "Bishop",
   level: 1,
   hp: 50,
   maxHp: 50,
@@ -588,7 +581,6 @@ if (state.party[0].hp !== 18) {
 
 state.party = [{
   name: "Arthur",
-  class: "Fighter",
   level: 1,
   hp: 20,
   maxHp: 20,

@@ -17,7 +17,6 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
     state.party = [
       {
         name: "Robin",
-        class: "Thief",
         level: 1,
         hp: 100,
         maxHp: 100,
@@ -119,7 +118,6 @@ test('Chest inspection reports when no trap needs disarming @e2e', async ({ page
     state.party = [
       {
         name: "Robin",
-        class: "Thief",
         level: 1,
         hp: 15,
         maxHp: 15,
@@ -185,7 +183,6 @@ test('Opening a chest with stale state leaves the chest menu usable @e2e', async
 
     state.party = [{
       name: 'Robin',
-      class: 'Thief',
       level: 1,
       hp: 15,
       maxHp: 15,

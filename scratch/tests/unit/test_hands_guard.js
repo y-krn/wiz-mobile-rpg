@@ -26,7 +26,6 @@ globalThis.localStorage = {
 function character(equipment = {}) {
   return {
     name: "hands/guard test",
-    class: "Fighter",
     level: 1,
     hp: 20,
     maxHp: 20,

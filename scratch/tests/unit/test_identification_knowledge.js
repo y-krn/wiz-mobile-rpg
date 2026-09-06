@@ -43,7 +43,6 @@ const stateLike = { inventory: [item], party: [] };
 assert.equal(observeCarriedEquipment(stateLike), 0, "already observed loot should not retrigger");
 const beforeAtk = getCharWeaponAtk({
   str: 15,
-  class: "Fighter",
   level: 1,
   equipment: { weapon: item, shield: null, armor: null, accessory: null }
 });

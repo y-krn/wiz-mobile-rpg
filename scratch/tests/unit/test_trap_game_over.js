@@ -44,7 +44,6 @@ state.currentRun = createDefaultCurrentRun();
 state.currentRun.startedAt = Date.now();
 state.party = [{
   name: "Robin",
-  class: "Fighter",
   level: 1,
   hp: 1,
   maxHp: 1,

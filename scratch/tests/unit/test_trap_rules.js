@@ -32,28 +32,28 @@ function assertClose(actual, expected, label) {
 }
 
 console.log("\n[1] Universal disarm rate:");
-assertEqual(calculateDisarmRate({ className: "Thief", level: 1, floor: 1 }), 85, "Thief-shaped caller B1");
-assertEqual(calculateDisarmRate({ className: "Fighter", level: 99, floor: 1 }), 85, "Fighter-shaped caller B1");
-assertEqual(calculateDisarmRate({ className: "Mage", level: 1, floor: 10 }), 37, "Mage-shaped caller B10");
-assertEqual(calculateDisarmRate({ className: "Ninja", level: 20, floor: 20 }), 5, "Ninja-shaped caller B20");
-assertEqual(calculateDisarmRate({ className: "Thief", level: 30, floor: 1, difficulty: 0 }), 95, "universal upper clamp");
-assertEqual(calculateDisarmRate({ className: "Thief", level: 1, floor: 60 }), 5, "universal lower clamp");
+assertEqual(calculateDisarmRate({ level: 1, floor: 1 }), 85, "universal caller B1");
+assertEqual(calculateDisarmRate({ level: 99, floor: 1 }), 85, "level-independent caller B1");
+assertEqual(calculateDisarmRate({ level: 1, floor: 10 }), 37, "universal caller B10");
+assertEqual(calculateDisarmRate({ level: 20, floor: 20 }), 5, "universal caller B20");
+assertEqual(calculateDisarmRate({ level: 30, floor: 1, difficulty: 0 }), 95, "universal upper clamp");
+assertEqual(calculateDisarmRate({ level: 1, floor: 60 }), 5, "universal lower clamp");
 
 console.log("\n[2] Build bonus and chest chance:");
 assertEqual(
-  calculateDisarmRate({ className: "Fighter", level: 1, floor: 1, affixBonus: 10 }),
+  calculateDisarmRate({ level: 1, floor: 1, affixBonus: 10 }),
   95,
   "universal B1 +10 affix"
 );
 assertEqual(
-  calculateDisarmRate({ className: "Thief", level: 1, floor: 1, affixBonus: 50 }),
+  calculateDisarmRate({ level: 1, floor: 1, affixBonus: 50 }),
   95,
   "affix cannot exceed upper clamp"
 );
 assertEqual(calculateChestDisarmChance(), 0.25, "universal chest base chance");
-assertEqual(calculateChestDisarmChance({ className: "Thief" }), 0.25, "class-shaped chest caller is ignored");
+assertEqual(calculateChestDisarmChance({}), 0.25, "character metadata is not required for chest chance");
 assertEqual(calculateChestDisarmChance({ trapBonus: 0.10 }), 0.35, "chest trapBonus");
-assertEqual(calculateChestDisarmChance({ className: "Fighter", blind: true }), 0.125, "blind halves universal chest chance");
+assertEqual(calculateChestDisarmChance({ blind: true }), 0.125, "blind halves universal chest chance");
 
 console.log("\n[3] Detect rate:");
 assertEqual(calculateDetectRate({ floor: 1 }), 1, "B1 detect");

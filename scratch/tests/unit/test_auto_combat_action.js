@@ -53,8 +53,7 @@ Object.defineProperty(globalThis, "navigator", {
 
 const { state, createDefaultCurrentRun, initNewGame } =
   await import("../../../src/state.js");
-const { createStartingKitCharacter } = await import("../../../src/state.js");
-const { syncMediumState } = await import("../../../src/rules/magic_rules.js");
+const { createSocketedRuneCharacter } = await import("../fixtures/vnext_character.js");
 const { advanceActionSelection } = await import("../../../src/combat_ui/action_selection.js");
 const { combatSelection } = await import("../../../src/combat_ui/combat_state.js");
 
@@ -68,15 +67,6 @@ function check(name, fn) {
   }
 }
 
-function createSocketedCharacter(spells, className = "Fighter", overrides = {}) {
-  const character = createStartingKitCharacter("vanguard");
-  character.class = className;
-  character.equipment.weapon = "ARCH_WAND";
-  syncMediumState(character);
-  character.mediumState.socketedRunes = spells.map(spellName => `RUNE_${spellName}`);
-  return Object.assign(character, overrides);
-}
-
 const singleTargetMonsters = [
   { hp: 30, status: "ok", tags: [] },
   { hp: 10, status: "ok", tags: ["undead"] },
@@ -85,7 +75,7 @@ const singleTargetMonsters = [
 
 check("KATINO is selected on round 1 against multiple enemies", () => {
   const action = chooseAutoCombatAction({
-    character: createSocketedCharacter(["KATINO", "HALITO"], "Mage"),
+    character: createSocketedRuneCharacter(["KATINO", "HALITO"]),
     monsters: singleTargetMonsters,
     roundNumber: 1,
     canCastSpell: () => true
@@ -93,9 +83,9 @@ check("KATINO is selected on round 1 against multiple enemies", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 1, spellName: "KATINO" });
 });
 
-check("Priest BADIOS prioritizes a holy target", () => {
+check("holy offensive spell prioritizes a holy target", () => {
   const action = chooseAutoCombatAction({
-    character: createSocketedCharacter(["BADIOS"], "Priest"),
+    character: createSocketedRuneCharacter(["BADIOS"]),
     monsters: singleTargetMonsters,
     roundNumber: 2,
     canCastSpell: () => true
@@ -103,9 +93,9 @@ check("Priest BADIOS prioritizes a holy target", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 1, spellName: "BADIOS" });
 });
 
-check("Mage HALITO targets the lowest HP enemy", () => {
+check("offensive spell targets the lowest HP enemy", () => {
   const action = chooseAutoCombatAction({
-    character: createSocketedCharacter(["HALITO"], "Mage"),
+    character: createSocketedRuneCharacter(["HALITO"]),
     monsters: singleTargetMonsters,
     roundNumber: 2,
     canCastSpell: () => true
@@ -113,9 +103,9 @@ check("Mage HALITO targets the lowest HP enemy", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 1, spellName: "HALITO" });
 });
 
-check("Mage uses LAHALITO against multiple healthy enemies", () => {
+check("area spell is selected against multiple healthy enemies", () => {
   const action = chooseAutoCombatAction({
-    character: createSocketedCharacter(["HALITO", "LAHALITO"], "Mage"),
+    character: createSocketedRuneCharacter(["HALITO", "LAHALITO"]),
     monsters: [{ hp: 30 }, { hp: 30 }],
     roundNumber: 2,
     canCastSpell: () => true
@@ -123,9 +113,9 @@ check("Mage uses LAHALITO against multiple healthy enemies", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "LAHALITO" });
 });
 
-check("Mage uses MAHALITO when HALITO cannot finish the target", () => {
+check("stronger spell is selected when the basic spell cannot finish the target", () => {
   const action = chooseAutoCombatAction({
-    character: createSocketedCharacter(["HALITO", "MAHALITO"], "Mage"),
+    character: createSocketedRuneCharacter(["HALITO", "MAHALITO"]),
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     canCastSpell: () => true
@@ -133,9 +123,9 @@ check("Mage uses MAHALITO when HALITO cannot finish the target", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MAHALITO" });
 });
 
-check("Priest selects DIALMA first in the healing priority order", () => {
+check("healing priority selects DIALMA first", () => {
   const action = chooseAutoCombatAction({
-    character: createSocketedCharacter(["DIOS", "MADIOS", "DIALMA"], "Priest", { hp: 85, maxHp: 100 }),
+    character: createSocketedRuneCharacter(["DIOS", "MADIOS", "DIALMA"], { hp: 85, maxHp: 100 }),
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     healingTargetIdx: 0,
@@ -144,9 +134,9 @@ check("Priest selects DIALMA first in the healing priority order", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "DIALMA" });
 });
 
-check("Priest falls back to MADI when DIALMA is unavailable", () => {
+check("healing priority falls back to MADI", () => {
   const action = chooseAutoCombatAction({
-    character: createSocketedCharacter(["DIOS", "MADIOS", "MADI"], "Priest", { hp: 40, maxHp: 100 }),
+    character: createSocketedRuneCharacter(["DIOS", "MADIOS", "MADI"], { hp: 40, maxHp: 100 }),
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     healingTargetIdx: 0,
@@ -155,9 +145,9 @@ check("Priest falls back to MADI when DIALMA is unavailable", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MADI" });
 });
 
-check("Priest falls back to MADIOS when higher healing spells are unavailable", () => {
+check("healing priority falls back to MADIOS", () => {
   const action = chooseAutoCombatAction({
-    character: createSocketedCharacter(["DIOS", "MADIOS"], "Priest", { hp: 25, maxHp: 100 }),
+    character: createSocketedRuneCharacter(["DIOS", "MADIOS"], { hp: 25, maxHp: 100 }),
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     healingTargetIdx: 0,
@@ -166,9 +156,9 @@ check("Priest falls back to MADIOS when higher healing spells are unavailable", 
   assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MADIOS" });
 });
 
-check("Priest falls back to DIOS when it is the only healing spell", () => {
+check("healing priority falls back to DIOS", () => {
   const action = chooseAutoCombatAction({
-    character: createSocketedCharacter(["DIOS"], "Priest", { hp: 0, maxHp: 100 }),
+    character: createSocketedRuneCharacter(["DIOS"], { hp: 0, maxHp: 100 }),
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     healingTargetIdx: 0,
@@ -180,7 +170,7 @@ check("Priest falls back to DIOS when it is the only healing spell", () => {
 check("DIOS reserves one MP before offensive casting", () => {
   const calls = [];
   const action = chooseAutoCombatAction({
-    character: createSocketedCharacter(["DIOS", "BADIOS"], "Priest"),
+    character: createSocketedRuneCharacter(["DIOS", "BADIOS"]),
     monsters: [{ hp: 30, status: "ok", tags: [] }],
     roundNumber: 2,
     canCastSpell: (spellName, reserveMp) => {
@@ -192,9 +182,9 @@ check("DIOS reserves one MP before offensive casting", () => {
   assert.deepEqual(calls, [{ spellName: "BADIOS", reserveMp: 1 }]);
 });
 
-check("UI auto combat selects healing for a low HP Priest", () => {
+check("UI auto combat selects healing for a low HP character", () => {
   initNewGame();
-  const character = createSocketedCharacter(["DIOS"], "Priest");
+  const character = createSocketedRuneCharacter(["DIOS"]);
   character.hp = 1;
   state.party = [character];
   state.currentRun = createDefaultCurrentRun();
@@ -233,7 +223,7 @@ check("UI auto combat selects healing for a low HP Priest", () => {
 
 check("active spell types drive the shared policy without class special cases", () => {
   const action = chooseAutoCombatAction({
-    character: createSocketedCharacter(["BADIOS"], "Bishop"),
+    character: createSocketedRuneCharacter(["BADIOS"]),
     monsters: singleTargetMonsters,
     roundNumber: 1,
     canCastSpell: () => true
@@ -247,7 +237,7 @@ check("active spell types drive the shared policy without class special cases", 
 
 check("legacy char.spells cannot grant auto spell permission", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Mage", spells: ["HALITO"] },
+    character: { spells: ["HALITO"] },
     monsters: [{ hp: 30, status: "ok", tags: [] }],
     roundNumber: 2,
     canCastSpell: () => true

@@ -122,7 +122,6 @@ import assert from "assert";
       state.party = [
         {
           name: "Arthur",
-          class: "Fighter",
           status: "ok",
           equipment: {
             weapon: null,
@@ -132,7 +131,6 @@ import assert from "assert";
         },
         {
           name: "Robin",
-          class: "Thief",
           status: "ok",
           equipment: {
             weapon: "DAGGER",
@@ -252,7 +250,7 @@ import assert from "assert";
     initNewGame();
     // Add dummy party members to enable active character check
     state.party = [
-      { name: "Robin", class: "Thief", status: "ok" }
+      { name: "Robin", status: "ok" }
     ];
 
     // Set light turns and power
@@ -321,8 +319,8 @@ import assert from "assert";
     // Test 5: Verify selected opener takes single-target trap risk
     initNewGame();
     state.party = [
-      { name: "Arthur", class: "Fighter", status: "ok", hp: 20, maxHp: 20, equipment: {} },
-      { name: "Robin", class: "Thief", status: "ok", hp: 15, maxHp: 15, equipment: {} }
+      { name: "Arthur", status: "ok", hp: 20, maxHp: 20, equipment: {} },
+      { name: "Robin", status: "ok", hp: 15, maxHp: 15, equipment: {} }
     ];
     state.floor = 1;
     state.currentRun = {
@@ -377,7 +375,7 @@ import assert from "assert";
     // Test 6: A lethal trap keeps the existing delayed game-over path
     initNewGame();
     state.party = [
-      { name: "Robin", class: "Thief", status: "ok", hp: 10, maxHp: 10, equipment: {} }
+      { name: "Robin", status: "ok", hp: 10, maxHp: 10, equipment: {} }
     ];
     state.floor = 1;
     state.currentRun = {
@@ -518,7 +516,6 @@ import assert from "assert";
       state.party = [
         {
           name: "MageChar",
-          class: "Mage",
           status: "ok",
           equipment: {
             weapon: "WAND",
@@ -578,7 +575,7 @@ import assert from "assert";
 
       // A. followUp (追撃) in Combat
       const attacker = {
-        name: "Robin", class: "Fighter", status: "ok", level: 5, hp: 50, maxHp: 50,
+        name: "Robin", status: "ok", level: 5, hp: 50, maxHp: 50,
         str: 15, int: 10, pie: 10, vit: 10, agi: 10, luk: 10,
         equipment: {
           // followUp is capped at 50% (getCharAffixSum caps), so the effective chance is 50, not 100.
@@ -606,7 +603,7 @@ import assert from "assert";
 
       // B. arcane (呪文威力+10%)
       const mageCaster = {
-        name: "Ged", class: "Mage", status: "ok", level: 5, hp: 30, maxHp: 30, mp: 10, maxMp: 10,
+        name: "Ged", status: "ok", level: 5, hp: 30, maxHp: 30, mp: 10, maxMp: 10,
         str: 8, int: 15, pie: 10, vit: 10, agi: 10, luk: 10,
         equipment: {
           weapon: { kind: "equipment", baseId: "WAND", rarity: "rare", identified: true, affixes: [{ type: "arcane", value: 10 }] },
@@ -632,7 +629,7 @@ import assert from "assert";
 
       // C. devotion (回復威力+10%)
       const priestCaster = {
-        name: "Maria", class: "Priest", status: "ok", level: 5, hp: 40, maxHp: 40, mp: 10, maxMp: 10,
+        name: "Maria", status: "ok", level: 5, hp: 40, maxHp: 40, mp: 10, maxMp: 10,
         str: 8, int: 10, pie: 15, vit: 10, agi: 10, luk: 10,
         equipment: {
           weapon: { kind: "equipment", baseId: "MACE", rarity: "rare", identified: true, affixes: [{ type: "devotion", value: 10 }] },
@@ -655,7 +652,7 @@ import assert from "assert";
       // Compare a guarded char against an identical unguarded one under fixed rolls:
       // the guardian shield must leave strictly more HP (less damage taken).
       const makeGuardianChar = (shield) => ({
-        name: "Arthur", class: "Fighter", status: "ok", level: 5, hp: 10, maxHp: 40, // 10/40 = 25% (eligible)
+        name: "Arthur", status: "ok", level: 5, hp: 10, maxHp: 40, // 10/40 = 25% (eligible)
         str: 12, int: 10, pie: 10, vit: 15, agi: 10, luk: 10,
         equipment: { weapon: null, shield, armor: null }
       });

@@ -87,7 +87,6 @@ test("queues lethal magic-reflect damage before the death log", () => {
   const combatState = createCombatState({
     character: {
       name: "魔術師",
-      class: "Mage",
       level: 1,
       hp: 5,
       maxHp: 5,
@@ -141,7 +140,6 @@ test("queues lethal normal-attack damage before the death log", () => {
   const combatState = createCombatState({
     character: {
       name: "戦士",
-      class: "Fighter",
       level: 1,
       hp: 1,
       maxHp: 1,
@@ -154,7 +152,6 @@ test("queues lethal normal-attack damage before the death log", () => {
       agi: 1,
       luk: 8,
       status: "ok",
-      spells: [],
       equipment: {}
     },
     monster: {

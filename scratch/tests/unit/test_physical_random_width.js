@@ -25,7 +25,6 @@ for (const weapon of weapons) {
 
 function makeChar(weapon) {
   return {
-    class: "Fighter",
     level: 1,
     equipment: { weapon, shield: null, armor: null, accessory: null }
   };
@@ -48,11 +47,10 @@ assert.equal(rollCharWeaponPhysicalRandom(makeChar("VENOM_FANG"), () => 0.999999
 assert.equal(rollCharWeaponPhysicalRandom(makeChar("NINJA_DAGGER"), () => 0), 1);
 assert.equal(rollCharWeaponPhysicalRandom(makeChar("NINJA_DAGGER"), () => 0.999999), 3);
 
-function createCombatState({ weapon, followUp = false, className = "Fighter" } = {}) {
+function createCombatState({ weapon, followUp = false } = {}) {
   return {
     party: [{
       name: "Tester",
-      class: className,
       level: 5,
       hp: 100,
       maxHp: 100,
@@ -65,7 +63,6 @@ function createCombatState({ weapon, followUp = false, className = "Fighter" } =
       agi: 100,
       luk: 10,
       status: "ok",
-      spells: [],
       equipment: {
         weapon,
         shield: null,
@@ -97,11 +94,11 @@ function createCombatState({ weapon, followUp = false, className = "Fighter" } =
   };
 }
 
-function executeCombat({ weapon, followUp = false, className = "Fighter" }, rng) {
+function executeCombat({ weapon, followUp = false }, rng) {
   const originalRandom = Math.random;
   Math.random = rng;
   try {
-    return runCombatRoundCalculation(createCombatState({ weapon, followUp, className }), {
+    return runCombatRoundCalculation(createCombatState({ weapon, followUp }), {
       actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
     });
   } finally {
@@ -109,13 +106,11 @@ function executeCombat({ weapon, followUp = false, className = "Fighter" }, rng)
   }
 }
 
-function runCombat({ weapon, followUp = false, className = "Fighter" }) {
+function runCombat({ weapon, followUp = false }) {
   const randomValues = followUp
-    ? className === "Ninja"
-      ? [0, 0, 0.999999, 0, 0, 0.999999]
-      : [0, 0, 0.999999, 0, 0.999999]
+    ? [0, 0, 0.999999, 0, 0, 0.999999]
     : [0, 0, 0.999999];
-  return executeCombat({ weapon, followUp, className }, () => randomValues.shift() ?? 0);
+  return executeCombat({ weapon, followUp }, () => randomValues.shift() ?? 0);
 }
 
 const wideAttack = runCombat({ weapon: "VENOM_FANG" });
@@ -123,7 +118,7 @@ assert.equal(wideAttack.state.combatFormulaTelemetry.physicalPlayerHits[0].randR
 const narrowAttack = runCombat({ weapon: "NINJA_DAGGER" });
 assert.equal(narrowAttack.state.combatFormulaTelemetry.physicalPlayerHits[0].randRoll, 3);
 
-const narrowFollowUp = runCombat({ weapon: "NINJA_DAGGER", followUp: true, className: "Ninja" });
+const narrowFollowUp = runCombat({ weapon: "NINJA_DAGGER", followUp: true });
 const followUpLog = narrowFollowUp.logQueue.find(entry => entry.msg?.includes("【🗡️追撃】"));
 assert.ok(followUpLog, "follow-up attack still fires");
 assert.match(followUpLog.msg, /に13のダメージ/);
