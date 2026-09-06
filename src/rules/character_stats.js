@@ -1,4 +1,4 @@
-import { getEquippedItemData, getCharAffixSum } from "./item_rules.js";
+import { getEquippedItemData, getCharAffixSum, getCurseKeeperBonus } from "./item_rules.js";
 import { getCharCoreParams } from "./affix_rules.js";
 import { calculateDisarmRate } from "./trap_rules.js";
 import { getMediumMaxMpBonus } from "./magic_rules.js";
@@ -54,7 +54,7 @@ export function getCharMaxMp(char) {
     });
   }
   // MP 0は非術者の正当な容量なので、負値だけを0へ戻す。
-  const mediumBonus = char.startingKit ? getMediumMaxMpBonus(char) : 0;
+  const mediumBonus = getMediumMaxMpBonus(char);
   return Math.max(0, char.maxMp + bonus + mediumBonus);
 }
 
@@ -100,7 +100,9 @@ export function getCharWeaponAtk(char) {
       }
     });
   }
-  return atk;
+  // Equipment-owned ATK is already included above. Core ATK is kept as a
+  // separate build contribution so Curse Keeper is applied exactly once.
+  return atk + getCurseKeeperBonus(char, "atk");
 }
 
 export function getCharTrapEaterBonus(char) {

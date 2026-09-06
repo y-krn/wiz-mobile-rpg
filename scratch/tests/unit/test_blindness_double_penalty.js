@@ -11,7 +11,6 @@ function createState({ characterStatus = "ok", monsterStatus = "ok", agi = 1 } =
   return {
     party: [{
       name: "Tester",
-      class: "Fighter",
       level: 1,
       hp: 100,
       maxHp: 100,

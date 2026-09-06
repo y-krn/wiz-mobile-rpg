@@ -68,7 +68,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   function createCaster(overrides = {}) {
     return {
       name: "MageChar",
-      class: "Mage",
       hp: 30,
       maxHp: 30,
       mp: 10,
@@ -208,7 +207,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       party: [
         {
           name: "MageChar",
-          class: "Mage",
           level: 5,
           hp: 30,
           maxHp: 30,
@@ -328,7 +326,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
     // Priest L4
     const priest = {
-      class: "Priest",
       level: 3,
       exp: 99999, // enough exp to level up
       maxHp: 30,
@@ -342,7 +339,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
     // Bishop L4
     const bishop = {
-      class: "Bishop",
       level: 3,
       exp: 99999,
       maxHp: 30,
@@ -356,7 +352,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
     // Ranger L5
     const ranger = {
-      class: "Ranger",
       level: 4,
       exp: 99999,
       maxHp: 30,
@@ -373,7 +368,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   {
     console.log("- Test 2: WEAKEN effect decreases effective ATK");
 
-    const caster = { name: "PriestChar", class: "Priest", int: 10 };
+    const caster = { name: "PriestChar", int: 10 };
     const monster1 = { name: "Giant1", hp: 50, atk: 15, buffs: [] };
     const monster2 = { name: "Giant2", hp: 50, atk: 2, buffs: [] }; // test min clamp (min 1)
 
@@ -403,7 +398,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       party: [
         {
           name: "FighterChar",
-          class: "Fighter",
           level: 5,
           hp: 100,
           maxHp: 100,
@@ -415,7 +409,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
         },
         {
           name: "PriestChar",
-          class: "Priest",
           level: 5,
           hp: 50,
           maxHp: 50,
@@ -484,7 +477,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   function createParalyzedState(partyStatuses, allParalyzedTurns = 0) {
     const party = partyStatuses.map((status, idx) => ({
       name: `Char${idx}`,
-      class: "Fighter",
       level: 1,
       hp: status === "dead" ? 0 : 30,
       maxHp: 30,
@@ -623,7 +615,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       party: [
         {
           name: "Char0",
-          class: "Fighter",
           level: 1,
           hp: 30,
           maxHp: 30,
@@ -757,7 +748,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     const party = [
       {
         name: "PriestChar",
-        class: "Priest",
         level: 5,
         hp: 30,
         maxHp: 30,
@@ -771,7 +761,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       },
       {
         name: "MageChar",
-        class: "Mage",
         level: 5,
         hp: 20,
         maxHp: 20,
@@ -1060,7 +1049,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
     // Priest L5
     const priest = {
-      class: "Priest",
       level: 4,
       exp: 99999,
       maxHp: 30, hp: 30,
@@ -1072,7 +1060,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
     // Ranger L6
     const ranger = {
-      class: "Ranger",
       level: 5,
       exp: 99999,
       maxHp: 30, hp: 30,
@@ -1084,7 +1071,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
     // Bishop L7
     const bishop = {
-      class: "Bishop",
       level: 6,
       exp: 99999,
       maxHp: 30, hp: 30,
@@ -1101,7 +1087,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
     const caster = {
       name: "PriestChar",
-      class: "Fighter",
       pie: 10,
       equipment: {}
     };
@@ -1160,11 +1145,11 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     const combatState = {
       party: [
         {
-          name: "FighterChar", class: "Fighter", level: 5, hp: 10, maxHp: 100, mp: 0, maxMp: 0, status: "ok",
+          name: "Frontliner", level: 5, hp: 10, maxHp: 100, mp: 0, maxMp: 0, status: "ok",
           equipment: {}
         },
         {
-          name: "PriestChar", class: "Priest", level: 5, hp: 50, maxHp: 50, mp: 10, maxMp: 10, status: "ok",
+          name: "RuneHealer", level: 5, hp: 50, maxHp: 50, mp: 10, maxMp: 10, status: "ok",
           equipment: { weapon: "WAND" },
           mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_MADI"] },
           buffs: [{ type: "firstStrike", value: 100, turns: 99 }]
@@ -1205,7 +1190,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   function castWithSpellPower(spellPower) {
     const caster = {
       name: "SpellPower Mage",
-      class: "Mage",
       level: 1,
       hp: 30,
       maxHp: 30,
@@ -1276,7 +1260,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   function healWithSpellPower(spellPower) {
     const caster = {
       name: "SpellPower Priest",
-      class: "Priest",
       level: 5,
       hp: 30,
       maxHp: 30,
@@ -1303,7 +1286,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     };
     const target = {
       name: "Wounded Ally",
-      class: "Fighter",
       level: 1,
       hp: 10,
       maxHp: 200,

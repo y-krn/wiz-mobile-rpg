@@ -16,7 +16,6 @@ function createState({ status = "ok", isBoss = false, retreatPosition = null, ch
   return {
     party: [{
       name: "Solo",
-      class: "Fighter",
       level: 5,
       hp: 100,
       maxHp: 100,

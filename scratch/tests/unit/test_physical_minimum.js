@@ -18,7 +18,6 @@ global.localStorage = {
 
 function createState({
   characterStatus = "ok",
-  className = "Fighter",
   highPlayerDef = false,
   highMonsterDef = false,
   followUp = false
@@ -26,7 +25,6 @@ function createState({
   return {
     party: [{
       name: "Tester",
-      class: className,
       level: 5,
       hp: 100,
       maxHp: 100,
@@ -105,14 +103,14 @@ assert.equal(normalHit.state.combatState.monsters[0].hp, 999);
 assert.equal(normalHit.state.combatFormulaTelemetry.physicalPlayerHits[0].damage, 1);
 
 const targetedMinimum = applyTargetedDamageBonus(
-  { class: "Fighter", hp: 10, maxHp: 10, equipment: {} },
+  { hp: 10, maxHp: 10, equipment: {} },
   { name: "Target", hp: 10, maxHp: 10, status: "ok" },
   0
 );
 assert.equal(targetedMinimum, 1, "targeted physical affix stage keeps a hit at one damage");
 
 const criticalHit = run(
-  createState({ className: "Ninja", highMonsterDef: true }),
+  createState({ highMonsterDef: true }),
   { type: "fight", actorIdx: 0, targetIdx: 0 }
 );
 assert.equal(criticalHit.state.combatState.monsters[0].hp, 999);
@@ -157,7 +155,7 @@ assert.match(blindMiss.logQueue.map(entry => entry.msg).join("\n"), /空振り�
 // Physical formula and mitigation outputs cannot turn a negative input into
 // healing; the resolved physical path remains non-negative and hit-minimum-1.
 assert.equal(
-  reduceIncomingDamage({ class: "Fighter", hp: 100, maxHp: 100 }, -5),
+  reduceIncomingDamage({ hp: 100, maxHp: 100 }, -5),
   1,
   "negative incoming physical damage cannot heal HP"
 );

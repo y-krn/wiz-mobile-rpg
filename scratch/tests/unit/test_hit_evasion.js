@@ -16,7 +16,6 @@ function createState({ physicalAccuracy = 0, monster, accuracyCore = false } = {
   return {
     party: [{
       name: "Tester",
-      class: "Fighter",
       level: 1,
       hp: 100,
       maxHp: 100,

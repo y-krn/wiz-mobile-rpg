@@ -29,7 +29,6 @@ import { state } from "../../../src/state.js";
     state.party = [
       {
         name: "Fighter",
-        class: "Fighter",
         level: 5,
         hp: 55, maxHp: 55,
         status: "ok",
@@ -140,7 +139,6 @@ import { state } from "../../../src/state.js";
     function testResolveEscapeScroll(escapeChance, forceRandomValue) {
       const char = {
         name: "Speedy",
-        class: "Fighter",
         status: "ok",
         equipment: {
           accessory: escapeChance > 0
@@ -191,7 +189,6 @@ import { state } from "../../../src/state.js";
     // 2. getItemUseStatus Verification (Gating conditions)
     const testChar = {
       name: "GatedChar",
-      class: "Fighter",
       hp: 20,
       maxHp: 30,
       status: "ok"
@@ -232,7 +229,6 @@ import { state } from "../../../src/state.js";
     function createState(inventorySize) {
       const char = {
         name: "Tester",
-        class: "Fighter",
         level: 1,
         hp: 30,
         maxHp: 30,
@@ -285,7 +281,6 @@ import { state } from "../../../src/state.js";
     function createFleeOnlyState() {
       const char = {
         name: "Tester",
-        class: "Fighter",
         level: 1,
         hp: 30,
         maxHp: 30,
@@ -348,7 +343,6 @@ import { state } from "../../../src/state.js";
 
     const greaterHealResult = resolveTestItem("GREATER_HEAL", {
       name: "Hurt",
-      class: "Fighter",
       hp: 10,
       maxHp: 60,
       status: "ok",
@@ -360,7 +354,6 @@ import { state } from "../../../src/state.js";
 
     const etherResult = resolveTestItem("ETHER", {
       name: "Mage",
-      class: "Mage",
       hp: 10,
       maxHp: 10,
       mp: 1,
@@ -373,7 +366,6 @@ import { state } from "../../../src/state.js";
 
     const cureResult = resolveTestItem("PARALYZE_CURE", {
       name: "Paralyzed",
-      class: "Fighter",
       hp: 10,
       maxHp: 10,
       status: "paralyzed",
@@ -433,7 +425,6 @@ import { state } from "../../../src/state.js";
     console.log("Running Test 2: getCharAffixSum with HOLY_BLADE & DRAGON_CHARM...");
     const charStringEquip = {
       name: "Hero",
-      class: "Fighter",
       equipment: {
         weapon: "HOLY_BLADE",
         shield: "DRAGON_CHARM",
@@ -446,7 +437,6 @@ import { state } from "../../../src/state.js";
 
     const charObjectEquip = {
       name: "Hero2",
-      class: "Fighter",
       equipment: {
         weapon: { baseId: "HOLY_BLADE", identified: true, affixes: [] },
         shield: { baseId: "DRAGON_CHARM", identified: true, affixes: [] },
@@ -552,7 +542,7 @@ import { state } from "../../../src/state.js";
       // 1. Initial State Setup
       initNewGame();
       state.party = [
-        { name: "Fighter", class: "Fighter", level: 1, hp: 20, maxHp: 20, mp: 0, maxMp: 0, status: "ok", exp: 0 }
+        { name: "Frontliner", level: 1, hp: 20, maxHp: 20, mp: 0, maxMp: 0, status: "ok", exp: 0 }
       ];
       state.firstKills = [];
       state.identifyTickets = 0;

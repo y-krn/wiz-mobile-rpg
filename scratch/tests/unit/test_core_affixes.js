@@ -89,7 +89,6 @@ function supportItem(type, value, baseId = "LEATHER_ARMOR") {
 function makeChar(coreId, baseId = "SHORT_SWORD") {
   return {
     name: "Tester",
-    class: "Fighter",
     level: 5,
     hp: 100,
     maxHp: 100,
@@ -456,7 +455,6 @@ test("浄化の環: MP空き時はMP回復", () => {
 
 test("浄化の環: MP満タン時はHPへ振替、HP満タン時は発動ログなし", () => {
   const char = makeChar(null);
-  char.class = "Thief";
   char.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_MP");
   char.mp = getCharMaxMp(char);
   char.hp = 50;
@@ -468,7 +466,6 @@ test("浄化の環: MP満タン時はHPへ振替、HP満タン時は発動ログ
   assert.match(logs[0].msg, /HPが2回復/);
 
   const fullHpChar = makeChar(null);
-  fullHpChar.class = "Thief";
   fullHpChar.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_MP");
   fullHpChar.mp = getCharMaxMp(fullHpChar);
   const fullHpLogs = [];
@@ -488,15 +485,10 @@ test("罠喰い: クラスによらず累積し、上限20", () => {
   let bonus = 0;
   for (let i = 0; i < 20; i++) bonus = getTrapEaterBonusAfterDisarm(char, bonus);
   assert.equal(bonus, 20);
-  for (const className of ["Fighter", "Thief", "Priest", "Mage"]) {
-    const classChar = makeChar(null);
-    classChar.class = className;
-    classChar.equipment.accessory = coreItem("CORE_TRAP_EATER", "AMULET_HP");
-    assert.deepEqual(getCharCoreParams(classChar, "CORE_TRAP_EATER"), {
-      attackPerDisarm: 2,
-      maxAttack: 20
-    });
-  }
+  assert.deepEqual(getCharCoreParams(char, "CORE_TRAP_EATER"), {
+    attackPerDisarm: 2,
+    maxAttack: 20
+  });
 });
 
 test("呪飼いの鎖: 呪い数×攻撃力/呪文力+3%", () => {
@@ -506,6 +498,7 @@ test("呪飼いの鎖: 呪い数×攻撃力/呪文力+3%", () => {
   char.equipment.accessory = coreItem("CORE_CURSE_KEEPER", "AMULET_HP", "curse_spectral_decay");
   assert.equal(getCharAffixSum(char, "atk"), 29.5);
   assert.equal(getCharAffixSum(char, "spellPower"), 6);
+  assert.equal(getCharWeaponAtk(char), 38.5, "Core ATK reaches the real weapon attack path once");
 });
 
 test("殿の構え: 既存セーブ装備でも無害・無効果", () => {
@@ -590,7 +583,6 @@ test("薄氷の誓約: 低HP時に攻撃・被害が増える", () => {
 
 test("戦闘サポート: 条件倍率・状態耐性・キル回復・威圧", () => {
   const char = makeChar(null);
-  char.class = "Thief";
   char.hp = 50;
   char.equipment.weapon = supportItem("deepAssault", 10, "SHORT_SWORD");
   char.equipment.armor = supportItem("antiBeast", 20);
