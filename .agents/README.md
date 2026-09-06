@@ -36,6 +36,8 @@ contract and exact scenario inventory.
 design-document coverage. `npm run lint:markdown` checks Markdown link
 destinations, including the repository-root-relative convention used by
 evidence reports; it does not duplicate the inline-code or design-canon checks.
+`npm run lint:tests` checks Playwright naming and domain-entrypoint ownership
+rules from the current test files.
 `npm run lint:workflow` parses every GitHub Actions workflow and validates its
 basic `name`/`on`/`jobs`/step shape before CI runs.
 
