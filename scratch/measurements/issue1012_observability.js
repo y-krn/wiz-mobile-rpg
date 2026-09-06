@@ -7,16 +7,16 @@ import { dirname, resolve } from "node:path";
 import { resolveMeasurementProvenance } from "./measurement_provenance.js";
 
 function parseArgs(argv) {
-  const options = { runs: 500, seed: 1012, scenario: "workshop-empty", classes: "" };
+  const options = { runs: 500, seed: 1012, scenario: "workshop-empty", fixtures: "" };
   for (let index = 0; index < argv.length; index++) {
     const value = argv[index];
-    if (["--output", "--summary", "--scenario", "--classes", "--runs", "--seed"].includes(value)) {
+    if (["--output", "--summary", "--scenario", "--fixtures", "--runs", "--seed"].includes(value)) {
       const next = argv[++index];
       if (!next) throw new Error(`${value} requires a value`);
       const key = value.slice(2);
       options[key] = ["runs", "seed"].includes(key) ? Number(next) : next;
     } else if (value === "--help") {
-      console.log("Usage: node scratch/measurements/issue1012_observability.js --output /private/tmp/issue1012.json [--summary /private/tmp/issue1012.md] [--runs 500] [--scenario workshop-empty] [--classes Mage]");
+      console.log("Usage: node scratch/measurements/issue1012_observability.js --output /private/tmp/issue1012.json [--summary /private/tmp/issue1012.md] [--runs 500] [--scenario workshop-empty] [--fixtures medium-multi-rune]");
       process.exit(0);
     } else {
       throw new Error(`unknown option: ${value}`);
@@ -28,9 +28,9 @@ function parseArgs(argv) {
   return options;
 }
 
-function buildObservation(result, className) {
+function buildObservation(result, buildId) {
   return {
-    className,
+    buildId,
     targetDepth: result.targetDepth,
     routePolicy: result.routePolicy || "partial_information_exploration",
     exploration: result.vnextObservability?.exploration || {},
@@ -77,9 +77,10 @@ export function buildIssue1012Report({ options, provenance, observations }) {
       measurementRunnerPaths: provenance?.measurementRunnerPaths || null,
       measurementRunnerDiffSha256: provenance?.measurementRunnerDiffSha256 || null,
       seed: options.seed,
-      runsPerClass: options.runs,
+      runsPerBuild: options.runs,
       scenario: options.scenario,
-      classes: options.classes.split(",").map(value => value.trim()).filter(Boolean),
+      fixtures: options.fixtures.split(",").map(value => value.trim()).filter(Boolean),
+      axis: "build-snapshot",
       priorMeasurementPolicy: "does_not_restart_issue_990"
     },
     eventSchema: [
@@ -108,23 +109,22 @@ const provenance = process.env.SIM_SKIP_PROVENANCE === "1"
         "scratch/simulations/simulation_manifest.js"
       ]
     });
-const { getScenarioById, runCalibratedDepthSimulationTask, SIM_CLASSES } =
+const { getScenarioById, runCalibratedDepthSimulationTask, resolveBuildFixtureIds } =
   await import("../simulations/sim_depth_material_ev.js");
 const scenario = getScenarioById(options.scenario);
-const requestedClasses = options.classes.split(",").map(value => value.trim()).filter(Boolean);
-const classNames = requestedClasses.length > 0 ? requestedClasses : SIM_CLASSES;
-classNames.forEach(className => {
-  if (!SIM_CLASSES.includes(className)) throw new Error(`unknown simulation class: ${className}`);
-});
-options.classes = classNames.join(",");
+const requestedFixtures = options.fixtures.split(",").map(value => value.trim()).filter(Boolean);
+const fixtureIds = requestedFixtures.length > 0
+  ? requestedFixtures.flatMap(fixtureId => resolveBuildFixtureIds(fixtureId))
+  : resolveBuildFixtureIds();
+options.fixtures = fixtureIds.join(",");
 
 const observations = [];
-for (const className of classNames) {
+for (const fixtureId of fixtureIds) {
   const task = runCalibratedDepthSimulationTask({
     kind: "scenario",
     scenarioId: scenario.id,
     identificationPolicyId: "powder",
-    className,
+    fixtureId,
     runCount: options.runs,
     collectVNextObservability: true,
     scenarioOverrides: {
@@ -138,7 +138,7 @@ for (const className of classNames) {
       }
     }
   }, {});
-  task.results.forEach(result => observations.push(buildObservation(result, className)));
+  task.results.forEach(result => observations.push(buildObservation(result, fixtureId)));
 }
 
 const report = buildIssue1012Report({ options, provenance, observations });
@@ -153,8 +153,8 @@ if (options.summary) {
     "",
     `- source commit: \`${report.measurement.sourceCommit}\``,
     `- gameplay source commit: \`${report.measurement.gameplaySourceCommit}\``,
-    `- N=${report.measurement.runsPerClass}, seed=${report.measurement.seed}, scenario=${report.measurement.scenario}`,
-    `- classes: ${report.measurement.classes.join(", ")}`,
+    `- N=${report.measurement.runsPerBuild}, seed=${report.measurement.seed}, scenario=${report.measurement.scenario}`,
+    `- build fixtures: ${report.measurement.fixtures.join(", ")}`,
     "- production object-loot ownership loss is intentionally reported as `not_modeled`; production stake composition is measured by `loot_stake_snapshot` and lifecycle by `loot_lifecycle`.",
     "- this runner uses the canonical simulator and does not restart Issue #990.",
     ""

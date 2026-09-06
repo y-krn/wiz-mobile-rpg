@@ -98,7 +98,7 @@ const scenarioResults = config.scenarioIds.map(scenarioId => ({
   fixtureResults: config.fixtureIds.map(fixtureId => {
     const task = taskResultsByKey.get(`${scenarioId}/${fixtureId}`);
     if (!task) throw new Error(`missing standard simulation task: ${scenarioId}/${fixtureId}`);
-    return { className: fixtureId, results: task.results };
+    return { fixtureId: fixtureId, results: task.results };
   })
 }));
 const report = summarizeSimulationResults({ config, provenance, scenarioResults, execution });

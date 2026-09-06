@@ -1452,10 +1452,10 @@ const RESOLVED_SCENARIO_IDS = new Set(
 const ACTIVE_SCENARIOS = REQUESTED_SCENARIO_IDS.size === 0
   ? DEPTH_SCENARIOS.filter(scenario => DEFAULT_DEPTH_SCENARIO_IDS.has(scenario.id))
   : DEPTH_SCENARIOS.filter(scenario => RESOLVED_SCENARIO_IDS.has(scenario.id));
-// Historical reports still use the old axis labels, but every simulated
-// character now comes from a current starting kit. The labels are report
-// dimensions only and never become a production character.class field.
-const SIM_CLASSES = Object.freeze(["Fighter", "Thief", "Priest", "Mage"]);
+// Historical reports still use the old axis labels. They are retained only
+// for explicit compatibility calls; the canonical CLI and current measurement
+// path below use Build Snapshot fixtures exclusively.
+const LEGACY_CLASS_AXIS = Object.freeze(["Fighter", "Thief", "Priest", "Mage"]);
 const SIM_CLASS_STARTING_KITS = Object.freeze({
   Fighter: "vanguard",
   Thief: "scout",
@@ -1464,8 +1464,8 @@ const SIM_CLASS_STARTING_KITS = Object.freeze({
 });
 
 function resolveSimulationClassNames(className = null) {
-  if (className === null || className === undefined) return SIM_CLASSES;
-  if (!SIM_CLASSES.includes(className)) {
+  if (className === null || className === undefined) return LEGACY_CLASS_AXIS;
+  if (!LEGACY_CLASS_AXIS.includes(className)) {
     throw new Error(`unknown simulation class: ${className}`);
   }
   return [className];
@@ -2053,20 +2053,20 @@ function summarizeDistribution(values) {
   };
 }
 
-function createDamageEstimateAggregate() {
+function createDamageEstimateAggregate(axisIds = LEGACY_CLASS_AXIS) {
   return {
-    byClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}])),
-    decisionsByClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}])),
-    actionsByClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}])),
+    byAxis: Object.fromEntries(axisIds.map(axisId => [axisId, {}])),
+    decisionsByAxis: Object.fromEntries(axisIds.map(axisId => [axisId, {}])),
+    actionsByAxis: Object.fromEntries(axisIds.map(axisId => [axisId, {}])),
     unmatchedHits: 0,
-    unmatchedHitsByClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}]))
+    unmatchedHitsByAxis: Object.fromEntries(axisIds.map(axisId => [axisId, {}]))
   };
 }
 
-function getDamageEstimateAggregateBucket(container, className, floor) {
-  const classBuckets = container[className] ||= {};
+function getDamageEstimateAggregateBucket(container, axisId, floor) {
+  const axisBuckets = container[axisId] ||= {};
   const key = String(floor);
-  return classBuckets[key] ||= {
+  return axisBuckets[key] ||= {
     estimates: [],
     formula: [],
     observed: [],
@@ -2075,15 +2075,15 @@ function getDamageEstimateAggregateBucket(container, className, floor) {
   };
 }
 
-function addDamageEstimateAudit(target, source, className) {
+function addDamageEstimateAudit(target, source, axisId) {
   if (!target || !source) return;
   target.unmatchedHits += source.unmatchedHits || 0;
   Object.entries(source.unmatchedHitsByFloor || {}).forEach(([floor, sourceBucket]) => {
-    const bucket = target.unmatchedHitsByClass[className][floor] ||= { hits: 0 };
+    const bucket = target.unmatchedHitsByAxis[axisId][floor] ||= { hits: 0 };
     bucket.hits += sourceBucket.hits || 0;
   });
   Object.entries(source.decisionsByFloor || {}).forEach(([floor, sourceBucket]) => {
-    const bucket = target.decisionsByClass[className][floor] ||= {
+    const bucket = target.decisionsByAxis[axisId][floor] ||= {
       evaluations: 0,
       decisions: { fight: 0, recover: 0, flee: 0 }
     };
@@ -2093,7 +2093,7 @@ function addDamageEstimateAudit(target, source, className) {
     });
   });
   Object.entries(source.actionsByFloor || {}).forEach(([floor, sourceBucket]) => {
-    const bucket = target.actionsByClass[className][floor] ||= {
+    const bucket = target.actionsByAxis[axisId][floor] ||= {
       evaluations: 0,
       fleeActions: 0,
       recoveryActions: 0
@@ -2107,7 +2107,7 @@ function addDamageEstimateAudit(target, source, className) {
     const formula = Number(hit.formula);
     const observed = Number(hit.observed);
     if (![estimate, formula, observed].every(Number.isFinite)) return;
-    const bucket = getDamageEstimateAggregateBucket(target.byClass, className, hit.floor);
+    const bucket = getDamageEstimateAggregateBucket(target.byAxis, axisId, hit.floor);
     bucket.estimates.push(estimate);
     bucket.formula.push(formula);
     bucket.observed.push(observed);
@@ -2132,26 +2132,26 @@ function finalizeDamageEstimateAggregate(aggregate) {
     }])
   );
   return {
-    byClass: Object.fromEntries(
-      Object.entries(aggregate.byClass).map(([className, buckets]) => [
-        className,
+    byAxis: Object.fromEntries(
+      Object.entries(aggregate.byAxis).map(([axisId, buckets]) => [
+        axisId,
         summarizeBuckets(buckets)
       ])
     ),
-    decisionsByClass: Object.fromEntries(
-      Object.entries(aggregate.decisionsByClass).map(([className, buckets]) => [
-        className,
+    decisionsByAxis: Object.fromEntries(
+      Object.entries(aggregate.decisionsByAxis).map(([axisId, buckets]) => [
+        axisId,
         summarizeBuckets(buckets)
       ])
     ),
-    actionsByClass: Object.fromEntries(
-      Object.entries(aggregate.actionsByClass).map(([className, buckets]) => [
-        className,
+    actionsByAxis: Object.fromEntries(
+      Object.entries(aggregate.actionsByAxis).map(([axisId, buckets]) => [
+        axisId,
         summarizeBuckets(buckets)
       ])
     ),
     unmatchedHits: aggregate.unmatchedHits,
-    unmatchedHitsByClass: aggregate.unmatchedHitsByClass
+    unmatchedHitsByAxis: aggregate.unmatchedHitsByAxis
   };
 }
 
@@ -4218,7 +4218,7 @@ function resolveTrapPolicies(scenario = {}) {
 }
 
 function createSimulationState(
-  className,
+  axisId,
   startFloor,
   runSeed,
   scenario,
@@ -4240,11 +4240,11 @@ function createSimulationState(
   const character = buildFixtureId
     ? createBuildFixture(buildFixtureId)
     : applyWorkshopToCharacter(
-        createStartingKitCharacter(SIM_CLASS_STARTING_KITS[className] || "vanguard"),
+        createStartingKitCharacter(SIM_CLASS_STARTING_KITS[axisId] || "vanguard"),
         workshop
       );
   const startingBuild = scenario.startingBuild;
-  if (startingBuild?.equipment && !buildFixtureId && className === "Mage") {
+  if (startingBuild?.equipment && !buildFixtureId && axisId === "Mage") {
     // Reuse the #975 production-shaped fixture conversion. This keeps the
     // Phase 2 injected build semantically identical to the established build
     // definitions (level, tags, core/support affixes, and derived stats).
@@ -5476,10 +5476,8 @@ function getLegacyMageCombatAction({
 }
 
 function chooseSimulationAutoCombatAction(args) {
-  if (ISSUE538_LEGACY_SPELL_POLICY && !args.character.startingKit && args.character.class === "Mage") {
-    return getLegacyMageCombatAction(args);
-  }
-  const isPriest = !args.character.startingKit && args.character.class === "Priest";
+  if (!args.character.startingKit) return chooseLegacyClassCombatAction(args);
+  const isPriest = false;
   const maskedSpellIds = isPriest ? getSimulationPriestHealingSpellIds() : null;
   const activeSpellKeys = getSimulationActiveSpellKeys(args.character);
   if (!maskedSpellIds || !activeSpellKeys.length) {
@@ -5491,6 +5489,24 @@ function chooseSimulationAutoCombatAction(args) {
   return chooseAutoCombatAction({
     ...args,
     activeSpellKeys: filteredSpellKeys
+  });
+}
+
+function chooseLegacyClassCombatAction(args) {
+  if (ISSUE538_LEGACY_SPELL_POLICY && args.character.class === "Mage") {
+    return getLegacyMageCombatAction(args);
+  }
+  const isPriest = args.character.class === "Priest";
+  const maskedSpellIds = isPriest ? getSimulationPriestHealingSpellIds() : null;
+  const activeSpellKeys = getSimulationActiveSpellKeys(args.character);
+  if (!maskedSpellIds || !activeSpellKeys.length) {
+    return chooseAutoCombatAction({ ...args, activeSpellKeys });
+  }
+  return chooseAutoCombatAction({
+    ...args,
+    activeSpellKeys: activeSpellKeys.filter(spellName =>
+      !PRIEST_HEALING_SPELL_IDS.includes(spellName) || maskedSpellIds.includes(spellName)
+    )
   });
 }
 
@@ -5791,10 +5807,15 @@ function recordCombatSpellPressure(state, metrics, actualAction, probeAction = n
 
 function getSimulationPreferredOffensiveSpellName(character, monsters, canCastSpell) {
   const activeSpellKeys = getSimulationActiveSpellKeys(character);
-  if (ISSUE538_LEGACY_SPELL_POLICY && !character.startingKit && character.class === "Mage") {
+  if (!character.startingKit) return getLegacyPreferredOffensiveSpellName(character, monsters, canCastSpell);
+  return getPreferredOffensiveSpellName(character, monsters, canCastSpell, activeSpellKeys);
+}
+
+function getLegacyPreferredOffensiveSpellName(character, monsters, canCastSpell) {
+  if (ISSUE538_LEGACY_SPELL_POLICY && character.class === "Mage") {
     return hasSpell(character, "HALITO") ? "HALITO" : null;
   }
-  return getPreferredOffensiveSpellName(character, monsters, canCastSpell, activeSpellKeys);
+  return getPreferredOffensiveSpellName(character, monsters, canCastSpell);
 }
 
 function getDiosCombatAction(state) {
@@ -7039,7 +7060,7 @@ function applyCountermeasureScale(state, override) {
   const patches = [];
   state.party.forEach(character => {
     if (!character?.equipment) return;
-    if (override?.className && !character.startingKit && override.className !== character.class) return;
+    if (override?.axisId && !character.startingKit && override.axisId !== character.class) return;
     const currentValue = getCharAffixSum(character, affixType);
     const delta = currentValue * (multiplier - 1);
     if (currentValue === 0 || !Number.isFinite(delta)) return;
@@ -8197,7 +8218,7 @@ function getSimulationTrapGuardByParty(state) {
     // overrides are intentionally ignored so simulation cannot reintroduce a
     // class exploration permission.
     const matchedOverride = overrides.find(candidate =>
-      candidate && !candidate.className && !candidate.classNames
+      candidate && !candidate.axisId && !candidate.axisIds
     );
     if (!matchedOverride) return getCharAffixSum(character, "trapGuard");
     if (Number.isFinite(Number(matchedOverride.value))) {
@@ -9028,7 +9049,9 @@ function createCoreScoringProfile(observations, runCount) {
 }
 
 function getClassScoringProfile(scoringProfile, character) {
-  return character.startingKit ? scoringProfile : (scoringProfile?.byClass?.[character.class] || scoringProfile);
+  return character.startingKit
+    ? (scoringProfile?.byFixtureId?.[character.buildFixtureId] || scoringProfile)
+    : (scoringProfile?.byClass?.[character.class] || scoringProfile);
 }
 
 function getCombatCoreScoreForId(character, scoringProfile, floor, coreId) {
@@ -12683,7 +12706,9 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     ? createBuildPaymentRunSnapshot(state, metrics, outcome)
     : null;
   return {
-    className: state.currentRun.characterClass,
+    ...(state.currentRun.buildFixtureId
+      ? { buildId: state.currentRun.buildFixtureId }
+      : { className: state.currentRun.characterClass }),
     fixtureId: state.currentRun.buildFixtureId || null,
     buildSnapshot: structuredClone(metrics.buildSnapshot),
     survived: outcome === "retreat",
@@ -15060,7 +15085,7 @@ function simulateCase({
   scoringProfile,
   scenario,
   identificationPolicy = "powder",
-  classNames = SIM_CLASSES,
+  axisIds = LEGACY_CLASS_AXIS,
   fixtureIds = null
 }) {
   const totals = {
@@ -15178,8 +15203,8 @@ function simulateCase({
     firstCoreDepthCounts: {},
     coreObservations: createCoreObservations(),
     spellUsage: createSpellUsageMetrics(),
-    spellUsageByClass: Object.fromEntries(
-      classNames.map(className => [className, createSpellUsageMetrics()])
+    spellUsageByAxis: Object.fromEntries(
+      axisIds.map(axisId => [axisId, createSpellUsageMetrics()])
     ),
     explorationSpellUsage: createExplorationSpellUsageMetrics(),
     mpPressure: createSpellPressureMetrics(),
@@ -15189,8 +15214,8 @@ function simulateCase({
     mpDepletionCausedEndRuns: 0,
     lightActiveSteps: 0,
     masfealActiveSteps: 0,
-    purifyEffectsByClass: Object.fromEntries(
-      classNames.map(className => [className, {
+    purifyEffectsByAxis: Object.fromEntries(
+      axisIds.map(axisId => [axisId, {
         runs: 0,
         runsWithCore: 0,
         tagKills: 0,
@@ -15201,14 +15226,14 @@ function simulateCase({
         actualEffectEvents: 0
       }])
     ),
-    coreRetentionByClass: Object.fromEntries(
-      classNames.map(className => [className, {
+    coreRetentionByAxis: Object.fromEntries(
+      axisIds.map(axisId => [axisId, {
         encounteredById: {},
         equippedById: {}
       }])
     ),
-    workshopEffectsByClass: Object.fromEntries(
-      classNames.map(className => [className, {
+    workshopEffectsByAxis: Object.fromEntries(
+      axisIds.map(axisId => [axisId, {
         runs: 0,
         stats: {},
         startingGearCandidates: {},
@@ -15260,12 +15285,12 @@ function simulateCase({
     trap: createTrapAggregate(),
     flameTrap: createFlameTrapAggregate(),
     b5Gate: createB5GateAggregate(),
-    outcomesByClass: Object.fromEntries(
-      classNames.map(className => [className, createOutcomeAggregate()])
+    outcomesByAxis: Object.fromEntries(
+      axisIds.map(axisId => [axisId, createOutcomeAggregate()])
     ),
     runDiagnostics: createRunDiagnosticsAggregate(),
     damageEstimateAudit: SIM_737_DAMAGE_AUDIT_ENABLED
-      ? createDamageEstimateAggregate()
+      ? createDamageEstimateAggregate(axisIds)
       : null,
     trapBonus: createTrapBonusAggregate(),
     townPortalsUsed: 0,
@@ -15291,35 +15316,35 @@ function simulateCase({
     hitEvasion: { attemptsByFloor: {}, missesByFloor: {} }
   };
   totals.buildPayment = createBuildPaymentAggregate();
-  const merchantStockByClass = Object.fromEntries(
-    classNames.map(className => [className, createMerchantStockMetrics()])
+  const merchantStockByAxis = Object.fromEntries(
+    axisIds.map(axisId => [axisId, createMerchantStockMetrics()])
   );
-  const classConsumableTotals = Object.fromEntries(
-    classNames.map(className => [className, createTrapAggregate()])
+  const axisConsumableTotals = Object.fromEntries(
+    axisIds.map(axisId => [axisId, createTrapAggregate()])
   );
-  const classIssue412Totals = Object.fromEntries(
-    classNames.map(className => [className, createIssue412Aggregate()])
+  const axisIssue412Totals = Object.fromEntries(
+    axisIds.map(axisId => [axisId, createIssue412Aggregate()])
   );
-  const classMpPressureTotals = Object.fromEntries(
-    classNames.map(className => [className, createSpellPressureMetrics()])
+  const axisMpPressureTotals = Object.fromEntries(
+    axisIds.map(axisId => [axisId, createSpellPressureMetrics()])
   );
-  const classCombatMpTotals = Object.fromEntries(
-    classNames.map(className => [className, createCombatMpMeasurement()])
+  const axisCombatMpTotals = Object.fromEntries(
+    axisIds.map(axisId => [axisId, createCombatMpMeasurement()])
   );
-  const classCombatPolicyProbeTotals = Object.fromEntries(
-    classNames.map(className => [className, createCombatPolicyProbeMetrics()])
+  const axisCombatPolicyProbeTotals = Object.fromEntries(
+    axisIds.map(axisId => [axisId, createCombatPolicyProbeMetrics()])
   );
-  const classHitEvasionTotals = Object.fromEntries(
-    classNames.map(className => [className, { attemptsByFloor: {}, missesByFloor: {} }])
+  const axisHitEvasionTotals = Object.fromEntries(
+    axisIds.map(axisId => [axisId, { attemptsByFloor: {}, missesByFloor: {} }])
   );
-  const departureCraftBanksByClass = Object.fromEntries(
-    classNames.map(className => [className, {}])
+  const departureCraftBanksByAxis = Object.fromEntries(
+    axisIds.map(axisId => [axisId, {}])
   );
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
-    const className = classNames[runIndex % classNames.length];
-    const fixtureId = fixtureIds ? className : null;
-    const departureCraftBank = departureCraftBanksByClass[className];
+    const axisId = axisIds[runIndex % axisIds.length];
+    const fixtureId = fixtureIds ? axisId : null;
+    const departureCraftBank = departureCraftBanksByAxis[axisId];
     const hasDepartureCraftBank = Object.keys(departureCraftBank).length > 0;
     const hasExplicitDepartureCraftIds = ACTIVE_DEPARTURE_CRAFT_IDS.length > 0;
     const runScenario = scenario.departureCraftMeasurement
@@ -15333,7 +15358,7 @@ function simulateCase({
         }
       : scenario;
     const result = simulateRun({
-      className: fixtureId ? "Fighter" : className,
+      className: fixtureId ? "Fighter" : axisId,
       fixtureId,
       startFloor,
       targetDepth,
@@ -15368,47 +15393,47 @@ function simulateCase({
       });
     }
     if (scenario.departureCraftMeasurement) {
-      departureCraftBanksByClass[className] = { ...result.metaMaterials };
+      departureCraftBanksByAxis[axisId] = { ...result.metaMaterials };
     }
     if (fixtureId && result.buildSnapshot) {
       totals.buildSnapshotsByFixtureId[fixtureId] ||= structuredClone(result.buildSnapshot);
     }
     addBuildPaymentRunAggregate(totals.buildPayment, result.buildPayment);
     addSpellUsageAggregate(totals.spellUsage, result);
-    addSpellUsageAggregate(totals.spellUsageByClass[className], result);
+    addSpellUsageAggregate(totals.spellUsageByAxis[axisId], result);
     addExplorationSpellUsageAggregate(totals.explorationSpellUsage, result);
     addSpellPressureMetrics(totals.mpPressure, result.mpPressure);
-    addSpellPressureMetrics(classMpPressureTotals[className], result.mpPressure);
+    addSpellPressureMetrics(axisMpPressureTotals[axisId], result.mpPressure);
     addCombatMpMeasurement(totals.combatMpMeasurement, result.combatMpMeasurement);
-    addCombatMpMeasurement(classCombatMpTotals[className], result.combatMpMeasurement);
+    addCombatMpMeasurement(axisCombatMpTotals[axisId], result.combatMpMeasurement);
     addCombatPolicyProbeMetrics(totals.combatPolicyProbe, result.combatPolicyProbe);
     addCombatPolicyProbeMetrics(
-      classCombatPolicyProbeTotals[className],
+      axisCombatPolicyProbeTotals[axisId],
       result.combatPolicyProbe
     );
     addDamageEstimateAudit(
       totals.damageEstimateAudit,
       result.damageEstimateAudit,
-      className
+      axisId
     );
     Object.entries(result.hitEvasion?.attemptsByFloor || {}).forEach(([floor, count]) => {
-      const bucket = classHitEvasionTotals[className].attemptsByFloor;
+      const bucket = axisHitEvasionTotals[axisId].attemptsByFloor;
       bucket[floor] = (bucket[floor] || 0) + count;
     });
     Object.entries(result.hitEvasion?.missesByFloor || {}).forEach(([floor, count]) => {
-      const bucket = classHitEvasionTotals[className].missesByFloor;
+      const bucket = axisHitEvasionTotals[axisId].missesByFloor;
       bucket[floor] = (bucket[floor] || 0) + count;
     });
     totals.mpBlockedTerminalEncounterRuns += Number(result.mpBlockedTerminalEncounter);
     totals.mpDepletionCausedEndRuns += Number(result.mpDepletionCausedEnd);
     totals.lightActiveSteps += result.lightActiveSteps;
     totals.masfealActiveSteps += result.masfealActiveSteps;
-    addOutcomeAggregate(totals.outcomesByClass[className], result);
+    addOutcomeAggregate(totals.outcomesByAxis[axisId], result);
     addRunDiagnosticsAggregate(totals.runDiagnostics, result.runDiagnostics);
     addStatusObservationAggregate(totals.statusObservations, result);
     addEnemyStatusGrammarAggregate(totals.enemyStatusGrammar, result.enemyStatusGrammar);
     Object.entries(result.merchantStock || {}).forEach(([stockId, source]) => {
-      const target = merchantStockByClass[className][stockId] ||= {
+      const target = merchantStockByAxis[axisId][stockId] ||= {
         itemId: source.itemId || null,
         attempts: 0,
         successes: 0,
@@ -15487,7 +15512,7 @@ function simulateCase({
     });
     addFlameTrapAggregate(totals.flameTrap, result);
     addB5GateAggregate(totals.b5Gate, result);
-    const workshopEffects = totals.workshopEffectsByClass[className];
+    const workshopEffects = totals.workshopEffectsByAxis[axisId];
     workshopEffects.runs++;
     Object.entries(result.workshopEffects.stats).forEach(([stat, amount]) => {
       workshopEffects.stats[stat] = (workshopEffects.stats[stat] || 0) + amount;
@@ -15503,9 +15528,9 @@ function simulateCase({
     }
     workshopEffects.startingGearAttackDelta += result.workshopEffects.startingGearAttackDelta;
     addTrapAggregate(totals.trap, result);
-    addTrapAggregate(classConsumableTotals[className], result);
+    addTrapAggregate(axisConsumableTotals[axisId], result);
     addIssue412Aggregate(totals.issue412, result.issue412);
-    addIssue412Aggregate(classIssue412Totals[className], result.issue412);
+    addIssue412Aggregate(axisIssue412Totals[axisId], result.issue412);
     addTrapBonusAggregate(totals.trapBonus, result);
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
@@ -15692,7 +15717,7 @@ function simulateCase({
         (totals.coreEquippedRunsById[coreId] || 0) + 1;
     });
     addCoreObservations(totals.coreObservations, result.coreObservations);
-    const purifyEffects = totals.purifyEffectsByClass[className];
+    const purifyEffects = totals.purifyEffectsByAxis[axisId];
     purifyEffects.runs++;
     purifyEffects.runsWithCore += Number(
       result.coreEverEquippedIds.includes("CORE_PURIFY_RING")
@@ -15703,14 +15728,14 @@ function simulateCase({
     purifyEffects.actualMpRecovered += result.coreObservations.purifyMpRecovered;
     purifyEffects.actualHpRecovered += result.coreObservations.purifyHpRecovered;
     purifyEffects.actualEffectEvents += result.coreObservations.purifyEffectEvents;
-    const classCoreTotals = totals.coreRetentionByClass[className];
+    const axisCoreTotals = totals.coreRetentionByAxis[axisId];
     result.coreEncounteredIds.forEach(coreId => {
-      classCoreTotals.encounteredById[coreId] =
-        (classCoreTotals.encounteredById[coreId] || 0) + 1;
+      axisCoreTotals.encounteredById[coreId] =
+        (axisCoreTotals.encounteredById[coreId] || 0) + 1;
     });
     finalCoreIds.forEach(coreId => {
-      classCoreTotals.equippedById[coreId] =
-        (classCoreTotals.equippedById[coreId] || 0) + 1;
+      axisCoreTotals.equippedById[coreId] =
+        (axisCoreTotals.equippedById[coreId] || 0) + 1;
     });
     const firstCoreDepthKey = result.firstCoreDepth === null ? "none" : String(result.firstCoreDepth);
     totals.firstCoreDepthCounts[firstCoreDepthKey] =
@@ -15758,9 +15783,9 @@ function simulateCase({
   const averageTimeCost = totals.timeCost / RUNS_PER_CASE;
   const trapPolicies = resolveTrapPolicies(scenario);
   const trapSummary = finalizeTrapAggregate(totals.trap);
-  const consumablesByClass = Object.fromEntries(
-    Object.entries(classConsumableTotals).map(([className, aggregate]) => [
-      className,
+  const consumablesByAxis = Object.fromEntries(
+    Object.entries(axisConsumableTotals).map(([axisId, aggregate]) => [
+      axisId,
       buildConsumableClassSummary(finalizeTrapAggregate(aggregate))
     ])
   );
@@ -15774,9 +15799,9 @@ function simulateCase({
     targetDepth,
     issue412Policy: SIM_412_POLICY,
     issue412: finalizeIssue412Aggregate(totals.issue412),
-    issue412ByClass: Object.fromEntries(
-      Object.entries(classIssue412Totals).map(([className, aggregate]) => [
-        className,
+    issue412ByAxis: Object.fromEntries(
+      Object.entries(axisIssue412Totals).map(([axisId, aggregate]) => [
+        axisId,
         finalizeIssue412Aggregate(aggregate)
       ])
     ),
@@ -15980,11 +16005,11 @@ function simulateCase({
     ),
     coreEquippedCountDistribution: totals.coreEquippedCountDistribution,
     unequippedCoreReasonsById: totals.unequippedCoreReasonsById,
-    purifyEffectsByClass: Object.fromEntries(
-      Object.entries(totals.purifyEffectsByClass).map(([className, values]) => {
+    purifyEffectsByAxis: Object.fromEntries(
+      Object.entries(totals.purifyEffectsByAxis).map(([axisId, values]) => {
         const runs = Math.max(1, values.runs);
         const coreRuns = Math.max(1, values.runsWithCore);
-        return [className, {
+        return [axisId, {
           runsWithCore: values.runsWithCore,
           averageTagKills: values.tagKills / runs,
           averagePotentialMpRecovered: values.potentialMpRecovered / runs,
@@ -15997,9 +16022,9 @@ function simulateCase({
         }];
       })
     ),
-    coreRetentionByClass: Object.fromEntries(
-      Object.entries(totals.coreRetentionByClass).map(([className, values]) => [
-        className,
+    coreRetentionByAxis: Object.fromEntries(
+      Object.entries(totals.coreRetentionByAxis).map(([axisId, values]) => [
+        axisId,
         Object.fromEntries(ENABLED_CORE_AFFIXES.map(affix => {
           const encountered = values.encounteredById[affix.id] || 0;
           const equipped = values.equippedById[affix.id] || 0;
@@ -16011,10 +16036,10 @@ function simulateCase({
         }))
       ])
     ),
-    workshopEffectsByClass: Object.fromEntries(
-      Object.entries(totals.workshopEffectsByClass).map(([className, values]) => {
+    workshopEffectsByAxis: Object.fromEntries(
+      Object.entries(totals.workshopEffectsByAxis).map(([axisId, values]) => {
         const runs = Math.max(1, values.runs);
-        return [className, {
+        return [axisId, {
           stats: Object.fromEntries(
             Object.entries(values.stats).map(([stat, amount]) => [stat, amount / runs])
           ),
@@ -16039,9 +16064,9 @@ function simulateCase({
         { ...usage }
       ])
     ),
-    spellUsageByClass: Object.fromEntries(
-      Object.entries(totals.spellUsageByClass).map(([className, usage]) => [
-        className,
+    spellUsageByAxis: Object.fromEntries(
+      Object.entries(totals.spellUsageByAxis).map(([axisId, usage]) => [
+        axisId,
         Object.fromEntries(Object.entries(usage).map(([spellName, values]) => [
           spellName,
           { ...values }
@@ -16050,23 +16075,23 @@ function simulateCase({
     ),
     explorationSpellUsage: { ...totals.explorationSpellUsage },
     mpPressure: finalizeSpellPressureMetrics(totals.mpPressure),
-    mpPressureByClass: Object.fromEntries(
-      Object.entries(classMpPressureTotals).map(([className, pressure]) => [
-        className,
+    mpPressureByAxis: Object.fromEntries(
+      Object.entries(axisMpPressureTotals).map(([axisId, pressure]) => [
+        axisId,
         finalizeSpellPressureMetrics(pressure)
       ])
     ),
     combatMp: finalizeCombatMpMeasurement(totals.combatMpMeasurement),
-    combatMpByClass: Object.fromEntries(
-      Object.entries(classCombatMpTotals).map(([className, measurement]) => [
-        className,
+    combatMpByAxis: Object.fromEntries(
+      Object.entries(axisCombatMpTotals).map(([axisId, measurement]) => [
+        axisId,
         finalizeCombatMpMeasurement(measurement)
       ])
     ),
     combatPolicyProbe: { ...totals.combatPolicyProbe },
-    combatPolicyProbeByClass: Object.fromEntries(
-      Object.entries(classCombatPolicyProbeTotals).map(([className, probe]) => [
-        className,
+    combatPolicyProbeByAxis: Object.fromEntries(
+      Object.entries(axisCombatPolicyProbeTotals).map(([axisId, probe]) => [
+        axisId,
         { ...probe }
       ])
     ),
@@ -16087,7 +16112,7 @@ function simulateCase({
         .map(([itemId, count]) => [itemId, count / RUNS_PER_CASE])
     ),
     merchantStock: totals.merchantStock,
-    merchantStockByClass,
+    merchantStockByAxis,
     merchantPolicy: scenario.merchantPolicy || SIM_MERCHANT_POLICY,
     milestonePortalPolicy: scenario.milestonePortalPolicy || SIM_MILESTONE_PORTAL_POLICY,
     milestoneMerchantVisits: totals.milestoneMerchantVisits,
@@ -16109,20 +16134,20 @@ function simulateCase({
     statusCureSupply: totals.statusCureSupply,
     statusesCured: totals.statusesCured,
     ...trapSummary,
-    consumablesByClass,
+    consumablesByAxis,
     flameTrap: finalizeFlameTrapAggregate(totals.flameTrap),
     b5Gate: finalizeB5GateAggregate(totals.b5Gate),
     averageFlameTrapActivations: totals.flameTrap.activations / RUNS_PER_CASE,
-    outcomesByClass: Object.fromEntries(
-      Object.entries(totals.outcomesByClass).map(([className, aggregate]) => [
-        className,
+    outcomesByAxis: Object.fromEntries(
+      Object.entries(totals.outcomesByAxis).map(([axisId, aggregate]) => [
+        axisId,
         finalizeOutcomeAggregate(aggregate)
       ])
     ),
     runDiagnostics: finalizeRunDiagnosticsAggregate(totals.runDiagnostics),
-    hitEvasionByClass: Object.fromEntries(
-      Object.entries(classHitEvasionTotals).map(([className, totalsByFloor]) => [
-        className,
+    hitEvasionByAxis: Object.fromEntries(
+      Object.entries(axisHitEvasionTotals).map(([axisId, totalsByFloor]) => [
+        axisId,
         Object.fromEntries(
           [...new Set([
             ...Object.keys(totalsByFloor.attemptsByFloor),
@@ -16190,7 +16215,25 @@ function simulateCase({
 function snapshotDepthResult(result) {
   // workerが後続taskを処理する前に、深度ケースのtop-level所有権を切断する。
   // 再現した汚染はscalar top-level fieldに限られ、nested集計はケース内で生成・複製済み。
-  return { ...result };
+  if (!result) return result;
+  const isBuildFixture = result.axisType === "build-fixture";
+  const axisFieldSuffix = isBuildFixture ? "ByFixtureId" : "ByClass";
+  const renameBuildAxisFields = value => {
+    if (Array.isArray(value)) return value.map(renameBuildAxisFields);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.entries(value).map(([key, nested]) => {
+      const renamed = key
+        .replace(/ByAxis/g, axisFieldSuffix)
+        .replace(/byAxis/g, isBuildFixture ? "byFixtureId" : "byClass")
+        .replace(/axisIds/g, isBuildFixture ? "fixtureIds" : "classNames")
+        .replace(/runsPerClass/g, isBuildFixture ? "runsPerBuild" : "runsPerClass")
+        .replace(/^classes$/, isBuildFixture ? "buildFixtures" : "classes")
+        .replace(/^axisId$/, isBuildFixture ? "buildId" : "className")
+        .replace(/^characterClass$/, isBuildFixture ? "buildId" : "characterClass");
+      return [renamed, renameBuildAxisFields(nested)];
+    }));
+  };
+  return renameBuildAxisFields({ ...result });
 }
 
 function formatPercent(rate) {
@@ -16260,7 +16303,7 @@ export function calibrateCoreScoringProfile(
   scenarioOverrides = {},
   identificationPolicy = "powder",
   workshop = { ranks: {} },
-  classNames = SIM_CLASSES,
+  classAxisIds = LEGACY_CLASS_AXIS,
   fixtureIds = null
 ) {
   const calibrationScenario = {
@@ -16270,16 +16313,16 @@ export function calibrateCoreScoringProfile(
     identificationPolicy: identificationPolicy.id || identificationPolicy
   };
   const observations = createCoreObservations();
-  const axisNames = fixtureIds || classNames;
-  const observationsByClass = Object.fromEntries(
-    axisNames.map(axisName => [axisName, createCoreObservations()])
+  const axisIds = fixtureIds || classAxisIds;
+  const observationsByAxis = Object.fromEntries(
+    axisIds.map(axisId => [axisId, createCoreObservations()])
   );
-  const runCountsByClass = Object.fromEntries(axisNames.map(axisName => [axisName, 0]));
+  const runCountsByAxis = Object.fromEntries(axisIds.map(axisId => [axisId, 0]));
   for (let runIndex = 0; runIndex < runCount; runIndex++) {
-    const axisName = axisNames[runIndex % axisNames.length];
-    const fixtureId = fixtureIds ? axisName : null;
+    const axisId = axisIds[runIndex % axisIds.length];
+    const fixtureId = fixtureIds ? axisId : null;
     const result = simulateRun({
-      className: fixtureId ? "Fighter" : axisName,
+      className: fixtureId ? "Fighter" : axisId,
       fixtureId,
       startFloor: 1,
       targetDepth: 20,
@@ -16290,19 +16333,21 @@ export function calibrateCoreScoringProfile(
       workshop
     });
     addCoreObservations(observations, result.coreObservations);
-    addCoreObservations(observationsByClass[axisName], result.coreObservations);
-    runCountsByClass[axisName]++;
+    addCoreObservations(observationsByAxis[axisId], result.coreObservations);
+    runCountsByAxis[axisId]++;
   }
   const profile = createCoreScoringProfile(observations, runCount);
-  profile.byClass = Object.fromEntries(
-    axisNames.map(axisName => [
-      axisName,
+  const axisProfiles = Object.fromEntries(
+    axisIds.map(axisId => [
+      axisId,
       createCoreScoringProfile(
-        observationsByClass[axisName],
-        runCountsByClass[axisName]
+        observationsByAxis[axisId],
+        runCountsByAxis[axisId]
       )
     ])
   );
+  if (fixtureIds) profile.byFixtureId = axisProfiles;
+  else profile.byClass = axisProfiles;
   return profile;
 }
 
@@ -16318,7 +16363,8 @@ export {
   SCENARIOS,
   DEPTH_SCENARIOS,
   REFERENCE_SCENARIOS,
-  SIM_CLASSES,
+  LEGACY_CLASS_AXIS,
+  LEGACY_CLASS_AXIS as SIM_CLASSES,
   IDENTIFICATION_BALANCE,
   RETREAT_REASON_IDS,
   DEATH_CAUSE_IDS,
@@ -16372,17 +16418,17 @@ function printCoreScoringProfile(profile, policy = null) {
       `B10=${profile.expectedTrapDisarmsFromFloor[10].toFixed(3)}; ` +
       "min(20, 現floor以降の解除回数×攻撃+2)×weaponAtk重み2"
   );
-  if (profile.byClass) {
-    console.log("職業別calibration（戦闘coreスコアへ適用; 罠指標は全体集計）:");
-    SIM_CLASSES.forEach(className => {
-      const classProfile = profile.byClass[className];
+  const axisProfiles = profile.byFixtureId || profile.byClass;
+  if (axisProfiles) {
+    console.log("Build fixture別calibration（戦闘coreスコアへ適用; 罠指標は全体集計）:");
+    Object.entries(axisProfiles).forEach(([buildId, buildProfile]) => {
       console.log(
-        `  ${className}: 低HP攻撃=${formatPercent(classProfile.lowHpOffensiveRate)}, ` +
-        `巨人対象=${formatPercent(classProfile.giantTargetRate)}, ` +
-        `先制戦闘=${formatPercent(classProfile.openerFirstStrikeRate)}, ` +
-        `物理被弾=${formatPercent(classProfile.incomingPhysicalHitRate)}, ` +
-        `浄化潜在MP=${classProfile.purifyMpPerOffensiveTurn.toFixed(4)}/turn, ` +
-        `HP=${classProfile.purifyHpPerOffensiveTurn.toFixed(4)}/turn`
+        `  ${buildId}: 低HP攻撃=${formatPercent(buildProfile.lowHpOffensiveRate)}, ` +
+        `巨人対象=${formatPercent(buildProfile.giantTargetRate)}, ` +
+        `先制戦闘=${formatPercent(buildProfile.openerFirstStrikeRate)}, ` +
+        `物理被弾=${formatPercent(buildProfile.incomingPhysicalHitRate)}, ` +
+        `浄化潜在MP=${buildProfile.purifyMpPerOffensiveTurn.toFixed(4)}/turn, ` +
+        `HP=${buildProfile.purifyHpPerOffensiveTurn.toFixed(4)}/turn`
       );
     });
   }
@@ -16447,19 +16493,24 @@ function printTable(results) {
   });
 }
 
+function getAxisMap(result, metric) {
+  return result?.[`${metric}ByFixtureId`] || result?.[`${metric}ByClass`] || {};
+}
+
 function printClassOutcomeMetrics(result) {
-  if (!result?.outcomesByClass) return;
-  console.log(`\n【B5F gate 職業別 endpoint / ${result.label}】`);
+  const outcomes = getAxisMap(result, "outcomes");
+  if (Object.keys(outcomes).length === 0) return;
+  console.log(`\n【B5F gate build fixture別 endpoint / ${result.label}】`);
   console.log(
-    "職業 | N | B5 entrant | B5突破 | B5死亡 | B5撤退 | 全run生還率(=撤退率) | 全run死亡率 | 平均到達階"
+    "build fixture | N | B5 entrant | B5突破 | B5死亡 | B5撤退 | 全run生還率(=撤退率) | 全run死亡率 | 平均到達階"
   );
-  Object.entries(result.outcomesByClass).forEach(([className, stats]) => {
+  Object.entries(outcomes).forEach(([buildId, stats]) => {
     const b5Entrants = stats.entrantsByFloor[5] || 0;
     const b5Breakthroughs = stats.entrantsByFloor[6] || 0;
     const b5Deaths = stats.deathsByFloor[5] || 0;
     const b5Retreats = stats.retreatsByFloor[5] || 0;
     console.log(
-      `${className.padEnd(6)} | ${String(stats.runs).padStart(3)} | ` +
+      `${buildId.padEnd(20)} | ${String(stats.runs).padStart(3)} | ` +
       `${formatWilson(b5Entrants, stats.runs)} | ` +
       `${formatWilson(b5Breakthroughs, b5Entrants)} | ` +
       `${formatWilson(b5Deaths, b5Entrants)} | ` +
@@ -16472,13 +16523,15 @@ function printClassOutcomeMetrics(result) {
 }
 
 function printHitEvasionMetrics(result) {
-  if (!SIM_728_HIT_EVASION_ENABLED || !result?.hitEvasionByClass) return;
+  if (!SIM_728_HIT_EVASION_ENABLED) return;
+  const hitEvasion = getAxisMap(result, "hitEvasion");
+  if (Object.keys(hitEvasion).length === 0) return;
   console.log(`\n【#728 命中・回避 発火率 / ${result.label}】`);
-  console.log("職業 深度 | 回避対象への物理攻撃数 | 回避数 | 発火率");
-  Object.entries(result.hitEvasionByClass).forEach(([className, floors]) => {
+  console.log("build fixture 深度 | 回避対象への物理攻撃数 | 回避数 | 発火率");
+  Object.entries(hitEvasion).forEach(([buildId, floors]) => {
     Object.entries(floors).forEach(([floor, bucket]) => {
       console.log(
-        `${className} B${floor} | ${bucket.attempts} | ${bucket.misses} | ` +
+        `${buildId} B${floor} | ${bucket.attempts} | ${bucket.misses} | ` +
         `${formatPercent(bucket.evasionRate)}`
       );
     });
@@ -16495,21 +16548,23 @@ function printDamageEstimateAudit(result) {
   const audit = result?.damageEstimateAudit;
   if (!audit) return;
   console.log(`#737 未対応ヒット除外: ${audit.unmatchedHits || 0}`);
-  Object.entries(audit.unmatchedHitsByClass || {}).forEach(([className, floors]) => {
+  const unmatchedHitsByAxis = audit.unmatchedHitsByFixtureId || audit.unmatchedHitsByClass || {};
+  const damageByAxis = audit.byFixtureId || audit.byClass || {};
+  Object.entries(unmatchedHitsByAxis).forEach(([buildId, floors]) => {
     const count = Object.values(floors || {}).reduce((sum, bucket) => sum + (bucket.hits || 0), 0);
-    if (count > 0) console.log(`  ${className}: ${count}`);
+    if (count > 0) console.log(`  ${buildId}: ${count}`);
   });
   console.log(`\n【#737 近似 vs 実測ダメージ分布 / ${result.label}】`);
   console.log(
-    "職業 深度 | hits | estimate mean | formula mean | observed mean | " +
+    "build fixture 深度 | hits | estimate mean | formula mean | observed mean | " +
     "formula Δ(p10/med/p90) | observed Δ(p10/med/p90)"
   );
-  Object.entries(audit.byClass || {}).forEach(([className, floors]) => {
+  Object.entries(damageByAxis).forEach(([buildId, floors]) => {
     Object.entries(floors)
       .sort(([left], [right]) => Number(left) - Number(right))
       .forEach(([floor, bucket]) => {
         console.log(
-          `${className} B${floor} | ${bucket.n} | ` +
+          `${buildId} B${floor} | ${bucket.n} | ` +
           `${bucket.estimate.mean.toFixed(2)} | ${bucket.formula.mean.toFixed(2)} | ` +
           `${bucket.observed.mean.toFixed(2)} | ` +
           `${bucket.formulaDelta.p10.toFixed(2)}/${bucket.formulaDelta.median.toFixed(2)}/` +
@@ -16520,12 +16575,12 @@ function printDamageEstimateAudit(result) {
       });
   });
   console.log("#737 分布統計（未確定セルはhits<30）:");
-  Object.entries(audit.byClass || {}).forEach(([className, floors]) => {
+  Object.entries(damageByAxis).forEach(([buildId, floors]) => {
     Object.entries(floors)
       .sort(([left], [right]) => Number(left) - Number(right))
       .forEach(([floor, bucket]) => {
         console.log(
-          `  ${className} B${floor}: estimate{${formatDamageAuditDistribution(bucket.estimate)}} ` +
+          `  ${buildId} B${floor}: estimate{${formatDamageAuditDistribution(bucket.estimate)}} ` +
           `formula{${formatDamageAuditDistribution(bucket.formula)}} ` +
           `observed{${formatDamageAuditDistribution(bucket.observed)}}`
         );
@@ -16536,11 +16591,11 @@ function printDamageEstimateAudit(result) {
 function printEvActionRates(results) {
   if (!SIM_737_DAMAGE_AUDIT_ENABLED) return;
   console.log("\n【#737 EV action rates / workshop-complete】");
-  console.log("深度 | 職業 | 逃走発火run率 | 回復発火run率 | 逃走action/run | 回復action/run");
+  console.log("深度 | build fixture | 逃走発火run率 | 回復発火run率 | 逃走action/run | 回復action/run");
   results.forEach(result => {
-    Object.entries(result.outcomesByClass || {}).forEach(([className, stats]) => {
+    Object.entries(getAxisMap(result, "outcomes")).forEach(([buildId, stats]) => {
       console.log(
-        `B${result.targetDepth} | ${className} | ` +
+        `B${result.targetDepth} | ${buildId} | ` +
         `${formatWilson(stats.runsWithEvFlee, stats.runs)} | ` +
         `${formatWilson(stats.runsWithEvRecovery, stats.runs)} | ` +
         `${(stats.evFleeActions / Math.max(1, stats.runs)).toFixed(2)} | ` +
@@ -16768,14 +16823,14 @@ function printStatusCureSummary(result) {
 }
 
 function printCraftMeasurementSummary(result) {
-  console.log("クラフト・素材競合/run（職業別。craft=実購入/同一bank可否）");
+  console.log("クラフト・素材競合/run（build fixture別。craft=実購入/同一bank可否）");
   console.log(
-    "職業    | 魔石片 宝箱/モンスター/その他 | 魔力草 craft/率/使用(戦闘中/戦闘後) | 傷薬 可/率 | 上薬 可/率 | 聖水 可/率 | 強化可 | 工房可 | 実消費 強化/工房"
+    "build fixture        | 魔石片 宝箱/モンスター/その他 | 魔力草 craft/率/使用(戦闘中/戦闘後) | 傷薬 可/率 | 上薬 可/率 | 聖水 可/率 | 強化可 | 工房可 | 実消費 強化/工房"
   );
   console.log(
     "--------|--------------------------|--------------------|-----------|-----------|-----------|--------|-------|------------------"
   );
-  Object.entries(result.consumablesByClass || {}).forEach(([className, metrics]) => {
+  Object.entries(getAxisMap(result, "consumables")).forEach(([buildId, metrics]) => {
     const shards = metrics.averageMaterialSourceCounts?.chest?.[MAGIC_SHARD] || 0;
     const combatShards = metrics.averageMaterialSourceCounts?.combat?.[MAGIC_SHARD] || 0;
     const otherShards =
@@ -16790,7 +16845,7 @@ function printCraftMeasurementSummary(result) {
       `${formatPercent(actualRate[recipeId] || 0)}/${formatPercent(potentialRate[recipeId] || 0)}`;
     const competition = metrics.materialCompetition || {};
     console.log(
-      `${className.padEnd(7)} | ${shards.toFixed(2)}/${combatShards.toFixed(2)}/${otherShards.toFixed(2).padStart(5)} ` +
+      `${buildId.padEnd(20)} | ${shards.toFixed(2)}/${combatShards.toFixed(2)}/${otherShards.toFixed(2).padStart(5)} ` +
       `| ${craft("MANA_POTION")} / ${(metrics.averageManaPotionsConsumed || 0).toFixed(2)} ` +
       `(${(metrics.averageManaPotionsUsedInCombat || 0).toFixed(2)}/${(metrics.averageManaPotionsUsedPostCombat || 0).toFixed(2)}) ` +
       `| ${craft("HEAL_POTION")} | ${craft("GREATER_HEAL")} | ${craft("HOLY_WATER")} ` +
@@ -16800,7 +16855,7 @@ function printCraftMeasurementSummary(result) {
       `${(competition.averageSimulatedWorkshopNodeShardSpend || 0).toFixed(2)}`
     );
     console.log(
-      `  ${className}: 魔力草入手=${JSON.stringify(metrics.averageManaPotionsAcquiredBySource)} ` +
+      `  ${buildId}: 魔力草入手=${JSON.stringify(metrics.averageManaPotionsAcquiredBySource)} ` +
       `消費=${JSON.stringify(metrics.averageManaPotionsConsumedBySource)}; ` +
       `聖水入手=${JSON.stringify(metrics.averageHolyWaterAcquiredBySource)} ` +
       `消費=${JSON.stringify(metrics.averageHolyWaterConsumedBySource)}`
@@ -17022,16 +17077,16 @@ function buildMpScarcityMeasurement(resultsByPolicy) {
     simRuns: RUNS_PER_CASE,
     calibrationRuns: CALIBRATION_RUNS,
     targetDepths: [...TARGET_DEPTHS],
-    classes: [...SIM_CLASSES],
+    buildFixtures: [...BUILD_FIXTURE_IDS],
     results: resultsByPolicy.flatMap(({ policy, scenarioResults }) =>
       scenarioResults.flatMap(({ scenario, results }) => results.map(result => ({
         policy: policy.id,
         scenario: scenario.id,
         targetDepth: result.targetDepth,
         runs: RUNS_PER_CASE,
-        outcomesByClass: Object.fromEntries(
-          Object.entries(result.outcomesByClass).map(([className, outcome]) => [
-            className,
+        outcomesByFixtureId: Object.fromEntries(
+          Object.entries(getAxisMap(result, "outcomes")).map(([buildId, outcome]) => [
+            buildId,
             {
               runs: outcome.runs,
               averageReachedFloor: outcome.averageReachedFloor,
@@ -17050,16 +17105,18 @@ function buildMpScarcityMeasurement(resultsByPolicy) {
             }
           ])
         ),
-        mpPressureByClass: result.mpPressureByClass,
+        mpPressureByFixtureId: getAxisMap(result, "mpPressure"),
         mpPressure: result.mpPressure,
-        combatMpByClass: result.combatMpByClass,
+        combatMpByFixtureId: getAxisMap(result, "combatMp"),
         combatMp: result.combatMp,
-        combatPolicyProbeByClass: result.combatPolicyProbeByClass,
+        combatPolicyProbeByFixtureId: getAxisMap(result, "combatPolicyProbe"),
         combatPolicyProbe: result.combatPolicyProbe,
         damageEstimateAudit: result.damageEstimateAudit
           ? {
               unmatchedHits: result.damageEstimateAudit.unmatchedHits,
-              unmatchedHitsByClass: result.damageEstimateAudit.unmatchedHitsByClass
+              unmatchedHitsByFixtureId:
+                result.damageEstimateAudit.unmatchedHitsByFixtureId ||
+                result.damageEstimateAudit.unmatchedHitsByClass || {}
             }
           : null,
         mpBlockedTerminalEncounterRuns: result.mpBlockedTerminalEncounterRuns,
@@ -17074,13 +17131,13 @@ function printMpScarcityMetrics(resultsByPolicy) {
   resultsByPolicy.forEach(({ policy, scenarioResults }) => {
     scenarioResults.forEach(({ scenario, results }) => {
       results.forEach(result => {
-        Object.entries(result.outcomesByClass).forEach(([className, outcome]) => {
-          const pressure = result.mpPressureByClass[className];
+        Object.entries(getAxisMap(result, "outcomes")).forEach(([buildId, outcome]) => {
+          const pressure = getAxisMap(result, "mpPressure")[buildId];
           const combat = pressure.combat.total;
           const exploration = pressure.exploration.total;
           const recovery = pressure.recovery.total;
-          const combatMp = result.combatMpByClass[className];
-          const policyProbe = result.combatPolicyProbeByClass[className];
+          const combatMp = getAxisMap(result, "combatMp")[buildId];
+          const policyProbe = getAxisMap(result, "combatPolicyProbe")[buildId];
           const actionKinds = Object.fromEntries(
             Object.entries(pressure.combat.byActionKind || {}).map(([kind, bucket]) => [
               kind,
@@ -17088,7 +17145,7 @@ function printMpScarcityMetrics(resultsByPolicy) {
             ])
           );
           console.log(
-            `policy=${policy.id} scenario=${scenario.id} B${result.targetDepth} ${className} ` +
+            `policy=${policy.id} scenario=${scenario.id} B${result.targetDepth} ${buildId} ` +
             `endMP=${formatResourceDistribution(outcome.finalMpRate)} ` +
             `endHP=${formatResourceDistribution(outcome.finalHpRate)} ` +
             `reasons=${JSON.stringify(outcome.terminationReasons)} ` +
@@ -17312,7 +17369,7 @@ function printCoreRetentionDetail(result) {
     `baseline検知→適用後非検知=${formatWilson(sneakReducedCases, sneakOpportunities)}`
   );
   console.log("職業別core定着順位（遭遇→終了時装備）:");
-  Object.entries(result.coreRetentionByClass).forEach(([className, retentionById]) => {
+  Object.entries(getAxisMap(result, "coreRetention")).forEach(([buildId, retentionById]) => {
     const ranking = Object.entries(retentionById)
       .sort(([, left], [, right]) => {
         if (right.retentionRate !== left.retentionRate) {
@@ -17324,12 +17381,12 @@ function printCoreRetentionDetail(result) {
         `${coreId}=${formatPercent(values.retentionRate)} (${values.equipped}/${values.encountered})`
       )
       .join(" > ");
-    console.log(`  ${className}: ${ranking}`);
+    console.log(`  ${buildId}: ${ranking}`);
   });
   console.log("浄化の環 実効回復（core遭遇後の実ラン）:");
-  Object.entries(result.purifyEffectsByClass).forEach(([className, effect]) => {
+  Object.entries(getAxisMap(result, "purifyEffects")).forEach(([buildId, effect]) => {
     console.log(
-      `  ${className}: core使用run=${effect.runsWithCore}, ` +
+      `  ${buildId}: core使用run=${effect.runsWithCore}, ` +
       `タグ撃破=${effect.averageTagKills.toFixed(2)}/run, ` +
       `実測MP=${effect.averageActualMpRecovered.toFixed(2)}/run, ` +
       `HP=${effect.averageActualHpRecovered.toFixed(2)}/run ` +
@@ -17349,12 +17406,12 @@ function printWorkshopEffects(result) {
     `affix=${grants.affixIds.join(",") || "なし"}, ` +
     `spell=${grants.spellIds.join(",") || "なし"}`
   );
-  Object.entries(result.workshopEffectsByClass).forEach(([className, effects]) => {
+  Object.entries(getAxisMap(result, "workshopEffects")).forEach(([buildId, effects]) => {
     const applied = Object.entries(effects.startingGearApplied)
       .map(([itemId, rate]) => `${itemId}=${formatPercent(rate)}`)
       .join(", ") || "なし";
     console.log(
-      `  ${className}: 初期装備適用=${applied}, ` +
+      `  ${buildId}: 初期装備適用=${applied}, ` +
       `適用率=${formatPercent(effects.startingGearAppliedRate)}, ` +
       `攻撃力差=${effects.averageStartingGearAttackDelta.toFixed(2)}/run`
     );
@@ -17417,8 +17474,11 @@ export function runDepthSimulationTask(
   { scoringProfile, scoringProfiles = {}, scoringProfilesByScenario = {} }
 ) {
   resetSimulationRandom(SIM_SEED);
-  const fixtureIds = fixtureId === null ? null : resolveBuildFixtureIds(fixtureId);
-  const classNames = fixtureIds || resolveSimulationClassNames(className);
+  const useLegacyClassAxis = className !== null && className !== undefined;
+  const fixtureIds = useLegacyClassAxis
+    ? null
+    : (fixtureId === null ? [...BUILD_FIXTURE_IDS] : resolveBuildFixtureIds(fixtureId));
+  const axisIds = useLegacyClassAxis ? resolveSimulationClassNames(className) : fixtureIds;
   const scoringProfileForPolicy =
     scoringProfilesByScenario[`${identificationPolicyId}:${scenarioId}`] ||
     scoringProfiles[identificationPolicyId] ||
@@ -17443,7 +17503,7 @@ export function runDepthSimulationTask(
         scoringProfile: scoringProfileForPolicy,
         scenario: measurementScenario,
         identificationPolicy,
-        classNames,
+        axisIds,
         fixtureIds
       }))
     );
@@ -17462,7 +17522,7 @@ export function runDepthSimulationTask(
       scoringProfile: scoringProfileForPolicy,
       scenario: legacyScenario,
       identificationPolicy,
-      classNames,
+      axisIds,
       fixtureIds
     })),
     snapshotDepthResult(simulateCase({
@@ -17473,17 +17533,24 @@ export function runDepthSimulationTask(
       scoringProfile: scoringProfileForPolicy,
       scenario: legacyScenario,
       identificationPolicy,
-      classNames,
+      axisIds,
       fixtureIds
     }))
   ];
 }
 
-export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount, classNames = SIM_CLASSES, fixtureId = null }) {
+export function runCoreCalibrationTask({
+  policyId,
+  scenarioId = null,
+  runCount,
+  classNames = null,
+  fixtureId = null
+}) {
   resetSimulationRandom(SIM_SEED);
   const workshop = scenarioId === null
     ? undefined
     : getScenarioById(scenarioId).workshop;
+  const useLegacyClassAxis = classNames !== null && classNames !== undefined;
   return {
     policyId,
     scenarioId,
@@ -17492,8 +17559,10 @@ export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount, 
       {},
       policyId,
       workshop,
-      fixtureId === null ? classNames : resolveBuildFixtureIds(fixtureId),
-      fixtureId === null ? null : resolveBuildFixtureIds(fixtureId)
+      useLegacyClassAxis ? classNames : LEGACY_CLASS_AXIS,
+      useLegacyClassAxis
+        ? null
+        : (fixtureId === null ? BUILD_FIXTURE_IDS : resolveBuildFixtureIds(fixtureId))
     )
   };
 }
@@ -17502,16 +17571,18 @@ export function runCalibratedDepthSimulationTask(
   { kind, scenarioId = null, identificationPolicyId = "powder", runCount, className = null, fixtureId = null, collectVNextObservability = false, scenarioOverrides = {} },
   context
 ) {
-  const classNames = fixtureId === null
-    ? resolveSimulationClassNames(className)
-    : resolveBuildFixtureIds(fixtureId);
+  const useLegacyClassAxis = className !== null && className !== undefined;
+  const fixtureIds = useLegacyClassAxis
+    ? null
+    : (fixtureId === null ? [...BUILD_FIXTURE_IDS] : resolveBuildFixtureIds(fixtureId));
+  const axisIds = useLegacyClassAxis ? resolveSimulationClassNames(className) : fixtureIds;
   resetMapGenerationStats();
   const calibration = runCoreCalibrationTask({
     policyId: identificationPolicyId,
     scenarioId,
     runCount,
-    classNames,
-    fixtureId
+    classNames: useLegacyClassAxis ? axisIds : null,
+    fixtureId: useLegacyClassAxis ? null : fixtureId
   });
   const scoringProfiles = {
     [identificationPolicyId]: calibration.profile
@@ -17600,7 +17671,7 @@ const ENV_SIGNATURE = {
   damageAudit: SIM_737_DAMAGE_AUDIT_ENABLED,
   runsPerCase: RUNS_PER_CASE,
   calibrationRuns: CALIBRATION_RUNS,
-  classes: SIM_CLASSES,
+  buildFixtures: BUILD_FIXTURE_IDS,
   hitEvasion: SIM_728_HIT_EVASION_ENABLED,
   elitePolicy: DEFAULT_ELITE_POLICY,
   floorTrapPolicy: DEFAULT_FLOOR_TRAP_POLICY_ID,
@@ -17668,7 +17739,7 @@ if (MEASUREMENT_PROVENANCE) {
 }
 
 console.log("深度別 リスク調整後素材EVシミュレーション");
-console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（基本${SIM_CLASSES.length}職をround-robin集約）`);
+console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（${BUILD_FIXTURE_IDS.length} build fixtureをround-robin集約）`);
 console.log(`乱数seed: ${SIM_SEED}`);
 console.log(`徘徊エリート方針: ${DEFAULT_ELITE_POLICY}`);
 console.log(
@@ -17919,11 +17990,11 @@ const issue697Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       averageFinalLevel: result.averageFinalLevel,
       materialConsumedByMerchant: result.materialConsumedByMerchant,
       merchantStock: result.merchantStock,
-      merchantStockByClass: result.merchantStockByClass,
+      merchantStockByFixtureId: getAxisMap(result, "merchantStock"),
       averageConsumableUsageByItem: result.averageConsumableUsageByItem,
       pickupRejectionsBySource: result.pickupRejectionsBySource,
       pickupRejectionsByCategory: result.pickupRejectionsByCategory,
-      consumablesByClass: result.consumablesByClass,
+      consumablesByFixtureId: getAxisMap(result, "consumables"),
       statusCureItemsAcquired: result.statusCureItemsAcquired,
       statusCureItemsUsed: result.statusCureItemsUsed,
       statusCureSupply: result.statusCureSupply,
@@ -17931,10 +18002,10 @@ const issue697Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       statusCureDecisions: result.statusCureDecisions,
       statusCureUnavailableStatuses: result.statusCureUnavailableStatuses,
       spellUsage: result.spellUsage,
-      spellUsageByClass: result.spellUsageByClass,
-      mpPressureByClass: result.mpPressureByClass,
-      combatMpByClass: result.combatMpByClass,
-      outcomesByClass: result.outcomesByClass,
+      spellUsageByFixtureId: getAxisMap(result, "spellUsage"),
+      mpPressureByFixtureId: getAxisMap(result, "mpPressure"),
+      combatMpByFixtureId: getAxisMap(result, "combatMp"),
+      outcomesByFixtureId: getAxisMap(result, "outcomes"),
       averageTownPortalsUsed: result.averageTownPortalsUsed,
       averagePortalAcquisitions: result.averagePortalAcquisitions,
       averagePortalUsesBySource: result.averagePortalUsesBySource,
@@ -18079,7 +18150,7 @@ const issue412Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       workingTreeClean: MEASUREMENT_PROVENANCE?.workingTreeClean ?? null,
       issue412Policy: result.issue412Policy,
       issue412: result.issue412,
-      issue412ByClass: result.issue412ByClass,
+      issue412ByFixtureId: getAxisMap(result, "issue412"),
       survivalRate: result.survivalRate,
       bankedMaterialEv: result.bankedMaterialEv,
       mean95CI: result.mean95CI

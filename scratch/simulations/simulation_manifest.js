@@ -82,6 +82,9 @@ export const SIMULATION_MANIFEST = Object.freeze({
     path: canonicalRunnerPath,
     lifecycle: "canonical",
     scope: "run",
+    axis: "build-fixture",
+    identitySource: "src/rules/build_snapshot.js",
+    fixtureSource: "scratch/measurements/build_fixtures.js",
     modelDomains: BALANCE_ALL,
     criticalRuntimeMechanisms: Object.freeze([
       { id: "maps.run-floor-traversal", domain: "maps", evidence: { anyPositive: ["floorsTraversed"] } },
