@@ -25,7 +25,7 @@ export const STANDARD_BALANCE_CONFIG = Object.freeze({
 });
 
 function getAxisIds(config) {
-  return config.fixtureIds || config.classNames || [];
+  return config.fixtureIds || [];
 }
 
 const Z95 = 1.959963984540054;
@@ -201,16 +201,16 @@ function depthMetrics(outcomeResult, resourceResult, depth) {
   };
 }
 
-function summarizeClassDepths(config, classResult) {
-  const results = classResult.results;
+function summarizeFixtureDepths(config, fixtureResult) {
+  const results = fixtureResult.results;
   const outcomeResult = results.find(result => result.targetDepth === Math.max(...config.targetDepths));
   if (!outcomeResult) {
-    throw new Error(`canonical simulator omitted standard outcome result: ${classResult.className}`);
+    throw new Error(`canonical simulator omitted standard outcome result: ${fixtureResult.fixtureId}`);
   }
   return Object.fromEntries(config.targetDepths.map(depth => {
     const resourceResult = results.find(result => result.targetDepth === depth);
     if (!resourceResult) {
-      throw new Error(`canonical simulator omitted standard depth result: ${classResult.className}/B${depth}`);
+      throw new Error(`canonical simulator omitted standard depth result: ${fixtureResult.fixtureId}/B${depth}`);
     }
     return [depth, {
       metrics: depthMetrics(outcomeResult, resourceResult, depth),
@@ -247,10 +247,10 @@ function formatDiagnosticEndFloors(distribution) {
     : "none";
 }
 
-function formatDiagnosticRow({ scenarioId, className = null, depth, label, bucket, signals = false, includeClass = false }) {
+function formatDiagnosticRow({ scenarioId, fixtureId = null, depth, label, bucket, signals = false, includeFixture = false }) {
   const columns = [
     scenarioId,
-    ...(includeClass ? [className || "—"] : []),
+    ...(includeFixture ? [fixtureId || "—"] : []),
     `B${depth}`,
     label,
     bucket.runs || 0,
@@ -271,15 +271,15 @@ function formatDiagnosticRow({ scenarioId, className = null, depth, label, bucke
 export function renderDiagnosticsMarkdown(cases) {
   const retreatRows = [];
   const deathRows = [];
-  const includeClass = cases.some(testCase =>
-    testCase.depths.some(depth => Boolean(depth.diagnosticsByClass))
+  const includeFixture = cases.some(testCase =>
+    testCase.depths.some(depth => Boolean(depth.diagnosticsByFixtureId))
   );
   cases.forEach(testCase => {
     testCase.depths.forEach(depth => {
-      const diagnosticSets = depth.diagnosticsByClass
-        ? Object.entries(depth.diagnosticsByClass)
+      const diagnosticSets = depth.diagnosticsByFixtureId
+        ? Object.entries(depth.diagnosticsByFixtureId)
         : [[null, depth.diagnostics]];
-      diagnosticSets.forEach(([className, diagnostics]) => {
+      diagnosticSets.forEach(([fixtureId, diagnostics]) => {
         if (!diagnostics) return;
         Object.entries(diagnostics.byRetreatReason || {})
           .filter(([, bucket]) => bucket.runs > 0)
@@ -287,12 +287,12 @@ export function renderDiagnosticsMarkdown(cases) {
           .forEach(([reason, bucket]) => {
             retreatRows.push(formatDiagnosticRow({
               scenarioId: testCase.scenarioId,
-              className,
+              fixtureId,
               depth: depth.depth,
               label: reason,
               bucket,
               signals: true,
-              includeClass
+              includeFixture
             }));
           });
         Object.entries(diagnostics.byDeathCause || {})
@@ -301,11 +301,11 @@ export function renderDiagnosticsMarkdown(cases) {
           .forEach(([cause, bucket]) => {
             deathRows.push(formatDiagnosticRow({
               scenarioId: testCase.scenarioId,
-              className,
+              fixtureId,
               depth: depth.depth,
               label: cause,
               bucket,
-              includeClass
+              includeFixture
             }));
           });
       });
@@ -322,8 +322,8 @@ export function renderDiagnosticsMarkdown(cases) {
       "",
       "Primary reason is the row label; reason signals may overlap and include the primary reason.",
       "",
-      `| Scenario | ${includeClass ? "Class | " : ""}Target | Primary retreat reason | Runs | End floors | Reason signals (overlap) | HP rate | MP rate | Heal potions | Greater heal | Recovery potions | Cure items | Flee attempts | Status at end |`,
-      `| --- | ${includeClass ? "--- | " : ""}--- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |`,
+      `| Scenario | ${includeFixture ? "Build fixture | " : ""}Target | Primary retreat reason | Runs | End floors | Reason signals (overlap) | HP rate | MP rate | Heal potions | Greater heal | Recovery potions | Cure items | Flee attempts | Status at end |`,
+      `| --- | ${includeFixture ? "--- | " : ""}--- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |`,
       ...retreatRows,
       ""
     ] : []),
@@ -332,8 +332,8 @@ export function renderDiagnosticsMarkdown(cases) {
       "",
       "Death rows are grouped by death cause and never mixed into retreat resource means.",
       "",
-      `| Scenario | ${includeClass ? "Class | " : ""}Target | Death cause | Runs | End floors | HP rate | MP rate | Heal potions | Greater heal | Recovery potions | Cure items | Flee attempts | Status at end |`,
-      `| --- | ${includeClass ? "--- | " : ""}--- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |`,
+      `| Scenario | ${includeFixture ? "Build fixture | " : ""}Target | Death cause | Runs | End floors | HP rate | MP rate | Heal potions | Greater heal | Recovery potions | Cure items | Flee attempts | Status at end |`,
+      `| --- | ${includeFixture ? "--- | " : ""}--- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |`,
       ...deathRows,
       ""
     ] : []),
@@ -342,17 +342,17 @@ export function renderDiagnosticsMarkdown(cases) {
 }
 
 export function summarizeSimulationResults({ config, provenance, scenarioResults, nodeVersion = process.version, execution = null }) {
-  const cases = scenarioResults.map(({ scenarioId, results, classResults, fixtureResults }) => {
-    const selectedClassResults = fixtureResults || classResults || [{ className: null, results }];
-    const summarizedByClass = selectedClassResults.map(classResult => ({
-      className: classResult.className,
-      depths: summarizeClassDepths(config, classResult)
+  const cases = scenarioResults.map(({ scenarioId, results, fixtureResults }) => {
+    const selectedFixtureResults = fixtureResults || [{ fixtureId: null, results }];
+    const summarizedByFixture = selectedFixtureResults.map(fixtureResult => ({
+      fixtureId: fixtureResult.fixtureId,
+      depths: summarizeFixtureDepths(config, fixtureResult)
     }));
     const fixtureSnapshots = fixtureResults
-      ? Object.fromEntries(fixtureResults.map(({ className, results: fixtureRunResults }) => [
-          className,
+      ? Object.fromEntries(fixtureResults.map(({ fixtureId, results: fixtureRunResults }) => [
+          fixtureId,
           fixtureRunResults.find(result => result.buildSnapshotsByFixtureId)
-            ?.buildSnapshotsByFixtureId?.[className] || null
+            ?.buildSnapshotsByFixtureId?.[fixtureId] || null
         ]))
       : null;
     return {
@@ -360,23 +360,23 @@ export function summarizeSimulationResults({ config, provenance, scenarioResults
       targetDepths: config.targetDepths,
       ...(fixtureResults ? { fixtureSnapshots } : {}),
       depths: config.targetDepths.map(depth => {
-        const depthByClass = Object.fromEntries(
-          summarizedByClass.map(({ className, depths }) => [className || "overall", depths[depth]])
+        const depthByFixture = Object.fromEntries(
+          summarizedByFixture.map(({ fixtureId, depths }) => [fixtureId || "overall", depths[depth]])
         );
-        const first = depthByClass.overall || depthByClass[getAxisIds(config)?.[0]];
+        const first = depthByFixture.overall || depthByFixture[getAxisIds(config)?.[0]];
         return {
           depth,
           runs: first?.metrics ? first.metrics.reachedRate.trials : 0,
-          ...(fixtureResults || classResults
+          ...(fixtureResults
             ? {
                 metricsByFixtureId: Object.fromEntries(
-                  summarizedByClass.map(({ className, depths }) => [className, depths[depth].metrics])
+                  summarizedByFixture.map(({ fixtureId, depths }) => [fixtureId, depths[depth].metrics])
                 ),
                 outcomeCountsByFixtureId: Object.fromEntries(
-                  summarizedByClass.map(({ className, depths }) => [className, depths[depth].outcomeCounts])
+                  summarizedByFixture.map(({ fixtureId, depths }) => [fixtureId, depths[depth].outcomeCounts])
                 ),
                 diagnosticsByFixtureId: Object.fromEntries(
-                  summarizedByClass.map(({ className, depths }) => [className, depths[depth].diagnostics])
+                  summarizedByFixture.map(({ fixtureId, depths }) => [fixtureId, depths[depth].diagnostics])
                 )
               }
             : {
@@ -483,15 +483,15 @@ function evaluateMetric(baseline, candidate, rule) {
 
 function measurementMetricEntries(report) {
   return report.cases.flatMap(testCase => testCase.depths.flatMap(depth => {
-    const byAxis = depth.metricsByFixtureId || depth.metricsByClass;
+    const byAxis = depth.metricsByFixtureId;
     const metricSets = byAxis
-      ? Object.entries(byAxis).map(([className, metrics]) => ({ className, metrics }))
-      : [{ className: null, metrics: depth.metrics }];
-    return metricSets.flatMap(({ className, metrics }) =>
+      ? Object.entries(byAxis).map(([fixtureId, metrics]) => ({ fixtureId, metrics }))
+      : [{ fixtureId: null, metrics: depth.metrics }];
+    return metricSets.flatMap(({ fixtureId, metrics }) =>
       Object.entries(metrics || {})
         .filter(([name]) => Object.hasOwn(REGRESSION_RULES, name))
         .map(([name, metric]) => ({
-          key: [testCase.scenarioId, className, `B${depth.depth}`, name].filter(Boolean).join("."),
+          key: [testCase.scenarioId, fixtureId, `B${depth.depth}`, name].filter(Boolean).join("."),
           name,
           metric
         }))

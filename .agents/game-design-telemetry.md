@@ -93,6 +93,11 @@ pass class labels into telemetry or formula observations. Legacy class fields
 may remain in historical scratch reports solely for compatibility and are not a
 current build axis.
 
+The current observability runner follows the same contract: use `--fixtures`
+and `runsPerBuild` with the canonical Build Snapshot fixtures. `--classes` and
+`runsPerClass` are historical interfaces only and must not appear in current
+measurement dimensions.
+
 ## Deterministic measurement
 
 Deterministic measurements should use the production resolution semantics and

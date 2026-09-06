@@ -12,13 +12,23 @@ const probe = String.raw`
     identificationPolicyId: "powder",
     runCount: 1
   }, {});
+  if (!task.profile.byFixtureId || task.profile.byClass) {
+    throw new Error(JSON.stringify({ profileKeys: Object.keys(task.profile).filter(key => /class|fixture/i.test(key)) }));
+  }
   for (const result of task.results) {
-    if (result.runs !== 1 || result.axisType !== "build-fixture" || result.outcomesByClass[fixtureId].runs !== 1) {
-      throw new Error(JSON.stringify({ targetDepth: result.targetDepth, runs: result.runs, outcomesByClass: result.outcomesByClass }));
+    if (result.runs !== 1 || result.axisType !== "build-fixture" || result.outcomesByFixtureId[fixtureId].runs !== 1) {
+      throw new Error(JSON.stringify({ targetDepth: result.targetDepth, runs: result.runs, outcomesByFixtureId: result.outcomesByFixtureId }));
     }
-    for (const [className, outcome] of Object.entries(result.outcomesByClass)) {
-      if (className !== fixtureId && outcome.runs !== 0) {
-        throw new Error(JSON.stringify({ targetDepth: result.targetDepth, className, runs: outcome.runs }));
+    if (result.playerClass || result.className || result.outcomesByClass || result.classNames) {
+      throw new Error(JSON.stringify({ targetDepth: result.targetDepth, legacyAxisFields: Object.keys(result).filter(key => /class/i.test(key)) }));
+    }
+    const snapshot = result.buildSnapshotsByFixtureId?.[fixtureId];
+    if (!snapshot?.identity?.includes("medium") || !snapshot.activeRuneSpellIds?.includes("KATINO")) {
+      throw new Error(JSON.stringify({ targetDepth: result.targetDepth, snapshot }));
+    }
+    for (const [buildId, outcome] of Object.entries(result.outcomesByFixtureId)) {
+      if (buildId !== fixtureId && outcome.runs !== 0) {
+        throw new Error(JSON.stringify({ targetDepth: result.targetDepth, buildId, runs: outcome.runs }));
       }
     }
   }

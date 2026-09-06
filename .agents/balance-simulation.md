@@ -199,6 +199,14 @@ historical comparisons but are not the vNext standard axis. CI does not require
 an N>=500 simulation; the standard measurement command retains its explicit
 N>=500 guard for deliberate measurement runs.
 
+`npm run simulation` is the canonical vNext smoke/measurement entry point. Its
+current dimensions are build fixture, scenario, weapon/Medium/Rune, Core,
+Support, and exploration ownership; current reports must not add
+`playerClass`, `className`, or `runsPerClass` as measurement dimensions. The
+canonical simulator does not maintain an object-loot ownership ledger: the
+production source remains `currentRun.unbankedObjectLoot`, while simulator
+outputs classify that lifecycle as `not_modeled`.
+
 ## Issue #1096 payment vector evidence
 
 `scratch/measurements/issue1096_build_payment.js` is the dedicated observation
