@@ -1,6 +1,6 @@
 import { getEffectiveHealAmount } from "../rules/item_rules.js";
 import { getCharMaxHp, getCharMaxMp } from "../rules/character_stats.js";
-import { canUseManaItems } from "../rules/class_rules.js";
+import { canUseManaItems } from "../rules/magic_rules.js";
 import {
   addCharBuff,
   removeStatusEffect,

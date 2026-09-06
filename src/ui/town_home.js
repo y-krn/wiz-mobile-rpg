@@ -1,5 +1,4 @@
-import { getClassJpName } from "../data.js";
-import { state } from "../state.js";
+import { state, getStartingKit } from "../state.js";
 
 function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
@@ -34,8 +33,7 @@ function getLastRunSummary(run) {
     `;
   }
 
-  const className = run.className || run.class;
-  const classLabel = className ? getClassJpName(className) : "冒険者";
+  const classLabel = run.startingKit ? getStartingKit(run.startingKit)?.name || "開始キット" : "冒険者";
   const outcome = outcomeLabel(run);
   const lost = outcome === "死亡" || outcome === "断念";
   return `

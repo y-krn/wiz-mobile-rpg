@@ -19,7 +19,6 @@ import {
   recordExecutionerTrigger
 } from "../rules/affix_rules.js";
 import { resolvePurifyRecovery } from "../rules/purify_rules.js";
-import { getMpWardDef } from "./mp_ward.js";
 import { trackDamageReceived } from "../telemetry.js";
 import {
   getGuardProfile,
@@ -63,7 +62,6 @@ export function recordReceivedDamage(
   });
   trackDamageReceived({
     floor: state?.floor,
-    playerClass: char?.class,
     enemyId: sourceName,
     attackType,
     rawDamage,
@@ -76,7 +74,6 @@ export function recordReceivedDamage(
     playerHpBefore,
     playerHpAfter: char?.hp,
     playerMp: char?.mp,
-    mpWardActive: getMpWardDef(char) > 0,
     isDefending: options.isDefending,
     guardProfileId: getGuardProfileId(char)
   });
@@ -235,7 +232,6 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
     ? {
         id: mitigationCalls.length,
         floor: options.state?.floor ?? null,
-        targetClassName: char.class,
         spell: Boolean(options.spell),
         dragon: Boolean(options.dragon),
         before: dmg,
@@ -249,7 +245,6 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
       after,
       eventId: extra.eventId ?? mitigations.length,
       floor: options.state?.floor ?? null,
-      targetClassName: char.class,
       spell: Boolean(options.spell),
       dragon: Boolean(options.dragon),
       callId: mitigationCall?.id ?? null,
@@ -345,7 +340,6 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
   }
   spellMonsterHits?.push({
     floor: options.state?.floor ?? null,
-    targetClassName: char.class,
     dragon: Boolean(options.dragon),
     callId: mitigationCall?.id ?? null,
     damageBeforeMitigation: dmg,

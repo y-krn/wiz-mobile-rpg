@@ -31,7 +31,6 @@ import {
   tryThornCounter,
   logCoreActivation
 } from "./damage.js";
-import { getMpWardDef } from "./mp_ward.js";
 import {
   addMonsterBuff,
   tickMonsterBuffs,
@@ -80,10 +79,7 @@ import {
   getStatusEffectChance,
   tryApplyExecutionerSetup
 } from "../rules/affix_rules.js";
-import { getClassCriticalChance } from "../rules/class_rules.js";
 import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
-
-export { getMpWardDef };
 
 function findMonsterTemplate(name) {
   return MONSTERS.find(m => m.name === name);
@@ -111,7 +107,6 @@ function recordBleedingEvent(state, event, target, metadata = {}) {
   }
   trackBleedingEvent(event, {
     floor: state?.floor,
-    playerClass: state?.party?.[0]?.class,
     enemyId: target?.name,
     isBoss: Boolean(target?.isBoss || state?.combatState?.isBoss),
     isMidboss: Boolean(target?.isMidboss || state?.combatState?.isMidboss),
@@ -353,7 +348,6 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   const finalDef = calculatePhysicalDefenseFormula({
     baseDef: getCharDef(target),
     vit: getCharVit(target),
-    bonusDef: getMpWardDef(target)
   });
   const formulaRaw = finalAtk;
   const defResistance = getPhysicalDefenseResistance(
@@ -368,7 +362,6 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   dmg = reduceIncomingDamage(target, dmg, { logQueue, state });
   state.combatFormulaTelemetry?.physicalMonsterHits.push({
     floor: state.floor,
-    targetClassName: target.class,
     finalAtk, finalDef, defResistance, formulaRaw, formulaDmg,
     isDefending: false, isBlindTargetApplied: false, isSnipeAttack: false,
     preMitigationDmg, finalDmg: dmg, attackType: "flee"
@@ -410,7 +403,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   const party = originalState.party.map(c => ({
     ...c,
     equipment: {...c.equipment},
-    spells: c.spells ? [...c.spells] : []
+    mediumState: c.mediumState && typeof c.mediumState === "object"
+      ? { ...c.mediumState, socketedRunes: [...(c.mediumState.socketedRunes || [])] }
+      : c.mediumState
   }));
   const monsters = originalState.combatState.monsters.map(m => ({
     ...m,
@@ -586,7 +581,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           shake = 0;
           state.combatFormulaTelemetry?.physicalPlayerMisses?.push({
             floor: state.floor,
-            className: char.class,
             targetName: finalTarget.name,
             targetRole: finalTarget.role,
             targetEvasionChance: getMonsterEvasionChance(finalTarget),
@@ -628,13 +622,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             dmg = Math.max(1, Math.round(dmg * guard.mon.guard.damageRate));
           }
 
-          let isCritical = false;
-          const criticalChance = getClassCriticalChance(char);
-          const canReceiveCritical = finalTarget.canReceiveCritical !== false;
-          if (canReceiveCritical && criticalChance > 0 && Math.random() < criticalChance) {
-            isCritical = true;
-          }
-          const directPhysicalDmg = isCritical ? Math.max(1, dmg * 3) : dmg;
+          const isCritical = false;
+          const directPhysicalDmg = dmg;
           const vulnerableResult = consumeVulnerableDamage(finalTarget, directPhysicalDmg, state, "physical");
           const vulnerableDamage = vulnerableResult.consumed ? vulnerableResult.damage : directPhysicalDmg;
           const bleedingTrigger = hasStatusEffect(finalTarget, STATUS_EFFECT_IDS.BLEEDING);
@@ -654,7 +643,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // が未設定なら no-op（既定オフ）。ここまでの分岐・乱数消費は変更しない。
           state.combatFormulaTelemetry?.physicalPlayerHits.push({
             floor: state.floor,
-            className: char.class,
             weaponAtk, buffAtk, str, randRoll, def, meleeMod,
             trapEaterBonus,
             defResistance: weaponAttack.defResistance,
@@ -667,7 +655,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             physResistApplied: Boolean(finalTarget.physResist),
             targetEvasionChance: getMonsterEvasionChance(finalTarget),
             hitChance,
-            criticalChance: canReceiveCritical && criticalChance > 0 ? criticalChance : null,
+            criticalChance: null,
             isCritical,
             preCriticalDmg: dmg,
             damage: finalPhysicalDmg,
@@ -1332,13 +1320,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
       } else {
         recordMonsterAction(mon, isSnipeAttack ? "狙撃" : "通常攻撃", state);
-        // Ninja physical attack evasion (25% chance)
         let isEvaded = false;
         const evasion = getCharAffixSum(target, "evasion") / 100;
         const rearEvasion = targetSelect.i >= 2 ? getCharAffixSum(target, "rearEvasion") / 100 : 0;
         if (
-          (target.class === "Ninja" && Math.random() < 0.25)
-          || (evasion > 0 && Math.random() < evasion)
+          (evasion > 0 && Math.random() < evasion)
           || (rearEvasion > 0 && Math.random() < rearEvasion)
         ) {
           isEvaded = true;
@@ -1369,7 +1355,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const finalDef = calculatePhysicalDefenseFormula({
             baseDef: getCharDef(target),
             vit: getCharVit(target),
-            bonusDef: getBuffTotal(target, "def") + frontGuard + firstStrikeDefense + getMpWardDef(target),
+            bonusDef: getBuffTotal(target, "def") + frontGuard + firstStrikeDefense,
             tempDefDown: target.tempDefDown || 0
           });
           const preDefDmg = finalAtk;
@@ -1398,7 +1384,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // #611: 敵→プレイヤー物理攻撃の計装。既定 no-op。
           state.combatFormulaTelemetry?.physicalMonsterHits.push({
             floor: state.floor,
-            targetClassName: target.class,
             finalAtk, finalDef, defResistance, preDefDmg, formulaRaw, formulaDmg,
             isDefending, isBlindTargetApplied, isSnipeAttack,
             preMitigationDmg, finalDmg: dmg, attackType: "normal"

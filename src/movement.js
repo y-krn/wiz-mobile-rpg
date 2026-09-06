@@ -765,7 +765,6 @@ export function triggerFlameTrap() {
   const successRate = activeCharacter
     ? calculateFloorTrapSuccessRate({
       trap,
-      className: activeCharacter.class,
       level: activeCharacter.level,
       floor: state.floor,
       affixBonus: Math.round(getCharAffixSum(activeCharacter, "trapBonus"))

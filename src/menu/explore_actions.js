@@ -2,7 +2,8 @@ import { state, initNewGame, saveAutosave, addLog, markMapChanged, recordCharDea
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getItemData, getItemBaseId, getPartyMaxAffix, getCharMaxMp, DX, DY, DIR_NAMES } from "../data.js";
+import { getItemData, getItemBaseId, getPartyMaxAffix, getCharMaxMp, DX, DY, DIR_NAMES } from "../data.js";
+import { isSpellcaster } from "../rules/magic_rules.js";
 import { triggerRunResult } from "../result.js";
 import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getCurrentExplorationCell, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
 import { completeCampEntry, getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
@@ -54,18 +55,12 @@ function getSecretDoorCandidate() {
 
 function calculateSecretSearchSuccessRate() {
   let rate = 0.35;
-  const scouts = state.party.filter(c => ["Thief", "Ninja", "Ranger"].includes(c.class) && c.hp > 0);
-  if (scouts.length > 0) {
-    const bestScout = scouts
-      .map(c => {
-        let bonus = 0;
-        if (c.class === "Thief") bonus = 0.20;
-        else if (c.class === "Ninja") bonus = 0.15;
-        else if (c.class === "Ranger") bonus = 0.10;
-        return bonus + (c.luk + c.agi) * 0.01;
-      })
+  const searchers = state.party.filter(c => c.hp > 0);
+  if (searchers.length > 0) {
+    const bestSearcher = searchers
+      .map(c => (c.luk + c.agi) * 0.01 + getPartyMaxAffix([c], "treasureSense") / 100)
       .sort((a, b) => b - a)[0];
-    rate += bestScout;
+    rate += bestSearcher;
   }
   rate -= (state.floor - 1) * 0.05;
   return Math.max(0.10, Math.min(0.95, rate));

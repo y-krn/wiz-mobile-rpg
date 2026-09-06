@@ -1,29 +1,16 @@
-const DISARM_APT_CLASSES = new Set(["Thief", "Ninja", "Ranger"]);
-
 export const FLOOR_DISARM_CALIBRATION = Object.freeze({
-  aptBase: 80,
-  nonAptBase: 40,
-  aptLevelGain: 1.0,
-  nonAptLevelGain: 0.5,
+  base: 40,
+  levelGain: 0.5,
   depthLoss: 2.0,
-  aptMin: 20,
-  nonAptMin: 5,
-  // Probability safety bound: apt trapBonus investment must remain effective.
-  aptMax: 100,
-  nonAptMax: 60
+  min: 5,
+  max: 60
 });
 
-export const CHEST_DISARM_BASE_CHANCE_BY_CLASS = Object.freeze({
-  Thief: 0.85,
-  Ninja: 0.70,
-  Ranger: 0.60,
-  default: 0.25
-});
+export const CHEST_DISARM_BASE_CHANCE = 0.25;
 
 export const FORCE_DAMAGE_MULTIPLIER = 0.5;
 export const PARTIAL_SUCCESS_BAND = 15;
 export const PITFALL_EDGE_BONUS = 20;
-export const SCOUT_TRAP_DAMAGE_MULTIPLIER = 0.7;
 export const DETECT_RATE_CAP = 1;
 
 export const CHEST_WEAKENED_RISK_MULTIPLIER = 0.5;
@@ -37,17 +24,15 @@ function clampUnit(value) {
 }
 
 // 解除と強行の期待被害を等しくするsuccessRate。trap_effect_rules.jsの
-// scout条件とpartial bandを入力へ反映し、sim側の閾値写経を防ぐ。
+// partial bandを入力へ反映し、sim側の閾値写経を防ぐ。
 export function calculateFloorDisarmEvThreshold({
-  trapType,
-  scoutMitigated = false
+  trapType
 } = {}) {
   const isPitfall = trapType === "pitfall";
   const partialBand = isPitfall ? 0 : PARTIAL_SUCCESS_BAND;
   const partialMultiplier = FORCE_DAMAGE_MULTIPLIER;
-  const fullMultiplier = scoutMitigated ? SCOUT_TRAP_DAMAGE_MULTIPLIER : 1;
-  const forcedMultiplier = FORCE_DAMAGE_MULTIPLIER *
-    (scoutMitigated && isPitfall ? SCOUT_TRAP_DAMAGE_MULTIPLIER : 1);
+  const fullMultiplier = 1;
+  const forcedMultiplier = FORCE_DAMAGE_MULTIPLIER;
   if (fullMultiplier <= 0) return 100;
   const threshold = 100 - partialBand - (
     100 * forcedMultiplier - partialBand * partialMultiplier
@@ -172,50 +157,32 @@ export function calculateChestDisarmActionEv({
   };
 }
 
-export function isDisarmAptClass(className) {
-  return DISARM_APT_CLASSES.has(className);
-}
-
-// 解除率はクラス適性で二極化する。適性は深層でも主軸として機能し、
-// 非適性は浅層の安いギャンブルに留めて強行と回り込みへ寄せる。
-export function calculateDisarmRate({ className, level, floor, affixBonus = 0 }) {
+// Trap handling is universal. Equipment, Support, and Core effects are the
+// only build-owned modifiers; level and depth provide the common floor.
+export function calculateDisarmRate({ level, floor, affixBonus = 0 }) {
   const lv = Math.max(1, Math.floor(Number(level) || 1));
   const depth = Math.max(1, Math.floor(Number(floor) || 1));
-  const apt = isDisarmAptClass(className);
-
-  const base = apt
-    ? FLOOR_DISARM_CALIBRATION.aptBase
-    : FLOOR_DISARM_CALIBRATION.nonAptBase;
-  const levelGain = apt
-    ? lv * FLOOR_DISARM_CALIBRATION.aptLevelGain
-    : lv * FLOOR_DISARM_CALIBRATION.nonAptLevelGain;
+  const base = FLOOR_DISARM_CALIBRATION.base;
+  const levelGain = lv * FLOOR_DISARM_CALIBRATION.levelGain;
   const depthLoss = (depth - 1) * FLOOR_DISARM_CALIBRATION.depthLoss;
-  const min = apt
-    ? FLOOR_DISARM_CALIBRATION.aptMin
-    : FLOOR_DISARM_CALIBRATION.nonAptMin;
-  const max = apt
-    ? FLOOR_DISARM_CALIBRATION.aptMax
-    : FLOOR_DISARM_CALIBRATION.nonAptMax;
+  const { min, max } = FLOOR_DISARM_CALIBRATION;
 
   const raw = base + levelGain - depthLoss + affixBonus;
   return Math.round(Math.max(min, Math.min(max, raw)));
 }
 
-export function calculateChestDisarmChance({ className, trapBonus = 0, blind = false }) {
-  const base = CHEST_DISARM_BASE_CHANCE_BY_CLASS[className] ||
-    CHEST_DISARM_BASE_CHANCE_BY_CLASS.default;
-  const chance = base + trapBonus;
+export function calculateChestDisarmChance({ trapBonus = 0, blind = false }) {
+  const chance = CHEST_DISARM_BASE_CHANCE + trapBonus;
   return blind ? chance / 2 : chance;
 }
 
 export function calculateFloorTrapSuccessRate({
   trap,
-  className,
   level,
   floor,
   affixBonus = 0
 }) {
-  const rate = calculateDisarmRate({ className, level, floor, affixBonus });
+  const rate = calculateDisarmRate({ level, floor, affixBonus });
   return trap?.type === "pitfall" ? Math.min(100, rate + PITFALL_EDGE_BONUS) : rate;
 }
 
@@ -237,7 +204,7 @@ export function resolveTrapAction({ action, trap, successRate, rng = Math.random
   return { outcome: "triggered", partialSuccess: false };
 }
 
-// 察知はクラス非依存。罠がルート選択の障害物である以上、
+// 察知は全員共通。罠がルート選択の障害物である以上、
 // 情報を全員へ確定配布し、踏むかどうかをプレイヤーへ戻す。
 export function calculateDetectRate() {
   return DETECT_RATE_CAP;

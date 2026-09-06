@@ -16,8 +16,6 @@ export {
   generateRandomSeed,
   createDefaultCodex,
   createDefaultCurrentRun,
-  SOLO_CLASSES,
-  createSoloCharacter,
   STARTING_KITS,
   getStartingKit,
   createStartingKitCharacter

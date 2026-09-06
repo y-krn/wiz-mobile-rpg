@@ -295,7 +295,6 @@ export function executeDisarm(char, rng = Math.random) {
 
   applyTombRaiderTrapTier(state.chestState, char);
   const chance = calculateChestDisarmChance({
-    className: char.class,
     trapBonus: getCharTrapBonus(char),
     blind: char.status === "blind"
   });

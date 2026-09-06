@@ -30,13 +30,13 @@ gold, identification-in-town, crafting, contracts board, B5F clear flow) was
 retired with the party-based game. This document defines the meta economy for
 the replacement solo depth-attack roguelite.
 
-**Build vNext migration status (Issue #1042, 2026-09-03).** The departure
+**Build vNext migration status (Issue #1102, 2026-09-06).** The departure
 screen chooses a named `startingKit` built from ordinary equipment bases. Class
 labels no longer authorize equipment, prune Loot candidates, or gate Core
 generation/effects. The legacy `class` field and its passive, level-growth,
-spell, MP-item, trap, and telemetry consumers remain explicit follow-up
-dependencies; this document's older class-balance sections are historical until
-those responsibilities are migrated.
+spell, MP-item, trap, and telemetry consumers have been removed from the
+current-run path; this document's older class-balance sections remain historical
+evidence only. See `.agents/game-logic.md` for the active contract.
 
 ## Goal
 
@@ -134,7 +134,7 @@ capacity is unchanged.
 ## 基本4職の罠sustain（Issue #516）
 
 - 戦士は `trapGuard=40`、魔術師は `trapGuard=60` をクラス固有passiveとして持つ。
-  正本は `src/data/classes.js`、適用処理は
+  旧正本は `.agents/legacy-class-model.md`、適用処理は
   `src/rules/trap_effect_rules.js` の `applyTrapGuardToEffect` とする。
 - 軽減対象は床罠・宝箱罠・B5F限定の火炎の罠のHPダメージ成分だけで、正のダメージは
   最低1を維持する。床罠の発見・解除、MP drain、毒・盲目・転送などの非HP効果は変更しない。
@@ -154,7 +154,7 @@ capacity is unchanged.
 ## 基本4職の撃破sustain（Issue #528）
 
 - 戦士は `killHeal=2`、魔術師は `killHeal=4` をクラス固有passiveとして持つ。
-  正本は `src/data/classes.js`、適用処理は既存の
+  旧正本は `.agents/legacy-class-model.md`、適用処理は既存の
   `src/combat_logic/damage.js` の `applyKillAffixEffects` とする。
 - `killHeal` は敵撃破時にHPを回復し、最大HPを上限とする。回復薬の供給数・回復薬の
   効果量・探索回復点は変更しない。盗賊・僧侶と上級4職の既存passiveも変更しない。
@@ -198,7 +198,7 @@ capacity is unchanged.
   `src/systems/leveling.js`。
 - 魔術師はHPを盛らず、#537時点では `trapGuard=70`、`mpWard=10`、`killHeal=10`で
   浅層の罠・MP・撃破後回復を補った。上位呪文導入後の採用値は下記「上位呪文と
-  魔術師sustain（Issue #538）」へ更新した。正本は `src/data/classes.js`。
+  魔術師sustain（Issue #538）」へ更新した。旧正本は `.agents/legacy-class-model.md`。
 - Issue #537 focused sweep（上位呪文導入前、seed=461、各候補・職N=500、calibration
   N=100）では、`HP14 / trapGuard70 / mpWard10 / killHeal10`がB5死亡 **8.16%**、
   B10到達 **26.6%**、平均floor **7.39**、戦闘 **54.27turn/run**、被弾
@@ -218,7 +218,7 @@ capacity is unchanged.
   `MADIOS`→`DIOS`を選ぶ。`DIOS`を持つ僧侶は攻撃呪文後にMP1を残す。
 - 上位呪文導入後、魔術師passiveは `trapGuard=60`、`mpWard=8`、`killHeal=8`を採用する。
   罠軽減・MP障壁・撃破回復を同時に下げても、HP順序（戦士 > 盗賊 > 僧侶 ≧ 魔術師）を
-  変えず、過剰な撃破回復5倍を是正する。正本は `src/data/classes.js`。
+  変えず、過剰な撃破回復5倍を是正する。旧正本は `.agents/legacy-class-model.md`。
 - seed=461、同一runner、各case・職N=3000、calibration N=1000の補正掃引では、
   現行70/10/10のMage B5死亡 **6.0% [5.1,7.0]**、B10到達 **37.2% [35.5,38.9]**に
   対し、採用60/8/8はB5死亡 **11.2% [9.9,12.5]**、B10到達 **28.2% [26.6,29.8]**。
@@ -233,7 +233,7 @@ capacity is unchanged.
 
 ## MP障壁の浅層物理被弾調整（Issue #780、incoming scale は #966 で更新）
 
-- 魔術師の `mpWard` は **1** を採用する。正本は `src/data/classes.js`、発動条件は
+- 魔術師の `mpWard` は **1** を採用する。旧正本は `.agents/legacy-class-model.md`、発動条件は
   `src/combat_logic/round.js` の `getMpWardDef`（MP>=1の間だけ有効）であり、敵通常攻撃と
   逃走追撃の共通 `finalDef` へ加算する。最低1ダメージ、ミス/回避0、incoming scale=4、
   `calculatePhysicalDefenseFormula` と `reduceIncomingDamage` の順序は変更しない。

@@ -1,7 +1,8 @@
 import { SPELLS } from "./spells.js";
 
 // Mediums reuse the weapon slot. Capacity is an equipped-item property, not a
-// compatibility class or level property. Values are structural vNext defaults.
+// Values are structural vNext defaults; spell ownership is defined by the
+// equipped medium and socketed Runes, not by character metadata.
 export const MEDIUMS = Object.freeze({
   WAND: Object.freeze({ id: "WAND", hands: 1, maxMpBonus: 2, runeSlots: 1 }),
   SAGE_STAFF: Object.freeze({ id: "SAGE_STAFF", hands: 2, maxMpBonus: 3, runeSlots: 2 }),

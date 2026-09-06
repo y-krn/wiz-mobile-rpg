@@ -3,7 +3,6 @@ import { getCharMaxHp } from "../rules/character_stats.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
 import { SPELLS } from "../data/spells.js";
 
-const BASIC_CLASSES = new Set(["Fighter", "Thief", "Priest", "Mage"]);
 const HOLY_TARGET_TAGS = new Set(["undead", "spirit", "demon"]);
 const AUTO_HEAL_HP_THRESHOLD = 0.55;
 const MAGE_ALL_SPELLS = [
@@ -28,10 +27,6 @@ function hasSpell(character, spellName) {
 
 function hasSpellType(character, type) {
   return getActiveSpellKeys(character).some(spellName => SPELLS[spellName]?.type === type);
-}
-
-function usesSpellPolicy(character, className, spellType) {
-  return character.startingKit ? hasSpellType(character, spellType) : character.class === className;
 }
 
 function getLowestHpEnemyIndex(monsters, predicate = () => true) {
@@ -81,16 +76,10 @@ export function getPreferredOffensiveSpellName(
   const canCast = spellName =>
     hasSpell(character, spellName) && canCastSpell(spellName, reserveMp);
 
-  if (usesSpellPolicy(character, "Mage", "mage")) {
+  if (hasSpellType(character, "mage")) {
     return getMageOffensiveSpellName(monsters, canCast);
   }
-  if (usesSpellPolicy(character, "Priest", "priest") && canCast("BADIOS")) return "BADIOS";
-  if (character.class === "Samurai" && canCast("HALITO")) return "HALITO";
-  if (character.class === "Bishop") {
-    if (canCast("BADIOS")) return "BADIOS";
-    if (canCast("HALITO")) return "HALITO";
-  }
-  if (character.class === "Ranger" && canCast("BADIOS")) return "BADIOS";
+  if (hasSpellType(character, "priest") && canCast("BADIOS")) return "BADIOS";
   return null;
 }
 
@@ -104,8 +93,7 @@ export function getPreferredHealingSpellName(
 }
 
 export function getAutoHealTargetIdx(character, healThreshold = AUTO_HEAL_HP_THRESHOLD) {
-  if (!character.startingKit && character.class !== "Priest") return null;
-  if (character.startingKit && !getActiveSpellKeys(character).some(spellName => PRIEST_HEALING_SPELLS.includes(spellName))) return null;
+  if (!getActiveSpellKeys(character).some(spellName => PRIEST_HEALING_SPELLS.includes(spellName))) return null;
   return character.hp < getCharMaxHp(character) * healThreshold ? 0 : null;
 }
 
@@ -116,8 +104,6 @@ export function chooseAutoCombatAction({
   healingTargetIdx = null,
   canCastSpell = () => false
 }) {
-  if (!character.startingKit && !BASIC_CLASSES.has(character.class)) return null;
-
   const statusTargetIdx = getLowestHpEnemyIndex(
     monsters,
     monster => monster.status && !["ok", "dead"].includes(monster.status)
@@ -130,7 +116,7 @@ export function chooseAutoCombatAction({
   const canCast = spellName =>
     hasSpell(character, spellName) && canCastSpell(spellName, reserveMp);
 
-  if (healingTargetIdx !== null && usesSpellPolicy(character, "Priest", "priest")) {
+  if (healingTargetIdx !== null && hasSpellType(character, "priest")) {
     const healingSpell = getPreferredHealingSpellName(character, canCastSpell);
     if (healingSpell) {
       return { type: "spell", targetIdx: healingTargetIdx, spellName: healingSpell };
@@ -141,7 +127,7 @@ export function chooseAutoCombatAction({
     return { type: "spell", targetIdx: lowestHpIdx, spellName: "KATINO" };
   }
 
-  if (usesSpellPolicy(character, "Priest", "priest") && canCast("BADIOS")) {
+  if (hasSpellType(character, "priest") && canCast("BADIOS")) {
     const holyTargetIdx = monsters.findIndex(monster => monster.hp > 0 && hasHolyTag(monster));
     const firstLivingIdx = monsters.findIndex(monster => monster.hp > 0);
     return {
@@ -151,7 +137,7 @@ export function chooseAutoCombatAction({
     };
   }
 
-  if (usesSpellPolicy(character, "Mage", "mage")) {
+  if (hasSpellType(character, "mage")) {
     const spellName = getMageOffensiveSpellName(monsters, canCast);
     if (spellName) {
       return { type: "spell", targetIdx: lowestHpIdx, spellName };

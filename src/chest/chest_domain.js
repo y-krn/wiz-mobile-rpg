@@ -78,13 +78,9 @@ export function getChestRewardEntries(chest) {
 }
 
 export function calculateChestInspectionChance({ party = [], lightPower = "", lightTurns = 0 } = {}) {
-  const thief = party.find(char => char.class === "Thief" && ELIGIBLE_STATUSES.has(char.status));
-  let chance = thief ? 0.85 : 0.30;
-  if (thief?.status === "blind") {
-    chance /= 2;
-  } else if (!thief && party.some(char => ELIGIBLE_STATUSES.has(char.status) && char.status === "blind")) {
-    chance /= 2;
-  }
+  const inspector = party.find(char => ELIGIBLE_STATUSES.has(char.status));
+  let chance = inspector ? 0.30 : 0;
+  if (inspector?.status === "blind") chance /= 2;
   const lightBonus = lightPower === "lomilwa" ? 0.25 : (lightTurns > 0 ? 0.15 : 0);
   return {
     chance: Math.min(0.95, chance + lightBonus),

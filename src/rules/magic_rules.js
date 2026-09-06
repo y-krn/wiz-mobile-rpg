@@ -39,7 +39,7 @@ function normalizeRuneSpellKey(rune) {
 }
 
 export function getActiveRuneSpellKeys(char) {
-  if (!char?.startingKit || !getEquippedMedium(char)) return [];
+  if (!char || !getEquippedMedium(char)) return [];
   const mediumKey = getMediumIdentity(getEquippedMedium(char).item);
   if (char.mediumState?.mediumKey !== mediumKey) return [];
   const seen = new Set();
@@ -50,9 +50,7 @@ export function getActiveRuneSpellKeys(char) {
 }
 
 export function getActiveSpellKeys(char) {
-  return char?.startingKit
-    ? getActiveRuneSpellKeys(char)
-    : (Array.isArray(char?.spells) ? [...char.spells] : []);
+  return getActiveRuneSpellKeys(char);
 }
 
 export function getRuneSpellKey(rune) {
@@ -64,7 +62,7 @@ export function getRuneItemId(spellKey) {
 }
 
 export function syncMediumState(char, { preserveRunes = false } = {}) {
-  if (!char?.startingKit) return char;
+  if (!char) return char;
   const medium = getEquippedMedium(char);
   const mediumKey = getMediumIdentity(medium?.item);
   const previousRunes = preserveRunes ? char.mediumState?.socketedRunes : [];
@@ -86,7 +84,7 @@ export function syncMediumState(char, { preserveRunes = false } = {}) {
 }
 
 export function socketRune(char, rune) {
-  if (!char?.startingKit) return { ok: false, reason: "legacy_character" };
+  if (!char) return { ok: false, reason: "character_missing" };
   const medium = getEquippedMedium(char);
   const spellKey = normalizeRuneSpellKey(rune);
   if (!medium || !spellKey) return { ok: false, reason: "medium_or_rune_missing" };
@@ -99,13 +97,23 @@ export function socketRune(char, rune) {
 }
 
 export function unsocketRune(char, spellKey) {
-  if (!char?.startingKit) return { ok: false, reason: "legacy_character" };
+  if (!char) return { ok: false, reason: "character_missing" };
   const runes = Array.isArray(char.mediumState?.socketedRunes) ? char.mediumState.socketedRunes : [];
   const index = runes.findIndex(rune => normalizeRuneSpellKey(rune) === spellKey);
   if (index < 0) return { ok: false, reason: "not_socketed" };
   runes.splice(index, 1);
   char.mediumState.socketedRunes = runes;
   return { ok: true, spellKey };
+}
+
+export function isSpellcaster(char) {
+  return getActiveSpellKeys(char).length > 0;
+}
+
+// Mana is a continuous resource of the current build. Every character starts
+// with a small universal MP pool; larger pools come from equipment/mediums.
+export function canUseManaItems(char) {
+  return Number(char?.maxMp) > 0;
 }
 
 export function clampCurrentMpToMax(char, getMaxMp) {

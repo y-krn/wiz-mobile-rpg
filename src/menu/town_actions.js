@@ -2,7 +2,7 @@ import { state, saveAutosave, addLog, clearSave, DEATH_TYPE_LABELS, summarizeDea
 import { playSound } from "../audio.js";
 import { openArchivesOverlay, updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu } from "../navigation.js";
-import { getClassJpName, getItemBaseId } from "../data.js";
+import { getItemBaseId } from "../data.js";
 import { getAdventureRecordsHtml } from "../ui/adventure_history.js";
 
 function isDebugMode() {
@@ -28,7 +28,7 @@ export function handleTownOption(option) {
 export function renderCastleMain(optGrid) {
   optGrid.className = "submenu-grid castle-grid";
   optGrid.innerHTML = "";
-  const records = state.records || { deepestRetreat: 0, deepestDeath: 0, deepestByClass: {}, totalRuns: 0 };
+  const records = state.records || { deepestRetreat: 0, deepestDeath: 0, totalRuns: 0 };
   const abandonCount = Array.isArray(state.runHistory) ? state.runHistory.filter(isAbandonRun).length : 0;
 
   const adventureRecords = document.createElement("div");
@@ -44,14 +44,6 @@ export function renderCastleMain(optGrid) {
     <div><span>断念</span><strong>${abandonCount}回</strong></div>
   `;
   optGrid.appendChild(summary);
-  const classRecords = document.createElement("div");
-  classRecords.className = "records-class-list";
-  const entries = Object.entries(records.deepestByClass || {}).sort((a, b) => b[1] - a[1]);
-  classRecords.textContent = entries.length
-    ? entries.map(([className, floor]) => `${getClassJpName(className)} B${floor}F`).join(" / ")
-    : "クラス別記録なし";
-  optGrid.appendChild(classRecords);
-
   const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
   if (hasCrystal) {
     const button = document.createElement("button");

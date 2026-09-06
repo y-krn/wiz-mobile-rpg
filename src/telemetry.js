@@ -12,7 +12,6 @@ import {
   getCharVit
 } from "./rules/character_stats.js";
 import { getCharAffixSum, getItemBaseId, getItemData } from "./rules/item_rules.js";
-import { CLASSES } from "./data/classes.js";
 import { ITEMS } from "./data/items.js";
 import { MONSTERS } from "./data/monsters.js";
 import { SPELLS } from "./data/spells.js";
@@ -22,9 +21,9 @@ import { DIR_NAMES } from "./constants/directions.js";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
-import { getMpWardDef } from "./combat_logic/mp_ward.js";
 import { INVENTORY_CAPACITY } from "./rules/item_inventory.js";
 import { getWeaponBehaviorProfile } from "./data/weapon_behavior_profiles.js";
+import { getActiveRuneSpellKeys, getRuneItemId } from "./rules/magic_rules.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -220,10 +219,6 @@ function normalizeOptionalStableValue(value, allowedValues) {
   return normalizeStableValue(value, allowedValues);
 }
 
-function normalizeClass(value) {
-  return normalizeOptionalStableValue(value, new Set(Object.keys(CLASSES)));
-}
-
 function normalizeRarity(value) {
   return normalizeOptionalStableValue(value, SAFE_RARITIES);
 }
@@ -345,7 +340,7 @@ export function buildPlayerSnapshot(character, { floor = 1 } = {}) {
     // Malformed optional state must never interfere with gameplay.
   }
   const snapshot = {
-    playerClass: normalizeClass(character.class),
+    startingKit: normalizeOptionalStableValue(character.startingKit, new Set(["vanguard", "scout", "devotion", "arcana"])),
     level: boundedFiniteOrNull(character.level),
     hp: boundedFiniteOrNull(character.hp),
     maxHp: boundedFiniteOrNull(getCharMaxHp(character)),
@@ -404,6 +399,9 @@ export function buildEquipmentSnapshot(character) {
       cursed: Boolean(itemKey?.curseEffectId || itemKey?.curseLocked)
     };
   });
+  const activeRuneIds = getActiveRuneSpellKeys(character)
+    .map(getRuneItemId)
+    .filter(Boolean);
   return {
     equipmentIds: equipment.map(item => item.id),
     equipmentSlots: equipment.map(item => item.slot),
@@ -414,7 +412,8 @@ export function buildEquipmentSnapshot(character) {
     equipmentCoreAffixCounts: equipment.map(item => item.coreAffixCount),
     equipmentSupportAffixCounts: equipment.map(item => item.supportAffixCount),
     equipmentAffixTypes: equipment.flatMap(item => item.affixTypes).slice(0, 24),
-    equipmentCursed: equipment.map(item => item.cursed)
+    equipmentCursed: equipment.map(item => item.cursed),
+    activeRuneIds
   };
 }
 
@@ -551,7 +550,6 @@ function normalizeDefenseBreakdown(breakdown) {
     buffDef: normalize(breakdown.buffDef),
     frontGuardDef: normalize(breakdown.frontGuardDef),
     firstStrikeDefense: normalize(breakdown.firstStrikeDefense),
-    mpWardDef: normalize(breakdown.mpWardDef),
     tempDefDown: normalize(breakdown.tempDefDown)
   };
 }
@@ -566,14 +564,13 @@ function buildDefenseBreakdown(character, finalDef, damage) {
     const equipmentDef = getCharDef(character);
     const vit = getCharVit(character);
     const vitContribution = Math.floor(vit / 4);
-    const mpWardDef = getMpWardDef(character);
     const buffDef = attackType === "flee" ? 0 : getBuffTotal(character, "def");
     const tempDefDown = attackType === "flee" ? 0 : (character.tempDefDown || 0);
     const firstStrikeDefense = attackType === "physical" && character.combatFirstStrikeActive
       ? getCharAffixSum(character, "firstStrikeDefense")
       : 0;
     const frontGuardDef = attackType === "physical"
-      ? Number(finalDef) - (equipmentDef + vitContribution + buffDef + firstStrikeDefense + mpWardDef - tempDefDown)
+      ? Number(finalDef) - (equipmentDef + vitContribution + buffDef + firstStrikeDefense - tempDefDown)
       : 0;
     return {
       // The live formula's baseDef input is the player's effective equipment DEF;
@@ -584,7 +581,6 @@ function buildDefenseBreakdown(character, finalDef, damage) {
       buffDef,
       frontGuardDef,
       firstStrikeDefense,
-      mpWardDef,
       tempDefDown
     };
   } catch {
@@ -884,7 +880,6 @@ export function trackBleedingEvent(event, details = {}) {
   const normalizedEvent = normalizeStableValue(event, SAFE_BLEEDING_EVENTS);
   capture(`bleeding_${normalizedEvent}`, {
     floor: boundedFiniteOrNull(details.floor),
-    playerClass: normalizeClass(details.playerClass),
     enemyId: normalizeEnemyId(details.enemyId),
     isBoss: Boolean(details.isBoss),
     isMidboss: Boolean(details.isMidboss),
@@ -902,7 +897,6 @@ export function trackVulnerableEvent(event, details = {}) {
   const normalizedEvent = normalizeStableValue(event, SAFE_VULNERABLE_EVENTS);
   capture(`vulnerable_${normalizedEvent}`, {
     floor: boundedFiniteOrNull(details.floor),
-    playerClass: normalizeClass(details.playerClass),
     enemyId: normalizeEnemyId(details.enemyId),
     isBoss: Boolean(details.isBoss),
     isMidboss: Boolean(details.isMidboss),
@@ -979,7 +973,6 @@ export function trackRunStart(run, character, stateSnapshot = null) {
   capture("run_start", {
     runId,
     ...safeDecisionContext({ state: stateSnapshot, character }),
-    playerClass: normalizeClass(character?.class ?? run?.characterClass),
     level: boundedFiniteOrNull(character?.level),
     startFloor: boundedFiniteOrNull(run?.startFloor),
     // Preserve v1 raw capacity fields while exposing effective capacities via
@@ -1007,7 +1000,6 @@ export function trackCombatStart(combat, stateSnapshot = null) {
     combatId,
     ...safeDecisionContext({ state: stateSnapshot, character: combat?.player, combat }),
     floor: boundedFiniteOrNull(combat?.floor),
-    playerClass: normalizeClass(combat?.player?.class),
     playerHp: boundedFiniteOrNull(combat?.player?.hp),
     playerMp: boundedFiniteOrNull(combat?.player?.mp),
     enemyIds: (combat?.monsters ?? []).slice(0, MAX_ENEMY_SNAPSHOT).map(monster => normalizeEnemyId(monster?.name)),
@@ -1026,7 +1018,6 @@ export function trackDamageReceived(damage) {
     runId,
     combatId,
     floor: boundedFiniteOrNull(damage?.floor),
-    playerClass: normalizeClass(damage?.playerClass),
     enemyId: normalizeEnemyId(damage?.enemyId),
     attackType: normalizeStableValue(damage?.attackType, SAFE_ATTACK_TYPES),
     rawDamage: boundedFiniteOrNull(damage?.rawDamage),
@@ -1039,7 +1030,6 @@ export function trackDamageReceived(damage) {
     playerHpBefore: boundedFiniteOrNull(damage?.playerHpBefore),
     playerHpAfter: boundedFiniteOrNull(damage?.playerHpAfter),
     playerMp: boundedFiniteOrNull(damage?.playerMp),
-    mpWardActive: Boolean(damage?.mpWardActive),
     isDefending: Boolean(damage?.isDefending),
     guardProfileId: normalizeStableValue(damage?.guardProfileId, SAFE_GUARD_PROFILE_IDS)
   });
@@ -1090,7 +1080,6 @@ export function trackRunEnd(run, outcome, stateSnapshot = null) {
   capture("run_end", {
     runId,
     ...safeDecisionContext({ state: stateSnapshot, character: stateSnapshot?.party?.[0] }),
-    playerClass: normalizeClass(run?.characterClass),
     outcome: normalizeOutcome(outcome),
     returnReason: normalizeOptionalStableValue(run?.returnReason, SAFE_RETURN_REASONS),
     deepestFloor: boundedFiniteOrNull(run?.deepestFloor),

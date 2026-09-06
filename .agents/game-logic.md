@@ -62,9 +62,9 @@ At the apply boundary, `normalizeSavePayload()` validates the top-level object,
 filters or defaults malformed collections, restores missing scalar defaults,
 and canonicalizes supported nested state before any mutation of `state`.
 `migrateSavePayload()` then applies current-version compatibility transforms:
-character equipment/spell defaults, affix/status metadata, run outcomes,
+character equipment/medium defaults, affix/status metadata, run outcomes,
 retired workshop refunds, map cell defaults, and removed legacy fields. The
-current version remains `13`; unknown legacy fields are ignored, while an
+current version remains `14`; unknown legacy fields are ignored, while an
 older/incompatible version or an unreadable payload uses `loadGame()`'s existing
 backup/fresh-game fallback.
 
@@ -90,6 +90,25 @@ the internal Greed action pressure, whether the exit stairs were found, and
 dedupe keys for one-time optional-area actions. This state is normalized and
 persisted with the run so walking alone cannot advance the threat and save/load
 cannot reroll an entry roll, a prolonged check, or a warning.
+
+## Classless current-run contract (#1102)
+
+The current run has no character class, learned-spell list, class growth, or
+class permission. The six base abilities (`str`, `int`, `pie`, `vit`, `agi`,
+`luk`) are universal inputs; level growth is also universal. Build identity and
+specialization come from equipped gear, Core/Support affixes, the equipped
+medium, and socketed Runes.
+
+Active spells are derived only from the character's equipped medium and its
+socketed Runes. Mana items are available to any character with a positive
+maximum MP. Trap detection, disarm, chest inspection, critical, barehanded
+attack, and evasion use universal rules plus equipment/affixes; they do not
+branch on a class name.
+
+Save normalization drops legacy `class` and `spells` fields from current
+characters and never reconstructs learned spells. Historical run records may
+retain their legacy class field as archive evidence, but it is not loaded into
+the current party or used by gameplay.
 
 ## Object-loot ownership contract (#1006)
 

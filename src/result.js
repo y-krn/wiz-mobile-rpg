@@ -95,7 +95,7 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
       type: latestDeath?.type || null,
       source: latestDeath?.source ? normalizeDeathSource(latestDeath.source) : null,
       character: state.party[0]
-        ? { name: state.party[0].name, class: state.party[0].class, level: state.party[0].level }
+        ? { name: state.party[0].name, level: state.party[0].level }
         : null,
       lostItems: Object.entries(run.lostMaterials)
         .filter(([, quantity]) => quantity > 0)

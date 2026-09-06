@@ -13,73 +13,9 @@ import { isUsableCombatState } from "./view_state.js";
 import { BASE_STARTING_MP, BASIC_RUNE_ITEM_ID, MEDIUM_IDS } from "../data/magic.js";
 import { getEquipmentHands } from "../rules/equipment_hands.js";
 
-export function migrateCharSpells(char) {
-  if (!char.spells) char.spells = [];
-  if (char.class === "Priest") {
-    if (!char.spells.includes("DIURCO")) char.spells.push("DIURCO");
-    if (!char.spells.includes("BADIOS")) char.spells.push("BADIOS");
-    if (char.level < 8 && char.spells.includes("DIALMA")) {
-      char.spells = char.spells.filter(s => s !== "DIALMA");
-    }
-    if (char.spells.includes("MASFEAL")) {
-      char.spells = char.spells.filter(s => s !== "MASFEAL");
-    }
-  }
-  if (char.class === "Mage") {
-    if (char.level >= 5 && !char.spells.includes("VULNERA")) char.spells.push("VULNERA");
-    if (char.level >= 4) {
-      if (!char.spells.includes("MASFEAL")) char.spells.push("MASFEAL");
-    } else {
-      char.spells = char.spells.filter(s => s !== "MASFEAL");
-    }
-    if (char.level < 8 && char.spells.includes("TILTOWAIT")) {
-      char.spells = char.spells.filter(s => s !== "TILTOWAIT");
-    }
-    if (char.level < 6 && char.spells.includes("MADALTO")) {
-      char.spells = char.spells.filter(s => s !== "MADALTO");
-    }
-  }
-  if (char.class === "Samurai") {
-    if (char.level < 9 && char.spells.includes("TILTOWAIT")) {
-      char.spells = char.spells.filter(s => s !== "TILTOWAIT");
-    }
-    if (char.level < 7 && char.spells.includes("MADALTO")) {
-      char.spells = char.spells.filter(s => s !== "MADALTO");
-    }
-    if (char.spells.includes("MASFEAL")) {
-      char.spells = char.spells.filter(s => s !== "MASFEAL");
-    }
-  }
-  if (char.class === "Ranger") {
-    if (char.level < 8 && char.spells.includes("DIALMA")) {
-      char.spells = char.spells.filter(s => s !== "DIALMA");
-    }
-    if (char.spells.includes("MASFEAL")) {
-      char.spells = char.spells.filter(s => s !== "MASFEAL");
-    }
-  }
-  if (char.class === "Bishop") {
-    if (char.level >= 6 && !char.spells.includes("VULNERA")) char.spells.push("VULNERA");
-    if (char.level >= 4) {
-      if (!char.spells.includes("MASFEAL")) char.spells.push("MASFEAL");
-    } else {
-      char.spells = char.spells.filter(s => s !== "MASFEAL");
-    }
-    if (char.level < 10 && char.spells.includes("TILTOWAIT")) {
-      char.spells = char.spells.filter(s => s !== "TILTOWAIT");
-    }
-    if (char.level < 7 && char.spells.includes("DIALMA")) {
-      char.spells = char.spells.filter(s => s !== "DIALMA");
-    }
-    if (char.level < 7 && char.spells.includes("MADALTO")) {
-      char.spells = char.spells.filter(s => s !== "MADALTO");
-    }
-  }
-}
-
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 // Save/apply boundary contract. Unknown keys are deliberately ignored. Keep
 // this list in sync with createSavePayload; runtime-only state must not become
@@ -220,7 +156,10 @@ function normalizePersistedGameState(gameState, currentRun, combatState) {
 // 例: 2: (d) => { d.materials = Object.fromEntries(...); return d; }
 function normalizeCharEquipment(char, normalized) {
   if (!char) return;
-  if (!Array.isArray(char.spells)) char.spells = [];
+  // Current character state has no class or learned-spell ownership. Old
+  // fields are intentionally discarded instead of being reconstructed.
+  delete char.class;
+  delete char.spells;
   char.equipment = {
     weapon: char.equipment?.weapon ?? null,
     shield: char.equipment?.shield ?? null,
@@ -685,7 +624,10 @@ export function migrateSavePayload(data) {
     throw error;
   }
   const from = typeof data.version === "number" ? data.version : 0;
-  if (from !== SAVE_VERSION) {
+  // Version 13 is the immediately previous live schema. Let it pass through
+  // normalization so legacy class/learned-spell fields are discarded instead
+  // of making an otherwise recoverable save restore obsolete ownership.
+  if (from !== SAVE_VERSION && from !== SAVE_VERSION - 1) {
     const error = new Error(`Save version ${from} is incompatible with solo save version ${SAVE_VERSION}.`);
     error.name = "IncompatibleSaveVersionError";
     throw error;
@@ -816,7 +758,6 @@ export function normalizeSavePayload(data) {
 
   normalized.party.forEach(char => normalizeCharEquipment(char, normalized));
   backfillAffixMetadata(normalized);
-  normalized.party.forEach(migrateCharSpells);
   discardTransientRunAffixState(normalized);
   backfillMonsterCriticalEligibility(normalized);
   normalizeStatusEffectState(normalized);

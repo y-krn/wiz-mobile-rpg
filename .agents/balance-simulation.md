@@ -1014,7 +1014,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   戦士・魔術師より低い。**盲目ループは職業格差の一因**と固定するが、観測測定のため単独因果量は識別しない。
 - 全体では盲目状態の解除試行3,939件中成功931件、失敗3,008件、罠発動9,523件、罠HP被害24,962。
   盲目罠HP被害後のB5撤退は **18.5% (583/3,153)** で、罠発動数だけでなくHP被害経路も追跡した。
-- `trapGuard` は `src/data/classes.js` の実在値を sim の
+- `trapGuard` は `.agents/legacy-class-model.md` に記録された旧値を sim の
   `getSimulationTrapGuardByParty`→`applyTrapGuardToEffect` で使用・適用する。閃光罠効果通過
   **52,730件**、非ゼロguard通過 **27,741件**、盲目効果不変 **52,730件**。軽減対象はHP damageのみで、
   閃光罠の盲目へは効かない。現行床罠に盲目効果はない。
@@ -1162,7 +1162,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 - HP順序の不変条件を `戦士 > 盗賊 > 僧侶 ≧ 魔術師` に戻すため、Mageの基礎HPを
   21から14、成長を4..6のまま維持した。耐久は `trapGuard=70`、`mpWard=10`、
   `killHeal=10`へ移し、HPを直接盛らない。正本は `src/state/initial_state.js`、
-  `src/systems/leveling.js`、`src/data/classes.js`。
+  旧クラス資料 `.agents/legacy-class-model.md`。
 - 新規focused sweep（seed=461、各候補・職N=500、calibration N=100）は、
   `trapGuard55 / 60 / 70`を比較した。採用点のB5死亡/B10到達/平均floor/
   戦闘turn/被弾turn/素材EV時間は、`8.16% / 26.6% / 7.39 / 54.27 /

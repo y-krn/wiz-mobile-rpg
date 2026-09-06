@@ -52,7 +52,6 @@ export function calculateSuccessRate(trap) {
 
   return calculateFloorTrapSuccessRate({
     trap,
-    className: char.class,
     level: char.level,
     floor: state.floor,
     // 罠解除は宝箱罠と共通ステータス。getCharTrapBonus は 0.1 = 10% の小数を返すため、
@@ -252,11 +251,6 @@ export function triggerTrap(trap, isPartialSuccess = false) {
   }), {
     trapGuardByParty: state.party.map(char => getCharAffixSum(char, "trapGuard"))
   });
-
-  // 探索能力に応じた失敗時の被害軽減（ThiefやNinjaが生存していると30%軽減）
-  if (effect.scoutMitigated && !isPartialSuccess) {
-    addLog("[味方] 盗賊の素早い身のこなしにより、罠の被害が抑えられた！");
-  }
 
   playSound("chest_trap");
   
