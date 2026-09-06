@@ -39,6 +39,19 @@ evidence reports; it does not duplicate the inline-code or design-canon checks.
 `npm run lint:workflow` parses every GitHub Actions workflow and validates its
 basic `name`/`on`/`jobs`/step shape before CI runs.
 
+## Canon and review-checklist ownership
+
+Design canon answers what the game is intended to mean and feel like: player
+experience, domain semantics, and durable constraints. It does not record the
+current migration stage, implementation progress, or historical sequencing.
+Source/tests define how the intent is implemented; Issues, pull requests, and
+Git history define progress and history.
+
+Review checklists answer how to inspect a change through one lens. They should
+state review questions and routing rules without restating the whole design
+canon. Load a design document only when the changed area touches its durable
+meaning.
+
 ## Review checklists
 
 1. `qa-regression.md`

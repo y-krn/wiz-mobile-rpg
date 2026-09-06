@@ -1,587 +1,230 @@
-# Game Design: Meta Economy
+# Game Design: Economy and Resource Roles
 
-This document records the economy design for the solo depth-attack roguelite:
-materials as the only currency, the workshop unlock tree, milestone merchants,
-and run quests. It is the economy-level refinement of
-`.agents/game-design-core-loop.md` (core loop, pillars, pacing targets).
-Resolve conflicts toward that document.
+This document owns the durable economy meaning of the solo depth-attack
+roguelite: materials, resource exchange, status counterplay, milestone
+merchants, run quests, and the relationship between a run's value and the next
+descent. The core question and push-your-luck contract live in
+`.agents/game-design-core-loop.md`; this document refines their economy-facing
+implications.
 
-**Canonical vNext source:** [#973 comment 5479686603](https://github.com/y-krn/wiz-mobile-rpg/issues/973#issuecomment-5479686603).
-The Core Loop vNext contract is the design target for Town, Castle, Codex,
-Workshop, inventory, and run outcomes. Older economy decisions and measured
-values remain historical evidence when explicitly labeled; they are not
-current vNext behavior.
+Exact executable values, save shapes, and production wiring belong to source
+and tests. Keep a number here only when it explains an intentional player
+trade-off rather than a temporary calibration.
 
-Exploration trap principles are canonical in the `Trap exploration design`
-section of `.agents/game-design-core-loop.md` (Issue #931). This document owns
-the trap-sustain and counterplay values recorded below; it does not redefine
-route selection, map reachability, or Simulation responsibility boundaries.
-
-## Combat damage model
-
-Physical and offensive-spell formulas, their application order, measured
-contribution breakdowns, and model-level decisions are canonical in
-`.agents/game-design-combat-model.md`. This document remains canonical for
-meta-economy, status-effect, and trap-sustain rules; numeric combat values and
-execution remain in `src/`.
-
-**Direction change (2026-07-18).** The former Expedition Economy (town shops,
-gold, identification-in-town, crafting, contracts board, B5F clear flow) was
-retired with the party-based game. This document defines the meta economy for
-the replacement solo depth-attack roguelite.
-
-**Build vNext migration status (Issues #1042 and #1073, 2026-09-05).** The
-departure screen chooses a named `startingKit` built from ordinary equipment
-bases. Class labels no longer authorize equipment, prune Loot candidates, or
-gate Core generation/effects. Exploration is now fully run-local Build-owned:
-all characters share inspect, detect, disarm, and avoid verbs; `trapBonus`,
-`treasureSense`, `hearRange`, `traceRead`, and `trapGuard` come from current
-equipment, Support, and tools, while Core owns resource exchange and explicit
-condition evaluation only. Starting kits provide no permanent exploration
-bonus. The legacy `class` field remains for combat compatibility and for
-historical measurements, not exploration success, information, mitigation, or
-telemetry dimensions.
-
-## Goal
+## Economy goal
 
 One currency, one sink, one question:
 
-Five-floor trial implementation (#1010) is a run-pacing layer, not a new
-economy or currency. A deterministic main/sub theme pair changes the soft
-weight of existing encounter costs and the fourth-floor opportunity rate;
-Portal signals describe the already-resolved next band without exposing exact
-odds. It must not create a build-specific loot guarantee or a mandatory
-consumable tax.
-
 ```text
-run ends -> outcome determines what value is recovered ->
+run ends → outcome determines what value is recovered →
 Castle records what happened, Codex records what was understood, Workshop
-expands what may exist in future runs ->
-descend again
+expands what may exist in future runs → descend again
 ```
 
-Every economic knob must serve "descend again, deeper." Any loop that pays
-better than descending (farming a shallow biome forever, merchant arbitrage)
-is a bug in the economy.
+Every economic knob must support “descend again, deeper.” A loop that pays
+better than descending—shallow farming, merchant arbitrage, or a target-build
+lottery—is a failure of the economy.
 
-## Magic ownership (Issue #1046)
+Five-floor bands are resource-allocation chapters, not a second currency. A
+band may make HP, MP, status, information, actions, or inventory pressure more
+important, but it must not impose a build-specific loot guarantee or a
+mandatory consumable tax. Player-facing clues communicate the kind of pressure
+without exposing exact odds or hidden theme metadata.
 
-Starting-kit runs use a universal base `maxMP=1` and `currentMP=1`; level and
-the compatibility `char.class` do not grant magic. A medium is an ordinary
-weapon-slot item. The current medium contributes its own max-MP capacity and
-Rune slots only while equipped. The structural medium defaults are WAND +2/1,
-SAGE_STAFF +3/2, ARCH_WAND +4/3, and HOLY_STAFF +2/1 (max MP / Rune slots).
+## Materials are the only currency
 
-The active spell set is exactly the Rune spell keys socketed in the equipped
-medium. `char.spells[]` remains readable only for legacy character fixtures;
-it is not a starting-kit truth source. Socketed Runes are medium-side build
-state and do not consume bag slots. Spare `RUNE_<spell>` objects are ordinary
-one-slot dungeon loot. Equipping a medium never restores current MP; when the
-derived max MP falls, current MP is clamped to the new maximum. Swapping or
-unequipping a medium safely returns its socketed Runes to the ordinary bag.
+Gold and a parallel shop currency do not belong in the economy. Materials are
+used for meaningful in-run exchanges and for horizontal between-run
+possibilities; they are not a substitute for the value competition inside the
+bag.
 
-The arcana starting kit uses the regular WAND medium and the regular HALITO
-Rune (cost 1), which provides the minimum one-cast magic trial without a
-class/origin passive. Rune supply is added to ordinary chest candidate pools
-without reading the current build or pairing a medium with a Rune.
+The authored material families are:
 
-## Status Effects And Counterplay
-
-- Exploration poison is a finite exploration risk, not a permanent per-step
-  tax: when poison is applied, its exploration duration is rolled once from
-  7–12 steps. On each exploration step it has a 30% chance to deal 1–2 HP
-  damage, then expires when the rolled window reaches zero. The canonical
-  values live in `src/combat_logic/status_effects.js`; combat-round poison
-  keeps its existing round timing and application rules.
-- Antidote, Holy Water, Panacea, LATUMOFIS, and healing recovery remain valid
-  immediate counterplay. The finite window lowers the chance that poison alone
-  ends a run while preserving the decision to spend a cure when HP or the
-  remaining route makes waiting unsafe. Existing legacy poison records without
-  a timer remain readable and receive the finite exploration window lazily on
-  their next exploration step.
-
-- Blind remains a combat disruption: the affected character can act, but may
-  miss attacks and takes the existing incoming-damage penalty.
-- Blind clears when combat ends through victory or retreat while the character
-  survives. Death does not create a recovery event. The source of truth is the
-  combat-round resolution in `src/combat_logic/round.js`.
-- `EYE_DROPS` remains a cheap explicit countermeasure (`霊粉`1), but it is not
-  required in the canonical departure kit. Departure craft choices trade it
-  against recovery and utility items.
-- Blind's chest-disarm penalty remains separate from combat duration. Evaluate
-  chest disarm through attempts and route breakdown, not as a standalone
-  balance target.
-
-### Role-based treatment inventory (Issue #961)
-
-Treatment planning uses three role groups rather than adding one consumable for
-each future status:
-
-- persistent hazard: `ANTIDOTE` is the stable preparation route for poison;
-  `HOLY_WATER` is a rare recovery-plus-poison emergency item and is not
-  departure-craftable.
-- broad cleanse: `PANACEA` is the rare multi-status option for poison, blind,
-  paralysis, and sleep; `ELIXIR` is cataloged as an unreachable legacy
-  broad-cure definition because it has no current supply route.
-- targeted fallback: `EYE_DROPS`, `PARALYZE_CURE`, and `WAKE_POWDER` remain
-  legacy specialist countermeasures while their measured use is reviewed;
-  they are not a template for adding more status-named items.
-
-The role catalog is `src/data/status_treatments.js`. Adding a new status does
-not imply adding a new cure item. First compare natural expiry, spell cure,
-existing broad cleanse, and the status's observed loss. `poisonWard` and
-generic `statusResistance` equipment are an inventory-neutral alternative:
-they trade an equipment affix opportunity against carrying treatment items, so
-they must be included in future supply comparisons. The 20-slot inventory
-capacity is unchanged.
-
-## 探索Buildの罠所有権（Issue #1073）
-
-- 罠の inspect / detect / disarm / avoid は全キャラクター共通の動詞であり、
-  `class`、AGI、LUK、Level は探索成功率の入力ではない。床罠・宝箱罠・B5F
-  火炎罠の解除・回避率は、現在の装備・Support・道具から得る `trapBonus`
-  が所有する。
-- `treasureSense`、`hearRange`、`traceRead` は罠や地点の事実・兆候を提示する
-  情報 Support であり、行動の権限を付与しない。探索UIは事実、兆候、成功、
-  リスク、資源を提示し、内部の `choke` / `avoidable` を回答や罠属性として
-  表示しない。
-- `trapGuard` は装備／Supportだけから得る、罠効果のHPダメージ成分専用の軽減
-  で、既定値は0。状態異常、MP drain、転送、警報、detect、inspect、disarm
-  には影響せず、Coreからは供給しない。
-- `TRAP_KIT` などの道具とCoreは資源交換・条件評価を担当し、道具の所持数、
-  バッグ、装備枠、affix枠、消耗品という機会費用を伴う。plain disarmの成功率
-  や汎用ダメージ軽減をCoreの昇格で与えない。starting kitにも永続探索ボーナス
-  を付けない。
-- Issue #516 のクラス固有 `trapGuard` 値と、旧来のクラス探索差は歴史的測定値
-  として保持するが、現行実装の正本ではない。再現可能な旧測定値は
-  `evidence/results/issue-516-class-sustain.md`、#461再基準線は
-  `evidence/results/issue-461-baseline.md` を参照する。
-
-## 基本4職の撃破sustain（Issue #528）
-
-- 戦士は `killHeal=2`、魔術師は `killHeal=4` をクラス固有passiveとして持つ。
-  正本は `src/data/classes.js`、適用処理は既存の
-  `src/combat_logic/damage.js` の `applyKillAffixEffects` とする。
-- `killHeal` は敵撃破時にHPを回復し、最大HPを上限とする。回復薬の供給数・回復薬の
-  効果量・探索回復点は変更しない。盗賊・僧侶と上級4職の既存passiveも変更しない。
-- #528フェーズ2では、戦士と魔術師を同じ値に揃えず別々に測定した。戦士は +2で
-  B5撤退率31.8%、魔術師は +4でB5撤退率39.5%となるkneeを採用する。+6以上は
-  平均到達階が深くなり素材EV/時間が悪化するため採用しない。
-- 再現可能な測定値・条件・候補比較は
-  `evidence/results/issue-528-class-sustain-phase2.md` を正本とする。
-
-## 魔術師の死亡律速対策（Issue #534、#537で更新）
-
-- #534の採用値は初期HP `21`、レベルアップ時のHP成長 `4..6`。#537で基礎HP順序を
-  優先し、現行値は下記「基本4職HP順序（Issue #537）」へ更新した。
-- #534では現行 Mage のB5死亡率15.8% [12.3,20.2; N=322]を通常戦闘・宝箱罠・床罠・
-  bossの死亡直前source、`killHeal`発動実績、HP比で分解した。`killHeal`増量、
-  `trapGuard`増量、戦闘短縮、非撃破回復も掃引したが、初期HP+2/成長+1がB5死亡
-  10.3%、B10到達16.2%、平均floor6.11、素材EV/時間0.1755で最も妥当な採用点だった。
-- `killHeal+10` はB10到達26.2% [22.5,30.2; N=500]まで伸ばす有効な候補であり、
-  「効かない」理由で除外したわけではない。採用判定はB5死亡率を主endpoint、B10到達率
-  10%を下限、素材EV/時間を経済制約とした。`killHeal+10`はB5死亡13.6%、平均floor
-  7.06、戦闘55.39turn/run、素材EV/時間0.1588、採用点は順に10.3%、6.11、43.22、
-  0.1755だった。前者は深く進むが戦闘時間と素材効率を悪化させ、死亡律速への直接対策
-  としては後者が優位のため、`killHeal=4`を維持する。
-- 当初の「`killHeal`増量では解けない」は限定的に修正する。死亡runの34.7%は撃破前に
-  `killHeal`未発動で死ぬため、増量してもこの群は救えない。一方、残りのrunは撃破後の
-  回復を利用でき、`killHeal+6/+8/+10`でB10到達率が14.8%/21.0%/26.2%と単調に伸びる。
-  つまり増量は撃破前死亡を解消せず、撃破後の累積損耗と深度を改善する。
-- `killHeal+10`は汎用supportの基準値2、現行Fighter+2/Mage+4に対して突出した
-  class passive値（Mage現行の2.5倍）となり、将来職の同trigger設計にも新しい基準を
-  要求する。初期HP+2/成長+1は撃破triggerを増幅せず、初回戦闘から全階層で効く静的耐久
-  としてMageの脆さを残し、将来職にもHP成長軸で一貫して比較できる。両候補ともMageのみ
-  の介入で他3職B10 entrant差は0.0pt。
-- #534の候補比較・CI・再現条件は `evidence/results/issue-534-mage-death.md` を正本とする。
-
-## 基本4職HP順序（Issue #537）
-
-- 基礎HP・レベル成長の不変条件は `戦士 > 盗賊 > 僧侶 ≧ 魔術師`。
-  僧侶と魔術師の同値は、僧侶が回復呪文を持つため許容する。
-- 現行値は、戦士 `20 / 7..9`、盗賊 `15 / 5..7`、僧侶 `14 / 4..6`、魔術師
-  `14 / 4..6`（基礎HP / レベル成長）。正本は `src/state/initial_state.js` と
-  `src/systems/leveling.js`。
-- 魔術師はHPを盛らず、#537時点では `trapGuard=70`、`mpWard=10`、`killHeal=10`で
-  浅層の罠・MP・撃破後回復を補った。これは historical な class-passive 測定であり、
-  現行 #1073 では `trapGuard` を装備／SupportだけのHP-damage専用入力へ移行した。
-- Issue #537 focused sweep（上位呪文導入前、seed=461、各候補・職N=500、calibration
-  N=100）では、`HP14 / trapGuard70 / mpWard10 / killHeal10`がB5死亡 **8.16%**、
-  B10到達 **26.6%**、平均floor **7.39**、戦闘 **54.27turn/run**、被弾
-  **46.27turn/run**、素材EV/時間 **0.1623**だった。この値は#538の上位呪文導入前
-  基準線として保持する。
-- 上位呪文導入前の最終 #461 N=3000 では、Mage B5死亡 **10.4% [9.2%, 11.7%]**、B10到達
-  **28.0% [26.4%, 29.6%]**、平均floor **7.63 [7.45, 7.81]**、A1 **成立**。
-  Fighter/Thief/PriestのB10到達は **27.9% / 19.2% / 27.5%**で、既存基準と同等。
-- #534の`killHeal+6/+8/+10`単独掃引は再利用し、同じ条件を再測定しない。#537では
-  HP順序候補、`mpWard`、罠軽減・撃破回復の併用だけ新規測定した。詳細な候補表・CI・
-  実行条件は `evidence/results/issue-537-mage-hp-order.md` を正本とする。
-
-## 上位呪文と魔術師sustain（Issue #538）
-
-- 基本4職の戦闘自動選択は `src/combat_logic/auto_action.js` の共有関数を正本とする。
-  魔術師は敵数・残HP・残MPに応じて単体/全体の上位呪文を選び、僧侶は回復要求時に
-  `MADIOS`→`DIOS`を選ぶ。`DIOS`を持つ僧侶は攻撃呪文後にMP1を残す。
-- #538時点では上位呪文導入後の魔術師passiveとして `trapGuard=60`、`mpWard=8`、
-  `killHeal=8`を採用した。これは historical な class-passive 測定であり、現行 #1073
-  では `trapGuard` の class passive を削除して装備／SupportだけのHP-damage専用入力へ移行した。
-- seed=461、同一runner、各case・職N=3000、calibration N=1000の補正掃引では、
-  現行70/10/10のMage B5死亡 **6.0% [5.1,7.0]**、B10到達 **37.2% [35.5,38.9]**に
-  対し、採用60/8/8はB5死亡 **11.2% [9.9,12.5]**、B10到達 **28.2% [26.6,29.8]**。
-  戦闘は **59.97→46.71turn/run**、被弾turnは **49.24→38.28**、素材EV/時間は
-  **0.1664→0.1658**、他3職B10 entrant差は **0.0pt**。率はWilson 95% CI、平均は
-  正規近似95% CIで、詳細と再現条件は `evidence/results/issue-538-upper-spells.md` を正本とする。
-- 同測定でMageのMP枯渇率は採用値 **30.3% [28.7,32.0]**、PriestのreserveMp違反run率は
-  **0.0% [0.0,0.1]**。上位呪文別の実使用・適用率も同結果ファイルに記録する。
-- 採用後の#461 N=3000基準線はA1 **成立**。MageはB5死亡 **11.5% [10.2,12.8]**、
-  B10到達 **27.3% [25.8,29.0]**、平均floor **7.35 [7.19,7.50]**。Fighter/Thief/Priestの
-  B10到達は **28.1% / 19.2% / 27.2%**で、他3職を悪化させず、PriestのB5撤退は **0.0%**。
-
-## MP障壁の浅層物理被弾調整（Issue #780、incoming scale は #966 で更新）
-
-- 魔術師の `mpWard` は **1** を採用する。正本は `src/data/classes.js`、発動条件は
-  `src/combat_logic/round.js` の `getMpWardDef`（MP>=1の間だけ有効）であり、敵通常攻撃と
-  逃走追撃の共通 `finalDef` へ加算する。最低1ダメージ、ミス/回避0、incoming scale=4、
-  `calculatePhysicalDefenseFormula` と `reduceIncomingDamage` の順序は変更しない。
-- #780時点の scale=2 固定乱数測定では、Ged相当の装備DEF=1、VIT=8、Mana Drain ATK=4に対し、
-  mpWard有効時 `finalDef=11` / `defResistance=0.8462` / `1/1/1/1`、無効時
-  `finalDef=3` / `defResistance=0.6` / `1/2/2/2`だった。これらは旧式の履歴値であり、
-  現行 scale=4 の正本値ではない。
-- #966後の同条件では、mpWard有効時 `finalDef=4` / `defResistance=4/8=0.5` /
-  ATK4/5/6/7の `formulaDmg/finalDmg=2/2/3/3`、無効時 `finalDef=3` /
-  `defResistance=3/7≈0.4286` / `2/2/3/4`となる。障壁の +1 DEF と最低1ダメージ、
-  ミス/回避0、適用順序は維持され、scaleだけを更新した。
-- #966では、敵→プレイヤー通常攻撃と逃走追撃の共通曲線を
-  `scratch/simulations/sim_physical_defense_curve.js` で比較した。Mageの浅層DEF4・深層DEF14、
-  DEF15–20のtank、現行装備のFighterを、現行遭遇表の通常敵（各層low/typical/high、0..3乱数）で
-  評価し、scale=4/8/10/12/16、単純減算、ATK/DEF比を候補にした。scale=8は深層の1ダメージ張り付きを解消するが、
-  production-backed N=500 runでB5到達率と素材収入を大幅に損なったため不採用。scale=4は
-  `defResistance=DEF/(DEF+4)` としてその回帰を抑え、workshop-completeのB5到達率を基準線比
-  Fighter -2.0pt、Mage -5.4pt、Thief -0.6pt、Priest -3.0ptに収めた（同一seed/config、
-  N=500、calibration N=100）。これはscale=4を暫定再校正として採用する根拠であり、最適値の確定ではない。
-  深層DEF14–20で残る1ダメージ率はPostHog実測で再評価する。formula anchorのFighterはB1初期装備のみのため、
-  深層Fighterの安全性はproduction-backed runの結果を根拠とし、formula anchorからは推定しない。
-- 同一seed/configの実run sim（`generateRunFloor`→実round、seed=780、N=300、calibration=100、
-  `workshop-empty`/`workshop-complete`、B5/B10/B15/B20）を変更前後で比較する。MageのMP active/empty
-  分布、Fighterを非対象controlとして追跡し、`mpWard` 以外の職・敵データ・共通式は変更しない。
-
-## 回復呪文の梯子（Issue #590）
-
-- `MADI` はlv5習得を維持し、対象を単体へ変更する。説明文と実装値は
-  `src/data/spells.js`、効果の正本は `src/systems/spell_effects.js` とする。
-- 数値とcostは未確定。seed=590、`workshop-complete`、各条件N=500・calibration N=100の
-  回復量5段階×cost3段階掃引では、回復量を変えても同じcost内のB5/B10結果が
-  ビット単位で一致した。CIの重なりではなく、回復量の差が結果へ伝わっていない。
-- 原因はHP上限飽和。例として平均回復75、post=64、postHp=1391では、
-  実効回復は `postHp / post = 21.7 HP/回`、上限飽和率は
-  `1 - 21.7 / 75 = 71.0%`。量では `MADIOS` と区別できないため、採用値は
-  オーナー判断まで決めない。詳細な生表と選択方針の監査はIssue #590のPR本文へ記録する。
-
-## Currency: Materials Only
-
-Gold is removed. Materials are the single currency, used both by the
-milestone merchants inside a run and by the workshop between runs.
-
-- Material set: the existing ten types (獣の牙, 硬い皮, 毒腺, 骨片, 霊粉,
-  魔石片, 鉄片, 呪布, 黒角, 竜鱗). Do not add one material per enemy.
-- Do not use `霊灰` as a material name (too close to the item `聖灰`).
-- Materials do not consume inventory slots.
-- Drop classification: prefer explicit `tags`; use `spriteType`, level,
-  `isRare`, `isBoss` as fallbacks.
-
-| Enemy group | Primary material | Secondary material |
+| Creature or theme | Primary material | Secondary material |
 | --- | --- | --- |
-| Beast, insect, small creature | 獣の牙 | 硬い皮, 毒腺 |
-| Poison, spider, rot | 毒腺 | 硬い皮 |
-| `undead` | 骨片 | 霊粉, 呪布 |
-| `spirit`, wisp | 霊粉 | 魔石片 |
-| Mage, caster | 魔石片 | 呪布 |
-| Armor, statue, golem, stone | 鉄片 | 魔石片 |
-| `demon` | 黒角 | 魔石片, 呪布 |
-| `dragon` | 竜鱗 | 獣の牙 |
-| Rare or boss | Normal group material | Extra rare material |
+| beast, insect, small creature | 獣の牙 | 硬い皮 or 毒腺 |
+| poison, spider, rot | 毒腺 | 硬い皮 |
+| undead | 骨片 | 霊粉 or 呪布 |
+| spirit, wisp | 霊粉 | 魔石片 |
+| mage, caster | 魔石片 | 呪布 |
+| armor, statue, golem, stone | 鉄片 | 魔石片 |
+| demon | 黒角 | 魔石片 or 呪布 |
+| dragon | 竜鱗 | 獣の牙 |
+| rare or boss | the normal group material | an additional rare material |
 
-Issue #380 classification correction keeps the default material allocation,
-drop quantity, and rare/boss depth gate unchanged. Explicit monster tags take
-precedence over sprite predicates, with `spell`, poison flags, and strong
-armor-name predicates filling measured classification gaps. Chest and beast
-secondary profiles remain available to the simulation as rejected comparison
-profiles; they are not production defaults. Workshop node costs and
-departure-craft costs are not part of this correction.
+The material species should vary with biome and depth so that “I need this
+material, so I choose that route” is a real decision. Deeper floors may pay more,
+but the increase must not make shallow farming dominate the descent. Materials
+do not consume ordinary bag slots. Avoid a new material for every enemy and do
+not introduce a material name that is easily confused with an item name.
 
-- Material species vary by biome and depth, so "I need 黒角, so I dive to the
-  demon biome" is a real routing decision.
-- Deeper floors pay more of everything; a milestone-start run applies a
-  material-income penalty so record runs and material runs stay distinct.
+Classification follows authored creature/theme meaning. Explicit domain tags
+take precedence over fallback visual or rarity cues; the fallback must not
+silently change the player-facing material role.
 
-## Run outcome and inventory contract
+## Magic ownership
 
-The object-loot outcome contract is canonical in
-`.agents/game-design-core-loop.md` and supersedes the old percentage-only
-banking description:
+Every starting run has a small universal base of magical capacity. A weapon-slot
+medium contributes additional capacity and Rune slots only while equipped. The
+active spell set is the set of Runes socketed in that medium; a character label
+or level does not grant magic and does not authorize a spell.
 
-- Portal confirms all unconfirmed object loot and ends the run safely.
-- Push confirms nothing and destroys nothing; it keeps unconfirmed loot at
-  risk until the next Portal.
-- Wing is a manually activated, immediately safe escape. Its candidate pool is
-  the run's unconfirmed object loot, including dungeon equipment that was
-  identified after acquisition but is currently equipped; only a small
-  selected number is rescued. It is consumed and at most one is carried into
-  a run.
-- Death loses unconfirmed object loot by default.
-- Abandon has the same unconfirmed-loot loss as Death but remains a distinct
-  run outcome and is not a free Wing.
+Socketed Runes are medium-side build state and do not consume ordinary bag
+slots. Spare Runes are ordinary dungeon loot and compete for the same bag space
+as other objects. Equipping, swapping, or removing a medium never acts as a
+free recovery: if the derived capacity falls, spent capacity is clamped safely,
+and the socketed Runes return to the ordinary bag. Magic supply is offered as
+independent medium and Rune choices, not as an answer that pairs the two for the
+player.
 
-The bag is fixed at 20 ordinary slots. Equipped items are outside the bag;
-spare equipment, consumables, unknown items, curios, and Wings compete for
-one slot each. Town supplies use the same bag, items do not gain special
-Safety/Wing/treasure compartments, and removing equipment into a full bag
-requires discarding something. Town-brought consumables are consumed only when
-used and unused stock returns after the run; dungeon-acquired consumables are
-unconfirmed run loot. No permanent bag expansion is part of vNext.
+This ownership keeps magic inside the improvised build. It prevents a starting
+identity or a level from bypassing the cost of finding, carrying, and choosing
+the medium and Runes that make a spell plan possible.
 
-**Current implementation status:** the repository implements the Return Wing,
-run-outcome, material-banking, and fixed 20-slot inventory slices. Remaining
-vNext work must identify its own contract boundary rather than reopening these
-ownership or capacity rules.
+## Status effects and counterplay
 
-Unknown equipment now persists its information state per item: discovery,
-observation, trial, or full understanding. Dungeon carrying and equipment use
-may disclose truthful signs and the main function, while complete
-identification remains the exact-detail path. The compatibility `identified`
-flag, hidden affixes, and curse binding continue to survive save/load.
+Status effects are finite pressures that create a decision, not permanent
+per-step taxes or one-hit run failures.
 
-### vNext object-loot ownership (Issue #1006)
+- Exploration poison uses a single finite window. It can deal intermittent HP
+  damage while the window lasts and then expires. A player may spend a cure or
+  accept the risk while considering the remaining route. Combat poison keeps a
+  separate round-based timing contract.
+- Blind is a combat disruption: the affected character can act, but attacks
+  may miss and incoming danger may be harder to manage. It clears after a
+  surviving combat ends. Death is not a recovery event.
+- Recovery items and spells should offer immediate counterplay, but a cure must
+  compete with HP, MP, bag space, and the opportunity to carry another tool.
 
-Materials keep the rules above. Separately, dungeon-acquired equipment,
-consumables, Return Wings, and valuable objects are unbanked object loot until
-the run ends. A milestone Portal confirms all of it for the terminal result; a
-Return Wing consumes itself and confirms only the selected small subset
-(initial count 2); death and abandon lose the unbanked subset. Unused Town
-preparation consumables are returned to
-Town storage at every run terminal, while consumed Town items are not restored.
-Returned dungeon consumables and Return Wings become Town preparation stock;
-returned dungeon equipment remains terminal-result evidence only and does not
-enter Town storage or the next run. Equipped state does not imply banked
-ownership.
+Treatment planning uses roles rather than one consumable for every possible
+status:
 
-## Workshop (Between Runs)
+- **Persistent-hazard preparation:** a stable antidote route for poison, with a
+  rarer recovery-plus-poison emergency option.
+- **Broad cleanse:** a scarce option for several disabling states.
+- **Targeted fallback:** specialist responses for blind, paralysis, or sleep.
 
-### Design target / vNext contract
+Adding a status does not automatically add a status-named item. Compare natural
+expiry, spell cures, an existing broad cleanse, and the observed loss caused by
+the status first. Generic status resistance is an equipment opportunity cost,
+not a free replacement for carrying treatment.
 
-The Workshop expands what may exist in future runs. It is horizontal
-possibility expansion, not a targeted build shop:
+## Exploration resource ownership
 
-- do not increase the appearance rate of a chosen item, affix, or build;
+The player-facing exploration verbs are shared: inspect, detect, disarm, avoid,
+and force a known risk when necessary. Exploration success and information
+belong to the run-local equipment/support/tool build, not to a class label, raw
+attribute, or level permission.
+
+Tools and rule-changing build effects may exchange a resource for a condition
+or a deterministic response. They must not silently grant a universal bypass,
+plain-disarm success, or generic trap-damage immunity. HP-only trap mitigation
+must remain separate from status, MP, teleport, alarm, discovery, and disarm
+rules. The detailed route and information contract lives in the core-loop canon.
+
+## Run value and object ownership
+
+Materials and object loot have different economic roles:
+
+- materials support resource exchange and horizontal future possibilities;
+- dungeon equipment, consumables, curios, and Wings are unconfirmed object loot
+  until a terminal outcome settles them;
+- Portal confirms all unconfirmed object loot, Wing rescues a selected small
+  subset, and Death/Abandon lose the unconfirmed subset;
+- returned dungeon equipment is history and knowledge, not permanent next-run
+  battle inventory;
+- unused preparation supplies may return to Town, while used supplies have
+  already paid for the run's decisions.
+
+The fixed ordinary bag makes these roles compete. Do not add a hidden safety
+compartment, a separate equipment bank, or a permanent capacity increase to
+solve a local supply problem.
+
+## Workshop and future possibilities
+
+The Workshop expands what may exist in future runs. It is horizontal possibility
+space, not a targeted build shop:
+
+- do not raise the appearance rate of a chosen item, affix, or build;
 - do not add a permanently superior combat tier;
-- do not preserve recovered dungeon equipment as next-run combat gear;
-- prefer small unlocks that come automatically from adventure results rather
-  than a farmable target path;
-- adding candidates must not simply dilute the existing candidate supply.
+- do not preserve recovered dungeon equipment as next-run gear;
+- prefer small possibilities that arise from adventure results rather than a
+  farmable target path;
+- when a possibility is added, preserve the authored supply structure instead
+  of diluting every existing candidate.
 
 The Workshop should broaden combinations involving HP, MP, status, actions,
-and curses while keeping the run's improvised build and resource competition
-as the source of power.
+information, and curses while keeping resource competition and improvisation as
+the source of power.
 
-Automatic pool unlocks use reserved same-slot side-grade slots: an unlocked
-possibility replaces its authored baseline slot rather than adding a new
-weighted candidate and diluting the existing supply.
+### Supply roles
 
-Issue #1009 implements the loot-side boundary of that rule. `lootRole` selects
-a soft supply target, which weights matching affix/Core candidates while
-retaining crossover; `buildRole` and `buildRoles` describe the resulting
-affix composition. The B1–B30 candidate tables widen deep supply without
-removing old bases, and `LOOT_ROLE_SUPPLY_BY_BAND` keeps every role available
-with increasing deep-role weight. Generation does not inspect current
-equipment or fill missing slots. Core entries explicitly classify their
-`buildAxis` as `main` or `auxiliary`, while Support entries use `support`.
-An equipment decision that changes the `main` Core axis is observable as a
-build transition; auxiliary Core and Support changes remain ordinary swaps.
-This is lightweight observation, not full telemetry analysis.
+Loot supply is build-blind: candidate availability and weighting must not read
+the player's equipped loadout, starting choice, current shortage, or desired
+build. A supply chapter may emphasize reinforcement, cost conversion, or
+direction change, but all meaningful roles should remain possible. Earlier
+horizontal bases remain eligible at greater depth so that deeper progression
+adds possibilities rather than invalidating the collection.
 
-### Build-blind loot supply (#1078)
+The distinction between a rule-changing Core and a numeric/probability Support
+is durable: a Core changes a resource exchange, path, target, or interpretation;
+Support strengthens an axis within a bounded, readable opportunity cost. The
+active registry and parameter values in `src/data/affixes.js` are the
+authoritative data boundary; this document owns the meaning of the boundary,
+not a snapshot of its counts.
 
-Issue #1078 makes the supply band explicit at the production candidate layer.
-Rune access is cumulative metadata in `RUNE_SUPPLY_BANDS`, keyed only by floor
-band; it does not use `SPELLS.level`, class, current Medium, socketed Rune,
-current Core/Support, build role, or HP/MP state. Ordinary chest rewards use
-the same floor-scoped Rune candidates, so a Medium and its Runes are separate
-choices rather than a paired answer.
+## Milestone merchants and camps
 
-Equipment candidates are cumulative through B5 and remain cumulative when the
-deep additions unlock. B4/B5 and B6+ therefore retain light, blade, impact,
-heavy, medium, shield, armor, and both one- and two-hand choices instead of
-turning depth into a base-stat treadmill. Magic and Rare generated equipment
-uses a minority Core chance; Epic keeps its authored one-Core composition.
-The #1075 ownership cleanup is not compensated by raising ordinary Core rates.
-The production-backed formula audit is
-`scratch/measurements/issue1078_loot_supply.js`; its adoption counts use
-production equip validation and preview math only as a neutral measurement
-policy, not as a player-facing optimal-role selector.
+Merchants appear at milestone chapters and support the descent; they never solve
+it. Their useful stock includes identification resources, affordable
+counterplay consumables, finite retreat items, and expensive curse removal.
+Accessibility of basic counterplay is more important than scarcity, while a
+retreat valve must still preserve the gap between retreat and death.
 
-### Core/support ownership boundary (#1075)
+Merchants do not sell ordinary dungeon equipment. Equipment remains the main
+source of improvised builds and the identify-or-gamble hook.
 
-The active registry contains exactly 13 rule-changing Cores: 9 on the Main
-axis and 4 on the Auxiliary axis. Numeric or probability-only reinforcement
-belongs to Support; the active registry contains 53 Support entries. The five
-former numeric Core concepts (low-HP damage, first-strike follow-up, physical
-accuracy, high-max-HP target damage, and boss damage) are now bounded Support
-values. Their historical Core IDs are not active in generation, Workshop,
-display, telemetry, or simulation, and existing saves are not migrated.
+A breather after a milestone may offer recovery and preparation before the next
+floor. Rest should be a choice about resources, not a guaranteed replacement for
+route risk or a second safe-return system.
 
-### Current implementation boundary
+## Run quests
 
-The current repository still exposes a material-funded permanent-unlock tree
-for classes, starting options, spell/affix pools, convenience, and capped
-stats, plus separate departure craft. Those nodes and costs are retained as
-implementation history and compatibility context. They must not be described
-as the final vNext contract until the corresponding implementation issues
-reconcile them with the horizontal possibility model.
+Run-scoped contracts are optional supporting content, not a second progression
+axis. They should point the player deeper or into meaningful risk, expire with
+the run, and never make a shallow farming route optimal. Their rewards must
+reinforce the material and depth question rather than create a separate
+currency or permanent checklist.
 
-Historical workshop categories include:
+## Castle, Codex, and knowledge
 
-1. New classes.
-2. Starting-gear options (choices offered at run start, not carried gear).
-3. Skill/spell and affix pool expansions (what can appear in a run).
-4. Permanent stats with an explicit cap (e.g. +5 steps per stat line). The
-   cap is a pillar-level rule; never raise it casually.
-5. Convenience: +1 starting identify resource, a starting return item, and
-   similar small run-start kits.
+- Castle records factual outcome, depth, return route, representative value,
+  and a bounded history of meaningful item decisions.
+- Codex records what the player observed and inferred. Unknown equipment moves
+  from signs to observation, trial, and full understanding; the Codex never
+  answers exact hidden probabilities or declares an optimal build.
+- Workshop may make an existing side-grade possibility eligible after a deep
+  result, but it must not choose a build, guarantee a drop, or provide a
+  vertical tier.
 
-Historical workshop expansion (issue #410; superseded by #1075 for the five
-migrated numeric concepts) added measured sidegrade cores
-先手必勝・罠喰い・巨人殺し・反撃の棘・盗掘王・学者の眼, a Fighter starting-gear
-option (FIGHTER_SABER, atk8), and one permanent convenience node that grants
-+1 starting identify powder. The six pre-existing core IDs are workshop-gated at the
-adopted 10-material total per first rank; the existing `pool_blood_wand` node
-remains unchanged at 7 materials. This keeps the explicit early-run access
-tradeoff while adding pure content. The identify-powder node is policy-sensitive
-in simulations (`IDENTIFICATION_POLICY=powder`); departure craft still owns
-starting consumables. No class roster or permanent-stat cap change is part of
-this expansion. The node data and material costs are source-of-truth in
-`src/data/workshop.js`; advanced classes remain deferred. Core measurement gaps
-are tracked separately in issue #416.
+Presentation should be generated from facts rather than saved as a second
+prose authority. Internal build and supply metadata may guide recording and
+analysis, but it must not become an exact player-facing recommendation.
 
-Historical Issue #413 Phase 1 added two non-consumable meta key items. The first B5 and B10
-milestone boss victories granted `FORGE_SEAL` and `ABYSS_SEAL`, respectively. Each
-key revealed one new workshop branch and remained outside run inventory. The gated
-node then cost 10 existing materials: `鉄片7 + 竜鱗3` for the B5 branch and
-`黒角7 + 竜鱗3` for the B10 branch. The branches add one sidegrade core each;
-they do not gate existing nodes, increase material income, raise stat caps, or
-add a retreat guarantee. This phase intentionally does not change `SAVE_VERSION`.
+## Level and identity boundary
 
-Departure craft remains a separate current run-start path: choose quantities
-per recipe, pay their material costs for that run, and carry the crafted
-consumables into the run. Its vNext boundary is the shared 20-slot bag; do not
-hide a capacity problem by inventing arbitrary per-item carry caps.
-
-Defer: dismantling, random-property crafting, and any feature that replaces
-the in-run build system. Builds live inside the run.
-
-## Milestone Merchants (Inside A Run)
-
-Merchants appear only on milestone floors (every 5th). They support the
-descent; they never solve it.
-
-After a milestone boss is defeated, an additional down stair opens at the
-boss cell. It is an optional shortcut: the original stair remains available,
-so the player can still visit the milestone merchant or return portal before
-descending.
-
-### Camp placement after milestone bosses
-
-Camps are placed on the floor immediately after each milestone boss: floors 6,
-11, 16, and 21. The former biome-band random placement is retired; the biome
-supplies only the camp display name. Recovery remains 40%, the
-`CORE_CAMP_MASTER` multiplier is unchanged, and milestone bosses still appear
-every fifth floor.
-
-Stock, priced in materials:
-
-- Identify resources.
-- Consumables (healing, counterplay items — keep counterplay cheap and
-  available; accessibility outranks scarcity for this category). The milestone
-  merchant stocks `EYE_DROPS` (目薬) at `霊粉` 1; it follows the normal
-  affordability and 20-slot inventory checks. `PANACEA` is not merchant stock
-  without an authoritative merchant price.
-- Return items (finite; this is the retreat valve, price it seriously).
-- Curse removal (expensive; the gamble must keep its teeth).
-- No equipment sales. Equipment comes from the dungeon (pillar 3); a
-  merchant selling gear would bypass the identify-or-gamble hook.
-
-## Run Quests
-
-Run-scoped contracts/quests are optional supporting content, not a second
-progression axis. They must point the player deeper or into meaningful risk,
-expire with the run, and never create a shallow farming loop. The current
-departure-board selection flow and its reward values are implementation
-history; any future contract change must preserve the depth question.
-
-## Records And Codex
-
-Core Loop vNext observation events are specified separately in
-`.agents/game-design-telemetry.md`. They measure Castle/Codex-relevant facts
-such as object-loot ownership and meaningful build shifts, but do not change
-the persistence contract or define balance targets.
-
-- **Castle = what happened:** record outcome, depth, Portal/Wing/Death/Abandon,
-  representative items, recovered/rescued/lost value, and meaningful item
-  history. Generate display copy from persisted facts; do not save prose as a
-  substitute for facts.
-- **Codex = what was understood:** record observed facts and hypotheses about
-  equipment and enemies. Unknown items progress from signs to observation to
-  trial to full understanding. Do not reveal undiscovered affixes, hidden
-  totals, or an optimal build.
-- Existing first-kill and split-spawn rules remain implementation details and
-  historical evidence until rechecked against the vNext information contract.
+Level is a run-local durability floor that helps a character remain in the
+conversation with deeper threats. It does not grant MP, spells, permission to
+use equipment, critical scaling, melee scaling, or exploration authority. Power
+should come from choices made in the run—equipment, Runes, Supports, Cores,
+tools, and resource timing—not from a permanent class or level ladder.
 
 ## Avoid
 
-- A second currency, or any gold reintroduction.
-- Merchant arbitrage: nothing a merchant sells may be bankable or resellable
-  at profit.
-- Uncapped permanent stats, or unlocks that raise material income enough to
-  make farming dominate descending.
-- Recovered dungeon equipment becoming permanent next-run combat gear.
-- Workshop paths that target a chosen build by increasing its appearance rate
-  or by exposing a permanently superior tier.
-- Permanent bag expansion or dedicated loot/safety compartments.
-- Making identify resources cheap enough that the identify-or-gamble choice
-  disappears (see pillar 3).
-
-## Castle / Codex / Workshop return processing (#1011)
-
-Castle records the run outcome and its evidence: depth, return route,
-representative item, recovered/rescued/lost object counts, and a bounded list
-of meaningful individual facts. Codex stores finite coarse insights from
-encountered equipment; it never answers exact probabilities, hidden candidate
-totals, or the optimal build. Workshop can unlock an existing side-grade
-possibility automatically after a deep equipment return, but never grants a
-vertical tier or a target-build/drop-rate advantage.
-
-All ordinary dungeon objects are processed automatically at the result
-boundary. Returned dungeon consumables become Town preparation stock, while
-returned equipment is converted to terminal evidence only and is excluded from
-Town storage and the next run's starting battle inventory. Death and Abandon
-discard unbanked dungeon objects while retaining only their permitted history
-and knowledge.
-
-## Build vNext level boundary (#1044)
-
-Starting kits share one compatibility character baseline. Level is a run-local
-minimum floor: every successful level-up uses the common EXP table and adds a
-fixed `+5 max HP` baseline, restoring the same HP amount. It does not add MP,
-base stats, spells, critical chance, melee scaling, Core permission, or Rune
-permission. The value is intentionally provisional until universal MP and
-medium/Rune ownership are implemented.
-
-`CLASS_PASSIVES` and the legacy class critical/melee tables are retained only
-as compatibility surfaces; production resolvers return neutral values. Active
-run UI identifies the adventurer by name, level, and current equipment rather
-than displaying the compatibility class. Historical class fields in saves,
-telemetry, and old records remain readable until their ownership is migrated.
-
-Deferred ownership: universal MP, spell/Rune ownership, mana-item permission,
-and any useful former class passive become medium, Rune, Core, or Support
-systems in the follow-up issues. Base stats remain compatibility fields and are
-not permission gates.
+- a second currency, gold reintroduction, or merchant arbitrage;
+- uncapped permanent stats or income bonuses that make farming dominate;
+- recovered equipment becoming permanent next-run combat gear;
+- a Workshop path that targets a chosen build by increasing its supply;
+- one status item per status without a demonstrated gameplay role;
+- hidden bag compartments, arbitrary carry caps, or free universal trap bypasses;
+- exact hidden mechanics presented as if they were player-facing knowledge.
