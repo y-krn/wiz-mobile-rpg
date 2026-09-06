@@ -64,9 +64,9 @@ check(
   "counterfactual craftability did not use the shared craft rules"
 );
 check(
-  fighter.departureCraftCraftedByRecipe.MANA_POTION === 0 &&
+  fighter.departureCraftCraftedByRecipe.MANA_POTION === 1 &&
     fighter.departureCraftPotentialByRecipe.MANA_POTION === 1,
-  "non-caster demand policy did not separate actual purchase from affordance"
+  "MP-bearing starting-kit demand did not match the purchasable affordance"
 );
 check(
   priest.manaPotionThreshold === 0.55,

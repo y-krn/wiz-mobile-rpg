@@ -61,7 +61,7 @@ Object.defineProperty(global, "navigator", {
 const {
   state,
   initNewGame,
-  createSoloCharacter,
+  createStartingKitCharacter,
   createSavePayload,
   applySavePayload
 } = await import("../../../src/state.js");
@@ -109,8 +109,19 @@ function sequence(values, fallback = 0.99) {
   return () => index < values.length ? values[index++] : fallback;
 }
 
-function makeCharacter(className = "Fighter", name = className) {
-  const char = createSoloCharacter(className);
+function makeCharacter(kitId = "vanguard", name = kitId) {
+  const startingKitByLegacyClass = {
+    Fighter: "vanguard",
+    Thief: "scout",
+    Ranger: "scout",
+    Priest: "devotion",
+    Bishop: "devotion",
+    Mage: "arcana",
+    Samurai: "vanguard",
+    Ninja: "scout"
+  };
+  kitId = startingKitByLegacyClass[kitId] || kitId;
+  const char = createStartingKitCharacter(kitId);
   char.name = name;
   char.hp = 30;
   char.maxHp = 30;

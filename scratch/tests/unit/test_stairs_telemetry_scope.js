@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createDefaultCurrentRun, createSoloCharacter, state } from "../../../src/state.js";
+import { createDefaultCurrentRun, createStartingKitCharacter, state } from "../../../src/state.js";
 import { applyStairsHeal } from "../../../src/movement.js";
 import {
   __resetTelemetryForTests,
@@ -18,7 +18,7 @@ const original = {
 
 try {
   const events = [];
-  const character = createSoloCharacter("Fighter");
+  const character = createStartingKitCharacter("vanguard");
   state.floor = 2;
   state.x = 3;
   state.y = 4;

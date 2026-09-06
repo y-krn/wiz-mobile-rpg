@@ -80,9 +80,9 @@ for (const vp of VIEWPORTS) {
     expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(vp.width);
 
     await page.evaluate(async () => {
-      const { createDefaultCurrentRun, createSoloCharacter, state } = await import('/src/state.js');
+      const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
       const { updateUI } = await import('/src/ui.js');
-      state.party = [createSoloCharacter('Mage')];
+      state.party = [createStartingKitCharacter('arcana')];
       state.currentRun = createDefaultCurrentRun();
       state.currentRun.deepestFloor = 6;
       state.currentRun.quests = [{
@@ -165,10 +165,10 @@ for (const vp of SOLO_HUD_VIEWPORTS) {
           await page.addStyleTag({ content: ':root { --safe-area-top: 59px; --safe-area-bottom: 34px; }' });
         }
         await page.evaluate(async (nextGameState) => {
-          const { state, createSoloCharacter } = await import('/src/state.js');
+          const { state, createStartingKitCharacter } = await import('/src/state.js');
           const { menuContext } = await import('/src/navigation.js');
           const { updateUI } = await import('/src/ui.js');
-          state.party = [createSoloCharacter('Mage')];
+          state.party = [createStartingKitCharacter('arcana')];
           state.gameState = nextGameState;
           state.combatState = { phase: 'choose_actions', monsters: [], playerActions: [] };
           menuContext.type = nextGameState === 'submenu' ? 'item_inventory' : '';

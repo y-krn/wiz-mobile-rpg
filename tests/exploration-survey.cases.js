@@ -19,8 +19,8 @@ for (const vp of VIEWPORTS) {
     // 1. 旧クラス由来の呪文経路は開始キットとは独立して検証する
     await page.click('#btn-town-dungeon');
     await page.evaluate(async () => {
-      const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
-      state.party = [createSoloCharacter('Mage')];
+      const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+      state.party = [createStartingKitCharacter('arcana')];
       state.currentRun = createDefaultCurrentRun();
       state.floor = 1;
       state.gameState = 'explore';

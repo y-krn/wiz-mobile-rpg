@@ -5,10 +5,10 @@ test('jumping into a discovered pitfall descends from a lazily generated floor @
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
-    const { state, createSoloCharacter } = await import('/src/state.js');
+    const { state, createStartingKitCharacter } = await import('/src/state.js');
     const { executeEnterDungeon, handleMove } = await import('/src/movement.js');
 
-    state.party = [createSoloCharacter('Thief')];
+    state.party = [createStartingKitCharacter('scout')];
     executeEnterDungeon(1);
 
     let edge = null;

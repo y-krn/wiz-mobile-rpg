@@ -66,6 +66,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 // ========================================================================
 (() => {
   function createCaster(overrides = {}) {
+    const spellName = overrides.spellName || "HALITO";
     return {
       name: "MageChar",
       class: "Mage",
@@ -75,8 +76,10 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       status: "ok",
       int: 10,
       pie: 10,
-      equipment: {},
-      ...overrides
+      equipment: { weapon: "WAND", shield: null, armor: null, accessory: null },
+      mediumState: { mediumKey: "WAND", socketedRunes: [`RUNE_${spellName}`] },
+      ...overrides,
+      mediumState: { mediumKey: "WAND", socketedRunes: [`RUNE_${spellName}`], ...overrides.mediumState }
     };
   }
 
@@ -130,7 +133,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
   {
     console.log("- Test 2: AoE spell reflects per target and still hits non-reflectors");
-    const caster = createCaster();
+    const caster = createCaster({ spellName: "LAHALITO" });
     const state = createState(caster);
     const monsters = [
       {
@@ -164,7 +167,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
   {
     console.log("- Test 3: multiple AoE reflectors combine reflected damage");
-    const caster = createCaster();
+    const caster = createCaster({ spellName: "LAHALITO" });
     const state = createState(caster);
     const monsters = [
       {
@@ -221,7 +224,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
           agi: 50,
           luk: 10,
           equipment: { weapon: "WAND", shield: null, armor: null },
-          spells: ["KATINO"],
+          mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_KATINO"] },
           ...partyOverrides
         }
       ],
@@ -427,8 +430,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
           maxMp: 10,
           status: "ok",
           str: 10, int: 10, pie: 15, vit: 10, agi: 50, luk: 10,
-          equipment: { weapon: null, shield: null, armor: null },
-          spells: ["WEAKEN"]
+          equipment: { weapon: "WAND", shield: null, armor: null },
+          mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_WEAKEN"] }
         }
       ],
       combatState: {
@@ -778,8 +781,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
         maxMp: 10,
         status: "ok",
         str: 10, int: 10, pie: 15, vit: 10, agi: 15, luk: 10,
-        equipment: { weapon: null, shield: null, armor: null },
-        spells: ["DIOS", "MABARRIER"]
+        equipment: { weapon: "ARCH_WAND", shield: null, armor: null },
+        mediumState: { mediumKey: "ARCH_WAND", socketedRunes: ["RUNE_DIOS", "RUNE_MABARRIER"] }
       },
       {
         name: "MageChar",
@@ -791,8 +794,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
         maxMp: 10,
         status: "ok",
         str: 10, int: 16, pie: 10, vit: 10, agi: 12, luk: 10,
-        equipment: { weapon: null, shield: null, armor: null },
-        spells: ["HALITO", "MONTINO", "MORLIS"]
+        equipment: { weapon: "ARCH_WAND", shield: null, armor: null },
+        mediumState: { mediumKey: "ARCH_WAND", socketedRunes: ["RUNE_HALITO", "RUNE_MONTINO", "RUNE_MORLIS"] }
       }
     ];
 
@@ -1176,7 +1179,9 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
         },
         {
           name: "PriestChar", class: "Priest", level: 5, hp: 50, maxHp: 50, mp: 10, maxMp: 10, status: "ok",
-          str: 10, int: 10, pie: 15, vit: 10, agi: 50, luk: 10, equipment: {}, spells: ["MADI"]
+          str: 10, int: 10, pie: 15, vit: 10, agi: 50, luk: 10,
+          equipment: { weapon: "WAND", shield: null, armor: null },
+          mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_MADI"] }
         }
       ],
       combatState: {
@@ -1229,13 +1234,15 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       agi: 10,
       luk: 10,
       equipment: {
+        weapon: "WAND",
         accessory: {
           kind: "equipment",
           baseId: "RING_STR",
           identified: true,
           affixes: [{ type: "spellPower", value: spellPower }]
         }
-      }
+      },
+      mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_HALITO"] }
     };
     const state = {
       party: [caster],
@@ -1298,13 +1305,15 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       agi: 10,
       luk: 10,
       equipment: {
+        weapon: "WAND",
         accessory: {
           kind: "equipment",
           baseId: "RING_STR",
           identified: true,
           affixes: [{ type: "spellPower", value: spellPower }]
         }
-      }
+      },
+      mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_MADI"] }
     };
     const target = {
       name: "Wounded Ally",

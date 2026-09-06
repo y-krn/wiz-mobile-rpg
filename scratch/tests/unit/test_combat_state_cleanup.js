@@ -49,7 +49,7 @@ const {
   state,
   initNewGame,
   createDefaultCurrentRun,
-  createSoloCharacter,
+  createStartingKitCharacter,
 } = await import("../../../src/state.js");
 const { playBattleLogs } = await import("../../../src/combat_ui/battle_log_player.js");
 const { triggerRunResult } = await import("../../../src/result.js");
@@ -69,7 +69,7 @@ async function test(name, fn) {
 
 await test("triggerChest clears combat state and party buffs", () => {
   initNewGame();
-  const character = createSoloCharacter("Fighter");
+  const character = createStartingKitCharacter("vanguard");
   character.buffs = { attackUp: 2 };
   state.party = [character];
   state.currentRun = createDefaultCurrentRun();
@@ -97,7 +97,7 @@ await test("triggerChest clears combat state and party buffs", () => {
 
 await test("gameover keeps enemy cause before clearing combat state and buffs", () => {
   initNewGame();
-  const character = createSoloCharacter("Fighter");
+  const character = createStartingKitCharacter("vanguard");
   character.buffs = { defenseUp: 3 };
   state.party = [character];
   state.currentRun = createDefaultCurrentRun();

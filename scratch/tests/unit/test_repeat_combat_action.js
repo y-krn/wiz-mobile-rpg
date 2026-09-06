@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { createSoloCharacter, state } from "../../../src/state.js";
+import { createStartingKitCharacter, state } from "../../../src/state.js";
 import { combatSelection, getRepeatActionStatus, repeatLastCombatAction } from "../../../src/combat.js";
 
-state.party = [createSoloCharacter("Fighter")];
+state.party = [createStartingKitCharacter("vanguard")];
 state.gameState = "combat";
 state.transitioning = false;
 state.combatState = {

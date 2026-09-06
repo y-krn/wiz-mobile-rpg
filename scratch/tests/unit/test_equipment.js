@@ -10,7 +10,7 @@ global.localStorage = {
 import assert from "assert";
 import { calculatePhysicalAttackFormula, getCharAgi, getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharStr, getCharTrapBonus, generateRandomAccessory, getItemData } from "../../../src/data.js";
 import { migrateSavePayload, SAVE_VERSION } from "../../../src/state/save_migrations.js";
-import { createSoloCharacter } from "../../../src/state.js";
+import { createStartingKitCharacter } from "../../../src/state.js";
 
 (async () => {
 
@@ -68,7 +68,7 @@ import { createSoloCharacter } from "../../../src/state.js";
 
       console.log("=== STARTING EQUIPPED CRAFT VERIFICATION ===");
       initNewGame();
-      state.party = [createSoloCharacter("Fighter")];
+      state.party = [createStartingKitCharacter("vanguard")];
 
       // キャラクターと装備の初期化
       const char = state.party[0];
@@ -272,7 +272,7 @@ import { createSoloCharacter } from "../../../src/state.js";
       // Test 3: Curse Debuffs Application
       console.log("\n[Test 3] Curse Debuffs Application...");
       initNewGame();
-      state.party = [createSoloCharacter("Fighter")];
+      state.party = [createStartingKitCharacter("vanguard")];
       
       // Make a cursed wand manually
       const cursedWand = {
@@ -323,14 +323,14 @@ import { createSoloCharacter } from "../../../src/state.js";
     assert.ok(!Object.hasOwn(craftModule, "executeDismantle"));
 
     const additions = {
-      SAGE_STAFF: { floor: 3, type: "weapon", stat: "atk", value: 3, classes: ["Priest", "Mage", "Bishop"], namePart: "杖" },
-      ARCH_WAND: { floor: 5, type: "weapon", stat: "atk", value: 4.5, classes: ["Mage", "Bishop"], namePart: "杖" },
-      SORCERER_ROBE: { floor: 5, type: "armor", stat: "def", value: 6, classes: ["Mage", "Bishop"], namePart: "ローブ" },
-      VENOM_FANG: { floor: 3, type: "weapon", stat: "atk", value: 13.5, classes: ["Thief", "Ninja"], namePart: "短剣" },
-      NINJA_BLADE: { floor: 4, type: "weapon", stat: "atk", value: 21, classes: ["Thief", "Ninja"], namePart: "剣" },
-      MOONSHADOW: { floor: 5, type: "weapon", stat: "atk", value: 30, classes: ["Thief", "Ninja"], namePart: "剣" },
-      HOLY_STAFF: { floor: 4, type: "weapon", stat: "atk", value: 9, classes: ["Priest", "Bishop"], namePart: "杖" },
-      FLAME_SWORD: { floor: 4, type: "weapon", stat: "atk", value: 21, classes: ["Fighter", "Samurai", "Ranger"], namePart: "剣" }
+      SAGE_STAFF: { floor: 3, type: "weapon", stat: "atk", value: 3, namePart: "杖" },
+      ARCH_WAND: { floor: 5, type: "weapon", stat: "atk", value: 4.5, namePart: "杖" },
+      SORCERER_ROBE: { floor: 5, type: "armor", stat: "def", value: 6, namePart: "ローブ" },
+      VENOM_FANG: { floor: 3, type: "weapon", stat: "atk", value: 13.5, namePart: "短剣" },
+      NINJA_BLADE: { floor: 4, type: "weapon", stat: "atk", value: 21, namePart: "剣" },
+      MOONSHADOW: { floor: 5, type: "weapon", stat: "atk", value: 30, namePart: "剣" },
+      HOLY_STAFF: { floor: 4, type: "weapon", stat: "atk", value: 9, namePart: "杖" },
+      FLAME_SWORD: { floor: 4, type: "weapon", stat: "atk", value: 21, namePart: "剣" }
     };
 
     const expectedAffixes = {
@@ -518,7 +518,7 @@ import { createSoloCharacter } from "../../../src/state.js";
     assert.strictEqual(getCharAffixSum(unidentWard, "spellGuard"), 15);
 
     assert.throws(
-      () => migrateSavePayload({ version: SAVE_VERSION - 1 }),
+      () => migrateSavePayload({ version: SAVE_VERSION - 2 }),
       error => error.name === "IncompatibleSaveVersionError"
     );
 

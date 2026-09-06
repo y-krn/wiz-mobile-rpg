@@ -2,12 +2,12 @@ import { test, expect } from './fixtures/browser-health.js';
 
 async function prepareTeleporterChest(page) {
   return page.evaluate(async () => {
-    const { state, initNewGame, createSoloCharacter } = await import('/src/state.js');
+    const { state, initNewGame, createStartingKitCharacter } = await import('/src/state.js');
     const { createDefaultCurrentRun } = await import('/src/state/initial_state.js');
     const { setupChestState } = await import('/src/chest.js');
 
     initNewGame();
-    const character = createSoloCharacter('Fighter');
+    const character = createStartingKitCharacter('vanguard');
     character.name = 'Robin';
     character.hp = 30;
     character.maxHp = 30;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { getCharMaxHp, getCharMaxMp } from "../../../src/data.js";
-import { createSoloCharacter } from "../../../src/state.js";
+import { createStartingKitCharacter } from "../../../src/state.js";
 import {
   EQUIPMENT_SLOTS,
   getEquipmentSlot,
@@ -19,16 +19,16 @@ function check(name, callback) {
   }
 }
 
-check("every solo class exposes two accessory keys", () => {
-  for (const className of ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"]) {
-    const equipment = createSoloCharacter(className).equipment;
-    assert.equal(equipment.accessory, null, className);
-    assert.equal(equipment.accessory2, null, className);
+check("every starting kit exposes two accessory keys", () => {
+  for (const kitId of ["vanguard", "scout", "devotion", "arcana"]) {
+    const equipment = createStartingKitCharacter(kitId).equipment;
+    assert.equal(equipment.accessory, null, kitId);
+    assert.equal(equipment.accessory2, null, kitId);
   }
 });
 
 check("two accessory slots both contribute their item effects", () => {
-  const character = createSoloCharacter("Priest");
+  const character = createStartingKitCharacter("devotion");
   character.equipment.accessory = "AMULET_HP";
   character.equipment.accessory2 = "AMULET_MP";
   assert.equal(getCharMaxHp(character), character.maxHp + 10);

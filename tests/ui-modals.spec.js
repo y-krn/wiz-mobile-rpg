@@ -11,9 +11,9 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      const char = createSoloCharacter('Fighter');
+      const char = createStartingKitCharacter('vanguard');
       char.equipment = { weapon: null, shield: null, armor: null, accessory: null, accessory2: null };
       state.party = [char];
       state.inventory = Array.from({ length: 20 }, (_, index) => ({
@@ -64,9 +64,9 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      const char = createSoloCharacter('Fighter');
+      const char = createStartingKitCharacter('vanguard');
       char.equipment = { weapon: 'DAGGER', shield: null, armor: null, accessory: null, accessory2: null };
       state.party = [char];
       state.inventory = [{
@@ -96,9 +96,9 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      const char = createSoloCharacter('Fighter');
+      const char = createStartingKitCharacter('vanguard');
       char.equipment.weapon = 'DAGGER';
       char.equipment.accessory = null;
       state.floor = 1;
@@ -128,9 +128,9 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      const char = createSoloCharacter('Thief');
+      const char = createStartingKitCharacter('scout');
       char.equipment.weapon = 'DAGGER';
       char.equipment.accessory = null;
       state.floor = 1;
@@ -162,9 +162,9 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state, saveAutosave, createSavePayload } = await import('/src/state.js');
+      const { createStartingKitCharacter, state, saveAutosave, createSavePayload } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      const char = createSoloCharacter('Fighter');
+      const char = createStartingKitCharacter('vanguard');
       char.equipment.weapon = 'DAGGER';
       state.party = [char];
       state.inventory = [{
@@ -242,9 +242,9 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state, createSavePayload } = await import('/src/state.js');
+      const { createStartingKitCharacter, state, createSavePayload } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      const char = createSoloCharacter('Fighter');
+      const char = createStartingKitCharacter('vanguard');
       char.equipment.weapon = 'DAGGER';
       const equipment = {
         weapon: char.equipment.weapon,
@@ -321,10 +321,10 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
       const { __setTelemetryClientForTests, trackRunStart } = await import('/src/telemetry.js');
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.inventory = [
         {
           kind: 'equipment', instanceId: 'discard_sword', baseId: 'SHORT_SWORD', rarity: 'common', level: 1,
@@ -393,14 +393,14 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
       const { __setTelemetryClientForTests, trackRunStart } = await import('/src/telemetry.js');
       const equipped = {
         kind: 'equipment', instanceId: 'organize_equipped', baseId: 'DAGGER', rarity: 'common', level: 1,
         identified: true, affixes: []
       };
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.party[0].equipment.weapon = equipped;
       state.inventory = [
         equipped,
@@ -485,9 +485,9 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.inventory = [{
         kind: 'equipment', instanceId: 'return_to_list_sword', baseId: 'SHORT_SWORD', rarity: 'common', level: 1,
         identified: true, affixes: []
@@ -512,9 +512,9 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.metaMaterials = { '鉄片': 1, '魔石片': 0, '硬い皮': 2 };
       state.inventory = [
         {
@@ -602,9 +602,9 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.metaMaterials = { '魔石片': 1 };
       state.inventory = [
         {
@@ -675,9 +675,9 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, createDefaultCurrentRun, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, createDefaultCurrentRun, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.identifyTickets = 4;
       state.currentRun = createDefaultCurrentRun();
       state.currentRun.runSeed = 'ui-modals-trial';
@@ -789,9 +789,9 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      const char = createSoloCharacter('Fighter');
+      const char = createStartingKitCharacter('vanguard');
       char.equipment = {
         weapon: 'SHORT_SWORD',
         shield: 'SMALL_SHIELD',
@@ -880,9 +880,9 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      const char = createSoloCharacter('Fighter');
+      const char = createStartingKitCharacter('vanguard');
       char.equipment = {
         weapon: 'SHORT_SWORD',
         shield: 'SMALL_SHIELD',
@@ -1012,9 +1012,9 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.metaMaterials = { '鉄片': 2, '魔石片': 1 };
       state.inventory = [{
         kind: 'equipment', instanceId: 'ui_low_height_enhance', baseId: 'SHORT_SWORD', rarity: 'common', level: 1,
@@ -1043,11 +1043,11 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
       const classes = ['Fighter', 'Mage', 'Priest', 'Thief'];
       state.party = classes.map((className, index) => {
-        const char = createSoloCharacter(className);
+        const char = createStartingKitCharacter(className);
         char.name = `長い冒険者名${index + 1}`;
         return char;
       });

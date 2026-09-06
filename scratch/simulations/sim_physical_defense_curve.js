@@ -6,7 +6,7 @@ import { requireRunnerProvenance } from "../measurements/measurement_provenance.
 import { MONSTERS } from "../../src/data/monsters.js";
 import { getEncounterPoolForFloor } from "../../src/data/encounters.js";
 import { scaleEnemyForDepth } from "../../src/rules/depth_scaling.js";
-import { createSoloCharacter } from "../../src/state/initial_state.js";
+import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import {
   calculatePhysicalDefenseFormula,
   getCharDef,
@@ -37,7 +37,7 @@ const ANCHORS = Object.freeze([
 ]);
 
 function getFighterAnchor() {
-  const fighter = createSoloCharacter("Fighter");
+  const fighter = createStartingKitCharacter("vanguard");
   const hp = getCharMaxHp(fighter);
   const def = calculatePhysicalDefenseFormula({
     baseDef: getCharDef(fighter),

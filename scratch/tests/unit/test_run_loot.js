@@ -28,7 +28,7 @@ global.document = {
 global.window = { innerWidth: 390, innerHeight: 844, addEventListener: () => {} };
 Object.defineProperty(global, "navigator", { value: { userAgent: "node" }, configurable: true });
 
-const { state, createDefaultCurrentRun, createSoloCharacter, initNewGame } =
+const { state, createDefaultCurrentRun, createStartingKitCharacter, initNewGame } =
   await import("../../../src/state.js");
 const { applySavePayload, createSavePayload } =
   await import("../../../src/state/save_payload.js");
@@ -43,7 +43,7 @@ const { triggerRunResult } = await import("../../../src/result.js");
 
 function setupRun() {
   initNewGame();
-  state.party = [createSoloCharacter("Fighter")];
+  state.party = [createStartingKitCharacter("vanguard")];
   state.currentRun = createDefaultCurrentRun();
   state.currentRun.runSeed = "RUN-LOOT-TEST";
   state.currentRun.startedAt = 100;

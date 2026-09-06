@@ -15,7 +15,7 @@ globalThis.localStorage = (() => {
   };
 })();
 
-const { state, initNewGame, createDefaultCurrentRun, createSoloCharacter, saveAutosave, loadGame } =
+const { state, initNewGame, createDefaultCurrentRun, createStartingKitCharacter, saveAutosave, loadGame } =
   await import("../../../src/state.js");
 const {
   beginCampEntry,
@@ -51,7 +51,7 @@ for (const floor of targetFloors) {
 }
 
 // Rest choice keeps the existing recovery and core multiplier, then completes the entry.
-const restChar = createSoloCharacter("Fighter");
+const restChar = createStartingKitCharacter("vanguard");
 restChar.maxHp = 100;
 restChar.hp = 50;
 restChar.maxMp = 25;

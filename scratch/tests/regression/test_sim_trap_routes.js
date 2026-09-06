@@ -16,12 +16,12 @@ const scenario = {
 
 function run() {
   return simulateRun({
-    className: "Fighter",
+    fixtureId: "exploration-support",
     startFloor: 1,
     targetDepth: 6,
     // The structure-driven generator changed the old fixture's trap order;
     // keep a deterministic seed that exercises the same detour guarantees.
-    runIndex: 32,
+    runIndex: 87,
     seriesId: "issue-933-route",
     scoringProfile: null,
     scenario: {

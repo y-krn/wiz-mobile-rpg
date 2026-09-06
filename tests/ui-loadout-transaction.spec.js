@@ -4,9 +4,9 @@ test('loadout changes stay in a draft until one exploration-turn commit @smoke',
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
-    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { openEquipOverlay } = await import('/src/equip.js');
-    const character = createSoloCharacter('Fighter');
+    const character = createStartingKitCharacter('vanguard');
     character.equipment.weapon = 'DAGGER';
     state.party = [character];
     state.inventory = [{
@@ -48,9 +48,9 @@ test('loadout changes stay in a draft until one exploration-turn commit @smoke',
 test('canceling a dirty loadout draft leaves the live run untouched @smoke', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(async () => {
-    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { openEquipOverlay } = await import('/src/equip.js');
-    const character = createSoloCharacter('Fighter');
+    const character = createStartingKitCharacter('vanguard');
     character.equipment.weapon = 'DAGGER';
     state.party = [character];
     state.inventory = ['SHORT_SWORD'];
@@ -71,9 +71,9 @@ test('unknown equipment uses an explicit irreversible trial action @smoke', asyn
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
-    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { openEquipOverlay } = await import('/src/equip.js');
-    const character = createSoloCharacter('Fighter');
+    const character = createStartingKitCharacter('vanguard');
     character.equipment.weapon = 'DAGGER';
     state.party = [character];
     state.inventory = [{
@@ -125,9 +125,9 @@ test('unknown equipment uses an explicit irreversible trial action @smoke', asyn
 test('committing outside exploration does not advance exploration time @smoke', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(async () => {
-    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { openEquipOverlay } = await import('/src/equip.js');
-    const character = createSoloCharacter('Fighter');
+    const character = createStartingKitCharacter('vanguard');
     character.equipment.weapon = 'DAGGER';
     state.party = [character];
     state.inventory = ['SHORT_SWORD'];
@@ -160,9 +160,9 @@ test('committing outside exploration does not advance exploration time @smoke', 
 test('committing a loadout consumes the normal exploration poison tick @smoke', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(async () => {
-    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { openEquipOverlay } = await import('/src/equip.js');
-    const character = createSoloCharacter('Fighter');
+    const character = createStartingKitCharacter('vanguard');
     character.equipment.weapon = 'DAGGER';
     character.hp = 10;
     character.status = 'poisoned';

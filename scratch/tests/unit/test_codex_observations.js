@@ -6,7 +6,7 @@ import {
   recordMonsterEncounter,
   recordMonsterLoot
 } from "../../../src/state/codex_state.js";
-import { createSoloCharacter } from "../../../src/state/initial_state.js";
+import { createStartingKitCharacter } from "../../../src/state/initial_state.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic/round.js";
 
 const monster = { name: "ワーウルフ A" };
@@ -35,7 +35,7 @@ assert.deepEqual(createMonsterCodexRecord().observedActions, []);
 
 const telegraphState = {
   floor: 1,
-  party: [createSoloCharacter("Fighter")],
+  party: [createStartingKitCharacter("vanguard")],
   inventory: [],
   firstKills: [],
   codex: { monsters: {} },

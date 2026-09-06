@@ -15,12 +15,7 @@ import { getItemUseStatus } from "../../../src/equip.js";
 import { resolvePlayerItem } from "../../../src/combat_logic/item_resolution.js";
 import { reduceIncomingDamage } from "../../../src/combat_logic/damage.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
-import {
-  MANA_ITEM_CLASSES,
-  canUseMageSpells,
-  canUseManaItems,
-  canUsePriestSpells
-} from "../../../src/rules/class_rules.js";
+import { canUseManaItems } from "../../../src/rules/magic_rules.js";
 import { state } from "../../../src/state.js";
 
 (async () => {
@@ -373,39 +368,18 @@ import { state } from "../../../src/state.js";
     assert.strictEqual(etherResult.target.mp, 9, "ETHER should restore 8 MP in combat.");
     assert.strictEqual(etherResult.logQueue[0].floatText, "+8 MP", "ETHER floatText should show actual MP recovery.");
 
-    console.log("Testing mana item class definitions and effect gate...");
-    const allClasses = ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"];
-    const expectedManaClasses = allClasses.filter(className => {
-      const char = { class: className, level: 3 };
-      return canUsePriestSpells(char) || canUseMageSpells(char);
-    });
-    assert.deepStrictEqual([...MANA_ITEM_CLASSES], expectedManaClasses, "Mana item class constant should match spell gates at level 3.");
-
-    for (const className of allClasses) {
-      const char = { class: className, level: 3 };
-      assert.strictEqual(
-        canUseManaItems(char),
-        expectedManaClasses.includes(className),
-        `${className} mana item gate should match the spell gates.`
-      );
-    }
-    assert.strictEqual(canUseManaItems({ class: "Ranger", level: 2 }), true, "Ranger mana permission must not be level-gated.");
-    assert.strictEqual(canUseManaItems({ class: "Samurai", level: 2 }), true, "Samurai mana permission must not be level-gated.");
-
+    console.log("Testing mana item build gate...");
+    assert.equal(canUseManaItems({ maxMp: 20 }), true, "MP-bearing builds can use mana items");
+    assert.equal(canUseManaItems({ maxMp: 0 }), false, "zero-MP builds cannot use mana items");
     for (const [itemKey, recovery] of [["MANA_POTION", 3], ["ETHER", 8]]) {
       const item = ITEMS[itemKey];
-      assert.deepStrictEqual(item.classes, expectedManaClasses, `${itemKey} classes should match the spell gates.`);
-      assert.ok(!item.desc.includes("[全員用]"), `${itemKey} should not be labeled for everyone.`);
-      assert.ok(item.desc.includes("[術者用]"), `${itemKey} should be labeled for spellcasters.`);
-
-      const caster = { name: "Ranger", class: "Ranger", level: 3, mp: 1, maxMp: 20 };
-      const nonCaster = { name: "Fighter", class: "Fighter", level: 3, mp: 1, maxMp: 20 };
-      ITEM_EFFECTS[itemKey]({ char: caster });
-      ITEM_EFFECTS[itemKey]({ char: nonCaster });
-      assert.strictEqual(caster.mp, 1 + recovery, `${itemKey} should recover MP for an eligible class.`);
-      assert.strictEqual(nonCaster.mp, 1, `${itemKey} should not recover MP for a non-caster.`);
+      assert.ok(!item.classes, `${itemKey} must not have a class allowlist.`);
+      assert.ok(item.desc.includes("[MPを持つ冒険者用]"), `${itemKey} must use the MP-bearing build label.`);
+      const character = { name: "Build", mp: 1, maxMp: 20 };
+      ITEM_EFFECTS[itemKey]({ char: character });
+      assert.equal(character.mp, 1 + recovery, `${itemKey} should recover MP for an MP-bearing build.`);
     }
-    console.log("[PASS] Mana item labels, classes, and runtime gates stay aligned.");
+    console.log("[PASS] Mana item build gate stays aligned.");
 
     const cureResult = resolveTestItem("PARALYZE_CURE", {
       name: "Paralyzed",
@@ -494,12 +468,11 @@ import { state } from "../../../src/state.js";
     assert.strictEqual(getCharAffixSum(charObjectEquip, "antiDragon"), 30);
     console.log("-> [PASS] getCharAffixSum verified (both string and object equipment states)");
 
-    // Test 3: Mage class can equip DRAGON_CHARM
-    console.log("Running Test 3: Class equip limits...");
-    const mage = { class: "Mage" };
+    // Test 3: every build can equip DRAGON_CHARM
+    console.log("Running Test 3: universal equipment limits...");
     const itemDragonCharm = ITEMS["DRAGON_CHARM"];
-    assert.ok(itemDragonCharm.classes.includes(mage.class), "Mage should be able to equip DRAGON_CHARM");
-    console.log("-> [PASS] Class equip limits verified");
+    assert.equal(itemDragonCharm.classes, undefined, "DRAGON_CHARM must not have a class allowlist");
+    console.log("-> [PASS] Universal equipment limits verified");
 
     // Test 4: Verify antiUndead and antiDragon damage modifications
     // Mimicking internal applyTargetedDamageBonus since it isn't exported.

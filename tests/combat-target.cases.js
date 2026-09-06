@@ -14,19 +14,19 @@ async function openApp(page) {
 
 async function setupExplore(page, { partySize = 1, fullHp = false, spellKeys = null } = {}) {
   await page.evaluate(async ({ nextPartySize, nextFullHp, nextSpellKeys }) => {
-    const { state, initNewGame, createSoloCharacter } = await import('/src/state.js');
+    const { state, initNewGame, createStartingKitCharacter } = await import('/src/state.js');
     const { executeEnterDungeon } = await import('/src/movement.js');
     const { spellMenuState } = await import('/src/spell_menu.js');
     const { updateUI } = await import('/src/ui.js');
 
     initNewGame();
-    const first = createSoloCharacter('Priest');
+    const first = createStartingKitCharacter('devotion');
     state.party = [first];
     executeEnterDungeon(1);
 
     const party = [first];
     for (let index = 1; index < nextPartySize; index++) {
-      const ally = createSoloCharacter('Priest');
+      const ally = createStartingKitCharacter('devotion');
       ally.name = `Ally ${index}`;
       party.push(ally);
     }
@@ -44,18 +44,18 @@ async function setupExplore(page, { partySize = 1, fullHp = false, spellKeys = n
 
 async function setupCombat(page, { woundedCount = 1, deadSecond = false, spellKeys = null } = {}) {
   await page.evaluate(async ({ nextWoundedCount, nextDeadSecond, nextSpellKeys }) => {
-    const { state, initNewGame, createSoloCharacter } = await import('/src/state.js');
+    const { state, initNewGame, createStartingKitCharacter } = await import('/src/state.js');
     const { executeEnterDungeon } = await import('/src/movement.js');
     const { combatSelection } = await import('/src/combat.js');
     const { menuContext } = await import('/src/navigation.js');
     const { updateUI } = await import('/src/ui.js');
 
     initNewGame();
-    const first = createSoloCharacter('Priest');
+    const first = createStartingKitCharacter('devotion');
     state.party = [first];
     executeEnterDungeon(1);
 
-    const second = createSoloCharacter('Priest');
+    const second = createStartingKitCharacter('devotion');
     second.name = 'Ally 1';
     if (nextDeadSecond) {
       second.status = 'dead';
@@ -152,11 +152,11 @@ test('explore disables MABARRIER while combat keeps it available and resets stal
   expect(combatAction).toMatchObject({ type: 'spell', spellName: 'MABARRIER' });
 
   const resetResult = await page.evaluate(async () => {
-    const { state, initNewGame, createSoloCharacter } = await import('/src/state.js');
+    const { state, initNewGame, createStartingKitCharacter } = await import('/src/state.js');
     const { executeEnterDungeon } = await import('/src/movement.js');
     const { startCombat } = await import('/src/combat.js');
     initNewGame();
-    const caster = createSoloCharacter('Priest');
+    const caster = createStartingKitCharacter('devotion');
     caster.mabarrierTurns = 3;
     state.party = [caster];
     executeEnterDungeon(1);

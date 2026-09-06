@@ -19,6 +19,10 @@ function affixEquipment(type, value) {
 }
 
 function cast({ spellName, className, tags, equipment = {}, randomValue = 0 }) {
+  const equippedEquipment = {
+    ...equipment,
+    weapon: { baseId: "ARCH_WAND", identified: true, affixes: equipment.weapon?.affixes || [] }
+  };
   const caster = {
     name: className,
     class: className,
@@ -30,8 +34,8 @@ function cast({ spellName, className, tags, equipment = {}, randomValue = 0 }) {
     status: 'ok',
     int: 10,
     pie: 10,
-    equipment,
-    spells: [spellName]
+    equipment: equippedEquipment,
+    mediumState: { mediumKey: "ARCH_WAND", socketedRunes: [`RUNE_${spellName}`] }
   };
   const monster = {
     name: 'Target',
@@ -64,7 +68,7 @@ function cast({ spellName, className, tags, equipment = {}, randomValue = 0 }) {
 }
 
 const mageHalitoUndead = cast({ spellName: 'HALITO', className: 'Mage', tags: ['undead'] });
-assert.equal(mageHalitoUndead.damage, 14);
+assert.equal(mageHalitoUndead.damage, 12);
 assert.equal(
   cast({
     spellName: 'HALITO',
@@ -72,7 +76,7 @@ assert.equal(
     tags: ['undead'],
     equipment: affixEquipment('antiUndead', 20)
   }).damage,
-  17
+  14
 );
 assert.equal(
   cast({
@@ -81,7 +85,7 @@ assert.equal(
     tags: ['dragon'],
     equipment: affixEquipment('antiDragon', 20)
   }).damage,
-  17
+  14
 );
 assert.equal(
   cast({
@@ -90,12 +94,12 @@ assert.equal(
     tags: ['demon'],
     equipment: affixEquipment('antiDemon', 20)
   }).damage,
-  17
+  14
 );
 
 const badiosUndead = cast({ spellName: 'BADIOS', className: 'Priest', tags: ['undead'], randomValue: 0.1 });
-assert.equal(badiosUndead.damage, 15);
-assert.equal(badiosUndead.spellHit.formula.targetTagBonus, 70);
+assert.equal(badiosUndead.damage, 14);
+assert.equal(badiosUndead.spellHit.formula.targetTagBonus, 50);
 assert.equal(badiosUndead.targetedBonuses.length, 1);
 assert.deepEqual({
   type: badiosUndead.targetedBonuses[0].type,
@@ -106,8 +110,8 @@ assert.deepEqual({
 }, {
   type: 'targetTag',
   before: 9,
-  after: 15,
-  tagBonus: 70,
+  after: 14,
+  tagBonus: 50,
   targetTags: ['undead']
 });
 
@@ -117,12 +121,12 @@ const badiosUndeadWithHolyBand = cast({
   tags: ['undead'],
   equipment: { accessory: 'HOLY_BAND' }
 });
-assert.equal(badiosUndeadWithHolyBand.damage, 15);
-assert.equal(badiosUndeadWithHolyBand.spellHit.formula.targetTagBonus, 90);
+assert.equal(badiosUndeadWithHolyBand.damage, 14);
+assert.equal(badiosUndeadWithHolyBand.spellHit.formula.targetTagBonus, 70);
 
 const badiosMultiTag = cast({ spellName: 'BADIOS', className: 'Priest', tags: ['undead', 'demon'] });
-assert.equal(badiosMultiTag.damage, 16);
-assert.equal(badiosMultiTag.spellHit.formula.targetTagBonus, 100);
+assert.equal(badiosMultiTag.damage, 14);
+assert.equal(badiosMultiTag.spellHit.formula.targetTagBonus, 80);
 assert.equal(badiosMultiTag.targetedBonuses.length, 1);
 assert.deepEqual(badiosMultiTag.targetedBonuses[0].targetTags, ['undead', 'demon']);
 

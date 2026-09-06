@@ -19,7 +19,7 @@ import {
 import { tryApplyExecutionerSetup } from "../../../src/rules/affix_rules.js";
 import { applySavePayload, createSavePayload } from "../../../src/state/save_payload.js";
 import { migrateSavePayload, SAVE_VERSION } from "../../../src/state/save_migrations.js";
-import { createSoloCharacter, state } from "../../../src/state.js";
+import { createStartingKitCharacter, state } from "../../../src/state.js";
 
 function executionerCharacter() {
   return {
@@ -153,7 +153,7 @@ test("exploration poison keeps the default 30% chance and 1-2 damage range", () 
 test("player poison save/load preserves finite and legacy records with lazy first-step migration", () => {
   const originalParty = state.party;
   const originalCombatState = state.combatState;
-  const character = createSoloCharacter("Priest");
+  const character = createStartingKitCharacter("devotion");
   character.status = STATUS_EFFECT_IDS.POISONED;
   character.statusEffects = {
     poisoned: { id: STATUS_EFFECT_IDS.POISONED, remainingTurns: 6, stacks: 1, source: "spring" }
@@ -271,7 +271,7 @@ test("KATINO and MONTINO preserve their legacy fields and model entries", () => 
 test("save round-trip normalizes old status fields and retains the canonical shape", () => {
   const originalParty = state.party;
   const originalCombatState = state.combatState;
-  state.party = [{ ...createSoloCharacter("Mage"), status: "sleep", sleepTurns: 2, silenceTurns: 2 }];
+  state.party = [{ ...createStartingKitCharacter("arcana"), status: "sleep", sleepTurns: 2, silenceTurns: 2 }];
   state.combatState = {
     monsters: [{
       name: "Monster", hp: 20, status: "poisoned",

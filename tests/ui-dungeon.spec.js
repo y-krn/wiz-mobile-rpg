@@ -363,13 +363,13 @@ test('Chest opened immediately after entering the dungeon does not draw the town
   await page.goto('/');
 
   const result = await page.evaluate(async () => {
-    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { closeSubmenu, menuContext } = await import('/src/navigation.js');
     const { enterDungeon, executeEnterDungeon } = await import('/src/movement.js');
     const { openChestMenu } = await import('/src/chest.js');
     const { dungeonRenderer } = await import('/src/renderer.js');
 
-    state.party = [createSoloCharacter('Fighter')];
+    state.party = [createStartingKitCharacter('vanguard')];
     state.gameState = 'town';
     enterDungeon();
     const prevGameStateAfterSoloStart = menuContext.prevGameState;
@@ -428,12 +428,12 @@ test('Renderer and navigation keep modal transitions safe with stale context', a
   await page.goto('/');
 
   const result = await page.evaluate(async () => {
-    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { goBackSubmenu, menuContext, menuHistory, openSubmenu } = await import('/src/navigation.js');
     const { dungeonRenderer } = await import('/src/renderer.js');
     const { updateUI } = await import('/src/ui.js');
 
-    state.party = [createSoloCharacter('Fighter')];
+    state.party = [createStartingKitCharacter('vanguard')];
     state.maps[0] = [[{ walls: [true, true, true, true], type: 'empty' }]];
     state.visitedMaps[0] = [[true]];
     state.floor = 1;
@@ -546,7 +546,7 @@ for (const vp of VIEWPORTS) {
     await page.goto('/');
 
     const result = await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { goBackSubmenu, menuContext, menuHistory, openSubmenu } = await import('/src/navigation.js');
       const { updateUI } = await import('/src/ui.js');
       const { renderSpellOverlay } = await import('/src/spell_menu.js');
@@ -556,7 +556,7 @@ for (const vp of VIEWPORTS) {
         monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
       };
       const resetContext = (map) => {
-        state.party = [createSoloCharacter('Priest')];
+        state.party = [createStartingKitCharacter('devotion')];
         state.party[0].spells = [];
         state.maps[0] = map;
         state.floor = 1;
@@ -638,7 +638,7 @@ for (const vp of VIEWPORTS) {
     await page.goto('/');
 
     const result = await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
       const { getScreenViewState } = await import('/src/state/view_state.js');
       const { getFloorExplorationRate, updateUI } = await import('/src/ui.js');
@@ -655,7 +655,7 @@ for (const vp of VIEWPORTS) {
         phase: 'choose_actions',
         monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
       };
-      state.party = [createSoloCharacter('Priest')];
+      state.party = [createStartingKitCharacter('devotion')];
       state.party[0].spells = ['DIOS'];
       state.floor = 1;
       state.x = 1;
@@ -859,13 +859,13 @@ for (const vp of VIEWPORTS) {
     await page.goto('/');
 
     const result = await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
       const { cancelCombatAction, advanceActionSelection, resolveCombatRound, selectCombatAction, toggleCombatAuto } = await import('/src/combat.js');
       const { combatSelection } = await import('/src/combat.js');
 
       const cell = { walls: [false, false, false, false], type: 'empty' };
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.maps[0] = [[cell]];
       state.floor = 1;
       state.x = 0;
@@ -923,7 +923,7 @@ for (const vp of VIEWPORTS) {
         actionCount: combatSelection.actions.length,
       };
 
-      state.party = [createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard')];
       state.combatState.phase = 'resolving';
       combatSelection.charIdx = 0;
       combatSelection.actions = [];
@@ -996,8 +996,8 @@ for (const vp of VIEWPORTS) {
     await page.goto('/');
 
     const basePayload = await page.evaluate(async () => {
-      const { createSavePayload, createSoloCharacter, state } = await import('/src/state.js');
-      state.party = [createSoloCharacter('Fighter')];
+      const { createSavePayload, createStartingKitCharacter, state } = await import('/src/state.js');
+      state.party = [createStartingKitCharacter('vanguard')];
       state.gameState = 'combat';
       state.combatState = {
         phase: 'choose_actions',
@@ -1107,14 +1107,14 @@ for (const vp of VIEWPORTS) {
     await page.goto('/');
 
     const result = await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { menuContext, menuHistory, goBackSubmenu } = await import('/src/navigation.js');
       const { combatCallbacks, combatSelection } = await import('/src/combat_ui/combat_state.js');
       const { selectCombatAction } = await import('/src/combat.js');
       const { getScreenViewState } = await import('/src/state/view_state.js');
 
       const reset = (spells = ['HALITO']) => {
-        const actor = createSoloCharacter('Priest');
+        const actor = createStartingKitCharacter('devotion');
         actor.spells = spells;
         state.party = [actor];
         state.inventory = ['HEAL_POTION'];
@@ -1228,7 +1228,7 @@ for (const vp of VIEWPORTS) {
     await page.goto('/');
 
     const result = await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
       const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
       const { updateUI } = await import('/src/ui.js');
@@ -1277,7 +1277,7 @@ for (const vp of VIEWPORTS) {
       const partyCases = [
         { label: 'missing', party: null },
         { label: 'sparse', party: Object.assign([], { length: 1 }) },
-        { label: 'all-dead', party: [{ ...createSoloCharacter('Fighter'), status: 'dead' }] },
+        { label: 'all-dead', party: [{ ...createStartingKitCharacter('vanguard'), status: 'dead' }] },
       ];
       const invalidPartyResults = partyCases.map(({ label, party }) => {
         state.party = party;
@@ -1359,12 +1359,12 @@ for (const vp of VIEWPORTS) {
     await page.goto('/');
 
     const result = await page.evaluate(async () => {
-      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
       const { combatCallbacks } = await import('/src/combat_ui/combat_state.js');
       const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
 
-      state.party = [createSoloCharacter('Priest')];
+      state.party = [createStartingKitCharacter('devotion')];
       state.party[0].spells = ['HALITO'];
       state.inventory = ['HEAL_POTION'];
       state.gameState = 'submenu';

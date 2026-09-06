@@ -34,7 +34,7 @@ global.localStorage = {
   removeItem: () => {}
 };
 
-const { state, createSoloCharacter } = await import('../../../src/state.js');
+const { state, createStartingKitCharacter } = await import('../../../src/state.js');
 const { executeEnterDungeon, handleMove } = await import('../../../src/movement.js');
 const { handleTrapAction } = await import('../../../src/systems/traps.js');
 
@@ -45,7 +45,7 @@ global.setTimeout = callback => {
 };
 
 try {
-  state.party = [createSoloCharacter('Thief')];
+  state.party = [createStartingKitCharacter('scout')];
   executeEnterDungeon(1);
 
   let edge = null;

@@ -114,9 +114,9 @@ const criticalHit = run(
   createState({ className: "Ninja", highMonsterDef: true }),
   { type: "fight", actorIdx: 0, targetIdx: 0 }
 );
-assert.equal(criticalHit.state.combatState.monsters[0].hp, 997);
-assert.equal(criticalHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, true);
-assert.equal(criticalHit.state.combatFormulaTelemetry.physicalPlayerHits[0].damage, 3);
+assert.equal(criticalHit.state.combatState.monsters[0].hp, 999);
+assert.equal(criticalHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, false);
+assert.equal(criticalHit.state.combatFormulaTelemetry.physicalPlayerHits[0].damage, 1);
 
 const followUpHit = run(
   createState({ highMonsterDef: true, followUp: true }),

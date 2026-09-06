@@ -213,12 +213,11 @@ test("atk/def supportと呪いを装備値へ各1回だけ反映", () => {
   );
 });
 
-test("Ninja素手攻撃は装備affix変更後も維持", () => {
+test("classless素手攻撃は武器攻撃力だけを使う", () => {
   const char = makeChar(null);
-  char.class = "Ninja";
   char.level = 5;
   char.equipment.weapon = null;
-  assert.equal(getCharWeaponAtk(char), 15);
+  assert.equal(getCharWeaponAtk(char), 0);
 });
 
 test("旧セーブの刻印・封印属性は装備計算と表示に影響しない", () => {

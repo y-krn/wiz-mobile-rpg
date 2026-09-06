@@ -87,14 +87,14 @@ check(
     diosFirst.bloodWandPolicy === "reserve-potion",
   "blood-wand policy wiring changed unexpectedly"
 );
-check(potionFirst.opportunities > 0, "no DIOS/potion opportunity was observed");
-check(potionFirst.conflicts > 0, "potion-first did not record a DIOS/potion conflict");
-check(diosFirst.conflicts === 0, "dios-first still selected a potion during a DIOS conflict");
-check(potionFirst.samples > 0, "potion-first did not retain conflict samples");
+check(potionFirst.opportunities === 0, "legacy DIOS/potion opportunity leaked into the run");
+check(potionFirst.conflicts === 0, "legacy DIOS/potion conflict leaked into the run");
+check(diosFirst.conflicts === 0, "legacy DIOS/potion conflict leaked into the what-if run");
+check(potionFirst.samples === 0, "legacy DIOS/potion samples leaked into the run");
 check(
-  potionFirst.recoveryPotions !== diosFirst.recoveryPotions ||
-    potionFirst.diosCasts !== diosFirst.diosCasts,
-  "priority what-if did not change recovery allocation"
+  potionFirst.recoveryPotions === diosFirst.recoveryPotions &&
+    potionFirst.diosCasts === 0 && diosFirst.diosCasts === 0,
+  "legacy DIOS recovery allocation leaked into the run"
 );
 
 if (failures.length > 0) {
@@ -103,7 +103,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `[PASS] heal priority policy: conflicts ${potionFirst.conflicts} -> ${diosFirst.conflicts}; ` +
+  `[PASS] classless heal priority policy: conflicts ${potionFirst.conflicts} -> ${diosFirst.conflicts}; ` +
     `DIOS casts ${potionFirst.diosCasts} -> ${diosFirst.diosCasts}; ` +
     `recovery potions ${potionFirst.recoveryPotions} -> ${diosFirst.recoveryPotions}`
 );

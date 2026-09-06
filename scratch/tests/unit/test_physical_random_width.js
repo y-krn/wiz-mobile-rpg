@@ -126,7 +126,7 @@ assert.equal(narrowAttack.state.combatFormulaTelemetry.physicalPlayerHits[0].ran
 const narrowFollowUp = runCombat({ weapon: "NINJA_DAGGER", followUp: true, className: "Ninja" });
 const followUpLog = narrowFollowUp.logQueue.find(entry => entry.msg?.includes("【🗡️追撃】"));
 assert.ok(followUpLog, "follow-up attack still fires");
-assert.match(followUpLog.msg, /に14のダメージ/);
+assert.match(followUpLog.msg, /に13のダメージ/);
 
 function createRng(seed) {
   let value = seed >>> 0;

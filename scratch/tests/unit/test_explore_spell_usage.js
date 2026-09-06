@@ -71,11 +71,11 @@ for (let runIndex = 0; runIndex < RUNS; runIndex++) {
   masfealActiveSteps += result.masfealActiveSteps || 0;
 }
 
-check(usageTotals.MILWA > 0, "MILWA was never cast");
+check(Object.values(usageTotals).every(value => value === 0), "legacy class leveling granted exploration spells");
 check(usageTotals.LOMILWA === 0, "LOMILWA was unexpectedly acquired from leveling");
 check(usageTotals.MASFEAL === 0, "MASFEAL was unexpectedly acquired from leveling");
 check(usageTotals.DUMAPIC === 0, "DUMAPIC unexpectedly affected exploration");
-check(lightActiveSteps > 0, "light was never active");
+check(lightActiveSteps === 0, "legacy class leveling activated exploration light");
 check(masfealActiveSteps === 0, "MASFEAL was unexpectedly active");
 
 if (failures.length > 0) {

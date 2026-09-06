@@ -13,7 +13,7 @@ test('HEAL_POTION use in the explore menu returns to the usable item list @e2e @
     
     // ニューゲームの初期状態をロード
     stateMod.initNewGame();
-    stateMod.state.party = [stateMod.createSoloCharacter('Fighter')];
+    stateMod.state.party = [stateMod.createStartingKitCharacter('vanguard')];
     
     // ダンジョンに入る
     moveMod.executeEnterDungeon(1);
@@ -27,9 +27,9 @@ test('HEAL_POTION use in the explore menu returns to the usable item list @e2e @
     uiMod.updateUI();
   });
 
-  // HUD (body) に Arthur の HP が 5 であることを示すテキスト ("H 5" または "HP: 5" 等) が含まれていることを確認
+  // HUD (body) に開始キットの HP が 5 であることを確認
   const body = page.locator('body');
-  await expect(body).toContainText('Arthur');
+  await expect(body).toContainText('冒険者');
   await expect(body).toContainText('5/20');
 
   // 2. 「調べる」（実際には「道具」を起動するボタン）をクリック
@@ -45,17 +45,17 @@ test('HEAL_POTION use in the explore menu returns to the usable item list @e2e @
   expect(initialPotionCount).toBeGreaterThan(0);
   await potionBtns.first().click();
 
-  // 4. 対象キャラクター (Arthur) をタップ
-  const targetBtn = page.locator('button:has-text("Arthur")').first();
+  // 4. 対象キャラクターをタップ
+  const targetBtn = page.locator('button:has-text("冒険者")').first();
   await expect(targetBtn).toBeVisible();
   await targetBtn.click();
 
   // 5. 回復結果の確認
-  // Arthur の HP が 20 に回復しているか ("H 20")
+  // 開始キットの HP が 20 に回復しているか ("H 20")
   await expect(body).toContainText('20/20');
 
   // ログに回復メッセージが出ているか
-  await expect(body).toContainText('Arthurは傷薬を使い、HPが15回復した。');
+  await expect(body).toContainText('冒険者は傷薬を使い、HPが15回復した。');
 
   // 使用後、対象選択画面に残らず、元のバッグ一覧に戻って個数が1つ減ることを確認
   await expect(potionBtns).toHaveCount(initialPotionCount - 1);

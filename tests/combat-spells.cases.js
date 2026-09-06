@@ -5,11 +5,11 @@ test('combat spell cards expose tags and enter enemy targeting through the cast 
   await page.goto('/');
 
   await page.evaluate(async () => {
-    const { state, createSoloCharacter } = await import('/src/state.js');
+    const { state, createStartingKitCharacter } = await import('/src/state.js');
     const { combatSelection } = await import('/src/combat.js');
     const { updateUI } = await import('/src/ui.js');
 
-    const caster = createSoloCharacter('Mage');
+    const caster = createStartingKitCharacter('arcana');
     caster.mp = caster.maxMp = 10;
     caster.spells = ['HALITO'];
     state.party = [caster];

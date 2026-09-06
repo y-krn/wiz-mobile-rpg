@@ -474,17 +474,18 @@ assert.deepEqual(staleReferences, [], JSON.stringify(staleReferences));
 const { getScenarioById, simulateRun } = await import("../../simulations/sim_depth_material_ev.js");
 const smokeScenario = {
   ...getScenarioById("workshop-empty"),
-  departureCraftMeasurement: true
+  departureCraftMeasurement: true,
+  hpBaseBonus: 1000
 };
 
 function runCanonicalSmoke() {
   return simulateRun({
-    className: "Fighter",
+    fixtureId: "exploration-support",
     startFloor: 1,
     targetDepth: 8,
     // The universal exploration resolver changes the fixed seed's entry path;
     // the adjacent deterministic run still exercises the intended traversal.
-    runIndex: 1,
+    runIndex: 7,
     seriesId: "simulation-follow-smoke",
     scoringProfile: null,
     scenario: smokeScenario,

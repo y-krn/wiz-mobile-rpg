@@ -15,6 +15,7 @@ import {
   runMeasurement
 } from "../../measurements/issue990_partial_information_progression.js";
 import { getCharDef, getCharMaxHp, getCharMaxMp, getCharWeaponAtk } from "../../../src/data.js";
+import { getActiveSpellKeys } from "../../../src/rules/magic_rules.js";
 
 const report = runMeasurement({ seed: "issue990-phase2-regression", runs: 1 });
 assert.equal(report.schemaVersion, 2);
@@ -63,7 +64,7 @@ buildIds.forEach(buildId => {
   assert.equal(partialRows[0].startingBuildSnapshot.spells.length > 0, true);
   const expected = createBuildCharacter(buildId);
   const actual = partialRows[0].startingBuildSnapshot;
-  assert.deepEqual(actual.spells, expected.spells, `${buildId}: starting spells`);
+  assert.deepEqual(actual.spells, getActiveSpellKeys(expected), `${buildId}: starting active spells`);
   assert.equal(actual.hp, expected.hp, `${buildId}: starting HP`);
   assert.equal(actual.maxHp, getCharMaxHp(expected), `${buildId}: derived max HP`);
   assert.equal(actual.mp, expected.mp, `${buildId}: starting MP`);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-const { createDefaultCodex, createDefaultCurrentRun, createSoloCharacter } =
+const { createDefaultCodex, createDefaultCurrentRun, createStartingKitCharacter } =
   await import("../../../src/state/initial_state.js");
 const { processRunReturn } = await import("../../../src/systems/run_return.js");
 const { recordDungeonObjectLoot } = await import("../../../src/state/run_loot.js");
@@ -17,7 +17,7 @@ function setupRun(deepestFloor = 5) {
   };
   const potion = "GREATER_HEAL";
   const state = {
-    party: [createSoloCharacter("Fighter")],
+    party: [createStartingKitCharacter("vanguard")],
     currentRun: {
       ...createDefaultCurrentRun(),
       startedAt: 100,
@@ -134,7 +134,7 @@ function coreIdsFor(unlockedAffixIds) {
     seed = (seed * 1664525 + 1013904223) >>> 0;
     return seed / 0x100000000;
   };
-  const party = [createSoloCharacter("Fighter")];
+  const party = [createStartingKitCharacter("vanguard")];
   party[0].unlockedAffixIds = unlockedAffixIds;
   party[0].lateralUnlockAffixIds = unlockedAffixIds;
   const ids = new Set();

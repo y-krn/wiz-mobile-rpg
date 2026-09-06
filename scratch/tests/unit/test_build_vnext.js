@@ -5,7 +5,6 @@ import { EQUIPMENT_CANDIDATES_BY_FLOOR } from "../../../src/data/equipment_table
 import { canEquipEquipment } from "../../../src/rules/equipment_rules.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../../../src/systems/equipment_generation.js";
 import { CORE_AFFIXES } from "../../../src/data/affixes.js";
-import { getClassPassive } from "../../../src/rules/class_rules.js";
 import { checkCharLevelUp } from "../../../src/systems/leveling.js";
 
 assert.deepEqual(
@@ -15,10 +14,8 @@ assert.deepEqual(
 );
 assert.equal(createDefaultCurrentRun().startingKit, null);
 
-const baselineKeys = ["name", "class", "level", "exp", "hp", "maxHp", "mp", "maxMp", "str", "int", "pie", "vit", "agi", "luk", "status", "spells"];
+const baselineKeys = ["name", "level", "exp", "hp", "maxHp", "mp", "maxMp", "str", "int", "pie", "vit", "agi", "luk", "status"];
 const baseline = createStartingKitCharacter(STARTING_KITS[0].id);
-assert.equal(baseline.class, "Fighter", "starting kits use a registered compatibility class for legacy progression");
-const baselinePassive = getClassPassive(baseline);
 for (const kit of STARTING_KITS) {
   const character = createStartingKitCharacter(kit.id);
   assert.equal(character.startingKit, kit.id);
@@ -37,7 +34,8 @@ for (const kit of STARTING_KITS) {
     Object.fromEntries(baselineKeys.map(key => [key, baseline[key]])),
     `${kit.id} must use the common neutral character baseline`
   );
-  assert.deepEqual(getClassPassive(character), baselinePassive, `${kit.id} must use the common compatibility passive`);
+  assert.equal(Object.hasOwn(character, "class"), false, `${kit.id} has no class field`);
+  assert.equal(Object.hasOwn(character, "spells"), false, `${kit.id} has no learned spell field`);
 }
 
 const levelledCharacters = STARTING_KITS.map(kit => {
@@ -52,7 +50,7 @@ assert.equal(levelledCharacters[0].level, 3);
 assert.equal(levelledCharacters[0].maxHp, 30, "level 2→3 uses the universal +5 HP baseline");
 assert.equal(levelledCharacters[0].str, 10, "level up must not grow the compatibility main stat");
 assert.equal(levelledCharacters[0].mp, 1, "level up must not grow universal base MP");
-assert.deepEqual(levelledCharacters[0].spells, [], "level up must not grant spells");
+assert.equal(Object.hasOwn(levelledCharacters[0], "spells"), false, "level up must not grant spells");
 
 const fighter = createStartingKitCharacter("vanguard");
 assert.equal(canEquipEquipment(fighter, "ARCH_WAND").ok, false, "a 2H medium cannot coexist with the starting shield");

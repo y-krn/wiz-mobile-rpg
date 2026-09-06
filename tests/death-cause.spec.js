@@ -4,7 +4,7 @@ test('real trap, status, and combat deaths keep structured causes', async ({ pag
   await page.goto('/');
 
   const deaths = await page.evaluate(async () => {
-    const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
+    const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
     const { triggerTrap } = await import('/src/systems/traps.js');
     const { applyExplorationPoison } = await import('/src/movement.js');
     const { applyPartyDamage } = await import('/src/combat_logic/damage.js');
@@ -14,7 +14,7 @@ test('real trap, status, and combat deaths keep structured causes', async ({ pag
       state.logs = [];
       state.combatState = null;
       state.currentRun = createDefaultCurrentRun();
-      state.party = [createSoloCharacter('Fighter'), createSoloCharacter('Fighter')];
+      state.party = [createStartingKitCharacter('vanguard'), createStartingKitCharacter('vanguard')];
       state.party[0].name = '検証対象';
       state.party[1].name = '生存対象';
       state.party[0].hp = 1;
@@ -55,13 +55,13 @@ test('spring poison uses the finite exploration lifecycle', async ({ page }) => 
   await page.goto('/');
 
   const lifecycle = await page.evaluate(async () => {
-    const { state, createDefaultCurrentRun, createSoloCharacter, initNewGame } = await import('/src/state.js');
+    const { state, createDefaultCurrentRun, createStartingKitCharacter, initNewGame } = await import('/src/state.js');
     const { renderEventSpring } = await import('/src/menu/explore_actions.js');
     const { applyExplorationPoison } = await import('/src/movement.js');
     const { STATUS_EFFECT_IDS } = await import('/src/combat_logic/status_effects.js');
 
     initNewGame();
-    state.party = [createSoloCharacter('Mage')];
+    state.party = [createStartingKitCharacter('arcana')];
     state.party[0].hp = 20;
     state.currentRun = createDefaultCurrentRun();
     state.floor = 1;
@@ -129,11 +129,11 @@ test('stone tablet trap death is recorded instead of using the old fallback', as
   await page.goto('/');
 
   const death = await page.evaluate(async () => {
-    const { state, createDefaultCurrentRun, createSoloCharacter, initNewGame } = await import('/src/state.js');
+    const { state, createDefaultCurrentRun, createStartingKitCharacter, initNewGame } = await import('/src/state.js');
     const { renderEventTablet } = await import('/src/menu/explore_actions.js');
 
     initNewGame();
-    const character = createSoloCharacter('Fighter');
+    const character = createStartingKitCharacter('vanguard');
     character.hp = 1;
     state.party = [character];
     state.currentRun = createDefaultCurrentRun();

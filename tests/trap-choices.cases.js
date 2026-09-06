@@ -8,11 +8,11 @@ const VIEWPORTS = [
 
 async function enterDiscoveredTrap(page, type) {
   await page.evaluate(async trapType => {
-    const { state, createSoloCharacter } = await import("/src/state.js");
+    const { state, createStartingKitCharacter } = await import("/src/state.js");
     const { handleMove } = await import("/src/movement.js");
 
     state.floor = 1;
-    state.party = [createSoloCharacter("Thief")];
+    state.party = [createStartingKitCharacter("scout")];
     state.gameState = "explore";
     state.transitioning = false;
 
