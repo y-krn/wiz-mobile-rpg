@@ -196,7 +196,7 @@ export function validateIssue1096Report(report) {
   }
   const distributions = [
     "combat.rounds", "resources.damageTakenHp", "resources.healingHp", "resources.mpSpent",
-    "resources.finalHp", "resources.finalMp", "guard.mitigationHp", "guard.mitigationEvents",
+    "resources.finalHp", "resources.finalMp", "resources.finalMpOverMax", "guard.mitigationHp", "guard.mitigationEvents",
     "guard.statusMitigationEvents", "loot.finalBagSlots"
   ];
   (report.cases || []).forEach(measuredCase => {
@@ -222,10 +222,16 @@ export function validateIssue1096Report(report) {
           throw new Error(`issue #1096 terminal resource distribution N mismatch: ${name}`);
         }
       });
+    if (!measuredCase.payment.terminalResourceState?.mpOverMax ||
+        measuredCase.payment.terminalResourceState.mpOverMax.n !== config.runs) {
+      throw new Error("issue #1096 terminal resource distribution N mismatch: mpOverMax");
+    }
+    const portal = measuredCase.payment.portal || {};
+    const portalEventCount = (Number(portal.useEvents) || 0) + (Number(portal.milestoneDecisions) || 0);
     ["hpRate", "mpRate", "inventorySlots", "inventoryFreeSlots", "carriedMaterials"]
       .forEach(name => {
         const value = measuredCase.payment.portal?.resourceState?.[name];
-        if (!value || !Number.isInteger(value.n) || value.n < 0) {
+        if (!value || value.n !== portalEventCount) {
           throw new Error(`issue #1096 Portal resource distribution missing: ${name}`);
         }
       });
@@ -236,11 +242,6 @@ export function validateIssue1096Report(report) {
           throw new Error(`issue #1096 bounded resource rate violation: ${path}`);
         }
       });
-    const portal = measuredCase.payment.portal || {};
-    const portalEventCount = (Number(portal.useEvents) || 0) + (Number(portal.milestoneDecisions) || 0);
-    if (measuredCase.payment.portal.resourceState.hpRate.n !== portalEventCount) {
-      throw new Error("issue #1096 Portal resource samples do not match Portal events");
-    }
   });
   if (report.measurement?.determinism?.checked && !report.measurement.determinism.matching) {
     throw new Error("issue #1096 determinism check failed");
