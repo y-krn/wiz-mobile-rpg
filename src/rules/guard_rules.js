@@ -30,7 +30,7 @@ function getAttackType({ attackType, spell = false, dragon = false } = {}) {
 export function resolveGuardMitigation(
   char,
   damage,
-  { isDefending = false, attackType, spell = false, dragon = false, baseMultiplier = null } = {}
+  { isDefending = false, attackType, spell = false, dragon = false, baseMultiplier = null, telemetry = null } = {}
 ) {
   const numericDamage = Number(damage);
   if (!Number.isFinite(numericDamage)) return 1;
@@ -47,16 +47,37 @@ export function resolveGuardMitigation(
   const multiplier = Number.isFinite(explicitMultiplier)
     ? Math.min(profileMultiplier, explicitMultiplier)
     : profileMultiplier;
-  return Math.max(1, Math.round(numericDamage * multiplier));
+  const resolvedDamage = Math.max(1, Math.round(numericDamage * multiplier));
+  if (telemetry && isDefending && resolvedDamage < numericDamage) {
+    telemetry.mitigations ||= [];
+    telemetry.mitigations.push({
+      type: "guardAction",
+      attackType: type,
+      before: numericDamage,
+      after: resolvedDamage,
+      reduction: numericDamage - resolvedDamage
+    });
+  }
+  return resolvedDamage;
 }
 
 export function resolveGuardStatusChance(
   char,
   baseChance,
-  { isDefending = false } = {}
+  { isDefending = false, telemetry = null } = {}
 ) {
   const chance = Number(baseChance);
   const normalizedChance = Number.isFinite(chance) ? Math.max(0, Math.min(1, chance)) : 0;
   if (!isDefending) return normalizedChance;
-  return Math.max(0, Math.min(1, normalizedChance * getGuardProfile(char).statusChanceMultiplier));
+  const resolvedChance = Math.max(0, Math.min(1, normalizedChance * getGuardProfile(char).statusChanceMultiplier));
+  if (telemetry && resolvedChance < normalizedChance) {
+    telemetry.statusMitigations ||= [];
+    telemetry.statusMitigations.push({
+      type: "guardStatus",
+      before: normalizedChance,
+      after: resolvedChance,
+      reduction: normalizedChance - resolvedChance
+    });
+  }
+  return resolvedChance;
 }

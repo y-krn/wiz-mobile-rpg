@@ -241,9 +241,20 @@ export function paySpellCost(char, mpCost) {
   return payment;
 }
 
-export function getStatusEffectChance(char, baseChance) {
+export function getStatusEffectChance(char, baseChance, { telemetry = null } = {}) {
   const resistance = Math.max(0, Math.min(100, getCharAffixSum(char, "statusResistance")));
-  return Math.max(0, baseChance * (1 - resistance / 100));
+  const resolvedChance = Math.max(0, baseChance * (1 - resistance / 100));
+  const normalizedBaseChance = Number(baseChance);
+  if (telemetry && Number.isFinite(normalizedBaseChance) && resolvedChance < normalizedBaseChance) {
+    telemetry.statusMitigations ||= [];
+    telemetry.statusMitigations.push({
+      type: "statusResistance",
+      before: normalizedBaseChance,
+      after: resolvedChance,
+      reduction: normalizedBaseChance - resolvedChance
+    });
+  }
+  return resolvedChance;
 }
 
 export function getSpellAccuracyBonus(char) {
