@@ -16,6 +16,7 @@ const canonicalRunnerPath = "scratch/simulations/sim_depth_material_ev.js";
 export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: canonicalRunnerPath, lifecycle: "canonical", scope: "run" },
   { path: "scratch/simulations/sim_issue_1056_pending_rewards.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/simulations/sim_issue_1064_unknown_trial.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_recovery_policy.js", lifecycle: "historical", scope: "infra" },
   { path: "scratch/measurements/issue624_commit_depth.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue700_gate_metrics.js", lifecycle: "historical", scope: "infra" },
@@ -27,6 +28,8 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: "scratch/measurements/issue990_phase3_stage2_combat_personas.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue990_phase3_stage3_checkpoint_continuation.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue1012_observability.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/measurements/issue1096_build_payment.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/measurements/issue1078_loot_supply.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_balance.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_camp_recovery.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_caster_pack.js", lifecycle: "historical", scope: "formula" },
@@ -91,6 +94,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
       { id: "recovery.kill-heal", domain: "recovery", evidence: { anyPositive: ["killHeal.killHealActivations"] } },
       { id: "recovery.combat-policy", domain: "recovery", evidence: { callLevel: ["runtimeCalls.recovery.combat-policy"] } },
       { id: "traps.chest-roll", domain: "traps", evidence: { callLevel: ["runtimeCalls.traps.chest-roll"] } },
+      { id: "traps.floor-resolution", domain: "traps", evidence: { callLevel: ["runtimeCalls.traps.floor-resolution"], anyPositive: ["trapEncounterCount"] } },
       { id: "economy.material-bank", domain: "economy", evidence: { anyPositive: ["bankedMaterials"] } },
       { id: "workshop.departure-craft", domain: "workshop", evidence: { anyPositive: ["departureCraftEvaluations"] } },
       { id: "workshop.equipment-craft", domain: "workshop", evidence: { callLevel: ["runtimeCalls.workshop.enhance"], anyPositive: ["equipmentCraft.enhanceAttempts"] } }
@@ -107,7 +111,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
       progression: Object.freeze(["progression.experience"]),
       status: Object.freeze(["status.exploration-poison"]),
       recovery: Object.freeze(["recovery.kill-heal", "recovery.combat-policy"]),
-      traps: Object.freeze(["traps.chest-roll"]),
+      traps: Object.freeze(["traps.chest-roll", "traps.floor-resolution"]),
       economy: Object.freeze(["economy.material-bank"]),
       workshop: Object.freeze(["workshop.departure-craft", "workshop.equipment-craft"])
     }),
@@ -137,7 +141,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
   balanceImpactPaths: Object.freeze([
     { pattern: "src/constants/item_categories.js", domains: ["economy"] },
     { pattern: "src/craft.js", domains: ["workshop", "economy"] },
-    { pattern: "src/data/items.js", domains: ["maps", "economy"] },
+    { pattern: "src/data/items.js", domains: ["maps", "economy", "traps"] },
     { pattern: "src/data/milestone_merchant.js", domains: ["economy"] },
     { pattern: "src/menu/explore_actions.js", domains: ["maps", "traps"] },
     { pattern: "src/movement.js", domains: ["maps", "traps"] },
@@ -173,23 +177,27 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/data/workshop.js", domains: ["workshop"] },
     { pattern: "src/data/materials.js", domains: ["drops"] },
     { pattern: "src/data/progression.js", domains: ["progression"] },
-    { pattern: "src/data/classes.js", domains: ["combat", "equipment", "traps", "recovery"] },
+    { pattern: "src/data/classes.js", domains: ["combat", "equipment", "recovery"] },
     { pattern: "src/data/magic.js", domains: ["combat", "equipment", "chests"] },
     { pattern: "src/state/inventory_state.js", domains: ["economy"] },
     { pattern: "src/state/run_loot.js", domains: ["economy"] },
     { pattern: "src/state/run_floor_state.js", domains: ["maps", "combat"] },
-    { pattern: "src/rules/character_stats.js", domains: ["combat", "equipment"] },
-    { pattern: "src/rules/class_rules.js", domains: ["combat", "equipment", "traps", "recovery"] },
+    { pattern: "src/rules/character_stats.js", domains: ["combat", "equipment", "traps"] },
+    { pattern: "src/rules/class_rules.js", domains: ["combat", "equipment", "recovery"] },
     { pattern: "src/rules/magic_rules.js", domains: ["combat", "equipment", "recovery"] },
     { pattern: "src/rules/affix_rules.js", domains: ["combat", "traps"] },
+    { pattern: "src/rules/trap_rules.js", domains: ["traps"] },
     { pattern: "src/rules/trap_effect_rules.js", domains: ["traps"] },
-    { pattern: "src/rules/item_rules.js", domains: ["equipment"] },
-    { pattern: "src/rules/identification_rules.js", domains: ["equipment"] },
+    { pattern: "src/rules/item_rules.js", domains: ["equipment", "traps"] },
+    { pattern: "src/rules/identification_rules.js", domains: ["equipment", "traps"] },
     { pattern: "src/systems/identification.js", domains: ["equipment"] },
     { pattern: "src/rules/depth_scaling.js", domains: ["combat", "maps"] },
     { pattern: "src/rules/floor_trials.js", domains: ["combat", "maps"] },
     { pattern: "src/rules/equipment_slots.js", domains: ["equipment"] },
     { pattern: "src/rules/equipment_hands.js", domains: ["equipment"] },
+    // Build Snapshot is a bounded observation identity; it does not own a
+    // gameplay formula, reward, or resource mutation.
+    { pattern: "src/rules/build_snapshot.js", domains: [] },
     { pattern: "src/rules/loadout_transaction.js", domains: ["equipment"] },
     { pattern: "src/rules/guard_rules.js", domains: ["combat"] },
     { pattern: "src/data/guard_profiles.js", domains: ["combat", "equipment"] },
@@ -216,7 +224,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/systems/magic_actions.js", domains: ["combat", "equipment", "economy"] },
     { pattern: "src/result.js", domains: ["drops", "economy", "progression"] },
     { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
-    { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },
+    { pattern: "src/systems/equipment_generation.js", domains: ["equipment", "traps"] },
+    { pattern: "src/systems/traps.js", domains: ["traps"] },
     { pattern: "src/systems/equipment_discard.js", domains: ["equipment"] },
     { pattern: "src/systems/loadout_transaction.js", domains: ["equipment", "maps"] },
     { pattern: "src/pending_rewards.js", domains: ["chests", "equipment", "economy", "maps"] },
@@ -303,6 +312,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // Chest action dispatch can change the selected actor/phase while keeping
     // the existing telemetry anchor in this module.
     "src/chest.js",
+    "src/systems/traps.js",
     "src/equip.js",
     "src/systems/equipment_actions.js",
     "src/systems/equipment_discard.js",
@@ -592,7 +602,10 @@ const TELEMETRY_CONTEXT_KEYS = new Set([
   "stepsBeforeDiscovery", "stepsAfterStairs", "hpRate", "mpRate", "stairsDiscovered",
   "floorCompleted", "chestsDiscovered", "chestsSkipped", "explorationMode", "x", "y",
   "locationType", "action", "elite", "monster", "contactMode", "distance", "detected",
-  "elitePolicy", "item", "ownership", "lootSequence"
+  "elitePolicy", "item", "ownership", "lootSequence", "trapType", "outcome",
+  "successRate", "trapDifficulty", "partialSuccess", "identified", "toolId", "toolUsed",
+  "trapBonus", "trapGuard", "detectionSupport", "treasureSense", "hearRange", "traceRead",
+  "trapKitCount", "availableToolIds", "coreIds", "coreTrapEater", "coreTombRaider"
 ]);
 
 function isTelemetryImport(line) {

@@ -72,7 +72,11 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 16) + 10; // 10-25 DMG
-          dmg = resolveGuardMitigation(c, dmg, { isDefending, attackType: "spell" });
+          dmg = resolveGuardMitigation(c, dmg, {
+            isDefending,
+            attackType: "spell",
+            telemetry: state.combatFormulaTelemetry
+          });
           const rawDamage = dmg;
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue, state });
@@ -136,7 +140,11 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 16) + 15; // 15-30 DMG
-          dmg = resolveGuardMitigation(c, dmg, { isDefending, attackType: "spell" });
+          dmg = resolveGuardMitigation(c, dmg, {
+            isDefending,
+            attackType: "spell",
+            telemetry: state.combatFormulaTelemetry
+          });
           const rawDamage = dmg;
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue, state });
@@ -174,8 +182,8 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
 
         const guardedChance = resolveGuardStatusChance(
           target,
-          getStatusEffectChance(target, 1),
-          { isDefending }
+          getStatusEffectChance(target, 1, { telemetry: state.combatFormulaTelemetry }),
+          { isDefending, telemetry: state.combatFormulaTelemetry }
         );
         if (Math.random() >= guardedChance) {
           logQueue.push({ msg: isDefending
@@ -229,11 +237,15 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
             dmg = resolveGuardMitigation(c, dmg, {
               isDefending,
               attackType: "special",
-              baseMultiplier: 0.4
+              baseMultiplier: 0.4,
+              telemetry: state.combatFormulaTelemetry
             });
             logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを大幅に軽減した！` });
           } else {
-            dmg = resolveGuardMitigation(c, dmg, { attackType: "special" });
+            dmg = resolveGuardMitigation(c, dmg, {
+              attackType: "special",
+              telemetry: state.combatFormulaTelemetry
+            });
           }
           const rawDamage = dmg;
           const playerHpBefore = c.hp;
@@ -266,7 +278,11 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 13) + 12; // 12-24 DMG
-          dmg = resolveGuardMitigation(c, dmg, { isDefending, attackType: "breath" });
+          dmg = resolveGuardMitigation(c, dmg, {
+            isDefending,
+            attackType: "breath",
+            telemetry: state.combatFormulaTelemetry
+          });
           const rawDamage = dmg;
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
@@ -302,7 +318,11 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 21) + 15; // 15-35 DMG
-          dmg = resolveGuardMitigation(c, dmg, { isDefending, attackType: "spell" });
+          dmg = resolveGuardMitigation(c, dmg, {
+            isDefending,
+            attackType: "spell",
+            telemetry: state.combatFormulaTelemetry
+          });
           const rawDamage = dmg;
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });

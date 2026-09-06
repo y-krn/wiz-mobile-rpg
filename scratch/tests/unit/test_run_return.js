@@ -13,7 +13,7 @@ function setupRun(deepestFloor = 5) {
     instanceId: `sword-${deepestFloor}`,
     rarity: "rare",
     identified: true,
-    affixes: [{ id: "CORE_OPENER" }]
+    affixes: [{ id: "CORE_TRAP_EATER" }]
   };
   const potion = "GREATER_HEAL";
   const state = {
@@ -43,7 +43,7 @@ function setupRun(deepestFloor = 5) {
 }
 
 {
-  const { state, sword } = setupRun(5);
+  const { state, sword } = setupRun(10);
   const result = processRunReturn(state, "retreat");
   assert.equal(result.representativeItem.baseId, "LONG_SWORD");
   assert.equal(result.representativeItem.status, "returned");
@@ -51,8 +51,8 @@ function setupRun(deepestFloor = 5) {
   assert.equal(result.meaningfulItemHistory.length, 2);
   assert.equal(Object.hasOwn(result.representativeItem, "atk"), false);
   assert.equal(Object.hasOwn(result.representativeItem, "affixes"), false);
-  assert.deepEqual(state.workshop.lateralUnlocks, ["pool_opener"]);
-  assert.ok(getWorkshopGrants(state.workshop).affixIds.includes("CORE_OPENER"));
+  assert.deepEqual(state.workshop.lateralUnlocks, ["pool_trap_eater"]);
+  assert.ok(getWorkshopGrants(state.workshop).affixIds.includes("CORE_TRAP_EATER"));
   assert.equal(state.party[0].equipment.weapon, null);
   assert.equal(state.storage.includes(sword), false, "recovered dungeon equipment is not permanent storage");
   assert.equal(state.storage.includes("HEAL_POTION"), true, "unused Town preparation returns to storage");
@@ -91,16 +91,22 @@ function setupRun(deepestFloor = 5) {
   assert.equal(first.unlocked, null);
   const second = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
     deepestFloor: 10,
-    recoveredEquipment: [{ baseId: "LONG_SWORD", tags: ["ambush"], knowledgeStage: "discovery" }]
+    recoveredEquipment: [{ baseId: "AMULET_HP", tags: ["trap"], knowledgeStage: "observation" }]
   });
-  assert.equal(second.unlocked.id, "pool_opener");
+  assert.equal(second.unlocked.id, "pool_trap_eater");
   assert.equal(second.workshop.lateralUnlocks.length, 1);
   assert.deepEqual(second.matchedSignals.sort(), ["knowledge", "tag", "type"].sort());
-  const pivotResult = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
-    deepestFloor: 15,
-    recoveredEquipment: [{ baseId: "LONG_SWORD", tags: ["iron", "blade"], lootRole: "pivot", knowledgeStage: "observation" }]
+  const scholarResult = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
+    deepestFloor: 30,
+    recoveredEquipment: [{
+      baseId: "AMULET_MP",
+      affixes: [{ id: "CORE_SCHOLAR_EYE" }],
+      tags: ["analysis", "spirit"],
+      lootRole: "pivot",
+      knowledgeStage: "trial"
+    }]
   });
-  assert.equal(pivotResult.unlocked.id, "pool_giant_slayer", "the returned role selects a related side-grade");
+  assert.equal(scholarResult.unlocked.id, "pool_scholar_eye", "the returned retained core selects a related side-grade");
   const searchResult = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
     deepestFloor: 25,
     recoveredEquipment: [{ baseId: "RING_LUK", tags: ["search"], lootRole: "convert", knowledgeStage: "trial" }]
@@ -113,7 +119,7 @@ function setupRun(deepestFloor = 5) {
   assert.equal(unrelated.unlocked, null, "a returned result cannot advance an unrelated fixed chain");
   const noReservedShieldSlot = applyAutomaticWorkshopUnlock({
     ranks: {},
-    lateralUnlocks: ["pool_opener", "pool_trap_eater", "pool_giant_slayer"]
+    lateralUnlocks: ["pool_trap_eater"]
   }, {
     deepestFloor: 20,
     recoveredEquipment: [{ baseId: "LONG_SWORD", tags: ["iron", "blade"], lootRole: "pivot", knowledgeStage: "observation" }]
@@ -141,8 +147,8 @@ function coreIdsFor(unlockedAffixIds) {
 
 {
   const baseline = coreIdsFor([]);
-  const openerUnlocked = coreIdsFor(["CORE_OPENER"]);
-  assert.equal(openerUnlocked.size, baseline.size, "lateral unlock keeps the authored core candidate count");
-  assert.equal(openerUnlocked.has("CORE_OPENER"), true);
+  const trapEaterUnlocked = coreIdsFor(["CORE_TRAP_EATER"]);
+  assert.equal(trapEaterUnlocked.size, baseline.size, "lateral unlock keeps the authored core candidate count");
+  assert.equal(trapEaterUnlocked.has("CORE_TRAP_EATER"), true);
   console.log("[PASS] lateral core unlock replaces a reserved same-slot candidate instead of diluting the pool");
 }

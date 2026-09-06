@@ -21,6 +21,7 @@ import {
   trackCombatDecisionPending,
   trackEquipmentDecision,
   trackChestAction,
+  trackTrapResolution,
   trackChestSmashResult,
   trackBleedingEvent,
   trackVulnerableEvent,
@@ -283,7 +284,7 @@ check("legacy bleeding telemetry is bounded and typed", () => {
   const [malformed, valid] = events;
   assert.equal(malformed.name, "bleeding_triggered");
   assert.equal(malformed.properties.floor, 1_000_000);
-  assert.equal(malformed.properties.playerClass, "other");
+  assert.equal(Object.hasOwn(malformed.properties, "playerClass"), false);
   assert.equal(malformed.properties.enemyId, "other");
   assert.equal(malformed.properties.remainingTurns, 1_000_000);
   assert.equal(malformed.properties.payoffDamage, 1_000_000);
@@ -293,7 +294,7 @@ check("legacy bleeding telemetry is bounded and typed", () => {
   assert.equal(malformed.properties.damageContribution, 1_000_000);
   assert.equal(malformed.properties.directDamage, 0);
   assert.equal(Object.hasOwn(malformed.properties, "extraArray"), false);
-  assert.equal(valid.properties.playerClass, "Mage");
+  assert.equal(Object.hasOwn(valid.properties, "playerClass"), false);
   assert.equal(valid.properties.enemyId, "いにしえの竜");
   assert.equal(valid.properties.reason, "duration");
   assert.equal(valid.properties.buildKey, "bleedingAtk:12");
@@ -319,7 +320,7 @@ check("vulnerable telemetry records bounded burst fields", () => {
   const event = events[0];
   assert.equal(event.name, "vulnerable_consumed");
   assert.equal(event.properties.floor, 1_000_000);
-  assert.equal(event.properties.playerClass, "other");
+  assert.equal(Object.hasOwn(event.properties, "playerClass"), false);
   assert.equal(event.properties.enemyId, "いにしえの竜");
   assert.equal(event.properties.multiplier, 10);
   assert.equal(event.properties.qualifyingHitType, "spell");
@@ -462,12 +463,12 @@ check("decision events share context and keep action identifiers stable", () => 
     candidateKey: {
       baseId: "SHORT_SWORD",
       buildRole: "pivot",
-      affixes: [{ id: "CORE_GIANT_SLAYER", kind: "core" }]
+      affixes: [{ id: "CORE_EXECUTIONER", kind: "core" }]
     },
     currentKey: {
       baseId: "WAND",
-      buildRole: "reinforce",
-      affixes: [{ id: "CORE_LAST_STAND", kind: "core" }]
+      buildRole: "convert",
+      affixes: [{ id: "CORE_BLOOD_WAND", kind: "core" }]
     },
     preview: { item: { rarity: "rare" }, slot: "weapon", primaryDiff: 1, rows: [] }
   });
@@ -479,13 +480,17 @@ check("decision events share context and keep action identifiers stable", () => 
   assert.equal(combatEvent.properties.enemyCount, 2);
   assert.equal(explorationEvent.properties.action, "heal");
   assert.equal(explorationEvent.properties.source, "event_camp");
+  assert.equal(Object.hasOwn(explorationEvent.properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(explorationEvent.properties, "level"), false);
   assert.equal(equipmentEvent.properties.action, "compare");
   assert.equal(equipmentEvent.properties.candidateId, "DAGGER");
   assert.deepEqual(equipmentEvent.properties.comparisonDiffs, [2]);
+  assert.equal(Object.hasOwn(equipmentEvent.properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(equipmentEvent.properties, "level"), false);
   const transitionEvent = events.find(event => event.name === "equipment_decision" && event.properties.action === "equip");
   assert.equal(transitionEvent.properties.buildDecision, "transition");
   assert.equal(transitionEvent.properties.candidateBuildRole, "pivot");
-  assert.equal(transitionEvent.properties.currentBuildRole, "reinforce");
+  assert.equal(transitionEvent.properties.currentBuildRole, "convert");
 
   trackEquipmentDecision("equip", {
     state: decisionState,
@@ -508,13 +513,13 @@ check("decision events share context and keep action identifiers stable", () => 
     candidateKey: {
       baseId: "SHORT_SWORD",
       affixes: [
-        { id: "CORE_LAST_STAND", kind: "core" },
-        { id: "CORE_PHYSICAL_ACCURACY", kind: "core" }
+        { id: "CORE_BLOOD_WAND", kind: "core" },
+        { id: "CORE_PURIFY_RING", kind: "core" }
       ]
     },
     currentKey: {
       baseId: "DAGGER",
-      affixes: [{ id: "CORE_LAST_STAND", kind: "core" }]
+      affixes: [{ id: "CORE_BLOOD_WAND", kind: "core" }]
     },
     preview: { item: { rarity: "rare" }, slot: "weapon", rows: [] }
   });
@@ -560,12 +565,35 @@ check("vNext telemetry separates lifecycle, exploration, portal, and elite obser
   assert.ok(names.includes("portal_decision"));
   assert.ok(names.includes("elite_decision"));
   assert.equal(events.filter(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "bagged").length, 1);
+  const lifecycle = events.find(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "bagged");
+  assert.equal(lifecycle.properties.floor, 2);
+  assert.equal(lifecycle.properties.source, "chest");
+  assert.equal(lifecycle.properties.lootRole, null);
+  assert.equal(lifecycle.properties.lootTier, "B1_5");
+  const generatedLoot = {
+    baseId: "DAGGER",
+    level: 2,
+    identified: true,
+    rarity: "rare",
+    lootRole: "pivot"
+  };
+  trackLootLifecycle("adopted", { state, itemKey: generatedLoot, source: "chest", lootId: "run:loot:5" });
+  const adoptedLoot = events.find(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "adopted");
+  assert.equal(adoptedLoot.properties.lootRole, "pivot");
+  assert.equal(adoptedLoot.properties.lootTier, "B1_5");
+  const rune = { baseId: "RUNE_DIOS", identified: true };
+  trackLootLifecycle("left", { state, itemKey: rune, source: "chest", lootId: "run:loot:4" });
+  const leftRune = events.find(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "left");
+  assert.equal(leftRune.properties.lootTier, "shallow");
+  assert.equal(leftRune.properties.runeSupplyBand, "shallow");
   const portal = events.find(event => event.name === "portal_decision");
   assert.equal(portal.properties.decision, "push");
   assert.equal(portal.properties.unbankedObjectLootCount, 1);
   const elite = events.find(event => event.name === "elite_decision");
   assert.equal(elite.properties.eliteId, "RUN_ELITE_B2");
   assert.equal(elite.properties.elitePolicy, "avoid");
+  assert.equal(Object.hasOwn(elite.properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(elite.properties, "level"), false);
 });
 
 check("return-wing snapshots distinguish the Wing from escape scrolls", () => {
@@ -684,7 +712,9 @@ check("combat start joins player and equipment snapshots without duplicating the
   const damage = events.find(event => event.name === "damage_received").properties;
   assert.equal(combatStart.runId, damage.runId);
   assert.equal(combatStart.combatId, damage.combatId);
-  assert.equal(combatStart.playerClass, "Mage");
+  assert.equal(Object.hasOwn(combatStart, "playerClass"), false);
+  assert.equal(combatStart.buildSnapshot.schemaVersion, 1);
+  assert.equal(combatStart.buildSnapshot.weaponProfile, "medium");
   assert.equal(combatStart.level, decisionPlayer.level);
   assert.equal(combatStart.str, decisionPlayer.str);
   assert.equal(combatStart.vit, decisionPlayer.vit);
@@ -1054,16 +1084,17 @@ check("malformed snapshots stay allowlisted and bounded", () => {
     }
   };
   const context = buildDecisionContext({ state: malformedState, character: malformedCharacter });
-  assert.equal(context.playerClass, "other");
+  assert.equal(Object.hasOwn(context, "playerClass"), false);
+  assert.equal(context.buildSnapshot.schemaVersion, 1);
   assert.equal(context.gameState, "other");
   assert.equal(context.combatPhase, "other");
   assert.ok(context.equipmentIds.length <= 5);
   assert.ok(context.enemyIds.length <= 8);
   assert.ok(context.equipmentAffixTypes.length <= 24);
   assert.ok(context.inventoryCount <= 20);
-  assert.equal(context.equipmentIds[0], "other");
+  assert.equal(context.equipmentIds[0], null);
   assert.equal(context.enemyIds[0], "other");
-  assert.equal(context.equipmentAffixTypes[0], "other");
+  assert.equal(context.equipmentAffixTypes.length, 0);
 });
 
 check("chest and run events include common resource and status context", () => {
@@ -1082,11 +1113,46 @@ check("chest and run events include common resource and status context", () => {
   trackRunEnd(run, "retreat", { ...decisionState, gameState: "result" });
   const chestEvent = events.find(event => event.name === "chest_action");
   const endEvent = events.find(event => event.name === "run_end");
-  assert.equal(chestEvent.properties.playerClass, "Mage");
+  assert.equal(Object.hasOwn(chestEvent.properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(chestEvent.properties, "level"), false);
   assert.equal(chestEvent.properties.status, "poisoned");
+  assert.equal(chestEvent.properties.affixTrapGuard, 0);
   assert.equal(chestEvent.properties.inventoryCapacity, 20);
   assert.equal(endEvent.properties.hpRate, 0.75);
   assert.equal(endEvent.properties.runMaterialCount, 3);
+});
+
+check("trap resolution telemetry records build-owned exploration facts", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackTrapResolution("triggered", {
+    state: { ...decisionState, gameState: "explore" },
+    character: decisionPlayer,
+    source: "floor",
+    trap: { type: "damage", difficulty: 42, position: { x: 1, y: 2 } },
+    action: "disarm",
+    successRate: 55,
+    partialSuccess: true,
+    identified: true,
+    toolId: "TRAP_KIT",
+    toolUsed: true
+  });
+  const event = events.find(candidate => candidate.name === "trap_resolution");
+  assert.equal(event.properties.source, "floor");
+  assert.equal(event.properties.trapType, "damage");
+  assert.equal(event.properties.outcome, "triggered");
+  assert.equal(event.properties.action, "disarm");
+  assert.equal(event.properties.successRate, 55);
+  assert.equal(event.properties.trapDifficulty, 42);
+  assert.equal(event.properties.partialSuccess, true);
+  assert.equal(event.properties.identified, true);
+  assert.equal(event.properties.toolId, "TRAP_KIT");
+  assert.equal(event.properties.toolUsed, true);
+  assert.equal(Object.hasOwn(event.properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(event.properties, "level"), false);
+  assert.equal(Object.hasOwn(event.properties, "agi"), false);
+  assert.equal(Object.hasOwn(event.properties, "luk"), false);
 });
 
 check("chest action fields preserve valid values and coerce malformed input", () => {

@@ -404,7 +404,7 @@ function normalizePendingRewardBundle(bundle) {
       decision: ["take", "leave"].includes(entry.decision) ? entry.decision : null,
       loadoutAction: isRecord(entry.loadoutAction)
         ? {
-          type: ["equip", "socket"].includes(entry.loadoutAction.type) ? entry.loadoutAction.type : "",
+          type: ["equip", "socket", "trial"].includes(entry.loadoutAction.type) ? entry.loadoutAction.type : "",
           actorIdx: Number.isInteger(entry.loadoutAction.actorIdx) ? entry.loadoutAction.actorIdx : 0,
           requestedSlot: typeof entry.loadoutAction.requestedSlot === "string" ? entry.loadoutAction.requestedSlot : ""
         }

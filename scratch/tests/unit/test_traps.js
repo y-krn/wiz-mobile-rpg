@@ -84,7 +84,7 @@ if (calculateSuccessRate(testTrap) !== 0) {
   process.exit(1);
 }
 
-// Add a Thief to the party
+// Every character uses the same floor rule; only run-local equipment can add a bonus.
 state.party = [{
   name: "Robin",
   class: "Thief",
@@ -95,33 +95,31 @@ state.party = [{
   agi: 16,
   status: "ok"
 }];
-// apt: 80 + 5*1.0 + 15 = 100, retained by the calibrated 100% ceiling
-const thiefRate = calculateSuccessRate(testTrap);
-if (thiefRate !== 100) {
-  console.error(`FAIL: Thief lv5 B1 should reach 100, got ${thiefRate}.`);
+const universalRate = calculateSuccessRate(testTrap);
+if (universalRate !== 85) {
+  console.error(`FAIL: universal B1 rate should be 85, got ${universalRate}.`);
   process.exit(1);
 }
 
-// difficulty must no longer affect the rate
+// Trap difficulty is data, while character level/class never enters the formula.
 testTrap.difficulty = 90;
-if (calculateSuccessRate(testTrap) !== 100) {
-  console.error("FAIL: trap.difficulty must not affect disarm rate.");
+if (calculateSuccessRate(testTrap) !== 64) {
+  console.error("FAIL: trap.difficulty should affect the universal disarm rate.");
   process.exit(1);
 }
 
-// pitfall gets the edge bonus: 85 + 20 = 105, clamped to 100
+// pitfall gets the edge bonus: 64 + 20 = 84
 const pitTrap = { ...testTrap, type: "pitfall" };
 const pitRate = calculateSuccessRate(pitTrap);
-if (pitRate !== 100) {
-  console.error(`FAIL: pitfall rate should be 100, got ${pitRate}.`);
+if (pitRate !== 84) {
+  console.error(`FAIL: pitfall rate should be 84, got ${pitRate}.`);
   process.exit(1);
 }
 
-// 2b. trapBonus は宝箱罠とフロア罠の共通ステータス。職業パッシブと装備が効くこと。
-// Thief lv1 / B5: 80 + 1.0 - 8.0 + 15 = 88（clamp外）
+// 2b. trapBonus は宝箱罠とフロア罠の共通 Build stat。
 testTrap.difficulty = 30;
 state.floor = 5;
-const makeThief = equipment => [{
+const makeCharacter = equipment => [{
   name: "Robin",
   class: "Thief",
   level: 1,
@@ -133,10 +131,10 @@ const makeThief = equipment => [{
   equipment
 }];
 
-state.party = makeThief({});
+state.party = makeCharacter({});
 const bareRate = calculateSuccessRate(testTrap);
-if (bareRate !== 88) {
-  console.error(`FAIL: Thief lv1 B5 baseline should be 88, got ${bareRate}.`);
+if (bareRate !== 85) {
+  console.error(`FAIL: universal B5 baseline should be 85, got ${bareRate}.`);
   process.exit(1);
 }
 
@@ -145,31 +143,31 @@ const trapBonusCases = [
   ["base item (THIEF_EYE)", { accessory: "THIEF_EYE" }]
 ];
 for (const [label, equipment] of trapBonusCases) {
-  state.party = makeThief(equipment);
+  state.party = makeCharacter(equipment);
   const rate = calculateSuccessRate(testTrap);
-  if (rate !== 98) {
-    console.error(`FAIL: trapBonus via ${label} should give 98, got ${rate}.`);
+  if (rate !== 95) {
+    console.error(`FAIL: trapBonus via ${label} should give 95, got ${rate}.`);
     process.exit(1);
   }
   console.log(`- trapBonus via ${label}: ${bareRate} -> ${rate}`);
 }
 
-state.party = makeThief({
+state.party = makeCharacter({
   weapon: { baseId: "SHORT_SWORD", identified: true, inscription: { type: "trapBonus", value: 10 } }
 });
 const legacyInscriptionRate = calculateSuccessRate(testTrap);
-if (legacyInscriptionRate !== 88) {
-  console.error(`FAIL: legacy inscription must be ignored while class passive remains, got ${legacyInscriptionRate}.`);
+if (legacyInscriptionRate !== 85) {
+  console.error(`FAIL: legacy inscription must be ignored, got ${legacyInscriptionRate}.`);
   process.exit(1);
 }
 console.log("- legacy inscription: not applied");
 
 // 未鑑定でも装備中の affix 効果は実体へ適用する（表示用 getItemData は秘匿のまま）
-state.party = makeThief({
+state.party = makeCharacter({
   weapon: { baseId: "SHORT_SWORD", identified: false, affixes: [{ type: "trapBonus", value: 10 }] }
 });
 const unidentifiedRate = calculateSuccessRate(testTrap);
-if (unidentifiedRate !== 98) {
+if (unidentifiedRate !== 95) {
   console.error(`FAIL: unidentified trapBonus should apply while equipped, got ${unidentifiedRate}.`);
   process.exit(1);
 }
@@ -186,7 +184,7 @@ state.party = [
 ];
 state.floor = 1;
 
-// Test Damage trap without Thief (no scout damage reduction)
+// Test Damage trap: class does not change damage.
 const dmgTrap = { type: "damage", state: "discovered" };
 triggerTrap(dmgTrap, false);
 let arthurDmg = 20 - state.party[0].hp;
@@ -353,11 +351,11 @@ Math.random = () => 0.8;
 detectAdjacentTraps();
 Math.random = realRandom;
 if (grid[0][1].trap.state !== "discovered") {
-  console.error("FAIL: adjacent trap should be discovered without a scout affix.");
+  console.error("FAIL: adjacent trap should be discovered without a class permission.");
   process.exit(1);
 }
-if (calculateSuccessRate({ type: "damage" }) !== 38) {
-  console.error("FAIL: trapBonus should add 15 points to the B10 disarm rate.");
+if (calculateSuccessRate({ type: "damage" }) !== 52) {
+  console.error("FAIL: trapBonus should add 15 points to the B10 universal disarm rate.");
   process.exit(1);
 }
 console.log("- trapBonus investment raises Fighter disarm rate without detection coupling");
@@ -554,7 +552,7 @@ state.party = [{
 }];
 state.party[0].hp = 20;
 state.logs = [];
-flameRolls = [0.92, 0];
+flameRolls = [0.70, 0];
 Math.random = () => flameRolls.shift() ?? 0;
 try {
   triggerFlameTrap();
@@ -595,7 +593,13 @@ state.party = [{
   hp: 20,
   maxHp: 20,
   status: "ok",
-  equipment: {}
+  equipment: {
+    weapon: {
+      baseId: "SHORT_SWORD",
+      identified: true,
+      affixes: [{ type: "trapGuard", value: 40 }]
+    }
+  }
 }];
 state.logs = [];
 flameRolls = [0.99, 0];
@@ -606,7 +610,7 @@ try {
   Math.random = realFlameRandom;
 }
 if (state.party[0].hp !== 10) {
-  console.error(`FAIL: Fighter trapGuard should reduce 16 flame damage to 10, got ${20 - state.party[0].hp}.`);
+  console.error(`FAIL: equipment trapGuard should reduce 16 flame damage to 10, got ${20 - state.party[0].hp}.`);
   process.exit(1);
 }
 if (!state.logs.some(log => log.includes("熱気の気配")) ||
@@ -618,14 +622,14 @@ if (!state.logs.some(log => log.includes("熱気の気配")) ||
 state.party[0].hp = 20;
 state.party[0].equipment = {};
 state.logs = [];
-flameRolls = [0.34, 0];
+flameRolls = [0.70, 0];
 Math.random = () => flameRolls.shift() ?? 0;
 try {
   triggerFlameTrap();
 } finally {
   Math.random = realFlameRandom;
 }
-if (state.party[0].hp !== 15 || !state.logs.some(log => log.includes("部分回避"))) {
+if (state.party[0].hp !== 12 || !state.logs.some(log => log.includes("部分回避"))) {
   console.error("FAIL: the partial success band should weaken the flame hit.");
   process.exit(1);
 }

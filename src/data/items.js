@@ -51,7 +51,7 @@ export const ITEMS = {
   RING_STR: { id: "RING_STR", name: "力の指輪", type: "accessory", statsBonus: { str: 2 }, desc: "腕力を引き出す指輪。力+2 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["iron"] },
   RING_AGI: { id: "RING_AGI", name: "韋駄天の指輪", type: "accessory", statsBonus: { agi: 1 }, desc: "身のこなしを軽くする指輪。素早さ+1 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["ambush"] },
   RING_LUK: { id: "RING_LUK", name: "幸運の指輪", type: "accessory", statsBonus: { luk: 2 }, desc: "運を呼ぶ指輪。運+2 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["search"] },
-  THIEF_EYE: { id: "THIEF_EYE", name: "盗賊の目", type: "accessory", trapBonus: 10, desc: "罠の癖を見抜く片眼鏡。罠解除+10% [盗・野・忍用]", classes: ["Thief", "Ranger", "Ninja"], tags: ["trap"] },
+  THIEF_EYE: { id: "THIEF_EYE", name: "罠見の片眼鏡", type: "accessory", trapBonus: 10, desc: "罠の癖を見抜く片眼鏡。罠解除+10% [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["trap"] },
   WARD_CHARM: { id: "WARD_CHARM", name: "守護の護符", type: "accessory", affixBonus: { spellGuard: 15 }, desc: "呪文を逸らす守り札。魔法耐性+15% [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["ward"] },
   DRAGON_RING: { id: "DRAGON_RING", name: "竜除けの指輪", type: "accessory", affixBonus: { antiDragon: 20 }, desc: "竜への備えを刻んだ指輪。竜特効+20% [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["dragon"] },
   HOLY_BAND: { id: "HOLY_BAND", name: "退魔の腕輪", type: "accessory", affixBonus: { antiUndead: 20 }, desc: "不死者を退ける腕輪。不死特効+20% [僧・司用]", classes: ["Priest", "Bishop"], tags: ["holy"] },

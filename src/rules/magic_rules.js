@@ -39,7 +39,7 @@ function normalizeRuneSpellKey(rune) {
 }
 
 export function getActiveRuneSpellKeys(char) {
-  if (!char?.startingKit || !getEquippedMedium(char)) return [];
+  if (!getEquippedMedium(char)) return [];
   const mediumKey = getMediumIdentity(getEquippedMedium(char).item);
   if (char.mediumState?.mediumKey !== mediumKey) return [];
   const seen = new Set();
@@ -50,9 +50,7 @@ export function getActiveRuneSpellKeys(char) {
 }
 
 export function getActiveSpellKeys(char) {
-  return char?.startingKit
-    ? getActiveRuneSpellKeys(char)
-    : (Array.isArray(char?.spells) ? [...char.spells] : []);
+  return getActiveRuneSpellKeys(char);
 }
 
 export function getRuneSpellKey(rune) {

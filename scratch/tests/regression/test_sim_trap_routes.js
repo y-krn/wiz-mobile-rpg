@@ -24,7 +24,14 @@ function run() {
     runIndex: 32,
     seriesId: "issue-933-route",
     scoringProfile: null,
-    scenario,
+    scenario: {
+      ...scenario,
+      // Keep this route fixture in the hard-trap branch without restoring a
+      // class-specific exploration permission. The override is universal and
+      // represents a run-local calibration, so the detour assertions remain
+      // independent of class and level.
+      trapOverride: { trapBonus: { universalBase: 40 } }
+    },
     encounterRateOverride: () => 0.1
   });
 }
@@ -64,5 +71,18 @@ assert.equal(
 assert.ok(route.detourNormalEncounters > 0, "detours must process normal encounters");
 assert.ok(route.detourOtherTrapEncounters > 0, "detours must process other floor traps normally");
 assert.ok(route.decisions.every(decision => decision.selected === "detour"));
+const flameObservations = result.trapResolutionObservations.filter(
+  observation => observation.source === "flame"
+);
+assert.equal(flameObservations.length, result.flameTrapActivations);
+assert.equal(
+  flameObservations.filter(observation => observation.outcome === "disarmed").length,
+  result.flameTrapDisarmed
+);
+assert.equal(
+  flameObservations.filter(observation => observation.outcome === "triggered").length,
+  result.flameTrapActivations - result.flameTrapDisarmed
+);
+assert.ok(flameObservations.every(observation => observation.action === "disarm"));
 
 console.log("[PASS] #933 known floor traps use deterministic ordinary route selection diagnostics");

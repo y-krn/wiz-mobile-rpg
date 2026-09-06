@@ -1,7 +1,4 @@
-import {
-  FORCE_DAMAGE_MULTIPLIER,
-  SCOUT_TRAP_DAMAGE_MULTIPLIER
-} from "./trap_rules.js";
+import { FORCE_DAMAGE_MULTIPLIER } from "./trap_rules.js";
 import { getCharMaxMp } from "./character_stats.js";
 
 const CHEST_POISON_NEEDLE_DAMAGE = Object.freeze({ full: 12, weakened: 6 });
@@ -35,10 +32,6 @@ export function applyTrapGuardToEffect(
       reduceTrapDamage(damage, trapGuardByParty[index])
     )
   };
-}
-
-export function hasTrapScout(party = []) {
-  return party.some(char => ["Thief", "Ninja"].includes(char?.class) && char?.hp > 0);
 }
 
 export function resolveChestTrapEffect({
@@ -180,12 +173,8 @@ function getFloorTrapDamageRange(trapType, floor) {
   return null;
 }
 
-function getFloorTrapPowerMultiplier({ trapType, party, weakened }) {
-  let powerMultiplier = weakened ? FORCE_DAMAGE_MULTIPLIER : 1;
-  if (hasTrapScout(party) && (trapType === "pitfall" || !weakened)) {
-    powerMultiplier *= SCOUT_TRAP_DAMAGE_MULTIPLIER;
-  }
-  return powerMultiplier;
+function getFloorTrapPowerMultiplier({ weakened }) {
+  return weakened ? FORCE_DAMAGE_MULTIPLIER : 1;
 }
 
 // resolveFloorTrapEffectと同じ乱数域を全結果で平均し、期待被害だけ返す。
@@ -200,8 +189,6 @@ export function calculateFloorTrapExpectedDamage({
   if (!range) return party.map(() => 0);
 
   const powerMultiplier = getFloorTrapPowerMultiplier({
-    trapType: trap.type,
-    party,
     weakened
   });
   const rollCount = range.max - range.min + 1;
@@ -220,18 +207,14 @@ export function resolveFloorTrapEffect({
   weakened = false,
   rng = Math.random
 }) {
-  const scoutMitigated = hasTrapScout(party);
   const effect = {
     type: trap?.type,
     partyDamage: party.map(() => 0),
     partyMpDrain: party.map(() => 0),
     alarm: trap?.type === "alarm",
-    alarmWeakened: weakened,
-    scoutMitigated
+    alarmWeakened: weakened
   };
   const powerMultiplier = getFloorTrapPowerMultiplier({
-    trapType: trap?.type,
-    party,
     weakened
   });
 

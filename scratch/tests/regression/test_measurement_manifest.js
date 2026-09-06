@@ -7,8 +7,8 @@ import {
 
 const validReport = {
   measurement: {
-    schemaVersion: 1,
-    runnerVersion: "standard-v1",
+    schemaVersion: 2,
+    runnerVersion: "standard-v2-build-snapshot",
     profile: "standard-v1",
     comparisonKey: "0123456789abcdef",
     productionBaselineSha: "a".repeat(40),
@@ -52,12 +52,12 @@ assert.equal(valid.measurement.workingTreeClean, true);
 assert.equal(valid.measuredAt, "2026-08-26T06:00:00.000Z");
 assert.match(renderMeasurementManifestMarkdown(valid), /workflow run: \[123456789\]/);
 
-const classNames = ["Fighter", "Thief"];
+const fixtureIds = ["light-shield", "heavy-two-hand"];
 const classReport = {
   ...validReport,
   measurement: {
     ...validReport.measurement,
-    configuration: { ...validReport.measurement.configuration, classNames }
+    configuration: { ...validReport.measurement.configuration, fixtureIds }
   },
   cases: [{
     scenarioId: "workshop-empty",
@@ -65,23 +65,23 @@ const classReport = {
     depths: [{
       depth: 5,
       runs: 500,
-      metricsByClass: Object.fromEntries(classNames.map(className => [className, {}]))
+      metricsByFixtureId: Object.fromEntries(fixtureIds.map(fixtureId => [fixtureId, {}]))
     }]
   }]
 };
 const validClassReport = createMeasurementManifest({ measurementReport: classReport, ...metadata });
 assert.equal(validClassReport.status, "valid");
-assert.deepEqual(validClassReport.measurement.classNames, classNames);
-assert.match(renderMeasurementManifestMarkdown(validClassReport), /classes: Fighter, Thief/);
+assert.deepEqual(validClassReport.measurement.fixtureIds, fixtureIds);
+assert.match(renderMeasurementManifestMarkdown(validClassReport), /build fixtures: light-shield, heavy-two-hand/);
 const missingClass = createMeasurementManifest({
   measurementReport: {
     ...classReport,
-    cases: [{ ...classReport.cases[0], depths: [{ ...classReport.cases[0].depths[0], metricsByClass: { Fighter: {} } }] }]
+    cases: [{ ...classReport.cases[0], depths: [{ ...classReport.cases[0].depths[0], metricsByFixtureId: { "light-shield": {} } }] }]
   },
   ...metadata
 });
 assert.equal(missingClass.status, "invalid");
-assert.match(missingClass.invalidReasons.join("; "), /configured classes/);
+assert.match(missingClass.invalidReasons.join("; "), /configured build fixtures/);
 
 const diagnostic = createMeasurementManifest({
   measurementReport: validReport,

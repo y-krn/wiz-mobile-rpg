@@ -27,7 +27,7 @@ const armor = {
   knowledgeStage: "discovery",
   curseSuspected: true,
   lootRole: "reinforce",
-  affixes: [{ id: "CORE_OPENER", kind: "core" }]
+  affixes: [{ id: "CORE_OPENER", kind: "core", buildAxis: "main" }]
 };
 
 const state = {

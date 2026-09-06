@@ -126,6 +126,7 @@ for (const viewport of VIEWPORTS) {
       expect(layout.overflow, `${mode} visible overflow`).toEqual([]);
       expect(layout.viewportMeta, `${mode} keeps browser zoom available`).not.toMatch(/(?:maximum-scale|user-scalable\s*=\s*no)/i);
       for (const button of layout.buttons) {
+        expect(button.rect.width, `${mode} ${button.id || button.text} tap width`).toBeGreaterThanOrEqual(44);
         expect(button.rect.height, `${mode} ${button.id || button.text} tap height`).toBeGreaterThanOrEqual(44);
       }
       expect(layout.header.top, `${mode} header clears safe area`).toBeGreaterThanOrEqual(59);

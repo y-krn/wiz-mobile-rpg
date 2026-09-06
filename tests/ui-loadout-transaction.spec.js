@@ -67,6 +67,61 @@ test('canceling a dirty loadout draft leaves the live run untouched @smoke', asy
   })).toEqual({ weapon: 'DAGGER', inventory: ['SHORT_SWORD'], steps: 4 });
 });
 
+test('unknown equipment uses an explicit irreversible trial action @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { openEquipOverlay } = await import('/src/equip.js');
+    const character = createSoloCharacter('Fighter');
+    character.equipment.weapon = 'DAGGER';
+    state.party = [character];
+    state.inventory = [{
+      kind: 'equipment', instanceId: 'ui-unknown-trial', baseId: 'SHORT_SWORD',
+      rarity: 'rare', level: 2, identified: false, halfIdentified: false,
+      knowledgeStage: 'discovery', trialCount: 0, tags: ['blade'],
+      hintTags: ['blade'], observedHintTags: [],
+      curseEffectId: 'curse_blood_thirst', cursePower: 1, curseSuspected: true,
+      affixes: []
+    }];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'trial-ui' };
+    state.gameState = 'explore';
+    openEquipOverlay(0);
+  });
+
+  await page.locator('.equip-bag-section .equip-item-row', { hasText: '未鑑定の装備品' }).click();
+  await expect(page.locator('.equip-detail-content')).toContainText('知識段階: 発見');
+  await expect(page.getByRole('button', { name: '試す' })).toContainText('探索時間が進む');
+  await page.getByRole('button', { name: '試す' }).click();
+  expect(await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return { weapon: state.party[0].equipment.weapon, steps: state.currentRun.steps };
+  })).toEqual({ weapon: 'DAGGER', steps: 0 });
+
+  await expect(page.locator('#btn-equip-commit')).toContainText('試す内容を確定する（探索時間が進む）');
+  await page.getByRole('button', { name: '試す内容を確定する（探索時間が進む）' }).click();
+  await expect(page.locator('#equip-overlay')).toBeHidden();
+  await expect.poll(() => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const item = state.party[0].equipment.weapon;
+    return {
+      item: item?.instanceId || item,
+      knowledgeStage: item?.knowledgeStage,
+      trialCount: item?.trialCount,
+      curseLocked: item?.curseLocked,
+      returned: state.inventory.map(value => value?.instanceId || value),
+      steps: state.currentRun.steps
+    };
+  })).toEqual({
+    item: 'ui-unknown-trial',
+    knowledgeStage: 'trial',
+    trialCount: 1,
+    curseLocked: true,
+    returned: ['DAGGER'],
+    steps: 1
+  });
+});
+
 test('committing outside exploration does not advance exploration time @smoke', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(async () => {

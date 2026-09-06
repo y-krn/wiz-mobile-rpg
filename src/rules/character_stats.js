@@ -102,7 +102,7 @@ export function getPhysicalHitChance(char, target) {
   const agiBonus = Number.isFinite(agi)
     ? (agi - 10) * PHYSICAL_HIT_AGI_SCALE
     : 0;
-  const physicalAccuracy = getCharCoreParams(char, "CORE_PHYSICAL_ACCURACY")?.hitChanceBonus || 0;
+  const physicalAccuracy = getCharAffixSum(char, "physicalAccuracy") / 100;
   const behaviorHitChanceBonus = getWeaponBehaviorProfile(char).hitChanceBonus;
   const chance = 1 - evasionChance + agiBonus + physicalAccuracy + behaviorHitChanceBonus;
   return Math.max(PHYSICAL_HIT_CHANCE_MIN, Math.min(1, chance));
@@ -409,8 +409,6 @@ export function getCharDerivedStats(char, { floor = 1 } = {}) {
     ),
     speed: getCharAgi(char),
     trap: calculateDisarmRate({
-      className: char.class,
-      level: char.level,
       floor,
       affixBonus: trapAffixBonus
     }),

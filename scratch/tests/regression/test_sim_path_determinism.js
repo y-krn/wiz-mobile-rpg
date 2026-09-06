@@ -59,10 +59,13 @@ assert.ok(!CHEST_ITEM_CANDIDATES_BY_FLOOR[2].includes("TOWN_PORTAL"));
 assert.ok(CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[2].includes("TOWN_PORTAL"));
 
 const dropRun = simulateRun({
-  className: "Thief",
+  // Use the shared compatibility baseline; trap exploration is Build-owned.
+  className: "Fighter",
   startFloor: 1,
   targetDepth: 6,
-  runIndex: 0,
+  // The universal exploration resolver changes the old fixed fixture path;
+  // this adjacent deterministic run still exercises the fromDrop branch.
+  runIndex: 1,
   seriesId: "issue-894-drop",
   scoringProfile: null,
   scenario: { chestTrapPolicy: "legacy" }
