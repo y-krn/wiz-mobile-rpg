@@ -1,16 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-<title>DEPTHWARD — descent gate</title>
-<defs>
-<linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
-<stop stop-color="#15191F"/><stop offset="1" stop-color="#080A0D"/>
-</linearGradient>
-<linearGradient id="metal" x1="288" y1="210" x2="736" y2="814" gradientUnits="userSpaceOnUse">
-<stop stop-color="#F2F1EC"/><stop offset="1" stop-color="#A9AFB4"/>
-</linearGradient>
-</defs>
-<rect width="1024" height="1024" fill="url(#bg)"/>
-<path d="M278 236H746V320H362V712H278V236Z" fill="url(#metal)"/>
-<path d="M662 320H746V712H662V320Z" fill="url(#metal)"/>
-<path d="M390 500L512 626L634 500L694 558L512 746L330 558L390 500Z" fill="#D8A35D"/>
-<path d="M444 392H580V526L512 596L444 526V392Z" fill="#090B0E"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>DEPTHWARD</title>
+  <rect width="64" height="64" rx="10" fill="#0B0D10"/>
+  <path d="M15 13H49V20H22V45H15V13Z" fill="#F1F0EB"/>
+  <path d="M42 20H49V45H42V20Z" fill="#F1F0EB"/>
+  <path d="M24 31L32 39L40 31L45 36L32 49L19 36L24 31Z" fill="#D8A35D"/>
+  <path d="M28 24H36V33L32 37L28 33V24Z" fill="#0B0D10"/>
 </svg>

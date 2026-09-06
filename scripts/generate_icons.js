@@ -26,6 +26,7 @@ try {
   await browser.close();
 }
 
-// Keep the favicon byte-for-byte aligned with the SVG master.
-await fs.copyFile(masterPath, path.join(publicDir, "favicon.svg"));
-console.log(`Generated ${outputs.length} raster icons and favicon.svg from public/icon.svg`);
+// favicon.svg is intentionally maintained as a dedicated small-size variant.
+// Do not overwrite it from icon.svg: browser tabs need heavier, simpler geometry
+// than home-screen/PWA icons to remain legible at 16–32 px.
+console.log(`Generated ${outputs.length} raster app icons from public/icon.svg; favicon assets are maintained separately`);
