@@ -4,6 +4,7 @@ import { menuContext, menuHistory } from "../navigation.js";
 import { resetEquipState } from "../equip.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 import { isUsableCombatState } from "./view_state.js";
+import { normalizeRecords } from "./records_state.js";
 
 const STABLE_PERSISTED_GAME_STATES = new Set([
   "town", "explore", "combat", "result", "gameover", "victory"
@@ -120,7 +121,7 @@ export function createSavePayload() {
     floorChestsTotal: state.floorChestsTotal,
     firstKills: state.firstKills,
     currentRun: state.currentRun,
-    records: state.records,
+    records: normalizeRecords(state.records),
     unlockedMilestones: state.unlockedMilestones,
     runHistory: state.runHistory,
     deathLogs: state.deathLogs,

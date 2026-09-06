@@ -10,7 +10,6 @@ test('Castle presents the adventure chronicle before stats', async ({ page }) =>
     state.records = {
       deepestRetreat: 8,
       deepestDeath: 5,
-      deepestByClass: { Fighter: 8 },
       totalRuns: 2,
       personalBests: { deepestFloor: 8, kills: 14, chestsOpened: 5, lootCount: 7, goldEarned: 0 },
       adventureStats: {
@@ -25,7 +24,7 @@ test('Castle presents the adventure chronicle before stats', async ({ page }) =>
     state.runHistory = [
       {
         runNumber: 2,
-        className: 'Fighter',
+        startingKit: 'scout',
         deepestFloor: 8,
         kills: 14,
         chestsOpened: 5,
@@ -36,7 +35,7 @@ test('Castle presents the adventure chronicle before stats', async ({ page }) =>
       },
       {
         runNumber: 1,
-        className: 'Fighter',
+        startingKit: 'scout',
         deepestFloor: 5,
         kills: 7,
         chestsOpened: 2,
@@ -54,6 +53,7 @@ test('Castle presents the adventure chronicle before stats', async ({ page }) =>
   await expect(records).toBeVisible();
   await expect(records.locator('.adventure-chronicle')).toContainText('第1回');
   await expect(records.locator('.adventure-recent-history')).toContainText('帰還の門を選び');
+  await expect(records.locator('.adventure-recent-history')).toContainText('開始キット');
   await expect(records.locator('.adventure-recent-history')).toContainText('火炎の罠に倒れた');
   await expect(records.locator('.adventure-record-section').nth(2)).toContainText('最多撃破');
   await expect(records.locator('.adventure-record-section').nth(3)).toContainText('B5Fを越えています');
@@ -66,7 +66,7 @@ test('Castle adventure records tolerate an empty history', async ({ page }) => {
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
-    state.records = { deepestRetreat: 0, deepestDeath: 0, deepestByClass: {}, totalRuns: 0 };
+    state.records = { deepestRetreat: 0, deepestDeath: 0, totalRuns: 0 };
     state.runHistory = [];
     state.deathLogs = [];
     state.gameState = 'town';

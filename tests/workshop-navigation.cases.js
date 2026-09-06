@@ -12,7 +12,6 @@ test('Castle to workshop transition keeps the workshop grid readable', async ({ 
     state.records = {
       deepestRetreat: 4,
       deepestDeath: 3,
-      deepestByClass: { Fighter: 2 },
       totalRuns: 7,
     };
     state.runHistory = [
@@ -42,7 +41,7 @@ test('Castle to workshop transition keeps the workshop grid readable', async ({ 
   expect(castleLayout.columnCount).toBe(1);
   expect(castleLayout.summaryCards).toBe(4);
   expect(castleLayout.abandonRecord).toBe('断念2回');
-  expect(castleLayout.classRecords).toContain('戦士 B2F');
+  expect(castleLayout.classRecords).toBeUndefined();
   expect(castleLayout.deathLogsButton).toBe('全滅ログ確認');
 
   await page.locator('#btn-submenu-back').click();

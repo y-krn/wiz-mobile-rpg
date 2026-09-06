@@ -26,6 +26,14 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function runFactLabel(run) {
+  const startingKit = run?.startingKit ? getStartingKit(run.startingKit)?.name : null;
+  if (startingKit) return `開始キット: ${startingKit}`;
+  const representative = run?.representativeItem?.name || run?.meaningfulItemHistory?.[0]?.name;
+  if (representative) return `代表的な戦果: ${representative}`;
+  return "潜行の事実を記録";
+}
+
 function getLastRunSummary(run) {
   if (!run) {
     return `
@@ -33,13 +41,12 @@ function getLastRunSummary(run) {
     `;
   }
 
-  const classLabel = run.startingKit ? getStartingKit(run.startingKit)?.name || "開始キット" : "冒険者";
   const outcome = outcomeLabel(run);
   const lost = outcome === "死亡" || outcome === "断念";
   return `
     <div class="town-last-run-status ${outcomeClass(run)}">
       <strong>${escapeHtml(outcome)}</strong>
-      <span>${escapeHtml(classLabel)} / ${floorLabel(run.deepestFloor)}まで</span>
+      <span>${floorLabel(run.deepestFloor)}まで / ${escapeHtml(runFactLabel(run))}</span>
     </div>
     <p class="town-last-run-fact">
       ${lost ? "物は失っても、記録と知識は残っています。" : "戦果を確定し、次の潜行へ進めます。"}

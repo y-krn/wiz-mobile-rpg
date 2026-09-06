@@ -79,14 +79,14 @@ check("役割討伐は分裂体を除外し、達成報酬を一度だけ付与�
   assert.equal(run.materials["毒腺"], 3);
 });
 
-check("撤退と死亡の最深を分離し、死亡ランも総潜行・クラス記録へ確定する", () => {
-  const retreat = finalizeRunRecords({}, { deepestFloor: 8 }, "retreat", "Fighter");
+check("撤退と死亡の最深を分離し、死亡ランも総潜行へ確定する", () => {
+  const retreat = finalizeRunRecords({}, { deepestFloor: 8 }, "retreat");
   assert.equal(retreat.records.deepestRetreat, 8);
   assert.equal(retreat.records.deepestDeath, 0);
-  const death = finalizeRunRecords(retreat.records, { deepestFloor: 11 }, "death", "Mage");
+  const death = finalizeRunRecords(retreat.records, { deepestFloor: 11 }, "death");
   assert.equal(death.records.deepestRetreat, 8);
   assert.equal(death.records.deepestDeath, 11);
-  assert.equal(death.records.deepestByClass.Mage, 11);
+  assert.equal(Object.hasOwn(death.records, "deepestByClass"), false);
   assert.equal(death.records.totalRuns, 2);
   assert.equal(death.updated, true);
 });

@@ -69,8 +69,7 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
   const recordResult = finalizeRunRecords(
     state.records,
     run,
-    outcome,
-    null
+    outcome
   );
   state.records = recordResult.records;
   run.recordResult = recordResult;

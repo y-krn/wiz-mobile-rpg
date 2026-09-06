@@ -64,7 +64,6 @@ for (const vp of VIEWPORTS) {
       state.records = {
         deepestRetreat: 12,
         deepestDeath: 9,
-        deepestByClass: { Mage: 12 },
         totalRuns: 7,
       };
       updateUI();
@@ -110,7 +109,7 @@ for (const vp of VIEWPORTS) {
       run.materialsBeforeBanking = { '獣の牙': 5, '鉄片': 3 };
       run.bankedMaterials = { '獣の牙': 5, '鉄片': 3 };
       run.codexRewards = { '霊粉': 1 };
-      run.recordResult = { updated: true, updates: ['撤退最深', 'Mage最深'], depth: 13 };
+      run.recordResult = { updated: true, updates: ['撤退最深', '最深到達記録'], depth: 13 };
       state.gameState = 'result';
       updateUI();
     });

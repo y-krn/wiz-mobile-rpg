@@ -10,7 +10,6 @@ test('Result leads with run memory and keeps loot ownership explicit', async ({ 
     run.returnReason = 'milestone_portal';
     run.outcome = 'retreat';
     run.deepestFloor = 5;
-    run.characterClass = 'Fighter';
     run.itemsFound = ['HEAL_POTION'];
     run.equipmentFound = [{ kind: 'equipment', baseId: 'SHORT_SWORD', identified: false, unidentifiedName: '未鑑定の短剣' }];
     run.returnedTownItems = ['TRAP_KIT'];
@@ -94,7 +93,7 @@ test('Town home is organized as previous run, next descent, and accumulated know
     const { updateUI } = await import('/src/ui.js');
     state.gameState = 'town';
     state.currentRun = null;
-    state.runHistory = [{ outcome: 'death', returnReason: 'gameover', className: 'Mage', deepestFloor: 7 }];
+    state.runHistory = [{ outcome: 'death', returnReason: 'gameover', startingKit: 'scout', deepestFloor: 7 }];
     updateUI();
   });
 
@@ -102,6 +101,7 @@ test('Town home is organized as previous run, next descent, and accumulated know
   await expect(home).toBeVisible();
   await expect(home.locator('.town-home-section').nth(0)).toContainText('前回の冒険');
   await expect(home.locator('.town-home-section').nth(0)).toContainText('死亡');
+  await expect(home.locator('.town-home-section').nth(0)).toContainText('開始キット');
   await expect(home.locator('.town-home-section').nth(1)).toContainText('次の潜行');
   await expect(home.locator('#town-next-run-title')).toHaveText('次の潜行に備える');
   await expect(home.locator('.town-home-section').nth(2)).toContainText('蓄積した記録');

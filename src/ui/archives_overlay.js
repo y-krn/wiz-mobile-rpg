@@ -1,4 +1,4 @@
-import { state, createDefaultCodex } from "../state.js";
+import { state, createDefaultCodex, getStartingKit } from "../state.js";
 import { getMonsterResistanceStatus, getAffixDefinition, MONSTERS, ITEMS } from "../data.js";
 import { updateUI } from "./ui_root.js";
 import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
@@ -359,6 +359,7 @@ export function getRunHistoryHtml() {
     const outcomeColor = getRunOutcomeColor(h);
     const representative = h.representativeItem;
     const returnProcessing = h.returnProcessing || {};
+    const startingKit = h.startingKit ? getStartingKit(h.startingKit)?.name : null;
     
     html += `
       <div style="background-color: #1a1a24; border: 1px solid #333; border-radius: 4px; padding: 6px 8px;">
@@ -370,6 +371,7 @@ export function getRunHistoryHtml() {
           <div>到達階: B${h.deepestFloor}F</div>
           <div>撃破数: ${h.kills} 匹</div>
           <div>宝箱開封: ${h.chestsOpened} 個</div>
+          <div>出発: ${startingKit || "開始時情報なし"}</div>
           <div>持帰素材: ${Object.values(h.bankedMaterials || {}).reduce((sum, quantity) => sum + quantity, 0)} 個</div>
           <div>代表品: ${representative ? `${representative.name}（${representative.status === "lost" ? "喪失" : representative.status === "rescued" ? "救出" : representative.status === "returned" ? "帰還" : "観測"}）` : "なし"}</div>
           <div>物品: 帰還${returnProcessing.returnedObjectCount || 0} / 喪失${returnProcessing.lostObjectCount || 0}</div>
