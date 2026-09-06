@@ -96,7 +96,7 @@ to verify the change.
 | `qa-regression` | `package.json`, changed files, relevant `scratch/tests/*/test_*.js` or `tests/ui-*.spec.js` | Direct imports of changed files and failing test targets |
 | `mobile-ui-ux` | Relevant `src/styles/*.css`, affected UI module or overlay module, `tests/ui-*.spec.js` | `src/style.css` import order, `src/ui.js`, `src/ui/*`, `src/menu.js`, `src/menu/*`, `src/combat_ui/*`, `src/navigation.js`, screenshots or browser observations |
 | `game-logic` | Changed mechanic module from the lookup table | `src/state.js`, `src/state/*`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*`, direct caller/callee modules |
-| `balance-simulation` | `src/data.js`, `src/data/*`, `src/combat_logic.js`, `src/combat_logic/*`, changed reward/enemy/map module | Relevant scratch simulation or deterministic test |
+| `balance-simulation` | `.agents/balance-simulation.md`, then the changed source path from this map | Load `.agents/skills/balance-simulation/SKILL.md` only when measuring; executable runner/manifest/provenance checks under `scratch/` when the harness is involved |
 | `content-design` | `src/data.js`, `src/data/*`, and changed user-facing text | Affected UI module and `balance-simulation` lens if values change progression |
 
 ## Expansion Rules

@@ -24,8 +24,11 @@ touches a facade, inspect the concrete module before drawing conclusions.
 
 `.agents/game-logic.md` defines durable domain invariants: what must remain
 true. `.agents/qa-regression.md` defines verification strategy: how to prove
-those invariants and cover relevant failure classes. Source and tests own the
-current implementation details and exact scenario inventory.
+those invariants and cover relevant failure classes. `.agents/balance-simulation.md`
+defines durable balance principles and claim/evidence boundaries. The
+conditional `.agents/skills/balance-simulation/SKILL.md` defines how to perform
+a measurement; source, manifests, scripts, and tests own the current executable
+contract and exact scenario inventory.
 
 ## Static check ownership
 
