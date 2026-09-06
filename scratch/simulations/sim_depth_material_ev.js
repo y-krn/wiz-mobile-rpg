@@ -2321,6 +2321,8 @@ function createStage15FloorTelemetry(floor) {
     normalAttackActions: 0,
     defensiveSupportActions: 0,
     itemActions: 0,
+    guardActions: 0,
+    fleeActions: 0,
     failedNoopActions: 0,
     rounds: 0,
     enemyActions: 0,
@@ -2471,6 +2473,8 @@ function recordStage15Encounter(metrics, encounter) {
   floorTelemetry.normalAttackActions += encounter.normalAttacks;
   floorTelemetry.defensiveSupportActions += encounter.defensiveSupportActions;
   floorTelemetry.itemActions += encounter.itemActions;
+  floorTelemetry.guardActions += encounter.guardActions;
+  floorTelemetry.fleeActions += encounter.fleeActions;
   floorTelemetry.failedNoopActions += encounter.failedNoopActions;
   floorTelemetry.rounds += encounter.rounds;
   floorTelemetry.enemyActions += encounter.enemyActions;
@@ -7217,6 +7221,8 @@ function runEncounter(
         normalAttacks: 0,
         defensiveSupportActions: 0,
         itemActions: 0,
+        guardActions: 0,
+        fleeActions: 0,
         failedNoopActions: 0,
         combatMpSpent: 0,
         insufficientMpDecisionCount: 0,
@@ -7554,6 +7560,9 @@ function runEncounter(
         stage15Encounter.insufficientMpNormalAttackRounds += Number(Boolean(pressureEvent?.mpBlocked));
       } else if (action.type === "item") {
         stage15Encounter.itemActions++;
+        stage15Encounter.guardActions += Number(action.itemKey === "GUARD_POTION");
+      } else if (action.type === "run") {
+        stage15Encounter.fleeActions++;
       } else {
         stage15Encounter.failedNoopActions++;
       }
@@ -8360,9 +8369,14 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
     hpThreshold: PORTAL_HP_THRESHOLD,
     maxHealPotions: PORTAL_MAX_HEAL_POTIONS,
     hpRate: character.hp / Math.max(1, getCharMaxHp(character)),
+    mpRate: character.mp / Math.max(1, getCharMaxMp(character)),
     healPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
     greaterHealPotions: state.inventory.filter(item => item === "GREATER_HEAL").length,
     recoveryPotions,
+    inventorySlots: state.inventory.length,
+    inventoryFreeSlots: Math.max(0, 20 - state.inventory.length),
+    unconfirmedObjectLootCount: null,
+    unconfirmedObjectLootValueProxy: null,
     carriedMaterials: totalMaterials(state.currentRun.materials)
   });
   return true;
@@ -12263,6 +12277,144 @@ function createRunDiagnosticsRecord(state, outcome, metrics, terminationReason) 
   };
 }
 
+function sumNumericObjectValues(value) {
+  return Object.values(value || {}).reduce((sum, amount) => sum + (Number(amount) || 0), 0);
+}
+
+function createBuildPaymentRunSnapshot(state, metrics) {
+  const stage = metrics.stage15Diagnostics?.byFloor || {};
+  const actionCounts = {
+    attack: 0,
+    spell: 0,
+    guard: 0,
+    item: 0,
+    flee: 0,
+    noop: 0
+  };
+  Object.values(stage).forEach(floor => {
+    actionCounts.attack += floor.normalAttackActions || 0;
+    actionCounts.spell += floor.spellActions || 0;
+    actionCounts.guard += floor.guardActions || 0;
+    actionCounts.item += Math.max(0, (floor.itemActions || 0) - (floor.guardActions || 0));
+    actionCounts.flee += floor.fleeActions || 0;
+    actionCounts.noop += floor.failedNoopActions || 0;
+  });
+  const mitigations = metrics.combatFormulaTelemetry?.mitigations || [];
+  const guardMitigations = mitigations.filter(mitigation => mitigation.type === "physGuard");
+  const statusResistanceEvents = sumNumericObjectValues(
+    metrics.killHeal?.enemyStatusGrammar?.resistedByEnemyFloor
+  );
+  const swaps = (metrics.equipmentTelemetry || []).filter(event => event.type === "swap");
+  const resolverBuild = metrics.buildSnapshot || {};
+  const activeRuneIds = resolverBuild.activeRuneSpellIds || [];
+  const runeCastCounts = Object.fromEntries(
+    activeRuneIds.map(runeId => [runeId, metrics.spellUsage?.[runeId]?.applied || 0])
+  );
+  const explorationSupportValues = resolverBuild.explorationSupportValues || {};
+  const supportFiringById = metrics.coreObservations.supportActivationCounts || {};
+  const supportById = Object.fromEntries(
+    Object.entries(metrics.supportAffixFoundById).map(([id, exposure]) => ({
+      id,
+      exposure,
+      firing: supportFiringById[id] || 0,
+      dead: Number((supportFiringById[id] || 0) === 0)
+    })).map(({ id, ...values }) => [id, values])
+  );
+  const observedExplorationUse = (supportId, count) =>
+    Number(explorationSupportValues[supportId] || 0) > 0 ? count : 0;
+  const explorationSupportObservedUse = {
+    trapBonus: observedExplorationUse("trapBonus", metrics.trapActivations || 0),
+    trapGuard: observedExplorationUse("trapGuard", metrics.trapActivations || 0),
+    treasureSense: observedExplorationUse("treasureSense", metrics.chestsOpened || 0),
+    arcaneSense: observedExplorationUse("arcaneSense", metrics.secretSearchAttempts || 0),
+    hearRange: observedExplorationUse("hearRange", metrics.specialCellsDetected || 0),
+    traceRead: observedExplorationUse("traceRead", metrics.secretSearchAttempts || 0),
+    materialFind: observedExplorationUse(
+      "materialFind",
+      metrics.materialSources ? sumNumericObjectValues(metrics.materialSources) : 0
+    ),
+    identifyDiscount: observedExplorationUse("identifyDiscount", metrics.identificationCount || 0)
+  };
+  return {
+    actionCounts,
+    combatCount: state.currentRun.battles,
+    combatRounds: metrics.combatRounds,
+    damageTakenHp: metrics.combatDamageHp,
+    healingHp: metrics.recoveryHealing.total.actualHp + metrics.diosHealingHp +
+      metrics.stairsHealingHp + metrics.campHealingHp + metrics.extraCampHealingHp,
+    mpSpent: metrics.mpConsumed,
+    mpStarvationEvents: metrics.mpPressure.combat.total.mpBlocked || 0,
+    guardMitigationHp: guardMitigations.reduce(
+      (sum, mitigation) => sum + Math.max(0, (mitigation.before || 0) - (mitigation.after || 0)),
+      0
+    ),
+    guardMitigationEvents: guardMitigations.length,
+    statusMitigationEvents: statusResistanceEvents,
+    statusMitigationSource: "enemyStatusGrammar.resistedByEnemyFloor",
+    runeCastCounts,
+    runeSlots: {
+      capacity: resolverBuild.runeSlotCapacity || 0,
+      active: activeRuneIds.length,
+      unused: Math.max(0, (resolverBuild.runeSlotCapacity || 0) - activeRuneIds.length)
+    },
+    ownership: {
+      core: {
+        exposure: metrics.coreEquipmentFound,
+        adopted: metrics.coreEverEquippedIds.size,
+        firing: sumNumericObjectValues(metrics.coreObservations.coreActivationCounts)
+      },
+      support: {
+        exposure: sumNumericObjectValues(metrics.supportAffixFoundById),
+        adopted: Object.values(supportById).filter(values => values.firing > 0).length,
+        firing: sumNumericObjectValues(metrics.coreObservations.supportActivationCounts),
+        dead: Object.values(supportById).filter(values => values.dead).length,
+        byId: supportById
+      },
+      explorationSupportValues: { ...explorationSupportValues },
+      explorationSupportObservedUse
+    },
+    loot: {
+      equipmentExposure: metrics.equipmentFound,
+      equipmentAdopted: swaps.length,
+      equipmentDiscarded: Math.max(0, metrics.equipmentFound - swaps.length),
+      buildShiftCount: swaps.filter(event => {
+        const before = new Set(event.oldMainAxisIds || []);
+        const after = new Set(event.candidateMainAxisIds || []);
+        return before.size !== after.size || [...before].some(id => !after.has(id));
+      }).length,
+      finalBagSlots: state.inventory.length,
+      rune: {
+        status: "not_modeled",
+        reason: "canonical simulator has fixture Rune ownership but no production object-Rune loot lifecycle"
+      },
+      core: {
+        status: "equipment_affix_observed",
+        exposure: metrics.coreEquipmentFound,
+        adopted: metrics.coreEverEquippedIds.size
+      },
+      support: {
+        status: "equipment_affix_observed",
+        exposure: sumNumericObjectValues(metrics.supportAffixFoundById),
+        adopted: Object.values(supportById).filter(values => values.firing > 0).length,
+        dead: Object.values(supportById).filter(values => values.dead).length,
+        byId: supportById
+      }
+    },
+    portal: {
+      pushDecisions: metrics.milestonePortalVisits - metrics.milestonePortalRetreats,
+      returnDecisions: metrics.townPortalsUsed,
+      wingAcquisitions: metrics.merchantWingsPurchased,
+      wingUses: metrics.portalUsesBySource?.merchant || 0,
+      useEvents: structuredClone(metrics.portalUseEvents),
+      milestoneDecisions: structuredClone(metrics.milestoneDecisions)
+    },
+    finalHp: state.party[0].hp,
+    finalHpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
+    finalMp: state.party[0].mp,
+    finalMpRate: state.party[0].mp / Math.max(1, getCharMaxMp(state.party[0]))
+  };
+}
+
 function finishRun(state, outcome, metrics, terminationReason = null, terminationContext = null) {
   if (metrics.stage15Diagnostics) {
     const activeFloor = metrics.stage15Diagnostics.currentFloor;
@@ -12480,6 +12632,9 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       telemetry.exploredRatio = metrics.exploredRatioByFloor[telemetry.floor] ?? null;
     });
   }
+  const buildPayment = metrics.stage15Diagnostics
+    ? createBuildPaymentRunSnapshot(state, metrics)
+    : null;
   return {
     className: state.currentRun.characterClass,
     fixtureId: state.currentRun.buildFixtureId || null,
@@ -12904,6 +13059,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     mpPressure: finalizeSpellPressureMetrics(metrics.mpPressure),
     combatMpMeasurement: snapshotCombatMpMeasurement(metrics.combatMpMeasurement),
     stage15Diagnostics: snapshotStage15Diagnostics(metrics.stage15Diagnostics),
+    buildPayment,
     combatPolicyProbe: { ...metrics.combatPolicyProbe },
     fleeCount: metrics.fleeCount,
     bossPolicy: metrics.bossPolicy,
@@ -14469,6 +14625,11 @@ export function simulateRun({
         floor,
         hasTownPortal: state.inventory.includes("TOWN_PORTAL"),
         hpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
+        mpRate: state.party[0].mp / Math.max(1, getCharMaxMp(state.party[0])),
+        inventorySlots: state.inventory.length,
+        inventoryFreeSlots: Math.max(0, 20 - state.inventory.length),
+        unconfirmedObjectLootCount: null,
+        unconfirmedObjectLootValueProxy: null,
         carriedMaterials: totalMaterials(state.currentRun.materials)
       });
       if (
@@ -14538,6 +14699,252 @@ function getCoreNonEquipmentReasonKey(result, coreId) {
     reasons.has("score-not-higher")
   ) return "score";
   return "other";
+}
+
+function createBuildPaymentAggregate() {
+  const numericNames = [
+    "combatCount", "combatRounds", "damageTakenHp", "healingHp", "mpSpent",
+    "mpStarvationEvents", "guardMitigationHp", "guardMitigationEvents",
+    "statusMitigationEvents", "finalHp", "finalHpRate", "finalMp", "finalMpRate",
+    "finalBagSlots"
+  ];
+  return {
+    runs: 0,
+    actionCounts: { attack: 0, spell: 0, guard: 0, item: 0, flee: 0, noop: 0 },
+    actionDistributions: Object.fromEntries(
+      ["attack", "spell", "guard", "item", "flee", "noop"].map(name => [
+        name,
+        createNumericDistribution()
+      ])
+    ),
+    numeric: Object.fromEntries(numericNames.map(name => [name, createNumericDistribution()])),
+    runeCastCounts: {},
+    runeSlots: { capacity: 0, active: 0, unused: 0 },
+    ownership: {
+      core: { exposure: 0, adopted: 0, firing: 0 },
+      support: { exposure: 0, adopted: 0, firing: 0, dead: 0, byId: {} },
+      explorationSupportValues: null,
+      explorationSupportObservedUse: {}
+    },
+    loot: {
+      equipmentExposure: 0,
+      equipmentAdopted: 0,
+      equipmentDiscarded: 0,
+      buildShiftCount: 0,
+      finalBagSlots: createNumericDistribution(),
+      rune: { status: "not_modeled", reason: null },
+      core: { status: "equipment_affix_observed", exposure: 0, adopted: 0 },
+      support: { status: "equipment_affix_observed", exposure: 0, adopted: 0, dead: 0, byId: {} }
+    },
+    portal: {
+      pushDecisions: 0,
+      returnDecisions: 0,
+      wingAcquisitions: 0,
+      wingUses: 0,
+      useEvents: 0,
+      milestoneDecisions: 0,
+      resourceState: {
+        hpRate: createNumericDistribution(),
+        mpRate: createNumericDistribution(),
+        inventorySlots: createNumericDistribution(),
+        inventoryFreeSlots: createNumericDistribution(),
+        carriedMaterials: createNumericDistribution()
+      },
+      resourceStateByDecision: {
+        use: {
+          hpRate: createNumericDistribution(),
+          mpRate: createNumericDistribution(),
+          inventorySlots: createNumericDistribution(),
+          inventoryFreeSlots: createNumericDistribution(),
+          carriedMaterials: createNumericDistribution()
+        },
+        milestone: {
+          hpRate: createNumericDistribution(),
+          mpRate: createNumericDistribution(),
+          inventorySlots: createNumericDistribution(),
+          inventoryFreeSlots: createNumericDistribution(),
+          carriedMaterials: createNumericDistribution()
+        }
+      },
+      sources: {},
+      unconfirmedObjectLoot: {
+        status: "not_modeled",
+        count: null,
+        valueProxy: null
+      }
+    }
+  };
+}
+
+function addBuildPaymentResourceState(target, event) {
+  if (!event) return;
+  [
+    ["hpRate", event.hpRate],
+    ["mpRate", event.mpRate],
+    ["inventorySlots", event.inventorySlots],
+    ["inventoryFreeSlots", event.inventoryFreeSlots],
+    ["carriedMaterials", event.carriedMaterials]
+  ].forEach(([name, value]) => addNumericSample(target[name], Number(value)));
+}
+
+function addBuildPaymentRunAggregate(target, payment) {
+  if (!payment) return;
+  target.runs++;
+  Object.entries(payment.actionCounts || {}).forEach(([action, count]) => {
+    target.actionCounts[action] = (target.actionCounts[action] || 0) + (Number(count) || 0);
+    addNumericSample(target.actionDistributions[action], Number(count));
+  });
+  [
+    "combatCount", "combatRounds", "damageTakenHp", "healingHp", "mpSpent",
+    "mpStarvationEvents", "guardMitigationHp", "guardMitigationEvents",
+    "statusMitigationEvents", "finalHp", "finalHpRate", "finalMp", "finalMpRate"
+  ].forEach(name => addNumericSample(target.numeric[name], Number(payment[name])));
+  addNumericSample(target.loot.finalBagSlots, Number(payment.loot?.finalBagSlots));
+  Object.entries(payment.runeCastCounts || {}).forEach(([runeId, count]) => {
+    target.runeCastCounts[runeId] = (target.runeCastCounts[runeId] || 0) + (Number(count) || 0);
+  });
+  target.runeSlots.capacity += Number(payment.runeSlots?.capacity) || 0;
+  target.runeSlots.active += Number(payment.runeSlots?.active) || 0;
+  target.runeSlots.unused += Number(payment.runeSlots?.unused) || 0;
+  ["core", "support"].forEach(kind => {
+    ["exposure", "adopted", "firing"].forEach(name => {
+      target.ownership[kind][name] += Number(payment.ownership?.[kind]?.[name]) || 0;
+    });
+  });
+  target.ownership.support.dead += Number(payment.ownership?.support?.dead) || 0;
+  target.loot.support.dead += Number(payment.loot?.support?.dead) || 0;
+  Object.entries(payment.loot?.support?.byId || {}).forEach(([id, values]) => {
+    const destination = target.loot.support.byId[id] ||= { exposure: 0, adopted: 0, dead: 0 };
+    destination.exposure += Number(values.exposure) || 0;
+    destination.adopted += Number(values.firing > 0) || 0;
+    destination.dead += Number(values.dead) || 0;
+  });
+  Object.entries(payment.ownership?.support?.byId || {}).forEach(([id, values]) => {
+    const destination = target.ownership.support.byId[id] ||= { exposure: 0, firing: 0, dead: 0 };
+    destination.exposure += Number(values.exposure) || 0;
+    destination.firing += Number(values.firing) || 0;
+    destination.dead += Number(values.dead) || 0;
+  });
+  if (!target.ownership.explorationSupportValues) {
+    target.ownership.explorationSupportValues = structuredClone(
+      payment.ownership?.explorationSupportValues || {}
+    );
+  }
+  Object.entries(payment.ownership?.explorationSupportObservedUse || {}).forEach(([name, count]) => {
+    target.ownership.explorationSupportObservedUse[name] =
+      (target.ownership.explorationSupportObservedUse[name] || 0) + (Number(count) || 0);
+  });
+  ["equipmentExposure", "equipmentAdopted", "equipmentDiscarded", "buildShiftCount"].forEach(name => {
+    target.loot[name] += Number(payment.loot?.[name]) || 0;
+  });
+  ["core", "support"].forEach(kind => {
+    ["exposure", "adopted"].forEach(name => {
+      target.loot[kind][name] += Number(payment.loot?.[kind]?.[name]) || 0;
+    });
+  });
+  if (payment.loot?.rune?.reason) target.loot.rune.reason = payment.loot.rune.reason;
+  target.portal.pushDecisions += Number(payment.portal?.pushDecisions) || 0;
+  target.portal.returnDecisions += Number(payment.portal?.returnDecisions) || 0;
+  target.portal.wingAcquisitions += Number(payment.portal?.wingAcquisitions) || 0;
+  target.portal.wingUses += Number(payment.portal?.wingUses) || 0;
+  (payment.portal?.useEvents || []).forEach(event => {
+    target.portal.useEvents++;
+    target.portal.sources[event.source] = (target.portal.sources[event.source] || 0) + 1;
+    addBuildPaymentResourceState(target.portal.resourceState, event);
+    addBuildPaymentResourceState(target.portal.resourceStateByDecision.use, event);
+  });
+  (payment.portal?.milestoneDecisions || []).forEach(event => {
+    target.portal.milestoneDecisions++;
+    target.portal.sources[`milestone:${event.decision || "unknown"}`] =
+      (target.portal.sources[`milestone:${event.decision || "unknown"}`] || 0) + 1;
+    addBuildPaymentResourceState(target.portal.resourceState, event);
+    addBuildPaymentResourceState(target.portal.resourceStateByDecision.milestone, event);
+  });
+}
+
+function finalizeBuildPaymentAggregate(aggregate) {
+  const runs = Math.max(1, aggregate.runs);
+  const average = values => Object.fromEntries(
+    Object.entries(values).map(([name, value]) => [name, value / runs])
+  );
+  const summarizeMap = values => Object.fromEntries(
+    Object.entries(values).map(([name, value]) => [name, summarizeNumericDistribution(value)])
+  );
+  return {
+    runs: aggregate.runs,
+    actionCounts: { ...aggregate.actionCounts },
+    actionCountsPerRun: average(aggregate.actionCounts),
+    actionDistributions: summarizeMap(aggregate.actionDistributions),
+    combat: {
+      count: summarizeNumericDistribution(aggregate.numeric.combatCount),
+      rounds: summarizeNumericDistribution(aggregate.numeric.combatRounds)
+    },
+    resources: {
+      damageTakenHp: summarizeNumericDistribution(aggregate.numeric.damageTakenHp),
+      healingHp: summarizeNumericDistribution(aggregate.numeric.healingHp),
+      mpSpent: summarizeNumericDistribution(aggregate.numeric.mpSpent),
+      mpStarvationEvents: summarizeNumericDistribution(aggregate.numeric.mpStarvationEvents),
+      finalHp: summarizeNumericDistribution(aggregate.numeric.finalHp),
+      finalHpRate: summarizeNumericDistribution(aggregate.numeric.finalHpRate),
+      finalMp: summarizeNumericDistribution(aggregate.numeric.finalMp),
+      finalMpRate: summarizeNumericDistribution(aggregate.numeric.finalMpRate)
+    },
+    guard: {
+      mitigationHp: summarizeNumericDistribution(aggregate.numeric.guardMitigationHp),
+      mitigationEvents: summarizeNumericDistribution(aggregate.numeric.guardMitigationEvents),
+      statusMitigationEvents: summarizeNumericDistribution(aggregate.numeric.statusMitigationEvents),
+      statusMitigationSource: "enemyStatusGrammar.resistedByEnemyFloor"
+    },
+    runes: {
+      slots: {
+        capacity: aggregate.runeSlots.capacity / runs,
+        active: aggregate.runeSlots.active / runs,
+        unused: aggregate.runeSlots.unused / runs
+      },
+      castCounts: { ...aggregate.runeCastCounts }
+    },
+    ownership: {
+      core: { ...aggregate.ownership.core },
+      support: {
+        ...aggregate.ownership.support,
+        byId: Object.fromEntries(
+          Object.entries(aggregate.ownership.support.byId).map(([id, values]) => [id, { ...values }])
+        )
+      },
+      explorationSupportValues: aggregate.ownership.explorationSupportValues || {},
+      explorationSupportObservedUse: { ...aggregate.ownership.explorationSupportObservedUse }
+    },
+    loot: {
+      equipmentExposure: aggregate.loot.equipmentExposure,
+      equipmentAdopted: aggregate.loot.equipmentAdopted,
+      equipmentDiscarded: aggregate.loot.equipmentDiscarded,
+      buildShiftCount: aggregate.loot.buildShiftCount,
+      finalBagSlots: summarizeNumericDistribution(aggregate.loot.finalBagSlots),
+      rune: { ...aggregate.loot.rune },
+      core: { ...aggregate.loot.core },
+      support: {
+        ...aggregate.loot.support,
+        byId: Object.fromEntries(
+          Object.entries(aggregate.loot.support.byId).map(([id, values]) => [id, { ...values }])
+        )
+      }
+    },
+    portal: {
+      pushDecisions: aggregate.portal.pushDecisions,
+      returnDecisions: aggregate.portal.returnDecisions,
+      wingAcquisitions: aggregate.portal.wingAcquisitions,
+      wingUses: aggregate.portal.wingUses,
+      useEvents: aggregate.portal.useEvents,
+      milestoneDecisions: aggregate.portal.milestoneDecisions,
+      sources: { ...aggregate.portal.sources },
+      resourceState: summarizeMap(aggregate.portal.resourceState),
+      resourceStateByDecision: {
+        use: summarizeMap(aggregate.portal.resourceStateByDecision.use),
+        milestone: summarizeMap(aggregate.portal.resourceStateByDecision.milestone)
+      },
+      unconfirmedObjectLoot: { ...aggregate.portal.unconfirmedObjectLoot }
+    }
+  };
 }
 
 function simulateCase({
@@ -14778,6 +15185,7 @@ function simulateCase({
     eliteAvoidNoRouteFloors: 0,
     hitEvasion: { attemptsByFloor: {}, missesByFloor: {} }
   };
+  totals.buildPayment = createBuildPaymentAggregate();
   const merchantStockByClass = Object.fromEntries(
     classNames.map(className => [className, createMerchantStockMetrics()])
   );
@@ -14832,7 +15240,8 @@ function simulateCase({
         identificationPolicy: identificationPolicy.id || identificationPolicy
       },
       workshop: scenario.workshop || { ranks: {} },
-      collectCombatFormula: SIM_737_DAMAGE_AUDIT_ENABLED || SIM_728_HIT_EVASION_ENABLED,
+      collectCombatFormula: Boolean(scenario.collectCombatFormula) ||
+        SIM_737_DAMAGE_AUDIT_ENABLED || SIM_728_HIT_EVASION_ENABLED,
       collectEquipmentTelemetry: Boolean(scenario.collectVNextObservability)
     });
     if (scenario.collectVNextObservability) {
@@ -14859,6 +15268,7 @@ function simulateCase({
     if (fixtureId && result.buildSnapshot) {
       totals.buildSnapshotsByFixtureId[fixtureId] ||= structuredClone(result.buildSnapshot);
     }
+    addBuildPaymentRunAggregate(totals.buildPayment, result.buildPayment);
     addSpellUsageAggregate(totals.spellUsage, result);
     addSpellUsageAggregate(totals.spellUsageByClass[className], result);
     addExplorationSpellUsageAggregate(totals.explorationSpellUsage, result);
@@ -15253,6 +15663,7 @@ function simulateCase({
     axisType: totals.axisType,
     fixtureIds: totals.fixtureIds,
     buildSnapshotsByFixtureId: totals.buildSnapshotsByFixtureId,
+    buildPayment: finalizeBuildPaymentAggregate(totals.buildPayment),
     label,
     startFloor,
     targetDepth,

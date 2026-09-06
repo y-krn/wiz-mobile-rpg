@@ -198,3 +198,24 @@ reported by fixture persona. Legacy class-mode exports remain available for
 historical comparisons but are not the vNext standard axis. CI does not require
 an N>=500 simulation; the standard measurement command retains its explicit
 N>=500 guard for deliberate measurement runs.
+
+## Issue #1096 payment vector evidence
+
+`scratch/measurements/issue1096_build_payment.js` is the dedicated observation
+runner for the six Build Snapshot fixtures. It delegates to the canonical
+`simulateRun` path and measures per-run action mix, combat/round cost, HP/MP
+pressure, Guard mitigation, Rune casts and unused sockets, Core/Support
+exposure/adoption/firing/dead-support observations, exploration Support observed-use proxies, equipment
+adoption/build shifts, bag occupancy, and Portal Push/Return/Wing resource
+state. A deliberate measurement uses the standard two workshop scenarios, B5,
+B10, B15, and B20, and N>=500 per fixture/depth/scenario.
+
+The runner writes a machine-readable JSON record and an optional durable
+Markdown summary. The record includes schema and runner version, fixture and
+scenario identity, seed/configuration key, source and `origin/main` ancestry,
+clean-tree status, quantiles/counts, and a repeated-task determinism probe.
+Object-loot ownership for Rune/Core/Support and unconfirmed Portal loot are
+explicitly `not_modeled`; equipment-affix ownership fields are observed
+proxies. This evidence classifies the result as numeric balance change,
+additional observation, or a follow-up balance Issue; it does not tune values,
+equalize win rates, or make player recommendations.

@@ -99,6 +99,24 @@ about the loop, not a new rule and not a player-facing optimal-role selector.
 Forced calibration that makes an affix or event fire must be reported as such
 and kept separate from natural selection.
 
+### Build payment vector measurement (#1096)
+
+The #1096 measurement runner records the resource and decision vectors paid by
+each resolved Build Snapshot across the standard six fixtures and workshop
+states. It uses the same canonical run-floor, combat, recovery, reward,
+equipment scoring, level-up, and settlement paths as the balance runner. JSON
+records retain means, quantiles, counts, outcome/death distributions, and
+provenance; Markdown is a durable review summary.
+
+Portal events carry HP/MP rate, inventory occupancy/free slots, carried
+materials, source, and explicit null placeholders for unconfirmed object loot.
+Those nulls mean the production object-loot lifecycle is not modeled by the
+canonical simulator, not that the run had no unconfirmed loot. Rune object-loot
+and Core/Support object-loot adoption therefore remain `not_modeled`; the
+equipment-affix exposure/adoption/firing fields are bounded observation
+proxies, including Support ids with exposure but no observed firing. The measurement is observation-only and cannot change combat, drop,
+ownership, or Wing rules.
+
 ## Boundaries
 
 - Telemetry does not change clear rate, drop rate, combat formula, resource
