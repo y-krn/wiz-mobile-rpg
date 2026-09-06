@@ -269,10 +269,8 @@ export function generateRandomEquipment(floor, options) {
     addAffix(1, "mp", () => getSupportValueByRarity("mp", rarity));
   }
 
-  const stats = ["str", "int", "pie", "vit", "agi", "luk"];
-  stats.forEach(stat => {
-    addAffix(1, stat, () => getSupportValueByRarity(stat, rarity));
-  });
+  addAffix(2, "physicalAccuracy", () => getSupportValueByRarity("physicalAccuracy", rarity), 1);
+  addAffix(2, "escapeChance", () => getSupportValueByRarity("escapeChance", rarity), 1);
   
   const isTrapEligible = ["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "RAPIER", "LEATHER_ARMOR", "NINJA_SUIT", "EXPLORER_CLOAK", "BUCKLER"].includes(baseId);
   if (isTrapEligible) {
@@ -361,7 +359,6 @@ export function generateRandomEquipment(floor, options) {
     // follows the existing poison trigger pool without repurposing poisonAtk.
     addAffix(3, "bleedingAtk", () => getSupportValueByRarity("bleedingAtk", rarity), 1);
   }
-  addAffix(3, "lastSurvivorStats", () => getSupportValueByRarity("lastSurvivorStats", rarity), 1);
   addAffix(2, "statusResistance", () => getSupportValueByRarity("statusResistance", rarity), 2);
   addAffix(2, "victoryMaterial", () => 5, 1);
   addAffix(1, "stairsHeal", () => getSupportValueByRarity("stairsHeal", rarity), 1);
@@ -382,10 +379,10 @@ export function generateRandomEquipment(floor, options) {
   
   // Add tags based on affixes
   affixes.forEach(aff => {
-    if (aff.type === "atk" || aff.type === "str") {
+    if (aff.type === "atk") {
       if (!tags.includes("blade")) tags.push("blade");
     }
-    if (aff.type === "def" || aff.type === "vit") {
+    if (aff.type === "def") {
       if (!tags.includes("ward")) tags.push("ward");
     }
     if (aff.type === "trapBonus") {
@@ -496,12 +493,8 @@ export function generateRandomAccessory(floor, options) {
   const accessoryAffixPool = [
     { type: "hp", getVal: () => getSupportValueByRarity("hp", rarity), weight: 4 },
     { type: "mp", getVal: () => getSupportValueByRarity("mp", rarity), weight: 3 },
-    { type: "str", getVal: () => getSupportValueByRarity("str", rarity), weight: 2 },
-    { type: "int", getVal: () => getSupportValueByRarity("int", rarity), weight: 2 },
-    { type: "pie", getVal: () => getSupportValueByRarity("pie", rarity), weight: 2 },
-    { type: "vit", getVal: () => getSupportValueByRarity("vit", rarity), weight: 2 },
-    { type: "agi", getVal: () => getSupportValueByRarity("agi", rarity), weight: 2 },
-    { type: "luk", getVal: () => getSupportValueByRarity("luk", rarity), weight: 2 },
+    { type: "physicalAccuracy", getVal: () => getSupportValueByRarity("physicalAccuracy", rarity), weight: 2 },
+    { type: "escapeChance", getVal: () => getSupportValueByRarity("escapeChance", rarity), weight: 2 },
     { type: "trapBonus", getVal: () => getSupportValueByRarity("trapBonus", rarity), weight: 3 },
     { type: "trapGuard", getVal: () => getSupportValueByRarity("trapGuard", rarity), weight: 2 },
     { type: "spellGuard", getVal: () => getSupportValueByRarity("spellGuard", rarity), weight: 1 },
@@ -519,7 +512,6 @@ export function generateRandomAccessory(floor, options) {
     { type: "firstStrikeFollowUp", getVal: () => getSupportValueByRarity("firstStrikeFollowUp", rarity), weight: availableWeight(2, 2) },
     { type: "antiBeast", getVal: () => getSupportValueByRarity("antiBeast", rarity), weight: availableWeight(2, 1) },
     { type: "antiSpirit", getVal: () => getSupportValueByRarity("antiSpirit", rarity), weight: availableWeight(2, 1) },
-    { type: "lastSurvivorStats", getVal: () => getSupportValueByRarity("lastSurvivorStats", rarity), weight: availableWeight(3, 1) },
     { type: "statusResistance", getVal: () => getSupportValueByRarity("statusResistance", rarity), weight: availableWeight(2, 2) },
     { type: "spellAccuracy", getVal: () => getSupportValueByRarity("spellAccuracy", rarity), weight: availableWeight(3, 1) },
     { type: "killHeal", getVal: () => 2, weight: availableWeight(3, 1) },
@@ -543,12 +535,8 @@ export function generateRandomAccessory(floor, options) {
     const affixTags = {
       hp: "ward",
       mp: "spirit",
-      str: "iron",
-      int: "analysis",
-      pie: "holy",
-      vit: "ward",
-      agi: "ambush",
-      luk: "search",
+      physicalAccuracy: "ambush",
+      escapeChance: "evasion",
       trapBonus: "trap",
       trapGuard: "trap",
       spellGuard: "ward",

@@ -1,5 +1,5 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
-import { formatAffixText } from "../data/affixes.js";
+import { formatAffixText, getAffixDefinition } from "../data/affixes.js";
 import {
   getKnowledgeHintTags,
   getKnowledgeStage,
@@ -73,7 +73,7 @@ export function getCharAffixSum(char, affixType) {
       sum += ITEMS[getItemBaseId(eqKey)]?.trapBonus || 0;
     }
     if (typeof eqKey === "object") {
-      if (eqKey.affixes) {
+      if (eqKey.affixes && eqData?.affixBonus?.[affixType] === undefined) {
         eqKey.affixes.forEach(aff => {
           if (aff.type === affixType) {
             sum += aff.value;
@@ -105,6 +105,7 @@ export function getCharAffixSum(char, affixType) {
       sum += 30;
     }
   }
+  sum += getCurseKeeperBonus(char, affixType);
   const total = sum;
   const caps = {
     poisonWard: 75,
@@ -114,9 +115,25 @@ export function getCharAffixSum(char, affixType) {
     arcane: 50,
     devotion: 50,
     followUp: 50,
-    identifyDiscount: 50
+    identifyDiscount: 50,
+    physicalAccuracy: 50,
+    escapeChance: 50
   };
   return caps[affixType] ? Math.min(caps[affixType], total) : total;
+}
+
+export function getCurseKeeperBonus(char, affixType) {
+  if (!char || !["atk", "spellPower"].includes(affixType)) return 0;
+  const items = getEquipmentValues(char.equipment);
+  const hasCore = items.some(item => item && typeof item === "object" && item.affixes?.some(affix =>
+    (affix.id || affix.type) === "CORE_CURSE_KEEPER"
+    && getAffixDefinition("CORE_CURSE_KEEPER")?.enabled
+  ));
+  if (!hasCore) return 0;
+  const curseCount = items.filter(item => item && typeof item === "object" && Boolean(item.curseEffectId)).length;
+  const params = getAffixDefinition("CORE_CURSE_KEEPER")?.params || {};
+  const perCurse = affixType === "atk" ? params.atkPerCurse : params.spellPowerPerCurse;
+  return curseCount * (Number(perCurse) || 0);
 }
 
 export function getPartyMaxAffix(party, affixType) {
@@ -184,7 +201,6 @@ export function getItemData(itemOrKey) {
         affixes: [],
         hpBonus: curseHp,
         mpBonus: curseMp,
-        statsBonus: {},
         trapBonus: 0,
         affixBonus: {},
         type: base.type
@@ -209,15 +225,8 @@ export function getItemData(itemOrKey) {
         if (curse.mod.mp !== undefined) mpBonus += getScaledCurseModifier(curse, "mp", itemOrKey.cursePower);
       }
     }
-    const statsBonus = {
-      str: base.statsBonus?.str || 0,
-      int: base.statsBonus?.int || 0,
-      pie: base.statsBonus?.pie || 0,
-      vit: base.statsBonus?.vit || 0,
-      agi: base.statsBonus?.agi || 0,
-      luk: base.statsBonus?.luk || 0
-    };
     let trapBonus = base.trapBonus || 0;
+    const affixBonus = { ...(base.affixBonus || {}) };
     
     const enhanceLevel = itemOrKey.enhanceLevel || 0;
     if (enhanceLevel > 0) {
@@ -234,8 +243,8 @@ export function getItemData(itemOrKey) {
         else if (aff.type === "def") defBonus += aff.value;
         else if (aff.type === "hp") hpBonus += aff.value;
         else if (aff.type === "mp") mpBonus += aff.value;
-        else if (["str", "int", "pie", "vit", "agi", "luk"].includes(aff.type)) {
-          statsBonus[aff.type] = (statsBonus[aff.type] || 0) + aff.value;
+        else if (["spellPower", "arcane", "devotion", "physicalAccuracy", "escapeChance", "firstStrike"].includes(aff.type)) {
+          affixBonus[aff.type] = (affixBonus[aff.type] || 0) + aff.value;
         }
         else if (aff.type === "trapBonus") {
           trapBonus += aff.value;
@@ -251,17 +260,12 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "def") prefix = "頑丈な";
       else if (primaryAff.type === "hp") prefix = "生命の";
       else if (primaryAff.type === "mp") prefix = "魔力の";
-      else if (primaryAff.type === "str") prefix = "怪力の";
-      else if (primaryAff.type === "int") prefix = "叡智の";
-      else if (primaryAff.type === "pie") prefix = "信仰の";
-      else if (primaryAff.type === "vit") prefix = "堅固な";
-      else if (primaryAff.type === "agi") prefix = "疾風の";
-      else if (primaryAff.type === "luk") prefix = "強運の";
+      else if (primaryAff.type === "physicalAccuracy") prefix = "必中補助の";
+      else if (primaryAff.type === "escapeChance") prefix = "離脱の";
       else if (primaryAff.type === "trapBonus") prefix = "技巧の";
       else if (primaryAff.type === "trapGuard") prefix = "罠守の";
       else if (primaryAff.type === "followUp") prefix = "連撃の";
       else if (primaryAff.type === "firstStrikeFollowUp") prefix = "先手連撃の";
-      else if (primaryAff.type === "physicalAccuracy") prefix = "正確な";
       else if (primaryAff.type === "lowHpDamage") prefix = "窮地の";
       else if (primaryAff.type === "highHpTargetDamage") prefix = "巨体狙いの";
       else if (primaryAff.type === "bossDamage") prefix = "守護者狙いの";
@@ -325,8 +329,8 @@ export function getItemData(itemOrKey) {
       def: baseDef + defBonus,
       hpBonus,
       mpBonus,
-      statsBonus,
       trapBonus,
+      affixBonus,
       type: base.type
     };
   }

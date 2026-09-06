@@ -1,92 +1,10 @@
-import { getEquippedItemData, getCharAffixSum } from "./item_rules.js";
-import { getCharAllStatsAffixBonus, getCharCoreParams } from "./affix_rules.js";
-import { getSpellStatBonus } from "./spell_rules.js";
+import { getEquippedItemData, getCharAffixSum, getCurseKeeperBonus } from "./item_rules.js";
+import { getCharCoreParams } from "./affix_rules.js";
 import { calculateDisarmRate } from "./trap_rules.js";
 import { getMediumMaxMpBonus } from "./magic_rules.js";
 import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
 
-export function getCharStr(char) {
-  if (!char) return 0;
-  let bonus = 0;
-  if (char.equipment) {
-    Object.values(char.equipment).forEach(eqKey => {
-      if (eqKey) {
-        const eqData = getEquippedItemData(char, eqKey);
-        if (eqData && eqData.statsBonus && eqData.statsBonus.str) {
-          bonus += eqData.statsBonus.str;
-        }
-      }
-    });
-  }
-  return char.str + bonus + getCharAllStatsAffixBonus(char);
-}
-
-export function getCharInt(char) {
-  if (!char) return 0;
-  let bonus = 0;
-  if (char.equipment) {
-    Object.values(char.equipment).forEach(eqKey => {
-      if (eqKey) {
-        const eqData = getEquippedItemData(char, eqKey);
-        if (eqData && eqData.statsBonus && eqData.statsBonus.int) {
-          bonus += eqData.statsBonus.int;
-        }
-      }
-    });
-  }
-  return char.int + bonus + getCharAllStatsAffixBonus(char);
-}
-
-export function getCharPie(char) {
-  if (!char) return 0;
-  let bonus = 0;
-  if (char.equipment) {
-    Object.values(char.equipment).forEach(eqKey => {
-      if (eqKey) {
-        const eqData = getEquippedItemData(char, eqKey);
-        if (eqData && eqData.statsBonus && eqData.statsBonus.pie) {
-          bonus += eqData.statsBonus.pie;
-        }
-      }
-    });
-  }
-  return char.pie + bonus + getCharAllStatsAffixBonus(char);
-}
-
-export function getCharVit(char) {
-  if (!char) return 0;
-  let bonus = 0;
-  if (char.equipment) {
-    Object.values(char.equipment).forEach(eqKey => {
-      if (eqKey) {
-        const eqData = getEquippedItemData(char, eqKey);
-        if (eqData && eqData.statsBonus && eqData.statsBonus.vit) {
-          bonus += eqData.statsBonus.vit;
-        }
-      }
-    });
-  }
-  return char.vit + bonus + getCharAllStatsAffixBonus(char);
-}
-
-export function getCharAgi(char) {
-  if (!char) return 0;
-  let bonus = 0;
-  if (char.equipment) {
-    Object.values(char.equipment).forEach(eqKey => {
-      if (eqKey) {
-        const eqData = getEquippedItemData(char, eqKey);
-        if (eqData && eqData.statsBonus && eqData.statsBonus.agi) {
-          bonus += eqData.statsBonus.agi;
-        }
-      }
-    });
-  }
-  return char.agi + bonus + getCharAllStatsAffixBonus(char);
-}
-
 export const PHYSICAL_HIT_CHANCE_MIN = 0.50;
-export const PHYSICAL_HIT_AGI_SCALE = 0.01;
 
 export function getMonsterEvasionChance(monster) {
   if (!monster?.traits?.includes("evasive")) return 0;
@@ -98,30 +16,11 @@ export function getMonsterEvasionChance(monster) {
 export function getPhysicalHitChance(char, target) {
   const evasionChance = getMonsterEvasionChance(target);
   if (evasionChance <= 0) return 1;
-  const agi = Number(getCharAgi(char));
-  const agiBonus = Number.isFinite(agi)
-    ? (agi - 10) * PHYSICAL_HIT_AGI_SCALE
-    : 0;
-  const physicalAccuracy = getCharAffixSum(char, "physicalAccuracy") / 100;
+  const physicalAccuracy = getCharAffixSum(char, "physicalAccuracy") / 100
+    + (getCharCoreParams(char, "CORE_PHYSICAL_ACCURACY")?.hitChanceBonus || 0);
   const behaviorHitChanceBonus = getWeaponBehaviorProfile(char).hitChanceBonus;
-  const chance = 1 - evasionChance + agiBonus + physicalAccuracy + behaviorHitChanceBonus;
+  const chance = 1 - evasionChance + physicalAccuracy + behaviorHitChanceBonus;
   return Math.max(PHYSICAL_HIT_CHANCE_MIN, Math.min(1, chance));
-}
-
-export function getCharLuk(char) {
-  if (!char) return 0;
-  let bonus = 0;
-  if (char.equipment) {
-    Object.values(char.equipment).forEach(eqKey => {
-      if (eqKey) {
-        const eqData = getEquippedItemData(char, eqKey);
-        if (eqData && eqData.statsBonus && eqData.statsBonus.luk) {
-          bonus += eqData.statsBonus.luk;
-        }
-      }
-    });
-  }
-  return char.luk + bonus + getCharAllStatsAffixBonus(char);
 }
 
 export function getCharMaxHp(char) {
@@ -187,7 +86,7 @@ export function rollCharWeaponPhysicalRandom(char, rng = Math.random) {
 
 export function getCharWeaponAtk(char) {
   let atk = 0;
-  const wpId = char.equipment.weapon;
+  const wpId = char?.equipment?.weapon;
   if (wpId) {
     atk += getEquippedItemData(char, wpId)?.atk || 0;
   }
@@ -195,11 +94,15 @@ export function getCharWeaponAtk(char) {
   if (char.equipment) {
     Object.entries(char.equipment).forEach(([slot, eqKey]) => {
       if (slot !== "weapon" && eqKey) {
-        atk += getEquippedItemData(char, eqKey)?.atk || 0;
+        const eqData = getEquippedItemData(char, eqKey);
+        atk += eqData?.atk || 0;
+        atk += eqData?.affixBonus?.atk || 0;
       }
     });
   }
-  return atk;
+  // Equipment-owned ATK is already included above. Core ATK is kept as a
+  // separate build contribution so Curse Keeper is applied exactly once.
+  return atk + getCurseKeeperBonus(char, "atk");
 }
 
 export function getCharTrapEaterBonus(char) {
@@ -211,15 +114,13 @@ export function getCharTrapEaterBonus(char) {
 
 export function getCharAttackBreakdown(char) {
   const equipment = getCharWeaponAtk(char);
-  const base = Math.max(0, getCharStr(char) - 10);
   const trapEaterBonus = getCharTrapEaterBonus(char);
   return {
-    base,
+    base: 0,
     equipment,
     trapEaterBonus,
     total: calculatePhysicalAttackRawFormula({
       weaponAtk: equipment,
-      str: getCharStr(char),
       fixedDamageBonus: trapEaterBonus
     })
   };
@@ -295,19 +196,17 @@ export function applyPhysicalResistance(rawDamage, resistance = 0) {
 export function calculatePhysicalAttackRawFormula({
   weaponAtk = 0,
   buffAtk = 0,
-  str = 10,
   randRoll = 0,
   meleeMod = 1,
   fixedDamageBonus = 0
 } = {}) {
-  const attack = (Math.floor(weaponAtk + buffAtk) + Math.max(0, str - 10) + randRoll) * meleeMod;
+  const attack = (Math.floor(weaponAtk + buffAtk) + randRoll) * meleeMod;
   return attack + (Number.isFinite(Number(fixedDamageBonus)) ? Number(fixedDamageBonus) : 0);
 }
 
 export function calculatePhysicalAttackFormula({
   weaponAtk = 0,
   buffAtk = 0,
-  str = 10,
   randRoll = 0,
   def = 0,
   physResist = 0,
@@ -317,7 +216,6 @@ export function calculatePhysicalAttackFormula({
   const rawDamage = calculatePhysicalAttackRawFormula({
     weaponAtk,
     buffAtk,
-    str,
     randRoll,
     meleeMod,
     fixedDamageBonus
@@ -337,7 +235,6 @@ export function resolveWeaponAttack({
   char,
   weaponAtk = 0,
   buffAtk = 0,
-  str = 10,
   randRoll = 0,
   def = 0,
   physResist = 0,
@@ -349,7 +246,6 @@ export function resolveWeaponAttack({
   const baseRaw = calculatePhysicalAttackRawFormula({
     weaponAtk,
     buffAtk,
-    str,
     randRoll,
     meleeMod
   });
@@ -371,41 +267,34 @@ export function resolveWeaponAttack({
 
 export function calculatePhysicalDefenseFormula({
   baseDef = 0,
-  vit = 0,
   bonusDef = 0,
   tempDefDown = 0
 } = {}) {
-  return Math.max(0, baseDef + Math.floor(vit / 4) + bonusDef - tempDefDown);
+  return Math.max(0, baseDef + bonusDef - tempDefDown);
 }
 
-function getEffectiveSpellBonus(stat, affixSum, spellPowerSum) {
-  const multiplier = getSpellStatBonus(stat)
-    * (1 + spellPowerSum / 100)
+function getEffectiveSpellBonus(affixSum, spellPowerSum) {
+  const multiplier = (1 + spellPowerSum / 100)
     * (1 + affixSum / 100);
   return Math.round((multiplier - 1) * 100);
 }
 
 export function getCharDerivedStats(char, { floor = 1 } = {}) {
   const attackBreakdown = getCharAttackBreakdown(char);
-  const int = getCharInt(char);
-  const pie = getCharPie(char);
-  const vit = getCharVit(char);
   const trapAffixBonus = Math.round(getCharTrapBonus(char) * 100);
 
   return {
     attack: attackBreakdown.total,
-    defense: calculatePhysicalDefenseFormula({ baseDef: getCharDef(char), vit }),
+    defense: calculatePhysicalDefenseFormula({ baseDef: getCharDef(char) }),
     magic: getEffectiveSpellBonus(
-      int,
       getCharAffixSum(char, "arcane"),
       getCharAffixSum(char, "spellPower")
     ),
     healing: getEffectiveSpellBonus(
-      pie,
       getCharAffixSum(char, "devotion"),
       getCharAffixSum(char, "spellPower")
     ),
-    speed: getCharAgi(char),
+    speed: getCharAffixSum(char, "firstStrike"),
     trap: calculateDisarmRate({
       floor,
       affixBonus: trapAffixBonus

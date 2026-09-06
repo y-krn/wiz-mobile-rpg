@@ -1,15 +1,9 @@
 import {
-  getCharAgi,
   getCharAttackBreakdown,
   getCharDef,
   getCharDerivedStats,
-  getCharInt,
-  getCharLuk,
   getCharMaxHp,
-  getCharMaxMp,
-  getCharPie,
-  getCharStr,
-  getCharVit
+  getCharMaxMp
 } from "./rules/character_stats.js";
 import { getCharAffixSum, getItemBaseId, getItemData, getPartyMaxAffix } from "./rules/item_rules.js";
 import { ITEMS } from "./data/items.js";
@@ -433,13 +427,7 @@ export function buildPlayerSnapshot(character, { floor = 1 } = {}) {
     healing: boundedFiniteOrNull(derived.healing),
     speed: boundedFiniteOrNull(derived.speed),
     trap: boundedFiniteOrNull(derived.trap),
-    treasure: boundedFiniteOrNull(derived.treasure),
-    str: boundedFiniteOrNull(getCharStr(character)),
-    int: boundedFiniteOrNull(getCharInt(character)),
-    pie: boundedFiniteOrNull(getCharPie(character)),
-    vit: boundedFiniteOrNull(getCharVit(character)),
-    agi: boundedFiniteOrNull(getCharAgi(character)),
-    luk: boundedFiniteOrNull(getCharLuk(character))
+    treasure: boundedFiniteOrNull(derived.treasure)
   };
   snapshot.hpRate = snapshot.maxHp > 0
     ? Math.min(1, Math.max(0, snapshot.hp / snapshot.maxHp))
@@ -698,7 +686,6 @@ function normalizeDefenseBreakdown(breakdown) {
   return {
     baseDef: normalize(breakdown.baseDef ?? breakdown.equipmentDef),
     equipmentDef: normalize(breakdown.equipmentDef),
-    vitContribution: normalize(breakdown.vitContribution),
     buffDef: normalize(breakdown.buffDef),
     frontGuardDef: normalize(breakdown.frontGuardDef),
     firstStrikeDefense: normalize(breakdown.firstStrikeDefense),
@@ -714,22 +701,19 @@ function buildDefenseBreakdown(character, finalDef, damage) {
 
   try {
     const equipmentDef = getCharDef(character);
-    const vit = getCharVit(character);
-    const vitContribution = Math.floor(vit / 4);
     const buffDef = attackType === "flee" ? 0 : getBuffTotal(character, "def");
     const tempDefDown = attackType === "flee" ? 0 : (character.tempDefDown || 0);
     const firstStrikeDefense = attackType === "physical" && character.combatFirstStrikeActive
       ? getCharAffixSum(character, "firstStrikeDefense")
       : 0;
     const frontGuardDef = attackType === "physical"
-      ? Number(finalDef) - (equipmentDef + vitContribution + buffDef + firstStrikeDefense - tempDefDown)
+      ? Number(finalDef) - (equipmentDef + buffDef + firstStrikeDefense - tempDefDown)
       : 0;
     return {
       // The live formula's baseDef input is the player's effective equipment DEF;
       // there is no separate character-base DEF term in the current rules.
       baseDef: equipmentDef,
       equipmentDef,
-      vitContribution,
       buffDef,
       frontGuardDef,
       firstStrikeDefense,

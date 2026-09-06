@@ -56,13 +56,9 @@ function createCombatState({ weapon, followUp = false } = {}) {
       maxHp: 100,
       mp: 0,
       maxMp: 0,
-      str: 15,
-      int: 8,
-      pie: 8,
-      vit: 10,
-      agi: 100,
-      luk: 10,
       status: "ok",
+      buffs: [{ type: "firstStrike", value: 100 }],
+      spells: [],
       equipment: {
         weapon,
         shield: null,
@@ -121,7 +117,7 @@ assert.equal(narrowAttack.state.combatFormulaTelemetry.physicalPlayerHits[0].ran
 const narrowFollowUp = runCombat({ weapon: "NINJA_DAGGER", followUp: true });
 const followUpLog = narrowFollowUp.logQueue.find(entry => entry.msg?.includes("【🗡️追撃】"));
 assert.ok(followUpLog, "follow-up attack still fires");
-assert.match(followUpLog.msg, /に13のダメージ/);
+assert.match(followUpLog.msg, /に9のダメージ/);
 
 function createRng(seed) {
   let value = seed >>> 0;

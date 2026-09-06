@@ -4,7 +4,6 @@ import {
   getCharMaxMp,
   getCharWeaponAtk,
   getCharTrapEaterBonus,
-  getCharStr,
   resolveWeaponAttack,
   combinePhysicalResistances,
   getPhysicalDefenseResistance,
@@ -204,7 +203,6 @@ export function tryThornCounter(char, monster, actorIdx, state, logQueue, rng = 
     char,
     weaponAtk: getCharWeaponAtk(char),
     fixedDamageBonus: getCharTrapEaterBonus(char),
-    str: getCharStr(char),
     def: getEffectiveDef(monster),
     physResist: monster.physResist,
     meleeMod: getMeleeModifiers(char, actorIdx)

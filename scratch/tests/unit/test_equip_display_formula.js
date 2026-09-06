@@ -4,12 +4,10 @@ import {
   calculatePhysicalAttackRawFormula,
   getPhysicalDefenseResistance,
   PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
-  getCharAgi,
   getCharDerivedStats,
   getCharTrapBonus
 } from "../../../src/rules/character_stats.js";
 import { getCharAffixSum } from "../../../src/rules/item_rules.js";
-import { getSpellStatBonus } from "../../../src/rules/spell_rules.js";
 import { calculateDisarmRate } from "../../../src/rules/trap_rules.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
 
@@ -101,17 +99,17 @@ const integerFormulaCases = [
   {
     label: "odd weapon atk with even buff atk",
     input: { weaponAtk: 3, buffAtk: 2, str: 14, randRoll: 3, def: 6 },
-    expected: 12 * (1 - getPhysicalDefenseResistance(6))
+    expected: 8 * (1 - getPhysicalDefenseResistance(6))
   },
   {
     label: "even weapon atk with odd buff atk",
     input: { weaponAtk: 2, buffAtk: 3, str: 14, randRoll: 3, def: 6 },
-    expected: 12 * (1 - getPhysicalDefenseResistance(6))
+    expected: 8 * (1 - getPhysicalDefenseResistance(6))
   },
   {
     label: "odd weapon atk with odd buff atk",
     input: { weaponAtk: 3, buffAtk: 1, str: 14, randRoll: 3, def: 6 },
-    expected: 11 * (1 - getPhysicalDefenseResistance(6))
+    expected: 7 * (1 - getPhysicalDefenseResistance(6))
   }
 ];
 integerFormulaCases.forEach(({ label, input, expected }) => {
@@ -140,8 +138,8 @@ check(
 const followUpInput = { weaponAtk: 1, str: 11, randRoll: 2, def: 0, meleeMod: 0.7 };
 const followUpBeforeRaw = calculatePhysicalAttackRawFormula(followUpInput);
 const followUpAfterRaw = calculatePhysicalAttackFormula(followUpInput);
-check("follow-up raw value keeps the shared physical coefficients", followUpBeforeRaw, 2.8);
-check("follow-up formula applies the bounded resistance", followUpAfterRaw, 2.8);
+check("follow-up raw value keeps the shared physical coefficients", followUpBeforeRaw, 2.1);
+check("follow-up formula applies the bounded resistance", followUpAfterRaw, 2.1);
 check("follow-up damage keeps its fractional melee modifier before floor", Math.floor(followUpAfterRaw), 2);
 
 check(
@@ -154,18 +152,18 @@ check(
     def: 6,
     meleeMod: 0.9
   }),
-  18.9 * (1 - getPhysicalDefenseResistance(6))
+  17 * 0.9 * (1 - getPhysicalDefenseResistance(6))
 );
-check("display attack uses effective weapon input and STR above neutral point", baseStats.attack, 22);
-check("display defense uses VIT/4", baseStats.defense, 5);
+check("display attack uses the equipped weapon", baseStats.attack, 18);
+check("display defense uses equipped armor and shield", baseStats.defense, 2);
 check(
   "defense formula includes combat-only modifiers without changing the base",
-  calculatePhysicalDefenseFormula({ baseDef: 6, vit: 12, bonusDef: 5, tempDefDown: 2 }),
-  12
+  calculatePhysicalDefenseFormula({ baseDef: 6, bonusDef: 5, tempDefDown: 2 }),
+  9
 );
 check(
   "defense formula preserves the combat clamp",
-  calculatePhysicalDefenseFormula({ baseDef: 6, vit: 12, tempDefDown: 30 }),
+  calculatePhysicalDefenseFormula({ baseDef: 6, tempDefDown: 30 }),
   0
 );
 
@@ -185,7 +183,7 @@ check(
   3
 );
 check(
-  "STR +2 produces its own attack delta",
+  "attack affix +2 produces its own attack delta",
   getCharDerivedStats(strengthUpgrade).attack - getCharDerivedStats(base).attack,
   2
 );
@@ -276,7 +274,7 @@ const incomingDamageState = makeCombatState(
 const incomingDamageResult = runFixedRound(incomingDamageState, [
   { type: "defend", actorIdx: 0 }
 ]);
-const incomingResistance = getPhysicalDefenseResistance(2, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING);
+const incomingResistance = getPhysicalDefenseResistance(0, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING);
 const incomingExpectedDamage = Math.max(
   1,
   Math.round(Math.max(1, Math.floor(12 * (1 - incomingResistance))) * 0.5)
@@ -298,21 +296,19 @@ const spellPowerChar = makeChar({
   equipment: { accessory: spellPowerEquipment }
 });
 const spellPowerStats = getCharDerivedStats(spellPowerChar);
-const statBonus = getSpellStatBonus(14);
-const expectedSpellBonus = Math.round((statBonus * 1.2 * 1.1 - 1) * 100);
+const expectedSpellBonus = 32;
 check("magic displays the effective multiplier bonus", spellPowerStats.magic, expectedSpellBonus);
 check("healing displays the effective multiplier bonus", spellPowerStats.healing, expectedSpellBonus);
 
 const cappedSpellChar = makeChar({
-  int: 30,
   equipment: { accessory: makeItem("RING_STR", [{ type: "arcane", value: 10 }]) }
 });
 const overCapSpellChar = makeChar({
-  int: 40,
+  int: 99,
   equipment: { accessory: makeItem("RING_STR", [{ type: "arcane", value: 10 }]) }
 });
-check("INT 30 reaches the +40% cap before affixes", getCharDerivedStats(cappedSpellChar).magic, 54);
-check("INT above 30 does not increase the capped display", getCharDerivedStats(overCapSpellChar).magic, 54);
+check("explicit arcane affix controls magic display", getCharDerivedStats(cappedSpellChar).magic, 10);
+check("legacy INT does not change the magic display", getCharDerivedStats(overCapSpellChar).magic, 10);
 
 const trapChar = makeChar({
   level: 4,
@@ -323,6 +319,7 @@ check(
   "trap display calls the real floor disarm formula",
   getCharDerivedStats(trapChar, { floor: 5 }).trap,
   calculateDisarmRate({
+    level: trapChar.level,
     floor: 5,
     affixBonus: trapAffixBonus
   })
@@ -336,15 +333,15 @@ check(
 const speedTreasureChar = makeChar({
   equipment: {
     accessory: makeItem("RING_STR", [
-      { type: "agi", value: 2 },
+      { type: "firstStrike", value: 2 },
       { type: "treasureSense", value: 8 }
     ])
   }
 });
 const speedTreasureStats = getCharDerivedStats(speedTreasureChar);
-check("speed is the same AGI base used by turn order", speedTreasureStats.speed, getCharAgi(speedTreasureChar));
+check("speed uses the explicit firstStrike sum", speedTreasureStats.speed, getCharAffixSum(speedTreasureChar, "firstStrike"));
 check(
-  "treasure is the same treasureSense sum used by chest information",
+  "treasure is the same treasureSense sum used by chest rewards",
   speedTreasureStats.treasure,
   getCharAffixSum(speedTreasureChar, "treasureSense")
 );

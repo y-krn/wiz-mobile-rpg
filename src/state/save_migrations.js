@@ -196,14 +196,55 @@ function normalizeCharEquipment(char, normalized) {
   }
 }
 
-function backfillItemAffixes(item) {
+function stripLegacyCharacterStats(char) {
+  if (!char || typeof char !== "object") return char;
+  const normalized = { ...char };
+  ["str", "int", "pie", "vit", "agi", "luk"].forEach(key => delete normalized[key]);
+  return normalized;
+}
+
+export function backfillItemAffixes(item) {
   if (!item || typeof item !== "object" || !item.baseId) return;
+  const legacyAffixMap = {
+    str: "atk",
+    int: "spellPower",
+    pie: "spellPower",
+    vit: "def",
+    agi: "physicalAccuracy",
+    luk: null,
+    lastSurvivorStats: null
+  };
+  const affixes = Array.isArray(item.affixes) ? item.affixes : [];
+  const migratedAffixes = affixes
+    .filter(affix => affix && typeof affix === "object")
+    .map(affix => {
+      const legacyType = affix.id || affix.type;
+      const migratedType = legacyAffixMap[legacyType];
+      if (!Object.hasOwn(legacyAffixMap, legacyType)) return affix;
+      if (!migratedType) return null;
+      return { ...affix, id: migratedType, type: migratedType };
+    })
+    .filter(Boolean);
+  Object.entries(item.statsBonus || {}).forEach(([legacyType, value]) => {
+    const migratedType = legacyAffixMap[legacyType];
+    const numericValue = Number(value);
+    if (migratedType && Number.isFinite(numericValue) && numericValue !== 0) {
+      migratedAffixes.push({
+        id: migratedType,
+        type: migratedType,
+        kind: "support",
+        value: numericValue
+      });
+    }
+  });
+  item.affixes = migratedAffixes;
+  delete item.statsBonus;
   item.knowledgeStage = getKnowledgeStage(item);
   item.observedHintTags = getKnowledgeHintTags(item);
   item.observationCount = Math.max(0, integerOr(item.observationCount, 0));
   item.trialCount = Math.max(0, integerOr(item.trialCount, 0));
   item.cursePower ??= getIdentificationGambleProfile(item.level || 1).cursePower;
-  (Array.isArray(item.affixes) ? item.affixes : []).forEach(affix => {
+  item.affixes.forEach(affix => {
     if (!affix || typeof affix !== "object") return;
     affix.id ||= affix.type;
     affix.kind ||= affix.id?.startsWith("CORE_") ? "core" : "support";
@@ -673,7 +714,10 @@ export function normalizeSavePayload(data) {
   normalized.dir = integerOr(data.dir, DIR_N);
   normalized.prevX = integerOr(data.prevX, defaultStart.x);
   normalized.prevY = integerOr(data.prevY, defaultStart.y);
-  normalized.party = arrayOr(data.party).filter(isRecord).slice(0, 1);
+  normalized.party = arrayOr(data.party)
+    .filter(isRecord)
+    .slice(0, 1)
+    .map(stripLegacyCharacterStats);
   normalized.inventory = normalizeInventory(arrayOr(data.inventory));
   normalized.seed = typeof data.seed === "string" && data.seed ? data.seed : generateRandomSeed();
   normalized.lightTurns = numberOr(data.lightTurns, 0);
@@ -749,7 +793,10 @@ export function normalizeSavePayload(data) {
   normalized.cleared = typeof data.cleared === "boolean" ? data.cleared : false;
   normalized.metaMaterials = recordOr(data.metaMaterials, {});
   normalized.workshop = recordOr(data.workshop, { ranks: {} });
-  normalized.workshop.ranks = recordOr(normalized.workshop.ranks, {});
+  normalized.workshop.ranks = Object.fromEntries(
+    Object.entries(recordOr(normalized.workshop.ranks, {}))
+      .filter(([nodeId]) => !nodeId.startsWith("stat_"))
+  );
   normalized.workshop.lateralUnlocks = [...new Set(
     arrayOr(normalized.workshop.lateralUnlocks).filter(nodeId => typeof nodeId === "string")
   )];

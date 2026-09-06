@@ -34,6 +34,11 @@ for (const kit of STARTING_KITS) {
 
 const arcana = createStartingKitCharacter("arcana");
 assert.equal(getCharMaxMp(arcana), 3, "WAND contributes medium capacity");
+assert.equal(
+  getCharMaxMp({ maxMp: 1, equipment: { weapon: "WAND" } }),
+  3,
+  "medium capacity does not depend on a legacy starting-kit marker"
+);
 assert.equal(getMediumRuneCapacity(arcana), 1);
 assert.deepEqual(getActiveSpellKeys(arcana), ["HALITO"]);
 assert.equal(isSpellcaster(arcana), true);

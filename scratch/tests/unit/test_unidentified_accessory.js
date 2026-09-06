@@ -1,6 +1,6 @@
 import assert from "assert";
 import { getItemData, getCharAffixSum } from "../../../src/rules/item_rules.js";
-import { getCharMaxHp, getCharMaxMp, getCharStr, getCharAgi, getCharLuk, getCharTrapBonus } from "../../../src/rules/character_stats.js";
+import { getCharMaxHp, getCharMaxMp, getCharTrapBonus, getCharWeaponAtk } from "../../../src/rules/character_stats.js";
 
 console.log("=== UNIDENTIFIED ACCESSORY BONUS LEAK TEST ===");
 
@@ -37,14 +37,14 @@ const unidentAmulet = {
 const data = getItemData(unidentAmulet);
 console.log("Unidentified Amulet Item Data hpBonus:", data.hpBonus);
 assert.strictEqual(data.hpBonus, 0, "Unidentified Amulet hpBonus must be 0");
-assert.deepStrictEqual(data.statsBonus, {}, "Unidentified Amulet statsBonus must be empty");
+assert.deepStrictEqual(data.affixBonus, {}, "Unidentified Amulet affixBonus must be empty");
 
 char.equipment.accessory = unidentAmulet;
 const maxHp = getCharMaxHp(char);
 console.log("Character maxHp with Unidentified Amulet:", maxHp);
 assert.strictEqual(maxHp, 30, "Character maxHp should include unidentified equipment effects");
 
-// 2. Half-Identified Ring STR
+// 2. Half-Identified attack ring
 const halfIdentRing = {
   key: "RING_STR_1",
   baseId: "RING_STR",
@@ -53,13 +53,13 @@ const halfIdentRing = {
 };
 
 const data2 = getItemData(halfIdentRing);
-console.log("Half-Identified Ring Item Data statsBonus:", data2.statsBonus);
-assert.deepStrictEqual(data2.statsBonus, {}, "Half-Identified Ring statsBonus must be empty");
+console.log("Half-Identified Ring Item Data affixBonus:", data2.affixBonus);
+assert.deepStrictEqual(data2.affixBonus, {}, "Half-Identified Ring affixBonus must be empty");
 
 char.equipment.accessory = halfIdentRing;
-const str = getCharStr(char);
-console.log("Character str with Half-Identified Ring:", str);
-assert.strictEqual(str, 14, "Character str should include unidentified equipment effects");
+const attack = getCharWeaponAtk(char);
+console.log("Character attack with Half-Identified Ring:", attack);
+assert.strictEqual(attack, 2, "Character attack should include unidentified equipment effects");
 
 // 3. Identified Ring STR (Control)
 const identRing = {
@@ -69,13 +69,13 @@ const identRing = {
 };
 
 const data3 = getItemData(identRing);
-console.log("Identified Ring Item Data statsBonus:", data3.statsBonus);
-assert.strictEqual(data3.statsBonus.str, 2, "Identified Ring statsBonus.str must be 2");
+console.log("Identified Ring Item Data affixBonus:", data3.affixBonus);
+assert.strictEqual(data3.atk, 2, "Identified Ring atk must be 2");
 
 char.equipment.accessory = identRing;
-const strIdent = getCharStr(char);
-console.log("Character str with Identified Ring:", strIdent);
-assert.strictEqual(strIdent, 14, "Character str should be 14");
+const attackIdent = getCharWeaponAtk(char);
+console.log("Character attack with Identified Ring:", attackIdent);
+assert.strictEqual(attackIdent, 2, "Character attack should be 2");
 
 // 4. Unidentified Ward Charm
 const unidentCharm = {

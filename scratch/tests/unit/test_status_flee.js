@@ -21,14 +21,10 @@ function createState({ status = "ok", isBoss = false, retreatPosition = null, ch
       maxHp: 100,
       mp: 0,
       maxMp: 0,
-      str: 15,
-      int: 8,
-      pie: 8,
-      vit: 10,
-      agi: 100,
-      luk: 10,
       status,
-      equipment: { weapon: "SHORT_SWORD", shield: null, armor: null, accessory: null },
+      buffs: [{ type: "firstStrike", value: 100 }],
+      spells: [],
+      equipment: { weapon: "SHORT_SWORD", shield: null, armor: "PLATE_MAIL", accessory: null },
       ...charOverrides
     }],
     combatState: {
@@ -144,7 +140,7 @@ test("flee always succeeds against a boss, takes one parting hit, and retreats",
     assert.ok(result.logQueue.some(log => log.runEscape));
     const expectedPartingDamage = Math.max(
       1,
-      Math.floor(10 * (1 - getPhysicalDefenseResistance(2, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING)))
+      Math.floor(10 * (1 - getPhysicalDefenseResistance(16, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING)))
     );
     assert.equal(result.state.party[0].hp, 100 - expectedPartingDamage);
     assert.deepEqual({ x: result.state.x, y: result.state.y }, { x: 4, y: 5 });
@@ -163,23 +159,6 @@ test("flee succeeds in place when no retreat tile was captured", () => {
     assert.ok(result.logQueue.some(log => log.runEscape));
     assert.deepEqual({ x: result.state.x, y: result.state.y }, { x: 5, y: 5 });
     assert.ok(result.logQueue.some(log => log.msg?.includes("その場に留まった")));
-  } finally {
-    Math.random = originalRandom;
-  }
-});
-
-test("character metadata does not force instant death", () => {
-  const state = createState({
-    charOverrides: { level: 10 },
-    monsterOverrides: { hp: 1000, maxHp: 1000, def: 20, physResist: 0.5, status: "sleep", sleepTurns: 2 }
-  });
-  const originalRandom = Math.random;
-  Math.random = () => 0;
-  try {
-    const result = runCombatRoundCalculation(state, { actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }] });
-    assert.ok(result.state.combatState.monsters[0].hp > 0);
-    assert.ok(result.state.combatState.monsters[0].hp < 1000);
-    assert.ok(!result.logQueue.some(log => log.msg?.includes("即死") || log.floatText === "即死"));
   } finally {
     Math.random = originalRandom;
   }

@@ -189,7 +189,7 @@ const restored = normalizeSavePayload({
 RETIRED_WORKSHOP_NODES.forEach(node => {
   check(`retired node ${node.id} is removed from save`, restored.workshop.ranks[node.id] === undefined);
 });
-check("surviving node ranks are untouched", restored.workshop.ranks.stat_str === 2);
+check("legacy stat ranks are removed", restored.workshop.ranks.stat_str === undefined);
 check(
   "retired node costs are refunded",
   restored.metaMaterials["霊粉"] === 6

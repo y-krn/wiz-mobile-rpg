@@ -1,6 +1,5 @@
 import { SPELLS } from "../data/spells.js";
-import { getSpellStatBonus } from "../rules/spell_rules.js";
-import { getCharInt, getCharPie, getCharMaxHp } from "../rules/character_stats.js";
+import { getCharMaxHp } from "../rules/character_stats.js";
 import { getCharAffixSum, getEffectiveHealAmount } from "../rules/item_rules.js";
 import { DIR_NAMES, DX, DY } from "../constants/directions.js";
 import { isMapDirectionBlocked } from "../rules/map_movement.js";
@@ -118,12 +117,10 @@ export const SPELL_EFFECTS = {
   HALITO: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
     const baseRoll = Math.floor(rng() * 11) + 12;
     let dmg = baseRoll;
-    const statValue = caster ? getCharInt(caster) : 10;
-    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const spellPowerBonus = getSpellPowerBonus(caster);
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
-    dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus * fireRiteBonus);
+    dmg = Math.round(dmg * spellPowerBonus * arcaneBonus * fireRiteBonus);
     const preAffixDamage = dmg;
     const affixResult = applyOffensiveAffixes(caster, target, dmg, { rng, state, logQueue });
     dmg = affixResult.damage;
@@ -143,9 +140,6 @@ export const SPELL_EFFECTS = {
       coreIds: affixResult.coreIds,
       formulaTelemetry: telemetryEnabled ? {
         baseRoll,
-        statName: "int",
-        statValue,
-        statBonus: bonus,
         spellPowerBonus,
         arcaneBonus,
         fireRiteBonus,
@@ -159,9 +153,7 @@ export const SPELL_EFFECTS = {
   },
   KATINO: ({ caster, target: targets, rng = Math.random }) => {
     let sleptCount = 0;
-    const intVal = caster ? getCharInt(caster) : 10;
-    const bonus = Math.min(0.10, Math.max(0, (intVal - 10) * 0.005));
-    const baseChance = Math.min(1, 0.6 + bonus + getSpellAccuracyBonus(caster));
+    const baseChance = Math.min(1, 0.6 + getSpellAccuracyBonus(caster));
     targets.forEach(t => {
       const chance = (t.isBoss || t.isMidboss) ? baseChance * 0.4 : baseChance;
       if (t.hp > 0 && rng() < chance) {
@@ -172,8 +164,6 @@ export const SPELL_EFFECTS = {
     return { log: `${caster.name}はカティノを唱えた！敵${sleptCount}体を眠らせた。` };
   },
   LAHALITO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
-    const statValue = caster ? getCharInt(caster) : 10;
-    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const spellPowerBonus = getSpellPowerBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
@@ -181,7 +171,7 @@ export const SPELL_EFFECTS = {
       let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
-      dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus * fireRiteBonus);
+      dmg = Math.round(dmg * spellPowerBonus * arcaneBonus * fireRiteBonus);
       const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue });
       dmg = affixResult.damage;
@@ -204,9 +194,6 @@ export const SPELL_EFFECTS = {
         coreIds: affixResult.coreIds,
         formulaTelemetry: telemetryEnabled ? {
           baseRoll,
-          statName: "int",
-          statValue,
-          statBonus: bonus,
           spellPowerBonus,
           arcaneBonus,
           fireRiteBonus,
@@ -249,12 +236,10 @@ export const SPELL_EFFECTS = {
   MAHALITO: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
     const baseRoll = Math.floor(rng() * 21) + 30;
     let dmg = baseRoll;
-    const statValue = caster ? getCharInt(caster) : 10;
-    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const spellPowerBonus = getSpellPowerBonus(caster);
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
-    dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus * fireRiteBonus);
+    dmg = Math.round(dmg * spellPowerBonus * arcaneBonus * fireRiteBonus);
     const preAffixDamage = dmg;
     const affixResult = applyOffensiveAffixes(caster, target, dmg, { rng, state, logQueue });
     dmg = affixResult.damage;
@@ -274,9 +259,6 @@ export const SPELL_EFFECTS = {
       coreIds: affixResult.coreIds,
       formulaTelemetry: telemetryEnabled ? {
         baseRoll,
-        statName: "int",
-        statValue,
-        statBonus: bonus,
         spellPowerBonus,
         arcaneBonus,
         fireRiteBonus,
@@ -289,22 +271,18 @@ export const SPELL_EFFECTS = {
     };
   },
   MASFEAL: ({ caster, target: state }) => {
-    const intVal = caster ? getCharInt(caster) : 10;
-    const durationBonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
-    const steps = Math.round(30 * durationBonus);
+    const steps = 30;
     state.repelTurns = steps;
     return { log: `${caster.name}はマスペアルを唱えた！気配が消え、魔物を寄せ付けなくなった。(${steps}歩の間有効)` };
   },
   MADALTO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
-    const statValue = caster ? getCharInt(caster) : 10;
-    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const spellPowerBonus = getSpellPowerBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
       const baseRoll = Math.floor(rng() * 31) + 30;
       let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-      dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus);
+      dmg = Math.round(dmg * spellPowerBonus * arcaneBonus);
       const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue });
       dmg = affixResult.damage;
@@ -327,9 +305,6 @@ export const SPELL_EFFECTS = {
         coreIds: affixResult.coreIds,
         formulaTelemetry: telemetryEnabled ? {
           baseRoll,
-          statName: "int",
-          statValue,
-          statBonus: bonus,
           spellPowerBonus,
           arcaneBonus,
           fireRiteBonus: 1,
@@ -354,15 +329,13 @@ export const SPELL_EFFECTS = {
     };
   },
   TILTOWAIT: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
-    const statValue = caster ? getCharInt(caster) : 10;
-    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const spellPowerBonus = getSpellPowerBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
       const baseRoll = Math.floor(rng() * 51) + 50;
       let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-      dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus);
+      dmg = Math.round(dmg * spellPowerBonus * arcaneBonus);
       const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue });
       dmg = affixResult.damage;
@@ -385,9 +358,6 @@ export const SPELL_EFFECTS = {
         coreIds: affixResult.coreIds,
         formulaTelemetry: telemetryEnabled ? {
           baseRoll,
-          statName: "int",
-          statValue,
-          statBonus: bonus,
           spellPowerBonus,
           arcaneBonus,
           fireRiteBonus: 1,
@@ -415,10 +385,9 @@ export const SPELL_EFFECTS = {
   // Priest Spells
   DIOS: ({ caster, target, rng = Math.random }) => {
     let heal = rollHealing("DIOS", rng);
-    const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
     const spellPowerBonus = getSpellPowerBonus(caster);
     const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
-    heal = Math.round(heal * bonus * spellPowerBonus * devotionBonus);
+    heal = Math.round(heal * spellPowerBonus * devotionBonus);
     heal = getEffectiveHealAmount(target, heal);
     const oldHp = target.hp;
     const maxHp = getCharMaxHp(target);
@@ -440,11 +409,9 @@ export const SPELL_EFFECTS = {
   BADIOS: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
     const baseRoll = Math.floor(rng() * 11) + 8;
     let dmg = baseRoll;
-    const statValue = caster ? getCharPie(caster) : 10;
-    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const spellPowerBonus = getSpellPowerBonus(caster);
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-    dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus);
+    dmg = Math.round(dmg * spellPowerBonus * arcaneBonus);
     
     const preTargetBonusDamage = dmg;
     const preAffixDamage = dmg;
@@ -472,9 +439,6 @@ export const SPELL_EFFECTS = {
       coreIds: affixResult.coreIds,
       formulaTelemetry: telemetryEnabled ? {
         baseRoll,
-        statName: "pie",
-        statValue,
-        statBonus: bonus,
         spellPowerBonus,
         arcaneBonus,
         fireRiteBonus: 1,
@@ -491,9 +455,7 @@ export const SPELL_EFFECTS = {
     };
   },
   MILWA: ({ caster, target: state }) => {
-    const pieVal = caster ? getCharPie(caster) : 10;
-    const durationBonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
-    const steps = Math.round(30 * durationBonus);
+    const steps = 30;
     state.lightTurns = (state.lightTurns || 0) + steps;
     if (state.lightPower !== "lomilwa") state.lightPower = "milwa";
     return { log: `${caster.name}はミルワを唱えた！${steps}歩の間、明かりが罠と不意打ちへの警戒を助ける。` };
@@ -513,10 +475,9 @@ export const SPELL_EFFECTS = {
   },
   MADIOS: ({ caster, target, rng = Math.random }) => {
     let heal = rollHealing("MADIOS", rng);
-    const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
     const spellPowerBonus = getSpellPowerBonus(caster);
     const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
-    heal = Math.round(heal * bonus * spellPowerBonus * devotionBonus);
+    heal = Math.round(heal * spellPowerBonus * devotionBonus);
     heal = getEffectiveHealAmount(target, heal);
     const oldHp = target.hp;
     const maxHp = getCharMaxHp(target);
@@ -536,19 +497,16 @@ export const SPELL_EFFECTS = {
     return { log: `${caster.name}は${target.name}にラツモフィスを唱えた。${cured ? "毒が消え去った！" : "しかし効果がなかった。"}` };
   },
   LOMILWA: ({ caster, target: state }) => {
-    const pieVal = caster ? getCharPie(caster) : 10;
-    const durationBonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
-    const steps = Math.round(100 * durationBonus);
+    const steps = 100;
     state.lightTurns = (state.lightTurns || 0) + steps;
     state.lightPower = "lomilwa";
     return { log: `${caster.name}はロミルワを唱えた！${steps}歩の間、強い光が罠・不意打ち・隠れた気配を照らす。` };
   },
   DIALMA: ({ caster, target, rng = Math.random }) => {
     let heal = rollHealing("DIALMA", rng);
-    const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
     const spellPowerBonus = getSpellPowerBonus(caster);
     const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
-    heal = Math.round(heal * bonus * spellPowerBonus * devotionBonus);
+    heal = Math.round(heal * spellPowerBonus * devotionBonus);
     heal = getEffectiveHealAmount(target, heal);
     const oldHp = target.hp;
     const maxHp = getCharMaxHp(target);
@@ -561,10 +519,9 @@ export const SPELL_EFFECTS = {
   },
   MADI: ({ caster, target, rng = Math.random, healMin = null, healMax = null }) => {
     let heal = rollHealing("MADI", rng, healMin, healMax);
-    const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
     const spellPowerBonus = getSpellPowerBonus(caster);
     const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
-    heal = Math.round(heal * bonus * spellPowerBonus * devotionBonus);
+    heal = Math.round(heal * spellPowerBonus * devotionBonus);
     heal = getEffectiveHealAmount(target, heal);
     const oldHp = target.hp;
     const maxHp = getCharMaxHp(target);
@@ -588,11 +545,7 @@ export const SPELL_EFFECTS = {
   },
   MONTINO: ({ caster, target: targets, rng = Math.random }) => {
     let silencedCount = 0;
-    const intVal = caster ? getCharInt(caster) : 10;
-    const pieVal = caster ? getCharPie(caster) : 10;
-    const maxStat = Math.max(intVal, pieVal);
-    const bonus = Math.min(0.15, Math.max(0, (maxStat - 10) * 0.015));
-    const baseChance = Math.min(1, 0.5 + bonus + getSpellAccuracyBonus(caster));
+    const baseChance = Math.min(1, 0.5 + getSpellAccuracyBonus(caster));
 
     targets.forEach(t => {
       if (t.hp > 0) {

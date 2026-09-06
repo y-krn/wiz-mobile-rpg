@@ -65,7 +65,7 @@ const dropRun = simulateRun({
   targetDepth: 6,
   // The universal exploration resolver changes the old fixed fixture path;
   // this adjacent deterministic run still exercises the fromDrop branch.
-  runIndex: 1,
+  runIndex: 37,
   seriesId: "issue-894-drop",
   scoringProfile: null,
   scenario: { chestTrapPolicy: "legacy" }

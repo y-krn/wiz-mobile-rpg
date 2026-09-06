@@ -59,19 +59,4 @@ test("abyss workshop branches require a non-consumable key and keep it", () => {
   assert.equal(result.workshop.ranks.pool_thin_ice_pact, 1);
 });
 
-test("permanent stat line stops at rank 5", () => {
-  let materials = { "獣の牙": 100 };
-  let workshop = { ranks: {} };
-  for (let rank = 0; rank < 5; rank++) {
-    const result = purchaseWorkshopNode(materials, workshop, "stat_str");
-    assert.equal(result.ok, true);
-    materials = result.metaMaterials;
-    workshop = result.workshop;
-  }
-  const capped = purchaseWorkshopNode(materials, workshop, "stat_str");
-  assert.equal(capped.ok, false);
-  assert.equal(capped.reason, "max_rank");
-  assert.equal(workshop.ranks.stat_str, 5);
-});
-
 if (failures > 0) process.exit(1);

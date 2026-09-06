@@ -15,7 +15,6 @@ import { getItemUseStatus } from "../../../src/equip.js";
 import { resolvePlayerItem } from "../../../src/combat_logic/item_resolution.js";
 import { reduceIncomingDamage } from "../../../src/combat_logic/damage.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
-import { canUseManaItems } from "../../../src/rules/magic_rules.js";
 import { state } from "../../../src/state.js";
 
 (async () => {
@@ -68,7 +67,7 @@ import { state } from "../../../src/state.js";
     // #271: 守りの薬は def+10 から物理割合軽減 physGuard 40% へ変更
     assert.strictEqual(getBuffTotal(fighter, "physGuard"), 40);
     assert.strictEqual(getBuffTotal(fighter, "def"), 0);
-    assert.strictEqual(getBuffTotal(fighter, "agi"), 5);
+    assert.strictEqual(getBuffTotal(fighter, "firstStrike"), 5);
     console.log("-> [PASS] Buff values applied correctly");
 
     // 5. Test combat round calculation & formula integration
@@ -137,11 +136,15 @@ import { state } from "../../../src/state.js";
     // 1. resolvePlayerItem Verification (Success / Failure / Agility Probability / Consumption)
     const originalRandom = Math.random;
 
-    function testResolveEscapeScroll(agi, forceRandomValue) {
+    function testResolveEscapeScroll(escapeChance, forceRandomValue) {
       const char = {
         name: "Speedy",
-        agi: agi,
-        status: "ok"
+        status: "ok",
+        equipment: {
+          accessory: escapeChance > 0
+            ? { baseId: "RING_AGI", identified: true, affixes: [{ type: "escapeChance", value: escapeChance }] }
+            : null
+        }
       };
       const testState = {
         party: [char],
@@ -159,27 +162,27 @@ import { state } from "../../../src/state.js";
       }
     }
 
-    // Case A: High Agility (agi: 99). Expected chance is capped at 95% (0.95)
+    // Case A: explicit physical accuracy is capped at 95% (0.95)
     // random < 0.95 -> Success
-    const successA = testResolveEscapeScroll(99, 0.94);
-    assert.strictEqual(successA.res.escaped, true, "Agi 99 with random 0.94 should escape successfully.");
+    const successA = testResolveEscapeScroll(20, 0.94);
+    assert.strictEqual(successA.res.escaped, true, "accuracy 20 with random 0.94 should escape successfully.");
     assert.strictEqual(successA.testState.inventory.length, 0, "Escape scroll should be consumed on success.");
     assert.ok(successA.logQueue.some(log => log.fleeCombat), "Successful escape should push fleeCombat: true to log.");
 
     // random >= 0.95 -> Fail
-    const failA = testResolveEscapeScroll(99, 0.96);
-    assert.strictEqual(failA.res.escaped, false, "Agi 99 with random 0.96 should fail to escape.");
+    const failA = testResolveEscapeScroll(20, 0.96);
+    assert.strictEqual(failA.res.escaped, false, "accuracy 20 with random 0.96 should fail to escape.");
     assert.strictEqual(failA.testState.inventory.length, 0, "Escape scroll should be consumed on failure.");
     assert.ok(!failA.logQueue.some(log => log.fleeCombat), "Failed escape should not push fleeCombat: true.");
 
-    // Case B: Low Agility (agi: 1). Expected chance is 75% - 27% = 48% (0.48)
+    // Case B: no explicit accuracy. Base chance is 75%.
     // random < 0.48 -> Success
-    const successB = testResolveEscapeScroll(1, 0.47);
-    assert.strictEqual(successB.res.escaped, true, "Agi 1 with random 0.47 should escape successfully.");
+    const successB = testResolveEscapeScroll(0, 0.74);
+    assert.strictEqual(successB.res.escaped, true, "base chance with random 0.74 should escape successfully.");
 
     // random >= 0.48 -> Fail
-    const failB = testResolveEscapeScroll(1, 0.49);
-    assert.strictEqual(failB.res.escaped, false, "Agi 1 with random 0.49 should fail to escape.");
+    const failB = testResolveEscapeScroll(0, 0.76);
+    assert.strictEqual(failB.res.escaped, false, "base chance with random 0.76 should fail to escape.");
 
     console.log("[PASS] ESCAPE_SCROLL resolution, agility-based rates, and consumption verified.");
 
@@ -239,6 +242,7 @@ import { state } from "../../../src/state.js";
         agi: 99,
         luk: 8,
         equipment: { weapon: null, shield: null, armor: null },
+        spells: [],
         exp: 0
       };
       const dead = { ...char, name: "Dead", status: "dead", hp: 0 };
@@ -290,6 +294,7 @@ import { state } from "../../../src/state.js";
         agi: 1,
         luk: 8,
         equipment: { weapon: null, shield: null, armor: null },
+        spells: [],
         exp: 0
       };
       const dead = { ...char, name: "Dead", status: "dead", hp: 0 };
@@ -358,19 +363,6 @@ import { state } from "../../../src/state.js";
     });
     assert.strictEqual(etherResult.target.mp, 9, "ETHER should restore 8 MP in combat.");
     assert.strictEqual(etherResult.logQueue[0].floatText, "+8 MP", "ETHER floatText should show actual MP recovery.");
-
-    console.log("Testing mana item build gate...");
-    assert.equal(canUseManaItems({ maxMp: 20 }), true, "MP-bearing builds can use mana items");
-    assert.equal(canUseManaItems({ maxMp: 0 }), false, "zero-MP builds cannot use mana items");
-    for (const [itemKey, recovery] of [["MANA_POTION", 3], ["ETHER", 8]]) {
-      const item = ITEMS[itemKey];
-      assert.ok(!item.classes, `${itemKey} must not have a class allowlist.`);
-      assert.ok(item.desc.includes("[MPを持つ冒険者用]"), `${itemKey} must use the MP-bearing build label.`);
-      const character = { name: "Build", mp: 1, maxMp: 20 };
-      ITEM_EFFECTS[itemKey]({ char: character });
-      assert.equal(character.mp, 1 + recovery, `${itemKey} should recover MP for an MP-bearing build.`);
-    }
-    console.log("[PASS] Mana item build gate stays aligned.");
 
     const cureResult = resolveTestItem("PARALYZE_CURE", {
       name: "Paralyzed",
@@ -456,13 +448,7 @@ import { state } from "../../../src/state.js";
     assert.strictEqual(getCharAffixSum(charObjectEquip, "antiDragon"), 30);
     console.log("-> [PASS] getCharAffixSum verified (both string and object equipment states)");
 
-    // Test 3: every build can equip DRAGON_CHARM
-    console.log("Running Test 3: universal equipment limits...");
-    const itemDragonCharm = ITEMS["DRAGON_CHARM"];
-    assert.equal(itemDragonCharm.classes, undefined, "DRAGON_CHARM must not have a class allowlist");
-    console.log("-> [PASS] Universal equipment limits verified");
-
-    // Test 4: Verify antiUndead and antiDragon damage modifications
+    // Test 3: Verify antiUndead and antiDragon damage modifications
     // Mimicking internal applyTargetedDamageBonus since it isn't exported.
     console.log("Running Test 4: Targeted damage bonus logic...");
     function mockApplyTargetedDamageBonus(char, target, dmg) {

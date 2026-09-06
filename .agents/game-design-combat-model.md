@@ -50,17 +50,17 @@ The following names describe the model, not a requirement that the UI expose
 internal fields:
 
 - `weaponPower` is the effective weapon and equipment attack contribution.
-- `buildAttack` includes temporary attack contributions and first-turn effects.
-- `strength` is the attacker's resolved physical stat; values below the neutral
-  point do not create an extra negative physical term.
+- `buildAttack` includes explicit Support/Core attack contributions, temporary
+  attack contributions, and first-turn effects. Each contribution enters the
+  physical source of truth once.
 - `weaponRoll` comes from the authored weapon's inclusive variance range. A
   family may feel stable or volatile without changing its mean contribution.
 - `defense` is the target's effective physical defense after temporary effects.
 - `physicalResistance` is the bounded combination of defense resistance and
   authored physical resistance.
 - `evasion` exists only on an explicitly evasive target. `hitChance` is
-  `clamp(0.50, 1.00, 1 - evasion + (AGI - 10) × 0.01 + accuracyBonus)` for
-  such a target; ordinary targets have 1.00 hit chance.
+  `clamp(0.50, 1.00, 1 - evasion + accuracyBonus + behaviorBonus)` for such a
+  target; ordinary targets have 1.00 hit chance.
 - `spellPower` is the common attack/recovery spell contribution. Attack and
   recovery directions add their own explicit terms.
 - `magicResistance` is a bounded target modifier that may represent weakness
@@ -75,8 +75,8 @@ The attacker's action first resolves whether the damage formula is reached:
 2. An explicitly evasive target may avoid the attack using `hitChance`.
    Accuracy improves this chance only for evasive targets; it does not change
    ordinary targets or override blind miss.
-3. The raw attack is assembled from the effective weapon, temporary attack,
-   strength above the neutral point, the weapon's random roll, and any authored
+3. The raw attack is assembled from the effective weapon, explicit build and
+   temporary attack contributions, the weapon's random roll, and any authored
    behavior profile. A build effect that converts a successful chest-trap
    disarm into attack pressure remains a separate fixed contribution; it does
    not pretend to be weapon power or a class passive.
@@ -86,7 +86,6 @@ The intended raw shape is:
 ```text
 attackRaw = (
   floor(weaponPower + buildAttack)
-  + max(0, strength - 10)
   + weaponRoll
 ) × behaviorModifier
   + separateBuildBonus
@@ -164,16 +163,12 @@ to supply a deliberate critical direction.
 
 ## Offensive spell model
 
-An offensive spell begins with its authored dice and stat identity, then applies
-the common and spell-specific build terms:
+An offensive spell begins with its authored dice, then applies the common and
+spell-specific build terms:
 
 ```text
-statMultiplier(stat)
-  = 1 + min(statBonusCap, max(0, (stat - 10) × statStep))
-
 preTarget = round(
   spellBase
-  × statMultiplier(casterStat)
   × spellPower
   × attackDirection
   × elementDirection

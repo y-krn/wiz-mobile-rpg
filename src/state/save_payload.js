@@ -1,5 +1,5 @@
 import { markMapChanged, state } from "./state_core.js";
-import { SAVE_VERSION, normalizeSavePayload } from "./save_migrations.js";
+import { SAVE_VERSION, backfillItemAffixes, normalizeSavePayload } from "./save_migrations.js";
 import { menuContext, menuHistory } from "../navigation.js";
 import { resetEquipState } from "../equip.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
@@ -77,10 +77,22 @@ function resolvePersistedGameState() {
   return getStableFallbackGameState();
 }
 
+function sanitizePersistedItem(item) {
+  if (!item || typeof item !== "object") return item;
+  const sanitized = structuredClone(item);
+  backfillItemAffixes(sanitized);
+  return sanitized;
+}
+
 export function createSavePayload() {
   const persistedParty = state.party.slice(0, 1).map(char => {
     const persistedChar = { ...char };
     delete persistedChar.runTrapAttackBonus;
+    ["str", "int", "pie", "vit", "agi", "luk"].forEach(key => delete persistedChar[key]);
+    persistedChar.equipment = Object.fromEntries(
+      Object.entries(persistedChar.equipment || {})
+        .map(([slot, item]) => [slot, sanitizePersistedItem(item)])
+    );
     normalizeStatusEffectTarget(persistedChar);
     return persistedChar;
   });
@@ -107,7 +119,7 @@ export function createSavePayload() {
     y: state.y,
     dir: state.dir,
     party: persistedParty,
-    inventory: state.inventory,
+    inventory: state.inventory.map(sanitizePersistedItem),
     floor: state.floor,
     maps: state.maps,
     visitedMaps: state.visitedMaps,
@@ -116,7 +128,7 @@ export function createSavePayload() {
     repelTurns: state.repelTurns,
     silenceTurns: state.silenceTurns,
     forcedEncounterSteps: state.forcedEncounterSteps,
-    activeMerchantStock: state.activeMerchantStock,
+    activeMerchantStock: state.activeMerchantStock?.map(sanitizePersistedItem),
     floorChestsOpened: state.floorChestsOpened,
     floorChestsTotal: state.floorChestsTotal,
     firstKills: state.firstKills,
@@ -136,7 +148,7 @@ export function createSavePayload() {
     roamingMovementStepCount: state.roamingMovementStepCount,
     noiseEvents: state.noiseEvents,
     firstChestUnidentifiedGuaranteed: state.firstChestUnidentifiedGuaranteed,
-    storage: state.storage,
+    storage: state.storage.map(sanitizePersistedItem),
     storageMax: state.storageMax,
     identifyTickets: state.identifyTickets,
     cleared: state.cleared,
@@ -173,6 +185,7 @@ export function applySavePayload(data) {
   state.party = data.party.slice(0, 1).map(char => {
     const restoredChar = { ...char };
     delete restoredChar.runTrapAttackBonus;
+    ["str", "int", "pie", "vit", "agi", "luk"].forEach(key => delete restoredChar[key]);
     normalizeStatusEffectTarget(restoredChar);
     return restoredChar;
   });

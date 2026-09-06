@@ -22,14 +22,14 @@ function lcg(seed) {
   };
 }
 
-assert.strictEqual(SUPPORT_AFFIXES.length, 53, "support registry count");
-assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 53, "enabled support count");
+assert.strictEqual(SUPPORT_AFFIXES.length, 47, "support registry count");
+assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 47, "enabled support count");
 assert.deepStrictEqual(
   Object.fromEntries(["basic", "conditional", "trigger", "economy"].map(category => [
     category,
     SUPPORT_AFFIXES.filter(affix => affix.category === category).length
   ])),
-  { basic: 28, conditional: 14, trigger: 8, economy: 3 }
+  { basic: 23, conditional: 13, trigger: 8, economy: 3 }
 );
 SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.kind, "support");
@@ -42,33 +42,7 @@ assert.ok(CORE_AFFIXES.every(affix => affix.kind === "core" && affix.cost === 10
 assert.ok(CORE_AFFIXES.every(affix => affix.enabled), "all registered cores are enabled");
 assert.strictEqual(new Set(CORE_AFFIXES.map(affix => affix.id)).size, 13, "core IDs unique");
 assert.ok(formatAffixText(CORE_AFFIXES[0]).startsWith("◆血杖: MP不足時"));
-assert.deepStrictEqual(
-  getAffixDefinition("CORE_BLOOD_WAND"),
-  {
-    id: "CORE_BLOOD_WAND",
-    kind: "core",
-    jpName: "血杖",
-    desc: "MP不足時、消費MPの2倍のHPで呪文を発動できる。",
-    slot: "weapon",
-    cost: 10,
-    params: { hpCostMultiplier: 2 },
-    buildRole: "convert",
-    buildAxis: "main",
-    poolGroup: "combat",
-    enabled: true
-  },
-  "retained core keeps its canonical identity and value"
-);
-for (const retiredId of [
-  "CORE_LAST_STAND",
-  "CORE_OPENER",
-  "CORE_PHYSICAL_ACCURACY",
-  "CORE_GIANT_SLAYER",
-  "CORE_MILESTONE_BREAKER"
-]) {
-  assert.equal(getAffixDefinition(retiredId), null, `${retiredId} is retired from the active registry`);
-  assert.doesNotMatch(formatAffixText({ id: retiredId, type: retiredId, kind: "core", value: 1 }), /◆|CORE_/);
-}
+assert.equal(getAffixDefinition("CORE_PHYSICAL_ACCURACY"), null, "legacy physical accuracy core is retired");
 assert.ok(
   getAffixDefinition("guardian").desc.includes("HP25%以下"),
   "guardian description states its activation condition"
@@ -124,25 +98,6 @@ for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
     assert.strictEqual(deeper.affix.value, expectedValue, `spellPower ${rarity} must not scale by floor`);
   }
 }
-
-for (const [type, generator, floor] of [
-  ["physicalAccuracy", generateRandomEquipment, 2],
-  ["lowHpDamage", generateRandomEquipment, 2],
-  ["highHpTargetDamage", generateRandomEquipment, 2],
-  ["bossDamage", generateRandomEquipment, 2],
-  ["firstStrikeFollowUp", generateRandomAccessory, 2]
-]) {
-  for (const rarity of ["magic", "rare", "epic"]) {
-    const generated = findGeneratedAffix(generator, floor, type, 5000, rarity);
-    assert.ok(generated, `${type} enters the compatible Support generation pool`);
-    assert.equal(generated.affix.kind, "support");
-    assert.equal(generated.affix.value, getSupportValueByRarity(type, rarity));
-  }
-}
-assert.ok(
-  getSupportValueByRarity("firstStrikeFollowUp", "epic") < 100,
-  "first-strike follow-up support never guarantees a follow-up"
-);
 
 for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
   assert.strictEqual(findGeneratedAffix(generator, 1, "antiDemon"), null, "antiDemon is unavailable on B1");
@@ -238,18 +193,6 @@ for (const [generator, floor] of trapBonusValues) {
     const deep = findGeneratedAffix(generator, 5, "trapBonus", 5000, rarity);
     assert.strictEqual(shallow?.affix.value, getSupportValueByRarity("trapBonus", rarity), `trapBonus ${rarity} on B${floor}`);
     assert.strictEqual(deep?.affix.value, shallow?.affix.value, `trapBonus ${rarity} is floor-independent`);
-  }
-}
-
-for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
-  for (const rarity of ["magic", "rare", "epic"]) {
-    const generated = findGeneratedAffix(generator, 2, "trapGuard", 5000, rarity);
-    assert.ok(generated, `${generator.name} should offer trapGuard (${rarity})`);
-    assert.strictEqual(
-      generated.affix.value,
-      getSupportValueByRarity("trapGuard", rarity),
-      `${generator.name} trapGuard ${rarity} value`
-    );
   }
 }
 

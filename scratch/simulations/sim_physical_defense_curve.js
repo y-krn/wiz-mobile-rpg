@@ -10,8 +10,7 @@ import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import {
   calculatePhysicalDefenseFormula,
   getCharDef,
-  getCharMaxHp,
-  getCharVit
+  getCharMaxHp
 } from "../../src/rules/character_stats.js";
 
 const MEASUREMENT_PROVENANCE = requireRunnerProvenance({ fetchOriginMain: false });
@@ -39,10 +38,7 @@ const ANCHORS = Object.freeze([
 function getFighterAnchor() {
   const fighter = createStartingKitCharacter("vanguard");
   const hp = getCharMaxHp(fighter);
-  const def = calculatePhysicalDefenseFormula({
-    baseDef: getCharDef(fighter),
-    vit: getCharVit(fighter)
-  });
+  const def = calculatePhysicalDefenseFormula({ baseDef: getCharDef(fighter) });
   return {
     id: "fighter-standard",
     label: "Fighter標準",
@@ -52,7 +48,6 @@ function getFighterAnchor() {
     source: {
       equipment: fighter.equipment,
       baseDef: getCharDef(fighter),
-      vit: getCharVit(fighter)
     }
   };
 }

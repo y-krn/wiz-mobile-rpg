@@ -1,3 +1,2 @@
-export const getSpellStatBonus = (stat) => {
-  return 1.0 + Math.min(0.40, Math.max(0, (stat - 10) * 0.02));
-};
+// Spell scaling is owned by the explicit spellPower/arcane/devotion effects.
+// Keep this module as the stable export surface for future spell rules.

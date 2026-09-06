@@ -4,7 +4,7 @@ import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
 import {
   calculatePhysicalAttackFormula,
 } from "../../../src/rules/character_stats.js";
-import { getCharStr, getCharWeaponAtk, rollCharWeaponPhysicalRandom } from "../../../src/data.js";
+import { getCharWeaponAtk, rollCharWeaponPhysicalRandom } from "../../../src/data.js";
 
 global.localStorage = {
   getItem: () => null,
@@ -86,7 +86,6 @@ function expectedPhysicalDamage(buildName, options, randomValue) {
   const char = state.party[0];
   return Math.max(1, Math.floor(calculatePhysicalAttackFormula({
     weaponAtk: getCharWeaponAtk(char),
-    str: getCharStr(char),
     randRoll: rollCharWeaponPhysicalRandom(char, () => randomValue),
     def: options.def,
     physResist: options.physResist,

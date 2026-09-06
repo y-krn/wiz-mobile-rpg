@@ -30,13 +30,9 @@ const { EVENT_TYPES } = await import("../../src/constants/events.js");
 const { generateChestMaterials } = await import("../../src/chest.js");
 const {
   getCharAffixSum,
-  getCharAgi,
   getCharDef,
-  getCharInt,
   getCharMaxHp,
-  getCharPie,
-  getCharStr,
-  getCharVit,
+  getCharMaxMp,
   getCharWeaponAtk,
   getItemData
 } = await import("../../src/data.js");
@@ -57,11 +53,10 @@ const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
   weaponAtk: 2,
   defense: 2,
   maxHp: 0.25,
-  str: 1,
-  vit: 1,
-  int: 0.5,
-  pie: 0.5,
-  agi: 0.25,
+  maxMp: 0.2,
+  spellPower: 0.5,
+  physicalAccuracy: 0.25,
+  escapeChance: 0.2,
   guardian: 0.2,
   spellGuard: 0.15,
   followUp: 0.15,
@@ -498,11 +493,10 @@ function getEquipmentScore(character) {
     getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk
     + getCharDef(character) * EQUIPMENT_SCORE_WEIGHTS.defense
     + getCharMaxHp(character) * EQUIPMENT_SCORE_WEIGHTS.maxHp
-    + getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str
-    + getCharVit(character) * EQUIPMENT_SCORE_WEIGHTS.vit
-    + getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int
-    + getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie
-    + getCharAgi(character) * EQUIPMENT_SCORE_WEIGHTS.agi
+    + getCharMaxMp(character) * EQUIPMENT_SCORE_WEIGHTS.maxMp
+    + getCharAffixSum(character, "spellPower") * EQUIPMENT_SCORE_WEIGHTS.spellPower
+    + getCharAffixSum(character, "physicalAccuracy") * EQUIPMENT_SCORE_WEIGHTS.physicalAccuracy
+    + getCharAffixSum(character, "escapeChance") * EQUIPMENT_SCORE_WEIGHTS.escapeChance
     + getCharAffixSum(character, "guardian") * EQUIPMENT_SCORE_WEIGHTS.guardian
     + getCharAffixSum(character, "spellGuard") * EQUIPMENT_SCORE_WEIGHTS.spellGuard
     + getCharAffixSum(character, "followUp") * EQUIPMENT_SCORE_WEIGHTS.followUp

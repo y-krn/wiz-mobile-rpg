@@ -12,14 +12,9 @@ function createCharacter(overrides = {}) {
     mp: 0,
     maxMp: 0,
     status: "ok",
-    str: 10,
-    int: 10,
-    pie: 10,
-    vit: 10,
-    agi: 20,
-    luk: 10,
     equipment: {},
-    buffs: [],
+    spells: [],
+    buffs: [{ type: "firstStrike", value: 100, turns: 99 }],
     ...overrides
   };
 }

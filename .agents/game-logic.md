@@ -173,11 +173,11 @@ Use the repository review output format from `.agents/README.md`.
 
 ## Classless current-run contract (#1102)
 
-The current run has no character class, learned-spell list, class growth, or
-class permission. The six base abilities (`str`, `int`, `pie`, `vit`, `agi`,
-`luk`) and level growth are universal inputs. Build identity and specialization
-come from equipped gear, Core/Support affixes, the equipped medium, and
-socketed Runes.
+The current run has no character class, learned-spell list, class growth, class
+permission, or legacy six-ability inputs (`str`, `int`, `pie`, `vit`, `agi`,
+`luk`). Level growth supplies a universal durability floor. Build identity and
+specialization come from equipped gear, Core/Support affixes, the equipped
+medium, and socketed Runes.
 
 Active spells are derived only from the equipped medium and its socketed Runes.
 Mana items are available to any character with positive maximum MP. Trap

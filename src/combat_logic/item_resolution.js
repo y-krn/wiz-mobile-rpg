@@ -1,6 +1,4 @@
-import { ITEMS } from "../data.js";
-import { getCharAgi } from "../rules/character_stats.js";
-import { getBuffTotal } from "./status_effects.js";
+import { ITEMS, getCharAffixSum } from "../data.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry } from "../state/run_loot.js";
 import { trackLootLifecycle, trackPortalDecision } from "../telemetry.js";
 
@@ -60,10 +58,8 @@ export function resolvePlayerItem(char, act, state, logQueue) {
       lootId,
       source: "combat"
     });
-    const charAgi = getCharAgi(char) + getBuffTotal(char, "agi");
-    const avgEnemyAgi = 10;
-    const baseChance = 0.75;
-    const chance = Math.max(0.40, Math.min(0.95, baseChance + (charAgi - avgEnemyAgi) * 0.03));
+    const escapeChance = getCharAffixSum(char, "escapeChance") / 100;
+    const chance = Math.max(0.40, Math.min(0.95, 0.75 + escapeChance));
     const success = Math.random() < chance;
     if (success) {
       logQueue.push({

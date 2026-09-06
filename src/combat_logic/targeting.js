@@ -30,5 +30,8 @@ export function pickTarget(party, mode = "random") {
   const candidates = getLivingTargetCandidates(party, mode);
   if (candidates.length === 0) return null;
   if (mode === "lowHp") return candidates[0];
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  return candidates[Math.min(
+    candidates.length - 1,
+    Math.floor(Math.random() * candidates.length)
+  )];
 }
