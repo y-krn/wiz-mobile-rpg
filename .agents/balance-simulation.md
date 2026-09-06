@@ -182,3 +182,19 @@ Use the repository review output format from `.agents/README.md`. A balance
 review should make the question and evidence scope, modeled and omitted
 mechanics, provenance, result and uncertainty, limitations, and decision easy
 to find.
+
+## Build Snapshot measurement axis
+
+The current standard balance measurement uses explicit fixture IDs, not the
+legacy Fighter/Thief/Priest/Mage class axis. The canonical runner accepts these
+fixtures through `scratch/measurements/build_fixtures.js`, runs them through the
+same production-backed `simulateRun` path, and emits `axisType: "build-fixture"`
+with fixture IDs and resolved Build Snapshot metadata.
+
+The standard fixtures cover light weapon plus shield, heavy two-hand weapon,
+one-hand Medium with a shallow Rune and shield, two-hand Medium with multiple
+Runes, exploration Support, and a Main-axis conversion Core. Metrics are
+reported by fixture persona. Legacy class-mode exports remain available for
+historical comparisons but are not the vNext standard axis. CI does not require
+an N>=500 simulation; the standard measurement command retains its explicit
+N>=500 guard for deliberate measurement runs.

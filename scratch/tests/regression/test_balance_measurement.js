@@ -12,7 +12,7 @@ const defaults = resolveBalanceMeasurementConfig({}, {});
 assert.equal(defaults.runs, 500);
 assert.equal(defaults.calibrationRuns, 100);
 assert.equal(defaults.seed, 843);
-assert.deepEqual(defaults.classNames, [...STANDARD_BALANCE_CONFIG.classNames]);
+assert.deepEqual(defaults.fixtureIds, [...STANDARD_BALANCE_CONFIG.fixtureIds]);
 assert.deepEqual(defaults.scenarioIds, [...STANDARD_BALANCE_CONFIG.scenarioIds]);
 assert.deepEqual(defaults.targetDepths, [...STANDARD_BALANCE_CONFIG.targetDepths]);
 assert.throws(() => resolveBalanceMeasurementConfig({ runs: 499 }, {}), /N>=500/);
@@ -53,7 +53,7 @@ const pass = compareBalanceMeasurements(report(), report());
 assert.equal(pass.status, "pass");
 assert.ok(pass.metrics.every(metric => metric.status === "pass"));
 
-const classMetrics = Object.fromEntries(defaults.classNames.map(className => [className, {
+const fixtureMetrics = Object.fromEntries(defaults.fixtureIds.map(fixtureId => [fixtureId, {
   reachedRate: rateMetric(400, 500),
   breakthroughRate: rateMetric(250, 500),
   deathRate: rateMetric(50, 400),
@@ -65,13 +65,13 @@ const classReport = {
   ...report(),
   cases: [{
     scenarioId: "workshop-empty",
-    depths: [{ depth: 5, runs: 500, metricsByClass: classMetrics }]
+    depths: [{ depth: 5, runs: 500, metricsByFixtureId: fixtureMetrics }]
   }]
 };
 const classPass = compareBalanceMeasurements(classReport, classReport);
 assert.equal(classPass.status, "pass");
-assert.ok(classPass.metrics.some(metric => metric.key === "workshop-empty.Fighter.B5.reachedRate"));
-assert.equal(classPass.metrics.length, defaults.classNames.length * 6);
+assert.ok(classPass.metrics.some(metric => metric.key === "workshop-empty.light-shield.B5.reachedRate"));
+assert.equal(classPass.metrics.length, defaults.fixtureIds.length * 6);
 
 const uncertain = compareBalanceMeasurements(report(), report({ breakthrough: 0.43 }));
 assert.equal(uncertain.status, "uncertain");

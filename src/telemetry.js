@@ -12,7 +12,6 @@ import {
   getCharVit
 } from "./rules/character_stats.js";
 import { getCharAffixSum, getItemBaseId, getItemData, getPartyMaxAffix } from "./rules/item_rules.js";
-import { CLASSES } from "./data/classes.js";
 import { ITEMS } from "./data/items.js";
 import { MONSTERS } from "./data/monsters.js";
 import { SPELLS } from "./data/spells.js";
@@ -33,6 +32,7 @@ import { getMpWardDef } from "./combat_logic/mp_ward.js";
 import { INVENTORY_CAPACITY } from "./rules/item_inventory.js";
 import { getWeaponBehaviorProfile } from "./data/weapon_behavior_profiles.js";
 import { RUNE_SUPPLY_BANDS, RUNES } from "./data/magic.js";
+import { resolveBuildSnapshot } from "./rules/build_snapshot.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -247,10 +247,6 @@ function normalizeOptionalStableValue(value, allowedValues) {
   return normalizeStableValue(value, allowedValues);
 }
 
-function normalizeClass(value) {
-  return normalizeOptionalStableValue(value, new Set(Object.keys(CLASSES)));
-}
-
 function normalizeRarity(value) {
   return normalizeOptionalStableValue(value, SAFE_RARITIES);
 }
@@ -398,7 +394,6 @@ export function buildPlayerSnapshot(character, { floor = 1 } = {}) {
     // Malformed optional state must never interfere with gameplay.
   }
   const snapshot = {
-    playerClass: normalizeClass(character.class),
     level: boundedFiniteOrNull(character.level),
     hp: boundedFiniteOrNull(character.hp),
     maxHp: boundedFiniteOrNull(getCharMaxHp(character)),
@@ -440,8 +435,8 @@ export function buildPlayerSnapshot(character, { floor = 1 } = {}) {
 }
 
 export function buildEquipmentSnapshot(character) {
-  const slots = Object.entries(character?.equipment || {}).slice(0, EQUIPMENT_SLOTS.length);
-  const equipment = slots.map(([slot, itemKey]) => {
+  const equipment = EQUIPMENT_SLOTS.map(({ id: slot }) => {
+    const itemKey = character?.equipment?.[slot] ?? null;
     const item = getItemData(itemKey);
     const affixSummary = getAffixSummary(itemKey);
     return {
@@ -535,9 +530,11 @@ export function buildEnvironmentSnapshot(stateSnapshot, combat = null) {
 }
 
 export function buildDecisionContext({ state: stateSnapshot = null, character = null, combat = null } = {}) {
+  const actor = character || stateSnapshot?.party?.[0];
   return {
-    ...buildPlayerSnapshot(character || stateSnapshot?.party?.[0], { floor: stateSnapshot?.floor ?? combat?.floor ?? 1 }),
-    ...buildEquipmentSnapshot(character || stateSnapshot?.party?.[0]),
+    ...buildPlayerSnapshot(actor, { floor: stateSnapshot?.floor ?? combat?.floor ?? 1 }),
+    buildSnapshot: resolveBuildSnapshot(actor, { party: stateSnapshot?.party }),
+    ...buildEquipmentSnapshot(actor),
     ...buildResourceSnapshot(stateSnapshot),
     ...buildEnvironmentSnapshot(stateSnapshot, combat)
   };
@@ -558,6 +555,7 @@ export function buildExplorationContext({ state: stateSnapshot = null, character
     ...Object.fromEntries(playerKeys
       .filter(key => Object.hasOwn(player, key))
       .map(key => [key, player[key]])),
+    buildSnapshot: resolveBuildSnapshot(actor, { party: stateSnapshot?.party }),
     ...buildEquipmentSnapshot(actor),
     ...buildResourceSnapshot(stateSnapshot),
     ...buildEnvironmentSnapshot(stateSnapshot)
@@ -1016,7 +1014,7 @@ export function trackBleedingEvent(event, details = {}) {
   const normalizedEvent = normalizeStableValue(event, SAFE_BLEEDING_EVENTS);
   capture(`bleeding_${normalizedEvent}`, {
     floor: boundedFiniteOrNull(details.floor),
-    playerClass: normalizeClass(details.playerClass),
+    ...(details.character ? { buildSnapshot: resolveBuildSnapshot(details.character, { party: details.state?.party }) } : {}),
     enemyId: normalizeEnemyId(details.enemyId),
     isBoss: Boolean(details.isBoss),
     isMidboss: Boolean(details.isMidboss),
@@ -1034,7 +1032,7 @@ export function trackVulnerableEvent(event, details = {}) {
   const normalizedEvent = normalizeStableValue(event, SAFE_VULNERABLE_EVENTS);
   capture(`vulnerable_${normalizedEvent}`, {
     floor: boundedFiniteOrNull(details.floor),
-    playerClass: normalizeClass(details.playerClass),
+    ...(details.character ? { buildSnapshot: resolveBuildSnapshot(details.character, { party: details.state?.party }) } : {}),
     enemyId: normalizeEnemyId(details.enemyId),
     isBoss: Boolean(details.isBoss),
     isMidboss: Boolean(details.isMidboss),
@@ -1155,7 +1153,6 @@ export function trackRunStart(run, character, stateSnapshot = null) {
   capture("run_start", {
     runId,
     ...safeDecisionContext({ state: stateSnapshot, character }),
-    playerClass: normalizeClass(character?.class ?? run?.characterClass),
     level: boundedFiniteOrNull(character?.level),
     startFloor: boundedFiniteOrNull(run?.startFloor),
     // Preserve v1 raw capacity fields while exposing effective capacities via
@@ -1183,7 +1180,6 @@ export function trackCombatStart(combat, stateSnapshot = null) {
     combatId,
     ...safeDecisionContext({ state: stateSnapshot, character: combat?.player, combat }),
     floor: boundedFiniteOrNull(combat?.floor),
-    playerClass: normalizeClass(combat?.player?.class),
     playerHp: boundedFiniteOrNull(combat?.player?.hp),
     playerMp: boundedFiniteOrNull(combat?.player?.mp),
     enemyIds: (combat?.monsters ?? []).slice(0, MAX_ENEMY_SNAPSHOT).map(monster => normalizeEnemyId(monster?.name)),
@@ -1202,7 +1198,7 @@ export function trackDamageReceived(damage) {
     runId,
     combatId,
     floor: boundedFiniteOrNull(damage?.floor),
-    playerClass: normalizeClass(damage?.playerClass),
+    ...(damage?.character ? { buildSnapshot: resolveBuildSnapshot(damage.character) } : {}),
     enemyId: normalizeEnemyId(damage?.enemyId),
     attackType: normalizeStableValue(damage?.attackType, SAFE_ATTACK_TYPES),
     rawDamage: boundedFiniteOrNull(damage?.rawDamage),
@@ -1266,7 +1262,6 @@ export function trackRunEnd(run, outcome, stateSnapshot = null) {
   capture("run_end", {
     runId,
     ...safeDecisionContext({ state: stateSnapshot, character: stateSnapshot?.party?.[0] }),
-    playerClass: normalizeClass(run?.characterClass),
     outcome: normalizeOutcome(outcome),
     returnReason: normalizeOptionalStableValue(run?.returnReason, SAFE_RETURN_REASONS),
     deepestFloor: boundedFiniteOrNull(run?.deepestFloor),

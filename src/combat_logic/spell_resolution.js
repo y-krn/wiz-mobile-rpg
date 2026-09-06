@@ -141,7 +141,6 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       state.combatFormulaTelemetry.spellHits.push({
         floor: state.floor,
         spellName: act.spellName,
-        casterClass: char.class,
         magicResist: appliedMagicResist,
         damageBeforeMagicResist: result.preMagicResistDamage,
         damage: resolvedDamage,
@@ -220,7 +219,6 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
         state.combatFormulaTelemetry.spellHits.push({
           floor: state.floor,
           spellName: act.spellName,
-          casterClass: char.class,
           magicResist: getEffectiveMagicResist(mon),
           damageBeforeMagicResist: hit.preMagicResistDamage,
           damage: hit.dmg,

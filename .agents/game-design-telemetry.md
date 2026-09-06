@@ -64,6 +64,27 @@ combat identity boundary must not be used to infer exploration authority. A
 Core dimension accepts only the active Core definitions; numeric or probability
 reinforcements remain Support observations.
 
+### Build Snapshot v1
+
+Telemetry and canonical simulation share `src/rules/build_snapshot.js` as the
+production resolver. Its bounded identity contains the weapon behavior profile
+(`none`, `light`, `blade`, `impact`, `heavy`, or `medium`), hands, resolved Guard
+profile (including universal guard), equipped Medium, Rune capacity, active Rune
+spell IDs from socket state, enabled Main/Auxiliary Core IDs, and a fixed
+allowlist of bounded combat and exploration Support values. The schema version
+and stable identity are part of the measurement record.
+
+HP, MP, bag contents, floor, and run ownership are event context rather than
+build identity. Starting kit is a separate fixture/context field. The resolver
+does not derive a role label from class or stats, does not inspect save/object
+ordering, and never admits free-form unknown dimensions.
+
+Current vNext telemetry omits `playerClass`. Combat callers pass the character
+only where the resolver needs production equipment/socket state; they do not
+pass class labels into telemetry or formula observations. Legacy class fields
+may remain in historical scratch reports solely for compatibility and are not a
+current build axis.
+
 ## Deterministic measurement
 
 Deterministic measurements should use the production resolution semantics and

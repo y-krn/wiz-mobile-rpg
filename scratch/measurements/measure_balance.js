@@ -45,10 +45,12 @@ const provenance = resolveMeasurementProvenance({
   fetchOriginMain: false,
   measurementRunnerPaths: [
     "scratch/measurements/balance_measurement.js",
+    "scratch/measurements/build_fixtures.js",
     "scratch/measurements/measure_balance.js",
     "scratch/simulations/sim_depth_material_ev.js",
     "scratch/simulations/sim_parallel.js",
-    "scratch/measurements/measurement_provenance.js"
+    "scratch/measurements/measurement_provenance.js",
+    "src/rules/build_snapshot.js"
   ]
 });
 
@@ -59,10 +61,10 @@ standardEnv.IDENTIFICATION_COST_OVERRIDE = String(IDENTIFICATION_BALANCE.identif
 const { runCalibratedDepthSimulationTask } = await import("../simulations/sim_depth_material_ev.js");
 
 const tasks = config.scenarioIds.flatMap(scenarioId =>
-  config.classNames.map(className => ({
+  config.fixtureIds.map(fixtureId => ({
     kind: "scenario",
     scenarioId,
-    className,
+    fixtureId,
     identificationPolicyId: config.identificationPolicy,
     runCount: config.calibrationRuns
   }))
@@ -88,15 +90,15 @@ const execution = {
   )
 };
 const taskResultsByKey = new Map(tasks.map((task, index) => [
-  `${task.scenarioId}/${task.className}`,
+  `${task.scenarioId}/${task.fixtureId}`,
   taskResults[index]
 ]));
 const scenarioResults = config.scenarioIds.map(scenarioId => ({
   scenarioId,
-  classResults: config.classNames.map(className => {
-    const task = taskResultsByKey.get(`${scenarioId}/${className}`);
-    if (!task) throw new Error(`missing standard simulation task: ${scenarioId}/${className}`);
-    return { className, results: task.results };
+  fixtureResults: config.fixtureIds.map(fixtureId => {
+    const task = taskResultsByKey.get(`${scenarioId}/${fixtureId}`);
+    if (!task) throw new Error(`missing standard simulation task: ${scenarioId}/${fixtureId}`);
+    return { className: fixtureId, results: task.results };
   })
 }));
 const report = summarizeSimulationResults({ config, provenance, scenarioResults, execution });
@@ -114,7 +116,7 @@ if (options.summary) {
     `- production baseline SHA: \`${report.measurement.productionBaselineSha}\``,
     `- configuration key: \`${report.measurement.comparisonKey}\``,
     `- N=${config.runs}, calibration=${config.calibrationRuns}, seed=${config.seed}`,
-    `- classes: ${config.classNames.join(", ")} (N=${config.runs}/class); tasks=${execution.taskCount}, parallelism=${execution.parallelism}, wall=${execution.wallClockMs}ms, CPU=${execution.cpuTimeMs}ms`,
+    `- fixtures: ${config.fixtureIds.join(", ")} (N=${config.runs}/fixture); tasks=${execution.taskCount}, parallelism=${execution.parallelism}, wall=${execution.wallClockMs}ms, CPU=${execution.cpuTimeMs}ms`,
     `- scenarios: ${config.scenarioIds.join(", ")}; depths: ${config.targetDepths.map(depth => `B${depth}`).join(", ")}`,
     "",
     "The JSON file is the machine-readable measurement record. Compare it with `compare_balance.js`; do not use a single rerun or a raw stdout dump as a regression decision.",

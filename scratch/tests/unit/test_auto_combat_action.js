@@ -221,14 +221,18 @@ check("UI auto combat selects healing for a low HP Priest", () => {
   });
 });
 
-check("unsupported elite classes remain outside the shared basic-class policy", () => {
+check("active spell types drive the shared policy without class special cases", () => {
   const action = chooseAutoCombatAction({
     character: { class: "Bishop", spells: ["BADIOS"] },
     monsters: singleTargetMonsters,
     roundNumber: 1,
     canCastSpell: () => true
   });
-  assert.equal(action, null);
+  assert.deepEqual(action, {
+    type: "spell",
+    targetIdx: 1,
+    spellName: "BADIOS"
+  });
 });
 
 if (failures.length > 0) {

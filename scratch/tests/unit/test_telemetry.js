@@ -284,7 +284,7 @@ check("legacy bleeding telemetry is bounded and typed", () => {
   const [malformed, valid] = events;
   assert.equal(malformed.name, "bleeding_triggered");
   assert.equal(malformed.properties.floor, 1_000_000);
-  assert.equal(malformed.properties.playerClass, "other");
+  assert.equal(Object.hasOwn(malformed.properties, "playerClass"), false);
   assert.equal(malformed.properties.enemyId, "other");
   assert.equal(malformed.properties.remainingTurns, 1_000_000);
   assert.equal(malformed.properties.payoffDamage, 1_000_000);
@@ -294,7 +294,7 @@ check("legacy bleeding telemetry is bounded and typed", () => {
   assert.equal(malformed.properties.damageContribution, 1_000_000);
   assert.equal(malformed.properties.directDamage, 0);
   assert.equal(Object.hasOwn(malformed.properties, "extraArray"), false);
-  assert.equal(valid.properties.playerClass, "Mage");
+  assert.equal(Object.hasOwn(valid.properties, "playerClass"), false);
   assert.equal(valid.properties.enemyId, "いにしえの竜");
   assert.equal(valid.properties.reason, "duration");
   assert.equal(valid.properties.buildKey, "bleedingAtk:12");
@@ -320,7 +320,7 @@ check("vulnerable telemetry records bounded burst fields", () => {
   const event = events[0];
   assert.equal(event.name, "vulnerable_consumed");
   assert.equal(event.properties.floor, 1_000_000);
-  assert.equal(event.properties.playerClass, "other");
+  assert.equal(Object.hasOwn(event.properties, "playerClass"), false);
   assert.equal(event.properties.enemyId, "いにしえの竜");
   assert.equal(event.properties.multiplier, 10);
   assert.equal(event.properties.qualifyingHitType, "spell");
@@ -673,7 +673,9 @@ check("combat start joins player and equipment snapshots without duplicating the
   const damage = events.find(event => event.name === "damage_received").properties;
   assert.equal(combatStart.runId, damage.runId);
   assert.equal(combatStart.combatId, damage.combatId);
-  assert.equal(combatStart.playerClass, "Mage");
+  assert.equal(Object.hasOwn(combatStart, "playerClass"), false);
+  assert.equal(combatStart.buildSnapshot.schemaVersion, 1);
+  assert.equal(combatStart.buildSnapshot.weaponProfile, "medium");
   assert.equal(combatStart.level, decisionPlayer.level);
   assert.equal(combatStart.str, decisionPlayer.str);
   assert.equal(combatStart.vit, decisionPlayer.vit);
@@ -1043,16 +1045,17 @@ check("malformed snapshots stay allowlisted and bounded", () => {
     }
   };
   const context = buildDecisionContext({ state: malformedState, character: malformedCharacter });
-  assert.equal(context.playerClass, "other");
+  assert.equal(Object.hasOwn(context, "playerClass"), false);
+  assert.equal(context.buildSnapshot.schemaVersion, 1);
   assert.equal(context.gameState, "other");
   assert.equal(context.combatPhase, "other");
   assert.ok(context.equipmentIds.length <= 5);
   assert.ok(context.enemyIds.length <= 8);
   assert.ok(context.equipmentAffixTypes.length <= 24);
   assert.ok(context.inventoryCount <= 20);
-  assert.equal(context.equipmentIds[0], "other");
+  assert.equal(context.equipmentIds[0], null);
   assert.equal(context.enemyIds[0], "other");
-  assert.equal(context.equipmentAffixTypes[0], "other");
+  assert.equal(context.equipmentAffixTypes.length, 0);
 });
 
 check("chest and run events include common resource and status context", () => {

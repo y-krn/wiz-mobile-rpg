@@ -201,3 +201,13 @@ slot.
 - `.agents/game-design-telemetry.md` owns observable build decisions and privacy
   boundaries; telemetry must not become a build rule.
 - `.agents/balance-simulation.md` owns evidence quality for numeric tuning.
+
+## Measurement identity
+
+Build comparisons use the production Build Snapshot resolver rather than class
+or derived-stat labels. A snapshot is a bounded structural identity: weapon
+behavior and hands, Guard profile, Medium/Rune socket state, enabled Core axes,
+and allowlisted Support values. HP/MP, bag, floor, and starting-kit context stay
+outside the identity so a run outcome cannot silently become a build definition.
+Canonical fixture personas are explicit loadouts and are ordered by registry or
+socket order, never by save-object enumeration.

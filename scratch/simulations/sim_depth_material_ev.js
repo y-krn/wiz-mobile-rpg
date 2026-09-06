@@ -20,6 +20,8 @@ export const MEASUREMENT_PROVENANCE = isMainThread && !IS_TEST_PROCESS
     fetchOriginMain: false,
     measurementRunnerPaths: [
       "scratch/simulations/sim_depth_material_ev.js",
+      "scratch/measurements/build_fixtures.js",
+      "src/rules/build_snapshot.js",
       "scratch/measurements/measurement_provenance.js"
     ]
   })
@@ -244,6 +246,10 @@ const {
 } = await import("../../src/data.js");
 const { createBuildCharacter: createProductionBuildCharacter } =
   await import("../measurements/issue973_build_sensitivity.js");
+const { BUILD_FIXTURE_IDS, createBuildFixture } =
+  await import("../measurements/build_fixtures.js");
+const { getActiveSpellKeys } = await import("../../src/rules/magic_rules.js");
+const { resolveBuildSnapshot } = await import("../../src/rules/build_snapshot.js");
 
 // Candidate/masking list only; selection ranking lives in auto_action.js.
 const PRIEST_HEALING_SPELL_IDS = Object.freeze([
@@ -1449,6 +1455,14 @@ function resolveSimulationClassNames(className = null) {
     throw new Error(`unknown simulation class: ${className}`);
   }
   return [className];
+}
+
+export function resolveBuildFixtureIds(fixtureId = null) {
+  if (fixtureId === null || fixtureId === undefined) return BUILD_FIXTURE_IDS;
+  if (!BUILD_FIXTURE_IDS.includes(fixtureId)) {
+    throw new Error(`unknown build fixture: ${fixtureId}`);
+  }
+  return [fixtureId];
 }
 const CRAFT_MEASUREMENT_RECIPE_IDS = Object.freeze([
   "MANA_POTION",
@@ -3940,13 +3954,13 @@ function equipBestWorkshopStartingGear(character, workshop, config = {}) {
   const selectedId = config.startingGearChoice;
   const selected = selectedId ? ITEMS[selectedId] : null;
   if (selected && selected.type === "weapon" &&
-    (!selected.classes || selected.classes.includes(character.class))) {
+    (character.startingKit || !selected.classes || selected.classes.includes(character.class))) {
     character.equipment[selected.type] = selected.id;
     return;
   }
   const candidates = candidateIds
     .map(itemId => ITEMS[itemId])
-    .filter(item => item && (!item.classes || item.classes.includes(character.class)))
+    .filter(item => item && (character.startingKit || !item.classes || item.classes.includes(character.class)))
     .sort((left, right) => (right.atk || 0) - (left.atk || 0));
   const best = candidates[0];
   const equipped = ITEMS[character.equipment.weapon];
@@ -4192,20 +4206,24 @@ function createSimulationState(
   scenario,
   workshop,
   keyItems = [],
-  unlockedMilestones = []
+  unlockedMilestones = [],
+  buildFixtureId = null
 ) {
   const currentRun = createDefaultCurrentRun();
   currentRun.runSeed = runSeed;
   currentRun.startFloor = startFloor;
   currentRun.deepestFloor = startFloor;
-  currentRun.characterClass = className;
+  currentRun.characterClass = buildFixtureId ? null : className;
+  currentRun.buildFixtureId = buildFixtureId;
   currentRun.floorsVisited = [startFloor];
   currentRun.campRestCount = 0;
   assignRunQuests(currentRun);
 
-  const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
+  const character = buildFixtureId
+    ? createBuildFixture(buildFixtureId)
+    : applyWorkshopToCharacter(createSoloCharacter(className), workshop);
   const startingBuild = scenario.startingBuild;
-  if (startingBuild?.equipment && className === "Mage") {
+  if (startingBuild?.equipment && !buildFixtureId && className === "Mage") {
     // Reuse the #975 production-shaped fixture conversion. This keeps the
     // Phase 2 injected build semantically identical to the established build
     // definitions (level, tags, core/support affixes, and derived stats).
@@ -4222,7 +4240,7 @@ function createSimulationState(
   }
   const intBonus = Number(scenario.intBonus) || 0;
   if (intBonus !== 0) character.int += intBonus;
-  if (scenario.disablePriestHealing && className === "Priest") {
+  if (scenario.disablePriestHealing && !buildFixtureId && className === "Priest") {
     character.spells = character.spells.filter(
       spell => !PRIEST_HEALING_SPELL_IDS.includes(spell)
     );
@@ -4620,7 +4638,7 @@ function recordB5HpSnapshot(state, metrics, step = null) {
 }
 
 function hasSpell(character, spellName) {
-  return character.spells?.includes(spellName) === true;
+  return getActiveSpellKeys(character).includes(spellName);
 }
 
 function getSpellActionPayment(
@@ -4868,17 +4886,11 @@ function castExplorationSpell(state, spellName, metrics) {
 
 function maybeCastExplorationSpells(state, metrics) {
   const character = state.party[0];
-  if (character.class === "Priest" && state.lightTurns === 0) {
-    const candidates = hasSpell(character, "LOMILWA")
-      ? ["LOMILWA", "MILWA"]
-      : ["MILWA"];
+  if (state.lightTurns === 0 && (hasSpell(character, "LOMILWA") || hasSpell(character, "MILWA"))) {
+    const candidates = hasSpell(character, "LOMILWA") ? ["LOMILWA", "MILWA"] : ["MILWA"];
     candidates.some(spellName => castExplorationSpell(state, spellName, metrics));
   }
-  if (
-    character.class === "Mage" &&
-    state.repelTurns === 0 &&
-    hasSpell(character, "MASFEAL")
-  ) {
+  if (state.repelTurns === 0 && hasSpell(character, "MASFEAL")) {
     castExplorationSpell(state, "MASFEAL", metrics);
   }
 }
@@ -4910,7 +4922,6 @@ function recordSpellSelectionMetrics(state, metrics, action) {
     usage.selected += Number(action.type === "spell" && action.spellName === spellName);
   });
   if (
-    character.class === "Priest" &&
     hasSpell(character, "DIOS") &&
     action.type === "spell" &&
     SPELLS[action.spellName]?.target?.includes("enemy")
@@ -4946,10 +4957,6 @@ function getLowestHpEnemyIndex(monsters, predicate = () => true) {
     }
   });
   return selectedIdx;
-}
-
-function hasHolyTag(monster) {
-  return monster.tags?.some(tag => HOLY_TAGS.has(tag)) === true;
 }
 
 function countInventoryItems(inventory, itemIds = STATUS_CURE_ITEM_IDS) {
@@ -5453,15 +5460,15 @@ function getLegacyMageCombatAction({
 }
 
 function chooseSimulationAutoCombatAction(args) {
-  if (ISSUE538_LEGACY_SPELL_POLICY && args.character.class === "Mage") {
+  if (ISSUE538_LEGACY_SPELL_POLICY && !args.character.startingKit && args.character.class === "Mage") {
     return getLegacyMageCombatAction(args);
   }
-  const isPriest = args.character.class === "Priest";
+  const isPriest = !args.character.startingKit && args.character.class === "Priest";
   const maskedSpellIds = isPriest ? getSimulationPriestHealingSpellIds() : null;
-  if (!maskedSpellIds || !args.character.spells) return chooseAutoCombatAction(args);
+  if (!maskedSpellIds || !getActiveSpellKeys(args.character).length) return chooseAutoCombatAction(args);
   const character = {
     ...args.character,
-    spells: args.character.spells.filter(spellName =>
+    spells: getActiveSpellKeys(args.character).filter(spellName =>
       !PRIEST_HEALING_SPELL_IDS.includes(spellName) || maskedSpellIds.includes(spellName)
     )
   };
@@ -5709,10 +5716,11 @@ function recordCombatPolicyProbe(state, metrics, probeAction, actualAction) {
   const monsters = state.combatState?.monsters || [];
   const hasLivingTarget = monsters.some(monster => monster.hp > 0);
   if (!hasLivingTarget) probe.noLivingTarget++;
-  const knownEnemySpell = (state.party[0].spells || []).some(spellName =>
+  const activeSpellIds = getActiveSpellKeys(state.party[0]);
+  const knownEnemySpell = activeSpellIds.some(spellName =>
     SPELLS[spellName]?.target?.includes("enemy")
   );
-  const knownSelectorEnemySpell = (state.party[0].spells || []).some(spellName =>
+  const knownSelectorEnemySpell = activeSpellIds.some(spellName =>
     AUTO_SPELL_IDS.includes(spellName) && SPELLS[spellName]?.target?.includes("enemy")
   );
   if (probeAction?.type === "spell") {
@@ -5761,7 +5769,7 @@ function recordCombatSpellPressure(state, metrics, actualAction, probeAction = n
 }
 
 function getSimulationPreferredOffensiveSpellName(character, monsters, canCastSpell) {
-  if (ISSUE538_LEGACY_SPELL_POLICY && character.class === "Mage") {
+  if (ISSUE538_LEGACY_SPELL_POLICY && !character.startingKit && character.class === "Mage") {
     return hasSpell(character, "HALITO") ? "HALITO" : null;
   }
   return getPreferredOffensiveSpellName(character, monsters, canCastSpell);
@@ -5776,7 +5784,7 @@ function getDiosCombatAction(state) {
   );
   if (
     healingTargetIdx === null ||
-    !character.spells?.some(spellName => healingSpellIds.includes(spellName))
+    !getActiveSpellKeys(character).some(spellName => healingSpellIds.includes(spellName))
   ) return null;
   const action = chooseSimulationAutoCombatAction({
     character,
@@ -6530,33 +6538,6 @@ function selectCombatAction(state, metrics) {
   if (diosPriorityAction) return diosPriorityAction;
   if (sharedAutoAction) return { ...sharedAutoAction, actorIdx: 0 };
 
-  if (character.class === "Bishop") {
-    const holyTargetIdx = getLowestHpEnemyIndex(monsters, hasHolyTag);
-    if (holyTargetIdx >= 0 && getSpellActionPayment(state, "BADIOS", reserveMp)) {
-      return { type: "spell", actorIdx: 0, targetIdx: holyTargetIdx, spellName: "BADIOS" };
-    }
-    if (getSpellActionPayment(state, "HALITO", reserveMp)) {
-      return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "HALITO" };
-    }
-  }
-
-  if (
-    (character.class === "Mage" || character.class === "Samurai") &&
-    getSpellActionPayment(state, "HALITO", reserveMp)
-  ) {
-    return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "HALITO" };
-  }
-
-  if (character.class === "Ranger" && getSpellActionPayment(state, "BADIOS", reserveMp)) {
-    const holyTargetIdx = getLowestHpEnemyIndex(monsters, hasHolyTag);
-    return {
-      type: "spell",
-      actorIdx: 0,
-      targetIdx: holyTargetIdx >= 0 ? holyTargetIdx : lowestHpIdx,
-      spellName: "BADIOS"
-    };
-  }
-
   return { type: "fight", actorIdx: 0, targetIdx: lowestHpIdx };
 }
 
@@ -7033,7 +7014,7 @@ function applyCountermeasureScale(state, override) {
   const patches = [];
   state.party.forEach(character => {
     if (!character?.equipment) return;
-    if (override?.className && override.className !== character.class) return;
+    if (override?.className && !character.startingKit && override.className !== character.class) return;
     const currentValue = getCharAffixSum(character, affixType);
     const delta = currentValue * (multiplier - 1);
     if (currentValue === 0 || !Number.isFinite(delta)) return;
@@ -7946,10 +7927,12 @@ function applyPostCombatRecovery(state, metrics = null) {
   const character = state.party[0];
   const healingSpellIds = getSimulationPriestHealingSpellIds();
   while (character.hp < getCharMaxHp(character) * 0.70) {
-    const healingCharacter = {
-      ...character,
-      spells: character.spells?.filter(spellName => healingSpellIds.includes(spellName))
-    };
+    const healingCharacter = character.startingKit
+      ? character
+      : {
+          ...character,
+          spells: character.spells?.filter(spellName => healingSpellIds.includes(spellName))
+        };
     const getRecoverySpellPayment = spellName => getSpellPayment(
       character,
       SIM_HEALING_SPELL_PROFILES?.[spellName]?.cost ?? SPELLS[spellName].cost
@@ -8999,13 +8982,13 @@ function createCoreScoringProfile(observations, runCount) {
 }
 
 function getClassScoringProfile(scoringProfile, character) {
-  return scoringProfile?.byClass?.[character.class] || scoringProfile;
+  return character.startingKit ? scoringProfile : (scoringProfile?.byClass?.[character.class] || scoringProfile);
 }
 
 function getCombatCoreScoreForId(character, scoringProfile, floor, coreId) {
   if (!scoringProfile || !coreId || !COMBAT_CORE_IDS.has(coreId)) return 0;
   const coreDefinition = CORE_AFFIX_BY_ID.get(coreId);
-  if (coreDefinition?.allowedClasses && !coreDefinition.allowedClasses.includes(character.class)) return 0;
+  if (coreDefinition?.allowedClasses && !character.startingKit && !coreDefinition.allowedClasses.includes(character.class)) return 0;
   const classScoringProfile = getClassScoringProfile(scoringProfile, character);
   const params = coreDefinition.params;
   const offenseScore = getOffenseEquipmentScore(character, classScoringProfile);
@@ -9188,7 +9171,7 @@ function createBuildSnapshot(state, scoringProfile, point) {
     int: getCharInt(character),
     pie: getCharPie(character),
     agi: getCharAgi(character),
-    spells: [...(character.spells || [])],
+    spells: [...getActiveSpellKeys(character)],
     equipmentStatScore,
     combatCoreScore,
     combatCoreScoreAll,
@@ -9241,7 +9224,7 @@ function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
     mpRatio: character.mp / Math.max(1, getCharMaxMp(character)),
     ATK: getCharWeaponAtk(character),
     DEF: getCharDef(character),
-    spells: [...(character.spells || [])],
+    spells: [...getActiveSpellKeys(character)],
     equippedBaseIds: build.equipment.map(item => item.id),
     activeCoreIds: [...build.coreIds],
     supportAffixes: { ...build.supportAffixes },
@@ -9430,7 +9413,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       if (!isEquipment(itemData)) return;
       recordAffixCandidate(metrics, inventoryItem);
       recordCoreItemEncounter(metrics, inventoryItem, state.floor);
-      if (itemData.classes && !itemData.classes.includes(character.class)) {
+      if (itemData.classes && !character.startingKit && !itemData.classes.includes(character.class)) {
         recordCoreDecision(metrics, inventoryItem, "class-incompatible");
         return;
       }
@@ -12482,6 +12465,9 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     });
   }
   return {
+    className: state.currentRun.characterClass,
+    fixtureId: state.currentRun.buildFixtureId || null,
+    buildSnapshot: structuredClone(metrics.buildSnapshot),
     survived: outcome === "retreat",
     died: outcome === "death",
     carriedMaterials,
@@ -12984,7 +12970,8 @@ function descendToNextFloor(state, nextFloor, metrics = null, { stairsHeal = fal
 }
 
 export function simulateRun({
-  className,
+  className = null,
+  fixtureId = null,
   startFloor,
   targetDepth,
   runIndex,
@@ -13004,7 +12991,9 @@ export function simulateRun({
   checkpointState = null,
   captureCheckpointAtFloor = null
 }) {
-  const runSeed = worldSeed || `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
+  if (!className && !fixtureId) throw new Error("simulateRun requires className or fixtureId");
+  const axisId = fixtureId || className;
+  const runSeed = worldSeed || `${SIM_SEED}:${seriesId}:${axisId}:${runIndex}`;
   if (SIM_INDEPENDENT_RUN_RANDOM) {
     // Keep each class/run on an independent deterministic stream. Otherwise a
     // Priest-only spell change can shift the shared stream and make Fighter,
@@ -13013,13 +13002,14 @@ export function simulateRun({
   }
   const diagnosticLevel = scenario?.simDiagnosticLevel || "full";
   let state = createSimulationState(
-    className,
+    fixtureId ? "Fighter" : className,
     startFloor,
     runSeed,
     scenario,
     workshop,
     keyItems,
-    unlockedMilestones
+    unlockedMilestones,
+    fixtureId
   );
   hydrateCheckpointState(state, checkpointState, scenario, runSeed);
   state.simPolicy.statusCureTargetDepth = targetDepth;
@@ -13523,7 +13513,26 @@ export function simulateRun({
         }
       : null
   };
+  if (fixtureId) {
+    Object.values(state.party[0].equipment || {}).forEach(item => {
+      const coreId = getItemCoreId(item);
+      if (!coreId || !CORE_AFFIX_BY_ID.has(coreId)) return;
+      const poolGroup = CORE_AFFIX_BY_ID.get(coreId)?.poolGroup;
+      metrics.coreEncounteredIds.add(coreId);
+      metrics.coreEverEquippedIds.add(coreId);
+      metrics.coreEncounterFloors.add(startFloor);
+      metrics.coreEncounterSources.add("starting-fixture");
+      metrics.coreFirstEncounterFloorByGroup[poolGroup] ??= startFloor;
+      metrics.coreFirstEquippedFloorByGroup[poolGroup] ??= startFloor;
+      metrics.firstCoreDepth = Math.min(metrics.firstCoreDepth ?? startFloor, startFloor);
+      metrics.firstCoreEquippedFloor = Math.min(
+        metrics.firstCoreEquippedFloor ?? startFloor,
+        startFloor
+      );
+    });
+  }
   state.simTelemetry = metrics.killHeal;
+  metrics.buildSnapshot = resolveBuildSnapshot(state.party[0]);
   metrics.startingBuildSnapshot = createBuildSnapshot(
     state,
     scoringProfile,
@@ -14523,9 +14532,13 @@ function simulateCase({
   scoringProfile,
   scenario,
   identificationPolicy = "powder",
-  classNames = SIM_CLASSES
+  classNames = SIM_CLASSES,
+  fixtureIds = null
 }) {
   const totals = {
+    axisType: fixtureIds ? "build-fixture" : "class",
+    fixtureIds: fixtureIds ? [...fixtureIds] : null,
+    buildSnapshotsByFixtureId: {},
     survived: 0,
     died: 0,
     outcomeCounts: { retreat: 0, death: 0, abandon: 0 },
@@ -14638,7 +14651,7 @@ function simulateCase({
     coreObservations: createCoreObservations(),
     spellUsage: createSpellUsageMetrics(),
     spellUsageByClass: Object.fromEntries(
-      SIM_CLASSES.map(className => [className, createSpellUsageMetrics()])
+      classNames.map(className => [className, createSpellUsageMetrics()])
     ),
     explorationSpellUsage: createExplorationSpellUsageMetrics(),
     mpPressure: createSpellPressureMetrics(),
@@ -14649,7 +14662,7 @@ function simulateCase({
     lightActiveSteps: 0,
     masfealActiveSteps: 0,
     purifyEffectsByClass: Object.fromEntries(
-      SIM_CLASSES.map(className => [className, {
+      classNames.map(className => [className, {
         runs: 0,
         runsWithCore: 0,
         tagKills: 0,
@@ -14661,13 +14674,13 @@ function simulateCase({
       }])
     ),
     coreRetentionByClass: Object.fromEntries(
-      SIM_CLASSES.map(className => [className, {
+      classNames.map(className => [className, {
         encounteredById: {},
         equippedById: {}
       }])
     ),
     workshopEffectsByClass: Object.fromEntries(
-      SIM_CLASSES.map(className => [className, {
+      classNames.map(className => [className, {
         runs: 0,
         stats: {},
         startingGearCandidates: {},
@@ -14720,7 +14733,7 @@ function simulateCase({
     flameTrap: createFlameTrapAggregate(),
     b5Gate: createB5GateAggregate(),
     outcomesByClass: Object.fromEntries(
-      SIM_CLASSES.map(className => [className, createOutcomeAggregate()])
+      classNames.map(className => [className, createOutcomeAggregate()])
     ),
     runDiagnostics: createRunDiagnosticsAggregate(),
     damageEstimateAudit: SIM_737_DAMAGE_AUDIT_ENABLED
@@ -14750,32 +14763,33 @@ function simulateCase({
     hitEvasion: { attemptsByFloor: {}, missesByFloor: {} }
   };
   const merchantStockByClass = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createMerchantStockMetrics()])
+    classNames.map(className => [className, createMerchantStockMetrics()])
   );
   const classConsumableTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createTrapAggregate()])
+    classNames.map(className => [className, createTrapAggregate()])
   );
   const classIssue412Totals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createIssue412Aggregate()])
+    classNames.map(className => [className, createIssue412Aggregate()])
   );
   const classMpPressureTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createSpellPressureMetrics()])
+    classNames.map(className => [className, createSpellPressureMetrics()])
   );
   const classCombatMpTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createCombatMpMeasurement()])
+    classNames.map(className => [className, createCombatMpMeasurement()])
   );
   const classCombatPolicyProbeTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createCombatPolicyProbeMetrics()])
+    classNames.map(className => [className, createCombatPolicyProbeMetrics()])
   );
   const classHitEvasionTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, { attemptsByFloor: {}, missesByFloor: {} }])
+    classNames.map(className => [className, { attemptsByFloor: {}, missesByFloor: {} }])
   );
   const departureCraftBanksByClass = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, {}])
+    classNames.map(className => [className, {}])
   );
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
     const className = classNames[runIndex % classNames.length];
+    const fixtureId = fixtureIds ? className : null;
     const departureCraftBank = departureCraftBanksByClass[className];
     const hasDepartureCraftBank = Object.keys(departureCraftBank).length > 0;
     const hasExplicitDepartureCraftIds = ACTIVE_DEPARTURE_CRAFT_IDS.length > 0;
@@ -14790,7 +14804,8 @@ function simulateCase({
         }
       : scenario;
     const result = simulateRun({
-      className,
+      className: fixtureId ? "Fighter" : className,
+      fixtureId,
       startFloor,
       targetDepth,
       runIndex,
@@ -14824,6 +14839,9 @@ function simulateCase({
     }
     if (scenario.departureCraftMeasurement) {
       departureCraftBanksByClass[className] = { ...result.metaMaterials };
+    }
+    if (fixtureId && result.buildSnapshot) {
+      totals.buildSnapshotsByFixtureId[fixtureId] ||= structuredClone(result.buildSnapshot);
     }
     addSpellUsageAggregate(totals.spellUsage, result);
     addSpellUsageAggregate(totals.spellUsageByClass[className], result);
@@ -15216,6 +15234,9 @@ function simulateCase({
     ])
   );
   return {
+    axisType: totals.axisType,
+    fixtureIds: totals.fixtureIds,
+    buildSnapshotsByFixtureId: totals.buildSnapshotsByFixtureId,
     label,
     startFloor,
     targetDepth,
@@ -15705,7 +15726,8 @@ export function calibrateCoreScoringProfile(
   scenarioOverrides = {},
   identificationPolicy = "powder",
   workshop = { ranks: {} },
-  classNames = SIM_CLASSES
+  classNames = SIM_CLASSES,
+  fixtureIds = null
 ) {
   const calibrationScenario = {
     ...getScenarioById("legacy-no-portal"),
@@ -15714,14 +15736,17 @@ export function calibrateCoreScoringProfile(
     identificationPolicy: identificationPolicy.id || identificationPolicy
   };
   const observations = createCoreObservations();
+  const axisNames = fixtureIds || classNames;
   const observationsByClass = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createCoreObservations()])
+    axisNames.map(axisName => [axisName, createCoreObservations()])
   );
-  const runCountsByClass = Object.fromEntries(SIM_CLASSES.map(className => [className, 0]));
+  const runCountsByClass = Object.fromEntries(axisNames.map(axisName => [axisName, 0]));
   for (let runIndex = 0; runIndex < runCount; runIndex++) {
-    const className = classNames[runIndex % classNames.length];
+    const axisName = axisNames[runIndex % axisNames.length];
+    const fixtureId = fixtureIds ? axisName : null;
     const result = simulateRun({
-      className,
+      className: fixtureId ? "Fighter" : axisName,
+      fixtureId,
       startFloor: 1,
       targetDepth: 20,
       runIndex,
@@ -15731,16 +15756,16 @@ export function calibrateCoreScoringProfile(
       workshop
     });
     addCoreObservations(observations, result.coreObservations);
-    addCoreObservations(observationsByClass[className], result.coreObservations);
-    runCountsByClass[className]++;
+    addCoreObservations(observationsByClass[axisName], result.coreObservations);
+    runCountsByClass[axisName]++;
   }
   const profile = createCoreScoringProfile(observations, runCount);
   profile.byClass = Object.fromEntries(
-    SIM_CLASSES.map(className => [
-      className,
+    axisNames.map(axisName => [
+      axisName,
       createCoreScoringProfile(
-        observationsByClass[className],
-        runCountsByClass[className]
+        observationsByClass[axisName],
+        runCountsByClass[axisName]
       )
     ])
   );
@@ -16854,11 +16879,12 @@ function printFailureComment(results) {
 }
 
 export function runDepthSimulationTask(
-  { kind, scenarioId, identificationPolicyId = "powder", className = null, collectVNextObservability = false, scenarioOverrides = {} },
+  { kind, scenarioId, identificationPolicyId = "powder", className = null, fixtureId = null, collectVNextObservability = false, scenarioOverrides = {} },
   { scoringProfile, scoringProfiles = {}, scoringProfilesByScenario = {} }
 ) {
   resetSimulationRandom(SIM_SEED);
-  const classNames = resolveSimulationClassNames(className);
+  const fixtureIds = fixtureId === null ? null : resolveBuildFixtureIds(fixtureId);
+  const classNames = fixtureIds || resolveSimulationClassNames(className);
   const scoringProfileForPolicy =
     scoringProfilesByScenario[`${identificationPolicyId}:${scenarioId}`] ||
     scoringProfiles[identificationPolicyId] ||
@@ -16883,7 +16909,8 @@ export function runDepthSimulationTask(
         scoringProfile: scoringProfileForPolicy,
         scenario: measurementScenario,
         identificationPolicy,
-        classNames
+        classNames,
+        fixtureIds
       }))
     );
   }
@@ -16901,7 +16928,8 @@ export function runDepthSimulationTask(
       scoringProfile: scoringProfileForPolicy,
       scenario: legacyScenario,
       identificationPolicy,
-      classNames
+      classNames,
+      fixtureIds
     })),
     snapshotDepthResult(simulateCase({
       startFloor: 1,
@@ -16911,12 +16939,13 @@ export function runDepthSimulationTask(
       scoringProfile: scoringProfileForPolicy,
       scenario: legacyScenario,
       identificationPolicy,
-      classNames
+      classNames,
+      fixtureIds
     }))
   ];
 }
 
-export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount, classNames = SIM_CLASSES }) {
+export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount, classNames = SIM_CLASSES, fixtureId = null }) {
   resetSimulationRandom(SIM_SEED);
   const workshop = scenarioId === null
     ? undefined
@@ -16924,21 +16953,31 @@ export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount, 
   return {
     policyId,
     scenarioId,
-    profile: calibrateCoreScoringProfile(runCount, {}, policyId, workshop, classNames)
+    profile: calibrateCoreScoringProfile(
+      runCount,
+      {},
+      policyId,
+      workshop,
+      fixtureId === null ? classNames : resolveBuildFixtureIds(fixtureId),
+      fixtureId === null ? null : resolveBuildFixtureIds(fixtureId)
+    )
   };
 }
 
 export function runCalibratedDepthSimulationTask(
-  { kind, scenarioId = null, identificationPolicyId = "powder", runCount, className = null, collectVNextObservability = false, scenarioOverrides = {} },
+  { kind, scenarioId = null, identificationPolicyId = "powder", runCount, className = null, fixtureId = null, collectVNextObservability = false, scenarioOverrides = {} },
   context
 ) {
-  const classNames = resolveSimulationClassNames(className);
+  const classNames = fixtureId === null
+    ? resolveSimulationClassNames(className)
+    : resolveBuildFixtureIds(fixtureId);
   resetMapGenerationStats();
   const calibration = runCoreCalibrationTask({
     policyId: identificationPolicyId,
     scenarioId,
     runCount,
-    classNames
+    classNames,
+    fixtureId
   });
   const scoringProfiles = {
     [identificationPolicyId]: calibration.profile
@@ -16951,7 +16990,7 @@ export function runCalibratedDepthSimulationTask(
     scenarioId,
     profile: calibration.profile,
     results: runDepthSimulationTask(
-      { kind, scenarioId, identificationPolicyId, className, collectVNextObservability, scenarioOverrides },
+      { kind, scenarioId, identificationPolicyId, className, fixtureId, collectVNextObservability, scenarioOverrides },
       {
         ...context,
         scoringProfile: calibration.profile,
