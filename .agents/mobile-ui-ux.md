@@ -123,6 +123,38 @@ complete it confidently.
 - The player cannot tell whether an action changed the game, was rejected, or
   is still processing.
 
+## Shared Choice and Information Contracts
+
+**Principle:** Shared presentation patterns preserve player intent and
+player-relevant information consistently across screens, regardless of the
+implementation used to render them.
+
+**Prefer:**
+
+- One coherent primary choice surface for the current state. Equivalent
+  controls are not rendered as competing copies in separate surfaces.
+- Back and Cancel abandon an uncommitted choice; they do not imply undoing
+  movement or another gameplay action that already happened. Confirm actions
+  state the outcome the player is committing to.
+- Current or unresolved observations are visibly distinct from transient or
+  historical log text. Compacting a current-event surface keeps active facts
+  available, while the complete history remains reachable when it contains
+  information the compact view omits.
+- Ownership or provenance is labeled with the same terminology wherever that
+  distinction affects a decision. When identity is insufficient to determine
+  provenance, show that it is ambiguous instead of guessing.
+
+**Reject when:**
+
+- Duplicate equivalent controls make it unclear which surface owns the current
+  decision or allow one choice to be committed through another copy.
+- Back changes a completed gameplay action, or Confirm leaves the consequence
+  unclear before the action is committed.
+- A current observation is presented only as old history, or hiding a compact
+  surface also hides information that has no other readable path.
+- Equivalent ownership states use conflicting labels, or the interface claims
+  a provenance that the available identity data cannot support.
+
 ## Feedback and Action/Result Visibility
 
 **Principle:** Every meaningful input has timely, unambiguous feedback and a
