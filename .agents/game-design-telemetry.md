@@ -118,6 +118,8 @@ proxies, including Support ids with exposure but no observed firing. Status
 mitigation events come from the production status-resistance and Guard chance
 resolvers when combat telemetry is enabled. The measurement is observation-only and cannot change combat, drop,
 ownership, or Wing rules.
+Build payment action mix uses the production combat verbs: `defend` is Guard,
+while `GUARD_POTION` remains an item action.
 
 ## Boundaries
 

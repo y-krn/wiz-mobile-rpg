@@ -7095,6 +7095,15 @@ function applyThreatOverride(monsters, floor, override, encounter = {}) {
   }
 }
 
+export function classifyBuildPaymentAction(action) {
+  if (action?.type === "fight") return "attack";
+  if (action?.type === "spell") return "spell";
+  if (action?.type === "defend") return "guard";
+  if (action?.type === "item") return "item";
+  if (action?.type === "run") return "flee";
+  return "noop";
+}
+
 function runEncounter(
   state,
   observations,
@@ -7549,19 +7558,21 @@ function runEncounter(
       stage15Encounter.combatActions++;
       stage15Encounter.insufficientMpDecisionCount += Number(Boolean(pressureEvent?.mpBlocked));
       stage15Encounter.insufficientMpRounds += Number(Boolean(pressureEvent?.mpBlocked));
-      if (action.type === "spell") {
+      const actionClass = classifyBuildPaymentAction(action);
+      if (actionClass === "spell") {
         stage15Encounter.spellActions++;
         stage15Encounter.spellCasts++;
         if (!String(SPELLS[action.spellName]?.target || "").includes("enemy") || action.spellName === "KATINO") {
           stage15Encounter.defensiveSupportActions++;
         }
-      } else if (action.type === "fight") {
+      } else if (actionClass === "attack") {
         stage15Encounter.normalAttacks++;
         stage15Encounter.insufficientMpNormalAttackRounds += Number(Boolean(pressureEvent?.mpBlocked));
-      } else if (action.type === "item") {
+      } else if (actionClass === "guard") {
+        stage15Encounter.guardActions++;
+      } else if (actionClass === "item") {
         stage15Encounter.itemActions++;
-        stage15Encounter.guardActions += Number(action.itemKey === "GUARD_POTION");
-      } else if (action.type === "run") {
+      } else if (actionClass === "flee") {
         stage15Encounter.fleeActions++;
       } else {
         stage15Encounter.failedNoopActions++;
@@ -12295,7 +12306,7 @@ function createBuildPaymentRunSnapshot(state, metrics, outcome) {
     actionCounts.attack += floor.normalAttackActions || 0;
     actionCounts.spell += floor.spellActions || 0;
     actionCounts.guard += floor.guardActions || 0;
-    actionCounts.item += Math.max(0, (floor.itemActions || 0) - (floor.guardActions || 0));
+    actionCounts.item += floor.itemActions || 0;
     actionCounts.flee += floor.fleeActions || 0;
     actionCounts.noop += floor.failedNoopActions || 0;
   });

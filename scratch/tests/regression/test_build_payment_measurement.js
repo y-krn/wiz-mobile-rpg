@@ -4,8 +4,12 @@ import {
   validateIssue1096Report
 } from "../../measurements/issue1096_build_payment.js";
 import { STANDARD_BALANCE_CONFIG } from "../../measurements/balance_measurement.js";
+import { classifyBuildPaymentAction } from "../../simulations/sim_depth_material_ev.js";
 
 const n = STANDARD_BALANCE_CONFIG.runs;
+assert.equal(classifyBuildPaymentAction({ type: "defend" }), "guard");
+assert.equal(classifyBuildPaymentAction({ type: "item", itemKey: "GUARD_POTION" }), "item");
+assert.equal(classifyBuildPaymentAction({ type: "unknown" }), "noop");
 const distribution = () => ({ n });
 const resourceState = () => ({
   hpRate: { n: 0 },
@@ -64,6 +68,12 @@ assert.equal(
   validateIssue1096Report({
     schemaVersion: ISSUE1096_SCHEMA_VERSION,
     config: STANDARD_BALANCE_CONFIG,
+    decision: {
+      numericBalanceChange: "none",
+      additionalObservation: ["object loot lifecycle is not modeled"],
+      balanceIssueCandidates: [],
+      basis: "explicit post-measurement review"
+    },
     measurement: { determinism: { checked: true, matching: true } },
     cases
   }),

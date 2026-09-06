@@ -15,6 +15,7 @@ import {
 
 export const ISSUE1096_SCHEMA_VERSION = 1;
 export const ISSUE1096_RUNNER_VERSION = "issue1096-build-payment-v1";
+const ISSUE1096_NUMERIC_DECISIONS = new Set(["none", "candidate", "not_assessed"]);
 
 const MEASUREMENT_RUNNER_PATHS = [
   "scratch/measurements/issue1096_build_payment.js",
@@ -30,10 +31,11 @@ function parseArgs(argv) {
   const options = {};
   for (let index = 0; index < argv.length; index++) {
     const value = argv[index];
-    if (value === "--output" || value === "--summary") {
+    if (value === "--output" || value === "--summary" || value === "--decision-file") {
       const next = argv[++index];
       if (!next) throw new Error(`${value} requires a path`);
-      options[value.slice(2)] = next;
+      const optionName = value === "--decision-file" ? "decisionFile" : value.slice(2);
+      options[optionName] = next;
     } else if (value === "--runs" || value === "--calibration-runs" || value === "--seed") {
       const next = argv[++index];
       if (!next) throw new Error(`${value} requires a value`);
@@ -42,7 +44,8 @@ function parseArgs(argv) {
     } else if (value === "--help") {
       console.log(
         "Usage: node scratch/measurements/issue1096_build_payment.js " +
-        "--output /private/tmp/issue1096.json [--summary /private/tmp/issue1096.md]"
+        "--output /private/tmp/issue1096.json --decision-file evidence/results/issue-1096-build-payment-decision.json " +
+        "[--summary /private/tmp/issue1096.md]"
       );
       return null;
     } else {
@@ -52,7 +55,34 @@ function parseArgs(argv) {
   if (!options.output) {
     throw new Error("--output is required; raw measurements must be explicitly placed in a temporary/results path");
   }
+  if (!options.decisionFile) {
+    throw new Error("--decision-file is required; classification must be an explicit post-measurement input");
+  }
   return options;
+}
+
+export function validateIssue1096Decision(decision) {
+  if (!decision || !ISSUE1096_NUMERIC_DECISIONS.has(decision.numericBalanceChange)) {
+    throw new Error("issue #1096 decision requires numericBalanceChange none/candidate/not_assessed");
+  }
+  if (!Array.isArray(decision.additionalObservation) || !Array.isArray(decision.balanceIssueCandidates)) {
+    throw new Error("issue #1096 decision requires observation and balance issue arrays");
+  }
+  if (typeof decision.basis !== "string" || !decision.basis.trim()) {
+    throw new Error("issue #1096 decision requires a non-empty basis");
+  }
+  return true;
+}
+
+function readDecisionFile(path) {
+  let decision;
+  try {
+    decision = JSON.parse(fs.readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new Error(`issue #1096 decision file could not be read: ${error.message}`);
+  }
+  validateIssue1096Decision(decision);
+  return decision;
 }
 
 function taskKey(task) {
@@ -109,7 +139,8 @@ function buildCase(task, taskResult, targetDepth) {
   };
 }
 
-export function buildIssue1096Report({ config, provenance, taskResults, execution, determinism }) {
+export function buildIssue1096Report({ config, provenance, taskResults, execution, determinism, decision }) {
+  validateIssue1096Decision(decision);
   const tasks = buildTasks(config);
   const resultsByKey = new Map(tasks.map((task, index) => [taskKey(task), taskResults[index]]));
   const cases = config.scenarioIds.flatMap(scenarioId => config.targetDepths.flatMap(targetDepth =>
@@ -166,12 +197,10 @@ export function buildIssue1096Report({ config, provenance, taskResults, executio
       interpretation: "equipment-affix Core/Support metrics are observed ownership proxies; Rune object-loot lifecycle remains not_modeled"
     },
     decision: {
-      numericBalanceChange: "none",
-      additionalObservation: [
-        "object-loot lifecycle telemetry is required before treating Rune/Core/Support loot adoption as production-backed",
-        "Portal unconfirmed-loot salvage value is not modeled by the canonical simulator"
-      ],
-      balanceIssueCandidates: []
+      numericBalanceChange: decision.numericBalanceChange,
+      additionalObservation: [...decision.additionalObservation],
+      balanceIssueCandidates: [...decision.balanceIssueCandidates],
+      basis: decision.basis
     },
     cases
   };
@@ -183,6 +212,7 @@ export function validateIssue1096Report(report) {
   }
   const config = report.config;
   if (!config || config.runs < 500) throw new Error("issue #1096 requires N>=500");
+  validateIssue1096Decision(report.decision);
   const expectedKeys = new Set(
     config.scenarioIds.flatMap(scenarioId => config.targetDepths.flatMap(targetDepth =>
       config.fixtureIds.map(fixtureId => `${scenarioId}/${targetDepth}/${fixtureId}`)
@@ -347,7 +377,8 @@ async function runMeasurement(options) {
     policy: "same seed/config/task repeated with canonical runner"
   };
   if (!determinism.matching) throw new Error("issue #1096 determinism probe failed");
-  const report = buildIssue1096Report({ config, provenance, taskResults, execution, determinism });
+  const decision = readDecisionFile(resolve(options.decisionFile));
+  const report = buildIssue1096Report({ config, provenance, taskResults, execution, determinism, decision });
   validateIssue1096Report(report);
   const outputPath = resolve(options.output);
   fs.mkdirSync(dirname(outputPath), { recursive: true });
