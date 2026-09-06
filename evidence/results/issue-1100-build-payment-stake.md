@@ -1,7 +1,7 @@
 # Issue #1100 Build Snapshot payment measurement
 
 - runner: `issue1100-build-payment-stake-v1` (schema v2)
-- source commit: `ff5e0360384f42f68ea44f62439b3a589dec11e9`
+- source commit: `dbdaf5ee2d75604fbd12e96e60a41e69f54c4fc8`
 - production baseline SHA: `2abf0d0712fafcceebc04f757f6534aa236a6d21`
 - origin/main ancestor: `true`; clean tree: `true`
 - N=500/fixture, calibration=100, seed=843
@@ -65,7 +65,7 @@ The table reports per-run means for payment dimensions; the JSON record retains 
 ## Decision
 
 - Numeric balance change: **none**.
-- Additional observation: The measurement adds production-backed unconfirmed object-loot stake and lifecycle evidence to the existing Build Snapshot payment vector..
+- Additional observation: Combat strength and unconfirmed object-loot stake are separate axes: stronger combat payment does not imply lower carried or lost-loot exposure. In workshop-empty B20, heavy-two-hand averaged 11.25 combat rounds and 36.17 damage HP with 7.53 terminal stake, versus light-shield at 13.88 rounds, 37.57 damage HP, and 5.10 terminal stake..
 - Balance Issue candidates: none from this observation pass.
 
 ## Modeling boundary

@@ -4,9 +4,9 @@
     "runnerVersion": "issue1100-build-payment-stake-v1",
     "question": "各Build Snapshotがcanonical runで安く/高く支払う資源と行動を実測する",
     "scope": "observation-only; no win-rate equalization, recommendation, or balance tuning",
-    "sourceCommit": "ff5e0360384f42f68ea44f62439b3a589dec11e9",
+    "sourceCommit": "dbdaf5ee2d75604fbd12e96e60a41e69f54c4fc8",
     "productionBaselineSha": "2abf0d0712fafcceebc04f757f6534aa236a6d21",
-    "measurementRunnerCommit": "ff5e0360384f42f68ea44f62439b3a589dec11e9",
+    "measurementRunnerCommit": "dbdaf5ee2d75604fbd12e96e60a41e69f54c4fc8",
     "measurementRunnerPaths": [
       "scratch/measurements/issue1100_build_payment_stake.js",
       "scratch/measurements/balance_measurement.js",
@@ -105,8 +105,8 @@
     "taskCount": 12,
     "determinismProbeTaskCount": 1,
     "parallelism": 12,
-    "wallClockMs": 53388,
-    "cpuTimeMs": 401830
+    "wallClockMs": 53296,
+    "cpuTimeMs": 404467
   },
   "modeling": {
     "modeled": [
@@ -130,7 +130,7 @@
   "decision": {
     "numericBalanceChange": "none",
     "additionalObservation": [
-      "The measurement adds production-backed unconfirmed object-loot stake and lifecycle evidence to the existing Build Snapshot payment vector."
+      "Combat strength and unconfirmed object-loot stake are separate axes: stronger combat payment does not imply lower carried or lost-loot exposure. In workshop-empty B20, heavy-two-hand averaged 11.25 combat rounds and 36.17 damage HP with 7.53 terminal stake, versus light-shield at 13.88 rounds, 37.57 damage HP, and 5.10 terminal stake."
     ],
     "balanceIssueCandidates": [],
     "basis": "Issue #1100 is an observation pass. The same canonical payment vector is retained, while object-loot composition and settlement are measured through currentRun.unbankedObjectLoot and its production loot IDs. No balance value or player recommendation is inferred from this pass."
