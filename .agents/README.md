@@ -20,6 +20,13 @@ The codebase uses thin facade modules. Facade-to-concrete-module mappings are
 defined in `.agents/file-map.md` under `## Module Boundaries`. When a task
 touches a facade, inspect the concrete module before drawing conclusions.
 
+## Checklist ownership
+
+`.agents/game-logic.md` defines durable domain invariants: what must remain
+true. `.agents/qa-regression.md` defines verification strategy: how to prove
+those invariants and cover relevant failure classes. Source and tests own the
+current implementation details and exact scenario inventory.
+
 ## Static check ownership
 
 `npm run lint:docs` checks inline project-path references and source-driven
