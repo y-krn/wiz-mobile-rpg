@@ -12300,7 +12300,9 @@ function createBuildPaymentRunSnapshot(state, metrics, outcome) {
     actionCounts.noop += floor.failedNoopActions || 0;
   });
   const mitigations = state.combatFormulaTelemetry?.mitigations || [];
-  const guardMitigations = mitigations.filter(mitigation => mitigation.type === "physGuard");
+  const guardMitigations = mitigations.filter(mitigation =>
+    mitigation.type === "physGuard" || mitigation.type === "guardAction"
+  );
   const statusMitigations = state.combatFormulaTelemetry?.statusMitigations || [];
   const statusMitigationByType = statusMitigations.reduce((counts, mitigation) => {
     counts[mitigation.type] = (counts[mitigation.type] || 0) + 1;

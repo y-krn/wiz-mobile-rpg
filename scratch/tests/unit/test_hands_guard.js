@@ -95,6 +95,19 @@ assert.equal(resolveGuardMitigation(unshielded, 10, { isDefending: true, attackT
 assert.equal(resolveGuardMitigation(unshielded, 10, { isDefending: true, attackType: "spell" }), 5);
 assert.equal(resolveGuardStatusChance(unshielded, 1, { isDefending: true }), 0.5);
 assert.equal(resolveGuardMitigation(unshielded, 10, { isDefending: false, attackType: "physical" }), 10);
+const guardTelemetry = { mitigations: [] };
+assert.equal(resolveGuardMitigation(unshielded, 10, {
+  isDefending: true,
+  attackType: "physical",
+  telemetry: guardTelemetry
+}), 5);
+assert.deepEqual(guardTelemetry.mitigations, [{
+  type: "guardAction",
+  attackType: "physical",
+  before: 10,
+  after: 5,
+  reduction: 5
+}]);
 
 const largeShield = character({ shield: "LARGE_SHIELD" });
 assert.equal(getGuardProfileId(largeShield), "physical");

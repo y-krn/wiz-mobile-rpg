@@ -360,7 +360,8 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
       attackType: options.attackType,
       spell: options.spell,
       dragon: options.dragon,
-      baseMultiplier: options.defendRate
+      baseMultiplier: options.defendRate,
+      telemetry: state.combatFormulaTelemetry
     });
     const rawDamage = dmg;
     const playerHpBefore = c.hp;

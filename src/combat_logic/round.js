@@ -363,7 +363,10 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   let dmg = formulaDmg;
   const preMitigationDmg = dmg;
   const playerHpBefore = target.hp;
-  dmg = resolveGuardMitigation(target, dmg, { attackType: "physical" });
+  dmg = resolveGuardMitigation(target, dmg, {
+    attackType: "physical",
+    telemetry: state.combatFormulaTelemetry
+  });
   dmg = reduceIncomingDamage(target, dmg, { logQueue, state });
   state.combatFormulaTelemetry?.physicalMonsterHits.push({
     floor: state.floor,
@@ -1176,7 +1179,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 let dmg = Math.floor(Math.random() * 15) + 10;
                 dmg = resolveGuardMitigation(c, dmg, {
                   isDefending,
-                  attackType
+                  attackType,
+                  telemetry: state.combatFormulaTelemetry
                 });
                 const rawDamage = dmg;
                 const playerHpBefore = c.hp;
@@ -1225,7 +1229,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 let dmg = Math.floor(Math.random() * 20) + 15;
                 dmg = resolveGuardMitigation(c, dmg, {
                   isDefending,
-                  attackType
+                  attackType,
+                  telemetry: state.combatFormulaTelemetry
                 });
                 const rawDamage = dmg;
                 const playerHpBefore = c.hp;
@@ -1261,7 +1266,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           recordMonsterAction(mon, "HALITO", state);
           let dmg = Math.floor(Math.random() * 10) + 5;
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
-          dmg = resolveGuardMitigation(target, dmg, { isDefending, attackType: "spell" });
+          dmg = resolveGuardMitigation(target, dmg, {
+            isDefending,
+            attackType: "spell",
+            telemetry: state.combatFormulaTelemetry
+          });
           const rawDamage = dmg;
           const playerHpBefore = target.hp;
           dmg = reduceIncomingDamage(target, dmg, {
@@ -1297,7 +1306,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               let dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
               dmg = resolveGuardMitigation(c, dmg, {
                 isDefending,
-                attackType
+                attackType,
+                telemetry: state.combatFormulaTelemetry
               });
               const rawDamage = dmg;
               const playerHpBefore = c.hp;
@@ -1374,7 +1384,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const formulaDmg = dmg;
           dmg = resolveGuardMitigation(target, dmg, {
             isDefending,
-            attackType: "physical"
+            attackType: "physical",
+            telemetry: state.combatFormulaTelemetry
           });
 
           const isBlindTargetApplied = target.status === "blind";
