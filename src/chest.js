@@ -19,8 +19,8 @@ import {
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
-import { consumeRunObjectLoot } from "./state/run_loot.js";
-import { trackChestAction, trackChestSmashResult, trackValuableLocation } from "./telemetry.js";
+import { consumeRunObjectLoot, findRunObjectLootEntry } from "./state/run_loot.js";
+import { trackChestAction, trackChestSmashResult, trackLootLifecycle, trackValuableLocation } from "./telemetry.js";
 import {
   CHEST_PHASES,
   CHEST_PHASE_TRANSITIONS,
@@ -491,8 +491,15 @@ export function useTrapKit() {
   if (kitIndex < 0) return false;
 
   trackChestChoice(state.chestState, "trap_kit");
+  const lootId = findRunObjectLootEntry(state, "TRAP_KIT")?.id;
   state.inventory.splice(kitIndex, 1);
   consumeRunObjectLoot(state, "TRAP_KIT");
+  trackLootLifecycle("consumed", {
+    state,
+    itemKey: "TRAP_KIT",
+    lootId,
+    source: "dungeon"
+  });
   state.chestState.trap = "none";
   addLog("罠外しキットを使い、宝箱の罠を確実に解除した。キットは壊れた。");
   playSound("heal");

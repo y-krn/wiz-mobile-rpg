@@ -10,7 +10,7 @@ import {
   createPendingObjectLootEntry,
   findRunObjectLootEntry
 } from "./state/run_loot.js";
-import { trackLootLifecycle } from "./telemetry.js";
+import { trackLootLifecycle, trackLootStakeSnapshot } from "./telemetry.js";
 import {
   createLoadoutDraft,
   stageDiscardInventoryItem,
@@ -257,6 +257,7 @@ export function resolvePendingRewardBundle(stateLike = state) {
       lootId: entry.id,
       source: bundle.source
     }));
+  trackLootStakeSnapshot("pending_reward_resolution", { state: stateLike });
 
   const discardedNames = discarded.map(itemName);
   const takenNames = validation.taken.map(entry => itemName(entry.item));

@@ -222,15 +222,23 @@ export function renderItemInventory(optGrid) {
 function useExplorationItem(itemKey, itemIdx, item) {
   const result = applyExplorationItem(state, itemKey);
   if (!result.ok) return;
+  const lootId = findRunObjectLootEntry(state, itemKey)?.id;
   trackLootLifecycle("tried", {
     state,
     character: state.party[0],
     itemKey,
-    lootId: findRunObjectLootEntry(state, itemKey)?.id,
+    lootId,
     source: "dungeon"
   });
   state.inventory.splice(itemIdx, 1);
   consumeRunObjectLoot(state, itemKey);
+  trackLootLifecycle("consumed", {
+    state,
+    character: state.party[0],
+    itemKey,
+    lootId,
+    source: "dungeon"
+  });
   trackExplorationDecision("item", {
     state,
     character: state.party[0],
@@ -264,15 +272,23 @@ export function renderItemDirectionSelect(optGrid) {
       }
       createNoiseEvent(x, y);
       const effect = applyExplorationItem(state, "NOISE_BALL");
+      const lootId = findRunObjectLootEntry(state, "NOISE_BALL")?.id;
       trackLootLifecycle("tried", {
         state,
         character: state.party[0],
         itemKey: "NOISE_BALL",
-        lootId: findRunObjectLootEntry(state, "NOISE_BALL")?.id,
+        lootId,
         source: "dungeon"
       });
       state.inventory.splice(menuContext.itemIdx, 1);
       consumeRunObjectLoot(state, "NOISE_BALL");
+      trackLootLifecycle("consumed", {
+        state,
+        character: state.party[0],
+        itemKey: "NOISE_BALL",
+        lootId,
+        source: "dungeon"
+      });
       trackExplorationDecision("item", {
         state,
         character: state.party[0],
@@ -340,11 +356,12 @@ export function renderItemTargetSelect(optGrid) {
           useReturnWing();
           return;
         }
+        const lootId = findRunObjectLootEntry(state, menuContext.itemKey)?.id;
         trackLootLifecycle("tried", {
           state,
           character: char,
           itemKey: menuContext.itemKey,
-          lootId: findRunObjectLootEntry(state, menuContext.itemKey)?.id,
+          lootId,
           source: "dungeon"
         });
         const log = item.effect(char, state.party);
@@ -352,6 +369,13 @@ export function renderItemTargetSelect(optGrid) {
         playSound("heal");
         state.inventory.splice(menuContext.itemIdx, 1);
         consumeRunObjectLoot(state, menuContext.itemKey);
+        trackLootLifecycle("consumed", {
+          state,
+          character: char,
+          itemKey: menuContext.itemKey,
+          lootId,
+          source: "dungeon"
+        });
         saveAutosave();
         goBackSubmenu();
       });
@@ -481,7 +505,15 @@ function useReturnWing() {
     wingSalvageCount: selectedIds.length
   });
   state.inventory.splice(itemIndex, 1);
+  const lootId = findRunObjectLootEntry(state, "TOWN_PORTAL")?.id;
   consumeRunObjectLoot(state, "TOWN_PORTAL");
+  trackLootLifecycle("consumed", {
+    state,
+    character: state.party[0],
+    itemKey: "TOWN_PORTAL",
+    lootId,
+    source: "dungeon"
+  });
   addLog("帰還の翼を掲げた！選んだ戦果を抱え、冒険者は安全にお城へ戻った！");
   playSound("cast_spell");
   closeSubmenu();

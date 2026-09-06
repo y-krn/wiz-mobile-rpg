@@ -33,6 +33,13 @@ export function resolvePlayerItem(char, act, state, logQueue) {
     });
     state.inventory.splice(inventoryIdx, 1);
     consumeRunObjectLoot(state, act.itemKey);
+    trackLootLifecycle("consumed", {
+      state,
+      character: char,
+      itemKey: act.itemKey,
+      lootId: lootEntry?.id,
+      source: "combat"
+    });
     logQueue.push({
       msg: `[味方] ${char.name}は帰還のスクロールを読んだ！冒険者はお城へ導かれる！`,
       sound: "cast_spell",
@@ -43,6 +50,13 @@ export function resolvePlayerItem(char, act, state, logQueue) {
   if (act.itemKey === "ESCAPE_SCROLL") {
     state.inventory.splice(inventoryIdx, 1);
     consumeRunObjectLoot(state, act.itemKey);
+    trackLootLifecycle("consumed", {
+      state,
+      character: char,
+      itemKey: act.itemKey,
+      lootId: lootEntry?.id,
+      source: "combat"
+    });
     const charAgi = getCharAgi(char) + getBuffTotal(char, "agi");
     const avgEnemyAgi = 10;
     const baseChance = 0.75;
@@ -70,6 +84,13 @@ export function resolvePlayerItem(char, act, state, logQueue) {
   const log = item.effect(target, state.party);
   state.inventory.splice(inventoryIdx, 1);
   consumeRunObjectLoot(state, act.itemKey);
+  trackLootLifecycle("consumed", {
+    state,
+    character: char,
+    itemKey: act.itemKey,
+    lootId: lootEntry?.id,
+    source: "combat"
+  });
   let floatText = undefined;
   let floatColor = "#00ff66";
   if (act.itemKey === "HEAL_POTION" || act.itemKey === "GREATER_HEAL" || act.itemKey === "HOLY_WATER") {
