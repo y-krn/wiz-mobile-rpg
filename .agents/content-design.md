@@ -2,141 +2,131 @@
 
 ## Role
 
-Review RPG content additions for clarity, theme fit, player motivation, and
-implementation cost.
+Review player-facing content for a clear gameplay purpose, readable choices,
+theme fit, and a useful contribution to the depth-attack loop. This document is
+a review lens, not a catalogue of the current content implementation.
 
 ## Scope
 
-- Clarity, theme fit, player motivation, and consistency of player-facing RPG
-  content
 - Items, enemies, spells, classes, run quests, rewards, events, descriptions,
-  labels, and display text
-- Implementation cost and interactions with progression, mechanics, balance, and
-  mobile presentation
+  labels, and display text.
+- Clarity, theme fit, player motivation, terminology, and progression fit.
+- The amount of new vocabulary, choice pressure, and implementation cost that
+  a content change creates.
 
-Target files are determined from the relevant rows in `.agents/file-map.md`.
+## Durable content principles
 
-## Biome and depth visual canon
+### Content has a job
 
-Biome definitions in `src/data/biomes.js` are the canonical source for each
-biome's player-facing visual signature: wall/grid colors, dark-environment
-backgrounds, glow, aura, and ambient treatment. `src/renderer.js` and
-`src/styles/floor-themes.css` consume those values; they must not maintain a
-second floor-number or biome-color catalogue.
+Every piece of content should help the player descend, make the descent
+decision harder, reveal useful information, or record what happened. A new
+name, reward, enemy, or rule is not justified by flavor alone. Additions should
+not create a second progression loop, a redundant choice, or a new resource
+when an existing role is sufficient.
 
-Biome answers “where am I?” and changes every five floors. Depth answers “how
-deep am I?” and is a monotonic corruption axis derived from the preserved
-`biomeCycle` plus the position within that cycle. Depth may alter structure,
-fracture visibility, and atmospheric intensity, but color alone is not its
-sole signal. Wall, floor, route, and mobile readability remain higher priority
-than depth effects. This separation changes presentation and terrain shape only;
-gameplay quantities, encounter pacing, and balance targets remain governed by
-the existing floor-template rules.
+### Place and depth communicate different things
 
-### Encounter theme and local-floor reveal
+Biome communicates “where am I?” through a coherent visual and thematic
+signature. Depth communicates increasing pressure, corruption, or stakes. The
+two signals may reinforce one another, but depth must not be represented by
+color alone. Shape, silhouette, texture, lighting, motion, wording, and route
+context should keep the distinction readable in grayscale and on a small
+screen.
 
-Biome is the enemy theme; local floor is the reveal order. Each biome's
-opening floor uses the biome pool without blind- or sleep-capable enemies,
-because those threats remove player agency before the first local counterplay
-window. They unlock on local floor 2 at the normal pool weight; later depth
-weight changes require a measured reason and must not be compensated with
-enemy stats or encounter size. This principle applies to every five-floor
-biome cycle and keeps early status pressure distinct from the biome's visual
-identity.
+### Threats reveal counterplay
 
-### Five-floor trial signals (#1010)
+New encounters should introduce a recognizable pressure and a meaningful
+response window. Early content in a local biome should not remove agency before
+the player has a chance to learn or answer the threat. Later weighting may
+increase pressure, but it should not be disguised as a sudden stat spike or an
+unexplained encounter-size increase.
 
-Biome continues to answer “where am I?” while the run-specific trial answers
-which existing costs are likely to matter in this band. The internal main and
-sub-theme labels are not player-facing content. Portal copy is selected from
-coarse sensory signals shared across themes and roles, based on the resolved
-next-band encounter profile; it must not become a one-to-one tag dictionary or
-show exact theme, probability, or threat values. Guardian copy confirms the
-pressure already encountered without introducing a surprise rule.
+### Uncertainty is informative, not exact
 
-The biome Visual Signature includes spatial silhouette as well as color and ambient treatment: `corridorWidth`, `ceilingHeight`, `wallLean`, and `ceilingStyle` describe the stable pseudo-3D geometry seen during exploration. The renderer interprets this geometry generically through the shared projection; it must not enumerate biome IDs. Geometry is presentation-only, derived from floor → biome → `visualSignature`, and is not persisted or used by map generation, movement, or balance rules.
+Player-facing clues may communicate a useful direction, risk, or hypothesis
+without exposing hidden exact probabilities, candidate totals, internal theme
+labels, or an optimal build. A clue should change a decision while preserving
+the need to explore, identify, or take a calculated gamble. Internal metadata
+must not become a player-facing recommendation merely because it is convenient
+to display.
 
-### Landmark signature
+### Landmarks retain function while expressing place
 
-Biome Signature includes the recurring exploration landmarks that tell the
-player why an object exists in that place, not only the corridor geometry and
-ambient color. Chests, discovered traps, and stairs retain their functional
-silhouette while using biome-specific shapes: a mine uses a rough crate, a
-catacomb uses an ossuary coffer and arch, a library uses sealed bookwork, and
-the abyss may use an intentionally impossible but still readable stair.
+Chests, traps, stairs, portals, and other recurring landmarks should keep a
+recognizable functional silhouette. Their form, atmosphere, and details may
+express the surrounding biome, but presentation must not silently change the
+action, reward, route cost, discovery rule, or balance role of the landmark.
+Distinct signals must not rely on a single color or an implementation-specific
+style identifier.
 
-The canonical source is `visualSignature.landmarks` in
-`src/data/biomes.js`, with `chestStyle`, `trapStyle`, and `stairsStyle` IDs.
-`src/renderer.js` interprets those IDs through shared Canvas 2D drawing
-functions and the same projection/depth planes as the corridor. It must not
-branch on floor number or biome ID, persist a style ID in save data, or use a
-style to reveal an undiscovered trap. Style changes are presentation-only:
-chest rewards and actions, trap type/discovery information and effects, stair
-movement, spawn rates, and balance remain unchanged.
+### Terminology stays economical
 
-Loot content uses the same separation: base-item candidates answer what may
-appear at B1–B30, while `buildRole` in the affix registry explains whether a
-find reinforces, converts a cost, or pivots the run. The role is mechanical
-metadata and does not make a current-build-specific promise. Earlier bases
-remain valid in deep pools so depth does not turn the existing collection into
-obsolete filler.
+Prefer an existing term when it already describes the player-facing concept.
+Use one term consistently for one concept, keep labels short enough for the
+target interaction context, and introduce a new noun only when it represents a
+real new choice or relationship. Avoid exposing internal ownership layers,
+build metadata, or exact mechanics when coarse discovery is the intended
+experience.
 
 ## Initial File Routing
 
-Before searching broadly, read `.agents/file-map.md`. Start with `src/data.js`
-or the relevant `src/data/*` module for gameplay content, and start with the
-affected UI/overlay module for visible text. Expand to rules, systems, balance,
-or mobile UI files only if the content changes progression, mechanics, or
-layout.
+Before searching broadly, read `.agents/file-map.md`. Start with the relevant
+data definition and the affected UI or overlay module. Load
+`.agents/game-design*.md` when the content changes a durable theme, progression
+role, information-disclosure rule, or economy meaning; load
+`.agents/mobile-ui-ux.md` for interaction and presentation usability.
 
 ## Inputs
 
-- Content proposal or changed data
-- Intended player experience
-- Target progression point
-- Any implementation constraints from the main agent
+- The proposed or changed player-facing content.
+- The intended player decision and progression point.
+- Any mechanic, balance, or presentation constraints owned by another checklist.
 
 ## Agent Skills
 
-- Required when reviewing player-facing prose, labels, descriptions, or docs:
-  `writing-guidelines`.
-- Required when content text appears in mobile UI controls, lists, tabs, dialogs,
-  or result screens: `web-design-guidelines`.
-- Recommended when content affects progression, reward pacing, or difficulty:
-  use the `balance-simulation` checklist as an additional review lens.
+- Use `writing-guidelines` when reviewing player-facing prose, labels, or
+  documentation.
+- Use `web-design-guidelines` when content appears in mobile controls, lists,
+  tabs, dialogs, or result screens.
+- Use the `balance-simulation` checklist as an additional lens when content
+  changes progression, reward pacing, or difficulty.
 
 ## Review Checklist
 
 - Content has a clear gameplay purpose.
-- Names and descriptions are short enough for mobile UI.
-- Rewards match the effort and risk required.
-- New content does not require unnecessary systems.
-- Terminology is consistent with existing text.
-- Text and content rules are not split across facade and concrete modules in a
-  way that can drift.
-- Additions do not overload the player with too many similar choices.
-- Content can be verified with existing tests or a small targeted check.
+- Names and descriptions are concise and terminology is consistent.
+- The reward matches the effort and risk required.
+- The addition does not create an unnecessary system or redundant choice.
+- The content fits the progression and the durable design canon.
+- Any uncertainty gives the player a useful clue without exposing hidden exact
+  mechanics.
+- The content remains legible without color alone and fits the interaction
+  context.
+- The content can be verified with existing tests or a small targeted check.
+
+## Return-result content review
+
+Review result content against the Castle/Codex/Workshop return semantics in
+`.agents/game-design-core-loop.md`. Check that copy is factual and concise,
+uses labels such as returned, rescued, lost, and observed where appropriate,
+and does not expose hidden exact affix/stat detail, rates, candidate totals, or
+an optimal-build recommendation. The durable return hierarchy and semantics
+belong to the core-loop canon rather than this checklist.
 
 ## Required Verification
 
-- `npm run test:unit` when data affects mechanics.
-- `npm run test:browser` when text length or choices affect mobile UI.
-- Short impact note covering target player stage and expected behavior.
+- Run unit tests when content changes mechanics or data used by rules.
+- Run browser tests when text length, choices, or result presentation changes.
+- Include a short impact note naming the player stage and expected decision.
 
 ## Must Not Do
 
-- Do not add lore or flavor that has no gameplay purpose.
-- Do not propose large content batches without a clear progression target.
-- Do not introduce new terminology when existing terms are enough.
-- Do not accept text that is likely to overflow mobile controls.
-
-## Return-result content contract (#1011)
-
-The result screen highlights the representative item, a small meaningful
-history, new coarse Codex insights, and any horizontal Workshop possibility.
-Use short labels such as returned, rescued, lost, and observed. Never present
-full affix/stat details as a Castle reward, and never present exact rates,
-candidate totals, or a recommended build as a Codex answer.
+- Do not add lore or flavor without a gameplay purpose.
+- Do not propose a large content batch without a clear progression target.
+- Do not introduce terminology when an existing term is enough.
+- Do not expose internal exact mechanics when discovery or uncertainty is part
+  of the intended experience.
+- Do not accept text likely to overflow mobile controls.
 
 ## Output
 

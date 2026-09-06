@@ -4,7 +4,7 @@ import { updateUI } from "./ui.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
 import { updateRunQuests } from "./systems/run_quests.js";
 import { findMapCellByType } from "./rules/map_queries.js";
-import { trackCombatEnd, trackRunEnd } from "./telemetry.js";
+import { trackCombatEnd, trackLootStakeSnapshot, trackRunEnd } from "./telemetry.js";
 import { processRunReturn } from "./systems/run_return.js";
 
 export function triggerRunResult(reason, { salvageIds = null } = {}) {
@@ -24,7 +24,20 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
   const objectLootOutcome = reason === "escape_scroll"
     ? "wing"
     : isSuccess ? "retreat" : "loss";
+  const settlementSnapshotPoint = reason === "escape_scroll"
+    ? "wing_salvage_before"
+    : "terminal_settlement_before";
+  trackLootStakeSnapshot(settlementSnapshotPoint, {
+    state,
+    settlementOutcome: objectLootOutcome === "loss" ? outcome : objectLootOutcome,
+    selectedLootIds: salvageIds
+  });
   processRunReturn(state, objectLootOutcome, salvageIds);
+  trackLootStakeSnapshot("terminal_settlement_after", {
+    state,
+    settlementOutcome: objectLootOutcome === "loss" ? outcome : objectLootOutcome,
+    selectedLootIds: salvageIds
+  });
   if (isDeath && !run.deathLogs?.at(-1)) {
     const activeEnemy = state.combatState?.monsters?.find(monster => monster.hp > 0);
     if (activeEnemy && state.party[0]) {

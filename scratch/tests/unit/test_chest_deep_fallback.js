@@ -7,17 +7,6 @@ import {
 import { RESTRICTED_CHEST_BASES } from "../../../src/data/equipment_tables.js";
 
 const failures = [];
-const B1_GEAR = new Set([
-  "DAGGER",
-  "WAND",
-  "MACE",
-  "RAPIER",
-  "BUCKLER",
-  "SMALL_SHIELD",
-  "ROBE",
-  "LEATHER_ARMOR",
-  "EXPLORER_CLOAK"
-]);
 
 async function test(name, fn) {
   try {
@@ -58,7 +47,7 @@ function rollAtReplacementThreshold(floor) {
   return { reward, consumed };
 }
 
-await test("floor 6/20 use the authored deep chest pool without quest or B1 gear", () => {
+await test("floor 6/20 retain horizontal bases while widening the authored deep chest pool", () => {
   const b5Candidates = CHEST_ITEM_CANDIDATES_BY_FLOOR[5];
 
   for (const floor of [6, 20]) {
@@ -67,7 +56,9 @@ await test("floor 6/20 use the authored deep chest pool without quest or B1 gear
     assert.ok(candidates.includes("HOLY_BLADE"));
     if (floor >= 11) assert.ok(!candidates.includes("LEGENDARY_SWORD"));
     assert.ok(candidates.every(item => ITEMS[item]?.type !== "quest"));
-    assert.ok(candidates.every(item => !B1_GEAR.has(item)));
+    for (const baseId of ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR"]) {
+      assert.ok(candidates.includes(baseId), `B${floor} retains ${baseId}`);
+    }
     assert.ok(candidates.every(item => !RESTRICTED_CHEST_BASES.includes(item)));
   }
 });

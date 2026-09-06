@@ -20,14 +20,39 @@ The codebase uses thin facade modules. Facade-to-concrete-module mappings are
 defined in `.agents/file-map.md` under `## Module Boundaries`. When a task
 touches a facade, inspect the concrete module before drawing conclusions.
 
+## Checklist ownership
+
+`.agents/game-logic.md` defines durable domain invariants: what must remain
+true. `.agents/qa-regression.md` defines verification strategy: how to prove
+those invariants and cover relevant failure classes. `.agents/balance-simulation.md`
+defines durable balance principles and claim/evidence boundaries. The
+conditional `.agents/skills/balance-simulation/SKILL.md` defines how to perform
+a measurement; source, manifests, scripts, and tests own the current executable
+contract and exact scenario inventory.
+
 ## Static check ownership
 
 `npm run lint:docs` checks inline project-path references and source-driven
 design-document coverage. `npm run lint:markdown` checks Markdown link
 destinations, including the repository-root-relative convention used by
 evidence reports; it does not duplicate the inline-code or design-canon checks.
+`npm run lint:tests` checks Playwright naming and domain-entrypoint ownership
+rules from the current test files.
 `npm run lint:workflow` parses every GitHub Actions workflow and validates its
 basic `name`/`on`/`jobs`/step shape before CI runs.
+
+## Canon and review-checklist ownership
+
+Design canon answers what the game is intended to mean and feel like: player
+experience, domain semantics, and durable constraints. It does not record the
+current migration stage, implementation progress, or historical sequencing.
+Source/tests define how the intent is implemented; Issues, pull requests, and
+Git history define progress and history.
+
+Review checklists answer how to inspect a change through one lens. They should
+state review questions and routing rules without restating the whole design
+canon. Load a design document only when the changed area touches its durable
+meaning.
 
 ## Review checklists
 
@@ -43,16 +68,14 @@ basic `name`/`on`/`jobs`/step shape before CI runs.
   information-disclosure principles, floor density and pacing targets,
   push-your-luck structure, and FOE/camp direction. Check any feature or
   balance proposal against it.
-- `game-design-combat-model.md`: physical and offensive-spell formulas,
-  application order, measured contribution breakdowns, and the seven model
-  decisions from Issue #722. Source values remain in `src/`.
-- `game-design.md`: current progression/economy design for XP, milestone merchants,
-  materials, workshop, reward roles, and post-clear save behavior.
-- `game-design-equipment-builds.md`: the core/support affix system —
-  `CORE_AFFIXES` and `SUPPORT_AFFIXES` (counts: `CORE_AFFIXES.length` /
-  `SUPPORT_AFFIXES.length`), budget-based generation, inscriptions, polish, and
-  curse-seal rules. The source of truth is `src/data/affixes.js`. Canonical for
-  any change to affixes, `AFFIX_BALANCE`, `CORE_SEAL_RULES`, or workshop actions.
+- `game-design-combat-model.md`: physical and offensive-spell model structure,
+  application order, counterplay, and combat information disclosure. Executable
+  values remain in source and tests.
+- `game-design.md`: economy meaning for materials, resource ownership, status
+  counterplay, milestone merchants, run quests, and future possibility space.
+- `game-design-equipment-builds.md`: the Core/Support build model, equipment
+  knowledge, hands and Guard trade-offs, and horizontal supply principles. The
+  authoritative affix data boundary is `src/data/affixes.js`.
 
 ## File routing
 

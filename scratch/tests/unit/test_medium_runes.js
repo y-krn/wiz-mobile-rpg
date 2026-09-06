@@ -3,6 +3,7 @@ import {
   BASE_STARTING_MP,
   ITEMS,
   RUNE_ITEM_IDS,
+  RUNE_SUPPLY_BANDS,
   SPELLS,
   getCharMaxMp,
   isSpellcaster,
@@ -10,6 +11,7 @@ import {
   canUsePriestSpells,
   canUseManaItems
 } from "../../../src/data.js";
+import { getRuneItemIdsByFloor } from "../../../src/data/magic.js";
 import { STARTING_KITS, createStartingKitCharacter, state } from "../../../src/state.js";
 import { SAVE_VERSION, migrateSavePayload } from "../../../src/state/save_migrations.js";
 import { getChestItemCandidatesByFloor } from "../../../src/rules/chest_rules.js";
@@ -146,10 +148,64 @@ clampCurrentMpToMax(fighter, getCharMaxMp);
 assert.deepEqual(getActiveSpellKeys(fighter), []);
 assert.equal(fighter.mp, 1);
 
+const expectedRuneSpellKeysByFloor = {
+  1: ["HALITO", "DIOS", "DIURCO", "BADIOS", "MILWA", "DUMAPIC"],
+  3: [
+    "HALITO", "DIOS", "DIURCO", "BADIOS", "MILWA", "DUMAPIC",
+    "KATINO", "LAHALITO", "MAHALITO", "DIALKO", "LATUMOFIS", "MADIOS", "VULNERA"
+  ],
+  6: [
+    "HALITO", "DIOS", "DIURCO", "BADIOS", "MILWA", "DUMAPIC",
+    "KATINO", "LAHALITO", "MAHALITO", "DIALKO", "LATUMOFIS", "MADIOS", "VULNERA",
+    "MASFEAL", "MADALTO", "LOMILWA", "MADI", "MABARRIER", "MONTINO", "MORLIS", "WEAKEN"
+  ],
+  11: [
+    "HALITO", "DIOS", "DIURCO", "BADIOS", "MILWA", "DUMAPIC",
+    "KATINO", "LAHALITO", "MAHALITO", "DIALKO", "LATUMOFIS", "MADIOS", "VULNERA",
+    "MASFEAL", "MADALTO", "LOMILWA", "MADI", "MABARRIER", "MONTINO", "MORLIS", "WEAKEN",
+    "TILTOWAIT", "DIALMA"
+  ]
+};
+
+assert.deepEqual(
+  RUNE_SUPPLY_BANDS.map(({ id, minFloor, spellKeys }) => ({ id, minFloor, spellKeys })),
+  [
+    { id: "shallow", minFloor: 1, spellKeys: expectedRuneSpellKeysByFloor[1] },
+    { id: "early_mid", minFloor: 3, spellKeys: ["KATINO", "LAHALITO", "MAHALITO", "DIALKO", "LATUMOFIS", "MADIOS", "VULNERA"] },
+    { id: "mid", minFloor: 6, spellKeys: ["MASFEAL", "MADALTO", "LOMILWA", "MADI", "MABARRIER", "MONTINO", "MORLIS", "WEAKEN"] },
+    { id: "deep", minFloor: 11, spellKeys: ["TILTOWAIT", "DIALMA"] }
+  ],
+  "Rune supply metadata is authored independently of spell level"
+);
+
+for (const [floor, spellKeys] of Object.entries(expectedRuneSpellKeysByFloor)) {
+  const expectedIds = spellKeys.map(spellKey => `RUNE_${spellKey}`);
+  assert.deepEqual(getRuneItemIdsByFloor(Number(floor)), expectedIds, `B${floor} Rune supply tier`);
+  const chestCandidates = getChestItemCandidatesByFloor(Number(floor), { includeRunes: true });
+  assert.deepEqual(
+    chestCandidates.filter(itemId => itemId.startsWith("RUNE_")),
+    expectedIds,
+    `B${floor} normal chest Rune candidates use the supply tier`
+  );
+}
+
+assert.deepEqual(
+  getRuneItemIdsByFloor(2),
+  expectedRuneSpellKeysByFloor[1].map(spellKey => `RUNE_${spellKey}`),
+  "B2 does not promote early-mid Runes"
+);
+assert.deepEqual(
+  getRuneItemIdsByFloor(30),
+  RUNE_SUPPLY_BANDS.flatMap(band => band.spellKeys.map(spellKey => `RUNE_${spellKey}`)),
+  "deep supply eventually exposes every authored Rune"
+);
+assert.deepEqual(new Set(getRuneItemIdsByFloor(30)), new Set(RUNE_ITEM_IDS));
+
 for (const runeId of RUNE_ITEM_IDS) {
   assert.equal(ITEMS[runeId].type, "rune");
   assert.ok(SPELLS[ITEMS[runeId].spellKey]);
-  assert.ok(getChestItemCandidatesByFloor(1, { includeRunes: true }).includes(runeId), `${runeId} is a normal chest candidate`);
+  assert.equal(ITEMS[runeId].supplyBand, ITEMS[runeId].supplyTier);
+  assert.equal(ITEMS[runeId].minFloor, RUNE_SUPPLY_BANDS.find(band => band.id === ITEMS[runeId].supplyBand).minFloor);
 }
 
 console.log("[PASS] medium and Rune ownership");

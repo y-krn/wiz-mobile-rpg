@@ -1,9 +1,12 @@
 export const FLOOR_DISARM_CALIBRATION = Object.freeze({
-  base: 40,
-  levelGain: 0.5,
-  depthLoss: 2.0,
+  // Exploration verbs are universal. Difficulty is supplied by the trap (or
+  // by the floor fallback below); Build support is the only run-local bonus.
+  universalBase: 95,
+  difficultyScale: 0.35,
   min: 5,
-  max: 60
+  max: 95,
+  defaultDifficultyPerFloor: 15,
+  defaultDifficultyFloorScale: 15
 });
 
 export const CHEST_DISARM_BASE_CHANCE = 0.25;
@@ -25,9 +28,7 @@ function clampUnit(value) {
 
 // 解除と強行の期待被害を等しくするsuccessRate。trap_effect_rules.jsの
 // partial bandを入力へ反映し、sim側の閾値写経を防ぐ。
-export function calculateFloorDisarmEvThreshold({
-  trapType
-} = {}) {
+export function calculateFloorDisarmEvThreshold({ trapType } = {}) {
   const isPitfall = trapType === "pitfall";
   const partialBand = isPitfall ? 0 : PARTIAL_SUCCESS_BAND;
   const partialMultiplier = FORCE_DAMAGE_MULTIPLIER;
@@ -157,32 +158,51 @@ export function calculateChestDisarmActionEv({
   };
 }
 
-// Trap handling is universal. Equipment, Support, and Core effects are the
-// only build-owned modifiers; level and depth provide the common floor.
-export function calculateDisarmRate({ level, floor, affixBonus = 0 }) {
-  const lv = Math.max(1, Math.floor(Number(level) || 1));
+function getDefaultFloorDifficulty(floor = 1) {
   const depth = Math.max(1, Math.floor(Number(floor) || 1));
-  const base = FLOOR_DISARM_CALIBRATION.base;
-  const levelGain = lv * FLOOR_DISARM_CALIBRATION.levelGain;
-  const depthLoss = (depth - 1) * FLOOR_DISARM_CALIBRATION.depthLoss;
-  const { min, max } = FLOOR_DISARM_CALIBRATION;
-
-  const raw = base + levelGain - depthLoss + affixBonus;
-  return Math.round(Math.max(min, Math.min(max, raw)));
+  return FLOOR_DISARM_CALIBRATION.defaultDifficultyPerFloor +
+    depth * FLOOR_DISARM_CALIBRATION.defaultDifficultyFloorScale;
 }
 
-export function calculateChestDisarmChance({ trapBonus = 0, blind = false }) {
-  const chance = CHEST_DISARM_BASE_CHANCE + trapBonus;
+function getTrapDifficulty({ trap, floor } = {}) {
+  const explicitDifficulty = Number(trap?.difficulty);
+  return Number.isFinite(explicitDifficulty) && explicitDifficulty >= 0
+    ? explicitDifficulty
+    : getDefaultFloorDifficulty(floor);
+}
+
+// Level and class are intentionally not accepted inputs. Passing stale fields
+// from old callers is harmless, but they cannot affect the run-local result.
+export function calculateDisarmRate({ floor = 1, difficulty, affixBonus = 0 } = {}) {
+  const normalizedDifficulty = Number.isFinite(Number(difficulty))
+    ? Math.max(0, Number(difficulty))
+    : getDefaultFloorDifficulty(floor);
+  const buildBonus = Number.isFinite(Number(affixBonus)) ? Number(affixBonus) : 0;
+  const raw = FLOOR_DISARM_CALIBRATION.universalBase -
+    normalizedDifficulty * FLOOR_DISARM_CALIBRATION.difficultyScale +
+    buildBonus;
+  return Math.round(Math.max(
+    FLOOR_DISARM_CALIBRATION.min,
+    Math.min(FLOOR_DISARM_CALIBRATION.max, raw)
+  ));
+}
+
+export function calculateChestDisarmChance({ trapBonus = 0, blind = false } = {}) {
+  const buildBonus = Number.isFinite(Number(trapBonus)) ? Math.max(0, Number(trapBonus)) : 0;
+  const chance = Math.min(1, CHEST_DISARM_BASE_CHANCE + buildBonus);
   return blind ? chance / 2 : chance;
 }
 
 export function calculateFloorTrapSuccessRate({
   trap,
-  level,
   floor,
   affixBonus = 0
-}) {
-  const rate = calculateDisarmRate({ level, floor, affixBonus });
+} = {}) {
+  const rate = calculateDisarmRate({
+    floor,
+    difficulty: getTrapDifficulty({ trap, floor }),
+    affixBonus
+  });
   return trap?.type === "pitfall" ? Math.min(100, rate + PITFALL_EDGE_BONUS) : rate;
 }
 

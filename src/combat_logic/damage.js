@@ -62,6 +62,7 @@ export function recordReceivedDamage(
   });
   trackDamageReceived({
     floor: state?.floor,
+    character: char,
     enemyId: sourceName,
     attackType,
     rawDamage,
@@ -70,7 +71,6 @@ export function recordReceivedDamage(
     postDefDamage: options.postDefDamage,
     finalDef: options.finalDef,
     defResistance: options.defResistance,
-    character: char,
     playerHpBefore,
     playerHpAfter: char?.hp,
     playerMp: char?.mp,
@@ -358,7 +358,8 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
       attackType: options.attackType,
       spell: options.spell,
       dragon: options.dragon,
-      baseMultiplier: options.defendRate
+      baseMultiplier: options.defendRate,
+      telemetry: state.combatFormulaTelemetry
     });
     const rawDamage = dmg;
     const playerHpBefore = c.hp;

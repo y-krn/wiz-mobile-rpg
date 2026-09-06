@@ -1,47 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
-  <title>DEPTHWARD — 深層の門</title>
-  <defs>
-    <linearGradient id="background" x1="64" y1="32" x2="448" y2="480" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#10171a"/>
-      <stop offset="0.5" stop-color="#090d0f"/>
-      <stop offset="1" stop-color="#050708"/>
-    </linearGradient>
-    <linearGradient id="outer-steel" x1="64" y1="54" x2="448" y2="458" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#526168"/>
-      <stop offset="0.52" stop-color="#2d393e"/>
-      <stop offset="1" stop-color="#182125"/>
-    </linearGradient>
-    <linearGradient id="inner-steel" x1="102" y1="101" x2="410" y2="410" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#b5bfbd"/>
-      <stop offset="0.42" stop-color="#657276"/>
-      <stop offset="1" stop-color="#3c494d"/>
-    </linearGradient>
-    <linearGradient id="brass" x1="250" y1="218" x2="262" y2="304" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#d1ae73"/>
-      <stop offset="0.52" stop-color="#a47d4c"/>
-      <stop offset="1" stop-color="#6d4d2c"/>
-    </linearGradient>
-  </defs>
-
-  <!-- Full-bleed background keeps the mark legible under maskable cropping. -->
-  <rect width="512" height="512" fill="url(#background)"/>
-
-  <!-- Three receding rectangular gates: black iron, then worn steel. -->
-  <g stroke-linejoin="miter">
-    <path d="M49 48H463L400 464H112L49 48Z" stroke="#11191d" stroke-width="28"/>
-    <path d="M49 48H463L400 464H112L49 48Z" stroke="url(#outer-steel)" stroke-width="11"/>
-    <path d="M49 48H463L400 464H112L49 48Z" stroke="#839092" stroke-width="2" opacity="0.72"/>
-
-    <path d="M104 103H408L367 409H145L104 103Z" stroke="#1b2529" stroke-width="22"/>
-    <path d="M104 103H408L367 409H145L104 103Z" stroke="url(#inner-steel)" stroke-width="8"/>
-    <path d="M104 103H408L367 409H145L104 103Z" stroke="#c5ceca" stroke-width="2" opacity="0.58"/>
-
-    <path d="M157 155H355L337 357H175L157 155Z" stroke="#273238" stroke-width="16"/>
-    <path d="M157 155H355L337 357H175L157 155Z" stroke="#879391" stroke-width="5"/>
-    <path d="M157 155H355L337 357H175L157 155Z" stroke="#d2d8d1" stroke-width="1.5" opacity="0.64"/>
-  </g>
-
-  <!-- The only warm accent: a narrow opening beyond the last gate. -->
-  <path d="M252 224L260 217L260 292L252 304Z" fill="url(#brass)"/>
-  <path d="M254.5 226L257.5 223.5V288L254.5 293Z" fill="#e2c48e" opacity="0.78"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<title>DEPTHWARD — descent gate</title>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+<stop stop-color="#15191F"/><stop offset="1" stop-color="#080A0D"/>
+</linearGradient>
+<linearGradient id="metal" x1="288" y1="210" x2="736" y2="814" gradientUnits="userSpaceOnUse">
+<stop stop-color="#F2F1EC"/><stop offset="1" stop-color="#A9AFB4"/>
+</linearGradient>
+</defs>
+<rect width="1024" height="1024" fill="url(#bg)"/>
+<path d="M278 236H746V320H362V712H278V236Z" fill="url(#metal)"/>
+<path d="M662 320H746V712H662V320Z" fill="url(#metal)"/>
+<path d="M390 500L512 626L634 500L694 558L512 746L330 558L390 500Z" fill="#D8A35D"/>
+<path d="M444 392H580V526L512 596L444 526V392Z" fill="#090B0E"/>
 </svg>

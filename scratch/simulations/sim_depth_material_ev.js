@@ -20,6 +20,8 @@ export const MEASUREMENT_PROVENANCE = isMainThread && !IS_TEST_PROCESS
     fetchOriginMain: false,
     measurementRunnerPaths: [
       "scratch/simulations/sim_depth_material_ev.js",
+      "scratch/measurements/build_fixtures.js",
+      "src/rules/build_snapshot.js",
       "scratch/measurements/measurement_provenance.js"
     ]
   })
@@ -170,21 +172,22 @@ const {
   calculateFloorTrapActionExpectedDamage,
   calculateFloorTrapSuccessRate,
   FLOOR_DISARM_CALIBRATION,
-  isDisarmAptClass,
   resolveTrapAction
 } = await import("../../src/rules/trap_rules.js");
 const {
   applyTrapGuardToEffect,
   calculateChestTrapExpectedRisk,
   calculateFloorTrapExpectedDamage,
-  hasTrapScout,
   resolveChestTrapEffect,
   resolveFloorTrapEffect
 } = await import("../../src/rules/trap_effect_rules.js");
+const { calculateChestInspectionChance } = await import("../../src/chest/chest_domain.js");
 const {
   AFFIX_BALANCE,
   CORE_AFFIXES,
-  SUPPORT_AFFIXES
+  SUPPORT_AFFIXES,
+  getAffixDefinition,
+  getAffixKind
 } = await import("../../src/data/affixes.js");
 const { ITEMS } = await import("../../src/data/items.js");
 const { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } = await import("../../src/data/materials.js");
@@ -243,6 +246,17 @@ const {
 } = await import("../../src/data.js");
 const { createBuildCharacter: createProductionBuildCharacter } =
   await import("../measurements/issue973_build_sensitivity.js");
+const { BUILD_FIXTURE_IDS, createBuildFixture } =
+  await import("../measurements/build_fixtures.js");
+const { getActiveSpellKeys } = await import("../../src/rules/magic_rules.js");
+const { resolveBuildSnapshot } = await import("../../src/rules/build_snapshot.js");
+
+// Historical class-axis simulations keep their old learned spell list in
+// scratch only. Production auto/combat permission is always socket-backed.
+function getSimulationActiveSpellKeys(character) {
+  if (character?.startingKit || character?.mediumState) return getActiveSpellKeys(character);
+  return Array.isArray(character?.spells) ? [...character.spells] : [];
+}
 
 // Candidate/masking list only; selection ranking lives in auto_action.js.
 const PRIEST_HEALING_SPELL_IDS = Object.freeze([
@@ -1449,6 +1463,14 @@ function resolveSimulationClassNames(className = null) {
   }
   return [className];
 }
+
+export function resolveBuildFixtureIds(fixtureId = null) {
+  if (fixtureId === null || fixtureId === undefined) return BUILD_FIXTURE_IDS;
+  if (!BUILD_FIXTURE_IDS.includes(fixtureId)) {
+    throw new Error(`unknown build fixture: ${fixtureId}`);
+  }
+  return [fixtureId];
+}
 const CRAFT_MEASUREMENT_RECIPE_IDS = Object.freeze([
   "MANA_POTION",
   "HEAL_POTION",
@@ -1506,15 +1528,19 @@ const ECONOMY_CORE_KEEP_RATIO = 0.95;
 const HOLD_ONLY_ECONOMY_CORE_IDS = new Set(["CORE_SNEAK_STEP", "CORE_KEEN_EYE"]);
 // #443の測定定義。ゲームルールではなく、core+対応support endpoint用。
 const CORE_SUPPORT_SYNERGY = Object.freeze({
-  CORE_LAST_STAND: ["hp", "vit", "guardian", "killHeal"],
-  CORE_OPENER: ["firstStrike", "firstTurnAttack", "fullHpDamage", "followUp"],
   CORE_BLOOD_WAND: ["hp", "vit", "int", "pie", "arcane", "devotion"],
   CORE_PURIFY_RING: ["antiUndead", "antiDemon", "arcane", "devotion"],
   CORE_TRAP_EATER: ["trapBonus"],
   CORE_CURSE_KEEPER: [],
-  CORE_GIANT_SLAYER: ["antiDragon", "antiBeast", "antiSpirit"],
   CORE_THORN_SHIELD: ["guardian", "def", "vit", "hitFlinch"],
-  CORE_EXECUTIONER: []
+  CORE_EXECUTIONER: ["poisonAtk", "bleedingAtk", "statusResistance"],
+  CORE_THIN_ICE_PACT: ["lowHpDamage", "guardian"],
+  CORE_SNEAK_STEP: ["hearRange", "traceRead", "arcaneSense"],
+  CORE_TOMB_RAIDER: ["treasureSense", "materialFind"],
+  CORE_KEEN_EYE: ["identifyDiscount", "arcaneSense"],
+  CORE_CAMP_MASTER: ["stairsHeal", "hp"],
+  CORE_BOUNTY_HUNTER: ["contractReward"],
+  CORE_SCHOLAR_EYE: ["materialFind", "arcaneSense"]
 });
 const ENABLED_SUPPORT_AFFIXES = SUPPORT_AFFIXES.filter(affix => affix.enabled);
 const ALL_ENABLED_SUPPORT_IDS = ENABLED_SUPPORT_AFFIXES.map(affix => affix.id);
@@ -1539,8 +1565,8 @@ export const ISSUE679_PROVENANCE_FIELDS = Object.freeze([
 ]);
 export const ISSUE679_CLASSIFICATION_AGGREGATE = Object.freeze({
   core: Object.freeze({ A: 11, B: 0, C: 3, D: 4 }),
-  support: Object.freeze({ A: 0, B: 0, C: 47, D: 0 }),
-  combined: Object.freeze({ A: 11, B: 0, C: 50, D: 4 })
+  support: Object.freeze({ A: 0, B: 0, C: 48, D: 0 }),
+  combined: Object.freeze({ A: 11, B: 0, C: 51, D: 4 })
 });
 
 // Issue #679: retain the real-run equipment funnel without changing selection
@@ -1720,7 +1746,13 @@ function createCoreObservations() {
     tombRaiderMaterialBonusTotal: 0,
     trapEaterAttackGainTotal: 0,
     coreOpportunityCounts: createCoreMeasurementCounts(),
-    coreActivationCounts: createCoreMeasurementCounts()
+    coreActivationCounts: createCoreMeasurementCounts(),
+    supportOpportunityCounts: Object.fromEntries(
+      ENABLED_SUPPORT_AFFIXES.map(affix => [affix.id, 0])
+    ),
+    supportActivationCounts: Object.fromEntries(
+      ENABLED_SUPPORT_AFFIXES.map(affix => [affix.id, 0])
+    )
   };
 }
 
@@ -1729,33 +1761,17 @@ function getSimulationTrapOverride(state) {
 }
 
 function getSimulationTrapBonus(character, state = null) {
-  if (state?.simPolicy?.ignoreThiefSustain && character?.class === "Thief") {
-    return 0;
-  }
   const trapOverride = getSimulationTrapOverride(state)?.trapBonus;
-  const override = trapOverride;
-  const overrideApplies = trapOverride &&
-    (!getSimulationTrapOverride(state)?.className ||
-      getSimulationTrapOverride(state).className === character?.class);
-  const passiveOverrideApplies = trapOverride &&
-    character?.class === "Thief" &&
-    Object.hasOwn(trapOverride, "passiveApt");
-  const passiveBonus = passiveOverrideApplies
-    ? Number(trapOverride.passiveApt)
-    : 15;
-  const equipmentScale = overrideApplies && Number.isFinite(Number(trapOverride?.equipmentScale))
+  const equipmentScale = trapOverride && Number.isFinite(Number(trapOverride.equipmentScale))
     ? Math.max(0, Number(trapOverride.equipmentScale))
     : 1;
-  const actual = Math.max(0, (getCharTrapBonus(character) * 100 -
-    (character?.class === "Thief" ? 15 : 0) +
-    (passiveOverrideApplies ? passiveBonus : 0)) * equipmentScale +
-    (passiveOverrideApplies ? passiveBonus : character?.class === "Thief" ? 15 : 0)) / 100;
+  const actual = Math.max(0, getCharTrapBonus(character) * equipmentScale);
   const exposureValue = Number(state?.simPolicy?.trapBonusExposureValue || 0);
   if (state?.simPolicy?.trapBonusExposureApplied && exposureValue > 0) {
     return Math.max(actual, exposureValue / 100);
   }
-  if (overrideApplies && actual > 0) {
-    const multiplier = Number(override.multiplier);
+  if (trapOverride && actual > 0) {
+    const multiplier = Number(trapOverride.multiplier);
     if (Number.isFinite(multiplier) && multiplier >= 0) {
       return actual * multiplier;
     }
@@ -1766,73 +1782,58 @@ function getSimulationTrapBonus(character, state = null) {
   return trapBonus;
 }
 
-function getSimulationTrapParty(state) {
-  if (!state?.simPolicy?.ignoreThiefSustain) return state.party;
-  return state.party.map(character => character?.class === "Thief"
-    ? { ...character, class: "Fighter" }
-    : character
-  );
-}
-
-function getSimulationDetectRate(state, floor) {
+function getSimulationDetectRate(state) {
+  const detectionSupport = state.party.filter(character => isAlive(character)).reduce((max, character) =>
+    Math.max(max, getCharAffixSum(character, "traceRead")), 0);
   if (state.simPolicy.floorTrapDetection === "certain") {
-    return { rate: 1, cap: 1, scoutBonus: 0 };
+    return { rate: 1, cap: 1, detectionSupport };
   }
   return {
-    rate: calculateDetectRate({ floor, scoutBonus: 0 }),
+    rate: calculateDetectRate(),
     cap: 1,
-    scoutBonus: 0
+    detectionSupport
   };
 }
 
-function getSimulationTrapBonusMax(character, state = null) {
+function getSimulationTrapBonusMax(state = null) {
   const override = getSimulationTrapOverride(state)?.trapBonus;
-  const overrideApplies = override &&
-    (!getSimulationTrapOverride(state)?.className ||
-      getSimulationTrapOverride(state).className === character?.class);
-  const apt = !(state?.simPolicy?.ignoreThiefSustain && character?.class === "Thief") &&
-    isDisarmAptClass(character?.class);
-  const value = overrideApplies ? (apt ? override?.maxApt : override?.maxNonApt) : null;
+  // Historical calibration fixtures use class-shaped key names; every accepted
+  // value is a universal calibration input in the current Build-owned model.
+  const value = override?.max ?? override?.maxApt ?? override?.maxNonApt;
   return value !== null && value !== undefined && Number.isFinite(Number(value))
     ? Math.max(0, Number(value))
-    : apt ? FLOOR_DISARM_CALIBRATION.aptMax : FLOOR_DISARM_CALIBRATION.nonAptMax;
+    : FLOOR_DISARM_CALIBRATION.max;
 }
 
 function calculateSimulationFloorTrapSuccessRate({
   state,
   trap,
-  className,
-  level,
   floor,
   affixBonus
 } = {}) {
   const trapOverride = getSimulationTrapOverride(state);
   const override = trapOverride?.trapBonus;
-  const overrideApplies = override &&
-    (!trapOverride?.className || trapOverride.className === className);
-  if (!overrideApplies || (!Object.hasOwn(override, "maxApt") &&
-    !Object.hasOwn(override, "maxNonApt"))) {
+  const hasUniversalCalibrationOverride = override && [
+    "base", "universalBase", "difficultyScale", "min", "max", "baseApt", "baseNonApt",
+    "minApt", "minNonApt", "maxApt", "maxNonApt"
+  ].some(key => Object.hasOwn(override, key));
+  if (!hasUniversalCalibrationOverride) {
     return calculateFloorTrapSuccessRate({
       trap,
-      className,
-      level,
       floor,
       affixBonus
     });
   }
-  const apt = !(state?.simPolicy?.ignoreThiefSustain && className === "Thief") &&
-    isDisarmAptClass(className);
-  const base = apt
-    ? Number(override.baseApt ?? FLOOR_DISARM_CALIBRATION.aptBase)
-    : Number(override.baseNonApt ?? FLOOR_DISARM_CALIBRATION.nonAptBase);
-  const levelGain = apt
-    ? Math.max(1, Math.floor(Number(level) || 1)) * FLOOR_DISARM_CALIBRATION.aptLevelGain
-    : Math.max(1, Math.floor(Number(level) || 1)) * FLOOR_DISARM_CALIBRATION.nonAptLevelGain;
-  const depthLoss = (Math.max(1, Math.floor(Number(floor) || 1)) - 1) *
-    FLOOR_DISARM_CALIBRATION.depthLoss;
-  const min = apt ? FLOOR_DISARM_CALIBRATION.aptMin : FLOOR_DISARM_CALIBRATION.nonAptMin;
-  const max = getSimulationTrapBonusMax({ class: className }, state);
-  const raw = base + levelGain - depthLoss + (Number(affixBonus) || 0);
+  const base = Number(override.universalBase ?? override.base ?? override.baseApt ??
+    override.baseNonApt ?? FLOOR_DISARM_CALIBRATION.universalBase);
+  const difficultyScale = Number(override.difficultyScale ?? FLOOR_DISARM_CALIBRATION.difficultyScale);
+  const difficulty = Number.isFinite(Number(trap?.difficulty))
+    ? Math.max(0, Number(trap.difficulty))
+    : FLOOR_DISARM_CALIBRATION.defaultDifficultyPerFloor +
+      Math.max(1, Math.floor(Number(floor) || 1)) * FLOOR_DISARM_CALIBRATION.defaultDifficultyFloorScale;
+  const min = Number(override.min ?? override.minApt ?? override.minNonApt ?? FLOOR_DISARM_CALIBRATION.min);
+  const max = Number(override.max ?? override.maxApt ?? override.maxNonApt ?? FLOOR_DISARM_CALIBRATION.max);
+  const raw = base - difficulty * difficultyScale + (Number(affixBonus) || 0);
   const rate = Math.round(Math.max(min, Math.min(max, raw)));
   return trap?.type === "pitfall" ? Math.min(100, rate + 20) : rate;
 }
@@ -1843,8 +1844,7 @@ function getFloorDisarmPolicyThreshold(state, trap) {
     return policy.floorDisarmMinRate;
   }
   return calculateFloorDisarmEvThreshold({
-    trapType: trap?.type,
-    scoutMitigated: hasTrapScout(getSimulationTrapParty(state))
+    trapType: trap?.type
   });
 }
 
@@ -1859,7 +1859,7 @@ function getFloorTrapExpectedDamageForAction(state, trap, floor, weakened) {
   return calculateFloorTrapExpectedDamage({
     trap,
     floor: effectFloor,
-    party: getSimulationTrapParty(state),
+    party: state.party,
     weakened
   }).reduce((sum, damage) => sum + damage, 0);
 }
@@ -1870,16 +1870,12 @@ function getFloorTrapActionPlan(state, trap, floor) {
   const successRate = calculateSimulationFloorTrapSuccessRate({
     state,
     trap,
-    className: character.class,
-    level: character.level,
     floor,
     affixBonus: Math.round(trapBonus * 100)
   });
   const baseSuccessRate = calculateSimulationFloorTrapSuccessRate({
     state,
     trap: trap.type === "pitfall" ? { ...trap, type: "damage" } : trap,
-    className: character.class,
-    level: character.level,
     floor,
     affixBonus: Math.round(trapBonus * 100)
   });
@@ -1892,7 +1888,7 @@ function getFloorTrapActionPlan(state, trap, floor) {
     action,
     successRate,
     baseSuccessRate,
-    maxRate: getSimulationTrapBonusMax(character, state),
+    maxRate: getSimulationTrapBonusMax(state),
     trapBonus,
     expectedDamage: calculateFloorTrapActionExpectedDamage({
       action,
@@ -1941,6 +1937,8 @@ function createTrapAggregate() {
     detectionCapHits: 0,
     disarmCapHits: 0,
     planEvaluations: 0,
+    resolutionCounts: { observed: 0, disarmed: 0, avoided: 0, triggered: 0 },
+    resolutionObservationCount: 0,
     runsWithHealPotionShortage: 0,
     combatDamageHp: 0,
     stairsHealingHp: 0,
@@ -2323,6 +2321,8 @@ function createStage15FloorTelemetry(floor) {
     normalAttackActions: 0,
     defensiveSupportActions: 0,
     itemActions: 0,
+    guardActions: 0,
+    fleeActions: 0,
     failedNoopActions: 0,
     rounds: 0,
     enemyActions: 0,
@@ -2473,6 +2473,8 @@ function recordStage15Encounter(metrics, encounter) {
   floorTelemetry.normalAttackActions += encounter.normalAttacks;
   floorTelemetry.defensiveSupportActions += encounter.defensiveSupportActions;
   floorTelemetry.itemActions += encounter.itemActions;
+  floorTelemetry.guardActions += encounter.guardActions;
+  floorTelemetry.fleeActions += encounter.fleeActions;
   floorTelemetry.failedNoopActions += encounter.failedNoopActions;
   floorTelemetry.rounds += encounter.rounds;
   floorTelemetry.enemyActions += encounter.enemyActions;
@@ -3135,6 +3137,10 @@ function addTrapAggregate(target, result) {
   target.detectionCapHits += result.trapDetectionCapHits;
   target.disarmCapHits += result.trapDisarmCapHits;
   target.planEvaluations += result.trapPlanEvaluations;
+  Object.entries(result.trapResolutionCounts || {}).forEach(([outcome, count]) => {
+    target.resolutionCounts[outcome] = (target.resolutionCounts[outcome] || 0) + count;
+  });
+  target.resolutionObservationCount += (result.trapResolutionObservations || []).length;
   target.runsWithHealPotionShortage += Number(result.trapHealPotionShortages > 0);
   target.combatDamageHp += result.combatDamageHp;
   target.stairsHealingHp += result.stairsHealingHp;
@@ -3248,6 +3254,8 @@ function finalizeTrapAggregate(aggregate) {
       ])
     ),
     averageTrapDetections: aggregate.detections / runs,
+    trapResolutionCounts: { ...aggregate.resolutionCounts },
+    trapResolutionObservationCount: aggregate.resolutionObservationCount,
     trapDetectionCapHitRate: aggregate.detectionAttempts > 0
       ? aggregate.detectionCapHits / aggregate.detectionAttempts
       : 0,
@@ -3957,13 +3965,13 @@ function equipBestWorkshopStartingGear(character, workshop, config = {}) {
   const selectedId = config.startingGearChoice;
   const selected = selectedId ? ITEMS[selectedId] : null;
   if (selected && selected.type === "weapon" &&
-    (!selected.classes || selected.classes.includes(character.class))) {
+    (character.startingKit || !selected.classes || selected.classes.includes(character.class))) {
     character.equipment[selected.type] = selected.id;
     return;
   }
   const candidates = candidateIds
     .map(itemId => ITEMS[itemId])
-    .filter(item => item && (!item.classes || item.classes.includes(character.class)))
+    .filter(item => item && (character.startingKit || !item.classes || item.classes.includes(character.class)))
     .sort((left, right) => (right.atk || 0) - (left.atk || 0));
   const best = candidates[0];
   const equipped = ITEMS[character.equipment.weapon];
@@ -4209,20 +4217,24 @@ function createSimulationState(
   scenario,
   workshop,
   keyItems = [],
-  unlockedMilestones = []
+  unlockedMilestones = [],
+  buildFixtureId = null
 ) {
   const currentRun = createDefaultCurrentRun();
   currentRun.runSeed = runSeed;
   currentRun.startFloor = startFloor;
   currentRun.deepestFloor = startFloor;
-  currentRun.characterClass = className;
+  currentRun.characterClass = buildFixtureId ? null : className;
+  currentRun.buildFixtureId = buildFixtureId;
   currentRun.floorsVisited = [startFloor];
   currentRun.campRestCount = 0;
   assignRunQuests(currentRun);
 
-  const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
+  const character = buildFixtureId
+    ? createBuildFixture(buildFixtureId)
+    : applyWorkshopToCharacter(createSoloCharacter(className), workshop);
   const startingBuild = scenario.startingBuild;
-  if (startingBuild?.equipment && className === "Mage") {
+  if (startingBuild?.equipment && !buildFixtureId && className === "Mage") {
     // Reuse the #975 production-shaped fixture conversion. This keeps the
     // Phase 2 injected build semantically identical to the established build
     // definitions (level, tags, core/support affixes, and derived stats).
@@ -4239,7 +4251,7 @@ function createSimulationState(
   }
   const intBonus = Number(scenario.intBonus) || 0;
   if (intBonus !== 0) character.int += intBonus;
-  if (scenario.disablePriestHealing && className === "Priest") {
+  if (scenario.disablePriestHealing && !buildFixtureId && className === "Priest") {
     character.spells = character.spells.filter(
       spell => !PRIEST_HEALING_SPELL_IDS.includes(spell)
     );
@@ -4580,7 +4592,6 @@ function createSimulationState(
       trapPolicy: trapPolicies.floor,
       chestTrapPolicy: trapPolicies.chest,
       floorTrapDetection: scenario.floorTrapDetection || "source",
-      ignoreThiefSustain: Boolean(scenario.ignoreThiefSustain),
       trapOverride: scenario.trapOverride || null,
       trapBonusValueOverride: scenario.trapBonusValueOverride || null,
       trapBonusExposure: scenario.trapBonusExposure || null,
@@ -4638,7 +4649,7 @@ function recordB5HpSnapshot(state, metrics, step = null) {
 }
 
 function hasSpell(character, spellName) {
-  return character.spells?.includes(spellName) === true;
+  return getSimulationActiveSpellKeys(character).includes(spellName);
 }
 
 function getSpellActionPayment(
@@ -4886,17 +4897,11 @@ function castExplorationSpell(state, spellName, metrics) {
 
 function maybeCastExplorationSpells(state, metrics) {
   const character = state.party[0];
-  if (character.class === "Priest" && state.lightTurns === 0) {
-    const candidates = hasSpell(character, "LOMILWA")
-      ? ["LOMILWA", "MILWA"]
-      : ["MILWA"];
+  if (state.lightTurns === 0 && (hasSpell(character, "LOMILWA") || hasSpell(character, "MILWA"))) {
+    const candidates = hasSpell(character, "LOMILWA") ? ["LOMILWA", "MILWA"] : ["MILWA"];
     candidates.some(spellName => castExplorationSpell(state, spellName, metrics));
   }
-  if (
-    character.class === "Mage" &&
-    state.repelTurns === 0 &&
-    hasSpell(character, "MASFEAL")
-  ) {
+  if (state.repelTurns === 0 && hasSpell(character, "MASFEAL")) {
     castExplorationSpell(state, "MASFEAL", metrics);
   }
 }
@@ -4928,7 +4933,6 @@ function recordSpellSelectionMetrics(state, metrics, action) {
     usage.selected += Number(action.type === "spell" && action.spellName === spellName);
   });
   if (
-    character.class === "Priest" &&
     hasSpell(character, "DIOS") &&
     action.type === "spell" &&
     SPELLS[action.spellName]?.target?.includes("enemy")
@@ -4964,10 +4968,6 @@ function getLowestHpEnemyIndex(monsters, predicate = () => true) {
     }
   });
   return selectedIdx;
-}
-
-function hasHolyTag(monster) {
-  return monster.tags?.some(tag => HOLY_TAGS.has(tag)) === true;
 }
 
 function countInventoryItems(inventory, itemIds = STATUS_CURE_ITEM_IDS) {
@@ -5471,21 +5471,21 @@ function getLegacyMageCombatAction({
 }
 
 function chooseSimulationAutoCombatAction(args) {
-  if (ISSUE538_LEGACY_SPELL_POLICY && args.character.class === "Mage") {
+  if (ISSUE538_LEGACY_SPELL_POLICY && !args.character.startingKit && args.character.class === "Mage") {
     return getLegacyMageCombatAction(args);
   }
-  const isPriest = args.character.class === "Priest";
+  const isPriest = !args.character.startingKit && args.character.class === "Priest";
   const maskedSpellIds = isPriest ? getSimulationPriestHealingSpellIds() : null;
-  if (!maskedSpellIds || !args.character.spells) return chooseAutoCombatAction(args);
-  const character = {
-    ...args.character,
-    spells: args.character.spells.filter(spellName =>
+  const activeSpellKeys = getSimulationActiveSpellKeys(args.character);
+  if (!maskedSpellIds || !activeSpellKeys.length) {
+    return chooseAutoCombatAction({ ...args, activeSpellKeys });
+  }
+  const filteredSpellKeys = activeSpellKeys.filter(spellName =>
       !PRIEST_HEALING_SPELL_IDS.includes(spellName) || maskedSpellIds.includes(spellName)
-    )
-  };
+  );
   return chooseAutoCombatAction({
     ...args,
-    character
+    activeSpellKeys: filteredSpellKeys
   });
 }
 
@@ -5608,11 +5608,13 @@ export function selectSimulationCombatActionForPolicy(context) {
 }
 
 function chooseSimulationCombatActionForCharacter(character, monsters, roundNumber, healThreshold) {
+  const activeSpellKeys = getSimulationActiveSpellKeys(character);
   return chooseSimulationAutoCombatAction({
     character,
     monsters,
     roundNumber,
-    healingTargetIdx: getAutoHealTargetIdx(character, healThreshold),
+    healingTargetIdx: getAutoHealTargetIdx(character, healThreshold, activeSpellKeys),
+    activeSpellKeys,
     canCastSpell: (spellName, reserveMp) => {
       const spell = SPELLS[spellName];
       if (!spell) return false;
@@ -5670,14 +5672,17 @@ function getCombatManaPotionAction(state) {
 
 function getCombatPolicyProbeAction(state) {
   const character = state.party[0];
+  const activeSpellKeys = getSimulationActiveSpellKeys(character);
   return chooseSimulationAutoCombatAction({
     character,
     monsters: state.combatState.monsters,
     roundNumber: state.combatState.roundNumber,
     healingTargetIdx: getAutoHealTargetIdx(
       character,
-      state.simPolicy.healPotionThreshold
+      state.simPolicy.healPotionThreshold,
+      activeSpellKeys
     ),
+    activeSpellKeys,
     // Diagnostic only: let the existing selector reveal its preferred spell,
     // then ask getSpellPayment whether the source can actually pay for it.
     canCastSpell: () => true
@@ -5727,10 +5732,11 @@ function recordCombatPolicyProbe(state, metrics, probeAction, actualAction) {
   const monsters = state.combatState?.monsters || [];
   const hasLivingTarget = monsters.some(monster => monster.hp > 0);
   if (!hasLivingTarget) probe.noLivingTarget++;
-  const knownEnemySpell = (state.party[0].spells || []).some(spellName =>
+  const activeSpellIds = getSimulationActiveSpellKeys(state.party[0]);
+  const knownEnemySpell = activeSpellIds.some(spellName =>
     SPELLS[spellName]?.target?.includes("enemy")
   );
-  const knownSelectorEnemySpell = (state.party[0].spells || []).some(spellName =>
+  const knownSelectorEnemySpell = activeSpellIds.some(spellName =>
     AUTO_SPELL_IDS.includes(spellName) && SPELLS[spellName]?.target?.includes("enemy")
   );
   if (probeAction?.type === "spell") {
@@ -5779,28 +5785,32 @@ function recordCombatSpellPressure(state, metrics, actualAction, probeAction = n
 }
 
 function getSimulationPreferredOffensiveSpellName(character, monsters, canCastSpell) {
-  if (ISSUE538_LEGACY_SPELL_POLICY && character.class === "Mage") {
+  const activeSpellKeys = getSimulationActiveSpellKeys(character);
+  if (ISSUE538_LEGACY_SPELL_POLICY && !character.startingKit && character.class === "Mage") {
     return hasSpell(character, "HALITO") ? "HALITO" : null;
   }
-  return getPreferredOffensiveSpellName(character, monsters, canCastSpell);
+  return getPreferredOffensiveSpellName(character, monsters, canCastSpell, activeSpellKeys);
 }
 
 function getDiosCombatAction(state) {
   const character = state.party[0];
+  const activeSpellKeys = getSimulationActiveSpellKeys(character);
   const healingSpellIds = getSimulationPriestHealingSpellIds();
   const healingTargetIdx = getAutoHealTargetIdx(
     character,
-    state.simPolicy.healPotionThreshold
+    state.simPolicy.healPotionThreshold,
+    activeSpellKeys
   );
   if (
     healingTargetIdx === null ||
-    !character.spells?.some(spellName => healingSpellIds.includes(spellName))
+    !activeSpellKeys.some(spellName => healingSpellIds.includes(spellName))
   ) return null;
   const action = chooseSimulationAutoCombatAction({
     character,
     monsters: state.combatState?.monsters || [],
     roundNumber: state.combatState?.roundNumber || 1,
     healingTargetIdx,
+    activeSpellKeys,
     canCastSpell: (spellName, reserveMp) =>
       getSpellActionPayment(state, spellName, reserveMp, { minHpAfterPaymentRate: null })
   });
@@ -6548,33 +6558,6 @@ function selectCombatAction(state, metrics) {
   if (diosPriorityAction) return diosPriorityAction;
   if (sharedAutoAction) return { ...sharedAutoAction, actorIdx: 0 };
 
-  if (character.class === "Bishop") {
-    const holyTargetIdx = getLowestHpEnemyIndex(monsters, hasHolyTag);
-    if (holyTargetIdx >= 0 && getSpellActionPayment(state, "BADIOS", reserveMp)) {
-      return { type: "spell", actorIdx: 0, targetIdx: holyTargetIdx, spellName: "BADIOS" };
-    }
-    if (getSpellActionPayment(state, "HALITO", reserveMp)) {
-      return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "HALITO" };
-    }
-  }
-
-  if (
-    (character.class === "Mage" || character.class === "Samurai") &&
-    getSpellActionPayment(state, "HALITO", reserveMp)
-  ) {
-    return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "HALITO" };
-  }
-
-  if (character.class === "Ranger" && getSpellActionPayment(state, "BADIOS", reserveMp)) {
-    const holyTargetIdx = getLowestHpEnemyIndex(monsters, hasHolyTag);
-    return {
-      type: "spell",
-      actorIdx: 0,
-      targetIdx: holyTargetIdx >= 0 ? holyTargetIdx : lowestHpIdx,
-      spellName: "BADIOS"
-    };
-  }
-
   return { type: "fight", actorIdx: 0, targetIdx: lowestHpIdx };
 }
 
@@ -6622,9 +6605,6 @@ const BLOOD_WAND_ACTIVATION_LOG = getCoreLogText("CORE_BLOOD_WAND");
 
 function countLoggedCoreActivations(observations, logQueue) {
   const loggedCoreIds = [
-    "CORE_LAST_STAND",
-    "CORE_OPENER",
-    "CORE_GIANT_SLAYER",
     "CORE_THORN_SHIELD",
     "CORE_BOUNTY_HUNTER",
     "CORE_EXECUTIONER"
@@ -6728,8 +6708,6 @@ function recordRoundCoreObservations(
   observations.executionerStatusSetupSurvivals += executionerSetupEvents.filter(
     entry => entry.targetRef?.hp > 0
   ).length;
-  const lastStandParams = getCharCoreParams(characterBefore, "CORE_LAST_STAND");
-  const giantSlayerParams = getCharCoreParams(characterBefore, "CORE_GIANT_SLAYER");
   const executionerParams = getCharCoreParams(characterBefore, "CORE_EXECUTIONER");
   const bloodWandParams = getCharCoreParams(characterBefore, "CORE_BLOOD_WAND");
   const curseKeeperParams = getCharCoreParams(characterBefore, "CORE_CURSE_KEEPER");
@@ -6754,22 +6732,28 @@ function recordRoundCoreObservations(
 
   if (offensive) {
     observations.offensiveTurns++;
-    const lastStand = CORE_AFFIX_BY_ID.get("CORE_LAST_STAND").params;
+    const lowHpDamageParams = getAffixDefinition("lowHpDamage")?.params;
     const hpAtAction = getHpAtOffensiveAction(logQueue, characterBefore, action);
     if (
       hpAtAction !== null &&
-      hpAtAction / Math.max(1, getCharMaxHp(characterBefore)) <= lastStand.hpThreshold
+      hpAtAction / Math.max(1, getCharMaxHp(characterBefore)) <= (lowHpDamageParams?.hpThreshold ?? 0.4)
     ) {
       observations.lowHpOffensiveTurns++;
-      if (lastStandParams) {
-        observations.coreOpportunityCounts.CORE_LAST_STAND++;
+      if (getCharAffixSum(characterBefore, "lowHpDamage") > 0) {
+        observations.supportOpportunityCounts.lowHpDamage++;
+        observations.supportActivationCounts.lowHpDamage++;
       }
     }
     if (targetBeforeRound?.maxHp > getCharMaxHp(characterBefore)) {
       observations.giantTargetTurns++;
-      if (giantSlayerParams) {
-        observations.coreOpportunityCounts.CORE_GIANT_SLAYER++;
+      if (getCharAffixSum(characterBefore, "highHpTargetDamage") > 0) {
+        observations.supportOpportunityCounts.highHpTargetDamage++;
+        observations.supportActivationCounts.highHpTargetDamage++;
       }
+    }
+    if (targetBeforeRound?.isBoss && getCharAffixSum(characterBefore, "bossDamage") > 0) {
+      observations.supportOpportunityCounts.bossDamage++;
+      observations.supportActivationCounts.bossDamage++;
     }
     const statusTarget = targetBeforeRound?.status && !["ok", "dead"].includes(targetBeforeRound.status);
     const setupTarget = executionerSetupEvents.length > 0;
@@ -6801,10 +6785,15 @@ function recordRoundCoreObservations(
     observations.fightDamage += sumLoggedDamage(logQueue, characterAfter, "fight");
     observations.openerFirstStrikeFightTurns += Number(firstStrikeSucceeded);
     if (
-      firstStrikeSucceeded &&
-      getCharCoreParams(characterBefore, "CORE_OPENER")
+      targetBeforeRound?.traits?.includes("evasive") &&
+      getCharAffixSum(characterBefore, "physicalAccuracy") > 0
     ) {
-      observations.coreOpportunityCounts.CORE_OPENER++;
+      observations.supportOpportunityCounts.physicalAccuracy++;
+      observations.supportActivationCounts.physicalAccuracy++;
+    }
+    if (firstStrikeSucceeded && getCharAffixSum(characterBefore, "firstStrikeFollowUp") > 0) {
+      observations.supportOpportunityCounts.firstStrikeFollowUp++;
+      observations.supportActivationCounts.firstStrikeFollowUp++;
     }
   } else if (spell?.target?.includes("enemy") && action.spellName !== "KATINO") {
     observations.spellDamageActions++;
@@ -7045,7 +7034,7 @@ function applyCountermeasureScale(state, override) {
   const patches = [];
   state.party.forEach(character => {
     if (!character?.equipment) return;
-    if (override?.className && override.className !== character.class) return;
+    if (override?.className && !character.startingKit && override.className !== character.class) return;
     const currentValue = getCharAffixSum(character, affixType);
     const delta = currentValue * (multiplier - 1);
     if (currentValue === 0 || !Number.isFinite(delta)) return;
@@ -7104,6 +7093,15 @@ function applyThreatOverride(monsters, floor, override, encounter = {}) {
         : 1;
     });
   }
+}
+
+export function classifyBuildPaymentAction(action) {
+  if (action?.type === "fight") return "attack";
+  if (action?.type === "spell") return "spell";
+  if (action?.type === "defend") return "guard";
+  if (action?.type === "item") return "item";
+  if (action?.type === "run") return "flee";
+  return "noop";
 }
 
 function runEncounter(
@@ -7232,6 +7230,8 @@ function runEncounter(
         normalAttacks: 0,
         defensiveSupportActions: 0,
         itemActions: 0,
+        guardActions: 0,
+        fleeActions: 0,
         failedNoopActions: 0,
         combatMpSpent: 0,
         insufficientMpDecisionCount: 0,
@@ -7558,17 +7558,22 @@ function runEncounter(
       stage15Encounter.combatActions++;
       stage15Encounter.insufficientMpDecisionCount += Number(Boolean(pressureEvent?.mpBlocked));
       stage15Encounter.insufficientMpRounds += Number(Boolean(pressureEvent?.mpBlocked));
-      if (action.type === "spell") {
+      const actionClass = classifyBuildPaymentAction(action);
+      if (actionClass === "spell") {
         stage15Encounter.spellActions++;
         stage15Encounter.spellCasts++;
         if (!String(SPELLS[action.spellName]?.target || "").includes("enemy") || action.spellName === "KATINO") {
           stage15Encounter.defensiveSupportActions++;
         }
-      } else if (action.type === "fight") {
+      } else if (actionClass === "attack") {
         stage15Encounter.normalAttacks++;
         stage15Encounter.insufficientMpNormalAttackRounds += Number(Boolean(pressureEvent?.mpBlocked));
-      } else if (action.type === "item") {
+      } else if (actionClass === "guard") {
+        stage15Encounter.guardActions++;
+      } else if (actionClass === "item") {
         stage15Encounter.itemActions++;
+      } else if (actionClass === "flee") {
+        stage15Encounter.fleeActions++;
       } else {
         stage15Encounter.failedNoopActions++;
       }
@@ -7958,10 +7963,12 @@ function applyPostCombatRecovery(state, metrics = null) {
   const character = state.party[0];
   const healingSpellIds = getSimulationPriestHealingSpellIds();
   while (character.hp < getCharMaxHp(character) * 0.70) {
-    const healingCharacter = {
-      ...character,
-      spells: character.spells?.filter(spellName => healingSpellIds.includes(spellName))
-    };
+    const healingCharacter = character.startingKit
+      ? character
+      : {
+          ...character,
+          spells: character.spells?.filter(spellName => healingSpellIds.includes(spellName))
+        };
     const getRecoverySpellPayment = spellName => getSpellPayment(
       character,
       SIM_HEALING_SPELL_PROFILES?.[spellName]?.cost ?? SPELLS[spellName].cost
@@ -8068,6 +8075,67 @@ function recordTrapActivation(metrics, source, type) {
   metrics.trapActivationsByType[type] = (metrics.trapActivationsByType[type] || 0) + 1;
 }
 
+function getSimulationTrapBuildSnapshot(state, character = null) {
+  const actor = character || state.party.find(candidate => isAlive(candidate)) || state.party[0] || null;
+  const activeParty = state.party.filter(candidate => isAlive(candidate));
+  const trapGuardByParty = getSimulationTrapGuardByParty(state);
+  const maxAffix = type => activeParty.reduce((max, candidate) =>
+    Math.max(max, getCharAffixSum(candidate, type)), 0);
+  const coreIds = [...new Set(activeParty.flatMap(candidate =>
+    getEquippedCoreAffixes(candidate).map(affix => affix.id || affix.type)
+  ))];
+  const trapGuard = activeParty.reduce((max, candidate) => {
+    const partyIndex = state.party.indexOf(candidate);
+    return Math.max(max, trapGuardByParty[partyIndex] || 0);
+  }, 0);
+  return {
+    trapBonus: Math.round(getSimulationTrapBonus(actor, state) * 100),
+    trapGuard: Math.max(0, Math.round(trapGuard)),
+    detectionSupport: Math.max(0, Math.round(maxAffix("traceRead"))),
+    treasureSense: Math.round(maxAffix("treasureSense")),
+    hearRange: Math.max(0, Math.round(maxAffix("hearRange"))),
+    traceRead: Math.max(0, Math.round(maxAffix("traceRead"))),
+    trapKitCount: state.inventory.filter(item => item === "TRAP_KIT").length,
+    coreIds,
+    coreTrapEater: coreIds.includes("CORE_TRAP_EATER"),
+    coreTombRaider: coreIds.includes("CORE_TOMB_RAIDER")
+  };
+}
+
+function recordSimulationTrapResolution(
+  metrics,
+  outcome,
+  { state, trap, source = "floor", action = "trigger", successRate = null, partialSuccess, identified, toolId = null, toolUsed = false, trapId: suppliedTrapId, x, y } = {}
+) {
+  const outcomes = metrics.trapResolutionCounts;
+  if (!outcomes || outcomes[outcome] === undefined) return;
+  const trapX = x ?? trap?.position?.x ?? null;
+  const trapY = y ?? trap?.position?.y ?? null;
+  const trapId = suppliedTrapId || trap?.id || `${source}:${state.floor}:${trapX ?? "none"}:${trapY ?? "none"}`;
+  const key = `${source}:${trapId}:${outcome}`;
+  if (metrics.trapResolutionKeys.has(key)) return;
+  metrics.trapResolutionKeys.add(key);
+  outcomes[outcome]++;
+  const build = getSimulationTrapBuildSnapshot(state);
+  metrics.trapResolutionObservations.push({
+    source,
+    trapId,
+    trapType: trap?.type || trap || "none",
+    outcome,
+    action,
+    floor: state.floor,
+    x: trapX,
+    y: trapY,
+    successRate,
+    trapDifficulty: Number.isFinite(Number(trap?.difficulty)) ? Number(trap.difficulty) : null,
+    partialSuccess: partialSuccess === undefined ? null : Boolean(partialSuccess),
+    identified: identified === undefined ? null : Boolean(identified),
+    toolId,
+    toolUsed: Boolean(toolUsed),
+    ...build
+  });
+}
+
 function createChestDisarmBlindStatusMetric() {
   return {
     decisions: 0,
@@ -8120,9 +8188,11 @@ function getSimulationTrapGuardByParty(state) {
   const override = state.simPolicy?.trapGuardOverride;
   const overrides = Array.isArray(override) ? override : [override];
   return state.party.map(character => {
+    // What-if guard values are run-local build controls. Class-targeted
+    // overrides are intentionally ignored so simulation cannot reintroduce a
+    // class exploration permission.
     const matchedOverride = overrides.find(candidate =>
-      candidate?.className === character.class ||
-      (Array.isArray(candidate?.classNames) && candidate.classNames.includes(character.class))
+      candidate && !candidate.className && !candidate.classNames
     );
     if (!matchedOverride) return getCharAffixSum(character, "trapGuard");
     if (Number.isFinite(Number(matchedOverride.value))) {
@@ -8244,7 +8314,7 @@ function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor,
-    party: getSimulationTrapParty(state),
+    party: state.party,
     weakened,
     rng: Math.random
   }), { trapGuardByParty: getSimulationTrapGuardByParty(state) });
@@ -8310,9 +8380,14 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
     hpThreshold: PORTAL_HP_THRESHOLD,
     maxHealPotions: PORTAL_MAX_HEAL_POTIONS,
     hpRate: character.hp / Math.max(1, getCharMaxHp(character)),
+    mpRate: character.mp / Math.max(1, getCharMaxMp(character)),
     healPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
     greaterHealPotions: state.inventory.filter(item => item === "GREATER_HEAL").length,
     recoveryPotions,
+    inventorySlots: state.inventory.length,
+    inventoryFreeSlots: Math.max(0, 20 - state.inventory.length),
+    unconfirmedObjectLootCount: null,
+    unconfirmedObjectLootValueProxy: null,
     carriedMaterials: totalMaterials(state.currentRun.materials)
   });
   return true;
@@ -8641,7 +8716,7 @@ function getItemSupportIds(item) {
   if (!item || typeof item !== "object") return [];
   return (item.affixes || [])
     .map(affix => affix.id || affix.type)
-    .filter(id => id && !CORE_AFFIX_IDS.has(id));
+    .filter(id => id && getAffixKind(id) === "support");
 }
 
 function itemHasMatchingSupportForCore(item, coreId) {
@@ -8659,8 +8734,8 @@ function applySupportSupplyCeiling(item) {
 
   let supportIndex = 0;
   item.affixes = item.affixes.map(affix => {
-    const id = affix.id || affix.type;
-    if (CORE_AFFIX_IDS.has(id)) return affix;
+    const kind = getAffixKind(affix);
+    if (kind !== "support") return affix;
     const supportId = matchingIds[supportIndex % matchingIds.length];
     supportIndex++;
     return {
@@ -8948,30 +9023,18 @@ function createCoreScoringProfile(observations, runCount) {
 }
 
 function getClassScoringProfile(scoringProfile, character) {
-  return scoringProfile?.byClass?.[character.class] || scoringProfile;
+  return character.startingKit ? scoringProfile : (scoringProfile?.byClass?.[character.class] || scoringProfile);
 }
 
 function getCombatCoreScoreForId(character, scoringProfile, floor, coreId) {
   if (!scoringProfile || !coreId || !COMBAT_CORE_IDS.has(coreId)) return 0;
   const coreDefinition = CORE_AFFIX_BY_ID.get(coreId);
-  if (coreDefinition?.allowedClasses && !coreDefinition.allowedClasses.includes(character.class)) return 0;
+  if (coreDefinition?.allowedClasses && !character.startingKit && !coreDefinition.allowedClasses.includes(character.class)) return 0;
   const classScoringProfile = getClassScoringProfile(scoringProfile, character);
   const params = coreDefinition.params;
   const offenseScore = getOffenseEquipmentScore(character, classScoringProfile);
-  // 倍率コアは既存攻撃スコア×calibration実測稼働率×実params増分。
-  if (coreId === "CORE_LAST_STAND") {
-    return offenseScore * classScoringProfile.lowHpOffensiveRate * (params.damageMultiplier - 1);
-  }
-  if (coreId === "CORE_GIANT_SLAYER") {
-    return offenseScore * classScoringProfile.giantTargetRate * (params.damageMultiplier - 1);
-  }
   if (coreId === "CORE_EXECUTIONER") {
     return offenseScore * classScoringProfile.statusTargetRate * (params.damageMultiplier - 1);
-  }
-  // 追撃100%を既存followUpの%重みへ載せ、実先制成功率だけ稼働させる。
-  if (coreId === "CORE_OPENER") {
-    return classScoringProfile.openerFirstStrikeRate *
-      params.followUpChance * 100 * EQUIPMENT_SCORE_WEIGHTS.followUp;
   }
   // MP不足時の追加詠唱は、実測spell/fightダメージ差。回復詠唱は実測DIOS回復量をHP重み換算。
   if (coreId === "CORE_BLOOD_WAND") {
@@ -8991,7 +9054,7 @@ function getCombatCoreScoreForId(character, scoringProfile, floor, coreId) {
   // 罠出現と実解除率からrun当たり累積攻撃を算出。上限・増分とも実params。
   if (coreId === "CORE_TRAP_EATER") {
     const expectedRemainingDisarms =
-      classScoringProfile.expectedTrapDisarmsFromFloor[Math.max(1, Math.floor(floor))] || 0;
+      scoringProfile.expectedTrapDisarmsFromFloor[Math.max(1, Math.floor(floor))] || 0;
     const expectedAttack = Math.min(
       params.maxAttack,
       expectedRemainingDisarms * params.attackPerDisarm
@@ -9100,9 +9163,10 @@ function createBuildSnapshot(state, scoringProfile, point) {
       : (item?.affixes || []);
     affixes.forEach(affix => {
       const id = affix.id || affix.type;
-      if (CORE_AFFIX_IDS.has(id)) {
+      const kind = getAffixKind(affix);
+      if (kind === "core") {
         coreIds.push(id);
-      } else {
+      } else if (kind === "support") {
         supportAffixes[id] = (supportAffixes[id] || 0) + (affix.value || 0);
       }
     });
@@ -9116,9 +9180,9 @@ function createBuildSnapshot(state, scoringProfile, point) {
       def: item?.def || 0,
       affixes: affixes.map(affix => ({
         id: affix.id || affix.type,
-        kind: affix.kind || (CORE_AFFIX_IDS.has(affix.id || affix.type) ? "core" : "support"),
+        kind: getAffixKind(affix),
         value: affix.value || 0
-      }))
+      })).filter(affix => affix.kind)
     };
     });
   const equipmentStatScore =
@@ -9148,7 +9212,7 @@ function createBuildSnapshot(state, scoringProfile, point) {
     int: getCharInt(character),
     pie: getCharPie(character),
     agi: getCharAgi(character),
-    spells: [...(character.spells || [])],
+    spells: [...getSimulationActiveSpellKeys(character)],
     equipmentStatScore,
     combatCoreScore,
     combatCoreScoreAll,
@@ -9201,7 +9265,7 @@ function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
     mpRatio: character.mp / Math.max(1, getCharMaxMp(character)),
     ATK: getCharWeaponAtk(character),
     DEF: getCharDef(character),
-    spells: [...(character.spells || [])],
+    spells: [...getSimulationActiveSpellKeys(character)],
     equippedBaseIds: build.equipment.map(item => item.id),
     activeCoreIds: [...build.coreIds],
     supportAffixes: { ...build.supportAffixes },
@@ -9390,7 +9454,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       if (!isEquipment(itemData)) return;
       recordAffixCandidate(metrics, inventoryItem);
       recordCoreItemEncounter(metrics, inventoryItem, state.floor);
-      if (itemData.classes && !itemData.classes.includes(character.class)) {
+      if (itemData.classes && !character.startingKit && !itemData.classes.includes(character.class)) {
         recordCoreDecision(metrics, inventoryItem, "class-incompatible");
         return;
       }
@@ -10260,16 +10324,18 @@ function recordChestPathAction(metrics, source, action) {
   path.actions[action]++;
 }
 
-function recordChestInspection(metrics, source, character, rng) {
+function recordChestInspection(metrics, source, party, rng, state) {
   const chestPath = metrics.chestPath?.[source];
   if (chestPath) {
     chestPath.opened++;
     chestPath.inspected++;
   }
   recordChestPathAction(metrics, source, "inspect");
-  const chance = (
-    character.class === "Thief" && isAlive(character) ? 0.85 : 0.30
-  ) / (character.status === "blind" ? 2 : 1);
+  const chance = calculateChestInspectionChance({
+    party,
+    lightPower: state?.lightPower,
+    lightTurns: state?.lightTurns
+  }).chance;
   const inspected = rng() < chance;
   if (chestPath) chestPath[inspected ? "inspectSuccesses" : "inspectFailures"]++;
   return inspected;
@@ -10492,20 +10558,10 @@ function resolvePartialSecretDoorSearch({ state, generated, route, floor, metric
 }
 
 function calculateSecretSearchSuccessRateForSimulation(party, floor) {
-  let rate = 0.35;
-  const scouts = party.filter(character =>
-    ["Thief", "Ninja", "Ranger"].includes(character.class) && character.hp > 0
-  );
-  if (scouts.length > 0) {
-    const bestScout = Math.max(...scouts.map(character => {
-      const classBonus = character.class === "Thief"
-        ? 0.20
-        : character.class === "Ninja" ? 0.15 : 0.10;
-      return classBonus + (character.luk + character.agi) * 0.01;
-    }));
-    rate += bestScout;
-  }
-  rate -= (floor - 1) * 0.05;
+  const arcaneSense = Math.max(...party
+    .filter(character => character.hp > 0)
+    .map(character => getCharAffixSum(character, "arcaneSense")), 0);
+  const rate = 0.35 + arcaneSense / 100 - (floor - 1) * 0.05;
   return Math.max(0.10, Math.min(0.95, rate));
 }
 
@@ -10537,15 +10593,13 @@ function resolveFlameTrapAtStep({
   metrics.flameTrapActivations++;
   metrics.b5FlameActivationSteps.push(step);
   recordB5HpSnapshot(state, metrics, step);
-  const trap = { type: "damage" };
-  const trapParty = getSimulationTrapParty(state);
-  const activeCharacter = trapParty.find(character => isAlive(character));
+  const trap = { type: "damage", id: "flame" };
+  const trapId = `flame:${state.floor}:${step}`;
+  const activeCharacter = state.party.find(character => isAlive(character));
   const successRate = activeCharacter
     ? calculateSimulationFloorTrapSuccessRate({
       state,
       trap,
-      className: activeCharacter.class,
-      level: activeCharacter.level,
       floor: state.floor,
       affixBonus: Math.round(getSimulationTrapBonus(activeCharacter, state) * 100)
     })
@@ -10558,13 +10612,36 @@ function resolveFlameTrapAtStep({
   });
   if (resolution.outcome === "disarmed") {
     metrics.flameTrapDisarmed++;
+    recordSimulationTrapResolution(metrics, "disarmed", {
+      state,
+      trap,
+      trapId,
+      source: "flame",
+      action: "disarm",
+      successRate,
+      identified: true,
+      x: state.x,
+      y: state.y
+    });
     recordB5HpSnapshot(state, metrics, step);
     return true;
   }
+  recordSimulationTrapResolution(metrics, "triggered", {
+    state,
+    trap,
+    trapId,
+    source: "flame",
+    action: "disarm",
+    successRate,
+    partialSuccess: resolution.partialSuccess,
+    identified: true,
+    x: state.x,
+    y: state.y
+  });
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor: state.floor,
-    party: trapParty,
+    party: state.party,
     weakened: resolution.partialSuccess,
     rng: Math.random
   }), { trapGuardByParty: getSimulationTrapGuardByParty(state) });
@@ -10804,6 +10881,16 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
       if (Math.random() < detection.rate) {
         trap.state = "discovered";
         metrics.trapDetections++;
+        recordSimulationTrapResolution(metrics, "observed", {
+          state,
+          trap,
+          source: "floor",
+          action: "detect",
+          successRate: detection.rate * 100,
+          identified: detection.detectionSupport >= 2,
+          x: next.x,
+          y: next.y
+        });
         route.knownTrapKeys.add(routeKey(next));
         metrics.trapRoute.currentFloor = floor;
         const choice = replanSimulationFloorRoute(route, generated, state, floor, metrics, step);
@@ -10811,6 +10898,15 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
         next = route.path[1];
         if (!next) return { moved: false };
         if (routeKey(next) !== routeKey(trap.position)) {
+          recordSimulationTrapResolution(metrics, "avoided", {
+            state,
+            trap,
+            source: "floor",
+            action: "move",
+            identified: true,
+            x: trap.position?.x,
+            y: trap.position?.y
+          });
           nextCell = generated.grid[next.y]?.[next.x];
         }
       }
@@ -10908,6 +11004,7 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
 
 function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   const { trap, previousCoord, step } = scheduled;
+  metrics.runtimeDiagnostics?.onCall("traps.floor-resolution");
   metrics.trapEncounterCount++;
   metrics.trapEncounterBySource.floor++;
   if (
@@ -10925,18 +11022,23 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   metrics.trapPlanEvaluations++;
   metrics.trapDisarmRateCounts[actionPlan.baseSuccessRate] =
     (metrics.trapDisarmRateCounts[actionPlan.baseSuccessRate] || 0) + 1;
+  const activeParty = state.party.filter(character => isAlive(character));
+  const detectionSupport = Math.max(
+    ...activeParty.map(character => getCharAffixSum(character, "traceRead")),
+    0
+  );
+  const trapGuard = Math.max(
+    ...getSimulationTrapGuardByParty(state)
+      .filter((_, index) => isAlive(state.party[index])),
+    0
+  );
   metrics.trapDisarmObservations.push({
     floor,
-    level: state.party[0]?.level || 1,
-    className: state.party[0]?.class || null,
     rate: actionPlan.baseSuccessRate,
     maxRate: actionPlan.maxRate,
     trapBonus: Math.round(actionPlan.trapBonus * 100),
-    equipmentTrapBonus: Math.max(
-      0,
-      Math.round(actionPlan.trapBonus * 100) -
-        (state.party[0]?.class === "Thief" ? 15 : 0)
-    ),
+    detectionSupport,
+    trapGuard,
     capBinding: actionPlan.baseSuccessRate >= actionPlan.maxRate
   });
   if (actionPlan.baseSuccessRate >= actionPlan.maxRate) {
@@ -10961,6 +11063,16 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   if (action === "force") metrics.trapForced++;
   if (action === "disarm") metrics.trapDisarmAttempts++;
   if (resolution.outcome === "disarmed") {
+    recordSimulationTrapResolution(metrics, "disarmed", {
+      state,
+      trap,
+      source: "floor",
+      action: "disarm",
+      successRate: actionPlan.successRate,
+      identified: trap.state === "discovered",
+      x: trap.position?.x,
+      y: trap.position?.y
+    });
     trap.state = "disabled";
     state.currentRun.trapsDisarmed++;
     metrics.trapDisarms++;
@@ -10979,6 +11091,17 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   }
   trap.state = "disabled";
   state.currentRun.trapsTriggered++;
+  recordSimulationTrapResolution(metrics, "triggered", {
+    state,
+    trap,
+    source: "floor",
+    action: action === "force" ? "force" : action === "trigger" ? "hidden" : "disarm",
+    successRate: actionPlan.successRate,
+    partialSuccess: resolution.partialSuccess,
+    identified: action !== "trigger",
+    x: trap.position?.x,
+    y: trap.position?.y
+  });
   if (trap.type === "pitfall") {
     descendToNextFloor(state, floor + 1);
     applyFloorTrapEffect(state, trap, state.floor, resolution.partialSuccess, metrics);
@@ -11216,32 +11339,34 @@ function resolveChestTrapForSimulation(
 ) {
   const character = state.party[0];
   const chestPath = metrics.chestPath?.[chestSource];
-  const inspected = chestSource === "ordinary"
-    ? (() => {
-        if (chestPath) {
-          chestPath.opened++;
-          chestPath.inspected++;
-          chestPath.inspectSuccesses++;
-        }
-        recordChestPathAction(metrics, chestSource, "inspect");
-        return true;
-      })()
-    : recordChestInspection(metrics, chestSource, character, rng);
+  const inspected = recordChestInspection(metrics, chestSource, state.party, rng, state);
   const falseTraps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
   const identifiedTrap = chestSource === "ordinary"
     ? trap
     : inspected
     ? trap
     : falseTraps[Math.floor(rng() * falseTraps.length)];
+  if (trap !== "none") {
+    recordSimulationTrapResolution(metrics, "observed", {
+      state,
+      trap,
+      source: "chest",
+      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      action: "inspect",
+      successRate: calculateChestInspectionChance({
+        party: state.party,
+        lightPower: state.lightPower,
+        lightTurns: state.lightTurns
+      }).chance * 100,
+      identified: identifiedTrap === trap
+    });
+  }
   const blindStatus = character.status === "blind" ? "blind" : "clear";
   const disarmBlindMetric = metrics.chestDisarmByBlindStatus[blindStatus];
   metrics.trapEncounterCount++;
   metrics.trapEncounterBySource.chest++;
   metrics.chestTrappedByFloor[floor]++;
   const chance = calculateChestDisarmChance({
-    className: state.simPolicy.ignoreThiefSustain && character.class === "Thief"
-      ? "Fighter"
-      : character.class,
     trapBonus: getSimulationTrapBonus(character, state),
     blind: character.status === "blind"
   });
@@ -11299,9 +11424,25 @@ function resolveChestTrapForSimulation(
           ? "disarm"
           : action
   );
-  if (action === "leave") return { mainItemLost: false, action };
+  if (action === "leave") {
+    recordSimulationTrapResolution(metrics, "avoided", {
+      state,
+      trap,
+      source: "chest",
+      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      action: "leave"
+    });
+    return { mainItemLost: false, action };
+  }
   if (action === "open") {
     if (trap === "none") return { mainItemLost: false, action };
+    recordSimulationTrapResolution(metrics, "triggered", {
+      state,
+      trap,
+      source: "chest",
+      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      action: "open"
+    });
     state.currentRun.trapsTriggered++;
     metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
     applyChestTrapEffect(state, trap, false, metrics);
@@ -11313,6 +11454,16 @@ function resolveChestTrapForSimulation(
   }
 
   if (action === "kit" && kitIndex >= 0) {
+    recordSimulationTrapResolution(metrics, "disarmed", {
+      state,
+      trap,
+      source: "chest",
+      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      action: "trap_kit",
+      successRate: 100,
+      toolId: "TRAP_KIT",
+      toolUsed: true
+    });
     state.inventory.splice(kitIndex, 1);
     recordTrapKitConsumption(state, metrics);
     metrics.chestDisarmAttempts++;
@@ -11335,6 +11486,14 @@ function resolveChestTrapForSimulation(
     metrics.trapDisarmAttempts++;
     disarmBlindMetric.attempts++;
     if (rng() < chance) {
+      recordSimulationTrapResolution(metrics, "disarmed", {
+        state,
+        trap,
+        source: "chest",
+        trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+        action: "disarm",
+        successRate: chance * 100
+      });
       state.currentRun.trapsDisarmed++;
       metrics.trapDisarms++;
       metrics.chestDisarmSuccesses++;
@@ -11346,6 +11505,14 @@ function resolveChestTrapForSimulation(
       return { mainItemLost: false, action };
     }
     disarmBlindMetric.failures++;
+    recordSimulationTrapResolution(metrics, "triggered", {
+      state,
+      trap,
+      source: "chest",
+      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      action: "disarm",
+      successRate: chance * 100
+    });
     state.currentRun.trapsTriggered++;
     metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
     applyChestTrapEffect(state, trap, false, metrics);
@@ -11356,6 +11523,14 @@ function resolveChestTrapForSimulation(
   }
 
   metrics.trapForced++;
+  recordSimulationTrapResolution(metrics, "triggered", {
+    state,
+    trap,
+    source: "chest",
+    trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+    action: "smash",
+    partialSuccess: true
+  });
   metrics.chestForcedByFloor[floor]++;
   state.currentRun.trapsTriggered++;
   metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
@@ -11401,6 +11576,7 @@ function rollChestItems(
     currentRun: state.currentRun,
     trap,
     firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
+    includeRunes: !fromDrop && RETURN_WING_REWARD_MODE !== "baseline",
     coreMinFloor: getChestCoreMinFloor(supplyOverride, "equipment"),
     itemCandidates: fromDrop
       ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[Math.min(5, floor)] || []
@@ -11500,7 +11676,7 @@ function rollChestItems(
   addReward("extraHealPotion", extraHealPotion);
   const trapResult = trap === "none"
     ? (() => {
-        recordChestInspection(metrics, chestSource, state.party[0], rng);
+        recordChestInspection(metrics, chestSource, state.party, rng, state);
         recordChestPathAction(metrics, chestSource, "open");
         return { mainItemLost: false, action: "open" };
       })()
@@ -11791,7 +11967,7 @@ function createSupportCountDistribution() {
 
 function recordSupportCount(metrics, item, rarity) {
   const supportCount = Array.isArray(item?.affixes)
-    ? item.affixes.filter(affix => affix.kind !== "core").length
+    ? item.affixes.filter(affix => getAffixKind(affix) === "support").length
     : 0;
   const bucket = supportCount >= 4 ? "4+" : String(supportCount);
   metrics.supportCountDistribution[bucket]++;
@@ -11828,7 +12004,7 @@ function recordEquipmentAcquisitions(metrics, equipmentItems, floor, source = "o
         (metrics.trapBonusFoundByValue[value] || 0) + 1;
     });
     (item?.affixes || [])
-      .filter(affix => affix.kind !== "core")
+      .filter(affix => getAffixKind(affix) === "support")
       .forEach(affix => {
         const id = affix.id || affix.type;
         metrics.supportAffixFoundById[id] =
@@ -12112,6 +12288,175 @@ function createRunDiagnosticsRecord(state, outcome, metrics, terminationReason) 
   };
 }
 
+function sumNumericObjectValues(value) {
+  return Object.values(value || {}).reduce((sum, amount) => sum + (Number(amount) || 0), 0);
+}
+
+function createBuildPaymentRunSnapshot(state, metrics, outcome) {
+  const stage = metrics.stage15Diagnostics?.byFloor || {};
+  const actionCounts = {
+    attack: 0,
+    spell: 0,
+    guard: 0,
+    item: 0,
+    flee: 0,
+    noop: 0
+  };
+  Object.values(stage).forEach(floor => {
+    actionCounts.attack += floor.normalAttackActions || 0;
+    actionCounts.spell += floor.spellActions || 0;
+    actionCounts.guard += floor.guardActions || 0;
+    actionCounts.item += floor.itemActions || 0;
+    actionCounts.flee += floor.fleeActions || 0;
+    actionCounts.noop += floor.failedNoopActions || 0;
+  });
+  const mitigations = state.combatFormulaTelemetry?.mitigations || [];
+  const guardMitigations = mitigations.filter(mitigation =>
+    mitigation.type === "physGuard" || mitigation.type === "guardAction"
+  );
+  const statusMitigations = state.combatFormulaTelemetry?.statusMitigations || [];
+  const statusMitigationByType = statusMitigations.reduce((counts, mitigation) => {
+    counts[mitigation.type] = (counts[mitigation.type] || 0) + 1;
+    return counts;
+  }, {});
+  const swaps = (metrics.equipmentTelemetry || []).filter(event => event.type === "swap");
+  const resolverBuild = metrics.buildSnapshot || {};
+  const activeRuneIds = resolverBuild.activeRuneSpellIds || [];
+  const runeCastCounts = Object.fromEntries(
+    activeRuneIds.map(runeId => [runeId, metrics.spellUsage?.[runeId]?.applied || 0])
+  );
+  const explorationSupportValues = resolverBuild.explorationSupportValues || {};
+  const supportFiringById = metrics.coreObservations.supportActivationCounts || {};
+  const supportById = Object.fromEntries(
+    Object.entries(metrics.supportAffixFoundById).map(([id, exposure]) => ({
+      id,
+      exposure,
+      firing: supportFiringById[id] || 0,
+      dead: Number((supportFiringById[id] || 0) === 0)
+    })).map(({ id, ...values }) => [id, values])
+  );
+  const observedExplorationUse = (supportId, count) =>
+    Number(explorationSupportValues[supportId] || 0) > 0 ? count : 0;
+  const explorationSupportObservedUse = {
+    trapBonus: observedExplorationUse("trapBonus", metrics.trapActivations || 0),
+    trapGuard: observedExplorationUse("trapGuard", metrics.trapActivations || 0),
+    treasureSense: observedExplorationUse("treasureSense", metrics.chestsOpened || 0),
+    arcaneSense: observedExplorationUse("arcaneSense", metrics.secretSearchAttempts || 0),
+    hearRange: observedExplorationUse(
+      "hearRange",
+      metrics.specialCellsDetected ? sumNumericObjectValues(metrics.specialCellsDetected) : 0
+    ),
+    traceRead: observedExplorationUse("traceRead", metrics.secretSearchAttempts || 0),
+    materialFind: observedExplorationUse(
+      "materialFind",
+      metrics.materialSources ? sumNumericObjectValues(metrics.materialSources) : 0
+    ),
+    identifyDiscount: observedExplorationUse("identifyDiscount", metrics.identificationCount || 0)
+  };
+  const finalMp = state.party[0].mp;
+  const finalMaxMp = Math.max(1, getCharMaxMp(state.party[0]));
+  const finalMpRate = Math.min(1, Math.max(0, finalMp / finalMaxMp));
+  const finalMpOverMax = Math.max(0, finalMp - finalMaxMp);
+  return {
+    actionCounts,
+    combatCount: state.currentRun.battles,
+    combatRounds: metrics.combatRounds,
+    damageTakenHp: metrics.combatDamageHp,
+    healingHp: metrics.recoveryHealing.total.actualHp + metrics.diosHealingHp +
+      metrics.stairsHealingHp + metrics.campHealingHp + metrics.extraCampHealingHp,
+    mpSpent: metrics.mpConsumed,
+    mpStarvationEvents: metrics.mpPressure.combat.total.mpBlocked || 0,
+    guardMitigationHp: guardMitigations.reduce(
+      (sum, mitigation) => sum + Math.max(0, (mitigation.before || 0) - (mitigation.after || 0)),
+      0
+    ),
+    guardMitigationEvents: guardMitigations.length,
+    statusMitigationEvents: statusMitigations.length,
+    statusMitigationByType,
+    statusMitigationSource: "combatFormulaTelemetry.statusMitigations",
+    runeCastCounts,
+    runeSlots: {
+      capacity: resolverBuild.runeSlotCapacity || 0,
+      active: activeRuneIds.length,
+      unused: Math.max(0, (resolverBuild.runeSlotCapacity || 0) - activeRuneIds.length)
+    },
+    ownership: {
+      core: {
+        exposure: metrics.coreEquipmentFound,
+        adopted: metrics.coreEverEquippedIds.size,
+        firing: sumNumericObjectValues(metrics.coreObservations.coreActivationCounts)
+      },
+      support: {
+        exposure: sumNumericObjectValues(metrics.supportAffixFoundById),
+        adopted: Object.values(supportById).filter(values => values.firing > 0).length,
+        firing: sumNumericObjectValues(metrics.coreObservations.supportActivationCounts),
+        dead: Object.values(supportById).filter(values => values.dead).length,
+        byId: supportById
+      },
+      explorationSupportValues: { ...explorationSupportValues },
+      explorationSupportObservedUse
+    },
+    loot: {
+      equipmentExposure: metrics.equipmentFound,
+      equipmentAdopted: swaps.length,
+      equipmentUnadoptedExposureProxy: Math.max(0, metrics.equipmentFound - swaps.length),
+      equipmentDisposition: {
+        status: "not_modeled",
+        adopted: swaps.length,
+        left: null,
+        discarded: null,
+        reason: "canonical simulator does not retain a production object-loot disposition ledger"
+      },
+      buildShiftCount: swaps.filter(event => {
+        const before = new Set(event.oldMainAxisIds || []);
+        const after = new Set(event.candidateMainAxisIds || []);
+        return before.size !== after.size || [...before].some(id => !after.has(id));
+      }).length,
+      finalBagSlots: state.inventory.length,
+      rune: {
+        status: "not_modeled",
+        reason: "canonical simulator has fixture Rune ownership but no production object-Rune loot lifecycle"
+      },
+      core: {
+        status: "equipment_affix_observed",
+        exposure: metrics.coreEquipmentFound,
+        adopted: metrics.coreEverEquippedIds.size
+      },
+      support: {
+        status: "equipment_affix_observed",
+        exposure: sumNumericObjectValues(metrics.supportAffixFoundById),
+        adopted: Object.values(supportById).filter(values => values.firing > 0).length,
+        dead: Object.values(supportById).filter(values => values.dead).length,
+        byId: supportById
+      }
+    },
+    portal: {
+      pushDecisions: metrics.milestonePortalVisits - metrics.milestonePortalRetreats,
+      returnDecisions: metrics.townPortalsUsed,
+      wingAcquisitions: metrics.merchantWingsPurchased,
+      wingUses: metrics.portalUsesBySource?.merchant || 0,
+      useEvents: structuredClone(metrics.portalUseEvents),
+      milestoneDecisions: structuredClone(metrics.milestoneDecisions)
+    },
+    terminalResourceState: {
+      outcome,
+      hpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
+      mpRate: finalMpRate,
+      mpOverMax: finalMpOverMax,
+      inventorySlots: state.inventory.length,
+      inventoryFreeSlots: Math.max(0, 20 - state.inventory.length),
+      unconfirmedObjectLootCount: null,
+      unconfirmedObjectLootValueProxy: null,
+      carriedMaterials: totalMaterials(state.currentRun.materials)
+    },
+    finalHp: state.party[0].hp,
+    finalHpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
+    finalMp,
+    finalMpRate,
+    finalMpOverMax
+  };
+}
+
 function finishRun(state, outcome, metrics, terminationReason = null, terminationContext = null) {
   if (metrics.stage15Diagnostics) {
     const activeFloor = metrics.stage15Diagnostics.currentFloor;
@@ -12305,6 +12650,11 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     reachability.conditionEligible = metrics.coreObservations.coreOpportunityCounts[affix.id] || 0;
     reachability.application = metrics.coreObservations.coreActivationCounts[affix.id] || 0;
   });
+  ENABLED_SUPPORT_AFFIXES.forEach(affix => {
+    const reachability = metrics.affixReachability.byId[affix.id];
+    reachability.conditionEligible = metrics.coreObservations.supportOpportunityCounts[affix.id] || 0;
+    reachability.application = metrics.coreObservations.supportActivationCounts[affix.id] || 0;
+  });
   if (metrics.diagnostics && metrics.diagnosticLevel === "full") {
     metrics.diagnostics.finalBuild = createBuildSnapshot(
       state,
@@ -12324,7 +12674,13 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       telemetry.exploredRatio = metrics.exploredRatioByFloor[telemetry.floor] ?? null;
     });
   }
+  const buildPayment = metrics.stage15Diagnostics
+    ? createBuildPaymentRunSnapshot(state, metrics, outcome)
+    : null;
   return {
+    className: state.currentRun.characterClass,
+    fixtureId: state.currentRun.buildFixtureId || null,
+    buildSnapshot: structuredClone(metrics.buildSnapshot),
     survived: outcome === "retreat",
     died: outcome === "death",
     carriedMaterials,
@@ -12647,6 +13003,10 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     trapDisarmObservations: metrics.trapDisarmObservations.map(observation => ({
       ...observation
     })),
+    trapResolutionCounts: { ...metrics.trapResolutionCounts },
+    trapResolutionObservations: metrics.trapResolutionObservations.map(observation => ({
+      ...observation
+    })),
     trapPlanEvaluations: metrics.trapPlanEvaluations,
     trapPlanActionCounts: { ...metrics.trapPlanActionCounts },
     trapActivationCauses: { ...metrics.trapActivationCauses },
@@ -12661,7 +13021,6 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     trapDetectionAttempts: metrics.trapDetectionAttempts,
     trapDetectionRateCounts: { ...metrics.trapDetectionRateCounts },
     trapDetectionCapHits: metrics.trapDetectionCapHits,
-    scoutBonusDetectionAttempts: metrics.scoutBonusDetectionAttempts,
     trapTeleports: metrics.trapTeleports,
     finalHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
     finalGreaterHeals: state.inventory.filter(item => item === "GREATER_HEAL").length,
@@ -12742,6 +13101,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     mpPressure: finalizeSpellPressureMetrics(metrics.mpPressure),
     combatMpMeasurement: snapshotCombatMpMeasurement(metrics.combatMpMeasurement),
     stage15Diagnostics: snapshotStage15Diagnostics(metrics.stage15Diagnostics),
+    buildPayment,
     combatPolicyProbe: { ...metrics.combatPolicyProbe },
     fleeCount: metrics.fleeCount,
     bossPolicy: metrics.bossPolicy,
@@ -12824,7 +13184,8 @@ function descendToNextFloor(state, nextFloor, metrics = null, { stairsHeal = fal
 }
 
 export function simulateRun({
-  className,
+  className = null,
+  fixtureId = null,
   startFloor,
   targetDepth,
   runIndex,
@@ -12844,7 +13205,9 @@ export function simulateRun({
   checkpointState = null,
   captureCheckpointAtFloor = null
 }) {
-  const runSeed = worldSeed || `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
+  if (!className && !fixtureId) throw new Error("simulateRun requires className or fixtureId");
+  const axisId = fixtureId || className;
+  const runSeed = worldSeed || `${SIM_SEED}:${seriesId}:${axisId}:${runIndex}`;
   if (SIM_INDEPENDENT_RUN_RANDOM) {
     // Keep each class/run on an independent deterministic stream. Otherwise a
     // Priest-only spell change can shift the shared stream and make Fighter,
@@ -12853,13 +13216,14 @@ export function simulateRun({
   }
   const diagnosticLevel = scenario?.simDiagnosticLevel || "full";
   let state = createSimulationState(
-    className,
+    fixtureId ? "Fighter" : className,
     startFloor,
     runSeed,
     scenario,
     workshop,
     keyItems,
-    unlockedMilestones
+    unlockedMilestones,
+    fixtureId
   );
   hydrateCheckpointState(state, checkpointState, scenario, runSeed);
   state.simPolicy.statusCureTargetDepth = targetDepth;
@@ -12889,7 +13253,8 @@ export function simulateRun({
       spellMonsterHits: [],
       mitigations: [],
       mitigationCalls: [],
-      targetedBonuses: []
+      targetedBonuses: [],
+      statusMitigations: []
     };
   }
   const materialOverrideRandom = createMaterialOverrideRandom(
@@ -13182,6 +13547,9 @@ export function simulateRun({
     trapDisarmRateCounts: {},
     trapDisarmCapHits: 0,
     trapDisarmObservations: [],
+    trapResolutionCounts: { observed: 0, disarmed: 0, avoided: 0, triggered: 0 },
+    trapResolutionObservations: [],
+    trapResolutionKeys: new Set(),
     trapPlanEvaluations: 0,
     trapPlanActionCounts: {},
     trapActivationCauses: {
@@ -13210,7 +13578,6 @@ export function simulateRun({
     trapDetectionAttempts: 0,
     trapDetectionRateCounts: {},
     trapDetectionCapHits: 0,
-    scoutBonusDetectionAttempts: 0,
     trapTeleports: 0,
     combatDamageHp: 0,
     incomingHits: 0,
@@ -13361,7 +13728,26 @@ export function simulateRun({
         }
       : null
   };
+  if (fixtureId) {
+    Object.values(state.party[0].equipment || {}).forEach(item => {
+      const coreId = getItemCoreId(item);
+      if (!coreId || !CORE_AFFIX_BY_ID.has(coreId)) return;
+      const poolGroup = CORE_AFFIX_BY_ID.get(coreId)?.poolGroup;
+      metrics.coreEncounteredIds.add(coreId);
+      metrics.coreEverEquippedIds.add(coreId);
+      metrics.coreEncounterFloors.add(startFloor);
+      metrics.coreEncounterSources.add("starting-fixture");
+      metrics.coreFirstEncounterFloorByGroup[poolGroup] ??= startFloor;
+      metrics.coreFirstEquippedFloorByGroup[poolGroup] ??= startFloor;
+      metrics.firstCoreDepth = Math.min(metrics.firstCoreDepth ?? startFloor, startFloor);
+      metrics.firstCoreEquippedFloor = Math.min(
+        metrics.firstCoreEquippedFloor ?? startFloor,
+        startFloor
+      );
+    });
+  }
   state.simTelemetry = metrics.killHeal;
+  metrics.buildSnapshot = resolveBuildSnapshot(state.party[0]);
   metrics.startingBuildSnapshot = createBuildSnapshot(
     state,
     scoringProfile,
@@ -14282,6 +14668,11 @@ export function simulateRun({
         floor,
         hasTownPortal: state.inventory.includes("TOWN_PORTAL"),
         hpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
+        mpRate: state.party[0].mp / Math.max(1, getCharMaxMp(state.party[0])),
+        inventorySlots: state.inventory.length,
+        inventoryFreeSlots: Math.max(0, 20 - state.inventory.length),
+        unconfirmedObjectLootCount: null,
+        unconfirmedObjectLootValueProxy: null,
         carriedMaterials: totalMaterials(state.currentRun.materials)
       });
       if (
@@ -14353,6 +14744,309 @@ function getCoreNonEquipmentReasonKey(result, coreId) {
   return "other";
 }
 
+function createBuildPaymentAggregate() {
+  const numericNames = [
+    "combatCount", "combatRounds", "damageTakenHp", "healingHp", "mpSpent",
+    "mpStarvationEvents", "guardMitigationHp", "guardMitigationEvents",
+    "statusMitigationEvents", "finalHp", "finalHpRate", "finalMp", "finalMpRate", "finalMpOverMax",
+    "finalBagSlots"
+  ];
+  return {
+    runs: 0,
+    actionCounts: { attack: 0, spell: 0, guard: 0, item: 0, flee: 0, noop: 0 },
+    actionDistributions: Object.fromEntries(
+      ["attack", "spell", "guard", "item", "flee", "noop"].map(name => [
+        name,
+        createNumericDistribution()
+      ])
+    ),
+    numeric: Object.fromEntries(numericNames.map(name => [name, createNumericDistribution()])),
+    terminalResourceState: {
+      outcomeCounts: {},
+      hpRate: createNumericDistribution(),
+      mpRate: createNumericDistribution(),
+      mpOverMax: createNumericDistribution(),
+      inventorySlots: createNumericDistribution(),
+      inventoryFreeSlots: createNumericDistribution(),
+      carriedMaterials: createNumericDistribution()
+    },
+    runeCastCounts: {},
+    runeSlots: { capacity: 0, active: 0, unused: 0 },
+    ownership: {
+      core: { exposure: 0, adopted: 0, firing: 0 },
+      support: { exposure: 0, adopted: 0, firing: 0, dead: 0, byId: {} },
+      explorationSupportValues: null,
+      explorationSupportObservedUse: {}
+    },
+    statusMitigationByType: {},
+    loot: {
+      equipmentExposure: 0,
+      equipmentAdopted: 0,
+      equipmentUnadoptedExposureProxy: 0,
+      equipmentDisposition: {
+        status: "not_modeled",
+        adopted: 0,
+        left: null,
+        discarded: null,
+        reason: "canonical simulator does not retain a production object-loot disposition ledger"
+      },
+      buildShiftCount: 0,
+      finalBagSlots: createNumericDistribution(),
+      rune: { status: "not_modeled", reason: null },
+      core: { status: "equipment_affix_observed", exposure: 0, adopted: 0 },
+      support: { status: "equipment_affix_observed", exposure: 0, adopted: 0, dead: 0, byId: {} }
+    },
+    portal: {
+      pushDecisions: 0,
+      returnDecisions: 0,
+      wingAcquisitions: 0,
+      wingUses: 0,
+      useEvents: 0,
+      milestoneDecisions: 0,
+      resourceState: {
+        hpRate: createNumericDistribution(),
+        mpRate: createNumericDistribution(),
+        inventorySlots: createNumericDistribution(),
+        inventoryFreeSlots: createNumericDistribution(),
+        carriedMaterials: createNumericDistribution()
+      },
+      resourceStateByDecision: {
+        use: {
+          hpRate: createNumericDistribution(),
+          mpRate: createNumericDistribution(),
+          inventorySlots: createNumericDistribution(),
+          inventoryFreeSlots: createNumericDistribution(),
+          carriedMaterials: createNumericDistribution()
+        },
+        milestone: {
+          hpRate: createNumericDistribution(),
+          mpRate: createNumericDistribution(),
+          inventorySlots: createNumericDistribution(),
+          inventoryFreeSlots: createNumericDistribution(),
+          carriedMaterials: createNumericDistribution()
+        }
+      },
+      sources: {},
+      unconfirmedObjectLoot: {
+        status: "not_modeled",
+        count: null,
+        valueProxy: null
+      }
+    }
+  };
+}
+
+function addBuildPaymentResourceState(target, event) {
+  if (!event) return;
+  [
+    ["hpRate", event.hpRate],
+    ["mpRate", event.mpRate],
+    ["inventorySlots", event.inventorySlots],
+    ["inventoryFreeSlots", event.inventoryFreeSlots],
+    ["carriedMaterials", event.carriedMaterials]
+  ].forEach(([name, value]) => addNumericSample(target[name], Number(value)));
+  if (Object.prototype.hasOwnProperty.call(event, "mpOverMax")) {
+    addNumericSample(target.mpOverMax, Number(event.mpOverMax));
+  }
+}
+
+function addBuildPaymentRunAggregate(target, payment) {
+  if (!payment) return;
+  target.runs++;
+  Object.entries(payment.actionCounts || {}).forEach(([action, count]) => {
+    target.actionCounts[action] = (target.actionCounts[action] || 0) + (Number(count) || 0);
+    addNumericSample(target.actionDistributions[action], Number(count));
+  });
+  [
+    "combatCount", "combatRounds", "damageTakenHp", "healingHp", "mpSpent",
+    "mpStarvationEvents", "guardMitigationHp", "guardMitigationEvents",
+    "statusMitigationEvents", "finalHp", "finalHpRate", "finalMp", "finalMpRate", "finalMpOverMax"
+  ].forEach(name => addNumericSample(target.numeric[name], Number(payment[name])));
+  Object.entries(payment.statusMitigationByType || {}).forEach(([type, count]) => {
+    target.statusMitigationByType[type] =
+      (target.statusMitigationByType[type] || 0) + (Number(count) || 0);
+  });
+  addNumericSample(target.loot.finalBagSlots, Number(payment.loot?.finalBagSlots));
+  Object.entries(payment.runeCastCounts || {}).forEach(([runeId, count]) => {
+    target.runeCastCounts[runeId] = (target.runeCastCounts[runeId] || 0) + (Number(count) || 0);
+  });
+  target.runeSlots.capacity += Number(payment.runeSlots?.capacity) || 0;
+  target.runeSlots.active += Number(payment.runeSlots?.active) || 0;
+  target.runeSlots.unused += Number(payment.runeSlots?.unused) || 0;
+  ["core", "support"].forEach(kind => {
+    ["exposure", "adopted", "firing"].forEach(name => {
+      target.ownership[kind][name] += Number(payment.ownership?.[kind]?.[name]) || 0;
+    });
+  });
+  target.ownership.support.dead += Number(payment.ownership?.support?.dead) || 0;
+  target.loot.support.dead += Number(payment.loot?.support?.dead) || 0;
+  Object.entries(payment.loot?.support?.byId || {}).forEach(([id, values]) => {
+    const destination = target.loot.support.byId[id] ||= { exposure: 0, adopted: 0, dead: 0 };
+    destination.exposure += Number(values.exposure) || 0;
+    destination.adopted += Number(values.firing > 0) || 0;
+    destination.dead += Number(values.dead) || 0;
+  });
+  Object.entries(payment.ownership?.support?.byId || {}).forEach(([id, values]) => {
+    const destination = target.ownership.support.byId[id] ||= { exposure: 0, firing: 0, dead: 0 };
+    destination.exposure += Number(values.exposure) || 0;
+    destination.firing += Number(values.firing) || 0;
+    destination.dead += Number(values.dead) || 0;
+  });
+  if (!target.ownership.explorationSupportValues) {
+    target.ownership.explorationSupportValues = structuredClone(
+      payment.ownership?.explorationSupportValues || {}
+    );
+  }
+  Object.entries(payment.ownership?.explorationSupportObservedUse || {}).forEach(([name, count]) => {
+    target.ownership.explorationSupportObservedUse[name] =
+      (target.ownership.explorationSupportObservedUse[name] || 0) + (Number(count) || 0);
+  });
+  ["equipmentExposure", "equipmentAdopted", "buildShiftCount"].forEach(name => {
+    target.loot[name] += Number(payment.loot?.[name]) || 0;
+  });
+  target.loot.equipmentUnadoptedExposureProxy +=
+    Number(payment.loot?.equipmentUnadoptedExposureProxy) || 0;
+  target.loot.equipmentDisposition.adopted +=
+    Number(payment.loot?.equipmentDisposition?.adopted) || 0;
+  ["core", "support"].forEach(kind => {
+    ["exposure", "adopted"].forEach(name => {
+      target.loot[kind][name] += Number(payment.loot?.[kind]?.[name]) || 0;
+    });
+  });
+  if (payment.loot?.rune?.reason) target.loot.rune.reason = payment.loot.rune.reason;
+  target.portal.pushDecisions += Number(payment.portal?.pushDecisions) || 0;
+  target.portal.returnDecisions += Number(payment.portal?.returnDecisions) || 0;
+  target.portal.wingAcquisitions += Number(payment.portal?.wingAcquisitions) || 0;
+  target.portal.wingUses += Number(payment.portal?.wingUses) || 0;
+  (payment.portal?.useEvents || []).forEach(event => {
+    target.portal.useEvents++;
+    target.portal.sources[event.source] = (target.portal.sources[event.source] || 0) + 1;
+    addBuildPaymentResourceState(target.portal.resourceState, event);
+    addBuildPaymentResourceState(target.portal.resourceStateByDecision.use, event);
+  });
+  (payment.portal?.milestoneDecisions || []).forEach(event => {
+    target.portal.milestoneDecisions++;
+    target.portal.sources[`milestone:${event.decision || "unknown"}`] =
+      (target.portal.sources[`milestone:${event.decision || "unknown"}`] || 0) + 1;
+    addBuildPaymentResourceState(target.portal.resourceState, event);
+    addBuildPaymentResourceState(target.portal.resourceStateByDecision.milestone, event);
+  });
+  const terminal = payment.terminalResourceState;
+  if (terminal) {
+    target.terminalResourceState.outcomeCounts[terminal.outcome] =
+      (target.terminalResourceState.outcomeCounts[terminal.outcome] || 0) + 1;
+    addBuildPaymentResourceState(target.terminalResourceState, terminal);
+  }
+}
+
+function finalizeBuildPaymentAggregate(aggregate) {
+  const runs = Math.max(1, aggregate.runs);
+  const average = values => Object.fromEntries(
+    Object.entries(values).map(([name, value]) => [name, value / runs])
+  );
+  const summarizeMap = values => Object.fromEntries(
+    Object.entries(values).map(([name, value]) => [name, summarizeNumericDistribution(value)])
+  );
+  return {
+    runs: aggregate.runs,
+    actionCounts: { ...aggregate.actionCounts },
+    actionCountsPerRun: average(aggregate.actionCounts),
+    actionDistributions: summarizeMap(aggregate.actionDistributions),
+    combat: {
+      count: summarizeNumericDistribution(aggregate.numeric.combatCount),
+      rounds: summarizeNumericDistribution(aggregate.numeric.combatRounds)
+    },
+    resources: {
+      damageTakenHp: summarizeNumericDistribution(aggregate.numeric.damageTakenHp),
+      healingHp: summarizeNumericDistribution(aggregate.numeric.healingHp),
+      mpSpent: summarizeNumericDistribution(aggregate.numeric.mpSpent),
+      mpStarvationEvents: summarizeNumericDistribution(aggregate.numeric.mpStarvationEvents),
+      finalHp: summarizeNumericDistribution(aggregate.numeric.finalHp),
+      finalHpRate: summarizeNumericDistribution(aggregate.numeric.finalHpRate),
+      finalMp: summarizeNumericDistribution(aggregate.numeric.finalMp),
+      finalMpRate: summarizeNumericDistribution(aggregate.numeric.finalMpRate),
+      finalMpOverMax: summarizeNumericDistribution(aggregate.numeric.finalMpOverMax)
+    },
+    guard: {
+      mitigationHp: summarizeNumericDistribution(aggregate.numeric.guardMitigationHp),
+      mitigationEvents: summarizeNumericDistribution(aggregate.numeric.guardMitigationEvents),
+      statusMitigationEvents: summarizeNumericDistribution(aggregate.numeric.statusMitigationEvents),
+      statusMitigationByType: { ...aggregate.statusMitigationByType },
+      statusMitigationSource: "combatFormulaTelemetry.statusMitigations"
+    },
+    runes: {
+      slots: {
+        capacity: aggregate.runeSlots.capacity / runs,
+        active: aggregate.runeSlots.active / runs,
+        unused: aggregate.runeSlots.unused / runs
+      },
+      castCounts: { ...aggregate.runeCastCounts }
+    },
+    ownership: {
+      core: { ...aggregate.ownership.core },
+      support: {
+        ...aggregate.ownership.support,
+        byId: Object.fromEntries(
+          Object.entries(aggregate.ownership.support.byId).map(([id, values]) => [id, { ...values }])
+        )
+      },
+      explorationSupportValues: aggregate.ownership.explorationSupportValues || {},
+      explorationSupportObservedUse: { ...aggregate.ownership.explorationSupportObservedUse }
+    },
+    loot: {
+      equipmentExposure: aggregate.loot.equipmentExposure,
+      equipmentAdopted: aggregate.loot.equipmentAdopted,
+      equipmentUnadoptedExposureProxy: aggregate.loot.equipmentUnadoptedExposureProxy,
+      buildShiftCount: aggregate.loot.buildShiftCount,
+      finalBagSlots: summarizeNumericDistribution(aggregate.loot.finalBagSlots),
+      equipmentDisposition: {
+        ...aggregate.loot.equipmentDisposition,
+        left: null,
+        discarded: null,
+        status: "not_modeled",
+        reason: "canonical simulator does not retain a production object-loot disposition ledger"
+      },
+      rune: { ...aggregate.loot.rune },
+      core: { ...aggregate.loot.core },
+      support: {
+        ...aggregate.loot.support,
+        byId: Object.fromEntries(
+          Object.entries(aggregate.loot.support.byId).map(([id, values]) => [id, { ...values }])
+        )
+      }
+    },
+    terminalResourceState: {
+      outcomeCounts: { ...aggregate.terminalResourceState.outcomeCounts },
+      hpRate: summarizeNumericDistribution(aggregate.terminalResourceState.hpRate),
+      mpRate: summarizeNumericDistribution(aggregate.terminalResourceState.mpRate),
+      mpOverMax: summarizeNumericDistribution(aggregate.terminalResourceState.mpOverMax),
+      inventorySlots: summarizeNumericDistribution(aggregate.terminalResourceState.inventorySlots),
+      inventoryFreeSlots: summarizeNumericDistribution(aggregate.terminalResourceState.inventoryFreeSlots),
+      carriedMaterials: summarizeNumericDistribution(aggregate.terminalResourceState.carriedMaterials),
+      unconfirmedObjectLoot: {
+        status: "not_modeled",
+        count: null,
+        valueProxy: null
+      }
+    },
+    portal: {
+      pushDecisions: aggregate.portal.pushDecisions,
+      returnDecisions: aggregate.portal.returnDecisions,
+      wingAcquisitions: aggregate.portal.wingAcquisitions,
+      wingUses: aggregate.portal.wingUses,
+      useEvents: aggregate.portal.useEvents,
+      milestoneDecisions: aggregate.portal.milestoneDecisions,
+      sources: { ...aggregate.portal.sources },
+      resourceState: summarizeMap(aggregate.portal.resourceState),
+      resourceStateByDecision: {
+        use: summarizeMap(aggregate.portal.resourceStateByDecision.use),
+        milestone: summarizeMap(aggregate.portal.resourceStateByDecision.milestone)
+      },
+      unconfirmedObjectLoot: { ...aggregate.portal.unconfirmedObjectLoot }
+    }
+  };
+}
+
 function simulateCase({
   startFloor,
   targetDepth,
@@ -14361,9 +15055,13 @@ function simulateCase({
   scoringProfile,
   scenario,
   identificationPolicy = "powder",
-  classNames = SIM_CLASSES
+  classNames = SIM_CLASSES,
+  fixtureIds = null
 }) {
   const totals = {
+    axisType: fixtureIds ? "build-fixture" : "class",
+    fixtureIds: fixtureIds ? [...fixtureIds] : null,
+    buildSnapshotsByFixtureId: {},
     survived: 0,
     died: 0,
     outcomeCounts: { retreat: 0, death: 0, abandon: 0 },
@@ -14476,7 +15174,7 @@ function simulateCase({
     coreObservations: createCoreObservations(),
     spellUsage: createSpellUsageMetrics(),
     spellUsageByClass: Object.fromEntries(
-      SIM_CLASSES.map(className => [className, createSpellUsageMetrics()])
+      classNames.map(className => [className, createSpellUsageMetrics()])
     ),
     explorationSpellUsage: createExplorationSpellUsageMetrics(),
     mpPressure: createSpellPressureMetrics(),
@@ -14487,7 +15185,7 @@ function simulateCase({
     lightActiveSteps: 0,
     masfealActiveSteps: 0,
     purifyEffectsByClass: Object.fromEntries(
-      SIM_CLASSES.map(className => [className, {
+      classNames.map(className => [className, {
         runs: 0,
         runsWithCore: 0,
         tagKills: 0,
@@ -14499,13 +15197,13 @@ function simulateCase({
       }])
     ),
     coreRetentionByClass: Object.fromEntries(
-      SIM_CLASSES.map(className => [className, {
+      classNames.map(className => [className, {
         encounteredById: {},
         equippedById: {}
       }])
     ),
     workshopEffectsByClass: Object.fromEntries(
-      SIM_CLASSES.map(className => [className, {
+      classNames.map(className => [className, {
         runs: 0,
         stats: {},
         startingGearCandidates: {},
@@ -14558,7 +15256,7 @@ function simulateCase({
     flameTrap: createFlameTrapAggregate(),
     b5Gate: createB5GateAggregate(),
     outcomesByClass: Object.fromEntries(
-      SIM_CLASSES.map(className => [className, createOutcomeAggregate()])
+      classNames.map(className => [className, createOutcomeAggregate()])
     ),
     runDiagnostics: createRunDiagnosticsAggregate(),
     damageEstimateAudit: SIM_737_DAMAGE_AUDIT_ENABLED
@@ -14587,42 +15285,35 @@ function simulateCase({
     eliteAvoidNoRouteFloors: 0,
     hitEvasion: { attemptsByFloor: {}, missesByFloor: {} }
   };
+  totals.buildPayment = createBuildPaymentAggregate();
   const merchantStockByClass = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createMerchantStockMetrics()])
+    classNames.map(className => [className, createMerchantStockMetrics()])
   );
-  const classTrapTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createTrapAggregate()])
+  const classConsumableTotals = Object.fromEntries(
+    classNames.map(className => [className, createTrapAggregate()])
   );
   const classIssue412Totals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createIssue412Aggregate()])
-  );
-  const classFlameTrapTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createFlameTrapAggregate()])
-  );
-  const classB5GateTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createB5GateAggregate()])
-  );
-  const classTrapBonusTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createTrapBonusAggregate()])
+    classNames.map(className => [className, createIssue412Aggregate()])
   );
   const classMpPressureTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createSpellPressureMetrics()])
+    classNames.map(className => [className, createSpellPressureMetrics()])
   );
   const classCombatMpTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createCombatMpMeasurement()])
+    classNames.map(className => [className, createCombatMpMeasurement()])
   );
   const classCombatPolicyProbeTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createCombatPolicyProbeMetrics()])
+    classNames.map(className => [className, createCombatPolicyProbeMetrics()])
   );
   const classHitEvasionTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, { attemptsByFloor: {}, missesByFloor: {} }])
+    classNames.map(className => [className, { attemptsByFloor: {}, missesByFloor: {} }])
   );
   const departureCraftBanksByClass = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, {}])
+    classNames.map(className => [className, {}])
   );
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
     const className = classNames[runIndex % classNames.length];
+    const fixtureId = fixtureIds ? className : null;
     const departureCraftBank = departureCraftBanksByClass[className];
     const hasDepartureCraftBank = Object.keys(departureCraftBank).length > 0;
     const hasExplicitDepartureCraftIds = ACTIVE_DEPARTURE_CRAFT_IDS.length > 0;
@@ -14637,7 +15328,8 @@ function simulateCase({
         }
       : scenario;
     const result = simulateRun({
-      className,
+      className: fixtureId ? "Fighter" : className,
+      fixtureId,
       startFloor,
       targetDepth,
       runIndex,
@@ -14648,7 +15340,8 @@ function simulateCase({
         identificationPolicy: identificationPolicy.id || identificationPolicy
       },
       workshop: scenario.workshop || { ranks: {} },
-      collectCombatFormula: SIM_737_DAMAGE_AUDIT_ENABLED || SIM_728_HIT_EVASION_ENABLED,
+      collectCombatFormula: Boolean(scenario.collectCombatFormula) ||
+        SIM_737_DAMAGE_AUDIT_ENABLED || SIM_728_HIT_EVASION_ENABLED,
       collectEquipmentTelemetry: Boolean(scenario.collectVNextObservability)
     });
     if (scenario.collectVNextObservability) {
@@ -14672,6 +15365,10 @@ function simulateCase({
     if (scenario.departureCraftMeasurement) {
       departureCraftBanksByClass[className] = { ...result.metaMaterials };
     }
+    if (fixtureId && result.buildSnapshot) {
+      totals.buildSnapshotsByFixtureId[fixtureId] ||= structuredClone(result.buildSnapshot);
+    }
+    addBuildPaymentRunAggregate(totals.buildPayment, result.buildPayment);
     addSpellUsageAggregate(totals.spellUsage, result);
     addSpellUsageAggregate(totals.spellUsageByClass[className], result);
     addExplorationSpellUsageAggregate(totals.explorationSpellUsage, result);
@@ -14784,9 +15481,7 @@ function simulateCase({
       });
     });
     addFlameTrapAggregate(totals.flameTrap, result);
-    addFlameTrapAggregate(classFlameTrapTotals[className], result);
     addB5GateAggregate(totals.b5Gate, result);
-    addB5GateAggregate(classB5GateTotals[className], result);
     const workshopEffects = totals.workshopEffectsByClass[className];
     workshopEffects.runs++;
     Object.entries(result.workshopEffects.stats).forEach(([stat, amount]) => {
@@ -14803,11 +15498,10 @@ function simulateCase({
     }
     workshopEffects.startingGearAttackDelta += result.workshopEffects.startingGearAttackDelta;
     addTrapAggregate(totals.trap, result);
-    addTrapAggregate(classTrapTotals[className], result);
+    addTrapAggregate(classConsumableTotals[className], result);
     addIssue412Aggregate(totals.issue412, result.issue412);
     addIssue412Aggregate(classIssue412Totals[className], result.issue412);
     addTrapBonusAggregate(totals.trapBonus, result);
-    addTrapBonusAggregate(classTrapBonusTotals[className], result);
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
     if (Object.hasOwn(totals.outcomeCounts, result.outcome)) {
@@ -15060,12 +15754,16 @@ function simulateCase({
   const trapPolicies = resolveTrapPolicies(scenario);
   const trapSummary = finalizeTrapAggregate(totals.trap);
   const consumablesByClass = Object.fromEntries(
-    Object.entries(classTrapTotals).map(([className, aggregate]) => [
+    Object.entries(classConsumableTotals).map(([className, aggregate]) => [
       className,
       buildConsumableClassSummary(finalizeTrapAggregate(aggregate))
     ])
   );
   return {
+    axisType: totals.axisType,
+    fixtureIds: totals.fixtureIds,
+    buildSnapshotsByFixtureId: totals.buildSnapshotsByFixtureId,
+    buildPayment: finalizeBuildPaymentAggregate(totals.buildPayment),
     label,
     startFloor,
     targetDepth,
@@ -15195,7 +15893,9 @@ function simulateCase({
           ),
           objectLootLifecycle: {
             status: "not_modeled",
-            reason: "canonical simulator tracks equipment/material outcomes but not production object-loot ownership"
+            reason: "canonical simulator tracks equipment/material outcomes but not production object-loot ownership",
+            productionStakeSnapshotEvent: "loot_stake_snapshot",
+            productionOwnershipSource: "currentRun.unbankedObjectLoot"
           }
         }
       : null,
@@ -15408,18 +16108,6 @@ function simulateCase({
     flameTrap: finalizeFlameTrapAggregate(totals.flameTrap),
     b5Gate: finalizeB5GateAggregate(totals.b5Gate),
     averageFlameTrapActivations: totals.flameTrap.activations / RUNS_PER_CASE,
-    flameTrapByClass: Object.fromEntries(
-      Object.entries(classFlameTrapTotals).map(([className, aggregate]) => [
-        className,
-        finalizeFlameTrapAggregate(aggregate)
-      ])
-    ),
-    b5GateByClass: Object.fromEntries(
-      Object.entries(classB5GateTotals).map(([className, aggregate]) => [
-        className,
-        finalizeB5GateAggregate(aggregate)
-      ])
-    ),
     outcomesByClass: Object.fromEntries(
       Object.entries(totals.outcomesByClass).map(([className, aggregate]) => [
         className,
@@ -15452,18 +16140,6 @@ function simulateCase({
       ? finalizeDamageEstimateAggregate(totals.damageEstimateAudit)
       : null,
     trapBonusSupply: finalizeTrapBonusAggregate(totals.trapBonus),
-    trapBonusSupplyByClass: Object.fromEntries(
-      Object.entries(classTrapBonusTotals).map(([className, aggregate]) => [
-        className,
-        finalizeTrapBonusAggregate(aggregate)
-      ])
-    ),
-    trapMetricsByClass: Object.fromEntries(
-      Object.entries(classTrapTotals).map(([className, aggregate]) => [
-        className,
-        finalizeTrapAggregate(aggregate)
-      ])
-    ),
     averageTownPortalsUsed: totals.townPortalsUsed / RUNS_PER_CASE,
     averagePortalAcquisitions: Object.fromEntries(
       Object.entries(totals.portalAcquisitions).map(([source, amount]) => [
@@ -15579,7 +16255,8 @@ export function calibrateCoreScoringProfile(
   scenarioOverrides = {},
   identificationPolicy = "powder",
   workshop = { ranks: {} },
-  classNames = SIM_CLASSES
+  classNames = SIM_CLASSES,
+  fixtureIds = null
 ) {
   const calibrationScenario = {
     ...getScenarioById("legacy-no-portal"),
@@ -15588,14 +16265,17 @@ export function calibrateCoreScoringProfile(
     identificationPolicy: identificationPolicy.id || identificationPolicy
   };
   const observations = createCoreObservations();
+  const axisNames = fixtureIds || classNames;
   const observationsByClass = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createCoreObservations()])
+    axisNames.map(axisName => [axisName, createCoreObservations()])
   );
-  const runCountsByClass = Object.fromEntries(SIM_CLASSES.map(className => [className, 0]));
+  const runCountsByClass = Object.fromEntries(axisNames.map(axisName => [axisName, 0]));
   for (let runIndex = 0; runIndex < runCount; runIndex++) {
-    const className = classNames[runIndex % classNames.length];
+    const axisName = axisNames[runIndex % axisNames.length];
+    const fixtureId = fixtureIds ? axisName : null;
     const result = simulateRun({
-      className,
+      className: fixtureId ? "Fighter" : axisName,
+      fixtureId,
       startFloor: 1,
       targetDepth: 20,
       runIndex,
@@ -15605,16 +16285,16 @@ export function calibrateCoreScoringProfile(
       workshop
     });
     addCoreObservations(observations, result.coreObservations);
-    addCoreObservations(observationsByClass[className], result.coreObservations);
-    runCountsByClass[className]++;
+    addCoreObservations(observationsByClass[axisName], result.coreObservations);
+    runCountsByClass[axisName]++;
   }
   const profile = createCoreScoringProfile(observations, runCount);
   profile.byClass = Object.fromEntries(
-    SIM_CLASSES.map(className => [
-      className,
+    axisNames.map(axisName => [
+      axisName,
       createCoreScoringProfile(
-        observationsByClass[className],
-        runCountsByClass[className]
+        observationsByClass[axisName],
+        runCountsByClass[axisName]
       )
     ])
   );
@@ -15649,12 +16329,12 @@ export {
 function printCoreScoringProfile(profile, policy = null) {
   console.log(`\n【core期待戦闘価値 calibration（B1→B20）${policy ? ` / ${policy.label}` : ""}】`);
   console.log(
-    `背水: 自攻撃直前HP${formatPercent(CORE_AFFIX_BY_ID.get("CORE_LAST_STAND").params.hpThreshold)}` +
-    `以下turn率=${formatPercent(profile.lowHpOffensiveRate)}; 攻撃score×率×(1.4-1)`
+    `窮地の猛攻support: 自攻撃直前HP40%以下turn率=${formatPercent(profile.lowHpOffensiveRate)}; ` +
+    "条件付きsupportの実発動観測"
   );
   console.log(
-    `先手必勝: 先制成功fight率=${formatPercent(profile.openerFirstStrikeRate)}; ` +
-    "率×100%追撃×followUp重み0.15"
+    `先手連撃support: 先制成功fight率=${formatPercent(profile.openerFirstStrikeRate)}; ` +
+    "先制時の追撃率加算を実発動観測"
   );
   console.log(
     `血杖: HP支払い候補 攻撃=${formatPercent(profile.bloodWandSpellOpportunityRate)} ` +
@@ -15688,14 +16368,11 @@ function printCoreScoringProfile(profile, policy = null) {
       "min(20, 現floor以降の解除回数×攻撃+2)×weaponAtk重み2"
   );
   if (profile.byClass) {
-    console.log("職業別calibration（全coreスコアへ適用）:");
+    console.log("職業別calibration（戦闘coreスコアへ適用; 罠指標は全体集計）:");
     SIM_CLASSES.forEach(className => {
       const classProfile = profile.byClass[className];
       console.log(
-        `  ${className}: 罠解除/run=${classProfile.expectedTrapDisarmsPerRun.toFixed(3)}, ` +
-        `罠喰い残り B1=${classProfile.expectedTrapDisarmsFromFloor[1].toFixed(3)}, ` +
-        `B10=${classProfile.expectedTrapDisarmsFromFloor[10].toFixed(3)}, ` +
-        `低HP攻撃=${formatPercent(classProfile.lowHpOffensiveRate)}, ` +
+        `  ${className}: 低HP攻撃=${formatPercent(classProfile.lowHpOffensiveRate)}, ` +
         `巨人対象=${formatPercent(classProfile.giantTargetRate)}, ` +
         `先制戦闘=${formatPercent(classProfile.openerFirstStrikeRate)}, ` +
         `物理被弾=${formatPercent(classProfile.incomingPhysicalHitRate)}, ` +
@@ -15709,8 +16386,8 @@ function printCoreScoringProfile(profile, policy = null) {
     "呪い数×全能力+3×既存能力重み合計（legacyでは0、powder/gambleでは実測）"
   );
   console.log(
-    `巨人殺し: 自分よりmaxHP高い敵への攻撃turn率=${formatPercent(profile.giantTargetRate)}; ` +
-    "攻撃score×率×(1.3-1)"
+    `巨体狙いsupport: 自分よりmaxHP高い敵への攻撃turn率=${formatPercent(profile.giantTargetRate)}; ` +
+    "条件付きsupportの実発動観測"
   );
   console.log(
     `反撃の棘: 物理被弾率=${formatPercent(profile.incomingPhysicalHitRate)}; ` +
@@ -15875,131 +16552,115 @@ function formatDistributionStats(stats, multiplier = 1, digits = 1) {
 }
 
 function printB5GateDiagnostics(result) {
-  if (!result?.b5GateByClass) return;
+  if (!result?.b5Gate) return;
+  const stats = result.b5Gate;
   console.log(`\n【${result.label} B5F 火炎診断（同一 B20 撤退条件）】`);
   console.log(
-    "職業 | N | entrant | 試行歩/run(全) | 試行歩/entrant | 発動/entrant | 完全回避/entrant | 被害HP/entrant | B5突破 | B5死亡 | B5撤退"
+    "全体 | N | entrant | 試行歩/run(全) | 試行歩/entrant | 発動/entrant | 完全回避/entrant | 被害HP/entrant | B5突破 | B5死亡 | B5撤退"
   );
-  Object.entries(result.b5GateByClass).forEach(([className, stats]) => {
-    console.log(
-      `${className.padEnd(6)} | ${String(stats.runs).padStart(3)} | ` +
-      `${formatPercent(stats.entrantRate)} | ` +
-      `${stats.averageFlameTrapEligibleStepsAllRuns.toFixed(2).padStart(13)} | ` +
-      `${stats.averageFlameTrapEligibleSteps.toFixed(2).padStart(14)} | ` +
-      `${stats.averageFlameTrapActivations.toFixed(2).padStart(12)} | ` +
-      `${stats.averageFlameTrapDisarmed.toFixed(2).padStart(15)} | ` +
-      `${stats.averageFlameTrapDamageHp.toFixed(2).padStart(14)} | ` +
-      `${formatWilson(stats.breakthroughRuns, stats.entrants)} | ` +
-      `${formatWilson(stats.deathRuns, stats.entrants)} | ` +
-      `${formatWilson(stats.retreatRuns, stats.entrants)}`
-    );
-  });
+  console.log(
+    `全体 | ${String(stats.runs).padStart(3)} | ` +
+    `${formatPercent(stats.entrantRate)} | ` +
+    `${stats.averageFlameTrapEligibleStepsAllRuns.toFixed(2).padStart(13)} | ` +
+    `${stats.averageFlameTrapEligibleSteps.toFixed(2).padStart(14)} | ` +
+    `${stats.averageFlameTrapActivations.toFixed(2).padStart(12)} | ` +
+    `${stats.averageFlameTrapDisarmed.toFixed(2).padStart(15)} | ` +
+    `${stats.averageFlameTrapDamageHp.toFixed(2).padStart(14)} | ` +
+    `${formatWilson(stats.breakthroughRuns, stats.entrants)} | ` +
+    `${formatWilson(stats.deathRuns, stats.entrants)} | ` +
+    `${formatWilson(stats.retreatRuns, stats.entrants)}`
+  );
   console.log("HP分布（B5 entrant、絶対HP: 入場 / 生存中の最低 / 最低HP比）");
-  Object.entries(result.b5GateByClass).forEach(([className, stats]) => {
-    console.log(
-      `${className.padEnd(6)} | 入場 ${formatDistributionStats(stats.entrantHp)} | ` +
-      `最低+ ${formatDistributionStats(stats.minimumPositiveHp)} | ` +
-      `入場比 ${formatDistributionStats(stats.entrantHpRate, 100)}% | ` +
-      `最低比 ${formatDistributionStats(stats.minimumPositiveHpRate, 100)}%`
-    );
-  });
+  console.log(
+    `全体 | 入場 ${formatDistributionStats(stats.entrantHp)} | ` +
+    `最低+ ${formatDistributionStats(stats.minimumPositiveHp)} | ` +
+    `入場比 ${formatDistributionStats(stats.entrantHpRate, 100)}% | ` +
+    `最低比 ${formatDistributionStats(stats.minimumPositiveHpRate, 100)}%`
+  );
   console.log("B5死亡の時系列分類（direct / 火炎発動後の他要因 / 火炎発動なしの他要因）");
-  Object.entries(result.b5GateByClass).forEach(([className, stats]) => {
-    const deathDenominator = Math.max(1, stats.deathRuns);
-    const formatCause = count => `${count}/${stats.deathRuns} (${((count / deathDenominator) * 100).toFixed(1)}%)`;
-    console.log(
-      `${className.padEnd(6)} | direct=${formatCause(stats.directDeaths)} | ` +
-      `afterFlame=${formatCause(stats.deathsAfterFlame)} | ` +
-      `noFlame=${formatCause(stats.deathsWithoutFlame)} | ` +
-      `afterFlame<=5steps=${stats.deathsAfterFlameWithinFiveSteps} | ` +
-      `causes=${JSON.stringify(stats.deathCauseCounts)}`
-    );
-  });
+  const deathDenominator = Math.max(1, stats.deathRuns);
+  const formatCause = count => `${count}/${stats.deathRuns} (${((count / deathDenominator) * 100).toFixed(1)}%)`;
+  console.log(
+    `全体 | direct=${formatCause(stats.directDeaths)} | ` +
+    `afterFlame=${formatCause(stats.deathsAfterFlame)} | ` +
+    `noFlame=${formatCause(stats.deathsWithoutFlame)} | ` +
+    `afterFlame<=5steps=${stats.deathsAfterFlameWithinFiveSteps} | ` +
+    `causes=${JSON.stringify(stats.deathCauseCounts)}`
+  );
 }
 
 function printTrapMetrics(result) {
+  const metrics = result;
+  const flame = result.flameTrap;
+  const route = metrics.route;
   console.log(
-    `\n【${result.label} 罠計測 / 職業別 / 床罠=${result.trapPolicy}, ` +
+    `\n【${result.label} 罠計測 / 全体 / 床罠=${result.trapPolicy}, ` +
     `宝箱=${result.chestTrapPolicy}, 通常探索の既知罠経路選択】`
   );
   console.log(
-    "職業    | 発動/run | 察知/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 出発入手 | 宝箱入手 | 商人入手 | 開始消費 | 出発消費 | 宝箱消費 | 商人消費 | 解除 | 強行 | kit入手 | kit使用 | 出発kit入手 | 出発kit消費"
+    "全体    | 発動/run | 察知/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 出発入手 | 宝箱入手 | 商人入手 | 開始消費 | 出発消費 | 宝箱消費 | 商人消費 | 解除 | 強行 | kit入手 | kit使用 | 出発kit入手 | 出発kit消費"
   );
   console.log(
     "--------|----------|----------|----------|------------|------------|----------|----------|--------|----------|----------|----------|----------|----------|----------|----------|----------|------|------|--------|--------|------------|------------"
   );
-  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
-    const acquired = metrics.averageHealPotionsAcquiredBySource;
-    const consumed = metrics.averageHealPotionsConsumedBySource;
-    const kitsAcquired = metrics.averageTrapKitsAcquiredBySource;
-    const kitsConsumed = metrics.averageTrapKitsConsumedBySource;
-    console.log(
-      `${className.padEnd(7)} | ${metrics.averageTrapActivations.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapDetections.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapDamageHp.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageCombatDamageHp.toFixed(2).padStart(10)} | ` +
-      `${metrics.averageTrapHealPotionsUsed.toFixed(2).padStart(10)} | ` +
-      `${metrics.averageHealPotionsConsumed.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapHealPotionShortages.toFixed(2).padStart(8)} | ` +
-      `${formatPercent(metrics.trapHealPotionShortageRunRate).padStart(6)} | ` +
-      `${acquired.starting.toFixed(2).padStart(8)} | ${acquired.departureCraft.toFixed(2).padStart(8)} | ` +
-      `${acquired.chest.toFixed(2).padStart(8)} | ` +
-      `${acquired.merchant.toFixed(2).padStart(8)} | ` +
-      `${consumed.starting.toFixed(2).padStart(8)} | ${consumed.departureCraft.toFixed(2).padStart(8)} | ` +
-      `${consumed.chest.toFixed(2).padStart(8)} | ` +
-      `${consumed.merchant.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapDisarms.toFixed(2).padStart(4)} | ` +
-      `${metrics.averageTrapForced.toFixed(2).padStart(4)} | ${metrics.averageTrapKitsAcquired.toFixed(2).padStart(6)} | ` +
-      `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)} | ` +
-      `${kitsAcquired.departureCraft.toFixed(2).padStart(8)} | ` +
-      `${kitsConsumed.departureCraft.toFixed(2).padStart(8)}`
-    );
-  });
+  const acquired = metrics.averageHealPotionsAcquiredBySource;
+  const consumed = metrics.averageHealPotionsConsumedBySource;
+  const kitsAcquired = metrics.averageTrapKitsAcquiredBySource;
+  const kitsConsumed = metrics.averageTrapKitsConsumedBySource;
+  console.log(
+    `全体    | ${metrics.averageTrapActivations.toFixed(2).padStart(8)} | ` +
+    `${metrics.averageTrapDetections.toFixed(2).padStart(8)} | ` +
+    `${metrics.averageTrapDamageHp.toFixed(2).padStart(8)} | ` +
+    `${metrics.averageCombatDamageHp.toFixed(2).padStart(10)} | ` +
+    `${metrics.averageTrapHealPotionsUsed.toFixed(2).padStart(10)} | ` +
+    `${metrics.averageHealPotionsConsumed.toFixed(2).padStart(8)} | ` +
+    `${metrics.averageTrapHealPotionShortages.toFixed(2).padStart(8)} | ` +
+    `${formatPercent(metrics.trapHealPotionShortageRunRate).padStart(6)} | ` +
+    `${acquired.starting.toFixed(2).padStart(8)} | ${acquired.departureCraft.toFixed(2).padStart(8)} | ` +
+    `${acquired.chest.toFixed(2).padStart(8)} | ${acquired.merchant.toFixed(2).padStart(8)} | ` +
+    `${consumed.starting.toFixed(2).padStart(8)} | ${consumed.departureCraft.toFixed(2).padStart(8)} | ` +
+    `${consumed.chest.toFixed(2).padStart(8)} | ${consumed.merchant.toFixed(2).padStart(8)} | ` +
+    `${metrics.averageTrapDisarms.toFixed(2).padStart(4)} | ` +
+    `${metrics.averageTrapForced.toFixed(2).padStart(4)} | ${metrics.averageTrapKitsAcquired.toFixed(2).padStart(6)} | ` +
+    `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)} | ` +
+    `${kitsAcquired.departureCraft.toFixed(2).padStart(8)} | ${kitsConsumed.departureCraft.toFixed(2).padStart(8)}`
+  );
+  console.log(`罠解像度: ${JSON.stringify(metrics.trapResolutionCounts)} / 観測=${metrics.trapResolutionObservationCount}`);
   console.log("火炎の罠（B5Fのみ・既存罠経路外） | 発動/run | 完全回避/run | 被害HP/run | 死亡者/run | 試行対象歩/run");
-  Object.entries(result.flameTrapByClass || {}).forEach(([className, metrics]) => {
-    console.log(
-      `${className.padEnd(30)} | ` +
-      `${metrics.averageFlameTrapActivations.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageFlameTrapDisarmed.toFixed(2).padStart(11)} | ` +
-      `${metrics.averageFlameTrapDamageHp.toFixed(2).padStart(9)} | ` +
-      `${metrics.averageFlameTrapDeaths.toFixed(2).padStart(10)} | ` +
-      `${metrics.averageFlameTrapEligibleSteps.toFixed(2).padStart(11)}`
-    );
-  });
+  console.log(
+    `全体                           | ${flame.averageFlameTrapActivations.toFixed(2).padStart(8)} | ` +
+    `${flame.averageFlameTrapDisarmed.toFixed(2).padStart(11)} | ` +
+    `${flame.averageFlameTrapDamageHp.toFixed(2).padStart(9)} | ` +
+    `${flame.averageFlameTrapDeaths.toFixed(2).padStart(10)} | ` +
+    `${flame.averageFlameTrapEligibleSteps.toFixed(2).padStart(11)}`
+  );
   console.log("既知罠の経路選択 | 発見済み遭遇/run | 別経路選択/run | 別経路なし/run | 実追加歩/run | 迂回中通常遭遇/run | 迂回中他罠/run | 解除/run | 強行/run | 死亡/run | 撤退/run");
-  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
-    const route = metrics.route;
-    console.log(
-      `${className.padEnd(7)} | ${route.averageDiscoveredTrapEncounters.toFixed(2).padStart(15)} | ` +
-      `${route.averageDetourSelections.toFixed(2).padStart(14)} | ` +
-      `${route.averageNoAlternateRoute.toFixed(2).padStart(12)} | ` +
-      `${route.averageDetourExtraSteps.toFixed(2).padStart(10)} | ` +
-      `${route.averageDetourNormalEncounters.toFixed(2).padStart(16)} | ` +
-      `${route.averageDetourOtherTrapEncounters.toFixed(2).padStart(12)} | ` +
-      `${route.averageActionSelections.disarm.toFixed(2).padStart(6)} | ` +
-      `${route.averageActionSelections.force.toFixed(2).padStart(5)} | ` +
-      `${route.averageDetourDeaths.toFixed(2).padStart(6)} | ` +
-      `${route.averageDetourRetreats.toFixed(2).padStart(6)}`
-    );
-  });
+  console.log(
+    `全体    | ${route.averageDiscoveredTrapEncounters.toFixed(2).padStart(15)} | ` +
+    `${route.averageDetourSelections.toFixed(2).padStart(14)} | ` +
+    `${route.averageNoAlternateRoute.toFixed(2).padStart(12)} | ` +
+    `${route.averageDetourExtraSteps.toFixed(2).padStart(10)} | ` +
+    `${route.averageDetourNormalEncounters.toFixed(2).padStart(16)} | ` +
+    `${route.averageDetourOtherTrapEncounters.toFixed(2).padStart(12)} | ` +
+    `${route.averageActionSelections.disarm.toFixed(2).padStart(6)} | ` +
+    `${route.averageActionSelections.force.toFixed(2).padStart(5)} | ` +
+    `${route.averageDetourDeaths.toFixed(2).padStart(6)} | ` +
+    `${route.averageDetourRetreats.toFixed(2).padStart(6)}`
+  );
   console.log("商人傷薬 | 試行/run | 失敗理由/run");
-  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
-    const failures = Object.entries(metrics.averageHealPotionMerchantFailures)
-      .map(([reason, count]) => `${reason}=${count.toFixed(2)} (${metrics.healPotionMerchantFailureCounts[reason]})`)
-      .join(", ") || "なし";
-    console.log(
-      `${className.padEnd(7)} | ${metrics.averageHealPotionMerchantAttempts.toFixed(2).padStart(8)} ` +
-      `(${metrics.healPotionMerchantAttempts}/${metrics.runs}) | ${failures}`
-    );
-  });
+  const failures = Object.entries(metrics.averageHealPotionMerchantFailures)
+    .map(([reason, count]) => `${reason}=${count.toFixed(2)} (${metrics.healPotionMerchantFailureCounts[reason]})`)
+    .join(", ") || "なし";
+  console.log(
+    `全体    | ${metrics.averageHealPotionMerchantAttempts.toFixed(2).padStart(8)} ` +
+    `(${metrics.healPotionMerchantAttempts}/${metrics.runs}) | ${failures}`
+  );
   console.log("非薬回復HP/run (camp / stairsHeal / DIOS)");
-  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
-    console.log(
-      `${className.padEnd(7)} | ${metrics.averageCampHealingHp.toFixed(2).padStart(5)} / ` +
-      `${metrics.averageStairsHealingHp.toFixed(2).padStart(5)} / ` +
-      `${metrics.averageDiosHealingHp.toFixed(2).padStart(6)}`
-    );
-  });
+  console.log(
+    `全体    | ${metrics.averageCampHealingHp.toFixed(2).padStart(5)} / ` +
+    `${metrics.averageStairsHealingHp.toFixed(2).padStart(5)} / ` +
+    `${metrics.averageDiosHealingHp.toFixed(2).padStart(6)}`
+  );
 }
 
 function printConsumableSummary(result) {
@@ -16498,16 +17159,6 @@ function printTrapBonusSupplyMetrics(result) {
     `  trapBonus供給: 装備${supply.equipmentItems}, 付与装備率=${formatPercent(supply.trapBonusItemRate)}, ` +
     `値別=${values}`
   );
-  const classParts = Object.entries(result.trapBonusSupplyByClass)
-    .map(([className, classSupply]) => {
-      const classValues = Object.entries(classSupply.averageTrapBonusByValue)
-        .sort(([left], [right]) => Number(left) - Number(right))
-        .map(([value, average]) => `${value}%:${average.toFixed(3)}`)
-        .join(", ") || "なし";
-      return `${className} ${formatPercent(classSupply.trapBonusItemRate)} [${classValues}]`;
-    })
-    .join(" / ");
-  console.log(`  trapBonus職業別: ${classParts}`);
 }
 
 function printCoreRetentionDetail(result) {
@@ -16757,11 +17408,12 @@ function printFailureComment(results) {
 }
 
 export function runDepthSimulationTask(
-  { kind, scenarioId, identificationPolicyId = "powder", className = null, collectVNextObservability = false, scenarioOverrides = {} },
+  { kind, scenarioId, identificationPolicyId = "powder", className = null, fixtureId = null, collectVNextObservability = false, scenarioOverrides = {} },
   { scoringProfile, scoringProfiles = {}, scoringProfilesByScenario = {} }
 ) {
   resetSimulationRandom(SIM_SEED);
-  const classNames = resolveSimulationClassNames(className);
+  const fixtureIds = fixtureId === null ? null : resolveBuildFixtureIds(fixtureId);
+  const classNames = fixtureIds || resolveSimulationClassNames(className);
   const scoringProfileForPolicy =
     scoringProfilesByScenario[`${identificationPolicyId}:${scenarioId}`] ||
     scoringProfiles[identificationPolicyId] ||
@@ -16786,7 +17438,8 @@ export function runDepthSimulationTask(
         scoringProfile: scoringProfileForPolicy,
         scenario: measurementScenario,
         identificationPolicy,
-        classNames
+        classNames,
+        fixtureIds
       }))
     );
   }
@@ -16804,7 +17457,8 @@ export function runDepthSimulationTask(
       scoringProfile: scoringProfileForPolicy,
       scenario: legacyScenario,
       identificationPolicy,
-      classNames
+      classNames,
+      fixtureIds
     })),
     snapshotDepthResult(simulateCase({
       startFloor: 1,
@@ -16814,12 +17468,13 @@ export function runDepthSimulationTask(
       scoringProfile: scoringProfileForPolicy,
       scenario: legacyScenario,
       identificationPolicy,
-      classNames
+      classNames,
+      fixtureIds
     }))
   ];
 }
 
-export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount, classNames = SIM_CLASSES }) {
+export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount, classNames = SIM_CLASSES, fixtureId = null }) {
   resetSimulationRandom(SIM_SEED);
   const workshop = scenarioId === null
     ? undefined
@@ -16827,21 +17482,31 @@ export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount, 
   return {
     policyId,
     scenarioId,
-    profile: calibrateCoreScoringProfile(runCount, {}, policyId, workshop, classNames)
+    profile: calibrateCoreScoringProfile(
+      runCount,
+      {},
+      policyId,
+      workshop,
+      fixtureId === null ? classNames : resolveBuildFixtureIds(fixtureId),
+      fixtureId === null ? null : resolveBuildFixtureIds(fixtureId)
+    )
   };
 }
 
 export function runCalibratedDepthSimulationTask(
-  { kind, scenarioId = null, identificationPolicyId = "powder", runCount, className = null, collectVNextObservability = false, scenarioOverrides = {} },
+  { kind, scenarioId = null, identificationPolicyId = "powder", runCount, className = null, fixtureId = null, collectVNextObservability = false, scenarioOverrides = {} },
   context
 ) {
-  const classNames = resolveSimulationClassNames(className);
+  const classNames = fixtureId === null
+    ? resolveSimulationClassNames(className)
+    : resolveBuildFixtureIds(fixtureId);
   resetMapGenerationStats();
   const calibration = runCoreCalibrationTask({
     policyId: identificationPolicyId,
     scenarioId,
     runCount,
-    classNames
+    classNames,
+    fixtureId
   });
   const scoringProfiles = {
     [identificationPolicyId]: calibration.profile
@@ -16854,7 +17519,7 @@ export function runCalibratedDepthSimulationTask(
     scenarioId,
     profile: calibration.profile,
     results: runDepthSimulationTask(
-      { kind, scenarioId, identificationPolicyId, className, collectVNextObservability, scenarioOverrides },
+      { kind, scenarioId, identificationPolicyId, className, fixtureId, collectVNextObservability, scenarioOverrides },
       {
         ...context,
         scoringProfile: calibration.profile,
@@ -17010,8 +17675,7 @@ console.log(
   "既知床罠: 通常探索の経路コストに反映し、発見前はルート選択へ利用しない"
 );
 console.log(
-  `罠解除EV閾値: 床非pitfall scoutなし=${calculateFloorDisarmEvThreshold({ trapType: "damage" }).toFixed(2)}%, ` +
-  `scoutあり=${calculateFloorDisarmEvThreshold({ trapType: "damage", scoutMitigated: true }).toFixed(2)}%, ` +
+  `罠解除EV閾値: 床非pitfall=${calculateFloorDisarmEvThreshold({ trapType: "damage" }).toFixed(2)}%, ` +
   `pitfall=${calculateFloorDisarmEvThreshold({ trapType: "pitfall" }).toFixed(2)}%, ` +
   `宝箱代表閾値=${(CHEST_DISARM_REPRESENTATIVE_THRESHOLD * 100).toFixed(2)}%（実判定はtrap/effect/content/kitのEV）`
 );

@@ -79,11 +79,12 @@ function validateMeasurementReport(report) {
     if (!Array.isArray(configuration.targetDepths) || configuration.targetDepths.length === 0) {
       errors.push("measurement.configuration.targetDepths is missing");
     }
-    if (configuration.classNames !== undefined &&
-        (!Array.isArray(configuration.classNames) ||
-          configuration.classNames.length === 0 ||
-          configuration.classNames.some(className => !isNonEmptyString(className)))) {
-      errors.push("measurement.configuration.classNames must contain named classes");
+    const configuredAxis = configuration.fixtureIds ?? configuration.classNames;
+    if (configuredAxis !== undefined &&
+        (!Array.isArray(configuredAxis) ||
+          configuredAxis.length === 0 ||
+          configuredAxis.some(axisId => !isNonEmptyString(axisId)))) {
+      errors.push("measurement.configuration.fixtureIds/classNames must contain named axes");
     }
   }
 
@@ -119,12 +120,12 @@ function validateMeasurementReport(report) {
           if (depth?.runs !== configuration.runs) {
             errors.push(`measurement case ${index} depth ${depthIndex} has an unexpected run count`);
           }
-          const expectedClassNames = configuration?.classNames || [];
-          if (expectedClassNames.length > 0) {
-            const actualClassNames = Object.keys(depth?.metricsByClass || {});
-            if (actualClassNames.length !== expectedClassNames.length ||
-                expectedClassNames.some(className => !actualClassNames.includes(className))) {
-              errors.push(`measurement case ${index} depth ${depthIndex} does not exactly match configured classes`);
+          const expectedAxisIds = configuration?.fixtureIds || configuration?.classNames || [];
+          if (expectedAxisIds.length > 0) {
+            const actualAxisIds = Object.keys(depth?.metricsByFixtureId || depth?.metricsByClass || {});
+            if (actualAxisIds.length !== expectedAxisIds.length ||
+                expectedAxisIds.some(axisId => !actualAxisIds.includes(axisId))) {
+              errors.push(`measurement case ${index} depth ${depthIndex} does not exactly match configured build fixtures/classes`);
             }
           }
         });
@@ -151,6 +152,7 @@ function copyMeasurementIdentity(measurement) {
     seed: measurement.configuration?.seed,
     runs: measurement.configuration?.runs,
     calibrationRuns: measurement.configuration?.calibrationRuns,
+    fixtureIds: measurement.configuration?.fixtureIds,
     classNames: measurement.configuration?.classNames,
     seedPolicy: measurement.seedPolicy
   };
@@ -231,7 +233,7 @@ export function renderMeasurementManifestMarkdown(manifest) {
     `- production baseline SHA: \`${measurement?.productionBaselineSha || "(missing)"}\``,
     `- simulator runner SHA: \`${measurement?.simulatorRunnerCommit || "(missing)"}\``,
     `- seed / runs: ${measurement?.seed ?? "(missing)"} / ${measurement?.runs ?? "(missing)"}`,
-    `- classes: ${measurement?.classNames?.join(", ") || "(missing)"}`,
+    `- build fixtures: ${measurement?.fixtureIds?.join(", ") || measurement?.classNames?.join(", ") || "(missing)"}`,
     ""
   ];
   if (manifest.invalidReasons.length > 0) {

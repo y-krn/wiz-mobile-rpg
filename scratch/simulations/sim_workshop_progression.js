@@ -473,12 +473,11 @@ function summarizeWorkshopState(workshop) {
     : purchasedSteps === totalSteps
       ? "complete"
       : grants.affixIds.some(coreId => [
-            "CORE_OPENER",
             "CORE_TRAP_EATER",
-            "CORE_GIANT_SLAYER",
             "CORE_THORN_SHIELD",
             "CORE_TOMB_RAIDER",
-            "CORE_SCHOLAR_EYE"
+            "CORE_SCHOLAR_EYE",
+            "CORE_THIN_ICE_PACT"
           ].includes(coreId))
         ? "core-pools-in-progress"
         : grants.spellIds.length > 0

@@ -1,9 +1,9 @@
 import { ITEMS } from "../data/items.js";
 import { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
-import { getCharAffixSum, isSpecialOrQuestItem } from "./item_rules.js";
+import { isSpecialOrQuestItem } from "./item_rules.js";
 import { recordRuntimeCall } from "../runtime_diagnostics.js";
-import { RUNE_ITEM_IDS } from "../data/magic.js";
+import { getRuneItemIdsByFloor } from "../data/magic.js";
 
 // 宝箱の抽選ルール。`src/chest.js` の UI/state 遷移とバランスsimの双方がここを叩く。
 // sim 側で写経すると src の変更に追随せず、深層のバランスを無音で誤って測るため
@@ -124,6 +124,18 @@ export const CHEST_ITEM_CANDIDATES_BY_FLOOR = {
   5: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"]
 };
 
+// Standard chests follow the same horizontal rule as equipment generation:
+// higher bands add options while retaining the preceding equipment choices.
+for (const floor of [4, 5]) {
+  const earlierEquipment = Array.from({ length: floor - 1 }, (_, index) =>
+    CHEST_ITEM_CANDIDATES_BY_FLOOR[index + 1]
+  ).flat().filter(itemId => ["weapon", "armor", "shield"].includes(ITEMS[itemId]?.type));
+  CHEST_ITEM_CANDIDATES_BY_FLOOR[floor] = [...new Set([
+    ...CHEST_ITEM_CANDIDATES_BY_FLOOR[floor],
+    ...earlierEquipment
+  ])];
+}
+
 const DEEP_CHEST_UTILITY = ["GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"];
 for (let floor = 6; floor <= 30; floor += 1) {
   CHEST_ITEM_CANDIDATES_BY_FLOOR[floor] = [...new Set([
@@ -143,6 +155,15 @@ export const CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP = {
   4: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"],
   5: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT", "TRAP_SENSE_STONE", "STR_POTION", "HASTE_POTION"]
 };
+for (const floor of [4, 5]) {
+  const earlierEquipment = Array.from({ length: floor - 1 }, (_, index) =>
+    CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[index + 1]
+  ).flat().filter(itemId => ["weapon", "armor", "shield"].includes(ITEMS[itemId]?.type));
+  CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[floor] = [...new Set([
+    ...CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[floor],
+    ...earlierEquipment
+  ])];
+}
 for (let floor = 6; floor <= 30; floor += 1) {
   CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[floor] = [...new Set([
     ...EQUIPMENT_CANDIDATES_BY_FLOOR[floor],
@@ -156,7 +177,9 @@ export function getChestItemCandidatesByFloor(floor, { fromDrop = false, include
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
   const table = fromDrop ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP : CHEST_ITEM_CANDIDATES_BY_FLOOR;
   const candidates = table[candidateFloor] || Object.keys(ITEMS).filter(key => ITEMS[key].type !== "quest");
-  return includeRunes ? [...new Set([...candidates, ...RUNE_ITEM_IDS])] : candidates;
+  return includeRunes
+    ? [...new Set([...candidates, ...getRuneItemIdsByFloor(candidateFloor)])]
+    : candidates;
 }
 
 export function rollChestSpecialReward(floor, rng) {
@@ -224,6 +247,7 @@ export function rollChestReward({
   coreMinFloor = CHEST_EQUIPMENT_CORE_MIN_FLOOR,
   itemCandidateFilter = null,
   itemCandidates = null,
+  includeRunes = false,
   runtimeDiagnostics = null
 }) {
   recordRuntimeCall(runtimeDiagnostics, "chests.reward-roll", { floor });
@@ -266,10 +290,12 @@ export function rollChestReward({
   const balanceFloor = Math.min(5, floor);
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
   // 想定外の floor で候補キーが欠けても quest を出さない保険として fallback を残す。
-  const includeRunes = party?.some(character => character.startingKit) === true;
+  // Party is forwarded only for world-state unlocks during generated equipment
+  // rolls.  It never selects a candidate, pairs a Medium with a Rune, or
+  // changes the replacement weight.
   let candidates = itemCandidates || getChestItemCandidatesByFloor(candidateFloor, { includeRunes });
   if (itemCandidates && includeRunes) {
-    candidates = [...new Set([...candidates, ...RUNE_ITEM_IDS])];
+    candidates = [...new Set([...candidates, ...getRuneItemIdsByFloor(candidateFloor)])];
   }
   if (itemCandidateFilter) {
     candidates = candidates.filter(itemCandidateFilter);
@@ -295,14 +321,6 @@ export function rollChestReward({
   // 救済: まだ装備を1つも拾っておらず、3個目以降の宝箱なら底上げする
   if (currentRun && currentRun.equipmentFound && currentRun.equipmentFound.length === 0 && currentRun.chestsOpened >= 2) {
     randChance += 0.20;
-  }
-
-  if (party) {
-    const senseSum = party.reduce((sum, character) => {
-      if (character.status === "dead") return sum;
-      return sum + getCharAffixSum(character, "treasureSense");
-    }, 0);
-    randChance += Math.min(25, senseSum) / 100;
   }
 
   randChance = Math.min(0.90, randChance);

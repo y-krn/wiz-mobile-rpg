@@ -1,0 +1,9 @@
+{
+  "numericBalanceChange": "none",
+  "additionalObservation": [
+    "object-loot lifecycle telemetry is required before treating Rune/Core/Support loot adoption as production-backed",
+    "Portal unconfirmed-loot salvage value is not modeled by the canonical simulator"
+  ],
+  "balanceIssueCandidates": [],
+  "basis": "Explicit post-measurement classification for the observation-only Build Snapshot payment-vector run; no balance tuning is authorized by Issue #1096."
+}

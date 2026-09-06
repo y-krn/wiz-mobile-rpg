@@ -51,8 +51,10 @@ Object.defineProperty(globalThis, "navigator", {
   configurable: true
 });
 
-const { state, createDefaultCurrentRun, createSoloCharacter, initNewGame } =
+const { state, createDefaultCurrentRun, initNewGame } =
   await import("../../../src/state.js");
+const { createStartingKitCharacter } = await import("../../../src/state.js");
+const { syncMediumState } = await import("../../../src/rules/magic_rules.js");
 const { advanceActionSelection } = await import("../../../src/combat_ui/action_selection.js");
 const { combatSelection } = await import("../../../src/combat_ui/combat_state.js");
 
@@ -66,6 +68,15 @@ function check(name, fn) {
   }
 }
 
+function createSocketedCharacter(spells, className = "Fighter", overrides = {}) {
+  const character = createStartingKitCharacter("vanguard");
+  character.class = className;
+  character.equipment.weapon = "ARCH_WAND";
+  syncMediumState(character);
+  character.mediumState.socketedRunes = spells.map(spellName => `RUNE_${spellName}`);
+  return Object.assign(character, overrides);
+}
+
 const singleTargetMonsters = [
   { hp: 30, status: "ok", tags: [] },
   { hp: 10, status: "ok", tags: ["undead"] },
@@ -74,7 +85,7 @@ const singleTargetMonsters = [
 
 check("KATINO is selected on round 1 against multiple enemies", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Mage", spells: ["KATINO", "HALITO"] },
+    character: createSocketedCharacter(["KATINO", "HALITO"], "Mage"),
     monsters: singleTargetMonsters,
     roundNumber: 1,
     canCastSpell: () => true
@@ -84,7 +95,7 @@ check("KATINO is selected on round 1 against multiple enemies", () => {
 
 check("Priest BADIOS prioritizes a holy target", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Priest", spells: ["BADIOS"] },
+    character: createSocketedCharacter(["BADIOS"], "Priest"),
     monsters: singleTargetMonsters,
     roundNumber: 2,
     canCastSpell: () => true
@@ -94,7 +105,7 @@ check("Priest BADIOS prioritizes a holy target", () => {
 
 check("Mage HALITO targets the lowest HP enemy", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Mage", spells: ["HALITO"] },
+    character: createSocketedCharacter(["HALITO"], "Mage"),
     monsters: singleTargetMonsters,
     roundNumber: 2,
     canCastSpell: () => true
@@ -104,7 +115,7 @@ check("Mage HALITO targets the lowest HP enemy", () => {
 
 check("Mage uses LAHALITO against multiple healthy enemies", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Mage", spells: ["HALITO", "LAHALITO"] },
+    character: createSocketedCharacter(["HALITO", "LAHALITO"], "Mage"),
     monsters: [{ hp: 30 }, { hp: 30 }],
     roundNumber: 2,
     canCastSpell: () => true
@@ -114,7 +125,7 @@ check("Mage uses LAHALITO against multiple healthy enemies", () => {
 
 check("Mage uses MAHALITO when HALITO cannot finish the target", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Mage", spells: ["HALITO", "MAHALITO"] },
+    character: createSocketedCharacter(["HALITO", "MAHALITO"], "Mage"),
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     canCastSpell: () => true
@@ -124,7 +135,7 @@ check("Mage uses MAHALITO when HALITO cannot finish the target", () => {
 
 check("Priest selects DIALMA first in the healing priority order", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Priest", hp: 85, maxHp: 100, spells: ["DIOS", "MADIOS", "MADI", "DIALMA"] },
+    character: createSocketedCharacter(["DIOS", "MADIOS", "DIALMA"], "Priest", { hp: 85, maxHp: 100 }),
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     healingTargetIdx: 0,
@@ -135,7 +146,7 @@ check("Priest selects DIALMA first in the healing priority order", () => {
 
 check("Priest falls back to MADI when DIALMA is unavailable", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Priest", hp: 40, maxHp: 100, spells: ["DIOS", "MADIOS", "MADI"] },
+    character: createSocketedCharacter(["DIOS", "MADIOS", "MADI"], "Priest", { hp: 40, maxHp: 100 }),
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     healingTargetIdx: 0,
@@ -146,7 +157,7 @@ check("Priest falls back to MADI when DIALMA is unavailable", () => {
 
 check("Priest falls back to MADIOS when higher healing spells are unavailable", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Priest", hp: 25, maxHp: 100, spells: ["DIOS", "MADIOS"] },
+    character: createSocketedCharacter(["DIOS", "MADIOS"], "Priest", { hp: 25, maxHp: 100 }),
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     healingTargetIdx: 0,
@@ -157,7 +168,7 @@ check("Priest falls back to MADIOS when higher healing spells are unavailable", 
 
 check("Priest falls back to DIOS when it is the only healing spell", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Priest", hp: 0, maxHp: 100, spells: ["DIOS"] },
+    character: createSocketedCharacter(["DIOS"], "Priest", { hp: 0, maxHp: 100 }),
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     healingTargetIdx: 0,
@@ -169,7 +180,7 @@ check("Priest falls back to DIOS when it is the only healing spell", () => {
 check("DIOS reserves one MP before offensive casting", () => {
   const calls = [];
   const action = chooseAutoCombatAction({
-    character: { class: "Priest", spells: ["DIOS", "BADIOS"] },
+    character: createSocketedCharacter(["DIOS", "BADIOS"], "Priest"),
     monsters: [{ hp: 30, status: "ok", tags: [] }],
     roundNumber: 2,
     canCastSpell: (spellName, reserveMp) => {
@@ -183,9 +194,8 @@ check("DIOS reserves one MP before offensive casting", () => {
 
 check("UI auto combat selects healing for a low HP Priest", () => {
   initNewGame();
-  const character = createSoloCharacter("Priest");
+  const character = createSocketedCharacter(["DIOS"], "Priest");
   character.hp = 1;
-  character.spells = ["DIOS"];
   state.party = [character];
   state.currentRun = createDefaultCurrentRun();
   state.gameState = "combat";
@@ -221,14 +231,28 @@ check("UI auto combat selects healing for a low HP Priest", () => {
   });
 });
 
-check("unsupported elite classes remain outside the shared basic-class policy", () => {
+check("active spell types drive the shared policy without class special cases", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Bishop", spells: ["BADIOS"] },
+    character: createSocketedCharacter(["BADIOS"], "Bishop"),
     monsters: singleTargetMonsters,
     roundNumber: 1,
     canCastSpell: () => true
   });
-  assert.equal(action, null);
+  assert.deepEqual(action, {
+    type: "spell",
+    targetIdx: 1,
+    spellName: "BADIOS"
+  });
+});
+
+check("legacy char.spells cannot grant auto spell permission", () => {
+  const action = chooseAutoCombatAction({
+    character: { class: "Mage", spells: ["HALITO"] },
+    monsters: [{ hp: 30, status: "ok", tags: [] }],
+    roundNumber: 2,
+    canCastSpell: () => true
+  });
+  assert.deepEqual(action, { type: "fight", targetIdx: 0 });
 });
 
 if (failures.length > 0) {

@@ -1,4 +1,4 @@
-import { getCharAffixSum } from "../data.js";
+import { getCharAffixSum, getPartyMaxAffix } from "../data.js";
 import {
   CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
   rollChestAccessory,
@@ -41,6 +41,7 @@ const CHEST_TAG_LABELS = Object.freeze({
   guardian: "守護",
   treasureSense: "宝探",
   trapBonus: "技巧",
+  trapGuard: "罠守",
   antiUndead: "不死祓い",
   antiDragon: "竜殺し",
   spellGuard: "魔除け",
@@ -77,9 +78,12 @@ export function getChestRewardEntries(chest) {
   ];
 }
 
+// treasureSense is information-only: it improves trap inspection reliability
+// and can reveal an affix signal in the loot hint. Reward candidates, item
+// chances, replacement weights, and Medium/Rune pairing remain build-blind.
 export function calculateChestInspectionChance({ party = [], lightPower = "", lightTurns = 0 } = {}) {
-  const inspector = party.find(char => ELIGIBLE_STATUSES.has(char.status));
-  let chance = inspector ? 0.30 : 0;
+  const inspector = getActiveChestCharacter(party);
+  let chance = 0.30 + getPartyMaxAffix(party, "treasureSense") / 100;
   if (inspector?.status === "blind") chance /= 2;
   const lightBonus = lightPower === "lomilwa" ? 0.25 : (lightTurns > 0 ? 0.15 : 0);
   return {
@@ -154,6 +158,7 @@ export function rollChestEncounter({
       currentRun,
       trap,
       firstChestGuaranteed,
+      includeRunes: !fromDrop,
       itemCandidates: fromDrop
         ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1))]
         : null

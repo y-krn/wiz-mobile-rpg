@@ -1,7 +1,7 @@
 import { state, saveAutosave, addLog } from "./state.js";
 import { getItemData } from "./data.js";
 import { playSound } from "./audio.js";
-import { AFFIX_BALANCE, getAffixDefinition } from "./data/affixes.js";
+import { AFFIX_BALANCE, getAffixDefinition, getAffixKind } from "./data/affixes.js";
 import { replaceRunObjectLoot } from "./state/run_loot.js";
 
 export const CRAFT_RECIPES = [
@@ -176,7 +176,7 @@ export function getPolishCost(eqItem) {
   if (!eqItem || typeof eqItem !== "object" || eqItem.identified !== true || eqItem.polished) return null;
   const hasSupport = (eqItem.affixes || []).some(affix => {
     const definition = getAffixDefinition(affix);
-    return (affix.kind || definition?.kind || "support") === "support" && definition?.enabled;
+    return getAffixKind(affix) === "support" && definition?.enabled;
   });
   return hasSupport ? AFFIX_BALANCE.polishCost : null;
 }
@@ -185,7 +185,7 @@ export function polishSupportAffix(eqItem, affixIdx) {
   if (!getPolishCost(eqItem)) return false;
   const affix = eqItem.affixes?.[affixIdx];
   const definition = getAffixDefinition(affix);
-  if (!affix || (affix.kind || definition?.kind || "support") !== "support" || !definition?.enabled) {
+  if (!affix || getAffixKind(affix) !== "support" || !definition?.enabled) {
     return false;
   }
   affix.value = Math.ceil(affix.value * 1.5);

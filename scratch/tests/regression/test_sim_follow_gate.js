@@ -436,7 +436,7 @@ assert.deepEqual(
   SIMULATION_RUNNER_INVENTORY.map(runner => runner.path).sort(),
   "runner discovery and explicit inventory diverged"
 );
-assert.equal(SIMULATION_RUNNER_INVENTORY.length, 45, "unexpected current runner inventory size");
+assert.equal(SIMULATION_RUNNER_INVENTORY.length, 48, "unexpected current runner inventory size");
 assert.ok(discoveredRunners.includes("scratch/simulations/sim_depth_material_ev.js"));
 assert.equal(
   SIMULATION_RUNNER_INVENTORY.filter(runner => runner.lifecycle === "canonical").length,
@@ -482,7 +482,9 @@ function runCanonicalSmoke() {
     className: "Fighter",
     startFloor: 1,
     targetDepth: 8,
-    runIndex: 0,
+    // The universal exploration resolver changes the fixed seed's entry path;
+    // the adjacent deterministic run still exercises the intended traversal.
+    runIndex: 1,
     seriesId: "simulation-follow-smoke",
     scoringProfile: null,
     scenario: smokeScenario,
