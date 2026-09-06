@@ -348,9 +348,17 @@ export function summarizeSimulationResults({ config, provenance, scenarioResults
       className: classResult.className,
       depths: summarizeClassDepths(config, classResult)
     }));
+    const fixtureSnapshots = fixtureResults
+      ? Object.fromEntries(fixtureResults.map(({ className, results: fixtureRunResults }) => [
+          className,
+          fixtureRunResults.find(result => result.buildSnapshotsByFixtureId)
+            ?.buildSnapshotsByFixtureId?.[className] || null
+        ]))
+      : null;
     return {
       scenarioId,
       targetDepths: config.targetDepths,
+      ...(fixtureResults ? { fixtureSnapshots } : {}),
       depths: config.targetDepths.map(depth => {
         const depthByClass = Object.fromEntries(
           summarizedByClass.map(({ className, depths }) => [className || "overall", depths[depth]])
