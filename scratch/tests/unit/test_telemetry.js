@@ -625,6 +625,45 @@ check("combat Wing use is recorded as a return-wing decision", () => {
   assert.equal(portal.decision, "return");
   assert.equal(portal.wingSalvageCount, 0);
   assert.equal(combatState.inventory.length, 0);
+  assert.equal(events.filter(event => event.name === "loot_lifecycle").length, 0, "Town-owned item use must not emit a null loot lifecycle");
+});
+
+check("object loot lifecycle only tracks dungeon-owned duplicate consumables", () => {
+  const events = [];
+  const player = { ...decisionPlayer, hp: decisionPlayer.maxHp, mp: decisionPlayer.maxMp };
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const townDuplicateState = {
+    floor: 2,
+    inventory: ["HEAL_POTION"],
+    party: [player],
+    currentRun: {
+      ...decisionState.currentRun,
+      townInventory: ["HEAL_POTION"],
+      unbankedObjectLoot: [{ id: "run:loot:7", item: "HEAL_POTION" }]
+    }
+  };
+  trackRunStart(run, player, townDuplicateState);
+  resolvePlayerItem(player, { itemKey: "HEAL_POTION", targetIdx: 0 }, townDuplicateState, []);
+  assert.equal(events.filter(event => event.name === "loot_lifecycle").length, 0);
+
+  events.length = 0;
+  const dungeonState = {
+    ...townDuplicateState,
+    inventory: ["HEAL_POTION"],
+    currentRun: {
+      ...townDuplicateState.currentRun,
+      townInventory: [],
+      unbankedObjectLoot: [{ id: "run:loot:8", item: "HEAL_POTION" }]
+    }
+  };
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, player, dungeonState);
+  resolvePlayerItem(player, { itemKey: "HEAL_POTION", targetIdx: 0 }, dungeonState, []);
+  assert.deepEqual(
+    events.filter(event => event.name === "loot_lifecycle").map(event => event.properties.lifecycleStage),
+    ["tried", "consumed"]
+  );
+  assert.ok(events.filter(event => event.name === "loot_lifecycle").every(event => event.properties.lootSequence === 8));
 });
 
 check("combat end numeric fields stay bounded", () => {

@@ -15893,7 +15893,9 @@ function simulateCase({
           ),
           objectLootLifecycle: {
             status: "not_modeled",
-            reason: "canonical simulator tracks equipment/material outcomes but not production object-loot ownership"
+            reason: "canonical simulator tracks equipment/material outcomes but not production object-loot ownership",
+            productionStakeSnapshotEvent: "loot_stake_snapshot",
+            productionOwnershipSource: "currentRun.unbankedObjectLoot"
           }
         }
       : null,

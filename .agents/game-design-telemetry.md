@@ -14,6 +14,7 @@ or identifiers that are not needed for the observation.
 | `stairs_discovered` / `floor_exploration` | Exploration before and after the exit is known | floor, steps at discovery, before/after exploration cost, resource band |
 | `valuable_location` | Discovery and choice at a valuable place | location kind, discovered/opened/skipped, floor, source |
 | `loot_lifecycle` | Object loot from discovery to settlement | lifecycle stage, category, source, floor, ownership, rarity band, coarse role, value proxy |
+| `loot_stake_snapshot` | Production-backed unconfirmed object-loot stake at decision boundaries | snapshot point, count, location/category composition, Rune supply-band composition, Core/Support, bag pressure |
 | `equipment_decision` / `build_shift` | Ordinary equipment changes versus meaningful direction changes | action, old/new category, decision kind, role transition |
 | `portal_decision` | Push, return, or Wing choice | portal kind, decision, resource band, free slots, unconfirmed count, rescued subset |
 | `elite_decision` | Approach, avoidance, contact, and result of optional threats | decision, contact mode, distance band, detection state, floor, unconfirmed count |
@@ -22,6 +23,8 @@ or identifiers that are not needed for the observation.
 The event names are stable domain observations. Exact property names and
 normalization limits remain owned by the telemetry source so a data-shape
 change does not become a design change.
+
+`loot_lifecycle` is keyed to the production `lootId`: `found` means the player attempted to take the object, `bagged` means it entered `currentRun.unbankedObjectLoot`, and `tried`/`identified`/`adopted`/`discarded`/`consumed` remain attached to that same sequence. Portal, Wing, Death, and Abandon settle it as `banked`, `salvaged`, or `lost`; Town-owned duplicate item use is not a dungeon lifecycle event. `loot_stake_snapshot` rereads production `unbankedObjectLoot` at each boundary and does not create a second ledger.
 
 ## Ownership and lifecycle
 
@@ -39,6 +42,11 @@ An equipped object remains unconfirmed until the terminal route settles it.
 Full bags may therefore produce `found` followed by `rejected` without a
 `bagged` event. Telemetry must not turn a rejected find into a free inventory
 slot or a player-facing reward.
+
+The canonical simulator does not model the production object-loot ownership
+ledger; loot and death-loss values therefore remain `not_modeled`, not zero.
+Issue #1098 schema and lifecycle provenance are recorded in the measurement
+report event schema.
 
 The same run, loot sequence, lifecycle stage, location/action pair, or floor
 summary is emitted at most once. Save/load replay does not invent a new

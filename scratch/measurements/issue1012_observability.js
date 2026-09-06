@@ -54,7 +54,9 @@ function buildObservation(result, className) {
     },
     loot: result.vnextObservability?.objectLootLifecycle || {
       status: "not_modeled",
-      reason: "canonical simulator tracks equipment/material outcomes but not production object-loot ownership"
+      reason: "canonical simulator tracks equipment/material outcomes but not production object-loot ownership",
+      productionStakeSnapshotEvent: "loot_stake_snapshot",
+      productionOwnershipSource: "currentRun.unbankedObjectLoot"
     },
     deathLoss: {
       status: "not_modeled",
@@ -83,7 +85,7 @@ export function buildIssue1012Report({ options, provenance, observations }) {
     eventSchema: [
       "run_start", "stairs_discovered", "floor_exploration", "valuable_location",
       "loot_lifecycle", "equipment_decision", "build_shift", "portal_decision",
-      "elite_decision", "run_end"
+      "loot_stake_snapshot", "elite_decision", "run_end"
     ],
     observations
   };
@@ -153,7 +155,7 @@ if (options.summary) {
     `- gameplay source commit: \`${report.measurement.gameplaySourceCommit}\``,
     `- N=${report.measurement.runsPerClass}, seed=${report.measurement.seed}, scenario=${report.measurement.scenario}`,
     `- classes: ${report.measurement.classes.join(", ")}`,
-    "- production object-loot ownership loss is intentionally reported as `not_modeled`; it is measured by `loot_lifecycle` production events.",
+    "- production object-loot ownership loss is intentionally reported as `not_modeled`; production stake composition is measured by `loot_stake_snapshot` and lifecycle by `loot_lifecycle`.",
     "- this runner uses the canonical simulator and does not restart Issue #990.",
     ""
   ].join("\n"));

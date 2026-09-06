@@ -19,8 +19,8 @@ import {
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
-import { consumeRunObjectLoot } from "./state/run_loot.js";
-import { trackChestAction, trackChestSmashResult, trackTrapResolution, trackValuableLocation } from "./telemetry.js";
+import { consumeRunObjectLoot, findRunObjectLootEntry } from "./state/run_loot.js";
+import { trackChestAction, trackChestSmashResult, trackLootLifecycle, trackTrapResolution, trackValuableLocation } from "./telemetry.js";
 import {
   CHEST_PHASES,
   CHEST_PHASE_TRANSITIONS,
@@ -536,6 +536,7 @@ export function useTrapKit() {
   if (!trap || trap === "none") return false;
   const activeCharacter = getActiveChestCharacter(state.party);
   trackChestChoice(state.chestState, "trap_kit");
+  const lootId = findRunObjectLootEntry(state, "TRAP_KIT")?.id;
   trackTrapResolution("disarmed", {
     state,
     character: activeCharacter,
@@ -550,6 +551,12 @@ export function useTrapKit() {
   });
   state.inventory.splice(kitIndex, 1);
   consumeRunObjectLoot(state, "TRAP_KIT");
+  if (lootId) trackLootLifecycle("consumed", {
+    state,
+    itemKey: "TRAP_KIT",
+    lootId,
+    source: "dungeon"
+  });
   state.chestState.trap = "none";
   if (activeCharacter) {
     const previousTrapBonus = activeCharacter.runTrapAttackBonus || 0;

@@ -33,6 +33,7 @@ import { INVENTORY_CAPACITY } from "./rules/item_inventory.js";
 import { getWeaponBehaviorProfile } from "./data/weapon_behavior_profiles.js";
 import { RUNE_SUPPLY_BANDS, RUNES } from "./data/magic.js";
 import { resolveBuildSnapshot } from "./rules/build_snapshot.js";
+import { buildObjectLootStakeSnapshot } from "./rules/object_loot_stake.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -137,7 +138,7 @@ const SAFE_CHEST_AURAS = new Set(["weak", "medium", "strong"]);
 const SAFE_BUILD_ROLES = new Set(Object.values(LOOT_BUILD_ROLES));
 const SAFE_LOOT_STAGES = new Set([
   "found", "bagged", "tried", "identified", "adopted", "discarded",
-  "banked", "salvaged", "lost", "rejected", "left"
+  "banked", "salvaged", "lost", "consumed", "rejected", "left"
 ]);
 const SAFE_LOOT_SOURCES = new Set([
   "combat", "chest", "merchant", "workshop", "departure-craft", "dungeon", "other"
@@ -157,6 +158,23 @@ const SAFE_ELITE_DECISIONS = new Set(["spawn", "approach", "pursue", "avoid", "c
 const SAFE_ELITE_CONTACT_MODES = new Set(["player_step", "elite_step", "combat", "unknown"]);
 const SAFE_LOCATION_TYPES = new Set(["chest", "stairs-down", "return-portal", "merchant"]);
 const SAFE_LOCATION_ACTIONS = new Set(["discovered", "opened", "skipped", "used", "visited"]);
+const SAFE_LOOT_SNAPSHOT_POINTS = new Set([
+  "pending_reward_resolution",
+  "portal_decision",
+  "return_execution",
+  "wing_salvage_before",
+  "terminal_settlement_before",
+  "terminal_settlement_after"
+]);
+const SAFE_LOOT_CATEGORIES = new Set(["equipment", "rune", "consumable", "other"]);
+const SAFE_LOOT_LOCATIONS = new Set(["bag", "equipped", "active_rune", "other"]);
+const SAFE_EQUIPMENT_SLOTS = new Set(["weapon", "shield", "armor", "accessory", "other"]);
+const SAFE_WEAPON_BEHAVIORS = new Set(["light", "blade", "impact", "heavy", "medium", "other"]);
+const SAFE_IDENTIFICATION_STAGES = new Set(["unknown", "discovery", "observation", "trial", "full"]);
+const SAFE_RUNE_SUPPLY_BANDS = new Set([
+  ...RUNE_SUPPLY_BANDS.map(band => band.id),
+  "other"
+]);
 const LOOT_VALUE_BY_RARITY = Object.freeze({ common: 1, magic: 2, rare: 4, epic: 7, legendary: 12 });
 const MAX_ENEMY_SNAPSHOT = 8;
 const MAX_AFFIX_SNAPSHOT = 24;
@@ -865,6 +883,61 @@ function getUnbankedLootSummary(stateSnapshot) {
   };
 }
 
+function normalizeComposition(composition, allowedValues) {
+  return Object.fromEntries([...allowedValues].map(key => [key, boundedFiniteOrNull(composition?.[key]) || 0]));
+}
+
+function normalizeStakeSnapshot(snapshot) {
+  const details = (snapshot?.details || []).slice(0, INVENTORY_CAPACITY).map(detail => ({
+    lootSequence: normalizeLootSequence(detail.lootSequence),
+    itemId: getSafeItemId(detail.itemId),
+    category: normalizeStableValue(detail.category, SAFE_LOOT_CATEGORIES),
+    location: normalizeStableValue(detail.location, SAFE_LOOT_LOCATIONS),
+    equipmentSlot: normalizeStableValue(detail.equipmentSlot, SAFE_EQUIPMENT_SLOTS),
+    weaponBehavior: normalizeOptionalStableValue(detail.weaponBehavior, SAFE_WEAPON_BEHAVIORS),
+    medium: Boolean(detail.medium),
+    runeSupplyBand: normalizeOptionalStableValue(detail.runeSupplyBand, SAFE_RUNE_SUPPLY_BANDS),
+    coreCount: boundedFiniteOrNull(detail.coreCount, 0, 10),
+    supportCount: boundedFiniteOrNull(detail.supportCount, 0, 10),
+    coreMainAxisCount: boundedFiniteOrNull(detail.coreMainAxisCount, 0, 10),
+    coreAuxiliaryCount: boundedFiniteOrNull(detail.coreAuxiliaryCount, 0, 10),
+    lootRole: normalizeOptionalStableValue(detail.lootRole, SAFE_BUILD_ROLES),
+    affixLootRoles: normalizeComposition(detail.affixLootRoles, new Set(["reinforce", "convert", "pivot"])),
+    identificationStage: normalizeStableValue(detail.identificationStage, SAFE_IDENTIFICATION_STAGES),
+    cursed: Boolean(detail.cursed)
+  }));
+  return {
+    unconfirmedObjectCount: boundedFiniteOrNull(snapshot?.unconfirmedObjectCount, 0, INVENTORY_CAPACITY),
+    unconfirmedObjectIds: details.map(detail => detail.lootSequence).filter(value => value !== null),
+    unconfirmedObjectComposition: normalizeComposition(snapshot?.composition?.category, SAFE_LOOT_CATEGORIES),
+    unconfirmedObjectLocation: normalizeComposition(snapshot?.composition?.location, SAFE_LOOT_LOCATIONS),
+    unconfirmedEquipmentSlots: normalizeComposition(snapshot?.composition?.equipmentSlot, SAFE_EQUIPMENT_SLOTS),
+    unconfirmedWeaponBehaviors: normalizeComposition(snapshot?.composition?.weaponBehavior, SAFE_WEAPON_BEHAVIORS),
+    unconfirmedLootRoles: normalizeComposition(snapshot?.composition?.lootRole, new Set(["reinforce", "convert", "pivot"])),
+    identificationStageComposition: normalizeComposition(snapshot?.composition?.identificationStage, SAFE_IDENTIFICATION_STAGES),
+    runeCount: boundedFiniteOrNull(snapshot?.runeCount, 0, INVENTORY_CAPACITY),
+    activeRuneCount: boundedFiniteOrNull(snapshot?.activeRuneCount, 0, INVENTORY_CAPACITY),
+    mediumCount: boundedFiniteOrNull(snapshot?.mediumCount, 0, INVENTORY_CAPACITY),
+    shieldCount: boundedFiniteOrNull(snapshot?.shieldCount, 0, INVENTORY_CAPACITY),
+    armorCount: boundedFiniteOrNull(snapshot?.armorCount, 0, INVENTORY_CAPACITY),
+    runeSupplyBandComposition: normalizeComposition(snapshot?.runeSupplyBandComposition, SAFE_RUNE_SUPPLY_BANDS),
+    coreCount: boundedFiniteOrNull(snapshot?.coreCount, 0, INVENTORY_CAPACITY * 10),
+    supportCount: boundedFiniteOrNull(snapshot?.supportCount, 0, INVENTORY_CAPACITY * 10),
+    coreMainAxisCount: boundedFiniteOrNull(snapshot?.coreMainAxisCount, 0, INVENTORY_CAPACITY * 10),
+    coreAuxiliaryCount: boundedFiniteOrNull(snapshot?.coreAuxiliaryCount, 0, INVENTORY_CAPACITY * 10),
+    unknownStageCount: boundedFiniteOrNull(snapshot?.unknownStageCount, 0, INVENTORY_CAPACITY),
+    cursedCount: boundedFiniteOrNull(snapshot?.cursedCount, 0, INVENTORY_CAPACITY),
+    bagOccupancy: boundedFiniteOrNull(snapshot?.bagOccupancy, 0, INVENTORY_CAPACITY),
+    bagCapacity: boundedFiniteOrNull(snapshot?.bagCapacity, 0, INVENTORY_CAPACITY),
+    bagFreeSlots: boundedFiniteOrNull(snapshot?.bagFreeSlots, 0, INVENTORY_CAPACITY),
+    unconfirmedObjectDetails: details
+  };
+}
+
+function buildStakeSnapshotFields(stateSnapshot) {
+  return normalizeStakeSnapshot(buildObjectLootStakeSnapshot(stateSnapshot));
+}
+
 function hasSemanticEvent(key) {
   if (!key) return false;
   if (semanticEventKeys.has(key)) return true;
@@ -898,6 +971,19 @@ export function trackLootLifecycle(stage, details = {}) {
     valueProxy: getLootValueProxy(details.itemKey),
     unbankedObjectLootCount: summary.count,
     unbankedObjectLootValueProxy: summary.valueProxy
+  });
+}
+
+export function trackLootStakeSnapshot(snapshotPoint, details = {}) {
+  if (!isTelemetryAvailable() || !runId) return;
+  const stateSnapshot = details.state || null;
+  capture("loot_stake_snapshot", {
+    runId,
+    ...safeDecisionContext({ state: stateSnapshot, character: details.character }),
+    snapshotPoint: normalizeStableValue(snapshotPoint, SAFE_LOOT_SNAPSHOT_POINTS),
+    settlementOutcome: normalizeOptionalStableValue(details.settlementOutcome, new Set(["retreat", "wing", "death", "abandon"])),
+    selectedLootCount: boundedFiniteOrNull(details.selectedLootIds?.length, 0, INVENTORY_CAPACITY),
+    ...buildStakeSnapshotFields(stateSnapshot)
   });
 }
 
@@ -988,7 +1074,9 @@ export function trackPortalDecision(decision, details = {}) {
     wingOwned: details.wingOwned ?? getReturnWingCount(stateSnapshot) > 0,
     wingSalvageCount: boundedFiniteOrNull(details.wingSalvageCount, 0, 2),
     nextBandMainId: normalizeOptionalStableValue(details.nextBandMainId, SAFE_BAND_TRIAL_IDS),
-    nextBandSubId: normalizeOptionalStableValue(details.nextBandSubId, SAFE_BAND_TRIAL_IDS)
+    nextBandSubId: normalizeOptionalStableValue(details.nextBandSubId, SAFE_BAND_TRIAL_IDS),
+    stakeSnapshotPoint: "portal_decision",
+    ...buildStakeSnapshotFields(stateSnapshot)
   });
 }
 
@@ -1289,7 +1377,9 @@ export function trackRunEnd(run, outcome, stateSnapshot = null) {
       lostObjectLoot.reduce((sum, item) => sum + getLootValueProxy(item), 0),
       0,
       MAX_RESOURCE_VALUE
-    )
+    ),
+    stakeSnapshotPoint: "terminal_settlement_after",
+    ...buildStakeSnapshotFields(stateSnapshot)
   });
   runId = null;
   combatId = null;
