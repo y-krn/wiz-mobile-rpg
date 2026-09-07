@@ -24,7 +24,13 @@ import {
 import { createActionCard } from "./action_card.js";
 import { RUN_QUEST_TEMPLATES } from "../data/run_quests.js";
 import { getFloorTheme } from "../data/floor_themes.js";
-import { getActiveRuneSpellKeys, getEquippedMedium, isMedium, syncMediumState } from "../rules/magic_rules.js";
+import {
+  getActiveRuneSpellKeys,
+  getEquippedMedium,
+  getRuneItemId,
+  isMedium,
+  syncMediumState
+} from "../rules/magic_rules.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
@@ -242,7 +248,9 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
   appendPreparationRow(
     conditions,
     "active Rune",
-    getActiveRuneSpellKeys(startingCharacter).join("・") || "なし"
+    getActiveRuneSpellKeys(startingCharacter)
+      .map(spellKey => ITEMS[getRuneItemId(spellKey)]?.name || spellKey)
+      .join("・") || "なし"
   );
   const pendingQuestIds = getPendingRunQuestTemplateIds();
   const questNames = pendingQuestIds

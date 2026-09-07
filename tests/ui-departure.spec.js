@@ -433,6 +433,24 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(page.locator('#explore-controls')).toBeHidden();
 });
 
+test('Preparation displays active Rune names instead of internal spell keys', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openSubmenu } = await import('/src/navigation.js');
+    state.gameState = 'town';
+    state.metaMaterials = {};
+    state.workshop = { ranks: {} };
+    state.unlockedMilestones = [];
+    openSubmenu('solo_start', '単独潜行');
+  });
+
+  await page.locator('.solo-starting-kit-option').nth(3).click();
+  const summary = page.locator('.solo-preparation-summary');
+  await expect(summary).toContainText('HALITOのルーン');
+  await expect(summary).not.toContainText('RUNE_HALITO');
+});
+
 test('Preparation explains bag cap and Return Wing individual limit', async ({ page }) => {
   await openDeparturePreparation(page, { width: 390, height: 844, name: 'iPhone 13' });
   const portal = page.locator('[data-recipe-id="TOWN_PORTAL"]');

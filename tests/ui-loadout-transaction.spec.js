@@ -215,6 +215,9 @@ test('equipment detail exposes build commitments and neutral replacement consequ
   await expect(detail.locator('[data-build-field="guard"]')).toContainText('軽盾の守り');
   await expect(detail.locator('[data-build-compare="weapon"]')).toContainText('両手重武器');
   await expect(detail.locator('[data-build-compare="guard"]')).toContainText('盾なし');
+  await expect(detail.locator('[data-build-compare="bag"]')).toContainText('1/20 → 2/20');
+  await expect(detail.locator('[data-build-compare="bag-items"]')).toContainText('ダガーがバッグへ戻る');
+  await expect(detail.locator('[data-build-compare="bag-items"]')).toContainText('スモールシールドがバッグへ戻る');
   await expect(detail.locator('.equip-build-comparison-note')).toContainText('確定前');
 });
 
@@ -259,6 +262,9 @@ test('medium replacement shows current MP separately from maximum MP @smoke', as
   await page.locator('.equip-bag-section .equip-item-row', { hasText: '大魔道の杖' }).click();
   await expect(page.locator('[data-build-compare="max-mp"]')).toContainText('3 → 5');
   await expect(page.locator('[data-build-compare="mp"]')).toContainText('2/3 → 2/5');
+  await expect(page.locator('[data-build-compare="bag"]')).toContainText('1/20 → 2/20');
+  await expect(page.locator('[data-build-compare="bag-items"]')).toContainText('魔術師の杖がバッグへ戻る');
+  await expect(page.locator('[data-build-compare="bag-items"]')).toContainText('socket中Rune 1個がバッグへ戻る');
   await page.getByRole('button', { name: '装備する' }).click();
   await page.locator('#btn-equip-commit').click();
   await expect.poll(() => page.evaluate(async () => {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createStartingKitCharacter, state } from "../../../src/state.js";
 import {
   createLoadoutDraft,
+  getLoadoutInventoryChanges,
   getLoadoutDraftChanges,
   isLoadoutDraftDirty,
   stageDiscardInventoryItem,
@@ -67,6 +68,11 @@ assert.equal(draft.party[0].equipment.shield, null, "2H commit projects shield r
 assert.ok(draft.inventory.includes("SMALL_SHIELD"), "removed shield is returned to the draft bag");
 assert.equal(validateLoadoutDraft(draft).ok, true);
 assert.equal(getLoadoutDraftChanges(draft).equipment.some(change => change.slot === "shield" && change.to === null), true);
+assert.deepEqual(
+  getLoadoutInventoryChanges(["CLAYMORE"], ["DAGGER", "SMALL_SHIELD"]),
+  { removed: ["CLAYMORE"], added: ["DAGGER", "SMALL_SHIELD"] },
+  "inventory projection reports returned equipment without duplicating transaction rules"
+);
 
 const fullBagCharacter = createStartingKitCharacter("vanguard");
 resetState(fullBagCharacter, Array.from({ length: 20 }, (_, index) => `item-${index}`));

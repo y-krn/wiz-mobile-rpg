@@ -30,7 +30,6 @@ import {
   EQUIPMENT_TYPE_LABELS,
   getEquipmentSlotsForType
 } from "./rules/equipment_slots.js";
-import { getEquipmentHands } from "./rules/equipment_hands.js";
 import { getDiscardRisk } from "./systems/equipment_discard.js";
 import {
   createEquipmentPreviewChar,
@@ -1382,14 +1381,28 @@ function createDetailPanel(char) {
   content.appendChild(context);
 
   let proposedChar = null;
+  let proposedDraft = null;
   if (availability.ok && !hidden && preview?.slot) {
-    proposedChar = createEquipmentPreviewChar(char);
-    proposedChar.equipment[preview.slot] = isEquipped ? null : itemKey;
-    if (!isEquipped && preview.slot === "weapon" && getEquipmentHands(itemKey) === 2) {
-      proposedChar.equipment.shield = null;
+    const projection = isEquipped
+      ? stageUnequip(equipState.draft, {
+        actorIdx: equipState.actorIdx,
+        slot: equipState.selectedSlot
+      })
+      : stageEquip(equipState.draft, {
+        actorIdx: equipState.actorIdx,
+        inventoryIndex: equipState.selectedIdx,
+        requestedSlot: preview.slot
+      });
+    if (projection.ok) {
+      proposedDraft = projection.draft;
+      proposedChar = createEquipmentPreviewChar(proposedDraft.party[equipState.actorIdx]);
     }
   }
-  content.appendChild(createBuildCommitmentPanel(char, { proposedChar }));
+  content.appendChild(createBuildCommitmentPanel(char, {
+    proposedChar,
+    currentDraft: equipState.draft,
+    proposedDraft
+  }));
 
   const knowledge = document.createElement("div");
   knowledge.className = "equip-knowledge-status";

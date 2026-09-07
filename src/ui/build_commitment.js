@@ -5,8 +5,13 @@ import { getCharAttackBreakdown, getCharDef, getCharMaxHp, getCharMaxMp } from "
 import { getGuardProfile } from "../rules/guard_rules.js";
 import { EQUIPMENT_SLOTS } from "../rules/equipment_slots.js";
 import { getCharacterEquipmentHands, MAX_EQUIPMENT_HANDS } from "../rules/equipment_hands.js";
-import { getActiveRuneSpellKeys, getEquippedMedium } from "../rules/magic_rules.js";
+import {
+  getActiveRuneSpellKeys,
+  getEquippedMedium,
+  getRuneSpellKey
+} from "../rules/magic_rules.js";
 import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
+import { getLoadoutInventoryChanges } from "../rules/loadout_transaction.js";
 
 const EXPLORATION_SUPPORT_IDS = new Set([
   "trapBonus", "trapGuard", "treasureSense", "arcaneSense", "hearRange", "traceRead",
@@ -50,6 +55,15 @@ function getKnownBuildAffixes(char) {
 
 function getRuneNames(char) {
   return getActiveRuneSpellKeys(char).map(spellKey => SPELLS[spellKey]?.name || spellKey);
+}
+
+function getReturnedItemSummary(items) {
+  const runes = items.filter(item => getRuneSpellKey(item));
+  const equipment = items.filter(item => !getRuneSpellKey(item));
+  const parts = [];
+  if (runes.length > 0) parts.push(`socket中Rune ${runes.length}個がバッグへ戻る`);
+  equipment.forEach(item => parts.push(`${getItemName(item)}がバッグへ戻る`));
+  return parts.join(" / ") || "なし";
 }
 
 export function getBuildCommitment(char) {
@@ -120,11 +134,14 @@ function appendComparisonRow(container, label, current, next, key) {
   container.appendChild(row);
 }
 
-export function createBuildCommitmentPanel(char, { proposedChar = null } = {}) {
+export function createBuildCommitmentPanel(
+  char,
+  { proposedChar = null, currentDraft = null, proposedDraft = null } = {}
+) {
   const current = getBuildCommitment(char);
   const panel = document.createElement("section");
   panel.className = "equip-build-commitment";
-  panel.setAttribute("aria-label", proposedChar ? "現在の構成と交換後の差分" : "現在の装備構成");
+  panel.setAttribute("aria-label", proposedDraft ? "現在の構成と交換後の差分" : "現在の装備構成");
 
   const heading = document.createElement("h3");
   heading.className = "equip-build-heading";
@@ -143,13 +160,14 @@ export function createBuildCommitmentPanel(char, { proposedChar = null } = {}) {
   appendBuildRow(currentGrid, "Medium", current.medium, "medium");
   appendBuildRow(currentGrid, "Rune slot", current.runeSlots, "rune-slots");
   appendBuildRow(currentGrid, "active Rune", current.activeRunes, "active-runes");
+  if (currentDraft) appendBuildRow(currentGrid, "バッグ", `${currentDraft.inventory.length}/20`, "bag");
   appendBuildRow(currentGrid, "Main-axis Core", current.mainCores, "main-cores");
   appendBuildRow(currentGrid, "Auxiliary Core", current.auxiliaryCores, "auxiliary-cores");
   appendBuildRow(currentGrid, "Support", current.support, "support");
   appendBuildRow(currentGrid, "探索 Support", current.explorationSupport, "exploration-support");
   panel.appendChild(currentGrid);
 
-  if (proposedChar) {
+  if (proposedChar && proposedDraft && currentDraft) {
     const comparisonHeading = document.createElement("h4");
     comparisonHeading.className = "equip-build-comparison-heading";
     comparisonHeading.textContent = "この交換で変わること";
@@ -168,6 +186,21 @@ export function createBuildCommitmentPanel(char, { proposedChar = null } = {}) {
     appendComparisonRow(comparison, "最大MP", current.maxMp, next.maxMp, "max-mp");
     appendComparisonRow(comparison, "Rune slot", current.runeSlots, next.runeSlots, "rune-slots");
     appendComparisonRow(comparison, "active Rune", current.activeRunes, next.activeRunes, "active-runes");
+    const inventoryChanges = getLoadoutInventoryChanges(currentDraft.inventory, proposedDraft.inventory);
+    appendComparisonRow(
+      comparison,
+      "バッグ",
+      `${currentDraft.inventory.length}/20`,
+      `${proposedDraft.inventory.length}/20`,
+      "bag"
+    );
+    appendComparisonRow(
+      comparison,
+      "バッグへ戻る",
+      "なし",
+      getReturnedItemSummary(inventoryChanges.added),
+      "bag-items"
+    );
     appendComparisonRow(comparison, "Main-axis Core", current.mainCores, next.mainCores, "main-cores");
     appendComparisonRow(comparison, "Auxiliary Core", current.auxiliaryCores, next.auxiliaryCores, "auxiliary-cores");
     appendComparisonRow(comparison, "Support", current.support, next.support, "support");
