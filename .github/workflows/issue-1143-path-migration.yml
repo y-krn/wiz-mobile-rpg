@@ -60,7 +60,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/issue-1143-path-migration.yml
+          git rm -f .github/workflows/issue-1143-path-migration.yml
           git add tests/node .agents scripts .github package.json eslint.config.js scratch/README.md tests/README.md
           git commit -m "fix(tests): rewrite paths after ownership move (#1143)"
           git push origin HEAD:codex/issue-1143
