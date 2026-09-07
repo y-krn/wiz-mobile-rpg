@@ -1076,11 +1076,22 @@
   grid-template-columns: 1fr;
 }
 
-.equip-transaction-actions {
+.bottom-actions-row.equip-transaction-actions {
   align-items: stretch;
   display: grid;
-  gap: var(--sp-xs);
+  gap: var(--sp-lg);
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.equip-transaction-actions > .equip-organize-entry {
+  grid-column: 1 / -1;
+}
+
+.equip-transaction-actions > .equip-action-btn,
+.equip-transaction-actions > #btn-equip-close {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .equip-transaction-status {

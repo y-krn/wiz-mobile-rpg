@@ -67,6 +67,80 @@ test('canceling a dirty loadout draft leaves the live run untouched @smoke', asy
   })).toEqual({ weapon: 'DAGGER', inventory: ['SHORT_SWORD'], steps: 4 });
 });
 
+test('equipment transaction actions stay separated and thumb-safe across mobile widths @e2e @smoke', async ({ page }) => {
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 360, height: 800 },
+    { width: 390, height: 844 },
+    { width: 430, height: 932 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      const character = createStartingKitCharacter('vanguard');
+      character.equipment.weapon = 'DAGGER';
+      state.party = [character];
+      state.inventory = [{
+        kind: 'equipment', instanceId: 'touch-target-sword', baseId: 'SHORT_SWORD',
+        rarity: 'rare', level: 1, identified: true, affixes: [],
+      }];
+      state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'touch-target-ui' };
+      state.gameState = 'explore';
+      openEquipOverlay(0);
+    });
+
+    await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
+    await page.getByRole('button', { name: '装備する' }).click();
+
+    const actionButtons = {
+      organize: page.locator('.equip-transaction-actions .equip-organize-entry'),
+      cancel: page.locator('#btn-equip-close'),
+      commit: page.locator('#btn-equip-commit'),
+    };
+    const boxes = {};
+    for (const [name, button] of Object.entries(actionButtons)) {
+      await expect(button).toBeVisible();
+      const box = await button.boundingBox();
+      expect(box, `${name} should have a rendered bounding box at ${viewport.width}px`).not.toBeNull();
+      boxes[name] = {
+        ...box,
+        left: box.x,
+        top: box.y,
+        right: box.x + box.width,
+        bottom: box.y + box.height,
+      };
+      expect(boxes[name].height, `${name} should meet the 44px touch target at ${viewport.width}px`).toBeGreaterThanOrEqual(44);
+      expect(boxes[name].left).toBeGreaterThanOrEqual(0);
+      expect(boxes[name].right).toBeLessThanOrEqual(viewport.width);
+    }
+
+    expect(boxes.organize.bottom).toBeLessThanOrEqual(boxes.cancel.top - 11);
+    expect(boxes.cancel.right).toBeLessThanOrEqual(boxes.commit.left - 11);
+    expect(boxes.cancel.top).toBe(boxes.commit.top);
+
+    const commitBeforeDisabled = { ...boxes.commit };
+    await actionButtons.commit.evaluate((button) => { button.disabled = true; });
+    const commitAfterDisabled = await actionButtons.commit.boundingBox();
+    expect(commitAfterDisabled).toEqual({
+      x: commitBeforeDisabled.x,
+      y: commitBeforeDisabled.y,
+      width: commitBeforeDisabled.width,
+      height: commitBeforeDisabled.height,
+    });
+
+    const layout = await page.locator('.equip-transaction-actions').evaluate((row) => ({
+      scrollWidth: row.scrollWidth,
+      clientWidth: row.clientWidth,
+      scrollHeight: row.scrollHeight,
+      clientHeight: row.clientHeight,
+    }));
+    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
+    expect(layout.scrollHeight).toBeGreaterThan(0);
+  }
+});
+
 test('unknown equipment uses an explicit irreversible trial action @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
