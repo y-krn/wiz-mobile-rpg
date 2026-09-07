@@ -1,0 +1,92 @@
+name: Starting kit early-run diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to measure"
+        required: false
+        default: "main"
+        type: string
+      starting_kit:
+        description: "Starting kit input axis"
+        required: true
+        default: "vanguard"
+        type: choice
+        options:
+          - vanguard
+          - scout
+          - devotion
+          - arcana
+      runs:
+        description: "B1F diagnostic runs (minimum 1000)"
+        required: false
+        default: "1000"
+        type: string
+      policy:
+        description: "Diagnostic combat policy"
+        required: true
+        default: "fight"
+        type: choice
+        options:
+          - fight
+          - flee-threshold
+          - early-danger-flee
+      flee_hp_threshold:
+        description: "HP ratio for flee-threshold policy"
+        required: false
+        default: "0.20"
+        type: string
+      purpose:
+        description: "Why this measurement is being requested"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run starting kit B1F diagnostic
+        env:
+          MEASUREMENT_REPOSITORY: ${{ github.repository }}
+          MEASUREMENT_REQUESTED_REF: ${{ inputs.ref }}
+          MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          mkdir -p /tmp/starting-kit-diagnostic
+          node scratch/measurements/issue1139_starting_kit_diagnostic.js \
+            --ref "${{ inputs.ref }}" \
+            --starting-kit "${{ inputs.starting_kit }}" \
+            --runs "${{ inputs.runs }}" \
+            --policy "${{ inputs.policy }}" \
+            --flee-hp-threshold "${{ inputs.flee_hp_threshold }}" \
+            --purpose "${{ inputs.purpose }}" \
+            --output /tmp/starting-kit-diagnostic/report.json \
+            --summary /tmp/starting-kit-diagnostic/summary.md \
+            --manifest /tmp/starting-kit-diagnostic/manifest.json
+      - name: Publish diagnostic summary
+        if: always()
+        run: cat /tmp/starting-kit-diagnostic/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload diagnostic artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starting-kit-early-run-diagnostic-${{ github.run_id }}
+          path: |
+            /tmp/starting-kit-diagnostic/report.json
+            /tmp/starting-kit-diagnostic/summary.md
+            /tmp/starting-kit-diagnostic/manifest.json
+          if-no-files-found: error
+          retention-days: 90

@@ -30,6 +30,7 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: "scratch/measurements/issue1012_observability.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue1096_build_payment.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue1100_build_payment_stake.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/measurements/issue1139_starting_kit_diagnostic.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue1078_loot_supply.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_balance.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_camp_recovery.js", lifecycle: "historical", scope: "formula" },
