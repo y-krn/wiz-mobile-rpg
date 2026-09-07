@@ -4329,7 +4329,9 @@ function createSimulationState(
     startingGearCandidatesOverride: scenario.startingGearCandidatesOverride,
     startingGearChoice: scenario.startingGearChoice
   };
-  equipBestWorkshopStartingGear(character, workshop, startingGearConfig);
+  if (!buildFixtureId) {
+    equipBestWorkshopStartingGear(character, workshop, startingGearConfig);
+  }
   const finalWeaponId = character.equipment.weapon;
   const bleedingAffixValue = Number(scenario.bleedingAffixValue);
   if (Number.isFinite(bleedingAffixValue) && bleedingAffixValue > 0) {
@@ -12806,12 +12808,17 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       }
     };
   }
+  const endingBuildSnapshot = resolveBuildSnapshot(state.party[0]);
+  metrics.buildSnapshot = endingBuildSnapshot;
   return {
     ...(state.currentRun.buildFixtureId
       ? { buildId: state.currentRun.buildFixtureId }
       : { className: state.currentRun.characterClass }),
     fixtureId: state.currentRun.buildFixtureId || null,
-    buildSnapshot: structuredClone(metrics.buildSnapshot),
+    startingBuildSnapshot: metrics.startingBuildSnapshot
+      ? structuredClone(metrics.startingBuildSnapshot)
+      : null,
+    endingBuildSnapshot: structuredClone(endingBuildSnapshot),
     objectLootSettlement,
     survived: outcome === "retreat",
     died: outcome === "death",
@@ -13894,11 +13901,9 @@ export function simulateRun({
   }
   state.simTelemetry = metrics.killHeal;
   metrics.buildSnapshot = resolveBuildSnapshot(state.party[0]);
-  metrics.startingBuildSnapshot = createBuildSnapshot(
-    state,
-    scoringProfile,
-    "starting-build"
-  );
+  metrics.startingBuildSnapshot = fixtureId
+    ? resolveBuildSnapshot(state.party[0])
+    : createBuildSnapshot(state, scoringProfile, "starting-build");
   state.simStartingInventory.forEach(item => recordConsumableAcquisition(metrics, item));
   state.simDepartureCraftItems.forEach(item => recordConsumableAcquisition(metrics, item));
 
@@ -15374,6 +15379,22 @@ function finalizeBuildPaymentAggregate(aggregate) {
   };
 }
 
+function createEndingBuildSnapshotDistribution() {
+  return { runs: 0, byIdentity: {} };
+}
+
+function addEndingBuildSnapshot(distribution, snapshot, fixtureId) {
+  if (!snapshot?.identity) {
+    throw new Error(`missing ending Build Snapshot identity: ${fixtureId}`);
+  }
+  distribution.runs++;
+  const entry = distribution.byIdentity[snapshot.identity] ||= {
+    count: 0,
+    snapshot: structuredClone(snapshot)
+  };
+  entry.count++;
+}
+
 function simulateCase({
   startFloor,
   targetDepth,
@@ -15388,7 +15409,10 @@ function simulateCase({
   const totals = {
     axisType: fixtureIds ? "build-fixture" : "class",
     fixtureIds: fixtureIds ? [...fixtureIds] : null,
-    buildSnapshotsByFixtureId: {},
+    startingBuildSnapshotsByFixtureId: {},
+    endingBuildSnapshotDistributionByFixtureId: Object.fromEntries(
+      axisIds.map(axisId => [axisId, createEndingBuildSnapshotDistribution()])
+    ),
     survived: 0,
     died: 0,
     outcomeCounts: { retreat: 0, death: 0, abandon: 0 },
@@ -15692,8 +15716,21 @@ function simulateCase({
     if (scenario.departureCraftMeasurement) {
       departureCraftBanksByAxis[axisId] = { ...result.metaMaterials };
     }
-    if (fixtureId && result.buildSnapshot) {
-      totals.buildSnapshotsByFixtureId[fixtureId] ||= structuredClone(result.buildSnapshot);
+    if (fixtureId) {
+      const startingSnapshot = result.startingBuildSnapshot;
+      if (!startingSnapshot?.identity) {
+        throw new Error(`missing starting Build Snapshot: ${fixtureId}`);
+      }
+      const existingStartingSnapshot = totals.startingBuildSnapshotsByFixtureId[fixtureId];
+      if (existingStartingSnapshot && existingStartingSnapshot.identity !== startingSnapshot.identity) {
+        throw new Error(`starting Build Snapshot changed for fixture: ${fixtureId}`);
+      }
+      totals.startingBuildSnapshotsByFixtureId[fixtureId] ||= structuredClone(startingSnapshot);
+      addEndingBuildSnapshot(
+        totals.endingBuildSnapshotDistributionByFixtureId[fixtureId],
+        result.endingBuildSnapshot,
+        fixtureId
+      );
     }
     addBuildPaymentRunAggregate(totals.buildPayment, result.buildPayment);
     addSpellUsageAggregate(totals.spellUsage, result);
@@ -16089,7 +16126,21 @@ function simulateCase({
   return {
     axisType: totals.axisType,
     fixtureIds: totals.fixtureIds,
-    buildSnapshotsByFixtureId: totals.buildSnapshotsByFixtureId,
+    startingBuildSnapshotsByFixtureId: totals.startingBuildSnapshotsByFixtureId,
+    endingBuildSnapshotDistributionByFixtureId:
+      Object.fromEntries(Object.entries(totals.endingBuildSnapshotDistributionByFixtureId).map(([
+        fixtureId,
+        distribution
+      ]) => [fixtureId, {
+        runs: distribution.runs,
+        byIdentity: Object.fromEntries(Object.entries(distribution.byIdentity).map(([
+          identity,
+          entry
+        ]) => [identity, {
+          count: entry.count,
+          snapshot: structuredClone(entry.snapshot)
+        }]))
+      }])),
     buildPayment: finalizeBuildPaymentAggregate(totals.buildPayment),
     label,
     startFloor,

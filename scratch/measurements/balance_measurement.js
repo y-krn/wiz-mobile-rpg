@@ -220,6 +220,9 @@ function summarizeFixtureDepths(config, fixtureResult) {
       averageMaterialConsumed: resourceResult.averageMaterialConsumed,
       bankedMaterialEv: resourceResult.bankedMaterialEv,
       materialEvPerTime: resourceResult.materialEvPerTime,
+      endingBuildSnapshotDistribution: fixtureResult.fixtureId
+        ? resourceResult.endingBuildSnapshotDistributionByFixtureId?.[fixtureResult.fixtureId] || null
+        : null,
       diagnostics: resourceResult.runDiagnostics
     }];
   }));
@@ -348,17 +351,17 @@ export function summarizeSimulationResults({ config, provenance, scenarioResults
       fixtureId: fixtureResult.fixtureId,
       depths: summarizeFixtureDepths(config, fixtureResult)
     }));
-    const fixtureSnapshots = fixtureResults
+    const startingBuildSnapshotsByFixtureId = fixtureResults
       ? Object.fromEntries(fixtureResults.map(({ fixtureId, results: fixtureRunResults }) => [
           fixtureId,
-          fixtureRunResults.find(result => result.buildSnapshotsByFixtureId)
-            ?.buildSnapshotsByFixtureId?.[fixtureId] || null
+          fixtureRunResults.find(result => result.startingBuildSnapshotsByFixtureId)
+            ?.startingBuildSnapshotsByFixtureId?.[fixtureId] || null
         ]))
       : null;
     return {
       scenarioId,
       targetDepths: config.targetDepths,
-      ...(fixtureResults ? { fixtureSnapshots } : {}),
+      ...(fixtureResults ? { startingBuildSnapshotsByFixtureId } : {}),
       depths: config.targetDepths.map(depth => {
         const depthByFixture = Object.fromEntries(
           summarizedByFixture.map(({ fixtureId, depths }) => [fixtureId || "overall", depths[depth]])
@@ -377,6 +380,12 @@ export function summarizeSimulationResults({ config, provenance, scenarioResults
                 ),
                 diagnosticsByFixtureId: Object.fromEntries(
                   summarizedByFixture.map(({ fixtureId, depths }) => [fixtureId, depths[depth].diagnostics])
+                ),
+                endingBuildSnapshotDistributionByFixtureId: Object.fromEntries(
+                  summarizedByFixture.map(({ fixtureId, depths }) => [
+                    fixtureId,
+                    depths[depth].endingBuildSnapshotDistribution
+                  ])
                 )
               }
             : {

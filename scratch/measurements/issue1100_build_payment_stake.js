@@ -124,7 +124,9 @@ function buildCase(task, taskResult, targetDepth) {
     workshop: result.workshop,
     targetDepth,
     runs: result.buildPayment.runs,
-    buildSnapshot: result.buildSnapshotsByFixtureId?.[fixtureId] || null,
+    startingBuildSnapshot: result.startingBuildSnapshotsByFixtureId?.[fixtureId] || null,
+    endingBuildSnapshotDistribution:
+      result.endingBuildSnapshotDistributionByFixtureId?.[fixtureId] || null,
     outcome: {
       outcomeDistribution: { ...result.outcomeCounts },
       deathCauseDistribution: result.runDiagnostics?.deathCauseDistribution || {},
@@ -239,6 +241,18 @@ export function validateIssue1100Report(report) {
     const outcomeCount = Object.values(measuredCase.outcome?.outcomeDistribution || {})
       .reduce((sum, count) => sum + count, 0);
     if (outcomeCount !== config.runs) throw new Error("issue #1100 outcome count mismatch");
+    if (!measuredCase.startingBuildSnapshot?.identity) {
+      throw new Error("issue #1100 starting Build Snapshot is missing");
+    }
+    const endingSnapshots = measuredCase.endingBuildSnapshotDistribution;
+    if (!endingSnapshots || endingSnapshots.runs !== config.runs) {
+      throw new Error("issue #1100 ending Build Snapshot distribution N mismatch");
+    }
+    const endingSnapshotCount = Object.values(endingSnapshots.byIdentity || {})
+      .reduce((sum, entry) => sum + (entry.count || 0), 0);
+    if (endingSnapshotCount !== config.runs) {
+      throw new Error("issue #1100 ending Build Snapshot identity counts mismatch");
+    }
     distributions.forEach(path => {
       const value = path.split(".").reduce((current, key) => current?.[key], measuredCase.payment);
       if (!value || value.n !== config.runs) {
