@@ -389,6 +389,15 @@
   color: var(--neon-purple); /* 探索の気配はパープル */
 }
 
+/* Presentation semantic wins over actor/source side for damage direction. */
+.log-entry.damage-dealt {
+  color: var(--neon-cyan);
+}
+
+.log-entry.damage-taken {
+  color: var(--neon-red);
+}
+
 /* Accessibility Text HUD for dungeons */
 #viewport-hud {
   position: absolute;

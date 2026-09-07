@@ -1,4 +1,11 @@
 // balance-impact: none — combat result presentation only; resolution remains in combat_logic.
+import {
+  COMBAT_LOG_PRESENTATION_KINDS,
+  normalizeCombatLogPresentationKind,
+  mergeCombatLogPresentationKinds
+} from "../combat_log_semantics.js";
+
+export { COMBAT_LOG_PRESENTATION_KINDS };
 export const COMBAT_LOG_DELAYS = Object.freeze({
   normal: 500,
   important: 850,
@@ -38,9 +45,19 @@ function normalizeCombatLogEntry(entry) {
   const normalizedSide = Object.values(COMBAT_LOG_SIDES).includes(entry?.side)
     ? entry.side
     : getCombatLogSide(entry?.msg);
+  const hasExplicitPresentationKind = Object.values(COMBAT_LOG_PRESENTATION_KINDS)
+    .includes(entry?.presentationKind);
+  const presentationKind = hasExplicitPresentationKind
+    ? normalizeCombatLogPresentationKind(entry.presentationKind)
+    : normalizedSide === COMBAT_LOG_SIDES.ALLY
+      ? COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT
+      : normalizedSide === COMBAT_LOG_SIDES.ENEMY
+        ? COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+        : COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL;
   return {
     ...entry,
-    side: normalizedSide
+    side: normalizedSide,
+    presentationKind
   };
 }
 
@@ -71,13 +88,18 @@ function stripPresentationMarkers(message) {
     .replace(/\s+$/, "");
 }
 
-export function formatCombatLogMessage(message, side = COMBAT_LOG_SIDES.NEUTRAL) {
+export function formatCombatLogMessage(message, semantic = COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL) {
   if (typeof message !== "string") return message;
   let text = stripPresentationMarkers(message);
+  const presentationKind = semantic === COMBAT_LOG_SIDES.ALLY
+    ? COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT
+    : semantic === COMBAT_LOG_SIDES.ENEMY
+      ? COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+      : normalizeCombatLogPresentationKind(semantic);
 
-  if (side === COMBAT_LOG_SIDES.ALLY) {
+  if (presentationKind === COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT) {
     text = text.replace(/^(.+?)の攻撃！(.+?)に(\d+)のダメージ[。！]$/, "$2に一撃を加えた。$3ダメージ。");
-  } else if (side === COMBAT_LOG_SIDES.ENEMY) {
+  } else if (presentationKind === COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN) {
     text = text.replace(/^(.+?)の攻撃！(.+?)に(\d+)のダメージ[。！]$/, "$1の一撃を受けた。$3ダメージ。");
   }
 
@@ -93,6 +115,7 @@ function mergeEntries(entries) {
     .filter(Boolean);
   if (messages.length > 0) merged.msg = messages.join(" ");
   merged.side = mergeCombatLogSides(normalizedEntries);
+  merged.presentationKind = mergeCombatLogPresentationKinds(normalizedEntries);
   normalizedEntries.slice(1).forEach(entry => {
     ["runEscape", "escapeToTown", "fleeCombat", "milestoneVictory", "giveKey", "triggerChest", "endCombat"]
       .forEach(flag => {

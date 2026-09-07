@@ -198,3 +198,34 @@ test('combat damage entries retain side semantics after wording is shortened', a
   ]);
   expect(result.every(entry => !entry.text.includes('[味方]') && !entry.text.includes('[敵]'))).toBe(true);
 });
+
+test('poison and reflection damage keep player-facing direction in the Event Strip', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const { state, addLog } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    state.logs = [];
+    addLog('毒のダメージ！コボルトの斥候は3のダメージを受けた。', {
+      side: 'enemy',
+      presentationKind: 'damage-dealt',
+    });
+    addLog('毒のダメージ！冒険者は2のダメージを受けた。', {
+      side: 'ally',
+      presentationKind: 'damage-taken',
+    });
+    addLog('コボルトの棘が冒険者に1の反射ダメージを与えた！', {
+      side: 'enemy',
+      presentationKind: 'damage-taken',
+    });
+    updateUI();
+    return Array.from(document.querySelectorAll('#log-content .log-entry')).map(entry => ({
+      text: entry.textContent.replace(/^(?:直近|結果|未解決)/, ''),
+      classes: Array.from(entry.classList),
+    }));
+  });
+
+  expect(result[0].classes).toEqual(expect.arrayContaining(['enemy', 'damage-dealt']));
+  expect(result[1].classes).toEqual(expect.arrayContaining(['ally', 'damage-taken']));
+  expect(result[2].classes).toEqual(expect.arrayContaining(['enemy', 'damage-taken']));
+  expect(result.every(entry => !entry.text.includes('[味方]') && !entry.text.includes('[敵]'))).toBe(true);
+});

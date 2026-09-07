@@ -10,6 +10,7 @@ import {
 import { consumeVulnerableDamage } from "./vulnerable.js";
 import { getSpellPayment, paySpellCost } from "../rules/affix_rules.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
+import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 
 /**
  * Resolves player spell casting logic.
@@ -40,6 +41,7 @@ function applyReflectionDamage(char, state, sources, logQueue) {
     : `${sources.map(source => source.name).join("、")}は呪文を反射した！`;
   logQueue.push({
     msg: `[ 敵 ] ${sourceText}${char.name}に${total}の反射ダメージ！`,
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN,
     sound: "cast_spell",
     shake: 8,
     floatText: `${total}`,
@@ -135,6 +137,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       : "";
     logQueue.push({
       msg: `[味方] ${result.log}${vulnerableSuffix}${wakeSuffix}`,
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT,
       sound: "hit",
       shake: 12,
       floatText: `${resolvedDamage}`,
@@ -207,6 +210,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
     const wakeSuffix = wokeNames.length > 0 ? ` ${wokeNames.join("、")}は目を覚ました！` : "";
     logQueue.push({
       msg: `[味方] ${result.log}${vulnerableBonuses.length > 0 ? `（脆弱：${vulnerableBonuses.join("、")}）` : ""}${wakeSuffix}`,
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT,
       sound: "cast_spell",
       shake: 15,
       flash: true
@@ -240,6 +244,9 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
     }
     logQueue.push({
       msg: `[味方] ${result.log}`,
+      presentationKind: result.heal
+        ? COMBAT_LOG_PRESENTATION_KINDS.HEALING
+        : COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD,
       sound: "heal",
       floatText,
       floatColor: "#00ff66"
@@ -249,6 +256,9 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
     const floatText = spell.name === "MADI" ? (result.heal ? `+${result.heal}` : "HEAL") : "BARRIER";
     logQueue.push({
       msg: `[味方] ${result.log}`,
+      presentationKind: spell.name === "MADI"
+        ? COMBAT_LOG_PRESENTATION_KINDS.HEALING
+        : COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD,
       sound: "heal",
       floatText,
       floatColor: "#00ff66"

@@ -1,4 +1,5 @@
 import { state, getLogEntries } from "../state.js";
+import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 import { getIsMuted } from "../audio.js";
 import { menuContext } from "../navigation.js";
 import { renderEquip } from "../equip.js";
@@ -116,8 +117,9 @@ function flattenLogLines(logs) {
   logs.forEach(log => {
     const text = typeof log === "object" && log !== null ? String(log.text ?? "") : String(log ?? "");
     const side = log?.side || "neutral";
+    const presentationKind = log?.presentationKind || COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL;
     text.split("\n").forEach(line => {
-      if (line) lines.push({ text: line, side });
+      if (line) lines.push({ text: line, side, presentationKind });
     });
   });
   return lines;
@@ -127,6 +129,7 @@ function flattenLogLines(logs) {
 function createLogEntry(lineData) {
   const line = typeof lineData === "object" && lineData !== null ? String(lineData.text ?? "") : String(lineData ?? "");
   const side = lineData?.side || "neutral";
+  const presentationKind = lineData?.presentationKind || COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL;
   const entry = document.createElement("div");
   entry.className = "log-entry";
   const isDamage = line.includes("ダメージ") || line.includes("倒れた") || line.includes("力尽きた") || line.includes("失敗");
@@ -150,6 +153,13 @@ function createLogEntry(lineData) {
     entry.classList.add("info");
   } else if (line.includes("【気配】")) {
     entry.classList.add("aura");
+  }
+  if (presentationKind === COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT) {
+    entry.classList.add("damage-dealt");
+  } else if (presentationKind === COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN) {
+    entry.classList.add("damage-taken");
+  } else if (presentationKind === COMBAT_LOG_PRESENTATION_KINDS.HEALING) {
+    entry.classList.add("heal");
   }
   entry.textContent = line;
   return entry;
@@ -385,8 +395,8 @@ export function updateUI() {
     transientLimit: RECENT_LOG_LINES - 4,
     activeObservations: state.currentRun?.eventObservations
   });
-  const appendEventEntry = ({ kind, text, side }) => {
-    const entry = createLogEntry({ text, side });
+  const appendEventEntry = ({ kind, text, side, presentationKind }) => {
+    const entry = createLogEntry({ text, side, presentationKind });
     entry.classList.add("event-strip-item", `event-strip-item--${kind}`);
     if (entry.dataset) entry.dataset.eventKind = kind;
     const label = document.createElement("span");

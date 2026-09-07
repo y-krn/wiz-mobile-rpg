@@ -68,6 +68,7 @@ import {
   recordMonsterCondition
 } from "../state.js";
 import { trackBleedingEvent } from "../telemetry.js";
+import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 
 import { resolveBossAction } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
@@ -147,6 +148,7 @@ function tryApplyBleeding(char, target, state, logQueue) {
     msg: alreadyBleeding
       ? `[味方] ${char.name}の裂傷が${target.name}の出血を更新した！（あと${BLEEDING_DURATION_TURNS}回）`
       : `[味方] [!] ${target.name}は出血した！（あと${BLEEDING_DURATION_TURNS}回、次の通常攻撃で追加ダメージ）`,
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD,
     sound: "hit",
     bleeding: event
   });
@@ -377,6 +379,7 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   const recovered = wakeSleepingCharOnDamage(target);
   logQueue.push({
     msg: `[ 敵 ] ${attacker.name}の追撃！${target.name}は${dmg}のダメージを受けた。${recovered ? `${target.name}は状態異常から回復した！` : ""}`,
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN,
     sound: "hit",
     shake: 8,
     floatText: `${dmg}`,
@@ -698,6 +701,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 applyStatusEffect(finalTarget, STATUS_EFFECT_IDS.POISONED, { source: "poisonAtk" });
                 logQueue.push({
                   msg: `[味方] [!] ${char.name}の攻撃により、${finalTarget.name}は毒に侵された！`,
+                  presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD,
                   sound: "poison"
                 });
               }
@@ -719,6 +723,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             wakeSleepingCharOnDamage(char);
             logQueue.push({
               msg: `[ 敵 ] ${finalTarget.name}の棘が${char.name}に${reflected}の反射ダメージを与えた！`,
+              presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN,
               sound: "hit",
               floatText: `${reflected}`,
               floatColor: "#ff3b30"
@@ -742,6 +747,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             wakeSleepingCharOnDamage(char);
             logQueue.push({
               msg: `[ 敵 ] ${finalTarget.name}はハリトで反撃した！${char.name}に${counterDmg}の炎ダメージ！`,
+              presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN,
               sound: "cast_spell",
               floatText: `${counterDmg}`,
               floatColor: "#ff3b30"
@@ -787,6 +793,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const wakeSuffix = wakeSleepingMonsterOnDamage(finalTarget) ? `${finalTarget.name}は目を覚ました！` : "";
               logQueue.push({
                 msg: `[味方] 【🗡️追撃】${char.name}の素早い追加攻撃！${finalTarget.name}に${followUpDmg}のダメージ。${wakeSuffix}`,
+                presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT,
                 sound: "hit",
                 shake: 4,
                 floatText: `${followUpDmg}`,
@@ -798,6 +805,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         
         logQueue.push({
           msg,
+          presentationKind: isBlindMiss
+            ? COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
+            : COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT,
           sound,
           shake,
           floatText,
@@ -1187,7 +1197,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                   isDefending
                 });
                 wakeSleepingCharOnDamage(c);
-                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}` });
+                logQueue.push({
+                  msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}`,
+                  presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+                });
                 if (c.hp === 0) {
                   c.status = "dead";
                   const deathLog = recordCharDeath(state, c, `${mon.name}のラハリト`, { type: "combat", source: mon.name });
@@ -1237,7 +1250,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                   isDefending
                 });
                 wakeSleepingCharOnDamage(c);
-                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(軽減)" : ""}` });
+                logQueue.push({
+                  msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(軽減)" : ""}`,
+                  presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+                });
                 if (c.hp === 0) {
                   c.status = "dead";
                   const deathLog = recordCharDeath(state, c, `${mon.name}のマダルト`, { type: "combat", source: mon.name });
@@ -1278,6 +1294,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           wakeSleepingCharOnDamage(target);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${isDefending ? "(軽減)" : ""}`,
+            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN,
             sound: "cast_spell",
             shake: 8,
             floatText: `${dmg}`,
@@ -1314,7 +1331,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 isDefending
               });
               wakeSleepingCharOnDamage(c);
-              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(軽減)" : ""}` });
+              logQueue.push({
+                msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(軽減)" : ""}`,
+                presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+              });
               if (c.hp === 0) {
                 c.status = "dead";
                 const deathLog = recordCharDeath(state, c, `${mon.name}のティルトウェイト`, { type: "combat", source: mon.name });
@@ -1413,6 +1433,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           
           logQueue.push({
             msg: `${attackMsg}${wakeSuffix}`,
+            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN,
             sound: "hit",
             shake: statusPayoff || isSnipeAttack ? 12 : 8,
             floatText: `${dmg}`,
@@ -1573,6 +1594,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         m.hp = Math.max(0, m.hp - pDmg);
         logQueue.push({
           msg: `[ 敵 ] [!] 毒のダメージ！${m.name}は${pDmg}のダメージを受けた。`,
+          presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT,
           sound: "hit",
           floatText: `${pDmg}`,
           floatColor: "#ff3b30"
@@ -1580,7 +1602,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         if (m.hp === 0) {
           clearBleedingOnDefeat(state, m, "defeat");
           clearCombatVulnerableOnDefeat(state, m, "defeat");
-          logQueue.push({ msg: `[味方] [!] ${m.name}を毒で倒した！` });
+          logQueue.push({
+            msg: `[味方] [!] ${m.name}を毒で倒した！`,
+            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT
+          });
           processMonsterDefeat(monsters, m, logQueue);
         }
       }
@@ -1612,6 +1637,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         });
         logQueue.push({
           msg: `[味方] [!] 毒のダメージ！${c.name}は${pDmg}のダメージを受けた。`,
+          presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN,
           sound: "hit",
           floatText: `${pDmg}`,
           floatColor: "#ff3b30"
@@ -1620,7 +1646,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           c.status = "dead";
           const deathLog = recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
           queueCharDeathLog(logQueue, deathLog);
-          logQueue.push({ msg: `[味方] [!] ${c.name}は毒で力尽きた！` });
+          logQueue.push({
+            msg: `[味方] [!] ${c.name}は毒で力尽きた！`,
+            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+          });
         }
       }
     });
