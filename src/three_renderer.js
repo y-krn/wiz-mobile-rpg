@@ -21,7 +21,6 @@ import {
   Vector2,
   WebGLRenderer
 } from "three";
-import { EVENT_TYPES } from "./data.js";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 
 const VIEW_W = 400;
@@ -43,8 +42,12 @@ function hexColor(value, fallback = "#0c0c0e") {
 function disposeObject(object) {
   object.traverse((child) => {
     child.geometry?.dispose();
-    if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose());
-    else child.material?.dispose();
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    materials.filter(Boolean).forEach((material) => {
+      material.map?.dispose();
+      material.alphaMap?.dispose();
+      material.dispose();
+    });
   });
 }
 
@@ -58,20 +61,6 @@ function getSceneInput(input) {
 
 function getLivingMonsters(input) {
   return input.combatMonsters.filter((monster) => monster && monster.hp > 0);
-}
-
-function hasDangerCue(input) {
-  if (input.combatMonsters.some((monster) => monster.level >= 4 || monster.isBoss)) return true;
-  if (input.roamingMonsters.some((monster) => monster.floor === input.floor && monster.kind === "elite")) return true;
-  const map = input.map;
-  if (!Array.isArray(map)) return false;
-  for (let y = Math.max(0, input.y - 4); y <= Math.min(map.length - 1, input.y + 4); y += 1) {
-    for (let x = Math.max(0, input.x - 4); x <= Math.min((map[y]?.length || 1) - 1, input.x + 4); x += 1) {
-      const event = map[y]?.[x]?.event;
-      if (event === EVENT_TYPES.BOSS || event === EVENT_TYPES.MIDBOSS) return true;
-    }
-  }
-  return false;
 }
 
 function makeLabelTexture(text, color) {
@@ -102,7 +91,6 @@ export class ThreeDungeonRenderer {
     this.flashTime = 0;
     this.damageTexts = [];
     this.lastSignature = null;
-    this.targetSelection = null;
     this.targetHitMeshes = [];
     this.sceneSignature = null;
     this.feedbackOverlay = null;
@@ -131,7 +119,6 @@ export class ThreeDungeonRenderer {
       this.supportsDirectTargetSelection = true;
       this.canvas.dataset.renderer = "three";
       this.canvas.dataset.targetHitArea = "expanded";
-      this.canvas.addEventListener("pointerdown", (event) => this.handlePointerDown(event));
     } catch (error) {
       this.mode = "three-unavailable";
       this.error = error;
@@ -191,44 +178,31 @@ export class ThreeDungeonRenderer {
       mapRevision: renderInput.mapRevision,
       sceneVisibility,
       light: [renderInput.lightTurns, renderInput.lightPower],
-      danger: hasDangerCue(renderInput),
+      danger: renderInput.dangerCue?.active === true,
       monsters: renderInput.combatMonsters.map((monster) => [monster.name, monster.hp, monster.maxHp, monster.color]),
-      targets: this.targetSelection?.targetType || ""
+      targets: renderInput.combatTargetSelection?.active === true
     });
   }
 
   isAnimating(input = null) {
     const renderInput = this.resolveRenderInput(input);
     return this.shakeTime > 0 || this.flashTime > 0 || this.damageTexts.length > 0 ||
-      renderInput.visual.environment.animated || Boolean(this.targetSelection);
+      renderInput.visual.environment.animated;
   }
 
-  setTargetSelection({ targetType, onSelect }) {
-    if (!this.supported) return;
-    this.targetSelection = { targetType, onSelect };
-    this.lastSignature = null;
-  }
-
-  clearTargetSelection() {
-    this.targetSelection = null;
-    this.targetHitMeshes = [];
-    this.lastSignature = null;
-  }
-
-  handlePointerDown(event) {
-    if (!this.targetSelection || this.targetHitMeshes.length === 0) return;
-    const targetIdx = this.getCombatTargetAtClientPoint(event.clientX, event.clientY);
-    if (!Number.isInteger(targetIdx)) return;
-    event.preventDefault();
-    this.targetSelection.onSelect(targetIdx);
-    this.clearTargetSelection();
-  }
-
-  getCombatTargetAtClientPoint(clientX, clientY) {
-    if (!this.targetSelection || this.targetHitMeshes.length === 0) return null;
+  getCombatTargetAtClientPoint(clientX, clientY, input = null) {
+    const renderInput = this.resolveRenderInput(input);
+    if (!renderInput.combatTargetSelection?.active || this.targetHitMeshes.length === 0) return null;
     const rect = this.canvas.getBoundingClientRect();
-    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    if (!rect.width || !rect.height) return null;
+    const scale = Math.min(rect.width / VIEW_W, rect.height / VIEW_H);
+    const renderedWidth = VIEW_W * scale;
+    const renderedHeight = VIEW_H * scale;
+    const x = (clientX - rect.left - (rect.width - renderedWidth) / 2) / scale;
+    const y = (clientY - rect.top - (rect.height - renderedHeight) / 2) / scale;
+    if (x < 0 || x > VIEW_W || y < 0 || y > VIEW_H) return null;
+    this.pointer.x = (x / VIEW_W) * 2 - 1;
+    this.pointer.y = -(y / VIEW_H) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const hits = this.raycaster.intersectObjects(this.targetHitMeshes, false);
     const target = hits.find((hit) => Number.isInteger(hit.object.userData.targetIdx));
@@ -315,7 +289,7 @@ export class ThreeDungeonRenderer {
       this.root.add(light);
     }
 
-    if (hasDangerCue(input)) this.addDangerCue(wall);
+    if (input.dangerCue?.active) this.addDangerCue(wall);
     if (input.sceneVisibility.showCombat) this.addCombatMonsters(input, wall);
     if (input.sceneVisibility.showTownBackground) this.addTownMarker(wall);
   }
@@ -366,7 +340,7 @@ export class ThreeDungeonRenderer {
       group.position.set(start + index * spacing, 0, -1.65 - Math.abs(index - (monsters.length - 1) / 2) * 0.22);
       this.root.add(group);
 
-      if (this.targetSelection?.targetType === "enemy") {
+      if (input.combatTargetSelection?.active) {
         const hit = new Mesh(
           new SphereGeometry(TARGET_HIT_RADIUS, 8, 6),
           new MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })

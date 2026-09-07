@@ -30,7 +30,7 @@ assert.equal(isRendererInput(input), true, "renderer input has an explicit bound
 assert.deepEqual(
   Object.keys(input).sort(),
   [
-    "arcaneSense", "combatMonsters", "combatTargetSelection", "depthCorruption", "dir", "floor", "hasArcaneSense",
+    "arcaneSense", "combatMonsters", "combatTargetSelection", "dangerCue", "depthCorruption", "dir", "floor", "hasArcaneSense",
     "kind", "lightPower", "lightTurns", "map", "mapFragments", "mapRevision", "party",
     "roamingMonsters", "sceneVisibility", "view", "visitedMap", "visual", "x", "y"
   ].sort(),
@@ -40,6 +40,14 @@ assert.equal(input.sceneVisibility.showCombat, true, "combat scene is projected 
 assert.equal(input.view.hasMap, true, "valid map is accepted by the screen boundary");
 assert.equal(input.combatMonsters, stateLike.combatState.monsters, "combat data is passed without a render-loop copy");
 assert.deepEqual(input.mapFragments, ["1,1"], "floor-specific map fragments are projected");
+assert.deepEqual(input.dangerCue, { active: false, source: "none" }, "danger presentation state is projected as a safe cue");
+
+const mapDangerInput = getRendererInput({
+  ...stateLike,
+  map: [[{ ...createCell(), event: "midboss" }, createCell()], [createCell(), createCell()]],
+  combatState: { phase: "choose_actions", monsters: [] }
+}, null);
+assert.deepEqual(mapDangerInput.dangerCue, { active: true, source: "map" }, "nearby map danger is projected without renderer-side inference");
 
 const staleEnemyTargetInput = getRendererInput(
   { ...stateLike, gameState: "submenu" },

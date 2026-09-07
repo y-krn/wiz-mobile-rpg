@@ -45,6 +45,26 @@ test('Three.js Dungeon View keeps the four shell regions and renders at mobile w
   }
 });
 
+test('Three.js Dungeon View survives orientation resize without overflow @smoke @e2e', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?renderer=three');
+  await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+
+  await page.setViewportSize({ width: 844, height: 390 });
+  const layout = await page.evaluate(() => {
+    const canvas = document.querySelector('#dungeon-canvas');
+    return {
+      canvasSize: [canvas.width, canvas.height],
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+      viewport: document.querySelector('#viewport-panel').getBoundingClientRect().toJSON(),
+    };
+  });
+  expect(layout.canvasSize).toEqual([400, 260]);
+  expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
+  expect(layout.viewport.right).toBeLessThanOrEqual(layout.clientWidth + 1);
+});
+
 test('Three.js Dungeon View directly selects an enemy and retains an accessible fallback @smoke @e2e', async ({ page }) => {
   await page.goto('/?renderer=three');
   await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'three');
@@ -80,7 +100,7 @@ test('Three.js Dungeon View directly selects an enemy and retains an accessible 
   await expect(page.locator('.combat-target-a11y')).toHaveCount(2);
   await expect(page.locator('.combat-target-a11y-list')).toHaveCSS('position', 'absolute');
 
-  await page.locator('#dungeon-canvas').click({ position: { x: 200, y: 120 } });
+  await page.locator('#dungeon-canvas').click({ position: { x: 180, y: 150 } });
   await expect.poll(() => page.evaluate(() => window.__threeTarget)).toBe(0);
   await expect(page.locator('#combat-overlay')).toBeHidden();
 });
@@ -91,6 +111,7 @@ test('Canvas and Three.js render the same representative dungeon states for comp
 
   for (const mode of modes) {
     await page.setViewportSize({ width: 390, height: 844 });
+    const navigationStart = performance.now();
     await page.goto(mode === 'three' ? '/?renderer=three' : '/');
     if (mode === 'three') await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'three');
 
@@ -137,21 +158,38 @@ test('Canvas and Three.js render the same representative dungeon states for comp
     });
     await page.screenshot({ path: testInfo.outputPath(`${mode}-combat-multiple.png`) });
 
-    measurements[mode] = await page.evaluate(async () => {
+    measurements[mode] = await page.evaluate(async (firstRenderMs) => {
       const renderer = (await import('/src/renderer.js')).dungeonRenderer;
-      const frameTimes = [];
+      const drawCallTimes = [];
       for (let index = 0; index < 31; index += 1) {
         const start = performance.now();
         renderer.draw();
-        if (index > 0) frameTimes.push(performance.now() - start);
+        if (index > 0) drawCallTimes.push(performance.now() - start);
       }
-      const sorted = [...frameTimes].sort((left, right) => left - right);
+      const frameIntervals = await new Promise((resolve) => {
+        const samples = [];
+        let previous = performance.now();
+        const sample = (now) => {
+          samples.push(now - previous);
+          previous = now;
+          if (samples.length >= 31) resolve(samples);
+          else requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      const sorted = [...drawCallTimes].sort((left, right) => left - right);
+      const sortedFrames = [...frameIntervals].sort((left, right) => left - right);
       return {
-        medianMs: Number(sorted[Math.floor(sorted.length / 2)].toFixed(3)),
-        maxMs: Number(Math.max(...frameTimes).toFixed(3)),
+        firstRenderMs: Number(firstRenderMs.toFixed(1)),
+        drawCallMedianMs: Number(sorted[Math.floor(sorted.length / 2)].toFixed(3)),
+        drawCallMaxMs: Number(Math.max(...drawCallTimes).toFixed(3)),
+        frameMedianMs: Number(sortedFrames[Math.floor(sortedFrames.length / 2)].toFixed(3)),
+        frameMaxMs: Number(Math.max(...frameIntervals).toFixed(3)),
+        longFrameCount: frameIntervals.filter((frameMs) => frameMs > 50).length,
+        jsHeapUsedBytes: performance.memory?.usedJSHeapSize ?? null,
         canvasSize: [document.querySelector('#dungeon-canvas').width, document.querySelector('#dungeon-canvas').height],
       };
-    });
+    }, performance.now() - navigationStart);
   }
 
   console.log(`[issue-1146] renderer comparison ${JSON.stringify(measurements)}`);
