@@ -1,5 +1,5 @@
 // balance-impact: none — renderer input projection only; gameplay rules and state mutation are unchanged.
-import { getPartyMaxAffix } from "../data.js";
+import { EVENT_TYPES, getPartyMaxAffix } from "../data.js";
 import { getDepthCorruption, getFloorTheme } from "../data/floor_themes.js";
 import { menuContext } from "../navigation.js";
 import { state } from "./state_core.js";
@@ -40,6 +40,40 @@ function getSceneVisibility(view) {
   return Object.freeze({ showTownBackground, showCombat, showChest, showEventScene, showItemMenu });
 }
 
+function getDangerCue({ view, map, floor, x, y, roamingMonsters, combatMonsters, combatThreatActive, hasArcaneSense }) {
+  const livingCombatThreat = view.hasCombat && combatThreatActive && combatMonsters.some((monster) => monster?.hp > 0);
+  let nearbyMapThreat = false;
+  const playerX = Number.isInteger(x) ? x : 0;
+  const playerY = Number.isInteger(y) ? y : 0;
+  if (Array.isArray(map)) {
+    const minY = Math.max(0, playerY - 4);
+    const maxY = Math.min(map.length - 1, playerY + 4);
+    for (let mapY = minY; mapY <= maxY && !nearbyMapThreat; mapY += 1) {
+      const row = Array.isArray(map[mapY]) ? map[mapY] : [];
+      const minX = Math.max(0, playerX - 4);
+      const maxX = Math.min(row.length - 1, playerX + 4);
+      for (let mapX = minX; mapX <= maxX; mapX += 1) {
+        if (Math.abs(mapX - playerX) + Math.abs(mapY - playerY) > 4) continue;
+        const event = row[mapX]?.event;
+        if (event === EVENT_TYPES.BOSS || event === EVENT_TYPES.MIDBOSS) {
+          nearbyMapThreat = true;
+          break;
+        }
+      }
+    }
+  }
+  const nearbyRoamingThreat = roamingMonsters.some((monster) => {
+    if (monster?.floor !== floor) return false;
+    if (monster.perception === "afterimage" && !hasArcaneSense) return false;
+    return monster.kind === "elite";
+  });
+
+  return Object.freeze({
+    active: livingCombatThreat || nearbyMapThreat || nearbyRoamingThreat,
+    source: livingCombatThreat ? "combat" : nearbyMapThreat ? "map" : nearbyRoamingThreat ? "roaming" : "none"
+  });
+}
+
 /**
  * The only raw-state-to-render conversion used by DungeonRenderer.
  *
@@ -51,7 +85,7 @@ function getSceneVisibility(view) {
  *     showEventScene, showItemMenu },
  *   floor, x, y, dir, map, visitedMap, mapFragments, mapRevision,
  *   lightTurns, lightPower, roamingMonsters, party, combatMonsters,
- *   visual, depthCorruption, arcaneSense, hasArcaneSense
+ *   visual, depthCorruption, arcaneSense, hasArcaneSense, dangerCue
  * }
  *
  * Collections intentionally retain state-owned references. Creating defensive
@@ -71,6 +105,7 @@ export function getRendererInput(stateLike = state, menuContextLike = menuContex
   const visual = getFloorTheme(floor).visualSignature;
   const sceneVisibility = getSceneVisibility(view);
   const arcaneSense = sceneVisibility.showTownBackground ? 0 : getPartyMaxAffix(party, "arcaneSense");
+  const hasArcaneSense = arcaneSense >= 1;
   const combatTargetSelection = Object.freeze({
     active: sceneVisibility.showCombat && view.menuType === "combat_target" &&
       view.isCombatOverlaySubmenu && menuContextLike?.targetType === "enemy",
@@ -100,7 +135,18 @@ export function getRendererInput(stateLike = state, menuContextLike = menuContex
     visual,
     depthCorruption: getDepthCorruption(floor),
     arcaneSense,
-    hasArcaneSense: arcaneSense >= 1
+    hasArcaneSense,
+    dangerCue: getDangerCue({
+      view,
+      map,
+      floor,
+      x: source.x,
+      y: source.y,
+      roamingMonsters,
+      combatMonsters: view.hasCombat ? source.combatState.monsters : [],
+      combatThreatActive: Boolean(source.combatState?.isBoss || source.combatState?.isMidboss || source.combatState?.isRoamingFlack),
+      hasArcaneSense
+    })
   });
 }
 
