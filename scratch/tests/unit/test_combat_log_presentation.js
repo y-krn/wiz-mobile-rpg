@@ -22,7 +22,7 @@ assert.equal(isImportantCombatResult("敵は沈黙した。"), true);
 assert.equal(isImportantCombatResult("ゴブリンに8ダメージ。"), false);
 assert.equal(
   formatCombatLogMessage("[味方] 冒険者の攻撃！ゴブリンに8のダメージ。"),
-  "ゴブリンを斬りつけた。8ダメージ。"
+  "ゴブリンに一撃を加えた。8ダメージ。"
 );
 assert.equal(
   formatCombatLogMessage("[ 敵 ] ゴブリンの攻撃！冒険者に5のダメージ！"),
@@ -35,6 +35,6 @@ const grouped = groupCombatLogEntries([
   { msg: "次の行動。", groupId: "action:2" }
 ]);
 assert.equal(grouped.length, 2);
-assert.equal(grouped[0].msg, "ゴブリンを斬りつけた。8ダメージ。 ゴブリンを倒した！");
+assert.equal(grouped[0].msg, "ゴブリンに一撃を加えた。8ダメージ。 ゴブリンを倒した！");
 
 console.log("[PASS] combat log presentation pacing, wording, and grouping");

@@ -127,11 +127,11 @@ test('combat log presentation keeps normal results quick and important results r
     end: 750,
     chest: 950,
     milestone: 1900,
-    formatted: 'ゴブリンを斬りつけた。8ダメージ。',
+    formatted: 'ゴブリンに一撃を加えた。8ダメージ。',
     groupedCount: 1,
     defeatImportant: true,
   });
-  expect(result.groupedText).toContain('ゴブリンを斬りつけた。8ダメージ。');
+  expect(result.groupedText).toContain('ゴブリンに一撃を加えた。8ダメージ。');
 });
 
 test('combat result observations are cleared at combat boundaries', async ({ page }) => {

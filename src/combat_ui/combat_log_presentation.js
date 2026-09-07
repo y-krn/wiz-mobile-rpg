@@ -49,7 +49,7 @@ export function formatCombatLogMessage(message) {
   let text = stripPresentationMarkers(message);
 
   if (side === "味方") {
-    text = text.replace(/^(.+?)の攻撃！(.+?)に(\d+)のダメージ[。！]$/, "$2を斬りつけた。$3ダメージ。");
+    text = text.replace(/^(.+?)の攻撃！(.+?)に(\d+)のダメージ[。！]$/, "$2に一撃を加えた。$3ダメージ。");
   } else if (side === "敵") {
     text = text.replace(/^(.+?)の攻撃！(.+?)に(\d+)のダメージ[。！]$/, "$1の一撃を受けた。$3ダメージ。");
   }
