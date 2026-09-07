@@ -344,7 +344,7 @@ function recordQueuedPatternResponse(state, monsters, response) {
 function applyFleePartingAttack(state, monsters, logQueue) {
   const attacker = monsters.find(mon => mon.hp > 0);
   const target = state.party.find(char => char.status !== "dead");
-  if (!attacker || !target) return;
+  if (!attacker || !target) return false;
 
   const finalAtk = getEffectiveAtk(attacker) + Math.floor(Math.random() * 4);
   const finalDef = calculatePhysicalDefenseFormula({
@@ -379,6 +379,7 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   const recovered = wakeSleepingCharOnDamage(target);
   logQueue.push({
     msg: `[ 敵 ] ${attacker.name}の追撃！${target.name}は${dmg}のダメージを受けた。${recovered ? `${target.name}は状態異常から回復した！` : ""}`,
+    fleePartingAttack: true,
     presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN,
     sound: "hit",
     shake: 8,
@@ -391,6 +392,7 @@ function applyFleePartingAttack(state, monsters, logQueue) {
     queueCharDeathLog(logQueue, deathLog);
     logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
   }
+  return true;
 }
 
 function applyFleeRetreat(state) {
@@ -842,7 +844,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             ? "[味方] 追撃を受けながら戦闘から逃れ、1マス後退した！"
             : "[味方] 追撃を受けながら戦闘から逃れた！後退先がないため、その場に留まった。",
           sound: "miss",
-          runEscape: true
+          runEscape: true,
+          fleeExecution: true
         });
         escaped = true;
       }

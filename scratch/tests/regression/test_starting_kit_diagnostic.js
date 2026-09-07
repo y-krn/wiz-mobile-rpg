@@ -31,6 +31,42 @@ const threshold = createDiagnosticScenario({
 assert.equal(threshold.fleePolicy, "threshold");
 assert.equal(threshold.fleeHpThreshold, 0.25);
 
+const flee = await runDiagnostic({
+  startingKit: "vanguard",
+  policy: "flee-threshold",
+  fleeHpThreshold: 1,
+  runs: 2,
+  seed: 1139,
+  allowSmallRunCount: true
+});
+const fleeOutcome = flee.runOutcome;
+assert.ok(fleeOutcome.fleeSelected > 0);
+assert.equal(
+  fleeOutcome.fleeSelected,
+  fleeOutcome.fleeExecuted + fleeOutcome.fleeSelectedButNotExecuted
+);
+assert.equal(fleeOutcome.fleeExecuted, fleeOutcome.fleePartingAttackCount);
+assert.equal(
+  fleeOutcome.fleeExecuted,
+  fleeOutcome.fleeSurvived + fleeOutcome.fleeDiedFromPartingAttack
+);
+assert.ok(flee.encounterExposure.encounterRows.length > 0);
+const entry = flee.encounterExposure.encounterRows[0];
+for (const field of [
+  "runIndex", "encounterOrdinal", "initialCompositionKey", "hpBeforeEncounter",
+  "maxHpBeforeEncounter", "hpRateBeforeEncounter", "mpBeforeEncounter",
+  "maxMpBeforeEncounter", "mpRateBeforeEncounter", "outcome"
+]) {
+  assert.ok(Object.hasOwn(entry, field), `encounter row missing ${field}`);
+}
+for (const field of [
+  "hpBeforeEncounter", "maxHpBeforeEncounter", "hpRateBeforeEncounter",
+  "mpBeforeEncounter", "maxMpBeforeEncounter", "mpRateBeforeEncounter"
+]) {
+  assert.equal(typeof entry[field], "number", `encounter row ${field} is numeric`);
+  assert.ok(Number.isFinite(entry[field]), `encounter row ${field} is finite`);
+}
+
 assert.throws(
   () => createDiagnosticScenario({ startingKit: "Fighter", policy: "fight", fleeHpThreshold: 0.2 }),
   /startingKit must be/
@@ -62,10 +98,13 @@ assert.equal(typeof report.combatCost.splitOnDeath.triggers, "number");
 assert.equal(typeof report.combatCost.guardAdjacent.guardedCount, "number");
 assert.ok(report.encounterExposure.byComposition);
 assert.ok(report.deathContribution.byComposition);
+const firstComposition = Object.values(report.encounterExposure.byComposition)[0];
+assert.ok(firstComposition.entryHpRate);
+assert.ok(firstComposition.entryMpRate);
+assert.ok(firstComposition.encounterOrdinal);
 const totalCauseCounts = Object.values(report.deathContribution.causeDistribution)
   .reduce((sum, cause) => sum + cause.count, 0);
 assert.equal(totalCauseCounts, report.runOutcome.outcomes.death || 0);
-const firstComposition = Object.values(report.encounterExposure.byComposition)[0];
 assert.ok(firstComposition);
 assert.equal(typeof firstComposition.conditionalDeathRate, "number");
 assert.equal(typeof firstComposition.encounterLethalityRate, "number");
