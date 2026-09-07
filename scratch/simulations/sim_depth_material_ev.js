@@ -6518,6 +6518,12 @@ function recordStatusCureDecision(metrics, decision, context, state = null) {
 function selectCombatAction(state, metrics) {
   const character = state.party[0];
   const monsters = state.combatState.monsters;
+  if (
+    state.simPolicy.fleePolicy === "visible-multi-enemy-flee" &&
+    state.combatState.initialLivingMonsterCount >= 2
+  ) {
+    return { type: "run", actorIdx: 0 };
+  }
   const statusTargetIdx = getLowestHpEnemyIndex(
     monsters,
     monster => monster.status && !["ok", "dead"].includes(monster.status)
@@ -6529,12 +6535,6 @@ function selectCombatAction(state, metrics) {
   let diosAction = null;
   let evRecoveryAction = null;
   let evShouldFight = false;
-  if (
-    state.simPolicy.fleePolicy === "visible-multi-enemy-flee" &&
-    state.combatState.initialLivingMonsterCount >= 2
-  ) {
-    return { type: "run", actorIdx: 0 };
-  }
   if (state.simPolicy.fleePolicy === "ev") {
     recoveryItem = getRecoveryPotionItem(state);
     diosAction = getDiosCombatAction(state);
