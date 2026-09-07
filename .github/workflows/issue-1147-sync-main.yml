@@ -32,6 +32,8 @@ jobs:
       - name: Push merge if needed
         run: |
           if git rev-parse HEAD^2 >/dev/null 2>&1 && ! git merge-base --is-ancestor HEAD origin/codex/issue-1147; then
+            git checkout HEAD^1 -- .github/workflows/starting-kit-early-run-diagnostic.yml
+            git commit --amend --no-edit
             git push origin HEAD:codex/issue-1147
           else
             echo "no new merge commit to push"
