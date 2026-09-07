@@ -19,11 +19,12 @@ pull-request updates. It does not authorize merge, deploy, destructive actions,
 purchases, or unrelated scope expansion. Higher-level sandbox, approval, and
 security settings always take precedence.
 
-Keep local `main` clean and identical to `origin/main`; never edit or
-commit directly on it. Use a branch that identifies the Issue for commit,
-push, and pull-request work. An assigned Codex-managed worktree may be
-detached and its path need not be named for the Issue. Keep one concern per
-Issue and include `Closes #<issue>` in the pull request.
+Keep local `main` clean and identical to `origin/main`; never edit or commit
+directly on it. An assigned Codex-managed worktree may remain detached during
+exploration and review; do not create a branch merely to normalize that state.
+When the work needs a commit, push, or pull request, use the supported branch
+creation or Handoff flow and name the branch for the Issue. Keep one concern
+per Issue and include `Closes #<issue>` in the pull request.
 
 ### Git and Codex-managed worktrees
 
@@ -56,9 +57,10 @@ possible.
 When relying on a base ref such as `origin/main`, record the chosen base SHA,
 its source, and whether freshness was verified. A locally readable ref alone
 is not evidence that the base is latest; if freshness cannot be verified, say
-so. Fetch only when needed and when the environment permits it. Base updates,
-review evidence, and current-head CI decisions remain governed by
-`.agents/merge-gate.md`.
+so. Fetch only when needed and when the environment permits it. The detailed
+base, managed-worktree, review, subagent, and sandbox workflow is in
+`.agents/codex-environment.md`; base updates, review evidence, and current-head
+CI decisions remain governed by `.agents/merge-gate.md`.
 
 ## Principles
 

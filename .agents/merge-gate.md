@@ -43,6 +43,28 @@ reviewed head SHA, base SHA, and PR-specific diff evidence. A formal GitHub
 `APPROVED` state is not required; a generic comment without that evidence is
 insufficient.
 
+### Immutable revision evidence
+
+Before an independent merge-gate review, fix `BASE_SHA` and `HEAD_SHA`. Review
+the commit objects and their explicit PR-specific diff, for example:
+
+```bash
+git diff --name-status "$BASE_SHA...$HEAD_SHA"
+git diff --binary "$BASE_SHA...$HEAD_SHA"
+git show "$HEAD_SHA:path/to/file"
+```
+
+Record both SHAs, the changed-file set, and a stable patch identity. Include
+the full binary diff when the change set contains binary files. The reviewer
+checkout's `HEAD` is not a precondition: a reviewer may inspect the requested
+objects from another checkout, so a checkout `HEAD` mismatch alone is not a
+reason to stop or restart the review.
+
+After the PR head changes, do not silently reuse the old review. Obtain a new
+review unless the base-update exception above proves that the PR-specific diff
+is identical; if equivalence cannot be established, the old evidence is
+invalid. Required CI is always evaluated for the current head.
+
 ## Required CI
 
 Evaluate required checks for the current pull request head only. Never reuse a
