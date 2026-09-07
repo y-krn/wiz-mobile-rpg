@@ -14,7 +14,7 @@ import {
   selectSimulationCombatActionForPolicy,
   simulateRun
 } from "../simulations/sim_depth_material_ev.js";
-import { PERSONA_POLICIES, describe } from "./issue990_phase3_stage1.js";
+import { PERSONA_POLICIES, describe } from "./persona_population_measurement.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 
@@ -449,7 +449,7 @@ function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, policies = P
         equipmentUpdatePolicy: "deterministic_greedy",
         forcedPush: true,
         retreatModeled: false,
-        runnerPath: "scratch/measurements/issue990_phase3_stage2_combat_personas.js"
+        runnerPath: "scratch/measurements/combat_policy_sensitivity_measurement.js"
       },
       seedPolicy: `runIndex i uses ${seed}:world:i for every combat policy; only combat policy input differs`,
       worldSeedTemplate: `${seed}:world:{runIndex}`,
@@ -698,7 +698,7 @@ function renderSummary(report) {
     "",
     "## Reproduction",
     "",
-    "node scratch/measurements/issue990_phase3_stage2_combat_personas.js --runs " +
+    "node scratch/measurements/combat_policy_sensitivity_measurement.js --runs " +
       report.measurement.configuration.runs + " --seed " + report.measurement.configuration.seed +
       " --policies " + policies.join(",") +
       " --output evidence/results/issue-990-phase3-stage2.json --summary evidence/results/issue-990-phase3-stage2.md",
@@ -711,7 +711,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (["--runs", "--seed", "--policies", "--output", "--summary"].includes(arg)) options[arg.slice(2)] = argv[++index];
-    else if (arg === "--help") { console.log("Usage: node scratch/measurements/issue990_phase3_stage2_combat_personas.js --runs 500 --seed issue990-phase3-stage1.5 --policies balanced-combat,mp-conservative,burst-combat --output evidence/results/issue-990-phase3-stage2.json --summary evidence/results/issue-990-phase3-stage2.md"); process.exit(0); }
+    else if (arg === "--help") { console.log("Usage: node scratch/measurements/combat_policy_sensitivity_measurement.js --runs 500 --seed issue990-phase3-stage1.5 --policies balanced-combat,mp-conservative,burst-combat --output evidence/results/issue-990-phase3-stage2.json --summary evidence/results/issue-990-phase3-stage2.md"); process.exit(0); }
     else throw new Error(`unknown option: ${arg}`);
   }
   return {
@@ -730,7 +730,7 @@ export async function main(argv = process.argv.slice(2)) {
   if (!options.output || !options.summary) throw new Error("--output and --summary are required");
   const provenance = requireRunnerProvenance({
     fetchOriginMain: false,
-    measurementRunnerPaths: ["scratch/measurements/issue990_phase3_stage2_combat_personas.js", "scratch/simulations/sim_depth_material_ev.js", "scratch/measurements/issue990_phase3_stage1.js", "scratch/measurements/measurement_provenance.js"]
+    measurementRunnerPaths: ["scratch/measurements/combat_policy_sensitivity_measurement.js", "scratch/simulations/sim_depth_material_ev.js", "scratch/measurements/persona_population_measurement.js", "scratch/measurements/measurement_provenance.js"]
   });
   const environmentSignature = printEnvSignatureBanner({ runnerVersion: RUNNER_VERSION, seed: options.seed, runs: options.runs, policies: options.policies, floors: FLOORS, targetDepth: TARGET_DEPTH }, { label: "issue990 phase3 stage2 env" });
   const report = runMeasurement({ ...options, provenance, environmentSignature });

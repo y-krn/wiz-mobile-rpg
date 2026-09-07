@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
   PERSONA_POLICIES,
   runMeasurement
-} from "../../../scratch/measurements/issue990_phase3_stage1.js";
+} from "../../../scratch/measurements/persona_population_measurement.js";
 
 const floors = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const report = runMeasurement({
@@ -12,7 +12,7 @@ const report = runMeasurement({
   collectStage15Diagnostics: true,
   runnerVersion: "issue990-phase3-stage1.5-v2",
   schemaVersion: 3,
-  runnerPath: "scratch/measurements/issue990_phase3_stage1_5.js"
+  runnerPath: "scratch/measurements/shallow_combat_diagnostic.js"
 });
 
 assert.equal(report.schemaVersion, 3);
@@ -81,7 +81,7 @@ const repeat = runMeasurement({
   collectStage15Diagnostics: true,
   runnerVersion: "issue990-phase3-stage1.5-v2",
   schemaVersion: 3,
-  runnerPath: "scratch/measurements/issue990_phase3_stage1_5.js"
+  runnerPath: "scratch/measurements/shallow_combat_diagnostic.js"
 });
 assert.deepEqual(repeat.stage15Diagnostics, report.stage15Diagnostics, "Stage 1.5 diagnostics are deterministic");
 assert.equal(report.raw, undefined);

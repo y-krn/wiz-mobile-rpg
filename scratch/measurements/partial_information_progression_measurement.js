@@ -10,7 +10,7 @@ import {
   getBuildDefinitions,
   calculateDiagnosticUtility,
   bootstrapMeanCi
-} from "./issue973_build_sensitivity.js";
+} from "./build_sensitivity_measurement.js";
 import {
   calibrateCoreScoringProfile,
   getScenarioById,
@@ -535,7 +535,7 @@ export function renderSummary(report) {
     "## 再現",
     "",
     "```sh",
-    `node scratch/measurements/issue990_partial_information_progression.js --runs ${report.measurement.configuration.runs} --seed ${report.measurement.configuration.seed} --output evidence/results/issue-990-phase2.json --summary evidence/results/issue-990-phase2.md`,
+    `node scratch/measurements/partial_information_progression_measurement.js --runs ${report.measurement.configuration.runs} --seed ${report.measurement.configuration.seed} --output evidence/results/issue-990-phase2.json --summary evidence/results/issue-990-phase2.md`,
     "```",
     ""
   ];
@@ -547,7 +547,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (["--runs", "--seed", "--output", "--summary"].includes(arg)) options[arg.slice(2)] = argv[++index];
-    else if (arg === "--help") { console.log("Usage: node scratch/measurements/issue990_partial_information_progression.js --runs 500 --seed issue990-phase2 --output evidence/results/issue-990-phase2.json --summary evidence/results/issue-990-phase2.md"); process.exit(0); }
+    else if (arg === "--help") { console.log("Usage: node scratch/measurements/partial_information_progression_measurement.js --runs 500 --seed issue990-phase2 --output evidence/results/issue-990-phase2.json --summary evidence/results/issue-990-phase2.md"); process.exit(0); }
     else throw new Error(`unknown option: ${arg}`);
   }
   return { runs: options.runs === undefined ? DEFAULT_RUNS : Number(options.runs), seed: options.seed || DEFAULT_SEED, output: options.output || null, summary: options.summary || null };
@@ -559,9 +559,9 @@ export async function main(argv = process.argv.slice(2)) {
   const provenance = requireRunnerProvenance({
     fetchOriginMain: false,
     measurementRunnerPaths: [
-      "scratch/measurements/issue990_partial_information_progression.js",
+      "scratch/measurements/partial_information_progression_measurement.js",
       "scratch/simulations/sim_depth_material_ev.js",
-      "scratch/measurements/issue973_build_sensitivity.js",
+      "scratch/measurements/build_sensitivity_measurement.js",
       "scratch/measurements/measurement_provenance.js"
     ]
   });

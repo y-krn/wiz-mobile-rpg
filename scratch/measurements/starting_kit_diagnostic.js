@@ -21,7 +21,7 @@ export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1139;
 export const DEFAULT_FLEE_HP_THRESHOLD = 0.20;
 
-const RUNNER_PATH = "scratch/measurements/issue1139_starting_kit_diagnostic.js";
+const RUNNER_PATH = "scratch/measurements/starting_kit_diagnostic.js";
 const PRODUCTION_PATHS = Object.freeze([
   "scratch/simulations/sim_depth_material_ev.js",
   "src/state/initial_state.js",

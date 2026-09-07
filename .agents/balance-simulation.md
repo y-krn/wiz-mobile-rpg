@@ -212,7 +212,7 @@ resolved through the production pending-disposition helper, so `discarded` and
 
 ## Issue #1096 payment vector evidence
 
-`scratch/measurements/issue1096_build_payment.js` is the dedicated observation
+`scratch/measurements/build_payment_measurement.js` is the dedicated observation
 runner for the six Build Snapshot fixtures. It delegates to the canonical
 `simulateRun` path and measures per-run action mix, combat/round cost, HP/MP
 pressure, physical and status Guard mitigation, Rune casts and unused sockets, Core/Support
@@ -239,7 +239,7 @@ The committed decision input and review summary live under
 
 ## Issue #1100 unconfirmed object-loot stake evidence
 
-`scratch/measurements/issue1100_build_payment_stake.js` preserves the #1096
+`scratch/measurements/build_payment_stake_measurement.js` preserves the #1096
 Build Snapshot payment vector and adds production-backed stake snapshots at
 reward resolution, Portal decision, Wing salvage, and terminal settlement
 boundaries. Each snapshot records count, equipment/Rune/consumable/other

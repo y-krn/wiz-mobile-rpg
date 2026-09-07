@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { BUILD_IDS } from "../../../scratch/measurements/issue973_build_sensitivity.js";
-import { runMeasurement } from "../../../scratch/measurements/issue990_reached_run.js";
+import { BUILD_IDS } from "../../../scratch/measurements/build_sensitivity_measurement.js";
+import { runMeasurement } from "../../../scratch/measurements/reached_run_measurement.js";
 
-const runnerSource = readFileSync(new URL("../../../scratch/measurements/issue990_reached_run.js", import.meta.url), "utf8");
+const runnerSource = readFileSync(new URL("../../../scratch/measurements/reached_run_measurement.js", import.meta.url), "utf8");
 for (const requiredCall of ["generateRunFloor", "generateEncounter", "calculateEncounterChance", "runEncounterSample"]) {
   assert.match(runnerSource, new RegExp(requiredCall), `${requiredCall} must remain production-backed`);
 }

@@ -6,7 +6,7 @@ import {
   RUNNER_VERSION,
   SCHEMA_VERSION,
   runMeasurement
-} from "../../../scratch/measurements/issue990_phase3_stage3_checkpoint_continuation.js";
+} from "../../../scratch/measurements/checkpoint_continuation_measurement.js";
 
 const report = runMeasurement({ seed: "issue990-stage3-regression", runs: 1 });
 assert.equal(report.schemaVersion, SCHEMA_VERSION);
