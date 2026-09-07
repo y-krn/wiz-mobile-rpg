@@ -9,15 +9,19 @@ import { pathToFileURL } from "node:url";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1141-flee-entry-diagnostics-v1";
+export const RUNNER_VERSION = "issue1145-visible-multi-enemy-flee-v1";
 export const SCHEMA_VERSION = 2;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
-export const POLICY_IDS = Object.freeze(["fight", "flee-threshold"]);
+export const POLICY_IDS = Object.freeze([
+  "fight",
+  "flee-threshold",
+  "visible-multi-enemy-flee"
+]);
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1139;
 export const DEFAULT_FLEE_HP_THRESHOLD = 0.20;
 
-const RUNNER_PATH = "scratch/measurements/issue1139_starting_kit_diagnostic.js";
+const RUNNER_PATH = "scratch/measurements/starting_kit_diagnostic.js";
 const PRODUCTION_PATHS = Object.freeze([
   "scratch/simulations/sim_depth_material_ev.js",
   "src/state/initial_state.js",
@@ -276,6 +280,7 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     encounterOrdinal,
     floor: identity.floor ?? diagnostic?.floor ?? null,
     type: identity.type ?? diagnostic?.type ?? null,
+    initialVisibleEnemyCount: diagnostic?.initialVisibleEnemyCount ?? enemyNames.length,
     initialCompositionKey: compositionKey(identity.enemyNames || []),
     initialCompositionEnemyNames: enemyNames,
     outcome: identity.outcome || diagnostic?.result || "unknown",
@@ -469,8 +474,10 @@ export function createDiagnosticScenario({ startingKit, policy, fleeHpThreshold 
     allowChestTownPortal: false,
     collectEncounterIdentities: true,
     simDiagnosticLevel: "full",
-    fleePolicy: policy === "fight" ? "never" : "threshold",
-    fleeHpThreshold: policy === "fight" ? null : threshold,
+    fleePolicy: policy === "fight"
+      ? "never"
+      : policy === "flee-threshold" ? "threshold" : "visible-multi-enemy-flee",
+    fleeHpThreshold: policy === "flee-threshold" ? threshold : null,
     consumablesAtDeparture: "none"
   };
 }
@@ -494,11 +501,11 @@ export async function runDiagnostic({
       startFloor: 1,
       targetDepth: 2,
       runIndex,
-      seriesId: `issue-1139:${startingKit}:${policy}`,
+      seriesId: `issue-1145:${startingKit}`,
       scoringProfile: null,
       scenario,
       workshop: { ranks: {} },
-      worldSeed: `issue-1139:${normalizedSeed}:${startingKit}:${policy}:${runIndex}`,
+      worldSeed: `issue-1145:${normalizedSeed}:${startingKit}:${runIndex}`,
       collectDiagnostics: true
     });
     observeRun(aggregate, result, runIndex);
@@ -518,7 +525,9 @@ export async function runDiagnostic({
     targetPolicy: "production-auto",
     fleeResolver: "production",
     seed: normalizedSeed,
-    seedPolicy: "simulation RNG reset to seed before run; deterministic worldSeed per run",
+    seedPolicy: "simulation RNG reset to seed before run; deterministic policy-independent worldSeed per run",
+    worldSeedTemplate: "issue-1145:{seed}:{startingKit}:{runIndex}",
+    matchedComparisonKey: `${startingKit}:${normalizedSeed}:${normalizedRuns}`,
     runs: normalizedRuns
   };
   return finalizeAggregate(aggregate, configuration);
@@ -656,7 +665,7 @@ async function main() {
     purpose: CLI_OPTIONS.purpose,
     requestedRef: CLI_OPTIONS.ref
   }), null, 2)}\n`);
-  console.log(`Wrote Issue #1141 diagnostic: ${resolve(output)}`);
+  console.log(`Wrote Issue #1145 diagnostic: ${resolve(output)}`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {

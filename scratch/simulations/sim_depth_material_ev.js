@@ -9,7 +9,7 @@ import { resolveMeasurementProvenance } from "../measurements/measurement_proven
 import { runSimTasks } from "./sim_parallel.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "../measurements/measurement_env_signature.js";
 import { reportMechanismFiring } from "../measurements/mechanism_wiring_report.js";
-import { classifyCausalDeath } from "../measurements/issue973_build_sensitivity.js";
+import { classifyCausalDeath } from "../measurements/build_sensitivity_measurement.js";
 // Unit tests import this shared module for wiring checks, not measurements.
 const IS_TEST_PROCESS = process.env.SIM_SKIP_PROVENANCE === "1" ||
   basename(process.argv[1] || "").startsWith("test_");
@@ -248,7 +248,7 @@ const {
   SPELLS
 } = await import("../../src/data.js");
 const { createBuildCharacter: createProductionBuildCharacter } =
-  await import("../measurements/issue973_build_sensitivity.js");
+  await import("../measurements/build_sensitivity_measurement.js");
 const { BUILD_FIXTURE_IDS, createBuildFixture } =
   await import("../measurements/build_fixtures.js");
 const { getActiveSpellKeys } = await import("../../src/rules/magic_rules.js");
@@ -1069,7 +1069,12 @@ const BLOOD_WAND_HEAL_POLICIES = Object.freeze([
   "reserve-potion",
   "allow-recovery-potion"
 ]);
-const FLEE_POLICIES = Object.freeze(["threshold", "never", "ev"]);
+const FLEE_POLICIES = Object.freeze([
+  "threshold",
+  "never",
+  "ev",
+  "visible-multi-enemy-flee"
+]);
 const DEFAULT_HEAL_PRIORITY_POLICY = "potion-first";
 const DEFAULT_BLOOD_WAND_HEAL_POLICY = "reserve-potion";
 if (!FLEE_POLICIES.includes(SIM_ENV.FLEE_POLICY)) {
@@ -6513,6 +6518,12 @@ function recordStatusCureDecision(metrics, decision, context, state = null) {
 function selectCombatAction(state, metrics) {
   const character = state.party[0];
   const monsters = state.combatState.monsters;
+  if (
+    state.simPolicy.fleePolicy === "visible-multi-enemy-flee" &&
+    state.combatState.initialLivingMonsterCount >= 2
+  ) {
+    return { type: "run", actorIdx: 0 };
+  }
   const statusTargetIdx = getLowestHpEnemyIndex(
     monsters,
     monster => monster.status && !["ok", "dead"].includes(monster.status)
@@ -7253,6 +7264,9 @@ function runEncounter(
   });
   state.combatState = {
     monsters,
+    // Measurement-only snapshot. The visible multi-enemy diagnostic must use
+    // the initial encounter count and must not react to split spawns.
+    initialLivingMonsterCount: monsters.filter(monster => monster.hp > 0).length,
     isBoss,
     isMidboss,
     isRoamingFlack: isElite,
@@ -7386,6 +7400,7 @@ function runEncounter(
       ? {
         floor: state.floor,
         type: encounterType,
+        initialVisibleEnemyCount: monsters.filter(monster => monster.hp > 0).length,
         monsters: monsters.map(monster => ({
           name: monster.name,
           atk: monster.atk,

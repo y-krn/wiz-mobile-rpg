@@ -27,7 +27,7 @@ const childEnv = {
 delete childEnv.SIM_SKIP_PROVENANCE;
 const result = spawnSync(
   process.execPath,
-  ["scratch/simulations/sim_issue_793_bleeding.js"],
+  ["scratch/simulations/sim_bleeding_measurement.js"],
   {
     env: childEnv,
     encoding: "utf8"
@@ -64,7 +64,7 @@ assert.equal(forced.metrics.buildSelection.naturalSourceSelection, "unexecuted/o
 
 const missingRef = spawnSync(
   process.execPath,
-  ["scratch/simulations/sim_issue_793_bleeding.js"],
+  ["scratch/simulations/sim_bleeding_measurement.js"],
   {
     env: { ...childEnv, SIM_PROVENANCE_BASE_REF: "refs/remotes/origin/missing" },
     encoding: "utf8"
@@ -79,7 +79,7 @@ assert.match(
 function assertRejected(label, overrides, pattern) {
   const rejected = spawnSync(
     process.execPath,
-    ["scratch/simulations/sim_issue_793_bleeding.js"],
+    ["scratch/simulations/sim_bleeding_measurement.js"],
     { env: { ...childEnv, ...overrides }, encoding: "utf8" }
   );
   assert.notEqual(rejected.status, 0, `${label} unexpectedly succeeded`);

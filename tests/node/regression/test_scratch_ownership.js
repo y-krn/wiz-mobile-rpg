@@ -51,6 +51,11 @@ const executablePaths = directoryRules.flatMap(rule =>
 );
 assert.ok(executablePaths.length > 0, "ownership directories must contain executable assets");
 assert.equal(
+  executablePaths.filter(file => /(?:^|\/)(?:sim_)?issue[_-]?\d|_\d{3,}\.js$/.test(file)).length,
+  0,
+  "permanent scratch assets must use Issue-independent semantic names"
+);
+assert.equal(
   executablePaths.filter(file => /\/test_[a-z0-9_]*issue(?:_|\d)/.test(file)).length,
   0,
   "permanent tests must not use Issue-numbered names"

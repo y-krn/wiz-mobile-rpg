@@ -219,7 +219,7 @@ const measurement = {
   provenanceTestFixture: PROVENANCE_TEST_FIXTURE,
   originMainAncestor: ORIGIN_MAIN_ANCESTOR,
   staleTreeAllowed: STALE_TREE_ALLOWED,
-  runner: `node ${process.version}; scratch/simulations/sim_issue_793_bleeding.js`,
+  runner: `node ${process.version}; scratch/simulations/sim_bleeding_measurement.js`,
   seedPolicy: SEED_POLICY,
   dataset: "current src data; generateRunFloor-driven simulateRun; solo classes",
   targetDepth: TARGET_DEPTH,

@@ -36,6 +36,7 @@ on:
         options:
           - fight
           - flee-threshold
+          - visible-multi-enemy-flee
       flee_hp_threshold:
         description: "HP ratio for flee-threshold policy"
         required: false
@@ -70,7 +71,7 @@ jobs:
           MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           mkdir -p /tmp/starting-kit-diagnostic
-          node scratch/measurements/issue1139_starting_kit_diagnostic.js \
+          node scratch/measurements/starting_kit_diagnostic.js \
             --ref "${{ inputs.ref }}" \
             --starting-kit "${{ inputs.starting_kit }}" \
             --runs "${{ inputs.runs }}" \

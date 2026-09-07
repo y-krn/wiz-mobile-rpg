@@ -512,7 +512,7 @@ function deathPrecedingCheckpoints(rows) {
   }));
 }
 
-export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, personas = PERSONA_IDS, provenance = null, environmentSignature = null, collectStage15Diagnostics = false, runnerVersion = RUNNER_VERSION, schemaVersion = SCHEMA_VERSION, runnerPath = "scratch/measurements/issue990_phase3_stage1.js" } = {}) {
+export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, personas = PERSONA_IDS, provenance = null, environmentSignature = null, collectStage15Diagnostics = false, runnerVersion = RUNNER_VERSION, schemaVersion = SCHEMA_VERSION, runnerPath = "scratch/measurements/persona_population_measurement.js" } = {}) {
   if (!Number.isInteger(runs) || runs < 1) throw new Error(`runs must be a positive integer: ${runs}`);
   const selected = [...new Set(personas)];
   if (!selected.length || selected.some(id => !PERSONA_POLICIES[id])) throw new Error(`personas must be ${PERSONA_IDS.join(",")}`);
@@ -879,7 +879,7 @@ function parseArgs(argv) {
     const arg = argv[index];
     if (["--runs", "--seed", "--personas", "--output", "--summary"].includes(arg)) options[arg.slice(2)] = argv[++index];
     else if (arg === "--stage15") options.stage15 = true;
-    else if (arg === "--help") { console.log("Usage: node scratch/measurements/issue990_phase3_stage1.js --runs 500 --seed issue990-phase3-stage1 --personas cautious,aggressive,explorer,stairs-first,balanced --output evidence/results/issue-990-phase3-stage1.json --summary evidence/results/issue-990-phase3-stage1.md"); process.exit(0); }
+    else if (arg === "--help") { console.log("Usage: node scratch/measurements/persona_population_measurement.js --runs 500 --seed issue990-phase3-stage1 --personas cautious,aggressive,explorer,stairs-first,balanced --output evidence/results/issue-990-phase3-stage1.json --summary evidence/results/issue-990-phase3-stage1.md"); process.exit(0); }
     else throw new Error(`unknown option: ${arg}`);
   }
   return {
@@ -897,10 +897,10 @@ export async function main(argv = process.argv.slice(2), overrides = {}) {
   const stage15 = Boolean(overrides.stage15 || options.stage15);
   const runnerVersion = stage15 ? "issue990-phase3-stage1.5-v2" : RUNNER_VERSION;
   const schemaVersion = stage15 ? 3 : SCHEMA_VERSION;
-  const runnerPath = stage15 ? "scratch/measurements/issue990_phase3_stage1_5.js" : "scratch/measurements/issue990_phase3_stage1.js";
+  const runnerPath = stage15 ? "scratch/measurements/shallow_combat_diagnostic.js" : "scratch/measurements/persona_population_measurement.js";
   const provenance = requireRunnerProvenance({
     fetchOriginMain: false,
-    measurementRunnerPaths: [runnerPath, "scratch/measurements/issue990_phase3_stage1.js", "scratch/simulations/sim_depth_material_ev.js", "scratch/measurements/measurement_provenance.js"]
+    measurementRunnerPaths: [runnerPath, "scratch/measurements/persona_population_measurement.js", "scratch/simulations/sim_depth_material_ev.js", "scratch/measurements/measurement_provenance.js"]
   });
   const environmentSignature = printEnvSignatureBanner({ runnerVersion, seed: options.seed, runs: options.runs, personas: options.personas, targetDepth: TARGET_DEPTH }, { label: stage15 ? "issue990 phase3 stage1.5 env" : "issue990 phase3 stage1 env" });
   const report = runMeasurement({ ...options, provenance, environmentSignature, collectStage15Diagnostics: stage15, runnerVersion, schemaVersion, runnerPath });

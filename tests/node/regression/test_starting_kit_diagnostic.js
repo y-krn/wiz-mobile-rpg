@@ -7,10 +7,10 @@ const {
   POLICY_IDS,
   createDiagnosticScenario,
   runDiagnostic
-} = await import("../../../scratch/measurements/issue1139_starting_kit_diagnostic.js");
+} = await import("../../../scratch/measurements/starting_kit_diagnostic.js");
 
 assert.deepEqual(STARTING_KIT_IDS, ["vanguard", "scout", "devotion", "arcana"]);
-assert.deepEqual(POLICY_IDS, ["fight", "flee-threshold"]);
+assert.deepEqual(POLICY_IDS, ["fight", "flee-threshold", "visible-multi-enemy-flee"]);
 
 const fight = createDiagnosticScenario({
   startingKit: "vanguard",
@@ -30,6 +30,14 @@ const threshold = createDiagnosticScenario({
 });
 assert.equal(threshold.fleePolicy, "threshold");
 assert.equal(threshold.fleeHpThreshold, 0.25);
+
+const visibleMulti = createDiagnosticScenario({
+  startingKit: "vanguard",
+  policy: "visible-multi-enemy-flee",
+  fleeHpThreshold: 0.25
+});
+assert.equal(visibleMulti.fleePolicy, "visible-multi-enemy-flee");
+assert.equal(visibleMulti.fleeHpThreshold, null);
 
 const flee = await runDiagnostic({
   startingKit: "vanguard",
@@ -59,6 +67,8 @@ for (const field of [
 ]) {
   assert.ok(Object.hasOwn(entry, field), `encounter row missing ${field}`);
 }
+assert.equal(typeof entry.initialVisibleEnemyCount, "number");
+assert.ok(entry.initialVisibleEnemyCount >= 1);
 for (const field of [
   "hpBeforeEncounter", "maxHpBeforeEncounter", "hpRateBeforeEncounter",
   "mpBeforeEncounter", "maxMpBeforeEncounter", "mpRateBeforeEncounter"
@@ -92,6 +102,7 @@ assert.equal(report.configuration.enemyPool, "production");
 assert.equal(report.configuration.combatActionPolicy, "production-auto");
 assert.equal(report.configuration.targetPolicy, "production-auto");
 assert.equal(report.configuration.seed, 1139);
+assert.equal(report.configuration.worldSeedTemplate, "issue-1145:{seed}:{startingKit}:{runIndex}");
 assert.equal(typeof report.runOutcome.b1DeathRate, "number");
 assert.equal(typeof report.encounterExposure.enemyEncounterCount, "number");
 assert.equal(typeof report.combatCost.splitOnDeath.triggers, "number");
@@ -118,5 +129,27 @@ const repeat = await runDiagnostic({
   allowSmallRunCount: true
 });
 assert.deepEqual(repeat, report);
+
+const visibleReport = await runDiagnostic({
+  startingKit: "vanguard",
+  policy: "visible-multi-enemy-flee",
+  runs: 20,
+  seed: 1139,
+  allowSmallRunCount: true
+});
+const visibleRows = visibleReport.encounterExposure.encounterRows;
+assert.ok(
+  visibleRows.some(row => row.initialVisibleEnemyCount >= 2 && row.fleeSelected > 0),
+  "visible-multi-enemy-flee smoke needs a multi-enemy encounter with a player action"
+);
+for (const row of visibleReport.encounterExposure.encounterRows) {
+  if (row.initialVisibleEnemyCount < 2) {
+    assert.equal(row.fleeSelected, 0, "single-enemy encounter delegates to production-auto");
+  }
+  if (row.fleeSelected > 0) {
+    assert.ok(row.initialVisibleEnemyCount >= 2, "only multi-enemy encounters select run");
+    assert.equal(row.fleeSelected, 1, "multi-enemy diagnostic selects run once");
+  }
+}
 
 console.log("[PASS] starting-kit diagnostic wiring and smoke");

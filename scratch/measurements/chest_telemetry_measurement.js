@@ -287,7 +287,7 @@ export function buildReport({ records, provenance = {}, inputPath = null } = {})
     schemaVersion: 1,
     issue: 816,
     measurement: {
-      runner: "scratch/measurements/issue816_chest_telemetry.js",
+      runner: "scratch/measurements/chest_telemetry_measurement.js",
       inputPath,
       productionSourceSha: provenance.productionSourceSha || null,
       aggregationRunnerSha: provenance.aggregationRunnerSha || null,
@@ -369,7 +369,7 @@ export function renderMarkdown(report) {
     "Reproduce with:",
     "",
     "```sh",
-    "node scratch/measurements/issue816_chest_telemetry.js --input <posthog-export.jsonl> --production-sha <40-char-release-sha> --runner-sha <40-char-runner-sha> --output /private/tmp/issue-816-chest-telemetry.json --summary evidence/results/issue-816-chest-telemetry.md",
+    "node scratch/measurements/chest_telemetry_measurement.js --input <posthog-export.jsonl> --production-sha <40-char-release-sha> --runner-sha <40-char-runner-sha> --output /private/tmp/issue-816-chest-telemetry.json --summary evidence/results/issue-816-chest-telemetry.md",
     "```",
     ""
   );
@@ -385,7 +385,7 @@ function currentSha() {
   try { return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(); } catch { return null; }
 }
 
-if (basename(process.argv[1] || "") === "issue816_chest_telemetry.js") {
+if (basename(process.argv[1] || "") === "chest_telemetry_measurement.js") {
   const args = process.argv.slice(2);
   const inputPath = option("--input", args);
   const outputPath = option("--output", args);

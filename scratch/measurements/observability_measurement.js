@@ -16,7 +16,7 @@ function parseArgs(argv) {
       const key = value.slice(2);
       options[key] = ["runs", "seed"].includes(key) ? Number(next) : next;
     } else if (value === "--help") {
-      console.log("Usage: node scratch/measurements/issue1012_observability.js --output /private/tmp/issue1012.json [--summary /private/tmp/issue1012.md] [--runs 500] [--scenario workshop-empty] [--fixtures medium-multi-rune]");
+      console.log("Usage: node scratch/measurements/observability_measurement.js --output /private/tmp/issue1012.json [--summary /private/tmp/issue1012.md] [--runs 500] [--scenario workshop-empty] [--fixtures medium-multi-rune]");
       process.exit(0);
     } else {
       throw new Error(`unknown option: ${value}`);
@@ -103,7 +103,7 @@ const provenance = process.env.SIM_SKIP_PROVENANCE === "1"
   : resolveMeasurementProvenance({
       fetchOriginMain: false,
       measurementRunnerPaths: [
-        "scratch/measurements/issue1012_observability.js",
+        "scratch/measurements/observability_measurement.js",
         "scratch/measurements/measurement_provenance.js",
         "scratch/simulations/sim_depth_material_ev.js",
         "scratch/simulations/simulation_manifest.js"

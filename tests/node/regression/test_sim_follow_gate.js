@@ -436,8 +436,16 @@ assert.deepEqual(
   SIMULATION_RUNNER_INVENTORY.map(runner => runner.path).sort(),
   "runner discovery and explicit inventory diverged"
 );
-assert.equal(SIMULATION_RUNNER_INVENTORY.length, 50, "unexpected current runner inventory size");
 assert.ok(discoveredRunners.includes("scratch/simulations/sim_depth_material_ev.js"));
+assert.equal(
+  SIMULATION_RUNNER_INVENTORY.filter(runner => /(?:^|\/)(?:sim_)?issue[_-]?\d|_\d{3,}\.js$/.test(runner.path)).length,
+  0,
+  "permanent runner inventory must use Issue-independent semantic names"
+);
+assert.ok(
+  SIMULATION_RUNNER_INVENTORY.some(runner => runner.lifecycle === "reusable"),
+  "promoted reusable runners must remain explicitly classified"
+);
 assert.equal(
   SIMULATION_RUNNER_INVENTORY.filter(runner => runner.lifecycle === "canonical").length,
   1,

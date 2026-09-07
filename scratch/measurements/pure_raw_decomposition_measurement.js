@@ -17,7 +17,7 @@ import {
   getBuildDefinitions,
   getEncounterDefinitions,
   runEncounterSample
-} from "./issue973_build_sensitivity.js";
+} from "./build_sensitivity_measurement.js";
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 
@@ -326,7 +326,7 @@ function renderSummary(report) {
     "## Baseline by build", "", "| Build | Pure raw | Mean normal hit | Mean attacks received |", "| --- | ---: | ---: | ---: |", ...buildRows, "", "## Baseline by depth", "", "| Depth | Pure raw |", "| --- | ---: |", ...depthRows, "",
     "## Baseline build × encounter × depth matrix", "", "| Depth | Encounter | Build | Pure raw | Normal hit mean | Normal attacks mean | Normal damage total mean | Rounds mean | Initial enemies mean | Enemy HP removal/round |", "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |", ...caseRows, "",
     "## Production encounter generation vs controlled fixtures", "", `Controlled fixture enemy-count distribution: \`${JSON.stringify(fixture.enemyCountDistribution)}\`; production generated distribution is recorded per depth in JSON. This is generation output, not observed full-run encounter frequency.`, "", "| Depth | Production average enemies | Size distribution |", "| --- | ---: | --- |", ...report.productionEncounterDistribution.map(item => `| B${item.depth} | ${item.averageEnemyCount.toFixed(2)} | ${JSON.stringify(item.sizeCounts)} |`), "",
-    "## Reproduction and evidence", "", "```sh", "node scratch/measurements/issue984_pure_raw_decomposition.js --runs 500 --seed 974-build-confidence --output evidence/results/issue-984-pure-raw-decomposition.json --summary evidence/results/issue-984-pure-raw-decomposition.md", "```", "", "The JSON contains every requested pure-raw death metric, paired cause shifts, production encounter compositions, provenance, and modeled/omitted mechanisms."
+    "## Reproduction and evidence", "", "```sh", "node scratch/measurements/pure_raw_decomposition_measurement.js --runs 500 --seed 974-build-confidence --output evidence/results/issue-984-pure-raw-decomposition.json --summary evidence/results/issue-984-pure-raw-decomposition.md", "```", "", "The JSON contains every requested pure-raw death metric, paired cause shifts, production encounter compositions, provenance, and modeled/omitted mechanisms."
   ].join("\n") + "\n";
 }
 
@@ -335,7 +335,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index++) {
     const value = argv[index];
     if (["--output", "--summary", "--seed", "--runs"].includes(value)) { const next = argv[++index]; if (!next) throw new Error(`${value} requires a value`); options[value.slice(2)] = value === "--runs" ? Number(next) : next; }
-    else if (value === "--help") { console.log("Usage: node scratch/measurements/issue984_pure_raw_decomposition.js --runs 500 --output evidence/results/issue-984-pure-raw-decomposition.json --summary evidence/results/issue-984-pure-raw-decomposition.md [--seed SEED]"); process.exit(0); }
+    else if (value === "--help") { console.log("Usage: node scratch/measurements/pure_raw_decomposition_measurement.js --runs 500 --output evidence/results/issue-984-pure-raw-decomposition.json --summary evidence/results/issue-984-pure-raw-decomposition.md [--seed SEED]"); process.exit(0); }
     else throw new Error(`unknown option: ${value}`);
   }
   if (!options.output || !options.summary) throw new Error("--output and --summary are required");
@@ -344,7 +344,7 @@ function parseArgs(argv) {
 
 export async function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv);
-  const provenance = requireRunnerProvenance({ fetchOriginMain: false, measurementRunnerPaths: ["scratch/measurements/issue984_pure_raw_decomposition.js", "scratch/measurements/issue973_build_sensitivity.js", "src/combat_logic/round.js", "scratch/measurements/measurement_env_signature.js", "scratch/measurements/measurement_provenance.js"] });
+  const provenance = requireRunnerProvenance({ fetchOriginMain: false, measurementRunnerPaths: ["scratch/measurements/pure_raw_decomposition_measurement.js", "scratch/measurements/build_sensitivity_measurement.js", "src/combat_logic/round.js", "scratch/measurements/measurement_env_signature.js", "scratch/measurements/measurement_provenance.js"] });
   const envSignature = printEnvSignatureBanner({ runnerVersion: RUNNER_VERSION, seed: options.seed || DEFAULT_SEED, runs: options.runs || DEFAULT_RUNS, depths: TARGET_DEPTHS, builds: BUILD_IDS, encounters: ENCOUNTER_IDS, counterfactuals: COUNTERFACTUALS.map(item => item.id) }, { label: "issue984 pure raw decomposition env" });
   const report = runDecomposition({ seed: options.seed || DEFAULT_SEED, runs: options.runs || DEFAULT_RUNS, provenance });
   report.measurement.environmentSignature = envSignature;

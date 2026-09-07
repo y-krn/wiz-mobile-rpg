@@ -7,7 +7,7 @@ import {
   runMeasurement,
   SCHEMA_VERSION,
   validatePolicyFixture
-} from "../../../scratch/measurements/issue990_phase3_stage2_combat_personas.js";
+} from "../../../scratch/measurements/combat_policy_sensitivity_measurement.js";
 import {
   COMBAT_POLICY_IDS,
   COMBAT_POLICY_RULES,

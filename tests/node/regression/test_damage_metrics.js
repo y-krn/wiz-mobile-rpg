@@ -7,7 +7,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 function runWithMetrics(flag) {
   const result = spawnSync(
     process.execPath,
-    ["scratch/simulations/sim_commit_depth_624.js"],
+    ["scratch/simulations/sim_commit_depth.js"],
     {
       cwd: repoRoot,
       env: {
