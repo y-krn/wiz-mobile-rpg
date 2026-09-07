@@ -88,6 +88,8 @@ export const state = {
 
   // Message logs
   logs: [],
+  // Runtime-only display semantics; persisted logs remain string-compatible.
+  logEntries: [],
   transitioning: false,
   controlsGuardUntil: 0,
   cleared: false,
@@ -122,35 +124,66 @@ export function markMapCellVisited(x, y) {
 // repeated探索の気配 etc. don't spam the log panel.
 const LOG_COUNT_RE = / ×(\d+)$/;
 export const LOG_HISTORY_LIMIT = 500;
-export function addLog(msg) {
+let logEntriesSource = null;
+
+function getLogText(entry) {
+  return typeof entry === "object" && entry !== null ? String(entry.text ?? "") : String(entry ?? "");
+}
+
+export function getLogEntries() {
   const logs = state.logs;
+  if (logEntriesSource !== logs || !Array.isArray(state.logEntries) || state.logEntries.length !== logs.length
+    || state.logEntries.some((entry, index) => getLogText(entry) !== getLogText(logs[index]))) {
+    state.logEntries = logs.map(text => ({ text: getLogText(text), side: "neutral" }));
+    logEntriesSource = logs;
+  }
+  return state.logEntries;
+}
+
+export function addLog(msg, { side = "neutral" } = {}) {
+  const logs = state.logs;
+  const logEntries = getLogEntries();
+  const logEntry = { text: String(msg ?? ""), side };
   if (logs.length > 0) {
     const last = logs[logs.length - 1];
-    const m = last.match(LOG_COUNT_RE);
-    const lastBase = m ? last.slice(0, m.index) : last;
+    const lastText = getLogText(last);
+    const m = lastText.match(LOG_COUNT_RE);
+    const lastBase = m ? lastText.slice(0, m.index) : lastText;
     if (lastBase === msg) {
       const n = m ? parseInt(m[1], 10) + 1 : 2;
+      const previousSide = logEntries[logEntries.length - 1]?.side || "neutral";
+      const mergedSide = previousSide === side || previousSide === "neutral"
+        ? side
+        : side === "neutral" ? previousSide : "neutral";
       logs[logs.length - 1] = `${msg} ×${n}`;
+      logEntries[logEntries.length - 1] = {
+        ...(logEntries[logEntries.length - 1] || logEntry),
+        text: `${msg} ×${n}`,
+        side: mergedSide
+      };
       return;
     }
   }
   logs.push(msg);
+  logEntries.push(logEntry);
   if (logs.length > LOG_HISTORY_LIMIT) {
     logs.shift();
+    logEntries.shift();
   }
 }
 
 // Event Strip observations are a small, persisted lifecycle ledger separate
 // from the human-readable log. This lets a signal be replaced or resolved
 // without treating old log text as current fact.
-export function addEventLog(msg, { key = null, scope = "run", kind = "unresolved" } = {}) {
-  addLog(msg);
+export function addEventLog(msg, { key = null, scope = "run", kind = "unresolved", side = "neutral" } = {}) {
+  addLog(msg, { side });
   if (!key || !state.currentRun) return;
   state.currentRun.eventObservations ||= {};
   state.currentRun.eventObservations[key] = {
     key,
     scope,
     text: String(msg ?? ""),
+    side,
     kind: kind === "result" ? "result" : "unresolved",
     lifecycle: "active"
   };

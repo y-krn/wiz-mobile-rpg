@@ -81,10 +81,11 @@ export function playBattleLogs(queue, index) {
     addEventLog(log.msg, {
       key: `combat-result:${state.combatState?.roundNumber ?? "unknown"}:${index}`,
       scope: `combat:${state.combatState?.roundNumber ?? "unknown"}`,
-      kind: "result"
+      kind: "result",
+      side: log.side
     });
   } else {
-    addLog(log.msg);
+    addLog(log.msg, { side: log.side });
   }
   updateUI();
 

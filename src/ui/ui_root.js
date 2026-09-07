@@ -1,4 +1,4 @@
-import { state } from "../state.js";
+import { state, getLogEntries } from "../state.js";
 import { getIsMuted } from "../audio.js";
 import { menuContext } from "../navigation.js";
 import { renderEquip } from "../equip.js";
@@ -113,27 +113,34 @@ export function showFloorEntryStinger(floor, firstVisit) {
 // individual display lines, dropping empties.
 function flattenLogLines(logs) {
   const lines = [];
-  logs.forEach(msg => {
-    msg.split("\n").forEach(line => {
-      if (line) lines.push(line);
+  logs.forEach(log => {
+    const text = typeof log === "object" && log !== null ? String(log.text ?? "") : String(log ?? "");
+    const side = log?.side || "neutral";
+    text.split("\n").forEach(line => {
+      if (line) lines.push({ text: line, side });
     });
   });
   return lines;
 }
 
 // Build a color-coded log entry <div> for a single line.
-function createLogEntry(line) {
+function createLogEntry(lineData) {
+  const line = typeof lineData === "object" && lineData !== null ? String(lineData.text ?? "") : String(lineData ?? "");
+  const side = lineData?.side || "neutral";
   const entry = document.createElement("div");
   entry.className = "log-entry";
-  if (line.includes("[味方]")) {
+  const isDamage = line.includes("ダメージ") || line.includes("倒れた") || line.includes("力尽きた") || line.includes("失敗");
+  if (side === "ally") {
+    entry.classList.add("ally");
     if (line.includes("回復") || line.includes("治") || line.includes("無事")) {
       entry.classList.add("heal");
-    } else {
-      entry.classList.add("ally");
+    } else if (isDamage) {
+      entry.classList.add("damage-dealt");
     }
-  } else if (line.includes("[ 敵 ]")) {
+  } else if (side === "enemy") {
     entry.classList.add("enemy");
-  } else if (line.includes("ダメージ") || line.includes("倒れた") || line.includes("失敗")) {
+    if (isDamage) entry.classList.add("damage-taken");
+  } else if (isDamage) {
     entry.classList.add("damage");
   } else if (line.includes("回復") || line.includes("レベルアップ") || line.includes("強さ") || line.includes("休息")) {
     entry.classList.add("heal");
@@ -154,7 +161,7 @@ export function renderLogOverlay() {
   if (!body) return;
   const scrollState = captureScrollState(body);
   body.replaceChildren();
-  flattenLogLines(state.logs).forEach(line => {
+  flattenLogLines(getLogEntries()).forEach(line => {
     body.appendChild(createLogEntry(line));
   });
   restoreScrollState(body, scrollState);
@@ -373,13 +380,13 @@ export function updateUI() {
   const logPanel = document.getElementById("log-panel");
   const logScrollState = captureScrollState(logPanel);
   logContent.replaceChildren();
-  const eventEntries = getEventStripEntries(state.logs, {
+  const eventEntries = getEventStripEntries(getLogEntries(), {
     unresolvedLimit: 4,
     transientLimit: RECENT_LOG_LINES - 4,
     activeObservations: state.currentRun?.eventObservations
   });
-  const appendEventEntry = ({ kind, text }) => {
-    const entry = createLogEntry(text);
+  const appendEventEntry = ({ kind, text, side }) => {
+    const entry = createLogEntry({ text, side });
     entry.classList.add("event-strip-item", `event-strip-item--${kind}`);
     if (entry.dataset) entry.dataset.eventKind = kind;
     const label = document.createElement("span");

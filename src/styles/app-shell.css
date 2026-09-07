@@ -357,6 +357,14 @@
   color: var(--neon-red);
 }
 
+.log-entry.damage-dealt {
+  color: var(--neon-cyan);
+}
+
+.log-entry.damage-taken {
+  color: var(--neon-red);
+}
+
 .log-entry.heal {
   color: var(--neon-green);
 }
