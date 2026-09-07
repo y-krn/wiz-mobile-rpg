@@ -4,9 +4,9 @@
     "runnerVersion": "issue1100-build-payment-stake-v1",
     "question": "各Build Snapshotがcanonical runで安く/高く支払う資源と行動を実測する",
     "scope": "observation-only; no win-rate equalization, recommendation, or balance tuning",
-    "sourceCommit": "77efea50d7b97c70ad00275797c03098641511dd",
+    "sourceCommit": "22af95243aa751e158afc40ac14d9743c5df280e",
     "productionBaselineSha": "2abf0d0712fafcceebc04f757f6534aa236a6d21",
-    "measurementRunnerCommit": "77efea50d7b97c70ad00275797c03098641511dd",
+    "measurementRunnerCommit": "22af95243aa751e158afc40ac14d9743c5df280e",
     "measurementRunnerPaths": [
       "scratch/measurements/issue1100_build_payment_stake.js",
       "scratch/measurements/balance_measurement.js",
@@ -105,8 +105,8 @@
     "taskCount": 12,
     "determinismProbeTaskCount": 1,
     "parallelism": 12,
-    "wallClockMs": 62686,
-    "cpuTimeMs": 455539
+    "wallClockMs": 62511,
+    "cpuTimeMs": 463045
   },
   "modeling": {
     "modeled": [
@@ -129,10 +129,10 @@
   "decision": {
     "numericBalanceChange": "none",
     "additionalObservation": [
-      "Combat strength and unconfirmed object-loot stake are separate axes: stronger combat payment does not imply lower carried or lost-loot exposure. In workshop-empty B20, heavy-two-hand averaged 11.25 combat rounds and 36.17 damage HP with 7.53 terminal stake, versus light-shield at 13.88 rounds, 37.57 damage HP, and 5.10 terminal stake."
+      "Production TOWN_PORTAL settlement is Wing regardless of acquisition source. The N=500 evidence records 2,527 Wing uses and 5,054 salvaged object-loot entries across 48 cases; workshop-empty B20 settlement-before stake averaged 12.22 for heavy-two-hand versus 10.63 for light-shield, while the corresponding combat rounds were 11.25 versus 13.88."
     ],
     "balanceIssueCandidates": [],
-    "basis": "Issue #1100 is an observation pass. The same canonical payment vector is retained, while object-loot composition and settlement are measured through currentRun.unbankedObjectLoot and its production loot IDs. No balance value or player recommendation is inferred from this pass."
+    "basis": "Issue #1100 is an observation pass. The same canonical payment vector is retained, while object-loot composition and settlement are measured through currentRun.unbankedObjectLoot and production loot IDs for pending discarded/left outcomes. No balance value or player recommendation is inferred from this pass."
   },
   "cases": [
     {

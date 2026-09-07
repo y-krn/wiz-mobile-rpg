@@ -1,7 +1,7 @@
 # Issue #1100 Build Snapshot payment measurement
 
 - runner: `issue1100-build-payment-stake-v1` (schema v2)
-- source commit: `77efea50d7b97c70ad00275797c03098641511dd`
+- source commit: `22af95243aa751e158afc40ac14d9743c5df280e`
 - production baseline SHA: `2abf0d0712fafcceebc04f757f6534aa236a6d21`
 - origin/main ancestor: `true`; clean tree: `true`
 - N=500/fixture, calibration=100, seed=843
@@ -65,7 +65,7 @@ The table reports per-run means for payment dimensions; the JSON record retains 
 ## Decision
 
 - Numeric balance change: **none**.
-- Additional observation: Combat strength and unconfirmed object-loot stake are separate axes: stronger combat payment does not imply lower carried or lost-loot exposure. In workshop-empty B20, heavy-two-hand averaged 11.25 combat rounds and 36.17 damage HP with 7.53 terminal stake, versus light-shield at 13.88 rounds, 37.57 damage HP, and 5.10 terminal stake..
+- Additional observation: Production TOWN_PORTAL settlement is Wing regardless of acquisition source. The N=500 evidence records 2,527 Wing uses and 5,054 salvaged object-loot entries across 48 cases; workshop-empty B20 settlement-before stake averaged 12.22 for heavy-two-hand versus 10.63 for light-shield, while the corresponding combat rounds were 11.25 versus 13.88..
 - Balance Issue candidates: none from this observation pass.
 
 ## Modeling boundary
