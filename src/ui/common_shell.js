@@ -71,7 +71,8 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
     .flatMap(entry => {
       const text = typeof entry === "object" && entry !== null ? String(entry.text ?? "") : String(entry ?? "");
       const side = entry?.side || "neutral";
-      return text.split("\n").map(line => ({ text: line, side }));
+      const presentationKind = entry?.presentationKind || "neutral";
+      return text.split("\n").map(line => ({ text: line, side, presentationKind }));
     })
     .filter(entry => entry.text);
   const activeObservationTexts = activeObservations === undefined
@@ -87,6 +88,7 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
         kind: "unresolved",
         text: entry.text,
         side: entry.side || "neutral",
+        presentationKind: entry.presentationKind || "neutral",
         key: entry.key,
         scope: entry.scope,
         lifecycle: entry.lifecycle
@@ -99,6 +101,7 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
         kind: "result",
         text: entry.text,
         side: entry.side || "neutral",
+        presentationKind: entry.presentationKind || "neutral",
         key: entry.key,
         scope: entry.scope,
         lifecycle: entry.lifecycle
@@ -106,7 +109,11 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
     : [];
   const transient = [];
   lines.forEach(line => {
-    const entry = { ...classifyEventLine(line.text), side: line.side };
+    const entry = {
+      ...classifyEventLine(line.text),
+      side: line.side,
+      presentationKind: line.presentationKind
+    };
     if (entry.kind === "unresolved" && activeObservations === undefined) unresolved.push(entry);
     if (entry.kind === "transient" && !activeObservationTexts?.has(entry.text)) transient.push(entry);
   });

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { runCombatRoundCalculation } from "../../../src/combat_logic/round.js";
 import {
   COMBAT_LOG_DELAYS,
   COMBAT_LOG_SIDES,
+  COMBAT_LOG_PRESENTATION_KINDS,
   formatCombatLogMessage,
   getCombatLogSide,
   getCombatLogDelay,
@@ -48,5 +50,90 @@ const mixed = groupCombatLogEntries([
   { msg: "[ 敵 ] ゴブリンの攻撃！冒険者に5のダメージ！", groupId: "action:mixed" }
 ]);
 assert.equal(mixed[0].side, COMBAT_LOG_SIDES.NEUTRAL);
+assert.equal(mixed[0].presentationKind, COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL);
+
+const poisonSemantics = groupCombatLogEntries([
+  {
+    msg: "[ 敵 ] [!] 毒のダメージ！コボルトは3のダメージを受けた。",
+    side: COMBAT_LOG_SIDES.ENEMY,
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT
+  },
+  {
+    msg: "[味方] [!] 毒のダメージ！冒険者は2のダメージを受けた。",
+    side: COMBAT_LOG_SIDES.ALLY,
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+  },
+  {
+    msg: "[ 敵 ] 棘が冒険者に1の反射ダメージを与えた！",
+    side: COMBAT_LOG_SIDES.ENEMY,
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+  }
+]);
+assert.deepEqual(poisonSemantics.map(entry => entry.presentationKind), [
+  COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT,
+  COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN,
+  COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+]);
+assert.equal(
+  formatCombatLogMessage("[ 敵 ] コボルトの攻撃！冒険者に4のダメージ！", COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN),
+  "コボルトの一撃を受けた。4ダメージ。"
+);
+
+function createCombatState({ characterStatus = "ok", monsterStatus = "ok", monsterHp = 1000 } = {}) {
+  return {
+    floor: 1,
+    party: [{
+      name: "冒険者",
+      level: 1,
+      hp: 100,
+      maxHp: 100,
+      mp: 0,
+      maxMp: 0,
+      status: characterStatus,
+      equipment: {},
+      spells: [],
+      buffs: [{ type: "firstStrike", value: 100, turns: 99 }]
+    }],
+    inventory: [],
+    codex: null,
+    firstKills: [],
+    currentRun: null,
+    metaMaterials: {},
+    roamingMonsters: [],
+    floorChestsTotal: [],
+    combatState: {
+      monsters: [{ name: "コボルトの斥候", hp: monsterHp, maxHp: monsterHp, atk: 0, def: 0, status: monsterStatus }],
+      phase: "resolving",
+      roundNumber: 1,
+      isBoss: false,
+      isMidboss: false,
+      isRoamingFlack: false
+    }
+  };
+}
+
+const normalAttack = runCombatRoundCalculation(createCombatState(), {
+  actions: [{ actorIdx: 0, type: "fight", targetIdx: 0 }]
+});
+assert.equal(
+  normalAttack.logQueue.find(entry => entry.msg.includes("攻撃！"))?.presentationKind,
+  COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT
+);
+
+const enemyPoison = runCombatRoundCalculation(createCombatState({ monsterStatus: "poisoned" }), {
+  actions: [{ actorIdx: 0, type: "defend" }]
+});
+assert.equal(
+  enemyPoison.logQueue.find(entry => entry.msg.includes("毒のダメージ"))?.presentationKind,
+  COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT
+);
+
+const allyPoison = runCombatRoundCalculation(createCombatState({ characterStatus: "poisoned" }), {
+  actions: [{ actorIdx: 0, type: "defend" }]
+});
+assert.equal(
+  allyPoison.logQueue.find(entry => entry.msg.includes("毒のダメージ"))?.presentationKind,
+  COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+);
 
 console.log("[PASS] combat log presentation pacing, wording, and grouping");

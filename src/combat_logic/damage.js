@@ -25,6 +25,7 @@ import {
   resolveGuardMitigation,
   resolveGuardStatusChance
 } from "../rules/guard_rules.js";
+import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 
 export { getGuardProfile, getGuardProfileId, resolveGuardMitigation, resolveGuardStatusChance };
 
@@ -211,7 +212,10 @@ export function tryThornCounter(char, monster, actorIdx, state, logQueue, rng = 
   const damage = Math.max(1, Math.round(base * thorn.counterPower));
   monster.hp = Math.max(0, monster.hp - damage);
   logCoreActivation(state, logQueue, char, "CORE_THORN_SHIELD", { once: false });
-  logQueue.push({ msg: `[味方] ${char.name}の棘が${monster.name}に${damage}の反撃ダメージ！` });
+  logQueue.push({
+    msg: `[味方] ${char.name}の棘が${monster.name}に${damage}の反撃ダメージ！`,
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT
+  });
   return damage;
 }
 
@@ -374,7 +378,10 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
       isDefending
     });
     const wakeSuffix = wakeSleepingCharOnDamage(c) ? `${c.name}は目を覚ました！` : "";
-    logQueue.push({ msg: `[ 敵 ] ${sourceName}により${c.name}は${dmg}のダメージを受けた。${isDefending ? "(防御)" : ""}${wakeSuffix}` });
+    logQueue.push({
+      msg: `[ 敵 ] ${sourceName}により${c.name}は${dmg}のダメージを受けた。${isDefending ? "(防御)" : ""}${wakeSuffix}`,
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+    });
     if (c.hp === 0) {
       c.status = "dead";
       let causeText = `${sourceName}の攻撃`;

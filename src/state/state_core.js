@@ -1,6 +1,11 @@
 import { DIR_N, START_X, START_Y } from "../data.js";
 import { createDefaultRecords } from "./records_state.js";
 import { normalizeDeathSource } from "./death_logs.js";
+import {
+  COMBAT_LOG_PRESENTATION_KINDS,
+  normalizeCombatLogPresentationKind,
+  mergeCombatLogPresentationKinds
+} from "../combat_log_semantics.js";
 
 // Main State Object
 export const state = {
@@ -134,16 +139,24 @@ export function getLogEntries() {
   const logs = state.logs;
   if (logEntriesSource !== logs || !Array.isArray(state.logEntries) || state.logEntries.length !== logs.length
     || state.logEntries.some((entry, index) => getLogText(entry) !== getLogText(logs[index]))) {
-    state.logEntries = logs.map(text => ({ text: getLogText(text), side: "neutral" }));
+    state.logEntries = logs.map(text => ({
+      text: getLogText(text),
+      side: "neutral",
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
+    }));
     logEntriesSource = logs;
   }
   return state.logEntries;
 }
 
-export function addLog(msg, { side = "neutral" } = {}) {
+export function addLog(msg, {
+  side = "neutral",
+  presentationKind = COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
+} = {}) {
   const logs = state.logs;
   const logEntries = getLogEntries();
-  const logEntry = { text: String(msg ?? ""), side };
+  const normalizedPresentationKind = normalizeCombatLogPresentationKind(presentationKind);
+  const logEntry = { text: String(msg ?? ""), side, presentationKind: normalizedPresentationKind };
   if (logs.length > 0) {
     const last = logs[logs.length - 1];
     const lastText = getLogText(last);
@@ -155,11 +168,16 @@ export function addLog(msg, { side = "neutral" } = {}) {
       const mergedSide = previousSide === side || previousSide === "neutral"
         ? side
         : side === "neutral" ? previousSide : "neutral";
+      const mergedPresentationKind = mergeCombatLogPresentationKinds([
+        logEntries[logEntries.length - 1],
+        { presentationKind: normalizedPresentationKind }
+      ]);
       logs[logs.length - 1] = `${msg} ×${n}`;
       logEntries[logEntries.length - 1] = {
         ...(logEntries[logEntries.length - 1] || logEntry),
         text: `${msg} ×${n}`,
-        side: mergedSide
+        side: mergedSide,
+        presentationKind: mergedPresentationKind
       };
       return;
     }
@@ -175,8 +193,14 @@ export function addLog(msg, { side = "neutral" } = {}) {
 // Event Strip observations are a small, persisted lifecycle ledger separate
 // from the human-readable log. This lets a signal be replaced or resolved
 // without treating old log text as current fact.
-export function addEventLog(msg, { key = null, scope = "run", kind = "unresolved", side = "neutral" } = {}) {
-  addLog(msg, { side });
+export function addEventLog(msg, {
+  key = null,
+  scope = "run",
+  kind = "unresolved",
+  side = "neutral",
+  presentationKind = COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
+} = {}) {
+  addLog(msg, { side, presentationKind });
   if (!key || !state.currentRun) return;
   state.currentRun.eventObservations ||= {};
   state.currentRun.eventObservations[key] = {
@@ -184,6 +208,7 @@ export function addEventLog(msg, { key = null, scope = "run", kind = "unresolved
     scope,
     text: String(msg ?? ""),
     side,
+    presentationKind: normalizeCombatLogPresentationKind(presentationKind),
     kind: kind === "result" ? "result" : "unresolved",
     lifecycle: "active"
   };

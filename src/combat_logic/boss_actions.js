@@ -11,6 +11,7 @@ import {
   shouldBreakMilestoneBossGuard
 } from "../rules/boss_rules.js";
 import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
+import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 
 function resolveB5MilestoneBossAction(mon, state, logQueue) {
   const rule = getMilestoneBossRule(
@@ -83,7 +84,10 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "フラック", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
+          logQueue.push({
+            msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
+            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+          });
           if (c.hp === 0) {
             c.status = "dead";
             const deathLog = recordCharDeath(state, c, "フラックのラハリト", { type: "combat", source: "フラック" });
@@ -151,7 +155,10 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "フラック", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
+          logQueue.push({
+            msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
+            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+          });
           if (c.hp === 0) {
             c.status = "dead";
             const deathLog = recordCharDeath(state, c, "フラックの自爆", { type: "combat", source: "フラック" });
@@ -253,7 +260,10 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "special", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
+          logQueue.push({
+            msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
+            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+          });
           if (c.hp === 0) {
             c.status = "dead";
             const deathLog = recordCharDeath(state, c, "いにしえの竜のティルトウェイト", { type: "combat", source: "いにしえの竜" });
@@ -289,7 +299,10 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "breath", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
+          logQueue.push({
+            msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
+            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+          });
           if (c.hp === 0) {
             c.status = "dead";
             const deathLog = recordCharDeath(state, c, "いにしえの竜の炎の息", { type: "combat", source: "いにしえの竜" });
@@ -329,7 +342,10 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
+          logQueue.push({
+            msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
+            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+          });
           if (c.hp === 0) {
             c.status = "dead";
             const deathLog = recordCharDeath(state, c, "いにしえの竜のマダルト", { type: "combat", source: "いにしえの竜" });

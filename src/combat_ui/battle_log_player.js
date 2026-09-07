@@ -82,10 +82,11 @@ export function playBattleLogs(queue, index) {
       key: `combat-result:${state.combatState?.roundNumber ?? "unknown"}:${index}`,
       scope: `combat:${state.combatState?.roundNumber ?? "unknown"}`,
       kind: "result",
-      side: log.side
+      side: log.side,
+      presentationKind: log.presentationKind
     });
   } else {
-    addLog(log.msg, { side: log.side });
+    addLog(log.msg, { side: log.side, presentationKind: log.presentationKind });
   }
   updateUI();
 
