@@ -7,7 +7,7 @@ const {
   POLICY_IDS,
   createDiagnosticScenario,
   runDiagnostic
-} = await import("../../../scratch/measurements/issue1139_starting_kit_diagnostic.js");
+} = await import("../../../scratch/measurements/starting_kit_diagnostic.js");
 
 assert.deepEqual(STARTING_KIT_IDS, ["vanguard", "scout", "devotion", "arcana"]);
 assert.deepEqual(POLICY_IDS, ["fight", "flee-threshold"]);

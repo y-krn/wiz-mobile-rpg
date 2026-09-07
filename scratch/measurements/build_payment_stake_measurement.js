@@ -18,7 +18,7 @@ export const ISSUE1100_RUNNER_VERSION = "issue1100-build-payment-stake-v1";
 const ISSUE1100_NUMERIC_DECISIONS = new Set(["none", "candidate", "not_assessed"]);
 
 const MEASUREMENT_RUNNER_PATHS = [
-  "scratch/measurements/issue1100_build_payment_stake.js",
+  "scratch/measurements/build_payment_stake_measurement.js",
   "scratch/measurements/balance_measurement.js",
   "scratch/measurements/build_fixtures.js",
   "scratch/simulations/sim_depth_material_ev.js",
@@ -45,7 +45,7 @@ function parseArgs(argv) {
       options[optionName] = Number(next);
     } else if (value === "--help") {
       console.log(
-        "Usage: node scratch/measurements/issue1100_build_payment_stake.js " +
+        "Usage: node scratch/measurements/build_payment_stake_measurement.js " +
         "--output /private/tmp/issue1100.json --decision-file evidence/results/issue-1100-build-payment-stake-decision.json " +
         "[--summary /private/tmp/issue1100.md]"
       );

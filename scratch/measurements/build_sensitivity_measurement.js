@@ -1722,7 +1722,7 @@ function parseArgs(argv) {
       if (!next) throw new Error(`${value} requires a value`);
       options[value.slice(2)] = value === "--runs" ? Number(next) : next;
     } else if (value === "--help") {
-      console.log("Usage: node scratch/measurements/issue973_build_sensitivity.js --runs 100|500 --output /private/tmp/issue-980.json --summary evidence/results/issue-980.md [--seed SEED]");
+      console.log("Usage: node scratch/measurements/build_sensitivity_measurement.js --runs 100|500 --output /private/tmp/issue-980.json --summary evidence/results/issue-980.md [--seed SEED]");
       process.exit(0);
     } else {
       throw new Error(`unknown option: ${value}`);
@@ -1787,7 +1787,7 @@ export async function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv);
   const provenance = requireRunnerProvenance({
     fetchOriginMain: false,
-    measurementRunnerPaths: ["scratch/measurements/issue973_build_sensitivity.js", "scratch/measurements/measurement_env_signature.js", "scratch/measurements/measurement_provenance.js"]
+    measurementRunnerPaths: ["scratch/measurements/build_sensitivity_measurement.js", "scratch/measurements/measurement_env_signature.js", "scratch/measurements/measurement_provenance.js"]
   });
   const envSignature = printEnvSignatureBanner({
     runnerVersion: RUNNER_VERSION,

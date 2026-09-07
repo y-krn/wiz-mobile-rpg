@@ -18,7 +18,7 @@ export const ISSUE1096_RUNNER_VERSION = "issue1096-build-payment-v1";
 const ISSUE1096_NUMERIC_DECISIONS = new Set(["none", "candidate", "not_assessed"]);
 
 const MEASUREMENT_RUNNER_PATHS = [
-  "scratch/measurements/issue1096_build_payment.js",
+  "scratch/measurements/build_payment_measurement.js",
   "scratch/measurements/balance_measurement.js",
   "scratch/measurements/build_fixtures.js",
   "scratch/simulations/sim_depth_material_ev.js",
@@ -43,7 +43,7 @@ function parseArgs(argv) {
       options[optionName] = Number(next);
     } else if (value === "--help") {
       console.log(
-        "Usage: node scratch/measurements/issue1096_build_payment.js " +
+        "Usage: node scratch/measurements/build_payment_measurement.js " +
         "--output /private/tmp/issue1096.json --decision-file evidence/results/issue-1096-build-payment-decision.json " +
         "[--summary /private/tmp/issue1096.md]"
       );

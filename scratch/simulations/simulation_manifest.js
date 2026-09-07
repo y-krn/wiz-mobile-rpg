@@ -13,47 +13,30 @@ const canonicalRunnerPath = "scratch/simulations/sim_depth_material_ev.js";
 
 // This is an explicit authorization inventory. Discovery may find a new
 // candidate, but lifecycle validation must reject it until it is classified.
+// Permanent new runners must be canonical or reusable and use semantic, Issue-independent names.
 export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: canonicalRunnerPath, lifecycle: "canonical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_1056_pending_rewards.js", lifecycle: "historical", scope: "formula" },
-  { path: "scratch/simulations/sim_issue_1064_unknown_trial.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_recovery_policy.js", lifecycle: "historical", scope: "infra" },
-  { path: "scratch/measurements/issue624_commit_depth.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue700_gate_metrics.js", lifecycle: "historical", scope: "infra" },
-  { path: "scratch/measurements/issue706_depth_enemy_pools.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue990_partial_information_progression.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue816_from_drop_sim.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue990_phase3_stage1.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue990_phase3_stage1_5.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue990_phase3_stage2_combat_personas.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue990_phase3_stage3_checkpoint_continuation.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue1012_observability.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue1096_build_payment.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue1100_build_payment_stake.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue1139_starting_kit_diagnostic.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/measurements/issue1078_loot_supply.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/measurements/partial_information_progression_measurement.js", lifecycle: "reusable", scope: "run" },
+  { path: "scratch/measurements/persona_population_measurement.js", lifecycle: "reusable", scope: "run" },
+  { path: "scratch/measurements/shallow_combat_diagnostic.js", lifecycle: "reusable", scope: "run" },
+  { path: "scratch/measurements/combat_policy_sensitivity_measurement.js", lifecycle: "reusable", scope: "run" },
+  { path: "scratch/measurements/checkpoint_continuation_measurement.js", lifecycle: "reusable", scope: "run" },
+  { path: "scratch/measurements/observability_measurement.js", lifecycle: "reusable", scope: "run" },
+  { path: "scratch/measurements/build_payment_measurement.js", lifecycle: "reusable", scope: "run" },
+  { path: "scratch/measurements/build_payment_stake_measurement.js", lifecycle: "reusable", scope: "run" },
+  { path: "scratch/measurements/starting_kit_diagnostic.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/simulations/sim_balance.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_camp_recovery.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_caster_pack.js", lifecycle: "historical", scope: "formula" },
-  { path: "scratch/simulations/sim_commit_depth_624.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/simulations/sim_commit_depth.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/simulations/sim_depth_scaling.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_early_mortality.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/simulations/sim_encounter_rate_options.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/simulations/sim_frontline_formula.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_identification_gamble.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_inflow_reduction.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_461_baseline.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_499_shallow_recovery_dose_sweep.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_499_shallow_recovery_supply.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_508_heal_unit_density.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_516_class_sustain.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_528_class_sustain_phase2.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_599_explore_spells.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_599_level_distribution.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_612_exp_pace.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_713_trap_calibration.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_793_bleeding.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_issue_825_vulnerable.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/simulations/sim_bleeding_measurement.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/simulations/sim_material_income.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_maze_metrics.js", lifecycle: "historical", scope: "map" },
   { path: "scratch/simulations/sim_new_spells.js", lifecycle: "historical", scope: "formula" },
@@ -416,7 +399,7 @@ export function evaluateRuntimeDomainCoverage(result, manifest = SIMULATION_MANI
 
 export function validateSimulationManifest(manifest = SIMULATION_MANIFEST) {
   const errors = [];
-  const allowedLifecycles = new Set(["canonical", "temporary", "historical"]);
+  const allowedLifecycles = new Set(["canonical", "reusable", "temporary", "historical"]);
   const canonical = manifest?.canonical;
   if (!canonical || typeof canonical !== "object") {
     errors.push("canonical runner metadata is missing");

@@ -18,7 +18,7 @@ import {
   calculateDiagnosticUtility,
   bootstrapMeanCi,
   isSignificantReversal
-} from "./issue973_build_sensitivity.js";
+} from "./build_sensitivity_measurement.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 
@@ -562,7 +562,7 @@ export function renderSummary(report) {
   });
   lines.push("", "## Matched common-support comparison", "", "Only event keys shared by builds are paired. Family entries below N=30 are recorded as insufficient_sample and are excluded from strict reversal counts.", "", "| Pair | Common N | Clear difference | HP difference | MP difference | Strict reversals | Insufficient family comparisons |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
   report.matchedCommonSupport.buildPairs.forEach(pair => lines.push(`| ${pair.leftBuildId} vs ${pair.rightBuildId} | ${pair.commonSupportPairedN} | ${format(pair.allCommonSupport.clearDifference?.estimate, 4)} | ${format(pair.allCommonSupport.hpDifference?.estimate, 4)} | ${format(pair.allCommonSupport.mpDifference?.estimate, 4)} | ${pair.strictSignificantReversals.length} | ${pair.insufficientSampleComparisons.length} |`));
-  lines.push("", "## Build Confidence and decision", "", `- #987 generated-frequency best-build share: **${report.references.generatedFrequency.bestBuildShare?.dominantBuild || "n/a"} ${percent(report.references.generatedFrequency.bestBuildShare?.dominantShare)}**; this is not reach dominance.`, `- oracle-route highest-depth dominance on shared seeds: ${JSON.stringify(report.buildConfidence.oracleRouteDominance.shares)}. This is a modeled survival/reach result, not proof of deep-encounter superiority.`, "- matched pair results are the build-vs-build evidence; survivor-conditioned deep composition alone is not interpreted as encounter strength.", "- #975-compatible strict reversal: paired clear outcome + diagnostic utility bootstrap 95% CIs, both sign-reversed; N<30 is insufficient and excluded.", "- B21/B25/B30 pure-raw pressure: **unobserved** in the baseline (all 2,000 build-runs died before B20); this is not 0% pressure.", "- #973 Build Confidence: **Revise** until omitted loot/retreat decisions and non-combat deaths are either modeled or bounded by a follow-up.", "- #990: **keep open**; this PR is a measurement foundation and shallow-result report, not deep reached-run validation.", "- production tuning: **Do not proceed from this measurement alone**. If a separate tuning issue follows, investigate normal physical damage/action exposure with depth/family-specific paired validation first.", "", "## Reproduction", "", "```sh", "node scratch/measurements/issue990_reached_run.js --runs 500 --seed 990-reached-run --output evidence/results/issue-990-reached-run.json --summary evidence/results/issue-990-reached-run.md", "```");
+  lines.push("", "## Build Confidence and decision", "", `- #987 generated-frequency best-build share: **${report.references.generatedFrequency.bestBuildShare?.dominantBuild || "n/a"} ${percent(report.references.generatedFrequency.bestBuildShare?.dominantShare)}**; this is not reach dominance.`, `- oracle-route highest-depth dominance on shared seeds: ${JSON.stringify(report.buildConfidence.oracleRouteDominance.shares)}. This is a modeled survival/reach result, not proof of deep-encounter superiority.`, "- matched pair results are the build-vs-build evidence; survivor-conditioned deep composition alone is not interpreted as encounter strength.", "- #975-compatible strict reversal: paired clear outcome + diagnostic utility bootstrap 95% CIs, both sign-reversed; N<30 is insufficient and excluded.", "- B21/B25/B30 pure-raw pressure: **unobserved** in the baseline (all 2,000 build-runs died before B20); this is not 0% pressure.", "- #973 Build Confidence: **Revise** until omitted loot/retreat decisions and non-combat deaths are either modeled or bounded by a follow-up.", "- #990: **keep open**; this PR is a measurement foundation and shallow-result report, not deep reached-run validation.", "- production tuning: **Do not proceed from this measurement alone**. If a separate tuning issue follows, investigate normal physical damage/action exposure with depth/family-specific paired validation first.", "", "## Reproduction", "", "```sh", "node scratch/measurements/reached_run_measurement.js --runs 500 --seed 990-reached-run --output evidence/results/issue-990-reached-run.json --summary evidence/results/issue-990-reached-run.md", "```");
   return lines.join("\n");
 }
 
@@ -594,7 +594,7 @@ function parseArgs(argv) {
     if (["--output", "--summary", "--seed", "--runs"].includes(arg)) {
       const value = argv[++index]; if (!value) throw new Error(`${arg} requires a value`);
       options[arg.slice(2)] = arg === "--runs" ? Number(value) : value;
-    } else if (arg === "--help") { console.log("Usage: node scratch/measurements/issue990_reached_run.js --runs 500 --seed 990-reached-run --output evidence/results/issue-990-reached-run.json --summary evidence/results/issue-990-reached-run.md"); process.exit(0); }
+    } else if (arg === "--help") { console.log("Usage: node scratch/measurements/reached_run_measurement.js --runs 500 --seed 990-reached-run --output evidence/results/issue-990-reached-run.json --summary evidence/results/issue-990-reached-run.md"); process.exit(0); }
     else throw new Error(`unknown option: ${arg}`);
   }
   if (!options.output || !options.summary) throw new Error("--output and --summary are required");
@@ -603,7 +603,7 @@ function parseArgs(argv) {
 
 export async function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv); const runs = options.runs ?? DEFAULT_RUNS; const seed = options.seed || DEFAULT_SEED;
-  const provenance = requireRunnerProvenance({ fetchOriginMain: false, measurementRunnerPaths: ["scratch/measurements/issue990_reached_run.js", "scratch/measurements/issue973_build_sensitivity.js", "src/run_map_generator.js", "src/systems/camp_rest.js", "src/combat_ui/encounter.js", "src/movement.js", "src/combat_logic/round.js", "scratch/measurements/measurement_provenance.js", "scratch/measurements/measurement_env_signature.js"] });
+  const provenance = requireRunnerProvenance({ fetchOriginMain: false, measurementRunnerPaths: ["scratch/measurements/reached_run_measurement.js", "scratch/measurements/build_sensitivity_measurement.js", "src/run_map_generator.js", "src/systems/camp_rest.js", "src/combat_ui/encounter.js", "src/movement.js", "src/combat_logic/round.js", "scratch/measurements/measurement_provenance.js", "scratch/measurements/measurement_env_signature.js"] });
   const environmentSignature = printEnvSignatureBanner({ runnerVersion: RUNNER_VERSION, seed, runs, depths: [1, MAX_DEPTH], builds: BUILD_IDS, counterfactuals: [] }, { label: "issue990 reached-run env" });
   const report = runMeasurement({ seed, runs, provenance, environmentSignature });
   const outputPath = resolve(options.output); const summaryPath = resolve(options.summary);

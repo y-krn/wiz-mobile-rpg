@@ -8,12 +8,12 @@ import {
 import {
   createBuildCharacter,
   BUILD_IDS
-} from "../../../scratch/measurements/issue973_build_sensitivity.js";
+} from "../../../scratch/measurements/build_sensitivity_measurement.js";
 import {
   describe,
   percentile,
   runMeasurement
-} from "../../../scratch/measurements/issue990_partial_information_progression.js";
+} from "../../../scratch/measurements/partial_information_progression_measurement.js";
 import { getCharDef, getCharMaxHp, getCharMaxMp, getCharWeaponAtk } from "../../../src/data.js";
 import { getActiveSpellKeys } from "../../../src/rules/magic_rules.js";
 
@@ -143,7 +143,7 @@ for (const buildId of buildIds) {
 const changedFiles = execFileSync("git", ["diff", "--name-only", "origin/main...HEAD"], { encoding: "utf8" })
   .split(/\r?\n/).filter(Boolean);
 const phase2FilesChanged = changedFiles.some(file =>
-  file === "scratch/measurements/issue990_partial_information_progression.js" ||
+  file === "scratch/measurements/partial_information_progression_measurement.js" ||
   file === "evidence/results/issue-990-phase2.json" ||
   file === "evidence/results/issue-990-phase2.md"
 );

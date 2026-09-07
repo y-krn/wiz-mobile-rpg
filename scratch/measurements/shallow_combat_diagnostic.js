@@ -1,7 +1,7 @@
 // sim-scope: run — production-backed shallow MP/combat diagnosis
 /* global process */
 import "../simulations/simulation_preflight.js";
-import { main } from "./issue990_phase3_stage1.js";
+import { main } from "./persona_population_measurement.js";
 import { pathToFileURL } from "node:url";
 
 export const RUNNER_VERSION = "issue990-phase3-stage1.5-v2";

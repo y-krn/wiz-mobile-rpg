@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
   ISSUE1100_SCHEMA_VERSION,
   validateIssue1100Report
-} from "../../../scratch/measurements/issue1100_build_payment_stake.js";
+} from "../../../scratch/measurements/build_payment_stake_measurement.js";
 import { resolveTownPortalSettlement } from "../../../scratch/simulations/sim_depth_material_ev.js";
 import { STANDARD_BALANCE_CONFIG } from "../../../scratch/measurements/balance_measurement.js";
 

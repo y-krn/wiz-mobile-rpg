@@ -8,7 +8,7 @@ import {
   runMeasurement,
   SCHEMA_VERSION,
   RUNNER_VERSION
-} from "../../../scratch/measurements/issue990_phase3_stage1.js";
+} from "../../../scratch/measurements/persona_population_measurement.js";
 
 const personaIds = ["cautious", "aggressive", "explorer", "stairs-first", "balanced"];
 assert.deepEqual(Object.keys(PERSONA_POLICIES), personaIds, "Stage 1 registers five required personas");

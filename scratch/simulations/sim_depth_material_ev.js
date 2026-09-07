@@ -9,7 +9,7 @@ import { resolveMeasurementProvenance } from "../measurements/measurement_proven
 import { runSimTasks } from "./sim_parallel.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "../measurements/measurement_env_signature.js";
 import { reportMechanismFiring } from "../measurements/mechanism_wiring_report.js";
-import { classifyCausalDeath } from "../measurements/issue973_build_sensitivity.js";
+import { classifyCausalDeath } from "../measurements/build_sensitivity_measurement.js";
 // Unit tests import this shared module for wiring checks, not measurements.
 const IS_TEST_PROCESS = process.env.SIM_SKIP_PROVENANCE === "1" ||
   basename(process.argv[1] || "").startsWith("test_");
@@ -248,7 +248,7 @@ const {
   SPELLS
 } = await import("../../src/data.js");
 const { createBuildCharacter: createProductionBuildCharacter } =
-  await import("../measurements/issue973_build_sensitivity.js");
+  await import("../measurements/build_sensitivity_measurement.js");
 const { BUILD_FIXTURE_IDS, createBuildFixture } =
   await import("../measurements/build_fixtures.js");
 const { getActiveSpellKeys } = await import("../../src/rules/magic_rules.js");
