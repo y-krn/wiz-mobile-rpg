@@ -35,7 +35,7 @@ jobs:
                   path.write_text(updated)
 
           allowed_suffixes = {'.md', '.js', '.json', '.yml', '.yaml', '.toml'}
-          excluded_roots = {'evidence', '.git', 'node_modules', 'dist'}
+          excluded_roots = {'evidence', '.git', '.github', 'node_modules', 'dist'}
           for path in repo.rglob('*'):
               if not path.is_file() or path.suffix not in allowed_suffixes:
                   continue
@@ -56,11 +56,14 @@ jobs:
               raise SystemExit('stale moved-test relative paths:\n' + '\n'.join(stale_relative))
           PY
 
-      - name: Commit migration and remove helper
+      - name: Commit migration
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f .github/workflows/issue-1143-path-migration.yml
-          git add tests/node .agents scripts .github package.json eslint.config.js scratch/README.md tests/README.md
+          git add tests/node .agents scripts package.json eslint.config.js scratch/README.md tests/README.md
+          if git diff --cached --quiet; then
+            echo "No migration changes to commit."
+            exit 0
+          fi
           git commit -m "fix(tests): rewrite paths after ownership move (#1143)"
           git push origin HEAD:codex/issue-1143
