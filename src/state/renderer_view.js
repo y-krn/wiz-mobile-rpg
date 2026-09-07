@@ -40,19 +40,32 @@ function getSceneVisibility(view) {
   return Object.freeze({ showTownBackground, showCombat, showChest, showEventScene, showItemMenu });
 }
 
-function getDangerCue({ view, map, floor, x, y, roamingMonsters, combatMonsters, hasArcaneSense }) {
-  const livingCombatThreat = view.hasCombat && combatMonsters.some((monster) =>
-    monster?.hp > 0 && (monster.level >= 4 || monster.isBoss || monster.isMidboss)
-  );
-  const nearbyMapThreat = Array.isArray(map) && map.some((row, mapY) => Array.isArray(row) && row.some((cell, mapX) => {
-    if (Math.abs(mapX - x) + Math.abs(mapY - y) > 4) return false;
-    return cell?.event === EVENT_TYPES.BOSS || cell?.event === EVENT_TYPES.MIDBOSS;
-  }));
+function getDangerCue({ view, map, floor, x, y, roamingMonsters, combatMonsters, combatThreatActive, hasArcaneSense }) {
+  const livingCombatThreat = view.hasCombat && combatThreatActive && combatMonsters.some((monster) => monster?.hp > 0);
+  let nearbyMapThreat = false;
+  const playerX = Number.isInteger(x) ? x : 0;
+  const playerY = Number.isInteger(y) ? y : 0;
+  if (Array.isArray(map)) {
+    const minY = Math.max(0, playerY - 4);
+    const maxY = Math.min(map.length - 1, playerY + 4);
+    for (let mapY = minY; mapY <= maxY && !nearbyMapThreat; mapY += 1) {
+      const row = Array.isArray(map[mapY]) ? map[mapY] : [];
+      const minX = Math.max(0, playerX - 4);
+      const maxX = Math.min(row.length - 1, playerX + 4);
+      for (let mapX = minX; mapX <= maxX; mapX += 1) {
+        if (Math.abs(mapX - playerX) + Math.abs(mapY - playerY) > 4) continue;
+        const event = row[mapX]?.event;
+        if (event === EVENT_TYPES.BOSS || event === EVENT_TYPES.MIDBOSS) {
+          nearbyMapThreat = true;
+          break;
+        }
+      }
+    }
+  }
   const nearbyRoamingThreat = roamingMonsters.some((monster) => {
     if (monster?.floor !== floor) return false;
     if (monster.perception === "afterimage" && !hasArcaneSense) return false;
-    const distance = Math.abs(monster.x - x) + Math.abs(monster.y - y);
-    return monster.kind === "elite" || distance <= 4;
+    return monster.kind === "elite";
   });
 
   return Object.freeze({
@@ -131,6 +144,7 @@ export function getRendererInput(stateLike = state, menuContextLike = menuContex
       y: source.y,
       roamingMonsters,
       combatMonsters: view.hasCombat ? source.combatState.monsters : [],
+      combatThreatActive: Boolean(source.combatState?.isBoss || source.combatState?.isMidboss || source.combatState?.isRoamingFlack),
       hasArcaneSense
     })
   });

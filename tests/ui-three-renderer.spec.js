@@ -111,11 +111,10 @@ test('Canvas and Three.js render the same representative dungeon states for comp
 
   for (const mode of modes) {
     await page.setViewportSize({ width: 390, height: 844 });
-    const navigationStart = performance.now();
     await page.goto(mode === 'three' ? '/?renderer=three' : '/');
     if (mode === 'three') await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'three');
 
-    await page.evaluate(async () => {
+    const firstDrawReadyMs = await page.evaluate(async () => {
       const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
       const { updateUI } = await import('/src/ui.js');
       const makeCell = () => ({ walls: [false, false, false, false], blockEnter: [false, false, false, false], type: 'empty' });
@@ -134,6 +133,8 @@ test('Canvas and Three.js render the same representative dungeon states for comp
       updateUI();
       const renderer = (await import('/src/renderer.js')).dungeonRenderer;
       renderer.draw();
+      const navigation = performance.getEntriesByType('navigation')[0];
+      return Number((performance.now() - (navigation?.startTime || 0)).toFixed(1));
     });
     await page.screenshot({ path: testInfo.outputPath(`${mode}-explore-danger.png`) });
 
@@ -158,19 +159,22 @@ test('Canvas and Three.js render the same representative dungeon states for comp
     });
     await page.screenshot({ path: testInfo.outputPath(`${mode}-combat-multiple.png`) });
 
-    measurements[mode] = await page.evaluate(async (firstRenderMs) => {
+    measurements[mode] = await page.evaluate(async (firstDrawReadyMs) => {
       const renderer = (await import('/src/renderer.js')).dungeonRenderer;
+      const renderInput = renderer.getRenderInput();
       const drawCallTimes = [];
       for (let index = 0; index < 31; index += 1) {
         const start = performance.now();
-        renderer.draw();
+        renderer.draw(renderInput);
         if (index > 0) drawCallTimes.push(performance.now() - start);
       }
       const frameIntervals = await new Promise((resolve) => {
         const samples = [];
         let previous = performance.now();
         const sample = (now) => {
-          samples.push(now - previous);
+          const drawStart = performance.now();
+          renderer.draw(renderInput);
+          samples.push({ intervalMs: now - previous, drawMs: performance.now() - drawStart });
           previous = now;
           if (samples.length >= 31) resolve(samples);
           else requestAnimationFrame(sample);
@@ -178,18 +182,21 @@ test('Canvas and Three.js render the same representative dungeon states for comp
         requestAnimationFrame(sample);
       });
       const sorted = [...drawCallTimes].sort((left, right) => left - right);
-      const sortedFrames = [...frameIntervals].sort((left, right) => left - right);
+      const sortedFrames = frameIntervals.map(({ intervalMs }) => intervalMs).sort((left, right) => left - right);
+      const drawFrames = frameIntervals.map(({ drawMs }) => drawMs);
       return {
-        firstRenderMs: Number(firstRenderMs.toFixed(1)),
+        firstDrawReadyMs,
         drawCallMedianMs: Number(sorted[Math.floor(sorted.length / 2)].toFixed(3)),
         drawCallMaxMs: Number(Math.max(...drawCallTimes).toFixed(3)),
+        sustainedDrawMedianMs: Number([...drawFrames].sort((left, right) => left - right)[Math.floor(drawFrames.length / 2)].toFixed(3)),
+        sustainedDrawMaxMs: Number(Math.max(...drawFrames).toFixed(3)),
         frameMedianMs: Number(sortedFrames[Math.floor(sortedFrames.length / 2)].toFixed(3)),
-        frameMaxMs: Number(Math.max(...frameIntervals).toFixed(3)),
-        longFrameCount: frameIntervals.filter((frameMs) => frameMs > 50).length,
+        frameMaxMs: Number(Math.max(...frameIntervals.map(({ intervalMs }) => intervalMs)).toFixed(3)),
+        longFrameCount: frameIntervals.filter(({ intervalMs }) => intervalMs > 50).length,
         jsHeapUsedBytes: performance.memory?.usedJSHeapSize ?? null,
         canvasSize: [document.querySelector('#dungeon-canvas').width, document.querySelector('#dungeon-canvas').height],
       };
-    }, performance.now() - navigationStart);
+    }, firstDrawReadyMs);
   }
 
   console.log(`[issue-1146] renderer comparison ${JSON.stringify(measurements)}`);

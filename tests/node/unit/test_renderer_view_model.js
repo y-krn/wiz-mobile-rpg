@@ -49,6 +49,14 @@ const mapDangerInput = getRendererInput({
 }, null);
 assert.deepEqual(mapDangerInput.dangerCue, { active: true, source: "map" }, "nearby map danger is projected without renderer-side inference");
 
+const normalRoamingInput = getRendererInput({
+  ...stateLike,
+  gameState: "explore",
+  combatState: null,
+  roamingMonsters: [{ floor: 2, x: 1, y: 1, kind: "normal", perception: "visible" }]
+}, null);
+assert.deepEqual(normalRoamingInput.dangerCue, { active: false, source: "none" }, "normal roaming enemies do not become danger identity cues");
+
 const staleEnemyTargetInput = getRendererInput(
   { ...stateLike, gameState: "submenu" },
   { type: "combat_spell", targetType: "enemy", prevGameState: "combat" }

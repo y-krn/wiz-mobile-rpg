@@ -45,15 +45,17 @@ The representative scene test verifies:
 - the same 400x260 render surface, no horizontal overflow, and orientation
   resize handling at all required mobile widths.
 
-The focused run passed 4 tests in both Chromium and WebKit. On the local
-headless browser run, the comparison printed:
+The focused run passed 4 tests in both Chromium and WebKit. The comparison
+keeps one representative combat `RendererInput` and calls each renderer's
+`draw(renderInput)` inside every sampled animation frame. On the local
+headless browser run, it printed:
 
-| browser | renderer | first-render readiness | median rAF interval | max rAF interval | long frames >50ms | JS heap |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Chromium | Canvas 2D | 264.3ms | 8.3ms | 9.5ms | 0/31 | 21.7MB |
-| Chromium | Three.js WebGL | 790.0ms | 8.3ms | 25.0ms | 0/31 | 21.7MB |
-| WebKit | Canvas 2D | 282.7ms | 16.0ms | 25.0ms | 0/31 | unavailable |
-| WebKit | Three.js WebGL | 257.3ms | 17.0ms | 24.0ms | 0/31 | unavailable |
+| browser | renderer | first draw ready | sustained draw median | sustained draw max | median rAF interval | max rAF interval | long frames >50ms | JS heap |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Chromium | Canvas 2D | 191.3ms | 0.0ms | 0.2ms | 8.3ms | 10.2ms | 0/31 | 23.1MB |
+| Chromium | Three.js WebGL | 321.4ms | 0.1ms | 0.3ms | 8.3ms | 33.4ms | 0/31 | 23.1MB |
+| WebKit | Canvas 2D | 230.0ms | 0.0ms | 1.0ms | 17.0ms | 19.0ms | 0/31 | unavailable |
+| WebKit | Three.js WebGL | 164.0ms | 0.0ms | 1.0ms | 16.0ms | 24.0ms | 0/31 | unavailable |
 
 Draw-call timing from the same run was 0.0ms median / 0.1ms max for Canvas
 2D and 0.1ms median / 0.3ms max for Three.js WebGL in Chromium. These are
@@ -76,11 +78,10 @@ paid by users who opt into it.
 
 **Partial adopt.** Three.js is promising for selected Dungeon View atmosphere
 and target presentation: depth/fog, restrained material response, state-linked
-danger silhouette, and direct enemy hit testing are viable without moving the
-HUD or game rules into the renderer. It is not ready to replace Canvas 2D as
-the production default because the spike does not yet establish device-level
-long-frame, memory, WebKit, or orientation evidence, and the optional chunk is
-substantial.
+  danger silhouette, and direct enemy hit testing are viable without moving the
+  HUD or game rules into the renderer. It is not ready to replace Canvas 2D as
+  the production default because physical-device profiling remains open and
+  the optional chunk is substantial.
 
 Follow-up should keep Canvas as fallback and harden one selected scene at a
 time: lifecycle contract, Explore landmarks, combat feedback, visual
