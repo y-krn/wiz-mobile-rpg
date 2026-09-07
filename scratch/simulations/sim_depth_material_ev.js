@@ -220,6 +220,14 @@ const {
 } = await import("../../src/rules/material_rules.js");
 const { addInventoryItemToState } = await import("../../src/state/inventory_state.js");
 const {
+  consumeRunObjectLoot,
+  createPendingObjectLootEntry,
+  replaceRunObjectLoot,
+  resolvePendingObjectLootDisposition,
+  settleRunObjectLoot
+} = await import("../../src/state/run_loot.js");
+const { buildObjectLootStakeSnapshot } = await import("../../src/rules/object_loot_stake.js");
+const {
   generateRandomAccessory,
   generateRandomEquipment,
   getCharAffixSum,
@@ -4427,6 +4435,8 @@ function createSimulationState(
     affixIds: [...workshopGrants.affixIds],
     spellIds: [...workshopGrants.spellIds]
   };
+  currentRun.townInventory = [...startingInventory, ...departureCraftItems];
+  currentRun.departureItems = [...startingInventory, ...departureCraftItems];
 
   return {
     party: [character],
@@ -5101,6 +5111,7 @@ function consumeIssue412Item(state, metrics, itemKey, floor, step, options = {})
   if (itemIndex < 0) return false;
   const inventorySizeBefore = state.inventory.length;
   state.inventory.splice(itemIndex, 1);
+  consumeSimulationObjectLoot(state, metrics, itemKey);
   recordConsumableConsumption(metrics, itemKey);
   recordIssue412Use(
     metrics,
@@ -5167,7 +5178,10 @@ function applyIssue412TacticalItem({
 function tryAddInventoryItem(state, item, metrics, source) {
   const itemData = getItemData(item);
   const category = isEquipment(itemData) ? "equipment" : "item";
-  const accepted = addInventoryItemToState(state, item);
+  const accepted = addInventoryItemToState(state, item, {
+    dungeonLoot: true,
+    source
+  });
   recordPickupAttempt(metrics, source, category, accepted);
   if (accepted) {
     recordConsumableAcquisition(metrics, item);
@@ -5176,6 +5190,74 @@ function tryAddInventoryItem(state, item, metrics, source) {
     }
   }
   return accepted;
+}
+
+function recordUnadoptedObjectLoot(state, metrics, item, disposition, source) {
+  const entry = createPendingObjectLootEntry(state, item, { source });
+  if (!entry || !resolvePendingObjectLootDisposition(state, entry, disposition, { source })) {
+    return false;
+  }
+  metrics.objectLootLifecycle.found++;
+  metrics.objectLootLifecycle[disposition]++;
+  return true;
+}
+
+function captureObjectLootStake(metrics, state, snapshotPoint, {
+  settlementOutcome = null,
+  selectedLootIds = []
+} = {}) {
+  metrics.objectLootStakeSnapshots ||= [];
+  metrics.objectLootStakeSnapshots.push({
+    snapshotPoint,
+    settlementOutcome,
+    selectedLootIds: [...selectedLootIds],
+    snapshot: structuredClone(buildObjectLootStakeSnapshot(state))
+  });
+}
+
+function syncObjectLootLifecycle(metrics, state) {
+  const ledger = state.currentRun?.unbankedObjectLoot || [];
+  const known = metrics.objectLootKnownEntries ||= new Map();
+  ledger.forEach(entry => {
+    if (!entry?.id || !entry.item) return;
+    if (known.has(entry.id)) return;
+    known.set(entry.id, entry.item);
+    metrics.objectLootLifecycle.found++;
+    metrics.objectLootLifecycle.bagged++;
+  });
+}
+
+function consumeSimulationObjectLoot(state, metrics, item) {
+  const itemId = typeof item === "object" ? item?.baseId : item;
+  const before = (state.currentRun?.unbankedObjectLoot || []).find(entry => (
+    entry?.item === item || entry?.item === itemId || entry?.item?.baseId === itemId || (
+      entry?.item?.instanceId && item?.instanceId && entry.item.instanceId === item.instanceId
+    )
+  ));
+  const consumed = consumeRunObjectLoot(state, item);
+  const stillTracked = before && (state.currentRun?.unbankedObjectLoot || [])
+    .some(entry => entry?.id === before.id);
+  if (consumed && before && !stillTracked) {
+    metrics.objectLootLifecycle.consumed++;
+    metrics.objectLootLifecycle.consumedIds.add(before.id);
+  }
+  return consumed;
+}
+
+function finalizeObjectLootLifecycle(metrics, state, outcome, selectedLootIds = []) {
+  syncObjectLootLifecycle(metrics, state);
+  const ledger = (state.currentRun?.unbankedObjectLoot || []).filter(entry => entry?.id && entry.item);
+  const selected = new Set(selectedLootIds);
+  metrics.objectLootSettling = true;
+  ledger.forEach(entry => {
+    if (outcome === "retreat" || selected.has(entry.id)) {
+      metrics.objectLootLifecycle[outcome === "wing" ? "salvaged" : "banked"]++;
+    } else {
+      metrics.objectLootLifecycle.lost++;
+    }
+  });
+  metrics.objectLootSettling = false;
+  return settleRunObjectLoot(state, outcome, selectedLootIds.length > 0 ? selectedLootIds : null);
 }
 
 function recordMaterialPickup(metrics, materials) {
@@ -5365,6 +5447,7 @@ function useManaPotionIfNeeded(state, metrics) {
   if (itemIndex < 0) return null;
   const mpBefore = character.mp;
   state.inventory.splice(itemIndex, 1);
+  consumeSimulationObjectLoot(state, metrics, "MANA_POTION");
   recordTrackedConsumableConsumption(state, metrics, "MANA_POTION");
   ITEM_EFFECTS.MANA_POTION({ char: character });
   recordCombatMpRecovery(metrics, "manaPotion", Math.max(0, character.mp - mpBefore));
@@ -7996,6 +8079,7 @@ function useHealPotionIfNeeded(state, metrics) {
   const hpBefore = character.hp;
   const requestedHeal = getSimulationHealAmount(state, itemKey);
   state.inventory.splice(itemIndex, 1);
+  consumeSimulationObjectLoot(state, metrics, itemKey);
   if (itemKey === "GREATER_HEAL") {
     recordGreaterHealConsumption(state, metrics);
   } else {
@@ -8026,6 +8110,7 @@ function useStatusCureIfNeeded(state, metrics, context) {
   const itemIndex = state.inventory.indexOf(decision.itemKey);
   if (itemIndex < 0) return false;
   state.inventory.splice(itemIndex, 1);
+  consumeSimulationObjectLoot(state, metrics, decision.itemKey);
   recordStatusCureConsumption(state, metrics, decision.itemKey);
   metrics.holyWaterUsed += Number(decision.itemKey === "HOLY_WATER");
   ITEM_EFFECTS[decision.itemKey]({ char: character });
@@ -8328,11 +8413,19 @@ function shouldUseTownPortal(state, scenario) {
   return hpRate <= PORTAL_HP_THRESHOLD && recoveryPotions <= PORTAL_MAX_HEAL_POTIONS;
 }
 
+export function resolveTownPortalSettlement({ source = null } = {}) {
+  // TOWN_PORTAL is the production Return Wing settlement regardless of how
+  // the portal entered the run (workshop, departure craft, chest, or merchant).
+  void source;
+  return "wing";
+}
+
 function useTownPortalIfNeeded(state, scenario, metrics, situation) {
   if (!shouldUseTownPortal(state, scenario)) return false;
   const character = state.party[0];
   const portalIndex = state.inventory.indexOf("TOWN_PORTAL");
   state.inventory.splice(portalIndex, 1);
+  consumeSimulationObjectLoot(state, metrics, "TOWN_PORTAL");
   const source = state.simPortalSources.shift() || "unknown";
   const recoveryPotions = state.inventory.filter(item =>
     item === "HEAL_POTION" || item === "GREATER_HEAL"
@@ -8354,11 +8447,23 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
     recoveryPotions,
     inventorySlots: state.inventory.length,
     inventoryFreeSlots: Math.max(0, 20 - state.inventory.length),
-    unconfirmedObjectLootCount: null,
+    unconfirmedObjectLootCount: state.currentRun.unbankedObjectLoot.length,
     unconfirmedObjectLootValueProxy: null,
     carriedMaterials: totalMaterials(state.currentRun.materials)
   });
-  return true;
+  syncObjectLootLifecycle(metrics, state);
+  const selectedLootIds = (state.currentRun.unbankedObjectLoot || [])
+    .slice(0, 2)
+    .map(entry => entry.id);
+  const settlementOutcome = resolveTownPortalSettlement({ source });
+  captureObjectLootStake(metrics, state, "portal_decision", {
+    settlementOutcome,
+    selectedLootIds
+  });
+  return {
+    settlementOutcome,
+    selectedLootIds
+  };
 }
 
 function recordMerchantMaterialSpend(metrics, before, after) {
@@ -11419,6 +11524,7 @@ function resolveChestTrapForSimulation(
       toolUsed: true
     });
     state.inventory.splice(kitIndex, 1);
+    consumeSimulationObjectLoot(state, metrics, "TRAP_KIT");
     recordTrapKitConsumption(state, metrics);
     metrics.chestDisarmAttempts++;
     metrics.chestDisarmAttemptsByFloor[floor]++;
@@ -11738,23 +11844,38 @@ function resolveSimulationChest({
   const acquiredEquipment = [];
   recordEquipmentGenerations(metrics, chestItems.items);
   chestItems.items.forEach((item, itemIndex) => {
-    if (chestItems.lostRewardIndices?.includes(itemIndex)) return;
+    if (chestItems.lostRewardIndices?.includes(itemIndex)) {
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+      return;
+    }
     if (
       chestItems.mainItemLost &&
       itemIndex === chestItems.mainItemIndex &&
       item === chestItems.mainItem
-    ) return;
+    ) {
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+      return;
+    }
     const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
-    if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) return;
+    if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) {
+      recordUnadoptedObjectLoot(state, metrics, item, "discarded", source);
+      return;
+    }
     const isExtraHealPotion = chestItems.extraHealPotion &&
       itemIndex === chestItems.extraHealPotionIndex;
     const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
       itemIndex === chestItems.mainItemIndex;
     if (item === "HEAL_POTION" || item === "GREATER_HEAL") {
       recordRecoveryPotionOffer(metrics, "chest", item);
-      if (item === "HEAL_POTION" && !shouldGrantNormalizedHealPotion(state)) return;
+      if (item === "HEAL_POTION" && !shouldGrantNormalizedHealPotion(state)) {
+        recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+        return;
+      }
     }
-    if (!tryAddInventoryItem(state, item, metrics, "chest")) return;
+    if (!tryAddInventoryItem(state, item, metrics, "chest")) {
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+      return;
+    }
     if (item === "HEAL_POTION") {
       recordHealPotionAcquisition(
         state,
@@ -11797,6 +11918,8 @@ function resolveSimulationChest({
     ).length;
   }
   applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor);
+  syncObjectLootLifecycle(metrics, state);
+  captureObjectLootStake(metrics, state, "pending_reward_resolution");
   return true;
 }
 
@@ -12628,15 +12751,67 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       telemetry.exploredRatio = metrics.exploredRatioByFloor[telemetry.floor] ?? null;
     });
   }
+  const settlementOutcome = terminationContext?.settlementOutcome || (
+    outcome === "death" ? "death" : outcome === "abandon" ? "abandon" : "retreat"
+  );
+  const selectedLootIds = terminationContext?.selectedLootIds || (
+    settlementOutcome === "wing"
+      ? (state.currentRun.unbankedObjectLoot || [])
+        .slice(0, 2)
+        .map(entry => entry.id)
+      : []
+  );
+  syncObjectLootLifecycle(metrics, state);
+  captureObjectLootStake(
+    metrics,
+    state,
+    settlementOutcome === "wing" ? "wing_salvage_before" : "terminal_settlement_before",
+    { settlementOutcome, selectedLootIds }
+  );
   const buildPayment = metrics.stage15Diagnostics
     ? createBuildPaymentRunSnapshot(state, metrics, outcome)
     : null;
+  const objectLootSettlement = finalizeObjectLootLifecycle(
+    metrics,
+    state,
+    settlementOutcome,
+    selectedLootIds
+  );
+  captureObjectLootStake(
+    metrics,
+    state,
+    "terminal_settlement_after",
+    { settlementOutcome, selectedLootIds }
+  );
+  if (buildPayment) {
+    buildPayment.stake = {
+      schemaVersion: 1,
+      ownershipSource: "currentRun.unbankedObjectLoot",
+      identitySource: "currentRun.unbankedObjectLoot[].id",
+      snapshots: structuredClone(metrics.objectLootStakeSnapshots),
+      lifecycle: {
+        status: "production_ledger_and_pending_disposition",
+        counts: {
+          found: metrics.objectLootLifecycle.found,
+          bagged: metrics.objectLootLifecycle.bagged,
+          consumed: metrics.objectLootLifecycle.consumed,
+          banked: metrics.objectLootLifecycle.banked,
+          salvaged: metrics.objectLootLifecycle.salvaged,
+          lost: metrics.objectLootLifecycle.lost,
+          discarded: metrics.objectLootLifecycle.discarded,
+          left: metrics.objectLootLifecycle.left
+        },
+        omittedStages: []
+      }
+    };
+  }
   return {
     ...(state.currentRun.buildFixtureId
       ? { buildId: state.currentRun.buildFixtureId }
       : { className: state.currentRun.characterClass }),
     fixtureId: state.currentRun.buildFixtureId || null,
     buildSnapshot: structuredClone(metrics.buildSnapshot),
+    objectLootSettlement,
     survived: outcome === "retreat",
     died: outcome === "death",
     carriedMaterials,
@@ -13252,6 +13427,20 @@ export function simulateRun({
     equipmentTelemetry: collectEquipmentTelemetry ? [] : null,
     equipmentCraft: createEquipmentCraftMetrics(state.simPolicy.equipmentCraftPolicy),
     equipmentFound: 0,
+    objectLootKnownEntries: new Map(),
+    objectLootSettling: false,
+    objectLootStakeSnapshots: [],
+    objectLootLifecycle: {
+      found: 0,
+      bagged: 0,
+      consumed: 0,
+      discarded: 0,
+      banked: 0,
+      salvaged: 0,
+      lost: 0,
+      left: 0,
+      consumedIds: new Set()
+    },
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
     identificationPowderAcquired: Object.values(
@@ -14069,14 +14258,23 @@ export function simulateRun({
         const acquiredEquipment = [];
         recordEquipmentGenerations(metrics, chestItems.items);
         chestItems.items.forEach((item, itemIndex) => {
-          if (chestItems.lostRewardIndices?.includes(itemIndex)) return;
+          if (chestItems.lostRewardIndices?.includes(itemIndex)) {
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+            return;
+          }
           if (
             chestItems.mainItemLost &&
             itemIndex === chestItems.mainItemIndex &&
             item === chestItems.mainItem
-          ) return;
+          ) {
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+            return;
+          }
           const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
-          if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) return;
+          if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) {
+            recordUnadoptedObjectLoot(state, metrics, item, "discarded", "ordinary");
+            return;
+          }
           const isExtraHealPotion = chestItems.extraHealPotion &&
             itemIndex === chestItems.extraHealPotionIndex;
           const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
@@ -14086,9 +14284,15 @@ export function simulateRun({
             if (
               item === "HEAL_POTION" &&
               !shouldGrantNormalizedHealPotion(state)
-            ) return;
+            ) {
+              recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+              return;
+            }
           }
-          if (!tryAddInventoryItem(state, item, metrics, "chest")) return;
+          if (!tryAddInventoryItem(state, item, metrics, "chest")) {
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+            return;
+          }
           if (item === "HEAL_POTION") {
             recordHealPotionAcquisition(
               state,
@@ -14135,6 +14339,8 @@ export function simulateRun({
           !(chestItems.mainItemLost && itemIndex === chestItems.mainItemIndex)
         ).length;
         applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor);
+        syncObjectLootLifecycle(metrics, state);
+        captureObjectLootStake(metrics, state, "pending_reward_resolution");
       }
       if (!isAlive(state.party[0])) {
         metrics.deathEncounterType = "chest-trap";
@@ -14369,12 +14575,13 @@ export function simulateRun({
               }
               return finishRun(state, "death", metrics);
             }
-            if (useTownPortalIfNeeded(state, scenario, metrics, "post-flee")) {
+            const portalResult = useTownPortalIfNeeded(state, scenario, metrics, "post-flee");
+            if (portalResult) {
               if (specialBattle) {
                 specialBattle.finalResult = "flee-retreat";
                 metrics.specialBattles.push(specialBattle);
               }
-              return finishRun(state, "retreat", metrics, "town-portal");
+              return finishRun(state, "retreat", metrics, "town-portal", portalResult);
             }
             if (specialEvent && !isElite) {
               // 逃走ではeventセルが消えない。1マス後退後、同じセルへ再侵入する。
@@ -14415,6 +14622,8 @@ export function simulateRun({
                 : { kind: "giveKey" },
               Math.random
             );
+            syncObjectLootLifecycle(metrics, state);
+            captureObjectLootStake(metrics, state, "pending_reward_resolution");
             const keyCountAfter = state.inventory.filter(
               item => (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY"
             ).length;
@@ -14528,7 +14737,10 @@ export function simulateRun({
                 candidate.instanceId === item.instanceId
               )
             );
-            if (inventoryIndex >= 0) state.inventory[inventoryIndex] = replacement;
+            if (inventoryIndex >= 0) {
+              state.inventory[inventoryIndex] = replacement;
+              replaceRunObjectLoot(state, item, replacement);
+            }
             return replacement;
           });
           const extraCombatEquipment = generateExtraSupplyEquipment(
@@ -14560,6 +14772,8 @@ export function simulateRun({
             "combat"
           );
           applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor);
+          syncObjectLootLifecycle(metrics, state);
+          captureObjectLootStake(metrics, state, "pending_reward_resolution");
           applyPostCombatRecovery(state, metrics);
           const combatRecoveryItem = useHealPotionIfNeeded(state, metrics);
           addRecoveryPotionUse(metrics, combatRecoveryItem);
@@ -14577,8 +14791,9 @@ export function simulateRun({
             specialBattle.finalResult = "victory";
             metrics.specialBattles.push(specialBattle);
           }
-          if (useTownPortalIfNeeded(state, scenario, metrics, "post-combat")) {
-            return finishRun(state, "retreat", metrics, "town-portal");
+          const portalResult = useTownPortalIfNeeded(state, scenario, metrics, "post-combat");
+          if (portalResult) {
+            return finishRun(state, "retreat", metrics, "town-portal", portalResult);
           }
           break;
         }
@@ -14620,6 +14835,7 @@ export function simulateRun({
     }
     applySimulatedCampRest(state, metrics.coreObservations, metrics);
     if (isMilestoneFloor(floor)) {
+      const milestoneStake = buildObjectLootStakeSnapshot(state);
       metrics.milestoneDecisions.push({
         floor,
         hasTownPortal: state.inventory.includes("TOWN_PORTAL"),
@@ -14627,10 +14843,12 @@ export function simulateRun({
         mpRate: state.party[0].mp / Math.max(1, getCharMaxMp(state.party[0])),
         inventorySlots: state.inventory.length,
         inventoryFreeSlots: Math.max(0, 20 - state.inventory.length),
-        unconfirmedObjectLootCount: null,
+        unconfirmedObjectLootCount: milestoneStake.unconfirmedObjectCount,
         unconfirmedObjectLootValueProxy: null,
         carriedMaterials: totalMaterials(state.currentRun.materials)
       });
+      syncObjectLootLifecycle(metrics, state);
+      captureObjectLootStake(metrics, state, "portal_decision");
       if (
         scenario.retreatAtMilestoneWithoutTownPortal &&
         !state.inventory.includes("TOWN_PORTAL")
@@ -14652,9 +14870,12 @@ export function simulateRun({
       }
     }
     finalizeStage15Floor(state, metrics, floor, "survived");
+    syncObjectLootLifecycle(metrics, state);
+    captureObjectLootStake(metrics, state, "push_decision");
     descendToNextFloor(state, floor + 1, metrics, { stairsHeal: true });
-    if (useTownPortalIfNeeded(state, scenario, metrics, "floor-transition")) {
-      return finishRun(state, "retreat", metrics, "town-portal");
+    const portalResult = useTownPortalIfNeeded(state, scenario, metrics, "floor-transition");
+    if (portalResult) {
+      return finishRun(state, "retreat", metrics, "town-portal", portalResult);
     }
   }
 
@@ -14700,6 +14921,141 @@ function getCoreNonEquipmentReasonKey(result, coreId) {
   return "other";
 }
 
+const OBJECT_LOOT_STAKE_SNAPSHOT_POINTS = Object.freeze([
+  "pending_reward_resolution",
+  "push_decision",
+  "portal_decision",
+  "wing_salvage_before",
+  "terminal_settlement_before",
+  "terminal_settlement_after"
+]);
+
+const OBJECT_LOOT_STAKE_SCALARS = Object.freeze([
+  "unconfirmedObjectCount",
+  "runeCount",
+  "activeRuneCount",
+  "mediumCount",
+  "shieldCount",
+  "armorCount",
+  "coreCount",
+  "supportCount",
+  "coreMainAxisCount",
+  "coreAuxiliaryCount",
+  "unknownStageCount",
+  "cursedCount",
+  "bagOccupancy",
+  "bagFreeSlots"
+]);
+
+const OBJECT_LOOT_STAKE_COMPOSITIONS = Object.freeze({
+  category: ["equipment", "rune", "consumable", "other"],
+  runeSupplyBand: ["shallow", "early_mid", "mid", "deep", "other"],
+  location: ["bag", "equipped", "active_rune", "other"],
+  equipmentSlot: ["weapon", "shield", "armor", "accessory", "other"],
+  weaponBehavior: ["light", "blade", "impact", "heavy", "medium", "other"],
+  lootRole: ["reinforce", "convert", "pivot"],
+  identificationStage: ["unknown", "discovery", "observation", "trial", "full"]
+});
+
+function createObjectLootStakePointAggregate() {
+  return {
+    events: 0,
+    settlementOutcomeCounts: {},
+    numeric: Object.fromEntries(
+      OBJECT_LOOT_STAKE_SCALARS.map(name => [name, createNumericDistribution()])
+    ),
+    composition: Object.fromEntries(
+      Object.entries(OBJECT_LOOT_STAKE_COMPOSITIONS).map(([field, keys]) => [
+        field,
+        Object.fromEntries(keys.map(key => [key, createNumericDistribution()]))
+      ])
+    )
+  };
+}
+
+function createObjectLootStakeAggregate() {
+  return {
+    schemaVersion: 1,
+    ownershipSource: "currentRun.unbankedObjectLoot",
+    identitySource: "currentRun.unbankedObjectLoot[].id",
+    points: Object.fromEntries(
+      OBJECT_LOOT_STAKE_SNAPSHOT_POINTS.map(point => [point, createObjectLootStakePointAggregate()])
+    ),
+    lifecycle: {
+      status: "production_ledger_and_pending_disposition",
+      counts: {
+        found: 0,
+        bagged: 0,
+        consumed: 0,
+        banked: 0,
+        salvaged: 0,
+        lost: 0,
+        discarded: 0,
+        left: 0
+      },
+      omittedStages: []
+    }
+  };
+}
+
+function addObjectLootStakeSnapshot(target, event) {
+  const point = target.points[event?.snapshotPoint];
+  const snapshot = event?.snapshot;
+  if (!point || !snapshot) return;
+  point.events++;
+  const outcome = event.settlementOutcome || "none";
+  point.settlementOutcomeCounts[outcome] =
+    (point.settlementOutcomeCounts[outcome] || 0) + 1;
+  OBJECT_LOOT_STAKE_SCALARS.forEach(name => {
+    addNumericSample(point.numeric[name], Number(snapshot[name]));
+  });
+  Object.entries(OBJECT_LOOT_STAKE_COMPOSITIONS).forEach(([field, keys]) => {
+    keys.forEach(key => {
+      addNumericSample(point.composition[field][key], Number(snapshot.composition?.[field]?.[key]));
+    });
+  });
+}
+
+function finalizeObjectLootStakePoint(point) {
+  return {
+    events: point.events,
+    settlementOutcomeCounts: { ...point.settlementOutcomeCounts },
+    ...Object.fromEntries(
+      OBJECT_LOOT_STAKE_SCALARS.map(name => [name, summarizeNumericDistribution(point.numeric[name])])
+    ),
+    composition: Object.fromEntries(
+      Object.entries(point.composition).map(([field, values]) => [
+        field,
+        Object.fromEntries(
+          Object.entries(values).map(([key, distribution]) => [
+            key,
+            summarizeNumericDistribution(distribution)
+          ])
+        )
+      ])
+    )
+  };
+}
+
+function finalizeObjectLootStakeAggregate(aggregate) {
+  return {
+    schemaVersion: aggregate.schemaVersion,
+    ownershipSource: aggregate.ownershipSource,
+    identitySource: aggregate.identitySource,
+    points: Object.fromEntries(
+      Object.entries(aggregate.points).map(([point, values]) => [
+        point,
+        finalizeObjectLootStakePoint(values)
+      ])
+    ),
+    lifecycle: {
+      ...aggregate.lifecycle,
+      counts: { ...aggregate.lifecycle.counts },
+      omittedStages: [...aggregate.lifecycle.omittedStages]
+    }
+  };
+}
+
 function createBuildPaymentAggregate() {
   const numericNames = [
     "combatCount", "combatRounds", "damageTakenHp", "healingHp", "mpSpent",
@@ -14709,6 +15065,7 @@ function createBuildPaymentAggregate() {
   ];
   return {
     runs: 0,
+    stake: createObjectLootStakeAggregate(),
     actionCounts: { attack: 0, spell: 0, guard: 0, item: 0, flee: 0, noop: 0 },
     actionDistributions: Object.fromEntries(
       ["attack", "spell", "guard", "item", "flee", "noop"].map(name => [
@@ -14809,6 +15166,13 @@ function addBuildPaymentResourceState(target, event) {
 function addBuildPaymentRunAggregate(target, payment) {
   if (!payment) return;
   target.runs++;
+  (payment.stake?.snapshots || []).forEach(event => {
+    addObjectLootStakeSnapshot(target.stake, event);
+  });
+  Object.entries(payment.stake?.lifecycle?.counts || {}).forEach(([stage, count]) => {
+    target.stake.lifecycle.counts[stage] =
+      (target.stake.lifecycle.counts[stage] || 0) + (Number(count) || 0);
+  });
   Object.entries(payment.actionCounts || {}).forEach(([action, count]) => {
     target.actionCounts[action] = (target.actionCounts[action] || 0) + (Number(count) || 0);
     addNumericSample(target.actionDistributions[action], Number(count));
@@ -14897,6 +15261,7 @@ function addBuildPaymentRunAggregate(target, payment) {
 
 function finalizeBuildPaymentAggregate(aggregate) {
   const runs = Math.max(1, aggregate.runs);
+  const stake = finalizeObjectLootStakeAggregate(aggregate.stake);
   const average = values => Object.fromEntries(
     Object.entries(values).map(([name, value]) => [name, value / runs])
   );
@@ -14905,6 +15270,7 @@ function finalizeBuildPaymentAggregate(aggregate) {
   );
   return {
     runs: aggregate.runs,
+    stake,
     actionCounts: { ...aggregate.actionCounts },
     actionCountsPerRun: average(aggregate.actionCounts),
     actionDistributions: summarizeMap(aggregate.actionDistributions),
@@ -14980,9 +15346,9 @@ function finalizeBuildPaymentAggregate(aggregate) {
       inventoryFreeSlots: summarizeNumericDistribution(aggregate.terminalResourceState.inventoryFreeSlots),
       carriedMaterials: summarizeNumericDistribution(aggregate.terminalResourceState.carriedMaterials),
       unconfirmedObjectLoot: {
-        status: "not_modeled",
-        count: null,
-        valueProxy: null
+        status: "production_backed",
+        count: stake.points.terminal_settlement_before.unconfirmedObjectCount,
+        valueProxy: { status: "not_modeled", reason: "item value is not part of this measurement" }
       }
     },
     portal: {
@@ -14998,7 +15364,11 @@ function finalizeBuildPaymentAggregate(aggregate) {
         use: summarizeMap(aggregate.portal.resourceStateByDecision.use),
         milestone: summarizeMap(aggregate.portal.resourceStateByDecision.milestone)
       },
-      unconfirmedObjectLoot: { ...aggregate.portal.unconfirmedObjectLoot }
+      unconfirmedObjectLoot: {
+        status: "production_backed",
+        count: stake.points.portal_decision.unconfirmedObjectCount,
+        valueProxy: { status: "not_modeled", reason: "item value is not part of this measurement" }
+      }
     }
   };
 }

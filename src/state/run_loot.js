@@ -72,6 +72,24 @@ export function adoptPendingObjectLoot(stateLike, entry, { source = "dungeon" } 
   return true;
 }
 
+export function resolvePendingObjectLootDisposition(
+  stateLike,
+  entry,
+  disposition,
+  { source = "dungeon" } = {}
+) {
+  if (!entry?.id || !isBankableObject(entry.item)) return false;
+  if (!["discarded", "left"].includes(disposition)) return false;
+  trackLootLifecycle(disposition, {
+    state: stateLike,
+    itemKey: entry.item,
+    source,
+    lootId: entry.id,
+    ownership: "unbanked"
+  });
+  return true;
+}
+
 export function recordDungeonObjectLoot(
   stateLike,
   item,
