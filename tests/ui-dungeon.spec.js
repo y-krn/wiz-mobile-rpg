@@ -581,6 +581,16 @@ for (const vp of VIEWPORTS) {
 
       resetContext([[{ walls: [true, true, true, true], type: 'empty' }]]);
       openSubmenu('combat_spell', '呪文を唱える');
+      menuContext.targetType = 'enemy';
+      updateUI();
+      const staleEnemyTargetInSpell = {
+        menuType: menuContext.type,
+        canvasTabIndex: document.getElementById('dungeon-canvas').tabIndex,
+        canvasDescription: document.getElementById('dungeon-canvas').getAttribute('aria-describedby'),
+      };
+
+      resetContext([[{ walls: [true, true, true, true], type: 'empty' }]]);
+      openSubmenu('combat_spell', '呪文を唱える');
       openSubmenu('combat_target', '攻撃対象を選択');
       state.combatState = { phase: 'choose_actions', monsters: [null] };
       goBackSubmenu();
@@ -612,13 +622,18 @@ for (const vp of VIEWPORTS) {
         };
       });
 
-      return { validNestedCombat, malformedNestedCombat, malformedNestedCombatWithoutMap, staleSpellCases };
+      return { validNestedCombat, staleEnemyTargetInSpell, malformedNestedCombat, malformedNestedCombatWithoutMap, staleSpellCases };
     });
 
     expect(result.validNestedCombat).toEqual({
       gameState: 'submenu',
       menuType: 'combat_spell',
       historyLength: 0,
+    });
+    expect(result.staleEnemyTargetInSpell).toEqual({
+      menuType: 'combat_spell',
+      canvasTabIndex: -1,
+      canvasDescription: null,
     });
     expect(result.malformedNestedCombat).toBe('explore');
     expect(result.malformedNestedCombatWithoutMap).toBe('town');

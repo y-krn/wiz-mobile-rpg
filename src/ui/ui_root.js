@@ -553,7 +553,8 @@ export function updateUI() {
   }
 
   const canvas = document.getElementById("dungeon-canvas");
-  const isCanvasEnemyTargetSelection = view.isUsableCombatOverlaySubmenu && menuContext.targetType === "enemy";
+  const isCanvasEnemyTargetSelection = view.isUsableCombatOverlaySubmenu &&
+    view.menuType === "combat_target" && menuContext.targetType === "enemy";
   if (canvas) {
     canvas.tabIndex = isCanvasEnemyTargetSelection ? 0 : -1;
     if (typeof canvas.setAttribute === "function") {

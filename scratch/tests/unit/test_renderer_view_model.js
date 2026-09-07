@@ -41,6 +41,16 @@ assert.equal(input.view.hasMap, true, "valid map is accepted by the screen bound
 assert.equal(input.combatMonsters, stateLike.combatState.monsters, "combat data is passed without a render-loop copy");
 assert.deepEqual(input.mapFragments, ["1,1"], "floor-specific map fragments are projected");
 
+const staleEnemyTargetInput = getRendererInput(
+  { ...stateLike, gameState: "submenu" },
+  { type: "combat_spell", targetType: "enemy", prevGameState: "combat" }
+);
+assert.equal(
+  staleEnemyTargetInput.combatTargetSelection.active,
+  false,
+  "combat spell menus do not activate canvas enemy targeting from stale target context"
+);
+
 stateLike.x = 0;
 assert.equal(input.x, 1, "a render input is a stable per-operation snapshot");
 
