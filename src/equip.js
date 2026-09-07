@@ -879,7 +879,6 @@ function createEquipmentList(char, savedScrollTop) {
 
   const itemList = document.createElement("div");
   itemList.className = "equip-item-list";
-  if (runePanel) itemList.appendChild(runePanel);
 
   const equipmentItems = getEquipmentItems().filter(({ itemKey }) => (
     equipState.mode !== "organize" || !isItemEquipped(itemKey)
@@ -993,6 +992,10 @@ function createEquipmentList(char, savedScrollTop) {
       itemList.appendChild(row);
     });
   }
+
+  // Keep the first bag rows immediately reachable on short mobile viewports;
+  // Rune ownership remains in the same scroll surface at the end of the list.
+  if (runePanel) itemList.appendChild(runePanel);
 
   bagSection.appendChild(itemList);
   listContainer.appendChild(bagSection);
