@@ -22,6 +22,7 @@ export const MEASUREMENT_PROVENANCE = isMainThread && !IS_TEST_PROCESS
       "scratch/simulations/sim_depth_material_ev.js",
       "scratch/measurements/build_fixtures.js",
       "src/rules/build_snapshot.js",
+      "src/rules/exploration_rules.js",
       "scratch/measurements/measurement_provenance.js"
     ]
   })
@@ -251,6 +252,7 @@ const { BUILD_FIXTURE_IDS, createBuildFixture } =
   await import("../measurements/build_fixtures.js");
 const { getActiveSpellKeys } = await import("../../src/rules/magic_rules.js");
 const { resolveBuildSnapshot } = await import("../../src/rules/build_snapshot.js");
+const { calculateSecretDoorSearchChance } = await import("../../src/rules/exploration_rules.js");
 
 // Historical class-axis simulations keep their old learned spell list in
 // scratch only. Production auto/combat permission is always socket-backed.
@@ -10620,8 +10622,7 @@ function calculateSecretSearchSuccessRateForSimulation(party, floor) {
   const arcaneSense = Math.max(...party
     .filter(character => character.hp > 0)
     .map(character => getCharAffixSum(character, "arcaneSense")), 0);
-  const rate = 0.35 + arcaneSense / 100 - (floor - 1) * 0.05;
-  return Math.max(0.10, Math.min(0.95, rate));
+  return calculateSecretDoorSearchChance({ floor, arcaneSense });
 }
 
 function resolveFlameTrapAtStep({

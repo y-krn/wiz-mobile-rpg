@@ -20,6 +20,7 @@ import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision, trackTrapResolution } from "../telemetry.js";
 import { applyExplorationItem } from "../systems/exploration_items.js";
+import { calculateSecretDoorSearchChance } from "../rules/exploration_rules.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry, RETURN_WING_SALVAGE_COUNT } from "../state/run_loot.js";
 import { appendOwnershipBadge, getItemOwnership } from "../ui/common_shell.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
@@ -51,12 +52,6 @@ function getSecretDoorCandidate() {
     }
   }
   return null;
-}
-
-function calculateSecretSearchSuccessRate() {
-  const arcaneSense = Math.max(0, getPartyMaxAffix(state.party, "arcaneSense"));
-  const rate = 0.35 + arcaneSense / 100 - (state.floor - 1) * 0.05;
-  return Math.max(0.10, Math.min(0.95, rate));
 }
 
 function consumeSearchTurn() {
@@ -98,7 +93,11 @@ function searchSecretDoor() {
     return true;
   }
 
-  if (candidate && Math.random() < calculateSecretSearchSuccessRate()) {
+  const searchChance = calculateSecretDoorSearchChance({
+    floor: state.floor,
+    arcaneSense: getPartyMaxAffix(state.party, "arcaneSense")
+  });
+  if (candidate && Math.random() < searchChance) {
     revealSecretDoor(candidate);
     saveAutosave();
     updateUI();
