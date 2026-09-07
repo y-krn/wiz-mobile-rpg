@@ -15,7 +15,7 @@ const AUTO_DELAYS = Object.freeze({
   milestone: 300
 });
 
-const IMPORTANT_COMBAT_RESULT_RE = /反射|効かな|無効|状態異常|毒状態|毒に|盲目|麻痺|睡眠|出血|脆弱|耐性|弱点|レジスト|倒れた|力尽きた|撃破|逃走|逃げ|MP不足|かわした|回避|空振り|動けない|庇った|怯んだ/;
+const IMPORTANT_COMBAT_RESULT_RE = /反射|効かな|無効|状態異常|毒状態|毒に|毒が消え|盲目|麻痺|睡眠|出血|脆弱|耐性|弱点|レジスト|倒れた|倒した|力尽きた|撃破|逃走|逃げ|MP不足|かわした|回避|空振り|動けない|庇った|怯んだ|沈黙|呪い|防毒|守りが崩|魔法に弱く/;
 
 export function isImportantCombatResult(message) {
   return typeof message === "string" && IMPORTANT_COMBAT_RESULT_RE.test(message);

@@ -16,6 +16,9 @@ assert.equal(getCombatLogDelay({ milestoneVictory: 2, msg: "階層守護者を�
 assert.equal(getCombatLogDelay({ msg: "通常結果" }, { isAuto: true }), 50);
 assert.equal(getCombatLogDelay({ milestoneVictory: 2 }, { isAuto: true }), 300);
 assert.equal(isImportantCombatResult("反射され、ダメージを与えられなかった。"), true);
+assert.equal(isImportantCombatResult("ゴブリンを倒した！"), true);
+assert.equal(isImportantCombatResult("毒が消え去った！"), true);
+assert.equal(isImportantCombatResult("敵は沈黙した。"), true);
 assert.equal(isImportantCombatResult("ゴブリンに8ダメージ。"), false);
 assert.equal(
   formatCombatLogMessage("[味方] 冒険者の攻撃！ゴブリンに8のダメージ。"),

@@ -100,7 +100,8 @@ test('combat log presentation keeps normal results quick and important results r
       COMBAT_LOG_DELAYS,
       formatCombatLogMessage,
       getCombatLogDelay,
-      groupCombatLogEntries
+      groupCombatLogEntries,
+      isImportantCombatResult
     } = await import('/src/combat_ui/combat_log_presentation.js');
     const grouped = groupCombatLogEntries([
       { msg: '[味方] 冒険者の攻撃！ゴブリンに8のダメージ。', groupId: 'action:1' },
@@ -115,6 +116,7 @@ test('combat log presentation keeps normal results quick and important results r
       formatted: formatCombatLogMessage('[味方] 冒険者の攻撃！ゴブリンに8のダメージ。'),
       groupedCount: grouped.length,
       groupedText: grouped[0].msg,
+      defeatImportant: isImportantCombatResult(grouped[0].msg),
       constants: COMBAT_LOG_DELAYS,
     };
   });
@@ -127,6 +129,7 @@ test('combat log presentation keeps normal results quick and important results r
     milestone: 1900,
     formatted: 'ゴブリンを斬りつけた。8ダメージ。',
     groupedCount: 1,
+    defeatImportant: true,
   });
   expect(result.groupedText).toContain('ゴブリンを斬りつけた。8ダメージ。');
 });
