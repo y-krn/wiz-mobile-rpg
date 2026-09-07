@@ -30,6 +30,7 @@ import {
   EQUIPMENT_TYPE_LABELS,
   getEquipmentSlotsForType
 } from "./rules/equipment_slots.js";
+import { getEquipmentHands } from "./rules/equipment_hands.js";
 import { getDiscardRisk } from "./systems/equipment_discard.js";
 import {
   createEquipmentPreviewChar,
@@ -70,6 +71,7 @@ import {
   stageUnsocketRune
 } from "./rules/loadout_transaction.js";
 import { commitLoadoutDraft } from "./systems/loadout_transaction.js";
+import { createBuildCommitmentPanel } from "./ui/build_commitment.js";
 
 export let equipState = {
   mode: "equip",
@@ -277,7 +279,7 @@ export function getItemUseStatus(char, itemKey) {
       return { usable: false, reason: "治療できる状態異常ではありません" };
     }
     if ((itemKey === "MANA_POTION" || itemKey === "ETHER") && (!canRestoreMp || char.mp >= getCharMaxMp(char))) {
-      return { usable: false, reason: canRestoreMp ? "MPはすでに満タンです" : "MPを持たない職業です" };
+      return { usable: false, reason: canRestoreMp ? "MPはすでに満タンです" : "現在のBuildではMPを使えません" };
     }
   }
   return { usable: true, reason: "" };
@@ -322,6 +324,10 @@ function createRunePanel(char) {
   panel.appendChild(help);
 
   if (medium && activeRunes.length > 0) {
+    const activeHeading = document.createElement("strong");
+    activeHeading.className = "equip-rune-state-heading";
+    activeHeading.textContent = "socket中（バッグ外・active）";
+    panel.appendChild(activeHeading);
     const activeList = document.createElement("div");
     activeList.className = "equip-rune-list";
     activeRunes.forEach(spellKey => {
@@ -351,6 +357,10 @@ function createRunePanel(char) {
     .map((itemKey, idx) => ({ itemKey, idx }))
     .filter(({ itemKey }) => Boolean(getRuneSpellKey(itemKey)));
   if (spareRunes.length > 0) {
+    const spareHeading = document.createElement("strong");
+    spareHeading.className = "equip-rune-state-heading";
+    spareHeading.textContent = "バッグ内の予備Rune";
+    panel.appendChild(spareHeading);
     const spareList = document.createElement("div");
     spareList.className = "equip-rune-list";
     spareRunes.forEach(({ itemKey, idx }) => {
@@ -863,13 +873,13 @@ function createEquipmentList(char, savedScrollTop) {
   headingBag.textContent = "バッグの装備品";
   bagSection.appendChild(headingBag);
   const runePanel = createRunePanel(char);
-  if (runePanel) bagSection.appendChild(runePanel);
   if (equipState.mode === "organize") {
     bagSection.appendChild(createOrganizeControls());
   }
 
   const itemList = document.createElement("div");
   itemList.className = "equip-item-list";
+  if (runePanel) itemList.appendChild(runePanel);
 
   const equipmentItems = getEquipmentItems().filter(({ itemKey }) => (
     equipState.mode !== "organize" || !isItemEquipped(itemKey)
@@ -1306,6 +1316,7 @@ function createDetailPanel(char) {
   titleLine.appendChild(name);
   const rarityBadge = createRarityBadge(itemKey, "equip-detail-rarity");
   if (rarityBadge) titleLine.appendChild(rarityBadge);
+  appendOwnershipBadge(titleLine, getItemOwnership(itemKey, { state }));
   titleBlock.appendChild(titleLine);
   const desc = document.createElement("div");
   desc.className = "equip-detail-desc";
@@ -1366,6 +1377,16 @@ function createDetailPanel(char) {
   context.appendChild(desc);
   context.appendChild(targetSummary);
   content.appendChild(context);
+
+  let proposedChar = null;
+  if (availability.ok && !hidden && preview?.slot) {
+    proposedChar = createEquipmentPreviewChar(char);
+    proposedChar.equipment[preview.slot] = isEquipped ? null : itemKey;
+    if (!isEquipped && preview.slot === "weapon" && getEquipmentHands(itemKey) === 2) {
+      proposedChar.equipment.shield = null;
+    }
+  }
+  content.appendChild(createBuildCommitmentPanel(char, { proposedChar }));
 
   const knowledge = document.createElement("div");
   knowledge.className = "equip-knowledge-status";

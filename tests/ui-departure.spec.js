@@ -407,6 +407,9 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(summary).toContainText('今回の出発条件');
   await expect(summary).toContainText('鋼の前線キット');
   await expect(summary).toContainText('鍛錬サーベル（バッグ外）');
+  await expect(summary).toContainText('装備中');
+  await expect(summary).toContainText('Medium');
+  await expect(summary).toContainText('active Rune');
   await expect(summary).toContainText(questName);
   await expect(summary.locator('.solo-preparation-slot')).toHaveCount(20);
   await expect(summary.locator('.solo-preparation-slot.is-open')).toHaveCount(20);

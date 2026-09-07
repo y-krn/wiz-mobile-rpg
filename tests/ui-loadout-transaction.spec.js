@@ -185,3 +185,85 @@ test('committing a loadout consumes the normal exploration poison tick @smoke', 
   });
   expect(result).toEqual({ hp: 9, steps: 1 });
 });
+
+test('equipment detail exposes build commitments and neutral replacement consequences @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
+    const { openEquipOverlay } = await import('/src/equip.js');
+    const character = createStartingKitCharacter('vanguard');
+    character.equipment.weapon = 'DAGGER';
+    character.equipment.shield = 'SMALL_SHIELD';
+    state.party = [character];
+    state.inventory = [{
+      kind: 'equipment', instanceId: 'build-commitment-heavy', baseId: 'CLAYMORE',
+      rarity: 'rare', level: 1, identified: true, affixes: []
+    }];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'build-commitment-ui' };
+    state.gameState = 'explore';
+    openEquipOverlay(0);
+  });
+
+  await page.locator('.equip-bag-section .equip-item-row', { hasText: 'クレイモア' }).click();
+  const detail = page.locator('.equip-detail-content');
+  await expect(detail).toContainText('現在の構成');
+  await expect(detail.locator('[data-build-field="weapon"]')).toContainText('ダガー');
+  await expect(detail.locator('[data-build-field="weapon"]')).toContainText('軽武器');
+  await expect(detail.locator('[data-build-field="hands"]')).toContainText('使用 2/2');
+  await expect(detail.locator('[data-build-field="guard"]')).toContainText('スモールシールド');
+  await expect(detail.locator('[data-build-field="guard"]')).toContainText('軽盾の守り');
+  await expect(detail.locator('[data-build-compare="weapon"]')).toContainText('両手重武器');
+  await expect(detail.locator('[data-build-compare="guard"]')).toContainText('盾なし');
+  await expect(detail.locator('.equip-build-comparison-note')).toContainText('確定前');
+});
+
+test('active and spare Runes are labeled by their ownership surface @smoke', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
+    const { openEquipOverlay } = await import('/src/equip.js');
+    const character = createStartingKitCharacter('arcana');
+    character.mediumState = { mediumKey: 'WAND', socketedRunes: ['RUNE_HALITO'] };
+    state.party = [character];
+    state.inventory = ['RUNE_DIOS'];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'rune-ownership-ui' };
+    state.gameState = 'explore';
+    openEquipOverlay(0);
+  });
+
+  const runePanel = page.locator('.equip-rune-panel');
+  await expect(runePanel).toContainText('socket中（バッグ外・active）');
+  await expect(runePanel).toContainText('バッグ内の予備Rune');
+  await expect(runePanel.locator('.equip-rune-row.active')).toContainText('HALITOのルーン');
+  await expect(runePanel.locator('.equip-rune-row:not(.active)')).toContainText('DIOSのルーン');
+});
+
+test('medium replacement shows current MP separately from maximum MP @smoke', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
+    const { openEquipOverlay } = await import('/src/equip.js');
+    const character = createStartingKitCharacter('arcana');
+    character.mp = 2;
+    state.party = [character];
+    state.inventory = [{
+      kind: 'equipment', instanceId: 'medium-replacement', baseId: 'ARCH_WAND',
+      rarity: 'rare', level: 1, identified: true, affixes: []
+    }];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'medium-mp-ui' };
+    state.gameState = 'town';
+    openEquipOverlay(0);
+  });
+
+  await page.locator('.equip-bag-section .equip-item-row', { hasText: '大魔道の杖' }).click();
+  await expect(page.locator('[data-build-compare="max-mp"]')).toContainText('3 → 5');
+  await expect(page.locator('[data-build-compare="mp"]')).toContainText('2/3 → 2/5');
+  await page.getByRole('button', { name: '装備する' }).click();
+  await page.locator('#btn-equip-commit').click();
+  await expect.poll(() => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { getCharMaxMp } = await import('/src/data.js');
+    return { mp: state.party[0].mp, maxMp: getCharMaxMp(state.party[0]) };
+  })).toEqual({ mp: 2, maxMp: 5 });
+});
