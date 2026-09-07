@@ -12808,7 +12808,8 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       }
     };
   }
-  metrics.buildSnapshot = resolveBuildSnapshot(state.party[0]);
+  const endingBuildSnapshot = resolveBuildSnapshot(state.party[0]);
+  metrics.buildSnapshot = endingBuildSnapshot;
   return {
     ...(state.currentRun.buildFixtureId
       ? { buildId: state.currentRun.buildFixtureId }
@@ -12817,7 +12818,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     startingBuildSnapshot: metrics.startingBuildSnapshot
       ? structuredClone(metrics.startingBuildSnapshot)
       : null,
-    endingBuildSnapshot: structuredClone(metrics.buildSnapshot),
+    endingBuildSnapshot: structuredClone(endingBuildSnapshot),
     objectLootSettlement,
     survived: outcome === "retreat",
     died: outcome === "death",
