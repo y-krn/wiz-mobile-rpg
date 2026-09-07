@@ -7,20 +7,24 @@ boundaries. `AGENTS.md` contains only the durable rules that apply at a glance.
 ## Fix the intended base before editing
 
 At the start of an Issue, record the worktree start commit and the intended
-base. For a normal `main`-based change, use the local remote-tracking ref only
-after checking it against the remote when network access is available:
+base. For a normal `main`-based change, compare the local remote-tracking ref
+with the remote before assigning `BASE_SHA`:
 
 ```bash
 START_SHA=$(git rev-parse HEAD)
-BASE_SHA=$(git rev-parse origin/main)
 REMOTE_MAIN_SHA=$(git ls-remote origin refs/heads/main | cut -f1)
+ORIGIN_MAIN_SHA=$(git rev-parse origin/main)
 ```
 
-Record `START_SHA`, `BASE_SHA`, the source of each SHA, and whether
-`BASE_SHA == REMOTE_MAIN_SHA`. A locally readable `origin/main` is not proof of
-freshness. Fetch or refresh the ref only when it is needed and permitted; if
-freshness cannot be checked, record that fact instead of treating the ref as
-current.
+Record `START_SHA`, both observed main SHAs, their sources, and whether
+`ORIGIN_MAIN_SHA == REMOTE_MAIN_SHA`. A locally readable `origin/main` is not
+proof of freshness. For a normal `main`-based change, do not assign a stale
+`ORIGIN_MAIN_SHA` to `BASE_SHA` or begin implementation against it. If the SHAs
+differ, refresh/fetch the ref through the permitted path, recompute the remote
+and local SHAs, and assign `BASE_SHA` only after they match. If refresh or
+freshness verification is not permitted, record that limitation and do not
+begin the main-based implementation until the intended current base can be
+established.
 
 An Issue may intentionally use an unmerged PR, parent Issue, or another commit
 as its base. In that case, set `BASE_SHA` to the chosen commit, record its
