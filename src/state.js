@@ -1,6 +1,7 @@
 export {
   state,
   addLog,
+  getLogEntries,
   addEventLog,
   resolveEventObservation,
   clearEventObservations,

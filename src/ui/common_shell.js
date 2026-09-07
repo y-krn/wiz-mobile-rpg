@@ -68,8 +68,12 @@ export function classifyEventLine(line) {
 
 export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit = 8, activeObservations = undefined } = {}) {
   const lines = (Array.isArray(logs) ? logs : [])
-    .flatMap(message => String(message ?? "").split("\n"))
-    .filter(Boolean);
+    .flatMap(entry => {
+      const text = typeof entry === "object" && entry !== null ? String(entry.text ?? "") : String(entry ?? "");
+      const side = entry?.side || "neutral";
+      return text.split("\n").map(line => ({ text: line, side }));
+    })
+    .filter(entry => entry.text);
   const activeObservationTexts = activeObservations === undefined
     ? null
     : new Set(Object.values(activeObservations || {})
@@ -82,6 +86,7 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
       .map(entry => ({
         kind: "unresolved",
         text: entry.text,
+        side: entry.side || "neutral",
         key: entry.key,
         scope: entry.scope,
         lifecycle: entry.lifecycle
@@ -93,6 +98,7 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
       .map(entry => ({
         kind: "result",
         text: entry.text,
+        side: entry.side || "neutral",
         key: entry.key,
         scope: entry.scope,
         lifecycle: entry.lifecycle
@@ -100,7 +106,7 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
     : [];
   const transient = [];
   lines.forEach(line => {
-    const entry = classifyEventLine(line);
+    const entry = { ...classifyEventLine(line.text), side: line.side };
     if (entry.kind === "unresolved" && activeObservations === undefined) unresolved.push(entry);
     if (entry.kind === "transient" && !activeObservationTexts?.has(entry.text)) transient.push(entry);
   });

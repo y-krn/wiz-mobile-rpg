@@ -15,10 +15,38 @@ const AUTO_DELAYS = Object.freeze({
   milestone: 300
 });
 
+export const COMBAT_LOG_SIDES = Object.freeze({
+  ALLY: "ally",
+  ENEMY: "enemy",
+  NEUTRAL: "neutral"
+});
+
 const IMPORTANT_COMBAT_RESULT_RE = /反射|効かな|無効|状態異常|毒状態|毒に|毒が消え|盲目|麻痺|睡眠|出血|脆弱|耐性|弱点|レジスト|倒れた|倒した|力尽きた|撃破|逃走|逃げ|MP不足|かわした|回避|空振り|動けない|庇った|怯んだ|沈黙|呪い|防毒|守りが崩|魔法に弱く/;
 
 export function isImportantCombatResult(message) {
   return typeof message === "string" && IMPORTANT_COMBAT_RESULT_RE.test(message);
+}
+
+export function getCombatLogSide(message) {
+  if (typeof message !== "string") return COMBAT_LOG_SIDES.NEUTRAL;
+  if (/^\[味方\]/.test(message)) return COMBAT_LOG_SIDES.ALLY;
+  if (/^\[\s*敵\s*\]/.test(message)) return COMBAT_LOG_SIDES.ENEMY;
+  return COMBAT_LOG_SIDES.NEUTRAL;
+}
+
+function normalizeCombatLogEntry(entry) {
+  const normalizedSide = Object.values(COMBAT_LOG_SIDES).includes(entry?.side)
+    ? entry.side
+    : getCombatLogSide(entry?.msg);
+  return {
+    ...entry,
+    side: normalizedSide
+  };
+}
+
+function mergeCombatLogSides(entries) {
+  const sides = new Set(entries.map(entry => entry.side).filter(side => side !== COMBAT_LOG_SIDES.NEUTRAL));
+  return sides.size === 1 ? [...sides][0] : COMBAT_LOG_SIDES.NEUTRAL;
 }
 
 export function getCombatLogPace(entry) {
@@ -43,14 +71,13 @@ function stripPresentationMarkers(message) {
     .replace(/\s+$/, "");
 }
 
-export function formatCombatLogMessage(message) {
+export function formatCombatLogMessage(message, side = getCombatLogSide(message)) {
   if (typeof message !== "string") return message;
-  const side = message.match(/^\[(味方|\s*敵\s*)\]/)?.[1]?.trim();
   let text = stripPresentationMarkers(message);
 
-  if (side === "味方") {
+  if (side === COMBAT_LOG_SIDES.ALLY) {
     text = text.replace(/^(.+?)の攻撃！(.+?)に(\d+)のダメージ[。！]$/, "$2に一撃を加えた。$3ダメージ。");
-  } else if (side === "敵") {
+  } else if (side === COMBAT_LOG_SIDES.ENEMY) {
     text = text.replace(/^(.+?)の攻撃！(.+?)に(\d+)のダメージ[。！]$/, "$1の一撃を受けた。$3ダメージ。");
   }
 
@@ -58,13 +85,15 @@ export function formatCombatLogMessage(message) {
 }
 
 function mergeEntries(entries) {
-  const first = entries[0];
+  const normalizedEntries = entries.map(normalizeCombatLogEntry);
+  const first = normalizedEntries[0];
   const merged = { ...first };
-  const messages = entries
-    .map(entry => formatCombatLogMessage(entry.msg))
+  const messages = normalizedEntries
+    .map(entry => formatCombatLogMessage(entry.msg, entry.side))
     .filter(Boolean);
   if (messages.length > 0) merged.msg = messages.join(" ");
-  entries.slice(1).forEach(entry => {
+  merged.side = mergeCombatLogSides(normalizedEntries);
+  normalizedEntries.slice(1).forEach(entry => {
     ["runEscape", "escapeToTown", "fleeCombat", "milestoneVictory", "giveKey", "triggerChest", "endCombat"]
       .forEach(flag => {
         if (entry[flag]) merged[flag] = entry[flag];
@@ -78,13 +107,17 @@ export function groupCombatLogEntries(queue) {
   if (!Array.isArray(queue)) return [];
   const grouped = [];
   queue.forEach(entry => {
+    const normalizedEntry = normalizeCombatLogEntry(entry);
     const previous = grouped[grouped.length - 1];
-    if (entry?.groupId && previous?.groupId === entry.groupId) {
+    if (normalizedEntry?.groupId && previous?.groupId === normalizedEntry.groupId) {
       const entries = previous.effects || [previous];
-      grouped[grouped.length - 1] = mergeEntries([...entries, entry]);
+      grouped[grouped.length - 1] = mergeEntries([...entries, normalizedEntry]);
       return;
     }
-    grouped.push({ ...entry, msg: formatCombatLogMessage(entry?.msg) });
+    grouped.push({
+      ...normalizedEntry,
+      msg: formatCombatLogMessage(normalizedEntry.msg, normalizedEntry.side)
+    });
   });
   return grouped;
 }

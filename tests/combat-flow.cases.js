@@ -169,3 +169,31 @@ test('combat result observations are cleared at combat boundaries', async ({ pag
 
   expect(result).toEqual({ before: 1, afterCombatStart: 0, afterResume: 1, afterRoundStart: 0 });
 });
+
+test('combat damage entries retain side semantics after wording is shortened', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const { state, addLog } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    state.logs = [];
+    addLog('ゴブリンに一撃を加えた。10ダメージ。', { side: 'ally' });
+    addLog('ゴブリンの一撃を受けた。1ダメージ。', { side: 'enemy' });
+    updateUI();
+    return Array.from(document.querySelectorAll('#log-content .log-entry')).map(entry => ({
+      text: entry.textContent.replace(/^(?:直近|結果|未解決)/, ''),
+      classes: Array.from(entry.classList),
+    }));
+  });
+
+  expect(result).toEqual([
+    expect.objectContaining({
+      text: 'ゴブリンに一撃を加えた。10ダメージ。',
+      classes: expect.arrayContaining(['ally', 'damage-dealt']),
+    }),
+    expect.objectContaining({
+      text: 'ゴブリンの一撃を受けた。1ダメージ。',
+      classes: expect.arrayContaining(['enemy', 'damage-taken']),
+    }),
+  ]);
+  expect(result.every(entry => !entry.text.includes('[味方]') && !entry.text.includes('[敵]'))).toBe(true);
+});

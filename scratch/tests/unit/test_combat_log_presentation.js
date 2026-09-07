@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import {
   COMBAT_LOG_DELAYS,
+  COMBAT_LOG_SIDES,
   formatCombatLogMessage,
+  getCombatLogSide,
   getCombatLogDelay,
   groupCombatLogEntries,
   isImportantCombatResult
@@ -20,6 +22,9 @@ assert.equal(isImportantCombatResult("ゴブリンを倒した！"), true);
 assert.equal(isImportantCombatResult("毒が消え去った！"), true);
 assert.equal(isImportantCombatResult("敵は沈黙した。"), true);
 assert.equal(isImportantCombatResult("ゴブリンに8ダメージ。"), false);
+assert.equal(getCombatLogSide("[味方] 冒険者の攻撃！"), COMBAT_LOG_SIDES.ALLY);
+assert.equal(getCombatLogSide("[ 敵 ] ゴブリンの攻撃！"), COMBAT_LOG_SIDES.ENEMY);
+assert.equal(getCombatLogSide("戦闘に勝利した！"), COMBAT_LOG_SIDES.NEUTRAL);
 assert.equal(
   formatCombatLogMessage("[味方] 冒険者の攻撃！ゴブリンに8のダメージ。"),
   "ゴブリンに一撃を加えた。8ダメージ。"
@@ -36,5 +41,12 @@ const grouped = groupCombatLogEntries([
 ]);
 assert.equal(grouped.length, 2);
 assert.equal(grouped[0].msg, "ゴブリンに一撃を加えた。8ダメージ。 ゴブリンを倒した！");
+assert.equal(grouped[0].side, COMBAT_LOG_SIDES.ALLY);
+
+const mixed = groupCombatLogEntries([
+  { msg: "[味方] 冒険者の攻撃！ゴブリンに8のダメージ。", groupId: "action:mixed" },
+  { msg: "[ 敵 ] ゴブリンの攻撃！冒険者に5のダメージ！", groupId: "action:mixed" }
+]);
+assert.equal(mixed[0].side, COMBAT_LOG_SIDES.NEUTRAL);
 
 console.log("[PASS] combat log presentation pacing, wording, and grouping");
