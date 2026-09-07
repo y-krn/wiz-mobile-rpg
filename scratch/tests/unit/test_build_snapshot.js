@@ -23,6 +23,8 @@ assert.equal(snapshots["medium-multi-rune"].runeSlotCapacity, 2);
 assert.ok(snapshots["main-core-conversion"].mainCoreIds.includes("CORE_BLOOD_WAND"));
 assert.equal(snapshots["exploration-support"].explorationSupportValues.trapBonus, 30);
 assert.equal(snapshots["exploration-support"].explorationSupportValues.treasureSense, 15);
+assert.equal(snapshots["exploration-support"].explorationSupportValues.arcaneSense, 2);
+assert.equal(snapshots["exploration-support"].explorationSupportValues.traceRead, 2);
 
 for (const snapshot of Object.values(snapshots)) {
   assert.equal(snapshot.schemaVersion, BUILD_SNAPSHOT_SCHEMA_VERSION);

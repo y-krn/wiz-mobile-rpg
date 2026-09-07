@@ -184,6 +184,13 @@ trap-only minigame.
   special trap action and carries the route's ordinary steps, encounters, and
   other risks.
 
+Secret-route search follows the same ownership boundary. Searching is a
+universal exploration verb; depth supplies pressure and `arcaneSense` from the
+current run build supplies a bounded information modifier. A class label,
+level, or raw character statistic must not grant hidden-door permission. The
+production action and simulation use the same exploration resolver so a build
+comparison cannot silently measure a different search rule.
+
 Map generation owns connectivity, reachability, placement, density, and private
 route diagnostics. It does not promise a safe detour, a trap-free shortest
 route, or universal avoidance. Trap rules own discovery, resolution, damage,
