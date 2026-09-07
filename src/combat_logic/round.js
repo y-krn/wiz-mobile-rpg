@@ -523,8 +523,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   });
 
   // Run each action
-  turns.forEach(turn => {
-    if (escaped) return;
+  turns.forEach((turn, index) => {
+    const actionStart = logQueue.length;
+    const groupId = `combat:${roundNumber}:action:${index}`;
+    try {
+      if (escaped) return;
     const livingNow = state.party.filter(char => char.status !== "dead");
     state.party.forEach(char => {
       char.combatLastSurvivor = livingNow.length === 1 && livingNow[0] === char;
@@ -1516,6 +1519,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         queueCharDeathLog(logQueue, deathLog);
         logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
       }
+      }
+    } finally {
+      logQueue.slice(actionStart).forEach(entry => {
+        if (!entry.groupId) entry.groupId = groupId;
+      });
     }
   });
 

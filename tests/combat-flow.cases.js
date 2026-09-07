@@ -93,6 +93,44 @@ test('important combat results remain in the Event Strip with ordinary logs', as
   expect(result.transientCount).toBeLessThanOrEqual(8);
 });
 
+test('combat log presentation keeps normal results quick and important results readable @e2e @smoke', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const {
+      COMBAT_LOG_DELAYS,
+      formatCombatLogMessage,
+      getCombatLogDelay,
+      groupCombatLogEntries
+    } = await import('/src/combat_ui/combat_log_presentation.js');
+    const grouped = groupCombatLogEntries([
+      { msg: '[味方] 冒険者の攻撃！ゴブリンに8のダメージ。', groupId: 'action:1' },
+      { msg: '[味方] [!] ゴブリンを倒した！', groupId: 'action:1' }
+    ]);
+    return {
+      normal: getCombatLogDelay({ msg: 'ゴブリンに8ダメージ。' }),
+      important: getCombatLogDelay({ msg: '弱点を突いた。12ダメージ。' }),
+      end: getCombatLogDelay({ endCombat: true, msg: '周囲に静寂が戻った。' }),
+      chest: getCombatLogDelay({ triggerChest: true, msg: '宝箱が現れた。' }),
+      milestone: getCombatLogDelay({ milestoneVictory: 1, msg: '階層守護者を撃破した。' }),
+      formatted: formatCombatLogMessage('[味方] 冒険者の攻撃！ゴブリンに8のダメージ。'),
+      groupedCount: grouped.length,
+      groupedText: grouped[0].msg,
+      constants: COMBAT_LOG_DELAYS,
+    };
+  });
+
+  expect(result).toMatchObject({
+    normal: 500,
+    important: 850,
+    end: 750,
+    chest: 950,
+    milestone: 1900,
+    formatted: 'ゴブリンを斬りつけた。8ダメージ。',
+    groupedCount: 1,
+  });
+  expect(result.groupedText).toContain('ゴブリンを斬りつけた。8ダメージ。');
+});
+
 test('combat result observations are cleared at combat boundaries', async ({ page }) => {
   await page.goto('/');
   const result = await page.evaluate(async () => {

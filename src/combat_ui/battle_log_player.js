@@ -10,6 +10,11 @@ import { setupChestState } from "../chest.js";
 import { checkCombatStatus } from "./combat_status.js";
 import { triggerGameOver } from "./game_over.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
+import {
+  getCombatLogDelay,
+  groupCombatLogEntries,
+  isImportantCombatResult
+} from "./combat_log_presentation.js";
 
 function cleanupCombatState() {
   clearEventObservations({ scopePrefix: "combat:" });
@@ -54,6 +59,7 @@ function openBossExitSubmenu() {
 }
 
 export function playBattleLogs(queue, index) {
+  if (index === 0) queue = groupCombatLogEntries(queue);
   if (index >= queue.length) {
     state.transitioning = false;
     checkCombatStatus();
@@ -63,10 +69,13 @@ export function playBattleLogs(queue, index) {
   const log = queue[index];
   const isAuto = state.combatState && state.combatState.isAuto;
 
-  if (log.sound) playSound(log.sound);
-  if (log.shake && renderer) renderer.triggerShake(log.shake, 250);
-  if (log.flash && renderer) renderer.triggerFlash(200);
-  if (log.floatText && renderer) renderer.addDamageText(log.floatText, log.floatColor);
+  const effects = log.effects || [log];
+  effects.forEach(effect => {
+    if (effect.sound) playSound(effect.sound);
+    if (effect.shake && renderer) renderer.triggerShake(effect.shake, 250);
+    if (effect.flash && renderer) renderer.triggerFlash(200);
+    if (effect.floatText && renderer) renderer.addDamageText(effect.floatText, effect.floatColor);
+  });
 
   if (isImportantCombatResult(log.msg)) {
     addEventLog(log.msg, {
@@ -96,7 +105,7 @@ export function playBattleLogs(queue, index) {
         saveAutosave();
         updateUI();
       }
-    }, isAuto ? 150 : 1200);
+    }, getCombatLogDelay(log, { isAuto }));
     return;
   }
 
@@ -115,7 +124,7 @@ export function playBattleLogs(queue, index) {
         state.transitioning = false;
         triggerRunResult("escape_scroll");
       }
-    }, isAuto ? 150 : 1200);
+    }, getCombatLogDelay(log, { isAuto }));
     return;
   }
 
@@ -140,7 +149,7 @@ export function playBattleLogs(queue, index) {
         saveAutosave();
         updateUI();
       }
-    }, isAuto ? 150 : 1200);
+    }, getCombatLogDelay(log, { isAuto }));
     return;
   }
 
@@ -157,7 +166,7 @@ export function playBattleLogs(queue, index) {
       saveAutosave();
       updateUI();
       openBossExitSubmenu();
-    }, isAuto ? 300 : 3000);
+    }, getCombatLogDelay(log, { isAuto }));
     return;
   }
 
@@ -173,7 +182,7 @@ export function playBattleLogs(queue, index) {
       state.transitioning = false;
       saveAutosave();
       updateUI();
-    }, isAuto ? 300 : 3000);
+    }, getCombatLogDelay(log, { isAuto }));
     return;
   }
 
@@ -186,7 +195,7 @@ export function playBattleLogs(queue, index) {
       state.transitioning = false;
       setupChestState(null, null, null, null, { fromDrop: true });
       saveAutosave();
-    }, isAuto ? 150 : 1500);
+    }, getCombatLogDelay(log, { isAuto }));
     return;
   }
 
@@ -200,16 +209,12 @@ export function playBattleLogs(queue, index) {
       state.transitioning = false;
       saveAutosave();
       updateUI();
-    }, isAuto ? 150 : 1200);
+    }, getCombatLogDelay(log, { isAuto }));
     return;
   }
 
-  const delay = isAuto ? 50 : (log.msg.startsWith("[!]") || log.msg.includes("[★]") ? 1200 : 700);
+  const delay = getCombatLogDelay(log, { isAuto });
   setTimeout(() => {
     playBattleLogs(queue, index + 1);
   }, delay);
-}
-
-function isImportantCombatResult(message) {
-  return typeof message === "string" && /反射|効かな|無効|状態異常|毒状態|盲目|麻痺|睡眠|出血|脆弱|耐性|弱点|倒れた|力尽きた|逃走|逃げ|MP不足/.test(message);
 }
