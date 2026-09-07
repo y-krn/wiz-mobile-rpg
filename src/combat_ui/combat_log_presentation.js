@@ -111,7 +111,7 @@ function mergeEntries(entries) {
   const first = normalizedEntries[0];
   const merged = { ...first };
   const messages = normalizedEntries
-    .map(entry => formatCombatLogMessage(entry.msg, entry.side))
+    .map(entry => formatCombatLogMessage(entry.msg, entry.presentationKind))
     .filter(Boolean);
   if (messages.length > 0) merged.msg = messages.join(" ");
   merged.side = mergeCombatLogSides(normalizedEntries);
@@ -139,7 +139,7 @@ export function groupCombatLogEntries(queue) {
     }
     grouped.push({
       ...normalizedEntry,
-      msg: formatCombatLogMessage(normalizedEntry.msg, normalizedEntry.side)
+      msg: formatCombatLogMessage(normalizedEntry.msg, normalizedEntry.presentationKind)
     });
   });
   return grouped;
