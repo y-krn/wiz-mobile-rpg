@@ -9,6 +9,7 @@ import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/sp
 import { getScreenViewState, getUsableSpellKeys } from "../state/view_state.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
+import { dungeonRenderer as renderer } from "../renderer.js";
 
 function isLivingEnemy(targetIdx) {
   const monster = state.combatState?.monsters?.[targetIdx];
@@ -301,6 +302,7 @@ export function renderCombatOverlay() {
   btnBack.setAttribute("aria-label", "選択をやめて戦闘へ戻る");
   btnBack.textContent = "◀ 戻る (キャンセル)";
   btnBack.addEventListener("click", () => {
+    renderer?.clearTargetSelection?.();
     goBackSubmenu();
   });
   closeRow.appendChild(btnBack);

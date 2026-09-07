@@ -254,6 +254,28 @@
   object-fit: contain; /* keep the 400x260 render undistorted if the panel grows taller */
 }
 
+.three-feedback-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: clamp(1.2rem, 5vw, 2rem);
+  font-weight: 700;
+  text-shadow: 0 0 10px currentColor;
+}
+
+.three-feedback-overlay span {
+  animation: three-feedback-rise 700ms ease-out forwards;
+}
+
+@keyframes three-feedback-rise {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-28px) scale(1.08); }
+}
+
 /* Log Panel — kept minimal (priority: buttons > party HUD > map > log).
    Small fixed floor + grow only as the spare-space receiver once the map hits
    its max. DOM shows recent entries only; the expand button opens full history. */

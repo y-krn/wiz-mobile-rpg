@@ -8,6 +8,10 @@ export function setDungeonRenderer(r) {
   dungeonRenderer = r;
 }
 
+export function isDirectTargetRendererActive() {
+  return Boolean(dungeonRenderer?.mode === "three" && dungeonRenderer.supportsDirectTargetSelection);
+}
+
 // Canvas dimensions
 const VIEW_W = 400;
 const VIEW_H = 260;

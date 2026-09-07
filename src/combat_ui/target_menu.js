@@ -1,6 +1,7 @@
 import { state } from "../state.js";
 import { menuContext, openSubmenu } from "../navigation.js";
 import { bindCombatCallback, combatCallbacks } from "./combat_state.js";
+import { dungeonRenderer as renderer } from "../renderer.js";
 
 export function openCombatTargetMenu(type, callback, spellName = null) {
   // balance-impact: none — combat target callback context boundary only
@@ -17,4 +18,14 @@ export function openCombatTargetMenu(type, callback, spellName = null) {
   });
   const title = type === "enemy" ? "攻撃対象を選択" : "対象を選択";
   openSubmenu("combat_target", title);
+  if (type === "enemy" && renderer?.supportsDirectTargetSelection) {
+    renderer.setTargetSelection({
+      targetType: type,
+      onSelect: (targetIdx) => {
+        if (typeof combatCallbacks.activeTargetCallback !== "function") return;
+        state.gameState = "combat";
+        combatCallbacks.activeTargetCallback(targetIdx);
+      }
+    });
+  }
 }

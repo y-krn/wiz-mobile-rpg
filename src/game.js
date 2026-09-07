@@ -40,33 +40,47 @@ export function initGame() {
   // エラー発生時にゲーム状態をSentryへ添付できるよう登録（stateはロード済み）
   initErrorContext(state);
 
-  renderer = new DungeonRenderer("dungeon-canvas");
-  setDungeonRenderer(renderer);
-
   document.addEventListener("visibilitychange", handleVisibilityChange);
   window.addEventListener("pagehide", stopGameLoop);
   window.addEventListener("pageshow", handlePageShow);
 
-  // Set up animation/render loop
-  scheduleGameLoop();
-
-  // Bind Buttons
-  bindButtons();
-
-  // Load Initial UI state
-  updateUI();
-  resumePendingCampEntry();
-  const view = getScreenViewState(state, null);
-  if (view.gameState === "combat" && view.hasCombat && view.hasStructurallyUsableCombatParty) {
-    resumeCombat();
-  } else if (view.gameState === "combat") {
-    // A saved combat without a structurally usable party cannot be resumed.
-    // Clear the stale combat payload before returning to the safe base screen.
-    state.combatState = null;
-    state.gameState = view.hasMap ? "explore" : "town";
-    saveAutosave();
+  const requestedRenderer = new URLSearchParams(window.location.search).get("renderer");
+  const start = () => {
+    document.getElementById("viewport-panel")?.setAttribute("data-renderer", renderer?.mode || "canvas");
+    scheduleGameLoop();
+    bindButtons();
     updateUI();
+    resumePendingCampEntry();
+    const view = getScreenViewState(state, null);
+    if (view.gameState === "combat" && view.hasCombat && view.hasStructurallyUsableCombatParty) {
+      resumeCombat();
+    } else if (view.gameState === "combat") {
+      // A saved combat without a structurally usable party cannot be resumed.
+      // Clear the stale combat payload before returning to the safe base screen.
+      state.combatState = null;
+      state.gameState = view.hasMap ? "explore" : "town";
+      saveAutosave();
+      updateUI();
+    }
+  };
+
+  if (requestedRenderer === "three") {
+    import("./three_renderer.js").then(({ ThreeDungeonRenderer }) => {
+      const candidate = new ThreeDungeonRenderer("dungeon-canvas");
+      renderer = candidate.supported ? candidate : new DungeonRenderer("dungeon-canvas");
+      setDungeonRenderer(renderer);
+      start();
+    }).catch(() => {
+      renderer = new DungeonRenderer("dungeon-canvas");
+      setDungeonRenderer(renderer);
+      start();
+    });
+    return;
   }
+
+  renderer = new DungeonRenderer("dungeon-canvas");
+  setDungeonRenderer(renderer);
+  start();
 }
 
 function lockViewportScale() {
