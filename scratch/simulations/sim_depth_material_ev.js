@@ -7201,6 +7201,21 @@ export function classifyBuildPaymentAction(action) {
   return "noop";
 }
 
+export function derivePlayerActionExecutionTiming(actionObservations, actionType) {
+  const playerActionObservation = actionObservations?.find(observation =>
+    observation.actor === "char" && observation.actionType === actionType
+  );
+  if (!playerActionObservation?.executed) return "not-executed-before-end";
+  const monsterActionBeforePlayer = actionObservations.some(observation =>
+    observation.actor === "monster" &&
+    observation.executed &&
+    observation.order < playerActionObservation.order
+  );
+  return monsterActionBeforePlayer
+    ? "after-enemy-action"
+    : "player-before-any-enemy";
+}
+
 function runEncounter(
   state,
   observations,
@@ -7957,6 +7972,10 @@ function runEncounter(
     const fled = roundResult.logQueue.some(entry => entry.runEscape);
     const fleeExecuted = roundResult.logQueue.some(entry => entry.fleeExecution === true);
     const fleePartingAttack = roundResult.logQueue.some(entry => entry.fleePartingAttack === true);
+    const playerActionExecutionTiming = derivePlayerActionExecutionTiming(
+      roundResult.actionObservations,
+      action.type
+    );
     if (encounterDiagnostic) {
       encounterDiagnostic.rounds.push({
         round: roundNumber,
@@ -7965,8 +7984,9 @@ function runEncounter(
         fleeExecuted,
         fleePartingAttack,
         firstStrikeSucceeded: roundNumber === 1 ? firstStrikeSucceeded : null,
-        playerActionExecutionTiming: roundNumber === 1
-          ? (firstStrikeSucceeded ? "player-before-enemy" : "enemy-before-player")
+        playerActionExecutionTiming: roundNumber === 1 ? playerActionExecutionTiming : null,
+        playerActionExecuted: roundNumber === 1
+          ? playerActionExecutionTiming !== "not-executed-before-end"
           : null,
         spellName: action.spellName || null,
         itemKey: action.itemKey || null,
