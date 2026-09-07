@@ -67,7 +67,45 @@ async function clickCanvasMonster(page, layoutIndex = 0) {
   return point.targetIndex;
 }
 
+async function clickCanvasInternalPoint(page, internalPoint) {
+  const point = await page.evaluate(({ x, y }) => {
+    const rect = document.querySelector('#dungeon-canvas').getBoundingClientRect();
+    const scale = Math.min(rect.width / 400, rect.height / 260);
+    return {
+      x: x * scale + (rect.width - 400 * scale) / 2,
+      y: y * scale + (rect.height - 260 * scale) / 2,
+    };
+  }, internalPoint);
+  await page.locator('#dungeon-canvas').click({ position: point });
+}
+
 for (const viewport of VIEWPORTS) {
+  test(`単体敵の明確なCanvas空白は対象にしない (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await installCombat(page, ['vanguard']);
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { updateUI } = await import('/src/ui.js');
+      state.combatState.monsters = [state.combatState.monsters[0]];
+      updateUI();
+    });
+
+    await page.locator('#btn-combat-fight').click();
+    await clickCanvasInternalPoint(page, { x: 10, y: 10 });
+    await expect(page.locator('#combat-overlay')).toBeVisible();
+    await expect.poll(() => page.evaluate(async () => {
+      const { combatSelection } = await import('/src/combat.js');
+      return combatSelection.actions.length;
+    })).toBe(0);
+
+    await clickCanvasMonster(page);
+    await expect(page.locator('#combat-overlay')).toBeHidden();
+    await expect.poll(() => page.evaluate(async () => {
+      const { combatSelection } = await import('/src/combat.js');
+      return combatSelection.actions[0];
+    })).toMatchObject({ type: 'fight', actorIdx: 0, targetIdx: 0 });
+  });
+
   test(`攻撃後にCanvasの敵タップで行動を確定できる (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await installCombat(page, ['vanguard', 'arcana']);
