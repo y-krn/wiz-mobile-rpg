@@ -1392,22 +1392,26 @@ for (const vp of VIEWPORTS) {
       menuContext.prevGameState = 'combat';
 
       const rejected = [];
-      const rejectClick = (type, selector, callbackKey, phase, transitioning) => {
+      const rejectClick = async (type, selector, callbackKey, phase, transitioning) => {
         menuContext.type = type;
         menuContext.targetType = type === 'combat_target' ? 'enemy' : '';
         menuContext.actorIdx = 0;
         menuContext.spellName = '';
         combatCallbacks[callbackKey] = () => rejected.push(type);
         renderCombatOverlay();
-        const card = document.querySelector(`#combat-overlay ${selector}`);
         state.combatState.phase = phase;
         state.transitioning = transitioning;
-        card?.click();
+        if (type === 'combat_target') {
+          const { commitCombatTarget } = await import('/src/combat_ui/combat_overlay.js');
+          commitCombatTarget(0);
+        } else {
+          document.querySelector(`#combat-overlay ${selector}`)?.click();
+        }
       };
 
-      rejectClick('combat_target', '.combat-target-card.enemy', 'activeTargetCallback', 'resolving', false);
-      rejectClick('combat_spell', '.combat-item-card.spell', 'activeSpellCallback', 'choose_actions', true);
-      rejectClick('combat_item', '.combat-item-card.item', 'activeItemCallback', 'resolving', false);
+      await rejectClick('combat_target', '.combat-target-a11y', 'activeTargetCallback', 'resolving', false);
+      await rejectClick('combat_spell', '.combat-item-card.spell', 'activeSpellCallback', 'choose_actions', true);
+      await rejectClick('combat_item', '.combat-item-card.item', 'activeItemCallback', 'resolving', false);
 
       return {
         rejected,
@@ -1632,7 +1636,8 @@ test('Combat autosave resumes action selection without persisting resolving phas
 
   await page.locator('#btn-combat-fight').click();
   await expect(page.locator('#combat-overlay')).toBeVisible();
-  await page.locator('#combat-overlay .combat-target-card.enemy:not(.dead)').first().click();
+  const canvasBox = await page.locator('#dungeon-canvas').boundingBox();
+  await page.locator('#dungeon-canvas').click({ position: { x: canvasBox.width / 2, y: canvasBox.height / 2 } });
 
   const duringResolution = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -2221,7 +2226,7 @@ for (const vp of VIEWPORTS) {
     expect(Object.values(result.eventMiniMapDraws)).toEqual(Array(7).fill(0));
     expect(result.postEventExploreMiniMapDraws).toBe(1);
     expect(result.monsterLabelCountAfterExplore).toBe(result.monsterLabelCountBeforeExplore);
-    expect(result.targetCards).toBe(6);
+    expect(result.targetCards).toBe(0);
     expect(result.rowTags).toBe(0);
   });
 }

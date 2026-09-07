@@ -6,14 +6,24 @@ import { combatCallbacks } from "./combat_state.js";
 import { isSpellTargetAvailable, getSpellCombatSummary } from "./spell_menu.js";
 import { getUsableInventoryItems, INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
-import {
-  STATUS_EFFECT_IDS,
-  BLEEDING_PAYOFF_DAMAGE,
-  VULNERABLE_DAMAGE_MULTIPLIER
-} from "../combat_logic/status_effects.js";
 import { getScreenViewState, getUsableSpellKeys } from "../state/view_state.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
+
+function isLivingEnemy(targetIdx) {
+  const monster = state.combatState?.monsters?.[targetIdx];
+  return Number.isInteger(targetIdx) && Boolean(monster) && typeof monster === "object" && !Array.isArray(monster) && monster.hp > 0;
+}
+
+export function commitCombatTarget(targetIdx) {
+  const view = getScreenViewState(state, menuContext);
+  if (!view.isUsableCombatOverlaySubmenu || typeof combatCallbacks.activeTargetCallback !== "function") return false;
+  if (menuContext.targetType === "enemy" && !isLivingEnemy(targetIdx)) return false;
+
+  state.gameState = "combat";
+  combatCallbacks.activeTargetCallback(targetIdx);
+  return true;
+}
 
 function getEnemyResistanceStatus(monster) {
   const record = state.codex?.monsters?.[getMonsterCodexKey(monster)];
@@ -86,74 +96,36 @@ export function renderCombatOverlay() {
   body.className = "combat-overlay-body";
 
   if (type === "combat_target") {
-    const targetGrid = document.createElement("div");
-    targetGrid.className = "combat-target-grid";
-
     if (menuContext.targetType === "enemy") {
-      // Enemy targets
+      const instructions = document.createElement("div");
+      instructions.id = "combat-target-instructions";
+      instructions.className = "combat-target-selection-message";
+      instructions.setAttribute("role", "status");
+      instructions.setAttribute("aria-live", "polite");
+      instructions.textContent = "敵をタップして対象を選択";
+      body.appendChild(instructions);
+
+      const accessibilityList = document.createElement("div");
+      accessibilityList.className = "combat-target-a11y-list";
+      accessibilityList.setAttribute("aria-label", "敵対象のキーボード選択");
       const monsters = state.combatState.monsters;
       monsters.forEach((m, idx) => {
-        const card = document.createElement("button");
-        card.type = "button";
-        card.className = "btn combat-target-card enemy";
-        if (m.hp <= 0) {
-          card.classList.add("dead");
-          card.disabled = true;
-        }
-
-        const hpPct = m.maxHp > 0 ? (m.hp / m.maxHp) * 100 : 0;
-        let omenHtml = "";
-        if (m.chargeQueued) omenHtml = `<div class="enemy-omen charge">⚠️ 溜め中 (大ダメージ)</div>`;
-        else if (m.selfDestructQueued) omenHtml = `<div class="enemy-omen explode">⚠️ 爆発寸前 (自爆)</div>`;
-        else if (m.lahalitoQueued) omenHtml = `<div class="enemy-omen spell">⚠️ 詠唱準備 (ラハリト/全体)</div>`;
-        else if (m.madaltoQueued) omenHtml = `<div class="enemy-omen spell">⚠️ 詠唱準備 (マダルト/全体)</div>`;
-        else if (m.tiltowaitQueued) omenHtml = `<div class="enemy-omen spell-boss">⚠️ 詠唱準備 (極大爆裂/全体)</div>`;
-        else if (m.dragonBreathQueued) omenHtml = `<div class="enemy-omen breath">⚠️ ブレス準備 (全体)</div>`;
-        else if (m.multiActionQueued) omenHtml = `<div class="enemy-omen multi">⚠️ 連続行動の予兆</div>`;
-        else if (m.summonQueued) omenHtml = `<div class="enemy-omen summon">⚠️ 召喚の予兆</div>`;
-        else if (m.snipeQueued) {
-          const targetChar = state.party[m.snipeTargetIdx];
-          omenHtml = `<div class="enemy-omen snipe">⚠️ 狙撃準備 (対象: ${targetChar ? targetChar.name : "冒険者"})</div>`;
-        }
-        else if (m.statusPayoffQueued) {
-          const pattern = m.statusPayoffQueued.pattern === "blind_snipe" ? "目眩まし狙撃" : "毒喰らい";
-          omenHtml = `<div class="enemy-omen status-payoff">⚠️ ${pattern}準備 (状態異常中に追撃)</div>`;
-        }
-        const bleeding = m.statusEffects?.[STATUS_EFFECT_IDS.BLEEDING];
-        const vulnerable = m.statusEffects?.[STATUS_EFFECT_IDS.VULNERABLE];
-        const statusHtml = bleeding
-          ? `<div class="enemy-status bleeding" data-status-effect="bleeding" aria-label="出血 あと${bleeding.remainingTurns ?? 0}回">🩸 出血：あと${bleeding.remainingTurns ?? 0}回 / 次の通常攻撃+${BLEEDING_PAYOFF_DAMAGE}</div>`
-          : "";
-        const vulnerableHtml = vulnerable
-          ? `<div class="enemy-status vulnerable" data-status-effect="vulnerable" aria-label="脆弱 あと${vulnerable.remainingTurns ?? 0}回">⚡ 脆弱：あと${vulnerable.remainingTurns ?? 0}回 / 次の直接攻撃×${VULNERABLE_DAMAGE_MULTIPLIER}</div>`
-          : "";
-
-        card.innerHTML = `
-          <div class="card-title">${m.name}</div>
-          <div class="card-hp-bar-container">
-            <div class="card-hp-bar" style="width: ${hpPct}%"></div>
-          </div>
-          <div class="card-hp-text">HP: ${m.hp}/${m.maxHp}</div>
-          ${statusHtml}
-          ${vulnerableHtml}
-          <div class="enemy-resistance-info" aria-label="耐性・弱点">
-            ${getEnemyResistanceRowsHtml(m)}
-          </div>
-          ${omenHtml}
-        `;
-        card.setAttribute("aria-label", `${m.name}、HP ${m.hp}/${m.maxHp}${m.hp > 0 ? "、攻撃対象にする" : "、戦闘不能"}`);
-
-        if (m.hp > 0) {
-          card.addEventListener("click", () => {
-            if (!canCommitOverlayAction() || typeof combatCallbacks.activeTargetCallback !== "function") return;
-            state.gameState = "combat";
-            combatCallbacks.activeTargetCallback(idx);
-          });
-        }
-        targetGrid.appendChild(card);
+        if (m.hp <= 0) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "combat-target-a11y";
+        button.textContent = `${m.name}、HP ${m.hp}/${m.maxHp}`;
+        button.setAttribute("aria-label", `${m.name}、HP ${m.hp}/${m.maxHp}、攻撃対象にする`);
+        button.addEventListener("click", () => {
+          if (canCommitOverlayAction()) commitCombatTarget(idx);
+        });
+        accessibilityList.appendChild(button);
       });
+      body.appendChild(accessibilityList);
     } else {
       // Ally targets
+      const targetGrid = document.createElement("div");
+      targetGrid.className = "combat-target-grid";
       const targetIndices = menuContext.spellName
         ? getSpellAllyTargetIndices(menuContext.spellName, state.party)
         : getItemAllyTargetIndices(state.party);
@@ -193,14 +165,13 @@ export function renderCombatOverlay() {
         if (!disabled) {
           card.addEventListener("click", () => {
             if (!canCommitOverlayAction() || typeof combatCallbacks.activeTargetCallback !== "function") return;
-            state.gameState = "combat";
-            combatCallbacks.activeTargetCallback(idx);
+            commitCombatTarget(idx);
           });
         }
         targetGrid.appendChild(card);
       });
+      body.appendChild(targetGrid);
     }
-    body.appendChild(targetGrid);
   } else if (type === "combat_spell") {
     const enemyInfoPanel = createCombatEnemyInfoPanel();
     if (enemyInfoPanel) body.appendChild(enemyInfoPanel);

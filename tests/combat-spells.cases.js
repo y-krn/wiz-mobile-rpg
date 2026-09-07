@@ -19,6 +19,11 @@ test('combat spell cards expose tags and enter enemy targeting through the cast 
       isAuto: false,
       pendingOutcome: null
     };
+    state.map = [[{ walls: [false, false, false, false], type: 'empty' }]];
+    state.visitedMap = [[true]];
+    state.x = 0;
+    state.y = 0;
+    state.dir = 0;
     state.gameState = 'combat';
     state.transitioning = false;
     combatSelection.charIdx = 0;
@@ -34,10 +39,19 @@ test('combat spell cards expose tags and enter enemy targeting through the cast 
   await expect(halito.locator('.spell-tag')).toHaveText('単体');
 
   await halito.click();
-  await expect(page.locator('#combat-overlay .combat-target-card.enemy')).toHaveCount(1);
-  await expect(page.locator('#combat-overlay .combat-target-card.enemy')).toContainText('検証用モンスター');
-
-  await page.locator('#combat-overlay .combat-target-card.enemy').click();
+  await expect(page.locator('#combat-overlay .combat-target-card.enemy')).toHaveCount(0);
+  await expect(page.locator('#combat-overlay .combat-target-a11y')).toHaveCount(1);
+  const point = await page.evaluate(async () => {
+    const { getCombatMonsterLayout } = await import('/src/renderer.js');
+    const rect = document.querySelector('#dungeon-canvas').getBoundingClientRect();
+    const region = getCombatMonsterLayout((await import('/src/state.js')).state.combatState.monsters)[0].hitRegion;
+    const scale = Math.min(rect.width / 400, rect.height / 260);
+    return {
+      x: (region.x + region.width / 2) * scale + (rect.width - 400 * scale) / 2,
+      y: (region.y + region.height / 2) * scale + (rect.height - 260 * scale) / 2,
+    };
+  });
+  await page.locator('#dungeon-canvas').click({ position: point });
   await expect(page.locator('#combat-overlay')).toBeHidden();
   await expect(page.locator('#combat-controls')).toBeVisible();
 });

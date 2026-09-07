@@ -71,6 +71,13 @@ export function getRendererInput(stateLike = state, menuContextLike = menuContex
   const visual = getFloorTheme(floor).visualSignature;
   const sceneVisibility = getSceneVisibility(view);
   const arcaneSense = sceneVisibility.showTownBackground ? 0 : getPartyMaxAffix(party, "arcaneSense");
+  const combatTargetSelection = Object.freeze({
+    active: sceneVisibility.showCombat && view.menuType === "combat_target" &&
+      view.isCombatOverlaySubmenu && menuContextLike?.targetType === "enemy",
+    targetType: menuContextLike?.targetType === "enemy" || menuContextLike?.targetType === "ally"
+      ? menuContextLike.targetType
+      : ""
+  });
 
   return Object.freeze({
     kind: RENDERER_INPUT_KIND,
@@ -89,6 +96,7 @@ export function getRendererInput(stateLike = state, menuContextLike = menuContex
     roamingMonsters,
     party,
     combatMonsters: view.hasCombat ? source.combatState.monsters : [],
+    combatTargetSelection,
     visual,
     depthCorruption: getDepthCorruption(floor),
     arcaneSense,
