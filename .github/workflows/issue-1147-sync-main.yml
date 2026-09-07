@@ -1,0 +1,38 @@
+name: Issue 1147 sync main
+
+on:
+  push:
+    branches:
+      - codex/issue-1147
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/issue-1147
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Merge latest main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git merge --no-edit origin/main
+      - run: npm ci
+      - run: npm run test:unit:full
+      - run: npm run lint
+      - name: Push merge if needed
+        run: |
+          if git rev-parse HEAD^2 >/dev/null 2>&1 && ! git merge-base --is-ancestor HEAD origin/codex/issue-1147; then
+            git push origin HEAD:codex/issue-1147
+          else
+            echo "no new merge commit to push"
+          fi
