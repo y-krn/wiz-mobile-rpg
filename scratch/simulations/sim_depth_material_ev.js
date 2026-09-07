@@ -7957,6 +7957,20 @@ function runEncounter(
     const fled = roundResult.logQueue.some(entry => entry.runEscape);
     const fleeExecuted = roundResult.logQueue.some(entry => entry.fleeExecution === true);
     const fleePartingAttack = roundResult.logQueue.some(entry => entry.fleePartingAttack === true);
+    const playerActionObservation = roundResult.actionObservations?.find(observation =>
+      observation.actor === "char" && observation.actionType === action.type
+    );
+    const enemyActionBeforePlayer = roundResult.actionObservations?.some(observation =>
+      observation.actor === "enemy" &&
+      observation.executed &&
+      playerActionObservation &&
+      observation.order < playerActionObservation.order
+    ) || false;
+    const playerActionExecutionTiming = !playerActionObservation?.executed
+      ? "not-executed-before-end"
+      : enemyActionBeforePlayer
+        ? "after-enemy-action"
+        : "player-before-any-enemy";
     if (encounterDiagnostic) {
       encounterDiagnostic.rounds.push({
         round: roundNumber,
@@ -7965,9 +7979,8 @@ function runEncounter(
         fleeExecuted,
         fleePartingAttack,
         firstStrikeSucceeded: roundNumber === 1 ? firstStrikeSucceeded : null,
-        playerActionExecutionTiming: roundNumber === 1
-          ? (firstStrikeSucceeded ? "player-before-enemy" : "enemy-before-player")
-          : null,
+        playerActionExecutionTiming: roundNumber === 1 ? playerActionExecutionTiming : null,
+        playerActionExecuted: roundNumber === 1 ? Boolean(playerActionObservation?.executed) : null,
         spellName: action.spellName || null,
         itemKey: action.itemKey || null,
         targetIdx: action.targetIdx ?? null,

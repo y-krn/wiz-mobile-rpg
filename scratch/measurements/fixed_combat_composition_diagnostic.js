@@ -9,8 +9,8 @@ import { pathToFileURL } from "node:url";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1151-fixed-combat-composition-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "issue1151-fixed-combat-composition-v2";
+export const SCHEMA_VERSION = 2;
 export const STARTING_KIT = "vanguard";
 export const ENTRY_MP_RATIO = 1;
 export const HP_BANDS = Object.freeze([
@@ -145,6 +145,7 @@ function createAccumulator(definition) {
     mpAfter: distribution(),
     enemyActionCount: distribution(),
     firstPlayerActionExecutionTiming: {},
+    firstPlayerActionExecuted: 0,
     fleeSelected: 0,
     fleeExecuted: 0,
     fleeSelectedButNotExecuted: 0,
@@ -152,6 +153,8 @@ function createAccumulator(definition) {
     fleeSurvived: 0,
     fleeDiedFromPartingAttack: 0,
     partingAttackDamage: distribution(),
+    evasiveAttempts: 0,
+    evasiveMisses: 0,
     guardAdjacentTriggers: 0,
     guardedCount: 0,
     splitOnDeathTriggers: 0,
@@ -186,8 +189,20 @@ function observeResult(accumulator, result) {
   accumulator.fleeDiedFromPartingAttack += Number(
     executed > 0 && parting > 0 && outcome === "death"
   );
+  const physicalHits = result.combatFormula?.physicalPlayerHits || [];
+  const physicalMisses = result.combatFormula?.physicalPlayerMisses || [];
+  accumulator.evasiveAttempts += physicalHits.filter(hit =>
+    Number(hit.targetEvasionChance) > 0
+  ).length;
+  accumulator.evasiveAttempts += physicalMisses.filter(miss =>
+    Number(miss.targetEvasionChance) > 0
+  ).length;
+  accumulator.evasiveMisses += physicalMisses.filter(miss =>
+    Number(miss.targetEvasionChance) > 0 && miss.isEvasionMiss === true
+  ).length;
   const firstTiming = rounds[0]?.playerActionExecutionTiming || "unobserved";
   increment(accumulator.firstPlayerActionExecutionTiming, firstTiming);
+  accumulator.firstPlayerActionExecuted += Number(rounds[0]?.playerActionExecuted === true);
   for (const message of rounds.flatMap(round => round.log || [])) {
     if (message.includes("庇った！")) {
       accumulator.guardAdjacentTriggers++;
@@ -228,6 +243,7 @@ function finalizeAccumulator(accumulator, runs) {
     mpAfter: summarize(accumulator.mpAfter),
     enemyActionCount: summarize(accumulator.enemyActionCount),
     firstPlayerActionExecutionTiming: { ...accumulator.firstPlayerActionExecutionTiming },
+    firstPlayerActionExecuted: accumulator.firstPlayerActionExecuted,
     fleeSelected: accumulator.fleeSelected,
     fleeExecuted: accumulator.fleeExecuted,
     fleeSelectedButNotExecuted: accumulator.fleeSelectedButNotExecuted,
@@ -238,8 +254,22 @@ function finalizeAccumulator(accumulator, runs) {
       ? accumulator.fleeSurvived / accumulator.fleeExecuted
       : null,
     fleeSurvivalRate95Ci: wilson(accumulator.fleeSurvived, accumulator.fleeExecuted),
+    fleeSelectionToSurvivalRate: accumulator.fleeSelected > 0
+      ? accumulator.fleeSurvived / accumulator.fleeSelected
+      : null,
+    fleeSelectionToSurvivalRate95Ci: wilson(accumulator.fleeSurvived, accumulator.fleeSelected),
+    fleePreemptedRate: accumulator.fleeSelected > 0
+      ? accumulator.fleeSelectedButNotExecuted / accumulator.fleeSelected
+      : null,
     partingAttackDamage: summarize(accumulator.partingAttackDamage),
     productionTraitFiring: {
+      evasive: {
+        attempts: accumulator.evasiveAttempts,
+        misses: accumulator.evasiveMisses,
+        evasionRate: accumulator.evasiveAttempts > 0
+          ? accumulator.evasiveMisses / accumulator.evasiveAttempts
+          : null
+      },
       guardAdjacent: {
         triggers: accumulator.guardAdjacentTriggers,
         guardedCount: accumulator.guardedCount
@@ -316,7 +346,8 @@ export async function runFixedCombatDiagnostic({
             scenario,
             workshop: { ranks: {} },
             worldSeed,
-            collectDiagnostics: true
+            collectDiagnostics: true,
+            collectCombatFormula: true
           });
           observeResult(accumulator, result);
         }
@@ -324,23 +355,88 @@ export async function runFixedCombatDiagnostic({
       }
     }
   }
-  const contrasts = HP_BANDS.flatMap(hpBand => POLICIES.map(policy => {
-    const selected = cases.filter(testCase =>
-      testCase.hpBandId === hpBand.id && testCase.policy === policy
-    );
-    const highRisk = selected.filter(testCase => testCase.risk === "high");
-    const lowRisk = selected.filter(testCase => testCase.risk === "low");
+  const contrasts = HP_BANDS.map(hpBand => {
+    const selected = cases.filter(testCase => testCase.hpBandId === hpBand.id);
+    const pairs = COMPOSITIONS.map(composition => ({
+      compositionId: composition.id,
+      risk: composition.risk,
+      fight: selected.find(testCase =>
+        testCase.compositionId === composition.id && testCase.policy === "fight"
+      ),
+      immediateFlee: selected.find(testCase =>
+        testCase.compositionId === composition.id && testCase.policy === "immediate-flee"
+      )
+    }));
+    const highRisk = pairs.filter(pair => pair.risk === "high");
+    const lowRisk = pairs.filter(pair => pair.risk === "low");
+    const aggregate = (riskPairs, label) => {
+      const fightRuns = riskPairs.reduce((sum, pair) => sum + pair.fight.runs, 0);
+      const fightClears = riskPairs.reduce(
+        (sum, pair) => sum + pair.fight.clearRate * pair.fight.runs,
+        0
+      );
+      if (!fightRuns || !Number.isFinite(fightClears)) {
+        throw new Error(`contrast ${hpBand.id} missing finite ${label} fight result`);
+      }
+      const fleeSelected = riskPairs.reduce(
+        (sum, pair) => sum + pair.immediateFlee.fleeSelected,
+        0
+      );
+      const fleeExecuted = riskPairs.reduce(
+        (sum, pair) => sum + pair.immediateFlee.fleeExecuted,
+        0
+      );
+      const fleeSurvived = riskPairs.reduce(
+        (sum, pair) => sum + pair.immediateFlee.fleeSurvived,
+        0
+      );
+      return {
+        fightClearRate: fightClears / fightRuns,
+        immediateFleeSelectionToSurvivalRate: fleeSelected > 0
+          ? fleeSurvived / fleeSelected
+          : null,
+        immediateFleeExecutedSurvivalRate: fleeExecuted > 0
+          ? fleeSurvived / fleeExecuted
+          : null,
+        immediateFleePreemptedRate: fleeSelected > 0
+          ? riskPairs.reduce(
+            (sum, pair) => sum + pair.immediateFlee.fleeSelectedButNotExecuted,
+            0
+          ) / fleeSelected
+          : null
+      };
+    };
+    const high = aggregate(highRisk, "high-risk");
+    const low = aggregate(lowRisk, "low-risk");
+    const difference = (left, right) =>
+      Number.isFinite(left) && Number.isFinite(right) ? left - right : null;
     return {
       hpBandId: hpBand.id,
-      policy,
-      highRiskCaseIds: highRisk.map(testCase => testCase.compositionId),
-      lowRiskCaseIds: lowRisk.map(testCase => testCase.compositionId),
-      highRiskAverageClearRate: highRisk.reduce((sum, testCase) => sum + testCase.clearRate, 0) / highRisk.length,
-      lowRiskAverageClearRate: lowRisk.reduce((sum, testCase) => sum + testCase.clearRate, 0) / lowRisk.length,
-      lowMinusHighClearRate: lowRisk.reduce((sum, testCase) => sum + testCase.clearRate, 0) / lowRisk.length -
-        highRisk.reduce((sum, testCase) => sum + testCase.clearRate, 0) / highRisk.length
+      highRiskCaseIds: highRisk.map(pair => pair.compositionId),
+      lowRiskCaseIds: lowRisk.map(pair => pair.compositionId),
+      highRiskFightClearRate: high.fightClearRate,
+      lowRiskFightClearRate: low.fightClearRate,
+      lowMinusHighFightClearRate: low.fightClearRate - high.fightClearRate,
+      highRiskImmediateFleeSelectionToSurvivalRate: high.immediateFleeSelectionToSurvivalRate,
+      lowRiskImmediateFleeSelectionToSurvivalRate: low.immediateFleeSelectionToSurvivalRate,
+      lowMinusHighImmediateFleeSelectionToSurvivalRate: difference(
+        low.immediateFleeSelectionToSurvivalRate,
+        high.immediateFleeSelectionToSurvivalRate
+      ),
+      highRiskImmediateFleeExecutedSurvivalRate: high.immediateFleeExecutedSurvivalRate,
+      lowRiskImmediateFleeExecutedSurvivalRate: low.immediateFleeExecutedSurvivalRate,
+      lowMinusHighImmediateFleeExecutedSurvivalRate: difference(
+        low.immediateFleeExecutedSurvivalRate,
+        high.immediateFleeExecutedSurvivalRate
+      ),
+      highRiskImmediateFleePreemptedRate: high.immediateFleePreemptedRate,
+      lowRiskImmediateFleePreemptedRate: low.immediateFleePreemptedRate,
+      lowMinusHighImmediateFleePreemptedRate: difference(
+        low.immediateFleePreemptedRate,
+        high.immediateFleePreemptedRate
+      )
     };
-  }));
+  });
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
@@ -439,18 +535,21 @@ function buildSummary(report) {
     "",
     "## Contrast",
     "",
-    "| HP | Policy | High-risk mean clear | Low-risk mean clear | Low − high |",
-    "| --- | --- | ---: | ---: | ---: |",
+    "| HP | High-risk fight clear | Low-risk fight clear | Low − high fight | High-risk flee survive | Low-risk flee survive | Low − high flee |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ...report.contrasts.map(contrast =>
-      `| ${contrast.hpBandId}% | ${contrast.policy} | ${formatRate(contrast.highRiskAverageClearRate)} | ` +
-      `${formatRate(contrast.lowRiskAverageClearRate)} | ${formatRate(contrast.lowMinusHighClearRate)} |`
+      `| ${contrast.hpBandId}% | ${formatRate(contrast.highRiskFightClearRate)} | ` +
+      `${formatRate(contrast.lowRiskFightClearRate)} | ${formatRate(contrast.lowMinusHighFightClearRate)} | ` +
+      `${formatRate(contrast.highRiskImmediateFleeSelectionToSurvivalRate)} | ` +
+      `${formatRate(contrast.lowRiskImmediateFleeSelectionToSurvivalRate)} | ` +
+      `${formatRate(contrast.lowMinusHighImmediateFleeSelectionToSurvivalRate)} |`
     ),
     "",
     "## Fidelity and limits",
     "",
     "- Fixed pairs come from production monster definitions and B1F depth scaling; no diagnostic stat clones are used.",
     "- Fight and immediate-flee cases share matched, policy-independent seeds and use production combat/initiative/parting-attack semantics.",
-    "- guardAdjacent and splitOnDeath observations are reported per case; absent firing is unobserved in small samples, not proof of impossibility.",
+    "- evasive, guardAdjacent, and splitOnDeath observations are reported per case; absent firing is unobserved in small samples, not proof of impossibility.",
     "- This is a fixed-combat causal diagnostic, not a production encounter-frequency or player-policy estimate.",
     "",
     "## Provenance",

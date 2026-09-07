@@ -443,6 +443,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   };
   let escaped = false;
   const roundNumber = state.combatState.roundNumber || 1;
+  const actionObservations = [];
 
   const currentLivingParty = state.party.filter(c => c.status !== "dead");
   currentLivingParty.forEach(char => {
@@ -531,6 +532,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   turns.forEach((turn, index) => {
     const actionStart = logQueue.length;
     const groupId = `combat:${roundNumber}:action:${index}`;
+    const actionObservation = {
+      actor: turn.type,
+      actionType: turn.type === "char" ? turn.action.type : "enemy",
+      order: index,
+      executed: false
+    };
     try {
       if (escaped) return;
     const livingNow = state.party.filter(char => char.status !== "dead");
@@ -556,6 +563,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (livingTargetIdx === -1) return; // All dead
           act.targetIdx = livingTargetIdx;
         }
+
+        actionObservation.executed = true;
 
         let finalTarget = monsters[act.targetIdx];
         const guard = findAdjacentGuard(monsters, act.targetIdx);
@@ -834,8 +843,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           return;
         }
       } else if (act.type === "defend") {
+        actionObservation.executed = true;
         logQueue.push({ msg: `[味方] ${char.name}は身を固めて防御している。` });
       } else if (act.type === "run") {
+        actionObservation.executed = true;
         recordQueuedPatternResponse(state, monsters, "fleeBeforePayoff");
         applyFleePartingAttack(state, monsters, logQueue);
         const retreated = applyFleeRetreat(state);
@@ -852,6 +863,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     } else {
       const mon = turn.mon;
       if (mon.hp <= 0) return;
+
+      actionObservation.executed = true;
 
       if (mon.flinched) {
         mon.flinched = false;
@@ -1548,6 +1561,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       logQueue.slice(actionStart).forEach(entry => {
         if (!entry.groupId) entry.groupId = groupId;
       });
+      actionObservations.push(actionObservation);
     }
   });
 
@@ -1585,7 +1599,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   if (escaped) {
     clearVulnerableStatuses("flee");
     clearBlindStatuses();
-    return { logQueue, state };
+    return { logQueue, state, actionObservations };
   }
 
   let allMonstersDead = monsters.every(m => m.hp <= 0);
@@ -1666,5 +1680,5 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     delete char.combatFirstStrikeActive;
     delete char.combatFloor;
   });
-  return { logQueue, state };
+  return { logQueue, state, actionObservations };
 }
