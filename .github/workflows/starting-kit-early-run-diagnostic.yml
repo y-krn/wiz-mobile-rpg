@@ -36,6 +36,7 @@ on:
         options:
           - fight
           - flee-threshold
+          - visible-multi-enemy-flee
       flee_hp_threshold:
         description: "HP ratio for flee-threshold policy"
         required: false
