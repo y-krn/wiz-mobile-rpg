@@ -16,6 +16,7 @@ import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
 import { handleMove, enterDungeon, resumePendingCampEntry } from "./movement.js";
 import { handleExploreAction, handleTownOption } from "./menu.js";
 import { selectCombatAction, cancelCombatAction, toggleCombatAuto, repeatLastCombatAction, resumeCombat } from "./combat.js";
+import { commitCombatTarget } from "./combat_ui/combat_overlay.js";
 
 // Re-exports for external use and backward compatibility
 export { updateUI } from "./ui.js";
@@ -141,6 +142,22 @@ function gameLoop(time) {
 function bindButtons() {
   document.getElementById("submenu-controls").addEventListener("click", blockGuardedControlsEvent, true);
   document.getElementById("trap-controls").addEventListener("click", blockGuardedControlsEvent, true);
+
+  const canvas = document.getElementById("dungeon-canvas");
+  if (canvas) {
+    canvas.addEventListener("pointerdown", (event) => {
+      const view = getScreenViewState(state, menuContext);
+      if (!view.isUsableCombatOverlaySubmenu || menuContext.type !== "combat_target" || menuContext.targetType !== "enemy") return;
+      const targetIdx = renderer?.getCombatTargetAtClientPoint(
+        event.clientX,
+        event.clientY,
+        getRendererInput(state, menuContext)
+      );
+      if (!Number.isInteger(targetIdx)) return;
+      event.preventDefault();
+      commitCombatTarget(targetIdx);
+    });
+  }
 
   // Exploration (pointerdown for touch/mouse, keydown for keyboard focus space/enter)
   const bindPress = (id, action) => {

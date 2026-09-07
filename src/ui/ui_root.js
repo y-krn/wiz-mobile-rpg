@@ -551,6 +551,21 @@ export function updateUI() {
       combatOverlay.style.display = "none";
     }
   }
+
+  const canvas = document.getElementById("dungeon-canvas");
+  const isCanvasEnemyTargetSelection = view.isUsableCombatOverlaySubmenu && menuContext.targetType === "enemy";
+  if (canvas) {
+    canvas.tabIndex = isCanvasEnemyTargetSelection ? 0 : -1;
+    if (typeof canvas.setAttribute === "function") {
+      canvas.setAttribute("aria-label", isCanvasEnemyTargetSelection
+        ? "敵対象選択。敵をタップして対象を選択"
+        : "迷宮の視界");
+      if (isCanvasEnemyTargetSelection) canvas.setAttribute("aria-describedby", "combat-target-instructions");
+    }
+    if (!isCanvasEnemyTargetSelection && typeof canvas.removeAttribute === "function") {
+      canvas.removeAttribute("aria-describedby");
+    }
+  }
   
   // Update Equip Overlay visibility
   const equipOverlay = document.getElementById("equip-overlay");

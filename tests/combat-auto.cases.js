@@ -111,7 +111,9 @@ for (const vp of COMBAT_OVERLAY_VIEWPORTS) {
     await page.evaluate(async () => {
       const { state, createStartingKitCharacter } = await import('/src/state.js');
       const { startCombat } = await import('/src/combat.js');
-      state.party = [createStartingKitCharacter('devotion')];
+      const caster = createStartingKitCharacter('arcana');
+      caster.mp = caster.maxMp = 10;
+      state.party = [caster];
       state.inventory = ['HEAL_POTION'];
       state.gameState = 'explore';
       state.floor = 1;

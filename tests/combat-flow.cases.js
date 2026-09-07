@@ -45,8 +45,8 @@ test('Explore and Combat share the common Dock grammar at 320x568 @e2e @smoke', 
 
   await page.locator('#btn-combat-fight').click();
   await expect(page.locator('#combat-overlay')).toBeVisible();
-  await expect(page.locator('#combat-overlay .combat-target-card').first()).toBeVisible();
-  await expect(page.locator('#combat-overlay .combat-target-card').first()).toHaveAttribute('type', 'button');
+  await expect(page.locator('#combat-overlay .combat-target-selection-message')).toHaveText('敵をタップして対象を選択');
+  await expect(page.locator('#combat-overlay .combat-target-card.enemy')).toHaveCount(0);
   await expect(page.locator('#combat-overlay .btn-combat-back')).toHaveAttribute('data-action-role', 'back');
 
   const overlayParent = await page.locator('#combat-overlay').evaluate(element => element.parentElement?.id);

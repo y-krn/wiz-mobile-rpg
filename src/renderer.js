@@ -11,6 +11,43 @@ export function setDungeonRenderer(r) {
 const VIEW_W = 400;
 const VIEW_H = 260;
 
+export function getCombatMonsterLayout(monsters) {
+  if (!Array.isArray(monsters)) return [];
+  const alive = monsters
+    .map((monster, index) => ({ monster, index }))
+    .filter(({ monster }) => monster && typeof monster === "object" && monster.hp > 0);
+  if (alive.length === 0) return [];
+
+  const columns = alive.length >= 4 ? Math.ceil(alive.length / 2) : alive.length;
+  const rows = alive.length >= 4 ? 2 : 1;
+  const scale = alive.length >= 4 ? 0.52 : alive.length >= 2 ? 0.72 : 1;
+  const rowHeight = VIEW_H / rows;
+
+  return alive.map(({ monster, index }, layoutIndex) => {
+    const row = Math.floor(layoutIndex / columns);
+    const rowStart = row * columns;
+    const rowCount = Math.min(columns, alive.length - rowStart);
+    const slotWidth = VIEW_W / rowCount;
+    const column = layoutIndex - rowStart;
+    return {
+      monster,
+      monsterIndex: index,
+      row,
+      column,
+      cx: slotWidth * (column + 0.5),
+      cy: rows === 1 ? VIEW_H / 2 + 15 : row === 0 ? 100 : 210,
+      scale,
+      slotWidth,
+      hitRegion: {
+        x: column * slotWidth,
+        y: row * rowHeight,
+        width: slotWidth,
+        height: rowHeight
+      }
+    };
+  });
+}
+
 // Baseline depth planes for 3D projection. Geometry profiles deform this
 // canonical shape without changing the map or any gameplay state.
 export const BASE_PROJECTION = Object.freeze({
@@ -231,6 +268,27 @@ export class DungeonRenderer {
     return this.resolveRenderInput(input).sceneVisibility;
   }
 
+  getCombatTargetAtClientPoint(clientX, clientY, input = null) {
+    const renderInput = this.resolveRenderInput(input);
+    if (!renderInput.combatTargetSelection?.active || !this.canvas) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+
+    // object-fit: contain can letterbox the fixed 400x260 drawing inside the
+    // CSS canvas box. Convert the pointer to the same internal coordinates
+    // used by drawMonsters before testing the shared hit regions.
+    const scale = Math.min(rect.width / VIEW_W, rect.height / VIEW_H);
+    const renderedWidth = VIEW_W * scale;
+    const renderedHeight = VIEW_H * scale;
+    const x = (clientX - rect.left - (rect.width - renderedWidth) / 2) / scale;
+    const y = (clientY - rect.top - (rect.height - renderedHeight) / 2) / scale;
+    if (x < 0 || x > VIEW_W || y < 0 || y > VIEW_H) return null;
+
+    return getCombatMonsterLayout(renderInput.combatMonsters)
+      .find(({ hitRegion }) => x >= hitRegion.x && x <= hitRegion.x + hitRegion.width &&
+        y >= hitRegion.y && y <= hitRegion.y + hitRegion.height)?.monsterIndex ?? null;
+  }
+
   getDrawSignature(input = null) {
     const renderInput = this.resolveRenderInput(input);
     const { view, sceneVisibility } = renderInput;
@@ -285,6 +343,7 @@ export class DungeonRenderer {
       renderInput.lightPower,
       roamingMonsters,
       renderInput.arcaneSense,
+      renderInput.combatTargetSelection.active,
       combatMonsters,
       renderInput.party.map(char => char?.name).join(",")
     );
@@ -1171,24 +1230,25 @@ export class DungeonRenderer {
   drawMonsters(ctx, input = null) {
     const renderInput = this.resolveRenderInput(input);
     if (!renderInput.view.hasCombat) return;
-    const monsters = renderInput.combatMonsters;
-    const alive = monsters.filter(m => m.hp > 0);
-    if (alive.length === 0) return;
-
-    const columns = alive.length >= 4 ? Math.ceil(alive.length / 2) : alive.length;
-    const rows = alive.length >= 4 ? 2 : 1;
-    const scale = alive.length >= 4 ? 0.52 : alive.length >= 2 ? 0.72 : 1;
-
-    alive.forEach((monster, index) => {
-      const row = Math.floor(index / columns);
-      const rowStart = row * columns;
-      const rowCount = Math.min(columns, alive.length - rowStart);
-      const slotWidth = VIEW_W / rowCount;
-      const cx = slotWidth * (index - rowStart + 0.5);
-      const cy = rows === 1 ? VIEW_H / 2 + 15 : row === 0 ? 100 : 210;
+    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion }) => {
+      if (renderInput.combatTargetSelection?.active) {
+        this.drawTargetableMonsterMarker(ctx, hitRegion, cx, cy, scale, monster.color || "#ffb300");
+      }
       const monsterScale = scale * this.getMonsterScaleMultiplier(monster);
       this.drawMonster(ctx, monster, cx, cy, monsterScale, slotWidth - 8, renderInput.party);
     });
+  }
+
+  drawTargetableMonsterMarker(ctx, hitRegion, cx, cy, scale, color) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.72;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 31 * scale, Math.min(hitRegion.width * 0.32, 40 * scale), 8 * scale, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   buildMonsterPaths(spriteType, cx = 0, cy = 0) {
@@ -1641,6 +1701,17 @@ export class DungeonRenderer {
       ctx.fillStyle = "#ffcc00"; // Amber color for warnings
       ctx.font = `bold ${scale < 0.6 ? 9 : 12}px 'Share Tech Mono', monospace`;
       ctx.fillText(omenText, cx, cy - 88, maxLabelWidth);
+    }
+
+    const statusLabels = [];
+    const bleeding = monster.statusEffects?.bleeding;
+    const vulnerable = monster.statusEffects?.vulnerable;
+    if (bleeding) statusLabels.push(`出血：あと${bleeding.remainingTurns ?? 0}回 / 次の通常攻撃+1`);
+    if (vulnerable) statusLabels.push(`脆弱：あと${vulnerable.remainingTurns ?? 0}回 / 次の直接攻撃×1.25`);
+    if (statusLabels.length > 0) {
+      ctx.fillStyle = "#ffd166";
+      ctx.font = `bold ${scale < 0.6 ? 8 : 10}px 'Share Tech Mono', monospace`;
+      statusLabels.forEach((label, index) => ctx.fillText(label, cx, cy - 101 - index * 11, maxLabelWidth));
     }
 
     // HP Bar

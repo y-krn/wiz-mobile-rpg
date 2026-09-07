@@ -80,6 +80,7 @@ async function setupCombat(page, { woundedCount = 1, deadSecond = false, spellKe
       second.hp = second.maxHp - 3;
     }
     first.hp = nextWoundedCount > 0 ? first.maxHp - 2 : first.maxHp;
+    first.mp = first.maxMp = 10;
     equipRunes(first, nextSpellKeys);
     state.party = [first, second];
     state.inventory = ['HEAL_POTION'];
@@ -231,10 +232,22 @@ test('combat skips a single valid spell target and keeps enemy targeting availab
   expect(spellAction.action).toMatchObject({ type: 'spell', targetIdx: 0, spellName: 'DIOS' });
   expect(spellAction.gameState).toBe('combat');
 
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { combatSelection } = await import('/src/combat.js');
+    const { updateUI } = await import('/src/ui.js');
+    state.gameState = 'combat';
+    state.combatState.phase = 'choose_actions';
+    combatSelection.charIdx = 0;
+    combatSelection.actions = [];
+    updateUI();
+  });
+
   await page.locator('#btn-combat-spell').click();
   await page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^BADIOS$/ }) }).click();
   await expect(page.locator('#combat-overlay')).toBeVisible();
-  await expect(page.locator('#combat-overlay .combat-target-card.enemy')).toHaveCount(1);
+  await expect(page.locator('#combat-overlay .combat-target-card.enemy')).toHaveCount(0);
+  await expect(page.locator('#combat-overlay .combat-target-selection-message')).toHaveText('敵をタップして対象を選択');
 });
 
 test('combat keeps the target screen for two valid allies and disables full-HP targets', async ({ page }) => {
