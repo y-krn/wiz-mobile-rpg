@@ -1,7 +1,7 @@
 # Issue #1100 Build Snapshot payment measurement
 
 - runner: `issue1100-build-payment-stake-v1` (schema v2)
-- source commit: `bf3cb2281d670105d23dff2cc09190eedb29add6`
+- source commit: `77efea50d7b97c70ad00275797c03098641511dd`
 - production baseline SHA: `2abf0d0712fafcceebc04f757f6534aa236a6d21`
 - origin/main ancestor: `true`; clean tree: `true`
 - N=500/fixture, calibration=100, seed=843
@@ -11,7 +11,7 @@
 
 The table reports per-run means for payment dimensions; the JSON record retains quantiles and counts.
 
-| scenario | depth | fixture | outcomes | combat rounds/run | MP spent/run | damage HP/run | Guard mitigation HP/run | equipment adopted/run | Push stake/run | terminal stake/run | banked/salvaged/lost | Portal uses |
+| scenario | depth | fixture | outcomes | combat rounds/run | MP spent/run | damage HP/run | Guard mitigation HP/run | equipment adopted/run | Push stake/run | settlement-before stake/run | banked/salvaged/lost | Portal uses |
 |---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---|---:|
 | workshop-empty | B5 | light-shield | {"retreat":36,"death":464,"abandon":0} | 14.44 | 0.00 | 39.06 | 0.00 | 1.31 | 5.74 | 9.31 | 0/72/2491 | 36
 | workshop-empty | B5 | heavy-two-hand | {"retreat":82,"death":418,"abandon":0} | 11.53 | 0.00 | 37.83 | 0.00 | 1.19 | 7.41 | 11.60 | 47/160/3650 | 80

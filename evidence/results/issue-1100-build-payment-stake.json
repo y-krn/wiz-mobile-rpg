@@ -4,9 +4,9 @@
     "runnerVersion": "issue1100-build-payment-stake-v1",
     "question": "各Build Snapshotがcanonical runで安く/高く支払う資源と行動を実測する",
     "scope": "observation-only; no win-rate equalization, recommendation, or balance tuning",
-    "sourceCommit": "bf3cb2281d670105d23dff2cc09190eedb29add6",
+    "sourceCommit": "77efea50d7b97c70ad00275797c03098641511dd",
     "productionBaselineSha": "2abf0d0712fafcceebc04f757f6534aa236a6d21",
-    "measurementRunnerCommit": "bf3cb2281d670105d23dff2cc09190eedb29add6",
+    "measurementRunnerCommit": "77efea50d7b97c70ad00275797c03098641511dd",
     "measurementRunnerPaths": [
       "scratch/measurements/issue1100_build_payment_stake.js",
       "scratch/measurements/balance_measurement.js",
@@ -18,7 +18,7 @@
       "src/rules/object_loot_stake.js",
       "src/state/run_loot.js"
     ],
-    "measurementRunnerDiffSha256": "9c45b648b0d653d948d251d0f1b1f3614da353826c734c9d311bc77d0ae827dc",
+    "measurementRunnerDiffSha256": "e8e341a897c096e0bc5769a06afdea49f123f30d0f47c040389f838136787ff0",
     "baseRef": "origin/main",
     "originMainAncestor": true,
     "workingTreeClean": true,
@@ -105,8 +105,8 @@
     "taskCount": 12,
     "determinismProbeTaskCount": 1,
     "parallelism": 12,
-    "wallClockMs": 52528,
-    "cpuTimeMs": 396091
+    "wallClockMs": 62686,
+    "cpuTimeMs": 455539
   },
   "modeling": {
     "modeled": [
