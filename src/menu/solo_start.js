@@ -24,7 +24,13 @@ import {
 import { createActionCard } from "./action_card.js";
 import { RUN_QUEST_TEMPLATES } from "../data/run_quests.js";
 import { getFloorTheme } from "../data/floor_themes.js";
-import { isMedium, syncMediumState } from "../rules/magic_rules.js";
+import {
+  getActiveRuneSpellKeys,
+  getEquippedMedium,
+  getRuneItemId,
+  isMedium,
+  syncMediumState
+} from "../rules/magic_rules.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
@@ -210,12 +216,41 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
 
   const conditions = document.createElement("div");
   conditions.className = "solo-preparation-conditions";
-  appendPreparationRow(conditions, "開始キット", getStartingKit(startingKitId)?.name || "—");
+  const startingCharacter = createStartingKitCharacter(startingKitId);
+  if (startingGear) {
+    const item = ITEMS[startingGear];
+    const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
+    if (slot) {
+      startingCharacter.equipment[slot] = startingGear;
+      syncMediumState(startingCharacter, {
+        preserveRunes: startingKitId === "arcana" && isMedium(startingGear)
+      });
+    }
+  }
+  appendPreparationRow(conditions, "開始キット", `${getStartingKit(startingKitId)?.name || "—"}（装備セット）`);
   appendPreparationRow(
     conditions,
     "開始装備",
     startingGear ? `${ITEMS[startingGear]?.name || startingGear}（バッグ外）` : "なし（バッグ外）",
     "solo-preparation-equipment"
+  );
+  const startingEquipment = Object.values(startingCharacter.equipment || {})
+    .filter(Boolean)
+    .map(itemId => `${ITEMS[itemId]?.name || itemId}（バッグ外）`)
+    .join("・") || "なし（バッグ外）";
+  appendPreparationRow(conditions, "装備中", startingEquipment, "solo-preparation-equipment");
+  const medium = getEquippedMedium(startingCharacter);
+  appendPreparationRow(
+    conditions,
+    "Medium",
+    medium ? `${ITEMS[medium.item]?.name || medium.item} / Rune slot ${medium.runeSlots}` : "なし / Rune slot 0"
+  );
+  appendPreparationRow(
+    conditions,
+    "active Rune",
+    getActiveRuneSpellKeys(startingCharacter)
+      .map(spellKey => ITEMS[getRuneItemId(spellKey)]?.name || spellKey)
+      .join("・") || "なし"
   );
   const pendingQuestIds = getPendingRunQuestTemplateIds();
   const questNames = pendingQuestIds

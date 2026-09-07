@@ -364,6 +364,7 @@
 }
 
 .solo-preparation-summary {
+  position: static;
   gap: var(--sp-xs);
   color: var(--text-main);
 }

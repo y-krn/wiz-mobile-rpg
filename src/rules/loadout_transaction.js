@@ -49,6 +49,17 @@ function sameItem(left, right) {
   return false;
 }
 
+export function getLoadoutInventoryChanges(beforeItems = [], afterItems = []) {
+  const remainingAfter = [...afterItems];
+  const removed = [];
+  beforeItems.forEach(item => {
+    const index = remainingAfter.findIndex(candidate => sameItem(item, candidate));
+    if (index < 0) removed.push(item);
+    else remainingAfter.splice(index, 1);
+  });
+  return { removed, added: remainingAfter };
+}
+
 function sameItemList(left, right) {
   if (left.length !== right.length) return false;
   const remaining = [...right];

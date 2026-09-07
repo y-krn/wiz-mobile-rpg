@@ -29,7 +29,7 @@ for (const vp of VIEWPORTS) {
     });
 
     const overlay = page.locator('#equip-overlay');
-    await expect(overlay.locator('.equip-section-heading')).toHaveCount(2);
+    await expect(overlay.locator('.equip-section-heading')).toHaveCount(3);
     await expect(overlay.locator('.equip-section-heading', { hasText: '装備中' })).toBeVisible();
     await expect(overlay.locator('.equip-section-heading', { hasText: 'バッグの装備品' })).toBeVisible();
     await expect(overlay.locator('.equip-type-heading')).toHaveCount(2);

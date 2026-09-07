@@ -5,6 +5,7 @@ import { resetEquipState } from "../equip.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 import { isUsableCombatState } from "./view_state.js";
 import { normalizeRecords } from "./records_state.js";
+import { EQUIPMENT_SLOTS } from "../rules/equipment_slots.js";
 
 const STABLE_PERSISTED_GAME_STATES = new Set([
   "town", "explore", "combat", "result", "gameover", "victory"
@@ -90,8 +91,7 @@ export function createSavePayload() {
     delete persistedChar.runTrapAttackBonus;
     ["str", "int", "pie", "vit", "agi", "luk"].forEach(key => delete persistedChar[key]);
     persistedChar.equipment = Object.fromEntries(
-      Object.entries(persistedChar.equipment || {})
-        .map(([slot, item]) => [slot, sanitizePersistedItem(item)])
+      EQUIPMENT_SLOTS.map(({ id }) => [id, sanitizePersistedItem(persistedChar.equipment?.[id] || null)])
     );
     normalizeStatusEffectTarget(persistedChar);
     return persistedChar;

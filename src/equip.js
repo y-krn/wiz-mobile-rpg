@@ -70,6 +70,7 @@ import {
   stageUnsocketRune
 } from "./rules/loadout_transaction.js";
 import { commitLoadoutDraft } from "./systems/loadout_transaction.js";
+import { createBuildCommitmentPanel } from "./ui/build_commitment.js";
 
 export let equipState = {
   mode: "equip",
@@ -277,7 +278,7 @@ export function getItemUseStatus(char, itemKey) {
       return { usable: false, reason: "治療できる状態異常ではありません" };
     }
     if ((itemKey === "MANA_POTION" || itemKey === "ETHER") && (!canRestoreMp || char.mp >= getCharMaxMp(char))) {
-      return { usable: false, reason: canRestoreMp ? "MPはすでに満タンです" : "MPを持たない職業です" };
+      return { usable: false, reason: canRestoreMp ? "MPはすでに満タンです" : "現在のBuildではMPを使えません" };
     }
   }
   return { usable: true, reason: "" };
@@ -322,6 +323,10 @@ function createRunePanel(char) {
   panel.appendChild(help);
 
   if (medium && activeRunes.length > 0) {
+    const activeHeading = document.createElement("strong");
+    activeHeading.className = "equip-rune-state-heading";
+    activeHeading.textContent = "socket中（バッグ外・active）";
+    panel.appendChild(activeHeading);
     const activeList = document.createElement("div");
     activeList.className = "equip-rune-list";
     activeRunes.forEach(spellKey => {
@@ -351,6 +356,10 @@ function createRunePanel(char) {
     .map((itemKey, idx) => ({ itemKey, idx }))
     .filter(({ itemKey }) => Boolean(getRuneSpellKey(itemKey)));
   if (spareRunes.length > 0) {
+    const spareHeading = document.createElement("strong");
+    spareHeading.className = "equip-rune-state-heading";
+    spareHeading.textContent = "バッグ内の予備Rune";
+    panel.appendChild(spareHeading);
     const spareList = document.createElement("div");
     spareList.className = "equip-rune-list";
     spareRunes.forEach(({ itemKey, idx }) => {
@@ -863,7 +872,6 @@ function createEquipmentList(char, savedScrollTop) {
   headingBag.textContent = "バッグの装備品";
   bagSection.appendChild(headingBag);
   const runePanel = createRunePanel(char);
-  if (runePanel) bagSection.appendChild(runePanel);
   if (equipState.mode === "organize") {
     bagSection.appendChild(createOrganizeControls());
   }
@@ -983,6 +991,10 @@ function createEquipmentList(char, savedScrollTop) {
       itemList.appendChild(row);
     });
   }
+
+  // Keep the first bag rows immediately reachable on short mobile viewports;
+  // Rune ownership remains in the same scroll surface at the end of the list.
+  if (runePanel) itemList.appendChild(runePanel);
 
   bagSection.appendChild(itemList);
   listContainer.appendChild(bagSection);
@@ -1306,6 +1318,7 @@ function createDetailPanel(char) {
   titleLine.appendChild(name);
   const rarityBadge = createRarityBadge(itemKey, "equip-detail-rarity");
   if (rarityBadge) titleLine.appendChild(rarityBadge);
+  appendOwnershipBadge(titleLine, getItemOwnership(itemKey, { state }));
   titleBlock.appendChild(titleLine);
   const desc = document.createElement("div");
   desc.className = "equip-detail-desc";
@@ -1366,6 +1379,30 @@ function createDetailPanel(char) {
   context.appendChild(desc);
   context.appendChild(targetSummary);
   content.appendChild(context);
+
+  let proposedChar = null;
+  let proposedDraft = null;
+  if (availability.ok && !hidden && preview?.slot) {
+    const projection = isEquipped
+      ? stageUnequip(equipState.draft, {
+        actorIdx: equipState.actorIdx,
+        slot: equipState.selectedSlot
+      })
+      : stageEquip(equipState.draft, {
+        actorIdx: equipState.actorIdx,
+        inventoryIndex: equipState.selectedIdx,
+        requestedSlot: preview.slot
+      });
+    if (projection.ok) {
+      proposedDraft = projection.draft;
+      proposedChar = createEquipmentPreviewChar(proposedDraft.party[equipState.actorIdx]);
+    }
+  }
+  content.appendChild(createBuildCommitmentPanel(char, {
+    proposedChar,
+    currentDraft: equipState.draft,
+    proposedDraft
+  }));
 
   const knowledge = document.createElement("div");
   knowledge.className = "equip-knowledge-status";

@@ -407,6 +407,9 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(summary).toContainText('今回の出発条件');
   await expect(summary).toContainText('鋼の前線キット');
   await expect(summary).toContainText('鍛錬サーベル（バッグ外）');
+  await expect(summary).toContainText('装備中');
+  await expect(summary).toContainText('Medium');
+  await expect(summary).toContainText('active Rune');
   await expect(summary).toContainText(questName);
   await expect(summary.locator('.solo-preparation-slot')).toHaveCount(20);
   await expect(summary.locator('.solo-preparation-slot.is-open')).toHaveCount(20);
@@ -428,6 +431,24 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(milestoneStart).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: '迷宮へ向かう' })).toBeEnabled();
   await expect(page.locator('#explore-controls')).toBeHidden();
+});
+
+test('Preparation displays active Rune names instead of internal spell keys', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openSubmenu } = await import('/src/navigation.js');
+    state.gameState = 'town';
+    state.metaMaterials = {};
+    state.workshop = { ranks: {} };
+    state.unlockedMilestones = [];
+    openSubmenu('solo_start', '単独潜行');
+  });
+
+  await page.locator('.solo-starting-kit-option').nth(3).click();
+  const summary = page.locator('.solo-preparation-summary');
+  await expect(summary).toContainText('HALITOのルーン');
+  await expect(summary).not.toContainText('RUNE_HALITO');
 });
 
 test('Preparation explains bag cap and Return Wing individual limit', async ({ page }) => {
