@@ -41,7 +41,8 @@ Object.defineProperty(globalThis, "localStorage", {
 const {
   createDefaultCodex,
   createDefaultCurrentRun,
-  createStartingKitCharacter
+  createStartingKitCharacter,
+  getStartingKit
 } = await import("../../src/state/initial_state.js");
 const { state: productionState, recordCharDeath } = await import("../../src/state.js");
 const { calculateEncounterChance } = await import("../../src/movement.js");
@@ -4195,10 +4196,14 @@ function createSimulationState(
   currentRun.campRestCount = 0;
   assignRunQuests(currentRun);
 
+  const startingKitId = scenario.startingKit || SIM_CLASS_STARTING_KITS[axisId] || "vanguard";
+  if (!getStartingKit(startingKitId)) {
+    throw new Error(`unknown starting kit: ${startingKitId}`);
+  }
   const character = buildFixtureId
     ? createBuildFixture(buildFixtureId)
     : applyWorkshopToCharacter(
-        createStartingKitCharacter(SIM_CLASS_STARTING_KITS[axisId] || "vanguard"),
+        createStartingKitCharacter(startingKitId),
         workshop
       );
   const startingBuild = scenario.startingBuild;
@@ -12965,6 +12970,15 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     bloodWandHealPolicy: state.simPolicy.bloodWandHealPolicy,
     fleePolicy: state.simPolicy.fleePolicy,
     fleeHpThreshold: state.simPolicy.fleeHpThreshold,
+    startingKit: state.party[0].startingKit,
+    startingConsumables: {
+      healPotions: state.simStartingInventory.filter(item => item === "HEAL_POTION").length,
+      greaterHeals: state.simStartingInventory.filter(item => item === "GREATER_HEAL").length,
+      manaPotions: state.simStartingInventory.filter(item => item === "MANA_POTION").length,
+      holyWater: state.simStartingInventory.filter(item => item === "HOLY_WATER").length,
+      antidotes: state.simStartingInventory.filter(item => item === "ANTIDOTE").length,
+      guardPotions: state.simStartingInventory.filter(item => item === "GUARD_POTION").length
+    },
     healPotionThreshold: state.simPolicy.healPotionThreshold,
     manaPotionThreshold: state.simPolicy.manaPotionThreshold,
     diosCombatCastCount: metrics.coreObservations.diosHealActions,
