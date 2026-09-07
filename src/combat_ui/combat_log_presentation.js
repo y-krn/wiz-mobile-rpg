@@ -71,7 +71,7 @@ function stripPresentationMarkers(message) {
     .replace(/\s+$/, "");
 }
 
-export function formatCombatLogMessage(message, side = getCombatLogSide(message)) {
+export function formatCombatLogMessage(message, side = COMBAT_LOG_SIDES.NEUTRAL) {
   if (typeof message !== "string") return message;
   let text = stripPresentationMarkers(message);
 

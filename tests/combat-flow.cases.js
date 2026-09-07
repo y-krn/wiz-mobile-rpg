@@ -98,6 +98,7 @@ test('combat log presentation keeps normal results quick and important results r
   const result = await page.evaluate(async () => {
     const {
       COMBAT_LOG_DELAYS,
+      COMBAT_LOG_SIDES,
       formatCombatLogMessage,
       getCombatLogDelay,
       groupCombatLogEntries,
@@ -113,7 +114,7 @@ test('combat log presentation keeps normal results quick and important results r
       end: getCombatLogDelay({ endCombat: true, msg: '周囲に静寂が戻った。' }),
       chest: getCombatLogDelay({ triggerChest: true, msg: '宝箱が現れた。' }),
       milestone: getCombatLogDelay({ milestoneVictory: 1, msg: '階層守護者を撃破した。' }),
-      formatted: formatCombatLogMessage('[味方] 冒険者の攻撃！ゴブリンに8のダメージ。'),
+      formatted: formatCombatLogMessage('[味方] 冒険者の攻撃！ゴブリンに8のダメージ。', COMBAT_LOG_SIDES.ALLY),
       groupedCount: grouped.length,
       groupedText: grouped[0].msg,
       defeatImportant: isImportantCombatResult(grouped[0].msg),

@@ -26,11 +26,11 @@ assert.equal(getCombatLogSide("[味方] 冒険者の攻撃！"), COMBAT_LOG_SIDE
 assert.equal(getCombatLogSide("[ 敵 ] ゴブリンの攻撃！"), COMBAT_LOG_SIDES.ENEMY);
 assert.equal(getCombatLogSide("戦闘に勝利した！"), COMBAT_LOG_SIDES.NEUTRAL);
 assert.equal(
-  formatCombatLogMessage("[味方] 冒険者の攻撃！ゴブリンに8のダメージ。"),
+  formatCombatLogMessage("[味方] 冒険者の攻撃！ゴブリンに8のダメージ。", COMBAT_LOG_SIDES.ALLY),
   "ゴブリンに一撃を加えた。8ダメージ。"
 );
 assert.equal(
-  formatCombatLogMessage("[ 敵 ] ゴブリンの攻撃！冒険者に5のダメージ！"),
+  formatCombatLogMessage("[ 敵 ] ゴブリンの攻撃！冒険者に5のダメージ！", COMBAT_LOG_SIDES.ENEMY),
   "ゴブリンの一撃を受けた。5ダメージ。"
 );
 
