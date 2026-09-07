@@ -1,0 +1,84 @@
+name: Issue 1147 scratch lifecycle audit
+
+on:
+  push:
+    branches:
+      - codex/issue-1147
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/issue-1147
+      - name: Classify Issue-numbered scratch assets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          root = Path('.')
+          candidates = sorted(
+              list((root / 'scratch' / 'measurements').glob('issue[0-9]*_*.js')) +
+              list((root / 'scratch' / 'simulations').glob('sim_issue_[0-9]*_*.js'))
+          )
+          candidate_set = {p.as_posix() for p in candidates}
+          ignored_exact = {
+              'scratch/simulations/simulation_manifest.js',
+              'scratch/README.md',
+              '.github/workflows/issue-1147-scratch-audit.yml',
+          }
+          suffixes = {'.js', '.mjs', '.cjs', '.json', '.md', '.yml', '.yaml', '.toml'}
+
+          corpus = []
+          for path in root.rglob('*'):
+              if not path.is_file() or path.suffix not in suffixes:
+                  continue
+              rel = path.as_posix()
+              if rel.startswith('evidence/') or rel.startswith('.git/') or 'node_modules/' in rel:
+                  continue
+              if rel in ignored_exact:
+                  continue
+              corpus.append((rel, path.read_text(errors='replace')))
+
+          direct = {}
+          for candidate in candidates:
+              rel = candidate.as_posix()
+              basename = candidate.name
+              refs = []
+              for other_rel, text in corpus:
+                  if other_rel == rel:
+                      continue
+                  if basename in text or rel in text:
+                      refs.append(other_rel)
+              direct[rel] = sorted(set(refs))
+
+          roots = {
+              rel for rel, refs in direct.items()
+              if any(ref not in candidate_set for ref in refs)
+          }
+          needed = set(roots)
+          changed = True
+          while changed:
+              changed = False
+              for rel, refs in direct.items():
+                  if rel in needed:
+                      continue
+                  if any(ref in needed for ref in refs):
+                      needed.add(rel)
+                      changed = True
+
+          report = {
+              'total': len(candidates),
+              'needed': sorted(needed),
+              'historical_delete': sorted(candidate_set - needed),
+              'references': direct,
+          }
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          print(f"SUMMARY total={len(candidates)} needed={len(needed)} delete={len(candidate_set-needed)}")
+          PY
