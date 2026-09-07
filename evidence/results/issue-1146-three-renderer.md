@@ -67,7 +67,7 @@ long-session memory, and production-browser profiling remain open in
 
 Build output recorded from `npm run build`:
 
-- default entry: 1,148.81 kB raw / 364.92 kB gzip;
+- default entry: 1,149.06 kB raw / 365.01 kB gzip;
 - dynamically loaded Three.js chunk: 495.31 kB raw / 124.51 kB gzip.
 
 The dynamic import keeps the Three.js chunk out of the default request path,
