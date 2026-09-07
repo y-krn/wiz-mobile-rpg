@@ -7408,6 +7408,7 @@ function runEncounter(
         startMaxHp: getCharMaxHp(state.party[0]),
         startRawMaxHp: state.party[0].maxHp,
         startMp: state.party[0].mp,
+        startMaxMp: getCharMaxMp(state.party[0]),
         startLevel: state.party[0].level,
         startExp: state.party[0].exp,
         startHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
@@ -7913,10 +7914,15 @@ function runEncounter(
       recordStatusCureDedicatedDepletion(state, metrics);
     }
     const fled = roundResult.logQueue.some(entry => entry.runEscape);
+    const fleeExecuted = roundResult.logQueue.some(entry => entry.fleeExecution === true);
+    const fleePartingAttack = roundResult.logQueue.some(entry => entry.fleePartingAttack === true);
     if (encounterDiagnostic) {
       encounterDiagnostic.rounds.push({
         round: roundNumber,
         action: action.type,
+        fleeSelected: action.type === "run",
+        fleeExecuted,
+        fleePartingAttack,
         spellName: action.spellName || null,
         itemKey: action.itemKey || null,
         targetIdx: action.targetIdx ?? null,

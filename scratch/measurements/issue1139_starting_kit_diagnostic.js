@@ -9,8 +9,8 @@ import { pathToFileURL } from "node:url";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1139-starting-kit-b1-v2";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "issue1141-flee-entry-diagnostics-v1";
+export const SCHEMA_VERSION = 2;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const POLICY_IDS = Object.freeze(["fight", "flee-threshold"]);
 export const DEFAULT_RUNS = 1000;
@@ -125,8 +125,15 @@ function createCompositionRecord() {
     rounds: createDistribution(),
     damageReceived: createDistribution(),
     hpAfterCombat: createDistribution(),
-    fleeAttempts: 0,
-    fleeSuccesses: 0,
+    entryHpRate: createDistribution(),
+    entryMpRate: createDistribution(),
+    encounterOrdinal: createDistribution(),
+    fleeSelected: 0,
+    fleeExecuted: 0,
+    fleeSelectedButNotExecuted: 0,
+    fleePartingAttackCount: 0,
+    fleeSurvived: 0,
+    fleeDiedFromPartingAttack: 0,
     partingAttackDamage: createDistribution(),
     splitOnDeathTriggers: 0,
     splitOnDeathSpawned: 0,
@@ -135,18 +142,29 @@ function createCompositionRecord() {
   };
 }
 
-function observeEncounter(record, identity, diagnostic) {
+function observeEncounter(record, identity, diagnostic, encounterRow) {
   record.encounters++;
   increment(record.outcomes, identity.outcome || "unknown");
   addDistribution(record.rounds, identity.rounds);
   addDistribution(record.damageReceived, identity.totalNormalDamage);
   addDistribution(record.hpAfterCombat, identity.hpAfter);
+  addDistribution(record.entryHpRate, encounterRow.hpRateBeforeEncounter);
+  addDistribution(record.entryMpRate, encounterRow.mpRateBeforeEncounter);
+  addDistribution(record.encounterOrdinal, encounterRow.encounterOrdinal);
 
   const logs = (diagnostic?.rounds || []).flatMap(round => round.log || []);
-  const fleeAttempts = (diagnostic?.rounds || []).filter(round => round.action === "run").length;
-  const fleeSuccesses = Number(identity.outcome === "flee");
-  record.fleeAttempts += fleeAttempts;
-  record.fleeSuccesses += fleeSuccesses;
+  const fleeRounds = diagnostic?.rounds || [];
+  const fleeSelected = fleeRounds.filter(round => round.fleeSelected === true).length;
+  const fleeExecuted = fleeRounds.filter(round => round.fleeExecuted === true).length;
+  const fleePartingAttackCount = fleeRounds.filter(round => round.fleePartingAttack === true).length;
+  record.fleeSelected += fleeSelected;
+  record.fleeExecuted += fleeExecuted;
+  record.fleeSelectedButNotExecuted += Math.max(0, fleeSelected - fleeExecuted);
+  record.fleePartingAttackCount += fleePartingAttackCount;
+  record.fleeSurvived += Number(fleeExecuted > 0 && identity.outcome === "flee");
+  record.fleeDiedFromPartingAttack += Number(
+    fleeExecuted > 0 && fleePartingAttackCount > 0 && identity.outcome === "death"
+  );
   logs.forEach(message => {
     if (message.includes("庇った！")) {
       record.guardAdjacentTriggers++;
@@ -184,9 +202,16 @@ function finalizeCompositionRecord(record, runs, totalEncounters, totalDeaths) {
     rounds: finalizeDistribution(record.rounds),
     damageReceived: finalizeDistribution(record.damageReceived),
     hpAfterCombat: finalizeDistribution(record.hpAfterCombat),
-    fleeAttempts: record.fleeAttempts,
-    fleeSuccesses: record.fleeSuccesses,
-    fleeSurvivalRate: record.fleeAttempts > 0 ? record.fleeSuccesses / record.fleeAttempts : null,
+    entryHpRate: finalizeDistribution(record.entryHpRate),
+    entryMpRate: finalizeDistribution(record.entryMpRate),
+    encounterOrdinal: finalizeDistribution(record.encounterOrdinal),
+    fleeSelected: record.fleeSelected,
+    fleeExecuted: record.fleeExecuted,
+    fleeSelectedButNotExecuted: record.fleeSelectedButNotExecuted,
+    fleePartingAttackCount: record.fleePartingAttackCount,
+    fleeSurvived: record.fleeSurvived,
+    fleeDiedFromPartingAttack: record.fleeDiedFromPartingAttack,
+    fleeSurvivalRate: record.fleeExecuted > 0 ? record.fleeSurvived / record.fleeExecuted : null,
     partingAttackDamage: finalizeDistribution(record.partingAttackDamage),
     splitOnDeath: {
       triggers: record.splitOnDeathTriggers,
@@ -209,9 +234,12 @@ function createAggregate(runs) {
     steps: createDistribution(),
     combatCount: createDistribution(),
     encounterCount: 0,
-    fleeAttempts: 0,
-    fleeSuccesses: 0,
-    fleeDeaths: 0,
+    fleeSelected: 0,
+    fleeExecuted: 0,
+    fleeSelectedButNotExecuted: 0,
+    fleePartingAttackCount: 0,
+    fleeSurvived: 0,
+    fleeDiedFromPartingAttack: 0,
     rounds: createDistribution(),
     damageReceived: createDistribution(),
     hpAfterCombat: createDistribution(),
@@ -222,11 +250,53 @@ function createAggregate(runs) {
     guardedCount: 0,
     deathCauses: {},
     compositions: {},
-    enemies: {}
+    enemies: {},
+    encounterRows: []
   };
 }
 
-function observeRun(aggregate, result) {
+function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
+  const enemyNames = (identity.enemyNames || []).map(baseMonsterName);
+  const hpBeforeEncounter = diagnostic?.startHp ?? identity.hpBefore ?? null;
+  const maxHpBeforeEncounter = diagnostic?.startMaxHp ?? null;
+  const mpBeforeEncounter = diagnostic?.startMp ?? identity.mpBefore ?? null;
+  const maxMpBeforeEncounter = diagnostic?.startMaxMp ?? null;
+  const hpRateBeforeEncounter = Number.isFinite(hpBeforeEncounter) && Number.isFinite(maxHpBeforeEncounter)
+    ? hpBeforeEncounter / Math.max(1, maxHpBeforeEncounter)
+    : null;
+  const mpRateBeforeEncounter = Number.isFinite(mpBeforeEncounter) && Number.isFinite(maxMpBeforeEncounter)
+    ? mpBeforeEncounter / Math.max(1, maxMpBeforeEncounter)
+    : null;
+  const rounds = diagnostic?.rounds || [];
+  const fleeSelected = rounds.filter(round => round.fleeSelected === true).length;
+  const fleeExecuted = rounds.filter(round => round.fleeExecuted === true).length;
+  const fleePartingAttackCount = rounds.filter(round => round.fleePartingAttack === true).length;
+  return {
+    runIndex,
+    encounterOrdinal,
+    floor: identity.floor ?? diagnostic?.floor ?? null,
+    type: identity.type ?? diagnostic?.type ?? null,
+    initialCompositionKey: compositionKey(identity.enemyNames || []),
+    initialCompositionEnemyNames: enemyNames,
+    outcome: identity.outcome || diagnostic?.result || "unknown",
+    hpBeforeEncounter,
+    maxHpBeforeEncounter,
+    hpRateBeforeEncounter,
+    mpBeforeEncounter,
+    maxMpBeforeEncounter,
+    mpRateBeforeEncounter,
+    fleeSelected,
+    fleeExecuted,
+    fleeSelectedButNotExecuted: Math.max(0, fleeSelected - fleeExecuted),
+    fleePartingAttackCount,
+    fleeSurvived: Number(fleeExecuted > 0 && identity.outcome === "flee"),
+    fleeDiedFromPartingAttack: Number(
+      fleeExecuted > 0 && fleePartingAttackCount > 0 && identity.outcome === "death"
+    )
+  };
+}
+
+function observeRun(aggregate, result, runIndex) {
   increment(aggregate.outcomes, result.outcome || "unknown");
   aggregate.deaths += Number(result.outcome === "death");
   aggregate.b2Arrivals += Number(result.reachedFloor >= 2);
@@ -243,25 +313,28 @@ function observeRun(aggregate, result) {
   encounters.forEach((identity, index) => {
     const key = compositionKey(identity.enemyNames || []);
     const composition = aggregate.compositions[key] ||= createCompositionRecord();
+    const diagnostic = diagnosticsByOrdinal.get(index);
+    const encounterRow = createEncounterRow(runIndex, index + 1, identity, diagnostic);
+    aggregate.encounterRows.push(encounterRow);
     runCompositionKeys.add(key);
-    observeEncounter(composition, identity, diagnosticsByOrdinal.get(index));
+    observeEncounter(composition, identity, diagnostic, encounterRow);
     if (identity.outcome === "death") {
       composition.deaths++;
     }
 
-    const diagnostic = diagnosticsByOrdinal.get(index);
     const enemyNames = new Set((identity.enemyNames || []).map(baseMonsterName));
     enemyNames.forEach(enemy => {
       runEnemyNames.add(enemy);
       const enemyRecord = aggregate.enemies[enemy] ||= createCompositionRecord();
-      observeEncounter(enemyRecord, identity, diagnostic);
+      observeEncounter(enemyRecord, identity, diagnostic, encounterRow);
       if (identity.outcome === "death") enemyRecord.deaths++;
     });
-    aggregate.fleeAttempts += (diagnostic?.rounds || []).filter(round => round.action === "run").length;
-    aggregate.fleeSuccesses += Number(identity.outcome === "flee");
-    aggregate.fleeDeaths += Number(identity.outcome === "death" && (diagnostic?.rounds || []).some(round =>
-      (round.log || []).some(message => message.includes("追撃！"))
-    ));
+    aggregate.fleeSelected += encounterRow.fleeSelected;
+    aggregate.fleeExecuted += encounterRow.fleeExecuted;
+    aggregate.fleeSelectedButNotExecuted += encounterRow.fleeSelectedButNotExecuted;
+    aggregate.fleePartingAttackCount += encounterRow.fleePartingAttackCount;
+    aggregate.fleeSurvived += encounterRow.fleeSurvived;
+    aggregate.fleeDiedFromPartingAttack += encounterRow.fleeDiedFromPartingAttack;
     addDistribution(aggregate.rounds, identity.rounds);
     addDistribution(aggregate.damageReceived, identity.totalNormalDamage);
     addDistribution(aggregate.hpAfterCombat, identity.hpAfter);
@@ -311,12 +384,15 @@ function finalizeAggregate(aggregate, configuration) {
       b1DeathRate: totalDeaths / aggregate.runs,
       b2ArrivalRate: aggregate.b2Arrivals / aggregate.runs,
       b1BreakthroughRate: aggregate.b2Arrivals / aggregate.runs,
-      fleeSurvivalRate: aggregate.fleeAttempts > 0
-        ? aggregate.fleeSuccesses / aggregate.fleeAttempts
+      fleeSurvivalRate: aggregate.fleeExecuted > 0
+        ? aggregate.fleeSurvived / aggregate.fleeExecuted
         : null,
-      fleeAttempts: aggregate.fleeAttempts,
-      fleeSuccesses: aggregate.fleeSuccesses,
-      fleeDeaths: aggregate.fleeDeaths,
+      fleeSelected: aggregate.fleeSelected,
+      fleeExecuted: aggregate.fleeExecuted,
+      fleeSelectedButNotExecuted: aggregate.fleeSelectedButNotExecuted,
+      fleePartingAttackCount: aggregate.fleePartingAttackCount,
+      fleeSurvived: aggregate.fleeSurvived,
+      fleeDiedFromPartingAttack: aggregate.fleeDiedFromPartingAttack,
       averageDeepestFloor: aggregate.deepestFloor.values.reduce((sum, value) => sum + value, 0) / aggregate.runs,
       averageSteps: aggregate.steps.values.reduce((sum, value) => sum + value, 0) / aggregate.runs,
       averageCombatCount: aggregate.combatCount.values.reduce((sum, value) => sum + value, 0) / aggregate.runs
@@ -325,6 +401,7 @@ function finalizeAggregate(aggregate, configuration) {
       enemyEncounterCount: aggregate.encounterCount,
       enemyEncounterRatePerRun: aggregate.encounterCount / aggregate.runs,
       compositionCount: Object.keys(aggregate.compositions).length,
+      encounterRows: aggregate.encounterRows,
       byEnemy: finalizeRecords(aggregate.enemies),
       byComposition: finalizeRecords(aggregate.compositions)
     },
@@ -351,10 +428,15 @@ function finalizeAggregate(aggregate, configuration) {
       rounds: finalizeDistribution(aggregate.rounds),
       damageReceived: finalizeDistribution(aggregate.damageReceived),
       hpAfterCombat: finalizeDistribution(aggregate.hpAfterCombat),
-      fleeAttempts: aggregate.fleeAttempts,
-      fleeSuccesses: aggregate.fleeSuccesses,
-      fleeSurvivalRate: aggregate.fleeAttempts > 0 ? aggregate.fleeSuccesses / aggregate.fleeAttempts : null,
-      fleeDeaths: aggregate.fleeDeaths,
+      fleeSelected: aggregate.fleeSelected,
+      fleeExecuted: aggregate.fleeExecuted,
+      fleeSelectedButNotExecuted: aggregate.fleeSelectedButNotExecuted,
+      fleePartingAttackCount: aggregate.fleePartingAttackCount,
+      fleeSurvived: aggregate.fleeSurvived,
+      fleeDiedFromPartingAttack: aggregate.fleeDiedFromPartingAttack,
+      fleeSurvivalRate: aggregate.fleeExecuted > 0
+        ? aggregate.fleeSurvived / aggregate.fleeExecuted
+        : null,
       fleePartingAttackDamage: finalizeDistribution(aggregate.partingAttackDamage),
       splitOnDeath: {
         triggers: aggregate.splitOnDeathTriggers,
@@ -419,7 +501,7 @@ export async function runDiagnostic({
       worldSeed: `issue-1139:${normalizedSeed}:${startingKit}:${policy}:${runIndex}`,
       collectDiagnostics: true
     });
-    observeRun(aggregate, result);
+    observeRun(aggregate, result, runIndex);
   }
   const configuration = {
     startingKit,
@@ -497,7 +579,8 @@ function buildSummary(report) {
     "",
     `- B1F death rate: ${(outcome.b1DeathRate * 100).toFixed(2)}%`,
     `- B2 arrival / B1 breakthrough: ${(outcome.b2ArrivalRate * 100).toFixed(2)}%`,
-    `- flee survival: ${outcome.fleeSurvivalRate === null ? "unobserved" : `${(outcome.fleeSurvivalRate * 100).toFixed(2)}%`} (${outcome.fleeAttempts} attempts)`,
+    `- flee selected / executed / selected-but-not-executed: ${outcome.fleeSelected} / ${outcome.fleeExecuted} / ${outcome.fleeSelectedButNotExecuted}`,
+    `- flee survived / died from parting attack: ${outcome.fleeSurvived} / ${outcome.fleeDiedFromPartingAttack}; execution survival: ${outcome.fleeSurvivalRate === null ? "unobserved" : `${(outcome.fleeSurvivalRate * 100).toFixed(2)}%`}`,
     `- average deepest floor / steps / combat count: ${outcome.averageDeepestFloor.toFixed(3)} / ${outcome.averageSteps.toFixed(2)} / ${outcome.averageCombatCount.toFixed(2)}`,
     "",
     "## Death contribution candidates",
@@ -521,7 +604,7 @@ function buildSummary(report) {
 
 function buildManifest(report, options) {
   return {
-    schemaVersion: 1,
+    schemaVersion: report.schemaVersion,
     status: "success",
     runner: report.runnerVersion,
     source: report.measurement,
@@ -573,7 +656,7 @@ async function main() {
     purpose: CLI_OPTIONS.purpose,
     requestedRef: CLI_OPTIONS.ref
   }), null, 2)}\n`);
-  console.log(`Wrote Issue #1139 diagnostic: ${resolve(output)}`);
+  console.log(`Wrote Issue #1141 diagnostic: ${resolve(output)}`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
