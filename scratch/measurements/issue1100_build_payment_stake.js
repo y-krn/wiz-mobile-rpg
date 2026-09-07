@@ -350,7 +350,7 @@ export function renderIssue1100Markdown(report) {
     "",
     "The table reports per-run means for payment dimensions; the JSON record retains quantiles and counts.",
     "",
-    "| scenario | depth | fixture | outcomes | combat rounds/run | MP spent/run | damage HP/run | Guard mitigation HP/run | equipment adopted/run | Push stake/run | terminal stake/run | banked/salvaged/lost | Portal uses |",
+    "| scenario | depth | fixture | outcomes | combat rounds/run | MP spent/run | damage HP/run | Guard mitigation HP/run | equipment adopted/run | Push stake/run | settlement-before stake/run | banked/salvaged/lost | Portal uses |",
     "|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---|---:|",
     ...report.cases.map(caseSummaryRow),
     "",

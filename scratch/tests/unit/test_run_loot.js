@@ -64,8 +64,9 @@ setupRun();
 const pendingLeft = createPendingObjectLootEntry(state, "DAGGER", { source: "chest" });
 assert.equal(resolvePendingObjectLootDisposition(state, pendingLeft, "left", { source: "chest" }), true);
 assert.equal(state.currentRun.unbankedObjectLoot.length, 0, "left pending loot never enters owned ledger");
-assert.equal(resolvePendingObjectLootDisposition(state, pendingLeft, "discarded", { source: "chest" }), true);
-assert.equal(resolvePendingObjectLootDisposition(state, pendingLeft, "banked", { source: "chest" }), false);
+const pendingDiscarded = createPendingObjectLootEntry(state, "AMULET_HP", { source: "chest" });
+assert.equal(resolvePendingObjectLootDisposition(state, pendingDiscarded, "discarded", { source: "chest" }), true);
+assert.equal(resolvePendingObjectLootDisposition(state, pendingDiscarded, "banked", { source: "chest" }), false);
 console.log("[PASS] pending loot dispositions retain production loot identity without ledger ownership");
 
 const foundPotion = "HEAL_POTION";
