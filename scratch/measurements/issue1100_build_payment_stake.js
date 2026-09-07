@@ -191,14 +191,13 @@ export function buildIssue1100Report({ config, provenance, taskResults, executio
         "equipment exposure/adoption/discard/build shift, final bag occupancy",
         "Portal Push/Return/Wing decisions and use-time HP/MP/inventory/material state",
         "production unconfirmed object-loot stake composition at reward, Portal, Wing salvage, and terminal boundaries",
-        "found/bagged/consumed/banked/salvaged/lost lifecycle counts keyed by production loot IDs"
+        "found/bagged/consumed/discarded/left/banked/salvaged/lost lifecycle counts keyed by production loot IDs"
       ],
       omitted: [
         "item value proxy",
-        "explicit discarded/left lifecycle events not emitted by this canonical run",
         "qualitative player recommendation or balance tuning"
       ],
-      interpretation: "object-loot stake uses the production currentRun.unbankedObjectLoot ledger; explicit discarded/left stages remain omitted"
+      interpretation: "object-loot stake uses production loot IDs for both adopted ledger entries and pending discarded/left outcomes"
     },
     decision: {
       numericBalanceChange: decision.numericBalanceChange,
@@ -280,9 +279,11 @@ export function validateIssue1100Report(report) {
       }
     });
     const lifecycle = stake.lifecycle;
-    if (lifecycle?.status !== "production_ledger" ||
+    if (lifecycle?.status !== "production_ledger_and_pending_disposition" ||
         !Array.isArray(lifecycle.omittedStages) ||
-        !["discarded", "left"].every(stage => lifecycle.omittedStages.includes(stage)) ||
+        lifecycle.omittedStages.length !== 0 ||
+        !["found", "bagged", "consumed", "discarded", "left", "banked", "salvaged", "lost"]
+          .every(stage => Number.isFinite(lifecycle.counts?.[stage]) && lifecycle.counts[stage] >= 0) ||
         !Object.entries(lifecycle.counts || {}).every(([, count]) => Number.isFinite(count) && count >= 0)) {
       throw new Error("issue #1100 object-loot lifecycle provenance is invalid");
     }
@@ -354,7 +355,7 @@ export function renderIssue1100Markdown(report) {
     "",
     "## Modeling boundary",
     "",
-    "Object-loot stake is production-backed by `currentRun.unbankedObjectLoot` and carries composition, location, Rune supply, Core/Support/Main/Aux, reinforce/convert/pivot, unknown/curse, bag occupancy, and lifecycle counts. Item value proxy plus explicit discarded/left events are outside this run's emitted evidence."
+    "Object-loot stake is production-backed by `currentRun.unbankedObjectLoot` plus production pending loot IDs for explicit discarded/left outcomes; it carries composition, location, Rune supply, Core/Support/Main/Aux, reinforce/convert/pivot, unknown/curse, bag occupancy, and lifecycle counts. Item value proxy remains outside this run's emitted evidence."
   ];
   return `${lines.join("\n")}\n`;
 }

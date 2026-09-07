@@ -35,8 +35,10 @@ const { applySavePayload, createSavePayload } =
 const {
   RETURN_WING_SALVAGE_COUNT,
   consumeRunObjectLoot,
+  createPendingObjectLootEntry,
   recordDungeonObjectLoot,
   replaceRunObjectLoot,
+  resolvePendingObjectLootDisposition,
   settleRunObjectLoot
 } = await import("../../../src/state/run_loot.js");
 const { triggerRunResult } = await import("../../../src/result.js");
@@ -59,6 +61,13 @@ function addDungeonLoot(item) {
 }
 
 setupRun();
+const pendingLeft = createPendingObjectLootEntry(state, "DAGGER", { source: "chest" });
+assert.equal(resolvePendingObjectLootDisposition(state, pendingLeft, "left", { source: "chest" }), true);
+assert.equal(state.currentRun.unbankedObjectLoot.length, 0, "left pending loot never enters owned ledger");
+assert.equal(resolvePendingObjectLootDisposition(state, pendingLeft, "discarded", { source: "chest" }), true);
+assert.equal(resolvePendingObjectLootDisposition(state, pendingLeft, "banked", { source: "chest" }), false);
+console.log("[PASS] pending loot dispositions retain production loot identity without ledger ownership");
+
 const foundPotion = "HEAL_POTION";
 const foundSword = { baseId: "LONG_SWORD", identified: false, curseEffectId: "CURSE_BLOOD" };
 const foundWing = "TOWN_PORTAL";

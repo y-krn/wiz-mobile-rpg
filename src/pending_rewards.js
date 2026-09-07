@@ -8,7 +8,8 @@ import {
   adoptPendingObjectLoot,
   consumeRunObjectLoot,
   createPendingObjectLootEntry,
-  findRunObjectLootEntry
+  findRunObjectLootEntry,
+  resolvePendingObjectLootDisposition
 } from "./state/run_loot.js";
 import { trackLootLifecycle, trackLootStakeSnapshot } from "./telemetry.js";
 import {
@@ -281,12 +282,12 @@ export function resolvePendingRewardBundle(stateLike = state) {
   validation.taken.forEach(entry => adoptPendingObjectLoot(stateLike, entry, { source: bundle.source }));
   bundle.entries
     .filter(entry => entry.decision === "leave")
-    .forEach(entry => trackLootLifecycle("left", {
-      state: stateLike,
-      itemKey: entry.item,
-      lootId: entry.id,
-      source: bundle.source
-    }));
+    .forEach(entry => resolvePendingObjectLootDisposition(
+      stateLike,
+      entry,
+      "left",
+      { source: bundle.source }
+    ));
   trackLootStakeSnapshot("pending_reward_resolution", { state: stateLike });
 
   const discardedNames = discarded.map(itemName);

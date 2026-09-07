@@ -3,7 +3,17 @@ import {
   ISSUE1100_SCHEMA_VERSION,
   validateIssue1100Report
 } from "../../measurements/issue1100_build_payment_stake.js";
+import { resolveTownPortalSettlement } from "../../simulations/sim_depth_material_ev.js";
 import { STANDARD_BALANCE_CONFIG } from "../../measurements/balance_measurement.js";
+
+for (const source of ["workshop", "departure-craft", "merchant"]) {
+  assert.equal(
+    resolveTownPortalSettlement({ source }),
+    "wing",
+    `TOWN_PORTAL settlement must be Wing for ${source}`
+  );
+}
+console.log("PASS TOWN_PORTAL workshop/departure-craft/merchant sources share Wing settlement semantics");
 
 const n = STANDARD_BALANCE_CONFIG.runs;
 const distribution = () => ({ n, mean: 1, min: 0, max: 1 });
@@ -47,9 +57,18 @@ const payment = {
       terminal_settlement_after: stakePoint(n)
     },
     lifecycle: {
-      status: "production_ledger",
-      counts: { found: n, bagged: n, consumed: 0, banked: n, salvaged: 0, lost: 0 },
-      omittedStages: ["discarded", "left"]
+      status: "production_ledger_and_pending_disposition",
+      counts: {
+        found: n,
+        bagged: n,
+        consumed: 0,
+        discarded: 0,
+        left: 0,
+        banked: n,
+        salvaged: 0,
+        lost: 0
+      },
+      omittedStages: []
     }
   }
 };

@@ -206,8 +206,9 @@ Support, and exploration ownership; current reports must not add
 canonical simulator now invokes the production object-loot ownership path;
 stake observations reread `currentRun.unbankedObjectLoot` and derive lifecycle
 counts from its production loot IDs without creating a second ownership ledger.
-Explicit `discarded`/`left` events remain omitted when the canonical run does
-not emit them.
+Pending rewards that do not enter the ledger are issued production loot IDs and
+resolved through the production pending-disposition helper, so `discarded` and
+`left` are measured explicitly rather than accepted as omitted stages.
 
 ## Issue #1096 payment vector evidence
 
@@ -226,8 +227,9 @@ decision input. The record includes schema and runner version, fixture and
 scenario identity, seed/configuration key, source and `origin/main` ancestry,
 clean-tree status, quantiles/counts, and a repeated-task determinism probe.
 Object-loot ownership for Rune/Core/Support and unconfirmed Portal loot are
-measured from the production `currentRun.unbankedObjectLoot` ledger; item value
-proxy and explicit `discarded`/`left` events remain `not_modeled`. Equipment-
+measured from the production `currentRun.unbankedObjectLoot` ledger; pending
+`discarded`/`left` outcomes use production loot IDs; item value proxy remains
+`not_modeled`. Equipment-
 affix ownership fields are observed proxies. This evidence classifies the result as numeric balance change,
 additional observation, or a follow-up balance Issue; it does not tune values,
 equalize win rates, or make player recommendations.
@@ -244,6 +246,7 @@ boundaries. Each snapshot records count, equipment/Rune/consumable/other
 composition, bag/equipped/active-Rune location, Rune supply band,
 Core/Support/Main/Aux, reinforce/convert/pivot, identification/curse state,
 and bag occupancy. The same production loot IDs are used to report
-found/bagged/consumed/banked/salvaged/lost counts. It uses the standard six
-fixtures, workshop scenarios, B5/B10/B15/B20, and N>=500 per case; it does not
-tune balance values or make a player recommendation.
+found/bagged/consumed/discarded/left/banked/salvaged/lost counts. TOWN_PORTAL
+settlement is measured as Wing for every acquisition source. It uses the
+standard six fixtures, workshop scenarios, B5/B10/B15/B20, and N>=500 per
+case; it does not tune balance values or make a player recommendation.

@@ -44,12 +44,12 @@ Full bags may therefore produce `found` followed by `rejected` without a
 slot or a player-facing reward.
 
 The canonical simulator's Issue #1100 measurement path invokes the production
-object-loot ownership ledger and rereads it for stake snapshots; it does not
-create a second ownership ledger. Loot and death-loss observations are
-therefore available by production loot ID. Explicit `discarded`/`left` stages
-remain `not_modeled` when the canonical run does not emit those interaction
-events. Issue #1098 schema and lifecycle provenance are recorded in the
-measurement report event schema.
+object-loot ownership ledger and rereads it for stake snapshots; pending rewards
+that are not adopted use production pending loot IDs and the production
+disposition helper for explicit `discarded`/`left` stages. It does not create a
+second ownership ledger. Loot and death-loss observations are therefore
+available by production loot ID. Issue #1098 schema and lifecycle provenance
+are recorded in the measurement report event schema.
 
 The same run, loot sequence, lifecycle stage, location/action pair, or floor
 summary is emitted at most once. Save/load replay does not invent a new
@@ -128,8 +128,9 @@ Portal events carry HP/MP rate, inventory occupancy/free slots, carried
 materials, source, and the production-backed unconfirmed object-loot count.
 Issue #1100 stake snapshots add composition, location, Rune supply band,
 Core/Support/Main/Aux, reinforce/convert/pivot, identification/curse, and
-same-ID lifecycle counts across reward, Portal, Wing, and terminal boundaries.
-Item value proxy plus explicit `discarded`/`left` events remain `not_modeled`;
+same-ID lifecycle counts across reward, Portal, Wing, and terminal boundaries;
+TOWN_PORTAL uses Wing settlement semantics for workshop, departure-craft,
+chest, and merchant sources. Item value proxy remains `not_modeled`;
 the equipment-affix exposure/adoption/firing fields are bounded observation
 proxies, including Support ids with exposure but no observed firing. Status
 mitigation events come from the production status-resistance and Guard chance

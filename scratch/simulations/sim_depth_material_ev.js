@@ -221,7 +221,9 @@ const {
 const { addInventoryItemToState } = await import("../../src/state/inventory_state.js");
 const {
   consumeRunObjectLoot,
+  createPendingObjectLootEntry,
   replaceRunObjectLoot,
+  resolvePendingObjectLootDisposition,
   settleRunObjectLoot
 } = await import("../../src/state/run_loot.js");
 const { buildObjectLootStakeSnapshot } = await import("../../src/rules/object_loot_stake.js");
@@ -5190,6 +5192,16 @@ function tryAddInventoryItem(state, item, metrics, source) {
   return accepted;
 }
 
+function recordUnadoptedObjectLoot(state, metrics, item, disposition, source) {
+  const entry = createPendingObjectLootEntry(state, item, { source });
+  if (!entry || !resolvePendingObjectLootDisposition(state, entry, disposition, { source })) {
+    return false;
+  }
+  metrics.objectLootLifecycle.found++;
+  metrics.objectLootLifecycle[disposition]++;
+  return true;
+}
+
 function captureObjectLootStake(metrics, state, snapshotPoint, {
   settlementOutcome = null,
   selectedLootIds = []
@@ -8401,6 +8413,13 @@ function shouldUseTownPortal(state, scenario) {
   return hpRate <= PORTAL_HP_THRESHOLD && recoveryPotions <= PORTAL_MAX_HEAL_POTIONS;
 }
 
+export function resolveTownPortalSettlement({ source = null } = {}) {
+  // TOWN_PORTAL is the production Return Wing settlement regardless of how
+  // the portal entered the run (workshop, departure craft, chest, or merchant).
+  void source;
+  return "wing";
+}
+
 function useTownPortalIfNeeded(state, scenario, metrics, situation) {
   if (!shouldUseTownPortal(state, scenario)) return false;
   const character = state.party[0];
@@ -8433,11 +8452,17 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
     carriedMaterials: totalMaterials(state.currentRun.materials)
   });
   syncObjectLootLifecycle(metrics, state);
+  const selectedLootIds = (state.currentRun.unbankedObjectLoot || [])
+    .slice(0, 2)
+    .map(entry => entry.id);
+  const settlementOutcome = resolveTownPortalSettlement({ source });
   captureObjectLootStake(metrics, state, "portal_decision", {
-    settlementOutcome: source === "merchant" ? "wing" : "retreat"
+    settlementOutcome,
+    selectedLootIds
   });
   return {
-    settlementOutcome: source === "merchant" ? "wing" : "retreat"
+    settlementOutcome,
+    selectedLootIds
   };
 }
 
@@ -11819,23 +11844,38 @@ function resolveSimulationChest({
   const acquiredEquipment = [];
   recordEquipmentGenerations(metrics, chestItems.items);
   chestItems.items.forEach((item, itemIndex) => {
-    if (chestItems.lostRewardIndices?.includes(itemIndex)) return;
+    if (chestItems.lostRewardIndices?.includes(itemIndex)) {
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+      return;
+    }
     if (
       chestItems.mainItemLost &&
       itemIndex === chestItems.mainItemIndex &&
       item === chestItems.mainItem
-    ) return;
+    ) {
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+      return;
+    }
     const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
-    if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) return;
+    if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) {
+      recordUnadoptedObjectLoot(state, metrics, item, "discarded", source);
+      return;
+    }
     const isExtraHealPotion = chestItems.extraHealPotion &&
       itemIndex === chestItems.extraHealPotionIndex;
     const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
       itemIndex === chestItems.mainItemIndex;
     if (item === "HEAL_POTION" || item === "GREATER_HEAL") {
       recordRecoveryPotionOffer(metrics, "chest", item);
-      if (item === "HEAL_POTION" && !shouldGrantNormalizedHealPotion(state)) return;
+      if (item === "HEAL_POTION" && !shouldGrantNormalizedHealPotion(state)) {
+        recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+        return;
+      }
     }
-    if (!tryAddInventoryItem(state, item, metrics, "chest")) return;
+    if (!tryAddInventoryItem(state, item, metrics, "chest")) {
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+      return;
+    }
     if (item === "HEAL_POTION") {
       recordHealPotionAcquisition(
         state,
@@ -12750,16 +12790,18 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       identitySource: "currentRun.unbankedObjectLoot[].id",
       snapshots: structuredClone(metrics.objectLootStakeSnapshots),
       lifecycle: {
-        status: "production_ledger",
+        status: "production_ledger_and_pending_disposition",
         counts: {
           found: metrics.objectLootLifecycle.found,
           bagged: metrics.objectLootLifecycle.bagged,
           consumed: metrics.objectLootLifecycle.consumed,
           banked: metrics.objectLootLifecycle.banked,
           salvaged: metrics.objectLootLifecycle.salvaged,
-          lost: metrics.objectLootLifecycle.lost
+          lost: metrics.objectLootLifecycle.lost,
+          discarded: metrics.objectLootLifecycle.discarded,
+          left: metrics.objectLootLifecycle.left
         },
-        omittedStages: [...metrics.objectLootLifecycle.omittedStages]
+        omittedStages: []
       }
     };
   }
@@ -13397,8 +13439,7 @@ export function simulateRun({
       salvaged: 0,
       lost: 0,
       left: 0,
-      consumedIds: new Set(),
-      omittedStages: ["discarded", "left"]
+      consumedIds: new Set()
     },
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
@@ -14217,14 +14258,23 @@ export function simulateRun({
         const acquiredEquipment = [];
         recordEquipmentGenerations(metrics, chestItems.items);
         chestItems.items.forEach((item, itemIndex) => {
-          if (chestItems.lostRewardIndices?.includes(itemIndex)) return;
+          if (chestItems.lostRewardIndices?.includes(itemIndex)) {
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+            return;
+          }
           if (
             chestItems.mainItemLost &&
             itemIndex === chestItems.mainItemIndex &&
             item === chestItems.mainItem
-          ) return;
+          ) {
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+            return;
+          }
           const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
-          if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) return;
+          if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) {
+            recordUnadoptedObjectLoot(state, metrics, item, "discarded", "ordinary");
+            return;
+          }
           const isExtraHealPotion = chestItems.extraHealPotion &&
             itemIndex === chestItems.extraHealPotionIndex;
           const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
@@ -14234,9 +14284,15 @@ export function simulateRun({
             if (
               item === "HEAL_POTION" &&
               !shouldGrantNormalizedHealPotion(state)
-            ) return;
+            ) {
+              recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+              return;
+            }
           }
-          if (!tryAddInventoryItem(state, item, metrics, "chest")) return;
+          if (!tryAddInventoryItem(state, item, metrics, "chest")) {
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+            return;
+          }
           if (item === "HEAL_POTION") {
             recordHealPotionAcquisition(
               state,
@@ -14926,9 +14982,18 @@ function createObjectLootStakeAggregate() {
       OBJECT_LOOT_STAKE_SNAPSHOT_POINTS.map(point => [point, createObjectLootStakePointAggregate()])
     ),
     lifecycle: {
-      status: "production_ledger",
-      counts: { found: 0, bagged: 0, consumed: 0, banked: 0, salvaged: 0, lost: 0 },
-      omittedStages: ["discarded", "left"]
+      status: "production_ledger_and_pending_disposition",
+      counts: {
+        found: 0,
+        bagged: 0,
+        consumed: 0,
+        banked: 0,
+        salvaged: 0,
+        lost: 0,
+        discarded: 0,
+        left: 0
+      },
+      omittedStages: []
     }
   };
 }
