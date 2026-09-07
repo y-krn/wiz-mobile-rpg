@@ -40,7 +40,12 @@ for (const viewport of VIEWPORTS) {
     await seedPortalRun(page);
 
     await expect(page.locator('.milestone-portal-vitals')).toContainText('HP 12/20');
-    await expect(page.locator('.milestone-portal-vitals')).toContainText('MP 0/0');
+    const expectedMp = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { getCharMaxMp } = await import('/src/data.js');
+      return `MP ${state.party[0].mp}/${getCharMaxMp(state.party[0])}`;
+    });
+    await expect(page.locator('.milestone-portal-vitals')).toContainText(expectedMp);
     await expect(page.locator('.milestone-portal-bag')).toHaveAttribute('aria-label', 'バッグ 2/20枠');
     await expect(page.locator('[data-info-role="unbanked-object-loot"]')).toContainText('3点');
     await expect(page.locator('[data-info-role="next-band-clue"]')).toBeVisible();

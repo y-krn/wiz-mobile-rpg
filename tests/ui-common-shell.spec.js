@@ -95,6 +95,46 @@ test.describe('Common UI vNext shell @smoke', () => {
     expect(states.submenu.backRole).toBe('back');
   });
 
+  test('keeps active unresolved facts and combat results visible above transient log noise', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+      const { updateUI } = await import('/src/ui.js');
+      state.party = [createStartingKitCharacter('vanguard')];
+      state.currentRun = createDefaultCurrentRun();
+      state.currentRun.eventObservations = {
+        'aura:trap': {
+          key: 'aura:trap',
+          scope: 'aura:1',
+          text: '【痕跡】未解決の罠が近くにある。',
+          kind: 'unresolved',
+          lifecycle: 'active',
+        },
+        'combat-result:1:0': {
+          key: 'combat-result:1:0',
+          scope: 'combat:1',
+          text: '【結果】敵の弱点を観察した。',
+          kind: 'result',
+          lifecycle: 'active',
+        },
+      };
+      state.gameState = 'explore';
+      state.transitioning = false;
+      state.logs = [
+        '【痕跡】未解決の罠が近くにある。',
+        '【結果】敵の弱点を観察した。',
+        ...Array.from({ length: 20 }, (_, index) => `通常ログ ${index + 1}`),
+      ];
+      updateUI();
+    });
+
+    await expect(page.locator('#log-content [data-event-kind="unresolved"]')).toHaveCount(1);
+    await expect(page.locator('#log-content [data-event-kind="unresolved"]')).toContainText('未解決の罠');
+    await expect(page.locator('#log-content [data-event-kind="result"]')).toHaveCount(1);
+    await expect(page.locator('#log-content [data-event-kind="result"]')).toContainText('敵の弱点');
+  });
+
   test('marks Town and Dungeon item ownership in the shared Bag row contract', async ({ page }) => {
     await page.goto('/');
     const ownership = await page.evaluate(async () => {
