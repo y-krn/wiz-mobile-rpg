@@ -1,0 +1,71 @@
+name: Fixed combat composition diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to measure"
+        required: false
+        default: "main"
+        type: string
+      runs:
+        description: "Runs per composition × HP band × policy (minimum 1000)"
+        required: false
+        default: "1000"
+        type: string
+      seed:
+        description: "Deterministic matched seed"
+        required: false
+        default: "1151"
+        type: string
+      purpose:
+        description: "Why this measurement is being requested"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run fixed combat composition diagnostic
+        env:
+          MEASUREMENT_REPOSITORY: ${{ github.repository }}
+          MEASUREMENT_REQUESTED_REF: ${{ inputs.ref }}
+          MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          mkdir -p /tmp/fixed-combat-composition-diagnostic
+          node scratch/measurements/fixed_combat_composition_diagnostic.js \
+            --ref "${{ inputs.ref }}" \
+            --runs "${{ inputs.runs }}" \
+            --seed "${{ inputs.seed }}" \
+            --purpose "${{ inputs.purpose }}" \
+            --output /tmp/fixed-combat-composition-diagnostic/report.json \
+            --summary /tmp/fixed-combat-composition-diagnostic/summary.md \
+            --manifest /tmp/fixed-combat-composition-diagnostic/manifest.json
+      - name: Publish diagnostic summary
+        if: always()
+        run: cat /tmp/fixed-combat-composition-diagnostic/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload diagnostic artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixed-combat-composition-diagnostic-${{ github.run_id }}
+          path: |
+            /tmp/fixed-combat-composition-diagnostic/report.json
+            /tmp/fixed-combat-composition-diagnostic/summary.md
+            /tmp/fixed-combat-composition-diagnostic/manifest.json
+          if-no-files-found: error
+          retention-days: 90
