@@ -9,10 +9,10 @@ import { pathToFileURL } from "node:url";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1139-starting-kit-b1-v1";
+export const RUNNER_VERSION = "issue1139-starting-kit-b1-v2";
 export const SCHEMA_VERSION = 1;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
-export const POLICY_IDS = Object.freeze(["fight", "flee-threshold", "early-danger-flee"]);
+export const POLICY_IDS = Object.freeze(["fight", "flee-threshold"]);
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1139;
 export const DEFAULT_FLEE_HP_THRESHOLD = 0.20;
@@ -42,10 +42,11 @@ function parseArgs(argv) {
 }
 
 const CLI_OPTIONS = parseArgs(process.argv.slice(2));
-if (CLI_OPTIONS.seed !== undefined) process.env.SIM_SEED = String(CLI_OPTIONS.seed);
+process.env.SIM_SEED = String(CLI_OPTIONS.seed ?? DEFAULT_SEED);
 
 const {
-  simulateRun
+  simulateRun,
+  resetSimulationRandom
 } = await import("../simulations/sim_depth_material_ev.js");
 
 function assertOneOf(value, values, label) {
@@ -118,6 +119,7 @@ function createCompositionRecord() {
   return {
     encounters: 0,
     runsWithEncounter: 0,
+    deathRunsWithEncounter: 0,
     deaths: 0,
     outcomes: {},
     rounds: createDistribution(),
@@ -168,8 +170,12 @@ function finalizeCompositionRecord(record, runs, totalEncounters, totalDeaths) {
     encounterShare: totalEncounters > 0 ? record.encounters / totalEncounters : 0,
     runsWithEncounter: record.runsWithEncounter,
     runExposureRate: record.runsWithEncounter / runs,
+    deathRunsWithEncounter: record.deathRunsWithEncounter,
     deaths: record.deaths,
-    conditionalDeathRate: record.deaths / encounters,
+    conditionalDeathRate: record.runsWithEncounter > 0
+      ? record.deathRunsWithEncounter / record.runsWithEncounter
+      : null,
+    encounterLethalityRate: record.encounters > 0 ? record.deaths / encounters : null,
     deathContributionRate: totalDeaths > 0 ? record.deaths / totalDeaths : 0,
     outcomes: { ...record.outcomes },
     averageRoundsPerEncounter: record.rounds.count > 0
@@ -233,6 +239,7 @@ function observeRun(aggregate, result) {
   const diagnostics = result.diagnostics?.encounters || [];
   const diagnosticsByOrdinal = new Map(diagnostics.map((diagnostic, index) => [index, diagnostic]));
   const runCompositionKeys = new Set();
+  const runEnemyNames = new Set();
   encounters.forEach((identity, index) => {
     const key = compositionKey(identity.enemyNames || []);
     const composition = aggregate.compositions[key] ||= createCompositionRecord();
@@ -240,12 +247,12 @@ function observeRun(aggregate, result) {
     observeEncounter(composition, identity, diagnosticsByOrdinal.get(index));
     if (identity.outcome === "death") {
       composition.deaths++;
-      increment(aggregate.deathCauses, identity.deathCategory || result.deathCause || "unknown");
     }
 
     const diagnostic = diagnosticsByOrdinal.get(index);
     const enemyNames = new Set((identity.enemyNames || []).map(baseMonsterName));
     enemyNames.forEach(enemy => {
+      runEnemyNames.add(enemy);
       const enemyRecord = aggregate.enemies[enemy] ||= createCompositionRecord();
       observeEncounter(enemyRecord, identity, diagnostic);
       if (identity.outcome === "death") enemyRecord.deaths++;
@@ -272,14 +279,19 @@ function observeRun(aggregate, result) {
       }
     });
   });
-  runCompositionKeys.forEach(key => { aggregate.compositions[key].runsWithEncounter++; });
-  Object.keys(aggregate.enemies).forEach(enemy => {
+  runCompositionKeys.forEach(key => {
+    aggregate.compositions[key].runsWithEncounter++;
+    if (result.outcome === "death") aggregate.compositions[key].deathRunsWithEncounter++;
+  });
+  runEnemyNames.forEach(enemy => {
     // Enemy records are encounter-level records. Count a run as exposed once
     // per run even when a composition contains a duplicate enemy.
-    aggregate.enemies[enemy].runsWithEncounter += Number(
-      encounters.some(identity => (identity.enemyNames || []).map(baseMonsterName).includes(enemy))
-    );
+    aggregate.enemies[enemy].runsWithEncounter++;
+    if (result.outcome === "death") aggregate.enemies[enemy].deathRunsWithEncounter++;
   });
+  if (result.outcome === "death") {
+    increment(aggregate.deathCauses, result.runDiagnostics?.deathCauseCategory || "unknown");
+  }
 }
 
 function finalizeAggregate(aggregate, configuration) {
@@ -325,11 +337,13 @@ function finalizeAggregate(aggregate, configuration) {
       byEnemy: Object.fromEntries(Object.entries(finalizeRecords(aggregate.enemies)).map(([key, record]) => [key, {
         deaths: record.deaths,
         conditionalDeathRate: record.conditionalDeathRate,
+        encounterLethalityRate: record.encounterLethalityRate,
         deathContributionRate: record.deathContributionRate
       }])),
       byComposition: Object.fromEntries(Object.entries(finalizeRecords(aggregate.compositions)).map(([key, record]) => [key, {
         deaths: record.deaths,
         conditionalDeathRate: record.conditionalDeathRate,
+        encounterLethalityRate: record.encounterLethalityRate,
         deathContributionRate: record.deathContributionRate
       }]))
     },
@@ -373,7 +387,7 @@ export function createDiagnosticScenario({ startingKit, policy, fleeHpThreshold 
     allowChestTownPortal: false,
     collectEncounterIdentities: true,
     simDiagnosticLevel: "full",
-    fleePolicy: policy === "fight" ? "never" : policy === "flee-threshold" ? "threshold" : "ev",
+    fleePolicy: policy === "fight" ? "never" : "threshold",
     fleeHpThreshold: policy === "fight" ? null : threshold,
     consumablesAtDeparture: "none"
   };
@@ -389,6 +403,7 @@ export async function runDiagnostic({
 } = {}) {
   const normalizedRuns = parsePositiveInteger(runs, "runs", { minimum: allowSmallRunCount ? 1 : DEFAULT_RUNS });
   const normalizedSeed = parsePositiveInteger(seed, "seed");
+  resetSimulationRandom(normalizedSeed);
   const scenario = createDiagnosticScenario({ startingKit, policy, fleeHpThreshold });
   const aggregate = createAggregate(normalizedRuns);
   for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
@@ -417,9 +432,11 @@ export async function runDiagnostic({
     encounterRate: "production",
     encounterComposition: "production",
     combatResolver: "production",
+    combatActionPolicy: "production-auto",
+    targetPolicy: "production-auto",
     fleeResolver: "production",
     seed: normalizedSeed,
-    seedPolicy: "deterministic worldSeed per run; production Math.random calls are preserved",
+    seedPolicy: "simulation RNG reset to seed before run; deterministic worldSeed per run",
     runs: normalizedRuns
   };
   return finalizeAggregate(aggregate, configuration);
@@ -487,7 +504,7 @@ function buildSummary(report) {
     "",
     topDeaths.length === 0
       ? "- no B1F deaths observed"
-      : topDeaths.map(([key, value]) => `- ${key}: ${value.deaths} deaths; conditional ${(value.conditionalDeathRate * 100).toFixed(2)}%; contribution ${(value.deathContributionRate * 100).toFixed(2)}%`),
+      : topDeaths.map(([key, value]) => `- ${key}: ${value.deaths} deaths; conditional death (exposed run) ${(value.conditionalDeathRate * 100).toFixed(2)}%; encounter lethality ${(value.encounterLethalityRate * 100).toFixed(2)}%; contribution ${(value.deathContributionRate * 100).toFixed(2)}%`),
     "",
     "## Production fidelity",
     "",

@@ -23,6 +23,11 @@ on:
         required: false
         default: "1000"
         type: string
+      seed:
+        description: "Deterministic simulation seed"
+        required: false
+        default: "1139"
+        type: string
       policy:
         description: "Diagnostic combat policy"
         required: true
@@ -31,7 +36,6 @@ on:
         options:
           - fight
           - flee-threshold
-          - early-danger-flee
       flee_hp_threshold:
         description: "HP ratio for flee-threshold policy"
         required: false
@@ -70,6 +74,7 @@ jobs:
             --ref "${{ inputs.ref }}" \
             --starting-kit "${{ inputs.starting_kit }}" \
             --runs "${{ inputs.runs }}" \
+            --seed "${{ inputs.seed }}" \
             --policy "${{ inputs.policy }}" \
             --flee-hp-threshold "${{ inputs.flee_hp_threshold }}" \
             --purpose "${{ inputs.purpose }}" \
