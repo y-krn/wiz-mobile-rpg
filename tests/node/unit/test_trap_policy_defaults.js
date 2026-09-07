@@ -6,7 +6,7 @@ const {
   DEFAULT_TRAP_POLICY_ID,
   getScenarioById,
   simulateRun
-} = await import("../../simulations/sim_depth_material_ev.js");
+} = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
 const failures = [];
 function check(label, actual, expected) {

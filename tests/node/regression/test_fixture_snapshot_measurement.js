@@ -6,9 +6,9 @@ process.env.SIM_SEED = "843";
 process.env.SIM_INDEPENDENT_RUN_RANDOM = "1";
 
 const { runCalibratedDepthSimulationTask } =
-  await import("../../simulations/sim_depth_material_ev.js");
+  await import("../../../scratch/simulations/sim_depth_material_ev.js");
 const { BUILD_FIXTURE_IDS, createBuildFixture } =
-  await import("../../measurements/build_fixtures.js");
+  await import("../../../scratch/measurements/build_fixtures.js");
 const { resolveBuildSnapshot } = await import("../../../src/rules/build_snapshot.js");
 
 for (const scenarioId of ["workshop-empty", "workshop-complete"]) {

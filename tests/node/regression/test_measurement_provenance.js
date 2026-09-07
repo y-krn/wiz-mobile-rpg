@@ -1,4 +1,4 @@
-import { resolveMeasurementProvenance } from "../../measurements/measurement_provenance.js";
+import { resolveMeasurementProvenance } from "../../../scratch/measurements/measurement_provenance.js";
 
 // Unit runners deliberately skip git-backed provenance assertions because CI
 // checkouts may not have an origin/main ref. Direct invocation still exercises

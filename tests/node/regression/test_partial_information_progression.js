@@ -4,16 +4,16 @@ import { execFileSync } from "node:child_process";
 import {
   getPartialSecretDoorPlan,
   canTraverseKnownRouteEdge
-} from "../../simulations/sim_depth_material_ev.js";
+} from "../../../scratch/simulations/sim_depth_material_ev.js";
 import {
   createBuildCharacter,
   BUILD_IDS
-} from "../../measurements/issue973_build_sensitivity.js";
+} from "../../../scratch/measurements/issue973_build_sensitivity.js";
 import {
   describe,
   percentile,
   runMeasurement
-} from "../../measurements/issue990_partial_information_progression.js";
+} from "../../../scratch/measurements/issue990_partial_information_progression.js";
 import { getCharDef, getCharMaxHp, getCharMaxMp, getCharWeaponAtk } from "../../../src/data.js";
 import { getActiveSpellKeys } from "../../../src/rules/magic_rules.js";
 

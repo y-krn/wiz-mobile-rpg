@@ -1,4 +1,4 @@
-import { calculateStatusCureEv } from "../../simulations/sim_depth_material_ev.js";
+import { calculateStatusCureEv } from "../../../scratch/simulations/sim_depth_material_ev.js";
 
 const failures = [];
 

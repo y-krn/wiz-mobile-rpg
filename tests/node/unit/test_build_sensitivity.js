@@ -7,9 +7,9 @@ import {
   classifyCausalDeath,
   runEncounterSample,
   runMeasurement
-} from "../../measurements/issue973_build_sensitivity.js";
-import { COUNTERFACTUALS, runDecomposition } from "../../measurements/issue984_pure_raw_decomposition.js";
-import { COUNTERFACTUALS as PRODUCTION_COUNTERFACTUALS, isStrictSignificantReversal, MIN_STRICT_PAIRED_N, runMeasurement as runProductionFrequencyMeasurement } from "../../measurements/issue987_production_frequency.js";
+} from "../../../scratch/measurements/issue973_build_sensitivity.js";
+import { COUNTERFACTUALS, runDecomposition } from "../../../scratch/measurements/issue984_pure_raw_decomposition.js";
+import { COUNTERFACTUALS as PRODUCTION_COUNTERFACTUALS, isStrictSignificantReversal, MIN_STRICT_PAIRED_N, runMeasurement as runProductionFrequencyMeasurement } from "../../../scratch/measurements/issue987_production_frequency.js";
 import { CORE_AFFIXES, SUPPORT_AFFIXES } from "../../../src/data/affixes.js";
 import { ITEMS } from "../../../src/data/items.js";
 import { SPELLS } from "../../../src/data/spells.js";

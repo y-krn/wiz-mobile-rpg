@@ -6,7 +6,7 @@ import {
   getStartingHealPotionCount,
   RECOVERY_BALANCE
 } from "../../../src/rules/recovery_rules.js";
-import { calculateCombatRecoveryAction } from "../../simulations/sim_recovery_policy.js";
+import { calculateCombatRecoveryAction } from "../../../scratch/simulations/sim_recovery_policy.js";
 
 const failures = [];
 
@@ -75,7 +75,7 @@ const {
   getScenarioById,
   resetSimulationRandom,
   simulateRun
-} = await import("../../simulations/sim_depth_material_ev.js");
+} = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
 const scenario = {
   ...getScenarioById("workshop-complete"),

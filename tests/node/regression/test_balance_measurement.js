@@ -6,7 +6,7 @@ import {
   compareBalanceMeasurements,
   rateMetric,
   resolveBalanceMeasurementConfig
-} from "../../measurements/balance_measurement.js";
+} from "../../../scratch/measurements/balance_measurement.js";
 
 const defaults = resolveBalanceMeasurementConfig({}, {});
 assert.equal(defaults.runs, 500);

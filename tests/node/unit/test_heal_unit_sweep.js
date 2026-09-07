@@ -5,7 +5,7 @@ process.env.SIM_SCENARIOS ||= "workshop-complete";
 
 const { createStartingKitCharacter } = await import("../../../src/state/initial_state.js");
 const { getCharMaxHp } = await import("../../../src/data.js");
-const { getSimulationHealAmount } = await import("../../simulations/sim_depth_material_ev.js");
+const { getSimulationHealAmount } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
 const checks = [];
 function check(name, condition) {

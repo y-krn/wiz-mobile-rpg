@@ -4,7 +4,7 @@ process.env.SIM_SKIP_PROVENANCE = "1";
 process.env.SIM_SEED = "894";
 process.env.SIM_INDEPENDENT_RUN_RANDOM = "1";
 
-const { simulateRun } = await import("../../simulations/sim_depth_material_ev.js");
+const { simulateRun } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 const {
   CHEST_ITEM_CANDIDATES_BY_FLOOR,
   CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP

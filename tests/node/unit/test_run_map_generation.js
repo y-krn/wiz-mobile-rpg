@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import "../../simulations/sim_run_floor_templates.js";
+import "../../../scratch/simulations/sim_run_floor_templates.js";
 import { FLOOR_TEMPLATES, getFloorTemplate } from "../../../src/data/floor_templates.js";
 import { generateRunFloor, validateGeneratedFloor } from "../../../src/run_map_generator.js";
 import { deriveFloorAttemptSeed, deriveFloorSeed } from "../../../src/seed_rng.js";

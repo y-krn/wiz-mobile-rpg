@@ -17,7 +17,7 @@ let observations = 0;
 const failures = [];
 
 if (paths.length === 0) {
-  const simSource = fs.readFileSync(new URL("../../simulations/sim_depth_material_ev.js", import.meta.url), "utf8");
+  const simSource = fs.readFileSync(new URL("../../../scratch/simulations/sim_depth_material_ev.js", import.meta.url), "utf8");
   const requiredSnippets = [
     "function recordStatusCureConsumption(state, metrics, itemKey, count = 1)",
     "recordTrackedConsumableConsumption(state, metrics, itemKey, count);",

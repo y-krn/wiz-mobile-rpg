@@ -5,7 +5,7 @@ import {
   parseTelemetryDocument,
   renderMarkdown,
   wilsonInterval
-} from "../../measurements/issue816_chest_telemetry.js";
+} from "../../../scratch/measurements/issue816_chest_telemetry.js";
 
 const records = [
   { uuid: "a1", event: "chest_action", properties: {

@@ -6,7 +6,7 @@ process.env.SIM_RUNS = "1";
 process.env.SIM_CALIBRATION_RUNS = "1";
 process.env.SIM_SCENARIOS = "workshop-empty";
 
-const { simulateRun } = await import("../../simulations/sim_depth_material_ev.js");
+const { simulateRun } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
 const runConfig = {
   className: "Fighter",

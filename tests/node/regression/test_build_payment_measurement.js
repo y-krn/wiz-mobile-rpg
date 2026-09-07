@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import {
   ISSUE1096_SCHEMA_VERSION,
   validateIssue1096Report
-} from "../../measurements/issue1096_build_payment.js";
-import { STANDARD_BALANCE_CONFIG } from "../../measurements/balance_measurement.js";
-import { classifyBuildPaymentAction } from "../../simulations/sim_depth_material_ev.js";
+} from "../../../scratch/measurements/issue1096_build_payment.js";
+import { STANDARD_BALANCE_CONFIG } from "../../../scratch/measurements/balance_measurement.js";
+import { classifyBuildPaymentAction } from "../../../scratch/simulations/sim_depth_material_ev.js";
 
 const n = STANDARD_BALANCE_CONFIG.runs;
 assert.equal(classifyBuildPaymentAction({ type: "defend" }), "guard");

@@ -10,7 +10,7 @@ function check(label, condition, detail = "") {
 const originalArgv1 = process.argv[1];
 process.argv[1] = "/tmp/workshop-progression-purchase-test.js";
 try {
-  const { purchaseCraftFromBank } = await import("../../simulations/sim_workshop_progression.js");
+  const { purchaseCraftFromBank } = await import("../../../scratch/simulations/sim_workshop_progression.js");
   const { getDepartureCraftCost } = await import("../../../src/systems/workshop.js");
 
   const scenario = {

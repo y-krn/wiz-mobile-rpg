@@ -2,7 +2,7 @@
 
 process.env.SIM_SKIP_PROVENANCE = "1";
 
-const { getDepartureRecoveryCount } = await import("../../simulations/sim_issue_508_heal_unit_density.js");
+const { getDepartureRecoveryCount } = await import("../../../scratch/simulations/sim_issue_508_heal_unit_density.js");
 
 const checks = [];
 function check(name, condition) {

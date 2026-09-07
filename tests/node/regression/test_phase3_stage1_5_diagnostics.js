@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
   PERSONA_POLICIES,
   runMeasurement
-} from "../../measurements/issue990_phase3_stage1.js";
+} from "../../../scratch/measurements/issue990_phase3_stage1.js";
 
 const floors = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const report = runMeasurement({

@@ -9,7 +9,7 @@ import {
   ISSUE679_PROVENANCE_FIELDS,
   createAffixReachability,
   finalizeAffixReachability
-} from "../../simulations/sim_depth_material_ev.js";
+} from "../../../scratch/simulations/sim_depth_material_ev.js";
 
 const expectedFunnelFields = [
   "recordedReward",

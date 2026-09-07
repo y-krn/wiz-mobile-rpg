@@ -11,7 +11,7 @@ const {
   getScenarioById,
   resetSimulationRandom,
   simulateRun
-} = await import("../../simulations/sim_depth_material_ev.js");
+} = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
 const RUNS = 48;
 const failures = [];

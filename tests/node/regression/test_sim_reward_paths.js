@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseSimScopeDeclaration } from "../../measurements/measurement_env_signature.js";
+import { parseSimScopeDeclaration } from "../../../scratch/measurements/measurement_env_signature.js";
 
 // 各 sim は先頭 20 行以内に `// sim-scope: <scope>` を宣言する。宣言を必須にすることで
 // 新規 sim にも判断を強制し、レガシー生成器の直叩き（深層を無音で誤測定する）を
@@ -17,7 +17,7 @@ const SCOPE_RULES = {
   infra: { requiresRunFloor: false, allowsLegacyMap: true, exempt: true }
 };
 
-const simulationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../simulations");
+const simulationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../scratch/simulations");
 const simulationFiles = fs.readdirSync(simulationsDir)
   .filter(name => /^sim_.*\.js$/.test(name));
 const failures = [];

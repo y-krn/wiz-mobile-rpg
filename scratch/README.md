@@ -22,4 +22,4 @@ scripts into CI measurements.
 
 The ownership regression at `tests/node/regression/test_scratch_ownership.js`
 enforces that `scratch/` contains only `benchmarks/`, `measurements/`, and
-`simulations/`; `scratch/tests/` must not be recreated.
+`simulations/`; `tests/node/` must not be recreated.

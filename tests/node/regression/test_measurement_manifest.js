@@ -3,7 +3,7 @@ import {
   BALANCE_MEASUREMENT_MANIFEST_SCHEMA_VERSION,
   createMeasurementManifest,
   renderMeasurementManifestMarkdown
-} from "../../measurements/measurement_manifest.js";
+} from "../../../scratch/measurements/measurement_manifest.js";
 
 const validReport = {
   measurement: {

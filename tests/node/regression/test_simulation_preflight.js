@@ -18,7 +18,7 @@ import {
 import {
   classifySimulationRunner,
   discoverSimulationRunnerFiles
-} from "../../simulations/simulation_manifest.js";
+} from "../../../scratch/simulations/simulation_manifest.js";
 
 const repoRoot = path.resolve(new URL("../../../", import.meta.url).pathname);
 

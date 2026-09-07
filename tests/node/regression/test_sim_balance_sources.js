@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const simulationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../simulations");
+const simulationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../scratch/simulations");
 const readSimulation = name => fs.readFileSync(path.join(simulationsDir, name), "utf8");
 const failures = [];
 

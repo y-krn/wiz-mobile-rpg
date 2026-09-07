@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import {
   ISSUE1100_SCHEMA_VERSION,
   validateIssue1100Report
-} from "../../measurements/issue1100_build_payment_stake.js";
-import { resolveTownPortalSettlement } from "../../simulations/sim_depth_material_ev.js";
-import { STANDARD_BALANCE_CONFIG } from "../../measurements/balance_measurement.js";
+} from "../../../scratch/measurements/issue1100_build_payment_stake.js";
+import { resolveTownPortalSettlement } from "../../../scratch/simulations/sim_depth_material_ev.js";
+import { STANDARD_BALANCE_CONFIG } from "../../../scratch/measurements/balance_measurement.js";
 
 for (const source of ["workshop", "departure-craft", "merchant"]) {
   assert.equal(

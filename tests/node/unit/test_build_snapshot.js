@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { BUILD_FIXTURE_IDS, createBuildFixture } from "../../measurements/build_fixtures.js";
+import { BUILD_FIXTURE_IDS, createBuildFixture } from "../../../scratch/measurements/build_fixtures.js";
 import {
   BUILD_SNAPSHOT_SCHEMA_VERSION,
   getBuildSnapshotIdentity,

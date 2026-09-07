@@ -4,7 +4,7 @@ process.env.SIM_SKIP_PROVENANCE = "1";
 process.env.SIM_SEED = "231";
 process.env.SIM_INDEPENDENT_RUN_RANDOM = "1";
 
-const { simulateRun } = await import("../../simulations/sim_depth_material_ev.js");
+const { simulateRun } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
 const scenario = {
   trapPolicy: "conservative",

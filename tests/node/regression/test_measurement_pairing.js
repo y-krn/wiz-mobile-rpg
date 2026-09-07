@@ -3,7 +3,7 @@
 import {
   compareConditionRows,
   inferPairingEligibility
-} from "../../measurements/measurement_utils.js";
+} from "../../../scratch/measurements/measurement_utils.js";
 
 const failures = [];
 

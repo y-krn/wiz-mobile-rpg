@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 const { getScenarioById, resetSimulationRandom, simulateRun } =
-  await import("../../simulations/sim_depth_material_ev.js");
+  await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
 const baseScenario = {
   ...getScenarioById("workshop-complete"),

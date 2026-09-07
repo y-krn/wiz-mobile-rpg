@@ -16,7 +16,7 @@ import {
   SIMULATION_RUNNER_INVENTORY,
   scanStaleSimulationReferences,
   validateSimulationManifest
-} from "../../simulations/simulation_manifest.js";
+} from "../../../scratch/simulations/simulation_manifest.js";
 
 assert.doesNotThrow(() => assertValidSimulationManifest());
 assert.equal(Object.hasOwn(SIMULATION_MANIFEST.canonical.runtimeCoverage, "status"), true);
@@ -471,7 +471,7 @@ assert.deepEqual(metadataErrors, [], metadataErrors.join("\n"));
 const staleReferences = scanStaleSimulationReferences();
 assert.deepEqual(staleReferences, [], JSON.stringify(staleReferences));
 
-const { getScenarioById, simulateRun } = await import("../../simulations/sim_depth_material_ev.js");
+const { getScenarioById, simulateRun } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 const smokeScenario = {
   ...getScenarioById("workshop-empty"),
   departureCraftMeasurement: true,

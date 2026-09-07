@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { renderDiagnosticsMarkdown } from "../../measurements/balance_measurement.js";
+import { renderDiagnosticsMarkdown } from "../../../scratch/measurements/balance_measurement.js";
 
 import {
   addRunDiagnosticsAggregate,
@@ -10,7 +10,7 @@ import {
   DEATH_CAUSE_IDS,
   finalizeRunDiagnosticsAggregate,
   RETREAT_REASON_IDS
-} from "../../simulations/sim_depth_material_ev.js";
+} from "../../../scratch/simulations/sim_depth_material_ev.js";
 
 const portalRetreat = classifyRetreatReason({
   outcome: "retreat",

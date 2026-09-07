@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 process.env.SIM_SKIP_PROVENANCE = "1";
 
 const { findShortestFloorPath } =
-  await import("../../simulations/sim_depth_material_ev.js");
+  await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
 function grid(width, height) {
   return Array.from({ length: height }, () => Array.from({ length: width }, () => ({

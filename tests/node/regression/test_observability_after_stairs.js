@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
   getScenarioById,
   runCalibratedDepthSimulationTask
-} from "../../simulations/sim_depth_material_ev.js";
+} from "../../../scratch/simulations/sim_depth_material_ev.js";
 
 const scenario = getScenarioById("workshop-empty");
 const task = runCalibratedDepthSimulationTask({

@@ -4,7 +4,7 @@ process.env.SIM_SKIP_PROVENANCE = "1";
 process.env.SIM_RUNS = "1";
 process.env.DEPARTURE_CRAFT_IDS = "";
 
-const { getScenarioById, simulateRun } = await import("../../simulations/sim_depth_material_ev.js");
+const { getScenarioById, simulateRun } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
 const failures = [];
 function check(condition, message) {

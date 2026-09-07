@@ -21,4 +21,4 @@ runners keep their separately declared lifecycle under `scratch/`.
 
 The ownership contract is enforced by
 `tests/node/regression/test_scratch_ownership.js`, including the requirement
-that `scratch/tests/` must not be recreated.
+that `tests/node/` must not be recreated.

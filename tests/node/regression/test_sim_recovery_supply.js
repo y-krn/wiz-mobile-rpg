@@ -7,7 +7,7 @@ const {
   parseHealPotionMerchantPolicy,
   resetSimulationRandom,
   simulateRun
-} = await import("../../simulations/sim_depth_material_ev.js");
+} = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
 function check(condition, message) {
   if (!condition) failures.push(message);

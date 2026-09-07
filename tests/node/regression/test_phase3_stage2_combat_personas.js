@@ -7,12 +7,12 @@ import {
   runMeasurement,
   SCHEMA_VERSION,
   validatePolicyFixture
-} from "../../measurements/issue990_phase3_stage2_combat_personas.js";
+} from "../../../scratch/measurements/issue990_phase3_stage2_combat_personas.js";
 import {
   COMBAT_POLICY_IDS,
   COMBAT_POLICY_RULES,
   selectSimulationCombatActionForPolicy
-} from "../../simulations/sim_depth_material_ev.js";
+} from "../../../scratch/simulations/sim_depth_material_ev.js";
 import { createStartingKitCharacter } from "../../../src/state.js";
 import { getRuneItemId, syncMediumState } from "../../../src/rules/magic_rules.js";
 
