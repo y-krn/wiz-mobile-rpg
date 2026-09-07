@@ -641,17 +641,6 @@ function createFooter(overlay, { organizing = false } = {}) {
   closeRow.className = `bottom-actions-row ${draftDirty ? "equip-transaction-actions" : ""}`.trim();
   if (draftDirty) {
     closeRow.appendChild(createTransactionStatus());
-    const commit = document.createElement("button");
-    commit.type = "button";
-    commit.id = "btn-equip-commit";
-    commit.className = "btn btn-neon btn-block equip-action-btn";
-    commit.textContent = equipState.draft?.trialAction
-      ? "試す内容を確定する（探索時間が進む）"
-      : "確定する（探索時間が進む）";
-    commit.disabled = !isLoadoutDraftDirty(equipState.draft) || !getLoadoutValidationSummary(equipState.draft).ok;
-    setDockActionRole(commit, "confirm");
-    commit.addEventListener("click", commitEquipDraft);
-    closeRow.appendChild(commit);
   }
   if (!organizing) {
     const organizeEntry = document.createElement("button");
@@ -671,7 +660,24 @@ function createFooter(overlay, { organizing = false } = {}) {
     if (draftDirty) cancelEquipDraft();
     else closeEquipOverlay();
   });
-  closeRow.appendChild(btnClose);
+  if (draftDirty) {
+    // Keep the destructive exit action on the left and the world-affecting
+    // commit action on the right in the DOM and visual order.
+    closeRow.appendChild(btnClose);
+    const commit = document.createElement("button");
+    commit.type = "button";
+    commit.id = "btn-equip-commit";
+    commit.className = "btn btn-neon btn-block equip-action-btn";
+    commit.textContent = equipState.draft?.trialAction
+      ? "試す内容を確定する（探索時間が進む）"
+      : "確定する（探索時間が進む）";
+    commit.disabled = !isLoadoutDraftDirty(equipState.draft) || !getLoadoutValidationSummary(equipState.draft).ok;
+    setDockActionRole(commit, "confirm");
+    commit.addEventListener("click", commitEquipDraft);
+    closeRow.appendChild(commit);
+  } else {
+    closeRow.appendChild(btnClose);
+  }
   footer.appendChild(closeRow);
 
   overlay.appendChild(footer);
