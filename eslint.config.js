@@ -11,8 +11,8 @@ export default [
       "scratch/benchmarks/**",
       "scratch/measurements/**",
       "scratch/simulations/**",
-      "scratch/tests/unit/**",
-      "scratch/tests/regression/**",
+      "tests/node/unit/**",
+      "tests/node/regression/**",
     ],
   },
   js.configs.recommended,
@@ -33,15 +33,7 @@ export default [
     },
   },
   {
-    files: ["scripts/**/*.js"],
-    languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "module",
-      globals: globals.node,
-    },
-  },
-  {
-    files: ["scratch/tests/run_tests.js"],
+    files: ["scripts/**/*.js", "tests/node/run_tests.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",

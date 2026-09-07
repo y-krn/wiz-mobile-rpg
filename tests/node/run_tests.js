@@ -9,7 +9,7 @@ if (!runDependencyPreflight()) process.exit(1);
 
 // Unit/regression ownership is explicit: only test files under these two
 // directories are suite candidates. Simulations and measurements live under
-// separate directories and cannot be picked up by naming accidents.
+// scratch/ and cannot be picked up by naming accidents.
 const EXCLUDE_LIST = [];
 const HEAVY_TESTS = {
   'test_stairs_min_distance.js': 4,
@@ -23,8 +23,8 @@ const heavyTestFiles = Object.keys(HEAVY_TESTS);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const testRoots = [
-  path.join(repoRoot, 'scratch/tests/unit'),
-  path.join(repoRoot, 'scratch/tests/regression'),
+  path.join(repoRoot, 'tests/node/unit'),
+  path.join(repoRoot, 'tests/node/regression'),
 ];
 const startTime = Date.now();
 
@@ -81,7 +81,7 @@ function collectHeavyDependencies(testFile) {
   const ownedTestPath = testFile.includes('/')
     ? testFile
     : ['unit', 'regression']
-      .map(directory => `scratch/tests/${directory}/${testFile}`)
+      .map(directory => `tests/node/${directory}/${testFile}`)
       .find(candidate => fs.existsSync(path.join(repoRoot, candidate)));
   if (!ownedTestPath) {
     throw new Error(`Heavy test is not owned by a test directory: ${testFile}`);
