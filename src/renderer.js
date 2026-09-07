@@ -1,6 +1,7 @@
 import { DX, DY, EVENT_TYPES } from "./data.js";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
+import { BLEEDING_PAYOFF_DAMAGE, VULNERABLE_DAMAGE_MULTIPLIER } from "./combat_logic/status_effects.js";
 
 export let dungeonRenderer = null;
 export function setDungeonRenderer(r) {
@@ -10,6 +11,74 @@ export function setDungeonRenderer(r) {
 // Canvas dimensions
 const VIEW_W = 400;
 const VIEW_H = 260;
+
+const MONSTER_VISUAL_BOUNDS = Object.freeze({
+  biter: Object.freeze({ left: -35, top: -35, right: 35, bottom: 33 }),
+  kobold: Object.freeze({ left: -35, top: -50, right: 25, bottom: 30 }),
+  zombie: Object.freeze({ left: -45, top: -45, right: 45, bottom: 25 }),
+  skeleton: Object.freeze({ left: -18, top: -47, right: 40, bottom: 15 }),
+  orc: Object.freeze({ left: -35, top: -55, right: 35, bottom: 30 }),
+  mage: Object.freeze({ left: -35, top: -47, right: 20, bottom: 30 }),
+  spirit: Object.freeze({ left: -24, top: -42, right: 24, bottom: 24 }),
+  wisp: Object.freeze({ left: -26, top: -48, right: 26, bottom: 28 }),
+  spider: Object.freeze({ left: -50, top: -47, right: 50, bottom: 22 }),
+  bat: Object.freeze({ left: -55, top: -50, right: 55, bottom: 26 }),
+  rabbit: Object.freeze({ left: -20, top: -78, right: 20, bottom: 28 }),
+  flack: Object.freeze({ left: -45, top: -58, right: 45, bottom: 32 }),
+  dragon: Object.freeze({ left: -90, top: -70, right: 90, bottom: 32 })
+});
+
+function getMonsterSpriteType(monster) {
+  if (monster?.spriteType) return monster.spriteType;
+
+  const name = monster?.name || "";
+  if (name.includes("かみつき") || name.includes("Biter")) return "biter";
+  if (name.includes("コボルト") || name.includes("Kobold")) return "kobold";
+  if (name.includes("ゾンビ") || name.includes("Zombie")) return "zombie";
+  if (name.includes("ガイコツ") || name.includes("Skeleton")) return "skeleton";
+  if (name.includes("オーク") || name.includes("Orc")) return "orc";
+  if (name.includes("魔術師") || name.includes("Mage")) return "mage";
+  if (name.includes("スピリット")) return "spirit";
+  if (name.includes("ウィル・オー・ウィスプ")) return "wisp";
+  if (name.includes("スパイダー")) return "spider";
+  if (name.includes("バット")) return "bat";
+  if (name.includes("フラック")) return "flack";
+  if (name.includes("竜") || name.includes("Dragon")) return "dragon";
+  return "biter";
+}
+
+function getMonsterScaleMultiplier(monster) {
+  const name = monster?.name || "";
+  if (name.includes("ジャイアント") || name.includes("巨躯")) return 1.18;
+  if (name.includes("ゴーレム") || name.includes("アーマー") || name.includes("ストーン") || name.includes("石像")) {
+    return 1.08;
+  }
+  return 1;
+}
+
+function getCombatMonsterHitRegion(monster, cx, cy, scale) {
+  const bounds = MONSTER_VISUAL_BOUNDS[getMonsterSpriteType(monster)] || MONSTER_VISUAL_BOUNDS.biter;
+  const visualScale = scale * getMonsterScaleMultiplier(monster);
+  // Keep the target forgiving on small sprites while preserving a bounded
+  // region around the drawn silhouette instead of the whole layout slot.
+  const touchPadding = Math.max(8, 12 / scale);
+  const left = (bounds.left - touchPadding) * visualScale;
+  const top = (bounds.top - touchPadding) * visualScale;
+  const right = (bounds.right + touchPadding) * visualScale;
+  const bottom = (bounds.bottom + touchPadding) * visualScale;
+
+  return {
+    x: cx + left,
+    y: cy + top,
+    width: right - left,
+    height: bottom - top,
+    centerX: cx + (left + right) / 2,
+    centerY: cy + (top + bottom) / 2,
+    radiusX: (right - left) / 2,
+    radiusY: (bottom - top) / 2,
+    shape: "ellipse"
+  };
+}
 
 export function getCombatMonsterLayout(monsters) {
   if (!Array.isArray(monsters)) return [];
@@ -21,7 +90,6 @@ export function getCombatMonsterLayout(monsters) {
   const columns = alive.length >= 4 ? Math.ceil(alive.length / 2) : alive.length;
   const rows = alive.length >= 4 ? 2 : 1;
   const scale = alive.length >= 4 ? 0.52 : alive.length >= 2 ? 0.72 : 1;
-  const rowHeight = VIEW_H / rows;
 
   return alive.map(({ monster, index }, layoutIndex) => {
     const row = Math.floor(layoutIndex / columns);
@@ -29,21 +97,18 @@ export function getCombatMonsterLayout(monsters) {
     const rowCount = Math.min(columns, alive.length - rowStart);
     const slotWidth = VIEW_W / rowCount;
     const column = layoutIndex - rowStart;
+    const cx = slotWidth * (column + 0.5);
+    const cy = rows === 1 ? VIEW_H / 2 + 15 : row === 0 ? 100 : 210;
     return {
       monster,
       monsterIndex: index,
       row,
       column,
-      cx: slotWidth * (column + 0.5),
-      cy: rows === 1 ? VIEW_H / 2 + 15 : row === 0 ? 100 : 210,
+      cx,
+      cy,
       scale,
       slotWidth,
-      hitRegion: {
-        x: column * slotWidth,
-        y: row * rowHeight,
-        width: slotWidth,
-        height: rowHeight
-      }
+      hitRegion: getCombatMonsterHitRegion(monster, cx, cy, scale)
     };
   });
 }
@@ -285,8 +350,12 @@ export class DungeonRenderer {
     if (x < 0 || x > VIEW_W || y < 0 || y > VIEW_H) return null;
 
     return getCombatMonsterLayout(renderInput.combatMonsters)
-      .find(({ hitRegion }) => x >= hitRegion.x && x <= hitRegion.x + hitRegion.width &&
-        y >= hitRegion.y && y <= hitRegion.y + hitRegion.height)?.monsterIndex ?? null;
+      .find(({ hitRegion }) => {
+        if (hitRegion.shape !== "ellipse" || !hitRegion.radiusX || !hitRegion.radiusY) return false;
+        const normalizedX = (x - hitRegion.centerX) / hitRegion.radiusX;
+        const normalizedY = (y - hitRegion.centerY) / hitRegion.radiusY;
+        return normalizedX ** 2 + normalizedY ** 2 <= 1;
+      })?.monsterIndex ?? null;
   }
 
   getDrawSignature(input = null) {
@@ -1193,23 +1262,7 @@ export class DungeonRenderer {
   }
 
   getMonsterSpriteType(monster) {
-    if (monster.spriteType) return monster.spriteType;
-
-    const name = monster.name || "";
-    if (name.includes("かみつき") || name.includes("Biter")) return "biter";
-    if (name.includes("コボルト") || name.includes("Kobold")) return "kobold";
-    if (name.includes("ゾンビ") || name.includes("Zombie")) return "zombie";
-    if (name.includes("ガイコツ") || name.includes("Skeleton")) return "skeleton";
-    if (name.includes("オーク") || name.includes("Orc")) return "orc";
-    if (name.includes("魔術師") || name.includes("Mage")) return "mage";
-    if (name.includes("スピリット")) return "spirit";
-    if (name.includes("ウィル・オー・ウィスプ")) return "wisp";
-    if (name.includes("スパイダー")) return "spider";
-    if (name.includes("バット")) return "bat";
-
-    if (name.includes("フラック")) return "flack";
-    if (name.includes("竜") || name.includes("Dragon")) return "dragon";
-    return "biter";
+    return getMonsterSpriteType(monster);
   }
 
   getMonsterVisualVariant(monster) {
@@ -1219,12 +1272,7 @@ export class DungeonRenderer {
   }
 
   getMonsterScaleMultiplier(monster) {
-    const name = monster.name || "";
-    if (name.includes("ジャイアント") || name.includes("巨躯")) return 1.18;
-    if (name.includes("ゴーレム") || name.includes("アーマー") || name.includes("ストーン") || name.includes("石像")) {
-      return 1.08;
-    }
-    return 1;
+    return getMonsterScaleMultiplier(monster);
   }
 
   drawMonsters(ctx, input = null) {
@@ -1706,8 +1754,8 @@ export class DungeonRenderer {
     const statusLabels = [];
     const bleeding = monster.statusEffects?.bleeding;
     const vulnerable = monster.statusEffects?.vulnerable;
-    if (bleeding) statusLabels.push(`出血：あと${bleeding.remainingTurns ?? 0}回 / 次の通常攻撃+1`);
-    if (vulnerable) statusLabels.push(`脆弱：あと${vulnerable.remainingTurns ?? 0}回 / 次の直接攻撃×1.25`);
+    if (bleeding) statusLabels.push(`出血：あと${bleeding.remainingTurns ?? 0}回 / 次の通常攻撃+${BLEEDING_PAYOFF_DAMAGE}`);
+    if (vulnerable) statusLabels.push(`脆弱：あと${vulnerable.remainingTurns ?? 0}回 / 次の直接攻撃×${VULNERABLE_DAMAGE_MULTIPLIER}`);
     if (statusLabels.length > 0) {
       ctx.fillStyle = "#ffd166";
       ctx.font = `bold ${scale < 0.6 ? 8 : 10}px 'Share Tech Mono', monospace`;
