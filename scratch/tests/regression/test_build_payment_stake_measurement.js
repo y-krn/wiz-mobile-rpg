@@ -76,6 +76,16 @@ const cases = STANDARD_BALANCE_CONFIG.scenarioIds.flatMap(scenarioId =>
   STANDARD_BALANCE_CONFIG.targetDepths.flatMap(targetDepth =>
     STANDARD_BALANCE_CONFIG.fixtureIds.map(fixtureId => ({
       scenarioId, targetDepth, fixtureId, runs: n,
+      startingBuildSnapshot: { schemaVersion: 1, identity: `start:${fixtureId}` },
+      endingBuildSnapshotDistribution: {
+        runs: n,
+        byIdentity: {
+          [`end:${fixtureId}`]: {
+            count: n,
+            snapshot: { schemaVersion: 1, identity: `end:${fixtureId}` }
+          }
+        }
+      },
       outcome: { outcomeDistribution: { retreat: n } }, payment
     }))
   )

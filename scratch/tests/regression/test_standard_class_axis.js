@@ -22,9 +22,14 @@ const probe = String.raw`
     if (result.playerClass || result.className || result.outcomesByClass || result.classNames) {
       throw new Error(JSON.stringify({ targetDepth: result.targetDepth, legacyAxisFields: Object.keys(result).filter(key => /class/i.test(key)) }));
     }
-    const snapshot = result.buildSnapshotsByFixtureId?.[fixtureId];
-    if (!snapshot?.identity?.includes("medium") || !snapshot.activeRuneSpellIds?.includes("KATINO")) {
-      throw new Error(JSON.stringify({ targetDepth: result.targetDepth, snapshot }));
+    const startingSnapshot = result.startingBuildSnapshotsByFixtureId?.[fixtureId];
+    if (!startingSnapshot?.identity?.includes("medium") || !startingSnapshot.activeRuneSpellIds?.includes("KATINO")) {
+      throw new Error(JSON.stringify({ targetDepth: result.targetDepth, startingSnapshot }));
+    }
+    const endingSnapshots = result.endingBuildSnapshotDistributionByFixtureId?.[fixtureId];
+    if (!endingSnapshots || endingSnapshots.runs !== 1 ||
+        Object.values(endingSnapshots.byIdentity || {}).reduce((sum, entry) => sum + entry.count, 0) !== 1) {
+      throw new Error(JSON.stringify({ targetDepth: result.targetDepth, endingSnapshots }));
     }
     for (const [buildId, outcome] of Object.entries(result.outcomesByFixtureId)) {
       if (buildId !== fixtureId && outcome.runs !== 0) {
