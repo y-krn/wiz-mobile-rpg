@@ -265,13 +265,17 @@ export function validateIssue1100Report(report) {
         stake.identitySource !== "currentRun.unbankedObjectLoot[].id") {
       throw new Error("issue #1100 production object-loot stake provenance is missing");
     }
-    ["terminal_settlement_before", "terminal_settlement_after"].forEach(pointId => {
-      const point = stake.points?.[pointId];
-      if (!point || point.events !== config.runs ||
-          point.unconfirmedObjectCount?.n !== config.runs) {
-        throw new Error(`issue #1100 stake distribution N mismatch: ${pointId}`);
-      }
-    });
+    const terminalBefore = stake.points?.terminal_settlement_before;
+    const wingBefore = stake.points?.wing_salvage_before;
+    const terminalAfter = stake.points?.terminal_settlement_after;
+    if (!terminalBefore || !wingBefore || !terminalAfter ||
+        terminalAfter.events !== config.runs ||
+        terminalAfter.unconfirmedObjectCount?.n !== config.runs ||
+        terminalBefore.events + wingBefore.events !== config.runs ||
+        terminalBefore.unconfirmedObjectCount?.n !== terminalBefore.events ||
+        wingBefore.unconfirmedObjectCount?.n !== wingBefore.events) {
+      throw new Error("issue #1100 terminal/Wing stake distribution N mismatch");
+    }
     ["pending_reward_resolution", "push_decision", "portal_decision", "wing_salvage_before"].forEach(pointId => {
       const point = stake.points?.[pointId];
       if (!point || point.events < 0 || point.unconfirmedObjectCount?.n !== point.events) {
@@ -317,13 +321,16 @@ function formatNumber(value, digits = 2) {
 function caseSummaryRow(measuredCase) {
   const payment = measuredCase.payment;
   const stake = payment.stake;
+  const settlementBefore = stake.points.wing_salvage_before.events > 0
+    ? stake.points.wing_salvage_before
+    : stake.points.terminal_settlement_before;
   return `| ${measuredCase.scenarioId} | B${measuredCase.targetDepth} | ${measuredCase.fixtureId} | ` +
     `${JSON.stringify(measuredCase.outcome.outcomeDistribution)} | ` +
     `${formatNumber(payment.combat.rounds.mean)} | ${formatNumber(payment.resources.mpSpent.mean)} | ` +
     `${formatNumber(payment.resources.damageTakenHp.mean)} | ${formatNumber(payment.guard.mitigationHp.mean)} | ` +
     `${formatNumber(payment.loot.equipmentAdopted / Math.max(1, measuredCase.runs))} | ` +
     `${formatNumber(stake.points.push_decision.unconfirmedObjectCount.mean)} | ` +
-    `${formatNumber(stake.points.terminal_settlement_before.unconfirmedObjectCount.mean)} | ` +
+    `${formatNumber(settlementBefore.unconfirmedObjectCount.mean)} | ` +
     `${stake.lifecycle.counts.banked}/${stake.lifecycle.counts.salvaged}/${stake.lifecycle.counts.lost} | ` +
     `${payment.portal.useEvents}`;
 }

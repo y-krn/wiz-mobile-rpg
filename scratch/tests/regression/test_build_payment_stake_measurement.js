@@ -52,7 +52,7 @@ const payment = {
       pending_reward_resolution: stakePoint(n),
       push_decision: stakePoint(n),
       portal_decision: stakePoint(n),
-      wing_salvage_before: stakePoint(n),
+      wing_salvage_before: stakePoint(0),
       terminal_settlement_before: stakePoint(n),
       terminal_settlement_after: stakePoint(n)
     },
