@@ -23,6 +23,7 @@ import {
 } from "three";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { getVisibleCorridorTopology } from "./rules/renderer_topology.js";
+import { isMiniMapAnimating, renderMiniMapOverlay } from "./minimap.js";
 
 const VIEW_W = 400;
 const VIEW_H = 260;
@@ -241,7 +242,7 @@ export class ThreeDungeonRenderer {
   isAnimating(input = null) {
     const renderInput = this.resolveRenderInput(input);
     return this.shakeTime > 0 || this.flashTime > 0 || this.damageTexts.length > 0 ||
-      renderInput.visual.environment.animated;
+      renderInput.visual.environment.animated || isMiniMapAnimating(renderInput);
   }
 
   getCombatTargetAtClientPoint(clientX, clientY, input = null) {
@@ -279,6 +280,7 @@ export class ThreeDungeonRenderer {
     this.camera.lookAt(0, 1.25, -2.5);
     this.flashLight.intensity = this.flashTime > 0 ? 1.4 : 0;
     this.webgl.render(this.scene, this.camera);
+    renderMiniMapOverlay(renderInput);
   }
 
   buildScene(input) {

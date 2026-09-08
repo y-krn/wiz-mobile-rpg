@@ -61,6 +61,91 @@ test('Three.js Dungeon View keeps the four shell regions and renders at mobile w
   }
 });
 
+test('Canvas and Three.js share the same exploration mini-map overlay contract @e2e', async ({ page }) => {
+  const measure = async (url) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(url);
+    await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', url.includes('renderer=three') ? 'three' : 'canvas');
+    return page.evaluate(async () => {
+      const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      const makeCell = () => ({
+        walls: [true, false, true, false],
+        blockEnter: [false, false, false, false],
+        type: 'empty',
+        event: null,
+      });
+      const map = Array.from({ length: 9 }, () => Array.from({ length: 9 }, makeCell));
+      state.party = [createStartingKitCharacter('vanguard')];
+      state.currentRun = createDefaultCurrentRun();
+      state.floor = 1;
+      state.x = 4;
+      state.y = 4;
+      state.dir = 1;
+      state.maps[0] = map;
+      state.visitedMaps[0] = map.map((row) => row.map(() => true));
+      state.mapRevision = (state.mapRevision || 0) + 1;
+      state.roamingMonsters = [];
+      state.lightTurns = 0;
+      state.lightPower = '';
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: '検証敵', level: 1, hp: 10, maxHp: 10, color: '#ff3b30' }],
+      };
+      state.chestState = null;
+      state.transitioning = false;
+      const overlay = document.querySelector('#dungeon-minimap-overlay');
+      const checksum = () => Array.from(overlay.getContext('2d').getImageData(0, 0, overlay.width, overlay.height).data)
+        .reduce((sum, value) => sum + value, 0);
+      const draw = () => {
+        dungeonRenderer.draw();
+        return {
+          visible: overlay.dataset.minimapVisible === 'true',
+          checksum: checksum(),
+        };
+      };
+
+      state.gameState = 'explore';
+      menuContext.type = '';
+      menuContext.prevGameState = null;
+      const explore = draw();
+
+      state.gameState = 'combat';
+      const combat = draw();
+
+      state.gameState = 'chest';
+      state.chestState = { trap: 'none' };
+      const chest = draw();
+
+      state.gameState = 'trap_encounter';
+      state.chestState = null;
+      const event = draw();
+
+      state.gameState = 'submenu';
+      menuContext.type = 'item_inventory';
+      const item = draw();
+
+      return {
+        explore,
+        hidden: [combat, chest, event, item],
+        pointerEvents: getComputedStyle(overlay).pointerEvents,
+      };
+    });
+  };
+
+  const canvas = await measure('/');
+  const three = await measure('/?renderer=three');
+  expect(canvas.explore.visible).toBe(true);
+  expect(three.explore.visible).toBe(true);
+  expect(canvas.explore.checksum).toBeGreaterThan(0);
+  expect(three.explore.checksum).toBe(canvas.explore.checksum);
+  expect(canvas.hidden.every(({ visible, checksum }) => !visible && checksum === 0)).toBe(true);
+  expect(three.hidden.every(({ visible, checksum }) => !visible && checksum === 0)).toBe(true);
+  expect(canvas.pointerEvents).toBe('none');
+  expect(three.pointerEvents).toBe('none');
+});
+
 test('Three.js Dungeon View survives orientation resize without overflow @smoke @e2e', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?renderer=three');
