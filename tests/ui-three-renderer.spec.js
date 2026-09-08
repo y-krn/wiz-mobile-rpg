@@ -144,6 +144,48 @@ test('Three.js Dungeon View directly selects an enemy and retains an accessible 
   await expect(page.locator('#combat-overlay')).toBeHidden();
 });
 
+test('Three.js Dungeon View disposes prototype materials across repeated scene rebuilds @e2e', async ({ page }) => {
+  await page.goto('/?renderer=three');
+  await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+
+  const disposeCount = await page.evaluate(async () => {
+    const { MeshStandardMaterial, ThreeDungeonRenderer } = await import('/src/three_renderer.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const canvas = document.createElement('canvas');
+    canvas.id = 'material-lifecycle-probe';
+    document.body.append(canvas);
+    const renderer = new ThreeDungeonRenderer(canvas.id);
+    const baseInput = dungeonRenderer.getRenderInput();
+    const townInput = {
+      ...baseInput,
+      sceneVisibility: {
+        showTownBackground: true,
+        showCombat: false,
+        showChest: false,
+        showEventScene: false,
+        showItemMenu: false,
+      },
+    };
+    const originalDispose = MeshStandardMaterial.prototype.dispose;
+    let disposeCalls = 0;
+    MeshStandardMaterial.prototype.dispose = function disposeSpy() {
+      disposeCalls += 1;
+      return originalDispose.call(this);
+    };
+    try {
+      renderer.buildScene(townInput);
+      renderer.buildScene(townInput);
+    } finally {
+      MeshStandardMaterial.prototype.dispose = originalDispose;
+    }
+    return disposeCalls;
+  });
+
+  // Each town build creates two prototype StandardMaterials without adding
+  // them to the scene, so both builds must dispose four prototypes explicitly.
+  expect(disposeCount).toBe(4);
+});
+
 test('Three.js Dungeon View follows map topology for all four directions @e2e @visual', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?renderer=three');

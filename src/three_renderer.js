@@ -314,7 +314,18 @@ export class ThreeDungeonRenderer {
       side: DoubleSide
     });
     if (!input.sceneVisibility.showTownBackground) {
-      this.addCorridorTopology(topology, floorMaterial, wallMaterial, wall);
+      try {
+        this.addCorridorTopology(topology, floorMaterial, wallMaterial, wall);
+      } finally {
+        // Corridor meshes own clones of these prototype materials. The
+        // prototypes themselves are never attached to the scene graph.
+        floorMaterial.dispose();
+        wallMaterial.dispose();
+      }
+    } else {
+      // Town/result scenes do not use corridor materials at all.
+      floorMaterial.dispose();
+      wallMaterial.dispose();
     }
 
     const lightTurns = finite(input.lightTurns, 0);
@@ -509,3 +520,8 @@ export class ThreeDungeonRenderer {
     this.root.add(marker);
   }
 }
+
+// Re-export the material class so browser lifecycle tests can spy on the same
+// module instance used by this renderer (Vite otherwise creates a second
+// native module instance for a direct /node_modules import).
+export { MeshStandardMaterial };
