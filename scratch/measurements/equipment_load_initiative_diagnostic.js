@@ -34,6 +34,12 @@ export const LOADOUTS = Object.freeze([
   Object.freeze({ id: "standard", label: "標準", weapon: "SHORT_SWORD", shield: "SMALL_SHIELD", armor: "LEATHER_ARMOR", loadModifier: 0 }),
   Object.freeze({ id: "heavy", label: "重装", weapon: "MACE", shield: "KNIGHT_SHIELD", armor: "PLATE_MAIL", loadModifier: -3 })
 ]);
+export const CONTROL_LOADOUTS = Object.freeze([
+  Object.freeze({ id: "light-fixed-defense", label: "軽負荷（防御固定）", weapon: "SHORT_SWORD", shield: "SMALL_SHIELD", armor: "LEATHER_ARMOR", loadModifier: 3, controlledDefense: true }),
+  Object.freeze({ id: "standard-fixed-defense", label: "標準負荷（防御固定）", weapon: "SHORT_SWORD", shield: "SMALL_SHIELD", armor: "LEATHER_ARMOR", loadModifier: 0, controlledDefense: true }),
+  Object.freeze({ id: "heavy-fixed-defense", label: "重負荷（防御固定）", weapon: "SHORT_SWORD", shield: "SMALL_SHIELD", armor: "LEATHER_ARMOR", loadModifier: -3, controlledDefense: true })
+]);
+export const ALL_LOADOUTS = Object.freeze([...LOADOUTS, ...CONTROL_LOADOUTS]);
 
 // These are the six representative two-enemy pairs from #1151. The single
 // and three-enemy cases reuse the same production monster identities.
@@ -97,6 +103,10 @@ function withSeed(seed, callback) {
   const originalRandom = Math.random;
   Math.random = createRng(seed);
   try { return callback(); } finally { Math.random = originalRandom; }
+}
+
+export function buildCaseSeed(seed, compositionId, runIndex) {
+  return `issue-1161:${seed}:${compositionId}:${runIndex}`;
 }
 
 function wilson(successes, trials) {
@@ -245,10 +255,10 @@ export function runEquipmentLoadDiagnostic({ runs = DEFAULT_RUNS, seed = DEFAULT
   const normalizedRuns = positiveInteger(runs, "runs", allowSmallRunCount ? 1 : DEFAULT_RUNS);
   const normalizedSeed = positiveInteger(seed, "seed");
   const cases = [];
-  for (const model of MODEL_IDS) for (const loadout of LOADOUTS) for (const firstStrike of FIRST_STRIKE_PROFILES) for (const composition of COMPOSITIONS) for (const policy of ACTION_POLICIES) {
+  for (const model of MODEL_IDS) for (const loadout of ALL_LOADOUTS) for (const firstStrike of FIRST_STRIKE_PROFILES) for (const composition of COMPOSITIONS) for (const policy of ACTION_POLICIES) {
     const accumulator = createAccumulator({ model, loadoutId: loadout.id, firstStrikeProfileId: firstStrike.id, firstStrikeValue: firstStrike.value, compositionId: composition.id, enemyCount: composition.enemyCount, risk: composition.risk, policy });
     for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
-      const caseSeed = `issue-1161:${normalizedSeed}:${model}:${loadout.id}:${firstStrike.id}:${composition.id}:${policy}:${runIndex}`;
+      const caseSeed = buildCaseSeed(normalizedSeed, composition.id, runIndex);
       const trial = withSeed(caseSeed, () => resolveTrial({ loadout, firstStrike, composition, model, policy, seed: caseSeed }));
       observe(accumulator, trial);
     }
@@ -260,9 +270,9 @@ export function runEquipmentLoadDiagnostic({ runs = DEFAULT_RUNS, seed = DEFAULT
     evidenceScope: "run",
     configuration: {
       floor: 1, runs: normalizedRuns, seed: normalizedSeed,
-      seedPolicy: "independent deterministic stream per matched model/loadout/firstStrike/composition/policy case",
+      seedPolicy: "matched deterministic stream per composition/runIndex; shared across model/loadout/firstStrike/policy",
       models: [...MODEL_IDS],
-      loadouts: LOADOUTS.map(loadout => {
+      loadouts: ALL_LOADOUTS.map(loadout => {
         const character = createCharacter(loadout, FIRST_STRIKE_PROFILES[0]);
         const shield = getItemData(loadout.shield);
         return {

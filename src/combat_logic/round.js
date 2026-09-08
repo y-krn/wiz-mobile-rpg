@@ -579,8 +579,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (char.status !== "ok" && char.status !== "poisoned" && char.status !== "blind") return; // Died/slept earlier in the round
       
       const act = turn.action;
-      actionObservation.executed = true;
-      actionObservation.hpBeforeExecution = char.hp;
       
       if (act.type === "fight") {
         const target = monsters[act.targetIdx];
@@ -592,6 +590,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
 
         actionObservation.executed = true;
+        actionObservation.hpBeforeExecution = char.hp;
 
         let finalTarget = monsters[act.targetIdx];
         const guard = findAdjacentGuard(monsters, act.targetIdx);
@@ -871,9 +870,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
       } else if (act.type === "defend") {
         actionObservation.executed = true;
+        actionObservation.hpBeforeExecution = char.hp;
         logQueue.push({ msg: `[味方] ${char.name}は身を固めて防御している。` });
       } else if (act.type === "run") {
         actionObservation.executed = true;
+        actionObservation.hpBeforeExecution = char.hp;
         recordQueuedPatternResponse(state, monsters, "fleeBeforePayoff");
         applyFleePartingAttack(state, monsters, logQueue);
         const retreated = applyFleeRetreat(state);
