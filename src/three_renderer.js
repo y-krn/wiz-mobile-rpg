@@ -32,12 +32,22 @@ const CORRIDOR_CELL_WIDTH = 1.8;
 const CORRIDOR_CELL_DEPTH = 2.1;
 const CORRIDOR_WALL_HEIGHT = 3.6;
 const CORRIDOR_START_Z = 1.15;
+// The player stands inside the current cell, looking through its front
+// threshold. Keeping the eye point inside the cell makes its side walls read
+// as corridor boundaries instead of freestanding panels behind the player.
+const CORRIDOR_CAMERA = Object.freeze({
+  fov: 78,
+  eyeHeight: 1.55,
+  eyeZ: CORRIDOR_START_Z + 0.4,
+  lookAtHeight: 1.5,
+  lookAtZ: -2.6
+});
 // Combat and danger overlays live in front of the current cell's front wall
 // (frontZ = CORRIDOR_START_Z - CORRIDOR_CELL_DEPTH / 2 = 0.1). Keeping these
 // layers camera-side makes them visible and raycastable in closed rooms.
 const COMBAT_MONSTER_Z = 0.72;
-const DANGER_CUE_Z = 0.95;
-const DANGER_RING_Z = 0.88;
+const DANGER_CUE_Z = 0.45;
+const DANGER_RING_Z = 0.38;
 
 function finite(value, fallback) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -146,9 +156,9 @@ export class ThreeDungeonRenderer {
       this.webgl.setSize(VIEW_W, VIEW_H, false);
       this.webgl.outputColorSpace = "srgb";
       this.scene = new Scene();
-      this.camera = new PerspectiveCamera(54, VIEW_W / VIEW_H, 0.1, 40);
-      this.camera.position.set(0, 1.55, 5.8);
-      this.camera.lookAt(0, 1.25, -2.5);
+      this.camera = new PerspectiveCamera(CORRIDOR_CAMERA.fov, VIEW_W / VIEW_H, 0.05, 40);
+      this.camera.position.set(0, CORRIDOR_CAMERA.eyeHeight, CORRIDOR_CAMERA.eyeZ);
+      this.camera.lookAt(0, CORRIDOR_CAMERA.lookAtHeight, CORRIDOR_CAMERA.lookAtZ);
       this.root = new Group();
       this.scene.add(this.root);
       this.raycaster = new Raycaster();
@@ -222,7 +232,11 @@ export class ThreeDungeonRenderer {
       cell.leftBlocked,
       cell.rightBlocked,
       cell.frontBlocked,
-      cell.frontOneWayBarrier
+      cell.frontOneWayBarrier,
+      cell.backBlocked,
+      cell.leftOneWayBarrier,
+      cell.rightOneWayBarrier,
+      cell.backOneWayBarrier
     ]);
     return JSON.stringify({
       gameState: view.gameState,
@@ -276,8 +290,9 @@ export class ThreeDungeonRenderer {
     const shakeX = this.shakeTime > 0 ? (Math.random() - 0.5) * this.shakeIntensity * 0.012 : 0;
     const shakeY = this.shakeTime > 0 ? (Math.random() - 0.5) * this.shakeIntensity * 0.008 : 0;
     this.camera.position.x = shakeX;
-    this.camera.position.y = 1.55 + shakeY;
-    this.camera.lookAt(0, 1.25, -2.5);
+    this.camera.position.y = CORRIDOR_CAMERA.eyeHeight + shakeY;
+    this.camera.position.z = CORRIDOR_CAMERA.eyeZ;
+    this.camera.lookAt(0, CORRIDOR_CAMERA.lookAtHeight, CORRIDOR_CAMERA.lookAtZ);
     this.flashLight.intensity = this.flashTime > 0 ? 1.4 : 0;
     this.webgl.render(this.scene, this.camera);
     renderMiniMapOverlay(renderInput);
@@ -353,44 +368,82 @@ export class ThreeDungeonRenderer {
 
       const centerX = cell.column * CORRIDOR_CELL_WIDTH;
       const centerZ = CORRIDOR_START_Z - cell.z * CORRIDOR_CELL_DEPTH;
-      const frontZ = centerZ - CORRIDOR_CELL_DEPTH / 2;
+      const sideBranch = cell.column < 0 ? "left" : cell.column > 0 ? "right" : "forward";
+      const rotationY = sideBranch === "left" ? Math.PI / 2 : sideBranch === "right" ? -Math.PI / 2 : 0;
+      const toWorld = (localX, localZ) => ({
+        x: centerX + Math.cos(rotationY) * localX + Math.sin(rotationY) * localZ,
+        z: centerZ - Math.sin(rotationY) * localX + Math.cos(rotationY) * localZ,
+      });
+      const frame = sideBranch === "left"
+        ? {
+          leftBlocked: cell.backBlocked,
+          rightBlocked: cell.frontBlocked,
+          frontBlocked: cell.leftBlocked,
+          frontOneWayBarrier: cell.leftOneWayBarrier,
+        }
+        : sideBranch === "right"
+          ? {
+            leftBlocked: cell.frontBlocked,
+            rightBlocked: cell.backBlocked,
+            frontBlocked: cell.rightBlocked,
+            frontOneWayBarrier: cell.rightOneWayBarrier,
+          }
+          : {
+            leftBlocked: cell.leftBlocked,
+            rightBlocked: cell.rightBlocked,
+            frontBlocked: cell.frontBlocked,
+            frontOneWayBarrier: cell.frontOneWayBarrier,
+          };
+      const front = toWorld(0, -CORRIDOR_CELL_DEPTH / 2);
       if (!cell.valid) {
         this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
-          x: centerX,
+          x: front.x,
           y: CORRIDOR_WALL_HEIGHT / 2,
-          z: frontZ
-        }, "front-wall-invalid", cell);
+          z: front.z
+        }, "front-wall-invalid", cell, rotationY);
         return;
       }
 
       const floor = new Mesh(new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_CELL_DEPTH), floorMaterial.clone());
-      floor.rotation.x = -Math.PI / 2;
+      floor.rotation.set(-Math.PI / 2, rotationY, 0);
       floor.position.set(centerX, 0, centerZ);
       floor.userData = { surface: "floor", topology: cellGroup.userData.topology };
       cellGroup.add(floor);
 
       const ceiling = new Mesh(new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_CELL_DEPTH), floorMaterial.clone());
-      ceiling.rotation.x = Math.PI / 2;
+      ceiling.rotation.set(Math.PI / 2, rotationY, 0);
       ceiling.position.set(centerX, CORRIDOR_WALL_HEIGHT, centerZ);
       ceiling.userData = { surface: "ceiling", topology: cellGroup.userData.topology };
       cellGroup.add(ceiling);
 
-      if (cell.leftBlocked) {
-        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
-          x: centerX - CORRIDOR_CELL_WIDTH / 2,
-          y: CORRIDOR_WALL_HEIGHT / 2,
-          z: centerZ
-        }, "left-wall", cell, Math.PI / 2);
+      // Side openings need a visible threshold in a first-person view. The
+      // neighboring branch floor is physically rotated into place below, but
+      // its far wall can otherwise blend into the fog at the edge of the
+      // camera. A recessed dark mouth plus a thin luminous frame makes the
+      // opening read as a turn without adding a gameplay-only icon.
+      if (cell.z === 0 && cell.column === 0) {
+        if (!frame.leftBlocked) this.addSideBranchMouth(cellGroup, -1, wall, cell);
+        if (!frame.rightBlocked) this.addSideBranchMouth(cellGroup, 1, wall, cell);
       }
-      if (cell.rightBlocked) {
+
+      if (frame.leftBlocked) {
+        const left = toWorld(-CORRIDOR_CELL_WIDTH / 2, 0);
         this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
-          x: centerX + CORRIDOR_CELL_WIDTH / 2,
+          x: left.x,
           y: CORRIDOR_WALL_HEIGHT / 2,
-          z: centerZ
-        }, "right-wall", cell, -Math.PI / 2);
+          z: left.z
+        }, "left-wall", cell, rotationY + Math.PI / 2);
       }
-      if (cell.frontBlocked) {
-        const isOneWay = cell.frontOneWayBarrier;
+      if (frame.rightBlocked) {
+        const right = toWorld(CORRIDOR_CELL_WIDTH / 2, 0);
+        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
+          x: right.x,
+          y: CORRIDOR_WALL_HEIGHT / 2,
+          z: right.z
+        }, "right-wall", cell, rotationY - Math.PI / 2);
+      }
+      if (frame.frontBlocked) {
+        const isOneWay = frame.frontOneWayBarrier;
         const frontMaterial = isOneWay
           ? new MeshStandardMaterial({
             color: wall,
@@ -403,12 +456,20 @@ export class ThreeDungeonRenderer {
             depthWrite: false,
             side: DoubleSide
           })
-          : wallMaterial;
+          : wallMaterial.clone();
+        if (!isOneWay) {
+          // A closed end is a spatial fact, not another glowing side panel.
+          // Lowering the base/emissive response keeps the threshold readable
+          // even when it fills most of the near field at a dead end.
+          frontMaterial.color.multiplyScalar(0.28);
+          frontMaterial.emissive.multiplyScalar(0.35);
+          frontMaterial.emissiveIntensity = 0.08;
+        }
         this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_WALL_HEIGHT), frontMaterial, {
-          x: centerX,
+          x: front.x,
           y: CORRIDOR_WALL_HEIGHT / 2,
-          z: frontZ
-        }, isOneWay ? "front-wall-one-way" : "front-wall", cell, 0, !isOneWay);
+          z: front.z
+        }, isOneWay ? "front-wall-one-way" : "front-wall", cell, rotationY, false);
         if (isOneWay) {
           const chevron = new Mesh(
             new PlaneGeometry(CORRIDOR_CELL_WIDTH * 0.82, CORRIDOR_WALL_HEIGHT * 0.82),
@@ -419,7 +480,9 @@ export class ThreeDungeonRenderer {
               side: DoubleSide
             })
           );
-          chevron.position.set(centerX, CORRIDOR_WALL_HEIGHT / 2, frontZ + 0.018);
+          const chevronPosition = toWorld(0, -CORRIDOR_CELL_DEPTH / 2 + 0.018);
+          chevron.position.set(chevronPosition.x, CORRIDOR_WALL_HEIGHT / 2, chevronPosition.z);
+          chevron.rotation.y = rotationY;
           chevron.userData = {
             surface: "front-wall-one-way-chevron",
             topology: cellGroup.userData.topology
@@ -436,6 +499,38 @@ export class ThreeDungeonRenderer {
     wall.rotation.y = rotationY;
     wall.userData = { surface, topology: { z: topology.z, column: topology.column, x: topology.x, y: topology.y } };
     parent.add(wall);
+  }
+
+  addSideBranchMouth(parent, side, wall, topology) {
+    const rotationY = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+    const x = side * (CORRIDOR_CELL_WIDTH / 2 + 0.04);
+    const z = 0.15;
+    const mouthMaterial = new MeshBasicMaterial({
+      color: 0x02080b,
+      side: DoubleSide
+    });
+    const mouth = new Mesh(new PlaneGeometry(1.8, 3.2), mouthMaterial);
+    mouth.position.set(x, CORRIDOR_WALL_HEIGHT / 2, z);
+    mouth.rotation.y = rotationY;
+    mouth.userData = { surface: "side-branch-mouth", topology: { z: topology.z, column: topology.column } };
+    parent.add(mouth);
+
+    const frameMaterial = new MeshBasicMaterial({
+      color: wall,
+      transparent: true,
+      opacity: 0.88,
+      side: DoubleSide
+    });
+    const addFrame = (width, height, frameX, frameZ, surface) => {
+      const frame = new Mesh(new PlaneGeometry(width, height), frameMaterial.clone());
+      frame.position.set(frameX, frameZ === z ? CORRIDOR_WALL_HEIGHT - 0.45 : CORRIDOR_WALL_HEIGHT / 2, frameZ);
+      frame.rotation.y = rotationY;
+      frame.userData = { surface, topology: { z: topology.z, column: topology.column } };
+      parent.add(frame);
+    };
+    addFrame(0.06, 3.2, x, z - 0.9, "side-branch-mouth-frame");
+    addFrame(0.06, 3.2, x, z + 0.9, "side-branch-mouth-frame");
+    addFrame(1.86, 0.06, x, z, "side-branch-mouth-frame-top");
   }
 
   addDangerCue(wall) {
@@ -460,7 +555,7 @@ export class ThreeDungeonRenderer {
 
   addCombatMonsters(input, wall) {
     const monsters = getLivingMonsters(input);
-    const spacing = monsters.length === 1 ? 0 : Math.min(2.15, 5.5 / monsters.length);
+    const spacing = monsters.length === 1 ? 0 : Math.min(1.35, 5.5 / monsters.length);
     const start = -((monsters.length - 1) * spacing) / 2;
     monsters.forEach((monster, index) => {
       const color = hexColor(monster.color, wall.getHexString());

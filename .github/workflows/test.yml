@@ -87,6 +87,17 @@ jobs:
         if: steps.changes.outputs.browser == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
       - run: npm run test:browser
         if: steps.changes.outputs.browser == 'true'
+      - name: Upload browser artifacts
+        if: always() && steps.changes.outputs.browser == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-browser-artifacts
+          path: |
+            test-results/
+            playwright-report/
+            output/playwright/
+          if-no-files-found: ignore
+          retention-days: 7
 
   browser-parallel:
     runs-on: ubuntu-latest
@@ -136,7 +147,7 @@ jobs:
         run: npm run test:browser:parallel
         if: steps.changes.outputs.browser == 'true'
       - name: Upload parallel browser artifacts
-        if: failure() && steps.changes.outputs.browser == 'true'
+        if: always() && steps.changes.outputs.browser == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-parallel-artifacts
