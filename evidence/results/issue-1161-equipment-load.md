@@ -23,7 +23,7 @@ matched seed と防御固定対照を追加し、Issue本文の判定を確定�
 
 - scope: `run`
 - runner: `scratch/measurements/equipment_load_initiative_diagnostic.js`
-- runner version: `issue1161-equipment-load-v1`
+- runner version: `issue1161-equipment-load-v2`
 - seed: `1161`、`composition + runIndex` を共通キーとする matched deterministic RNG stream
 - 1セル500試行、1,080セル、合計540,000試行
 - 編成: single 2種、#1151 の6つの固定2体編成、triple 2種
@@ -80,12 +80,12 @@ FirstStrikeとの相互作用も、防御固定対照で単調な常時先手に
 
 ## provenance
 
-- source commit: `21d672d3cee8323a72a380546c991412dbd06edb`
+- source commit: `533360d2d69839527ed9fdad95f90095fde6dc56`
 - gameplay source commit: `39da547bd38e0053b2f0c7988b3541384e9fa7cc`
 - `origin/main` ancestor: `true`
 - 測定開始時 working tree: clean
-- environment hash: `2ed45d8f5518ad0e`
-- measurement runner diff SHA-256: `6438561d941e40ecc456b23b42f94993917967f06a008daf75b263a6fa70fad9`
+- environment hash: `4e4c19c265c0f7b5`
+- measurement runner diff SHA-256: `8f167b04a1bf5a3f54afd6f68516aef30810b0199d2519dff886e2accd4c0f61`
 
 再実行:
 
