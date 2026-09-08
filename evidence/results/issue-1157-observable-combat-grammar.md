@@ -111,12 +111,16 @@ Production turn order rolls player speed in `0..9` and ordinary monster speed
 in `10..19`; turns are sorted descending:
 [`round.js`](../../src/combat_logic/round.js#L452).
 
-The fixed diagnostic rerun (`N=1000`, all six pairs, both policies) measured:
+The fixed diagnostic rerun uses `N=1000` per pair × HP band × policy. Thus each
+HP band contains `12,000` first-action cases in total (6 pairs × 2 policies ×
+1000), or `6,000` per policy. The measured timing was:
 
-- HP100/75/50: `0/6000` first actions before any enemy action; all `6000`
-  were `after-enemy-action`.
-- HP25: still `0` player-before-enemy actions; some cases were
-  `not-executed-before-end` because the party died first.
+- HP100/75/50: total `0/12000` first actions before any enemy action and
+  `12000/12000` after an enemy action; each policy was `0/6000` and `6000/6000`,
+  respectively.
+- HP25: total `0/12000` player-before-enemy, `8850/12000` after-enemy-action,
+  and `3150/12000` not-executed-before-end; each policy was `0/6000`,
+  `4425/6000`, and `1575/6000`, respectively.
 - Immediate flee is selectable as a player action, but it can be preempted by
   that first enemy action at critical HP.
 
