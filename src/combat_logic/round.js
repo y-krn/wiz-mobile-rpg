@@ -403,6 +403,26 @@ function applyFleeRetreat(state) {
   return true;
 }
 
+function rollCombatTurnSpeed(state, actorType, character = null) {
+  const measurement = state.simPolicy?.measurementInitiative;
+  if (!measurement) {
+    return actorType === "char"
+      ? Math.floor(Math.random() * 10) + getBuffTotal(character, "firstStrike") + getCharAffixSum(character, "firstStrike")
+      : 10 + Math.floor(Math.random() * 10);
+  }
+
+  const rollSize = Number.isInteger(measurement.rollSize) && measurement.rollSize > 0
+    ? measurement.rollSize
+    : 20;
+  const roll = Math.floor(Math.random() * rollSize);
+  if (actorType === "char") {
+    return roll + (Number(measurement.playerLoadModifier) || 0) +
+      (Number(measurement.playerFirstStrikeModifier) || 0) +
+      getBuffTotal(character, "firstStrike") + getCharAffixSum(character, "firstStrike");
+  }
+  return roll + (Number(measurement.enemySpeedModifier) || 0);
+}
+
 
 export function runCombatRoundCalculation(originalState, combatSelection) {
   const logQueue = [];
@@ -456,7 +476,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   state.party.forEach((char, idx) => {
     if (char.status !== "dead") {
       const chosen = combatSelection.actions.find(a => a.actorIdx === idx);
-      const speed = Math.floor(Math.random() * 10) + getBuffTotal(char, "firstStrike") + getCharAffixSum(char, "firstStrike");
+      const speed = rollCombatTurnSpeed(state, "char", char);
       turns.push({
         type: "char",
         char,
@@ -470,7 +490,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   // Monsters
   monsters.forEach((mon, idx) => {
     if (mon.hp > 0) {
-      const speed = 10 + Math.floor(Math.random() * 10); // Standard speed roll
+      const speed = rollCombatTurnSpeed(state, "monster");
       turns.push({
         type: "monster",
         mon,
@@ -538,6 +558,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       order: index,
       executed: false
     };
+    Object.defineProperty(actionObservation, "hpBeforeExecution", {
+      value: null,
+      writable: true,
+      enumerable: false
+    });
     try {
       if (escaped) return;
     const livingNow = state.party.filter(char => char.status !== "dead");
@@ -565,6 +590,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
 
         actionObservation.executed = true;
+        actionObservation.hpBeforeExecution = char.hp;
 
         let finalTarget = monsters[act.targetIdx];
         const guard = findAdjacentGuard(monsters, act.targetIdx);
@@ -844,9 +870,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
       } else if (act.type === "defend") {
         actionObservation.executed = true;
+        actionObservation.hpBeforeExecution = char.hp;
         logQueue.push({ msg: `[味方] ${char.name}は身を固めて防御している。` });
       } else if (act.type === "run") {
         actionObservation.executed = true;
+        actionObservation.hpBeforeExecution = char.hp;
         recordQueuedPatternResponse(state, monsters, "fleeBeforePayoff");
         applyFleePartingAttack(state, monsters, logQueue);
         const retreated = applyFleeRetreat(state);
