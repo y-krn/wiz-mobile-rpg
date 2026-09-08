@@ -60,9 +60,9 @@ production baseline は既存の `player floor(random*10)+firstStrike`、`enemy 
 
 | profile | 先手 | clear | death | damage p50 | enemy actions p50 |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| light（production gear） | 0.0% | 0.0% | 100.0% | 20 | 8 |
-| standard（production gear） | 0.0% | 7.8% | 92.2% | 20 | 9 |
-| heavy（production gear） | 0.0% | 99.0% | 1.0% | 12 | 13 |
+| light（production gear） | 48.2% | 0.0% | 100.0% | 20 | 8 |
+| standard（production gear） | 33.8% | 18.8% | 81.2% | 20 | 8 |
+| heavy（production gear） | 20.4% | 99.2% | 0.8% | 12 | 12 |
 | light-fixed-defense | 48.2% | 24.6% | 75.4% | 20 | 8 |
 | standard-fixed-defense | 33.8% | 18.8% | 81.2% | 20 | 8 |
 | heavy-fixed-defense | 20.4% | 16.2% | 83.8% | 20 | 8 |
