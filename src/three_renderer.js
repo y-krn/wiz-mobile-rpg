@@ -1,10 +1,10 @@
 // balance-impact: none — optional Dungeon View presentation only; no game rules or state mutation.
 import {
   AmbientLight,
-  BoxGeometry,
   CanvasTexture,
   Color,
   DirectionalLight,
+  DoubleSide,
   Fog,
   Group,
   Mesh,
@@ -22,10 +22,21 @@ import {
   WebGLRenderer
 } from "three";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
+import { getVisibleCorridorTopology } from "./rules/renderer_topology.js";
 
 const VIEW_W = 400;
 const VIEW_H = 260;
 const TARGET_HIT_RADIUS = 0.88;
+const CORRIDOR_CELL_WIDTH = 1.8;
+const CORRIDOR_CELL_DEPTH = 2.1;
+const CORRIDOR_WALL_HEIGHT = 3.6;
+const CORRIDOR_START_Z = 1.15;
+// Combat and danger overlays live in front of the current cell's front wall
+// (frontZ = CORRIDOR_START_Z - CORRIDOR_CELL_DEPTH / 2 = 0.1). Keeping these
+// layers camera-side makes them visible and raycastable in closed rooms.
+const COMBAT_MONSTER_Z = 0.72;
+const DANGER_CUE_Z = 0.95;
+const DANGER_RING_Z = 0.88;
 
 function finite(value, fallback) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -77,6 +88,32 @@ function makeLabelTexture(text, color) {
   context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
   context.fillStyle = "#f5f1e8";
   context.fillText(text.slice(0, 16), canvas.width / 2, 31);
+  return new CanvasTexture(canvas);
+}
+
+function makeOneWayTexture(color) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 160;
+  canvas.height = 160;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.strokeStyle = `#${color.getHexString()}`;
+  context.globalAlpha = 0.92;
+  context.lineWidth = 10;
+  context.lineCap = "square";
+  for (let y = 18; y < canvas.height; y += 42) {
+    context.beginPath();
+    context.moveTo(26, y - 12);
+    context.lineTo(48, y);
+    context.lineTo(26, y + 12);
+    context.moveTo(72, y - 12);
+    context.lineTo(94, y);
+    context.lineTo(72, y + 12);
+    context.moveTo(118, y - 12);
+    context.lineTo(140, y);
+    context.lineTo(118, y + 12);
+    context.stroke();
+  }
   return new CanvasTexture(canvas);
 }
 
@@ -167,15 +204,32 @@ export class ThreeDungeonRenderer {
     return this.resolveRenderInput(input).sceneVisibility;
   }
 
+  getSceneTopology(input = null) {
+    const renderInput = this.resolveRenderInput(input);
+    return getVisibleCorridorTopology(renderInput.map, renderInput.x, renderInput.y, renderInput.dir);
+  }
+
   getDrawSignature(input = null) {
     const renderInput = this.resolveRenderInput(input);
     const { view, sceneVisibility } = renderInput;
+    const corridorTopology = this.getSceneTopology(renderInput).map((cell) => [
+      cell.z,
+      cell.column,
+      cell.x,
+      cell.y,
+      cell.valid,
+      cell.leftBlocked,
+      cell.rightBlocked,
+      cell.frontBlocked,
+      cell.frontOneWayBarrier
+    ]);
     return JSON.stringify({
       gameState: view.gameState,
       menuType: view.menuType,
       floor: renderInput.floor,
       position: [renderInput.x, renderInput.y, renderInput.dir],
       mapRevision: renderInput.mapRevision,
+      corridorTopology,
       sceneVisibility,
       light: [renderInput.lightTurns, renderInput.lightPower],
       danger: renderInput.dangerCue?.active === true,
@@ -237,6 +291,7 @@ export class ThreeDungeonRenderer {
     const visual = input.visual;
     const background = hexColor(visual.background);
     const wall = hexColor(visual.wallColor, "#58d6e8");
+    const topology = this.getSceneTopology(input);
     this.scene.background = background;
     this.scene.fog = new Fog(background, 3.2, 12.5);
     this.webgl.setClearColor(background, 1);
@@ -249,38 +304,29 @@ export class ThreeDungeonRenderer {
     this.flashLight.position.set(0, 1.4, 2);
     this.root.add(this.flashLight);
 
-    const floorMaterial = new MeshStandardMaterial({ color: background, roughness: 0.92, metalness: 0.18 });
+    const floorMaterial = new MeshStandardMaterial({ color: background, roughness: 0.92, metalness: 0.18, side: DoubleSide });
     const wallMaterial = new MeshStandardMaterial({
       color: background,
       roughness: 0.72,
       metalness: 0.34,
       emissive: wall,
-      emissiveIntensity: 0.12
+      emissiveIntensity: 0.12,
+      side: DoubleSide
     });
-    const floor = new Mesh(new PlaneGeometry(9, 16), floorMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, 0, -2.3);
-    this.root.add(floor);
-    const ceiling = new Mesh(new PlaneGeometry(9, 16), floorMaterial.clone());
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.set(0, 4.2, -2.3);
-    this.root.add(ceiling);
-    [-3.35, 3.35].forEach((x) => {
-      const sideWall = new Mesh(new PlaneGeometry(16, 4.2), wallMaterial.clone());
-      sideWall.rotation.y = x < 0 ? Math.PI / 2 : -Math.PI / 2;
-      sideWall.position.set(x, 2.1, -2.3);
-      this.root.add(sideWall);
-    });
-    const grid = new Group();
-    for (let index = -4; index <= 4; index += 1) {
-      const line = new Mesh(
-        new BoxGeometry(0.012, 0.012, 16),
-        new MeshBasicMaterial({ color: wall, transparent: true, opacity: 0.22 })
-      );
-      line.position.set(index * 0.72, 0.015, -2.3);
-      grid.add(line);
+    if (!input.sceneVisibility.showTownBackground) {
+      try {
+        this.addCorridorTopology(topology, floorMaterial, wallMaterial, wall);
+      } finally {
+        // Corridor meshes own clones of these prototype materials. The
+        // prototypes themselves are never attached to the scene graph.
+        floorMaterial.dispose();
+        wallMaterial.dispose();
+      }
+    } else {
+      // Town/result scenes do not use corridor materials at all.
+      floorMaterial.dispose();
+      wallMaterial.dispose();
     }
-    this.root.add(grid);
 
     const lightTurns = finite(input.lightTurns, 0);
     if (lightTurns > 0 || input.lightPower > 0) {
@@ -294,20 +340,119 @@ export class ThreeDungeonRenderer {
     if (input.sceneVisibility.showTownBackground) this.addTownMarker(wall);
   }
 
+  addCorridorTopology(topology, floorMaterial, wallMaterial, wall = wallMaterial.emissive) {
+    topology.forEach((cell) => {
+      const cellGroup = new Group();
+      cellGroup.userData = {
+        topology: { z: cell.z, column: cell.column, x: cell.x, y: cell.y },
+        valid: cell.valid
+      };
+      this.root.add(cellGroup);
+
+      const centerX = cell.column * CORRIDOR_CELL_WIDTH;
+      const centerZ = CORRIDOR_START_Z - cell.z * CORRIDOR_CELL_DEPTH;
+      const frontZ = centerZ - CORRIDOR_CELL_DEPTH / 2;
+      if (!cell.valid) {
+        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
+          x: centerX,
+          y: CORRIDOR_WALL_HEIGHT / 2,
+          z: frontZ
+        }, "front-wall-invalid", cell);
+        return;
+      }
+
+      const floor = new Mesh(new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_CELL_DEPTH), floorMaterial.clone());
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set(centerX, 0, centerZ);
+      floor.userData = { surface: "floor", topology: cellGroup.userData.topology };
+      cellGroup.add(floor);
+
+      const ceiling = new Mesh(new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_CELL_DEPTH), floorMaterial.clone());
+      ceiling.rotation.x = Math.PI / 2;
+      ceiling.position.set(centerX, CORRIDOR_WALL_HEIGHT, centerZ);
+      ceiling.userData = { surface: "ceiling", topology: cellGroup.userData.topology };
+      cellGroup.add(ceiling);
+
+      if (cell.leftBlocked) {
+        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
+          x: centerX - CORRIDOR_CELL_WIDTH / 2,
+          y: CORRIDOR_WALL_HEIGHT / 2,
+          z: centerZ
+        }, "left-wall", cell, Math.PI / 2);
+      }
+      if (cell.rightBlocked) {
+        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
+          x: centerX + CORRIDOR_CELL_WIDTH / 2,
+          y: CORRIDOR_WALL_HEIGHT / 2,
+          z: centerZ
+        }, "right-wall", cell, -Math.PI / 2);
+      }
+      if (cell.frontBlocked) {
+        const isOneWay = cell.frontOneWayBarrier;
+        const frontMaterial = isOneWay
+          ? new MeshStandardMaterial({
+            color: wall,
+            roughness: 0.48,
+            metalness: 0.22,
+            emissive: wall,
+            emissiveIntensity: 0.42,
+            transparent: true,
+            opacity: 0.42,
+            depthWrite: false,
+            side: DoubleSide
+          })
+          : wallMaterial;
+        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_WALL_HEIGHT), frontMaterial, {
+          x: centerX,
+          y: CORRIDOR_WALL_HEIGHT / 2,
+          z: frontZ
+        }, isOneWay ? "front-wall-one-way" : "front-wall", cell, 0, !isOneWay);
+        if (isOneWay) {
+          const chevron = new Mesh(
+            new PlaneGeometry(CORRIDOR_CELL_WIDTH * 0.82, CORRIDOR_WALL_HEIGHT * 0.82),
+            new MeshBasicMaterial({
+              map: makeOneWayTexture(wall),
+              transparent: true,
+              depthWrite: false,
+              side: DoubleSide
+            })
+          );
+          chevron.position.set(centerX, CORRIDOR_WALL_HEIGHT / 2, frontZ + 0.018);
+          chevron.userData = {
+            surface: "front-wall-one-way-chevron",
+            topology: cellGroup.userData.topology
+          };
+          cellGroup.add(chevron);
+        }
+      }
+    });
+  }
+
+  addCorridorWall(parent, geometry, material, position, surface, topology, rotationY = 0, cloneMaterial = true) {
+    const wall = new Mesh(geometry, cloneMaterial ? material.clone() : material);
+    wall.position.set(position.x, position.y, position.z);
+    wall.rotation.y = rotationY;
+    wall.userData = { surface, topology: { z: topology.z, column: topology.column, x: topology.x, y: topology.y } };
+    parent.add(wall);
+  }
+
   addDangerCue(wall) {
     const cueMaterial = new MeshBasicMaterial({ color: 0xb83b4c, transparent: true, opacity: 0.18 });
     const cue = new Mesh(new SphereGeometry(0.66, 8, 6), cueMaterial);
-    cue.position.set(0, 1.35, -5.3);
+    cue.position.set(0, 1.35, DANGER_CUE_Z);
+    cue.userData = { surface: "danger-cue", sceneLayer: "danger" };
     this.root.add(cue);
     const cueLight = new PointLight(0x8f293d, 0.55, 4.5);
-    cueLight.position.set(0, 1.5, -4.7);
+    cueLight.position.set(0, 1.5, DANGER_CUE_Z + 0.6);
+    cueLight.userData = { surface: "danger-cue-light", sceneLayer: "danger" };
     this.root.add(cueLight);
     const ring = new Mesh(
       new RingGeometry(0.8, 0.84, 24),
       new MeshBasicMaterial({ color: wall, transparent: true, opacity: 0.24, side: 2 })
     );
     ring.rotation.x = -Math.PI / 2;
-    ring.position.set(0, 0.02, -5.2);
+    ring.position.set(0, 0.02, DANGER_RING_Z);
+    ring.userData = { surface: "danger-cue-ring", sceneLayer: "danger" };
     this.root.add(ring);
   }
 
@@ -318,6 +463,7 @@ export class ThreeDungeonRenderer {
     monsters.forEach((monster, index) => {
       const color = hexColor(monster.color, wall.getHexString());
       const group = new Group();
+      group.userData = { sceneLayer: "combat", monsterIndex: input.combatMonsters.indexOf(monster) };
       const body = new Mesh(
         new SphereGeometry(0.52 + Math.min(0.2, finite(monster.level, 1) * 0.025), 8, 6),
         new MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.24, emissive: color, emissiveIntensity: 0.28 })
@@ -337,7 +483,7 @@ export class ThreeDungeonRenderer {
       );
       label.position.set(0, 2.05, 0);
       group.add(label);
-      group.position.set(start + index * spacing, 0, -1.65 - Math.abs(index - (monsters.length - 1) / 2) * 0.22);
+      group.position.set(start + index * spacing, 0, COMBAT_MONSTER_Z - Math.abs(index - (monsters.length - 1) / 2) * 0.04);
       this.root.add(group);
 
       if (input.combatTargetSelection?.active) {
@@ -347,7 +493,10 @@ export class ThreeDungeonRenderer {
         );
         hit.position.copy(group.position);
         hit.position.y += 1.2;
-        hit.userData.targetIdx = input.combatMonsters.indexOf(monster);
+        hit.userData = {
+          targetIdx: input.combatMonsters.indexOf(monster),
+          sceneLayer: "combat-target"
+        };
         this.root.add(hit);
         this.targetHitMeshes.push(hit);
         const targetRing = new Mesh(
@@ -356,6 +505,7 @@ export class ThreeDungeonRenderer {
         );
         targetRing.rotation.x = -Math.PI / 2;
         targetRing.position.set(hit.position.x, 0.04, hit.position.z);
+        targetRing.userData = { surface: "combat-target-ring", sceneLayer: "combat-target" };
         this.root.add(targetRing);
       }
     });
@@ -370,3 +520,8 @@ export class ThreeDungeonRenderer {
     this.root.add(marker);
   }
 }
+
+// Re-export the material class so browser lifecycle tests can spy on the same
+// module instance used by this renderer (Vite otherwise creates a second
+// native module instance for a direct /node_modules import).
+export { MeshStandardMaterial };

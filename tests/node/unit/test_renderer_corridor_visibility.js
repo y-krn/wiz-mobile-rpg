@@ -10,6 +10,7 @@ globalThis.document = {
 
 const { DX, DY } = await import("../../../src/constants/directions.js");
 const { getVisibleCorridorCells } = await import("../../../src/renderer.js");
+const { getVisibleCorridorTopology } = await import("../../../src/rules/renderer_topology.js");
 const { isMapDirectionBlocked } = await import("../../../src/rules/map_movement.js");
 
 const CENTER = { x: 4, y: 4 };
@@ -86,6 +87,12 @@ assert.deepEqual(
   keys(malformedDestination),
   ["0:0"],
   "renderer closes a destination with missing blockEnter metadata"
+);
+assert.equal(
+  getVisibleCorridorTopology(sideOpenings, CENTER.x, CENTER.y, DIR)
+    .find(({ z, column }) => z === 0 && column === 1).rightBlocked,
+  true,
+  "shared topology exposes the same side-wall fact to every renderer"
 );
 
 console.log("[PASS] renderer corridor visibility follows reachable map connections");

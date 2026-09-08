@@ -14,8 +14,13 @@ test('Three.js Dungeon View keeps the four shell regions and renders at mobile w
     await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'three');
     await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
 
-    const layout = await page.evaluate(() => {
+    const layout = await page.evaluate(async () => {
       const canvas = document.querySelector('#dungeon-canvas');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      const townSurfaces = [];
+      dungeonRenderer.root.traverse((child) => {
+        if (child.userData?.surface) townSurfaces.push(child.userData.surface);
+      });
       const rect = (selector) => {
         const box = document.querySelector(selector).getBoundingClientRect();
         return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
@@ -28,6 +33,7 @@ test('Three.js Dungeon View keeps the four shell regions and renders at mobile w
         clientWidth: document.documentElement.clientWidth,
         webgl: Boolean(canvas.getContext('webgl2') || canvas.getContext('webgl')),
         canvasSize: [canvas.width, canvas.height],
+        townSurfaces,
       };
     });
 
@@ -38,9 +44,19 @@ test('Three.js Dungeon View keeps the four shell regions and renders at mobile w
     ]));
     expect(layout.canvas.width).toBeGreaterThan(0);
     expect(layout.canvas.height).toBeGreaterThan(0);
+    expect(layout.townSurfaces).not.toContain('front-wall-invalid');
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
     expect(layout.viewport.left).toBeGreaterThanOrEqual(-1);
     expect(layout.viewport.right).toBeLessThanOrEqual(layout.clientWidth + 1);
+    const invalidTopologyWalls = await page.evaluate(async () => {
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      let count = 0;
+      dungeonRenderer.root.traverse((child) => {
+        if (child.userData?.surface === 'front-wall-invalid') count += 1;
+      });
+      return count;
+    });
+    expect(invalidTopologyWalls).toBe(0);
     await page.screenshot({ path: testInfo.outputPath(`three-renderer-${viewport.width}x${viewport.height}.png`) });
   }
 });
@@ -76,9 +92,14 @@ test('Three.js Dungeon View directly selects an enemy and retains an accessible 
     const { openCombatTargetMenu } = await import('/src/combat_ui/target_menu.js');
     state.party = [createStartingKitCharacter('vanguard')];
     state.currentRun = createDefaultCurrentRun();
+    state.floor = 1;
+    state.x = 0;
+    state.y = 0;
+    state.dir = 0;
     state.gameState = 'combat';
     state.transitioning = false;
-    state.map = [[{ walls: [false, false, false, false], blockEnter: [false, false, false, false], type: 'empty' }]];
+    state.maps[state.floor - 1] = [[{ walls: [true, true, true, true], blockEnter: [false, false, false, false], type: 'empty' }]];
+    state.visitedMaps[state.floor - 1] = [[true]];
     state.combatState = {
       phase: 'choose_actions',
       monsters: [
@@ -100,9 +121,224 @@ test('Three.js Dungeon View directly selects an enemy and retains an accessible 
   await expect(page.locator('.combat-target-a11y')).toHaveCount(2);
   await expect(page.locator('.combat-target-a11y-list')).toHaveCSS('position', 'absolute');
 
+  const combatDepth = await page.evaluate(async () => {
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const surfaces = [];
+    let targetZ = null;
+    let monsterZ = null;
+    dungeonRenderer.root.traverse((child) => {
+      if (child.userData?.surface === 'front-wall' && child.userData.topology?.z === 0 && child.userData.topology?.column === 0) {
+        surfaces.push({ surface: child.userData.surface, z: child.position.z });
+      }
+      if (child.userData?.targetIdx === 0) targetZ = child.position.z;
+      if (child.userData?.sceneLayer === 'combat' && child.userData?.monsterIndex === 0) monsterZ = child.position.z;
+    });
+    return { frontWallZ: surfaces[0]?.z ?? null, targetZ, monsterZ };
+  });
+  expect(combatDepth.frontWallZ).toBeCloseTo(0.1, 5);
+  expect(combatDepth.monsterZ).toBeGreaterThan(combatDepth.frontWallZ);
+  expect(combatDepth.targetZ).toBeGreaterThan(combatDepth.frontWallZ);
+
   await page.locator('#dungeon-canvas').click({ position: { x: 180, y: 150 } });
   await expect.poll(() => page.evaluate(() => window.__threeTarget)).toBe(0);
   await expect(page.locator('#combat-overlay')).toBeHidden();
+});
+
+test('Three.js Dungeon View disposes prototype materials across repeated scene rebuilds @e2e', async ({ page }) => {
+  await page.goto('/?renderer=three');
+  await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+
+  const disposeCount = await page.evaluate(async () => {
+    const { MeshStandardMaterial, ThreeDungeonRenderer } = await import('/src/three_renderer.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const canvas = document.createElement('canvas');
+    canvas.id = 'material-lifecycle-probe';
+    document.body.append(canvas);
+    const renderer = new ThreeDungeonRenderer(canvas.id);
+    const baseInput = dungeonRenderer.getRenderInput();
+    const townInput = {
+      ...baseInput,
+      sceneVisibility: {
+        showTownBackground: true,
+        showCombat: false,
+        showChest: false,
+        showEventScene: false,
+        showItemMenu: false,
+      },
+    };
+    const originalDispose = MeshStandardMaterial.prototype.dispose;
+    let disposeCalls = 0;
+    MeshStandardMaterial.prototype.dispose = function disposeSpy() {
+      disposeCalls += 1;
+      return originalDispose.call(this);
+    };
+    try {
+      renderer.buildScene(townInput);
+      renderer.buildScene(townInput);
+    } finally {
+      MeshStandardMaterial.prototype.dispose = originalDispose;
+    }
+    return disposeCalls;
+  });
+
+  // Each town build creates two prototype StandardMaterials without adding
+  // them to the scene, so both builds must dispose four prototypes explicitly.
+  expect(disposeCount).toBe(4);
+});
+
+test('Three.js Dungeon View follows map topology for all four directions @e2e @visual', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?renderer=three');
+  await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+
+  const topologyResult = await page.evaluate(async () => {
+    const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
+    const { DungeonRenderer, dungeonRenderer } = await import('/src/renderer.js');
+    const probeCanvas = document.createElement('canvas');
+    probeCanvas.id = 'canvas-topology-probe';
+    document.body.append(probeCanvas);
+    const canvasRenderer = new DungeonRenderer(probeCanvas.id);
+    const drawCanvasProbe = (input) => {
+      canvasRenderer.ctx.clearRect(0, 0, probeCanvas.width, probeCanvas.height);
+      canvasRenderer.draw3DCorridors(canvasRenderer.ctx, input);
+      return Array.from(canvasRenderer.ctx.getImageData(0, 0, probeCanvas.width, probeCanvas.height).data)
+        .reduce((sum, value) => sum + value, 0);
+    };
+    const makeCell = () => ({
+      walls: [true, true, true, true],
+      blockEnter: [false, false, false, false],
+      type: 'empty',
+    });
+    const map = Array.from({ length: 9 }, () => Array.from({ length: 9 }, makeCell));
+    const carve = (x, y, dir) => {
+      const offsets = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+      const [dx, dy] = offsets[dir];
+      map[y][x].walls[dir] = false;
+      map[y + dy][x + dx].walls[(dir + 2) % 4] = false;
+    };
+    carve(4, 4, 0);
+    carve(4, 4, 1);
+    carve(4, 4, 2);
+    carve(4, 3, 1);
+
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.currentRun = createDefaultCurrentRun();
+    state.floor = 1;
+    state.x = 4;
+    state.y = 4;
+    state.maps[state.floor - 1] = map;
+    state.visitedMaps[state.floor - 1] = map.map(row => row.map(() => true));
+    state.mapRevision = (state.mapRevision || 0) + 1;
+    state.dir = 0;
+    state.gameState = 'explore';
+    state.transitioning = false;
+    state.combatState = null;
+    updateUI();
+
+    const observations = [0, 1, 2, 3].map((dir) => {
+      state.dir = dir;
+      state.mapRevision += 1;
+      updateUI();
+      dungeonRenderer.draw();
+      const canvasChecksum = drawCanvasProbe(dungeonRenderer.getRenderInput());
+      const canvasTopology = getVisibleCorridorTopology(map, 4, 4, dir);
+      const threeTopology = dungeonRenderer.getSceneTopology();
+      const surfaces = [];
+      dungeonRenderer.root.traverse((child) => {
+        const topology = child.userData?.topology;
+        if (topology?.x === 4 && topology?.y === 4 && child.userData.surface) {
+          surfaces.push({
+            surface: child.userData.surface,
+            position: [child.position.x, child.position.y, child.position.z].map(value => Number(value.toFixed(3))),
+            rotationY: Number(child.rotation.y.toFixed(3)),
+          });
+        }
+      });
+      return {
+        dir,
+        current: threeTopology.find(({ z, column }) => z === 0 && column === 0),
+        canvasFacts: canvasTopology.map(({ z, column, x, y, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }) => ({
+          z, column, x, y, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier,
+        })),
+        threeFacts: threeTopology.map(({ z, column, x, y, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }) => ({
+          z, column, x, y, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier,
+        })),
+        surfaces,
+        canvasChecksum,
+        signature: dungeonRenderer.sceneSignature,
+      };
+    });
+
+    state.x = 5;
+    state.y = 4;
+    state.dir = 0;
+    state.mapRevision += 1;
+    updateUI();
+    dungeonRenderer.draw();
+    const movedCanvasChecksum = drawCanvasProbe(dungeonRenderer.getRenderInput());
+    const movedTopology = dungeonRenderer.getSceneTopology();
+
+    state.x = 4;
+    state.y = 4;
+    map[3][4].blockEnter[2] = true;
+    map[3][4].event = 'midboss';
+    state.dir = 0;
+    state.mapRevision += 1;
+    updateUI();
+    dungeonRenderer.draw();
+    const oneWaySurfaces = [];
+    const oneWayVisuals = [];
+    let dangerCuePosition = null;
+    dungeonRenderer.root.traverse((child) => {
+      const topology = child.userData?.topology;
+      if (topology?.x === 4 && topology?.y === 4 && child.userData.surface) {
+        oneWaySurfaces.push(child.userData.surface);
+        if (child.userData.surface === 'front-wall-one-way') {
+          oneWayVisuals.push({ transparent: child.material.transparent, opacity: child.material.opacity });
+        }
+      }
+      if (child.userData?.surface === 'danger-cue') dangerCuePosition = child.position.z;
+    });
+    return {
+      observations,
+      oneWaySurfaces,
+      oneWayVisuals,
+      dangerCuePosition,
+      movement: {
+        signature: dungeonRenderer.sceneSignature,
+        current: movedTopology.find(({ z, column }) => z === 0 && column === 0),
+        canvasChecksum: movedCanvasChecksum,
+      },
+    };
+  });
+
+  const { observations, oneWaySurfaces, oneWayVisuals, dangerCuePosition, movement } = topologyResult;
+  expect(new Set(observations.map(({ signature }) => signature)).size).toBe(4);
+  expect(observations.map(({ threeFacts }) => threeFacts)).toEqual(
+    observations.map(({ canvasFacts }) => canvasFacts)
+  );
+  expect(observations.map(({ current }) => [current.leftBlocked, current.rightBlocked, current.frontBlocked])).toEqual([
+    [true, false, false],
+    [false, false, false],
+    [false, true, false],
+    [false, false, true],
+  ]);
+  expect(observations[3].threeFacts.some(({ z, column }) => z === 1 && column === 0)).toBe(false);
+  expect(observations[0].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'left-wall']);
+  expect(observations[2].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'right-wall']);
+  expect(observations[3].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'front-wall']);
+  expect(observations[0].surfaces).toContainEqual({ surface: 'left-wall', position: [-0.9, 1.8, 1.15], rotationY: 1.571 });
+  expect(observations[2].surfaces).toContainEqual({ surface: 'right-wall', position: [0.9, 1.8, 1.15], rotationY: -1.571 });
+  expect(observations[3].surfaces).toContainEqual({ surface: 'front-wall', position: [0, 1.8, 0.1], rotationY: 0 });
+  expect(oneWaySurfaces).toContain('front-wall-one-way');
+  expect(oneWaySurfaces).toContain('front-wall-one-way-chevron');
+  expect(oneWayVisuals).toEqual([{ transparent: true, opacity: 0.42 }]);
+  expect(dangerCuePosition).toBeGreaterThan(0.1);
+  expect(movement.current).toMatchObject({ x: 5, y: 4 });
+  expect(movement.signature).not.toBe(observations[0].signature);
+  expect(movement.canvasChecksum).not.toBe(observations[0].canvasChecksum);
 });
 
 test('Canvas and Three.js render the same representative dungeon states for comparison @visual', async ({ page }, testInfo) => {
