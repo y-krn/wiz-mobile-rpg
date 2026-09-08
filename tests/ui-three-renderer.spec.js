@@ -14,8 +14,13 @@ test('Three.js Dungeon View keeps the four shell regions and renders at mobile w
     await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'three');
     await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
 
-    const layout = await page.evaluate(() => {
+    const layout = await page.evaluate(async () => {
       const canvas = document.querySelector('#dungeon-canvas');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      const townSurfaces = [];
+      dungeonRenderer.root.traverse((child) => {
+        if (child.userData?.surface) townSurfaces.push(child.userData.surface);
+      });
       const rect = (selector) => {
         const box = document.querySelector(selector).getBoundingClientRect();
         return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
@@ -28,6 +33,7 @@ test('Three.js Dungeon View keeps the four shell regions and renders at mobile w
         clientWidth: document.documentElement.clientWidth,
         webgl: Boolean(canvas.getContext('webgl2') || canvas.getContext('webgl')),
         canvasSize: [canvas.width, canvas.height],
+        townSurfaces,
       };
     });
 
@@ -38,6 +44,7 @@ test('Three.js Dungeon View keeps the four shell regions and renders at mobile w
     ]));
     expect(layout.canvas.width).toBeGreaterThan(0);
     expect(layout.canvas.height).toBeGreaterThan(0);
+    expect(layout.townSurfaces).not.toContain('front-wall-invalid');
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
     expect(layout.viewport.left).toBeGreaterThanOrEqual(-1);
     expect(layout.viewport.right).toBeLessThanOrEqual(layout.clientWidth + 1);
@@ -119,7 +126,7 @@ test('Three.js Dungeon View follows map topology for all four directions @e2e @v
   await page.goto('/?renderer=three');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
 
-  const observations = await page.evaluate(async () => {
+  const topologyResult = await page.evaluate(async () => {
     const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
     const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
@@ -155,7 +162,7 @@ test('Three.js Dungeon View follows map topology for all four directions @e2e @v
     state.combatState = null;
     updateUI();
 
-    return [0, 1, 2, 3].map((dir) => {
+    const observations = [0, 1, 2, 3].map((dir) => {
       state.dir = dir;
       state.mapRevision += 1;
       updateUI();
@@ -166,7 +173,11 @@ test('Three.js Dungeon View follows map topology for all four directions @e2e @v
       dungeonRenderer.root.traverse((child) => {
         const topology = child.userData?.topology;
         if (topology?.x === 4 && topology?.y === 4 && child.userData.surface) {
-          surfaces.push(child.userData.surface);
+          surfaces.push({
+            surface: child.userData.surface,
+            position: [child.position.x, child.position.y, child.position.z].map(value => Number(value.toFixed(3))),
+            rotationY: Number(child.rotation.y.toFixed(3)),
+          });
         }
       });
       return {
@@ -182,8 +193,23 @@ test('Three.js Dungeon View follows map topology for all four directions @e2e @v
         signature: dungeonRenderer.sceneSignature,
       };
     });
+
+    map[3][4].blockEnter[2] = true;
+    state.dir = 0;
+    state.mapRevision += 1;
+    updateUI();
+    dungeonRenderer.draw();
+    const oneWaySurfaces = [];
+    dungeonRenderer.root.traverse((child) => {
+      const topology = child.userData?.topology;
+      if (topology?.x === 4 && topology?.y === 4 && child.userData.surface) {
+        oneWaySurfaces.push(child.userData.surface);
+      }
+    });
+    return { observations, oneWaySurfaces };
   });
 
+  const { observations, oneWaySurfaces } = topologyResult;
   expect(new Set(observations.map(({ signature }) => signature)).size).toBe(4);
   expect(observations.map(({ threeFacts }) => threeFacts)).toEqual(
     observations.map(({ canvasFacts }) => canvasFacts)
@@ -195,7 +221,13 @@ test('Three.js Dungeon View follows map topology for all four directions @e2e @v
     [false, false, true],
   ]);
   expect(observations[3].threeFacts.some(({ z, column }) => z === 1 && column === 0)).toBe(false);
-  expect(observations[3].surfaces).toContain('front-wall');
+  expect(observations[0].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'left-wall']);
+  expect(observations[2].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'right-wall']);
+  expect(observations[3].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'front-wall']);
+  expect(observations[0].surfaces).toContainEqual({ surface: 'left-wall', position: [-0.9, 1.8, 1.15], rotationY: 1.571 });
+  expect(observations[2].surfaces).toContainEqual({ surface: 'right-wall', position: [0.9, 1.8, 1.15], rotationY: -1.571 });
+  expect(observations[3].surfaces).toContainEqual({ surface: 'front-wall', position: [0, 1.8, 0.1], rotationY: 0 });
+  expect(oneWaySurfaces).toContain('front-wall-one-way');
 });
 
 test('Canvas and Three.js render the same representative dungeon states for comparison @visual', async ({ page }, testInfo) => {
