@@ -281,7 +281,9 @@ export class ThreeDungeonRenderer {
       emissiveIntensity: 0.12,
       side: DoubleSide
     });
-    this.addCorridorTopology(topology, floorMaterial, wallMaterial);
+    if (!input.sceneVisibility.showTownBackground) {
+      this.addCorridorTopology(topology, floorMaterial, wallMaterial);
+    }
 
     const lightTurns = finite(input.lightTurns, 0);
     if (lightTurns > 0 || input.lightPower > 0) {

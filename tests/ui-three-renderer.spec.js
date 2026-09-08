@@ -41,6 +41,15 @@ test('Three.js Dungeon View keeps the four shell regions and renders at mobile w
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
     expect(layout.viewport.left).toBeGreaterThanOrEqual(-1);
     expect(layout.viewport.right).toBeLessThanOrEqual(layout.clientWidth + 1);
+    const invalidTopologyWalls = await page.evaluate(async () => {
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      let count = 0;
+      dungeonRenderer.root.traverse((child) => {
+        if (child.userData?.surface === 'front-wall-invalid') count += 1;
+      });
+      return count;
+    });
+    expect(invalidTopologyWalls).toBe(0);
     await page.screenshot({ path: testInfo.outputPath(`three-renderer-${viewport.width}x${viewport.height}.png`) });
   }
 });
