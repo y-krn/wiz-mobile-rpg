@@ -105,6 +105,90 @@ test('Three.js Dungeon View directly selects an enemy and retains an accessible 
   await expect(page.locator('#combat-overlay')).toBeHidden();
 });
 
+test('Three.js Dungeon View follows map topology for all four directions @e2e @visual', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?renderer=three');
+  await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+
+  const observations = await page.evaluate(async () => {
+    const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const makeCell = () => ({
+      walls: [true, true, true, true],
+      blockEnter: [false, false, false, false],
+      type: 'empty',
+    });
+    const map = Array.from({ length: 9 }, () => Array.from({ length: 9 }, makeCell));
+    const carve = (x, y, dir) => {
+      const offsets = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+      const [dx, dy] = offsets[dir];
+      map[y][x].walls[dir] = false;
+      map[y + dy][x + dx].walls[(dir + 2) % 4] = false;
+    };
+    carve(4, 4, 0);
+    carve(4, 4, 1);
+    carve(4, 4, 2);
+    carve(4, 3, 1);
+
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.currentRun = createDefaultCurrentRun();
+    state.floor = 1;
+    state.x = 4;
+    state.y = 4;
+    state.maps[state.floor - 1] = map;
+    state.visitedMaps[state.floor - 1] = map.map(row => row.map(() => true));
+    state.mapRevision = (state.mapRevision || 0) + 1;
+    state.dir = 0;
+    state.gameState = 'explore';
+    state.transitioning = false;
+    state.combatState = null;
+    updateUI();
+
+    return [0, 1, 2, 3].map((dir) => {
+      state.dir = dir;
+      state.mapRevision += 1;
+      updateUI();
+      dungeonRenderer.draw();
+      const canvasTopology = getVisibleCorridorTopology(map, 4, 4, dir);
+      const threeTopology = dungeonRenderer.getSceneTopology();
+      const surfaces = [];
+      dungeonRenderer.root.traverse((child) => {
+        const topology = child.userData?.topology;
+        if (topology?.x === 4 && topology?.y === 4 && child.userData.surface) {
+          surfaces.push(child.userData.surface);
+        }
+      });
+      return {
+        dir,
+        current: threeTopology.find(({ z, column }) => z === 0 && column === 0),
+        canvasFacts: canvasTopology.map(({ z, column, x, y, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }) => ({
+          z, column, x, y, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier,
+        })),
+        threeFacts: threeTopology.map(({ z, column, x, y, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }) => ({
+          z, column, x, y, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier,
+        })),
+        surfaces,
+        signature: dungeonRenderer.sceneSignature,
+      };
+    });
+  });
+
+  expect(new Set(observations.map(({ signature }) => signature)).size).toBe(4);
+  expect(observations.map(({ threeFacts }) => threeFacts)).toEqual(
+    observations.map(({ canvasFacts }) => canvasFacts)
+  );
+  expect(observations.map(({ current }) => [current.leftBlocked, current.rightBlocked, current.frontBlocked])).toEqual([
+    [true, false, false],
+    [false, false, false],
+    [false, true, false],
+    [false, false, true],
+  ]);
+  expect(observations[3].threeFacts.some(({ z, column }) => z === 1 && column === 0)).toBe(false);
+  expect(observations[3].surfaces).toContain('front-wall');
+});
+
 test('Canvas and Three.js render the same representative dungeon states for comparison @visual', async ({ page }, testInfo) => {
   const modes = ['canvas', 'three'];
   const measurements = {};

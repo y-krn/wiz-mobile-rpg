@@ -1,10 +1,10 @@
 // balance-impact: none — optional Dungeon View presentation only; no game rules or state mutation.
 import {
   AmbientLight,
-  BoxGeometry,
   CanvasTexture,
   Color,
   DirectionalLight,
+  DoubleSide,
   Fog,
   Group,
   Mesh,
@@ -22,10 +22,15 @@ import {
   WebGLRenderer
 } from "three";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
+import { getVisibleCorridorTopology } from "./rules/renderer_topology.js";
 
 const VIEW_W = 400;
 const VIEW_H = 260;
 const TARGET_HIT_RADIUS = 0.88;
+const CORRIDOR_CELL_WIDTH = 1.8;
+const CORRIDOR_CELL_DEPTH = 2.1;
+const CORRIDOR_WALL_HEIGHT = 3.6;
+const CORRIDOR_START_Z = 1.15;
 
 function finite(value, fallback) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -167,15 +172,32 @@ export class ThreeDungeonRenderer {
     return this.resolveRenderInput(input).sceneVisibility;
   }
 
+  getSceneTopology(input = null) {
+    const renderInput = this.resolveRenderInput(input);
+    return getVisibleCorridorTopology(renderInput.map, renderInput.x, renderInput.y, renderInput.dir);
+  }
+
   getDrawSignature(input = null) {
     const renderInput = this.resolveRenderInput(input);
     const { view, sceneVisibility } = renderInput;
+    const corridorTopology = this.getSceneTopology(renderInput).map((cell) => [
+      cell.z,
+      cell.column,
+      cell.x,
+      cell.y,
+      cell.valid,
+      cell.leftBlocked,
+      cell.rightBlocked,
+      cell.frontBlocked,
+      cell.frontOneWayBarrier
+    ]);
     return JSON.stringify({
       gameState: view.gameState,
       menuType: view.menuType,
       floor: renderInput.floor,
       position: [renderInput.x, renderInput.y, renderInput.dir],
       mapRevision: renderInput.mapRevision,
+      corridorTopology,
       sceneVisibility,
       light: [renderInput.lightTurns, renderInput.lightPower],
       danger: renderInput.dangerCue?.active === true,
@@ -237,6 +259,7 @@ export class ThreeDungeonRenderer {
     const visual = input.visual;
     const background = hexColor(visual.background);
     const wall = hexColor(visual.wallColor, "#58d6e8");
+    const topology = this.getSceneTopology(input);
     this.scene.background = background;
     this.scene.fog = new Fog(background, 3.2, 12.5);
     this.webgl.setClearColor(background, 1);
@@ -249,38 +272,16 @@ export class ThreeDungeonRenderer {
     this.flashLight.position.set(0, 1.4, 2);
     this.root.add(this.flashLight);
 
-    const floorMaterial = new MeshStandardMaterial({ color: background, roughness: 0.92, metalness: 0.18 });
+    const floorMaterial = new MeshStandardMaterial({ color: background, roughness: 0.92, metalness: 0.18, side: DoubleSide });
     const wallMaterial = new MeshStandardMaterial({
       color: background,
       roughness: 0.72,
       metalness: 0.34,
       emissive: wall,
-      emissiveIntensity: 0.12
+      emissiveIntensity: 0.12,
+      side: DoubleSide
     });
-    const floor = new Mesh(new PlaneGeometry(9, 16), floorMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, 0, -2.3);
-    this.root.add(floor);
-    const ceiling = new Mesh(new PlaneGeometry(9, 16), floorMaterial.clone());
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.set(0, 4.2, -2.3);
-    this.root.add(ceiling);
-    [-3.35, 3.35].forEach((x) => {
-      const sideWall = new Mesh(new PlaneGeometry(16, 4.2), wallMaterial.clone());
-      sideWall.rotation.y = x < 0 ? Math.PI / 2 : -Math.PI / 2;
-      sideWall.position.set(x, 2.1, -2.3);
-      this.root.add(sideWall);
-    });
-    const grid = new Group();
-    for (let index = -4; index <= 4; index += 1) {
-      const line = new Mesh(
-        new BoxGeometry(0.012, 0.012, 16),
-        new MeshBasicMaterial({ color: wall, transparent: true, opacity: 0.22 })
-      );
-      line.position.set(index * 0.72, 0.015, -2.3);
-      grid.add(line);
-    }
-    this.root.add(grid);
+    this.addCorridorTopology(topology, floorMaterial, wallMaterial);
 
     const lightTurns = finite(input.lightTurns, 0);
     if (lightTurns > 0 || input.lightPower > 0) {
@@ -292,6 +293,71 @@ export class ThreeDungeonRenderer {
     if (input.dangerCue?.active) this.addDangerCue(wall);
     if (input.sceneVisibility.showCombat) this.addCombatMonsters(input, wall);
     if (input.sceneVisibility.showTownBackground) this.addTownMarker(wall);
+  }
+
+  addCorridorTopology(topology, floorMaterial, wallMaterial) {
+    topology.forEach((cell) => {
+      const cellGroup = new Group();
+      cellGroup.userData = {
+        topology: { z: cell.z, column: cell.column, x: cell.x, y: cell.y },
+        valid: cell.valid
+      };
+      this.root.add(cellGroup);
+
+      const centerX = cell.column * CORRIDOR_CELL_WIDTH;
+      const centerZ = CORRIDOR_START_Z - cell.z * CORRIDOR_CELL_DEPTH;
+      const frontZ = centerZ - CORRIDOR_CELL_DEPTH / 2;
+      if (!cell.valid) {
+        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
+          x: centerX,
+          y: CORRIDOR_WALL_HEIGHT / 2,
+          z: frontZ
+        }, "front-wall-invalid", cell);
+        return;
+      }
+
+      const floor = new Mesh(new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_CELL_DEPTH), floorMaterial.clone());
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set(centerX, 0, centerZ);
+      floor.userData = { surface: "floor", topology: cellGroup.userData.topology };
+      cellGroup.add(floor);
+
+      const ceiling = new Mesh(new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_CELL_DEPTH), floorMaterial.clone());
+      ceiling.rotation.x = Math.PI / 2;
+      ceiling.position.set(centerX, CORRIDOR_WALL_HEIGHT, centerZ);
+      ceiling.userData = { surface: "ceiling", topology: cellGroup.userData.topology };
+      cellGroup.add(ceiling);
+
+      if (cell.leftBlocked) {
+        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
+          x: centerX - CORRIDOR_CELL_WIDTH / 2,
+          y: CORRIDOR_WALL_HEIGHT / 2,
+          z: centerZ
+        }, "left-wall", cell, Math.PI / 2);
+      }
+      if (cell.rightBlocked) {
+        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
+          x: centerX + CORRIDOR_CELL_WIDTH / 2,
+          y: CORRIDOR_WALL_HEIGHT / 2,
+          z: centerZ
+        }, "right-wall", cell, -Math.PI / 2);
+      }
+      if (cell.frontBlocked) {
+        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
+          x: centerX,
+          y: CORRIDOR_WALL_HEIGHT / 2,
+          z: frontZ
+        }, cell.frontOneWayBarrier ? "front-wall-one-way" : "front-wall", cell);
+      }
+    });
+  }
+
+  addCorridorWall(parent, geometry, material, position, surface, topology, rotationY = 0) {
+    const wall = new Mesh(geometry, material.clone());
+    wall.position.set(position.x, position.y, position.z);
+    wall.rotation.y = rotationY;
+    wall.userData = { surface, topology: { z: topology.z, column: topology.column, x: topology.x, y: topology.y } };
+    parent.add(wall);
   }
 
   addDangerCue(wall) {

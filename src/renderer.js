@@ -1,7 +1,12 @@
 import { DX, DY, EVENT_TYPES } from "./data.js";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
-import { isMapDirectionBlocked } from "./rules/map_movement.js";
+import {
+  getVisibleCorridorTopology,
+  isRenderableCorridorCell
+} from "./rules/renderer_topology.js";
 import { BLEEDING_PAYOFF_DAMAGE, VULNERABLE_DAMAGE_MULTIPLIER } from "./combat_logic/status_effects.js";
+
+export { getVisibleCorridorCells, getVisibleCorridorTopology } from "./rules/renderer_topology.js";
 
 export let dungeonRenderer = null;
 export function setDungeonRenderer(r) {
@@ -226,48 +231,6 @@ export function getProjectionColumn(projection, z, column = 0) {
 // The state owner guarantees this shape for a playable floor. The renderer
 // still checks it at the boundary because a save or a transition can expose
 // a partially initialized cell for one frame.
-function isRenderableCell(cell) {
-  return cell && Array.isArray(cell.walls) && cell.walls.length === 4 &&
-    cell.walls.every(wall => typeof wall === "boolean");
-}
-
-export function getVisibleCorridorCells(map, px, py, dir, maxDepth = 3, maxColumn = 2) {
-  const dirRight = (dir + 1) % 4;
-  const offsets = [{ z: 0, column: 0 }];
-  const queue = [{ z: 0, column: 0 }];
-  const seen = new Set(["0:0"]);
-
-  const visit = (z, column) => {
-    if (z < 0 || z > maxDepth || column < -maxColumn || column > maxColumn) return;
-    const key = `${z}:${column}`;
-    if (seen.has(key)) return;
-    const x = px + DX[dir] * z + DX[dirRight] * column;
-    const y = py + DY[dir] * z + DY[dirRight] * column;
-    if (!isRenderableCell(map?.[y]?.[x])) return;
-    seen.add(key);
-    offsets.push({ z, column });
-    queue.push({ z, column });
-  };
-
-  while (queue.length > 0) {
-    const { z, column } = queue.shift();
-    const x = px + DX[dir] * z + DX[dirRight] * column;
-    const y = py + DY[dir] * z + DY[dirRight] * column;
-    const neighbors = [
-      { z: z + 1, column, moveDir: dir },
-      { z: z - 1, column, moveDir: (dir + 2) % 4 },
-      { z, column: column + 1, moveDir: dirRight },
-      { z, column: column - 1, moveDir: (dirRight + 2) % 4 },
-    ];
-    for (const neighbor of neighbors) {
-      if (isMapDirectionBlocked(map, x, y, neighbor.moveDir)) continue;
-      visit(neighbor.z, neighbor.column);
-    }
-  }
-
-  return offsets;
-}
-
 export class DungeonRenderer {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
@@ -597,9 +560,8 @@ export class DungeonRenderer {
     let outOfBoundsColor = "#ff3b30";
 
     const columnOrder = [-2, 2, -1, 1, 0];
-    const dirRight = (dir + 1) % 4;
-    const visibleCells = new Set(
-      getVisibleCorridorCells(map, px, py, dir).map(({ z, column }) => `${z}:${column}`)
+    const visibleTopology = new Map(
+      getVisibleCorridorTopology(map, px, py, dir).map(cell => [`${cell.z}:${cell.column}`, cell])
     );
 
     // Draw from back (z=3) to front (z=0), outer columns before center.
@@ -609,10 +571,11 @@ export class DungeonRenderer {
       const width = projection.xr[z] - projection.xl[z];
       for (const column of columnOrder) {
         if (Math.abs(column) === 2 && z < 2) continue;
-        if (!visibleCells.has(`${z}:${column}`)) continue;
+        const topology = visibleTopology.get(`${z}:${column}`);
+        if (!topology) continue;
 
-        const cx = px + DX[dir] * z + DX[dirRight] * column;
-        const cy = py + DY[dir] * z + DY[dirRight] * column;
+        const cx = topology.x;
+        const cy = topology.y;
         const plane = getProjectionColumn(projection, z, column);
         const nextPlane = getProjectionColumn(projection, z + 1, column);
         const left = plane.leftBottom;
@@ -626,7 +589,7 @@ export class DungeonRenderer {
         }
 
         const cell = row[cx];
-        if (!isRenderableCell(cell)) {
+        if (!isRenderableCorridorCell(cell)) {
           // A partially loaded cell is not traversable or drawable. Keep the
           // corridor closed until the state owner supplies a valid cell.
           this.renderSolidWall(ctx, z, outOfBoundsColor, column, projection);
@@ -634,14 +597,10 @@ export class DungeonRenderer {
         }
 
         // Relative directions based on player orientation
-        const dirLeft = (dir + 3) % 4;
-        const dirFront = dir;
-
-        const hasLeftWall = isMapDirectionBlocked(map, cx, cy, dirLeft);
-        const hasRightWall = isMapDirectionBlocked(map, cx, cy, dirRight);
-        const hasFrontWall = cell.walls[dirFront];
-        const hasFrontBlocked = isMapDirectionBlocked(map, cx, cy, dirFront);
-        const hasFrontOneWayBarrier = !hasFrontWall && hasFrontBlocked;
+        const hasLeftWall = topology.leftBlocked;
+        const hasRightWall = topology.rightBlocked;
+        const hasFrontBlocked = topology.frontBlocked;
+        const hasFrontOneWayBarrier = topology.frontOneWayBarrier;
 
         // 1. Draw floor/ceiling segments
         ctx.strokeStyle = gridColor;
@@ -1833,7 +1792,7 @@ export class DungeonRenderer {
         // can use the discovery without revealing the surrounding terrain.
         if (!isVisited && !isLightRevealed && !isFragmentRevealed && !hasDiscoveredTrap) continue;
 
-        if (!isRenderableCell(cell)) continue;
+        if (!isRenderableCorridorCell(cell)) continue;
         const screenX = margin + x * cellS + offsetX;
         const screenY = margin + y * cellS + offsetY;
 
