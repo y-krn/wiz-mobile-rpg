@@ -73,11 +73,11 @@ assert.deepEqual(invalidFight.actionObservations, [{
 }]);
 assert.equal(invalidFight.actionObservations[0].hpBeforeExecution, null);
 
-const validDefend = runCombatRoundCalculation(timingFixture(100, 0), {
+const validDefend = runCombatRoundCalculation(timingFixture(100, 0, 0), {
   actions: [{ type: "defend", actorIdx: 0 }]
 });
 assert.equal(validDefend.actionObservations.find(item => item.actor === "char").executed, true);
-assert.equal(validDefend.actionObservations.find(item => item.actor === "char").hpBeforeExecution, 99);
+assert.equal(validDefend.actionObservations.find(item => item.actor === "char").hpBeforeExecution, 100);
 
 const repeated = runEquipmentLoadDiagnostic({ runs: 1, seed: 1161, allowSmallRunCount: true });
 assert.deepEqual(repeated, report);
