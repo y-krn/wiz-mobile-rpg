@@ -7169,6 +7169,29 @@ function applyThreatOverride(monsters, floor, override, encounter = {}) {
   }
 }
 
+function createFixedDiagnosticMonsters(names, floor) {
+  if (!Array.isArray(names) || names.length < 1) {
+    throw new Error("fixed diagnostic encounter requires at least one monster name");
+  }
+  const templates = names.map(name => {
+    const template = MONSTERS.find(monster => monster.name === name);
+    if (!template) throw new Error(`unknown fixed diagnostic monster: ${name}`);
+    return template;
+  });
+  const nameCounts = Object.fromEntries(
+    templates.map(template => [template.name, templates.filter(candidate => candidate.name === template.name).length])
+  );
+  const currentNameIndices = {};
+  return templates.map(template => {
+    const monster = scaleEnemyForDepth(template, floor);
+    if (nameCounts[template.name] > 1) {
+      currentNameIndices[template.name] = (currentNameIndices[template.name] || 0) + 1;
+      monster.name = `${template.name} ${String.fromCharCode(64 + currentNameIndices[template.name])}`;
+    }
+    return monster;
+  });
+}
+
 export function classifyBuildPaymentAction(action) {
   if (action?.type === "fight") return "attack";
   if (action?.type === "spell") return "spell";
@@ -7176,6 +7199,21 @@ export function classifyBuildPaymentAction(action) {
   if (action?.type === "item") return "item";
   if (action?.type === "run") return "flee";
   return "noop";
+}
+
+export function derivePlayerActionExecutionTiming(actionObservations, actionType) {
+  const playerActionObservation = actionObservations?.find(observation =>
+    observation.actor === "char" && observation.actionType === actionType
+  );
+  if (!playerActionObservation?.executed) return "not-executed-before-end";
+  const monsterActionBeforePlayer = actionObservations.some(observation =>
+    observation.actor === "monster" &&
+    observation.executed &&
+    observation.order < playerActionObservation.order
+  );
+  return monsterActionBeforePlayer
+    ? "after-enemy-action"
+    : "player-before-any-enemy";
 }
 
 function runEncounter(
@@ -7188,6 +7226,7 @@ function runEncounter(
     isMidboss = false,
     isElite = false,
     roamingMonster = null,
+    fixedMonsterNames = null,
     encounterCoord = null,
     retreatCoord = null,
     encounterEventKey = null
@@ -7196,13 +7235,15 @@ function runEncounter(
   const diagnosticLevel = metrics?.diagnosticLevel || "full";
   const fullDiagnostics = diagnosticLevel === "full";
   const compactDiagnostics = diagnosticLevel === "compact";
-  const { monsters } = generateEncounter(
-    state,
-    isBoss,
-    isMidboss,
-    isElite,
-    roamingMonster
-  );
+  const monsters = fixedMonsterNames
+    ? createFixedDiagnosticMonsters(fixedMonsterNames, state.floor)
+    : generateEncounter(
+      state,
+      isBoss,
+      isMidboss,
+      isElite,
+      roamingMonster
+    ).monsters;
   if (state.alarmActive) {
     const multiplier = state.alarmWeakened ? 1.10 : 1.20;
     monsters.forEach(monster => {
@@ -7931,6 +7972,10 @@ function runEncounter(
     const fled = roundResult.logQueue.some(entry => entry.runEscape);
     const fleeExecuted = roundResult.logQueue.some(entry => entry.fleeExecution === true);
     const fleePartingAttack = roundResult.logQueue.some(entry => entry.fleePartingAttack === true);
+    const playerActionExecutionTiming = derivePlayerActionExecutionTiming(
+      roundResult.actionObservations,
+      action.type
+    );
     if (encounterDiagnostic) {
       encounterDiagnostic.rounds.push({
         round: roundNumber,
@@ -7938,6 +7983,11 @@ function runEncounter(
         fleeSelected: action.type === "run",
         fleeExecuted,
         fleePartingAttack,
+        firstStrikeSucceeded: roundNumber === 1 ? firstStrikeSucceeded : null,
+        playerActionExecutionTiming: roundNumber === 1 ? playerActionExecutionTiming : null,
+        playerActionExecuted: roundNumber === 1
+          ? playerActionExecutionTiming !== "not-executed-before-end"
+          : null,
         spellName: action.spellName || null,
         itemKey: action.itemKey || null,
         targetIdx: action.targetIdx ?? null,
@@ -13941,6 +13991,70 @@ export function simulateRun({
     : createBuildSnapshot(state, scoringProfile, "starting-build");
   state.simStartingInventory.forEach(item => recordConsumableAcquisition(metrics, item));
   state.simDepartureCraftItems.forEach(item => recordConsumableAcquisition(metrics, item));
+
+  if (scenario.fixedCombat) {
+    const fixedCombat = scenario.fixedCombat;
+    const entryHpRatio = Number(fixedCombat.entryHpRatio);
+    const entryMpRatio = Number(fixedCombat.entryMpRatio);
+    if (!Number.isFinite(entryHpRatio) || entryHpRatio < 0 || entryHpRatio > 1) {
+      throw new Error(`fixedCombat.entryHpRatio must be a number in [0,1]: ${fixedCombat.entryHpRatio}`);
+    }
+    if (!Number.isFinite(entryMpRatio) || entryMpRatio < 0 || entryMpRatio > 1) {
+      throw new Error(`fixedCombat.entryMpRatio must be a number in [0,1]: ${fixedCombat.entryMpRatio}`);
+    }
+    const character = state.party[0];
+    character.hp = Math.max(1, Math.round(getCharMaxHp(character) * entryHpRatio));
+    character.mp = Math.max(0, Math.round(getCharMaxMp(character) * entryMpRatio));
+    state.currentRun.battles++;
+    const combatResult = runEncounter(
+      state,
+      metrics.coreObservations,
+      metrics.diagnostics,
+      metrics,
+      {
+        fixedMonsterNames: fixedCombat.monsterNames,
+        encounterCoord: { x: 0, y: 0 }
+      }
+    );
+    metrics.combatRounds += combatResult.rounds;
+    metrics.combatDamageHp += combatResult.telemetry.incomingDamage;
+    metrics.incomingHits += combatResult.telemetry.incomingHits;
+    metrics.incomingHitTurns += combatResult.telemetry.incomingHitTurns;
+    metrics.combatDamageHpByType.normal =
+      (metrics.combatDamageHpByType.normal || 0) + combatResult.telemetry.incomingDamage;
+    metrics.normalCombatTelemetry.encounters++;
+    metrics.normalCombatTelemetry.incomingHits += combatResult.telemetry.incomingHits;
+    metrics.normalCombatTelemetry.incomingDamage += combatResult.telemetry.incomingDamage;
+    metrics.normalCombatTelemetry.rounds += combatResult.rounds;
+    metrics.normalCombatTelemetry.enemyActions += combatResult.telemetry.enemyActions || 0;
+    metrics.normalCombatTelemetry.maxIncomingHit = Math.max(
+      metrics.normalCombatTelemetry.maxIncomingHit,
+      combatResult.telemetry.maxIncomingHit
+    );
+    metrics.normalCombatTelemetry.heavyHitCount += Number(
+      combatResult.telemetry.maxIncomingHitRate >= 0.5
+    );
+    metrics.fleeCount += Number(combatResult.result === "flee");
+    if (combatResult.result === "death") {
+      metrics.deathEncounterType = "normal";
+    }
+    const fixedResult = combatResult.result;
+    const finished = finishRun(
+      state,
+      fixedResult === "death" ? "death" : "retreat",
+      metrics,
+      "fixed-combat-complete"
+    );
+    return {
+      ...finished,
+      fixedCombatResult: fixedResult,
+      fixedCombat: {
+        monsterNames: [...fixedCombat.monsterNames],
+        entryHpRatio,
+        entryMpRatio
+      }
+    };
+  }
 
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
   for (let floor = startFloor; floor < targetDepth; floor++) {
