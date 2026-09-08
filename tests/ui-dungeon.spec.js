@@ -2069,7 +2069,7 @@ test('visibilitychange hidden saves only when no transition is active', async ({
 });
 
 for (const vp of VIEWPORTS) {
-  test(`Combat, chest, and event canvases hide the mini-map at ${vp.width}x${vp.height}`, async ({ page }) => {
+  test(`Combat, chest, and event scenes hide the mini-map at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
 
@@ -2079,18 +2079,21 @@ for (const vp of VIEWPORTS) {
       const { dungeonRenderer } = await import('/src/renderer.js');
       const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
       const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
+      const minimapOverlay = document.querySelector('#dungeon-minimap-overlay');
       const labels = [];
       let miniMapDraws = 0;
       const originalFillText = ctx.fillText.bind(ctx);
-      const originalDrawMiniMap = dungeonRenderer.drawMiniMap;
       const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
 
       ctx.fillText = (text, ...args) => {
         labels.push({ text: String(text), x: args[0], y: args[1] });
         return originalFillText(text, ...args);
       };
-      dungeonRenderer.drawMiniMap = () => { miniMapDraws++; };
       dungeonRenderer.draw3DCorridors = () => {};
+      const drawAndCountMiniMap = () => {
+        dungeonRenderer.draw();
+        if (minimapOverlay.dataset.minimapVisible === 'true') miniMapDraws++;
+      };
 
       state.map = [[{ walls: [false, false, false, false], type: 'empty' }]];
       state.party = [{ name: '勇者', hp: 10, maxHp: 10, status: 'ok' }];
@@ -2108,7 +2111,7 @@ for (const vp of VIEWPORTS) {
       };
 
       state.gameState = 'combat';
-      dungeonRenderer.draw();
+      drawAndCountMiniMap();
       const combatLabels = [...labels];
       const combatMiniMapDraws = miniMapDraws;
 
@@ -2116,7 +2119,7 @@ for (const vp of VIEWPORTS) {
       menuContext.type = 'combat_target';
       menuContext.targetType = 'enemy';
       menuContext.prevGameState = 'combat';
-      dungeonRenderer.draw();
+      drawAndCountMiniMap();
       const submenuMiniMapDraws = miniMapDraws;
       renderCombatOverlay();
       const targetCards = document.querySelectorAll('#combat-overlay .combat-target-card.enemy').length;
@@ -2126,40 +2129,40 @@ for (const vp of VIEWPORTS) {
       state.gameState = 'explore';
       menuContext.type = '';
       menuContext.prevGameState = null;
-      dungeonRenderer.draw();
+      drawAndCountMiniMap();
       const monsterLabelCountAfterExplore = labels.filter(label => label.text.includes('敵')).length;
       const exploreMiniMapDrawsBeforeItemMenu = miniMapDraws;
 
       state.gameState = 'submenu';
       menuContext.type = 'item_inventory';
-      dungeonRenderer.draw();
+      drawAndCountMiniMap();
       const itemMenuMiniMapDraws = miniMapDraws - exploreMiniMapDrawsBeforeItemMenu;
 
       state.gameState = 'explore';
       menuContext.type = '';
-      dungeonRenderer.draw();
+      drawAndCountMiniMap();
       const postItemMenuExploreMiniMapDraws = miniMapDraws - exploreMiniMapDrawsBeforeItemMenu;
       const exploreMiniMapDrawsBeforeChest = miniMapDraws;
 
       state.chestState = { trap: 'none' };
       state.gameState = 'chest';
-      dungeonRenderer.draw();
+      drawAndCountMiniMap();
       const chestMiniMapDraws = miniMapDraws - exploreMiniMapDrawsBeforeChest;
 
       state.gameState = 'submenu';
       menuContext.type = 'chest_menu';
-      dungeonRenderer.draw();
+      drawAndCountMiniMap();
       const chestSubmenuMiniMapDraws = miniMapDraws - exploreMiniMapDrawsBeforeChest;
 
       state.chestState = null;
       state.gameState = 'explore';
       menuContext.type = '';
-      dungeonRenderer.draw();
+      drawAndCountMiniMap();
       const postChestExploreMiniMapDraws = miniMapDraws - exploreMiniMapDrawsBeforeChest;
 
       miniMapDraws = 0;
       state.gameState = 'trap_encounter';
-      dungeonRenderer.draw();
+      drawAndCountMiniMap();
       const trapMiniMapDraws = miniMapDraws;
 
       const eventSubmenuTypes = [
@@ -2175,17 +2178,16 @@ for (const vp of VIEWPORTS) {
       state.gameState = 'submenu';
       for (const type of eventSubmenuTypes) {
         menuContext.type = type;
-        dungeonRenderer.draw();
+        drawAndCountMiniMap();
         eventMiniMapDraws[type] = miniMapDraws;
       }
 
       state.gameState = 'explore';
       menuContext.type = '';
-      dungeonRenderer.draw();
+      drawAndCountMiniMap();
       const postEventExploreMiniMapDraws = miniMapDraws;
 
       ctx.fillText = originalFillText;
-      dungeonRenderer.drawMiniMap = originalDrawMiniMap;
       dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
 
       return {
