@@ -7,6 +7,15 @@ const VIEWPORTS = [
   { width: 430, height: 932 },
 ];
 
+const TOPOLOGY_ARCHETYPES = [
+  'straight-corridor',
+  'dead-end',
+  'left-turn',
+  'right-turn',
+  't-junction',
+  'cross-junction',
+];
+
 test('Three.js Dungeon View keeps the four shell regions and renders at mobile widths @smoke @visual', async ({ page }, testInfo) => {
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
@@ -58,6 +67,88 @@ test('Three.js Dungeon View keeps the four shell regions and renders at mobile w
     });
     expect(invalidTopologyWalls).toBe(0);
     await page.screenshot({ path: testInfo.outputPath(`three-renderer-${viewport.width}x${viewport.height}.png`) });
+  }
+});
+
+test('Three.js Dungeon View makes six local topology archetypes readable at small mobile widths @smoke @visual', async ({ page }, testInfo) => {
+  for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/?renderer=three');
+    await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+
+    for (const archetype of TOPOLOGY_ARCHETYPES) {
+      await page.evaluate(async (name) => {
+        const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+        const { updateUI } = await import('/src/ui.js');
+        const map = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => ({
+          walls: [true, true, true, true],
+          blockEnter: [false, false, false, false],
+          type: 'empty',
+        })));
+        const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+        const open = (x, y, dir) => {
+          const [dx, dy] = directions[dir];
+          map[y][x].walls[dir] = false;
+          map[y + dy][x + dx].walls[(dir + 2) % 4] = false;
+        };
+        const paths = {
+          'straight-corridor': [[4, 4, 0], [4, 3, 0], [4, 2, 0]],
+          'dead-end': [],
+          'left-turn': [[4, 4, 0], [4, 4, 3], [4, 3, 3]],
+          'right-turn': [[4, 4, 0], [4, 4, 1], [4, 3, 1]],
+          't-junction': [[4, 4, 0], [4, 4, 3], [4, 4, 1]],
+          'cross-junction': [[4, 4, 0], [4, 4, 1], [4, 4, 2], [4, 4, 3], [4, 3, 0], [4, 2, 0], [4, 3, 1], [4, 3, 3]],
+        };
+        paths[name].forEach(([x, y, dir]) => open(x, y, dir));
+
+        state.party = [createStartingKitCharacter('vanguard')];
+        state.currentRun = createDefaultCurrentRun();
+        state.floor = 1;
+        state.x = 4;
+        state.y = 4;
+        state.dir = 0;
+        state.maps[0] = map;
+        state.visitedMaps[0] = map.map((row) => row.map(() => true));
+        state.mapRevision = (state.mapRevision || 0) + 1;
+        state.gameState = 'explore';
+        state.transitioning = false;
+        state.combatState = null;
+        state.roamingMonsters = [];
+        updateUI();
+        const { dungeonRenderer } = await import('/src/renderer.js');
+        dungeonRenderer.draw();
+      }, archetype);
+
+      const evidence = await page.evaluate(async () => {
+        const { dungeonRenderer } = await import('/src/renderer.js');
+        const topology = dungeonRenderer.getSceneTopology();
+        const current = topology.find(({ z, column }) => z === 0 && column === 0);
+        return {
+          current: {
+            leftBlocked: current.leftBlocked,
+            rightBlocked: current.rightBlocked,
+            frontBlocked: current.frontBlocked,
+          },
+          visible: topology.map(({ z, column }) => `${z}:${column}`).sort(),
+        };
+      });
+
+      expect(evidence.current).toEqual(expect.objectContaining({
+        leftBlocked: ['straight-corridor', 'dead-end', 'right-turn'].includes(archetype),
+        rightBlocked: ['straight-corridor', 'dead-end', 'left-turn'].includes(archetype),
+        frontBlocked: archetype === 'dead-end',
+      }));
+      if (archetype === 'straight-corridor') expect(evidence.visible).toContain('3:0');
+      if (archetype === 'dead-end') expect(evidence.visible).toEqual(['0:0']);
+      if (archetype === 'left-turn') expect(evidence.visible).toContain('0:-1');
+      if (archetype === 'right-turn') expect(evidence.visible).toContain('0:1');
+      if (archetype === 't-junction') expect(evidence.visible).toEqual(expect.arrayContaining(['0:-1', '0:1', '1:0']));
+      if (archetype === 'cross-junction') expect(evidence.visible).toContain('2:0');
+
+      await page.screenshot({
+        path: testInfo.outputPath(`three-topology-${archetype}-${viewport.width}px.png`),
+      });
+    }
   }
 });
 
