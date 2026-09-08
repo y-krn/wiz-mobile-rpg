@@ -1,10 +1,11 @@
-import { DX, DY, EVENT_TYPES } from "./data.js";
+import { EVENT_TYPES } from "./data.js";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import {
   getVisibleCorridorTopology,
   isRenderableCorridorCell
 } from "./rules/renderer_topology.js";
 import { BLEEDING_PAYOFF_DAMAGE, VULNERABLE_DAMAGE_MULTIPLIER } from "./combat_logic/status_effects.js";
+import { drawMiniMap as drawSharedMiniMap, drawStairMiniMapIcon as drawSharedStairMiniMapIcon, isMiniMapAnimating, renderMiniMapOverlay } from "./minimap.js";
 
 export { getVisibleCorridorCells, getVisibleCorridorTopology } from "./rules/renderer_topology.js";
 
@@ -399,6 +400,7 @@ export class DungeonRenderer {
     const environment = renderInput.visual.environment;
     const cyclePosition = (renderInput.floor - 1) % 5;
     if (environment.animated || environment.animatedCyclePosition === cyclePosition) return true;
+    if (isMiniMapAnimating(renderInput)) return true;
     if (showCombat || showChest || showEventScene || showItemMenu) return false;
 
     const minY = Math.max(0, renderInput.y - 4);
@@ -441,7 +443,7 @@ export class DungeonRenderer {
     ctx.fillStyle = "#0c0c0e";
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    const { showTownBackground, showCombat, showChest, showEventScene, showItemMenu } = sceneVisibility;
+    const { showTownBackground, showCombat, showChest } = sceneVisibility;
     if (showTownBackground) {
       this.drawTownBackground(ctx);
     } else {
@@ -458,8 +460,6 @@ export class DungeonRenderer {
         this.drawChest(ctx, undefined, renderInput);
       }
 
-      // Keep combat, chest, event, and item scenes unobstructed; restore the mini-map afterward.
-      if (!showCombat && !showChest && !showEventScene && !showItemMenu) this.drawMiniMap(ctx, renderInput);
     }
 
     // Draw Damage / Floating Texts
@@ -472,6 +472,19 @@ export class DungeonRenderer {
     }
 
     ctx.restore();
+    renderMiniMapOverlay(renderInput);
+  }
+
+  // Compatibility entry point for direct renderer probes. The live render
+  // path uses the renderer-independent overlay instead.
+  drawMiniMap(ctx, input = null) {
+    drawSharedMiniMap(ctx, this.resolveRenderInput(input), {
+      drawStairMiniMapIcon: (...args) => this.drawStairMiniMapIcon(...args)
+    });
+  }
+
+  drawStairMiniMapIcon(...args) {
+    drawSharedStairMiniMapIcon(...args);
   }
 
   drawTownBackground(ctx) {
@@ -1734,351 +1747,7 @@ export class DungeonRenderer {
     ctx.strokeRect(cx - barW / 2, cy - 62, barW, barH);
   }
 
-  drawMiniMap(ctx, input = null) {
-    const renderInput = this.resolveRenderInput(input);
-    const map = renderInput.map;
-    if (!Array.isArray(map) || map.length === 0) return;
-    for (let y = 0; y < map.length; y++) {
-      if (!Object.hasOwn(map, y) || !Array.isArray(map[y])) return;
-    }
-
-    const cellS = 10; // Adjust cell size to 10px
-    const margin = 8;
-    const minimapSize = 128; // Fixed minimap size to match 16x16 cell size (128x128px)
-    
-    // Draw background panel border and background (unclipped)
-    ctx.fillStyle = "rgba(12, 12, 14, 0.9)";
-    ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
-    ctx.lineWidth = 2;
-    ctx.fillRect(margin - 2, margin - 2, minimapSize + 4, minimapSize + 4);
-    ctx.strokeRect(margin - 2, margin - 2, minimapSize + 4, minimapSize + 4);
-
-    ctx.save();
-    // Clip drawing inside the 128x128 panel
-    ctx.beginPath();
-    ctx.rect(margin, margin, minimapSize, minimapSize);
-    ctx.clip();
-
-    // Desired centering offsets so player is at the center of the minimap
-    const desiredOffsetX = (minimapSize / 2) - (renderInput.x * cellS + cellS / 2);
-    const desiredOffsetY = (minimapSize / 2) - (renderInput.y * cellS + cellS / 2);
-
-    const mapWidth = Math.max(...map.map(row => row.length));
-    const mapHeight = map.length;
-    const mapPixelW = mapWidth * cellS;
-    const mapPixelH = mapHeight * cellS;
-
-    const minOffsetX = minimapSize - mapPixelW;
-    const minOffsetY = minimapSize - mapPixelH;
-
-    // Clamp offsets to map boundaries to prevent black margins
-    const offsetX = Math.max(minOffsetX, Math.min(0, desiredOffsetX));
-    const offsetY = Math.max(minOffsetY, Math.min(0, desiredOffsetY));
-
-    const lightRad = renderInput.lightPower === "lomilwa" ? 5 : (renderInput.lightTurns > 0 ? 3 : 0);
-    const fragmentCells = new Set(renderInput.mapFragments);
-
-      for (let y = 0; y < map.length; y++) {
-        for (let x = 0; x < map[y].length; x++) {
-          const isVisited = Boolean(renderInput.visitedMap?.[y]?.[x]);
-        const isFragmentRevealed = fragmentCells.has(`${x},${y}`);
-        const dist = Math.abs(x - renderInput.x) + Math.abs(y - renderInput.y);
-        const isLightRevealed = (lightRad > 0 && dist <= lightRad);
-
-        const cell = map[y][x];
-        const hasDiscoveredTrap = cell.trap && cell.trap.state !== "hidden";
-        // A discovered trap is durable map information even when its cell has
-        // not otherwise been explored. Keep the marker visible so route choice
-        // can use the discovery without revealing the surrounding terrain.
-        if (!isVisited && !isLightRevealed && !isFragmentRevealed && !hasDiscoveredTrap) continue;
-
-        if (!isRenderableCorridorCell(cell)) continue;
-        const screenX = margin + x * cellS + offsetX;
-        const screenY = margin + y * cellS + offsetY;
-
-        const isLightOnly = !isVisited && isLightRevealed;
-        const isFragmentOnly = !isVisited && !isLightRevealed && isFragmentRevealed;
-
-        if (isFragmentOnly) {
-          ctx.fillStyle = "rgba(255, 179, 0, 0.04)";
-          ctx.fillRect(screenX, screenY, cellS, cellS);
-          ctx.strokeStyle = "rgba(255, 179, 0, 0.4)";
-          ctx.lineWidth = 1;
-          ctx.setLineDash([2, 2]);
-        } else if (isLightOnly) {
-          // Faint cyan floor for light-only cell previews
-          ctx.fillStyle = "rgba(0, 229, 255, 0.04)";
-          ctx.fillRect(screenX, screenY, cellS, cellS);
-
-          // Faint cyan dashed walls
-          ctx.strokeStyle = "rgba(0, 229, 255, 0.35)";
-          ctx.lineWidth = 1;
-          ctx.setLineDash([2, 2]);
-        } else {
-          // Explored paths get solid neon green
-          ctx.fillStyle = "rgba(0, 255, 102, 0.08)";
-          ctx.fillRect(screenX, screenY, cellS, cellS);
-
-          ctx.strokeStyle = "#00ff66";
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([]); // Solid lines
-        }
-
-        // Draw walls
-        ctx.beginPath();
-        if (cell.walls[0]) { // North
-          ctx.moveTo(screenX, screenY);
-          ctx.lineTo(screenX + cellS, screenY);
-        }
-        if (cell.walls[1]) { // East
-          ctx.moveTo(screenX + cellS, screenY);
-          ctx.lineTo(screenX + cellS, screenY + cellS);
-        }
-        if (cell.walls[2]) { // South
-          ctx.moveTo(screenX, screenY + cellS);
-          ctx.lineTo(screenX + cellS, screenY + cellS);
-        }
-        if (cell.walls[3]) { // West
-          ctx.moveTo(screenX, screenY);
-          ctx.lineTo(screenX, screenY + cellS);
-        }
-        ctx.stroke();
-
-        // Reset line dash
-        ctx.setLineDash([]);
-
-        this.drawOneWayMiniMapMarkers(ctx, screenX, screenY, cellS, cell, isLightOnly);
-
-        // Special cell colors
-        if (cell.type === "stairs-down") {
-          const fill = "255, 179, 0";
-          const stroke = "#ffb300";
-          ctx.fillStyle = isLightOnly ? `rgba(${fill}, 0.2)` : `rgba(${fill}, 0.5)`;
-          ctx.fillRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
-          ctx.strokeStyle = isLightOnly ? `rgba(${fill}, 0.4)` : stroke;
-          ctx.lineWidth = 1;
-          ctx.strokeRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
-          this.drawStairMiniMapIcon(ctx, screenX, screenY, cellS, false, stroke);
-        }
-
-        if (cell.trap && cell.trap.state !== "hidden") {
-          const isDisabled = cell.trap.state === "disabled";
-          const markerColor = isDisabled ? "#2fd66d" : "#ff3b30";
-          const markerBg = isDisabled ? "rgba(47, 214, 109, 0.22)" : "rgba(255, 59, 48, 0.24)";
-
-          ctx.fillStyle = markerBg;
-          ctx.beginPath();
-          ctx.arc(screenX + cellS / 2, screenY + cellS / 2, 4, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.strokeStyle = markerColor;
-          ctx.lineWidth = 1.2;
-          ctx.stroke();
-
-          ctx.fillStyle = markerColor;
-          ctx.font = "bold 9px monospace";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(isDisabled ? "x" : "!", screenX + cellS / 2, screenY + cellS / 2);
-        }
-      }
-    }
-
-    // Draw secret event auras (faint glowing circles)
-    for (let y = 0; y < map.length; y++) {
-      if (!map[y]) continue;
-      for (let x = 0; x < map[y].length; x++) {
-        if (!map[y][x]) continue;
-        const cell = map[y][x];
-        const dist = Math.abs(x - renderInput.x) + Math.abs(y - renderInput.y);
-        
-        // Aura range is within 4 steps
-        if (dist > 4) continue;
-
-        const hasStairs = cell.type === "stairs-down";
-        const hasEvent = cell.event === EVENT_TYPES.SPRING || 
-                          cell.event === EVENT_TYPES.CAMP ||
-                          cell.event === EVENT_TYPES.TABLET || 
-                          cell.event === EVENT_TYPES.MERCHANT || 
-                          cell.event === EVENT_TYPES.RETURN_PORTAL ||
-                          cell.event === EVENT_TYPES.MIDBOSS || 
-                          cell.event === EVENT_TYPES.BOSS;
-
-        if (!hasStairs && !hasEvent) continue;
-
-        const screenX = margin + x * cellS + offsetX;
-        const screenY = margin + y * cellS + offsetY;
-
-        ctx.save();
-        if (hasStairs) {
-          ctx.fillStyle = "rgba(255, 179, 0, 0.12)";
-          ctx.beginPath();
-          ctx.arc(screenX + cellS / 2, screenY + cellS / 2, cellS * 0.9, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS) {
-          // Pulsing red glow for boss/midboss
-          const pulse = 0.14 + 0.08 * Math.sin(Date.now() / 200);
-          ctx.fillStyle = `rgba(255, 59, 48, ${pulse})`;
-          ctx.beginPath();
-          ctx.arc(screenX + cellS / 2, screenY + cellS / 2, cellS * 1.3, 0, Math.PI * 2);
-          ctx.fill();
-        } else {
-          // Purple glow for mystery events (spring, tablet, merchant)
-          ctx.fillStyle = "rgba(191, 90, 242, 0.14)";
-          ctx.beginPath();
-          ctx.arc(screenX + cellS / 2, screenY + cellS / 2, cellS * 0.9, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-      }
-    }
-
-    // Draw roaming Flack on minimap
-    if (renderInput.roamingMonsters.length > 0) {
-      renderInput.roamingMonsters.forEach(rm => {
-        if (rm.floor !== renderInput.floor) return;
-        if (rm.perception === "afterimage" && !renderInput.hasArcaneSense) return;
-        const dist = Math.abs(rm.x - renderInput.x) + Math.abs(rm.y - renderInput.y);
-        if (rm.kind === "elite" || dist <= 4) {
-          const rx = margin + rm.x * cellS + cellS / 2 + offsetX;
-          const ry = margin + rm.y * cellS + cellS / 2 + offsetY;
-          
-          // Flashing red dot
-          const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 150);
-          ctx.save();
-          const perceptionColors = { sound: "255, 179, 0", blind_charge: "255, 92, 92", vibration: "89, 214, 138", standard: "255, 59, 48", afterimage: "190, 120, 255" };
-          const color = perceptionColors[rm.perception] || (rm.kind === "elite" ? "255, 179, 0" : "255, 59, 48");
-          ctx.fillStyle = `rgba(${color}, ${pulse})`;
-          ctx.shadowBlur = 6;
-          ctx.shadowColor = rm.kind === "elite" ? "#ffb300" : "#ff3b30";
-          ctx.beginPath();
-          ctx.arc(rx, ry, rm.kind === "elite" ? 4.5 : 3.5, 0, Math.PI * 2);
-          ctx.fill();
-          if (rm.kind === "elite") {
-            ctx.strokeStyle = "#ff3b30";
-            ctx.lineWidth = 1.2;
-            ctx.stroke();
-          }
-          ctx.restore();
-        }
-      });
-    }
-
-    // Draw player arrow
-    const px = margin + renderInput.x * cellS + cellS / 2 + offsetX;
-    const py = margin + renderInput.y * cellS + cellS / 2 + offsetY;
-    
-    // Draw background glow circle for player location.
-    ctx.fillStyle = "rgba(0, 229, 255, 0.25)";
-    ctx.beginPath();
-    ctx.arc(px, py, 7, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#00e5ff";
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1;
-    ctx.shadowBlur = 6;
-    ctx.shadowColor = "#00e5ff";
-    
-    ctx.save();
-    ctx.translate(px, py);
-    // Rotate to match direction: 0=N, 1=E, 2=S, 3=W
-    ctx.rotate((renderInput.dir * Math.PI) / 2);
-    ctx.beginPath();
-    ctx.moveTo(0, -6);
-    ctx.lineTo(-5, 5);
-    ctx.lineTo(5, 5);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-    
-    ctx.restore();
-    ctx.shadowBlur = 0;
-  }
-
-  drawOneWayMiniMapMarkers(ctx, screenX, screenY, cellS, cell, isLightOnly) {
-    if (!cell.blockEnter?.some(Boolean)) return;
-
-    const centerX = screenX + cellS / 2;
-    const centerY = screenY + cellS / 2;
-    const length = Math.max(5, cellS * 0.34);
-    const head = Math.max(2, cellS * 0.12);
-
-    ctx.save();
-    ctx.strokeStyle = isLightOnly ? "rgba(0, 229, 255, 0.55)" : "#ffb300";
-    ctx.fillStyle = ctx.strokeStyle;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([]);
-
-    cell.blockEnter.forEach((blocked, dir) => {
-      if (!blocked) return;
-
-      const dx = DX[dir];
-      const dy = DY[dir];
-      const startX = centerX - dx * length * 0.35;
-      const startY = centerY - dy * length * 0.35;
-      const endX = centerX + dx * length;
-      const endY = centerY + dy * length;
-
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(endX, endY);
-      ctx.stroke();
-
-      ctx.beginPath();
-      if (dir === 0 || dir === 2) {
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(endX - head, endY - dy * head);
-        ctx.lineTo(endX + head, endY - dy * head);
-      } else {
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(endX - dx * head, endY - head);
-        ctx.lineTo(endX - dx * head, endY + head);
-      }
-      ctx.closePath();
-      ctx.fill();
-    });
-
-    ctx.restore();
-  }
-
-  drawStairMiniMapIcon(ctx, screenX, screenY, cellS, isUp, color) {
-    const left = screenX + 2;
-    const right = screenX + cellS - 2;
-    const top = screenY + 2;
-    const bottom = screenY + cellS - 2;
-    const stepX = (right - left) / 3;
-    const stepY = (bottom - top) / 3;
-
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.6;
-    ctx.lineCap = "square";
-    ctx.lineJoin = "miter";
-    ctx.beginPath();
-
-    if (isUp) {
-      ctx.moveTo(left, bottom);
-      ctx.lineTo(left + stepX, bottom);
-      ctx.lineTo(left + stepX, bottom - stepY);
-      ctx.lineTo(left + stepX * 2, bottom - stepY);
-      ctx.lineTo(left + stepX * 2, bottom - stepY * 2);
-      ctx.lineTo(right, bottom - stepY * 2);
-    } else {
-      ctx.moveTo(left, top + stepY);
-      ctx.lineTo(left + stepX, top + stepY);
-      ctx.lineTo(left + stepX, top + stepY * 2);
-      ctx.lineTo(left + stepX * 2, top + stepY * 2);
-      ctx.lineTo(left + stepX * 2, bottom);
-      ctx.lineTo(right, bottom);
-    }
-
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  drawFloatingTexts(ctx) {
+ drawFloatingTexts(ctx) {
     ctx.font = "bold 16px 'Share Tech Mono', monospace";
     ctx.textAlign = "center";
     
