@@ -45,7 +45,11 @@ assert.deepEqual(
     rightBlocked: true,
     frontWall: true,
     frontBlocked: true,
-    frontOneWayBarrier: false
+    backBlocked: true,
+    frontOneWayBarrier: false,
+    leftOneWayBarrier: false,
+    rightOneWayBarrier: false,
+    backOneWayBarrier: false
   },
   "a closed cell reports all three visible walls"
 );

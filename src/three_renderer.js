@@ -45,8 +45,8 @@ const CORRIDOR_CAMERA = Object.freeze({
 // (frontZ = CORRIDOR_START_Z - CORRIDOR_CELL_DEPTH / 2 = 0.1). Keeping these
 // layers camera-side makes them visible and raycastable in closed rooms.
 const COMBAT_MONSTER_Z = 0.72;
-const DANGER_CUE_Z = 0.95;
-const DANGER_RING_Z = 0.88;
+const DANGER_CUE_Z = 0.45;
+const DANGER_RING_Z = 0.38;
 
 function finite(value, fallback) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -231,7 +231,11 @@ export class ThreeDungeonRenderer {
       cell.leftBlocked,
       cell.rightBlocked,
       cell.frontBlocked,
-      cell.frontOneWayBarrier
+      cell.frontOneWayBarrier,
+      cell.backBlocked,
+      cell.leftOneWayBarrier,
+      cell.rightOneWayBarrier,
+      cell.backOneWayBarrier
     ]);
     return JSON.stringify({
       gameState: view.gameState,
@@ -362,44 +366,72 @@ export class ThreeDungeonRenderer {
 
       const centerX = cell.column * CORRIDOR_CELL_WIDTH;
       const centerZ = CORRIDOR_START_Z - cell.z * CORRIDOR_CELL_DEPTH;
-      const frontZ = centerZ - CORRIDOR_CELL_DEPTH / 2;
+      const sideBranch = cell.column < 0 ? "left" : cell.column > 0 ? "right" : "forward";
+      const rotationY = sideBranch === "left" ? Math.PI / 2 : sideBranch === "right" ? -Math.PI / 2 : 0;
+      const toWorld = (localX, localZ) => ({
+        x: centerX + Math.cos(rotationY) * localX + Math.sin(rotationY) * localZ,
+        z: centerZ - Math.sin(rotationY) * localX + Math.cos(rotationY) * localZ,
+      });
+      const frame = sideBranch === "left"
+        ? {
+          leftBlocked: cell.backBlocked,
+          rightBlocked: cell.frontBlocked,
+          frontBlocked: cell.leftBlocked,
+          frontOneWayBarrier: cell.leftOneWayBarrier,
+        }
+        : sideBranch === "right"
+          ? {
+            leftBlocked: cell.frontBlocked,
+            rightBlocked: cell.backBlocked,
+            frontBlocked: cell.rightBlocked,
+            frontOneWayBarrier: cell.rightOneWayBarrier,
+          }
+          : {
+            leftBlocked: cell.leftBlocked,
+            rightBlocked: cell.rightBlocked,
+            frontBlocked: cell.frontBlocked,
+            frontOneWayBarrier: cell.frontOneWayBarrier,
+          };
+      const front = toWorld(0, -CORRIDOR_CELL_DEPTH / 2);
       if (!cell.valid) {
         this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
-          x: centerX,
+          x: front.x,
           y: CORRIDOR_WALL_HEIGHT / 2,
-          z: frontZ
-        }, "front-wall-invalid", cell);
+          z: front.z
+        }, "front-wall-invalid", cell, rotationY);
         return;
       }
 
       const floor = new Mesh(new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_CELL_DEPTH), floorMaterial.clone());
-      floor.rotation.x = -Math.PI / 2;
+      floor.rotation.set(-Math.PI / 2, rotationY, 0);
       floor.position.set(centerX, 0, centerZ);
       floor.userData = { surface: "floor", topology: cellGroup.userData.topology };
       cellGroup.add(floor);
 
       const ceiling = new Mesh(new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_CELL_DEPTH), floorMaterial.clone());
-      ceiling.rotation.x = Math.PI / 2;
+      ceiling.rotation.set(Math.PI / 2, rotationY, 0);
       ceiling.position.set(centerX, CORRIDOR_WALL_HEIGHT, centerZ);
       ceiling.userData = { surface: "ceiling", topology: cellGroup.userData.topology };
       cellGroup.add(ceiling);
 
-      if (cell.leftBlocked) {
+      if (frame.leftBlocked) {
+        const left = toWorld(-CORRIDOR_CELL_WIDTH / 2, 0);
         this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
-          x: centerX - CORRIDOR_CELL_WIDTH / 2,
+          x: left.x,
           y: CORRIDOR_WALL_HEIGHT / 2,
-          z: centerZ
-        }, "left-wall", cell, Math.PI / 2);
+          z: left.z
+        }, "left-wall", cell, rotationY + Math.PI / 2);
       }
-      if (cell.rightBlocked) {
+      if (frame.rightBlocked) {
+        const right = toWorld(CORRIDOR_CELL_WIDTH / 2, 0);
         this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
-          x: centerX + CORRIDOR_CELL_WIDTH / 2,
+          x: right.x,
           y: CORRIDOR_WALL_HEIGHT / 2,
-          z: centerZ
-        }, "right-wall", cell, -Math.PI / 2);
+          z: right.z
+        }, "right-wall", cell, rotationY - Math.PI / 2);
       }
-      if (cell.frontBlocked) {
-        const isOneWay = cell.frontOneWayBarrier;
+      if (frame.frontBlocked) {
+        const isOneWay = frame.frontOneWayBarrier;
         const frontMaterial = isOneWay
           ? new MeshStandardMaterial({
             color: wall,
@@ -422,10 +454,10 @@ export class ThreeDungeonRenderer {
           frontMaterial.emissiveIntensity = 0.08;
         }
         this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_WALL_HEIGHT), frontMaterial, {
-          x: centerX,
+          x: front.x,
           y: CORRIDOR_WALL_HEIGHT / 2,
-          z: frontZ
-        }, isOneWay ? "front-wall-one-way" : "front-wall", cell, 0, false);
+          z: front.z
+        }, isOneWay ? "front-wall-one-way" : "front-wall", cell, rotationY, false);
         if (isOneWay) {
           const chevron = new Mesh(
             new PlaneGeometry(CORRIDOR_CELL_WIDTH * 0.82, CORRIDOR_WALL_HEIGHT * 0.82),
@@ -436,7 +468,9 @@ export class ThreeDungeonRenderer {
               side: DoubleSide
             })
           );
-          chevron.position.set(centerX, CORRIDOR_WALL_HEIGHT / 2, frontZ + 0.018);
+          const chevronPosition = toWorld(0, -CORRIDOR_CELL_DEPTH / 2 + 0.018);
+          chevron.position.set(chevronPosition.x, CORRIDOR_WALL_HEIGHT / 2, chevronPosition.z);
+          chevron.rotation.y = rotationY;
           chevron.userData = {
             surface: "front-wall-one-way-chevron",
             topology: cellGroup.userData.topology

@@ -70,8 +70,8 @@ test('Three.js Dungeon View keeps the four shell regions and renders at mobile w
   }
 });
 
-test('Three.js Dungeon View makes six local topology archetypes readable at small mobile widths @smoke @visual', async ({ page }, testInfo) => {
-  for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }]) {
+test('Three.js Dungeon View makes six local topology archetypes readable at all supported mobile widths @smoke @visual', async ({ page }, testInfo) => {
+  for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await page.goto('/?renderer=three');
     await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
@@ -92,12 +92,12 @@ test('Three.js Dungeon View makes six local topology archetypes readable at smal
           map[y + dy][x + dx].walls[(dir + 2) % 4] = false;
         };
         const paths = {
-          'straight-corridor': [[4, 4, 0], [4, 3, 0], [4, 2, 0]],
-          'dead-end': [],
-          'left-turn': [[4, 4, 0], [4, 4, 3], [4, 3, 3]],
-          'right-turn': [[4, 4, 0], [4, 4, 1], [4, 3, 1]],
-          't-junction': [[4, 4, 0], [4, 4, 3], [4, 4, 1]],
-          'cross-junction': [[4, 4, 0], [4, 4, 1], [4, 4, 2], [4, 4, 3], [4, 3, 0], [4, 2, 0], [4, 3, 1], [4, 3, 3]],
+          'straight-corridor': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 2, 0]],
+          'dead-end': [[4, 4, 2]],
+          'left-turn': [[4, 4, 2], [4, 4, 3], [3, 4, 3]],
+          'right-turn': [[4, 4, 2], [4, 4, 1], [5, 4, 1]],
+          't-junction': [[4, 4, 2], [4, 4, 3], [4, 4, 1]],
+          'cross-junction': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 4, 1], [4, 4, 3], [5, 4, 1], [3, 4, 3]],
         };
         paths[name].forEach(([x, y, dir]) => open(x, y, dir));
 
@@ -123,6 +123,13 @@ test('Three.js Dungeon View makes six local topology archetypes readable at smal
         const { dungeonRenderer } = await import('/src/renderer.js');
         const topology = dungeonRenderer.getSceneTopology();
         const current = topology.find(({ z, column }) => z === 0 && column === 0);
+        const branchRotations = {};
+        dungeonRenderer.root.traverse((child) => {
+          const cell = child.userData?.topology;
+          if (child.userData?.surface === 'floor' && cell?.z === 0 && Math.abs(cell.column) === 1) {
+            branchRotations[cell.column] = Number(child.rotation.y.toFixed(3));
+          }
+        });
         return {
           current: {
             leftBlocked: current.leftBlocked,
@@ -130,26 +137,84 @@ test('Three.js Dungeon View makes six local topology archetypes readable at smal
             frontBlocked: current.frontBlocked,
           },
           visible: topology.map(({ z, column }) => `${z}:${column}`).sort(),
+          branchRotations,
         };
       });
 
       expect(evidence.current).toEqual(expect.objectContaining({
         leftBlocked: ['straight-corridor', 'dead-end', 'right-turn'].includes(archetype),
         rightBlocked: ['straight-corridor', 'dead-end', 'left-turn'].includes(archetype),
-        frontBlocked: archetype === 'dead-end',
+        frontBlocked: ['dead-end', 'left-turn', 'right-turn', 't-junction'].includes(archetype),
       }));
       if (archetype === 'straight-corridor') expect(evidence.visible).toContain('3:0');
       if (archetype === 'dead-end') expect(evidence.visible).toEqual(['0:0']);
       if (archetype === 'left-turn') expect(evidence.visible).toContain('0:-1');
       if (archetype === 'right-turn') expect(evidence.visible).toContain('0:1');
-      if (archetype === 't-junction') expect(evidence.visible).toEqual(expect.arrayContaining(['0:-1', '0:1', '1:0']));
+      if (archetype === 'left-turn') expect(evidence.branchRotations['-1']).toBeCloseTo(Math.PI / 2, 3);
+      if (archetype === 'right-turn') expect(evidence.branchRotations['1']).toBeCloseTo(-Math.PI / 2, 3);
+      if (archetype === 't-junction') {
+        expect(evidence.visible).toEqual(expect.arrayContaining(['0:-1', '0:1']));
+        expect(evidence.visible).not.toContain('1:0');
+      }
       if (archetype === 'cross-junction') expect(evidence.visible).toContain('2:0');
 
-      await page.screenshot({
+      const screenshot = await page.screenshot({
         path: testInfo.outputPath(`three-topology-${archetype}-${viewport.width}px.png`),
+      });
+      await testInfo.attach(`three-topology-${archetype}-${viewport.width}px`, {
+        body: screenshot,
+        contentType: 'image/png',
       });
     }
   }
+});
+
+test('Three.js danger cue stays outside the camera and visible in the corridor @e2e @visual', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?renderer=three');
+  await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+
+  const evidence = await page.evaluate(async () => {
+    const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const makeCell = () => ({
+      walls: [true, true, true, true],
+      blockEnter: [false, false, false, false],
+      type: 'empty',
+    });
+    const map = Array.from({ length: 7 }, () => Array.from({ length: 7 }, makeCell));
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.currentRun = createDefaultCurrentRun();
+    state.floor = 1;
+    state.x = 3;
+    state.y = 3;
+    state.dir = 0;
+    state.maps[0] = map;
+    state.visitedMaps[0] = map.map((row) => row.map(() => true));
+    state.mapRevision = (state.mapRevision || 0) + 1;
+    state.gameState = 'explore';
+    state.transitioning = false;
+    state.combatState = null;
+    state.roamingMonsters = [{ floor: 1, x: 3, y: 2, kind: 'elite', perception: 'visible' }];
+    updateUI();
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    dungeonRenderer.draw();
+    let cue = null;
+    dungeonRenderer.root.traverse((child) => {
+      if (child.userData?.surface === 'danger-cue') cue = child;
+    });
+    return {
+      cameraPosition: dungeonRenderer.camera.position.toArray().map((value) => Number(value.toFixed(3))),
+      cuePosition: cue?.position.toArray().map((value) => Number(value.toFixed(3))) ?? null,
+      cueRadius: cue?.geometry.parameters.radius ?? null,
+      cameraToCue: cue ? dungeonRenderer.camera.position.distanceTo(cue.position) : null,
+    };
+  });
+
+  expect(evidence.cuePosition).not.toBeNull();
+  expect(evidence.cameraToCue).toBeGreaterThan(evidence.cueRadius);
+  const screenshot = await page.screenshot({ path: testInfo.outputPath('three-danger-cue-390px.png') });
+  await testInfo.attach('three-danger-cue-390px', { body: screenshot, contentType: 'image/png' });
 });
 
 test('Three.js Dungeon View survives orientation resize without overflow @smoke @e2e', async ({ page }) => {

@@ -65,8 +65,12 @@ export function getVisibleCorridorTopology(map, px, py, dir, maxDepth = 3, maxCo
     }
 
     const leftDir = (dir + 3) % 4;
+    const backDir = (dir + 2) % 4;
     const frontWall = Boolean(cell.walls[dir]);
     const frontBlocked = isMapDirectionBlocked(map, x, y, dir);
+    const leftBlocked = isMapDirectionBlocked(map, x, y, leftDir);
+    const rightBlocked = isMapDirectionBlocked(map, x, y, dirRight);
+    const backBlocked = isMapDirectionBlocked(map, x, y, backDir);
     return Object.freeze({
       z,
       column,
@@ -74,11 +78,15 @@ export function getVisibleCorridorTopology(map, px, py, dir, maxDepth = 3, maxCo
       y,
       cell,
       valid: true,
-      leftBlocked: isMapDirectionBlocked(map, x, y, leftDir),
-      rightBlocked: isMapDirectionBlocked(map, x, y, dirRight),
+      leftBlocked,
+      rightBlocked,
       frontWall,
       frontBlocked,
-      frontOneWayBarrier: !frontWall && frontBlocked
+      backBlocked,
+      frontOneWayBarrier: !frontWall && frontBlocked,
+      leftOneWayBarrier: !cell.walls[leftDir] && leftBlocked,
+      rightOneWayBarrier: !cell.walls[dirRight] && rightBlocked,
+      backOneWayBarrier: !cell.walls[backDir] && backBlocked
     });
   });
 }
