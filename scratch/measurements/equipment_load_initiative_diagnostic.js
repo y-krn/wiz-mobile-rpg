@@ -15,7 +15,7 @@ import { runCombatRoundCalculation } from "../../src/combat_logic.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1161-equipment-load-v1";
+export const RUNNER_VERSION = "issue1161-equipment-load-v2";
 export const SCHEMA_VERSION = 1;
 export const DEFAULT_RUNS = 500;
 export const DEFAULT_SEED = 1161;
