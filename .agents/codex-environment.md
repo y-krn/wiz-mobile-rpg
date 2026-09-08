@@ -83,6 +83,26 @@ collect summaries. Do not run a short `wait -> timeout -> wait` loop or treat an
 unchanged status poll as progress. Use one bounded, completion-aware wait and
 back off when work remains; a timeout is not a failure by itself.
 
+### Review delegation and replacement
+
+The owning Issue session coordinates merge-gate completion and remains
+responsible for the final evidence. For one immutable `BASE_SHA` / `HEAD_SHA`
+and substantially the same review scope, keep at most one active reviewer.
+Do not launch another full reviewer merely because the current reviewer is
+slow or a bounded wait timed out. Replace that reviewer only after it is
+confirmed failed, cancelled, or intentionally abandoned.
+
+A reviewer may delegate a bounded, materially distinct sub-review when
+specialization, parallel read-heavy analysis, or independent evidence improves
+the review. Give that sub-review a specific scope and completion condition.
+The sub-review returns findings to its parent reviewer; it must not independently
+restart the full merge-gate workflow or spawn another full reviewer for the same
+immutable change set and substantially the same scope.
+
+If `HEAD_SHA` or the PR-specific diff changes, follow `.agents/merge-gate.md` to
+determine whether fresh review evidence is required. That is a new review
+target, not justification for concurrently duplicating the old target's review.
+
 ## Sandbox-first execution
 
 Prefer the normal `workspace-write` sandbox with approval requested only when
