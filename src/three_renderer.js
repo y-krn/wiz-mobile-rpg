@@ -36,11 +36,11 @@ const CORRIDOR_START_Z = 1.15;
 // threshold. Keeping the eye point inside the cell makes its side walls read
 // as corridor boundaries instead of freestanding panels behind the player.
 const CORRIDOR_CAMERA = Object.freeze({
-  fov: 68,
+  fov: 78,
   eyeHeight: 1.55,
   eyeZ: CORRIDOR_START_Z + 0.4,
   lookAtHeight: 1.5,
-  lookAtZ: -3.1
+  lookAtZ: -2.6
 });
 // Combat and danger overlays live in front of the current cell's front wall
 // (frontZ = CORRIDOR_START_Z - CORRIDOR_CELL_DEPTH / 2 = 0.1). Keeping these
@@ -416,6 +416,16 @@ export class ThreeDungeonRenderer {
       ceiling.userData = { surface: "ceiling", topology: cellGroup.userData.topology };
       cellGroup.add(ceiling);
 
+      // Side openings need a visible threshold in a first-person view. The
+      // neighboring branch floor is physically rotated into place below, but
+      // its far wall can otherwise blend into the fog at the edge of the
+      // camera. A recessed dark mouth plus a thin luminous frame makes the
+      // opening read as a turn without adding a gameplay-only icon.
+      if (cell.z === 0 && cell.column === 0) {
+        if (!frame.leftBlocked) this.addSideBranchMouth(cellGroup, -1, wall, cell);
+        if (!frame.rightBlocked) this.addSideBranchMouth(cellGroup, 1, wall, cell);
+      }
+
       if (frame.leftBlocked) {
         const left = toWorld(-CORRIDOR_CELL_WIDTH / 2, 0);
         this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
@@ -489,6 +499,38 @@ export class ThreeDungeonRenderer {
     wall.rotation.y = rotationY;
     wall.userData = { surface, topology: { z: topology.z, column: topology.column, x: topology.x, y: topology.y } };
     parent.add(wall);
+  }
+
+  addSideBranchMouth(parent, side, wall, topology) {
+    const rotationY = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+    const x = side * (CORRIDOR_CELL_WIDTH / 2 + 0.04);
+    const z = 0.15;
+    const mouthMaterial = new MeshBasicMaterial({
+      color: 0x02080b,
+      side: DoubleSide
+    });
+    const mouth = new Mesh(new PlaneGeometry(1.8, 3.2), mouthMaterial);
+    mouth.position.set(x, CORRIDOR_WALL_HEIGHT / 2, z);
+    mouth.rotation.y = rotationY;
+    mouth.userData = { surface: "side-branch-mouth", topology: { z: topology.z, column: topology.column } };
+    parent.add(mouth);
+
+    const frameMaterial = new MeshBasicMaterial({
+      color: wall,
+      transparent: true,
+      opacity: 0.88,
+      side: DoubleSide
+    });
+    const addFrame = (width, height, frameX, frameZ, surface) => {
+      const frame = new Mesh(new PlaneGeometry(width, height), frameMaterial.clone());
+      frame.position.set(frameX, frameZ === z ? CORRIDOR_WALL_HEIGHT - 0.45 : CORRIDOR_WALL_HEIGHT / 2, frameZ);
+      frame.rotation.y = rotationY;
+      frame.userData = { surface, topology: { z: topology.z, column: topology.column } };
+      parent.add(frame);
+    };
+    addFrame(0.06, 3.2, x, z - 0.9, "side-branch-mouth-frame");
+    addFrame(0.06, 3.2, x, z + 0.9, "side-branch-mouth-frame");
+    addFrame(1.86, 0.06, x, z, "side-branch-mouth-frame-top");
   }
 
   addDangerCue(wall) {

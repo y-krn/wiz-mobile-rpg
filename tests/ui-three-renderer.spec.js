@@ -75,6 +75,8 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
     await page.setViewportSize(viewport);
     await page.goto('/?renderer=three');
     await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+    await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
+    await expect(page.locator('#dungeon-minimap-overlay')).toHaveCSS('display', 'none');
 
     for (const archetype of TOPOLOGY_ARCHETYPES) {
       await page.evaluate(async (name) => {
@@ -124,10 +126,14 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
         const topology = dungeonRenderer.getSceneTopology();
         const current = topology.find(({ z, column }) => z === 0 && column === 0);
         const branchRotations = {};
+        const branchMouthSides = [];
         dungeonRenderer.root.traverse((child) => {
           const cell = child.userData?.topology;
           if (child.userData?.surface === 'floor' && cell?.z === 0 && Math.abs(cell.column) === 1) {
             branchRotations[cell.column] = Number(child.rotation.y.toFixed(3));
+          }
+          if (child.userData?.surface === 'side-branch-mouth' && cell?.z === 0 && cell?.column === 0) {
+            branchMouthSides.push(child.position.x < 0 ? 'left' : 'right');
           }
         });
         return {
@@ -138,6 +144,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
           },
           visible: topology.map(({ z, column }) => `${z}:${column}`).sort(),
           branchRotations,
+          branchMouthSides: branchMouthSides.sort(),
         };
       });
 
@@ -152,13 +159,20 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
       if (archetype === 'right-turn') expect(evidence.visible).toContain('0:1');
       if (archetype === 'left-turn') expect(evidence.branchRotations['-1']).toBeCloseTo(Math.PI / 2, 3);
       if (archetype === 'right-turn') expect(evidence.branchRotations['1']).toBeCloseTo(-Math.PI / 2, 3);
+      expect(evidence.branchMouthSides).toEqual(
+        archetype === 'left-turn' || archetype === 'right-turn'
+          ? [archetype === 'left-turn' ? 'left' : 'right']
+          : archetype === 't-junction' || archetype === 'cross-junction'
+            ? ['left', 'right']
+            : []
+      );
       if (archetype === 't-junction') {
         expect(evidence.visible).toEqual(expect.arrayContaining(['0:-1', '0:1']));
         expect(evidence.visible).not.toContain('1:0');
       }
       if (archetype === 'cross-junction') expect(evidence.visible).toContain('2:0');
 
-      const screenshot = await page.screenshot({
+      const screenshot = await page.locator('#dungeon-canvas').screenshot({
         path: testInfo.outputPath(`three-topology-${archetype}-${viewport.width}px.png`),
       });
       await testInfo.attach(`three-topology-${archetype}-${viewport.width}px`, {
@@ -173,6 +187,7 @@ test('Three.js danger cue stays outside the camera and visible in the corridor @
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?renderer=three');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+  await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
 
   const evidence = await page.evaluate(async () => {
     const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
@@ -213,7 +228,7 @@ test('Three.js danger cue stays outside the camera and visible in the corridor @
 
   expect(evidence.cuePosition).not.toBeNull();
   expect(evidence.cameraToCue).toBeGreaterThan(evidence.cueRadius);
-  const screenshot = await page.screenshot({ path: testInfo.outputPath('three-danger-cue-390px.png') });
+  const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('three-danger-cue-390px.png') });
   await testInfo.attach('three-danger-cue-390px', { body: screenshot, contentType: 'image/png' });
 });
 
