@@ -421,13 +421,14 @@ function resolveTurnInitiative(state, actorType, character = null) {
     const rollSize = Number.isInteger(measurement.rollSize) && measurement.rollSize > 0
       ? measurement.rollSize
       : 20;
-    const roll = Math.floor(Math.random() * rollSize);
+    const roll = Math.random() * rollSize;
+    const bucket = Math.floor(roll);
     const speed = actorType === "char"
-      ? roll + (Number(measurement.playerLoadModifier) || 0) +
+      ? bucket + (Number(measurement.playerLoadModifier) || 0) +
         (Number(measurement.playerFirstStrikeModifier) || 0) +
         getBuffTotal(character, "firstStrike") + getCharAffixSum(character, "firstStrike")
-      : roll + (Number(measurement.enemySpeedModifier) || 0);
-    return { speed, tieBreak: 0 };
+      : bucket + (Number(measurement.enemySpeedModifier) || 0);
+    return { speed, tieBreak: roll - bucket };
   }
 
   const initiative = resolveInitiativeRoll(

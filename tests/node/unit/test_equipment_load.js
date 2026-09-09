@@ -87,6 +87,20 @@ function combatState() {
   };
 }
 
+function measurementCombatState() {
+  return {
+    ...combatState(),
+    simPolicy: {
+      measurementInitiative: {
+        rollSize: 20,
+        playerLoadModifier: 0,
+        playerFirstStrikeModifier: 0,
+        enemySpeedModifier: 0
+      }
+    }
+  };
+}
+
 const originalRandom = Math.random;
 try {
   // Both actors land in initiative bucket 0; the fractional part decides the tie.
@@ -102,6 +116,20 @@ try {
     actions: [{ type: "defend", actorIdx: 0 }]
   });
   assert.equal(playerFirst.actionObservations[0].actor, "char");
+
+  // The measurement-only initiative hook must preserve production's random
+  // fractional tie-break instead of falling back to party insertion order.
+  values = [0.01, 0.04];
+  const measurementEnemyFirst = runCombatRoundCalculation(measurementCombatState(), {
+    actions: [{ type: "defend", actorIdx: 0 }]
+  });
+  assert.equal(measurementEnemyFirst.actionObservations[0].actor, "monster");
+
+  values = [0.04, 0.01];
+  const measurementPlayerFirst = runCombatRoundCalculation(measurementCombatState(), {
+    actions: [{ type: "defend", actorIdx: 0 }]
+  });
+  assert.equal(measurementPlayerFirst.actionObservations[0].actor, "char");
 } finally {
   Math.random = originalRandom;
 }
