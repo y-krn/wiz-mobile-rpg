@@ -491,7 +491,9 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
             index: group.userData.monsterIndex,
             x: group.position.x,
             z: group.position.z,
+            spacing: group.userData.staging.spacing,
             bodyRadius: radius,
+            labelWidth: label.geometry.parameters.width,
             bodyBounds,
             labelBounds,
             marker: (() => {
@@ -526,6 +528,9 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
       }
       if (fixture.name === 'multi') {
         expect(Math.abs(evidence.groupEvidence[1].x - evidence.groupEvidence[0].x)).toBeGreaterThan(0.8);
+        for (const group of evidence.groupEvidence) {
+          expect(group.labelWidth).toBeLessThan(group.spacing);
+        }
       }
 
       const screenshot = await page.locator('#dungeon-canvas').screenshot({

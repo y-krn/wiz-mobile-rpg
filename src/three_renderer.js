@@ -597,7 +597,9 @@ export class ThreeDungeonRenderer {
       ring.position.y = COMBAT_MONSTER_BODY_Y - COMBAT_MONSTER_RADIUS;
       ring.userData = { surface: "combat-marker", monsterIndex };
       group.add(ring);
-      const labelWidth = monsters.length > 1 ? Math.min(1.45, Math.max(1.08, spacing * 1.35)) : 1.7;
+      // Keep multi-enemy labels inside their horizontal slot so adjacent
+      // labels remain individually legible at narrow portrait widths.
+      const labelWidth = monsters.length > 1 ? Math.min(1.45, spacing * 0.86) : 1.7;
       const label = new Mesh(
         new PlaneGeometry(labelWidth, labelWidth * 48 / 256),
         new MeshBasicMaterial({ map: makeLabelTexture(monster.name || "敵", `#${color.getHexString()}`), transparent: true, depthWrite: false })
