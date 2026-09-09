@@ -38,7 +38,7 @@ export function renderCastleMain(optGrid) {
   const summary = document.createElement("div");
   summary.className = "records-menu-summary";
   summary.innerHTML = `
-    <div><span>撤退最深</span><strong>${records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録"}</strong></div>
+    <div><span>帰還最深</span><strong>${records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録"}</strong></div>
     <div><span>死亡最深</span><strong>${records.deepestDeath ? `B${records.deepestDeath}F` : "未記録"}</strong></div>
     <div><span>総潜行</span><strong>${records.totalRuns}回</strong></div>
     <div><span>断念</span><strong>${abandonCount}回</strong></div>
@@ -157,8 +157,8 @@ function appendDeathCountermeasure(optGrid, summary) {
 
   const actions = document.createElement("div");
   actions.className = "death-countermeasure-actions";
-  appendDeathReviewButton(actions, "準備を見直す", "クラス・持込品・開始地点を比較する。", "solo_start", "潜行の準備");
-  appendDeathReviewButton(actions, "広がった可能性を見る", "記録から横方向の候補を確認する。", "workshop_main", "工房 - 広がった可能性");
+  appendDeathReviewButton(actions, "準備を見直す", "開始キット・持込品・開始地点を比較する。", "solo_start", "潜行の準備");
+  appendDeathReviewButton(actions, "広がった可能性を見る", "記録から利用可能になった選択肢を確認する。", "workshop_main", "工房 - 広がった可能性");
   panel.appendChild(actions);
   optGrid.appendChild(panel);
 }

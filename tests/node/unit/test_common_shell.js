@@ -106,7 +106,7 @@ assert.equal(
 );
 ownershipState.currentRun.lostObjectLoot = [dungeonPotion];
 assert.equal(getItemOwnership(dungeonPotion, { state: ownershipState }), OWNERSHIP_STATES.LOST);
-assert.match(getOwnershipLabel(OWNERSHIP_STATES.DUNGEON_UNCONFIRMED), /迷宮/);
+assert.match(getOwnershipLabel(OWNERSHIP_STATES.DUNGEON_UNCONFIRMED), /持ち帰っていない/);
 
 const ambiguousState = {
   currentRun: {
@@ -123,6 +123,6 @@ assert.equal(
   getItemOwnership("HEAL_POTION", { state: ambiguousState, lootEntryId: "loot-primitive" }),
   OWNERSHIP_STATES.DUNGEON_UNCONFIRMED
 );
-assert.match(getOwnershipLabel(OWNERSHIP_STATES.AMBIGUOUS), /不明/);
+assert.match(getOwnershipLabel(OWNERSHIP_STATES.AMBIGUOUS), /確認中/);
 
 console.log("[PASS] common shell Dock, Event Strip, and ownership contracts");

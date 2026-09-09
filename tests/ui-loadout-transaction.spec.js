@@ -285,6 +285,16 @@ test('equipment detail exposes build commitments and neutral replacement consequ
   await expect(detail.locator('[data-build-field="weapon"]')).toContainText('ダガー');
   await expect(detail.locator('[data-build-field="weapon"]')).toContainText('軽武器');
   await expect(detail.locator('[data-build-field="hands"]')).toContainText('使用 2/2');
+  const buildText = await detail.locator('.equip-build-grid').textContent();
+  expect(buildText).toContain('装備に使う手');
+  expect(buildText).toContain('媒体');
+  expect(buildText).toContain('ルーン枠');
+  expect(buildText).toContain('使用中のルーン');
+  expect(buildText).toContain('戦い方を変える効果');
+  expect(buildText).toContain('補助的な特殊効果');
+  expect(buildText).toContain('装備効果');
+  expect(buildText).toContain('探索に役立つ効果');
+  expect(buildText).not.toMatch(/手数|Main-axis|Auxiliary|active Rune|Rune slot|探索 Support/);
   await expect(detail.locator('[data-build-field="guard"]')).toContainText('スモールシールド');
   await expect(detail.locator('[data-build-field="guard"]')).toContainText('軽盾の守り');
   await expect(detail.locator('[data-build-compare="weapon"]')).toContainText('両手重武器');
@@ -310,8 +320,8 @@ test('active and spare Runes are labeled by their ownership surface @smoke', asy
   });
 
   const runePanel = page.locator('.equip-rune-panel');
-  await expect(runePanel).toContainText('socket中（バッグ外・active）');
-  await expect(runePanel).toContainText('バッグ内の予備Rune');
+  await expect(runePanel).toContainText('使用中のルーン（バッグ外）');
+  await expect(runePanel).toContainText('バッグ内の予備ルーン');
   await expect(runePanel.locator('.equip-rune-row.active')).toContainText('HALITOのルーン');
   await expect(runePanel.locator('.equip-rune-row:not(.active)')).toContainText('DIOSのルーン');
 });
@@ -338,7 +348,7 @@ test('medium replacement shows current MP separately from maximum MP @smoke', as
   await expect(page.locator('[data-build-compare="mp"]')).toContainText('2/3 → 2/5');
   await expect(page.locator('[data-build-compare="bag"]')).toContainText('1/20 → 2/20');
   await expect(page.locator('[data-build-compare="bag-items"]')).toContainText('魔術師の杖がバッグへ戻る');
-  await expect(page.locator('[data-build-compare="bag-items"]')).toContainText('socket中Rune 1個がバッグへ戻る');
+  await expect(page.locator('[data-build-compare="bag-items"]')).toContainText('装着中のルーン 1個がバッグへ戻る');
   await page.getByRole('button', { name: '装備する' }).click();
   await page.locator('#btn-equip-commit').click();
   await expect.poll(() => page.evaluate(async () => {

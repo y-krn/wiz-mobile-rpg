@@ -123,10 +123,10 @@ for (const vp of VIEWPORTS) {
       const { openSubmenu } = await import('/src/navigation.js');
       openSubmenu('milestone_portal', '帰還の門');
     });
-    const retreat = page.getByRole('button', { name: '撤退して素材を100%、未確定戦果をすべて持ち帰る' });
+    const retreat = page.getByRole('button', { name: '戦果をすべて持ち帰って帰還' });
     expect((await retreat.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await retreat.click();
-    await expect(page.locator('.milestone-portal-confirmation')).toContainText('Returnを確定しますか？');
+    await expect(page.locator('.milestone-portal-confirmation')).toContainText('ここで帰還しますか？');
     await page.locator('#btn-portal-confirm').click();
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -408,8 +408,11 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(summary).toContainText('鋼の前線キット');
   await expect(summary).toContainText('鍛錬サーベル（バッグ外）');
   await expect(summary).toContainText('装備中');
-  await expect(summary).toContainText('Medium');
-  await expect(summary).toContainText('active Rune');
+  await expect(summary).toContainText('媒体');
+  await expect(summary).toContainText('使用中のルーン');
+  await expect(summary).toContainText('ルーン枠');
+  await expect(summary).not.toContainText('Medium');
+  await expect(summary).not.toContainText('active Rune');
   await expect(summary).toContainText(questName);
   await expect(summary.locator('.solo-preparation-slot')).toHaveCount(20);
   await expect(summary.locator('.solo-preparation-slot.is-open')).toHaveCount(20);

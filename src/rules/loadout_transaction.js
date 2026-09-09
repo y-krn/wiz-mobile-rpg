@@ -222,7 +222,7 @@ export function getLoadoutEquipAvailability(draft, { actorIdx, item, requestedSl
 
 export function stageEquip(draft, { actorIdx, inventoryIndex, requestedSlot = null } = {}) {
   const candidate = draft?.inventory?.[inventoryIndex];
-  if (draft?.trialAction) return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
+  if (draft?.trialAction) return { ok: false, reason: "試用中は通常の装備変更と同時に確定できません。" };
   if (isUntriedEquipment(candidate)) {
     return { ok: false, reason: "未鑑定装備は『試す』から実際に装備してください。" };
   }
@@ -257,7 +257,7 @@ export function stageTrialEquip(draft, { actorIdx, inventoryIndex = null, item =
   }
   const priorChanges = getLoadoutDraftChanges(draft);
   if (priorChanges.equipment.length > 0 || priorChanges.runes.length > 0) {
-    return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
+    return { ok: false, reason: "試用中は通常の装備変更と同時に確定できません。" };
   }
   const availability = getLoadoutEquipAvailability(draft, { actorIdx, item: candidate, requestedSlot });
   if (!availability.ok) return availability;
@@ -282,7 +282,7 @@ export function stageTrialEquip(draft, { actorIdx, inventoryIndex = null, item =
 }
 
 export function stageUnequip(draft, { actorIdx, slot } = {}) {
-  if (draft?.trialAction) return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
+  if (draft?.trialAction) return { ok: false, reason: "試用中は通常の装備変更と同時に確定できません。" };
   const equipmentSlot = getEquipmentSlot(slot);
   const character = getDraftActor(draft, actorIdx);
   const item = getSlotItem(character, equipmentSlot?.id);
@@ -301,10 +301,10 @@ export function stageUnequip(draft, { actorIdx, slot } = {}) {
 }
 
 export function stageSocketRune(draft, { actorIdx, inventoryIndex } = {}) {
-  if (draft?.trialAction) return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
+  if (draft?.trialAction) return { ok: false, reason: "試用中は通常の装備変更と同時に確定できません。" };
   const character = getDraftActor(draft, actorIdx);
   const rune = draft?.inventory?.[inventoryIndex];
-  if (!character || !getRuneSpellKey(rune)) return { ok: false, reason: "媒体またはRuneがありません" };
+  if (!character || !getRuneSpellKey(rune)) return { ok: false, reason: "媒体またはルーンがありません" };
   const next = copyDraft(draft);
   const nextCharacter = getDraftActor(next, actorIdx);
   const result = socketRune(nextCharacter, rune);
@@ -314,10 +314,10 @@ export function stageSocketRune(draft, { actorIdx, inventoryIndex } = {}) {
 }
 
 export function stageUnsocketRune(draft, { actorIdx, spellKey } = {}) {
-  if (draft?.trialAction) return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
+  if (draft?.trialAction) return { ok: false, reason: "試用中は通常の装備変更と同時に確定できません。" };
   const character = getDraftActor(draft, actorIdx);
   const runeId = getRuneItemId(spellKey);
-  if (!character || !runeId) return { ok: false, reason: "Runeがありません" };
+  if (!character || !runeId) return { ok: false, reason: "ルーンがありません" };
   const next = copyDraft(draft);
   const nextCharacter = getDraftActor(next, actorIdx);
   const result = unsocketRune(nextCharacter, spellKey);
@@ -343,7 +343,7 @@ export function validateLoadoutDraft(draft) {
   const errors = [];
   draft.party.forEach((character, actorIdx) => {
     const hands = getCharacterEquipmentHands(character);
-    if (hands > MAX_EQUIPMENT_HANDS) errors.push(`キャラクター${actorIdx + 1}の手数が上限を超えています。`);
+    if (hands > MAX_EQUIPMENT_HANDS) errors.push(`キャラクター${actorIdx + 1}の装備に使う手が上限を超えています。`);
     LOADOUT_SLOTS.forEach(slot => {
       const item = getSlotItem(character, slot);
       const itemData = getItemData(item);
@@ -357,9 +357,9 @@ export function validateLoadoutDraft(draft) {
       const runes = Array.isArray(character.mediumState?.socketedRunes)
         ? character.mediumState.socketedRunes.map(getRuneSpellKey).filter(Boolean)
         : [];
-      if (runes.length > (medium?.runeSlots || 0)) errors.push(`キャラクター${actorIdx + 1}のRune容量を超えています。`);
-      if (new Set(runes).size !== runes.length) errors.push(`キャラクター${actorIdx + 1}に重複したRuneがあります。`);
-      if (getActiveRuneSpellKeys(character).length !== runes.length) errors.push(`キャラクター${actorIdx + 1}のRune状態が媒体と一致しません。`);
+      if (runes.length > (medium?.runeSlots || 0)) errors.push(`キャラクター${actorIdx + 1}のルーン容量を超えています。`);
+      if (new Set(runes).size !== runes.length) errors.push(`キャラクター${actorIdx + 1}に重複したルーンがあります。`);
+      if (getActiveRuneSpellKeys(character).length !== runes.length) errors.push(`キャラクター${actorIdx + 1}のルーン状態が媒体と一致しません。`);
     }
   });
 
@@ -373,14 +373,14 @@ export function validateLoadoutDraft(draft) {
         && draft.trialAction.actorIdx === actorIdx
         && draft.trialAction.slot === slot
         && sameItem(draft.trialAction.item, to);
-      if (!isTrialTarget) errors.push("未鑑定装備は試用transactionでのみ装備できます。");
+      if (!isTrialTarget) errors.push("未鑑定装備は試用からのみ装備できます。");
     }
   });
   if (draft.trialAction) {
     const trialChanges = equipmentChanges.filter(change => change.to && sameItem(change.to, draft.trialAction.item));
     if (trialChanges.length !== 1) errors.push("試用対象の装備変更を確認できません。");
     if (equipmentChanges.some(change => !sameItem(change.to, draft.trialAction.item) && change.to !== null)) {
-      errors.push("試用は通常の装備変更と同じ取引に混ぜられません。");
+      errors.push("試用中は通常の装備変更と同時に確定できません。");
     }
   }
   return { ok: errors.length === 0, errors };

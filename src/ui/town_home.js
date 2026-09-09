@@ -3,8 +3,8 @@ import { state, getStartingKit } from "../state.js";
 function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
   if (run?.outcome === "abandon" || run?.returnReason === "abandon") return "断念";
-  if (run?.returnReason === "escape_scroll") return "帰還の翼";
-  if (run?.returnReason === "milestone_portal") return "帰還の門";
+  if (run?.returnReason === "escape_scroll") return "翼で帰還";
+  if (run?.returnReason === "milestone_portal") return "帰還";
   return "帰還";
 }
 
@@ -30,7 +30,7 @@ function runFactLabel(run) {
   const startingKit = run?.startingKit ? getStartingKit(run.startingKit)?.name : null;
   if (startingKit) return `開始キット: ${startingKit}`;
   const representative = run?.representativeItem?.name || run?.meaningfulItemHistory?.[0]?.name;
-  if (representative) return `代表的な戦果: ${representative}`;
+  if (representative) return `この冒険を象徴する品: ${representative}`;
   return "潜行の事実を記録";
 }
 
@@ -49,7 +49,7 @@ function getLastRunSummary(run) {
       <span>${floorLabel(run.deepestFloor)}まで / ${escapeHtml(runFactLabel(run))}</span>
     </div>
     <p class="town-last-run-fact">
-      ${lost ? "物は失っても、記録と知識は残っています。" : "戦果を確定し、次の潜行へ進めます。"}
+      ${lost ? "物は失っても、記録と知識は残っています。" : "戦果を持ち帰り、次の潜行へ進めます。"}
     </p>
   `;
 }

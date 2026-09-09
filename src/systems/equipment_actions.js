@@ -80,7 +80,7 @@ export function equipEquipment({ inventoryIndex, actorIdx, requestedSlot = null 
   if (oldEq) state.inventory[inventoryIndex] = oldEq;
   else state.inventory.splice(inventoryIndex, 1);
   if (returnSocketedRunes(socketedRuneIds)) {
-    addLog(`${character.name}のsocket中Runeがバッグに戻った。`);
+    addLog(`${character.name}の装着中のルーンがバッグに戻った。`);
   }
 
   const reveal = revealEquipmentOnEquip(itemKey);
@@ -127,7 +127,7 @@ export function unequipEquipment({ actorIdx, slot } = {}) {
   clampCurrentMpToMax(character, getCharMaxMp);
   addInventoryItemToState(state, itemKey);
   if (returnSocketedRunes(socketedRuneIds)) {
-    addLog(`${character.name}のsocket中Runeがバッグに戻った。`);
+    addLog(`${character.name}の装着中のルーンがバッグに戻った。`);
   }
   addLog(`${character.name}は${item.name}を外した。`);
   playSound("move");

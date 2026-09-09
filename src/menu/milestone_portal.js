@@ -88,19 +88,28 @@ function getLootDisplayName(item) {
   return item?.unidentifiedName || data?.name || item?.name || "不明な戦果";
 }
 
+function getLootTypeLabel(item) {
+  const type = getItemData(item)?.type;
+  return type === "weapon" ? "武器"
+    : type === "shield" ? "盾"
+      : type === "armor" ? "防具"
+        : type === "accessory" ? "装身具"
+          : "品";
+}
+
 function createPortalLootSummary() {
   const entries = (state.currentRun?.unbankedObjectLoot || [])
     .filter(entry => entry?.item);
   const section = document.createElement("section");
   section.className = "milestone-portal-loot";
   section.dataset.infoRole = "unbanked-object-loot";
-  section.setAttribute("aria-label", "未確定object lootの内訳");
+  section.setAttribute("aria-label", "まだ持ち帰っていない戦果の内訳");
 
   const heading = document.createElement("div");
   heading.className = "milestone-portal-section-heading";
   const title = document.createElement("strong");
   title.className = "milestone-portal-section-title";
-  title.textContent = "未確定 object loot";
+  title.textContent = "まだ持ち帰っていない戦果";
   const count = document.createElement("span");
   count.className = "milestone-portal-loot-count";
   count.dataset.lootCount = String(entries.length);
@@ -110,13 +119,13 @@ function createPortalLootSummary() {
 
   const note = document.createElement("p");
   note.className = "milestone-portal-note";
-  note.textContent = "Returnなら全点が確定。Pushなら全点を次のPortalまで賭け続けます。";
+  note.textContent = "帰還すれば、これらはすべて持ち帰れる。さらに進めば、この戦果を抱えたまま次の帰還の門を目指す。";
   section.appendChild(note);
 
   if (entries.length === 0) {
     const empty = document.createElement("div");
     empty.className = "list-empty";
-    empty.textContent = "未確定のobject lootはありません。";
+    empty.textContent = "まだ持ち帰っていない戦果はありません。";
     section.appendChild(empty);
     return section;
   }
@@ -132,7 +141,7 @@ function createPortalLootSummary() {
     name.textContent = getLootDisplayName(entry.item);
     const detail = document.createElement("span");
     detail.className = "milestone-portal-loot-detail";
-    detail.textContent = getItemData(entry.item)?.type || "object";
+    detail.textContent = getLootTypeLabel(entry.item);
     row.append(name, detail);
     appendOwnershipBadge(row, getItemOwnership(entry.item, {
       state,
@@ -150,7 +159,7 @@ function createPortalMaterialSummary() {
   summary.dataset.infoRole = "materials-side-info";
   const label = document.createElement("div");
   label.className = "milestone-portal-side-info-label";
-  label.textContent = "素材（object lootとは別管理）";
+  label.textContent = "素材と品の戦果は別管理";
   summary.prepend(label);
   return summary;
 }
@@ -184,19 +193,19 @@ function createPortalChoiceSurface() {
   section.setAttribute("aria-label", "帰還の門での判断");
   const title = document.createElement("strong");
   title.className = "milestone-portal-section-title";
-  title.textContent = "このPortalで決める";
+  title.textContent = "この帰還の門で決める";
   section.appendChild(title);
   section.appendChild(createPortalDecisionCard(
     "return",
-    "Return",
-    "未確定戦果をすべて確定してrunを終了し、安全に帰還します。",
-    "撤退して素材を100%、未確定戦果をすべて持ち帰る"
+    "ここで帰還",
+    "帰還すれば、これらはすべて持ち帰れる。今回の冒険をここで終える。",
+    "戦果をすべて持ち帰って帰還"
   ));
   section.appendChild(createPortalDecisionCard(
     "push",
-    "Push",
-    "今の確定機会を見送り、戦果を失わずに次のPortalまで進みます。",
-    "探索を続ける"
+    "さらに深く進む",
+    "さらに進めば、この戦果を抱えたまま次の帰還の門を目指す。",
+    "戦果を抱えてさらに進む"
   ));
   return section;
 }
@@ -229,11 +238,13 @@ function createPortalConfirmation() {
   section.setAttribute("aria-live", "polite");
   const title = document.createElement("strong");
   title.className = "milestone-portal-confirmation-title";
-  title.textContent = `${pendingPortalDecision === "return" ? "Return" : "Push"}を確定しますか？`;
+  title.textContent = pendingPortalDecision === "return"
+    ? "ここで帰還しますか？"
+    : "さらに深く進みますか？";
   const description = document.createElement("p");
   description.textContent = pendingPortalDecision === "return"
-    ? "未確定 object lootをすべて確定し、追加の危険なしでrunを終了します。"
-    : "未確定 object lootは失われません。次のPortalまでそのまま賭け続けます。";
+    ? "この戦果をすべて持ち帰り、今回の冒険を終えます。"
+    : "この戦果を抱えたまま、次の帰還の門を目指します。";
   section.append(title, description);
   return section;
 }
@@ -246,14 +257,14 @@ function createPortalConfirmationActions() {
   confirm.type = "button";
   confirm.className = "btn btn-block milestone-portal-choice";
   confirm.textContent = pendingPortalDecision === "return"
-    ? "Returnを確定して安全に帰還"
-    : "Pushを確定して探索を続ける";
+    ? "ここで帰還する"
+    : "さらに深く進む";
   confirm.addEventListener("click", confirmPortalDecision);
   const change = document.createElement("button");
   change.id = "btn-portal-change";
   change.type = "button";
   change.className = "btn btn-block milestone-portal-choice milestone-portal-change";
-  change.textContent = "Return / Pushを選び直す";
+  change.textContent = "判断を選び直す";
   change.addEventListener("click", () => {
     pendingPortalDecision = null;
     renderPortalSurface(document.getElementById("submenu-options"));

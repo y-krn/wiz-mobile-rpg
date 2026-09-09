@@ -39,7 +39,7 @@ export const WEAPON_BEHAVIOR_PROFILES = Object.freeze({
   medium: Object.freeze({
     id: "medium",
     label: "媒体武器",
-    description: "物理は控えめ / MPとRune枠",
+    description: "物理は控えめ / MPとルーン枠",
     hitChanceBonus: 0,
     physicalDefenseScale: 40,
     rawDamageMultiplier: 0.85

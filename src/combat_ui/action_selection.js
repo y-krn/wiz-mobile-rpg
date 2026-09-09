@@ -317,7 +317,7 @@ export function selectCombatAction(type) {
       if (itemKey === "TOWN_PORTAL") {
         menuContext.itemKey = itemKey;
         menuContext.itemIdx = itemIdx;
-        openSubmenu("item_target_select", "帰還の翼：救出する戦果を選択");
+        openSubmenu("item_target_select", "帰還の翼：持ち帰る戦果を選択");
         return;
       }
       const enqueueAllyItem = (targetIdx) => {

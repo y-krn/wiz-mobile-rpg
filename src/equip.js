@@ -311,21 +311,21 @@ function createRunePanel(char) {
   const medium = getEquippedMedium(char);
   const activeRunes = getActiveRuneSpellKeys(char);
   heading.textContent = medium
-    ? `Rune（${activeRunes.length}/${medium.runeSlots}）`
-    : "Rune（媒体なし）";
+    ? `ルーン（${activeRunes.length}/${medium.runeSlots}）`
+    : "ルーン（媒体なし）";
   panel.appendChild(heading);
 
   const help = document.createElement("p");
   help.className = "equip-rune-help";
   help.textContent = medium
-    ? `${getItemData(medium.item)?.name || medium.id}にsocket中のRuneがactive。`
-    : "武器 slot にMediumを装備するとRuneをsocketできます。";
+    ? `${getItemData(medium.item)?.name || medium.id}に装着中のルーンを使用中。`
+    : "武器スロットに媒体を装備するとルーンを装着できます。";
   panel.appendChild(help);
 
   if (medium && activeRunes.length > 0) {
     const activeHeading = document.createElement("strong");
     activeHeading.className = "equip-rune-state-heading";
-    activeHeading.textContent = "socket中（バッグ外・active）";
+    activeHeading.textContent = "使用中のルーン（バッグ外）";
     panel.appendChild(activeHeading);
     const activeList = document.createElement("div");
     activeList.className = "equip-rune-list";
@@ -358,7 +358,7 @@ function createRunePanel(char) {
   if (spareRunes.length > 0) {
     const spareHeading = document.createElement("strong");
     spareHeading.className = "equip-rune-state-heading";
-    spareHeading.textContent = "バッグ内の予備Rune";
+    spareHeading.textContent = "バッグ内の予備ルーン";
     panel.appendChild(spareHeading);
     const spareList = document.createElement("div");
     spareList.className = "equip-rune-list";
@@ -366,13 +366,13 @@ function createRunePanel(char) {
       const row = document.createElement("div");
       row.className = "equip-rune-row";
       const label = document.createElement("span");
-      label.textContent = getItemData(itemKey)?.name || "Rune";
+      label.textContent = getItemData(itemKey)?.name || "ルーン";
       row.appendChild(label);
       const button = document.createElement("button");
       button.type = "button";
       button.className = "btn btn-neon equip-rune-action";
       button.disabled = !medium || activeRunes.length >= medium.runeSlots;
-      button.textContent = "socket";
+      button.textContent = "装着";
       button.addEventListener("click", () => {
         const result = stageSocketRune(equipState.draft, { actorIdx: equipState.actorIdx, inventoryIndex: idx });
         if (!result.ok) return;
@@ -569,7 +569,7 @@ function createTransactionStatus() {
   status.textContent = trial
     ? `試用予定 1件。${validation.message}`
     : changed > 0
-    ? `変更予定 ${summary.equipment.length}枠 / Rune ${summary.runes.length}件${summary.discarded.length ? ` / 破棄 ${summary.discarded.length}件` : ""}。${validation.message}`
+    ? `変更予定 ${summary.equipment.length}枠 / ルーン ${summary.runes.length}件${summary.discarded.length ? ` / 破棄 ${summary.discarded.length}件` : ""}。${validation.message}`
     : "装備変更は未確定です。編集は無料です。";
   status.setAttribute("role", "status");
   status.dataset.valid = validation.ok ? "true" : "false";

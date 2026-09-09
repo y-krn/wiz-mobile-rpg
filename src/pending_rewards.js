@@ -132,13 +132,13 @@ function getPendingActionEntry(bundle, entry) {
     return { reason: "未鑑定品は『試す』から実際に装備してください。" };
   }
   if (action.type === "socket" && !getRuneSpellKey(entry.item)) {
-    return { reason: "Rune以外はsocketできません。" };
+    return { reason: "ルーン以外は装着できません。" };
   }
   if (action.type === "equip" && getRuneSpellKey(entry.item)) {
-    return { reason: "Runeはsocket候補にしてください。" };
+    return { reason: "ルーンは装着候補にしてください。" };
   }
   if (action.type === "trial" && getRuneSpellKey(entry.item)) {
-    return { reason: "Runeは試用できません。" };
+    return { reason: "ルーンは試用できません。" };
   }
   return null;
 }
@@ -160,7 +160,7 @@ function validateResolution(stateLike, bundle) {
   const normalLoadoutEntries = bundle.entries.filter(entry => ["equip", "socket"].includes(entry.loadoutAction?.type));
   if (trialEntries.length > 1) return { ok: false, reason: "試用できる装備は1件ずつ確定してください。" };
   if (trialEntries.length > 0 && normalLoadoutEntries.length > 0) {
-    return { ok: false, reason: "試用は通常の装備変更と同じ戦果解決に混ぜられません。" };
+    return { ok: false, reason: "試用と通常の装備変更は同時に確定できません。" };
   }
   let plan = null;
   let loadoutDraft = null;
@@ -398,7 +398,7 @@ function renderPendingRewardMenu() {
       }));
     }
     if (isKnownLoadoutItem(entry.item) && getRuneSpellKey(entry.item)) {
-      actions.appendChild(createActionButton("socketして持つ", "btn btn-neon", () => {
+      actions.appendChild(createActionButton("装着して持つ", "btn btn-neon", () => {
         entry.decision = "take";
         entry.loadoutAction = { type: "socket", actorIdx: 0 };
         saveAutosave();
