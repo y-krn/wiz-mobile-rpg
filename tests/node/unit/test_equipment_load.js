@@ -21,12 +21,15 @@ function character(equipment = {}) {
 assert.equal(getEquipmentLoadClass("DAGGER"), "light");
 assert.equal(getEquipmentLoadClass("SHORT_SWORD"), "standard");
 assert.equal(getEquipmentLoadClass("PLATE_MAIL"), "heavy");
+assert.equal(getEquipmentLoadClass({ baseId: "DAGGER", identified: false }), "light");
+assert.equal(getEquipmentLoadClass({ baseId: "PLATE_MAIL", identified: false }), "heavy");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "DAGGER", shield: "BUCKLER", armor: "EXPLORER_CLOAK" })).class, "light");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "DAGGER", shield: "SMALL_SHIELD", armor: "LEATHER_ARMOR" })).class, "standard");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "SHORT_SWORD", shield: "SMALL_SHIELD", armor: "LEATHER_ARMOR" })).class, "standard");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "CLAYMORE", armor: "LEATHER_ARMOR" })).class, "heavy");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "SHORT_SWORD", shield: "LARGE_SHIELD", armor: "PLATE_MAIL" })).class, "heavy");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "DAGGER", shield: "BUCKLER", armor: "PLATE_MAIL" })).class, "heavy");
+assert.equal(getCharacterEquipmentLoad(character({ armor: { baseId: "PLATE_MAIL", identified: false } })).class, "heavy");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "CLAYMORE", armor: "EXPLORER_CLOAK" })).class, "heavy");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "SHORT_SWORD", armor: "LEATHER_ARMOR" })).initiativeModifier, 0);
 

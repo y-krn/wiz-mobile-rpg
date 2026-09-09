@@ -1,4 +1,5 @@
-import { getItemData } from "./item_rules.js";
+import { ITEMS } from "../data/items.js";
+import { getItemBaseId, getItemData } from "./item_rules.js";
 
 export const EQUIPMENT_LOAD_CLASSES = Object.freeze(["light", "standard", "heavy"]);
 export const EQUIPMENT_LOAD_LABELS = Object.freeze({
@@ -25,7 +26,11 @@ function normalizeLoadClass(value) {
 export function getEquipmentLoadClass(item) {
   const data = getItemData(item);
   if (!data || !LOAD_BEARING_TYPES.has(data.type)) return null;
-  return normalizeLoadClass(data.loadClass);
+  // Load is an intrinsic property of the base item, not an identification
+  // disclosure. Resolve it from the base identity so unidentified equipment
+  // cannot fall back to the neutral standard class.
+  const baseLoadClass = ITEMS[getItemBaseId(item)]?.loadClass;
+  return normalizeLoadClass(baseLoadClass ?? data.loadClass);
 }
 
 export function getEquipmentLoadScore(item) {
