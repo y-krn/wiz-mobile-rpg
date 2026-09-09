@@ -26,9 +26,10 @@ test('Result leads with run memory and keeps loot ownership explicit', async ({ 
     updateUI();
   });
 
-  await expect(page.locator('[data-result-outcome="portal"]')).toContainText('帰還の門から帰還');
+  await expect(page.locator('[data-result-outcome="portal"]')).toContainText('帰還');
   await expect(page.locator('[data-result-memory]')).toContainText('物は失う。物語は残る');
-  await expect(page.locator('[data-result-memory]')).toContainText('代表的な戦果');
+  await expect(page.locator('[data-result-memory]')).toContainText('この冒険を象徴する品');
+  await expect(page.locator('#result-overlay')).not.toContainText('代表的な戦果');
   await expect(page.locator('[data-result-loot]')).toContainText('持込品（未使用分）');
   await expect(page.locator('[data-result-loot]')).toContainText('罠外しキット');
   expect(await page.locator('[data-result-loot]').textContent()).toMatch(/罠外しキット/);

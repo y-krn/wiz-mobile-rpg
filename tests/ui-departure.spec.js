@@ -123,10 +123,10 @@ for (const vp of VIEWPORTS) {
       const { openSubmenu } = await import('/src/navigation.js');
       openSubmenu('milestone_portal', '帰還の門');
     });
-    const retreat = page.getByRole('button', { name: '撤退して素材を100%、未確定戦果をすべて持ち帰る' });
+    const retreat = page.getByRole('button', { name: '戦果をすべて持ち帰って帰還' });
     expect((await retreat.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await retreat.click();
-    await expect(page.locator('.milestone-portal-confirmation')).toContainText('Returnを確定しますか？');
+    await expect(page.locator('.milestone-portal-confirmation')).toContainText('ここで帰還しますか？');
     await page.locator('#btn-portal-confirm').click();
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');

@@ -80,7 +80,7 @@ export function renderWorkshop(optGrid) {
       const cost = getWorkshopNodeCost(node, rank);
       const button = document.createElement("button");
       button.className = "btn btn-neon btn-block workshop-node";
-      const status = lateralUnlocked ? "帰還記録から自動解禁" : cost ? formatCost(cost) : "習得済み";
+      const status = lateralUnlocked ? "冒険の記録から利用可能になった" : cost ? formatCost(cost) : "利用可能";
       button.innerHTML = `<strong>${node.name} ${maxRank > 1 ? `${rank}/${maxRank}` : ""}</strong><span>${describeWorkshopNode(node)}</span><small>${status}</small>`;
       button.disabled = rank >= maxRank || lateralUnlocked;
       button.addEventListener("click", () => {
@@ -96,14 +96,14 @@ export function renderWorkshop(optGrid) {
             : result.reason === "missing_key_item"
               ? "工房: 対応する印が必要だ。"
               : result.reason === "already_unlocked"
-                ? "工房: 帰還記録からすでに解禁されている。"
+                ? "工房: 冒険の記録からすでに利用可能になっている。"
               : "工房: これ以上習得できない。";
           addLog(message);
           return;
         }
         state.metaMaterials = result.metaMaterials;
         state.workshop = result.workshop;
-        addLog(`工房: ${node.name}を解放した。`);
+        addLog(`工房: ${node.name}が利用可能になった。`);
         saveAutosave();
         renderWorkshop(optGrid);
       });

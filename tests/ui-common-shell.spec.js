@@ -155,8 +155,8 @@ test.describe('Common UI vNext shell @smoke', () => {
     });
 
     expect(ownership).toEqual([
-      { ownership: 'town-confirmed', badge: '街から持込・確定済み' },
-      { ownership: 'dungeon-unconfirmed', badge: '迷宮で取得・未確定' },
+      { ownership: 'town-confirmed', badge: '街から持ち込んだ品' },
+      { ownership: 'dungeon-unconfirmed', badge: 'まだ持ち帰っていない品' },
     ]);
   });
 
@@ -178,8 +178,8 @@ test.describe('Common UI vNext shell @smoke', () => {
     });
 
     expect(ownership).toEqual([
-      { ownership: 'ambiguous', badge: '所有元不明・要確認' },
-      { ownership: 'ambiguous', badge: '所有元不明・要確認' },
+      { ownership: 'ambiguous', badge: '品の状態を確認中' },
+      { ownership: 'ambiguous', badge: '品の状態を確認中' },
     ]);
   });
 

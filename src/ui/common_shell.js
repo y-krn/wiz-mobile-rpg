@@ -20,11 +20,11 @@ export const OWNERSHIP_STATES = Object.freeze({
 });
 
 export const OWNERSHIP_LABELS = Object.freeze({
-  [OWNERSHIP_STATES.TOWN_CONFIRMED]: "街から持込・確定済み",
-  [OWNERSHIP_STATES.DUNGEON_UNCONFIRMED]: "迷宮で取得・未確定",
-  [OWNERSHIP_STATES.WING_SELECTED]: "翼で救出選択中",
-  [OWNERSHIP_STATES.LOST]: "喪失済み",
-  [OWNERSHIP_STATES.AMBIGUOUS]: "所有元不明・要確認"
+  [OWNERSHIP_STATES.TOWN_CONFIRMED]: "街から持ち込んだ品",
+  [OWNERSHIP_STATES.DUNGEON_UNCONFIRMED]: "まだ持ち帰っていない品",
+  [OWNERSHIP_STATES.WING_SELECTED]: "翼で持ち帰る",
+  [OWNERSHIP_STATES.LOST]: "失った品",
+  [OWNERSHIP_STATES.AMBIGUOUS]: "品の状態を確認中"
 });
 
 const UNRESOLVED_EVENT_PATTERNS = Object.freeze([

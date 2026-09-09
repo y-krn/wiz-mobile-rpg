@@ -30,15 +30,15 @@ function getOutcomeMeta(reason) {
   if (reason === "milestone_portal") {
     return {
       key: "portal",
-      label: "帰還の門から帰還",
-      detail: "未確定の戦果をすべて確定して、街へ戻った。",
+      label: "帰還",
+      detail: "戦果をすべて持ち帰り、街へ戻った。",
       success: true
     };
   }
   if (reason === "escape_scroll") {
     return {
       key: "wing",
-      label: "帰還の翼で離脱",
+      label: "翼で帰還",
       detail: "帰還の翼を使い、追加の危険を受けずに街へ戻った。",
       success: true
     };
@@ -61,7 +61,7 @@ function getOutcomeMeta(reason) {
   }
   return {
     key: "stairs",
-    label: "階段から帰還",
+    label: "帰還",
     detail: "今回の戦果を確定して、街へ戻った。",
     success: true
   };
@@ -125,12 +125,12 @@ function getLootHtml(run, outcome) {
   return `
     <section class="result-focus-section result-loot-section" aria-labelledby="result-loot-title" data-result-loot>
       <h2 class="result-section-heading" id="result-loot-title"><span>戦果のゆくえ</span><strong>${returned.length ? `${returned.length}点を回収` : lost.length ? `${lost.length}点を喪失` : "記録なし"}</strong></h2>
-      <div class="result-loot-note">持込品は確定済みの所有物。Dungeon戦果とは別に扱われます。</div>
+      <div class="result-loot-note">持ち込んだ品は街の品として扱い、迷宮で得た戦果とは分けて表示します。</div>
       <div class="result-loot-group result-loot-returned">
-        <small>${outcome.key === "wing" ? "翼で救出した戦果" : "街へ回収した戦果"}</small>
+        <small>${outcome.key === "wing" ? "翼で持ち帰った戦果" : "街へ回収した戦果"}</small>
         <div>${formatLootList(returned, "なし")}</div>
       </div>
-      ${lost.length > 0 ? `<div class="result-loot-group result-loot-lost"><small>Dungeonで失われた戦果</small><div>${formatLootList(lost, "なし")}</div></div>` : ""}
+      ${lost.length > 0 ? `<div class="result-loot-group result-loot-lost"><small>迷宮で失われた戦果</small><div>${formatLootList(lost, "なし")}</div></div>` : ""}
       <div class="result-loot-group result-loot-carried"><small>持込品（未使用分）</small><div>${formatLootList(departure, "なし")}</div></div>
     </section>
   `;
@@ -143,7 +143,7 @@ function getRepresentativeFacts(run, outcome) {
     facts.push(`死因: ${death.cause || death.source || "原因未記録"}`);
   }
   const found = getFoundItems(run);
-  if (found.length > 0) facts.push(`代表的な戦果: ${getItemLabel(found[0])}`);
+  if (found.length > 0) facts.push(`この冒険を象徴する品: ${getItemLabel(found[0])}`);
   if (run.defeatedMilestones?.length > 0) {
     facts.push(`階層守護者を${run.defeatedMilestones.at(-1)}Fで撃破`);
   }
@@ -151,7 +151,7 @@ function getRepresentativeFacts(run, outcome) {
     facts.push(`Codexに新規記録: ${run.codexDiscoveries.slice(0, 2).join(" / ")}`);
   }
   if (run.workshopDiscoveries?.length > 0) {
-    facts.push("Workshopに新しい可能性が開いた");
+    facts.push("工房で新しい選択肢が利用可能になった");
   }
   return [...new Set(facts)].slice(0, 5);
 }
@@ -171,7 +171,7 @@ function getDiscoveryHtml(run) {
   const codex = (run.codexInsights?.length ? [] : run.codexDiscoveries || [])
     .map(name => `<li>${escapeHtml(name)}をCodexに記録</li>`);
   const workshop = (run.workshopUnlocks?.length ? [] : run.workshopDiscoveries || [])
-    .map(name => `<li>${escapeHtml(name)}に関わる可能性が開いた</li>`);
+    .map(name => `<li>工房で${escapeHtml(name)}を選べるようになった</li>`);
   if (!codex.length && !workshop.length) return "";
   return `
     <section class="result-discovery-section" aria-label="新しく増えた記録と可能性" data-result-discoveries>
@@ -191,7 +191,7 @@ function getRecordHtml(run) {
     ...(result.milestones || []).map(id => ACHIEVEMENT_LABELS[id] || id)
   ])].filter(update => typeof update === "string" && (
     ["最深到達記録", "撤退最深", "死亡最深"].includes(update) || !update.endsWith("最深")
-  ));
+  )).map(update => update === "撤退最深" ? "帰還最深" : update);
   const hasDepthRecord = (result.updates || []).some(update => ["最深到達記録", "撤退最深", "死亡最深"].includes(update));
   return `
     <div class="result-record-new" role="status" aria-live="polite">
@@ -240,25 +240,25 @@ function getReturnProcessingHtml(run) {
 
   return `
     <section class="result-focus-section" aria-labelledby="result-return-record-title">
-      <h2 class="result-section-heading" id="result-return-record-title"><span>帰還の記録</span></h2>
+      <h2 class="result-section-heading" id="result-return-record-title"><span>今回の冒険</span></h2>
       ${representative ? `
         <div class="result-return-representative">
-          <small>${representative.status === "lost" ? "失われた代表品" : "今回の代表品"}</small>
+          <small>${representative.status === "lost" ? "この冒険を象徴する失われた品" : "この冒険を象徴する品"}</small>
           <strong>${representative.name}</strong>
           <span>${RETURN_RARITY_LABELS[representative.rarity] || "通常"} / ${getReturnItemStatusLabel(representative.status)}</span>
         </div>
       ` : ""}
       ${history.length > 0 ? `
         <div class="result-return-history">
-          <small>重要な個体履歴（能力値への恒久ボーナスなし）</small>
-          ${history.map((item, index) => `<div><span>${item.name}</span><span>${getReturnItemStatusLabel(item.status)} / B${item.depth}F <button type="button" class="result-return-representative-button" data-return-history-index="${index}">代表に設定</button></span></div>`).join("")}
+          <small>印象に残った品（能力値への効果なし）</small>
+          ${history.map((item, index) => `<div><span>${item.name}</span><span>${getReturnItemStatusLabel(item.status)} / B${item.depth}F <button type="button" class="result-return-representative-button" data-return-history-index="${index}">この冒険を象徴する品にする</button></span></div>`).join("")}
         </div>
       ` : ""}
       ${insights.length > 0 ? `
         <div class="result-return-insights"><small>図鑑に記録した新しい気づき</small>${insights.map(insight => `<div>${insight.label}</div>`).join("")}</div>
       ` : ""}
       ${unlocks.length > 0 ? `
-        <div class="result-return-unlocks"><small>工房で横方向に解禁</small>${unlocks.map(unlock => `<div><strong>${unlock.name}</strong><span>${unlock.description}</span></div>`).join("")}</div>
+        <div class="result-return-unlocks"><small>工房で利用可能になった内容</small>${unlocks.map(unlock => `<div><strong>${unlock.name}</strong><span>${unlock.description}</span></div>`).join("")}</div>
       ` : ""}
     </section>
   `;
@@ -312,7 +312,7 @@ export function renderResultScreen() {
         <h2 class="result-section-heading" id="result-material-title">
           <span>素材収支</span><strong>${rawTotal} → ${bankedTotal}</strong>
         </h2>
-        <div class="result-banking-rate">潜行中に取得 → ${isSuccess ? "撤退100%" : run.returnReason === "abandon" ? "断念30%（死亡時と同じ）" : "死亡30%"} 持ち帰り</div>
+        <div class="result-banking-rate">潜行中に取得 → ${isSuccess ? "帰還100%" : run.returnReason === "abandon" ? "断念30%（死亡時と同じ）" : "死亡30%"} 持ち帰り</div>
         <div class="result-material-flow">
           <div><small>取得</small><div>${formatMaterials(run.materialsBeforeBanking)}</div></div>
           <div><small>持ち帰り</small><div>${formatMaterials(run.bankedMaterials)}</div></div>
