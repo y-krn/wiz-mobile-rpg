@@ -228,7 +228,7 @@ const RETURN_RARITY_LABELS = {
 };
 
 function getReturnItemStatusLabel(status) {
-  return status === "lost" ? "喪失" : status === "rescued" ? "救出" : status === "returned" ? "帰還" : "観測";
+  return status === "lost" ? "喪失" : status === "rescued" ? "翼で持ち帰り" : status === "returned" ? "帰還" : "観測";
 }
 
 function getReturnProcessingHtml(run) {
