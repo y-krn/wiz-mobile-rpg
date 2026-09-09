@@ -183,6 +183,104 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
   }
 });
 
+test('Three.js corridor readability keeps near openings clear and mirrors biome geometry @smoke @visual', async ({ page }, testInfo) => {
+  const fixtures = [
+    { name: 'b1-straight', floor: 1, widths: VIEWPORTS },
+    { name: 'b2-straight-arch', floor: 6, widths: [VIEWPORTS[2]] },
+  ];
+
+  for (const fixture of fixtures) {
+    for (const viewport of fixture.widths) {
+      await page.setViewportSize(viewport);
+      await page.goto('/?renderer=three');
+      await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+      await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
+
+      await page.evaluate(async (floor) => {
+        const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+        const { updateUI } = await import('/src/ui.js');
+        const makeCell = () => ({
+          walls: [true, true, true, true],
+          blockEnter: [false, false, false, false],
+          type: 'empty',
+        });
+        const map = Array.from({ length: 11 }, () => Array.from({ length: 11 }, makeCell));
+        for (const [x, y] of [[5, 5], [5, 4], [5, 3], [5, 2]]) {
+          map[y][x].walls[0] = false;
+          map[y - 1][x].walls[2] = false;
+        }
+        state.party = [createStartingKitCharacter('vanguard')];
+        state.currentRun = createDefaultCurrentRun();
+        state.floor = floor;
+        state.x = 5;
+        state.y = 5;
+        state.dir = 0;
+        state.maps[floor - 1] = map;
+        state.visitedMaps[floor - 1] = map.map((row) => row.map(() => true));
+        state.map = map;
+        state.mapRevision = (state.mapRevision || 0) + 1;
+        state.gameState = 'explore';
+        state.transitioning = false;
+        state.combatState = null;
+        state.roamingMonsters = [];
+        updateUI();
+        const { dungeonRenderer } = await import('/src/renderer.js');
+        dungeonRenderer.draw();
+      }, fixture.floor);
+
+      const evidence = await page.evaluate(async () => {
+        const { dungeonRenderer } = await import('/src/renderer.js');
+        const metrics = (await import('/src/three_renderer.js')).getThreeCorridorReadabilityMetrics(
+          dungeonRenderer.getRenderInput().visual.geometry
+        );
+        let ceiling = null;
+        let seamCount = 0;
+        dungeonRenderer.root.traverse((child) => {
+          if (child.userData?.surface === 'ceiling' && !ceiling) ceiling = child;
+          if (child.userData?.surface === 'depth-seam') seamCount += 1;
+        });
+        const positions = ceiling?.geometry?.attributes?.position;
+        const ceilingMaxY = positions
+          ? Math.max(...Array.from({ length: positions.count }, (_, index) => positions.getY(index))) + (ceiling.position.y || 0)
+          : null;
+        return {
+          metrics,
+          cameraFov: dungeonRenderer.camera.fov,
+          fog: { near: dungeonRenderer.scene.fog.near, far: dungeonRenderer.scene.fog.far },
+          ceilingStyle: dungeonRenderer.activeProfile.ceilingStyle,
+          wallHeight: dungeonRenderer.activeProfile.wallHeight,
+          ceilingMaxY,
+          seamCount,
+        };
+      });
+
+      expect(evidence.cameraFov).toBeGreaterThanOrEqual(60);
+      expect(evidence.cameraFov).toBeLessThanOrEqual(70);
+      expect(evidence.metrics.forwardOpeningWidth[0]).toBeGreaterThan(100);
+      expect(evidence.metrics.forwardOpeningWidth[0]).toBeGreaterThan(evidence.metrics.forwardOpeningWidth[1]);
+      expect(evidence.metrics.forwardOpeningWidth[1]).toBeGreaterThan(evidence.metrics.forwardOpeningWidth[2]);
+      expect(evidence.metrics.currentCellSideWallOccupancy).toBeLessThan(0.35);
+      expect(evidence.fog.near).toBeGreaterThan(evidence.metrics.cellFrontDistances[0]);
+      expect(evidence.fog.near).toBeLessThan(evidence.metrics.cellFrontDistances[2]);
+      expect(evidence.seamCount).toBeGreaterThan(0);
+      if (fixture.floor === 6) {
+        expect(evidence.ceilingStyle).toBe('arch');
+        expect(evidence.ceilingMaxY).toBeGreaterThan(evidence.wallHeight);
+      } else {
+        expect(evidence.ceilingStyle).toBe('flat');
+      }
+
+      const screenshot = await page.locator('#dungeon-canvas').screenshot({
+        path: testInfo.outputPath(`three-readability-${fixture.name}-${viewport.width}px.png`),
+      });
+      await testInfo.attach(`three-readability-${fixture.name}-${viewport.width}px`, {
+        body: screenshot,
+        contentType: 'image/png',
+      });
+    }
+  }
+});
+
 test('Three.js danger cue stays outside the camera and visible in the corridor @e2e @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?renderer=three');
@@ -802,6 +900,7 @@ test('Three.js Dungeon View follows map topology for all four directions @e2e @v
           z, column, x, y, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier,
         })),
         surfaces,
+        profile: dungeonRenderer.activeProfile,
         canvasChecksum,
         signature: dungeonRenderer.sceneSignature,
       };
@@ -851,6 +950,7 @@ test('Three.js Dungeon View follows map topology for all four directions @e2e @v
   });
 
   const { observations, oneWaySurfaces, oneWayVisuals, dangerCuePosition, movement } = topologyResult;
+  const profile = observations[0].profile;
   expect(new Set(observations.map(({ signature }) => signature)).size).toBe(4);
   expect(observations.map(({ threeFacts }) => threeFacts)).toEqual(
     observations.map(({ canvasFacts }) => canvasFacts)
@@ -865,9 +965,18 @@ test('Three.js Dungeon View follows map topology for all four directions @e2e @v
   expect(observations[0].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'left-wall']);
   expect(observations[2].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'right-wall']);
   expect(observations[3].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'front-wall']);
-  expect(observations[0].surfaces).toContainEqual({ surface: 'left-wall', position: [-0.9, 1.8, 1.15], rotationY: 1.571 });
-  expect(observations[2].surfaces).toContainEqual({ surface: 'right-wall', position: [0.9, 1.8, 1.15], rotationY: -1.571 });
-  expect(observations[3].surfaces).toContainEqual({ surface: 'front-wall', position: [0, 1.8, 0.1], rotationY: 0 });
+  const leftWall = observations[0].surfaces.find(({ surface }) => surface === 'left-wall');
+  const rightWall = observations[2].surfaces.find(({ surface }) => surface === 'right-wall');
+  const frontWall = observations[3].surfaces.find(({ surface }) => surface === 'front-wall');
+  expect(leftWall).toEqual(expect.objectContaining({ rotationY: 1.571 }));
+  expect(leftWall.position[0]).toBeCloseTo(-profile.cellWidth / 2, 3);
+  expect(leftWall.position[1]).toBeCloseTo(profile.wallHeight / 2, 3);
+  expect(rightWall).toEqual(expect.objectContaining({ rotationY: -1.571 }));
+  expect(rightWall.position[0]).toBeCloseTo(profile.cellWidth / 2, 3);
+  expect(rightWall.position[1]).toBeCloseTo(profile.wallHeight / 2, 3);
+  expect(frontWall).toEqual(expect.objectContaining({ rotationY: 0 }));
+  expect(frontWall.position[2]).toBeCloseTo(profile.frontWallZ, 3);
+  expect(frontWall.position[1]).toBeCloseTo(profile.wallHeight / 2, 3);
   expect(oneWaySurfaces).toContain('front-wall-one-way');
   expect(oneWaySurfaces).toContain('front-wall-one-way-chevron');
   expect(oneWayVisuals).toEqual([{ transparent: true, opacity: 0.42 }]);
