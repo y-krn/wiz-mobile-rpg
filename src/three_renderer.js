@@ -27,7 +27,6 @@ import { isMiniMapAnimating, renderMiniMapOverlay } from "./minimap.js";
 
 const VIEW_W = 400;
 const VIEW_H = 260;
-const TARGET_HIT_RADIUS = 0.88;
 const CORRIDOR_CELL_WIDTH = 1.8;
 const CORRIDOR_CELL_DEPTH = 2.1;
 const CORRIDOR_WALL_HEIGHT = 3.6;
@@ -45,7 +44,19 @@ const CORRIDOR_CAMERA = Object.freeze({
 // Combat and danger overlays live in front of the current cell's front wall
 // (frontZ = CORRIDOR_START_Z - CORRIDOR_CELL_DEPTH / 2 = 0.1). Keeping these
 // layers camera-side makes them visible and raycastable in closed rooms.
-const COMBAT_MONSTER_Z = 0.72;
+const COMBAT_FRONT_WALL_Z = CORRIDOR_START_Z - CORRIDOR_CELL_DEPTH / 2;
+const COMBAT_MONSTER_Z = COMBAT_FRONT_WALL_Z + 0.40;
+const COMBAT_MONSTER_RADIUS = 0.30;
+const COMBAT_TRIO_MONSTER_RADIUS = 0.27;
+const COMBAT_MONSTER_BODY_Y = 1.38;
+const COMBAT_MONSTER_LABEL_Y = 1.98;
+const COMBAT_MULTI_LABEL_WIDTH = 1.12;
+const COMBAT_MULTI_LABEL_ROW_STEP = 0.32;
+const COMBAT_TARGET_RING_RADIUS = 0.32;
+const COMBAT_TRIO_MARKER_RADIUS = 0.23;
+// Keep the hit region larger than the visible body without letting adjacent
+// enemies become one giant target. The canvas renderer has the same intent.
+const TARGET_HIT_RADIUS = 0.88;
 const DANGER_CUE_Z = 0.45;
 const DANGER_RING_Z = 0.38;
 
@@ -274,8 +285,21 @@ export class ThreeDungeonRenderer {
     this.pointer.y = -(y / VIEW_H) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const hits = this.raycaster.intersectObjects(this.targetHitMeshes, false);
-    const target = hits.find((hit) => Number.isInteger(hit.object.userData.targetIdx));
-    return target?.object.userData.targetIdx ?? null;
+    const candidates = [];
+    const seenTargets = new Set();
+    for (const hit of hits) {
+      const targetIdx = hit.object.userData.targetIdx;
+      if (!Number.isInteger(targetIdx) || seenTargets.has(targetIdx)) continue;
+      seenTargets.add(targetIdx);
+      const center = hit.object.position.clone().project(this.camera);
+      candidates.push({
+        targetIdx,
+        screenDistance: Math.hypot(center.x - this.pointer.x, center.y - this.pointer.y),
+        rayDistance: hit.distance,
+      });
+    }
+    candidates.sort((a, b) => a.screenDistance - b.screenDistance || a.rayDistance - b.rayDistance);
+    return candidates[0]?.targetIdx ?? null;
   }
 
   draw(input = null) {
@@ -555,32 +579,61 @@ export class ThreeDungeonRenderer {
 
   addCombatMonsters(input, wall) {
     const monsters = getLivingMonsters(input);
-    const spacing = monsters.length === 1 ? 0 : Math.min(1.35, 5.5 / monsters.length);
+    const bodyRadius = monsters.length === 3 ? COMBAT_TRIO_MONSTER_RADIUS : COMBAT_MONSTER_RADIUS;
+    const markerRadius = monsters.length === 3 ? COMBAT_TRIO_MARKER_RADIUS : COMBAT_TARGET_RING_RADIUS;
+    const spacing = monsters.length === 1
+      ? 0
+      : monsters.length === 3
+        ? 0.58
+        : Math.min(0.96, 4.8 / monsters.length);
     const start = -((monsters.length - 1) * spacing) / 2;
     monsters.forEach((monster, index) => {
       const color = hexColor(monster.color, wall.getHexString());
       const group = new Group();
-      group.userData = { sceneLayer: "combat", monsterIndex: input.combatMonsters.indexOf(monster) };
+      const monsterIndex = input.combatMonsters.indexOf(monster);
+      const depthStagger = monsters.length > 1
+        ? (index % 2 === 0 ? 0.04 : -0.04)
+        : 0;
+      group.userData = {
+        sceneLayer: "combat",
+        monsterIndex,
+        staging: {
+          bodyRadius,
+          bodyY: COMBAT_MONSTER_BODY_Y,
+          labelY: COMBAT_MONSTER_LABEL_Y,
+          z: COMBAT_MONSTER_Z - depthStagger,
+          spacing,
+        },
+      };
       const body = new Mesh(
-        new SphereGeometry(0.52 + Math.min(0.2, finite(monster.level, 1) * 0.025), 8, 6),
+        new SphereGeometry(bodyRadius, 8, 6),
         new MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.24, emissive: color, emissiveIntensity: 0.28 })
       );
-      body.position.y = 1.18;
+      body.position.y = COMBAT_MONSTER_BODY_Y;
+      body.userData = { surface: "combat-body", monsterIndex };
       group.add(body);
       const ring = new Mesh(
-        new TorusGeometry(0.68, 0.035, 6, 20),
+        new TorusGeometry(markerRadius, 0.035, 6, 20),
         new MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })
       );
       ring.rotation.x = Math.PI / 2;
-      ring.position.y = 0.62;
+      ring.position.y = COMBAT_MONSTER_BODY_Y - bodyRadius;
+      ring.userData = { surface: "combat-marker", monsterIndex };
       group.add(ring);
+      // Stack multi-enemy labels vertically so each name stays readable while
+      // the bodies remain inside the narrow corridor frame.
+      const labelWidth = monsters.length > 1 ? COMBAT_MULTI_LABEL_WIDTH : 1.7;
+      const labelY = monsters.length > 1
+        ? COMBAT_MONSTER_LABEL_Y + (index - (monsters.length - 1) / 2) * COMBAT_MULTI_LABEL_ROW_STEP
+        : COMBAT_MONSTER_LABEL_Y;
       const label = new Mesh(
-        new PlaneGeometry(1.7, 0.32),
+        new PlaneGeometry(labelWidth, labelWidth * 48 / 256),
         new MeshBasicMaterial({ map: makeLabelTexture(monster.name || "敵", `#${color.getHexString()}`), transparent: true, depthWrite: false })
       );
-      label.position.set(0, 2.05, 0);
+      label.position.set(0, labelY, 0);
+      label.userData = { surface: "combat-label", monsterIndex };
       group.add(label);
-      group.position.set(start + index * spacing, 0, COMBAT_MONSTER_Z - Math.abs(index - (monsters.length - 1) / 2) * 0.04);
+      group.position.set(start + index * spacing, 0, COMBAT_MONSTER_Z - depthStagger);
       this.root.add(group);
 
       if (input.combatTargetSelection?.active) {
@@ -589,20 +642,29 @@ export class ThreeDungeonRenderer {
           new MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
         );
         hit.position.copy(group.position);
-        hit.position.y += 1.2;
+        hit.position.y += COMBAT_MONSTER_BODY_Y;
         hit.userData = {
-          targetIdx: input.combatMonsters.indexOf(monster),
+          targetIdx: monsterIndex,
           sceneLayer: "combat-target"
         };
         this.root.add(hit);
         this.targetHitMeshes.push(hit);
         const targetRing = new Mesh(
-          new RingGeometry(0.72, 0.78, 24),
+          new RingGeometry(markerRadius + 0.02, markerRadius + (monsters.length === 3 ? 0.05 : 0.07), 24),
           new MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.95, side: 2 })
         );
         targetRing.rotation.x = -Math.PI / 2;
-        targetRing.position.set(hit.position.x, 0.04, hit.position.z);
-        targetRing.userData = { surface: "combat-target-ring", sceneLayer: "combat-target" };
+        targetRing.position.set(
+          hit.position.x,
+          COMBAT_MONSTER_BODY_Y - bodyRadius,
+          hit.position.z
+        );
+        targetRing.userData = {
+          surface: "combat-target-ring",
+          sceneLayer: "combat-target",
+          monsterIndex,
+          targetIdx: monsterIndex,
+        };
         this.root.add(targetRing);
       }
     });
