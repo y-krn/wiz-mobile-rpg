@@ -400,6 +400,226 @@ test('Three.js Dungeon View directly selects an enemy and retains an accessible 
   await expect(page.locator('#combat-overlay')).toBeHidden();
 });
 
+test('Three.js combat staging keeps enemy bodies and labels readable across portrait widths @smoke @visual', async ({ page }, testInfo) => {
+  const fixtures = [
+    {
+      name: 'single',
+      monsters: [{ name: '単体の検証敵', level: 4, hp: 24, maxHp: 24, color: '#d45de6', spriteType: 'golem' }],
+    },
+    {
+      name: 'multi',
+      monsters: [
+        { name: '左の検証敵', level: 4, hp: 24, maxHp: 24, color: '#54c8c3', spriteType: 'golem' },
+        { name: '右の検証敵', level: 2, hp: 16, maxHp: 16, color: '#d45de6', spriteType: 'wisp' },
+      ],
+    },
+  ];
+
+  for (const viewport of VIEWPORTS) {
+    await page.setViewportSize(viewport);
+    await page.goto('/?renderer=three');
+    await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+
+    for (const fixture of fixtures) {
+      await page.evaluate(async (monsters) => {
+        const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+        const { updateUI } = await import('/src/ui.js');
+        const map = Array.from({ length: 7 }, () => Array.from({ length: 7 }, () => ({
+          walls: [true, true, true, true],
+          blockEnter: [false, false, false, false],
+          type: 'empty',
+        })));
+        state.party = [createStartingKitCharacter('vanguard')];
+        state.currentRun = createDefaultCurrentRun();
+        state.floor = 1;
+        state.x = 3;
+        state.y = 3;
+        state.dir = 0;
+        state.maps[0] = map;
+        state.visitedMaps[0] = map.map((row) => row.map(() => true));
+        state.mapRevision = (state.mapRevision || 0) + 1;
+        state.gameState = 'combat';
+        state.transitioning = false;
+        state.combatState = { phase: 'choose_actions', monsters };
+        state.chestState = null;
+        state.roamingMonsters = [];
+        updateUI();
+        const { dungeonRenderer } = await import('/src/renderer.js');
+        dungeonRenderer.draw();
+      }, fixture.monsters);
+
+      const evidence = await page.evaluate(async () => {
+        const { dungeonRenderer } = await import('/src/renderer.js');
+        dungeonRenderer.camera.updateMatrixWorld();
+        const project = (x, y, z) => {
+          const point = dungeonRenderer.camera.position.clone().set(x, y, z).project(dungeonRenderer.camera);
+          return { x: (point.x + 1) * 200, y: (1 - point.y) * 130 };
+        };
+        const bounds = (points) => ({
+          left: Math.min(...points.map(({ x }) => x)),
+          right: Math.max(...points.map(({ x }) => x)),
+          top: Math.min(...points.map(({ y }) => y)),
+          bottom: Math.max(...points.map(({ y }) => y)),
+        });
+        const combatGroups = [];
+        const targetMeshes = [];
+        dungeonRenderer.root.traverse((child) => {
+          if (child.userData?.sceneLayer === 'combat') combatGroups.push(child);
+          if (child.userData?.sceneLayer === 'combat-target') targetMeshes.push(child);
+        });
+        const groupEvidence = combatGroups.map((group) => {
+          const body = group.children.find((child) => child.userData?.surface === 'combat-body');
+          const label = group.children.find((child) => child.userData?.surface === 'combat-label');
+          const radius = body.geometry.parameters.radius;
+          const bodyBounds = bounds([-1, 1].flatMap((xSign) => [-1, 1].flatMap((ySign) => [-1, 1].map((zSign) => (
+            project(
+              group.position.x + xSign * radius,
+              group.position.y + body.position.y + ySign * radius,
+              group.position.z + zSign * radius,
+            )
+          )))));
+          const labelWidth = label.geometry.parameters.width / 2;
+          const labelHeight = label.geometry.parameters.height / 2;
+          const labelBounds = bounds([-1, 1].flatMap((xSign) => [-1, 1].map((ySign) => (
+            project(
+              group.position.x + xSign * labelWidth,
+              group.position.y + label.position.y + ySign * labelHeight,
+              group.position.z,
+            )
+          ))));
+          return {
+            index: group.userData.monsterIndex,
+            x: group.position.x,
+            z: group.position.z,
+            bodyRadius: radius,
+            bodyBounds,
+            labelBounds,
+            marker: (() => {
+              const marker = group.children.find((child) => child.userData?.surface === 'combat-marker');
+              return marker ? [group.position.x + marker.position.x, marker.position.y, group.position.z + marker.position.z] : null;
+            })(),
+          };
+        });
+        return {
+          groupEvidence,
+          targetMeshes: targetMeshes.map((mesh) => ({
+            targetIdx: mesh.userData.targetIdx,
+            radius: mesh.geometry.parameters.radius,
+            position: mesh.position.toArray(),
+          })),
+          frontWallZ: 0.1,
+        };
+      });
+
+      expect(evidence.groupEvidence).toHaveLength(fixture.monsters.length);
+      for (const group of evidence.groupEvidence) {
+        expect(group.z).toBeGreaterThan(evidence.frontWallZ);
+        expect(group.bodyRadius).toBeLessThan(0.32);
+        for (const bound of [group.bodyBounds, group.labelBounds]) {
+          expect(bound.left).toBeGreaterThanOrEqual(0);
+          expect(bound.right).toBeLessThanOrEqual(400);
+          expect(bound.top).toBeGreaterThanOrEqual(0);
+          expect(bound.bottom).toBeLessThanOrEqual(260);
+        }
+        expect(group.marker[0]).toBeCloseTo(group.x, 5);
+        expect(group.marker[2]).toBeCloseTo(group.z, 5);
+      }
+      if (fixture.name === 'multi') {
+        expect(Math.abs(evidence.groupEvidence[1].x - evidence.groupEvidence[0].x)).toBeGreaterThan(0.8);
+      }
+
+      const screenshot = await page.locator('#dungeon-canvas').screenshot({
+        path: testInfo.outputPath(`three-combat-${fixture.name}-${viewport.width}px.png`),
+      });
+      await testInfo.attach(`three-combat-${fixture.name}-${viewport.width}px`, {
+        body: screenshot,
+        contentType: 'image/png',
+      });
+    }
+  }
+});
+
+test('Three.js target selection keeps enlarged hit regions aligned with staged enemies @smoke @visual @e2e', async ({ page }, testInfo) => {
+  for (const viewport of VIEWPORTS.filter(({ width }) => width === 320 || width === 390)) {
+    await page.setViewportSize(viewport);
+    await page.goto('/?renderer=three');
+    await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+    await page.evaluate(async () => {
+      const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { updateUI } = await import('/src/ui.js');
+      const { openCombatTargetMenu } = await import('/src/combat_ui/target_menu.js');
+      const map = Array.from({ length: 7 }, () => Array.from({ length: 7 }, () => ({
+        walls: [true, true, true, true],
+        blockEnter: [false, false, false, false],
+        type: 'empty',
+      })));
+      state.party = [createStartingKitCharacter('vanguard')];
+      state.currentRun = createDefaultCurrentRun();
+      state.floor = 1;
+      state.x = 3;
+      state.y = 3;
+      state.dir = 0;
+      state.maps[0] = map;
+      state.visitedMaps[0] = map.map((row) => row.map(() => true));
+      state.mapRevision = (state.mapRevision || 0) + 1;
+      state.gameState = 'combat';
+      state.transitioning = false;
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: [
+          { name: '左の対象', level: 4, hp: 24, maxHp: 24, color: '#54c8c3', spriteType: 'golem' },
+          { name: '右の対象', level: 2, hp: 16, maxHp: 16, color: '#d45de6', spriteType: 'wisp' },
+        ],
+      };
+      menuContext.actorIdx = 0;
+      openCombatTargetMenu('enemy', () => {});
+      updateUI();
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      dungeonRenderer.draw();
+    });
+
+    const evidence = await page.evaluate(async () => {
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      const groups = [];
+      const targets = [];
+      const rings = [];
+      dungeonRenderer.root.traverse((child) => {
+        if (child.userData?.sceneLayer === 'combat') groups.push(child);
+        if (child.userData?.targetIdx !== undefined && child.geometry?.parameters?.radius !== undefined) targets.push(child);
+        if (child.userData?.surface === 'combat-target-ring') rings.push(child);
+      });
+      return {
+        groups: groups.map((group) => group.position.toArray()),
+        targets: targets.map((target) => ({ idx: target.userData.targetIdx, radius: target.geometry.parameters.radius, position: target.position.toArray() })),
+        rings: rings.map((ring) => ({ idx: ring.userData.targetIdx, position: ring.position.toArray() })),
+      };
+    });
+
+    expect(evidence.groups).toHaveLength(2);
+    expect(evidence.targets).toHaveLength(2);
+    expect(evidence.rings).toHaveLength(2);
+    expect(evidence.targets.every(({ radius }) => radius > 0.5)).toBe(true);
+    for (const target of evidence.targets) {
+      const group = evidence.groups[target.idx];
+      expect(target.position[0]).toBeCloseTo(group[0], 5);
+      expect(target.position[2]).toBeCloseTo(group[2], 5);
+    }
+    for (const ring of evidence.rings) {
+      expect(ring.position[0]).toBeCloseTo(evidence.groups[ring.idx][0], 5);
+      expect(ring.position[2]).toBeCloseTo(evidence.groups[ring.idx][2], 5);
+    }
+
+    const screenshot = await page.locator('#dungeon-canvas').screenshot({
+      path: testInfo.outputPath(`three-combat-target-selection-${viewport.width}px.png`),
+    });
+    await testInfo.attach(`three-combat-target-selection-${viewport.width}px`, {
+      body: screenshot,
+      contentType: 'image/png',
+    });
+  }
+});
+
 test('Three.js Dungeon View disposes prototype materials across repeated scene rebuilds @e2e', async ({ page }) => {
   await page.goto('/?renderer=three');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
