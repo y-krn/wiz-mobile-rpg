@@ -478,6 +478,7 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
         const groupEvidence = combatGroups.map((group) => {
           const body = group.children.find((child) => child.userData?.surface === 'combat-body');
           const label = group.children.find((child) => child.userData?.surface === 'combat-label');
+          const marker = group.children.find((child) => child.userData?.surface === 'combat-marker');
           const radius = body.geometry.parameters.radius;
           const bodyBounds = bounds([-1, 1].flatMap((xSign) => [-1, 1].flatMap((ySign) => [-1, 1].map((zSign) => (
             project(
@@ -502,6 +503,7 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
             spacing: group.userData.staging.spacing,
             bodyRadius: radius,
             labelWidth: label.geometry.parameters.width,
+            markerDiameter: (marker.geometry.parameters.radius + marker.geometry.parameters.tube) * 2,
             bodyBounds,
             labelBounds,
             marker: (() => {
@@ -547,6 +549,9 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
           const previous = evidence.groupEvidence[index - 1];
           const current = evidence.groupEvidence[index];
           expect(current.x - previous.x).toBeGreaterThan(previous.bodyRadius + current.bodyRadius);
+        }
+        for (const group of evidence.groupEvidence) {
+          expect(group.markerDiameter).toBeLessThan(group.spacing);
         }
       }
 
@@ -614,8 +619,9 @@ test('Three.js target selection keeps enlarged hit regions aligned with staged e
       });
       return {
         groups: groups.map((group) => group.position.toArray()),
+        spacing: groups[0]?.userData.staging.spacing ?? null,
         targets: targets.map((target) => ({ idx: target.userData.targetIdx, radius: target.geometry.parameters.radius, position: target.position.toArray() })),
-        rings: rings.map((ring) => ({ idx: ring.userData.targetIdx, position: ring.position.toArray() })),
+        rings: rings.map((ring) => ({ idx: ring.userData.targetIdx, outerRadius: ring.geometry.parameters.outerRadius, position: ring.position.toArray() })),
       };
     });
 
@@ -631,6 +637,7 @@ test('Three.js target selection keeps enlarged hit regions aligned with staged e
     for (const ring of evidence.rings) {
       expect(ring.position[0]).toBeCloseTo(evidence.groups[ring.idx][0], 5);
       expect(ring.position[2]).toBeCloseTo(evidence.groups[ring.idx][2], 5);
+      expect(ring.outerRadius * 2).toBeLessThan(evidence.spacing);
     }
 
     const targetByBodyCenter = await page.evaluate(async () => {

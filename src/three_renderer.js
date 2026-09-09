@@ -51,6 +51,7 @@ const COMBAT_TRIO_MONSTER_RADIUS = 0.27;
 const COMBAT_MONSTER_BODY_Y = 1.38;
 const COMBAT_MONSTER_LABEL_Y = 1.98;
 const COMBAT_TARGET_RING_RADIUS = 0.32;
+const COMBAT_TRIO_MARKER_RADIUS = 0.23;
 // Keep the hit region larger than the visible body without letting adjacent
 // enemies become one giant target. The canvas renderer has the same intent.
 const TARGET_HIT_RADIUS = 0.88;
@@ -577,6 +578,7 @@ export class ThreeDungeonRenderer {
   addCombatMonsters(input, wall) {
     const monsters = getLivingMonsters(input);
     const bodyRadius = monsters.length === 3 ? COMBAT_TRIO_MONSTER_RADIUS : COMBAT_MONSTER_RADIUS;
+    const markerRadius = monsters.length === 3 ? COMBAT_TRIO_MARKER_RADIUS : COMBAT_TARGET_RING_RADIUS;
     const spacing = monsters.length === 1
       ? 0
       : monsters.length === 3
@@ -609,7 +611,7 @@ export class ThreeDungeonRenderer {
       body.userData = { surface: "combat-body", monsterIndex };
       group.add(body);
       const ring = new Mesh(
-        new TorusGeometry(COMBAT_TARGET_RING_RADIUS, 0.035, 6, 20),
+        new TorusGeometry(markerRadius, 0.035, 6, 20),
         new MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })
       );
       ring.rotation.x = Math.PI / 2;
@@ -643,7 +645,7 @@ export class ThreeDungeonRenderer {
         this.root.add(hit);
         this.targetHitMeshes.push(hit);
         const targetRing = new Mesh(
-          new RingGeometry(COMBAT_TARGET_RING_RADIUS + 0.02, COMBAT_TARGET_RING_RADIUS + 0.07, 24),
+          new RingGeometry(markerRadius + 0.02, markerRadius + (monsters.length === 3 ? 0.05 : 0.07), 24),
           new MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.95, side: 2 })
         );
         targetRing.rotation.x = -Math.PI / 2;
