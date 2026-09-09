@@ -68,7 +68,7 @@ export const ITEMS = {
   MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", desc: "使用するとMPを3回復する。[MPを持つ冒険者用]" },
   ETHER: { id: "ETHER", name: "魔力の雫", type: "usable", desc: "使用するとMPを8回復する。[MPを持つ冒険者用]" },
   HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", desc: "使用するとHPを15回復し、毒状態も治療する。[全員用]" },
-  TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還の翼", type: "usable", desc: "任意のフロアから安全に撤退し、未確定戦果を選んで持ち帰る。素材は100%持ち帰る。" },
+  TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還の翼", type: "usable", desc: "任意のフロアから翼で帰還し、選んだ戦果を持ち帰る。素材は100%持ち帰る。" },
   ESCAPE_SCROLL: { id: "ESCAPE_SCROLL", name: "離脱のスクロール", type: "usable", desc: "使用すると戦闘から逃れ、その場に留まる。[戦闘専用]", combatOnly: true },
   PANACEA: { id: "PANACEA", name: "万能薬", type: "usable", desc: "毒・盲目・麻痺・睡眠を治療する。[全員用]" },
   ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極の霊薬。[全員用]" },

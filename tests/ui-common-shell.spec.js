@@ -178,8 +178,8 @@ test.describe('Common UI vNext shell @smoke', () => {
     });
 
     expect(ownership).toEqual([
-      { ownership: 'ambiguous', badge: '品の状態を確認中' },
-      { ownership: 'ambiguous', badge: '品の状態を確認中' },
+      { ownership: 'ambiguous', badge: undefined },
+      { ownership: 'ambiguous', badge: undefined },
     ]);
   });
 

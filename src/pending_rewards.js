@@ -132,13 +132,13 @@ function getPendingActionEntry(bundle, entry) {
     return { reason: "未鑑定品は『試す』から実際に装備してください。" };
   }
   if (action.type === "socket" && !getRuneSpellKey(entry.item)) {
-    return { reason: "Rune以外はsocketできません。" };
+    return { reason: "ルーン以外は装着できません。" };
   }
   if (action.type === "equip" && getRuneSpellKey(entry.item)) {
-    return { reason: "Runeはsocket候補にしてください。" };
+    return { reason: "ルーンは装着候補にしてください。" };
   }
   if (action.type === "trial" && getRuneSpellKey(entry.item)) {
-    return { reason: "Runeは試用できません。" };
+    return { reason: "ルーンは試用できません。" };
   }
   return null;
 }

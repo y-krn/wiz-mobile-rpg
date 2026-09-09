@@ -465,7 +465,7 @@ function renderReturnWingSelection(optGrid, { preserveSelection = false } = {}) 
     const location = isEquippedLoot(entry) ? "（装備中）" : "";
     button.className = `btn btn-block ${selected ? "btn-neon" : "btn-outline"}`;
     button.dataset.lootId = entry.id || "";
-    button.setAttribute("aria-label", `${selected ? "選択解除" : "救出候補を選択"}: ${item?.name || "不明な品"}${location}`);
+    button.setAttribute("aria-label", `${selected ? "選択解除" : "持ち帰る戦果を選択"}: ${item?.name || "不明な品"}${location}`);
     button.disabled = !selected && selectedWingLootIds.size >= RETURN_WING_SALVAGE_COUNT;
     button.textContent = `${item?.name || "不明な品"}${location}`;
     const ownership = getItemOwnership(entry.item, {
@@ -492,7 +492,7 @@ function renderReturnWingSelection(optGrid, { preserveSelection = false } = {}) 
   confirm.id = "btn-wing-salvage-confirm";
   confirm.type = "button";
   confirm.className = "btn btn-neon btn-block";
-  confirm.textContent = `選択した${selectedWingLootIds.size}個を救出して帰還`;
+  confirm.textContent = `選択した${selectedWingLootIds.size}個を持ち帰って帰還`;
   confirm.addEventListener("click", useReturnWing);
   optGrid.appendChild(confirm);
 }

@@ -304,7 +304,7 @@ export function stageSocketRune(draft, { actorIdx, inventoryIndex } = {}) {
   if (draft?.trialAction) return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
   const character = getDraftActor(draft, actorIdx);
   const rune = draft?.inventory?.[inventoryIndex];
-  if (!character || !getRuneSpellKey(rune)) return { ok: false, reason: "媒体またはRuneがありません" };
+  if (!character || !getRuneSpellKey(rune)) return { ok: false, reason: "媒体またはルーンがありません" };
   const next = copyDraft(draft);
   const nextCharacter = getDraftActor(next, actorIdx);
   const result = socketRune(nextCharacter, rune);
@@ -317,7 +317,7 @@ export function stageUnsocketRune(draft, { actorIdx, spellKey } = {}) {
   if (draft?.trialAction) return { ok: false, reason: "試用は通常の装備変更と同じ取引に混ぜられません。" };
   const character = getDraftActor(draft, actorIdx);
   const runeId = getRuneItemId(spellKey);
-  if (!character || !runeId) return { ok: false, reason: "Runeがありません" };
+  if (!character || !runeId) return { ok: false, reason: "ルーンがありません" };
   const next = copyDraft(draft);
   const nextCharacter = getDraftActor(next, actorIdx);
   const result = unsocketRune(nextCharacter, spellKey);
@@ -343,7 +343,7 @@ export function validateLoadoutDraft(draft) {
   const errors = [];
   draft.party.forEach((character, actorIdx) => {
     const hands = getCharacterEquipmentHands(character);
-    if (hands > MAX_EQUIPMENT_HANDS) errors.push(`キャラクター${actorIdx + 1}の手数が上限を超えています。`);
+    if (hands > MAX_EQUIPMENT_HANDS) errors.push(`キャラクター${actorIdx + 1}の装備に使う手が上限を超えています。`);
     LOADOUT_SLOTS.forEach(slot => {
       const item = getSlotItem(character, slot);
       const itemData = getItemData(item);
@@ -357,9 +357,9 @@ export function validateLoadoutDraft(draft) {
       const runes = Array.isArray(character.mediumState?.socketedRunes)
         ? character.mediumState.socketedRunes.map(getRuneSpellKey).filter(Boolean)
         : [];
-      if (runes.length > (medium?.runeSlots || 0)) errors.push(`キャラクター${actorIdx + 1}のRune容量を超えています。`);
-      if (new Set(runes).size !== runes.length) errors.push(`キャラクター${actorIdx + 1}に重複したRuneがあります。`);
-      if (getActiveRuneSpellKeys(character).length !== runes.length) errors.push(`キャラクター${actorIdx + 1}のRune状態が媒体と一致しません。`);
+      if (runes.length > (medium?.runeSlots || 0)) errors.push(`キャラクター${actorIdx + 1}のルーン容量を超えています。`);
+      if (new Set(runes).size !== runes.length) errors.push(`キャラクター${actorIdx + 1}に重複したルーンがあります。`);
+      if (getActiveRuneSpellKeys(character).length !== runes.length) errors.push(`キャラクター${actorIdx + 1}のルーン状態が媒体と一致しません。`);
     }
   });
 

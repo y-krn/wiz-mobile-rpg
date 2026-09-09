@@ -61,7 +61,7 @@ function applyReflectionDamage(char, state, sources, logQueue) {
 export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks = {}) {
   const spell = SPELLS[act.spellName];
   if (!spell || !getActiveSpellKeys(char).includes(act.spellName)) {
-    logQueue.push({ msg: `[味方] ${char.name}はそのRuneを装備していないため、呪文を唱えられない！` });
+    logQueue.push({ msg: `[味方] ${char.name}はそのルーンを装備していないため、呪文を唱えられない！` });
     return;
   }
   const clearBleedingOnDefeat = (target, reason) => {

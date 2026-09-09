@@ -97,7 +97,7 @@ export function renderWorkshop(optGrid) {
               ? "工房: 対応する印が必要だ。"
               : result.reason === "already_unlocked"
                 ? "工房: 冒険の記録からすでに利用可能になっている。"
-              : "工房: これ以上習得できない。";
+              : "工房: これ以上利用可能にできない。";
           addLog(message);
           return;
         }

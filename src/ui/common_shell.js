@@ -200,6 +200,7 @@ export function getItemOwnership(item, { state = null, selectedLootIds = null, l
 
 export function appendOwnershipBadge(parent, ownership, { label = null } = {}) {
   if (!parent || typeof document === "undefined") return null;
+  if (ownership === OWNERSHIP_STATES.AMBIGUOUS) return null;
   const badge = document.createElement("span");
   badge.className = `ownership-badge ownership-badge--${ownership}`;
   if (badge.dataset) badge.dataset.ownership = ownership;
