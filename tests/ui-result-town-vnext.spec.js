@@ -26,9 +26,10 @@ test('Result leads with run memory and keeps loot ownership explicit', async ({ 
     updateUI();
   });
 
-  await expect(page.locator('[data-result-outcome="portal"]')).toContainText('帰還の門から帰還');
+  await expect(page.locator('[data-result-outcome="portal"]')).toContainText('帰還');
   await expect(page.locator('[data-result-memory]')).toContainText('物は失う。物語は残る');
-  await expect(page.locator('[data-result-memory]')).toContainText('代表的な戦果');
+  await expect(page.locator('[data-result-memory]')).toContainText('この冒険を象徴する品');
+  await expect(page.locator('#result-overlay')).not.toContainText('代表的な戦果');
   await expect(page.locator('[data-result-loot]')).toContainText('持込品（未使用分）');
   await expect(page.locator('[data-result-loot]')).toContainText('罠外しキット');
   expect(await page.locator('[data-result-loot]').textContent()).toMatch(/罠外しキット/);
@@ -106,6 +107,8 @@ test('Town home is organized as previous run, next descent, and accumulated know
   await expect(home.locator('#town-next-run-title')).toHaveText('次の潜行に備える');
   await expect(home.locator('.town-home-section').nth(2)).toContainText('蓄積した記録');
   await expect(page.locator('#btn-town-dungeon')).toContainText('準備を整える');
+  await expect(page.locator('#btn-town-dungeon')).toContainText('開始キットと開始地点を選ぶ');
+  await expect(page.locator('#btn-town-dungeon')).not.toContainText('クラス');
   await expect(page.locator('#btn-town-quest-board')).toContainText('今回の依頼を選ぶ');
   await expect(page.locator('#btn-town-archives')).toContainText('迷宮について分かったこと');
   await expect(page.locator('#btn-town-workshop')).toContainText('広がった可能性を見る');
@@ -126,6 +129,8 @@ test('Castle presents death causes as facts with preparation choices', async ({ 
   await page.getByRole('button', { name: '全滅ログ確認' }).click();
   const countermeasure = page.locator('.death-countermeasure');
   await expect(countermeasure).toContainText('準備を見直す');
+  await expect(countermeasure).toContainText('開始キット・持込品・開始地点を比較する。');
+  await expect(countermeasure).not.toContainText('クラス');
   await expect(countermeasure).toContainText('広がった可能性を見る');
   for (const specificSolution of ['罠外しキット', '罠喰いの記憶', '解毒薬', '目薬', '守りの薬', '生命鍛錬']) {
     await expect(countermeasure).not.toContainText(specificSolution);

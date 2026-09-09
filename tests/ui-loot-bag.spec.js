@@ -120,6 +120,6 @@ test('equipped dungeon gear keeps its unconfirmed ownership badge @smoke', async
 
   const equippedRow = page.locator('.equip-equipped-row[data-slot-id="weapon"]');
   await expect(equippedRow).toHaveAttribute('data-ownership', 'dungeon-unconfirmed');
-  await expect(equippedRow.locator('.ownership-badge')).toContainText('迷宮で取得・未確定');
+  await expect(equippedRow.locator('.ownership-badge')).toContainText('まだ持ち帰っていない品');
   await expect(equippedRow.locator('.equip-row-badge.equipped')).toHaveText('装備中');
 });

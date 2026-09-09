@@ -242,12 +242,12 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
   const medium = getEquippedMedium(startingCharacter);
   appendPreparationRow(
     conditions,
-    "Medium",
-    medium ? `${ITEMS[medium.item]?.name || medium.item} / Rune slot ${medium.runeSlots}` : "なし / Rune slot 0"
+    "媒体",
+    medium ? `${ITEMS[medium.item]?.name || medium.item} / ルーン枠 ${medium.runeSlots}` : "なし / ルーン枠 0"
   );
   appendPreparationRow(
     conditions,
-    "active Rune",
+    "使用中のルーン",
     getActiveRuneSpellKeys(startingCharacter)
       .map(spellKey => ITEMS[getRuneItemId(spellKey)]?.name || spellKey)
       .join("・") || "なし"

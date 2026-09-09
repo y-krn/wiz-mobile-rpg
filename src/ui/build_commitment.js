@@ -61,7 +61,7 @@ function getReturnedItemSummary(items) {
   const runes = items.filter(item => getRuneSpellKey(item));
   const equipment = items.filter(item => !getRuneSpellKey(item));
   const parts = [];
-  if (runes.length > 0) parts.push(`socket中Rune ${runes.length}個がバッグへ戻る`);
+  if (runes.length > 0) parts.push(`装着中のルーン ${runes.length}個がバッグへ戻る`);
   equipment.forEach(item => parts.push(`${getItemName(item)}がバッグへ戻る`));
   return parts.join(" / ") || "なし";
 }
@@ -155,16 +155,16 @@ export function createBuildCommitmentPanel(
   appendBuildRow(currentGrid, "ATK", current.attack, "attack");
   appendBuildRow(currentGrid, "DEF", current.defense, "defense");
   appendBuildRow(currentGrid, "通常攻撃", current.weapon, "weapon");
-  appendBuildRow(currentGrid, "手数", current.hands, "hands");
+  appendBuildRow(currentGrid, "装備に使う手", current.hands, "hands");
   appendBuildRow(currentGrid, "Guard", current.guard, "guard");
-  appendBuildRow(currentGrid, "Medium", current.medium, "medium");
-  appendBuildRow(currentGrid, "Rune slot", current.runeSlots, "rune-slots");
-  appendBuildRow(currentGrid, "active Rune", current.activeRunes, "active-runes");
+  appendBuildRow(currentGrid, "媒体", current.medium, "medium");
+  appendBuildRow(currentGrid, "ルーン枠", current.runeSlots, "rune-slots");
+  appendBuildRow(currentGrid, "使用中のルーン", current.activeRunes, "active-runes");
   if (currentDraft) appendBuildRow(currentGrid, "バッグ", `${currentDraft.inventory.length}/20`, "bag");
-  appendBuildRow(currentGrid, "Main-axis Core", current.mainCores, "main-cores");
-  appendBuildRow(currentGrid, "Auxiliary Core", current.auxiliaryCores, "auxiliary-cores");
-  appendBuildRow(currentGrid, "Support", current.support, "support");
-  appendBuildRow(currentGrid, "探索 Support", current.explorationSupport, "exploration-support");
+  appendBuildRow(currentGrid, "戦い方を変える効果", current.mainCores, "main-cores");
+  appendBuildRow(currentGrid, "補助的な特殊効果", current.auxiliaryCores, "auxiliary-cores");
+  appendBuildRow(currentGrid, "装備効果", current.support, "support");
+  appendBuildRow(currentGrid, "探索に役立つ効果", current.explorationSupport, "exploration-support");
   panel.appendChild(currentGrid);
 
   if (proposedChar && proposedDraft && currentDraft) {
@@ -181,11 +181,11 @@ export function createBuildCommitmentPanel(
     appendComparisonRow(comparison, "ATK", current.attack, next.attack, "attack");
     appendComparisonRow(comparison, "DEF", current.defense, next.defense, "defense");
     appendComparisonRow(comparison, "通常攻撃", current.weapon, next.weapon, "weapon");
-    appendComparisonRow(comparison, "手数", current.hands, next.hands, "hands");
+    appendComparisonRow(comparison, "装備に使う手", current.hands, next.hands, "hands");
     appendComparisonRow(comparison, "Guard", current.guard, next.guard, "guard");
     appendComparisonRow(comparison, "最大MP", current.maxMp, next.maxMp, "max-mp");
-    appendComparisonRow(comparison, "Rune slot", current.runeSlots, next.runeSlots, "rune-slots");
-    appendComparisonRow(comparison, "active Rune", current.activeRunes, next.activeRunes, "active-runes");
+    appendComparisonRow(comparison, "ルーン枠", current.runeSlots, next.runeSlots, "rune-slots");
+    appendComparisonRow(comparison, "使用中のルーン", current.activeRunes, next.activeRunes, "active-runes");
     const inventoryChanges = getLoadoutInventoryChanges(currentDraft.inventory, proposedDraft.inventory);
     appendComparisonRow(
       comparison,
@@ -201,10 +201,10 @@ export function createBuildCommitmentPanel(
       getReturnedItemSummary(inventoryChanges.added),
       "bag-items"
     );
-    appendComparisonRow(comparison, "Main-axis Core", current.mainCores, next.mainCores, "main-cores");
-    appendComparisonRow(comparison, "Auxiliary Core", current.auxiliaryCores, next.auxiliaryCores, "auxiliary-cores");
-    appendComparisonRow(comparison, "Support", current.support, next.support, "support");
-    appendComparisonRow(comparison, "探索 Support", current.explorationSupport, next.explorationSupport, "exploration-support");
+    appendComparisonRow(comparison, "戦い方を変える効果", current.mainCores, next.mainCores, "main-cores");
+    appendComparisonRow(comparison, "補助的な特殊効果", current.auxiliaryCores, next.auxiliaryCores, "auxiliary-cores");
+    appendComparisonRow(comparison, "装備効果", current.support, next.support, "support");
+    appendComparisonRow(comparison, "探索に役立つ効果", current.explorationSupport, next.explorationSupport, "exploration-support");
     panel.appendChild(comparison);
 
     const note = document.createElement("p");

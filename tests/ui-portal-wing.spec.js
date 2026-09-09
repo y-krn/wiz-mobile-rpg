@@ -48,6 +48,9 @@ for (const viewport of VIEWPORTS) {
     await expect(page.locator('.milestone-portal-vitals')).toContainText(expectedMp);
     await expect(page.locator('.milestone-portal-bag')).toHaveAttribute('aria-label', 'バッグ 2/20枠');
     await expect(page.locator('[data-info-role="unbanked-object-loot"]')).toContainText('3点');
+    const portalText = await page.locator('#submenu-options').textContent();
+    expect(portalText).toContain('まだ持ち帰っていない戦果');
+    expect(portalText).not.toMatch(/object loot|\bReturn\b|\bPush\b|\brun\b/);
     await expect(page.locator('[data-info-role="next-band-clue"]')).toBeVisible();
 
     const choices = page.locator('.milestone-portal-choice-card > .milestone-portal-choice');
@@ -62,8 +65,8 @@ for (const viewport of VIEWPORTS) {
     expect(choiceBoxes[0].width).toBeCloseTo(choiceBoxes[1].width, 1);
 
     await page.locator('.milestone-portal-choice-card[data-portal-decision="push"] button').click();
-    await expect(page.locator('.milestone-portal-confirmation')).toContainText('Pushを確定しますか？');
-    await expect(page.locator('.milestone-portal-confirmation')).toContainText('失われません');
+    await expect(page.locator('.milestone-portal-confirmation')).toContainText('さらに深く進みますか？');
+    await expect(page.locator('.milestone-portal-confirmation')).toContainText('戦果を抱えたまま');
     await page.locator('#btn-portal-confirm').click();
     await expect(page.locator('#explore-controls')).toBeVisible();
     const lootAfterPush = await page.evaluate(async () => {
@@ -77,10 +80,10 @@ for (const viewport of VIEWPORTS) {
       openSubmenu('milestone_portal', 'B5F帰還の門');
     });
     await page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button').click();
-    await expect(page.locator('.milestone-portal-confirmation')).toContainText('Returnを確定しますか？');
+    await expect(page.locator('.milestone-portal-confirmation')).toContainText('ここで帰還しますか？');
     await page.locator('#btn-portal-confirm').click();
     await expect(page.locator('#result-overlay')).toBeVisible();
-    await expect(page.locator('#result-overlay')).toContainText('帰還の門');
+    await expect(page.locator('#result-overlay')).toContainText('帰還');
   });
 }
 
@@ -97,12 +100,12 @@ test('Wing shows every unbanked candidate, includes equipped loot, and cancels s
     openSubmenu('item_target_select', '帰還の翼の対象');
   });
 
-  await expect(page.locator('.wing-selection-status')).toHaveText('救出選択 0/2点');
+  await expect(page.locator('.wing-selection-status')).toHaveText('持ち帰る戦果 0/2点');
   await expect(page.locator('[data-loot-id="loot-equipped"]')).toContainText('装備中');
   await expect(page.locator('[data-loot-id^="loot-"]')).toHaveCount(3);
   await page.locator('[data-loot-id="loot-sword"]').click();
   await page.locator('[data-loot-id="loot-potion"]').click();
-  await expect(page.locator('.wing-selection-status')).toHaveText('救出選択 2/2点');
+  await expect(page.locator('.wing-selection-status')).toHaveText('持ち帰る戦果 2/2点');
   await expect(page.locator('[data-loot-id="loot-equipped"]')).toBeDisabled();
 
   await page.locator('#btn-submenu-back').click();
@@ -156,8 +159,8 @@ test('Wing excludes the dungeon-found wing from salvage candidates', async ({ pa
   });
 
   await expect(page.locator('[data-loot-id="loot-wing"]')).toHaveCount(0);
-  await expect(page.locator('.wing-selection-candidate-count')).toHaveText('救出候補 3点');
-  await expect(page.locator('.wing-selection-status')).toHaveText('救出選択 0/2点');
+  await expect(page.locator('.wing-selection-candidate-count')).toHaveText('持ち帰れる戦果 3点');
+  await expect(page.locator('.wing-selection-status')).toHaveText('持ち帰る戦果 0/2点');
 
   await page.locator('[data-loot-id="loot-sword"]').click();
   await page.locator('[data-loot-id="loot-potion"]').click();

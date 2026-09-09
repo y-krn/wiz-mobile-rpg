@@ -110,7 +110,7 @@ export function commitLoadoutDraft(draft, { stateLike = state, turnCost = 0, wor
   const runeCount = changes.runes.reduce((sum, change) => sum + Math.max(change.from.length, change.to.length), 0);
   addLog(isTrial
     ? `試用を確定した。${equipmentText}（探索時間が進む）`
-    : `装備変更を確定した。${equipmentText}${runeCount ? ` / Rune変更 ${runeCount}件` : ""}`);
+    : `装備変更を確定した。${equipmentText}${runeCount ? ` / ルーン変更 ${runeCount}件` : ""}`);
   trackLoadoutTransaction("commit", {
     state: stateLike,
     equipmentChanges: changes.equipment.length,

@@ -71,7 +71,7 @@ for (const vp of VIEWPORTS) {
 
     const recordsStrip = page.locator('#records-strip');
     await expect(recordsStrip).toBeVisible();
-    await expect(recordsStrip).toContainText('撤退最深');
+    await expect(recordsStrip).toContainText('帰還最深');
     await expect(recordsStrip).toContainText('B12F');
     await expect(recordsStrip).toContainText('死亡最深');
     const titleBox = await recordsStrip.boundingBox();

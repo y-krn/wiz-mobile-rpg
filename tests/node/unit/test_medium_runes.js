@@ -55,7 +55,7 @@ assert.equal(getAutoHealTargetIdx(arcana), null, "HALITO Rune remains non-healin
 const staleSpellLog = [];
 resolvePlayerSpell(arcana, { spellName: "DIOS", targetIdx: 0 }, { party: [arcana], floor: 1 }, [], staleSpellLog);
 assert.equal(arcana.mp, 1, "combat resolution rejects a spell absent from the active Rune set");
-assert.match(staleSpellLog[0].msg, /Rune/);
+assert.match(staleSpellLog[0].msg, /ルーン/);
 
 // Active spell ownership comes only from the equipped medium's Rune.
 assert.deepEqual(getActiveSpellKeys(arcana), ["HALITO"]);

@@ -13,11 +13,12 @@ export const archivesState = {
 function getRunOutcomeLabel(run) {
   if (run?.outcome === "abandon" || (!run?.outcome && run?.returnReason === "abandon")) return "断念";
   if (run?.outcome === "death" || (!run?.outcome && run?.returnReason === "gameover")) return "死亡";
-  return "撤退";
+  if (run?.returnReason === "escape_scroll") return "翼で帰還";
+  return "帰還";
 }
 
 function getRunOutcomeColor(run) {
-  return getRunOutcomeLabel(run) === "撤退" ? "var(--neon-green)" : "var(--neon-red)";
+  return ["帰還", "翼で帰還"].includes(getRunOutcomeLabel(run)) ? "var(--neon-green)" : "var(--neon-red)";
 }
 
 function trackArchivesListScroll(body) {
@@ -333,7 +334,7 @@ export function getEventsCodexHtml() {
     <div style="background-color: #14141a; border: 1px solid var(--neon-cyan); border-radius: 4px; padding: 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
       <div>潜行回数: <strong style="color: var(--neon-cyan);">${records.totalRuns}</strong> 回</div>
       <div>全滅死亡: <strong style="color: var(--neon-red);">${stats.totalDeaths}</strong> 回</div>
-      <div>撤退最深: <strong style="color: var(--neon-green);">${records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録"}</strong></div>
+      <div>帰還最深: <strong style="color: var(--neon-green);">${records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録"}</strong></div>
       <div>死亡最深: <strong style="color: var(--neon-red);">${records.deepestDeath ? `B${records.deepestDeath}F` : "未記録"}</strong></div>
       <div>累計撃破: <strong style="color: var(--neon-green);">${stats.totalKills}</strong> 匹</div>
       <div style="grid-column: span 2;">宝箱開封: <strong style="color: var(--neon-yellow);">${stats.totalChests}</strong> 個</div>
@@ -373,8 +374,8 @@ export function getRunHistoryHtml() {
           <div>宝箱開封: ${h.chestsOpened} 個</div>
           <div>出発: ${startingKit || "開始時情報なし"}</div>
           <div>持帰素材: ${Object.values(h.bankedMaterials || {}).reduce((sum, quantity) => sum + quantity, 0)} 個</div>
-          <div>代表品: ${representative ? `${representative.name}（${representative.status === "lost" ? "喪失" : representative.status === "rescued" ? "救出" : representative.status === "returned" ? "帰還" : "観測"}）` : "なし"}</div>
-          <div>物品: 帰還${returnProcessing.returnedObjectCount || 0} / 喪失${returnProcessing.lostObjectCount || 0}</div>
+          <div>この冒険を象徴する品: ${representative ? `${representative.name}（${representative.status === "lost" ? "喪失" : representative.status === "rescued" ? "翼で持ち帰り" : representative.status === "returned" ? "帰還" : "観測"}）` : "なし"}</div>
+          <div>品のゆくえ: 持ち帰り${returnProcessing.returnedObjectCount || 0} / 失った品${returnProcessing.lostObjectCount || 0}</div>
         </div>
       </div>
     `;

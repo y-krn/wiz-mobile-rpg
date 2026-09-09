@@ -30,7 +30,7 @@ export function unsocketRuneToInventory({ actorIdx, spellKey } = {}) {
   const runeId = getRuneItemId(spellKey);
   if (!character || !runeId) return { ok: false, reason: "rune_missing" };
   if (!hasInventorySpace(state.inventory)) {
-    addLog("バッグが満杯のため、Runeを外せません。");
+    addLog("バッグが満杯のため、ルーンを外せません。");
     return { ok: false, reason: "inventory_full" };
   }
 

@@ -22,12 +22,13 @@ function floorText(floor) {
 function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
   if (run?.outcome === "abandon" || run?.returnReason === "abandon") return "断念";
-  return "撤退";
+  if (run?.returnReason === "escape_scroll") return "翼で帰還";
+  return "帰還";
 }
 
 function outcomeClass(run) {
   const label = outcomeLabel(run);
-  return label === "撤退" ? "retreat" : label === "死亡" ? "death" : "abandon";
+  return ["帰還", "翼で帰還"].includes(label) ? "retreat" : label === "死亡" ? "death" : "abandon";
 }
 
 function runNumber(run, index, totalRuns) {
@@ -41,7 +42,7 @@ function runOriginLabel(run) {
 
 function meaningfulFactLabel(run) {
   const item = run?.representativeItem?.name || run?.meaningfulItemHistory?.[0]?.name;
-  return item ? `代表的な戦果: ${item}` : null;
+  return item ? `この冒険を象徴する品: ${item}` : null;
 }
 
 function decisionText(run) {
@@ -51,9 +52,9 @@ function decisionText(run) {
     return `${floorText(run.deathCause?.floor || run.deepestFloor)}で${escapeHtml(cause)}に倒れた`;
   }
   if (outcome === "断念") return `${floorText(run.deepestFloor)}で潜行を断念した`;
-  if (run.returnReason === "milestone_portal") return `${floorText(run.deepestFloor)}で帰還の門を選び、戦利品を持ち帰った`;
-  if (run.returnReason === "escape_scroll") return `${floorText(run.deepestFloor)}で帰還の翼を使い、撤退を決断した`;
-  return `${floorText(run.deepestFloor)}で撤退を決断した`;
+  if (run.returnReason === "milestone_portal") return `${floorText(run.deepestFloor)}で帰還の門を選び、戦果をすべて持ち帰った`;
+  if (run.returnReason === "escape_scroll") return `${floorText(run.deepestFloor)}で翼を使って帰還し、選んだ戦果を持ち帰った`;
+  return `${floorText(run.deepestFloor)}で帰還を決め、戦果を持ち帰った`;
 }
 
 function getHistoryCards(history, totalRuns) {
@@ -116,12 +117,12 @@ function getRetreatTrend(history) {
   const recent = history.slice(0, 10);
   const previous = history.slice(10, 20);
   if (recent.length < 2 || previous.length === 0) return "最近の傾向は、もう少し冒険を重ねると見えてきます。";
-  const retreatAtB5 = runs => runs.filter(run => outcomeLabel(run) === "撤退" && Number(run.deepestFloor) <= 5).length;
+  const retreatAtB5 = runs => runs.filter(run => ["帰還", "翼で帰還"].includes(outcomeLabel(run)) && Number(run.deepestFloor) <= 5).length;
   const recentRate = retreatAtB5(recent) / recent.length;
   const previousRate = retreatAtB5(previous) / previous.length;
-  if (recentRate < previousRate) return "最近はB5Fでの撤退が減っています。";
-  if (recentRate > previousRate) return "最近はB5Fでの撤退が増えています。次の準備を見直せそうです。";
-  return "最近のB5Fでの撤退は、これまでと同じ傾向です。";
+  if (recentRate < previousRate) return "最近はB5Fでの帰還が減っています。";
+  if (recentRate > previousRate) return "最近はB5Fでの帰還が増えています。次の準備を見直せそうです。";
+  return "最近のB5Fでの帰還は、これまでと同じ傾向です。";
 }
 
 function getTrendHtml(records, history) {
