@@ -135,8 +135,10 @@ function timingFixture(playerHp, monsterAtk) {
 }
 
 const originalRandom = Math.random;
-Math.random = () => 0.99;
+let randomValues = [];
+Math.random = () => randomValues.shift() ?? 0;
 try {
+  randomValues = [0, 0.99];
   const afterEnemy = runCombatRoundCalculation(timingFixture(100, 1), {
     actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
   });
@@ -145,6 +147,7 @@ try {
     { actor: "char", actionType: "fight", order: 1, executed: true }
   ]);
 
+  randomValues = [0, 0.99];
   const preempted = runCombatRoundCalculation(timingFixture(1, 10), {
     actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
   });

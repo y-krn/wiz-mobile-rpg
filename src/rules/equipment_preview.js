@@ -7,6 +7,7 @@ import {
 } from "./character_stats.js";
 import { getCharAffixSum, getItemData } from "./item_rules.js";
 import { isCurseLocked } from "./identification_rules.js";
+import { getCharacterEquipmentLoad } from "./equipment_load.js";
 import {
   EQUIPMENT_SLOTS,
   getEquipmentSlot,
@@ -27,6 +28,7 @@ export const EQUIPMENT_PREVIEW_STATS = [
   { key: "antiDragon", label: "竜特効" },
   { key: "antiUndead", label: "不死特効" },
   { key: "firstStrike", label: "先制" },
+  { key: "initiativeLoad", label: "行動" },
   { key: "poisonWard", label: "毒耐性" },
   { key: "poisonAtk", label: "毒付与" }
 ];
@@ -68,6 +70,7 @@ function getDisplayStats(char, floor) {
     antiDragon: getCharAffixSum(char, "antiDragon"),
     antiUndead: getCharAffixSum(char, "antiUndead"),
     firstStrike: getCharAffixSum(char, "firstStrike"),
+    initiativeLoad: getCharacterEquipmentLoad(char).label,
     poisonWard: getCharAffixSum(char, "poisonWard"),
     poisonAtk: getCharAffixSum(char, "poisonAtk")
   };
@@ -88,12 +91,23 @@ export function createEquipmentPreviewChar(char) {
 }
 
 function createPreviewRows(current, next) {
-  return EQUIPMENT_PREVIEW_STATS.map((stat) => ({
-    ...stat,
-    current: current[stat.key],
-    next: next[stat.key],
-    diff: next[stat.key] - current[stat.key]
-  }));
+  return EQUIPMENT_PREVIEW_STATS.map((stat) => {
+    if (stat.key === "initiativeLoad") {
+      const ranks = { "速い": 0, "標準": 1, "遅い": 2 };
+      return {
+        ...stat,
+        current: current[stat.key],
+        next: next[stat.key],
+        diff: ranks[current[stat.key]] - ranks[next[stat.key]]
+      };
+    }
+    return {
+      ...stat,
+      current: current[stat.key],
+      next: next[stat.key],
+      diff: next[stat.key] - current[stat.key]
+    };
+  });
 }
 
 export function getEquipmentPreview(char, itemKey, requestedSlot = null, { floor = 1 } = {}) {

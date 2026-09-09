@@ -20,6 +20,11 @@ export const HP_BANDS = Object.freeze([
   Object.freeze({ id: "25", label: "HP 25%", ratio: 0.25 })
 ]);
 export const POLICIES = Object.freeze(["fight", "immediate-flee"]);
+export const LOADOUTS = Object.freeze({
+  light: Object.freeze({ id: "light", fixtureId: "light-shield", label: "軽装" }),
+  standard: Object.freeze({ id: "standard", fixtureId: null, label: "標準" }),
+  heavy: Object.freeze({ id: "heavy", fixtureId: "heavy-two-hand", label: "重装" })
+});
 export const COMPOSITIONS = Object.freeze([
   Object.freeze({
     id: "high-kobold-scout-rusted-shield",
@@ -312,8 +317,11 @@ function createScenario(composition, hpBand, policy) {
 export async function runFixedCombatDiagnostic({
   runs = DEFAULT_RUNS,
   seed = DEFAULT_SEED,
-  allowSmallRunCount = false
+  allowSmallRunCount = false,
+  loadoutId = "standard"
 } = {}) {
+  const loadout = LOADOUTS[loadoutId];
+  if (!loadout) throw new Error(`loadoutId must be ${Object.keys(LOADOUTS).join("|")}: ${loadoutId}`);
   const normalizedRuns = positiveInteger(
     runs,
     "runs",
@@ -337,7 +345,7 @@ export async function runFixedCombatDiagnostic({
         for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
           const worldSeed = `issue-1151:${normalizedSeed}:${hpBand.id}:${composition.id}:${runIndex}`;
           const result = simulateRun({
-            className: "Fighter",
+            ...(loadout.fixtureId ? { fixtureId: loadout.fixtureId } : { className: "Fighter" }),
             startFloor: 1,
             targetDepth: 2,
             runIndex,
@@ -443,6 +451,8 @@ export async function runFixedCombatDiagnostic({
     question: "固定したvanguard開始状態・B1F敵2体編成で、composition × entry HP × fight/flee のCost差が分離するか",
     evidenceScope: "run",
     configuration: {
+      loadoutId: loadout.id,
+      loadoutLabel: loadout.label,
       startingKit: STARTING_KIT,
       floor: 1,
       initialMpRatio: ENTRY_MP_RATIO,

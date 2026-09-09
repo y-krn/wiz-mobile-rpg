@@ -99,7 +99,13 @@ function createEnemyDefeatState(monsterOverrides) {
   return state;
 }
 
-const flee = runRound(createEnemyDefeatState({ fleeChance: 1 }), Array(16).fill(0));
+function enemyFirstRandomValues() {
+  const values = Array(16).fill(0);
+  values[1] = 0.99;
+  return values;
+}
+
+const flee = runRound(createEnemyDefeatState({ fleeChance: 1 }), enemyFirstRandomValues());
 assert.equal(hasStatusEffect(flee.state.combatState.monsters[0], STATUS_EFFECT_IDS.BLEEDING), false);
 assert.equal(flee.state.simTelemetry.bleeding.clearReasons.flee, 1);
 
@@ -108,7 +114,7 @@ const selfDestruct = runRound(createEnemyDefeatState({
   maxHp: 100,
   traits: ["selfDestruct"],
   selfDestructQueued: true
-}), Array(16).fill(0));
+}), enemyFirstRandomValues());
 assert.equal(hasStatusEffect(selfDestruct.state.combatState.monsters[0], STATUS_EFFECT_IDS.BLEEDING), false);
 assert.equal(selfDestruct.state.simTelemetry.bleeding.clearReasons["self-destruct"], 1);
 
@@ -118,7 +124,7 @@ counterState.party[0].equipment.shield = {
   identified: true,
   affixes: [{ id: "CORE_THORN_SHIELD", type: "CORE_THORN_SHIELD", kind: "core", value: 1 }]
 };
-const counterResult = runRound(counterState, Array(16).fill(0));
+const counterResult = runRound(counterState, enemyFirstRandomValues());
 assert.equal(hasStatusEffect(counterResult.state.combatState.monsters[0], STATUS_EFFECT_IDS.BLEEDING), false);
 assert.equal(counterResult.state.simTelemetry.bleeding.clearReasons.counterattack, 1);
 

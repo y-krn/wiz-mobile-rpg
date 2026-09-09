@@ -212,6 +212,22 @@ Milestone guardians may telegraph a counter window that rewards the build or
 resource choice the band has been teaching. A counter window must not silently
 rewrite ordinary floor damage, rewards, or the meaning of depth.
 
+## Initiative and equipment load
+
+Combat initiative is a shared production roll rather than a permanent player
+versus-enemy priority band. Each living actor rolls one bucket from 0–19;
+currently equipped weapons, shields, and armor aggregate into a coarse load
+class: light, standard, or heavy. The class changes the initiative contribution
+only, with light acting sooner and heavy acting later. Bag contents, class
+identity, Core/Support/Rune identity, and AGI do not silently contribute to
+this rule. FirstStrike remains a separate additive first-turn effect.
+
+Equal initiative uses the fractional part of the same actor roll as a
+tie-break. Exact random collisions retain stable insertion order, so the
+fallback is deterministic and not a hidden faction preference. Equipment
+comparison exposes only the same coarse labels (速い / 標準 / 遅い); the
+executable load classes and modifiers remain owned by the equipment-load rule.
+
 ## Status-effect grammar
 
 Status effects are finite combat contracts, not an invitation to add a generic
