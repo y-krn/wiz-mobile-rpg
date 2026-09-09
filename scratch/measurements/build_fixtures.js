@@ -17,7 +17,8 @@ const FIXTURE_DEFINITIONS = Object.freeze({
   "light-shield": {
     label: "Light weapon + shield",
     weapon: "DAGGER",
-    shield: "SMALL_SHIELD"
+    shield: "BUCKLER",
+    armor: "EXPLORER_CLOAK"
   },
   "heavy-two-hand": {
     label: "Heavy two-hand weapon",
@@ -92,7 +93,7 @@ export function createBuildFixture(fixtureId) {
     shield: definition.shield
       ? createEquipment(fixtureId, "shield", definition.shield)
       : null,
-    armor: createEquipment(fixtureId, "armor", "LEATHER_ARMOR"),
+    armor: createEquipment(fixtureId, "armor", definition.armor || "LEATHER_ARMOR"),
     accessory: definition.accessory
       ? createEquipment(fixtureId, "accessory", definition.accessory)
       : null,

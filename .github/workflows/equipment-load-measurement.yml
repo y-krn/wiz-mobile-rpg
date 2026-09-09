@@ -1,0 +1,94 @@
+name: Equipment load measurement
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to measure"
+        required: false
+        default: "main"
+        type: string
+      runs:
+        description: "Runs per loadout (minimum 1000)"
+        required: false
+        default: "1000"
+        type: string
+      seed:
+        description: "Deterministic matched seed"
+        required: false
+        default: "1170"
+        type: string
+      purpose:
+        description: "Why this measurement is being requested"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run equipment-load measurement
+        id: measurement
+        continue-on-error: true
+        env:
+          MEASUREMENT_REPOSITORY: ${{ github.repository }}
+          MEASUREMENT_REQUESTED_REF: ${{ inputs.ref }}
+          MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          mkdir -p /tmp/equipment-load-measurement
+          node scratch/measurements/equipment_load_measurement.js \
+            --runs "${{ inputs.runs }}" \
+            --seed "${{ inputs.seed }}" \
+            --output /tmp/equipment-load-measurement/report.json \
+            --summary /tmp/equipment-load-measurement/summary.md
+      - name: Extract measurement provenance
+        if: always()
+        env:
+          MEASUREMENT_PURPOSE: ${{ inputs.purpose }}
+          MEASUREMENT_REF: ${{ inputs.ref }}
+          MEASUREMENT_RUN_ID: ${{ github.run_id }}
+          MEASUREMENT_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MEASUREMENT_STEP_OUTCOME: ${{ steps.measurement.outcome }}
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const report = JSON.parse(fs.readFileSync("/tmp/equipment-load-measurement/report.json", "utf8"));
+            const provenance = {
+              purpose: process.env.MEASUREMENT_PURPOSE,
+              ref: process.env.MEASUREMENT_REF,
+              workflow: { runId: process.env.MEASUREMENT_RUN_ID, url: process.env.MEASUREMENT_RUN_URL },
+              stepOutcome: process.env.MEASUREMENT_STEP_OUTCOME,
+              measurement: report.measurement
+            };
+            fs.writeFileSync("/tmp/equipment-load-measurement/provenance.json", JSON.stringify(provenance, null, 2) + "\n");
+          '
+      - name: Publish measurement summary
+        if: always()
+        run: cat /tmp/equipment-load-measurement/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload measurement artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: equipment-load-measurement-${{ github.run_id }}
+          path: |
+            /tmp/equipment-load-measurement/report.json
+            /tmp/equipment-load-measurement/summary.md
+            /tmp/equipment-load-measurement/provenance.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Fail failed measurement runs
+        if: always() && steps.measurement.outcome != 'success'
+        run: exit 1

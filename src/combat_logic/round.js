@@ -79,9 +79,21 @@ import {
   tryApplyExecutionerSetup
 } from "../rules/affix_rules.js";
 import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
+import { getCharacterEquipmentLoadModifier } from "../rules/equipment_load.js";
 
 function findMonsterTemplate(name) {
   return MONSTERS.find(m => m.name === name);
+}
+
+function resolveInitiativeRoll(modifier = 0) {
+  const roll = Math.random();
+  const bucket = Math.floor(roll * 20);
+  return {
+    speed: bucket + modifier,
+    // Reuse the fractional part so initiative still consumes one RNG sample
+    // per actor, matching the old combat RNG boundary.
+    tieBreak: roll * 20 - bucket
+  };
 }
 
 function recordBleedingEvent(state, event, target, metadata = {}) {
@@ -403,24 +415,31 @@ function applyFleeRetreat(state) {
   return true;
 }
 
-function rollCombatTurnSpeed(state, actorType, character = null) {
+function resolveTurnInitiative(state, actorType, character = null) {
   const measurement = state.simPolicy?.measurementInitiative;
-  if (!measurement) {
-    return actorType === "char"
-      ? Math.floor(Math.random() * 10) + getBuffTotal(character, "firstStrike") + getCharAffixSum(character, "firstStrike")
-      : 10 + Math.floor(Math.random() * 10);
+  if (measurement) {
+    const rollSize = Number.isInteger(measurement.rollSize) && measurement.rollSize > 0
+      ? measurement.rollSize
+      : 20;
+    const roll = Math.random() * rollSize;
+    const bucket = Math.floor(roll);
+    const speed = actorType === "char"
+      ? bucket + (Number(measurement.playerLoadModifier) || 0) +
+        (Number(measurement.playerFirstStrikeModifier) || 0) +
+        getBuffTotal(character, "firstStrike") + getCharAffixSum(character, "firstStrike")
+      : bucket + (Number(measurement.enemySpeedModifier) || 0);
+    return { speed, tieBreak: roll - bucket };
   }
 
-  const rollSize = Number.isInteger(measurement.rollSize) && measurement.rollSize > 0
-    ? measurement.rollSize
-    : 20;
-  const roll = Math.floor(Math.random() * rollSize);
-  if (actorType === "char") {
-    return roll + (Number(measurement.playerLoadModifier) || 0) +
-      (Number(measurement.playerFirstStrikeModifier) || 0) +
-      getBuffTotal(character, "firstStrike") + getCharAffixSum(character, "firstStrike");
-  }
-  return roll + (Number(measurement.enemySpeedModifier) || 0);
+  const initiative = resolveInitiativeRoll(
+    actorType === "char" ? getCharacterEquipmentLoadModifier(character) : 0
+  );
+  return {
+    speed: actorType === "char"
+      ? initiative.speed + getBuffTotal(character, "firstStrike") + getCharAffixSum(character, "firstStrike")
+      : initiative.speed,
+    tieBreak: initiative.tieBreak
+  };
 }
 
 
@@ -476,12 +495,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   state.party.forEach((char, idx) => {
     if (char.status !== "dead") {
       const chosen = combatSelection.actions.find(a => a.actorIdx === idx);
-      const speed = rollCombatTurnSpeed(state, "char", char);
+      const initiative = resolveTurnInitiative(state, "char", char);
       turns.push({
         type: "char",
         char,
         idx,
-        speed,
+        speed: initiative.speed,
+        tieBreak: initiative.tieBreak,
         action: chosen || { type: "defend", actorIdx: idx }
       });
     }
@@ -490,12 +510,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   // Monsters
   monsters.forEach((mon, idx) => {
     if (mon.hp > 0) {
-      const speed = rollCombatTurnSpeed(state, "monster");
+      const initiative = resolveTurnInitiative(state, "monster");
       turns.push({
         type: "monster",
         mon,
         idx,
-        speed,
+        speed: initiative.speed,
+        tieBreak: initiative.tieBreak,
         measurementExtraMultiAction: false
       });
       if (hasTrait(mon, "multiAction") && mon.multiActionQueued && state.simPolicy?.measurementMaxActionsPerEnemy !== 1) {
@@ -503,7 +524,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           type: "monster",
           mon,
           idx,
-          speed: speed - 1,
+          speed: initiative.speed - 1,
+          tieBreak: Math.max(0, initiative.tieBreak - Number.EPSILON),
           measurementExtraMultiAction: true
         });
       }
@@ -511,7 +533,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   });
 
   // Sort by Speed descending
-  turns.sort((a, b) => b.speed - a.speed);
+  // Equal initiative is a real outcome. A random tie-break keeps neither side
+  // on a hidden permanent priority; stable insertion order is the explicit
+  // final fallback when random values are exactly identical.
+  turns.sort((a, b) => (b.speed - a.speed) || (b.tieBreak - a.tieBreak));
   // Measurement-only exposure cap. With no simPolicy value the production
   // turn order is unchanged. The cap applies to total monster turns, so it
   // includes ordinary actions and trait-generated extra actions alike while

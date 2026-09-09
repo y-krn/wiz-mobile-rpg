@@ -1013,6 +1013,14 @@ function createEquipmentList(char, savedScrollTop) {
 function createStatPill(row) {
   const pill = document.createElement("div");
   pill.className = `equip-stat-pill ${row.diff > 0 ? "upgrade" : row.diff < 0 ? "downgrade" : ""}`;
+  if (row.key === "initiativeLoad") {
+    pill.innerHTML = `
+      <span>${row.label}</span>
+      <strong>${row.current}→${row.next}</strong>
+      <em>${row.diff > 0 ? "速い" : row.diff < 0 ? "遅い" : "同じ"}</em>
+    `;
+    return pill;
+  }
   const sign = row.diff >= 0 ? "+" : "";
   pill.innerHTML = `
     <span>${row.label}</span>
