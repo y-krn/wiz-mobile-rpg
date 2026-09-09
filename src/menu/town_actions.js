@@ -157,7 +157,7 @@ function appendDeathCountermeasure(optGrid, summary) {
 
   const actions = document.createElement("div");
   actions.className = "death-countermeasure-actions";
-  appendDeathReviewButton(actions, "準備を見直す", "クラス・持込品・開始地点を比較する。", "solo_start", "潜行の準備");
+  appendDeathReviewButton(actions, "準備を見直す", "開始キット・持込品・開始地点を比較する。", "solo_start", "潜行の準備");
   appendDeathReviewButton(actions, "広がった可能性を見る", "記録から利用可能になった選択肢を確認する。", "workshop_main", "工房 - 広がった可能性");
   panel.appendChild(actions);
   optGrid.appendChild(panel);
