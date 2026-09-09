@@ -50,6 +50,8 @@ const COMBAT_MONSTER_RADIUS = 0.30;
 const COMBAT_TRIO_MONSTER_RADIUS = 0.27;
 const COMBAT_MONSTER_BODY_Y = 1.38;
 const COMBAT_MONSTER_LABEL_Y = 1.98;
+const COMBAT_MULTI_LABEL_WIDTH = 1.12;
+const COMBAT_MULTI_LABEL_ROW_STEP = 0.32;
 const COMBAT_TARGET_RING_RADIUS = 0.32;
 const COMBAT_TRIO_MARKER_RADIUS = 0.23;
 // Keep the hit region larger than the visible body without letting adjacent
@@ -618,14 +620,17 @@ export class ThreeDungeonRenderer {
       ring.position.y = COMBAT_MONSTER_BODY_Y - bodyRadius;
       ring.userData = { surface: "combat-marker", monsterIndex };
       group.add(ring);
-      // Keep multi-enemy labels inside their horizontal slot so adjacent
-      // labels remain individually legible at narrow portrait widths.
-      const labelWidth = monsters.length > 1 ? Math.min(1.45, spacing * 0.86) : 1.7;
+      // Stack multi-enemy labels vertically so each name stays readable while
+      // the bodies remain inside the narrow corridor frame.
+      const labelWidth = monsters.length > 1 ? COMBAT_MULTI_LABEL_WIDTH : 1.7;
+      const labelY = monsters.length > 1
+        ? COMBAT_MONSTER_LABEL_Y + (index - (monsters.length - 1) / 2) * COMBAT_MULTI_LABEL_ROW_STEP
+        : COMBAT_MONSTER_LABEL_Y;
       const label = new Mesh(
         new PlaneGeometry(labelWidth, labelWidth * 48 / 256),
         new MeshBasicMaterial({ map: makeLabelTexture(monster.name || "敵", `#${color.getHexString()}`), transparent: true, depthWrite: false })
       );
-      label.position.set(0, COMBAT_MONSTER_LABEL_Y, 0);
+      label.position.set(0, labelY, 0);
       label.userData = { surface: "combat-label", monsterIndex };
       group.add(label);
       group.position.set(start + index * spacing, 0, COMBAT_MONSTER_Z - depthStagger);

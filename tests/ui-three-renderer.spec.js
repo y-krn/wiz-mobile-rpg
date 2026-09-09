@@ -540,8 +540,9 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
         expect(Math.abs(evidence.groupEvidence[1].x - evidence.groupEvidence[0].x)).toBeGreaterThan(0.8);
       }
       if (fixture.name !== 'single') {
-        for (const group of evidence.groupEvidence) {
-          expect(group.labelWidth).toBeLessThan(group.spacing);
+        const labelsByScreenRow = [...evidence.groupEvidence].sort((a, b) => a.labelBounds.top - b.labelBounds.top);
+        for (let index = 1; index < labelsByScreenRow.length; index += 1) {
+          expect(labelsByScreenRow[index - 1].labelBounds.bottom).toBeLessThan(labelsByScreenRow[index].labelBounds.top);
         }
       }
       if (fixture.name === 'trio') {
@@ -567,7 +568,7 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
 });
 
 test('Three.js target selection keeps enlarged hit regions aligned with staged enemies @smoke @visual @e2e', async ({ page }, testInfo) => {
-  for (const viewport of VIEWPORTS.filter(({ width }) => width === 320 || width === 390)) {
+  for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await page.goto('/?renderer=three');
     await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
