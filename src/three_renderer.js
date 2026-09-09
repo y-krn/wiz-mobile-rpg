@@ -281,8 +281,21 @@ export class ThreeDungeonRenderer {
     this.pointer.y = -(y / VIEW_H) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const hits = this.raycaster.intersectObjects(this.targetHitMeshes, false);
-    const target = hits.find((hit) => Number.isInteger(hit.object.userData.targetIdx));
-    return target?.object.userData.targetIdx ?? null;
+    const candidates = [];
+    const seenTargets = new Set();
+    for (const hit of hits) {
+      const targetIdx = hit.object.userData.targetIdx;
+      if (!Number.isInteger(targetIdx) || seenTargets.has(targetIdx)) continue;
+      seenTargets.add(targetIdx);
+      const center = hit.object.position.clone().project(this.camera);
+      candidates.push({
+        targetIdx,
+        screenDistance: Math.hypot(center.x - this.pointer.x, center.y - this.pointer.y),
+        rayDistance: hit.distance,
+      });
+    }
+    candidates.sort((a, b) => a.screenDistance - b.screenDistance || a.rayDistance - b.rayDistance);
+    return candidates[0]?.targetIdx ?? null;
   }
 
   draw(input = null) {
@@ -562,7 +575,11 @@ export class ThreeDungeonRenderer {
 
   addCombatMonsters(input, wall) {
     const monsters = getLivingMonsters(input);
-    const spacing = monsters.length === 1 ? 0 : Math.min(0.96, 4.8 / monsters.length);
+    const spacing = monsters.length === 1
+      ? 0
+      : monsters.length === 3
+        ? 0.58
+        : Math.min(0.96, 4.8 / monsters.length);
     const start = -((monsters.length - 1) * spacing) / 2;
     monsters.forEach((monster, index) => {
       const color = hexColor(monster.color, wall.getHexString());

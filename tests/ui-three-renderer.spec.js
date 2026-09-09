@@ -413,6 +413,14 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
         { name: '右の検証敵', level: 2, hp: 16, maxHp: 16, color: '#d45de6', spriteType: 'wisp' },
       ],
     },
+    {
+      name: 'trio',
+      monsters: [
+        { name: '左の三体目', level: 4, hp: 24, maxHp: 24, color: '#54c8c3', spriteType: 'golem' },
+        { name: '中央の三体目', level: 3, hp: 20, maxHp: 20, color: '#f0a04b', spriteType: 'wisp' },
+        { name: '右の三体目', level: 2, hp: 16, maxHp: 16, color: '#d45de6', spriteType: 'wisp' },
+      ],
+    },
   ];
 
   for (const viewport of VIEWPORTS) {
@@ -528,6 +536,8 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
       }
       if (fixture.name === 'multi') {
         expect(Math.abs(evidence.groupEvidence[1].x - evidence.groupEvidence[0].x)).toBeGreaterThan(0.8);
+      }
+      if (fixture.name !== 'single') {
         for (const group of evidence.groupEvidence) {
           expect(group.labelWidth).toBeLessThan(group.spacing);
         }
@@ -574,6 +584,7 @@ test('Three.js target selection keeps enlarged hit regions aligned with staged e
         phase: 'choose_actions',
         monsters: [
           { name: '左の対象', level: 4, hp: 24, maxHp: 24, color: '#54c8c3', spriteType: 'golem' },
+          { name: '中央の対象', level: 3, hp: 20, maxHp: 20, color: '#f0a04b', spriteType: 'wisp' },
           { name: '右の対象', level: 2, hp: 16, maxHp: 16, color: '#d45de6', spriteType: 'wisp' },
         ],
       };
@@ -601,9 +612,9 @@ test('Three.js target selection keeps enlarged hit regions aligned with staged e
       };
     });
 
-    expect(evidence.groups).toHaveLength(2);
-    expect(evidence.targets).toHaveLength(2);
-    expect(evidence.rings).toHaveLength(2);
+    expect(evidence.groups).toHaveLength(3);
+    expect(evidence.targets).toHaveLength(3);
+    expect(evidence.rings).toHaveLength(3);
     expect(evidence.targets.every(({ radius }) => radius > 0.5)).toBe(true);
     for (const target of evidence.targets) {
       const group = evidence.groups[target.idx];
@@ -614,6 +625,35 @@ test('Three.js target selection keeps enlarged hit regions aligned with staged e
       expect(ring.position[0]).toBeCloseTo(evidence.groups[ring.idx][0], 5);
       expect(ring.position[2]).toBeCloseTo(evidence.groups[ring.idx][2], 5);
     }
+
+    const targetByBodyCenter = await page.evaluate(async () => {
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      const canvas = document.querySelector('#dungeon-canvas');
+      const rect = canvas.getBoundingClientRect();
+      const scale = Math.min(rect.width / 400, rect.height / 260);
+      const renderedWidth = 400 * scale;
+      const renderedHeight = 260 * scale;
+      dungeonRenderer.camera.updateMatrixWorld();
+      const groups = [];
+      dungeonRenderer.root.traverse((child) => {
+        if (child.userData?.sceneLayer === 'combat') groups.push(child);
+      });
+      return groups.map((group) => {
+        const body = group.children.find((child) => child.userData?.surface === 'combat-body');
+        const center = group.position.clone().add(body.position).project(dungeonRenderer.camera);
+        const clientX = rect.left + (rect.width - renderedWidth) / 2 + ((center.x + 1) / 2) * renderedWidth;
+        const clientY = rect.top + (rect.height - renderedHeight) / 2 + ((1 - center.y) / 2) * renderedHeight;
+        return {
+          expected: group.userData.monsterIndex,
+          actual: dungeonRenderer.getCombatTargetAtClientPoint(clientX, clientY),
+        };
+      });
+    });
+    expect(targetByBodyCenter).toEqual([
+      { expected: 0, actual: 0 },
+      { expected: 1, actual: 1 },
+      { expected: 2, actual: 2 },
+    ]);
 
     const screenshot = await page.locator('#dungeon-canvas').screenshot({
       path: testInfo.outputPath(`three-combat-target-selection-${viewport.width}px.png`),
