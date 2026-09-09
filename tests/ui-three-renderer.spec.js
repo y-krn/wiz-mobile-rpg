@@ -542,6 +542,13 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
           expect(group.labelWidth).toBeLessThan(group.spacing);
         }
       }
+      if (fixture.name === 'trio') {
+        for (let index = 1; index < evidence.groupEvidence.length; index += 1) {
+          const previous = evidence.groupEvidence[index - 1];
+          const current = evidence.groupEvidence[index];
+          expect(current.x - previous.x).toBeGreaterThan(previous.bodyRadius + current.bodyRadius);
+        }
+      }
 
       const screenshot = await page.locator('#dungeon-canvas').screenshot({
         path: testInfo.outputPath(`three-combat-${fixture.name}-${viewport.width}px.png`),

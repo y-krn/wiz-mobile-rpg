@@ -47,6 +47,7 @@ const CORRIDOR_CAMERA = Object.freeze({
 const COMBAT_FRONT_WALL_Z = CORRIDOR_START_Z - CORRIDOR_CELL_DEPTH / 2;
 const COMBAT_MONSTER_Z = COMBAT_FRONT_WALL_Z + 0.40;
 const COMBAT_MONSTER_RADIUS = 0.30;
+const COMBAT_TRIO_MONSTER_RADIUS = 0.27;
 const COMBAT_MONSTER_BODY_Y = 1.38;
 const COMBAT_MONSTER_LABEL_Y = 1.98;
 const COMBAT_TARGET_RING_RADIUS = 0.32;
@@ -575,6 +576,7 @@ export class ThreeDungeonRenderer {
 
   addCombatMonsters(input, wall) {
     const monsters = getLivingMonsters(input);
+    const bodyRadius = monsters.length === 3 ? COMBAT_TRIO_MONSTER_RADIUS : COMBAT_MONSTER_RADIUS;
     const spacing = monsters.length === 1
       ? 0
       : monsters.length === 3
@@ -592,7 +594,7 @@ export class ThreeDungeonRenderer {
         sceneLayer: "combat",
         monsterIndex,
         staging: {
-          bodyRadius: COMBAT_MONSTER_RADIUS,
+          bodyRadius,
           bodyY: COMBAT_MONSTER_BODY_Y,
           labelY: COMBAT_MONSTER_LABEL_Y,
           z: COMBAT_MONSTER_Z - depthStagger,
@@ -600,7 +602,7 @@ export class ThreeDungeonRenderer {
         },
       };
       const body = new Mesh(
-        new SphereGeometry(COMBAT_MONSTER_RADIUS, 8, 6),
+        new SphereGeometry(bodyRadius, 8, 6),
         new MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.24, emissive: color, emissiveIntensity: 0.28 })
       );
       body.position.y = COMBAT_MONSTER_BODY_Y;
@@ -611,7 +613,7 @@ export class ThreeDungeonRenderer {
         new MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })
       );
       ring.rotation.x = Math.PI / 2;
-      ring.position.y = COMBAT_MONSTER_BODY_Y - COMBAT_MONSTER_RADIUS;
+      ring.position.y = COMBAT_MONSTER_BODY_Y - bodyRadius;
       ring.userData = { surface: "combat-marker", monsterIndex };
       group.add(ring);
       // Keep multi-enemy labels inside their horizontal slot so adjacent
@@ -647,7 +649,7 @@ export class ThreeDungeonRenderer {
         targetRing.rotation.x = -Math.PI / 2;
         targetRing.position.set(
           hit.position.x,
-          COMBAT_MONSTER_BODY_Y - COMBAT_MONSTER_RADIUS,
+          COMBAT_MONSTER_BODY_Y - bodyRadius,
           hit.position.z
         );
         targetRing.userData = {
