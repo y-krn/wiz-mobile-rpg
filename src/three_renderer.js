@@ -797,9 +797,15 @@ export class ThreeDungeonRenderer {
       frame.userData = { surface, topology: { z: topology.z, column: topology.column } };
       parent.add(frame);
     };
-    addFrame(0.06, openingHeight, x - side * openingWidth / 2, openingHeight / 2 + 0.10, "side-branch-mouth-frame");
-    addFrame(0.06, openingHeight, x + side * openingWidth / 2, openingHeight / 2 + 0.10, "side-branch-mouth-frame");
-    addFrame(openingWidth, 0.06, x, openingHeight + 0.10, "side-branch-mouth-frame-top");
+    try {
+      addFrame(0.06, openingHeight, x - side * openingWidth / 2, openingHeight / 2 + 0.10, "side-branch-mouth-frame");
+      addFrame(0.06, openingHeight, x + side * openingWidth / 2, openingHeight / 2 + 0.10, "side-branch-mouth-frame");
+      addFrame(openingWidth, 0.06, x, openingHeight + 0.10, "side-branch-mouth-frame-top");
+    } finally {
+      // The clones are scene-owned; this prototype is not, so release it
+      // immediately after all frame materials have been created.
+      frameMaterial.dispose();
+    }
   }
 
   addDangerCue(wall, profile = this.activeProfile) {
@@ -935,4 +941,4 @@ export class ThreeDungeonRenderer {
 // Re-export the material class so browser lifecycle tests can spy on the same
 // module instance used by this renderer (Vite otherwise creates a second
 // native module instance for a direct /node_modules import).
-export { MeshStandardMaterial };
+export { MeshBasicMaterial, MeshStandardMaterial };

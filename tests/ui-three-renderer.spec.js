@@ -813,7 +813,7 @@ test('Three.js Dungeon View disposes prototype materials across repeated scene r
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
 
   const disposeCount = await page.evaluate(async () => {
-    const { MeshStandardMaterial, ThreeDungeonRenderer } = await import('/src/three_renderer.js');
+    const { MeshBasicMaterial, MeshStandardMaterial, ThreeDungeonRenderer } = await import('/src/three_renderer.js');
     const { dungeonRenderer } = await import('/src/renderer.js');
     const canvas = document.createElement('canvas');
     canvas.id = 'material-lifecycle-probe';
@@ -831,23 +831,45 @@ test('Three.js Dungeon View disposes prototype materials across repeated scene r
       },
     };
     const originalDispose = MeshStandardMaterial.prototype.dispose;
+    const originalBasicDispose = MeshBasicMaterial.prototype.dispose;
     let disposeCalls = 0;
+    let basicDisposeCalls = 0;
+    let afterSideBranchBuild;
     MeshStandardMaterial.prototype.dispose = function disposeSpy() {
       disposeCalls += 1;
       return originalDispose.call(this);
     };
+    MeshBasicMaterial.prototype.dispose = function basicDisposeSpy() {
+      basicDisposeCalls += 1;
+      return originalBasicDispose.call(this);
+    };
     try {
+      renderer.addSideBranchMouth(
+        renderer.root,
+        -1,
+        dungeonRenderer.scene.background.clone(),
+        { z: 0, column: 0 },
+        renderer.activeProfile,
+      );
       renderer.buildScene(townInput);
+      afterSideBranchBuild = basicDisposeCalls;
       renderer.buildScene(townInput);
     } finally {
       MeshStandardMaterial.prototype.dispose = originalDispose;
+      MeshBasicMaterial.prototype.dispose = originalBasicDispose;
     }
-    return disposeCalls;
+    return { disposeCalls, basicDisposeCalls, afterSideBranchBuild };
   });
 
   // Each town build creates two prototype StandardMaterials without adding
   // them to the scene, so both builds must dispose four prototypes explicitly.
-  expect(disposeCount).toBe(4);
+  expect(disposeCount.disposeCalls).toBe(4);
+  // One mouth, one branch floor, one branch ceiling, and three frame clones
+  // are disposed during the rebuild; the frame prototype is disposed during
+  // addSideBranchMouth itself. The second build also disposes the first
+  // town marker, so the cumulative count is one higher.
+  expect(disposeCount.afterSideBranchBuild).toBe(7);
+  expect(disposeCount.basicDisposeCalls).toBe(8);
 });
 
 test('Three.js Dungeon View follows map topology for all four directions @e2e @visual', async ({ page }) => {
