@@ -129,6 +129,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
         const branchRotations = {};
         const branchMouthSides = [];
         const sideOpeningBounds = [];
+        const sideOpeningLintelBounds = [];
         dungeonRenderer.root.traverse((child) => {
           const cell = child.userData?.topology;
           if (child.userData?.surface === 'floor' && cell?.z === 0 && Math.abs(cell.column) === 1) {
@@ -139,6 +140,23 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
             branchMouthSides.push(side);
             sideOpeningBounds.push({ side, bounds: getThreeProjectedBounds(child, dungeonRenderer.camera) });
           }
+          if (child.userData?.surface === 'side-branch-mouth-frame-top' && cell?.z === 0 && cell?.column === 0) {
+            sideOpeningLintelBounds.push({
+              side: child.position.x < 0 ? 'left' : 'right',
+              bounds: getThreeProjectedBounds(child, dungeonRenderer.camera),
+            });
+          }
+        });
+        const visibleLintels = sideOpeningLintelBounds.map(({ side, bounds }) => {
+          const pointer = dungeonRenderer.pointer.set(
+            ((bounds.left + bounds.right) / 2 / 400) * 2 - 1,
+            -((bounds.top + bounds.bottom) / 2 / 260) * 2 + 1,
+          );
+          dungeonRenderer.raycaster.setFromCamera(pointer, dungeonRenderer.camera);
+          const hit = dungeonRenderer.raycaster
+            .intersectObjects(dungeonRenderer.root.children, true)
+            .find(({ object }) => object.visible);
+          return { side, surface: hit?.object.userData?.surface ?? null };
         });
         return {
           current: {
@@ -150,6 +168,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
           branchRotations,
           branchMouthSides: branchMouthSides.sort(),
           sideOpeningBounds,
+          visibleLintels,
         };
       });
 
@@ -175,6 +194,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
         expect(bounds.visibleWidth).toBeGreaterThan(32);
         expect(bounds.visibleHeight).toBeGreaterThan(70);
       });
+      evidence.visibleLintels.forEach(({ surface }) => expect(surface).toBe('side-branch-mouth-frame-top'));
       if (archetype === 't-junction') {
         expect(evidence.visible).toEqual(expect.arrayContaining(['0:-1', '0:1']));
         expect(evidence.visible).not.toContain('1:0');
@@ -660,6 +680,7 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
         }
         for (const group of evidence.groupEvidence) {
           expect(group.markerDiameter).toBeLessThan(group.spacing);
+          expect(group.labelBounds.bottom).toBeLessThan(group.bodyBounds.top);
         }
       }
 

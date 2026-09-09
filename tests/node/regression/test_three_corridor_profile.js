@@ -36,7 +36,7 @@ const spanByEdge = (geometry, edge) => {
 const b1Wall = createWallGeometry(b1.cellWidth, b1.wallHeight, b1.wallLean);
 const neutralWall = createWallGeometry(b1.cellWidth, b1.wallHeight, 0);
 const b1SideWall = createWallGeometry(b1.cellDepth, b1.wallHeight, b1.wallLean, true, b1.cellWidth);
-const b1RightSideWall = createWallGeometry(b1.cellDepth, b1.wallHeight, b1.wallLean, true, b1.cellWidth, -1);
+const b1RightSideWall = createWallGeometry(b1.cellDepth, b1.wallHeight, b1.wallLean, true, b1.cellWidth);
 const sidePositions = b1SideWall.attributes.position;
 const rightSidePositions = b1RightSideWall.attributes.position;
 const topNormalOffsets = [];
@@ -53,6 +53,10 @@ assert.ok(spanByEdge(b1Wall, "top") < spanByEdge(b1Wall, "bottom"), "positive wa
 assert.ok(Math.abs(topNormalOffsets[0] - topNormalOffsets[1]) < 1e-9, "side-wall top lean is uniform");
 assert.ok(Math.abs(bottomNormalOffsets[0] - bottomNormalOffsets[1]) < 1e-9, "side-wall bottom lean is uniform");
 assert.ok(topNormalOffsets[0] > bottomNormalOffsets[0], "positive wallLean brings the side-wall top inward");
-assert.ok(rightTopNormalOffsets[0] < rightBottomNormalOffsets[0], "right side-wall lean mirrors the inward direction");
+assert.ok(rightTopNormalOffsets[0] > rightBottomNormalOffsets[0], "right side-wall local normal matches the left wall");
+assert.ok(
+  Math.sin(-Math.PI / 2) * rightTopNormalOffsets[0] < Math.sin(-Math.PI / 2) * rightBottomNormalOffsets[0],
+  "right side-wall top leans inward in world space"
+);
 
 console.log("THREE CORRIDOR PROFILE REGRESSION PASSED");

@@ -136,8 +136,8 @@ export function createWallGeometry(width, height, lean = 0, leanNormal = false, 
     const edgeDirection = positions.getY(index) > 0 ? 1 : -1;
     if (leanNormal) {
       // Side walls are rotated around Y, so local Z is the world-space
-      // corridor-normal axis. Positive lean brings the top inward and the
-      // bottom outward for both left and right walls.
+      // corridor-normal axis. The caller supplies the wall's local normal
+      // direction so positive lean brings the top inward on both sides.
       positions.setZ(index, edgeDirection * edgeShift * normalDirection);
       continue;
     }
@@ -649,7 +649,7 @@ export class ThreeDungeonRenderer {
       }
       if (frame.rightBlocked) {
         const right = toWorld(profile.cellWidth / 2, 0);
-        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean, true, profile.cellWidth, -1), wallMaterial, {
+        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
           x: right.x,
           y: profile.wallHeight / 2,
           z: right.z
@@ -743,22 +743,47 @@ export class ThreeDungeonRenderer {
   }
 
   addSideBranchMouth(parent, side, wall, topology, profile = this.activeProfile) {
-    // Recess the branch mouth into the neighboring cell and face the camera
-    // enough for its actual opening to occupy screen space. The branch floor
-    // and side walls remain underneath this threshold, so the cue describes
-    // the same topology instead of acting as a detached direction marker.
+    // Keep the threshold at the side boundary, inset just enough to face the
+    // camera and occupy screen space. The branch floor and side walls remain
+    // underneath this threshold, so the cue describes the same topology
+    // instead of acting as a detached direction marker.
     const x = side * (profile.cellWidth / 2 - 0.12);
     const z = profile.frontWallZ + 0.24;
     const openingWidth = profile.cellDepth * 0.56;
-    const openingHeight = profile.wallHeight * 0.78;
+    // Keep the lintel inside the portrait viewport. A full-height plane puts
+    // its top edge above the camera and leaves only a vertical jamb visible.
+    const openingHeight = profile.wallHeight * 0.62;
     const mouthMaterial = new MeshBasicMaterial({
-      color: 0x02080b,
+      color: 0x06171d,
       side: DoubleSide
     });
     const mouth = new Mesh(new PlaneGeometry(openingWidth, openingHeight), mouthMaterial);
-    mouth.position.set(x, openingHeight / 2 + 0.10, z);
+    const openingY = openingHeight / 2 + 0.10;
+    mouth.position.set(x, openingY, z);
     mouth.userData = { surface: "side-branch-mouth", topology: { z: topology.z, column: topology.column } };
     parent.add(mouth);
+
+    // Give the mouth actual spatial depth. The floor and ceiling tongue are
+    // visible from the camera and continue into the rotated neighboring
+    // branch, making the opening read as traversable space rather than a
+    // flat dark marker at the edge of the front wall.
+    const branchDepth = profile.cellDepth * 0.72;
+    const branchCenterX = side * (profile.cellWidth / 2 + branchDepth / 2 - 0.08);
+    const branchSurfaceMaterial = new MeshBasicMaterial({
+      color: wall.clone().multiplyScalar(0.42),
+      side: DoubleSide
+    });
+    const branchFloor = new Mesh(new BoxGeometry(branchDepth, 0.045, openingWidth * 0.92), branchSurfaceMaterial);
+    branchFloor.position.set(branchCenterX, 0.07, z + 0.18);
+    branchFloor.userData = { surface: "side-branch-floor", topology: { z: topology.z, column: topology.column } };
+    parent.add(branchFloor);
+    const branchCeiling = new Mesh(
+      new BoxGeometry(branchDepth, 0.045, openingWidth * 0.92),
+      branchSurfaceMaterial.clone()
+    );
+    branchCeiling.position.set(branchCenterX, openingY + openingHeight / 2 - 0.02, z + 0.18);
+    branchCeiling.userData = { surface: "side-branch-ceiling", topology: { z: topology.z, column: topology.column } };
+    parent.add(branchCeiling);
 
     const frameMaterial = new MeshBasicMaterial({
       color: wall,
@@ -803,7 +828,7 @@ export class ThreeDungeonRenderer {
     const bodyRadius = monsters.length === 3 ? COMBAT_TRIO_MONSTER_RADIUS : COMBAT_MONSTER_RADIUS;
     const markerRadius = monsters.length === 3 ? COMBAT_TRIO_MARKER_RADIUS : COMBAT_TARGET_RING_RADIUS;
     const bodyY = profile.wallHeight * 0.43;
-    const labelY = bodyY + 0.38;
+    const labelY = bodyY + (monsters.length === 3 ? 0.64 : 0.38);
     // Stage bodies just camera-side of the current-cell threshold. This keeps
     // the readable corridor framing from making multi-enemy bodies balloon
     // beyond the 400px render surface.
