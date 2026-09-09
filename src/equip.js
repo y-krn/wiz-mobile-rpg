@@ -325,7 +325,7 @@ function createRunePanel(char) {
   if (medium && activeRunes.length > 0) {
     const activeHeading = document.createElement("strong");
     activeHeading.className = "equip-rune-state-heading";
-    activeHeading.textContent = "socket中（バッグ外・active）";
+    activeHeading.textContent = "使用中のルーン（バッグ外）";
     panel.appendChild(activeHeading);
     const activeList = document.createElement("div");
     activeList.className = "equip-rune-list";
@@ -358,7 +358,7 @@ function createRunePanel(char) {
   if (spareRunes.length > 0) {
     const spareHeading = document.createElement("strong");
     spareHeading.className = "equip-rune-state-heading";
-    spareHeading.textContent = "バッグ内の予備Rune";
+    spareHeading.textContent = "バッグ内の予備ルーン";
     panel.appendChild(spareHeading);
     const spareList = document.createElement("div");
     spareList.className = "equip-rune-list";
