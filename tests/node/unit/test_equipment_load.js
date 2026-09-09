@@ -21,14 +21,17 @@ function character(equipment = {}) {
 assert.equal(getEquipmentLoadClass("DAGGER"), "light");
 assert.equal(getEquipmentLoadClass("SHORT_SWORD"), "standard");
 assert.equal(getEquipmentLoadClass("PLATE_MAIL"), "heavy");
-assert.equal(getCharacterEquipmentLoad(character({ weapon: "DAGGER", shield: "SMALL_SHIELD", armor: "LEATHER_ARMOR" })).class, "light");
+assert.equal(getCharacterEquipmentLoad(character({ weapon: "DAGGER", shield: "BUCKLER", armor: "EXPLORER_CLOAK" })).class, "light");
+assert.equal(getCharacterEquipmentLoad(character({ weapon: "DAGGER", shield: "SMALL_SHIELD", armor: "LEATHER_ARMOR" })).class, "standard");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "SHORT_SWORD", shield: "SMALL_SHIELD", armor: "LEATHER_ARMOR" })).class, "standard");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "CLAYMORE", armor: "LEATHER_ARMOR" })).class, "heavy");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "SHORT_SWORD", shield: "LARGE_SHIELD", armor: "PLATE_MAIL" })).class, "heavy");
+assert.equal(getCharacterEquipmentLoad(character({ weapon: "DAGGER", shield: "BUCKLER", armor: "PLATE_MAIL" })).class, "heavy");
+assert.equal(getCharacterEquipmentLoad(character({ weapon: "CLAYMORE", armor: "EXPLORER_CLOAK" })).class, "heavy");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "SHORT_SWORD", armor: "LEATHER_ARMOR" })).initiativeModifier, 0);
 
 const lightPreview = getEquipmentPreview(
-  character({ weapon: "SHORT_SWORD", shield: "SMALL_SHIELD", armor: "LEATHER_ARMOR" }),
+  character({ weapon: "SHORT_SWORD", shield: null, armor: null }),
   "DAGGER"
 );
 const lightPreviewRow = lightPreview.rows.find(row => row.key === "initiativeLoad");

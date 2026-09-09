@@ -12,7 +12,10 @@ export const EQUIPMENT_LOAD_INITIATIVE_MODIFIERS = Object.freeze({
   heavy: -2
 });
 
-const LOAD_SCORE = Object.freeze({ light: -1, standard: 0, heavy: 1 });
+// A heavier item must never be cancelled by a lighter item in another slot.
+// The aggregate therefore uses the maximum burden among equipped
+// load-bearing items instead of a signed sum.
+const LOAD_BURDEN = Object.freeze({ light: 0, standard: 1, heavy: 2 });
 const LOAD_BEARING_TYPES = new Set(["weapon", "shield", "armor"]);
 
 function normalizeLoadClass(value) {
@@ -27,13 +30,18 @@ export function getEquipmentLoadClass(item) {
 
 export function getEquipmentLoadScore(item) {
   const loadClass = getEquipmentLoadClass(item);
-  return loadClass ? LOAD_SCORE[loadClass] : 0;
+  return loadClass ? LOAD_BURDEN[loadClass] : null;
 }
 
 export function getCharacterEquipmentLoad(character) {
-  const score = Object.values(character?.equipment || {})
-    .reduce((sum, item) => sum + getEquipmentLoadScore(item), 0);
-  const loadClass = score < 0 ? "light" : score > 0 ? "heavy" : "standard";
+  const scores = Object.values(character?.equipment || {})
+    .map(item => getEquipmentLoadScore(item))
+    .filter(score => score !== null);
+  // Empty/non-load-bearing equipment is the neutral standard burden. Once a
+  // load-bearing item is equipped, the heaviest equipped class determines the
+  // result, so heavy gear cannot be masked by light gear.
+  const score = scores.length ? Math.max(...scores) : LOAD_BURDEN.standard;
+  const loadClass = EQUIPMENT_LOAD_CLASSES[score];
   return {
     class: loadClass,
     label: EQUIPMENT_LOAD_LABELS[loadClass],

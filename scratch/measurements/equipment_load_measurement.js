@@ -13,8 +13,8 @@ import { LOADOUTS, runFixedCombatDiagnostic } from "./fixed_combat_composition_d
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1170-equipment-load-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "issue1170-equipment-load-v2";
+export const SCHEMA_VERSION = 2;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1170;
 export const ENEMY_COUNTS = Object.freeze([1, 2, 3]);
@@ -135,10 +135,10 @@ function initiativeMatrix(runs, seed) {
   return cases;
 }
 
-function createB1FAggregate(loadoutId, runs) {
+function createB1FAggregate(loadoutId, runs, loadClassOverride = null) {
   return {
     loadoutId,
-    loadClass: getCharacterEquipmentLoad(
+    loadClass: loadClassOverride || getCharacterEquipmentLoad(
       loadoutCharacter(loadoutId, FIRST_STRIKE_VARIANTS[0])
     ).class,
     runs,
@@ -147,6 +147,10 @@ function createB1FAggregate(loadoutId, runs) {
     encounters: 0,
     fleeSelected: 0,
     fleeExecuted: 0,
+    fleeSelectedButNotExecuted: 0,
+    fleePartingAttackCount: 0,
+    fleeSurvived: 0,
+    fleeDiedFromPartingAttack: 0,
     steps: 0,
     combatRounds: 0,
     trapDamageHp: 0,
@@ -168,15 +172,52 @@ function observeB1F(aggregate, result) {
     increment(aggregate.encounterOutcomes, identity.outcome || "unknown");
     increment(aggregate.encounterCompositions, identity.enemyCompositionKey || "unknown");
   }
-  for (const diagnostic of result.diagnostics?.encounters || []) {
-    for (const round of diagnostic.rounds || []) {
-      aggregate.fleeSelected += Number(round.fleeSelected === true);
-      aggregate.fleeExecuted += Number(round.fleeExecuted === true);
-    }
+  for (const [encounterIndex, diagnostic] of (result.diagnostics?.encounters || []).entries()) {
+    const selected = (diagnostic.rounds || []).filter(round => round.fleeSelected === true).length;
+    const executed = (diagnostic.rounds || []).filter(round => round.fleeExecuted === true).length;
+    const parting = (diagnostic.rounds || []).filter(round => round.fleePartingAttack === true).length;
+    aggregate.fleeSelected += selected;
+    aggregate.fleeExecuted += executed;
+    aggregate.fleeSelectedButNotExecuted += Math.max(0, selected - executed);
+    aggregate.fleePartingAttackCount += parting;
+    const outcome = result.encounterIdentityLog?.[encounterIndex]?.outcome;
+    aggregate.fleeSurvived += Number(executed > 0 && outcome === "flee");
+    aggregate.fleeDiedFromPartingAttack += Number(
+      executed > 0 && parting > 0 && outcome === "death"
+    );
   }
 }
 
-async function productionB1F(runs, seed) {
+function finalizeB1FAggregate(aggregate) {
+  const { runs } = aggregate;
+  return {
+    ...aggregate,
+    b2ArrivalRate: aggregate.b2Arrivals / runs,
+    deathRate: aggregate.deaths / runs,
+    encounterRate: aggregate.encounters / runs,
+    fleeSelectionRate: aggregate.fleeSelected / runs,
+    fleeExecutionRate: aggregate.fleeExecuted / runs,
+    fleeSelectionToSurvivalRate: aggregate.fleeSelected > 0
+      ? aggregate.fleeSurvived / aggregate.fleeSelected
+      : null,
+    fleeExecutionSurvivalRate: aggregate.fleeExecuted > 0
+      ? aggregate.fleeSurvived / aggregate.fleeExecuted
+      : null,
+    fleePartingDeathRate: aggregate.fleeExecuted > 0
+      ? aggregate.fleeDiedFromPartingAttack / aggregate.fleeExecuted
+      : null,
+    averageSteps: aggregate.steps / runs,
+    averageCombatRounds: aggregate.combatRounds / runs,
+    averageTrapDamageHp: aggregate.trapDamageHp / runs,
+    poisonApplicationRate: aggregate.poisonApplications / runs
+  };
+}
+
+async function runB1FCondition(runs, seed, {
+  conditionId,
+  fleePolicy,
+  controlledLoadOnly = false
+}) {
   const scenario = {
     ...getScenarioById("legacy-no-portal"),
     startingKit: "vanguard",
@@ -191,41 +232,56 @@ async function productionB1F(runs, seed) {
     useTownPortal: false,
     collectEncounterIdentities: true,
     simDiagnosticLevel: "full",
-    fleePolicy: "never",
+    fleePolicy,
     fleeHpThreshold: null
   };
+  if (controlledLoadOnly) {
+    scenario.measurementInitiative = {
+      rollSize: 20,
+      playerFirstStrikeModifier: 0,
+      enemySpeedModifier: 0
+    };
+  }
   const results = {};
   for (const loadoutId of Object.keys(LOADOUTS)) {
-    const aggregate = createB1FAggregate(loadoutId, runs);
+    const aggregate = createB1FAggregate(
+      loadoutId,
+      runs,
+      controlledLoadOnly ? loadoutId : null
+    );
     resetSimulationRandom(seed);
     for (let runIndex = 0; runIndex < runs; runIndex++) {
-      const fixtureId = LOADOUTS[loadoutId].fixtureId;
+      const fixtureId = controlledLoadOnly
+        ? LOADOUTS.standard.fixtureId
+        : LOADOUTS[loadoutId].fixtureId;
+      const measurementInitiative = controlledLoadOnly
+        ? { ...scenario.measurementInitiative, playerLoadModifier: {
+          light: 2,
+          standard: 0,
+          heavy: -2
+        }[loadoutId] }
+        : null;
+      const effectiveScenario = measurementInitiative
+        ? { ...scenario, measurementInitiative }
+        : scenario;
       const result = simulateRun({
         ...(fixtureId ? { fixtureId } : { className: "Fighter" }),
         startFloor: 1,
         targetDepth: 2,
         runIndex,
-        seriesId: "issue-1170:b1f:" + loadoutId,
+        seriesId: "issue-1170:b1f:" + conditionId + ":" + loadoutId,
         scoringProfile: null,
-        scenario,
+        scenario: effectiveScenario,
         workshop: { ranks: {} },
-        worldSeed: "issue-1170:" + seed + ":b1f:" + loadoutId + ":" + runIndex,
+        // Keep the world stream matched across loadouts. The controlled
+        // condition changes only the measurement initiative modifier; the
+        // production conditions compare the actual production gear.
+        worldSeed: "issue-1170:" + seed + ":b1f:" + conditionId + ":" + runIndex,
         collectDiagnostics: true
       });
       observeB1F(aggregate, result);
     }
-    results[loadoutId] = {
-      ...aggregate,
-      b2ArrivalRate: aggregate.b2Arrivals / runs,
-      deathRate: aggregate.deaths / runs,
-      encounterRate: aggregate.encounters / runs,
-      fleeSelectionRate: aggregate.fleeSelected / runs,
-      fleeExecutionRate: aggregate.fleeExecuted / runs,
-      averageSteps: aggregate.steps / runs,
-      averageCombatRounds: aggregate.combatRounds / runs,
-      averageTrapDamageHp: aggregate.trapDamageHp / runs,
-      poisonApplicationRate: aggregate.poisonApplications / runs
-    };
+    results[loadoutId] = finalizeB1FAggregate(aggregate);
   }
   return results;
 }
@@ -266,7 +322,19 @@ export async function runEquipmentLoadMeasurement({ runs = DEFAULT_RUNS, seed = 
     },
     initiativeMatrix: initiativeMatrix(normalizedRuns, normalizedSeed),
     fixedCombat,
-    productionB1F: await productionB1F(normalizedRuns, normalizedSeed)
+    productionB1F: await runB1FCondition(normalizedRuns, normalizedSeed, {
+      conditionId: "production-gear-fight-only",
+      fleePolicy: "never"
+    }),
+    controlledB1F: await runB1FCondition(normalizedRuns, normalizedSeed, {
+      conditionId: "controlled-load-only-fight",
+      fleePolicy: "never",
+      controlledLoadOnly: true
+    }),
+    productionB1FFlee: await runB1FCondition(normalizedRuns, normalizedSeed, {
+      conditionId: "production-gear-visible-multi-enemy-flee",
+      fleePolicy: "visible-multi-enemy-flee"
+    })
   };
 }
 
@@ -303,6 +371,26 @@ function buildReport(result, provenance) {
   };
 }
 
+function b1fSummaryRows(groups) {
+  return Object.values(groups).map(row =>
+    "| " + row.loadoutId + " (" + ({ light: "速い", standard: "標準", heavy: "遅い" }[row.loadClass]) + ") | " +
+    (row.b2ArrivalRate * 100).toFixed(2) + "% | " +
+    (row.deathRate * 100).toFixed(2) + "% | " + row.encounterRate.toFixed(3) +
+    " | " + row.averageSteps.toFixed(2) + " | " + row.averageTrapDamageHp.toFixed(2) +
+    " | " + row.poisonApplicationRate.toFixed(3) + " |"
+  );
+}
+
+function b1fFleeSummaryRows(groups) {
+  return Object.values(groups).map(row =>
+    "| " + row.loadoutId + " (" + ({ light: "速い", standard: "標準", heavy: "遅い" }[row.loadClass]) + ") | " +
+    row.fleeSelected + " | " + row.fleeExecuted + " | " + row.fleeSurvived +
+    " | " + row.fleeDiedFromPartingAttack + " | " +
+    (row.fleeSelectionToSurvivalRate * 100).toFixed(2) + "% | " +
+    (row.fleeExecutionSurvivalRate * 100).toFixed(2) + "% |"
+  );
+}
+
 function buildSummary(report) {
   const lines = [
     "# Equipment load diagnostic (#1170)",
@@ -327,13 +415,19 @@ function buildSummary(report) {
     "",
     "| Load | B2 arrival | Death | Encounters/run | Avg steps | Trap damage/run | Poison applications/run |",
     "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...Object.values(report.productionB1F).map(row =>
-      "| " + row.loadoutId + " (" + ({ light: "速い", standard: "標準", heavy: "遅い" }[row.loadClass]) + ") | " +
-      (row.b2ArrivalRate * 100).toFixed(2) + "% | " +
-      (row.deathRate * 100).toFixed(2) + "% | " + row.encounterRate.toFixed(3) +
-      " | " + row.averageSteps.toFixed(2) + " | " + row.averageTrapDamageHp.toFixed(2) +
-      " | " + row.poisonApplicationRate.toFixed(3) + " |"
-    ),
+    ...b1fSummaryRows(report.productionB1F),
+    "",
+    "## Controlled B1F (same gear; load-only initiative)",
+    "",
+    "| Load modifier | B2 arrival | Death | Encounters/run | Avg steps | Trap damage/run | Poison applications/run |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...b1fSummaryRows(report.controlledB1F),
+    "",
+    "## Production B1F flee funnel",
+    "",
+    "| Load | Selected | Executed | Survived | Parting-attack death | Selected→survived | Executed→survived |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...b1fFleeSummaryRows(report.productionB1FFlee),
     "",
     "## B1F encounter distribution",
     "",
@@ -349,6 +443,8 @@ function buildSummary(report) {
     "",
     "- Fixed combat uses the existing #1151 six-composition pair set and production resolver.",
     "- B1F uses production map traversal, encounter generation, combat, traps, and exploration status observation.",
+    "- Controlled B1F keeps the standard production gear and changes only the measurement-only initiative modifier.",
+    "- Production B1F flee funnel uses the existing visible-multi-enemy-flee policy; selection, execution, survival, and parting-attack death are reported separately.",
     "- Equal win rates are not a target; the diagnostic checks whether light or heavy becomes an unconditional best choice.",
     "- #1160 remains a post-measurement decision, not part of this implementation."
   ];

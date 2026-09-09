@@ -4558,6 +4558,7 @@ function createSimulationState(
       chestHealPotionExtraChance,
       chestHealPotionReplacementChance,
       enemyHealPotionDropChance,
+      measurementInitiative: scenario.measurementInitiative || null,
       extraCampFloors,
       extraCampRecoveryRate,
       extraCampTimeCost,
