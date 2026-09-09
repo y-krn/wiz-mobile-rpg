@@ -21,6 +21,7 @@ import {
   SphereGeometry,
   TorusGeometry,
   Vector2,
+  Vector3,
   BoxGeometry,
   WebGLRenderer
 } from "three";
@@ -127,16 +128,62 @@ export function getThreeCorridorReadabilityMetrics(geometry = {}) {
   });
 }
 
-function createWallGeometry(width, height, lean = 0) {
+export function createWallGeometry(width, height, lean = 0, leanNormal = false, leanSpan = width, normalDirection = 1) {
   const geometry = new PlaneGeometry(width, height);
   const positions = geometry.attributes.position;
-  const topShift = lean * width * 0.20;
+  const edgeShift = lean * leanSpan * 0.5;
   for (let index = 0; index < positions.count; index++) {
-    if (positions.getY(index) > 0) positions.setX(index, positions.getX(index) + topShift);
+    const edgeDirection = positions.getY(index) > 0 ? 1 : -1;
+    if (leanNormal) {
+      // Side walls are rotated around Y, so local Z is the world-space
+      // corridor-normal axis. Positive lean brings the top inward and the
+      // bottom outward for both left and right walls.
+      positions.setZ(index, edgeDirection * edgeShift * normalDirection);
+      continue;
+    }
+    // Front walls use local X as the corridor-width axis. Positive lean
+    // narrows the top edge and widens the bottom edge symmetrically.
+    const towardCenter = positions.getX(index) < 0 ? 1 : -1;
+    positions.setX(index, positions.getX(index) + edgeDirection * towardCenter * edgeShift);
   }
   positions.needsUpdate = true;
   geometry.computeVertexNormals();
   return geometry;
+}
+
+// Project the actual mesh vertices through the active camera. This is used by
+// visual regression fixtures so screen-space claims remain tied to geometry,
+// rather than to a world-unit proxy.
+export function getThreeProjectedBounds(mesh, camera) {
+  if (!mesh?.geometry?.attributes?.position || !camera) return null;
+  mesh.updateWorldMatrix(true, false);
+  camera.updateMatrixWorld();
+  const point = new Vector3();
+  const positions = mesh.geometry.attributes.position;
+  let left = Infinity;
+  let right = -Infinity;
+  let top = Infinity;
+  let bottom = -Infinity;
+  for (let index = 0; index < positions.count; index++) {
+    point.set(positions.getX(index), positions.getY(index), positions.getZ(index));
+    point.applyMatrix4(mesh.matrixWorld).project(camera);
+    const screenX = (point.x + 1) * VIEW_W / 2;
+    const screenY = (1 - point.y) * VIEW_H / 2;
+    left = Math.min(left, screenX);
+    right = Math.max(right, screenX);
+    top = Math.min(top, screenY);
+    bottom = Math.max(bottom, screenY);
+  }
+  return Object.freeze({
+    left,
+    right,
+    top,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+    visibleWidth: Math.max(0, Math.min(right, VIEW_W) - Math.max(left, 0)),
+    visibleHeight: Math.max(0, Math.min(bottom, VIEW_H) - Math.max(top, 0)),
+  });
 }
 
 function createCeilingGeometry(width, depth, height, style) {
@@ -594,7 +641,7 @@ export class ThreeDungeonRenderer {
 
       if (frame.leftBlocked) {
         const left = toWorld(-profile.cellWidth / 2, 0);
-        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean), wallMaterial, {
+        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
           x: left.x,
           y: profile.wallHeight / 2,
           z: left.z
@@ -602,7 +649,7 @@ export class ThreeDungeonRenderer {
       }
       if (frame.rightBlocked) {
         const right = toWorld(profile.cellWidth / 2, 0);
-        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean), wallMaterial, {
+        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean, true, profile.cellWidth, -1), wallMaterial, {
           x: right.x,
           y: profile.wallHeight / 2,
           z: right.z
@@ -696,16 +743,20 @@ export class ThreeDungeonRenderer {
   }
 
   addSideBranchMouth(parent, side, wall, topology, profile = this.activeProfile) {
-    const rotationY = side < 0 ? Math.PI / 2 : -Math.PI / 2;
-    const x = side * (profile.cellWidth / 2 + 0.04);
-    const z = 0.15;
+    // Recess the branch mouth into the neighboring cell and face the camera
+    // enough for its actual opening to occupy screen space. The branch floor
+    // and side walls remain underneath this threshold, so the cue describes
+    // the same topology instead of acting as a detached direction marker.
+    const x = side * (profile.cellWidth / 2 - 0.12);
+    const z = profile.frontWallZ + 0.24;
+    const openingWidth = profile.cellDepth * 0.56;
+    const openingHeight = profile.wallHeight * 0.78;
     const mouthMaterial = new MeshBasicMaterial({
       color: 0x02080b,
       side: DoubleSide
     });
-    const mouth = new Mesh(new PlaneGeometry(profile.cellWidth * 0.92, profile.wallHeight * 0.9), mouthMaterial);
-    mouth.position.set(x, profile.wallHeight / 2, z);
-    mouth.rotation.y = rotationY;
+    const mouth = new Mesh(new PlaneGeometry(openingWidth, openingHeight), mouthMaterial);
+    mouth.position.set(x, openingHeight / 2 + 0.10, z);
     mouth.userData = { surface: "side-branch-mouth", topology: { z: topology.z, column: topology.column } };
     parent.add(mouth);
 
@@ -715,16 +766,15 @@ export class ThreeDungeonRenderer {
       opacity: 0.88,
       side: DoubleSide
     });
-    const addFrame = (width, height, frameX, frameZ, surface) => {
-      const frame = new Mesh(new PlaneGeometry(width, height), frameMaterial.clone());
-      frame.position.set(frameX, frameZ === z ? profile.wallHeight - 0.38 : profile.wallHeight / 2, frameZ);
-      frame.rotation.y = rotationY;
+    const addFrame = (width, height, frameX, frameY, surface) => {
+      const frame = new Mesh(new BoxGeometry(width, height, 0.05), frameMaterial.clone());
+      frame.position.set(frameX, frameY, z + 0.025);
       frame.userData = { surface, topology: { z: topology.z, column: topology.column } };
       parent.add(frame);
     };
-    addFrame(0.06, profile.wallHeight * 0.9, x, z - profile.cellWidth * 0.5, "side-branch-mouth-frame");
-    addFrame(0.06, profile.wallHeight * 0.9, x, z + profile.cellWidth * 0.5, "side-branch-mouth-frame");
-    addFrame(profile.cellWidth * 0.94, 0.06, x, z, "side-branch-mouth-frame-top");
+    addFrame(0.06, openingHeight, x - side * openingWidth / 2, openingHeight / 2 + 0.10, "side-branch-mouth-frame");
+    addFrame(0.06, openingHeight, x + side * openingWidth / 2, openingHeight / 2 + 0.10, "side-branch-mouth-frame");
+    addFrame(openingWidth, 0.06, x, openingHeight + 0.10, "side-branch-mouth-frame-top");
   }
 
   addDangerCue(wall, profile = this.activeProfile) {

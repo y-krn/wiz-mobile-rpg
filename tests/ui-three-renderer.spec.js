@@ -123,17 +123,21 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
 
       const evidence = await page.evaluate(async () => {
         const { dungeonRenderer } = await import('/src/renderer.js');
+        const { getThreeProjectedBounds } = await import('/src/three_renderer.js');
         const topology = dungeonRenderer.getSceneTopology();
         const current = topology.find(({ z, column }) => z === 0 && column === 0);
         const branchRotations = {};
         const branchMouthSides = [];
+        const sideOpeningBounds = [];
         dungeonRenderer.root.traverse((child) => {
           const cell = child.userData?.topology;
           if (child.userData?.surface === 'floor' && cell?.z === 0 && Math.abs(cell.column) === 1) {
             branchRotations[cell.column] = Number(child.rotation.y.toFixed(3));
           }
           if (child.userData?.surface === 'side-branch-mouth' && cell?.z === 0 && cell?.column === 0) {
-            branchMouthSides.push(child.position.x < 0 ? 'left' : 'right');
+            const side = child.position.x < 0 ? 'left' : 'right';
+            branchMouthSides.push(side);
+            sideOpeningBounds.push({ side, bounds: getThreeProjectedBounds(child, dungeonRenderer.camera) });
           }
         });
         return {
@@ -145,6 +149,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
           visible: topology.map(({ z, column }) => `${z}:${column}`).sort(),
           branchRotations,
           branchMouthSides: branchMouthSides.sort(),
+          sideOpeningBounds,
         };
       });
 
@@ -166,6 +171,10 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
             ? ['left', 'right']
             : []
       );
+      evidence.sideOpeningBounds.forEach(({ bounds }) => {
+        expect(bounds.visibleWidth).toBeGreaterThan(32);
+        expect(bounds.visibleHeight).toBeGreaterThan(70);
+      });
       if (archetype === 't-junction') {
         expect(evidence.visible).toEqual(expect.arrayContaining(['0:-1', '0:1']));
         expect(evidence.visible).not.toContain('1:0');
