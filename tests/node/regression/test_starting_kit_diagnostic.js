@@ -6,11 +6,13 @@ const {
   STARTING_KIT_IDS,
   POLICY_IDS,
   createDiagnosticScenario,
+  getDiagnosticWorldSeed,
   runDiagnostic
 } = await import("../../../scratch/measurements/starting_kit_diagnostic.js");
 
 assert.deepEqual(STARTING_KIT_IDS, ["vanguard", "scout", "devotion", "arcana"]);
 assert.deepEqual(POLICY_IDS, ["fight", "flee-threshold", "visible-multi-enemy-flee"]);
+assert.equal(getDiagnosticWorldSeed(1139, 2), "issue-1176:1139:2");
 
 const fight = createDiagnosticScenario({
   startingKit: "vanguard",
@@ -102,7 +104,7 @@ assert.equal(report.configuration.enemyPool, "production");
 assert.equal(report.configuration.combatActionPolicy, "production-auto");
 assert.equal(report.configuration.targetPolicy, "production-auto");
 assert.equal(report.configuration.seed, 1139);
-assert.equal(report.configuration.worldSeedTemplate, "issue-1145:{seed}:{startingKit}:{runIndex}");
+assert.equal(report.configuration.worldSeedTemplate, "issue-1176:{seed}:{runIndex}");
 assert.equal(typeof report.runOutcome.b1DeathRate, "number");
 assert.equal(typeof report.encounterExposure.enemyEncounterCount, "number");
 assert.equal(typeof report.combatCost.splitOnDeath.triggers, "number");
@@ -119,6 +121,29 @@ assert.equal(totalCauseCounts, report.runOutcome.outcomes.death || 0);
 assert.ok(firstComposition);
 assert.equal(typeof firstComposition.conditionalDeathRate, "number");
 assert.equal(typeof firstComposition.encounterLethalityRate, "number");
+assert.equal(typeof report.runOutcome.averageCombatRounds, "number");
+assert.equal(typeof report.runOutcome.trapDamageHp, "number");
+assert.equal(typeof report.runOutcome.poisonApplications, "number");
+
+const matchedVanguard = await runDiagnostic({
+  startingKit: "vanguard",
+  policy: "fight",
+  runs: 2,
+  seed: 1176,
+  allowSmallRunCount: true
+});
+const matchedScout = await runDiagnostic({
+  startingKit: "scout",
+  policy: "fight",
+  runs: 2,
+  seed: 1176,
+  allowSmallRunCount: true
+});
+assert.equal(
+  matchedVanguard.encounterExposure.encounterRows[0].initialCompositionKey,
+  matchedScout.encounterExposure.encounterRows[0].initialCompositionKey,
+  "matched kits must start from the same first production encounter"
+);
 
 const repeat = await runDiagnostic({
   startingKit: "vanguard",

@@ -29,7 +29,9 @@
 | 祈り (`devotion`) | standard / 標準 | 94.5% | 5.5% | 19.733 | 1.384 |
 | 術式 (`arcana`) | standard / 標準 | 95.0% | 5.0% | 17.933 | 1.225 |
 
-These are diagnostic distributions, not a target win-rate recommendation. The B1F run includes production traversal and encounter generation, but the policy was the production auto fight policy and no recovery supplies were available.
+These are diagnostic distributions, not a target win-rate recommendation. The B1F runs use the same `issue-1176:{seed}:{runIndex}` world seed for every kit; only the starting kit and its production combat consequences vary. No recovery supplies were available.
+
+The matched flee runs use the same seed policy with `visible-multi-enemy-flee` and record flee selected, executed, preempted, survived, parting-death, trap damage, poison applications, and combat rounds in the runner output.
 
 ## Fixed #1151 representative-pair results
 
@@ -42,12 +44,12 @@ At entry HP 100% under the fight policy, averaging the six fixed compositions:
 | 祈り (`devotion`) | standard / 標準 | 9.77% | 33.10% |
 | 術式 (`arcana`) | standard / 標準 | 35.83% | unobserved for fight action |
 
-The light kit has a materially higher first-action-before-enemy rate than the standard kit, while its production dagger/ buckler/ cloak stats do not make it a universal combat upgrade. This is the intended diagnostic outcome for this Issue; no weapon, shield, armor, or initiative values were tuned.
+The light kit has a materially higher first-action-before-enemy rate than the standard kit, while its production dagger/buckler/cloak stats do not make it a universal combat upgrade. This is diagnostic evidence only; no weapon, shield, armor, or initiative values were tuned.
 
 ## Interpretation and decision
 
-**A — adopt the implementation.** The card and production calculation agree: `scout` resolves to `light`, all other current kits resolve to `standard`, and the UI describes the difference as `速い` / `標準` with qualitative guidance only. The measured first-action difference is visible, while the light kit is not simply safer or stronger.
+**Phase 1 — adopt the implementation, keep #1176 open.** The card and production calculation agree: `scout` resolves to `light`, all other current kits resolve to `standard`, and the UI describes only the load-guaranteed action-order difference as `速い` / `標準`. The measured first-action difference is visible, while the light kit is not simply safer or stronger.
 
 Heavy starting gear remains intentionally uncommitted pending #1173. Prayer and arcana kits remain as horizontal verb entry points; their actual current load is shown as standard.
 
-The fixed result suggests a future balance investigation for the light kit's combat power, but this Issue does not tune production stats or equalize win rates.
+The fixed result suggests a future balance investigation for the light kit's combat power. Heavy-kit selection and the final A/B/C/D decision remain pending #1173; this phase does not tune production stats or equalize win rates.

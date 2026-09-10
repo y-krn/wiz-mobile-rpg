@@ -11,7 +11,7 @@ import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1176-starting-kit-load-v1";
+export const RUNNER_VERSION = "issue1176-starting-kit-load-v2";
 export const SCHEMA_VERSION = 2;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const POLICY_IDS = Object.freeze([
@@ -74,6 +74,10 @@ function parseRate(value, label) {
     throw new Error(`${label} must be a number in [0,1]: ${value}`);
   }
   return parsed;
+}
+
+export function getDiagnosticWorldSeed(seed, runIndex) {
+  return `issue-1176:${seed}:${runIndex}`;
 }
 
 function baseMonsterName(name) {
@@ -248,6 +252,9 @@ function createAggregate(runs) {
     fleeSurvived: 0,
     fleeDiedFromPartingAttack: 0,
     rounds: createDistribution(),
+    combatRounds: 0,
+    trapDamageHp: 0,
+    poisonApplications: 0,
     damageReceived: createDistribution(),
     hpAfterCombat: createDistribution(),
     partingAttackDamage: createDistribution(),
@@ -313,6 +320,9 @@ function observeRun(aggregate, result, runIndex) {
   const encounters = result.encounterIdentityLog || [];
   addDistribution(aggregate.combatCount, encounters.length);
   aggregate.encounterCount += encounters.length;
+  aggregate.combatRounds += result.combatRounds || 0;
+  aggregate.trapDamageHp += result.trapDamageHp || 0;
+  aggregate.poisonApplications += result.statusObservations?.byStatus?.poisoned?.applications || 0;
 
   const diagnostics = result.diagnostics?.encounters || [];
   const diagnosticsByOrdinal = new Map(diagnostics.map((diagnostic, index) => [index, diagnostic]));
@@ -403,7 +413,10 @@ function finalizeAggregate(aggregate, configuration) {
       fleeDiedFromPartingAttack: aggregate.fleeDiedFromPartingAttack,
       averageDeepestFloor: aggregate.deepestFloor.values.reduce((sum, value) => sum + value, 0) / aggregate.runs,
       averageSteps: aggregate.steps.values.reduce((sum, value) => sum + value, 0) / aggregate.runs,
-      averageCombatCount: aggregate.combatCount.values.reduce((sum, value) => sum + value, 0) / aggregate.runs
+      averageCombatCount: aggregate.combatCount.values.reduce((sum, value) => sum + value, 0) / aggregate.runs,
+      averageCombatRounds: aggregate.combatRounds / aggregate.runs,
+      trapDamageHp: aggregate.trapDamageHp,
+      poisonApplications: aggregate.poisonApplications
     },
     encounterExposure: {
       enemyEncounterCount: aggregate.encounterCount,
@@ -504,11 +517,11 @@ export async function runDiagnostic({
       startFloor: 1,
       targetDepth: 2,
       runIndex,
-      seriesId: `issue-1145:${startingKit}`,
+      seriesId: "issue-1176:b1f",
       scoringProfile: null,
       scenario,
       workshop: { ranks: {} },
-      worldSeed: `issue-1145:${normalizedSeed}:${startingKit}:${runIndex}`,
+      worldSeed: getDiagnosticWorldSeed(normalizedSeed, runIndex),
       collectDiagnostics: true
     });
     observeRun(aggregate, result, runIndex);
@@ -530,7 +543,7 @@ export async function runDiagnostic({
     fleeResolver: "production",
     seed: normalizedSeed,
     seedPolicy: "simulation RNG reset to seed before run; deterministic policy-independent worldSeed per run",
-    worldSeedTemplate: "issue-1145:{seed}:{startingKit}:{runIndex}",
+    worldSeedTemplate: "issue-1176:{seed}:{runIndex}",
     matchedComparisonKey: `${startingKit}:${normalizedSeed}:${normalizedRuns}`,
     runs: normalizedRuns
   };
@@ -595,6 +608,7 @@ function buildSummary(report) {
     `- flee selected / executed / selected-but-not-executed: ${outcome.fleeSelected} / ${outcome.fleeExecuted} / ${outcome.fleeSelectedButNotExecuted}`,
     `- flee survived / died from parting attack: ${outcome.fleeSurvived} / ${outcome.fleeDiedFromPartingAttack}; execution survival: ${outcome.fleeSurvivalRate === null ? "unobserved" : `${(outcome.fleeSurvivalRate * 100).toFixed(2)}%`}`,
     `- average deepest floor / steps / combat count: ${outcome.averageDeepestFloor.toFixed(3)} / ${outcome.averageSteps.toFixed(2)} / ${outcome.averageCombatCount.toFixed(2)}`,
+    `- average combat rounds / trap damage HP / poison applications: ${outcome.averageCombatRounds.toFixed(2)} / ${outcome.trapDamageHp} / ${outcome.poisonApplications}`,
     "",
     "## Death contribution candidates",
     "",

@@ -17,9 +17,9 @@ assert.ok(equipment.length > 0);
 assert.ok(equipment.every(item => EQUIPMENT_LOAD_CLASSES.includes(item.loadClass)));
 assert.deepEqual(EQUIPMENT_LOAD_INITIATIVE_MODIFIERS, { light: 2, standard: 0, heavy: -2 });
 assert.deepEqual(EQUIPMENT_LOAD_DESCRIPTIONS, {
-  light: "先に動きやすい / 防御は低め",
-  standard: "攻防と行動順の基準",
-  heavy: "後手になりやすい / 防御は高め"
+  light: "先に動きやすい",
+  standard: "行動順の基準",
+  heavy: "後手になりやすい"
 });
 
 function character(equipment = {}) {

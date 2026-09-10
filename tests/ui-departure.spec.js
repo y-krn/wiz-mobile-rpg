@@ -16,8 +16,8 @@ for (const width of [320, 360, 390, 430]) {
     await expect(cards.nth(3)).toHaveAttribute('data-load-class', 'standard');
     await expect(cards.nth(0)).toContainText('行動傾向: 標準');
     await expect(cards.nth(1)).toContainText('行動傾向: 速い');
-    await expect(cards.nth(1)).toContainText('先に動きやすい / 防御は低め');
-    await expect(cards.nth(0)).toContainText('攻防と行動順の基準');
+    await expect(cards.nth(1)).toContainText('先に動きやすい');
+    await expect(cards.nth(0)).toContainText('行動順の基準');
     const cardText = (await cards.allTextContents()).join(' ');
     expect(cardText).not.toContain('+2');
     expect(cardText).not.toContain('-2');

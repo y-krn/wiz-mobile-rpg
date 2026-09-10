@@ -8,9 +8,9 @@ export const EQUIPMENT_LOAD_LABELS = Object.freeze({
   heavy: "遅い"
 });
 export const EQUIPMENT_LOAD_DESCRIPTIONS = Object.freeze({
-  light: "先に動きやすい / 防御は低め",
-  standard: "攻防と行動順の基準",
-  heavy: "後手になりやすい / 防御は高め"
+  light: "先に動きやすい",
+  standard: "行動順の基準",
+  heavy: "後手になりやすい"
 });
 export const EQUIPMENT_LOAD_INITIATIVE_MODIFIERS = Object.freeze({
   light: 2,
