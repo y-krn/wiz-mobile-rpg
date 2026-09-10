@@ -7,6 +7,11 @@ export const EQUIPMENT_LOAD_LABELS = Object.freeze({
   standard: "標準",
   heavy: "遅い"
 });
+export const EQUIPMENT_LOAD_DESCRIPTIONS = Object.freeze({
+  light: "先に動きやすい",
+  standard: "行動順の基準",
+  heavy: "後手になりやすい"
+});
 export const EQUIPMENT_LOAD_INITIATIVE_MODIFIERS = Object.freeze({
   light: 2,
   standard: 0,
@@ -57,4 +62,12 @@ export function getCharacterEquipmentLoad(character) {
 
 export function getCharacterEquipmentLoadModifier(character) {
   return getCharacterEquipmentLoad(character).initiativeModifier;
+}
+
+export function getEquipmentLoadPlayerCopy(character) {
+  const load = getCharacterEquipmentLoad(character);
+  return {
+    ...load,
+    description: EQUIPMENT_LOAD_DESCRIPTIONS[load.class]
+  };
 }

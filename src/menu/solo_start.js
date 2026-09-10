@@ -17,6 +17,7 @@ import { getSortedCraftRecipes } from "../rules/craft_rules.js";
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
 import { getEquipmentSlotsForType } from "../rules/equipment_slots.js";
 import { getEquipmentHandConflict } from "../rules/equipment_hands.js";
+import { getEquipmentLoadPlayerCopy } from "../rules/equipment_load.js";
 import {
   consumeSelectedRunQuestTemplateIds,
   getPendingRunQuestTemplateIds
@@ -161,6 +162,22 @@ function getShortItemName(itemId) {
   return name.replace(/\s*[（(].*?[）)]/g, "").replace("帰還の翼", "翼");
 }
 
+function createDeparturePreviewCharacter(startingKitId, startingGear = null) {
+  const character = applyWorkshopToCharacter(
+    createStartingKitCharacter(startingKitId),
+    state.workshop
+  );
+  if (!startingGear) return character;
+  const item = ITEMS[startingGear];
+  const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
+  if (!slot) return character;
+  character.equipment[slot] = startingGear;
+  syncMediumState(character, {
+    preserveRunes: startingKitId === "arcana" && isMedium(startingGear)
+  });
+  return character;
+}
+
 function appendPreparationRow(container, label, value, className = "") {
   const row = document.createElement("div");
   row.className = `solo-preparation-row${className ? ` ${className}` : ""}`;
@@ -216,18 +233,15 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
 
   const conditions = document.createElement("div");
   conditions.className = "solo-preparation-conditions";
-  const startingCharacter = createStartingKitCharacter(startingKitId);
-  if (startingGear) {
-    const item = ITEMS[startingGear];
-    const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
-    if (slot) {
-      startingCharacter.equipment[slot] = startingGear;
-      syncMediumState(startingCharacter, {
-        preserveRunes: startingKitId === "arcana" && isMedium(startingGear)
-      });
-    }
-  }
+  const startingCharacter = createDeparturePreviewCharacter(startingKitId, startingGear);
+  const equipmentLoad = getEquipmentLoadPlayerCopy(startingCharacter);
   appendPreparationRow(conditions, "開始キット", `${getStartingKit(startingKitId)?.name || "—"}（装備セット）`);
+  appendPreparationRow(
+    conditions,
+    "行動傾向",
+    `${equipmentLoad.label}：${equipmentLoad.description}`,
+    "solo-preparation-load"
+  );
   appendPreparationRow(
     conditions,
     "開始装備",
@@ -415,9 +429,20 @@ export function renderSoloStart(optGrid) {
 
   STARTING_KITS.forEach(kit => {
     const character = createStartingKitCharacter(kit.id);
+    const load = getEquipmentLoadPlayerCopy(character);
     const button = document.createElement("button");
     button.className = "btn btn-neon btn-block solo-starting-kit-option";
-    button.innerHTML = `<strong>${kit.name}</strong><span>${kit.description} · HP ${character.maxHp} / MP ${getCharMaxMp(character)}</span>`;
+    const name = document.createElement("strong");
+    name.textContent = kit.name;
+    const gear = document.createElement("span");
+    gear.textContent = kit.description;
+    const loadHint = document.createElement("span");
+    loadHint.className = "solo-starting-kit-load";
+    loadHint.textContent = `行動傾向: ${load.label} · ${load.description}`;
+    const vitals = document.createElement("span");
+    vitals.textContent = `HP ${character.maxHp} / MP ${getCharMaxMp(character)}`;
+    button.append(name, gear, loadHint, vitals);
+    button.dataset.loadClass = load.class;
     button.addEventListener("click", () => renderStartFloorChoices(optGrid, kit.id, null));
     optGrid.appendChild(button);
 
@@ -433,9 +458,12 @@ export function renderSoloStart(optGrid) {
       );
       option.disabled = Boolean(conflict);
       option.title = conflict?.message || "";
+      const previewCharacter = createDeparturePreviewCharacter(kit.id, itemId);
+      const load = getEquipmentLoadPlayerCopy(previewCharacter);
       option.innerHTML = conflict
         ? `<strong>${kit.name} + ${item.name}</strong><span>選択不可：${conflict.message}</span>`
-        : `<strong>${kit.name} + ${item.name}</strong><span>工房アンロック装備</span>`;
+        : `<strong>${kit.name} + ${item.name}</strong><span>工房アンロック装備</span><span class="solo-starting-kit-load">行動傾向: ${load.label} · ${load.description}</span>`;
+      option.dataset.loadClass = load.class;
       if (!conflict) option.addEventListener("click", () => renderStartFloorChoices(optGrid, kit.id, itemId));
       optGrid.appendChild(option);
     });
