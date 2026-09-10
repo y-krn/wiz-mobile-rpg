@@ -130,6 +130,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
         const branchMouthSides = [];
         const sideOpeningBounds = [];
         const sideOpeningLintelBounds = [];
+        const sideBranchVolumeBounds = [];
         dungeonRenderer.root.traverse((child) => {
           const cell = child.userData?.topology;
           if (child.userData?.surface === 'floor' && cell?.z === 0 && Math.abs(cell.column) === 1) {
@@ -145,6 +146,9 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
               side: child.position.x < 0 ? 'left' : 'right',
               bounds: getThreeProjectedBounds(child, dungeonRenderer.camera),
             });
+          }
+          if ((child.userData?.surface === 'side-branch-floor' || child.userData?.surface === 'side-branch-ceiling') && cell?.z === 0 && cell?.column === 0) {
+            sideBranchVolumeBounds.push({ surface: child.userData.surface, bounds: getThreeProjectedBounds(child, dungeonRenderer.camera) });
           }
         });
         const visibleLintels = sideOpeningLintelBounds.map(({ side, bounds }) => {
@@ -168,6 +172,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
           branchRotations,
           branchMouthSides: branchMouthSides.sort(),
           sideOpeningBounds,
+          sideBranchVolumeBounds,
           visibleLintels,
         };
       });
@@ -193,6 +198,10 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
       evidence.sideOpeningBounds.forEach(({ bounds }) => {
         expect(bounds.visibleWidth).toBeGreaterThan(32);
         expect(bounds.visibleHeight).toBeGreaterThan(70);
+      });
+      evidence.sideBranchVolumeBounds.forEach(({ surface, bounds }) => {
+        expect(bounds.visibleWidth, `${surface} should enter the viewport`).toBeGreaterThan(24);
+        expect(bounds.visibleHeight, `${surface} should have projected depth`).toBeGreaterThan(12);
       });
       evidence.visibleLintels.forEach(({ surface }) => expect(surface).toBe('side-branch-mouth-frame-top'));
       if (archetype === 't-junction') {
