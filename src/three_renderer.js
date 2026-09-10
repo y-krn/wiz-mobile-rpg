@@ -750,25 +750,25 @@ export class ThreeDungeonRenderer {
 
   addSideBranchMouth(parent, side, wall, topology, profile = this.activeProfile) {
     const depth = Math.max(0, topology.z);
-    const depthScale = depth === 0 ? 1 : 0.56;
+    const depthScale = depth === 0 ? 1 : 0.80;
     // Keep the near opening in front of the current cell's front wall. For a
     // one-cell-ahead turn, anchor the smaller reveal on that cell's center so
     // its side path remains readable instead of becoming a distant slit.
     const z = depth === 0
       ? profile.frontWallZ + 0.18
       : profile.startZ - depth * profile.cellDepth;
-    const openingWidth = profile.cellDepth * 0.86 * depthScale;
+    const openingWidth = profile.cellDepth * 0.96 * depthScale;
     // Keep the lintel inside the portrait viewport. A full-height plane puts
     // its top edge above the camera and leaves only a vertical jamb visible.
-    const openingHeight = profile.wallHeight * 0.54 * depthScale;
+    const openingHeight = profile.wallHeight * 0.64 * depthScale;
     // Local -Z is the branch-forward direction. Rotate it toward world -X
     // for a left opening and world +X for a right opening, matching the
     // cardinal side-cell transforms in addCorridorTopology.
-    const branchYaw = side < 0 ? 1.15 : -1.15;
+    const branchYaw = side < 0 ? Math.PI / 2 : -Math.PI / 2;
     // Pull the visual threshold slightly into the near cell. A purely
     // cardinal doorway at the side-wall plane falls outside the fixed
     // portrait frustum before its floor/ceiling can establish depth.
-    const thresholdInset = depth === 0 ? 0.82 : 0.20;
+    const thresholdInset = depth === 0 ? 0.82 : 0;
     const thresholdX = side * (profile.cellWidth / 2 - thresholdInset);
     const mouthMaterial = new MeshBasicMaterial({
       color: wall.clone().multiplyScalar(0.18),
@@ -788,7 +788,7 @@ export class ThreeDungeonRenderer {
     // Build a short, coherent vestibule from the threshold into the actual
     // neighboring cell. Its bevel is camera-readable, while the neighboring
     // cell behind it remains aligned to the cardinal ±X topology.
-    const branchDepth = profile.cellDepth * 0.95 * depthScale;
+    const branchDepth = profile.cellDepth * 1.05 * depthScale;
     const branchVolume = new Group();
     branchVolume.position.set(thresholdX, 0, z);
     branchVolume.rotation.y = branchYaw;
@@ -797,10 +797,6 @@ export class ThreeDungeonRenderer {
     parent.add(branchVolume);
     const branchSurfaceMaterial = new MeshBasicMaterial({
       color: wall.clone().multiplyScalar(0.46),
-      // The reveal is intentionally drawn after boundary walls so their
-      // shared-edge depth buffer cannot turn the opening back into a panel.
-      depthTest: false,
-      depthWrite: false,
       side: DoubleSide
     });
     const branchFloorGeometry = new BoxGeometry(openingWidth, 0.045, branchDepth);
@@ -870,18 +866,18 @@ export class ThreeDungeonRenderer {
   }
 
   addDangerCue(wall, profile = this.activeProfile) {
-    const cueMaterial = new MeshBasicMaterial({ color: 0xb83b4c, transparent: true, opacity: 0.18 });
-    const cue = new Mesh(new SphereGeometry(0.66, 8, 6), cueMaterial);
-    const cueZ = profile.frontWallZ + 0.35;
-    cue.position.set(0, profile.eyeHeight * 0.87, cueZ);
+    const cueMaterial = new MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.28 });
+    const cue = new Mesh(new SphereGeometry(0.22, 8, 6), cueMaterial);
+    const cueZ = profile.frontWallZ + 0.18;
+    cue.position.set(0, profile.eyeHeight * 0.76, cueZ);
     cue.userData = { surface: "danger-cue", sceneLayer: "danger" };
     this.root.add(cue);
-    const cueLight = new PointLight(0x8f293d, 0.55, 4.5);
-    cueLight.position.set(0, profile.eyeHeight, cueZ + 0.6);
+    const cueLight = new PointLight(0x8f293d, 0.3, 3.5);
+    cueLight.position.set(0, profile.eyeHeight, cueZ + 0.35);
     cueLight.userData = { surface: "danger-cue-light", sceneLayer: "danger" };
     this.root.add(cueLight);
     const ring = new Mesh(
-      new RingGeometry(0.8, 0.84, 24),
+      new RingGeometry(0.38, 0.42, 24),
       new MeshBasicMaterial({ color: wall, transparent: true, opacity: 0.24, side: 2 })
     );
     ring.rotation.x = -Math.PI / 2;

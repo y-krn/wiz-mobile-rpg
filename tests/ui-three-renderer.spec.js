@@ -378,12 +378,18 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
         let ceiling = null;
         let seamCount = 0;
         const farBranchSurfaces = [];
+        const farBranchDepth = [];
         dungeonRenderer.root.traverse((child) => {
           if (child.userData?.surface === 'ceiling' && !ceiling) ceiling = child;
           if (child.userData?.surface === 'depth-seam') seamCount += 1;
           if (child.userData?.topology?.z === 1
             && ['side-branch-floor', 'side-branch-ceiling', 'side-branch-wall-thickness'].includes(child.userData?.surface)) {
             farBranchSurfaces.push(child.userData.surface);
+            farBranchDepth.push({
+              surface: child.userData.surface,
+              depthTest: child.material?.depthTest,
+              depthWrite: child.material?.depthWrite,
+            });
           }
         });
         const positions = ceiling?.geometry?.attributes?.position;
@@ -399,6 +405,7 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
           ceilingMaxY,
           seamCount,
           farBranchSurfaces,
+          farBranchDepth,
         };
       });
 
@@ -417,6 +424,11 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
         if (fixture.name === 'b2-right-turn-arch') {
           expect(evidence.farBranchSurfaces).toEqual(expect.arrayContaining([
             'side-branch-floor', 'side-branch-ceiling', 'side-branch-wall-thickness',
+          ]));
+          expect(evidence.farBranchDepth).toEqual(expect.arrayContaining([
+            { surface: 'side-branch-floor', depthTest: true, depthWrite: true },
+            { surface: 'side-branch-ceiling', depthTest: true, depthWrite: true },
+            { surface: 'side-branch-wall-thickness', depthTest: true, depthWrite: true },
           ]));
         }
       } else {
@@ -478,6 +490,7 @@ test('Three.js danger cue stays outside the camera and visible in the corridor @
   });
 
   expect(evidence.cuePosition).not.toBeNull();
+  expect(evidence.cueRadius).toBeLessThan(0.3);
   expect(evidence.cameraToCue).toBeGreaterThan(evidence.cueRadius);
   const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('three-danger-cue-390px.png') });
   await testInfo.attach('three-danger-cue-390px', { body: screenshot, contentType: 'image/png' });
