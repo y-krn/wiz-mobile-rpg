@@ -471,6 +471,28 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(page.locator('#explore-controls')).toBeHidden();
 });
 
+test('Workshop starting gear updates the scout departure load preview', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openSubmenu } = await import('/src/navigation.js');
+    state.gameState = 'town';
+    state.workshop = { ranks: { gear_fighter_saber: 1 } };
+    openSubmenu('solo_start', '単独潜行');
+  });
+
+  const option = page.getByRole('button', { name: /軽装探索キット \+ 鍛錬サーベル/ });
+  await expect(option).toHaveAttribute('data-load-class', 'standard');
+  await expect(option).toContainText('行動傾向: 標準');
+  await option.click();
+
+  const summary = page.locator('.solo-preparation-summary');
+  await expect(summary).toContainText('軽装探索キット');
+  await expect(summary).toContainText('鍛錬サーベル');
+  await expect(summary.locator('.solo-preparation-load')).toContainText('標準：行動順の基準');
+});
+
 test('Preparation displays active Rune names instead of internal spell keys', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(async () => {

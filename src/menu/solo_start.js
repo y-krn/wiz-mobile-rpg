@@ -162,6 +162,22 @@ function getShortItemName(itemId) {
   return name.replace(/\s*[（(].*?[）)]/g, "").replace("帰還の翼", "翼");
 }
 
+function createDeparturePreviewCharacter(startingKitId, startingGear = null) {
+  const character = applyWorkshopToCharacter(
+    createStartingKitCharacter(startingKitId),
+    state.workshop
+  );
+  if (!startingGear) return character;
+  const item = ITEMS[startingGear];
+  const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
+  if (!slot) return character;
+  character.equipment[slot] = startingGear;
+  syncMediumState(character, {
+    preserveRunes: startingKitId === "arcana" && isMedium(startingGear)
+  });
+  return character;
+}
+
 function appendPreparationRow(container, label, value, className = "") {
   const row = document.createElement("div");
   row.className = `solo-preparation-row${className ? ` ${className}` : ""}`;
@@ -217,18 +233,15 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
 
   const conditions = document.createElement("div");
   conditions.className = "solo-preparation-conditions";
-  const startingCharacter = createStartingKitCharacter(startingKitId);
-  if (startingGear) {
-    const item = ITEMS[startingGear];
-    const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
-    if (slot) {
-      startingCharacter.equipment[slot] = startingGear;
-      syncMediumState(startingCharacter, {
-        preserveRunes: startingKitId === "arcana" && isMedium(startingGear)
-      });
-    }
-  }
+  const startingCharacter = createDeparturePreviewCharacter(startingKitId, startingGear);
+  const equipmentLoad = getEquipmentLoadPlayerCopy(startingCharacter);
   appendPreparationRow(conditions, "開始キット", `${getStartingKit(startingKitId)?.name || "—"}（装備セット）`);
+  appendPreparationRow(
+    conditions,
+    "行動傾向",
+    `${equipmentLoad.label}：${equipmentLoad.description}`,
+    "solo-preparation-load"
+  );
   appendPreparationRow(
     conditions,
     "開始装備",
@@ -445,9 +458,12 @@ export function renderSoloStart(optGrid) {
       );
       option.disabled = Boolean(conflict);
       option.title = conflict?.message || "";
+      const previewCharacter = createDeparturePreviewCharacter(kit.id, itemId);
+      const load = getEquipmentLoadPlayerCopy(previewCharacter);
       option.innerHTML = conflict
         ? `<strong>${kit.name} + ${item.name}</strong><span>選択不可：${conflict.message}</span>`
-        : `<strong>${kit.name} + ${item.name}</strong><span>工房アンロック装備</span>`;
+        : `<strong>${kit.name} + ${item.name}</strong><span>工房アンロック装備</span><span class="solo-starting-kit-load">行動傾向: ${load.label} · ${load.description}</span>`;
+      option.dataset.loadClass = load.class;
       if (!conflict) option.addEventListener("click", () => renderStartFloorChoices(optGrid, kit.id, itemId));
       optGrid.appendChild(option);
     });
