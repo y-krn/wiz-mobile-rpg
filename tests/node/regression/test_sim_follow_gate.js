@@ -3,6 +3,7 @@ import {
   SIMULATION_MANIFEST,
   assertBalanceImpactCovered,
   analyzeBalanceImpact,
+  classifySimulationRunner,
   assertRuntimeMechanismsFired,
   assertValidSimulationManifest,
   currentChangedFiles,
@@ -19,6 +20,19 @@ import {
 } from "../../../scratch/simulations/simulation_manifest.js";
 
 assert.doesNotThrow(() => assertValidSimulationManifest());
+const currentInfrastructure = [
+  "scratch/simulations/sim_recovery_policy.js",
+  "scratch/simulations/sim_parallel.js",
+  "scratch/simulations/sim_parallel_worker.js"
+];
+for (const file of currentInfrastructure) {
+  const rule = classifySimulationRunner(file);
+  assert.equal(rule?.lifecycle, "reusable", `${file} must remain reusable while current code depends on it`);
+  assert.equal(rule?.scope, "infra", `${file} must remain infra-scoped`);
+}
+for (const file of ["scratch/simulations/sim_balance.js", "scratch/simulations/sim_camp_recovery.js"]) {
+  assert.equal(classifySimulationRunner(file)?.lifecycle, "historical", `${file} is retained as historical evidence`);
+}
 assert.equal(Object.hasOwn(SIMULATION_MANIFEST.canonical.runtimeCoverage, "status"), true);
 assert.equal(Object.hasOwn(SIMULATION_MANIFEST.canonical.runtimeCoverage, "merchant"), false);
 assert.match(
