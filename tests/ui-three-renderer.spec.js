@@ -1,4 +1,74 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { inflateSync } from 'node:zlib';
+
+function decodeRgbPng(buffer) {
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let colorType = 0;
+  const chunks = [];
+  while (offset < buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString('ascii', offset + 4, offset + 8);
+    const data = buffer.subarray(offset + 8, offset + 8 + length);
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      colorType = data[9];
+      if (data[8] !== 8 || ![2, 6].includes(colorType) || data[12] !== 0) {
+        throw new Error('Expected a non-interlaced 8-bit RGB/RGBA PNG');
+      }
+    }
+    if (type === 'IDAT') chunks.push(data);
+    offset += length + 12;
+  }
+  const channels = colorType === 6 ? 4 : 3;
+  const stride = width * channels;
+  const inflated = inflateSync(Buffer.concat(chunks));
+  const rows = [];
+  let inputOffset = 0;
+  let previous = Buffer.alloc(stride);
+  for (let y = 0; y < height; y++) {
+    const filter = inflated[inputOffset++];
+    const row = Buffer.alloc(stride);
+    for (let x = 0; x < stride; x++) {
+      const left = x >= channels ? row[x - channels] : 0;
+      const above = previous[x];
+      const upperLeft = x >= channels ? previous[x - channels] : 0;
+      let value = inflated[inputOffset++];
+      if (filter === 1) value = (value + left) & 255;
+      else if (filter === 2) value = (value + above) & 255;
+      else if (filter === 3) value = (value + Math.floor((left + above) / 2)) & 255;
+      else if (filter === 4) {
+        const estimate = left + above - upperLeft;
+        const leftDistance = Math.abs(estimate - left);
+        const aboveDistance = Math.abs(estimate - above);
+        const upperLeftDistance = Math.abs(estimate - upperLeft);
+        value = (value + (leftDistance <= aboveDistance && leftDistance <= upperLeftDistance
+          ? left
+          : aboveDistance <= upperLeftDistance ? above : upperLeft)) & 255;
+      }
+      row[x] = value;
+    }
+    rows.push(row);
+    previous = row;
+  }
+  return { width, height, channels, rows };
+}
+
+function averageBlueGreen(image, xStart, xEnd, yStart, yEnd) {
+  let total = 0;
+  let count = 0;
+  for (let y = yStart; y < yEnd; y++) {
+    const row = image.rows[y];
+    for (let x = xStart; x < xEnd; x++) {
+      const index = x * image.channels;
+      total += row[index + 1] + row[index + 2];
+      count += 2;
+    }
+  }
+  return total / count;
+}
 
 const VIEWPORTS = [
   { width: 320, height: 568 },
@@ -130,6 +200,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
         const branchMouthSides = [];
         const sideOpeningBounds = [];
         const sideOpeningLintelBounds = [];
+        const sideOpeningLintels = {};
         const sideBranchVolumeBounds = [];
         dungeonRenderer.root.traverse((child) => {
           const cell = child.userData?.topology;
@@ -142,6 +213,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
             sideOpeningBounds.push({ side, bounds: getThreeProjectedBounds(child, dungeonRenderer.camera) });
           }
           if (child.userData?.surface === 'side-branch-mouth-frame-top' && cell?.z === 0 && cell?.column === 0) {
+            sideOpeningLintels[child.position.x < 0 ? 'left' : 'right'] = child;
             sideOpeningLintelBounds.push({
               side: child.position.x < 0 ? 'left' : 'right',
               bounds: getThreeProjectedBounds(child, dungeonRenderer.camera),
@@ -157,9 +229,8 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
             -((bounds.top + bounds.bottom) / 2 / 260) * 2 + 1,
           );
           dungeonRenderer.raycaster.setFromCamera(pointer, dungeonRenderer.camera);
-          const hit = dungeonRenderer.raycaster
-            .intersectObjects(dungeonRenderer.root.children, true)
-            .find(({ object }) => object.visible);
+          const lintel = sideOpeningLintels[side];
+          const hit = lintel ? dungeonRenderer.raycaster.intersectObject(lintel, true)[0] : null;
           return { side, surface: hit?.object.userData?.surface ?? null };
         });
         return {
@@ -212,6 +283,17 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
 
       const screenshot = await page.locator('#dungeon-canvas').screenshot({
         path: testInfo.outputPath(`three-topology-${archetype}-${viewport.width}px.png`),
+      });
+      const screenshotImage = decodeRgbPng(screenshot);
+      const edgeWidth = Math.min(50, Math.floor(screenshotImage.width * 0.18));
+      const lowerStart = Math.max(0, screenshotImage.height - 22);
+      const upperStart = Math.max(0, screenshotImage.height - 55);
+      evidence.sideOpeningBounds.forEach(({ side }) => {
+        const xStart = side === 'left' ? 0 : screenshotImage.width - edgeWidth;
+        const xEnd = side === 'left' ? edgeWidth : screenshotImage.width;
+        const lowerBand = averageBlueGreen(screenshotImage, xStart, xEnd, lowerStart, screenshotImage.height);
+        const upperBand = averageBlueGreen(screenshotImage, xStart, xEnd, upperStart, lowerStart);
+        expect(lowerBand - upperBand, `${side} branch floor should change the final screenshot`).toBeGreaterThan(6);
       });
       await testInfo.attach(`three-topology-${archetype}-${viewport.width}px`, {
         body: screenshot,
