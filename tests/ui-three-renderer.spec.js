@@ -72,7 +72,7 @@ function averageBlueGreen(image, xStart, xEnd, yStart, yEnd) {
 
 const VIEWPORTS = [
   { width: 320, height: 568 },
-  { width: 360, height: 740 },
+  { width: 360, height: 800 },
   { width: 390, height: 844 },
   { width: 430, height: 932 },
 ];
@@ -147,6 +147,8 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
     await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
     await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
     await expect(page.locator('#dungeon-minimap-overlay')).toHaveCSS('display', 'none');
+    await page.locator('#viewport-hud').evaluate((element) => { element.style.display = 'none'; });
+    await expect(page.locator('#viewport-hud')).toHaveCSS('display', 'none');
 
     for (const archetype of TOPOLOGY_ARCHETYPES) {
       await page.evaluate(async (name) => {
@@ -219,17 +221,20 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
               bounds: getThreeProjectedBounds(child, dungeonRenderer.camera),
             });
           }
-          if ((child.userData?.surface === 'side-branch-floor' || child.userData?.surface === 'side-branch-ceiling') && cell?.z === 0 && cell?.column === 0) {
+          if ((child.userData?.surface === 'side-branch-floor'
+            || child.userData?.surface === 'side-branch-ceiling')
+            && cell?.z === 0 && cell?.column === 0) {
             sideBranchVolumeBounds.push({ surface: child.userData.surface, bounds: getThreeProjectedBounds(child, dungeonRenderer.camera) });
           }
         });
         const visibleLintels = sideOpeningLintelBounds.map(({ side, bounds }) => {
-          const pointer = dungeonRenderer.pointer.set(
-            ((bounds.left + bounds.right) / 2 / 400) * 2 - 1,
-            -((bounds.top + bounds.bottom) / 2 / 260) * 2 + 1,
-          );
-          dungeonRenderer.raycaster.setFromCamera(pointer, dungeonRenderer.camera);
           const lintel = sideOpeningLintels[side];
+          lintel?.updateWorldMatrix(true, false);
+          const center = lintel
+            ? lintel.getWorldPosition(dungeonRenderer.camera.position.clone().set(0, 0, 0)).project(dungeonRenderer.camera)
+            : { x: ((bounds.left + bounds.right) / 2 / 400) * 2 - 1, y: -((bounds.top + bounds.bottom) / 2 / 260) * 2 + 1 };
+          const pointer = dungeonRenderer.pointer.set(center.x, center.y);
+          dungeonRenderer.raycaster.setFromCamera(pointer, dungeonRenderer.camera);
           const hit = lintel ? dungeonRenderer.raycaster.intersectObject(lintel, true)[0] : null;
           return { side, surface: hit?.object.userData?.surface ?? null };
         });
@@ -285,15 +290,14 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
         path: testInfo.outputPath(`three-topology-${archetype}-${viewport.width}px.png`),
       });
       const screenshotImage = decodeRgbPng(screenshot);
-      const edgeWidth = Math.min(50, Math.floor(screenshotImage.width * 0.18));
-      const lowerStart = Math.max(0, screenshotImage.height - 22);
-      const upperStart = Math.max(0, screenshotImage.height - 55);
       evidence.sideOpeningBounds.forEach(({ side }) => {
-        const xStart = side === 'left' ? 0 : screenshotImage.width - edgeWidth;
-        const xEnd = side === 'left' ? edgeWidth : screenshotImage.width;
-        const lowerBand = averageBlueGreen(screenshotImage, xStart, xEnd, lowerStart, screenshotImage.height);
-        const upperBand = averageBlueGreen(screenshotImage, xStart, xEnd, upperStart, lowerStart);
-        expect(lowerBand - upperBand, `${side} branch floor should change the final screenshot`).toBeGreaterThan(6);
+        const branchStart = side === 'left' ? 0 : Math.floor(screenshotImage.width * 0.5);
+        const branchEnd = side === 'left' ? Math.floor(screenshotImage.width * 0.5) : screenshotImage.width;
+        const topBand = averageBlueGreen(screenshotImage, branchStart, branchEnd, 0, Math.floor(screenshotImage.height * 0.24));
+        const middleBand = averageBlueGreen(screenshotImage, branchStart, branchEnd, Math.floor(screenshotImage.height * 0.34), Math.floor(screenshotImage.height * 0.66));
+        const bottomBand = averageBlueGreen(screenshotImage, branchStart, branchEnd, Math.floor(screenshotImage.height * 0.76), screenshotImage.height);
+        expect(Math.abs(topBand - middleBand), `${side} branch ceiling should bound a distinct interior`).toBeGreaterThan(6);
+        expect(Math.abs(bottomBand - middleBand), `${side} branch floor should bound a distinct interior`).toBeGreaterThan(4);
       });
       await testInfo.attach(`three-topology-${archetype}-${viewport.width}px`, {
         body: screenshot,

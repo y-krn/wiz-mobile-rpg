@@ -752,40 +752,42 @@ export class ThreeDungeonRenderer {
     // Center the threshold on the current cell so its floor and ceiling line
     // up with the actual neighboring cell rather than ending at the front
     // corner of the side wall.
-    const z = profile.startZ;
-    const openingWidth = profile.cellDepth * 0.72;
+    const z = profile.frontWallZ + 0.18;
+    const openingWidth = profile.cellDepth * 0.86;
     // Keep the lintel inside the portrait viewport. A full-height plane puts
     // its top edge above the camera and leaves only a vertical jamb visible.
     const openingHeight = profile.wallHeight * 0.62;
+    // Local -Z is the branch-forward direction. Rotate it toward world -X
+    // for a left opening and world +X for a right opening, matching the
+    // cardinal side-cell transforms in addCorridorTopology.
+    const branchYaw = side < 0 ? Math.PI / 2 : -Math.PI / 2;
     const mouthMaterial = new MeshBasicMaterial({
-      color: wall.clone().multiplyScalar(0.32),
+      color: wall.clone().multiplyScalar(0.18),
       transparent: true,
-      opacity: 0.22,
+      opacity: 0.16,
       depthWrite: false,
       side: DoubleSide
     });
     const mouth = new Mesh(new PlaneGeometry(openingWidth, openingHeight), mouthMaterial);
     const openingY = openingHeight / 2 + 0.10;
     mouth.position.set(side * (profile.cellWidth / 2 + 0.018), openingY, z);
-    mouth.rotation.y = side * Math.PI / 2;
+    mouth.rotation.y = branchYaw;
+    mouth.renderOrder = 4;
     mouth.userData = { surface: "side-branch-mouth", topology: { z: topology.z, column: topology.column } };
     parent.add(mouth);
 
-    // Give the mouth actual spatial depth. The floor and ceiling tongue are
-    // visible from the camera and continue into the rotated neighboring
-    // branch, making the opening read as traversable space rather than a
-    // flat dark marker at the edge of the front wall.
+    // Build a short, coherent vestibule from the threshold into the actual
+    // neighboring cell. Its bevel is camera-readable, while the neighboring
+    // cell behind it remains aligned to the cardinal ±X topology.
     const branchDepth = profile.cellDepth * 0.95;
-    // Let the near face overlap the threshold by a small lip. This keeps the
-    // continuous floor visible even when a neighboring cell's boundary wall
-    // is rendered at the exact shared edge.
-    const branchCenterX = side * (profile.cellWidth / 2 + branchDepth / 2 - 0.95);
-    const branchCenterZ = profile.startZ;
-    // Splay the short reveal toward the player while the real neighboring
-    // cell remains aligned to the cardinal ±X topology behind it.
-    const branchYaw = side * 1.15;
+    const branchVolume = new Group();
+    branchVolume.position.set(side * (profile.cellWidth / 2 + 0.018), 0, z);
+    branchVolume.rotation.y = branchYaw;
+    branchVolume.renderOrder = 5;
+    branchVolume.userData = { topology: { z: topology.z, column: topology.column } };
+    parent.add(branchVolume);
     const branchSurfaceMaterial = new MeshBasicMaterial({
-      color: wall.clone().multiplyScalar(0.76),
+      color: wall.clone().multiplyScalar(0.46),
       // The reveal is intentionally drawn after boundary walls so their
       // shared-edge depth buffer cannot turn the opening back into a panel.
       depthTest: false,
@@ -794,31 +796,40 @@ export class ThreeDungeonRenderer {
     });
     const branchFloorGeometry = new BoxGeometry(openingWidth, 0.045, branchDepth);
     const floorPositions = branchFloorGeometry.attributes.position;
-    const floorRise = 1.40;
+    const floorRise = 0.48;
     for (let index = 0; index < floorPositions.count; index++) {
       floorPositions.setY(index, floorPositions.getY(index) + floorRise * floorPositions.getZ(index) / branchDepth);
     }
     floorPositions.needsUpdate = true;
     branchFloorGeometry.computeVertexNormals();
     const branchFloor = new Mesh(branchFloorGeometry, branchSurfaceMaterial);
-    branchFloor.rotation.y = branchYaw;
-    // A threshold ramp keeps the lateral floor in the short mobile frustum;
-    // its far edge returns to the real corridor floor.
-    branchFloor.position.set(branchCenterX, floorRise / 2, branchCenterZ);
-    branchFloor.renderOrder = 5;
+    branchFloor.material.color.multiplyScalar(1.25);
+    branchFloor.position.set(0, floorRise / 2, -branchDepth / 2);
     branchFloor.userData = { surface: "side-branch-floor", topology: { z: topology.z, column: topology.column } };
-    parent.add(branchFloor);
+    branchVolume.add(branchFloor);
     const branchCeiling = new Mesh(
       new BoxGeometry(openingWidth, 0.045, branchDepth),
       branchSurfaceMaterial.clone()
     );
-    branchCeiling.material.color.multiplyScalar(0.32);
-    branchCeiling.rotation.y = branchYaw;
-    branchCeiling.position.set(branchCenterX, openingY + openingHeight / 2 - 0.02, branchCenterZ);
-    branchCeiling.renderOrder = 5;
+    branchCeiling.material.color.multiplyScalar(0.48);
+    branchCeiling.position.set(0, openingY + openingHeight / 2 - 0.02, -branchDepth / 2);
     branchCeiling.userData = { surface: "side-branch-ceiling", topology: { z: topology.z, column: topology.column } };
-    parent.add(branchCeiling);
+    branchVolume.add(branchCeiling);
 
+    const branchWallMaterial = branchSurfaceMaterial.clone();
+    // Keep the long side planes subordinate to the floor/ceiling reveal. The
+    // threshold frame carries wall thickness at the near edge; a bright
+    // longitudinal plane would flatten the branch back into a panel.
+    branchWallMaterial.color.multiplyScalar(0.28);
+    branchWallMaterial.transparent = true;
+    branchWallMaterial.opacity = 0.48;
+    [-1, 1].forEach((edge) => {
+      const branchWall = new Mesh(new BoxGeometry(0.045, openingHeight, branchDepth), branchWallMaterial.clone());
+      branchWall.position.set(edge * (openingWidth / 2), openingY, -branchDepth / 2);
+      branchWall.userData = { surface: "side-branch-wall", topology: { z: topology.z, column: topology.column } };
+      branchVolume.add(branchWall);
+    });
+    branchWallMaterial.dispose();
     const frameMaterial = new MeshBasicMaterial({
       color: wall.clone().multiplyScalar(0.68),
       transparent: true,
@@ -828,8 +839,8 @@ export class ThreeDungeonRenderer {
     // Put the threshold frame on the player side of the doorway. This keeps
     // the branch volume behind it while preserving a deterministic hit on
     // the visible lintel for pointer/raycast probes.
-    const frameX = side * (profile.cellWidth / 2 - 0.03);
-    const frameZ = profile.frontWallZ + 0.08;
+    const frameX = side * (profile.cellWidth / 2 + 0.04);
+    const frameZ = z;
     const addFrame = (width, height, frameZ, frameY, surface) => {
       const frame = new Mesh(new BoxGeometry(0.06, height, width), frameMaterial.clone());
       frame.position.set(frameX, frameY, frameZ);
