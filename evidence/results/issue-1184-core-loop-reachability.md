@@ -81,30 +81,44 @@ but it also changes player behavior and still records 37 deaths from parting
 attacks. Its death causes remain mixed: normal enemy 51.1%, trap 30.7%, poison
 18.2%. It therefore does not establish that a free safety change is correct.
 
-## A–F diagnosis
+## A–F diagnosis (Issue #1184 definitions)
 
-- **A — starting kit / starting stats:** contributory, but not sufficient. The
-  matched kits range from 89.6% to 94.8% B1F death under the same world seeds;
-  vanguard is the best of these four rows but still ends before B2 in 89.6%.
-- **B — encounter composition:** a high-value candidate. In the vanguard fight
-  row, two-visible-enemy encounters are 72.8% lethal versus 25.7% for one
-  visible enemy.
-- **C — recovery availability:** unobserved by design. The diagnostic has no
-  consumables, no camp rest, and no town portal; it cannot claim that recovery
-  is ineffective in production.
-- **D — non-combat cost:** material. 260 primary-row deaths have `unknown`
-  encounter ordinal; trap and poison are independently recorded rather than
-  folded into combat damage.
-- **E — reward / build access:** the first reward is usually reachable, but an
-  accepted equipment opportunity is less universal and an automatic swap is
-  much later. This supports a follow-up on information and player access, not
-  an automatic-equipping recommendation.
-- **F — flee / retreat clarity:** the production UI and resolver are reachable;
-  threshold flee has substantial preemption and parting-attack deaths, while
-  visible multi-enemy flee is a distinct policy with a real cost.
+The labels below retain the meanings from the Issue rather than introducing a
+new taxonomy:
 
-The measured compound is **B + D**, with **E** as the clearest core-loop
-reachability gap. No production balance tuning is proposed by this Issue.
+- **A — first 1–2 fights' combat Cost:** strongly supported as an early-stop
+  candidate. In the primary vanguard fight row, survival is 65.0% through the
+  first encounter and 26.3% through the second; two-visible-enemy encounters
+  are 72.8% lethal versus 25.7% for one visible enemy. This is evidence for
+  follow-up sensitivity work, not a numeric tuning decision.
+- **B — between-fight resource / recovery:** not established by this run. The
+  diagnostic intentionally omits consumables, camp rest, and town return, so it
+  cannot distinguish absent recovery from recovery that is ineffective in
+  production.
+- **C — death before meaningful Loot / Build opportunity:** not the primary
+  explanation in the measured rows. Vanguard reaches a meaningful reward in
+  93.4% of runs and an accepted equipment opportunity in 88.5%; 7.4% of deaths
+  precede the first meaningful reward. The remaining question is whether the
+  opportunity is understandable and actionable, which this metric cannot prove.
+- **D — Loot arrives but no valuable Build change or judgment occurs:**
+  unresolved. `buildChangeOpportunity` records equipment reaching the bag and
+  `automatic swap` is simulator telemetry; neither demonstrates that a player
+  recognized value or made a meaningful choice. The single manual run observed
+  the comparison surface, but is insufficient to close this candidate.
+- **E — fight / flee judgment:** partially supported. The production flee path
+  and its parting-attack cost are observable; the counterfactual visible-
+  multi-enemy policy improves B1F survival from 10.4% to 16.4% B2 arrival but
+  still records 37 parting-attack deaths. This does not establish that the
+  player-facing judgment is clear or that the policy should change.
+- **F — a numeric opportunity exists but the next-trial hypothesis is unreadable
+  in actual play:** unresolved. The manual run exposed the death log, retreat
+  cost, and equipment comparison, but one current-state run cannot establish
+  that players see a viable next trial or want to continue. This needs targeted
+  qualitative/multi-run evidence.
+
+The strongest measured candidate is **A**. **B**, **D**, and **F** remain
+additional-diagnosis candidates; **C** is less supported as the primary cause;
+**E** is only partial. No production balance tuning is proposed by this Issue.
 
 ## Production reachability and manual playtest
 
@@ -122,9 +136,10 @@ reached a two-enemy `火薬コウモリ + コボルトの斥候` encounter and e
 B1F at turn 2 with HP 0 from the scout's 3 damage. The result screen exposed
 the death log and `DEAD` state.
 
-The player can explain the death, the next likely change (manage the first
-combat or retreat sooner), the reward/build choice, and the cost of choosing
-flee. The observed path is consistent with the measured compound cause and
+This confirms that the operator can reach and inspect the death log, retreat
+cost, and equipment comparison surface. It does not establish that a player
+can explain the next trial, sees a viable path forward, or wants to continue;
+those remain open questions for the next diagnostic phase. The observed path
 does not justify a numeric tune in this parent Issue.
 
 ## Validity and limits
