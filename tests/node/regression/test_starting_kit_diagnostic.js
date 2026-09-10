@@ -65,7 +65,8 @@ const entry = flee.encounterExposure.encounterRows[0];
 for (const field of [
   "runIndex", "encounterOrdinal", "initialCompositionKey", "hpBeforeEncounter",
   "maxHpBeforeEncounter", "hpRateBeforeEncounter", "mpBeforeEncounter",
-  "maxMpBeforeEncounter", "mpRateBeforeEncounter", "outcome"
+  "maxMpBeforeEncounter", "mpRateBeforeEncounter", "hpAfterEncounter",
+  "mpAfterEncounter", "combatRounds", "enemyActionCount", "normalDamage", "outcome"
 ]) {
   assert.ok(Object.hasOwn(entry, field), `encounter row missing ${field}`);
 }
@@ -75,6 +76,10 @@ for (const field of [
   "hpBeforeEncounter", "maxHpBeforeEncounter", "hpRateBeforeEncounter",
   "mpBeforeEncounter", "maxMpBeforeEncounter", "mpRateBeforeEncounter"
 ]) {
+  assert.equal(typeof entry[field], "number", `encounter row ${field} is numeric`);
+  assert.ok(Number.isFinite(entry[field]), `encounter row ${field} is finite`);
+}
+for (const field of ["hpAfterEncounter", "mpAfterEncounter", "combatRounds", "enemyActionCount", "normalDamage"]) {
   assert.equal(typeof entry[field], "number", `encounter row ${field} is numeric`);
   assert.ok(Number.isFinite(entry[field]), `encounter row ${field} is finite`);
 }
@@ -106,9 +111,22 @@ assert.equal(report.configuration.targetPolicy, "production-auto");
 assert.equal(report.configuration.seed, 1139);
 assert.equal(report.configuration.worldSeedTemplate, "issue-1176:{seed}:{runIndex}");
 assert.equal(typeof report.runOutcome.b1DeathRate, "number");
+assert.equal(typeof report.earlyProgression.survival[1].survivedRate, "number");
+assert.equal(typeof report.earlyProgression.survival[2].conditionalSurvivalRate, "number");
+assert.ok(report.earlyProgression.deathEncounterOrdinal);
+for (const type of ["meaningfulReward", "objectLoot", "buildChangeOpportunity", "buildChange"]) {
+  assert.equal(typeof report.rewardOpportunity.byType[type].opportunityRate, "number");
+  assert.ok(
+    report.rewardOpportunity.byType[type].deathBeforeOpportunityRate === null
+      || typeof report.rewardOpportunity.byType[type].deathBeforeOpportunityRate === "number"
+  );
+}
 assert.equal(typeof report.encounterExposure.enemyEncounterCount, "number");
+assert.ok(report.encounterExposure.byInitialVisibleEnemyCount);
 assert.equal(typeof report.combatCost.splitOnDeath.triggers, "number");
 assert.equal(typeof report.combatCost.guardAdjacent.guardedCount, "number");
+assert.equal(typeof report.combatCost.nonCombat.trapDamageHp, "number");
+assert.equal(typeof report.combatCost.nonCombat.poisonApplications, "number");
 assert.ok(report.encounterExposure.byComposition);
 assert.ok(report.deathContribution.byComposition);
 const firstComposition = Object.values(report.encounterExposure.byComposition)[0];
@@ -124,6 +142,8 @@ assert.equal(typeof firstComposition.encounterLethalityRate, "number");
 assert.equal(typeof report.runOutcome.averageCombatRounds, "number");
 assert.equal(typeof report.runOutcome.trapDamageHp, "number");
 assert.equal(typeof report.runOutcome.poisonApplications, "number");
+assert.ok(report.rewardOpportunity.rewardEventCount >= 0);
+assert.equal(report.rewardOpportunity.rows.length, report.runs);
 
 const matchedVanguard = await runDiagnostic({
   startingKit: "vanguard",
