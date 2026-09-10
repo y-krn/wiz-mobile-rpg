@@ -78,8 +78,12 @@ When enemy target selection is active, direct canvas taps use the staged
 enemy's bounded enlarged hit region and must return the original combat target
 index. Enlarging a hit region must not merge adjacent enemies into one target;
 candidate selection must remain deterministic at overlapping boundaries. The
-accessible target list is the fallback and must remain present and usable when
-direct canvas targeting is unavailable.
+direct tap is the primary single-enemy action. If direct canvas targeting is
+unavailable or an assistive technology needs another input, retain an
+equivalent target-selection path, but do not prescribe a target-list
+implementation. Do not reintroduce visible enemy target buttons into the
+normal visual UI. When the target-selection flow is touched, Back/cancel must
+abandon an uncommitted target without moving or otherwise changing the world.
 
 ## Danger cue and mini-map coexistence
 

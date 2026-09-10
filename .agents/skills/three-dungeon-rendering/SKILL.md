@@ -33,26 +33,36 @@ tests.
 Mark every applicable category before testing:
 
 - topology / geometry;
-- camera / FOV / fog;
-- lighting / material;
+- camera / FOV / eye/look-at / corridor profile;
+- lighting / material / fog;
 - combat staging / targeting;
 - mini-map / overlay coexistence;
 - resource lifecycle;
 - mobile performance / bundle.
 
-Choose only the fixtures required by those categories, then include shared
-regression checks when the changed boundary can affect them:
+Apply every mandatory row below for each touched category; the rows are
+additive, so a camera change also runs the combat and danger checks listed in
+its row. This coupling is intentional: prior regressions crossed these
+presentation boundaries.
 
-- topology, geometry, camera, or fog: straight corridor, dead end, left turn,
-  right turn, T junction, and cross junction at 320, 360, 390, and 430 px
-  widths; inspect with the mini-map hidden and repeat a coexistence case with
-  it visible;
-- biome geometry/material: one representative B1 case and one materially
-  different arch/biome case;
-- combat presentation or targeting: single enemy, pair, and trio, with target
-  selection active; tap each staged enemy and verify its original target index;
-- shared regressions: danger cue, one-way barrier, orientation/resize, and
-  direct-target accessible fallback when applicable.
+| Touched category | Mandatory fixtures/checks |
+| --- | --- |
+| camera / FOV / eye/look-at / corridor profile | six topology archetypes at 320, 360, 390, and 430 px; single/pair/trio combat staging with target-selection visuals; danger cue; one-way barrier; mini-map coexistence; orientation/resize |
+| topology / side opening / corridor geometry | six topology archetypes; one-way barrier; mini-map coexistence; combat staging and front-wall occlusion |
+| lighting / material / fog | six topology archetypes; combat label/marker legibility; danger cue and one-way visual legibility |
+| combat staging / hit region / target selection | single enemy, pair, trio; actual tap to each original target index; Back/cancel path when the selection flow is touched |
+| mini-map / overlay coexistence | exploration visible and non-exploration hidden states, with canvas input unaffected |
+| resource lifecycle | repeated scene rebuild with geometry/material/texture disposal evidence |
+| mobile performance / bundle | browser proxy timing, long-frame/resource checks, and bundle impact when relevant |
+
+For topology/camera/geometry rows, the six archetypes are straight corridor,
+dead end, left turn, right turn, T junction, and cross junction. Inspect primary
+evidence with the mini-map hidden and repeat a coexistence case with it visible.
+For biome geometry/material changes, include one representative B1 case and one
+materially different arch/biome case. For target-selection changes, direct tap
+is primary; retain an equivalent accessibility alternative when needed without
+fixing its implementation to a visible enemy target list. Do not reintroduce
+visible enemy target buttons into the normal visual UI.
 
 Use the actual fixture names and executable bounds from current source/tests;
 do not duplicate them as durable constants in this Skill.
@@ -68,7 +78,10 @@ do not duplicate them as durable constants in this Skill.
   fog-masked, and wall/ceiling tones preserve hierarchy.
 - Confirm combat bodies, labels, and markers remain in frame and separated for
   1/2/3 enemies; confirm the front-wall occlusion relationship and direct tap
-  mapping to the correct target index.
+  mapping to the correct target index. If the selection flow is touched,
+  confirm Back/cancel abandons the uncommitted target without a world action.
+- Confirm any accessibility alternative preserves equivalent target selection
+  when needed without requiring a visible enemy target list.
 - Confirm danger cue placement and the shared mini-map visibility and input
   contract.
 
