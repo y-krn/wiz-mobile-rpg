@@ -6,10 +6,12 @@ import fs from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { getCharacterEquipmentLoad } from "../../src/rules/equipment_load.js";
+import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1145-visible-multi-enemy-flee-v1";
+export const RUNNER_VERSION = "issue1176-starting-kit-load-v1";
 export const SCHEMA_VERSION = 2;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const POLICY_IDS = Object.freeze([
@@ -25,6 +27,7 @@ const RUNNER_PATH = "scratch/measurements/starting_kit_diagnostic.js";
 const PRODUCTION_PATHS = Object.freeze([
   "scratch/simulations/sim_depth_material_ev.js",
   "src/state/initial_state.js",
+  "src/rules/equipment_load.js",
   "src/data/encounters.js",
   "src/combat_ui/encounter.js",
   "src/combat_logic/round.js",
@@ -512,6 +515,7 @@ export async function runDiagnostic({
   }
   const configuration = {
     startingKit,
+    equipmentLoad: getCharacterEquipmentLoad(createStartingKitCharacter(startingKit)),
     policy,
     fleeHpThreshold: scenario.fleeHpThreshold,
     floorStart: 1,
@@ -581,7 +585,7 @@ function buildSummary(report) {
     "",
     `- runner: \`${report.runnerVersion}\` / schema: ${report.schemaVersion}`,
     `- source SHA: \`${measurement.sourceCommit || "not recorded"}\``,
-    `- kit / policy / N: \`${result.configuration.startingKit}\` / \`${result.configuration.policy}\` / ${result.configuration.runs}`,
+    `- kit / load / policy / N: \`${result.configuration.startingKit}\` / ${result.configuration.equipmentLoad.label} (${result.configuration.equipmentLoad.class}) / \`${result.configuration.policy}\` / ${result.configuration.runs}`,
     `- seed: ${result.configuration.seed}; consumables at departure: none`,
     "",
     "## Run outcome",

@@ -9,9 +9,10 @@ import { pathToFileURL } from "node:url";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1151-fixed-combat-composition-v2";
+export const RUNNER_VERSION = "issue1151-fixed-combat-composition-v3";
 export const SCHEMA_VERSION = 2;
 export const STARTING_KIT = "vanguard";
+export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const ENTRY_MP_RATIO = 1;
 export const HP_BANDS = Object.freeze([
   Object.freeze({ id: "100", label: "HP 100%", ratio: 1 }),
@@ -287,9 +288,9 @@ function finalizeAccumulator(accumulator, runs) {
   };
 }
 
-function createScenario(composition, hpBand, policy) {
+function createScenario(composition, hpBand, policy, startingKit = STARTING_KIT) {
   return {
-    startingKit: STARTING_KIT,
+    startingKit,
     startingHealPotions: 0,
     startingGreaterHeals: 0,
     startingManaPotions: 0,
@@ -318,10 +319,14 @@ export async function runFixedCombatDiagnostic({
   runs = DEFAULT_RUNS,
   seed = DEFAULT_SEED,
   allowSmallRunCount = false,
-  loadoutId = "standard"
+  loadoutId = "standard",
+  startingKit = STARTING_KIT
 } = {}) {
   const loadout = LOADOUTS[loadoutId];
   if (!loadout) throw new Error(`loadoutId must be ${Object.keys(LOADOUTS).join("|")}: ${loadoutId}`);
+  if (!STARTING_KIT_IDS.includes(startingKit)) {
+    throw new Error(`startingKit must be ${STARTING_KIT_IDS.join("|")}: ${startingKit}`);
+  }
   const normalizedRuns = positiveInteger(
     runs,
     "runs",
@@ -341,7 +346,7 @@ export async function runFixedCombatDiagnostic({
           entryHpRatio: hpBand.ratio,
           policy
         });
-        const scenario = createScenario(composition, hpBand, policy);
+        const scenario = createScenario(composition, hpBand, policy, startingKit);
         for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
           const worldSeed = `issue-1151:${normalizedSeed}:${hpBand.id}:${composition.id}:${runIndex}`;
           const result = simulateRun({
@@ -448,12 +453,12 @@ export async function runFixedCombatDiagnostic({
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
-    question: "固定したvanguard開始状態・B1F敵2体編成で、composition × entry HP × fight/flee のCost差が分離するか",
+    question: "固定したstarting kit・B1F敵2体編成で、composition × entry HP × fight/flee のCost差が分離するか",
     evidenceScope: "run",
     configuration: {
       loadoutId: loadout.id,
       loadoutLabel: loadout.label,
-      startingKit: STARTING_KIT,
+      startingKit,
       floor: 1,
       initialMpRatio: ENTRY_MP_RATIO,
       hpBands: HP_BANDS.map(({ id, ratio }) => ({ id, ratio })),
@@ -490,7 +495,7 @@ function buildReport(result, provenance, options) {
     schemaVersion: SCHEMA_VERSION,
     seed: result.configuration.seed,
     runs: result.configuration.runs,
-    startingKit: STARTING_KIT,
+    startingKit: result.configuration.startingKit,
     hpBands: result.configuration.hpBands,
     policies: POLICIES,
     compositions: COMPOSITIONS.map(composition => composition.id)
@@ -525,7 +530,7 @@ function buildSummary(report) {
     "",
     `- runner: \`${report.runnerVersion}\` / schema: ${report.schemaVersion}`,
     `- source SHA: \`${report.measurement.sourceCommit || "not recorded"}\``,
-    `- starting state: ${STARTING_KIT}; entry MP 100%; HP bands 100/75/50/25%; N=${report.configuration.runs}`,
+    `- starting state: ${report.configuration.startingKit}; entry MP 100%; HP bands 100/75/50/25%; N=${report.configuration.runs}`,
     `- seed: ${report.configuration.seed}; matched worldSeed is policy-independent`,
     "",
     "## Fixed composition × resource results",
@@ -593,8 +598,9 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const runs = positiveInteger(options.runs || DEFAULT_RUNS, "runs", DEFAULT_RUNS);
   const seed = positiveInteger(options.seed || DEFAULT_SEED, "seed");
-  if (options["starting-kit"] && options["starting-kit"] !== STARTING_KIT) {
-    throw new Error(`starting-kit must be ${STARTING_KIT}: ${options["starting-kit"]}`);
+  const startingKit = options["starting-kit"] || STARTING_KIT;
+  if (!STARTING_KIT_IDS.includes(startingKit)) {
+    throw new Error(`starting-kit must be ${STARTING_KIT_IDS.join("|")}: ${startingKit}`);
   }
   if (!options.output || !options.summary || !options.manifest) {
     throw new Error("--output, --summary, and --manifest are required");
@@ -603,7 +609,7 @@ async function main() {
     fetchOriginMain: false,
     measurementRunnerPaths: [RUNNER_PATH, ...PRODUCTION_PATHS]
   });
-  const result = await runFixedCombatDiagnostic({ runs, seed });
+  const result = await runFixedCombatDiagnostic({ runs, seed, startingKit });
   const report = buildReport(result, provenance, options);
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));

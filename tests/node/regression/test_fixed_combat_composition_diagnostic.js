@@ -7,6 +7,7 @@ const diagnostic = await import("../../../scratch/measurements/fixed_combat_comp
 const { derivePlayerActionExecutionTiming } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
 assert.equal(diagnostic.STARTING_KIT, "vanguard");
+assert.deepEqual(diagnostic.STARTING_KIT_IDS, ["vanguard", "scout", "devotion", "arcana"]);
 assert.deepEqual(diagnostic.POLICIES, ["fight", "immediate-flee"]);
 assert.deepEqual(diagnostic.HP_BANDS.map(band => band.id), ["100", "75", "50", "25"]);
 assert.equal(diagnostic.COMPOSITIONS.length, 6);
@@ -72,6 +73,16 @@ assert.ok(report.cases.every(testCase => {
   return observedExecutionCount === testCase.firstPlayerActionExecuted &&
     testCase.firstPlayerActionExecuted <= 1;
 }));
+
+const scoutReport = await diagnostic.runFixedCombatDiagnostic({
+  runs: 1,
+  seed: 1151,
+  startingKit: "scout",
+  allowSmallRunCount: true
+});
+assert.equal(scoutReport.configuration.startingKit, "scout");
+assert.equal(scoutReport.cases.length, report.cases.length);
+assert.ok(scoutReport.cases.every(testCase => Number.isFinite(testCase.clearRate)));
 
 const enemyFirstExecuted = [
   { actor: "monster", actionType: "enemy", order: 0, executed: true },
