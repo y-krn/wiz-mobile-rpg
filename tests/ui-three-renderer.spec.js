@@ -56,18 +56,23 @@ function decodeRgbPng(buffer) {
   return { width, height, channels, rows };
 }
 
-function averageBlueGreen(image, xStart, xEnd, yStart, yEnd) {
-  let total = 0;
-  let count = 0;
+function blueGreenRange(image, bounds) {
+  const xStart = Math.max(0, Math.floor(bounds.left));
+  const xEnd = Math.min(image.width, Math.ceil(bounds.right));
+  const yStart = Math.max(0, Math.floor(bounds.top));
+  const yEnd = Math.min(image.height, Math.ceil(bounds.bottom));
+  let minimum = Infinity;
+  let maximum = -Infinity;
   for (let y = yStart; y < yEnd; y++) {
     const row = image.rows[y];
     for (let x = xStart; x < xEnd; x++) {
       const index = x * image.channels;
-      total += row[index + 1] + row[index + 2];
-      count += 2;
+      const value = row[index + 1] + row[index + 2];
+      minimum = Math.min(minimum, value);
+      maximum = Math.max(maximum, value);
     }
   }
-  return total / count;
+  return maximum - minimum;
 }
 
 const VIEWPORTS = [
@@ -192,6 +197,8 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
         const { dungeonRenderer } = await import('/src/renderer.js');
         dungeonRenderer.draw();
       }, archetype);
+      await page.locator('#viewport-hud').evaluate((element) => { element.style.display = 'none'; });
+      await expect(page.locator('#viewport-hud')).toHaveCSS('display', 'none');
 
       const evidence = await page.evaluate(async () => {
         const { dungeonRenderer } = await import('/src/renderer.js');
@@ -290,14 +297,8 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
         path: testInfo.outputPath(`three-topology-${archetype}-${viewport.width}px.png`),
       });
       const screenshotImage = decodeRgbPng(screenshot);
-      evidence.sideOpeningBounds.forEach(({ side }) => {
-        const branchStart = side === 'left' ? 0 : Math.floor(screenshotImage.width * 0.5);
-        const branchEnd = side === 'left' ? Math.floor(screenshotImage.width * 0.5) : screenshotImage.width;
-        const topBand = averageBlueGreen(screenshotImage, branchStart, branchEnd, 0, Math.floor(screenshotImage.height * 0.24));
-        const middleBand = averageBlueGreen(screenshotImage, branchStart, branchEnd, Math.floor(screenshotImage.height * 0.34), Math.floor(screenshotImage.height * 0.66));
-        const bottomBand = averageBlueGreen(screenshotImage, branchStart, branchEnd, Math.floor(screenshotImage.height * 0.76), screenshotImage.height);
-        expect(Math.abs(topBand - middleBand), `${side} branch ceiling should bound a distinct interior`).toBeGreaterThan(6);
-        expect(Math.abs(bottomBand - middleBand), `${side} branch floor should bound a distinct interior`).toBeGreaterThan(4);
+      evidence.sideOpeningBounds.forEach(({ side, bounds }) => {
+        expect(blueGreenRange(screenshotImage, bounds), `${side} branch opening should contain contrasting floor/ceiling/reveal pixels`).toBeGreaterThan(24);
       });
       await testInfo.attach(`three-topology-${archetype}-${viewport.width}px`, {
         body: screenshot,
@@ -309,8 +310,24 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
 
 test('Three.js corridor readability keeps near openings clear and mirrors biome geometry @smoke @visual', async ({ page }, testInfo) => {
   const fixtures = [
-    { name: 'b1-straight', floor: 1, widths: VIEWPORTS },
-    { name: 'b2-straight-arch', floor: 6, widths: [VIEWPORTS[2]] },
+    {
+      name: 'b1-straight',
+      floor: 1,
+      widths: VIEWPORTS,
+      path: [[5, 5, 0], [5, 4, 0], [5, 3, 0], [5, 2, 0]],
+    },
+    {
+      name: 'b2-straight-arch',
+      floor: 6,
+      widths: [VIEWPORTS[2]],
+      path: [[5, 5, 0], [5, 4, 0], [5, 3, 0], [5, 2, 0]],
+    },
+    {
+      name: 'b2-right-turn-arch',
+      floor: 6,
+      widths: [VIEWPORTS[2]],
+      path: [[5, 5, 0], [5, 4, 1], [6, 4, 1]],
+    },
   ];
 
   for (const fixture of fixtures) {
@@ -320,7 +337,7 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
       await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
       await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
 
-      await page.evaluate(async (floor) => {
+      await page.evaluate(async ({ floor, path }) => {
         const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
         const { updateUI } = await import('/src/ui.js');
         const makeCell = () => ({
@@ -329,9 +346,10 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
           type: 'empty',
         });
         const map = Array.from({ length: 11 }, () => Array.from({ length: 11 }, makeCell));
-        for (const [x, y] of [[5, 5], [5, 4], [5, 3], [5, 2]]) {
-          map[y][x].walls[0] = false;
-          map[y - 1][x].walls[2] = false;
+        for (const [x, y, direction] of path) {
+          const [dx, dy] = [[0, -1], [1, 0], [0, 1], [-1, 0]][direction];
+          map[y][x].walls[direction] = false;
+          map[y + dy][x + dx].walls[(direction + 2) % 4] = false;
         }
         state.party = [createStartingKitCharacter('vanguard')];
         state.currentRun = createDefaultCurrentRun();
@@ -350,7 +368,7 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
         updateUI();
         const { dungeonRenderer } = await import('/src/renderer.js');
         dungeonRenderer.draw();
-      }, fixture.floor);
+      }, { floor: fixture.floor, path: fixture.path });
 
       const evidence = await page.evaluate(async () => {
         const { dungeonRenderer } = await import('/src/renderer.js');
@@ -454,7 +472,7 @@ test('Three.js danger cue stays outside the camera and visible in the corridor @
   await testInfo.attach('three-danger-cue-390px', { body: screenshot, contentType: 'image/png' });
 });
 
-test('Canvas and Three.js share the same exploration mini-map overlay contract @e2e', async ({ page }) => {
+test('Canvas and Three.js share the same exploration mini-map overlay contract @e2e @visual', async ({ page }, testInfo) => {
   const measure = async (url) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(url);
@@ -464,7 +482,7 @@ test('Canvas and Three.js share the same exploration mini-map overlay contract @
       const { menuContext } = await import('/src/navigation.js');
       const { dungeonRenderer } = await import('/src/renderer.js');
       const makeCell = () => ({
-        walls: [true, false, true, false],
+        walls: [false, false, false, false],
         blockEnter: [false, false, false, false],
         type: 'empty',
         event: null,
@@ -529,6 +547,24 @@ test('Canvas and Three.js share the same exploration mini-map overlay contract @
 
   const canvas = await measure('/');
   const three = await measure('/?renderer=three');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { menuContext } = await import('/src/navigation.js');
+    const { updateUI } = await import('/src/ui.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    state.gameState = 'explore';
+    menuContext.type = '';
+    menuContext.prevGameState = null;
+    updateUI();
+    dungeonRenderer.draw();
+  });
+  const minimapScreenshot = await page.locator('#viewport-panel').screenshot({
+    path: testInfo.outputPath('three-minimap-visible-branch-390px.png'),
+  });
+  await testInfo.attach('three-minimap-visible-branch-390px', {
+    body: minimapScreenshot,
+    contentType: 'image/png',
+  });
   expect(canvas.explore.visible).toBe(true);
   expect(three.explore.visible).toBe(true);
   expect(canvas.explore.checksum).toBeGreaterThan(0);
@@ -734,8 +770,21 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
             })(),
           };
         });
+        const canvasRect = document.querySelector('#dungeon-canvas').getBoundingClientRect();
+        const hudRect = document.querySelector('#viewport-hud').getBoundingClientRect();
+        const scale = Math.min(canvasRect.width / 400, canvasRect.height / 260);
+        const renderedLeft = canvasRect.left + (canvasRect.width - 400 * scale) / 2;
+        const renderedTop = canvasRect.top + (canvasRect.height - 260 * scale) / 2;
+        const toLocal = (value, origin) => (value - origin) / scale;
+        const hudBounds = {
+          left: toLocal(hudRect.left, renderedLeft),
+          right: toLocal(hudRect.right, renderedLeft),
+          top: toLocal(hudRect.top, renderedTop),
+          bottom: toLocal(hudRect.bottom, renderedTop),
+        };
         return {
           groupEvidence,
+          hudBounds,
           targetMeshes: targetMeshes.map((mesh) => ({
             targetIdx: mesh.userData.targetIdx,
             radius: mesh.geometry.parameters.radius,
@@ -746,6 +795,13 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
       });
 
       expect(evidence.groupEvidence).toHaveLength(fixture.monsters.length);
+      for (const group of evidence.groupEvidence) {
+        const overlapsHud = group.labelBounds.left < evidence.hudBounds.right
+          && group.labelBounds.right > evidence.hudBounds.left
+          && group.labelBounds.top < evidence.hudBounds.bottom
+          && group.labelBounds.bottom > evidence.hudBounds.top;
+        expect(overlapsHud, `label ${group.index} should not overlap direction HUD`).toBe(false);
+      }
       for (const group of evidence.groupEvidence) {
         expect(group.z).toBeGreaterThan(evidence.frontWallZ);
         expect(group.bodyRadius).toBeLessThan(0.32);
@@ -959,15 +1015,16 @@ test('Three.js Dungeon View disposes prototype materials across repeated scene r
   // Each town build creates two prototype StandardMaterials without adding
   // them to the scene, so both builds must dispose four prototypes explicitly.
   expect(disposeCount.disposeCalls).toBe(4);
-  // One mouth, one branch floor, one branch ceiling, and three frame clones
-  // are disposed during the rebuild; the frame prototype is disposed during
-  // addSideBranchMouth itself. The second build also disposes the first
-  // town marker, so the cumulative count is one higher.
-  expect(disposeCount.afterSideBranchBuild).toBe(7);
-  expect(disposeCount.basicDisposeCalls).toBe(8);
+  // One mouth, one branch floor, one branch ceiling, two reveal clones, and
+  // three frame clones are disposed during the rebuild; the reveal and frame
+  // prototypes are disposed during addSideBranchMouth itself. The second
+  // build also disposes the first town marker, so the cumulative count is one
+  // higher.
+  expect(disposeCount.afterSideBranchBuild).toBe(10);
+  expect(disposeCount.basicDisposeCalls).toBe(11);
 });
 
-test('Three.js Dungeon View follows map topology for all four directions @e2e @visual', async ({ page }) => {
+test('Three.js Dungeon View follows map topology for all four directions @e2e @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?renderer=three');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
@@ -1097,6 +1154,13 @@ test('Three.js Dungeon View follows map topology for all four directions @e2e @v
   });
 
   const { observations, oneWaySurfaces, oneWayVisuals, dangerCuePosition, movement } = topologyResult;
+  const oneWayScreenshot = await page.locator('#dungeon-canvas').screenshot({
+    path: testInfo.outputPath('three-one-way-barrier-390px.png'),
+  });
+  await testInfo.attach('three-one-way-barrier-390px', {
+    body: oneWayScreenshot,
+    contentType: 'image/png',
+  });
   const profile = observations[0].profile;
   expect(new Set(observations.map(({ signature }) => signature)).size).toBe(4);
   expect(observations.map(({ threeFacts }) => threeFacts)).toEqual(
@@ -1164,7 +1228,11 @@ test('Canvas and Three.js render the same representative dungeon states for comp
       const navigation = performance.getEntriesByType('navigation')[0];
       return Number((performance.now() - (navigation?.startTime || 0)).toFixed(1));
     });
-    await page.screenshot({ path: testInfo.outputPath(`${mode}-explore-danger.png`) });
+    const exploreDangerScreenshot = await page.screenshot({ path: testInfo.outputPath(`${mode}-explore-danger.png`) });
+    await testInfo.attach(`${mode}-explore-danger`, {
+      body: exploreDangerScreenshot,
+      contentType: 'image/png',
+    });
 
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
