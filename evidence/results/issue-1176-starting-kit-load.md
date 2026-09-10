@@ -4,7 +4,7 @@
 
 確認したい問いは、開始画面で production 装備から導出した「行動傾向」を選べるか、また軽装が標準と異なる Cost の払い方を実際に持つか、である。測定 scope は `run`。
 
-- Source: `8d1c17fa64b519c3cf87218f7170b6cfa74c602b`
+- Source: `51e3b2f8f7a11c1a9e7badbd71c3de02a81b7253`
 - Base: local `origin/main` `3146a2767c67cf6a4b17facf05533bab002e13cb` (remote freshness could not be verified because `git ls-remote` was blocked by DNS)
 - B1F runner: `issue1176-starting-kit-load-v2`, seed `1176`, N=1000 per kit and policy
 - Fixed runner: `issue1151-fixed-combat-composition-v3`, seed `1151`, N=1000 per case
@@ -33,12 +33,16 @@ These are diagnostic distributions, not a target win-rate recommendation. The B1
 
 The matched flee runs use the same seed policy with `visible-multi-enemy-flee` and record flee selected, executed, preempted, survived, parting-death, trap damage, poison applications, and combat rounds in the runner output.
 
-| Kit | Selected | Executed | Preempted | Survived | Parting death | Execution survival |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 鋼の前線 (`vanguard`) | 559 | 516 | 43 | 484 | 32 | 93.80% |
-| 軽装探索 (`scout`) | 419 | 394 | 25 | 371 | 23 | 94.16% |
-| 祈り (`devotion`) | 448 | 405 | 43 | 364 | 41 | 89.88% |
-| 術式 (`arcana`) | 411 | 368 | 43 | 322 | 46 | 87.50% |
+| Kit | B1F death | B2 arrival | Mean steps | Mean combats | Mean rounds | Trap damage HP | Poison applications | Selected | Executed | Preempted | Survived | Parting death | Execution survival |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 鋼の前線 (`vanguard`) | 82.7% | 17.3% | 38.030 | 1.970 | 5.059 | 9773 | 452 | 559 | 516 | 43 | 484 | 32 | 93.80% |
+| 軽装探索 (`scout`) | 89.7% | 10.3% | 26.375 | 1.526 | 5.444 | 7386 | 349 | 419 | 394 | 25 | 371 | 23 | 94.16% |
+| 祈り (`devotion`) | 88.6% | 11.4% | 28.495 | 1.619 | 4.378 | 7986 | 375 | 448 | 405 | 43 | 364 | 41 | 89.88% |
+| 術式 (`arcana`) | 90.2% | 9.8% | 25.345 | 1.488 | 3.519 | 7033 | 335 | 411 | 368 | 43 | 322 | 46 | 87.50% |
+
+The B1F flee rows use the same 1000-run population as the fight rows. The
+funnel counts are encounter-level observations; B1F death, B2 arrival, steps,
+trap, poison, and rounds are run-level outcomes for the same policy.
 
 ## Fixed #1151 representative-pair results
 
@@ -50,6 +54,18 @@ At entry HP 100% under the fight policy, averaging the six fixed compositions:
 | 軽装探索 (`scout`) | light / 速い | 0.43% | 43.10% |
 | 祈り (`devotion`) | standard / 標準 | 9.77% | 33.10% |
 | 術式 (`arcana`) | standard / 標準 | 35.83% | unobserved for fight action |
+
+For the fixed #1151 immediate-flee policy at HP 100%, six compositions ×
+N=1000 per kit produced the following run-level funnel. The fixed path has no
+preemption because the first selectable action is always the immediate flee;
+arcana's 55 deaths are parting attacks after execution.
+
+| Kit | Selected | Executed | Preempted | Survived | Parting death | Selection-to-survival |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 鋼の前線 (`vanguard`) | 6000 | 6000 | 0 | 6000 | 0 | 100.00% |
+| 軽装探索 (`scout`) | 6000 | 6000 | 0 | 6000 | 0 | 100.00% |
+| 祈り (`devotion`) | 6000 | 6000 | 0 | 6000 | 0 | 100.00% |
+| 術式 (`arcana`) | 6000 | 6000 | 0 | 5945 | 55 | 99.08% |
 
 The light kit has a materially higher first-action-before-enemy rate than the standard kit, while its production dagger/buckler/cloak stats do not make it a universal combat upgrade. This is diagnostic evidence only; no weapon, shield, armor, or initiative values were tuned.
 
