@@ -11,8 +11,8 @@ import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1176-starting-kit-load-v2";
-export const SCHEMA_VERSION = 2;
+export const RUNNER_VERSION = "issue1184-core-loop-reachability-v1";
+export const SCHEMA_VERSION = 3;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const POLICY_IDS = Object.freeze([
   "fight",
@@ -27,6 +27,10 @@ const RUNNER_PATH = "scratch/measurements/starting_kit_diagnostic.js";
 const PRODUCTION_PATHS = Object.freeze([
   "scratch/simulations/sim_depth_material_ev.js",
   "src/state/initial_state.js",
+  "src/state/inventory_state.js",
+  "src/state/run_loot.js",
+  "src/data.js",
+  "src/rules/item_rules.js",
   "src/rules/equipment_load.js",
   "src/data/encounters.js",
   "src/combat_ui/encounter.js",
@@ -123,6 +127,54 @@ function finalizeDistribution(distribution) {
     p95: percentile(0.95),
     min: values[0],
     max: values.at(-1)
+  };
+}
+
+const EARLY_SURVIVAL_ORDINALS = Object.freeze([1, 2, 3]);
+
+function createEarlyProgression() {
+  return {
+    survival: Object.fromEntries(EARLY_SURVIVAL_ORDINALS.map(ordinal => [ordinal, {
+      encountered: 0,
+      survived: 0
+    }])),
+    deathEncounterOrdinal: {}
+  };
+}
+
+function firstEvent(events, predicate) {
+  return events.find(predicate) || null;
+}
+
+function createOpportunityRecord() {
+  return {
+    runsWithOpportunity: 0,
+    deathsBeforeOpportunity: 0,
+    firstEncounterOrdinal: createDistribution(),
+    firstStep: createDistribution()
+  };
+}
+
+function observeOpportunity(record, event, runDied) {
+  if (event) {
+    record.runsWithOpportunity++;
+    addDistribution(record.firstEncounterOrdinal, event.encounterOrdinal);
+    addDistribution(record.firstStep, event.step);
+  } else if (runDied) {
+    record.deathsBeforeOpportunity++;
+  }
+}
+
+function finalizeOpportunity(record, runs, totalDeaths) {
+  return {
+    runsWithOpportunity: record.runsWithOpportunity,
+    opportunityRate: record.runsWithOpportunity / runs,
+    deathsBeforeOpportunity: record.deathsBeforeOpportunity,
+    deathBeforeOpportunityRate: totalDeaths > 0
+      ? record.deathsBeforeOpportunity / totalDeaths
+      : null,
+    firstEncounterOrdinal: finalizeDistribution(record.firstEncounterOrdinal),
+    firstStep: finalizeDistribution(record.firstStep)
   };
 }
 
@@ -255,6 +307,7 @@ function createAggregate(runs) {
     combatRounds: 0,
     trapDamageHp: 0,
     poisonApplications: 0,
+    damageHpBySource: {},
     damageReceived: createDistribution(),
     hpAfterCombat: createDistribution(),
     partingAttackDamage: createDistribution(),
@@ -265,7 +318,17 @@ function createAggregate(runs) {
     deathCauses: {},
     compositions: {},
     enemies: {},
-    encounterRows: []
+    initialVisibleEnemyCounts: {},
+    encounterRows: [],
+    earlyProgression: createEarlyProgression(),
+    rewardOpportunity: {
+      meaningfulReward: createOpportunityRecord(),
+      objectLoot: createOpportunityRecord(),
+      buildChangeOpportunity: createOpportunityRecord(),
+      buildChange: createOpportunityRecord(),
+      rows: [],
+      rewardEventCount: 0
+    }
   };
 }
 
@@ -297,9 +360,14 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     hpBeforeEncounter,
     maxHpBeforeEncounter,
     hpRateBeforeEncounter,
+    hpAfterEncounter: identity.hpAfter ?? diagnostic?.endHp ?? null,
     mpBeforeEncounter,
     maxMpBeforeEncounter,
     mpRateBeforeEncounter,
+    mpAfterEncounter: identity.mpAfter ?? diagnostic?.endMp ?? null,
+    combatRounds: identity.rounds ?? (rounds.length || null),
+    enemyActionCount: identity.enemyActions ?? null,
+    normalDamage: identity.totalNormalDamage ?? identity.normalDamage ?? null,
     fleeSelected,
     fleeExecuted,
     fleeSelectedButNotExecuted: Math.max(0, fleeSelected - fleeExecuted),
@@ -323,6 +391,75 @@ function observeRun(aggregate, result, runIndex) {
   aggregate.combatRounds += result.combatRounds || 0;
   aggregate.trapDamageHp += result.trapDamageHp || 0;
   aggregate.poisonApplications += result.statusObservations?.byStatus?.poisoned?.applications || 0;
+  Object.entries(result.damageHpBySource || {}).forEach(([source, damage]) => {
+    aggregate.damageHpBySource[source] = (aggregate.damageHpBySource[source] || 0) + damage;
+  });
+
+  EARLY_SURVIVAL_ORDINALS.forEach(ordinal => {
+    const survival = aggregate.earlyProgression.survival[ordinal];
+    if (encounters.length < ordinal) return;
+    survival.encountered++;
+    if (encounters.slice(0, ordinal).every(encounter => encounter.outcome !== "death")) {
+      survival.survived++;
+    }
+  });
+  if (result.outcome === "death") {
+    const deathEncounter = encounters.findIndex(encounter => encounter.outcome === "death");
+    const ordinal = deathEncounter >= 0 ? deathEncounter + 1 : "unknown";
+    increment(aggregate.earlyProgression.deathEncounterOrdinal, ordinal);
+  }
+
+  const rewardEvents = result.diagnostics?.rewardEvents || [];
+  const firstMeaningfulReward = firstEvent(rewardEvents, event => event.meaningful === true);
+  const firstObjectLoot = firstEvent(rewardEvents, event => event.objectLoot === true);
+  const firstBuildChangeOpportunity = firstEvent(
+    rewardEvents,
+    event => event.category === "equipment" && event.disposition === "bagged"
+  );
+  const firstBuildChange = firstEvent(
+    result.equipmentTelemetry || [],
+    event => event.type === "swap"
+  );
+  observeOpportunity(
+    aggregate.rewardOpportunity.meaningfulReward,
+    firstMeaningfulReward,
+    result.outcome === "death"
+  );
+  observeOpportunity(
+    aggregate.rewardOpportunity.objectLoot,
+    firstObjectLoot,
+    result.outcome === "death"
+  );
+  observeOpportunity(
+    aggregate.rewardOpportunity.buildChangeOpportunity,
+    firstBuildChangeOpportunity,
+    result.outcome === "death"
+  );
+  observeOpportunity(
+    aggregate.rewardOpportunity.buildChange,
+    firstBuildChange,
+    result.outcome === "death"
+  );
+  aggregate.rewardOpportunity.rewardEventCount += rewardEvents.length;
+  const summarizeEvent = event => event && {
+    source: event.source,
+    disposition: event.disposition,
+    floor: event.floor,
+    step: event.step,
+    encounterOrdinal: event.encounterOrdinal,
+    category: event.category,
+    itemType: event.itemType,
+    isCore: event.isCore,
+    objectLoot: event.objectLoot
+  };
+  aggregate.rewardOpportunity.rows.push({
+    runIndex,
+    outcome: result.outcome,
+    firstMeaningfulReward: summarizeEvent(firstMeaningfulReward),
+    firstObjectLoot: summarizeEvent(firstObjectLoot),
+    firstBuildChangeOpportunity: summarizeEvent(firstBuildChangeOpportunity),
+    firstBuildChange: summarizeEvent(firstBuildChange)
+  });
 
   const diagnostics = result.diagnostics?.encounters || [];
   const diagnosticsByOrdinal = new Map(diagnostics.map((diagnostic, index) => [index, diagnostic]));
@@ -333,6 +470,13 @@ function observeRun(aggregate, result, runIndex) {
     const composition = aggregate.compositions[key] ||= createCompositionRecord();
     const diagnostic = diagnosticsByOrdinal.get(index);
     const encounterRow = createEncounterRow(runIndex, index + 1, identity, diagnostic);
+    const visibleCount = String(encounterRow.initialVisibleEnemyCount);
+    const visibleRecord = aggregate.initialVisibleEnemyCounts[visibleCount] ||= {
+      encounters: 0,
+      deaths: 0
+    };
+    visibleRecord.encounters++;
+    visibleRecord.deaths += Number(identity.outcome === "death");
     aggregate.encounterRows.push(encounterRow);
     runCompositionKeys.add(key);
     observeEncounter(composition, identity, diagnostic, encounterRow);
@@ -395,6 +539,47 @@ function finalizeAggregate(aggregate, configuration) {
         finalizeCompositionRecord(record, aggregate.runs, aggregate.encounterCount, totalDeaths)
       ])
   );
+  const earlyProgression = {
+    survival: Object.fromEntries(EARLY_SURVIVAL_ORDINALS.map(ordinal => {
+      const record = aggregate.earlyProgression.survival[ordinal];
+      return [ordinal, {
+        encountered: record.encountered,
+        encounteredRate: record.encountered / aggregate.runs,
+        survived: record.survived,
+        survivedRate: record.survived / aggregate.runs,
+        conditionalSurvivalRate: record.encountered > 0
+          ? record.survived / record.encountered
+          : null
+      }];
+    })),
+    deathEncounterOrdinal: { ...aggregate.earlyProgression.deathEncounterOrdinal }
+  };
+  const rewardOpportunity = {
+    rewardEventCount: aggregate.rewardOpportunity.rewardEventCount,
+    byType: {
+      meaningfulReward: finalizeOpportunity(
+        aggregate.rewardOpportunity.meaningfulReward,
+        aggregate.runs,
+        totalDeaths
+      ),
+      objectLoot: finalizeOpportunity(
+        aggregate.rewardOpportunity.objectLoot,
+        aggregate.runs,
+        totalDeaths
+      ),
+      buildChangeOpportunity: finalizeOpportunity(
+        aggregate.rewardOpportunity.buildChangeOpportunity,
+        aggregate.runs,
+        totalDeaths
+      ),
+      buildChange: finalizeOpportunity(
+        aggregate.rewardOpportunity.buildChange,
+        aggregate.runs,
+        totalDeaths
+      )
+    },
+    rows: aggregate.rewardOpportunity.rows
+  };
   return {
     runs: aggregate.runs,
     runOutcome: {
@@ -418,11 +603,22 @@ function finalizeAggregate(aggregate, configuration) {
       trapDamageHp: aggregate.trapDamageHp,
       poisonApplications: aggregate.poisonApplications
     },
+    earlyProgression,
+    rewardOpportunity,
     encounterExposure: {
       enemyEncounterCount: aggregate.encounterCount,
       enemyEncounterRatePerRun: aggregate.encounterCount / aggregate.runs,
       compositionCount: Object.keys(aggregate.compositions).length,
       encounterRows: aggregate.encounterRows,
+      byInitialVisibleEnemyCount: Object.fromEntries(
+        Object.entries(aggregate.initialVisibleEnemyCounts)
+          .sort(([left], [right]) => Number(left) - Number(right))
+          .map(([count, record]) => [count, {
+            encounters: record.encounters,
+            deaths: record.deaths,
+            encounterLethalityRate: record.encounters > 0 ? record.deaths / record.encounters : null
+          }])
+      ),
       byEnemy: finalizeRecords(aggregate.enemies),
       byComposition: finalizeRecords(aggregate.compositions)
     },
@@ -459,6 +655,11 @@ function finalizeAggregate(aggregate, configuration) {
         ? aggregate.fleeSurvived / aggregate.fleeExecuted
         : null,
       fleePartingAttackDamage: finalizeDistribution(aggregate.partingAttackDamage),
+      nonCombat: {
+        trapDamageHp: aggregate.trapDamageHp,
+        poisonApplications: aggregate.poisonApplications,
+        damageHpBySource: { ...aggregate.damageHpBySource }
+      },
       splitOnDeath: {
         triggers: aggregate.splitOnDeathTriggers,
         spawnedCount: aggregate.splitOnDeathSpawned
@@ -522,7 +723,8 @@ export async function runDiagnostic({
       scenario,
       workshop: { ranks: {} },
       worldSeed: getDiagnosticWorldSeed(normalizedSeed, runIndex),
-      collectDiagnostics: true
+      collectDiagnostics: true,
+      collectEquipmentTelemetry: true
     });
     observeRun(aggregate, result, runIndex);
   }
@@ -563,7 +765,7 @@ function buildReport({ result, startingKit, policy, fleeHpThreshold, runs, seed,
     policy,
     fleeHpThreshold
   };
-  const envHash = printEnvSignatureBanner(environment, { label: "issue1139" });
+  const envHash = printEnvSignatureBanner(environment, { label: "issue1184" });
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
@@ -594,7 +796,7 @@ function buildSummary(report) {
     .sort(([, left], [, right]) => right.deathContributionRate - left.deathContributionRate)
     .slice(0, 10);
   return [
-    "# Starting kit early-run diagnostic",
+    "# Issue #1184 starting-kit early-run diagnostic",
     "",
     `- runner: \`${report.runnerVersion}\` / schema: ${report.schemaVersion}`,
     `- source SHA: \`${measurement.sourceCommit || "not recorded"}\``,
@@ -610,6 +812,19 @@ function buildSummary(report) {
     `- average deepest floor / steps / combat count: ${outcome.averageDeepestFloor.toFixed(3)} / ${outcome.averageSteps.toFixed(2)} / ${outcome.averageCombatCount.toFixed(2)}`,
     `- average combat rounds / trap damage HP / poison applications: ${outcome.averageCombatRounds.toFixed(2)} / ${outcome.trapDamageHp} / ${outcome.poisonApplications}`,
     "",
+    "## Early survival curve",
+    "",
+    ...Object.entries(result.earlyProgression.survival).map(([ordinal, values]) =>
+      `- through encounter ${ordinal}: ${values.survived}/${result.runs} survived (${(values.survivedRate * 100).toFixed(2)}%); observed ${values.encountered}/${result.runs}`
+    ),
+    `- death encounter ordinal: ${JSON.stringify(result.earlyProgression.deathEncounterOrdinal)}`,
+    "",
+    "## First meaningful opportunity",
+    "",
+    ...Object.entries(result.rewardOpportunity.byType).map(([type, values]) =>
+      `- ${type}: ${values.runsWithOpportunity}/${result.runs} runs (${(values.opportunityRate * 100).toFixed(2)}%); deaths before opportunity ${values.deathsBeforeOpportunity}/${result.deathContribution.totalDeaths}`
+    ),
+    "",
     "## Death contribution candidates",
     "",
     topDeaths.length === 0
@@ -620,7 +835,7 @@ function buildSummary(report) {
     "",
     `- enemy encounters: ${result.encounterExposure.enemyEncounterCount} (${result.encounterExposure.enemyEncounterRatePerRun.toFixed(3)} per run)`,
     "- enemy pool, encounter rate, composition generation, combat, flee, split, and guard behavior are delegated to the production-backed simulator",
-    "- report is diagnostic evidence only; no balance values are tuned",
+    "- report is diagnostic evidence only; no balance values are tuned; Build change opportunity and automatic swap are reported separately",
     "",
     "## Provenance",
     "",
@@ -683,7 +898,7 @@ async function main() {
     purpose: CLI_OPTIONS.purpose,
     requestedRef: CLI_OPTIONS.ref
   }), null, 2)}\n`);
-  console.log(`Wrote Issue #1145 diagnostic: ${resolve(output)}`);
+  console.log(`Wrote Issue #1184 diagnostic: ${resolve(output)}`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {

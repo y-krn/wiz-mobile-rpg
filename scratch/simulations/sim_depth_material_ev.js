@@ -5203,8 +5203,41 @@ function tryAddInventoryItem(state, item, metrics, source) {
     if (TRACKED_CONSUMABLES[item]) {
       recordTrackedConsumableAcquisition(state, metrics, item, source);
     }
+    recordDiagnosticReward(metrics, state, item, {
+      source,
+      disposition: "bagged"
+    });
   }
   return accepted;
+}
+
+function recordDiagnosticReward(metrics, state, item, {
+  source = "dungeon",
+  disposition = "bagged",
+  objectLoot = true
+} = {}) {
+  const rewards = metrics?.diagnostics?.rewardEvents;
+  if (!rewards || !item || !["combat", "chest", "fromDrop", "secretRoom", "ordinary", "special-reward"].includes(source)) {
+    return;
+  }
+  const itemData = getItemData(item);
+  const itemType = itemData?.type || "unknown";
+  const equipment = isEquipment(itemData);
+  const itemId = typeof item === "string" ? item : item.baseId || null;
+  const core = equipment && hasBuildCoreAffix(item);
+  rewards.push({
+    source,
+    disposition,
+    floor: state.floor,
+    step: metrics.steps,
+    encounterOrdinal: metrics.encounterIdentityLog?.length || state.currentRun?.battles || 0,
+    itemId,
+    itemType,
+    category: equipment ? "equipment" : itemType === "rune" ? "rune" : "item",
+    isCore: core,
+    meaningful: true,
+    objectLoot
+  });
 }
 
 function recordUnadoptedObjectLoot(state, metrics, item, disposition, source) {
@@ -5214,6 +5247,7 @@ function recordUnadoptedObjectLoot(state, metrics, item, disposition, source) {
   }
   metrics.objectLootLifecycle.found++;
   metrics.objectLootLifecycle[disposition]++;
+  recordDiagnosticReward(metrics, state, item, { source, disposition });
   return true;
 }
 
@@ -9619,6 +9653,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
           metrics.equipmentTelemetry.push({
             type: "lock-block",
             floor: state.floor,
+            step: metrics.steps,
+            encounterOrdinal: state.currentRun?.battles || 0,
             oldCoreId: getItemCoreId(oldEquipment),
             candidateCoreId: blockedCoreId,
             oldMainAxisIds: getItemMainAxisIds(oldEquipment),
@@ -9758,6 +9794,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       metrics.equipmentTelemetry.push({
         type: "swap",
         floor: state.floor,
+        step: metrics.steps,
+        encounterOrdinal: state.currentRun?.battles || 0,
         scoreBefore: best.scoreBefore,
         scoreAfter: getEquipmentScore(character, scoringProfile, state.floor),
         oldCoreId: best.oldCoreId,
@@ -13961,6 +13999,7 @@ export function simulateRun({
       ? {
           level: diagnosticLevel,
           buildSnapshots: [],
+          rewardEvents: [],
           encounters: [],
           deathLogs: [],
           finalBuild: null
@@ -14783,7 +14822,15 @@ export function simulateRun({
             const keyCountAfter = state.inventory.filter(
               item => (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY"
             ).length;
-            metrics.dragonKeysAcquired += Math.max(0, keyCountAfter - keyCountBefore);
+            const keysAcquired = Math.max(0, keyCountAfter - keyCountBefore);
+            metrics.dragonKeysAcquired += keysAcquired;
+            for (let keyIndex = 0; keyIndex < keysAcquired; keyIndex++) {
+              recordDiagnosticReward(metrics, state, "DRAGON_KEY", {
+                source: "special-reward",
+                disposition: "bagged",
+                objectLoot: false
+              });
+            }
           }
 
           if (combatResult.triggerChest) {
