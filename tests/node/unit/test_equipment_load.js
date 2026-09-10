@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { ITEMS } from "../../../src/data/items.js";
 import {
   EQUIPMENT_LOAD_CLASSES,
+  EQUIPMENT_LOAD_DESCRIPTIONS,
   EQUIPMENT_LOAD_INITIATIVE_MODIFIERS,
   getCharacterEquipmentLoad,
-  getEquipmentLoadClass
+  getEquipmentLoadClass,
+  getEquipmentLoadPlayerCopy
 } from "../../../src/rules/equipment_load.js";
+import { createStartingKitCharacter, getStartingKit } from "../../../src/state/initial_state.js";
 import { getEquipmentPreview } from "../../../src/rules/equipment_preview.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
 
@@ -13,6 +16,11 @@ const equipment = Object.values(ITEMS).filter(item => ["weapon", "shield", "armo
 assert.ok(equipment.length > 0);
 assert.ok(equipment.every(item => EQUIPMENT_LOAD_CLASSES.includes(item.loadClass)));
 assert.deepEqual(EQUIPMENT_LOAD_INITIATIVE_MODIFIERS, { light: 2, standard: 0, heavy: -2 });
+assert.deepEqual(EQUIPMENT_LOAD_DESCRIPTIONS, {
+  light: "先に動きやすい / 防御は低め",
+  standard: "攻防と行動順の基準",
+  heavy: "後手になりやすい / 防御は高め"
+});
 
 function character(equipment = {}) {
   return { equipment: { weapon: null, shield: null, armor: null, accessory: null, accessory2: null, ...equipment } };
@@ -32,6 +40,21 @@ assert.equal(getCharacterEquipmentLoad(character({ weapon: "DAGGER", shield: "BU
 assert.equal(getCharacterEquipmentLoad(character({ armor: { baseId: "PLATE_MAIL", identified: false } })).class, "heavy");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "CLAYMORE", armor: "EXPLORER_CLOAK" })).class, "heavy");
 assert.equal(getCharacterEquipmentLoad(character({ weapon: "SHORT_SWORD", armor: "LEATHER_ARMOR" })).initiativeModifier, 0);
+
+const startingKitLoads = [
+  ["vanguard", "standard"],
+  ["scout", "light"],
+  ["devotion", "standard"],
+  ["arcana", "standard"]
+];
+assert.deepEqual(getStartingKit("scout").gear, ["DAGGER", "BUCKLER", "EXPLORER_CLOAK"]);
+assert.notDeepEqual(getStartingKit("vanguard").gear, getStartingKit("scout").gear);
+for (const [kitId, expectedClass] of startingKitLoads) {
+  const load = getEquipmentLoadPlayerCopy(createStartingKitCharacter(kitId));
+  assert.equal(load.class, expectedClass, `${kitId} starting kit load`);
+  assert.equal(load.label, expectedClass === "light" ? "速い" : "標準");
+  assert.equal(load.description, EQUIPMENT_LOAD_DESCRIPTIONS[expectedClass]);
+}
 
 const lightPreview = getEquipmentPreview(
   character({ weapon: "SHORT_SWORD", shield: null, armor: null }),

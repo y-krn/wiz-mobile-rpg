@@ -115,8 +115,8 @@ export const STARTING_KITS = Object.freeze([
   Object.freeze({
     id: "scout",
     name: "軽装探索キット",
-    description: "ショートソード・スモールシールド・レザーアーマー",
-    gear: Object.freeze(["SHORT_SWORD", "SMALL_SHIELD", "LEATHER_ARMOR"])
+    description: "ダガー・バックラー・探索者の外套",
+    gear: Object.freeze(["DAGGER", "BUCKLER", "EXPLORER_CLOAK"])
   }),
   Object.freeze({
     id: "devotion",

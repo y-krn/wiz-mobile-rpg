@@ -17,6 +17,7 @@ import { getSortedCraftRecipes } from "../rules/craft_rules.js";
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
 import { getEquipmentSlotsForType } from "../rules/equipment_slots.js";
 import { getEquipmentHandConflict } from "../rules/equipment_hands.js";
+import { getEquipmentLoadPlayerCopy } from "../rules/equipment_load.js";
 import {
   consumeSelectedRunQuestTemplateIds,
   getPendingRunQuestTemplateIds
@@ -415,9 +416,20 @@ export function renderSoloStart(optGrid) {
 
   STARTING_KITS.forEach(kit => {
     const character = createStartingKitCharacter(kit.id);
+    const load = getEquipmentLoadPlayerCopy(character);
     const button = document.createElement("button");
     button.className = "btn btn-neon btn-block solo-starting-kit-option";
-    button.innerHTML = `<strong>${kit.name}</strong><span>${kit.description} · HP ${character.maxHp} / MP ${getCharMaxMp(character)}</span>`;
+    const name = document.createElement("strong");
+    name.textContent = kit.name;
+    const gear = document.createElement("span");
+    gear.textContent = kit.description;
+    const loadHint = document.createElement("span");
+    loadHint.className = "solo-starting-kit-load";
+    loadHint.textContent = `行動傾向: ${load.label} · ${load.description}`;
+    const vitals = document.createElement("span");
+    vitals.textContent = `HP ${character.maxHp} / MP ${getCharMaxMp(character)}`;
+    button.append(name, gear, loadHint, vitals);
+    button.dataset.loadClass = load.class;
     button.addEventListener("click", () => renderStartFloorChoices(optGrid, kit.id, null));
     optGrid.appendChild(button);
 

@@ -125,8 +125,14 @@
 }
 
 .solo-starting-kit-option span {
+  display: block;
+  line-height: 1.35;
   font-size: var(--fs-xs);
   color: var(--text-muted);
+}
+
+.solo-starting-kit-option .solo-starting-kit-load {
+  color: var(--neon-amber);
 }
 
 .solo-start-floor-grid {

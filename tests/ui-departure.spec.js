@@ -1,6 +1,41 @@
 import { test, expect } from './fixtures/browser-health.js';
 import './departure-flow.cases.js';
 import { VIEWPORTS, openDeparturePreparation } from './ui-ux-helpers.js';
+
+for (const width of [320, 360, 390, 430]) {
+  test(`Starting kit cards explain production equipment load at ${width}px @smoke`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 320 ? 568 : 844 });
+    await page.goto('/');
+    await page.locator('#btn-town-dungeon').click();
+
+    const cards = page.locator('.solo-starting-kit-option');
+    await expect(cards).toHaveCount(4);
+    await expect(cards.nth(0)).toHaveAttribute('data-load-class', 'standard');
+    await expect(cards.nth(1)).toHaveAttribute('data-load-class', 'light');
+    await expect(cards.nth(2)).toHaveAttribute('data-load-class', 'standard');
+    await expect(cards.nth(3)).toHaveAttribute('data-load-class', 'standard');
+    await expect(cards.nth(0)).toContainText('行動傾向: 標準');
+    await expect(cards.nth(1)).toContainText('行動傾向: 速い');
+    await expect(cards.nth(1)).toContainText('先に動きやすい / 防御は低め');
+    await expect(cards.nth(0)).toContainText('攻防と行動順の基準');
+    const cardText = (await cards.allTextContents()).join(' ');
+    expect(cardText).not.toContain('+2');
+    expect(cardText).not.toContain('-2');
+
+    const layout = await cards.evaluateAll((elements) => ({
+      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      cards: elements.map((element) => {
+        const box = element.getBoundingClientRect();
+        return { left: box.left, right: box.right, height: box.height };
+      }),
+    }));
+    expect(layout.hasHorizontalOverflow).toBe(false);
+    expect(layout.cards.every((card) => (
+      card.left >= -1 && card.right <= width + 1 && card.height >= 44
+    ))).toBe(true);
+  });
+}
+
 for (const vp of VIEWPORTS) {
   test(`Milestone start, merchant, and portal stay thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
