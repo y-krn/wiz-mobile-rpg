@@ -640,7 +640,7 @@ export class ThreeDungeonRenderer {
       // its far wall can otherwise blend into the fog at the edge of the
       // camera. A recessed dark mouth plus a restrained tonal frame makes the
       // opening read as a turn without adding a gameplay-only icon.
-      if (cell.z === 0 && cell.column === 0) {
+      if (cell.column === 0 && cell.z <= 1) {
         if (!frame.leftBlocked) this.addSideBranchMouth(cellGroup, -1, wall, cell, profile);
         if (!frame.rightBlocked) this.addSideBranchMouth(cellGroup, 1, wall, cell, profile);
       }
@@ -749,14 +749,18 @@ export class ThreeDungeonRenderer {
   }
 
   addSideBranchMouth(parent, side, wall, topology, profile = this.activeProfile) {
-    // Center the threshold on the current cell so its floor and ceiling line
-    // up with the actual neighboring cell rather than ending at the front
-    // corner of the side wall.
-    const z = profile.frontWallZ + 0.18;
-    const openingWidth = profile.cellDepth * 0.86;
+    const depth = Math.max(0, topology.z);
+    const depthScale = depth === 0 ? 1 : 0.56;
+    // Keep the near opening in front of the current cell's front wall. For a
+    // one-cell-ahead turn, anchor the smaller reveal on that cell's center so
+    // its side path remains readable instead of becoming a distant slit.
+    const z = depth === 0
+      ? profile.frontWallZ + 0.18
+      : profile.startZ - depth * profile.cellDepth;
+    const openingWidth = profile.cellDepth * 0.86 * depthScale;
     // Keep the lintel inside the portrait viewport. A full-height plane puts
     // its top edge above the camera and leaves only a vertical jamb visible.
-    const openingHeight = profile.wallHeight * 0.54;
+    const openingHeight = profile.wallHeight * 0.54 * depthScale;
     // Local -Z is the branch-forward direction. Rotate it toward world -X
     // for a left opening and world +X for a right opening, matching the
     // cardinal side-cell transforms in addCorridorTopology.
@@ -764,7 +768,8 @@ export class ThreeDungeonRenderer {
     // Pull the visual threshold slightly into the near cell. A purely
     // cardinal doorway at the side-wall plane falls outside the fixed
     // portrait frustum before its floor/ceiling can establish depth.
-    const thresholdX = side * (profile.cellWidth / 2 - 0.82);
+    const thresholdInset = depth === 0 ? 0.82 : 0.20;
+    const thresholdX = side * (profile.cellWidth / 2 - thresholdInset);
     const mouthMaterial = new MeshBasicMaterial({
       color: wall.clone().multiplyScalar(0.18),
       transparent: true,
@@ -783,7 +788,7 @@ export class ThreeDungeonRenderer {
     // Build a short, coherent vestibule from the threshold into the actual
     // neighboring cell. Its bevel is camera-readable, while the neighboring
     // cell behind it remains aligned to the cardinal ±X topology.
-    const branchDepth = profile.cellDepth * 0.95;
+    const branchDepth = profile.cellDepth * 0.95 * depthScale;
     const branchVolume = new Group();
     branchVolume.position.set(thresholdX, 0, z);
     branchVolume.rotation.y = branchYaw;
@@ -800,7 +805,7 @@ export class ThreeDungeonRenderer {
     });
     const branchFloorGeometry = new BoxGeometry(openingWidth, 0.045, branchDepth);
     const floorPositions = branchFloorGeometry.attributes.position;
-    const floorRise = 0.48;
+    const floorRise = 0.48 * depthScale;
     for (let index = 0; index < floorPositions.count; index++) {
       floorPositions.setY(index, floorPositions.getY(index) + floorRise * floorPositions.getZ(index) / branchDepth);
     }

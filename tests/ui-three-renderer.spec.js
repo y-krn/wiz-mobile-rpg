@@ -377,9 +377,14 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
         );
         let ceiling = null;
         let seamCount = 0;
+        const farBranchSurfaces = [];
         dungeonRenderer.root.traverse((child) => {
           if (child.userData?.surface === 'ceiling' && !ceiling) ceiling = child;
           if (child.userData?.surface === 'depth-seam') seamCount += 1;
+          if (child.userData?.topology?.z === 1
+            && ['side-branch-floor', 'side-branch-ceiling', 'side-branch-wall-thickness'].includes(child.userData?.surface)) {
+            farBranchSurfaces.push(child.userData.surface);
+          }
         });
         const positions = ceiling?.geometry?.attributes?.position;
         const ceilingMaxY = positions
@@ -393,6 +398,7 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
           wallHeight: dungeonRenderer.activeProfile.wallHeight,
           ceilingMaxY,
           seamCount,
+          farBranchSurfaces,
         };
       });
 
@@ -408,6 +414,11 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
       if (fixture.floor === 6) {
         expect(evidence.ceilingStyle).toBe('arch');
         expect(evidence.ceilingMaxY).toBeGreaterThan(evidence.wallHeight);
+        if (fixture.name === 'b2-right-turn-arch') {
+          expect(evidence.farBranchSurfaces).toEqual(expect.arrayContaining([
+            'side-branch-floor', 'side-branch-ceiling', 'side-branch-wall-thickness',
+          ]));
+        }
       } else {
         expect(evidence.ceilingStyle).toBe('flat');
       }
@@ -423,7 +434,7 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
   }
 });
 
-test('Three.js danger cue stays outside the camera and visible in the corridor @e2e @visual', async ({ page }, testInfo) => {
+test('Three.js danger cue stays outside the camera and visible in the corridor @smoke @e2e @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?renderer=three');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
@@ -472,7 +483,7 @@ test('Three.js danger cue stays outside the camera and visible in the corridor @
   await testInfo.attach('three-danger-cue-390px', { body: screenshot, contentType: 'image/png' });
 });
 
-test('Canvas and Three.js share the same exploration mini-map overlay contract @e2e @visual', async ({ page }, testInfo) => {
+test('Canvas and Three.js share the same exploration mini-map overlay contract @smoke @e2e @visual', async ({ page }, testInfo) => {
   const measure = async (url) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(url);
@@ -959,7 +970,7 @@ test('Three.js target selection keeps enlarged hit regions aligned with staged e
   }
 });
 
-test('Three.js Dungeon View disposes prototype materials across repeated scene rebuilds @e2e', async ({ page }) => {
+test('Three.js Dungeon View disposes prototype materials across repeated scene rebuilds @smoke @e2e', async ({ page }) => {
   await page.goto('/?renderer=three');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
 
@@ -1024,7 +1035,7 @@ test('Three.js Dungeon View disposes prototype materials across repeated scene r
   expect(disposeCount.basicDisposeCalls).toBe(11);
 });
 
-test('Three.js Dungeon View follows map topology for all four directions @e2e @visual', async ({ page }, testInfo) => {
+test('Three.js Dungeon View follows map topology for all four directions @smoke @e2e @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?renderer=three');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
