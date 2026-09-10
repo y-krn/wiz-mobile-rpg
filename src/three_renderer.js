@@ -1,11 +1,13 @@
 // balance-impact: none — optional Dungeon View presentation only; no game rules or state mutation.
 import {
   AmbientLight,
+  BufferGeometry,
   CanvasTexture,
   Color,
   DirectionalLight,
   DoubleSide,
   Fog,
+  Float32BufferAttribute,
   Group,
   Mesh,
   MeshBasicMaterial,
@@ -19,6 +21,8 @@ import {
   SphereGeometry,
   TorusGeometry,
   Vector2,
+  Vector3,
+  BoxGeometry,
   WebGLRenderer
 } from "three";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
@@ -27,38 +31,194 @@ import { isMiniMapAnimating, renderMiniMapOverlay } from "./minimap.js";
 
 const VIEW_W = 400;
 const VIEW_H = 260;
-const CORRIDOR_CELL_WIDTH = 1.8;
-const CORRIDOR_CELL_DEPTH = 2.1;
-const CORRIDOR_WALL_HEIGHT = 3.6;
-const CORRIDOR_START_Z = 1.15;
+const THREE_CORRIDOR_BASE = Object.freeze({
+  cellWidth: 2.2,
+  cellDepth: 2.1,
+  wallHeight: 3.2,
+  startZ: 1.15,
+  fov: 66,
+  eyeOffsetZ: 0.4,
+  lookAtHeight: 1.5,
+  lookAtZ: -2.6,
+  fogNear: 4.8,
+  fogFar: 15.5
+});
 // The player stands inside the current cell, looking through its front
 // threshold. Keeping the eye point inside the cell makes its side walls read
 // as corridor boundaries instead of freestanding panels behind the player.
-const CORRIDOR_CAMERA = Object.freeze({
-  fov: 78,
-  eyeHeight: 1.55,
-  eyeZ: CORRIDOR_START_Z + 0.4,
-  lookAtHeight: 1.5,
-  lookAtZ: -2.6
-});
-// Combat and danger overlays live in front of the current cell's front wall
-// (frontZ = CORRIDOR_START_Z - CORRIDOR_CELL_DEPTH / 2 = 0.1). Keeping these
-// layers camera-side makes them visible and raycastable in closed rooms.
-const COMBAT_FRONT_WALL_Z = CORRIDOR_START_Z - CORRIDOR_CELL_DEPTH / 2;
-const COMBAT_MONSTER_Z = COMBAT_FRONT_WALL_Z + 0.40;
+// The eye point remains inside the current cell for every biome profile.
+// Combat and danger overlays live in front of the current cell's front wall.
+// Keeping these layers camera-side makes them visible and raycastable in closed
+// rooms.
 const COMBAT_MONSTER_RADIUS = 0.30;
 const COMBAT_TRIO_MONSTER_RADIUS = 0.27;
-const COMBAT_MONSTER_BODY_Y = 1.38;
-const COMBAT_MONSTER_LABEL_Y = 1.98;
-const COMBAT_MULTI_LABEL_WIDTH = 1.12;
-const COMBAT_MULTI_LABEL_ROW_STEP = 0.32;
+const COMBAT_MULTI_LABEL_WIDTH = 0.82;
+const COMBAT_MULTI_LABEL_ROW_STEP = 0.25;
 const COMBAT_TARGET_RING_RADIUS = 0.32;
 const COMBAT_TRIO_MARKER_RADIUS = 0.23;
 // Keep the hit region larger than the visible body without letting adjacent
 // enemies become one giant target. The canvas renderer has the same intent.
 const TARGET_HIT_RADIUS = 0.88;
-const DANGER_CUE_Z = 0.45;
-const DANGER_RING_Z = 0.38;
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getCeilingStyle(value) {
+  return value === "arch" ? "arch" : "flat";
+}
+
+// Biome geometry is authored as a normalized visual signature shared with
+// the Canvas renderer. Keep the conversion here so Three.js has its own
+// readable world-unit contract instead of treating Canvas projection values
+// as physical dimensions.
+export function getThreeCorridorProfile(geometry = {}) {
+  const corridorWidth = finite(geometry?.corridorWidth, 1);
+  const ceilingHeight = finite(geometry?.ceilingHeight, 1);
+  const wallLean = clamp(finite(geometry?.wallLean, 0), -0.2, 0.2);
+  const wallHeight = THREE_CORRIDOR_BASE.wallHeight * clamp(0.70 + ceilingHeight * 0.30, 0.86, 1.18);
+  const cellWidth = THREE_CORRIDOR_BASE.cellWidth * clamp(0.70 + corridorWidth * 0.30, 0.88, 1.12);
+  const eyeHeight = clamp(wallHeight * 0.485, 1.45, 1.64);
+  const frontWallZ = THREE_CORRIDOR_BASE.startZ - THREE_CORRIDOR_BASE.cellDepth / 2;
+  return Object.freeze({
+    cellWidth,
+    cellDepth: THREE_CORRIDOR_BASE.cellDepth,
+    wallHeight,
+    startZ: THREE_CORRIDOR_BASE.startZ,
+    frontWallZ,
+    fov: THREE_CORRIDOR_BASE.fov,
+    eyeHeight,
+    eyeZ: THREE_CORRIDOR_BASE.startZ + THREE_CORRIDOR_BASE.eyeOffsetZ,
+    lookAtHeight: clamp(eyeHeight - 0.05, 1.4, 1.6),
+    lookAtZ: THREE_CORRIDOR_BASE.lookAtZ,
+    fogNear: THREE_CORRIDOR_BASE.fogNear,
+    fogFar: THREE_CORRIDOR_BASE.fogFar,
+    wallLean,
+    ceilingStyle: getCeilingStyle(geometry?.ceilingStyle)
+  });
+}
+
+// These metrics intentionally describe the same camera/framing contract used
+// by the renderer. They are lightweight fixture evidence, not gameplay data.
+export function getThreeCorridorReadabilityMetrics(geometry = {}) {
+  const profile = getThreeCorridorProfile(geometry);
+  const horizontalFov = 2 * Math.atan(Math.tan((profile.fov * Math.PI / 180) / 2) * (VIEW_W / VIEW_H));
+  const pixelsPerWorldUnit = VIEW_W / (2 * Math.tan(horizontalFov / 2));
+  const cellFrontDistances = [1, 2, 3].map((z) =>
+    profile.eyeZ - (profile.startZ - (z + 0.5) * profile.cellDepth)
+  );
+  const forwardOpeningWidth = cellFrontDistances.map((distance) =>
+    profile.cellWidth * pixelsPerWorldUnit / distance
+  );
+  const currentOpeningWidth = profile.cellWidth * pixelsPerWorldUnit /
+    (profile.eyeZ - profile.frontWallZ);
+  return Object.freeze({
+    fov: profile.fov,
+    fogNear: profile.fogNear,
+    fogFar: profile.fogFar,
+    forwardOpeningWidth,
+    currentCellSideWallOccupancy: 1 - clamp(currentOpeningWidth / VIEW_W, 0, 1),
+    cellFrontDistances,
+    profile: {
+      cellWidth: profile.cellWidth,
+      wallHeight: profile.wallHeight,
+      wallLean: profile.wallLean,
+      ceilingStyle: profile.ceilingStyle
+    }
+  });
+}
+
+export function createWallGeometry(width, height, lean = 0, leanNormal = false, leanSpan = width, normalDirection = 1) {
+  const geometry = new PlaneGeometry(width, height);
+  const positions = geometry.attributes.position;
+  const edgeShift = lean * leanSpan * 0.5;
+  for (let index = 0; index < positions.count; index++) {
+    const edgeDirection = positions.getY(index) > 0 ? 1 : -1;
+    if (leanNormal) {
+      // Side walls are rotated around Y, so local Z is the world-space
+      // corridor-normal axis. The caller supplies the wall's local normal
+      // direction so positive lean brings the top inward on both sides.
+      positions.setZ(index, edgeDirection * edgeShift * normalDirection);
+      continue;
+    }
+    // Front walls use local X as the corridor-width axis. Positive lean
+    // narrows the top edge and widens the bottom edge symmetrically.
+    const towardCenter = positions.getX(index) < 0 ? 1 : -1;
+    positions.setX(index, positions.getX(index) + edgeDirection * towardCenter * edgeShift);
+  }
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+// Project the actual mesh vertices through the active camera. This is used by
+// visual regression fixtures so screen-space claims remain tied to geometry,
+// rather than to a world-unit proxy.
+export function getThreeProjectedBounds(mesh, camera) {
+  if (!mesh?.geometry?.attributes?.position || !camera) return null;
+  mesh.updateWorldMatrix(true, false);
+  camera.updateMatrixWorld();
+  const point = new Vector3();
+  const positions = mesh.geometry.attributes.position;
+  let left = Infinity;
+  let right = -Infinity;
+  let top = Infinity;
+  let bottom = -Infinity;
+  for (let index = 0; index < positions.count; index++) {
+    point.set(positions.getX(index), positions.getY(index), positions.getZ(index));
+    point.applyMatrix4(mesh.matrixWorld).project(camera);
+    const screenX = (point.x + 1) * VIEW_W / 2;
+    const screenY = (1 - point.y) * VIEW_H / 2;
+    left = Math.min(left, screenX);
+    right = Math.max(right, screenX);
+    top = Math.min(top, screenY);
+    bottom = Math.max(bottom, screenY);
+  }
+  return Object.freeze({
+    left,
+    right,
+    top,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+    visibleWidth: Math.max(0, Math.min(right, VIEW_W) - Math.max(left, 0)),
+    visibleHeight: Math.max(0, Math.min(bottom, VIEW_H) - Math.max(top, 0)),
+  });
+}
+
+function createCeilingGeometry(width, depth, height, style) {
+  if (style !== "arch") return new PlaneGeometry(width, depth);
+
+  const xSegments = 6;
+  const zSegments = 2;
+  const archRise = Math.min(0.42, height * 0.13);
+  const vertices = [];
+  const indices = [];
+  for (let z = 0; z <= zSegments; z++) {
+    const localZ = -depth / 2 + (depth * z) / zSegments;
+    for (let x = 0; x <= xSegments; x++) {
+      const localX = -width / 2 + (width * x) / xSegments;
+      const normalizedX = localX / (width / 2);
+      const localY = height + archRise * (1 - normalizedX * normalizedX);
+      vertices.push(localX, localY, localZ);
+    }
+  }
+  const rowSize = xSegments + 1;
+  for (let z = 0; z < zSegments; z++) {
+    for (let x = 0; x < xSegments; x++) {
+      const topLeft = z * rowSize + x;
+      const topRight = topLeft + 1;
+      const bottomLeft = topLeft + rowSize;
+      const bottomRight = bottomLeft + 1;
+      indices.push(topLeft, bottomLeft, topRight, topRight, bottomLeft, bottomRight);
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 function finite(value, fallback) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -153,6 +313,7 @@ export class ThreeDungeonRenderer {
     this.targetHitMeshes = [];
     this.sceneSignature = null;
     this.feedbackOverlay = null;
+    this.activeProfile = getThreeCorridorProfile();
 
     if (!this.canvas) return;
 
@@ -167,9 +328,10 @@ export class ThreeDungeonRenderer {
       this.webgl.setSize(VIEW_W, VIEW_H, false);
       this.webgl.outputColorSpace = "srgb";
       this.scene = new Scene();
-      this.camera = new PerspectiveCamera(CORRIDOR_CAMERA.fov, VIEW_W / VIEW_H, 0.05, 40);
-      this.camera.position.set(0, CORRIDOR_CAMERA.eyeHeight, CORRIDOR_CAMERA.eyeZ);
-      this.camera.lookAt(0, CORRIDOR_CAMERA.lookAtHeight, CORRIDOR_CAMERA.lookAtZ);
+      const profile = this.activeProfile;
+      this.camera = new PerspectiveCamera(profile.fov, VIEW_W / VIEW_H, 0.05, 40);
+      this.camera.position.set(0, profile.eyeHeight, profile.eyeZ);
+      this.camera.lookAt(0, profile.lookAtHeight, profile.lookAtZ);
       this.root = new Group();
       this.scene.add(this.root);
       this.raycaster = new Raycaster();
@@ -255,6 +417,7 @@ export class ThreeDungeonRenderer {
       floor: renderInput.floor,
       position: [renderInput.x, renderInput.y, renderInput.dir],
       mapRevision: renderInput.mapRevision,
+      geometry: renderInput.visual.geometry,
       corridorTopology,
       sceneVisibility,
       light: [renderInput.lightTurns, renderInput.lightPower],
@@ -313,10 +476,13 @@ export class ThreeDungeonRenderer {
 
     const shakeX = this.shakeTime > 0 ? (Math.random() - 0.5) * this.shakeIntensity * 0.012 : 0;
     const shakeY = this.shakeTime > 0 ? (Math.random() - 0.5) * this.shakeIntensity * 0.008 : 0;
+    const profile = this.activeProfile;
+    this.camera.fov = profile.fov;
+    this.camera.updateProjectionMatrix();
     this.camera.position.x = shakeX;
-    this.camera.position.y = CORRIDOR_CAMERA.eyeHeight + shakeY;
-    this.camera.position.z = CORRIDOR_CAMERA.eyeZ;
-    this.camera.lookAt(0, CORRIDOR_CAMERA.lookAtHeight, CORRIDOR_CAMERA.lookAtZ);
+    this.camera.position.y = profile.eyeHeight + shakeY;
+    this.camera.position.z = profile.eyeZ;
+    this.camera.lookAt(0, profile.lookAtHeight, profile.lookAtZ);
     this.flashLight.intensity = this.flashTime > 0 ? 1.4 : 0;
     this.webgl.render(this.scene, this.camera);
     renderMiniMapOverlay(renderInput);
@@ -330,11 +496,13 @@ export class ThreeDungeonRenderer {
     }
 
     const visual = input.visual;
+    const profile = getThreeCorridorProfile(visual.geometry);
+    this.activeProfile = profile;
     const background = hexColor(visual.background);
     const wall = hexColor(visual.wallColor, "#58d6e8");
     const topology = this.getSceneTopology(input);
     this.scene.background = background;
-    this.scene.fog = new Fog(background, 3.2, 12.5);
+    this.scene.fog = new Fog(background, profile.fogNear, profile.fogFar);
     this.webgl.setClearColor(background, 1);
 
     this.root.add(new AmbientLight(0x8e9aa0, 0.42));
@@ -345,18 +513,20 @@ export class ThreeDungeonRenderer {
     this.flashLight.position.set(0, 1.4, 2);
     this.root.add(this.flashLight);
 
-    const floorMaterial = new MeshStandardMaterial({ color: background, roughness: 0.92, metalness: 0.18, side: DoubleSide });
+    const floorColor = background.clone().lerp(wall, 0.08);
+    const wallSurfaceColor = background.clone().lerp(wall, 0.16);
+    const floorMaterial = new MeshStandardMaterial({ color: floorColor, roughness: 0.96, metalness: 0.12, side: DoubleSide });
     const wallMaterial = new MeshStandardMaterial({
-      color: background,
-      roughness: 0.72,
-      metalness: 0.34,
+      color: wallSurfaceColor,
+      roughness: 0.78,
+      metalness: 0.28,
       emissive: wall,
-      emissiveIntensity: 0.12,
+      emissiveIntensity: 0.18,
       side: DoubleSide
     });
     if (!input.sceneVisibility.showTownBackground) {
       try {
-        this.addCorridorTopology(topology, floorMaterial, wallMaterial, wall);
+        this.addCorridorTopology(topology, floorMaterial, wallMaterial, wall, profile);
       } finally {
         // Corridor meshes own clones of these prototype materials. The
         // prototypes themselves are never attached to the scene graph.
@@ -376,22 +546,28 @@ export class ThreeDungeonRenderer {
       this.root.add(light);
     }
 
-    if (input.dangerCue?.active) this.addDangerCue(wall);
-    if (input.sceneVisibility.showCombat) this.addCombatMonsters(input, wall);
+    if (input.dangerCue?.active) this.addDangerCue(wall, profile);
+    if (input.sceneVisibility.showCombat) this.addCombatMonsters(input, wall, profile);
     if (input.sceneVisibility.showTownBackground) this.addTownMarker(wall);
   }
 
-  addCorridorTopology(topology, floorMaterial, wallMaterial, wall = wallMaterial.emissive) {
+  addCorridorTopology(topology, floorMaterial, wallMaterial, wall = wallMaterial.emissive, profile = this.activeProfile) {
     topology.forEach((cell) => {
       const cellGroup = new Group();
       cellGroup.userData = {
         topology: { z: cell.z, column: cell.column, x: cell.x, y: cell.y },
-        valid: cell.valid
+        valid: cell.valid,
+        geometry: {
+          cellWidth: profile.cellWidth,
+          wallHeight: profile.wallHeight,
+          wallLean: profile.wallLean,
+          ceilingStyle: profile.ceilingStyle
+        }
       };
       this.root.add(cellGroup);
 
-      const centerX = cell.column * CORRIDOR_CELL_WIDTH;
-      const centerZ = CORRIDOR_START_Z - cell.z * CORRIDOR_CELL_DEPTH;
+      const centerX = cell.column * profile.cellWidth;
+      const centerZ = profile.startZ - cell.z * profile.cellDepth;
       const sideBranch = cell.column < 0 ? "left" : cell.column > 0 ? "right" : "forward";
       const rotationY = sideBranch === "left" ? Math.PI / 2 : sideBranch === "right" ? -Math.PI / 2 : 0;
       const toWorld = (localX, localZ) => ({
@@ -418,27 +594,40 @@ export class ThreeDungeonRenderer {
             frontBlocked: cell.frontBlocked,
             frontOneWayBarrier: cell.frontOneWayBarrier,
           };
-      const front = toWorld(0, -CORRIDOR_CELL_DEPTH / 2);
+      const front = toWorld(0, -profile.cellDepth / 2);
       if (!cell.valid) {
-        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
+        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellWidth, profile.wallHeight, profile.wallLean), wallMaterial, {
           x: front.x,
-          y: CORRIDOR_WALL_HEIGHT / 2,
+          y: profile.wallHeight / 2,
           z: front.z
         }, "front-wall-invalid", cell, rotationY);
         return;
       }
 
-      const floor = new Mesh(new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_CELL_DEPTH), floorMaterial.clone());
+      const depthShade = 1 - Math.min(0.12, cell.z * 0.04);
+      const floorSurface = floorMaterial.clone();
+      floorSurface.color.multiplyScalar(depthShade);
+      const floor = new Mesh(new PlaneGeometry(profile.cellWidth, profile.cellDepth), floorSurface);
       floor.rotation.set(-Math.PI / 2, rotationY, 0);
       floor.position.set(centerX, 0, centerZ);
       floor.userData = { surface: "floor", topology: cellGroup.userData.topology };
       cellGroup.add(floor);
 
-      const ceiling = new Mesh(new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_CELL_DEPTH), floorMaterial.clone());
-      ceiling.rotation.set(Math.PI / 2, rotationY, 0);
-      ceiling.position.set(centerX, CORRIDOR_WALL_HEIGHT, centerZ);
+      const ceilingSurface = floorMaterial.clone();
+      ceilingSurface.color.multiplyScalar(Math.max(0.78, depthShade - 0.04));
+      const ceiling = new Mesh(
+        createCeilingGeometry(profile.cellWidth, profile.cellDepth, profile.wallHeight, profile.ceilingStyle),
+        ceilingSurface
+      );
+      if (profile.ceilingStyle === "flat") ceiling.rotation.x = Math.PI / 2;
+      ceiling.rotation.y = rotationY;
+      ceiling.position.set(centerX, profile.ceilingStyle === "flat" ? profile.wallHeight : 0, centerZ);
       ceiling.userData = { surface: "ceiling", topology: cellGroup.userData.topology };
       cellGroup.add(ceiling);
+
+      // A low-contrast threshold seam makes cell depth legible without
+      // turning the corridor into a neon wireframe.
+      this.addDepthSeam(cellGroup, profile, wall, cell, toWorld, rotationY, depthShade);
 
       // Side openings need a visible threshold in a first-person view. The
       // neighboring branch floor is physically rotated into place below, but
@@ -446,23 +635,23 @@ export class ThreeDungeonRenderer {
       // camera. A recessed dark mouth plus a thin luminous frame makes the
       // opening read as a turn without adding a gameplay-only icon.
       if (cell.z === 0 && cell.column === 0) {
-        if (!frame.leftBlocked) this.addSideBranchMouth(cellGroup, -1, wall, cell);
-        if (!frame.rightBlocked) this.addSideBranchMouth(cellGroup, 1, wall, cell);
+        if (!frame.leftBlocked) this.addSideBranchMouth(cellGroup, -1, wall, cell, profile);
+        if (!frame.rightBlocked) this.addSideBranchMouth(cellGroup, 1, wall, cell, profile);
       }
 
       if (frame.leftBlocked) {
-        const left = toWorld(-CORRIDOR_CELL_WIDTH / 2, 0);
-        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
+        const left = toWorld(-profile.cellWidth / 2, 0);
+        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
           x: left.x,
-          y: CORRIDOR_WALL_HEIGHT / 2,
+          y: profile.wallHeight / 2,
           z: left.z
         }, "left-wall", cell, rotationY + Math.PI / 2);
       }
       if (frame.rightBlocked) {
-        const right = toWorld(CORRIDOR_CELL_WIDTH / 2, 0);
-        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_DEPTH, CORRIDOR_WALL_HEIGHT), wallMaterial, {
+        const right = toWorld(profile.cellWidth / 2, 0);
+        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
           x: right.x,
-          y: CORRIDOR_WALL_HEIGHT / 2,
+          y: profile.wallHeight / 2,
           z: right.z
         }, "right-wall", cell, rotationY - Math.PI / 2);
       }
@@ -489,14 +678,14 @@ export class ThreeDungeonRenderer {
           frontMaterial.emissive.multiplyScalar(0.35);
           frontMaterial.emissiveIntensity = 0.08;
         }
-        this.addCorridorWall(cellGroup, new PlaneGeometry(CORRIDOR_CELL_WIDTH, CORRIDOR_WALL_HEIGHT), frontMaterial, {
+        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellWidth, profile.wallHeight, profile.wallLean), frontMaterial, {
           x: front.x,
-          y: CORRIDOR_WALL_HEIGHT / 2,
+          y: profile.wallHeight / 2,
           z: front.z
         }, isOneWay ? "front-wall-one-way" : "front-wall", cell, rotationY, false);
         if (isOneWay) {
           const chevron = new Mesh(
-            new PlaneGeometry(CORRIDOR_CELL_WIDTH * 0.82, CORRIDOR_WALL_HEIGHT * 0.82),
+            new PlaneGeometry(profile.cellWidth * 0.82, profile.wallHeight * 0.82),
             new MeshBasicMaterial({
               map: makeOneWayTexture(wall),
               transparent: true,
@@ -504,8 +693,8 @@ export class ThreeDungeonRenderer {
               side: DoubleSide
             })
           );
-          const chevronPosition = toWorld(0, -CORRIDOR_CELL_DEPTH / 2 + 0.018);
-          chevron.position.set(chevronPosition.x, CORRIDOR_WALL_HEIGHT / 2, chevronPosition.z);
+          const chevronPosition = toWorld(0, -profile.cellDepth / 2 + 0.018);
+          chevron.position.set(chevronPosition.x, profile.wallHeight / 2, chevronPosition.z);
           chevron.rotation.y = rotationY;
           chevron.userData = {
             surface: "front-wall-one-way-chevron",
@@ -525,19 +714,76 @@ export class ThreeDungeonRenderer {
     parent.add(wall);
   }
 
-  addSideBranchMouth(parent, side, wall, topology) {
-    const rotationY = side < 0 ? Math.PI / 2 : -Math.PI / 2;
-    const x = side * (CORRIDOR_CELL_WIDTH / 2 + 0.04);
-    const z = 0.15;
-    const mouthMaterial = new MeshBasicMaterial({
-      color: 0x02080b,
+  addDepthSeam(parent, profile, wall, topology, toWorld, rotationY, depthShade) {
+    const seamMaterial = new MeshBasicMaterial({
+      color: wall,
+      transparent: true,
+      opacity: 0.22 + (1 - depthShade) * 0.25,
+      depthWrite: false,
       side: DoubleSide
     });
-    const mouth = new Mesh(new PlaneGeometry(1.8, 3.2), mouthMaterial);
-    mouth.position.set(x, CORRIDOR_WALL_HEIGHT / 2, z);
-    mouth.rotation.y = rotationY;
+    const seam = new Mesh(new BoxGeometry(profile.cellWidth * 0.86, 0.025, 0.035), seamMaterial);
+    const seamPosition = toWorld(0, -profile.cellDepth / 2 + 0.024);
+    seam.position.set(seamPosition.x, 0.025, seamPosition.z);
+    seam.rotation.y = rotationY;
+    seam.userData = { surface: "depth-seam", topology: { z: topology.z, column: topology.column } };
+    parent.add(seam);
+
+    if (topology.z === 0) return;
+    [-1, 1].forEach((side) => {
+      const post = new Mesh(
+        new BoxGeometry(0.035, profile.wallHeight * 0.86, 0.035),
+        seamMaterial.clone()
+      );
+      const postPosition = toWorld(side * (profile.cellWidth / 2 - 0.02), -profile.cellDepth / 2 + 0.024);
+      post.position.set(postPosition.x, profile.wallHeight * 0.43, postPosition.z);
+      post.userData = { surface: "depth-post", topology: { z: topology.z, column: topology.column } };
+      parent.add(post);
+    });
+  }
+
+  addSideBranchMouth(parent, side, wall, topology, profile = this.activeProfile) {
+    // Keep the threshold at the side boundary, inset just enough to face the
+    // camera and occupy screen space. The branch floor and side walls remain
+    // underneath this threshold, so the cue describes the same topology
+    // instead of acting as a detached direction marker.
+    const x = side * (profile.cellWidth / 2 - 0.12);
+    const z = profile.frontWallZ + 0.24;
+    const openingWidth = profile.cellDepth * 0.56;
+    // Keep the lintel inside the portrait viewport. A full-height plane puts
+    // its top edge above the camera and leaves only a vertical jamb visible.
+    const openingHeight = profile.wallHeight * 0.62;
+    const mouthMaterial = new MeshBasicMaterial({
+      color: 0x06171d,
+      side: DoubleSide
+    });
+    const mouth = new Mesh(new PlaneGeometry(openingWidth, openingHeight), mouthMaterial);
+    const openingY = openingHeight / 2 + 0.10;
+    mouth.position.set(x, openingY, z);
     mouth.userData = { surface: "side-branch-mouth", topology: { z: topology.z, column: topology.column } };
     parent.add(mouth);
+
+    // Give the mouth actual spatial depth. The floor and ceiling tongue are
+    // visible from the camera and continue into the rotated neighboring
+    // branch, making the opening read as traversable space rather than a
+    // flat dark marker at the edge of the front wall.
+    const branchDepth = profile.cellDepth * 0.72;
+    const branchCenterX = side * (profile.cellWidth / 2 + branchDepth / 2 - 0.08);
+    const branchSurfaceMaterial = new MeshBasicMaterial({
+      color: wall.clone().multiplyScalar(0.42),
+      side: DoubleSide
+    });
+    const branchFloor = new Mesh(new BoxGeometry(branchDepth, 0.045, openingWidth * 0.92), branchSurfaceMaterial);
+    branchFloor.position.set(branchCenterX, 0.07, z + 0.18);
+    branchFloor.userData = { surface: "side-branch-floor", topology: { z: topology.z, column: topology.column } };
+    parent.add(branchFloor);
+    const branchCeiling = new Mesh(
+      new BoxGeometry(branchDepth, 0.045, openingWidth * 0.92),
+      branchSurfaceMaterial.clone()
+    );
+    branchCeiling.position.set(branchCenterX, openingY + openingHeight / 2 - 0.02, z + 0.18);
+    branchCeiling.userData = { surface: "side-branch-ceiling", topology: { z: topology.z, column: topology.column } };
+    parent.add(branchCeiling);
 
     const frameMaterial = new MeshBasicMaterial({
       color: wall,
@@ -545,26 +791,32 @@ export class ThreeDungeonRenderer {
       opacity: 0.88,
       side: DoubleSide
     });
-    const addFrame = (width, height, frameX, frameZ, surface) => {
-      const frame = new Mesh(new PlaneGeometry(width, height), frameMaterial.clone());
-      frame.position.set(frameX, frameZ === z ? CORRIDOR_WALL_HEIGHT - 0.45 : CORRIDOR_WALL_HEIGHT / 2, frameZ);
-      frame.rotation.y = rotationY;
+    const addFrame = (width, height, frameX, frameY, surface) => {
+      const frame = new Mesh(new BoxGeometry(width, height, 0.05), frameMaterial.clone());
+      frame.position.set(frameX, frameY, z + 0.025);
       frame.userData = { surface, topology: { z: topology.z, column: topology.column } };
       parent.add(frame);
     };
-    addFrame(0.06, 3.2, x, z - 0.9, "side-branch-mouth-frame");
-    addFrame(0.06, 3.2, x, z + 0.9, "side-branch-mouth-frame");
-    addFrame(1.86, 0.06, x, z, "side-branch-mouth-frame-top");
+    try {
+      addFrame(0.06, openingHeight, x - side * openingWidth / 2, openingHeight / 2 + 0.10, "side-branch-mouth-frame");
+      addFrame(0.06, openingHeight, x + side * openingWidth / 2, openingHeight / 2 + 0.10, "side-branch-mouth-frame");
+      addFrame(openingWidth, 0.06, x, openingHeight + 0.10, "side-branch-mouth-frame-top");
+    } finally {
+      // The clones are scene-owned; this prototype is not, so release it
+      // immediately after all frame materials have been created.
+      frameMaterial.dispose();
+    }
   }
 
-  addDangerCue(wall) {
+  addDangerCue(wall, profile = this.activeProfile) {
     const cueMaterial = new MeshBasicMaterial({ color: 0xb83b4c, transparent: true, opacity: 0.18 });
     const cue = new Mesh(new SphereGeometry(0.66, 8, 6), cueMaterial);
-    cue.position.set(0, 1.35, DANGER_CUE_Z);
+    const cueZ = profile.frontWallZ + 0.35;
+    cue.position.set(0, profile.eyeHeight * 0.87, cueZ);
     cue.userData = { surface: "danger-cue", sceneLayer: "danger" };
     this.root.add(cue);
     const cueLight = new PointLight(0x8f293d, 0.55, 4.5);
-    cueLight.position.set(0, 1.5, DANGER_CUE_Z + 0.6);
+    cueLight.position.set(0, profile.eyeHeight, cueZ + 0.6);
     cueLight.userData = { surface: "danger-cue-light", sceneLayer: "danger" };
     this.root.add(cueLight);
     const ring = new Mesh(
@@ -572,15 +824,21 @@ export class ThreeDungeonRenderer {
       new MeshBasicMaterial({ color: wall, transparent: true, opacity: 0.24, side: 2 })
     );
     ring.rotation.x = -Math.PI / 2;
-    ring.position.set(0, 0.02, DANGER_RING_Z);
+    ring.position.set(0, 0.02, profile.frontWallZ + 0.28);
     ring.userData = { surface: "danger-cue-ring", sceneLayer: "danger" };
     this.root.add(ring);
   }
 
-  addCombatMonsters(input, wall) {
+  addCombatMonsters(input, wall, profile = this.activeProfile) {
     const monsters = getLivingMonsters(input);
     const bodyRadius = monsters.length === 3 ? COMBAT_TRIO_MONSTER_RADIUS : COMBAT_MONSTER_RADIUS;
     const markerRadius = monsters.length === 3 ? COMBAT_TRIO_MARKER_RADIUS : COMBAT_TARGET_RING_RADIUS;
+    const bodyY = profile.wallHeight * 0.43;
+    const labelY = bodyY + (monsters.length === 3 ? 0.64 : 0.38);
+    // Stage bodies just camera-side of the current-cell threshold. This keeps
+    // the readable corridor framing from making multi-enemy bodies balloon
+    // beyond the 400px render surface.
+    const combatZ = profile.frontWallZ + 0.18;
     const spacing = monsters.length === 1
       ? 0
       : monsters.length === 3
@@ -599,9 +857,9 @@ export class ThreeDungeonRenderer {
         monsterIndex,
         staging: {
           bodyRadius,
-          bodyY: COMBAT_MONSTER_BODY_Y,
-          labelY: COMBAT_MONSTER_LABEL_Y,
-          z: COMBAT_MONSTER_Z - depthStagger,
+          bodyY,
+          labelY,
+          z: combatZ - depthStagger,
           spacing,
         },
       };
@@ -609,7 +867,7 @@ export class ThreeDungeonRenderer {
         new SphereGeometry(bodyRadius, 8, 6),
         new MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.24, emissive: color, emissiveIntensity: 0.28 })
       );
-      body.position.y = COMBAT_MONSTER_BODY_Y;
+      body.position.y = bodyY;
       body.userData = { surface: "combat-body", monsterIndex };
       group.add(body);
       const ring = new Mesh(
@@ -617,23 +875,23 @@ export class ThreeDungeonRenderer {
         new MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })
       );
       ring.rotation.x = Math.PI / 2;
-      ring.position.y = COMBAT_MONSTER_BODY_Y - bodyRadius;
+      ring.position.y = bodyY - bodyRadius;
       ring.userData = { surface: "combat-marker", monsterIndex };
       group.add(ring);
       // Stack multi-enemy labels vertically so each name stays readable while
       // the bodies remain inside the narrow corridor frame.
       const labelWidth = monsters.length > 1 ? COMBAT_MULTI_LABEL_WIDTH : 1.7;
-      const labelY = monsters.length > 1
-        ? COMBAT_MONSTER_LABEL_Y + (index - (monsters.length - 1) / 2) * COMBAT_MULTI_LABEL_ROW_STEP
-        : COMBAT_MONSTER_LABEL_Y;
+      const stagedLabelY = monsters.length > 1
+        ? labelY + (index - (monsters.length - 1) / 2) * COMBAT_MULTI_LABEL_ROW_STEP
+        : labelY;
       const label = new Mesh(
         new PlaneGeometry(labelWidth, labelWidth * 48 / 256),
         new MeshBasicMaterial({ map: makeLabelTexture(monster.name || "敵", `#${color.getHexString()}`), transparent: true, depthWrite: false })
       );
-      label.position.set(0, labelY, 0);
+      label.position.set(0, stagedLabelY, 0);
       label.userData = { surface: "combat-label", monsterIndex };
       group.add(label);
-      group.position.set(start + index * spacing, 0, COMBAT_MONSTER_Z - depthStagger);
+      group.position.set(start + index * spacing, 0, combatZ - depthStagger);
       this.root.add(group);
 
       if (input.combatTargetSelection?.active) {
@@ -642,7 +900,7 @@ export class ThreeDungeonRenderer {
           new MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
         );
         hit.position.copy(group.position);
-        hit.position.y += COMBAT_MONSTER_BODY_Y;
+        hit.position.y += bodyY;
         hit.userData = {
           targetIdx: monsterIndex,
           sceneLayer: "combat-target"
@@ -656,7 +914,7 @@ export class ThreeDungeonRenderer {
         targetRing.rotation.x = -Math.PI / 2;
         targetRing.position.set(
           hit.position.x,
-          COMBAT_MONSTER_BODY_Y - bodyRadius,
+          bodyY - bodyRadius,
           hit.position.z
         );
         targetRing.userData = {
@@ -683,4 +941,4 @@ export class ThreeDungeonRenderer {
 // Re-export the material class so browser lifecycle tests can spy on the same
 // module instance used by this renderer (Vite otherwise creates a second
 // native module instance for a direct /node_modules import).
-export { MeshStandardMaterial };
+export { MeshBasicMaterial, MeshStandardMaterial };
