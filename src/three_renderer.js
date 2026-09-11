@@ -32,12 +32,12 @@ import { isMiniMapAnimating, renderMiniMapOverlay } from "./minimap.js";
 const VIEW_W = 400;
 const VIEW_H = 260;
 const THREE_CORRIDOR_BASE = Object.freeze({
-  cellWidth: 2.2,
+  cellWidth: 1.9,
   cellDepth: 2.1,
   wallHeight: 3.2,
   startZ: 1.15,
   fov: 88,
-  eyeOffsetZ: 0.9,
+  eyeOffsetZ: 0,
   lookAtHeight: 1.5,
   lookAtZ: -2.6,
   fogNear: 4.8,
@@ -66,29 +66,6 @@ function clamp(value, min, max) {
 
 function getCeilingStyle(value) {
   return value === "arch" ? "arch" : "flat";
-}
-
-function getCorridorAim(topology, profile) {
-  const current = topology?.find(({ z, column }) => z === 0 && column === 0);
-  const leftOpen = current && !current.leftBlocked;
-  const rightOpen = current && !current.rightBlocked;
-  if (leftOpen !== rightOpen) {
-    return {
-      x: rightOpen ? 0.9 : -0.9,
-      y: profile.lookAtHeight,
-      z: profile.startZ,
-    };
-  }
-  const leftAhead = topology?.some(({ z, column }) => z === 1 && column === -1) ?? false;
-  const rightAhead = topology?.some(({ z, column }) => z === 1 && column === 1) ?? false;
-  if (leftAhead !== rightAhead) {
-    return {
-      x: rightAhead ? 0.85 : -0.85,
-      y: profile.lookAtHeight,
-      z: profile.startZ - profile.cellDepth,
-    };
-  }
-  return { x: 0, y: profile.lookAtHeight, z: profile.lookAtZ };
 }
 
 // Biome geometry is authored as a normalized visual signature shared with
@@ -494,7 +471,6 @@ export class ThreeDungeonRenderer {
   draw(input = null) {
     if (!this.supported) return;
     const renderInput = this.resolveRenderInput(input);
-    const topology = this.getSceneTopology(renderInput);
     const signature = this.getDrawSignature(renderInput);
     if (signature !== this.sceneSignature) {
       this.buildScene(renderInput);
@@ -504,13 +480,17 @@ export class ThreeDungeonRenderer {
     const shakeX = this.shakeTime > 0 ? (Math.random() - 0.5) * this.shakeIntensity * 0.012 : 0;
     const shakeY = this.shakeTime > 0 ? (Math.random() - 0.5) * this.shakeIntensity * 0.008 : 0;
     const profile = this.activeProfile;
-    const cameraAim = getCorridorAim(topology, profile);
+    // Combat uses its own centered staging depth; exploration stays closer to
+    // the current cell's front threshold so real side passages enter the view.
+    const eyeZ = renderInput.sceneVisibility.showCombat
+      ? THREE_CORRIDOR_BASE.startZ + 0.4
+      : profile.eyeZ;
     this.camera.fov = profile.fov;
     this.camera.updateProjectionMatrix();
     this.camera.position.x = shakeX;
     this.camera.position.y = profile.eyeHeight + shakeY;
-    this.camera.position.z = profile.eyeZ;
-    this.camera.lookAt(cameraAim.x, cameraAim.y, cameraAim.z);
+    this.camera.position.z = eyeZ;
+    this.camera.lookAt(0, profile.lookAtHeight, profile.lookAtZ);
     this.flashLight.intensity = this.flashTime > 0 ? 1.4 : 0;
     this.webgl.render(this.scene, this.camera);
     renderMiniMapOverlay(renderInput);
@@ -672,7 +652,7 @@ export class ThreeDungeonRenderer {
       // An open side edge still has physical wall thickness at its two
       // corners. Keep only those structural jambs; the adjacent cell owns the
       // actual floor, ceiling, and walls of the passage.
-      if (cell.column === 0 && cell.z === 0) {
+      if (cell.column === 0) {
         if (!frame.leftBlocked) this.addSideBranchJambs(cellGroup, -1, wallMaterial, cell, profile, toWorld);
         if (!frame.rightBlocked) this.addSideBranchJambs(cellGroup, 1, wallMaterial, cell, profile, toWorld);
       }
@@ -802,7 +782,7 @@ export class ThreeDungeonRenderer {
     const halfDepth = profile.cellDepth / 2;
     [-1, 1].forEach((edge) => {
       const position = toWorld(side * profile.cellWidth / 2, edge * halfDepth);
-      const jamb = new Mesh(new BoxGeometry(0.14, profile.wallHeight, 0.14), jambMaterial.clone());
+      const jamb = new Mesh(new BoxGeometry(0.2, profile.wallHeight, 0.2), jambMaterial.clone());
       jamb.material.userData = { rendererLifecycle: "side-branch-jamb-scene" };
       jamb.position.set(position.x, profile.wallHeight / 2, position.z);
       jamb.userData = {

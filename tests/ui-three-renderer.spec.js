@@ -165,6 +165,9 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
           branchFloors: branchFloors.sort((a, b) => a.column - b.column),
           branchJambs,
           syntheticBranchSurfaces,
+          cameraHeading: {
+            y: Number(dungeonRenderer.camera.rotation.y.toFixed(3)),
+          },
         };
       });
 
@@ -193,6 +196,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
         material === 'MeshStandardMaterial' && depthTest && depthWrite
       )).toBe(true);
       expect(evidence.syntheticBranchSurfaces).toEqual([]);
+      expect(evidence.cameraHeading.y).toBeCloseTo(0, 3);
       if (archetype === 't-junction') {
         expect(evidence.visible).toEqual(expect.arrayContaining(['0:-1', '0:1']));
         expect(evidence.visible).not.toContain('1:0');
@@ -282,10 +286,19 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
         const farBranchSurfaces = [];
         const farBranchDepth = [];
         const farBranchFloors = [];
+        const farBranchJambs = [];
         dungeonRenderer.root.traverse((child) => {
           if (child.userData?.surface === 'ceiling' && !ceiling) ceiling = child;
           if (child.userData?.surface === 'depth-seam') seamCount += 1;
           if (child.userData?.surface?.startsWith('side-branch-')) {
+            if (child.userData.surface === 'side-branch-jamb') {
+              farBranchJambs.push({
+                material: child.material?.type ?? null,
+                depthTest: child.material?.depthTest ?? null,
+                depthWrite: child.material?.depthWrite ?? null,
+              });
+              return;
+            }
             farBranchSurfaces.push(child.userData.surface);
             farBranchDepth.push({
               surface: child.userData.surface,
@@ -318,6 +331,7 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
           farBranchSurfaces,
           farBranchDepth,
           farBranchFloors,
+          farBranchJambs,
         };
       });
 
@@ -336,6 +350,10 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
         if (fixture.name === 'b2-right-turn-arch') {
           expect(evidence.farBranchSurfaces).toEqual([]);
           expect(evidence.farBranchDepth).toEqual([]);
+          expect(evidence.farBranchJambs).toHaveLength(2);
+          expect(evidence.farBranchJambs.every(({ material, depthTest, depthWrite }) =>
+            material === 'MeshStandardMaterial' && depthTest && depthWrite
+          )).toBe(true);
           expect(evidence.farBranchFloors).toEqual([
             { material: 'MeshStandardMaterial', depthTest: true, depthWrite: true },
           ]);
@@ -408,7 +426,10 @@ test('Three.js production B1F state keeps a real side passage continuous with th
         });
       }
       if (child.userData?.surface === 'side-branch-jamb') {
+        const jambTopology = child.userData?.topology;
         branchJambs.push({
+          z: jambTopology?.z ?? null,
+          column: jambTopology?.column ?? null,
           material: child.material?.type ?? null,
           depthTest: child.material?.depthTest ?? null,
           depthWrite: child.material?.depthWrite ?? null,
@@ -456,8 +477,9 @@ test('Three.js production B1F state keeps a real side passage continuous with th
       }),
     },
   ]);
-  expect(evidence.branchJambs).toHaveLength(2);
-  expect(evidence.branchJambs.every(({ material, depthTest, depthWrite }) =>
+  const currentBranchJambs = evidence.branchJambs.filter(({ z, column }) => z === 0 && column === 0);
+  expect(currentBranchJambs).toHaveLength(2);
+  expect(currentBranchJambs.every(({ material, depthTest, depthWrite }) =>
     material === 'MeshStandardMaterial' && depthTest && depthWrite
   )).toBe(true);
   console.log(`[issue-1181] production B1F branch evidence ${JSON.stringify(evidence)}`);
