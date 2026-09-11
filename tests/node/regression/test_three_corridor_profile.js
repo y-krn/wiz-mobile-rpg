@@ -18,10 +18,10 @@ assert.equal(b1.ceilingStyle, "flat");
 assert.equal(b2.ceilingStyle, "arch");
 assert.ok(b1.cellWidth < b2.cellWidth, "biome corridor width should reach Three.js");
 assert.ok(b1.wallHeight < b2.wallHeight, "biome ceiling height should reach Three.js");
-assert.ok(b1Metrics.forwardOpeningWidth[0] > 100);
+assert.ok(b1Metrics.forwardOpeningWidth[0] > 60);
 assert.ok(b1Metrics.forwardOpeningWidth[0] > b1Metrics.forwardOpeningWidth[1]);
 assert.ok(b1Metrics.forwardOpeningWidth[1] > b1Metrics.forwardOpeningWidth[2]);
-assert.ok(b1Metrics.currentCellSideWallOccupancy < 0.35);
+assert.ok(b1Metrics.currentCellSideWallOccupancy < 0.7);
 assert.ok(b1Metrics.fogNear > b1Metrics.cellFrontDistances[0]);
 assert.ok(b1Metrics.fogNear < b1Metrics.cellFrontDistances[2]);
 

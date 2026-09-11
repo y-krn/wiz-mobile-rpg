@@ -37,7 +37,7 @@ const THREE_CORRIDOR_BASE = Object.freeze({
   wallHeight: 3.2,
   startZ: 1.15,
   fov: 88,
-  eyeOffsetZ: 0.9,
+  eyeOffsetZ: 0.4,
   lookAtHeight: 1.5,
   lookAtZ: -2.6,
   fogNear: 4.8,

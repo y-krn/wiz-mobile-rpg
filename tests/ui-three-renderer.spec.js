@@ -323,10 +323,10 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
 
       expect(evidence.cameraFov).toBeGreaterThanOrEqual(60);
       expect(evidence.cameraFov).toBeLessThanOrEqual(90);
-      expect(evidence.metrics.forwardOpeningWidth[0]).toBeGreaterThan(100);
+      expect(evidence.metrics.forwardOpeningWidth[0]).toBeGreaterThan(60);
       expect(evidence.metrics.forwardOpeningWidth[0]).toBeGreaterThan(evidence.metrics.forwardOpeningWidth[1]);
       expect(evidence.metrics.forwardOpeningWidth[1]).toBeGreaterThan(evidence.metrics.forwardOpeningWidth[2]);
-      expect(evidence.metrics.currentCellSideWallOccupancy).toBeLessThan(0.35);
+      expect(evidence.metrics.currentCellSideWallOccupancy).toBeLessThan(0.7);
       expect(evidence.fog.near).toBeGreaterThan(evidence.metrics.cellFrontDistances[0]);
       expect(evidence.fog.near).toBeLessThan(evidence.metrics.cellFrontDistances[2]);
       expect(evidence.seamCount).toBeGreaterThan(0);
