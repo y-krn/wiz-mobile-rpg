@@ -8,14 +8,14 @@ encounter, Trial, initiative, combat, flee, reward, and map traversal paths.
 No production balance value is changed by this Issue.
 
 - base SHA: `47ba14467669ff18a71bb7c813e9452c4b468fa9` (`origin/main`, fetched and verified)
-- measured source SHA: `9704d026f79bf3b661d00431e9c1960837e0d2be`
+- measured source SHA: `39a3c887f1a6554e457bd70197e7a9f5c568f60c`
 - profile selection: fresh save + `vanguard`, N=5000, seed=1192
 - matched holdout: fresh save + `vanguard`, N=1000, seed=2192
 - fixed panel: all 43 legal B1F regular two-monster compositions × HP 100/75/50/25 × fight/immediate-flee, N=1000 per case, seed=1151
-- runner: `scratch/measurements/early_b1f_composition_diagnostic.js`, version `issue1192-early-b1f-composition-v3`, schema 3
+- runner: `scratch/measurements/early_b1f_composition_diagnostic.js`, version `issue1192-early-b1f-composition-v4`, schema 4
 - B1F size weights: `[0.70, 0.30, 0.00]`
 - replacement/reroll weights: production `getEncounterPoolForFloor(floor, { trial })` and encounter rules, conditionally re-normalized per run/floor Trial
-- provenance: runner/gameplay source `9704d02…`; gameplay baseline `47ba144…`; origin-main ancestor true; stale tree false; clean tree true
+- provenance: runner/gameplay source `39a3c88…`; gameplay baseline `47ba144…`; origin-main ancestor true; stale tree false; clean tree true; environment hash `d14f90a56bdf2a4b`
 - raw report: temporary artifact, not committed; reproduce with the workflow `.github/workflows/early-b1f-composition-diagnostic.yml`
 
 The modeled player is the production auto-fight policy with no departure
@@ -66,10 +66,10 @@ a top-3-only production boundary.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | production baseline | 90.30% | 9.70% | 28.60% / 28.60% | 13.40% / 13.40% | 1.94% | 92.80% | 88.90% |
 | cadence: first pair suppressed (control) | 88.30% | 11.70% | 28.60% / 0.00% | 17.10% / 17.10% | 1.40% | 96.90% | 93.30% |
-| pool redistribution (top3) | 90.40% | 9.60% | 28.60% / 28.60% | 13.80% / 13.80% | 1.94% | 93.20% | 89.40% |
-| ordering top3 | 90.40% | 9.60% | 28.60% / 28.60% | 13.80% / 13.80% | 1.94% | 93.20% | 89.40% |
-| ordering top5 | 90.20% | 9.80% | 28.60% / 28.60% | 13.60% / 13.60% | 2.15% | 93.30% | 89.50% |
-| ordering fixed risk ≥90% | 90.10% | 9.90% | 28.60% / 28.60% | 14.10% / 14.10% | 1.72% | 93.90% | 89.90% |
+| pool redistribution (top3) | 90.30% | 9.70% | 28.60% / 28.60% | 13.70% / 13.70% | 1.94% | 93.10% | 89.20% |
+| ordering top3 | 90.30% | 9.70% | 28.60% / 28.60% | 13.70% / 13.70% | 1.94% | 93.20% | 89.20% |
+| ordering top5 | 90.40% | 9.60% | 28.60% / 28.60% | 13.60% / 13.60% | 2.15% | 93.00% | 89.10% |
+| ordering fixed risk ≥90% | 90.30% | 9.70% | 28.60% / 28.60% | 14.10% / 14.10% | 1.83% | 93.90% | 90.10% |
 
 Pool and ordering preserve pair count. Ordering rerolls only ordinal 1; ordinal
 2+ remains normal generated production composition, and the Trial-weighted
@@ -86,23 +86,28 @@ Values are p50/p95. E2 entry HP is conditional on reaching encounter 2.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | baseline | 1.00 / 1.00 | 13 / 19 | 0.45 / 0.85 | 64.69% / 78.36% | 43 | 4.76% / 12.38% |
 | cadence control | 1.00 / 1.00 | 14 / 19 | 0.46 / 0.90 | — / 78.36% | 40 | 5.85% / 14.62% |
-| pool top3 | 1.00 / 1.00 | 13 / 19 | 0.45 / 0.85 | 60.84% / 74.64% | 40 | 5.90% / 14.15% |
-| ordering top3 | 1.00 / 1.00 | 13 / 19 | 0.45 / 0.85 | 60.84% / 77.54% | 43 | 5.66% / 13.44% |
-| ordering top5 | 1.00 / 1.00 | 13 / 19 | 0.45 / 0.85 | 59.44% / 77.94% | 43 | 4.98% / 12.56% |
-| ordering risk ≥90% | 1.00 / 1.00 | 13 / 19 | 0.45 / 0.85 | 53.85% / 79.43% | 43 | 5.85% / 14.52% |
+| pool top3 | 1.00 / 1.00 | 13 / 19 | 0.45 / 0.85 | 60.49% / 78.83% | 40 | 5.44% / 13.71% |
+| ordering top3 | 1.00 / 1.00 | 13 / 19 | 0.45 / 0.85 | 60.84% / 78.83% | 43 | 4.96% / 12.53% |
+| ordering top5 | 1.00 / 1.00 | 13 / 19 | 0.45 / 0.85 | 61.89% / 78.68% | 43 | 5.45% / 13.74% |
+| ordering risk ≥90% | 1.00 / 1.00 | 13 / 19 | 0.45 / 0.85 | 54.55% / 78.01% | 42 | 4.68% / 13.58% |
 
 Normal damage p50/p95 was `7/20` for baseline, pool, and all ordering cases;
 cadence was `6/16`. Trap damage / poison applications were baseline `8349/387`,
-pool `8432/391`, ordering top3 `8405/390`, top5 `8433/390`, and risk≥90%
-`8515/395`.
+pool `8408/389`, ordering top3 `8387/390`, top5 `8384/389`, and risk≥90%
+`8491/392`.
+
+The v4 runner records candidate action counts, replacement Trial identity, and
+global simulation RNG state around each replacement. All replacement rows had
+zero Trial mismatches and zero global RNG state shifts; reroll selection uses a
+stable auxiliary value derived from run seed, floor, ordinal, and candidate id.
 
 ## Decision
 
 The fixed panel and sensitivity holdout show that the risk is broad after
-resource carryover, not a stable top-3-only composition boundary. Ordering
-effects scale modestly with coverage: top3 changes B2 arrival by -0.1pp,
-top5 by +0.1pp, and risk≥90% by +0.2pp versus baseline; Build opportunity
-changes by +0.5pp, +0.6pp, and +1.0pp respectively.
+resource carryover, not a stable top-3-only composition boundary. After
+isolating reroll randomness, ordering effects remain modest with coverage:
+top3 changes B2 arrival by 0.0pp, top5 by -0.1pp, and risk≥90% by 0.0pp versus
+baseline; Build opportunity changes by +0.3pp, +0.2pp, and +1.2pp respectively.
 
 Do not advance a narrow ordering candidate to production from this evidence.
 The next decision should return to the broader #1184 A/B/C boundary: early
@@ -134,7 +139,7 @@ fresh-save gate.
 node scratch/measurements/early_b1f_composition_diagnostic.js \
   --ref main --runs 1000 --selection-runs 5000 --fixed-runs 1000 \
   --seed 2192 --selection-seed 1192 --fixed-seed 1151 \
-  --purpose "#1192 Trial-aware early B1F candidate sensitivity and holdout comparison" \
+  --purpose "#1192 Trial-aware early B1F candidate sensitivity with isolated reroll RNG" \
   --output /tmp/issue1192/report.json \
   --summary /tmp/issue1192/summary.md \
   --manifest /tmp/issue1192/manifest.json
