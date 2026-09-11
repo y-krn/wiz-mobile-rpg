@@ -12,8 +12,8 @@ import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1196-continuation-resource-v4";
-export const SCHEMA_VERSION = 8;
+export const RUNNER_VERSION = "issue1198-continuation-resource-v1";
+export const SCHEMA_VERSION = 9;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const EARLY_COMPOSITION_POLICY_IDS = Object.freeze([
   "baseline",
@@ -1320,7 +1320,7 @@ export async function runDiagnostic({
       startFloor: 1,
       targetDepth: 2,
       runIndex,
-      seriesId: "issue-1196:b1f",
+      seriesId: "issue-1198:b1f",
       scoringProfile: null,
       scenario,
       workshop: { ranks: {} },
@@ -1409,7 +1409,7 @@ function buildReport({
     chestHealPotionWeight: result.configuration.chestHealPotionWeight,
     chestHealPotionWeightSource: result.configuration.chestHealPotionWeightSource
   };
-  const envHash = printEnvSignatureBanner(environment, { label: "issue1196" });
+  const envHash = printEnvSignatureBanner(environment, { label: "issue1198" });
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
@@ -1440,7 +1440,7 @@ function buildSummary(report) {
     .sort(([, left], [, right]) => right.deathContributionRate - left.deathContributionRate)
     .slice(0, 10);
   return [
-    "# Issue #1196 starting-kit continuation-resource diagnostic",
+    "# Issue #1198 starting-kit continuation-resource diagnostic",
     "",
     `- runner: \`${report.runnerVersion}\` / schema: ${report.schemaVersion}`,
     `- source SHA: \`${measurement.sourceCommit || "not recorded"}\``,
@@ -1586,7 +1586,7 @@ async function main() {
     purpose: CLI_OPTIONS.purpose,
     requestedRef: CLI_OPTIONS.ref
   }), null, 2)}\n`);
-  console.log(`Wrote Issue #1196 diagnostic: ${resolve(output)}`);
+  console.log(`Wrote Issue #1198 diagnostic: ${resolve(output)}`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
