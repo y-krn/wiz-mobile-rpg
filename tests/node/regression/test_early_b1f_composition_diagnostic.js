@@ -18,9 +18,25 @@ assert.ok(report.legalPairSurface.every(pair => pair.names.length === 2));
 assert.equal(report.fixedCombat.cases.length, 43 * 4 * 2);
 assert.deepEqual(
   Object.keys(report.cases).sort(),
-  ["baseline", "cadence-first-single", "composition-pool-redistribution", "ordering-defer"].sort()
+  [
+    "baseline",
+    "cadence-first-single",
+    "composition-pool-redistribution",
+    "ordering-defer",
+    "ordering-defer-top5",
+    "ordering-defer-risk90"
+  ].sort()
 );
 assert.ok(report.candidateProfile.targetCompositionKeys.length > 0);
+assert.deepEqual(Object.keys(report.candidateProfile.profiles).sort(), ["risk90", "top3", "top5"]);
+assert.ok(report.candidateProfile.profiles.top5.targetCompositionKeys.length >= report.candidateProfile.profiles.top3.targetCompositionKeys.length);
+assert.ok(report.candidateProfile.profiles.risk90.targetCompositionKeys.length >= report.candidateProfile.profiles.top3.targetCompositionKeys.length);
+for (const profile of Object.values(report.candidateProfile.profiles)) {
+  assert.ok(profile.targetCoverage.targetCount > 0);
+  assert.ok(profile.targetCoverage.earlyEncounterShare >= 0);
+  assert.ok(profile.targetCoverage.earlyDeathShare >= 0);
+  assert.ok(Math.abs(profile.targetMass + profile.replacementMass - 1) < 1e-9);
+}
 assert.ok(report.candidateProfile.replacementPairs.length > 0);
 assert.ok(report.candidateProfile.replacementPairs.every(pair =>
   pair.names.length === 2 && pair.weight > 0
@@ -43,6 +59,8 @@ for (const result of Object.values(report.cases)) {
   assert.equal(typeof result.metrics.meaningfulRewardRate, "number");
   assert.equal(typeof result.metrics.buildOpportunityRate, "number");
   assert.equal(typeof result.metrics.diversity.uniqueEffectivePairCompositions, "number");
+  assert.equal(typeof result.metrics.byEncounterOrdinal["1"].generatedPair.deathRate, "number");
+  assert.ok(!Object.hasOwn(result.metrics.byEncounterOrdinal["1"].candidateActions || {}, "release-deferred"));
   assert.ok(
     result.metrics.byEncounterOrdinal["1"].nextEntryHpRate === null ||
     typeof result.metrics.byEncounterOrdinal["1"].nextEntryHpRate === "object"

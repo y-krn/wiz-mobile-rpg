@@ -247,6 +247,8 @@ const {
   MONSTERS,
   SPELLS
 } = await import("../../src/data.js");
+const { isEncounterCompositionAllowed } = await import("../../src/rules/encounter_rules.js");
+const { getBandIndexForFloor, getBandTrialForFloor } = await import("../../src/rules/floor_trials.js");
 const { createBuildCharacter: createProductionBuildCharacter } =
   await import("../measurements/build_sensitivity_measurement.js");
 const { BUILD_FIXTURE_IDS, createBuildFixture } =
@@ -7316,17 +7318,55 @@ function normalizeEarlyCompositionCandidate(candidate) {
   };
 }
 
-function pickEarlyCompositionReplacement(candidate) {
-  const totalWeight = candidate.replacementPairs.reduce(
+function getTrialWeightedResidualPairDistribution(candidate, state, floor) {
+  const runSeed = state.currentRun?.runSeed;
+  const bandIndex = getBandIndexForFloor(floor);
+  const storedTrial = state.currentRun?.trialBands?.[bandIndex] || null;
+  const trial = runSeed ? getBandTrialForFloor(runSeed, floor, storedTrial) : null;
+  const poolTemplates = getEncounterPoolForFloor(floor, { trial })
+    .map(name => MONSTERS.find(monster => monster.name === name))
+    .filter(Boolean);
+  const weights = new Map();
+  for (const firstTemplate of poolTemplates) {
+    const candidates = poolTemplates.filter(template =>
+      isEncounterCompositionAllowed([firstTemplate, template], 2)
+    );
+    for (const secondTemplate of candidates) {
+      const key = [firstTemplate.name, secondTemplate.name].sort().join(" + ");
+      const probability = 1 / poolTemplates.length / candidates.length;
+      weights.set(key, (weights.get(key) || 0) + probability);
+    }
+  }
+  const replacementPairs = [...weights.entries()]
+    .filter(([key]) => !candidate.targetCompositionKeys.includes(key))
+    .map(([key, weight]) => ({
+      key,
+      names: key.split(" + "),
+      weight
+    }));
+  return {
+    trial: trial
+      ? { bandIndex: trial.bandIndex, mainId: trial.mainId, subId: trial.subId }
+      : null,
+    replacementPairs
+  };
+}
+
+function pickEarlyCompositionReplacement(candidate, state, floor) {
+  const { trial, replacementPairs } = getTrialWeightedResidualPairDistribution(candidate, state, floor);
+  const totalWeight = replacementPairs.reduce(
     (sum, replacement) => sum + replacement.weight,
     0
   );
-  let roll = Math.random() * totalWeight;
-  for (const replacement of candidate.replacementPairs) {
-    roll -= replacement.weight;
-    if (roll < 0) return replacement.names;
+  if (replacementPairs.length === 0 || totalWeight <= 0) {
+    throw new Error(`no trial-weighted residual pair remains for floor ${floor}`);
   }
-  return candidate.replacementPairs.at(-1).names;
+  let roll = Math.random() * totalWeight;
+  for (const replacement of replacementPairs) {
+    roll -= replacement.weight;
+    if (roll < 0) return { ...replacement, trial };
+  }
+  return { ...replacementPairs.at(-1), trial };
 }
 
 function getFirstPlayerActionOpportunity(roundResult, actionType) {
@@ -7383,18 +7423,26 @@ function runEncounter(
   const diagnosticLevel = metrics?.diagnosticLevel || "full";
   const fullDiagnostics = diagnosticLevel === "full";
   const compactDiagnostics = diagnosticLevel === "compact";
-  let monsters = fixedMonsterNames
-    ? createFixedDiagnosticMonsters(fixedMonsterNames, state.floor)
-    : generateEncounter(
-        state,
+  let generatedTrial = null;
+  let monsters;
+  if (fixedMonsterNames) {
+    monsters = createFixedDiagnosticMonsters(fixedMonsterNames, state.floor);
+  } else {
+    const generatedEncounter = generateEncounter(
+      state,
       isBoss,
       isMidboss,
-        isElite,
-        roamingMonster
-      ).monsters;
+      isElite,
+      roamingMonster
+    );
+    monsters = generatedEncounter.monsters;
+    generatedTrial = generatedEncounter.trial || null;
+  }
   const generatedCompositionKey = compositionKey(monsters);
   let earlyCompositionCandidateAction = "none";
   let earlyCompositionDeferredKey = null;
+  let earlyCompositionReplacementKey = null;
+  let earlyCompositionReplacementTrial = null;
   const earlyCompositionCandidate = state.simPolicy?.earlyCompositionCandidate;
   const earlyCompositionCandidateTarget = earlyCompositionCandidate?.targetCompositionKeys?.includes(
     generatedCompositionKey
@@ -7421,8 +7469,10 @@ function runEncounter(
       ((earlyCompositionCandidate.kind === "pool-redistribution" && earlyNormalEncounterOrdinal <= 2) ||
        (earlyCompositionCandidate.kind === "ordering-defer" && earlyNormalEncounterOrdinal === 1));
     if (candidateApplies) {
-      const replacementNames = pickEarlyCompositionReplacement(earlyCompositionCandidate);
-      monsters = createFixedDiagnosticMonsters(replacementNames, state.floor);
+      const replacement = pickEarlyCompositionReplacement(earlyCompositionCandidate, state, state.floor);
+      monsters = createFixedDiagnosticMonsters(replacement.names, state.floor);
+      earlyCompositionReplacementKey = replacement.key;
+      earlyCompositionReplacementTrial = replacement.trial;
       earlyCompositionCandidateAction = earlyCompositionCandidate.kind === "ordering-defer"
         ? "defer-opening-target"
         : "redistribute-pool";
@@ -7604,6 +7654,11 @@ function runEncounter(
       generatedCompositionKey,
       earlyCompositionCandidateAction,
       earlyCompositionDeferredKey,
+      earlyCompositionReplacementKey,
+      earlyCompositionReplacementTrial,
+      generatedTrial: generatedTrial
+        ? { bandIndex: generatedTrial.bandIndex, mainId: generatedTrial.mainId, subId: generatedTrial.subId }
+        : null,
       outcome: null,
       hpBefore: encounterStartHp,
       mpBefore: encounterStartMp,
@@ -7637,6 +7692,11 @@ function runEncounter(
         earlyCompositionCandidate: earlyCompositionCandidate?.id || null,
         earlyCompositionCandidateAction,
         earlyCompositionDeferredKey,
+        earlyCompositionReplacementKey,
+        earlyCompositionReplacementTrial,
+        generatedTrial: generatedTrial
+          ? { bandIndex: generatedTrial.bandIndex, mainId: generatedTrial.mainId, subId: generatedTrial.subId }
+          : null,
         monsters: monsters.map(monster => ({
           name: monster.name,
           atk: monster.atk,
