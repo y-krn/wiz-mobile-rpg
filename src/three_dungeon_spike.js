@@ -12,6 +12,7 @@ import {
   MeshStandardMaterial,
   PerspectiveCamera,
   PlaneGeometry,
+  PointLight,
   Scene,
   Vector3,
   WebGLRenderer,
@@ -31,7 +32,7 @@ export const THREE_DUNGEON_SPIKE_PROFILE = Object.freeze({
   // Keep cells square so a side branch's rotated floor shares the exact edge
   // of its neighbor; this is a geometry invariant, not a camera adjustment.
   cellDepth: 2.2,
-  wallThickness: 0.12,
+  wallThickness: 0.18,
   startZ: 1.15,
   eyeHeight: 1.35,
   eyeZ: 1.55,
@@ -232,11 +233,14 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       scene.background = background;
       scene.fog = new Fog(background, profile.fogNear, profile.fogFar);
       webgl.setClearColor(background, 1);
-      root.add(new AmbientLight(0x8e9aa0, 0.78));
+      root.add(new AmbientLight(0x8e9aa0, 0.42));
       const keyLight = new DirectionalLight(wall, 0.72);
       keyLight.position.set(-2, 5, 4);
       keyLight.castShadow = true;
       root.add(keyLight);
+      const fillLight = new PointLight(wall, 0.8, 10);
+      fillLight.position.set(0, 2.2, 1.5);
+      root.add(fillLight);
       topology.forEach((cell) => addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceilingMaterial));
       floorMaterial.dispose();
       wallMaterial.dispose();

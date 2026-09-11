@@ -13,7 +13,7 @@ production-backed B1F state:
 | cell width | 2.2 |
 | cell depth | 2.2 |
 | wall height | 3.2 |
-| wall thickness | 0.12 |
+| wall thickness | 0.18 |
 | start Z | 1.15 |
 | eye `(x, y, z)` | `(0, 1.35, 1.55)` |
 | look-at `(x, y, z)` | `(0, 0.9, -3.0)` |

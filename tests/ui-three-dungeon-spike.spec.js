@@ -40,10 +40,10 @@ function createSyntheticMap(archetype) {
     paths: {
       'straight-corridor': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 2, 0]],
       'dead-end': [[4, 4, 2]],
-      'left-turn': [[4, 4, 2], [4, 4, 0], [4, 4, 3], [3, 4, 3]],
-      'right-turn': [[4, 4, 2], [4, 4, 0], [4, 4, 1], [5, 4, 1]],
-      't-junction': [[4, 4, 2], [4, 4, 0], [4, 4, 3], [4, 4, 1]],
-      'cross-junction': [[4, 4, 2], [4, 4, 0], [4, 4, 1], [4, 4, 3], [4, 3, 0]],
+      'left-turn': [[4, 4, 2], [4, 4, 3], [3, 4, 3]],
+      'right-turn': [[4, 4, 2], [4, 4, 1], [5, 4, 1]],
+      't-junction': [[4, 4, 2], [4, 4, 3], [4, 4, 1]],
+      'cross-junction': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 4, 1], [4, 4, 3], [5, 4, 1], [3, 4, 3]],
     }[archetype],
   };
 }
@@ -160,7 +160,6 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
       ]));
       const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
       cells.forEach((cell) => {
-        if (cell.column !== 0) return;
         directions.forEach(([dx, dy], dir) => {
           const neighbor = cells.find(({ x, y }) => x === cell.x + dx && y === cell.y + dy);
           if (!neighbor || cell.y > neighbor.y || (cell.y === neighbor.y && cell.x > neighbor.x)) return;
@@ -169,9 +168,19 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
           if (!currentFloor || !neighborFloor) return;
           const currentBounds = currentFloor.bounds;
           const neighborBounds = neighborFloor.bounds;
-          const axis = dx !== 0 ? 'x' : 'z';
-          const value = dx > 0 ? currentBounds.maxX : dx < 0 ? currentBounds.minX
-            : dy > 0 ? currentBounds.maxZ : currentBounds.minZ;
+          const sharedX = Math.abs(currentBounds.maxX - neighborBounds.minX) < 0.01
+            ? currentBounds.maxX
+            : Math.abs(currentBounds.minX - neighborBounds.maxX) < 0.01
+              ? currentBounds.minX
+              : null;
+          const sharedZ = Math.abs(currentBounds.maxZ - neighborBounds.minZ) < 0.01
+            ? currentBounds.maxZ
+            : Math.abs(currentBounds.minZ - neighborBounds.maxZ) < 0.01
+              ? currentBounds.minZ
+              : null;
+          const axis = sharedX !== null ? 'x' : sharedZ !== null ? 'z' : null;
+          if (!axis) return;
+          const value = axis === 'x' ? sharedX : sharedZ;
           const spanMin = axis === 'x'
             ? Math.max(currentBounds.minZ, neighborBounds.minZ)
             : Math.max(currentBounds.minX, neighborBounds.minX);
