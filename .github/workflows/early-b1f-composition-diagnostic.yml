@@ -53,17 +53,22 @@ jobs:
         env:
           MEASUREMENT_REPOSITORY: ${{ github.repository }}
           MEASUREMENT_REQUESTED_REF: ${{ inputs.ref }}
+          MEASUREMENT_REQUESTED_RUNS: ${{ inputs.runs }}
+          MEASUREMENT_REQUESTED_FIXED_RUNS: ${{ inputs.fixed_runs }}
+          MEASUREMENT_REQUESTED_SEED: ${{ inputs.seed }}
+          MEASUREMENT_REQUESTED_FIXED_SEED: ${{ inputs.fixed_seed }}
+          MEASUREMENT_PURPOSE: ${{ inputs.purpose }}
           MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
           MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           mkdir -p /tmp/early-b1f-composition-diagnostic
           node scratch/measurements/early_b1f_composition_diagnostic.js \
-            --ref "${{ inputs.ref }}" \
-            --runs "${{ inputs.runs }}" \
-            --fixed-runs "${{ inputs.fixed_runs }}" \
-            --seed "${{ inputs.seed }}" \
-            --fixed-seed "${{ inputs.fixed_seed }}" \
-            --purpose "${{ inputs.purpose }}" \
+            --ref "$MEASUREMENT_REQUESTED_REF" \
+            --runs "$MEASUREMENT_REQUESTED_RUNS" \
+            --fixed-runs "$MEASUREMENT_REQUESTED_FIXED_RUNS" \
+            --seed "$MEASUREMENT_REQUESTED_SEED" \
+            --fixed-seed "$MEASUREMENT_REQUESTED_FIXED_SEED" \
+            --purpose "$MEASUREMENT_PURPOSE" \
             --output /tmp/early-b1f-composition-diagnostic/report.json \
             --summary /tmp/early-b1f-composition-diagnostic/summary.md \
             --manifest /tmp/early-b1f-composition-diagnostic/manifest.json

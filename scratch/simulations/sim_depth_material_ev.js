@@ -7413,12 +7413,13 @@ function runEncounter(
                ((earlyCompositionCandidate.kind === "pool-redistribution" && earlyNormalEncounterOrdinal <= 2) ||
                 (earlyCompositionCandidate.kind === "ordering-defer" && earlyNormalEncounterOrdinal === 1))) {
       const replacementNames = earlyCompositionCandidate.replacementByComposition[generatedCompositionKey];
+      const deferredNames = monsters.map(monster => baseMonsterName(monster.name));
       monsters = createFixedDiagnosticMonsters(replacementNames, state.floor);
       earlyCompositionCandidateAction = earlyCompositionCandidate.kind === "ordering-defer"
         ? "defer-and-replace"
         : "redistribute-pool";
       if (earlyCompositionCandidate.kind === "ordering-defer") {
-        state.simPolicy.deferredEarlyComposition = monsters.map(monster => baseMonsterName(monster.name));
+        state.simPolicy.deferredEarlyComposition = deferredNames;
         earlyCompositionDeferredKey = generatedCompositionKey;
       }
     }
