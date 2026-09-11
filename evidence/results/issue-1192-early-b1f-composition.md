@@ -105,11 +105,12 @@ top5 by +0.1pp, and risk≥90% by +0.2pp versus baseline; Build opportunity
 changes by +0.5pp, +0.6pp, and +1.0pp respectively.
 
 Do not advance a narrow ordering candidate to production from this evidence.
-The next decision should return to the broader #1184 B/C questions around
-resource carryover and early cadence, while preserving the first-action and
-Cost judgment. #1194 is updated as a blocked follow-up rather than a production
-approval. No enemy stats, recovery, initiative, or global two-enemy rule is
-changed here.
+The next decision should return to the broader #1184 A/B/C boundary: early
+encounter cost (A), resource carryover (B), and reaching Loot/Build opportunity
+before death (C). Cadence is an encounter-side candidate under A, not a #1184
+C label. The first-action and Cost judgment must remain visible. #1194 is
+updated as a blocked follow-up rather than a production approval. No enemy
+stats, recovery, initiative, or global two-enemy rule is changed here.
 
 ## Manual fresh-save playtest
 

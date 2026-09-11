@@ -17,8 +17,8 @@ import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_
 import { runDiagnostic } from "./starting_kit_diagnostic.js";
 import { runFixedCombatDiagnostic } from "./fixed_combat_composition_diagnostic.js";
 
-export const RUNNER_VERSION = "issue1192-early-b1f-composition-v3";
-export const SCHEMA_VERSION = 3;
+export const RUNNER_VERSION = "issue1192-early-b1f-composition-v4";
+export const SCHEMA_VERSION = 4;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_FIXED_RUNS = 1000;
 export const DEFAULT_SEED = 2192;
@@ -348,6 +348,29 @@ function summarizeEncounterRows(result, runs) {
   for (const ordinal of [1, 2]) {
     const ordinalRows = rows.filter(row => row.encounterOrdinal === ordinal);
     byOrdinal[String(ordinal)] = {};
+    const candidateActions = {};
+    const replacementTrials = {};
+    let replacementTrialMismatches = 0;
+    let replacementRandomStateShifts = 0;
+    for (const row of ordinalRows) {
+      const action = row.earlyCompositionCandidateAction || "none";
+      candidateActions[action] = (candidateActions[action] || 0) + 1;
+      if (!row.earlyCompositionReplacementKey) continue;
+      const replacementTrialKey = JSON.stringify(row.earlyCompositionReplacementTrial || null);
+      replacementTrials[replacementTrialKey] = (replacementTrials[replacementTrialKey] || 0) + 1;
+      if (JSON.stringify(row.earlyCompositionReplacementTrial || null) !==
+          JSON.stringify(row.generatedTrial || null)) {
+        replacementTrialMismatches++;
+      }
+      if (row.earlyCompositionReplacementRandomStateBefore !==
+          row.earlyCompositionReplacementRandomStateAfter) {
+        replacementRandomStateShifts++;
+      }
+    }
+    byOrdinal[String(ordinal)].candidateActions = candidateActions;
+    byOrdinal[String(ordinal)].replacementTrials = replacementTrials;
+    byOrdinal[String(ordinal)].replacementTrialMismatches = replacementTrialMismatches;
+    byOrdinal[String(ordinal)].replacementRandomStateShifts = replacementRandomStateShifts;
     for (const group of ["all", "single", "generatedPair", "pair"]) {
       const selected = ordinalRows.filter(row =>
         group === "all" || (group === "single"

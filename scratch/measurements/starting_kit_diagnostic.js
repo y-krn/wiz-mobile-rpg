@@ -455,6 +455,8 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     earlyCompositionDeferredKey: diagnostic?.earlyCompositionDeferredKey || null,
     earlyCompositionReplacementKey: diagnostic?.earlyCompositionReplacementKey || null,
     earlyCompositionReplacementTrial: diagnostic?.earlyCompositionReplacementTrial || null,
+    earlyCompositionReplacementRandomStateBefore: diagnostic?.earlyCompositionReplacementRandomStateBefore ?? null,
+    earlyCompositionReplacementRandomStateAfter: diagnostic?.earlyCompositionReplacementRandomStateAfter ?? null,
     generatedTrial: diagnostic?.generatedTrial || identity.generatedTrial || null,
     initialCompositionEnemyNames: enemyNames,
     outcome: identity.outcome || diagnostic?.result || "unknown",

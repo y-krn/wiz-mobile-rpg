@@ -3937,6 +3937,14 @@ function hashSimulationRunSeed(value) {
   return hash >>> 0;
 }
 
+function stableAuxiliaryRandom(...parts) {
+  let value = hashSimulationRunSeed(parts.join("\u0000"));
+  value = (value + 0x6D2B79F5) >>> 0;
+  value = Math.imul(value ^ (value >>> 15), value | 1);
+  value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+  return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+}
+
 function equipBestWorkshopStartingGear(character, workshop, config = {}) {
   const candidateIds = config.startingGearCandidatesOverride ||
     getWorkshopGrants(workshop).startingGear;
@@ -7352,7 +7360,7 @@ function getTrialWeightedResidualPairDistribution(candidate, state, floor) {
   };
 }
 
-function pickEarlyCompositionReplacement(candidate, state, floor) {
+function pickEarlyCompositionReplacement(candidate, state, floor, encounterOrdinal) {
   const { trial, replacementPairs } = getTrialWeightedResidualPairDistribution(candidate, state, floor);
   const totalWeight = replacementPairs.reduce(
     (sum, replacement) => sum + replacement.weight,
@@ -7361,7 +7369,15 @@ function pickEarlyCompositionReplacement(candidate, state, floor) {
   if (replacementPairs.length === 0 || totalWeight <= 0) {
     throw new Error(`no trial-weighted residual pair remains for floor ${floor}`);
   }
-  let roll = Math.random() * totalWeight;
+  const rollSeed = stableAuxiliaryRandom(
+    "early-composition-replacement",
+    state.currentRun?.runSeed || "run",
+    floor,
+    encounterOrdinal,
+    candidate.kind,
+    candidate.id
+  );
+  let roll = rollSeed * totalWeight;
   for (const replacement of replacementPairs) {
     roll -= replacement.weight;
     if (roll < 0) return { ...replacement, trial };
@@ -7443,6 +7459,8 @@ function runEncounter(
   let earlyCompositionDeferredKey = null;
   let earlyCompositionReplacementKey = null;
   let earlyCompositionReplacementTrial = null;
+  let earlyCompositionReplacementRandomStateBefore = null;
+  let earlyCompositionReplacementRandomStateAfter = null;
   const earlyCompositionCandidate = state.simPolicy?.earlyCompositionCandidate;
   const earlyCompositionCandidateTarget = earlyCompositionCandidate?.targetCompositionKeys?.includes(
     generatedCompositionKey
@@ -7469,7 +7487,14 @@ function runEncounter(
       ((earlyCompositionCandidate.kind === "pool-redistribution" && earlyNormalEncounterOrdinal <= 2) ||
        (earlyCompositionCandidate.kind === "ordering-defer" && earlyNormalEncounterOrdinal === 1));
     if (candidateApplies) {
-      const replacement = pickEarlyCompositionReplacement(earlyCompositionCandidate, state, state.floor);
+      earlyCompositionReplacementRandomStateBefore = getSimulationRandomState();
+      const replacement = pickEarlyCompositionReplacement(
+        earlyCompositionCandidate,
+        state,
+        state.floor,
+        earlyNormalEncounterOrdinal
+      );
+      earlyCompositionReplacementRandomStateAfter = getSimulationRandomState();
       monsters = createFixedDiagnosticMonsters(replacement.names, state.floor);
       earlyCompositionReplacementKey = replacement.key;
       earlyCompositionReplacementTrial = replacement.trial;
@@ -7656,6 +7681,8 @@ function runEncounter(
       earlyCompositionDeferredKey,
       earlyCompositionReplacementKey,
       earlyCompositionReplacementTrial,
+      earlyCompositionReplacementRandomStateBefore,
+      earlyCompositionReplacementRandomStateAfter,
       generatedTrial: generatedTrial
         ? { bandIndex: generatedTrial.bandIndex, mainId: generatedTrial.mainId, subId: generatedTrial.subId }
         : null,
@@ -7694,6 +7721,8 @@ function runEncounter(
         earlyCompositionDeferredKey,
         earlyCompositionReplacementKey,
         earlyCompositionReplacementTrial,
+        earlyCompositionReplacementRandomStateBefore,
+        earlyCompositionReplacementRandomStateAfter,
         generatedTrial: generatedTrial
           ? { bandIndex: generatedTrial.bandIndex, mainId: generatedTrial.mainId, subId: generatedTrial.subId }
           : null,

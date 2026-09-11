@@ -60,7 +60,11 @@ for (const result of Object.values(report.cases)) {
   assert.equal(typeof result.metrics.buildOpportunityRate, "number");
   assert.equal(typeof result.metrics.diversity.uniqueEffectivePairCompositions, "number");
   assert.equal(typeof result.metrics.byEncounterOrdinal["1"].generatedPair.deathRate, "number");
-  assert.ok(!Object.hasOwn(result.metrics.byEncounterOrdinal["1"].candidateActions || {}, "release-deferred"));
+  const candidateActions = result.metrics.byEncounterOrdinal["1"].candidateActions;
+  assert.ok(candidateActions && Object.keys(candidateActions).length > 0);
+  assert.ok(!Object.hasOwn(candidateActions, "release-deferred"));
+  assert.equal(result.metrics.byEncounterOrdinal["1"].replacementTrialMismatches, 0);
+  assert.equal(result.metrics.byEncounterOrdinal["1"].replacementRandomStateShifts, 0);
   assert.ok(
     result.metrics.byEncounterOrdinal["1"].nextEntryHpRate === null ||
     typeof result.metrics.byEncounterOrdinal["1"].nextEntryHpRate === "object"
