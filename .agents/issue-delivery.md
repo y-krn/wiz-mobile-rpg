@@ -29,6 +29,16 @@ The acceptance-to-evidence map is a working contract. Update it when the
 implementation changes the proof needed; do not postpone an untestable or
 ambiguous acceptance criterion until review.
 
+## Validating this lifecycle reference
+
+When changing this lifecycle reference, dry-run one recent ready Issue with a
+real domain path in addition to checking the reference itself. Record the
+short route from goal and acceptance criteria through the file map, applicable
+checklist or conditional skill, acceptance-to-evidence mapping, material
+ambiguity decision, and final verification owner. The lifecycle Issue itself
+can prove self-routing, but it is not sufficient as the sole representative
+task for domain routing.
+
 ## During implementation
 
 - Keep one Issue and one concern in scope. Preserve unrelated worktree
@@ -51,11 +61,8 @@ Perform a lightweight self-review after the relevant content is complete:
   boundary, applicable canon, and the acceptance-to-evidence map.
 - Inspect the changed-file set and run `git diff --check`. Fix obvious
   blocking defects before handoff.
-- Run the smallest sufficient final local gate from `qa-regression.md`.
-  Documentation or workflow changes normally include `npm run lint:docs`,
-  `npm run lint:markdown`, and any applicable validator such as
-  `npm run lint:skills`; add unit, browser, build, or simulation evidence only
-  when the touched boundary requires it.
+- Run the smallest sufficient final local gate owned by `qa-regression.md`.
+  Apply any additional validator required by the owning domain guidance.
 - Record assumptions, omitted surfaces, and evidence limitations instead of
   turning an unexercised path into a success claim.
 
@@ -71,8 +78,9 @@ Open or update the PR that closes the Issue. Keep the PR body concise but make
 the evidence traceable:
 
 - Summary and scope, including why the change is the minimum harness needed.
-- An acceptance table with one row per criterion, its disposition, and links
-  or commands for the evidence.
+- Make each acceptance criterion's disposition and evidence traceable in the
+  PR or a linked review/evidence artifact. Use a table when it is the clearest
+  minimal representation; do not require a dedicated format.
 - Verification results, the base/head revision used, and any omitted checks
   with their reason.
 - Canon impact and assumptions, including an explicit unaffected statement
