@@ -104,6 +104,15 @@ assert.equal(
   selectChestItemCandidate(["HEAL_POTION", "ANTIDOTE"], () => 0.99, { HEAL_POTION: 2 }),
   "ANTIDOTE"
 );
+let weightedRollCount = 0;
+assert.equal(
+  selectChestItemCandidate(["HEAL_POTION", "ANTIDOTE"], () => {
+    weightedRollCount += 1;
+    return 0.25;
+  }, { HEAL_POTION: 2 }),
+  "HEAL_POTION"
+);
+assert.equal(weightedRollCount, 1, "weighted chest selection consumes one RNG draw");
 assert.throws(
   () => selectChestItemCandidate(["HEAL_POTION"], () => 0, { HEAL_POTION: 0 }),
   /positive total weight/
