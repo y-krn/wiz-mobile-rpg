@@ -5,14 +5,26 @@ import assert from "node:assert/strict";
 const {
   STARTING_KIT_IDS,
   POLICY_IDS,
+  RECOVERY_POLICY_IDS,
+  RECOVERY_RESOURCE_IDS,
+  isEventBeforeTargetEncounter,
+  isEventBetweenEncounters,
+  carriedUnusedInventoryCount,
   createDiagnosticScenario,
   getDiagnosticWorldSeed,
+  runMatchedRecoveryPolicies,
   runDiagnostic
 } = await import("../../../scratch/measurements/starting_kit_diagnostic.js");
 
 assert.deepEqual(STARTING_KIT_IDS, ["vanguard", "scout", "devotion", "arcana"]);
 assert.deepEqual(POLICY_IDS, ["fight", "flee-threshold", "visible-multi-enemy-flee"]);
+assert.deepEqual(RECOVERY_POLICY_IDS, ["production", "early-use"]);
+assert.deepEqual(RECOVERY_RESOURCE_IDS, [
+  "HEAL_POTION", "GREATER_HEAL", "HOLY_WATER", "MANA_POTION", "ETHER"
+]);
 assert.equal(getDiagnosticWorldSeed(1139, 2), "issue-1176:1139:2");
+assert.equal(carriedUnusedInventoryCount(1), 1);
+assert.equal(carriedUnusedInventoryCount(0), 0);
 
 const fight = createDiagnosticScenario({
   startingKit: "vanguard",
@@ -66,10 +78,15 @@ for (const field of [
   "runIndex", "encounterOrdinal", "initialCompositionKey", "hpBeforeEncounter",
   "maxHpBeforeEncounter", "hpRateBeforeEncounter", "mpBeforeEncounter",
   "maxMpBeforeEncounter", "mpRateBeforeEncounter", "hpAfterEncounter",
-  "mpAfterEncounter", "combatRounds", "enemyActionCount", "normalDamage", "outcome"
+  "mpAfterEncounter", "combatRounds", "enemyActionCount", "normalDamage", "outcome",
+  "startStep", "endStep", "startRecoveryInventory", "endRecoveryInventory"
 ]) {
   assert.ok(Object.hasOwn(entry, field), `encounter row missing ${field}`);
 }
+assert.ok(Object.hasOwn(entry, "startRecoveryEligibility"));
+assert.ok(Object.hasOwn(entry, "endRecoveryEligibility"));
+assert.ok(Object.hasOwn(entry, "startRecoveryBenefit"));
+assert.ok(Object.hasOwn(entry, "endRecoveryBenefit"));
 assert.equal(typeof entry.initialVisibleEnemyCount, "number");
 assert.ok(entry.initialVisibleEnemyCount >= 1);
 for (const field of [
@@ -144,6 +161,67 @@ assert.equal(typeof report.runOutcome.trapDamageHp, "number");
 assert.equal(typeof report.runOutcome.poisonApplications, "number");
 assert.ok(report.rewardOpportunity.rewardEventCount >= 0);
 assert.equal(report.rewardOpportunity.rows.length, report.runs);
+assert.ok(report.continuationResource["2"]);
+for (const itemId of RECOVERY_RESOURCE_IDS) {
+  assert.ok(report.continuationResource["2"].byItem[itemId]);
+}
+assert.ok(report.linkedTrajectory.byTransition);
+assert.ok(report.linkedTrajectory.cohortByTransition);
+assert.ok(report.naturalEntryHpBands);
+assert.ok(report.naturalEntryHpBandResource);
+
+const boundaryFrom = { encounterOrdinal: 1, endStep: 10 };
+const boundaryTo = { encounterOrdinal: 2, startStep: 10 };
+assert.equal(
+  isEventBeforeTargetEncounter({ encounterOrdinal: 1, step: 10 }, 2, 1),
+  true
+);
+assert.equal(
+  isEventBeforeTargetEncounter({ encounterOrdinal: 2, step: 10 }, 2, 1),
+  false,
+  "same-step target-encounter events must be excluded"
+);
+assert.equal(
+  isEventBetweenEncounters({ encounterOrdinal: 1, step: 10 }, boundaryFrom, boundaryTo),
+  true
+);
+assert.equal(
+  isEventBetweenEncounters({ encounterOrdinal: 2, step: 10 }, boundaryFrom, boundaryTo),
+  false,
+  "same-step target-encounter events must not enter the prior transition"
+);
+for (const itemId of RECOVERY_RESOURCE_IDS) {
+  const funnel = report.continuationResource["2"].byItem[itemId];
+  assert.ok(funnel.runsWithAcquisition >= funnel.runsUsable);
+  assert.ok(funnel.runsUsable >= funnel.runsBeneficial);
+  assert.ok(funnel.runsUsable >= funnel.runsUsed);
+}
+for (const ordinal of ["2", "3"]) {
+  const continuation = report.continuationResource[ordinal];
+  assert.equal(continuation.rows.length, continuation.cohortRuns);
+  assert.equal(
+    continuation.resourceOpportunityRate,
+    continuation.cohortRuns > 0
+      ? continuation.resourceOpportunityRuns / continuation.cohortRuns
+      : null
+  );
+  for (const itemId of RECOVERY_RESOURCE_IDS) {
+    const expectedCarriedRuns = continuation.rows.reduce((count, row) => {
+      const item = row.byItem[itemId];
+      assert.equal(
+        item.carriedUnused,
+        item.inventoryCount,
+        `${ordinal}/${itemId} carried-unused must equal target inventory snapshot`
+      );
+      return count + Number(item.inventoryCount > 0);
+    }, 0);
+    assert.equal(
+      continuation.byItem[itemId].runsCarriedUnused,
+      expectedCarriedRuns,
+      `${ordinal}/${itemId} carried aggregate must count inventory snapshots`
+    );
+  }
+}
 
 const matchedVanguard = await runDiagnostic({
   startingKit: "vanguard",
@@ -174,6 +252,21 @@ const repeat = await runDiagnostic({
   allowSmallRunCount: true
 });
 assert.deepEqual(repeat, report);
+
+const matchedRecovery = await runMatchedRecoveryPolicies({
+  startingKit: "vanguard",
+  policy: "fight",
+  runs: 2,
+  seed: 1139,
+  allowSmallRunCount: true
+});
+assert.equal(matchedRecovery.production.configuration.recoveryPolicy, "production");
+assert.equal(matchedRecovery.earlyUse.configuration.recoveryPolicy, "early-use");
+assert.equal(
+  matchedRecovery.production.encounterExposure.encounterRows[0].initialCompositionKey,
+  matchedRecovery.earlyUse.encounterExposure.encounterRows[0].initialCompositionKey,
+  "recovery policy comparison must use the matched production encounter"
+);
 
 const visibleReport = await runDiagnostic({
   startingKit: "vanguard",

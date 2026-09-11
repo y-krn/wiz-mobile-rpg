@@ -5262,6 +5262,12 @@ function recordDiagnosticReward(metrics, state, item, {
     encounterOrdinal: metrics.encounterIdentityLog?.length || state.currentRun?.battles || 0,
     itemId,
     itemType,
+    playerUsableAtAcquisition: RECOVERY_DIAGNOSTIC_ITEM_IDS.includes(itemId)
+      ? isDiagnosticRecoveryItemUsable(state, itemId)
+      : null,
+    beneficialAtAcquisition: RECOVERY_DIAGNOSTIC_ITEM_IDS.includes(itemId)
+      ? isDiagnosticRecoveryItemBeneficial(state, itemId)
+      : null,
     category: equipment ? "equipment" : itemType === "rune" ? "rune" : "item",
     isCore: core,
     meaningful: true,
@@ -5365,6 +5371,122 @@ const TRACKED_CONSUMABLES = Object.freeze({
     consumed: "holyWaterConsumedBySource"
   })
 });
+
+const RECOVERY_DIAGNOSTIC_ITEM_IDS = Object.freeze([
+  "HEAL_POTION",
+  "GREATER_HEAL",
+  "HOLY_WATER",
+  "MANA_POTION",
+  "ETHER"
+]);
+
+function snapshotRecoveryInventory(state) {
+  return Object.fromEntries(
+    RECOVERY_DIAGNOSTIC_ITEM_IDS.map(itemId => [
+      itemId,
+      state.inventory.filter(item => item === itemId).length
+    ])
+  );
+}
+
+function isDiagnosticRecoveryItemUsable(state, itemId) {
+  const character = state.party[0];
+  if (!character || !isAlive(character)) return false;
+  if (["HEAL_POTION", "GREATER_HEAL"].includes(itemId)) {
+    return character.hp < getCharMaxHp(character);
+  }
+  if (itemId === "HOLY_WATER") {
+    return true;
+  }
+  if (["MANA_POTION", "ETHER"].includes(itemId)) {
+    return canUseManaItems(character) && character.mp < getCharMaxMp(character);
+  }
+  return false;
+}
+
+function isDiagnosticRecoveryItemBeneficial(state, itemId) {
+  const character = state.party[0];
+  if (!character || !isAlive(character)) return false;
+  if (["HEAL_POTION", "GREATER_HEAL"].includes(itemId)) {
+    return character.hp < getCharMaxHp(character);
+  }
+  if (itemId === "HOLY_WATER") {
+    return character.hp < getCharMaxHp(character) || character.status === "poisoned";
+  }
+  if (["MANA_POTION", "ETHER"].includes(itemId)) {
+    return canUseManaItems(character) && character.mp < getCharMaxMp(character);
+  }
+  return false;
+}
+
+function snapshotRecoveryEligibility(state) {
+  return Object.fromEntries(
+    RECOVERY_DIAGNOSTIC_ITEM_IDS.map(itemId => [
+      itemId,
+      isDiagnosticRecoveryItemUsable(state, itemId)
+    ])
+  );
+}
+
+function snapshotRecoveryBenefit(state) {
+  return Object.fromEntries(
+    RECOVERY_DIAGNOSTIC_ITEM_IDS.map(itemId => [
+      itemId,
+      isDiagnosticRecoveryItemBeneficial(state, itemId)
+    ])
+  );
+}
+
+function recordDiagnosticRecoveryEvent(
+  metrics,
+  state,
+  itemId,
+  context,
+  { hpBefore, mpBefore, statusBefore, hpRequested = 0 } = {}
+) {
+  const events = metrics?.diagnostics?.recoveryEvents;
+  if (!events || !RECOVERY_DIAGNOSTIC_ITEM_IDS.includes(itemId)) return;
+  const character = state.party[0];
+  events.push({
+    itemId,
+    context,
+    floor: state.floor,
+    step: metrics.steps,
+    encounterOrdinal: metrics.encounterIdentityLog?.length || 0,
+    hpBefore: Number.isFinite(hpBefore) ? hpBefore : character.hp,
+    hpAfter: character.hp,
+    mpBefore: Number.isFinite(mpBefore) ? mpBefore : character.mp,
+    mpAfter: character.mp,
+    hpRecovered: Math.max(0, character.hp - (Number.isFinite(hpBefore) ? hpBefore : character.hp)),
+    mpRecovered: Math.max(0, character.mp - (Number.isFinite(mpBefore) ? mpBefore : character.mp)),
+    hpRequested: Math.max(0, Number(hpRequested) || 0),
+    playerUsableAtUse: true,
+    statusBefore: statusBefore || character.status,
+    statusAfter: character.status
+  });
+}
+
+function recordDiagnosticCost(
+  metrics,
+  state,
+  source,
+  amount,
+  { hpBefore, type = null } = {}
+) {
+  const events = metrics?.diagnostics?.costEvents;
+  if (!events || !Number.isFinite(amount) || amount <= 0) return;
+  const character = state.party[0];
+  events.push({
+    source,
+    type,
+    floor: state.floor,
+    step: metrics.steps,
+    encounterOrdinal: metrics.encounterIdentityLog?.length || 0,
+    hpBefore: Number.isFinite(hpBefore) ? hpBefore : null,
+    hpAfter: character.hp,
+    hpCost: amount
+  });
+}
 
 function normalizeTrackedConsumableSource(source) {
   return TRACKED_CONSUMABLE_SOURCE_IDS.includes(source) ? source : "other";
@@ -5523,13 +5645,20 @@ function useManaPotionIfNeeded(state, metrics) {
   ) return null;
   const itemIndex = state.inventory.indexOf("MANA_POTION");
   if (itemIndex < 0) return null;
+  const hpBefore = character.hp;
   const mpBefore = character.mp;
+  const statusBefore = character.status;
   state.inventory.splice(itemIndex, 1);
   consumeSimulationObjectLoot(state, metrics, "MANA_POTION");
   recordTrackedConsumableConsumption(state, metrics, "MANA_POTION");
   ITEM_EFFECTS.MANA_POTION({ char: character });
   recordCombatMpRecovery(metrics, "manaPotion", Math.max(0, character.mp - mpBefore));
   recordManaPotionUse(metrics, "post-combat");
+  recordDiagnosticRecoveryEvent(metrics, state, "MANA_POTION", "post-combat", {
+    hpBefore,
+    mpBefore,
+    statusBefore
+  });
   return "MANA_POTION";
 }
 
@@ -7710,6 +7839,7 @@ function runEncounter(
       ? {
         floor: state.floor,
         type: encounterType,
+        startStep: metrics.steps,
         initialVisibleEnemyCount: monsters.filter(monster => monster.hp > 0).length,
         generatedInitialVisibleEnemyCount,
         earlyCompositionPolicy: state.simPolicy?.earlyEncounterMultiEnemyPolicy || "baseline",
@@ -7752,6 +7882,9 @@ function runEncounter(
         startLevel: state.party[0].level,
         startExp: state.party[0].exp,
         startHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
+        startRecoveryInventory: snapshotRecoveryInventory(state),
+        startRecoveryEligibility: snapshotRecoveryEligibility(state),
+        startRecoveryBenefit: snapshotRecoveryBenefit(state),
         startStatusCures: countInventoryItems(state.inventory),
         startBuild: startBuild ? structuredClone(startBuild) : null,
         rounds: []
@@ -7780,6 +7913,10 @@ function runEncounter(
         floor: state.floor,
         amount: telemetry.incomingDamage
       };
+      recordDiagnosticCost(metrics, state, encounterType, telemetry.incomingDamage, {
+        hpBefore: encounterStartHp,
+        type: "combat"
+      });
     }
     if (encounterIdentity) {
       encounterIdentity.outcome = result === "victory"
@@ -7842,6 +7979,7 @@ function runEncounter(
     if (encounterDiagnostic) {
       encounterDiagnostic.result = result;
       if (fullDiagnostics) {
+        encounterDiagnostic.endStep = metrics.steps;
         encounterDiagnostic.endHp = state.party[0].hp;
         encounterDiagnostic.endMp = state.party[0].mp;
         encounterDiagnostic.endLevel = state.party[0].level;
@@ -7849,6 +7987,9 @@ function runEncounter(
         encounterDiagnostic.endStatus = state.party[0].status;
         encounterDiagnostic.endHealPotions =
           state.inventory.filter(item => item === "HEAL_POTION").length;
+        encounterDiagnostic.endRecoveryInventory = snapshotRecoveryInventory(state);
+        encounterDiagnostic.endRecoveryEligibility = snapshotRecoveryEligibility(state);
+        encounterDiagnostic.endRecoveryBenefit = snapshotRecoveryBenefit(state);
         encounterDiagnostic.endGreaterHeals =
           state.inventory.filter(item => item === "GREATER_HEAL").length;
         encounterDiagnostic.endStatusCures = countInventoryItems(state.inventory);
@@ -8230,6 +8371,22 @@ function runEncounter(
     } else if (greaterHealDelta < 0) {
       recordGreaterHealAcquisition(state, metrics, "other", -greaterHealDelta);
     }
+    if (action.type === "item" && RECOVERY_DIAGNOSTIC_ITEM_IDS.includes(action.itemKey)) {
+      const itemCountAfter = state.inventory.filter(item => item === action.itemKey).length;
+      const itemConsumed = consumableCountBefore === null
+        ? Math.max(0, potionDelta, greaterHealDelta)
+        : Math.max(0, consumableCountBefore - itemCountAfter);
+      if (itemConsumed > 0) {
+        recordDiagnosticRecoveryEvent(metrics, state, action.itemKey, "combat", {
+          hpBefore: characterBeforeRound.hp,
+          mpBefore: characterBeforeRound.mp,
+          statusBefore: characterBeforeRound.status,
+          hpRequested: ["HEAL_POTION", "HOLY_WATER"].includes(action.itemKey)
+            ? 15
+            : action.itemKey === "GREATER_HEAL" ? 40 : 0
+        });
+      }
+    }
     if (potionDelta > 0 || greaterHealDelta > 0) {
       recordRecoveryPotionTiming(state, metrics);
     }
@@ -8430,7 +8587,7 @@ function applyPostCombatRecovery(state, metrics = null) {
   }
 }
 
-function useHealPotionIfNeeded(state, metrics) {
+function useHealPotionIfNeeded(state, metrics, context = "post-combat") {
   const itemKey = getRecoveryPotionItem(state);
   if (!itemKey) {
     const character = state.party[0];
@@ -8446,6 +8603,8 @@ function useHealPotionIfNeeded(state, metrics) {
   const itemIndex = state.inventory.indexOf(itemKey);
   const character = state.party[0];
   const hpBefore = character.hp;
+  const mpBefore = character.mp;
+  const statusBefore = character.status;
   const requestedHeal = getSimulationHealAmount(state, itemKey);
   state.inventory.splice(itemIndex, 1);
   consumeSimulationObjectLoot(state, metrics, itemKey);
@@ -8466,6 +8625,12 @@ function useHealPotionIfNeeded(state, metrics) {
     requestedHeal,
     Math.max(0, character.hp - hpBefore)
   );
+  recordDiagnosticRecoveryEvent(metrics, state, itemKey, context, {
+    hpBefore,
+    mpBefore,
+    statusBefore,
+    hpRequested: requestedHeal
+  });
   recordRecoveryPotionTiming(state, metrics);
   return itemKey;
 }
@@ -8478,11 +8643,19 @@ function useStatusCureIfNeeded(state, metrics, context) {
   const character = state.party[0];
   const itemIndex = state.inventory.indexOf(decision.itemKey);
   if (itemIndex < 0) return false;
+  const hpBefore = character.hp;
+  const mpBefore = character.mp;
+  const statusBefore = character.status;
   state.inventory.splice(itemIndex, 1);
   consumeSimulationObjectLoot(state, metrics, decision.itemKey);
   recordStatusCureConsumption(state, metrics, decision.itemKey);
   metrics.holyWaterUsed += Number(decision.itemKey === "HOLY_WATER");
   ITEM_EFFECTS[decision.itemKey]({ char: character });
+  recordDiagnosticRecoveryEvent(metrics, state, decision.itemKey, context, {
+    hpBefore,
+    mpBefore,
+    statusBefore
+  });
   clearStatusObservation(metrics.statusObservations, decision.status, "cured");
   addItemCount(metrics.statusCureItemsUsed, decision.itemKey);
   metrics.statusesCured[decision.status] =
@@ -8590,6 +8763,10 @@ function recordTrapDamage(metrics, source, type, damage, floor, state, snapshot 
     type,
     ...(snapshot || {})
   };
+  recordDiagnosticCost(metrics, state, `${source}-trap`, damage, {
+    hpBefore: snapshot?.hpBefore,
+    type
+  });
   if (snapshot?.hpAfter === 0 && !metrics.deathSnapshot) {
     metrics.deathSnapshot = {
       source: damageSource,
@@ -8634,7 +8811,7 @@ function useTrapRecoveryIfNeeded(state, metrics) {
   const needsPotion = character.hp <=
     getCharMaxHp(character) * state.simPolicy.healPotionThreshold;
   if (needsPotion) {
-    const itemKey = useHealPotionIfNeeded(state, metrics);
+    const itemKey = useHealPotionIfNeeded(state, metrics, "post-trap");
     if (!itemKey) {
       metrics.trapHealPotionShortages++;
     } else {
@@ -11080,9 +11257,14 @@ function resolveFlameTrapAtStep({
     const appliedDamage = damage;
     if (appliedDamage <= 0) return;
     const character = state.party[index];
+    const hpBefore = character.hp;
     character.hp = Math.max(0, character.hp - appliedDamage);
     clearCharIncapacitationOnDamage(character);
     metrics.flameTrapDamageHp += appliedDamage;
+    recordDiagnosticCost(metrics, state, "flame-trap", appliedDamage, {
+      hpBefore,
+      type: "flame"
+    });
     if (character.hp === 0) {
       character.status = "dead";
       recordCharDeath(state, character, "火炎の罠");
@@ -14254,6 +14436,8 @@ export function simulateRun({
           level: diagnosticLevel,
           buildSnapshots: [],
           rewardEvents: [],
+          recoveryEvents: [],
+          costEvents: [],
           encounters: [],
           deathLogs: [],
           finalBuild: null
@@ -14507,11 +14691,16 @@ export function simulateRun({
       state.currentRun.steps++;
       state.currentRun.floorSteps[String(floor)] =
         (state.currentRun.floorSteps[String(floor)] || 0) + 1;
+      const poisonHpBefore = state.party[0].hp;
       const poisonStep = resolveExplorationPoisonStep(
         state.party[0],
         getSimulationExplorationPoisonConfig()
       );
       recordStatusObservationPoisonDamage(metrics.statusObservations, poisonStep.damage);
+      recordDiagnosticCost(metrics, state, "poison", poisonStep.damage, {
+        hpBefore: poisonHpBefore,
+        type: "exploration"
+      });
       if (poisonStep.naturalCure) {
         clearStatusObservation(metrics.statusObservations, "poisoned", "natural-cure");
       }
