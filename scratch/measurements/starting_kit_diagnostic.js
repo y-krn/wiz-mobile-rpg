@@ -11,8 +11,8 @@ import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1196-continuation-resource-v1";
-export const SCHEMA_VERSION = 5;
+export const RUNNER_VERSION = "issue1196-continuation-resource-v2";
+export const SCHEMA_VERSION = 6;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const EARLY_COMPOSITION_POLICY_IDS = Object.freeze([
   "baseline",
@@ -351,6 +351,11 @@ export function isEventBeforeTargetEncounter(event, targetOrdinal, fromOrdinal) 
   return Number.isInteger(ordinal) && ordinal >= fromOrdinal && ordinal < targetOrdinal;
 }
 
+function isEventBeforeTargetBoundary(event, targetOrdinal, targetRow = null) {
+  if (!isEventBeforeTargetEncounter(event, targetOrdinal, 0)) return false;
+  return !targetRow || Number(event.step) <= Number(targetRow.startStep);
+}
+
 export function isEventBetweenEncounters(event, fromRow, nextRow = null) {
   const ordinal = Number(event?.encounterOrdinal);
   if (!fromRow || ordinal !== Number(fromRow.encounterOrdinal)) return false;
@@ -433,12 +438,10 @@ function observeContinuationResources(
     const acquiredBefore = rewardEvents.filter(event =>
       RECOVERY_RESOURCE_IDS.includes(event.itemId) &&
       event.disposition === "bagged" &&
-      isEventBeforeTargetEncounter(event, targetOrdinal, fromRow.encounterOrdinal) &&
-      isEventBetweenEncounters(event, fromRow, targetRow)
+      isEventBeforeTargetBoundary(event, targetOrdinal, targetRow)
     );
     const targetUses = recoveryEvents.filter(event =>
-      isEventBeforeTargetEncounter(event, targetOrdinal, fromRow.encounterOrdinal) &&
-      isEventBetweenEncounters(event, fromRow, targetRow)
+      isEventBeforeTargetBoundary(event, targetOrdinal, targetRow)
     );
     const exposure = targetRow
       ? targetRow.initialVisibleEnemyCount >= 2 ? "pair" : "single"
