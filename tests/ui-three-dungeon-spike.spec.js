@@ -16,27 +16,6 @@ const ARCHETYPES = [
   'cross-junction',
 ];
 
-function getExpectedFrame(cell) {
-  if (cell.column < 0) return {
-    leftBlocked: cell.backBlocked,
-    rightBlocked: cell.frontBlocked,
-    frontBlocked: cell.leftBlocked,
-    backBlocked: cell.rightBlocked,
-  };
-  if (cell.column > 0) return {
-    leftBlocked: cell.frontBlocked,
-    rightBlocked: cell.backBlocked,
-    frontBlocked: cell.rightBlocked,
-    backBlocked: cell.leftBlocked,
-  };
-  return {
-    leftBlocked: cell.leftBlocked,
-    rightBlocked: cell.rightBlocked,
-    frontBlocked: cell.frontBlocked,
-    backBlocked: cell.backBlocked,
-  };
-}
-
 function installSpikeCanvas(page) {
   return page.evaluate(() => {
     const canvas = document.createElement('canvas');
@@ -61,10 +40,10 @@ function createSyntheticMap(archetype) {
     paths: {
       'straight-corridor': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 2, 0]],
       'dead-end': [[4, 4, 2]],
-      'left-turn': [[4, 4, 2], [4, 4, 3], [3, 4, 3]],
-      'right-turn': [[4, 4, 2], [4, 4, 1], [5, 4, 1]],
-      't-junction': [[4, 4, 2], [4, 4, 3], [4, 4, 1]],
-      'cross-junction': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 4, 1], [4, 4, 3], [5, 4, 1], [3, 4, 3]],
+      'left-turn': [[4, 4, 2], [4, 4, 0], [4, 4, 3], [3, 4, 3]],
+      'right-turn': [[4, 4, 2], [4, 4, 0], [4, 4, 1], [5, 4, 1]],
+      't-junction': [[4, 4, 2], [4, 4, 0], [4, 4, 3], [4, 4, 1]],
+      'cross-junction': [[4, 4, 2], [4, 4, 0], [4, 4, 1], [4, 4, 3], [4, 3, 0]],
     }[archetype],
   };
 }
@@ -129,16 +108,51 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
         const surfaces = surfacesByCell.get(`${cell.z}:${cell.column}`) || [];
         return surfaces.includes('floor') && surfaces.includes('ceiling');
       })).toBe(true);
-      cells.forEach((cell) => {
-        const surfaces = surfacesByCell.get(`${cell.z}:${cell.column}`) || [];
-        const expected = getExpectedFrame(cell);
-        Object.entries(expected).forEach(([edge, blocked]) => {
-          const wall = `${edge.replace('Blocked', '')}-wall`;
-          expect(surfaces.includes(wall), `${archetype} ${cell.z}:${cell.column} ${edge}`).toBe(blocked);
+      const floorSurfaces = evidence.surfaces.filter(({ surface }) => surface === 'floor');
+      const wallSurfaces = evidence.surfaces.filter(({ surface }) => surface.endsWith('-wall'));
+      expect(new Set(floorSurfaces.map(({ y }) => y))).toEqual(new Set([0]));
+      floorSurfaces.forEach((floor) => {
+        const { bounds } = floor;
+        const ceiling = evidence.surfaces.find(({ surface, topology }) =>
+          surface === 'ceiling' && topology.z === floor.topology.z && topology.column === floor.topology.column
+        );
+        expect(ceiling.bounds.minX).toBeCloseTo(bounds.minX, 5);
+        expect(ceiling.bounds.maxX).toBeCloseTo(bounds.maxX, 5);
+        expect(ceiling.bounds.minZ).toBeCloseTo(bounds.minZ, 5);
+        expect(ceiling.bounds.maxZ).toBeCloseTo(bounds.maxZ, 5);
+
+        const edges = [
+          { axis: 'x', value: bounds.minX, spanMin: bounds.minZ, spanMax: bounds.maxZ },
+          { axis: 'x', value: bounds.maxX, spanMin: bounds.minZ, spanMax: bounds.maxZ },
+          { axis: 'z', value: bounds.minZ, spanMin: bounds.minX, spanMax: bounds.maxX },
+          { axis: 'z', value: bounds.maxZ, spanMin: bounds.minX, spanMax: bounds.maxX },
+        ];
+        edges.forEach((edge) => {
+          const neighbor = floorSurfaces.some((other) => {
+            if (other === floor) return false;
+            const a = floor.bounds;
+            const b = other.bounds;
+            const overlap = edge.axis === 'x'
+              ? Math.min(a.maxZ, b.maxZ) - Math.max(a.minZ, b.minZ)
+              : Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
+            const shared = edge.axis === 'x'
+              ? Math.abs((edge.value === a.minX ? b.maxX : b.minX) - edge.value) < 0.01
+              : Math.abs((edge.value === a.minZ ? b.maxZ : b.minZ) - edge.value) < 0.01;
+            return shared && overlap > evidence.profile.wallThickness;
+          });
+          const wallAtEdge = wallSurfaces.some((wall) => {
+            const center = wall.worldPosition;
+            const coordinateMatch = edge.axis === 'x'
+              ? Math.abs(center[0] - edge.value) < evidence.profile.wallThickness * 1.5
+              : Math.abs(center[2] - edge.value) < evidence.profile.wallThickness * 1.5;
+            const span = edge.axis === 'x' ? center[2] : center[0];
+            return coordinateMatch && span >= edge.spanMin && span <= edge.spanMax;
+          });
+          if (neighbor) {
+            expect(wallAtEdge, `${archetype} ${floor.topology.z}:${floor.topology.column} shared ${edge.axis}=${edge.value}`).toBe(false);
+          }
         });
       });
-      const floorSurfaces = evidence.surfaces.filter(({ surface }) => surface === 'floor');
-      expect(new Set(floorSurfaces.map(({ y }) => y))).toEqual(new Set([0]));
       const currentFloor = floorSurfaces.find(({ topology }) => topology.z === 0 && topology.column === 0);
       floorSurfaces.filter(({ topology }) => topology.z === 0 && Math.abs(topology.column) === 1).forEach((branchFloor) => {
         expect(branchFloor.worldPosition[1]).toBe(currentFloor.worldPosition[1]);

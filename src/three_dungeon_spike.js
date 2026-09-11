@@ -1,6 +1,7 @@
 // balance-impact: none — isolated visual proof harness; it is not the production renderer.
 import {
   AmbientLight,
+  Box3,
   BoxGeometry,
   Color,
   DirectionalLight,
@@ -25,16 +26,18 @@ export const THREE_DUNGEON_SPIKE_VIEW = Object.freeze({
 // Frozen Phase 1 profile. The prototype deliberately does not accept topology
 // or biome values here: one profile must explain every archetype.
 export const THREE_DUNGEON_SPIKE_PROFILE = Object.freeze({
-  cellWidth: 1.8,
-  cellDepth: 1.8,
-  wallHeight: 2.2,
+  cellWidth: 2.2,
+  wallHeight: 3.2,
+  // Keep cells square so a side branch's rotated floor shares the exact edge
+  // of its neighbor; this is a geometry invariant, not a camera adjustment.
+  cellDepth: 2.2,
   wallThickness: 0.12,
-  startZ: 1.0,
-  eyeHeight: 1.1,
-  eyeZ: 1.25,
-  lookAtHeight: 0.56,
-  lookAtZ: -2.7,
-  fov: 130,
+  startZ: 1.15,
+  eyeHeight: 1.35,
+  eyeZ: 1.55,
+  lookAtHeight: 0.9,
+  lookAtZ: -3.0,
+  fov: 105,
   fogNear: 4.8,
   fogFar: 15.5,
 });
@@ -99,6 +102,8 @@ function addSurface(parent, geometry, material, position, surface, topology, rot
   const mesh = new Mesh(geometry, material.clone());
   mesh.position.set(position.x, position.y, position.z);
   if (rotation) mesh.rotation.set(rotation.x || 0, rotation.y || 0, rotation.z || 0);
+  mesh.receiveShadow = true;
+  mesh.castShadow = surface.endsWith("wall");
   mesh.userData = {
     surface,
     topology: { z: topology.z, column: topology.column, x: topology.x, y: topology.y },
@@ -159,6 +164,7 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
     powerPreference: "low-power",
     preserveDrawingBuffer: true,
   });
+  webgl.shadowMap.enabled = true;
   webgl.setPixelRatio(1);
   webgl.setSize(THREE_DUNGEON_SPIKE_VIEW.width, THREE_DUNGEON_SPIKE_VIEW.height, false);
   webgl.outputColorSpace = "srgb";
@@ -197,9 +203,9 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       // One shared material family carries hierarchy: path floor is brighter,
       // enclosure walls/ceiling are quieter. No branch receives a special
       // material or lighting treatment.
-      const floorColor = background.clone().lerp(wall, 0.72);
-      const wallColor = background.clone().lerp(wall, 0.18);
-      const ceilingColor = background.clone().lerp(wall, 0.08);
+      const floorColor = background.clone().lerp(wall, 0.38);
+      const wallColor = background.clone().lerp(wall, 0.06);
+      const ceilingColor = background.clone().lerp(wall, 0.015);
       const floorMaterial = new MeshStandardMaterial({
         color: floorColor,
         roughness: 0.96,
@@ -227,6 +233,7 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       root.add(new AmbientLight(0x8e9aa0, 0.58));
       const keyLight = new DirectionalLight(wall, 0.65);
       keyLight.position.set(-2, 5, 4);
+      keyLight.castShadow = true;
       root.add(keyLight);
       topology.forEach((cell) => addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceilingMaterial));
       floorMaterial.dispose();
@@ -262,6 +269,17 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
           topology: child.userData.topology,
           y: child.position.y,
           worldPosition: child.getWorldPosition(new Vector3()).toArray(),
+          bounds: (() => {
+            const box = new Box3().setFromObject(child);
+            return {
+              minX: box.min.x,
+              maxX: box.max.x,
+              minY: box.min.y,
+              maxY: box.max.y,
+              minZ: box.min.z,
+              maxZ: box.max.z,
+            };
+          })(),
         });
       });
       return surfaces;

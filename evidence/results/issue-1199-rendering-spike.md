@@ -10,14 +10,14 @@ production-backed B1F state:
 
 | value | frozen value |
 | --- | ---: |
-| cell width | 1.8 |
-| cell depth | 1.8 |
-| wall height | 2.2 |
+| cell width | 2.2 |
+| cell depth | 2.2 |
+| wall height | 3.2 |
 | wall thickness | 0.12 |
-| start Z | 1.0 |
-| eye `(x, y, z)` | `(0, 1.1, 1.25)` |
-| look-at `(x, y, z)` | `(0, 0.56, -2.7)` |
-| vertical FOV | 130° |
+| start Z | 1.15 |
+| eye `(x, y, z)` | `(0, 1.35, 1.55)` |
+| look-at `(x, y, z)` | `(0, 0.9, -3.0)` |
+| vertical FOV | 105° |
 | fog near / far | 4.8 / 15.5 |
 
 The camera is reset to this contract after every topology rebuild. The scene
@@ -27,7 +27,8 @@ marker, minimap, HUD, or direction label.
 
 The square cell profile is intentional: a 90° neighboring cell shares the
 same edge length, so side-branch floor and ceiling boundaries meet the current
-cell without a raised threshold or inset vestibule.
+cell without a raised threshold or inset vestibule. Shadowing is enabled only
+for the authored floor, ceiling, and wall meshes; it is not a branch marker.
 
 ## Evidence command
 
@@ -48,6 +49,7 @@ canvas. The production fixture uses `generateRunFloor` and
 - Phase 2 production-backed B1F proof: covered by the deterministic generated
   fixture and screenshot; human visual inspection is required for PASS.
 - Camera/profile/material/topology invariants: structural assertions cover
-  fixed camera contract and forbidden proxy surfaces.
+  fixed camera contract, floor/ceiling bounds, shared-edge continuity, absence
+  of walls across shared walkable edges, and forbidden proxy surfaces.
 - Physical-device evidence: unavailable in this environment, so the
   production-readability claim remains unverified.
