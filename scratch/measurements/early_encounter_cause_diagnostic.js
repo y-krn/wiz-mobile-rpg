@@ -14,8 +14,8 @@ import {
 } from "./starting_kit_diagnostic.js";
 import { runFixedCombatDiagnostic } from "./fixed_combat_composition_diagnostic.js";
 
-export const RUNNER_VERSION = "issue1187-early-encounter-cause-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "issue1187-early-encounter-cause-v2";
+export const SCHEMA_VERSION = 2;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1187;
 export const FIXED_COMBAT_SEED = 1151;
@@ -52,6 +52,79 @@ function formatNumber(value) {
 
 function earlyView(result, ordinal) {
   return result.earlyActionOpportunity.byEncounterOrdinal[String(ordinal)];
+}
+
+function summarizeValues(values) {
+  const sorted = values.filter(Number.isFinite).sort((left, right) => left - right);
+  if (sorted.length === 0) {
+    return {
+      count: 0,
+      average: null,
+      p25: null,
+      p50: null,
+      p75: null,
+      min: null,
+      max: null
+    };
+  }
+  const percentile = rate => {
+    const position = (sorted.length - 1) * rate;
+    const lower = Math.floor(position);
+    const upper = Math.ceil(position);
+    return lower === upper
+      ? sorted[lower]
+      : sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+  };
+  return {
+    count: sorted.length,
+    average: sorted.reduce((sum, value) => sum + value, 0) / sorted.length,
+    p25: percentile(0.25),
+    p50: percentile(0.50),
+    p75: percentile(0.75),
+    min: sorted[0],
+    max: sorted.at(-1)
+  };
+}
+
+function summarizeEntryRows(rows) {
+  const hpBandCounts = {
+    "0-25%": 0,
+    "26-50%": 0,
+    "51-75%": 0,
+    ">75%": 0
+  };
+  for (const row of rows) {
+    if (row.hpRateBeforeEncounter <= 0.25) hpBandCounts["0-25%"]++;
+    else if (row.hpRateBeforeEncounter <= 0.5) hpBandCounts["26-50%"]++;
+    else if (row.hpRateBeforeEncounter <= 0.75) hpBandCounts["51-75%"]++;
+    else hpBandCounts[">75%"]++;
+  }
+  return {
+    encounters: rows.length,
+    hpRateBeforeEncounter: summarizeValues(rows.map(row => row.hpRateBeforeEncounter)),
+    mpRateBeforeEncounter: summarizeValues(rows.map(row => row.mpRateBeforeEncounter)),
+    hpBandCounts
+  };
+}
+
+function summarizeNaturalEntryResource(result) {
+  const rows = result.encounterExposure.encounterRows.filter(row =>
+    row.encounterOrdinal === 1 || row.encounterOrdinal === 2
+  );
+  const byEncounterOrdinal = {};
+  for (const ordinal of [1, 2]) {
+    const ordinalRows = rows.filter(row => row.encounterOrdinal === ordinal);
+    byEncounterOrdinal[String(ordinal)] = {
+      all: summarizeEntryRows(ordinalRows),
+      single: summarizeEntryRows(ordinalRows.filter(row => row.rawInitialVisibleEnemyCount === 1)),
+      pair: summarizeEntryRows(ordinalRows.filter(row => row.rawInitialVisibleEnemyCount >= 2))
+    };
+  }
+  return {
+    source: "production baseline encounterRows",
+    fixedHpBandReference: ["100%", "75%", "50%", "25%"],
+    byEncounterOrdinal
+  };
 }
 
 function sensitivityRow(policy, result, baseline) {
@@ -155,6 +228,7 @@ export async function runEarlyEncounterCauseDiagnostic({
         sensitivityRow(policy, results[policy], baseline)
       ])
     ),
+    naturalEntryResource: summarizeNaturalEntryResource(baseline),
     fixedCombat
   };
 }
@@ -193,7 +267,14 @@ function buildReport(result, provenance, options) {
 }
 
 function buildSummary(report) {
-  const { measurement, configuration, sensitivity, fleeDiagnostic, fixedCombat } = report;
+  const {
+    measurement,
+    configuration,
+    sensitivity,
+    naturalEntryResource,
+    fleeDiagnostic,
+    fixedCombat
+  } = report;
   const lines = [
     "# Issue #1187 fresh B1F early-encounter cause diagnostic",
     "",
@@ -250,6 +331,30 @@ function buildSummary(report) {
       `${fleeDiagnostic.runOutcome.fleeDiedFromPartingAttack} | ${formatRate(fleeDiagnostic.runOutcome.fleeSurvivalRate)} |`,
     "",
     "The flee row uses the same issue-1176 world-seed template and production flee resolver; it is a counterfactual policy comparison, not a recommended default."
+  );
+  lines.push(
+    "",
+    "## Natural-run entry resource by ordinal and composition",
+    "",
+    "These are production baseline encounter rows. Single/pair is grouped by raw generated visible enemy count before any counterfactual suppression.",
+    "",
+    "| Ordinal | Group | Encounters | HP p25 / p50 / p75 | MP p25 / p50 / p75 | HP ≤25 / 26–50 / 51–75 / >75 |",
+    "| ---: | --- | ---: | ---: | ---: | ---: |"
+  );
+  for (const ordinal of [1, 2]) {
+    for (const group of ["all", "single", "pair"]) {
+      const row = naturalEntryResource.byEncounterOrdinal[String(ordinal)][group];
+      lines.push(
+        `| ${ordinal} | ${group} | ${row.encounters} | ` +
+        `${formatRate(row.hpRateBeforeEncounter.p25)} / ${formatRate(row.hpRateBeforeEncounter.p50)} / ${formatRate(row.hpRateBeforeEncounter.p75)} | ` +
+        `${formatRate(row.mpRateBeforeEncounter.p25)} / ${formatRate(row.mpRateBeforeEncounter.p50)} / ${formatRate(row.mpRateBeforeEncounter.p75)} | ` +
+        `${row.hpBandCounts["0-25%"]} / ${row.hpBandCounts["26-50%"]} / ${row.hpBandCounts["51-75%"]} / ${row.hpBandCounts[">75%"]} |`
+      );
+    }
+  }
+  lines.push(
+    "",
+    "The natural ordinal-2 population is concentrated around the fixed 25%–75% HP bands, while ordinal 1 is mostly above 75%; MP quartiles remain full for both ordinals."
   );
   const hp100Fight = fixedCombat.contrasts.find(contrast => contrast.hpBandId === "100");
   const hp25Fight = fixedCombat.contrasts.find(contrast => contrast.hpBandId === "25");
