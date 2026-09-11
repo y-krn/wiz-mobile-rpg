@@ -12,7 +12,7 @@ const b1 = getThreeCorridorProfile(b1Geometry);
 const b2 = getThreeCorridorProfile(b2Geometry);
 const b1Metrics = getThreeCorridorReadabilityMetrics(b1Geometry);
 
-assert.ok(b1.fov >= 60 && b1.fov <= 70);
+assert.ok(b1.fov >= 80 && b1.fov <= 90);
 assert.equal(b1.fogNear, 4.8);
 assert.equal(b1.ceilingStyle, "flat");
 assert.equal(b2.ceilingStyle, "arch");
