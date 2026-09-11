@@ -11,8 +11,8 @@ import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1196-continuation-resource-v2";
-export const SCHEMA_VERSION = 6;
+export const RUNNER_VERSION = "issue1196-continuation-resource-v3";
+export const SCHEMA_VERSION = 7;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const EARLY_COMPOSITION_POLICY_IDS = Object.freeze([
   "baseline",
