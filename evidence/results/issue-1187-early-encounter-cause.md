@@ -7,13 +7,13 @@
 resource / 継戦」「first action 前の Cost」「fight / flee」に分けるためのもの。
 production の敵値・回復・先制保証は変更していない。
 
-- Source: `55384a9e2018b1f0964d0ab41d1a1e7e3471fc17`
+- Source: `e94843d546deee6eb9bcd9e786e3378007288a37`
 - Base: local `origin/main` `c463c79500aa8079b5a21843292038232a0656cf`; this descends from the #1186 merge `20db2bbb7b4cc0d48017ab34840782b8160aca33`
 - Remote freshness: `git ls-remote` / GitHub API は DNS 制約で確認できず、local `origin/main` の freshness は未検証
-- Runner: `issue1187-early-encounter-cause-v2`, schema 2
+- Runner: `issue1187-early-encounter-cause-v4`, schema 4
 - Scope: production-backed `simulateRun`, B1F → B2 target, N=1000 per primary policy; fixed #1151 reuse N=1000 per case
 - Seed: primary `1187`; fixed composition `1151`
-- Provenance: `originMainAncestor: true`, `workingTreeClean: true`, runner diff SHA-256 `f3ae99f3300d2f3331dba7eb05f449c42ad9138301498cd7d62c20a803714975`, environment hash `2c44339569b0255d`
+- Provenance: `originMainAncestor: true`, `workingTreeClean: true`, runner diff SHA-256 `94183d275c3dc3a4393bdf26d6413b449f2b9095868799234b8d4222a7a5f229`, environment hash `886842d72b2500e4`
 
 Primary rows share `issue-1176:{seed}:{runIndex}` world seeds. The two suppression
 rows are measurement-only counterfactuals: production encounter generation runs
@@ -78,6 +78,25 @@ ordinal 1 is mostly above 75%, while ordinal 2 has 63.3% of all entries at 50%
 HP or below. The distributions are similar for singles and pairs, so entry HP
 alone does not explain the pair lethality gap.
 
+The corresponding encounter Cost and survivor post-combat HP distributions are:
+
+| Ordinal | Group | Encounters / deaths | Normal damage p50 / p95 | Survivor HP p50 / p95 | Survivor HP rate p50 / p95 |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 1 | all | 922 / 277 | 8 / 20 | 12 / 19 | 60% / 95% |
+| 1 | single | 660 / 116 | 6 / 16 | 13 / 19 | 65% / 95% |
+| 1 | pair | 262 / 161 | 14 / 21 | 10 / 18 | 50% / 85% |
+| 2 | all | 493 / 248 | 6 / 16 | 9 / 18.8 | 40% / 86.6% |
+| 2 | single | 346 / 120 | 4 / 13 | 10 / 18.75 | 44% / 86.5% |
+| 2 | pair | 147 / 128 | 11 / 19 | 7 / 14.5 | 30.77% / 72.5% |
+
+For the 493 runs that reached both encounter 1 and encounter 2, the encounter
+1 survivor post-combat HP p50/p95 and the linked encounter 2 entry HP rate
+p50/p95 were 13/19 HP and 40%/85% overall. Split by encounter-1 composition,
+single was 14/19 HP and 44%/85% (414 runs), while pair was 11/20 HP and
+32%/61.8% (79 runs). Linked encounter-2 entry MP rate was 100%/100% at p50/p95
+for all three groups. This directly shows the carryover population and also
+shows that the pair group enters the next encounter more damaged.
+
 ## A2/A3 — composition identity and entry resource
 
 The reused fixed #1151 production pairs show a large composition effect at the
@@ -130,38 +149,42 @@ survival, but selected actions can be preempted and execution still has a
 production parting-attack cost. It is not evidence for making flee free or
 forcing all two-enemy encounters to flee.
 
+Encounter-2 reach, distinct from B2 arrival, was 493/1000 (49.30%) for fight
+and 604/1000 (60.40%) for the flee policy. Among runs with a flee selected at
+encounter 1, 190/262 (72.52%) reached encounter 2; among executed flee runs,
+190/252 (75.40%) did. The cohort result is descriptive: the policy changes the
+population that remains available for the next encounter and is not a claim
+that flee should be automatic.
+
 ## Interpretation and production boundary
 
-- **A — composition exposure and identity are strongly supported, but count and
-  identity are not isolated.** Pair exposure is 26.2% in encounter 1 and 14.7%
-  in encounter 2, with 61.45% and 87.07% pair lethality versus 17.58% and
-  34.68% for singles. Suppressing early pairs in matched counterfactuals moves
-  B2 arrival by only 1.9–3.3 points, while fixed full-HP pairs still show an
-  86.23-point high/low composition gap. Composition identity is therefore the
-  strongest measured discriminator; pair suppression is sensitivity evidence,
-  not proof that enemy count alone is the cause.
-- **B — supported as a contributing carryover axis, not isolated as the only
-  cause.** Fixed HP bands and the connected natural entry distributions show
-  entry resource pressure; the similar single/pair HP distributions and full MP
-  quartiles limit the claim. Recovery was intentionally not modeled.
-- **C — not primary.** Baseline meaningful reward reached 93.8% and accepted
-  equipment opportunity 89.0%; the first meaningful reward was not generally
-  absent before death.
-- **D/F — unresolved.** Measurement records reward/build opportunity and
-  simulator equipment changes, not whether a player understood the value or
-  formed a next-trial hypothesis.
-- **E — partially supported.** Flee improves the run funnel, but preemption and
-  40 parting-attack deaths remain; player-facing flee clarity needs a separate
-  UX decision.
+- **A — 初期 multi-enemy exposure: 寄与はあるが主因とは未確定。** Pair
+  exposure is 26.2% in encounter 1 and 14.7% in encounter 2, with 61.45% and
+  87.07% pair lethality versus 17.58% and 34.68% for singles. Suppression moves
+  B2 arrival by only 1.9–3.3 points, so enemy count alone does not explain the
+  full funnel loss.
+- **B — 特定 composition: strongest measured discriminator として強く支持。**
+  Fixed full-HP pairs still show an 86.23-point high/low composition gap. Pair
+  suppression also removes the second enemy identity/synergy, so this is not a
+  clean count-only estimate.
+- **C — resource 持ち越し: contributing axis として支持。** Natural linked
+  rows move from encounter-1 survivor HP 13/19 p50/p95 to encounter-2 entry HP
+  40%/85%, and the pair survivor cohort enters lower at 32%/61.8%. Fixed HP
+  bands confirm strong attrition sensitivity, while recovery was intentionally
+  not modeled.
+- **D — 判断前 Cost: 主因ではない。** First-action-before-death was only
+  24/277 (8.66%) at ordinal 1 and 38/248 (15.32%) at ordinal 2; the first
+  action was usually executed, even though pair damage and post-combat HP were
+  materially worse.
+- **E — 複合: 現時点の総合判定として最も妥当。** Composition identity is the
+  strongest discriminator, with multi-enemy exposure and HP carryover adding
+  pressure; pair suppression alone produces only a limited funnel improvement.
+- **F — 数値改善後も残る体験阻害: 親 #1184 で未解決。** The runner measures
+  reward/build opportunity but cannot establish whether a player understood
+  the cause of death or formed a next-trial hypothesis; this requires the
+  manual fresh-save playtest gate in #1184.
 
-The next production change should be a separate small Issue for comparing
-**early encounter composition pool / ordering / cadence candidates**, with a
-fresh matched measurement and manual fresh-save playtest. Do not specify pair
-reduction as the fix before separating composition identity from enemy count.
-This Issue does not authorize or recommend a global enemy nerf, blanket
-two-enemy removal, free recovery, or a B1F-only combat rule. Keep #1184 open
-until that production candidate is implemented, remeasured, and manually
-playtested.
+The next production candidate boundary is [#1192](https://github.com/y-krn/wiz-mobile-rpg/issues/1192), which compares **early encounter composition pool / ordering / cadence** with fresh matched measurement and manual playtest. It does not specify pair reduction before composition identity is separated from enemy count. This Issue does not authorize or recommend a global enemy nerf, blanket two-enemy removal, free recovery, or a B1F-only combat rule. Keep #1184 open until that candidate is implemented, remeasured, and manually playtested.
 
 ## Reproduction and validity
 
