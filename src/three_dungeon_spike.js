@@ -27,18 +27,18 @@ export const THREE_DUNGEON_SPIKE_VIEW = Object.freeze({
 // Frozen Phase 1 profile. The prototype deliberately does not accept topology
 // or biome values here: one profile must explain every archetype.
 export const THREE_DUNGEON_SPIKE_PROFILE = Object.freeze({
-  cellWidth: 2.2,
-  wallHeight: 3.2,
+  cellWidth: 1.6,
+  wallHeight: 2.4,
   // Keep cells square so a side branch's rotated floor shares the exact edge
   // of its neighbor; this is a geometry invariant, not a camera adjustment.
-  cellDepth: 2.2,
+  cellDepth: 1.6,
   wallThickness: 0.18,
-  startZ: 1.15,
-  eyeHeight: 1.35,
-  eyeZ: 1.55,
-  lookAtHeight: 0.9,
-  lookAtZ: -3.0,
-  fov: 105,
+  startZ: 0.9,
+  eyeHeight: 1.8,
+  eyeZ: 3.0,
+  lookAtHeight: 0.2,
+  lookAtZ: 0.0,
+  fov: 72,
   fogNear: 4.8,
   fogFar: 15.5,
 });

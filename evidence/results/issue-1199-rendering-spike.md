@@ -10,14 +10,14 @@ production-backed B1F state:
 
 | value | frozen value |
 | --- | ---: |
-| cell width | 2.2 |
-| cell depth | 2.2 |
-| wall height | 3.2 |
+| cell width | 1.6 |
+| cell depth | 1.6 |
+| wall height | 2.4 |
 | wall thickness | 0.18 |
-| start Z | 1.15 |
-| eye `(x, y, z)` | `(0, 1.35, 1.55)` |
-| look-at `(x, y, z)` | `(0, 0.9, -3.0)` |
-| vertical FOV | 105° |
+| start Z | 0.9 |
+| eye `(x, y, z)` | `(0, 1.8, 3.0)` |
+| look-at `(x, y, z)` | `(0, 0.2, 0.0)` |
+| vertical FOV | 72° |
 | fog near / far | 4.8 / 15.5 |
 
 The camera is reset to this contract after every topology rebuild. The scene

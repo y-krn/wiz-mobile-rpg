@@ -109,6 +109,13 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
         const surfaces = surfacesByCell.get(`${cell.z}:${cell.column}`) || [];
         return surfaces.includes('floor') && surfaces.includes('ceiling');
       })).toBe(true);
+      cells.forEach((cell) => {
+        const surfaces = surfacesByCell.get(`${cell.z}:${cell.column}`) || [];
+        const blockedEdges = ['frontBlocked', 'backBlocked', 'leftBlocked', 'rightBlocked']
+          .filter((edge) => cell[edge]).length;
+        expect(surfaces.filter((surface) => surface.endsWith('-wall')).length)
+          .toBe(blockedEdges);
+      });
       const floorSurfaces = evidence.surfaces.filter(({ surface }) => surface === 'floor');
       const wallSurfaces = evidence.surfaces.filter(({ surface }) => surface.endsWith('-wall'));
       expect(new Set(floorSurfaces.map(({ y }) => y))).toEqual(new Set([0]));
