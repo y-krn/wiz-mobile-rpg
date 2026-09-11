@@ -82,6 +82,8 @@ for (const field of [
 }
 assert.ok(Object.hasOwn(entry, "startRecoveryEligibility"));
 assert.ok(Object.hasOwn(entry, "endRecoveryEligibility"));
+assert.ok(Object.hasOwn(entry, "startRecoveryBenefit"));
+assert.ok(Object.hasOwn(entry, "endRecoveryBenefit"));
 assert.equal(typeof entry.initialVisibleEnemyCount, "number");
 assert.ok(entry.initialVisibleEnemyCount >= 1);
 for (const field of [
@@ -188,7 +190,18 @@ assert.equal(
 for (const itemId of RECOVERY_RESOURCE_IDS) {
   const funnel = report.continuationResource["2"].byItem[itemId];
   assert.ok(funnel.runsWithAcquisition >= funnel.runsUsable);
+  assert.ok(funnel.runsUsable >= funnel.runsBeneficial);
   assert.ok(funnel.runsUsable >= funnel.runsUsed);
+}
+for (const ordinal of ["2", "3"]) {
+  const continuation = report.continuationResource[ordinal];
+  assert.equal(continuation.rows.length, continuation.cohortRuns);
+  assert.equal(
+    continuation.resourceOpportunityRate,
+    continuation.cohortRuns > 0
+      ? continuation.resourceOpportunityRuns / continuation.cohortRuns
+      : null
+  );
 }
 
 const matchedVanguard = await runDiagnostic({

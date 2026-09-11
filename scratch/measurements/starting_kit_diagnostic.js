@@ -281,6 +281,7 @@ function createResourceFunnelRecord() {
   return {
     runsWithAcquisition: 0,
     runsUsable: 0,
+    runsBeneficial: 0,
     runsUsed: 0,
     runsCarriedUnused: 0,
     acquiredUnits: 0,
@@ -305,6 +306,8 @@ function finalizeResourceFunnelRecord(record, runs) {
     acquisitionRate: record.runsWithAcquisition / runs,
     runsUsable: record.runsUsable,
     usableRate: record.runsUsable / runs,
+    runsBeneficial: record.runsBeneficial,
+    beneficialRate: record.runsBeneficial / runs,
     runsUsed: record.runsUsed,
     usedRate: record.runsUsed / runs,
     runsCarriedUnused: record.runsCarriedUnused,
@@ -388,14 +391,25 @@ function hpBandId(hpRate) {
   return "25";
 }
 
-function recordResourceFunnel(record, acquisitions, uses, usableCount, exposure) {
+function recordResourceFunnel(
+  record,
+  acquisitions,
+  uses,
+  usableCount,
+  beneficialCount,
+  exposure
+) {
   const acquired = acquisitions.length;
   const used = uses.length;
   const usable = acquisitions.some(event => event.playerUsableAtAcquisition === true)
     || uses.length > 0
     || usableCount > 0;
+  const beneficial = acquisitions.some(event => event.beneficialAtAcquisition === true)
+    || uses.length > 0
+    || beneficialCount > 0;
   if (acquired > 0) record.runsWithAcquisition++;
   if (usable) record.runsUsable++;
+  if (beneficial) record.runsBeneficial++;
   if (used > 0) record.runsUsed++;
   if (usableCount > 0) record.runsCarriedUnused++;
   record.acquiredUnits += acquired;
@@ -465,11 +479,15 @@ function observeContinuationResources(
       const usableCount = targetRow?.startRecoveryEligibility?.[itemId]
         ? inventoryCount
         : 0;
+      const beneficialCount = targetRow?.startRecoveryBenefit?.[itemId]
+        ? inventoryCount
+        : 0;
       const record = bucket.byItem[itemId];
-      recordResourceFunnel(record, acquisitions, uses, usableCount, exposure);
+      recordResourceFunnel(record, acquisitions, uses, usableCount, beneficialCount, exposure);
       row.byItem[itemId] = {
         acquired: acquisitions.length,
         usable: usableCount,
+        beneficial: beneficialCount,
         inventoryCount,
         used: uses.length,
         carriedUnused: Math.max(0, inventoryCount - uses.length),
@@ -481,7 +499,6 @@ function observeContinuationResources(
     bucket.rows.push(row);
 
     if (!targetRow) {
-      bucket.rows.push(row);
       return;
     }
     const band = hpBandId(targetRow.hpRateBeforeEncounter);
@@ -828,8 +845,10 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     mpAfterEncounter: identity.mpAfter ?? diagnostic?.endMp ?? null,
     startRecoveryInventory: diagnostic?.startRecoveryInventory || {},
     startRecoveryEligibility: diagnostic?.startRecoveryEligibility || {},
+    startRecoveryBenefit: diagnostic?.startRecoveryBenefit || {},
     endRecoveryInventory: diagnostic?.endRecoveryInventory || {},
     endRecoveryEligibility: diagnostic?.endRecoveryEligibility || {},
+    endRecoveryBenefit: diagnostic?.endRecoveryBenefit || {},
     combatRounds: identity.rounds ?? (rounds.length || null),
     enemyActionCount: identity.enemyActions ?? null,
     normalDamage: identity.totalNormalDamage ?? identity.normalDamage ?? null,
@@ -1414,7 +1433,7 @@ function buildSummary(report) {
     "## Continuation resources",
     "",
     ...Object.entries(result.continuationResource).map(([ordinal, values]) =>
-      `- before encounter ${ordinal}: observed ${values.runsObserved}/${result.runs}; any resource acquired ${values.resourceOpportunityRuns}/${values.runsObserved} (${values.resourceOpportunityRate === null ? "unobserved" : `${(values.resourceOpportunityRate * 100).toFixed(2)}%`})`
+      `- before encounter ${ordinal}: eligible/cohort ${values.cohortRuns}; arrived ${values.runsObserved}; any resource acquired ${values.resourceOpportunityRuns}/${values.cohortRuns} (${values.resourceOpportunityRate === null ? "unobserved" : `${(values.resourceOpportunityRate * 100).toFixed(2)}%`}); ended before arrival ${values.cohortEndedBeforeArrival}`
     ),
     ...Object.entries(result.linkedTrajectory.byTransition).map(([transition, values]) =>
       `- ${transition}: post-combat HP p50 ${values.postCombatHp.p50 ?? "unobserved"} → next-entry HP p50 ${values.nextEntryHp.p50 ?? "unobserved"}; exploration Cost HP p50 ${values.explorationCostHp.p50 ?? "unobserved"}; recovery HP p50 ${values.recoveryHp.p50 ?? "unobserved"}`

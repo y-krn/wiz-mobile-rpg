@@ -4,7 +4,7 @@
 
 現行 production truth では、fresh vanguard の前戦生存 cohort から次の encounter へ進むまでに回復 resource を取得できる run は少ない。fight / production / N=1000 では、E1 生存 651 run のうち 2戦目前の recovery-resource opportunity は 25 run (3.84%)、E2 生存 254 run のうち 3戦目前は 16 run (6.30%) だった。取得 source は今回の B1F path では `chest`、item は `HEAL_POTION` のみだった。
 
-既存 auto-use hook の threshold だけを 70% に変更した matched probe では、2戦目到達は 10.0%→10.1% と変わらなかった。したがって今回確定できるのは「既存 auto-use threshold の変更は主因を説明しない」であり、player の探索中 item-menu 使用判断まで含めて policy 無効と断定しない。resource cadence / access は #1184 の B（継戦 resource / recovery pressure）として [child #1198](https://github.com/y-krn/wiz-mobile-rpg/issues/1198) に分離した。
+既存 auto-use hook の threshold だけを 70% に変更した matched probe では、B2F arrival は 10.0%→10.1% と変わらなかった。したがって今回確定できるのは「既存 auto-use threshold の変更は主因を説明しない」であり、player の探索中 item-menu 使用判断まで含めて policy 無効と断定しない。resource cadence / access は #1184 の B（継戦 resource / recovery pressure）として [child #1198](https://github.com/y-krn/wiz-mobile-rpg/issues/1198) に分離した。
 
 本 Issue では production balance を変更しない。
 
@@ -47,7 +47,7 @@
 | 指標 | production | early-use |
 |---|---:|---:|
 | B1F death | 90.0% | 89.9% |
-| 2戦目到達 | 10.0% | 10.1% |
+| B2F arrival | 10.0% | 10.1% |
 | E1 survivor cohort | 651 | 650 |
 | 2戦目前 resource opportunity | 25 / 651 (3.84%) | 24 / 650 (3.69%) |
 | E2 survivor cohort | 254 | 252 |
@@ -67,7 +67,7 @@ early-use は resource を生成しない。今回の差は既存 auto-use hook 
 | 3戦目前 | 254 / 173 | HEAL_POTION | 16 | 16 | 15 | 2 | 18 / 15 | 183 | 11.5 / 33.5 |
 | 2/3戦目前 | GREATER_HEAL, HOLY_WATER, MANA_POTION, ETHER | 0 | 0 | 0 | 0 | 0 / 0 | 0 | — |
 
-`usable` は `acquired` と同義ではない。full HP / unsupported MP 等で effective use eligibility がない acquisition は usable に進まない。一方、`used <= usable` は維持される。今回の actual use は production auto-use hook の観測であり、player menu use の上限ではない。
+`usable` は production UI の player-usable eligibility、`beneficial` はその時点で HP/MP 回復または状態異常治療の効果がある eligibility、`used` は実際の auto-use である。`HOLY_WATER` は full HP / non-poison でも production UI 上は使用可能だが、beneficial ではない。今回の actual use は production auto-use hook の観測であり、player menu use の上限ではない。
 
 ### Cohort dropout
 
@@ -109,7 +109,7 @@ combat 後から次 entry まで HP はさらに下がり、平均 recovery は�
 | 指標 | visible-multi-enemy-flee |
 |---|---:|
 | B1F death | 84.6% |
-| 2戦目到達 | 15.4% |
+| B2F arrival | 15.4% |
 | E1 survivor cohort | 798 |
 | 2戦目前 resource opportunity | 27 / 798 (3.38%) |
 | E2 survivor cohort | 425 |
@@ -129,8 +129,8 @@ combat 後から次 entry まで HP はさらに下がり、平均 recovery は�
 
 ## #1184 taxonomy への戻し
 
-- **A: 初期 encounter Cost / cadence** — E1→E2、E2→E3 とも exploration cost が残り、flee 比較では継続率が改善する。resource cadence は encounter-side の候補として [#1198](https://github.com/y-krn/wiz-mobile-rpg/issues/1198) に分離したが、A単独の因果量をこの Issue で確定しない。
-- **B: 継戦 resource / recovery pressure** — 支持。E1/E2 survivor cohort を分母にしても resource opportunity は 3.84% / 6.30%で、取得 item は `HEAL_POTION` に偏る。今回の中心結論。
+- **A: 初期 encounter Cost / cadence** — E1→E2、E2→E3 とも exploration cost が残り、flee 比較では継続率が改善する。encounter cadence は A-side の別候補であり、#1198 の対象ではない。この Issue では A単独の因果量を確定しない。
+- **B: 継戦 resource / recovery pressure** — 支持。E1/E2 survivor cohort を分母にしても resource opportunity は 3.84% / 6.30%で、取得 item は `HEAL_POTION` に偏る。resource cadence/access の後続は [#1198](https://github.com/y-krn/wiz-mobile-rpg/issues/1198) に分離した。今回の中心結論。
 - **C: meaningful Loot / Build opportunity** — 回復 resource と別測定。fight の meaningful reward 93.2%、Build opportunity 87.9%で、今回の結果を reward 欠落へ還元しない。
 - **D: Loot / Build を開始 Build の変更判断へつなぐ価値** — この測定は判断を自動仮定していないため未測定。#1196 の範囲では結論を追加しない。
 - **E: fight/flee と Cost judgment** — flee policy は別母集団で測定し、executed flee survival 93.24%を記録した。resource 結論へ混ぜず、既存の fight/flee judgment を維持する。

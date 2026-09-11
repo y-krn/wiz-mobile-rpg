@@ -5265,6 +5265,9 @@ function recordDiagnosticReward(metrics, state, item, {
     playerUsableAtAcquisition: RECOVERY_DIAGNOSTIC_ITEM_IDS.includes(itemId)
       ? isDiagnosticRecoveryItemUsable(state, itemId)
       : null,
+    beneficialAtAcquisition: RECOVERY_DIAGNOSTIC_ITEM_IDS.includes(itemId)
+      ? isDiagnosticRecoveryItemBeneficial(state, itemId)
+      : null,
     category: equipment ? "equipment" : itemType === "rune" ? "rune" : "item",
     isCore: core,
     meaningful: true,
@@ -5393,6 +5396,21 @@ function isDiagnosticRecoveryItemUsable(state, itemId) {
     return character.hp < getCharMaxHp(character);
   }
   if (itemId === "HOLY_WATER") {
+    return true;
+  }
+  if (["MANA_POTION", "ETHER"].includes(itemId)) {
+    return canUseManaItems(character) && character.mp < getCharMaxMp(character);
+  }
+  return false;
+}
+
+function isDiagnosticRecoveryItemBeneficial(state, itemId) {
+  const character = state.party[0];
+  if (!character || !isAlive(character)) return false;
+  if (["HEAL_POTION", "GREATER_HEAL"].includes(itemId)) {
+    return character.hp < getCharMaxHp(character);
+  }
+  if (itemId === "HOLY_WATER") {
     return character.hp < getCharMaxHp(character) || character.status === "poisoned";
   }
   if (["MANA_POTION", "ETHER"].includes(itemId)) {
@@ -5406,6 +5424,15 @@ function snapshotRecoveryEligibility(state) {
     RECOVERY_DIAGNOSTIC_ITEM_IDS.map(itemId => [
       itemId,
       isDiagnosticRecoveryItemUsable(state, itemId)
+    ])
+  );
+}
+
+function snapshotRecoveryBenefit(state) {
+  return Object.fromEntries(
+    RECOVERY_DIAGNOSTIC_ITEM_IDS.map(itemId => [
+      itemId,
+      isDiagnosticRecoveryItemBeneficial(state, itemId)
     ])
   );
 }
@@ -7857,6 +7884,7 @@ function runEncounter(
         startHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
         startRecoveryInventory: snapshotRecoveryInventory(state),
         startRecoveryEligibility: snapshotRecoveryEligibility(state),
+        startRecoveryBenefit: snapshotRecoveryBenefit(state),
         startStatusCures: countInventoryItems(state.inventory),
         startBuild: startBuild ? structuredClone(startBuild) : null,
         rounds: []
@@ -7961,6 +7989,7 @@ function runEncounter(
           state.inventory.filter(item => item === "HEAL_POTION").length;
         encounterDiagnostic.endRecoveryInventory = snapshotRecoveryInventory(state);
         encounterDiagnostic.endRecoveryEligibility = snapshotRecoveryEligibility(state);
+        encounterDiagnostic.endRecoveryBenefit = snapshotRecoveryBenefit(state);
         encounterDiagnostic.endGreaterHeals =
           state.inventory.filter(item => item === "GREATER_HEAL").length;
         encounterDiagnostic.endStatusCures = countInventoryItems(state.inventory);
