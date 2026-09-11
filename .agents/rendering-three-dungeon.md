@@ -43,6 +43,43 @@ invalid destination. Do not replace directed movement facts with a visual
 shortcut. A side opening must be a traversable-looking volume with a threshold,
 floor, and ceiling relationship, not a detached direction marker.
 
+## Fixture and evidence contract
+
+The synthetic six-archetype fixture and a production-backed fixture answer
+different questions. Synthetic straight corridor, dead end, left turn, right
+turn, T junction, and cross junction cases isolate topology truth and silhouette.
+They do not prove that real neighboring geometry composes into a readable route.
+
+For topology, side-opening, corridor-geometry, camera/FOV/profile, or
+navigation-hierarchy-changing lighting/material/fog changes, add at least one
+production-backed dungeon state. It must:
+
+- use the real production map, generation, and topology path;
+- include normal neighboring walls and depth, not a hand-built all-empty cell
+  grid;
+- include at least one near side opening;
+- use a deterministic seed or equivalent reproducible fixture setup; and
+- retain a Dungeon View screenshot with the mini-map hidden.
+
+The production-backed state tests composition, occlusion, tonal hierarchy, and
+route dominance around real geometry. Both the synthetic and production-backed
+fixture families must pass before spatial readability is claimed. The
+production-backed screenshot is a success CI artifact and must be tied to the
+current HEAD so a reviewer can inspect the actual pixels for the reviewed
+change.
+
+For production-backed and physical-device screenshots, reviewers must record
+the following observations:
+
+- floor continuity: forward and side floor read as the same walkable system;
+- side-passage semantics: the opening reads as a passage rather than a wall,
+  panel, ramp, or window;
+- route dominance: the navigation-critical floor/opening reads before
+  decorative cues;
+- occlusion truth: foreground geometry hides and reveals the expected topology;
+- synthetic-proxy smell: a billboard, raised tongue, fake vestibule, or large
+  inset has not replaced the real topology.
+
 ## Camera, profile, and visual grammar
 
 The Three.js corridor profile is a presentation projection of the floor visual
@@ -119,3 +156,12 @@ overlap,” or “the route remains visible” require inspection of the actual
 rendered screenshot/pixels. A passing math-only or CI proxy assertion is not
 visual acceptance by itself. Preserve successful visual artifacts for review
 and do not leave an unresolved current-head artifact unexamined.
+
+Browser viewport screenshots are browser evidence, not physical-device proof.
+For camera, FOV, eye/look-at, or corridor-geometry changes that materially
+change mobile spatial composition, production adoption and any claim that the
+dungeon is readable on a device require at least one physical-device screenshot
+or recorded inspection. If that evidence cannot be obtained, mark the claim
+unverified and do not mark production-readability Done. This is a high-risk
+spatial-grammar boundary, not an unconditional requirement for every small
+renderer change.

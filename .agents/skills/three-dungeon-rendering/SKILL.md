@@ -47,9 +47,10 @@ presentation boundaries.
 
 | Touched category | Mandatory fixtures/checks |
 | --- | --- |
-| camera / FOV / eye/look-at / corridor profile | six topology archetypes at 320, 360, 390, and 430 px; single/pair/trio combat staging with target-selection visuals; danger cue; one-way barrier; mini-map coexistence; orientation/resize |
-| topology / side opening / corridor geometry | six topology archetypes; one-way barrier; mini-map coexistence; combat staging and front-wall occlusion |
-| lighting / material / fog | six topology archetypes; combat label/marker legibility; danger cue and one-way visual legibility |
+| camera / FOV / eye/look-at / corridor profile | synthetic six topology archetypes at 320, 360, 390, and 430 px plus a production-backed dungeon state; single/pair/trio combat staging with target-selection visuals; danger cue; one-way barrier; mini-map coexistence; orientation/resize |
+| topology / side opening / corridor geometry | synthetic six topology archetypes plus a production-backed dungeon state; one-way barrier; mini-map coexistence; combat staging and front-wall occlusion |
+| lighting / material / fog | synthetic six topology archetypes plus a production-backed dungeon state when navigation hierarchy changes; combat label/marker legibility; danger cue and one-way visual legibility |
+| production-backed visual fixture | for topology, side-opening, corridor geometry, camera/FOV/profile, or navigation-hierarchy-changing lighting/material/fog work: real production map/generation/topology path; surrounding geometry and normal depth; at least one near side opening; deterministic setup; Dungeon View screenshot with the mini-map hidden; current-head CI artifact |
 | combat staging / hit region / target selection | single enemy, pair, trio; actual tap to each original target index; Back/cancel path when the selection flow is touched |
 | mini-map / overlay coexistence | exploration visible and non-exploration hidden states, with canvas input unaffected |
 | resource lifecycle | repeated scene rebuild with geometry/material/texture disposal evidence |
@@ -63,6 +64,21 @@ materially different arch/biome case. For target-selection changes, direct tap
 is primary; retain an equivalent accessibility alternative when needed without
 fixing its implementation to a visible enemy target list. Do not reintroduce
 visible enemy target buttons into the normal visual UI.
+
+Synthetic and production-backed fixtures have different jobs and are both
+required for a spatial-readability claim:
+
+- the synthetic six-archetype fixture isolates topology truth and silhouette;
+- the production-backed fixture proves composition, occlusion, tonal hierarchy,
+  and route dominance in the real map/generation/topology path.
+
+A production-backed fixture must use the real production map or generation path;
+a hand-built all-empty cell grid is not a substitute. It must include normal
+neighboring walls and depth, at least one near side opening, a deterministic seed
+or equivalent fixture setup, and a Dungeon View screenshot with the mini-map
+hidden. Keep the successful production-backed screenshot as a CI artifact tied
+to the current HEAD. Do not claim spatial readability unless both fixture
+families pass.
 
 Use the actual fixture names and executable bounds from current source/tests;
 do not duplicate them as durable constants in this Skill.
@@ -90,6 +106,18 @@ pixels. `getThreeProjectedBounds()` and topology/math assertions are supporting
 evidence; test PASS alone cannot establish readability, non-overlap, or route
 legibility.
 
+For production-backed and physical-device evidence, explicitly review:
+
+- floor continuity: forward and side floor read as one walkable system;
+- side-passage semantics: the opening reads as a passage, not a wall, panel,
+  ramp, window, or detached direction marker;
+- route dominance: navigation-critical floor/opening reads before decorative
+  cues;
+- occlusion truth: foreground geometry hides or reveals what the topology says
+  it should;
+- synthetic-proxy smell: a billboard, raised tongue, fake vestibule, or large
+  inset does not replace the real topology.
+
 ## 4. Check lifetime and performance
 
 For scene rebuild/replacement changes, inspect ownership and release of
@@ -101,6 +129,15 @@ renderer resource growth, and inspect bundle impact when relevant. Do not call
 browser emulation physical-device evidence; record that limitation and route a
 real-device claim to the appropriate follow-up.
 
+Camera, FOV, eye/look-at, and corridor-geometry changes are high-risk when they
+materially change mobile spatial composition. Before claiming production
+adoption or that the dungeon is readable on a device, obtain at least one
+physical-device screenshot or recorded inspection. A browser viewport screenshot
+is browser evidence, not physical-device proof. If device evidence is
+unavailable, mark the claim unverified and do not mark production-readability
+Done. This boundary does not make physical-device evidence mandatory for every
+small renderer change; it applies to high-risk spatial-grammar changes.
+
 ## 5. Close out at current HEAD
 
 - Run focused tests first, then the required current-head checks from
@@ -108,8 +145,9 @@ real-device claim to the appropriate follow-up.
 - Run `npm run lint:docs` and `npm run lint:markdown` for documentation/workflow
   changes; include build, unit, or browser gates when the touched boundary
   requires them.
-- Preserve a successful screenshot artifact and inspect it before claiming
-  visual acceptance.
+- Preserve successful synthetic and production-backed screenshot artifacts,
+  inspect their pixels, and ensure the production-backed artifact is attached
+  to the current HEAD before claiming visual acceptance.
 - Check unresolved review threads, current `HEAD_SHA`, latest-main relation,
   and the merge-gate verdict. Re-run invalidated checks after any content
   change.
