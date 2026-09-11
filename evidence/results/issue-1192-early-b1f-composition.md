@@ -8,11 +8,11 @@ encounter, initiative, combat, flee, reward, and map traversal paths. No
 production balance value is changed by this Issue.
 
 - base SHA: `47ba14467669ff18a71bb7c813e9452c4b468fa9` (`origin/main`, fetched and verified)
-- measured source SHA: `6c5409cab548248cbb26bc5f0931acb6219b8683`
+- measured source SHA: `f26cafcc55af70ce96dec78029d63f9a50952c6d`
 - primary: fresh save + `vanguard`, fight policy, N=1000, seed=1192
 - fixed panel: all 43 legal B1F regular two-monster compositions × HP 100/75/50/25 × fight/immediate-flee, N=1000 per case, seed=1151
 - runner: `scratch/measurements/early_b1f_composition_diagnostic.js`, version `issue1192-early-b1f-composition-v1`
-- provenance: source and runner SHA `6c5409c…`; gameplay baseline `47ba144…`; origin-main ancestor true; stale tree false; clean tree true
+- provenance: source and runner SHA `f26cafc…`; gameplay baseline `47ba144…`; origin-main ancestor true; stale tree false; clean tree true
 - raw report: temporary artifact, not committed; reproduce with the workflow `.github/workflows/early-b1f-composition-diagnostic.yml`
 
 The modeled player is the production auto-fight policy with no departure
@@ -26,7 +26,7 @@ policy are omitted from the simulation.
 | production baseline | 91.60% | 8.40% | 26.90% / 26.90% | 14.60% / 14.60% | 2.60% | 93.90% | 89.60% |
 | cadence: first pair suppressed (control) | 90.40% | 9.60% | 26.90% / 0.00% | 16.30% / 16.30% | 2.39% | 97.20% | 93.00% |
 | composition pool redistribution | 91.10% | 8.90% | 26.90% / 26.90% | 14.60% / 14.60% | 2.39% | 94.50% | 90.20% |
-| ordering: defer named pair | 91.30% | 8.70% | 26.90% / 26.90% | 14.60% / 15.60% | 2.39% | 94.50% | 90.30% |
+| ordering: defer named pair | 91.30% | 8.70% | 26.90% / 26.90% | 14.60% / 15.60% | 2.39% | 94.50% | 90.00% |
 
 The baseline early pair surface was not explained by count alone. The three
 largest early death contributors selected by the runner were:
@@ -38,7 +38,7 @@ largest early death contributors selected by the runner were:
 The fixed panel therefore separates production exposure from composition
 identity. The pool candidate preserved pair count but concentrated 59 early
 effective-pair exposures into `かみつき蟲 + 泥の呪い子`; the ordering candidate
-concentrated 51. That concentration is a diversity risk even when B2 arrival
+concentrated 39. That concentration is a diversity risk even when B2 arrival
 moves slightly.
 
 The production flee reference was: selected 580, executed 535, preempted 45,
