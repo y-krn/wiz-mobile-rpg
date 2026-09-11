@@ -203,11 +203,13 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       // One shared material family carries hierarchy: path floor is brighter,
       // enclosure walls/ceiling are quieter. No branch receives a special
       // material or lighting treatment.
-      const floorColor = background.clone().lerp(wall, 0.38);
-      const wallColor = background.clone().lerp(wall, 0.06);
-      const ceilingColor = background.clone().lerp(wall, 0.015);
+      const floorColor = background.clone().lerp(wall, 0.72);
+      const wallColor = background.clone().lerp(wall, 0.22);
+      const ceilingColor = background.clone().lerp(wall, 0.025);
       const floorMaterial = new MeshStandardMaterial({
         color: floorColor,
+        emissive: floorColor,
+        emissiveIntensity: 0.16,
         roughness: 0.96,
         metalness: 0.06,
         side: DoubleSide,
@@ -230,8 +232,8 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       scene.background = background;
       scene.fog = new Fog(background, profile.fogNear, profile.fogFar);
       webgl.setClearColor(background, 1);
-      root.add(new AmbientLight(0x8e9aa0, 0.58));
-      const keyLight = new DirectionalLight(wall, 0.65);
+      root.add(new AmbientLight(0x8e9aa0, 0.78));
+      const keyLight = new DirectionalLight(wall, 0.72);
       keyLight.position.set(-2, 5, 4);
       keyLight.castShadow = true;
       root.add(keyLight);

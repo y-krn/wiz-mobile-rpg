@@ -67,6 +67,7 @@ async function renderSynthetic(page, archetype) {
     return {
       camera: window.__threeDungeonSpike.getCameraContract(),
       profile: window.__threeDungeonSpike.profile,
+      map: fixture.map,
       topology: getVisibleCorridorTopology(fixture.map, 4, 4, 0),
       surfaces: window.__threeDungeonSpike.getTopologySurfaces(),
     };
@@ -153,6 +154,43 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
           }
         });
       });
+      const floorByCoordinate = new Map(floorSurfaces.map((floor) => [
+        `${floor.topology.x}:${floor.topology.y}`,
+        floor,
+      ]));
+      const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+      cells.forEach((cell) => {
+        if (cell.column !== 0) return;
+        directions.forEach(([dx, dy], dir) => {
+          const neighbor = cells.find(({ x, y }) => x === cell.x + dx && y === cell.y + dy);
+          if (!neighbor || cell.y > neighbor.y || (cell.y === neighbor.y && cell.x > neighbor.x)) return;
+          const currentFloor = floorByCoordinate.get(`${cell.x}:${cell.y}`);
+          const neighborFloor = floorByCoordinate.get(`${neighbor.x}:${neighbor.y}`);
+          if (!currentFloor || !neighborFloor) return;
+          const currentBounds = currentFloor.bounds;
+          const neighborBounds = neighborFloor.bounds;
+          const axis = dx !== 0 ? 'x' : 'z';
+          const value = dx > 0 ? currentBounds.maxX : dx < 0 ? currentBounds.minX
+            : dy > 0 ? currentBounds.maxZ : currentBounds.minZ;
+          const spanMin = axis === 'x'
+            ? Math.max(currentBounds.minZ, neighborBounds.minZ)
+            : Math.max(currentBounds.minX, neighborBounds.minX);
+          const spanMax = axis === 'x'
+            ? Math.min(currentBounds.maxZ, neighborBounds.maxZ)
+            : Math.min(currentBounds.maxX, neighborBounds.maxX);
+          const wallAtEdge = wallSurfaces.some((wall) => {
+            const center = wall.worldPosition;
+            const coordinateMatch = axis === 'x'
+              ? Math.abs(center[0] - value) < evidence.profile.wallThickness * 1.5
+              : Math.abs(center[2] - value) < evidence.profile.wallThickness * 1.5;
+            const span = axis === 'x' ? center[2] : center[0];
+            return coordinateMatch && span >= spanMin && span <= spanMax;
+          });
+          expect(wallAtEdge, `${archetype} logical edge ${cell.x}:${cell.y} dir=${dir}`).toBe(
+            evidence.map[cell.y][cell.x].walls[dir]
+          );
+        });
+      });
       const currentFloor = floorSurfaces.find(({ topology }) => topology.z === 0 && topology.column === 0);
       floorSurfaces.filter(({ topology }) => topology.z === 0 && Math.abs(topology.column) === 1).forEach((branchFloor) => {
         expect(branchFloor.worldPosition[1]).toBe(currentFloor.worldPosition[1]);
@@ -216,14 +254,16 @@ test('Issue 1199 production-backed B1F proof uses generated map and renderer-neu
         for (let dir = 0; dir < 4; dir += 1) {
           const topology = getVisibleCorridorTopology(grid, x, y, dir);
           const current = topology.find((cell) => cell.z === 0 && cell.column === 0);
-          const nearSideOpening = topology.some((cell) => cell.z === 0 && Math.abs(cell.column) === 1);
+          const sideOpeningCount = topology.filter((cell) => cell.z === 0 && Math.abs(cell.column) === 1).length;
           const forwardDepth = topology.some((cell) => cell.z > 0 && cell.column === 0);
-          if (current?.valid && nearSideOpening && forwardDepth) candidates.push({ x, y, dir, topology });
+          if (current?.valid && !current.frontBlocked && sideOpeningCount > 0 && forwardDepth) {
+            candidates.push({ x, y, dir, topology, sideOpeningCount });
+          }
         }
       }
     }
     if (candidates.length === 0) throw new Error('deterministic B1F fixture has no near side opening');
-    const fixture = candidates[0];
+    const fixture = candidates.sort((a, b) => b.sideOpeningCount - a.sideOpeningCount)[0];
     const canvas = document.querySelector('#three-dungeon-spike-canvas');
     window.__threeDungeonSpike?.dispose();
     window.__threeDungeonSpike = createThreeDungeonSpikeRenderer(canvas);
