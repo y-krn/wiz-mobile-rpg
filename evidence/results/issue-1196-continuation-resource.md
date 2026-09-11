@@ -14,8 +14,8 @@
 - 主比較: `fight` / `production` と、既存 auto-use threshold のみ `0.70` にした `early-use`
 - 追加比較: `visible-multi-enemy-flee`。fight と混ぜず、逃走選択・実行・生存を別集計
 - N=1000 / case、seed base `1196`
-- runner: `issue1196-continuation-resource-v2`、schema 6
-- source HEAD: `524a98a50ddeb4aad283248e15805dbd78c6ac6d`
+- runner: `issue1196-continuation-resource-v3`、schema 7
+- source HEAD: `be49ca6baa4a8d320d4b1fd9560e2aa67c865a43`
 - production gameplay/base: `91838d1df5a8f2eb00799d1f196c15c1a31f4020`
 - Node: `v26.8.1`、clean worktree
 - 同一 `fight / production` コマンドの再実行は JSON 完全一致 (`cmp`)
@@ -61,11 +61,11 @@ early-use は resource を生成しない。今回の差は既存 auto-use hook 
 
 ### fight / production
 
-| target | cohort / arrived | resource | acquired | usable | used | carried-unused | units acquired / used | actual HP recovered | first acquisition step p50 / p95 |
-|---|---:|---|---:|---:|---:|---:|---:|---:|---:|
-| 2戦目前 | 651 / 492 | HEAL_POTION | 25 | 24 | 13 | 8 | 25 / 13 | 161 | 10 / 31.8 |
-| 3戦目前 | 254 / 173 | HEAL_POTION | 16 | 16 | 15 | 2 | 18 / 15 | 183 | 11.5 / 33.5 |
-| 2/3戦目前 | GREATER_HEAL, HOLY_WATER, MANA_POTION, ETHER | 0 | 0 | 0 | 0 | 0 / 0 | 0 | — |
+| target | cohort / arrived | resource | acquired | usable | beneficial | used | carried-unused | units acquired / used | actual HP recovered | first acquisition step p50 / p95 |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 2戦目前 | 651 / 492 | HEAL_POTION | 25 | 24 | 24 | 13 | 8 | 25 / 13 | 161 | 10 / 31.8 |
+| 3戦目前 | 254 / 173 | HEAL_POTION | 16 | 16 | 16 | 15 | 2 | 18 / 15 | 183 | 11.5 / 33.5 |
+| 2/3戦目前 | GREATER_HEAL, HOLY_WATER, MANA_POTION, ETHER | 0 | 0 | 0 | 0 | 0 | 0 / 0 | 0 | — |
 
 `usable` は production UI の player-usable eligibility、`beneficial` はその時点で HP/MP 回復または状態異常治療の効果がある eligibility、`used` は実際の auto-use である。`HOLY_WATER` は full HP / non-poison でも production UI 上は使用可能だが、beneficial ではない。今回の actual use は production auto-use hook の観測であり、player menu use の上限ではない。
 
