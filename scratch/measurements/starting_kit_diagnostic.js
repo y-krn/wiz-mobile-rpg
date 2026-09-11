@@ -11,9 +11,14 @@ import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1184-core-loop-reachability-v1";
-export const SCHEMA_VERSION = 3;
+export const RUNNER_VERSION = "issue1184-core-loop-reachability-v2";
+export const SCHEMA_VERSION = 4;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
+export const EARLY_COMPOSITION_POLICY_IDS = Object.freeze([
+  "baseline",
+  "suppress-first-multi",
+  "suppress-first-two-multi"
+]);
 export const POLICY_IDS = Object.freeze([
   "fight",
   "flee-threshold",
@@ -140,6 +145,85 @@ function createEarlyProgression() {
     }])),
     deathEncounterOrdinal: {}
   };
+}
+
+function createActionOpportunityRecord() {
+  return {
+    encountered: 0,
+    generatedPairEncounters: 0,
+    effectivePairEncounters: 0,
+    generatedPairRuns: 0,
+    effectivePairRuns: 0,
+    deaths: 0,
+    deathBeforeFirstPlayerAction: 0,
+    firstPlayerActionExecuted: 0,
+    firstPlayerActionNotExecuted: 0,
+    playerBeforeAnyEnemy: 0,
+    afterEnemyAction: 0,
+    unobserved: 0,
+    enemyActionsBeforeFirstPlayerAction: createDistribution(),
+    damageBeforeFirstPlayerAction: createDistribution()
+  };
+}
+
+function finalizeActionOpportunity(record, runs) {
+  return {
+    encountered: record.encountered,
+    encounteredRate: record.encountered / runs,
+    generatedPairEncounters: record.generatedPairEncounters,
+    generatedPairEncounterRate: record.encountered > 0
+      ? record.generatedPairEncounters / record.encountered
+      : null,
+    effectivePairEncounters: record.effectivePairEncounters,
+    effectivePairEncounterRate: record.encountered > 0
+      ? record.effectivePairEncounters / record.encountered
+      : null,
+    generatedPairRunRate: record.generatedPairRuns / runs,
+    effectivePairRunRate: record.effectivePairRuns / runs,
+    deaths: record.deaths,
+    deathBeforeFirstPlayerAction: record.deathBeforeFirstPlayerAction,
+    deathBeforeFirstPlayerActionRate: record.deaths > 0
+      ? record.deathBeforeFirstPlayerAction / record.deaths
+      : null,
+    firstPlayerActionExecuted: record.firstPlayerActionExecuted,
+    firstPlayerActionNotExecuted: record.firstPlayerActionNotExecuted,
+    firstPlayerActionExecutionRate: record.encountered > 0
+      ? record.firstPlayerActionExecuted / record.encountered
+      : null,
+    playerBeforeAnyEnemy: record.playerBeforeAnyEnemy,
+    afterEnemyAction: record.afterEnemyAction,
+    unobserved: record.unobserved,
+    enemyActionsBeforeFirstPlayerAction: finalizeDistribution(
+      record.enemyActionsBeforeFirstPlayerAction
+    ),
+    damageBeforeFirstPlayerAction: finalizeDistribution(
+      record.damageBeforeFirstPlayerAction
+    )
+  };
+}
+
+function observeActionOpportunity(record, encounterRow) {
+  record.encountered++;
+  record.generatedPairEncounters += Number(encounterRow.rawInitialVisibleEnemyCount >= 2);
+  record.effectivePairEncounters += Number(encounterRow.initialVisibleEnemyCount >= 2);
+  record.deaths += Number(encounterRow.outcome === "death");
+  const timing = encounterRow.firstPlayerActionExecutionTiming;
+  if (timing === "player-before-any-enemy") record.playerBeforeAnyEnemy++;
+  else if (timing === "after-enemy-action") record.afterEnemyAction++;
+  else if (timing === "not-executed-before-end") record.firstPlayerActionNotExecuted++;
+  else record.unobserved++;
+  record.firstPlayerActionExecuted += Number(encounterRow.firstPlayerActionExecuted);
+  record.deathBeforeFirstPlayerAction += Number(
+    encounterRow.outcome === "death" && !encounterRow.firstPlayerActionExecuted
+  );
+  addDistribution(
+    record.enemyActionsBeforeFirstPlayerAction,
+    encounterRow.enemyActionsBeforeFirstPlayerAction
+  );
+  addDistribution(
+    record.damageBeforeFirstPlayerAction,
+    encounterRow.damageBeforeFirstPlayerAction
+  );
 }
 
 function firstEvent(events, predicate) {
@@ -321,6 +405,11 @@ function createAggregate(runs) {
     initialVisibleEnemyCounts: {},
     encounterRows: [],
     earlyProgression: createEarlyProgression(),
+    earlyActionOpportunity: {
+      byEncounterOrdinal: Object.fromEntries(
+        [1, 2].map(ordinal => [ordinal, createActionOpportunityRecord()])
+      )
+    },
     rewardOpportunity: {
       meaningfulReward: createOpportunityRecord(),
       objectLoot: createOpportunityRecord(),
@@ -348,12 +437,16 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
   const fleeSelected = rounds.filter(round => round.fleeSelected === true).length;
   const fleeExecuted = rounds.filter(round => round.fleeExecuted === true).length;
   const fleePartingAttackCount = rounds.filter(round => round.fleePartingAttack === true).length;
+  const firstRound = rounds[0] || null;
   return {
     runIndex,
     encounterOrdinal,
     floor: identity.floor ?? diagnostic?.floor ?? null,
     type: identity.type ?? diagnostic?.type ?? null,
     initialVisibleEnemyCount: diagnostic?.initialVisibleEnemyCount ?? enemyNames.length,
+    rawInitialVisibleEnemyCount: diagnostic?.generatedInitialVisibleEnemyCount ?? enemyNames.length,
+    earlyCompositionPolicy: diagnostic?.earlyCompositionPolicy || "baseline",
+    earlyCompositionSuppressed: diagnostic?.earlyCompositionSuppressed === true,
     initialCompositionKey: compositionKey(identity.enemyNames || []),
     initialCompositionEnemyNames: enemyNames,
     outcome: identity.outcome || diagnostic?.result || "unknown",
@@ -368,6 +461,10 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     combatRounds: identity.rounds ?? (rounds.length || null),
     enemyActionCount: identity.enemyActions ?? null,
     normalDamage: identity.totalNormalDamage ?? identity.normalDamage ?? null,
+    firstPlayerActionExecutionTiming: firstRound?.playerActionExecutionTiming || "unobserved",
+    firstPlayerActionExecuted: firstRound?.playerActionExecuted === true,
+    enemyActionsBeforeFirstPlayerAction: firstRound?.enemyActionsBeforeFirstPlayerAction ?? null,
+    damageBeforeFirstPlayerAction: firstRound?.damageBeforeFirstPlayerAction ?? null,
     fleeSelected,
     fleeExecuted,
     fleeSelectedButNotExecuted: Math.max(0, fleeSelected - fleeExecuted),
@@ -478,6 +575,12 @@ function observeRun(aggregate, result, runIndex) {
     visibleRecord.encounters++;
     visibleRecord.deaths += Number(identity.outcome === "death");
     aggregate.encounterRows.push(encounterRow);
+    if (index < 2) {
+      const opportunity = aggregate.earlyActionOpportunity.byEncounterOrdinal[index + 1];
+      observeActionOpportunity(opportunity, encounterRow);
+      opportunity.generatedPairRuns += Number(encounterRow.rawInitialVisibleEnemyCount >= 2);
+      opportunity.effectivePairRuns += Number(encounterRow.initialVisibleEnemyCount >= 2);
+    }
     runCompositionKeys.add(key);
     observeEncounter(composition, identity, diagnostic, encounterRow);
     if (identity.outcome === "death") {
@@ -580,6 +683,12 @@ function finalizeAggregate(aggregate, configuration) {
     },
     rows: aggregate.rewardOpportunity.rows
   };
+  const earlyActionOpportunity = {
+    byEncounterOrdinal: Object.fromEntries(
+      Object.entries(aggregate.earlyActionOpportunity.byEncounterOrdinal)
+        .map(([ordinal, record]) => [ordinal, finalizeActionOpportunity(record, aggregate.runs)])
+    )
+  };
   return {
     runs: aggregate.runs,
     runOutcome: {
@@ -604,6 +713,7 @@ function finalizeAggregate(aggregate, configuration) {
       poisonApplications: aggregate.poisonApplications
     },
     earlyProgression,
+    earlyActionOpportunity,
     rewardOpportunity,
     encounterExposure: {
       enemyEncounterCount: aggregate.encounterCount,
@@ -673,9 +783,19 @@ function finalizeAggregate(aggregate, configuration) {
   };
 }
 
-export function createDiagnosticScenario({ startingKit, policy, fleeHpThreshold }) {
+export function createDiagnosticScenario({
+  startingKit,
+  policy,
+  fleeHpThreshold,
+  earlyCompositionPolicy = "baseline"
+}) {
   assertOneOf(startingKit, STARTING_KIT_IDS, "startingKit");
   assertOneOf(policy, POLICY_IDS, "policy");
+  assertOneOf(
+    earlyCompositionPolicy,
+    EARLY_COMPOSITION_POLICY_IDS,
+    "earlyCompositionPolicy"
+  );
   const threshold = parseRate(fleeHpThreshold, "fleeHpThreshold");
   return {
     startingKit,
@@ -695,6 +815,7 @@ export function createDiagnosticScenario({ startingKit, policy, fleeHpThreshold 
       ? "never"
       : policy === "flee-threshold" ? "threshold" : "visible-multi-enemy-flee",
     fleeHpThreshold: policy === "flee-threshold" ? threshold : null,
+    earlyEncounterMultiEnemyPolicy: earlyCompositionPolicy,
     consumablesAtDeparture: "none"
   };
 }
@@ -705,12 +826,18 @@ export async function runDiagnostic({
   fleeHpThreshold = DEFAULT_FLEE_HP_THRESHOLD,
   runs = DEFAULT_RUNS,
   seed = DEFAULT_SEED,
+  earlyCompositionPolicy = "baseline",
   allowSmallRunCount = false
 } = {}) {
   const normalizedRuns = parsePositiveInteger(runs, "runs", { minimum: allowSmallRunCount ? 1 : DEFAULT_RUNS });
   const normalizedSeed = parsePositiveInteger(seed, "seed");
   resetSimulationRandom(normalizedSeed);
-  const scenario = createDiagnosticScenario({ startingKit, policy, fleeHpThreshold });
+  const scenario = createDiagnosticScenario({
+    startingKit,
+    policy,
+    fleeHpThreshold,
+    earlyCompositionPolicy
+  });
   const aggregate = createAggregate(normalizedRuns);
   for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
     const result = simulateRun({
@@ -732,6 +859,7 @@ export async function runDiagnostic({
     startingKit,
     equipmentLoad: getCharacterEquipmentLoad(createStartingKitCharacter(startingKit)),
     policy,
+    earlyCompositionPolicy,
     fleeHpThreshold: scenario.fleeHpThreshold,
     floorStart: 1,
     targetFloor: 2,
@@ -752,7 +880,18 @@ export async function runDiagnostic({
   return finalizeAggregate(aggregate, configuration);
 }
 
-function buildReport({ result, startingKit, policy, fleeHpThreshold, runs, seed, provenance, purpose, requestedRef }) {
+function buildReport({
+  result,
+  startingKit,
+  policy,
+  fleeHpThreshold,
+  earlyCompositionPolicy,
+  runs,
+  seed,
+  provenance,
+  purpose,
+  requestedRef
+}) {
   const scope = readSimScopeDeclaration(import.meta.url)?.name || "run";
   const environment = {
     scope,
@@ -763,7 +902,8 @@ function buildReport({ result, startingKit, policy, fleeHpThreshold, runs, seed,
     runs,
     startingKit,
     policy,
-    fleeHpThreshold
+    fleeHpThreshold,
+    earlyCompositionPolicy
   };
   const envHash = printEnvSignatureBanner(environment, { label: "issue1184" });
   return {
@@ -865,6 +1005,8 @@ function buildManifest(report, options) {
 async function main() {
   const startingKit = CLI_OPTIONS["starting-kit"] || "vanguard";
   const policy = CLI_OPTIONS.policy || "fight";
+  const earlyCompositionPolicy =
+    CLI_OPTIONS["early-composition-policy"] || "baseline";
   const runs = parsePositiveInteger(CLI_OPTIONS.runs || DEFAULT_RUNS, "runs", { minimum: DEFAULT_RUNS });
   const seed = parsePositiveInteger(CLI_OPTIONS.seed || DEFAULT_SEED, "seed");
   const fleeHpThreshold = parseRate(CLI_OPTIONS["flee-hp-threshold"] || DEFAULT_FLEE_HP_THRESHOLD, "fleeHpThreshold");
@@ -876,16 +1018,29 @@ async function main() {
   }
   assertOneOf(startingKit, STARTING_KIT_IDS, "startingKit");
   assertOneOf(policy, POLICY_IDS, "policy");
+  assertOneOf(
+    earlyCompositionPolicy,
+    EARLY_COMPOSITION_POLICY_IDS,
+    "earlyCompositionPolicy"
+  );
   const provenance = requireRunnerProvenance({
     fetchOriginMain: false,
     measurementRunnerPaths: [RUNNER_PATH, ...PRODUCTION_PATHS]
   });
-  const result = await runDiagnostic({ startingKit, policy, fleeHpThreshold, runs, seed });
+  const result = await runDiagnostic({
+    startingKit,
+    policy,
+    fleeHpThreshold,
+    earlyCompositionPolicy,
+    runs,
+    seed
+  });
   const report = buildReport({
     result,
     startingKit,
     policy,
     fleeHpThreshold,
+    earlyCompositionPolicy,
     runs,
     seed,
     provenance,

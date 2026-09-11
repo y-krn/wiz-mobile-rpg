@@ -29,6 +29,8 @@ assert.ok(report.cases.every(testCase => testCase.entryMpRatio === 1));
 assert.ok(report.cases.every(testCase => Number.isFinite(testCase.clearRate)));
 assert.ok(report.cases.every(testCase => Number.isFinite(testCase.deathRate)));
 assert.ok(report.cases.every(testCase => Object.hasOwn(testCase, "enemyActionCount")));
+assert.ok(report.cases.every(testCase => Object.hasOwn(testCase, "enemyActionsBeforeFirstPlayerAction")));
+assert.ok(report.cases.every(testCase => Object.hasOwn(testCase, "damageBeforeFirstPlayerAction")));
 assert.ok(report.cases.every(testCase => Object.hasOwn(testCase, "productionTraitFiring")));
 assert.ok(report.cases.every(testCase =>
   Object.hasOwn(testCase.productionTraitFiring, "evasive")

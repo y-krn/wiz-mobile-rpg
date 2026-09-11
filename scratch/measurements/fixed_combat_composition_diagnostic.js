@@ -100,6 +100,10 @@ function distribution() {
   return [];
 }
 
+function addDistribution(values, value) {
+  if (Number.isFinite(value)) values.push(value);
+}
+
 function summarize(values) {
   const sorted = values.filter(Number.isFinite).sort((left, right) => left - right);
   if (sorted.length === 0) {
@@ -152,6 +156,8 @@ function createAccumulator(definition) {
     enemyActionCount: distribution(),
     firstPlayerActionExecutionTiming: {},
     firstPlayerActionExecuted: 0,
+    enemyActionsBeforeFirstPlayerAction: distribution(),
+    damageBeforeFirstPlayerAction: distribution(),
     fleeSelected: 0,
     fleeExecuted: 0,
     fleeSelectedButNotExecuted: 0,
@@ -209,6 +215,14 @@ function observeResult(accumulator, result) {
   const firstTiming = rounds[0]?.playerActionExecutionTiming || "unobserved";
   increment(accumulator.firstPlayerActionExecutionTiming, firstTiming);
   accumulator.firstPlayerActionExecuted += Number(rounds[0]?.playerActionExecuted === true);
+  addDistribution(
+    accumulator.enemyActionsBeforeFirstPlayerAction,
+    rounds[0]?.enemyActionsBeforeFirstPlayerAction
+  );
+  addDistribution(
+    accumulator.damageBeforeFirstPlayerAction,
+    rounds[0]?.damageBeforeFirstPlayerAction
+  );
   for (const message of rounds.flatMap(round => round.log || [])) {
     if (message.includes("庇った！")) {
       accumulator.guardAdjacentTriggers++;
@@ -250,6 +264,8 @@ function finalizeAccumulator(accumulator, runs) {
     enemyActionCount: summarize(accumulator.enemyActionCount),
     firstPlayerActionExecutionTiming: { ...accumulator.firstPlayerActionExecutionTiming },
     firstPlayerActionExecuted: accumulator.firstPlayerActionExecuted,
+    enemyActionsBeforeFirstPlayerAction: summarize(accumulator.enemyActionsBeforeFirstPlayerAction),
+    damageBeforeFirstPlayerAction: summarize(accumulator.damageBeforeFirstPlayerAction),
     fleeSelected: accumulator.fleeSelected,
     fleeExecuted: accumulator.fleeExecuted,
     fleeSelectedButNotExecuted: accumulator.fleeSelectedButNotExecuted,
