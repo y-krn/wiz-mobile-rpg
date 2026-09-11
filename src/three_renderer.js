@@ -37,7 +37,7 @@ const THREE_CORRIDOR_BASE = Object.freeze({
   wallHeight: 3.2,
   startZ: 1.15,
   fov: 88,
-  eyeOffsetZ: 0.4,
+  eyeOffsetZ: 0.9,
   lookAtHeight: 1.5,
   lookAtZ: -2.6,
   fogNear: 4.8,
@@ -66,6 +66,29 @@ function clamp(value, min, max) {
 
 function getCeilingStyle(value) {
   return value === "arch" ? "arch" : "flat";
+}
+
+function getCorridorAim(topology, profile) {
+  const current = topology?.find(({ z, column }) => z === 0 && column === 0);
+  const leftOpen = current && !current.leftBlocked;
+  const rightOpen = current && !current.rightBlocked;
+  if (leftOpen !== rightOpen) {
+    return {
+      x: rightOpen ? 0.9 : -0.9,
+      y: profile.lookAtHeight,
+      z: profile.startZ,
+    };
+  }
+  const leftAhead = topology?.some(({ z, column }) => z === 1 && column === -1) ?? false;
+  const rightAhead = topology?.some(({ z, column }) => z === 1 && column === 1) ?? false;
+  if (leftAhead !== rightAhead) {
+    return {
+      x: rightAhead ? 0.85 : -0.85,
+      y: profile.lookAtHeight,
+      z: profile.startZ - profile.cellDepth,
+    };
+  }
+  return { x: 0, y: profile.lookAtHeight, z: profile.lookAtZ };
 }
 
 // Biome geometry is authored as a normalized visual signature shared with
@@ -471,6 +494,7 @@ export class ThreeDungeonRenderer {
   draw(input = null) {
     if (!this.supported) return;
     const renderInput = this.resolveRenderInput(input);
+    const topology = this.getSceneTopology(renderInput);
     const signature = this.getDrawSignature(renderInput);
     if (signature !== this.sceneSignature) {
       this.buildScene(renderInput);
@@ -480,12 +504,13 @@ export class ThreeDungeonRenderer {
     const shakeX = this.shakeTime > 0 ? (Math.random() - 0.5) * this.shakeIntensity * 0.012 : 0;
     const shakeY = this.shakeTime > 0 ? (Math.random() - 0.5) * this.shakeIntensity * 0.008 : 0;
     const profile = this.activeProfile;
+    const cameraAim = getCorridorAim(topology, profile);
     this.camera.fov = profile.fov;
     this.camera.updateProjectionMatrix();
     this.camera.position.x = shakeX;
     this.camera.position.y = profile.eyeHeight + shakeY;
     this.camera.position.z = profile.eyeZ;
-    this.camera.lookAt(0, profile.lookAtHeight, profile.lookAtZ);
+    this.camera.lookAt(cameraAim.x, cameraAim.y, cameraAim.z);
     this.flashLight.intensity = this.flashTime > 0 ? 1.4 : 0;
     this.webgl.render(this.scene, this.camera);
     renderMiniMapOverlay(renderInput);
@@ -519,14 +544,14 @@ export class ThreeDungeonRenderer {
     // Keep the route one tonal step above the enclosure. This preserves the
     // Dark Archive mood while making the floor, wall, and ceiling separable
     // without relying on a wireframe or a fullscreen glow.
-    const floorColor = background.clone().lerp(wall, 0.45);
+    const floorColor = background.clone().lerp(wall, 0.55);
     const wallSurfaceColor = background.clone().lerp(wall, 0.09);
     const floorMaterial = new MeshStandardMaterial({
       color: floorColor,
       roughness: 0.96,
       metalness: 0.06,
       emissive: floorColor,
-      emissiveIntensity: 0.08,
+      emissiveIntensity: 0.12,
       side: DoubleSide
     });
     const wallMaterial = new MeshStandardMaterial({
@@ -534,7 +559,7 @@ export class ThreeDungeonRenderer {
       roughness: 0.78,
       metalness: 0.28,
       emissive: wall,
-      emissiveIntensity: 0.08,
+      emissiveIntensity: 0.04,
       side: DoubleSide
     });
     if (!input.sceneVisibility.showTownBackground) {
@@ -628,6 +653,8 @@ export class ThreeDungeonRenderer {
 
       const ceilingSurface = floorMaterial.clone();
       ceilingSurface.color.multiplyScalar(Math.max(0.52, depthShade * 0.62));
+      ceilingSurface.emissive.multiplyScalar(0.42);
+      ceilingSurface.emissiveIntensity = 0.04;
       const ceiling = new Mesh(
         createCeilingGeometry(profile.cellWidth, profile.cellDepth, profile.wallHeight, profile.ceilingStyle),
         ceilingSurface

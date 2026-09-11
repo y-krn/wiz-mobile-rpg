@@ -370,7 +370,7 @@ test('Three.js production B1F state keeps a real side passage continuous with th
     const generated = generateRunFloor({ runSeed: 'issue-1181-production-1', floor: 1 });
     const map = generated.grid;
     const x = 7;
-    const y = 14;
+    const y = 13;
     const currentCell = map[y][x];
     const branchCell = map[y][x + 1];
     state.party = [createStartingKitCharacter('vanguard')];
@@ -439,13 +439,13 @@ test('Three.js production B1F state keeps a real side passage continuous with th
   });
 
   expect(evidence.generatedValid).toBe(true);
-  expect(evidence.currentCell).toEqual({ x: 7, y: 14, openNorth: true, openEast: true, openWest: false });
+  expect(evidence.currentCell).toEqual({ x: 7, y: 13, openNorth: true, openEast: true, openWest: false });
   expect(evidence.branchCell).toEqual({ openNorth: true, openEast: true });
-  expect(evidence.branchTopology).toEqual(expect.objectContaining({ z: 0, column: 1, x: 8, y: 14, valid: true }));
+  expect(evidence.branchTopology).toEqual(expect.objectContaining({ z: 0, column: 1, x: 8, y: 13, valid: true }));
   expect(evidence.branchFloors).toEqual([
     {
       x: 8,
-      y: 14,
+      y: 13,
       yPosition: 0,
       material: 'MeshStandardMaterial',
       depthTest: true,
