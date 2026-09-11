@@ -293,7 +293,8 @@ function createResourceFunnelRecord() {
     acquiredBySource: {},
     exposure: {
       single: createDistribution(),
-      pair: createDistribution()
+      pair: createDistribution(),
+      unobserved: createDistribution()
     }
   };
 }
@@ -329,6 +330,9 @@ function createContinuationResourceRecord() {
   return Object.fromEntries(
     [2, 3].map(ordinal => [String(ordinal), {
       runsObserved: 0,
+      cohortRuns: 0,
+      cohortEndedBeforeArrival: 0,
+      cohortDeathsBeforeArrival: 0,
       resourceOpportunityRuns: 0,
       byItem: Object.fromEntries(
         RECOVERY_RESOURCE_IDS.map(itemId => [itemId, createResourceFunnelRecord()])
@@ -342,8 +346,17 @@ function itemCount(snapshot, itemId) {
   return Number(snapshot?.[itemId]) || 0;
 }
 
-function recoveryEventsBefore(events, startStep) {
-  return events.filter(event => Number(event.step) <= Number(startStep));
+export function isEventBeforeTargetEncounter(event, targetOrdinal, fromOrdinal) {
+  const ordinal = Number(event?.encounterOrdinal);
+  return Number.isInteger(ordinal) && ordinal >= fromOrdinal && ordinal < targetOrdinal;
+}
+
+export function isEventBetweenEncounters(event, fromRow, nextRow = null) {
+  const ordinal = Number(event?.encounterOrdinal);
+  if (!fromRow || ordinal !== Number(fromRow.encounterOrdinal)) return false;
+  const step = Number(event.step);
+  if (!Number.isFinite(step) || step < Number(fromRow.endStep)) return false;
+  return !nextRow || step <= Number(nextRow.startStep);
 }
 
 function summarizeRecoveryEvent(event) {
@@ -373,7 +386,9 @@ function hpBandId(hpRate) {
 function recordResourceFunnel(record, acquisitions, uses, usableCount, exposure) {
   const acquired = acquisitions.length;
   const used = uses.length;
-  const usable = acquired > 0 || usableCount > 0;
+  const usable = acquisitions.some(event => event.playerUsableAtAcquisition === true)
+    || uses.length > 0
+    || usableCount > 0;
   if (acquired > 0) record.runsWithAcquisition++;
   if (usable) record.runsUsable++;
   if (used > 0) record.runsUsed++;
@@ -405,25 +420,37 @@ function observeContinuationResources(
   const recoveryEvents = result.diagnostics?.recoveryEvents || [];
   const costEvents = result.diagnostics?.costEvents || [];
   [2, 3].forEach(targetOrdinal => {
+    const fromRow = encounterRows[targetOrdinal - 2];
     const targetRow = encounterRows[targetOrdinal - 1];
-    if (!targetRow) return;
+    if (!fromRow || fromRow.outcome === "death") return;
     const bucket = aggregate.continuationResource[String(targetOrdinal)];
-    bucket.runsObserved++;
+    bucket.cohortRuns++;
+    if (targetRow) bucket.runsObserved++;
+    else {
+      bucket.cohortEndedBeforeArrival++;
+      bucket.cohortDeathsBeforeArrival += Number(result.outcome === "death");
+    }
     const acquiredBefore = rewardEvents.filter(event =>
       RECOVERY_RESOURCE_IDS.includes(event.itemId) &&
       event.disposition === "bagged" &&
-      Number(event.step) <= Number(targetRow.startStep)
+      isEventBeforeTargetEncounter(event, targetOrdinal, fromRow.encounterOrdinal) &&
+      isEventBetweenEncounters(event, fromRow, targetRow)
     );
     const targetUses = recoveryEvents.filter(event =>
-      Number(event.step) <= Number(targetRow.startStep)
+      isEventBeforeTargetEncounter(event, targetOrdinal, fromRow.encounterOrdinal) &&
+      isEventBetweenEncounters(event, fromRow, targetRow)
     );
-    const exposure = targetRow.initialVisibleEnemyCount >= 2 ? "pair" : "single";
+    const exposure = targetRow
+      ? targetRow.initialVisibleEnemyCount >= 2 ? "pair" : "single"
+      : "unobserved";
     const row = {
       runIndex,
       encounterOrdinal: targetOrdinal,
-      entryHpRate: targetRow.hpRateBeforeEncounter,
-      entryMpRate: targetRow.mpRateBeforeEncounter,
+      entryHpRate: targetRow?.hpRateBeforeEncounter ?? null,
+      entryMpRate: targetRow?.mpRateBeforeEncounter ?? null,
       exposure,
+      reachedTarget: Boolean(targetRow),
+      runEndOutcome: targetRow ? null : result.outcome,
       resourceOpportunity: acquiredBefore.length > 0,
       byItem: {}
     };
@@ -431,14 +458,18 @@ function observeContinuationResources(
     RECOVERY_RESOURCE_IDS.forEach(itemId => {
       const acquisitions = acquiredBefore.filter(event => event.itemId === itemId);
       const uses = targetUses.filter(event => event.itemId === itemId);
-      const usableCount = itemCount(targetRow.startRecoveryInventory, itemId);
+      const inventoryCount = itemCount(targetRow?.startRecoveryInventory, itemId);
+      const usableCount = targetRow?.startRecoveryEligibility?.[itemId]
+        ? inventoryCount
+        : 0;
       const record = bucket.byItem[itemId];
       recordResourceFunnel(record, acquisitions, uses, usableCount, exposure);
       row.byItem[itemId] = {
         acquired: acquisitions.length,
         usable: usableCount,
+        inventoryCount,
         used: uses.length,
-        carriedUnused: Math.max(0, usableCount - uses.length),
+        carriedUnused: Math.max(0, inventoryCount - uses.length),
         actualHpRecovered: uses.reduce((sum, event) => sum + (event.hpRecovered || 0), 0),
         actualMpRecovered: uses.reduce((sum, event) => sum + (event.mpRecovered || 0), 0),
         firstAcquisition: summarizeRecoveryEvent(acquisitions[0])
@@ -446,6 +477,10 @@ function observeContinuationResources(
     });
     bucket.rows.push(row);
 
+    if (!targetRow) {
+      bucket.rows.push(row);
+      return;
+    }
     const band = hpBandId(targetRow.hpRateBeforeEncounter);
     if (band) {
       aggregate.naturalEntryHpBands[band]++;
@@ -467,12 +502,10 @@ function observeContinuationResources(
     const current = encounterRows[index];
     const next = encounterRows[index + 1];
     const recoveryBetween = recoveryEvents.filter(event =>
-      Number(event.step) >= Number(current.endStep) &&
-      Number(event.step) <= Number(next.startStep)
+      isEventBetweenEncounters(event, current, next)
     );
     const costBetween = costEvents.filter(event =>
-      Number(event.step) > Number(current.endStep) &&
-      Number(event.step) <= Number(next.startStep) &&
+      isEventBetweenEncounters(event, current, next) &&
       event.source !== "combat" &&
       !["normal", "elite", "midboss", "boss"].includes(event.source)
     );
@@ -506,14 +539,21 @@ function finalizeContinuationResources(aggregate) {
   return Object.fromEntries(
     Object.entries(aggregate.continuationResource).map(([ordinal, bucket]) => [ordinal, {
       runsObserved: bucket.runsObserved,
+      cohortRuns: bucket.cohortRuns,
+      cohortArrived: bucket.runsObserved,
+      cohortEndedBeforeArrival: bucket.cohortEndedBeforeArrival,
+      cohortDeathsBeforeArrival: bucket.cohortDeathsBeforeArrival,
       resourceOpportunityRuns: bucket.resourceOpportunityRuns,
-      resourceOpportunityRate: bucket.runsObserved > 0
+      resourceOpportunityRate: bucket.cohortRuns > 0
+        ? bucket.resourceOpportunityRuns / bucket.cohortRuns
+        : null,
+      observedResourceOpportunityRate: bucket.runsObserved > 0
         ? bucket.resourceOpportunityRuns / bucket.runsObserved
         : null,
       byItem: Object.fromEntries(
         Object.entries(bucket.byItem).map(([itemId, record]) => [
           itemId,
-          finalizeResourceFunnelRecord(record, aggregate.runs)
+          finalizeResourceFunnelRecord(record, bucket.cohortRuns)
         ])
       ),
       rows: bucket.rows
@@ -784,7 +824,9 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     mpRateBeforeEncounter,
     mpAfterEncounter: identity.mpAfter ?? diagnostic?.endMp ?? null,
     startRecoveryInventory: diagnostic?.startRecoveryInventory || {},
+    startRecoveryEligibility: diagnostic?.startRecoveryEligibility || {},
     endRecoveryInventory: diagnostic?.endRecoveryInventory || {},
+    endRecoveryEligibility: diagnostic?.endRecoveryEligibility || {},
     combatRounds: identity.rounds ?? (rounds.length || null),
     enemyActionCount: identity.enemyActions ?? null,
     normalDamage: identity.totalNormalDamage ?? identity.normalDamage ?? null,
@@ -1040,7 +1082,23 @@ function finalizeAggregate(aggregate, configuration) {
       averageMpRecovered: record.entries > 0
         ? record.actualMpRecovered / record.entries
         : null
-    }])
+      }])
+  );
+  const continuationResource = finalizeContinuationResources(aggregate);
+  const linkedTrajectory = finalizeTrajectoryRows(aggregate.trajectoryRows);
+  linkedTrajectory.cohortByTransition = Object.fromEntries(
+    Object.entries(continuationResource).map(([ordinal, bucket]) => [
+      `${Number(ordinal) - 1}->${ordinal}`,
+      {
+        eligibleRuns: bucket.cohortRuns,
+        arrivedRuns: bucket.cohortArrived,
+        endedBeforeArrival: bucket.cohortEndedBeforeArrival,
+        deathsBeforeArrival: bucket.cohortDeathsBeforeArrival,
+        arrivalRate: bucket.cohortRuns > 0
+          ? bucket.cohortArrived / bucket.cohortRuns
+          : null
+      }
+    ])
   );
   return {
     runs: aggregate.runs,
@@ -1068,8 +1126,8 @@ function finalizeAggregate(aggregate, configuration) {
     earlyProgression,
     earlyActionOpportunity,
     rewardOpportunity,
-    continuationResource: finalizeContinuationResources(aggregate),
-    linkedTrajectory: finalizeTrajectoryRows(aggregate.trajectoryRows),
+    continuationResource,
+    linkedTrajectory,
     naturalEntryHpBands: { ...aggregate.naturalEntryHpBands },
     naturalEntryHpBandResource,
     encounterExposure: {

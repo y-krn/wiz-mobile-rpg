@@ -7,6 +7,8 @@ const {
   POLICY_IDS,
   RECOVERY_POLICY_IDS,
   RECOVERY_RESOURCE_IDS,
+  isEventBeforeTargetEncounter,
+  isEventBetweenEncounters,
   createDiagnosticScenario,
   getDiagnosticWorldSeed,
   runMatchedRecoveryPolicies,
@@ -78,6 +80,8 @@ for (const field of [
 ]) {
   assert.ok(Object.hasOwn(entry, field), `encounter row missing ${field}`);
 }
+assert.ok(Object.hasOwn(entry, "startRecoveryEligibility"));
+assert.ok(Object.hasOwn(entry, "endRecoveryEligibility"));
 assert.equal(typeof entry.initialVisibleEnemyCount, "number");
 assert.ok(entry.initialVisibleEnemyCount >= 1);
 for (const field of [
@@ -157,8 +161,35 @@ for (const itemId of RECOVERY_RESOURCE_IDS) {
   assert.ok(report.continuationResource["2"].byItem[itemId]);
 }
 assert.ok(report.linkedTrajectory.byTransition);
+assert.ok(report.linkedTrajectory.cohortByTransition);
 assert.ok(report.naturalEntryHpBands);
 assert.ok(report.naturalEntryHpBandResource);
+
+const boundaryFrom = { encounterOrdinal: 1, endStep: 10 };
+const boundaryTo = { encounterOrdinal: 2, startStep: 10 };
+assert.equal(
+  isEventBeforeTargetEncounter({ encounterOrdinal: 1, step: 10 }, 2, 1),
+  true
+);
+assert.equal(
+  isEventBeforeTargetEncounter({ encounterOrdinal: 2, step: 10 }, 2, 1),
+  false,
+  "same-step target-encounter events must be excluded"
+);
+assert.equal(
+  isEventBetweenEncounters({ encounterOrdinal: 1, step: 10 }, boundaryFrom, boundaryTo),
+  true
+);
+assert.equal(
+  isEventBetweenEncounters({ encounterOrdinal: 2, step: 10 }, boundaryFrom, boundaryTo),
+  false,
+  "same-step target-encounter events must not enter the prior transition"
+);
+for (const itemId of RECOVERY_RESOURCE_IDS) {
+  const funnel = report.continuationResource["2"].byItem[itemId];
+  assert.ok(funnel.runsWithAcquisition >= funnel.runsUsable);
+  assert.ok(funnel.runsUsable >= funnel.runsUsed);
+}
 
 const matchedVanguard = await runDiagnostic({
   startingKit: "vanguard",
