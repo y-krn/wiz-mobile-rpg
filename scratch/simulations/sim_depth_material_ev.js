@@ -1147,6 +1147,15 @@ function parseOptionalChance(value, name = "chestHealPotionExtraChance") {
   return chance;
 }
 
+function parseOptionalChestHealPotionWeight(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const weight = Number(value);
+  if (!Number.isInteger(weight) || ![1, 2, 3].includes(weight)) {
+    throw new Error(`chestHealPotionWeight must be 1|2|3: ${value}`);
+  }
+  return weight;
+}
+
 function parseOptionalFloorList(value) {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) {
@@ -4445,6 +4454,15 @@ function createSimulationState(
     scenario.chestHealPotionReplacementChance,
     "chestHealPotionReplacementChance"
   );
+  const chestHealPotionWeight = parseOptionalChestHealPotionWeight(
+    scenario.chestHealPotionWeight
+  );
+  const chestHealPotionWeightSource = scenario.chestHealPotionWeightSource || "none";
+  if (!["none", "ordinary", "fromDrop", "both"].includes(chestHealPotionWeightSource)) {
+    throw new Error(
+      `chestHealPotionWeightSource must be none|ordinary|fromDrop|both: ${chestHealPotionWeightSource}`
+    );
+  }
   const enemyHealPotionDropChance = parseOptionalChance(
     scenario.enemyHealPotionDropChance,
     "enemyHealPotionDropChance"
@@ -4583,6 +4601,8 @@ function createSimulationState(
       healPotionMerchantHoldLimit,
       chestHealPotionExtraChance,
       chestHealPotionReplacementChance,
+      chestHealPotionWeight,
+      chestHealPotionWeightSource,
       enemyHealPotionDropChance,
       measurementInitiative: scenario.measurementInitiative || null,
       extraCampFloors,
@@ -12183,6 +12203,11 @@ function rollChestItems(
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
   }
 
+  const weightSource = state.simPolicy.chestHealPotionWeightSource;
+  const weightApplies = weightSource === "both" || weightSource === chestSource;
+  const itemWeights = weightApplies && state.simPolicy.chestHealPotionWeight !== null
+    ? { HEAL_POTION: state.simPolicy.chestHealPotionWeight }
+    : null;
   const reward = rollChestReward({
     floor,
     rng,
@@ -12200,6 +12225,7 @@ function rollChestItems(
     itemCandidateFilter: !fromDrop && RETURN_WING_REWARD_MODE === "special"
       ? itemId => itemId !== "TOWN_PORTAL"
       : null,
+    itemWeights,
     runtimeDiagnostics: metrics?.runtimeDiagnostics
   });
   let item = reward.item;

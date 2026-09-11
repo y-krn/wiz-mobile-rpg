@@ -33,6 +33,10 @@ export const RECOVERY_RESOURCE_IDS = Object.freeze([
   "ETHER"
 ]);
 export const EARLY_RECOVERY_HP_THRESHOLD = 0.70;
+export const CHEST_HEAL_POTION_WEIGHT_IDS = Object.freeze([1, 2, 3]);
+export const CHEST_HEAL_POTION_WEIGHT_SOURCE_IDS = Object.freeze([
+  "none", "ordinary", "fromDrop", "both"
+]);
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1139;
 export const DEFAULT_FLEE_HP_THRESHOLD = 0.20;
@@ -1239,7 +1243,9 @@ export function createDiagnosticScenario({
   recoveryPolicy = "production",
   fleeHpThreshold,
   earlyCompositionPolicy = "baseline",
-  earlyCompositionCandidate = null
+  earlyCompositionCandidate = null,
+  chestHealPotionWeight = null,
+  chestHealPotionWeightSource = "none"
 }) {
   assertOneOf(startingKit, STARTING_KIT_IDS, "startingKit");
   assertOneOf(policy, POLICY_IDS, "policy");
@@ -1273,6 +1279,8 @@ export function createDiagnosticScenario({
       : {}),
     earlyEncounterMultiEnemyPolicy: earlyCompositionPolicy,
     earlyCompositionCandidate,
+    chestHealPotionWeight,
+    chestHealPotionWeightSource,
     consumablesAtDeparture: "none"
   };
 }
@@ -1286,6 +1294,8 @@ export async function runDiagnostic({
   seed = DEFAULT_SEED,
   earlyCompositionPolicy = "baseline",
   earlyCompositionCandidate = null,
+  chestHealPotionWeight = null,
+  chestHealPotionWeightSource = "none",
   allowSmallRunCount = false
 } = {}) {
   const normalizedRuns = parsePositiveInteger(runs, "runs", { minimum: allowSmallRunCount ? 1 : DEFAULT_RUNS });
@@ -1297,7 +1307,9 @@ export async function runDiagnostic({
     recoveryPolicy,
     fleeHpThreshold,
     earlyCompositionPolicy,
-    earlyCompositionCandidate
+    earlyCompositionCandidate,
+    chestHealPotionWeight,
+    chestHealPotionWeightSource
   });
   const aggregate = createAggregate(normalizedRuns);
   for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
@@ -1326,6 +1338,8 @@ export async function runDiagnostic({
       : null,
     earlyCompositionPolicy,
     earlyCompositionCandidate,
+    chestHealPotionWeight,
+    chestHealPotionWeightSource,
     fleeHpThreshold: scenario.fleeHpThreshold,
     floorStart: 1,
     targetFloor: 2,
@@ -1340,7 +1354,7 @@ export async function runDiagnostic({
     seed: normalizedSeed,
     seedPolicy: "simulation RNG reset to seed before run; deterministic policy-independent worldSeed per run",
     worldSeedTemplate: "issue-1176:{seed}:{runIndex}",
-    matchedComparisonKey: `${startingKit}:${policy}:${recoveryPolicy}:${normalizedSeed}:${normalizedRuns}`,
+    matchedComparisonKey: `${startingKit}:${policy}:${recoveryPolicy}:${chestHealPotionWeightSource}:${chestHealPotionWeight ?? "baseline"}:${normalizedSeed}:${normalizedRuns}`,
     runs: normalizedRuns
   };
   return finalizeAggregate(aggregate, configuration);
@@ -1387,7 +1401,9 @@ function buildReport({
     policy,
     recoveryPolicy,
     fleeHpThreshold,
-    earlyCompositionPolicy
+    earlyCompositionPolicy,
+    chestHealPotionWeight: result.configuration.chestHealPotionWeight,
+    chestHealPotionWeightSource: result.configuration.chestHealPotionWeightSource
   };
   const envHash = printEnvSignatureBanner(environment, { label: "issue1196" });
   return {
@@ -1425,6 +1441,7 @@ function buildSummary(report) {
     `- runner: \`${report.runnerVersion}\` / schema: ${report.schemaVersion}`,
     `- source SHA: \`${measurement.sourceCommit || "not recorded"}\``,
     `- kit / load / encounter policy / recovery policy / N: \`${result.configuration.startingKit}\` / ${result.configuration.equipmentLoad.label} (${result.configuration.equipmentLoad.class}) / \`${result.configuration.policy}\` / \`${result.configuration.recoveryPolicy}\` / ${result.configuration.runs}`,
+    `- chest HEAL_POTION weight/source: ${result.configuration.chestHealPotionWeight ?? "baseline"}x / ${result.configuration.chestHealPotionWeightSource}`,
     `- seed: ${result.configuration.seed}; consumables at departure: none`,
     "",
     "## Run outcome",
@@ -1500,6 +1517,10 @@ async function main() {
   const startingKit = CLI_OPTIONS["starting-kit"] || "vanguard";
   const policy = CLI_OPTIONS.policy || "fight";
   const recoveryPolicy = CLI_OPTIONS["recovery-policy"] || "production";
+  const chestHealPotionWeight = CLI_OPTIONS["chest-heal-potion-weight"] === undefined
+    ? null
+    : Number(CLI_OPTIONS["chest-heal-potion-weight"]);
+  const chestHealPotionWeightSource = CLI_OPTIONS["chest-heal-potion-source"] || "none";
   const earlyCompositionPolicy =
     CLI_OPTIONS["early-composition-policy"] || "baseline";
   const runs = parsePositiveInteger(CLI_OPTIONS.runs || DEFAULT_RUNS, "runs", { minimum: DEFAULT_RUNS });
@@ -1514,6 +1535,14 @@ async function main() {
   assertOneOf(startingKit, STARTING_KIT_IDS, "startingKit");
   assertOneOf(policy, POLICY_IDS, "policy");
   assertOneOf(recoveryPolicy, RECOVERY_POLICY_IDS, "recoveryPolicy");
+  if (chestHealPotionWeight !== null && !CHEST_HEAL_POTION_WEIGHT_IDS.includes(chestHealPotionWeight)) {
+    throw new Error(`chestHealPotionWeight must be ${CHEST_HEAL_POTION_WEIGHT_IDS.join("|")}: ${chestHealPotionWeight}`);
+  }
+  assertOneOf(
+    chestHealPotionWeightSource,
+    CHEST_HEAL_POTION_WEIGHT_SOURCE_IDS,
+    "chestHealPotionWeightSource"
+  );
   assertOneOf(
     earlyCompositionPolicy,
     EARLY_COMPOSITION_POLICY_IDS,
@@ -1529,6 +1558,8 @@ async function main() {
     recoveryPolicy,
     fleeHpThreshold,
     earlyCompositionPolicy,
+    chestHealPotionWeight,
+    chestHealPotionWeightSource,
     runs,
     seed
   });
