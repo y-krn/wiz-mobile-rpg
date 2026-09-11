@@ -11,14 +11,16 @@
 ## 測定条件と provenance
 
 - 対象: `vanguard`、fresh B1F、2戦目・3戦目への継続
+- runner の `targetDepth: 2` は B2F の floor outcome を測る設定であり、encounter ordinal 2/3（2戦目・3戦目）とは別軸。3階到達はこの measurement の対象外
 - 主比較: `fight` / `production` と、既存 auto-use threshold のみ `0.70` にした `early-use`
 - 追加比較: `visible-multi-enemy-flee`。fight と混ぜず、逃走選択・実行・生存を別集計
 - N=1000 / case、seed base `1196`
-- runner: `issue1196-continuation-resource-v3`、schema 7
-- source HEAD: `be49ca6baa4a8d320d4b1fd9560e2aa67c865a43`
+- runner: `issue1196-continuation-resource-v4`、schema 8
+- source HEAD: `6f1f6eec58e3ea36885430db4a96a9229db259d9`
 - production gameplay/base: `91838d1df5a8f2eb00799d1f196c15c1a31f4020`
 - Node: `v26.8.1`、clean worktree
 - 同一 `fight / production` コマンドの再実行は JSON 完全一致 (`cmp`)
+- environment hash: `8f088d601f68e38f`
 
 測定は observation-only の診断フックであり、production の戦闘値・報酬率・回復量は変更していない。meaningful reward / Build opportunity は recovery resource と別フィールドで集計した。
 
@@ -47,7 +49,9 @@
 | 指標 | production | early-use |
 |---|---:|---:|
 | B1F death | 90.0% | 89.9% |
-| B2F arrival | 10.0% | 10.1% |
+| encounter-2 arrival (all runs) | 49.2% (492/1000) | 49.1% (491/1000) |
+| encounter-2 arrival (E1 survivor cohort) | 75.58% (492/651) | 75.54% (491/650) |
+| B2F arrival (floor outcome) | 10.0% | 10.1% |
 | E1 survivor cohort | 651 | 650 |
 | 2戦目前 resource opportunity | 25 / 651 (3.84%) | 24 / 650 (3.69%) |
 | E2 survivor cohort | 254 | 252 |
@@ -68,6 +72,8 @@ early-use は resource を生成しない。今回の差は既存 auto-use hook 
 | 2/3戦目前 | GREATER_HEAL, HOLY_WATER, MANA_POTION, ETHER | 0 | 0 | 0 | 0 | 0 | 0 / 0 | 0 | — |
 
 `usable` は production UI の player-usable eligibility、`beneficial` はその時点で HP/MP 回復または状態異常治療の効果がある eligibility、`used` は実際の auto-use である。`HOLY_WATER` は full HP / non-poison でも production UI 上は使用可能だが、beneficial ではない。今回の actual use は production auto-use hook の観測であり、player menu use の上限ではない。
+
+`carried-unused` は target encounter entry 時点の inventory snapshot（`inventoryCount`）そのものを記録する。row/aggregateとも usable / beneficial では条件付けず、aggregateは target entry inventory が1個以上のrow数を数える。取得後に一部を使用した場合でも、target entryに残った所持数を二重に差し引かない。
 
 ### Cohort dropout
 
@@ -109,7 +115,7 @@ combat 後から次 entry まで HP はさらに下がり、平均 recovery は�
 | 指標 | visible-multi-enemy-flee |
 |---|---:|
 | B1F death | 84.6% |
-| B2F arrival | 15.4% |
+| B2F arrival (floor outcome) | 15.4% |
 | E1 survivor cohort | 798 |
 | 2戦目前 resource opportunity | 27 / 798 (3.38%) |
 | E2 survivor cohort | 425 |
@@ -141,7 +147,7 @@ combat 後から次 entry まで HP はさらに下がり、平均 recovery は�
 ## Limitations / reproduction
 
 - Monte Carlo N=1000/case。数%台の rate は方向性の証拠であり、精密な tuning 値ではない。
-- `GREATER_HEAL`、`HOLY_WATER`、`MANA_POTION`、`ETHER` は今回の B1F 2/3戦目前 path では acquisition 0。上位 floor の供給可否は未測定。
+- `GREATER_HEAL`、`HOLY_WATER`、`MANA_POTION`、`ETHER` は今回の B1F 2/3戦目前 path では acquisition 0。runnerの `targetDepth: 2` により、3階到達や上位 floor の供給可否は未測定。
 - auto-use threshold probe は player の探索中 item-menu usage judgment を表さない。その結論は「既存 auto-use hook の threshold では説明できない」までに限定する。
 - natural HP band は fixed panel 比較用の分類であり、新しい開始条件ではない。
 - raw JSON / manifest は commit せず、一時領域へ保存した。
@@ -158,6 +164,6 @@ node scratch/measurements/starting_kit_diagnostic.js \
   --output /tmp/issue-1196-fight-production.json \
   --summary /tmp/issue-1196-fight-production.md \
   --manifest /tmp/issue-1196-fight-production.manifest.json \
-  --purpose issue-1196-continuation-resource-v4 \
+  --purpose issue-1196-continuation-resource-v6 \
   --ref issue-1196
 ```
