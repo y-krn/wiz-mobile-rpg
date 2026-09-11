@@ -322,7 +322,7 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
       });
 
       expect(evidence.cameraFov).toBeGreaterThanOrEqual(60);
-      expect(evidence.cameraFov).toBeLessThanOrEqual(70);
+      expect(evidence.cameraFov).toBeLessThanOrEqual(90);
       expect(evidence.metrics.forwardOpeningWidth[0]).toBeGreaterThan(100);
       expect(evidence.metrics.forwardOpeningWidth[0]).toBeGreaterThan(evidence.metrics.forwardOpeningWidth[1]);
       expect(evidence.metrics.forwardOpeningWidth[1]).toBeGreaterThan(evidence.metrics.forwardOpeningWidth[2]);
@@ -1030,6 +1030,36 @@ test('Three.js Dungeon View disposes prototype materials across repeated scene r
   const disposeCount = await page.evaluate(async () => {
     const { MeshStandardMaterial, ThreeDungeonRenderer } = await import('/src/three_renderer.js');
     const { dungeonRenderer } = await import('/src/renderer.js');
+    const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const map = Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => ({
+      walls: [true, true, true, true],
+      blockEnter: [false, false, false, false],
+      type: 'empty',
+    })));
+    const open = (x, y, direction) => {
+      const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+      const [dx, dy] = directions[direction];
+      map[y][x].walls[direction] = false;
+      map[y + dy][x + dx].walls[(direction + 2) % 4] = false;
+    };
+    open(2, 2, 0);
+    open(2, 2, 1);
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.currentRun = createDefaultCurrentRun();
+    state.floor = 1;
+    state.x = 2;
+    state.y = 2;
+    state.dir = 0;
+    state.maps[0] = map;
+    state.visitedMaps[0] = map.map((row) => row.map(() => true));
+    state.map = map;
+    state.mapRevision = (state.mapRevision || 0) + 1;
+    state.gameState = 'explore';
+    state.transitioning = false;
+    state.combatState = null;
+    state.roamingMonsters = [];
+    updateUI();
     const canvas = document.createElement('canvas');
     canvas.id = 'material-lifecycle-probe';
     document.body.append(canvas);
@@ -1037,23 +1067,41 @@ test('Three.js Dungeon View disposes prototype materials across repeated scene r
     const baseInput = dungeonRenderer.getRenderInput();
     const originalDispose = MeshStandardMaterial.prototype.dispose;
     let disposeCalls = 0;
+    let jambPrototypeDisposals = 0;
+    let jambSceneDisposals = 0;
     MeshStandardMaterial.prototype.dispose = function disposeSpy() {
       disposeCalls += 1;
+      if (this.userData?.rendererLifecycle === 'side-branch-jamb-prototype') jambPrototypeDisposals += 1;
+      if (this.userData?.rendererLifecycle === 'side-branch-jamb-scene') jambSceneDisposals += 1;
       return originalDispose.call(this);
     };
     let afterFirstBuild;
+    let firstJambMaterials;
     try {
       renderer.buildScene(baseInput);
       afterFirstBuild = disposeCalls;
+      firstJambMaterials = [];
+      renderer.root.traverse((child) => {
+        if (child.userData?.surface === 'side-branch-jamb') firstJambMaterials.push(child.material);
+      });
       renderer.buildScene(baseInput);
     } finally {
       MeshStandardMaterial.prototype.dispose = originalDispose;
     }
-    return { disposeCalls, afterFirstBuild };
+    return {
+      disposeCalls,
+      afterFirstBuild,
+      firstJambCount: firstJambMaterials.length,
+      jambPrototypeDisposals,
+      jambSceneDisposals,
+    };
   });
 
   expect(disposeCount.afterFirstBuild).toBeGreaterThan(0);
   expect(disposeCount.disposeCalls).toBeGreaterThan(disposeCount.afterFirstBuild);
+  expect(disposeCount.firstJambCount).toBeGreaterThan(0);
+  expect(disposeCount.jambPrototypeDisposals).toBe(disposeCount.firstJambCount);
+  expect(disposeCount.jambSceneDisposals).toBe(disposeCount.firstJambCount);
 });
 
 test('Three.js Dungeon View follows map topology for all four directions @smoke @e2e @visual', async ({ page }, testInfo) => {

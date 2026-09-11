@@ -36,8 +36,8 @@ const THREE_CORRIDOR_BASE = Object.freeze({
   cellDepth: 2.1,
   wallHeight: 3.2,
   startZ: 1.15,
-  fov: 66,
-  eyeOffsetZ: 0.4,
+  fov: 88,
+  eyeOffsetZ: 0.9,
   lookAtHeight: 1.5,
   lookAtZ: -2.6,
   fogNear: 4.8,
@@ -89,11 +89,11 @@ export function getThreeCorridorProfile(geometry = {}) {
     fov: THREE_CORRIDOR_BASE.fov,
     eyeHeight,
     eyeZ: THREE_CORRIDOR_BASE.startZ + THREE_CORRIDOR_BASE.eyeOffsetZ,
-    // Keep the gaze close to eye level. Branch readability must come from
-    // neighboring-cell geometry and material hierarchy, not a lowered horizon
-    // that exposes a synthetic opening proxy.
-    lookAtHeight: clamp(eyeHeight - 0.08, 1.35, 1.56),
-    lookAtZ: THREE_CORRIDOR_BASE.lookAtZ,
+    // Keep a stable first-person eye point while aiming through the near
+    // threshold. This keeps real neighboring floors inside the mobile frame;
+    // the branch itself still comes from the adjacent cell geometry.
+    lookAtHeight: clamp(eyeHeight - 0.55, 0.95, 1.15),
+    lookAtZ: -0.6,
     fogNear: THREE_CORRIDOR_BASE.fogNear,
     fogFar: THREE_CORRIDOR_BASE.fogFar,
     wallLean,
@@ -508,7 +508,7 @@ export class ThreeDungeonRenderer {
     this.scene.fog = new Fog(background, profile.fogNear, profile.fogFar);
     this.webgl.setClearColor(background, 1);
 
-    this.root.add(new AmbientLight(0x8e9aa0, 0.42));
+    this.root.add(new AmbientLight(0x8e9aa0, 0.62));
     const keyLight = new DirectionalLight(wall, 0.65);
     keyLight.position.set(-2, 5, 4);
     this.root.add(keyLight);
@@ -519,9 +519,16 @@ export class ThreeDungeonRenderer {
     // Keep the route one tonal step above the enclosure. This preserves the
     // Dark Archive mood while making the floor, wall, and ceiling separable
     // without relying on a wireframe or a fullscreen glow.
-    const floorColor = background.clone().lerp(wall, 0.17);
+    const floorColor = background.clone().lerp(wall, 0.45);
     const wallSurfaceColor = background.clone().lerp(wall, 0.09);
-    const floorMaterial = new MeshStandardMaterial({ color: floorColor, roughness: 0.96, metalness: 0.06, side: DoubleSide });
+    const floorMaterial = new MeshStandardMaterial({
+      color: floorColor,
+      roughness: 0.96,
+      metalness: 0.06,
+      emissive: floorColor,
+      emissiveIntensity: 0.08,
+      side: DoubleSide
+    });
     const wallMaterial = new MeshStandardMaterial({
       color: wallSurfaceColor,
       roughness: 0.78,
@@ -733,6 +740,21 @@ export class ThreeDungeonRenderer {
     seam.userData = { surface: "depth-seam", topology: { z: topology.z, column: topology.column } };
     parent.add(seam);
 
+    // The adjacent side cell owns the passage floor. A shallow floor seam at
+    // its near edge keeps that real floor connected to the current cell in
+    // screen space without introducing a raised sill or a proxy surface.
+    if (topology.z === 0 && Math.abs(topology.column) === 1) {
+      const threshold = new Mesh(
+        new BoxGeometry(profile.cellWidth * 0.86, 0.025, 0.035),
+        seamMaterial.clone()
+      );
+      const thresholdPosition = toWorld(0, profile.cellDepth / 2 - 0.024);
+      threshold.position.set(thresholdPosition.x, 0.025, thresholdPosition.z);
+      threshold.rotation.y = rotationY;
+      threshold.userData = { surface: "side-opening-threshold", topology: { z: topology.z, column: topology.column } };
+      parent.add(threshold);
+    }
+
     if (topology.z === 0) return;
     [-1, 1].forEach((side) => {
       const post = new Mesh(
@@ -748,11 +770,13 @@ export class ThreeDungeonRenderer {
 
   addSideBranchJambs(parent, side, wallMaterial, topology, profile, toWorld) {
     const jambMaterial = wallMaterial.clone();
+    jambMaterial.userData = { rendererLifecycle: "side-branch-jamb-prototype" };
     jambMaterial.color.multiplyScalar(0.78);
     const halfDepth = profile.cellDepth / 2;
     [-1, 1].forEach((edge) => {
       const position = toWorld(side * profile.cellWidth / 2, edge * halfDepth);
       const jamb = new Mesh(new BoxGeometry(0.14, profile.wallHeight, 0.14), jambMaterial.clone());
+      jamb.material.userData = { rendererLifecycle: "side-branch-jamb-scene" };
       jamb.position.set(position.x, profile.wallHeight / 2, position.z);
       jamb.userData = {
         surface: "side-branch-jamb",
