@@ -16,7 +16,7 @@ Frozen until Phase 1 and Phase 2 human visual review both pass:
 | wall height | 2.4 |
 | wall thickness | 0.18 |
 | start Z | 0.9 |
-| eye `(x, y, z)` | `(0, 1.8, 3.0)` |
+| eye `(x, y, z)` | `(0, 1.8, 1.8)` |
 | look-at `(x, y, z)` | `(0, 0.2, 0.0)` |
 | vertical FOV | 80° |
 | fog near / far | 4.8 / 15.5 |

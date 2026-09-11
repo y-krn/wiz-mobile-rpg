@@ -36,7 +36,7 @@ export const THREE_DUNGEON_SPIKE_PROFILE = Object.freeze({
   wallThickness: 0.18,
   startZ: 0.9,
   eyeHeight: 1.8,
-  eyeZ: 3.0,
+  eyeZ: 1.8,
   lookAtHeight: 0.2,
   lookAtZ: 0.0,
   fov: 80,
