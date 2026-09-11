@@ -569,7 +569,7 @@ function buildSummary(report) {
       const e1 = result.metrics.byEncounterOrdinal["1"];
       const pair = e1.pair;
       const diversity = result.metrics.diversity;
-      return `- ${id}: E1 entry HP ${formatNumber(e1.entryHpRate.p50)}/${formatNumber(e1.entryHpRate.p95)} → post-combat HP ${formatNumber(e1.survivorPostCombatHp.p50)}/${formatNumber(e1.survivorPostCombatHp.p95)} → E2 entry HP ${formatNumber(e1.nextEntryHpRate.p50)}/${formatNumber(e1.nextEntryHpRate.p95)}; pair lethality ${formatRate(pair.deathRate)}; effective pair diversity ${diversity.uniqueEffectivePairCompositions} unique, top1 ${formatRate(diversity.top1EffectivePairConcentrationRate)}, top3 ${formatRate(diversity.top3EffectivePairConcentrationRate)}`;
+      return `- ${id}: E1 entry HP ${formatNumber(e1.all.entryHpRate.p50)}/${formatNumber(e1.all.entryHpRate.p95)} → post-combat HP ${formatNumber(e1.all.survivorPostCombatHp.p50)}/${formatNumber(e1.all.survivorPostCombatHp.p95)} → E2 entry HP ${formatNumber(e1.nextEntryHpRate.p50)}/${formatNumber(e1.nextEntryHpRate.p95)}; pair lethality ${formatRate(pair.deathRate)}; effective pair diversity ${diversity.uniqueEffectivePairCompositions} unique, top1 ${formatRate(diversity.top1EffectivePairConcentrationRate)}, top3 ${formatRate(diversity.top3EffectivePairConcentrationRate)}`;
     })
   );
   lines.push(
