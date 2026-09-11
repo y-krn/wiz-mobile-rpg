@@ -89,10 +89,10 @@ export function getThreeCorridorProfile(geometry = {}) {
     fov: THREE_CORRIDOR_BASE.fov,
     eyeHeight,
     eyeZ: THREE_CORRIDOR_BASE.startZ + THREE_CORRIDOR_BASE.eyeOffsetZ,
-    // A slightly lowered horizon lets the player see the floor entering a
-    // side branch instead of only its jambs. Combat staging compensates for
-    // this profile below so labels stay inside the fixed render surface.
-    lookAtHeight: clamp(eyeHeight - 0.45, 1.0, 1.25),
+    // Keep the gaze close to eye level. Branch readability must come from
+    // neighboring-cell geometry and material hierarchy, not a lowered horizon
+    // that exposes a synthetic opening proxy.
+    lookAtHeight: clamp(eyeHeight - 0.08, 1.35, 1.56),
     lookAtZ: THREE_CORRIDOR_BASE.lookAtZ,
     fogNear: THREE_CORRIDOR_BASE.fogNear,
     fogFar: THREE_CORRIDOR_BASE.fogFar,
@@ -635,14 +635,12 @@ export class ThreeDungeonRenderer {
       // turning the corridor into a neon wireframe.
       this.addDepthSeam(cellGroup, profile, wall, cell, toWorld, rotationY, depthShade);
 
-      // Side openings need a visible threshold in a first-person view. The
-      // neighboring branch floor is physically rotated into place below, but
-      // its far wall can otherwise blend into the fog at the edge of the
-      // camera. A recessed dark mouth plus a restrained tonal frame makes the
-      // opening read as a turn without adding a gameplay-only icon.
-      if (cell.column === 0 && cell.z <= 1) {
-        if (!frame.leftBlocked) this.addSideBranchMouth(cellGroup, -1, wall, cell, profile);
-        if (!frame.rightBlocked) this.addSideBranchMouth(cellGroup, 1, wall, cell, profile);
+      // An open side edge still has physical wall thickness at its two
+      // corners. Keep only those structural jambs; the adjacent cell owns the
+      // actual floor, ceiling, and walls of the passage.
+      if (cell.column === 0 && cell.z === 0) {
+        if (!frame.leftBlocked) this.addSideBranchJambs(cellGroup, -1, wallMaterial, cell, profile, toWorld);
+        if (!frame.rightBlocked) this.addSideBranchJambs(cellGroup, 1, wallMaterial, cell, profile, toWorld);
       }
 
       if (frame.leftBlocked) {
@@ -748,124 +746,21 @@ export class ThreeDungeonRenderer {
     });
   }
 
-  addSideBranchMouth(parent, side, wall, topology, profile = this.activeProfile) {
-    const depth = Math.max(0, topology.z);
-    const depthScale = depth === 0 ? 1 : 0.80;
-    // Keep the near opening in front of the current cell's front wall. For a
-    // one-cell-ahead turn, anchor the smaller reveal on that cell's center so
-    // its side path remains readable instead of becoming a distant slit.
-    const z = depth === 0
-      ? profile.frontWallZ + 0.18
-      : profile.startZ - depth * profile.cellDepth;
-    const openingWidth = profile.cellDepth * 0.96 * depthScale;
-    // Keep the lintel inside the portrait viewport. A full-height plane puts
-    // its top edge above the camera and leaves only a vertical jamb visible.
-    const openingHeight = profile.wallHeight * 0.64 * depthScale;
-    // Local -Z is the branch-forward direction. Rotate it toward world -X
-    // for a left opening and world +X for a right opening, matching the
-    // cardinal side-cell transforms in addCorridorTopology.
-    const branchYaw = side < 0 ? Math.PI / 2 : -Math.PI / 2;
-    // Pull the visual threshold slightly into the near cell. A purely
-    // cardinal doorway at the side-wall plane falls outside the fixed
-    // portrait frustum before its floor/ceiling can establish depth.
-    const thresholdInset = depth === 0 ? 0.82 : 0;
-    const thresholdX = side * (profile.cellWidth / 2 - thresholdInset);
-    const mouthMaterial = new MeshBasicMaterial({
-      color: wall.clone().multiplyScalar(0.18),
-      transparent: true,
-      opacity: 0.16,
-      depthWrite: false,
-      side: DoubleSide
-    });
-    const mouth = new Mesh(new PlaneGeometry(openingWidth, openingHeight), mouthMaterial);
-    const openingY = openingHeight / 2 + 0.10;
-    mouth.position.set(thresholdX, openingY, z);
-    mouth.rotation.y = branchYaw;
-    mouth.renderOrder = 4;
-    mouth.userData = { surface: "side-branch-mouth", topology: { z: topology.z, column: topology.column } };
-    parent.add(mouth);
-
-    // Build a short, coherent vestibule from the threshold into the actual
-    // neighboring cell. Its bevel is camera-readable, while the neighboring
-    // cell behind it remains aligned to the cardinal ±X topology.
-    const branchDepth = profile.cellDepth * 1.05 * depthScale;
-    const branchVolume = new Group();
-    branchVolume.position.set(thresholdX, 0, z);
-    branchVolume.rotation.y = branchYaw;
-    branchVolume.renderOrder = 5;
-    branchVolume.userData = { topology: { z: topology.z, column: topology.column } };
-    parent.add(branchVolume);
-    const branchSurfaceMaterial = new MeshBasicMaterial({
-      color: wall.clone().multiplyScalar(0.46),
-      side: DoubleSide
-    });
-    const branchFloorGeometry = new BoxGeometry(openingWidth, 0.045, branchDepth);
-    const floorPositions = branchFloorGeometry.attributes.position;
-    // The near-cell vestibule uses a slight perspective ramp, but the
-    // one-cell-ahead branch must meet the neighboring cell at floor level.
-    // Raising that far tongue makes the opening read as a sill or window.
-    const floorRise = depth === 0 ? 0.48 : 0;
-    for (let index = 0; index < floorPositions.count; index++) {
-      floorPositions.setY(index, floorPositions.getY(index) + floorRise * floorPositions.getZ(index) / branchDepth);
-    }
-    floorPositions.needsUpdate = true;
-    branchFloorGeometry.computeVertexNormals();
-    const branchFloor = new Mesh(branchFloorGeometry, branchSurfaceMaterial);
-    branchFloor.material.color.multiplyScalar(1.25);
-    branchFloor.position.set(0, floorRise / 2, -branchDepth / 2);
-    branchFloor.userData = { surface: "side-branch-floor", topology: { z: topology.z, column: topology.column } };
-    branchVolume.add(branchFloor);
-    const branchCeiling = new Mesh(
-      new BoxGeometry(openingWidth, 0.045, branchDepth),
-      branchSurfaceMaterial.clone()
-    );
-    branchCeiling.material.color.multiplyScalar(0.72);
-    branchCeiling.position.set(0, openingY + openingHeight / 2 - 0.02, -branchDepth / 2);
-    branchCeiling.userData = { surface: "side-branch-ceiling", topology: { z: topology.z, column: topology.column } };
-    branchVolume.add(branchCeiling);
-
-    // A short pair of reveals supplies wall thickness at the threshold while
-    // leaving the longer floor/ceiling tongues unobscured in the camera.
-    const revealDepth = 0.30;
-    const revealMaterial = branchSurfaceMaterial.clone();
-    revealMaterial.color.multiplyScalar(0.52);
+  addSideBranchJambs(parent, side, wallMaterial, topology, profile, toWorld) {
+    const jambMaterial = wallMaterial.clone();
+    jambMaterial.color.multiplyScalar(0.78);
+    const halfDepth = profile.cellDepth / 2;
     [-1, 1].forEach((edge) => {
-      const reveal = new Mesh(new BoxGeometry(0.06, openingHeight, revealDepth), revealMaterial.clone());
-      reveal.position.set(edge * (openingWidth / 2), openingY, -revealDepth / 2);
-      reveal.userData = { surface: "side-branch-wall-thickness", topology: { z: topology.z, column: topology.column } };
-      branchVolume.add(reveal);
+      const position = toWorld(side * profile.cellWidth / 2, edge * halfDepth);
+      const jamb = new Mesh(new BoxGeometry(0.14, profile.wallHeight, 0.14), jambMaterial.clone());
+      jamb.position.set(position.x, profile.wallHeight / 2, position.z);
+      jamb.userData = {
+        surface: "side-branch-jamb",
+        topology: { z: topology.z, column: topology.column },
+      };
+      parent.add(jamb);
     });
-    revealMaterial.dispose();
-
-    const frameMaterial = new MeshBasicMaterial({
-      color: wall.clone().multiplyScalar(0.68),
-      transparent: true,
-      opacity: 0.72,
-      side: DoubleSide
-    });
-    // Put the threshold frame on the player side of the doorway. This keeps
-    // the branch volume behind it while preserving a deterministic hit on
-    // the visible lintel for pointer/raycast probes.
-    const frameX = thresholdX;
-    const frameZ = z;
-    const addFrame = (width, height, frameZ, frameY, surface) => {
-      const frame = new Mesh(new BoxGeometry(0.06, height, width), frameMaterial.clone());
-      frame.position.set(frameX, frameY, frameZ);
-      frame.userData = { surface, topology: { z: topology.z, column: topology.column } };
-      parent.add(frame);
-    };
-    try {
-      addFrame(0.06, openingHeight, frameZ - openingWidth / 2, openingHeight / 2 + 0.10, "side-branch-mouth-frame");
-      addFrame(0.06, openingHeight, frameZ + openingWidth / 2, openingHeight / 2 + 0.10, "side-branch-mouth-frame");
-      const lintel = new Mesh(new BoxGeometry(0.06, 0.06, openingWidth), frameMaterial.clone());
-      lintel.position.set(frameX, openingHeight + 0.16, frameZ);
-      lintel.userData = { surface: "side-branch-mouth-frame-top", topology: { z: topology.z, column: topology.column } };
-      parent.add(lintel);
-    } finally {
-      // The clones are scene-owned; this prototype is not, so release it
-      // immediately after all frame materials have been created.
-      frameMaterial.dispose();
-    }
+    jambMaterial.dispose();
   }
 
   addDangerCue(wall, profile = this.activeProfile) {

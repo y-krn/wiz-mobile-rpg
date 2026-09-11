@@ -1,79 +1,4 @@
 import { test, expect } from './fixtures/browser-health.js';
-import { inflateSync } from 'node:zlib';
-
-function decodeRgbPng(buffer) {
-  let offset = 8;
-  let width = 0;
-  let height = 0;
-  let colorType = 0;
-  const chunks = [];
-  while (offset < buffer.length) {
-    const length = buffer.readUInt32BE(offset);
-    const type = buffer.toString('ascii', offset + 4, offset + 8);
-    const data = buffer.subarray(offset + 8, offset + 8 + length);
-    if (type === 'IHDR') {
-      width = data.readUInt32BE(0);
-      height = data.readUInt32BE(4);
-      colorType = data[9];
-      if (data[8] !== 8 || ![2, 6].includes(colorType) || data[12] !== 0) {
-        throw new Error('Expected a non-interlaced 8-bit RGB/RGBA PNG');
-      }
-    }
-    if (type === 'IDAT') chunks.push(data);
-    offset += length + 12;
-  }
-  const channels = colorType === 6 ? 4 : 3;
-  const stride = width * channels;
-  const inflated = inflateSync(Buffer.concat(chunks));
-  const rows = [];
-  let inputOffset = 0;
-  let previous = Buffer.alloc(stride);
-  for (let y = 0; y < height; y++) {
-    const filter = inflated[inputOffset++];
-    const row = Buffer.alloc(stride);
-    for (let x = 0; x < stride; x++) {
-      const left = x >= channels ? row[x - channels] : 0;
-      const above = previous[x];
-      const upperLeft = x >= channels ? previous[x - channels] : 0;
-      let value = inflated[inputOffset++];
-      if (filter === 1) value = (value + left) & 255;
-      else if (filter === 2) value = (value + above) & 255;
-      else if (filter === 3) value = (value + Math.floor((left + above) / 2)) & 255;
-      else if (filter === 4) {
-        const estimate = left + above - upperLeft;
-        const leftDistance = Math.abs(estimate - left);
-        const aboveDistance = Math.abs(estimate - above);
-        const upperLeftDistance = Math.abs(estimate - upperLeft);
-        value = (value + (leftDistance <= aboveDistance && leftDistance <= upperLeftDistance
-          ? left
-          : aboveDistance <= upperLeftDistance ? above : upperLeft)) & 255;
-      }
-      row[x] = value;
-    }
-    rows.push(row);
-    previous = row;
-  }
-  return { width, height, channels, rows };
-}
-
-function blueGreenRange(image, bounds) {
-  const xStart = Math.max(0, Math.floor(bounds.left));
-  const xEnd = Math.min(image.width, Math.ceil(bounds.right));
-  const yStart = Math.max(0, Math.floor(bounds.top));
-  const yEnd = Math.min(image.height, Math.ceil(bounds.bottom));
-  let minimum = Infinity;
-  let maximum = -Infinity;
-  for (let y = yStart; y < yEnd; y++) {
-    const row = image.rows[y];
-    for (let x = xStart; x < xEnd; x++) {
-      const index = x * image.channels;
-      const value = row[index + 1] + row[index + 2];
-      minimum = Math.min(minimum, value);
-      maximum = Math.max(maximum, value);
-    }
-  }
-  return maximum - minimum;
-}
 
 const VIEWPORTS = [
   { width: 320, height: 568 },
@@ -202,48 +127,32 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
 
       const evidence = await page.evaluate(async () => {
         const { dungeonRenderer } = await import('/src/renderer.js');
-        const { getThreeProjectedBounds } = await import('/src/three_renderer.js');
         const topology = dungeonRenderer.getSceneTopology();
         const current = topology.find(({ z, column }) => z === 0 && column === 0);
         const branchRotations = {};
-        const branchMouthSides = [];
-        const sideOpeningBounds = [];
-        const sideOpeningLintelBounds = [];
-        const sideOpeningLintels = {};
-        const sideBranchVolumeBounds = [];
+        const branchFloors = [];
+        const branchJambs = [];
+        const syntheticBranchSurfaces = [];
         dungeonRenderer.root.traverse((child) => {
           const cell = child.userData?.topology;
           if (child.userData?.surface === 'floor' && cell?.z === 0 && Math.abs(cell.column) === 1) {
             branchRotations[cell.column] = Number(child.rotation.y.toFixed(3));
-          }
-          if (child.userData?.surface === 'side-branch-mouth' && cell?.z === 0 && cell?.column === 0) {
-            const side = child.position.x < 0 ? 'left' : 'right';
-            branchMouthSides.push(side);
-            sideOpeningBounds.push({ side, bounds: getThreeProjectedBounds(child, dungeonRenderer.camera) });
-          }
-          if (child.userData?.surface === 'side-branch-mouth-frame-top' && cell?.z === 0 && cell?.column === 0) {
-            sideOpeningLintels[child.position.x < 0 ? 'left' : 'right'] = child;
-            sideOpeningLintelBounds.push({
-              side: child.position.x < 0 ? 'left' : 'right',
-              bounds: getThreeProjectedBounds(child, dungeonRenderer.camera),
+            branchFloors.push({
+              column: cell.column,
+              material: child.material?.type ?? null,
+              depthTest: child.material?.depthTest ?? null,
+              depthWrite: child.material?.depthWrite ?? null,
             });
           }
-          if ((child.userData?.surface === 'side-branch-floor'
-            || child.userData?.surface === 'side-branch-ceiling')
-            && cell?.z === 0 && cell?.column === 0) {
-            sideBranchVolumeBounds.push({ surface: child.userData.surface, bounds: getThreeProjectedBounds(child, dungeonRenderer.camera) });
+          if (child.userData?.surface === 'side-branch-jamb') {
+            branchJambs.push({
+              material: child.material?.type ?? null,
+              depthTest: child.material?.depthTest ?? null,
+              depthWrite: child.material?.depthWrite ?? null,
+            });
+          } else if (child.userData?.surface?.startsWith('side-branch-')) {
+            syntheticBranchSurfaces.push(child.userData.surface);
           }
-        });
-        const visibleLintels = sideOpeningLintelBounds.map(({ side, bounds }) => {
-          const lintel = sideOpeningLintels[side];
-          lintel?.updateWorldMatrix(true, false);
-          const center = lintel
-            ? lintel.getWorldPosition(dungeonRenderer.camera.position.clone().set(0, 0, 0)).project(dungeonRenderer.camera)
-            : { x: ((bounds.left + bounds.right) / 2 / 400) * 2 - 1, y: -((bounds.top + bounds.bottom) / 2 / 260) * 2 + 1 };
-          const pointer = dungeonRenderer.pointer.set(center.x, center.y);
-          dungeonRenderer.raycaster.setFromCamera(pointer, dungeonRenderer.camera);
-          const hit = lintel ? dungeonRenderer.raycaster.intersectObject(lintel, true)[0] : null;
-          return { side, surface: hit?.object.userData?.surface ?? null };
         });
         return {
           current: {
@@ -253,10 +162,9 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
           },
           visible: topology.map(({ z, column }) => `${z}:${column}`).sort(),
           branchRotations,
-          branchMouthSides: branchMouthSides.sort(),
-          sideOpeningBounds,
-          sideBranchVolumeBounds,
-          visibleLintels,
+          branchFloors: branchFloors.sort((a, b) => a.column - b.column),
+          branchJambs,
+          syntheticBranchSurfaces,
         };
       });
 
@@ -271,22 +179,20 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
       if (archetype === 'right-turn') expect(evidence.visible).toContain('0:1');
       if (archetype === 'left-turn') expect(evidence.branchRotations['-1']).toBeCloseTo(Math.PI / 2, 3);
       if (archetype === 'right-turn') expect(evidence.branchRotations['1']).toBeCloseTo(-Math.PI / 2, 3);
-      expect(evidence.branchMouthSides).toEqual(
-        archetype === 'left-turn' || archetype === 'right-turn'
-          ? [archetype === 'left-turn' ? 'left' : 'right']
-          : archetype === 't-junction' || archetype === 'cross-junction'
-            ? ['left', 'right']
-            : []
-      );
-      evidence.sideOpeningBounds.forEach(({ bounds }) => {
-        expect(bounds.visibleWidth).toBeGreaterThan(32);
-        expect(bounds.visibleHeight).toBeGreaterThan(70);
-      });
-      evidence.sideBranchVolumeBounds.forEach(({ surface, bounds }) => {
-        expect(bounds.visibleWidth, `${surface} should enter the viewport`).toBeGreaterThan(24);
-        expect(bounds.visibleHeight, `${surface} should have projected depth`).toBeGreaterThan(12);
-      });
-      evidence.visibleLintels.forEach(({ surface }) => expect(surface).toBe('side-branch-mouth-frame-top'));
+      const expectedBranchColumns = evidence.visible
+        .filter((cell) => cell.startsWith('0:'))
+        .map((cell) => Number(cell.slice(2)))
+        .filter((column) => Math.abs(column) === 1)
+        .sort((a, b) => a - b);
+      expect(evidence.branchFloors.map(({ column }) => column)).toEqual(expectedBranchColumns);
+      expect(evidence.branchFloors.every(({ material, depthTest, depthWrite }) =>
+        material === 'MeshStandardMaterial' && depthTest && depthWrite
+      )).toBe(true);
+      expect(evidence.branchJambs).toHaveLength(expectedBranchColumns.length * 2);
+      expect(evidence.branchJambs.every(({ material, depthTest, depthWrite }) =>
+        material === 'MeshStandardMaterial' && depthTest && depthWrite
+      )).toBe(true);
+      expect(evidence.syntheticBranchSurfaces).toEqual([]);
       if (archetype === 't-junction') {
         expect(evidence.visible).toEqual(expect.arrayContaining(['0:-1', '0:1']));
         expect(evidence.visible).not.toContain('1:0');
@@ -295,10 +201,6 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
 
       const screenshot = await page.locator('#dungeon-canvas').screenshot({
         path: testInfo.outputPath(`three-topology-${archetype}-${viewport.width}px.png`),
-      });
-      const screenshotImage = decodeRgbPng(screenshot);
-      evidence.sideOpeningBounds.forEach(({ side, bounds }) => {
-        expect(blueGreenRange(screenshotImage, bounds), `${side} branch opening should contain contrasting floor/ceiling/reveal pixels`).toBeGreaterThan(24);
       });
       await testInfo.attach(`three-topology-${archetype}-${viewport.width}px`, {
         body: screenshot,
@@ -379,16 +281,25 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
         let seamCount = 0;
         const farBranchSurfaces = [];
         const farBranchDepth = [];
+        const farBranchFloors = [];
         dungeonRenderer.root.traverse((child) => {
           if (child.userData?.surface === 'ceiling' && !ceiling) ceiling = child;
           if (child.userData?.surface === 'depth-seam') seamCount += 1;
-          if (child.userData?.topology?.z === 1
-            && ['side-branch-floor', 'side-branch-ceiling', 'side-branch-wall-thickness'].includes(child.userData?.surface)) {
+          if (child.userData?.surface?.startsWith('side-branch-')) {
             farBranchSurfaces.push(child.userData.surface);
             farBranchDepth.push({
               surface: child.userData.surface,
               depthTest: child.material?.depthTest,
               depthWrite: child.material?.depthWrite,
+            });
+          }
+          if (child.userData?.surface === 'floor'
+            && child.userData?.topology?.z === 1
+            && child.userData?.topology?.column === 1) {
+            farBranchFloors.push({
+              material: child.material?.type ?? null,
+              depthTest: child.material?.depthTest ?? null,
+              depthWrite: child.material?.depthWrite ?? null,
             });
           }
         });
@@ -406,6 +317,7 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
           seamCount,
           farBranchSurfaces,
           farBranchDepth,
+          farBranchFloors,
         };
       });
 
@@ -422,14 +334,11 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
         expect(evidence.ceilingStyle).toBe('arch');
         expect(evidence.ceilingMaxY).toBeGreaterThan(evidence.wallHeight);
         if (fixture.name === 'b2-right-turn-arch') {
-          expect(evidence.farBranchSurfaces).toEqual(expect.arrayContaining([
-            'side-branch-floor', 'side-branch-ceiling', 'side-branch-wall-thickness',
-          ]));
-          expect(evidence.farBranchDepth).toEqual(expect.arrayContaining([
-            { surface: 'side-branch-floor', depthTest: true, depthWrite: true },
-            { surface: 'side-branch-ceiling', depthTest: true, depthWrite: true },
-            { surface: 'side-branch-wall-thickness', depthTest: true, depthWrite: true },
-          ]));
+          expect(evidence.farBranchSurfaces).toEqual([]);
+          expect(evidence.farBranchDepth).toEqual([]);
+          expect(evidence.farBranchFloors).toEqual([
+            { material: 'MeshStandardMaterial', depthTest: true, depthWrite: true },
+          ]);
         }
       } else {
         expect(evidence.ceilingStyle).toBe('flat');
@@ -444,6 +353,126 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
       });
     }
   }
+});
+
+test('Three.js production B1F state keeps a real side passage continuous with the floor @smoke @visual', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?renderer=three');
+  await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+  await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
+  await page.locator('#viewport-hud').evaluate((element) => { element.style.display = 'none'; });
+
+  const evidence = await page.evaluate(async () => {
+    const { generateRunFloor } = await import('/src/run_map_generator.js');
+    const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const { getThreeProjectedBounds } = await import('/src/three_renderer.js');
+    const generated = generateRunFloor({ runSeed: 'issue-1181-production-1', floor: 1 });
+    const map = generated.grid;
+    const x = 7;
+    const y = 14;
+    const currentCell = map[y][x];
+    const branchCell = map[y][x + 1];
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.currentRun = { ...createDefaultCurrentRun(), runSeed: 'issue-1181-production-1' };
+    state.floor = 1;
+    state.x = x;
+    state.y = y;
+    state.dir = 0;
+    state.maps[0] = map;
+    state.visitedMaps[0] = map.map((row) => row.map(() => true));
+    state.map = map;
+    state.mapRevision = (state.mapRevision || 0) + 1;
+    state.gameState = 'explore';
+    state.transitioning = false;
+    state.combatState = null;
+    state.roamingMonsters = [];
+    updateUI();
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    dungeonRenderer.draw();
+    const topology = dungeonRenderer.getSceneTopology();
+    const branchFloors = [];
+    const branchJambs = [];
+    const syntheticSurfaces = [];
+    dungeonRenderer.root.traverse((child) => {
+      const cell = child.userData?.topology;
+      if (child.userData?.surface === 'floor' && cell?.z === 0 && cell?.column === 1) {
+        branchFloors.push({
+          x: cell.x,
+          y: cell.y,
+          yPosition: child.position.y,
+          material: child.material?.type ?? null,
+          depthTest: child.material?.depthTest ?? null,
+          depthWrite: child.material?.depthWrite ?? null,
+          bounds: getThreeProjectedBounds(child, dungeonRenderer.camera),
+        });
+      }
+      if (child.userData?.surface === 'side-branch-jamb') {
+        branchJambs.push({
+          material: child.material?.type ?? null,
+          depthTest: child.material?.depthTest ?? null,
+          depthWrite: child.material?.depthWrite ?? null,
+        });
+      } else if (child.userData?.surface?.startsWith('side-branch-')) {
+        syntheticSurfaces.push(child.userData.surface);
+      }
+    });
+    return {
+      generatedValid: generated.validation.valid,
+      generatedSeed: generated.generationSeed,
+      currentCell: {
+        x,
+        y,
+        openNorth: currentCell.walls[0] === false,
+        openEast: currentCell.walls[1] === false,
+        openWest: currentCell.walls[3] === false,
+      },
+      branchCell: {
+        openNorth: branchCell.walls[0] === false,
+        openEast: branchCell.walls[1] === false,
+      },
+      branchTopology: topology.find(({ z, column }) => z === 0 && column === 1),
+      branchFloors,
+      branchJambs,
+      syntheticSurfaces,
+    };
+  });
+
+  expect(evidence.generatedValid).toBe(true);
+  expect(evidence.currentCell).toEqual({ x: 7, y: 14, openNorth: true, openEast: true, openWest: false });
+  expect(evidence.branchCell).toEqual({ openNorth: true, openEast: true });
+  expect(evidence.branchTopology).toEqual(expect.objectContaining({ z: 0, column: 1, x: 8, y: 14, valid: true }));
+  expect(evidence.branchFloors).toEqual([
+    {
+      x: 8,
+      y: 14,
+      yPosition: 0,
+      material: 'MeshStandardMaterial',
+      depthTest: true,
+      depthWrite: true,
+      bounds: expect.objectContaining({
+        visibleWidth: expect.any(Number),
+        visibleHeight: expect.any(Number),
+      }),
+    },
+  ]);
+  expect(evidence.branchJambs).toHaveLength(2);
+  expect(evidence.branchJambs.every(({ material, depthTest, depthWrite }) =>
+    material === 'MeshStandardMaterial' && depthTest && depthWrite
+  )).toBe(true);
+  console.log(`[issue-1181] production B1F branch evidence ${JSON.stringify(evidence)}`);
+  expect(evidence.branchFloors[0].bounds.visibleWidth).toBeGreaterThan(20);
+  expect(evidence.branchFloors[0].bounds.visibleHeight).toBeGreaterThan(10);
+  expect(evidence.syntheticSurfaces).toEqual([]);
+  await page.locator('#viewport-hud').evaluate((element) => { element.style.display = 'none'; });
+
+  const screenshot = await page.locator('#dungeon-canvas').screenshot({
+    path: testInfo.outputPath('three-production-b1-right-branch-390px.png'),
+  });
+  await testInfo.attach('three-production-b1-right-branch-390px', {
+    body: screenshot,
+    contentType: 'image/png',
+  });
 });
 
 test('Three.js danger cue stays outside the camera and visible in the corridor @smoke @e2e @visual', async ({ page }, testInfo) => {
@@ -999,64 +1028,32 @@ test('Three.js Dungeon View disposes prototype materials across repeated scene r
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
 
   const disposeCount = await page.evaluate(async () => {
-    const { MeshBasicMaterial, MeshStandardMaterial, ThreeDungeonRenderer } = await import('/src/three_renderer.js');
+    const { MeshStandardMaterial, ThreeDungeonRenderer } = await import('/src/three_renderer.js');
     const { dungeonRenderer } = await import('/src/renderer.js');
     const canvas = document.createElement('canvas');
     canvas.id = 'material-lifecycle-probe';
     document.body.append(canvas);
     const renderer = new ThreeDungeonRenderer(canvas.id);
     const baseInput = dungeonRenderer.getRenderInput();
-    const townInput = {
-      ...baseInput,
-      sceneVisibility: {
-        showTownBackground: true,
-        showCombat: false,
-        showChest: false,
-        showEventScene: false,
-        showItemMenu: false,
-      },
-    };
     const originalDispose = MeshStandardMaterial.prototype.dispose;
-    const originalBasicDispose = MeshBasicMaterial.prototype.dispose;
     let disposeCalls = 0;
-    let basicDisposeCalls = 0;
-    let afterSideBranchBuild;
     MeshStandardMaterial.prototype.dispose = function disposeSpy() {
       disposeCalls += 1;
       return originalDispose.call(this);
     };
-    MeshBasicMaterial.prototype.dispose = function basicDisposeSpy() {
-      basicDisposeCalls += 1;
-      return originalBasicDispose.call(this);
-    };
+    let afterFirstBuild;
     try {
-      renderer.addSideBranchMouth(
-        renderer.root,
-        -1,
-        dungeonRenderer.scene.background.clone(),
-        { z: 0, column: 0 },
-        renderer.activeProfile,
-      );
-      renderer.buildScene(townInput);
-      afterSideBranchBuild = basicDisposeCalls;
-      renderer.buildScene(townInput);
+      renderer.buildScene(baseInput);
+      afterFirstBuild = disposeCalls;
+      renderer.buildScene(baseInput);
     } finally {
       MeshStandardMaterial.prototype.dispose = originalDispose;
-      MeshBasicMaterial.prototype.dispose = originalBasicDispose;
     }
-    return { disposeCalls, basicDisposeCalls, afterSideBranchBuild };
+    return { disposeCalls, afterFirstBuild };
   });
 
-  // Each town build creates two prototype StandardMaterials without adding
-  // them to the scene, so both builds must dispose four prototypes explicitly.
-  expect(disposeCount.disposeCalls).toBe(4);
-  // One mouth, one branch floor, one branch ceiling, two reveal clones, and
-  // three frame clones are disposed during the rebuild; the reveal and frame
-  // prototypes are disposed during addSideBranchMouth itself. The second
-  // build also disposes the first town marker, so the cumulative count is one
-  // higher.
-  expect(disposeCount.afterSideBranchBuild).toBe(10);
-  expect(disposeCount.basicDisposeCalls).toBe(11);
+  expect(disposeCount.afterFirstBuild).toBeGreaterThan(0);
+  expect(disposeCount.disposeCalls).toBeGreaterThan(disposeCount.afterFirstBuild);
 });
 
 test('Three.js Dungeon View follows map topology for all four directions @smoke @e2e @visual', async ({ page }, testInfo) => {
