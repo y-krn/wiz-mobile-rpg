@@ -54,9 +54,10 @@ For topology, side-opening, corridor-geometry, camera/FOV/profile, or
 navigation-hierarchy-changing lighting/material/fog changes, add at least one
 production-backed dungeon state. It must:
 
-- use the real production map, generation, and topology path;
-- include normal neighboring walls and depth, not a hand-built all-empty cell
-  grid;
+- use the real production map, generation, and renderer-neutral topology/
+  projection path;
+- include normal neighboring walls and depth; hand-assembled topology, direct
+  scene injection, and a hand-built all-empty cell grid are not substitutes;
 - include at least one near side opening;
 - use a deterministic seed or equivalent reproducible fixture setup; and
 - retain a Dungeon View screenshot with the mini-map hidden.
@@ -158,10 +159,14 @@ visual acceptance by itself. Preserve successful visual artifacts for review
 and do not leave an unresolved current-head artifact unexamined.
 
 Browser viewport screenshots are browser evidence, not physical-device proof.
-For camera, FOV, eye/look-at, or corridor-geometry changes that materially
-change mobile spatial composition, production adoption and any claim that the
+For camera, FOV, eye/look-at, corridor-geometry, or navigation-hierarchy-
+changing lighting/material/fog changes that materially change mobile spatial
+composition or route hierarchy, production adoption and any claim that the
 dungeon is readable on a device require at least one physical-device screenshot
-or recorded inspection. If that evidence cannot be obtained, mark the claim
-unverified and do not mark production-readability Done. This is a high-risk
+or recorded inspection tied to the reviewed revision by HEAD SHA or an
+immutable commit-specific deployment. Record the device, OS, browser, and exact
+production-backed scenario. If that evidence or its provenance cannot be
+obtained, mark the claim unverified and do not mark production-readability Done.
+Re-capture or re-inspect it after any content change. This is a high-risk
 spatial-grammar boundary, not an unconditional requirement for every small
 renderer change.

@@ -50,7 +50,7 @@ presentation boundaries.
 | camera / FOV / eye/look-at / corridor profile | synthetic six topology archetypes at 320, 360, 390, and 430 px plus a production-backed dungeon state; single/pair/trio combat staging with target-selection visuals; danger cue; one-way barrier; mini-map coexistence; orientation/resize |
 | topology / side opening / corridor geometry | synthetic six topology archetypes plus a production-backed dungeon state; one-way barrier; mini-map coexistence; combat staging and front-wall occlusion |
 | lighting / material / fog | synthetic six topology archetypes plus a production-backed dungeon state when navigation hierarchy changes; combat label/marker legibility; danger cue and one-way visual legibility |
-| production-backed visual fixture | for topology, side-opening, corridor geometry, camera/FOV/profile, or navigation-hierarchy-changing lighting/material/fog work: real production map/generation/topology path; surrounding geometry and normal depth; at least one near side opening; deterministic setup; Dungeon View screenshot with the mini-map hidden; current-head CI artifact |
+| production-backed visual fixture | for topology, side-opening, corridor geometry, camera/FOV/profile, or navigation-hierarchy-changing lighting/material/fog work: real production map/generation plus renderer-neutral topology/projection path; surrounding geometry and normal depth; at least one near side opening; deterministic setup; Dungeon View screenshot with the mini-map hidden; current-head CI artifact |
 | combat staging / hit region / target selection | single enemy, pair, trio; actual tap to each original target index; Back/cancel path when the selection flow is touched |
 | mini-map / overlay coexistence | exploration visible and non-exploration hidden states, with canvas input unaffected |
 | resource lifecycle | repeated scene rebuild with geometry/material/texture disposal evidence |
@@ -72,13 +72,14 @@ required for a spatial-readability claim:
 - the production-backed fixture proves composition, occlusion, tonal hierarchy,
   and route dominance in the real map/generation/topology path.
 
-A production-backed fixture must use the real production map or generation path;
-a hand-built all-empty cell grid is not a substitute. It must include normal
-neighboring walls and depth, at least one near side opening, a deterministic seed
-or equivalent fixture setup, and a Dungeon View screenshot with the mini-map
-hidden. Keep the successful production-backed screenshot as a CI artifact tied
-to the current HEAD. Do not claim spatial readability unless both fixture
-families pass.
+A production-backed fixture must use the real production map, generation, and
+renderer-neutral topology/projection path; hand-assembled topology, direct scene
+injection, or a hand-built all-empty cell grid is not a substitute. It must
+include normal neighboring walls and depth, at least one near side opening, a
+deterministic seed or equivalent fixture setup, and a Dungeon View screenshot
+with the mini-map hidden. Keep the successful production-backed screenshot as a
+CI artifact tied to the current HEAD. Do not claim spatial readability unless
+both fixture families pass.
 
 Use the actual fixture names and executable bounds from current source/tests;
 do not duplicate them as durable constants in this Skill.
@@ -129,25 +130,30 @@ renderer resource growth, and inspect bundle impact when relevant. Do not call
 browser emulation physical-device evidence; record that limitation and route a
 real-device claim to the appropriate follow-up.
 
-Camera, FOV, eye/look-at, and corridor-geometry changes are high-risk when they
-materially change mobile spatial composition. Before claiming production
-adoption or that the dungeon is readable on a device, obtain at least one
-physical-device screenshot or recorded inspection. A browser viewport screenshot
-is browser evidence, not physical-device proof. If device evidence is
-unavailable, mark the claim unverified and do not mark production-readability
-Done. This boundary does not make physical-device evidence mandatory for every
-small renderer change; it applies to high-risk spatial-grammar changes.
+Camera, FOV, eye/look-at, corridor-geometry, and navigation-hierarchy-changing
+lighting/material/fog changes are high-risk when they materially change mobile
+spatial composition or route hierarchy. Before claiming production adoption or
+that the dungeon is readable on a device, obtain at least one physical-device
+screenshot or recorded inspection tied to the reviewed revision by HEAD SHA or
+an immutable commit-specific deployment. Record the device, OS, browser, and
+exact production-backed scenario. A browser viewport screenshot is browser
+evidence, not physical-device proof. If device evidence is unavailable or its
+provenance is not recorded, mark the claim unverified and do not mark
+production-readability Done. Re-capture or re-inspect it after any content
+change. This boundary does not make physical-device evidence mandatory for
+every small renderer change; it applies to high-risk spatial-grammar changes.
 
 ## 5. Close out at current HEAD
 
 - Run focused tests first, then the required current-head checks from
   `.agents/qa-regression.md` and `.agents/merge-gate.md`.
 - Run `npm run lint:docs` and `npm run lint:markdown` for documentation/workflow
-  changes; include build, unit, or browser gates when the touched boundary
-  requires them.
+  changes, plus `npm run lint:skills`; include build, unit, or browser gates
+  when the touched boundary requires them.
 - Preserve successful synthetic and production-backed screenshot artifacts,
-  inspect their pixels, and ensure the production-backed artifact is attached
-  to the current HEAD before claiming visual acceptance.
+  inspect their pixels, and ensure the production-backed artifact is attached to
+  the current HEAD before claiming visual acceptance. Apply the same current-
+  revision provenance requirement to any physical-device artifact.
 - Check unresolved review threads, current `HEAD_SHA`, latest-main relation,
   and the merge-gate verdict. Re-run invalidated checks after any content
   change.
