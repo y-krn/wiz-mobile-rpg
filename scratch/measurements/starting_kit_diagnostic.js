@@ -373,10 +373,11 @@ function hpBandId(hpRate) {
 function recordResourceFunnel(record, acquisitions, uses, usableCount, exposure) {
   const acquired = acquisitions.length;
   const used = uses.length;
+  const usable = acquired > 0 || usableCount > 0;
   if (acquired > 0) record.runsWithAcquisition++;
-  if (usableCount > 0) record.runsUsable++;
+  if (usable) record.runsUsable++;
   if (used > 0) record.runsUsed++;
-  if (usableCount > used) record.runsCarriedUnused++;
+  if (usableCount > 0) record.runsCarriedUnused++;
   record.acquiredUnits += acquired;
   record.usedUnits += used;
   record.actualHpRecovered += uses.reduce((sum, event) => sum + (event.hpRecovered || 0), 0);
