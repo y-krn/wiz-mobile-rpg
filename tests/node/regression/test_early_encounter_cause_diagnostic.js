@@ -5,7 +5,7 @@ const diagnostic = await import(
 );
 const starting = await import("../../../scratch/measurements/starting_kit_diagnostic.js");
 
-assert.deepEqual(diagnostic.RUNNER_VERSION, "issue1187-early-encounter-cause-v3");
+assert.deepEqual(diagnostic.RUNNER_VERSION, "issue1187-early-encounter-cause-v4");
 assert.deepEqual(starting.EARLY_COMPOSITION_POLICY_IDS, [
   "baseline",
   "suppress-first-multi",
@@ -33,9 +33,11 @@ for (const ordinal of ["1", "2"]) {
     assert.ok(Number.isFinite(entry.hpRateBeforeEncounter.p25));
     assert.ok(Number.isFinite(entry.hpRateBeforeEncounter.p50));
     assert.ok(Number.isFinite(entry.hpRateBeforeEncounter.p75));
+    assert.ok(Number.isFinite(entry.hpRateBeforeEncounter.p95));
     assert.ok(Number.isFinite(entry.mpRateBeforeEncounter.p25));
     assert.ok(Number.isFinite(entry.mpRateBeforeEncounter.p50));
     assert.ok(Number.isFinite(entry.mpRateBeforeEncounter.p75));
+    assert.ok(Number.isFinite(entry.mpRateBeforeEncounter.p95));
   }
 }
 for (const ordinal of ["1", "2"]) {
@@ -43,8 +45,10 @@ for (const ordinal of ["1", "2"]) {
     const cost = report.naturalEncounterCost.byEncounterOrdinal[ordinal][group];
     assert.ok(cost.encounters > 0);
     assert.ok(Number.isFinite(cost.normalDamage.p50));
+    assert.ok(Number.isFinite(cost.normalDamage.p95));
     if (cost.survivorPostCombatHp.count > 0) {
       assert.ok(Number.isFinite(cost.survivorPostCombatHp.p50));
+      assert.ok(Number.isFinite(cost.survivorPostCombatHp.p95));
       assert.ok(Number.isFinite(cost.survivorPostCombatHpRate.p50));
     }
   }

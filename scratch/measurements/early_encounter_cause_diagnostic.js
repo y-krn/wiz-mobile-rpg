@@ -14,8 +14,8 @@ import {
 } from "./starting_kit_diagnostic.js";
 import { runFixedCombatDiagnostic } from "./fixed_combat_composition_diagnostic.js";
 
-export const RUNNER_VERSION = "issue1187-early-encounter-cause-v3";
-export const SCHEMA_VERSION = 3;
+export const RUNNER_VERSION = "issue1187-early-encounter-cause-v4";
+export const SCHEMA_VERSION = 4;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1187;
 export const FIXED_COMBAT_SEED = 1151;
@@ -81,6 +81,7 @@ function summarizeValues(values) {
     p25: percentile(0.25),
     p50: percentile(0.50),
     p75: percentile(0.75),
+    p95: percentile(0.95),
     min: sorted[0],
     max: sorted.at(-1)
   };
@@ -215,7 +216,7 @@ function summarizeFleeEncounter2Cohort(result) {
   return {
     encounter1ObservedRuns: new Set(firstRows.map(row => row.runIndex)).size,
     encounter2ReachedRuns: encounter2RunIndices.size,
-    encounter2ReachRatePerRun: result.runOutcome.b2ArrivalRate,
+    encounter2ReachRatePerRun: encounter2RunIndices.size / result.configuration.runs,
     selected: summarizeCohort(row => row.fleeSelected > 0),
     executed: summarizeCohort(row => row.fleeExecuted > 0)
   };
