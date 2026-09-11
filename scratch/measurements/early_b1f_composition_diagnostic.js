@@ -6,18 +6,24 @@ import fs from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { getEncounterPoolForFloor, MONSTERS } from "../../src/data.js";
+import {
+  getEncounterPoolForFloor,
+  getEncounterSizeWeightsForFloor,
+  MONSTERS
+} from "../../src/data.js";
 import { isEncounterCompositionAllowed } from "../../src/rules/encounter_rules.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 import { runDiagnostic } from "./starting_kit_diagnostic.js";
 import { runFixedCombatDiagnostic } from "./fixed_combat_composition_diagnostic.js";
 
-export const RUNNER_VERSION = "issue1192-early-b1f-composition-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "issue1192-early-b1f-composition-v2";
+export const SCHEMA_VERSION = 2;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_FIXED_RUNS = 1000;
-export const DEFAULT_SEED = 1192;
+export const DEFAULT_SEED = 2192;
+export const DEFAULT_SELECTION_RUNS = 5000;
+export const DEFAULT_SELECTION_SEED = 1192;
 export const DEFAULT_FIXED_SEED = 1151;
 export const CANDIDATE_IDS = Object.freeze([
   "baseline",
@@ -95,6 +101,69 @@ function enumerateLegalPairs(floor = 1) {
   return pairs;
 }
 
+function buildProductionPairDistribution(surface, floor = 1) {
+  const poolTemplates = getEncounterPoolForFloor(floor)
+    .map(name => MONSTERS.find(monster => monster.name === name))
+    .filter(Boolean);
+  const weights = new Map();
+  for (const firstTemplate of poolTemplates) {
+    const candidates = poolTemplates.filter(template =>
+      isEncounterCompositionAllowed([firstTemplate, template], 2)
+    );
+    for (const secondTemplate of candidates) {
+      const key = compositionKey([firstTemplate.name, secondTemplate.name]);
+      const probability = 1 / poolTemplates.length / candidates.length;
+      weights.set(key, (weights.get(key) || 0) + probability);
+    }
+  }
+  return surface.map(pair => ({
+    key: pair.key,
+    names: [...pair.names],
+    weight: weights.get(pair.key) || 0
+  }));
+}
+
+function summarizeRiskDistribution(values) {
+  const summary = summarize(values);
+  const sorted = values.filter(Number.isFinite).sort((left, right) => left - right);
+  return {
+    ...summary,
+    p75: sorted.length > 0 ? sorted[Math.floor((sorted.length - 1) * 0.75)] : null,
+    p90: sorted.length > 0 ? sorted[Math.floor((sorted.length - 1) * 0.90)] : null,
+    p99: sorted.length > 0 ? sorted[Math.floor((sorted.length - 1) * 0.99)] : null,
+    max: sorted.length > 0 ? sorted.at(-1) : null,
+    atLeast50Percent: sorted.filter(value => value >= 0.5).length,
+    atLeast75Percent: sorted.filter(value => value >= 0.75).length,
+    atLeast90Percent: sorted.filter(value => value >= 0.9).length
+  };
+}
+
+function summarizeFixedRiskDistribution(fixed, surface) {
+  const byId = new Map(surface.map(pair => [pair.id, pair]));
+  const groups = {};
+  for (const hpBandId of ["100", "75", "50", "25"]) {
+    for (const policy of ["fight", "immediate-flee"]) {
+      const values = fixed.cases
+        .filter(testCase => testCase.hpBandId === hpBandId && testCase.policy === policy)
+        .map(testCase => testCase.deathRate)
+        .filter(Number.isFinite);
+      groups[`${hpBandId}:${policy}`] = {
+        compositionCount: values.length,
+        risk: summarizeRiskDistribution(values),
+        highestRiskPairs: fixed.cases
+          .filter(testCase => testCase.hpBandId === hpBandId && testCase.policy === policy)
+          .sort((left, right) => right.deathRate - left.deathRate || left.compositionId.localeCompare(right.compositionId))
+          .slice(0, 5)
+          .map(testCase => ({
+            compositionKey: byId.get(testCase.compositionId)?.key || testCase.compositionId,
+            deathRate: testCase.deathRate
+          }))
+      };
+    }
+  }
+  return groups;
+}
+
 function indexFixedCases(fixed, surface) {
   const byId = new Map(surface.map(pair => [pair.id, pair]));
   return new Map(
@@ -105,22 +174,50 @@ function indexFixedCases(fixed, surface) {
   );
 }
 
-function deriveCandidateProfile(baseline, fixed, surface) {
+function deriveCandidateProfile(selectionBaseline, fixed, surface, { selectionSeed } = {}) {
   const fixedByKey = indexFixedCases(fixed, surface);
-  const rows = baseline.encounterExposure.encounterRows.filter(row =>
+  const rows = selectionBaseline.encounterExposure.encounterRows.filter(row =>
     row.encounterOrdinal <= 2 && row.rawInitialVisibleEnemyCount >= 2
   );
   const observed = new Map();
   for (const row of rows) {
     const key = row.generatedCompositionKey || row.initialCompositionKey;
-    const current = observed.get(key) || { key, encounters: 0, deaths: 0 };
+    const current = observed.get(key) || {
+      key,
+      encounters: 0,
+      deaths: 0,
+      entryHpRates: [],
+      normalDamages: []
+    };
     current.encounters++;
     current.deaths += Number(row.outcome === "death");
+    if (Number.isFinite(row.hpRateBeforeEncounter)) current.entryHpRates.push(row.hpRateBeforeEncounter);
+    if (Number.isFinite(row.normalDamage)) current.normalDamages.push(row.normalDamage);
     observed.set(key, current);
   }
-  const ranked = [...observed.values()]
-    .filter(row => row.deaths > 0)
-    .sort((left, right) => right.deaths - left.deaths || right.encounters - left.encounters);
+  const scored = [...observed.values()].map(row => {
+    const fixedHp100FightDeathRate = fixedByKey.get(row.key)?.deathRate ?? null;
+    const averageEntryHpRate = summarize(row.entryHpRates).average;
+    const entryHpRiskMultiplier = Number.isFinite(averageEntryHpRate)
+      ? 2 - averageEntryHpRate
+      : 1;
+    return {
+      ...row,
+      fixedHp100FightDeathRate,
+      averageEntryHpRate,
+      averageNormalDamage: summarize(row.normalDamages).average,
+      riskExposureScore: Number.isFinite(fixedHp100FightDeathRate)
+        ? row.encounters * fixedHp100FightDeathRate * entryHpRiskMultiplier
+        : 0
+    };
+  });
+  const ranked = scored
+    .filter(row => row.deaths > 0 && row.fixedHp100FightDeathRate !== null)
+    .sort((left, right) =>
+      right.riskExposureScore - left.riskExposureScore ||
+      right.fixedHp100FightDeathRate - left.fixedHp100FightDeathRate ||
+      left.key.localeCompare(right.key)
+    );
   const fallback = [...observed.values()].sort(
     (left, right) => right.encounters - left.encounters || left.key.localeCompare(right.key)
   );
@@ -130,36 +227,35 @@ function deriveCandidateProfile(baseline, fixed, surface) {
   }
 
   const targetKeys = new Set(targets.map(target => target.key));
-  const replacements = surface
-    .filter(pair => !targetKeys.has(pair.key))
-    .sort((left, right) => {
-      const leftDuplicate = Number(left.names[0] === left.names[1]);
-      const rightDuplicate = Number(right.names[0] === right.names[1]);
-      const leftCase = fixedByKey.get(left.key);
-      const rightCase = fixedByKey.get(right.key);
-      const leftDeath = leftCase?.deathRate ?? 1;
-      const rightDeath = rightCase?.deathRate ?? 1;
-      return leftDuplicate - rightDuplicate || leftDeath - rightDeath || left.key.localeCompare(right.key);
-    });
-  if (replacements.length === 0) throw new Error("no legal replacement pair remains outside target set");
-  const replacement = replacements[0];
-  const replacementByComposition = Object.fromEntries(
-    targets.map(target => [target.key, [...replacement.names]])
+  const productionPairDistribution = buildProductionPairDistribution(surface);
+  const replacementPairs = productionPairDistribution.filter(pair =>
+    !targetKeys.has(pair.key) && pair.weight > 0
   );
+  if (replacementPairs.length === 0) throw new Error("no legal residual production pair remains outside target set");
   return {
+    selection: {
+      seed: selectionSeed ?? null,
+      runs: selectionBaseline.runs,
+      method: "fixed HP100 fight death rate × early pair exposure × (2 - average entry HP rate)",
+      source: "holdout profile selection; candidate effects are measured on a separate evaluation seed"
+    },
     targetCompositionKeys: targets.map(target => target.key),
     targetEvidence: targets.map(target => ({
       compositionKey: target.key,
       earlyEncounters: target.encounters,
       earlyDeaths: target.deaths,
-      fixedHp100FightDeathRate: fixedByKey.get(target.key)?.deathRate ?? null
+      earlyDeathRate: target.encounters > 0 ? target.deaths / target.encounters : null,
+      averageEntryHpRate: target.averageEntryHpRate ?? null,
+      averageNormalDamage: target.averageNormalDamage ?? null,
+      fixedHp100FightDeathRate: target.fixedHp100FightDeathRate,
+      riskExposureScore: target.riskExposureScore
     })),
-    replacementComposition: {
-      key: replacement.key,
-      names: [...replacement.names],
-      fixedHp100FightDeathRate: fixedByKey.get(replacement.key)?.deathRate ?? null
-    },
-    replacementByComposition
+    productionPairDistribution,
+    replacementPairs,
+    replacementMass: replacementPairs.reduce((sum, pair) => sum + pair.weight, 0),
+    targetMass: productionPairDistribution
+      .filter(pair => targetKeys.has(pair.key))
+      .reduce((sum, pair) => sum + pair.weight, 0)
   };
 }
 
@@ -169,7 +265,7 @@ function candidateFor(kind, profile) {
     id: kind,
     kind: kind === "composition-pool-redistribution" ? "pool-redistribution" : "ordering-defer",
     targetCompositionKeys: profile.targetCompositionKeys,
-    replacementByComposition: profile.replacementByComposition
+    replacementPairs: profile.replacementPairs
   };
 }
 
@@ -216,6 +312,8 @@ function summarizeEncounterRows(result, runs) {
     byOrdinal[String(ordinal)].generatedPairEncounters = generatedPairRows.length;
     byOrdinal[String(ordinal)].effectivePairEncounters = effectivePairRows.length;
   }
+  byOrdinal["1"].nextEntryHpRate = byOrdinal["2"].all.entryHpRate;
+  byOrdinal["2"].nextEntryHpRate = null;
 
   const compositionCounts = new Map();
   for (const row of rows) {
@@ -239,12 +337,26 @@ function summarizeEncounterRows(result, runs) {
   const pairCompositionIdentity = [...pairCompositionCounts.values()]
     .sort((left, right) => right.encounters - left.encounters || left.compositionKey.localeCompare(right.compositionKey))
     .slice(0, 10);
+  const pairEncounterTotal = [...pairCompositionCounts.values()]
+    .reduce((sum, row) => sum + row.encounters, 0);
+  const pairCompositionDistribution = [...pairCompositionCounts.values()]
+    .sort((left, right) => right.encounters - left.encounters || left.compositionKey.localeCompare(right.compositionKey));
+  const pairConcentration = count => pairEncounterTotal > 0
+    ? pairCompositionDistribution.slice(0, count).reduce((sum, row) => sum + row.encounters, 0) / pairEncounterTotal
+    : null;
   const reward = result.rewardOpportunity.byType;
   const ordinal2 = result.encounterExposure.encounterRows.filter(row => row.encounterOrdinal === 2);
   return {
     byEncounterOrdinal: byOrdinal,
     compositionIdentity,
     pairCompositionIdentity,
+    diversity: {
+      uniqueEffectiveCompositions: compositionCounts.size,
+      uniqueEffectivePairCompositions: pairCompositionCounts.size,
+      effectivePairEncounters: pairEncounterTotal,
+      top1EffectivePairConcentrationRate: pairConcentration(1),
+      top3EffectivePairConcentrationRate: pairConcentration(3)
+    },
     encounter2ReachRate: ordinal2.length / runs,
     b1DeathRate: result.runOutcome.b1DeathRate,
     b2ArrivalRate: result.runOutcome.b2ArrivalRate,
@@ -274,6 +386,8 @@ export async function runEarlyB1FCompositionDiagnostic({
   runs = DEFAULT_RUNS,
   fixedRuns = DEFAULT_FIXED_RUNS,
   seed = DEFAULT_SEED,
+  selectionRuns = DEFAULT_SELECTION_RUNS,
+  selectionSeed = DEFAULT_SELECTION_SEED,
   fixedSeed = DEFAULT_FIXED_SEED,
   allowSmallRunCount = false
 } = {}) {
@@ -281,6 +395,8 @@ export async function runEarlyB1FCompositionDiagnostic({
   const normalizedRuns = positiveInteger(runs, "runs", minimum);
   const normalizedFixedRuns = positiveInteger(fixedRuns, "fixedRuns", minimum);
   const normalizedSeed = positiveInteger(seed, "seed");
+  const normalizedSelectionRuns = positiveInteger(selectionRuns, "selectionRuns", allowSmallRunCount ? 1 : DEFAULT_SELECTION_RUNS);
+  const normalizedSelectionSeed = positiveInteger(selectionSeed, "selectionSeed");
   const normalizedFixedSeed = positiveInteger(fixedSeed, "fixedSeed");
   const surface = enumerateLegalPairs(1);
   const fixed = await runFixedCombatDiagnostic({
@@ -291,6 +407,16 @@ export async function runEarlyB1FCompositionDiagnostic({
     includeContrasts: false,
     allowSmallRunCount: true
   });
+  const selectionBaseline = await runDiagnostic({
+    startingKit: "vanguard",
+    policy: "fight",
+    runs: normalizedSelectionRuns,
+    seed: normalizedSelectionSeed,
+    allowSmallRunCount: true
+  });
+  const profile = deriveCandidateProfile(selectionBaseline, fixed, surface, {
+    selectionSeed: normalizedSelectionSeed
+  });
   const baseline = await runDiagnostic({
     startingKit: "vanguard",
     policy: "fight",
@@ -298,7 +424,6 @@ export async function runEarlyB1FCompositionDiagnostic({
     seed: normalizedSeed,
     allowSmallRunCount: true
   });
-  const profile = deriveCandidateProfile(baseline, fixed, surface);
   const cases = { baseline };
   for (const candidate of ["cadence-first-single", "composition-pool-redistribution", "ordering-defer"]) {
     cases[candidate] = await runDiagnostic({
@@ -325,13 +450,16 @@ export async function runEarlyB1FCompositionDiagnostic({
       startingKit: "vanguard",
       floorStart: 1,
       targetFloor: 2,
+      encounterSizeWeights: [...getEncounterSizeWeightsForFloor(1)],
       runs: normalizedRuns,
       fixedCombatRuns: normalizedFixedRuns,
       seed: normalizedSeed,
+      selectionRuns: normalizedSelectionRuns,
+      selectionSeed: normalizedSelectionSeed,
       fixedCombatSeed: normalizedFixedSeed,
       worldSeedTemplate: "issue-1176:{seed}:{runIndex}",
       fixedWorldSeedTemplate: "issue-1151:{fixedSeed}:{hpBandId}:{compositionId}:{runIndex}",
-      matchedCondition: "same production runner, starting state, world seeds, policy, and vanguard; only named measurement candidate differs",
+      matchedCondition: "same production runner, starting state, evaluation world seed, policy, and vanguard; only named measurement candidate differs; target selection uses a separate holdout seed",
       playerPolicy: "production-auto fight; no departure consumables or craft",
       omitted: [
         "manual comprehension and next-trial hypothesis",
@@ -343,7 +471,8 @@ export async function runEarlyB1FCompositionDiagnostic({
     fixedCombat: {
       configuration: fixed.configuration,
       cases: fixed.cases,
-      compositions: fixed.compositions
+      compositions: fixed.compositions,
+      riskDistribution: summarizeFixedRiskDistribution(fixed, surface)
     },
     candidateProfile: profile,
     cases: Object.fromEntries(
@@ -371,12 +500,32 @@ function buildSummary(report) {
     `- runner: \`${report.runnerVersion}\` / schema: ${report.schemaVersion}`,
     `- source SHA: \`${report.measurement.sourceCommit || "not recorded"}\``,
     `- primary: fresh vanguard; N=${report.configuration.runs}; seed=${report.configuration.seed}`,
+    `- target selection holdout: fresh vanguard; N=${report.configuration.selectionRuns}; seed=${report.configuration.selectionSeed}`,
     `- fixed #1151 panel: ${report.legalPairSurface.length} legal pairs; N=${report.configuration.fixedCombatRuns} per HP band × policy; seed=${report.configuration.fixedCombatSeed}`,
     "",
     "## Candidate profile",
     "",
     `- target early compositions: ${report.candidateProfile.targetCompositionKeys.join(" / ")}`,
-    `- replacement pair: ${report.candidateProfile.replacementComposition.key}`,
+    `- selection method: ${report.candidateProfile.selection.method}`,
+    `- target mass / residual replacement mass: ${formatNumber(report.candidateProfile.targetMass)} / ${formatNumber(report.candidateProfile.replacementMass)}`,
+    `- residual replacement pairs: ${report.candidateProfile.replacementPairs.length} weighted legal pairs; no fixed replacement identity`,
+    "",
+    "## Fixed-panel risk distribution",
+    "",
+    "Death-rate distribution across all legal pairs, grouped by entry HP and fight policy.",
+    "",
+    "| Panel | p50 | p90 | p95 | p99 | max | >=50% | >=75% | >=90% |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...["100:fight", "75:fight", "50:fight", "25:fight", "100:immediate-flee", "75:immediate-flee", "50:immediate-flee", "25:immediate-flee"].map(key => {
+      const panel = report.fixedCombat.riskDistribution[key];
+      const risk = panel.risk;
+      return `| ${key} | ${formatRate(risk.p50)} | ${formatRate(risk.p90)} | ${formatRate(risk.p95)} | ${formatRate(risk.p99)} | ${formatRate(risk.max)} | ${risk.atLeast50Percent} | ${risk.atLeast75Percent} | ${risk.atLeast90Percent} |`;
+    }),
+    "",
+    "Highest-risk fixed-panel pairs (HP100/fight):",
+    ...report.fixedCombat.riskDistribution["100:fight"].highestRiskPairs.map(row =>
+      `- ${row.compositionKey}: ${formatRate(row.deathRate)}`
+    ),
     "",
     "## Matched run-level comparison",
     "",
@@ -405,12 +554,24 @@ function buildSummary(report) {
   );
   for (const [id, result] of Object.entries(report.cases)) {
     lines.push(
-      `| ${id} | ${result.metrics.pairCompositionIdentity.slice(0, 3).map(row => `${row.compositionKey} (${row.encounters}/${row.deaths})`).join("; ") || "(no effective pair)"} | ` +
+    `| ${id} | ${result.metrics.pairCompositionIdentity.slice(0, 3).map(row => `${row.compositionKey} (${row.encounters}/${row.deaths})`).join("; ") || "(no effective pair)"} | ` +
       `${formatNumber(result.metrics.normalDamage.p50)} / ${formatNumber(result.metrics.normalDamage.p95)} | ` +
       `${formatNumber(result.metrics.byEncounterOrdinal["1"].all.survivorPostCombatHp.p50)} / ${formatNumber(result.metrics.byEncounterOrdinal["1"].all.survivorPostCombatHp.p95)} | ` +
       `${result.metrics.trapDamageHp} | ${result.metrics.poisonApplications} |`
     );
   }
+  lines.push(
+    "",
+    "## Early transition and diversity",
+    "",
+    "- E1 next-entry HP is the ordinal-2 entry HP distribution among runs that reach encounter 2; pair lethality is the ordinal pair death rate.",
+    ...Object.entries(report.cases).map(([id, result]) => {
+      const e1 = result.metrics.byEncounterOrdinal["1"];
+      const pair = e1.pair;
+      const diversity = result.metrics.diversity;
+      return `- ${id}: E1 entry HP ${formatNumber(e1.entryHpRate.p50)}/${formatNumber(e1.entryHpRate.p95)} → post-combat HP ${formatNumber(e1.survivorPostCombatHp.p50)}/${formatNumber(e1.survivorPostCombatHp.p95)} → E2 entry HP ${formatNumber(e1.nextEntryHpRate.p50)}/${formatNumber(e1.nextEntryHpRate.p95)}; pair lethality ${formatRate(pair.deathRate)}; effective pair diversity ${diversity.uniqueEffectivePairCompositions} unique, top1 ${formatRate(diversity.top1EffectivePairConcentrationRate)}, top3 ${formatRate(diversity.top3EffectivePairConcentrationRate)}`;
+    })
+  );
   lines.push(
     "",
     "## Production fight / flee reference",
@@ -441,6 +602,8 @@ function buildReport(result, provenance, options) {
     schemaVersion: SCHEMA_VERSION,
     seed: result.configuration.seed,
     runs: result.configuration.runs,
+    selectionSeed: result.configuration.selectionSeed,
+    selectionRuns: result.configuration.selectionRuns,
     fixedCombatSeed: result.configuration.fixedCombatSeed,
     fixedCombatRuns: result.configuration.fixedCombatRuns,
     legalPairCount: result.legalPairSurface.length,
@@ -509,6 +672,8 @@ async function main() {
   const runs = positiveInteger(options.runs || DEFAULT_RUNS, "runs", DEFAULT_RUNS);
   const fixedRuns = positiveInteger(options["fixed-runs"] || DEFAULT_FIXED_RUNS, "fixedRuns", DEFAULT_FIXED_RUNS);
   const seed = positiveInteger(options.seed || DEFAULT_SEED, "seed");
+  const selectionRuns = positiveInteger(options["selection-runs"] || DEFAULT_SELECTION_RUNS, "selectionRuns", DEFAULT_SELECTION_RUNS);
+  const selectionSeed = positiveInteger(options["selection-seed"] || DEFAULT_SELECTION_SEED, "selectionSeed");
   const fixedSeed = positiveInteger(options["fixed-seed"] || DEFAULT_FIXED_SEED, "fixedSeed");
   if (!options.output || !options.summary || !options.manifest) {
     throw new Error("--output, --summary, and --manifest are required");
@@ -517,7 +682,14 @@ async function main() {
     fetchOriginMain: false,
     measurementRunnerPaths: [RUNNER_PATH, ...PRODUCTION_PATHS]
   });
-  const result = await runEarlyB1FCompositionDiagnostic({ runs, fixedRuns, seed, fixedSeed });
+  const result = await runEarlyB1FCompositionDiagnostic({
+    runs,
+    fixedRuns,
+    seed,
+    selectionRuns,
+    selectionSeed,
+    fixedSeed
+  });
   const report = buildReport(result, provenance, options);
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));

@@ -9,9 +9,14 @@ on:
         default: "main"
         type: string
       runs:
-        description: "Matched run-level cases (minimum 1000)"
+        description: "Matched holdout run-level cases (minimum 1000)"
         required: false
         default: "1000"
+        type: string
+      selection_runs:
+        description: "Target-profile selection runs (minimum 5000)"
+        required: false
+        default: "5000"
         type: string
       fixed_runs:
         description: "Fixed panel runs per pair × HP band × policy (minimum 1000)"
@@ -19,7 +24,12 @@ on:
         default: "1000"
         type: string
       seed:
-        description: "Matched run-level seed"
+        description: "Matched holdout run-level seed"
+        required: false
+        default: "2192"
+        type: string
+      selection_seed:
+        description: "Independent target-profile selection seed"
         required: false
         default: "1192"
         type: string
@@ -54,8 +64,10 @@ jobs:
           MEASUREMENT_REPOSITORY: ${{ github.repository }}
           MEASUREMENT_REQUESTED_REF: ${{ inputs.ref }}
           MEASUREMENT_REQUESTED_RUNS: ${{ inputs.runs }}
+          MEASUREMENT_REQUESTED_SELECTION_RUNS: ${{ inputs.selection_runs }}
           MEASUREMENT_REQUESTED_FIXED_RUNS: ${{ inputs.fixed_runs }}
           MEASUREMENT_REQUESTED_SEED: ${{ inputs.seed }}
+          MEASUREMENT_REQUESTED_SELECTION_SEED: ${{ inputs.selection_seed }}
           MEASUREMENT_REQUESTED_FIXED_SEED: ${{ inputs.fixed_seed }}
           MEASUREMENT_PURPOSE: ${{ inputs.purpose }}
           MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
@@ -65,8 +77,10 @@ jobs:
           node scratch/measurements/early_b1f_composition_diagnostic.js \
             --ref "$MEASUREMENT_REQUESTED_REF" \
             --runs "$MEASUREMENT_REQUESTED_RUNS" \
+            --selection-runs "$MEASUREMENT_REQUESTED_SELECTION_RUNS" \
             --fixed-runs "$MEASUREMENT_REQUESTED_FIXED_RUNS" \
             --seed "$MEASUREMENT_REQUESTED_SEED" \
+            --selection-seed "$MEASUREMENT_REQUESTED_SELECTION_SEED" \
             --fixed-seed "$MEASUREMENT_REQUESTED_FIXED_SEED" \
             --purpose "$MEASUREMENT_PURPOSE" \
             --output /tmp/early-b1f-composition-diagnostic/report.json \

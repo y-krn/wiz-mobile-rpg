@@ -7295,23 +7295,38 @@ function normalizeEarlyCompositionCandidate(candidate) {
   if (!Array.isArray(candidate.targetCompositionKeys) || candidate.targetCompositionKeys.length === 0) {
     throw new Error("earlyCompositionCandidate.targetCompositionKeys must be non-empty");
   }
-  if (!candidate.replacementByComposition || typeof candidate.replacementByComposition !== "object") {
-    throw new Error("earlyCompositionCandidate.replacementByComposition is required");
+  if (!Array.isArray(candidate.replacementPairs) || candidate.replacementPairs.length === 0) {
+    throw new Error("earlyCompositionCandidate.replacementPairs is required");
   }
-  for (const key of candidate.targetCompositionKeys) {
-    const replacement = candidate.replacementByComposition[key];
-    if (!Array.isArray(replacement) || replacement.length !== 2) {
-      throw new Error(`earlyCompositionCandidate replacement is missing for ${key}`);
+  for (const replacement of candidate.replacementPairs) {
+    if (!Array.isArray(replacement.names) || replacement.names.length !== 2 ||
+        !Number.isFinite(Number(replacement.weight)) || Number(replacement.weight) <= 0) {
+      throw new Error("earlyCompositionCandidate replacementPairs must contain names[2] and positive weight");
     }
   }
   return {
     id: String(candidate.id || candidate.kind),
     kind: candidate.kind,
     targetCompositionKeys: [...new Set(candidate.targetCompositionKeys.map(String))],
-    replacementByComposition: Object.fromEntries(
-      Object.entries(candidate.replacementByComposition).map(([key, names]) => [key, names.map(String)])
-    )
+    replacementPairs: candidate.replacementPairs.map(replacement => ({
+      key: String(replacement.key || replacement.names.slice().sort().join(" + ")),
+      names: replacement.names.map(String),
+      weight: Number(replacement.weight)
+    }))
   };
+}
+
+function pickEarlyCompositionReplacement(candidate) {
+  const totalWeight = candidate.replacementPairs.reduce(
+    (sum, replacement) => sum + replacement.weight,
+    0
+  );
+  let roll = Math.random() * totalWeight;
+  for (const replacement of candidate.replacementPairs) {
+    roll -= replacement.weight;
+    if (roll < 0) return replacement.names;
+  }
+  return candidate.replacementPairs.at(-1).names;
 }
 
 function getFirstPlayerActionOpportunity(roundResult, actionType) {
@@ -7402,26 +7417,15 @@ function runEncounter(
   );
   if (earlyCompositionSuppressed) monsters = monsters.slice(0, 1);
   if (!fixedMonsterNames && !isBoss && !isMidboss && !isElite && earlyCompositionCandidate) {
-    const deferred = state.simPolicy.deferredEarlyComposition;
-    if (earlyCompositionCandidate.kind === "ordering-defer" &&
-        earlyNormalEncounterOrdinal === 2 && Array.isArray(deferred)) {
-      monsters = createFixedDiagnosticMonsters(deferred, state.floor);
-      state.simPolicy.deferredEarlyComposition = null;
-      earlyCompositionCandidateAction = "release-deferred";
-      earlyCompositionDeferredKey = compositionKey(monsters);
-    } else if (earlyCompositionCandidateTarget &&
-               ((earlyCompositionCandidate.kind === "pool-redistribution" && earlyNormalEncounterOrdinal <= 2) ||
-                (earlyCompositionCandidate.kind === "ordering-defer" && earlyNormalEncounterOrdinal === 1))) {
-      const replacementNames = earlyCompositionCandidate.replacementByComposition[generatedCompositionKey];
-      const deferredNames = monsters.map(monster => baseMonsterName(monster.name));
+    const candidateApplies = earlyCompositionCandidateTarget &&
+      ((earlyCompositionCandidate.kind === "pool-redistribution" && earlyNormalEncounterOrdinal <= 2) ||
+       (earlyCompositionCandidate.kind === "ordering-defer" && earlyNormalEncounterOrdinal === 1));
+    if (candidateApplies) {
+      const replacementNames = pickEarlyCompositionReplacement(earlyCompositionCandidate);
       monsters = createFixedDiagnosticMonsters(replacementNames, state.floor);
       earlyCompositionCandidateAction = earlyCompositionCandidate.kind === "ordering-defer"
-        ? "defer-and-replace"
+        ? "defer-opening-target"
         : "redistribute-pool";
-      if (earlyCompositionCandidate.kind === "ordering-defer") {
-        state.simPolicy.deferredEarlyComposition = deferredNames;
-        earlyCompositionDeferredKey = generatedCompositionKey;
-      }
     }
   }
   if (state.alarmActive) {
