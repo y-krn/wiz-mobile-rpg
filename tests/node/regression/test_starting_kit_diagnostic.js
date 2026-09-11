@@ -5,13 +5,20 @@ import assert from "node:assert/strict";
 const {
   STARTING_KIT_IDS,
   POLICY_IDS,
+  RECOVERY_POLICY_IDS,
+  RECOVERY_RESOURCE_IDS,
   createDiagnosticScenario,
   getDiagnosticWorldSeed,
+  runMatchedRecoveryPolicies,
   runDiagnostic
 } = await import("../../../scratch/measurements/starting_kit_diagnostic.js");
 
 assert.deepEqual(STARTING_KIT_IDS, ["vanguard", "scout", "devotion", "arcana"]);
 assert.deepEqual(POLICY_IDS, ["fight", "flee-threshold", "visible-multi-enemy-flee"]);
+assert.deepEqual(RECOVERY_POLICY_IDS, ["production", "early-use"]);
+assert.deepEqual(RECOVERY_RESOURCE_IDS, [
+  "HEAL_POTION", "GREATER_HEAL", "HOLY_WATER", "MANA_POTION", "ETHER"
+]);
 assert.equal(getDiagnosticWorldSeed(1139, 2), "issue-1176:1139:2");
 
 const fight = createDiagnosticScenario({
@@ -66,7 +73,8 @@ for (const field of [
   "runIndex", "encounterOrdinal", "initialCompositionKey", "hpBeforeEncounter",
   "maxHpBeforeEncounter", "hpRateBeforeEncounter", "mpBeforeEncounter",
   "maxMpBeforeEncounter", "mpRateBeforeEncounter", "hpAfterEncounter",
-  "mpAfterEncounter", "combatRounds", "enemyActionCount", "normalDamage", "outcome"
+  "mpAfterEncounter", "combatRounds", "enemyActionCount", "normalDamage", "outcome",
+  "startStep", "endStep", "startRecoveryInventory", "endRecoveryInventory"
 ]) {
   assert.ok(Object.hasOwn(entry, field), `encounter row missing ${field}`);
 }
@@ -144,6 +152,13 @@ assert.equal(typeof report.runOutcome.trapDamageHp, "number");
 assert.equal(typeof report.runOutcome.poisonApplications, "number");
 assert.ok(report.rewardOpportunity.rewardEventCount >= 0);
 assert.equal(report.rewardOpportunity.rows.length, report.runs);
+assert.ok(report.continuationResource["2"]);
+for (const itemId of RECOVERY_RESOURCE_IDS) {
+  assert.ok(report.continuationResource["2"].byItem[itemId]);
+}
+assert.ok(report.linkedTrajectory.byTransition);
+assert.ok(report.naturalEntryHpBands);
+assert.ok(report.naturalEntryHpBandResource);
 
 const matchedVanguard = await runDiagnostic({
   startingKit: "vanguard",
@@ -174,6 +189,21 @@ const repeat = await runDiagnostic({
   allowSmallRunCount: true
 });
 assert.deepEqual(repeat, report);
+
+const matchedRecovery = await runMatchedRecoveryPolicies({
+  startingKit: "vanguard",
+  policy: "fight",
+  runs: 2,
+  seed: 1139,
+  allowSmallRunCount: true
+});
+assert.equal(matchedRecovery.production.configuration.recoveryPolicy, "production");
+assert.equal(matchedRecovery.earlyUse.configuration.recoveryPolicy, "early-use");
+assert.equal(
+  matchedRecovery.production.encounterExposure.encounterRows[0].initialCompositionKey,
+  matchedRecovery.earlyUse.encounterExposure.encounterRows[0].initialCompositionKey,
+  "recovery policy comparison must use the matched production encounter"
+);
 
 const visibleReport = await runDiagnostic({
   startingKit: "vanguard",
