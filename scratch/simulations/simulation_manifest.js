@@ -16,7 +16,9 @@ const canonicalRunnerPath = "scratch/simulations/sim_depth_material_ev.js";
 // Permanent new runners must be canonical or reusable and use semantic, Issue-independent names.
 export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: canonicalRunnerPath, lifecycle: "canonical", scope: "run" },
-  { path: "scratch/simulations/sim_recovery_policy.js", lifecycle: "historical", scope: "infra" },
+  // Current canonical/reusable dependencies are reusable infrastructure, even
+  // though they are not direct simulation entrypoints themselves.
+  { path: "scratch/simulations/sim_recovery_policy.js", lifecycle: "reusable", scope: "infra" },
   { path: "scratch/measurements/partial_information_progression_measurement.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/persona_population_measurement.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/shallow_combat_diagnostic.js", lifecycle: "reusable", scope: "run" },
@@ -44,8 +46,8 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: "scratch/simulations/sim_material_income.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_maze_metrics.js", lifecycle: "historical", scope: "map" },
   { path: "scratch/simulations/sim_new_spells.js", lifecycle: "historical", scope: "formula" },
-  { path: "scratch/simulations/sim_parallel.js", lifecycle: "historical", scope: "infra" },
-  { path: "scratch/simulations/sim_parallel_worker.js", lifecycle: "historical", scope: "infra" },
+  { path: "scratch/simulations/sim_parallel.js", lifecycle: "reusable", scope: "infra" },
+  { path: "scratch/simulations/sim_parallel_worker.js", lifecycle: "reusable", scope: "infra" },
   { path: "scratch/simulations/sim_physical_defense_curve.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_retreat_access.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_run_floor_templates.js", lifecycle: "historical", scope: "run" },

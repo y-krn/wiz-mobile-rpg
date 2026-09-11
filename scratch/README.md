@@ -15,10 +15,13 @@ Historical summaries, raw-result references, fixtures, and images belong in
 preserved for provenance and is not executable test input.
 
 Simulation lifecycle is explicit in `simulations/simulation_manifest.js`.
-The production-backed `sim_depth_material_ev.js` is canonical. Reusable runners
-that remain part of current regression or measurement infrastructure are named
-for their behavior and use the `reusable` lifecycle. Existing generic historical
-runners may remain until separately retired.
+The production-backed `sim_depth_material_ev.js` is canonical. Runners and
+helpers that remain part of current regression or measurement infrastructure are
+named for their behavior and use the `reusable` lifecycle, including `infra`
+dependencies used by a canonical or reusable runner. `historical` is reserved
+for runners retained only as historical evidence and no longer used by current
+simulation or measurement infrastructure. Existing generic historical runners
+may remain until separately retired.
 
 Issue-specific one-off runners are temporary branch assets: before merge they
 must either be deleted after their evidence is recorded or promoted to an
