@@ -5,8 +5,9 @@ import { isRenderableCorridorCell } from "./rules/renderer_topology.js";
 export const MINIMAP_CANVAS_SIZE = Object.freeze({ width: 400, height: 260 });
 
 const CELL_SIZE = 10;
-const PANEL_MARGIN = 8;
-const PANEL_SIZE = 128;
+const PANEL_SIZE = 96;
+const PANEL_LEFT = (MINIMAP_CANVAS_SIZE.width - PANEL_SIZE) / 2;
+const PANEL_TOP = 8;
 
 function resolveRenderInput(input) {
   if (isRendererInput(input)) return input;
@@ -148,15 +149,15 @@ export function drawMiniMap(ctx, input = null, options = {}) {
     if (!Object.hasOwn(map, y) || !Array.isArray(map[y])) return;
   }
 
-  ctx.fillStyle = "rgba(12, 12, 14, 0.9)";
+  ctx.fillStyle = "rgba(12, 12, 14, 0.78)";
   ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
   ctx.lineWidth = 2;
-  ctx.fillRect(PANEL_MARGIN - 2, PANEL_MARGIN - 2, PANEL_SIZE + 4, PANEL_SIZE + 4);
-  ctx.strokeRect(PANEL_MARGIN - 2, PANEL_MARGIN - 2, PANEL_SIZE + 4, PANEL_SIZE + 4);
+  ctx.fillRect(PANEL_LEFT - 2, PANEL_TOP - 2, PANEL_SIZE + 4, PANEL_SIZE + 4);
+  ctx.strokeRect(PANEL_LEFT - 2, PANEL_TOP - 2, PANEL_SIZE + 4, PANEL_SIZE + 4);
 
   ctx.save();
   ctx.beginPath();
-  ctx.rect(PANEL_MARGIN, PANEL_MARGIN, PANEL_SIZE, PANEL_SIZE);
+  ctx.rect(PANEL_LEFT, PANEL_TOP, PANEL_SIZE, PANEL_SIZE);
   ctx.clip();
 
   const desiredOffsetX = (PANEL_SIZE / 2) - (renderInput.x * CELL_SIZE + CELL_SIZE / 2);
@@ -183,8 +184,8 @@ export function drawMiniMap(ctx, input = null, options = {}) {
       if (!isVisited && !isLightRevealed && !isFragmentRevealed && !hasDiscoveredTrap) continue;
       if (!isRenderableCorridorCell(cell)) continue;
 
-      const screenX = PANEL_MARGIN + x * CELL_SIZE + offsetX;
-      const screenY = PANEL_MARGIN + y * CELL_SIZE + offsetY;
+      const screenX = PANEL_LEFT + x * CELL_SIZE + offsetX;
+      const screenY = PANEL_TOP + y * CELL_SIZE + offsetY;
       const isLightOnly = !isVisited && isLightRevealed;
       const isFragmentOnly = !isVisited && !isLightRevealed && isFragmentRevealed;
 
@@ -259,8 +260,8 @@ export function drawMiniMap(ctx, input = null, options = {}) {
       const hasEvent = [EVENT_TYPES.SPRING, EVENT_TYPES.CAMP, EVENT_TYPES.TABLET, EVENT_TYPES.MERCHANT,
         EVENT_TYPES.RETURN_PORTAL, EVENT_TYPES.MIDBOSS, EVENT_TYPES.BOSS].includes(cell.event);
       if (!hasStairs && !hasEvent) continue;
-      const screenX = PANEL_MARGIN + x * CELL_SIZE + offsetX;
-      const screenY = PANEL_MARGIN + y * CELL_SIZE + offsetY;
+      const screenX = PANEL_LEFT + x * CELL_SIZE + offsetX;
+      const screenY = PANEL_TOP + y * CELL_SIZE + offsetY;
       ctx.save();
       if (hasStairs) {
         ctx.fillStyle = "rgba(255, 179, 0, 0.12)";
@@ -288,8 +289,8 @@ export function drawMiniMap(ctx, input = null, options = {}) {
     if (roamingMonster.perception === "afterimage" && !renderInput.hasArcaneSense) return;
     const dist = Math.abs(roamingMonster.x - renderInput.x) + Math.abs(roamingMonster.y - renderInput.y);
     if (roamingMonster.kind !== "elite" && dist > 4) return;
-    const rx = PANEL_MARGIN + roamingMonster.x * CELL_SIZE + CELL_SIZE / 2 + offsetX;
-    const ry = PANEL_MARGIN + roamingMonster.y * CELL_SIZE + CELL_SIZE / 2 + offsetY;
+    const rx = PANEL_LEFT + roamingMonster.x * CELL_SIZE + CELL_SIZE / 2 + offsetX;
+    const ry = PANEL_TOP + roamingMonster.y * CELL_SIZE + CELL_SIZE / 2 + offsetY;
     const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 150);
     ctx.save();
     const perceptionColors = { sound: "255, 179, 0", blind_charge: "255, 92, 92", vibration: "89, 214, 138", standard: "255, 59, 48", afterimage: "190, 120, 255" };
@@ -308,8 +309,8 @@ export function drawMiniMap(ctx, input = null, options = {}) {
     ctx.restore();
   });
 
-  const playerX = PANEL_MARGIN + renderInput.x * CELL_SIZE + CELL_SIZE / 2 + offsetX;
-  const playerY = PANEL_MARGIN + renderInput.y * CELL_SIZE + CELL_SIZE / 2 + offsetY;
+  const playerX = PANEL_LEFT + renderInput.x * CELL_SIZE + CELL_SIZE / 2 + offsetX;
+  const playerY = PANEL_TOP + renderInput.y * CELL_SIZE + CELL_SIZE / 2 + offsetY;
   ctx.fillStyle = "rgba(0, 229, 255, 0.25)";
   ctx.beginPath();
   ctx.arc(playerX, playerY, 7, 0, Math.PI * 2);
