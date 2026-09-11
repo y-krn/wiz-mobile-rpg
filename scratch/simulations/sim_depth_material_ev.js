@@ -12205,7 +12205,8 @@ function rollChestItems(
   }
 
   const weightSource = state.simPolicy.chestHealPotionWeightSource;
-  const weightApplies = weightSource === "both" || weightSource === chestSource;
+  const weightApplies = floor === 1 &&
+    (weightSource === "both" || weightSource === chestSource);
   const probeItemWeights = weightApplies && state.simPolicy.chestHealPotionWeight !== null
     ? { HEAL_POTION: state.simPolicy.chestHealPotionWeight }
     : getChestItemWeightsBySource(floor, { fromDrop });
