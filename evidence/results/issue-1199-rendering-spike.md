@@ -50,6 +50,7 @@ canvas. The production fixture uses `generateRunFloor` and
   fixture and screenshot; human visual inspection is required for PASS.
 - Camera/profile/material/topology invariants: structural assertions cover
   fixed camera contract, floor/ceiling bounds, shared-edge continuity, absence
-  of walls across shared walkable edges, and forbidden proxy surfaces.
+  of walls across shared walkable edges, every blocked frame edge including
+  isolated dead ends, and forbidden proxy surfaces.
 - Physical-device evidence: unavailable in this environment, so the
   production-readability claim remains unverified.

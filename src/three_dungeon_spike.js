@@ -146,6 +146,7 @@ function addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceili
   );
 
   const frame = frameForCell(cell);
+  cellGroup.userData.frame = frame;
   const frontWall = new BoxGeometry(profile.cellWidth, profile.wallHeight, profile.wallThickness);
   const sideWall = new BoxGeometry(profile.wallThickness, profile.wallHeight, profile.cellDepth);
   const wallY = profile.wallHeight / 2;
@@ -210,7 +211,7 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       const floorMaterial = new MeshStandardMaterial({
         color: floorColor,
         emissive: floorColor,
-        emissiveIntensity: 0.16,
+        emissiveIntensity: 0.5,
         roughness: 0.96,
         metalness: 0.06,
         side: DoubleSide,
@@ -289,6 +290,14 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
         });
       });
       return surfaces;
+    },
+    getTopologyFrames() {
+      return root.children
+        .filter((child) => child.userData?.frame)
+        .map((child) => ({
+          topology: child.userData.topology,
+          frame: { ...child.userData.frame },
+        }));
     },
     dispose() {
       while (root.children.length > 0) {

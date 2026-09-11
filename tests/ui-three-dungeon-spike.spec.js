@@ -40,10 +40,10 @@ function createSyntheticMap(archetype) {
     paths: {
       'straight-corridor': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 2, 0]],
       'dead-end': [[4, 4, 2]],
-      'left-turn': [[4, 4, 2], [4, 4, 3], [3, 4, 3]],
-      'right-turn': [[4, 4, 2], [4, 4, 1], [5, 4, 1]],
-      't-junction': [[4, 4, 2], [4, 4, 3], [4, 4, 1]],
-      'cross-junction': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 4, 1], [4, 4, 3], [5, 4, 1], [3, 4, 3]],
+      'left-turn': [[4, 4, 2], [4, 4, 3], [3, 4, 3], [2, 4, 3]],
+      'right-turn': [[4, 4, 2], [4, 4, 1], [5, 4, 1], [6, 4, 1]],
+      't-junction': [[4, 4, 2], [4, 4, 3], [3, 4, 3], [2, 4, 3], [4, 4, 1], [5, 4, 1], [6, 4, 1]],
+      'cross-junction': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 2, 0], [4, 4, 1], [5, 4, 1], [6, 4, 1], [4, 4, 3], [3, 4, 3], [2, 4, 3]],
     }[archetype],
   };
 }
@@ -70,6 +70,7 @@ async function renderSynthetic(page, archetype) {
       map: fixture.map,
       topology: getVisibleCorridorTopology(fixture.map, 4, 4, 0),
       surfaces: window.__threeDungeonSpike.getTopologySurfaces(),
+      frames: window.__threeDungeonSpike.getTopologyFrames(),
     };
   }, { archetype, fixture: createSyntheticMap(archetype) });
 }
@@ -105,16 +106,22 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
         current.push(surface.surface);
         surfacesByCell.set(key, current);
       });
+      const framesByCell = new Map(evidence.frames.map(({ topology, frame }) => [
+        `${topology.z}:${topology.column}`,
+        frame,
+      ]));
       expect(cells.every((cell) => {
         const surfaces = surfacesByCell.get(`${cell.z}:${cell.column}`) || [];
         return surfaces.includes('floor') && surfaces.includes('ceiling');
       })).toBe(true);
       cells.forEach((cell) => {
         const surfaces = surfacesByCell.get(`${cell.z}:${cell.column}`) || [];
-        const blockedEdges = ['frontBlocked', 'backBlocked', 'leftBlocked', 'rightBlocked']
-          .filter((edge) => cell[edge]).length;
-        expect(surfaces.filter((surface) => surface.endsWith('-wall')).length)
-          .toBe(blockedEdges);
+        const frame = framesByCell.get(`${cell.z}:${cell.column}`);
+        ['frontBlocked', 'backBlocked', 'leftBlocked', 'rightBlocked'].forEach((edge) => {
+          const wall = `${edge.replace('Blocked', '')}-wall`;
+          expect(surfaces.includes(wall), `${archetype} ${cell.z}:${cell.column} ${edge}`)
+            .toBe(frame[edge]);
+        });
       });
       const floorSurfaces = evidence.surfaces.filter(({ surface }) => surface === 'floor');
       const wallSurfaces = evidence.surfaces.filter(({ surface }) => surface.endsWith('-wall'));
