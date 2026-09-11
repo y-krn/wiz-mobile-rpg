@@ -5,7 +5,7 @@ import { isRenderableCorridorCell } from "./rules/renderer_topology.js";
 export const MINIMAP_CANVAS_SIZE = Object.freeze({ width: 400, height: 260 });
 
 const CELL_SIZE = 10;
-const PANEL_SIZE = 128;
+const PANEL_SIZE = 96;
 const PANEL_LEFT = (MINIMAP_CANVAS_SIZE.width - PANEL_SIZE) / 2;
 const PANEL_TOP = 8;
 
@@ -149,7 +149,7 @@ export function drawMiniMap(ctx, input = null, options = {}) {
     if (!Object.hasOwn(map, y) || !Array.isArray(map[y])) return;
   }
 
-  ctx.fillStyle = "rgba(12, 12, 14, 0.9)";
+  ctx.fillStyle = "rgba(12, 12, 14, 0.78)";
   ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
   ctx.lineWidth = 2;
   ctx.fillRect(PANEL_LEFT - 2, PANEL_TOP - 2, PANEL_SIZE + 4, PANEL_SIZE + 4);

@@ -801,7 +801,10 @@ export class ThreeDungeonRenderer {
     });
     const branchFloorGeometry = new BoxGeometry(openingWidth, 0.045, branchDepth);
     const floorPositions = branchFloorGeometry.attributes.position;
-    const floorRise = 0.48 * depthScale;
+    // The near-cell vestibule uses a slight perspective ramp, but the
+    // one-cell-ahead branch must meet the neighboring cell at floor level.
+    // Raising that far tongue makes the opening read as a sill or window.
+    const floorRise = depth === 0 ? 0.48 : 0;
     for (let index = 0; index < floorPositions.count; index++) {
       floorPositions.setY(index, floorPositions.getY(index) + floorRise * floorPositions.getZ(index) / branchDepth);
     }

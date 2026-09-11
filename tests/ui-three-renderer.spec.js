@@ -569,9 +569,7 @@ test('Canvas and Three.js share the same exploration mini-map overlay contract @
     });
   };
 
-  const canvas = await measure('/');
-  const three = await measure('/?renderer=three');
-  await page.evaluate(async () => {
+  const restoreExploreState = async () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');
     const { updateUI } = await import('/src/ui.js');
@@ -582,6 +580,19 @@ test('Canvas and Three.js share the same exploration mini-map overlay contract @
     updateUI();
     dungeonRenderer.draw();
   });
+
+  const canvas = await measure('/');
+  await restoreExploreState();
+  const canvasScreenshot = await page.locator('#viewport-panel').screenshot({
+    path: testInfo.outputPath('canvas-minimap-visible-branch-390px.png'),
+  });
+  await testInfo.attach('canvas-minimap-visible-branch-390px', {
+    body: canvasScreenshot,
+    contentType: 'image/png',
+  });
+
+  const three = await measure('/?renderer=three');
+  await restoreExploreState();
   const minimapScreenshot = await page.locator('#viewport-panel').screenshot({
     path: testInfo.outputPath('three-minimap-visible-branch-390px.png'),
   });
