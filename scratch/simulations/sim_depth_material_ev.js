@@ -1075,6 +1075,11 @@ const FLEE_POLICIES = Object.freeze([
   "ev",
   "visible-multi-enemy-flee"
 ]);
+export const EARLY_MULTI_ENEMY_POLICIES = Object.freeze([
+  "baseline",
+  "suppress-first-multi",
+  "suppress-first-two-multi"
+]);
 const DEFAULT_HEAL_PRIORITY_POLICY = "potion-first";
 const DEFAULT_BLOOD_WAND_HEAL_POLICY = "reserve-potion";
 if (!FLEE_POLICIES.includes(SIM_ENV.FLEE_POLICY)) {
@@ -4394,6 +4399,14 @@ function createSimulationState(
   if (!FLEE_POLICIES.includes(fleePolicy)) {
     throw new Error(`fleePolicy must be ${FLEE_POLICIES.join("|")}: ${fleePolicy}`);
   }
+  const earlyEncounterMultiEnemyPolicy =
+    scenario.earlyEncounterMultiEnemyPolicy || "baseline";
+  if (!EARLY_MULTI_ENEMY_POLICIES.includes(earlyEncounterMultiEnemyPolicy)) {
+    throw new Error(
+      "earlyEncounterMultiEnemyPolicy must be " +
+      `${EARLY_MULTI_ENEMY_POLICIES.join("|")}: ${earlyEncounterMultiEnemyPolicy}`
+    );
+  }
   const healPotionThreshold = Object.hasOwn(scenario, "healPotionThreshold")
     ? Number(scenario.healPotionThreshold)
     : HEAL_POTION_THRESHOLD;
@@ -4583,7 +4596,8 @@ function createSimulationState(
       bloodWandHpPaymentMinRate: BLOOD_WAND_HP_PAYMENT_MIN_RATE,
       healPriorityPolicy,
       bloodWandHealPolicy,
-      materialDropOverride: scenario.materialDropOverride || null
+      materialDropOverride: scenario.materialDropOverride || null,
+      earlyEncounterMultiEnemyPolicy
     },
     floor: startFloor,
     lightTurns: 0,
@@ -7251,6 +7265,47 @@ export function derivePlayerActionExecutionTiming(actionObservations, actionType
     : "player-before-any-enemy";
 }
 
+function getEarlyMultiEnemyLimit(policy) {
+  if (policy === "suppress-first-multi") return 1;
+  if (policy === "suppress-first-two-multi") return 2;
+  return null;
+}
+
+function getFirstPlayerActionOpportunity(roundResult, actionType) {
+  const observations = roundResult?.actionObservations || [];
+  const playerAction = observations.find(observation =>
+    observation.actor === "char" && observation.actionType === actionType
+  );
+  if (!playerAction) {
+    return {
+      firstPlayerActionExecutionTiming: "unobserved",
+      firstPlayerActionExecuted: false,
+      enemyActionsBeforeFirstPlayerAction: null,
+      damageBeforeFirstPlayerAction: null
+    };
+  }
+  const enemyActionsBeforeFirstPlayerAction = observations.filter(observation =>
+    observation.actor === "monster" &&
+    observation.executed &&
+    observation.order < playerAction.order
+  ).length;
+  const damageBeforeFirstPlayerAction = (roundResult.logQueue || [])
+    .filter(entry => {
+        const actionMatch = String(entry.groupId || "").match(/:action:(\d+)$/);
+      return actionMatch &&
+        Number(actionMatch[1]) < playerAction.order &&
+        String(entry.msg || "").includes("ダメージ") &&
+        Number.isFinite(Number(entry.floatText));
+    })
+    .reduce((sum, entry) => sum + Number(entry.floatText), 0);
+  return {
+    firstPlayerActionExecutionTiming: derivePlayerActionExecutionTiming(observations, actionType),
+    firstPlayerActionExecuted: playerAction.executed === true,
+    enemyActionsBeforeFirstPlayerAction,
+    damageBeforeFirstPlayerAction
+  };
+}
+
 function runEncounter(
   state,
   observations,
@@ -7270,15 +7325,32 @@ function runEncounter(
   const diagnosticLevel = metrics?.diagnosticLevel || "full";
   const fullDiagnostics = diagnosticLevel === "full";
   const compactDiagnostics = diagnosticLevel === "compact";
-  const monsters = fixedMonsterNames
+  let monsters = fixedMonsterNames
     ? createFixedDiagnosticMonsters(fixedMonsterNames, state.floor)
     : generateEncounter(
-      state,
+        state,
       isBoss,
       isMidboss,
-      isElite,
-      roamingMonster
-    ).monsters;
+        isElite,
+        roamingMonster
+      ).monsters;
+  const generatedInitialVisibleEnemyCount = monsters.filter(monster => monster.hp > 0).length;
+  const earlyMultiEnemyLimit = getEarlyMultiEnemyLimit(
+    state.simPolicy?.earlyEncounterMultiEnemyPolicy
+  );
+  const earlyNormalEncounterOrdinal = metrics?.normalCombatTelemetry
+    ? metrics.normalCombatTelemetry.encounters + 1
+    : null;
+  const earlyCompositionSuppressed = Boolean(
+    !fixedMonsterNames &&
+    !isBoss &&
+    !isMidboss &&
+    !isElite &&
+    earlyMultiEnemyLimit !== null &&
+    earlyNormalEncounterOrdinal <= earlyMultiEnemyLimit &&
+    generatedInitialVisibleEnemyCount >= 2
+  );
+  if (earlyCompositionSuppressed) monsters = monsters.slice(0, 1);
   if (state.alarmActive) {
     const multiplier = state.alarmWeakened ? 1.10 : 1.20;
     monsters.forEach(monster => {
@@ -7477,6 +7549,9 @@ function runEncounter(
         floor: state.floor,
         type: encounterType,
         initialVisibleEnemyCount: monsters.filter(monster => monster.hp > 0).length,
+        generatedInitialVisibleEnemyCount,
+        earlyCompositionPolicy: state.simPolicy?.earlyEncounterMultiEnemyPolicy || "baseline",
+        earlyCompositionSuppressed,
         monsters: monsters.map(monster => ({
           name: monster.name,
           atk: monster.atk,
@@ -8011,6 +8086,9 @@ function runEncounter(
       roundResult.actionObservations,
       action.type
     );
+    const firstPlayerActionOpportunity = roundNumber === 1
+      ? getFirstPlayerActionOpportunity(roundResult, action.type)
+      : null;
     if (encounterDiagnostic) {
       encounterDiagnostic.rounds.push({
         round: roundNumber,
@@ -8023,6 +8101,8 @@ function runEncounter(
         playerActionExecuted: roundNumber === 1
           ? playerActionExecutionTiming !== "not-executed-before-end"
           : null,
+        enemyActionsBeforeFirstPlayerAction: firstPlayerActionOpportunity?.enemyActionsBeforeFirstPlayerAction ?? null,
+        damageBeforeFirstPlayerAction: firstPlayerActionOpportunity?.damageBeforeFirstPlayerAction ?? null,
         spellName: action.spellName || null,
         itemKey: action.itemKey || null,
         targetIdx: action.targetIdx ?? null,
