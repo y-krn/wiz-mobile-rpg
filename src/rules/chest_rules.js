@@ -173,6 +173,21 @@ for (let floor = 6; floor <= 30; floor += 1) {
 }
 Object.freeze(CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP);
 
+// #1198: the smallest matched candidate that increased continuation-resource
+// access without changing chest count, reward amount, or fromDrop supply.
+export const CHEST_ITEM_WEIGHTS_BY_SOURCE_AND_FLOOR = Object.freeze({
+  ordinary: Object.freeze({
+    1: Object.freeze({ HEAL_POTION: 2 })
+  }),
+  fromDrop: Object.freeze({})
+});
+
+export function getChestItemWeightsBySource(floor, { fromDrop = false } = {}) {
+  const source = fromDrop ? "fromDrop" : "ordinary";
+  const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
+  return CHEST_ITEM_WEIGHTS_BY_SOURCE_AND_FLOOR[source][candidateFloor] || null;
+}
+
 export function getChestItemCandidatesByFloor(floor, { fromDrop = false, includeRunes = false } = {}) {
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
   const table = fromDrop ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP : CHEST_ITEM_CANDIDATES_BY_FLOOR;

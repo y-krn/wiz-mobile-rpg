@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { getCharacterEquipmentLoad } from "../../src/rules/equipment_load.js";
+import { getChestItemWeightsBySource } from "../../src/rules/chest_rules.js";
 import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
@@ -53,6 +54,7 @@ const PRODUCTION_PATHS = Object.freeze([
   "src/data/encounters.js",
   "src/data/items.js",
   "src/rules/chest_rules.js",
+  "src/chest/chest_domain.js",
   "src/rules/recovery_rules.js",
   "src/systems/item_effects.js",
   "src/combat_ui/encounter.js",
@@ -1340,6 +1342,8 @@ export async function runDiagnostic({
     earlyCompositionCandidate,
     chestHealPotionWeight,
     chestHealPotionWeightSource,
+    productionChestHealPotionWeight: getChestItemWeightsBySource(1)?.HEAL_POTION || 1,
+    productionChestHealPotionWeightSource: "ordinary",
     fleeHpThreshold: scenario.fleeHpThreshold,
     floorStart: 1,
     targetFloor: 2,

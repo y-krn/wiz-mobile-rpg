@@ -13,7 +13,13 @@ import {
   generateRandomEquipment,
   rollLootBuildRole
 } from "../../../src/systems/equipment_generation.js";
-import { CHEST_ITEM_CANDIDATES_BY_FLOOR, getChestItemCandidatesByFloor, rollChestReward } from "../../../src/rules/chest_rules.js";
+import {
+  CHEST_ITEM_CANDIDATES_BY_FLOOR,
+  getChestItemCandidatesByFloor,
+  getChestItemWeightsBySource,
+  rollChestReward,
+  selectChestItemCandidate
+} from "../../../src/rules/chest_rules.js";
 import { calculateChestInspectionChance, createChestLootHint } from "../../../src/chest/chest_domain.js";
 import { ITEMS } from "../../../src/data/items.js";
 
@@ -86,6 +92,21 @@ assert.equal(getLootRoleSupply(30).id, "B21_PLUS");
 assert.equal(rollLootBuildRole(1, () => 0), "reinforce");
 assert.equal(rollLootBuildRole(1, () => 0.751), "convert");
 assert.equal(rollLootBuildRole(1, () => 0.951), "pivot");
+
+assert.deepEqual(getChestItemWeightsBySource(1), { HEAL_POTION: 2 });
+assert.equal(getChestItemWeightsBySource(1, { fromDrop: true }), null);
+assert.equal(
+  selectChestItemCandidate(["HEAL_POTION", "ANTIDOTE"], () => 0, { HEAL_POTION: 2 }),
+  "HEAL_POTION"
+);
+assert.equal(
+  selectChestItemCandidate(["HEAL_POTION", "ANTIDOTE"], () => 0.99, { HEAL_POTION: 2 }),
+  "ANTIDOTE"
+);
+assert.throws(
+  () => selectChestItemCandidate(["HEAL_POTION"], () => 0, { HEAL_POTION: 0 }),
+  /positive total weight/
+);
 
 CORE_AFFIXES.forEach(affix => assert.ok(roleIds.has(affix.buildRole), `${affix.id} has a loot role`));
 CORE_AFFIXES.forEach(affix => assert.ok([LOOT_BUILD_AXES.MAIN, LOOT_BUILD_AXES.AUXILIARY].includes(affix.buildAxis), `${affix.id} has a core axis`));

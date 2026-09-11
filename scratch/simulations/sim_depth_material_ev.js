@@ -154,6 +154,7 @@ const {
   CHEST_EQUIPMENT_CORE_MIN_FLOOR,
   CHEST_ITEM_CANDIDATES_BY_FLOOR,
   CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
+  getChestItemWeightsBySource,
   CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
   calculateChestMainItemExpectedValue,
   calculateChestMainItemForcedLossRate,
@@ -12205,9 +12206,9 @@ function rollChestItems(
 
   const weightSource = state.simPolicy.chestHealPotionWeightSource;
   const weightApplies = weightSource === "both" || weightSource === chestSource;
-  const itemWeights = weightApplies && state.simPolicy.chestHealPotionWeight !== null
+  const probeItemWeights = weightApplies && state.simPolicy.chestHealPotionWeight !== null
     ? { HEAL_POTION: state.simPolicy.chestHealPotionWeight }
-    : null;
+    : getChestItemWeightsBySource(floor, { fromDrop });
   const reward = rollChestReward({
     floor,
     rng,
@@ -12225,7 +12226,7 @@ function rollChestItems(
     itemCandidateFilter: !fromDrop && RETURN_WING_REWARD_MODE === "special"
       ? itemId => itemId !== "TOWN_PORTAL"
       : null,
-    itemWeights,
+    itemWeights: probeItemWeights,
     runtimeDiagnostics: metrics?.runtimeDiagnostics
   });
   let item = reward.item;
