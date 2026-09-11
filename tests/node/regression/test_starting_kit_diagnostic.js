@@ -9,6 +9,7 @@ const {
   RECOVERY_RESOURCE_IDS,
   isEventBeforeTargetEncounter,
   isEventBetweenEncounters,
+  carriedUnusedInventoryCount,
   createDiagnosticScenario,
   getDiagnosticWorldSeed,
   runMatchedRecoveryPolicies,
@@ -22,6 +23,8 @@ assert.deepEqual(RECOVERY_RESOURCE_IDS, [
   "HEAL_POTION", "GREATER_HEAL", "HOLY_WATER", "MANA_POTION", "ETHER"
 ]);
 assert.equal(getDiagnosticWorldSeed(1139, 2), "issue-1176:1139:2");
+assert.equal(carriedUnusedInventoryCount(1), 1);
+assert.equal(carriedUnusedInventoryCount(0), 0);
 
 const fight = createDiagnosticScenario({
   startingKit: "vanguard",
@@ -202,6 +205,22 @@ for (const ordinal of ["2", "3"]) {
       ? continuation.resourceOpportunityRuns / continuation.cohortRuns
       : null
   );
+  for (const itemId of RECOVERY_RESOURCE_IDS) {
+    const expectedCarriedRuns = continuation.rows.reduce((count, row) => {
+      const item = row.byItem[itemId];
+      assert.equal(
+        item.carriedUnused,
+        item.inventoryCount,
+        `${ordinal}/${itemId} carried-unused must equal target inventory snapshot`
+      );
+      return count + Number(item.inventoryCount > 0);
+    }, 0);
+    assert.equal(
+      continuation.byItem[itemId].runsCarriedUnused,
+      expectedCarriedRuns,
+      `${ordinal}/${itemId} carried aggregate must count inventory snapshots`
+    );
+  }
 }
 
 const matchedVanguard = await runDiagnostic({

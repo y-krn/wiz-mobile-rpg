@@ -11,8 +11,8 @@ import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1196-continuation-resource-v3";
-export const SCHEMA_VERSION = 7;
+export const RUNNER_VERSION = "issue1196-continuation-resource-v4";
+export const SCHEMA_VERSION = 8;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const EARLY_COMPOSITION_POLICY_IDS = Object.freeze([
   "baseline",
@@ -349,6 +349,10 @@ function itemCount(snapshot, itemId) {
   return Number(snapshot?.[itemId]) || 0;
 }
 
+export function carriedUnusedInventoryCount(inventoryCount) {
+  return Math.max(0, Number(inventoryCount) || 0);
+}
+
 export function isEventBeforeTargetEncounter(event, targetOrdinal, fromOrdinal) {
   const ordinal = Number(event?.encounterOrdinal);
   return Number.isInteger(ordinal) && ordinal >= fromOrdinal && ordinal < targetOrdinal;
@@ -395,6 +399,7 @@ function recordResourceFunnel(
   record,
   acquisitions,
   uses,
+  inventoryCount,
   usableCount,
   beneficialCount,
   exposure
@@ -411,7 +416,7 @@ function recordResourceFunnel(
   if (usable) record.runsUsable++;
   if (beneficial) record.runsBeneficial++;
   if (used > 0) record.runsUsed++;
-  if (usableCount > 0) record.runsCarriedUnused++;
+  if (inventoryCount > 0) record.runsCarriedUnused++;
   record.acquiredUnits += acquired;
   record.usedUnits += used;
   record.actualHpRecovered += uses.reduce((sum, event) => sum + (event.hpRecovered || 0), 0);
@@ -483,14 +488,22 @@ function observeContinuationResources(
         ? inventoryCount
         : 0;
       const record = bucket.byItem[itemId];
-      recordResourceFunnel(record, acquisitions, uses, usableCount, beneficialCount, exposure);
+      recordResourceFunnel(
+        record,
+        acquisitions,
+        uses,
+        inventoryCount,
+        usableCount,
+        beneficialCount,
+        exposure
+      );
       row.byItem[itemId] = {
         acquired: acquisitions.length,
         usable: usableCount,
         beneficial: beneficialCount,
         inventoryCount,
         used: uses.length,
-        carriedUnused: Math.max(0, inventoryCount - uses.length),
+        carriedUnused: carriedUnusedInventoryCount(inventoryCount),
         actualHpRecovered: uses.reduce((sum, event) => sum + (event.hpRecovered || 0), 0),
         actualMpRecovered: uses.reduce((sum, event) => sum + (event.mpRecovered || 0), 0),
         firstAcquisition: summarizeRecoveryEvent(acquisitions[0])
@@ -1417,7 +1430,7 @@ function buildSummary(report) {
     "## Run outcome",
     "",
     `- B1F death rate: ${(outcome.b1DeathRate * 100).toFixed(2)}%`,
-    `- B2 arrival / B1 breakthrough: ${(outcome.b2ArrivalRate * 100).toFixed(2)}%`,
+    `- B2F arrival / B1 breakthrough: ${(outcome.b2ArrivalRate * 100).toFixed(2)}%`,
     `- flee selected / executed / selected-but-not-executed: ${outcome.fleeSelected} / ${outcome.fleeExecuted} / ${outcome.fleeSelectedButNotExecuted}`,
     `- flee survived / died from parting attack: ${outcome.fleeSurvived} / ${outcome.fleeDiedFromPartingAttack}; execution survival: ${outcome.fleeSurvivalRate === null ? "unobserved" : `${(outcome.fleeSurvivalRate * 100).toFixed(2)}%`}`,
     `- average deepest floor / steps / combat count: ${outcome.averageDeepestFloor.toFixed(3)} / ${outcome.averageSteps.toFixed(2)} / ${outcome.averageCombatCount.toFixed(2)}`,
