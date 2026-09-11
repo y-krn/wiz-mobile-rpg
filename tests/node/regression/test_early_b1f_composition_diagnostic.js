@@ -48,7 +48,7 @@ assert.ok(report.candidateProfile.targetMass > 0);
 assert.ok(report.candidateProfile.replacementMass > 0);
 assert.equal(report.fixedCombat.riskDistribution["100:fight"].compositionCount, 43);
 assert.equal(report.fixedCombat.riskDistribution["100:fight"].risk.count, 43);
-for (const result of Object.values(report.cases)) {
+for (const [caseId, result] of Object.entries(report.cases)) {
   assert.equal(typeof result.metrics.b1DeathRate, "number");
   assert.equal(typeof result.metrics.b2ArrivalRate, "number");
   assert.equal(typeof result.metrics.byEncounterOrdinal["1"].pair.exposureRate, "number");
@@ -60,11 +60,30 @@ for (const result of Object.values(report.cases)) {
   assert.equal(typeof result.metrics.buildOpportunityRate, "number");
   assert.equal(typeof result.metrics.diversity.uniqueEffectivePairCompositions, "number");
   assert.equal(typeof result.metrics.byEncounterOrdinal["1"].generatedPair.deathRate, "number");
-  const candidateActions = result.metrics.byEncounterOrdinal["1"].candidateActions;
+  const ordinal1 = result.metrics.byEncounterOrdinal["1"];
+  const ordinal2 = result.metrics.byEncounterOrdinal["2"];
+  const candidateActions = ordinal1.candidateActions;
   assert.ok(candidateActions && Object.keys(candidateActions).length > 0);
   assert.ok(!Object.hasOwn(candidateActions, "release-deferred"));
-  assert.equal(result.metrics.byEncounterOrdinal["1"].replacementTrialMismatches, 0);
-  assert.equal(result.metrics.byEncounterOrdinal["1"].replacementRandomStateShifts, 0);
+  assert.equal(ordinal1.replacementTrialMismatches, 0);
+  assert.equal(ordinal1.replacementRandomStateShifts, 0);
+  assert.equal(ordinal2.replacementTrialMismatches, 0);
+  assert.equal(ordinal2.replacementRandomStateShifts, 0);
+  if (caseId === "composition-pool-redistribution") {
+    assert.ok((candidateActions["redistribute-pool"] || 0) > 0);
+    assert.ok(Object.keys(ordinal1.replacementTrials).length > 0);
+    if (Object.keys(ordinal2.replacementTrials).length > 0) {
+      assert.ok((ordinal2.candidateActions["redistribute-pool"] || 0) > 0);
+    }
+  } else if (caseId.startsWith("ordering-defer")) {
+    assert.ok((candidateActions["defer-opening-target"] || 0) > 0);
+    assert.equal(ordinal2.candidateActions["defer-opening-target"] || 0, 0);
+    assert.equal(Object.keys(ordinal2.replacementTrials).length, 0);
+    assert.ok(Object.keys(ordinal1.replacementTrials).length > 0);
+  } else {
+    assert.equal(candidateActions["redistribute-pool"] || 0, 0);
+    assert.equal(candidateActions["defer-opening-target"] || 0, 0);
+  }
   assert.ok(
     result.metrics.byEncounterOrdinal["1"].nextEntryHpRate === null ||
     typeof result.metrics.byEncounterOrdinal["1"].nextEntryHpRate === "object"
