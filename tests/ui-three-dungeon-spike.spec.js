@@ -193,7 +193,7 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
               ? currentBounds.minZ
               : null;
           const axis = sharedX !== null ? 'x' : sharedZ !== null ? 'z' : null;
-          if (!axis) return;
+          expect(axis, `${archetype} logical adjacent cells must share a world edge: ${cell.x}:${cell.y} -> ${neighbor.x}:${neighbor.y}`).not.toBeNull();
           const value = axis === 'x' ? sharedX : sharedZ;
           const spanMin = axis === 'x'
             ? Math.max(currentBounds.minZ, neighborBounds.minZ)
