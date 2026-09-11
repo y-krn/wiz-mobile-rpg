@@ -5,7 +5,7 @@ const diagnostic = await import(
 );
 const starting = await import("../../../scratch/measurements/starting_kit_diagnostic.js");
 
-assert.deepEqual(diagnostic.RUNNER_VERSION, "issue1187-early-encounter-cause-v2");
+assert.deepEqual(diagnostic.RUNNER_VERSION, "issue1187-early-encounter-cause-v3");
 assert.deepEqual(starting.EARLY_COMPOSITION_POLICY_IDS, [
   "baseline",
   "suppress-first-multi",
@@ -38,6 +38,23 @@ for (const ordinal of ["1", "2"]) {
     assert.ok(Number.isFinite(entry.mpRateBeforeEncounter.p75));
   }
 }
+for (const ordinal of ["1", "2"]) {
+  for (const group of ["all", "single", "pair"]) {
+    const cost = report.naturalEncounterCost.byEncounterOrdinal[ordinal][group];
+    assert.ok(cost.encounters > 0);
+    assert.ok(Number.isFinite(cost.normalDamage.p50));
+    if (cost.survivorPostCombatHp.count > 0) {
+      assert.ok(Number.isFinite(cost.survivorPostCombatHp.p50));
+      assert.ok(Number.isFinite(cost.survivorPostCombatHpRate.p50));
+    }
+  }
+}
+assert.ok(report.naturalEncounterCost.encounter1ToEncounter2.all.runs > 0);
+assert.ok(report.naturalEncounterCost.encounter1ToEncounter2.single.runs > 0);
+assert.ok(report.naturalEncounterCost.encounter1ToEncounter2.pair.runs > 0);
+assert.ok(report.fleeEncounter2Cohort.encounter2ReachedRuns > 0);
+assert.ok(report.fleeEncounter2Cohort.selected.selectedRuns > 0);
+assert.ok(report.fleeEncounter2Cohort.executed.selectedRuns > 0);
 
 for (const policy of starting.EARLY_COMPOSITION_POLICY_IDS) {
   const result = report.runs[policy];

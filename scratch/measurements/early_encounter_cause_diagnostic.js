@@ -14,8 +14,8 @@ import {
 } from "./starting_kit_diagnostic.js";
 import { runFixedCombatDiagnostic } from "./fixed_combat_composition_diagnostic.js";
 
-export const RUNNER_VERSION = "issue1187-early-encounter-cause-v2";
-export const SCHEMA_VERSION = 2;
+export const RUNNER_VERSION = "issue1187-early-encounter-cause-v3";
+export const SCHEMA_VERSION = 3;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1187;
 export const FIXED_COMBAT_SEED = 1151;
@@ -94,15 +94,23 @@ function summarizeEntryRows(rows) {
     ">75%": 0
   };
   for (const row of rows) {
+    if (!Number.isFinite(row.hpRateBeforeEncounter)) {
+      throw new Error(`entry HP rate must be finite for encounter row ${row.runIndex}:${row.encounterOrdinal}`);
+    }
     if (row.hpRateBeforeEncounter <= 0.25) hpBandCounts["0-25%"]++;
     else if (row.hpRateBeforeEncounter <= 0.5) hpBandCounts["26-50%"]++;
     else if (row.hpRateBeforeEncounter <= 0.75) hpBandCounts["51-75%"]++;
     else hpBandCounts[">75%"]++;
   }
+  const hpRateBeforeEncounter = summarizeValues(rows.map(row => row.hpRateBeforeEncounter));
+  const mpRateBeforeEncounter = summarizeValues(rows.map(row => row.mpRateBeforeEncounter));
+  if (hpRateBeforeEncounter.count !== rows.length || mpRateBeforeEncounter.count !== rows.length) {
+    throw new Error("entry HP/MP rate distribution must cover every encounter row");
+  }
   return {
     encounters: rows.length,
-    hpRateBeforeEncounter: summarizeValues(rows.map(row => row.hpRateBeforeEncounter)),
-    mpRateBeforeEncounter: summarizeValues(rows.map(row => row.mpRateBeforeEncounter)),
+    hpRateBeforeEncounter,
+    mpRateBeforeEncounter,
     hpBandCounts
   };
 }
@@ -124,6 +132,92 @@ function summarizeNaturalEntryResource(result) {
     source: "production baseline encounterRows",
     fixedHpBandReference: ["100%", "75%", "50%", "25%"],
     byEncounterOrdinal
+  };
+}
+
+function summarizeEncounterCostRows(rows) {
+  const survivors = rows.filter(row => row.outcome === "clear");
+  return {
+    encounters: rows.length,
+    deaths: rows.filter(row => row.outcome === "death").length,
+    normalDamage: summarizeValues(rows.map(row => row.normalDamage)),
+    survivorPostCombatHp: summarizeValues(survivors.map(row => row.hpAfterEncounter)),
+    survivorPostCombatHpRate: summarizeValues(survivors.map(row => {
+      if (!Number.isFinite(row.hpAfterEncounter) || !Number.isFinite(row.maxHpBeforeEncounter)) return null;
+      return row.hpAfterEncounter / Math.max(1, row.maxHpBeforeEncounter);
+    }))
+  };
+}
+
+function summarizeNaturalEncounterCost(result) {
+  const rows = result.encounterExposure.encounterRows.filter(row =>
+    row.encounterOrdinal === 1 || row.encounterOrdinal === 2
+  );
+  const byEncounterOrdinal = {};
+  for (const ordinal of [1, 2]) {
+    const ordinalRows = rows.filter(row => row.encounterOrdinal === ordinal);
+    byEncounterOrdinal[String(ordinal)] = {
+      all: summarizeEncounterCostRows(ordinalRows),
+      single: summarizeEncounterCostRows(ordinalRows.filter(row => row.rawInitialVisibleEnemyCount === 1)),
+      pair: summarizeEncounterCostRows(ordinalRows.filter(row => row.rawInitialVisibleEnemyCount >= 2))
+    };
+  }
+
+  const firstRows = new Map(
+    rows.filter(row => row.encounterOrdinal === 1 && row.outcome === "clear")
+      .map(row => [row.runIndex, row])
+  );
+  const secondRows = new Map(
+    rows.filter(row => row.encounterOrdinal === 2).map(row => [row.runIndex, row])
+  );
+  const linkedRows = [...firstRows.entries()]
+    .filter(([runIndex]) => secondRows.has(runIndex))
+    .map(([runIndex, firstRow]) => ({ firstRow, secondRow: secondRows.get(runIndex) }));
+  const summarizeLinkedRows = selected => {
+    const selectedRows = linkedRows.filter(selected);
+    return {
+      runs: selectedRows.length,
+      encounter1PostCombatHp: summarizeValues(selectedRows.map(({ firstRow }) => firstRow.hpAfterEncounter)),
+      encounter1PostCombatHpRate: summarizeValues(selectedRows.map(({ firstRow }) => {
+        if (!Number.isFinite(firstRow.hpAfterEncounter) || !Number.isFinite(firstRow.maxHpBeforeEncounter)) return null;
+        return firstRow.hpAfterEncounter / Math.max(1, firstRow.maxHpBeforeEncounter);
+      })),
+      encounter2EntryHpRate: summarizeValues(selectedRows.map(({ secondRow }) => secondRow.hpRateBeforeEncounter)),
+      encounter2EntryMpRate: summarizeValues(selectedRows.map(({ secondRow }) => secondRow.mpRateBeforeEncounter))
+    };
+  };
+  return {
+    byEncounterOrdinal,
+    encounter1ToEncounter2: {
+      all: summarizeLinkedRows(() => true),
+      single: summarizeLinkedRows(({ firstRow }) => firstRow.rawInitialVisibleEnemyCount === 1),
+      pair: summarizeLinkedRows(({ firstRow }) => firstRow.rawInitialVisibleEnemyCount >= 2)
+    }
+  };
+}
+
+function summarizeFleeEncounter2Cohort(result) {
+  const rows = result.encounterExposure.encounterRows;
+  const firstRows = rows.filter(row => row.encounterOrdinal === 1);
+  const encounter2RunIndices = new Set(
+    rows.filter(row => row.encounterOrdinal === 2).map(row => row.runIndex)
+  );
+  const summarizeCohort = predicate => {
+    const cohort = firstRows.filter(predicate);
+    const runIndices = new Set(cohort.map(row => row.runIndex));
+    const reached = [...runIndices].filter(runIndex => encounter2RunIndices.has(runIndex));
+    return {
+      selectedRuns: runIndices.size,
+      encounter2ReachedRuns: reached.length,
+      encounter2ReachRate: runIndices.size > 0 ? reached.length / runIndices.size : null
+    };
+  };
+  return {
+    encounter1ObservedRuns: new Set(firstRows.map(row => row.runIndex)).size,
+    encounter2ReachedRuns: encounter2RunIndices.size,
+    encounter2ReachRatePerRun: result.runOutcome.b2ArrivalRate,
+    selected: summarizeCohort(row => row.fleeSelected > 0),
+    executed: summarizeCohort(row => row.fleeExecuted > 0)
   };
 }
 
@@ -229,6 +323,8 @@ export async function runEarlyEncounterCauseDiagnostic({
       ])
     ),
     naturalEntryResource: summarizeNaturalEntryResource(baseline),
+    naturalEncounterCost: summarizeNaturalEncounterCost(baseline),
+    fleeEncounter2Cohort: summarizeFleeEncounter2Cohort(fleeDiagnostic),
     fixedCombat
   };
 }
@@ -272,6 +368,7 @@ function buildSummary(report) {
     configuration,
     sensitivity,
     naturalEntryResource,
+    naturalEncounterCost,
     fleeDiagnostic,
     fixedCombat
   } = report;
@@ -331,6 +428,48 @@ function buildSummary(report) {
       `${fleeDiagnostic.runOutcome.fleeDiedFromPartingAttack} | ${formatRate(fleeDiagnostic.runOutcome.fleeSurvivalRate)} |`,
     "",
     "The flee row uses the same issue-1176 world-seed template and production flee resolver; it is a counterfactual policy comparison, not a recommended default."
+  );
+  const fightEncounter2 = sensitivity.baseline.encounter2;
+  const fleeEncounter2 = report.fleeEncounter2Cohort;
+  lines.push(
+    "",
+    "## Early encounter cost and linked HP",
+    "",
+    "Normal damage is the production diagnostic `normalDamage` field. Survivor post-combat HP excludes death rows. The linked rows match encounter 1 survivors to encounter 2 by runIndex.",
+    "",
+    "| Ordinal | Group | Encounters / deaths | Normal damage p50 / p95 | Survivor HP p50 / p95 | Survivor HP rate p50 / p95 |",
+    "| ---: | --- | ---: | ---: | ---: | ---: |"
+  );
+  for (const ordinal of [1, 2]) {
+    for (const group of ["all", "single", "pair"]) {
+      const row = naturalEncounterCost.byEncounterOrdinal[String(ordinal)][group];
+      lines.push(
+        `| ${ordinal} | ${group} | ${row.encounters} / ${row.deaths} | ` +
+        `${formatNumber(row.normalDamage.p50)} / ${formatNumber(row.normalDamage.p95)} | ` +
+        `${formatNumber(row.survivorPostCombatHp.p50)} / ${formatNumber(row.survivorPostCombatHp.p95)} | ` +
+        `${formatRate(row.survivorPostCombatHpRate.p50)} / ${formatRate(row.survivorPostCombatHpRate.p95)} |`
+      );
+    }
+  }
+  lines.push(
+    "",
+    "| Encounter 1 group | Linked runs | E1 survivor HP p50 / p95 | E2 entry HP rate p50 / p95 | E2 entry MP rate p50 / p95 |",
+    "| --- | ---: | ---: | ---: | ---: |",
+    ...["all", "single", "pair"].map(group => {
+      const row = naturalEncounterCost.encounter1ToEncounter2[group];
+      return `| ${group} | ${row.runs} | ${formatNumber(row.encounter1PostCombatHp.p50)} / ${formatNumber(row.encounter1PostCombatHp.p95)} | ` +
+        `${formatRate(row.encounter2EntryHpRate.p50)} / ${formatRate(row.encounter2EntryHpRate.p95)} | ` +
+        `${formatRate(row.encounter2EntryMpRate.p50)} / ${formatRate(row.encounter2EntryMpRate.p95)} |`;
+    }),
+    "",
+    "## Encounter 2 reach after fight / flee",
+    "",
+    "| Policy / cohort | Population | Encounter 2 reached | Reach rate |",
+    "| --- | ---: | ---: | ---: |",
+    `| Fight all runs | ${configuration.runs} | ${fightEncounter2.encountered} | ${formatRate(fightEncounter2.encounteredRate)} |`,
+    `| Flee all runs | ${configuration.runs} | ${fleeEncounter2.encounter2ReachedRuns} | ${formatRate(fleeEncounter2.encounter2ReachRatePerRun)} |`,
+    `| Flee selected at encounter 1 | ${fleeEncounter2.selected.selectedRuns} | ${fleeEncounter2.selected.encounter2ReachedRuns} | ${formatRate(fleeEncounter2.selected.encounter2ReachRate)} |`,
+    `| Flee executed at encounter 1 | ${fleeEncounter2.executed.selectedRuns} | ${fleeEncounter2.executed.encounter2ReachedRuns} | ${formatRate(fleeEncounter2.executed.encounter2ReachRate)} |`
   );
   lines.push(
     "",
