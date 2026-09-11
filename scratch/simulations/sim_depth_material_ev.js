@@ -5011,9 +5011,12 @@ function addItemCount(target, itemId, count = 1) {
 
 function recordPickupAttempt(metrics, source, category, accepted) {
   if (!metrics) return;
-  metrics.pickupAttemptsBySource[source]++;
+  const pickupSource = ["ordinary", "fromDrop", "secretRoom", "special-reward"].includes(source)
+    ? "chest"
+    : source;
+  metrics.pickupAttemptsBySource[pickupSource]++;
   if (accepted) return;
-  metrics.pickupRejectionsBySource[source]++;
+  metrics.pickupRejectionsBySource[pickupSource]++;
   metrics.pickupRejectionsByCategory[category]++;
 }
 
