@@ -232,7 +232,7 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
       name: 'b2-right-turn-arch',
       floor: 6,
       widths: [VIEWPORTS[2]],
-      path: [[5, 5, 0], [5, 4, 1], [6, 4, 1]],
+      path: [[5, 5, 0], [5, 4, 1], [6, 4, 1], [7, 4, 1]],
     },
   ];
 

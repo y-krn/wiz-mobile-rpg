@@ -32,12 +32,12 @@ import { isMiniMapAnimating, renderMiniMapOverlay } from "./minimap.js";
 const VIEW_W = 400;
 const VIEW_H = 260;
 const THREE_CORRIDOR_BASE = Object.freeze({
-  cellWidth: 1.9,
+  cellWidth: 1.92,
   cellDepth: 2.1,
   wallHeight: 3.2,
   startZ: 1.15,
   fov: 88,
-  eyeOffsetZ: 0,
+  eyeOffsetZ: 0.4,
   lookAtHeight: 1.5,
   lookAtZ: -2.6,
   fogNear: 4.8,
@@ -625,6 +625,12 @@ export class ThreeDungeonRenderer {
       const depthShade = 1 - Math.min(0.12, cell.z * 0.04);
       const floorSurface = floorMaterial.clone();
       floorSurface.color.multiplyScalar(depthShade);
+      if (cell.column !== 0) {
+        // Keep real side-cell floors dominant enough to read as a continuation
+        // of the route when viewed obliquely from a fixed forward heading.
+        floorSurface.color.multiplyScalar(1.5);
+        floorSurface.emissiveIntensity = 0.6;
+      }
       const floor = new Mesh(new PlaneGeometry(profile.cellWidth, profile.cellDepth), floorSurface);
       floor.rotation.set(-Math.PI / 2, rotationY, 0);
       floor.position.set(centerX, 0, centerZ);
@@ -632,9 +638,9 @@ export class ThreeDungeonRenderer {
       cellGroup.add(floor);
 
       const ceilingSurface = floorMaterial.clone();
-      ceilingSurface.color.multiplyScalar(Math.max(0.52, depthShade * 0.62));
+      ceilingSurface.color.multiplyScalar(Math.max(0.52, depthShade * (cell.column === 0 ? 0.62 : 0.72)));
       ceilingSurface.emissive.multiplyScalar(0.42);
-      ceilingSurface.emissiveIntensity = 0.04;
+      ceilingSurface.emissiveIntensity = cell.column === 0 ? 0.04 : 0.06;
       const ceiling = new Mesh(
         createCeilingGeometry(profile.cellWidth, profile.cellDepth, profile.wallHeight, profile.ceilingStyle),
         ceilingSurface
@@ -696,10 +702,25 @@ export class ThreeDungeonRenderer {
           frontMaterial.emissive.multiplyScalar(0.35);
           frontMaterial.emissiveIntensity = 0.08;
         }
-        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellWidth, profile.wallHeight, profile.wallLean), frontMaterial, {
-          x: front.x,
+        const hasLeftOpening = !frame.leftBlocked;
+        const hasRightOpening = !frame.rightBlocked;
+        const frontWallWidth = isOneWay
+          ? profile.cellWidth
+          : hasLeftOpening !== hasRightOpening
+            ? profile.cellWidth * 0.68
+            : hasLeftOpening && hasRightOpening
+              ? profile.cellWidth * 0.82
+              : profile.cellWidth;
+        const frontWallOffset = hasRightOpening && !hasLeftOpening
+          ? -(profile.cellWidth - frontWallWidth) / 2
+          : hasLeftOpening && !hasRightOpening
+            ? (profile.cellWidth - frontWallWidth) / 2
+            : 0;
+        const frontWall = toWorld(frontWallOffset, -profile.cellDepth / 2);
+        this.addCorridorWall(cellGroup, createWallGeometry(frontWallWidth, profile.wallHeight, profile.wallLean), frontMaterial, {
+          x: frontWall.x,
           y: profile.wallHeight / 2,
-          z: front.z
+          z: frontWall.z
         }, isOneWay ? "front-wall-one-way" : "front-wall", cell, rotationY, false);
         if (isOneWay) {
           const chevron = new Mesh(
