@@ -12,6 +12,7 @@ import {
   PerspectiveCamera,
   PlaneGeometry,
   Scene,
+  Vector3,
   WebGLRenderer,
 } from "three";
 import { getVisibleCorridorTopology } from "./rules/renderer_topology.js";
@@ -25,15 +26,15 @@ export const THREE_DUNGEON_SPIKE_VIEW = Object.freeze({
 // or biome values here: one profile must explain every archetype.
 export const THREE_DUNGEON_SPIKE_PROFILE = Object.freeze({
   cellWidth: 1.8,
-  cellDepth: 2.8,
+  cellDepth: 1.8,
   wallHeight: 2.2,
   wallThickness: 0.12,
-  startZ: 1.4,
+  startZ: 1.0,
   eyeHeight: 1.1,
-  eyeZ: 1.5,
+  eyeZ: 1.25,
   lookAtHeight: 0.56,
-  lookAtZ: -3.0,
-  fov: 100,
+  lookAtZ: -2.7,
+  fov: 130,
   fogNear: 4.8,
   fogFar: 15.5,
 });
@@ -49,11 +50,17 @@ function color(value, fallback) {
   }
 }
 
-function disposeObject(object) {
+function disposeObject(object, stats = null) {
   object.traverse((child) => {
-    child.geometry?.dispose();
+    if (child.geometry) {
+      stats && (stats.disposedGeometries += 1);
+      child.geometry.dispose();
+    }
     const materials = Array.isArray(child.material) ? child.material : [child.material];
-    materials.filter(Boolean).forEach((material) => material.dispose());
+    materials.filter(Boolean).forEach((material) => {
+      stats && (stats.disposedMaterials += 1);
+      material.dispose();
+    });
   });
 }
 
@@ -100,7 +107,7 @@ function addSurface(parent, geometry, material, position, surface, topology, rot
   return mesh;
 }
 
-function addCellGeometry(root, cell, profile, floorMaterial, wallMaterial) {
+function addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceilingMaterial) {
   if (!cell.valid) return;
 
   const cellGroup = new Group();
@@ -125,7 +132,7 @@ function addCellGeometry(root, cell, profile, floorMaterial, wallMaterial) {
   addSurface(
     cellGroup,
     new PlaneGeometry(profile.cellWidth, profile.cellDepth),
-    floorMaterial,
+    ceilingMaterial,
     { x: 0, y: profile.wallHeight, z: 0 },
     "ceiling",
     cell,
@@ -168,6 +175,7 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
   camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
   const root = new Group();
   scene.add(root);
+  const resourceStats = { rebuilds: 0, disposedGeometries: 0, disposedMaterials: 0 };
 
   const renderer = {
     canvas,
@@ -178,9 +186,10 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
     profile,
     cameraTarget,
     renderTopology(topology, visual = {}) {
+      resourceStats.rebuilds += 1;
       while (root.children.length > 0) {
         const child = root.children.pop();
-        disposeObject(child);
+        disposeObject(child, resourceStats);
       }
 
       const background = color(visual.background, DEFAULT_BACKGROUND);
@@ -188,8 +197,9 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       // One shared material family carries hierarchy: path floor is brighter,
       // enclosure walls/ceiling are quieter. No branch receives a special
       // material or lighting treatment.
-      const floorColor = background.clone().lerp(wall, 0.82);
-      const wallColor = background.clone().lerp(wall, 0.025);
+      const floorColor = background.clone().lerp(wall, 0.72);
+      const wallColor = background.clone().lerp(wall, 0.18);
+      const ceilingColor = background.clone().lerp(wall, 0.08);
       const floorMaterial = new MeshStandardMaterial({
         color: floorColor,
         roughness: 0.96,
@@ -204,6 +214,12 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
         emissiveIntensity: 0.08,
         side: DoubleSide,
       });
+      const ceilingMaterial = new MeshStandardMaterial({
+        color: ceilingColor,
+        roughness: 0.9,
+        metalness: 0.08,
+        side: DoubleSide,
+      });
 
       scene.background = background;
       scene.fog = new Fog(background, profile.fogNear, profile.fogFar);
@@ -212,9 +228,10 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       const keyLight = new DirectionalLight(wall, 0.65);
       keyLight.position.set(-2, 5, 4);
       root.add(keyLight);
-      topology.forEach((cell) => addCellGeometry(root, cell, profile, floorMaterial, wallMaterial));
+      topology.forEach((cell) => addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceilingMaterial));
       floorMaterial.dispose();
       wallMaterial.dispose();
+      ceilingMaterial.dispose();
 
       // Reapply the same camera transform after every rebuild. No topology
       // branch is allowed to influence eye, heading, or FOV.
@@ -234,6 +251,9 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
         fov: camera.fov,
       };
     },
+    getResourceStats() {
+      return { ...resourceStats };
+    },
     getTopologySurfaces() {
       const surfaces = [];
       root.traverse((child) => {
@@ -241,6 +261,7 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
           surface: child.userData.surface,
           topology: child.userData.topology,
           y: child.position.y,
+          worldPosition: child.getWorldPosition(new Vector3()).toArray(),
         });
       });
       return surfaces;
@@ -248,7 +269,7 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
     dispose() {
       while (root.children.length > 0) {
         const child = root.children.pop();
-        disposeObject(child);
+        disposeObject(child, resourceStats);
       }
       webgl.dispose();
     },

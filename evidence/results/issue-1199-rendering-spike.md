@@ -11,19 +11,23 @@ production-backed B1F state:
 | value | frozen value |
 | --- | ---: |
 | cell width | 1.8 |
-| cell depth | 2.8 |
+| cell depth | 1.8 |
 | wall height | 2.2 |
 | wall thickness | 0.12 |
-| start Z | 1.4 |
-| eye `(x, y, z)` | `(0, 1.1, 1.5)` |
-| look-at `(x, y, z)` | `(0, 0.56, -3.0)` |
-| vertical FOV | 100° |
+| start Z | 1.0 |
+| eye `(x, y, z)` | `(0, 1.1, 1.25)` |
+| look-at `(x, y, z)` | `(0, 0.56, -2.7)` |
+| vertical FOV | 130° |
 | fog near / far | 4.8 / 15.5 |
 
 The camera is reset to this contract after every topology rebuild. The scene
 contains only real neighboring cell floor, ceiling, and blocked wall geometry;
 there is no side mouth, ramp, raised tongue, fake vestibule, emissive branch
 marker, minimap, HUD, or direction label.
+
+The square cell profile is intentional: a 90° neighboring cell shares the
+same edge length, so side-branch floor and ceiling boundaries meet the current
+cell without a raised threshold or inset vestibule.
 
 ## Evidence command
 

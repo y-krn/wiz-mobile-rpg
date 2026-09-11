@@ -16,6 +16,27 @@ const ARCHETYPES = [
   'cross-junction',
 ];
 
+function getExpectedFrame(cell) {
+  if (cell.column < 0) return {
+    leftBlocked: cell.backBlocked,
+    rightBlocked: cell.frontBlocked,
+    frontBlocked: cell.leftBlocked,
+    backBlocked: cell.rightBlocked,
+  };
+  if (cell.column > 0) return {
+    leftBlocked: cell.frontBlocked,
+    rightBlocked: cell.backBlocked,
+    frontBlocked: cell.rightBlocked,
+    backBlocked: cell.leftBlocked,
+  };
+  return {
+    leftBlocked: cell.leftBlocked,
+    rightBlocked: cell.rightBlocked,
+    frontBlocked: cell.frontBlocked,
+    backBlocked: cell.backBlocked,
+  };
+}
+
 function installSpikeCanvas(page) {
   return page.evaluate(() => {
     const canvas = document.createElement('canvas');
@@ -59,12 +80,15 @@ async function renderSynthetic(page, archetype) {
     fixture.paths.forEach(([x, y, dir]) => open(x, y, dir));
     const { createThreeDungeonSpikeRenderer } = await import('/src/three_dungeon_spike.js');
     const { getFloorTheme } = await import('/src/data/floor_themes.js');
+    const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
     const canvas = document.querySelector('#three-dungeon-spike-canvas');
     window.__threeDungeonSpike?.dispose();
     window.__threeDungeonSpike = createThreeDungeonSpikeRenderer(canvas);
     window.__threeDungeonSpike.renderMap(fixture.map, 4, 4, 0, getFloorTheme(1).visualSignature);
     return {
       camera: window.__threeDungeonSpike.getCameraContract(),
+      profile: window.__threeDungeonSpike.profile,
+      topology: getVisibleCorridorTopology(fixture.map, 4, 4, 0),
       surfaces: window.__threeDungeonSpike.getTopologySurfaces(),
     };
   }, { archetype, fixture: createSyntheticMap(archetype) });
@@ -93,6 +117,35 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
       expect(evidence.surfaces.filter(({ surface }) => surface === 'ceiling').length).toBeGreaterThan(0);
       expect(evidence.surfaces.every(({ y }) => Number.isFinite(y))).toBe(true);
 
+      const cells = evidence.topology.filter(({ valid }) => valid);
+      const surfacesByCell = new Map();
+      evidence.surfaces.forEach((surface) => {
+        const key = `${surface.topology.z}:${surface.topology.column}`;
+        const current = surfacesByCell.get(key) || [];
+        current.push(surface.surface);
+        surfacesByCell.set(key, current);
+      });
+      expect(cells.every((cell) => {
+        const surfaces = surfacesByCell.get(`${cell.z}:${cell.column}`) || [];
+        return surfaces.includes('floor') && surfaces.includes('ceiling');
+      })).toBe(true);
+      cells.forEach((cell) => {
+        const surfaces = surfacesByCell.get(`${cell.z}:${cell.column}`) || [];
+        const expected = getExpectedFrame(cell);
+        Object.entries(expected).forEach(([edge, blocked]) => {
+          const wall = `${edge.replace('Blocked', '')}-wall`;
+          expect(surfaces.includes(wall), `${archetype} ${cell.z}:${cell.column} ${edge}`).toBe(blocked);
+        });
+      });
+      const floorSurfaces = evidence.surfaces.filter(({ surface }) => surface === 'floor');
+      expect(new Set(floorSurfaces.map(({ y }) => y))).toEqual(new Set([0]));
+      const currentFloor = floorSurfaces.find(({ topology }) => topology.z === 0 && topology.column === 0);
+      floorSurfaces.filter(({ topology }) => topology.z === 0 && Math.abs(topology.column) === 1).forEach((branchFloor) => {
+        expect(branchFloor.worldPosition[1]).toBe(currentFloor.worldPosition[1]);
+        expect(Math.abs(branchFloor.worldPosition[0] - currentFloor.worldPosition[0])).toBeCloseTo(evidence.profile.cellWidth, 5);
+        expect(branchFloor.worldPosition[2]).toBeCloseTo(currentFloor.worldPosition[2], 5);
+      });
+
       const screenshot = await page.locator('#three-dungeon-spike-canvas').screenshot({
         path: testInfo.outputPath(`issue-1199-${archetype}-${viewport.width}px.png`),
       });
@@ -104,6 +157,32 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
 
     expect(contracts).toEqual(contracts.map(() => contracts[0]));
   }
+});
+
+test('Issue 1199 spike releases scene-owned resources across same-instance rebuilds @smoke @e2e', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await installSpikeCanvas(page);
+  const stats = await page.evaluate(async () => {
+    const { createThreeDungeonSpikeRenderer } = await import('/src/three_dungeon_spike.js');
+    const canvas = document.querySelector('#three-dungeon-spike-canvas');
+    const map = Array.from({ length: 3 }, () => Array.from({ length: 3 }, () => ({
+      walls: [true, true, true, true],
+      blockEnter: [false, false, false, false],
+      type: 'empty',
+    })));
+    map[1][1].walls[0] = false;
+    map[0][1].walls[2] = false;
+    const renderer = createThreeDungeonSpikeRenderer(canvas);
+    renderer.renderMap(map, 1, 1, 0);
+    renderer.renderMap(map, 1, 1, 0);
+    const result = renderer.getResourceStats();
+    renderer.dispose();
+    return result;
+  });
+  expect(stats.rebuilds).toBe(2);
+  expect(stats.disposedGeometries).toBeGreaterThan(0);
+  expect(stats.disposedMaterials).toBeGreaterThan(0);
 });
 
 test('Issue 1199 production-backed B1F proof uses generated map and renderer-neutral topology @smoke @visual', async ({ page }, testInfo) => {
