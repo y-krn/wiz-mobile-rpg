@@ -11,9 +11,9 @@ B1F の通常宝箱だけで `HEAL_POTION` の重みを 1x から 2x にする�
 - 対象: fresh `vanguard` / `fight` / `production` / B1F、持ち込み resource なし、targetDepth 2
 - N=10,000 / case、seed=1198、Node `v26.8.1`
 - runner: `issue1198-continuation-resource-v1` / schema 9
-- source HEAD: `7cdaf557b3ea684fb857a5087eda08c5ee9ccf17`
+- source HEAD: `49d5a224e6da4dcd65cfb1ca0ea9897c7002578b`
 - production gameplay/base: `210859dfddb168f682373011347d2eaa62b3f934` (`origin/main` の #1197 merge)
-- measurement runner diff: `437d90a305e5ca0b67d1ce9bcfd6170b20ed232a57a2b727cec6f6fdb11ab79f`
+- measurement runner diff: `5c8de745d3d70d577e64ac0d3b32e174dd2fdd67f6511f3b6a62843af79dd97e`
 - environment hash: `afedb4037c3ffa31`
 - working tree: clean、同一 seed の N=1,000 再実行は report/summary とも完全一致
 
@@ -74,9 +74,9 @@ node scratch/measurements/starting_kit_diagnostic.js \
   --recovery-policy production \
   --runs 10000 \
   --seed 1198 \
-  --output /tmp/issue-1198-final-v1/report.json \
-  --summary /tmp/issue-1198-final-v1/summary.md \
-  --manifest /tmp/issue-1198-final-v1/manifest.json \
-  --purpose issue-1198-production-remeasure-final \
+  --output /tmp/issue-1198-final-v2/report.json \
+  --summary /tmp/issue-1198-final-v2/summary.md \
+  --manifest /tmp/issue-1198-final-v2/manifest.json \
+  --purpose issue-1198-production-remeasure-final-v2 \
   --ref issue/1198-resource-cadence
 ```
