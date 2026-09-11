@@ -92,7 +92,7 @@ export function getThreeCorridorProfile(geometry = {}) {
     // Keep a stable first-person eye point while aiming through the near
     // threshold. This keeps real neighboring floors inside the mobile frame;
     // the branch itself still comes from the adjacent cell geometry.
-    lookAtHeight: clamp(eyeHeight - 0.55, 0.95, 1.15),
+    lookAtHeight: clamp(eyeHeight - 0.75, 0.75, 1.0),
     lookAtZ: -0.6,
     fogNear: THREE_CORRIDOR_BASE.fogNear,
     fogFar: THREE_CORRIDOR_BASE.fogFar,
@@ -315,6 +315,7 @@ export class ThreeDungeonRenderer {
     this.lastSignature = null;
     this.targetHitMeshes = [];
     this.sceneSignature = null;
+    this.sceneTopology = [];
     this.feedbackOverlay = null;
     this.activeProfile = getThreeCorridorProfile();
 
@@ -487,10 +488,25 @@ export class ThreeDungeonRenderer {
       : profile.eyeZ;
     this.camera.fov = profile.fov;
     this.camera.updateProjectionMatrix();
-    this.camera.position.x = shakeX;
+    // Keep the heading fixed while moving the eye within the current cell
+    // toward an asymmetric near opening. This exposes the real adjacent floor
+    // without auto-pan or a synthetic side-passage surface.
+    const openingCell = renderInput.sceneVisibility.showCombat
+      ? null
+      : this.sceneTopology.find(({ z, column, leftBlocked, rightBlocked }) =>
+        column === 0 && z <= 1 && (leftBlocked !== rightBlocked)
+      );
+    const sideBias = openingCell
+      ? (openingCell.leftBlocked ? -1 : 1)
+      : 0;
+    const eyeX = shakeX + profile.cellWidth * 0.28 * sideBias;
+    const lookAtHeight = renderInput.sceneVisibility.showCombat
+      ? clamp(profile.eyeHeight - 0.55, 0.95, 1.15)
+      : profile.lookAtHeight;
+    this.camera.position.x = eyeX;
     this.camera.position.y = profile.eyeHeight + shakeY;
     this.camera.position.z = eyeZ;
-    this.camera.lookAt(0, profile.lookAtHeight, profile.lookAtZ);
+    this.camera.lookAt(eyeX, lookAtHeight, profile.lookAtZ);
     this.flashLight.intensity = this.flashTime > 0 ? 1.4 : 0;
     this.webgl.render(this.scene, this.camera);
     renderMiniMapOverlay(renderInput);
@@ -509,13 +525,14 @@ export class ThreeDungeonRenderer {
     const background = hexColor(visual.background);
     const wall = hexColor(visual.wallColor, "#58d6e8");
     const topology = this.getSceneTopology(input);
+    this.sceneTopology = topology;
     this.scene.background = background;
     this.scene.fog = new Fog(background, profile.fogNear, profile.fogFar);
     this.webgl.setClearColor(background, 1);
 
     this.root.add(new AmbientLight(0x8e9aa0, 0.62));
     const keyLight = new DirectionalLight(wall, 0.65);
-    keyLight.position.set(-2, 5, 4);
+    keyLight.position.set(0, 5, 0);
     this.root.add(keyLight);
     this.flashLight = new PointLight(0xffffff, 0, 8);
     this.flashLight.position.set(0, 1.4, 2);
@@ -525,7 +542,7 @@ export class ThreeDungeonRenderer {
     // Dark Archive mood while making the floor, wall, and ceiling separable
     // without relying on a wireframe or a fullscreen glow.
     const floorColor = background.clone().lerp(wall, 0.55);
-    const wallSurfaceColor = background.clone().lerp(wall, 0.09);
+    const wallSurfaceColor = background.clone().lerp(wall, 0.06);
     const floorMaterial = new MeshStandardMaterial({
       color: floorColor,
       roughness: 0.96,
@@ -541,7 +558,7 @@ export class ThreeDungeonRenderer {
       roughness: 0.78,
       metalness: 0.28,
       emissive: wall,
-      emissiveIntensity: 0.04,
+      emissiveIntensity: 0.015,
       side: DoubleSide
     });
     if (!input.sceneVisibility.showTownBackground) {
@@ -614,13 +631,6 @@ export class ThreeDungeonRenderer {
             frontBlocked: cell.frontBlocked,
             frontOneWayBarrier: cell.frontOneWayBarrier,
           };
-      // When the next real center cell turns sideways, keep a narrow corner
-      // aperture in the current wall so its adjacent floor can be seen. The
-      // movement topology remains authoritative; this only exposes existing
-      // cell geometry instead of adding a vestibule or proxy surface.
-      const forwardCell = topology.find((candidate) => candidate.z === cell.z + 1 && candidate.column === 0);
-      const frontCornerLeftPortal = cell.column === 0 && cell.z === 0 && forwardCell?.valid && !forwardCell.leftBlocked;
-      const frontCornerRightPortal = cell.column === 0 && cell.z === 0 && forwardCell?.valid && !forwardCell.rightBlocked;
       const front = toWorld(0, -profile.cellDepth / 2);
       if (!cell.valid) {
         this.addCorridorWall(cellGroup, createWallGeometry(profile.cellWidth, profile.wallHeight, profile.wallLean), wallMaterial, {
@@ -641,9 +651,9 @@ export class ThreeDungeonRenderer {
       cellGroup.add(floor);
 
       const ceilingSurface = floorMaterial.clone();
-      ceilingSurface.color.multiplyScalar(Math.max(0.52, depthShade * 0.62));
+      ceilingSurface.color.multiplyScalar(Math.max(0.64, depthShade * 0.72));
       ceilingSurface.emissive.multiplyScalar(0.42);
-      ceilingSurface.emissiveIntensity = 0.04;
+      ceilingSurface.emissiveIntensity = 0.06;
       const ceiling = new Mesh(
         createCeilingGeometry(profile.cellWidth, profile.cellDepth, profile.wallHeight, profile.ceilingStyle),
         ceilingSurface
@@ -654,8 +664,8 @@ export class ThreeDungeonRenderer {
       ceiling.userData = { surface: "ceiling", topology: cellGroup.userData.topology };
       cellGroup.add(ceiling);
 
-      // A low-contrast threshold seam makes cell depth legible without
-      // turning the corridor into a neon wireframe.
+      // A restrained threshold seam makes cell depth legible without turning
+      // the corridor into a neon wireframe.
       this.addDepthSeam(cellGroup, profile, wall, cell, toWorld, rotationY, depthShade);
 
       // An open side edge still has physical wall thickness at its two
@@ -667,18 +677,16 @@ export class ThreeDungeonRenderer {
       }
 
       if (frame.leftBlocked) {
-        const sideWallGap = frontCornerLeftPortal ? profile.cellDepth * 0.48 : 0;
-        const left = toWorld(-profile.cellWidth / 2, sideWallGap / 2);
-        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth - sideWallGap, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
+        const left = toWorld(-profile.cellWidth / 2, 0);
+        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
           x: left.x,
           y: profile.wallHeight / 2,
           z: left.z
         }, "left-wall", cell, rotationY + Math.PI / 2);
       }
       if (frame.rightBlocked) {
-        const sideWallGap = frontCornerRightPortal ? profile.cellDepth * 0.48 : 0;
-        const right = toWorld(profile.cellWidth / 2, sideWallGap / 2);
-        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth - sideWallGap, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
+        const right = toWorld(profile.cellWidth / 2, 0);
+        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
           x: right.x,
           y: profile.wallHeight / 2,
           z: right.z
@@ -712,9 +720,9 @@ export class ThreeDungeonRenderer {
         const frontWallWidth = isOneWay
           ? profile.cellWidth
           : hasLeftOpening !== hasRightOpening
-            ? profile.cellWidth * 0.28
+            ? profile.cellWidth * 0.68
             : hasLeftOpening && hasRightOpening
-              ? profile.cellWidth * 0.65
+              ? profile.cellWidth * 0.82
               : profile.cellWidth;
         const frontWallOffset = hasRightOpening && !hasLeftOpening
           ? -(profile.cellWidth - frontWallWidth) / 2
@@ -781,6 +789,7 @@ export class ThreeDungeonRenderer {
         new BoxGeometry(profile.cellWidth * 0.86, 0.025, 0.035),
         seamMaterial.clone()
       );
+      threshold.material.opacity = 0.36;
       const thresholdPosition = toWorld(0, profile.cellDepth / 2 - 0.024);
       threshold.position.set(thresholdPosition.x, 0.025, thresholdPosition.z);
       threshold.rotation.y = rotationY;
@@ -802,13 +811,15 @@ export class ThreeDungeonRenderer {
   }
 
   addSideBranchJambs(parent, side, wallMaterial, topology, profile, toWorld) {
+    // Keep the real opening corners, but leave enough of the adjacent floor
+    // visible to read the passage as one continuous walkable plane.
     const jambMaterial = wallMaterial.clone();
     jambMaterial.userData = { rendererLifecycle: "side-branch-jamb-prototype" };
     jambMaterial.color.multiplyScalar(0.78);
     const halfDepth = profile.cellDepth / 2;
     [-1, 1].forEach((edge) => {
       const position = toWorld(side * profile.cellWidth / 2, edge * halfDepth);
-      const jamb = new Mesh(new BoxGeometry(0.2, profile.wallHeight, 0.2), jambMaterial.clone());
+      const jamb = new Mesh(new BoxGeometry(0.12, profile.wallHeight, 0.12), jambMaterial.clone());
       jamb.material.userData = { rendererLifecycle: "side-branch-jamb-scene" };
       jamb.position.set(position.x, profile.wallHeight / 2, position.z);
       jamb.userData = {
