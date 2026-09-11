@@ -8,6 +8,11 @@ and root [`AGENTS.md`](../AGENTS.md) define those boundaries.
 `.agents/skills/*/SKILL.md` contains repeatable conditional workflows.
 The checklists below are references, not automatic skills or subagents.
 
+`.agents/issue-delivery.md` owns the lifecycle routing from a ready Issue to
+an acceptance/evidence map and PR handoff. It does not own domain rules,
+verification matrices, or independent review; those remain with the references
+linked below.
+
 For progression, economy, materials, workshop, rewards, run quests, or B5F clear
 behavior, review against `.agents/game-design.md` in addition to the relevant
 checklist definition.
