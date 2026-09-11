@@ -4407,6 +4407,9 @@ function createSimulationState(
       `${EARLY_MULTI_ENEMY_POLICIES.join("|")}: ${earlyEncounterMultiEnemyPolicy}`
     );
   }
+  const earlyCompositionCandidate = normalizeEarlyCompositionCandidate(
+    scenario.earlyCompositionCandidate || null
+  );
   const healPotionThreshold = Object.hasOwn(scenario, "healPotionThreshold")
     ? Number(scenario.healPotionThreshold)
     : HEAL_POTION_THRESHOLD;
@@ -4597,7 +4600,9 @@ function createSimulationState(
       healPriorityPolicy,
       bloodWandHealPolicy,
       materialDropOverride: scenario.materialDropOverride || null,
-      earlyEncounterMultiEnemyPolicy
+      earlyEncounterMultiEnemyPolicy,
+      earlyCompositionCandidate,
+      deferredEarlyComposition: null
     },
     floor: startFloor,
     lightTurns: 0,
@@ -7271,6 +7276,44 @@ function getEarlyMultiEnemyLimit(policy) {
   return null;
 }
 
+function baseMonsterName(name) {
+  return String(name).replace(/\s[A-Z]$/, "");
+}
+
+function compositionKey(monsters) {
+  return monsters.map(monster => baseMonsterName(monster.name)).sort().join(" + ");
+}
+
+function normalizeEarlyCompositionCandidate(candidate) {
+  if (candidate === null || candidate === undefined) return null;
+  if (!candidate || typeof candidate !== "object") {
+    throw new Error("earlyCompositionCandidate must be an object");
+  }
+  if (!["pool-redistribution", "ordering-defer"].includes(candidate.kind)) {
+    throw new Error("earlyCompositionCandidate.kind must be pool-redistribution|ordering-defer");
+  }
+  if (!Array.isArray(candidate.targetCompositionKeys) || candidate.targetCompositionKeys.length === 0) {
+    throw new Error("earlyCompositionCandidate.targetCompositionKeys must be non-empty");
+  }
+  if (!candidate.replacementByComposition || typeof candidate.replacementByComposition !== "object") {
+    throw new Error("earlyCompositionCandidate.replacementByComposition is required");
+  }
+  for (const key of candidate.targetCompositionKeys) {
+    const replacement = candidate.replacementByComposition[key];
+    if (!Array.isArray(replacement) || replacement.length !== 2) {
+      throw new Error(`earlyCompositionCandidate replacement is missing for ${key}`);
+    }
+  }
+  return {
+    id: String(candidate.id || candidate.kind),
+    kind: candidate.kind,
+    targetCompositionKeys: [...new Set(candidate.targetCompositionKeys.map(String))],
+    replacementByComposition: Object.fromEntries(
+      Object.entries(candidate.replacementByComposition).map(([key, names]) => [key, names.map(String)])
+    )
+  };
+}
+
 function getFirstPlayerActionOpportunity(roundResult, actionType) {
   const observations = roundResult?.actionObservations || [];
   const playerAction = observations.find(observation =>
@@ -7334,6 +7377,13 @@ function runEncounter(
         isElite,
         roamingMonster
       ).monsters;
+  const generatedCompositionKey = compositionKey(monsters);
+  let earlyCompositionCandidateAction = "none";
+  let earlyCompositionDeferredKey = null;
+  const earlyCompositionCandidate = state.simPolicy?.earlyCompositionCandidate;
+  const earlyCompositionCandidateTarget = earlyCompositionCandidate?.targetCompositionKeys?.includes(
+    generatedCompositionKey
+  );
   const generatedInitialVisibleEnemyCount = monsters.filter(monster => monster.hp > 0).length;
   const earlyMultiEnemyLimit = getEarlyMultiEnemyLimit(
     state.simPolicy?.earlyEncounterMultiEnemyPolicy
@@ -7351,6 +7401,28 @@ function runEncounter(
     generatedInitialVisibleEnemyCount >= 2
   );
   if (earlyCompositionSuppressed) monsters = monsters.slice(0, 1);
+  if (!fixedMonsterNames && !isBoss && !isMidboss && !isElite && earlyCompositionCandidate) {
+    const deferred = state.simPolicy.deferredEarlyComposition;
+    if (earlyCompositionCandidate.kind === "ordering-defer" &&
+        earlyNormalEncounterOrdinal === 2 && Array.isArray(deferred)) {
+      monsters = createFixedDiagnosticMonsters(deferred, state.floor);
+      state.simPolicy.deferredEarlyComposition = null;
+      earlyCompositionCandidateAction = "release-deferred";
+      earlyCompositionDeferredKey = compositionKey(monsters);
+    } else if (earlyCompositionCandidateTarget &&
+               ((earlyCompositionCandidate.kind === "pool-redistribution" && earlyNormalEncounterOrdinal <= 2) ||
+                (earlyCompositionCandidate.kind === "ordering-defer" && earlyNormalEncounterOrdinal === 1))) {
+      const replacementNames = earlyCompositionCandidate.replacementByComposition[generatedCompositionKey];
+      monsters = createFixedDiagnosticMonsters(replacementNames, state.floor);
+      earlyCompositionCandidateAction = earlyCompositionCandidate.kind === "ordering-defer"
+        ? "defer-and-replace"
+        : "redistribute-pool";
+      if (earlyCompositionCandidate.kind === "ordering-defer") {
+        state.simPolicy.deferredEarlyComposition = monsters.map(monster => baseMonsterName(monster.name));
+        earlyCompositionDeferredKey = generatedCompositionKey;
+      }
+    }
+  }
   if (state.alarmActive) {
     const multiplier = state.alarmWeakened ? 1.10 : 1.20;
     monsters.forEach(monster => {
@@ -7524,6 +7596,9 @@ function runEncounter(
       eventKey: stableEventKey,
       enemyNames,
       enemyCompositionKey,
+      generatedCompositionKey,
+      earlyCompositionCandidateAction,
+      earlyCompositionDeferredKey,
       outcome: null,
       hpBefore: encounterStartHp,
       mpBefore: encounterStartMp,
@@ -7552,6 +7627,11 @@ function runEncounter(
         generatedInitialVisibleEnemyCount,
         earlyCompositionPolicy: state.simPolicy?.earlyEncounterMultiEnemyPolicy || "baseline",
         earlyCompositionSuppressed,
+        generatedCompositionKey,
+        effectiveCompositionKey: compositionKey(monsters),
+        earlyCompositionCandidate: earlyCompositionCandidate?.id || null,
+        earlyCompositionCandidateAction,
+        earlyCompositionDeferredKey,
         monsters: monsters.map(monster => ({
           name: monster.name,
           atk: monster.atk,

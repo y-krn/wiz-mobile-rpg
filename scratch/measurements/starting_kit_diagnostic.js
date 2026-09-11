@@ -448,6 +448,11 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     earlyCompositionPolicy: diagnostic?.earlyCompositionPolicy || "baseline",
     earlyCompositionSuppressed: diagnostic?.earlyCompositionSuppressed === true,
     initialCompositionKey: compositionKey(identity.enemyNames || []),
+    generatedCompositionKey: diagnostic?.generatedCompositionKey || identity.generatedCompositionKey || compositionKey(identity.enemyNames || []),
+    effectiveCompositionKey: diagnostic?.effectiveCompositionKey || compositionKey(identity.enemyNames || []),
+    earlyCompositionCandidate: diagnostic?.earlyCompositionCandidate || null,
+    earlyCompositionCandidateAction: diagnostic?.earlyCompositionCandidateAction || "none",
+    earlyCompositionDeferredKey: diagnostic?.earlyCompositionDeferredKey || null,
     initialCompositionEnemyNames: enemyNames,
     outcome: identity.outcome || diagnostic?.result || "unknown",
     hpBeforeEncounter,
@@ -787,7 +792,8 @@ export function createDiagnosticScenario({
   startingKit,
   policy,
   fleeHpThreshold,
-  earlyCompositionPolicy = "baseline"
+  earlyCompositionPolicy = "baseline",
+  earlyCompositionCandidate = null
 }) {
   assertOneOf(startingKit, STARTING_KIT_IDS, "startingKit");
   assertOneOf(policy, POLICY_IDS, "policy");
@@ -816,6 +822,7 @@ export function createDiagnosticScenario({
       : policy === "flee-threshold" ? "threshold" : "visible-multi-enemy-flee",
     fleeHpThreshold: policy === "flee-threshold" ? threshold : null,
     earlyEncounterMultiEnemyPolicy: earlyCompositionPolicy,
+    earlyCompositionCandidate,
     consumablesAtDeparture: "none"
   };
 }
@@ -827,6 +834,7 @@ export async function runDiagnostic({
   runs = DEFAULT_RUNS,
   seed = DEFAULT_SEED,
   earlyCompositionPolicy = "baseline",
+  earlyCompositionCandidate = null,
   allowSmallRunCount = false
 } = {}) {
   const normalizedRuns = parsePositiveInteger(runs, "runs", { minimum: allowSmallRunCount ? 1 : DEFAULT_RUNS });
@@ -836,7 +844,8 @@ export async function runDiagnostic({
     startingKit,
     policy,
     fleeHpThreshold,
-    earlyCompositionPolicy
+    earlyCompositionPolicy,
+    earlyCompositionCandidate
   });
   const aggregate = createAggregate(normalizedRuns);
   for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
@@ -860,6 +869,7 @@ export async function runDiagnostic({
     equipmentLoad: getCharacterEquipmentLoad(createStartingKitCharacter(startingKit)),
     policy,
     earlyCompositionPolicy,
+    earlyCompositionCandidate,
     fleeHpThreshold: scenario.fleeHpThreshold,
     floorStart: 1,
     targetFloor: 2,

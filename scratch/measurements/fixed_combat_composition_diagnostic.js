@@ -336,13 +336,23 @@ export async function runFixedCombatDiagnostic({
   seed = DEFAULT_SEED,
   allowSmallRunCount = false,
   loadoutId = "standard",
-  startingKit = STARTING_KIT
+  startingKit = STARTING_KIT,
+  compositions = COMPOSITIONS,
+  includeContrasts = true
 } = {}) {
   const loadout = LOADOUTS[loadoutId];
   if (!loadout) throw new Error(`loadoutId must be ${Object.keys(LOADOUTS).join("|")}: ${loadoutId}`);
   if (!STARTING_KIT_IDS.includes(startingKit)) {
     throw new Error(`startingKit must be ${STARTING_KIT_IDS.join("|")}: ${startingKit}`);
   }
+  if (!Array.isArray(compositions) || compositions.length === 0) {
+    throw new Error("compositions must contain at least one composition");
+  }
+  compositions.forEach(composition => {
+    if (!composition?.id || !Array.isArray(composition.names) || composition.names.length !== 2) {
+      throw new Error("each composition must have an id and exactly two monster names");
+    }
+  });
   const normalizedRuns = positiveInteger(
     runs,
     "runs",
@@ -352,7 +362,7 @@ export async function runFixedCombatDiagnostic({
   resetSimulationRandom(normalizedSeed);
   const cases = [];
   for (const hpBand of HP_BANDS) {
-    for (const composition of COMPOSITIONS) {
+    for (const composition of compositions) {
       for (const policy of POLICIES) {
         const accumulator = createAccumulator({
           compositionId: composition.id,
@@ -384,9 +394,9 @@ export async function runFixedCombatDiagnostic({
       }
     }
   }
-  const contrasts = HP_BANDS.map(hpBand => {
+  const contrasts = includeContrasts ? HP_BANDS.map(hpBand => {
     const selected = cases.filter(testCase => testCase.hpBandId === hpBand.id);
-    const pairs = COMPOSITIONS.map(composition => ({
+    const pairs = compositions.map(composition => ({
       compositionId: composition.id,
       risk: composition.risk,
       fight: selected.find(testCase =>
@@ -465,7 +475,7 @@ export async function runFixedCombatDiagnostic({
         high.immediateFleePreemptedRate
       )
     };
-  });
+  }) : [];
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
@@ -479,7 +489,7 @@ export async function runFixedCombatDiagnostic({
       initialMpRatio: ENTRY_MP_RATIO,
       hpBands: HP_BANDS.map(({ id, ratio }) => ({ id, ratio })),
       policyIds: [...POLICIES],
-      compositionIds: COMPOSITIONS.map(composition => composition.id),
+      compositionIds: compositions.map(composition => composition.id),
       runs: normalizedRuns,
       seed: normalizedSeed,
       seedPolicy: "matched policy-independent worldSeed per HP band × composition × run index",
@@ -494,7 +504,7 @@ export async function runFixedCombatDiagnostic({
         "consumables (none at departure)"
       ]
     },
-    compositions: COMPOSITIONS.map(composition => ({
+    compositions: compositions.map(composition => ({
       id: composition.id,
       risk: composition.risk,
       monsterNames: [...composition.names]
