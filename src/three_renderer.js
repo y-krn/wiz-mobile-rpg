@@ -531,7 +531,9 @@ export class ThreeDungeonRenderer {
       roughness: 0.96,
       metalness: 0.06,
       emissive: floorColor,
-      emissiveIntensity: 0.12,
+      // Keep every route floor readable through a side opening with the same
+      // response; branch cells must not become topology-dependent panels.
+      emissiveIntensity: 0.32,
       side: DoubleSide
     });
     const wallMaterial = new MeshStandardMaterial({
@@ -612,6 +614,13 @@ export class ThreeDungeonRenderer {
             frontBlocked: cell.frontBlocked,
             frontOneWayBarrier: cell.frontOneWayBarrier,
           };
+      // When the next real center cell turns sideways, keep a narrow corner
+      // aperture in the current wall so its adjacent floor can be seen. The
+      // movement topology remains authoritative; this only exposes existing
+      // cell geometry instead of adding a vestibule or proxy surface.
+      const forwardCell = topology.find((candidate) => candidate.z === cell.z + 1 && candidate.column === 0);
+      const frontCornerLeftPortal = cell.column === 0 && cell.z === 0 && forwardCell?.valid && !forwardCell.leftBlocked;
+      const frontCornerRightPortal = cell.column === 0 && cell.z === 0 && forwardCell?.valid && !forwardCell.rightBlocked;
       const front = toWorld(0, -profile.cellDepth / 2);
       if (!cell.valid) {
         this.addCorridorWall(cellGroup, createWallGeometry(profile.cellWidth, profile.wallHeight, profile.wallLean), wallMaterial, {
@@ -625,12 +634,6 @@ export class ThreeDungeonRenderer {
       const depthShade = 1 - Math.min(0.12, cell.z * 0.04);
       const floorSurface = floorMaterial.clone();
       floorSurface.color.multiplyScalar(depthShade);
-      if (cell.column !== 0) {
-        // Keep real side-cell floors dominant enough to read as a continuation
-        // of the route when viewed obliquely from a fixed forward heading.
-        floorSurface.color.multiplyScalar(1.5);
-        floorSurface.emissiveIntensity = 0.6;
-      }
       const floor = new Mesh(new PlaneGeometry(profile.cellWidth, profile.cellDepth), floorSurface);
       floor.rotation.set(-Math.PI / 2, rotationY, 0);
       floor.position.set(centerX, 0, centerZ);
@@ -638,9 +641,9 @@ export class ThreeDungeonRenderer {
       cellGroup.add(floor);
 
       const ceilingSurface = floorMaterial.clone();
-      ceilingSurface.color.multiplyScalar(Math.max(0.52, depthShade * (cell.column === 0 ? 0.62 : 0.72)));
+      ceilingSurface.color.multiplyScalar(Math.max(0.52, depthShade * 0.62));
       ceilingSurface.emissive.multiplyScalar(0.42);
-      ceilingSurface.emissiveIntensity = cell.column === 0 ? 0.04 : 0.06;
+      ceilingSurface.emissiveIntensity = 0.04;
       const ceiling = new Mesh(
         createCeilingGeometry(profile.cellWidth, profile.cellDepth, profile.wallHeight, profile.ceilingStyle),
         ceilingSurface
@@ -664,16 +667,18 @@ export class ThreeDungeonRenderer {
       }
 
       if (frame.leftBlocked) {
-        const left = toWorld(-profile.cellWidth / 2, 0);
-        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
+        const sideWallGap = frontCornerLeftPortal ? profile.cellDepth * 0.48 : 0;
+        const left = toWorld(-profile.cellWidth / 2, sideWallGap / 2);
+        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth - sideWallGap, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
           x: left.x,
           y: profile.wallHeight / 2,
           z: left.z
         }, "left-wall", cell, rotationY + Math.PI / 2);
       }
       if (frame.rightBlocked) {
-        const right = toWorld(profile.cellWidth / 2, 0);
-        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
+        const sideWallGap = frontCornerRightPortal ? profile.cellDepth * 0.48 : 0;
+        const right = toWorld(profile.cellWidth / 2, sideWallGap / 2);
+        this.addCorridorWall(cellGroup, createWallGeometry(profile.cellDepth - sideWallGap, profile.wallHeight, profile.wallLean, true, profile.cellWidth), wallMaterial, {
           x: right.x,
           y: profile.wallHeight / 2,
           z: right.z
@@ -707,9 +712,9 @@ export class ThreeDungeonRenderer {
         const frontWallWidth = isOneWay
           ? profile.cellWidth
           : hasLeftOpening !== hasRightOpening
-            ? profile.cellWidth * 0.68
+            ? profile.cellWidth * 0.28
             : hasLeftOpening && hasRightOpening
-              ? profile.cellWidth * 0.82
+              ? profile.cellWidth * 0.65
               : profile.cellWidth;
         const frontWallOffset = hasRightOpening && !hasLeftOpening
           ? -(profile.cellWidth - frontWallWidth) / 2
@@ -771,7 +776,7 @@ export class ThreeDungeonRenderer {
     // The adjacent side cell owns the passage floor. A shallow floor seam at
     // its near edge keeps that real floor connected to the current cell in
     // screen space without introducing a raised sill or a proxy surface.
-    if (topology.z === 0 && Math.abs(topology.column) === 1) {
+    if (Math.abs(topology.column) === 1) {
       const threshold = new Mesh(
         new BoxGeometry(profile.cellWidth * 0.86, 0.025, 0.035),
         seamMaterial.clone()
