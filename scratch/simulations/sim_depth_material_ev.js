@@ -12420,13 +12420,13 @@ function resolveSimulationChest({
     const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
       itemIndex === chestItems.mainItemIndex;
     if (item === "HEAL_POTION" || item === "GREATER_HEAL") {
-      recordRecoveryPotionOffer(metrics, "chest", item);
+      recordRecoveryPotionOffer(metrics, source, item);
       if (item === "HEAL_POTION" && !shouldGrantNormalizedHealPotion(state)) {
         recordUnadoptedObjectLoot(state, metrics, item, "left", source);
         return;
       }
     }
-    if (!tryAddInventoryItem(state, item, metrics, "chest")) {
+    if (!tryAddInventoryItem(state, item, metrics, source)) {
       recordUnadoptedObjectLoot(state, metrics, item, "left", source);
       return;
     }
@@ -14918,7 +14918,7 @@ export function simulateRun({
           const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
             itemIndex === chestItems.mainItemIndex;
           if (item === "HEAL_POTION" || item === "GREATER_HEAL") {
-            recordRecoveryPotionOffer(metrics, "chest", item);
+            recordRecoveryPotionOffer(metrics, "ordinary", item);
             if (
               item === "HEAL_POTION" &&
               !shouldGrantNormalizedHealPotion(state)
@@ -14927,7 +14927,7 @@ export function simulateRun({
               return;
             }
           }
-          if (!tryAddInventoryItem(state, item, metrics, "chest")) {
+          if (!tryAddInventoryItem(state, item, metrics, "ordinary")) {
             recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
             return;
           }
