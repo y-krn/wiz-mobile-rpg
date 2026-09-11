@@ -24,8 +24,9 @@ export const THREE_DUNGEON_SPIKE_VIEW = Object.freeze({
   height: 260,
 });
 
-// Frozen Phase 1 profile. The prototype deliberately does not accept topology
-// or biome values here: one profile must explain every archetype.
+// Candidate Phase 1 profile. Freeze only after Phase 1 and Phase 2 human
+// visual review pass. The prototype deliberately does not accept topology or
+// biome values here: one profile must explain every archetype.
 export const THREE_DUNGEON_SPIKE_PROFILE = Object.freeze({
   cellWidth: 1.6,
   wallHeight: 2.4,
@@ -38,7 +39,7 @@ export const THREE_DUNGEON_SPIKE_PROFILE = Object.freeze({
   eyeZ: 3.0,
   lookAtHeight: 0.2,
   lookAtZ: 0.0,
-  fov: 72,
+  fov: 80,
   fogNear: 4.8,
   fogFar: 15.5,
 });
@@ -57,12 +58,12 @@ function color(value, fallback) {
 function disposeObject(object, stats = null) {
   object.traverse((child) => {
     if (child.geometry) {
-      stats && (stats.disposedGeometries += 1);
+      if (stats?.ownedGeometries?.delete(child.geometry)) stats.disposedGeometries += 1;
       child.geometry.dispose();
     }
     const materials = Array.isArray(child.material) ? child.material : [child.material];
     materials.filter(Boolean).forEach((material) => {
-      stats && (stats.disposedMaterials += 1);
+      if (stats?.ownedMaterials?.delete(material)) stats.disposedMaterials += 1;
       material.dispose();
     });
   });
@@ -99,8 +100,17 @@ function frameForCell(cell) {
   };
 }
 
-function addSurface(parent, geometry, material, position, surface, topology, rotation = null) {
+function createGeometry(stats, Geometry, ...args) {
+  const geometry = new Geometry(...args);
+  stats.createdGeometries += 1;
+  stats.ownedGeometries.add(geometry);
+  return geometry;
+}
+
+function addSurface(parent, geometry, material, position, surface, topology, stats, rotation = null) {
   const mesh = new Mesh(geometry, material.clone());
+  stats.ownedMaterials.add(mesh.material);
+  stats.createdMaterials += 1;
   mesh.position.set(position.x, position.y, position.z);
   if (rotation) mesh.rotation.set(rotation.x || 0, rotation.y || 0, rotation.z || 0);
   mesh.receiveShadow = true;
@@ -113,7 +123,7 @@ function addSurface(parent, geometry, material, position, surface, topology, rot
   return mesh;
 }
 
-function addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceilingMaterial) {
+function addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceilingMaterial, stats) {
   if (!cell.valid) return;
 
   const cellGroup = new Group();
@@ -128,38 +138,79 @@ function addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceili
 
   addSurface(
     cellGroup,
-    new PlaneGeometry(profile.cellWidth, profile.cellDepth),
+    createGeometry(stats, PlaneGeometry, profile.cellWidth, profile.cellDepth),
     floorMaterial,
     { x: 0, y: 0, z: 0 },
     "floor",
     cell,
+    stats,
     { x: -Math.PI / 2 }
   );
   addSurface(
     cellGroup,
-    new PlaneGeometry(profile.cellWidth, profile.cellDepth),
+    createGeometry(stats, PlaneGeometry, profile.cellWidth, profile.cellDepth),
     ceilingMaterial,
     { x: 0, y: profile.wallHeight, z: 0 },
     "ceiling",
     cell,
+    stats,
     { x: Math.PI / 2 }
   );
 
   const frame = frameForCell(cell);
   cellGroup.userData.frame = frame;
-  const frontWall = new BoxGeometry(profile.cellWidth, profile.wallHeight, profile.wallThickness);
-  const sideWall = new BoxGeometry(profile.wallThickness, profile.wallHeight, profile.cellDepth);
   const wallY = profile.wallHeight / 2;
-  if (frame.frontBlocked) addSurface(cellGroup, frontWall, wallMaterial, { x: 0, y: wallY, z: -profile.cellDepth / 2 }, "front-wall", cell);
-  if (frame.backBlocked) addSurface(cellGroup, frontWall, wallMaterial, { x: 0, y: wallY, z: profile.cellDepth / 2 }, "back-wall", cell);
-  if (frame.leftBlocked) addSurface(cellGroup, sideWall, wallMaterial, { x: -profile.cellWidth / 2, y: wallY, z: 0 }, "left-wall", cell);
-  if (frame.rightBlocked) addSurface(cellGroup, sideWall, wallMaterial, { x: profile.cellWidth / 2, y: wallY, z: 0 }, "right-wall", cell);
+  if (frame.frontBlocked) addSurface(
+    cellGroup,
+    createGeometry(stats, BoxGeometry, profile.cellWidth, profile.wallHeight, profile.wallThickness),
+    wallMaterial,
+    { x: 0, y: wallY, z: -profile.cellDepth / 2 },
+    "front-wall",
+    cell,
+    stats
+  );
+  if (frame.backBlocked) addSurface(
+    cellGroup,
+    createGeometry(stats, BoxGeometry, profile.cellWidth, profile.wallHeight, profile.wallThickness),
+    wallMaterial,
+    { x: 0, y: wallY, z: profile.cellDepth / 2 },
+    "back-wall",
+    cell,
+    stats
+  );
+  if (frame.leftBlocked) addSurface(
+    cellGroup,
+    createGeometry(stats, BoxGeometry, profile.wallThickness, profile.wallHeight, profile.cellDepth),
+    wallMaterial,
+    { x: -profile.cellWidth / 2, y: wallY, z: 0 },
+    "left-wall",
+    cell,
+    stats
+  );
+  if (frame.rightBlocked) addSurface(
+    cellGroup,
+    createGeometry(stats, BoxGeometry, profile.wallThickness, profile.wallHeight, profile.cellDepth),
+    wallMaterial,
+    { x: profile.cellWidth / 2, y: wallY, z: 0 },
+    "right-wall",
+    cell,
+    stats
+  );
+}
+
+function positiveDimension(value, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : fallback;
 }
 
 export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
   if (!canvas) throw new Error("A canvas is required for the dungeon spike renderer");
 
   const profile = THREE_DUNGEON_SPIKE_PROFILE;
+  const view = Object.freeze({
+    width: positiveDimension(options.width, positiveDimension(canvas.clientWidth, THREE_DUNGEON_SPIKE_VIEW.width)),
+    height: positiveDimension(options.height, positiveDimension(canvas.clientHeight, THREE_DUNGEON_SPIKE_VIEW.height)),
+  });
   const webgl = new WebGLRenderer({
     canvas,
     antialias: true,
@@ -168,13 +219,13 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
   });
   webgl.shadowMap.enabled = true;
   webgl.setPixelRatio(1);
-  webgl.setSize(THREE_DUNGEON_SPIKE_VIEW.width, THREE_DUNGEON_SPIKE_VIEW.height, false);
+  webgl.setSize(view.width, view.height, false);
   webgl.outputColorSpace = "srgb";
 
   const scene = new Scene();
   const camera = new PerspectiveCamera(
     profile.fov,
-    THREE_DUNGEON_SPIKE_VIEW.width / THREE_DUNGEON_SPIKE_VIEW.height,
+    view.width / view.height,
     0.05,
     40
   );
@@ -183,7 +234,15 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
   camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
   const root = new Group();
   scene.add(root);
-  const resourceStats = { rebuilds: 0, disposedGeometries: 0, disposedMaterials: 0 };
+  const resourceStats = {
+    rebuilds: 0,
+    createdGeometries: 0,
+    createdMaterials: 0,
+    disposedGeometries: 0,
+    disposedMaterials: 0,
+    ownedGeometries: new Set(),
+    ownedMaterials: new Set(),
+  };
 
   const renderer = {
     canvas,
@@ -242,7 +301,7 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       const fillLight = new PointLight(wall, 0.8, 10);
       fillLight.position.set(0, 2.2, 1.5);
       root.add(fillLight);
-      topology.forEach((cell) => addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceilingMaterial));
+      topology.forEach((cell) => addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceilingMaterial, resourceStats));
       floorMaterial.dispose();
       wallMaterial.dispose();
       ceilingMaterial.dispose();
@@ -263,10 +322,20 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
         position: camera.position.toArray().map((value) => Number(value.toFixed(6))),
         target: [cameraTarget.x, cameraTarget.y, cameraTarget.z],
         fov: camera.fov,
+        aspect: camera.aspect,
+        view: [view.width, view.height],
       };
     },
     getResourceStats() {
-      return { ...resourceStats };
+      return {
+        rebuilds: resourceStats.rebuilds,
+        createdGeometries: resourceStats.createdGeometries,
+        createdMaterials: resourceStats.createdMaterials,
+        disposedGeometries: resourceStats.disposedGeometries,
+        disposedMaterials: resourceStats.disposedMaterials,
+        unreleasedGeometries: resourceStats.ownedGeometries.size,
+        unreleasedMaterials: resourceStats.ownedMaterials.size,
+      };
     },
     getTopologySurfaces() {
       const surfaces = [];
@@ -309,8 +378,8 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
   };
 
   canvas.dataset.renderer = "three-dungeon-spike";
-  canvas.width = THREE_DUNGEON_SPIKE_VIEW.width;
-  canvas.height = THREE_DUNGEON_SPIKE_VIEW.height;
+  canvas.width = view.width;
+  canvas.height = view.height;
   if (options.className) canvas.className = options.className;
   return renderer;
 }

@@ -16,17 +16,17 @@ const ARCHETYPES = [
   'cross-junction',
 ];
 
-function installSpikeCanvas(page) {
-  return page.evaluate(() => {
+function installSpikeCanvas(page, viewport) {
+  return page.evaluate(({ width }) => {
     const canvas = document.createElement('canvas');
     canvas.id = 'three-dungeon-spike-canvas';
     canvas.setAttribute('aria-label', 'Three.js fixed-camera dungeon visual proof');
     canvas.style.display = 'block';
-    canvas.style.width = 'min(400px, 100vw)';
+    canvas.style.width = `${width}px`;
     canvas.style.height = '260px';
     canvas.style.margin = '0 auto';
     document.body.replaceChildren(canvas);
-  });
+  }, { width: viewport.width });
 }
 
 function createSyntheticMap(archetype) {
@@ -79,7 +79,7 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await page.goto('/');
-    await installSpikeCanvas(page);
+    await installSpikeCanvas(page, viewport);
     const contracts = [];
 
     for (const archetype of ARCHETYPES) {
@@ -97,6 +97,8 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
       expect(evidence.surfaces.filter(({ surface }) => surface === 'floor').length).toBeGreaterThan(0);
       expect(evidence.surfaces.filter(({ surface }) => surface === 'ceiling').length).toBeGreaterThan(0);
       expect(evidence.surfaces.every(({ y }) => Number.isFinite(y))).toBe(true);
+      expect(evidence.camera.aspect).toBeCloseTo(viewport.width / 260, 5);
+      expect(evidence.camera.view).toEqual([viewport.width, 260]);
 
       const cells = evidence.topology.filter(({ valid }) => valid);
       const surfacesByCell = new Map();
@@ -237,7 +239,7 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
 test('Issue 1199 spike releases scene-owned resources across same-instance rebuilds @smoke @e2e', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await installSpikeCanvas(page);
+  await installSpikeCanvas(page, { width: 390, height: 844 });
   const stats = await page.evaluate(async () => {
     const { createThreeDungeonSpikeRenderer } = await import('/src/three_dungeon_spike.js');
     const canvas = document.querySelector('#three-dungeon-spike-canvas');
@@ -246,24 +248,29 @@ test('Issue 1199 spike releases scene-owned resources across same-instance rebui
       blockEnter: [false, false, false, false],
       type: 'empty',
     })));
-    map[1][1].walls[0] = false;
-    map[0][1].walls[2] = false;
+    [[0, -1], [1, 0], [0, 1], [-1, 0]].forEach(([dx, dy], dir) => {
+      map[1][1].walls[dir] = false;
+      map[1 + dy][1 + dx].walls[(dir + 2) % 4] = false;
+    });
     const renderer = createThreeDungeonSpikeRenderer(canvas);
     renderer.renderMap(map, 1, 1, 0);
     renderer.renderMap(map, 1, 1, 0);
-    const result = renderer.getResourceStats();
     renderer.dispose();
-    return result;
+    return renderer.getResourceStats();
   });
   expect(stats.rebuilds).toBe(2);
-  expect(stats.disposedGeometries).toBeGreaterThan(0);
-  expect(stats.disposedMaterials).toBeGreaterThan(0);
+  expect(stats.createdGeometries).toBeGreaterThan(0);
+  expect(stats.createdMaterials).toBeGreaterThan(0);
+  expect(stats.disposedGeometries).toBe(stats.createdGeometries);
+  expect(stats.disposedMaterials).toBe(stats.createdMaterials);
+  expect(stats.unreleasedGeometries).toBe(0);
+  expect(stats.unreleasedMaterials).toBe(0);
 });
 
 test('Issue 1199 production-backed B1F proof uses generated map and renderer-neutral topology @smoke @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await installSpikeCanvas(page);
+  await installSpikeCanvas(page, { width: 390, height: 844 });
   const evidence = await page.evaluate(async () => {
     const { generateRunFloor } = await import('/src/run_map_generator.js');
     const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
@@ -277,16 +284,19 @@ test('Issue 1199 production-backed B1F proof uses generated map and renderer-neu
         for (let dir = 0; dir < 4; dir += 1) {
           const topology = getVisibleCorridorTopology(grid, x, y, dir);
           const current = topology.find((cell) => cell.z === 0 && cell.column === 0);
-          const sideOpeningCount = topology.filter((cell) => cell.z === 0 && Math.abs(cell.column) === 1).length;
-          const forwardDepth = topology.some((cell) => cell.z > 0 && cell.column === 0);
-          if (current?.valid && !current.frontBlocked && sideOpeningCount > 0 && forwardDepth) {
-            candidates.push({ x, y, dir, topology, sideOpeningCount });
+          const sideCells = topology.filter((cell) => Math.abs(cell.column) === 1);
+          const sideOpeningCount = sideCells.filter((cell) => cell.z === 0).length;
+          const sideBranchCount = new Set(sideCells.map((cell) => cell.column)).size;
+          const forwardDepth = topology.filter((cell) => cell.z > 0 && cell.column === 0).length;
+          const score = sideCells.length * 100 + sideBranchCount * 20 + forwardDepth * 10;
+          if (current?.valid && !current.frontBlocked && !current.backBlocked && sideOpeningCount > 0 && forwardDepth > 0) {
+            candidates.push({ x, y, dir, topology, sideOpeningCount, score });
           }
         }
       }
     }
     if (candidates.length === 0) throw new Error('deterministic B1F fixture has no near side opening');
-    const fixture = candidates.sort((a, b) => b.sideOpeningCount - a.sideOpeningCount)[0];
+    const fixture = candidates.sort((a, b) => b.score - a.score)[0];
     const canvas = document.querySelector('#three-dungeon-spike-canvas');
     window.__threeDungeonSpike?.dispose();
     window.__threeDungeonSpike = createThreeDungeonSpikeRenderer(canvas);
@@ -296,14 +306,16 @@ test('Issue 1199 production-backed B1F proof uses generated map and renderer-neu
       x: fixture.x,
       y: fixture.y,
       dir: fixture.dir,
+      sideOpeningCount: fixture.sideOpeningCount,
+      score: fixture.score,
       topology: fixture.topology.map(({ z, column, frontBlocked, leftBlocked, rightBlocked }) => ({ z, column, frontBlocked, leftBlocked, rightBlocked })),
       surfaces: window.__threeDungeonSpike.getTopologySurfaces(),
       camera: window.__threeDungeonSpike.getCameraContract(),
     };
   });
-
   expect(evidence.topology.some(({ z, column }) => z === 0 && Math.abs(column) === 1)).toBe(true);
   expect(evidence.topology.some(({ z, column }) => z > 0 && column === 0)).toBe(true);
+  expect(evidence.sideOpeningCount).toBeGreaterThan(0);
   expect(evidence.surfaces.some(({ surface }) => surface === 'floor')).toBe(true);
   expect(evidence.surfaces.some(({ surface }) => surface === 'left-wall' || surface === 'right-wall')).toBe(true);
   const screenshot = await page.locator('#three-dungeon-spike-canvas').screenshot({

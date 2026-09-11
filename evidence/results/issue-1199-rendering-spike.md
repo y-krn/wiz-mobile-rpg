@@ -3,12 +3,13 @@
 This evidence records the isolated Phase 1/Phase 2 proof harness. It does not
 switch the production renderer and does not claim physical-device readability.
 
-## Frozen profile
+## Candidate profile — freeze gate still pending
 
-The prototype uses one profile for all six archetypes and the deterministic
-production-backed B1F state:
+The prototype currently uses one candidate profile for all six archetypes and
+the deterministic production-backed B1F state. These values must not be called
+Frozen until Phase 1 and Phase 2 human visual review both pass:
 
-| value | frozen value |
+| value | candidate value |
 | --- | ---: |
 | cell width | 1.6 |
 | cell depth | 1.6 |
@@ -17,7 +18,7 @@ production-backed B1F state:
 | start Z | 0.9 |
 | eye `(x, y, z)` | `(0, 1.8, 3.0)` |
 | look-at `(x, y, z)` | `(0, 0.2, 0.0)` |
-| vertical FOV | 72° |
+| vertical FOV | 80° |
 | fog near / far | 4.8 / 15.5 |
 
 The camera is reset to this contract after every topology rebuild. The scene
@@ -45,9 +46,11 @@ canvas. The production fixture uses `generateRunFloor` and
 ## Acceptance disposition
 
 - Phase 1 synthetic six-archetype proof: covered by the dedicated spec and
-  pixel screenshots; human visual inspection is required for PASS.
+  pixel screenshots; human visual inspection is required for PASS before
+  freezing the profile.
 - Phase 2 production-backed B1F proof: covered by the deterministic generated
-  fixture and screenshot; human visual inspection is required for PASS.
+  fixture and screenshot; human visual inspection is required for PASS before
+  freezing the profile.
 - Camera/profile/material/topology invariants: structural assertions cover
   fixed camera contract, floor/ceiling bounds, shared-edge continuity, absence
   of walls across shared walkable edges, every blocked frame edge including
