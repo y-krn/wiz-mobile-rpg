@@ -1,12 +1,14 @@
 // balance-impact: none — isolated visual proof harness; it is not the production renderer.
 import {
   AmbientLight,
+  BufferGeometry,
   Box3,
   BoxGeometry,
   Color,
   DirectionalLight,
   DoubleSide,
   Fog,
+  Float32BufferAttribute,
   Group,
   Mesh,
   MeshStandardMaterial,
@@ -85,6 +87,38 @@ function cellWorldX(column, profile) {
   return Math.sign(column) * distance;
 }
 
+function createArchCeilingGeometry(stats, width, depth, height) {
+  const geometry = createGeometry(stats, BufferGeometry);
+  const xSegments = 6;
+  const zSegments = 2;
+  const archRise = Math.min(0.42, height * 0.13);
+  const vertices = [];
+  const indices = [];
+  for (let z = 0; z <= zSegments; z += 1) {
+    const localZ = -depth / 2 + (depth * z) / zSegments;
+    for (let x = 0; x <= xSegments; x += 1) {
+      const localX = -width / 2 + (width * x) / xSegments;
+      const normalizedX = localX / (width / 2);
+      const localY = height + archRise * (1 - normalizedX * normalizedX);
+      vertices.push(localX, localY, localZ);
+    }
+  }
+  const rowSize = xSegments + 1;
+  for (let z = 0; z < zSegments; z += 1) {
+    for (let x = 0; x < xSegments; x += 1) {
+      const topLeft = z * rowSize + x;
+      const topRight = topLeft + 1;
+      const bottomLeft = topLeft + rowSize;
+      const bottomRight = bottomLeft + 1;
+      indices.push(topLeft, bottomLeft, topRight, topRight, bottomLeft, bottomRight);
+    }
+  }
+  geometry.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 function frameForCell(cell) {
   if (cell.column < 0) {
     return {
@@ -133,7 +167,7 @@ function addSurface(parent, geometry, material, position, surface, topology, sta
   return mesh;
 }
 
-function addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceilingMaterial, stats) {
+function addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceilingMaterial, stats, ceilingStyle) {
   if (!cell.valid) return;
 
   const cellGroup = new Group();
@@ -156,15 +190,18 @@ function addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceili
     stats,
     { x: -Math.PI / 2 }
   );
+  const archCeiling = ceilingStyle === "arch";
   addSurface(
     cellGroup,
-    createGeometry(stats, PlaneGeometry, profile.cellWidth, profile.cellDepth),
+    archCeiling
+      ? createArchCeilingGeometry(stats, profile.cellWidth, profile.cellDepth, profile.wallHeight)
+      : createGeometry(stats, PlaneGeometry, profile.cellWidth, profile.cellDepth),
     ceilingMaterial,
-    { x: 0, y: profile.wallHeight, z: 0 },
+    { x: 0, y: archCeiling ? 0 : profile.wallHeight, z: 0 },
     "ceiling",
     cell,
     stats,
-    { x: Math.PI / 2 }
+    archCeiling ? null : { x: Math.PI / 2 }
   );
 
   const frame = frameForCell(cell);
@@ -305,6 +342,7 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       scene.background = background;
       scene.fog = new Fog(background, profile.fogNear, profile.fogFar);
       webgl.setClearColor(background, 1);
+      const ceilingStyle = visual.geometry?.ceilingStyle === "arch" ? "arch" : "flat";
       root.add(new AmbientLight(0x8e9aa0, 0.42));
       const keyLight = new DirectionalLight(wall, 0.72);
       keyLight.position.set(-2, 5, 4);
@@ -313,7 +351,16 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       const fillLight = new PointLight(wall, 0.8, 10);
       fillLight.position.set(0, 2.2, 1.5);
       root.add(fillLight);
-      topology.forEach((cell) => addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceilingMaterial, resourceStats));
+      topology.forEach((cell) => addCellGeometry(
+        root,
+        cell,
+        profile,
+        floorMaterial,
+        wallMaterial,
+        ceilingMaterial,
+        resourceStats,
+        ceilingStyle,
+      ));
       floorMaterial.dispose();
       wallMaterial.dispose();
       ceilingMaterial.dispose();

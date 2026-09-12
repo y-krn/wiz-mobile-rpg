@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { createHash } from 'node:crypto';
 
 const VIEWPORTS = [
   { width: 320, height: 568 },
@@ -22,6 +23,11 @@ const PRODUCTION_B1F_FIXTURE = Object.freeze({
   x: 6,
   y: 4,
   dir: 1,
+});
+
+const ONE_CELL_AHEAD_TURNS = Object.freeze({
+  left: [[4, 4, 2], [4, 4, 0], [4, 3, 3], [3, 3, 3]],
+  right: [[4, 4, 2], [4, 4, 0], [4, 3, 1], [5, 3, 1]],
 });
 
 function installSpikeCanvas(page, viewport) {
@@ -81,6 +87,40 @@ async function renderSynthetic(page, archetype) {
       frames: window.__threeDungeonSpike.getTopologyFrames(),
     };
   }, { archetype, fixture: createSyntheticMap(archetype) });
+}
+
+async function renderDesignFixture(page, paths, ceilingStyle = 'flat') {
+  return page.evaluate(async ({ paths: fixturePaths, ceilingStyle: style }) => {
+    const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    const map = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => ({
+      walls: [true, true, true, true],
+      blockEnter: [false, false, false, false],
+      type: 'empty',
+    })));
+    const open = (x, y, dir) => {
+      const [dx, dy] = directions[dir];
+      map[y][x].walls[dir] = false;
+      map[y + dy][x + dx].walls[(dir + 2) % 4] = false;
+    };
+    fixturePaths.forEach(([x, y, dir]) => open(x, y, dir));
+    const { createThreeDungeonSpikeRenderer } = await import('/src/three_dungeon_spike.js');
+    const { getFloorTheme } = await import('/src/data/floor_themes.js');
+    const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
+    const canvas = document.querySelector('#three-dungeon-spike-canvas');
+    window.__threeDungeonSpike?.dispose();
+    window.__threeDungeonSpike = createThreeDungeonSpikeRenderer(canvas);
+    const theme = getFloorTheme(1).visualSignature;
+    window.__threeDungeonSpike.renderMap(map, 4, 4, 0, {
+      ...theme,
+      geometry: { ...theme.geometry, ceilingStyle: style },
+    });
+    return {
+      camera: window.__threeDungeonSpike.getCameraContract(),
+      profile: window.__threeDungeonSpike.profile,
+      topology: getVisibleCorridorTopology(map, 4, 4, 0),
+      surfaces: window.__threeDungeonSpike.getTopologySurfaces(),
+    };
+  }, { paths, ceilingStyle });
 }
 
 test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at mobile widths @smoke @visual', async ({ page }, testInfo) => {
@@ -286,6 +326,69 @@ test('Issue 1199 spike releases scene-owned resources across same-instance rebui
   expect(stats.disposedMaterials).toBe(stats.createdMaterials);
   expect(stats.unreleasedGeometries).toBe(0);
   expect(stats.unreleasedMaterials).toBe(0);
+});
+
+test('Issue 1199 visual design gate proves one-cell-ahead turns and flat-versus-arch pixels @smoke @visual', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await installSpikeCanvas(page, { width: 390, height: 844 });
+
+  for (const [turn, paths] of Object.entries(ONE_CELL_AHEAD_TURNS)) {
+    const evidence = await renderDesignFixture(page, paths);
+    const current = evidence.topology.find(({ z, column }) => z === 0 && column === 0);
+    const branchColumn = turn === 'left' ? -1 : 1;
+    const branch = evidence.topology.find(({ z, column }) => z === 1 && column === branchColumn);
+    expect(current?.frontBlocked, `${turn} must continue straight into the next cell`).toBe(false);
+    expect(branch?.valid, `${turn} must have a real side branch one cell ahead`).toBe(true);
+    expect(branch?.z).toBe(1);
+    expect(branch?.column).toBe(branchColumn);
+    const screenshot = await page.locator('#three-dungeon-spike-canvas').screenshot({
+      path: testInfo.outputPath(`issue-1199-design-one-cell-ahead-${turn}-390px.png`),
+    });
+    await testInfo.attach(`issue-1199-design-one-cell-ahead-${turn}-390px`, {
+      body: screenshot,
+      contentType: 'image/png',
+    });
+  }
+
+  const paths = ONE_CELL_AHEAD_TURNS.left;
+  const themeStyles = await page.evaluate(async () => {
+    const { getFloorTheme } = await import('/src/data/floor_themes.js');
+    return {
+      flat: getFloorTheme(1).visualSignature.geometry.ceilingStyle,
+      arch: getFloorTheme(6).visualSignature.geometry.ceilingStyle,
+    };
+  });
+  expect(themeStyles).toEqual({ flat: 'flat', arch: 'arch' });
+  const flat = await renderDesignFixture(page, paths, themeStyles.flat);
+  const flatScreenshot = await page.locator('#three-dungeon-spike-canvas').screenshot({
+    path: testInfo.outputPath('issue-1199-design-flat-ceiling-390px.png'),
+  });
+  const arch = await renderDesignFixture(page, paths, themeStyles.arch);
+  const archScreenshot = await page.locator('#three-dungeon-spike-canvas').screenshot({
+    path: testInfo.outputPath('issue-1199-design-arch-ceiling-390px.png'),
+  });
+  await testInfo.attach('issue-1199-design-flat-ceiling-390px', {
+    body: flatScreenshot,
+    contentType: 'image/png',
+  });
+  await testInfo.attach('issue-1199-design-arch-ceiling-390px', {
+    body: archScreenshot,
+    contentType: 'image/png',
+  });
+
+  const flatCeilingMaxY = Math.max(...flat.surfaces.filter(({ surface }) => surface === 'ceiling').map(({ bounds }) => bounds.maxY));
+  const archCeilingMaxY = Math.max(...arch.surfaces.filter(({ surface }) => surface === 'ceiling').map(({ bounds }) => bounds.maxY));
+  expect(archCeilingMaxY - flatCeilingMaxY).toBeGreaterThan(0.1);
+  expect(createHash('sha256').update(flatScreenshot).digest('hex'))
+    .not.toBe(createHash('sha256').update(archScreenshot).digest('hex'));
+  expect(arch.camera).toEqual(flat.camera);
+  const archStats = await page.evaluate(() => {
+    window.__threeDungeonSpike.dispose();
+    return window.__threeDungeonSpike.getResourceStats();
+  });
+  expect(archStats.unreleasedGeometries).toBe(0);
+  expect(archStats.unreleasedMaterials).toBe(0);
 });
 
 test('Issue 1199 production-backed B1F proof uses generated map and renderer-neutral topology @smoke @visual', async ({ page }, testInfo) => {

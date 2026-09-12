@@ -49,6 +49,28 @@ canvas. The production fixture uses `generateRunFloor` and
 The representative fixture is fixed at `x=6, y=4, dir=1`; it is not selected
 by a readability score at runtime.
 
+## Visual design gate evidence
+
+The dedicated 390px design-gate case adds actual pixels for a straight route
+that turns left or right one cell ahead. The current cell remains open to the
+next forward cell, and the turn is represented only by the real neighboring
+cell floor, ceiling, and walls:
+
+- `issue-1199-design-one-cell-ahead-left-390px.png`
+- `issue-1199-design-one-cell-ahead-right-390px.png`
+
+The same one-cell-ahead topology, camera, profile, material family, and light
+are also rendered with the B1 (floor 1) flat ceiling and the materially
+different B2 (floor 6) arch ceiling geometry. Only the ceiling silhouette
+changes; no post, lintel,
+visibility lift, jamb, threshold, branch material, or marker is introduced:
+
+- `issue-1199-design-flat-ceiling-390px.png`
+- `issue-1199-design-arch-ceiling-390px.png`
+
+The test checks the arch's world-space ceiling rise and requires different
+actual-pixel hashes while requiring the camera contract to remain identical.
+
 ## Acceptance disposition
 
 - Phase 1 synthetic six-archetype proof: covered by the dedicated spec and
@@ -57,6 +79,9 @@ by a readability score at runtime.
 - Phase 2 production-backed B1F proof: covered by the deterministic generated
   fixture and screenshot; human visual inspection is required for PASS before
   freezing the profile.
+- Visual design gate: one-cell-ahead turn and flat-versus-arch actual-pixel
+  evidence is attached by the dedicated 390px spec; human visual review is
+  required before treating the candidate as Frozen.
 - Camera/profile/material/topology invariants: structural assertions cover
   fixed camera contract, floor/ceiling bounds, shared-edge continuity, absence
   of walls across shared walkable edges, every blocked frame edge including
