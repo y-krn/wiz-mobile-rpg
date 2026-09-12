@@ -28,21 +28,21 @@ export const THREE_DUNGEON_SPIKE_VIEW = Object.freeze({
 // visual review pass. The prototype deliberately does not accept topology or
 // biome values here: one profile must explain every archetype.
 export const THREE_DUNGEON_SPIKE_PROFILE = Object.freeze({
-  cellWidth: 1.0,
-  wallHeight: 2.1,
+  cellWidth: 1.2,
+  wallHeight: 2.4,
   // Side cells rotate around their shared edge. Their world X placement uses
   // both half-extents so rectangular cells still meet without a proxy mouth.
-  cellDepth: 2.4,
+  cellDepth: 3.2,
   wallThickness: 0.18,
-  startZ: 1.2,
-  eyeHeight: 1.55,
+  startZ: 1.6,
+  eyeHeight: 1.8,
   // First-person contract aligned with the production corridor profile: the
   // eye is inside the current cell and the heading is forward, not topology-
   // dependent or branch-seeking.
-  eyeZ: 2.3,
-  lookAtHeight: 0.9,
-  lookAtZ: -1.8,
-  fov: 100,
+  eyeZ: 3.0,
+  lookAtHeight: 0.3,
+  lookAtZ: -2.4,
+  fov: 90,
   fogNear: 4.8,
   fogFar: 15.5,
 });
@@ -276,7 +276,7 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       // material or lighting treatment.
       const floorColor = background.clone().lerp(wall, 0.72);
       const wallColor = background.clone().lerp(wall, 0.22);
-      const ceilingColor = background.clone().lerp(wall, 0.025);
+      const ceilingColor = background.clone().lerp(wall, 0.12);
       const floorMaterial = new MeshStandardMaterial({
         color: floorColor,
         emissive: floorColor,
@@ -295,6 +295,8 @@ export function createThreeDungeonSpikeRenderer(canvas, options = {}) {
       });
       const ceilingMaterial = new MeshStandardMaterial({
         color: ceilingColor,
+        emissive: ceilingColor,
+        emissiveIntensity: 0.18,
         roughness: 0.9,
         metalness: 0.08,
         side: DoubleSide,

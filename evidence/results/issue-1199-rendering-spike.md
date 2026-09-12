@@ -11,19 +11,19 @@ Frozen until Phase 1 and Phase 2 human visual review both pass:
 
 | value | candidate value |
 | --- | ---: |
-| cell width | 1.0 |
-| cell depth | 2.4 |
-| wall height | 2.1 |
+| cell width | 1.2 |
+| cell depth | 3.2 |
+| wall height | 2.4 |
 | wall thickness | 0.18 |
-| start Z | 1.2 |
-| eye `(x, y, z)` | `(0, 1.55, 2.3)` |
-| look-at `(x, y, z)` | `(0, 0.9, -1.8)` |
-| vertical FOV | 100° |
+| start Z | 1.6 |
+| eye `(x, y, z)` | `(0, 1.8, 3.0)` |
+| look-at `(x, y, z)` | `(0, 0.3, -2.4)` |
+| vertical FOV | 90° |
 | fog near / far | 4.8 / 15.5 |
 
 The camera is reset to this contract after every topology rebuild. The eye is
 inside the current cell and the fixed forward look direction is only about
-9° below the horizon; this is a first-person contract, not a 3/4 overhead
+15° below the horizon; this is a first-person contract, not a 3/4 overhead
 composition. The scene
 contains only real neighboring cell floor, ceiling, and blocked wall geometry;
 there is no side mouth, ramp, raised tongue, fake vestibule, emissive branch
