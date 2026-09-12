@@ -1,17 +1,19 @@
-# #1198 B1F 継戦 resource cadence candidate
+# #1198 B1F 継戦 resource cadence decision
 
 ## 結論
 
-B1Fの通常宝箱だけで `HEAL_POTION` の重みを1xから2xにする候補をproductionへ適用した。候補item、slot、chest数、回復量は変えず、combat-generated `fromDrop` 宝箱は変更していない。weighted selectorは従来どおり1回のRNG drawである。
+B1Fの通常宝箱だけで `HEAL_POTION` の重みを2x/3xへ上げる感度probeを実施したが、production値はbaselineの1xに維持する。候補item、slot、chest数、回復量は変えず、combat-generated `fromDrop` 宝箱も変更していない。weighted selectorは従来どおり1回のRNG drawである。
 
-同一条件のN=10,000 remeasureでは、2xでB2F arrivalが8.94%→9.58%、E1生存cohortの2戦目前resource opportunityが4.65%→7.76%、E2生存cohortの3戦目前が8.26%→13.46%になった。2xは目的に対する最小候補として採用する。3xは追加改善を示す感度上限であり、2xと同一視せず、今後の別判断用に保存する。
+同一条件のN=10,000 remeasureでは、2xでresource opportunityは大きく増えたが、E1→E2は76.66%→76.88%、E2→E3は65.26%→65.57%、next-entry HP中央値は10/8で変わらなかった。3xでも到達改善はほぼ飽和した。事前判定どおり、供給頻度だけで継続性が改善したとは判定できず、2x/3xは採用しない。
+
+結論は「回復resourceの希少性は事実だが、供給頻度だけ増やしても2〜3戦目の崩壊はほぼ改善しない。B1Fの`HEAL_POTION` weightは変更せず、#1184のencounter Cost / amount側へ戻る」である。
 
 ## 測定条件とprovenance
 
 - fresh `vanguard` / `fight` / `production` / B1F、持ち込みresourceなし、targetDepth 2
 - N=10,000/case、seed=1198、Node `v26.8.1`
 - runner: `issue1198-continuation-resource-v2` / schema 10
-- source HEAD: `6bc743386a8e07a94fc794a4566d963240dc948f`
+- source HEAD: `6dd4f26e2819b0811209590d927f2f9973f3bd8b`（production ordinary weightを1xへ戻した最終ソース）
 - production gameplay/base: `ab4631e6bdcf1d819987649044e72907ac6ccc1c` (`origin/main` verified)
 - environment hash: 1x `83bf861e9de261d2` / 2x `fd3b0723e6ee74db` / 3x `7b5958052c14e73f`
 - measurement runner diff SHA-256: `711b5d323e0081ff494307d700b9175d4d17e95545ae585742eba77e34541bf2`
@@ -24,8 +26,8 @@ B1Fの通常宝箱だけで `HEAL_POTION` の重みを1xから2xにする候補�
 
 | ordinary B1 HEAL_POTION weight | B1 death | B2 arrival | E1生存 | E2生存 | E3生存 | 2戦目前 resource | 3戦目前 resource |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 1x baseline | 91.06% | 8.94% | 6,415 | 2,493 | 744 | 298/6,415 (4.65%) | 206/2,493 (8.26%) |
-| 2x adopted | 90.42% | 9.58% | 6,444 | 2,533 | 780 | 500/6,444 (7.76%) | 341/2,533 (13.46%) |
+| 1x baseline | 91.06% | 8.94% | 6,415 | 2,493 | 744 | 298/6,415 (4.65%) | 205/2,493 (8.22%) |
+| 2x probe | 90.42% | 9.58% | 6,444 | 2,533 | 780 | 500/6,444 (7.76%) | 340/2,533 (13.42%) |
 | 3x sensitivity | 89.84% | 10.16% | 6,491 | 2,611 | 829 | 711/6,491 (10.95%) | 506/2,611 (19.38%) |
 
 resource opportunityの分母は直前encounterを生存したcohort。target encounter未到達者は`endedBeforeArrival` / `deathsBeforeArrival`に残す。Wilson 95%区間は1x: E1 4.16–5.19%, E2 7.25–9.41%、2x: E1 7.13–8.44%, E2 12.19–14.85%、3x: E1 10.22–11.74%, E2 17.91–20.94%。
@@ -51,9 +53,9 @@ resource opportunityの分母は直前encounterを生存したcohort。target en
 | weight / target | cohort / arrived | acquired units | usable runs | beneficial runs | used runs | carried-unused runs | actual HP recovered |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | 1x / E2 | 6,415 / 4,918 | 308 | 297 | 297 | 204 | 72 | 2,518 |
-| 1x / E3 | 2,493 / 1,627 | 221 | 206 | 206 | 171 | 22 | 2,248 |
+| 1x / E3 | 2,493 / 1,627 | 220 | 205 | 205 | 171 | 22 | 2,248 |
 | 2x / E2 | 6,444 / 4,954 | 533 | 499 | 499 | 322 | 141 | 4,059 |
-| 2x / E3 | 2,533 / 1,661 | 377 | 340 | 340 | 277 | 48 | 3,685 |
+| 2x / E3 | 2,533 / 1,661 | 376 | 339 | 339 | 277 | 48 | 3,685 |
 | 3x / E2 | 6,491 / 4,993 | 787 | 710 | 710 | 450 | 223 | 5,732 |
 | 3x / E3 | 2,611 / 1,713 | 585 | 506 | 506 | 406 | 73 | 5,457 |
 
@@ -63,7 +65,18 @@ Source splitは循環しないbaselineも保存した。
 - 2x: E2 `ordinary 511 / fromDrop 22`; E3 `ordinary 349 / fromDrop 27 / secretRoom 1`
 - 3x: E2 `ordinary 766 / fromDrop 21`; E3 `ordinary 556 / fromDrop 29`
 
-したがって、変更対象sourceをordinaryに限定する根拠は「変更後のsplit」ではなく、変更前1xでもfromDropが主供給源ではなく、さらにfromDropを変更しない境界を保てることにある。
+したがって、変更対象sourceをordinaryに限定しても、cadence-onlyでは継続性の必須判定を満たさない。productionはordinary/fromDropともbaselineのままに戻す。
+
+## visible-multi-enemy-flee population
+
+逃走policyを fight と混ぜず、同一seed・同一N=10,000で1x/2xを別集計した。2x probeはresource opportunityを増やすが、next-entry HP中央値は変わらず、B2F到達の差も小さい。
+
+| ordinary weight | E1生存 | E2生存 | E3生存 | E1→E2 resource | E2→E3 resource | next-entry HP p50 E2/E3 | B2F arrival | avg steps / combat |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1x baseline | 8,042 | 4,370 | 1,758 | 376/8,042 (4.68%) | 328/4,370 (7.51%) | 11 / 8 | 14.90% | 35.98 / 1.96 |
+| 2x probe | 8,064 | 4,437 | 1,840 | 634/8,064 (7.86%) | 570/4,437 (12.84%) | 11 / 8 | 16.21% | 37.37 / 1.98 |
+
+逃走関連の補助値は、flee survival 92.64%→92.74%、trap damage 100,524→101,638、poison applications 4,597→4,683。逃走populationでも「resourceは増えるが継続性・HP中央値はほぼ動かない」という結論は変わらない。sourceは最終ソース `6dd4f26...`、matched cohort keyは `vanguard:visible-multi-enemy-flee:production:1198:10000`。
 
 ## Loot / Build breadth and side effects
 
@@ -81,9 +94,16 @@ Meaningful reward opportunityは全条件92.74%。Build-change opportunityは1x 
 
 ## Fresh-save manual gate and parent #1184
 
-Playwright headed browserでfresh local stateを2回確認した。鋼の前線キットを選び、B1Fを持ち込み0で開始。攻撃対象選択、攻撃、敵からの被ダメージ、逃走、追撃、1マス後退、前進・方向転換・探索を確認した。別runではHP20→8、毒針12 damageと毒、未鑑定レザーアーマー・指輪の獲得/保持、毒死、死因表示、失った戦果、図鑑への知識残存を確認した。
+Playwright headed browserでfresh local stateを開始し、鋼の前線キット・B1F・持ち込み0を確認した。自然探索では罠の発見・解除と方向転換を踏んだ。その後、productionの通常宝箱経路 `setupChestState(..., { fromDrop: false })` を対象化し、実UIで次を確認した。
 
-manual gateは#1198について通過と判定する。ただし#1184はcloseしない。#1198はresource carryover / B軸のcandidate・remeasure・manual gateを返却するが、親で残るA（early encounter Cost/cadence）およびD/Fの未完了課題は解消しない。#1184へこの結果を返却し、親IssueはOPEN継続とする。
+- 通常宝箱から `傷薬 (ディオス薬)` を取得し、戦果画面で「持つ」を選択
+- 確定後にバッグが `1/20`、傷薬ボタンが表示されることを確認
+- 毒針付き通常宝箱を開け、HPが `20/20`→`8/20` になった状態で傷薬を選択
+- 対象「冒険者 (Lv.1) HP: 8/20」を選び、ログ「冒険者は傷薬を使い、HPが15回復した。」、HP `20/20` を確認
+
+これにより、今回の変更対象であるordinary chestの取得→バッグ→使用判断までを実UIで踏んだ。別runでは攻撃対象選択、攻撃、敵からの被ダメージ、逃走、追撃、1マス後退、前進・方向転換・探索、未鑑定品の獲得/保持、毒死、死因表示、失った戦果、図鑑への知識残存も確認した。
+
+manual gateは#1198について通過と判定する。ただし#1184はcloseしない。#1198はresource carryover / B軸について「cadence変更なし」というcandidate・remeasure・manual gateの結果を返却するが、親で残るA（early encounter Cost/amount）およびD/Fの未完了課題は解消しない。#1184へこの結果を返却し、親IssueはOPEN継続とする。
 
 ## Verification
 
