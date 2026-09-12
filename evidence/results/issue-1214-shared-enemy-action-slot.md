@@ -23,8 +23,9 @@ independent. The combat log explains the shared action when it occurs.
   six production encounter definitions, N=100 per cell.
 - Conditions: C0 pre-change semantics, C1 existing total enemy-action cap
   (`measurementMaxEnemyActionsPerRound=1`), C2 exact shared ordinary slot.
-- Clean production run: seed `1214-clean-after`; environment hash
-  `e65d871514415310`; `originMainAncestor=true`; `workingTreeClean=true`.
+- Clean production run: seed `1214-final-clean`; source commit
+  `eeddbff80ddc4f39f90377b1d5cddc6c164bca0f`; environment hash
+  `1eeb89b9cad1e386`; `originMainAncestor=true`; `workingTreeClean=true`.
 
 ## Primary result
 
@@ -35,12 +36,12 @@ deep axis below verifies the extra-action distinction.
 
 | Population | Condition | Single p50 | Pair p50 | Pair before kill p50 | E2 pair p50 | Death | Reward reach | Build reach |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Fight | C0 | 3 | 7 | 4 | 4 | 0.877 | 0.941 | 0.944 |
-| Fight | C1 | 3 | 5 | 2 | 3 | 0.856 | 0.957 | 0.961 |
-| Fight | C2 | 3 | 5 | 2 | 3 | 0.856 | 0.957 | 0.961 |
-| Visible flee | C0 | 3 | 2 | — | 2 | 0.847 | 0.977 | 0.980 |
-| Visible flee | C1 | 3 | 1 | — | 1 | 0.829 | 0.979 | 0.982 |
-| Visible flee | C2 | 3 | 1 | — | 1 | 0.829 | 0.979 | 0.982 |
+| Fight | C0 | 3 | 7 | 4 | 4 | 0.890 | 0.945 | 0.947 |
+| Fight | C1 | 3 | 6 | 2 | 4 | 0.882 | 0.969 | 0.971 |
+| Fight | C2 | 3 | 6 | 2 | 4 | 0.882 | 0.969 | 0.971 |
+| Visible flee | C0 | 3 | 2 | — | 2 | 0.815 | 0.982 | 0.983 |
+| Visible flee | C1 | 3 | 1 | — | 1 | 0.796 | 0.982 | 0.983 |
+| Visible flee | C2 | 3 | 1 | — | 1 | 0.796 | 0.982 | 0.983 |
 
 The primary comparison keeps single-enemy exposure unchanged while reducing
 pair exposure and preserving a meaningful pair/single difference. Flee choice
@@ -55,9 +56,9 @@ encounter ordinals.
 
 | Depth | C0 pair p50 range / mean | C1 range / mean | C2 range / mean | C2 extra actions | C1 extra actions | C2 `multiAction` firings |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| B8 | 4–9 / 5.92 | 2–7 / 4.57 | 2–7 / 4.57 | 328 | 0 | 278 |
-| B18 | 2–9 / 5.27 | 2–6 / 4.03 | 2–6 / 4.00 | 267 | 0 | 228 |
-| B30 | 2–7 / 4.03 | 2–5 / 3.30 | 2–5 / 3.33 | 175 | 0 | 148 |
+| B8 | 3–9 / 5.90 | 2–6 / 4.50 | 2–6 / 4.50 | 342 | 0 | 293 |
+| B18 | 2–9 / 5.13 | 2–6 / 4.00 | 2–6 / 4.00 | 236 | 0 | 200 |
+| B30 | 2–7 / 4.10 | 2–5 / 3.43 | 2–5 / 3.47 | 197 | 0 | 172 |
 
 The C2 cells retain the production compositions and their trait firings; the
 C1 upper-bound probe suppresses all extra turns by design. No enemy stats,
@@ -80,4 +81,3 @@ schedule and the player-facing shared-slot log message.
 - `npm run build`: passed (pre-existing large-chunk warning only)
 - `git diff --check`: passed
 - Focused shared-slot unit test: passed
-
