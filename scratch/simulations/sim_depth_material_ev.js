@@ -5286,6 +5286,7 @@ function recordDiagnosticReward(metrics, state, item, {
     floor: state.floor,
     step: metrics.steps,
     encounterOrdinal: metrics.encounterIdentityLog?.length || state.currentRun?.battles || 0,
+    inventorySlots: Array.isArray(state.inventory) ? state.inventory.length : null,
     itemId,
     itemType,
     playerUsableAtAcquisition: RECOVERY_DIAGNOSTIC_ITEM_IDS.includes(itemId)

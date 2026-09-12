@@ -167,7 +167,13 @@ function classifyMainReward(event) {
 }
 
 function observeLootBreadth(aggregate, result, rewardEvents) {
-  addDistribution(aggregate.lootBreadth.bagOccupancy, result.finalInventorySlots);
+  const b1InventorySlots = rewardEvents
+    .filter(event => event.floor === 1 && Number.isFinite(event.inventorySlots))
+    .map(event => event.inventorySlots);
+  addDistribution(
+    aggregate.lootBreadth.bagOccupancy,
+    b1InventorySlots.length > 0 ? Math.max(...b1InventorySlots) : 0
+  );
   const settlement = result.objectLootSettlement || {};
   aggregate.lootBreadth.objectLootSettlement.banked += Array.isArray(settlement.banked)
     ? settlement.banked.length
