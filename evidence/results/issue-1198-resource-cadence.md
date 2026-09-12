@@ -90,7 +90,7 @@ B1 ordinary main candidate poolは実際のRune込みで19候補。effective uni
 
 `events`はB1 main reward eventの実測settlement内訳で、first guaranteed equipmentとitem chanceを含む。selector自体の相対確率は上記の19/20/21 weighted poolであり、event内訳をselector確率と混同しない。fromDrop mainは13候補・Runeなしで、HEAL_POTION weightは全条件1xのまま。
 
-Meaningful reward opportunityは全条件92.74%。Build-change opportunityは1x 46.31%、2x 46.03%、3x 46.03%。ordinary内のequipment・Rune・status-cureはいずれも2x/3xで相対供給率が低下するが、候補削除やBag slot数変更ではない。したがって「副作用なし」ではなく、「2xは3xより横幅を抑えた最小candidate」と判定する。
+Meaningful reward opportunityは全条件92.74%。Build-change opportunityは1x 46.31%、2x 46.03%、3x 46.03%。ordinary内のequipment・Rune・status-cureはいずれも2x/3xで相対供給率が低下するが、候補削除やBag slot数変更ではない。したがって「副作用なし」とは判定せず、2x/3xは横幅の副作用を測るためのdiagnostic probeにとどめる。
 
 ## Fresh-save manual gate and parent #1184
 

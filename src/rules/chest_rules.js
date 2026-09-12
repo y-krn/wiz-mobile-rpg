@@ -173,8 +173,8 @@ for (let floor = 6; floor <= 30; floor += 1) {
 }
 Object.freeze(CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP);
 
-// #1198: the smallest matched candidate that increased continuation-resource
-// access without changing chest count, reward amount, or fromDrop supply.
+// #1198 diagnostic probes only: production keeps the baseline 1x ordinary
+// weight; these tables preserve the source boundary without adopting a buff.
 export const CHEST_ITEM_WEIGHTS_BY_SOURCE_AND_FLOOR = Object.freeze({
   ordinary: Object.freeze({
     1: Object.freeze({ HEAL_POTION: 1 })
