@@ -28,22 +28,21 @@ export const THREE_DUNGEON_SPIKE_VIEW = Object.freeze({
 // visual review pass. The prototype deliberately does not accept topology or
 // biome values here: one profile must explain every archetype.
 export const THREE_DUNGEON_SPIKE_PROFILE = Object.freeze({
-  cellWidth: 1.6,
+  cellWidth: 1.0,
   wallHeight: 2.1,
-  // Keep cells square in plan so a side branch's rotated floor shares the
-  // exact edge of its neighbor; this is a geometry invariant, not a camera
-  // adjustment.
-  cellDepth: 1.6,
+  // Side cells rotate around their shared edge. Their world X placement uses
+  // both half-extents so rectangular cells still meet without a proxy mouth.
+  cellDepth: 2.4,
   wallThickness: 0.18,
-  startZ: 0.9,
+  startZ: 1.2,
   eyeHeight: 1.55,
   // First-person contract aligned with the production corridor profile: the
   // eye is inside the current cell and the heading is forward, not topology-
   // dependent or branch-seeking.
-  eyeZ: 1.65,
+  eyeZ: 2.3,
   lookAtHeight: 0.9,
   lookAtZ: -1.8,
-  fov: 120,
+  fov: 100,
   fogNear: 4.8,
   fogFar: 15.5,
 });
@@ -77,6 +76,13 @@ function sideBranchOrientation(column) {
   if (column < 0) return Math.PI / 2;
   if (column > 0) return -Math.PI / 2;
   return 0;
+}
+
+function cellWorldX(column, profile) {
+  if (column === 0) return 0;
+  const distance = (profile.cellWidth + profile.cellDepth) / 2
+    + (Math.abs(column) - 1) * profile.cellDepth;
+  return Math.sign(column) * distance;
 }
 
 function frameForCell(cell) {
@@ -132,7 +138,7 @@ function addCellGeometry(root, cell, profile, floorMaterial, wallMaterial, ceili
 
   const cellGroup = new Group();
   const rotationY = sideBranchOrientation(cell.column);
-  cellGroup.position.set(cell.column * profile.cellWidth, 0, profile.startZ - cell.z * profile.cellDepth);
+  cellGroup.position.set(cellWorldX(cell.column, profile), 0, profile.startZ - cell.z * profile.cellDepth);
   cellGroup.rotation.y = rotationY;
   cellGroup.userData = {
     topology: { z: cell.z, column: cell.column, x: cell.x, y: cell.y },

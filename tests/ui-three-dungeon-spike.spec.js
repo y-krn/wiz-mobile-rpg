@@ -237,7 +237,10 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
       const currentFloor = floorSurfaces.find(({ topology }) => topology.z === 0 && topology.column === 0);
       floorSurfaces.filter(({ topology }) => topology.z === 0 && Math.abs(topology.column) === 1).forEach((branchFloor) => {
         expect(branchFloor.worldPosition[1]).toBe(currentFloor.worldPosition[1]);
-        expect(Math.abs(branchFloor.worldPosition[0] - currentFloor.worldPosition[0])).toBeCloseTo(evidence.profile.cellWidth, 5);
+        expect(Math.abs(branchFloor.worldPosition[0] - currentFloor.worldPosition[0])).toBeCloseTo(
+          (evidence.profile.cellWidth + evidence.profile.cellDepth) / 2,
+          5,
+        );
         expect(branchFloor.worldPosition[2]).toBeCloseTo(currentFloor.worldPosition[2], 5);
       });
 

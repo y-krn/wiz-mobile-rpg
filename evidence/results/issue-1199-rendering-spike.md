@@ -11,28 +11,29 @@ Frozen until Phase 1 and Phase 2 human visual review both pass:
 
 | value | candidate value |
 | --- | ---: |
-| cell width | 1.6 |
-| cell depth | 1.6 |
+| cell width | 1.0 |
+| cell depth | 2.4 |
 | wall height | 2.1 |
 | wall thickness | 0.18 |
-| start Z | 0.9 |
-| eye `(x, y, z)` | `(0, 1.55, 1.65)` |
+| start Z | 1.2 |
+| eye `(x, y, z)` | `(0, 1.55, 2.3)` |
 | look-at `(x, y, z)` | `(0, 0.9, -1.8)` |
-| vertical FOV | 120° |
+| vertical FOV | 100° |
 | fog near / far | 4.8 / 15.5 |
 
 The camera is reset to this contract after every topology rebuild. The eye is
 inside the current cell and the fixed forward look direction is only about
-11° below the horizon; this is a first-person contract, not a 3/4 overhead
+9° below the horizon; this is a first-person contract, not a 3/4 overhead
 composition. The scene
 contains only real neighboring cell floor, ceiling, and blocked wall geometry;
 there is no side mouth, ramp, raised tongue, fake vestibule, emissive branch
 marker, minimap, HUD, or direction label.
 
-The square cell profile is intentional: a 90° neighboring cell shares the
-same edge length, so side-branch floor and ceiling boundaries meet the current
-cell without a raised threshold or inset vestibule. Shadowing is enabled only
-for the authored floor, ceiling, and wall meshes; it is not a branch marker.
+The rectangular cell profile is intentional: side-cell placement uses the
+current cell's half-width plus the rotated neighbor's half-depth, so the real
+floor and ceiling boundaries meet without a raised threshold or inset
+vestibule. Shadowing is enabled only for the authored floor, ceiling, and wall
+meshes; it is not a branch marker.
 
 ## Evidence command
 
