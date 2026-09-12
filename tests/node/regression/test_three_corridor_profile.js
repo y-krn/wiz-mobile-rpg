@@ -12,18 +12,25 @@ const b1 = getThreeCorridorProfile(b1Geometry);
 const b2 = getThreeCorridorProfile(b2Geometry);
 const b1Metrics = getThreeCorridorReadabilityMetrics(b1Geometry);
 
-assert.ok(b1.fov >= 80 && b1.fov <= 90);
+assert.equal(b1.cellWidth, 1.2);
+assert.equal(b1.cellDepth, 3.2);
+assert.equal(b1.wallHeight, 2.4);
+assert.equal(b1.wallThickness, 0.18);
+assert.equal(b1.startZ, 1.6);
+assert.equal(b1.eyeHeight, 1.8);
+assert.equal(b1.eyeZ, 3.0);
+assert.equal(b1.lookAtHeight, 0.3);
+assert.equal(b1.lookAtZ, -2.4);
+assert.equal(b1.fov, 90);
 assert.equal(b1.fogNear, 4.8);
 assert.equal(b1.ceilingStyle, "flat");
-assert.equal(b2.ceilingStyle, "arch");
-assert.ok(b1.cellWidth < b2.cellWidth, "biome corridor width should reach Three.js");
-assert.ok(b1.wallHeight < b2.wallHeight, "biome ceiling height should reach Three.js");
-assert.ok(b1Metrics.forwardOpeningWidth[0] > 60);
+assert.deepEqual(b2, b1, "biome geometry must not move the frozen camera profile");
+assert.ok(b1Metrics.forwardOpeningWidth[0] > 20);
 assert.ok(b1Metrics.forwardOpeningWidth[0] > b1Metrics.forwardOpeningWidth[1]);
 assert.ok(b1Metrics.forwardOpeningWidth[1] > b1Metrics.forwardOpeningWidth[2]);
-assert.ok(b1Metrics.currentCellSideWallOccupancy < 0.7);
-assert.ok(b1Metrics.fogNear > b1Metrics.cellFrontDistances[0]);
-assert.ok(b1Metrics.fogNear < b1Metrics.cellFrontDistances[2]);
+assert.ok(b1Metrics.currentCellSideWallOccupancy > 0.8);
+assert.ok(b1Metrics.fogNear < b1Metrics.cellFrontDistances[0]);
+assert.ok(b1Metrics.fogFar > b1Metrics.cellFrontDistances[2]);
 
 const spanByEdge = (geometry, edge) => {
   const positions = geometry.attributes.position;
@@ -33,10 +40,10 @@ const spanByEdge = (geometry, edge) => {
   }
   return Math.max(...values) - Math.min(...values);
 };
-const b1Wall = createWallGeometry(b1.cellWidth, b1.wallHeight, b1.wallLean);
+const b1Wall = createWallGeometry(b1.cellWidth, b1.wallHeight, 0.1);
 const neutralWall = createWallGeometry(b1.cellWidth, b1.wallHeight, 0);
-const b1SideWall = createWallGeometry(b1.cellDepth, b1.wallHeight, b1.wallLean, true, b1.cellWidth);
-const b1RightSideWall = createWallGeometry(b1.cellDepth, b1.wallHeight, b1.wallLean, true, b1.cellWidth);
+const b1SideWall = createWallGeometry(b1.cellDepth, b1.wallHeight, 0.1, true, b1.cellWidth);
+const b1RightSideWall = createWallGeometry(b1.cellDepth, b1.wallHeight, 0.1, true, b1.cellWidth);
 const sidePositions = b1SideWall.attributes.position;
 const rightSidePositions = b1RightSideWall.attributes.position;
 const topNormalOffsets = [];

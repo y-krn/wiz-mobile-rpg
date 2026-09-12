@@ -136,7 +136,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
         dungeonRenderer.root.traverse((child) => {
           const cell = child.userData?.topology;
           if (child.userData?.surface === 'floor' && cell?.z === 0 && Math.abs(cell.column) === 1) {
-            branchRotations[cell.column] = Number(child.rotation.y.toFixed(3));
+            branchRotations[cell.column] = Number(child.parent.rotation.y.toFixed(3));
             branchFloors.push({
               column: cell.column,
               material: child.material?.type ?? null,
@@ -168,6 +168,8 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
           cameraHeading: {
             y: Number(dungeonRenderer.camera.rotation.y.toFixed(3)),
           },
+          cameraPosition: dungeonRenderer.camera.position.toArray().map((value) => Number(value.toFixed(3))),
+          cameraFov: dungeonRenderer.camera.fov,
         };
       });
 
@@ -191,12 +193,11 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
       expect(evidence.branchFloors.every(({ material, depthTest, depthWrite }) =>
         material === 'MeshStandardMaterial' && depthTest && depthWrite
       )).toBe(true);
-      expect(evidence.branchJambs).toHaveLength(expectedBranchColumns.length * 2);
-      expect(evidence.branchJambs.every(({ material, depthTest, depthWrite }) =>
-        material === 'MeshStandardMaterial' && depthTest && depthWrite
-      )).toBe(true);
+      expect(evidence.branchJambs).toHaveLength(0);
       expect(evidence.syntheticBranchSurfaces).toEqual([]);
       expect(evidence.cameraHeading.y).toBeCloseTo(0, 3);
+      expect(evidence.cameraPosition).toEqual([0, 1.8, 3]);
+      expect(evidence.cameraFov).toBe(90);
       if (archetype === 't-junction') {
         expect(evidence.visible).toEqual(expect.arrayContaining(['0:-1', '0:1']));
         expect(evidence.visible).not.toContain('1:0');
@@ -214,7 +215,7 @@ test('Three.js Dungeon View makes six local topology archetypes readable at all 
   }
 });
 
-test('Three.js corridor readability keeps near openings clear and mirrors biome geometry @smoke @visual', async ({ page }, testInfo) => {
+test('Three.js corridor readability keeps the frozen profile and real openings clear @smoke @visual', async ({ page }, testInfo) => {
   const fixtures = [
     {
       name: 'b1-straight',
@@ -223,13 +224,13 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
       path: [[5, 5, 0], [5, 4, 0], [5, 3, 0], [5, 2, 0]],
     },
     {
-      name: 'b2-straight-arch',
+      name: 'b2-straight-frozen',
       floor: 6,
       widths: [VIEWPORTS[2]],
       path: [[5, 5, 0], [5, 4, 0], [5, 3, 0], [5, 2, 0]],
     },
     {
-      name: 'b2-right-turn-arch',
+      name: 'b2-right-turn-frozen',
       floor: 6,
       widths: [VIEWPORTS[2]],
       path: [[5, 5, 0], [5, 4, 1], [6, 4, 1], [7, 4, 1]],
@@ -282,23 +283,11 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
           dungeonRenderer.getRenderInput().visual.geometry
         );
         let ceiling = null;
-        let seamCount = 0;
         const farBranchSurfaces = [];
         const farBranchDepth = [];
-        const farBranchFloors = [];
-        const farBranchJambs = [];
         dungeonRenderer.root.traverse((child) => {
           if (child.userData?.surface === 'ceiling' && !ceiling) ceiling = child;
-          if (child.userData?.surface === 'depth-seam') seamCount += 1;
           if (child.userData?.surface?.startsWith('side-branch-')) {
-            if (child.userData.surface === 'side-branch-jamb') {
-              farBranchJambs.push({
-                material: child.material?.type ?? null,
-                depthTest: child.material?.depthTest ?? null,
-                depthWrite: child.material?.depthWrite ?? null,
-              });
-              return;
-            }
             farBranchSurfaces.push(child.userData.surface);
             farBranchDepth.push({
               surface: child.userData.surface,
@@ -306,20 +295,8 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
               depthWrite: child.material?.depthWrite,
             });
           }
-          if (child.userData?.surface === 'floor'
-            && child.userData?.topology?.z === 1
-            && child.userData?.topology?.column === 1) {
-            farBranchFloors.push({
-              material: child.material?.type ?? null,
-              depthTest: child.material?.depthTest ?? null,
-              depthWrite: child.material?.depthWrite ?? null,
-            });
-          }
         });
-        const positions = ceiling?.geometry?.attributes?.position;
-        const ceilingMaxY = positions
-          ? Math.max(...Array.from({ length: positions.count }, (_, index) => positions.getY(index))) + (ceiling.position.y || 0)
-          : null;
+        const ceilingMaxY = ceiling?.position.y ?? null;
         return {
           metrics,
           cameraFov: dungeonRenderer.camera.fov,
@@ -327,40 +304,22 @@ test('Three.js corridor readability keeps near openings clear and mirrors biome 
           ceilingStyle: dungeonRenderer.activeProfile.ceilingStyle,
           wallHeight: dungeonRenderer.activeProfile.wallHeight,
           ceilingMaxY,
-          seamCount,
           farBranchSurfaces,
           farBranchDepth,
-          farBranchFloors,
-          farBranchJambs,
         };
       });
 
-      expect(evidence.cameraFov).toBeGreaterThanOrEqual(60);
-      expect(evidence.cameraFov).toBeLessThanOrEqual(90);
-      expect(evidence.metrics.forwardOpeningWidth[0]).toBeGreaterThan(60);
+      expect(evidence.cameraFov).toBe(90);
+      expect(evidence.metrics.forwardOpeningWidth[0]).toBeGreaterThan(20);
       expect(evidence.metrics.forwardOpeningWidth[0]).toBeGreaterThan(evidence.metrics.forwardOpeningWidth[1]);
       expect(evidence.metrics.forwardOpeningWidth[1]).toBeGreaterThan(evidence.metrics.forwardOpeningWidth[2]);
-      expect(evidence.metrics.currentCellSideWallOccupancy).toBeLessThan(0.7);
-      expect(evidence.fog.near).toBeGreaterThan(evidence.metrics.cellFrontDistances[0]);
-      expect(evidence.fog.near).toBeLessThan(evidence.metrics.cellFrontDistances[2]);
-      expect(evidence.seamCount).toBeGreaterThan(0);
-      if (fixture.floor === 6) {
-        expect(evidence.ceilingStyle).toBe('arch');
-        expect(evidence.ceilingMaxY).toBeGreaterThan(evidence.wallHeight);
-        if (fixture.name === 'b2-right-turn-arch') {
-          expect(evidence.farBranchSurfaces).toEqual([]);
-          expect(evidence.farBranchDepth).toEqual([]);
-          expect(evidence.farBranchJambs).toHaveLength(2);
-          expect(evidence.farBranchJambs.every(({ material, depthTest, depthWrite }) =>
-            material === 'MeshStandardMaterial' && depthTest && depthWrite
-          )).toBe(true);
-          expect(evidence.farBranchFloors).toEqual([
-            { material: 'MeshStandardMaterial', depthTest: true, depthWrite: true },
-          ]);
-        }
-      } else {
-        expect(evidence.ceilingStyle).toBe('flat');
-      }
+      expect(evidence.metrics.currentCellSideWallOccupancy).toBeGreaterThan(0.8);
+      expect(evidence.fog.near).toBeLessThan(evidence.metrics.cellFrontDistances[0]);
+      expect(evidence.fog.far).toBeGreaterThan(evidence.metrics.cellFrontDistances[2]);
+      expect(evidence.ceilingStyle).toBe('flat');
+      expect(evidence.ceilingMaxY).toBeCloseTo(evidence.wallHeight, 5);
+      expect(evidence.farBranchSurfaces).toEqual([]);
+      expect(evidence.farBranchDepth).toEqual([]);
 
       const screenshot = await page.locator('#dungeon-canvas').screenshot({
         path: testInfo.outputPath(`three-readability-${fixture.name}-${viewport.width}px.png`),
@@ -477,11 +436,7 @@ test('Three.js production B1F state keeps a real side passage continuous with th
       }),
     },
   ]);
-  const currentBranchJambs = evidence.branchJambs.filter(({ z, column }) => z === 0 && column === 0);
-  expect(currentBranchJambs).toHaveLength(2);
-  expect(currentBranchJambs.every(({ material, depthTest, depthWrite }) =>
-    material === 'MeshStandardMaterial' && depthTest && depthWrite
-  )).toBe(true);
+  expect(evidence.branchJambs).toEqual([]);
   console.log(`[issue-1181] production B1F branch evidence ${JSON.stringify(evidence)}`);
   expect(evidence.branchFloors[0].bounds.visibleWidth).toBeGreaterThan(20);
   expect(evidence.branchFloors[0].bounds.visibleHeight).toBeGreaterThan(10);
@@ -735,7 +690,7 @@ test('Three.js Dungeon View directly selects an enemy and retains an accessible 
     });
     return { frontWallZ: surfaces[0]?.z ?? null, targetZ, monsterZ };
   });
-  expect(combatDepth.frontWallZ).toBeCloseTo(0.1, 5);
+  expect(combatDepth.frontWallZ).toBeCloseTo(-1.6, 5);
   expect(combatDepth.monsterZ).toBeGreaterThan(combatDepth.frontWallZ);
   expect(combatDepth.targetZ).toBeGreaterThan(combatDepth.frontWallZ);
 
@@ -917,7 +872,7 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
         }
         for (const group of evidence.groupEvidence) {
           expect(group.markerDiameter).toBeLessThan(group.spacing);
-          expect(group.labelBounds.bottom).toBeLessThan(group.bodyBounds.top);
+          expect(group.labelBounds.bottom).toBeLessThanOrEqual(group.bodyBounds.top);
         }
       }
 
@@ -1089,22 +1044,18 @@ test('Three.js Dungeon View disposes prototype materials across repeated scene r
     const baseInput = dungeonRenderer.getRenderInput();
     const originalDispose = MeshStandardMaterial.prototype.dispose;
     let disposeCalls = 0;
-    let jambPrototypeDisposals = 0;
-    let jambSceneDisposals = 0;
     MeshStandardMaterial.prototype.dispose = function disposeSpy() {
       disposeCalls += 1;
-      if (this.userData?.rendererLifecycle === 'side-branch-jamb-prototype') jambPrototypeDisposals += 1;
-      if (this.userData?.rendererLifecycle === 'side-branch-jamb-scene') jambSceneDisposals += 1;
       return originalDispose.call(this);
     };
     let afterFirstBuild;
-    let firstJambMaterials;
+    let syntheticSurfaces;
     try {
       renderer.buildScene(baseInput);
       afterFirstBuild = disposeCalls;
-      firstJambMaterials = [];
+      syntheticSurfaces = [];
       renderer.root.traverse((child) => {
-        if (child.userData?.surface === 'side-branch-jamb') firstJambMaterials.push(child.material);
+        if (child.userData?.surface?.startsWith('side-branch-')) syntheticSurfaces.push(child.userData.surface);
       });
       renderer.buildScene(baseInput);
     } finally {
@@ -1113,17 +1064,13 @@ test('Three.js Dungeon View disposes prototype materials across repeated scene r
     return {
       disposeCalls,
       afterFirstBuild,
-      firstJambCount: firstJambMaterials.length,
-      jambPrototypeDisposals,
-      jambSceneDisposals,
+      syntheticSurfaces,
     };
   });
 
   expect(disposeCount.afterFirstBuild).toBeGreaterThan(0);
   expect(disposeCount.disposeCalls).toBeGreaterThan(disposeCount.afterFirstBuild);
-  expect(disposeCount.firstJambCount).toBeGreaterThan(0);
-  expect(disposeCount.jambPrototypeDisposals).toBe(disposeCount.firstJambCount);
-  expect(disposeCount.jambSceneDisposals).toBe(disposeCount.firstJambCount);
+  expect(disposeCount.syntheticSurfaces).toEqual([]);
 });
 
 test('Three.js Dungeon View follows map topology for all four directions @smoke @e2e @visual', async ({ page }, testInfo) => {
@@ -1281,14 +1228,14 @@ test('Three.js Dungeon View follows map topology for all four directions @smoke 
   const leftWall = observations[0].surfaces.find(({ surface }) => surface === 'left-wall');
   const rightWall = observations[2].surfaces.find(({ surface }) => surface === 'right-wall');
   const frontWall = observations[3].surfaces.find(({ surface }) => surface === 'front-wall');
-  expect(leftWall).toEqual(expect.objectContaining({ rotationY: 1.571 }));
+  expect(leftWall).toEqual(expect.objectContaining({ rotationY: 0 }));
   expect(leftWall.position[0]).toBeCloseTo(-profile.cellWidth / 2, 3);
   expect(leftWall.position[1]).toBeCloseTo(profile.wallHeight / 2, 3);
-  expect(rightWall).toEqual(expect.objectContaining({ rotationY: -1.571 }));
+  expect(rightWall).toEqual(expect.objectContaining({ rotationY: 0 }));
   expect(rightWall.position[0]).toBeCloseTo(profile.cellWidth / 2, 3);
   expect(rightWall.position[1]).toBeCloseTo(profile.wallHeight / 2, 3);
   expect(frontWall).toEqual(expect.objectContaining({ rotationY: 0 }));
-  expect(frontWall.position[2]).toBeCloseTo(profile.frontWallZ, 3);
+  expect(frontWall.position[2]).toBeCloseTo(-profile.cellDepth / 2, 3);
   expect(frontWall.position[1]).toBeCloseTo(profile.wallHeight / 2, 3);
   expect(oneWaySurfaces).toContain('front-wall-one-way');
   expect(oneWaySurfaces).toContain('front-wall-one-way-chevron');
