@@ -19,6 +19,41 @@ export const PIXI_VERSION = "8.19.0";
 
 const COLUMN_ORDER = [-2, 2, -1, 1, 0];
 const FALLBACK_BACKGROUND = "#0c0c0e";
+const LAYER_NAMES = Object.freeze([
+  "background",
+  "far-environment",
+  "floor",
+  "structural-walls",
+  "environment-fx",
+  "actors",
+  "combat-fx",
+  "overlays"
+]);
+
+const MOTION_DURATION_MS = Object.freeze({ forward: 180, backward: 180, "turn-left": 170, "turn-right": 170 });
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function parseColor(value, fallback = 0xffffff) {
+  if (typeof value !== "string") return fallback;
+  const match = value.trim().match(/^#([0-9a-f]{6})$/i);
+  return match ? Number.parseInt(match[1], 16) : fallback;
+}
+
+function mixColor(first, second, amount) {
+  const t = clamp01(amount);
+  const a = parseColor(first);
+  const b = parseColor(second);
+  const channel = (shift) => Math.round(((a >> shift) & 0xff) * (1 - t) + ((b >> shift) & 0xff) * t);
+  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
+}
+
+function seededUnit(seed) {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+}
 
 function flatPoints(...points) {
   return points.flatMap(({ x, y }) => [x, y]);
@@ -63,10 +98,10 @@ function drawProjectedSideWall(container, plane, nextPlane, side, color, alpha, 
   const farBottom = side === "left" ? nextPlane.leftBottom : nextPlane.rightBottom;
   const nearBottom = side === "left" ? plane.leftBottom : plane.rightBottom;
   const graphic = new Graphics();
-  graphic.moveTo(nearTop.x, nearTop.y);
-  graphic.lineTo(farTop.x, farTop.y);
-  graphic.lineTo(farBottom.x, farBottom.y);
-  graphic.lineTo(nearBottom.x, nearBottom.y);
+  graphic.moveTo(nearTop, plane.top);
+  graphic.lineTo(farTop, nextPlane.top);
+  graphic.lineTo(farBottom, nextPlane.bottom);
+  graphic.lineTo(nearBottom, plane.bottom);
   graphic.closePath().fill({ color, alpha });
   if (stroke) graphic.stroke(stroke);
   container.addChild(graphic);
@@ -120,11 +155,43 @@ export class PixiDungeonRenderer {
     this.lastSignature = null;
     this.renderCount = 0;
     this.totalRenderMs = 0;
+    this.lastRenderMs = 0;
+    this.maxRenderMs = 0;
+    this.clockMs = 0;
     this.shakeTime = 0;
     this.shakeIntensity = 0;
     this.flashTime = 0;
+    this.hitTime = 0;
+    this.combatEntryTime = 0;
+    this.transition = null;
+    this.transitionScene = null;
+    this.activeRoot = null;
     this.damageTexts = [];
-    this.resourceStats = { sceneRebuilds: 0, maxChildren: 0, destroyed: false };
+    this.resourceStats = {
+      sceneRebuilds: 0,
+      maxChildren: 0,
+      destroyed: false,
+      layerCount: LAYER_NAMES.length,
+      generatedTextureCount: 0,
+      filterCount: 0,
+      listenerCount: 0
+    };
+  }
+
+  createSceneRoot(name) {
+    const root = new Container();
+    root.label = name;
+    root.layers = Object.fromEntries(LAYER_NAMES.map((layerName) => {
+      const layer = new Container();
+      layer.label = layerName;
+      root.addChild(layer);
+      return [layerName, layer];
+    }));
+    return root;
+  }
+
+  layer(name, root = this.activeRoot || this.scene) {
+    return root?.layers?.[name] || root;
   }
 
   async init() {
@@ -143,8 +210,11 @@ export class PixiDungeonRenderer {
       preference: "webgl"
     });
     this.app = app;
-    this.scene = new Container();
+    this.scene = this.createSceneRoot("pixi-current-scene");
+    this.transitionScene = this.createSceneRoot("pixi-transition-scene");
     this.app.stage.addChild(this.scene);
+    this.app.stage.addChild(this.transitionScene);
+    this.transitionScene.visible = false;
     this.initializationCostMs = performance.now() - startedAt;
     this.supported = Boolean(this.app.renderer && this.app.canvas === this.canvas);
     this.canvas.dataset.renderer = this.supported ? this.mode : "pixi-unavailable";
@@ -160,15 +230,37 @@ export class PixiDungeonRenderer {
     this.flashTime = duration;
   }
 
+  triggerCombatEntry(duration = 320) {
+    this.combatEntryTime = Math.max(this.combatEntryTime, duration);
+  }
+
+  triggerHitFeedback(duration = 220) {
+    this.hitTime = Math.max(this.hitTime, duration);
+  }
+
   addDamageText(text, color = "#ff3b30") {
     this.damageTexts.push({ text: String(text), color, age: 0, maxAge: 40 });
   }
 
   update(dt) {
+    this.clockMs += Math.max(0, dt);
     this.shakeTime = Math.max(0, this.shakeTime - dt);
     this.flashTime = Math.max(0, this.flashTime - dt);
+    this.hitTime = Math.max(0, this.hitTime - dt);
+    this.combatEntryTime = Math.max(0, this.combatEntryTime - dt);
     this.damageTexts.forEach((entry) => { entry.age += 1; });
     this.damageTexts = this.damageTexts.filter((entry) => entry.age < entry.maxAge);
+    if (this.transition) {
+      this.transition.elapsed = Math.min(this.transition.duration, this.transition.elapsed + Math.max(0, dt));
+      if (this.transition.elapsed >= this.transition.duration) {
+        this.transition = null;
+        if (this.transitionScene) {
+          this.transitionScene.visible = false;
+          this.clearSceneRoot(this.transitionScene);
+        }
+        this.resetMotion(this.scene);
+      }
+    }
   }
 
   resolveRenderInput(input) {
@@ -215,7 +307,7 @@ export class PixiDungeonRenderer {
   isAnimating(input = null) {
     const renderInput = this.resolveRenderInput(input);
     const environment = renderInput.visual.environment;
-    if (this.shakeTime > 0 || this.flashTime > 0 || this.damageTexts.length > 0) return true;
+    if (this.transition || this.shakeTime > 0 || this.flashTime > 0 || this.hitTime > 0 || this.combatEntryTime > 0 || this.damageTexts.length > 0) return true;
     if (environment.animated || renderInput.dangerCue.active) return true;
     return false;
   }
@@ -240,18 +332,115 @@ export class PixiDungeonRenderer {
   }
 
   clearScene() {
-    if (!this.scene) return;
-    const children = this.scene.removeChildren();
+    this.clearSceneRoot(this.scene);
+  }
+
+  clearSceneRoot(root) {
+    if (!root) return;
+    const children = root.removeChildren();
     children.forEach((child) => child.destroy({ children: true }));
     this.resourceStats.sceneRebuilds += 1;
+    if (root.layers) {
+      root.layers = Object.fromEntries(LAYER_NAMES.map((layerName) => {
+        const layer = new Container();
+        layer.label = layerName;
+        root.addChild(layer);
+        return [layerName, layer];
+      }));
+    }
+  }
+
+  beginNavigationTransition(action, input = null) {
+    if (!MOTION_DURATION_MS[action]) return;
+    this.transition = {
+      action,
+      duration: MOTION_DURATION_MS[action],
+      elapsed: 0,
+      fromInput: this.resolveRenderInput(input),
+      sourceDrawn: false
+    };
+    if (this.transitionScene) this.transitionScene.visible = true;
+  }
+
+  resetMotion(root) {
+    if (!root) return;
+    root.position.set(0, 0);
+    root.scale.set(1, 1);
+    root.rotation = 0;
+    root.alpha = 1;
+    Object.values(root.layers || {}).forEach((layer) => {
+      layer.position.set(0, 0);
+      layer.scale.set(1, 1);
+      layer.rotation = 0;
+      layer.alpha = 1;
+    });
+  }
+
+  applyMotion(root, action, progress, outgoing = false) {
+    this.resetMotion(root);
+    const eased = outgoing ? 1 - clamp01(progress) : clamp01(progress);
+    const remaining = 1 - eased;
+    const direction = action === "turn-left" ? -1 : 1;
+    if (action === "forward" || action === "backward") {
+      const distance = action === "forward" ? 22 : -18;
+      root.position.y = outgoing ? -distance * eased : distance * remaining;
+      const scale = outgoing ? 1 + 0.055 * eased : 0.945 + 0.055 * eased;
+      root.scale.set(scale, scale);
+      root.alpha = outgoing ? 1 - 0.10 * eased : 0.90 + 0.10 * eased;
+      Object.entries(root.layers || {}).forEach(([name, layer]) => {
+        const depth = name === "far-environment" ? 0.25 : name === "floor" ? 0.72 : name === "structural-walls" ? 0.88 : 1;
+        layer.position.y = (outgoing ? -1 : 1) * distance * remaining * (1 - depth) * 0.28;
+      });
+      return;
+    }
+
+    const sweep = 34 * direction;
+    root.position.x = outgoing ? sweep * eased : -sweep * remaining;
+    root.rotation = (outgoing ? 1 : -1) * direction * 0.012 * remaining;
+    root.alpha = outgoing ? 1 - 0.08 * eased : 0.92 + 0.08 * eased;
+    Object.entries(root.layers || {}).forEach(([name, layer]) => {
+      const depth = name === "far-environment" ? 0.22 : name === "floor" ? 0.58 : name === "structural-walls" ? 0.82 : 1;
+      layer.position.x = (outgoing ? 1 : -1) * sweep * remaining * (1 - depth) * 0.42;
+    });
   }
 
   draw(input = null) {
     if (!this.app || !this.scene) return;
     const renderInput = this.resolveRenderInput(input);
     const startedAt = performance.now();
-    this.clearScene();
+    if (this.transition && !this.transition.sourceDrawn) {
+      this.clearSceneRoot(this.transitionScene);
+      this.drawScene(this.transition.fromInput, this.transitionScene);
+      this.transition.sourceDrawn = true;
+    }
+    this.clearSceneRoot(this.scene);
+    this.drawScene(renderInput, this.scene);
+    if (this.transition) {
+      const progress = this.transition.elapsed / this.transition.duration;
+      this.applyMotion(this.transitionScene, this.transition.action, progress, true);
+      this.applyMotion(this.scene, this.transition.action, progress, false);
+    } else this.resetMotion(this.scene);
+    if (this.shakeTime > 0) {
+      const offset = (Math.sin(this.clockMs * 0.11) * 0.5) * this.shakeIntensity;
+      this.scene.position.x += offset;
+      this.scene.position.y += offset * 0.45;
+    }
+    if (this.flashTime > 0) drawRect(this.layer("overlays"), 0, 0, PIXI_VIEW_W, PIXI_VIEW_H, "#ffffff", 0.24);
+    if (this.hitTime > 0) this.drawHitFeedback(renderInput);
+    this.app.render();
+    renderMiniMapOverlay(renderInput);
+    this.renderCount += 1;
+    this.lastRenderMs = performance.now() - startedAt;
+    this.maxRenderMs = Math.max(this.maxRenderMs, this.lastRenderMs);
+    this.totalRenderMs += this.lastRenderMs;
+    this.resourceStats.maxChildren = Math.max(this.resourceStats.maxChildren, this.scene.children.length);
+  }
+
+  drawScene(renderInput, root) {
+    const previousRoot = this.activeRoot;
+    this.activeRoot = root;
     this.drawBackground(renderInput);
+    this.drawFarEnvironment(renderInput);
     if (renderInput.sceneVisibility.showTownBackground) {
       this.drawTownBackground(renderInput);
     } else {
@@ -259,34 +448,48 @@ export class PixiDungeonRenderer {
       if (renderInput.sceneVisibility.showCombat) this.drawMonsters(renderInput);
       if (renderInput.sceneVisibility.showChest) this.drawChest(renderInput);
     }
+    this.drawAtmosphere(renderInput);
     this.drawDangerPulse(renderInput);
     this.drawFloatingTexts();
-    if (this.flashTime > 0) drawRect(this.scene, 0, 0, PIXI_VIEW_W, PIXI_VIEW_H, "#ffffff", 0.24);
-    if (this.shakeTime > 0) {
-      const offset = (Math.random() - 0.5) * this.shakeIntensity;
-      this.scene.position.set(offset, offset);
-    } else {
-      this.scene.position.set(0, 0);
-    }
-    this.app.render();
-    renderMiniMapOverlay(renderInput);
-    this.renderCount += 1;
-    this.totalRenderMs += performance.now() - startedAt;
-    this.resourceStats.maxChildren = Math.max(this.resourceStats.maxChildren, this.scene.children.length);
+    if (renderInput.sceneVisibility.showCombat && this.combatEntryTime > 0) this.drawCombatEntry(renderInput);
+    this.activeRoot = previousRoot;
   }
 
   drawBackground(renderInput) {
     const color = safeColor(renderInput.visual.background, FALLBACK_BACKGROUND);
-    drawRect(this.scene, 0, 0, PIXI_VIEW_W, PIXI_VIEW_H, color);
+    const background = this.layer("background");
+    drawRect(background, 0, 0, PIXI_VIEW_W, PIXI_VIEW_H, color);
+    const wallColor = safeColor(renderInput.visual.wallColor, "#58d6e8");
+    for (let band = 0; band < 7; band += 1) {
+      const amount = band / 6;
+      addPolygon(background, [
+        { x: 0, y: band * 38 }, { x: PIXI_VIEW_W, y: band * 38 },
+        { x: PIXI_VIEW_W, y: (band + 1) * 38 }, { x: 0, y: (band + 1) * 38 }
+      ], mixColor(color, wallColor, 0.08 + amount * 0.08), 0.11);
+    }
   }
 
   drawTownBackground(renderInput) {
     const color = safeColor(renderInput.visual.wallColor, "#00e5ff");
-    addLine(this.scene, [{ x: 0, y: 180 }, { x: 80, y: 150 }, { x: 130, y: 170 }, { x: 200, y: 130 }, { x: 280, y: 165 }, { x: 340, y: 145 }, { x: 400, y: 180 }], { color, alpha: 0.35, width: 1 });
-    drawRect(this.scene, 150, 110, 10, 70, color, 0, { color, width: 2 });
-    drawRect(this.scene, 240, 110, 10, 70, color, 0, { color, width: 2 });
-    drawRect(this.scene, 160, 160, 80, 20, color, 0, { color, width: 2 });
-    drawEllipse(this.scene, 200, 180, 20, 20, color, 0, { color, width: 2 });
+    const far = this.layer("far-environment");
+    const walls = this.layer("structural-walls");
+    addLine(far, [{ x: 0, y: 180 }, { x: 80, y: 150 }, { x: 130, y: 170 }, { x: 200, y: 130 }, { x: 280, y: 165 }, { x: 340, y: 145 }, { x: 400, y: 180 }], { color, alpha: 0.35, width: 1 });
+    drawRect(walls, 150, 110, 10, 70, color, 0, { color, width: 2 });
+    drawRect(walls, 240, 110, 10, 70, color, 0, { color, width: 2 });
+    drawRect(walls, 160, 160, 80, 20, color, 0, { color, width: 2 });
+    drawEllipse(walls, 200, 180, 20, 20, color, 0, { color, width: 2 });
+  }
+
+  drawFarEnvironment(renderInput) {
+    const far = this.layer("far-environment");
+    const color = safeColor(renderInput.visual.wallColor, "#58d6e8");
+    const phase = Number(renderInput.visual.environment?.animatedCyclePosition || 0);
+    for (let index = 0; index < 5; index += 1) {
+      const x = 36 + seededUnit(renderInput.floor * 19 + index * 7 + phase) * 328;
+      const y = 32 + seededUnit(renderInput.floor * 29 + index * 11 + phase) * 86;
+      drawEllipse(far, x, y, 1.4, 1.4, color, 0.18);
+    }
+    addPolygon(far, [{ x: 150, y: 0 }, { x: 250, y: 0 }, { x: 224, y: 124 }, { x: 176, y: 124 }], color, 0.025);
   }
 
   drawCorridors(renderInput) {
@@ -312,7 +515,7 @@ export class PixiDungeonRenderer {
         const row = map[cellTopology.y];
         const cell = row?.[cellTopology.x];
         if (!isRenderableCorridorCell(cell)) {
-          drawProjectedFrontWall(this.scene, plane, ceilingStyle, "#0c0c0e", 1, { color: "#ff3b30", width: 2 });
+          drawProjectedFrontWall(this.layer("structural-walls"), plane, ceilingStyle, "#0c0c0e", 1, { color: "#ff3b30", width: 2 });
           continue;
         }
 
@@ -320,16 +523,17 @@ export class PixiDungeonRenderer {
         // polygon follows the Canvas projection exactly, so side openings stay
         // floor, not panels or decorative markers.
         const depthAlpha = 0.09 + (3 - z) * 0.025;
-        addPolygon(this.scene, [
+        addPolygon(this.layer("floor"), [
           { x: plane.leftBottom, y: plane.bottom },
           { x: plane.rightBottom, y: plane.bottom },
           { x: nextPlane.rightBottom, y: nextPlane.bottom },
           { x: nextPlane.leftBottom, y: nextPlane.bottom }
         ], wallColor, depthAlpha);
+        this.drawFloorMaterial(plane, nextPlane, wallColor, renderInput.floor, z);
 
         // A second low-alpha layer supplies a material tint without hiding the
         // route silhouette or introducing fake perspective cues.
-        addPolygon(this.scene, [
+        addPolygon(this.layer("floor"), [
           { x: plane.leftTop, y: plane.top },
           { x: nextPlane.leftTop, y: nextPlane.top },
           { x: nextPlane.rightTop, y: nextPlane.top },
@@ -338,33 +542,87 @@ export class PixiDungeonRenderer {
           { x: plane.leftBottom, y: plane.bottom }
         ], environmentOverlay, 0.45);
 
-        addLine(this.scene, [
+        addLine(this.layer("floor"), [
           { x: plane.leftBottom, y: plane.bottom }, { x: nextPlane.leftBottom, y: nextPlane.bottom },
           { x: nextPlane.rightBottom, y: nextPlane.bottom }, { x: plane.rightBottom, y: plane.bottom }
         ], { color: gridColor, width: 1.4, alpha: 0.9 });
-        addLine(this.scene, [
+        addLine(this.layer("floor"), [
           { x: plane.leftTop, y: plane.top }, { x: nextPlane.leftTop, y: nextPlane.top },
           { x: nextPlane.rightTop, y: nextPlane.top }, { x: plane.rightTop, y: plane.top }
         ], { color: gridColor, width: 1.1, alpha: 0.76 });
 
         if (cellTopology.leftBlocked) {
-          drawProjectedSideWall(this.scene, plane, nextPlane, "left", background, 0.98, { color: wallColor, width: 2, alpha: 0.96 });
+          const walls = this.layer("structural-walls");
+          drawProjectedSideWall(walls, plane, nextPlane, "left", background, 0.98);
+          this.drawSideWallMaterial(plane, nextPlane, "left", wallColor, renderInput.floor, z);
+          drawProjectedSideWall(walls, plane, nextPlane, "left", background, 0, { color: wallColor, width: 2, alpha: 0.96 });
         }
         if (cellTopology.rightBlocked) {
           const mirroredPlane = { ...plane, leftTop: plane.rightTop, rightTop: plane.leftTop, leftBottom: plane.rightBottom, rightBottom: plane.leftBottom };
           const mirroredNext = { ...nextPlane, leftTop: nextPlane.rightTop, rightTop: nextPlane.leftTop, leftBottom: nextPlane.rightBottom, rightBottom: nextPlane.leftBottom };
-          drawProjectedSideWall(this.scene, mirroredPlane, mirroredNext, "left", background, 0.98, { color: wallColor, width: 2, alpha: 0.96 });
+          const walls = this.layer("structural-walls");
+          drawProjectedSideWall(walls, mirroredPlane, mirroredNext, "left", background, 0.98);
+          this.drawSideWallMaterial(mirroredPlane, mirroredNext, "left", wallColor, renderInput.floor, z);
+          drawProjectedSideWall(walls, mirroredPlane, mirroredNext, "left", background, 0, { color: wallColor, width: 2, alpha: 0.96 });
         }
         if (cellTopology.frontBlocked) {
-          drawProjectedFrontWall(this.scene, nextPlane, ceilingStyle, background, 0.98, { color: wallColor, width: 2, alpha: 0.98 });
+          const walls = this.layer("structural-walls");
+          drawProjectedFrontWall(walls, nextPlane, ceilingStyle, background, 0.98);
+          this.drawFrontWallMaterial(nextPlane, wallColor, renderInput.floor, z, ceilingStyle);
+          drawProjectedFrontWall(walls, nextPlane, ceilingStyle, background, 0, { color: wallColor, width: 2, alpha: 0.98 });
           if (cellTopology.frontOneWayBarrier && column === 0) this.drawOneWayBarrier(nextPlane, wallColor);
         }
 
         if (column === 0 && z > 0) this.drawLandmark(cell, nextPlane, renderInput.visual.wallColor);
         if (column === 0 && renderInput.roamingMonsters.some((monster) => monster.floor === renderInput.floor && monster.x === cellTopology.x && monster.y === cellTopology.y) && z > 0) {
-          drawEllipse(this.scene, (nextPlane.leftBottom + nextPlane.rightBottom) / 2, nextPlane.bottom - 12, width * 0.10, Math.max(4, width * 0.04), "#ff3b30", 0.12, { color: "#ff3b30", width: 2, alpha: 0.85 });
+          drawEllipse(this.layer("environment-fx"), (nextPlane.leftBottom + nextPlane.rightBottom) / 2, nextPlane.bottom - 12, width * 0.10, Math.max(4, width * 0.04), "#ff3b30", 0.12, { color: "#ff3b30", width: 2, alpha: 0.85 });
         }
       }
+    }
+  }
+
+  drawFloorMaterial(plane, nextPlane, wallColor, floor, depth) {
+    const material = mixColor(wallColor, "#111318", 0.58);
+    const highlight = mixColor(wallColor, "#e8f7f4", 0.42);
+    for (let band = 1; band <= 2; band += 1) {
+      const t = band / 3;
+      const y = plane.bottom + (nextPlane.bottom - plane.bottom) * t;
+      const left = plane.leftBottom + (nextPlane.leftBottom - plane.leftBottom) * t;
+      const right = plane.rightBottom + (nextPlane.rightBottom - plane.rightBottom) * t;
+      addLine(this.layer("floor"), [{ x: left, y }, { x: right, y }], { color: material, width: 1.2, alpha: 0.48 });
+    }
+    const offset = seededUnit(floor * 31 + depth * 13);
+    const left = plane.leftBottom + (nextPlane.leftBottom - plane.leftBottom) * (0.24 + offset * 0.12);
+    const right = plane.rightBottom + (nextPlane.rightBottom - plane.rightBottom) * (0.66 + offset * 0.12);
+    addLine(this.layer("floor"), [{ x: left, y: plane.bottom - 2 }, { x: right, y: nextPlane.bottom + 2 }], { color: highlight, width: 1, alpha: 0.22 });
+  }
+
+  drawSideWallMaterial(plane, nextPlane, side, wallColor, floor, depth) {
+    const nearTop = side === "left" ? plane.leftTop : plane.rightTop;
+    const farTop = side === "left" ? nextPlane.leftTop : nextPlane.rightTop;
+    const nearBottom = side === "left" ? plane.leftBottom : plane.rightBottom;
+    const farBottom = side === "left" ? nextPlane.leftBottom : nextPlane.rightBottom;
+    const material = mixColor(wallColor, "#101419", 0.5);
+    for (let band = 1; band <= 2; band += 1) {
+      const t = band / 3;
+      const top = { x: nearTop + (farTop - nearTop) * t, y: plane.top + (nextPlane.top - plane.top) * t };
+      const bottom = { x: nearBottom + (farBottom - nearBottom) * t, y: plane.bottom + (nextPlane.bottom - plane.bottom) * t };
+      addLine(this.layer("structural-walls"), [top, bottom], { color: material, width: 1.3, alpha: 0.42 });
+    }
+    if ((floor + depth) % 2 === 0) {
+      addLine(this.layer("structural-walls"), [{ x: nearTop, y: plane.top + 3 }, { x: farTop, y: nextPlane.top + 3 }], { color: wallColor, width: 1, alpha: 0.26 });
+    }
+  }
+
+  drawFrontWallMaterial(plane, wallColor, floor, depth, ceilingStyle) {
+    const material = mixColor(wallColor, "#0b0f14", 0.48);
+    for (let band = 1; band <= 2; band += 1) {
+      const t = band / 3;
+      const y = plane.top + (plane.bottom - plane.top) * t;
+      addLine(this.layer("structural-walls"), [{ x: plane.leftTop + 3, y }, { x: plane.rightTop - 3, y }], { color: material, width: ceilingStyle === "arch" ? 1.6 : 1.2, alpha: 0.40 });
+    }
+    if ((floor + depth) % 2 === 0) {
+      addLine(this.layer("structural-walls"), [{ x: plane.leftTop + 4, y: plane.top + 4 }, { x: plane.rightTop - 4, y: plane.top + 4 }], { color: wallColor, width: 1, alpha: 0.26 });
     }
   }
 
@@ -378,13 +636,13 @@ export class PixiDungeonRenderer {
       graphic.moveTo(cx - width * 0.13, y - width * 0.08).lineTo(cx + width * 0.13, y - width * 0.08);
       graphic.moveTo(cx - width * 0.08, y - width * 0.16).lineTo(cx + width * 0.08, y - width * 0.16);
       graphic.stroke({ color: cell.type === "stairs-up" ? "#00b7ff" : "#ffb300", width: 1.5, alpha: 0.9 });
-      this.scene.addChild(graphic);
+      this.layer("structural-walls").addChild(graphic);
     } else if (cell.event === EVENT_TYPES.CHEST) {
-      drawRect(this.scene, cx - width * 0.14, y - width * 0.10, width * 0.28, width * 0.10, "#8a5a2b", 0.92, { color: "#ffd60a", width: 1.2 });
+      drawRect(this.layer("actors"), cx - width * 0.14, y - width * 0.10, width * 0.28, width * 0.10, "#8a5a2b", 0.92, { color: "#ffd60a", width: 1.2 });
     } else if (cell.trap?.state === "discovered") {
-      drawEllipse(this.scene, cx, y - width * 0.05, width * 0.10, width * 0.06, "#ff3b30", 0.12, { color: "#ff3b30", width: 1.4 });
+      drawEllipse(this.layer("actors"), cx, y - width * 0.05, width * 0.10, width * 0.06, "#ff3b30", 0.12, { color: "#ff3b30", width: 1.4 });
     }
-    if (color && cell.type === "stairs-down") addLine(this.scene, [{ x: cx, y: y - width * 0.22 }, { x: cx, y: y - width * 0.04 }], { color, width: 1, alpha: 0.55 });
+    if (color && cell.type === "stairs-down") addLine(this.layer("actors"), [{ x: cx, y: y - width * 0.22 }, { x: cx, y: y - width * 0.04 }], { color, width: 1, alpha: 0.55 });
   }
 
   drawOneWayBarrier(plane, color) {
@@ -400,27 +658,28 @@ export class PixiDungeonRenderer {
       graphic.lineTo(centerX + width, y - height);
     }
     graphic.stroke({ color, width: 1.7, alpha: 0.82 });
-    this.scene.addChild(graphic);
+    this.layer("environment-fx").addChild(graphic);
   }
 
   drawMonsters(renderInput) {
     getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion }) => {
       const color = getMonsterColor(monster);
-      drawEllipse(this.scene, cx, cy + 28 * scale, 35 * scale, 5 * scale, "#000000", 0.58);
+      const actors = this.layer("actors");
+      drawEllipse(actors, cx, cy + 28 * scale, 35 * scale, 5 * scale, "#000000", 0.58);
       const spriteType = monster.spriteType || "biter";
       if (["skeleton", "zombie", "orc", "kobold"].includes(spriteType)) {
-        drawRect(this.scene, cx - 19 * scale, cy - 34 * scale, 38 * scale, 52 * scale, color, 0.34, { color, width: Math.max(1, 3 * scale), alpha: 0.9 });
+        drawRect(actors, cx - 19 * scale, cy - 34 * scale, 38 * scale, 52 * scale, color, 0.34, { color, width: Math.max(1, 3 * scale), alpha: 0.9 });
       } else {
-        drawEllipse(this.scene, cx, cy - 10 * scale, 25 * scale, 25 * scale, color, 0.34, { color, width: Math.max(1, 3 * scale), alpha: 0.9 });
+        drawEllipse(actors, cx, cy - 10 * scale, 25 * scale, 25 * scale, color, 0.34, { color, width: Math.max(1, 3 * scale), alpha: 0.9 });
       }
-      drawEllipse(this.scene, cx, cy - 10 * scale, 8 * scale, 8 * scale, "#ffffff", 0.82);
-      addLine(this.scene, [{ x: cx - 15 * scale, y: cy - 10 * scale }, { x: cx + 15 * scale, y: cy - 10 * scale }], { color: "#ffffff", width: Math.max(1, scale), alpha: 0.7 });
+      drawEllipse(actors, cx, cy - 10 * scale, 8 * scale, 8 * scale, "#ffffff", 0.82);
+      addLine(actors, [{ x: cx - 15 * scale, y: cy - 10 * scale }, { x: cx + 15 * scale, y: cy - 10 * scale }], { color: "#ffffff", width: Math.max(1, scale), alpha: 0.7 });
       const hp = Math.max(0, Math.min(1, monster.hp / Math.max(1, monster.maxHp)));
-      drawRect(this.scene, cx - Math.min(100, slotWidth - 8) / 2, cy - 62, Math.min(100, slotWidth - 8), 5, "#ffffff", 0.12, { color: "#8e8e93", width: 1 });
-      drawRect(this.scene, cx - Math.min(100, slotWidth - 8) / 2, cy - 62, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
+      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, cy - 62, Math.min(100, slotWidth - 8), 5, "#ffffff", 0.12, { color: "#8e8e93", width: 1 });
+      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, cy - 62, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
       if (getQueuedThreat(monster)) {
-        const pulse = 0.48 + 0.18 * Math.sin(Date.now() / 180);
-        drawEllipse(this.scene, cx, cy - 10 * scale, 31 * scale, 31 * scale, "#ffcc00", 0, { color: "#ffcc00", width: 2, alpha: pulse });
+        const pulse = 0.48 + 0.18 * Math.sin(this.clockMs / 180);
+        drawEllipse(this.layer("combat-fx"), cx, cy - 10 * scale, 31 * scale, 31 * scale, "#ffcc00", 0, { color: "#ffcc00", width: 2, alpha: pulse });
       }
       if (renderInput.combatTargetSelection?.active) this.drawTargetMarker(hitRegion, cx, cy, scale, color);
     });
@@ -437,40 +696,78 @@ export class PixiDungeonRenderer {
       graphic.lineTo(cx + Math.cos(end) * radiusX, cy + 31 * scale + Math.sin(end) * radiusY);
     }
     graphic.stroke({ color, width: 1.5, alpha: 0.82 });
-    this.scene.addChild(graphic);
+    this.layer("combat-fx").addChild(graphic);
   }
 
   drawChest() {
-    drawRect(this.scene, 170, 145, 60, 40, "#6b3a00", 0.92, { color: "#ffb300", width: 2.5 });
-    addLine(this.scene, [{ x: 170, y: 160 }, { x: 230, y: 160 }], { color: "#ffb300", width: 2 });
-    drawEllipse(this.scene, 200, 164, 4, 4, "#ff3b30", 0.95);
+    const actors = this.layer("actors");
+    drawRect(actors, 170, 145, 60, 40, "#6b3a00", 0.92, { color: "#ffb300", width: 2.5 });
+    addLine(actors, [{ x: 170, y: 160 }, { x: 230, y: 160 }], { color: "#ffb300", width: 2 });
+    drawEllipse(actors, 200, 164, 4, 4, "#ff3b30", 0.95);
   }
 
   drawDangerPulse(renderInput) {
     if (!renderInput.dangerCue?.active) return;
-    const pulse = 0.05 + 0.03 * (Math.sin(Date.now() / 220) + 1);
-    drawEllipse(this.scene, 200, 174, 150, 22, "#ff3b30", pulse, { color: "#ff3b30", width: 1.3, alpha: 0.48 });
+    const pulse = 0.05 + 0.03 * (Math.sin(this.clockMs / 220) + 1);
+    drawEllipse(this.layer("environment-fx"), 200, 174, 150, 22, "#ff3b30", pulse, { color: "#ff3b30", width: 1.3, alpha: 0.48 });
+    drawEllipse(this.layer("combat-fx"), 200, 124, 42, 18, "#ff3b30", 0.035 + pulse * 0.35);
   }
 
   drawFloatingTexts() {
     this.damageTexts.forEach((entry) => {
       const text = new Text({
         text: entry.text,
-        style: { fill: entry.color, fontFamily: "monospace", fontSize: 16, fontWeight: "bold" }
+        style: { fill: entry.color, fontFamily: "sans-serif", fontSize: 17, fontWeight: "bold", stroke: { color: "#170b0b", width: 4 } }
       });
       text.anchor.set(0.5);
-      text.position.set(200, 100 - entry.age * 0.7);
+      text.position.set(200, 100 - entry.age * 0.9);
+      text.scale.set(1 + Math.max(0, 0.12 - entry.age * 0.008));
       text.alpha = Math.max(0, 1 - entry.age / entry.maxAge);
-      this.scene.addChild(text);
+      this.layer("combat-fx").addChild(text);
     });
+  }
+
+  drawAtmosphere(renderInput) {
+    const fx = this.layer("environment-fx");
+    const color = safeColor(renderInput.visual.wallColor, "#58d6e8");
+    const background = safeColor(renderInput.visual.background, FALLBACK_BACKGROUND);
+    const alpha = renderInput.visual.environment?.animated ? 0.055 : 0.035;
+    addPolygon(fx, [{ x: 0, y: 112 }, { x: 400, y: 112 }, { x: 400, y: 166 }, { x: 0, y: 166 }], mixColor(background, color, 0.45), alpha);
+    drawEllipse(fx, 200, 108, 88, 34, color, 0.025);
+    if (renderInput.visual.geometry?.ceilingStyle === "arch") {
+      addLine(fx, [{ x: 106, y: 30 }, { x: 128, y: 22 }, { x: 160, y: 18 }], { color, width: 1, alpha: 0.25 });
+      addLine(fx, [{ x: 240, y: 18 }, { x: 272, y: 22 }, { x: 294, y: 30 }], { color, width: 1, alpha: 0.25 });
+    }
+  }
+
+  drawCombatEntry(renderInput) {
+    const progress = clamp01(1 - this.combatEntryTime / 320);
+    const eased = 1 - (1 - progress) ** 3;
+    const fx = this.layer("combat-fx");
+    const color = safeColor(renderInput.visual.wallColor, "#58d6e8");
+    const radius = 46 + eased * 78;
+    drawEllipse(fx, 200, 174, radius, 15, color, 0, { color, width: 2, alpha: 0.45 * (1 - eased) });
+    fx.alpha = 1;
+    this.layer("actors").position.y = (1 - eased) * 12;
+    this.layer("actors").scale.set(0.90 + eased * 0.10);
+  }
+
+  drawHitFeedback(renderInput) {
+    const progress = clamp01(this.hitTime / 220);
+    const color = safeColor(renderInput.visual.wallColor, "#e8f7f4");
+    const alpha = 0.10 * progress;
+    drawEllipse(this.layer("combat-fx"), 200, 105, 120 - progress * 24, 72 - progress * 14, color, alpha);
   }
 
   dispose() {
     if (!this.app) return;
-    this.clearScene();
+    this.clearSceneRoot(this.scene);
+    this.clearSceneRoot(this.transitionScene);
     this.app.destroy({ removeView: false }, { children: true });
     this.app = null;
     this.scene = null;
+    this.transitionScene = null;
+    this.transition = null;
     this.supported = false;
     this.resourceStats.destroyed = true;
   }

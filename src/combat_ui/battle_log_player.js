@@ -75,6 +75,7 @@ export function playBattleLogs(queue, index) {
     if (effect.shake && renderer) renderer.triggerShake(effect.shake, 250);
     if (effect.flash && renderer) renderer.triggerFlash(200);
     if (effect.floatText && renderer) renderer.addDamageText(effect.floatText, effect.floatColor);
+    if (effect.floatText && renderer?.triggerHitFeedback) renderer.triggerHitFeedback(220);
   });
 
   if (isImportantCombatResult(log.msg)) {

@@ -211,9 +211,11 @@ export function handleMove(action) {
   }
   
   if (action === "turn-left") {
+    renderer?.beginNavigationTransition?.(action);
     state.dir = (state.dir + 3) % 4;
     advanceRoamingTurn(false);
   } else if (action === "turn-right") {
+    renderer?.beginNavigationTransition?.(action);
     state.dir = (state.dir + 1) % 4;
     advanceRoamingTurn(false);
   } else if (action === "forward") {
@@ -235,6 +237,7 @@ export function handleMove(action) {
         updateUI();
         return;
       }
+      renderer?.beginNavigationTransition?.(action);
       recordAdjacentTrapAvoidance(nextX, nextY);
       state.x = nextX;
       state.y = nextY;
@@ -265,6 +268,7 @@ export function handleMove(action) {
         updateUI();
         return;
       }
+      renderer?.beginNavigationTransition?.(action);
       recordAdjacentTrapAvoidance(backX, backY);
       state.x = backX;
       state.y = backY;
