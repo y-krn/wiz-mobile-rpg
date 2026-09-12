@@ -19,12 +19,14 @@ deferred to #1230. No #1230 visual enhancement work was added to this PR.
 
 - Base ref: `origin/main`
 - BASE_SHA: `ba84042d884747541726810f68277b5569a19494`
-- HEAD_SHA (sync code/artifact source): `1e9e265b49f9e049a9ac38b4422ae1ac8cdc0d43`
+- HEAD_SHA (current PR head): `c1f7ffdb4f9e8426af44ba4f33a8cab3dc01b72b`
+- Artifact source HEAD before evidence-only update: `1e9e265b49f9e049a9ac38b4422ae1ac8cdc0d43`
 - Latest-main relation: sync completed by a clean merge of `origin/main` at
   `ba84042d` into the prior PR head; no conflict resolution or PR-specific
-  code change was introduced.
-- Merge state: PR #1223 remains open; GitHub mergeability is checked and
-  recorded after the current-head push.
+  code change was introduced. The current head adds only refreshed evidence
+  after that sync.
+- Merge state: PR #1223 is **OPEN / MERGEABLE**, with GitHub
+  `mergeStateStatus=BLOCKED` while current-head required CI is pending.
 - Production-backed seed: `ISSUE-1220-B1F-PRODUCTION`
 - Production-backed fixture: `generateRunFloor({ runSeed, floor: 1 })`, B1F position `(6,4)`, facing east
 - Primary evidence: 400×260 internal render, minimap hidden
