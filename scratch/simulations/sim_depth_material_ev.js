@@ -4606,6 +4606,16 @@ function createSimulationState(
       chestHealPotionWeightSource,
       enemyHealPotionDropChance,
       measurementInitiative: scenario.measurementInitiative || null,
+      productionSharedNormalEnemyActionSlot:
+        scenario.productionSharedNormalEnemyActionSlot !== false,
+      measurementDisableSharedNormalEnemyActionSlot:
+        scenario.measurementDisableSharedNormalEnemyActionSlot === true,
+      measurementMaxEnemyActionsPerRound:
+        Number.isInteger(scenario.measurementMaxEnemyActionsPerRound)
+          ? scenario.measurementMaxEnemyActionsPerRound
+          : null,
+      measurementSharedNormalEnemyActionSlot:
+        scenario.measurementSharedNormalEnemyActionSlot === true,
       extraCampFloors,
       extraCampRecoveryRate,
       extraCampTimeCost,
@@ -7819,6 +7829,10 @@ function runEncounter(
     isBoss,
     isMidboss,
     isRoamingFlack: isElite,
+    enemyActionScheduling: state.simPolicy.productionSharedNormalEnemyActionSlot === true &&
+      !isBoss && !isMidboss && !isElite
+      ? "shared-normal-slot"
+      : "independent",
     roamingMonsterId: roamingMonster?.id || null,
     retreatPosition: retreatCoord ? { ...retreatCoord } : null,
     allParalyzedTurns: 0,

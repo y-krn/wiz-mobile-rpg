@@ -517,7 +517,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         idx,
         speed: initiative.speed,
         tieBreak: initiative.tieBreak,
-        measurementExtraMultiAction: false
+        measurementExtraMultiAction: false,
+        measurementSharedNormalSlot: false
       });
       if (hasTrait(mon, "multiAction") && mon.multiActionQueued && state.simPolicy?.measurementMaxActionsPerEnemy !== 1) {
         turns.push({
@@ -526,7 +527,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           idx,
           speed: initiative.speed - 1,
           tieBreak: Math.max(0, initiative.tieBreak - Number.EPSILON),
-          measurementExtraMultiAction: true
+          measurementExtraMultiAction: true,
+          measurementSharedNormalSlot: false
         });
       }
     }
@@ -537,8 +539,49 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   // on a hidden permanent priority; stable insertion order is the explicit
   // final fallback when random values are exactly identical.
   turns.sort((a, b) => (b.speed - a.speed) || (b.tieBreak - a.tieBreak));
-  // Measurement-only exposure cap. With no simPolicy value the production
-  // turn order is unchanged. The cap applies to total monster turns, so it
+  const measurementSharedNormalEnemyActionSlot =
+    state.simPolicy?.measurementSharedNormalEnemyActionSlot === true;
+  const measurementDisableSharedNormalEnemyActionSlot =
+    state.simPolicy?.measurementDisableSharedNormalEnemyActionSlot === true;
+  const ordinaryEncounter = state.combatState?.isBoss !== true &&
+    state.combatState?.isMidboss !== true &&
+    state.combatState?.isRoamingFlack !== true;
+  const productionSharedNormalEnemyActionSlot = ordinaryEncounter && (
+    state.combatState?.enemyActionScheduling === "shared-normal-slot" ||
+    (!state.simPolicy &&
+      state.combatState?.isBoss === false &&
+      state.combatState?.isMidboss === false &&
+      state.combatState?.isRoamingFlack === false)
+  );
+  // Exact shared ordinary-slot rule. Every living
+  // enemy still rolls initiative, but only the first ordinary enemy turn in
+  // the resolved order owns the shared slot for this round. Its explicit
+  // trait-generated extra action remains attached to that actor; it is not an
+  // additional ordinary slot or a banked turn for another actor.
+  if (ordinaryEncounter && !measurementDisableSharedNormalEnemyActionSlot &&
+      (measurementSharedNormalEnemyActionSlot || productionSharedNormalEnemyActionSlot)) {
+    const slotOwner = turns.find(turn =>
+      turn.type === "monster" && !turn.measurementExtraMultiAction
+    )?.idx;
+    const ordinaryEnemyCount = new Set(turns
+      .filter(turn => turn.type === "monster" && !turn.measurementExtraMultiAction)
+      .map(turn => turn.idx)).size;
+    if (slotOwner !== undefined && ordinaryEnemyCount > 1) {
+      logQueue.push({ msg: "[ 敵 ] 敵は連携して通常行動を1回にまとめた。" });
+    }
+    for (let index = 0; index < turns.length; index++) {
+      const turn = turns[index];
+      if (turn.type !== "monster") continue;
+      if (turn.idx !== slotOwner) {
+        turns[index] = null;
+        continue;
+      }
+      turn.measurementSharedNormalSlot = true;
+    }
+    turns.splice(0, turns.length, ...turns.filter(Boolean));
+  }
+  // Existing upper-bound measurement cap. The cap applies to total monster
+  // turns, so it
   // includes ordinary actions and trait-generated extra actions alike while
   // preserving the original monster objects, traits, and composition.
   const maxEnemyActionsPerRound = state.simPolicy?.measurementMaxEnemyActionsPerRound;
@@ -560,7 +603,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         state.simTelemetry.measurementEnemyTurnEvents.push({
           round: roundNumber,
           monster: turn.mon.name,
-          extraMultiAction: Boolean(turn.measurementExtraMultiAction)
+          extraMultiAction: Boolean(turn.measurementExtraMultiAction),
+          sharedNormalSlot: Boolean(turn.measurementSharedNormalSlot)
         });
       }
     });
@@ -607,6 +651,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         },
         extraMultiAction: {
           value: Boolean(turn.measurementExtraMultiAction),
+          writable: false,
+          enumerable: false
+        },
+        sharedNormalSlot: {
+          value: Boolean(turn.measurementSharedNormalSlot),
           writable: false,
           enumerable: false
         },
