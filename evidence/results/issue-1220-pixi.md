@@ -2,19 +2,29 @@
 
 ## Decision
 
-**PASS for a bounded prototype; production adoption remains out of scope.**
+**PASS — PixiJS can preserve the existing Canvas navigation grammar/readability as a bounded opt-in renderer.**
 
 Closes #1220.
 
-PixiJS preserves the Canvas screen-space projection/topology grammar and gives a
-clearer floor continuity treatment on the reviewed pixels. The candidate is
+Readability spike: **PASS**. Bounded Pixi integration: **PASS**. Visual impact:
+**INSUFFICIENT**. Production adoption: **HOLD**.
+
+PixiJS preserves the Canvas screen-space projection/topology grammar and the
+reviewed pixels do not regress navigation readability. The candidate is
 available only at `?renderer=pixi`; the production default remains Canvas.
-Physical-device verification is intentionally deferred to a follow-up issue.
+The stronger motion/material/atmosphere visual-impact question is explicitly
+deferred to #1230. No #1230 visual enhancement work was added to this PR.
 
 ## Provenance
 
 - Base ref: `origin/main`
-- BASE_SHA: `7b0b523b908298768ac06e8dbf79af6c5ef76e1f`
+- BASE_SHA: `ba84042d884747541726810f68277b5569a19494`
+- HEAD_SHA (sync code/artifact source): `1e9e265b49f9e049a9ac38b4422ae1ac8cdc0d43`
+- Latest-main relation: sync completed by a clean merge of `origin/main` at
+  `ba84042d` into the prior PR head; no conflict resolution or PR-specific
+  code change was introduced.
+- Merge state: PR #1223 remains open; GitHub mergeability is checked and
+  recorded after the current-head push.
 - Production-backed seed: `ISSUE-1220-B1F-PRODUCTION`
 - Production-backed fixture: `generateRunFloor({ runSeed, floor: 1 })`, B1F position `(6,4)`, facing east
 - Primary evidence: 400×260 internal render, minimap hidden
@@ -24,7 +34,8 @@ Physical-device verification is intentionally deferred to a follow-up issue.
 ## Canvas / Pixi A/B pixels
 
 These are the same synthetic state and 390px viewport. The complete width and
-archetype matrix is emitted by `ui-pixi-dungeon-spike-1220.spec.js`.
+archetype matrix is emitted by `ui-pixi-dungeon-spike-1220.spec.js` at the
+sync HEAD above. The committed images below were regenerated from that run.
 
 | state | Canvas baseline | Pixi candidate |
 | --- | --- | --- |
@@ -61,21 +72,24 @@ Combat evidence:
 
 ## Enhancement evaluation
 
-- Floor depth shading: **adopted in spike**. It makes forward/side walkable
+- Floor depth shading: **bounded baseline only**. It makes forward/side walkable
   continuity more legible without changing the silhouette.
-- Biome/environment tint: **adopted in spike**. Low-alpha tint differentiates
+- Biome/environment tint: **bounded baseline only**. Low-alpha tint differentiates
   flat and arch/materially different biomes without becoming a route cue.
-- Danger pulse: **adopted in spike**. Localized and restrained; no bloom, blur,
+- Danger pulse: **bounded baseline only**. Localized and restrained; no bloom, blur,
   noisy particles, neon route marker, or fake opening marker.
+
+These small cues are not the visual-impact acceptance for #1230; motion,
+material identity, and layered atmosphere remain deferred.
 
 ## Cost and lifecycle
 
-Build measured against a clean `origin/main` archive with the same Vite build:
+Current sync-head build (`1e9e265b`, Vite 8.0.16):
 
-- Canvas baseline default bundle: `1,158.22 kB` raw / `367.55 kB` gzip
-- Pixi candidate default bundle: `1,159.66 kB` raw / `368.15 kB` gzip
-- Default-path impact: `+1.44 kB` raw / `+0.60 kB` gzip
-- Lazy Pixi chunk: `236.44 kB` raw / `68.90 kB` gzip, loaded only by the opt-in route
+- Default app chunk: `796.51 kB` raw / `249.84 kB` gzip
+- Lazy Pixi chunk: `236.37 kB` raw / `68.89 kB` gzip, loaded only by the opt-in route
+- Pixi remains outside the default app chunk; no production-default renderer
+  change was made
 - Initialization sample in Chromium: `23.6 ms`
 - Repeated draw sample: 49 scene children, 2 redraws; max-child bound asserted
 - Resource ownership: scene children are destroyed on rebuild; `Application`
@@ -85,7 +99,7 @@ Build measured against a clean `origin/main` archive with the same Vite build:
 ## Known limitations
 
 - Browser pixels are not physical-device evidence; iPhone verification remains
-  a separate gate.
+  a separate gate. The preview URL is for manual follow-up only.
 - Pixi combat silhouettes are a compact prototype treatment, not a sprite or
   texture migration.
 - The spike does not alter the default renderer, gameplay rules, minimap
@@ -98,3 +112,15 @@ npx playwright test tests/ui-pixi-dungeon-spike-1220.spec.js --grep @smoke
 npm run build
 npm run lint
 ```
+
+Current-head artifact regeneration:
+
+```sh
+npx playwright test tests/ui-pixi-dungeon-spike-1220.spec.js --grep @smoke
+npm run test:browser
+PLAYWRIGHT_PORT=18622 npm run test:browser:parallel
+```
+
+The focused run passed 4/4. The full smoke run passed 77/77 serially and
+77/77 with two workers; the latter used a task-owned port because the default
+diagnostic port reported EPERM during preflight.
