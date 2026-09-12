@@ -30,11 +30,16 @@ export function shouldSkipVercelBuild(changedPaths, previousSha) {
   return changedPaths.every(isVercelBuildNeutralPath);
 }
 
-function readChangedPaths(previousSha) {
-  return execFileSync("git", ["diff", "--name-only", previousSha, "HEAD", "--"], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  })
+export function readChangedPaths(previousSha, cwd = process.cwd()) {
+  return execFileSync(
+    "git",
+    ["diff", "--name-only", "--no-renames", previousSha, "HEAD", "--"],
+    {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  )
     .split(/\r?\n/)
     .filter(Boolean);
 }
