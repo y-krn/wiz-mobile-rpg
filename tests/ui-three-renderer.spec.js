@@ -341,10 +341,8 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
         let ceiling = null;
         const farBranchSurfaces = [];
         const farBranchDepth = [];
-        const sideOpeningFrames = [];
         dungeonRenderer.root.traverse((child) => {
           if (child.userData?.surface === 'ceiling' && !ceiling) ceiling = child;
-          if (child.userData?.surface?.startsWith('side-opening-')) sideOpeningFrames.push(child.userData.surface);
           if (child.userData?.surface?.startsWith('side-branch-')) {
             farBranchSurfaces.push(child.userData.surface);
             farBranchDepth.push({
@@ -370,7 +368,6 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
           ceilingMaxY,
           farBranchSurfaces,
           farBranchDepth,
-          sideOpeningFrames,
         };
       });
 
@@ -392,12 +389,6 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
       }
       expect(evidence.farBranchSurfaces).toEqual([]);
       expect(evidence.farBranchDepth).toEqual([]);
-      if (fixture.name === 'b2-right-turn-frozen') {
-        expect(evidence.sideOpeningFrames).toEqual(expect.arrayContaining([
-          'side-opening-post',
-          'side-opening-lintel',
-        ]));
-      }
 
       const screenshot = await page.locator('#dungeon-canvas').screenshot({
         path: testInfo.outputPath(`three-readability-${fixture.name}-${viewport.width}px.png`),
@@ -1366,17 +1357,9 @@ test('Three.js Dungeon View follows map topology for all four directions @smoke 
     [false, false, true],
   ]);
   expect(observations[3].threeFacts.some(({ z, column }) => z === 1 && column === 0)).toBe(false);
-  expect(observations[0].surfaces.map(({ surface }) => surface)).toEqual([
-    'side-opening-post', 'side-opening-post', 'side-opening-lintel', 'floor', 'ceiling', 'left-wall',
-  ]);
-  expect(observations[2].surfaces.map(({ surface }) => surface)).toEqual([
-    'side-opening-post', 'side-opening-post', 'side-opening-lintel', 'floor', 'ceiling', 'right-wall',
-  ]);
-  expect(observations[3].surfaces.map(({ surface }) => surface)).toEqual([
-    'side-opening-post', 'side-opening-post', 'side-opening-lintel',
-    'side-opening-post', 'side-opening-post', 'side-opening-lintel',
-    'floor', 'ceiling', 'front-wall',
-  ]);
+  expect(observations[0].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'left-wall']);
+  expect(observations[2].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'right-wall']);
+  expect(observations[3].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'front-wall']);
   const leftWall = observations[0].surfaces.find(({ surface }) => surface === 'left-wall');
   const rightWall = observations[2].surfaces.find(({ surface }) => surface === 'right-wall');
   const frontWall = observations[3].surfaces.find(({ surface }) => surface === 'front-wall');

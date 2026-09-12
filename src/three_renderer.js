@@ -623,32 +623,14 @@ export class ThreeDungeonRenderer {
             frontOneWayBarrier: cell.frontOneWayBarrier,
             backBlocked: cell.backBlocked,
           };
-      if (cell.column === 0) {
-        if (!frame.leftBlocked && topology.some((neighbor) => neighbor.valid && neighbor.z === cell.z && neighbor.column === -1)) {
-          this.addSideOpeningFrame(cellGroup, -1, profile, wallMaterial, cell);
-        }
-        if (!frame.rightBlocked && topology.some((neighbor) => neighbor.valid && neighbor.z === cell.z && neighbor.column === 1)) {
-          this.addSideOpeningFrame(cellGroup, 1, profile, wallMaterial, cell);
-        }
-      }
-      // Side cells are farther from the fixed eye point than forward cells.
-      // A restrained lift on the same material family offsets fog falloff so a
-      // real neighboring floor remains legible without adding a marker.
-      const sideVisibilityLift = cell.column === 0 ? 1 : 1.18;
-      const floorSurface = floorMaterial.clone();
-      floorSurface.color.multiplyScalar(sideVisibilityLift);
-      floorSurface.emissive.multiplyScalar(sideVisibilityLift);
-      const floor = new Mesh(new PlaneGeometry(profile.cellWidth, profile.cellDepth), floorSurface);
+      const floor = new Mesh(new PlaneGeometry(profile.cellWidth, profile.cellDepth), floorMaterial.clone());
       floor.rotation.x = -Math.PI / 2;
       floor.userData = { surface: "floor", topology: cellGroup.userData.topology };
       cellGroup.add(floor);
 
-      const ceilingSurface = ceilingMaterial.clone();
-      ceilingSurface.color.multiplyScalar(sideVisibilityLift);
-      ceilingSurface.emissive.multiplyScalar(sideVisibilityLift);
       const ceiling = new Mesh(
         createCeilingGeometry(profile.cellWidth, profile.cellDepth, profile.wallHeight, profile.ceilingStyle),
-        ceilingSurface
+        ceilingMaterial.clone()
       );
       if (profile.ceilingStyle === "flat") {
         ceiling.rotation.x = Math.PI / 2;
@@ -659,11 +641,11 @@ export class ThreeDungeonRenderer {
 
       if (frame.leftBlocked) {
         this.addCorridorWall(cellGroup, new BoxGeometry(profile.wallThickness, profile.wallHeight, profile.cellDepth), wallMaterial,
-          { x: -profile.cellWidth / 2, y: profile.wallHeight / 2, z: 0 }, "left-wall", cell, 0, true, sideVisibilityLift);
+          { x: -profile.cellWidth / 2, y: profile.wallHeight / 2, z: 0 }, "left-wall", cell, 0);
       }
       if (frame.rightBlocked) {
         this.addCorridorWall(cellGroup, new BoxGeometry(profile.wallThickness, profile.wallHeight, profile.cellDepth), wallMaterial,
-          { x: profile.cellWidth / 2, y: profile.wallHeight / 2, z: 0 }, "right-wall", cell, 0, true, sideVisibilityLift);
+          { x: profile.cellWidth / 2, y: profile.wallHeight / 2, z: 0 }, "right-wall", cell, 0);
       }
       if (frame.frontBlocked) {
         const isOneWay = frame.frontOneWayBarrier;
@@ -690,7 +672,7 @@ export class ThreeDungeonRenderer {
         }
         this.addCorridorWall(cellGroup, new BoxGeometry(profile.cellWidth, profile.wallHeight, profile.wallThickness), frontMaterial,
           { x: 0, y: profile.wallHeight / 2, z: -profile.cellDepth / 2 },
-          isOneWay ? "front-wall-one-way" : "front-wall", cell, 0, false, sideVisibilityLift);
+          isOneWay ? "front-wall-one-way" : "front-wall", cell, 0, false);
         if (isOneWay) {
           const chevron = new Mesh(
             new PlaneGeometry(profile.cellWidth * 0.82, profile.wallHeight * 0.82),
@@ -711,37 +693,13 @@ export class ThreeDungeonRenderer {
       }
       if (frame.backBlocked) {
         this.addCorridorWall(cellGroup, new BoxGeometry(profile.cellWidth, profile.wallHeight, profile.wallThickness), wallMaterial,
-          { x: 0, y: profile.wallHeight / 2, z: profile.cellDepth / 2 }, "back-wall", cell, 0, true, sideVisibilityLift);
+          { x: 0, y: profile.wallHeight / 2, z: profile.cellDepth / 2 }, "back-wall", cell, 0);
       }
     });
   }
 
-  addSideOpeningFrame(parent, side, profile, wallMaterial, topology) {
-    const frameMaterial = wallMaterial.clone();
-    const postGeometry = new BoxGeometry(profile.wallThickness, profile.wallHeight, profile.wallThickness);
-    const sideX = side * profile.cellWidth / 2;
-    const halfOpening = profile.cellWidth / 2;
-    for (const z of [-halfOpening, halfOpening]) {
-      const post = new Mesh(postGeometry.clone(), frameMaterial.clone());
-      post.position.set(sideX, profile.wallHeight / 2, z);
-      post.userData = { surface: "side-opening-post", topology: { z: topology.z, column: topology.column, x: topology.x, y: topology.y } };
-      parent.add(post);
-    }
-    postGeometry.dispose();
-    const lintel = new Mesh(
-      new BoxGeometry(profile.wallThickness, profile.wallThickness, profile.cellWidth),
-      frameMaterial
-    );
-    lintel.position.set(sideX, profile.wallHeight - profile.wallThickness / 2, 0);
-    lintel.userData = { surface: "side-opening-lintel", topology: { z: topology.z, column: topology.column, x: topology.x, y: topology.y } };
-    parent.add(lintel);
-  }
-
-  addCorridorWall(parent, geometry, material, position, surface, topology, rotationY = 0, cloneMaterial = true, visibilityLift = 1) {
-    const wallMaterial = cloneMaterial ? material.clone() : material;
-    wallMaterial.color.multiplyScalar(visibilityLift);
-    wallMaterial.emissive.multiplyScalar(visibilityLift);
-    const wall = new Mesh(geometry, wallMaterial);
+  addCorridorWall(parent, geometry, material, position, surface, topology, rotationY = 0, cloneMaterial = true) {
+    const wall = new Mesh(geometry, cloneMaterial ? material.clone() : material);
     wall.position.set(position.x, position.y, position.z);
     wall.rotation.y = rotationY;
     wall.userData = { surface, topology: { z: topology.z, column: topology.column, x: topology.x, y: topology.y } };
