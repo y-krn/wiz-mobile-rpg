@@ -32,6 +32,10 @@ assert.ok(report.cases.every(testCase => Object.hasOwn(testCase, "enemyActionCou
 assert.ok(report.cases.every(testCase => Object.hasOwn(testCase, "enemyActionsBeforeFirstPlayerAction")));
 assert.ok(report.cases.every(testCase => Object.hasOwn(testCase, "damageBeforeFirstPlayerAction")));
 assert.ok(report.cases.every(testCase => Object.hasOwn(testCase, "productionTraitFiring")));
+assert.ok(report.cases.every(testCase => Object.hasOwn(testCase, "enemyActionCost")));
+assert.ok(report.cases.every(testCase =>
+  testCase.enemyActionCost.byEncounterOrdinal["1"].all.encounters === 1
+));
 assert.ok(report.cases.every(testCase =>
   Object.hasOwn(testCase.productionTraitFiring, "evasive")
 ));

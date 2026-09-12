@@ -588,6 +588,41 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       writable: true,
       enumerable: false
     });
+    if (turn.type === "monster" && state.simTelemetry?.measurementEnemyActionDetails) {
+      Object.defineProperties(actionObservation, {
+        monsterName: {
+          value: turn.mon.name,
+          writable: false,
+          enumerable: false
+        },
+        monsterTraits: {
+          value: [...(turn.mon.traits || [])],
+          writable: false,
+          enumerable: false
+        },
+        monsterTags: {
+          value: [...(turn.mon.tags || [])],
+          writable: false,
+          enumerable: false
+        },
+        extraMultiAction: {
+          value: Boolean(turn.measurementExtraMultiAction),
+          writable: false,
+          enumerable: false
+        },
+        actionNames: {
+          value: [],
+          writable: false,
+          enumerable: false
+        },
+        conditions: {
+          value: [],
+          writable: false,
+          enumerable: false
+        }
+      });
+      state.simTelemetry.measurementCurrentEnemyAction = actionObservation;
+    }
     try {
       if (escaped) return;
     const livingNow = state.party.filter(char => char.status !== "dead");
@@ -1370,6 +1405,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             floatColor: "#ff3b30"
           });
         } else if (mon.spell === "TILTOWAIT") {
+          recordMonsterAction(mon, "TILTOWAIT", state);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}はティルトウェイトを唱えた！極大爆裂が襲いかかる！`,
             sound: "cast_spell",
@@ -1611,6 +1647,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
       }
     } finally {
+      if (state.simTelemetry?.measurementCurrentEnemyAction === actionObservation) {
+        delete state.simTelemetry.measurementCurrentEnemyAction;
+      }
       logQueue.slice(actionStart).forEach(entry => {
         if (!entry.groupId) entry.groupId = groupId;
       });

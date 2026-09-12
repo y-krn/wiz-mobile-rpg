@@ -14,9 +14,14 @@ import {
 import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
+import {
+  createEnemyActionCostAggregate,
+  finalizeEnemyActionCostAggregate,
+  observeEnemyActionCost
+} from "./enemy_action_cost.js";
 
-export const RUNNER_VERSION = "issue1198-continuation-resource-v2";
-export const SCHEMA_VERSION = 10;
+export const RUNNER_VERSION = "issue1205-enemy-action-cost-v1";
+export const SCHEMA_VERSION = 11;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const EARLY_COMPOSITION_POLICY_IDS = Object.freeze([
   "baseline",
@@ -56,6 +61,7 @@ const B1_STATUS_CURE_ITEM_IDS = new Set([
 const B1_CHEST_SOURCES = Object.freeze(["ordinary", "fromDrop"]);
 
 const RUNNER_PATH = "scratch/measurements/starting_kit_diagnostic.js";
+const MEASUREMENT_HELPER_PATH = "scratch/measurements/enemy_action_cost.js";
 const PRODUCTION_PATHS = Object.freeze([
   "scratch/simulations/sim_depth_material_ev.js",
   "src/state/initial_state.js",
@@ -895,7 +901,8 @@ function createAggregate(runs) {
         actualHpRecovered: 0,
         actualMpRecovered: 0
       }])
-    )
+    ),
+    enemyActionCost: createEnemyActionCostAggregate()
   };
 }
 
@@ -1073,6 +1080,17 @@ function observeRun(aggregate, result, runIndex) {
     const composition = aggregate.compositions[key] ||= createCompositionRecord();
     const diagnostic = diagnosticsByOrdinal.get(index);
     const encounterRow = encounterRows[index];
+    if (encounterRow.encounterOrdinal <= 2) {
+      const enemyActionRounds = diagnostic?.rounds || [];
+      observeEnemyActionCost(aggregate.enemyActionCost, {
+        encounterOrdinal: encounterRow.encounterOrdinal,
+        rawInitialVisibleEnemyCount: encounterRow.rawInitialVisibleEnemyCount,
+        enemyNames: encounterRow.initialCompositionEnemyNames,
+        outcome: encounterRow.outcome,
+        events: enemyActionRounds.flatMap(round => round.enemyActionEvents || []),
+        statusDamageEvents: enemyActionRounds.flatMap(round => round.statusDamageEvents || [])
+      });
+    }
     const visibleCount = String(encounterRow.initialVisibleEnemyCount);
     const visibleRecord = aggregate.initialVisibleEnemyCounts[visibleCount] ||= {
       encounters: 0,
@@ -1259,6 +1277,7 @@ function finalizeAggregate(aggregate, configuration) {
     lootBreadth: finalizeLootBreadth(aggregate),
     naturalEntryHpBands: { ...aggregate.naturalEntryHpBands },
     naturalEntryHpBandResource,
+    enemyActionCost: finalizeEnemyActionCostAggregate(aggregate.enemyActionCost),
     encounterExposure: {
       enemyEncounterCount: aggregate.encounterCount,
       enemyEncounterRatePerRun: aggregate.encounterCount / aggregate.runs,
@@ -1675,7 +1694,7 @@ async function main() {
   );
   const provenance = requireRunnerProvenance({
     fetchOriginMain: false,
-    measurementRunnerPaths: [RUNNER_PATH, ...PRODUCTION_PATHS]
+    measurementRunnerPaths: [RUNNER_PATH, MEASUREMENT_HELPER_PATH, ...PRODUCTION_PATHS]
   });
   const result = await runDiagnostic({
     startingKit,

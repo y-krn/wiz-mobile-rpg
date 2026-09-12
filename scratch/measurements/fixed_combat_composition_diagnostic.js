@@ -8,9 +8,14 @@ import { pathToFileURL } from "node:url";
 
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
+import {
+  createEnemyActionCostAggregate,
+  finalizeEnemyActionCostAggregate,
+  observeEnemyActionCost
+} from "./enemy_action_cost.js";
 
-export const RUNNER_VERSION = "issue1151-fixed-combat-composition-v3";
-export const SCHEMA_VERSION = 2;
+export const RUNNER_VERSION = "issue1205-fixed-combat-composition-v1";
+export const SCHEMA_VERSION = 3;
 export const STARTING_KIT = "vanguard";
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const ENTRY_MP_RATIO = 1;
@@ -60,6 +65,7 @@ export const COMPOSITIONS = Object.freeze([
 ]);
 
 const RUNNER_PATH = "scratch/measurements/fixed_combat_composition_diagnostic.js";
+const MEASUREMENT_HELPER_PATH = "scratch/measurements/enemy_action_cost.js";
 const PRODUCTION_PATHS = Object.freeze([
   "scratch/simulations/sim_depth_material_ev.js",
   "src/state/initial_state.js",
@@ -170,7 +176,8 @@ function createAccumulator(definition) {
     guardAdjacentTriggers: 0,
     guardedCount: 0,
     splitOnDeathTriggers: 0,
-    splitOnDeathSpawned: 0
+    splitOnDeathSpawned: 0,
+    enemyActionCost: createEnemyActionCostAggregate()
   };
 }
 
@@ -179,10 +186,18 @@ function observeResult(accumulator, result) {
   const diagnostic = result.diagnostics?.encounters?.[0];
   if (!identity || !diagnostic) throw new Error("fixed combat result omitted encounter diagnostics");
   const rounds = diagnostic.rounds || [];
+  const outcome = result.fixedCombatResult || identity.outcome;
+  observeEnemyActionCost(accumulator.enemyActionCost, {
+    encounterOrdinal: 1,
+    rawInitialVisibleEnemyCount: identity.enemyNames?.length || 0,
+    enemyNames: identity.enemyNames || [],
+    outcome,
+    events: rounds.flatMap(round => round.enemyActionEvents || []),
+    statusDamageEvents: rounds.flatMap(round => round.statusDamageEvents || [])
+  });
   const selected = rounds.filter(round => round.fleeSelected).length;
   const executed = rounds.filter(round => round.fleeExecuted).length;
   const parting = rounds.filter(round => round.fleePartingAttack).length;
-  const outcome = result.fixedCombatResult || identity.outcome;
   increment(accumulator.outcomes, outcome);
   accumulator.clear += Number(outcome === "victory");
   accumulator.death += Number(outcome === "death");
@@ -300,7 +315,8 @@ function finalizeAccumulator(accumulator, runs) {
         triggers: accumulator.splitOnDeathTriggers,
         spawnedCount: accumulator.splitOnDeathSpawned
       }
-    }
+    },
+    enemyActionCost: finalizeEnemyActionCostAggregate(accumulator.enemyActionCost)
   };
 }
 
@@ -633,7 +649,7 @@ async function main() {
   }
   const provenance = requireRunnerProvenance({
     fetchOriginMain: false,
-    measurementRunnerPaths: [RUNNER_PATH, ...PRODUCTION_PATHS]
+    measurementRunnerPaths: [RUNNER_PATH, MEASUREMENT_HELPER_PATH, ...PRODUCTION_PATHS]
   });
   const result = await runFixedCombatDiagnostic({ runs, seed, startingKit });
   const report = buildReport(result, provenance, options);

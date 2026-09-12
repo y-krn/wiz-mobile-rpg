@@ -14,13 +14,14 @@ import {
 } from "./starting_kit_diagnostic.js";
 import { runFixedCombatDiagnostic } from "./fixed_combat_composition_diagnostic.js";
 
-export const RUNNER_VERSION = "issue1187-early-encounter-cause-v4";
-export const SCHEMA_VERSION = 4;
+export const RUNNER_VERSION = "issue1205-early-encounter-cause-v1";
+export const SCHEMA_VERSION = 5;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1187;
 export const FIXED_COMBAT_SEED = 1151;
 
 const RUNNER_PATH = "scratch/measurements/early_encounter_cause_diagnostic.js";
+const MEASUREMENT_HELPER_PATH = "scratch/measurements/enemy_action_cost.js";
 const PRODUCTION_PATHS = Object.freeze([
   "scratch/simulations/sim_depth_material_ev.js",
   "scratch/measurements/starting_kit_diagnostic.js",
@@ -48,6 +49,97 @@ function formatRate(value) {
 
 function formatNumber(value) {
   return value === null || value === undefined ? "—" : Number(value).toFixed(2);
+}
+
+function averageFinite(values) {
+  const finite = values.filter(Number.isFinite);
+  return finite.length > 0
+    ? finite.reduce((sum, value) => sum + value, 0) / finite.length
+    : null;
+}
+
+function fixedRiskReference(fixedCombat, hpBandId, risk) {
+  const cases = fixedCombat.cases.filter(testCase =>
+    testCase.hpBandId === hpBandId && testCase.risk === risk && testCase.policy === "fight"
+  );
+  const costs = cases.map(testCase => testCase.enemyActionCost.byEncounterOrdinal["1"].all);
+  return {
+    cases: cases.map(testCase => testCase.compositionId),
+    fightClearRate: averageFinite(cases.map(testCase => testCase.clearRate)),
+    enemyActions: averageFinite(costs.map(cost => cost.enemyActions.average)),
+    damagePerEnemyAction: averageFinite(costs.map(cost => cost.damagePerEnemyAction.average)),
+    damagePerDamagingEnemyAction: averageFinite(costs.map(cost => cost.damagePerDamagingEnemyAction.average))
+  };
+}
+
+function buildFixedHpConnection(fixedCombat) {
+  return Object.fromEntries(["100", "75", "50", "25"].map(hpBandId => [hpBandId, {
+    hpBandId,
+    highRisk: fixedRiskReference(fixedCombat, hpBandId, "high"),
+    lowRisk: fixedRiskReference(fixedCombat, hpBandId, "low")
+  }]));
+}
+
+function diagnoseEnemyActionCost(result, fixedCombatConnection, naturalEntryResource) {
+  const ordinalOne = result.enemyActionCost.byEncounterOrdinal["1"];
+  const single = ordinalOne.single;
+  const pair = ordinalOne.pair;
+  const ratio = (left, right) => Number.isFinite(left) && Number.isFinite(right) && right > 0
+    ? left / right
+    : null;
+  const actionCountRatio = ratio(pair.enemyActions.p50, single.enemyActions.p50);
+  const damagePerActionRatio = ratio(
+    pair.damagePerDamagingEnemyAction.p50,
+    single.damagePerDamagingEnemyAction.p50
+  );
+  const specialActionDamage = Object.entries(result.enemyActionCost.byAction)
+    .filter(([action]) => action !== "通常攻撃")
+    .reduce((sum, [, record]) => sum + record.damage, 0);
+  const directDamage = result.enemyActionCost.reconciliation.directDamage;
+  const naturalE2HpP50 = naturalEntryResource.byEncounterOrdinal["2"].all.hpRateBeforeEncounter.p50;
+  const high100 = fixedCombatConnection["100"].highRisk.fightClearRate;
+  const high50 = fixedCombatConnection["50"].highRisk.fightClearRate;
+  const evidence = {
+    actionCountDominant: actionCountRatio !== null && actionCountRatio >= 1.5 &&
+      (damagePerActionRatio === null || damagePerActionRatio < 1.25),
+    damagePerActionDominant: damagePerActionRatio !== null && damagePerActionRatio >= 1.5 &&
+      (actionCountRatio === null || actionCountRatio < 1.25),
+    specificActionOrTraitDominant: directDamage > 0 && specialActionDamage / directDamage >= 0.5,
+    lowEntryHpInteraction: Number.isFinite(naturalE2HpP50) && naturalE2HpP50 <= 0.5 &&
+      Number.isFinite(high100) && Number.isFinite(high50) && high100 - high50 >= 0.25
+  };
+  const primary = evidence.actionCountDominant
+    ? "A-action-count-dominant"
+    : evidence.damagePerActionDominant
+      ? "B-damage-per-action-dominant"
+      : evidence.specificActionOrTraitDominant
+        ? "C-specific-action-or-trait-dominant"
+        : evidence.lowEntryHpInteraction
+          ? "D-low-entry-hp-interaction-dominant"
+          : "E-no-single-numeric-axis-dominant";
+  const nextProductionAxis = evidence.actionCountDominant
+    ? "action-economy / kill-window shared rule"
+    : evidence.damagePerActionDominant
+      ? "identified enemy attack damage budget"
+      : evidence.specificActionOrTraitDominant
+        ? "identified action / trait payoff budget"
+        : evidence.lowEntryHpInteraction
+          ? "encounter Cost × attrition interaction"
+          : "manual Build judgment / death-cause comprehension";
+  return {
+    primary,
+    nextProductionAxis,
+    evidence,
+    metrics: {
+      actionCountRatio,
+      damagePerActionRatio,
+      specialActionDamageShare: directDamage > 0 ? specialActionDamage / directDamage : null,
+      naturalE2HpP50,
+      fixedHighRiskClearRate100: high100,
+      fixedHighRiskClearRate50: high50
+    },
+    note: "This is a diagnostic classification, not a production tuning instruction; no production value is changed here."
+  };
 }
 
 function earlyView(result, ordinal) {
@@ -291,6 +383,8 @@ export async function runEarlyEncounterCauseDiagnostic({
     allowSmallRunCount: true
   });
   const baseline = results.baseline;
+  const naturalEntryResource = summarizeNaturalEntryResource(baseline);
+  const fixedHpConnection = buildFixedHpConnection(fixedCombat);
   return {
     question: "fresh B1F の最初の1〜2戦で活路を閉じる主因を、編成数・composition・entry resource・first action・fight/flee に分解する",
     evidenceScope: "run",
@@ -323,8 +417,10 @@ export async function runEarlyEncounterCauseDiagnostic({
         sensitivityRow(policy, results[policy], baseline)
       ])
     ),
-    naturalEntryResource: summarizeNaturalEntryResource(baseline),
+    naturalEntryResource,
     naturalEncounterCost: summarizeNaturalEncounterCost(baseline),
+    fixedHpConnection,
+    diagnosis: diagnoseEnemyActionCost(baseline, fixedHpConnection, naturalEntryResource),
     fleeEncounter2Cohort: summarizeFleeEncounter2Cohort(fleeDiagnostic),
     fixedCombat
   };
@@ -340,7 +436,7 @@ function buildReport(result, provenance, options) {
     fixedCombatSeed: result.configuration.fixedCombatSeed,
     fixedCombatRuns: result.configuration.fixedCombatRuns,
     policies: EARLY_COMPOSITION_POLICY_IDS
-  }, { label: "issue1187 early-encounter env" });
+  }, { label: "issue1205 early-encounter env" });
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
@@ -370,11 +466,13 @@ function buildSummary(report) {
     sensitivity,
     naturalEntryResource,
     naturalEncounterCost,
+    fixedHpConnection,
+    diagnosis,
     fleeDiagnostic,
     fixedCombat
   } = report;
   const lines = [
-    "# Issue #1187 fresh B1F early-encounter cause diagnostic",
+    "# Issue #1205 fresh B1F early-encounter cause diagnostic",
     "",
     `- runner: \`${report.runnerVersion}\` / schema: ${report.schemaVersion}`,
     `- source SHA: \`${measurement.sourceCommit || "not recorded"}\``,
@@ -496,6 +594,68 @@ function buildSummary(report) {
     "",
     "The natural ordinal-2 population is concentrated around the fixed 25%–75% HP bands, while ordinal 1 is mostly above 75%; MP quartiles remain full for both ordinals."
   );
+  lines.push(
+    "",
+    "## Enemy action Cost decomposition",
+    "",
+    "Enemy action counts include executed production monster turns. Combat damage/action uses direct damage from those turns; round-end poison damage is reported separately and excluded from the combat denominator. Non-damaging trait turns remain in the action denominator.",
+    "",
+    "| Ordinal | Group | Encounters / deaths | Enemy actions p50 / p95 | Damaging actions p50 / p95 | Combat damage p50 / p95 | Status damage p50 / p95 | Damage/action p50 / p95 | Damage/damaging-action p50 / p95 |",
+    "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+  );
+  for (const ordinal of ["1", "2"]) {
+    for (const group of ["all", "single", "pair"]) {
+      const row = report.runs.baseline.enemyActionCost.byEncounterOrdinal[ordinal][group];
+      lines.push(
+        `| ${ordinal} | ${group} | ${row.encounters} / ${row.deaths} | ` +
+        `${formatNumber(row.enemyActions.p50)} / ${formatNumber(row.enemyActions.p95)} | ` +
+        `${formatNumber(row.damagingEnemyActions.p50)} / ${formatNumber(row.damagingEnemyActions.p95)} | ` +
+        `${formatNumber(row.totalDamage.p50)} / ${formatNumber(row.totalDamage.p95)} | ` +
+        `${formatNumber(row.statusDamage.p50)} / ${formatNumber(row.statusDamage.p95)} | ` +
+        `${formatNumber(row.damagePerEnemyAction.p50)} / ${formatNumber(row.damagePerEnemyAction.p95)} | ` +
+        `${formatNumber(row.damagePerDamagingEnemyAction.p50)} / ${formatNumber(row.damagePerDamagingEnemyAction.p95)} |`
+      );
+    }
+  }
+  lines.push(
+    "",
+    "### Identity / action / trait / status sources",
+    "",
+    `- by enemy identity: ${Object.entries(report.runs.baseline.enemyActionCost.byEnemy).map(([enemy, row]) => `${enemy}=${formatNumber(row.totalDamage.average)} HP`).join(", ") || "unobserved"}`,
+    `- by action: ${Object.entries(report.runs.baseline.enemyActionCost.byAction).map(([action, row]) => `${action}=${formatNumber(row.damage)} HP`).join(", ") || "unobserved"}`,
+    `- by trait: ${Object.entries(report.runs.baseline.enemyActionCost.byTrait).map(([trait, row]) => `${trait}=${formatNumber(row.damage)} HP`).join(", ") || "unobserved"}`,
+    `- by status source: ${Object.entries(report.runs.baseline.enemyActionCost.byStatus).map(([status, row]) => `${status}=${formatNumber(row.damage)} HP`).join(", ") || "unobserved"}`,
+    `- lethal action sources: ${Object.entries(report.runs.baseline.enemyActionCost.lethalActions).map(([source, row]) => `${source}=${row.count}`).join(", ") || "unobserved"}`,
+    `- reconciliation: direct enemy-action damage=${formatNumber(report.runs.baseline.enemyActionCost.reconciliation.directDamage)} HP; round-end status damage=${formatNumber(report.runs.baseline.enemyActionCost.reconciliation.statusDamage)} HP`,
+    "",
+    "Trait rows are firing/action-associated contributions, while each event also retains the full production trait identity. A trait present on an ordinary attack is not charged unless its special action fired.",
+    "",
+    "## Natural E2 entry HP × fixed HP connection",
+    "",
+    `Natural ordinal-2 entry HP p25/p50/p75: ${formatRate(naturalEntryResource.byEncounterOrdinal["2"].all.hpRateBeforeEncounter.p25)} / ${formatRate(naturalEntryResource.byEncounterOrdinal["2"].all.hpRateBeforeEncounter.p50)} / ${formatRate(naturalEntryResource.byEncounterOrdinal["2"].all.hpRateBeforeEncounter.p75)}. Fixed cases use the same production vanguard and encounter resolver at the listed HP bands.`,
+    "",
+    "| Fixed HP | High-risk clear | Low-risk clear | High-risk actions avg | High-risk damage/action avg | Low-risk actions avg | Low-risk damage/action avg |",
+    "| ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+  );
+  for (const hpBandId of ["100", "75", "50", "25"]) {
+    const row = fixedHpConnection[hpBandId];
+    lines.push(
+      `| ${hpBandId}% | ${formatRate(row.highRisk.fightClearRate)} | ${formatRate(row.lowRisk.fightClearRate)} | ` +
+      `${formatNumber(row.highRisk.enemyActions)} | ${formatNumber(row.highRisk.damagePerDamagingEnemyAction)} | ` +
+      `${formatNumber(row.lowRisk.enemyActions)} | ${formatNumber(row.lowRisk.damagePerDamagingEnemyAction)} |`
+    );
+  }
+  lines.push(
+    "",
+    "## Decision",
+    "",
+    `- classification: **${diagnosis.primary}**`,
+    `- next production axis (one): **${diagnosis.nextProductionAxis}**`,
+    `- action-count ratio pair/single p50: ${formatNumber(diagnosis.metrics.actionCountRatio)}; damage/damaging-action ratio: ${formatNumber(diagnosis.metrics.damagePerActionRatio)}; special-action damage share: ${formatRate(diagnosis.metrics.specialActionDamageShare)}`,
+    "- this Issue is diagnostic only; no enemy, encounter, recovery, initiative, gear, or combat value is changed.",
+    "- trap damage and poison applications remain separate non-combat Cost axes and are not included in enemy action damage.",
+    ""
+  );
   const hp100Fight = fixedCombat.contrasts.find(contrast => contrast.hpBandId === "100");
   const hp25Fight = fixedCombat.contrasts.find(contrast => contrast.hpBandId === "25");
   lines.push(
@@ -548,7 +708,7 @@ async function main() {
   }
   const provenance = requireRunnerProvenance({
     fetchOriginMain: false,
-    measurementRunnerPaths: [RUNNER_PATH, ...PRODUCTION_PATHS]
+    measurementRunnerPaths: [RUNNER_PATH, MEASUREMENT_HELPER_PATH, ...PRODUCTION_PATHS]
   });
   const result = await runEarlyEncounterCauseDiagnostic({
     runs,
@@ -575,7 +735,7 @@ async function main() {
       generatedAt: new Date().toISOString()
     }
   }, null, 2)}\n`);
-  console.log(`Wrote Issue #1187 diagnostic: ${resolve(options.output)}`);
+  console.log(`Wrote Issue #1205 diagnostic: ${resolve(options.output)}`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {

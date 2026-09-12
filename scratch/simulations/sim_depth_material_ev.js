@@ -7577,6 +7577,98 @@ function getFirstPlayerActionOpportunity(roundResult, actionType) {
   };
 }
 
+function getLoggedIncomingDamageEvents(logQueue, characterName, groupId = null) {
+  const escapedName = characterName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const damagePattern = new RegExp(`${escapedName}(?:は|に)(\\d+)の[^。！]*ダメージ`, "g");
+  return logQueue.flatMap(entry => {
+    if (groupId !== null && entry.groupId !== groupId) return [];
+    const messages = String(entry.msg || "");
+    const events = [];
+    let match;
+    while ((match = damagePattern.exec(messages)) !== null) {
+      const source = messages.includes("反射")
+        ? "reflectPhysical"
+        : messages.includes("反撃")
+          ? "counterSpell"
+          : messages.includes("毒のダメージ")
+            ? "poison"
+            : messages.includes("狙撃")
+              ? "snipe"
+              : messages.includes("炎") || messages.includes("氷") || messages.includes("爆裂")
+                ? "spell"
+                : "normal";
+      events.push({ damage: Number(match[1]), source, message: messages });
+    }
+    damagePattern.lastIndex = 0;
+    return events;
+  });
+}
+
+function buildEnemyActionDetails(roundResult, roundNumber, characterName) {
+  const observations = roundResult.actionObservations || [];
+  const actionEvents = observations
+    .filter(observation => observation.actor === "monster")
+    .map(observation => {
+      const groupId = `combat:${roundNumber}:action:${observation.order}`;
+      const logs = (roundResult.logQueue || []).filter(entry => entry.groupId === groupId);
+      const damageEvents = getLoggedIncomingDamageEvents(roundResult.logQueue || [], characterName, groupId);
+      const actionNames = [...(observation.actionNames || [])];
+      if (actionNames.length === 0) {
+        if (logs.some(entry => String(entry.msg || "").includes("狙撃"))) actionNames.push("狙撃");
+        else if (logs.some(entry => String(entry.msg || "").includes("ティルトウェイト"))) actionNames.push("TILTOWAIT");
+        else if (damageEvents.length > 0) actionNames.push("通常攻撃");
+      }
+      const conditions = [...(observation.conditions || [])];
+      const statusSources = [...new Set(conditions.map(condition =>
+        String(condition).includes("毒") ? "poison" :
+          String(condition).includes("麻痺") ? "paralyze" :
+            String(condition).includes("盲目") ? "blind" :
+              String(condition).includes("眠") ? "sleep" :
+                String(condition).includes("沈黙") ? "silence" :
+                  String(condition).includes("回復阻害") ? "antiHeal" : null
+      ).filter(Boolean))];
+      if (actionNames.includes("毒喰らい")) statusSources.push("poison_payoff");
+      if (actionNames.includes("目眩まし狙撃")) statusSources.push("blind_snipe");
+      return {
+        order: observation.order,
+        executed: observation.executed === true,
+        monsterName: observation.monsterName || null,
+        traits: [...(observation.monsterTraits || [])],
+        tags: [...(observation.monsterTags || [])],
+        extraMultiAction: observation.extraMultiAction === true,
+        actionNames,
+        conditions,
+        traitSources: [...new Set([
+          ...(actionNames.includes("自爆") ? ["selfDestruct"] : []),
+          ...(actionNames.includes("溜めて大打撃") ? ["chargeAttack"] : []),
+          ...(actionNames.includes("仲間を呼ぶ") ? ["summonAlly"] : []),
+          ...(actionNames.includes("状態異常を治す") ? ["cleanseAlly"] : []),
+          ...(actionNames.includes("MPを吸収") ? ["drainMp"] : []),
+          ...(actionNames.includes("沈黙") ? ["silence"] : []),
+          ...(actionNames.includes("回復を阻害") ? ["antiHeal"] : []),
+          ...(actionNames.includes("物理防御を強化") ? ["buffPhysicalDef"] : []),
+          ...(actionNames.includes("魔法防御を強化") ? ["buffMagicDef"] : []),
+          ...(actionNames.includes("仲間を鼓舞") ? ["buffAtk"] : []),
+          ...(actionNames.includes("狙撃") ? ["isSniper"] : []),
+          ...(actionNames.includes("連続攻撃") ? ["multiAction"] : [])
+        ])],
+        statusSources: [...new Set(statusSources)],
+        damageEvents,
+        damage: damageEvents.reduce((sum, event) => sum + event.damage, 0),
+        lethal: logs.some(entry => /倒れた|力尽きた/.test(String(entry.msg || "")))
+      };
+    });
+  const statusDamageEvents = getLoggedIncomingDamageEvents(roundResult.logQueue || [], characterName)
+    .filter(event => event.source === "poison")
+    .map(event => ({
+      ...event,
+      statusSource: "poison",
+      lethal: /倒れた|力尽きた/.test(event.message),
+      monsterName: null
+    }));
+  return { enemyActionEvents: actionEvents, statusDamageEvents };
+}
+
 function runEncounter(
   state,
   observations,
@@ -8489,6 +8581,11 @@ function runEncounter(
           : 1,
         countermeasureAffixValueBefore,
         countermeasureAffixValueAfter,
+        ...(fullDiagnostics ? buildEnemyActionDetails(
+          roundResult,
+          roundNumber,
+          character.name
+        ) : {}),
         hpBefore: fullDiagnostics ? characterBeforeRound.hp : undefined,
         hpAfter: fullDiagnostics ? state.party[0].hp : undefined,
         maxHp: fullDiagnostics ? getCharMaxHp(characterBeforeRound) : undefined,
@@ -14366,6 +14463,7 @@ export function simulateRun({
         builds: {}
       },
       measurementEnemyTurnEvents: scenario.collectEncounterIdentities ? [] : null,
+      measurementEnemyActionDetails: scenario.collectEncounterIdentities === true,
       enemyStatusGrammar: createEnemyStatusGrammarMetrics()
     },
     statusCureItemsAcquired: {
