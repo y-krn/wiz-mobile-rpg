@@ -11,8 +11,8 @@ recovery cadence、initiative、gear、combat modifier は変更していない�
 
 ## Provenance and validity
 
-- base / `origin/main`: `afc228ff81ca2c3595b4bcae8995d0ee6458e008`（`git ls-remote` と local ref が一致）
-- measurement HEAD: `b585636b4bf02a5a4b014d6b57084f8a1d7c6baf`
+- base / `origin/main`: `4be73e55b1356318c0e0330fa4f7e4c014515651`（`git ls-remote` と local ref が一致）
+- measurement HEAD: `0590759f593b45c30a50e7ff814a35bc42df7714`
 - runner: `issue1205-early-encounter-cause-v1`, schema 5
 - primary: N=1000、seed=1205、world seed `issue-1176:{seed}:{runIndex}`
 - fixed reuse: HP 100/75/50/25% × 6 composition × fight/flee、各 N=1000、seed=1151、world seed `issue-1151:{seed}:{hpBandId}:{compositionId}:{runIndex}`
