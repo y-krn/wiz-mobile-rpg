@@ -78,6 +78,34 @@ export function initGame() {
     return;
   }
 
+  // PixiJS is an explicit spike entry point only. Keep Canvas as the
+  // production default and fall back safely if WebGL/Pixi initialization is
+  // unavailable on the current browser.
+  if (requestedRenderer === "pixi") {
+    import("./pixi_renderer.js").then(async ({ PixiDungeonRenderer }) => {
+      const candidate = new PixiDungeonRenderer("dungeon-canvas");
+      try {
+        await candidate.init();
+        if (candidate.supported) {
+          renderer = candidate;
+        } else {
+          candidate.dispose();
+          renderer = new DungeonRenderer("dungeon-canvas");
+        }
+      } catch {
+        candidate.dispose();
+        renderer = new DungeonRenderer("dungeon-canvas");
+      }
+      setDungeonRenderer(renderer);
+      start();
+    }).catch(() => {
+      renderer = new DungeonRenderer("dungeon-canvas");
+      setDungeonRenderer(renderer);
+      start();
+    });
+    return;
+  }
+
   renderer = new DungeonRenderer("dungeon-canvas");
   setDungeonRenderer(renderer);
   start();

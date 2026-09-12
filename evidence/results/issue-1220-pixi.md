@@ -1,0 +1,129 @@
+# Issue #1220 — PixiJS 2.5D Dungeon View spike
+
+## Decision
+
+**PASS — PixiJS can preserve the existing Canvas navigation grammar/readability as a bounded opt-in renderer.**
+
+Closes #1220.
+
+Readability spike: **PASS**. Bounded Pixi integration: **PASS**. Visual impact:
+**INSUFFICIENT**. Production adoption: **HOLD**.
+
+PixiJS preserves the Canvas screen-space projection/topology grammar and the
+reviewed pixels do not regress navigation readability. The candidate is
+available only at `?renderer=pixi`; the production default remains Canvas.
+The stronger motion/material/atmosphere visual-impact question is explicitly
+deferred to #1230. No #1230 visual enhancement work was added to this PR.
+
+## Provenance
+
+- Base ref: `origin/main`
+- BASE_SHA: `ba84042d884747541726810f68277b5569a19494`
+- HEAD_SHA (PR head verified after current-head CI): `92579a4519910806b6bfe3b30b1119f45f6c7406`
+- Artifact source HEAD before evidence-only update: `1e9e265b49f9e049a9ac38b4422ae1ac8cdc0d43`
+- Latest-main relation: sync completed by a clean merge of `origin/main` at
+  `ba84042d` into the prior PR head; no conflict resolution or PR-specific
+  code change was introduced. The current head adds only refreshed evidence
+  after that sync.
+- Merge state: PR #1223 is **OPEN / MERGEABLE**, with GitHub
+  `mergeStateStatus=CLEAN` after current-head required CI passed.
+- Current-head CI: `lint`, `unit`, `browser`, and `browser-parallel` all passed.
+- Production-backed seed: `ISSUE-1220-B1F-PRODUCTION`
+- Production-backed fixture: `generateRunFloor({ runSeed, floor: 1 })`, B1F position `(6,4)`, facing east
+- Primary evidence: 400×260 internal render, minimap hidden
+- Reviewed viewport widths: 320, 360, 390, 430
+- PixiJS: `8.19.0` (v8 `Application.init`, no external textures/plugins)
+
+## Canvas / Pixi A/B pixels
+
+These are the same synthetic state and 390px viewport. The complete width and
+archetype matrix is emitted by `ui-pixi-dungeon-spike-1220.spec.js` at the
+sync HEAD above. The committed images below were regenerated from that run.
+
+| state | Canvas baseline | Pixi candidate |
+| --- | --- | --- |
+| straight | [canvas](./issue-1220-pixi/canvas-straight-390.png) | [pixi](./issue-1220-pixi/pixi-straight-390.png) |
+| left turn | [canvas](./issue-1220-pixi/canvas-left-turn-390.png) | [pixi](./issue-1220-pixi/pixi-left-turn-390.png) |
+| cross junction | [canvas](./issue-1220-pixi/canvas-cross-390.png) | [pixi](./issue-1220-pixi/pixi-cross-390.png) |
+
+Production-backed B1F evidence:
+
+- [minimap hidden](./issue-1220-pixi/pixi-production-b1f-minimap-hidden-390.png)
+- [minimap visible coexistence](./issue-1220-pixi/pixi-production-b1f-minimap-visible-390.png)
+
+Combat evidence:
+
+- [trio / target-selection / danger](./issue-1220-pixi/pixi-combat-trio-target-danger.png)
+
+## Review results
+
+| gate | result |
+| --- | --- |
+| six archetypes at all four widths | PASS — straight, dead-end, left, right, T, cross use shared topology facts and render at 320/360/390/430 |
+| floor continuity | PASS — walkable floor polygons follow the Canvas projection, including side cells |
+| side-passage semantics | PASS — no fake opening marker; side passages are floor/open-space surfaces |
+| route dominance / occlusion | PASS — low-alpha enhancement layers stay below wall/opening strokes |
+| flat biome | PASS — B1F production fixture and synthetic matrix |
+| arch biome | PASS — B6 representative uses the existing `ceilingStyle: "arch"` signature |
+| production B1F near side opening | PASS — generated map has side opening and forward depth; minimap-hidden pixel reviewed |
+| danger cue | PASS — restrained red pulse; queued combat threats use amber rings |
+| combat single / pair / trio | PASS — shared `getCombatMonsterLayout` staging |
+| target selection / hit region | PASS — candidate returns target index `1` at the shared hit-region center |
+| minimap hidden / visible | PASS — shared overlay remains separate and coexists with Pixi canvas |
+| one-way barrier | PASS — shared `frontOneWayBarrier` fact and restrained barrier chevrons |
+| resize / orientation boundary | PASS — 400×260 internal canvas remains stable across 320→430→320 viewport changes |
+
+## Enhancement evaluation
+
+- Floor depth shading: **bounded baseline only**. It makes forward/side walkable
+  continuity more legible without changing the silhouette.
+- Biome/environment tint: **bounded baseline only**. Low-alpha tint differentiates
+  flat and arch/materially different biomes without becoming a route cue.
+- Danger pulse: **bounded baseline only**. Localized and restrained; no bloom, blur,
+  noisy particles, neon route marker, or fake opening marker.
+
+These small cues are not the visual-impact acceptance for #1230; motion,
+material identity, and layered atmosphere remain deferred.
+
+## Cost and lifecycle
+
+Current sync-head build (`1e9e265b`, Vite 8.0.16):
+
+- Default app chunk: `796.51 kB` raw / `249.84 kB` gzip
+- Lazy Pixi chunk: `236.37 kB` raw / `68.89 kB` gzip, loaded only by the opt-in route
+- Pixi remains outside the default app chunk; no production-default renderer
+  change was made
+- Initialization sample in Chromium: `23.6 ms`
+- Repeated draw sample: 49 scene children, 2 redraws; max-child bound asserted
+- Resource ownership: scene children are destroyed on rebuild; `Application`
+  is destroyed with `removeView: false`; no generated textures or external
+  assets are allocated
+
+## Known limitations
+
+- Browser pixels are not physical-device evidence; iPhone verification remains
+  a separate gate. The preview URL is for manual follow-up only.
+- Pixi combat silhouettes are a compact prototype treatment, not a sprite or
+  texture migration.
+- The spike does not alter the default renderer, gameplay rules, minimap
+  semantics, HUD/CSS, or target index semantics.
+
+## Reproduction
+
+```sh
+npx playwright test tests/ui-pixi-dungeon-spike-1220.spec.js --grep @smoke
+npm run build
+npm run lint
+```
+
+Current-head artifact regeneration:
+
+```sh
+npx playwright test tests/ui-pixi-dungeon-spike-1220.spec.js --grep @smoke
+npm run test:browser
+PLAYWRIGHT_PORT=18622 npm run test:browser:parallel
+```
+
+The focused run passed 4/4. The full smoke run passed 77/77 serially and
+77/77 with two workers; the latter used a task-owned port because the default
+diagnostic port reported EPERM during preflight.
