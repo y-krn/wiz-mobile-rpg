@@ -228,6 +228,14 @@ fallback is deterministic and not a hidden faction preference. Equipment
 comparison exposes only the same coarse labels (速い / 標準 / 遅い); the
 executable load classes and modifiers remain owned by the equipment-load rule.
 
+In an ordinary non-boss, non-midboss, non-roaming-elite encounter, living
+enemies still roll initiative individually, but the earliest ordinary enemy
+actor owns one shared ordinary action slot for the round. Other ordinary enemy
+turns are skipped without banking into a later round. An explicit trait-generated
+extra action remains attached to the slot owner and is recorded separately;
+summons and other trait grammar do not silently become ordinary slots. Bosses,
+midbosses, and roaming elites retain independent enemy scheduling.
+
 ## Status-effect grammar
 
 Status effects are finite combat contracts, not an invitation to add a generic

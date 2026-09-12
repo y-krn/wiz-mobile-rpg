@@ -71,6 +71,9 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     isBoss,
     isMidboss,
     isRoamingFlack,
+    enemyActionScheduling: !isBoss && !isMidboss && !isRoamingFlack
+      ? "shared-normal-slot"
+      : "independent",
     roamingMonsterId: roamingMonster?.id ?? null,
     isAuto: false,
     allParalyzedTurns: 0,
