@@ -44,6 +44,18 @@ ambiguity decision, and final verification owner. The lifecycle Issue itself
 can prove self-routing, but it is not sufficient as the sole representative
 task for domain routing.
 
+The #1198 dry-run follows this route: its goal, acceptance criteria, and
+conditional cadence rule route through the progression/economy path in the file
+map, `balance-simulation.md`, and the `balance-simulation` skill; its matched
+resource-cadence evidence shows increased resource opportunity but nearly
+unchanged immediate continuation and next-entry HP. No material ambiguity
+remains, so the decision gate selects cadence-only rejection and probe
+retention: keep production unchanged and return the unresolved question to
+follow-up Cost/amount work. `qa-regression.md` owns the local verification, and
+`merge-gate.md` owns immutable review and current-head CI. This example validates
+the gate without copying balance-specific thresholds or checklist rules into
+this lifecycle reference.
+
 ## During implementation
 
 - Keep one Issue and one concern in scope. Preserve unrelated worktree
@@ -64,6 +76,13 @@ Perform a lightweight self-review after the relevant content is complete:
 
 - Compare the current diff with every Issue acceptance criterion, stated
   boundary, applicable canon, and the acceptance-to-evidence map.
+- When the Issue defines a conditional adoption, rejection, or selection
+  criterion, apply a decision gate before declaring self-review complete:
+  - Apply current evidence to the criterion and record the resulting branch.
+  - Check that the final diff and disposition, such as a production change,
+    retained probe, no change, or follow-up, agree with that branch.
+  - When required evidence cannot select a branch, return to the existing
+    ambiguity/evidence flow and withhold the success claim.
 - Inspect the changed-file set and run `git diff --check`. Fix obvious
   blocking defects before handoff.
 - Run the smallest sufficient final local gate owned by `qa-regression.md`.
@@ -84,8 +103,10 @@ the evidence traceable:
 
 - Summary and scope, including why the change is the minimum harness needed.
 - Make each acceptance criterion's disposition and evidence traceable in the
-  PR or a linked review/evidence artifact. Use a table when it is the clearest
-  minimal representation; do not require a dedicated format.
+  PR or a linked review/evidence artifact. For a conditional criterion, include
+  the applied rule, evidence, resulting branch, and disposition. Use a table
+  when it is the clearest minimal representation; do not require a dedicated
+  format.
 - Verification results, the base/head revision used, and any omitted checks
   with their reason.
 - Canon impact and assumptions, including an explicit unaffected statement
