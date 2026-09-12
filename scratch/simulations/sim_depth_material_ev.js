@@ -5243,7 +5243,7 @@ function applyIssue412TacticalItem({
   if (revealedTraps === 0) metrics.issue412.stoneEmptyUses++;
 }
 
-function tryAddInventoryItem(state, item, metrics, source) {
+function tryAddInventoryItem(state, item, metrics, source, rewardRole = null) {
   const itemData = getItemData(item);
   const category = isEquipment(itemData) ? "equipment" : "item";
   const accepted = addInventoryItemToState(state, item, {
@@ -5258,7 +5258,8 @@ function tryAddInventoryItem(state, item, metrics, source) {
     }
     recordDiagnosticReward(metrics, state, item, {
       source,
-      disposition: "bagged"
+      disposition: "bagged",
+      rewardRole
     });
   }
   return accepted;
@@ -5267,7 +5268,8 @@ function tryAddInventoryItem(state, item, metrics, source) {
 function recordDiagnosticReward(metrics, state, item, {
   source = "dungeon",
   disposition = "bagged",
-  objectLoot = true
+  objectLoot = true,
+  rewardRole = null
 } = {}) {
   const rewards = metrics?.diagnostics?.rewardEvents;
   if (!rewards || !item || !["combat", "chest", "fromDrop", "secretRoom", "ordinary", "special-reward"].includes(source)) {
@@ -5295,18 +5297,19 @@ function recordDiagnosticReward(metrics, state, item, {
     category: equipment ? "equipment" : itemType === "rune" ? "rune" : "item",
     isCore: core,
     meaningful: true,
-    objectLoot
+    objectLoot,
+    rewardRole
   });
 }
 
-function recordUnadoptedObjectLoot(state, metrics, item, disposition, source) {
+function recordUnadoptedObjectLoot(state, metrics, item, disposition, source, rewardRole = null) {
   const entry = createPendingObjectLootEntry(state, item, { source });
   if (!entry || !resolvePendingObjectLootDisposition(state, entry, disposition, { source })) {
     return false;
   }
   metrics.objectLootLifecycle.found++;
   metrics.objectLootLifecycle[disposition]++;
-  recordDiagnosticReward(metrics, state, item, { source, disposition });
+  recordDiagnosticReward(metrics, state, item, { source, disposition, rewardRole });
   return true;
 }
 
@@ -12366,11 +12369,22 @@ function rollChestItems(
       .filter(index => Number.isInteger(index)),
     specialItem,
     specialItemIndex: itemIndices.special ?? -1,
+    accessoryItemIndex: itemIndices.accessory ?? -1,
+    extraItemIndex: itemIndices.extra ?? -1,
     extraHealPotion: Boolean(extraHealPotion),
     extraHealPotionIndex: itemIndices.extraHealPotion ?? -1,
     replacedMainItem,
     trapAction: trapResult.action || null
   };
+}
+
+function chestRewardRole(chestItems, itemIndex) {
+  if (itemIndex === chestItems.mainItemIndex) return "main";
+  if (itemIndex === chestItems.specialItemIndex) return "special";
+  if (itemIndex === chestItems.accessoryItemIndex) return "accessory";
+  if (itemIndex === chestItems.extraHealPotionIndex) return "extraHealPotion";
+  if (itemIndex === chestItems.extraItemIndex) return "extra";
+  return null;
 }
 
 function resolveSimulationChest({
@@ -12429,8 +12443,9 @@ function resolveSimulationChest({
   const acquiredEquipment = [];
   recordEquipmentGenerations(metrics, chestItems.items);
   chestItems.items.forEach((item, itemIndex) => {
+    const rewardRole = chestRewardRole(chestItems, itemIndex);
     if (chestItems.lostRewardIndices?.includes(itemIndex)) {
-      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source, rewardRole);
       return;
     }
     if (
@@ -12438,12 +12453,12 @@ function resolveSimulationChest({
       itemIndex === chestItems.mainItemIndex &&
       item === chestItems.mainItem
     ) {
-      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source, rewardRole);
       return;
     }
     const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
     if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) {
-      recordUnadoptedObjectLoot(state, metrics, item, "discarded", source);
+      recordUnadoptedObjectLoot(state, metrics, item, "discarded", source, rewardRole);
       return;
     }
     const isExtraHealPotion = chestItems.extraHealPotion &&
@@ -12453,12 +12468,12 @@ function resolveSimulationChest({
     if (item === "HEAL_POTION" || item === "GREATER_HEAL") {
       recordRecoveryPotionOffer(metrics, source, item);
       if (item === "HEAL_POTION" && !shouldGrantNormalizedHealPotion(state)) {
-        recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+        recordUnadoptedObjectLoot(state, metrics, item, "left", source, rewardRole);
         return;
       }
     }
-    if (!tryAddInventoryItem(state, item, metrics, source)) {
-      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+    if (!tryAddInventoryItem(state, item, metrics, source, rewardRole)) {
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source, rewardRole);
       return;
     }
     if (item === "HEAL_POTION") {
@@ -14927,8 +14942,9 @@ export function simulateRun({
         const acquiredEquipment = [];
         recordEquipmentGenerations(metrics, chestItems.items);
         chestItems.items.forEach((item, itemIndex) => {
+          const rewardRole = chestRewardRole(chestItems, itemIndex);
           if (chestItems.lostRewardIndices?.includes(itemIndex)) {
-            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary", rewardRole);
             return;
           }
           if (
@@ -14936,12 +14952,12 @@ export function simulateRun({
             itemIndex === chestItems.mainItemIndex &&
             item === chestItems.mainItem
           ) {
-            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary", rewardRole);
             return;
           }
           const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
           if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) {
-            recordUnadoptedObjectLoot(state, metrics, item, "discarded", "ordinary");
+            recordUnadoptedObjectLoot(state, metrics, item, "discarded", "ordinary", rewardRole);
             return;
           }
           const isExtraHealPotion = chestItems.extraHealPotion &&
@@ -14954,12 +14970,12 @@ export function simulateRun({
               item === "HEAL_POTION" &&
               !shouldGrantNormalizedHealPotion(state)
             ) {
-              recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+              recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary", rewardRole);
               return;
             }
           }
-          if (!tryAddInventoryItem(state, item, metrics, "ordinary")) {
-            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+          if (!tryAddInventoryItem(state, item, metrics, "ordinary", rewardRole)) {
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary", rewardRole);
             return;
           }
           if (item === "HEAL_POTION") {

@@ -167,6 +167,21 @@ for (const itemId of RECOVERY_RESOURCE_IDS) {
 }
 assert.ok(report.linkedTrajectory.byTransition);
 assert.ok(report.linkedTrajectory.cohortByTransition);
+assert.ok(report.lootBreadth);
+assert.equal(report.lootBreadth.bagOccupancy.count, report.runs);
+assert.ok(report.lootBreadth.objectLootSettlement);
+assert.deepEqual(
+  Object.keys(report.lootBreadth.mainRewardComposition).sort(),
+  ["fromDrop", "ordinary"]
+);
+assert.equal(report.configuration.b1MainRewardCandidatePool.ordinary.length, 19);
+assert.equal(report.configuration.b1MainRewardUnitWeights.ordinary.HEAL_POTION, 2);
+assert.equal(report.configuration.b1MainRewardUnitWeights.fromDrop.HEAL_POTION, 1);
+assert.equal(
+  report.configuration.matchedCohortKey,
+  "vanguard:fight:production:1139:2"
+);
+assert.equal(report.configuration.candidateId, "b1-heal-potion-none-baseline");
 assert.ok(report.naturalEntryHpBands);
 assert.ok(report.naturalEntryHpBandResource);
 
