@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   isVercelBuildNeutralPath,
+  readChangedPaths,
   shouldSkipVercelBuild,
 } from "../../../scripts/vercel-ignore-build.js";
 
@@ -69,5 +79,42 @@ assert.equal(
   true,
   "an empty diff against the previous successful deployment can be skipped",
 );
+
+const renameRepo = mkdtempSync(path.join(os.tmpdir(), "vercel-ignore-build-"));
+try {
+  const git = (args) =>
+    execFileSync("git", args, {
+      cwd: renameRepo,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+
+  git(["init"]);
+  git(["config", "user.email", "test@example.com"]);
+  git(["config", "user.name", "Vercel Ignore Test"]);
+  mkdirSync(path.join(renameRepo, "src"));
+  writeFileSync(path.join(renameRepo, "src", "app.js"), "export const app = true;\n");
+  git(["add", "."]);
+  git(["commit", "-m", "base"]);
+  const baseSha = git(["rev-parse", "HEAD"]);
+
+  mkdirSync(path.join(renameRepo, "tests"));
+  git(["mv", "src/app.js", "tests/app.js"]);
+  git(["commit", "-m", "move production file into tests"]);
+
+  const renamePaths = readChangedPaths(baseSha, renameRepo);
+  assert.deepEqual(
+    new Set(renamePaths),
+    new Set(["src/app.js", "tests/app.js"]),
+    "rename detection must expose both the build-relevant source and neutral destination",
+  );
+  assert.equal(
+    shouldSkipVercelBuild(renamePaths, baseSha),
+    false,
+    "moving a production input into a neutral directory must still require a build",
+  );
+} finally {
+  rmSync(renameRepo, { recursive: true, force: true });
+}
 
 console.log("Vercel ignored-build policy checks passed.");
