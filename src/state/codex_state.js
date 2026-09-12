@@ -122,10 +122,18 @@ function appendMonsterObservation(monster, field, value, stateLike = state) {
 
 export function recordMonsterAction(monster, action, stateLike = state) {
   appendMonsterObservation(monster, "observedActions", action, stateLike);
+  const measurementObservation = stateLike?.simTelemetry?.measurementCurrentEnemyAction;
+  if (measurementObservation && Array.isArray(measurementObservation.actionNames)) {
+    measurementObservation.actionNames.push(action);
+  }
 }
 
 export function recordMonsterCondition(monster, condition, stateLike = state) {
   appendMonsterObservation(monster, "observedConditions", condition, stateLike);
+  const measurementObservation = stateLike?.simTelemetry?.measurementCurrentEnemyAction;
+  if (measurementObservation && Array.isArray(measurementObservation.conditions)) {
+    measurementObservation.conditions.push(condition);
+  }
 }
 
 export function recordMonsterLoot(monster, loot, stateLike = state) {
