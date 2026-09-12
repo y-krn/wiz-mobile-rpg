@@ -1,4 +1,60 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { inflateSync } from 'node:zlib';
+
+function decodePng(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+  signature.forEach((value, index) => { if (bytes[index] !== value) throw new Error('unsupported PNG signature'); });
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  const idat = [];
+  while (offset < bytes.length) {
+    const length = view.getUint32(offset);
+    const type = String.fromCharCode(...bytes.slice(offset + 4, offset + 8));
+    const data = bytes.slice(offset + 8, offset + 8 + length);
+    if (type === 'IHDR') {
+      width = view.getUint32(offset + 8);
+      height = view.getUint32(offset + 12);
+      bitDepth = data[8];
+      colorType = data[9];
+    } else if (type === 'IDAT') {
+      idat.push(data);
+    }
+    offset += 12 + length;
+    if (type === 'IEND') break;
+  }
+  if (bitDepth !== 8 || ![2, 6].includes(colorType)) throw new Error('unsupported PNG format');
+  const bytesPerPixel = colorType === 6 ? 4 : 3;
+  const stride = width * bytesPerPixel;
+  const raw = new Uint8Array(inflateSync(Buffer.concat(idat)));
+  const pixels = new Uint8Array(height * stride);
+  let rawOffset = 0;
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[rawOffset++];
+    const rowOffset = y * stride;
+    const previousOffset = (y - 1) * stride;
+    for (let x = 0; x < stride; x += 1) {
+      const left = x >= bytesPerPixel ? pixels[rowOffset + x - bytesPerPixel] : 0;
+      const up = y > 0 ? pixels[previousOffset + x] : 0;
+      const upLeft = y > 0 && x >= bytesPerPixel ? pixels[previousOffset + x - bytesPerPixel] : 0;
+      const value = raw[rawOffset++];
+      const predictor = filter === 1 ? left : filter === 2 ? up : filter === 3 ? Math.floor((left + up) / 2)
+        : filter === 4 ? (() => {
+          const p = left + up - upLeft;
+          const pa = Math.abs(p - left);
+          const pb = Math.abs(p - up);
+          const pc = Math.abs(p - upLeft);
+          return pa <= pb && pa <= pc ? left : pb <= pc ? up : upLeft;
+        })() : 0;
+      pixels[rowOffset + x] = (value + predictor) & 0xff;
+    }
+  }
+  return { width, height, bytesPerPixel, pixels };
+}
 
 const VIEWPORTS = [
   { width: 320, height: 568 },
@@ -285,8 +341,10 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
         let ceiling = null;
         const farBranchSurfaces = [];
         const farBranchDepth = [];
+        const sideOpeningFrames = [];
         dungeonRenderer.root.traverse((child) => {
           if (child.userData?.surface === 'ceiling' && !ceiling) ceiling = child;
+          if (child.userData?.surface?.startsWith('side-opening-')) sideOpeningFrames.push(child.userData.surface);
           if (child.userData?.surface?.startsWith('side-branch-')) {
             farBranchSurfaces.push(child.userData.surface);
             farBranchDepth.push({
@@ -296,16 +354,23 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
             });
           }
         });
-        const ceilingMaxY = ceiling?.position.y ?? null;
+        const ceilingPositionY = ceiling?.position.y ?? null;
+        const ceilingMaxY = ceiling?.geometry?.attributes?.position
+          ? Math.max(...Array.from({ length: ceiling.geometry.attributes.position.count }, (_, index) =>
+            ceiling.geometry.attributes.position.getY(index)
+          )) + ceilingPositionY
+          : null;
         return {
           metrics,
           cameraFov: dungeonRenderer.camera.fov,
           fog: { near: dungeonRenderer.scene.fog.near, far: dungeonRenderer.scene.fog.far },
           ceilingStyle: dungeonRenderer.activeProfile.ceilingStyle,
           wallHeight: dungeonRenderer.activeProfile.wallHeight,
+          ceilingPositionY,
           ceilingMaxY,
           farBranchSurfaces,
           farBranchDepth,
+          sideOpeningFrames,
         };
       });
 
@@ -316,10 +381,23 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
       expect(evidence.metrics.currentCellSideWallOccupancy).toBeGreaterThan(0.8);
       expect(evidence.fog.near).toBeLessThan(evidence.metrics.cellFrontDistances[0]);
       expect(evidence.fog.far).toBeGreaterThan(evidence.metrics.cellFrontDistances[2]);
-      expect(evidence.ceilingStyle).toBe('flat');
-      expect(evidence.ceilingMaxY).toBeCloseTo(evidence.wallHeight, 5);
+      const expectedCeilingStyle = fixture.floor === 6 ? 'arch' : 'flat';
+      expect(evidence.ceilingStyle).toBe(expectedCeilingStyle);
+      if (expectedCeilingStyle === 'flat') {
+        expect(evidence.ceilingPositionY).toBeCloseTo(evidence.wallHeight, 5);
+        expect(evidence.ceilingMaxY).toBeGreaterThan(evidence.wallHeight - 0.01);
+      } else {
+        expect(evidence.ceilingPositionY).toBeCloseTo(0, 5);
+        expect(evidence.ceilingMaxY).toBeGreaterThan(evidence.wallHeight);
+      }
       expect(evidence.farBranchSurfaces).toEqual([]);
       expect(evidence.farBranchDepth).toEqual([]);
+      if (fixture.name === 'b2-right-turn-frozen') {
+        expect(evidence.sideOpeningFrames).toEqual(expect.arrayContaining([
+          'side-opening-post',
+          'side-opening-lintel',
+        ]));
+      }
 
       const screenshot = await page.locator('#dungeon-canvas').screenshot({
         path: testInfo.outputPath(`three-readability-${fixture.name}-${viewport.width}px.png`),
@@ -826,6 +904,11 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
         return {
           groupEvidence,
           hudBounds,
+          renderSurface: {
+            scale,
+            left: (canvasRect.width - 400 * scale) / 2,
+            top: (canvasRect.height - 260 * scale) / 2,
+          },
           targetMeshes: targetMeshes.map((mesh) => ({
             targetIdx: mesh.userData.targetIdx,
             radius: mesh.geometry.parameters.radius,
@@ -879,6 +962,30 @@ test('Three.js combat staging keeps enemy bodies and labels readable across port
       const screenshot = await page.locator('#dungeon-canvas').screenshot({
         path: testInfo.outputPath(`three-combat-${fixture.name}-${viewport.width}px.png`),
       });
+      const decoded = decodePng(screenshot);
+      const labelPixelEvidence = evidence.groupEvidence.map(({ index, labelBounds }) => {
+        let brightTextPixels = 0;
+        const left = Math.max(0, Math.ceil(evidence.renderSurface.left + labelBounds.left * evidence.renderSurface.scale) + 5);
+        const right = Math.min(decoded.width, Math.floor(evidence.renderSurface.left + labelBounds.right * evidence.renderSurface.scale) - 5);
+        const top = Math.max(0, Math.ceil(evidence.renderSurface.top + labelBounds.top * evidence.renderSurface.scale) + 3);
+        const bottom = Math.min(decoded.height, Math.floor(evidence.renderSurface.top + labelBounds.bottom * evidence.renderSurface.scale) - 3);
+        for (let y = top; y < bottom; y += 1) {
+          for (let x = left; x < right; x += 1) {
+            const offset = (y * decoded.width + x) * decoded.bytesPerPixel;
+            const red = decoded.pixels[offset];
+            const green = decoded.pixels[offset + 1];
+            const blue = decoded.pixels[offset + 2];
+            if (red > 150 && green > 145 && blue > 130 && Math.max(red, green, blue) - Math.min(red, green, blue) < 90) {
+              brightTextPixels += 1;
+            }
+          }
+        }
+        return { index, brightTextPixels };
+      });
+      expect(labelPixelEvidence).toHaveLength(fixture.monsters.length);
+      for (const { index, brightTextPixels } of labelPixelEvidence) {
+        expect(brightTextPixels, `enemy label ${index} needs visible text pixels in the rendered canvas`).toBeGreaterThanOrEqual(12);
+      }
       await testInfo.attach(`three-combat-${fixture.name}-${viewport.width}px`, {
         body: screenshot,
         contentType: 'image/png',
@@ -1000,12 +1107,12 @@ test('Three.js target selection keeps enlarged hit regions aligned with staged e
   }
 });
 
-test('Three.js Dungeon View disposes prototype materials across repeated scene rebuilds @smoke @e2e', async ({ page }) => {
+test('Three.js Dungeon View disposes geometry, material, and texture resources across repeated scene rebuilds @smoke @e2e', async ({ page }) => {
   await page.goto('/?renderer=three');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
 
   const disposeCount = await page.evaluate(async () => {
-    const { MeshStandardMaterial, ThreeDungeonRenderer } = await import('/src/three_renderer.js');
+    const { BufferGeometry, CanvasTexture, MeshStandardMaterial, ThreeDungeonRenderer } = await import('/src/three_renderer.js');
     const { dungeonRenderer } = await import('/src/renderer.js');
     const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
@@ -1042,34 +1149,71 @@ test('Three.js Dungeon View disposes prototype materials across repeated scene r
     document.body.append(canvas);
     const renderer = new ThreeDungeonRenderer(canvas.id);
     const baseInput = dungeonRenderer.getRenderInput();
-    const originalDispose = MeshStandardMaterial.prototype.dispose;
-    let disposeCalls = 0;
-    MeshStandardMaterial.prototype.dispose = function disposeSpy() {
-      disposeCalls += 1;
-      return originalDispose.call(this);
+    const lifecycleInput = {
+      ...baseInput,
+      sceneVisibility: { ...baseInput.sceneVisibility, showTownBackground: false, showCombat: true },
+      combatMonsters: [{ name: 'ライフサイクル検証敵', hp: 24, maxHp: 24, color: '#d45de6' }],
+      combatTargetSelection: { active: true, targetType: 'enemy' },
+    };
+    const townInput = {
+      ...lifecycleInput,
+      sceneVisibility: { ...lifecycleInput.sceneVisibility, showTownBackground: true, showCombat: false },
+      combatMonsters: [],
+      combatTargetSelection: { active: false, targetType: '' },
+    };
+    const originalGeometryDispose = BufferGeometry.prototype.dispose;
+    const originalTextureDispose = CanvasTexture.prototype.dispose;
+    const originalMaterialDispose = MeshStandardMaterial.prototype.dispose;
+    const disposeCalls = { geometry: 0, material: 0, texture: 0 };
+    BufferGeometry.prototype.dispose = function disposeGeometrySpy() {
+      disposeCalls.geometry += 1;
+      return originalGeometryDispose.call(this);
+    };
+    CanvasTexture.prototype.dispose = function disposeTextureSpy() {
+      disposeCalls.texture += 1;
+      return originalTextureDispose.call(this);
+    };
+    MeshStandardMaterial.prototype.dispose = function disposeMaterialSpy() {
+      disposeCalls.material += 1;
+      return originalMaterialDispose.call(this);
     };
     let afterFirstBuild;
+    let afterSecondBuild;
+    let afterFinalBuild;
     let syntheticSurfaces;
     try {
-      renderer.buildScene(baseInput);
-      afterFirstBuild = disposeCalls;
+      renderer.buildScene(lifecycleInput);
+      afterFirstBuild = { ...disposeCalls };
       syntheticSurfaces = [];
       renderer.root.traverse((child) => {
         if (child.userData?.surface?.startsWith('side-branch-')) syntheticSurfaces.push(child.userData.surface);
       });
-      renderer.buildScene(baseInput);
+      renderer.buildScene(lifecycleInput);
+      afterSecondBuild = { ...disposeCalls };
+      renderer.buildScene(townInput);
+      afterFinalBuild = { ...disposeCalls };
     } finally {
-      MeshStandardMaterial.prototype.dispose = originalDispose;
+      BufferGeometry.prototype.dispose = originalGeometryDispose;
+      CanvasTexture.prototype.dispose = originalTextureDispose;
+      MeshStandardMaterial.prototype.dispose = originalMaterialDispose;
     }
     return {
       disposeCalls,
       afterFirstBuild,
+      afterSecondBuild,
+      afterFinalBuild,
       syntheticSurfaces,
     };
   });
 
-  expect(disposeCount.afterFirstBuild).toBeGreaterThan(0);
-  expect(disposeCount.disposeCalls).toBeGreaterThan(disposeCount.afterFirstBuild);
+  expect(disposeCount.afterFirstBuild.material).toBeGreaterThan(0);
+  expect(disposeCount.afterFirstBuild.texture).toBe(0);
+  expect(disposeCount.afterSecondBuild.geometry).toBeGreaterThan(disposeCount.afterFirstBuild.geometry);
+  expect(disposeCount.afterSecondBuild.material).toBeGreaterThan(disposeCount.afterFirstBuild.material);
+  expect(disposeCount.afterSecondBuild.texture).toBeGreaterThan(disposeCount.afterFirstBuild.texture);
+  expect(disposeCount.afterFinalBuild.geometry).toBeGreaterThan(disposeCount.afterSecondBuild.geometry);
+  expect(disposeCount.afterFinalBuild.material).toBeGreaterThan(disposeCount.afterSecondBuild.material);
+  expect(disposeCount.afterFinalBuild.texture).toBeGreaterThan(disposeCount.afterSecondBuild.texture);
   expect(disposeCount.syntheticSurfaces).toEqual([]);
 });
 
@@ -1222,9 +1366,17 @@ test('Three.js Dungeon View follows map topology for all four directions @smoke 
     [false, false, true],
   ]);
   expect(observations[3].threeFacts.some(({ z, column }) => z === 1 && column === 0)).toBe(false);
-  expect(observations[0].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'left-wall']);
-  expect(observations[2].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'right-wall']);
-  expect(observations[3].surfaces.map(({ surface }) => surface)).toEqual(['floor', 'ceiling', 'front-wall']);
+  expect(observations[0].surfaces.map(({ surface }) => surface)).toEqual([
+    'side-opening-post', 'side-opening-post', 'side-opening-lintel', 'floor', 'ceiling', 'left-wall',
+  ]);
+  expect(observations[2].surfaces.map(({ surface }) => surface)).toEqual([
+    'side-opening-post', 'side-opening-post', 'side-opening-lintel', 'floor', 'ceiling', 'right-wall',
+  ]);
+  expect(observations[3].surfaces.map(({ surface }) => surface)).toEqual([
+    'side-opening-post', 'side-opening-post', 'side-opening-lintel',
+    'side-opening-post', 'side-opening-post', 'side-opening-lintel',
+    'floor', 'ceiling', 'front-wall',
+  ]);
   const leftWall = observations[0].surfaces.find(({ surface }) => surface === 'left-wall');
   const rightWall = observations[2].surfaces.find(({ surface }) => surface === 'right-wall');
   const frontWall = observations[3].surfaces.find(({ surface }) => surface === 'front-wall');

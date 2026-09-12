@@ -1,11 +1,13 @@
 // balance-impact: none — optional Dungeon View presentation only; no game rules or state mutation.
 import {
   AmbientLight,
+  BufferGeometry,
   CanvasTexture,
   Color,
   DirectionalLight,
   DoubleSide,
   Fog,
+  Float32BufferAttribute,
   Group,
   Mesh,
   MeshBasicMaterial,
@@ -52,8 +54,10 @@ export const THREE_CORRIDOR_PROFILE = Object.freeze({
 // rooms.
 const COMBAT_MONSTER_RADIUS = 0.30;
 const COMBAT_TRIO_MONSTER_RADIUS = 0.27;
-const COMBAT_MULTI_LABEL_WIDTH = 0.82;
-const COMBAT_MULTI_LABEL_ROW_STEP = 0.25;
+const COMBAT_MULTI_LABEL_WIDTH = 2.0;
+const COMBAT_SINGLE_LABEL_WIDTH = 2.0;
+const COMBAT_LABEL_ASPECT = 64 / 320;
+const COMBAT_MULTI_LABEL_ROW_STEP = 0.46;
 const COMBAT_TARGET_RING_RADIUS = 0.32;
 const COMBAT_TRIO_MARKER_RADIUS = 0.23;
 // Keep the hit region larger than the visible body without letting adjacent
@@ -67,12 +71,16 @@ function clamp(value, min, max) {
 // The production renderer consumes the reviewed #1199 profile as a fixed
 // spatial contract. Biome colors may vary, but topology must not move the eye,
 // heading, cell dimensions, or camera framing.
-export function getThreeCorridorProfile() {
+function getCeilingStyle(value) {
+  return value === "arch" ? "arch" : "flat";
+}
+
+export function getThreeCorridorProfile(geometry = {}) {
   return Object.freeze({
     ...THREE_CORRIDOR_PROFILE,
     frontWallZ: THREE_CORRIDOR_PROFILE.startZ - THREE_CORRIDOR_PROFILE.cellDepth / 2,
     wallLean: 0,
-    ceilingStyle: "flat"
+    ceilingStyle: getCeilingStyle(geometry?.ceilingStyle)
   });
 }
 
@@ -164,6 +172,40 @@ export function getThreeProjectedBounds(mesh, camera) {
   });
 }
 
+function createCeilingGeometry(width, depth, height, style) {
+  if (style !== "arch") return new PlaneGeometry(width, depth);
+
+  const xSegments = 6;
+  const zSegments = 2;
+  const archRise = Math.min(0.72, height * 0.30);
+  const vertices = [];
+  const indices = [];
+  for (let z = 0; z <= zSegments; z++) {
+    const localZ = -depth / 2 + (depth * z) / zSegments;
+    for (let x = 0; x <= xSegments; x++) {
+      const localX = -width / 2 + (width * x) / xSegments;
+      const normalizedX = localX / (width / 2);
+      const localY = height + archRise * (1 - normalizedX * normalizedX);
+      vertices.push(localX, localY, localZ);
+    }
+  }
+  const rowSize = xSegments + 1;
+  for (let z = 0; z < zSegments; z++) {
+    for (let x = 0; x < xSegments; x++) {
+      const topLeft = z * rowSize + x;
+      const topRight = topLeft + 1;
+      const bottomLeft = topLeft + rowSize;
+      const bottomRight = bottomLeft + 1;
+      indices.push(topLeft, bottomLeft, topRight, topRight, bottomLeft, bottomRight);
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 function finite(value, fallback) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
 }
@@ -202,18 +244,18 @@ function getLivingMonsters(input) {
 
 function makeLabelTexture(text, color) {
   const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 48;
+  canvas.width = 320;
+  canvas.height = 64;
   const context = canvas.getContext("2d");
   context.clearRect(0, 0, canvas.width, canvas.height);
-  context.font = "bold 20px sans-serif";
+  context.font = "bold 28px sans-serif";
   context.textAlign = "center";
   context.fillStyle = "rgba(5, 8, 10, 0.82)";
   context.fillRect(4, 4, canvas.width - 8, canvas.height - 8);
   context.strokeStyle = color;
   context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
   context.fillStyle = "#f5f1e8";
-  context.fillText(text.slice(0, 16), canvas.width / 2, 31);
+  context.fillText(text.slice(0, 16), canvas.width / 2, 43);
   return new CanvasTexture(canvas);
 }
 
@@ -581,24 +623,47 @@ export class ThreeDungeonRenderer {
             frontOneWayBarrier: cell.frontOneWayBarrier,
             backBlocked: cell.backBlocked,
           };
-      const floor = new Mesh(new PlaneGeometry(profile.cellWidth, profile.cellDepth), floorMaterial.clone());
+      if (cell.column === 0) {
+        if (!frame.leftBlocked && topology.some((neighbor) => neighbor.valid && neighbor.z === cell.z && neighbor.column === -1)) {
+          this.addSideOpeningFrame(cellGroup, -1, profile, wallMaterial, cell);
+        }
+        if (!frame.rightBlocked && topology.some((neighbor) => neighbor.valid && neighbor.z === cell.z && neighbor.column === 1)) {
+          this.addSideOpeningFrame(cellGroup, 1, profile, wallMaterial, cell);
+        }
+      }
+      // Side cells are farther from the fixed eye point than forward cells.
+      // A restrained lift on the same material family offsets fog falloff so a
+      // real neighboring floor remains legible without adding a marker.
+      const sideVisibilityLift = cell.column === 0 ? 1 : 1.18;
+      const floorSurface = floorMaterial.clone();
+      floorSurface.color.multiplyScalar(sideVisibilityLift);
+      floorSurface.emissive.multiplyScalar(sideVisibilityLift);
+      const floor = new Mesh(new PlaneGeometry(profile.cellWidth, profile.cellDepth), floorSurface);
       floor.rotation.x = -Math.PI / 2;
       floor.userData = { surface: "floor", topology: cellGroup.userData.topology };
       cellGroup.add(floor);
 
-      const ceiling = new Mesh(new PlaneGeometry(profile.cellWidth, profile.cellDepth), ceilingMaterial.clone());
-      ceiling.rotation.x = Math.PI / 2;
-      ceiling.position.y = profile.wallHeight;
+      const ceilingSurface = ceilingMaterial.clone();
+      ceilingSurface.color.multiplyScalar(sideVisibilityLift);
+      ceilingSurface.emissive.multiplyScalar(sideVisibilityLift);
+      const ceiling = new Mesh(
+        createCeilingGeometry(profile.cellWidth, profile.cellDepth, profile.wallHeight, profile.ceilingStyle),
+        ceilingSurface
+      );
+      if (profile.ceilingStyle === "flat") {
+        ceiling.rotation.x = Math.PI / 2;
+        ceiling.position.y = profile.wallHeight;
+      }
       ceiling.userData = { surface: "ceiling", topology: cellGroup.userData.topology };
       cellGroup.add(ceiling);
 
       if (frame.leftBlocked) {
         this.addCorridorWall(cellGroup, new BoxGeometry(profile.wallThickness, profile.wallHeight, profile.cellDepth), wallMaterial,
-          { x: -profile.cellWidth / 2, y: profile.wallHeight / 2, z: 0 }, "left-wall", cell, 0);
+          { x: -profile.cellWidth / 2, y: profile.wallHeight / 2, z: 0 }, "left-wall", cell, 0, true, sideVisibilityLift);
       }
       if (frame.rightBlocked) {
         this.addCorridorWall(cellGroup, new BoxGeometry(profile.wallThickness, profile.wallHeight, profile.cellDepth), wallMaterial,
-          { x: profile.cellWidth / 2, y: profile.wallHeight / 2, z: 0 }, "right-wall", cell, 0);
+          { x: profile.cellWidth / 2, y: profile.wallHeight / 2, z: 0 }, "right-wall", cell, 0, true, sideVisibilityLift);
       }
       if (frame.frontBlocked) {
         const isOneWay = frame.frontOneWayBarrier;
@@ -625,7 +690,7 @@ export class ThreeDungeonRenderer {
         }
         this.addCorridorWall(cellGroup, new BoxGeometry(profile.cellWidth, profile.wallHeight, profile.wallThickness), frontMaterial,
           { x: 0, y: profile.wallHeight / 2, z: -profile.cellDepth / 2 },
-          isOneWay ? "front-wall-one-way" : "front-wall", cell, 0, false);
+          isOneWay ? "front-wall-one-way" : "front-wall", cell, 0, false, sideVisibilityLift);
         if (isOneWay) {
           const chevron = new Mesh(
             new PlaneGeometry(profile.cellWidth * 0.82, profile.wallHeight * 0.82),
@@ -646,13 +711,37 @@ export class ThreeDungeonRenderer {
       }
       if (frame.backBlocked) {
         this.addCorridorWall(cellGroup, new BoxGeometry(profile.cellWidth, profile.wallHeight, profile.wallThickness), wallMaterial,
-          { x: 0, y: profile.wallHeight / 2, z: profile.cellDepth / 2 }, "back-wall", cell, 0);
+          { x: 0, y: profile.wallHeight / 2, z: profile.cellDepth / 2 }, "back-wall", cell, 0, true, sideVisibilityLift);
       }
     });
   }
 
-  addCorridorWall(parent, geometry, material, position, surface, topology, rotationY = 0, cloneMaterial = true) {
-    const wall = new Mesh(geometry, cloneMaterial ? material.clone() : material);
+  addSideOpeningFrame(parent, side, profile, wallMaterial, topology) {
+    const frameMaterial = wallMaterial.clone();
+    const postGeometry = new BoxGeometry(profile.wallThickness, profile.wallHeight, profile.wallThickness);
+    const sideX = side * profile.cellWidth / 2;
+    const halfOpening = profile.cellWidth / 2;
+    for (const z of [-halfOpening, halfOpening]) {
+      const post = new Mesh(postGeometry.clone(), frameMaterial.clone());
+      post.position.set(sideX, profile.wallHeight / 2, z);
+      post.userData = { surface: "side-opening-post", topology: { z: topology.z, column: topology.column, x: topology.x, y: topology.y } };
+      parent.add(post);
+    }
+    postGeometry.dispose();
+    const lintel = new Mesh(
+      new BoxGeometry(profile.wallThickness, profile.wallThickness, profile.cellWidth),
+      frameMaterial
+    );
+    lintel.position.set(sideX, profile.wallHeight - profile.wallThickness / 2, 0);
+    lintel.userData = { surface: "side-opening-lintel", topology: { z: topology.z, column: topology.column, x: topology.x, y: topology.y } };
+    parent.add(lintel);
+  }
+
+  addCorridorWall(parent, geometry, material, position, surface, topology, rotationY = 0, cloneMaterial = true, visibilityLift = 1) {
+    const wallMaterial = cloneMaterial ? material.clone() : material;
+    wallMaterial.color.multiplyScalar(visibilityLift);
+    wallMaterial.emissive.multiplyScalar(visibilityLift);
+    const wall = new Mesh(geometry, wallMaterial);
     wall.position.set(position.x, position.y, position.z);
     wall.rotation.y = rotationY;
     wall.userData = { surface, topology: { z: topology.z, column: topology.column, x: topology.x, y: topology.y } };
@@ -685,7 +774,7 @@ export class ThreeDungeonRenderer {
     const bodyRadius = monsters.length === 3 ? COMBAT_TRIO_MONSTER_RADIUS : COMBAT_MONSTER_RADIUS;
     const markerRadius = monsters.length === 3 ? COMBAT_TRIO_MARKER_RADIUS : COMBAT_TARGET_RING_RADIUS;
     const bodyY = profile.wallHeight * 0.38;
-    const labelY = bodyY + (monsters.length === 3 ? 0.72 : 0.38);
+    const labelY = bodyY + (monsters.length === 3 ? 1.1 : 0.38);
     // Stage bodies just camera-side of the current-cell threshold. This keeps
     // the readable corridor framing from making multi-enemy bodies balloon
     // beyond the 400px render surface.
@@ -731,13 +820,18 @@ export class ThreeDungeonRenderer {
       group.add(ring);
       // Stack multi-enemy labels vertically so each name stays readable while
       // the bodies remain inside the narrow corridor frame.
-      const labelWidth = monsters.length > 1 ? COMBAT_MULTI_LABEL_WIDTH : 1.7;
+      const labelWidth = monsters.length > 1 ? COMBAT_MULTI_LABEL_WIDTH : COMBAT_SINGLE_LABEL_WIDTH;
       const stagedLabelY = monsters.length > 1
         ? labelY + (index - (monsters.length - 1) / 2) * COMBAT_MULTI_LABEL_ROW_STEP
         : labelY;
       const label = new Mesh(
-        new PlaneGeometry(labelWidth, labelWidth * 48 / 256),
-        new MeshBasicMaterial({ map: makeLabelTexture(monster.name || "敵", `#${color.getHexString()}`), transparent: true, depthWrite: false })
+        new PlaneGeometry(labelWidth, labelWidth * COMBAT_LABEL_ASPECT),
+        new MeshBasicMaterial({
+          map: makeLabelTexture(monster.name || "敵", `#${color.getHexString()}`),
+          transparent: true,
+          depthTest: false,
+          depthWrite: false
+        })
       );
       label.position.set(0, stagedLabelY, 0);
       label.userData = { surface: "combat-label", monsterIndex };
@@ -792,4 +886,4 @@ export class ThreeDungeonRenderer {
 // Re-export the material class so browser lifecycle tests can spy on the same
 // module instance used by this renderer (Vite otherwise creates a second
 // native module instance for a direct /node_modules import).
-export { MeshBasicMaterial, MeshStandardMaterial };
+export { BufferGeometry, CanvasTexture, MeshBasicMaterial, MeshStandardMaterial };

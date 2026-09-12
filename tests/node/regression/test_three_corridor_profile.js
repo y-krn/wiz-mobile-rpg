@@ -24,7 +24,25 @@ assert.equal(b1.lookAtZ, -2.4);
 assert.equal(b1.fov, 90);
 assert.equal(b1.fogNear, 4.8);
 assert.equal(b1.ceilingStyle, "flat");
-assert.deepEqual(b2, b1, "biome geometry must not move the frozen camera profile");
+assert.equal(b2.ceilingStyle, "arch");
+for (const key of [
+  "cellWidth",
+  "cellDepth",
+  "wallHeight",
+  "wallThickness",
+  "startZ",
+  "eyeHeight",
+  "eyeZ",
+  "lookAtHeight",
+  "lookAtZ",
+  "fov",
+  "fogNear",
+  "fogFar",
+  "frontWallZ",
+  "wallLean"
+]) {
+  assert.equal(b2[key], b1[key], `biome geometry must not move frozen profile field ${key}`);
+}
 assert.ok(b1Metrics.forwardOpeningWidth[0] > 20);
 assert.ok(b1Metrics.forwardOpeningWidth[0] > b1Metrics.forwardOpeningWidth[1]);
 assert.ok(b1Metrics.forwardOpeningWidth[1] > b1Metrics.forwardOpeningWidth[2]);
