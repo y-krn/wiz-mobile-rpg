@@ -8540,17 +8540,41 @@ function runEncounter(
     const firstPlayerActionOpportunity = roundNumber === 1
       ? getFirstPlayerActionOpportunity(roundResult, action.type)
       : null;
+    const playerActionObservation = (roundResult.actionObservations || []).find(observation =>
+      observation.actor === "char" && observation.actionType === action.type
+    ) || null;
+    const enemyActionDetails = fullDiagnostics
+      ? buildEnemyActionDetails(roundResult, roundNumber, character.name)
+      : null;
+    const killEvents = (roundResult.logQueue || [])
+      .filter(entry => /^\[味方\] \[!] .+を倒した！$/.test(String(entry.msg || "")))
+      .map(entry => {
+        const actionMatch = String(entry.groupId || "").match(/:action:(\d+)$/);
+        const targetMatch = String(entry.msg || "").match(/^\[味方\] \[!] (.+)を倒した！$/);
+        return {
+          targetName: targetMatch?.[1] || null,
+          actionOrdinal: actionMatch ? Number(actionMatch[1]) : null,
+          actorName: character.name
+        };
+      });
     if (encounterDiagnostic) {
       encounterDiagnostic.rounds.push({
         round: roundNumber,
         action: action.type,
+        playerActorName: character.name,
+        playerActionOrder: playerActionObservation?.order ?? null,
+        playerActionExecuted: playerActionObservation?.executed === true,
+        killEvents,
         fleeSelected: action.type === "run",
         fleeExecuted,
         fleePartingAttack,
         firstStrikeSucceeded: roundNumber === 1 ? firstStrikeSucceeded : null,
         playerActionExecutionTiming: roundNumber === 1 ? playerActionExecutionTiming : null,
-        playerActionExecuted: roundNumber === 1
-          ? playerActionExecutionTiming !== "not-executed-before-end"
+        livingEnemyCountBefore: fullDiagnostics
+          ? monstersBeforeRound.filter(monster => monster.hp > 0).length
+          : null,
+        livingEnemyCountAfter: fullDiagnostics
+          ? state.combatState.monsters.filter(monster => monster.hp > 0).length
           : null,
         enemyActionsBeforeFirstPlayerAction: firstPlayerActionOpportunity?.enemyActionsBeforeFirstPlayerAction ?? null,
         damageBeforeFirstPlayerAction: firstPlayerActionOpportunity?.damageBeforeFirstPlayerAction ?? null,
@@ -8581,11 +8605,7 @@ function runEncounter(
           : 1,
         countermeasureAffixValueBefore,
         countermeasureAffixValueAfter,
-        ...(fullDiagnostics ? buildEnemyActionDetails(
-          roundResult,
-          roundNumber,
-          character.name
-        ) : {}),
+        ...(enemyActionDetails || {}),
         hpBefore: fullDiagnostics ? characterBeforeRound.hp : undefined,
         hpAfter: fullDiagnostics ? state.party[0].hp : undefined,
         maxHp: fullDiagnostics ? getCharMaxHp(characterBeforeRound) : undefined,

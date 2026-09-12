@@ -13,6 +13,12 @@ import {
   finalizeEnemyActionCostAggregate,
   observeEnemyActionCost
 } from "./enemy_action_cost.js";
+import {
+  createFirstKillAggregate,
+  deriveFirstKillWindow,
+  finalizeFirstKillAggregate,
+  observeFirstKillWindow
+} from "./first_kill_observation.js";
 
 export const RUNNER_VERSION = "issue1205-fixed-combat-composition-v1";
 export const SCHEMA_VERSION = 3;
@@ -171,6 +177,7 @@ function createAccumulator(definition) {
     fleeSurvived: 0,
     fleeDiedFromPartingAttack: 0,
     partingAttackDamage: distribution(),
+    firstKillWindow: createFirstKillAggregate(),
     evasiveAttempts: 0,
     evasiveMisses: 0,
     guardAdjacentTriggers: 0,
@@ -186,6 +193,10 @@ function observeResult(accumulator, result) {
   const diagnostic = result.diagnostics?.encounters?.[0];
   if (!identity || !diagnostic) throw new Error("fixed combat result omitted encounter diagnostics");
   const rounds = diagnostic.rounds || [];
+  observeFirstKillWindow(
+    accumulator.firstKillWindow,
+    deriveFirstKillWindow({ identity, diagnostic })
+  );
   const outcome = result.fixedCombatResult || identity.outcome;
   observeEnemyActionCost(accumulator.enemyActionCost, {
     encounterOrdinal: 1,
@@ -299,6 +310,7 @@ function finalizeAccumulator(accumulator, runs) {
       ? accumulator.fleeSelectedButNotExecuted / accumulator.fleeSelected
       : null,
     partingAttackDamage: summarize(accumulator.partingAttackDamage),
+    firstKillWindow: finalizeFirstKillAggregate(accumulator.firstKillWindow),
     productionTraitFiring: {
       evasive: {
         attempts: accumulator.evasiveAttempts,
