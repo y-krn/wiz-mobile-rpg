@@ -64,6 +64,18 @@ export const THREE_DUNGEON_SPIKE_CANDIDATES = Object.freeze({
     archSpringLine: 1.7,
     archRise: 0.7,
   }),
+  "medium-flat": Object.freeze({
+    id: "medium-flat",
+    cornerChamfer: 0.2,
+    ceilingStyle: "flat",
+  }),
+  "medium-arch": Object.freeze({
+    id: "medium-arch",
+    cornerChamfer: 0.2,
+    ceilingStyle: "arch",
+    archSpringLine: 1.7,
+    archRise: 0.7,
+  }),
 });
 
 const DEFAULT_BACKGROUND = "#0d1014";

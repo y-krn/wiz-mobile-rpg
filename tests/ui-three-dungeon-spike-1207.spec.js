@@ -6,7 +6,7 @@ const REVIEW_VIEWPORTS = [
 ];
 const TURN_CANDIDATES = ['square', 'shallow', 'medium', 'strong'];
 const TURN_FIXTURES = ['straight-corridor', 'left-turn', 'right-turn'];
-const BIOME_CANDIDATES = ['flat', 'arch'];
+const BIOME_CANDIDATES = ['medium-flat', 'medium-arch'];
 const PRODUCTION_FIXTURE = Object.freeze({
   seed: 'ISSUE-1199-B1F-PRODUCTION',
   floor: 1,
@@ -37,8 +37,8 @@ function createSyntheticMap(archetype) {
     }))),
     paths: {
       'straight-corridor': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 2, 0]],
-      'left-turn': [[4, 4, 2], [4, 4, 3], [3, 4, 3], [2, 4, 3]],
-      'right-turn': [[4, 4, 2], [4, 4, 1], [5, 4, 1], [6, 4, 1]],
+      'left-turn': [[4, 4, 2], [4, 4, 0], [4, 3, 3], [3, 3, 3], [2, 3, 3]],
+      'right-turn': [[4, 4, 2], [4, 4, 0], [4, 3, 1], [5, 3, 1], [6, 3, 1]],
     }[archetype],
   };
 }
@@ -124,6 +124,22 @@ function assertTruthfulGeometry(evidence, expectedCandidate) {
   });
 }
 
+function assertOneCellAheadTurn(evidence, side) {
+  const current = evidence.topology.find(({ z, column }) => z === 0 && column === 0);
+  const forward = evidence.topology.find(({ z, column }) => z === 1 && column === 0);
+  const turnColumn = side === 'left' ? -1 : 1;
+  const turnCell = evidence.topology.find(({ z, column }) => z === 1 && column === turnColumn);
+  expect(current?.valid).toBe(true);
+  expect(forward?.valid).toBe(true);
+  expect(turnCell?.valid).toBe(true);
+  expect(current.frontBlocked, 'current cell must open into the forward cell').toBe(false);
+  expect(current.leftBlocked, 'current cell must not contain a left side opening').toBe(true);
+  expect(current.rightBlocked, 'current cell must not contain a right side opening').toBe(true);
+  expect(forward.frontBlocked, 'the forward cell must close at the turn').toBe(true);
+  expect(forward[`${side}Blocked`], `the forward cell must open to the ${side}`).toBe(false);
+  expect(evidence.topology.some(({ z, column }) => z === 0 && Math.abs(column) > 0)).toBe(false);
+}
+
 test('Issue 1207 turn candidates preserve fixed camera and truthful topology at 390px and 320px @smoke @visual', async ({ page }, testInfo) => {
   for (const viewport of REVIEW_VIEWPORTS) {
     await page.setViewportSize({ width: viewport.width, height: 844 });
@@ -135,6 +151,7 @@ test('Issue 1207 turn candidates preserve fixed camera and truthful topology at 
       for (const archetype of TURN_FIXTURES) {
         const evidence = await renderSynthetic(page, archetype, candidate);
         assertTruthfulGeometry(evidence, candidate);
+        if (archetype !== 'straight-corridor') assertOneCellAheadTurn(evidence, archetype === 'left-turn' ? 'left' : 'right');
         expect(evidence.renderedPixelCount).toBeGreaterThan(100);
         const checksums = checksumsByFixture.get(archetype) || [];
         checksums.push(evidence.pixelChecksum);
@@ -166,8 +183,10 @@ test('Issue 1207 flat and arch candidates share navigation grammar and differ st
       for (const archetype of TURN_FIXTURES) {
         const evidence = await renderSynthetic(page, archetype, candidate);
         assertTruthfulGeometry(evidence, candidate);
-        expect(evidence.geometry.ceilingStyle).toBe(candidate);
-        expect(evidence.geometry.archRise).toBe(candidate === 'arch' ? 0.7 : 0);
+        const isArch = candidate === 'medium-arch';
+        if (archetype !== 'straight-corridor') assertOneCellAheadTurn(evidence, archetype === 'left-turn' ? 'left' : 'right');
+        expect(evidence.geometry.ceilingStyle).toBe(isArch ? 'arch' : 'flat');
+        expect(evidence.geometry.archRise).toBe(isArch ? 0.7 : 0);
         expect(evidence.renderedPixelCount).toBeGreaterThan(100);
         biomeChecksums.push(evidence.pixelChecksum);
         if (archetype === 'straight-corridor') {
@@ -187,10 +206,10 @@ test('Issue 1207 flat and arch candidates share navigation grammar and differ st
       }
     }
 
-    expect(evidenceByCandidate.flat.topology).toEqual(evidenceByCandidate.arch.topology);
-    expect(evidenceByCandidate.flat.geometry.ceilingStyle).not.toBe(evidenceByCandidate.arch.geometry.ceilingStyle);
-    expect(evidenceByCandidate.flat.geometry.archSpringLine).not.toBe(evidenceByCandidate.arch.geometry.archSpringLine);
-    expect(evidenceByCandidate.flat.geometry.archRise).not.toBe(evidenceByCandidate.arch.geometry.archRise);
+    expect(evidenceByCandidate['medium-flat'].topology).toEqual(evidenceByCandidate['medium-arch'].topology);
+    expect(evidenceByCandidate['medium-flat'].geometry.ceilingStyle).not.toBe(evidenceByCandidate['medium-arch'].geometry.ceilingStyle);
+    expect(evidenceByCandidate['medium-flat'].geometry.archSpringLine).not.toBe(evidenceByCandidate['medium-arch'].geometry.archSpringLine);
+    expect(evidenceByCandidate['medium-flat'].geometry.archRise).not.toBe(evidenceByCandidate['medium-arch'].geometry.archRise);
     expect(new Set(biomeChecksums).size).toBeGreaterThan(1);
   }
 });
