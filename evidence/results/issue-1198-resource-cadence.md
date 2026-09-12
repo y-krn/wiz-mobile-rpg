@@ -11,9 +11,10 @@ B1Fの通常宝箱だけで `HEAL_POTION` の重みを1xから2xにする候補�
 - fresh `vanguard` / `fight` / `production` / B1F、持ち込みresourceなし、targetDepth 2
 - N=10,000/case、seed=1198、Node `v26.8.1`
 - runner: `issue1198-continuation-resource-v2` / schema 10
-- source HEAD: `3f3fdffc331fd85562496766eca98acbb08fa7f9`
+- source HEAD: `6bc743386a8e07a94fc794a4566d963240dc948f`
 - production gameplay/base: `ab4631e6bdcf1d819987649044e72907ac6ccc1c` (`origin/main` verified)
 - environment hash: 1x `83bf861e9de261d2` / 2x `fd3b0723e6ee74db` / 3x `7b5958052c14e73f`
+- measurement runner diff SHA-256: `711b5d323e0081ff494307d700b9175d4d17e95545ae585742eba77e34541bf2`
 - all reports: `originMainAncestor=true`, `staleTreeAllowed=false`, `workingTreeClean=true`
 -同一seedのN=1,000 candidate再実行はreport/summaryとも完全一致
 
