@@ -1,0 +1,13 @@
+# Agent and repository guidance are not production build inputs.
+.agents/
+.codex/
+.github/
+AGENTS.md
+README.md
+skills-lock.json
+
+# Test and verification assets are not needed by `vite build`.
+playwright.config.js
+tests/
+evidence/
+scratch/
