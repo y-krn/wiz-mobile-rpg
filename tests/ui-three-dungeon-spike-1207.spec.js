@@ -214,16 +214,19 @@ test('Issue 1207 flat and arch candidates share navigation grammar and differ st
   }
 });
 
-test('Issue 1207 selected medium structural candidate composes with the generated B1F near branch @smoke @visual', async ({ page }, testInfo) => {
+test('Issue 1207 selected shallow structural candidate composes with the generated B1F near branch @smoke @visual', async ({ page }, testInfo) => {
   for (const viewport of REVIEW_VIEWPORTS) {
     await page.setViewportSize({ width: viewport.width, height: 844 });
     await page.goto('/');
     await installSpikeCanvas(page, viewport);
-    const evidence = await page.evaluate(async ({ fixtureConfig, candidate }) => {
+    const evidence = await page.evaluate(async ({ fixtureConfig }) => {
       const { generateRunFloor } = await import('/src/run_map_generator.js');
       const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
       const { getFloorTheme } = await import('/src/data/floor_themes.js');
-      const { createThreeDungeonSpikeRenderer } = await import('/src/three_dungeon_spike.js');
+      const {
+        createThreeDungeonSpikeRenderer,
+        THREE_DUNGEON_SPIKE_SELECTED_TURN_CANDIDATE,
+      } = await import('/src/three_dungeon_spike.js');
       const generated = generateRunFloor({ runSeed: fixtureConfig.seed, floor: fixtureConfig.floor });
       const topology = getVisibleCorridorTopology(generated.grid, fixtureConfig.x, fixtureConfig.y, fixtureConfig.dir);
       const sideOpeningCount = topology.filter((cell) => cell.z === 0 && Math.abs(cell.column) === 1).length;
@@ -233,26 +236,28 @@ test('Issue 1207 selected medium structural candidate composes with the generate
       }
       const canvas = document.querySelector('#three-dungeon-spike-1207-canvas');
       window.__threeDungeonSpike1207?.dispose();
-      window.__threeDungeonSpike1207 = createThreeDungeonSpikeRenderer(canvas, { candidate });
+      window.__threeDungeonSpike1207 = createThreeDungeonSpikeRenderer(canvas, {
+        candidate: THREE_DUNGEON_SPIKE_SELECTED_TURN_CANDIDATE,
+      });
       window.__threeDungeonSpike1207.renderMap(generated.grid, fixtureConfig.x, fixtureConfig.y, fixtureConfig.dir, getFloorTheme(1).visualSignature);
       return {
-        candidate,
+        candidate: THREE_DUNGEON_SPIKE_SELECTED_TURN_CANDIDATE,
         sideOpeningCount,
         forwardDepth,
         topology,
         surfaces: window.__threeDungeonSpike1207.getTopologySurfaces(),
         geometry: window.__threeDungeonSpike1207.getGeometryContract(),
       };
-    }, { fixtureConfig: PRODUCTION_FIXTURE, candidate: 'medium' });
+    }, { fixtureConfig: PRODUCTION_FIXTURE });
     expect(evidence.sideOpeningCount).toBeGreaterThan(0);
     expect(evidence.forwardDepth).toBeGreaterThan(0);
     expect(evidence.surfaces.some(({ surface }) => surface === 'floor')).toBe(true);
     expect(evidence.surfaces.some(({ surface }) => surface === 'left-wall' || surface === 'right-wall')).toBe(true);
-    expect(evidence.geometry.cornerChamfer).toBe(0.2);
+    expect(evidence.geometry.cornerChamfer).toBe(0.1);
     const screenshot = await page.locator('#three-dungeon-spike-1207-canvas').screenshot({
-      path: testInfo.outputPath(`issue-1207-production-b1f-medium-${viewport.width}px.png`),
+      path: testInfo.outputPath(`issue-1207-production-b1f-shallow-${viewport.width}px.png`),
     });
-    await testInfo.attach(`issue-1207-production-b1f-medium-${viewport.width}px`, {
+    await testInfo.attach(`issue-1207-production-b1f-shallow-${viewport.width}px`, {
       body: screenshot,
       contentType: 'image/png',
     });

@@ -26,9 +26,10 @@ export const THREE_DUNGEON_SPIKE_VIEW = Object.freeze({
   height: 260,
 });
 
-// Candidate Phase 1 profile. Freeze only after Phase 1 and Phase 2 human
-// visual review pass. The prototype deliberately does not accept topology or
-// biome values here: one profile must explain every archetype.
+// Candidate Phase 1 profile. The selected value below is frozen only for the
+// isolated Issue #1207 evidence; production adoption still requires its own
+// port review. The prototype deliberately does not accept topology or biome
+// values here: one profile must explain every archetype.
 export const THREE_DUNGEON_SPIKE_PROFILE = Object.freeze({
   cellWidth: 1.2,
   wallHeight: 2.4,
@@ -77,6 +78,11 @@ export const THREE_DUNGEON_SPIKE_CANDIDATES = Object.freeze({
     archRise: 0.7,
   }),
 });
+
+// Review 5186229817 found the non-zero candidates materially equivalent at
+// both review widths. Freeze the smallest passing chamfer to minimize the
+// structural change carried into the production-port decision.
+export const THREE_DUNGEON_SPIKE_SELECTED_TURN_CANDIDATE = "shallow";
 
 const DEFAULT_BACKGROUND = "#0d1014";
 const DEFAULT_WALL = "#58d6e8";

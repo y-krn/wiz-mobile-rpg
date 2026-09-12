@@ -25,14 +25,22 @@ wall in the fixture:
 | candidate | corner chamfer ratio | disposition |
 | --- | ---: | --- |
 | square | 0% | baseline; turn remains a narrow slit |
-| shallow | 10% | readable, but weaker at 320px |
-| medium | 20% | selected |
-| strong | 30% | readable, but visually over-heavy at the side opening |
+| shallow | 10% | selected: smallest passing chamfer |
+| medium | 20% | passes, but visually equivalent to shallow/strong |
+| strong | 30% | passes, but visually equivalent to shallow/medium |
 
-The selected medium rule is a structural chamfer of every wall footprint. It
+The selected shallow rule is a structural chamfer of every wall footprint. It
 does not inspect future topology, add a marker, delete a blocked wall, move the
 camera, or change materials per branch. Floor geometry remains continuous and
 same-height; the renderer-neutral frame still determines every wall surface.
+
+The 390px/320px actual-pixel review does not support the former claim that
+shallow is weaker, medium is best, or strong is over-heavy. Because width and
+depth cuts scale by the same ratio, every non-zero chamfer keeps the same face
+angle/normal; the visible difference is mainly segment length. Shallow,
+medium, and strong therefore form an equivalent passing group in this matrix.
+Following the smallest-passing rule, shallow 10% is the only frozen turn
+selection; medium 20% is not selected merely because it was the prior proposal.
 
 Biome candidates use the same corrected topology and material family, with the
 selected turn construction combined explicitly:
@@ -40,7 +48,12 @@ selected turn construction combined explicitly:
 | candidate | structure | disposition |
 | --- | --- | --- |
 | medium+flat | 20% wall chamfer and 2.4-unit flat ceiling | comparison baseline |
-| medium+arch | 20% wall chamfer, 1.7-unit spring line, 0.7-unit curved rise | selected |
+| medium+arch | 20% wall chamfer, 1.7-unit spring line, 0.7-unit curved rise | silhouette/readability PASS |
+
+The medium+flat / medium+arch matrix remains the reviewed biome-silhouette
+comparison. Its approved structural difference is independent of the turn
+candidate selection; no fixture or arch rerun is required for this rationale
+correction.
 
 ## Actual-pixel review
 
@@ -58,15 +71,15 @@ npx playwright test tests/ui-three-dungeon-spike-1207.spec.js --grep @visual
 
 Review outcome:
 
-- At 390px, square leaves the one-cell-ahead turn nearly unresolved; shallow,
-  medium, and strong expose the side continuation at `z=1`. Medium gives the
-  clearest balance of turn cue and route dominance.
-- The medium left/right distinction remains visible at 320px, and the two
+- At 390px and 320px, square leaves the one-cell-ahead turn nearly unresolved;
+  shallow, medium, and strong all expose the side continuation at `z=1` with
+  no independently reproducible readability ranking.
+- The shallow left/right distinction remains visible at 320px, and the two
   directions are mirrored by the actual walkable side continuation.
 - Medium+flat and medium+arch are distinguishable by ceiling silhouette and
   spring line, not hue; medium+arch retains a continuous route in both widths.
 - The generated B1F fixture retains a near side opening and forward depth under
-  the selected medium candidate at both review widths.
+  the selected shallow candidate at both review widths.
 
 The browser screenshots are not physical-device evidence. Physical-device
 readability remains unverified in this environment; no production adoption is
@@ -74,10 +87,12 @@ claimed by this Spike.
 
 ## Acceptance disposition
 
-The corrected fixture resolves the review BLOCK: the turn is now genuinely
-one-cell-ahead, and the selected geometry comparison is explicitly
-medium+flat versus medium+arch. Browser actual-pixel evidence supports medium
-20% plus arch `springLine 1.7 / rise 0.7` as the proposed production rule.
+The corrected fixture resolves the topology and biome-comparison concerns. The
+candidate-selection BLOCK is resolved by freezing shallow 10%, the smallest
+member of the actual-pixel passing group. The existing medium+flat versus
+medium+arch evidence remains a PASS for ceiling silhouette and route
+readability, with arch `springLine 1.7 / rise 0.7`; it does not change the
+shallow turn selection.
 
 The previous canonical PASS is withdrawn until an independent human reviewer
 re-accepts the corrected current-head matrix. No production port is authorized
