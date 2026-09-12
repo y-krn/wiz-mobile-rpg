@@ -1,10 +1,24 @@
-import * as Sentry from "@sentry/browser";
+import {
+  addBreadcrumb,
+  captureException,
+  captureMessage,
+  init,
+} from "@sentry/browser";
 import { configureSentry, getGameSnapshotProvider } from "./sentry.js";
 
 // Browser-only Sentry initialization. Keep this out of the runtime-neutral
 // facade so Node simulations can import state and gameplay modules directly.
 const viteEnv = import.meta.env ?? {};
 const dsn = viteEnv.VITE_SENTRY_DSN;
+
+// Keep the runtime-neutral facade limited to the Sentry methods it actually
+// uses. Passing the full @sentry/browser namespace here makes every exported
+// member observable to the bundler and prevents effective tree-shaking.
+const sentryRuntimeApi = Object.freeze({
+  addBreadcrumb,
+  captureException,
+  captureMessage,
+});
 
 // ローカル環境判定。dev(vite dev)/preview(本番ビルドのローカル配信)/
 // --host経由のLAN実機(スマホ確認)を全て抑止し、Vercel本番ドメインのみ送信する。
@@ -25,7 +39,7 @@ function isLocalEnv() {
 
 // Sentryを有効化する条件: DSN設定済み かつ 非ローカル環境。
 const enabled = !!dsn && !isLocalEnv();
-configureSentry(Sentry, enabled);
+configureSentry(sentryRuntimeApi, enabled);
 
 if (!enabled) {
   if (viteEnv.PROD && !dsn && !isLocalEnv()) {
@@ -34,7 +48,7 @@ if (!enabled) {
   }
   // ローカル環境ではinitごとスキップ→session等も含め一切送信しない。
 } else {
-  Sentry.init({
+  init({
     dsn,
     environment: viteEnv.MODE, // development / production
     release: viteEnv.VITE_SENTRY_RELEASE, // git hash（vite.configでdefine注入）

@@ -1,6 +1,7 @@
 {
   "version": 2,
   "cleanUrls": true,
+  "ignoreCommand": "node scripts/vercel-ignore-build.js",
   "git": {
     "deploymentEnabled": {
       "main": true,
