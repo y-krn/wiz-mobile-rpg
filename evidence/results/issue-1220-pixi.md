@@ -4,6 +4,8 @@
 
 **PASS for a bounded prototype; production adoption remains out of scope.**
 
+Closes #1220.
+
 PixiJS preserves the Canvas screen-space projection/topology grammar and gives a
 clearer floor continuity treatment on the reviewed pixels. The candidate is
 available only at `?renderer=pixi`; the production default remains Canvas.
