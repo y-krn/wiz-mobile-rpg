@@ -74,8 +74,13 @@ claimed by this Spike.
 
 ## Acceptance disposition
 
-PASS path: the corrected fixture selects the combined medium 20% wall chamfer
-and arch `springLine 1.7 / rise 0.7` structural rule for any later production
-port.
+The corrected fixture resolves the review BLOCK: the turn is now genuinely
+one-cell-ahead, and the selected geometry comparison is explicitly
+medium+flat versus medium+arch. Browser actual-pixel evidence supports medium
+20% plus arch `springLine 1.7 / rise 0.7` as the proposed production rule.
+
+The previous canonical PASS is withdrawn until an independent human reviewer
+re-accepts the corrected current-head matrix. No production port is authorized
+by this evidence alone.
 PR #1193 may resume only by porting these exact rules; it must not add camera,
 visibility, marker, or helper geometry changes.
