@@ -16,10 +16,15 @@ routing and evidence contract, not a replacement for domain checklists,
    missing decision could materially change the result, inspect repository
    evidence first and ask only for that decision. Otherwise record a
    reasonable assumption and continue.
-3. Route the work through [the file map](file-map.md). Load only the matching
-   checklist and conditional skill. The checklist owns the review lens; a
-   skill owns only its repeatable conditional workflow. Do not invent a new
-   lifecycle skill when the existing references are sufficient.
+3. Route the work through [the file map](file-map.md) and the [skill ownership
+   map](README.md#conditional-skill-routing). Load only the matching checklist
+   and conditional skill. Use `diagnosing-bugs` when QA triage cannot establish
+   the cause or a red-capable reproduction, or when the report is a performance
+   regression; keep a known-cause bug on the QA path. Use `writing-for-agents`
+   when creating or materially revising repository skills or agent guidance.
+   The checklist owns the review lens; a skill owns only its repeatable
+   conditional workflow. Do not invent a new lifecycle skill when the existing
+   references are sufficient.
 4. Choose the lightest planning artifact that preserves continuity. A small,
    clear change needs only a local plan and the Issue/PR evidence. Create a
    repository plan only when the work is complex, long-running, or needs a

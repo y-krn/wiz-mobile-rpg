@@ -136,8 +136,12 @@ request area.
 
 - Use a browser-testing skill when browser behavior, screenshots, or end-to-end
   UI flows are part of the review.
-- Use a Playwright CLI skill when debugging a failing browser test from terminal
-  output.
+- Use `playwright-cli` for interactive browser reproduction or inspection of
+  DOM/rendered state, console, network, trace, or storage evidence. QA keeps
+  ownership of test selection, regression coverage, and the final verdict.
+- When browser evidence leaves the cause or reproduction path unresolved, use
+  `diagnosing-bugs` for the tight repro and causal investigation, then return
+  the regression test and final verification to this checklist.
 - Do not load browser-focused skills for pure unit-test or data-only reviews.
 
 ## Verification cadence

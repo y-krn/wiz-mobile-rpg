@@ -17,6 +17,10 @@ depth, EV, or run-pacing measurements. A repeatable formula or map measurement
 may use the corresponding scope when a full run is unnecessary. Do not load it
 for a prose-only formula review, UI work, or an unrelated test failure.
 
+For combat rule or formula ownership, use `combat-model-change`; for a
+definition-to-player or simulation path audit, use
+`gameplay-reachability-audit`. This skill supplies measurement evidence only.
+
 ## Prepare the measurement
 
 1. Read `.agents/file-map.md` and `.agents/balance-simulation.md`. Read the
@@ -57,6 +61,11 @@ ancestor relationship, and worktree state.
    revision and provenance produced by the runner, not a manually typed
    substitute. Keep raw JSON, logs, and debug output in a temporary directory
    or CI artifact; do not commit raw dumps.
+
+The measurement phase is complete only when every requested case has a
+deterministic smoke result, matched conditions, runner provenance, recorded
+uncertainty and omissions, and a reproduction command. Otherwise stop with the
+missing evidence.
 
 For a code or harness change, run the relevant unit/regression gate after the
 smoke. The canonical simulation-follow and provenance checks are executable
