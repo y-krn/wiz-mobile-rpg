@@ -42,8 +42,8 @@ medium, and strong therefore form an equivalent passing group in this matrix.
 Following the smallest-passing rule, shallow 10% is the only frozen turn
 selection; medium 20% is not selected merely because it was the prior proposal.
 
-Biome candidates use the same corrected topology and material family, with the
-selected turn construction combined explicitly:
+Biome candidates use the same corrected topology and material family, with a
+fixed medium comparison chamfer combined explicitly:
 
 | candidate | structure | disposition |
 | --- | --- | --- |
