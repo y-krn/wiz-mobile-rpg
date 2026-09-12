@@ -280,6 +280,18 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
       path: [[5, 5, 0], [5, 4, 0], [5, 3, 0], [5, 2, 0]],
     },
     {
+      name: 'b1-left-turn-frozen',
+      floor: 1,
+      widths: [VIEWPORTS[0], VIEWPORTS[2]],
+      path: [[5, 5, 0], [5, 4, 3], [4, 4, 3], [3, 4, 3]],
+    },
+    {
+      name: 'b1-right-turn-frozen',
+      floor: 1,
+      widths: [VIEWPORTS[0], VIEWPORTS[2]],
+      path: [[5, 5, 0], [5, 4, 1], [6, 4, 1], [7, 4, 1]],
+    },
+    {
       name: 'b2-straight-frozen',
       floor: 6,
       widths: [VIEWPORTS[2]],
@@ -288,8 +300,14 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
     {
       name: 'b2-right-turn-frozen',
       floor: 6,
-      widths: [VIEWPORTS[2]],
+      widths: [VIEWPORTS[0], VIEWPORTS[2]],
       path: [[5, 5, 0], [5, 4, 1], [6, 4, 1], [7, 4, 1]],
+    },
+    {
+      name: 'b2-left-turn-frozen',
+      floor: 6,
+      widths: [VIEWPORTS[0], VIEWPORTS[2]],
+      path: [[5, 5, 0], [5, 4, 3], [4, 4, 3], [3, 4, 3]],
     },
   ];
 
@@ -299,6 +317,8 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
       await page.goto('/?renderer=three');
       await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
       await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
+      await page.locator('#viewport-hud').evaluate((element) => { element.style.display = 'none'; });
+      await expect(page.locator('#viewport-hud')).toHaveCSS('display', 'none');
 
       await page.evaluate(async ({ floor, path }) => {
         const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
@@ -332,6 +352,8 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
         const { dungeonRenderer } = await import('/src/renderer.js');
         dungeonRenderer.draw();
       }, { floor: fixture.floor, path: fixture.path });
+      await page.locator('#viewport-hud').evaluate((element) => { element.style.display = 'none'; });
+      await expect(page.locator('#viewport-hud')).toHaveCSS('display', 'none');
 
       const evidence = await page.evaluate(async () => {
         const { dungeonRenderer } = await import('/src/renderer.js');
@@ -341,8 +363,15 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
         let ceiling = null;
         const farBranchSurfaces = [];
         const farBranchDepth = [];
+        const wallGeometryVertexCounts = [];
         dungeonRenderer.root.traverse((child) => {
           if (child.userData?.surface === 'ceiling' && !ceiling) ceiling = child;
+          if (child.userData?.surface?.endsWith('wall')) {
+            wallGeometryVertexCounts.push({
+              surface: child.userData.surface,
+              count: child.geometry?.attributes?.position?.count ?? 0,
+            });
+          }
           if (child.userData?.surface?.startsWith('side-branch-')) {
             farBranchSurfaces.push(child.userData.surface);
             farBranchDepth.push({
@@ -364,8 +393,17 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
           fog: { near: dungeonRenderer.scene.fog.near, far: dungeonRenderer.scene.fog.far },
           ceilingStyle: dungeonRenderer.activeProfile.ceilingStyle,
           wallHeight: dungeonRenderer.activeProfile.wallHeight,
+          cornerChamfer: dungeonRenderer.activeProfile.cornerChamfer,
+          archSpringLine: dungeonRenderer.activeProfile.archSpringLine,
+          archRise: dungeonRenderer.activeProfile.archRise,
           ceilingPositionY,
           ceilingMaxY,
+          ceilingMinY: ceiling?.geometry?.attributes?.position
+            ? Math.min(...Array.from({ length: ceiling.geometry.attributes.position.count }, (_, index) =>
+              ceiling.geometry.attributes.position.getY(index)
+            )) + ceilingPositionY
+            : null,
+          wallGeometryVertexCounts,
           farBranchSurfaces,
           farBranchDepth,
         };
@@ -380,13 +418,21 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
       expect(evidence.fog.far).toBeGreaterThan(evidence.metrics.cellFrontDistances[2]);
       const expectedCeilingStyle = fixture.floor === 6 ? 'arch' : 'flat';
       expect(evidence.ceilingStyle).toBe(expectedCeilingStyle);
+      expect(evidence.cornerChamfer).toBe(0.1);
       if (expectedCeilingStyle === 'flat') {
+        expect(evidence.archSpringLine).toBe(2.4);
+        expect(evidence.archRise).toBe(0);
         expect(evidence.ceilingPositionY).toBeCloseTo(evidence.wallHeight, 5);
         expect(evidence.ceilingMaxY).toBeGreaterThan(evidence.wallHeight - 0.01);
       } else {
+        expect(evidence.archSpringLine).toBe(1.7);
+        expect(evidence.archRise).toBe(0.7);
         expect(evidence.ceilingPositionY).toBeCloseTo(0, 5);
-        expect(evidence.ceilingMaxY).toBeGreaterThan(evidence.wallHeight);
+        expect(evidence.ceilingMinY).toBeCloseTo(1.7, 5);
+        expect(evidence.ceilingMaxY).toBeCloseTo(2.4, 5);
       }
+      expect(evidence.wallGeometryVertexCounts.length).toBeGreaterThan(0);
+      expect(evidence.wallGeometryVertexCounts.every(({ count }) => count === 16)).toBe(true);
       expect(evidence.farBranchSurfaces).toEqual([]);
       expect(evidence.farBranchDepth).toEqual([]);
 
@@ -402,13 +448,14 @@ test('Three.js corridor readability keeps the frozen profile and real openings c
 });
 
 test('Three.js production B1F state keeps a real side passage continuous with the floor @smoke @visual', async ({ page }, testInfo) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?renderer=three');
-  await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
-  await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
-  await page.locator('#viewport-hud').evaluate((element) => { element.style.display = 'none'; });
+  for (const viewport of [VIEWPORTS[0], VIEWPORTS[2]]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/?renderer=three');
+    await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'three');
+    await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
+    await page.locator('#viewport-hud').evaluate((element) => { element.style.display = 'none'; });
 
-  const evidence = await page.evaluate(async () => {
+    const evidence = await page.evaluate(async () => {
     const { generateRunFloor } = await import('/src/run_map_generator.js');
     const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
@@ -485,40 +532,41 @@ test('Three.js production B1F state keeps a real side passage continuous with th
       branchJambs,
       syntheticSurfaces,
     };
-  });
+    });
 
-  expect(evidence.generatedValid).toBe(true);
-  expect(evidence.currentCell).toEqual({ x: 7, y: 13, openNorth: true, openEast: true, openWest: false });
-  expect(evidence.branchCell).toEqual({ openNorth: true, openEast: true });
-  expect(evidence.branchTopology).toEqual(expect.objectContaining({ z: 0, column: 1, x: 8, y: 13, valid: true }));
-  expect(evidence.branchFloors).toEqual([
-    {
-      x: 8,
-      y: 13,
-      yPosition: 0,
-      material: 'MeshStandardMaterial',
-      depthTest: true,
-      depthWrite: true,
-      bounds: expect.objectContaining({
-        visibleWidth: expect.any(Number),
-        visibleHeight: expect.any(Number),
-      }),
-    },
-  ]);
-  expect(evidence.branchJambs).toEqual([]);
-  console.log(`[issue-1181] production B1F branch evidence ${JSON.stringify(evidence)}`);
-  expect(evidence.branchFloors[0].bounds.visibleWidth).toBeGreaterThan(20);
-  expect(evidence.branchFloors[0].bounds.visibleHeight).toBeGreaterThan(10);
-  expect(evidence.syntheticSurfaces).toEqual([]);
-  await page.locator('#viewport-hud').evaluate((element) => { element.style.display = 'none'; });
+    expect(evidence.generatedValid).toBe(true);
+    expect(evidence.currentCell).toEqual({ x: 7, y: 13, openNorth: true, openEast: true, openWest: false });
+    expect(evidence.branchCell).toEqual({ openNorth: true, openEast: true });
+    expect(evidence.branchTopology).toEqual(expect.objectContaining({ z: 0, column: 1, x: 8, y: 13, valid: true }));
+    expect(evidence.branchFloors).toEqual([
+      {
+        x: 8,
+        y: 13,
+        yPosition: 0,
+        material: 'MeshStandardMaterial',
+        depthTest: true,
+        depthWrite: true,
+        bounds: expect.objectContaining({
+          visibleWidth: expect.any(Number),
+          visibleHeight: expect.any(Number),
+        }),
+      },
+    ]);
+    expect(evidence.branchJambs).toEqual([]);
+    console.log(`[issue-1181] production B1F branch evidence ${viewport.width}px ${JSON.stringify(evidence)}`);
+    expect(evidence.branchFloors[0].bounds.visibleWidth).toBeGreaterThan(20);
+    expect(evidence.branchFloors[0].bounds.visibleHeight).toBeGreaterThan(10);
+    expect(evidence.syntheticSurfaces).toEqual([]);
+    await page.locator('#viewport-hud').evaluate((element) => { element.style.display = 'none'; });
 
-  const screenshot = await page.locator('#dungeon-canvas').screenshot({
-    path: testInfo.outputPath('three-production-b1-right-branch-390px.png'),
-  });
-  await testInfo.attach('three-production-b1-right-branch-390px', {
-    body: screenshot,
-    contentType: 'image/png',
-  });
+    const screenshot = await page.locator('#dungeon-canvas').screenshot({
+      path: testInfo.outputPath(`three-production-b1-right-branch-${viewport.width}px.png`),
+    });
+    await testInfo.attach(`three-production-b1-right-branch-${viewport.width}px`, {
+      body: screenshot,
+      contentType: 'image/png',
+    });
+  }
 });
 
 test('Three.js danger cue stays outside the camera and visible in the corridor @smoke @e2e @visual', async ({ page }, testInfo) => {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { getFloorTheme } from "../../../src/data/floor_themes.js";
 import {
+  createChamferedPrismGeometry,
   createWallGeometry,
   getThreeCorridorProfile,
   getThreeCorridorReadabilityMetrics
@@ -16,6 +17,9 @@ assert.equal(b1.cellWidth, 1.2);
 assert.equal(b1.cellDepth, 3.2);
 assert.equal(b1.wallHeight, 2.4);
 assert.equal(b1.wallThickness, 0.18);
+assert.equal(b1.cornerChamfer, 0.1);
+assert.equal(b1.archSpringLine, 2.4);
+assert.equal(b1.archRise, 0);
 assert.equal(b1.startZ, 1.6);
 assert.equal(b1.eyeHeight, 1.8);
 assert.equal(b1.eyeZ, 3.0);
@@ -25,6 +29,9 @@ assert.equal(b1.fov, 90);
 assert.equal(b1.fogNear, 4.8);
 assert.equal(b1.ceilingStyle, "flat");
 assert.equal(b2.ceilingStyle, "arch");
+assert.equal(b2.cornerChamfer, 0.1);
+assert.equal(b2.archSpringLine, 1.7);
+assert.equal(b2.archRise, 0.7);
 for (const key of [
   "cellWidth",
   "cellDepth",
@@ -49,6 +56,22 @@ assert.ok(b1Metrics.forwardOpeningWidth[1] > b1Metrics.forwardOpeningWidth[2]);
 assert.ok(b1Metrics.currentCellSideWallOccupancy > 0.8);
 assert.ok(b1Metrics.fogNear < b1Metrics.cellFrontDistances[0]);
 assert.ok(b1Metrics.fogFar > b1Metrics.cellFrontDistances[2]);
+
+const chamferedWall = createChamferedPrismGeometry(b1.cellWidth, b1.wallHeight, b1.wallThickness);
+const chamferedPositions = chamferedWall.attributes.position;
+assert.equal(chamferedPositions.count, 16, "global wall footprint chamfer must use an octagonal prism");
+const bottomPlan = [];
+const topPlan = [];
+for (let index = 0; index < chamferedPositions.count; index += 1) {
+  const target = chamferedPositions.getY(index) === 0 ? bottomPlan : topPlan;
+  target.push([chamferedPositions.getX(index), chamferedPositions.getZ(index)]);
+}
+assert.equal(bottomPlan.length, 8);
+assert.equal(topPlan.length, 8);
+assert.ok(Math.abs(Math.min(...bottomPlan.map(([x]) => Math.abs(x))) - 0.54) < 1e-6);
+assert.ok(Math.abs(Math.min(...bottomPlan.map(([, z]) => Math.abs(z))) - 0.081) < 1e-6);
+assert.ok(Math.abs(Math.min(...topPlan.map(([x]) => Math.abs(x))) - 0.54) < 1e-6);
+assert.ok(Math.abs(Math.min(...topPlan.map(([, z]) => Math.abs(z))) - 0.081) < 1e-6);
 
 const spanByEdge = (geometry, edge) => {
   const positions = geometry.attributes.position;

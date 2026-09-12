@@ -22,7 +22,6 @@ import {
   TorusGeometry,
   Vector2,
   Vector3,
-  BoxGeometry,
   WebGLRenderer
 } from "three";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
@@ -36,6 +35,9 @@ export const THREE_CORRIDOR_PROFILE = Object.freeze({
   cellDepth: 3.2,
   wallHeight: 2.4,
   wallThickness: 0.18,
+  cornerChamfer: 0.1,
+  archSpringLine: 1.7,
+  archRise: 0.7,
   startZ: 1.6,
   eyeHeight: 1.8,
   eyeZ: 3.0,
@@ -76,11 +78,14 @@ function getCeilingStyle(value) {
 }
 
 export function getThreeCorridorProfile(geometry = {}) {
+  const ceilingStyle = getCeilingStyle(geometry?.ceilingStyle);
   return Object.freeze({
     ...THREE_CORRIDOR_PROFILE,
     frontWallZ: THREE_CORRIDOR_PROFILE.startZ - THREE_CORRIDOR_PROFILE.cellDepth / 2,
     wallLean: 0,
-    ceilingStyle: getCeilingStyle(geometry?.ceilingStyle)
+    ceilingStyle,
+    archSpringLine: ceilingStyle === "arch" ? THREE_CORRIDOR_PROFILE.archSpringLine : THREE_CORRIDOR_PROFILE.wallHeight,
+    archRise: ceilingStyle === "arch" ? THREE_CORRIDOR_PROFILE.archRise : 0,
   });
 }
 
@@ -109,7 +114,10 @@ export function getThreeCorridorReadabilityMetrics(geometry = {}) {
       cellWidth: profile.cellWidth,
       wallHeight: profile.wallHeight,
       wallLean: profile.wallLean,
-      ceilingStyle: profile.ceilingStyle
+      ceilingStyle: profile.ceilingStyle,
+      cornerChamfer: profile.cornerChamfer,
+      archSpringLine: profile.archSpringLine,
+      archRise: profile.archRise,
     }
   });
 }
@@ -172,12 +180,11 @@ export function getThreeProjectedBounds(mesh, camera) {
   });
 }
 
-function createCeilingGeometry(width, depth, height, style) {
+function createCeilingGeometry(width, depth, height, style, springLine = height, rise = Math.min(0.72, height * 0.30)) {
   if (style !== "arch") return new PlaneGeometry(width, depth);
 
-  const xSegments = 6;
-  const zSegments = 2;
-  const archRise = Math.min(0.72, height * 0.30);
+  const xSegments = 16;
+  const zSegments = 1;
   const vertices = [];
   const indices = [];
   for (let z = 0; z <= zSegments; z++) {
@@ -185,7 +192,7 @@ function createCeilingGeometry(width, depth, height, style) {
     for (let x = 0; x <= xSegments; x++) {
       const localX = -width / 2 + (width * x) / xSegments;
       const normalizedX = localX / (width / 2);
-      const localY = height + archRise * (1 - normalizedX * normalizedX);
+      const localY = springLine + rise * Math.sqrt(Math.max(0, 1 - normalizedX ** 2));
       vertices.push(localX, localY, localZ);
     }
   }
@@ -201,6 +208,39 @@ function createCeilingGeometry(width, depth, height, style) {
   }
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+export function createChamferedPrismGeometry(width, height, depth, ratio = THREE_CORRIDOR_PROFILE.cornerChamfer) {
+  const halfWidth = width / 2;
+  const halfDepth = depth / 2;
+  const widthCut = halfWidth * ratio;
+  const depthCut = halfDepth * ratio;
+  const plan = [
+    [-halfWidth + widthCut, -halfDepth],
+    [halfWidth - widthCut, -halfDepth],
+    [halfWidth, -halfDepth + depthCut],
+    [halfWidth, halfDepth - depthCut],
+    [halfWidth - widthCut, halfDepth],
+    [-halfWidth + widthCut, halfDepth],
+    [-halfWidth, halfDepth - depthCut],
+    [-halfWidth, -halfDepth + depthCut],
+  ];
+  const positions = [];
+  plan.forEach(([x, z]) => positions.push(x, 0, z));
+  plan.forEach(([x, z]) => positions.push(x, height, z));
+  const indices = [];
+  for (let index = 1; index < plan.length - 1; index += 1) {
+    indices.push(0, index + 1, index, 8, 8 + index, 8 + index + 1);
+  }
+  for (let index = 0; index < plan.length; index += 1) {
+    const next = (index + 1) % plan.length;
+    indices.push(index, next, 8 + next, index, 8 + next, 8 + index);
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
@@ -584,8 +624,11 @@ export class ThreeDungeonRenderer {
           cellDepth: profile.cellDepth,
           wallHeight: profile.wallHeight,
           wallThickness: profile.wallThickness,
+          cornerChamfer: profile.cornerChamfer,
           wallLean: profile.wallLean,
-          ceilingStyle: profile.ceilingStyle
+          ceilingStyle: profile.ceilingStyle,
+          archSpringLine: profile.archSpringLine,
+          archRise: profile.archRise,
         }
       };
       const rotationY = cell.column < 0 ? Math.PI / 2 : cell.column > 0 ? -Math.PI / 2 : 0;
@@ -629,7 +672,14 @@ export class ThreeDungeonRenderer {
       cellGroup.add(floor);
 
       const ceiling = new Mesh(
-        createCeilingGeometry(profile.cellWidth, profile.cellDepth, profile.wallHeight, profile.ceilingStyle),
+        createCeilingGeometry(
+          profile.cellWidth,
+          profile.cellDepth,
+          profile.wallHeight,
+          profile.ceilingStyle,
+          profile.archSpringLine,
+          profile.archRise,
+        ),
         ceilingMaterial.clone()
       );
       if (profile.ceilingStyle === "flat") {
@@ -639,13 +689,23 @@ export class ThreeDungeonRenderer {
       ceiling.userData = { surface: "ceiling", topology: cellGroup.userData.topology };
       cellGroup.add(ceiling);
 
+      const ceilingIsArch = profile.ceilingStyle === "arch";
+      const wallHeight = ceilingIsArch ? profile.archSpringLine : profile.wallHeight;
+      const wallY = wallHeight / 2;
+      const wallGeometry = (width, depth) => createChamferedPrismGeometry(
+        width,
+        wallHeight,
+        depth,
+        profile.cornerChamfer,
+      );
+
       if (frame.leftBlocked) {
-        this.addCorridorWall(cellGroup, new BoxGeometry(profile.wallThickness, profile.wallHeight, profile.cellDepth), wallMaterial,
-          { x: -profile.cellWidth / 2, y: profile.wallHeight / 2, z: 0 }, "left-wall", cell, 0);
+        this.addCorridorWall(cellGroup, wallGeometry(profile.wallThickness, profile.cellDepth), wallMaterial,
+          { x: -profile.cellWidth / 2, y: wallY, z: 0 }, "left-wall", cell, 0, false);
       }
       if (frame.rightBlocked) {
-        this.addCorridorWall(cellGroup, new BoxGeometry(profile.wallThickness, profile.wallHeight, profile.cellDepth), wallMaterial,
-          { x: profile.cellWidth / 2, y: profile.wallHeight / 2, z: 0 }, "right-wall", cell, 0);
+        this.addCorridorWall(cellGroup, wallGeometry(profile.wallThickness, profile.cellDepth), wallMaterial,
+          { x: profile.cellWidth / 2, y: wallY, z: 0 }, "right-wall", cell, 0, false);
       }
       if (frame.frontBlocked) {
         const isOneWay = frame.frontOneWayBarrier;
@@ -670,12 +730,12 @@ export class ThreeDungeonRenderer {
           frontMaterial.emissive.multiplyScalar(0.35);
           frontMaterial.emissiveIntensity = 0.08;
         }
-        this.addCorridorWall(cellGroup, new BoxGeometry(profile.cellWidth, profile.wallHeight, profile.wallThickness), frontMaterial,
-          { x: 0, y: profile.wallHeight / 2, z: -profile.cellDepth / 2 },
+        this.addCorridorWall(cellGroup, wallGeometry(profile.cellWidth, profile.wallThickness), frontMaterial,
+          { x: 0, y: wallY, z: -profile.cellDepth / 2 },
           isOneWay ? "front-wall-one-way" : "front-wall", cell, 0, false);
         if (isOneWay) {
           const chevron = new Mesh(
-            new PlaneGeometry(profile.cellWidth * 0.82, profile.wallHeight * 0.82),
+            new PlaneGeometry(profile.cellWidth * 0.82, wallHeight * 0.82),
             new MeshBasicMaterial({
               map: makeOneWayTexture(wall),
               transparent: true,
@@ -683,7 +743,7 @@ export class ThreeDungeonRenderer {
               side: DoubleSide
             })
           );
-          chevron.position.set(0, profile.wallHeight / 2, -profile.cellDepth / 2 + profile.wallThickness / 2 + 0.01);
+          chevron.position.set(0, wallY, -profile.cellDepth / 2 + profile.wallThickness / 2 + 0.01);
           chevron.userData = {
             surface: "front-wall-one-way-chevron",
             topology: cellGroup.userData.topology
@@ -692,8 +752,8 @@ export class ThreeDungeonRenderer {
         }
       }
       if (frame.backBlocked) {
-        this.addCorridorWall(cellGroup, new BoxGeometry(profile.cellWidth, profile.wallHeight, profile.wallThickness), wallMaterial,
-          { x: 0, y: profile.wallHeight / 2, z: profile.cellDepth / 2 }, "back-wall", cell, 0);
+        this.addCorridorWall(cellGroup, wallGeometry(profile.cellWidth, profile.wallThickness), wallMaterial,
+          { x: 0, y: wallY, z: profile.cellDepth / 2 }, "back-wall", cell, 0, false);
       }
     });
   }
