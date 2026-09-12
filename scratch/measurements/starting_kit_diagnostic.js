@@ -19,6 +19,7 @@ import {
   finalizeEnemyActionCostAggregate,
   observeEnemyActionCost
 } from "./enemy_action_cost.js";
+import { deriveFirstKillWindow } from "./first_kill_observation.js";
 
 export const RUNNER_VERSION = "issue1205-enemy-action-cost-v1";
 export const SCHEMA_VERSION = 11;
@@ -975,7 +976,8 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     fleeSurvived: Number(fleeExecuted > 0 && identity.outcome === "flee"),
     fleeDiedFromPartingAttack: Number(
       fleeExecuted > 0 && fleePartingAttackCount > 0 && identity.outcome === "death"
-    )
+    ),
+    firstKillWindow: deriveFirstKillWindow({ identity, diagnostic })
   };
 }
 
