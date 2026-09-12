@@ -2,68 +2,97 @@
 
 ## 結論
 
-B1F の通常宝箱だけで `HEAL_POTION` の重みを 1x から 2x にする候補を production に採用した。候補 item、slot、chest 数、回復量は変えず、combat-generated `fromDrop` 宝箱は変更していない。抽選は従来と同じ1回の RNG draw で行う。
+B1Fの通常宝箱だけで `HEAL_POTION` の重みを1xから2xにする候補をproductionへ適用した。候補item、slot、chest数、回復量は変えず、combat-generated `fromDrop` 宝箱は変更していない。weighted selectorは従来どおり1回のRNG drawである。
 
-同一条件の N=10,000 remeasure では、B2F arrival が 8.94% から 9.58%（+0.64pp）、E1生存 cohort の2戦目前 resource opportunity が 4.65% から 7.76%（+3.11pp）へ改善した。3x はさらに resource access を押し上げるが、2xで目的を満たすため最小候補として採用しない。
+同一条件のN=10,000 remeasureでは、2xでB2F arrivalが8.94%→9.58%、E1生存cohortの2戦目前resource opportunityが4.65%→7.76%、E2生存cohortの3戦目前が8.26%→13.46%になった。2xは目的に対する最小候補として採用する。3xは追加改善を示す感度上限であり、2xと同一視せず、今後の別判断用に保存する。
 
-## 測定条件と provenance
+## 測定条件とprovenance
 
-- 対象: fresh `vanguard` / `fight` / `production` / B1F、持ち込み resource なし、targetDepth 2
-- N=10,000 / case、seed=1198、Node `v26.8.1`
-- runner: `issue1198-continuation-resource-v1` / schema 9
-- source HEAD: `49d5a224e6da4dcd65cfb1ca0ea9897c7002578b`
-- production gameplay/base: `210859dfddb168f682373011347d2eaa62b3f934` (`origin/main` の #1197 merge)
-- measurement runner diff: `5c8de745d3d70d577e64ac0d3b32e174dd2fdd67f6511f3b6a62843af79dd97e`
-- environment hash: `afedb4037c3ffa31`
-- working tree: clean、同一 seed の N=1,000 再実行は report/summary とも完全一致
+- fresh `vanguard` / `fight` / `production` / B1F、持ち込みresourceなし、targetDepth 2
+- N=10,000/case、seed=1198、Node `v26.8.1`
+- runner: `issue1198-continuation-resource-v2` / schema 10
+- source HEAD: `3f3fdffc331fd85562496766eca98acbb08fa7f9`
+- production gameplay/base: `ab4631e6bdcf1d819987649044e72907ac6ccc1c` (`origin/main` verified)
+- environment hash: 1x `83bf861e9de261d2` / 2x `fd3b0723e6ee74db` / 3x `7b5958052c14e73f`
+- all reports: `originMainAncestor=true`, `staleTreeAllowed=false`, `workingTreeClean=true`
+-同一seedのN=1,000 candidate再実行はreport/summaryとも完全一致
 
-1x / 2x / 3x は `--chest-heal-potion-weight` の matched probe。probe は B1F の ordinary source にだけ適用し、既存 production map、敵、encounter pair、initiative、chest appearance、item chance、回復量を変更しない。
+1x/2x/3xは`--chest-heal-potion-weight`のmatched probe。probeはB1F ordinary sourceにだけ適用し、production map、敵、encounter pair、initiative、chest appearance、item chance、回復量を変更しない。
 
 ## Candidate comparison
 
-| ordinary B1 HEAL_POTION weight | B1 death | B2 arrival | E1 cohort | 2nd encounter resource | 3rd encounter resource | meaningful reward | Build change |
+| ordinary B1 HEAL_POTION weight | B1 death | B2 arrival | E1生存 | E2生存 | E3生存 | 2戦目前 resource | 3戦目前 resource |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 1x baseline | 91.06% | 8.94% | 6,415 | 298/6,415 (4.65%, Wilson 4.16–5.19%) | 206/2,493 (8.26%, 7.25–9.41%) | 92.74% | 46.31% |
-| 2x adopted | 90.42% | 9.58% | 6,444 | 500/6,444 (7.76%, 7.13–8.44%) | 341/2,533 (13.46%, 12.19–14.85%) | 92.74% | 46.03% |
-| 3x sensitivity | 89.84% | 10.16% | 6,491 | 711/6,491 (10.95%, 10.22–11.74%) | 506/2,611 (19.38%, 17.91–20.94%) | 92.74% | 46.03% |
+| 1x baseline | 91.06% | 8.94% | 6,415 | 2,493 | 744 | 298/6,415 (4.65%) | 206/2,493 (8.26%) |
+| 2x adopted | 90.42% | 9.58% | 6,444 | 2,533 | 780 | 500/6,444 (7.76%) | 341/2,533 (13.46%) |
+| 3x sensitivity | 89.84% | 10.16% | 6,491 | 2,611 | 829 | 711/6,491 (10.95%) | 506/2,611 (19.38%) |
 
-Resource opportunity の分母は直前 encounter を生存した cohort。target encounter に到達しなかった cohort member は `endedBeforeArrival` / `deathsBeforeArrival` に残す。Wilson 区間は95%区間。
+resource opportunityの分母は直前encounterを生存したcohort。target encounter未到達者は`endedBeforeArrival` / `deathsBeforeArrival`に残す。Wilson 95%区間は1x: E1 4.16–5.19%, E2 7.25–9.41%、2x: E1 7.13–8.44%, E2 12.19–14.85%、3x: E1 10.22–11.74%, E2 17.91–20.94%。
 
-## Adopted 2x resource funnel
+## 継続到達・HP・actual recovery
 
-| target | cohort / arrived | acquired | usable | beneficial | used | carried-unused | acquired units | actual HP recovered |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| 2戦目前 | 6,444 / 4,954 | 500 | 499 | 499 | 322 | 141 | 533 | 4,059 |
-| 3戦目前 | 2,533 / 1,661 | 341 | 340 | 340 | 277 | 48 | 377 | 3,685 |
+| weight | 1→2 arrival / cohort | 1→2 next-entry HP p25/p50/p75 (平均) | 2→3 arrival / cohort | 2→3 next-entry HP p25/p50/p75 (平均) | actual HP recovered before E2 / E3 |
+|---:|---:|---:|---:|---:|---:|
+| 1x | 4,918 / 6,415 | 6 / 10 / 14 (10.13) | 1,627 / 2,493 | 4 / 8 / 12 (8.59) | 2,518 / 2,248 |
+| 2x | 4,954 / 6,444 | 6 / 10 / 15 (10.23) | 1,661 / 2,533 | 5 / 8 / 13 (8.85) | 4,059 / 3,685 |
+| 3x | 4,993 / 6,491 | 6 / 10 / 15 (10.33) | 1,713 / 2,611 | 5 / 8 / 13 (9.11) | 5,732 / 5,457 |
 
-`acquired` は accepted reward event、`usable` / `beneficial` は取得後の production eligibility、`used` は production auto-use の実使用、`carried-unused` は target entry inventory snapshot である。実際に取得された item はこの path では `HEAL_POTION` のみ。
+自然entry HP band（E2/E3合算）は次のとおり。母数は各条件の到達entry数。
 
-Source split は2戦目前が ordinary 511 units / fromDrop 22 units、3戦目前が ordinary 349 / fromDrop 27 / secretRoom 1。したがって fromDrop source の変更は不要で、ordinary B1F の cadence 調整に限定した。
+| weight | 25% band | 50% band | 75% band | 100% band |
+|---:|---:|---:|---:|---:|
+| 1x | 2,971 (45.39%) | 2,048 (31.29%) | 1,223 (18.69%) | 303 (4.63%) |
+| 2x | 2,958 (44.72%) | 2,071 (31.31%) | 1,252 (18.93%) | 334 (5.05%) |
+| 3x | 2,948 (43.96%) | 2,099 (31.30%) | 1,301 (19.40%) | 358 (5.34%) |
 
-## Loot / Build と境界
+### Recovery funnel
 
-- meaningful reward opportunity は baseline / adopted とも 92.74%。object loot の機会も同値。
-- Build change は 46.31% → 46.03% と小幅低下。3xでも 46.03%で、resource候補の代わりに装備候補を削る変更ではない。
-- first guaranteed chest の magic equipment、non-guaranteed chest の itemChance、chest count、HEAL_POTION の +15 HP、status cure、bag/object loot の役割は維持。
-- starting potion injection、free recovery、+15 の変更、enemy stat/global pair-rate/initiative/target mix の変更はない。
-- B2F floor outcome は補助指標のみ。#1173、#1184 A の cadence/combat candidate はこの変更に含めない。
+| weight / target | cohort / arrived | acquired units | usable runs | beneficial runs | used runs | carried-unused runs | actual HP recovered |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1x / E2 | 6,415 / 4,918 | 308 | 297 | 297 | 204 | 72 | 2,518 |
+| 1x / E3 | 2,493 / 1,627 | 221 | 206 | 206 | 171 | 22 | 2,248 |
+| 2x / E2 | 6,444 / 4,954 | 533 | 499 | 499 | 322 | 141 | 4,059 |
+| 2x / E3 | 2,533 / 1,661 | 377 | 340 | 340 | 277 | 48 | 3,685 |
+| 3x / E2 | 6,491 / 4,993 | 787 | 710 | 710 | 450 | 223 | 5,732 |
+| 3x / E3 | 2,611 / 1,713 | 585 | 506 | 506 | 406 | 73 | 5,457 |
 
-## Fresh-save manual gate
+Source splitは循環しないbaselineも保存した。
 
-Playwright headed browser で fresh local state を2回確認した。各回、鋼の前線キットを選び、B1Fへ持ち込み0で開始できた。1回目は実際に encounter を発生させ、攻撃対象選択、攻撃、敵からの被ダメージ、逃走、追撃ダメージ、1マス後退ログを確認した。2回目も fresh state から B1F 探索を再開し、前進・方向転換・探索操作を確認した。
+- 1x: E2 `ordinary 287 / fromDrop 21`; E3 `ordinary 195 / fromDrop 25 / secretRoom 1`
+- 2x: E2 `ordinary 511 / fromDrop 22`; E3 `ordinary 349 / fromDrop 27 / secretRoom 1`
+- 3x: E2 `ordinary 766 / fromDrop 21`; E3 `ordinary 556 / fromDrop 29`
 
-2回目は、B1FでHP 20→8、毒針12ダメージと毒を受けた後、未鑑定のレザーアーマーと指輪を獲得・保持し、毒ダメージで死亡した。死亡画面には死因「毒のダメージ」、失った2点の戦果、象徴的な戦利品、図鑑に残る装備・状態異常・罠の知識が表示された。
+したがって、変更対象sourceをordinaryに限定する根拠は「変更後のsplit」ではなく、変更前1xでもfromDropが主供給源ではなく、さらにfromDropを変更しない境界を保てることにある。
 
-形成された次回仮説は「HPが削られた状態で罠の推定を外して開けない。調査後に立ち去るか、解除・叩き壊すを選び、戦闘では早めに逃走する」である。実際にゲーム内には調べる、解除、開ける、叩き壊す、立ち去る、バッグ、攻撃、防御、道具、逃走が存在し、1回目には逃走と追撃・後退も実行できた。Loot / Build（未鑑定アーマー・指輪）、fight-flee、Cost（罠・毒・追撃）の未完了の期待が死亡前後に形成されたため、fresh-save manual gate は通過と判定する。
+## Loot / Build breadth and side effects
+
+B1 ordinary main candidate poolは実際のRune込みで19候補。effective unit weightは1x=`1/19`、2x=`2/20`、3x=`3/21`であり、HEAL_POTION以外を候補から削除していない。ただし相対確率は当然低下するため、以下を実測した。
+
+| weight | ordinary main events | HEAL_POTION | Rune | equipment | status cure | Bag peak occupancy p50/p75/p95 | object loot banked/lost |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1x | 22,155 | 633 (2.86%) | 4,056 (18.31%) | 15,414 (69.57%) | 2,052 (9.26%) | 1 / 2 / 3 | 3,834 / 19,677 |
+| 2x | 22,251 | 1,196 (5.38%) | 3,905 (17.55%) | 15,177 (68.21%) | 1,973 (8.87%) | 1 / 2 / 3 | 4,022 / 19,190 |
+| 3x | 22,430 | 1,800 (8.02%) | 3,745 (16.69%) | 14,984 (66.80%) | 1,901 (8.47%) | 1 / 2 / 3 | 4,187 / 18,809 |
+
+`events`はB1 main reward eventの実測settlement内訳で、first guaranteed equipmentとitem chanceを含む。selector自体の相対確率は上記の19/20/21 weighted poolであり、event内訳をselector確率と混同しない。fromDrop mainは13候補・Runeなしで、HEAL_POTION weightは全条件1xのまま。
+
+Meaningful reward opportunityは全条件92.74%。Build-change opportunityは1x 46.31%、2x 46.03%、3x 46.03%。ordinary内のequipment・Rune・status-cureはいずれも2x/3xで相対供給率が低下するが、候補削除やBag slot数変更ではない。したがって「副作用なし」ではなく、「2xは3xより横幅を抑えた最小candidate」と判定する。
+
+## Fresh-save manual gate and parent #1184
+
+Playwright headed browserでfresh local stateを2回確認した。鋼の前線キットを選び、B1Fを持ち込み0で開始。攻撃対象選択、攻撃、敵からの被ダメージ、逃走、追撃、1マス後退、前進・方向転換・探索を確認した。別runではHP20→8、毒針12 damageと毒、未鑑定レザーアーマー・指輪の獲得/保持、毒死、死因表示、失った戦果、図鑑への知識残存を確認した。
+
+manual gateは#1198について通過と判定する。ただし#1184はcloseしない。#1198はresource carryover / B軸のcandidate・remeasure・manual gateを返却するが、親で残るA（early encounter Cost/cadence）およびD/Fの未完了課題は解消しない。#1184へこの結果を返却し、親IssueはOPEN継続とする。
 
 ## Verification
 
 - modified JS `node --check`: pass
-- `SIM_SKIP_PROVENANCE=1 node tests/node/regression/test_starting_kit_diagnostic.js`: pass
-- `node tests/node/unit/test_loot_supply.js`: pass
-- `node tests/node/regression/test_sim_chest_smash_lethal.js`: pass
-- weighted selector unit test verifies one RNG draw and invalid weight rejection
-- raw JSON / manifest は commit せず `/tmp/issue-1198-final-v1*` に保存
+- `npm run test:unit`: pass（198 tests / 198 passed）
+- `node tests/node/regression/test_starting_kit_diagnostic.js`: pass
+- weighted selector unit test: one RNG draw / invalid weight rejection pass
+- N=1,000 same-seed repeat: byte-identical report/summary pass
+- N=10,000 matched 1x/2x/3x: pass、raw JSON/manifestはcommitせず`/private/tmp/issue-1198-final/`に保存
+- current production CIはこの新HEAD push後に再実行する
 
 再現例:
 
@@ -74,9 +103,11 @@ node scratch/measurements/starting_kit_diagnostic.js \
   --recovery-policy production \
   --runs 10000 \
   --seed 1198 \
-  --output /tmp/issue-1198-final-v2/report.json \
-  --summary /tmp/issue-1198-final-v2/summary.md \
-  --manifest /tmp/issue-1198-final-v2/manifest.json \
-  --purpose issue-1198-production-remeasure-final-v2 \
+  --chest-heal-potion-weight 2 \
+  --chest-heal-potion-source ordinary \
+  --output /tmp/issue-1198-final/report.json \
+  --summary /tmp/issue-1198-final/summary.md \
+  --manifest /tmp/issue-1198-final/manifest.json \
+  --purpose issue-1198-review-remediation \
   --ref issue/1198-resource-cadence
 ```
