@@ -67,12 +67,51 @@ changed.
 
 ## Fresh-save manual gate
 
-Using a new browser context with no saved data, the production build was
-started from town, the default vanguard kit and B1F were selected, and the
-run reached a natural B1F normal battle. The attack target-selection UI opened
-and the rendered combat log showed the encounter start without a page error.
+The gate was exercised against both revisions using new browser contexts with
+no saved data. Each run started from town, selected the default vanguard kit
+and B1F, and entered a natural B1F encounter. All recorded runs had no page
+errors.
+
+| Revision | Fresh runs | Observed play | Resulting evidence |
+| --- | ---: | --- | --- |
+| before (`d42ffaa0`) | 4 | `群れネズミ`, `分裂スライム`, `コボルトの斥候`, and `マッドスライム` | Attack/defense choices resolved; `分裂スライム` was killed and visibly split into two independent actors; victories showed explicit loot. The `マッドスライム` run was intentionally continued through repeated defense and made the accumulating HP cost visible. |
+| after (`5129e92c`) | 2 | `錆びた盾兵 + かみつき蟲`; `群れネズミ + マッドスライム` | The pair attack run showed the shared-slot message once per resolved round, killed `錆びた盾兵` first, continued against `かみつき蟲`, and ended with victory and materials. The pair flee run showed one hit, a flee follow-up hit, and a one-space retreat. |
+
+The observed log excerpts establish the player-facing gate:
+
+1. **Pair pressure:** the after pair visibly presented two targets and incoming
+   damage while the single before runs had one active actor. The C0/C2 primary
+   table provides the controlled comparison: pair p50 `7 → 6`, single p50
+   unchanged at `3`.
+2. **First-kill meaning:** before, killing `分裂スライム` produced the explicit
+   `2体に分裂` consequence; after, killing `錆びた盾兵` left
+   `かみつき蟲`, so target order still changes the remaining threat.
+3. **Explainable damage/death risk:** no fresh run ended in death, but every
+   observed loss was attributable in the log to a named enemy hit, a flee
+   follow-up, or a trap/self-destruct message, with the numeric HP change shown.
+   The unit and measurement gates cover the fatal-rate population (`0.890 →
+   0.882` for fight C0 → C2).
+4. **Next action:** after the first target died, the next action was directed at
+   the remaining enemy; after the flee choice, the player was visibly one cell
+   back. The single-run split also required changing target after the first
+   split body died.
+5. **Loot/build expectation:** before and after victories displayed explicit
+   material rewards. The fresh save began with the named `鋼の前線キット`, and
+   the measured build-reach axis remained unchanged (`0.947 → 0.971` for
+   fight C0 → C2); no build purchase was forced into the short B1F sample.
+6. **Cost judgment:** the after flee run exposed both the ordinary hit and the
+   flee follow-up damage before the one-space retreat; the before defense run
+   exposed the continuing HP cost of spending turns without attacking.
+7. **Before/after decision:** the player-facing signals changed as intended:
+   single exposure stayed stable, a pair still felt more demanding than a
+   single, but ordinary pair turns were visibly consolidated and the choice to
+   kill one target first or flee remained meaningful.
+
 The deterministic unit gate additionally verified the multi-enemy production
-schedule and the player-facing shared-slot log message.
+schedule, preserved `multiAction` extras, and the player-facing shared-slot log
+message. The natural before run did not produce an ordinary pair, so the
+before/after pair comparison is intentionally supported by the controlled C0/C2
+measurement rather than claimed as a paired manual replay.
 
 ## Verification
 
