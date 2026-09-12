@@ -18,6 +18,11 @@ or PR is involved, `.agents/merge-gate.md` as needed. Keep durable rendering
 knowledge in the reference document and exact constants/scenarios in source or
 tests.
 
+When the task also changes combat semantics, measured balance, or a mechanic's
+reachability, load `combat-model-change`, `balance-simulation`, or
+`gameplay-reachability-audit` for that owning surface. This skill owns the
+rendered contract and renderer lifecycle evidence.
+
 ## 1. Establish the revision
 
 - Read the target Issue and measurable acceptance criteria.
@@ -157,8 +162,3 @@ every small renderer change; it applies to high-risk spatial-grammar changes.
 - Check unresolved review threads, current `HEAD_SHA`, latest-main relation,
   and the merge-gate verdict. Re-run invalidated checks after any content
   change.
-
-Existing Skills retain their ownership: use `balance-simulation` for measured
-progression/economy claims, `combat-model-change` for combat formula/model
-changes, and `gameplay-reachability-audit` for mechanic reachability. This
-Skill covers the rendering evidence and workflow boundary around those systems.

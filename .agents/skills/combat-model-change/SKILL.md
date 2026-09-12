@@ -17,6 +17,12 @@ spell pipeline, class contribution, equipment scaling, level contribution, or
 combat telemetry and display. Do not use it for an isolated combat button,
 layout change, or text-only correction that cannot change model observability.
 
+For Three.js Dungeon View staging or rendered geometry, also load
+`three-dungeon-rendering`; it owns rendered evidence. For a measured balance
+claim, load `balance-simulation`; for a mechanic path audit, load
+`gameplay-reachability-audit`. This skill owns combat semantics and
+specification alignment.
+
 ## Read before deciding
 
 - [file-map.md](../../file-map.md) for combat source and test routing
@@ -54,6 +60,10 @@ layout change, or text-only correction that cannot change model observability.
    checks, `npm run test:unit`, `npm run lint`, `npm run build` for import or
    boundary changes, browser checks for observable UI, and a valid before/after
    simulation for balance impact. Report omitted surfaces explicitly.
+
+A review is complete only when every touched model surface has either current
+evidence or an explicit omitted/blocked disposition, and the verdict names
+specification alignment, observability, and any required follow-up.
 
 ## Stop before implementation or approval when
 

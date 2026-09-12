@@ -35,6 +35,35 @@ conditional `.agents/skills/balance-simulation/SKILL.md` defines how to perform
 a measurement; source, manifests, scripts, and tests own the current executable
 contract and exact scenario inventory.
 
+## Conditional skill routing
+
+This is the repository-specific ownership map for the seven skills currently
+available under `.agents/skills/`. Load only the row whose trigger matches the
+work; combine rows only when the task has genuinely distinct surfaces. The
+three vendor skills are kept unchanged, so this routing document supplies the
+repository-specific boundary around them.
+
+| Skill | Load when | Owns | Does not own |
+| --- | --- | --- | --- |
+| `balance-simulation` | A claim needs a measured progression, economy, difficulty, reward, or pacing result | Production-backed measurement, determinism, provenance, matched comparison, and interpretation | Formula/spec review, mechanic reachability, or UI-only work |
+| `combat-model-change` | A combat expression, stage, scaling term, targeting rule, or combat observability contract changes | Combat semantics, physical/spell parity, specification alignment, and model evidence | Renderer geometry/staging evidence, balance measurement, or UI-only work |
+| `diagnosing-bugs` | QA triage cannot establish the cause or a red-capable repro, or the report is a performance regression | Tight repro, falsifiable hypotheses, causal probes, regression seam, and cleanup | Known-cause fixes with a sufficient QA path |
+| `gameplay-reachability-audit` | A mechanic is claimed to be live, dead, hidden, missing, or absent from a player/simulation/record path | Definition-to-execution, player operation, simulation, and record evidence | Ordinary code search or measured balance conclusions |
+| `playwright-cli` | Interactive browser reproduction or inspection needs terminal-driven DOM, rendered-state, console, network, trace, or storage evidence | Browser interaction and runtime inspection | Test ownership, regression matrix, and final QA verdict |
+| `three-dungeon-rendering` | Three.js Dungeon View topology, camera, materials, fog, staging, overlay, lifecycle, or performance changes | Rendered contract, spatial evidence, lifecycle, and renderer-specific verification | Rule semantics, balance measurement, or mechanic reachability |
+| `writing-for-agents` | A repository skill or agent guidance document is created or materially revised | Trigger, context load, information hierarchy, deterministic steps, completion criteria, and pruning review | Normal implementation or domain-specific behavior |
+
+Repository-specific checklists and source remain authoritative for their own
+contracts. A vendor skill supplies a reusable technique only after its routing
+condition is met; it does not replace the owning checklist or repository skill.
+
+Descriptions are always-loaded context pointers, so keep them to the trigger
+and leave procedures and reference behind the conditional skill load. The
+seven current skills stay model-invoked because each has an autonomous task
+trigger or is an owner reached by another workflow; this map narrows those
+triggers without copying their procedures. Vendor descriptions and bodies are
+installer-owned and remain unchanged here.
+
 ## Static check ownership
 
 `npm run lint:docs` checks inline project-path references and source-driven
