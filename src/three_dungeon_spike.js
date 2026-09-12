@@ -91,7 +91,7 @@ function createArchCeilingGeometry(stats, width, depth, height) {
   const geometry = createGeometry(stats, BufferGeometry);
   const xSegments = 6;
   const zSegments = 2;
-  const archRise = Math.min(0.42, height * 0.13);
+  const archRise = Math.min(0.72, height * 0.30);
   const vertices = [];
   const indices = [];
   for (let z = 0; z <= zSegments; z += 1) {
