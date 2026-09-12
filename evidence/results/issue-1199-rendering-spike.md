@@ -13,15 +13,18 @@ Frozen until Phase 1 and Phase 2 human visual review both pass:
 | --- | ---: |
 | cell width | 1.6 |
 | cell depth | 1.6 |
-| wall height | 2.4 |
+| wall height | 2.1 |
 | wall thickness | 0.18 |
 | start Z | 0.9 |
-| eye `(x, y, z)` | `(0, 1.8, 1.8)` |
-| look-at `(x, y, z)` | `(0, 0.2, 0.0)` |
-| vertical FOV | 80° |
+| eye `(x, y, z)` | `(0, 1.55, 1.65)` |
+| look-at `(x, y, z)` | `(0, 0.9, -1.8)` |
+| vertical FOV | 120° |
 | fog near / far | 4.8 / 15.5 |
 
-The camera is reset to this contract after every topology rebuild. The scene
+The camera is reset to this contract after every topology rebuild. The eye is
+inside the current cell and the fixed forward look direction is only about
+11° below the horizon; this is a first-person contract, not a 3/4 overhead
+composition. The scene
 contains only real neighboring cell floor, ceiling, and blocked wall geometry;
 there is no side mouth, ramp, raised tongue, fake vestibule, emissive branch
 marker, minimap, HUD, or direction label.
@@ -42,6 +45,8 @@ one production-backed screenshot from generated B1F map seed
 `ISSUE-1199-B1F-PRODUCTION`, with the minimap and HUD absent from the proof
 canvas. The production fixture uses `generateRunFloor` and
 `getVisibleCorridorTopology`; it is not a hand-built production substitute.
+The representative fixture is fixed at `x=6, y=4, dir=1`; it is not selected
+by a readability score at runtime.
 
 ## Acceptance disposition
 

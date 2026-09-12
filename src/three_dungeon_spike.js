@@ -29,17 +29,21 @@ export const THREE_DUNGEON_SPIKE_VIEW = Object.freeze({
 // biome values here: one profile must explain every archetype.
 export const THREE_DUNGEON_SPIKE_PROFILE = Object.freeze({
   cellWidth: 1.6,
-  wallHeight: 2.4,
-  // Keep cells square so a side branch's rotated floor shares the exact edge
-  // of its neighbor; this is a geometry invariant, not a camera adjustment.
+  wallHeight: 2.1,
+  // Keep cells square in plan so a side branch's rotated floor shares the
+  // exact edge of its neighbor; this is a geometry invariant, not a camera
+  // adjustment.
   cellDepth: 1.6,
   wallThickness: 0.18,
   startZ: 0.9,
-  eyeHeight: 1.8,
-  eyeZ: 1.8,
-  lookAtHeight: 0.2,
-  lookAtZ: 0.0,
-  fov: 80,
+  eyeHeight: 1.55,
+  // First-person contract aligned with the production corridor profile: the
+  // eye is inside the current cell and the heading is forward, not topology-
+  // dependent or branch-seeking.
+  eyeZ: 1.65,
+  lookAtHeight: 0.9,
+  lookAtZ: -1.8,
+  fov: 120,
   fogNear: 4.8,
   fogFar: 15.5,
 });

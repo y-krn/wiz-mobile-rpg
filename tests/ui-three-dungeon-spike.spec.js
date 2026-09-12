@@ -16,6 +16,14 @@ const ARCHETYPES = [
   'cross-junction',
 ];
 
+const PRODUCTION_B1F_FIXTURE = Object.freeze({
+  seed: 'ISSUE-1199-B1F-PRODUCTION',
+  floor: 1,
+  x: 6,
+  y: 4,
+  dir: 1,
+});
+
 function installSpikeCanvas(page, viewport) {
   return page.evaluate(({ width }) => {
     const canvas = document.createElement('canvas');
@@ -40,9 +48,9 @@ function createSyntheticMap(archetype) {
     paths: {
       'straight-corridor': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 2, 0]],
       'dead-end': [[4, 4, 2]],
-      'left-turn': [[4, 4, 2], [4, 4, 0], [4, 4, 3], [3, 4, 3], [2, 4, 3]],
-      'right-turn': [[4, 4, 2], [4, 4, 0], [4, 4, 1], [5, 4, 1], [6, 4, 1]],
-      't-junction': [[4, 4, 2], [4, 4, 0], [4, 4, 3], [3, 4, 3], [4, 4, 1], [5, 4, 1]],
+      'left-turn': [[4, 4, 2], [4, 4, 3], [3, 4, 3], [2, 4, 3]],
+      'right-turn': [[4, 4, 2], [4, 4, 1], [5, 4, 1], [6, 4, 1]],
+      't-junction': [[4, 4, 2], [4, 4, 3], [3, 4, 3], [2, 4, 3], [4, 4, 1], [5, 4, 1], [6, 4, 1]],
       'cross-junction': [[4, 4, 2], [4, 4, 0], [4, 3, 0], [4, 2, 0], [4, 4, 1], [5, 4, 1], [6, 4, 1], [4, 4, 3], [3, 4, 3], [2, 4, 3]],
     }[archetype],
   };
@@ -99,6 +107,16 @@ test('Issue 1199 fixed-camera spike proves six truthful topology archetypes at m
       expect(evidence.surfaces.every(({ y }) => Number.isFinite(y))).toBe(true);
       expect(evidence.camera.aspect).toBeCloseTo(viewport.width / 260, 5);
       expect(evidence.camera.view).toEqual([viewport.width, 260]);
+      const eyeMinZ = evidence.profile.startZ - evidence.profile.cellDepth / 2;
+      const eyeMaxZ = evidence.profile.startZ + evidence.profile.cellDepth / 2;
+      expect(evidence.camera.position[0]).toBe(0);
+      expect(evidence.camera.position[2]).toBeGreaterThan(eyeMinZ);
+      expect(evidence.camera.position[2]).toBeLessThan(eyeMaxZ);
+      const downwardAngle = Math.atan2(
+        evidence.camera.position[1] - evidence.camera.target[1],
+        Math.abs(evidence.camera.target[2] - evidence.camera.position[2]),
+      ) * 180 / Math.PI;
+      expect(downwardAngle).toBeLessThan(20);
 
       const cells = evidence.topology.filter(({ valid }) => valid);
       const surfacesByCell = new Map();
@@ -271,48 +289,39 @@ test('Issue 1199 production-backed B1F proof uses generated map and renderer-neu
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await installSpikeCanvas(page, { width: 390, height: 844 });
-  const evidence = await page.evaluate(async () => {
+  const evidence = await page.evaluate(async (fixtureConfig) => {
     const { generateRunFloor } = await import('/src/run_map_generator.js');
     const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
     const { getFloorTheme } = await import('/src/data/floor_themes.js');
     const { createThreeDungeonSpikeRenderer } = await import('/src/three_dungeon_spike.js');
-    const generated = generateRunFloor({ runSeed: 'ISSUE-1199-B1F-PRODUCTION', floor: 1 });
+    const generated = generateRunFloor({ runSeed: fixtureConfig.seed, floor: fixtureConfig.floor });
     const grid = generated.grid;
-    const candidates = [];
-    for (let y = 0; y < grid.length; y += 1) {
-      for (let x = 0; x < grid[y].length; x += 1) {
-        for (let dir = 0; dir < 4; dir += 1) {
-          const topology = getVisibleCorridorTopology(grid, x, y, dir);
-          const current = topology.find((cell) => cell.z === 0 && cell.column === 0);
-          const sideCells = topology.filter((cell) => Math.abs(cell.column) === 1);
-          const sideOpeningCount = sideCells.filter((cell) => cell.z === 0).length;
-          const sideBranchCount = new Set(sideCells.map((cell) => cell.column)).size;
-          const forwardDepth = topology.filter((cell) => cell.z > 0 && cell.column === 0).length;
-          const score = sideCells.length * 100 + sideBranchCount * 20 + forwardDepth * 10;
-          if (current?.valid && !current.frontBlocked && !current.backBlocked && sideOpeningCount > 0 && forwardDepth > 0) {
-            candidates.push({ x, y, dir, topology, sideOpeningCount, score });
-          }
-        }
-      }
+    const fixture = {
+      ...fixtureConfig,
+      topology: getVisibleCorridorTopology(grid, fixtureConfig.x, fixtureConfig.y, fixtureConfig.dir),
+    };
+    const current = fixture.topology.find((cell) => cell.z === 0 && cell.column === 0);
+    const sideOpeningCount = fixture.topology.filter((cell) => cell.z === 0 && Math.abs(cell.column) === 1).length;
+    const forwardDepth = fixture.topology.filter((cell) => cell.z > 0 && cell.column === 0).length;
+    if (!current?.valid || current.frontBlocked || current.backBlocked || sideOpeningCount === 0 || forwardDepth === 0) {
+      throw new Error('fixed deterministic B1F fixture no longer satisfies the representative near-side-opening contract');
     }
-    if (candidates.length === 0) throw new Error('deterministic B1F fixture has no near side opening');
-    const fixture = candidates.sort((a, b) => b.score - a.score)[0];
     const canvas = document.querySelector('#three-dungeon-spike-canvas');
     window.__threeDungeonSpike?.dispose();
     window.__threeDungeonSpike = createThreeDungeonSpikeRenderer(canvas);
     window.__threeDungeonSpike.renderMap(grid, fixture.x, fixture.y, fixture.dir, getFloorTheme(1).visualSignature);
     return {
-      seed: 'ISSUE-1199-B1F-PRODUCTION',
+      seed: fixture.seed,
       x: fixture.x,
       y: fixture.y,
       dir: fixture.dir,
-      sideOpeningCount: fixture.sideOpeningCount,
-      score: fixture.score,
+      sideOpeningCount,
+      forwardDepth,
       topology: fixture.topology.map(({ z, column, frontBlocked, leftBlocked, rightBlocked }) => ({ z, column, frontBlocked, leftBlocked, rightBlocked })),
       surfaces: window.__threeDungeonSpike.getTopologySurfaces(),
       camera: window.__threeDungeonSpike.getCameraContract(),
     };
-  });
+  }, PRODUCTION_B1F_FIXTURE);
   expect(evidence.topology.some(({ z, column }) => z === 0 && Math.abs(column) === 1)).toBe(true);
   expect(evidence.topology.some(({ z, column }) => z > 0 && column === 0)).toBe(true);
   expect(evidence.sideOpeningCount).toBeGreaterThan(0);
