@@ -177,7 +177,7 @@ Object.freeze(CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP);
 // access without changing chest count, reward amount, or fromDrop supply.
 export const CHEST_ITEM_WEIGHTS_BY_SOURCE_AND_FLOOR = Object.freeze({
   ordinary: Object.freeze({
-    1: Object.freeze({ HEAL_POTION: 2 })
+    1: Object.freeze({ HEAL_POTION: 1 })
   }),
   fromDrop: Object.freeze({})
 });

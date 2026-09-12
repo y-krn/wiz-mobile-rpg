@@ -175,7 +175,7 @@ assert.deepEqual(
   ["fromDrop", "ordinary"]
 );
 assert.equal(report.configuration.b1MainRewardCandidatePool.ordinary.length, 19);
-assert.equal(report.configuration.b1MainRewardUnitWeights.ordinary.HEAL_POTION, 2);
+assert.equal(report.configuration.b1MainRewardUnitWeights.ordinary.HEAL_POTION, 1);
 assert.equal(report.configuration.b1MainRewardUnitWeights.fromDrop.HEAL_POTION, 1);
 assert.equal(
   report.configuration.matchedCohortKey,

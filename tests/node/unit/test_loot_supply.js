@@ -93,7 +93,7 @@ assert.equal(rollLootBuildRole(1, () => 0), "reinforce");
 assert.equal(rollLootBuildRole(1, () => 0.751), "convert");
 assert.equal(rollLootBuildRole(1, () => 0.951), "pivot");
 
-assert.deepEqual(getChestItemWeightsBySource(1), { HEAL_POTION: 2 });
+assert.deepEqual(getChestItemWeightsBySource(1), { HEAL_POTION: 1 });
 assert.equal(getChestItemWeightsBySource(2), null);
 assert.equal(getChestItemWeightsBySource(1, { fromDrop: true }), null);
 assert.equal(
