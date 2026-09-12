@@ -154,6 +154,7 @@ const {
   CHEST_EQUIPMENT_CORE_MIN_FLOOR,
   CHEST_ITEM_CANDIDATES_BY_FLOOR,
   CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
+  getChestItemWeightsBySource,
   CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
   calculateChestMainItemExpectedValue,
   calculateChestMainItemForcedLossRate,
@@ -1145,6 +1146,15 @@ function parseOptionalChance(value, name = "chestHealPotionExtraChance") {
     throw new Error(`${name} must be a number in [0,1]: ${value}`);
   }
   return chance;
+}
+
+function parseOptionalChestHealPotionWeight(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const weight = Number(value);
+  if (!Number.isInteger(weight) || ![1, 2, 3].includes(weight)) {
+    throw new Error(`chestHealPotionWeight must be 1|2|3: ${value}`);
+  }
+  return weight;
 }
 
 function parseOptionalFloorList(value) {
@@ -4445,6 +4455,15 @@ function createSimulationState(
     scenario.chestHealPotionReplacementChance,
     "chestHealPotionReplacementChance"
   );
+  const chestHealPotionWeight = parseOptionalChestHealPotionWeight(
+    scenario.chestHealPotionWeight
+  );
+  const chestHealPotionWeightSource = scenario.chestHealPotionWeightSource || "none";
+  if (!["none", "ordinary", "fromDrop", "both"].includes(chestHealPotionWeightSource)) {
+    throw new Error(
+      `chestHealPotionWeightSource must be none|ordinary|fromDrop|both: ${chestHealPotionWeightSource}`
+    );
+  }
   const enemyHealPotionDropChance = parseOptionalChance(
     scenario.enemyHealPotionDropChance,
     "enemyHealPotionDropChance"
@@ -4583,6 +4602,8 @@ function createSimulationState(
       healPotionMerchantHoldLimit,
       chestHealPotionExtraChance,
       chestHealPotionReplacementChance,
+      chestHealPotionWeight,
+      chestHealPotionWeightSource,
       enemyHealPotionDropChance,
       measurementInitiative: scenario.measurementInitiative || null,
       extraCampFloors,
@@ -4990,9 +5011,12 @@ function addItemCount(target, itemId, count = 1) {
 
 function recordPickupAttempt(metrics, source, category, accepted) {
   if (!metrics) return;
-  metrics.pickupAttemptsBySource[source]++;
+  const pickupSource = ["ordinary", "fromDrop", "secretRoom", "special-reward"].includes(source)
+    ? "chest"
+    : source;
+  metrics.pickupAttemptsBySource[pickupSource]++;
   if (accepted) return;
-  metrics.pickupRejectionsBySource[source]++;
+  metrics.pickupRejectionsBySource[pickupSource]++;
   metrics.pickupRejectionsByCategory[category]++;
 }
 
@@ -5219,7 +5243,7 @@ function applyIssue412TacticalItem({
   if (revealedTraps === 0) metrics.issue412.stoneEmptyUses++;
 }
 
-function tryAddInventoryItem(state, item, metrics, source) {
+function tryAddInventoryItem(state, item, metrics, source, rewardRole = null) {
   const itemData = getItemData(item);
   const category = isEquipment(itemData) ? "equipment" : "item";
   const accepted = addInventoryItemToState(state, item, {
@@ -5234,7 +5258,8 @@ function tryAddInventoryItem(state, item, metrics, source) {
     }
     recordDiagnosticReward(metrics, state, item, {
       source,
-      disposition: "bagged"
+      disposition: "bagged",
+      rewardRole
     });
   }
   return accepted;
@@ -5243,7 +5268,8 @@ function tryAddInventoryItem(state, item, metrics, source) {
 function recordDiagnosticReward(metrics, state, item, {
   source = "dungeon",
   disposition = "bagged",
-  objectLoot = true
+  objectLoot = true,
+  rewardRole = null
 } = {}) {
   const rewards = metrics?.diagnostics?.rewardEvents;
   if (!rewards || !item || !["combat", "chest", "fromDrop", "secretRoom", "ordinary", "special-reward"].includes(source)) {
@@ -5260,6 +5286,7 @@ function recordDiagnosticReward(metrics, state, item, {
     floor: state.floor,
     step: metrics.steps,
     encounterOrdinal: metrics.encounterIdentityLog?.length || state.currentRun?.battles || 0,
+    inventorySlots: Array.isArray(state.inventory) ? state.inventory.length : null,
     itemId,
     itemType,
     playerUsableAtAcquisition: RECOVERY_DIAGNOSTIC_ITEM_IDS.includes(itemId)
@@ -5271,18 +5298,19 @@ function recordDiagnosticReward(metrics, state, item, {
     category: equipment ? "equipment" : itemType === "rune" ? "rune" : "item",
     isCore: core,
     meaningful: true,
-    objectLoot
+    objectLoot,
+    rewardRole
   });
 }
 
-function recordUnadoptedObjectLoot(state, metrics, item, disposition, source) {
+function recordUnadoptedObjectLoot(state, metrics, item, disposition, source, rewardRole = null) {
   const entry = createPendingObjectLootEntry(state, item, { source });
   if (!entry || !resolvePendingObjectLootDisposition(state, entry, disposition, { source })) {
     return false;
   }
   metrics.objectLootLifecycle.found++;
   metrics.objectLootLifecycle[disposition]++;
-  recordDiagnosticReward(metrics, state, item, { source, disposition });
+  recordDiagnosticReward(metrics, state, item, { source, disposition, rewardRole });
   return true;
 }
 
@@ -7549,6 +7577,98 @@ function getFirstPlayerActionOpportunity(roundResult, actionType) {
   };
 }
 
+function getLoggedIncomingDamageEvents(logQueue, characterName, groupId = null) {
+  const escapedName = characterName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const damagePattern = new RegExp(`${escapedName}(?:は|に)(\\d+)の[^。！]*ダメージ`, "g");
+  return logQueue.flatMap(entry => {
+    if (groupId !== null && entry.groupId !== groupId) return [];
+    const messages = String(entry.msg || "");
+    const events = [];
+    let match;
+    while ((match = damagePattern.exec(messages)) !== null) {
+      const source = messages.includes("反射")
+        ? "reflectPhysical"
+        : messages.includes("反撃")
+          ? "counterSpell"
+          : messages.includes("毒のダメージ")
+            ? "poison"
+            : messages.includes("狙撃")
+              ? "snipe"
+              : messages.includes("炎") || messages.includes("氷") || messages.includes("爆裂")
+                ? "spell"
+                : "normal";
+      events.push({ damage: Number(match[1]), source, message: messages });
+    }
+    damagePattern.lastIndex = 0;
+    return events;
+  });
+}
+
+function buildEnemyActionDetails(roundResult, roundNumber, characterName) {
+  const observations = roundResult.actionObservations || [];
+  const actionEvents = observations
+    .filter(observation => observation.actor === "monster")
+    .map(observation => {
+      const groupId = `combat:${roundNumber}:action:${observation.order}`;
+      const logs = (roundResult.logQueue || []).filter(entry => entry.groupId === groupId);
+      const damageEvents = getLoggedIncomingDamageEvents(roundResult.logQueue || [], characterName, groupId);
+      const actionNames = [...(observation.actionNames || [])];
+      if (actionNames.length === 0) {
+        if (logs.some(entry => String(entry.msg || "").includes("狙撃"))) actionNames.push("狙撃");
+        else if (logs.some(entry => String(entry.msg || "").includes("ティルトウェイト"))) actionNames.push("TILTOWAIT");
+        else if (damageEvents.length > 0) actionNames.push("通常攻撃");
+      }
+      const conditions = [...(observation.conditions || [])];
+      const statusSources = [...new Set(conditions.map(condition =>
+        String(condition).includes("毒") ? "poison" :
+          String(condition).includes("麻痺") ? "paralyze" :
+            String(condition).includes("盲目") ? "blind" :
+              String(condition).includes("眠") ? "sleep" :
+                String(condition).includes("沈黙") ? "silence" :
+                  String(condition).includes("回復阻害") ? "antiHeal" : null
+      ).filter(Boolean))];
+      if (actionNames.includes("毒喰らい")) statusSources.push("poison_payoff");
+      if (actionNames.includes("目眩まし狙撃")) statusSources.push("blind_snipe");
+      return {
+        order: observation.order,
+        executed: observation.executed === true,
+        monsterName: observation.monsterName || null,
+        traits: [...(observation.monsterTraits || [])],
+        tags: [...(observation.monsterTags || [])],
+        extraMultiAction: observation.extraMultiAction === true,
+        actionNames,
+        conditions,
+        traitSources: [...new Set([
+          ...(actionNames.includes("自爆") ? ["selfDestruct"] : []),
+          ...(actionNames.includes("溜めて大打撃") ? ["chargeAttack"] : []),
+          ...(actionNames.includes("仲間を呼ぶ") ? ["summonAlly"] : []),
+          ...(actionNames.includes("状態異常を治す") ? ["cleanseAlly"] : []),
+          ...(actionNames.includes("MPを吸収") ? ["drainMp"] : []),
+          ...(actionNames.includes("沈黙") ? ["silence"] : []),
+          ...(actionNames.includes("回復を阻害") ? ["antiHeal"] : []),
+          ...(actionNames.includes("物理防御を強化") ? ["buffPhysicalDef"] : []),
+          ...(actionNames.includes("魔法防御を強化") ? ["buffMagicDef"] : []),
+          ...(actionNames.includes("仲間を鼓舞") ? ["buffAtk"] : []),
+          ...(actionNames.includes("狙撃") ? ["isSniper"] : []),
+          ...(actionNames.includes("連続攻撃") ? ["multiAction"] : [])
+        ])],
+        statusSources: [...new Set(statusSources)],
+        damageEvents,
+        damage: damageEvents.reduce((sum, event) => sum + event.damage, 0),
+        lethal: logs.some(entry => /倒れた|力尽きた/.test(String(entry.msg || "")))
+      };
+    });
+  const statusDamageEvents = getLoggedIncomingDamageEvents(roundResult.logQueue || [], characterName)
+    .filter(event => event.source === "poison")
+    .map(event => ({
+      ...event,
+      statusSource: "poison",
+      lethal: /倒れた|力尽きた/.test(event.message),
+      monsterName: null
+    }));
+  return { enemyActionEvents: actionEvents, statusDamageEvents };
+}
+
 function runEncounter(
   state,
   observations,
@@ -8420,17 +8540,41 @@ function runEncounter(
     const firstPlayerActionOpportunity = roundNumber === 1
       ? getFirstPlayerActionOpportunity(roundResult, action.type)
       : null;
+    const playerActionObservation = (roundResult.actionObservations || []).find(observation =>
+      observation.actor === "char" && observation.actionType === action.type
+    ) || null;
+    const enemyActionDetails = fullDiagnostics
+      ? buildEnemyActionDetails(roundResult, roundNumber, character.name)
+      : null;
+    const killEvents = (roundResult.logQueue || [])
+      .filter(entry => /^\[味方\] \[!] .+を倒した！$/.test(String(entry.msg || "")))
+      .map(entry => {
+        const actionMatch = String(entry.groupId || "").match(/:action:(\d+)$/);
+        const targetMatch = String(entry.msg || "").match(/^\[味方\] \[!] (.+)を倒した！$/);
+        return {
+          targetName: targetMatch?.[1] || null,
+          actionOrdinal: actionMatch ? Number(actionMatch[1]) : null,
+          actorName: character.name
+        };
+      });
     if (encounterDiagnostic) {
       encounterDiagnostic.rounds.push({
         round: roundNumber,
         action: action.type,
+        playerActorName: character.name,
+        playerActionOrder: playerActionObservation?.order ?? null,
+        playerActionExecuted: playerActionObservation?.executed === true,
+        killEvents,
         fleeSelected: action.type === "run",
         fleeExecuted,
         fleePartingAttack,
         firstStrikeSucceeded: roundNumber === 1 ? firstStrikeSucceeded : null,
         playerActionExecutionTiming: roundNumber === 1 ? playerActionExecutionTiming : null,
-        playerActionExecuted: roundNumber === 1
-          ? playerActionExecutionTiming !== "not-executed-before-end"
+        livingEnemyCountBefore: fullDiagnostics
+          ? monstersBeforeRound.filter(monster => monster.hp > 0).length
+          : null,
+        livingEnemyCountAfter: fullDiagnostics
+          ? state.combatState.monsters.filter(monster => monster.hp > 0).length
           : null,
         enemyActionsBeforeFirstPlayerAction: firstPlayerActionOpportunity?.enemyActionsBeforeFirstPlayerAction ?? null,
         damageBeforeFirstPlayerAction: firstPlayerActionOpportunity?.damageBeforeFirstPlayerAction ?? null,
@@ -8461,6 +8605,7 @@ function runEncounter(
           : 1,
         countermeasureAffixValueBefore,
         countermeasureAffixValueAfter,
+        ...(enemyActionDetails || {}),
         hpBefore: fullDiagnostics ? characterBeforeRound.hp : undefined,
         hpAfter: fullDiagnostics ? state.party[0].hp : undefined,
         maxHp: fullDiagnostics ? getCharMaxHp(characterBeforeRound) : undefined,
@@ -12183,6 +12328,12 @@ function rollChestItems(
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
   }
 
+  const weightSource = state.simPolicy.chestHealPotionWeightSource;
+  const weightApplies = floor === 1 &&
+    (weightSource === "both" || weightSource === chestSource);
+  const probeItemWeights = weightApplies && state.simPolicy.chestHealPotionWeight !== null
+    ? { HEAL_POTION: state.simPolicy.chestHealPotionWeight }
+    : getChestItemWeightsBySource(floor, { fromDrop });
   const reward = rollChestReward({
     floor,
     rng,
@@ -12200,6 +12351,7 @@ function rollChestItems(
     itemCandidateFilter: !fromDrop && RETURN_WING_REWARD_MODE === "special"
       ? itemId => itemId !== "TOWN_PORTAL"
       : null,
+    itemWeights: probeItemWeights,
     runtimeDiagnostics: metrics?.runtimeDiagnostics
   });
   let item = reward.item;
@@ -12335,11 +12487,22 @@ function rollChestItems(
       .filter(index => Number.isInteger(index)),
     specialItem,
     specialItemIndex: itemIndices.special ?? -1,
+    accessoryItemIndex: itemIndices.accessory ?? -1,
+    extraItemIndex: itemIndices.extra ?? -1,
     extraHealPotion: Boolean(extraHealPotion),
     extraHealPotionIndex: itemIndices.extraHealPotion ?? -1,
     replacedMainItem,
     trapAction: trapResult.action || null
   };
+}
+
+function chestRewardRole(chestItems, itemIndex) {
+  if (itemIndex === chestItems.mainItemIndex) return "main";
+  if (itemIndex === chestItems.specialItemIndex) return "special";
+  if (itemIndex === chestItems.accessoryItemIndex) return "accessory";
+  if (itemIndex === chestItems.extraHealPotionIndex) return "extraHealPotion";
+  if (itemIndex === chestItems.extraItemIndex) return "extra";
+  return null;
 }
 
 function resolveSimulationChest({
@@ -12398,8 +12561,9 @@ function resolveSimulationChest({
   const acquiredEquipment = [];
   recordEquipmentGenerations(metrics, chestItems.items);
   chestItems.items.forEach((item, itemIndex) => {
+    const rewardRole = chestRewardRole(chestItems, itemIndex);
     if (chestItems.lostRewardIndices?.includes(itemIndex)) {
-      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source, rewardRole);
       return;
     }
     if (
@@ -12407,12 +12571,12 @@ function resolveSimulationChest({
       itemIndex === chestItems.mainItemIndex &&
       item === chestItems.mainItem
     ) {
-      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source, rewardRole);
       return;
     }
     const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
     if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) {
-      recordUnadoptedObjectLoot(state, metrics, item, "discarded", source);
+      recordUnadoptedObjectLoot(state, metrics, item, "discarded", source, rewardRole);
       return;
     }
     const isExtraHealPotion = chestItems.extraHealPotion &&
@@ -12420,14 +12584,14 @@ function resolveSimulationChest({
     const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
       itemIndex === chestItems.mainItemIndex;
     if (item === "HEAL_POTION" || item === "GREATER_HEAL") {
-      recordRecoveryPotionOffer(metrics, "chest", item);
+      recordRecoveryPotionOffer(metrics, source, item);
       if (item === "HEAL_POTION" && !shouldGrantNormalizedHealPotion(state)) {
-        recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+        recordUnadoptedObjectLoot(state, metrics, item, "left", source, rewardRole);
         return;
       }
     }
-    if (!tryAddInventoryItem(state, item, metrics, "chest")) {
-      recordUnadoptedObjectLoot(state, metrics, item, "left", source);
+    if (!tryAddInventoryItem(state, item, metrics, source, rewardRole)) {
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source, rewardRole);
       return;
     }
     if (item === "HEAL_POTION") {
@@ -14319,6 +14483,7 @@ export function simulateRun({
         builds: {}
       },
       measurementEnemyTurnEvents: scenario.collectEncounterIdentities ? [] : null,
+      measurementEnemyActionDetails: scenario.collectEncounterIdentities === true,
       enemyStatusGrammar: createEnemyStatusGrammarMetrics()
     },
     statusCureItemsAcquired: {
@@ -14896,8 +15061,9 @@ export function simulateRun({
         const acquiredEquipment = [];
         recordEquipmentGenerations(metrics, chestItems.items);
         chestItems.items.forEach((item, itemIndex) => {
+          const rewardRole = chestRewardRole(chestItems, itemIndex);
           if (chestItems.lostRewardIndices?.includes(itemIndex)) {
-            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary", rewardRole);
             return;
           }
           if (
@@ -14905,12 +15071,12 @@ export function simulateRun({
             itemIndex === chestItems.mainItemIndex &&
             item === chestItems.mainItem
           ) {
-            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary", rewardRole);
             return;
           }
           const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
           if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) {
-            recordUnadoptedObjectLoot(state, metrics, item, "discarded", "ordinary");
+            recordUnadoptedObjectLoot(state, metrics, item, "discarded", "ordinary", rewardRole);
             return;
           }
           const isExtraHealPotion = chestItems.extraHealPotion &&
@@ -14918,17 +15084,17 @@ export function simulateRun({
           const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
             itemIndex === chestItems.mainItemIndex;
           if (item === "HEAL_POTION" || item === "GREATER_HEAL") {
-            recordRecoveryPotionOffer(metrics, "chest", item);
+            recordRecoveryPotionOffer(metrics, "ordinary", item);
             if (
               item === "HEAL_POTION" &&
               !shouldGrantNormalizedHealPotion(state)
             ) {
-              recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+              recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary", rewardRole);
               return;
             }
           }
-          if (!tryAddInventoryItem(state, item, metrics, "chest")) {
-            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary");
+          if (!tryAddInventoryItem(state, item, metrics, "ordinary", rewardRole)) {
+            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary", rewardRole);
             return;
           }
           if (item === "HEAL_POTION") {

@@ -16,6 +16,11 @@ whose path from definition to observable effect is uncertain. A known caller or
 execution path does not complete the player, simulation, UI, or record audit.
 Do not use it for style-only searches or naming cleanup.
 
+For a distributional balance claim, use `balance-simulation`; this skill only
+establishes whether the relevant path is exercised. For combat formula or
+stage semantics, use `combat-model-change`; for Three.js presentation, use
+`three-dungeon-rendering`.
+
 ## Read before searching
 
 - [file-map.md](../../file-map.md) to choose the smallest source and test set

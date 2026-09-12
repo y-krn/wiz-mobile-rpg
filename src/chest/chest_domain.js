@@ -1,6 +1,7 @@
 import { getCharAffixSum, getPartyMaxAffix } from "../data.js";
 import {
   CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
+  getChestItemWeightsBySource,
   rollChestAccessory,
   rollChestReward,
   rollChestSpecialReward,
@@ -161,7 +162,8 @@ export function rollChestEncounter({
       includeRunes: !fromDrop,
       itemCandidates: fromDrop
         ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1))]
-        : null
+        : null,
+      itemWeights: getChestItemWeightsBySource(floor, { fromDrop })
     });
     item = reward.item;
     consumedFirstChestGuarantee = reward.consumedFirstChestGuarantee;

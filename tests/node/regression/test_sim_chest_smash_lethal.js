@@ -35,7 +35,7 @@ assert.equal(first.finalHp, 0);
 assert.equal(first.chestForcedByFloor[1], 2);
 // #1078's cumulative Rune supply changes the deterministic reward choices
 // before the lethal chest; the fixture still asserts the lethal stop and
-// current-run accounting boundary.
+// current-run accounting boundary at the production baseline cadence.
 assert.equal(first.chestsOpened, 6);
 assert.equal(first.chestsOpenedInRun, first.chestsOpened);
 

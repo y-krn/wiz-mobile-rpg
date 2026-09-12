@@ -5,7 +5,7 @@ const diagnostic = await import(
 );
 const starting = await import("../../../scratch/measurements/starting_kit_diagnostic.js");
 
-assert.deepEqual(diagnostic.RUNNER_VERSION, "issue1187-early-encounter-cause-v4");
+assert.deepEqual(diagnostic.RUNNER_VERSION, "issue1205-early-encounter-cause-v1");
 assert.deepEqual(starting.EARLY_COMPOSITION_POLICY_IDS, [
   "baseline",
   "suppress-first-multi",
@@ -26,6 +26,13 @@ assert.equal(report.configuration.fixedCombatRuns, 1);
 assert.deepEqual(Object.keys(report.runs), starting.EARLY_COMPOSITION_POLICY_IDS);
 assert.deepEqual(Object.keys(report.sensitivity), starting.EARLY_COMPOSITION_POLICY_IDS);
 assert.deepEqual(report.naturalEntryResource.fixedHpBandReference, ["100%", "75%", "50%", "25%"]);
+assert.ok(report.fixedHpConnection["100"].highRisk);
+assert.ok(report.fixedHpConnection["50"].highRisk);
+assert.ok(report.diagnosis.primary.match(/^[A-E]-/));
+assert.ok(report.diagnosis.nextProductionAxis);
+assert.ok(report.runs.baseline.enemyActionCost.byEncounterOrdinal["1"].all.encounters > 0);
+assert.ok(Object.keys(report.runs.baseline.enemyActionCost.byEnemy).length > 0);
+assert.ok(Object.keys(report.runs.baseline.enemyActionCost.byAction).length > 0);
 for (const ordinal of ["1", "2"]) {
   for (const group of ["all", "single", "pair"]) {
     const entry = report.naturalEntryResource.byEncounterOrdinal[ordinal][group];
