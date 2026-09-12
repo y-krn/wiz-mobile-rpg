@@ -41,7 +41,7 @@ owner and entry point rather than duplicating specialized behavior.
 
 | # | Journey | Fixture / entry point | Viewport policy | Renderer class | Baseline evidence / friction |
 |---|---|---|---|---|---|
-| 1 | Fresh start → starting kit → B1F | `tests/ui-ux-helpers.js:startSoloRun`; `tests/ui-mobile.spec.js`; `tests/ui-departure.spec.js` | 320 short + 390 representative | A | 4 primary taps, 0 Back/Cancel, 2 commit-classified taps; kit/floor choice and Explore arrival are visible. |
+| 1 | Fresh start → starting kit → B1F | `tests/ui-ux-helpers.js:startSoloRun`; `tests/ui-mobile.spec.js`; `tests/ui-departure.spec.js` | 320 short + 390 representative | A | 4 actionable taps, 0 Back/Cancel; kit/floor choice and Explore arrival are visible. |
 | 2 | Explore → encounter → Combat → result → Explore | `tests/departure-flow.cases.js`; `tests/ui-dungeon.spec.js`; `tests/ui-pending-rewards.spec.js` | 390 representative + 320 combat shell | B | Deterministic encounter and pending outcome owner tests exist; journey-level count/continuity evidence was previously fragmented. |
 | 3 | Combat → spell/item/target → Back → reselect | `tests/combat-target-ui.cases.js`; `tests/ui-dungeon.spec.js` | All supported widths | B | Fresh focused path records 2 primary taps and 1 Back/Cancel; action count remains 0 after Back and target selection can reopen. |
 | 4 | Loot → inspect/compare → equip / keep / discard | `tests/ui-loadout-transaction.spec.js`; `tests/ui-loot-bag.spec.js` | 390 representative + 320 touch geometry | A | Current/proposed build and ownership are readable; draft changes remain uncommitted until the explicit commit. |
