@@ -7,12 +7,16 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { getCharacterEquipmentLoad } from "../../src/rules/equipment_load.js";
+import {
+  getChestItemCandidatesByFloor,
+  getChestItemWeightsBySource
+} from "../../src/rules/chest_rules.js";
 import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1196-continuation-resource-v4";
-export const SCHEMA_VERSION = 8;
+export const RUNNER_VERSION = "issue1198-continuation-resource-v2";
+export const SCHEMA_VERSION = 10;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const EARLY_COMPOSITION_POLICY_IDS = Object.freeze([
   "baseline",
@@ -33,9 +37,23 @@ export const RECOVERY_RESOURCE_IDS = Object.freeze([
   "ETHER"
 ]);
 export const EARLY_RECOVERY_HP_THRESHOLD = 0.70;
+export const CHEST_HEAL_POTION_WEIGHT_IDS = Object.freeze([1, 2, 3]);
+export const CHEST_HEAL_POTION_WEIGHT_SOURCE_IDS = Object.freeze([
+  "none", "ordinary", "fromDrop", "both"
+]);
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1139;
 export const DEFAULT_FLEE_HP_THRESHOLD = 0.20;
+
+const B1_STATUS_CURE_ITEM_IDS = new Set([
+  "ANTIDOTE",
+  "EYE_DROPS",
+  "PARALYZE_CURE",
+  "WAKE_POWDER",
+  "HOLY_WATER",
+  "PANACEA"
+]);
+const B1_CHEST_SOURCES = Object.freeze(["ordinary", "fromDrop"]);
 
 const RUNNER_PATH = "scratch/measurements/starting_kit_diagnostic.js";
 const PRODUCTION_PATHS = Object.freeze([
@@ -49,6 +67,7 @@ const PRODUCTION_PATHS = Object.freeze([
   "src/data/encounters.js",
   "src/data/items.js",
   "src/rules/chest_rules.js",
+  "src/chest/chest_domain.js",
   "src/rules/recovery_rules.js",
   "src/systems/item_effects.js",
   "src/combat_ui/encounter.js",
@@ -120,6 +139,76 @@ function createDistribution() {
   return { count: 0, values: [] };
 }
 
+function createMainRewardComposition() {
+  return {
+    events: 0,
+    byCategory: { healPotion: 0, rune: 0, equipment: 0, statusCure: 0, otherItem: 0 },
+    byItemId: {},
+    byDisposition: {}
+  };
+}
+
+function createLootBreadth() {
+  return {
+    bagOccupancy: createDistribution(),
+    mainRewardComposition: Object.fromEntries(
+      B1_CHEST_SOURCES.map(source => [source, createMainRewardComposition()])
+    ),
+    objectLootSettlement: { banked: 0, lost: 0 }
+  };
+}
+
+function classifyMainReward(event) {
+  if (event.itemId === "HEAL_POTION") return "healPotion";
+  if (event.category === "rune") return "rune";
+  if (event.category === "equipment") return "equipment";
+  if (B1_STATUS_CURE_ITEM_IDS.has(event.itemId)) return "statusCure";
+  return "otherItem";
+}
+
+function observeLootBreadth(aggregate, result, rewardEvents) {
+  const b1InventorySlots = rewardEvents
+    .filter(event => event.floor === 1 && Number.isFinite(event.inventorySlots))
+    .map(event => event.inventorySlots);
+  addDistribution(
+    aggregate.lootBreadth.bagOccupancy,
+    b1InventorySlots.length > 0 ? Math.max(...b1InventorySlots) : 0
+  );
+  const settlement = result.objectLootSettlement || {};
+  aggregate.lootBreadth.objectLootSettlement.banked += Array.isArray(settlement.banked)
+    ? settlement.banked.length
+    : 0;
+  aggregate.lootBreadth.objectLootSettlement.lost += Array.isArray(settlement.lost)
+    ? settlement.lost.length
+    : 0;
+  rewardEvents
+    .filter(event => event.floor === 1 && event.rewardRole === "main")
+    .filter(event => B1_CHEST_SOURCES.includes(event.source))
+    .forEach(event => {
+      const record = aggregate.lootBreadth.mainRewardComposition[event.source];
+      record.events++;
+      record.byCategory[classifyMainReward(event)]++;
+      increment(record.byItemId, event.itemId || "unknown");
+      increment(record.byDisposition, event.disposition || "unknown");
+    });
+}
+
+function finalizeLootBreadth(aggregate) {
+  return {
+    bagOccupancy: finalizeDistribution(aggregate.lootBreadth.bagOccupancy),
+    mainRewardComposition: Object.fromEntries(
+      Object.entries(aggregate.lootBreadth.mainRewardComposition).map(([source, record]) => [source, {
+        events: record.events,
+        eventRatePerRun: record.events / aggregate.runs,
+        byCategory: { ...record.byCategory },
+        byItemId: { ...record.byItemId },
+        byDisposition: { ...record.byDisposition }
+      }])
+    ),
+    objectLootSettlement: { ...aggregate.lootBreadth.objectLootSettlement }
+  };
+}
+
 function addDistribution(distribution, value) {
   if (Number.isFinite(value)) {
     distribution.count++;
@@ -130,7 +219,7 @@ function addDistribution(distribution, value) {
 function finalizeDistribution(distribution) {
   const values = [...distribution.values].sort((left, right) => left - right);
   if (values.length === 0) {
-    return { count: 0, average: null, p50: null, p95: null, min: null, max: null };
+    return { count: 0, average: null, p25: null, p50: null, p75: null, p95: null, min: null, max: null };
   }
   const percentile = rate => {
     const position = (values.length - 1) * rate;
@@ -143,7 +232,9 @@ function finalizeDistribution(distribution) {
   return {
     count: values.length,
     average: values.reduce((sum, value) => sum + value, 0) / values.length,
+    p25: percentile(0.25),
     p50: percentile(0.50),
+    p75: percentile(0.75),
     p95: percentile(0.95),
     min: values[0],
     max: values.at(-1)
@@ -795,6 +886,7 @@ function createAggregate(runs) {
     },
     continuationResource: createContinuationResourceRecord(),
     trajectoryRows: [],
+    lootBreadth: createLootBreadth(),
     naturalEntryHpBands: createHpBandCounts(),
     naturalEntryHpBandResource: Object.fromEntries(
       ["100", "75", "50", "25"].map(id => [id, {
@@ -916,6 +1008,7 @@ function observeRun(aggregate, result, runIndex) {
   }
 
   const rewardEvents = result.diagnostics?.rewardEvents || [];
+  observeLootBreadth(aggregate, result, rewardEvents);
   const firstMeaningfulReward = firstEvent(rewardEvents, event => event.meaningful === true);
   const firstObjectLoot = firstEvent(rewardEvents, event => event.objectLoot === true);
   const firstBuildChangeOpportunity = firstEvent(
@@ -1163,6 +1256,7 @@ function finalizeAggregate(aggregate, configuration) {
     rewardOpportunity,
     continuationResource,
     linkedTrajectory,
+    lootBreadth: finalizeLootBreadth(aggregate),
     naturalEntryHpBands: { ...aggregate.naturalEntryHpBands },
     naturalEntryHpBandResource,
     encounterExposure: {
@@ -1239,7 +1333,9 @@ export function createDiagnosticScenario({
   recoveryPolicy = "production",
   fleeHpThreshold,
   earlyCompositionPolicy = "baseline",
-  earlyCompositionCandidate = null
+  earlyCompositionCandidate = null,
+  chestHealPotionWeight = null,
+  chestHealPotionWeightSource = "none"
 }) {
   assertOneOf(startingKit, STARTING_KIT_IDS, "startingKit");
   assertOneOf(policy, POLICY_IDS, "policy");
@@ -1273,6 +1369,8 @@ export function createDiagnosticScenario({
       : {}),
     earlyEncounterMultiEnemyPolicy: earlyCompositionPolicy,
     earlyCompositionCandidate,
+    chestHealPotionWeight,
+    chestHealPotionWeightSource,
     consumablesAtDeparture: "none"
   };
 }
@@ -1286,6 +1384,8 @@ export async function runDiagnostic({
   seed = DEFAULT_SEED,
   earlyCompositionPolicy = "baseline",
   earlyCompositionCandidate = null,
+  chestHealPotionWeight = null,
+  chestHealPotionWeightSource = "none",
   allowSmallRunCount = false
 } = {}) {
   const normalizedRuns = parsePositiveInteger(runs, "runs", { minimum: allowSmallRunCount ? 1 : DEFAULT_RUNS });
@@ -1297,7 +1397,9 @@ export async function runDiagnostic({
     recoveryPolicy,
     fleeHpThreshold,
     earlyCompositionPolicy,
-    earlyCompositionCandidate
+    earlyCompositionCandidate,
+    chestHealPotionWeight,
+    chestHealPotionWeightSource
   });
   const aggregate = createAggregate(normalizedRuns);
   for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
@@ -1306,7 +1408,7 @@ export async function runDiagnostic({
       startFloor: 1,
       targetDepth: 2,
       runIndex,
-      seriesId: "issue-1196:b1f",
+      seriesId: "issue-1198:b1f",
       scoringProfile: null,
       scenario,
       workshop: { ranks: {} },
@@ -1326,6 +1428,31 @@ export async function runDiagnostic({
       : null,
     earlyCompositionPolicy,
     earlyCompositionCandidate,
+    chestHealPotionWeight,
+    chestHealPotionWeightSource,
+    productionChestHealPotionWeight: getChestItemWeightsBySource(1)?.HEAL_POTION || 1,
+    productionChestHealPotionWeightSource: "ordinary",
+    b1MainRewardCandidatePool: {
+      ordinary: getChestItemCandidatesByFloor(1, { includeRunes: true }),
+      fromDrop: getChestItemCandidatesByFloor(1, { fromDrop: true })
+    },
+    b1MainRewardUnitWeights: Object.fromEntries(
+      B1_CHEST_SOURCES.map(source => {
+        const candidates = source === "ordinary"
+          ? getChestItemCandidatesByFloor(1, { includeRunes: true })
+          : getChestItemCandidatesByFloor(1, { fromDrop: true });
+        const weights = source === "ordinary" ? getChestItemWeightsBySource(1) : null;
+        const overrideApplies = chestHealPotionWeight !== null && (
+          chestHealPotionWeightSource === "both" || chestHealPotionWeightSource === source
+        );
+        return [source, Object.fromEntries(candidates.map(itemId => [
+          itemId,
+          itemId === "HEAL_POTION" && overrideApplies
+            ? chestHealPotionWeight
+            : Number(weights?.[itemId] ?? 1)
+        ]))];
+      })
+    ),
     fleeHpThreshold: scenario.fleeHpThreshold,
     floorStart: 1,
     targetFloor: 2,
@@ -1340,7 +1467,9 @@ export async function runDiagnostic({
     seed: normalizedSeed,
     seedPolicy: "simulation RNG reset to seed before run; deterministic policy-independent worldSeed per run",
     worldSeedTemplate: "issue-1176:{seed}:{runIndex}",
-    matchedComparisonKey: `${startingKit}:${policy}:${recoveryPolicy}:${normalizedSeed}:${normalizedRuns}`,
+    matchedCohortKey: `${startingKit}:${policy}:${recoveryPolicy}:${normalizedSeed}:${normalizedRuns}`,
+    candidateId: `b1-heal-potion-${chestHealPotionWeightSource}-${chestHealPotionWeight ?? "baseline"}`,
+    matchedComparisonKey: `${startingKit}:${policy}:${recoveryPolicy}:${chestHealPotionWeightSource}:${chestHealPotionWeight ?? "baseline"}:${normalizedSeed}:${normalizedRuns}`,
     runs: normalizedRuns
   };
   return finalizeAggregate(aggregate, configuration);
@@ -1387,9 +1516,11 @@ function buildReport({
     policy,
     recoveryPolicy,
     fleeHpThreshold,
-    earlyCompositionPolicy
+    earlyCompositionPolicy,
+    chestHealPotionWeight: result.configuration.chestHealPotionWeight,
+    chestHealPotionWeightSource: result.configuration.chestHealPotionWeightSource
   };
-  const envHash = printEnvSignatureBanner(environment, { label: "issue1196" });
+  const envHash = printEnvSignatureBanner(environment, { label: "issue1198" });
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
@@ -1420,11 +1551,12 @@ function buildSummary(report) {
     .sort(([, left], [, right]) => right.deathContributionRate - left.deathContributionRate)
     .slice(0, 10);
   return [
-    "# Issue #1196 starting-kit continuation-resource diagnostic",
+    "# Issue #1198 starting-kit continuation-resource diagnostic",
     "",
     `- runner: \`${report.runnerVersion}\` / schema: ${report.schemaVersion}`,
     `- source SHA: \`${measurement.sourceCommit || "not recorded"}\``,
     `- kit / load / encounter policy / recovery policy / N: \`${result.configuration.startingKit}\` / ${result.configuration.equipmentLoad.label} (${result.configuration.equipmentLoad.class}) / \`${result.configuration.policy}\` / \`${result.configuration.recoveryPolicy}\` / ${result.configuration.runs}`,
+    `- chest HEAL_POTION weight/source: ${result.configuration.chestHealPotionWeight ?? "baseline"}x / ${result.configuration.chestHealPotionWeightSource}`,
     `- seed: ${result.configuration.seed}; consumables at departure: none`,
     "",
     "## Run outcome",
@@ -1449,9 +1581,19 @@ function buildSummary(report) {
       `- before encounter ${ordinal}: eligible/cohort ${values.cohortRuns}; arrived ${values.runsObserved}; any resource acquired ${values.resourceOpportunityRuns}/${values.cohortRuns} (${values.resourceOpportunityRate === null ? "unobserved" : `${(values.resourceOpportunityRate * 100).toFixed(2)}%`}); ended before arrival ${values.cohortEndedBeforeArrival}`
     ),
     ...Object.entries(result.linkedTrajectory.byTransition).map(([transition, values]) =>
-      `- ${transition}: post-combat HP p50 ${values.postCombatHp.p50 ?? "unobserved"} → next-entry HP p50 ${values.nextEntryHp.p50 ?? "unobserved"}; exploration Cost HP p50 ${values.explorationCostHp.p50 ?? "unobserved"}; recovery HP p50 ${values.recoveryHp.p50 ?? "unobserved"}`
+      `- ${transition}: n=${values.count}; post-combat HP p50 ${values.postCombatHp.p50 ?? "unobserved"} → next-entry HP p50 ${values.nextEntryHp.p50 ?? "unobserved"}; next-entry HP p25/p75 ${values.nextEntryHp.p25 ?? "unobserved"}/${values.nextEntryHp.p75 ?? "unobserved"}; exploration Cost HP p50 ${values.explorationCostHp.p50 ?? "unobserved"}; recovery HP p50 ${values.recoveryHp.p50 ?? "unobserved"}`
     ),
     `- natural entry HP bands: ${JSON.stringify(result.naturalEntryHpBands)}`,
+    `- actual HP recovered before encounter 2 / 3: ${result.continuationResource["2"].byItem.HEAL_POTION.actualHpRecovered} / ${result.continuationResource["3"].byItem.HEAL_POTION.actualHpRecovered}`,
+    "",
+    "## B1 main-reward breadth",
+    "",
+    `- candidate pool ordinary / fromDrop: ${result.configuration.b1MainRewardCandidatePool.ordinary.length} / ${result.configuration.b1MainRewardCandidatePool.fromDrop.length}; ordinary pool includes six Rune candidates`,
+    ...Object.entries(result.lootBreadth.mainRewardComposition).map(([source, values]) =>
+      `- ${source}: main events ${values.events}; categories ${JSON.stringify(values.byCategory)}; item IDs ${JSON.stringify(values.byItemId)}; dispositions ${JSON.stringify(values.byDisposition)}`
+    ),
+    `- Bag occupancy slots: ${JSON.stringify(result.lootBreadth.bagOccupancy)}`,
+    `- object-loot settlement items banked / lost: ${result.lootBreadth.objectLootSettlement.banked} / ${result.lootBreadth.objectLootSettlement.lost}`,
     "",
     "## First meaningful opportunity",
     "",
@@ -1500,6 +1642,10 @@ async function main() {
   const startingKit = CLI_OPTIONS["starting-kit"] || "vanguard";
   const policy = CLI_OPTIONS.policy || "fight";
   const recoveryPolicy = CLI_OPTIONS["recovery-policy"] || "production";
+  const chestHealPotionWeight = CLI_OPTIONS["chest-heal-potion-weight"] === undefined
+    ? null
+    : Number(CLI_OPTIONS["chest-heal-potion-weight"]);
+  const chestHealPotionWeightSource = CLI_OPTIONS["chest-heal-potion-source"] || "none";
   const earlyCompositionPolicy =
     CLI_OPTIONS["early-composition-policy"] || "baseline";
   const runs = parsePositiveInteger(CLI_OPTIONS.runs || DEFAULT_RUNS, "runs", { minimum: DEFAULT_RUNS });
@@ -1514,6 +1660,14 @@ async function main() {
   assertOneOf(startingKit, STARTING_KIT_IDS, "startingKit");
   assertOneOf(policy, POLICY_IDS, "policy");
   assertOneOf(recoveryPolicy, RECOVERY_POLICY_IDS, "recoveryPolicy");
+  if (chestHealPotionWeight !== null && !CHEST_HEAL_POTION_WEIGHT_IDS.includes(chestHealPotionWeight)) {
+    throw new Error(`chestHealPotionWeight must be ${CHEST_HEAL_POTION_WEIGHT_IDS.join("|")}: ${chestHealPotionWeight}`);
+  }
+  assertOneOf(
+    chestHealPotionWeightSource,
+    CHEST_HEAL_POTION_WEIGHT_SOURCE_IDS,
+    "chestHealPotionWeightSource"
+  );
   assertOneOf(
     earlyCompositionPolicy,
     EARLY_COMPOSITION_POLICY_IDS,
@@ -1529,6 +1683,8 @@ async function main() {
     recoveryPolicy,
     fleeHpThreshold,
     earlyCompositionPolicy,
+    chestHealPotionWeight,
+    chestHealPotionWeightSource,
     runs,
     seed
   });
@@ -1551,7 +1707,7 @@ async function main() {
     purpose: CLI_OPTIONS.purpose,
     requestedRef: CLI_OPTIONS.ref
   }), null, 2)}\n`);
-  console.log(`Wrote Issue #1196 diagnostic: ${resolve(output)}`);
+  console.log(`Wrote Issue #1198 diagnostic: ${resolve(output)}`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {

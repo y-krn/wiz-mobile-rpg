@@ -173,6 +173,21 @@ for (let floor = 6; floor <= 30; floor += 1) {
 }
 Object.freeze(CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP);
 
+// #1198 diagnostic probes only: production keeps the baseline 1x ordinary
+// weight; these tables preserve the source boundary without adopting a buff.
+export const CHEST_ITEM_WEIGHTS_BY_SOURCE_AND_FLOOR = Object.freeze({
+  ordinary: Object.freeze({
+    1: Object.freeze({ HEAL_POTION: 1 })
+  }),
+  fromDrop: Object.freeze({})
+});
+
+export function getChestItemWeightsBySource(floor, { fromDrop = false } = {}) {
+  const source = fromDrop ? "fromDrop" : "ordinary";
+  const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
+  return CHEST_ITEM_WEIGHTS_BY_SOURCE_AND_FLOOR[source][candidateFloor] || null;
+}
+
 export function getChestItemCandidatesByFloor(floor, { fromDrop = false, includeRunes = false } = {}) {
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
   const table = fromDrop ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP : CHEST_ITEM_CANDIDATES_BY_FLOOR;
@@ -180,6 +195,26 @@ export function getChestItemCandidatesByFloor(floor, { fromDrop = false, include
   return includeRunes
     ? [...new Set([...candidates, ...getRuneItemIdsByFloor(candidateFloor)])]
     : candidates;
+}
+
+export function selectChestItemCandidate(candidates, rng = Math.random, itemWeights = null) {
+  if (!Array.isArray(candidates) || candidates.length === 0) return null;
+  if (!itemWeights) return candidates[Math.floor(rng() * candidates.length)];
+  const weights = candidates.map(candidate => {
+    const weight = Number(itemWeights[candidate] ?? 1);
+    if (!Number.isFinite(weight) || weight < 0) {
+      throw new Error(`chest item weight must be a finite number >= 0: ${candidate}`);
+    }
+    return weight;
+  });
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  if (totalWeight <= 0) throw new Error("chest item weights must have positive total weight");
+  let roll = rng() * totalWeight;
+  for (let index = 0; index < candidates.length; index += 1) {
+    roll -= weights[index];
+    if (roll < 0) return candidates[index];
+  }
+  return candidates.at(-1);
 }
 
 export function rollChestSpecialReward(floor, rng) {
@@ -247,6 +282,7 @@ export function rollChestReward({
   coreMinFloor = CHEST_EQUIPMENT_CORE_MIN_FLOOR,
   itemCandidateFilter = null,
   itemCandidates = null,
+  itemWeights = null,
   includeRunes = false,
   runtimeDiagnostics = null
 }) {
@@ -300,7 +336,7 @@ export function rollChestReward({
   if (itemCandidateFilter) {
     candidates = candidates.filter(itemCandidateFilter);
   }
-  let item = candidates[Math.floor(rng() * candidates.length)];
+  let item = selectChestItemCandidate(candidates, rng, itemWeights);
 
   const itemData = ITEMS[item];
   if (!itemData || !["weapon", "armor", "shield"].includes(itemData.type)) {
