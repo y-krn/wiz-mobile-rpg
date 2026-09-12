@@ -11,8 +11,8 @@ import { createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1184-core-loop-reachability-v2";
-export const SCHEMA_VERSION = 4;
+export const RUNNER_VERSION = "issue1196-continuation-resource-v4";
+export const SCHEMA_VERSION = 8;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const EARLY_COMPOSITION_POLICY_IDS = Object.freeze([
   "baseline",
@@ -24,6 +24,15 @@ export const POLICY_IDS = Object.freeze([
   "flee-threshold",
   "visible-multi-enemy-flee"
 ]);
+export const RECOVERY_POLICY_IDS = Object.freeze(["production", "early-use"]);
+export const RECOVERY_RESOURCE_IDS = Object.freeze([
+  "HEAL_POTION",
+  "GREATER_HEAL",
+  "HOLY_WATER",
+  "MANA_POTION",
+  "ETHER"
+]);
+export const EARLY_RECOVERY_HP_THRESHOLD = 0.70;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1139;
 export const DEFAULT_FLEE_HP_THRESHOLD = 0.20;
@@ -38,7 +47,13 @@ const PRODUCTION_PATHS = Object.freeze([
   "src/rules/item_rules.js",
   "src/rules/equipment_load.js",
   "src/data/encounters.js",
+  "src/data/items.js",
+  "src/rules/chest_rules.js",
+  "src/rules/recovery_rules.js",
+  "src/systems/item_effects.js",
   "src/combat_ui/encounter.js",
+  "src/combat_logic/item_resolution.js",
+  "src/combat_logic/rewards.js",
   "src/combat_logic/round.js",
   "src/combat_logic/monster_traits.js",
   "src/combat_logic/targeting.js",
@@ -262,6 +277,366 @@ function finalizeOpportunity(record, runs, totalDeaths) {
   };
 }
 
+function createResourceFunnelRecord() {
+  return {
+    runsWithAcquisition: 0,
+    runsUsable: 0,
+    runsBeneficial: 0,
+    runsUsed: 0,
+    runsCarriedUnused: 0,
+    acquiredUnits: 0,
+    usedUnits: 0,
+    actualHpRecovered: 0,
+    actualMpRecovered: 0,
+    firstEncounterOrdinal: createDistribution(),
+    firstStep: createDistribution(),
+    firstItemById: {},
+    acquiredBySource: {},
+    exposure: {
+      single: createDistribution(),
+      pair: createDistribution(),
+      unobserved: createDistribution()
+    }
+  };
+}
+
+function finalizeResourceFunnelRecord(record, runs) {
+  return {
+    runsWithAcquisition: record.runsWithAcquisition,
+    acquisitionRate: record.runsWithAcquisition / runs,
+    runsUsable: record.runsUsable,
+    usableRate: record.runsUsable / runs,
+    runsBeneficial: record.runsBeneficial,
+    beneficialRate: record.runsBeneficial / runs,
+    runsUsed: record.runsUsed,
+    usedRate: record.runsUsed / runs,
+    runsCarriedUnused: record.runsCarriedUnused,
+    carriedUnusedRate: record.runsCarriedUnused / runs,
+    acquiredUnits: record.acquiredUnits,
+    usedUnits: record.usedUnits,
+    actualHpRecovered: record.actualHpRecovered,
+    actualMpRecovered: record.actualMpRecovered,
+    firstEncounterOrdinal: finalizeDistribution(record.firstEncounterOrdinal),
+    firstStep: finalizeDistribution(record.firstStep),
+    firstItemById: { ...record.firstItemById },
+    acquiredBySource: { ...record.acquiredBySource },
+    exposure: Object.fromEntries(
+      Object.entries(record.exposure).map(([exposure, distribution]) => [
+        exposure,
+        finalizeDistribution(distribution)
+      ])
+    )
+  };
+}
+
+function createContinuationResourceRecord() {
+  return Object.fromEntries(
+    [2, 3].map(ordinal => [String(ordinal), {
+      runsObserved: 0,
+      cohortRuns: 0,
+      cohortEndedBeforeArrival: 0,
+      cohortDeathsBeforeArrival: 0,
+      resourceOpportunityRuns: 0,
+      byItem: Object.fromEntries(
+        RECOVERY_RESOURCE_IDS.map(itemId => [itemId, createResourceFunnelRecord()])
+      ),
+      rows: []
+    }])
+  );
+}
+
+function itemCount(snapshot, itemId) {
+  return Number(snapshot?.[itemId]) || 0;
+}
+
+export function carriedUnusedInventoryCount(inventoryCount) {
+  return Math.max(0, Number(inventoryCount) || 0);
+}
+
+export function isEventBeforeTargetEncounter(event, targetOrdinal, fromOrdinal) {
+  const ordinal = Number(event?.encounterOrdinal);
+  return Number.isInteger(ordinal) && ordinal >= fromOrdinal && ordinal < targetOrdinal;
+}
+
+function isEventBeforeTargetBoundary(event, targetOrdinal, targetRow = null) {
+  if (!isEventBeforeTargetEncounter(event, targetOrdinal, 0)) return false;
+  return !targetRow || Number(event.step) <= Number(targetRow.startStep);
+}
+
+export function isEventBetweenEncounters(event, fromRow, nextRow = null) {
+  const ordinal = Number(event?.encounterOrdinal);
+  if (!fromRow || ordinal !== Number(fromRow.encounterOrdinal)) return false;
+  const step = Number(event.step);
+  if (!Number.isFinite(step) || step < Number(fromRow.endStep)) return false;
+  return !nextRow || step <= Number(nextRow.startStep);
+}
+
+function summarizeRecoveryEvent(event) {
+  return event && {
+    itemId: event.itemId,
+    context: event.context,
+    floor: event.floor,
+    step: event.step,
+    encounterOrdinal: event.encounterOrdinal,
+    hpRecovered: event.hpRecovered,
+    mpRecovered: event.mpRecovered
+  };
+}
+
+function createHpBandCounts() {
+  return Object.fromEntries(["100", "75", "50", "25"].map(id => [id, 0]));
+}
+
+function hpBandId(hpRate) {
+  if (!Number.isFinite(hpRate)) return null;
+  if (hpRate >= 0.875) return "100";
+  if (hpRate >= 0.625) return "75";
+  if (hpRate >= 0.375) return "50";
+  return "25";
+}
+
+function recordResourceFunnel(
+  record,
+  acquisitions,
+  uses,
+  inventoryCount,
+  usableCount,
+  beneficialCount,
+  exposure
+) {
+  const acquired = acquisitions.length;
+  const used = uses.length;
+  const usable = acquisitions.some(event => event.playerUsableAtAcquisition === true)
+    || uses.length > 0
+    || usableCount > 0;
+  const beneficial = acquisitions.some(event => event.beneficialAtAcquisition === true)
+    || uses.length > 0
+    || beneficialCount > 0;
+  if (acquired > 0) record.runsWithAcquisition++;
+  if (usable) record.runsUsable++;
+  if (beneficial) record.runsBeneficial++;
+  if (used > 0) record.runsUsed++;
+  if (inventoryCount > 0) record.runsCarriedUnused++;
+  record.acquiredUnits += acquired;
+  record.usedUnits += used;
+  record.actualHpRecovered += uses.reduce((sum, event) => sum + (event.hpRecovered || 0), 0);
+  record.actualMpRecovered += uses.reduce((sum, event) => sum + (event.mpRecovered || 0), 0);
+  if (acquisitions[0]) {
+    addDistribution(record.firstEncounterOrdinal, acquisitions[0].encounterOrdinal);
+    addDistribution(record.firstStep, acquisitions[0].step);
+    record.firstItemById[acquisitions[0].itemId] =
+      (record.firstItemById[acquisitions[0].itemId] || 0) + 1;
+  }
+  acquisitions.forEach(event => {
+    record.acquiredBySource[event.source] =
+      (record.acquiredBySource[event.source] || 0) + 1;
+  });
+  addDistribution(record.exposure[exposure], usableCount);
+}
+
+function observeContinuationResources(
+  aggregate,
+  result,
+  encounterRows,
+  rewardEvents,
+  runIndex
+) {
+  const recoveryEvents = result.diagnostics?.recoveryEvents || [];
+  const costEvents = result.diagnostics?.costEvents || [];
+  [2, 3].forEach(targetOrdinal => {
+    const fromRow = encounterRows[targetOrdinal - 2];
+    const targetRow = encounterRows[targetOrdinal - 1];
+    if (!fromRow || fromRow.outcome === "death") return;
+    const bucket = aggregate.continuationResource[String(targetOrdinal)];
+    bucket.cohortRuns++;
+    if (targetRow) bucket.runsObserved++;
+    else {
+      bucket.cohortEndedBeforeArrival++;
+      bucket.cohortDeathsBeforeArrival += Number(result.outcome === "death");
+    }
+    const acquiredBefore = rewardEvents.filter(event =>
+      RECOVERY_RESOURCE_IDS.includes(event.itemId) &&
+      event.disposition === "bagged" &&
+      isEventBeforeTargetBoundary(event, targetOrdinal, targetRow)
+    );
+    const targetUses = recoveryEvents.filter(event =>
+      isEventBeforeTargetBoundary(event, targetOrdinal, targetRow)
+    );
+    const exposure = targetRow
+      ? targetRow.initialVisibleEnemyCount >= 2 ? "pair" : "single"
+      : "unobserved";
+    const row = {
+      runIndex,
+      encounterOrdinal: targetOrdinal,
+      entryHpRate: targetRow?.hpRateBeforeEncounter ?? null,
+      entryMpRate: targetRow?.mpRateBeforeEncounter ?? null,
+      exposure,
+      reachedTarget: Boolean(targetRow),
+      runEndOutcome: targetRow ? null : result.outcome,
+      resourceOpportunity: acquiredBefore.length > 0,
+      byItem: {}
+    };
+    if (acquiredBefore.length > 0) bucket.resourceOpportunityRuns++;
+    RECOVERY_RESOURCE_IDS.forEach(itemId => {
+      const acquisitions = acquiredBefore.filter(event => event.itemId === itemId);
+      const uses = targetUses.filter(event => event.itemId === itemId);
+      const inventoryCount = itemCount(targetRow?.startRecoveryInventory, itemId);
+      const usableCount = targetRow?.startRecoveryEligibility?.[itemId]
+        ? inventoryCount
+        : 0;
+      const beneficialCount = targetRow?.startRecoveryBenefit?.[itemId]
+        ? inventoryCount
+        : 0;
+      const record = bucket.byItem[itemId];
+      recordResourceFunnel(
+        record,
+        acquisitions,
+        uses,
+        inventoryCount,
+        usableCount,
+        beneficialCount,
+        exposure
+      );
+      row.byItem[itemId] = {
+        acquired: acquisitions.length,
+        usable: usableCount,
+        beneficial: beneficialCount,
+        inventoryCount,
+        used: uses.length,
+        carriedUnused: carriedUnusedInventoryCount(inventoryCount),
+        actualHpRecovered: uses.reduce((sum, event) => sum + (event.hpRecovered || 0), 0),
+        actualMpRecovered: uses.reduce((sum, event) => sum + (event.mpRecovered || 0), 0),
+        firstAcquisition: summarizeRecoveryEvent(acquisitions[0])
+      };
+    });
+    bucket.rows.push(row);
+
+    if (!targetRow) {
+      return;
+    }
+    const band = hpBandId(targetRow.hpRateBeforeEncounter);
+    if (band) {
+      aggregate.naturalEntryHpBands[band]++;
+      const bandRecord = aggregate.naturalEntryHpBandResource[band];
+      bandRecord.entries++;
+      bandRecord.resourceOpportunityRuns += Number(acquiredBefore.length > 0);
+      bandRecord.actualHpRecovered += targetUses.reduce(
+        (sum, event) => sum + (event.hpRecovered || 0),
+        0
+      );
+      bandRecord.actualMpRecovered += targetUses.reduce(
+        (sum, event) => sum + (event.mpRecovered || 0),
+        0
+      );
+    }
+  });
+
+  for (let index = 0; index < encounterRows.length - 1; index++) {
+    const current = encounterRows[index];
+    const next = encounterRows[index + 1];
+    const recoveryBetween = recoveryEvents.filter(event =>
+      isEventBetweenEncounters(event, current, next)
+    );
+    const costBetween = costEvents.filter(event =>
+      isEventBetweenEncounters(event, current, next) &&
+      event.source !== "combat" &&
+      !["normal", "elite", "midboss", "boss"].includes(event.source)
+    );
+    aggregate.trajectoryRows.push({
+      runIndex,
+      fromEncounterOrdinal: current.encounterOrdinal,
+      toEncounterOrdinal: next.encounterOrdinal,
+      fromOutcome: current.outcome,
+      postCombatHp: current.hpAfterEncounter,
+      nextEntryHp: next.hpBeforeEncounter,
+      postCombatHpRate: current.hpAfterEncounter !== null && current.maxHpBeforeEncounter
+        ? current.hpAfterEncounter / Math.max(1, current.maxHpBeforeEncounter)
+        : null,
+      nextEntryHpRate: next.hpRateBeforeEncounter,
+      postCombatMp: current.mpAfterEncounter,
+      nextEntryMp: next.mpBeforeEncounter,
+      explorationCostHp: costBetween.reduce((sum, event) => sum + (event.hpCost || 0), 0),
+      explorationCostBySource: costBetween.reduce((counts, event) => {
+        counts[event.source] = (counts[event.source] || 0) + (event.hpCost || 0);
+        return counts;
+      }, {}),
+      recoveryHp: recoveryBetween.reduce((sum, event) => sum + (event.hpRecovered || 0), 0),
+      recoveryMp: recoveryBetween.reduce((sum, event) => sum + (event.mpRecovered || 0), 0),
+      recoveryUses: recoveryBetween.length,
+      resourceInventoryAtNextEntry: next.startRecoveryInventory
+    });
+  }
+}
+
+function finalizeContinuationResources(aggregate) {
+  return Object.fromEntries(
+    Object.entries(aggregate.continuationResource).map(([ordinal, bucket]) => [ordinal, {
+      runsObserved: bucket.runsObserved,
+      cohortRuns: bucket.cohortRuns,
+      cohortArrived: bucket.runsObserved,
+      cohortEndedBeforeArrival: bucket.cohortEndedBeforeArrival,
+      cohortDeathsBeforeArrival: bucket.cohortDeathsBeforeArrival,
+      resourceOpportunityRuns: bucket.resourceOpportunityRuns,
+      resourceOpportunityRate: bucket.cohortRuns > 0
+        ? bucket.resourceOpportunityRuns / bucket.cohortRuns
+        : null,
+      observedResourceOpportunityRate: bucket.runsObserved > 0
+        ? bucket.resourceOpportunityRuns / bucket.runsObserved
+        : null,
+      byItem: Object.fromEntries(
+        Object.entries(bucket.byItem).map(([itemId, record]) => [
+          itemId,
+          finalizeResourceFunnelRecord(record, bucket.cohortRuns)
+        ])
+      ),
+      rows: bucket.rows
+    }])
+  );
+}
+
+function finalizeTrajectoryRows(rows) {
+  const byTransition = {};
+  rows.forEach(row => {
+    const key = `${row.fromEncounterOrdinal}->${row.toEncounterOrdinal}`;
+    const summary = byTransition[key] ||= {
+      count: 0,
+      postCombatHp: createDistribution(),
+      nextEntryHp: createDistribution(),
+      postCombatMp: createDistribution(),
+      nextEntryMp: createDistribution(),
+      explorationCostHp: createDistribution(),
+      recoveryHp: createDistribution(),
+      recoveryMp: createDistribution(),
+      recoveryUses: createDistribution()
+    };
+    summary.count++;
+    addDistribution(summary.postCombatHp, row.postCombatHp);
+    addDistribution(summary.nextEntryHp, row.nextEntryHp);
+    addDistribution(summary.postCombatMp, row.postCombatMp);
+    addDistribution(summary.nextEntryMp, row.nextEntryMp);
+    addDistribution(summary.explorationCostHp, row.explorationCostHp);
+    addDistribution(summary.recoveryHp, row.recoveryHp);
+    addDistribution(summary.recoveryMp, row.recoveryMp);
+    addDistribution(summary.recoveryUses, row.recoveryUses);
+  });
+  return {
+    rows,
+    byTransition: Object.fromEntries(
+      Object.entries(byTransition).map(([key, summary]) => [key, {
+        count: summary.count,
+        postCombatHp: finalizeDistribution(summary.postCombatHp),
+        nextEntryHp: finalizeDistribution(summary.nextEntryHp),
+        postCombatMp: finalizeDistribution(summary.postCombatMp),
+        nextEntryMp: finalizeDistribution(summary.nextEntryMp),
+        explorationCostHp: finalizeDistribution(summary.explorationCostHp),
+        recoveryHp: finalizeDistribution(summary.recoveryHp),
+        recoveryMp: finalizeDistribution(summary.recoveryMp),
+        recoveryUses: finalizeDistribution(summary.recoveryUses)
+      }])
+    )
+  };
+}
+
 function createCompositionRecord() {
   return {
     encounters: 0,
@@ -417,7 +792,18 @@ function createAggregate(runs) {
       buildChange: createOpportunityRecord(),
       rows: [],
       rewardEventCount: 0
-    }
+    },
+    continuationResource: createContinuationResourceRecord(),
+    trajectoryRows: [],
+    naturalEntryHpBands: createHpBandCounts(),
+    naturalEntryHpBandResource: Object.fromEntries(
+      ["100", "75", "50", "25"].map(id => [id, {
+        entries: 0,
+        resourceOpportunityRuns: 0,
+        actualHpRecovered: 0,
+        actualMpRecovered: 0
+      }])
+    )
   };
 }
 
@@ -443,6 +829,8 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     encounterOrdinal,
     floor: identity.floor ?? diagnostic?.floor ?? null,
     type: identity.type ?? diagnostic?.type ?? null,
+    startStep: diagnostic?.startStep ?? null,
+    endStep: diagnostic?.endStep ?? null,
     initialVisibleEnemyCount: diagnostic?.initialVisibleEnemyCount ?? enemyNames.length,
     rawInitialVisibleEnemyCount: diagnostic?.generatedInitialVisibleEnemyCount ?? enemyNames.length,
     earlyCompositionPolicy: diagnostic?.earlyCompositionPolicy || "baseline",
@@ -468,6 +856,12 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     maxMpBeforeEncounter,
     mpRateBeforeEncounter,
     mpAfterEncounter: identity.mpAfter ?? diagnostic?.endMp ?? null,
+    startRecoveryInventory: diagnostic?.startRecoveryInventory || {},
+    startRecoveryEligibility: diagnostic?.startRecoveryEligibility || {},
+    startRecoveryBenefit: diagnostic?.startRecoveryBenefit || {},
+    endRecoveryInventory: diagnostic?.endRecoveryInventory || {},
+    endRecoveryEligibility: diagnostic?.endRecoveryEligibility || {},
+    endRecoveryBenefit: diagnostic?.endRecoveryBenefit || {},
     combatRounds: identity.rounds ?? (rounds.length || null),
     enemyActionCount: identity.enemyActions ?? null,
     normalDamage: identity.totalNormalDamage ?? identity.normalDamage ?? null,
@@ -501,6 +895,11 @@ function observeRun(aggregate, result, runIndex) {
   Object.entries(result.damageHpBySource || {}).forEach(([source, damage]) => {
     aggregate.damageHpBySource[source] = (aggregate.damageHpBySource[source] || 0) + damage;
   });
+  const diagnostics = result.diagnostics?.encounters || [];
+  const diagnosticsByOrdinal = new Map(diagnostics.map((diagnostic, index) => [index, diagnostic]));
+  const encounterRows = encounters.map((identity, index) =>
+    createEncounterRow(runIndex, index + 1, identity, diagnosticsByOrdinal.get(index))
+  );
 
   EARLY_SURVIVAL_ORDINALS.forEach(ordinal => {
     const survival = aggregate.earlyProgression.survival[ordinal];
@@ -567,16 +966,20 @@ function observeRun(aggregate, result, runIndex) {
     firstBuildChangeOpportunity: summarizeEvent(firstBuildChangeOpportunity),
     firstBuildChange: summarizeEvent(firstBuildChange)
   });
-
-  const diagnostics = result.diagnostics?.encounters || [];
-  const diagnosticsByOrdinal = new Map(diagnostics.map((diagnostic, index) => [index, diagnostic]));
+  observeContinuationResources(
+    aggregate,
+    result,
+    encounterRows,
+    rewardEvents,
+    runIndex
+  );
   const runCompositionKeys = new Set();
   const runEnemyNames = new Set();
   encounters.forEach((identity, index) => {
     const key = compositionKey(identity.enemyNames || []);
     const composition = aggregate.compositions[key] ||= createCompositionRecord();
     const diagnostic = diagnosticsByOrdinal.get(index);
-    const encounterRow = createEncounterRow(runIndex, index + 1, identity, diagnostic);
+    const encounterRow = encounterRows[index];
     const visibleCount = String(encounterRow.initialVisibleEnemyCount);
     const visibleRecord = aggregate.initialVisibleEnemyCounts[visibleCount] ||= {
       encounters: 0,
@@ -699,6 +1102,39 @@ function finalizeAggregate(aggregate, configuration) {
         .map(([ordinal, record]) => [ordinal, finalizeActionOpportunity(record, aggregate.runs)])
     )
   };
+  const naturalEntryHpBandResource = Object.fromEntries(
+    Object.entries(aggregate.naturalEntryHpBandResource).map(([band, record]) => [band, {
+      entries: record.entries,
+      resourceOpportunityRuns: record.resourceOpportunityRuns,
+      resourceOpportunityRate: record.entries > 0
+        ? record.resourceOpportunityRuns / record.entries
+        : null,
+      actualHpRecovered: record.actualHpRecovered,
+      actualMpRecovered: record.actualMpRecovered,
+      averageHpRecovered: record.entries > 0
+        ? record.actualHpRecovered / record.entries
+        : null,
+      averageMpRecovered: record.entries > 0
+        ? record.actualMpRecovered / record.entries
+        : null
+      }])
+  );
+  const continuationResource = finalizeContinuationResources(aggregate);
+  const linkedTrajectory = finalizeTrajectoryRows(aggregate.trajectoryRows);
+  linkedTrajectory.cohortByTransition = Object.fromEntries(
+    Object.entries(continuationResource).map(([ordinal, bucket]) => [
+      `${Number(ordinal) - 1}->${ordinal}`,
+      {
+        eligibleRuns: bucket.cohortRuns,
+        arrivedRuns: bucket.cohortArrived,
+        endedBeforeArrival: bucket.cohortEndedBeforeArrival,
+        deathsBeforeArrival: bucket.cohortDeathsBeforeArrival,
+        arrivalRate: bucket.cohortRuns > 0
+          ? bucket.cohortArrived / bucket.cohortRuns
+          : null
+      }
+    ])
+  );
   return {
     runs: aggregate.runs,
     runOutcome: {
@@ -725,6 +1161,10 @@ function finalizeAggregate(aggregate, configuration) {
     earlyProgression,
     earlyActionOpportunity,
     rewardOpportunity,
+    continuationResource,
+    linkedTrajectory,
+    naturalEntryHpBands: { ...aggregate.naturalEntryHpBands },
+    naturalEntryHpBandResource,
     encounterExposure: {
       enemyEncounterCount: aggregate.encounterCount,
       enemyEncounterRatePerRun: aggregate.encounterCount / aggregate.runs,
@@ -796,12 +1236,14 @@ function finalizeAggregate(aggregate, configuration) {
 export function createDiagnosticScenario({
   startingKit,
   policy,
+  recoveryPolicy = "production",
   fleeHpThreshold,
   earlyCompositionPolicy = "baseline",
   earlyCompositionCandidate = null
 }) {
   assertOneOf(startingKit, STARTING_KIT_IDS, "startingKit");
   assertOneOf(policy, POLICY_IDS, "policy");
+  assertOneOf(recoveryPolicy, RECOVERY_POLICY_IDS, "recoveryPolicy");
   assertOneOf(
     earlyCompositionPolicy,
     EARLY_COMPOSITION_POLICY_IDS,
@@ -826,6 +1268,9 @@ export function createDiagnosticScenario({
       ? "never"
       : policy === "flee-threshold" ? "threshold" : "visible-multi-enemy-flee",
     fleeHpThreshold: policy === "flee-threshold" ? threshold : null,
+    ...(recoveryPolicy === "early-use"
+      ? { healPotionThreshold: EARLY_RECOVERY_HP_THRESHOLD }
+      : {}),
     earlyEncounterMultiEnemyPolicy: earlyCompositionPolicy,
     earlyCompositionCandidate,
     consumablesAtDeparture: "none"
@@ -835,6 +1280,7 @@ export function createDiagnosticScenario({
 export async function runDiagnostic({
   startingKit = "vanguard",
   policy = "fight",
+  recoveryPolicy = "production",
   fleeHpThreshold = DEFAULT_FLEE_HP_THRESHOLD,
   runs = DEFAULT_RUNS,
   seed = DEFAULT_SEED,
@@ -848,6 +1294,7 @@ export async function runDiagnostic({
   const scenario = createDiagnosticScenario({
     startingKit,
     policy,
+    recoveryPolicy,
     fleeHpThreshold,
     earlyCompositionPolicy,
     earlyCompositionCandidate
@@ -859,7 +1306,7 @@ export async function runDiagnostic({
       startFloor: 1,
       targetDepth: 2,
       runIndex,
-      seriesId: "issue-1176:b1f",
+      seriesId: "issue-1196:b1f",
       scoringProfile: null,
       scenario,
       workshop: { ranks: {} },
@@ -873,6 +1320,10 @@ export async function runDiagnostic({
     startingKit,
     equipmentLoad: getCharacterEquipmentLoad(createStartingKitCharacter(startingKit)),
     policy,
+    recoveryPolicy,
+    earlyRecoveryHpThreshold: recoveryPolicy === "early-use"
+      ? EARLY_RECOVERY_HP_THRESHOLD
+      : null,
     earlyCompositionPolicy,
     earlyCompositionCandidate,
     fleeHpThreshold: scenario.fleeHpThreshold,
@@ -889,16 +1340,33 @@ export async function runDiagnostic({
     seed: normalizedSeed,
     seedPolicy: "simulation RNG reset to seed before run; deterministic policy-independent worldSeed per run",
     worldSeedTemplate: "issue-1176:{seed}:{runIndex}",
-    matchedComparisonKey: `${startingKit}:${normalizedSeed}:${normalizedRuns}`,
+    matchedComparisonKey: `${startingKit}:${policy}:${recoveryPolicy}:${normalizedSeed}:${normalizedRuns}`,
     runs: normalizedRuns
   };
   return finalizeAggregate(aggregate, configuration);
+}
+
+export async function runMatchedRecoveryPolicies(options = {}) {
+  const production = await runDiagnostic({
+    ...options,
+    recoveryPolicy: "production"
+  });
+  const earlyUse = await runDiagnostic({
+    ...options,
+    recoveryPolicy: "early-use"
+  });
+  return {
+    comparisonKey: `${production.configuration.startingKit}:${production.configuration.policy}:${production.configuration.seed}:${production.configuration.runs}`,
+    production,
+    earlyUse
+  };
 }
 
 function buildReport({
   result,
   startingKit,
   policy,
+  recoveryPolicy,
   fleeHpThreshold,
   earlyCompositionPolicy,
   runs,
@@ -917,10 +1385,11 @@ function buildReport({
     runs,
     startingKit,
     policy,
+    recoveryPolicy,
     fleeHpThreshold,
     earlyCompositionPolicy
   };
-  const envHash = printEnvSignatureBanner(environment, { label: "issue1184" });
+  const envHash = printEnvSignatureBanner(environment, { label: "issue1196" });
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
@@ -951,17 +1420,17 @@ function buildSummary(report) {
     .sort(([, left], [, right]) => right.deathContributionRate - left.deathContributionRate)
     .slice(0, 10);
   return [
-    "# Issue #1184 starting-kit early-run diagnostic",
+    "# Issue #1196 starting-kit continuation-resource diagnostic",
     "",
     `- runner: \`${report.runnerVersion}\` / schema: ${report.schemaVersion}`,
     `- source SHA: \`${measurement.sourceCommit || "not recorded"}\``,
-    `- kit / load / policy / N: \`${result.configuration.startingKit}\` / ${result.configuration.equipmentLoad.label} (${result.configuration.equipmentLoad.class}) / \`${result.configuration.policy}\` / ${result.configuration.runs}`,
+    `- kit / load / encounter policy / recovery policy / N: \`${result.configuration.startingKit}\` / ${result.configuration.equipmentLoad.label} (${result.configuration.equipmentLoad.class}) / \`${result.configuration.policy}\` / \`${result.configuration.recoveryPolicy}\` / ${result.configuration.runs}`,
     `- seed: ${result.configuration.seed}; consumables at departure: none`,
     "",
     "## Run outcome",
     "",
     `- B1F death rate: ${(outcome.b1DeathRate * 100).toFixed(2)}%`,
-    `- B2 arrival / B1 breakthrough: ${(outcome.b2ArrivalRate * 100).toFixed(2)}%`,
+    `- B2F arrival / B1 breakthrough: ${(outcome.b2ArrivalRate * 100).toFixed(2)}%`,
     `- flee selected / executed / selected-but-not-executed: ${outcome.fleeSelected} / ${outcome.fleeExecuted} / ${outcome.fleeSelectedButNotExecuted}`,
     `- flee survived / died from parting attack: ${outcome.fleeSurvived} / ${outcome.fleeDiedFromPartingAttack}; execution survival: ${outcome.fleeSurvivalRate === null ? "unobserved" : `${(outcome.fleeSurvivalRate * 100).toFixed(2)}%`}`,
     `- average deepest floor / steps / combat count: ${outcome.averageDeepestFloor.toFixed(3)} / ${outcome.averageSteps.toFixed(2)} / ${outcome.averageCombatCount.toFixed(2)}`,
@@ -973,6 +1442,16 @@ function buildSummary(report) {
       `- through encounter ${ordinal}: ${values.survived}/${result.runs} survived (${(values.survivedRate * 100).toFixed(2)}%); observed ${values.encountered}/${result.runs}`
     ),
     `- death encounter ordinal: ${JSON.stringify(result.earlyProgression.deathEncounterOrdinal)}`,
+    "",
+    "## Continuation resources",
+    "",
+    ...Object.entries(result.continuationResource).map(([ordinal, values]) =>
+      `- before encounter ${ordinal}: eligible/cohort ${values.cohortRuns}; arrived ${values.runsObserved}; any resource acquired ${values.resourceOpportunityRuns}/${values.cohortRuns} (${values.resourceOpportunityRate === null ? "unobserved" : `${(values.resourceOpportunityRate * 100).toFixed(2)}%`}); ended before arrival ${values.cohortEndedBeforeArrival}`
+    ),
+    ...Object.entries(result.linkedTrajectory.byTransition).map(([transition, values]) =>
+      `- ${transition}: post-combat HP p50 ${values.postCombatHp.p50 ?? "unobserved"} → next-entry HP p50 ${values.nextEntryHp.p50 ?? "unobserved"}; exploration Cost HP p50 ${values.explorationCostHp.p50 ?? "unobserved"}; recovery HP p50 ${values.recoveryHp.p50 ?? "unobserved"}`
+    ),
+    `- natural entry HP bands: ${JSON.stringify(result.naturalEntryHpBands)}`,
     "",
     "## First meaningful opportunity",
     "",
@@ -1020,6 +1499,7 @@ function buildManifest(report, options) {
 async function main() {
   const startingKit = CLI_OPTIONS["starting-kit"] || "vanguard";
   const policy = CLI_OPTIONS.policy || "fight";
+  const recoveryPolicy = CLI_OPTIONS["recovery-policy"] || "production";
   const earlyCompositionPolicy =
     CLI_OPTIONS["early-composition-policy"] || "baseline";
   const runs = parsePositiveInteger(CLI_OPTIONS.runs || DEFAULT_RUNS, "runs", { minimum: DEFAULT_RUNS });
@@ -1033,6 +1513,7 @@ async function main() {
   }
   assertOneOf(startingKit, STARTING_KIT_IDS, "startingKit");
   assertOneOf(policy, POLICY_IDS, "policy");
+  assertOneOf(recoveryPolicy, RECOVERY_POLICY_IDS, "recoveryPolicy");
   assertOneOf(
     earlyCompositionPolicy,
     EARLY_COMPOSITION_POLICY_IDS,
@@ -1045,6 +1526,7 @@ async function main() {
   const result = await runDiagnostic({
     startingKit,
     policy,
+    recoveryPolicy,
     fleeHpThreshold,
     earlyCompositionPolicy,
     runs,
@@ -1054,6 +1536,7 @@ async function main() {
     result,
     startingKit,
     policy,
+    recoveryPolicy,
     fleeHpThreshold,
     earlyCompositionPolicy,
     runs,
@@ -1068,7 +1551,7 @@ async function main() {
     purpose: CLI_OPTIONS.purpose,
     requestedRef: CLI_OPTIONS.ref
   }), null, 2)}\n`);
-  console.log(`Wrote Issue #1184 diagnostic: ${resolve(output)}`);
+  console.log(`Wrote Issue #1196 diagnostic: ${resolve(output)}`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {

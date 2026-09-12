@@ -97,6 +97,9 @@ duplicating executable rules in prose or adding orchestration frameworks.
 
 - Broad source discovery, module boundaries, and verification targets:
   `.agents/file-map.md`
+- Issue readiness, acceptance-to-evidence mapping, adaptive planning, and
+  pre-push handoff:
+  `.agents/issue-delivery.md`
 - Review checklists and design-canon index: `.agents/README.md`
 - Current-head independent review and required CI: `.agents/merge-gate.md`
 - Repeatable conditional workflows: the matching
