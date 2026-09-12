@@ -26,8 +26,8 @@ const PRODUCTION_B1F_FIXTURE = Object.freeze({
 });
 
 const ONE_CELL_AHEAD_TURNS = Object.freeze({
-  left: [[4, 4, 2], [4, 4, 0], [4, 3, 3], [3, 3, 3]],
-  right: [[4, 4, 2], [4, 4, 0], [4, 3, 1], [5, 3, 1]],
+  left: [[4, 4, 2], [4, 4, 0], [4, 3, 3], [3, 3, 3], [2, 3, 3]],
+  right: [[4, 4, 2], [4, 4, 0], [4, 3, 1], [5, 3, 1], [6, 3, 1]],
 });
 
 function installSpikeCanvas(page, viewport) {
