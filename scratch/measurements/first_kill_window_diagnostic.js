@@ -84,7 +84,7 @@ function increment(map, key) {
   map[key] = (map[key] || 0) + 1;
 }
 
-function summarizeRows(rows) {
+function summarizeRows(rows, totalEnemyActions = null) {
   const aggregate = createFirstKillAggregate();
   const compositions = {};
   rows.forEach(row => {
@@ -103,7 +103,7 @@ function summarizeRows(rows) {
         row.outcome === "death" && !row.firstKillWindow.firstKillObserved
       ).length
     },
-    totalEnemyActions: summarize(rows.map(row => row.enemyActionCount)),
+    totalEnemyActions: totalEnemyActions || summarize(rows.map(row => row.enemyActionCount)),
     enemyActionsBeforeFirstPlayerAction: summarize(
       rows.map(row => row.enemyActionsBeforeFirstPlayerAction)
     ),
@@ -120,10 +120,17 @@ function naturalDecomposition(result) {
   const byEncounterOrdinal = {};
   for (const ordinal of [1, 2]) {
     const ordinalRows = rows.filter(row => row.encounterOrdinal === ordinal);
+    const cost = result.enemyActionCost.byEncounterOrdinal[String(ordinal)];
     byEncounterOrdinal[String(ordinal)] = {
-      all: summarizeRows(ordinalRows),
-      single: summarizeRows(ordinalRows.filter(row => row.rawInitialVisibleEnemyCount === 1)),
-      pair: summarizeRows(ordinalRows.filter(row => row.rawInitialVisibleEnemyCount >= 2))
+      all: summarizeRows(ordinalRows, cost.all.enemyActions),
+      single: summarizeRows(
+        ordinalRows.filter(row => row.rawInitialVisibleEnemyCount === 1),
+        cost.single.enemyActions
+      ),
+      pair: summarizeRows(
+        ordinalRows.filter(row => row.rawInitialVisibleEnemyCount >= 2),
+        cost.pair.enemyActions
+      )
     };
   }
   return {
