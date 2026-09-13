@@ -44,7 +44,6 @@
   "dependencies": {
     "@sentry/browser": "^10.63.0",
     "pixi.js": "8.19.0",
-    "posthog-js": "^1.418.10",
-    "three": "^0.180.0"
+    "posthog-js": "^1.418.10"
   }
 }

@@ -1,6 +1,6 @@
-// balance-impact: none — opt-in PixiJS screen-space presentation spike only.
+// balance-impact: none — opt-in PixiJS screen-space presentation.
 // The production renderer remains Canvas. This module consumes RendererInput
-// and deliberately does not recreate the Three.js camera/geometry contract.
+// and deliberately stays within the shared screen-space projection contract.
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { EVENT_TYPES } from "./data.js";
 import {

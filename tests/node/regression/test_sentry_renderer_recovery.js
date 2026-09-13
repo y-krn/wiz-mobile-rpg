@@ -13,7 +13,6 @@ assert.match(
   /function reportRendererRecovery\(error, rendererName, op\)/,
   "renderer fallback must report recovered failures",
 );
-assert.match(source, /reportRendererRecovery\(error, "three", "module-init"\)/);
 assert.match(source, /reportRendererRecovery\(error, "pixi", "renderer-init"\)/);
 assert.match(source, /reportRendererRecovery\(error, "pixi", "module-init"\)/);
 assert.match(source, /recovery: "canvas-fallback"/);
