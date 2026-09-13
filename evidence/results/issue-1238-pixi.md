@@ -1,7 +1,8 @@
 # Issue #1238 PixiJS navigation motion evidence
 
-- BASE_SHA: `6f714aa72b0051a80b841a983061528883a5d898`
-- captured code HEAD: `ca2a0141` (rebased equivalent of the tested renderer change)
+- BASE_SHA: `2d128e31fa1fa9fa9bf75d7e866d96fbed843202`
+- captured renderer code HEAD: `b11f3e18` (clean-rebase equivalent of the tested renderer change)
+- evidence is included in the current PR HEAD; the final browser CI run verifies that HEAD
 - renderer: PixiJS `8.19.0`, opt-in with `?renderer=pixi`
 - browser: Chromium `@playwright/test 1.61.0`, viewport `390x844`
 - physical-device status: not available in Codex; human iPhone review required
