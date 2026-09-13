@@ -33,8 +33,7 @@ check("recovery spells only target damaged living allies", () => {
   assert.deepEqual(getSpellAllyTargetIndices("MADI", recoveryParty), [0]);
   assert.deepEqual(getSpellAllyTargetStatus("DIOS", recoveryParty[1]), {
     isDisabled: true,
-    reason: "HP満タン",
-    isRecommended: false
+    reason: "HP満タン"
   });
 });
 

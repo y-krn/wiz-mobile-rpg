@@ -364,7 +364,7 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('.pending-reward-card')).toHaveCount(1);
       await expect(page.locator('#log-panel')).toBeHidden();
       await expect(page.locator('#log-content')).toContainText('宝箱を開けた瞬間、罠 [毒針] が作動した！');
-      await expect(page.locator('#log-content')).toContainText(/Gedは\d+のダメージを受けた/);
+      await expect(page.locator('#log-content')).toContainText(/冒険者は\d+のダメージを受けた/);
       const gedHpAfterTrap = await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
         return state.party[0].hp;

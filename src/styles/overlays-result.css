@@ -96,7 +96,7 @@
   padding: var(--sp-md);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background: #14141a;
+  background: var(--surface-neutral);
 }
 
 .result-section-heading { display: flex; justify-content: space-between; margin: 0; color: var(--neon-cyan); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }

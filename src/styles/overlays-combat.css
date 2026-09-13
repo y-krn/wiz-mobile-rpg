@@ -119,15 +119,15 @@
   width: 100%;
   appearance: none;
   text-align: left;
-  background-color: #14141a;
-  border: 1px solid #22222d;
+  background-color: var(--surface-control);
+  border: 1px solid var(--border-control);
   border-radius: 4px;
   padding: 6px;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--motion-state) ease, background-color var(--motion-state) ease, box-shadow var(--motion-state) ease;
   min-height: var(--tap-lg);
 }
 
@@ -172,7 +172,7 @@
 .combat-target-card.dead {
   opacity: 0.3;
   cursor: not-allowed;
-  border-color: #22222d !important;
+  border-color: var(--border-control) !important;
   box-shadow: none !important;
   background-color: transparent !important;
 }
@@ -202,7 +202,7 @@
 .card-hp-bar-container, .card-mp-bar-container {
   width: 100%;
   height: 4px;
-  background-color: #0c0c0e;
+  background-color: var(--surface-meter-track);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 1px;
@@ -286,7 +286,7 @@
   min-width: 0;
   padding: var(--sp-xs);
   border: 1px solid #333;
-  background: #14141a;
+  background: var(--surface-neutral);
 }
 
 .combat-enemy-info-name {
@@ -339,12 +339,12 @@
   width: 100%;
   appearance: none;
   text-align: left;
-  background-color: #14141a;
+  background-color: var(--surface-control);
   border: 1px solid rgba(191, 90, 242, 0.3);
   border-radius: 6px;
   padding: 8px 12px;
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--motion-state) ease, background-color var(--motion-state) ease, box-shadow var(--motion-state) ease;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -399,7 +399,7 @@
 .combat-item-card.disabled {
   opacity: 0.3;
   cursor: not-allowed;
-  border-color: #22222d !important;
+  border-color: var(--border-control) !important;
   box-shadow: none !important;
   background-color: transparent !important;
 }

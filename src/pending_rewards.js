@@ -320,7 +320,6 @@ function createActionButton(text, className, onClick, id = "") {
   if (id) button.id = id;
   button.className = className;
   button.textContent = text;
-  button.style.minHeight = "44px";
   button.addEventListener("click", onClick);
   return button;
 }

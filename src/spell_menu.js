@@ -369,9 +369,9 @@ export function renderSpellOverlay() {
       card.type = "button";
 
       // Target validation logic
-      const { isDisabled, reason, isRecommended } = getSpellAllyTargetStatus(menuContext.spellName, char);
+      const { isDisabled, reason } = getSpellAllyTargetStatus(menuContext.spellName, char);
 
-      card.className = `spell-target-card ${isDisabled ? "disabled" : ""} ${isRecommended ? "recommended" : ""}`;
+      card.className = `spell-target-card ${isDisabled ? "disabled" : ""}`;
 
       if (isDisabled) {
         card.disabled = true;
@@ -381,14 +381,7 @@ export function renderSpellOverlay() {
         });
       }
 
-      let statusColor;
-      if (isRecommended) {
-        statusColor = "var(--neon-green)";
-      } else if (isDisabled) {
-        statusColor = "rgba(255, 255, 255, 0.2)";
-      } else {
-        statusColor = "var(--neon-cyan)";
-      }
+      const statusColor = isDisabled ? "var(--text-disabled)" : "var(--neon-cyan)";
 
       const hpColor = char.hp <= char.maxHp * 0.3 ? "var(--neon-red)" : (char.hp <= char.maxHp * 0.5 ? "var(--neon-amber)" : "#fff");
       const statusSuffix = char.status !== "ok" && char.status !== "dead" ? ` [${char.status.toUpperCase()}]` : "";

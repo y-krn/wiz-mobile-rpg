@@ -45,30 +45,29 @@ export function isSpellAvailableInContext(spell, context) {
 
 export function getSpellAllyTargetStatus(spellKey, char) {
   if (!char || char.status === "dead") {
-    return { isDisabled: true, reason: "対象外", isRecommended: false };
+    return { isDisabled: true, reason: "対象外" };
   }
 
   if (DAMAGED_HEAL_SPELL_KEYS.includes(spellKey)) {
     if (char.hp >= char.maxHp) {
-      return { isDisabled: true, reason: "HP満タン", isRecommended: false };
+      return { isDisabled: true, reason: "HP満タン" };
     }
 
     return {
       isDisabled: false,
-      reason: "回復推奨",
-      isRecommended: char.hp / char.maxHp <= 0.5
+      reason: "回復可"
     };
   }
 
   const isValidStatusTarget = STATUS_CURE_RULES[spellKey];
   if (isValidStatusTarget) {
     if (isValidStatusTarget(char)) {
-      return { isDisabled: false, reason: "治療可", isRecommended: true };
+      return { isDisabled: false, reason: "治療可" };
     }
-    return { isDisabled: true, reason: "健康", isRecommended: false };
+    return { isDisabled: true, reason: "健康" };
   }
 
-  return { isDisabled: false, reason: "選択可能", isRecommended: false };
+  return { isDisabled: false, reason: "選択可能" };
 }
 
 export function getSpellAllyTargetIndices(spellKey, party) {
