@@ -1,6 +1,6 @@
 import { loadGame, saveAutosave, state } from "./state.js";
 import { initErrorContext } from "./error_context.js";
-import { addGameBreadcrumb } from "./sentry.js";
+import { addGameBreadcrumb, captureException } from "./sentry.js";
 import { DungeonRenderer, setDungeonRenderer } from "./renderer.js";
 import { toggleMute } from "./audio.js";
 import { setUiUpdateCallback, goBackSubmenu, menuContext } from "./navigation.js";
@@ -29,6 +29,18 @@ let renderer = null;
 let animationFrameId = null;
 let lastTime = null;
 const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, viewport-fit=cover";
+
+function reportRendererRecovery(error, rendererName, op) {
+  captureException(error, {
+    level: "warning",
+    tags: {
+      subsystem: "renderer",
+      renderer: rendererName,
+      op,
+      recovery: "canvas-fallback",
+    },
+  });
+}
 
 export function initGame() {
   setUiUpdateCallback(updateUI);
@@ -70,7 +82,8 @@ export function initGame() {
       renderer = candidate.supported ? candidate : new DungeonRenderer("dungeon-canvas");
       setDungeonRenderer(renderer);
       start();
-    }).catch(() => {
+    }).catch((error) => {
+      reportRendererRecovery(error, "three", "module-init");
       renderer = new DungeonRenderer("dungeon-canvas");
       setDungeonRenderer(renderer);
       start();
@@ -92,13 +105,15 @@ export function initGame() {
           candidate.dispose();
           renderer = new DungeonRenderer("dungeon-canvas");
         }
-      } catch {
+      } catch (error) {
+        reportRendererRecovery(error, "pixi", "renderer-init");
         candidate.dispose();
         renderer = new DungeonRenderer("dungeon-canvas");
       }
       setDungeonRenderer(renderer);
       start();
-    }).catch(() => {
+    }).catch((error) => {
+      reportRendererRecovery(error, "pixi", "module-init");
       renderer = new DungeonRenderer("dungeon-canvas");
       setDungeonRenderer(renderer);
       start();
