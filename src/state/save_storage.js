@@ -111,22 +111,24 @@ export function saveGame() {
   saveAutosave();
 }
 
-export function saveAutosave() {
+function persistSave({ rotateBackup = true } = {}) {
   try {
     const data = JSON.stringify(createSavePayload());
-    // 新規書き込み前に直前の正常セーブをバックアップへローテート。
-    // setItemは原子的なので、この時点のSAVE_KEYは前回の正常データ。
-    const prev = localStorage.getItem(SAVE_KEY);
-    if (prev) {
-      try {
-        localStorage.setItem(BACKUP_KEY, prev);
-      } catch (backupErr) {
-        // バックアップ失敗は致命ではない(容量超過など)。本体保存を優先。
-        captureException(backupErr, {
-          level: "warning",
-          tags: { subsystem: "save", op: "backup-rotation", recovery: "continue-primary-save" },
-        });
-        console.warn("Save backup rotation failed", backupErr);
+    if (rotateBackup) {
+      // 新規書き込み前に直前の正常セーブをバックアップへローテート。
+      // setItemは原子的なので、この時点のSAVE_KEYは前回の正常データ。
+      const prev = localStorage.getItem(SAVE_KEY);
+      if (prev) {
+        try {
+          localStorage.setItem(BACKUP_KEY, prev);
+        } catch (backupErr) {
+          // バックアップ失敗は致命ではない(容量超過など)。本体保存を優先。
+          captureException(backupErr, {
+            level: "warning",
+            tags: { subsystem: "save", op: "backup-rotation", recovery: "continue-primary-save" },
+          });
+          console.warn("Save backup rotation failed", backupErr);
+        }
       }
     }
     localStorage.setItem(SAVE_KEY, data);
@@ -138,6 +140,15 @@ export function saveAutosave() {
       tags: { subsystem: "save", op: "autosave" },
     });
   }
+}
+
+export function saveAutosave() {
+  persistSave();
+}
+
+// ロード後の正規化・復旧書き戻しでは、既存のbackup世代を維持する。
+function saveLoadedState() {
+  persistSave({ rotateBackup: false });
 }
 
 export function clearSave() {
@@ -167,7 +178,6 @@ function recoverActiveRunFloorIfNeeded() {
   ensureRunFloor(state, state.floor);
   if (hadUsableFloorMap) return;
   addLog("探索中のマップデータが欠落していたため、同じランの階層を再生成して復旧しました。");
-  saveAutosave();
 }
 
 export function loadGame() {
@@ -190,7 +200,7 @@ export function loadGame() {
         addLog(`セーブデータが破損していたため、${src.label}から復旧しました。`);
       }
       // 復旧内容を正データとして確定(SAVE_KEYへ書き戻し)。
-      saveAutosave();
+      saveLoadedState();
       return;
     } catch (err) {
       if (err?.name === "RunFloorRecoveryError") {

@@ -545,6 +545,26 @@ check("a corrupt primary still falls back to the previous normal generation", ()
   loadGame();
 
   assert.deepEqual(state.metaMaterials, { "獣の牙": 1 });
+  assert.equal(saveValues.get("mobile_wiz_rpg_backup"), previousPayload);
+  assert.deepEqual(JSON.parse(saveValues.get("mobile_wiz_rpg_autosave")).metaMaterials, { "獣の牙": 1 });
+});
+
+check("loading a valid primary preserves the older backup generation", () => {
+  saveValues.clear();
+  state.currentRun = null;
+  state.gameState = "town";
+  state.metaMaterials = { "獣の牙": 1 };
+  saveAutosave();
+  const previousPayload = saveValues.get("mobile_wiz_rpg_autosave");
+
+  state.metaMaterials = { "獣の牙": 2 };
+  saveAutosave();
+  assert.equal(saveValues.get("mobile_wiz_rpg_backup"), previousPayload);
+
+  loadGame();
+
+  assert.deepEqual(state.metaMaterials, { "獣の牙": 2 });
+  assert.equal(saveValues.get("mobile_wiz_rpg_backup"), previousPayload);
 });
 
 check("legacy event cooldown field is ignored during load", () => {
