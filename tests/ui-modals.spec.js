@@ -25,7 +25,7 @@ for (const vp of VIEWPORTS) {
         identified: true,
         affixes: [],
       }));
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     const overlay = page.locator('#equip-overlay');
@@ -78,7 +78,7 @@ for (const vp of VIEWPORTS) {
         identified: true,
         affixes: [],
       }];
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     const equippedWeapon = page.locator('.equip-equipped-row[data-slot-id="weapon"]');
@@ -113,7 +113,7 @@ for (const vp of VIEWPORTS) {
           identified: true, affixes: []
         }
       ];
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     await page.locator('.equip-item-row', { hasText: '鋭利なダガー' }).click();
@@ -139,7 +139,7 @@ for (const vp of VIEWPORTS) {
         kind: 'equipment', instanceId: 'display_atk_plus_one_point_five', baseId: 'DAGGER', rarity: 'magic', level: 1,
         identified: true, affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 1.5 }]
       }];
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     const oddWeapon = page.locator('.equip-item-row', { hasText: '攻撃 +4.5' });
@@ -173,7 +173,7 @@ for (const vp of VIEWPORTS) {
       }];
       state.metaMaterials = { '鉄片': 4 };
       saveAutosave();
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
       window.__equipmentPreviewBaseline = {
         party: JSON.stringify(state.party),
         inventory: JSON.stringify(state.inventory),
@@ -217,7 +217,7 @@ for (const vp of VIEWPORTS) {
     await page.getByRole('button', { name: '閉じる' }).click();
     await page.evaluate(async () => {
       const { openEquipOverlay } = await import('/src/equip.js');
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
     await page.locator('.equip-item-row', { hasText: 'ショートソード' }).click();
     await assertPreviewStateUnchanged();
@@ -269,7 +269,7 @@ for (const vp of VIEWPORTS) {
         partyEquipment: JSON.stringify({ weapon: payload.party[0].equipment.weapon, shield: payload.party[0].equipment.shield }),
         inventory: JSON.stringify(payload.inventory)
       };
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     const assertGuardedStateUnchanged = async () => {
@@ -309,7 +309,7 @@ for (const vp of VIEWPORTS) {
         }
       });
       const { openEquipOverlay } = await import('/src/equip.js');
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
     await expect(page.locator('.equip-equipped-row[data-slot-id="weapon"]')).toContainText('ダガー');
     await page.locator('.equip-equipped-row[data-slot-id="weapon"]').click();
@@ -340,7 +340,7 @@ for (const vp of VIEWPORTS) {
         capture: (name, properties) => window.__discardTelemetry.push({ name, properties })
       });
       trackRunStart(state.currentRun || {}, state.party[0], state);
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     await page.locator('.equip-item-row.rarity-common', { hasText: 'ショートソード' }).click();
@@ -427,7 +427,7 @@ for (const vp of VIEWPORTS) {
         capture: (name, properties) => window.__organizeTelemetry.push({ name, properties })
       });
       trackRunStart(state.currentRun || {}, state.party[0], state);
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     await page.getByRole('button', { name: /整理モード/ }).click();
@@ -493,7 +493,7 @@ for (const vp of VIEWPORTS) {
         kind: 'equipment', instanceId: 'organize_unverifiable', baseId: 'SHORT_SWORD', rarity: 'common', level: 1,
         identified: true, affixes: []
       }];
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
 
       const brokenEquipment = new Proxy({}, {
         ownKeys() {
@@ -522,7 +522,7 @@ for (const vp of VIEWPORTS) {
         kind: 'equipment', instanceId: 'return_to_list_sword', baseId: 'SHORT_SWORD', rarity: 'common', level: 1,
         identified: true, affixes: []
       }];
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     const sword = page.locator('.equip-item-row.rarity-common', { hasText: 'ショートソード' });
@@ -560,7 +560,7 @@ for (const vp of VIEWPORTS) {
           identified: false, unidentifiedName: '未鑑定の杖', enhanceLevel: 0, affixes: []
         },
       ];
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
@@ -655,7 +655,7 @@ for (const vp of VIEWPORTS) {
           affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 3 }]
         },
       ];
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     await page.locator('.equip-bag-section .equip-item-row', { hasText: '鋭利なダガー' }).click();
@@ -744,7 +744,7 @@ for (const vp of VIEWPORTS) {
           affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 8 }]
         }
       ];
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     const unidentifiedSword = page.locator('.equip-item-row', { hasText: 'ショートソード（未鑑定）' });
@@ -842,7 +842,7 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
         identified: true,
         affixes: [],
       }));
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     const overlay = page.locator('#equip-overlay');
@@ -944,7 +944,7 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
           baseId: 'DAGGER', rarity: 'common', level: 1, identified: true, affixes: [],
         },
       ];
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     const overlay = page.locator('#equip-overlay');
@@ -1050,7 +1050,7 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
         kind: 'equipment', instanceId: 'ui_low_height_enhance', baseId: 'SHORT_SWORD', rarity: 'common', level: 1,
         identified: true, enhanceLevel: 0, affixes: []
       }];
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
@@ -1091,7 +1091,7 @@ for (const vp of VIEWPORTS) {
         affixes: [],
       }));
       state.gameState = 'town';
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     const overlay = page.locator('#equip-overlay');

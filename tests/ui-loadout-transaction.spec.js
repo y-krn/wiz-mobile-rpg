@@ -119,7 +119,7 @@ test('loadout changes stay in a draft until one exploration-turn commit @smoke',
     window.__uxTelemetry = [];
     __setTelemetryClientForTests({ capture: (name, properties) => window.__uxTelemetry.push({ name, properties }) });
     trackRunStart(state.currentRun, character, state);
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
 
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
@@ -170,7 +170,7 @@ test('canceling a dirty loadout draft leaves the live run untouched @smoke', asy
     window.__uxTelemetry = [];
     __setTelemetryClientForTests({ capture: (name, properties) => window.__uxTelemetry.push({ name, properties }) });
     trackRunStart(state.currentRun, character, state);
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
   await page.getByRole('button', { name: '装備する' }).click();
@@ -208,7 +208,7 @@ test('equipment transaction actions stay separated and thumb-safe across mobile 
       }];
       state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'touch-target-ui' };
       state.gameState = 'explore';
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
@@ -280,7 +280,7 @@ test('unknown equipment uses an explicit irreversible trial action @smoke', asyn
     }];
     state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'trial-ui' };
     state.gameState = 'explore';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
 
   await page.locator('.equip-bag-section .equip-item-row', { hasText: '未鑑定の装備品' }).click();
@@ -327,7 +327,7 @@ test('committing outside exploration does not advance exploration time @smoke', 
     state.inventory = ['SHORT_SWORD'];
     state.currentRun = { steps: 4, floorSteps: { '1': 4 }, materials: {}, runSeed: 'town-ui' };
     state.gameState = 'town';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
   await page.getByRole('button', { name: '装備する' }).click();
@@ -367,7 +367,7 @@ test('committing a loadout consumes the normal exploration poison tick @smoke', 
     state.gameState = 'explore';
     window.__loadoutTestRandom = Math.random;
     Math.random = () => 0;
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
   await page.getByRole('button', { name: '装備する' }).click();
@@ -396,7 +396,7 @@ test('equipment detail exposes build commitments and neutral replacement consequ
     }];
     state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'build-commitment-ui' };
     state.gameState = 'explore';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
 
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'クレイモア' }).click();
@@ -436,7 +436,7 @@ test('active and spare Runes are labeled by their ownership surface @smoke', asy
     state.inventory = ['RUNE_DIOS'];
     state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'rune-ownership-ui' };
     state.gameState = 'explore';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
 
   const runePanel = page.locator('.equip-rune-panel');
@@ -460,7 +460,7 @@ test('medium replacement shows current MP separately from maximum MP @smoke', as
     }];
     state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'medium-mp-ui' };
     state.gameState = 'town';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
 
   await page.locator('.equip-bag-section .equip-item-row', { hasText: '大魔道の杖' }).click();
