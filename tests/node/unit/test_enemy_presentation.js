@@ -26,4 +26,7 @@ for (const [name, asset] of Object.entries(ENEMY_UNIQUE_ASSETS)) {
   assert.equal(presentation.asset, asset);
   assert.ok(asset.endsWith(".webp"), `${name} uses a bounded transparent WebP asset`);
 }
+const splitChild = getEnemyPresentation({ name: "分裂スライムの分裂体1", spriteType: "biter" });
+assert.equal(splitChild.assetKey, "enemy:分裂スライム");
+assert.equal(splitChild.asset, ENEMY_UNIQUE_ASSETS["分裂スライム"]);
 console.log("ENEMY PRESENTATION TEST PASSED");

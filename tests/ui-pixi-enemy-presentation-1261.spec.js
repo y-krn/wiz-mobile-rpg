@@ -202,6 +202,12 @@ test('named B1F enemies keep distinct production art identities @smoke @visual @
     { name: 'ゴブリンの呪術師', level: 1, hp: 20, maxHp: 20, color: '#00ff66', spriteType: 'kobold', spell: 'HALITO' },
   ], true);
   await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-named-b1f-trio.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setCombat(page, [
+    { name: '分裂スライムの分裂体1', level: 1, hp: 10, maxHp: 10, color: '#34c759', spriteType: 'biter' },
+    { name: '分裂スライムの分裂体2', level: 1, hp: 10, maxHp: 10, color: '#34c759', spriteType: 'biter' },
+  ], true);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-split-slime-children.png') });
   const evidence = await page.evaluate(async () => {
     const { dungeonRenderer } = await import('/src/renderer.js');
     const { getEnemyPresentation } = await import('/src/enemy_presentation.js');
@@ -210,7 +216,7 @@ test('named B1F enemies keep distinct production art identities @smoke @visual @
       textureKeys: [...dungeonRenderer.enemyTextures.keys()],
     };
   });
-  expect(evidence.assetKeys).toEqual(['enemy:フラッシュバット', 'enemy:マッドスライム', 'enemy:ゴブリンの呪術師']);
+  expect(evidence.assetKeys).toEqual(['enemy:分裂スライム', 'enemy:分裂スライム']);
   expect(evidence.assetKeys.every(assetKey => evidence.textureKeys.includes(assetKey))).toBe(true);
 });
 

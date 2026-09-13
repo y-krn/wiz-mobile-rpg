@@ -84,6 +84,18 @@ function includesAny(value, words) {
   return words.some(word => value.includes(word));
 }
 
+function resolveUniqueAssetName(name) {
+  if (ENEMY_UNIQUE_ASSETS[name]) return name;
+
+  // Split children keep their combat-facing display name, but inherit the
+  // parent's production cutout so a slime never falls through to the generic
+  // small-creature fallback after splitting.
+  const splitChild = name.match(/^(.*)の分裂体\d+$/);
+  if (splitChild && ENEMY_UNIQUE_ASSETS[splitChild[1]]) return splitChild[1];
+
+  return null;
+}
+
 export function getEnemyArchetype(monster = {}) {
   const name = typeof monster.name === "string" ? monster.name : "";
   const spriteType = typeof monster.spriteType === "string" ? monster.spriteType : "";
@@ -99,10 +111,11 @@ export function getEnemyArchetype(monster = {}) {
 export function getEnemyPresentation(monster = {}) {
   const archetype = getEnemyArchetype(monster);
   const base = ENEMY_ARCHETYPES[archetype];
-  const uniqueAsset = typeof monster.name === "string" ? ENEMY_UNIQUE_ASSETS[monster.name] : null;
+  const uniqueName = typeof monster.name === "string" ? resolveUniqueAssetName(monster.name) : null;
+  const uniqueAsset = uniqueName ? ENEMY_UNIQUE_ASSETS[uniqueName] : null;
   return {
     archetype,
-    assetKey: uniqueAsset ? `enemy:${monster.name}` : archetype,
+    assetKey: uniqueAsset ? `enemy:${uniqueName}` : archetype,
     ...base,
     asset: uniqueAsset || base.asset
   };
