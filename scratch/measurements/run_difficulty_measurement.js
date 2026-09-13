@@ -1,10 +1,5 @@
-// sim-scope: run — production-backed starting-kit depth difficulty measurement
-/* global console, process */
-
-import "../simulations/simulation_preflight.js";
-import fs from "node:fs";
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+// sim-scope: run — production-backed starting-kit depth difficulty measurement library
+/* global process */
 
 import { STARTING_KITS } from "../../src/state/initial_state.js";
 import {
@@ -13,7 +8,6 @@ import {
   hashConfiguration,
   rateMetric
 } from "./balance_measurement.js";
-import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
 export const RUNNER_VERSION = "run-difficulty-v1";
@@ -23,9 +17,9 @@ export const DEFAULT_SEED = 1277;
 export const SCENARIO_IDS = Object.freeze(["workshop-empty", "workshop-complete"]);
 export const TARGET_DEPTHS = Object.freeze([5, 10, 15, 20]);
 export const STARTING_KIT_IDS = Object.freeze(STARTING_KITS.map(kit => kit.id));
-
-const RUNNER_PATH = "scratch/measurements/run_difficulty_measurement.js";
-const PRODUCTION_PATHS = Object.freeze([
+export const MEASUREMENT_RUNNER_PATHS = Object.freeze([
+  "scratch/measurements/measure_run_difficulty.js",
+  "scratch/measurements/run_difficulty_measurement.js",
   "scratch/simulations/sim_depth_material_ev.js",
   "scratch/measurements/balance_measurement.js",
   "src/state/initial_state.js",
@@ -39,18 +33,7 @@ const PRODUCTION_PATHS = Object.freeze([
   "src/combat_logic/status_effects.js"
 ]);
 
-function parseArgs(argv) {
-  const options = {};
-  for (let index = 0; index < argv.length; index++) {
-    const arg = argv[index];
-    if (!arg.startsWith("--")) continue;
-    const [key, inlineValue] = arg.slice(2).split("=", 2);
-    options[key] = inlineValue ?? argv[++index];
-  }
-  return options;
-}
-
-function positiveInteger(value, label, minimum = 1) {
+export function positiveInteger(value, label, minimum = 1) {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < minimum) {
     throw new Error(`${label} must be an integer >= ${minimum}: ${value}`);
@@ -86,10 +69,6 @@ function summarize(values) {
     min: sorted[0],
     max: sorted.at(-1)
   };
-}
-
-function firstEvent(events, predicate) {
-  return events.find(predicate) || null;
 }
 
 function createAccumulator(runs, targetDepths) {
@@ -154,12 +133,9 @@ function observeRun(accumulator, result, targetDepths) {
   }
   if (Number.isFinite(diagnostics.fleeAttempts)) accumulator.fleeAttempts.push(diagnostics.fleeAttempts);
 
-  const rewardEvents = result.diagnostics?.rewardEvents || [];
-  accumulator.meaningfulLootRuns += Number(Boolean(firstEvent(rewardEvents, event => event.meaningful === true)));
-  accumulator.equipmentOpportunityRuns += Number(Boolean(firstEvent(
-    rewardEvents,
-    event => event.category === "equipment"
-  )));
+  const rewardEvents = result.diagnostics?.rewardEvents || result.rewardEvents || [];
+  accumulator.meaningfulLootRuns += Number(rewardEvents.some(event => event.meaningful === true));
+  accumulator.equipmentOpportunityRuns += Number(rewardEvents.some(event => event.category === "equipment"));
   const shifts = (result.equipmentTelemetry || []).filter(event => event.type === "swap");
   accumulator.buildChangeRuns += Number(shifts.length > 0);
   accumulator.buildShiftCount.push(shifts.length);
@@ -242,12 +218,13 @@ export async function runMeasurement({
   const normalizedKitIds = [...startingKitIds];
   const normalizedScenarioIds = [...scenarioIds];
   const normalizedTargetDepths = [...targetDepths].map(depth => positiveInteger(depth, "targetDepth"));
-  if (normalizedKitIds.some(id => !STARTING_KIT_IDS.includes(id))) {
-    throw new Error(`unknown starting kit in ${normalizedKitIds.join(",")}`);
+  if (normalizedKitIds.length === 0 || normalizedKitIds.some(id => !STARTING_KIT_IDS.includes(id))) {
+    throw new Error(`startingKitIds must be non-empty and drawn from ${STARTING_KIT_IDS.join("|")}`);
   }
-  if (normalizedScenarioIds.some(id => !SCENARIO_IDS.includes(id))) {
-    throw new Error(`scenarioIds must be ${SCENARIO_IDS.join("|")}`);
+  if (normalizedScenarioIds.length === 0 || normalizedScenarioIds.some(id => !SCENARIO_IDS.includes(id))) {
+    throw new Error(`scenarioIds must be non-empty and drawn from ${SCENARIO_IDS.join("|")}`);
   }
+  if (normalizedTargetDepths.length === 0) throw new Error("targetDepths must be non-empty");
 
   const envConfig = {
     ...STANDARD_BALANCE_CONFIG,
@@ -345,7 +322,7 @@ export async function runMeasurement({
   };
 }
 
-function buildReport(result, provenance, { purpose = null, requestedRef = null } = {}) {
+export function buildReport(result, provenance, { purpose = null, requestedRef = null } = {}) {
   const scope = readSimScopeDeclaration(import.meta.url)?.name || "run";
   const environmentHash = printEnvSignatureBanner({
     scope,
@@ -366,7 +343,7 @@ function buildReport(result, provenance, { purpose = null, requestedRef = null }
       productionBaselineSha: provenance?.gameplaySourceCommit || null,
       sourceCommit: provenance?.sourceCommit || null,
       simulatorRunnerCommit: provenance?.measurementRunnerCommit || provenance?.sourceCommit || null,
-      measurementRunnerPaths: provenance?.measurementRunnerPaths || [RUNNER_PATH, ...PRODUCTION_PATHS],
+      measurementRunnerPaths: provenance?.measurementRunnerPaths || [...MEASUREMENT_RUNNER_PATHS],
       measurementRunnerDiffSha256: provenance?.measurementRunnerDiffSha256 || null,
       originMainAncestor: provenance?.originMainAncestor ?? null,
       staleTreeAllowed: provenance?.staleTreeAllowed ?? null,
@@ -388,7 +365,7 @@ function topCount(counts) {
   return entry ? `${entry[0]} (${entry[1]})` : "none";
 }
 
-function buildSummary(report) {
+export function buildSummary(report) {
   const lines = [
     "# Run difficulty measurement",
     "",
@@ -428,14 +405,16 @@ function buildSummary(report) {
   return lines.join("\n");
 }
 
-function buildManifest(report) {
+export function buildManifest(report, { runType = "baseline-candidate" } = {}) {
   return {
     schemaVersion: 1,
     status: "success",
+    baselineCandidate: runType === "baseline-candidate",
     runner: report.runnerVersion,
     source: report.measurement,
     configuration: report.configuration,
     purpose: report.measurement.purpose,
+    runType,
     workflow: {
       repository: process.env.MEASUREMENT_REPOSITORY || null,
       runId: process.env.MEASUREMENT_WORKFLOW_RUN_ID || null,
@@ -444,37 +423,4 @@ function buildManifest(report) {
       generatedAt: new Date().toISOString()
     }
   };
-}
-
-async function main() {
-  const options = parseArgs(process.argv.slice(2));
-  const runs = positiveInteger(options.runs || DEFAULT_RUNS, "runs", DEFAULT_RUNS);
-  const seed = positiveInteger(options.seed || DEFAULT_SEED, "seed");
-  const output = options.output;
-  const summary = options.summary;
-  const manifest = options.manifest;
-  if (!output || !summary || !manifest) {
-    throw new Error("--output, --summary, and --manifest are required");
-  }
-
-  const provenance = requireRunnerProvenance({
-    fetchOriginMain: false,
-    measurementRunnerPaths: [RUNNER_PATH, ...PRODUCTION_PATHS]
-  });
-  const result = await runMeasurement({ runs, seed });
-  const report = buildReport(result, provenance, {
-    purpose: options.purpose || null,
-    requestedRef: options.ref || process.env.MEASUREMENT_REQUESTED_REF || null
-  });
-  fs.writeFileSync(resolve(output), `${JSON.stringify(report, null, 2)}\n`);
-  fs.writeFileSync(resolve(summary), `${buildSummary(report)}\n`);
-  fs.writeFileSync(resolve(manifest), `${JSON.stringify(buildManifest(report), null, 2)}\n`);
-  console.log(`Wrote run difficulty measurement: ${resolve(output)}`);
-}
-
-if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
-  main().catch(error => {
-    console.error(error.stack || error.message);
-    process.exitCode = 1;
-  });
 }
