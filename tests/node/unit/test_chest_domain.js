@@ -46,7 +46,12 @@ assert.deepEqual(
   { "獣の牙": 1 }
 );
 
-assert.equal(rollChestTrap(1, () => 0.99), "none");
+let b1TrapRolls = 0;
+assert.equal(rollChestTrap(1, () => {
+  b1TrapRolls += 1;
+  return 0.99;
+}), "none");
+assert.equal(b1TrapRolls, 1, "B1F disabled chest trap preserves one legacy RNG draw");
 assert.equal(rollChestTrap(2, () => 0), "poison needle");
 assert.equal(rollChestTrap(6, () => 0), "poison needle");
 
