@@ -17,6 +17,7 @@ export const GOLDEN_JOURNEYS = Object.freeze([
     screenshotSurface: 'preparation',
     contract: ['starting kit remains selected until B1F commit', 'departure feedback is visible', 'explore controls are reachable'],
     followUp: null,
+    a11y: { criticalStates: ['starting-kit', 'B1F departure'], invariants: ['semantics', 'keyboard', 'zoom-text'], representative: '390x844 / default motion' },
   },
   {
     id: 'explore-combat-result-explore',
@@ -29,6 +30,7 @@ export const GOLDEN_JOURNEYS = Object.freeze([
     screenshotSurface: 'semantic-only',
     contract: ['combat entry is perceivable', 'result identifies outcome and next action', 'explore context resumes'],
     followUp: '#1217 owns fresh-run death/retry gate',
+    a11y: { criticalStates: ['combat entry', 'result outcome'], invariants: ['semantics', 'reduced-motion', 'renderer-equivalent'], representative: '390x844 / reduced motion' },
   },
   {
     id: 'combat-target-back-reselect',
@@ -41,6 +43,7 @@ export const GOLDEN_JOURNEYS = Object.freeze([
     screenshotSurface: 'semantic-only',
     contract: ['Back cancels only the uncommitted target', 'reselect remains available', 'no combat action is committed by Back'],
     followUp: '#1133 owns target-selection presentation density',
+    a11y: { criticalStates: ['target selection', 'after Back'], invariants: ['semantics', 'focus', 'keyboard', 'renderer-equivalent'], representative: '390x844 / default motion' },
   },
   {
     id: 'loot-inspect-compare-settle',
@@ -53,6 +56,7 @@ export const GOLDEN_JOURNEYS = Object.freeze([
     screenshotSurface: 'equipment-comparison',
     contract: ['current/proposed build stays visible', 'draft is not live until commit', 'cancel leaves inventory unchanged'],
     followUp: null,
+    a11y: { criticalStates: ['equipment compare', 'commit/cancel footer'], invariants: ['semantics', 'focus', 'zoom-text', 'long-content', 'non-color'], representative: '320x568 / long Japanese item name' },
   },
   {
     id: 'full-bag-replacement',
@@ -65,6 +69,7 @@ export const GOLDEN_JOURNEYS = Object.freeze([
     screenshotSurface: 'full-bag-replacement',
     contract: ['capacity is visible at decision point', 'replacement consequence is named', 'cancel does not discard'],
     followUp: null,
+    a11y: { criticalStates: ['replacement decision', 'cancel'], invariants: ['semantics', 'focus', 'keyboard', 'zoom-text', 'long-content'], representative: '320x568 / text proxy' },
   },
   {
     id: 'chest-trap-decision',
@@ -77,6 +82,7 @@ export const GOLDEN_JOURNEYS = Object.freeze([
     screenshotSurface: 'chest-decision',
     contract: ['inspect precedes decision', 'risk/cost remains readable', 'result returns to a known context'],
     followUp: null,
+    a11y: { criticalStates: ['chest decision', 'trap result'], invariants: ['semantics', 'focus', 'non-color', 'reduced-motion', 'renderer-equivalent'], representative: '320x568 / reduced motion' },
   },
   {
     id: 'portal-resolution',
@@ -89,6 +95,7 @@ export const GOLDEN_JOURNEYS = Object.freeze([
     screenshotSurface: 'portal',
     contract: ['Push and Return are equal first-class choices', 'confirmation states consequence', 'resolution reaches Result once'],
     followUp: null,
+    a11y: { criticalStates: ['portal choice', 'portal confirmation'], invariants: ['semantics', 'focus', 'keyboard', 'zoom-text', 'non-color'], representative: '390x844 / default motion' },
   },
   {
     id: 'wing-rescue-selection',
@@ -101,6 +108,7 @@ export const GOLDEN_JOURNEYS = Object.freeze([
     screenshotSurface: 'wing-selection',
     contract: ['all eligible candidates are shown', 'selection limit is visible', 'Back leaves ownership unchanged'],
     followUp: null,
+    a11y: { criticalStates: ['Wing selection', 'selection limit'], invariants: ['semantics', 'focus', 'keyboard', 'zoom-text', 'non-color'], representative: '320x568 / text proxy' },
   },
   {
     id: 'death-result-town',
@@ -113,6 +121,7 @@ export const GOLDEN_JOURNEYS = Object.freeze([
     screenshotSurface: 'result',
     contract: ['loss and retained record are distinct', 'death cause is player-readable', 'Town is the next available action'],
     followUp: '#1217 owns manual fresh-B1F retry-hypothesis validation',
+    a11y: { criticalStates: ['death result', 'Town return'], invariants: ['semantics', 'focus', 'long-content', 'non-color', 'renderer-equivalent'], representative: '390x844 / long Japanese cause' },
   },
   {
     id: 'town-preparation-next-run',
@@ -125,6 +134,7 @@ export const GOLDEN_JOURNEYS = Object.freeze([
     screenshotSurface: 'town-and-preparation',
     contract: ['Town explains previous/next/accumulated context', 'run conditions remain together', 'next run starts through the same contract'],
     followUp: null,
+    a11y: { criticalStates: ['Town home', 'preparation'], invariants: ['semantics', 'focus', 'keyboard', 'zoom-text', 'non-color'], representative: '320x568 / text proxy' },
   },
 ]);
 

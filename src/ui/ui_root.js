@@ -24,6 +24,7 @@ import {
   MILESTONE_CLEARED_STRUCTURE_MESSAGE,
   MILESTONE_STRUCTURE_MESSAGE
 } from "./milestone_disclosure.js";
+import { releaseFocusSurface, syncFocusSurface } from "./focus_manager.js";
 
 let floorStingerTimer = null;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
@@ -184,11 +185,13 @@ export function openLogOverlay() {
   renderLogOverlay();
   const body = document.getElementById("log-overlay-body");
   if (body) body.scrollTop = body.scrollHeight;
+  syncFocusSurface("log-overlay", overlay);
 }
 
 export function closeLogOverlay() {
   const overlay = document.getElementById("log-overlay");
   if (overlay) overlay.style.display = "none";
+  releaseFocusSurface("log-overlay", "#btn-log");
 }
 
 export function getFloorExplorationRate() {
@@ -616,6 +619,31 @@ export function updateUI() {
       controlsPanel.style.pointerEvents = "auto";
       controlsPanel.style.opacity = "1";
     }
+  }
+
+  const focusSurface = view.isUsableCombatOverlaySubmenu
+    ? { id: "combat-overlay", element: document.getElementById("combat-overlay") }
+    : gameState === "equip_overlay"
+      ? { id: "equip-overlay", element: document.getElementById("equip-overlay") }
+      : view.isUsableSpellOverlaySubmenu
+        ? { id: "spell-overlay", element: document.getElementById("spell-overlay") }
+        : gameState === "result"
+          ? { id: "result-overlay", element: document.getElementById("result-overlay") }
+          : view.isSubmenu
+            ? { id: "submenu-controls", element: document.getElementById("submenu-controls") }
+            : null;
+  if (focusSurface) {
+    syncFocusSurface(focusSurface.id, focusSurface.element);
+  } else {
+    const focusFallbacks = {
+      "combat-overlay": "#btn-combat-fight",
+      "equip-overlay": "#btn-equip-close",
+      "spell-overlay": "#btn-combat-spell",
+      "result-overlay": "#btn-town-dungeon",
+      "submenu-controls": "#btn-town-dungeon"
+    };
+    ["combat-overlay", "equip-overlay", "spell-overlay", "result-overlay", "submenu-controls"]
+      .some(id => releaseFocusSurface(id, focusFallbacks[id]));
   }
 
   updateSoloHUD();
