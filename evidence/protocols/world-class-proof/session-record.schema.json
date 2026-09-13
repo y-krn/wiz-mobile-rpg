@@ -3,7 +3,7 @@
   "title": "World-class Proof sole-user record",
   "type": "object",
   "additionalProperties": false,
-  "required": ["protocolVersion", "recordStatus", "sessionId", "usageMode", "product", "sourceSha", "journeyId", "outcome", "frictionCodes"],
+  "required": ["protocolVersion", "recordStatus", "sessionId", "usageMode", "product", "sourceSha", "journeyId", "playerGoal", "startingState", "outcome", "frictionCodes", "evidenceLevel", "findingStatus"],
   "properties": {
     "protocolVersion": { "const": "1.1" },
     "recordStatus": { "enum": ["planned", "executed", "not_executed"] },
@@ -47,6 +47,22 @@
     "changeReference": { "type": ["string", "null"] },
     "limitations": { "type": ["string", "null"] }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "recordStatus": { "enum": ["planned", "not_executed"] }
+        },
+        "required": ["recordStatus"]
+      },
+      "then": {
+        "properties": {
+          "outcome": { "const": "not_observed" },
+          "findingStatus": { "const": "not_observed" }
+        }
+      }
+    }
+  ],
   "$defs": {
     "usageMode": { "enum": ["first_after_change", "steady_state", "regression_check"] },
     "outcome": { "enum": ["success", "success_with_friction", "blocked", "not_applicable", "not_observed"] },

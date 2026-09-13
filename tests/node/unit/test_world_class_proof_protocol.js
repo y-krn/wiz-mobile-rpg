@@ -77,6 +77,21 @@ assert.deepEqual(schema.$defs.evidenceLevel.enum, expectedEvidenceLevels, 'evide
 assert.deepEqual(schema.$defs.axis.enum, expectedAxes, 'evaluation axes must remain separate and bounded');
 assert.deepEqual(schema.$defs.finalClaim.enum, expectedClaims, 'final claim grammar must remain sole-user scoped');
 
+for (const field of ['playerGoal', 'startingState', 'evidenceLevel', 'findingStatus']) {
+  assert.ok(schema.required.includes(field), `structured record requires ${field}`);
+}
+const recordStatusIntegrityRule = schema.allOf?.find(rule =>
+  rule.if?.properties?.recordStatus?.enum?.includes('not_executed'),
+);
+assert.ok(recordStatusIntegrityRule, 'record status integrity rule must cover not_executed');
+assert.deepEqual(
+  recordStatusIntegrityRule.if.properties.recordStatus.enum,
+  ['planned', 'not_executed'],
+  'planned and not_executed records need a conditional integrity rule',
+);
+assert.equal(recordStatusIntegrityRule.then.properties.outcome.const, 'not_observed');
+assert.equal(recordStatusIntegrityRule.then.properties.findingStatus.const, 'not_observed');
+
 assert.match(readme, /not_observed.*not PASS|not_observed.*PASS/s);
 assert.match(readme, /steady_state/);
 assert.match(readme, /same user's observable player goal/i);
