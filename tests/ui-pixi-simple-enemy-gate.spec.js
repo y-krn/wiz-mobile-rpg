@@ -114,8 +114,8 @@ test('Simple Enemy Presentation Gate produces actual-pixel A/B/C evidence for fo
     await capture(page, testInfo, `${subject.id}-illustrated.png`);
     const illustratedEvidence = await readPrototypeEvidence(page);
     expect(illustratedEvidence.mode).toBe('production');
-    expect(illustratedEvidence.textureCount).toBe(16);
-    expect(illustratedEvidence.enemyLabels[0].children.map((item) => item.label)).toContain('enemy-cutout');
+    expect(illustratedEvidence.textureCount).toBe(0);
+    expect(illustratedEvidence.enemyLabels[0].children.map((item) => item.label)).toContain('enemy-procedural');
 
     await openPixi(page, 'simple-rich');
     await setCombat(page, [subject]);

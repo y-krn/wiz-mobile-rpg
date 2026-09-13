@@ -1,5 +1,33 @@
 # Dark Archive Enemy Art Bible
 
+## Enemy Presentation Canon — production rollout
+
+**C-v3 Simple Enemy Presentation = PASS.** This is the frozen production
+reference. Enemy presentation is symbolic, primitive, procedural, and low
+information density: broad readable planes, a limited Dark Archive palette,
+one role-defining cue, and a restrained accent. It must share the graphical
+language of the Dungeon View renderer.
+
+The illustrated WebP direction is **REJECTED BY FINAL HUMAN VISUAL PREFERENCE
+REVIEW**. This is not a judgement that those assets were poorly executed;
+character illustration itself was the wrong abstraction level for this
+abstract Dungeon View. The WebP files remain as historical A/B evidence and
+are not runtime production dependencies.
+
+The canonical references are フラッシュバット (flying abstraction), ゴブリンの
+呪術師 v3 (caster/humanoid abstraction), マッドスライム (amorphous mass), and
+錆びた盾兵 v3 (tank abstraction). Do not make these references more detailed
+to match other enemies. Every named enemy and fallback recipe must instead
+obey their abstraction level. The rollout is procedural; normal Pixi combat
+must not preload enemy WebP textures.
+
+The production grammar is:
+
+**simple geometry → broad readable planes → one role-defining cue → restrained accent**
+
+The governing question is: **I recognize the threat before I recognize the
+costume.**
+
 ## Simple Enemy Presentation pivot
 
 The illustrated WebP direction was a useful intermediate experiment and passed

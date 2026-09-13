@@ -1,9 +1,9 @@
 // balance-impact: none — PixiJS screen-space presentation.
 // Pixi is the production-default renderer. This module consumes RendererInput
 // and deliberately stays within the shared screen-space projection contract.
-import { Application, Assets, Container, Graphics, Sprite, Text } from "pixi.js";
+import { Application, Assets, Container, Graphics, Text } from "pixi.js";
 import { EVENT_TYPES } from "./data.js";
-import { ENEMY_ARCHETYPES, ENEMY_UNIQUE_ASSETS, getEnemyPresentation } from "./enemy_presentation.js";
+import { getEnemyPresentation } from "./enemy_presentation.js";
 import {
   BASE_GEOMETRY,
   getCombatMonsterLayout,
@@ -16,6 +16,7 @@ import { renderMiniMapOverlay } from "./minimap.js";
 import {
   SIMPLE_ENEMY_PROTOTYPE_MODE,
   createEnemyPrototype,
+  createProceduralEnemy,
   getEnemyPrototypePresentation
 } from "./pixi_enemy_prototypes.js";
 
@@ -248,8 +249,8 @@ export class PixiDungeonRenderer {
         autoStart: false,
         preference: "webgl"
       });
-      // The cutouts are bounded local raster resources. Resolve them before exposing
-      // the renderer so combat never shows a blank/placeholder frame.
+      // Production enemies are procedural Graphics recipes. There is no enemy
+      // texture decode before the renderer is exposed.
       if (this.enemyPresentationMode === "production") await this.loadEnemyTextures();
       this.initializationPhase = "mount";
       this.scene = this.createSceneRoot("pixi-current-scene");
@@ -266,26 +267,13 @@ export class PixiDungeonRenderer {
   }
 
   async loadEnemyTextures() {
-    if (this.enemyPresentationMode !== "production") return Promise.resolve();
-    if (this.enemyAssetPromise) return this.enemyAssetPromise;
-    const manifest = {
-      ...Object.fromEntries(Object.entries(ENEMY_ARCHETYPES).map(([key, presentation]) => [key, presentation.asset])),
-      ...Object.fromEntries(Object.entries(ENEMY_UNIQUE_ASSETS).map(([name, asset]) => [`enemy:${name}`, asset]))
-    };
-    this.enemyAssetPromise = Promise.all(Object.entries(manifest).map(async ([assetKey, asset]) => {
-      try {
-        const texture = await Assets.load(asset);
-        if (texture) this.enemyTextures.set(assetKey, texture);
-      } catch {
-        // One broken art file must not prevent the renderer or combat flow
-        // from starting. The local silhouette is bounded and non-interactive.
-        this.enemyAssetFailures.add(assetKey);
-      }
-    })).then(() => {
-      this.resourceStats.enemyTextureCount = this.enemyTextures.size;
-      this.resourceStats.enemyAssetFailureCount = this.enemyAssetFailures.size;
-    });
-    return this.enemyAssetPromise;
+    // Kept as an idempotent lifecycle hook for callers and historical tests.
+    // No rejected WebP asset is loaded by the production renderer.
+    this.enemyTextureManifest = [];
+    this.enemyTextures.clear();
+    this.resourceStats.enemyTextureCount = 0;
+    this.resourceStats.enemyAssetFailureCount = 0;
+    return Promise.resolve();
   }
 
   triggerShake(intensity = 10, duration = 300) {
@@ -711,7 +699,7 @@ export class PixiDungeonRenderer {
       const hpY = Math.max(18, floorY - presentation.height * visualScale - 5);
       drawEllipse(actors, cx, floorY, Math.min(42, presentation.width * visualScale * 0.42), 5.5 * scale, "#05070a", 0.66);
       if (this.enemyPresentationMode === "production") {
-        this.drawEnemyCutout(actors, presentation, cx, floorY, visualScale, color, row, column, renderInput.combatTargetSelection?.active);
+        this.drawProceduralEnemy(actors, presentation, cx, floorY, visualScale, color, row, column);
       } else {
         this.drawEnemyPrototype(actors, monster, cx, floorY, visualScale, color, row, column, this.enemyPresentationMode);
       }
@@ -737,64 +725,14 @@ export class PixiDungeonRenderer {
     this.resourceStats.enemyPresentationCount += 1;
   }
 
-  drawEnemyCutout(actors, presentation, cx, floorY, visualScale, color, row, column, targetable) {
-    const texture = this.enemyTextures.get(presentation.assetKey || presentation.archetype);
+  drawProceduralEnemy(actors, presentation, cx, floorY, visualScale, color, row, column) {
     const billboard = new Container();
-    billboard.label = `enemy-${presentation.archetype}-${row}-${column}`;
+    billboard.label = `enemy-procedural-${presentation.recipe}-${row}-${column}`;
     billboard.position.set(cx, floorY);
     billboard.zIndex = row * 100 + column;
-    billboard.sortableChildren = true;
-
-    if (texture) {
-      const rim = new Sprite(texture);
-      rim.anchor.set(0.5, 1);
-      rim.scale.set(visualScale * 1.035);
-      rim.tint = parseColor(targetable ? color : "#5d777a");
-      rim.alpha = targetable ? 0.34 : 0.22;
-      rim.label = "enemy-rim";
-      billboard.addChild(rim);
-
-      const sprite = new Sprite(texture);
-      sprite.anchor.set(0.5, 1);
-      sprite.scale.set(visualScale);
-      sprite.tint = parseColor("#ffffff");
-      sprite.alpha = 0.98;
-      sprite.label = "enemy-cutout";
-      billboard.addChild(sprite);
-      this.resourceStats.enemyPresentationCount += 1;
-    } else {
-      this.drawFallbackEnemy(billboard, presentation, visualScale, color);
-      this.resourceStats.enemyFallbackCount += 1;
-    }
+    billboard.addChild(createProceduralEnemy(presentation.recipe, visualScale, parseColor(color)));
     actors.addChild(billboard);
-  }
-
-  drawFallbackEnemy(container, presentation, visualScale, color) {
-    const fallback = new Graphics();
-    const height = presentation.height * visualScale;
-    const width = presentation.width * visualScale;
-    // Emergency-only illustrated silhouette: head, shoulders, cloak, limbs,
-    // and a weapon cue. It is deliberately distinct from the production art.
-    fallback.poly([
-      -width * 0.18, -height * 0.88,
-      width * 0.14, -height * 0.94,
-      width * 0.26, -height * 0.76,
-      width * 0.19, -height * 0.58,
-      width * 0.42, -height * 0.36,
-      width * 0.28, -height * 0.04,
-      width * 0.10, 0,
-      -width * 0.12, 0,
-      -width * 0.28, -height * 0.04,
-      -width * 0.42, -height * 0.36,
-      -width * 0.19, -height * 0.58,
-      -width * 0.28, -height * 0.76
-    ]).fill({ color: parseColor("#16242a"), alpha: 0.95 }).stroke({ color: parseColor(color), width: Math.max(1.5, visualScale * 3), alpha: 0.9 });
-    fallback.moveTo(-width * 0.12, -height * 0.68).lineTo(width * 0.14, -height * 0.68);
-    fallback.moveTo(width * 0.32, -height * 0.62).lineTo(width * 0.56, -height * 0.12);
-    fallback.stroke({ color: parseColor("#d8b875"), width: Math.max(1, visualScale * 2), alpha: 0.9 });
-    fallback.label = "enemy-fallback-silhouette";
-    fallback.position.y = 0;
-    container.addChild(fallback);
+    this.resourceStats.enemyPresentationCount += 1;
   }
 
   drawTargetMarker(hitRegion, cx, cy, scale, color) {

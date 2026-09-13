@@ -1,79 +1,63 @@
-// balance-impact: none — visual metadata only; combat rules and state are unchanged.
-// Production enemy presentation metadata. Assets are repository-authored,
-// transparent generated raster cutouts with no external game-art dependency.
+// balance-impact: none — symbolic enemy presentation metadata only.
+//
+// Production enemies are procedural Pixi recipes. The rejected illustrated
+// WebP set remains in the repository as historical visual evidence, but is
+// deliberately not imported or preloaded by the runtime.
 
-const ASSETS = Object.freeze({
-  small: new URL("./assets/enemies/generated/small.webp", import.meta.url).href,
-  humanoid: new URL("./assets/enemies/generated/humanoid.webp", import.meta.url).href,
-  brute: new URL("./assets/enemies/generated/brute.webp", import.meta.url).href,
-  caster: new URL("./assets/enemies/generated/caster.webp", import.meta.url).href,
-  boss: new URL("./assets/enemies/generated/boss.webp", import.meta.url).href
+export const ENEMY_RECIPE_KEYS = Object.freeze({
+  flashBat: "flash-bat",
+  powderBat: "powder-bat",
+  biter: "biter",
+  mudSlime: "mud-slime",
+  splitSlime: "split-slime",
+  ratPack: "rat-pack",
+  sleepSpore: "sleep-spore",
+  mudCursedChild: "mud-cursed-child",
+  koboldScout: "kobold-scout",
+  goblinCaster: "goblin-caster",
+  rustedShield: "rusted-shield",
+  small: "small",
+  humanoid: "humanoid",
+  brute: "brute",
+  caster: "caster",
+  boss: "boss"
 });
 
-// Name-specific art is the production path. Archetypes remain useful for
-// sizing and for a bounded emergency fallback, but must not erase species
-// identity when a named cutout exists.
-export const ENEMY_UNIQUE_ASSETS = Object.freeze({
-  "かみつき蟲": new URL("./assets/enemies/generated/unique/biter.webp", import.meta.url).href,
-  "火薬コウモリ": new URL("./assets/enemies/generated/unique/powder-bat.webp", import.meta.url).href,
-  "マッドスライム": new URL("./assets/enemies/generated/unique/mud-slime.webp", import.meta.url).href,
-  "分裂スライム": new URL("./assets/enemies/generated/unique/split-slime.webp", import.meta.url).href,
-  "群れネズミ": new URL("./assets/enemies/generated/unique/rat-pack.webp", import.meta.url).href,
-  "まどろみ胞子": new URL("./assets/enemies/generated/unique/sleep-spore.webp", import.meta.url).href,
-  "泥の呪い子": new URL("./assets/enemies/generated/unique/mud-cursed-child.webp", import.meta.url).href,
-  "コボルトの斥候": new URL("./assets/enemies/generated/unique/kobold-scout.webp", import.meta.url).href,
-  "ゴブリンの呪術師": new URL("./assets/enemies/generated/unique/goblin-shaman.webp", import.meta.url).href,
-  "フラッシュバット": new URL("./assets/enemies/generated/unique/flash-bat.webp", import.meta.url).href,
-  "錆びた盾兵": new URL("./assets/enemies/generated/unique/rusted-shield.webp", import.meta.url).href
+const PRESENTATION_DEFAULTS = Object.freeze({
+  width: 140,
+  height: 125,
+  maxWidth: 140,
+  maxHeight: 125,
+  scale: 1
 });
 
-export const ENEMY_ARCHETYPES = Object.freeze({
-  small: Object.freeze({
-    asset: ASSETS.small,
-    width: 150,
-    height: 100,
-    maxWidth: 256,
-    maxHeight: 170,
-    scale: 0.55,
-    label: "small"
-  }),
-  humanoid: Object.freeze({
-    asset: ASSETS.humanoid,
-    width: 136,
-    height: 190,
-    maxWidth: 183,
-    maxHeight: 256,
-    scale: 0.75,
-    label: "humanoid"
-  }),
-  brute: Object.freeze({
-    asset: ASSETS.brute,
-    width: 170,
-    height: 210,
-    maxWidth: 170,
-    maxHeight: 256,
-    scale: 0.82,
-    label: "brute"
-  }),
-  caster: Object.freeze({
-    asset: ASSETS.caster,
-    width: 150,
-    height: 182,
-    maxWidth: 212,
-    maxHeight: 256,
-    scale: 0.72,
-    label: "caster"
-  }),
-  boss: Object.freeze({
-    asset: ASSETS.boss,
-    width: 166,
-    height: 200,
-    maxWidth: 213,
-    maxHeight: 256,
-    scale: 0.78,
-    label: "boss"
-  })
+const ARCHETYPE_PRESENTATIONS = Object.freeze({
+  small: Object.freeze({ ...PRESENTATION_DEFAULTS, width: 150, height: 100, maxWidth: 150, maxHeight: 170, scale: 0.55, label: "small", recipe: ENEMY_RECIPE_KEYS.small }),
+  humanoid: Object.freeze({ ...PRESENTATION_DEFAULTS, width: 136, height: 190, maxWidth: 183, maxHeight: 256, scale: 0.75, label: "humanoid", recipe: ENEMY_RECIPE_KEYS.humanoid }),
+  brute: Object.freeze({ ...PRESENTATION_DEFAULTS, width: 170, height: 210, maxWidth: 170, maxHeight: 256, scale: 0.82, label: "brute", recipe: ENEMY_RECIPE_KEYS.brute }),
+  caster: Object.freeze({ ...PRESENTATION_DEFAULTS, width: 150, height: 182, maxWidth: 150, maxHeight: 256, scale: 0.72, label: "caster", recipe: ENEMY_RECIPE_KEYS.caster }),
+  boss: Object.freeze({ ...PRESENTATION_DEFAULTS, width: 190, height: 220, maxWidth: 210, maxHeight: 256, scale: 0.82, label: "boss", recipe: ENEMY_RECIPE_KEYS.boss })
 });
+
+export const ENEMY_ARCHETYPES = ARCHETYPE_PRESENTATIONS;
+
+export const ENEMY_UNIQUE_RECIPES = Object.freeze({
+  "フラッシュバット": ENEMY_RECIPE_KEYS.flashBat,
+  "火薬コウモリ": ENEMY_RECIPE_KEYS.powderBat,
+  "かみつき蟲": ENEMY_RECIPE_KEYS.biter,
+  "マッドスライム": ENEMY_RECIPE_KEYS.mudSlime,
+  "分裂スライム": ENEMY_RECIPE_KEYS.splitSlime,
+  "群れネズミ": ENEMY_RECIPE_KEYS.ratPack,
+  "まどろみ胞子": ENEMY_RECIPE_KEYS.sleepSpore,
+  "泥の呪い子": ENEMY_RECIPE_KEYS.mudCursedChild,
+  "コボルトの斥候": ENEMY_RECIPE_KEYS.koboldScout,
+  "ゴブリンの呪術師": ENEMY_RECIPE_KEYS.goblinCaster,
+  "錆びた盾兵": ENEMY_RECIPE_KEYS.rustedShield
+});
+
+// Compatibility name retained for callers that used the old registry export.
+// Values are recipe keys, never asset URLs.
+export const ENEMY_UNIQUE_ASSETS = ENEMY_UNIQUE_RECIPES;
 
 const BRUTE_NAMES = ["ジャイアント", "巨躯", "ゴーレム", "アーマー", "ストーン", "石像", "番犬"];
 const HUMANOID_TYPES = new Set(["skeleton", "zombie", "orc", "kobold"]);
@@ -82,18 +66,6 @@ const SMALL_TYPES = new Set(["biter", "bat", "rabbit", "spider"]);
 
 function includesAny(value, words) {
   return words.some(word => value.includes(word));
-}
-
-function resolveUniqueAssetName(name) {
-  if (ENEMY_UNIQUE_ASSETS[name]) return name;
-
-  // Split children keep their combat-facing display name, but inherit the
-  // parent's production cutout so a slime never falls through to the generic
-  // small-creature fallback after splitting.
-  const splitChild = name.match(/^(.*)の分裂体\d+$/);
-  if (splitChild && ENEMY_UNIQUE_ASSETS[splitChild[1]]) return splitChild[1];
-
-  return null;
 }
 
 export function getEnemyArchetype(monster = {}) {
@@ -108,15 +80,29 @@ export function getEnemyArchetype(monster = {}) {
   return "small";
 }
 
+function resolveUniqueRecipe(name) {
+  if (ENEMY_UNIQUE_RECIPES[name]) return { name, recipe: ENEMY_UNIQUE_RECIPES[name] };
+  const splitChild = name.match(/^(.*)の分裂体\d+$/);
+  if (splitChild && ENEMY_UNIQUE_RECIPES[splitChild[1]]) return { name: splitChild[1], recipe: ENEMY_UNIQUE_RECIPES[splitChild[1]] };
+  return null;
+}
+
 export function getEnemyPresentation(monster = {}) {
   const archetype = getEnemyArchetype(monster);
   const base = ENEMY_ARCHETYPES[archetype];
-  const uniqueName = typeof monster.name === "string" ? resolveUniqueAssetName(monster.name) : null;
-  const uniqueAsset = uniqueName ? ENEMY_UNIQUE_ASSETS[uniqueName] : null;
+  const unique = typeof monster.name === "string" ? resolveUniqueRecipe(monster.name) : null;
+  const recipe = unique?.recipe || base.recipe;
+  const profile = unique ? { ...PRESENTATION_DEFAULTS, label: recipe, recipe } : base;
   return {
+    ...profile,
     archetype,
-    assetKey: uniqueAsset ? `enemy:${uniqueName}` : archetype,
-    ...base,
-    asset: uniqueAsset || base.asset
+    recipe,
+    assetKey: `recipe:${recipe}`,
+    asset: null,
+    uniqueName: unique?.name || null
   };
+}
+
+export function getEnemyRecipeKey(monster = {}) {
+  return getEnemyPresentation(monster).recipe;
 }
