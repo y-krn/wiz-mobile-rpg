@@ -15,11 +15,17 @@ const element = () => ({
 
 global.localStorage = (() => {
   let store = {};
+  let primarySaveWrites = 0;
   return {
     getItem: key => store[key] || null,
-    setItem: (key, value) => { store[key] = String(value); },
+    setItem: (key, value) => {
+      if (key === "mobile_wiz_rpg_autosave") primarySaveWrites++;
+      store[key] = String(value);
+    },
     removeItem: key => { delete store[key]; },
     clear: () => { store = {}; },
+    resetPrimarySaveWrites: () => { primarySaveWrites = 0; },
+    getPrimarySaveWrites: () => primarySaveWrites,
   };
 })();
 global.document = {
@@ -71,7 +77,9 @@ assert.equal(state.gameState, "explore", "cancel leaves the active run in place"
 assert.equal(state.currentRun.returnReason, "", "cancel does not assign an ending");
 
 global.confirm = () => true;
+localStorage.resetPrimarySaveWrites();
 triggerRunResult("abandon");
+assert.equal(localStorage.getPrimarySaveWrites(), 1, "run result persistence commits once");
 assert.equal(state.gameState, "result");
 assert.equal(state.currentRun.returnReason, "abandon");
 assert.equal(state.currentRun.outcome, "abandon");

@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { applySavePayload, createSavePayload } from "../../../src/state/save_payload.js";
 import { SAVE_PAYLOAD_FIELDS, SAVE_VERSION, migrateSavePayload, normalizeSavePayload } from "../../../src/state/save_migrations.js";
-import { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, loadGame, state } from "../../../src/state.js";
+import { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, loadGame, saveAutosave, state } from "../../../src/state.js";
 import { menuContext, menuHistory, openGuardedSubmenu } from "../../../src/navigation.js";
 import { equipState } from "../../../src/equip.js";
 import { EVENT_TYPES } from "../../../src/data.js";
@@ -511,6 +511,60 @@ check("malformed primary save falls back to a valid backup", () => {
   loadGame();
 
   assert.equal(Object.hasOwn(state.party[0], "class"), false);
+});
+
+check("a single save rotates the previous primary into the backup", () => {
+  saveValues.clear();
+  state.currentRun = null;
+  state.gameState = "town";
+  state.metaMaterials = { "獣の牙": 1 };
+  saveAutosave();
+  const previousPayload = saveValues.get("mobile_wiz_rpg_autosave");
+
+  saveValues.set("mobile_wiz_rpg_backup", "Z");
+  state.metaMaterials = { "獣の牙": 2 };
+  saveAutosave();
+
+  assert.equal(saveValues.get("mobile_wiz_rpg_backup"), previousPayload);
+  assert.equal(saveValues.get("mobile_wiz_rpg_autosave"), JSON.stringify(createSavePayload()));
+});
+
+check("a corrupt primary still falls back to the previous normal generation", () => {
+  saveValues.clear();
+  state.currentRun = null;
+  state.gameState = "town";
+  state.metaMaterials = { "獣の牙": 1 };
+  saveAutosave();
+  const previousPayload = saveValues.get("mobile_wiz_rpg_autosave");
+
+  state.metaMaterials = { "獣の牙": 2 };
+  saveAutosave();
+  assert.equal(saveValues.get("mobile_wiz_rpg_backup"), previousPayload);
+  saveValues.set("mobile_wiz_rpg_autosave", "{not-json");
+
+  loadGame();
+
+  assert.deepEqual(state.metaMaterials, { "獣の牙": 1 });
+  assert.equal(saveValues.get("mobile_wiz_rpg_backup"), previousPayload);
+  assert.deepEqual(JSON.parse(saveValues.get("mobile_wiz_rpg_autosave")).metaMaterials, { "獣の牙": 1 });
+});
+
+check("loading a valid primary preserves the older backup generation", () => {
+  saveValues.clear();
+  state.currentRun = null;
+  state.gameState = "town";
+  state.metaMaterials = { "獣の牙": 1 };
+  saveAutosave();
+  const previousPayload = saveValues.get("mobile_wiz_rpg_autosave");
+
+  state.metaMaterials = { "獣の牙": 2 };
+  saveAutosave();
+  assert.equal(saveValues.get("mobile_wiz_rpg_backup"), previousPayload);
+
+  loadGame();
+
+  assert.deepEqual(state.metaMaterials, { "獣の牙": 2 });
+  assert.equal(saveValues.get("mobile_wiz_rpg_backup"), previousPayload);
 });
 
 check("legacy event cooldown field is ignored during load", () => {
