@@ -34,7 +34,7 @@ left/right ×20, rapid forward+turn replacement, transition replacement,
 explicit cancellation, resize ×10, combat feedback ×10, and renderer
 create/dispose ×5. Every repeated-navigation root sample remained
 `position=(0,0)`, `rotation=0`, `scale=(1,1)`. Latest serial metrics:
-initialization/first render `1.3ms`, maximum render `4.9ms`, scene children `8`,
+initialization/first render `1.1ms`, maximum render `4.8ms`, scene children `8`,
 max children `8`, disposed `5/5`.
 
 ## Regression coverage
