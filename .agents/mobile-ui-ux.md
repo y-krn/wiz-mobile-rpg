@@ -296,6 +296,85 @@ each affected game state. Use browser-driven checks or screenshots at
 360x800, 390x844, and 430x932; include 320x568 or another short viewport when
 vertical pressure is part of the risk.
 
+## Dark Archive visual-system contract
+
+This is the durable visual-system contract extracted by Issue #1228. It
+protects the current product language; it is not a redesign brief. When a
+screen differs, classify the difference before changing it as canonical,
+intentional one-off, drift, renderer-owned, or accessibility defect. The
+audit record and evidence are in
+`evidence/results/issue-1228-visual-system.md`.
+
+### Semantic roles
+
+- `--bg-color` / `--panel-bg`: coal-black base shell and persistent shell
+  panels. Do not use them to imply selection or recommendation.
+- `--surface-raised`, `--surface-inset`, `--surface-control`,
+  `--surface-deep`, and `--surface-unavailable`: raised information,
+  recessed lists, dark controls, deep detail regions, and unavailable
+  controls respectively. Use a surface only when it establishes a real
+  boundary; whitespace, rules, and type may define a region without a card.
+- `--border-color`, `--border-strong`, `--border-control`,
+  `--border-unavailable`, and `--border-disabled`: neutral hierarchy and
+  unavailable/disabled cues. `--semantic-selected` marks the player's
+  current choice, never a system recommendation.
+- `--semantic-life`, `--semantic-magic`, `--semantic-unknown`,
+  `--semantic-discovery`, `--semantic-curse`, and `--semantic-danger` retain
+  their player-facing meanings. Danger describes risk, damage, or loss;
+  destructive describes a high-loss action being committed; success describes
+  a completed result. Do not leak rarity, curse, or the correct answer from
+  unknown game knowledge.
+- Legacy `--neon-*` aliases may remain where their semantic role is correct.
+  Do not rename them as a visual cleanup exercise, and never use success/HP,
+  recommendation, and selection as interchangeable green or glow meanings.
+
+### Surfaces and type
+
+The visual hierarchy is: base shell → raised surface → inset/list region →
+current event strip → action dock → expanded decision surface → overlay →
+destructive confirmation → result/settlement. Action docks and confirmations
+must remain readable and reachable at the mobile tap contract (`--tap-min`),
+but every section is not automatically a card.
+
+Display/Mincho carries location, lore, ritual, and restrained result emphasis;
+sans carries reading, labels, decisions, and most actions; mono carries
+compact values, counts, floor, HP/MP, and other tabular system data. Japanese
+critical labels wrap when needed. Do not solve density by shrinking text or
+introducing single-line ellipsis on actions, consequences, or unknown labels.
+
+### Interactive states
+
+Default means actionable. Pressed is transient input acknowledgement.
+Focused is keyboard/assistive navigation context and keeps a visible focus
+ring. Selected/current is a persistent player choice. Disabled/unavailable
+cannot be acted on. Pending/busy has been accepted but is unresolved.
+Destructive/high-loss communicates commitment risk. Success/completed
+communicates resolution. Each state should retain multiple cues (color plus
+shape/border/fill, text/native state, or motion where relevant); color alone
+is not a state contract. In particular, pressed ≠ selected, selected ≠
+recommended, pending ≠ disabled, and danger ≠ recommendation.
+
+### Motion and floor themes
+
+Use `--motion-tap` for micro acknowledgement, `--motion-state` for selection
+and overlay state changes, and `--motion-shell` for shell transitions. Motion
+must explain input accepted, state changed, or consequence happened; do not
+add glow, bounce, stagger, or gameplay-delaying decoration without a semantic
+reason. Under `prefers-reduced-motion: reduce`, suppress decorative movement
+while retaining visible selection, damage, result, pending, and completed
+meaning.
+
+Floor themes may change dungeon identity, aura, and floor-specific border or
+glow. They must not redefine shared selected, focus, danger, destructive,
+disabled, text, current-event, or action-dock meanings. Canvas is the default
+Dungeon renderer and Pixi is an opt-in equivalent; renderer pixels, geometry,
+materials, fog, lighting, particles, and movement ownership remain outside
+this DOM/CSS contract.
+
+For recurring visual changes, add a browser-computed or visible-outcome guard
+only when the invariant is player-facing and stable. Prefer existing Golden
+Journey, accessibility, and renderer-owner fixtures; avoid snapshot growth.
+
 ## Must Not Do
 
 - Do not turn this standard into a historical incident archive.

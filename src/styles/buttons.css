@@ -12,7 +12,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.1s ease, background-color 0.1s ease, border-color 0.1s ease, box-shadow 0.1s ease;
+  transition: transform var(--motion-tap) ease, background-color var(--motion-tap) ease, border-color var(--motion-tap) ease, box-shadow var(--motion-tap) ease;
   box-shadow: var(--shadow-soft);
   min-height: var(--tap-min);
 }
@@ -26,7 +26,7 @@
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  border-color: #3a3a4c !important;
+  border-color: var(--border-disabled) !important;
   color: var(--text-muted) !important;
   box-shadow: none !important;
   pointer-events: none;

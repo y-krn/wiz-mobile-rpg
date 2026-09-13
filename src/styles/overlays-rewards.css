@@ -1,15 +1,15 @@
 .pending-reward-grid {
-  gap: 10px;
+  gap: var(--sp-lg);
 }
 
 .pending-reward-intro,
 .pending-reward-bag-status,
 .pending-reward-card,
 .pending-reward-discard-row {
-  background: var(--panel-background, rgba(8, 12, 24, 0.82));
-  border: 1px solid var(--line-color, rgba(95, 219, 255, 0.28));
-  border-radius: 8px;
-  padding: 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-md);
 }
 
 .pending-reward-intro {

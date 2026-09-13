@@ -6,6 +6,11 @@
   --border-strong: #3a4c56;
   --surface-raised: #151f27;
   --surface-inset: #0d141a;
+  /* Shared dark control surfaces retain the current palette while making
+     repeated ownership explicit for future audits. */
+  --surface-control: #14141a;
+  --surface-deep: #101014;
+  --surface-unavailable: #0c0c0e;
   --text-primary: #f1eee5;
   --text-secondary: #a5b0b3;
   --vital-hp: #b7dfc1;
@@ -22,6 +27,9 @@
   --neutral-brass: #a99270;
   --text-tertiary: #7f9098;
   --text-disabled: #5f6c72;
+  --border-control: #22222d;
+  --border-unavailable: #1a1a24;
+  --border-disabled: #3a3a4c;
   --shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.28);
   --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.035), inset 0 -12px 28px rgba(0, 0, 0, 0.16);
   
@@ -41,6 +49,11 @@
 
   --tap-min: 44px;
   --tap-lg: 48px;
+
+  /* Motion roles: these are acknowledgement/state timings, not decoration. */
+  --motion-tap: 100ms;
+  --motion-state: 150ms;
+  --motion-shell: 200ms;
 
   --sp-xxs: 2px;
   --sp-xs: 4px;
