@@ -99,12 +99,6 @@ function createRng(seed) {
   };
 }
 
-function withSeed(seed, callback) {
-  const originalRandom = Math.random;
-  Math.random = createRng(seed);
-  try { return callback(); } finally { Math.random = originalRandom; }
-}
-
 export function buildCaseSeed(seed, compositionId, runIndex) {
   return `issue-1161:${seed}:${compositionId}:${runIndex}`;
 }
@@ -179,6 +173,7 @@ function getAction(policy, round) {
 
 function resolveTrial({ loadout, firstStrike, composition, model, policy, seed }) {
   let state = createState(loadout, firstStrike, composition, model, seed);
+  const rng = createRng(seed);
   const initialHp = state.party[0].hp;
   const observations = [];
   let rounds = 0;
@@ -188,7 +183,7 @@ function resolveTrial({ loadout, firstStrike, composition, model, policy, seed }
   while (rounds < MAX_ROUNDS) {
     const action = getAction(policy, rounds + 1);
     const hpBefore = state.party[0].hp;
-    const result = runCombatRoundCalculation(state, { actions: [action] });
+    const result = runCombatRoundCalculation(state, { actions: [action] }, { rng });
     const actionObservations = result.actionObservations || [];
     observations.push(...actionObservations);
     totalEnemyActions += actionObservations.filter(item => item.actor === "monster" && item.executed).length;
@@ -259,7 +254,7 @@ export function runEquipmentLoadDiagnostic({ runs = DEFAULT_RUNS, seed = DEFAULT
     const accumulator = createAccumulator({ model, loadoutId: loadout.id, firstStrikeProfileId: firstStrike.id, firstStrikeValue: firstStrike.value, compositionId: composition.id, enemyCount: composition.enemyCount, risk: composition.risk, policy });
     for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
       const caseSeed = buildCaseSeed(normalizedSeed, composition.id, runIndex);
-      const trial = withSeed(caseSeed, () => resolveTrial({ loadout, firstStrike, composition, model, policy, seed: caseSeed }));
+      const trial = resolveTrial({ loadout, firstStrike, composition, model, policy, seed: caseSeed });
       observe(accumulator, trial);
     }
     cases.push(finalize(accumulator, normalizedRuns));

@@ -127,20 +127,17 @@ function measurementCombatState() {
   };
 }
 
-const originalRandom = Math.random;
-try {
-  // Both actors land in initiative bucket 0; the fractional part decides the tie.
+// Both actors land in initiative bucket 0; the fractional part decides the tie.
   let values = [0.01, 0.04];
-  Math.random = () => values.shift() ?? 0;
   const enemyFirst = runCombatRoundCalculation(combatState(), {
     actions: [{ type: "defend", actorIdx: 0 }]
-  });
+  }, { rng: () => values.shift() ?? 0 });
   assert.equal(enemyFirst.actionObservations[0].actor, "monster");
 
   values = [0.04, 0.01];
   const playerFirst = runCombatRoundCalculation(combatState(), {
     actions: [{ type: "defend", actorIdx: 0 }]
-  });
+  }, { rng: () => values.shift() ?? 0 });
   assert.equal(playerFirst.actionObservations[0].actor, "char");
 
   // The measurement-only initiative hook must preserve production's random
@@ -148,16 +145,12 @@ try {
   values = [0.01, 0.04];
   const measurementEnemyFirst = runCombatRoundCalculation(measurementCombatState(), {
     actions: [{ type: "defend", actorIdx: 0 }]
-  });
+  }, { rng: () => values.shift() ?? 0 });
   assert.equal(measurementEnemyFirst.actionObservations[0].actor, "monster");
 
   values = [0.04, 0.01];
   const measurementPlayerFirst = runCombatRoundCalculation(measurementCombatState(), {
     actions: [{ type: "defend", actorIdx: 0 }]
-  });
+  }, { rng: () => values.shift() ?? 0 });
   assert.equal(measurementPlayerFirst.actionObservations[0].actor, "char");
-} finally {
-  Math.random = originalRandom;
-}
-
 console.log("[PASS] equipment load metadata, aggregation, and bag boundary");

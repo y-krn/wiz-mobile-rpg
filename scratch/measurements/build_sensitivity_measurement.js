@@ -341,13 +341,7 @@ function createSimulationState(buildId, depth, monsters, seed, counterfactual = 
 }
 
 function withSeed(seed, callback) {
-  const previousRandom = Math.random;
-  Math.random = createRng(seed);
-  try {
-    return callback();
-  } finally {
-    Math.random = previousRandom;
-  }
+  return callback(createRng(seed));
 }
 
 function createMechanismCounts() {
@@ -812,7 +806,7 @@ export function runEncounterSample({
   isMidboss = false,
   isRoamingFlack = false
 }) {
-  return withSeed(seed, () => {
+  return withSeed(seed, rng => {
     const fixture = generatedMonsters
       ? createGeneratedEncounterFixture(generatedMonsters, depth, counterfactual, encounterId)
       : createEncounterFixture(encounterId, depth, counterfactual);
@@ -852,7 +846,7 @@ export function runEncounterSample({
       const causalEventStart = state.simTelemetry.causalDamageEvents.length;
       const causalHealEventStart = state.simTelemetry.causalHealEvents.length;
       const enemyTurnEventStart = state.simTelemetry.measurementEnemyTurnEvents.length;
-      const result = runCombatRoundCalculation(state, { actions: [action] });
+      const result = runCombatRoundCalculation(state, { actions: [action] }, { rng });
       rounds++;
       observeRound(mechanisms, action, result.logQueue);
       const characterAfter = result.state.party[0];

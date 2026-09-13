@@ -823,13 +823,7 @@ check("normal physical combat hits forward formula stages to damage telemetry", 
   trackRunStart(run, character, state);
   trackCombatStart({ floor: 1, player: character, monsters: [monster] }, state);
 
-  const originalRandom = Math.random;
-  Math.random = () => 0;
-  try {
-    runCombatRoundCalculation(state, { actions: [{ type: "defend", actorIdx: 0 }] });
-  } finally {
-    Math.random = originalRandom;
-  }
+  runCombatRoundCalculation(state, { actions: [{ type: "defend", actorIdx: 0 }] }, { rng: () => 0 });
 
   const damage = events.find(event => event.name === "damage_received").properties;
   assert.equal(damage.attackType, "physical");

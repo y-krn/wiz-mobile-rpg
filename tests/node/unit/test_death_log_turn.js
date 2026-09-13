@@ -74,13 +74,7 @@ function createCombatState({ character, monster }) {
 }
 
 function runWithFixedRandom(combatState, action) {
-  const originalRandom = Math.random;
-  Math.random = () => 0;
-  try {
-    return runCombatRoundCalculation(combatState, { actions: [action] });
-  } finally {
-    Math.random = originalRandom;
-  }
+  return runCombatRoundCalculation(combatState, { actions: [action] }, { rng: () => 0 });
 }
 
 test("queues lethal magic-reflect damage before the death log", () => {

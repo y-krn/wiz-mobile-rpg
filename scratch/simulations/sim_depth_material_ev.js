@@ -8329,7 +8329,7 @@ function runEncounter(
 
     const roundRandomDraws = [];
     const simulationRandom = Math.random;
-    Math.random = () => {
+    const roundRng = () => {
       const value = simulationRandom();
       roundRandomDraws.push(value);
       return value;
@@ -8355,9 +8355,8 @@ function runEncounter(
     try {
       roundResult = withSimulationHealEffects(state, () => runCombatRoundCalculation(state, {
         actions: [action]
-      }));
+      }, { rng: roundRng }));
     } finally {
-      Math.random = simulationRandom;
       if (targetedDamageProbe) {
         globalThis.__simTargetedDamageProbe = previousTargetedDamageProbe;
       }

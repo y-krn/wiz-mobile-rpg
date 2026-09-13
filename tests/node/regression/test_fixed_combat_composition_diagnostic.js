@@ -151,14 +151,12 @@ function timingFixture(playerHp, monsterAtk) {
   };
 }
 
-const originalRandom = Math.random;
 let randomValues = [];
-Math.random = () => randomValues.shift() ?? 0;
-try {
+{
   randomValues = [0, 0.99];
   const afterEnemy = runCombatRoundCalculation(timingFixture(100, 1), {
     actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-  });
+  }, { rng: () => randomValues.shift() ?? 0 });
   assert.deepEqual(afterEnemy.actionObservations, [
     { actor: "monster", actionType: "enemy", order: 0, executed: true },
     { actor: "char", actionType: "fight", order: 1, executed: true }
@@ -167,13 +165,11 @@ try {
   randomValues = [0, 0.99];
   const preempted = runCombatRoundCalculation(timingFixture(1, 10), {
     actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-  });
+  }, { rng: () => randomValues.shift() ?? 0 });
   assert.deepEqual(preempted.actionObservations, [
     { actor: "monster", actionType: "enemy", order: 0, executed: true },
     { actor: "char", actionType: "fight", order: 1, executed: false }
   ]);
-} finally {
-  Math.random = originalRandom;
 }
 
 const repeated = await diagnostic.runFixedCombatDiagnostic({

@@ -73,15 +73,9 @@ function createState({ physicalAccuracy = 0, monster, accuracyCore = false } = {
 }
 
 function runAttack({ monster, accuracyCore = false, physicalAccuracy = 0 } = {}, randomValues) {
-  const originalRandom = Math.random;
-  Math.random = () => randomValues.shift() ?? 0;
-  try {
-    return runCombatRoundCalculation(createState({ monster, accuracyCore, physicalAccuracy }), {
-      actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-    });
-  } finally {
-    Math.random = originalRandom;
-  }
+  return runCombatRoundCalculation(createState({ monster, accuracyCore, physicalAccuracy }), {
+    actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
+  }, { rng: () => randomValues.shift() ?? 0 });
 }
 
 const evasiveMonsters = MONSTERS.filter(monster => monster.traits?.includes("evasive"));

@@ -66,12 +66,10 @@ function run() {
     }
   };
 
-  const originalRandom = Math.random;
-  try {
-    Math.random = () => 0.99;
+  {
     const result = runCombatRoundCalculation(roundState, {
       actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-    });
+    }, { rng: () => 0.99 });
     assert.equal(result.state.codex.monsters[wisp.name].physResistKnown, true);
     assert.equal(result.state.codex.monsters[wisp.name].magicResistKnown, false);
     assert.ok(result.state.codex.monsters[wisp.name].observedActions.includes("通常攻撃"));
@@ -90,12 +88,11 @@ function run() {
       { spellName: "HALITO", targetIdx: 0 },
       spellState,
       [spellTarget],
-      []
+      [],
+      { rng: () => 0.99 }
     );
     assert.equal(spellState.codex.monsters[wisp.name].magicResistKnown, true);
     assert.equal(spellState.codex.monsters[wisp.name].physResistKnown, false);
-  } finally {
-    Math.random = originalRandom;
   }
 }
 

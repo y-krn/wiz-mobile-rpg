@@ -41,17 +41,10 @@ function makeState(simPolicy = {}, enemyActionScheduling = undefined) {
 }
 
 function resolve(simPolicy, enemyActionScheduling = undefined) {
-  const previousRandom = Math.random;
-  Math.random = () => 0.99;
-  try {
-    const state = makeState(simPolicy, enemyActionScheduling);
-    const result = runCombatRoundCalculation(state, {
-      actions: [{ type: "defend", actorIdx: 0 }]
-    });
-    return result;
-  } finally {
-    Math.random = previousRandom;
-  }
+  const state = makeState(simPolicy, enemyActionScheduling);
+  return runCombatRoundCalculation(state, {
+    actions: [{ type: "defend", actorIdx: 0 }]
+  }, { rng: () => 0.99 });
 }
 
 const baseline = resolve({});

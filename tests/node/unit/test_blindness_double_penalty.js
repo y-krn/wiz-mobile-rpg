@@ -58,13 +58,9 @@ function createState({ characterStatus = "ok", monsterStatus = "ok", agi = 1 } =
 }
 
 function runRound(state, randomValues, action) {
-  const originalRandom = Math.random;
-  Math.random = () => randomValues.shift() ?? 0;
-  try {
-    return runCombatRoundCalculation(state, { actions: [action] });
-  } finally {
-    Math.random = originalRandom;
-  }
+  return runCombatRoundCalculation(state, { actions: [action] }, {
+    rng: () => randomValues.shift() ?? 0
+  });
 }
 
 function playerAttack(characterStatus, randomValues) {

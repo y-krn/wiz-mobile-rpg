@@ -52,13 +52,9 @@ function cast({ spellName, tags, equipment = {}, randomValue = 0 }) {
     combatState: { turn: 1 },
     combatFormulaTelemetry: { spellHits: [], targetedBonuses: [] }
   };
-  const originalRandom = Math.random;
-  Math.random = () => randomValue;
-  try {
-    resolvePlayerSpell(caster, { spellName, targetIdx: 0 }, state, [monster], []);
-  } finally {
-    Math.random = originalRandom;
-  }
+  resolvePlayerSpell(caster, { spellName, targetIdx: 0 }, state, [monster], [], {
+    rng: () => randomValue
+  });
   return {
     damage: 100 - monster.hp,
     targetedBonuses: state.combatFormulaTelemetry.targetedBonuses,

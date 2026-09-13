@@ -134,8 +134,6 @@ import { state } from "../../../src/state.js";
     console.log("Starting Combat Escape Scroll (ESCAPE_SCROLL) Verification Tests...");
 
     // 1. resolvePlayerItem Verification (Success / Failure / Agility Probability / Consumption)
-    const originalRandom = Math.random;
-
     function testResolveEscapeScroll(escapeChance, forceRandomValue) {
       const char = {
         name: "Speedy",
@@ -152,14 +150,10 @@ import { state } from "../../../src/state.js";
       };
       const logQueue = [];
 
-      Math.random = () => forceRandomValue;
-
-      try {
-        const res = resolvePlayerItem(char, { itemKey: "ESCAPE_SCROLL", targetIdx: 0 }, testState, logQueue);
-        return { res, testState, logQueue };
-      } finally {
-        Math.random = originalRandom;
-      }
+      const res = resolvePlayerItem(char, { itemKey: "ESCAPE_SCROLL", targetIdx: 0 }, testState, logQueue, {
+        rng: () => forceRandomValue
+      });
+      return { res, testState, logQueue };
     }
 
     // Case A: explicit physical accuracy is capped at 95% (0.95)
@@ -267,15 +261,9 @@ import { state } from "../../../src/state.js";
     }
 
     function runForcedMidbossDrop(inventorySize) {
-      const originalRandom = Math.random;
-      Math.random = () => 0;
-      try {
-        return runCombatRoundCalculation(createState(inventorySize), {
-          actions: [{ actorIdx: 0, type: "fight", targetIdx: 0 }]
-        });
-      } finally {
-        Math.random = originalRandom;
-      }
+      return runCombatRoundCalculation(createState(inventorySize), {
+        actions: [{ actorIdx: 0, type: "fight", targetIdx: 0 }]
+      }, { rng: () => 0 });
     }
 
     function createFleeOnlyState() {
@@ -321,15 +309,9 @@ import { state } from "../../../src/state.js";
     }
 
     function runForcedFleeOnlyCombat() {
-      const originalRandom = Math.random;
-      Math.random = () => 0;
-      try {
-        return runCombatRoundCalculation(createFleeOnlyState(), {
-          actions: [{ actorIdx: 0, type: "defend" }]
-        });
-      } finally {
-        Math.random = originalRandom;
-      }
+      return runCombatRoundCalculation(createFleeOnlyState(), {
+        actions: [{ actorIdx: 0, type: "defend" }]
+      }, { rng: () => 0 });
     }
 
     console.log("Starting Combat Inventory Verification Tests...");

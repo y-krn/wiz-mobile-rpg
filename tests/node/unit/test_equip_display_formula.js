@@ -61,13 +61,7 @@ function makeChar(overrides = {}) {
 }
 
 function runFixedRound(state, actions) {
-  const originalRandom = Math.random;
-  Math.random = () => 0;
-  try {
-    return runCombatRoundCalculation(state, { actions });
-  } finally {
-    Math.random = originalRandom;
-  }
+  return runCombatRoundCalculation(state, { actions }, { rng: () => 0 });
 }
 
 function makeCombatState(char, monster) {
