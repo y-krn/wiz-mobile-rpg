@@ -4,7 +4,7 @@
 
 - Baseline source: `origin/main`, fetched on 2026-09-13 (Asia/Tokyo).
 - Baseline SHA: `0a45d920745c3efc6f7bc7839b94c06cfcbf81ad`.
-- Current PR base SHA: `16c098289af3f5ffa49b89085fe491409dcd2139` (`origin/main`),
+- Current PR base SHA: `254b3ed1a593dea624adc55f1e702bd0cebf58d7` (`origin/main`),
   freshly fetched before the correction push.
 - Preconditions: PR #1249 is merged; Issue #1227 is completed/closed; Issue
   #1225 and #1226 are completed/closed.
@@ -285,8 +285,8 @@ production UI), `npm run test:browser:visual` ran 95 tests with 95 passed.
 
 The branch was created from fetched `origin/main` at
 `0a45d920745c3efc6f7bc7839b94c06cfcbf81ad`. A later freshness check found
-that main had advanced through #1239 and then #1256. The branch was rebased
-cleanly onto the current `origin/main` SHA
-`16c098289af3f5ffa49b89085fe491409dcd2139`; no overlapping production CSS
-or renderer changes were present in those base updates. The PR must remain
-based on this SHA.
+that main had advanced through #1239, #1256, and #1257. The branch was
+rebased cleanly onto the current `origin/main` SHA
+`254b3ed1a593dea624adc55f1e702bd0cebf58d7`; the intervening changes were
+agent guidance and retired-manifest cleanup, with no overlapping production
+CSS or renderer changes. The PR must remain based on this SHA.
