@@ -235,7 +235,9 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
     const cancelled = !dungeonRenderer.transition && !dungeonRenderer.transitionScene.visible;
     dungeonRenderer.beginNavigationTransition('forward', input);
     const replacement = dungeonRenderer.transition?.action;
-    const rapidAlternatingActions = ['turn-left', 'turn-right', 'turn-left', 'turn-right'];
+    const rapidAlternatingActions = Array.from({ length: 20 }, (_, index) => (
+      index % 2 === 0 ? 'turn-left' : 'turn-right'
+    ));
     rapidAlternatingActions.forEach((action) => {
       dungeonRenderer.beginNavigationTransition(action, input);
       dungeonRenderer.update(16);
@@ -283,6 +285,7 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
       cancelled,
       replacement,
       rapidAlternatingAction,
+      rapidAlternatingCount: rapidAlternatingActions.length,
       rapidForwardTurnAction,
       combatFeedback,
       firstRenderMs,
@@ -303,6 +306,7 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
   expect(evidence.cancelled).toBe(true);
   expect(evidence.replacement).toBe('forward');
   expect(evidence.rapidAlternatingAction).toBe('turn-right');
+  expect(evidence.rapidAlternatingCount).toBe(20);
   expect(evidence.rapidForwardTurnAction).toBe('turn-right');
   expect(evidence.rootTransformSamples).toHaveLength(60);
   expect(evidence.rootTransformSamples.every((root) => (
