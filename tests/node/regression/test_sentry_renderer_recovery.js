@@ -10,11 +10,13 @@ assert.match(
 );
 assert.match(
   source,
-  /function reportRendererRecovery\(error, rendererName, op\)/,
+  /function reportRendererRecovery\(error, selection, reason, pixiPhase\)/,
   "renderer fallback must report recovered failures",
 );
-assert.match(source, /reportRendererRecovery\(error, "pixi", "renderer-init"\)/);
-assert.match(source, /reportRendererRecovery\(error, "pixi", "module-init"\)/);
+assert.match(source, /requested_renderer: selection\.requestedRenderer/);
+assert.match(source, /fallback_reason: reason/);
+assert.match(source, /pixi_phase: pixiPhase/);
+assert.match(source, /extra: \{\s*renderer:/);
 assert.match(source, /recovery: "canvas-fallback"/);
 assert.doesNotMatch(
   source,

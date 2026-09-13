@@ -15,7 +15,7 @@ const ZOMBIES = [
 
 async function setupCombatScene(page) {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
   await page.waitForLoadState('networkidle');
   await page.evaluate(async (monsters) => {
     const { state } = await import('/src/state.js');

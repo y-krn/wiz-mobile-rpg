@@ -64,6 +64,10 @@ const test = base.extend({
       const url = request.url();
       const isAppRequest = appOrigin && isAppOrigin(url, appOrigin);
       const isKnownThirdPartyRequest = isAllowedThirdParty(url);
+      // A lazy renderer chunk can be canceled by an intentional page
+      // navigation/reload. Playwright reports that browser-level cancellation
+      // as ERR_ABORTED; it is not an application rejection or failed request.
+      if (request.failure()?.errorText === 'net::ERR_ABORTED') return;
       if (!isKnownThirdPartyRequest) {
         failures.push(formatFailure(
           'requestfailed',

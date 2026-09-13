@@ -1,5 +1,5 @@
-// balance-impact: none — opt-in PixiJS screen-space presentation.
-// The production renderer remains Canvas. This module consumes RendererInput
+// balance-impact: none — PixiJS screen-space presentation.
+// Pixi is the production-default renderer. This module consumes RendererInput
 // and deliberately stays within the shared screen-space projection contract.
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { EVENT_TYPES } from "./data.js";
@@ -162,7 +162,7 @@ function getQueuedThreat(monster) {
  * world-space mesh, or 3D occlusion contract here.
  */
 export class PixiDungeonRenderer {
-  constructor(canvasId) {
+  constructor(canvasId, { failurePhase = null } = {}) {
     this.canvas = document.getElementById(canvasId);
     this.mode = "pixi";
     this.supported = false;
@@ -192,6 +192,8 @@ export class PixiDungeonRenderer {
       filterCount: 0,
       listenerCount: 0
     };
+    this.failurePhase = failurePhase;
+    this.initializationPhase = null;
   }
 
   createSceneRoot(name) {
@@ -213,28 +215,43 @@ export class PixiDungeonRenderer {
   async init() {
     if (!this.canvas) throw new Error("Pixi dungeon canvas is unavailable");
     const startedAt = performance.now();
+    this.initializationPhase = "application-create";
+    if (this.failurePhase === "application-create") {
+      throw new Error("Injected renderer failure: application-create");
+    }
     const app = new Application();
-    await app.init({
-      canvas: this.canvas,
-      width: PIXI_VIEW_W,
-      height: PIXI_VIEW_H,
-      resolution: 1,
-      autoDensity: false,
-      antialias: true,
-      backgroundColor: 0x0c0c0e,
-      autoStart: false,
-      preference: "webgl"
-    });
     this.app = app;
-    this.scene = this.createSceneRoot("pixi-current-scene");
-    this.transitionScene = this.createSceneRoot("pixi-transition-scene");
-    this.app.stage.addChild(this.scene);
-    this.app.stage.addChild(this.transitionScene);
-    this.transitionScene.visible = false;
-    this.initializationCostMs = performance.now() - startedAt;
-    this.supported = Boolean(this.app.renderer && this.app.canvas === this.canvas);
-    this.canvas.dataset.renderer = this.supported ? this.mode : "pixi-unavailable";
-    return this;
+    try {
+      this.initializationPhase = "canvas/context";
+      if (this.failurePhase === "canvas/context") {
+        throw new Error("Injected renderer failure: canvas/context");
+      }
+      await app.init({
+        canvas: this.canvas,
+        width: PIXI_VIEW_W,
+        height: PIXI_VIEW_H,
+        resolution: 1,
+        autoDensity: false,
+        antialias: true,
+        backgroundColor: 0x0c0c0e,
+        autoStart: false,
+        preference: "webgl"
+      });
+      this.initializationPhase = "mount";
+      this.scene = this.createSceneRoot("pixi-current-scene");
+      this.transitionScene = this.createSceneRoot("pixi-transition-scene");
+      this.app.stage.addChild(this.scene);
+      this.app.stage.addChild(this.transitionScene);
+      this.transitionScene.visible = false;
+      this.initializationCostMs = performance.now() - startedAt;
+      this.supported = Boolean(this.app.renderer && this.app.canvas === this.canvas);
+      this.canvas.dataset.renderer = this.supported ? this.mode : "pixi-unavailable";
+      this.initializationPhase = null;
+      return this;
+    } catch (error) {
+      this.dispose();
+      throw error;
+    }
   }
 
   triggerShake(intensity = 10, duration = 300) {
@@ -808,10 +825,18 @@ export class PixiDungeonRenderer {
   }
 
   dispose() {
-    if (!this.app) return;
+    if (!this.app) {
+      this.resourceStats.destroyed = true;
+      return;
+    }
     this.clearSceneRoot(this.scene);
     this.clearSceneRoot(this.transitionScene);
-    this.app.destroy({ removeView: false }, { children: true });
+    try {
+      this.app.destroy({ removeView: false }, { children: true });
+    } catch {
+      // Initialization can fail before Pixi has a renderer. The app reference
+      // is still cleared so fallback cannot retain a ticker or stale scene.
+    }
     this.app = null;
     this.scene = null;
     this.transitionScene = null;

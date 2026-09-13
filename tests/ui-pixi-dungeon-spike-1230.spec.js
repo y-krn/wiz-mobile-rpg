@@ -215,7 +215,7 @@ test('PixiJS motion uses projection continuity, restrained turns, and combat fee
 test('Canvas and Pixi share identical deterministic states for visual A/B evidence @smoke @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const renderer of ['canvas', 'pixi']) {
-    await page.goto(renderer === 'pixi' ? '/?renderer=pixi' : '/');
+    await page.goto(renderer === 'pixi' ? '/?renderer=pixi' : '/?renderer=canvas');
     await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', renderer);
     await hideHud(page);
     await setState(page, { map: makeSyntheticFixture('straight-corridor') });
