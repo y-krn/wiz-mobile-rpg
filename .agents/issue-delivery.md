@@ -12,10 +12,13 @@ checklist or a copy of executable commands.
    source behavior, focused test, lint, build, browser evidence, simulation,
    or documented inspection. Resolve material ambiguity from repository
    evidence before asking the user.
-3. Use `file-map.md`, then the applicable checklist and one of the four
-   repository skills in `.agents/skills/`. `diagnosing-bugs` is only for an
-   unresolved cause or reliable reproduction, including intermittent and
-   performance failures; known-cause fixes stay on the normal QA path.
+3. Use `file-map.md` and the applicable checklist. Load a repository skill only
+   when its trigger matches; do not load one merely because the work is an
+   Issue. Simple typo/text-only fixes, known-cause fixes, browser-only
+   inspection, and agent-guidance edits normally use repository skill `none`.
+   `diagnosing-bugs` may cover a deterministic or intermittent reproduction
+   when the cause remains unresolved, including performance failures;
+   known-cause fixes stay on the normal QA path.
 4. Keep the plan proportional to the change. A small change needs only the
    local evidence map and PR record.
 
@@ -24,13 +27,11 @@ until review.
 
 ## Lifecycle reference dry-run
 
-When this lifecycle reference changes, dry-run one recent ready Issue through a
-real domain path. The 2026-09-13 dry-run used Issue #1227: its bounded telemetry
-goal routed through the telemetry source row in `file-map.md`,
-`qa-regression.md`, and the relevant unit/browser evidence; no repository skill
-was needed. The final owner was QA plus the telemetry tests, with privacy and
-non-blocking delivery checks preserved. This verifies lifecycle routing without
-duplicating domain rules here.
+When lifecycle guidance changes, dry-run one recent ready Issue through a real
+domain path. Record the short route from goal and acceptance criteria through
+the file map, applicable checklist or trigger-matched skill, evidence map,
+ambiguity decision, and final verification owner in the PR evidence. Keep the
+example out of this durable reference so it does not become stale routing.
 
 ## During implementation
 

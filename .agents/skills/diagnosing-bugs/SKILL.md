@@ -1,6 +1,6 @@
 ---
 name: diagnosing-bugs
-description: Use when a bug cause or reliable reproduction is unresolved, including intermittent failures and performance regressions; not for known-cause fixes, ordinary QA, or deterministic test failures.
+description: Use when a bug cause remains unresolved after normal QA, whether reproduction is deterministic or intermittent, or for performance regressions; not for known-cause fixes or ordinary QA with an established cause.
 ---
 
 # Diagnose an unresolved bug

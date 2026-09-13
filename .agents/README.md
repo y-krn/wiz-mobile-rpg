@@ -30,7 +30,7 @@ repeatable workflow. Load only the row whose trigger matches the work.
 | --- | --- | --- | --- |
 | `balance-simulation` | A progression, economy, difficulty, reward, or pacing claim needs measurement | Production-backed measurement, determinism, provenance, matched comparison, and uncertainty | Formula/spec review, reachability, UI-only work, and ordinary QA |
 | `combat-model-change` | Combat expression, stage, scaling, targeting, or combat observability semantics change | Physical/spell semantics, specification alignment, and model evidence | UI-only/rendering work, balance measurement, and reachability audits |
-| `diagnosing-bugs` | A bug cause or reliable reproduction is unresolved, including intermittent or performance regressions | Tight reproduction, causal localization, minimal fix, and regression evidence | Known-cause fixes, ordinary QA, and deterministic test failures |
+| `diagnosing-bugs` | A bug cause is unresolved after normal QA, with a deterministic or intermittent reproduction, or the report is a performance regression | Tight reproduction, causal localization, minimal fix, and regression evidence | Known-cause fixes and ordinary QA with an established cause |
 | `gameplay-reachability-audit` | A mechanic is claimed to be live, dead, hidden, or missing across a player, simulation, or record path | Definition-to-execution, player operation, simulation, and record evidence | Ordinary code search, balance measurement, combat semantics, and cleanup |
 
 Descriptions in each `SKILL.md` are trigger-first context pointers. Procedures
