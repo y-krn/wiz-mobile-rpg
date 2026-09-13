@@ -1,6 +1,8 @@
 import { state, saveAutosave, addLog } from "./state.js";
 import { getScreenViewState, getUsableSpellKeys, isUsableSpellForActor } from "./state/view_state.js";
-import { SPELLS, getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp, getCharMaxMp } from "./data.js";
+import { getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp, getCharMaxMp } from "./data.js";
+import { SPELLS } from "./data/spells.js";
+import { SPELL_EFFECTS } from "./systems/spell_effects.js";
 import { isSpellcaster } from "./rules/magic_rules.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { playSound } from "./audio.js";
@@ -35,7 +37,16 @@ function executeUtilitySpell() {
   });
   if (payment.resource === "hp") addLog(getCoreLogText("CORE_BLOOD_WAND"));
   playSound("cast_spell");
-  const result = spell.effect(caster, state, state.party);
+  const result = SPELL_EFFECTS[menuContext.spellName]({
+    caster,
+    target: state,
+    party: state.party,
+    rng: Math.random,
+    telemetryEnabled: false,
+    state: null,
+    logQueue: null,
+    measurement: null
+  });
   addLog(result.log);
   saveAutosave();
   closeSubmenu();
@@ -58,7 +69,16 @@ function executeAllySpell(targetIdx) {
   if (payment.resource === "hp") addLog(getCoreLogText("CORE_BLOOD_WAND"));
   playSound("cast_spell");
   const target = spell.target === "all_allies" ? state.party : state.party[targetIdx];
-  const result = spell.effect(caster, target, state.party);
+  const result = SPELL_EFFECTS[menuContext.spellName]({
+    caster,
+    target,
+    party: state.party,
+    rng: Math.random,
+    telemetryEnabled: false,
+    state: null,
+    logQueue: null,
+    measurement: null
+  });
   addLog(result.log);
   if (result.heal) {
     playSound("heal");

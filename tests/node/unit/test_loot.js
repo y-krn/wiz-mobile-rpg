@@ -478,7 +478,8 @@ import assert from "assert";
 
     (async () => {
       const { state, initNewGame } = await import("../../../src/state.js");
-      const { generateRandomEquipment, getItemData, SPELLS } = await import("../../../src/data.js");
+      const { generateRandomEquipment, getItemData } = await import("../../../src/data.js");
+      const { SPELL_EFFECTS } = await import("../../../src/systems/spell_effects.js");
       const { setupChestState } = await import("../../../src/chest.js");
       const { runCombatRoundCalculation } = await import("../../../src/combat_logic.js");
       const assert = await import("assert");
@@ -616,8 +617,8 @@ import assert from "assert";
       let totalD2 = 0;
       for(let i=0; i<100; i++) {
         const rng = () => 0.5;
-        totalD1 += SPELLS.HALITO.effect(dummyCaster1, { name: "Target" }, null, { rng }).damage;
-        totalD2 += SPELLS.HALITO.effect(dummyCaster2, { name: "Target" }, null, { rng }).damage;
+        totalD1 += SPELL_EFFECTS.HALITO({ caster: dummyCaster1, target: { name: "Target" }, rng }).damage;
+        totalD2 += SPELL_EFFECTS.HALITO({ caster: dummyCaster2, target: { name: "Target" }, rng }).damage;
       }
       assert.ok(totalD2 > totalD1, "Arcane caster damage should be greater due to +10% boost");
 
@@ -636,8 +637,8 @@ import assert from "assert";
       
       const targetChar = { hp: 1, maxHp: 100 };
       const rng = () => 0.5;
-      const heal1 = SPELLS.DIOS.effect(dummyPriest1, targetChar, null, { rng }).heal;
-      const heal2 = SPELLS.DIOS.effect(dummyPriest2, targetChar, null, { rng }).heal;
+      const heal1 = SPELL_EFFECTS.DIOS({ caster: dummyPriest1, target: targetChar, rng }).heal;
+      const heal2 = SPELL_EFFECTS.DIOS({ caster: dummyPriest2, target: targetChar, rng }).heal;
       assert.ok(heal2 > heal1, "Devotion caster healing should be greater due to +10% boost");
 
       // D. guardian (被ダメージ軽減-10% at HP<=25%)

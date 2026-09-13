@@ -1,4 +1,5 @@
-import { SPELLS } from "../data.js";
+import { SPELLS } from "../data/spells.js";
+import { SPELL_EFFECTS } from "../systems/spell_effects.js";
 import { recordCharDeath, queueCharDeathLog, recordMonsterResistanceDiscovery } from "../state.js";
 import { getEffectiveMagicResist, applyMagicResistBuffs, applyKillAffixEffects, logCoreActivation, recordReceivedDamage } from "./damage.js";
 import { hasTrait, processMonsterDefeat, triggerEliteSpellEater } from "./monster_traits.js";
@@ -104,7 +105,10 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
     const originalMagicResist = target.magicResist;
     target.magicResist = getEffectiveMagicResist(target);
     const appliedMagicResist = target.magicResist;
-    const result = spell.effect(char, target, state.party, {
+    const result = SPELL_EFFECTS[act.spellName]({
+      caster: char,
+      target,
+      party: state.party,
       telemetryEnabled: Boolean(state.combatFormulaTelemetry),
       state,
       logQueue,
@@ -166,7 +170,10 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
     const beforeHp = monsters.map(mon => mon.hp);
     const result = applyMagicResistBuffs(
       affectedMonsters,
-      () => spell.effect(char, affectedMonsters, state.party, {
+      () => SPELL_EFFECTS[act.spellName]({
+        caster: char,
+        target: affectedMonsters,
+        party: state.party,
         telemetryEnabled: Boolean(state.combatFormulaTelemetry),
         state,
         logQueue,
@@ -241,7 +248,12 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
     });
   } else if (spell.target === "single_ally") {
     const target = state.party[act.targetIdx];
-    const result = spell.effect(char, target, state.party, { rng });
+    const result = SPELL_EFFECTS[act.spellName]({
+      caster: char,
+      target,
+      party: state.party,
+      rng
+    });
     let floatText = undefined;
     if (result.heal) {
       floatText = `+${result.heal}`;
@@ -258,7 +270,12 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       floatColor: "#00ff66"
     });
   } else if (spell.target === "all_allies") {
-    const result = spell.effect(char, state.party, state.party, { rng });
+    const result = SPELL_EFFECTS[act.spellName]({
+      caster: char,
+      target: state.party,
+      party: state.party,
+      rng
+    });
     const floatText = spell.name === "MADI" ? (result.heal ? `+${result.heal}` : "HEAL") : "BARRIER";
     logQueue.push({
       msg: `[味方] ${result.log}`,

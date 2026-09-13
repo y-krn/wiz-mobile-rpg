@@ -1,4 +1,5 @@
-import { ITEMS, getCharAffixSum } from "../data.js";
+import { getCharAffixSum } from "../data.js";
+import { ITEM_EFFECTS } from "../systems/item_effects.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry } from "../state/run_loot.js";
 import { trackLootLifecycle, trackPortalDecision } from "../telemetry.js";
 
@@ -8,7 +9,6 @@ import { trackLootLifecycle, trackPortalDecision } from "../telemetry.js";
  */
 export function resolvePlayerItem(char, act, state, logQueue, options = {}) {
   const rng = options.rng || Math.random;
-  const item = ITEMS[act.itemKey];
   const inventoryIdx = state.inventory.findIndex(key => key === act.itemKey);
   if (inventoryIdx === -1) {
     logQueue.push({ msg: `[味方] ${char.name}は道具を使おうとしたが、もうバッグに残っていない！` });
@@ -81,7 +81,7 @@ export function resolvePlayerItem(char, act, state, logQueue, options = {}) {
   const oldHp = target.hp;
   const oldMp = target.mp;
   const oldStatus = target.status;
-  const log = item.effect(target, state.party, { rng });
+  const log = ITEM_EFFECTS[act.itemKey]({ char: target, party: state.party, rng });
   state.inventory.splice(inventoryIdx, 1);
   consumeRunObjectLoot(state, act.itemKey);
   if (lootId) trackLootLifecycle("consumed", {
