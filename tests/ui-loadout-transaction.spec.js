@@ -75,6 +75,11 @@ test('equipment lazy-load failure clears pending and exposes a recoverable rejec
     state.inventory = ['SHORT_SWORD'];
     state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'failed-equipment-ui' };
     state.gameState = 'explore';
+    const trigger = document.createElement('button');
+    trigger.id = 'equipment-open-trigger';
+    trigger.textContent = '装備を開く';
+    document.body.appendChild(trigger);
+    trigger.focus();
     loader.__setEquipmentUiLoaderForTests(() => Promise.reject(new Error('controlled loader failure')));
     const result = await loader.openEquipOverlay(0);
     const overlay = document.querySelector('#equip-overlay');
@@ -86,6 +91,7 @@ test('equipment lazy-load failure clears pending and exposes a recoverable rejec
       text: overlay?.textContent || '',
       retry: Boolean(overlay?.querySelector('.equip-loading-retry')),
       close: Boolean(overlay?.querySelector('.equip-loading-close')),
+      rejectionFocus: document.activeElement?.className || '',
     };
   });
   expect(evidence).toMatchObject({
@@ -97,8 +103,10 @@ test('equipment lazy-load failure clears pending and exposes a recoverable rejec
     close: true,
   });
   expect(evidence.text).toContain('装備画面を開けませんでした');
+  expect(evidence.rejectionFocus).toContain('equip-loading-state');
   await page.getByRole('button', { name: '閉じる' }).click();
   await expect(page.locator('#equip-overlay')).toBeHidden();
+  await expect(page.locator('#equipment-open-trigger')).toBeFocused();
 });
 
 test('equipment UI loads asynchronously once and stays cached across town and explore opens @smoke', async ({ page }) => {

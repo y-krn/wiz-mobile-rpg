@@ -107,8 +107,11 @@ perception SLO. No `<100ms` or per-frame global hard threshold is asserted.
   repeated tap could reset the opening surface more than once.
 - Fix: `equipment_ui_loader.js` now owns one in-flight open request, renders a
   quiet text acknowledgement with `aria-busy`, and exposes a retry/close
-  rejection state. Production still uses the original lazy import and cache.
-- Regression guard: deterministic delayed and failure browser tests.
+  rejection state. Rejection focuses its status and Close restores the invoking
+  control when it is still available. Production still uses the original lazy
+  import and cache.
+- Regression guard: deterministic delayed and failure browser tests, including
+  rejection focus and post-close focus restoration.
 
 ### Preparation start could re-enter after the source button was replaced
 
@@ -143,9 +146,10 @@ leaving the player stuck.
 
 - Pending status is a polite atomic live region; it does not spam repeated
   announcements for repeated taps because the request is coalesced.
-- The pending surface keeps focus on its status rather than moving focus to the
-  body. The resolved equipment overlay uses the existing focus manager and
-  existing focus restoration contract.
+- The pending and rejected surfaces keep focus on their status rather than
+  moving focus to the body. The resolved equipment overlay uses the existing
+  focus manager, and rejection Close restores the invoking control when it is
+  still connected.
 - `aria-busy=true` is limited to the actual unresolved import and is removed on
   resolution; failure exposes a visible retry/close control with `aria-busy=false`.
 - The new surface uses existing Dark Archive semantic tokens and restrained
@@ -177,6 +181,12 @@ Focused after-change checks:
 ```text
 npx playwright test tests/ui-golden-journeys.spec.js tests/ui-loadout-transaction.spec.js
 21 passed
+
+npx playwright test tests/ui-loadout-transaction.spec.js --grep 'delayed cold equipment open'
+1 passed
+
+npx playwright test tests/ui-loadout-transaction.spec.js --grep 'equipment lazy-load failure'
+1 passed
 
 node tests/node/unit/test_loadout_transaction.js
 [PASS] loadout drafts validate and commit atomically

@@ -5,6 +5,7 @@ let equipmentUiPromise = null;
 let equipmentUiImporter = () => import("./equip_ui.js");
 let pendingOpenRequest = null;
 let rejectedPreviousGameState = "explore";
+let rejectedFocusTarget = null;
 
 function getOverlay() {
   return document.getElementById("equip-overlay");
@@ -15,7 +16,7 @@ function focusPendingStatus(overlay) {
   if (status && typeof status.focus === "function") status.focus({ preventScroll: true });
 }
 
-function renderLoadingState({ state: loadState, actorIdx = 0 } = {}) {
+function renderLoadingState({ state: loadState, actorIdx = 0, focusStatus = false } = {}) {
   const overlay = getOverlay();
   if (!overlay) return;
 
@@ -60,13 +61,15 @@ function renderLoadingState({ state: loadState, actorIdx = 0 } = {}) {
       delete overlay.dataset.loadState;
       state.gameState = rejectedPreviousGameState;
       pendingOpenRequest = null;
+      if (rejectedFocusTarget?.isConnected) rejectedFocusTarget.focus({ preventScroll: true });
+      rejectedFocusTarget = null;
     });
     actions.append(retry, close);
     status.appendChild(actions);
   }
 
   overlay.appendChild(status);
-  if (loadState === "pending") focusPendingStatus(overlay);
+  if (loadState === "pending" || focusStatus) focusPendingStatus(overlay);
 }
 
 export function loadEquipmentUi() {
@@ -90,6 +93,9 @@ export function openEquipOverlay(actorIdx = 0) {
   const request = {
     actorIdx,
     previousGameState: state.gameState,
+    focusTarget: document.activeElement instanceof HTMLElement && !getOverlay()?.contains(document.activeElement)
+      ? document.activeElement
+      : null,
     promise: null
   };
   pendingOpenRequest = request;
@@ -99,6 +105,7 @@ export function openEquipOverlay(actorIdx = 0) {
   request.promise = loadEquipmentUi().then((module) => {
     if (pendingOpenRequest !== request) return false;
     pendingOpenRequest = null;
+    rejectedFocusTarget = null;
     state.gameState = request.previousGameState;
     const overlay = getOverlay();
     if (overlay) {
@@ -110,9 +117,10 @@ export function openEquipOverlay(actorIdx = 0) {
   }).catch(() => {
     if (pendingOpenRequest !== request) return false;
     rejectedPreviousGameState = request.previousGameState;
+    rejectedFocusTarget = request.focusTarget;
     pendingOpenRequest = null;
     state.gameState = request.previousGameState;
-    renderLoadingState({ state: "rejected", actorIdx });
+    renderLoadingState({ state: "rejected", actorIdx, focusStatus: true });
     return false;
   });
   return request.promise;
@@ -140,5 +148,6 @@ export function __setEquipmentUiLoaderForTests(importer = null) {
   }
   equipmentUiModule = null;
   equipmentUiPromise = null;
+  rejectedFocusTarget = null;
   equipmentUiImporter = importer || (() => import("./equip_ui.js"));
 }
