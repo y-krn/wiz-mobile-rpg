@@ -6,7 +6,8 @@ import { trackLootLifecycle, trackPortalDecision } from "../telemetry.js";
  * Resolves player item usage.
  * Returns { escaped: boolean } indicating if a town portal escape occurred.
  */
-export function resolvePlayerItem(char, act, state, logQueue) {
+export function resolvePlayerItem(char, act, state, logQueue, options = {}) {
+  const rng = options.rng || Math.random;
   const item = ITEMS[act.itemKey];
   const inventoryIdx = state.inventory.findIndex(key => key === act.itemKey);
   if (inventoryIdx === -1) {
@@ -60,7 +61,7 @@ export function resolvePlayerItem(char, act, state, logQueue) {
     });
     const escapeChance = getCharAffixSum(char, "escapeChance") / 100;
     const chance = Math.max(0.40, Math.min(0.95, 0.75 + escapeChance));
-    const success = Math.random() < chance;
+    const success = rng() < chance;
     if (success) {
       logQueue.push({
         msg: `[味方] ${char.name}は離脱のスクロールを使った！煙に紛れて戦闘から離脱する！`,
@@ -80,7 +81,7 @@ export function resolvePlayerItem(char, act, state, logQueue) {
   const oldHp = target.hp;
   const oldMp = target.mp;
   const oldStatus = target.status;
-  const log = item.effect(target, state.party);
+  const log = item.effect(target, state.party, { rng });
   state.inventory.splice(inventoryIdx, 1);
   consumeRunObjectLoot(state, act.itemKey);
   if (lootId) trackLootLifecycle("consumed", {

@@ -6,13 +6,13 @@ export function findMeleeFallbackTarget(monsters) {
   return monsters.findIndex(m => m.hp > 0);
 }
 
-export function findAdjacentGuard(monsters, targetIdx) {
+export function findAdjacentGuard(monsters, targetIdx, rng = Math.random) {
   const candidates = [targetIdx - 1, targetIdx + 1]
     .filter(idx => idx >= 0 && idx < monsters.length)
     .map(idx => ({ idx, mon: monsters[idx] }))
     .filter(x => x.mon.hp > 0 && x.mon.traits?.includes("guardAdjacent"));
   if (candidates.length === 0) return null;
-  const guard = candidates.find(x => Math.random() < (x.mon.guard?.chance ?? 0.5));
+  const guard = candidates.find(x => rng() < (x.mon.guard?.chance ?? 0.5));
   return guard || null;
 }
 
@@ -26,12 +26,12 @@ export function getLivingTargetCandidates(party, mode = "random") {
   return active;
 }
 
-export function pickTarget(party, mode = "random") {
+export function pickTarget(party, mode = "random", rng = Math.random) {
   const candidates = getLivingTargetCandidates(party, mode);
   if (candidates.length === 0) return null;
   if (mode === "lowHp") return candidates[0];
   return candidates[Math.min(
     candidates.length - 1,
-    Math.floor(Math.random() * candidates.length)
+    Math.floor(rng() * candidates.length)
   )];
 }

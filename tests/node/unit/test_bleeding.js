@@ -44,13 +44,9 @@ function createState(monster = {}) {
 }
 
 function runRound(state, randomValues) {
-  const originalRandom = Math.random;
-  Math.random = () => randomValues.shift() ?? 0;
-  try {
-    return runCombatRoundCalculation(state, { actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }] });
-  } finally {
-    Math.random = originalRandom;
-  }
+  return runCombatRoundCalculation(state, { actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }] }, {
+    rng: () => randomValues.shift() ?? 0
+  });
 }
 
 const first = runRound(createState(), [0, 0, 0, 0]);

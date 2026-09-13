@@ -58,14 +58,11 @@ assert.equal(hasStatusEffectForDamage(target), false);
 const spellState = createCombatState();
 const spellTarget = spellState.combatState.monsters[0];
 const spellLogs = [];
-const originalRandom = Math.random;
-Math.random = () => 0;
-resolvePlayerSpell(spellState.party[0], { spellName: "VULNERA", targetIdx: 0 }, spellState, [spellTarget], spellLogs);
+resolvePlayerSpell(spellState.party[0], { spellName: "VULNERA", targetIdx: 0 }, spellState, [spellTarget], spellLogs, { rng: () => 0 });
 assert.equal(hasStatusEffect(spellTarget, STATUS_EFFECT_IDS.VULNERABLE), true);
 assert.equal(spellState.simTelemetry.vulnerable.attempts, 1);
 assert.equal(spellState.simTelemetry.vulnerable.applied, 1);
-resolvePlayerSpell(spellState.party[0], { spellName: "MAHALITO", targetIdx: 0 }, spellState, [spellTarget], spellLogs);
-Math.random = originalRandom;
+resolvePlayerSpell(spellState.party[0], { spellName: "MAHALITO", targetIdx: 0 }, spellState, [spellTarget], spellLogs, { rng: () => 0 });
 assert.equal(hasStatusEffect(spellTarget, STATUS_EFFECT_IDS.VULNERABLE), false);
 assert.equal(spellState.simTelemetry.vulnerable.consumed, 1);
 assert.equal(spellState.simTelemetry.vulnerable.qualifyingHitTypes.spell, 1);
@@ -77,10 +74,7 @@ const areaState = createCombatState();
 areaState.party[0].mediumState.socketedRunes.push("RUNE_LAHALITO");
 const areaTarget = areaState.combatState.monsters[0];
 applyStatusEffect(areaTarget, STATUS_EFFECT_IDS.VULNERABLE, { remainingTurns: 3, source: "VULNERA" });
-const areaRandom = Math.random;
-Math.random = () => 0;
-resolvePlayerSpell(areaState.party[0], { spellName: "LAHALITO", targetIdx: -1 }, areaState, [areaTarget], []);
-Math.random = areaRandom;
+resolvePlayerSpell(areaState.party[0], { spellName: "LAHALITO", targetIdx: -1 }, areaState, [areaTarget], [], { rng: () => 0 });
 assert.equal(areaTarget.hp, 981);
 assert.equal(areaState.combatFormulaTelemetry.spellHits.at(-1).vulnerableConsumed, true);
 assert.equal(areaState.combatFormulaTelemetry.spellHits.at(-1).vulnerableDamageContribution, 4);
@@ -89,12 +83,9 @@ const physicalState = createCombatState({
   statusEffects: { vulnerable: { id: "vulnerable", remainingTurns: 3, stacks: 1, source: "VULNERA" } }
 });
 physicalState.party[0].str = 15;
-const physicalRandom = Math.random;
-Math.random = () => 0;
 const physical = runCombatRoundCalculation(physicalState, {
   actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-});
-Math.random = physicalRandom;
+}, { rng: () => 0 });
 const physicalHit = physical.state.combatFormulaTelemetry.physicalPlayerHits[0];
 assert.equal(physicalHit.vulnerableConsumed, true);
 assert.ok(physicalHit.vulnerableDamageContribution > 0);

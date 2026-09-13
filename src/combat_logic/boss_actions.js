@@ -50,7 +50,8 @@ function resolveB5MilestoneBossAction(mon, state, logQueue) {
  * Executes a scoped milestone action or a boss custom action.
  * Returns true if a custom action was executed, false otherwise.
  */
-export function resolveBossAction(mon, state, combatSelection, monsters, logQueue) {
+export function resolveBossAction(mon, state, combatSelection, monsters, logQueue, options = {}) {
+  const rng = options.rng || Math.random;
   if (resolveB5MilestoneBossAction(mon, state, logQueue)) return true;
 
   // フラック独自のギミック行動
@@ -72,7 +73,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       state.party.forEach((c, charIdx) => {
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-          let dmg = Math.floor(Math.random() * 16) + 10; // 10-25 DMG
+          let dmg = Math.floor(rng() * 16) + 10; // 10-25 DMG
           dmg = resolveGuardMitigation(c, dmg, {
             isDefending,
             attackType: "spell",
@@ -99,7 +100,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     }
 
     const hpPct = mon.hp / mon.maxHp;
-    const r = Math.random();
+    const r = rng();
     let action = (() => {
       if (hpPct <= 0.25) {
         if (r < 0.10) return "flee";
@@ -143,7 +144,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       state.party.forEach((c, charIdx) => {
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-          let dmg = Math.floor(Math.random() * 16) + 15; // 15-30 DMG
+          let dmg = Math.floor(rng() * 16) + 15; // 15-30 DMG
           dmg = resolveGuardMitigation(c, dmg, {
             isDefending,
             attackType: "spell",
@@ -178,7 +179,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => x.c.status === "ok");
       if (livingChars.length > 0) {
         recordMonsterAction(mon, "呪いの眼光", state);
-        const targetChar = livingChars[Math.floor(Math.random() * livingChars.length)];
+        const targetChar = livingChars[Math.floor(rng() * livingChars.length)];
         const target = targetChar.c;
         const isDefending = combatSelection.actions.some(a => a.actorIdx === targetChar.i && a.type === "defend");
         
@@ -192,12 +193,12 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           getStatusEffectChance(target, 1, { telemetry: state.combatFormulaTelemetry }),
           { isDefending, telemetry: state.combatFormulaTelemetry }
         );
-        if (Math.random() >= guardedChance) {
+        if (rng() >= guardedChance) {
           logQueue.push({ msg: isDefending
             ? `[ 敵 ] しかし、${target.name}は身を守り呪いを防いだ！`
             : `[ 敵 ] ${target.name}は不屈の意志で呪いを退けた！` });
         } else {
-          const gazeRoll = Math.random();
+          const gazeRoll = rng();
           if (gazeRoll < 0.50) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.BLIND, { source: "boss_gaze" });
             recordMonsterCondition(mon, "盲目を受けた", state);
@@ -239,7 +240,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       state.party.forEach((c, charIdx) => {
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-          let dmg = Math.floor(Math.random() * 31) + 45; // 45-75 DMG
+          let dmg = Math.floor(rng() * 31) + 45; // 45-75 DMG
           if (isDefending) {
             dmg = resolveGuardMitigation(c, dmg, {
               isDefending,
@@ -287,7 +288,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       state.party.forEach((c, charIdx) => {
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-          let dmg = Math.floor(Math.random() * 13) + 12; // 12-24 DMG
+          let dmg = Math.floor(rng() * 13) + 12; // 12-24 DMG
           dmg = resolveGuardMitigation(c, dmg, {
             isDefending,
             attackType: "breath",
@@ -330,7 +331,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       state.party.forEach((c, charIdx) => {
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-          let dmg = Math.floor(Math.random() * 21) + 15; // 15-35 DMG
+          let dmg = Math.floor(rng() * 21) + 15; // 15-35 DMG
           dmg = resolveGuardMitigation(c, dmg, {
             isDefending,
             attackType: "spell",
@@ -360,7 +361,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     const currentTurn = mon.turnCount % 4;
     let action = "attack";
     if (currentTurn === 1) {
-      action = Math.random() < 0.5 ? "breath" : "madalto";
+      action = rng() < 0.5 ? "breath" : "madalto";
     } else if (currentTurn === 2) {
       action = "tiltowait_queue";
     }

@@ -342,7 +342,7 @@ function runEncounter(state, cumulativeUpgrades) {
     const roundStartStatus = character.status;
     const action = selectCombatAction(state);
     const potionCountBefore = state.inventory.filter(item => item === "HEAL_POTION").length;
-    const roundResult = runCombatRoundCalculation(state, { actions: [action] });
+    const roundResult = runCombatRoundCalculation(state, { actions: [action] }, { rng: Math.random });
     state = roundResult.state;
     const potionCountAfter = state.inventory.filter(item => item === "HEAL_POTION").length;
     healPotionsUsed += potionCountBefore - potionCountAfter;

@@ -16,10 +16,10 @@ import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
  * Resolves player spell casting logic.
  */
 
-function tryReflectMagic(target) {
+function tryReflectMagic(target, rng = Math.random) {
   if (!hasTrait(target, "reflectMagic")) return 0;
-  if (Math.random() >= (target.magicReflect?.chance ?? 0.5)) return 0;
-  return Math.floor(Math.random() * 11) + 5;
+  if (rng() >= (target.magicReflect?.chance ?? 0.5)) return 0;
+  return Math.floor(rng() * 11) + 5;
 }
 
 function applyReflectionDamage(char, state, sources, logQueue) {
@@ -59,6 +59,7 @@ function applyReflectionDamage(char, state, sources, logQueue) {
 }
 
 export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks = {}) {
+  const rng = hooks.rng || Math.random;
   const spell = SPELLS[act.spellName];
   if (!spell || !getActiveSpellKeys(char).includes(act.spellName)) {
     logQueue.push({ msg: `[味方] ${char.name}はそのルーンを装備していないため、呪文を唱えられない！` });
@@ -93,7 +94,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       target = monsters[livingTargetIdx];
     }
     
-    const reflected = tryReflectMagic(target);
+    const reflected = tryReflectMagic(target, rng);
     if (reflected > 0) {
       applyReflectionDamage(char, state, [{ name: target.name, damage: reflected }], logQueue);
       return;
@@ -106,7 +107,8 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
     const result = spell.effect(char, target, state.party, {
       telemetryEnabled: Boolean(state.combatFormulaTelemetry),
       state,
-      logQueue
+      logQueue,
+      rng
     });
     const vulnerableResult = result.damage > 0
       ? consumeVulnerableDamage(target, result.damage, state, "spell")
@@ -131,7 +133,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
     }
     target.hp = Math.max(0, target.hp - resolvedDamage);
     if (resolvedDamage > 0) triggerEliteSpellEater(target, logQueue);
-    const wakeSuffix = resolvedDamage > 0 && wakeSleepingMonsterOnDamage(target) ? `${target.name}は目を覚ました！` : "";
+    const wakeSuffix = resolvedDamage > 0 && wakeSleepingMonsterOnDamage(target, rng) ? `${target.name}は目を覚ました！` : "";
     const vulnerableSuffix = vulnerableResult.consumed
       ? `（脆弱で+${vulnerableResult.damageContribution}）`
       : "";
@@ -153,7 +155,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
   } else if (spell.target === "all_enemies") {
     const reflectedSources = monsters
       .filter(mon => mon.hp > 0)
-      .map(mon => ({ monster: mon, damage: tryReflectMagic(mon) }))
+      .map(mon => ({ monster: mon, damage: tryReflectMagic(mon, rng) }))
       .filter(source => source.damage > 0);
     const reflectedMonsters = new Set(reflectedSources.map(source => source.monster));
     const affectedMonsters = monsters.filter(mon => !reflectedMonsters.has(mon));
@@ -166,7 +168,8 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       () => spell.effect(char, affectedMonsters, state.party, {
         telemetryEnabled: Boolean(state.combatFormulaTelemetry),
         state,
-        logQueue
+        logQueue,
+        rng
       })
     );
     const vulnerableBonuses = [];
@@ -205,7 +208,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       });
     }
     const wokeNames = monsters
-      .filter((mon, idx) => beforeHp[idx] > mon.hp && wakeSleepingMonsterOnDamage(mon))
+      .filter((mon, idx) => beforeHp[idx] > mon.hp && wakeSleepingMonsterOnDamage(mon, rng))
       .map(mon => mon.name);
     const wakeSuffix = wokeNames.length > 0 ? ` ${wokeNames.join("、")}は目を覚ました！` : "";
     logQueue.push({
@@ -235,7 +238,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
     });
   } else if (spell.target === "single_ally") {
     const target = state.party[act.targetIdx];
-    const result = spell.effect(char, target, state.party);
+    const result = spell.effect(char, target, state.party, { rng });
     let floatText = undefined;
     if (result.heal) {
       floatText = `+${result.heal}`;
@@ -252,7 +255,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       floatColor: "#00ff66"
     });
   } else if (spell.target === "all_allies") {
-    const result = spell.effect(char, state.party, state.party);
+    const result = spell.effect(char, state.party, state.party, { rng });
     const floatText = spell.name === "MADI" ? (result.heal ? `+${result.heal}` : "HEAL") : "BARRIER";
     logQueue.push({
       msg: `[味方] ${result.log}`,

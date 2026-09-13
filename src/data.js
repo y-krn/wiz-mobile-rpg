@@ -75,7 +75,7 @@ for (const [key, val] of Object.entries(STATIC_SPELLS)) {
       return SPELL_EFFECTS[key]({
         caster: arg1,
         target: arg2,
-        rng: Math.random,
+        rng: options?.rng || Math.random,
         party,
         telemetryEnabled: Boolean(options?.telemetryEnabled),
         state: options?.state || null,
@@ -90,8 +90,8 @@ export const ITEMS = {};
 for (const [key, val] of Object.entries(STATIC_ITEMS)) {
   ITEMS[key] = { ...val };
   if (ITEM_EFFECTS[key]) {
-    ITEMS[key].effect = (char, party = null) => {
-      return ITEM_EFFECTS[key]({ char, rng: Math.random, party });
+    ITEMS[key].effect = (char, party = null, options = {}) => {
+      return ITEM_EFFECTS[key]({ char, rng: options?.rng || Math.random, party });
     };
   }
 }
@@ -116,8 +116,8 @@ export function getItemData(itemOrKey) {
   if (ITEM_EFFECTS[baseId]) {
     return {
       ...item,
-      effect: (char, party = null) => {
-        return ITEM_EFFECTS[baseId]({ char, rng: Math.random, party });
+      effect: (char, party = null, options = {}) => {
+        return ITEM_EFFECTS[baseId]({ char, rng: options?.rng || Math.random, party });
       }
     };
   }

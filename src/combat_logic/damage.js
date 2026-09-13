@@ -351,10 +351,11 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
 }
 
 export function applyPartyDamage(state, combatSelection, logQueue, sourceName, minDmg, maxDmg, options = {}) {
+  const rng = options.rng || Math.random;
   state.party.forEach((c, charIdx) => {
     if (c.status === "dead") return;
     const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-    let dmg = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
+    let dmg = Math.floor(rng() * (maxDmg - minDmg + 1)) + minDmg;
     dmg = resolveGuardMitigation(c, dmg, {
       isDefending,
       attackType: options.attackType,

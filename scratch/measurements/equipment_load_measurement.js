@@ -109,7 +109,8 @@ function initiativeMatrix(runs, seed) {
         for (let runIndex = 0; runIndex < runs; runIndex++) {
           const result = runCombatRoundCalculation(
             combatFixture(loadoutId, firstStrike, enemyCount),
-            { actions: [{ type: "defend", actorIdx: 0 }] }
+            { actions: [{ type: "defend", actorIdx: 0 }] },
+            { rng: Math.random }
           );
           const player = result.actionObservations.find(observation => observation.actor === "char");
           if (player?.order === 0 && player.executed) counts.first++;

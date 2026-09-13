@@ -64,16 +64,12 @@ const telegraphState = {
     loggedCoreActivations: []
   }
 };
-const originalRandom = Math.random;
-try {
-  Math.random = () => 0;
+{
   const result = runCombatRoundCalculation(telegraphState, {
     actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-  });
+  }, { rng: () => 0 });
   assert.deepEqual(result.state.codex.monsters["観測用魔術師"].observedActions, []);
   assert.ok(result.logQueue.some(log => log.msg.includes("予兆")));
-} finally {
-  Math.random = originalRandom;
 }
 
 console.log("[PASS] Monster codex observations deduplicate actions and retain encounter history.");

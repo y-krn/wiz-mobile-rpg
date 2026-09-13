@@ -75,13 +75,7 @@ function createState(party, monsters) {
 }
 
 function runWithFixedRandom(state, combatSelection) {
-  const originalRandom = Math.random;
-  try {
-    Math.random = () => 0;
-    return runCombatRoundCalculation(state, combatSelection);
-  } finally {
-    Math.random = originalRandom;
-  }
+  return runCombatRoundCalculation(state, combatSelection, { rng: () => 0 });
 }
 
 {

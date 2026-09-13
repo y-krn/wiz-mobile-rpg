@@ -84,13 +84,9 @@ function createState({
 }
 
 function run(state, action, randomValues = [0, 0, 0, 0]) {
-  const originalRandom = Math.random;
-  Math.random = () => randomValues.shift() ?? 0;
-  try {
-    return runCombatRoundCalculation(state, { actions: [action] });
-  } finally {
-    Math.random = originalRandom;
-  }
+  return runCombatRoundCalculation(state, { actions: [action] }, {
+    rng: () => randomValues.shift() ?? 0
+  });
 }
 
 // Every resolved physical hit keeps the minimum-one rule, including the

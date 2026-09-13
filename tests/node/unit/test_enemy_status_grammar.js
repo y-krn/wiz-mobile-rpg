@@ -66,13 +66,7 @@ function createState(monster, character = createCharacter(), telemetry = true) {
 }
 
 function runWithRandom(state, actions) {
-  const originalRandom = Math.random;
-  try {
-    Math.random = () => 0;
-    return runCombatRoundCalculation(state, { actions });
-  } finally {
-    Math.random = originalRandom;
-  }
+  return runCombatRoundCalculation(state, { actions }, { rng: () => 0 });
 }
 
 test("poison setup queues a readable payoff and defend reduces it", () => {

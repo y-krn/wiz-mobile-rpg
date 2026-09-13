@@ -591,12 +591,9 @@ import assert from "assert";
       };
 
       // 戦闘乱数を実効チャンス(50%)未満に固定し、追撃を確定発火させる(敵は1撃で倒れない)
-      const tempRandFollowUp = Math.random;
-      Math.random = () => 0.1;
       const roundResult = runCombatRoundCalculation(state, {
         actions: [{ actorIdx: 0, type: "fight", targetIdx: 0 }]
-      });
-      Math.random = tempRandFollowUp;
+      }, { rng: () => 0.1 });
 
       const followUpLog = roundResult.logQueue.some(l => l.msg && l.msg.includes("追撃"));
       assert.ok(followUpLog, "Combat round logs should contain 追撃 when followUp roll is below the capped chance");
@@ -618,12 +615,9 @@ import assert from "assert";
       let totalD1 = 0;
       let totalD2 = 0;
       for(let i=0; i<100; i++) {
-        // mock random
-        const tempRand = Math.random;
-        Math.random = () => 0.5;
-        totalD1 += SPELLS.HALITO.effect(dummyCaster1, { name: "Target" }).damage;
-        totalD2 += SPELLS.HALITO.effect(dummyCaster2, { name: "Target" }).damage;
-        Math.random = tempRand;
+        const rng = () => 0.5;
+        totalD1 += SPELLS.HALITO.effect(dummyCaster1, { name: "Target" }, null, { rng }).damage;
+        totalD2 += SPELLS.HALITO.effect(dummyCaster2, { name: "Target" }, null, { rng }).damage;
       }
       assert.ok(totalD2 > totalD1, "Arcane caster damage should be greater due to +10% boost");
 
@@ -641,11 +635,9 @@ import assert from "assert";
       const dummyPriest2 = { ...priestCaster };
       
       const targetChar = { hp: 1, maxHp: 100 };
-      const tempRand = Math.random;
-      Math.random = () => 0.5;
-      const heal1 = SPELLS.DIOS.effect(dummyPriest1, targetChar).heal;
-      const heal2 = SPELLS.DIOS.effect(dummyPriest2, targetChar).heal;
-      Math.random = tempRand;
+      const rng = () => 0.5;
+      const heal1 = SPELLS.DIOS.effect(dummyPriest1, targetChar, null, { rng }).heal;
+      const heal2 = SPELLS.DIOS.effect(dummyPriest2, targetChar, null, { rng }).heal;
       assert.ok(heal2 > heal1, "Devotion caster healing should be greater due to +10% boost");
 
       // D. guardian (被ダメージ軽減-10% at HP<=25%)
@@ -664,10 +656,7 @@ import assert from "assert";
       const runGuardian = (shield) => {
         state.party = [makeGuardianChar(shield)];
         state.combatState = monsterAttacker();
-        const tempRand = Math.random;
-        Math.random = () => 0; // Fix rand rolls in combat round for a deterministic comparison
-        const res = runCombatRoundCalculation(state, { actions: [{ actorIdx: 0, type: "defend" }] });
-        Math.random = tempRand;
+        const res = runCombatRoundCalculation(state, { actions: [{ actorIdx: 0, type: "defend" }] }, { rng: () => 0 });
         return res.state.party[0].hp;
       };
 

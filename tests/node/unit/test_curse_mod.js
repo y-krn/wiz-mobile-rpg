@@ -233,12 +233,8 @@ const combatSelection = {
   ]
 };
 
-const originalRandom = Math.random;
-try {
-  // Math.random をオーバーライドして毒付与を確実にする
-  Math.random = () => 0.01;
-  
-  const result = runCombatRoundCalculation(originalState, combatSelection);
+{
+  const result = runCombatRoundCalculation(originalState, combatSelection, { rng: () => 0.01 });
   console.log("Combat Log Queue:", result.logQueue);
   const slime = result.state.combatState.monsters[0];
   console.log("Monster status after attack:", slime.status);
@@ -249,8 +245,6 @@ try {
   assert(turnEndLog, "Log queue must contain turn-end poison damage log for monster");
   console.log("Turn-end log message:", turnEndLog.msg);
   assert(slime.hp < 100, "Monster hp must decrease due to poison");
-} finally {
-  Math.random = originalRandom;
 }
 
 console.log("All curse mod tests passed!");

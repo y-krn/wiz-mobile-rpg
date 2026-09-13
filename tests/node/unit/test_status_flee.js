@@ -103,40 +103,30 @@ test("blind clears when a surviving party ends combat", () => {
     status: "blind",
     monsterOverrides: { hp: 1, maxHp: 1 }
   });
-  const originalRandom = Math.random;
-  Math.random = () => 0.9;
-  try {
+  {
     const result = runCombatRoundCalculation(state, {
       actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-    });
+    }, { rng: () => 0.9 });
     assert.equal(result.state.party[0].status, "ok");
     assert.ok(result.logQueue.some(log => log.msg?.includes("盲目が戦闘終了で解けた")));
-  } finally {
-    Math.random = originalRandom;
   }
 });
 
 test("blind clears when combat ends by fleeing", () => {
   const state = createState({ status: "blind" });
-  const originalRandom = Math.random;
-  Math.random = () => 0;
-  try {
+  {
     const result = runCombatRoundCalculation(state, {
       actions: [{ type: "run", actorIdx: 0 }]
-    });
+    }, { rng: () => 0 });
     assert.equal(result.state.party[0].status, "ok");
     assert.ok(result.logQueue.some(log => log.msg?.includes("盲目が戦闘終了で解けた")));
-  } finally {
-    Math.random = originalRandom;
   }
 });
 
 test("flee always succeeds against a boss, takes one parting hit, and retreats", () => {
   const state = createState({ isBoss: true, retreatPosition: { x: 4, y: 5 } });
-  const originalRandom = Math.random;
-  Math.random = () => 0;
-  try {
-    const result = runCombatRoundCalculation(state, { actions: [{ type: "run", actorIdx: 0 }] });
+  {
+    const result = runCombatRoundCalculation(state, { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
     assert.ok(result.logQueue.some(log => log.runEscape));
     const expectedPartingDamage = Math.max(
       1,
@@ -145,22 +135,16 @@ test("flee always succeeds against a boss, takes one parting hit, and retreats",
     assert.equal(result.state.party[0].hp, 100 - expectedPartingDamage);
     assert.deepEqual({ x: result.state.x, y: result.state.y }, { x: 4, y: 5 });
     assert.ok(result.logQueue.some(log => log.msg?.includes("追撃")));
-  } finally {
-    Math.random = originalRandom;
   }
 });
 
 test("flee succeeds in place when no retreat tile was captured", () => {
   const state = createState();
-  const originalRandom = Math.random;
-  Math.random = () => 0;
-  try {
-    const result = runCombatRoundCalculation(state, { actions: [{ type: "run", actorIdx: 0 }] });
+  {
+    const result = runCombatRoundCalculation(state, { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
     assert.ok(result.logQueue.some(log => log.runEscape));
     assert.deepEqual({ x: result.state.x, y: result.state.y }, { x: 5, y: 5 });
     assert.ok(result.logQueue.some(log => log.msg?.includes("その場に留まった")));
-  } finally {
-    Math.random = originalRandom;
   }
 });
 

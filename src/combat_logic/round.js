@@ -85,8 +85,8 @@ function findMonsterTemplate(name) {
   return MONSTERS.find(m => m.name === name);
 }
 
-function resolveInitiativeRoll(modifier = 0) {
-  const roll = Math.random();
+function resolveInitiativeRoll(modifier = 0, rng = Math.random) {
+  const roll = rng();
   const bucket = Math.floor(roll * 20);
   return {
     speed: bucket + modifier,
@@ -134,11 +134,11 @@ function getBleedingPayoffDamage(state, target, directDamage) {
   return Math.min(payoff, Math.max(0, target.hp - directDamage));
 }
 
-function tryApplyBleeding(char, target, state, logQueue) {
+function tryApplyBleeding(char, target, state, logQueue, rng = Math.random) {
   const chance = getCharAffixSum(char, "bleedingAtk") / 100;
   if (chance <= 0 || target.hp <= 0) return false;
   const alreadyBleeding = hasStatusEffect(target, STATUS_EFFECT_IDS.BLEEDING);
-  if (Math.random() >= chance) {
+  if (rng() >= chance) {
     recordBleedingEvent(state, "failed", target, {
       reason: "trigger-roll",
       source: "bleedingAtk",
@@ -238,7 +238,7 @@ function getCombatGuardedStatusChance(char, baseChance, combatSelection, actorId
   return resolveGuardStatusChance(char, baseChance, { isDefending, telemetry });
 }
 
-function resolveEnemyStatusPattern(monster, state, monsters, combatSelection, logQueue, roundNumber) {
+function resolveEnemyStatusPattern(monster, state, monsters, combatSelection, logQueue, roundNumber, rng = Math.random) {
   const pattern = MONSTER_STATUS_ATTACK_PATTERNS[monster.statusAttackPattern];
   const patternActive = pattern && !monster.isBoss && !monster.isMidboss &&
     !state.combatState?.isBoss && !state.combatState?.isMidboss;
@@ -295,10 +295,10 @@ function resolveEnemyStatusPattern(monster, state, monsters, combatSelection, lo
     };
   }
 
-  const targetSelect = candidates[Math.floor(Math.random() * candidates.length)];
-  if (Math.random() >= pattern.setupChance) return null;
+  const targetSelect = candidates[Math.floor(rng() * candidates.length)];
+  if (rng() >= pattern.setupChance) return null;
   recordEnemyStatusPattern(state, "attemptsByEnemyFloor", monster, targetSelect.c);
-  if (Math.random() >= getCombatGuardedStatusChance(
+  if (rng() >= getCombatGuardedStatusChance(
     targetSelect.c,
     getStatusEffectChance(targetSelect.c, 1, { telemetry: state.combatFormulaTelemetry }),
     combatSelection,
@@ -312,7 +312,7 @@ function resolveEnemyStatusPattern(monster, state, monsters, combatSelection, lo
   if (
     pattern.status === STATUS_EFFECT_IDS.POISONED &&
     getCharAffixSum(targetSelect.c, "poisonWard") > 0 &&
-    Math.random() * 100 < getCharAffixSum(targetSelect.c, "poisonWard")
+    rng() * 100 < getCharAffixSum(targetSelect.c, "poisonWard")
   ) {
     recordEnemyStatusPattern(state, "resistedByEnemyFloor", monster, targetSelect.c);
     logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は防毒の備えで毒を退けた！`, sound: "miss" });
@@ -353,12 +353,12 @@ function recordQueuedPatternResponse(state, monsters, response) {
   });
 }
 
-function applyFleePartingAttack(state, monsters, logQueue) {
+function applyFleePartingAttack(state, monsters, logQueue, rng = Math.random) {
   const attacker = monsters.find(mon => mon.hp > 0);
   const target = state.party.find(char => char.status !== "dead");
   if (!attacker || !target) return false;
 
-  const finalAtk = getEffectiveAtk(attacker) + Math.floor(Math.random() * 4);
+  const finalAtk = getEffectiveAtk(attacker) + Math.floor(rng() * 4);
   const finalDef = calculatePhysicalDefenseFormula({
     baseDef: getCharDef(target),
   });
@@ -415,13 +415,13 @@ function applyFleeRetreat(state) {
   return true;
 }
 
-function resolveTurnInitiative(state, actorType, character = null) {
+function resolveTurnInitiative(state, actorType, character = null, rng = Math.random) {
   const measurement = state.simPolicy?.measurementInitiative;
   if (measurement) {
     const rollSize = Number.isInteger(measurement.rollSize) && measurement.rollSize > 0
       ? measurement.rollSize
       : 20;
-    const roll = Math.random() * rollSize;
+    const roll = rng() * rollSize;
     const bucket = Math.floor(roll);
     const speed = actorType === "char"
       ? bucket + (Number(measurement.playerLoadModifier) || 0) +
@@ -432,7 +432,8 @@ function resolveTurnInitiative(state, actorType, character = null) {
   }
 
   const initiative = resolveInitiativeRoll(
-    actorType === "char" ? getCharacterEquipmentLoadModifier(character) : 0
+    actorType === "char" ? getCharacterEquipmentLoadModifier(character) : 0,
+    rng
   );
   return {
     speed: actorType === "char"
@@ -443,7 +444,7 @@ function resolveTurnInitiative(state, actorType, character = null) {
 }
 
 
-export function runCombatRoundCalculation(originalState, combatSelection) {
+export function runCombatRoundCalculation(originalState, combatSelection, { rng = Math.random } = {}) {
   const logQueue = [];
   
   const party = originalState.party.map(c => ({
@@ -495,7 +496,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   state.party.forEach((char, idx) => {
     if (char.status !== "dead") {
       const chosen = combatSelection.actions.find(a => a.actorIdx === idx);
-      const initiative = resolveTurnInitiative(state, "char", char);
+      const initiative = resolveTurnInitiative(state, "char", char, rng);
       turns.push({
         type: "char",
         char,
@@ -510,7 +511,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   // Monsters
   monsters.forEach((mon, idx) => {
     if (mon.hp > 0) {
-      const initiative = resolveTurnInitiative(state, "monster");
+      const initiative = resolveTurnInitiative(state, "monster", null, rng);
       turns.push({
         type: "monster",
         mon,
@@ -702,7 +703,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         actionObservation.hpBeforeExecution = char.hp;
 
         let finalTarget = monsters[act.targetIdx];
-        const guard = findAdjacentGuard(monsters, act.targetIdx);
+        const guard = findAdjacentGuard(monsters, act.targetIdx, rng);
         if (guard) {
           logQueue.push({ msg: `[ 敵 ] ${guard.mon.name}が${finalTarget.name}を庇った！` });
           act.targetIdx = guard.idx;
@@ -713,12 +714,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         
         let isBlindMiss = false;
         let isEvasionMiss = false;
-        if (char.status === "blind" && Math.random() < 0.5) {
+        if (char.status === "blind" && rng() < 0.5) {
           isBlindMiss = true;
         }
 
         const hitChance = getPhysicalHitChance(char, finalTarget);
-        if (!isBlindMiss && hitChance < 1 && Math.random() >= hitChance) {
+        if (!isBlindMiss && hitChance < 1 && rng() >= hitChance) {
           isBlindMiss = true;
           isEvasionMiss = true;
         }
@@ -752,7 +753,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
           const trapEaterBonus = getCharTrapEaterBonus(char);
           const buffAtk = getBuffTotal(char, "atk");
-          const randRoll = rollCharWeaponPhysicalRandom(char);
+          const randRoll = rollCharWeaponPhysicalRandom(char, rng);
           const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
           const weaponAttack = resolveWeaponAttack({
@@ -769,7 +770,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           const isBlindApplied = char.status === "blind";
 
-          tryApplyExecutionerSetup(char, finalTarget, { logQueue });
+          tryApplyExecutionerSetup(char, finalTarget, { rng, logQueue });
           dmg = applyTargetedDamageBonus(char, finalTarget, dmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
           if (guard?.mon === finalTarget && guard.mon.guard?.damageRate) {
             dmg = Math.max(1, Math.round(dmg * guard.mon.guard.damageRate));
@@ -821,21 +822,21 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (isCritical) {
             dmg = finalPhysicalDmg;
             finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
-            tryApplyHitFlinch(char, finalTarget, logQueue);
+            tryApplyHitFlinch(char, finalTarget, logQueue, rng);
             msg = `[味方] 【🗡️急所攻撃！】${char.name}の必殺の一撃！${finalTarget.name}に${dmg}の大ダメージ！${bleedingDamage > 0 ? `（出血の追撃+${bleedingDamage}）` : ""}`;
-            if (wakeSleepingMonsterOnDamage(finalTarget)) msg += `${finalTarget.name}は目を覚ました！`;
+            if (wakeSleepingMonsterOnDamage(finalTarget, rng)) msg += `${finalTarget.name}は目を覚ました！`;
             floatText = `${dmg}`;
             sound = "kill";
             shake = 15;
           } else {
             dmg = finalPhysicalDmg;
             finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
-            tryApplyHitFlinch(char, finalTarget, logQueue);
+            tryApplyHitFlinch(char, finalTarget, logQueue, rng);
             msg = `[味方] ${char.name}の攻撃！${finalTarget.name}に${dmg}のダメージ。${bleedingDamage > 0 ? `（出血の追撃+${bleedingDamage}）` : ""}`;
             if (finalTarget.physResist && dmg <= 2) {
               msg += "（攻撃が弾かれている！）";
             }
-            if (wakeSleepingMonsterOnDamage(finalTarget)) {
+            if (wakeSleepingMonsterOnDamage(finalTarget, rng)) {
               msg += `${finalTarget.name}は目を覚ました！`;
             }
             floatText = `${dmg}`;
@@ -843,7 +844,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             // 毒脈の呪いなどによる毒付与チャンス
             if (finalTarget.hp > 0 && !hasStatusEffect(finalTarget, STATUS_EFFECT_IDS.POISONED)) {
               const poisonAtkChance = getCharAffixSum(char, "poisonAtk") / 100;
-              if (poisonAtkChance > 0 && Math.random() < poisonAtkChance) {
+              if (poisonAtkChance > 0 && rng() < poisonAtkChance) {
                 applyStatusEffect(finalTarget, STATUS_EFFECT_IDS.POISONED, { source: "poisonAtk" });
                 logQueue.push({
                   msg: `[味方] [!] ${char.name}の攻撃により、${finalTarget.name}は毒に侵された！`,
@@ -857,7 +858,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // Bleeding is deliberately a separate weapon support route.  It is
           // applied only after this successful normal hit; follow-ups below
           // never call this producer or consume the payoff.
-          tryApplyBleeding(char, finalTarget, state, logQueue);
+          tryApplyBleeding(char, finalTarget, state, logQueue, rng);
 
           if (hasTrait(finalTarget, "reflectPhysical") && dmg > 0) {
             const reflected = Math.max(1, Math.floor(dmg * (finalTarget.physicalReflect?.rate ?? 0.3)));
@@ -881,8 +882,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             }
           }
 
-          if (hasTrait(finalTarget, "counterSpell") && finalTarget.hp > 0 && Math.random() < (finalTarget.counterSpell?.chance ?? 0.2)) {
-            let counterDmg = Math.floor(Math.random() * 11) + 5;
+          if (hasTrait(finalTarget, "counterSpell") && finalTarget.hp > 0 && rng() < (finalTarget.counterSpell?.chance ?? 0.2)) {
+            let counterDmg = Math.floor(rng() * 11) + 5;
             const rawCounterDmg = counterDmg;
             const playerHpBefore = char.hp;
             counterDmg = reduceIncomingDamage(char, counterDmg, { spell: true, logQueue, state });
@@ -912,8 +913,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               getCharAffixSum(char, "followUp"),
               char.combatFirstStrikeActive
             );
-            if (followUpChance > 0 && Math.random() * 100 < followUpChance) {
-              const followUpDmgRand = rollCharWeaponPhysicalRandom(char);
+            if (followUpChance > 0 && rng() * 100 < followUpChance) {
+              const followUpDmgRand = rollCharWeaponPhysicalRandom(char, rng);
               const firstTurnAttack = roundNumber === 1 ? getCharAffixSum(char, "firstTurnAttack") : 0;
               const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
               const trapEaterBonus = getCharTrapEaterBonus(char);
@@ -928,15 +929,15 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 fixedDamageBonus: trapEaterBonus
               });
               let followUpDmg = followUpAttack.damage;
-              tryApplyExecutionerSetup(char, finalTarget, { logQueue });
+              tryApplyExecutionerSetup(char, finalTarget, { rng, logQueue });
               followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
               finalTarget.hp = Math.max(0, finalTarget.hp - followUpDmg);
-              tryApplyHitFlinch(char, finalTarget, logQueue);
+              tryApplyHitFlinch(char, finalTarget, logQueue, rng);
               const followUpMp = getCharAffixSum(char, "followUpMp");
               if (followUpMp > 0) {
                 char.mp = Math.min(getCharMaxMp(char), char.mp + followUpMp);
               }
-              const wakeSuffix = wakeSleepingMonsterOnDamage(finalTarget) ? `${finalTarget.name}は目を覚ました！` : "";
+              const wakeSuffix = wakeSleepingMonsterOnDamage(finalTarget, rng) ? `${finalTarget.name}は目を覚ました！` : "";
               logQueue.push({
                 msg: `[味方] 【🗡️追撃】${char.name}の素早い追加攻撃！${finalTarget.name}に${followUpDmg}のダメージ。${wakeSuffix}`,
                 presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT,
@@ -969,10 +970,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
       } else if (act.type === "spell") {
         resolvePlayerSpell(char, act, state, monsters, logQueue, {
+          rng,
           onBleedingClear: (target, reason) => recordBleedingEvent(state, "cleared", target, { reason })
         });
       } else if (act.type === "item") {
-        const res = resolvePlayerItem(char, act, state, logQueue);
+        const res = resolvePlayerItem(char, act, state, logQueue, { rng });
         if (res.escaped) {
           escaped = true;
           return;
@@ -985,7 +987,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         actionObservation.executed = true;
         actionObservation.hpBeforeExecution = char.hp;
         recordQueuedPatternResponse(state, monsters, "fleeBeforePayoff");
-        applyFleePartingAttack(state, monsters, logQueue);
+        applyFleePartingAttack(state, monsters, logQueue, rng);
         const retreated = applyFleeRetreat(state);
         logQueue.push({
           msg: retreated
@@ -1035,7 +1037,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         monsters,
         combatSelection,
         logQueue,
-        roundNumber
+        roundNumber,
+        rng
       );
       if (statusPatternResult?.handled) return;
       const statusPayoff = statusPatternResult?.payoff || null;
@@ -1050,7 +1053,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       // Check if monster flees
-      if (mon.fleeChance && Math.random() < mon.fleeChance) {
+      if (mon.fleeChance && rng() < mon.fleeChance) {
         recordMonsterAction(mon, "逃走", state);
         mon.hp = 0;
         mon.fled = true;
@@ -1070,7 +1073,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           clearBleedingOnDefeat(state, mon, "self-destruct");
           clearCombatVulnerableOnDefeat(state, mon, "self-destruct");
           logQueue.push({ msg: `[ 敵 ] ${mon.name}は火花を散らして自爆した！`, sound: "cast_spell", shake: 15, flash: true });
-          applyPartyDamage(state, combatSelection, logQueue, mon.name, 4, 8, { spell: true });
+          applyPartyDamage(state, combatSelection, logQueue, mon.name, 4, 8, { spell: true, rng });
           return;
         }
         mon.selfDestructQueued = true;
@@ -1083,10 +1086,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           recordMonsterAction(mon, "溜めて大打撃", state);
           mon.chargeQueued = false;
           logQueue.push({ msg: `[ 敵 ] ${mon.name}は破滅の波動を放った！`, sound: "cast_spell", shake: 20, flash: true });
-          applyPartyDamage(state, combatSelection, logQueue, mon.name, 18, 32, { spell: true, defendRate: 0.5 });
+          applyPartyDamage(state, combatSelection, logQueue, mon.name, 18, 32, { spell: true, defendRate: 0.5, rng });
           return;
         }
-        if (Math.random() < (mon.traitChance ?? 0.35)) {
+        if (rng() < (mon.traitChance ?? 0.35)) {
           mon.chargeQueued = true;
           logQueue.push({ msg: `[警告] ${mon.name}が魔力を集中している！次のターンに大技が来る！`, sound: "cast_spell" });
           return;
@@ -1120,14 +1123,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       if (hasTrait(mon, "multiAction") && state.simPolicy?.measurementMaxActionsPerEnemy !== 1) {
-        if (!mon.multiActionQueued && Math.random() < (mon.traitChance ?? 0.35)) {
+        if (!mon.multiActionQueued && rng() < (mon.traitChance ?? 0.35)) {
           mon.multiActionQueued = true;
           logQueue.push({ msg: `[警告] ${mon.name}の目が血走り、凶暴化している！次のターン、連続攻撃の予兆！`, sound: "cast_spell" });
           return;
         }
       }
 
-      if (hasTrait(mon, "cleanseAlly") && Math.random() < (mon.traitChance ?? 0.35)) {
+      if (hasTrait(mon, "cleanseAlly") && rng() < (mon.traitChance ?? 0.35)) {
         const target = monsters.find(m => m.hp > 0 && ((m.buffs || []).some(buff => buff.value < 0) || m.status === "sleep"));
         if (target) {
           recordMonsterAction(mon, "状態異常を治す", state);
@@ -1140,8 +1143,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
       }
 
-      if (hasTrait(mon, "drainMp") && Math.random() < (mon.traitChance ?? 0.25)) {
-        const targetSelect = pickTarget(state.party);
+      if (hasTrait(mon, "drainMp") && rng() < (mon.traitChance ?? 0.25)) {
+        const targetSelect = pickTarget(state.party, "random", rng);
         if (targetSelect && targetSelect.c.mp > 0) {
           recordMonsterAction(mon, "MPを吸収", state);
           const amount = Math.min(targetSelect.c.mp, mon.drainMpAmount ?? 1);
@@ -1152,11 +1155,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
       }
 
-      if (hasTrait(mon, "silence") && Math.random() < (mon.traitChance ?? 0.25)) {
-        const targetSelect = pickTarget(state.party);
+      if (hasTrait(mon, "silence") && rng() < (mon.traitChance ?? 0.25)) {
+        const targetSelect = pickTarget(state.party, "random", rng);
         if (targetSelect) {
           recordMonsterAction(mon, "沈黙", state);
-          if (Math.random() >= getCombatGuardedStatusChance(
+          if (rng() >= getCombatGuardedStatusChance(
             targetSelect.c,
             getStatusEffectChance(targetSelect.c, 1, { telemetry: state.combatFormulaTelemetry }),
             combatSelection,
@@ -1173,11 +1176,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
       }
 
-      if (hasTrait(mon, "antiHeal") && Math.random() < (mon.traitChance ?? 0.3)) {
-        const targetSelect = pickTarget(state.party, "lowHp");
+      if (hasTrait(mon, "antiHeal") && rng() < (mon.traitChance ?? 0.3)) {
+        const targetSelect = pickTarget(state.party, "lowHp", rng);
         if (targetSelect) {
           recordMonsterAction(mon, "回復を阻害", state);
-          if (Math.random() >= getCombatGuardedStatusChance(
+          if (rng() >= getCombatGuardedStatusChance(
             targetSelect.c,
             getStatusEffectChance(targetSelect.c, 1, { telemetry: state.combatFormulaTelemetry }),
             combatSelection,
@@ -1194,21 +1197,21 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
       }
 
-      if (hasTrait(mon, "buffPhysicalDef") && Math.random() < (mon.traitChance ?? 0.3)) {
+      if (hasTrait(mon, "buffPhysicalDef") && rng() < (mon.traitChance ?? 0.3)) {
         recordMonsterAction(mon, "物理防御を強化", state);
         monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "def", mon.buffValue ?? 2, 3));
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は仲間の守りを固めた！` });
         return;
       }
 
-      if (hasTrait(mon, "buffMagicDef") && Math.random() < (mon.traitChance ?? 0.3)) {
+      if (hasTrait(mon, "buffMagicDef") && rng() < (mon.traitChance ?? 0.3)) {
         recordMonsterAction(mon, "魔法防御を強化", state);
         monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "magicResist", mon.buffValue ?? 0.3, 3));
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は魔法の結界を張った！` });
         return;
       }
 
-      if (hasTrait(mon, "buffAtk") && Math.random() < (mon.traitChance ?? 0.3)) {
+      if (hasTrait(mon, "buffAtk") && rng() < (mon.traitChance ?? 0.3)) {
         recordMonsterAction(mon, "仲間を鼓舞", state);
         monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "atk", mon.buffValue ?? 3, 3));
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は仲間を鼓舞した！` });
@@ -1216,7 +1219,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       // ボス固有の行動判定と実行
-      if (resolveBossAction(mon, state, combatSelection, monsters, logQueue)) {
+      if (resolveBossAction(mon, state, combatSelection, monsters, logQueue, { rng })) {
         if (mon.hp === 0) {
           const reason = mon.fled ? "flee" : "self-destruct";
           clearBleedingOnDefeat(state, mon, reason);
@@ -1236,13 +1239,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       const healSpellChance = mon.spellChance !== undefined ? mon.spellChance : 0.35;
-      if (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < healSpellChance) {
+      if (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && rng() < healSpellChance) {
         const woundedMonsters = monsters.filter(m => m.hp > 0 && m.hp < m.maxHp);
         if (woundedMonsters.length > 0) {
           recordMonsterAction(mon, mon.spell, state);
           woundedMonsters.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
           const healTarget = woundedMonsters[0];
-          const healAmount = mon.spell === "DIOS" ? (Math.floor(Math.random() * 6) + 10) : (Math.floor(Math.random() * 15) + 20);
+          const healAmount = mon.spell === "DIOS" ? (Math.floor(rng() * 6) + 10) : (Math.floor(rng() * 15) + 20);
           healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + healAmount);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}は呪文を唱えた！${healTarget.name}のHPが ${healAmount} 回復した。`,
@@ -1271,14 +1274,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           } else {
             targetCandidates = getLivingTargetCandidates(state.party);
             if (targetCandidates.length > 0) {
-              targetSelect = targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
+              targetSelect = targetCandidates[Math.floor(rng() * targetCandidates.length)];
             }
           }
         } else {
-          if (Math.random() < (mon.traitChance ?? 0.35)) {
+          if (rng() < (mon.traitChance ?? 0.35)) {
             targetCandidates = getLivingTargetCandidates(state.party);
             if (targetCandidates.length > 0) {
-              const selected = targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
+              const selected = targetCandidates[Math.floor(rng() * targetCandidates.length)];
               mon.snipeQueued = true;
               mon.snipeTargetIdx = selected.i;
               logQueue.push({
@@ -1298,7 +1301,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
         if (targetCandidates.length === 0) return;
         targetSelect = (hasTrait(mon, "targetLowHp") || mon.combatTrait === "executioner")
-          ? targetCandidates[0] : targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
+          ? targetCandidates[0] : targetCandidates[Math.floor(rng() * targetCandidates.length)];
       }
 
       const target = targetSelect.c;
@@ -1315,7 +1318,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       let isLahalitoForced = !isSilenced && mon.spell === "LAHALITO" && mon.lahalitoQueued;
       let isMadaltoForced = !isSilenced && mon.spell === "MADALTO" && mon.madaltoQueued;
 
-      if (isLahalitoForced || isMadaltoForced || (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < attackSpellChance)) {
+      if (isLahalitoForced || isMadaltoForced || (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && rng() < attackSpellChance)) {
         if (isLahalitoForced || mon.spell === "LAHALITO") {
           if (mon.lahalitoQueued) {
             recordMonsterAction(mon, "LAHALITO", state);
@@ -1330,7 +1333,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               if (c.status !== "dead") {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
                 const attackType = mon.tags?.includes("dragon") ? "breath" : "spell";
-                let dmg = Math.floor(Math.random() * 15) + 10;
+                let dmg = Math.floor(rng() * 15) + 10;
                 dmg = resolveGuardMitigation(c, dmg, {
                   isDefending,
                   attackType,
@@ -1383,7 +1386,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               if (c.status !== "dead") {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
                 const attackType = "spell";
-                let dmg = Math.floor(Math.random() * 20) + 15;
+                let dmg = Math.floor(rng() * 20) + 15;
                 dmg = resolveGuardMitigation(c, dmg, {
                   isDefending,
                   attackType,
@@ -1424,7 +1427,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           return;
         } else if (mon.spell === "HALITO") {
           recordMonsterAction(mon, "HALITO", state);
-          let dmg = Math.floor(Math.random() * 10) + 5;
+          let dmg = Math.floor(rng() * 10) + 5;
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           dmg = resolveGuardMitigation(target, dmg, {
             isDefending,
@@ -1465,7 +1468,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             if (c.status !== "dead") {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               const attackType = "spell";
-              let dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
+              let dmg = Math.floor(rng() * 30) + 35; // 35-65 DMG
               dmg = resolveGuardMitigation(c, dmg, {
                 isDefending,
                 attackType,
@@ -1503,8 +1506,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         const evasion = getCharAffixSum(target, "evasion") / 100;
         const rearEvasion = targetSelect.i >= 2 ? getCharAffixSum(target, "rearEvasion") / 100 : 0;
         if (
-          (evasion > 0 && Math.random() < evasion)
-          || (rearEvasion > 0 && Math.random() < rearEvasion)
+          (evasion > 0 && rng() < evasion)
+          || (rearEvasion > 0 && rng() < rearEvasion)
         ) {
           isEvaded = true;
         }
@@ -1522,11 +1525,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const baseAtk = getEffectiveAtk(mon);
           let finalAtk;
           if (statusPayoff) {
-            finalAtk = Math.round(baseAtk * statusPayoffMultiplier) + Math.floor(Math.random() * 4);
+            finalAtk = Math.round(baseAtk * statusPayoffMultiplier) + Math.floor(rng() * 4);
           } else if (isSnipeAttack) {
-            finalAtk = Math.round(baseAtk * 1.5) + Math.floor(Math.random() * 4);
+            finalAtk = Math.round(baseAtk * 1.5) + Math.floor(rng() * 4);
           } else {
-            finalAtk = baseAtk + Math.floor(Math.random() * 4);
+            finalAtk = baseAtk + Math.floor(rng() * 4);
           }
           finalAtk = Math.max(1, Math.round(finalAtk * getEliteAttackMultiplier(mon, target)));
           const frontGuard = targetSelect.i < 2 ? getCharAffixSum(target, "frontGuard") : 0;
@@ -1603,7 +1606,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             clearQueuedStatusPattern(mon);
           }
 
-          tryThornCounter(target, mon, targetSelect.i, state, logQueue);
+          tryThornCounter(target, mon, targetSelect.i, state, logQueue, rng);
           if (mon.hp === 0) {
             clearBleedingOnDefeat(state, mon, "counterattack");
             clearCombatVulnerableOnDefeat(state, mon, "counterattack");
@@ -1613,12 +1616,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             return;
           }
 
-          if (hasTrait(mon, "debuffPhysicalDef") && target.hp > 0 && Math.random() < (mon.traitChance ?? 0.25)) {
+          if (hasTrait(mon, "debuffPhysicalDef") && target.hp > 0 && rng() < (mon.traitChance ?? 0.25)) {
             target.tempDefDown = Math.min(6, (target.tempDefDown || 0) + (mon.debuffValue ?? 2));
             logQueue.push({ msg: `[ 敵 ] ${target.name}の守りが崩された！` });
           }
 
-          if (hasTrait(mon, "debuffMagicDef") && target.hp > 0 && Math.random() < (mon.traitChance ?? 0.25)) {
+          if (hasTrait(mon, "debuffMagicDef") && target.hp > 0 && rng() < (mon.traitChance ?? 0.25)) {
             target.magicVulnerableTurns = 3;
             logQueue.push({ msg: `[ 敵 ] ${target.name}は魔法に弱くなった！` });
           }
@@ -1627,9 +1630,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const poisonChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
           const patternActive = mon.statusAttackPattern && !mon.isBoss && !mon.isMidboss &&
             !state.combatState?.isBoss && !state.combatState?.isMidboss;
-          if (mon.isPoisonous && !patternActive && target.hp > 0 && target.status === "ok" && Math.random() < resolveGuardStatusChance(target, getStatusEffectChance(target, poisonChance, { telemetry: state.combatFormulaTelemetry }), { isDefending, telemetry: state.combatFormulaTelemetry })) {
+          if (mon.isPoisonous && !patternActive && target.hp > 0 && target.status === "ok" && rng() < resolveGuardStatusChance(target, getStatusEffectChance(target, poisonChance, { telemetry: state.combatFormulaTelemetry }), { isDefending, telemetry: state.combatFormulaTelemetry })) {
             const ward = getCharAffixSum(target, "poisonWard");
-            if (ward > 0 && Math.random() * 100 < ward) {
+            if (ward > 0 && rng() * 100 < ward) {
               logQueue.push({
                 msg: `[ 敵 ] ${target.name}は防毒の備えで毒を退けた！`,
                 sound: "miss"
@@ -1649,7 +1652,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply paralyze effect if monster is paralyzing and target survives
           const paralyzeChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isParalyzing && target.hp > 0 && target.status === "ok" && Math.random() < resolveGuardStatusChance(target, getStatusEffectChance(target, paralyzeChance, { telemetry: state.combatFormulaTelemetry }), { isDefending, telemetry: state.combatFormulaTelemetry })) {
+          if (mon.isParalyzing && target.hp > 0 && target.status === "ok" && rng() < resolveGuardStatusChance(target, getStatusEffectChance(target, paralyzeChance, { telemetry: state.combatFormulaTelemetry }), { isDefending, telemetry: state.combatFormulaTelemetry })) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED, { source: "monster" });
             recordMonsterCondition(mon, "麻痺を受けた", state);
             logQueue.push({
@@ -1660,7 +1663,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply sleep effect if monster can induce sleep and target survives
           const sleepChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isSleepInflicting && target.hp > 0 && target.status === "ok" && Math.random() < resolveGuardStatusChance(target, getStatusEffectChance(target, sleepChance, { telemetry: state.combatFormulaTelemetry }), { isDefending, telemetry: state.combatFormulaTelemetry })) {
+          if (mon.isSleepInflicting && target.hp > 0 && target.status === "ok" && rng() < resolveGuardStatusChance(target, getStatusEffectChance(target, sleepChance, { telemetry: state.combatFormulaTelemetry }), { isDefending, telemetry: state.combatFormulaTelemetry })) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.SLEEP, { remainingTurns: 2, source: "monster" });
             recordMonsterCondition(mon, "睡眠を受けた", state);
             logQueue.push({
@@ -1671,7 +1674,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply blind effect if monster is blinding and target survives
           const blindChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isBlinding && !patternActive && target.hp > 0 && target.status === "ok" && Math.random() < resolveGuardStatusChance(target, getStatusEffectChance(target, blindChance, { telemetry: state.combatFormulaTelemetry }), { isDefending, telemetry: state.combatFormulaTelemetry })) {
+          if (mon.isBlinding && !patternActive && target.hp > 0 && target.status === "ok" && rng() < resolveGuardStatusChance(target, getStatusEffectChance(target, blindChance, { telemetry: state.combatFormulaTelemetry }), { isDefending, telemetry: state.combatFormulaTelemetry })) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.BLIND, { source: "monster" });
             recordMonsterCondition(mon, "盲目を受けた", state);
             logQueue.push({
@@ -1748,7 +1751,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     // モンスターのターン終了時毒ダメージ
     monsters.forEach(m => {
       if (m.status === "poisoned" && m.hp > 0) {
-        const pDmg = Math.floor(Math.random() * 3) + 2; // 2-4 damage
+        const pDmg = Math.floor(rng() * 3) + 2; // 2-4 damage
         m.hp = Math.max(0, m.hp - pDmg);
         logQueue.push({
           msg: `[ 敵 ] [!] 毒のダメージ！${m.name}は${pDmg}のダメージを受けた。`,
@@ -1781,13 +1784,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     clearVulnerableStatuses("death");
   } else if (allMonstersDead) {
     clearVulnerableStatuses("defeat");
-    applyCombatRewards(state, monsters, logQueue);
+    applyCombatRewards(state, monsters, logQueue, rng);
     clearBlindStatuses();
   } else {
     // Combat round end poison damage
     state.party.forEach(c => {
       if (c.status === "poisoned" && c.hp > 0) {
-        const pDmg = Math.floor(Math.random() * 3) + 2; // 2-4 damage
+        const pDmg = Math.floor(rng() * 3) + 2; // 2-4 damage
         const playerHpBefore = c.hp;
         c.hp = Math.max(0, c.hp - pDmg);
         recordReceivedDamage(state, c, "poison", pDmg, pDmg, playerHpBefore, {

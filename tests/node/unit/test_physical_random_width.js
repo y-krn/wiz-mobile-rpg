@@ -91,15 +91,9 @@ function createCombatState({ weapon, followUp = false } = {}) {
 }
 
 function executeCombat({ weapon, followUp = false }, rng) {
-  const originalRandom = Math.random;
-  Math.random = rng;
-  try {
-    return runCombatRoundCalculation(createCombatState({ weapon, followUp }), {
-      actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-    });
-  } finally {
-    Math.random = originalRandom;
-  }
+  return runCombatRoundCalculation(createCombatState({ weapon, followUp }), {
+    actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
+  }, { rng });
 }
 
 function runCombat({ weapon, followUp = false }) {

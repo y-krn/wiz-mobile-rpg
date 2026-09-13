@@ -70,15 +70,9 @@ function createState(buildName, { int = 16, str = 7, weapon = "WAND", def = 0, p
 
 function attack(buildName, options, randomValue) {
   const state = createState(buildName, options);
-  const originalRandom = Math.random;
-  Math.random = () => randomValue;
-  try {
-    return runCombatRoundCalculation(state, {
-      actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-    });
-  } finally {
-    Math.random = originalRandom;
-  }
+  return runCombatRoundCalculation(state, {
+    actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
+  }, { rng: () => randomValue });
 }
 
 function expectedPhysicalDamage(buildName, options, randomValue) {

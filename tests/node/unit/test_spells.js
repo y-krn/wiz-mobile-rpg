@@ -90,14 +90,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   }
 
   function withRandom(values, fn) {
-    const originalRandom = Math.random;
     let idx = 0;
-    Math.random = () => values[idx++] ?? values[values.length - 1] ?? 0;
-    try {
-      return fn();
-    } finally {
-      Math.random = originalRandom;
-    }
+    return fn(() => values[idx++] ?? values[values.length - 1] ?? 0);
   }
 
   console.log("Starting magic reflect AoE tests...");
@@ -118,8 +112,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     ];
     const logQueue = [];
 
-    withRandom([0, 0], () => {
-      resolvePlayerSpell(caster, { spellName: "HALITO", targetIdx: 0 }, state, monsters, logQueue);
+    withRandom([0, 0], rng => {
+      resolvePlayerSpell(caster, { spellName: "HALITO", targetIdx: 0 }, state, monsters, logQueue, { rng });
     });
 
     assert.strictEqual(caster.hp, 25, "Single reflect should deal 5 reflected damage.");
@@ -150,8 +144,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     ];
     const logQueue = [];
 
-    withRandom([0, 0, 0], () => {
-      resolvePlayerSpell(caster, { spellName: "LAHALITO", targetIdx: -1 }, state, monsters, logQueue);
+    withRandom([0, 0, 0], rng => {
+      resolvePlayerSpell(caster, { spellName: "LAHALITO", targetIdx: -1 }, state, monsters, logQueue, { rng });
     });
 
     assert.strictEqual(caster.hp, 25, "AoE reflect should deal reflected damage to caster.");
@@ -186,8 +180,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     ];
     const logQueue = [];
 
-    withRandom([0, 0, 0, 0], () => {
-      resolvePlayerSpell(caster, { spellName: "LAHALITO", targetIdx: -1 }, state, monsters, logQueue);
+    withRandom([0, 0, 0, 0], rng => {
+      resolvePlayerSpell(caster, { spellName: "LAHALITO", targetIdx: -1 }, state, monsters, logQueue, { rng });
     });
 
     assert.strictEqual(caster.hp, 20, "Two reflectors should combine reflected damage.");
@@ -252,14 +246,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   }
 
   function withRandom(values, fn) {
-    const originalRandom = Math.random;
     let idx = 0;
-    Math.random = () => values[idx++] ?? values[values.length - 1] ?? 0;
-    try {
-      return fn();
-    } finally {
-      Math.random = originalRandom;
-    }
+    return fn(() => values[idx++] ?? values[values.length - 1] ?? 0);
   }
 
   console.log("Starting KATINO sleep tests...");
@@ -271,15 +259,15 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       actions: [{ type: "spell", actorIdx: 0, targetIdx: -1, spellName: "KATINO" }]
     };
 
-    const result1 = withRandom([0, 0, 0], () => runCombatRoundCalculation(state, selection));
+    const result1 = withRandom([0, 0, 0], rng => runCombatRoundCalculation(state, selection, { rng }));
     const slept = result1.state.combatState.monsters[0];
     assert.strictEqual(slept.status, "sleep", "KATINO should set sleep status.");
     assert.strictEqual(slept.sleepTurns, 1, "sleepTurns should tick from 2 to 1 at round end.");
     assert.ok(result1.logQueue.some(log => log.msg?.includes("動けない")), "Sleeping monster should skip action.");
 
-    const result2 = withRandom([0, 0], () => runCombatRoundCalculation(result1.state, {
+    const result2 = withRandom([0, 0], rng => runCombatRoundCalculation(result1.state, {
       actions: [{ type: "defend", actorIdx: 0 }]
-    }));
+    }, { rng }));
     const awake = result2.state.combatState.monsters[0];
     assert.strictEqual(awake.status, undefined, "Sleep should expire after the next skipped enemy turn.");
     assert.strictEqual(awake.sleepTurns, undefined, "Expired sleep should clear sleepTurns.");
@@ -288,9 +276,9 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   {
     console.log("- Test 2: damage can wake a sleeping monster");
     const state = createState({ status: "sleep", sleepTurns: 2 });
-    const result = withRandom([0, 0, 0, 0], () => runCombatRoundCalculation(state, {
+    const result = withRandom([0, 0, 0, 0], rng => runCombatRoundCalculation(state, {
       actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-    }));
+    }, { rng }));
     const monster = result.state.combatState.monsters[0];
     assert.strictEqual(monster.status, undefined, "Damage wake roll should clear sleep.");
     assert.strictEqual(monster.sleepTurns, undefined, "Damage wake should clear sleepTurns.");
@@ -513,13 +501,14 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
   console.log("Starting Combat Paralyze Verification Tests...");
 
-  // 1. 麻痺は次の行動機会を1回だけ失わせ、確率に依存せず解除される。
-  const originalRandom = Math.random;
-  Math.random = () => 0.99;
+  const runWithRng = (state, selection, value) => runCombatRoundCalculation(state, selection, {
+    rng: () => value
+  });
 
-  try {
+  // 1. 麻痺は次の行動機会を1回だけ失わせ、確率に依存せず解除される。
+  {
     const state1 = createParalyzedState(["paralyzed", "dead", "dead", "dead"], 0);
-    const result1 = runCombatRoundCalculation(state1, { actions: [] });
+    const result1 = runWithRng(state1, { actions: [] }, 0.99);
 
     assert.ok(result1.logQueue.some(log => log.msg?.includes("Char0は動けない")), "麻痺で行動を失うログが出力されること");
     assert.ok(result1.logQueue.some(log => log.msg?.includes("麻痺から回復した")), "麻痺回復ログが出力されること");
@@ -527,55 +516,43 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     assert.strictEqual(result1.state.combatState.allParalyzedTurns, 0, "麻痺敗北カウントを使用しないこと");
     assert.ok(result1.state.party[0].hp > 0, "麻痺自体では死亡しないこと");
 
-  } finally {
-    Math.random = originalRandom;
   }
 
   // 2. 解除は乱数値に依存しない。
-  Math.random = () => 0.05;
-
-  try {
+  {
     const state = createParalyzedState(["paralyzed", "dead", "dead", "dead"], 1);
-    const result = runCombatRoundCalculation(state, { actions: [] });
+    const result = runWithRng(state, { actions: [] }, 0.05);
 
     assert.ok(result.logQueue.some(log => log.msg?.includes("麻痺から回復した")), "回復ログが出力されること");
     assert.strictEqual(result.state.party[0].status, "ok", "キャラクターのステータスが ok になること");
     assert.strictEqual(result.state.combatState.allParalyzedTurns, 0, "全員麻痺カウントがリセットされること");
-  } finally {
-    Math.random = originalRandom;
   }
 
   // 3. 一部麻痺でも対象者は1行動後に解除される。
-  try {
+  {
     const state = createParalyzedState(["paralyzed", "ok", "dead", "dead"], 1);
-    const result = runCombatRoundCalculation(state, { actions: [] });
+    const result = runWithRng(state, { actions: [] }, 0.05);
 
     assert.strictEqual(result.state.party[0].status, "ok", "麻痺キャラクターが1行動後に回復すること");
     assert.strictEqual(result.state.combatState.allParalyzedTurns, 0, "行動可能なキャラクターがいる場合はカウントがリセットされること");
-  } finally {
-    Math.random = originalRandom;
   }
 
   // 4. 他キャラクターが毒死しても麻痺敗北へ遷移しない。
-  try {
-    Math.random = () => 0.99;
+  {
     const state = createParalyzedState(["paralyzed", "poisoned", "dead", "dead"], 0);
     // 毒キャラのHPを2に設定し、確実に毒ダメージ(2-4)で死亡するようにする
     state.party[1].hp = 2;
 
-    // 毒ダメージが確実に発生するように Math.random を固定
-    const result = runCombatRoundCalculation(state, { actions: [] });
+    const result = runWithRng(state, { actions: [] }, 0.99);
 
     assert.strictEqual(result.state.party[1].status, "dead", "毒キャラが死亡していること");
     assert.strictEqual(result.state.party[0].status, "ok", "麻痺キャラは1行動後に回復していること");
     assert.strictEqual(result.state.combatState.allParalyzedTurns, 0, "毒キャラ死亡後も麻痺敗北カウントを進めないこと");
-  } finally {
-    Math.random = originalRandom;
   }
 
   // 5. 全員麻痺状態での戦闘終了（勝利）時の検証
   // 味方が全員麻痺しているが、敵が全滅(逃亡/毒など)して戦闘勝利になった場合、敗北ではなく勝利で終わることを検証。
-  try {
+  {
     const state = createParalyzedState(["paralyzed", "dead", "dead", "dead"], 1);
     // 敵のHPを0にして最初から全滅状態にする
     state.combatState.monsters[0].hp = 0;
@@ -584,23 +561,17 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
     assert.ok(result.logQueue.some(log => log.msg?.includes("戦闘に勝利した") || log.msg?.includes("静寂が戻った")), "戦闘勝利または静寂ログが出力されること");
     assert.strictEqual(result.state.party[0].status, "ok", "戦闘終了時も1行動分の麻痺は解除されること");
-  } finally {
-    Math.random = originalRandom;
   }
 
   // 6. すでにステータス異常（毒/暗闇/睡眠）のキャラクターに麻痺攻撃が当たっても上書きされないことの検証
-  try {
+  {
     const state = createParalyzedState(["poisoned", "dead", "dead", "dead"], 0);
     state.combatState.monsters[0].isParalyzing = true;
     state.combatState.monsters[0].statusChance = 1.0;
 
-    Math.random = () => 0.01;
-
-    const result = runCombatRoundCalculation(state, { actions: [] });
+    const result = runWithRng(state, { actions: [] }, 0.01);
 
     assert.strictEqual(result.state.party[0].status, "poisoned", "毒状態のキャラクターが麻痺で上書きされないこと");
-  } finally {
-    Math.random = originalRandom;
   }
 
   console.log("All Combat Paralyze verification tests passed successfully!");
@@ -661,23 +632,17 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   }
 
   function withRandom(values, fn) {
-    const originalRandom = Math.random;
     let idx = 0;
-    Math.random = () => values[idx++] ?? values[values.length - 1] ?? 0;
-    try {
-      return fn();
-    } finally {
-      Math.random = originalRandom;
-    }
+    return fn(() => values[idx++] ?? values[values.length - 1] ?? 0);
   }
 
   console.log("Starting Ally Sleep verification tests...");
 
   {
     const state = createSleepState({}, { isSleepInflicting: true, statusChance: 1 });
-    const result = withRandom([0, 0, 0, 0, 0], () => runCombatRoundCalculation(state, {
+    const result = withRandom([0, 0, 0, 0, 0], rng => runCombatRoundCalculation(state, {
       actions: [{ type: "defend", actorIdx: 0 }]
-    }));
+    }, { rng }));
 
     assert.strictEqual(result.state.party[0].status, "sleep", "Sleep-inflicting monster should put an ok ally to sleep.");
     assert.strictEqual(result.state.party[0].sleepTurns, 2, "Newly inflicted ally sleep should remain until one action is skipped.");
@@ -686,9 +651,9 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
   {
     const state = createSleepState({ status: "sleep", sleepTurns: 2 });
-    const result = withRandom([0.99], () => runCombatRoundCalculation(state, {
+    const result = withRandom([0.99], rng => runCombatRoundCalculation(state, {
       actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-    }));
+    }, { rng }));
 
     assert.strictEqual(result.state.combatState.monsters[0].hp, 20, "Sleeping ally should skip selected actions.");
     assert.strictEqual(result.state.party[0].status, "ok", "Sleeping ally should wake after skipping one selected action.");
@@ -697,9 +662,9 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
   {
     const state = createSleepState({ status: "sleep", sleepTurns: 2 });
-    const result = withRandom([0, 0, 0, 0], () => runCombatRoundCalculation(state, {
+    const result = withRandom([0, 0, 0, 0], rng => runCombatRoundCalculation(state, {
       actions: []
-    }));
+    }, { rng }));
 
     assert.strictEqual(result.state.party[0].status, "ok", "One skipped action should clear ally sleep.");
     assert.strictEqual(result.state.party[0].sleepTurns, undefined, "Natural wake should clear ally sleepTurns.");
@@ -708,9 +673,9 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
   {
     const state = createSleepState({ status: "sleep", sleepTurns: 1 });
-    const result = withRandom([0.99], () => runCombatRoundCalculation(state, {
+    const result = withRandom([0.99], rng => runCombatRoundCalculation(state, {
       actions: []
-    }));
+    }, { rng }));
 
     assert.strictEqual(result.state.party[0].status, "ok", "Ally sleep should naturally expire.");
     assert.strictEqual(result.state.party[0].sleepTurns, undefined, "Expired ally sleep should clear sleepTurns.");
@@ -825,12 +790,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       ]
     };
 
-    // Math.random を固定して他の不確定要素を抑える
-    const originalRandom = Math.random;
-    Math.random = () => 0.0; // 敵の行動決定等で確実に動作するように
-
-    try {
-      const result = runCombatRoundCalculation(state, selection);
+    {
+      const result = runCombatRoundCalculation(state, selection, { rng: () => 0.0 });
       const priest = result.state.party[0];
       const mage = result.state.party[1];
 
@@ -844,8 +805,6 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       // ラハリトのダメージは 10-25 (一般敵)。防御無しで受ける。
       // Math.random = 0.5 の場合、ラハリトダメージは Math.floor(0.5 * 15) + 10 = 17 ダメージ。
       // 30% 軽減の場合、17 * 0.7 = 11.9 -> 12 ダメージになるはず。
-      Math.random = () => 0.5;
-      
       const stateMabarrier = createTestState();
       stateMabarrier.party[0].mabarrierTurns = 3;
       stateMabarrier.party[1].mabarrierTurns = 3;
@@ -856,7 +815,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
           { type: "defend", actorIdx: 0 },
           { type: "defend", actorIdx: 1 }
         ]
-      });
+      }, { rng: () => 0.5 });
       
       // 防御（50%軽減）と MABARRIER（30%軽減）が同時に効いている。
       // 元ダメージ = 17。
@@ -888,7 +847,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
           { type: "fight", actorIdx: 0, targetIdx: 0 },
           { type: "fight", actorIdx: 1, targetIdx: 0 }
         ]
-      });
+      }, { rng: () => 0.5 });
       
       const logCharLimit = resultLimit.logQueue.find(log => log.msg?.includes("PriestCharは") && log.msg?.includes("炎ダメージを受けた"));
       assert.ok(logCharLimit.msg.includes("7の炎ダメージを受けた"), `軽減上限60%の検証。ログ: ${logCharLimit.msg}`);
@@ -903,10 +862,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
           { type: "defend", actorIdx: 0 },
           { type: "defend", actorIdx: 1 }
         ]
-      });
+      }, { rng: () => 0.5 });
       assert.strictEqual(resultExpire.state.party[0].mabarrierTurns, 0, "1ターン経過後に mabarrierTurns が 0 になること");
-    } finally {
-      Math.random = originalRandom;
     }
   }
 
@@ -921,11 +878,9 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       ]
     };
 
-    const originalRandom = Math.random;
-    try {
+    {
       // 2-1. 成功率の検証
-      Math.random = () => 0.0;
-      const result = runCombatRoundCalculation(state, selection);
+      const result = runCombatRoundCalculation(state, selection, { rng: () => 0.0 });
       const targetMonster = result.state.combatState.monsters[0];
       
       assert.strictEqual(targetMonster.silenceTurns, 1, "沈黙デバフ silenceTurns が 1 に設定されていること（適用時は2、ターン終了で1減少）");
@@ -936,19 +891,16 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       stateSilenced.combatState.monsters[0].silenceTurns = 2;
       stateSilenced.combatState.monsters[0].lahalitoQueued = true;
       
-      Math.random = () => 0.5;
       const resultSilenceRun = runCombatRoundCalculation(stateSilenced, {
         actions: [
           { type: "defend", actorIdx: 0 },
           { type: "defend", actorIdx: 1 }
         ]
-      });
+      }, { rng: () => 0.5 });
 
       assert.ok(resultSilenceRun.state.combatState.monsters[0].lahalitoQueued === false, "沈黙により予兆フラグがクリアされていること");
       assert.ok(resultSilenceRun.logQueue.some(log => log.msg?.includes("攻撃！")), "呪文の代わりに物理攻撃を行っていること");
       assert.ok(!resultSilenceRun.logQueue.some(log => log.msg?.includes("ラハリト")), "ラハリトを唱えていないこと");
-    } finally {
-      Math.random = originalRandom;
     }
   }
 
@@ -963,18 +915,14 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       ]
     };
 
-    const originalRandom = Math.random;
-    try {
-      Math.random = () => 0.0;
-      const result = runCombatRoundCalculation(state, selection);
+    {
+      const result = runCombatRoundCalculation(state, selection, { rng: () => 0.0 });
       const targetMonster = result.state.combatState.monsters[0];
 
       const magicResistBuff = targetMonster.buffs.find(b => b.type === "magicResist");
       assert.ok(magicResistBuff, "魔法耐性デバフが付与されていること");
       assert.strictEqual(magicResistBuff.value, -0.2, "魔法耐性が-20%されていること");
       assert.strictEqual(magicResistBuff.turns, 2, "効果時間が2ターンであること（適用時は3、ターン終了で1減少）");
-    } finally {
-      Math.random = originalRandom;
     }
   }
 
@@ -982,18 +930,15 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
   {
     console.log("- Test 4: Lahalito warning mechanism");
     
-    const originalRandom = Math.random;
-    try {
+    {
       // 4-1. 予兆の発生
       const state = createTestState();
-      Math.random = () => 0.0;
-      
       const result1 = runCombatRoundCalculation(state, {
         actions: [
           { type: "defend", actorIdx: 0 },
           { type: "defend", actorIdx: 1 }
         ]
-      });
+      }, { rng: () => 0.0 });
 
       const monster1 = result1.state.combatState.monsters[0];
       assert.strictEqual(monster1.lahalitoQueued, true, "ラハリトが選択され、予兆状態 (lahalitoQueued = true) がセットされること");
@@ -1009,7 +954,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
           { type: "defend", actorIdx: 0 },
           { type: "defend", actorIdx: 1 }
         ]
-      });
+      }, { rng: () => 0.0 });
 
       const monster2 = result2.state.combatState.monsters[0];
       assert.strictEqual(monster2.lahalitoQueued, false, "ラハリト発動後に予兆フラグがクリアされていること");
@@ -1025,12 +970,10 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
           { type: "defend", actorIdx: 0 },
           { type: "defend", actorIdx: 1 }
         ]
-      });
+      }, { rng: () => 0.0 });
 
       const monsterSleep = resultSleep.state.combatState.monsters[0];
       assert.strictEqual(monsterSleep.lahalitoQueued, false, "睡眠により予兆状態がクリアされること");
-    } finally {
-      Math.random = originalRandom;
     }
   }
 
@@ -1175,7 +1118,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       ]
     };
 
-    const result = runCombatRoundCalculation(combatState, selection);
+    const result = runCombatRoundCalculation(combatState, selection, { rng: () => 0.5 });
     
     assert.ok(result.state.party[0].hp > 10, "Fighter HP should increase after Priest casts MADI in round");
   }
@@ -1230,13 +1173,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       color: "#fff"
     }];
     const logQueue = [];
-    const originalRandom = Math.random;
-    Math.random = () => 0.5;
-    try {
-      resolvePlayerSpell(caster, { spellName: "HALITO", targetIdx: 0 }, state, monsters, logQueue);
-    } finally {
-      Math.random = originalRandom;
-    }
+    resolvePlayerSpell(caster, { spellName: "HALITO", targetIdx: 0 }, state, monsters, logQueue, { rng: () => 0.5 });
     return {
       damage: state.combatFormulaTelemetry.spellHits[0]?.damage,
       formula: state.combatFormulaTelemetry.spellHits[0]?.formula,
@@ -1303,13 +1240,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       floor: 1,
       currentRun: { deathLogs: [] }
     };
-    const originalRandom = Math.random;
-    Math.random = () => 0.5;
-    try {
-      resolvePlayerSpell(caster, { spellName: "MADI", targetIdx: 1 }, state, [], []);
-    } finally {
-      Math.random = originalRandom;
-    }
+    resolvePlayerSpell(caster, { spellName: "MADI", targetIdx: 1 }, state, [], [], { rng: () => 0.5 });
     return target.hp;
   }
 

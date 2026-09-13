@@ -17,8 +17,9 @@ export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 // ---- Prototype spells (mirror existing effect conventions) ----
 SPELLS.ZILWAN = {
   name: "ZILWAN", type: "mage", level: 4, cost: 3, target: "single_enemy",
-  effect: (caster, target) => {
-    let dmg = Math.round(Math.floor(Math.random() * 11) + 10);
+  effect: (caster, target, _party, options = {}) => {
+    const rng = options.rng || Math.random;
+    let dmg = Math.round(Math.floor(rng() * 11) + 10);
     const tags = target.tags || [];
     let mult = (tags.includes("undead") || tags.includes("dragon") || tags.includes("demon")) ? (target.isBoss ? 1.3 : 2.0) : 0.5;
     dmg = Math.round(dmg * mult);
@@ -36,8 +37,9 @@ SPELLS.WEAKEN = { // enemy physical ATK down
 };
 SPELLS.MADI = { // group heal, spread thin
   name: "MADI", type: "priest", level: 5, cost: 5, target: "all_allies",
-  effect: (caster, allies) => {
-    allies.forEach(t => { if (t.status !== "dead") t.hp = Math.min(getCharMaxHp(t), t.hp + Math.round(Math.floor(Math.random() * 16) + 25)); });
+  effect: (caster, allies, _party, options = {}) => {
+    const rng = options.rng || Math.random;
+    allies.forEach(t => { if (t.status !== "dead") t.hp = Math.min(getCharMaxHp(t), t.hp + Math.round(Math.floor(rng() * 16) + 25)); });
     return { log: "MADI" };
   }
 };
@@ -69,6 +71,7 @@ function basePlan(char, idx, state) {
 }
 
 function simulate(tmpl, count, plan, level, { isBoss = false, immortal = false } = {}) {
+  const rng = Math.random;
   const party = createParty(level);
   const monsters = Array.from({ length: count }, (_, i) => ({ ...JSON.parse(JSON.stringify(tmpl)), id: `m_${i}` }));
   const state = { party, combatState: { monsters, isBoss, isMidboss: false, isRoamingFlack: false, allParalyzedTurns: 0, phase: "choose_actions" }, inventory: [], firstKills: [], codex: null, currentRun: { itemsFound: [], equipmentFound: [] }, roamingMonsters: [], floorChestsTotal: [], gold: 0, floor: 5 };
@@ -81,7 +84,7 @@ function simulate(tmpl, count, plan, level, { isBoss = false, immortal = false }
     const before = state.party.map(c => c.hp);
     const actions = [];
     state.party.forEach((char, idx) => { if (!["dead", "paralyzed", "sleep"].includes(char.status)) actions.push(plan(char, idx, state)); });
-    const r = runCombatRoundCalculation(state, { actions });
+    const r = runCombatRoundCalculation(state, { actions }, { rng });
     state.party = r.state.party; state.combatState = r.state.combatState;
     state.party.forEach((c, i) => { dmgTaken += Math.max(0, before[i] - c.hp); });
     if (immortal) state.party.forEach(c => { if (c.status !== "dead") c.hp = c.maxHp; });
