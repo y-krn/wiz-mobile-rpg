@@ -260,7 +260,8 @@ production UI), `npm run test:browser:visual` ran 95 tests with 95 passed.
   2 passed (spell availability grammar and Pending Reward surface/tap guard).
 - `npm run test:unit` — 194 passed, 3 skipped, 0 failed.
 - Existing #1225 Golden Journey and #1226 accessibility owners were included
-  in the final focused browser selection; the canonical smoke suite ran 83/83
+  in the final focused browser selection; the post-rebase canonical smoke
+  suite ran 86/86
   passed.
 
 ### Guard inventory
