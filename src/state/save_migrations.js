@@ -11,6 +11,7 @@ import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 import { isUsableFloorCell, isUsableFloorMap } from "./run_floor_state.js";
 import { isUsableCombatState } from "./view_state.js";
 import { BASE_STARTING_MP, BASIC_RUNE_ITEM_ID, MEDIUM_IDS } from "../data/magic.js";
+import { ITEMS } from "../data/items.js";
 import { getEquipmentHands } from "../rules/equipment_hands.js";
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
@@ -66,6 +67,69 @@ function normalizeInventory(inventory) {
     regularItemCount++;
     return true;
   });
+}
+
+const EQUIPMENT_ITEM_TYPES = new Set(["weapon", "shield", "armor", "accessory"]);
+
+function isEquipmentObject(item) {
+  return isRecord(item) && EQUIPMENT_ITEM_TYPES.has(ITEMS[getItemBaseId(item)]?.type);
+}
+
+function backfillEquipmentInstanceIds(data) {
+  const references = [];
+  const collect = (item, path) => {
+    if (isEquipmentObject(item)) references.push({ item, path });
+  };
+  const collectItems = (items, path) => {
+    (Array.isArray(items) ? items : []).forEach((item, index) => collect(item, `${path}_${index}`));
+  };
+
+  collectItems(data.inventory, "inventory");
+  collectItems(data.storage, "storage");
+  collectItems(data.activeMerchantStock, "merchant");
+  data.party?.forEach((character, actorIdx) => {
+    Object.entries(character?.equipment || {}).forEach(([slot, item]) => collect(item, `party_${actorIdx}_${slot}`));
+  });
+
+  const run = data.currentRun;
+  if (run) {
+    collectItems(run.townInventory, "run_town");
+    collectItems(run.bankedObjectLoot, "run_banked");
+    collectItems(run.lostObjectLoot, "run_lost");
+    collectItems(run.returnedTownItems, "run_returned");
+    collectItems(run.itemsFound, "run_items_found");
+    collectItems(run.equipmentFound, "run_equipment_found");
+    collectItems(run.departureItems, "run_departure");
+    Object.entries(run.departureEquipment || {}).forEach(([slot, item]) => collect(item, `run_departure_equipment_${slot}`));
+    run.unbankedObjectLoot?.forEach((entry, index) => collect(entry?.item, `run_unbanked_${index}`));
+    run.pendingRewardBundle?.entries?.forEach((entry, index) => collect(entry?.item, `run_pending_${index}`));
+  }
+
+  const usedIds = new Set(
+    references
+      .map(({ item }) => item.instanceId)
+      .filter(instanceId => typeof instanceId === "string" && instanceId.length > 0)
+  );
+  const seen = new WeakMap();
+  references.forEach(({ item, path }) => {
+    const seenId = seen.get(item);
+    if (seenId) {
+      item.instanceId = seenId;
+      return;
+    }
+    if (typeof item.instanceId === "string" && item.instanceId.length > 0) {
+      seen.set(item, item.instanceId);
+      return;
+    }
+
+    let instanceId = `legacy_eq_${path}`;
+    let suffix = 2;
+    while (usedIds.has(instanceId)) instanceId = `legacy_eq_${path}_${suffix++}`;
+    item.instanceId = instanceId;
+    usedIds.add(instanceId);
+    seen.set(item, instanceId);
+  });
+  return data;
 }
 
 function createDefaultVisitedMaps(maps) {
@@ -813,6 +877,10 @@ export function normalizeSavePayload(data) {
   };
 
   normalized.party.forEach(char => normalizeCharEquipment(char, normalized));
+  // Legacy saves may contain equipment objects created before instance IDs
+  // were required. Assign stable, path-derived IDs once at this boundary so
+  // loadout comparison never has to invent identity during gameplay.
+  backfillEquipmentInstanceIds(normalized);
   backfillAffixMetadata(normalized);
   discardTransientRunAffixState(normalized);
   backfillMonsterCriticalEligibility(normalized);
