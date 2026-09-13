@@ -75,6 +75,8 @@ function createAccumulator(runs, targetDepths) {
   return {
     runs,
     outcomeCounts: {},
+    voluntaryReturnRuns: 0,
+    measurementTargetReachedRuns: 0,
     reachedByDepth: Object.fromEntries(targetDepths.map(depth => [depth, 0])),
     breakthroughByDepth: Object.fromEntries(targetDepths.map(depth => [depth, 0])),
     deathsByFloor: {},
@@ -102,6 +104,11 @@ function createAccumulator(runs, targetDepths) {
 
 function observeRun(accumulator, result, targetDepths) {
   increment(accumulator.outcomeCounts, result.outcome);
+  const measurementTargetDepth = Math.max(...targetDepths) + 1;
+  const reachedMeasurementTarget = Number(result.reachedFloor) >= measurementTargetDepth;
+  accumulator.measurementTargetReachedRuns += Number(reachedMeasurementTarget);
+  accumulator.voluntaryReturnRuns += Number(result.outcome === "retreat" && !reachedMeasurementTarget);
+
   targetDepths.forEach(depth => {
     accumulator.reachedByDepth[depth] += Number(result.reachedFloor >= depth);
     accumulator.breakthroughByDepth[depth] += Number(result.reachedFloor > depth);
@@ -111,7 +118,7 @@ function observeRun(accumulator, result, targetDepths) {
     increment(accumulator.deathsByFloor, result.deathFloor ?? result.reachedFloor ?? "unknown");
     increment(accumulator.deathCauses, result.runDiagnostics?.deathCauseCategory || "unknown");
   }
-  if (result.outcome === "retreat") {
+  if (result.outcome === "retreat" && !reachedMeasurementTarget) {
     increment(accumulator.retreatsByFloor, result.reachedFloor ?? "unknown");
     increment(accumulator.retreatReasons, result.runDiagnostics?.retreatReason || "unknown");
   }
@@ -151,7 +158,8 @@ function finalizeAccumulator(accumulator, targetDepths) {
     outcomeCounts: { ...accumulator.outcomeCounts },
     outcomeRates: {
       death: rateMetric(accumulator.outcomeCounts.death || 0, runs),
-      retreat: rateMetric(accumulator.outcomeCounts.retreat || 0, runs),
+      voluntaryReturn: rateMetric(accumulator.voluntaryReturnRuns, runs),
+      measurementTargetReached: rateMetric(accumulator.measurementTargetReachedRuns, runs),
       abandon: rateMetric(accumulator.outcomeCounts.abandon || 0, runs)
     },
     depths: targetDepths.map(depth => ({
@@ -163,7 +171,7 @@ function finalizeAccumulator(accumulator, targetDepths) {
         accumulator.deathsByFloor[depth] || 0,
         accumulator.reachedByDepth[depth]
       ),
-      retreatsOnFloor: accumulator.retreatsByFloor[depth] || 0
+      voluntaryReturnsOnFloor: accumulator.retreatsByFloor[depth] || 0
     })),
     distributions: {
       deepestFloor: summarize(accumulator.deepestFloor),
@@ -180,9 +188,9 @@ function finalizeAccumulator(accumulator, targetDepths) {
       buildShiftCount: summarize(accumulator.buildShiftCount)
     },
     deathFloors: { ...accumulator.deathsByFloor },
-    retreatFloors: { ...accumulator.retreatsByFloor },
+    voluntaryReturnFloors: { ...accumulator.retreatsByFloor },
     deathCauses: { ...accumulator.deathCauses },
-    retreatReasons: { ...accumulator.retreatReasons },
+    voluntaryReturnReasons: { ...accumulator.retreatReasons },
     opportunityRates: {
       meaningfulLoot: rateMetric(accumulator.meaningfulLootRuns, runs),
       equipment: rateMetric(accumulator.equipmentOpportunityRuns, runs),
@@ -376,9 +384,10 @@ export function buildSummary(report) {
     `- determinism probe: ${report.determinism.pass ? "PASS" : "FAIL"}`,
     "",
     "B5/B10/B15/B20 are read from the same B1-start cohort. `reached` means the run entered that floor; `breakthrough` means it reached a deeper floor.",
+    "Runs that reach the synthetic B21 measurement target are reported separately and are not counted as voluntary Return.",
     "",
-    "| scenario | starting kit | death | return | B5 reach / through | B10 reach / through | B15 reach / through | B20 reach / through | deepest p50 | top death cause |",
-    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |"
+    "| scenario | starting kit | death | voluntary return | B21 cutoff | B5 reach / through | B10 reach / through | B15 reach / through | B20 reach / through | deepest p50 | top death cause |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |"
   ];
   report.cases.forEach(testCase => {
     testCase.kits.forEach(kit => {
@@ -388,7 +397,7 @@ export function buildSummary(report) {
         return `${percent(row?.reachedRate)} / ${percent(row?.breakthroughRate)}`;
       };
       lines.push(
-        `| ${testCase.scenarioId} | ${kit.startingKitId} | ${percent(kit.outcomeRates.death)} | ${percent(kit.outcomeRates.retreat)} | ${depthCell(5)} | ${depthCell(10)} | ${depthCell(15)} | ${depthCell(20)} | ${kit.distributions.deepestFloor.p50 ?? "—"} | ${topCount(kit.deathCauses)} |`
+        `| ${testCase.scenarioId} | ${kit.startingKitId} | ${percent(kit.outcomeRates.death)} | ${percent(kit.outcomeRates.voluntaryReturn)} | ${percent(kit.outcomeRates.measurementTargetReached)} | ${depthCell(5)} | ${depthCell(10)} | ${depthCell(15)} | ${depthCell(20)} | ${kit.distributions.deepestFloor.p50 ?? "—"} | ${topCount(kit.deathCauses)} |`
       );
     });
   });
