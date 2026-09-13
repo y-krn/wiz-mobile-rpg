@@ -17,11 +17,11 @@ spell pipeline, class contribution, equipment scaling, level contribution, or
 combat telemetry and display. Do not use it for an isolated combat button,
 layout change, or text-only correction that cannot change model observability.
 
-For Three.js Dungeon View staging or rendered geometry, also load
-`three-dungeon-rendering`; it owns rendered evidence. For a measured balance
-claim, load `balance-simulation`; for a mechanic path audit, load
-`gameplay-reachability-audit`. This skill owns combat semantics and
-specification alignment.
+For renderer staging or rendered geometry, use the active Canvas/Pixi renderer
+tests and QA regression checklist; this skill owns combat semantics and
+specification alignment. For a measured balance claim, load
+`balance-simulation`; for a mechanic path audit, load
+`gameplay-reachability-audit`.
 
 ## Read before deciding
 

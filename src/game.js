@@ -76,22 +76,7 @@ export function initGame() {
     }
   };
 
-  if (requestedRenderer === "three") {
-    import("./three_renderer.js").then(({ ThreeDungeonRenderer }) => {
-      const candidate = new ThreeDungeonRenderer("dungeon-canvas");
-      renderer = candidate.supported ? candidate : new DungeonRenderer("dungeon-canvas");
-      setDungeonRenderer(renderer);
-      start();
-    }).catch((error) => {
-      reportRendererRecovery(error, "three", "module-init");
-      renderer = new DungeonRenderer("dungeon-canvas");
-      setDungeonRenderer(renderer);
-      start();
-    });
-    return;
-  }
-
-  // PixiJS is an explicit spike entry point only. Keep Canvas as the
+  // PixiJS is an explicit opt-in renderer. Keep Canvas as the
   // production default and fall back safely if WebGL/Pixi initialization is
   // unavailable on the current browser.
   if (requestedRenderer === "pixi") {
