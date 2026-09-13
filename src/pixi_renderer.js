@@ -3,7 +3,7 @@
 // and deliberately stays within the shared screen-space projection contract.
 import { Application, Assets, Container, Graphics, Sprite, Text } from "pixi.js";
 import { EVENT_TYPES } from "./data.js";
-import { ENEMY_ARCHETYPES, getEnemyPresentation } from "./enemy_presentation.js";
+import { ENEMY_ARCHETYPES, ENEMY_UNIQUE_ASSETS, getEnemyPresentation } from "./enemy_presentation.js";
 import {
   BASE_GEOMETRY,
   getCombatMonsterLayout,
@@ -230,7 +230,7 @@ export class PixiDungeonRenderer {
         autoStart: false,
         preference: "webgl"
       });
-      // The cutouts are tiny local SVG resources. Resolve them before exposing
+      // The cutouts are bounded local raster resources. Resolve them before exposing
       // the renderer so combat never shows a blank/placeholder frame.
       await this.loadEnemyTextures();
       this.initializationPhase = "mount";
@@ -249,14 +249,18 @@ export class PixiDungeonRenderer {
 
   async loadEnemyTextures() {
     if (this.enemyAssetPromise) return this.enemyAssetPromise;
-    this.enemyAssetPromise = Promise.all(Object.entries(ENEMY_ARCHETYPES).map(async ([archetype, presentation]) => {
+    const manifest = {
+      ...Object.fromEntries(Object.entries(ENEMY_ARCHETYPES).map(([key, presentation]) => [key, presentation.asset])),
+      ...Object.fromEntries(Object.entries(ENEMY_UNIQUE_ASSETS).map(([name, asset]) => [`enemy:${name}`, asset]))
+    };
+    this.enemyAssetPromise = Promise.all(Object.entries(manifest).map(async ([assetKey, asset]) => {
       try {
-        const texture = await Assets.load(presentation.asset);
-        if (texture) this.enemyTextures.set(archetype, texture);
+        const texture = await Assets.load(asset);
+        if (texture) this.enemyTextures.set(assetKey, texture);
       } catch {
         // One broken art file must not prevent the renderer or combat flow
         // from starting. The local silhouette is bounded and non-interactive.
-        this.enemyAssetFailures.add(archetype);
+        this.enemyAssetFailures.add(assetKey);
       }
     })).then(() => {
       this.resourceStats.enemyTextureCount = this.enemyTextures.size;
@@ -698,7 +702,7 @@ export class PixiDungeonRenderer {
   }
 
   drawEnemyCutout(actors, presentation, cx, floorY, visualScale, color, row, column, targetable) {
-    const texture = this.enemyTextures.get(presentation.archetype);
+    const texture = this.enemyTextures.get(presentation.assetKey || presentation.archetype);
     const billboard = new Container();
     billboard.label = `enemy-${presentation.archetype}-${row}-${column}`;
     billboard.position.set(cx, floorY);

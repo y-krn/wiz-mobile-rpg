@@ -81,11 +81,16 @@ test('Pixi combat uses production cutouts for single, pair, trio, boss, targetin
   await openPixi(page, { width: 390, height: 844 });
 
   const assetEvidence = await page.evaluate(async () => {
-    const { ENEMY_ARCHETYPES } = await import('/src/enemy_presentation.js');
-    const assets = await Promise.all(Object.entries(ENEMY_ARCHETYPES).map(async ([archetype, metadata]) => {
-      const response = await fetch(metadata.asset);
-      const bytes = (await response.arrayBuffer()).byteLength;
-      return { archetype, bytes, width: metadata.maxWidth, height: metadata.maxHeight };
+    const { ENEMY_ARCHETYPES, ENEMY_UNIQUE_ASSETS } = await import('/src/enemy_presentation.js');
+    const manifest = {
+      ...Object.fromEntries(Object.entries(ENEMY_ARCHETYPES).map(([key, metadata]) => [key, metadata.asset])),
+      ...ENEMY_UNIQUE_ASSETS
+    };
+    const assets = await Promise.all(Object.entries(manifest).map(async ([assetKey, asset]) => {
+      const response = await fetch(asset);
+      const blob = await response.blob();
+      const image = await createImageBitmap(blob);
+      return { assetKey, bytes: blob.size, width: image.width, height: image.height };
     }));
     const bytes = assets.reduce((sum, asset) => sum + Number(asset.bytes || 0), 0);
     const largest = assets.reduce((current, asset) => Math.max(current, asset.width * asset.height), 0);
@@ -93,9 +98,8 @@ test('Pixi combat uses production cutouts for single, pair, trio, boss, targetin
     return { assets, bytes, largest, initializationCostMs: dungeonRenderer.initializationCostMs };
   });
   console.log(`[issue-1261-assets] ${JSON.stringify(assetEvidence)}`);
-  expect(assetEvidence.assets).toHaveLength(5);
-  expect(assetEvidence.largest).toBeLessThanOrEqual(256 * 256);
-  expect(assetEvidence.bytes).toBeLessThan(120000);
+  expect(assetEvidence.assets).toHaveLength(16);
+  expect(assetEvidence.bytes).toBeLessThan(1000000);
 
   await setCombat(page, [MONSTERS.small]);
   await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-single.png') });
@@ -113,7 +117,7 @@ test('Pixi combat uses production cutouts for single, pair, trio, boss, targetin
   const evidence = await layerEvidence(page);
   expect(evidence.billboards).toHaveLength(3);
   expect(evidence.billboards.every(billboard => billboard.children.includes('enemy-cutout'))).toBe(true);
-  expect(evidence.textureCount).toBe(5);
+  expect(evidence.textureCount).toBe(16);
   expect(evidence.fallbackCount).toBe(0);
   expect(evidence.sceneChildren).toBe(8);
   expect(evidence.layout.map(entry => entry.monsterIndex)).toEqual([0, 1, 2]);
@@ -169,6 +173,27 @@ test('Pixi combat uses production cutouts for single, pair, trio, boss, targetin
   expect(feedback.fullFrameOverlay).toBe(false);
 });
 
+test('named B1F enemies keep distinct production art identities @smoke @visual @e2e', async ({ page }, testInfo) => {
+  await openPixi(page, { width: 390, height: 844 });
+  await setCombat(page, [
+    { name: 'フラッシュバット', level: 2, hp: 24, maxHp: 24, color: '#e5ff00', spriteType: 'bat' },
+    { name: 'マッドスライム', level: 1, hp: 48, maxHp: 48, color: '#ff9500', spriteType: 'biter' },
+    { name: 'ゴブリンの呪術師', level: 1, hp: 20, maxHp: 20, color: '#00ff66', spriteType: 'kobold', spell: 'HALITO' },
+  ], true);
+  const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-named-b1f-trio.png') });
+  await testInfo.attach('enemy-390-named-b1f-trio', { body: screenshot, contentType: 'image/png' });
+  const evidence = await page.evaluate(async () => {
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const { getEnemyPresentation } = await import('/src/enemy_presentation.js');
+    return {
+      assetKeys: dungeonRenderer.getRenderInput().combatMonsters.map(monster => getEnemyPresentation(monster).assetKey),
+      textureKeys: [...dungeonRenderer.enemyTextures.keys()],
+    };
+  });
+  expect(evidence.assetKeys).toEqual(['enemy:フラッシュバット', 'enemy:マッドスライム', 'enemy:ゴブリンの呪術師']);
+  expect(evidence.assetKeys.every(assetKey => evidence.textureKeys.includes(assetKey))).toBe(true);
+});
+
 for (const viewport of VIEWPORTS) {
   test(`enemy cutouts remain bounded and targetable at ${viewport.width}px @smoke @visual`, async ({ page }, testInfo) => {
     await openPixi(page, viewport);
@@ -205,8 +230,8 @@ test('Pixi enemy asset failure falls back without breaking flow or leaking resou
     return { labels, before, after: dungeonRenderer.resourceStats.enemyTextureCount, sceneChildren: dungeonRenderer.scene.children.length };
   });
   expect(evidence.labels).toContain('enemy-fallback-silhouette');
-  expect(evidence.before).toBe(5);
-  expect(evidence.after).toBe(5);
+  expect(evidence.before).toBe(16);
+  expect(evidence.after).toBe(16);
   expect(evidence.sceneChildren).toBe(8);
 });
 

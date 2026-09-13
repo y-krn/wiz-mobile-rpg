@@ -1,5 +1,5 @@
 import assert from "assert";
-import { ENEMY_ARCHETYPES, getEnemyArchetype, getEnemyPresentation } from "../../../src/enemy_presentation.js";
+import { ENEMY_ARCHETYPES, ENEMY_UNIQUE_ASSETS, getEnemyArchetype, getEnemyPresentation } from "../../../src/enemy_presentation.js";
 
 assert.equal(getEnemyArchetype({ spriteType: "biter" }), "small");
 assert.equal(getEnemyArchetype({ spriteType: "kobold" }), "humanoid");
@@ -16,4 +16,7 @@ for (const [archetype, presentation] of Object.entries(ENEMY_ARCHETYPES)) {
 
 assert.equal(getEnemyPresentation({ spriteType: "orc" }).archetype, "humanoid");
 assert.equal(getEnemyPresentation({ spell: "LAHALITO" }).archetype, "caster");
+assert.equal(getEnemyPresentation({ name: "フラッシュバット", spriteType: "bat" }).assetKey, "enemy:フラッシュバット");
+assert.ok(getEnemyPresentation({ name: "フラッシュバット", spriteType: "bat" }).asset.endsWith("flash-bat.png"));
+assert.equal(Object.keys(ENEMY_UNIQUE_ASSETS).length, 11);
 console.log("ENEMY PRESENTATION TEST PASSED");
