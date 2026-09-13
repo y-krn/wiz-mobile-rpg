@@ -4,7 +4,7 @@ import { VIEWPORTS } from './ui-ux-helpers.js';
 for (const viewport of VIEWPORTS) {
   test(`vulnerable enemy status explains its burst window on Canvas at ${viewport.width}x${viewport.height} @visual`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
     await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');

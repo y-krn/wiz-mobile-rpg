@@ -136,9 +136,9 @@ test('PixiJS motion uses projection continuity, restrained turns, and combat fee
     state.mapRevision += 1;
     menuContext.type = '';
     dungeonRenderer.update(0); dungeonRenderer.draw();
-    const forwardStart = { progress: dungeonRenderer.transition?.elapsed ?? null, outgoingRoot: rootSnapshot(dungeonRenderer.transitionScene), incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: layerSnapshot(dungeonRenderer.transitionScene), incomingLayers: layerSnapshot(dungeonRenderer.scene) };
+    const forwardStart = { progress: null, transitionActive: Boolean(dungeonRenderer.transition), outgoingRoot: null, incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: null, incomingLayers: layerSnapshot(dungeonRenderer.scene) };
     dungeonRenderer.update(90); dungeonRenderer.draw();
-    const forwardMid = { progress: dungeonRenderer.transition?.elapsed ?? null, outgoingRoot: rootSnapshot(dungeonRenderer.transitionScene), incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: layerSnapshot(dungeonRenderer.transitionScene), incomingLayers: layerSnapshot(dungeonRenderer.scene) };
+    const forwardMid = { progress: null, transitionActive: Boolean(dungeonRenderer.transition), outgoingRoot: null, incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: null, incomingLayers: layerSnapshot(dungeonRenderer.scene) };
     const forwardMidFrame = document.querySelector('#dungeon-canvas').toDataURL();
     dungeonRenderer.update(90); dungeonRenderer.draw();
     const forwardEnd = { active: Boolean(dungeonRenderer.transition), sceneY: dungeonRenderer.scene.position.y };
@@ -146,31 +146,32 @@ test('PixiJS motion uses projection continuity, restrained turns, and combat fee
     state.dir = 3;
     state.mapRevision += 1;
     dungeonRenderer.update(80); dungeonRenderer.draw();
-    const leftMid = { outgoingRoot: rootSnapshot(dungeonRenderer.transitionScene), incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: layerSnapshot(dungeonRenderer.transitionScene), incomingLayers: layerSnapshot(dungeonRenderer.scene) };
+    const leftMid = { transitionActive: Boolean(dungeonRenderer.transition), outgoingRoot: null, incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: null, incomingLayers: layerSnapshot(dungeonRenderer.scene) };
     const leftMidFrame = document.querySelector('#dungeon-canvas').toDataURL();
     dungeonRenderer.update(90); dungeonRenderer.draw();
     dungeonRenderer.beginNavigationTransition('turn-right', dungeonRenderer.getRenderInput());
     state.dir = 0;
     state.mapRevision += 1;
     dungeonRenderer.update(85); dungeonRenderer.draw();
-    const rightMid = { outgoingRoot: rootSnapshot(dungeonRenderer.transitionScene), incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: layerSnapshot(dungeonRenderer.transitionScene), incomingLayers: layerSnapshot(dungeonRenderer.scene) };
+    const rightMid = { transitionActive: Boolean(dungeonRenderer.transition), outgoingRoot: null, incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: null, incomingLayers: layerSnapshot(dungeonRenderer.scene) };
     const rightMidFrame = document.querySelector('#dungeon-canvas').toDataURL();
     return { forwardStart, forwardMid, forwardEnd, leftMid, rightMid, forwardMidFrame, leftMidFrame, rightMidFrame };
   });
   for (const sample of [motion.forwardStart, motion.forwardMid, motion.leftMid, motion.rightMid]) {
-    for (const root of [sample.outgoingRoot, sample.incomingRoot]) {
-      expect(root.x).toBe(0);
-      expect(root.y).toBe(0);
-      expect(root.rotation).toBe(0);
-      expect(root.scaleX).toBe(1);
-      expect(root.scaleY).toBe(1);
-    }
+    expect(sample.transitionActive).toBe(false);
+    const root = sample.incomingRoot;
+    expect(root.x).toBe(0);
+    expect(root.y).toBe(0);
+    expect(root.rotation).toBe(0);
+    expect(root.scaleX).toBe(1);
+    expect(root.scaleY).toBe(1);
+    expect(root.alpha).toBe(1);
+    expect(sample.outgoingRoot).toBeNull();
+    expect(sample.outgoingLayers).toBeNull();
   }
-  expect(motion.forwardMid.outgoingRoot.alpha).toBeGreaterThan(0);
-  expect(motion.forwardMid.outgoingRoot.alpha).toBeLessThan(1);
-  expect(Math.abs(motion.forwardMid.outgoingLayers.farEnvironmentY)).toBeLessThan(0.1);
+  expect(Math.abs(motion.forwardMid.incomingLayers.farEnvironmentY)).toBe(0);
   expect(motion.forwardEnd.active).toBe(false);
-  expect(Math.abs(motion.leftMid.outgoingLayers.farEnvironmentX)).toBeLessThan(0.1);
+  expect(Math.abs(motion.leftMid.incomingLayers.farEnvironmentX)).toBe(0);
   expect(Math.abs(motion.rightMid.incomingLayers.farEnvironmentX)).toBeLessThan(0.1);
   const forwardFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('pixi-forward-end-390.png') });
   await testInfo.attach('pixi-forward-end-390', { body: forwardFrame, contentType: 'image/png' });
@@ -215,7 +216,7 @@ test('PixiJS motion uses projection continuity, restrained turns, and combat fee
 test('Canvas and Pixi share identical deterministic states for visual A/B evidence @smoke @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const renderer of ['canvas', 'pixi']) {
-    await page.goto(renderer === 'pixi' ? '/?renderer=pixi' : '/');
+    await page.goto(renderer === 'pixi' ? '/?renderer=pixi' : '/?renderer=canvas');
     await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', renderer);
     await hideHud(page);
     await setState(page, { map: makeSyntheticFixture('straight-corridor') });

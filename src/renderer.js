@@ -240,6 +240,7 @@ export function getProjectionColumn(projection, z, column = 0) {
 export class DungeonRenderer {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
+    this.mode = "canvas";
     if (this.canvas) {
       this.ctx = this.canvas.getContext("2d");
       this.canvas.width = VIEW_W;

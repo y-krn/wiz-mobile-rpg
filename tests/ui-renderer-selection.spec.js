@@ -1,44 +1,38 @@
 import { test, expect } from './fixtures/browser-health.js';
 
-const RETIRED_RENDERER = 'three';
-
-async function readCanvasDefault(page) {
-  await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'canvas');
+async function readSelection(page) {
   return page.evaluate(async () => {
-    const { dungeonRenderer } = await import('/src/renderer.js');
+    const { getRendererSelectionState } = await import('/src/game.js');
     const canvas = document.querySelector('#dungeon-canvas');
-    const rendererModules = performance.getEntriesByType('resource')
-      .map((entry) => new URL(entry.name).pathname)
-      .filter((pathname) => pathname.startsWith('/src/') && pathname.endsWith('renderer.js'));
     return {
-      canvas2d: Boolean(canvas?.getContext('2d')),
-      rendererModules,
-      rendererMode: dungeonRenderer?.mode ?? 'canvas',
+      ...getRendererSelectionState(),
+      canvasCount: document.querySelectorAll('#dungeon-canvas').length,
+      canvasRenderer: canvas?.dataset.renderer || null,
+      panelRenderer: document.querySelector('#viewport-panel')?.dataset.renderer || null,
+      pixiCanvasContext: canvas?.getContext('webgl') !== null || canvas?.getContext('webgl2') !== null,
     };
   });
 }
 
-test('renderer selection keeps Canvas default, Pixi opt-in, and safe fallback for retired or invalid queries @smoke @e2e', async ({ page }) => {
-  await page.goto('/');
-  const defaultState = await readCanvasDefault(page);
-  expect(defaultState.canvas2d).toBe(true);
-  expect(defaultState.rendererMode).toBe('canvas');
+test('renderer selection defaults to Pixi, preserves explicit overrides, and normalizes unknown values @smoke @e2e', async ({ page }) => {
+  for (const path of ['/', '/?renderer=pixi', '/?renderer=foo']) {
+    await page.goto(path);
+    await expect.poll(async () => (await readSelection(page)).selectedRenderer).toBe('pixi');
+    const state = await readSelection(page);
+    expect(state.requestedRenderer).toBe('pixi');
+    expect(state.fallbackOccurred).toBe(false);
+    expect(state.canvasCount).toBe(1);
+    expect(state.canvasRenderer).toBe('pixi');
+    expect(state.panelRenderer).toBe('pixi');
+    expect(state.pixiCanvasContext).toBe(true);
+  }
 
-  await page.goto('/?renderer=pixi');
-  await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'pixi');
-  await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
-  const pixiMode = await page.evaluate(async () => (await import('/src/renderer.js')).dungeonRenderer.mode);
-  expect(pixiMode).toBe('pixi');
-
-  await page.goto(`/?renderer=${RETIRED_RENDERER}`);
-  const retiredState = await readCanvasDefault(page);
-  expect(retiredState.canvas2d).toBe(true);
-  expect(retiredState.rendererMode).toBe('canvas');
-  expect(retiredState.rendererModules).toEqual(['/src/renderer.js']);
-
-  await page.goto('/?renderer=invalid-renderer');
-  const invalidState = await readCanvasDefault(page);
-  expect(invalidState.canvas2d).toBe(true);
-  expect(invalidState.rendererMode).toBe('canvas');
-  expect(invalidState.rendererModules).toEqual(['/src/renderer.js']);
+  await page.goto('/?renderer=canvas');
+  const canvasState = await readSelection(page);
+  expect(canvasState.requestedRenderer).toBe('canvas');
+  expect(canvasState.selectedRenderer).toBe('canvas');
+  expect(canvasState.fallbackOccurred).toBe(false);
+  expect(canvasState.canvasCount).toBe(1);
+  expect(canvasState.canvasRenderer).toBeNull();
+  expect(canvasState.panelRenderer).toBe('canvas');
 });

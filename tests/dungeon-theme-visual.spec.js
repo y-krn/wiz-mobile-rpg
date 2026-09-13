@@ -63,7 +63,7 @@ async function renderFloor(page, floor) {
 for (const viewport of VIEWPORTS) {
   test(`Dungeon biome visual boundaries remain distinct at ${viewport.width}px @visual`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
     await page.waitForLoadState('networkidle');
 
     const evidence = {};
@@ -89,7 +89,7 @@ for (const viewport of VIEWPORTS) {
 
 test('Dungeon theme clears inline variables when leaving an active run @visual', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
   await page.waitForLoadState('networkidle');
 
   const evidence = await page.evaluate(async () => {
@@ -166,7 +166,7 @@ test('Dungeon theme clears inline variables when leaving an active run @visual',
 for (const viewport of VIEWPORTS) {
   test(`Representative biome renderer output remains distinct at ${viewport.width}px @visual`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
     await page.waitForLoadState('networkidle');
 
     const evidence = {};

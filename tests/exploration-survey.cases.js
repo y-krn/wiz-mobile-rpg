@@ -10,17 +10,19 @@ for (const vp of VIEWPORTS) {
   test(`DUMAPIC shows an instant survey without persistent coordinates on ${vp.name} (${vp.width}x${vp.height}) @e2e`, async ({ page }) => {
     // Set viewport
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     // Clear local storage and reload
     await page.evaluate(() => localStorage.clear());
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     // 1. 旧クラス由来の呪文経路は開始キットとは独立して検証する
     await page.click('#btn-town-dungeon');
     await page.evaluate(async () => {
       const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
-      state.party = [createStartingKitCharacter('arcana')];
+      const caster = createStartingKitCharacter('arcana');
+      caster.mediumState.socketedRunes = ['RUNE_DUMAPIC'];
+      state.party = [caster];
       state.currentRun = createDefaultCurrentRun();
       state.floor = 1;
       state.gameState = 'explore';
@@ -31,9 +33,9 @@ for (const vp of VIEWPORTS) {
     await page.click('#btn-cast');
     await expect(page.locator('#spell-overlay')).toBeVisible();
 
-    // Select Ged (Mage) in caster bar
-    const gedCasterBtn = page.locator('.spell-caster-btn:has-text("Ged")');
-    await gedCasterBtn.click();
+    // Select the first available caster. Starting-kit characters intentionally
+    // use the shared Adventurer name rather than legacy class names.
+    await page.locator('.spell-caster-btn').first().click();
 
     // Select DUMAPIC spell card
     const dumapicCard = page.locator('.spell-item-row-card:has-text("DUMAPIC")');

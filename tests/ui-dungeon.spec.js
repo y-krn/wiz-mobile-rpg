@@ -2,7 +2,7 @@ import { test, expect } from './fixtures/browser-health.js';
 import './exploration-survey.cases.js';
 import { VIEWPORTS, startSoloRun, beginPendingOutcomePlayback } from './ui-ux-helpers.js';
 test('Three-column corridor renderer draws adjacent front walls', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
   const cyanPixels = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
@@ -41,7 +41,7 @@ test('Three-column corridor renderer draws adjacent front walls', async ({ page 
 });
 
 test('Combat monsters render colored neon bodies with visible white cores at four-enemy scale', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
 
   const pixelCounts = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -99,7 +99,7 @@ test('Combat monsters render colored neon bodies with visible white cores at fou
 });
 
 test('Five-column corridor renderer draws outer front walls', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
   const cyanPixels = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
@@ -152,7 +152,7 @@ test('Five-column corridor renderer draws outer front walls', async ({ page }) =
 });
 
 test('3D corridor draws unopened chest icons at perspective-scaled depths', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
   const result = await page.evaluate(async () => {
     const { EVENT_TYPES } = await import('/src/data.js');
     const { state } = await import('/src/state.js');
@@ -233,7 +233,7 @@ test('3D corridor draws unopened chest icons at perspective-scaled depths', asyn
 });
 
 test('Mini-map hides stairs-up markers and glows on every floor', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
 
   const result = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -307,7 +307,7 @@ test('Mini-map hides stairs-up markers and glows on every floor', async ({ page 
 });
 
 test('Mini-map keeps DUMAPIC out of reveal range while preserving light ranges', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
 
   const result = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -360,7 +360,7 @@ test('Mini-map keeps DUMAPIC out of reveal range while preserving light ranges',
 });
 
 test('Chest opened immediately after entering the dungeon does not draw the town background', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
 
   const result = await page.evaluate(async () => {
     const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -425,7 +425,7 @@ test('Chest opened immediately after entering the dungeon does not draw the town
 
 test('Renderer and navigation keep modal transitions safe with stale context', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
 
   const result = await page.evaluate(async () => {
     const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -497,7 +497,7 @@ test('Renderer and navigation keep modal transitions safe with stale context', a
 for (const vp of VIEWPORTS) {
   test(`Combat submenu falls back safely after combat data is lost at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -543,7 +543,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Nested combat history and stale spell context stay hidden at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -634,7 +634,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Malformed map and modal context fail closed at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -864,7 +864,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Direct combat handlers ignore stale combat data at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -1001,7 +1001,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Startup combat resume advances an incapacitated party safely at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     const basePayload = await page.evaluate(async () => {
       const { createSavePayload, createStartingKitCharacter, state } = await import('/src/state.js');
@@ -1112,7 +1112,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Combat callbacks fail closed after navigation and invalid context at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -1238,7 +1238,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Missing combat data disables combat UI paths at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -1369,7 +1369,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Combat overlays reject resolving and transitioning clicks at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -1433,7 +1433,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Malformed active-map combat stays out of renderer and viewport HUD at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -1490,7 +1490,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Malformed map keeps solo_start on the safe town scene at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -1588,7 +1588,7 @@ for (const vp of VIEWPORTS) {
 
 test('Combat autosave resumes action selection without persisting resolving phase', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
   await page.locator('#btn-town-dungeon').click();
   await page.getByRole('button', { name: /鋼の前線キット/ }).click();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
@@ -2039,7 +2039,7 @@ test('Defeat during battle log playback reloads into game over', async ({ page }
 });
 
 test('visibilitychange hidden saves only when no transition is active', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
   const result = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     Object.defineProperty(document, 'visibilityState', {
@@ -2071,7 +2071,7 @@ test('visibilitychange hidden saves only when no transition is active', async ({
 for (const vp of VIEWPORTS) {
   test(`Combat, chest, and event scenes hide the mini-map at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
 
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');

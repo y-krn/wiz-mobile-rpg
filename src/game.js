@@ -10,6 +10,12 @@ import { openChestMenu } from "./chest.js";
 import { getScreenViewState } from "./state/view_state.js";
 import { getRendererInput } from "./state/renderer_view.js";
 import { hasPendingRewardBundle, openPendingRewardMenu } from "./pending_rewards.js";
+import {
+  createRendererSelectionState,
+  getInjectedFailurePhase,
+  selectCanvasFallback,
+  selectRenderer
+} from "./renderer_selection.js";
 
 // Import modules for re-export and button bindings
 import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
@@ -26,20 +32,65 @@ export { goBackSubmenu } from "./navigation.js";
 export { selectCombatAction, cancelCombatAction, resolveCombatRound, triggerGameOver, toggleCombatAuto } from "./combat.js";
 
 let renderer = null;
+let rendererSelection = createRendererSelectionState("");
+let buttonsBound = false;
 let animationFrameId = null;
 let lastTime = null;
 const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, viewport-fit=cover";
 
-function reportRendererRecovery(error, rendererName, op) {
+function reportRendererRecovery(error, selection, reason, pixiPhase) {
   captureException(error, {
     level: "warning",
     tags: {
       subsystem: "renderer",
-      renderer: rendererName,
-      op,
+      requested_renderer: selection.requestedRenderer,
+      selected_renderer: "canvas",
+      fallback_occurred: "true",
+      fallback_reason: reason,
+      pixi_phase: pixiPhase || "unknown",
       recovery: "canvas-fallback",
     },
+    extra: {
+      renderer: {
+        requestedRenderer: selection.requestedRenderer,
+        selectedRenderer: "canvas",
+        fallbackOccurred: true,
+        fallbackReason: reason,
+        pixiPhase: pixiPhase || null
+      }
+    }
   });
+}
+
+export function getRendererSelectionState() {
+  return Object.freeze({ ...rendererSelection });
+}
+
+function replaceDungeonCanvas() {
+  const current = document.getElementById("dungeon-canvas");
+  if (!current) return;
+  const replacement = current.cloneNode(false);
+  replacement.removeAttribute("data-renderer");
+  current.replaceWith(replacement);
+}
+
+function mountCanvasFallback(selection, candidate, reason, pixiPhase, error) {
+  try {
+    candidate?.dispose?.();
+  } catch {
+    // The failed candidate is already unusable. Replacing its view below
+    // guarantees that a partially created WebGL context cannot block Canvas.
+  }
+  replaceDungeonCanvas();
+  renderer = new DungeonRenderer("dungeon-canvas");
+  rendererSelection = selectCanvasFallback(selection, { reason, pixiPhase });
+  reportRendererRecovery(error, rendererSelection, reason, pixiPhase);
+  setDungeonRenderer(renderer);
+}
+
+function assertInjectedFailure(phase) {
+  if (getInjectedFailurePhase(window) !== phase) return;
+  throw new Error(`Injected renderer failure: ${phase}`);
 }
 
 export function initGame() {
@@ -56,11 +107,15 @@ export function initGame() {
   window.addEventListener("pagehide", stopGameLoop);
   window.addEventListener("pageshow", handlePageShow);
 
-  const requestedRenderer = new URLSearchParams(window.location.search).get("renderer");
+  // Keep the existing input surface responsive while the production Pixi
+  // chunk initializes. No renderer is drawn here, so this cannot create a
+  // Canvas-then-Pixi startup flash.
+  updateUI();
+  bindButtons();
+
+  rendererSelection = createRendererSelectionState(window.location.search);
   const start = () => {
     document.getElementById("viewport-panel")?.setAttribute("data-renderer", renderer?.mode || "canvas");
-    scheduleGameLoop();
-    bindButtons();
     updateUI();
     resumePendingCampEntry();
     const view = getScreenViewState(state, null);
@@ -74,39 +129,56 @@ export function initGame() {
       saveAutosave();
       updateUI();
     }
+    // Render the first Dungeon View before exposing the controls or starting
+    // the loop. Dynamic Pixi loading therefore cannot show a Canvas flash.
+    const renderInput = getRendererInput(state, menuContext);
+    renderer?.draw?.(renderInput);
+    renderer.lastSignature = renderer?.getDrawSignature?.(renderInput) ?? null;
+    scheduleGameLoop();
   };
 
-  // PixiJS is an explicit opt-in renderer. Keep Canvas as the
-  // production default and fall back safely if WebGL/Pixi initialization is
-  // unavailable on the current browser.
-  if (requestedRenderer === "pixi") {
-    import("./pixi_renderer.js").then(async ({ PixiDungeonRenderer }) => {
-      const candidate = new PixiDungeonRenderer("dungeon-canvas");
+  if (rendererSelection.requestedRenderer === "pixi") {
+    const failurePhase = getInjectedFailurePhase(window);
+    (async () => {
+      let candidate = null;
       try {
+        assertInjectedFailure("import");
+        const { PixiDungeonRenderer } = await import("./pixi_renderer.js");
+        candidate = new PixiDungeonRenderer("dungeon-canvas", { failurePhase });
         await candidate.init();
         if (candidate.supported) {
           renderer = candidate;
+          rendererSelection = selectRenderer(rendererSelection, "pixi");
+          setDungeonRenderer(renderer);
+          candidate.initializationPhase = "mount";
+          assertInjectedFailure("mount");
+          candidate.initializationPhase = "initial-render";
+          assertInjectedFailure("initial-render");
+          start();
+          candidate.initializationPhase = null;
+          return;
         } else {
-          candidate.dispose();
-          renderer = new DungeonRenderer("dungeon-canvas");
+          mountCanvasFallback(rendererSelection, candidate, "pixi-unsupported", "canvas/context", new Error("Pixi renderer is unsupported"));
         }
       } catch (error) {
-        reportRendererRecovery(error, "pixi", "renderer-init");
-        candidate.dispose();
-        renderer = new DungeonRenderer("dungeon-canvas");
+        const injectedPhase = getInjectedFailurePhase(window);
+        const pixiPhase = injectedPhase || candidate?.initializationPhase || "import";
+        const reason = pixiPhase === "import"
+          ? "pixi-import-failed"
+          : pixiPhase === "mount"
+            ? "pixi-mount-failed"
+            : pixiPhase === "initial-render"
+              ? "pixi-initial-render-failed"
+              : "pixi-init-failed";
+        mountCanvasFallback(rendererSelection, candidate, reason, pixiPhase, error);
       }
-      setDungeonRenderer(renderer);
       start();
-    }).catch((error) => {
-      reportRendererRecovery(error, "pixi", "module-init");
-      renderer = new DungeonRenderer("dungeon-canvas");
-      setDungeonRenderer(renderer);
-      start();
-    });
+    })();
     return;
   }
 
   renderer = new DungeonRenderer("dungeon-canvas");
+  rendererSelection = selectRenderer(rendererSelection, "canvas");
   setDungeonRenderer(renderer);
   start();
 }
@@ -182,6 +254,8 @@ function gameLoop(time) {
 // BUTTON BINDINGS
 // ----------------------------------------------------
 function bindButtons() {
+  if (buttonsBound) return;
+  buttonsBound = true;
   document.getElementById("submenu-controls").addEventListener("click", blockGuardedControlsEvent, true);
   document.getElementById("trap-controls").addEventListener("click", blockGuardedControlsEvent, true);
 

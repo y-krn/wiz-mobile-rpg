@@ -4,7 +4,7 @@ const REPRESENTATIVE_FLOORS = [1, 6, 11, 16, 21, 26];
 
 test('Chest scene uses the current biome chest signature @visual', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
   await page.waitForLoadState('networkidle');
 
   const evidence = await page.evaluate(async floors => {

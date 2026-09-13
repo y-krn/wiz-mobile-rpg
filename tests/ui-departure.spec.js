@@ -5,7 +5,7 @@ import { VIEWPORTS, openDeparturePreparation } from './ui-ux-helpers.js';
 for (const width of [320, 360, 390, 430]) {
   test(`Starting kit cards explain production equipment load at ${width}px @smoke`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 320 ? 568 : 844 });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
     await page.locator('#btn-town-dungeon').click();
 
     const cards = page.locator('.solo-starting-kit-option');
@@ -39,7 +39,7 @@ for (const width of [320, 360, 390, 430]) {
 for (const vp of VIEWPORTS) {
   test(`Milestone start, merchant, and portal stay thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       state.unlockedMilestones = [5];
@@ -263,7 +263,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Departure craft choices are thumb-safe on ${vp.name}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const { openSubmenu } = await import('/src/navigation.js');
@@ -573,7 +573,7 @@ for (const vp of VIEWPORTS) {
     });
 
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
+    await page.goto('/?renderer=canvas');
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const { dungeonRenderer } = await import('/src/renderer.js');
