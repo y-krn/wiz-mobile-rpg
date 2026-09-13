@@ -6,6 +6,7 @@ import {
   generateChestMaterials,
   resolveChestInspection
 } from "../../../src/chest/chest_domain.js";
+import { rollChestTrap } from "../../../src/rules/chest_rules.js";
 
 assert.equal(
   canTransitionChestPhase({ phase: CHEST_PHASES.MENU }, CHEST_PHASES.RESOLVING),
@@ -44,5 +45,14 @@ assert.deepEqual(
   generateChestMaterials(1, () => 0),
   { "獣の牙": 1 }
 );
+
+let b1TrapRolls = 0;
+assert.equal(rollChestTrap(1, () => {
+  b1TrapRolls += 1;
+  return 0.99;
+}), "none");
+assert.equal(b1TrapRolls, 1, "B1F disabled chest trap preserves one legacy RNG draw");
+assert.equal(rollChestTrap(2, () => 0), "poison needle");
+assert.equal(rollChestTrap(6, () => 0), "poison needle");
 
 console.log("[PASS] chest domain rules remain side-effect free and deterministic");

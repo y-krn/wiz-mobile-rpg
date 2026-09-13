@@ -507,7 +507,9 @@ function runCanonicalSmoke() {
     targetDepth: 8,
     // The universal exploration resolver changes the fixed seed's entry path;
     // the adjacent deterministic run still exercises the intended traversal.
-    runIndex: 7,
+    // B1F chest trap keeps its legacy RNG draw; use a stable smoke world that
+    // still reaches the required progression evidence on that stream.
+    runIndex: 1,
     seriesId: "simulation-follow-smoke",
     scoringProfile: null,
     scenario: smokeScenario,

@@ -227,11 +227,13 @@ const DANGEROUS_TRAPS = ["poison needle", "gas bomb", "teleporter"];
 export function rollChestTrap(floor, rng, runtimeDiagnostics = null) {
   recordRuntimeCall(runtimeDiagnostics, "traps.chest-roll", { floor });
   if (floor === 1) {
-    const r = rng();
-    if (r < 0.35) return "none";
-    if (r < 0.60) return "poison needle";
-    if (r < 0.85) return "flash bomb";
-    return "gas bomb";
+    // Preserve the legacy RNG stream even while delaying the B1F trap effect.
+    // Reward, accessory, and loot-hint rolls follow this draw in production.
+    rng();
+    // Delay chest-trap grammar until after the first floor's first
+    // Combat -> Loot -> Build read. B2F and deeper retain their existing
+    // risk/reward pools, so floor traps remain the exploration Cost axis.
+    return "none";
   }
 
   let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
