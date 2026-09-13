@@ -9,10 +9,10 @@ the owning #1225 registry; do not create a protocol-only journey registry.
 - Golden Journey ID: `<existing tests/golden-journeys.js id>`
 - Player goal: <goal stated in player terms>
 - Starting state: <fixture and visible state, without hidden knowledge>
-- Participant instruction: “<goal-only instruction; no control/layout/strategy hint>”
-- Unassisted success: <observable terminal condition without task-relevant help>
-- Assisted success: <same terminal condition after bounded recorded assistance>
-- Failure: <non-critical inability to reach success>
+- Usage prompt: “<goal-only prompt; no control/layout/strategy hint>”
+- Success: <observable terminal condition>
+- Success with friction: <same terminal condition plus bounded friction>
+- Blocked: <product/device condition prevents success>
 - Critical failure: <destructive, safety, or continuation break>
-- Observable events: <bounded observation codes and state transitions>
-- Follow-up question: “<open question about understanding or consequence>”
+- Observable events: <bounded friction codes and state transitions>
+- Follow-up question: “<short question about understanding or consequence>”

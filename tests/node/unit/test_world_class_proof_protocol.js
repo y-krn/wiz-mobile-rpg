@@ -18,10 +18,10 @@ assert.deepEqual(new Set(referencedJourneyIds), new Set(expectedJourneyIds), 'ta
 const requiredTaskFields = [
   'Player goal:',
   'Starting state:',
-  'Participant instruction:',
-  'Unassisted success:',
-  'Assisted success:',
-  'Failure:',
+  'Usage prompt:',
+  'Success:',
+  'Success with friction:',
+  'Blocked:',
   'Critical failure:',
   'Observable events:',
   'Follow-up question:',
@@ -30,48 +30,60 @@ for (const field of requiredTaskFields) {
   assert.equal((taskCards.match(new RegExp(`^- ${field}`, 'gm')) || []).length, expectedJourneyIds.length, `every task card needs ${field}`);
 }
 
-const expectedOutcomes = [
-  'unassisted_success',
-  'assisted_success',
-  'failure',
-  'not_applicable',
-  'not_observed',
-];
-const expectedObservationCodes = [
-  'wrong_primary_action',
+const expectedUsageModes = ['first_after_change', 'steady_state', 'regression_check'];
+const expectedOutcomes = ['success', 'success_with_friction', 'blocked', 'not_applicable', 'not_observed'];
+const expectedFrictionCodes = [
   'avoidable_back',
   'reopen_same_surface',
   'repeated_rejected_action',
   'destructive_near_miss',
-  'misunderstood_consequence',
   'lost_focus_or_context',
   'blank_or_unacknowledged_input',
   'duplicate_action_attempt',
+  'reach_discomfort',
+  'scroll_trap',
+  'information_lookup_cost',
+  'visual_hierarchy_confusion',
+  'visual_fatigue',
   'task_abandon',
+  'wrong_primary_action',
+  'misunderstood_consequence',
   'focus_not_restored',
 ];
 const expectedEvidenceLevels = ['L0', 'L1', 'L2', 'L3', 'L4', 'L5'];
 const expectedAxes = [
-  'Learnability',
+  'Learnability for the target user',
   'Efficiency',
   'Safety',
   'Feedback',
   'Information density',
-  'Accessibility',
+  'Accessibility robustness',
   'Responsiveness',
   'Visual identity',
   'One-hand mobile fit',
 ];
+const expectedClaims = [
+  'NOT_READY',
+  'SOLE_USER_PRODUCTION_GRADE',
+  'SOLE_USER_TOP_TIER_EVIDENCED',
+  'SOLE_USER_BEST_IN_CLASS_DEFENSIBLE_WITH_SCOPE',
+];
 
-assert.deepEqual(schema.properties.tasks.items.properties.outcome.enum, expectedOutcomes, 'outcome grammar must remain bounded');
-assert.deepEqual(schema.properties.tasks.items.properties.observationCodes.items.enum, expectedObservationCodes, 'observation codes must remain bounded');
+assert.deepEqual(schema.properties.usageMode.$ref, '#/$defs/usageMode');
+assert.deepEqual(schema.$defs.usageMode.enum, expectedUsageModes, 'usage modes must remain bounded');
+assert.deepEqual(schema.$defs.outcome.enum, expectedOutcomes, 'outcome grammar must remain bounded');
+assert.deepEqual(schema.$defs.frictionCode.enum, expectedFrictionCodes, 'friction codes must remain bounded');
 assert.deepEqual(schema.$defs.evidenceLevel.enum, expectedEvidenceLevels, 'evidence ladder must remain L0-L5');
 assert.deepEqual(schema.$defs.axis.enum, expectedAxes, 'evaluation axes must remain separate and bounded');
+assert.deepEqual(schema.$defs.finalClaim.enum, expectedClaims, 'final claim grammar must remain sole-user scoped');
 
-assert.match(readme, /not_observed.*not.*PASS|not_observed.*PASS/s, 'protocol must state that not_observed is not PASS');
-assert.match(readme, /same player goal/i, 'comparative protocol must be player-goal based');
+assert.match(readme, /not_observed.*not PASS|not_observed.*PASS/s);
+assert.match(readme, /steady_state/);
+assert.match(readme, /same user's observable player goal/i);
 assert.match(readme, /VoiceOver/);
 assert.match(readme, /TalkBack/);
-assert.match(readme, /PILOT-001/);
-assert.match(readme, /raw voice/);
-assert.match(readme, /WORLD-BEST CLAIM DEFENSIBLE WITH SCOPE/);
+assert.match(readme, /N=1/);
+assert.match(readme, /SOLE_USER_BEST_IN_CLASS_DEFENSIBLE_WITH_SCOPE/);
+assert.doesNotMatch(readme, /moderator/i);
+assert.doesNotMatch(readme, /unassisted_success|assisted_success/);
+assert.doesNotMatch(readme, /PILOT-001|5-?8|20-?30/);

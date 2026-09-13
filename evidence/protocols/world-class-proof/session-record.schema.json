@@ -1,105 +1,95 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "World-class Proof session record",
+  "title": "World-class Proof sole-user record",
   "type": "object",
   "additionalProperties": false,
-  "required": ["protocolVersion", "recordStatus", "sessionId", "sessionType", "sourceSha", "tasks"],
+  "required": ["protocolVersion", "recordStatus", "sessionId", "usageMode", "product", "sourceSha", "journeyId", "outcome", "frictionCodes"],
   "properties": {
-    "protocolVersion": { "const": "1.0" },
+    "protocolVersion": { "const": "1.1" },
     "recordStatus": { "enum": ["planned", "executed", "not_executed"] },
-    "sessionId": { "type": "string", "pattern": "^(PILOT|DEVICE|COMP|AT)-[0-9]{3}$" },
-    "participantId": { "type": ["string", "null"], "pattern": "^(PILOT|COMP)-[0-9]{3}$" },
-    "experienceBand": {
-      "enum": ["dungeon-rpg-new", "rpg-experienced", "genre-expert", "not_applicable", "not_observed"]
-    },
-    "sessionOrder": { "type": ["integer", "null"], "minimum": 1 },
-    "sessionType": { "enum": ["human", "device", "accessibility", "comparative", "production"] },
+    "sessionId": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}$" },
+    "usageMode": { "$ref": "#/$defs/usageMode" },
+    "product": { "type": "string", "minLength": 1 },
     "sourceSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-    "evidenceLevel": { "$ref": "#/$defs/evidenceLevel" },
-    "productVersion": { "type": ["string", "null"] },
+    "buildPreview": { "type": ["string", "null"] },
     "deviceClass": { "type": ["string", "null"] },
+    "deviceModel": { "type": ["string", "null"] },
+    "osVersion": { "type": ["string", "null"] },
+    "browserWebview": { "type": ["string", "null"] },
     "viewport": { "type": ["string", "null"], "pattern": "^[0-9]+x[0-9]+$" },
     "orientation": { "enum": ["portrait", "landscape", "not_observed"] },
     "coldWarm": { "enum": ["cold", "warm", "both", "not_observed"] },
     "networkCondition": { "type": ["string", "null"] },
-    "tasks": {
+    "journeyId": { "type": "string", "minLength": 1 },
+    "taskId": { "type": ["string", "null"], "pattern": "^TASK-[0-9]{2}$" },
+    "playerGoal": { "type": "string", "minLength": 1 },
+    "startingState": { "type": "string", "minLength": 1 },
+    "outcome": { "$ref": "#/$defs/outcome" },
+    "frictionCodes": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["taskId", "journeyId", "outcome", "observationCodes"],
-        "properties": {
-          "taskId": { "type": "string", "pattern": "^TASK-[0-9]{2}$" },
-          "journeyId": { "type": "string" },
-          "outcome": {
-            "enum": ["unassisted_success", "assisted_success", "failure", "not_applicable", "not_observed"]
-          },
-          "observationCodes": {
-            "type": "array",
-            "uniqueItems": true,
-            "items": {
-              "enum": [
-                "wrong_primary_action",
-                "avoidable_back",
-                "reopen_same_surface",
-                "repeated_rejected_action",
-                "destructive_near_miss",
-                "misunderstood_consequence",
-                "lost_focus_or_context",
-                "blank_or_unacknowledged_input",
-                "duplicate_action_attempt",
-                "task_abandon",
-                "focus_not_restored"
-              ]
-            }
-          },
-          "criticalFailure": { "enum": [true, false, "not_observed"] },
-          "assistanceCategory": {
-            "enum": ["none", "neutral_prompt", "technical_recovery", "other_declared_bounded_category", "not_observed"]
-          },
-          "findingStatus": { "enum": ["PASS", "finding", "blocker", "not_observed"] },
-          "timing": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "taskStart": { "type": ["string", "null"] },
-              "firstCorrectAction": { "type": ["string", "null"] },
-              "terminalResult": { "type": ["string", "null"] }
-            }
-          },
-          "notes": { "type": ["string", "null"] }
-        }
-      },
-      "minItems": 1
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/frictionCode" }
     },
-    "axisObservations": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["axis", "rawObservation"],
-        "properties": {
-          "axis": { "$ref": "#/$defs/axis" },
-          "ordinal": { "type": ["integer", "null"], "minimum": 1, "maximum": 5 },
-          "rawObservation": { "type": "string" },
-          "contradictoryObservation": { "type": ["string", "null"] }
-        }
+    "criticalFailure": { "enum": [true, false, "not_observed"] },
+    "notes": { "type": ["string", "null"] },
+    "timing": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "taskStart": { "type": ["string", "null"] },
+        "firstCorrectAction": { "type": ["string", "null"] },
+        "terminalResult": { "type": ["string", "null"] }
       }
-    }
+    },
+    "evidenceLevel": { "$ref": "#/$defs/evidenceLevel" },
+    "findingStatus": { "enum": ["PASS", "finding", "blocker", "not_observed"] },
+    "previousRecordId": { "type": ["string", "null"] },
+    "changeReference": { "type": ["string", "null"] },
+    "limitations": { "type": ["string", "null"] }
   },
   "$defs": {
+    "usageMode": { "enum": ["first_after_change", "steady_state", "regression_check"] },
+    "outcome": { "enum": ["success", "success_with_friction", "blocked", "not_applicable", "not_observed"] },
+    "frictionCode": {
+      "enum": [
+        "avoidable_back",
+        "reopen_same_surface",
+        "repeated_rejected_action",
+        "destructive_near_miss",
+        "lost_focus_or_context",
+        "blank_or_unacknowledged_input",
+        "duplicate_action_attempt",
+        "reach_discomfort",
+        "scroll_trap",
+        "information_lookup_cost",
+        "visual_hierarchy_confusion",
+        "visual_fatigue",
+        "task_abandon",
+        "wrong_primary_action",
+        "misunderstood_consequence",
+        "focus_not_restored"
+      ]
+    },
     "evidenceLevel": { "enum": ["L0", "L1", "L2", "L3", "L4", "L5"] },
     "axis": {
       "enum": [
-        "Learnability",
+        "Learnability for the target user",
         "Efficiency",
         "Safety",
         "Feedback",
         "Information density",
-        "Accessibility",
+        "Accessibility robustness",
         "Responsiveness",
         "Visual identity",
         "One-hand mobile fit"
+      ]
+    },
+    "finalClaim": {
+      "enum": [
+        "NOT_READY",
+        "SOLE_USER_PRODUCTION_GRADE",
+        "SOLE_USER_TOP_TIER_EVIDENCED",
+        "SOLE_USER_BEST_IN_CLASS_DEFENSIBLE_WITH_SCOPE"
       ]
     }
   }
