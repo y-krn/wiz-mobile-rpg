@@ -78,6 +78,7 @@ async function assertNoHorizontalOverflow(page, label) {
 }
 
 async function expectStableSurfaceScreenshot(page, name, surfaceSelector, maskSelectors = []) {
+  await page.evaluate(() => document.activeElement?.blur());
   const masks = maskSelectors
     .map(selector => page.locator(selector))
     .filter(Boolean);
@@ -89,11 +90,109 @@ async function expectStableSurfaceScreenshot(page, name, surfaceSelector, maskSe
   });
 }
 
+async function inspectAccessibleSurface(page, surfaceSelector) {
+  return page.locator(surfaceSelector).evaluate(surface => {
+    const isVisible = element => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    };
+    const nameOf = element => {
+      const labelledBy = element.getAttribute('aria-labelledby');
+      const labelledText = labelledBy
+        ? labelledBy.split(/\s+/).map(id => document.getElementById(id)?.textContent || '').join(' ')
+        : '';
+      return (element.getAttribute('aria-label') || labelledText || element.textContent || '').trim().replace(/\s+/g, ' ');
+    };
+    return [...surface.querySelectorAll('button, [role="button"], a[href], input, select, textarea, [role="checkbox"], [role="radio"], [role="tab"], [role="option"]')]
+      .filter(isVisible)
+      .map(element => ({
+        tag: element.tagName.toLowerCase(),
+        role: element.getAttribute('role') || (element.tagName.toLowerCase() === 'button' ? 'button' : null),
+        name: nameOf(element),
+        disabled: Boolean(element.disabled) || element.getAttribute('aria-disabled') === 'true',
+        pressed: element.getAttribute('aria-pressed'),
+        selected: element.getAttribute('aria-selected'),
+        checked: element.getAttribute('aria-checked'),
+        expanded: element.getAttribute('aria-expanded'),
+        current: element.getAttribute('aria-current'),
+        id: element.id,
+      }));
+  });
+}
+
+async function assertNamedInteractiveControls(page, surfaceSelector) {
+  const controls = await inspectAccessibleSurface(page, surfaceSelector);
+  expect(controls, `${surfaceSelector} should expose interactive controls`).not.toEqual([]);
+  expect(controls.filter(control => !control.role || !control.name), `${surfaceSelector} controls need a meaningful name and role`).toEqual([]);
+  for (const control of controls) {
+    for (const state of ['pressed', 'selected', 'checked', 'expanded', 'current']) {
+      if (control[state] !== null) {
+        expect(['true', 'false', 'page', 'step', 'location', 'date', 'time'].includes(control[state]),
+          `${surfaceSelector} ${control.id || control.name} has an invalid aria-${state}`).toBe(true);
+      }
+    }
+  }
+  return controls;
+}
+
+async function assertNoHiddenSurfaceFocus(page, surfaceSelectors) {
+  const leak = await page.evaluate(selectors => {
+    const active = document.activeElement;
+    const isHidden = element => {
+      if (!element || element === document.documentElement) return false;
+      const style = getComputedStyle(element);
+      return element.hidden || style.display === 'none' || style.visibility === 'hidden' || isHidden(element.parentElement);
+    };
+    return selectors
+      .map(selector => document.querySelector(selector))
+      .filter(Boolean)
+      .filter(surface => isHidden(surface) && surface.contains(active))
+      .map(surface => ({ id: surface.id, activeId: active?.id || '', activeLabel: active?.getAttribute('aria-label') || '' }));
+  }, surfaceSelectors);
+  expect(leak, 'focus must not remain inside a hidden surface').toEqual([]);
+  return leak;
+}
+
+async function readFocusEvidence(page) {
+  return page.evaluate(() => {
+    const active = document.activeElement;
+    const rect = active?.getBoundingClientRect?.();
+    return {
+      id: active?.id || '',
+      role: active?.getAttribute?.('role') || (active?.tagName === 'BUTTON' ? 'button' : ''),
+      name: active?.getAttribute?.('aria-label') || active?.textContent?.trim().replace(/\s+/g, ' ') || '',
+      inDialog: active?.closest?.('[role="dialog"]')?.id || null,
+      viewport: { width: document.documentElement.clientWidth, height: document.documentElement.clientHeight },
+      visible: Boolean(active && getComputedStyle(active).display !== 'none' && getComputedStyle(active).visibility !== 'hidden'),
+      inViewport: Boolean(rect && rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth),
+    };
+  });
+}
+
+async function readReducedMotionEvidence(page) {
+  return page.evaluate(() => {
+    const resultRecord = document.querySelector('.result-record-new');
+    const dock = document.querySelector('#controls-panel');
+    return {
+      prefersReducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      resultAnimation: resultRecord ? getComputedStyle(resultRecord).animationName : 'none',
+      resultAnimationDuration: resultRecord ? getComputedStyle(resultRecord).animationDuration : '0s',
+      dockTransitionDuration: dock ? getComputedStyle(dock).transitionDuration : '0s',
+    };
+  });
+}
+
 export {
   assertNoHorizontalOverflow,
+  assertNamedInteractiveControls,
+  assertNoHiddenSurfaceFocus,
   classifyTap,
   expectStableSurfaceScreenshot,
+  inspectAccessibleSurface,
   installJourneyRecorder,
+  readFocusEvidence,
   readJourneyEvidence,
+  readReducedMotionEvidence,
   recordJourneyStep,
 };

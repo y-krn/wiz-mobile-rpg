@@ -43,14 +43,14 @@
         <div id="records-strip" class="records-strip" aria-label="潜行記録"></div>
         <!-- Text HUD representation of surrounding walls for accessibility & navigation -->
         <div id="viewport-hud" aria-live="polite"></div>
-        <div id="result-overlay" class="result-overlay-container" style="display: none;"></div>
+        <div id="result-overlay" class="result-overlay-container" role="dialog" aria-modal="true" aria-label="冒険結果" style="display: none;"></div>
       </div>
 
       <!-- Equip overlay (moved outside viewport for full game area layout) -->
-      <div id="equip-overlay" class="equip-overlay-container" style="display: none;"></div>
+      <div id="equip-overlay" class="equip-overlay-container" role="dialog" aria-modal="true" aria-label="装備とバッグ" style="display: none;"></div>
 
       <!-- Spell overlay (moved outside viewport for full game area layout) -->
-      <div id="spell-overlay" class="spell-overlay-container" style="display: none;"></div>
+      <div id="spell-overlay" class="spell-overlay-container" role="dialog" aria-modal="true" aria-label="呪文選択" style="display: none;"></div>
 
       <!-- Archives overlay -->
       <div id="archives-overlay" class="archives-overlay-container is-hidden"></div>
@@ -62,7 +62,7 @@
       </div>
 
       <!-- Full-log overlay (expanded from #btn-log-expand) -->
-      <div id="log-overlay" class="log-overlay-container" style="display: none;">
+      <div id="log-overlay" class="log-overlay-container" role="dialog" aria-modal="true" aria-label="冒険の記録" style="display: none;">
         <div class="log-overlay-header">
           <span class="log-overlay-title">冒険の記録</span>
           <button id="btn-log-overlay-close" class="btn btn-neon">閉じる</button>
@@ -164,7 +164,7 @@
         </div>
 
         <!-- Combat target/spell/item choices use the same Action Dock surface. -->
-        <div id="combat-overlay" class="combat-overlay-container" role="region" aria-label="戦闘の選択" style="display: none;"></div>
+        <div id="combat-overlay" class="combat-overlay-container" role="dialog" aria-modal="true" aria-label="戦闘の選択" style="display: none;"></div>
 
         <!-- Trap controls (shown in trap encounter) -->
         <div id="trap-controls" class="controls-group">

@@ -32,6 +32,7 @@ import {
   isMedium,
   syncMediumState
 } from "../rules/magic_rules.js";
+import { restoreFocusAfterRender } from "../ui/focus_manager.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
@@ -284,7 +285,7 @@ function getDepartureCraftQuantity(recipeId) {
   return departureCraftQuantities.get(recipeId) || 0;
 }
 
-function changeDepartureCraftQuantity(optGrid, startingKitId, startingGear, recipeId, delta) {
+function changeDepartureCraftQuantity(optGrid, startingKitId, startingGear, recipeId, delta, focusSelector = null) {
   const current = getDepartureCraftQuantity(recipeId);
   const next = Math.max(0, current + delta);
   if (next === current) return;
@@ -297,7 +298,7 @@ function changeDepartureCraftQuantity(optGrid, startingKitId, startingGear, reci
   } else {
     departureCraftQuantities.set(recipeId, next);
   }
-  renderStartFloorChoices(optGrid, startingKitId, startingGear);
+  renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSelector);
 }
 
 function clearDepartureStartFooter() {
@@ -346,7 +347,14 @@ function renderDepartureCraftOptions(optGrid, startingKitId, startingGear) {
     decrement.textContent = "−";
     decrement.disabled = quantity === 0;
     decrement.addEventListener("click", () => {
-      changeDepartureCraftQuantity(optGrid, startingKitId, startingGear, recipe.resultId, -1);
+      changeDepartureCraftQuantity(
+        optGrid,
+        startingKitId,
+        startingGear,
+        recipe.resultId,
+        -1,
+        `[data-craft-recipe-id="${recipe.resultId}"]`
+      );
     });
 
     const payment = getDepartureCraftCost([recipe.resultId]);
@@ -364,7 +372,14 @@ function renderDepartureCraftOptions(optGrid, startingKitId, startingGear) {
       ariaPressed: quantity > 0,
       dataset: { recipeId: recipe.resultId },
       onClick: () => {
-        changeDepartureCraftQuantity(optGrid, startingKitId, startingGear, recipe.resultId, 1);
+        changeDepartureCraftQuantity(
+          optGrid,
+          startingKitId,
+          startingGear,
+          recipe.resultId,
+          1,
+          `[data-recipe-id="${recipe.resultId}"]`
+        );
       }
     });
     stepper.append(decrement, button);
@@ -372,7 +387,7 @@ function renderDepartureCraftOptions(optGrid, startingKitId, startingGear) {
   });
 }
 
-function renderStartFloorChoices(optGrid, startingKitId, startingGear) {
+function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSelector = null) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-floor-grid";
   const footer = document.getElementById("departure-start-footer");
@@ -381,7 +396,7 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear) {
   changeKit.type = "button";
   changeKit.className = "btn btn-block solo-start-change";
   changeKit.textContent = "開始キットを選び直す";
-  changeKit.addEventListener("click", () => renderSoloStart(optGrid));
+  changeKit.addEventListener("click", () => renderSoloStart(optGrid, ".solo-starting-kit-option"));
   optGrid.appendChild(changeKit);
 
   renderDepartureCraftOptions(optGrid, startingKitId, startingGear);
@@ -403,7 +418,12 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear) {
     button.setAttribute("aria-pressed", String(selectedStartFloor === floor));
     button.addEventListener("click", () => {
       selectedStartFloor = floor;
-      renderStartFloorChoices(optGrid, startingKitId, startingGear);
+      renderStartFloorChoices(
+        optGrid,
+        startingKitId,
+        startingGear,
+        `[data-start-floor="${floor}"]`
+      );
     });
     if (footer) footer.appendChild(button);
   });
@@ -418,9 +438,14 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear) {
     if (selectedStartFloor !== null) startRun(startingKitId, startingGear, selectedStartFloor);
   });
   if (footer) footer.appendChild(startButton);
+  restoreFocusAfterRender(
+    "submenu-controls",
+    document.getElementById("submenu-controls"),
+    focusSelector
+  );
 }
 
-export function renderSoloStart(optGrid) {
+export function renderSoloStart(optGrid, focusSelector = null) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-grid";
   clearDepartureStartFooter();
@@ -443,7 +468,12 @@ export function renderSoloStart(optGrid) {
     vitals.textContent = `HP ${character.maxHp} / MP ${getCharMaxMp(character)}`;
     button.append(name, gear, loadHint, vitals);
     button.dataset.loadClass = load.class;
-    button.addEventListener("click", () => renderStartFloorChoices(optGrid, kit.id, null));
+    button.addEventListener("click", () => renderStartFloorChoices(
+      optGrid,
+      kit.id,
+      null,
+      '[data-start-floor="1"]'
+    ));
     optGrid.appendChild(button);
 
     getWorkshopGrants(state.workshop).startingGear.forEach(itemId => {
@@ -464,8 +494,18 @@ export function renderSoloStart(optGrid) {
         ? `<strong>${kit.name} + ${item.name}</strong><span>選択不可：${conflict.message}</span>`
         : `<strong>${kit.name} + ${item.name}</strong><span>工房アンロック装備</span><span class="solo-starting-kit-load">行動傾向: ${load.label} · ${load.description}</span>`;
       option.dataset.loadClass = load.class;
-      if (!conflict) option.addEventListener("click", () => renderStartFloorChoices(optGrid, kit.id, itemId));
+      if (!conflict) option.addEventListener("click", () => renderStartFloorChoices(
+        optGrid,
+        kit.id,
+        itemId,
+        '[data-start-floor="1"]'
+      ));
       optGrid.appendChild(option);
     });
   });
+  restoreFocusAfterRender(
+    "submenu-controls",
+    document.getElementById("submenu-controls"),
+    focusSelector
+  );
 }
