@@ -249,7 +249,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/error_context.js", "src/controls_guard.js", "src/state/codex_state.js",
     "src/state/initial_state.js", "src/state/records_state.js", "src/state/state_core.js", "src/result.js", "src/rules/renderer_topology.js",
     "src/data/spells.js", "src/data/status_treatments.js", "src/systems/spell_effects.js",
-    "src/runtime_diagnostics.js", "src/telemetry.js", "src/systems/traps.js", "src/three_renderer.js", "src/three_dungeon_spike.js", "src/pixi_renderer.js", "src/minimap.js",
+    "src/runtime_diagnostics.js", "src/telemetry.js", "src/systems/traps.js", "src/pixi_renderer.js", "src/minimap.js",
     "src/rules/item_inventory.js", "src/rules/object_loot_stake.js",
     "src/equipment_ui_loader.js", "src/equipment_ui_state.js"
   ]),
