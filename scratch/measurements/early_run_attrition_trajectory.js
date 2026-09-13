@@ -452,6 +452,17 @@ function addCounts(target, key, amount = 1) {
 
 function makeWaterfall(records, floor) {
   const entrants = records.map(record => record.floors[floor]).filter(Boolean);
+  entrants.forEach(row => {
+    const terminalFlags = [
+      row.waterfall.reachedNextFloor,
+      row.waterfall.died,
+      row.waterfall.voluntaryReturn,
+      row.waterfall.otherTerminal
+    ].filter(Boolean);
+    if (terminalFlags.length !== 1) {
+      throw new Error(`floor waterfall terminal partition failed at B${floor}: ${JSON.stringify(row.waterfall)}`);
+    }
+  });
   const counts = {
     entered: entrants.length,
     reachedNextFloor: entrants.filter(row => row.waterfall.reachedNextFloor).length,

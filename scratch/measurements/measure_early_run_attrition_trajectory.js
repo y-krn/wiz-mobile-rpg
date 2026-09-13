@@ -17,7 +17,11 @@ import {
   printMeasurementEnvSignature,
   runMeasurement
 } from "./early_run_attrition_trajectory.js";
-import { applyStandardSimulationEnv, STANDARD_BALANCE_CONFIG } from "./balance_measurement.js";
+import {
+  applyStandardSimulationEnv,
+  getStandardSimulationEnv,
+  STANDARD_BALANCE_CONFIG
+} from "./balance_measurement.js";
 
 function parseArgs(argv) {
   const options = {};
@@ -55,7 +59,7 @@ const provenance = requireRunnerProvenance({
   measurementRunnerPaths: [...MEASUREMENT_RUNNER_PATHS]
 });
 const environmentSignature = {
-  ...Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("SIM_"))),
+  ...getStandardSimulationEnv(config),
   runnerVersion: RUNNER_VERSION
 };
 printMeasurementEnvSignature(config);
