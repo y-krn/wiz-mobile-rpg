@@ -316,6 +316,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // transition and consumes one exploration turn at its caller.
     "src/systems/loadout_transaction.js",
     "src/menu/explore_actions.js",
+    // Back handling records UX boundaries without changing navigation or rules.
+    "src/navigation.js",
     "src/movement.js",
     "src/menu/milestone_portal.js",
     "src/combat_logic/item_resolution.js",

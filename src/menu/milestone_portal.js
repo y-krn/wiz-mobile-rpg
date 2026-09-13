@@ -5,7 +5,7 @@ import { createBagCapacitySummary } from "../ui/bag_summary.js";
 import { appendOwnershipBadge, getItemOwnership } from "../ui/common_shell.js";
 import { state } from "../state.js";
 import { getCharMaxMp, getItemData } from "../data.js";
-import { trackExplorationDecision, trackPortalDecision } from "../telemetry.js";
+import { trackExplorationDecision, trackPortalDecision, trackUxDecisionOpened, trackUxDecisionResolved } from "../telemetry.js";
 import {
   getBandIndexForFloor,
   getBandClue,
@@ -213,6 +213,7 @@ function createPortalChoiceSurface() {
 function confirmPortalDecision() {
   const decision = pendingPortalDecision;
   if (!decision) return false;
+  trackUxDecisionResolved("portal", "commit");
   trackExplorationDecision(decision === "return" ? "return" : "continue", {
     state,
     source: "return_portal"
@@ -266,8 +267,10 @@ function createPortalConfirmationActions() {
   change.className = "btn btn-block milestone-portal-choice milestone-portal-change";
   change.textContent = "判断を選び直す";
   change.addEventListener("click", () => {
+    trackUxDecisionResolved("portal", "back");
     pendingPortalDecision = null;
     renderPortalSurface(document.getElementById("submenu-options"));
+    trackUxDecisionOpened("portal");
   });
   actions.append(confirm, change);
   return actions;
@@ -302,5 +305,6 @@ function getNextBandTrialIds() {
 
 export function renderMilestonePortal(optGrid) {
   pendingPortalDecision = null;
+  trackUxDecisionOpened("portal");
   renderPortalSurface(optGrid);
 }

@@ -14,6 +14,7 @@ async function installCombat(page, partyFactory) {
     const { menuContext } = await import('/src/navigation.js');
     const { combatSelection } = await import('/src/combat.js');
     const { updateUI } = await import('/src/ui.js');
+    const { __setTelemetryClientForTests, trackRunStart } = await import('/src/telemetry.js');
 
     state.party = partyKits.map(kitId => createStartingKitCharacter(kitId));
     state.combatState = {
@@ -42,6 +43,9 @@ async function installCombat(page, partyFactory) {
     });
     combatSelection.charIdx = 0;
     combatSelection.actions = [];
+    window.__targetTelemetry = [];
+    __setTelemetryClientForTests({ capture: (name, properties) => window.__targetTelemetry.push({ name, properties }) });
+    trackRunStart(state.currentRun || {}, state.party[0], state);
     updateUI();
   }, partyFactory);
 }
@@ -104,6 +108,12 @@ for (const viewport of VIEWPORTS) {
       const { combatSelection } = await import('/src/combat.js');
       return combatSelection.actions[0];
     })).toMatchObject({ type: 'fight', actorIdx: 0, targetIdx: 0 });
+    expect(await page.evaluate(() => window.__targetTelemetry
+      .filter((event) => event.name.startsWith('ux_decision_'))
+      .map((event) => [event.name, event.properties.surface, event.properties.resolution]))).toEqual([
+      ['ux_decision_opened', 'combat_target', undefined],
+      ['ux_decision_resolved', 'combat_target', 'commit'],
+    ]);
   });
 
   test(`攻撃後にCanvasの敵タップで行動を確定できる (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
@@ -196,4 +206,10 @@ test('敵対象Canvasはdead敵をhit-testせず、戻るは行動を確定し�
     const { combatSelection } = await import('/src/combat.js');
     return { gameState: state.gameState, actionCount: combatSelection.actions.length, deadHp: state.combatState.monsters[0].hp };
   })).toEqual({ gameState: 'combat', actionCount: 0, deadHp: 0 });
+  expect(await page.evaluate(() => window.__targetTelemetry
+    .filter((event) => event.name.startsWith('ux_decision_'))
+    .map((event) => [event.name, event.properties.surface, event.properties.resolution]))).toEqual([
+    ['ux_decision_opened', 'combat_target', undefined],
+    ['ux_decision_resolved', 'combat_target', 'cancel'],
+  ]);
 });

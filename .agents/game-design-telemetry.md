@@ -26,6 +26,20 @@ change does not become a design change.
 
 `loot_lifecycle` is keyed to the production `lootId`: `found` means the player attempted to take the object, `bagged` means it entered `currentRun.unbankedObjectLoot`, and `tried`/`identified`/`adopted`/`discarded`/`consumed` remain attached to that same sequence. Portal, Wing, Death, and Abandon settle it as `banked`, `salvaged`, or `lost`; Town-owned duplicate item use is not a dungeon lifecycle event. `loot_stake_snapshot` rereads production `unbankedObjectLoot` at each boundary and does not create a second ledger.
 
+### Bounded UX diagnostics
+
+The temporary UX diagnostic events `ux_decision_opened` and
+`ux_decision_resolved` observe only the decision-surface boundaries that have
+an evidence-backed production gap: `equipment`, `portal`, `wing`, and
+`combat_target`. Resolutions are limited to `commit`, `back`, and `cancel`;
+revisit buckets are `none`, `immediate`, and `short`. Revisit state and the
+active surface live only in runtime memory, are never persisted, and use no
+raw timestamps or durations. These events are semantic transitions, not
+render hooks, and must not duplicate the owning gameplay event. They remain
+temporary diagnostics while their hypotheses are under review and are removed
+once the corresponding production comparison is complete or the question is
+resolved.
+
 ## Ownership and lifecycle
 
 `loot_lifecycle` records a single object sequence through meaningful stages:
