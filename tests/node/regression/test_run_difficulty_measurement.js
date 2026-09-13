@@ -36,7 +36,8 @@ assert.equal(kit.depths[0].depth, 5);
 assert.equal(kit.depths[0].reachedRate.trials, 2);
 assert.equal(kit.depths[0].breakthroughRate.trials, 2);
 assert.equal(kit.outcomeRates.death.trials, 2);
-assert.equal(kit.outcomeRates.retreat.trials, 2);
+assert.equal(kit.outcomeRates.voluntaryReturn.trials, 2);
+assert.equal(kit.outcomeRates.measurementTargetReached.trials, 2);
 assert.equal(
   Object.values(kit.endingBuildSnapshotDistribution).reduce((sum, count) => sum + count, 0),
   2
