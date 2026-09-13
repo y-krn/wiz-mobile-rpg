@@ -17,6 +17,13 @@ for (const [archetype, presentation] of Object.entries(ENEMY_ARCHETYPES)) {
 assert.equal(getEnemyPresentation({ spriteType: "orc" }).archetype, "humanoid");
 assert.equal(getEnemyPresentation({ spell: "LAHALITO" }).archetype, "caster");
 assert.equal(getEnemyPresentation({ name: "フラッシュバット", spriteType: "bat" }).assetKey, "enemy:フラッシュバット");
-assert.ok(getEnemyPresentation({ name: "フラッシュバット", spriteType: "bat" }).asset.endsWith("flash-bat.png"));
+assert.ok(getEnemyPresentation({ name: "フラッシュバット", spriteType: "bat" }).asset.endsWith("flash-bat.webp"));
 assert.equal(Object.keys(ENEMY_UNIQUE_ASSETS).length, 11);
+assert.equal(new Set(Object.values(ENEMY_UNIQUE_ASSETS)).size, 11, "each named enemy has a distinct production asset");
+for (const [name, asset] of Object.entries(ENEMY_UNIQUE_ASSETS)) {
+  const presentation = getEnemyPresentation({ name });
+  assert.equal(presentation.assetKey, `enemy:${name}`);
+  assert.equal(presentation.asset, asset);
+  assert.ok(asset.endsWith(".webp"), `${name} uses a bounded transparent WebP asset`);
+}
 console.log("ENEMY PRESENTATION TEST PASSED");

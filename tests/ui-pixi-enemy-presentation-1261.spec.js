@@ -182,6 +182,26 @@ test('named B1F enemies keep distinct production art identities @smoke @visual @
   ], true);
   const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-named-b1f-trio.png') });
   await testInfo.attach('enemy-390-named-b1f-trio', { body: screenshot, contentType: 'image/png' });
+  for (const [filename, monster] of [
+    ['enemy-390-named-flash-bat.png', { name: 'フラッシュバット', level: 2, hp: 24, maxHp: 24, color: '#e5ff00', spriteType: 'bat' }],
+    ['enemy-390-named-mud-slime.png', { name: 'マッドスライム', level: 1, hp: 48, maxHp: 48, color: '#ff9500', spriteType: 'biter' }],
+    ['enemy-390-named-rusted-shield.png', { name: '錆びた盾兵', level: 1, hp: 28, maxHp: 28, color: '#8e8e93', spriteType: 'skeleton' }],
+  ]) {
+    await setCombat(page, [monster], true);
+    await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(filename) });
+  }
+  await page.setViewportSize({ width: 320, height: 568 });
+  await setCombat(page, [
+    { name: 'フラッシュバット', level: 2, hp: 24, maxHp: 24, color: '#e5ff00', spriteType: 'bat' },
+    { name: '錆びた盾兵', level: 1, hp: 28, maxHp: 28, color: '#8e8e93', spriteType: 'skeleton' },
+  ], true);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-named-bat-shield-pair.png') });
+  await setCombat(page, [
+    { name: 'フラッシュバット', level: 2, hp: 24, maxHp: 24, color: '#e5ff00', spriteType: 'bat' },
+    { name: 'マッドスライム', level: 1, hp: 48, maxHp: 48, color: '#ff9500', spriteType: 'biter' },
+    { name: 'ゴブリンの呪術師', level: 1, hp: 20, maxHp: 20, color: '#00ff66', spriteType: 'kobold', spell: 'HALITO' },
+  ], true);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-named-b1f-trio.png') });
   const evidence = await page.evaluate(async () => {
     const { dungeonRenderer } = await import('/src/renderer.js');
     const { getEnemyPresentation } = await import('/src/enemy_presentation.js');

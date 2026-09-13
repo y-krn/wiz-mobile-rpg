@@ -1,6 +1,6 @@
 // balance-impact: none — visual metadata only; combat rules and state are unchanged.
 // Production enemy presentation metadata. Assets are repository-authored,
-// transparent generated WebP cutouts with no external game-art dependency.
+// transparent generated raster cutouts with no external game-art dependency.
 
 const ASSETS = Object.freeze({
   small: new URL("./assets/enemies/generated/small.webp", import.meta.url).href,
@@ -14,17 +14,17 @@ const ASSETS = Object.freeze({
 // sizing and for a bounded emergency fallback, but must not erase species
 // identity when a named cutout exists.
 export const ENEMY_UNIQUE_ASSETS = Object.freeze({
-  "かみつき蟲": new URL("./assets/enemies/generated/unique/biter.png", import.meta.url).href,
-  "フラッシュバット": new URL("./assets/enemies/generated/unique/flash-bat.png", import.meta.url).href,
-  "火薬コウモリ": new URL("./assets/enemies/generated/unique/powder-bat.png", import.meta.url).href,
-  "マッドスライム": new URL("./assets/enemies/generated/unique/mud-slime.png", import.meta.url).href,
-  "分裂スライム": new URL("./assets/enemies/generated/unique/split-slime.png", import.meta.url).href,
-  "群れネズミ": new URL("./assets/enemies/generated/unique/rat-pack.png", import.meta.url).href,
-  "まどろみ胞子": new URL("./assets/enemies/generated/unique/sleep-spore.png", import.meta.url).href,
-  "泥の呪い子": new URL("./assets/enemies/generated/unique/mud-cursed-child.png", import.meta.url).href,
-  "コボルトの斥候": new URL("./assets/enemies/generated/unique/kobold-scout.png", import.meta.url).href,
-  "ゴブリンの呪術師": new URL("./assets/enemies/generated/unique/goblin-shaman.png", import.meta.url).href,
-  "錆びた盾兵": new URL("./assets/enemies/generated/unique/rusted-shield.png", import.meta.url).href
+  "かみつき蟲": new URL("./assets/enemies/generated/unique/biter.webp", import.meta.url).href,
+  "火薬コウモリ": new URL("./assets/enemies/generated/unique/powder-bat.webp", import.meta.url).href,
+  "マッドスライム": new URL("./assets/enemies/generated/unique/mud-slime.webp", import.meta.url).href,
+  "分裂スライム": new URL("./assets/enemies/generated/unique/split-slime.webp", import.meta.url).href,
+  "群れネズミ": new URL("./assets/enemies/generated/unique/rat-pack.webp", import.meta.url).href,
+  "まどろみ胞子": new URL("./assets/enemies/generated/unique/sleep-spore.webp", import.meta.url).href,
+  "泥の呪い子": new URL("./assets/enemies/generated/unique/mud-cursed-child.webp", import.meta.url).href,
+  "コボルトの斥候": new URL("./assets/enemies/generated/unique/kobold-scout.webp", import.meta.url).href,
+  "ゴブリンの呪術師": new URL("./assets/enemies/generated/unique/goblin-shaman.webp", import.meta.url).href,
+  "フラッシュバット": new URL("./assets/enemies/generated/unique/flash-bat.webp", import.meta.url).href,
+  "錆びた盾兵": new URL("./assets/enemies/generated/unique/rusted-shield.webp", import.meta.url).href
 });
 
 export const ENEMY_ARCHETYPES = Object.freeze({
