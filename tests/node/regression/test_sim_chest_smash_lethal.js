@@ -10,8 +10,11 @@ const { simulateRun } = await import("../../../scratch/simulations/sim_depth_mat
 
 const runConfig = {
   className: "Fighter",
-  startFloor: 1,
-  targetDepth: 3,
+  // Keep this lethal chest fixture on the first floor where the production
+  // chest-trap grammar is still active after the #1233 B1F introduction
+  // delay.
+  startFloor: 2,
+  targetDepth: 4,
   runIndex: 2,
   seriesId: "lethal-smash-regression",
   scoringProfile: null,
@@ -32,19 +35,19 @@ const second = simulateRun(runConfig);
 assert.equal(first.outcome, "death");
 assert.equal(first.deathEncounterType, "chest-trap");
 assert.equal(first.finalHp, 0);
-assert.equal(first.chestForcedByFloor[1], 2);
+assert.equal(first.chestForcedByFloor[2], 2);
 // #1078's cumulative Rune supply changes the deterministic reward choices
 // before the lethal chest; the fixture still asserts the lethal stop and
 // current-run accounting boundary at the production baseline cadence.
-assert.equal(first.chestsOpened, 6);
+assert.equal(first.chestsOpened, 2);
 assert.equal(first.chestsOpenedInRun, first.chestsOpened);
 
 // The deterministic lethal chest awards neither its generated materials nor
 // its rewards/current-run records. These values cover the preceding live
 // chest awards and make a post-death award regression observable.
-assert.equal(first.materialAcquiredBySource.chest, 10);
-assert.equal(first.carriedMaterials, 10);
-assert.equal(first.equipmentFoundBySource.chest, 3);
+assert.equal(first.materialAcquiredBySource.chest, 3);
+assert.equal(first.carriedMaterials, 3);
+assert.equal(first.equipmentFoundBySource.chest, 1);
 
 assert.deepEqual(
   {
