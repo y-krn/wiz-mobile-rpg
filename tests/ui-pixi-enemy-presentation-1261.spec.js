@@ -273,6 +273,66 @@ test('character design gate compares three silhouette-first candidates in the re
   expect(evidence.layout.map(entry => entry.monsterIndex)).toEqual([0, 1, 2]);
 });
 
+test('character design gate v2 compares humanoids against the frozen flash-bat abstraction reference @smoke @visual @e2e', async ({ page }, testInfo) => {
+  await openPixi(page, { width: 390, height: 844 });
+  const subjects = [
+    {
+      name: 'フラッシュバット',
+      monster: { name: 'フラッシュバット', level: 2, hp: 24, maxHp: 24, color: '#e5ff00', spriteType: 'bat' },
+      current: '/src/assets/enemies/generated/candidates/character-design-gate/flash-bat-silhouette-first.png',
+    },
+    {
+      name: 'ゴブリンの呪術師',
+      monster: { name: 'ゴブリンの呪術師', level: 1, hp: 20, maxHp: 20, color: '#00ff66', spriteType: 'kobold', spell: 'HALITO' },
+      current: '/src/assets/enemies/generated/candidates/character-design-gate/goblin-caster-silhouette-first.png',
+      revised: '/src/assets/enemies/generated/candidates/character-design-gate-v2/goblin-caster-revised-v2.png',
+    },
+    {
+      name: '錆びた盾兵',
+      monster: { name: '錆びた盾兵', level: 2, hp: 42, maxHp: 42, color: '#b6c8be', spriteType: 'skeleton' },
+      current: '/src/assets/enemies/generated/candidates/character-design-gate/rusted-shield-silhouette-first.png',
+      revised: '/src/assets/enemies/generated/candidates/character-design-gate-v2/rusted-shield-revised-v2.png',
+    },
+  ];
+
+  const keyFor = name => name === 'フラッシュバット' ? 'flash-bat' : name === 'ゴブリンの呪術師' ? 'goblin-caster' : 'rusted-shield';
+  await page.evaluate(async (assets) => {
+    const { Assets } = await import('/src/pixi_renderer.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    await Promise.all(assets.map(async ({ name, asset }) => {
+      dungeonRenderer.enemyTextures.set(`enemy:${name}`, await Assets.load(asset));
+    }));
+  }, subjects.map(({ name, current: asset }) => ({ name, asset })));
+
+  for (const subject of subjects) {
+    await setCombat(page, [subject.monster], true);
+    const baselineName = subject.name === 'フラッシュバット' ? 'flash-bat-reference' : `${keyFor(subject.name)}-current`;
+    const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`${baselineName}.png`) });
+    await testInfo.attach(baselineName, { body: screenshot, contentType: 'image/png' });
+  }
+
+  await page.evaluate(async (assets) => {
+    const { Assets } = await import('/src/pixi_renderer.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    await Promise.all(assets.map(async ({ name, asset }) => {
+      dungeonRenderer.enemyTextures.set(`enemy:${name}`, await Assets.load(asset));
+    }));
+  }, subjects.filter(subject => subject.revised).map(({ name, revised: asset }) => ({ name, asset })));
+
+  for (const subject of subjects.filter(subject => subject.revised)) {
+    await setCombat(page, [subject.monster], true);
+    const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`${keyFor(subject.name)}-revised-v2.png`) });
+    await testInfo.attach(`${subject.name}-revised-v2`, { body: screenshot, contentType: 'image/png' });
+  }
+
+  await setCombat(page, subjects.map(({ monster }) => monster), true);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('character-design-gate-combined-v2.png') });
+  const evidence = await layerEvidence(page);
+  expect(evidence.billboards).toHaveLength(3);
+  expect(evidence.billboards.every(billboard => billboard.children.includes('enemy-cutout'))).toBe(true);
+  expect(evidence.layout.map(entry => entry.monsterIndex)).toEqual([0, 1, 2]);
+});
+
 for (const viewport of VIEWPORTS) {
   test(`enemy cutouts remain bounded and targetable at ${viewport.width}px @smoke @visual`, async ({ page }, testInfo) => {
     await openPixi(page, viewport);

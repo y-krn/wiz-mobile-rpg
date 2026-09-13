@@ -50,3 +50,15 @@ Before regenerating the remaining named enemies or fallback archetypes, validate
 3. 錆びた盾兵 — oversized asymmetric shield, helmet/shoulder mass, tiny threat cue.
 
 For each representative, retain the current asset screenshot and compare it with a silhouette-first candidate in an equivalent deterministic combat state. Review single-enemy readability, corridor topology, floor contact, targetability, and selected state. Do not regenerate or replace the other eight named assets or five fallback assets until this gate receives human visual review.
+
+## Humanoid abstraction benchmark
+
+The flash bat is the reference abstraction level for humanoid enemies. Do not add detail to the bat to match humanoids; pull the humanoids back until they share its information density, black-space usage, selective edges, broad value grouping, and incomplete visibility.
+
+The canonical first-read rule is: “I recognize the threat before I recognize the costume.” For the goblin caster, staff → hunched mass → one local casting cue must precede face and costume. For the shield soldier, shield → armored mass → tiny threat cue must precede rust, helmet material, and weapon detail.
+
+For humanoids, remove any surface detail that does not improve gameplay-size identity. Darkness alone is not the fix: reduce the number of explained shapes, subordinate the face and material rendering, and let secondary anatomy disappear. Humanoids must remain illustrated and richer than primitive SVGs without becoming inspectable character sheets.
+
+### Character Design Gate v2
+
+The second gate revises only ゴブリンの呪術師 and 錆びた盾兵 against the frozen フラッシュバット reference. Compare current and revised v2 assets only in rendered 390px Dungeon View pixels. Do not switch the production registry or regenerate the remaining eight named enemies or five fallback archetypes before human review.
