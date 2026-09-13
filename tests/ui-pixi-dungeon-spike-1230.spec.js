@@ -114,15 +114,31 @@ test('PixiJS motion uses projection continuity, restrained turns, and combat fee
     const { state } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');
     const { dungeonRenderer } = await import('/src/renderer.js');
+    const rootSnapshot = (root) => ({
+      x: root.position.x,
+      y: root.position.y,
+      rotation: root.rotation,
+      scaleX: root.scale.x,
+      scaleY: root.scale.y,
+      alpha: root.alpha
+    });
+    const layerSnapshot = (root) => ({
+      farEnvironmentY: root.layers['far-environment'].position.y,
+      floorY: root.layers.floor.position.y,
+      structuralWallsY: root.layers['structural-walls'].position.y,
+      farEnvironmentX: root.layers['far-environment'].position.x,
+      floorX: root.layers.floor.position.x,
+      structuralWallsX: root.layers['structural-walls'].position.x
+    });
     const inputBefore = dungeonRenderer.getRenderInput();
     dungeonRenderer.beginNavigationTransition('forward', inputBefore);
     state.y = 3;
     state.mapRevision += 1;
     menuContext.type = '';
     dungeonRenderer.update(0); dungeonRenderer.draw();
-    const forwardStart = { progress: dungeonRenderer.transition?.elapsed ?? null, outgoingY: dungeonRenderer.transitionScene.position.y, incomingY: dungeonRenderer.scene.position.y };
+    const forwardStart = { progress: dungeonRenderer.transition?.elapsed ?? null, outgoingRoot: rootSnapshot(dungeonRenderer.transitionScene), incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: layerSnapshot(dungeonRenderer.transitionScene), incomingLayers: layerSnapshot(dungeonRenderer.scene) };
     dungeonRenderer.update(90); dungeonRenderer.draw();
-    const forwardMid = { progress: dungeonRenderer.transition?.elapsed ?? null, outgoingY: dungeonRenderer.transitionScene.position.y, incomingY: dungeonRenderer.scene.position.y, outgoingScale: dungeonRenderer.transitionScene.scale.x, incomingScale: dungeonRenderer.scene.scale.x };
+    const forwardMid = { progress: dungeonRenderer.transition?.elapsed ?? null, outgoingRoot: rootSnapshot(dungeonRenderer.transitionScene), incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: layerSnapshot(dungeonRenderer.transitionScene), incomingLayers: layerSnapshot(dungeonRenderer.scene) };
     const forwardMidFrame = document.querySelector('#dungeon-canvas').toDataURL();
     dungeonRenderer.update(90); dungeonRenderer.draw();
     const forwardEnd = { active: Boolean(dungeonRenderer.transition), sceneY: dungeonRenderer.scene.position.y };
@@ -130,28 +146,32 @@ test('PixiJS motion uses projection continuity, restrained turns, and combat fee
     state.dir = 3;
     state.mapRevision += 1;
     dungeonRenderer.update(80); dungeonRenderer.draw();
-    const leftMid = { outgoingX: dungeonRenderer.transitionScene.position.x, incomingX: dungeonRenderer.scene.position.x, outgoingRotation: dungeonRenderer.transitionScene.rotation, incomingRotation: dungeonRenderer.scene.rotation };
+    const leftMid = { outgoingRoot: rootSnapshot(dungeonRenderer.transitionScene), incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: layerSnapshot(dungeonRenderer.transitionScene), incomingLayers: layerSnapshot(dungeonRenderer.scene) };
     const leftMidFrame = document.querySelector('#dungeon-canvas').toDataURL();
     dungeonRenderer.update(90); dungeonRenderer.draw();
     dungeonRenderer.beginNavigationTransition('turn-right', dungeonRenderer.getRenderInput());
     state.dir = 0;
     state.mapRevision += 1;
     dungeonRenderer.update(85); dungeonRenderer.draw();
-    const rightMid = { outgoingX: dungeonRenderer.transitionScene.position.x, incomingX: dungeonRenderer.scene.position.x, outgoingRotation: dungeonRenderer.transitionScene.rotation, incomingRotation: dungeonRenderer.scene.rotation };
+    const rightMid = { outgoingRoot: rootSnapshot(dungeonRenderer.transitionScene), incomingRoot: rootSnapshot(dungeonRenderer.scene), outgoingLayers: layerSnapshot(dungeonRenderer.transitionScene), incomingLayers: layerSnapshot(dungeonRenderer.scene) };
     const rightMidFrame = document.querySelector('#dungeon-canvas').toDataURL();
     return { forwardStart, forwardMid, forwardEnd, leftMid, rightMid, forwardMidFrame, leftMidFrame, rightMidFrame };
   });
-  expect(motion.forwardStart.outgoingY).not.toBe(motion.forwardStart.incomingY);
-  expect(motion.forwardMid.outgoingScale).not.toBe(1);
-  expect(motion.forwardMid.incomingScale).not.toBe(1);
+  for (const sample of [motion.forwardStart, motion.forwardMid, motion.leftMid, motion.rightMid]) {
+    for (const root of [sample.outgoingRoot, sample.incomingRoot]) {
+      expect(root.x).toBe(0);
+      expect(root.y).toBe(0);
+      expect(root.rotation).toBe(0);
+      expect(root.scaleX).toBe(1);
+      expect(root.scaleY).toBe(1);
+    }
+  }
+  expect(motion.forwardMid.outgoingRoot.alpha).toBeGreaterThan(0);
+  expect(motion.forwardMid.outgoingRoot.alpha).toBeLessThan(1);
+  expect(Math.abs(motion.forwardMid.outgoingLayers.farEnvironmentY)).toBeLessThan(0.1);
   expect(motion.forwardEnd.active).toBe(false);
-  expect(Math.abs(motion.leftMid.outgoingX)).toBeGreaterThan(0);
-  expect(Math.abs(motion.leftMid.incomingX)).toBeGreaterThan(0);
-  expect(Math.abs(motion.leftMid.outgoingX)).toBeLessThanOrEqual(8);
-  expect(motion.leftMid.outgoingRotation).toBe(0);
-  expect(Math.abs(motion.rightMid.incomingX)).toBeGreaterThan(0);
-  expect(Math.abs(motion.rightMid.incomingX)).toBeLessThanOrEqual(8);
-  expect(motion.rightMid.outgoingRotation).toBe(0);
+  expect(Math.abs(motion.leftMid.outgoingLayers.farEnvironmentX)).toBeLessThan(0.1);
+  expect(Math.abs(motion.rightMid.incomingLayers.farEnvironmentX)).toBeLessThan(0.1);
   const forwardFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('pixi-forward-end-390.png') });
   await testInfo.attach('pixi-forward-end-390', { body: forwardFrame, contentType: 'image/png' });
   const forwardMidFrame = Buffer.from(motion.forwardMidFrame.split(',')[1], 'base64');
