@@ -35,7 +35,9 @@ import {
   trackStairsDiscovery,
   trackValuableLocation,
   trackRunEnd,
-  trackRunStart
+  trackRunStart,
+  trackUxDecisionOpened,
+  trackUxDecisionResolved
 } from "../../../src/telemetry.js";
 import { recordReceivedDamage } from "../../../src/combat_logic/damage.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic/round.js";
@@ -99,6 +101,8 @@ check("telemetry without a client is a complete no-op", () => {
   assert.doesNotThrow(() => {
     trackEvent("run_start", { value: undefined });
     trackRunStart(run, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+    trackUxDecisionOpened("equipment");
+    trackUxDecisionResolved("equipment", "cancel");
     trackCombatStart({ floor: 1, player: {}, monsters: [] });
     trackDamageReceived({ enemyId: "Goblin A", rawDamage: 1, finalDamage: 1 });
     trackCombatEnd("endCombat", { monsters: [] });
@@ -114,6 +118,8 @@ check("capture exceptions do not escape into gameplay", () => {
   });
   assert.doesNotThrow(() => {
     trackRunStart(run, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+    trackUxDecisionOpened("combat_target");
+    trackUxDecisionResolved("combat_target", "cancel");
     trackCombatStart({ floor: 1, player: { hp: 14, mp: 12 }, monsters: [] });
     trackDamageReceived({ enemyId: "Goblin A", rawDamage: 3, finalDamage: 1 });
     trackCombatEnd("endCombat", { monsters: [] });
@@ -1190,6 +1196,60 @@ check("chest action fields preserve valid values and coerce malformed input", ()
     },
     { action: "other", trap: "other", hasTrapKit: true, lootAura: "other" }
   );
+});
+
+check("UX decision boundaries are bounded, semantic, and deduplicated", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+
+  trackUxDecisionOpened("equipment");
+  trackUxDecisionOpened("equipment");
+  trackUxDecisionResolved("equipment", "cancel");
+  trackUxDecisionResolved("equipment", "back");
+  trackUxDecisionOpened("equipment");
+  trackUxDecisionResolved("equipment", "commit");
+  trackUxDecisionOpened("not-a-surface");
+  trackUxDecisionResolved("equipment", "not-a-resolution");
+
+  const uxEvents = events.filter(event => event.name.startsWith("ux_decision_"));
+  assert.deepEqual(uxEvents.map(event => event.name), [
+    "ux_decision_opened",
+    "ux_decision_resolved",
+    "ux_decision_opened",
+    "ux_decision_resolved"
+  ]);
+  assert.equal(uxEvents[0].properties.schemaVersion, 2);
+  assert.equal(uxEvents[0].properties.surface, "equipment");
+  assert.equal(uxEvents[0].properties.revisitBucket, "none");
+  assert.equal(uxEvents[1].properties.resolution, "cancel");
+  assert.equal(uxEvents[2].properties.revisitBucket, "immediate");
+  assert.equal(uxEvents[3].properties.resolution, "commit");
+  for (const event of uxEvents) {
+    for (const forbidden of [
+      "selector", "elementId", "buttonText", "visibleCopy", "itemName", "displayName",
+      "logText", "url", "path", "timestamp", "duration", "rejectionReason", "playerText"
+    ]) {
+      assert.equal(Object.hasOwn(event.properties, forbidden), false, `UX telemetry must omit ${forbidden}`);
+    }
+  }
+});
+
+check("UX decision events use the existing bounded pre-init buffer", () => {
+  const events = [];
+  __setTelemetryInitializationForTests({ enabled: true });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackUxDecisionOpened("combat_target");
+  trackUxDecisionResolved("combat_target", "cancel");
+  assert.deepEqual(events, []);
+
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  assert.deepEqual(events.map(event => event.name), [
+    "run_start",
+    "ux_decision_opened",
+    "ux_decision_resolved"
+  ]);
+  __resetTelemetryForTests();
 });
 
 check("lifecycle events emitted before SDK initialization are flushed in order", () => {

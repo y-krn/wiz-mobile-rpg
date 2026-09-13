@@ -11,6 +11,7 @@ async function seedPortalRun(page) {
   await page.evaluate(async () => {
     const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
     const { openSubmenu } = await import('/src/navigation.js');
+    const { __setTelemetryClientForTests, trackRunStart } = await import('/src/telemetry.js');
 
     state.party = [createStartingKitCharacter('vanguard')];
     state.party[0].hp = 12;
@@ -29,6 +30,9 @@ async function seedPortalRun(page) {
     state.party[0].equipment.weapon = state.currentRun.unbankedObjectLoot[2].item;
     state.floor = 5;
     state.gameState = 'explore';
+    window.__portalTelemetry = [];
+    __setTelemetryClientForTests({ capture: (name, properties) => window.__portalTelemetry.push({ name, properties }) });
+    trackRunStart(state.currentRun, state.party[0], state);
     openSubmenu('milestone_portal', 'B5F帰還の門');
   });
 }
@@ -64,6 +68,8 @@ for (const viewport of VIEWPORTS) {
     expect(choiceBoxes[0].height).toBeCloseTo(choiceBoxes[1].height, 1);
     expect(choiceBoxes[0].width).toBeCloseTo(choiceBoxes[1].width, 1);
 
+    await page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button').click();
+    await page.locator('#btn-portal-change').click();
     await page.locator('.milestone-portal-choice-card[data-portal-decision="push"] button').click();
     await expect(page.locator('.milestone-portal-confirmation')).toContainText('さらに深く進みますか？');
     await expect(page.locator('.milestone-portal-confirmation')).toContainText('戦果を抱えたまま');
@@ -84,6 +90,16 @@ for (const viewport of VIEWPORTS) {
     await page.locator('#btn-portal-confirm').click();
     await expect(page.locator('#result-overlay')).toBeVisible();
     await expect(page.locator('#result-overlay')).toContainText('帰還');
+    expect(await page.evaluate(() => window.__portalTelemetry
+      .filter((event) => event.name.startsWith('ux_decision_'))
+      .map((event) => ({ name: event.name, surface: event.properties.surface, resolution: event.properties.resolution, revisit: event.properties.revisitBucket })))).toEqual([
+      { name: 'ux_decision_opened', surface: 'portal', resolution: undefined, revisit: 'none' },
+      { name: 'ux_decision_resolved', surface: 'portal', resolution: 'back', revisit: undefined },
+      { name: 'ux_decision_opened', surface: 'portal', resolution: undefined, revisit: 'immediate' },
+      { name: 'ux_decision_resolved', surface: 'portal', resolution: 'commit', revisit: undefined },
+      { name: 'ux_decision_opened', surface: 'portal', resolution: undefined, revisit: 'immediate' },
+      { name: 'ux_decision_resolved', surface: 'portal', resolution: 'commit', revisit: undefined },
+    ]);
   });
 }
 
@@ -141,6 +157,14 @@ test('Wing shows every unbanked candidate, includes equipped loot, and cancels s
   expect(afterConfirm.banked).toBe(2);
   expect(afterConfirm.lost).toBe(1);
   expect(afterConfirm.equipped).toBeNull();
+  expect(await page.evaluate(() => window.__portalTelemetry
+    .filter((event) => event.name.startsWith('ux_decision_') && event.properties.surface === 'wing')
+    .map((event) => [event.name, event.properties.resolution, event.properties.revisitBucket]))).toEqual([
+    ['ux_decision_opened', undefined, 'none'],
+    ['ux_decision_resolved', 'cancel', undefined],
+    ['ux_decision_opened', undefined, 'immediate'],
+    ['ux_decision_resolved', 'commit', undefined],
+  ]);
 });
 
 test('Wing excludes the dungeon-found wing from salvage candidates', async ({ page }) => {

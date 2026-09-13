@@ -47,7 +47,7 @@ import {
   polishEquipment,
   unequipEquipment
 } from "./systems/equipment_actions.js";
-import { trackEquipmentDecision } from "./telemetry.js";
+import { trackEquipmentDecision, trackUxDecisionOpened, trackUxDecisionResolved } from "./telemetry.js";
 import { appendOwnershipBadge, getItemOwnership, setDockActionRole } from "./ui/common_shell.js";
 import { createBagCapacitySummary } from "./ui/bag_summary.js";
 import {
@@ -107,7 +107,8 @@ const RARITY_LABELS = {
 
 export function openEquipOverlay(actorIdx = 0) {
   if (state.gameState === "combat") return false;
-  if (state.gameState !== "equip_overlay") {
+  const alreadyOpen = state.gameState === "equip_overlay";
+  if (!alreadyOpen) {
     equipState.prevGameState = state.gameState;
     equipState.draft = createLoadoutDraft(state);
   }
@@ -123,6 +124,7 @@ export function openEquipOverlay(actorIdx = 0) {
   if (overlay) {
     overlay.style.display = "flex";
   }
+  if (!alreadyOpen) trackUxDecisionOpened("equipment");
   renderEquip();
   updateUI();
   return true;
@@ -138,7 +140,7 @@ function getDraftInventory() {
 
 function cancelEquipDraft() {
   equipState.draft = null;
-  closeEquipOverlay();
+  closeEquipOverlay({ resolution: "cancel" });
 }
 
 function commitEquipDraft() {
@@ -157,14 +159,15 @@ function commitEquipDraft() {
   }
   if (!result.changed) return cancelEquipDraft();
   equipState.draft = null;
-  closeEquipOverlay();
+  closeEquipOverlay({ resolution: "commit" });
   if (turnCost === 1) consumeExplorationTurn();
   saveAutosave();
   updateUI();
   return true;
 }
 
-export function closeEquipOverlay() {
+export function closeEquipOverlay({ resolution = "back" } = {}) {
+  trackUxDecisionResolved("equipment", resolution);
   const overlay = document.getElementById("equip-overlay");
   if (overlay) {
     overlay.style.display = "none";

@@ -165,6 +165,11 @@ const SAFE_LOOT_LOCATIONS = new Set(["bag", "equipped", "active_rune", "other"])
 const SAFE_EQUIPMENT_SLOTS = new Set(["weapon", "shield", "armor", "accessory", "other"]);
 const SAFE_WEAPON_BEHAVIORS = new Set(["light", "blade", "impact", "heavy", "medium", "other"]);
 const SAFE_IDENTIFICATION_STAGES = new Set(["unknown", "discovery", "observation", "trial", "full"]);
+const SAFE_UX_SURFACES = new Set(["equipment", "portal", "wing", "combat_target"]);
+const SAFE_UX_RESOLUTIONS = new Set(["commit", "back", "cancel"]);
+const SAFE_UX_REVISIT_BUCKETS = new Set(["none", "immediate", "short"]);
+const UX_REVISIT_IMMEDIATE_MS = 2_000;
+const UX_REVISIT_SHORT_MS = 30_000;
 const SAFE_RUNE_SUPPLY_BANDS = new Set([
   ...RUNE_SUPPLY_BANDS.map(band => band.id),
   "other"
@@ -186,6 +191,7 @@ let semanticEventKeys = new Set();
 let discoveredStairKeys = new Set();
 let exploredFloorKeys = new Set();
 let stairsStepByFloor = new Map();
+let uxDecisionStates = new Map();
 
 function getPublicEnv() {
   return import.meta.env ?? {};
@@ -931,6 +937,53 @@ function hasSemanticEvent(key) {
   return false;
 }
 
+function normalizeUxSurface(surface) {
+  return SAFE_UX_SURFACES.has(surface) ? surface : null;
+}
+
+function getUxRevisitBucket(lastResolvedAt, now) {
+  if (!Number.isFinite(lastResolvedAt)) return "none";
+  const elapsed = now - lastResolvedAt;
+  if (elapsed >= 0 && elapsed <= UX_REVISIT_IMMEDIATE_MS) return "immediate";
+  if (elapsed >= 0 && elapsed <= UX_REVISIT_SHORT_MS) return "short";
+  return "none";
+}
+
+export function trackUxDecisionOpened(surface) {
+  if (!isTelemetryAvailable() || !runId) return;
+  const normalizedSurface = normalizeUxSurface(surface);
+  if (!normalizedSurface) return;
+  const previous = uxDecisionStates.get(normalizedSurface) || {};
+  if (previous.openedAt !== undefined) return;
+  const now = Date.now();
+  uxDecisionStates.set(normalizedSurface, { ...previous, openedAt: now });
+  capture("ux_decision_opened", {
+    runId,
+    surface: normalizedSurface,
+    revisitBucket: normalizeStableValue(
+      getUxRevisitBucket(previous.lastResolvedAt, now),
+      SAFE_UX_REVISIT_BUCKETS
+    )
+  });
+}
+
+export function trackUxDecisionResolved(surface, resolution) {
+  if (!isTelemetryAvailable() || !runId) return;
+  const normalizedSurface = normalizeUxSurface(surface);
+  const normalizedResolution = normalizeStableValue(resolution, SAFE_UX_RESOLUTIONS);
+  if (!normalizedSurface || !SAFE_UX_RESOLUTIONS.has(normalizedResolution)) return;
+  const previous = uxDecisionStates.get(normalizedSurface);
+  if (!previous || previous.openedAt === undefined) return;
+  uxDecisionStates.set(normalizedSurface, {
+    lastResolvedAt: Date.now()
+  });
+  capture("ux_decision_resolved", {
+    runId,
+    surface: normalizedSurface,
+    resolution: normalizedResolution
+  });
+}
+
 export function trackLootLifecycle(stage, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
   const normalizedStage = normalizeLootStage(stage);
@@ -1223,6 +1276,7 @@ export function trackRunStart(run, character, stateSnapshot = null) {
   discoveredStairKeys = new Set();
   exploredFloorKeys = new Set();
   stairsStepByFloor = new Map();
+  uxDecisionStates = new Map();
 
   capture("run_start", {
     runId,
@@ -1517,6 +1571,7 @@ export function __setTelemetryClientForTests(testClient) {
   discoveredStairKeys = new Set();
   exploredFloorKeys = new Set();
   stairsStepByFloor = new Map();
+  uxDecisionStates = new Map();
   queuedEvents.forEach(({ eventName, properties }) => captureWithClient(eventName, properties));
 }
 
@@ -1532,6 +1587,7 @@ export function __setTelemetryInitializationForTests({ enabled = false } = {}) {
   discoveredStairKeys = new Set();
   exploredFloorKeys = new Set();
   stairsStepByFloor = new Map();
+  uxDecisionStates = new Map();
 }
 
 export function __resetTelemetryForTests() {

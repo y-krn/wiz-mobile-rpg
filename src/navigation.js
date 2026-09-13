@@ -7,6 +7,7 @@ import {
   normalizeMenuHistoryEntry,
   normalizeSubmenuType
 } from "./state/view_state.js";
+import { trackUxDecisionResolved } from "./telemetry.js";
 
 // Submenu navigation tracker
 export let menuContext = {
@@ -99,6 +100,7 @@ function restorePreviousGameState(view) {
 
 export function closeSubmenu() {
   const view = getScreenViewState(state, menuContext);
+  resolveUxDecisionOnBack(view);
   if (view.menuType === "pending_rewards") return false;
   if (view.isSubmenu) {
     if (view.isCombatOverlaySubmenu && view.isUsableCombatOverlaySubmenu) {
@@ -126,6 +128,7 @@ export function closeSubmenu() {
 export function goBackSubmenu() {
   if (state.transitioning) return;
   const view = getScreenViewState(state, menuContext);
+  resolveUxDecisionOnBack(view);
   if (view.menuType === "pending_rewards") return;
   if (view.isSubmenu && menuHistory.length > 0) {
     const prev = normalizeMenuHistoryEntry(menuHistory.pop());
@@ -142,6 +145,16 @@ export function goBackSubmenu() {
     openSubmenu(prev.type, prev.title, true);
   } else {
     closeSubmenu();
+  }
+}
+
+function resolveUxDecisionOnBack(view) {
+  if (view.menuType === "milestone_portal") {
+    trackUxDecisionResolved("portal", "back");
+  } else if (view.menuType === "item_target_select" && menuContext.itemKey === "TOWN_PORTAL") {
+    trackUxDecisionResolved("wing", "cancel");
+  } else if (view.menuType === "combat_target") {
+    trackUxDecisionResolved("combat_target", "cancel");
   }
 }
 

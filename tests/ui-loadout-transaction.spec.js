@@ -6,6 +6,7 @@ test('loadout changes stay in a draft until one exploration-turn commit @smoke',
   await page.evaluate(async () => {
     const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { openEquipOverlay } = await import('/src/equip.js');
+    const { __setTelemetryClientForTests, trackRunStart } = await import('/src/telemetry.js');
     const character = createStartingKitCharacter('vanguard');
     character.equipment.weapon = 'DAGGER';
     state.party = [character];
@@ -15,6 +16,9 @@ test('loadout changes stay in a draft until one exploration-turn commit @smoke',
     }];
     state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'transaction-ui' };
     state.gameState = 'explore';
+    window.__uxTelemetry = [];
+    __setTelemetryClientForTests({ capture: (name, properties) => window.__uxTelemetry.push({ name, properties }) });
+    trackRunStart(state.currentRun, character, state);
     openEquipOverlay(0);
   });
 
@@ -43,6 +47,12 @@ test('loadout changes stay in a draft until one exploration-turn commit @smoke',
     steps: 1,
     floorSteps: 1,
   });
+  expect(await page.evaluate(() => window.__uxTelemetry
+    .filter((event) => event.name.startsWith('ux_decision_'))
+    .map((event) => [event.name, event.properties.surface, event.properties.resolution]))).toEqual([
+    ['ux_decision_opened', 'equipment', undefined],
+    ['ux_decision_resolved', 'equipment', 'commit'],
+  ]);
 });
 
 test('canceling a dirty loadout draft leaves the live run untouched @smoke', async ({ page }) => {
@@ -50,12 +60,16 @@ test('canceling a dirty loadout draft leaves the live run untouched @smoke', asy
   await page.evaluate(async () => {
     const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { openEquipOverlay } = await import('/src/equip.js');
+    const { __setTelemetryClientForTests, trackRunStart } = await import('/src/telemetry.js');
     const character = createStartingKitCharacter('vanguard');
     character.equipment.weapon = 'DAGGER';
     state.party = [character];
     state.inventory = ['SHORT_SWORD'];
     state.currentRun = { steps: 4, floorSteps: { '1': 4 }, materials: {}, runSeed: 'cancel-ui' };
     state.gameState = 'explore';
+    window.__uxTelemetry = [];
+    __setTelemetryClientForTests({ capture: (name, properties) => window.__uxTelemetry.push({ name, properties }) });
+    trackRunStart(state.currentRun, character, state);
     openEquipOverlay(0);
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
@@ -65,6 +79,12 @@ test('canceling a dirty loadout draft leaves the live run untouched @smoke', asy
     const { state } = await import('/src/state.js');
     return { weapon: state.party[0].equipment.weapon, inventory: state.inventory, steps: state.currentRun.steps };
   })).toEqual({ weapon: 'DAGGER', inventory: ['SHORT_SWORD'], steps: 4 });
+  expect(await page.evaluate(() => window.__uxTelemetry
+    .filter((event) => event.name.startsWith('ux_decision_'))
+    .map((event) => [event.name, event.properties.surface, event.properties.resolution]))).toEqual([
+    ['ux_decision_opened', 'equipment', undefined],
+    ['ux_decision_resolved', 'equipment', 'cancel'],
+  ]);
 });
 
 test('equipment transaction actions stay separated and thumb-safe across mobile widths @e2e @smoke', async ({ page }) => {

@@ -9,6 +9,7 @@ import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/sp
 import { getScreenViewState, getUsableSpellKeys } from "../state/view_state.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
+import { trackUxDecisionResolved } from "../telemetry.js";
 
 function isLivingEnemy(targetIdx) {
   const monster = state.combatState?.monsters?.[targetIdx];
@@ -21,6 +22,7 @@ export function commitCombatTarget(targetIdx) {
   if (menuContext.targetType === "enemy" && !isLivingEnemy(targetIdx)) return false;
 
   state.gameState = "combat";
+  trackUxDecisionResolved("combat_target", "commit");
   combatCallbacks.activeTargetCallback(targetIdx);
   return true;
 }

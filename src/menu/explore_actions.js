@@ -18,7 +18,7 @@ import {
 } from "../combat_logic/status_effects.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
-import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision, trackTrapResolution } from "../telemetry.js";
+import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision, trackTrapResolution, trackUxDecisionOpened, trackUxDecisionResolved } from "../telemetry.js";
 import { applyExplorationItem } from "../systems/exploration_items.js";
 import { calculateSecretDoorSearchChance } from "../rules/exploration_rules.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry, RETURN_WING_SALVAGE_COUNT } from "../state/run_loot.js";
@@ -414,6 +414,7 @@ function getActiveWingLootId() {
 
 function renderReturnWingSelection(optGrid, { preserveSelection = false } = {}) {
   const run = state.currentRun;
+  if (!preserveSelection) trackUxDecisionOpened("wing");
   if (!preserveSelection) {
     selectedWingLootIds = new Set();
     selectedWingRunSeed = run?.runSeed || null;
@@ -502,6 +503,7 @@ function useReturnWing() {
   const itemIndex = state.inventory.findIndex(item => getItemData(item)?.id === "TOWN_PORTAL");
   if (itemIndex < 0) return false;
   const selectedIds = [...selectedWingLootIds];
+  trackUxDecisionResolved("wing", "commit");
   trackPortalDecision("return", {
     state,
     character: state.party[0],
