@@ -4,6 +4,8 @@
 
 - Baseline source: `origin/main`, fetched on 2026-09-13 (Asia/Tokyo).
 - Baseline SHA: `0a45d920745c3efc6f7bc7839b94c06cfcbf81ad`.
+- Current PR base SHA: `16c098289af3f5ffa49b89085fe491409dcd2139` (`origin/main`),
+  freshly fetched before the correction push.
 - Preconditions: PR #1249 is merged; Issue #1227 is completed/closed; Issue
   #1225 and #1226 are completed/closed.
 - Renderer boundary: `src/renderer.js` Canvas is default; `src/pixi_renderer.js`
@@ -258,11 +260,10 @@ and is reported rather than hidden.
 After synchronizing that stale owner-test expectation (without changing
 production UI), `npm run test:browser:visual` ran 95 tests with 95 passed.
 
-### Focused after checks
+### After checks
 
-- `PLAYWRIGHT_PORT=18430 npx playwright test tests/ui-visual-system.spec.js` —
-  2 passed (spell availability grammar and Pending Reward surface/tap guard).
-- `npm run test:unit` — 194 passed, 3 skipped, 0 failed.
+- `PLAYWRIGHT_PORT=39127 npm run test:browser:visual` — 95 passed.
+- `npm run test:unit` — 195 passed, 3 skipped, 0 failed.
 - Existing #1225 Golden Journey and #1226 accessibility owners were included
   in the final focused browser selection; the post-rebase canonical smoke
   suite ran 86/86
@@ -273,6 +274,8 @@ production UI), `npm run test:browser:visual` ran 95 tests with 95 passed.
 - Browser-computed selected/recommendation guard for valid spell targets.
 - Browser-computed raised-surface, border, radius, and 44px tap guard for
   Pending Reward.
+- CSS ownership guard keeps unavailable, passive meter/stat, passive neutral,
+  and interactive control selectors on their respective semantic tokens.
 - Existing Golden Journey screenshots remain limited to stable Town,
   Preparation, and Result surfaces.
 - Existing accessibility guards continue to cover focus-visible, non-color
@@ -281,7 +284,9 @@ production UI), `npm run test:browser:visual` ran 95 tests with 95 passed.
 ### Freshness
 
 The branch was created from fetched `origin/main` at
-`0a45d920745c3efc6f7bc7839b94c06cfcbf81ad`. A final `git fetch origin main`
-found that main had advanced with #1239. The branch was rebased cleanly onto
-the fresh `origin/main` SHA `4d8ab814dc080b5fbc318743b28b78bb10cbd3e3` and
-the post-rebase focused checks passed. The PR is based on this SHA.
+`0a45d920745c3efc6f7bc7839b94c06cfcbf81ad`. A later freshness check found
+that main had advanced through #1239 and then #1256. The branch was rebased
+cleanly onto the current `origin/main` SHA
+`16c098289af3f5ffa49b89085fe491409dcd2139`; no overlapping production CSS
+or renderer changes were present in those base updates. The PR must remain
+based on this SHA.
