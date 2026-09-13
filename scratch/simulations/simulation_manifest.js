@@ -135,6 +135,10 @@ export const SIMULATION_MANIFEST = Object.freeze({
     scope: runner.scope
   }))),
   balanceImpactPaths: Object.freeze([
+    // Static raster/vector assets do not affect simulation balance; keep the
+    // extension scope narrow so executable files under src/assets remain fail-closed.
+    { pattern: "src/assets/*.png", domains: [] },
+    { pattern: "src/assets/*.svg", domains: [] },
     { pattern: "src/constants/item_categories.js", domains: ["economy"] },
     { pattern: "src/craft.js", domains: ["workshop", "economy"] },
     { pattern: "src/data/items.js", domains: ["maps", "economy", "traps"] },

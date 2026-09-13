@@ -40,6 +40,22 @@ assert.match(
   /merchant purchase policy/
 );
 const balanceDomainsFor = file => SIMULATION_MANIFEST.balanceImpactPaths.find(rule => rule.pattern === file)?.domains;
+for (const file of ["src/assets/hero.png", "src/assets/javascript.svg", "src/assets/vite.svg"]) {
+  assert.deepEqual(
+    SIMULATION_MANIFEST.balanceImpactPaths.find(rule => rule.pattern === `src/assets/*.${file.endsWith(".png") ? "png" : "svg"}`)?.domains,
+    [],
+    `${file} must be classified as a no-impact static asset`
+  );
+  assert.doesNotThrow(
+    () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST),
+    `${file} deletion must not require simulation balance evidence`
+  );
+}
+assert.throws(
+  () => assertBalanceImpactCovered(["src/assets/runtime.js"], SIMULATION_MANIFEST),
+  /unknown production path/,
+  "executable files under src/assets must remain fail-closed"
+);
 assert.deepEqual(balanceDomainsFor("src/combat_logic/auto_action.js"), ["combat", "recovery"]);
 assert.deepEqual(balanceDomainsFor("src/combat_logic/item_resolution.js"), ["combat", "status", "recovery"]);
 assert.deepEqual(balanceDomainsFor("src/data.js"), ["combat", "equipment", "maps", "progression", "status", "recovery"]);
