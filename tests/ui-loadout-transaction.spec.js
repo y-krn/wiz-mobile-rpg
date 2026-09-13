@@ -1,5 +1,106 @@
 import { test, expect } from './fixtures/browser-health.js';
 
+test('delayed cold equipment open acknowledges, coalesces taps, and resolves one overlay @e2e @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const evidence = await page.evaluate(async () => {
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
+    const loader = await import('/src/equipment_ui_loader.js');
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.inventory = ['SHORT_SWORD'];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'delayed-equipment-ui' };
+    state.gameState = 'explore';
+
+    let releaseImport;
+    let importCalls = 0;
+    loader.__setEquipmentUiLoaderForTests(() => {
+      importCalls += 1;
+      return new Promise(resolve => { releaseImport = resolve; });
+    });
+    const inputAt = performance.now();
+    const first = loader.openEquipOverlay(0);
+    const second = loader.openEquipOverlay(0);
+    await Promise.resolve();
+    const acknowledgement = {
+      at: performance.now(),
+      state: state.gameState,
+      loadState: document.querySelector('#equip-overlay')?.dataset.loadState,
+      busy: document.querySelector('#equip-overlay')?.getAttribute('aria-busy'),
+      text: document.querySelector('.equip-loading-state')?.textContent || '',
+      focused: document.activeElement?.className || '',
+    };
+    releaseImport(await import('/src/equip_ui.js'));
+    await first;
+    await second;
+    return {
+      sameRequest: first === second,
+      importCalls,
+      acknowledgement: { ...acknowledgement, inputToAck: acknowledgement.at - inputAt },
+      resolved: {
+        state: state.gameState,
+        loadState: document.querySelector('#equip-overlay')?.dataset.loadState || null,
+        busy: document.querySelector('#equip-overlay')?.getAttribute('aria-busy') || null,
+        surfaces: document.querySelectorAll('#equip-overlay .equip-bag-section').length,
+        visible: document.querySelector('#equip-overlay')?.style.display === 'flex',
+      },
+    };
+  });
+
+  expect(evidence.sameRequest).toBe(true);
+  expect(evidence.importCalls).toBe(1);
+  expect(evidence.acknowledgement).toMatchObject({
+    state: 'equip_overlay',
+    loadState: 'pending',
+    busy: 'true',
+  });
+  expect(evidence.acknowledgement.text).toContain('入力は受理済み');
+  expect(evidence.acknowledgement.focused).toContain('equip-loading-state');
+  expect(evidence.acknowledgement.inputToAck).toBeGreaterThanOrEqual(0);
+  expect(evidence.resolved).toEqual({
+    state: 'equip_overlay',
+    loadState: null,
+    busy: null,
+    surfaces: 1,
+    visible: true,
+  });
+});
+
+test('equipment lazy-load failure clears pending and exposes a recoverable rejection @e2e @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto('/');
+  const evidence = await page.evaluate(async () => {
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
+    const loader = await import('/src/equipment_ui_loader.js');
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.inventory = ['SHORT_SWORD'];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'failed-equipment-ui' };
+    state.gameState = 'explore';
+    loader.__setEquipmentUiLoaderForTests(() => Promise.reject(new Error('controlled loader failure')));
+    const result = await loader.openEquipOverlay(0);
+    const overlay = document.querySelector('#equip-overlay');
+    return {
+      result,
+      state: state.gameState,
+      loadState: overlay?.dataset.loadState,
+      busy: overlay?.getAttribute('aria-busy'),
+      text: overlay?.textContent || '',
+      retry: Boolean(overlay?.querySelector('.equip-loading-retry')),
+      close: Boolean(overlay?.querySelector('.equip-loading-close')),
+    };
+  });
+  expect(evidence).toMatchObject({
+    result: false,
+    state: 'explore',
+    loadState: 'rejected',
+    busy: 'false',
+    retry: true,
+    close: true,
+  });
+  expect(evidence.text).toContain('装備画面を開けませんでした');
+  await page.getByRole('button', { name: '閉じる' }).click();
+  await expect(page.locator('#equip-overlay')).toBeHidden();
+});
+
 test('equipment UI loads asynchronously once and stays cached across town and explore opens @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
