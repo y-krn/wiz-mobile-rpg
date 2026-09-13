@@ -62,15 +62,18 @@ test('PixiJS navigation motion stays low-amplitude and screen-stable @smoke @vis
   await setExploreState(page);
 
   const results = {};
-  for (const action of ['forward', 'turn-left', 'turn-right']) {
+  for (const action of ['forward', 'backward', 'turn-left', 'turn-right']) {
     await capture(page, testInfo, `pixi-${action}-before`);
     const mid = await page.evaluate(({ action }) => {
       const { state, menuContext, dungeonRenderer } = window.__issue1238;
+      state.x = 4; state.y = 4; state.dir = 0; state.mapRevision += 1;
+      dungeonRenderer.cancelNavigationTransition();
       dungeonRenderer.update(125);
       dungeonRenderer.draw();
       const inputBefore = dungeonRenderer.getRenderInput();
       dungeonRenderer.beginNavigationTransition(action, inputBefore);
       if (action === 'forward') state.y = 3;
+      if (action === 'backward') state.y = 5;
       if (action === 'turn-left') state.dir = 3;
       if (action === 'turn-right') state.dir = 1;
       state.mapRevision += 1;
@@ -95,10 +98,11 @@ test('PixiJS navigation motion stays low-amplitude and screen-stable @smoke @vis
         action: dungeonRenderer.transition?.action,
         duration: dungeonRenderer.transition?.duration,
         progress: dungeonRenderer.transition ? dungeonRenderer.transition.elapsed / dungeonRenderer.transition.duration : null,
-        outgoingRoot: rootSnapshot(dungeonRenderer.transitionScene),
+        transitionVisible: Boolean(dungeonRenderer.transitionScene?.visible),
         incomingRoot: rootSnapshot(dungeonRenderer.scene),
-        outgoingLayers: layerSnapshot(dungeonRenderer.transitionScene),
         incomingLayers: layerSnapshot(dungeonRenderer.scene),
+        structuralWallsAlpha: dungeonRenderer.scene.layers['structural-walls'].alpha,
+        floorAlpha: dungeonRenderer.scene.layers.floor.alpha,
         shakeTime: dungeonRenderer.shakeTime,
         frame: document.querySelector('#dungeon-canvas').toDataURL()
       };
@@ -112,6 +116,7 @@ test('PixiJS navigation motion stays low-amplitude and screen-stable @smoke @vis
       dungeonRenderer.draw();
       return {
         active: Boolean(dungeonRenderer.transition),
+        transitionVisible: Boolean(dungeonRenderer.transitionScene?.visible),
         sceneX: dungeonRenderer.scene.position.x,
         sceneY: dungeonRenderer.scene.position.y,
         rotation: dungeonRenderer.scene.rotation,
@@ -124,25 +129,28 @@ test('PixiJS navigation motion stays low-amplitude and screen-stable @smoke @vis
     results[action] = { mid, after };
   }
 
-  expect(results.forward.mid.duration).toBe(100);
   for (const result of Object.values(results)) {
-    for (const root of [result.mid.outgoingRoot, result.mid.incomingRoot]) {
-      expect(root.x).toBe(0);
-      expect(root.y).toBe(0);
-      expect(root.rotation).toBe(0);
-      expect(root.scaleX).toBe(1);
-      expect(root.scaleY).toBe(1);
-    }
-    const allLayers = [result.mid.outgoingLayers, result.mid.incomingLayers];
-    for (const layers of allLayers) {
-      for (const name of ['actors', 'combat-fx', 'overlays']) {
-        expect(layers[name].x).toBe(0);
-        expect(layers[name].y).toBe(0);
-      }
+    expect(result.mid.action).toBeUndefined();
+    expect(result.mid.duration).toBeUndefined();
+    expect(result.mid.progress).toBeNull();
+    expect(result.mid.transitionVisible).toBe(false);
+    const root = result.mid.incomingRoot;
+    expect(root.x).toBe(0);
+    expect(root.y).toBe(0);
+    expect(root.rotation).toBe(0);
+    expect(root.scaleX).toBe(1);
+    expect(root.scaleY).toBe(1);
+    expect(root.alpha).toBe(1);
+    expect(result.mid.structuralWallsAlpha).toBe(1);
+    expect(result.mid.floorAlpha).toBe(1);
+    for (const name of ['far-environment', 'floor', 'structural-walls', 'environment-fx', 'actors', 'combat-fx', 'overlays']) {
+      expect(result.mid.incomingLayers[name].x).toBe(0);
+      expect(result.mid.incomingLayers[name].y).toBe(0);
     }
   }
   for (const result of Object.values(results)) {
     expect(result.after.active).toBe(false);
+    expect(result.after.transitionVisible).toBe(false);
     expect(result.after.sceneX).toBe(0);
     expect(result.after.sceneY).toBe(0);
     expect(result.after.rotation).toBe(0);
@@ -180,7 +188,7 @@ test('PixiJS reduced motion disables navigation, shake, and ambient redraw while
     };
   });
   await capture(page, testInfo, 'pixi-reduced-motion');
-  expect(evidence.transition).toBeNull();
+  expect(evidence.transition).toBeUndefined();
   expect(evidence.shakeTime).toBe(0);
   expect(evidence.hitTime).toBe(0);
   expect(evidence.sceneX).toBe(0);
@@ -232,7 +240,7 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
     }
     dungeonRenderer.beginNavigationTransition('turn-left', input);
     dungeonRenderer.cancelNavigationTransition();
-    const cancelled = !dungeonRenderer.transition && !dungeonRenderer.transitionScene.visible;
+    const cancelled = !dungeonRenderer.transition && !dungeonRenderer.transitionScene;
     dungeonRenderer.beginNavigationTransition('forward', input);
     const replacement = dungeonRenderer.transition?.action;
     const rapidAlternatingActions = Array.from({ length: 20 }, (_, index) => (
@@ -304,10 +312,10 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
   console.log(`[issue-1238] lifecycle ${JSON.stringify(evidence)}`);
   expect(evidence.stateUnchanged).toBe(true);
   expect(evidence.cancelled).toBe(true);
-  expect(evidence.replacement).toBe('forward');
-  expect(evidence.rapidAlternatingAction).toBe('turn-right');
+  expect(evidence.replacement).toBeUndefined();
+  expect(evidence.rapidAlternatingAction).toBeUndefined();
   expect(evidence.rapidAlternatingCount).toBe(20);
-  expect(evidence.rapidForwardTurnAction).toBe('turn-right');
+  expect(evidence.rapidForwardTurnAction).toBeUndefined();
   expect(evidence.rootTransformSamples).toHaveLength(60);
   expect(evidence.rootTransformSamples.every((root) => (
     root.x === 0 && root.y === 0 && root.rotation === 0 && root.scaleX === 1 && root.scaleY === 1

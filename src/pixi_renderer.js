@@ -16,12 +16,6 @@ import { renderMiniMapOverlay } from "./minimap.js";
 export const PIXI_VIEW_W = 400;
 export const PIXI_VIEW_H = 260;
 export const PIXI_VERSION = "8.19.0";
-export const PIXI_MOTION_PROFILE = Object.freeze({
-  durationMs: 100,
-  layerDepthPx: 0.75,
-  layerTurnPx: 0.75,
-  layerParallax: 0.18
-});
 
 const COLUMN_ORDER = [-2, 2, -1, 1, 0];
 const FALLBACK_BACKGROUND = "#0c0c0e";
@@ -35,13 +29,6 @@ const LAYER_NAMES = Object.freeze([
   "combat-fx",
   "overlays"
 ]);
-
-const MOTION_DURATION_MS = Object.freeze({
-  forward: PIXI_MOTION_PROFILE.durationMs,
-  backward: PIXI_MOTION_PROFILE.durationMs,
-  "turn-left": PIXI_MOTION_PROFILE.durationMs,
-  "turn-right": PIXI_MOTION_PROFILE.durationMs
-});
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
@@ -179,8 +166,6 @@ export class PixiDungeonRenderer {
     this.flashTime = 0;
     this.hitTime = 0;
     this.combatEntryTime = 0;
-    this.transition = null;
-    this.transitionScene = null;
     this.activeRoot = null;
     this.damageTexts = [];
     this.resourceStats = {
@@ -239,10 +224,7 @@ export class PixiDungeonRenderer {
       });
       this.initializationPhase = "mount";
       this.scene = this.createSceneRoot("pixi-current-scene");
-      this.transitionScene = this.createSceneRoot("pixi-transition-scene");
       this.app.stage.addChild(this.scene);
-      this.app.stage.addChild(this.transitionScene);
-      this.transitionScene.visible = false;
       this.initializationCostMs = performance.now() - startedAt;
       this.supported = Boolean(this.app.renderer && this.app.canvas === this.canvas);
       this.canvas.dataset.renderer = this.supported ? this.mode : "pixi-unavailable";
@@ -291,17 +273,6 @@ export class PixiDungeonRenderer {
     this.combatEntryTime = Math.max(0, this.combatEntryTime - dt);
     this.damageTexts.forEach((entry) => { entry.age += 1; });
     this.damageTexts = this.damageTexts.filter((entry) => entry.age < entry.maxAge);
-    if (this.transition) {
-      this.transition.elapsed = Math.min(this.transition.duration, this.transition.elapsed + Math.max(0, dt));
-      if (this.transition.elapsed >= this.transition.duration) {
-        this.transition = null;
-        if (this.transitionScene) {
-          this.transitionScene.visible = false;
-          this.clearSceneRoot(this.transitionScene);
-        }
-        this.resetMotion(this.scene);
-      }
-    }
   }
 
   resolveRenderInput(input) {
@@ -348,7 +319,7 @@ export class PixiDungeonRenderer {
   isAnimating(input = null) {
     const renderInput = this.resolveRenderInput(input);
     const environment = renderInput.visual.environment;
-    if (this.transition || this.shakeTime > 0 || this.flashTime > 0 || this.hitTime > 0 || this.combatEntryTime > 0 || this.damageTexts.length > 0) return true;
+    if (this.shakeTime > 0 || this.flashTime > 0 || this.hitTime > 0 || this.combatEntryTime > 0 || this.damageTexts.length > 0) return true;
     if (prefersReducedMotion()) return false;
     if (environment.animated || renderInput.dangerCue.active) return true;
     return false;
@@ -393,27 +364,15 @@ export class PixiDungeonRenderer {
   }
 
   beginNavigationTransition(action, input = null) {
-    if (!MOTION_DURATION_MS[action]) return;
-    if (prefersReducedMotion()) {
-      this.cancelNavigationTransition();
-      return;
-    }
-    this.transition = {
-      action,
-      duration: MOTION_DURATION_MS[action],
-      elapsed: 0,
-      fromInput: this.resolveRenderInput(input),
-      sourceDrawn: false
-    };
-    if (this.transitionScene) this.transitionScene.visible = true;
+    // Navigation is intentionally a cut: movement state is rendered as the
+    // new corridor immediately. Keep this hook for the Renderer boundary
+    // used by movement.js without creating an outgoing scene or alpha tween.
+    void action;
+    void input;
+    this.cancelNavigationTransition();
   }
 
   cancelNavigationTransition() {
-    this.transition = null;
-    if (this.transitionScene) {
-      this.transitionScene.visible = false;
-      this.clearSceneRoot(this.transitionScene);
-    }
     this.resetMotion(this.scene);
   }
 
@@ -431,61 +390,16 @@ export class PixiDungeonRenderer {
     });
   }
 
-  applyMotion(root, action, progress, outgoing = false) {
-    this.resetMotion(root);
-    const eased = outgoing ? 1 - clamp01(progress) : clamp01(progress);
-    const remaining = 1 - eased;
-    const direction = action === "turn-left" ? -1 : 1;
-    // Navigation must never move the screen-space scene root. Only the
-    // snapshot opacity and a sub-pixel shift inside visual layers may change.
-    const layerDepth = {
-      "far-environment": 0.25,
-      floor: 0.72,
-      "structural-walls": 0.88,
-      "environment-fx": 0.94
-    };
-    if (action === "forward" || action === "backward") {
-      const distance = action === "forward"
-        ? PIXI_MOTION_PROFILE.layerDepthPx
-        : -PIXI_MOTION_PROFILE.layerDepthPx;
-      root.alpha = outgoing ? 1 - eased : eased;
-      Object.entries(layerDepth).forEach(([name, depth]) => {
-        const layer = root.layers?.[name];
-        if (layer) layer.position.y = (outgoing ? -1 : 1) * distance * remaining * (1 - depth) * PIXI_MOTION_PROFILE.layerParallax;
-      });
-      return;
-    }
-
-    const offset = PIXI_MOTION_PROFILE.layerTurnPx * direction;
-    // Keep the horizon, HUD, and Dungeon View frame stable. Turns only
-    // cross-fade snapshots and gently interpolate internal visual layers.
-    root.alpha = outgoing ? 1 - eased : eased;
-    Object.entries(layerDepth).forEach(([name, depth]) => {
-      const layer = root.layers?.[name];
-      if (layer) layer.position.x = (outgoing ? 1 : -1) * offset * remaining * (1 - depth) * PIXI_MOTION_PROFILE.layerParallax;
-    });
-  }
-
   draw(input = null) {
     if (!this.app || !this.scene) return;
     const renderInput = this.resolveRenderInput(input);
     const startedAt = performance.now();
-    if (this.transition && !this.transition.sourceDrawn) {
-      this.clearSceneRoot(this.transitionScene);
-      this.drawScene(this.transition.fromInput, this.transitionScene);
-      this.transition.sourceDrawn = true;
-    }
     this.clearSceneRoot(this.scene);
     this.drawScene(renderInput, this.scene);
-    if (this.transition) {
-      const progress = this.transition.elapsed / this.transition.duration;
-      this.applyMotion(this.transitionScene, this.transition.action, progress, true);
-      this.applyMotion(this.scene, this.transition.action, progress, false);
-    } else this.resetMotion(this.scene);
-    // Navigation transitions are root-transform-free. Heavy combat shake is
-    // a separate feedback path and is ignored while a navigation transition
-    // is active so it can never leak into navigation comfort.
-    if (this.shakeTime > 0 && !this.transition) {
+    // Navigation is an immediate structural replacement. Combat feedback is
+    // independent and cannot affect exploration navigation.
+    this.resetMotion(this.scene);
+    if (this.shakeTime > 0 && renderInput.view.gameState === "combat") {
       const offset = (Math.sin(this.clockMs * 0.11) * 0.5) * this.shakeIntensity;
       this.scene.position.x += offset;
       this.scene.position.y += offset * 0.45;
@@ -830,7 +744,6 @@ export class PixiDungeonRenderer {
       return;
     }
     this.clearSceneRoot(this.scene);
-    this.clearSceneRoot(this.transitionScene);
     try {
       this.app.destroy({ removeView: false }, { children: true });
     } catch {
@@ -839,8 +752,6 @@ export class PixiDungeonRenderer {
     }
     this.app = null;
     this.scene = null;
-    this.transitionScene = null;
-    this.transition = null;
     this.supported = false;
     this.resourceStats.destroyed = true;
   }
