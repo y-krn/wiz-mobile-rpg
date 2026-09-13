@@ -214,6 +214,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // Equipment preview and action modules preserve the existing formulas and
     // owning system side effects; this refactor only makes those boundaries explicit.
     { pattern: "src/rules/equipment_preview.js", domains: [] },
+    { pattern: "src/rules/equipment_equipped.js", domains: [] },
     { pattern: "src/rules/equipment_rules.js", domains: [] },
     { pattern: "src/systems/equipment_actions.js", domains: [] },
     { pattern: "src/systems/magic_actions.js", domains: ["combat", "equipment", "economy"] },

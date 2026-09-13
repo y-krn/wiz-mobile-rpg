@@ -481,6 +481,36 @@ for (const vp of VIEWPORTS) {
     await expect(page.locator('#equip-overlay')).toBeHidden();
   });
 
+  test(`Equipment organize mode hides items when equipped state is unverifiable at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createStartingKitCharacter, state } = await import('/src/state.js');
+      const { equipState, openEquipOverlay, renderEquip } = await import('/src/equip.js');
+      const char = createStartingKitCharacter('vanguard');
+      state.party = [char];
+      state.inventory = [{
+        kind: 'equipment', instanceId: 'organize_unverifiable', baseId: 'SHORT_SWORD', rarity: 'common', level: 1,
+        identified: true, affixes: []
+      }];
+      openEquipOverlay(0);
+
+      const brokenEquipment = new Proxy({}, {
+        ownKeys() {
+          throw new Error('broken equipment payload');
+        }
+      });
+      equipState.draft = null;
+      equipState.mode = 'organize';
+      state.party = [{ ...char, equipment: brokenEquipment }];
+      renderEquip();
+    });
+
+    await expect(page.locator('.equip-body.is-organize')).toBeVisible();
+    await expect(page.locator('.equip-bag-section .equip-item-row')).toHaveCount(0);
+    await expect(page.locator('.equip-bag-section .equip-detail-placeholder')).toContainText('バッグにありません');
+  });
+
   test(`Equipment detail can return to the list at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');

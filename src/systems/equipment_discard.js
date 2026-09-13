@@ -2,6 +2,7 @@ import { state, addLog, saveAutosave } from "../state.js";
 import { getItemData } from "../data.js";
 import { playSound } from "../audio.js";
 import { captureException } from "../sentry.js";
+import { getItemEquippedStatus } from "../rules/equipment_equipped.js";
 import { trackEquipmentDecision, trackLootLifecycle } from "../telemetry.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry } from "../state/run_loot.js";
 
@@ -24,23 +25,9 @@ function reportEquippedCheckFailure(error, scope) {
 }
 
 function isItemEquipped(stateLike, itemKey) {
-  try {
-    return stateLike.party.some((char) => {
-      try {
-        return Object.values(char.equipment || {}).some((equippedKey) => equippedKey === itemKey);
-      } catch (error) {
-        // A broken equipment payload must never make an equipped item look safe
-        // to discard. Block the action and retain the failure for diagnosis.
-        reportEquippedCheckFailure(error, "character-equipment");
-        return true;
-      }
-    });
-  } catch (error) {
-    // Treat malformed party state as unsafe instead of allowing destructive
-    // inventory mutation to continue on an unverifiable state snapshot.
-    reportEquippedCheckFailure(error, "party");
-    return true;
-  }
+  const result = getItemEquippedStatus(stateLike, itemKey);
+  if (result.error) reportEquippedCheckFailure(result.error, result.scope);
+  return result.equipped;
 }
 
 function getDisplayName(itemKey, item) {
