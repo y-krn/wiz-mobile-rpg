@@ -1,7 +1,7 @@
 import { state, saveAutosave, addLog, INVENTORY_CAPACITY } from "./state.js";
+import { equipState } from "./equipment_ui_state.js";
 import {
   getCharMaxHp,
-  getCharMaxMp,
   getItemData,
   getCharAttackBreakdown,
   formatAffixText,
@@ -9,7 +9,6 @@ import {
   isCurseLocked,
   getWeaponBehaviorProfile
 } from "./data.js";
-import { canUseManaItems } from "./rules/magic_rules.js";
 import { CURSE_EFFECTS } from "./data/items.js";
 import {
   IDENTIFICATION_BALANCE,
@@ -31,6 +30,7 @@ import {
   getEquipmentSlotsForType
 } from "./rules/equipment_slots.js";
 import { getDiscardRisk } from "./systems/equipment_discard.js";
+import { getItemEquippedStatus } from "./rules/equipment_equipped.js";
 import {
   createEquipmentPreviewChar,
   getEquipmentPreview,
@@ -71,22 +71,7 @@ import {
 } from "./rules/loadout_transaction.js";
 import { commitLoadoutDraft } from "./systems/loadout_transaction.js";
 import { createBuildCommitmentPanel } from "./ui/build_commitment.js";
-
-export let equipState = {
-  mode: "equip",
-  filter: "all",
-  actorIdx: 0,
-  selectedIdx: -1,
-  selectedKey: null,
-  selectedSlot: null,
-  selectedActorIdx: -1,
-  selectedIsEquipped: false,
-  selectedDiscardIndices: new Set(),
-  pendingUnequip: null,
-  listScrollTop: 0,
-  prevGameState: null,
-  draft: null
-};
+import { syncFocusSurface } from "./ui/focus_manager.js";
 
 const EQUIP_FILTERS = [
   { id: "all", label: "すべて" },
@@ -122,7 +107,6 @@ export function openEquipOverlay(actorIdx = 0) {
   if (overlay) {
     overlay.style.display = "flex";
   }
-  renderEquip();
   updateUI();
   return true;
 }
@@ -150,7 +134,6 @@ function commitEquipDraft() {
   });
   if (!result.ok) {
     addLog(result.errors?.join(" ") || "装備変更を確定できません。");
-    renderEquip();
     updateUI();
     return false;
   }
@@ -205,18 +188,6 @@ function exitOrganizeMode() {
   renderEquip();
 }
 
-export function resetEquipState() {
-  equipState.mode = "equip";
-  equipState.filter = "all";
-  equipState.actorIdx = 0;
-  clearSelection();
-  clearDiscardSelection();
-  equipState.pendingUnequip = null;
-  equipState.listScrollTop = 0;
-  equipState.prevGameState = null;
-  equipState.draft = null;
-}
-
 function isIdentified(itemKey) {
   return !itemKey || typeof itemKey !== "object" || itemKey.identified === true;
 }
@@ -241,47 +212,6 @@ function createRarityBadge(itemKey, className = "") {
   badge.textContent = rarity.label;
   badge.setAttribute("aria-label", `レア度 ${rarity.label}`);
   return badge;
-}
-
-export function getItemUseStatus(char, itemKey) {
-  const item = getItemData(itemKey);
-  if (!item || item.type !== "usable") return { usable: true, reason: "" };
-  const canRestoreMp = canUseManaItems(char);
-
-  if (item.combatOnly && !state.combatState) {
-    return { usable: false, reason: "戦闘中のみ使用できます" };
-  }
-
-  if (itemKey === "ESCAPE_SCROLL" && state.combatState && (state.combatState.isBoss || state.combatState.isMidboss)) {
-    return { usable: false, reason: "ボス戦では使用できません" };
-  }
-
-  if (char.status === "dead") {
-    return { usable: false, reason: "死亡中はアイテムを使用できません" };
-  } else {
-    if ((itemKey === "HEAL_POTION" || itemKey === "GREATER_HEAL") && char.hp >= getCharMaxHp(char)) {
-      return { usable: false, reason: "HPはすでに満タンです" };
-    }
-    if (itemKey === "ANTIDOTE" && char.status !== "poisoned") {
-      return { usable: false, reason: "毒状態ではありません" };
-    }
-    if (itemKey === "EYE_DROPS" && char.status !== "blind") {
-      return { usable: false, reason: "盲目状態ではありません" };
-    }
-    if (itemKey === "PARALYZE_CURE" && char.status !== "paralyzed" && char.status !== "paralyze") {
-      return { usable: false, reason: "麻痺状態ではありません" };
-    }
-    if (itemKey === "WAKE_POWDER" && char.status !== "sleep") {
-      return { usable: false, reason: "睡眠状態ではありません" };
-    }
-    if (itemKey === "PANACEA" && !["poisoned", "blind", "paralyzed", "paralyze", "sleep"].includes(char.status)) {
-      return { usable: false, reason: "治療できる状態異常ではありません" };
-    }
-    if ((itemKey === "MANA_POTION" || itemKey === "ETHER") && (!canRestoreMp || char.mp >= getCharMaxMp(char))) {
-      return { usable: false, reason: canRestoreMp ? "MPはすでに満タンです" : "現在のBuildではMPを使えません" };
-    }
-  }
-  return { usable: true, reason: "" };
 }
 
 function getEquipmentItems() {
@@ -344,7 +274,6 @@ function createRunePanel(char) {
         if (!result.ok) return;
         equipState.draft = result.draft;
         renderEquip();
-        updateUI();
       });
       row.appendChild(button);
       activeList.appendChild(row);
@@ -378,7 +307,6 @@ function createRunePanel(char) {
         if (!result.ok) return;
         equipState.draft = result.draft;
         renderEquip();
-        updateUI();
       });
       row.appendChild(button);
       spareList.appendChild(row);
@@ -389,17 +317,11 @@ function createRunePanel(char) {
 }
 
 function isItemEquipped(itemKey) {
-  try {
-    return getDraftParty().some((char) => {
-      try {
-        return Object.values(char.equipment || {}).some((equippedKey) => equippedKey === itemKey);
-      } catch {
-        return false;
-      }
-    });
-  } catch {
-    return false;
-  }
+  return getItemEquippedStatus({
+    get party() {
+      return getDraftParty();
+    }
+  }, itemKey).equipped;
 }
 
 function discardEquipment(itemIdx, expectedItemKey) {
@@ -411,7 +333,6 @@ function discardEquipment(itemIdx, expectedItemKey) {
     equipState.draft = staged.draft;
     clearSelection();
     renderEquip();
-    updateUI();
     return true;
   }
   const result = discardEquipmentAt(itemIdx, expectedItemKey, {
@@ -420,7 +341,6 @@ function discardEquipment(itemIdx, expectedItemKey) {
   });
   if (!result.ok) return false;
   clearSelection();
-  renderEquip();
   updateUI();
   return true;
 }
@@ -475,8 +395,8 @@ function discardSelectedEquipment() {
     equipState.mode = "equip";
   }
   clearDiscardSelection();
-  renderEquip();
-  updateUI();
+  if (equipState.draft) renderEquip();
+  else updateUI();
   return true;
 }
 
@@ -489,7 +409,6 @@ function requestUnequipAfterDiscard() {
   clearDiscardSelection();
   equipState.mode = "organize";
   renderEquip();
-  updateUI();
 }
 
 function getItemSummary(item) {
@@ -1183,7 +1102,6 @@ function createWorkshopPanel(itemKey) {
       if (!enhanceEquipment(target)) return;
       refreshDraftAfterLiveMutation();
       equipState.selectedKey = getSelectedItemKey();
-      renderEquip();
       updateUI();
     });
     enhanceSection.appendChild(enhanceButton);
@@ -1223,7 +1141,6 @@ function createWorkshopPanel(itemKey) {
         if (!polishEquipment(target, index)) return;
         refreshDraftAfterLiveMutation();
         equipState.selectedKey = getSelectedItemKey();
-        renderEquip();
         updateUI();
       });
       row.appendChild(polishButton);
@@ -1484,7 +1401,6 @@ function createDetailPanel(char) {
       equipState.draft = result.draft;
       clearSelection();
       renderEquip();
-      updateUI();
     });
     actions.appendChild(actionBtn);
   } else {
@@ -1510,7 +1426,6 @@ function createDetailPanel(char) {
         if (!result.ok) return;
         refreshDraftAfterLiveMutation();
         equipState.selectedKey = result.itemKey;
-        renderEquip();
         updateUI();
       });
       actions.appendChild(identifyBtn);
@@ -1554,7 +1469,6 @@ function createDetailPanel(char) {
       equipState.draft = result.draft;
       clearSelection();
       renderEquip();
-      updateUI();
     });
     actions.appendChild(actionBtn);
 
@@ -1605,4 +1519,8 @@ export function renderEquip() {
   }
   overlay.appendChild(body);
   if (!detailMode) createFooter(overlay, { organizing });
+  // Local equipment renders must leave focus inside the active overlay. The
+  // shell-level updateUI path performs exact focus restoration around this
+  // render; this keeps local-only filter/selection updates keyboard-safe too.
+  syncFocusSurface("equip-overlay", overlay);
 }

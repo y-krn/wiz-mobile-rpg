@@ -1,5 +1,3 @@
-import { bindEquipmentUiState } from "./equipment_ui_state.js";
-
 let equipmentUiModule = null;
 let equipmentUiPromise = null;
 
@@ -7,7 +5,6 @@ export function loadEquipmentUi() {
   if (equipmentUiModule) return Promise.resolve(equipmentUiModule);
   if (!equipmentUiPromise) {
     equipmentUiPromise = import("./equip_ui.js").then((module) => {
-      bindEquipmentUiState(module.equipState);
       equipmentUiModule = module;
       return module;
     }).catch((error) => {

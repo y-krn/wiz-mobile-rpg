@@ -313,6 +313,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/chest.js",
     "src/systems/traps.js",
     "src/equip.js",
+    "src/equip_ui.js",
     "src/systems/equipment_actions.js",
     "src/systems/equipment_discard.js",
     // Loadout commit records equipment decisions alongside the atomic state
