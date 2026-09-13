@@ -34,7 +34,7 @@ matrix is risk-based; it does not multiply every action by every viewport.
 | 2. Dungeon View startup / first draw | D | enter Dungeon; renderer-owned | renderer-equivalent view | #1251-owned | #1251-owned | not a shared-DOM action | #1251 renderer suites; physical renderer gate pending |
 | 3. Target selection | A | Fight → target button/Canvas target; synchronous | target overlay and identity are visible | none | one target enters combat selection | callback and target validation; Back restores combat with zero committed action | `combat-target-ui.cases.js`; Canvas/DOM equivalence manual |
 | 3. Invalid target | C | dead/unavailable target input; synchronous rejection | target surface remains visible | none | no action is committed; invalid target is rejected | callback/target validation; Back remains available | `combat-target-ui.cases.js`; keyboard/Canvas manual |
-| 4. Equipment open → compare → commit | B | tap/keyboard; lazy open then synchronous draft/commit | cold path says input is accepted and pending; loaded path shows comparison and commit status | only cold lazy load; commit remains draft until explicit confirmation | one loadout transaction and one exploration turn; invalid draft remains live-state-safe | one in-flight loader request and atomic draft commit; cancel drops draft only | `ui-loadout-transaction.spec.js`; cold equipment iPhone pending |
+| 4. Equipment open → compare → commit | B | tap/keyboard; lazy open then synchronous draft/commit | cold path says input is accepted and pending; loaded path shows comparison and commit status | only cold lazy load; loaded retry uses the original open context | one loadout transaction and one exploration turn; invalid draft remains live-state-safe | one in-flight loader request and atomic draft commit; retry preserves original game/focus context; cancel drops draft only | `ui-loadout-transaction.spec.js`; cold equipment iPhone pending |
 | 5. Full-bag replacement | A | tap/Enter; synchronous draft then commit | capacity and replacement consequence remain visible | none | one replacement or no-op cancel; invalid confirm is unavailable | single loadout transaction; cancel preserves live inventory | loadout/pending-reward owners; `320x568` short-screen review |
 | 6. Chest / Trap inspect → resolve | B | tap/Enter; delayed resolution | phase/result text and transitioning state are visible | transition blocks repeat until cleanup | one trap/chest result and one reward lifecycle; phase/character checks reject unavailable actions | phase plus transitioning guards; resolved chest is not reopened by Back | chest/trap owners; reduced-motion playback pending |
 | 7. Portal choice → confirm → settlement | A | tap/Enter; synchronous guarded terminal decision | confirmation names the selected consequence | none after settlement starts | one portal decision, settlement, and Result transition | decision is cleared after commit and terminal run guard applies; reselect returns to choices | `ui-portal-wing.spec.js`; iPhone rapid-confirm pending |
@@ -52,7 +52,7 @@ overloaded with this interaction classification.
 | Transition | Actual wait source | Existing/updated contract | Guard |
 |---|---|---|---|
 | Equipment open | lazy dynamic import of `equip_ui.js` | accepted text is rendered immediately; pending is text-only, `aria-busy=true`, and repeated open returns the same Promise | deterministic injected Promise in `ui-loadout-transaction.spec.js`; import call count is 1 |
-| Equipment open failure | rejected dynamic import | pending clears; rejection text plus retry/close stays visible in the equipment surface; Close restores the previous game state | deterministic rejected importer; asserts `aria-busy=false`, retry, close, focus, and no stuck pending |
+| Equipment open failure / retry | rejected dynamic import, then controlled retry | pending clears; rejection text plus retry/close stays visible; retry reuses the original previous state and focus target across success or another failure | deterministic importer covers failure → retry → success (normal draft) and failure → retry → failure → Close (original state/focus); no stuck pending |
 | Combat/chest delayed playback | existing timeout-based gameplay resolution | existing transitioning/result semantics remain the owner; no new generic loader or spinner | existing combat/chest transition and cleanup tests |
 | Renderer startup/draw | Pixi/Canvas renderer path | not changed in #1259 | #1251 owner |
 
@@ -92,7 +92,10 @@ The test asserts ordering and state semantics, including:
 - repeated open calls share one request and one dynamic import;
 - exactly one equipment surface exists after resolution;
 - failure resolves to visible rejection with pending cleared; and
-- the short `320x568` path retains a recoverable visible surface.
+- the short `320x568` path retains a recoverable visible surface;
+- retry success restores the original context before the real equipment UI creates
+  its draft; and
+- retry failure preserves the original close state and invoking focus.
 
 The recorded number is a relative CI regression proxy, not an absolute human
 perception SLO. No `<100ms` or per-frame global hard threshold is asserted.
@@ -113,7 +116,28 @@ perception SLO. No `<100ms` or per-frame global hard threshold is asserted.
   Close, focuses its status, and restores the invoking control when it is still
   available. Production still uses the original lazy import and cache.
 - Regression guard: deterministic delayed and failure browser tests, including
-  rejection focus and post-close focus restoration.
+  rejection focus and post-close focus restoration. The retry guards also cover
+  the success draft path and a second failure without losing the original
+  context.
+
+### Equipment retry reused the rejection surface as the open context
+
+- Before: the rejection UI kept `state.gameState` at `equip_overlay`, and its
+  Retry button called `openEquipOverlay()` as a fresh request. The retry then
+  recorded `equip_overlay` as `previousGameState`; a successful import reached
+  the real UI as `alreadyOpen`, so it could skip draft/previous-state setup.
+  A second failure also replaced the original focus target with `null` because
+  focus was inside the rejection overlay.
+- Player impact: retry success could leave equipment actions without a normal
+  draft and Close could lose Town/Preparation context; retry failure could not
+  restore the original invoking control.
+- Fix: the loader carries one immutable open context through the retry chain.
+  Before the real UI opens, it restores the original game state and gives the
+  original focus target back to the normal surface owner, so `alreadyOpen` is
+  false and a fresh draft is created. A later failure retains that same context.
+- Regression guard: deterministic browser tests for
+  failure → Retry → success → draft/change/Cancel and
+  failure → Retry → failure → Close → original state/focus.
 
 ### Preparation start could re-enter after the source button was replaced
 
@@ -163,7 +187,8 @@ leaving the player stuck.
 - The pending and rejected surfaces keep focus on their status rather than
   moving focus to the body. The resolved equipment overlay uses the existing
   focus manager, and rejection Close restores the invoking control when it is
-  still connected.
+  still connected. Retry does not replace the stored original focus target;
+  a second failure therefore restores the same invoker.
 - `aria-busy=true` is limited to the actual unresolved import and is removed on
   resolution; failure exposes a visible retry/close control with `aria-busy=false`.
 - The new surface uses existing Dark Archive semantic tokens and restrained
@@ -194,13 +219,16 @@ Focused after-change checks:
 
 ```text
 npx playwright test tests/ui-golden-journeys.spec.js tests/ui-loadout-transaction.spec.js
-21 passed
+23 passed
 
 npx playwright test tests/ui-loadout-transaction.spec.js --grep 'delayed cold equipment open'
 1 passed
 
 npx playwright test tests/ui-loadout-transaction.spec.js --grep 'equipment lazy-load failure'
 1 passed
+
+npx playwright test tests/ui-loadout-transaction.spec.js --grep 'equipment (retry preserves|retry failure)'
+2 passed
 
 node tests/node/unit/test_loadout_transaction.js
 [PASS] loadout drafts validate and commit atomically
@@ -219,23 +247,24 @@ npm run test:unit
 PASS 196 / FAIL 0 / SKIP 3
 
 npm run test:browser
-96 passed
+98 passed
 
 npm run test:browser:parallel (PLAYWRIGHT_PORT=19012)
-96 passed
+98 passed
 
-npm run test:browser:visual (PLAYWRIGHT_PORT=19011)
-96 passed
+npm run test:browser:visual (PLAYWRIGHT_PORT=19021)
+95 passed / 1 existing `390x844/result` flexible-height proxy failure
+(`226.78px` vs `726px`); this is outside the changed loader/test logic.
 
 npm run build
 success (Vite; existing chunk-size warning only)
 ```
 
-The parallel and visual commands needed a task-owned port because the sandbox
-initially returned `EPERM` while binding the repository's default port; the
-same canonical commands passed once local server binding was allowed. GitHub
-Actions and physical-device evidence remain separate gates and are not inferred
-from this local record.
+The browser commands needed task-owned ports because the sandbox initially
+returned `EPERM` while binding the repository's default port. The parallel
+browser gate passed; the isolated visual rerun reproduced the pre-existing
+result-height proxy failure noted above. GitHub Actions and physical-device
+evidence remain separate gates and are not inferred from this local record.
 
 ## Revision / merge-gate evidence
 

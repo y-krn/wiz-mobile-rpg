@@ -4,8 +4,7 @@ let equipmentUiModule = null;
 let equipmentUiPromise = null;
 let equipmentUiImporter = () => import("./equip_ui.js");
 let pendingOpenRequest = null;
-let rejectedPreviousGameState = "explore";
-let rejectedFocusTarget = null;
+let rejectedOpenContext = null;
 
 function getOverlay() {
   return document.getElementById("equip-overlay");
@@ -50,7 +49,7 @@ function renderLoadingState({ state: loadState, actorIdx = 0, focusStatus = fals
     retry.type = "button";
     retry.className = "btn btn-neon equip-loading-retry";
     retry.textContent = "もう一度試す";
-    retry.addEventListener("click", () => openEquipOverlay(actorIdx));
+    retry.addEventListener("click", () => openEquipOverlay(actorIdx, { context: rejectedOpenContext }));
     const close = document.createElement("button");
     close.type = "button";
     close.className = "btn btn-secondary equip-loading-close";
@@ -59,10 +58,12 @@ function renderLoadingState({ state: loadState, actorIdx = 0, focusStatus = fals
       overlay.style.display = "none";
       overlay.removeAttribute("aria-busy");
       delete overlay.dataset.loadState;
-      state.gameState = rejectedPreviousGameState;
+      state.gameState = rejectedOpenContext?.previousGameState || "explore";
       pendingOpenRequest = null;
-      if (rejectedFocusTarget?.isConnected) rejectedFocusTarget.focus({ preventScroll: true });
-      rejectedFocusTarget = null;
+      if (rejectedOpenContext?.focusTarget?.isConnected) {
+        rejectedOpenContext.focusTarget.focus({ preventScroll: true });
+      }
+      rejectedOpenContext = null;
     });
     actions.append(retry, close);
     status.appendChild(actions);
@@ -86,16 +87,19 @@ export function loadEquipmentUi() {
   return equipmentUiPromise;
 }
 
-export function openEquipOverlay(actorIdx = 0) {
+export function openEquipOverlay(actorIdx = 0, { context = null } = {}) {
   if (equipmentUiModule) return equipmentUiModule.openEquipOverlay(actorIdx);
   if (pendingOpenRequest) return pendingOpenRequest.promise;
 
-  const request = {
-    actorIdx,
+  const openContext = context || {
     previousGameState: state.gameState,
     focusTarget: document.activeElement instanceof HTMLElement && !getOverlay()?.contains(document.activeElement)
       ? document.activeElement
       : null,
+  };
+  const request = {
+    actorIdx,
+    ...openContext,
     promise: null
   };
   pendingOpenRequest = request;
@@ -105,7 +109,7 @@ export function openEquipOverlay(actorIdx = 0) {
   request.promise = loadEquipmentUi().then((module) => {
     if (pendingOpenRequest !== request) return false;
     pendingOpenRequest = null;
-    rejectedFocusTarget = null;
+    rejectedOpenContext = null;
     state.gameState = request.previousGameState;
     const overlay = getOverlay();
     if (overlay) {
@@ -113,11 +117,18 @@ export function openEquipOverlay(actorIdx = 0) {
       delete overlay.dataset.loadState;
       overlay.replaceChildren();
     }
+    // Let the real surface capture the original invoker, not the retry
+    // control that lives inside the rejection surface.
+    if (request.focusTarget?.isConnected) {
+      request.focusTarget.focus({ preventScroll: true });
+    }
     return module.openEquipOverlay(actorIdx);
   }).catch(() => {
     if (pendingOpenRequest !== request) return false;
-    rejectedPreviousGameState = request.previousGameState;
-    rejectedFocusTarget = request.focusTarget;
+    rejectedOpenContext = {
+      previousGameState: request.previousGameState,
+      focusTarget: request.focusTarget,
+    };
     pendingOpenRequest = null;
     // Keep the rejection surface owned by the equipment overlay until the
     // player explicitly closes it; a renderer/updateUI tick must not hide the
@@ -152,6 +163,6 @@ export function __setEquipmentUiLoaderForTests(importer = null) {
   }
   equipmentUiModule = null;
   equipmentUiPromise = null;
-  rejectedFocusTarget = null;
+  rejectedOpenContext = null;
   equipmentUiImporter = importer || (() => import("./equip_ui.js"));
 }

@@ -109,6 +109,87 @@ test('equipment lazy-load failure clears pending and exposes a recoverable rejec
   await expect(page.locator('#equipment-open-trigger')).toBeFocused();
 });
 
+test('equipment retry preserves the original context and creates a normal draft on success @e2e @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
+    const loader = await import('/src/equipment_ui_loader.js');
+    const character = createStartingKitCharacter('vanguard');
+    character.equipment.weapon = 'DAGGER';
+    state.party = [character];
+    state.inventory = ['SHORT_SWORD'];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'equipment-retry-success' };
+    state.gameState = 'town';
+    const trigger = document.createElement('button');
+    trigger.id = 'equipment-retry-success-trigger';
+    trigger.textContent = '装備を開く';
+    document.body.appendChild(trigger);
+    trigger.focus();
+    let attempts = 0;
+    loader.__setEquipmentUiLoaderForTests(() => {
+      attempts += 1;
+      return attempts === 1
+        ? Promise.reject(new Error('controlled first failure'))
+        : import('/src/equip_ui.js');
+    });
+    await loader.openEquipOverlay(0);
+  });
+
+  await page.getByRole('button', { name: 'もう一度試す' }).click();
+  await expect(page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' })).toBeVisible();
+  expect(await page.evaluate(async () => {
+    const { equipState } = await import('/src/equip.js');
+    const { state } = await import('/src/state.js');
+    return {
+      state: state.gameState,
+      draftExists: Boolean(equipState.draft),
+      previousGameState: equipState.prevGameState,
+    };
+  })).toEqual({ state: 'equip_overlay', draftExists: true, previousGameState: 'town' });
+
+  await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
+  await page.getByRole('button', { name: '装備する' }).click();
+  await expect(page.locator('#btn-equip-commit')).toBeVisible();
+  expect(await page.evaluate(async () => {
+    const { equipState } = await import('/src/equip.js');
+    return Boolean(equipState.draft?.party?.[0]);
+  })).toBe(true);
+  await page.getByRole('button', { name: 'キャンセル' }).first().click();
+  await expect(page.locator('#equip-overlay')).toBeHidden();
+  await expect.poll(() => page.evaluate(async () => (await import('/src/state.js')).state.gameState)).toBe('town');
+});
+
+test('equipment retry failure keeps the original close context and focus @e2e @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
+    const loader = await import('/src/equipment_ui_loader.js');
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.inventory = ['SHORT_SWORD'];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'equipment-retry-failure' };
+    state.gameState = 'town';
+    const trigger = document.createElement('button');
+    trigger.id = 'equipment-retry-failure-trigger';
+    trigger.textContent = '装備を開く';
+    document.body.appendChild(trigger);
+    trigger.focus();
+    loader.__setEquipmentUiLoaderForTests(() => Promise.reject(new Error('controlled retry failure')));
+    await loader.openEquipOverlay(0);
+  });
+
+  await page.getByRole('button', { name: 'もう一度試す' }).click();
+  await expect(page.locator('.equip-loading-state--rejected')).toBeVisible();
+  await expect(page.locator('.equip-loading-state--rejected')).toBeFocused();
+  await page.getByRole('button', { name: '閉じる' }).click();
+  await expect(page.locator('#equip-overlay')).toBeHidden();
+  expect(await page.evaluate(async () => ({
+    state: (await import('/src/state.js')).state.gameState,
+    focused: document.activeElement?.id,
+  }))).toEqual({ state: 'town', focused: 'equipment-retry-failure-trigger' });
+});
+
 test('equipment UI loads asynchronously once and stays cached across town and explore opens @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
