@@ -236,3 +236,13 @@ initially returned `EPERM` while binding the repository's default port; the
 same canonical commands passed once local server binding was allowed. GitHub
 Actions and physical-device evidence remain separate gates and are not inferred
 from this local record.
+
+## Revision / merge-gate evidence
+
+- Fresh review base: `e5a1fb638f6d8bd6f7ff5884a203763701d4790b`
+- Implementation revision inspected before the final evidence-only commit:
+  `f9bc49df821a3c8d13c222e09b9b0345113979e9`
+- PR-specific changed-file-set SHA-256:
+  `6bd27350e77f05bd45e0ff50542755988583d57a7f8360ae6d2bd8a4802fb3d3`
+- The final independent-review comment records the exact current PR HEAD,
+  base, changed files, P0-P2 disposition, and verdict.
