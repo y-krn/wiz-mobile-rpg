@@ -15,7 +15,7 @@ Phase 1 は C2（B1F〜B5F の chest trap のみ無効）が retry-hypothesis �
 - measurement source: canonical `simulateRun` (`scratch/simulations/sim_depth_material_ev.js`) + reusable `starting_kit_diagnostic`。独立 gameplay model は作っていない。
 - conditions: seed `1233`, `worldSeed=getDiagnosticWorldSeed(seed, runIndex)`, N=1000/condition, targetDepth=6（B1F〜B5F band）、fresh vanguard、Workshop ranks `{}`、持込回復なし、departure craftなし、B1F開始、fight policy。
 - Phase 2 environment hash: `79f4f38a3efa2922` / Node `v26.8.2`。
-- final measurement tree cleanliness: clean before Phase 2 run; browser artifactsは `/private/tmp/issue1233-playwright-artifacts` に退避。
+- final measurement tree cleanliness: clean before Phase 2 run; browser artifactsは `/private/tmp/issue1233-playwright-rerun-artifacts` に退避。
 - P1 review対応: production `rollChestTrap(1, rng)` は効果を `none` に遅延しても旧実装どおり `rng()` を1回消費する。これにより B1F chest reward / special reward / accessory / loot hint の後続streamを変更しない。C1/C2/C3のmeasurement-only disabled policyは元々trap rollを呼び出してこの1 drawを維持していたため、Phase 1は再実行していない。対象unitは「B1F rollはちょうど1 draw」を回帰固定した。
 
 ## Phase 1 — candidate 前（同一 seed/world）
@@ -74,11 +74,25 @@ Playwright CLIでブラウザデータを分離した fresh vanguard runを2本�
 
 ## Verification
 
-- `npm run test:unit`: pass `201/201`。
+- runner `node --check`: pass（chest rule / unit / measurement runner）。N=1 dirty smokeを2回実行し、complete JSON `cmp` 一致（deterministic JSON: PASS）。
+- `npm run test:unit`: current HEAD `8ffdd08`で pass `201/201`。
 - `npm run lint`: pass（CSS/docs/skills/tests/markdown/workflow/ESLint）。
 - `npm run build`: pass（Vite build; chunk-size warning only）。
 - `npm run test:browser`: pass `88/88`。
-- `npm run test:browser:parallel`: first attemptは fixed port `15781` collision/EPERMで preflight停止。`PLAYWRIGHT_PORT=15782` へ切り替えて再実行し `88/88` pass。これは今回変更と無関係な環境要因。
+- `npm run test:browser:parallel`: sandbox下の初回は task-owned fixed port `15782` の preflightが `EPERM (collision or permission failure)` で本体未実行。権限付きで同じ `PLAYWRIGHT_PORT=15782` をrerunし `88/88` pass。今回変更と無関係な環境要因であり、失敗を無視していない。
 - unit initial runで simulation regression 3本が失敗したが、B1 chest candidateで古くなったfixture 2本（B2 fixtureへ更新）と aggregate attack orderingを不変とした1本（selector invariantへ更新）だった。3本を単独rerun後、current HEADで unit全体を再実行し `201/201` pass。黙って無視していない。
 - P1修正後のcurrent-head unitでは `test_sim_follow_gate.js` が固定 `runIndex=7` で `progression.experience` 未到達となった。単独rerunでも再現し、今回のB1F legacy RNG draw復元によるstream変化が原因で、chest ruleのfailureではないことを確認した。同じcanonical smoke契約を満たす安定 `runIndex=1` へfixtureを更新して再実行する。元のfailureを黙って無視していない。
 - PRは作成後にmergeせずレビュー待ちとする。
+
+## Reproduction
+
+```sh
+node scratch/measurements/first_band_trap_diagnostic.js \
+  --runs 1000 --seed 1233 \
+  --output /private/tmp/issue1233-phase2-rng-fixed.json \
+  --summary /private/tmp/issue1233-phase2-rng-fixed.md \
+  --manifest /private/tmp/issue1233-phase2-rng-fixed.manifest.json \
+  --purpose "Issue #1233 Phase 2 after preserving B1 chest trap RNG draw"
+```
+
+固定条件は fresh vanguard / Workshop ranks `{}` / 持込回復なし / departure craftなし / B1F開始 / fight policy / targetDepth 6 / seed 1233 / N=1000。raw JSONは `/private/tmp` に置き、repositoryには要約とprovenanceのみを記録する。
