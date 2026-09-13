@@ -310,9 +310,11 @@ audit record and evidence are in
 - `--bg-color` / `--panel-bg`: coal-black base shell and persistent shell
   panels. Do not use them to imply selection or recommendation.
 - `--surface-raised`, `--surface-inset`, `--surface-control`,
-  `--surface-deep`, and `--surface-unavailable`: raised information,
-  recessed lists, dark controls, deep detail regions, and unavailable
-  controls respectively. Use a surface only when it establishes a real
+  `--surface-neutral`, `--surface-deep`, `--surface-unavailable`, and
+  `--surface-meter-track`: raised information, recessed lists, interactive
+  dark controls, passive low-neutral information, deep detail regions,
+  unavailable controls, and passive HP/MP meter or equipment-stat surfaces
+  respectively. Use a surface only when it establishes a real
   boundary; whitespace, rules, and type may define a region without a card.
 - `--border-color`, `--border-strong`, `--border-control`,
   `--border-unavailable`, and `--border-disabled`: neutral hierarchy and

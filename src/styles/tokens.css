@@ -6,11 +6,13 @@
   --border-strong: #3a4c56;
   --surface-raised: #151f27;
   --surface-inset: #0d141a;
-  /* Shared dark control surfaces retain the current palette while making
-     repeated ownership explicit for future audits. */
+  /* Repeated dark surfaces retain the current palette while keeping semantic
+     ownership explicit for future audits. */
   --surface-control: #14141a;
+  --surface-neutral: #14141a;
   --surface-deep: #101014;
   --surface-unavailable: #0c0c0e;
+  --surface-meter-track: #0c0c0e;
   --text-primary: #f1eee5;
   --text-secondary: #a5b0b3;
   --vital-hp: #b7dfc1;

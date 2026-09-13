@@ -1002,7 +1002,7 @@
 }
 
 .equip-stat-pill {
-  background-color: var(--surface-unavailable);
+  background-color: var(--surface-meter-track);
   border: 1px solid var(--border-control);
   border-radius: 4px;
   display: grid;

@@ -202,7 +202,7 @@
 .card-hp-bar-container, .card-mp-bar-container {
   width: 100%;
   height: 4px;
-  background-color: var(--surface-unavailable);
+  background-color: var(--surface-meter-track);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 1px;
@@ -286,7 +286,7 @@
   min-width: 0;
   padding: var(--sp-xs);
   border: 1px solid #333;
-  background: var(--surface-control);
+  background: var(--surface-neutral);
 }
 
 .combat-enemy-info-name {
