@@ -13,7 +13,10 @@ import {
   buildManifest,
   buildReport,
   buildSummary,
+  buildPolicySensitivityReport,
+  buildPolicySensitivitySummary,
   positiveInteger,
+  runPolicySensitivityMeasurement,
   runMeasurement
 } from "./run_difficulty_measurement.js";
 
@@ -44,14 +47,20 @@ const provenance = requireRunnerProvenance({
   fetchOriginMain: false,
   measurementRunnerPaths: [...MEASUREMENT_RUNNER_PATHS]
 });
-const result = await runMeasurement({ runs, seed });
-const report = buildReport(result, provenance, {
-  purpose: options.purpose || null,
-  requestedRef: options.ref || process.env.MEASUREMENT_REQUESTED_REF || null
-});
+const requestedRef = options.ref || process.env.MEASUREMENT_REQUESTED_REF || null;
+const purpose = options.purpose || null;
+const policyIds = options.policies
+  ? String(options.policies).split(",").map(value => value.trim()).filter(Boolean)
+  : null;
+const result = policyIds
+  ? await runPolicySensitivityMeasurement({ runs, seed, portalPolicyIds: policyIds })
+  : await runMeasurement({ runs, seed });
+const report = policyIds
+  ? buildPolicySensitivityReport(result, provenance, { purpose, requestedRef })
+  : buildReport(result, provenance, { purpose, requestedRef });
 const runType = process.env.MEASUREMENT_RUN_TYPE || options["run-type"] || "baseline-candidate";
 
 fs.writeFileSync(resolve(output), `${JSON.stringify(report, null, 2)}\n`);
-fs.writeFileSync(resolve(summary), `${buildSummary(report)}\n`);
+fs.writeFileSync(resolve(summary), `${(policyIds ? buildPolicySensitivitySummary : buildSummary)(report)}\n`);
 fs.writeFileSync(resolve(manifest), `${JSON.stringify(buildManifest(report, { runType }), null, 2)}\n`);
 console.log(`Wrote run difficulty measurement: ${resolve(output)}`);
