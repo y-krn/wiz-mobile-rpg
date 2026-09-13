@@ -35,9 +35,12 @@ function createCombatState(target = {}) {
     },
     currentRun: { itemsFound: [], equipmentFound: [], deathLogs: [] },
     inventory: [], firstKills: [], codex: null, floorChestsTotal: [],
-    simTelemetry: { vulnerable: { attempts: 0, applied: 0, refresh: 0, consumed: 0, expired: 0, cleared: 0, damageContribution: 0, latencyTurns: [], qualifyingHitTypes: {}, sources: {} } },
     combatFormulaTelemetry: { physicalPlayerHits: [], physicalPlayerMisses: [], physicalMonsterHits: [], spellHits: [], targetedBonuses: [], mitigations: [], mitigationCalls: [] }
   };
+}
+
+function createMeasurement() {
+  return { vulnerable: { attempts: 0, applied: 0, refresh: 0, consumed: 0, expired: 0, cleared: 0, damageContribution: 0, latencyTurns: [], qualifyingHitTypes: {}, sources: {} } };
 }
 
 const target = {};
@@ -58,14 +61,15 @@ assert.equal(hasStatusEffectForDamage(target), false);
 const spellState = createCombatState();
 const spellTarget = spellState.combatState.monsters[0];
 const spellLogs = [];
-resolvePlayerSpell(spellState.party[0], { spellName: "VULNERA", targetIdx: 0 }, spellState, [spellTarget], spellLogs, { rng: () => 0 });
+const spellMeasurement = createMeasurement();
+resolvePlayerSpell(spellState.party[0], { spellName: "VULNERA", targetIdx: 0 }, spellState, [spellTarget], spellLogs, { rng: () => 0, measurement: spellMeasurement });
 assert.equal(hasStatusEffect(spellTarget, STATUS_EFFECT_IDS.VULNERABLE), true);
-assert.equal(spellState.simTelemetry.vulnerable.attempts, 1);
-assert.equal(spellState.simTelemetry.vulnerable.applied, 1);
-resolvePlayerSpell(spellState.party[0], { spellName: "MAHALITO", targetIdx: 0 }, spellState, [spellTarget], spellLogs, { rng: () => 0 });
+assert.equal(spellMeasurement.vulnerable.attempts, 1);
+assert.equal(spellMeasurement.vulnerable.applied, 1);
+resolvePlayerSpell(spellState.party[0], { spellName: "MAHALITO", targetIdx: 0 }, spellState, [spellTarget], spellLogs, { rng: () => 0, measurement: spellMeasurement });
 assert.equal(hasStatusEffect(spellTarget, STATUS_EFFECT_IDS.VULNERABLE), false);
-assert.equal(spellState.simTelemetry.vulnerable.consumed, 1);
-assert.equal(spellState.simTelemetry.vulnerable.qualifyingHitTypes.spell, 1);
+assert.equal(spellMeasurement.vulnerable.consumed, 1);
+assert.equal(spellMeasurement.vulnerable.qualifyingHitTypes.spell, 1);
 assert.equal(spellState.combatFormulaTelemetry.spellHits.at(-1).damage, 38);
 assert.equal(spellState.combatFormulaTelemetry.spellHits.at(-1).vulnerableDamageContribution, 8);
 assert.match(spellLogs.map(entry => entry.msg).join("\n"), /脆弱で\+8/);
@@ -73,8 +77,9 @@ assert.match(spellLogs.map(entry => entry.msg).join("\n"), /脆弱で\+8/);
 const areaState = createCombatState();
 areaState.party[0].mediumState.socketedRunes.push("RUNE_LAHALITO");
 const areaTarget = areaState.combatState.monsters[0];
+const areaMeasurement = createMeasurement();
 applyStatusEffect(areaTarget, STATUS_EFFECT_IDS.VULNERABLE, { remainingTurns: 3, source: "VULNERA" });
-resolvePlayerSpell(areaState.party[0], { spellName: "LAHALITO", targetIdx: -1 }, areaState, [areaTarget], [], { rng: () => 0 });
+resolvePlayerSpell(areaState.party[0], { spellName: "LAHALITO", targetIdx: -1 }, areaState, [areaTarget], [], { rng: () => 0, measurement: areaMeasurement });
 assert.equal(areaTarget.hp, 981);
 assert.equal(areaState.combatFormulaTelemetry.spellHits.at(-1).vulnerableConsumed, true);
 assert.equal(areaState.combatFormulaTelemetry.spellHits.at(-1).vulnerableDamageContribution, 4);
@@ -83,13 +88,15 @@ const physicalState = createCombatState({
   statusEffects: { vulnerable: { id: "vulnerable", remainingTurns: 3, stacks: 1, source: "VULNERA" } }
 });
 physicalState.party[0].str = 15;
+const physicalMeasurement = createMeasurement();
 const physical = runCombatRoundCalculation(physicalState, {
   actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-}, { rng: () => 0 });
+}, { rng: () => 0, measurement: physicalMeasurement });
 const physicalHit = physical.state.combatFormulaTelemetry.physicalPlayerHits[0];
 assert.equal(physicalHit.vulnerableConsumed, true);
 assert.ok(physicalHit.vulnerableDamageContribution > 0);
-assert.equal(physical.state.simTelemetry.vulnerable.qualifyingHitTypes.physical, 1);
+assert.equal(physicalMeasurement.vulnerable.qualifyingHitTypes.physical, 1);
+assert.equal(physical.state.simTelemetry, undefined);
 assert.equal(hasStatusEffect(physical.state.combatState.monsters[0], STATUS_EFFECT_IDS.VULNERABLE), false);
 
 const originalParty = state.party;

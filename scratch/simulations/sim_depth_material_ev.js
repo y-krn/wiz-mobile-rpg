@@ -7695,6 +7695,8 @@ function runEncounter(
     encounterEventKey = null
   } = {}
 ) {
+  const combatPolicy = state.simPolicy;
+  const combatMeasurement = metrics?.killHeal || null;
   const diagnosticLevel = metrics?.diagnosticLevel || "full";
   const fullDiagnostics = diagnosticLevel === "full";
   const compactDiagnostics = diagnosticLevel === "compact";
@@ -8319,7 +8321,7 @@ function runEncounter(
     const monstersBeforeRound = structuredClone(state.combatState.monsters);
     const enemyTurnEventsBeforeRound = metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0;
     const characterBeforeRound = structuredClone(character);
-    const executionerTriggersBefore = state.simTelemetry?.executionerTriggers || 0;
+    const executionerTriggersBefore = combatMeasurement?.executionerTriggers || 0;
     const bloodWandOpportunity = getBloodWandOpportunity(state, action, observations);
     observations.bloodWandSpellOpportunities += Number(bloodWandOpportunity === "offense");
     observations.bloodWandHealOpportunities += Number(bloodWandOpportunity === "heal");
@@ -8355,7 +8357,11 @@ function runEncounter(
     try {
       roundResult = withSimulationHealEffects(state, () => runCombatRoundCalculation(state, {
         actions: [action]
-      }, { rng: roundRng }));
+      }, {
+        rng: roundRng,
+        policy: combatPolicy,
+        measurement: combatMeasurement
+      }));
     } finally {
       if (targetedDamageProbe) {
         globalThis.__simTargetedDamageProbe = previousTargetedDamageProbe;
@@ -8430,7 +8436,7 @@ function runEncounter(
       firstStrikeSucceeded
     );
     observations.executionerTriggerCount +=
-      (roundResult.state.simTelemetry?.executionerTriggers || 0) - executionerTriggersBefore;
+      (combatMeasurement?.executionerTriggers || 0) - executionerTriggersBefore;
     const bloodWandActivationType = getBloodWandActivationType(
       action,
       roundResult.logQueue
@@ -8438,7 +8444,10 @@ function runEncounter(
     observations.bloodWandSpellActivations += Number(bloodWandActivationType === "offense");
     observations.bloodWandHealActivations += Number(bloodWandActivationType === "heal");
     observations.coreActivationCounts.CORE_BLOOD_WAND += Number(Boolean(bloodWandActivationType));
-    state = roundResult.state;
+    // The large simulation runner still uses these two values for non-combat
+    // decisions. Keep that runner-local state attached after the clean combat
+    // result is returned; the production combat result itself remains clean.
+    state = { ...roundResult.state, simPolicy: combatPolicy };
     const roundEnemyActions = Math.max(
       0,
       (metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0) - enemyTurnEventsBeforeRound
@@ -10058,7 +10067,6 @@ function snapshotCheckpointState(state) {
   snapshot.map = null;
   snapshot.combatState = null;
   snapshot.encounterRateOverride = null;
-  snapshot.simTelemetry = null;
   return snapshot;
 }
 
@@ -14643,7 +14651,6 @@ export function simulateRun({
       );
     });
   }
-  state.simTelemetry = metrics.killHeal;
   metrics.buildSnapshot = resolveBuildSnapshot(state.party[0]);
   metrics.startingBuildSnapshot = fixtureId
     ? resolveBuildSnapshot(state.party[0])

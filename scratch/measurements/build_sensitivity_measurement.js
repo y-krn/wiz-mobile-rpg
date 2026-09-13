@@ -298,24 +298,36 @@ function createSimulationState(buildId, depth, monsters, seed, counterfactual = 
   currentRun.characterClass = "Mage";
   currentRun.floorsVisited = [depth];
   return {
-    x: 0,
-    y: 0,
-    floor: depth,
-    seed,
-    party: [character],
-    inventory: [],
-    firstKills: [],
-    currentRun,
-    records: createDefaultRecords(),
-    codex: createDefaultCodex(),
-    metaMaterials: {},
-    workshop: { ranks: {} },
-    unlockedMilestones: [],
-    roamingMonsters: [],
-    floorChestsTotal: [],
-    identifyTickets: 0,
-    gameState: "combat",
-    simPolicy: {
+    state: {
+      x: 0,
+      y: 0,
+      floor: depth,
+      seed,
+      party: [character],
+      inventory: [],
+      firstKills: [],
+      currentRun,
+      records: createDefaultRecords(),
+      codex: createDefaultCodex(),
+      metaMaterials: {},
+      workshop: { ranks: {} },
+      unlockedMilestones: [],
+      roamingMonsters: [],
+      floorChestsTotal: [],
+      identifyTickets: 0,
+      gameState: "combat",
+      combatFormulaTelemetry: createTelemetry(),
+      combatState: {
+        monsters,
+        isBoss,
+        isMidboss,
+        isRoamingFlack,
+        roundNumber: 1,
+        phase: "choose_actions",
+        loggedCoreActivations: []
+      }
+    },
+    policy: {
       ...(counterfactual?.kind === "disable_multi_action_extra"
         ? { measurementMaxActionsPerEnemy: 1 }
         : {}),
@@ -326,17 +338,7 @@ function createSimulationState(buildId, depth, monsters, seed, counterfactual = 
         ? { measurementMaxEnemyActionsPerRound: counterfactual.maxActionsPerRound }
         : {})
     },
-    simTelemetry: { executionerTriggers: 0, causalDamageEvents: [], causalHealEvents: [], measurementEnemyTurnEvents: [] },
-    combatFormulaTelemetry: createTelemetry(),
-    combatState: {
-      monsters,
-      isBoss,
-      isMidboss,
-      isRoamingFlack,
-      roundNumber: 1,
-      phase: "choose_actions",
-      loggedCoreActivations: []
-    }
+    measurement: { executionerTriggers: 0, causalDamageEvents: [], causalHealEvents: [], measurementEnemyTurnEvents: [] }
   };
 }
 
@@ -810,12 +812,13 @@ export function runEncounterSample({
     const fixture = generatedMonsters
       ? createGeneratedEncounterFixture(generatedMonsters, depth, counterfactual, encounterId)
       : createEncounterFixture(encounterId, depth, counterfactual);
-    const state = createSimulationState(buildId, depth, fixture.monsters, seed, counterfactual, {
+    const simulation = createSimulationState(buildId, depth, fixture.monsters, seed, counterfactual, {
       initialCharacter,
       isBoss,
       isMidboss,
       isRoamingFlack
     });
+    const { state, policy, measurement } = simulation;
     const mechanisms = createMechanismCounts();
     const statusTrajectory = createStatusTrajectory();
     let rounds = 0;
@@ -843,17 +846,17 @@ export function runEncounterSample({
       ) {
         mpStarvationRounds++;
       }
-      const causalEventStart = state.simTelemetry.causalDamageEvents.length;
-      const causalHealEventStart = state.simTelemetry.causalHealEvents.length;
-      const enemyTurnEventStart = state.simTelemetry.measurementEnemyTurnEvents.length;
-      const result = runCombatRoundCalculation(state, { actions: [action] }, { rng });
+      const causalEventStart = measurement.causalDamageEvents.length;
+      const causalHealEventStart = measurement.causalHealEvents.length;
+      const enemyTurnEventStart = measurement.measurementEnemyTurnEvents.length;
+      const result = runCombatRoundCalculation(state, { actions: [action] }, { rng, policy, measurement });
       rounds++;
       observeRound(mechanisms, action, result.logQueue);
       const characterAfter = result.state.party[0];
       const characterStateAfter = getCharacterStateSnapshot(characterAfter);
       const enemyStateAfter = getEnemyStateSnapshot(result.state.combatState.monsters);
       const messages = result.logQueue.map(entry => String(entry.msg || ""));
-      const roundCausalDamage = state.simTelemetry.causalDamageEvents.slice(causalEventStart);
+      const roundCausalDamage = measurement.causalDamageEvents.slice(causalEventStart);
       const roundMechanisms = getRoundMechanismEvents(messages, rounds);
       const statusEvents = getStatusTransitions(characterStateBefore, characterStateAfter, messages, rounds);
       const spellCastOpportunityLoss = messages.some(message => /沈黙していて呪文を唱えられない/.test(message));
@@ -875,13 +878,13 @@ export function runEncounterSample({
             physicalFallback ? "physical_fallback" : action.type === "spell" ? "spell_cast" : action.type
         },
         enemyActions: getEnemyActions(messages, rounds),
-        enemyTurnEvents: state.simTelemetry.measurementEnemyTurnEvents.slice(enemyTurnEventStart),
+        enemyTurnEvents: measurement.measurementEnemyTurnEvents.slice(enemyTurnEventStart),
         statusEvents,
         mechanisms: roundMechanisms,
         spellCastOpportunityLoss,
         physicalFallback,
         damageEvents: roundCausalDamage,
-        healEvents: state.simTelemetry.causalHealEvents.slice(causalHealEventStart),
+        healEvents: measurement.causalHealEvents.slice(causalHealEventStart),
         stateDegradation: {
           hp: { before: characterStateBefore.hp, after: characterStateAfter.hp },
           mp: { before: characterStateBefore.mp, after: characterStateAfter.mp },
@@ -938,7 +941,7 @@ export function runEncounterSample({
         statusTrajectory,
         mpStarvationRounds,
         trace,
-        causalDamageEvents: state.simTelemetry.causalDamageEvents
+        causalDamageEvents: measurement.causalDamageEvents
       });
     return {
       outcome,
@@ -948,7 +951,7 @@ export function runEncounterSample({
       lowResource,
       failure,
       trace,
-      causalDamageEvents: state.simTelemetry.causalDamageEvents,
+      causalDamageEvents: measurement.causalDamageEvents,
       mechanisms,
       statusTrajectory,
       mpStarvationRounds,

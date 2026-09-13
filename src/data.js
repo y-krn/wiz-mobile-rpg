@@ -79,7 +79,8 @@ for (const [key, val] of Object.entries(STATIC_SPELLS)) {
         party,
         telemetryEnabled: Boolean(options?.telemetryEnabled),
         state: options?.state || null,
-        logQueue: options?.logQueue || null
+        logQueue: options?.logQueue || null,
+        measurement: options?.measurement || null
       });
     }
   };

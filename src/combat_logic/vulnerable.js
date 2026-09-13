@@ -9,9 +9,9 @@ import {
   VULNERABLE_DURATION_TURNS
 } from "./status_effects.js";
 
-function ensureVulnerableTelemetry(state) {
-  if (!state?.simTelemetry) return null;
-  state.simTelemetry.vulnerable ||= {
+function ensureVulnerableTelemetry(measurement) {
+  if (!measurement) return null;
+  measurement.vulnerable ||= {
     attempts: 0,
     applied: 0,
     refresh: 0,
@@ -23,11 +23,11 @@ function ensureVulnerableTelemetry(state) {
     qualifyingHitTypes: {},
     sources: {},
   };
-  return state.simTelemetry.vulnerable;
+  return measurement.vulnerable;
 }
 
-export function recordVulnerableEvent(state, event, target, metadata = {}) {
-  const vulnerable = ensureVulnerableTelemetry(state);
+export function recordVulnerableEvent(state, event, target, metadata = {}, measurement = null) {
+  const vulnerable = ensureVulnerableTelemetry(measurement);
   if (vulnerable) {
     const counterKey = event === "attempt" ? "attempts" : event;
     vulnerable[counterKey] = (vulnerable[counterKey] || 0) + 1;
@@ -58,13 +58,13 @@ export function recordVulnerableEvent(state, event, target, metadata = {}) {
   });
 }
 
-export function tryApplyVulnerable(caster, target, state, logQueue) {
+export function tryApplyVulnerable(caster, target, state, logQueue, measurement = null) {
   if (!target || target.hp <= 0) return false;
   const alreadyVulnerable = hasStatusEffect(target, STATUS_EFFECT_IDS.VULNERABLE);
   recordVulnerableEvent(state, "attempt", target, {
     source: "VULNERA",
     buildKey: "VULNERA"
-  });
+  }, measurement);
   applyStatusEffect(target, STATUS_EFFECT_IDS.VULNERABLE, {
     remainingTurns: VULNERABLE_DURATION_TURNS,
     stacks: 1,
@@ -74,7 +74,7 @@ export function tryApplyVulnerable(caster, target, state, logQueue) {
   recordVulnerableEvent(state, event, target, {
     source: "VULNERA",
     buildKey: "VULNERA"
-  });
+  }, measurement);
   logQueue?.push({
     msg: alreadyVulnerable
       ? `[味方] ${caster.name}のヴルネラが${target.name}の脆弱を更新した！（あと${VULNERABLE_DURATION_TURNS}回）`
@@ -85,7 +85,7 @@ export function tryApplyVulnerable(caster, target, state, logQueue) {
   return true;
 }
 
-export function consumeVulnerableDamage(target, damage, state, qualifyingHitType) {
+export function consumeVulnerableDamage(target, damage, state, qualifyingHitType, measurement = null) {
   const result = applyVulnerableDamage(target, damage, {
     multiplier: state?.vulnerableDamageMultiplier ?? VULNERABLE_DAMAGE_MULTIPLIER
   });
@@ -97,23 +97,23 @@ export function consumeVulnerableDamage(target, damage, state, qualifyingHitType
     damageContribution: result.damageContribution,
     directDamage: damage,
     latencyTurns: result.latencyTurns
-  });
+  }, measurement);
   return result;
 }
 
-export function recordVulnerableExpiry(state, target) {
+export function recordVulnerableExpiry(state, target, measurement = null) {
   recordVulnerableEvent(state, "expired", target, {
     reason: "duration",
     source: target?.statusEffects?.[STATUS_EFFECT_IDS.VULNERABLE]?.source || "VULNERA",
     buildKey: "VULNERA"
-  });
+  }, measurement);
 }
 
-export function clearVulnerableOnDefeat(state, target, reason) {
+export function clearVulnerableOnDefeat(state, target, reason, measurement = null) {
   if (!clearVulnerableStatus(target)) return;
   recordVulnerableEvent(state, "cleared", target, {
     reason,
     source: "VULNERA",
     buildKey: "VULNERA"
-  });
+  }, measurement);
 }

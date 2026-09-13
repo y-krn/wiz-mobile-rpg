@@ -152,14 +152,16 @@ function createState(loadout, firstStrike, composition, model, runSeed) {
   currentRun.startFloor = 1;
   currentRun.deepestFloor = 1;
   return {
-    party: [character],
-    combatState: {
-      monsters: createMonsters(composition), roundNumber: 1, phase: "choose_actions",
-      isBoss: false, isMidboss: false, isRoamingFlack: false, retreatPosition: null, allParalyzedTurns: 0
+    state: {
+      party: [character],
+      combatState: {
+        monsters: createMonsters(composition), roundNumber: 1, phase: "choose_actions",
+        isBoss: false, isMidboss: false, isRoamingFlack: false, retreatPosition: null, allParalyzedTurns: 0
+      },
+      inventory: [], firstKills: [], codex: createDefaultCodex(), currentRun,
+      metaMaterials: {}, roamingMonsters: [], floorChestsTotal: [], floor: 1
     },
-    inventory: [], firstKills: [], codex: createDefaultCodex(), currentRun,
-    metaMaterials: {}, roamingMonsters: [], floorChestsTotal: [], floor: 1,
-    simPolicy: model === "shared-roll-load-counterfactual"
+    policy: model === "shared-roll-load-counterfactual"
       ? { measurementInitiative: { rollSize: 20, playerLoadModifier: loadout.loadModifier, playerFirstStrikeModifier: firstStrike.extra || 0, enemySpeedModifier: 0 } }
       : {}
   };
@@ -172,7 +174,8 @@ function getAction(policy, round) {
 }
 
 function resolveTrial({ loadout, firstStrike, composition, model, policy, seed }) {
-  let state = createState(loadout, firstStrike, composition, model, seed);
+  const fixture = createState(loadout, firstStrike, composition, model, seed);
+  let state = fixture.state;
   const rng = createRng(seed);
   const initialHp = state.party[0].hp;
   const observations = [];
@@ -183,7 +186,7 @@ function resolveTrial({ loadout, firstStrike, composition, model, policy, seed }
   while (rounds < MAX_ROUNDS) {
     const action = getAction(policy, rounds + 1);
     const hpBefore = state.party[0].hp;
-    const result = runCombatRoundCalculation(state, { actions: [action] }, { rng });
+    const result = runCombatRoundCalculation(state, { actions: [action] }, { rng, policy: fixture.policy });
     const actionObservations = result.actionObservations || [];
     observations.push(...actionObservations);
     totalEnemyActions += actionObservations.filter(item => item.actor === "monster" && item.executed).length;

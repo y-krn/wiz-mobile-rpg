@@ -52,6 +52,9 @@ function resolveB5MilestoneBossAction(mon, state, logQueue) {
  */
 export function resolveBossAction(mon, state, combatSelection, monsters, logQueue, options = {}) {
   const rng = options.rng || Math.random;
+  const measurement = options.measurement || null;
+  const recordAction = (monster, action) => recordMonsterAction(monster, action, state, measurement);
+  const recordCondition = (monster, condition) => recordMonsterCondition(monster, condition, state, measurement);
   if (resolveB5MilestoneBossAction(mon, state, logQueue)) return true;
 
   // フラック独自のギミック行動
@@ -62,7 +65,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     }
 
     if (!isSilenced && mon.lahalitoQueued) {
-      recordMonsterAction(mon, "LAHALITO", state);
+      recordAction(mon, "LAHALITO");
       mon.lahalitoQueued = false;
       logQueue.push({
         msg: `[ 敵 ] フラックは激しい炎の息（ラハリト）を吹き出した！`,
@@ -83,7 +86,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
-          recordReceivedDamage(state, c, "フラック", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
+          recordReceivedDamage(state, c, "フラック", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending, measurement });
           const recovered = clearCharIncapacitationOnDamage(c);
           logQueue.push({
             msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
@@ -124,7 +127,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     }
 
     if (action === "flee") {
-      recordMonsterAction(mon, "逃走", state);
+      recordAction(mon, "逃走");
       mon.hp = 0;
       mon.fled = true;
       logQueue.push({
@@ -133,7 +136,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       });
       return true;
     } else if (action === "suicide") {
-      recordMonsterAction(mon, "自爆", state);
+      recordAction(mon, "自爆");
       mon.hp = 0;
       logQueue.push({
         msg: `[ 敵 ] フラックは禍々しい光を放ち、自爆した！`,
@@ -154,7 +157,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
-          recordReceivedDamage(state, c, "フラック", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
+          recordReceivedDamage(state, c, "フラック", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending, measurement });
           const recovered = clearCharIncapacitationOnDamage(c);
           logQueue.push({
             msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
@@ -178,7 +181,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     } else if (action === "gaze") {
       const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => x.c.status === "ok");
       if (livingChars.length > 0) {
-        recordMonsterAction(mon, "呪いの眼光", state);
+        recordAction(mon, "呪いの眼光");
         const targetChar = livingChars[Math.floor(rng() * livingChars.length)];
         const target = targetChar.c;
         const isDefending = combatSelection.actions.some(a => a.actorIdx === targetChar.i && a.type === "defend");
@@ -201,11 +204,11 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const gazeRoll = rng();
           if (gazeRoll < 0.50) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.BLIND, { source: "boss_gaze" });
-            recordMonsterCondition(mon, "盲目を受けた", state);
+            recordCondition(mon, "盲目を受けた");
             logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は盲目になった！` });
           } else {
             applyStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED, { source: "boss_gaze" });
-            recordMonsterCondition(mon, "麻痺を受けた", state);
+            recordCondition(mon, "麻痺を受けた");
             logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は麻痺した！` });
           }
         }
@@ -230,7 +233,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         return true;
       }
       mon.turnCount = (mon.turnCount || 0) + 1;
-      recordMonsterAction(mon, "TILTOWAIT", state);
+      recordAction(mon, "TILTOWAIT");
       logQueue.push({
         msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！(防御で大幅軽減可能)`,
         sound: "cast_spell",
@@ -259,7 +262,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
-          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "special", isDefending });
+          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "special", isDefending, measurement });
           const recovered = clearCharIncapacitationOnDamage(c);
           logQueue.push({
             msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
@@ -278,7 +281,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     if (mon.dragonBreathQueued) {
       mon.dragonBreathQueued = false;
       mon.turnCount = (mon.turnCount || 0) + 1;
-      recordMonsterAction(mon, "炎の息", state);
+      recordAction(mon, "炎の息");
       logQueue.push({
         msg: `[ 敵 ] いにしえの竜は激しい炎の息を吐き出した！`,
         sound: "cast_spell",
@@ -298,7 +301,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
-          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "breath", isDefending });
+          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "breath", isDefending, measurement });
           const recovered = clearCharIncapacitationOnDamage(c);
           logQueue.push({
             msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
@@ -327,7 +330,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         shake: 15,
         flash: true
       });
-      recordMonsterAction(mon, "MADALTO", state);
+      recordAction(mon, "MADALTO");
       state.party.forEach((c, charIdx) => {
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
@@ -341,7 +344,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const playerHpBefore = c.hp;
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
-          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
+          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending, measurement });
           const recovered = clearCharIncapacitationOnDamage(c);
           logQueue.push({
             msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}`,

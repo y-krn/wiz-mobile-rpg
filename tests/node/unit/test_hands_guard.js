@@ -140,13 +140,13 @@ const causalDamageEvents = [];
 const telemetryCharacter = character({ shield: "MAGIC_SHIELD" });
 telemetryCharacter.hp = 18;
 recordReceivedDamage(
-  { floor: 5, simTelemetry: { causalDamageEvents } },
+  { floor: 5 },
   telemetryCharacter,
   "いにしえの竜",
   10,
   5,
   23,
-  { attackType: "breath", isDefending: true }
+  { attackType: "breath", isDefending: true, measurement: { causalDamageEvents } }
 );
 assert.equal(causalDamageEvents.at(-1).attackType, "breath", "Guarded breath keeps its attack type in simulation telemetry");
 

@@ -206,10 +206,10 @@ export function tryApplyExecutionerSetup(
   return true;
 }
 
-export function recordExecutionerTrigger(state, coreIds) {
-  if (!state?.simTelemetry || !coreIds?.includes("CORE_EXECUTIONER")) return;
-  state.simTelemetry.executionerTriggers =
-    (state.simTelemetry.executionerTriggers || 0) + 1;
+export function recordExecutionerTrigger(state, coreIds, measurement = null) {
+  if (!measurement || !coreIds?.includes("CORE_EXECUTIONER")) return;
+  measurement.executionerTriggers =
+    (measurement.executionerTriggers || 0) + 1;
 }
 
 export function getSpellPayment(char, mpCost) {

@@ -49,7 +49,7 @@ export function recordReceivedDamage(
       : finalDamage;
   // rawDamage intentionally keeps its legacy meaning. For normal physical
   // hits it is the post-DEF, pre-other-mitigation value, not preDefDamage.
-  state?.simTelemetry?.causalDamageEvents?.push({
+  options.measurement?.causalDamageEvents?.push({
     round: state?.combatState?.roundNumber ?? null,
     source: sourceName,
     attackType,
@@ -122,14 +122,14 @@ export function getEffectiveAtk(mon) {
 
 export function applyTargetedDamageBonus(char, target, dmg, options = {}) {
   const result = getDamageAffixResult(char, target, dmg, options);
-  recordExecutionerTrigger(options.state, result.coreIds);
+  recordExecutionerTrigger(options.state, result.coreIds, options.measurement);
   result.coreIds.forEach(coreId => {
     logCoreActivation(options.state, options.logQueue, char, coreId);
   });
   return result.damage;
 }
 
-export function applyKillAffixEffects(char, target, state, logQueue) {
+export function applyKillAffixEffects(char, target, state, logQueue, options = {}) {
   if (!char || !target || target.affixKillProcessed) return;
   target.affixKillProcessed = true;
 
@@ -137,15 +137,15 @@ export function applyKillAffixEffects(char, target, state, logQueue) {
   if (killHeal > 0 && char.hp > 0) {
     const hpBefore = char.hp;
     char.hp = Math.min(getCharMaxHp(char), char.hp + killHeal);
-    if (state?.simTelemetry) {
-      state.simTelemetry.killHealActivations =
-        (state.simTelemetry.killHealActivations || 0) + 1;
-      state.simTelemetry.killHealPotentialHp =
-        (state.simTelemetry.killHealPotentialHp || 0) + killHeal;
-      state.simTelemetry.killHealRecoveredHp =
-        (state.simTelemetry.killHealRecoveredHp || 0) + (char.hp - hpBefore);
-      state.simTelemetry.causalHealEvents ||= [];
-      state.simTelemetry.causalHealEvents.push({
+    if (options.measurement) {
+      options.measurement.killHealActivations =
+        (options.measurement.killHealActivations || 0) + 1;
+      options.measurement.killHealPotentialHp =
+        (options.measurement.killHealPotentialHp || 0) + killHeal;
+      options.measurement.killHealRecoveredHp =
+        (options.measurement.killHealRecoveredHp || 0) + (char.hp - hpBefore);
+      options.measurement.causalHealEvents ||= [];
+      options.measurement.causalHealEvents.push({
         round: state.combatState?.roundNumber ?? null,
         source: "killHeal",
         potential: killHeal,
