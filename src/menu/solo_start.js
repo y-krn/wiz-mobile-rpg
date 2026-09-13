@@ -407,7 +407,11 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
 
   const floorHeading = document.createElement("div");
   floorHeading.className = "solo-start-floor-heading";
-  floorHeading.innerHTML = "<strong>開始階を選ぶ</strong><span>深度帯を主情報に、素材倍率は補足表示</span>";
+  const floorTitle = document.createElement("strong");
+  floorTitle.textContent = "開始階を選ぶ";
+  const floorHint = document.createElement("span");
+  floorHint.textContent = "深度帯を主情報に、素材倍率は補足表示";
+  floorHeading.append(floorTitle, floorHint);
   if (footer) footer.appendChild(floorHeading);
 
   const floors = [1, ...(state.unlockedMilestones || [])];
@@ -417,7 +421,11 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
     const button = document.createElement("button");
     button.type = "button";
     button.className = `btn btn-neon btn-block solo-start-floor-option${selectedStartFloor === floor ? " is-selected" : ""}`;
-    button.innerHTML = `<strong>B${floor}Fから開始 · ${getFloorBand(floor)}</strong><span>${theme.name} / 素材収入 ${Math.round(multiplier * 100)}%</span>`;
+    const floorName = document.createElement("strong");
+    floorName.textContent = `B${floor}Fから開始 · ${getFloorBand(floor)}`;
+    const floorDetail = document.createElement("span");
+    floorDetail.textContent = `${theme.name} / 素材収入 ${Math.round(multiplier * 100)}%`;
+    button.append(floorName, floorDetail);
     button.dataset.startFloor = String(floor);
     button.setAttribute("aria-pressed", String(selectedStartFloor === floor));
     button.addEventListener("click", () => {
@@ -494,9 +502,21 @@ export function renderSoloStart(optGrid, focusSelector = null) {
       option.title = conflict?.message || "";
       const previewCharacter = createDeparturePreviewCharacter(kit.id, itemId);
       const load = getEquipmentLoadPlayerCopy(previewCharacter);
-      option.innerHTML = conflict
-        ? `<strong>${kit.name} + ${item.name}</strong><span>選択不可：${conflict.message}</span>`
-        : `<strong>${kit.name} + ${item.name}</strong><span>工房アンロック装備</span><span class="solo-starting-kit-load">行動傾向: ${load.label} · ${load.description}</span>`;
+      const optionTitle = document.createElement("strong");
+      optionTitle.textContent = `${kit.name} + ${item.name}`;
+      option.appendChild(optionTitle);
+      if (conflict) {
+        const conflictText = document.createElement("span");
+        conflictText.textContent = `選択不可：${conflict.message}`;
+        option.appendChild(conflictText);
+      } else {
+        const unlockedText = document.createElement("span");
+        unlockedText.textContent = "工房アンロック装備";
+        const loadText = document.createElement("span");
+        loadText.className = "solo-starting-kit-load";
+        loadText.textContent = `行動傾向: ${load.label} · ${load.description}`;
+        option.append(unlockedText, loadText);
+      }
       option.dataset.loadClass = load.class;
       if (!conflict) option.addEventListener("click", () => renderStartFloorChoices(
         optGrid,

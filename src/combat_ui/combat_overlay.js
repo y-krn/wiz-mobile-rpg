@@ -32,15 +32,25 @@ function getEnemyResistanceStatus(monster) {
   return getMonsterResistanceStatus(monster, record);
 }
 
-function getEnemyResistanceRowsHtml(monster) {
-  return getEnemyResistanceStatus(monster)
-    .map(({ type, label, known, description }) => `
-      <div class="enemy-resistance-row ${known ? "known" : "unknown"}" data-resistance-type="${type}">
-        <span class="enemy-resistance-label">${label}：</span>
-        <span class="enemy-resistance-value">${description}</span>
-      </div>
-    `)
-    .join("");
+function createEnemyResistanceRows(monster) {
+  const rows = typeof document.createDocumentFragment === "function"
+    ? document.createDocumentFragment()
+    : document.createElement("span");
+  getEnemyResistanceStatus(monster).forEach(({ type, label, known, description }) => {
+    const row = document.createElement("div");
+    row.className = `enemy-resistance-row ${known ? "known" : "unknown"}`;
+    if (typeof row.setAttribute === "function") row.setAttribute("data-resistance-type", type);
+    const labelElement = document.createElement("span");
+    labelElement.className = "enemy-resistance-label";
+    labelElement.textContent = `${label}：`;
+    const value = document.createElement("span");
+    value.className = "enemy-resistance-value";
+    value.textContent = description;
+    row.appendChild(labelElement);
+    row.appendChild(value);
+    rows.appendChild(row);
+  });
+  return rows;
 }
 
 function createCombatEnemyInfoPanel() {
@@ -50,17 +60,26 @@ function createCombatEnemyInfoPanel() {
   const panel = document.createElement("section");
   panel.className = "combat-enemy-info";
   panel.setAttribute("aria-label", "敵の耐性情報");
-  panel.innerHTML = `
-    <div class="combat-enemy-info-title">敵の耐性情報</div>
-    <div class="combat-enemy-info-grid">
-      ${livingMonsters.map(monster => `
-        <div class="combat-enemy-info-card">
-          <div class="combat-enemy-info-name">${monster.name}</div>
-          <div class="enemy-resistance-info">${getEnemyResistanceRowsHtml(monster)}</div>
-        </div>
-      `).join("")}
-    </div>
-  `;
+  const title = document.createElement("div");
+  title.className = "combat-enemy-info-title";
+  title.textContent = "敵の耐性情報";
+  const grid = document.createElement("div");
+  grid.className = "combat-enemy-info-grid";
+  livingMonsters.forEach(monster => {
+    const card = document.createElement("div");
+    card.className = "combat-enemy-info-card";
+    const name = document.createElement("div");
+    name.className = "combat-enemy-info-name";
+    name.textContent = monster.name;
+    const resistanceInfo = document.createElement("div");
+    resistanceInfo.className = "enemy-resistance-info";
+    resistanceInfo.appendChild(createEnemyResistanceRows(monster));
+    card.appendChild(name);
+    card.appendChild(resistanceInfo);
+    grid.appendChild(card);
+  });
+  panel.appendChild(title);
+  panel.appendChild(grid);
   return panel;
 }
 
@@ -72,7 +91,7 @@ export function renderCombatOverlay() {
     overlay.replaceChildren();
     return;
   }
-  overlay.innerHTML = "";
+  overlay.replaceChildren();
 
   const type = view.menuType;
 
@@ -90,7 +109,10 @@ export function renderCombatOverlay() {
   } else if (type === "combat_item") {
     titleText = "🎒 道具を使う";
   }
-  header.innerHTML = `<span class="combat-overlay-title">${titleText}</span>`;
+  const title = document.createElement("span");
+  title.className = "combat-overlay-title";
+  title.textContent = titleText;
+  header.appendChild(title);
   overlay.appendChild(header);
 
   // 2. Create scrollable body
@@ -146,22 +168,37 @@ export function renderCombatOverlay() {
 
         const maxHp = getCharMaxHp(char);
         const maxMp = getCharMaxMp(char);
-        const hpPct = maxHp > 0 ? (char.hp / maxHp) * 100 : 0;
-        const mpPct = maxMp > 0 ? (char.mp / maxMp) * 100 : 0;
-        
-        card.innerHTML = `
-          <div class="card-title">${char.name}</div>
-          <div class="card-hp-bar-container">
-            <div class="card-hp-bar" style="width: ${hpPct}%"></div>
-          </div>
-          <div class="card-hp-text">HP: ${char.hp}/${maxHp}</div>
-          ${maxMp > 0 ? `
-          <div class="card-mp-bar-container">
-            <div class="card-mp-bar" style="width: ${mpPct}%"></div>
-          </div>
-          <div class="card-mp-text">MP: ${char.mp}/${maxMp}</div>
-          ` : ""}
-        `;
+        const clampPercent = value => Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
+        const hpPct = clampPercent(maxHp > 0 ? (char.hp / maxHp) * 100 : 0);
+        const mpPct = clampPercent(maxMp > 0 ? (char.mp / maxMp) * 100 : 0);
+        const name = document.createElement("div");
+        name.className = "card-title";
+        name.textContent = char.name;
+        const hpBarContainer = document.createElement("div");
+        hpBarContainer.className = "card-hp-bar-container";
+        const hpBar = document.createElement("div");
+        hpBar.className = "card-hp-bar";
+        hpBar.style.width = `${hpPct}%`;
+        hpBarContainer.appendChild(hpBar);
+        const hpText = document.createElement("div");
+        hpText.className = "card-hp-text";
+        hpText.textContent = `HP: ${char.hp}/${maxHp}`;
+        card.appendChild(name);
+        card.appendChild(hpBarContainer);
+        card.appendChild(hpText);
+        if (maxMp > 0) {
+          const mpBarContainer = document.createElement("div");
+          mpBarContainer.className = "card-mp-bar-container";
+          const mpBar = document.createElement("div");
+          mpBar.className = "card-mp-bar";
+          mpBar.style.width = `${mpPct}%`;
+          mpBarContainer.appendChild(mpBar);
+          const mpText = document.createElement("div");
+          mpText.className = "card-mp-text";
+          mpText.textContent = `MP: ${char.mp}/${maxMp}`;
+          card.appendChild(mpBarContainer);
+          card.appendChild(mpText);
+        }
         card.setAttribute("aria-label", `${char.name}、HP ${char.hp}/${maxHp}${maxMp > 0 ? `、MP ${char.mp}/${maxMp}` : ""}${disabled ? "、対象外" : "、対象にする"}`);
 
         if (!disabled) {
@@ -207,25 +244,46 @@ export function renderCombatOverlay() {
 
       const summary = getSpellCombatSummary(spKey);
       
-      let reasonBadgeHTML = "";
+      let reasonText = "";
+      let reasonClass = "";
       if (mpCheck) {
-        reasonBadgeHTML = `<span class="disabled-reason-tag mp-shortage">MP不足</span>`;
+        reasonText = "MP不足";
+        reasonClass = "mp-shortage";
       } else if (!targetCheck) {
-        const reasonText = spell.target === "utility" ? "戦闘不可" : "対象なし";
-        reasonBadgeHTML = `<span class="disabled-reason-tag unavailable">${reasonText}</span>`;
+        reasonText = spell.target === "utility" ? "戦闘不可" : "対象なし";
+        reasonClass = "unavailable";
       }
 
-      card.innerHTML = `
-        <div class="spell-card-top">
-          <span class="spell-name" title="${spell.name}">${spell.name}</span>
-          <span class="cost-tag">${payment.resource === "hp" ? `${payment.cost}HP` : `${spell.cost}MP`}</span>
-        </div>
-        <div class="spell-card-bottom">
-          <span class="spell-tag ${summary.category}">${summary.tag}</span>
-          <span class="spell-effect" title="${summary.effect}">${summary.effect}</span>
-          ${reasonBadgeHTML}
-        </div>
-      `;
+      const top = document.createElement("div");
+      top.className = "spell-card-top";
+      const spellName = document.createElement("span");
+      spellName.className = "spell-name";
+      spellName.title = spell.name;
+      spellName.textContent = spell.name;
+      const cost = document.createElement("span");
+      cost.className = "cost-tag";
+      cost.textContent = payment.resource === "hp" ? `${payment.cost}HP` : `${spell.cost}MP`;
+      top.appendChild(spellName);
+      top.appendChild(cost);
+      const bottom = document.createElement("div");
+      bottom.className = "spell-card-bottom";
+      const tag = document.createElement("span");
+      tag.className = `spell-tag ${summary.category}`;
+      tag.textContent = summary.tag;
+      const effect = document.createElement("span");
+      effect.className = "spell-effect";
+      effect.title = summary.effect;
+      effect.textContent = summary.effect;
+      bottom.appendChild(tag);
+      bottom.appendChild(effect);
+      if (reasonText) {
+        const reason = document.createElement("span");
+        reason.className = `disabled-reason-tag ${reasonClass}`;
+        reason.textContent = reasonText;
+        bottom.appendChild(reason);
+      }
+      card.appendChild(top);
+      card.appendChild(bottom);
       card.setAttribute("aria-label", `${spell.name}、${payment.resource === "hp" ? `${payment.cost}HP` : `${spell.cost}MP`}、${summary.effect}${disabled ? "、使用不可" : ""}`);
 
       if (!disabled) {
@@ -268,10 +326,14 @@ export function renderCombatOverlay() {
         }
         card.disabled = usableCheck;
 
-        card.innerHTML = `
-          <div class="item-card-title">${item.name}</div>
-          <div class="item-card-desc">${item.desc || "消費アイテム"}</div>
-        `;
+        const itemName = document.createElement("div");
+        itemName.className = "item-card-title";
+        itemName.textContent = item.name;
+        const itemDescription = document.createElement("div");
+        itemDescription.className = "item-card-desc";
+        itemDescription.textContent = item.desc || "消費アイテム";
+        card.appendChild(itemName);
+        card.appendChild(itemDescription);
         card.setAttribute("aria-label", `${item.name}${usableCheck ? "、戦闘中は使用不可" : "、使用する"}`);
 
         if (!usableCheck) {
@@ -299,7 +361,7 @@ export function renderCombatOverlay() {
   const btnBack = document.createElement("button");
   btnBack.type = "button";
   btnBack.className = "btn btn-danger btn-combat-back dock-action-back";
-  btnBack.dataset.actionRole = "back";
+  btnBack.setAttribute("data-action-role", "back");
   btnBack.setAttribute("aria-label", "選択をやめて戦闘へ戻る");
   btnBack.textContent = "◀ 戻る (キャンセル)";
   btnBack.addEventListener("click", () => {

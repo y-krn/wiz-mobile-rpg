@@ -475,12 +475,23 @@ function createHeader(overlay, char) {
   attackBreakdown.className = "equip-attack-breakdown";
   attackBreakdown.dataset.testid = "attack-breakdown";
   attackBreakdown.setAttribute("aria-label", "攻撃力の内訳");
-  attackBreakdown.innerHTML = `
-    <span><small>基礎</small><strong data-attack-base="true">${attack.base}</strong></span>
-    <span><small>装備</small><strong data-attack-equipment="true">${attack.equipment}</strong></span>
-    <span><small>罠喰い</small><strong data-attack-trap-eater="true">+${attack.trapEaterBonus}</strong></span>
-    <span class="total"><small>合計</small><strong data-attack-total="true">${attack.total}</strong></span>
-  `;
+  [
+    ["基礎", attack.base, "data-attack-base"],
+    ["装備", attack.equipment, "data-attack-equipment"],
+    ["罠喰い", `+${attack.trapEaterBonus}`, "data-attack-trap-eater"],
+    ["合計", attack.total, "data-attack-total", "total"]
+  ].forEach(([labelText, valueText, dataAttribute, className]) => {
+    const item = document.createElement("span");
+    if (className) item.className = className;
+    const label = document.createElement("small");
+    label.textContent = labelText;
+    const value = document.createElement("strong");
+    value.setAttribute(dataAttribute, "true");
+    value.textContent = valueText;
+    item.appendChild(label);
+    item.appendChild(value);
+    attackBreakdown.appendChild(item);
+  });
   header.appendChild(attackBreakdown);
   overlay.appendChild(header);
 }
@@ -550,10 +561,12 @@ function createFooter(overlay, { organizing = false } = {}) {
     btn.type = "button";
     btn.className = `equip-actor-chip ${idx === equipState.actorIdx ? "active" : ""}`;
     btn.setAttribute("aria-pressed", idx === equipState.actorIdx ? "true" : "false");
-    btn.innerHTML = `
-      <span>${char.name}</span>
-      <small>Lv.${char.level} / HP ${char.hp}/${getCharMaxHp(char)}</small>
-    `;
+    const name = document.createElement("span");
+    name.textContent = char.name;
+    const details = document.createElement("small");
+    details.textContent = `Lv.${char.level} / HP ${char.hp}/${getCharMaxHp(char)}`;
+    btn.appendChild(name);
+    btn.appendChild(details);
     btn.addEventListener("click", () => {
       equipState.actorIdx = idx;
       clearDiscardSelection();
@@ -939,20 +952,18 @@ function createEquipmentList(char, savedScrollTop) {
 function createStatPill(row) {
   const pill = document.createElement("div");
   pill.className = `equip-stat-pill ${row.diff > 0 ? "upgrade" : row.diff < 0 ? "downgrade" : ""}`;
-  if (row.key === "initiativeLoad") {
-    pill.innerHTML = `
-      <span>${row.label}</span>
-      <strong>${row.current}→${row.next}</strong>
-      <em>${row.diff > 0 ? "速い" : row.diff < 0 ? "遅い" : "同じ"}</em>
-    `;
-    return pill;
-  }
+  const label = document.createElement("span");
+  label.textContent = row.label;
+  const value = document.createElement("strong");
+  value.textContent = `${row.current}→${row.next}`;
+  const change = document.createElement("em");
   const sign = row.diff >= 0 ? "+" : "";
-  pill.innerHTML = `
-    <span>${row.label}</span>
-    <strong>${row.current}→${row.next}</strong>
-    <em>${sign}${row.diff}</em>
-  `;
+  change.textContent = row.key === "initiativeLoad"
+    ? row.diff > 0 ? "速い" : row.diff < 0 ? "遅い" : "同じ"
+    : `${sign}${row.diff}`;
+  pill.appendChild(label);
+  pill.appendChild(value);
+  pill.appendChild(change);
   return pill;
 }
 

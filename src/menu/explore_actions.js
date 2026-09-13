@@ -341,7 +341,14 @@ export function renderItemTargetSelect(optGrid) {
 
     if (isAllowed) {
       btn.className = "btn btn-neon btn-block";
-      btn.innerHTML = `<span style="font-weight: bold;">${charName}</span><span style="font-size: 10px; color: var(--text-muted);">${hpmpText}</span>`;
+      const name = document.createElement("span");
+      name.style.fontWeight = "bold";
+      name.textContent = charName;
+      const vitals = document.createElement("span");
+      vitals.style.fontSize = "10px";
+      vitals.style.color = "var(--text-muted)";
+      vitals.textContent = hpmpText;
+      btn.append(name, vitals);
       btn.addEventListener("click", () => {
         const itemAction = menuContext.itemKey === "TOWN_PORTAL"
           ? "return"
@@ -387,7 +394,15 @@ export function renderItemTargetSelect(optGrid) {
     } else {
       btn.className = "btn btn-block disabled";
       btn.disabled = true;
-      btn.innerHTML = `<span style="color: var(--text-muted);">${charName}</span><span style="font-size: 10px; color: var(--text-danger); font-weight: bold;">${reason || "使用できません"}</span>`;
+      const name = document.createElement("span");
+      name.style.color = "var(--text-muted)";
+      name.textContent = charName;
+      const unavailable = document.createElement("span");
+      unavailable.style.fontSize = "10px";
+      unavailable.style.color = "var(--text-danger)";
+      unavailable.style.fontWeight = "bold";
+      unavailable.textContent = reason || "使用できません";
+      btn.append(name, unavailable);
     }
 
     optGrid.appendChild(btn);

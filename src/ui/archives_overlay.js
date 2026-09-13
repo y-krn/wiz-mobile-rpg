@@ -10,6 +10,17 @@ export const archivesState = {
   listScrollTop: 0
 };
 
+// These functions are legacy HTML-fragment generators. Keep their boundary
+// explicit and escape every value that can come from save or runtime state.
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function getRunOutcomeLabel(run) {
   if (run?.outcome === "abandon" || (!run?.outcome && run?.returnReason === "abandon")) return "断念";
   if (run?.outcome === "death" || (!run?.outcome && run?.returnReason === "gameover")) return "死亡";
@@ -52,7 +63,7 @@ export function getMonsterCodexDetailHtml(m, record) {
   };
   const observedList = (values, emptyText) => `
     <ul class="codex-observation-list">
-      ${values.map(value => `<li>${value}</li>`).join("")}
+      ${values.map(value => `<li>${escapeHtml(value)}</li>`).join("")}
       <li class="codex-unknown">???</li>
     </ul>
     ${values.length === 0 ? `<p class="codex-muted">${emptyText}</p>` : ""}
@@ -60,8 +71,8 @@ export function getMonsterCodexDetailHtml(m, record) {
   const resistanceRows = getMonsterResistanceStatus(m, record)
     .map(({ label, known, description }) => `
       <div class="codex-observation-row">
-        <span>${label}</span>
-        <strong class="${known ? "is-known" : "is-unknown"}">${known ? description : "未確認"}</strong>
+        <span>${escapeHtml(label)}</span>
+        <strong class="${known ? "is-known" : "is-unknown"}">${known ? escapeHtml(description) : "未確認"}</strong>
       </div>
     `).join("");
   const floorRows = floorHistory.length > 0
@@ -71,7 +82,7 @@ export function getMonsterCodexDetailHtml(m, record) {
   let html = `<div class="codex-detail">`;
   html += `
     <div class="codex-detail-header">
-      <span class="codex-detail-name">${m.name}</span>
+      <span class="codex-detail-name">${escapeHtml(m.name)}</span>
       <span class="codex-meta">遭遇: ${enc} / 撃破: ${kil}</span>
     </div>
     <div class="codex-detail-body">
@@ -169,7 +180,7 @@ function getEquipmentAffixDetails(record) {
   return (Array.isArray(record?.affixesSeen) ? record.affixesSeen : [])
     .map(affixId => getAffixDefinition(affixId))
     .filter(Boolean)
-    .map(definition => `<li><strong>${definition.jpName}</strong><span>${definition.desc}</span></li>`)
+    .map(definition => `<li><strong>${escapeHtml(definition.jpName)}</strong><span>${escapeHtml(definition.desc)}</span></li>`)
     .join("");
 }
 
@@ -209,6 +220,9 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
   const foundFloors = getEquipmentFoundFloors(record);
   const knownTags = getKnownEquipmentTags(item, record);
   const affixDetails = getEquipmentAffixDetails(record);
+  const highestRarity = ["common", "magic", "rare", "epic", "legendary"].includes(record.highestRarity)
+    ? record.highestRarity
+    : "common";
   const baseStat = item.atk !== undefined
     ? `<p><strong>基礎攻撃力:</strong> ${item.atk}</p>`
     : item.def !== undefined
@@ -218,7 +232,7 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
   let html = `<div class="codex-detail">`;
   html += `
     <div class="codex-detail-header">
-      <span class="codex-detail-name">${item.name}</span>
+      <span class="codex-detail-name">${escapeHtml(item.name)}</span>
       <span class="codex-meta">${getEquipmentTypeLabel(item.type)}</span>
     </div>
     <div class="codex-detail-body">
@@ -226,7 +240,7 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
         <div class="codex-subtitle">基本情報</div>
         ${baseStat}
         <p><strong>装備:</strong> 全員（ビルド自由）</p>
-        <p class="codex-item-description">${item.desc || "説明は記録されていない。"}</p>
+      <p class="codex-item-description">${escapeHtml(item.desc || "説明は記録されていない。")}</p>
       </div>
       <div class="codex-info-section">
         <div class="codex-subtitle">発見した特性</div>
@@ -234,7 +248,7 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
       </div>
       <div class="codex-info-section">
         <div class="codex-subtitle">系統・研究</div>
-        ${knownTags.length > 0 ? `<div class="codex-tags">${knownTags.map(tag => `<span>${tag}</span>`).join("")}</div>` : ""}
+        ${knownTags.length > 0 ? `<div class="codex-tags">${knownTags.map(tag => `<span>${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
         ${getEquipmentResearchHtml(item, record)}
       </div>
       <div class="codex-info-section">
@@ -245,8 +259,8 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
       </div>
       <div class="codex-info-section codex-personal-record">
         <div class="codex-subtitle">個人記録</div>
-        <p>入手 ${record.foundCount || 0}回 / 最高 <span class="${record.highestRarity || "common"}">${(record.highestRarity || "common").toUpperCase()}</span> +${record.bestBonus || 0}</p>
-        <p>初発見階層: ${record.firstFoundAt || "不明"}</p>
+        <p>入手 ${record.foundCount || 0}回 / 最高 <span class="${highestRarity}">${highestRarity.toUpperCase()}</span> +${record.bestBonus || 0}</p>
+        <p>初発見階層: ${escapeHtml(record.firstFoundAt || "不明")}</p>
       </div>
     </div>
   </div>`;
@@ -278,7 +292,7 @@ export function getEventsCodexHtml() {
                    k === "pitfall" ? "落とし穴" : k;
     html += `
       <div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between;">
-        <span><strong>${nameJp}</strong> (初発見: ${firstFloorLabel})</span>
+        <span><strong>${escapeHtml(nameJp)}</strong> (初発見: ${firstFloorLabel})</span>
         <span>解除: ${record.disarmed} 回 / 被弾: ${record.triggered} 回</span>
       </div>
     `;
@@ -321,7 +335,7 @@ export function getEventsCodexHtml() {
   html += `<div><div class="archives-section-title">🧭 探索から得た気づき</div>`;
   html += insights.length > 0
     ? `<div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px;">
-        ${insights.map(insight => `<div style="display: flex; justify-content: space-between; gap: 8px;"><span>${CODEX_INSIGHT_DEFINITIONS[insight.id] || "新しい傾向"}</span><span style="color: var(--text-muted);">${insight.count || 1}回</span></div>`).join("")}
+        ${insights.map(insight => `<div style="display: flex; justify-content: space-between; gap: 8px;"><span>${escapeHtml(CODEX_INSIGHT_DEFINITIONS[insight.id] || "新しい傾向")}</span><span style="color: var(--text-muted);">${Number(insight.count) || 1}回</span></div>`).join("")}
       </div>`
     : `<div class="codex-muted">帰還時に観測した傾向が、ここへ少しずつ記録されます。</div>`;
   html += `</div>`;
@@ -365,17 +379,17 @@ export function getRunHistoryHtml() {
     html += `
       <div style="background-color: #1a1a24; border: 1px solid #333; border-radius: 4px; padding: 6px 8px;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 2px; margin-bottom: 4px;">
-          <strong>#${state.runHistory.length - i} [${dateStr}] <span style="color: ${outcomeColor};">${outcomeText}</span></strong>
-          <span style="color: ${resColor}; font-weight: bold;">${resText} (Rank: ${h.dangerRank})</span>
+          <strong>#${state.runHistory.length - i} [${escapeHtml(dateStr)}] <span style="color: ${outcomeColor};">${escapeHtml(outcomeText)}</span></strong>
+          <span style="color: ${resColor}; font-weight: bold;">${escapeHtml(resText)} (Rank: ${Number(h.dangerRank) || 0})</span>
         </div>
         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; color: #ddd; font-size: 10px;">
           <div>到達階: B${h.deepestFloor}F</div>
           <div>撃破数: ${h.kills} 匹</div>
           <div>宝箱開封: ${h.chestsOpened} 個</div>
-          <div>出発: ${startingKit || "開始時情報なし"}</div>
+          <div>出発: ${escapeHtml(startingKit || "開始時情報なし")}</div>
           <div>持帰素材: ${Object.values(h.bankedMaterials || {}).reduce((sum, quantity) => sum + quantity, 0)} 個</div>
-          <div>この冒険を象徴する品: ${representative ? `${representative.name}（${representative.status === "lost" ? "喪失" : representative.status === "rescued" ? "翼で持ち帰り" : representative.status === "returned" ? "帰還" : "観測"}）` : "なし"}</div>
-          <div>品のゆくえ: 持ち帰り${returnProcessing.returnedObjectCount || 0} / 失った品${returnProcessing.lostObjectCount || 0}</div>
+          <div>この冒険を象徴する品: ${representative ? `${escapeHtml(representative.name)}（${escapeHtml(representative.status === "lost" ? "喪失" : representative.status === "rescued" ? "翼で持ち帰り" : representative.status === "returned" ? "帰還" : "観測")}）` : "なし"}</div>
+          <div>品のゆくえ: 持ち帰り${Number(returnProcessing.returnedObjectCount) || 0} / 失った品${Number(returnProcessing.lostObjectCount) || 0}</div>
         </div>
       </div>
     `;
@@ -402,9 +416,9 @@ export function getDeathLogsHtml() {
         </div>
         <div style="color: #ddd; font-size: 10px; display: flex; flex-direction: column; gap: 2px;">
           <div><strong>日時:</strong> ${dateStr}</div>
-          <div><strong>死因:</strong> ${d.cause}</div>
+          <div><strong>死因:</strong> ${escapeHtml(d.cause)}</div>
           <div><strong>Lv:</strong> ${d.character?.level ?? "?"} | 撃破数: ${d.kills}</div>
-          <div style="color: var(--neon-yellow); white-space: normal; word-break: break-all;"><strong>紛失戦利品:</strong> ${lostItemsText}</div>
+          <div style="color: var(--neon-yellow); white-space: normal; word-break: break-all;"><strong>紛失戦利品:</strong> ${escapeHtml(lostItemsText)}</div>
         </div>
       </div>
     `;
@@ -488,23 +502,24 @@ export function renderArchives() {
         
         const row = document.createElement("div");
         row.className = "codex-row";
-        
+        const name = document.createElement("span");
+        name.className = "codex-name";
+        const meta = document.createElement("span");
+        meta.className = "codex-meta";
         if (!isDiscovered) {
-          row.innerHTML = `
-            <span class="codex-name" style="color: var(--text-muted);">？？？</span>
-            <span class="codex-meta">未遭遇</span>
-          `;
+          name.style.color = "var(--text-muted)";
+          name.textContent = "？？？";
+          meta.textContent = "未遭遇";
         } else {
-          row.innerHTML = `
-            <span class="codex-name">${m.name}</span>
-            <span class="codex-meta">撃破: ${record.killed}</span>
-          `;
+          name.textContent = m.name;
+          meta.textContent = `撃破: ${record.killed}`;
           row.addEventListener("click", () => {
             archivesState.listScrollTop = body.scrollTop;
             archivesState.selectedId = m.name;
             renderArchives();
           });
         }
+        row.append(name, meta);
         grid.appendChild(row);
       });
       body.appendChild(grid);
@@ -545,23 +560,24 @@ export function renderArchives() {
         
         const row = document.createElement("div");
         row.className = "codex-row";
-        
+        const name = document.createElement("span");
+        name.className = "codex-name";
+        const meta = document.createElement("span");
+        meta.className = "codex-meta";
         if (!isDiscovered) {
-          row.innerHTML = `
-            <span class="codex-name" style="color: var(--text-muted);">？？？</span>
-            <span class="codex-meta">未発見</span>
-          `;
+          name.style.color = "var(--text-muted)";
+          name.textContent = "？？？";
+          meta.textContent = "未発見";
         } else {
-          row.innerHTML = `
-            <span class="codex-name">${item.name}</span>
-            <span class="codex-meta">入手: ${record.foundCount}回</span>
-          `;
+          name.textContent = item.name;
+          meta.textContent = `入手: ${record.foundCount}回`;
           row.addEventListener("click", () => {
             archivesState.listScrollTop = body.scrollTop;
             archivesState.selectedId = k;
             renderArchives();
           });
         }
+        row.append(name, meta);
         grid.appendChild(row);
       });
       body.appendChild(grid);

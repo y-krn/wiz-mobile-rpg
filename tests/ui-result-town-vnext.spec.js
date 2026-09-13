@@ -1,5 +1,41 @@
 import { test, expect } from './fixtures/browser-health.js';
 
+const HOSTILE_RESULT_TEXT = '<b>evil result</b><img src=x onerror="globalThis.__xss = 1">';
+
+test('result screen renders save-derived names and quest text literally', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const evidence = await page.evaluate(async hostile => {
+    const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const run = createDefaultCurrentRun();
+    run.returnReason = 'milestone_portal';
+    run.deepestFloor = 3;
+    run.meaningfulItemHistory = [{ name: hostile, status: 'returned', depth: 3 }];
+    run.quests = [{ name: hostile, completed: false, currentValue: 0, targetValue: 1, reward: { materials: {} } }];
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.currentRun = run;
+    state.gameState = 'result';
+    window.__xss = 0;
+    updateUI();
+    return {
+      itemText: document.querySelector('.result-return-history span')?.textContent,
+      questText: document.querySelector('.result-quest-row strong')?.textContent,
+      images: document.querySelectorAll('#result-overlay img').length,
+      boldNodes: document.querySelectorAll('.result-return-history b, .result-quest-row b').length,
+      xss: window.__xss,
+    };
+  }, HOSTILE_RESULT_TEXT);
+
+  expect(evidence).toEqual({
+    itemText: HOSTILE_RESULT_TEXT,
+    questText: HOSTILE_RESULT_TEXT,
+    images: 0,
+    boldNodes: 0,
+    xss: 0,
+  });
+});
+
 test('Result leads with run memory and keeps loot ownership explicit', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

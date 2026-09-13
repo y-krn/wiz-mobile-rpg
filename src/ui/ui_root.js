@@ -351,7 +351,9 @@ export function updateUI() {
       
       const statsContainer = document.createElement("span");
       statsContainer.className = "goal-stats-container";
-      statsContainer.innerHTML = `<span>🗺️ 探索率: ${expRate}%</span>`;
+      const statsText = document.createElement("span");
+      statsText.textContent = `🗺️ 探索率: ${expRate}%`;
+      statsContainer.appendChild(statsText);
       goalRow.appendChild(statsContainer);
     }
     goalBanner.appendChild(goalRow);
@@ -365,7 +367,8 @@ export function updateUI() {
         name.textContent = quest.name;
         const progress = document.createElement("small");
         progress.textContent = formatRunQuestProgress(quest, state.currentRun);
-        item.append(name, progress);
+        item.appendChild(name);
+        item.appendChild(progress);
         questList.appendChild(item);
       });
       goalBanner.appendChild(questList);
@@ -466,14 +469,26 @@ export function updateUI() {
     const { trap, successRate, expectedEffect, revealLevel = 3 } = state.activeTrapState;
     const trapNames = getFloorTheme(state.floor)?.trapSkins || {};
     const trapName = revealLevel >= 2 ? (trapNames[trap.type] || "未知の罠") : "罠の気配";
-    document.getElementById("trap-name").innerHTML = `罠名: <strong style="color:var(--neon-red)">${trapName}</strong>`;
+    const trapNameElement = document.getElementById("trap-name");
+    trapNameElement.replaceChildren();
+    trapNameElement.textContent = "罠名: ";
+    const trapNameValue = document.createElement("strong");
+    trapNameValue.style.color = "var(--neon-red)";
+    trapNameValue.textContent = trapName;
+    trapNameElement.appendChild(trapNameValue);
     
     const trapStates = {
       hidden: "未解除",
       discovered: "発見済み"
     };
     const statusColor = "var(--neon-amber)";
-    document.getElementById("trap-status").innerHTML = `状態: <span style="color:${statusColor}">${trapStates[trap.state] || trap.state}</span>`;
+    const trapStatusElement = document.getElementById("trap-status");
+    trapStatusElement.replaceChildren();
+    trapStatusElement.textContent = "状態: ";
+    const trapStatusValue = document.createElement("span");
+    trapStatusValue.style.color = statusColor;
+    trapStatusValue.textContent = trapStates[trap.state] || trap.state;
+    trapStatusElement.appendChild(trapStatusValue);
     const difficultyText = revealLevel >= 3
       ? `危険度: B${trap.floorId.replace("B", "")}F (難易度: ${trap.difficulty})`
       : `危険度: B${trap.floorId.replace("B", "")}F`;
@@ -488,7 +503,14 @@ export function updateUI() {
 
     const rateColor = successRate >= 75 ? "var(--neon-green)" : (successRate >= 45 ? "var(--neon-amber)" : "var(--neon-red)");
     const rateText = isPitfall ? "回避成功率" : "解除成功率";
-    document.getElementById("trap-success-rate").innerHTML = `${rateText}: <span style="color:${rateColor}; font-weight:bold;">${successRate}%</span>`;
+    const rateElement = document.getElementById("trap-success-rate");
+    rateElement.replaceChildren();
+    rateElement.textContent = `${rateText}: `;
+    const rateValue = document.createElement("span");
+    rateValue.style.color = rateColor;
+    rateValue.style.fontWeight = "bold";
+    rateValue.textContent = `${successRate}%`;
+    rateElement.appendChild(rateValue);
   } else if (isUsableCombatScreen) {
     document.getElementById("combat-controls").classList.add("active");
     const gridEl = document.querySelector(".combat-grid");

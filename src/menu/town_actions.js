@@ -37,12 +37,20 @@ export function renderCastleMain(optGrid) {
 
   const summary = document.createElement("div");
   summary.className = "records-menu-summary";
-  summary.innerHTML = `
-    <div><span>帰還最深</span><strong>${records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録"}</strong></div>
-    <div><span>死亡最深</span><strong>${records.deepestDeath ? `B${records.deepestDeath}F` : "未記録"}</strong></div>
-    <div><span>総潜行</span><strong>${records.totalRuns}回</strong></div>
-    <div><span>断念</span><strong>${abandonCount}回</strong></div>
-  `;
+  const addRecord = (labelText, valueText) => {
+    const row = document.createElement("div");
+    const label = document.createElement("span");
+    label.textContent = labelText;
+    const value = document.createElement("strong");
+    value.textContent = valueText;
+    row.appendChild(label);
+    row.appendChild(value);
+    summary.appendChild(row);
+  };
+  addRecord("帰還最深", records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録");
+  addRecord("死亡最深", records.deepestDeath ? `B${records.deepestDeath}F` : "未記録");
+  addRecord("総潜行", `${records.totalRuns}回`);
+  addRecord("断念", `${abandonCount}回`);
   optGrid.appendChild(summary);
   const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
   if (hasCrystal) {
@@ -109,7 +117,8 @@ export function renderCastleDeathLogs(optGrid) {
       title.textContent = `B${summary.floor}F ${formatDeathCause(summary)} ×${summary.count}`;
       const detail = document.createElement("span");
       detail.textContent = DEATH_TYPE_LABELS[summary.type] || "分類";
-      row.append(title, detail);
+      row.appendChild(title);
+      row.appendChild(detail);
       summaryList.appendChild(row);
     });
     optGrid.appendChild(summaryList);
@@ -167,7 +176,12 @@ function appendDeathReviewButton(container, label, detail, submenuType, title) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "btn btn-neon btn-block death-countermeasure-button";
-  button.innerHTML = `<strong>${label}</strong><span>${detail}</span>`;
+  const labelElement = document.createElement("strong");
+  labelElement.textContent = label;
+  const detailElement = document.createElement("span");
+  detailElement.textContent = detail;
+  button.appendChild(labelElement);
+  button.appendChild(detailElement);
   button.addEventListener("click", () => openSubmenu(submenuType, title));
   container.appendChild(button);
 }
