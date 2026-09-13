@@ -28,7 +28,7 @@ function applyOffensiveAffixes(
   caster,
   target,
   damage,
-  { rng = Math.random, state = null, logQueue = null, spellIntrinsicTagBonus = null } = {}
+  { rng = Math.random, state = null, logQueue = null, measurement = null, spellIntrinsicTagBonus = null } = {}
 ) {
   tryApplyExecutionerSetup(caster, target, { rng, logQueue });
   const result = getDamageAffixResult(caster, target, damage, {
@@ -37,7 +37,7 @@ function applyOffensiveAffixes(
     state,
     spellIntrinsicTagBonus
   });
-  recordExecutionerTrigger(state, result.coreIds);
+  recordExecutionerTrigger(state, result.coreIds, measurement);
   return result;
 }
 
@@ -114,7 +114,7 @@ function hasNearbyOneWayPassage(state) {
 
 export const SPELL_EFFECTS = {
   // Mage Spells
-  HALITO: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
+  HALITO: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const baseRoll = Math.floor(rng() * 11) + 12;
     let dmg = baseRoll;
     const spellPowerBonus = getSpellPowerBonus(caster);
@@ -122,7 +122,7 @@ export const SPELL_EFFECTS = {
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
     dmg = Math.round(dmg * spellPowerBonus * arcaneBonus * fireRiteBonus);
     const preAffixDamage = dmg;
-    const affixResult = applyOffensiveAffixes(caster, target, dmg, { rng, state, logQueue });
+    const affixResult = applyOffensiveAffixes(caster, target, dmg, { rng, state, logQueue, measurement });
     dmg = affixResult.damage;
     const postAffixDamage = dmg;
     let suffix = "";
@@ -163,7 +163,7 @@ export const SPELL_EFFECTS = {
     });
     return { log: `${caster.name}はカティノを唱えた！敵${sleptCount}体を眠らせた。` };
   },
-  LAHALITO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
+  LAHALITO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const spellPowerBonus = getSpellPowerBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
@@ -173,7 +173,7 @@ export const SPELL_EFFECTS = {
       const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
       dmg = Math.round(dmg * spellPowerBonus * arcaneBonus * fireRiteBonus);
       const preAffixDamage = dmg;
-      const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue });
+      const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue, measurement });
       dmg = affixResult.damage;
       const postAffixDamage = dmg;
       let isResisted = false;
@@ -233,7 +233,7 @@ export const SPELL_EFFECTS = {
     if (surveyLines.length === 2) surveyLines.push("特異な構造は感じない。");
     return { log: `${caster.name}はデュマピックを唱えた！\n${surveyLines.join("\n")}` };
   },
-  MAHALITO: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
+  MAHALITO: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const baseRoll = Math.floor(rng() * 21) + 30;
     let dmg = baseRoll;
     const spellPowerBonus = getSpellPowerBonus(caster);
@@ -241,7 +241,7 @@ export const SPELL_EFFECTS = {
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
     dmg = Math.round(dmg * spellPowerBonus * arcaneBonus * fireRiteBonus);
     const preAffixDamage = dmg;
-    const affixResult = applyOffensiveAffixes(caster, target, dmg, { rng, state, logQueue });
+    const affixResult = applyOffensiveAffixes(caster, target, dmg, { rng, state, logQueue, measurement });
     dmg = affixResult.damage;
     const postAffixDamage = dmg;
     let suffix = "";
@@ -275,7 +275,7 @@ export const SPELL_EFFECTS = {
     state.repelTurns = steps;
     return { log: `${caster.name}はマスペアルを唱えた！気配が消え、魔物を寄せ付けなくなった。(${steps}歩の間有効)` };
   },
-  MADALTO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
+  MADALTO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const spellPowerBonus = getSpellPowerBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
@@ -284,7 +284,7 @@ export const SPELL_EFFECTS = {
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       dmg = Math.round(dmg * spellPowerBonus * arcaneBonus);
       const preAffixDamage = dmg;
-      const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue });
+      const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue, measurement });
       dmg = affixResult.damage;
       const postAffixDamage = dmg;
       let isResisted = false;
@@ -328,7 +328,7 @@ export const SPELL_EFFECTS = {
       log: `${caster.name}はマダルトを唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})`
     };
   },
-  TILTOWAIT: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
+  TILTOWAIT: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const spellPowerBonus = getSpellPowerBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
@@ -337,7 +337,7 @@ export const SPELL_EFFECTS = {
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       dmg = Math.round(dmg * spellPowerBonus * arcaneBonus);
       const preAffixDamage = dmg;
-      const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue });
+      const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue, measurement });
       dmg = affixResult.damage;
       const postAffixDamage = dmg;
       let isResisted = false;
@@ -406,7 +406,7 @@ export const SPELL_EFFECTS = {
     }
     return { log: `${caster.name}は${target.name}にディウルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
   },
-  BADIOS: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
+  BADIOS: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const baseRoll = Math.floor(rng() * 11) + 8;
     let dmg = baseRoll;
     const spellPowerBonus = getSpellPowerBonus(caster);
@@ -419,6 +419,7 @@ export const SPELL_EFFECTS = {
       state,
       rng,
       logQueue,
+      measurement,
       spellIntrinsicTagBonus: SPELLS.BADIOS.intrinsicTagBonus
     });
     dmg = affixResult.damage;
@@ -567,8 +568,8 @@ export const SPELL_EFFECTS = {
     });
     return { log: `${caster.name}はモーリスを唱えた！敵全体の魔法耐性を下げた。` };
   },
-  VULNERA: ({ caster, target, state = null, logQueue = null }) => {
-    tryApplyVulnerable(caster, target, state, logQueue);
+  VULNERA: ({ caster, target, state = null, logQueue = null, measurement = null }) => {
+    tryApplyVulnerable(caster, target, state, logQueue, measurement);
     return { damage: 0, statusApplied: true, log: `${caster.name}はヴルネラを唱えた！${target.name}の脆弱を引き出した。` };
   },
   WEAKEN: ({ caster, target: targets }) => {

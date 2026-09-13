@@ -120,17 +120,17 @@ function appendMonsterObservation(monster, field, value, stateLike = state) {
   record[field].push(value);
 }
 
-export function recordMonsterAction(monster, action, stateLike = state) {
+export function recordMonsterAction(monster, action, stateLike = state, measurement = null) {
   appendMonsterObservation(monster, "observedActions", action, stateLike);
-  const measurementObservation = stateLike?.simTelemetry?.measurementCurrentEnemyAction;
+  const measurementObservation = measurement?.measurementCurrentEnemyAction;
   if (measurementObservation && Array.isArray(measurementObservation.actionNames)) {
     measurementObservation.actionNames.push(action);
   }
 }
 
-export function recordMonsterCondition(monster, condition, stateLike = state) {
+export function recordMonsterCondition(monster, condition, stateLike = state, measurement = null) {
   appendMonsterObservation(monster, "observedConditions", condition, stateLike);
-  const measurementObservation = stateLike?.simTelemetry?.measurementCurrentEnemyAction;
+  const measurementObservation = measurement?.measurementCurrentEnemyAction;
   if (measurementObservation && Array.isArray(measurementObservation.conditions)) {
     measurementObservation.conditions.push(condition);
   }

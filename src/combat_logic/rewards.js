@@ -27,7 +27,7 @@ function rollCombatAccessoryDrop(state, rng) {
     : null;
 }
 
-export function applyCombatRewards(state, monsters, logQueue, rng = Math.random) {
+export function applyCombatRewards(state, monsters, logQueue, rng = Math.random, policy = null) {
   const nonFledMonsters = monsters.filter(m => !m.fled);
   const totalExp = nonFledMonsters.reduce((sum, m) => sum + m.exp, 0);
   const livingChars = state.party.filter(c => c.status !== "dead");
@@ -139,8 +139,8 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       chanceBonus: materialFind,
       guaranteed,
       startFloor: state.currentRun?.startFloor || 1,
-      rareMaterialFloor: state.simPolicy?.materialDropOverride?.rareMaterialFloor,
-      secondaryMaterialProfile: state.simPolicy?.materialDropOverride?.secondaryMaterialProfile
+      rareMaterialFloor: policy?.materialDropOverride?.rareMaterialFloor,
+      secondaryMaterialProfile: policy?.materialDropOverride?.secondaryMaterialProfile
     });
     scholarActivated ||= guaranteed;
     Object.entries(drops).forEach(([mat, qty]) => {

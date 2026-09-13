@@ -83,6 +83,8 @@ function createState(monster, currentRunOverrides = {}, characterOverrides = {})
   assert.equal(state.currentRun.kills, 0);
   assert.equal(state.codex.stats.totalKills, 0);
   assert.equal(state.codex.monsters.ゴブリン, undefined);
+  assert.equal(result.state.simPolicy, undefined);
+  assert.equal(result.state.simTelemetry, undefined);
 }
 
 {

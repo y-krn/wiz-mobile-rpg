@@ -22,7 +22,7 @@ function tryReflectMagic(target, rng = Math.random) {
   return Math.floor(rng() * 11) + 5;
 }
 
-function applyReflectionDamage(char, state, sources, logQueue) {
+function applyReflectionDamage(char, state, sources, logQueue, measurement = null) {
   const total = sources.reduce((sum, source) => sum + source.damage, 0);
   const playerHpBefore = char.hp;
   char.hp = Math.max(0, char.hp - total);
@@ -33,7 +33,7 @@ function applyReflectionDamage(char, state, sources, logQueue) {
     total,
     total,
     playerHpBefore,
-    { attackType: "reflect" }
+    { attackType: "reflect", measurement }
   );
   clearCharIncapacitationOnDamage(char);
   const sourceText = sources.length === 1
@@ -96,7 +96,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
     
     const reflected = tryReflectMagic(target, rng);
     if (reflected > 0) {
-      applyReflectionDamage(char, state, [{ name: target.name, damage: reflected }], logQueue);
+      applyReflectionDamage(char, state, [{ name: target.name, damage: reflected }], logQueue, hooks.measurement);
       return;
     }
 
@@ -108,10 +108,11 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       telemetryEnabled: Boolean(state.combatFormulaTelemetry),
       state,
       logQueue,
-      rng
+      rng,
+      measurement: hooks.measurement
     });
     const vulnerableResult = result.damage > 0
-      ? consumeVulnerableDamage(target, result.damage, state, "spell")
+      ? consumeVulnerableDamage(target, result.damage, state, "spell", hooks.measurement)
       : { consumed: false, damageContribution: 0, damage: result.damage };
     const resolvedDamage = vulnerableResult.damage;
     result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));
@@ -148,7 +149,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
 
     if (target.hp === 0) {
       clearBleedingOnDefeat(target, "spell");
-      applyKillAffixEffects(char, target, state, logQueue);
+      applyKillAffixEffects(char, target, state, logQueue, { measurement: hooks.measurement });
       logQueue.push({ msg: `[味方] [!] ${target.name}を倒した！` });
       processMonsterDefeat(monsters, target, logQueue);
     }
@@ -169,13 +170,14 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
         telemetryEnabled: Boolean(state.combatFormulaTelemetry),
         state,
         logQueue,
-        rng
+        rng,
+        measurement: hooks.measurement
       })
     );
     const vulnerableBonuses = [];
     result.damageByTarget?.forEach(hit => {
       if (!hit?.target || hit.dmg <= 0) return;
-      const vulnerableResult = consumeVulnerableDamage(hit.target, hit.dmg, state, "spell");
+      const vulnerableResult = consumeVulnerableDamage(hit.target, hit.dmg, state, "spell", hooks.measurement);
       if (!vulnerableResult.consumed) return;
       const actualBonus = Math.min(vulnerableResult.damageContribution, Math.max(0, hit.target.hp));
       hit.target.hp = Math.max(0, hit.target.hp - actualBonus);
@@ -223,7 +225,8 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
         char,
         state,
         reflectedSources.map(source => ({ name: source.monster.name, damage: source.damage })),
-        logQueue
+        logQueue,
+        hooks.measurement
       );
     }
 
@@ -231,7 +234,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       if (m.hp === 0 && !m.loggedDeath) {
         m.loggedDeath = true;
         clearBleedingOnDefeat(m, "spell");
-        applyKillAffixEffects(char, m, state, logQueue);
+        applyKillAffixEffects(char, m, state, logQueue, { measurement: hooks.measurement });
         logQueue.push({ msg: `[味方] [!] ${m.name}を倒した！` });
         processMonsterDefeat(monsters, m, logQueue);
       }

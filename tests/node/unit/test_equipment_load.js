@@ -114,15 +114,16 @@ function combatState() {
 }
 
 function measurementCombatState() {
+  return combatState();
+}
+
+function measurementPolicy() {
   return {
-    ...combatState(),
-    simPolicy: {
-      measurementInitiative: {
-        rollSize: 20,
-        playerLoadModifier: 0,
-        playerFirstStrikeModifier: 0,
-        enemySpeedModifier: 0
-      }
+    measurementInitiative: {
+      rollSize: 20,
+      playerLoadModifier: 0,
+      playerFirstStrikeModifier: 0,
+      enemySpeedModifier: 0
     }
   };
 }
@@ -145,12 +146,12 @@ function measurementCombatState() {
   values = [0.01, 0.04];
   const measurementEnemyFirst = runCombatRoundCalculation(measurementCombatState(), {
     actions: [{ type: "defend", actorIdx: 0 }]
-  }, { rng: () => values.shift() ?? 0 });
+  }, { rng: () => values.shift() ?? 0, policy: measurementPolicy() });
   assert.equal(measurementEnemyFirst.actionObservations[0].actor, "monster");
 
   values = [0.04, 0.01];
   const measurementPlayerFirst = runCombatRoundCalculation(measurementCombatState(), {
     actions: [{ type: "defend", actorIdx: 0 }]
-  }, { rng: () => values.shift() ?? 0 });
+  }, { rng: () => values.shift() ?? 0, policy: measurementPolicy() });
   assert.equal(measurementPlayerFirst.actionObservations[0].actor, "char");
 console.log("[PASS] equipment load metadata, aggregation, and bag boundary");

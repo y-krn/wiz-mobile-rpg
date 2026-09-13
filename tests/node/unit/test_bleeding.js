@@ -33,9 +33,6 @@ function createState(monster = {}) {
     inventory: [], firstKills: [], codex: null,
     currentRun: { itemsFound: [], equipmentFound: [], deathLogs: [] },
     floorChestsTotal: [], roamingMonsters: [], floor: 1,
-    simTelemetry: {
-      bleeding: { applications: 0, refresh: 0, triggered: 0, damageContribution: 0, expired: 0, cleared: 0, failed: 0, sources: {}, builds: {}, clearReasons: {}, bossEvents: 0, midbossEvents: 0 }
-    },
     combatFormulaTelemetry: {
       physicalPlayerHits: [], physicalPlayerMisses: [], physicalMonsterHits: [],
       targetedBonuses: [], mitigations: [], mitigationCalls: []
@@ -43,27 +40,35 @@ function createState(monster = {}) {
   };
 }
 
-function runRound(state, randomValues) {
+function createMeasurement() {
+  return {
+    bleeding: { applications: 0, refresh: 0, triggered: 0, damageContribution: 0, expired: 0, cleared: 0, failed: 0, sources: {}, builds: {}, clearReasons: {}, bossEvents: 0, midbossEvents: 0 }
+  };
+}
+
+function runRound(state, randomValues, measurement = createMeasurement()) {
   return runCombatRoundCalculation(state, { actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }] }, {
-    rng: () => randomValues.shift() ?? 0
+    rng: () => randomValues.shift() ?? 0,
+    measurement
   });
 }
 
-const first = runRound(createState(), [0, 0, 0, 0]);
+const bleedingMeasurement = createMeasurement();
+const first = runRound(createState(), [0, 0, 0, 0], bleedingMeasurement);
 const firstTarget = first.state.combatState.monsters[0];
 assert.equal(hasStatusEffect(firstTarget, STATUS_EFFECT_IDS.BLEEDING), true);
 assert.equal(getStatusEffectRemainingTurns(firstTarget, STATUS_EFFECT_IDS.BLEEDING), BLEEDING_DURATION_TURNS - 1);
 assert.match(first.logQueue.map(entry => entry.msg).join("\n"), /出血/);
-assert.equal(first.state.simTelemetry.bleeding.applied, 1);
+assert.equal(bleedingMeasurement.bleeding.applied, 1);
 assert.equal(first.state.combatFormulaTelemetry.physicalPlayerHits[0].bleedingTrigger, false);
 
-const second = runRound(first.state, [0, 0, 0, 0]);
+const second = runRound(first.state, [0, 0, 0, 0], bleedingMeasurement);
 const secondTarget = second.state.combatState.monsters[0];
 const secondHit = second.state.combatFormulaTelemetry.physicalPlayerHits.at(-1);
 assert.equal(secondHit.bleedingTrigger, true);
 assert.equal(secondHit.bleedingDamageContribution, 1);
-assert.equal(second.state.simTelemetry.bleeding.triggered, 1);
-assert.equal(second.state.simTelemetry.bleeding.refresh, 1);
+assert.equal(bleedingMeasurement.bleeding.triggered, 1);
+assert.equal(bleedingMeasurement.bleeding.refresh, 1);
 assert.equal(getStatusEffectRemainingTurns(secondTarget, STATUS_EFFECT_IDS.BLEEDING), BLEEDING_DURATION_TURNS - 1);
 assert.equal(secondTarget.statusEffects.bleeding.stacks, 1);
 assert.match(second.logQueue.map(entry => entry.msg).join("\n"), /出血の追撃/);
@@ -101,18 +106,20 @@ function enemyFirstRandomValues() {
   return values;
 }
 
-const flee = runRound(createEnemyDefeatState({ fleeChance: 1 }), enemyFirstRandomValues());
+const fleeMeasurement = createMeasurement();
+const flee = runRound(createEnemyDefeatState({ fleeChance: 1 }), enemyFirstRandomValues(), fleeMeasurement);
 assert.equal(hasStatusEffect(flee.state.combatState.monsters[0], STATUS_EFFECT_IDS.BLEEDING), false);
-assert.equal(flee.state.simTelemetry.bleeding.clearReasons.flee, 1);
+assert.equal(fleeMeasurement.bleeding.clearReasons.flee, 1);
 
+const selfDestructMeasurement = createMeasurement();
 const selfDestruct = runRound(createEnemyDefeatState({
   hp: 1,
   maxHp: 100,
   traits: ["selfDestruct"],
   selfDestructQueued: true
-}), enemyFirstRandomValues());
+}), enemyFirstRandomValues(), selfDestructMeasurement);
 assert.equal(hasStatusEffect(selfDestruct.state.combatState.monsters[0], STATUS_EFFECT_IDS.BLEEDING), false);
-assert.equal(selfDestruct.state.simTelemetry.bleeding.clearReasons["self-destruct"], 1);
+assert.equal(selfDestructMeasurement.bleeding.clearReasons["self-destruct"], 1);
 
 const counterState = createEnemyDefeatState({ hp: 1, maxHp: 1, atk: 1 });
 counterState.party[0].equipment.shield = {
@@ -120,8 +127,9 @@ counterState.party[0].equipment.shield = {
   identified: true,
   affixes: [{ id: "CORE_THORN_SHIELD", type: "CORE_THORN_SHIELD", kind: "core", value: 1 }]
 };
-const counterResult = runRound(counterState, enemyFirstRandomValues());
+const counterMeasurement = createMeasurement();
+const counterResult = runRound(counterState, enemyFirstRandomValues(), counterMeasurement);
 assert.equal(hasStatusEffect(counterResult.state.combatState.monsters[0], STATUS_EFFECT_IDS.BLEEDING), false);
-assert.equal(counterResult.state.simTelemetry.bleeding.clearReasons.counterattack, 1);
+assert.equal(counterMeasurement.bleeding.clearReasons.counterattack, 1);
 
 console.log("bleeding deterministic pipeline: PASS");

@@ -741,13 +741,13 @@ check("physical damage telemetry exposes formula stages and clamps applied damag
 
   const character = { hp: 1, mp: 0, vit: 10, equipment: {} };
   recordReceivedDamage(
-    { floor: 2, simTelemetry: { causalDamageEvents } },
+    { floor: 2 },
     character,
     "ゴブリンの呪術師",
     6,
     4,
     5,
-    { attackType: "physical", preDefDamage: 10, finalDef: 4, defResistance: 0.5, postDefDamage: 6 }
+    { attackType: "physical", preDefDamage: 10, finalDef: 4, defResistance: 0.5, postDefDamage: 6, measurement: { causalDamageEvents } }
   );
 
   const damage = events.find(event => event.name === "damage_received").properties;
@@ -764,13 +764,13 @@ check("physical damage telemetry exposes formula stages and clamps applied damag
 
   const lethalCharacter = { hp: 0, mp: 0, vit: 10, equipment: {} };
   recordReceivedDamage(
-    { floor: 2, simTelemetry: { causalDamageEvents } },
+    { floor: 2 },
     lethalCharacter,
     "ゴブリンの呪術師",
     12,
     10,
     3,
-    { attackType: "physical", preDefDamage: 12, finalDef: 0, defResistance: 0, postDefDamage: 12 }
+    { attackType: "physical", preDefDamage: 12, finalDef: 0, defResistance: 0, postDefDamage: 12, measurement: { causalDamageEvents } }
   );
   assert.equal(events.at(-1).properties.finalDamage, 3);
   assert.equal(causalDamageEvents.at(-1).finalDamage, 3);
