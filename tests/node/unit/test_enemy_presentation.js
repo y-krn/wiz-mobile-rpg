@@ -7,7 +7,7 @@ import {
   getEnemyPresentation,
   getEnemyRecipeKey
 } from "../../../src/enemy_presentation.js";
-import { ENEMY_RECIPE_PALETTES } from "../../../src/pixi_enemy_prototypes.js";
+import { ENEMY_RECIPE_PALETTES } from "../../../src/enemy_presentation_palette.js";
 
 assert.equal(getEnemyArchetype({ spriteType: "biter" }), "small");
 assert.equal(getEnemyArchetype({ spriteType: "kobold" }), "humanoid");
