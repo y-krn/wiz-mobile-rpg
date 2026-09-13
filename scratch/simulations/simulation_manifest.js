@@ -160,6 +160,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/combat_logic/round.js", domains: ["combat", "status"] },
     { pattern: "src/combat_logic/spell_resolution.js", domains: ["combat", "status"] },
     { pattern: "src/combat_logic/status_effects.js", domains: ["status"] },
+    { pattern: "src/combat_logic/turn_order.js", domains: ["combat"] },
     { pattern: "src/combat_logic/vulnerable.js", domains: ["combat", "status"] },
     { pattern: "src/combat_logic/targeting.js", domains: ["combat"] },
     { pattern: "src/data.js", domains: ["combat", "equipment", "maps", "progression", "status", "recovery"] },
