@@ -13,8 +13,8 @@ const COLORS = Object.freeze({
   // The corridor remains the reference dark. These two broad planes are
   // raised just enough to keep the enemy readable without turning it into a
   // bright icon or making the rim carry the silhouette.
-  body: 0x1a2e33,
-  bodyLight: 0x2e4a4d,
+  body: 0x274147,
+  bodyLight: 0x426367,
   teal: 0x4f9ca0,
   cyan: 0x8be6df,
   rust: 0x8b5c45,
