@@ -9095,6 +9095,7 @@ function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
   effect.partyMpDrain.forEach((drain, index) => {
     if (drain > 0) {
       state.party[index].mp = Math.max(0, state.party[index].mp - drain);
+      metrics.trapMpDrain += drain;
     }
   });
   if (effect.alarm) {
@@ -13867,6 +13868,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       trapGuardFlashCoverage: { ...metrics.trapGuardFlashCoverage }
     },
     trapDamageHp: metrics.trapDamageHp,
+    trapMpDrain: metrics.trapMpDrain,
     trapDamageHpBySource: { ...metrics.trapDamageHpBySource },
     trapDamageHpByType: { ...metrics.trapDamageHpByType },
     trapHealPotionsUsed: metrics.trapHealPotionsUsed,
@@ -14427,6 +14429,7 @@ export function simulateRun({
       blindEffectUnchanged: 0
     },
     trapDamageHp: 0,
+    trapMpDrain: 0,
     trapDamageHpBySource: { chest: 0, floor: 0 },
     trapDamageHpByType: {},
     trapHealPotionsUsed: 0,
