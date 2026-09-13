@@ -825,7 +825,7 @@ export function buildSummary(report) {
     `- source SHA: \`${report.measurement.sourceCommit || "not recorded"}\`; runner: \`${report.measurementRunnerCommit || report.measurement.measurementRunnerCommit || "not recorded"}\`; schema: ${report.runnerVersion || report.measurement.runnerVersion}`,
     `- N=${report.configuration.runs}/condition; seed=${report.configuration.seed}; observed B1–B5; B6 is a synthetic measurement cutoff, never voluntary Return`,
     "- T0 = current P0 / Portal HP threshold 35%; T1 = P2 push probe / HP-threshold auto-Return disabled only",
-    `- matched identity: \`${report.configuration.matchedIdentity}\`; key = `(runIndex, worldSeed)``,
+    `- matched identity: \`${report.configuration.matchedIdentity}\`; key = \`(runIndex, worldSeed)\``,
     `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}`,
     "",
     "Waterfall cell = entered / next / death / Return / other terminal.",
