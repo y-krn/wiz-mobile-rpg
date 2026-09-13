@@ -18,6 +18,9 @@ function describeChange(change) {
 }
 
 export function commitLoadoutDraft(draft, { stateLike = state, turnCost = 0, worldAction = null } = {}) {
+  if (draft?.committed === true) {
+    return { ok: true, changed: false, duplicate: true, turnCost: 0, changes: getLoadoutDraftChanges(draft) };
+  }
   const resolvedTurnCost = turnCost === 1 ? 1 : 0;
   if (stateLike.gameState === "combat") return { ok: false, reason: "combat_locked" };
   if (!isLoadoutDraftDirty(draft)) return { ok: true, changed: false, turnCost: 0, changes: getLoadoutDraftChanges(draft) };
@@ -119,5 +122,6 @@ export function commitLoadoutDraft(draft, { stateLike = state, turnCost = 0, wor
     mode: isTrial ? "trial" : "loadout",
     turnCost: resolvedTurnCost
   });
+  draft.committed = true;
   return { ok: true, changed: true, turnCost: resolvedTurnCost, changes };
 }

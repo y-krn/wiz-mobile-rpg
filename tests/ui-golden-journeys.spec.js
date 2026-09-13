@@ -19,7 +19,15 @@ test('Golden Journey registry names all player journeys, owners, and renderer bo
     expect(journey.viewportPolicy).toBeTruthy();
     expect(RENDERER_CLASSIFICATIONS[journey.rendererClass]).toBeTruthy();
     expect(journey.contract.length).toBeGreaterThan(0);
+    expect(journey.responsiveness?.criticalTransitions.length, `${journey.id} responsiveness audit`).toBeGreaterThan(0);
+    for (const transition of journey.responsiveness.criticalTransitions) {
+      expect(['A', 'B', 'C', 'D']).toContain(transition.class);
+      for (const field of ['trigger', 'acknowledgement', 'pending', 'resolution', 'rejected', 'duplicateRisk', 'backCancel', 'ownerTest', 'manualEvidence']) {
+        expect(transition[field], `${journey.id} ${field}`).toBeTruthy();
+      }
+    }
   }
+  expect(new Set(GOLDEN_JOURNEYS.flatMap(journey => journey.responsiveness.criticalTransitions.map(transition => transition.class)))).toEqual(new Set(['A', 'B', 'C', 'D']));
   expect(GOLDEN_VIEWPORTS.map(viewport => `${viewport.width}x${viewport.height}`)).toEqual([
     '320x568', '360x800', '390x844', '430x932',
   ]);
@@ -45,6 +53,37 @@ test('Fresh start reaches B1F with observable input feedback and no horizontal o
   expect(evidence.taps.filter(tap => tap.kind === 'back-cancel')).toHaveLength(0);
   expect(evidence.taps.length).toBe(4);
   await assertNoHorizontalOverflow(page, 'Fresh start to B1F');
+});
+
+test('Preparation start is a single synchronous world transition under replayed activation @e2e @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.locator('#btn-town-dungeon').click();
+  await page.getByRole('button', { name: /鋼の前線キット/ }).click();
+  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+
+  const result = await page.locator('#btn-departure-start').evaluate(async button => {
+    const { state } = await import('/src/state.js');
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const runAfterFirstActivation = state.currentRun;
+    const seedAfterFirstActivation = state.currentRun?.runSeed;
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return {
+      sameRunAfterReplay: state.currentRun === runAfterFirstActivation,
+      sameRunSeedAfterReplay: state.currentRun?.runSeed === seedAfterFirstActivation,
+      gameState: state.gameState,
+      hasExploreControls: Boolean(document.querySelector('#explore-controls.active')),
+      buttonDetached: !button.isConnected,
+    };
+  });
+
+  expect(result).toEqual({
+    sameRunAfterReplay: true,
+    sameRunSeedAfterReplay: true,
+    gameState: 'explore',
+    hasExploreControls: true,
+    buttonDetached: true,
+  });
 });
 
 test('Combat target Back cancels without committing and permits reselect @e2e @smoke', async ({ page }) => {

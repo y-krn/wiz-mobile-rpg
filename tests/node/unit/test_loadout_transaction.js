@@ -57,6 +57,16 @@ assert.equal(commitResult.turnCost, 1);
 assert.equal(state.party[0].equipment.weapon, "SAGE_STAFF");
 assert.deepEqual(getActiveRuneSpellKeys(state.party[0]), ["DIOS"]);
 assert.deepEqual(state.inventory, ["WAND", "RUNE_HALITO"]);
+const repeatedCommit = commitLoadoutDraft(draft, { stateLike: state, turnCost: 1 });
+assert.deepEqual(repeatedCommit, {
+  ok: true,
+  changed: false,
+  duplicate: true,
+  turnCost: 0,
+  changes: getLoadoutDraftChanges(draft)
+}, "the same semantic loadout transaction cannot commit twice");
+assert.equal(state.party[0].equipment.weapon, "SAGE_STAFF");
+assert.deepEqual(state.inventory, ["WAND", "RUNE_HALITO"]);
 
 const heavyCharacter = createStartingKitCharacter("vanguard");
 resetState(heavyCharacter, ["SAGE_STAFF"]);

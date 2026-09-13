@@ -69,6 +69,10 @@ function formatCraftPaymentWithBalance(recipe, balance) {
 }
 
 function startRun(startingKitId, startingGear = null, startFloor = 1) {
+  // The first call synchronously replaces the preparation surface with the
+  // exploration surface. Replayed events from the old button must not start
+  // another run or charge its preparation choices twice.
+  if (state.gameState !== "submenu") return false;
   const kit = getStartingKit(startingKitId);
   const character = applyWorkshopToCharacter(createStartingKitCharacter(startingKitId), state.workshop);
   const item = ITEMS[startingGear];
