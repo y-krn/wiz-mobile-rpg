@@ -185,6 +185,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/trap_rules.js", domains: ["traps"] },
     { pattern: "src/rules/trap_effect_rules.js", domains: ["traps"] },
     { pattern: "src/rules/item_rules.js", domains: ["equipment", "traps"] },
+    { pattern: "src/rules/item_use_status.js", domains: ["combat", "status", "equipment", "recovery"] },
     { pattern: "src/rules/identification_rules.js", domains: ["equipment", "traps"] },
     { pattern: "src/systems/identification.js", domains: ["equipment"] },
     { pattern: "src/rules/depth_scaling.js", domains: ["combat", "maps"] },
@@ -211,6 +212,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // Equipment preview/rendering changes do not alter economy rules; economy
     // mutations remain covered by their owning action/system modules.
     { pattern: "src/equip.js", domains: ["equipment"] },
+    { pattern: "src/equip_ui.js", domains: ["equipment"] },
     // Equipment preview and action modules preserve the existing formulas and
     // owning system side effects; this refactor only makes those boundaries explicit.
     { pattern: "src/rules/equipment_preview.js", domains: [] },
@@ -248,7 +250,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/state/initial_state.js", "src/state/records_state.js", "src/state/state_core.js", "src/result.js", "src/rules/renderer_topology.js",
     "src/data/spells.js", "src/data/status_treatments.js", "src/systems/spell_effects.js",
     "src/runtime_diagnostics.js", "src/telemetry.js", "src/systems/traps.js", "src/three_renderer.js", "src/three_dungeon_spike.js", "src/pixi_renderer.js", "src/minimap.js",
-    "src/rules/item_inventory.js", "src/rules/object_loot_stake.js"
+    "src/rules/item_inventory.js", "src/rules/object_loot_stake.js",
+    "src/equipment_ui_loader.js", "src/equipment_ui_state.js"
   ]),
   // A one-off no-impact declaration is recognized only when its marker is
   // added in the same production diff. This keeps mapped modules such as
@@ -310,6 +313,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/chest.js",
     "src/systems/traps.js",
     "src/equip.js",
+    "src/equip_ui.js",
     "src/systems/equipment_actions.js",
     "src/systems/equipment_discard.js",
     // Loadout commit records equipment decisions alongside the atomic state

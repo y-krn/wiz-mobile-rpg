@@ -1,5 +1,105 @@
 import { test, expect } from './fixtures/browser-health.js';
 
+test('equipment UI loads asynchronously once and stays cached across town and explore opens @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const evidence = await page.evaluate(async () => {
+    const initialResources = performance.getEntriesByType('resource').map(({ name }) => name);
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.inventory = ['SHORT_SWORD'];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'lazy-equipment-ui' };
+    state.gameState = 'town';
+    const { equipState, openEquipOverlay, closeEquipOverlay, resetEquipState } = await import('/src/equip.js');
+    equipState.filter = 'weapon';
+    resetEquipState();
+    const resetSynchronous = equipState.filter === 'all' && equipState.selectedKey === null;
+    const firstOpen = openEquipOverlay(0);
+    const firstOpenIsAsync = typeof firstOpen?.then === 'function';
+    await firstOpen;
+    const firstResources = performance.getEntriesByType('resource').map(({ name }) => name);
+    const firstLoadCount = firstResources.filter(name => name.includes('/src/equip_ui.js')).length;
+    closeEquipOverlay();
+    state.gameState = 'explore';
+    await openEquipOverlay(0);
+    const secondResources = performance.getEntriesByType('resource').map(({ name }) => name);
+    return {
+      initialHasHeavyUi: initialResources.some(name => name.includes('/src/equip_ui.js')),
+      resetSynchronous,
+      firstOpenIsAsync,
+      firstLoadCount,
+      secondLoadCount: secondResources.filter(name => name.includes('/src/equip_ui.js')).length,
+      overlayVisible: document.querySelector('#equip-overlay')?.style.display === 'flex',
+      firstOpenRendered: Boolean(document.querySelector('#equip-overlay .equip-bag-section')),
+    };
+  });
+  expect(evidence).toEqual({
+    initialHasHeavyUi: false,
+    resetSynchronous: true,
+    firstOpenIsAsync: true,
+    firstLoadCount: 1,
+    secondLoadCount: 1,
+    overlayVisible: true,
+    firstOpenRendered: true,
+  });
+});
+
+test('equipment organize filtering fails closed for malformed equipped state @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
+    const { equipState, openEquipOverlay, renderEquip } = await import('/src/equip.js');
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.inventory = ['SHORT_SWORD'];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'malformed-equipped-ui' };
+    state.gameState = 'explore';
+    await openEquipOverlay(0);
+    equipState.draft.party.push(null);
+    equipState.mode = 'organize';
+    renderEquip();
+  });
+  await expect(page.locator('.equip-bag-section .equip-item-row')).toHaveCount(0);
+});
+
+test('equipment draft actions use one render owner and retain keyboard focus @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createStartingKitCharacter, state } = await import('/src/state.js');
+    const { openEquipOverlay } = await import('/src/equip.js');
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.inventory = [{
+      kind: 'equipment', instanceId: 'render-owner-sword', baseId: 'SHORT_SWORD',
+      rarity: 'rare', level: 1, identified: true, affixes: [],
+    }];
+    state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'render-owner-ui' };
+    state.gameState = 'explore';
+    await openEquipOverlay(0);
+  });
+  const row = page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' });
+  await row.click();
+  await page.evaluate(() => {
+    const overlay = document.querySelector('#equip-overlay');
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+    window.__equipmentRenderCount = 0;
+    Object.defineProperty(overlay, 'innerHTML', {
+      configurable: true,
+      get: () => descriptor.get.call(overlay),
+      set: value => {
+        window.__equipmentRenderCount += 1;
+        descriptor.set.call(overlay, value);
+      },
+    });
+  });
+  await page.getByRole('button', { name: '装備する' }).click();
+  await expect(page.locator('#btn-equip-commit')).toBeVisible();
+  expect(await page.evaluate(() => ({
+    renderCount: window.__equipmentRenderCount,
+    focusInsideOverlay: document.querySelector('#equip-overlay')?.contains(document.activeElement),
+  }))).toEqual({ renderCount: 1, focusInsideOverlay: true });
+});
+
 test('loadout changes stay in a draft until one exploration-turn commit @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -19,7 +119,7 @@ test('loadout changes stay in a draft until one exploration-turn commit @smoke',
     window.__uxTelemetry = [];
     __setTelemetryClientForTests({ capture: (name, properties) => window.__uxTelemetry.push({ name, properties }) });
     trackRunStart(state.currentRun, character, state);
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
 
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
@@ -70,7 +170,7 @@ test('canceling a dirty loadout draft leaves the live run untouched @smoke', asy
     window.__uxTelemetry = [];
     __setTelemetryClientForTests({ capture: (name, properties) => window.__uxTelemetry.push({ name, properties }) });
     trackRunStart(state.currentRun, character, state);
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
   await page.getByRole('button', { name: '装備する' }).click();
@@ -108,7 +208,7 @@ test('equipment transaction actions stay separated and thumb-safe across mobile 
       }];
       state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'touch-target-ui' };
       state.gameState = 'explore';
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
     });
 
     await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
@@ -180,7 +280,7 @@ test('unknown equipment uses an explicit irreversible trial action @smoke', asyn
     }];
     state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'trial-ui' };
     state.gameState = 'explore';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
 
   await page.locator('.equip-bag-section .equip-item-row', { hasText: '未鑑定の装備品' }).click();
@@ -227,7 +327,7 @@ test('committing outside exploration does not advance exploration time @smoke', 
     state.inventory = ['SHORT_SWORD'];
     state.currentRun = { steps: 4, floorSteps: { '1': 4 }, materials: {}, runSeed: 'town-ui' };
     state.gameState = 'town';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
   await page.getByRole('button', { name: '装備する' }).click();
@@ -267,7 +367,7 @@ test('committing a loadout consumes the normal exploration poison tick @smoke', 
     state.gameState = 'explore';
     window.__loadoutTestRandom = Math.random;
     Math.random = () => 0;
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
   await page.getByRole('button', { name: '装備する' }).click();
@@ -296,7 +396,7 @@ test('equipment detail exposes build commitments and neutral replacement consequ
     }];
     state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'build-commitment-ui' };
     state.gameState = 'explore';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
 
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'クレイモア' }).click();
@@ -336,7 +436,7 @@ test('active and spare Runes are labeled by their ownership surface @smoke', asy
     state.inventory = ['RUNE_DIOS'];
     state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'rune-ownership-ui' };
     state.gameState = 'explore';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
 
   const runePanel = page.locator('.equip-rune-panel');
@@ -360,7 +460,7 @@ test('medium replacement shows current MP separately from maximum MP @smoke', as
     }];
     state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'medium-mp-ui' };
     state.gameState = 'town';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
 
   await page.locator('.equip-bag-section .equip-item-row', { hasText: '大魔道の杖' }).click();

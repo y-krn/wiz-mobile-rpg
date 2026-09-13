@@ -103,7 +103,7 @@ test('Critical commit ignores repeated activation and applies one exploration co
     }];
     state.currentRun = { steps: 0, floorSteps: {}, materials: {}, runSeed: 'golden-journey-commit' };
     state.gameState = 'explore';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
   await page.getByRole('button', { name: '装備する' }).click();

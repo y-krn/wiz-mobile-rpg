@@ -67,7 +67,7 @@ async function seedEquipment(page) {
       rarity: 'rare', level: 1, identified: true, affixes: [],
     }];
     state.gameState = 'explore';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   }, { name: A11Y_LONG_EQUIPMENT_NAME, description: A11Y_LONG_EQUIPMENT_DESCRIPTION });
 }
 
