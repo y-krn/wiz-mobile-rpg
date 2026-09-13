@@ -21,6 +21,7 @@ import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry } from "./state/run_loot.js";
 import { trackChestAction, trackChestSmashResult, trackLootLifecycle, trackTrapResolution, trackValuableLocation } from "./telemetry.js";
+import { captureException } from "./sentry.js";
 import {
   CHEST_PHASES,
   CHEST_PHASE_TRANSITIONS,
@@ -248,6 +249,11 @@ export function leaveChest() {
 
 
 function recoverChestDisarmTransition(error) {
+  captureException(error, {
+    level: "warning",
+    tags: { subsystem: "chest", op: "disarm-transition", recovery: "return-to-menu" },
+    extra: { phase: state.chestState?.phase ?? null }
+  });
   console.error("Failed to finish chest disarm transition", error);
   state.transitioning = false;
   if (state.chestState) {
@@ -260,6 +266,11 @@ function recoverChestDisarmTransition(error) {
 }
 
 function recoverChestOpenTransition(error, chest = state.chestState) {
+  captureException(error, {
+    level: "warning",
+    tags: { subsystem: "chest", op: "open-transition", recovery: "close-chest" },
+    extra: { phase: chest?.phase ?? null, fromDrop: Boolean(chest?.fromDrop) }
+  });
   console.error("Failed to finish chest open transition", error);
   state.transitioning = false;
 
