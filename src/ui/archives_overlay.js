@@ -21,6 +21,15 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function safeNonNegativeInteger(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : fallback;
+}
+
+function safePositiveInteger(value, fallback = 1) {
+  return Math.max(1, safeNonNegativeInteger(value, fallback));
+}
+
 function getRunOutcomeLabel(run) {
   if (run?.outcome === "abandon" || (!run?.outcome && run?.returnReason === "abandon")) return "断念";
   if (run?.outcome === "death" || (!run?.outcome && run?.returnReason === "gameover")) return "死亡";
@@ -375,21 +384,29 @@ export function getRunHistoryHtml() {
     const representative = h.representativeItem;
     const returnProcessing = h.returnProcessing || {};
     const startingKit = h.startingKit ? getStartingKit(h.startingKit)?.name : null;
+    const deepestFloor = safeNonNegativeInteger(h.deepestFloor);
+    const kills = safeNonNegativeInteger(h.kills);
+    const chestsOpened = safeNonNegativeInteger(h.chestsOpened);
+    const dangerRank = safeNonNegativeInteger(h.dangerRank);
+    const bankedMaterials = Object.values(h.bankedMaterials || {})
+      .reduce((sum, quantity) => sum + safeNonNegativeInteger(quantity), 0);
+    const returnedObjectCount = safeNonNegativeInteger(returnProcessing.returnedObjectCount);
+    const lostObjectCount = safeNonNegativeInteger(returnProcessing.lostObjectCount);
     
     html += `
       <div style="background-color: #1a1a24; border: 1px solid #333; border-radius: 4px; padding: 6px 8px;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 2px; margin-bottom: 4px;">
           <strong>#${state.runHistory.length - i} [${escapeHtml(dateStr)}] <span style="color: ${outcomeColor};">${escapeHtml(outcomeText)}</span></strong>
-          <span style="color: ${resColor}; font-weight: bold;">${escapeHtml(resText)} (Rank: ${Number(h.dangerRank) || 0})</span>
+          <span style="color: ${resColor}; font-weight: bold;">${escapeHtml(resText)} (Rank: ${dangerRank})</span>
         </div>
         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; color: #ddd; font-size: 10px;">
-          <div>到達階: B${h.deepestFloor}F</div>
-          <div>撃破数: ${h.kills} 匹</div>
-          <div>宝箱開封: ${h.chestsOpened} 個</div>
+          <div>到達階: B${deepestFloor}F</div>
+          <div>撃破数: ${kills} 匹</div>
+          <div>宝箱開封: ${chestsOpened} 個</div>
           <div>出発: ${escapeHtml(startingKit || "開始時情報なし")}</div>
-          <div>持帰素材: ${Object.values(h.bankedMaterials || {}).reduce((sum, quantity) => sum + quantity, 0)} 個</div>
+          <div>持帰素材: ${bankedMaterials} 個</div>
           <div>この冒険を象徴する品: ${representative ? `${escapeHtml(representative.name)}（${escapeHtml(representative.status === "lost" ? "喪失" : representative.status === "rescued" ? "翼で持ち帰り" : representative.status === "returned" ? "帰還" : "観測")}）` : "なし"}</div>
-          <div>品のゆくえ: 持ち帰り${Number(returnProcessing.returnedObjectCount) || 0} / 失った品${Number(returnProcessing.lostObjectCount) || 0}</div>
+          <div>品のゆくえ: 持ち帰り${returnedObjectCount} / 失った品${lostObjectCount}</div>
         </div>
       </div>
     `;
@@ -407,17 +424,22 @@ export function getDeathLogsHtml() {
   state.deathLogs.forEach((d, i) => {
     const dateStr = new Date(d.endedAt).toLocaleDateString("ja-JP") + " " + new Date(d.endedAt).toLocaleTimeString("ja-JP", { hour: '2-digit', minute: '2-digit' });
     const lostItemsText = d.lostItems && d.lostItems.length > 0 ? d.lostItems.join(", ") : "なし";
+    const floor = safePositiveInteger(d.floor);
+    const x = safeNonNegativeInteger(d.x);
+    const y = safeNonNegativeInteger(d.y);
+    const kills = safeNonNegativeInteger(d.kills);
+    const level = d.character ? safePositiveInteger(d.character.level) : null;
     
     html += `
       <div style="background-color: #1a1a24; border: 1px solid #333; border-radius: 4px; padding: 6px 8px;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 2px; margin-bottom: 4px; color: var(--neon-red);">
           <strong>☠️ 死亡記録 #${state.deathLogs.length - i}</strong>
-          <span>B${d.floor}F (${d.x}, ${d.y})</span>
+          <span>B${floor}F (${x}, ${y})</span>
         </div>
         <div style="color: #ddd; font-size: 10px; display: flex; flex-direction: column; gap: 2px;">
-          <div><strong>日時:</strong> ${dateStr}</div>
+          <div><strong>日時:</strong> ${escapeHtml(dateStr)}</div>
           <div><strong>死因:</strong> ${escapeHtml(d.cause)}</div>
-          <div><strong>Lv:</strong> ${d.character?.level ?? "?"} | 撃破数: ${d.kills}</div>
+          <div><strong>Lv:</strong> ${level ?? "?"} | 撃破数: ${kills}</div>
           <div style="color: var(--neon-yellow); white-space: normal; word-break: break-all;"><strong>紛失戦利品:</strong> ${escapeHtml(lostItemsText)}</div>
         </div>
       </div>

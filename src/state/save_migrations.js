@@ -355,6 +355,24 @@ function normalizeRunOutcome(run) {
 function normalizeRunHistoryEntry(entry) {
   if (!isRecord(entry)) return null;
   const normalized = normalizeRunOutcome(entry);
+  if (Object.hasOwn(entry, "deepestFloor")) {
+    normalized.deepestFloor = Math.max(0, integerOr(entry.deepestFloor, 0));
+  }
+  if (Object.hasOwn(entry, "kills")) {
+    normalized.kills = Math.max(0, integerOr(entry.kills, 0));
+  }
+  if (Object.hasOwn(entry, "chestsOpened")) {
+    normalized.chestsOpened = Math.max(0, integerOr(entry.chestsOpened, 0));
+  }
+  if (Object.hasOwn(entry, "dangerRank")) {
+    normalized.dangerRank = Math.max(0, integerOr(entry.dangerRank, 0));
+  }
+  if (Object.hasOwn(entry, "bankedMaterials")) {
+    normalized.bankedMaterials = Object.fromEntries(
+      Object.entries(recordOr(entry.bankedMaterials, {}))
+        .map(([material, quantity]) => [material, Math.max(0, integerOr(quantity, 0))])
+    );
+  }
   // Class identity was part of the retired record axis. Keep old history
   // readable through its factual fields, but never carry the identity into
   // the current model or UI fallback path.
@@ -412,11 +430,24 @@ function normalizeRunHistoryEntry(entry) {
 function normalizeDeathLogEntry(entry) {
   if (!isRecord(entry)) return null;
   const normalized = { ...entry };
+  if (Object.hasOwn(entry, "floor")) normalized.floor = Math.max(1, integerOr(entry.floor, 1));
+  if (Object.hasOwn(entry, "x")) normalized.x = integerOr(entry.x, 0);
+  if (Object.hasOwn(entry, "y")) normalized.y = integerOr(entry.y, 0);
+  if (Object.hasOwn(entry, "deepestFloor")) {
+    normalized.deepestFloor = Math.max(1, integerOr(entry.deepestFloor, 1));
+  }
+  if (Object.hasOwn(entry, "kills")) normalized.kills = Math.max(0, integerOr(entry.kills, 0));
   if (Object.hasOwn(normalized, "lostItems") && !Array.isArray(normalized.lostItems)) {
     normalized.lostItems = [];
   }
   if (Object.hasOwn(normalized, "character") && normalized.character !== null && !isRecord(normalized.character)) {
     normalized.character = null;
+  }
+  if (isRecord(normalized.character) && Object.hasOwn(normalized.character, "level")) {
+    normalized.character = {
+      ...normalized.character,
+      level: Math.max(1, integerOr(normalized.character.level, 1))
+    };
   }
   return normalized;
 }
