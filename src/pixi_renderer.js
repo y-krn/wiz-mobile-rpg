@@ -1,8 +1,9 @@
 // balance-impact: none — PixiJS screen-space presentation.
 // Pixi is the production-default renderer. This module consumes RendererInput
 // and deliberately stays within the shared screen-space projection contract.
-import { Application, Container, Graphics, Text } from "pixi.js";
+import { Application, Assets, Container, Graphics, Sprite, Text } from "pixi.js";
 import { EVENT_TYPES } from "./data.js";
+import { ENEMY_ARCHETYPES, getEnemyPresentation } from "./enemy_presentation.js";
 import {
   BASE_GEOMETRY,
   getCombatMonsterLayout,
@@ -168,6 +169,9 @@ export class PixiDungeonRenderer {
     this.combatEntryTime = 0;
     this.activeRoot = null;
     this.damageTexts = [];
+    this.enemyTextures = new Map();
+    this.enemyAssetFailures = new Set();
+    this.enemyAssetPromise = null;
     this.resourceStats = {
       sceneRebuilds: 0,
       maxChildren: 0,
@@ -175,7 +179,11 @@ export class PixiDungeonRenderer {
       layerCount: LAYER_NAMES.length,
       generatedTextureCount: 0,
       filterCount: 0,
-      listenerCount: 0
+      listenerCount: 0,
+      enemyTextureCount: 0,
+      enemyAssetFailureCount: 0,
+      enemyPresentationCount: 0,
+      enemyFallbackCount: 0
     };
     this.failurePhase = failurePhase;
     this.initializationPhase = null;
@@ -222,6 +230,9 @@ export class PixiDungeonRenderer {
         autoStart: false,
         preference: "webgl"
       });
+      // The cutouts are tiny local SVG resources. Resolve them before exposing
+      // the renderer so combat never shows a blank/placeholder frame.
+      await this.loadEnemyTextures();
       this.initializationPhase = "mount";
       this.scene = this.createSceneRoot("pixi-current-scene");
       this.app.stage.addChild(this.scene);
@@ -234,6 +245,24 @@ export class PixiDungeonRenderer {
       this.dispose();
       throw error;
     }
+  }
+
+  async loadEnemyTextures() {
+    if (this.enemyAssetPromise) return this.enemyAssetPromise;
+    this.enemyAssetPromise = Promise.all(Object.entries(ENEMY_ARCHETYPES).map(async ([archetype, presentation]) => {
+      try {
+        const texture = await Assets.load(presentation.asset);
+        if (texture) this.enemyTextures.set(archetype, texture);
+      } catch {
+        // One broken art file must not prevent the renderer or combat flow
+        // from starting. The local silhouette is bounded and non-interactive.
+        this.enemyAssetFailures.add(archetype);
+      }
+    })).then(() => {
+      this.resourceStats.enemyTextureCount = this.enemyTextures.size;
+      this.resourceStats.enemyAssetFailureCount = this.enemyAssetFailures.size;
+    });
+    return this.enemyAssetPromise;
   }
 
   triggerShake(intensity = 10, duration = 300) {
@@ -295,7 +324,7 @@ export class PixiDungeonRenderer {
     const renderInput = this.resolveRenderInput(input);
     const { view, sceneVisibility } = renderInput;
     const combat = view.hasCombat
-      ? renderInput.combatMonsters.map((monster) => [monster.name, monster.hp, monster.maxHp, monster.color, getQueuedThreat(monster)].join(",")).join(";")
+      ? renderInput.combatMonsters.map((monster) => [monster.name, monster.hp, monster.maxHp, monster.color, monster.spriteType, monster.isBoss, monster.isMidboss, monster.isRare, getQueuedThreat(monster)].join(",")).join(";")
       : "";
     return [
       view.gameState,
@@ -404,7 +433,10 @@ export class PixiDungeonRenderer {
       this.scene.position.x += offset;
       this.scene.position.y += offset * 0.45;
     }
-    if (this.flashTime > 0) drawRect(this.layer("overlays"), 0, 0, PIXI_VIEW_W, PIXI_VIEW_H, "#ffffff", 0.24);
+    if (this.flashTime > 0) {
+      if (renderInput.sceneVisibility.showCombat) this.drawLocalFlash(renderInput);
+      else drawRect(this.layer("overlays"), 0, 0, PIXI_VIEW_W, PIXI_VIEW_H, "#ffffff", 0.24);
+    }
     if (this.hitTime > 0) this.drawHitFeedback(renderInput);
     this.app.render();
     renderMiniMapOverlay(renderInput);
@@ -641,27 +673,88 @@ export class PixiDungeonRenderer {
   }
 
   drawMonsters(renderInput) {
-    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion }) => {
+    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion, row, column }) => {
       const color = getMonsterColor(monster);
       const actors = this.layer("actors");
-      drawEllipse(actors, cx, cy + 28 * scale, 35 * scale, 5 * scale, "#000000", 0.58);
-      const spriteType = monster.spriteType || "biter";
-      if (["skeleton", "zombie", "orc", "kobold"].includes(spriteType)) {
-        drawRect(actors, cx - 19 * scale, cy - 34 * scale, 38 * scale, 52 * scale, color, 0.34, { color, width: Math.max(1, 3 * scale), alpha: 0.9 });
-      } else {
-        drawEllipse(actors, cx, cy - 10 * scale, 25 * scale, 25 * scale, color, 0.34, { color, width: Math.max(1, 3 * scale), alpha: 0.9 });
-      }
-      drawEllipse(actors, cx, cy - 10 * scale, 8 * scale, 8 * scale, "#ffffff", 0.82);
-      addLine(actors, [{ x: cx - 15 * scale, y: cy - 10 * scale }, { x: cx + 15 * scale, y: cy - 10 * scale }], { color: "#ffffff", width: Math.max(1, scale), alpha: 0.7 });
+      const presentation = getEnemyPresentation(monster);
+      const floorY = cy + 30 * scale;
+      const visualScale = Math.min(
+        scale * presentation.scale,
+        (floorY * 0.94) / presentation.maxHeight,
+        (slotWidth * 0.82) / presentation.maxWidth
+      );
+      const hpY = Math.max(18, floorY - presentation.height * visualScale - 5);
+      drawEllipse(actors, cx, floorY, Math.min(42, presentation.width * visualScale * 0.42), 5.5 * scale, "#05070a", 0.66);
+      this.drawEnemyCutout(actors, presentation, cx, floorY, visualScale, color, row, column, renderInput.combatTargetSelection?.active);
       const hp = Math.max(0, Math.min(1, monster.hp / Math.max(1, monster.maxHp)));
-      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, cy - 62, Math.min(100, slotWidth - 8), 5, "#ffffff", 0.12, { color: "#8e8e93", width: 1 });
-      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, cy - 62, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
+      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8), 5, "#ffffff", 0.12, { color: "#8e8e93", width: 1 });
+      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
       if (getQueuedThreat(monster)) {
         const pulse = 0.48 + 0.18 * Math.sin(this.clockMs / 180);
         drawEllipse(this.layer("combat-fx"), cx, cy - 10 * scale, 31 * scale, 31 * scale, "#ffcc00", 0, { color: "#ffcc00", width: 2, alpha: pulse });
       }
       if (renderInput.combatTargetSelection?.active) this.drawTargetMarker(hitRegion, cx, cy, scale, color);
     });
+  }
+
+  drawEnemyCutout(actors, presentation, cx, floorY, visualScale, color, row, column, targetable) {
+    const texture = this.enemyTextures.get(presentation.archetype);
+    const billboard = new Container();
+    billboard.label = `enemy-${presentation.archetype}-${row}-${column}`;
+    billboard.position.set(cx, floorY);
+    billboard.zIndex = row * 100 + column;
+    billboard.sortableChildren = true;
+
+    if (texture) {
+      const rim = new Sprite(texture);
+      rim.anchor.set(0.5, 1);
+      rim.scale.set(visualScale * 1.035);
+      rim.tint = parseColor(targetable ? color : "#5d777a");
+      rim.alpha = targetable ? 0.34 : 0.22;
+      rim.label = "enemy-rim";
+      billboard.addChild(rim);
+
+      const sprite = new Sprite(texture);
+      sprite.anchor.set(0.5, 1);
+      sprite.scale.set(visualScale);
+      sprite.tint = parseColor("#ffffff");
+      sprite.alpha = 0.98;
+      sprite.label = "enemy-cutout";
+      billboard.addChild(sprite);
+      this.resourceStats.enemyPresentationCount += 1;
+    } else {
+      this.drawFallbackEnemy(billboard, presentation, visualScale, color);
+      this.resourceStats.enemyFallbackCount += 1;
+    }
+    actors.addChild(billboard);
+  }
+
+  drawFallbackEnemy(container, presentation, visualScale, color) {
+    const fallback = new Graphics();
+    const height = presentation.height * visualScale;
+    const width = presentation.width * visualScale;
+    // Emergency-only illustrated silhouette: head, shoulders, cloak, limbs,
+    // and a weapon cue. It is deliberately distinct from the production art.
+    fallback.poly([
+      -width * 0.18, -height * 0.88,
+      width * 0.14, -height * 0.94,
+      width * 0.26, -height * 0.76,
+      width * 0.19, -height * 0.58,
+      width * 0.42, -height * 0.36,
+      width * 0.28, -height * 0.04,
+      width * 0.10, 0,
+      -width * 0.12, 0,
+      -width * 0.28, -height * 0.04,
+      -width * 0.42, -height * 0.36,
+      -width * 0.19, -height * 0.58,
+      -width * 0.28, -height * 0.76
+    ]).fill({ color: parseColor("#16242a"), alpha: 0.95 }).stroke({ color: parseColor(color), width: Math.max(1.5, visualScale * 3), alpha: 0.9 });
+    fallback.moveTo(-width * 0.12, -height * 0.68).lineTo(width * 0.14, -height * 0.68);
+    fallback.moveTo(width * 0.32, -height * 0.62).lineTo(width * 0.56, -height * 0.12);
+    fallback.stroke({ color: parseColor("#d8b875"), width: Math.max(1, visualScale * 2), alpha: 0.9 });
+    fallback.label = "enemy-fallback-silhouette";
+    fallback.position.y = 0;
+    container.addChild(fallback);
   }
 
   drawTargetMarker(hitRegion, cx, cy, scale, color) {
@@ -676,6 +769,13 @@ export class PixiDungeonRenderer {
     }
     graphic.stroke({ color, width: 1.5, alpha: 0.82 });
     this.layer("combat-fx").addChild(graphic);
+  }
+
+  drawLocalFlash(renderInput) {
+    const progress = clamp01(this.flashTime / 200);
+    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ cx, cy, scale }) => {
+      drawEllipse(this.layer("combat-fx"), cx, cy - 20 * scale, 28 * scale, 48 * scale, "#fff4dc", 0.05 + progress * 0.11);
+    });
   }
 
   drawChest() {
@@ -734,8 +834,14 @@ export class PixiDungeonRenderer {
   drawHitFeedback(renderInput) {
     const progress = clamp01(this.hitTime / 220);
     const color = safeColor(renderInput.visual.wallColor, "#e8f7f4");
-    const alpha = 0.10 * progress;
-    drawEllipse(this.layer("combat-fx"), 200, 105, 120 - progress * 24, 72 - progress * 14, color, alpha);
+    const alpha = 0.12 * progress;
+    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ cx, cy, scale }) => {
+      drawEllipse(this.layer("combat-fx"), cx, cy - 20 * scale, 24 * scale + progress * 8, 42 * scale + progress * 12, color, alpha);
+      addLine(this.layer("combat-fx"), [
+        { x: cx - 17 * scale, y: cy - 18 * scale },
+        { x: cx - 26 * scale, y: cy - 26 * scale }
+      ], { color: "#fff4dc", width: Math.max(1, scale * 2), alpha: alpha + 0.12 });
+    });
   }
 
   dispose() {

@@ -1,0 +1,30 @@
+<!-- balance-impact: none — visual asset only; combat rules and state are unchanged. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b5c1b4"/><stop offset=".42" stop-color="#59666a"/><stop offset="1" stop-color="#202b32"/></linearGradient>
+    <linearGradient id="leather" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#9c704e"/><stop offset="1" stop-color="#3b2830"/></linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#edf0d4"/><stop offset=".5" stop-color="#9daeb0"/><stop offset="1" stop-color="#3e5159"/></linearGradient>
+  </defs>
+  <g fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M77 227l7-63-15-34c-6-14 3-28 18-31l25-4 17 16 19-17 25 6c15 4 21 20 13 34l-13 31 12 62z" fill="url(#leather)" stroke="#718187" stroke-width="3.5"/>
+    <path d="M86 151l27-13 20 13 36-12-8 40-32 9-39-9z" fill="url(#plate)" stroke="#d4bc7b" stroke-width="2.5"/>
+    <path d="M96 157l38-6M102 173l55-14M117 145l-4 38M137 150l6 36" stroke="#2b3940" stroke-width="3"/>
+    <path d="M92 88c-3-29 14-49 39-51 28-3 46 16 42 44l-10 31-45 5z" fill="url(#plate)" stroke="#d8cfaa" stroke-width="3.5"/>
+    <path d="M86 92c7-36 28-54 58-49 21 3 35 17 38 38l-20-11-18 11-24-5-20 20z" fill="#202a31" stroke="#84989a" stroke-width="3"/>
+    <path d="M102 96h55M111 112l12 5M142 112l12-5" stroke="#d8cfaa" stroke-width="2"/>
+    <path d="M111 105l8-5M147 100l8 5" stroke="#c94243" stroke-width="5"/>
+    <path d="M84 137l-37 31 15 17 39-25M174 137l31 22 13-18-35-27" fill="url(#plate)" stroke="#93a6a5" stroke-width="3"/>
+    <path d="M48 169l-12 13M207 158l14 12" stroke="#d4bc7b" stroke-width="5"/>
+    <path d="M100 187l-14 42M157 187l13 42" stroke="#829397" stroke-width="13"/>
+    <path d="M86 229l-18 8M170 229l18 8" stroke="#d4bc7b" stroke-width="6"/>
+    <path d="M192 34l17 141-12 13-21-143z" fill="#71343d" stroke="#d4bc7b" stroke-width="3.5"/>
+    <path d="M185 23l22 8 14 19-18 8-20-11z" fill="url(#steel)" stroke="#efe0a5" stroke-width="3"/>
+    <path d="M195 54l11 91M53 145l23-7" stroke="#eddca0" stroke-width="2" opacity=".8"/>
+    <path d="M76 142l-23 9-8-17 19-15z" fill="#45565e" stroke="#d4bc7b" stroke-width="3"/>
+    <path d="M48 134l14-7 12 7-9 9-14 3z" fill="#263942" stroke="#b9bda0" stroke-width="2"/>
+    <circle cx="60" cy="136" r="3" fill="#d9bd78" stroke="none"/>
+    <path d="M90 145l19-8M151 143l19-7M93 193l-4 25M159 192l5 25" stroke="#e3c887" stroke-width="2" opacity=".75"/>
+    <path d="M99 196l13 5 10-5M139 196l12 5 10-5" stroke="#202f36" stroke-width="3"/>
+    <circle cx="103" cy="154" r="3" fill="#d7be80" stroke="none"/><circle cx="153" cy="153" r="3" fill="#d7be80" stroke="none"/>
+  </g>
+</svg>
