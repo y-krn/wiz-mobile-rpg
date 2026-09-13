@@ -65,6 +65,17 @@ async function capture(page, testInfo, filename) {
   return frame;
 }
 
+async function captureFrameSheet(page, entries, testInfo, filename, columns = 2) {
+  const sheet = await page.context().newPage();
+  await sheet.setViewportSize({ width: columns * 390 + (columns + 1) * 10, height: 600 });
+  const images = entries.map(({ name, frame }) => `<figure><figcaption>${name}</figcaption><img alt="${name}" src="data:image/png;base64,${frame.toString('base64')}"></figure>`).join('');
+  await sheet.setContent(`<style>body{margin:0;background:#081015;color:#9bdde5;font:16px sans-serif}.grid{display:grid;grid-template-columns:repeat(${columns},390px);gap:10px;padding:10px}figure{margin:0;border:1px solid #1c6d77}figcaption{padding:6px;background:#0d2028}img{display:block;width:390px}</style><div class="grid">${images}</div>`);
+  const image = await sheet.screenshot({ path: testInfo.outputPath(filename), fullPage: true });
+  await testInfo.attach(filename, { body: image, contentType: 'image/png' });
+  await sheet.close();
+  return image;
+}
+
 async function evidence(page) {
   return page.evaluate(async () => {
     const { dungeonRenderer, getCombatMonsterLayout } = await import('/src/renderer.js');
@@ -90,32 +101,38 @@ test('procedural production registry renders all named recipes without enemy tex
     await setCombat(page, [monster]);
     frames.push({ name: monster.name, frame: await capture(page, testInfo, `enemy-390-${monster.name}.png`) });
   }
-  const sheet = await page.context().newPage();
-  await sheet.setViewportSize({ width: 820, height: 600 });
-  const images = frames.map(({ name, frame }) => `<figure><figcaption>${name}</figcaption><img alt="${name}" src="data:image/png;base64,${frame.toString('base64')}"></figure>`).join('');
-  await sheet.setContent(`<style>body{margin:0;background:#081015;color:#9bdde5;font:16px sans-serif}.grid{display:grid;grid-template-columns:repeat(2,390px);gap:10px;padding:10px}figure{margin:0;border:1px solid #1c6d77}figcaption{padding:6px;background:#0d2028}img{display:block;width:390px}</style><div class="grid">${images}</div>`);
-  await sheet.screenshot({ path: testInfo.outputPath('enemy-simple-production-390-contact-sheet.png'), fullPage: true });
-  await sheet.close();
+  await captureFrameSheet(page, frames, testInfo, 'enemy-simple-production-390-contact-sheet-v2.png');
+  await captureFrameSheet(page, frames, testInfo, 'enemy-simple-production-390-palette-gate.png');
+  const frameByName = new Map(frames.map(frame => [frame.name, frame]));
+  await captureFrameSheet(page, [frameByName.get('フラッシュバット'), frameByName.get('火薬コウモリ')], testInfo, 'bat-family-palette.png');
+  await captureFrameSheet(page, [frameByName.get('マッドスライム'), frameByName.get('分裂スライム')], testInfo, 'slime-family-palette.png');
+  await captureFrameSheet(page, [frameByName.get('泥の呪い子'), frameByName.get('コボルトの斥候'), frameByName.get('ゴブリンの呪術師'), frameByName.get('錆びた盾兵')], testInfo, 'humanoid-family-palette.png');
+  await captureFrameSheet(page, [frameByName.get('かみつき蟲'), frameByName.get('群れネズミ'), frameByName.get('まどろみ胞子')], testInfo, 'small-threat-family-palette.png');
 
   await setCombat(page, [NAMED[0], NAMED[4], NAMED[10]], true);
-  await capture(page, testInfo, 'enemy-390-production-trio.png');
+  await capture(page, testInfo, 'enemy-390-production-trio-v2.png');
   await setCombat(page, [NAMED[4], NAMED[5]], true);
-  await capture(page, testInfo, 'enemy-390-production-pair-selected.png');
+  await capture(page, testInfo, 'enemy-390-production-pair-selected-v2.png');
   await page.evaluate(async () => {
     const { dungeonRenderer } = await import('/src/renderer.js');
     dungeonRenderer.damageTexts = []; dungeonRenderer.triggerHitFeedback(); dungeonRenderer.addDamageText('24'); dungeonRenderer.triggerFlash(); dungeonRenderer.update(16); dungeonRenderer.draw();
   });
-  await capture(page, testInfo, 'enemy-390-production-hit-damage.png');
+  await capture(page, testInfo, 'enemy-390-production-hit-damage-v2.png');
   await setCombat(page, [withVitals(FALLBACKS.boss)]);
-  await capture(page, testInfo, 'enemy-390-production-boss-fallback.png');
+  await capture(page, testInfo, 'enemy-390-production-boss-fallback-v2.png');
+  await setCombat(page, [NAMED[2], NAMED[9], NAMED[10]], true);
+  await capture(page, testInfo, 'enemy-390-palette-trio.png');
 
   await page.setViewportSize({ width: 320, height: 568 });
   await setCombat(page, [NAMED[0], NAMED[10]], true);
-  await capture(page, testInfo, 'enemy-320-production-bat-shield-pair.png');
+  await capture(page, testInfo, 'enemy-320-production-bat-shield-pair-v2.png');
   await setCombat(page, [NAMED[3], NAMED[5]], false);
-  await capture(page, testInfo, 'enemy-320-production-slime-swarm.png');
+  await capture(page, testInfo, 'enemy-320-production-slime-swarm-v2.png');
   await setCombat(page, [withVitals(FALLBACKS.boss)]);
-  await capture(page, testInfo, 'enemy-320-production-boss-fallback.png');
+  await capture(page, testInfo, 'enemy-320-production-boss-fallback-v2.png');
+  await setCombat(page, [NAMED[3], NAMED[5], NAMED[6]], true);
+  await capture(page, testInfo, 'enemy-320-palette-trio.png');
+  await setCombat(page, [NAMED[0]]);
 
   const current = await evidence(page);
   expect(current.mode).toBe('production');

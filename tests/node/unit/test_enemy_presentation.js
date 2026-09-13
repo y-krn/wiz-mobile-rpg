@@ -7,6 +7,7 @@ import {
   getEnemyPresentation,
   getEnemyRecipeKey
 } from "../../../src/enemy_presentation.js";
+import { ENEMY_RECIPE_PALETTES } from "../../../src/pixi_enemy_prototypes.js";
 
 assert.equal(getEnemyArchetype({ spriteType: "biter" }), "small");
 assert.equal(getEnemyArchetype({ spriteType: "kobold" }), "humanoid");
@@ -24,6 +25,18 @@ for (const presentation of Object.values(ENEMY_ARCHETYPES)) {
 
 assert.equal(Object.keys(ENEMY_UNIQUE_RECIPES).length, 11);
 assert.equal(new Set(Object.values(ENEMY_UNIQUE_RECIPES)).size, 11, "each named enemy has a distinct recipe");
+assert.equal(Object.keys(ENEMY_RECIPE_PALETTES).length, Object.keys(ENEMY_RECIPE_KEYS).length);
+for (const recipe of Object.values(ENEMY_RECIPE_KEYS)) {
+  const palette = ENEMY_RECIPE_PALETTES[recipe];
+  assert.ok(palette, `palette exists for ${recipe}`);
+  for (const field of ["main", "secondary", "rim", "accent", "material", "dark"]) {
+    assert.equal(typeof palette[field], "number", `${recipe} palette has ${field}`);
+  }
+}
+assert.ok(new Set(Object.values(ENEMY_UNIQUE_RECIPES).map(recipe => ENEMY_RECIPE_PALETTES[recipe].main)).size >= 7, "named enemies are not universal cyan-bodied pieces");
+assert.equal(ENEMY_RECIPE_PALETTES[ENEMY_RECIPE_KEYS.flashBat].main, 0x274147);
+assert.equal(ENEMY_RECIPE_PALETTES[ENEMY_RECIPE_KEYS.powderBat].material, 0x865b43);
+assert.equal(ENEMY_RECIPE_PALETTES[ENEMY_RECIPE_KEYS.ratPack].main, 0x4b4139);
 for (const [name, recipe] of Object.entries(ENEMY_UNIQUE_RECIPES)) {
   const presentation = getEnemyPresentation({ name });
   assert.equal(presentation.recipe, recipe);

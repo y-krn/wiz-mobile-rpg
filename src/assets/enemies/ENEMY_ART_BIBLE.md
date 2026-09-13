@@ -168,3 +168,11 @@ Do not make the canonical references more detailed to match the remaining enemie
 The remaining eight named candidates must stay individually identifiable while sharing this visual system. Fallback candidates (small, humanoid, brute, caster, boss) must be safer and more generic, never more elaborate than the named set. Boss impact comes from mass, asymmetry, scale, and value grouping—not added realism or surface detail.
 
 These candidates are review-only until the full-set human actual-pixel review approves them. Keep the production registry on the accepted references/current assets; do not switch it as part of candidate generation.
+
+### Swarm cue rule
+
+Swarm enemies should read as one low clustered mass with only a few organism cues, rather than many individually rendered creatures. Keep the swarm wide and floor-bound; use only a small number of head, ear, eye, or tail cues to establish the organism after the mass is recognized.
+
+### Palette identity rule
+
+Shared geometry language does not require shared body hue. Enemy identity comes from: 1. silhouette, 2. role cue, 3. muted material/palette family. Avoid universal cyan body treatment; cyan belongs primarily to the dungeon language and selective accents. Related families share palette ancestry, while broad main/secondary planes provide restrained material variation without changing the value hierarchy.

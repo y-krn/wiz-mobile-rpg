@@ -23,6 +23,37 @@ const COLORS = Object.freeze({
   white: 0xffffff
 });
 
+const DEFAULT_PALETTE = Object.freeze({
+  main: COLORS.body,
+  secondary: COLORS.bodyLight,
+  rim: COLORS.teal,
+  accent: COLORS.cyan,
+  material: COLORS.mud,
+  dark: COLORS.black
+});
+
+// Geometry is shared by recipe families; palette is the controlled material
+// identity layer. Keep luminance close to the approved V3 hierarchy and vary
+// hue/material family instead of adding detail or brightness.
+export const ENEMY_RECIPE_PALETTES = Object.freeze({
+  ["flash-bat"]: DEFAULT_PALETTE,
+  ["powder-bat"]: Object.freeze({ ...DEFAULT_PALETTE, material: 0x865b43, accent: 0xb07b58 }),
+  biter: Object.freeze({ main: 0x4a493b, secondary: 0x69674e, rim: 0x798b77, accent: 0x9da889, material: 0x81704d, dark: COLORS.black }),
+  ["mud-slime"]: Object.freeze({ main: 0x4d4935, secondary: 0x716b4b, rim: 0x7d8867, accent: 0xa6c4aa, material: 0x836d48, dark: COLORS.black }),
+  ["split-slime"]: Object.freeze({ main: 0x3d4b45, secondary: 0x5e7063, rim: 0x789084, accent: 0x9ac8b8, material: 0x6d725b, dark: COLORS.black }),
+  ["rat-pack"]: Object.freeze({ main: 0x4b4139, secondary: 0x69584a, rim: 0x7c7564, accent: 0xb09a7d, material: 0x7c654e, dark: COLORS.black }),
+  ["sleep-spore"]: Object.freeze({ main: 0x4c4354, secondary: 0x6a5a72, rim: 0x7b6c85, accent: 0xb19ac2, material: 0x806a7c, dark: COLORS.black }),
+  ["mud-cursed-child"]: Object.freeze({ main: 0x4b433b, secondary: 0x6a5d4d, rim: 0x7b6f60, accent: 0xae8b66, material: 0x7a6147, dark: COLORS.black }),
+  ["kobold-scout"]: Object.freeze({ main: 0x493a34, secondary: 0x685047, rim: 0x816653, accent: 0xb27b57, material: 0x865d46, dark: COLORS.black }),
+  ["goblin-caster"]: Object.freeze({ main: 0x294147, secondary: 0x5a5062, rim: 0x65928e, accent: COLORS.cyan, material: 0x665366, dark: COLORS.black }),
+  ["rusted-shield"]: Object.freeze({ main: 0x4b4743, secondary: 0x6a625b, rim: 0x718a87, accent: COLORS.cyan, material: 0x855a43, dark: COLORS.black }),
+  small: Object.freeze({ main: 0x3f464c, secondary: 0x5d6870, rim: 0x70858a, accent: 0x9bb7b6, material: 0x62676b, dark: COLORS.black }),
+  humanoid: Object.freeze({ main: 0x3f4546, secondary: 0x5d6362, rim: 0x71807e, accent: 0x9aa9a1, material: 0x64615a, dark: COLORS.black }),
+  brute: Object.freeze({ main: 0x4b4742, secondary: 0x676057, rim: 0x787d77, accent: 0x9b8068, material: 0x765846, dark: COLORS.black }),
+  caster: Object.freeze({ main: 0x304346, secondary: 0x584f60, rim: 0x668f8b, accent: COLORS.cyan, material: 0x68556c, dark: COLORS.black }),
+  boss: Object.freeze({ main: 0x424346, secondary: 0x626168, rim: 0x777f82, accent: 0xa68a70, material: 0x7e5d4a, dark: COLORS.black })
+});
+
 export const SIMPLE_ENEMY_VALUE_TOKENS = Object.freeze({
   background: 0x0c0c0e,
   main: COLORS.body,
@@ -126,79 +157,79 @@ function createPrimitivePrototype(monster, visualScale, color) {
   return container;
 }
 
-function createSimpleRichBat(container, scale) {
+function createSimpleRichBat(container, scale, palette = DEFAULT_PALETTE) {
   addPolygon(container, [
     { x: -8 * scale, y: -42 * scale }, { x: -68 * scale, y: -75 * scale },
     { x: -49 * scale, y: -36 * scale }, { x: -28 * scale, y: -52 * scale },
     { x: -17 * scale, y: -25 * scale }, { x: -8 * scale, y: -32 * scale }
-  ], COLORS.body, 0.96, { color: COLORS.teal, width: Math.max(1, 1.8 * scale), alpha: 0.62 });
+  ], palette.main, 0.96, { color: palette.rim, width: Math.max(1, 1.8 * scale), alpha: 0.62 });
   addPolygon(container, [
     { x: 8 * scale, y: -42 * scale }, { x: 68 * scale, y: -75 * scale },
     { x: 49 * scale, y: -36 * scale }, { x: 28 * scale, y: -52 * scale },
     { x: 17 * scale, y: -25 * scale }, { x: 8 * scale, y: -32 * scale }
-  ], COLORS.body, 0.96, { color: COLORS.teal, width: Math.max(1, 1.8 * scale), alpha: 0.62 });
-  addLine(container, [{ x: -49 * scale, y: -36 * scale }, { x: -28 * scale, y: -52 * scale }], { color: COLORS.bodyLight, width: Math.max(2, 4 * scale), alpha: 0.8 });
-  addLine(container, [{ x: 49 * scale, y: -36 * scale }, { x: 28 * scale, y: -52 * scale }], { color: COLORS.bodyLight, width: Math.max(2, 4 * scale), alpha: 0.8 });
-  addEllipse(container, 0, -42 * scale, 11 * scale, 12 * scale, COLORS.black, 0.98);
-  addPoint(container, -4 * scale, -44 * scale, Math.max(1, 2 * scale), COLORS.cyan, 0.86);
-  addPoint(container, 4 * scale, -44 * scale, Math.max(1, 2 * scale), COLORS.cyan, 0.86);
+  ], palette.main, 0.96, { color: palette.rim, width: Math.max(1, 1.8 * scale), alpha: 0.62 });
+  addLine(container, [{ x: -49 * scale, y: -36 * scale }, { x: -28 * scale, y: -52 * scale }], { color: palette.secondary, width: Math.max(2, 4 * scale), alpha: 0.8 });
+  addLine(container, [{ x: 49 * scale, y: -36 * scale }, { x: 28 * scale, y: -52 * scale }], { color: palette.secondary, width: Math.max(2, 4 * scale), alpha: 0.8 });
+  addEllipse(container, 0, -42 * scale, 11 * scale, 12 * scale, palette.dark, 0.98);
+  addPoint(container, -4 * scale, -44 * scale, Math.max(1, 2 * scale), palette.accent, 0.86);
+  addPoint(container, 4 * scale, -44 * scale, Math.max(1, 2 * scale), palette.accent, 0.86);
 }
 
-function createSimpleRichSlime(container, scale) {
+function createSimpleRichSlime(container, scale, palette = DEFAULT_PALETTE) {
   addPolygon(container, [
     { x: -54 * scale, y: -18 * scale }, { x: -48 * scale, y: -58 * scale },
     { x: -25 * scale, y: -75 * scale }, { x: 4 * scale, y: -70 * scale },
     { x: 30 * scale, y: -78 * scale }, { x: 53 * scale, y: -48 * scale },
     { x: 47 * scale, y: -10 * scale }, { x: 28 * scale, y: 0 },
     { x: -31 * scale, y: 0 }
-  ], COLORS.body, 0.96, { color: COLORS.mud, width: Math.max(1, 1.8 * scale), alpha: 0.72 });
+  ], palette.main, 0.96, { color: palette.material, width: Math.max(1, 1.8 * scale), alpha: 0.72 });
   addPolygon(container, [
     { x: -38 * scale, y: -49 * scale }, { x: -18 * scale, y: -65 * scale },
     { x: 6 * scale, y: -60 * scale }, { x: 26 * scale, y: -67 * scale },
     { x: 38 * scale, y: -45 * scale }, { x: 18 * scale, y: -34 * scale },
     { x: -21 * scale, y: -35 * scale }
-  ], COLORS.bodyLight, 0.72);
-  addLine(container, [{ x: -32 * scale, y: -14 * scale }, { x: 22 * scale, y: -14 * scale }], { color: COLORS.mud, width: Math.max(2, 3 * scale), alpha: 0.62 });
-  addPoint(container, -13 * scale, -43 * scale, Math.max(1, 2 * scale), COLORS.cyan, 0.52);
-  addPoint(container, 14 * scale, -43 * scale, Math.max(1, 2 * scale), COLORS.cyan, 0.52);
+  ], palette.secondary, 0.72);
+  addLine(container, [{ x: -32 * scale, y: -14 * scale }, { x: 22 * scale, y: -14 * scale }], { color: palette.material, width: Math.max(2, 3 * scale), alpha: 0.62 });
+  addPoint(container, -13 * scale, -43 * scale, Math.max(1, 2 * scale), palette.accent, 0.52);
+  addPoint(container, 14 * scale, -43 * scale, Math.max(1, 2 * scale), palette.accent, 0.52);
 }
 
-function createSimpleRichCaster(container, scale) {
+function createSimpleRichCaster(container, scale, palette = DEFAULT_PALETTE) {
   addPolygon(container, [
     { x: -7 * scale, y: -94 * scale }, { x: -43 * scale, y: -23 * scale },
     { x: -30 * scale, y: 0 }, { x: 25 * scale, y: 0 },
     { x: 42 * scale, y: -24 * scale }, { x: 17 * scale, y: -60 * scale }
-  ], COLORS.body, 0.97, { color: COLORS.teal, width: Math.max(1, 1.8 * scale), alpha: 0.55 });
+  ], palette.main, 0.97, { color: palette.rim, width: Math.max(1, 1.8 * scale), alpha: 0.55 });
   addPolygon(container, [
     { x: -7 * scale, y: -94 * scale }, { x: -27 * scale, y: -54 * scale },
     { x: 12 * scale, y: -55 * scale }, { x: 17 * scale, y: -60 * scale }
-  ], COLORS.bodyLight, 0.46);
-  addLine(container, [{ x: -37 * scale, y: 1 * scale }, { x: -40 * scale, y: -105 * scale }], { color: COLORS.bodyLight, width: Math.max(3, 5 * scale), alpha: 0.96 });
-  addLine(container, [{ x: -40 * scale, y: -105 * scale }, { x: -31 * scale, y: -112 * scale }, { x: -47 * scale, y: -112 * scale }], { color: COLORS.teal, width: Math.max(1, 2 * scale), alpha: 0.7 });
-  addPoint(container, 25 * scale, -45 * scale, Math.max(2, 4 * scale), COLORS.cyan, 0.84);
+  ], palette.secondary, 0.46);
+  addLine(container, [{ x: -37 * scale, y: 1 * scale }, { x: -40 * scale, y: -105 * scale }], { color: palette.secondary, width: Math.max(3, 5 * scale), alpha: 0.96 });
+  addLine(container, [{ x: -40 * scale, y: -105 * scale }, { x: -31 * scale, y: -112 * scale }, { x: -47 * scale, y: -112 * scale }], { color: palette.rim, width: Math.max(1, 2 * scale), alpha: 0.7 });
+  addPoint(container, 25 * scale, -45 * scale, Math.max(2, 4 * scale), palette.accent, 0.84);
   addPoint(container, 25 * scale, -45 * scale, Math.max(1, 2 * scale), COLORS.white, 0.58);
 }
 
-function createSimpleRichShield(container, scale) {
+function createSimpleRichShield(container, scale, palette = DEFAULT_PALETTE) {
   addPolygon(container, [
     { x: -58 * scale, y: -100 * scale }, { x: 20 * scale, y: -92 * scale },
     { x: 43 * scale, y: -57 * scale }, { x: 38 * scale, y: -6 * scale },
     { x: 8 * scale, y: 1 * scale }, { x: -45 * scale, y: -17 * scale },
     { x: -64 * scale, y: -58 * scale }
-  ], COLORS.body, 0.98, { color: COLORS.rust, width: Math.max(1, 2 * scale), alpha: 0.72 });
+  ], palette.main, 0.98, { color: palette.material, width: Math.max(1, 2 * scale), alpha: 0.72 });
   addPolygon(container, [
     { x: -49 * scale, y: -88 * scale }, { x: 13 * scale, y: -82 * scale },
     { x: 29 * scale, y: -54 * scale }, { x: 22 * scale, y: -22 * scale },
     { x: -38 * scale, y: -30 * scale }, { x: -52 * scale, y: -59 * scale }
-  ], COLORS.bodyLight, 0.74);
+  ], palette.secondary, 0.74);
   addPolygon(container, [
     { x: -18 * scale, y: -83 * scale }, { x: 13 * scale, y: -82 * scale },
     { x: 29 * scale, y: -54 * scale }, { x: 4 * scale, y: -50 * scale }
-  ], COLORS.teal, 0.22);
-  addLine(container, [{ x: -31 * scale, y: -44 * scale }, { x: 11 * scale, y: -37 * scale }], { color: COLORS.rust, width: Math.max(2, 4 * scale), alpha: 0.72 });
-  addEllipse(container, 13 * scale, -105 * scale, 13 * scale, 10 * scale, COLORS.black, 0.98, { color: COLORS.teal, width: Math.max(1, 1.5 * scale), alpha: 0.45 });
-  addLine(container, [{ x: 43 * scale, y: -10 * scale }, { x: 66 * scale, y: -66 * scale }], { color: COLORS.bodyLight, width: Math.max(2, 4 * scale), alpha: 0.9 });
-  addPoint(container, 17 * scale, -106 * scale, Math.max(1, 2 * scale), COLORS.cyan, 0.6);
+  ], palette.rim, 0.22);
+  addLine(container, [{ x: -31 * scale, y: -44 * scale }, { x: 11 * scale, y: -37 * scale }], { color: palette.material, width: Math.max(2, 4 * scale), alpha: 0.72 });
+  addEllipse(container, 13 * scale, -105 * scale, 13 * scale, 10 * scale, palette.dark, 0.98, { color: palette.rim, width: Math.max(1, 1.5 * scale), alpha: 0.45 });
+  addLine(container, [{ x: 43 * scale, y: -10 * scale }, { x: 66 * scale, y: -66 * scale }], { color: palette.secondary, width: Math.max(2, 4 * scale), alpha: 0.9 });
+  addPoint(container, 17 * scale, -106 * scale, Math.max(1, 2 * scale), palette.accent, 0.6);
 }
 
 function createSimpleRichPrototype(monster, visualScale) {
@@ -223,39 +254,39 @@ export function createEnemyPrototype(mode, monster, visualScale, color) {
 
 // Production vocabulary. Each recipe is intentionally a small composition of
 // broad planes and one role cue; it is not a miniature character illustration.
-function createPowderBat(container, scale) {
-  createSimpleRichBat(container, scale);
+function createPowderBat(container, scale, palette = DEFAULT_PALETTE) {
+  createSimpleRichBat(container, scale, palette);
   addPolygon(container, [
     { x: 18 * scale, y: -12 * scale }, { x: 35 * scale, y: -9 * scale },
     { x: 31 * scale, y: 7 * scale }, { x: 14 * scale, y: 4 * scale }
-  ], COLORS.bodyLight, 0.9, { color: COLORS.rust, width: Math.max(1, 1.2 * scale), alpha: 0.7 });
-  addLine(container, [{ x: 24 * scale, y: -15 * scale }, { x: 24 * scale, y: -9 * scale }], { color: COLORS.rust, width: Math.max(1, 1.2 * scale), alpha: 0.8 });
-  addPoint(container, 28 * scale, -14 * scale, Math.max(1, 2 * scale), COLORS.rust, 0.9);
+  ], palette.secondary, 0.9, { color: palette.material, width: Math.max(1, 1.2 * scale), alpha: 0.7 });
+  addLine(container, [{ x: 24 * scale, y: -15 * scale }, { x: 24 * scale, y: -9 * scale }], { color: palette.material, width: Math.max(1, 1.2 * scale), alpha: 0.8 });
+  addPoint(container, 28 * scale, -14 * scale, Math.max(1, 2 * scale), palette.accent, 0.9);
 }
 
-function createBiter(container, scale) {
+function createBiter(container, scale, palette = DEFAULT_PALETTE) {
   addPolygon(container, [
     { x: -38 * scale, y: -18 * scale }, { x: -28 * scale, y: -55 * scale },
     { x: 8 * scale, y: -66 * scale }, { x: 38 * scale, y: -42 * scale },
     { x: 32 * scale, y: -5 * scale }, { x: -12 * scale, y: 2 * scale }
-  ], COLORS.body, 0.97, { color: COLORS.teal, width: Math.max(1, 1.5 * scale), alpha: 0.58 });
+  ], palette.main, 0.97, { color: palette.rim, width: Math.max(1, 1.5 * scale), alpha: 0.58 });
   addPolygon(container, [
     { x: -25 * scale, y: -25 * scale }, { x: -4 * scale, y: -50 * scale },
     { x: 24 * scale, y: -36 * scale }, { x: 12 * scale, y: -13 * scale }
-  ], COLORS.bodyLight, 0.7);
+  ], palette.secondary, 0.7);
   addPolygon(container, [
     { x: -26 * scale, y: -28 * scale }, { x: -66 * scale, y: -46 * scale },
     { x: -42 * scale, y: -12 * scale }, { x: -18 * scale, y: -16 * scale }
-  ], COLORS.bodyLight, 0.94, { color: COLORS.mud, width: Math.max(1, 1.5 * scale), alpha: 0.8 });
+  ], palette.secondary, 0.94, { color: palette.secondary, width: Math.max(1, 1.5 * scale), alpha: 0.8 });
   addPolygon(container, [
     { x: 20 * scale, y: -32 * scale }, { x: 62 * scale, y: -48 * scale },
     { x: 39 * scale, y: -8 * scale }, { x: 13 * scale, y: -16 * scale }
-  ], COLORS.bodyLight, 0.94, { color: COLORS.mud, width: Math.max(1, 1.5 * scale), alpha: 0.8 });
-  addLine(container, [{ x: -28 * scale, y: -5 * scale }, { x: -42 * scale, y: 2 * scale }], { color: COLORS.teal, width: Math.max(1, 1.5 * scale), alpha: 0.55 });
-  addLine(container, [{ x: 18 * scale, y: -5 * scale }, { x: 32 * scale, y: 2 * scale }], { color: COLORS.teal, width: Math.max(1, 1.5 * scale), alpha: 0.55 });
+  ], palette.secondary, 0.94, { color: palette.secondary, width: Math.max(1, 1.5 * scale), alpha: 0.8 });
+  addLine(container, [{ x: -28 * scale, y: -5 * scale }, { x: -42 * scale, y: 2 * scale }], { color: palette.rim, width: Math.max(1, 1.5 * scale), alpha: 0.55 });
+  addLine(container, [{ x: 18 * scale, y: -5 * scale }, { x: 32 * scale, y: 2 * scale }], { color: palette.rim, width: Math.max(1, 1.5 * scale), alpha: 0.55 });
 }
 
-function createSplitSlime(container, scale) {
+function createSplitSlime(container, scale, palette = DEFAULT_PALETTE) {
   addPolygon(container, [
     { x: -57 * scale, y: -14 * scale }, { x: -50 * scale, y: -52 * scale },
     { x: -27 * scale, y: -69 * scale }, { x: -8 * scale, y: -61 * scale },
@@ -264,101 +295,101 @@ function createSplitSlime(container, scale) {
     { x: 58 * scale, y: -25 * scale }, { x: 48 * scale, y: 0 },
     { x: 18 * scale, y: 4 * scale }, { x: 3 * scale, y: -10 * scale },
     { x: -12 * scale, y: 3 * scale }, { x: -39 * scale, y: 1 * scale }
-  ], COLORS.body, 0.96, { color: COLORS.mud, width: Math.max(1, 1.8 * scale), alpha: 0.7 });
+  ], palette.main, 0.96, { color: palette.material, width: Math.max(1, 1.8 * scale), alpha: 0.7 });
   addPolygon(container, [
     { x: -38 * scale, y: -45 * scale }, { x: -25 * scale, y: -58 * scale },
     { x: -9 * scale, y: -51 * scale }, { x: -7 * scale, y: -31 * scale },
     { x: -24 * scale, y: -28 * scale }
-  ], COLORS.bodyLight, 0.7);
+  ], palette.secondary, 0.7);
   addPolygon(container, [
     { x: 24 * scale, y: -36 * scale }, { x: 39 * scale, y: -40 * scale },
     { x: 51 * scale, y: -25 * scale }, { x: 43 * scale, y: -9 * scale },
     { x: 23 * scale, y: -11 * scale }
-  ], COLORS.bodyLight, 0.7);
-  addPoint(container, -25 * scale, -38 * scale, Math.max(1, 2 * scale), COLORS.cyan, 0.45);
-  addPoint(container, 34 * scale, -24 * scale, Math.max(1, 2 * scale), COLORS.cyan, 0.45);
+  ], palette.secondary, 0.7);
+  addPoint(container, -25 * scale, -38 * scale, Math.max(1, 2 * scale), palette.accent, 0.45);
+  addPoint(container, 34 * scale, -24 * scale, Math.max(1, 2 * scale), palette.accent, 0.45);
 }
 
-function createRatPack(container, scale) {
+function createRatPack(container, scale, palette = DEFAULT_PALETTE) {
   addPolygon(container, [
-    { x: -60 * scale, y: -7 * scale }, { x: -53 * scale, y: -35 * scale },
-    { x: -34 * scale, y: -47 * scale }, { x: -12 * scale, y: -42 * scale },
-    { x: 5 * scale, y: -61 * scale }, { x: 28 * scale, y: -52 * scale },
-    { x: 44 * scale, y: -31 * scale }, { x: 62 * scale, y: -18 * scale },
-    { x: 46 * scale, y: 1 * scale }, { x: 9 * scale, y: 5 * scale },
-    { x: -24 * scale, y: 2 * scale }
-  ], COLORS.body, 0.97, { color: COLORS.mud, width: Math.max(1, 1.6 * scale), alpha: 0.62 });
-  addPolygon(container, [{ x: -42 * scale, y: -36 * scale }, { x: -25 * scale, y: -56 * scale }, { x: -10 * scale, y: -42 * scale }, { x: -24 * scale, y: -27 * scale }], COLORS.bodyLight, 0.78);
-  addPolygon(container, [{ x: 2 * scale, y: -49 * scale }, { x: 12 * scale, y: -70 * scale }, { x: 29 * scale, y: -53 * scale }, { x: 22 * scale, y: -37 * scale }], COLORS.bodyLight, 0.78);
-  addPolygon(container, [{ x: 27 * scale, y: -31 * scale }, { x: 43 * scale, y: -45 * scale }, { x: 55 * scale, y: -25 * scale }, { x: 41 * scale, y: -15 * scale }], COLORS.bodyLight, 0.7);
-  addPoint(container, -25 * scale, -43 * scale, Math.max(1, 1.6 * scale), COLORS.cyan, 0.7);
-  addPoint(container, 17 * scale, -55 * scale, Math.max(1, 1.6 * scale), COLORS.cyan, 0.7);
-  addLine(container, [{ x: -48 * scale, y: -3 * scale }, { x: -72 * scale, y: 8 * scale }, { x: -79 * scale, y: 1 * scale }], { color: COLORS.bodyLight, width: Math.max(1, 1.5 * scale), alpha: 0.72 });
-  addLine(container, [{ x: 45 * scale, y: -4 * scale }, { x: 70 * scale, y: 5 * scale }], { color: COLORS.bodyLight, width: Math.max(1, 1.5 * scale), alpha: 0.72 });
+    { x: -62 * scale, y: -8 * scale }, { x: -58 * scale, y: -28 * scale },
+    { x: -45 * scale, y: -39 * scale }, { x: -30 * scale, y: -40 * scale },
+    { x: -19 * scale, y: -31 * scale }, { x: -7 * scale, y: -42 * scale },
+    { x: 8 * scale, y: -45 * scale }, { x: 22 * scale, y: -37 * scale },
+    { x: 32 * scale, y: -29 * scale }, { x: 45 * scale, y: -33 * scale },
+    { x: 57 * scale, y: -22 * scale }, { x: 62 * scale, y: -8 * scale },
+    { x: 47 * scale, y: 2 * scale }, { x: 17 * scale, y: 5 * scale },
+    { x: -17 * scale, y: 4 * scale }, { x: -45 * scale, y: 3 * scale }
+  ], palette.main, 0.97, { color: palette.material, width: Math.max(1, 1.6 * scale), alpha: 0.62 });
+  addPolygon(container, [{ x: -43 * scale, y: -29 * scale }, { x: -34 * scale, y: -49 * scale }, { x: -21 * scale, y: -39 * scale }, { x: -17 * scale, y: -23 * scale }, { x: -30 * scale, y: -19 * scale }], palette.secondary, 0.78);
+  addPolygon(container, [{ x: 4 * scale, y: -28 * scale }, { x: 15 * scale, y: -51 * scale }, { x: 28 * scale, y: -38 * scale }, { x: 28 * scale, y: -21 * scale }, { x: 14 * scale, y: -19 * scale }], palette.secondary, 0.78);
+  addPoint(container, -31 * scale, -35 * scale, Math.max(1, 1.6 * scale), palette.accent, 0.7);
+  addPoint(container, 17 * scale, -37 * scale, Math.max(1, 1.6 * scale), palette.accent, 0.7);
+  addLine(container, [{ x: -48 * scale, y: -3 * scale }, { x: -70 * scale, y: 5 * scale }, { x: -79 * scale, y: 0 }], { color: palette.secondary, width: Math.max(1, 1.5 * scale), alpha: 0.72 });
 }
 
-function createSleepSpore(container, scale) {
+function createSleepSpore(container, scale, palette = DEFAULT_PALETTE) {
   addPolygon(container, [
     { x: -56 * scale, y: -49 * scale }, { x: -35 * scale, y: -70 * scale },
     { x: -4 * scale, y: -76 * scale }, { x: 31 * scale, y: -65 * scale },
     { x: 55 * scale, y: -43 * scale }, { x: 32 * scale, y: -34 * scale },
     { x: 0 * scale, y: -39 * scale }, { x: -30 * scale, y: -33 * scale }
-  ], COLORS.body, 0.95, { color: COLORS.violet, width: Math.max(1, 1.6 * scale), alpha: 0.65 });
-  addPolygon(container, [{ x: -19 * scale, y: -37 * scale }, { x: 18 * scale, y: -39 * scale }, { x: 12 * scale, y: -4 * scale }, { x: -14 * scale, y: 1 * scale }], COLORS.bodyLight, 0.62);
-  addPolygon(container, [{ x: -43 * scale, y: -22 * scale }, { x: -31 * scale, y: -2 * scale }, { x: -20 * scale, y: 4 * scale }, { x: -28 * scale, y: -21 * scale }], COLORS.violet, 0.72);
-  addEllipse(container, 31 * scale, -11 * scale, 9 * scale, 14 * scale, COLORS.violet, 0.78);
-  addPoint(container, 31 * scale, -11 * scale, Math.max(1, 2 * scale), COLORS.cyan, 0.45);
+  ], palette.main, 0.95, { color: palette.material, width: Math.max(1, 1.6 * scale), alpha: 0.65 });
+  addPolygon(container, [{ x: -19 * scale, y: -37 * scale }, { x: 18 * scale, y: -39 * scale }, { x: 12 * scale, y: -4 * scale }, { x: -14 * scale, y: 1 * scale }], palette.secondary, 0.62);
+  addPolygon(container, [{ x: -43 * scale, y: -22 * scale }, { x: -31 * scale, y: -2 * scale }, { x: -20 * scale, y: 4 * scale }, { x: -28 * scale, y: -21 * scale }], palette.material, 0.72);
+  addEllipse(container, 31 * scale, -11 * scale, 9 * scale, 14 * scale, palette.material, 0.78);
+  addPoint(container, 31 * scale, -11 * scale, Math.max(1, 2 * scale), palette.accent, 0.45);
 }
 
-function createMudCursedChild(container, scale) {
+function createMudCursedChild(container, scale, palette = DEFAULT_PALETTE) {
   addPolygon(container, [
     { x: -32 * scale, y: -79 * scale }, { x: -8 * scale, y: -91 * scale },
     { x: 13 * scale, y: -72 * scale }, { x: 31 * scale, y: -39 * scale },
     { x: 18 * scale, y: -2 * scale }, { x: -28 * scale, y: 1 * scale },
     { x: -42 * scale, y: -24 * scale }
-  ], COLORS.body, 0.96, { color: COLORS.mud, width: Math.max(1, 1.6 * scale), alpha: 0.54 });
-  addPolygon(container, [{ x: -25 * scale, y: -71 * scale }, { x: -7 * scale, y: -84 * scale }, { x: 8 * scale, y: -70 * scale }, { x: -4 * scale, y: -52 * scale }], COLORS.bodyLight, 0.38);
-  addPolygon(container, [{ x: 12 * scale, y: -42 * scale }, { x: 45 * scale, y: -31 * scale }, { x: 26 * scale, y: -16 * scale }], COLORS.bodyLight, 0.62);
-  addPoint(container, -2 * scale, -67 * scale, Math.max(1, 2 * scale), COLORS.rust, 0.5);
+  ], palette.main, 0.96, { color: palette.material, width: Math.max(1, 1.6 * scale), alpha: 0.54 });
+  addPolygon(container, [{ x: -25 * scale, y: -71 * scale }, { x: -7 * scale, y: -84 * scale }, { x: 8 * scale, y: -70 * scale }, { x: -4 * scale, y: -52 * scale }], palette.secondary, 0.38);
+  addPolygon(container, [{ x: 12 * scale, y: -42 * scale }, { x: 45 * scale, y: -31 * scale }, { x: 26 * scale, y: -16 * scale }], palette.secondary, 0.62);
+  addPoint(container, -2 * scale, -67 * scale, Math.max(1, 2 * scale), palette.accent, 0.5);
 }
 
-function createKoboldScout(container, scale) {
+function createKoboldScout(container, scale, palette = DEFAULT_PALETTE) {
   addPolygon(container, [
     { x: -44 * scale, y: -17 * scale }, { x: -20 * scale, y: -62 * scale },
     { x: 17 * scale, y: -54 * scale }, { x: 35 * scale, y: -28 * scale },
     { x: 21 * scale, y: 1 * scale }, { x: -32 * scale, y: 2 * scale }
-  ], COLORS.body, 0.97, { color: COLORS.teal, width: Math.max(1, 1.6 * scale), alpha: 0.55 });
-  addPolygon(container, [{ x: -20 * scale, y: -62 * scale }, { x: -34 * scale, y: -86 * scale }, { x: -5 * scale, y: -67 * scale }], COLORS.bodyLight, 0.8);
-  addPolygon(container, [{ x: 4 * scale, y: -55 * scale }, { x: 37 * scale, y: -45 * scale }, { x: 25 * scale, y: -31 * scale }], COLORS.bodyLight, 0.62);
-  addLine(container, [{ x: 23 * scale, y: -13 * scale }, { x: 69 * scale, y: -55 * scale }], { color: COLORS.bodyLight, width: Math.max(2, 3 * scale), alpha: 0.9 });
-  addPoint(container, 12 * scale, -51 * scale, Math.max(1, 1.7 * scale), COLORS.cyan, 0.5);
+  ], palette.main, 0.97, { color: palette.rim, width: Math.max(1, 1.6 * scale), alpha: 0.55 });
+  addPolygon(container, [{ x: -20 * scale, y: -62 * scale }, { x: -34 * scale, y: -86 * scale }, { x: -5 * scale, y: -67 * scale }], palette.secondary, 0.8);
+  addPolygon(container, [{ x: 4 * scale, y: -55 * scale }, { x: 37 * scale, y: -45 * scale }, { x: 25 * scale, y: -31 * scale }], palette.secondary, 0.62);
+  addLine(container, [{ x: 23 * scale, y: -13 * scale }, { x: 69 * scale, y: -55 * scale }], { color: palette.secondary, width: Math.max(2, 3 * scale), alpha: 0.9 });
+  addPoint(container, 12 * scale, -51 * scale, Math.max(1, 1.7 * scale), palette.accent, 0.5);
 }
 
-function createFallbackSmall(container, scale) {
-  addPolygon(container, [{ x: -36 * scale, y: -8 * scale }, { x: -31 * scale, y: -47 * scale }, { x: -8 * scale, y: -63 * scale }, { x: 28 * scale, y: -49 * scale }, { x: 39 * scale, y: -9 * scale }, { x: 20 * scale, y: 2 * scale }, { x: -24 * scale, y: 2 * scale }], COLORS.body, 0.96, { color: COLORS.teal, width: Math.max(1, 1.5 * scale), alpha: 0.52 });
-  addPolygon(container, [{ x: -23 * scale, y: -42 * scale }, { x: -7 * scale, y: -55 * scale }, { x: 20 * scale, y: -43 * scale }, { x: 11 * scale, y: -25 * scale }], COLORS.bodyLight, 0.62);
+function createFallbackSmall(container, scale, palette = DEFAULT_PALETTE) {
+  addPolygon(container, [{ x: -36 * scale, y: -8 * scale }, { x: -31 * scale, y: -47 * scale }, { x: -8 * scale, y: -63 * scale }, { x: 28 * scale, y: -49 * scale }, { x: 39 * scale, y: -9 * scale }, { x: 20 * scale, y: 2 * scale }, { x: -24 * scale, y: 2 * scale }], palette.main, 0.96, { color: palette.rim, width: Math.max(1, 1.5 * scale), alpha: 0.52 });
+  addPolygon(container, [{ x: -23 * scale, y: -42 * scale }, { x: -7 * scale, y: -55 * scale }, { x: 20 * scale, y: -43 * scale }, { x: 11 * scale, y: -25 * scale }], palette.secondary, 0.62);
 }
 
-function createFallbackHumanoid(container, scale) {
-  addPolygon(container, [{ x: -20 * scale, y: -84 * scale }, { x: 11 * scale, y: -88 * scale }, { x: 27 * scale, y: -54 * scale }, { x: 35 * scale, y: 0 }, { x: -34 * scale, y: 0 }, { x: -27 * scale, y: -54 * scale }], COLORS.body, 0.96, { color: COLORS.teal, width: Math.max(1, 1.5 * scale), alpha: 0.5 });
-  addPolygon(container, [{ x: -14 * scale, y: -78 * scale }, { x: 8 * scale, y: -81 * scale }, { x: 16 * scale, y: -58 * scale }, { x: -13 * scale, y: -57 * scale }], COLORS.bodyLight, 0.6);
+function createFallbackHumanoid(container, scale, palette = DEFAULT_PALETTE) {
+  addPolygon(container, [{ x: -20 * scale, y: -84 * scale }, { x: 11 * scale, y: -88 * scale }, { x: 27 * scale, y: -54 * scale }, { x: 35 * scale, y: 0 }, { x: -34 * scale, y: 0 }, { x: -27 * scale, y: -54 * scale }], palette.main, 0.96, { color: palette.rim, width: Math.max(1, 1.5 * scale), alpha: 0.5 });
+  addPolygon(container, [{ x: -14 * scale, y: -78 * scale }, { x: 8 * scale, y: -81 * scale }, { x: 16 * scale, y: -58 * scale }, { x: -13 * scale, y: -57 * scale }], palette.secondary, 0.6);
 }
 
-function createFallbackBrute(container, scale) {
-  addPolygon(container, [{ x: -59 * scale, y: -14 * scale }, { x: -51 * scale, y: -67 * scale }, { x: -28 * scale, y: -92 * scale }, { x: 18 * scale, y: -89 * scale }, { x: 52 * scale, y: -60 * scale }, { x: 61 * scale, y: 0 }, { x: -48 * scale, y: 0 }], COLORS.body, 0.98, { color: COLORS.mud, width: Math.max(1, 1.8 * scale), alpha: 0.58 });
-  addPolygon(container, [{ x: -44 * scale, y: -57 * scale }, { x: -22 * scale, y: -79 * scale }, { x: 12 * scale, y: -75 * scale }, { x: 34 * scale, y: -51 * scale }, { x: 13 * scale, y: -37 * scale }, { x: -28 * scale, y: -39 * scale }], COLORS.bodyLight, 0.68);
-  addPolygon(container, [{ x: 16 * scale, y: -63 * scale }, { x: 59 * scale, y: -48 * scale }, { x: 49 * scale, y: -21 * scale }, { x: 17 * scale, y: -32 * scale }], COLORS.rust, 0.42);
+function createFallbackBrute(container, scale, palette = DEFAULT_PALETTE) {
+  addPolygon(container, [{ x: -59 * scale, y: -14 * scale }, { x: -51 * scale, y: -67 * scale }, { x: -28 * scale, y: -92 * scale }, { x: 18 * scale, y: -89 * scale }, { x: 52 * scale, y: -60 * scale }, { x: 61 * scale, y: 0 }, { x: -48 * scale, y: 0 }], palette.main, 0.98, { color: palette.material, width: Math.max(1, 1.8 * scale), alpha: 0.58 });
+  addPolygon(container, [{ x: -44 * scale, y: -57 * scale }, { x: -22 * scale, y: -79 * scale }, { x: 12 * scale, y: -75 * scale }, { x: 34 * scale, y: -51 * scale }, { x: 13 * scale, y: -37 * scale }, { x: -28 * scale, y: -39 * scale }], palette.secondary, 0.68);
+  addPolygon(container, [{ x: 16 * scale, y: -63 * scale }, { x: 59 * scale, y: -48 * scale }, { x: 49 * scale, y: -21 * scale }, { x: 17 * scale, y: -32 * scale }], palette.material, 0.42);
 }
 
-function createFallbackCaster(container, scale) {
-  createSimpleRichCaster(container, scale);
+function createFallbackCaster(container, scale, palette = DEFAULT_PALETTE) {
+  createSimpleRichCaster(container, scale, palette);
 }
 
-function createFallbackBoss(container, scale) {
-  addPolygon(container, [{ x: -77 * scale, y: -18 * scale }, { x: -70 * scale, y: -94 * scale }, { x: -35 * scale, y: -119 * scale }, { x: 14 * scale, y: -113 * scale }, { x: 66 * scale, y: -72 * scale }, { x: 78 * scale, y: 0 }, { x: -67 * scale, y: 0 }], COLORS.body, 0.98, { color: COLORS.rust, width: Math.max(1, 1.8 * scale), alpha: 0.62 });
-  addPolygon(container, [{ x: -55 * scale, y: -83 * scale }, { x: -29 * scale, y: -104 * scale }, { x: 11 * scale, y: -99 * scale }, { x: 45 * scale, y: -68 * scale }, { x: 25 * scale, y: -47 * scale }, { x: -35 * scale, y: -51 * scale }], COLORS.bodyLight, 0.68);
-  addPolygon(container, [{ x: 22 * scale, y: -92 * scale }, { x: 70 * scale, y: -68 * scale }, { x: 52 * scale, y: -30 * scale }, { x: 17 * scale, y: -43 * scale }], COLORS.teal, 0.28);
-  addPoint(container, 6 * scale, -83 * scale, Math.max(1, 2 * scale), COLORS.cyan, 0.52);
+function createFallbackBoss(container, scale, palette = DEFAULT_PALETTE) {
+  addPolygon(container, [{ x: -77 * scale, y: -18 * scale }, { x: -70 * scale, y: -94 * scale }, { x: -35 * scale, y: -119 * scale }, { x: 14 * scale, y: -113 * scale }, { x: 66 * scale, y: -72 * scale }, { x: 78 * scale, y: 0 }, { x: -67 * scale, y: 0 }], palette.main, 0.98, { color: palette.material, width: Math.max(1, 1.8 * scale), alpha: 0.62 });
+  addPolygon(container, [{ x: -55 * scale, y: -83 * scale }, { x: -29 * scale, y: -104 * scale }, { x: 11 * scale, y: -99 * scale }, { x: 45 * scale, y: -68 * scale }, { x: 25 * scale, y: -47 * scale }, { x: -35 * scale, y: -51 * scale }], palette.secondary, 0.68);
+  addPolygon(container, [{ x: 22 * scale, y: -92 * scale }, { x: 70 * scale, y: -68 * scale }, { x: 52 * scale, y: -30 * scale }, { x: 17 * scale, y: -43 * scale }], palette.rim, 0.28);
+  addPoint(container, 6 * scale, -83 * scale, Math.max(1, 2 * scale), palette.accent, 0.52);
 }
 
 const PROCEDURAL_RECIPE_BUILDERS = Object.freeze({
@@ -384,7 +415,7 @@ export function createProceduralEnemy(recipeKey, visualScale = 1) {
   const container = new Container();
   container.label = "enemy-procedural";
   const builder = PROCEDURAL_RECIPE_BUILDERS[recipeKey] || PROCEDURAL_RECIPE_BUILDERS.small;
-  builder(container, visualScale);
+  builder(container, visualScale, ENEMY_RECIPE_PALETTES[recipeKey] || ENEMY_RECIPE_PALETTES.small);
   return container;
 }
 
