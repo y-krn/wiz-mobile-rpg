@@ -57,7 +57,7 @@ jobs:
           MEASUREMENT_RUN_TYPE: ${{ inputs.run_type }}
         run: |
           mkdir -p /tmp/run-difficulty-measurement
-          node scratch/measurements/run_difficulty_measurement.js \
+          node scratch/measurements/measure_run_difficulty.js \
             --ref "${{ inputs.ref }}" \
             --runs "${{ inputs.runs }}" \
             --seed "${{ inputs.seed }}" \
