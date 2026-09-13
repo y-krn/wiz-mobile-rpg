@@ -198,6 +198,18 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
     const cancelled = !dungeonRenderer.transition && !dungeonRenderer.transitionScene.visible;
     dungeonRenderer.beginNavigationTransition('forward', input);
     const replacement = dungeonRenderer.transition?.action;
+    const rapidAlternatingActions = ['turn-left', 'turn-right', 'turn-left', 'turn-right'];
+    rapidAlternatingActions.forEach((action) => {
+      dungeonRenderer.beginNavigationTransition(action, input);
+      dungeonRenderer.update(16);
+    });
+    const rapidAlternatingAction = dungeonRenderer.transition?.action;
+    dungeonRenderer.beginNavigationTransition('forward', input);
+    dungeonRenderer.update(16);
+    dungeonRenderer.beginNavigationTransition('turn-right', input);
+    dungeonRenderer.update(16);
+    const rapidForwardTurnAction = dungeonRenderer.transition?.action;
+    dungeonRenderer.cancelNavigationTransition();
     const resizeRenderMs = [];
     for (let index = 0; index < 10; index += 1) {
       window.dispatchEvent(new Event('resize'));
@@ -233,6 +245,8 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
       stateUnchanged: before === JSON.stringify({ x: state.x, y: state.y, dir: state.dir, mapRevision: state.mapRevision }),
       cancelled,
       replacement,
+      rapidAlternatingAction,
+      rapidForwardTurnAction,
       combatFeedback,
       firstRenderMs,
       forwardRenderMs,
@@ -250,6 +264,8 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
   expect(evidence.stateUnchanged).toBe(true);
   expect(evidence.cancelled).toBe(true);
   expect(evidence.replacement).toBe('forward');
+  expect(evidence.rapidAlternatingAction).toBe('turn-right');
+  expect(evidence.rapidForwardTurnAction).toBe('turn-right');
   expect(evidence.combatFeedback).toBe(10);
   expect(evidence.disposed).toBe(5);
   expect(evidence.sceneChildren).toBe(8);
