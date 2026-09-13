@@ -45,16 +45,14 @@ export * from "./rules/equipment_hands.js";
 export * from "./rules/guard_rules.js";
 
 
-// Re-export constants/data with wrapper compatibility
-import { ITEMS as STATIC_ITEMS } from "./data/items.js";
 import { MONSTERS as STATIC_MONSTERS } from "./data/monsters.js";
-import { SPELLS as STATIC_SPELLS } from "./data/spells.js";
 import { ITEM_EFFECTS } from "./systems/item_effects.js";
-import { SPELL_EFFECTS } from "./systems/spell_effects.js";
 import { generateRandomAccessory as newGenerateRandomAccessory, generateRandomEquipment as newGenerateRandomEquipment } from "./systems/equipment_generation.js";
 import { getItemData as baseGetItemData, getItemBaseId } from "./rules/item_rules.js";
 
 export const MONSTERS = STATIC_MONSTERS;
+export { ITEMS } from "./data/items.js";
+export { SPELLS } from "./data/spells.js";
 export {
   describeMonsterTraits,
   describeMonsterResistances,
@@ -64,38 +62,6 @@ export {
   MONSTER_TRAIT_LABELS,
   MONSTER_STATUS_ATTACK_PATTERNS
 } from "./data/monsters.js";
-
-// Build compatible SPELLS with inline .effect calls
-export const SPELLS = {};
-for (const [key, val] of Object.entries(STATIC_SPELLS)) {
-  SPELLS[key] = {
-    ...val,
-    effect: (arg1, arg2, party = null, options = {}) => {
-      // arg1 is caster, arg2 is target, targets or state depending on spell type
-      return SPELL_EFFECTS[key]({
-        caster: arg1,
-        target: arg2,
-        rng: options?.rng || Math.random,
-        party,
-        telemetryEnabled: Boolean(options?.telemetryEnabled),
-        state: options?.state || null,
-        logQueue: options?.logQueue || null,
-        measurement: options?.measurement || null
-      });
-    }
-  };
-}
-
-// Build compatible ITEMS with inline .effect calls
-export const ITEMS = {};
-for (const [key, val] of Object.entries(STATIC_ITEMS)) {
-  ITEMS[key] = { ...val };
-  if (ITEM_EFFECTS[key]) {
-    ITEMS[key].effect = (char, party = null, options = {}) => {
-      return ITEM_EFFECTS[key]({ char, rng: options?.rng || Math.random, party });
-    };
-  }
-}
 
 // Legacy positional facade kept for scratch simulations and compatibility.
 // Production callers should import systems/equipment_generation.js and pass

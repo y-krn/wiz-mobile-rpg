@@ -9,6 +9,7 @@ global.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () =
 
 import { runCombatRoundCalculation } from "../../src/combat_logic.js";
 import { MONSTERS, SPELLS } from "../../src/data.js";
+import { SPELL_EFFECTS } from "../../src/systems/spell_effects.js";
 import { getCharMaxHp } from "../../src/rules/character_stats.js";
 import { requireRunnerProvenance } from "../measurements/measurement_provenance.js";
 
@@ -16,32 +17,42 @@ export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 
 // ---- Prototype spells (mirror existing effect conventions) ----
 SPELLS.ZILWAN = {
-  name: "ZILWAN", type: "mage", level: 4, cost: 3, target: "single_enemy",
-  effect: (caster, target, _party, options = {}) => {
-    const rng = options.rng || Math.random;
+  name: "ZILWAN", type: "mage", level: 4, cost: 3, target: "single_enemy"
+};
+SPELL_EFFECTS.ZILWAN = ({ caster, target, rng = Math.random }) => {
     let dmg = Math.round(Math.floor(rng() * 11) + 10);
     const tags = target.tags || [];
     let mult = (tags.includes("undead") || tags.includes("dragon") || tags.includes("demon")) ? (target.isBoss ? 1.3 : 2.0) : 0.5;
     dmg = Math.round(dmg * mult);
     if (target.magicResist) dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
     return { damage: dmg, log: `ZILWAN ${dmg}` };
-  }
 };
 SPELLS.BAKADI = { // enemy physical DEF down
-  name: "BAKADI", type: "mage", level: 3, cost: 3, target: "all_enemies",
-  effect: (_c, ts) => { ts.forEach(t => { if (t.hp > 0) { (t.buffs = t.buffs || []).push({ type: "def", value: -4, turns: 3 }); } }); return { log: "BAKADI" }; }
+  name: "BAKADI", type: "mage", level: 3, cost: 3, target: "all_enemies"
+};
+SPELL_EFFECTS.BAKADI = ({ target: targets }) => {
+  targets.forEach(target => {
+    if (target.hp > 0) (target.buffs = target.buffs || []).push({ type: "def", value: -4, turns: 3 });
+  });
+  return { log: "BAKADI" };
 };
 SPELLS.WEAKEN = { // enemy physical ATK down
-  name: "WEAKEN", type: "priest", level: 3, cost: 3, target: "all_enemies",
-  effect: (_c, ts) => { ts.forEach(t => { if (t.hp > 0) { (t.buffs = t.buffs || []).push({ type: "atk", value: -4, turns: 3 }); } }); return { log: "WEAKEN" }; }
+  name: "WEAKEN", type: "priest", level: 3, cost: 3, target: "all_enemies"
+};
+SPELL_EFFECTS.WEAKEN = ({ target: targets }) => {
+  targets.forEach(target => {
+    if (target.hp > 0) (target.buffs = target.buffs || []).push({ type: "atk", value: -4, turns: 3 });
+  });
+  return { log: "WEAKEN" };
 };
 SPELLS.MADI = { // group heal, spread thin
-  name: "MADI", type: "priest", level: 5, cost: 5, target: "all_allies",
-  effect: (caster, allies, _party, options = {}) => {
-    const rng = options.rng || Math.random;
-    allies.forEach(t => { if (t.status !== "dead") t.hp = Math.min(getCharMaxHp(t), t.hp + Math.round(Math.floor(rng() * 16) + 25)); });
-    return { log: "MADI" };
-  }
+  name: "MADI", type: "priest", level: 5, cost: 5, target: "all_allies"
+};
+SPELL_EFFECTS.MADI = ({ target: allies, rng = Math.random }) => {
+  allies.forEach(target => {
+    if (target.status !== "dead") target.hp = Math.min(getCharMaxHp(target), target.hp + Math.round(Math.floor(rng() * 16) + 25));
+  });
+  return { log: "MADI" };
 };
 
 function createParty(level = 5) {
