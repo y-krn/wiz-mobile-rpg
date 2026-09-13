@@ -96,7 +96,7 @@ test('equipment lazy-load failure clears pending and exposes a recoverable rejec
   });
   expect(evidence).toMatchObject({
     result: false,
-    state: 'explore',
+    state: 'equip_overlay',
     loadState: 'rejected',
     busy: 'false',
     retry: true,

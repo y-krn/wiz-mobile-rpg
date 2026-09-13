@@ -119,7 +119,10 @@ export function openEquipOverlay(actorIdx = 0) {
     rejectedPreviousGameState = request.previousGameState;
     rejectedFocusTarget = request.focusTarget;
     pendingOpenRequest = null;
-    state.gameState = request.previousGameState;
+    // Keep the rejection surface owned by the equipment overlay until the
+    // player explicitly closes it; a renderer/updateUI tick must not hide the
+    // actionable failure state before it can be read or recovered.
+    state.gameState = "equip_overlay";
     renderLoadingState({ state: "rejected", actorIdx, focusStatus: true });
     return false;
   });
@@ -137,6 +140,7 @@ export function renderEquip() {
     renderLoadingState({ state: "pending", actorIdx: pendingOpenRequest.actorIdx });
     return Promise.resolve(false);
   }
+  if (getOverlay()?.dataset.loadState === "rejected") return Promise.resolve(false);
   return loadEquipmentUi().then((module) => module.renderEquip());
 }
 

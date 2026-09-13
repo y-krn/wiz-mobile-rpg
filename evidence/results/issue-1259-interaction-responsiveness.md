@@ -6,6 +6,8 @@
 - Baseline source: fetched `origin/main`
 - Baseline SHA: `f7420fc2a4b2c4e2ce98a4867c75c2faec7a6842`
 - Remote verification: `git ls-remote origin refs/heads/main` matched the fetched `origin/main`
+- Final current main after freshness recheck: `e5a1fb638f6d8bd6f7ff5884a203763701d4790b` (`#1252` renderer integration)
+- Final remote verification: `git ls-remote origin refs/heads/main` matched `e5a1fb638f6d8bd6f7ff5884a203763701d4790b`
 - Implementation branch: `issue-1259-interaction-responsiveness`
 - Worktree start SHA: `6bbd07738af3fe60dab18f5627d1ef9192f4cbd0` (managed detached worktree before branching)
 - Parent workstreams: #1225, #1226, #1227, and #1228 are completed/closed; PR #1254 for #1228 is merged at this baseline. #1251 remains the renderer owner.
@@ -50,7 +52,7 @@ overloaded with this interaction classification.
 | Transition | Actual wait source | Existing/updated contract | Guard |
 |---|---|---|---|
 | Equipment open | lazy dynamic import of `equip_ui.js` | accepted text is rendered immediately; pending is text-only, `aria-busy=true`, and repeated open returns the same Promise | deterministic injected Promise in `ui-loadout-transaction.spec.js`; import call count is 1 |
-| Equipment open failure | rejected dynamic import | pending clears; rejection text plus retry/close is exposed; previous game state is retained for recovery | deterministic rejected importer; asserts `aria-busy=false`, retry, close, and no stuck pending |
+| Equipment open failure | rejected dynamic import | pending clears; rejection text plus retry/close stays visible in the equipment surface; Close restores the previous game state | deterministic rejected importer; asserts `aria-busy=false`, retry, close, focus, and no stuck pending |
 | Combat/chest delayed playback | existing timeout-based gameplay resolution | existing transitioning/result semantics remain the owner; no new generic loader or spinner | existing combat/chest transition and cleanup tests |
 | Renderer startup/draw | Pixi/Canvas renderer path | not changed in #1259 | #1251 owner |
 
@@ -107,9 +109,9 @@ perception SLO. No `<100ms` or per-frame global hard threshold is asserted.
   repeated tap could reset the opening surface more than once.
 - Fix: `equipment_ui_loader.js` now owns one in-flight open request, renders a
   quiet text acknowledgement with `aria-busy`, and exposes a retry/close
-  rejection state. Rejection focuses its status and Close restores the invoking
-  control when it is still available. Production still uses the original lazy
-  import and cache.
+  rejection state. Rejection keeps the overlay state until the player chooses
+  Close, focuses its status, and restores the invoking control when it is still
+  available. Production still uses the original lazy import and cache.
 - Regression guard: deterministic delayed and failure browser tests, including
   rejection focus and post-close focus restoration.
 
@@ -131,6 +133,18 @@ perception SLO. No `<100ms` or per-frame global hard threshold is asserted.
   semantic commit a zero-cost no-op.
 - Regression guard: loadout unit test asserts unchanged live state and a
   duplicate result.
+
+### Current-main renderer tick could hide the lazy-load rejection surface
+
+- Before: after a rejected equipment import restored `state.gameState` to
+  `explore`, a later Pixi/updateUI tick could hide the still-actionable
+  rejection surface before the player could read or close it.
+- Player impact: the error could be announced in the DOM but disappear before
+  recovery, making the action look unresolved.
+- Fix: rejection remains owned by `equip_overlay` until explicit Close; the
+  loader's render path treats the rejected state as terminal and does not start
+  another import. Close restores the prior game state and invoking focus.
+- Regression guard: current-main smoke and targeted rejection browser tests.
 
 ## Pending / busy policy
 
@@ -202,16 +216,16 @@ npm run lint
 success
 
 npm run test:unit
-PASS 195 / FAIL 0 / SKIP 3
+PASS 196 / FAIL 0 / SKIP 3
 
 npm run test:browser
-89 passed
+96 passed
 
-npm run test:browser:parallel (PLAYWRIGHT_PORT=19003)
-89 passed
+npm run test:browser:parallel (PLAYWRIGHT_PORT=19012)
+96 passed
 
-npm run test:browser:visual (PLAYWRIGHT_PORT=19004)
-95 passed
+npm run test:browser:visual (PLAYWRIGHT_PORT=19011)
+96 passed
 
 npm run build
 success (Vite; existing chunk-size warning only)
