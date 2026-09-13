@@ -10,14 +10,24 @@ export const SIMPLE_ENEMY_PROTOTYPE_MODE = Object.freeze({
 
 const COLORS = Object.freeze({
   black: 0x05070a,
-  body: 0x101d22,
-  bodyLight: 0x1d3439,
+  // The corridor remains the reference dark. These two broad planes are
+  // raised just enough to keep the enemy readable without turning it into a
+  // bright icon or making the rim carry the silhouette.
+  body: 0x1a2e33,
+  bodyLight: 0x2e4a4d,
   teal: 0x4f9ca0,
   cyan: 0x8be6df,
   rust: 0x8b5c45,
   mud: 0x695842,
   violet: 0x766884,
   white: 0xffffff
+});
+
+export const SIMPLE_ENEMY_VALUE_TOKENS = Object.freeze({
+  background: 0x0c0c0e,
+  main: COLORS.body,
+  secondary: COLORS.bodyLight,
+  accent: COLORS.cyan
 });
 
 const PROTOTYPE_PRESENTATION = Object.freeze({ width: 140, height: 125, maxWidth: 140, maxHeight: 125, scale: 1 });
