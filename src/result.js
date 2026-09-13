@@ -1,4 +1,4 @@
-import { state, saveGame, saveAutosave, addLog, finalizeRunRecords, recordCharDeath, formatCharDeathLog, normalizeDeathSource, HISTORY_LIMIT } from "./state.js";
+import { state, saveGame, addLog, finalizeRunRecords, recordCharDeath, formatCharDeathLog, normalizeDeathSource, HISTORY_LIMIT } from "./state.js";
 import { START_X, START_Y, DIR_N, getItemBaseId, getPartyMaxAffix } from "./data.js";
 import { updateUI } from "./ui.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
@@ -198,7 +198,6 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
   state.floor = 1;
   state.gameState = "result";
   saveGame();
-  saveAutosave();
   updateUI();
 }
 

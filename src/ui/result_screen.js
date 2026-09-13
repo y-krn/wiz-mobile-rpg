@@ -1,4 +1,4 @@
-import { state, saveGame, saveAutosave, addLog } from "../state.js";
+import { state, saveGame, addLog } from "../state.js";
 import { getItemBaseId, getItemData } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
@@ -271,7 +271,6 @@ function leaveResult(overlay) {
   state.party = [];
   addLog("街へ戻った。次の潜行に備えよう。");
   saveGame();
-  saveAutosave();
   updateUI();
 }
 
@@ -349,7 +348,6 @@ export function renderResultScreen() {
       const item = run.meaningfulItemHistory?.[index];
       if (!item || !setRepresentativeItem(state, item)) return;
       saveGame();
-      saveAutosave();
       renderResultScreen();
     });
   });
