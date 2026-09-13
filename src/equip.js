@@ -31,6 +31,7 @@ import {
   getEquipmentSlotsForType
 } from "./rules/equipment_slots.js";
 import { getDiscardRisk } from "./systems/equipment_discard.js";
+import { getItemEquippedStatus } from "./rules/equipment_equipped.js";
 import {
   createEquipmentPreviewChar,
   getEquipmentPreview,
@@ -389,17 +390,11 @@ function createRunePanel(char) {
 }
 
 function isItemEquipped(itemKey) {
-  try {
-    return getDraftParty().some((char) => {
-      try {
-        return Object.values(char.equipment || {}).some((equippedKey) => equippedKey === itemKey);
-      } catch {
-        return false;
-      }
-    });
-  } catch {
-    return false;
-  }
+  return getItemEquippedStatus({
+    get party() {
+      return getDraftParty();
+    }
+  }, itemKey).equipped;
 }
 
 function discardEquipment(itemIdx, expectedItemKey) {
