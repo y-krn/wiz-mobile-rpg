@@ -638,6 +638,50 @@ check("supported legacy saves are migrated without class fields", () => {
   assert.equal(Object.hasOwn(migrated.party[0], "spells"), false);
 });
 
+check("legacy equipment objects receive stable distinct identities across save/load", () => {
+  const payload = structuredClone(createSavePayload());
+  const legacyInventoryA = { baseId: "SHORT_SWORD", rarity: "rare", identified: true, affixes: [] };
+  const legacyInventoryB = { affixes: [], identified: true, rarity: "rare", baseId: "SHORT_SWORD" };
+  const legacyEquipped = { baseId: "DAGGER", identified: true, affixes: [] };
+  const legacyPending = { baseId: "MACE", identified: true, affixes: [] };
+  payload.party = [createStartingKitCharacter("vanguard")];
+  payload.party[0].equipment.weapon = legacyEquipped;
+  payload.inventory = [legacyInventoryA, legacyInventoryB];
+  payload.currentRun = createDefaultCurrentRun();
+  payload.currentRun.pendingRewardBundle = {
+    id: "legacy-bundle",
+    entries: [{ id: "legacy-reward", role: "main", item: legacyPending, decision: null, loadoutAction: null }],
+    discardIndexes: []
+  };
+
+  const normalized = migrateSavePayload({ ...payload, version: SAVE_VERSION - 1 });
+  const ids = [
+    normalized.party[0].equipment.weapon.instanceId,
+    ...normalized.inventory.map(item => item.instanceId),
+    normalized.currentRun.pendingRewardBundle.entries[0].item.instanceId
+  ];
+  assert.equal(new Set(ids).size, ids.length, "distinct legacy objects receive distinct IDs");
+  assert.ok(ids.every(id => id.startsWith("legacy_eq_")));
+
+  const roundTrip = normalizeSavePayload(JSON.parse(JSON.stringify(normalized)));
+  assert.deepEqual(
+    [roundTrip.party[0].equipment.weapon.instanceId, ...roundTrip.inventory.map(item => item.instanceId)],
+    [normalized.party[0].equipment.weapon.instanceId, ...normalized.inventory.map(item => item.instanceId)],
+    "normalization is idempotent"
+  );
+  applySavePayload(JSON.parse(JSON.stringify(normalized)));
+  assert.deepEqual(
+    [state.party[0].equipment.weapon.instanceId, ...state.inventory.map(item => item.instanceId)],
+    [normalized.party[0].equipment.weapon.instanceId, ...normalized.inventory.map(item => item.instanceId)],
+    "save/load preserves assigned equipment identity"
+  );
+  assert.equal(
+    state.currentRun.pendingRewardBundle.entries[0].item.instanceId,
+    normalized.currentRun.pendingRewardBundle.entries[0].item.instanceId,
+    "save/load preserves pending equipment identity"
+  );
+});
+
 check("floor transition applies provisional 15 percent solo heal", () => {
   state.party = [createStartingKitCharacter("vanguard")];
   state.party[0].hp = 10;

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createStartingKitCharacter, state } from "../../../src/state.js";
 import {
   createLoadoutDraft,
+  getItemIdentity,
   getLoadoutInventoryChanges,
   getLoadoutDraftChanges,
   isLoadoutDraftDirty,
@@ -10,7 +11,8 @@ import {
   stageTrialEquip,
   stageSocketRune,
   stageUnequip,
-  validateLoadoutDraft
+  validateLoadoutDraft,
+  sameItemIdentity
 } from "../../../src/rules/loadout_transaction.js";
 import { commitLoadoutDraft } from "../../../src/systems/loadout_transaction.js";
 import { getActiveRuneSpellKeys } from "../../../src/rules/magic_rules.js";
@@ -22,6 +24,43 @@ import {
 } from "../../../src/telemetry.js";
 
 globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+
+const identityA = { instanceId: "a", baseId: "SHORT_SWORD", rarity: "rare" };
+const identityAClone = { rarity: "rare", baseId: "SHORT_SWORD", instanceId: "a" };
+const identityB = { instanceId: "b", baseId: "SHORT_SWORD", rarity: "rare" };
+assert.equal(sameItemIdentity(identityA, identityAClone), true, "same instance ID survives object cloning");
+assert.equal(sameItemIdentity(identityA, identityB), false, "different instance IDs remain distinct");
+assert.equal(getItemIdentity(identityA), getItemIdentity(identityAClone), "property order is not part of identity");
+assert.equal(sameItemIdentity({ baseId: "SHORT_SWORD", rarity: "rare" }, { rarity: "rare", baseId: "SHORT_SWORD" }), false, "legacy objects use reference identity, not serialization");
+assert.equal(sameItemIdentity("HEAL_POTION", "HEAL_POTION"), true, "static item IDs use canonical value identity");
+
+const duplicateCharacter = createStartingKitCharacter("vanguard");
+resetState(duplicateCharacter, [identityA, identityB, "HEAL_POTION", "HEAL_POTION"]);
+let identityDraft = createLoadoutDraft(state);
+identityDraft.inventory = [identityAClone, "HEAL_POTION"];
+const duplicateChanges = getLoadoutDraftChanges(identityDraft);
+assert.deepEqual(duplicateChanges.discarded, [identityB, "HEAL_POTION"], "duplicate object and primitive accounting remain one-for-one");
+
+const equipIdentityCharacter = createStartingKitCharacter("vanguard");
+const equipIdentityItem = { kind: "equipment", instanceId: "equip-identity", baseId: "DAGGER", rarity: "rare", identified: true, affixes: [] };
+resetState(equipIdentityCharacter, [equipIdentityItem]);
+let equipIdentityDraft = createLoadoutDraft(state);
+let equipIdentityStage = stageEquip(equipIdentityDraft, { actorIdx: 0, inventoryIndex: 0, requestedSlot: "weapon" });
+assert.equal(equipIdentityStage.ok, true);
+equipIdentityStage = stageUnequip(equipIdentityStage.draft, { actorIdx: 0, slot: "weapon" });
+assert.equal(equipIdentityStage.ok, true);
+assert.equal(equipIdentityStage.draft.inventory.at(-1), equipIdentityItem, "equip and unequip preserve the object instance");
+
+const swapOldItem = { kind: "equipment", instanceId: "swap-old", baseId: "SHORT_SWORD", rarity: "rare", identified: true, affixes: [] };
+const swapNewItem = { kind: "equipment", instanceId: "swap-new", baseId: "DAGGER", rarity: "rare", identified: true, affixes: [] };
+const swapCharacter = createStartingKitCharacter("vanguard");
+swapCharacter.equipment.weapon = swapOldItem;
+resetState(swapCharacter, [swapNewItem]);
+const swapStage = stageEquip(createLoadoutDraft(state), { actorIdx: 0, inventoryIndex: 0, requestedSlot: "weapon" });
+assert.equal(swapStage.ok, true);
+assert.equal(swapStage.draft.party[0].equipment.weapon, swapNewItem, "swap equips the new object instance");
+assert.equal(swapStage.draft.inventory[0], swapOldItem, "swap returns the old object instance");
+assert.equal(sameItemIdentity(swapOldItem, swapNewItem), false, "swap instances are not collapsed");
 
 function resetState(character, inventory) {
   state.party = [character];

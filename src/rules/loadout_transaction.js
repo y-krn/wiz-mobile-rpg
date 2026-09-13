@@ -34,19 +34,23 @@ function cloneParty(party) {
   return (Array.isArray(party) ? party : []).map(cloneCharacter);
 }
 
-function itemIdentity(item) {
+// Loadout identity is deliberately narrower than item display data. Static
+// IDs use their canonical primitive value; equipment objects use their stable
+// instance ID. A legacy object without an ID can only match itself by
+// reference until the save-normalization boundary supplies one.
+export function getItemIdentity(item) {
   if (item && typeof item === "object") {
-    return item.instanceId ? `instance:${item.instanceId}` : `object:${JSON.stringify(item)}`;
+    return item.instanceId ? `instance:${typeof item.instanceId}:${String(item.instanceId)}` : item;
   }
-  return `value:${String(item ?? "")}`;
+  return `value:${typeof item}:${String(item ?? "")}`;
+}
+
+export function sameItemIdentity(left, right) {
+  return getItemIdentity(left) === getItemIdentity(right);
 }
 
 function sameItem(left, right) {
-  if (left === right) return true;
-  if (left && right && typeof left === "object" && typeof right === "object") {
-    return Boolean(left.instanceId && right.instanceId && left.instanceId === right.instanceId);
-  }
-  return false;
+  return sameItemIdentity(left, right);
 }
 
 export function getLoadoutInventoryChanges(beforeItems = [], afterItems = []) {
@@ -177,11 +181,11 @@ export function getLoadoutDraftChanges(draft) {
   const runes = getRuneChanges({ party: draft.baseParty }, draft);
   const currentItems = new Map();
   getPlacedItems(draft).forEach(item => {
-    const key = itemIdentity(item);
+    const key = getItemIdentity(item);
     currentItems.set(key, (currentItems.get(key) || 0) + 1);
   });
   const discardedFromBase = draft.baseInventory.filter(item => {
-    const key = itemIdentity(item);
+    const key = getItemIdentity(item);
     const count = currentItems.get(key) || 0;
     if (count <= 0) return true;
     currentItems.set(key, count - 1);
@@ -190,8 +194,8 @@ export function getLoadoutDraftChanges(draft) {
   const discarded = [];
   const discardedKeys = new Set();
   [...discardedFromBase, ...(draft.discardedItems || [])].forEach(item => {
-    const key = itemIdentity(item);
-    if (discardedKeys.has(key) || currentItems.has(key)) return;
+    const key = getItemIdentity(item);
+    if (discardedKeys.has(key) || (currentItems.get(key) || 0) > 0) return;
     discardedKeys.add(key);
     discarded.push(item);
   });
