@@ -12,9 +12,19 @@ export function updateRecordsStrip() {
   strip.hidden = !visible;
   if (!visible) return;
   const records = state.records || { deepestRetreat: 0, deepestDeath: 0, totalRuns: 0 };
-  strip.innerHTML = `
-    <span><small>帰還最深</small><strong>${floorText(records.deepestRetreat)}</strong></span>
-    <span><small>死亡最深</small><strong>${floorText(records.deepestDeath)}</strong></span>
-    <span><small>総潜行</small><strong>${records.totalRuns}</strong></span>
-  `;
+  const createRecord = (labelText, valueText) => {
+    const item = document.createElement("span");
+    const label = document.createElement("small");
+    label.textContent = labelText;
+    const value = document.createElement("strong");
+    value.textContent = valueText;
+    item.appendChild(label);
+    item.appendChild(value);
+    return item;
+  };
+  strip.replaceChildren(
+    createRecord("帰還最深", floorText(records.deepestRetreat)),
+    createRecord("死亡最深", floorText(records.deepestDeath)),
+    createRecord("総潜行", String(records.totalRuns))
+  );
 }

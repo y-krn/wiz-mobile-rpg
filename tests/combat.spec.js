@@ -9,3 +9,4 @@ import './combat-target-ui.cases.js';
 import './combat-resistance.cases.js';
 import './combat-bleeding.cases.js';
 import './combat-vulnerable.cases.js';
+import './combat-security.cases.js';

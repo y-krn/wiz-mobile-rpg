@@ -48,27 +48,46 @@ export function updateSoloHUD() {
     reportStatFallback(error, "maxMp");
     maxMp = Math.max(0, Number(char.maxMp) || 0);
   }
-  const hpPct = maxHp > 0 ? (char.hp / maxHp) * 100 : 0;
-  const mpPct = maxMp > 0 ? (char.mp / maxMp) * 100 : 0;
+  const clampPercent = value => Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
+  const hpPct = clampPercent(maxHp > 0 ? (char.hp / maxHp) * 100 : 0);
+  const mpPct = clampPercent(maxMp > 0 ? (char.mp / maxMp) * 100 : 0);
 
-  card.innerHTML = `
-    <div class="character-identity">
-      <strong>${char.name}</strong>
-      <span>Lv.${char.level}</span>
-    </div>
-    <div class="character-vitals">
-      <div class="bar-container hp-row">
-        <span class="bar-label">HP</span>
-        <div class="bar"><div class="bar-fill hp" style="width: ${hpPct}%"></div></div>
-        <span class="bar-value">${char.hp}/${maxHp}</span>
-      </div>
-      <div class="bar-container mp-row" ${maxMp > 0 ? "" : "hidden"}>
-        <span class="bar-label">MP</span>
-        <div class="bar"><div class="bar-fill mp" style="width: ${mpPct}%"></div></div>
-        <span class="bar-value">${char.mp}/${maxMp}</span>
-      </div>
-    </div>
-  `;
+  const identity = document.createElement("div");
+  identity.className = "character-identity";
+  const name = document.createElement("strong");
+  name.textContent = char.name;
+  const level = document.createElement("span");
+  level.textContent = `Lv.${char.level}`;
+  identity.appendChild(name);
+  identity.appendChild(level);
+
+  const vitals = document.createElement("div");
+  vitals.className = "character-vitals";
+  const createVitalRow = (kind, labelText, current, maximum, percent, hidden = false) => {
+    const row = document.createElement("div");
+    row.className = `bar-container ${kind}-row`;
+    row.hidden = hidden;
+    const label = document.createElement("span");
+    label.className = "bar-label";
+    label.textContent = labelText;
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    const fill = document.createElement("div");
+    fill.className = `bar-fill ${kind}`;
+    fill.style.width = `${percent}%`;
+    bar.appendChild(fill);
+    const value = document.createElement("span");
+    value.className = "bar-value";
+    value.textContent = `${current}/${maximum}`;
+    row.appendChild(label);
+    row.appendChild(bar);
+    row.appendChild(value);
+    return row;
+  };
+  vitals.appendChild(createVitalRow("hp", "HP", char.hp, maxHp, hpPct));
+  vitals.appendChild(createVitalRow("mp", "MP", char.mp, maxMp, mpPct, maxMp <= 0));
+  card.appendChild(identity);
+  card.appendChild(vitals);
 
   if (char.status !== "ok") {
     const status = document.createElement("span");

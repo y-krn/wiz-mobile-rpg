@@ -114,7 +114,7 @@ export function renderSpellOverlay() {
   let menuType = getSafeMenuType();
 
   // Clear container
-  overlay.innerHTML = "";
+  overlay.replaceChildren();
   if (!menuType) {
     overlay.style.display = "none";
     return;
@@ -146,7 +146,10 @@ export function renderSpellOverlay() {
   // 1. Header
   const header = document.createElement("div");
   header.className = "spell-header";
-  header.innerHTML = `<span class="spell-title">呪文</span>`;
+  const title = document.createElement("span");
+  title.className = "spell-title";
+  title.textContent = "呪文";
+  header.appendChild(title);
   overlay.appendChild(header);
 
   // 2. Render based on type
@@ -175,12 +178,21 @@ export function renderSpellOverlay() {
 
       btn.className = `spell-caster-btn ${isCurrent ? "active" : ""} ${isDisabled ? "disabled" : ""}`;
       
-      const mpInfo = reason ? `<span class="caster-btn-reason">${reason}</span>` : `MP ${char.mp}/${getCharMaxMp(char)}`;
-
-      btn.innerHTML = `
-        <div class="caster-btn-name">${char.name}</div>
-        <div class="caster-btn-meta">${mpInfo}</div>
-      `;
+      const casterName = document.createElement("div");
+      casterName.className = "caster-btn-name";
+      casterName.textContent = char.name;
+      const mpInfo = document.createElement("div");
+      mpInfo.className = "caster-btn-meta";
+      if (reason) {
+        const reasonElement = document.createElement("span");
+        reasonElement.className = "caster-btn-reason";
+        reasonElement.textContent = reason;
+        mpInfo.appendChild(reasonElement);
+      } else {
+        mpInfo.textContent = `MP ${char.mp}/${getCharMaxMp(char)}`;
+      }
+      btn.appendChild(casterName);
+      btn.appendChild(mpInfo);
 
       if (isDisabled && !isCurrent) {
         btn.disabled = true;
@@ -272,16 +284,28 @@ export function renderSpellOverlay() {
           tagClass = usability.reason === "MP不足" ? "tag-mp-short" : "tag-disabled";
         }
 
-        btn.innerHTML = `
-          <div class="spell-card-row-top">
-            <span class="spell-card-name">${spell.name}</span>
-            <span class="spell-card-mp">${payment.resource === "hp" ? `HP ${payment.cost}` : `MP ${spell.cost}`}</span>
-          </div>
-          <div class="spell-card-row-bottom">
-            <span class="spell-card-desc">${spell.desc}</span>
-            <span class="spell-card-tag ${tagClass}">${rightTagText}</span>
-          </div>
-        `;
+        const top = document.createElement("div");
+        top.className = "spell-card-row-top";
+        const name = document.createElement("span");
+        name.className = "spell-card-name";
+        name.textContent = spell.name;
+        const cost = document.createElement("span");
+        cost.className = "spell-card-mp";
+        cost.textContent = payment.resource === "hp" ? `HP ${payment.cost}` : `MP ${spell.cost}`;
+        top.appendChild(name);
+        top.appendChild(cost);
+        const bottom = document.createElement("div");
+        bottom.className = "spell-card-row-bottom";
+        const description = document.createElement("span");
+        description.className = "spell-card-desc";
+        description.textContent = spell.desc;
+        const tag = document.createElement("span");
+        tag.className = `spell-card-tag ${tagClass}`;
+        tag.textContent = rightTagText;
+        bottom.appendChild(description);
+        bottom.appendChild(tag);
+        btn.appendChild(top);
+        btn.appendChild(bottom);
 
         btn.addEventListener("click", () => {
           listContainer.querySelectorAll(".spell-item-row-card").forEach(r => r.classList.remove("active"));
@@ -345,14 +369,26 @@ export function renderSpellOverlay() {
       ? `HP ${caster.hp} → ${Math.max(1, caster.hp - payment.cost)}`
       : `MP ${caster.mp} → ${Math.max(0, caster.mp - spell.cost)}`;
     
-    summaryDiv.innerHTML = `
-      <div style="font-size: 13px; font-weight: bold; color: var(--neon-purple); margin-bottom: 4px;">
-        🔮 ${caster.name} が ${spell.name} を唱える <span style="font-size: 10px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(${resourcePreview})</span>
-      </div>
-      <div style="font-size: 11px; color: var(--text-muted); line-height: 1.3;">
-        ${spell.desc}
-      </div>
-    `;
+    const summaryTitle = document.createElement("div");
+    summaryTitle.style.fontSize = "13px";
+    summaryTitle.style.fontWeight = "bold";
+    summaryTitle.style.color = "var(--neon-purple)";
+    summaryTitle.style.marginBottom = "4px";
+    summaryTitle.textContent = `🔮 ${caster.name} が ${spell.name} を唱える `;
+    const preview = document.createElement("span");
+    preview.style.fontSize = "10px";
+    preview.style.color = "var(--text-muted)";
+    preview.style.fontWeight = "normal";
+    preview.style.marginLeft = "6px";
+    preview.textContent = `(${resourcePreview})`;
+    summaryTitle.appendChild(preview);
+    const summaryDescription = document.createElement("div");
+    summaryDescription.style.fontSize = "11px";
+    summaryDescription.style.color = "var(--text-muted)";
+    summaryDescription.style.lineHeight = "1.3";
+    summaryDescription.textContent = spell.desc;
+    summaryDiv.appendChild(summaryTitle);
+    summaryDiv.appendChild(summaryDescription);
     overlay.appendChild(summaryDiv);
 
     const selectPrompt = document.createElement("div");
@@ -386,18 +422,24 @@ export function renderSpellOverlay() {
       const hpColor = char.hp <= char.maxHp * 0.3 ? "var(--neon-red)" : (char.hp <= char.maxHp * 0.5 ? "var(--neon-amber)" : "#fff");
       const statusSuffix = char.status !== "ok" && char.status !== "dead" ? ` [${char.status.toUpperCase()}]` : "";
 
-      let hpOrStatusHtml = `<div class="target-card-hp" style="color: ${hpColor}">HP: ${char.hp}/${char.maxHp}</div>`;
-      if (char.status === "dead") {
-        hpOrStatusHtml = `<div class="target-card-hp" style="color: var(--neon-red); font-weight: bold;">死亡</div>`;
-      }
-
-      card.innerHTML = `
-        <div class="target-card-name">${char.name}</div>
-        ${hpOrStatusHtml}
-        <div class="target-card-status" style="color: ${statusColor}; font-weight: bold; font-size: 11px; margin-top: 4px;">
-          ${reason}${statusSuffix}
-        </div>
-      `;
+      const name = document.createElement("div");
+      name.className = "target-card-name";
+      name.textContent = char.name;
+      const hpOrStatus = document.createElement("div");
+      hpOrStatus.className = "target-card-hp";
+      hpOrStatus.style.color = char.status === "dead" ? "var(--neon-red)" : hpColor;
+      if (char.status === "dead") hpOrStatus.style.fontWeight = "bold";
+      hpOrStatus.textContent = char.status === "dead" ? "死亡" : `HP: ${char.hp}/${char.maxHp}`;
+      const status = document.createElement("div");
+      status.className = "target-card-status";
+      status.style.color = statusColor;
+      status.style.fontWeight = "bold";
+      status.style.fontSize = "11px";
+      status.style.marginTop = "4px";
+      status.textContent = `${reason}${statusSuffix}`;
+      card.appendChild(name);
+      card.appendChild(hpOrStatus);
+      card.appendChild(status);
 
       gridContainer.appendChild(card);
     });
@@ -430,10 +472,16 @@ export function renderSpellOverlay() {
 
     if (!spKey || !caster || !isUsableSpellForActor(state.party, menuContext.actorIdx, spKey)) {
       if (spKey) spellMenuState.selectedKey = null;
-      panel.innerHTML = `
-        <div class="spell-detail-placeholder">呪文を選択してください</div>
-        <button class="btn btn-neon btn-block disabled" disabled>唱える呪文を選択</button>
-      `;
+      panel.replaceChildren();
+      const placeholder = document.createElement("div");
+      placeholder.className = "spell-detail-placeholder";
+      placeholder.textContent = "呪文を選択してください";
+      const disabledButton = document.createElement("button");
+      disabledButton.className = "btn btn-neon btn-block disabled";
+      disabledButton.disabled = true;
+      disabledButton.textContent = "唱える呪文を選択";
+      panel.appendChild(placeholder);
+      panel.appendChild(disabledButton);
       return;
     }
 
@@ -448,47 +496,86 @@ export function renderSpellOverlay() {
 
     let btnText = "🔮 呪文を唱える";
     let isBtnDisabled = false;
-    let warnHtml = "";
+    let warningText = "";
 
     if (!usability.usable) {
       isBtnDisabled = true;
       if (usability.reason === "戦闘のみ" || usability.reason === "戦闘中のみ") {
         btnText = "戦闘中のみ";
-        warnHtml = `<div class="spell-detail-warning">※戦闘中のみ使用可能な呪文です。</div>`;
+        warningText = "※戦闘中のみ使用可能な呪文です。";
       } else if (usability.reason === "MP不足") {
         btnText = "MP不足";
-        warnHtml = `<div class="spell-detail-warning">※MPが不足しています。</div>`;
+        warningText = "※MPが不足しています。";
       } else if (usability.reason === "対象なし") {
         btnText = "対象なし";
-        warnHtml = `<div class="spell-detail-warning">※効果のある対象がいません。</div>`;
+        warningText = "※効果のある対象がいません。";
       } else {
         btnText = usability.reason;
       }
     }
 
-    panel.innerHTML = `
-      <div class="spell-detail-content">
-        <div class="spell-detail-header-row">
-          <span class="spell-detail-name">${spell.name}</span>
-          <span class="spell-detail-target">対象: ${targetJp}</span>
-        </div>
-        <div class="spell-detail-caster-row">
-          術者: ${caster.name} / HP: <span class="detail-hp-val">${caster.hp}/${getCharMaxHp(caster)}</span>${caster.status !== "ok" ? ` / 状態: ${caster.status.toUpperCase()}` : ""}
-        </div>
-        <div class="spell-detail-mp-row">
-          消費MP: <span class="detail-mp-val">${spell.cost}</span> / 現在MP: <span class="detail-mp-val">${caster.mp}</span>
-        </div>
-        <div class="spell-detail-desc">${spell.desc}</div>
-        ${warnHtml}
-      </div>
-      <button id="btn-spell-cast-action" class="btn btn-neon btn-block ${isBtnDisabled ? "disabled" : ""}" ${isBtnDisabled ? "disabled" : ""}>
-        ${btnText}
-      </button>
-    `;
+    panel.replaceChildren();
+    const content = document.createElement("div");
+    content.className = "spell-detail-content";
+    const detailHeader = document.createElement("div");
+    detailHeader.className = "spell-detail-header-row";
+    const spellName = document.createElement("span");
+    spellName.className = "spell-detail-name";
+    spellName.textContent = spell.name;
+    const target = document.createElement("span");
+    target.className = "spell-detail-target";
+    target.textContent = `対象: ${targetJp}`;
+    detailHeader.appendChild(spellName);
+    detailHeader.appendChild(target);
+    const casterRow = document.createElement("div");
+    casterRow.className = "spell-detail-caster-row";
+    casterRow.textContent = `術者: ${caster.name} / HP: `;
+    const hp = document.createElement("span");
+    hp.className = "detail-hp-val";
+    hp.textContent = `${caster.hp}/${getCharMaxHp(caster)}`;
+    casterRow.appendChild(hp);
+    if (caster.status !== "ok") {
+      const statusText = document.createElement("span");
+      statusText.textContent = ` / 状態: ${caster.status.toUpperCase()}`;
+      casterRow.appendChild(statusText);
+    }
+    const mpRow = document.createElement("div");
+    mpRow.className = "spell-detail-mp-row";
+    mpRow.textContent = "消費MP: ";
+    const cost = document.createElement("span");
+    cost.className = "detail-mp-val";
+    cost.textContent = spell.cost;
+    mpRow.appendChild(cost);
+    const mpSeparator = document.createElement("span");
+    mpSeparator.textContent = " / 現在MP: ";
+    mpRow.appendChild(mpSeparator);
+    const currentMp = document.createElement("span");
+    currentMp.className = "detail-mp-val";
+    currentMp.textContent = caster.mp;
+    mpRow.appendChild(currentMp);
+    const description = document.createElement("div");
+    description.className = "spell-detail-desc";
+    description.textContent = spell.desc;
+    content.appendChild(detailHeader);
+    content.appendChild(casterRow);
+    content.appendChild(mpRow);
+    content.appendChild(description);
+    if (warningText) {
+      const warning = document.createElement("div");
+      warning.className = "spell-detail-warning";
+      warning.textContent = warningText;
+      content.appendChild(warning);
+    }
+    const castButton = document.createElement("button");
+    castButton.id = "btn-spell-cast-action";
+    castButton.className = `btn btn-neon btn-block ${isBtnDisabled ? "disabled" : ""}`;
+    castButton.disabled = isBtnDisabled;
+    castButton.textContent = btnText;
+    panel.appendChild(content);
+    panel.appendChild(castButton);
 
     if (!isBtnDisabled) {
-      const castBtn = panel.querySelector("#btn-spell-cast-action");
-      castBtn.addEventListener("click", () => {
+      castButton.addEventListener("click", () => {
         menuContext.spellName = spKey;
         if (spell.target === "single_ally") {
           const targetIndices = getSpellAllyTargetIndices(spKey, state.party);

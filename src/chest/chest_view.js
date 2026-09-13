@@ -15,15 +15,32 @@ function translateTrap(trap) {
 }
 
 function getRiskText(floor) {
-  if (floor === 1 || floor === 3) return `<span style="color:var(--neon-yellow)">[階層] 罠遭遇：高 (約80%)</span>`;
-  if (floor === 2) return `<span style="color:var(--neon-green)">[階層] 罠遭遇：中 (約70%)</span>`;
-  if (floor === 4) return `<span style="color:var(--neon-red)">[警告] 全宝箱罠付き（転移警戒）</span>`;
-  if (floor === 5) return `<span style="color:var(--neon-red)">[警告] 全宝箱罠付き＆火炎トラップ注意</span>`;
-  return "";
+  const risk = document.createElement("span");
+  if (floor === 1 || floor === 3) {
+    risk.style.color = "var(--neon-yellow)";
+    risk.textContent = "[階層] 罠遭遇：高 (約80%)";
+  } else if (floor === 2) {
+    risk.style.color = "var(--neon-green)";
+    risk.textContent = "[階層] 罠遭遇：中 (約70%)";
+  } else if (floor === 4) {
+    risk.style.color = "var(--neon-red)";
+    risk.textContent = "[警告] 全宝箱罠付き（転移警戒）";
+  } else if (floor === 5) {
+    risk.style.color = "var(--neon-red)";
+    risk.textContent = "[警告] 全宝箱罠付き＆火炎トラップ注意";
+  } else {
+    return null;
+  }
+  return risk;
 }
 
 function getInspectionText(chest) {
-  if (!chest.inspected) return `<span style="color:var(--text-muted)">推定罠: 未調査</span>`;
+  if (!chest.inspected) {
+    const result = document.createElement("span");
+    result.style.color = "var(--text-muted)";
+    result.textContent = "推定罠: 未調査";
+    return result;
+  }
   const chance = chest.inspectChance || 0;
   let reliability = "極低";
   let reliabilityColor = "var(--neon-red)";
@@ -37,10 +54,28 @@ function getInspectionText(chest) {
     reliability = "低";
     reliabilityColor = "#ff9f0a";
   }
-  const uncertainty = chance >= 0.8
-    ? `<span style="color:var(--text-muted)">推定は外れる場合あり</span>`
-    : `<span style="color:${reliabilityColor}; font-weight:bold;">[!] 外れる可能性あり</span>`;
-  return `推定: <strong style="color:var(--neon-cyan)">${translateTrap(chest.identifiedTrap)}</strong> / 信頼度 <span style="color:${reliabilityColor}">${reliability}</span><br>${uncertainty}`;
+  const result = typeof document.createDocumentFragment === "function"
+    ? document.createDocumentFragment()
+    : document.createElement("span");
+  result.textContent = "推定: ";
+  const trap = document.createElement("strong");
+  trap.style.color = "var(--neon-cyan)";
+  trap.textContent = translateTrap(chest.identifiedTrap);
+  result.appendChild(trap);
+  const separator = document.createElement("span");
+  separator.textContent = " / 信頼度 ";
+  result.appendChild(separator);
+  const reliabilityValue = document.createElement("span");
+  reliabilityValue.style.color = reliabilityColor;
+  reliabilityValue.textContent = reliability;
+  result.appendChild(reliabilityValue);
+  result.appendChild(document.createElement("br"));
+  const uncertainty = document.createElement("span");
+  uncertainty.style.color = chance >= 0.8 ? "var(--text-muted)" : reliabilityColor;
+  if (chance < 0.8) uncertainty.style.fontWeight = "bold";
+  uncertainty.textContent = chance >= 0.8 ? "推定は外れる場合あり" : "[!] 外れる可能性あり";
+  result.appendChild(uncertainty);
+  return result;
 }
 
 function createButton({ id, className, text, onClick, title, role = null }) {
@@ -72,22 +107,6 @@ export function renderChestMenu({
   optGrid.innerHTML = "";
 
   const loot = chest.lootHint;
-  const auraLabel = loot?.aura === "strong"
-    ? `<span style="color:var(--neon-red); font-weight:bold;">強</span>`
-    : loot?.aura === "medium"
-      ? `<span style="color:var(--neon-yellow); font-weight:bold;">中</span>`
-      : `<span style="color:var(--text-muted);">弱</span>`;
-  const lootText = loot ? `
-      <div class="chest-loot-hint">
-        <div>宝気: <span style="color:#fff;">${loot.label}</span></div>
-        <div>魔力反応: ${auraLabel}</div>
-      </div>
-    ` : "";
-  const helpText = `<div class="chest-help-text">
-毒針:単体+毒 | ガス:全体ダメ<br>
-テレポ:転移 | 閃光:全体盲目<br>
-<span style="color:var(--neon-red)">叩き壊す：罠を弱める代わりに、報酬が壊れることがある。</span>
-</div>`;
   const infoPanel = document.createElement("div");
   infoPanel.className = "chest-info-panel";
   infoPanel.appendChild(createBagCapacitySummary(inventory, {
@@ -96,18 +115,51 @@ export function renderChestMenu({
       ? "満杯。報酬は自動取得されません。開封前に装備画面で整理できます。"
       : "装備中の品は枠外。開封後の報酬だけが空き枠を使います。"
   }));
-  const detailsMarkup = `
-    <div>${getRiskText(floor)}</div>
-    <div style="margin-top:4px;">${getInspectionText(chest)}</div>
-    ${lootText}
-    ${helpText}
-  `;
-  if (typeof infoPanel.insertAdjacentHTML === "function") {
-    infoPanel.insertAdjacentHTML("beforeend", detailsMarkup);
-  } else {
-    // Unit tests use a deliberately small DOM mock; preserve its contract.
-    infoPanel.innerHTML = detailsMarkup;
+  const risk = getRiskText(floor);
+  if (risk) {
+    const riskRow = document.createElement("div");
+    riskRow.appendChild(risk);
+    infoPanel.appendChild(riskRow);
   }
+  const inspectionRow = document.createElement("div");
+  inspectionRow.style.marginTop = "4px";
+  inspectionRow.appendChild(getInspectionText(chest));
+  infoPanel.appendChild(inspectionRow);
+  if (loot) {
+    const lootHint = document.createElement("div");
+    lootHint.className = "chest-loot-hint";
+    const lootRow = document.createElement("div");
+    lootRow.textContent = "宝気: ";
+    const lootLabel = document.createElement("span");
+    lootLabel.style.color = "#fff";
+    lootLabel.textContent = loot.label;
+    lootRow.appendChild(lootLabel);
+    const auraRow = document.createElement("div");
+    auraRow.textContent = "魔力反応: ";
+    const aura = document.createElement("span");
+    aura.style.fontWeight = "bold";
+    aura.style.color = loot.aura === "strong"
+      ? "var(--neon-red)"
+      : loot.aura === "medium" ? "var(--neon-yellow)" : "var(--text-muted)";
+    aura.textContent = loot.aura === "strong" ? "強" : loot.aura === "medium" ? "中" : "弱";
+    auraRow.appendChild(aura);
+    lootHint.appendChild(lootRow);
+    lootHint.appendChild(auraRow);
+    infoPanel.appendChild(lootHint);
+  }
+  const help = document.createElement("div");
+  help.className = "chest-help-text";
+  help.textContent = "毒針:単体+毒 | ガス:全体ダメ";
+  help.appendChild(document.createElement("br"));
+  const helpSecondLine = document.createElement("span");
+  helpSecondLine.textContent = "テレポ:転移 | 閃光:全体盲目";
+  help.appendChild(helpSecondLine);
+  help.appendChild(document.createElement("br"));
+  const smashHelp = document.createElement("span");
+  smashHelp.style.color = "var(--neon-red)";
+  smashHelp.textContent = "叩き壊す：罠を弱める代わりに、報酬が壊れることがある。";
+  help.appendChild(smashHelp);
+  infoPanel.appendChild(help);
   optGrid.appendChild(infoPanel);
 
   const inspectButton = createButton({

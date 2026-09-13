@@ -1,4 +1,55 @@
 import { test, expect } from './fixtures/browser-health.js';
+
+test('Archives keeps malformed run and death history values inert', async ({ page }) => {
+  const hostile = '<img src=x onerror="globalThis.__archives_xss = 1"><b>evil</b>';
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async hostileInput => {
+    const { state } = await import('/src/state.js');
+    const { openArchivesOverlay } = await import('/src/ui.js');
+    globalThis.__archives_xss = 0;
+    state.runHistory = [{
+      endedAt: Date.now(),
+      result: 'returned',
+      outcome: 'retreat',
+      deepestFloor: hostileInput,
+      kills: hostileInput,
+      chestsOpened: hostileInput,
+      dangerRank: hostileInput,
+      bankedMaterials: { '獣の牙': hostileInput },
+      representativeItem: { name: hostileInput, status: 'returned' },
+      startingKit: 'scout'
+    }];
+    state.deathLogs = [{
+      endedAt: Date.now(),
+      floor: hostileInput,
+      x: hostileInput,
+      y: hostileInput,
+      deepestFloor: hostileInput,
+      kills: hostileInput,
+      cause: hostileInput,
+      character: { level: hostileInput },
+      lostItems: [hostileInput]
+    }];
+    openArchivesOverlay();
+  }, hostile);
+
+  const body = page.locator('#archives-overlay .archives-body');
+  await page.getByRole('button', { name: '📜 記録' }).click();
+  await expect(body).toContainText(hostile);
+  await expect(body).toContainText('B0F');
+  await expect(body).toContainText('持帰素材: 0 個');
+  await expect(body.locator('img')).toHaveCount(0);
+  await expect(body.locator('b')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '☠️ 死亡' }).click();
+  await expect(body).toContainText(hostile);
+  await expect(body).toContainText('B1F (0, 0)');
+  await expect(body.locator('img')).toHaveCount(0);
+  await expect(body.locator('b')).toHaveCount(0);
+  expect(await page.evaluate(() => globalThis.__archives_xss)).toBe(0);
+});
+
 test('Archives list restores scroll after detail and resets on navigation', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

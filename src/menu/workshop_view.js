@@ -56,10 +56,12 @@ export function renderWorkshop(optGrid) {
   const intro = document.createElement("div");
   intro.className = "workshop-purpose";
   intro.dataset.workshopPurpose = "possibilities";
-  intro.innerHTML = `
-    <strong>次の潜行で試せる可能性を増やす場所</strong>
-    <span>記録から候補を広げます。どれが最適かは、あなたの潜行で確かめてください。</span>
-  `;
+  const introTitle = document.createElement("strong");
+  introTitle.textContent = "次の潜行で試せる可能性を増やす場所";
+  const introText = document.createElement("span");
+  introText.textContent = "記録から候補を広げます。どれが最適かは、あなたの潜行で確かめてください。";
+  intro.appendChild(introTitle);
+  intro.appendChild(introText);
   optGrid.appendChild(intro);
   renderBalance(optGrid);
   Object.entries(WORKSHOP_CATEGORIES).forEach(([category, label]) => {
@@ -81,7 +83,15 @@ export function renderWorkshop(optGrid) {
       const button = document.createElement("button");
       button.className = "btn btn-neon btn-block workshop-node";
       const status = lateralUnlocked ? "冒険の記録から利用可能になった" : cost ? formatCost(cost) : "利用可能";
-      button.innerHTML = `<strong>${node.name} ${maxRank > 1 ? `${rank}/${maxRank}` : ""}</strong><span>${describeWorkshopNode(node)}</span><small>${status}</small>`;
+      const nodeTitle = document.createElement("strong");
+      nodeTitle.textContent = `${node.name} ${maxRank > 1 ? `${rank}/${maxRank}` : ""}`;
+      const description = document.createElement("span");
+      description.textContent = describeWorkshopNode(node);
+      const statusText = document.createElement("small");
+      statusText.textContent = status;
+      button.appendChild(nodeTitle);
+      button.appendChild(description);
+      button.appendChild(statusText);
       button.disabled = rank >= maxRank || lateralUnlocked;
       button.addEventListener("click", () => {
         const result = purchaseWorkshopNode(

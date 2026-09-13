@@ -26,14 +26,10 @@ export function updateViewportHUD() {
   const DIR_LABELS = ["北", "東", "南", "西"];
   const dirLabel = DIR_LABELS[state.dir];
 
-  if (state.lightTurns > 0) {
-    const lightName = state.lightPower === "lomilwa" ? "LOMILWA強光" : "MILWA明かり";
-    hud.innerHTML = `
-      <div class="hud-dir">${lightName}: 残り${state.lightTurns}歩 / 方角: ${dirLabel}</div>
-    `;
-  } else {
-    hud.innerHTML = `
-      <div class="hud-dir">方角: ${dirLabel}</div>
-    `;
-  }
+  const direction = document.createElement("div");
+  direction.className = "hud-dir";
+  direction.textContent = state.lightTurns > 0
+    ? `${state.lightPower === "lomilwa" ? "LOMILWA強光" : "MILWA明かり"}: 残り${state.lightTurns}歩 / 方角: ${dirLabel}`
+    : `方角: ${dirLabel}`;
+  hud.replaceChildren(direction);
 }

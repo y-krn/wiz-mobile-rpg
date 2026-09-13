@@ -11,19 +11,37 @@ const ACHIEVEMENT_LABELS = {
   first_b10_reached: "初めてB10Fへ到達"
 };
 
-function formatMaterials(materials) {
-  const entries = Object.entries(materials || {}).filter(([, quantity]) => quantity > 0);
-  if (entries.length === 0) return '<span class="list-empty">なし</span>';
-  return entries.map(([name, quantity]) => `<span class="result-material-chip">${name}<strong>×${quantity}</strong></span>`).join("");
+function textElement(tagName, className, text) {
+  const element = document.createElement(tagName);
+  if (className) element.className = className;
+  if (text !== undefined) element.textContent = String(text);
+  return element;
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+function fragmentNode() {
+  return typeof document.createDocumentFragment === "function"
+    ? document.createDocumentFragment()
+    : document.createElement("span");
+}
+
+function setAttributeSafe(element, name, value) {
+  if (typeof element.setAttribute === "function") element.setAttribute(name, value);
+}
+
+function createMaterialContent(materials) {
+  const content = fragmentNode();
+  const entries = Object.entries(materials || {}).filter(([, quantity]) => quantity > 0);
+  if (entries.length === 0) {
+    content.appendChild(textElement("span", "list-empty", "なし"));
+    return content;
+  }
+  entries.forEach(([name, quantity]) => {
+    const chip = textElement("span", "result-material-chip");
+    chip.textContent = name;
+    chip.appendChild(textElement("strong", null, `×${quantity}`));
+    content.appendChild(chip);
+  });
+  return content;
 }
 
 function getOutcomeMeta(reason) {
@@ -114,26 +132,40 @@ function getResultLoot(run, outcome) {
     : { returned: [], lost: found };
 }
 
-function formatLootList(items, emptyText) {
-  if (!items.length) return `<span class="list-empty">${emptyText}</span>`;
-  return items.map(item => `<span class="result-loot-chip">${escapeHtml(getItemLabel(item))}</span>`).join("");
+function createLootList(items, emptyText) {
+  const list = document.createElement("div");
+  if (!items.length) {
+    list.appendChild(textElement("span", "list-empty", emptyText));
+    return list;
+  }
+  items.forEach(item => list.appendChild(textElement("span", "result-loot-chip", getItemLabel(item))));
+  return list;
 }
 
-function getLootHtml(run, outcome) {
+function createLootSection(run, outcome) {
   const { returned, lost } = getResultLoot(run, outcome);
   const departure = getDepartureItems(run);
-  return `
-    <section class="result-focus-section result-loot-section" aria-labelledby="result-loot-title" data-result-loot>
-      <h2 class="result-section-heading" id="result-loot-title"><span>戦果のゆくえ</span><strong>${returned.length ? `${returned.length}点を回収` : lost.length ? `${lost.length}点を喪失` : "記録なし"}</strong></h2>
-      <div class="result-loot-note">持ち込んだ品は街の品として扱い、迷宮で得た戦果とは分けて表示します。</div>
-      <div class="result-loot-group result-loot-returned">
-        <small>${outcome.key === "wing" ? "翼で持ち帰った戦果" : "街へ回収した戦果"}</small>
-        <div>${formatLootList(returned, "なし")}</div>
-      </div>
-      ${lost.length > 0 ? `<div class="result-loot-group result-loot-lost"><small>迷宮で失われた戦果</small><div>${formatLootList(lost, "なし")}</div></div>` : ""}
-      <div class="result-loot-group result-loot-carried"><small>持込品（未使用分）</small><div>${formatLootList(departure, "なし")}</div></div>
-    </section>
-  `;
+  const section = document.createElement("section");
+  section.className = "result-focus-section result-loot-section";
+  setAttributeSafe(section, "aria-labelledby", "result-loot-title");
+  setAttributeSafe(section, "data-result-loot", "");
+  const heading = textElement("h2", "result-section-heading");
+  heading.id = "result-loot-title";
+  heading.appendChild(textElement("span", null, "戦果のゆくえ"));
+  heading.appendChild(textElement("strong", null,
+    returned.length ? `${returned.length}点を回収` : lost.length ? `${lost.length}点を喪失` : "記録なし"));
+  section.appendChild(heading);
+  section.appendChild(textElement("div", "result-loot-note", "持ち込んだ品は街の品として扱い、迷宮で得た戦果とは分けて表示します。"));
+  const appendGroup = (className, label, items) => {
+    const group = textElement("div", `result-loot-group ${className}`);
+    group.appendChild(textElement("small", null, label));
+    group.appendChild(createLootList(items, "なし"));
+    section.appendChild(group);
+  };
+  appendGroup("result-loot-returned", outcome.key === "wing" ? "翼で持ち帰った戦果" : "街へ回収した戦果", returned);
+  if (lost.length > 0) appendGroup("result-loot-lost", "迷宮で失われた戦果", lost);
+  appendGroup("result-loot-carried", "持込品（未使用分）", departure);
+  return section;
 }
 
 function getRepresentativeFacts(run, outcome) {
@@ -156,35 +188,51 @@ function getRepresentativeFacts(run, outcome) {
   return [...new Set(facts)].slice(0, 5);
 }
 
-function getMemoryHtml(run, outcome) {
-  return `
-    <section class="result-memory-section" aria-labelledby="result-memory-title" data-result-memory>
-      <div class="result-memory-heading"><span class="result-section-kicker">今回の記憶</span><h2 id="result-memory-title">物は失う。物語は残る。</h2></div>
-      <ul class="result-memory-list">
-        ${getRepresentativeFacts(run, outcome).map(fact => `<li>${escapeHtml(fact)}</li>`).join("")}
-      </ul>
-    </section>
-  `;
+function createMemorySection(run, outcome) {
+  const section = document.createElement("section");
+  section.className = "result-memory-section";
+  setAttributeSafe(section, "aria-labelledby", "result-memory-title");
+  setAttributeSafe(section, "data-result-memory", "");
+  const heading = textElement("div", "result-memory-heading");
+  const memoryTitle = textElement("h2", null, "物は失う。物語は残る。");
+  heading.appendChild(textElement("span", "result-section-kicker", "今回の記憶"));
+  memoryTitle.id = "result-memory-title";
+  heading.appendChild(memoryTitle);
+  const list = textElement("ul", "result-memory-list");
+  getRepresentativeFacts(run, outcome).forEach(fact => list.appendChild(textElement("li", null, fact)));
+  section.appendChild(heading);
+  section.appendChild(list);
+  return section;
 }
 
-function getDiscoveryHtml(run) {
-  const codex = (run.codexInsights?.length ? [] : run.codexDiscoveries || [])
-    .map(name => `<li>${escapeHtml(name)}をCodexに記録</li>`);
-  const workshop = (run.workshopUnlocks?.length ? [] : run.workshopDiscoveries || [])
-    .map(name => `<li>工房で${escapeHtml(name)}を選べるようになった</li>`);
-  if (!codex.length && !workshop.length) return "";
-  return `
-    <section class="result-discovery-section" aria-label="新しく増えた記録と可能性" data-result-discoveries>
-      ${codex.length ? `<div><h2>新しく分かったこと</h2><ul>${codex.join("")}</ul></div>` : ""}
-      ${workshop.length ? `<div><h2>広がった可能性</h2><ul>${workshop.join("")}</ul></div>` : ""}
-    </section>
-  `;
+function createDiscoverySection(run) {
+  const codex = run.codexInsights?.length ? [] : run.codexDiscoveries || [];
+  const workshop = run.workshopUnlocks?.length ? [] : run.workshopDiscoveries || [];
+  if (!codex.length && !workshop.length) return null;
+  const section = textElement("section", "result-discovery-section");
+  setAttributeSafe(section, "aria-label", "新しく増えた記録と可能性");
+  setAttributeSafe(section, "data-result-discoveries", "");
+  const appendColumn = (headingText, names, format) => {
+    if (!names.length) return;
+    const column = document.createElement("div");
+    column.appendChild(textElement("h2", null, headingText));
+    const list = document.createElement("ul");
+    names.forEach(name => list.appendChild(textElement("li", null, format(name))));
+    column.appendChild(list);
+    section.appendChild(column);
+  };
+  appendColumn("新しく分かったこと", codex, name => `${name}をCodexに記録`);
+  appendColumn("広がった可能性", workshop, name => `工房で${name}を選べるようになった`);
+  return section;
 }
 
-function getRecordHtml(run) {
+function createRecordSection(run) {
   const result = run.recordResult;
   if (!result?.updated) {
-    return '<div class="result-record-steady"><span>記録</span><strong>更新なし</strong></div>';
+    const steady = textElement("div", "result-record-steady");
+    steady.appendChild(textElement("span", null, "記録"));
+    steady.appendChild(textElement("strong", null, "更新なし"));
+    return steady;
   }
   const updateLabels = [...new Set([
     ...(result.updates || []),
@@ -193,30 +241,30 @@ function getRecordHtml(run) {
     ["最深到達記録", "撤退最深", "死亡最深"].includes(update) || !update.endsWith("最深")
   )).map(update => update === "撤退最深" ? "帰還最深" : update);
   const hasDepthRecord = (result.updates || []).some(update => ["最深到達記録", "撤退最深", "死亡最深"].includes(update));
-  return `
-    <div class="result-record-new" role="status" aria-live="polite">
-      <span class="result-record-kicker">${hasDepthRecord ? "NEW DEPTH RECORD" : "ADVENTURE RECORD"}</span>
-      <strong>B${result.depth}F</strong>
-      <small>${updateLabels.join(" / ")}</small>
-    </div>
-  `;
+  const record = textElement("div", "result-record-new");
+  setAttributeSafe(record, "role", "status");
+  setAttributeSafe(record, "aria-live", "polite");
+  record.appendChild(textElement("span", "result-record-kicker", hasDepthRecord ? "NEW DEPTH RECORD" : "ADVENTURE RECORD"));
+  record.appendChild(textElement("strong", null, `B${result.depth}F`));
+  record.appendChild(textElement("small", null, updateLabels.join(" / ")));
+  return record;
 }
 
-function getQuestHtml(run) {
+function createQuestContent(run) {
   const quests = run.quests || [];
-  if (quests.length === 0) return '<div class="list-empty">クエストなし</div>';
-  return quests.map(quest => {
+  if (quests.length === 0) return textElement("div", "list-empty", "クエストなし");
+  const list = fragmentNode();
+  quests.forEach(quest => {
     const reward = Object.entries(quest.reward?.materials || {})
       .map(([name, quantity]) => `${name}×${quantity}`)
       .join(" / ");
-    return `
-      <div class="result-quest-row ${quest.completed ? "completed" : "failed"}">
-        <span>${quest.completed ? "達成" : "未達"}</span>
-        <strong>${quest.name}</strong>
-        <small>${quest.completed ? reward : `${quest.currentValue || 0}/${quest.targetValue}`}</small>
-      </div>
-    `;
-  }).join("");
+    const row = textElement("div", `result-quest-row ${quest.completed ? "completed" : "failed"}`);
+    row.appendChild(textElement("span", null, quest.completed ? "達成" : "未達"));
+    row.appendChild(textElement("strong", null, quest.name));
+    row.appendChild(textElement("small", null, quest.completed ? reward : `${quest.currentValue || 0}/${quest.targetValue}`));
+    list.appendChild(row);
+  });
+  return list;
 }
 
 const RETURN_RARITY_LABELS = {
@@ -231,37 +279,61 @@ function getReturnItemStatusLabel(status) {
   return status === "lost" ? "喪失" : status === "rescued" ? "翼で持ち帰り" : status === "returned" ? "帰還" : "観測";
 }
 
-function getReturnProcessingHtml(run) {
+function createReturnProcessingSection(run) {
   const representative = run.representativeItem;
   const history = Array.isArray(run.meaningfulItemHistory) ? run.meaningfulItemHistory : [];
   const insights = Array.isArray(run.codexInsights) ? run.codexInsights : [];
   const unlocks = Array.isArray(run.workshopUnlocks) ? run.workshopUnlocks : [];
-  if (!representative && history.length === 0 && insights.length === 0 && unlocks.length === 0) return "";
+  if (!representative && history.length === 0 && insights.length === 0 && unlocks.length === 0) return null;
 
-  return `
-    <section class="result-focus-section" aria-labelledby="result-return-record-title">
-      <h2 class="result-section-heading" id="result-return-record-title"><span>今回の冒険</span></h2>
-      ${representative ? `
-        <div class="result-return-representative">
-          <small>${representative.status === "lost" ? "この冒険を象徴する失われた品" : "この冒険を象徴する品"}</small>
-          <strong>${representative.name}</strong>
-          <span>${RETURN_RARITY_LABELS[representative.rarity] || "通常"} / ${getReturnItemStatusLabel(representative.status)}</span>
-        </div>
-      ` : ""}
-      ${history.length > 0 ? `
-        <div class="result-return-history">
-          <small>印象に残った品（能力値への効果なし）</small>
-          ${history.map((item, index) => `<div><span>${item.name}</span><span>${getReturnItemStatusLabel(item.status)} / B${item.depth}F <button type="button" class="result-return-representative-button" data-return-history-index="${index}">この冒険を象徴する品にする</button></span></div>`).join("")}
-        </div>
-      ` : ""}
-      ${insights.length > 0 ? `
-        <div class="result-return-insights"><small>図鑑に記録した新しい気づき</small>${insights.map(insight => `<div>${insight.label}</div>`).join("")}</div>
-      ` : ""}
-      ${unlocks.length > 0 ? `
-        <div class="result-return-unlocks"><small>工房で利用可能になった内容</small>${unlocks.map(unlock => `<div><strong>${unlock.name}</strong><span>${unlock.description}</span></div>`).join("")}</div>
-      ` : ""}
-    </section>
-  `;
+  const section = textElement("section", "result-focus-section");
+  setAttributeSafe(section, "aria-labelledby", "result-return-record-title");
+  const heading = textElement("h2", "result-section-heading");
+  heading.id = "result-return-record-title";
+  heading.appendChild(textElement("span", null, "今回の冒険"));
+  section.appendChild(heading);
+  if (representative) {
+    const representativeNode = textElement("div", "result-return-representative");
+    representativeNode.appendChild(textElement("small", null, representative.status === "lost" ? "この冒険を象徴する失われた品" : "この冒険を象徴する品"));
+    representativeNode.appendChild(textElement("strong", null, representative.name));
+    representativeNode.appendChild(textElement("span", null, `${RETURN_RARITY_LABELS[representative.rarity] || "通常"} / ${getReturnItemStatusLabel(representative.status)}`));
+    section.appendChild(representativeNode);
+  }
+  if (history.length > 0) {
+    const historyNode = textElement("div", "result-return-history");
+    historyNode.appendChild(textElement("small", null, "印象に残った品（能力値への効果なし）"));
+    history.forEach((item, index) => {
+      const row = document.createElement("div");
+      row.appendChild(textElement("span", null, item.name));
+      const detail = document.createElement("span");
+      detail.textContent = `${getReturnItemStatusLabel(item.status)} / B${item.depth}F `;
+      const button = textElement("button", "result-return-representative-button", "この冒険を象徴する品にする");
+      button.type = "button";
+      setAttributeSafe(button, "data-return-history-index", String(index));
+      detail.appendChild(button);
+      row.appendChild(detail);
+      historyNode.appendChild(row);
+    });
+    section.appendChild(historyNode);
+  }
+  if (insights.length > 0) {
+    const node = textElement("div", "result-return-insights");
+    node.appendChild(textElement("small", null, "図鑑に記録した新しい気づき"));
+    insights.forEach(insight => node.appendChild(textElement("div", null, insight.label)));
+    section.appendChild(node);
+  }
+  if (unlocks.length > 0) {
+    const node = textElement("div", "result-return-unlocks");
+    node.appendChild(textElement("small", null, "工房で利用可能になった内容"));
+    unlocks.forEach(unlock => {
+      const row = document.createElement("div");
+      row.appendChild(textElement("strong", null, unlock.name));
+      row.appendChild(textElement("span", null, unlock.description));
+      node.appendChild(row);
+    });
+    section.appendChild(node);
+  }
+  return section;
 }
 
 function leaveResult(overlay) {
@@ -295,41 +367,77 @@ export function renderResultScreen() {
   const bankedTotal = Object.values(run.bankedMaterials || {}).reduce((sum, quantity) => sum + quantity, 0);
   const codexTotal = Object.values(run.codexRewards || {}).reduce((sum, quantity) => sum + quantity, 0);
 
-  overlay.innerHTML = `
-    <div class="result-header ${outcome.success ? "success" : "failed"} result-outcome-${outcome.key}" data-result-outcome="${outcome.key}">
-      <span class="result-outcome">${getReasonText(run.returnReason)}</span>
-      <h1 class="result-title">今回の深度 <strong>B${run.deepestFloor}F</strong></h1>
-      <p class="result-outcome-detail">${outcome.detail}</p>
-    </div>
-    <div class="result-body">
-      ${getMemoryHtml(run, outcome)}
-      ${getRecordHtml(run)}
-      ${getLootHtml(run, outcome)}
-      ${getDiscoveryHtml(run)}
-      ${getReturnProcessingHtml(run)}
-      <section class="result-focus-section" aria-labelledby="result-material-title">
-        <h2 class="result-section-heading" id="result-material-title">
-          <span>素材収支</span><strong>${rawTotal} → ${bankedTotal}</strong>
-        </h2>
-        <div class="result-banking-rate">潜行中に取得 → ${isSuccess ? "帰還100%" : run.returnReason === "abandon" ? "断念30%（死亡時と同じ）" : "死亡30%"} 持ち帰り</div>
-        <div class="result-material-flow">
-          <div><small>取得</small><div>${formatMaterials(run.materialsBeforeBanking)}</div></div>
-          <div><small>持ち帰り</small><div>${formatMaterials(run.bankedMaterials)}</div></div>
-        </div>
-        ${codexTotal > 0 ? `<div class="result-codex-bonus"><span>初討伐メタ報酬</span><div>${formatMaterials(run.codexRewards)}</div></div>` : ""}
-      </section>
-      <section class="result-focus-section" aria-labelledby="result-quest-title">
-        <h2 class="result-section-heading" id="result-quest-title"><span>今回の依頼</span></h2>
-        <div class="result-quest-list">${getQuestHtml(run)}</div>
-      </section>
-      <div class="result-run-note">${getEvaluationText(run, isSuccess)}</div>
-    </div>
-    <div class="result-footer-actions">
-      <button id="btn-result-castle" class="btn btn-neon btn-block" data-result-next="town">街へ戻る</button>
-    </div>
-  `;
+  overlay.replaceChildren();
+  const header = textElement("div", `result-header ${outcome.success ? "success" : "failed"} result-outcome-${outcome.key}`);
+  setAttributeSafe(header, "data-result-outcome", outcome.key);
+  header.appendChild(textElement("span", "result-outcome", getReasonText(run.returnReason)));
+  const resultTitle = textElement("h1", "result-title", "今回の深度 ");
+  resultTitle.appendChild(textElement("strong", null, `B${run.deepestFloor}F`));
+  header.appendChild(resultTitle);
+  header.appendChild(textElement("p", "result-outcome-detail", outcome.detail));
 
-  document.getElementById("btn-result-castle")?.addEventListener("click", () => {
+  const body = document.createElement("div");
+  body.className = "result-body";
+  body.appendChild(createMemorySection(run, outcome));
+  body.appendChild(createRecordSection(run));
+  body.appendChild(createLootSection(run, outcome));
+  const discoveries = createDiscoverySection(run);
+  if (discoveries) body.appendChild(discoveries);
+  const returnProcessing = createReturnProcessingSection(run);
+  if (returnProcessing) body.appendChild(returnProcessing);
+
+  const materialsSection = textElement("section", "result-focus-section");
+  setAttributeSafe(materialsSection, "aria-labelledby", "result-material-title");
+  const materialsHeading = textElement("h2", "result-section-heading");
+  materialsHeading.id = "result-material-title";
+  materialsHeading.appendChild(textElement("span", null, "素材収支"));
+  materialsHeading.appendChild(textElement("strong", null, `${rawTotal} → ${bankedTotal}`));
+  materialsSection.appendChild(materialsHeading);
+  materialsSection.appendChild(textElement("div", "result-banking-rate", `潜行中に取得 → ${isSuccess ? "帰還100%" : run.returnReason === "abandon" ? "断念30%（死亡時と同じ）" : "死亡30%"} 持ち帰り`));
+  const materialFlow = textElement("div", "result-material-flow");
+  const appendMaterialColumn = (label, materials) => {
+    const column = document.createElement("div");
+    column.appendChild(textElement("small", null, label));
+    const content = document.createElement("div");
+    content.appendChild(createMaterialContent(materials));
+    column.appendChild(content);
+    materialFlow.appendChild(column);
+  };
+  appendMaterialColumn("取得", run.materialsBeforeBanking);
+  appendMaterialColumn("持ち帰り", run.bankedMaterials);
+  materialsSection.appendChild(materialFlow);
+  if (codexTotal > 0) {
+    const bonus = textElement("div", "result-codex-bonus");
+    bonus.appendChild(textElement("span", null, "初討伐メタ報酬"));
+    const content = document.createElement("div");
+    content.appendChild(createMaterialContent(run.codexRewards));
+    bonus.appendChild(content);
+    materialsSection.appendChild(bonus);
+  }
+  body.appendChild(materialsSection);
+
+  const questSection = textElement("section", "result-focus-section");
+  setAttributeSafe(questSection, "aria-labelledby", "result-quest-title");
+  const questHeading = textElement("h2", "result-section-heading");
+  questHeading.id = "result-quest-title";
+  questHeading.appendChild(textElement("span", null, "今回の依頼"));
+  const questList = textElement("div", "result-quest-list");
+  questList.appendChild(createQuestContent(run));
+  questSection.appendChild(questHeading);
+  questSection.appendChild(questList);
+  body.appendChild(questSection);
+  body.appendChild(textElement("div", "result-run-note", getEvaluationText(run, isSuccess)));
+
+  const footer = textElement("div", "result-footer-actions");
+  const castleButton = textElement("button", "btn btn-neon btn-block", "街へ戻る");
+  castleButton.id = "btn-result-castle";
+  setAttributeSafe(castleButton, "data-result-next", "town");
+  footer.appendChild(castleButton);
+  overlay.appendChild(header);
+  overlay.appendChild(body);
+  overlay.appendChild(footer);
+
+  castleButton.addEventListener("click", () => {
     const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
     if (hasCrystal) {
       state.cleared = true;
@@ -342,9 +450,12 @@ export function renderResultScreen() {
     leaveResult(overlay);
   });
 
-  (overlay.querySelectorAll?.("[data-return-history-index]") || []).forEach(button => {
+  const historyButtons = typeof overlay.querySelectorAll === "function"
+    ? overlay.querySelectorAll("[data-return-history-index]")
+    : [];
+  historyButtons.forEach(button => {
     button.addEventListener("click", () => {
-      const index = Number(button.dataset.returnHistoryIndex);
+      const index = Number(button.getAttribute("data-return-history-index"));
       const item = run.meaningfulItemHistory?.[index];
       if (!item || !setRepresentativeItem(state, item)) return;
       saveGame();

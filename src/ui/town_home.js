@@ -17,13 +17,10 @@ function floorLabel(floor) {
   return Number(floor) > 0 ? `B${Number(floor)}F` : "未記録";
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+function fragmentNode() {
+  return typeof document.createDocumentFragment === "function"
+    ? document.createDocumentFragment()
+    : document.createElement("span");
 }
 
 function runFactLabel(run) {
@@ -36,27 +33,34 @@ function runFactLabel(run) {
 
 function getLastRunSummary(run) {
   if (!run) {
-    return `
-      <p class="town-last-run-empty">まだ冒険の記録はありません。次の潜行が最初の一頁になります。</p>
-    `;
+    const empty = document.createElement("p");
+    empty.className = "town-last-run-empty";
+    empty.textContent = "まだ冒険の記録はありません。次の潜行が最初の一頁になります。";
+    return empty;
   }
 
   const outcome = outcomeLabel(run);
   const lost = outcome === "死亡" || outcome === "断念";
-  return `
-    <div class="town-last-run-status ${outcomeClass(run)}">
-      <strong>${escapeHtml(outcome)}</strong>
-      <span>${floorLabel(run.deepestFloor)}まで / ${escapeHtml(runFactLabel(run))}</span>
-    </div>
-    <p class="town-last-run-fact">
-      ${lost ? "物は失っても、記録と知識は残っています。" : "戦果を持ち帰り、次の潜行へ進めます。"}
-    </p>
-  `;
+  const status = document.createElement("div");
+  status.className = `town-last-run-status ${outcomeClass(run)}`;
+  const statusLabel = document.createElement("strong");
+  statusLabel.textContent = outcome;
+  const detail = document.createElement("span");
+  detail.textContent = `${floorLabel(run.deepestFloor)}まで / ${runFactLabel(run)}`;
+  status.appendChild(statusLabel);
+  status.appendChild(detail);
+  const fact = document.createElement("p");
+  fact.className = "town-last-run-fact";
+  fact.textContent = lost ? "物は失っても、記録と知識は残っています。" : "戦果を持ち帰り、次の潜行へ進めます。";
+  const fragment = fragmentNode();
+  fragment.appendChild(status);
+  fragment.appendChild(fact);
+  return fragment;
 }
 
 export function renderTownHome() {
   const summary = document.getElementById("town-last-run-summary");
   if (!summary) return;
   const lastRun = Array.isArray(state.runHistory) ? state.runHistory[0] : null;
-  summary.innerHTML = getLastRunSummary(lastRun);
+  summary.replaceChildren(getLastRunSummary(lastRun));
 }
