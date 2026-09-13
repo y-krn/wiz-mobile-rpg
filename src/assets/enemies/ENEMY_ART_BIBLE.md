@@ -62,3 +62,17 @@ For humanoids, remove any surface detail that does not improve gameplay-size ide
 ### Character Design Gate v2
 
 The second gate revises only ゴブリンの呪術師 and 錆びた盾兵 against the frozen フラッシュバット reference. Compare current and revised v2 assets only in rendered 390px Dungeon View pixels. Do not switch the production registry or regenerate the remaining eight named enemies or five fallback archetypes before human review.
+
+## Full enemy art propagation
+
+Character Design Gate v2 is **PASS** and is frozen as the canonical art direction for the remaining production candidates. The canonical reference set is:
+
+- フラッシュバット — flying/non-humanoid abstraction benchmark;
+- ゴブリンの呪術師 v2 — caster/humanoid abstraction benchmark;
+- 錆びた盾兵 v2 — tank/armored abstraction benchmark.
+
+Do not make the canonical references more detailed to match the remaining enemies. Make every remaining named enemy and fallback archetype obey their abstraction level: comparable information density, broad value grouping, selective edges, active black space, incomplete visibility, and 2–3 role-defining cues. The enemy must read as a shape emerging from the dungeon darkness, not as an inspectable character illustration.
+
+The remaining eight named candidates must stay individually identifiable while sharing this visual system. Fallback candidates (small, humanoid, brute, caster, boss) must be safer and more generic, never more elaborate than the named set. Boss impact comes from mass, asymmetry, scale, and value grouping—not added realism or surface detail.
+
+These candidates are review-only until the full-set human actual-pixel review approves them. Keep the production registry on the accepted references/current assets; do not switch it as part of candidate generation.
