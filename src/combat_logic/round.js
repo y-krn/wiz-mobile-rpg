@@ -443,13 +443,77 @@ function resolveTurnInitiative(state, actorType, character = null, rng = Math.ra
   };
 }
 
+function cloneCodexMonsterRecord(record) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return record;
+  return {
+    ...record,
+    observedActions: Array.isArray(record.observedActions) ? [...record.observedActions] : record.observedActions,
+    observedConditions: Array.isArray(record.observedConditions) ? [...record.observedConditions] : record.observedConditions,
+    observedLoot: Array.isArray(record.observedLoot) ? [...record.observedLoot] : record.observedLoot,
+    encounterFloors: record.encounterFloors && typeof record.encounterFloors === "object" && !Array.isArray(record.encounterFloors)
+      ? { ...record.encounterFloors }
+      : record.encounterFloors
+  };
+}
 
-export function runCombatRoundCalculation(originalState, combatSelection, { rng = Math.random } = {}) {
-  const logQueue = [];
-  
+function cloneCodexEquipmentRecord(record) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return record;
+  return {
+    ...record,
+    affixesSeen: Array.isArray(record.affixesSeen) ? [...record.affixesSeen] : record.affixesSeen,
+    foundFloors: record.foundFloors && typeof record.foundFloors === "object" && !Array.isArray(record.foundFloors)
+      ? { ...record.foundFloors }
+      : record.foundFloors,
+    tagObservations: record.tagObservations && typeof record.tagObservations === "object" && !Array.isArray(record.tagObservations)
+      ? { ...record.tagObservations }
+      : record.tagObservations
+  };
+}
+
+function cloneCombatCodex(codex) {
+  if (!codex) return null;
+  const cloned = { ...codex };
+  if (codex.stats && typeof codex.stats === "object" && !Array.isArray(codex.stats)) {
+    cloned.stats = { ...codex.stats };
+  }
+  if (codex.monsters && typeof codex.monsters === "object" && !Array.isArray(codex.monsters)) {
+    cloned.monsters = Object.fromEntries(
+      Object.entries(codex.monsters).map(([name, record]) => [name, cloneCodexMonsterRecord(record)])
+    );
+  }
+  if (codex.equipment && typeof codex.equipment === "object" && !Array.isArray(codex.equipment)) {
+    cloned.equipment = Object.fromEntries(
+      Object.entries(codex.equipment).map(([baseId, record]) => [baseId, cloneCodexEquipmentRecord(record)])
+    );
+  }
+  return cloned;
+}
+
+function cloneCombatCurrentRun(currentRun) {
+  if (!currentRun) return null;
+  const cloned = { ...currentRun };
+  if (Array.isArray(currentRun.deathLogs)) cloned.deathLogs = [...currentRun.deathLogs];
+  if (Array.isArray(currentRun.equipmentFound)) cloned.equipmentFound = [...currentRun.equipmentFound];
+  if (Array.isArray(currentRun.townInventory)) cloned.townInventory = [...currentRun.townInventory];
+  if (Array.isArray(currentRun.unbankedObjectLoot)) cloned.unbankedObjectLoot = [...currentRun.unbankedObjectLoot];
+  if (Array.isArray(currentRun.eliteDefeatedFloors)) cloned.eliteDefeatedFloors = [...currentRun.eliteDefeatedFloors];
+  if (Array.isArray(currentRun.quests)) cloned.quests = currentRun.quests.map(quest => ({ ...quest }));
+  ["codexRewards", "defeatsByRole", "materials"].forEach(field => {
+    if (currentRun[field] && typeof currentRun[field] === "object" && !Array.isArray(currentRun[field])) {
+      cloned[field] = { ...currentRun[field] };
+    }
+  });
+  if (currentRun.eliteFloors && typeof currentRun.eliteFloors === "object" && !Array.isArray(currentRun.eliteFloors)) {
+    cloned.eliteFloors = { ...currentRun.eliteFloors };
+  }
+  return cloned;
+}
+
+export function cloneCombatStateForRound(originalState) {
   const party = originalState.party.map(c => ({
     ...c,
-    equipment: {...c.equipment},
+    equipment: { ...c.equipment },
+    buffs: c.buffs ? c.buffs.map(buff => ({ ...buff })) : undefined,
     mediumState: c.mediumState && typeof c.mediumState === "object"
       ? { ...c.mediumState, socketedRunes: [...(c.mediumState.socketedRunes || [])] }
       : c.mediumState
@@ -458,29 +522,30 @@ export function runCombatRoundCalculation(originalState, combatSelection, { rng 
     ...m,
     buffs: m.buffs ? m.buffs.map(buff => ({ ...buff })) : undefined
   }));
-  const inventory = [...originalState.inventory];
-  const firstKills = originalState.firstKills ? [...originalState.firstKills] : [];
-  const codex = originalState.codex ? JSON.parse(JSON.stringify(originalState.codex)) : null;
-  const currentRun = originalState.currentRun ? JSON.parse(JSON.stringify(originalState.currentRun)) : null;
-  const metaMaterials = { ...(originalState.metaMaterials || {}) };
-  const roamingMonsters = originalState.roamingMonsters ? originalState.roamingMonsters.map(rm => ({...rm})) : [];
-  const floorChestsTotal = originalState.floorChestsTotal ? [...originalState.floorChestsTotal] : [];
-  
-  const state = {
+  return {
     ...originalState,
     party,
     combatState: {
       ...originalState.combatState,
-      monsters
+      monsters,
+      loggedCoreActivations: originalState.combatState.loggedCoreActivations
+        ? [...originalState.combatState.loggedCoreActivations]
+        : originalState.combatState.loggedCoreActivations
     },
-    inventory,
-    firstKills,
-    codex,
-    currentRun,
-    metaMaterials,
-    roamingMonsters,
-    floorChestsTotal
+    inventory: [...originalState.inventory],
+    firstKills: originalState.firstKills ? [...originalState.firstKills] : [],
+    codex: cloneCombatCodex(originalState.codex),
+    currentRun: cloneCombatCurrentRun(originalState.currentRun),
+    metaMaterials: { ...(originalState.metaMaterials || {}) },
+    roamingMonsters: originalState.roamingMonsters ? originalState.roamingMonsters.map(rm => ({ ...rm })) : [],
+    floorChestsTotal: originalState.floorChestsTotal ? [...originalState.floorChestsTotal] : []
   };
+}
+
+export function runCombatRoundCalculation(originalState, combatSelection, { rng = Math.random } = {}) {
+  const logQueue = [];
+  const state = cloneCombatStateForRound(originalState);
+  const monsters = state.combatState.monsters;
   let escaped = false;
   const roundNumber = state.combatState.roundNumber || 1;
   const actionObservations = [];
