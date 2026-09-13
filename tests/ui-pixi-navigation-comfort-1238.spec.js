@@ -64,7 +64,7 @@ test('PixiJS navigation motion stays low-amplitude and screen-stable @smoke @vis
   const results = {};
   for (const action of ['forward', 'turn-left', 'turn-right']) {
     await capture(page, testInfo, `pixi-${action}-before`);
-    await page.evaluate(({ action }) => {
+    const mid = await page.evaluate(({ action }) => {
       const { state, menuContext, dungeonRenderer } = window.__issue1238;
       dungeonRenderer.update(125);
       dungeonRenderer.draw();
@@ -77,9 +77,6 @@ test('PixiJS navigation motion stays low-amplitude and screen-stable @smoke @vis
       menuContext.type = '';
       dungeonRenderer.update(0);
       dungeonRenderer.draw();
-    }, { action });
-    const mid = await page.evaluate(() => {
-      const { dungeonRenderer } = window.__issue1238;
       dungeonRenderer.update(62);
       dungeonRenderer.draw();
       return {
@@ -96,7 +93,7 @@ test('PixiJS navigation motion stays low-amplitude and screen-stable @smoke @vis
         shakeTime: dungeonRenderer.shakeTime,
         frame: document.querySelector('#dungeon-canvas').toDataURL()
       };
-    });
+    }, { action });
     console.log(`[issue-1238] ${action} mid ${JSON.stringify({ ...mid, frame: undefined })}`);
     await captureDataUrl(testInfo, `pixi-${action}-mid`, mid.frame);
     delete mid.frame;
