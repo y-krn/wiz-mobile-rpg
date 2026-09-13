@@ -548,6 +548,101 @@ test('targeted full enemy art revisions render deterministic A/B evidence at 390
   expect(evidence.billboards).toBe(3);
 });
 
+test('production registry renders final WebP actual-pixel evidence at 390px and 320px @smoke @visual @e2e', async ({ page }, testInfo) => {
+  await openPixi(page, { width: 390, height: 844 });
+  const named = [
+    { name: 'フラッシュバット', level: 2, hp: 24, maxHp: 24, color: '#e5ff00', spriteType: 'bat' },
+    { name: '火薬コウモリ', level: 2, hp: 24, maxHp: 24, color: '#ff9500', spriteType: 'bat' },
+    { name: 'かみつき蟲', level: 1, hp: 20, maxHp: 20, color: '#34c759', spriteType: 'biter' },
+    { name: 'マッドスライム', level: 1, hp: 48, maxHp: 48, color: '#ff9500', spriteType: 'biter' },
+    { name: '分裂スライム', level: 1, hp: 20, maxHp: 20, color: '#5856d6', spriteType: 'biter' },
+    { name: '群れネズミ', level: 1, hp: 22, maxHp: 22, color: '#8e8e93', spriteType: 'biter' },
+    { name: 'まどろみ胞子', level: 2, hp: 26, maxHp: 26, color: '#af8ed1', spriteType: 'spirit' },
+    { name: '泥の呪い子', level: 2, hp: 30, maxHp: 30, color: '#8e8e93', spriteType: 'zombie' },
+    { name: 'コボルトの斥候', level: 2, hp: 28, maxHp: 28, color: '#b6c8be', spriteType: 'kobold' },
+    { name: 'ゴブリンの呪術師', level: 2, hp: 32, maxHp: 32, color: '#00ff66', spriteType: 'kobold', spell: 'HALITO' },
+    { name: '錆びた盾兵', level: 2, hp: 42, maxHp: 42, color: '#b6c8be', spriteType: 'skeleton' },
+  ];
+
+  const productionEvidence = await page.evaluate(async () => {
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    return {
+      textureCount: dungeonRenderer.resourceStats.enemyTextureCount,
+      failureCount: dungeonRenderer.resourceStats.enemyAssetFailureCount,
+      initializationCostMs: dungeonRenderer.initializationCostMs,
+    };
+  });
+  expect(productionEvidence.textureCount).toBe(16);
+  expect(productionEvidence.failureCount).toBe(0);
+
+  const frames = [];
+  for (const monster of named) {
+    await setCombat(page, [monster], false);
+    const frame = await page.locator('#dungeon-canvas').screenshot();
+    frames.push({ name: monster.name, frame });
+  }
+  for (const [filename, monster] of [
+    ['enemy-390-flash-bat-production.png', named[0]],
+    ['enemy-390-powder-bat-production.png', named[1]],
+    ['enemy-390-mud-slime-production.png', named[3]],
+    ['enemy-390-split-slime-production.png', named[4]],
+    ['enemy-390-rat-pack-production.png', named[5]],
+    ['enemy-390-mud-cursed-child-production.png', named[7]],
+    ['enemy-390-goblin-caster-production.png', named[9]],
+    ['enemy-390-shield-soldier-production.png', named[10]],
+  ]) {
+    await setCombat(page, [monster], false);
+    await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(filename) });
+  }
+  await setCombat(page, [named[0]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-production-single.png') });
+  await setCombat(page, [named[4], named[5]], true);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-production-pair-selected.png') });
+  await setCombat(page, [named[0], named[2], named[10]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-production-trio.png') });
+  await setCombat(page, [named[7], named[4], named[9]], true);
+  await page.evaluate(async () => {
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    dungeonRenderer.damageTexts = [];
+    dungeonRenderer.triggerHitFeedback();
+    dungeonRenderer.addDamageText('24');
+    dungeonRenderer.triggerFlash();
+    dungeonRenderer.update(16);
+    dungeonRenderer.draw();
+  });
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-production-hit-damage.png') });
+  await setCombat(page, [MONSTERS.boss], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-production-boss-fallback.png') });
+
+  await page.setViewportSize({ width: 320, height: 568 });
+  await setCombat(page, [named[2], named[3], named[5]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-production-insect-slime-swarm-trio.png') });
+  await setCombat(page, [named[4]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-production-split-slime.png') });
+  await setCombat(page, [named[5]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-production-rat-swarm.png') });
+  await setCombat(page, [named[0], named[10]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-production-bat-shield-pair.png') });
+  await setCombat(page, [named[10]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-production-shield-tank.png') });
+
+  const contactPage = await page.context().newPage();
+  await contactPage.setViewportSize({ width: 820, height: 600 });
+  const contactImages = frames.map(({ name, frame }) => ({ name, src: `data:image/png;base64,${frame.toString('base64')}` }));
+  await contactPage.setContent(`<style>body{margin:0;background:#081015;color:#9bdde5;font:16px sans-serif}.sheet{display:grid;grid-template-columns:repeat(2,390px);gap:10px;padding:10px}.cell{border:1px solid #1c6d77;background:#081015}.cell .label{padding:6px 8px;color:#d5f5f7;background:#0d2028;font-weight:600}.cell img{display:block;width:390px;height:auto}</style><div class="sheet">${contactImages.map(({ name, src }) => `<div class="cell"><div class="label">${name}</div><img alt="${name} production WebP frame" src="${src}"></div>`).join('')}</div>`);
+  await contactPage.screenshot({ path: testInfo.outputPath('enemy-390-production-contact-sheet.png'), fullPage: true });
+  await contactPage.close();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setCombat(page, [named[0], named[4], named[10]], true);
+  const evidence = await layerEvidence(page);
+  expect(evidence.billboards).toHaveLength(3);
+  expect(evidence.billboards.every(billboard => billboard.children.includes('enemy-cutout'))).toBe(true);
+  expect(evidence.textureCount).toBe(16);
+  expect(evidence.fallbackCount).toBe(0);
+  expect(evidence.layout.map(entry => entry.monsterIndex)).toEqual([0, 1, 2]);
+});
+
 for (const viewport of VIEWPORTS) {
   test(`enemy cutouts remain bounded and targetable at ${viewport.width}px @smoke @visual`, async ({ page }, testInfo) => {
     await openPixi(page, viewport);
