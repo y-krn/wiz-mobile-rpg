@@ -428,7 +428,6 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random, acti
   }
   state.chestState.trap = "none";
   playSound("chest_trap");
-  if (renderer) renderer.triggerShake(10, 400);
 
   const targetIndex = Math.max(0, state.party.indexOf(char));
   const effect = applyTrapGuardToEffect(resolveChestTrapEffect({

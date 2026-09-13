@@ -280,9 +280,6 @@ export function triggerTrap(trap, isPartialSuccess = false, action = "trigger") 
   playSound("chest_trap");
   
   if (renderer) {
-    if (typeof renderer.triggerShake === "function") {
-      renderer.triggerShake(10, 400);
-    }
     if (typeof renderer.triggerFlash === "function") {
       renderer.triggerFlash(400);
     }

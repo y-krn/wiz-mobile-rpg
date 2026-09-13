@@ -18,6 +18,11 @@ export function setDungeonRenderer(r) {
 const VIEW_W = 400;
 const VIEW_H = 260;
 
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 const MONSTER_VISUAL_BOUNDS = Object.freeze({
   biter: Object.freeze({ left: -35, top: -35, right: 35, bottom: 33 }),
   kobold: Object.freeze({ left: -35, top: -50, right: 25, bottom: 30 }),
@@ -251,11 +256,17 @@ export class DungeonRenderer {
   }
 
   triggerShake(intensity = 10, duration = 300) {
+    if (prefersReducedMotion()) {
+      this.shakeTime = 0;
+      this.shakeIntensity = 0;
+      return;
+    }
     this.shakeTime = duration;
     this.shakeIntensity = intensity;
   }
 
   triggerFlash(duration = 200) {
+    if (prefersReducedMotion()) return;
     this.flashTime = duration;
   }
 

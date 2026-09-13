@@ -16,6 +16,12 @@ import { renderMiniMapOverlay } from "./minimap.js";
 export const PIXI_VIEW_W = 400;
 export const PIXI_VIEW_H = 260;
 export const PIXI_VERSION = "8.19.0";
+export const PIXI_MOTION_PROFILE = Object.freeze({
+  durationMs: 100,
+  layerDepthPx: 0.75,
+  layerTurnPx: 0.75,
+  layerParallax: 0.18
+});
 
 const COLUMN_ORDER = [-2, 2, -1, 1, 0];
 const FALLBACK_BACKGROUND = "#0c0c0e";
@@ -30,7 +36,17 @@ const LAYER_NAMES = Object.freeze([
   "overlays"
 ]);
 
-const MOTION_DURATION_MS = Object.freeze({ forward: 180, backward: 180, "turn-left": 170, "turn-right": 170 });
+const MOTION_DURATION_MS = Object.freeze({
+  forward: PIXI_MOTION_PROFILE.durationMs,
+  backward: PIXI_MOTION_PROFILE.durationMs,
+  "turn-left": PIXI_MOTION_PROFILE.durationMs,
+  "turn-right": PIXI_MOTION_PROFILE.durationMs
+});
+
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
@@ -222,24 +238,32 @@ export class PixiDungeonRenderer {
   }
 
   triggerShake(intensity = 10, duration = 300) {
+    if (prefersReducedMotion()) {
+      this.shakeTime = 0;
+      this.shakeIntensity = 0;
+      return;
+    }
     this.shakeTime = duration;
     this.shakeIntensity = intensity;
   }
 
   triggerFlash(duration = 200) {
+    if (prefersReducedMotion()) return;
     this.flashTime = duration;
   }
 
   triggerCombatEntry(duration = 320) {
+    if (prefersReducedMotion()) return;
     this.combatEntryTime = Math.max(this.combatEntryTime, duration);
   }
 
   triggerHitFeedback(duration = 220) {
+    if (prefersReducedMotion()) return;
     this.hitTime = Math.max(this.hitTime, duration);
   }
 
   addDamageText(text, color = "#ff3b30") {
-    this.damageTexts.push({ text: String(text), color, age: 0, maxAge: 40 });
+    this.damageTexts.push({ text: String(text), color, age: 0, maxAge: prefersReducedMotion() ? 1 : 40 });
   }
 
   update(dt) {
@@ -308,6 +332,7 @@ export class PixiDungeonRenderer {
     const renderInput = this.resolveRenderInput(input);
     const environment = renderInput.visual.environment;
     if (this.transition || this.shakeTime > 0 || this.flashTime > 0 || this.hitTime > 0 || this.combatEntryTime > 0 || this.damageTexts.length > 0) return true;
+    if (prefersReducedMotion()) return false;
     if (environment.animated || renderInput.dangerCue.active) return true;
     return false;
   }
@@ -352,6 +377,10 @@ export class PixiDungeonRenderer {
 
   beginNavigationTransition(action, input = null) {
     if (!MOTION_DURATION_MS[action]) return;
+    if (prefersReducedMotion()) {
+      this.cancelNavigationTransition();
+      return;
+    }
     this.transition = {
       action,
       duration: MOTION_DURATION_MS[action],
@@ -360,6 +389,15 @@ export class PixiDungeonRenderer {
       sourceDrawn: false
     };
     if (this.transitionScene) this.transitionScene.visible = true;
+  }
+
+  cancelNavigationTransition() {
+    this.transition = null;
+    if (this.transitionScene) {
+      this.transitionScene.visible = false;
+      this.clearSceneRoot(this.transitionScene);
+    }
+    this.resetMotion(this.scene);
   }
 
   resetMotion(root) {
@@ -381,26 +419,33 @@ export class PixiDungeonRenderer {
     const eased = outgoing ? 1 - clamp01(progress) : clamp01(progress);
     const remaining = 1 - eased;
     const direction = action === "turn-left" ? -1 : 1;
+    // Navigation must never move the screen-space scene root. Only the
+    // snapshot opacity and a sub-pixel shift inside visual layers may change.
+    const layerDepth = {
+      "far-environment": 0.25,
+      floor: 0.72,
+      "structural-walls": 0.88,
+      "environment-fx": 0.94
+    };
     if (action === "forward" || action === "backward") {
-      const distance = action === "forward" ? 22 : -18;
-      root.position.y = outgoing ? -distance * eased : distance * remaining;
-      const scale = outgoing ? 1 + 0.055 * eased : 0.945 + 0.055 * eased;
-      root.scale.set(scale, scale);
-      root.alpha = outgoing ? 1 - 0.10 * eased : 0.90 + 0.10 * eased;
-      Object.entries(root.layers || {}).forEach(([name, layer]) => {
-        const depth = name === "far-environment" ? 0.25 : name === "floor" ? 0.72 : name === "structural-walls" ? 0.88 : 1;
-        layer.position.y = (outgoing ? -1 : 1) * distance * remaining * (1 - depth) * 0.28;
+      const distance = action === "forward"
+        ? PIXI_MOTION_PROFILE.layerDepthPx
+        : -PIXI_MOTION_PROFILE.layerDepthPx;
+      root.alpha = outgoing ? 1 - eased : eased;
+      Object.entries(layerDepth).forEach(([name, depth]) => {
+        const layer = root.layers?.[name];
+        if (layer) layer.position.y = (outgoing ? -1 : 1) * distance * remaining * (1 - depth) * PIXI_MOTION_PROFILE.layerParallax;
       });
       return;
     }
 
-    const sweep = 34 * direction;
-    root.position.x = outgoing ? sweep * eased : -sweep * remaining;
-    root.rotation = (outgoing ? 1 : -1) * direction * 0.012 * remaining;
-    root.alpha = outgoing ? 1 - 0.08 * eased : 0.92 + 0.08 * eased;
-    Object.entries(root.layers || {}).forEach(([name, layer]) => {
-      const depth = name === "far-environment" ? 0.22 : name === "floor" ? 0.58 : name === "structural-walls" ? 0.82 : 1;
-      layer.position.x = (outgoing ? 1 : -1) * sweep * remaining * (1 - depth) * 0.42;
+    const offset = PIXI_MOTION_PROFILE.layerTurnPx * direction;
+    // Keep the horizon, HUD, and Dungeon View frame stable. Turns only
+    // cross-fade snapshots and gently interpolate internal visual layers.
+    root.alpha = outgoing ? 1 - eased : eased;
+    Object.entries(layerDepth).forEach(([name, depth]) => {
+      const layer = root.layers?.[name];
+      if (layer) layer.position.x = (outgoing ? 1 : -1) * offset * remaining * (1 - depth) * PIXI_MOTION_PROFILE.layerParallax;
     });
   }
 
@@ -420,7 +465,10 @@ export class PixiDungeonRenderer {
       this.applyMotion(this.transitionScene, this.transition.action, progress, true);
       this.applyMotion(this.scene, this.transition.action, progress, false);
     } else this.resetMotion(this.scene);
-    if (this.shakeTime > 0) {
+    // Navigation transitions are root-transform-free. Heavy combat shake is
+    // a separate feedback path and is ignored while a navigation transition
+    // is active so it can never leak into navigation comfort.
+    if (this.shakeTime > 0 && !this.transition) {
       const offset = (Math.sin(this.clockMs * 0.11) * 0.5) * this.shakeIntensity;
       this.scene.position.x += offset;
       this.scene.position.y += offset * 0.45;
@@ -707,7 +755,7 @@ export class PixiDungeonRenderer {
   }
 
   drawDangerPulse(renderInput) {
-    if (!renderInput.dangerCue?.active) return;
+    if (!renderInput.dangerCue?.active || prefersReducedMotion()) return;
     const pulse = 0.05 + 0.03 * (Math.sin(this.clockMs / 220) + 1);
     drawEllipse(this.layer("environment-fx"), 200, 174, 150, 22, "#ff3b30", pulse, { color: "#ff3b30", width: 1.3, alpha: 0.48 });
     drawEllipse(this.layer("combat-fx"), 200, 124, 42, 18, "#ff3b30", 0.035 + pulse * 0.35);
