@@ -132,17 +132,18 @@ request area.
 - Existing test output, when available
 - Reproduction steps or deterministic seed, when available
 
-## Agent Skills
+## Browser evidence boundary
 
-- Use a browser-testing skill when browser behavior, screenshots, or end-to-end
-  UI flows are part of the review.
-- Use `playwright-cli` for interactive browser reproduction or inspection of
-  DOM/rendered state, console, network, trace, or storage evidence. QA keeps
-  ownership of test selection, regression coverage, and the final verdict.
-- When browser evidence leaves the cause or reproduction path unresolved, use
-  `diagnosing-bugs` for the tight repro and causal investigation, then return
-  the regression test and final verification to this checklist.
-- Do not load browser-focused skills for pure unit-test or data-only reviews.
+QA owns browser test selection, regression coverage, and the final verdict.
+When interactive inspection is needed, use any browser automation capability
+available in the environment to collect DOM, rendered-state, console, network,
+screenshot, trace, or storage evidence. Repository correctness does not depend
+on a named external capability.
+
+When browser evidence leaves the cause or reproduction path unresolved, route
+the investigation to `diagnosing-bugs`, then return the regression decision to
+this checklist. Pure unit-test or data-only reviews do not need browser
+automation.
 
 ## Verification cadence
 
@@ -157,13 +158,9 @@ unit tests, browser suites, or the build after every edit.
 
 ### Final local gate
 
-Before the first push, run the verification required by the completed change:
-
-- logic, state, or rule changes: `npm run test:unit`;
-- UI or browser-flow changes: `npm run test:browser`;
-- broad changes: `npm run test`;
-- build-sensitive changes: `npm run build`; and
-- source or documentation covered by lint: `npm run lint`.
+Before the first push, run the verification scripts required by the completed
+change. Select their current names and scope from `package.json`; include
+focused tests plus the relevant unit, browser, build, and lint gates.
 
 Batch related fixes before rerunning the final local gate. A passing local
 verification remains valid while the relevant working-tree content is
@@ -201,21 +198,3 @@ the merge.
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
-
-## Playwright worker diagnostics
-
-The standard browser command is intentionally serial:
-`npm run test:browser`. Use `npm run test:browser:parallel` for the explicit
-two-worker smoke probe. Both commands print the effective worker count, base
-URL/port, Playwright and Chromium versions, executable/cache paths, and the
-temporary/test-data paths. The Playwright config does not set a persistent
-`userDataDir`; each test uses Playwright's isolated browser context, so a
-shared profile lock is not expected.
-
-If macOS reports `EACCES`, `EPERM`, quarantine, or signature errors, use the
-reported target path and reinstall the pinned browser with
-`npx playwright install chromium`, then inspect the macOS security prompt or
-signature status. Do not disable Gatekeeper/sandboxing or remove broad cache
-directories. A port collision is reported before Vite starts; retry with a
-task-owned `PLAYWRIGHT_PORT` after stopping only the process that owns that
-port.
