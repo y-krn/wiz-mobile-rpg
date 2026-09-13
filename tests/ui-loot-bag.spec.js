@@ -43,7 +43,7 @@ for (const viewport of [
         inventory: state.inventory,
         onInspect() {}, onDisarm() {}, onTrapKit() {}, onOpen() {}, onSmash() {}, onLeave() {},
       });
-      openEquipOverlay(0);
+      await openEquipOverlay(0);
 
       const readSummary = (root) => {
         const summary = root.querySelector('.bag-capacity-summary');
@@ -85,7 +85,7 @@ test('trial knowledge is qualitative and does not expose an exact hidden affix v
       affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 4.5 }],
     }];
     state.gameState = 'explore';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
   await page.locator('.equip-bag-section .equip-item-row').click();
   const detail = await page.locator('.equip-detail-content').textContent();
@@ -115,7 +115,7 @@ test('equipped dungeon gear keeps its unconfirmed ownership badge @smoke', async
     };
     state.inventory = [dungeonItem];
     state.gameState = 'explore';
-    openEquipOverlay(0);
+    await openEquipOverlay(0);
   });
 
   const equippedRow = page.locator('.equip-equipped-row[data-slot-id="weapon"]');
