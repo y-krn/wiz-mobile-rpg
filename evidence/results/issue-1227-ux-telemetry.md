@@ -148,4 +148,4 @@ Focused browser coverage is limited to the instrumented surfaces: equipment open
 Manual evidence remains: VoiceOver/TalkBack decision order, physical browser zoom/OS text scaling, physical assistive-tech focus restoration, Canvas/Pixi/Three information equivalence, and player interpretation under reduced motion. These are not replaced by telemetry.
 
 No child Issue was created: the audit found no new confirmed UI defect. #1133 owns target-selection presentation density; #1228 owns visual-system drift; #1230 owns Pixi visual impact; #1217 owns fresh-B1F retry validation. If future telemetry plus manual corroboration isolates a player-impact defect, split it before changing UI in #1227.
-
+Audit status: implementation complete; production interpretation remains pending evidence collection.
