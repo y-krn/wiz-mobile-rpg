@@ -1,0 +1,87 @@
+name: Run difficulty measurement
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to measure"
+        required: false
+        default: "main"
+        type: string
+      runs:
+        description: "Runs per starting-kit/workshop condition (minimum 1000)"
+        required: false
+        default: "1000"
+        type: string
+      seed:
+        description: "Deterministic simulation seed"
+        required: false
+        default: "1277"
+        type: string
+      purpose:
+        description: "Why this measurement is being requested"
+        required: true
+        type: string
+      run_type:
+        description: "How this run may be used later"
+        required: false
+        default: "baseline-candidate"
+        type: choice
+        options:
+          - baseline-candidate
+          - diagnostic
+          - temporary
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run production-backed difficulty measurement
+        env:
+          MEASUREMENT_REPOSITORY: ${{ github.repository }}
+          MEASUREMENT_REQUESTED_REF: ${{ inputs.ref }}
+          MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MEASUREMENT_RUN_TYPE: ${{ inputs.run_type }}
+        run: |
+          mkdir -p /tmp/run-difficulty-measurement
+          node scratch/measurements/measure_run_difficulty.js \
+            --ref "${{ inputs.ref }}" \
+            --runs "${{ inputs.runs }}" \
+            --seed "${{ inputs.seed }}" \
+            --purpose "${{ inputs.purpose }}" \
+            --output /tmp/run-difficulty-measurement/measurement.json \
+            --summary /tmp/run-difficulty-measurement/measurement.md \
+            --manifest /tmp/run-difficulty-measurement/manifest.json
+      - name: Publish difficulty summary
+        if: always()
+        run: cat /tmp/run-difficulty-measurement/measurement.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish machine-readable manifest
+        if: always()
+        run: |
+          printf '\n### Machine-readable manifest\n\n```json\n' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/run-difficulty-measurement/manifest.json >> "$GITHUB_STEP_SUMMARY"
+          printf '```\n' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload measurement artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-difficulty-measurement-${{ github.run_id }}
+          path: |
+            /tmp/run-difficulty-measurement/measurement.json
+            /tmp/run-difficulty-measurement/measurement.md
+            /tmp/run-difficulty-measurement/manifest.json
+          if-no-files-found: error
+          retention-days: 90
