@@ -8,7 +8,7 @@ const VIEWPORTS = [
 ];
 
 async function installCombat(page, partyFactory) {
-  await page.goto('/');
+  await page.goto('/?renderer=canvas');
   await page.evaluate(async (partyKits) => {
     const { state, createStartingKitCharacter } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');
