@@ -1238,6 +1238,25 @@ const PORTAL_MAX_HEAL_POTIONS = Math.max(
   Number(SIM_ENV.PORTAL_MAX_HEAL_POTIONS || 0)
 );
 const PORTAL_MIN_FLOOR = Math.max(1, Number(SIM_ENV.PORTAL_MIN_FLOOR || 3));
+
+function resolvePortalHpThreshold(scenario) {
+  if (!Object.hasOwn(scenario || {}, "portalHpThreshold")) return PORTAL_HP_THRESHOLD;
+  if (scenario.portalHpThreshold === null) return null;
+  const threshold = Number(scenario.portalHpThreshold);
+  if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
+    throw new Error(`portalHpThreshold must be null or a number in [0,1]: ${scenario.portalHpThreshold}`);
+  }
+  return threshold;
+}
+
+function resolvePortalPolicy(scenario) {
+  return {
+    id: scenario?.portalPolicyId || "canonical-hp-threshold",
+    hpThreshold: resolvePortalHpThreshold(scenario),
+    maxHealPotions: PORTAL_MAX_HEAL_POTIONS,
+    minFloor: PORTAL_MIN_FLOOR
+  };
+}
 // sim-only safety policy; payment eligibility remains owned by getSpellPayment.
 const bloodWandHpPaymentMinRateInput = Number(SIM_ENV.BLOOD_WAND_HP_PAYMENT_MIN_RATE);
 const BLOOD_WAND_HP_PAYMENT_MIN_RATE = Number.isFinite(bloodWandHpPaymentMinRateInput)
@@ -2783,19 +2802,23 @@ function classifyRetreatReason({
   endingHpRate,
   recoveryPotionsRemaining,
   statusAtEnd,
-  cureItemsRemaining
+  cureItemsRemaining,
+  portalHpThreshold = PORTAL_HP_THRESHOLD,
+  portalMaxHealPotions = PORTAL_MAX_HEAL_POTIONS
 } = {}) {
   if (outcome !== "retreat") return { primary: null, signals: [] };
   const signals = [];
   if (
     portalUseEvent &&
-    Number(portalUseEvent.hpRate) <= PORTAL_HP_THRESHOLD
+    portalHpThreshold !== null &&
+    Number(portalUseEvent.hpRate) <= portalHpThreshold
   ) {
     signals.push(RETREAT_REASON_IDS.PORTAL_HP_THRESHOLD);
   }
   if (
-    Number(recoveryPotionsRemaining) <= PORTAL_MAX_HEAL_POTIONS &&
-    Number(endingHpRate) <= PORTAL_HP_THRESHOLD
+    portalHpThreshold !== null &&
+    Number(recoveryPotionsRemaining) <= portalMaxHealPotions &&
+    Number(endingHpRate) <= portalHpThreshold
   ) {
     signals.push(RETREAT_REASON_IDS.HEAL_RESOURCE_DEPLETED);
   }
@@ -4576,6 +4599,15 @@ function createSimulationState(
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
     simPolicy: {
+      ...(() => {
+        const portalPolicy = resolvePortalPolicy(scenario);
+        return {
+          portalPolicyId: portalPolicy.id,
+          portalHpThreshold: portalPolicy.hpThreshold,
+          portalMaxHealPotions: portalPolicy.maxHealPotions,
+          portalMinFloor: portalPolicy.minFloor
+        };
+      })(),
       combatPolicy: scenario.combatPolicy || "balanced-combat",
       tacticalConsumablePolicy: SIM_412_POLICY,
       equipmentCraftPolicy,
@@ -9117,14 +9149,16 @@ function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
 
 function shouldUseTownPortal(state, scenario) {
   if (!scenario.useTownPortal || !isAlive(state.party[0])) return false;
-  if (state.floor < PORTAL_MIN_FLOOR) return false;
+  if (state.simPolicy.portalHpThreshold === null) return false;
+  if (state.floor < state.simPolicy.portalMinFloor) return false;
   if (!state.inventory.includes("TOWN_PORTAL")) return false;
   const character = state.party[0];
   const hpRate = character.hp / Math.max(1, getCharMaxHp(character));
   const recoveryPotions = state.inventory.filter(item =>
     item === "HEAL_POTION" || item === "GREATER_HEAL"
   ).length;
-  return hpRate <= PORTAL_HP_THRESHOLD && recoveryPotions <= PORTAL_MAX_HEAL_POTIONS;
+  return hpRate <= state.simPolicy.portalHpThreshold &&
+    recoveryPotions <= state.simPolicy.portalMaxHealPotions;
 }
 
 export function resolveTownPortalSettlement({ source = null } = {}) {
@@ -9152,8 +9186,9 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
     situation,
     source,
     reason: "portal_hp_threshold",
-    hpThreshold: PORTAL_HP_THRESHOLD,
-    maxHealPotions: PORTAL_MAX_HEAL_POTIONS,
+    policyId: state.simPolicy.portalPolicyId,
+    hpThreshold: state.simPolicy.portalHpThreshold,
+    maxHealPotions: state.simPolicy.portalMaxHealPotions,
     hpRate: character.hp / Math.max(1, getCharMaxHp(character)),
     mpRate: character.mp / Math.max(1, getCharMaxMp(character)),
     healPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
@@ -13077,7 +13112,9 @@ function createRunDiagnosticsRecord(state, outcome, metrics, terminationReason) 
     endingHpRate,
     recoveryPotionsRemaining,
     statusAtEnd: character.status,
-    cureItemsRemaining
+    cureItemsRemaining,
+    portalHpThreshold: state.simPolicy.portalHpThreshold,
+    portalMaxHealPotions: state.simPolicy.portalMaxHealPotions
   });
   return {
     outcome,
@@ -13093,11 +13130,19 @@ function createRunDiagnosticsRecord(state, outcome, metrics, terminationReason) 
     }),
     endingHpRate,
     endingMpRate,
+    endingHp: character.hp,
+    endingMaxHp: getCharMaxHp(character),
+    endingMp: character.mp,
+    endingMaxMp: getCharMaxMp(character),
     healPotionsRemaining,
     greaterHealPotionsRemaining,
     recoveryPotionsRemaining,
     cureItemsRemaining,
     cureItemCountsRemaining,
+    portalPolicyId: state.simPolicy.portalPolicyId,
+    portalHpThreshold: state.simPolicy.portalHpThreshold,
+    portalMaxHealPotions: state.simPolicy.portalMaxHealPotions,
+    portalMinFloor: state.simPolicy.portalMinFloor,
     fleeAttempts: metrics.fleeCount,
     statusAtEnd: character.status,
     lastEnemyId: metrics.lastEnemyId || null,
