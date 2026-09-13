@@ -181,6 +181,9 @@ test('equipment retry failure keeps the original close context and focus @e2e @s
 
   await page.getByRole('button', { name: 'もう一度試す' }).click();
   await expect(page.locator('.equip-loading-state--rejected')).toBeVisible();
+  // A shell update can run after the async rejection renders. It must retain
+  // the programmatic status focus instead of moving focus to the retry button.
+  await page.evaluate(async () => (await import('/src/ui.js')).updateUI());
   await expect(page.locator('.equip-loading-state--rejected')).toBeFocused();
   await page.getByRole('button', { name: '閉じる' }).click();
   await expect(page.locator('#equip-overlay')).toBeHidden();

@@ -74,18 +74,24 @@ export function syncFocusSurface(surfaceId, surface) {
   if (!surface || !isVisible(surface)) return;
 
   if (activeSurfaceId === surfaceId) {
-    if (!surface.contains(document.activeElement) || !isFocusable(document.activeElement)) {
+    // A surface may intentionally focus a non-tabbable status node (for
+    // example, an async rejection with tabindex="-1") so assistive
+    // technology announces the newly rendered state. Keep that programmatic
+    // focus inside the surface; the Tab trap will move it to the first
+    // tabbable control on the next keyboard traversal.
+    if (!surface.contains(document.activeElement)) {
       focusElement(findFirstFocusable(surface));
     }
     return;
   }
 
   const current = document.activeElement;
-  focusOrigin = isFocusable(current) && !current.closest('[role="dialog"]') && !surface.contains(current)
+  const currentIsInsideSurface = surface.contains(current);
+  focusOrigin = isFocusable(current) && !current.closest('[role="dialog"]') && !currentIsInsideSurface
     ? current
     : null;
   activeSurfaceId = surfaceId;
-  focusElement(findFirstFocusable(surface));
+  if (!currentIsInsideSurface) focusElement(findFirstFocusable(surface));
 }
 
 /** Restore a meaningful control after a surface replaces its child DOM. */
