@@ -122,6 +122,10 @@ export function saveAutosave() {
         localStorage.setItem(BACKUP_KEY, prev);
       } catch (backupErr) {
         // バックアップ失敗は致命ではない(容量超過など)。本体保存を優先。
+        captureException(backupErr, {
+          level: "warning",
+          tags: { subsystem: "save", op: "backup-rotation", recovery: "continue-primary-save" },
+        });
         console.warn("Save backup rotation failed", backupErr);
       }
     }
@@ -212,6 +216,11 @@ export function loadGame() {
     try {
       localStorage.setItem(CORRUPT_KEY, recoveryFailure.raw);
     } catch (err) {
+      captureException(err, {
+        level: "warning",
+        tags: { subsystem: "save", op: "preserve-corrupt", recovery: "active-run-fallback" },
+        extra: { reason: "run-floor-recovery-failed" },
+      });
       console.error("Failed to preserve unrecoverable active-run save", err);
     }
     state.gameState = "town";
@@ -235,6 +244,11 @@ export function loadGame() {
     try {
       localStorage.setItem(CORRUPT_KEY, firstCorrupt);
     } catch (err) {
+      captureException(err, {
+        level: "warning",
+        tags: { subsystem: "save", op: "preserve-corrupt", recovery: "continue-new-game" },
+        extra: { reason: "all-saves-unreadable" },
+      });
       console.error("Failed to preserve corrupt save", err);
     }
     console.error("All saves unreadable. Corrupt data preserved under", CORRUPT_KEY);
