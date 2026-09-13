@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "World-class Proof session record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocolVersion", "recordStatus", "sessionId", "sessionType", "sourceSha", "tasks"],
+  "properties": {
+    "protocolVersion": { "const": "1.0" },
+    "recordStatus": { "enum": ["planned", "executed", "not_executed"] },
+    "sessionId": { "type": "string", "pattern": "^(PILOT|DEVICE|COMP|AT)-[0-9]{3}$" },
+    "participantId": { "type": ["string", "null"], "pattern": "^(PILOT|COMP)-[0-9]{3}$" },
+    "experienceBand": {
+      "enum": ["dungeon-rpg-new", "rpg-experienced", "genre-expert", "not_applicable", "not_observed"]
+    },
+    "sessionOrder": { "type": ["integer", "null"], "minimum": 1 },
+    "sessionType": { "enum": ["human", "device", "accessibility", "comparative", "production"] },
+    "sourceSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "evidenceLevel": { "$ref": "#/$defs/evidenceLevel" },
+    "productVersion": { "type": ["string", "null"] },
+    "deviceClass": { "type": ["string", "null"] },
+    "viewport": { "type": ["string", "null"], "pattern": "^[0-9]+x[0-9]+$" },
+    "orientation": { "enum": ["portrait", "landscape", "not_observed"] },
+    "coldWarm": { "enum": ["cold", "warm", "both", "not_observed"] },
+    "networkCondition": { "type": ["string", "null"] },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["taskId", "journeyId", "outcome", "observationCodes"],
+        "properties": {
+          "taskId": { "type": "string", "pattern": "^TASK-[0-9]{2}$" },
+          "journeyId": { "type": "string" },
+          "outcome": {
+            "enum": ["unassisted_success", "assisted_success", "failure", "not_applicable", "not_observed"]
+          },
+          "observationCodes": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "wrong_primary_action",
+                "avoidable_back",
+                "reopen_same_surface",
+                "repeated_rejected_action",
+                "destructive_near_miss",
+                "misunderstood_consequence",
+                "lost_focus_or_context",
+                "blank_or_unacknowledged_input",
+                "duplicate_action_attempt",
+                "task_abandon",
+                "focus_not_restored"
+              ]
+            }
+          },
+          "criticalFailure": { "enum": [true, false, "not_observed"] },
+          "assistanceCategory": {
+            "enum": ["none", "neutral_prompt", "technical_recovery", "other_declared_bounded_category", "not_observed"]
+          },
+          "findingStatus": { "enum": ["PASS", "finding", "blocker", "not_observed"] },
+          "timing": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "taskStart": { "type": ["string", "null"] },
+              "firstCorrectAction": { "type": ["string", "null"] },
+              "terminalResult": { "type": ["string", "null"] }
+            }
+          },
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "minItems": 1
+    },
+    "axisObservations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["axis", "rawObservation"],
+        "properties": {
+          "axis": { "$ref": "#/$defs/axis" },
+          "ordinal": { "type": ["integer", "null"], "minimum": 1, "maximum": 5 },
+          "rawObservation": { "type": "string" },
+          "contradictoryObservation": { "type": ["string", "null"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "evidenceLevel": { "enum": ["L0", "L1", "L2", "L3", "L4", "L5"] },
+    "axis": {
+      "enum": [
+        "Learnability",
+        "Efficiency",
+        "Safety",
+        "Feedback",
+        "Information density",
+        "Accessibility",
+        "Responsiveness",
+        "Visual identity",
+        "One-hand mobile fit"
+      ]
+    }
+  }
+}
