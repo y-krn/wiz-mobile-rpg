@@ -109,6 +109,14 @@ test('procedural production registry renders all named recipes without enemy tex
   await setCombat(page, [withVitals(FALLBACKS.boss)]);
   await capture(page, testInfo, 'enemy-390-production-boss-fallback.png');
 
+  await page.setViewportSize({ width: 320, height: 568 });
+  await setCombat(page, [NAMED[0], NAMED[10]], true);
+  await capture(page, testInfo, 'enemy-320-production-bat-shield-pair.png');
+  await setCombat(page, [NAMED[3], NAMED[5]], false);
+  await capture(page, testInfo, 'enemy-320-production-slime-swarm.png');
+  await setCombat(page, [withVitals(FALLBACKS.boss)]);
+  await capture(page, testInfo, 'enemy-320-production-boss-fallback.png');
+
   const current = await evidence(page);
   expect(current.mode).toBe('production');
   expect(current.textureCount).toBe(0);
