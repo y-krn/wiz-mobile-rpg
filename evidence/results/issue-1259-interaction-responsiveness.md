@@ -269,9 +269,11 @@ evidence remain separate gates and are not inferred from this local record.
 ## Revision / merge-gate evidence
 
 - Fresh review base: `e5a1fb638f6d8bd6f7ff5884a203763701d4790b`
-- Implementation revision inspected before the final evidence-only commit:
-  `f9bc49df821a3c8d13c222e09b9b0345113979e9`
-- PR-specific changed-file-set SHA-256:
-  `6bd27350e77f05bd45e0ff50542755988583d57a7f8360ae6d2bd8a4802fb3d3`
-- The final independent-review comment records the exact current PR HEAD,
-  base, changed files, P0-P2 disposition, and verdict.
+- Final PR HEAD after Retry context preservation: `a051bd742ab985251036a1b2b4c2150593a92113`
+- Final branch is 0 commits behind and 5 commits ahead of `origin/main`.
+- Final changed-file list is restricted to the evidence, equipment loader,
+  existing owner guards, Golden Journey registry/helpers, and their tests.
+- Required GitHub Actions run: `34743875749` — unit, lint, browser, and
+  browser-parallel all passed.
+- Review disposition for this correction: direct diff audit completed; no new
+  P0/P1/P2 issue was found. External physical-device evidence remains pending.
