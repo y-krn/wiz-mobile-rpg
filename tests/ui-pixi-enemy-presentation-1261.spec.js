@@ -34,6 +34,14 @@ const FULL_CANDIDATE_TEXTURES = Object.freeze({
   boss: '/src/assets/enemies/generated/candidates/full-enemy-art-review/boss.png',
 });
 
+const TARGETED_REVISION_TEXTURES = Object.freeze({
+  ...FULL_CANDIDATE_TEXTURES,
+  'enemy:分裂スライム': '/src/assets/enemies/generated/candidates/full-enemy-art-review-v2/split-slime-revised.png',
+  'enemy:群れネズミ': '/src/assets/enemies/generated/candidates/full-enemy-art-review-v2/rat-pack-revised.png',
+  'enemy:泥の呪い子': '/src/assets/enemies/generated/candidates/full-enemy-art-review-v2/mud-cursed-child-revised.png',
+  'enemy:まどろみ胞子': '/src/assets/enemies/generated/candidates/full-enemy-art-review-v2/sleep-spore-revised.png',
+});
+
 async function openPixi(page, viewport) {
   await page.setViewportSize(viewport);
   await page.goto('/?renderer=pixi');
@@ -74,14 +82,14 @@ async function setCombat(page, monsters, targetSelection = false) {
   }, { monsters, targetSelection });
 }
 
-async function installCandidateTextures(page) {
+async function installCandidateTextures(page, candidateTextures = FULL_CANDIDATE_TEXTURES) {
   await page.evaluate(async (candidateTextures) => {
     const { Assets } = await import('/src/pixi_renderer.js');
     const { dungeonRenderer } = await import('/src/renderer.js');
     await Promise.all(Object.entries(candidateTextures).map(async ([assetKey, asset]) => {
       dungeonRenderer.enemyTextures.set(assetKey, await Assets.load(asset));
     }));
-  }, FULL_CANDIDATE_TEXTURES);
+  }, candidateTextures);
 }
 
 async function layerEvidence(page) {
@@ -427,6 +435,105 @@ test('full enemy art candidates render in deterministic 390px and 320px Dungeon 
 
   await page.setViewportSize({ width: 390, height: 844 });
   await setCombat(page, [named[0], named[3], named[10]], true);
+  const evidence = await page.evaluate(async () => {
+    const { dungeonRenderer, getCombatMonsterLayout } = await import('/src/renderer.js');
+    const input = dungeonRenderer.getRenderInput();
+    return {
+      textureCount: dungeonRenderer.enemyTextures.size,
+      layoutIndices: getCombatMonsterLayout(input.combatMonsters).map(entry => entry.monsterIndex),
+      billboards: dungeonRenderer.scene.layers.actors.children.filter(child => child.label?.startsWith('enemy-')).length,
+    };
+  });
+  expect(evidence.textureCount).toBe(16);
+  expect(evidence.layoutIndices).toEqual([0, 1, 2]);
+  expect(evidence.billboards).toBe(3);
+});
+
+test('targeted full enemy art revisions render deterministic A/B evidence at 390px and 320px @smoke @visual @e2e', async ({ page }, testInfo) => {
+  await openPixi(page, { width: 390, height: 844 });
+  const named = [
+    { name: 'フラッシュバット', level: 2, hp: 24, maxHp: 24, color: '#e5ff00', spriteType: 'bat' },
+    { name: '火薬コウモリ', level: 2, hp: 24, maxHp: 24, color: '#ff9500', spriteType: 'bat' },
+    { name: 'かみつき蟲', level: 1, hp: 20, maxHp: 20, color: '#34c759', spriteType: 'biter' },
+    { name: 'マッドスライム', level: 1, hp: 48, maxHp: 48, color: '#ff9500', spriteType: 'biter' },
+    { name: '分裂スライム', level: 1, hp: 20, maxHp: 20, color: '#5856d6', spriteType: 'biter' },
+    { name: '群れネズミ', level: 1, hp: 22, maxHp: 22, color: '#8e8e93', spriteType: 'biter' },
+    { name: 'まどろみ胞子', level: 2, hp: 26, maxHp: 26, color: '#af8ed1', spriteType: 'spirit' },
+    { name: '泥の呪い子', level: 2, hp: 30, maxHp: 30, color: '#8e8e93', spriteType: 'zombie' },
+    { name: 'コボルトの斥候', level: 2, hp: 28, maxHp: 28, color: '#b6c8be', spriteType: 'kobold' },
+    { name: 'ゴブリンの呪術師', level: 2, hp: 32, maxHp: 32, color: '#00ff66', spriteType: 'kobold', spell: 'HALITO' },
+    { name: '錆びた盾兵', level: 2, hp: 42, maxHp: 42, color: '#b6c8be', spriteType: 'skeleton' },
+  ];
+
+  await installCandidateTextures(page);
+  await setCombat(page, [named[3]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('mud-slime-reference.png') });
+  await setCombat(page, [named[4]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('split-slime-before.png') });
+  await setCombat(page, [named[5]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('rat-pack-before.png') });
+  await setCombat(page, [named[9]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('goblin-caster-v2-reference.png') });
+  await setCombat(page, [named[7]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('mud-cursed-child-before.png') });
+  await setCombat(page, [named[6]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('sleep-spore-before.png') });
+
+  await installCandidateTextures(page, TARGETED_REVISION_TEXTURES);
+  await setCombat(page, [named[4]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('split-slime-revised.png') });
+  await setCombat(page, [named[5]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('rat-pack-revised.png') });
+  await setCombat(page, [named[7]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('mud-cursed-child-revised.png') });
+  await setCombat(page, [named[6]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('sleep-spore-revised.png') });
+
+  const frames = [];
+  for (const monster of named) {
+    await setCombat(page, [monster], false);
+    const frame = await page.locator('#dungeon-canvas').screenshot();
+    frames.push({ name: monster.name, frame });
+  }
+  await setCombat(page, [named[0], named[2], named[10]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-representative-trio-v2.png') });
+  await setCombat(page, [named[4], named[5]], true);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-representative-pair-selected-v2.png') });
+  await setCombat(page, [named[7], named[4], named[9]], true);
+  await page.evaluate(async () => {
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    dungeonRenderer.damageTexts = [];
+    dungeonRenderer.triggerHitFeedback();
+    dungeonRenderer.addDamageText('24');
+    dungeonRenderer.triggerFlash();
+    dungeonRenderer.update(16);
+    dungeonRenderer.draw();
+  });
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-hit-damage-v2.png') });
+  await setCombat(page, [MONSTERS.boss], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-boss-fallback.png') });
+
+  await page.setViewportSize({ width: 320, height: 568 });
+  await setCombat(page, [named[2], named[3], named[5]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-insect-slime-swarm-trio-v2.png') });
+  await setCombat(page, [named[4]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-split-slime.png') });
+  await setCombat(page, [named[5]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-rat-swarm.png') });
+  await setCombat(page, [named[0], named[10]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-bat-shield-pair.png') });
+  await setCombat(page, [named[10]], false);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-shield-tank.png') });
+
+  const contactPage = await page.context().newPage();
+  await contactPage.setViewportSize({ width: 820, height: 600 });
+  const contactImages = frames.map(({ name, frame }) => ({ name, src: `data:image/png;base64,${frame.toString('base64')}` }));
+  await contactPage.setContent(`<style>body{margin:0;background:#081015;color:#9bdde5;font:16px sans-serif}.sheet{display:grid;grid-template-columns:repeat(2,390px);gap:10px;padding:10px}.cell{border:1px solid #1c6d77;background:#081015}.cell .label{padding:6px 8px;color:#d5f5f7;background:#0d2028;font-weight:600}.cell img{display:block;width:390px;height:auto}</style><div class="sheet">${contactImages.map(({ name, src }) => `<div class="cell"><div class="label">${name}</div><img alt="${name} targeted candidate frame" src="${src}"></div>`).join('')}</div>`);
+  await contactPage.screenshot({ path: testInfo.outputPath('enemy-character-design-contact-sheet-v2.png'), fullPage: true });
+  await contactPage.close();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setCombat(page, [named[0], named[4], named[10]], true);
   const evidence = await page.evaluate(async () => {
     const { dungeonRenderer, getCombatMonsterLayout } = await import('/src/renderer.js');
     const input = dungeonRenderer.getRenderInput();
