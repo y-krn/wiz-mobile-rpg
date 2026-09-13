@@ -1,5 +1,22 @@
 import { state } from "../state.js";
 import { getCharMaxHp, getCharMaxMp } from "../data.js";
+import { captureException } from "../sentry.js";
+
+const reportedStatFallbacks = new Set();
+
+function reportStatFallback(error, stat) {
+  if (reportedStatFallbacks.has(stat)) return;
+  reportedStatFallbacks.add(stat);
+  captureException(error, {
+    level: "warning",
+    tags: {
+      subsystem: "ui",
+      op: "solo-hud-stat",
+      recovery: "use-stored-stat",
+      stat
+    }
+  });
+}
 
 export function updateSoloHUD() {
   const hud = document.getElementById("character-hud");
@@ -21,12 +38,14 @@ export function updateSoloHUD() {
   let maxMp;
   try {
     maxHp = getCharMaxHp(char);
-  } catch {
+  } catch (error) {
+    reportStatFallback(error, "maxHp");
     maxHp = Math.max(1, Number(char.maxHp) || 1);
   }
   try {
     maxMp = getCharMaxMp(char);
-  } catch {
+  } catch (error) {
+    reportStatFallback(error, "maxMp");
     maxMp = Math.max(0, Number(char.maxMp) || 0);
   }
   const hpPct = maxHp > 0 ? (char.hp / maxHp) * 100 : 0;
