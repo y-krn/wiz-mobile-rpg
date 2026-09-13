@@ -220,6 +220,59 @@ test('named B1F enemies keep distinct production art identities @smoke @visual @
   expect(evidence.assetKeys.every(assetKey => evidence.textureKeys.includes(assetKey))).toBe(true);
 });
 
+test('character design gate compares three silhouette-first candidates in the rendered Dungeon View @smoke @visual @e2e', async ({ page }, testInfo) => {
+  await openPixi(page, { width: 390, height: 844 });
+  const representatives = [
+    {
+      name: 'フラッシュバット',
+      monster: { name: 'フラッシュバット', level: 2, hp: 24, maxHp: 24, color: '#e5ff00', spriteType: 'bat' },
+      candidate: '/src/assets/enemies/generated/candidates/character-design-gate/flash-bat-silhouette-first.png',
+    },
+    {
+      name: 'ゴブリンの呪術師',
+      monster: { name: 'ゴブリンの呪術師', level: 1, hp: 20, maxHp: 20, color: '#00ff66', spriteType: 'kobold', spell: 'HALITO' },
+      candidate: '/src/assets/enemies/generated/candidates/character-design-gate/goblin-caster-silhouette-first.png',
+    },
+    {
+      name: '錆びた盾兵',
+      monster: { name: '錆びた盾兵', level: 2, hp: 42, maxHp: 42, color: '#b6c8be', spriteType: 'skeleton' },
+      candidate: '/src/assets/enemies/generated/candidates/character-design-gate/rusted-shield-silhouette-first.png',
+    },
+  ];
+
+  for (const representative of representatives) {
+    await setCombat(page, [representative.monster], true);
+    const screenshot = await page.locator('#dungeon-canvas').screenshot({
+      path: testInfo.outputPath(`${representative.name === 'フラッシュバット' ? 'flash-bat' : representative.name === 'ゴブリンの呪術師' ? 'goblin-caster' : 'rusted-shield'}-current.png`),
+    });
+    await testInfo.attach(`${representative.name}-current`, { body: screenshot, contentType: 'image/png' });
+  }
+
+  await page.evaluate(async (candidates) => {
+    const { Assets } = await import('/src/pixi_renderer.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    await Promise.all(candidates.map(async ({ name, asset }) => {
+      const texture = await Assets.load(asset);
+      dungeonRenderer.enemyTextures.set(`enemy:${name}`, texture);
+    }));
+  }, representatives.map(({ name, candidate: asset }) => ({ name, asset })));
+
+  for (const representative of representatives) {
+    await setCombat(page, [representative.monster], true);
+    const screenshot = await page.locator('#dungeon-canvas').screenshot({
+      path: testInfo.outputPath(`${representative.name === 'フラッシュバット' ? 'flash-bat' : representative.name === 'ゴブリンの呪術師' ? 'goblin-caster' : 'rusted-shield'}-silhouette-first.png`),
+    });
+    await testInfo.attach(`${representative.name}-silhouette-first`, { body: screenshot, contentType: 'image/png' });
+  }
+
+  await setCombat(page, representatives.map(({ monster }) => monster), true);
+  await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('character-design-gate-combined-silhouette-first.png') });
+  const evidence = await layerEvidence(page);
+  expect(evidence.billboards).toHaveLength(3);
+  expect(evidence.billboards.every(billboard => billboard.children.includes('enemy-cutout'))).toBe(true);
+  expect(evidence.layout.map(entry => entry.monsterIndex)).toEqual([0, 1, 2]);
+});
+
 for (const viewport of VIEWPORTS) {
   test(`enemy cutouts remain bounded and targetable at ${viewport.width}px @smoke @visual`, async ({ page }, testInfo) => {
     await openPixi(page, viewport);

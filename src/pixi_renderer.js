@@ -14,6 +14,10 @@ import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { getVisibleCorridorTopology, isRenderableCorridorCell } from "./rules/renderer_topology.js";
 import { renderMiniMapOverlay } from "./minimap.js";
 
+// Exposed for deterministic visual-gate asset injection; production rendering
+// continues to use the same Pixi Assets singleton.
+export { Assets };
+
 export const PIXI_VIEW_W = 400;
 export const PIXI_VIEW_H = 260;
 export const PIXI_VERSION = "8.19.0";
