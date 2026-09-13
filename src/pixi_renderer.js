@@ -13,6 +13,11 @@ import {
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { getVisibleCorridorTopology, isRenderableCorridorCell } from "./rules/renderer_topology.js";
 import { renderMiniMapOverlay } from "./minimap.js";
+import {
+  SIMPLE_ENEMY_PROTOTYPE_MODE,
+  createEnemyPrototype,
+  getEnemyPrototypePresentation
+} from "./pixi_enemy_prototypes.js";
 
 // Exposed for deterministic visual-gate asset injection; production rendering
 // continues to use the same Pixi Assets singleton.
@@ -148,6 +153,14 @@ function getQueuedThreat(monster) {
     monster?.multiActionQueued || monster?.summonQueued || monster?.snipeQueued || monster?.statusPayoffQueued);
 }
 
+function getEnemyPresentationMode() {
+  if (typeof window === "undefined") return "production";
+  const requested = new URLSearchParams(window.location.search).get("enemyPresentation");
+  return requested === SIMPLE_ENEMY_PROTOTYPE_MODE.primitive || requested === SIMPLE_ENEMY_PROTOTYPE_MODE.simpleRich
+    ? requested
+    : "production";
+}
+
 /**
  * A PixiJS renderer that keeps the existing Canvas projection and topology.
  * Pixi is used only as a 2D drawing surface; there is no camera, FOV, eye,
@@ -176,6 +189,7 @@ export class PixiDungeonRenderer {
     this.enemyTextures = new Map();
     this.enemyAssetFailures = new Set();
     this.enemyAssetPromise = null;
+    this.enemyPresentationMode = getEnemyPresentationMode();
     this.resourceStats = {
       sceneRebuilds: 0,
       maxChildren: 0,
@@ -236,7 +250,7 @@ export class PixiDungeonRenderer {
       });
       // The cutouts are bounded local raster resources. Resolve them before exposing
       // the renderer so combat never shows a blank/placeholder frame.
-      await this.loadEnemyTextures();
+      if (this.enemyPresentationMode === "production") await this.loadEnemyTextures();
       this.initializationPhase = "mount";
       this.scene = this.createSceneRoot("pixi-current-scene");
       this.app.stage.addChild(this.scene);
@@ -252,6 +266,7 @@ export class PixiDungeonRenderer {
   }
 
   async loadEnemyTextures() {
+    if (this.enemyPresentationMode !== "production") return Promise.resolve();
     if (this.enemyAssetPromise) return this.enemyAssetPromise;
     const manifest = {
       ...Object.fromEntries(Object.entries(ENEMY_ARCHETYPES).map(([key, presentation]) => [key, presentation.asset])),
@@ -684,7 +699,9 @@ export class PixiDungeonRenderer {
     getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion, row, column }) => {
       const color = getMonsterColor(monster);
       const actors = this.layer("actors");
-      const presentation = getEnemyPresentation(monster);
+      const presentation = this.enemyPresentationMode === "production"
+        ? getEnemyPresentation(monster)
+        : getEnemyPrototypePresentation(monster);
       const floorY = cy + 30 * scale;
       const visualScale = Math.min(
         scale * presentation.scale,
@@ -693,7 +710,11 @@ export class PixiDungeonRenderer {
       );
       const hpY = Math.max(18, floorY - presentation.height * visualScale - 5);
       drawEllipse(actors, cx, floorY, Math.min(42, presentation.width * visualScale * 0.42), 5.5 * scale, "#05070a", 0.66);
-      this.drawEnemyCutout(actors, presentation, cx, floorY, visualScale, color, row, column, renderInput.combatTargetSelection?.active);
+      if (this.enemyPresentationMode === "production") {
+        this.drawEnemyCutout(actors, presentation, cx, floorY, visualScale, color, row, column, renderInput.combatTargetSelection?.active);
+      } else {
+        this.drawEnemyPrototype(actors, monster, cx, floorY, visualScale, color, row, column, this.enemyPresentationMode);
+      }
       const hp = Math.max(0, Math.min(1, monster.hp / Math.max(1, monster.maxHp)));
       drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8), 5, "#ffffff", 0.12, { color: "#8e8e93", width: 1 });
       drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
@@ -703,6 +724,17 @@ export class PixiDungeonRenderer {
       }
       if (renderInput.combatTargetSelection?.active) this.drawTargetMarker(hitRegion, cx, cy, scale, color);
     });
+  }
+
+  drawEnemyPrototype(actors, monster, cx, floorY, visualScale, color, row, column, mode) {
+    const billboard = new Container();
+    billboard.label = `enemy-${mode}-${row}-${column}`;
+    billboard.position.set(cx, floorY);
+    billboard.zIndex = row * 100 + column;
+    const prototype = createEnemyPrototype(mode, monster, visualScale, parseColor(color));
+    billboard.addChild(prototype);
+    actors.addChild(billboard);
+    this.resourceStats.enemyPresentationCount += 1;
   }
 
   drawEnemyCutout(actors, presentation, cx, floorY, visualScale, color, row, column, targetable) {
