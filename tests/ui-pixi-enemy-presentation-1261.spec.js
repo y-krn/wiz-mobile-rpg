@@ -390,6 +390,7 @@ test('full enemy art candidates render in deterministic 390px and 320px Dungeon 
   await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-representative-trio.png') });
   await setCombat(page, [named[0], named[9]], true);
   await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-390-representative-pair-selected.png') });
+  await page.locator('#viewport-panel').screenshot({ path: testInfo.outputPath('enemy-390-representative-pair-selected-minimap.png') });
   await setCombat(page, [named[0], named[3], named[10]], true);
   await page.evaluate(async () => {
     const { dungeonRenderer } = await import('/src/renderer.js');
@@ -415,6 +416,7 @@ test('full enemy art candidates render in deterministic 390px and 320px Dungeon 
   await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-shield-tank.png') });
   await setCombat(page, [named[5]], false);
   await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('enemy-320-rat-swarm.png') });
+  await page.locator('#viewport-panel').screenshot({ path: testInfo.outputPath('enemy-320-rat-swarm-minimap.png') });
 
   const contactPage = await page.context().newPage();
   await contactPage.setViewportSize({ width: 820, height: 600 });
