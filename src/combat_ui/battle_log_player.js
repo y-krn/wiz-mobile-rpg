@@ -72,7 +72,9 @@ export function playBattleLogs(queue, index) {
   const effects = log.effects || [log];
   effects.forEach(effect => {
     if (effect.sound) playSound(effect.sound);
-    if (effect.shake && renderer) renderer.triggerShake(effect.shake, 250);
+    // Ordinary hits use actor-local rings, flashes, and floating damage text.
+    // Reserve viewport shake for explicitly heavy impacts only.
+    if (effect.shake >= 15 && renderer) renderer.triggerShake(Math.min(effect.shake, 20), 180);
     if (effect.flash && renderer) renderer.triggerFlash(200);
     if (effect.floatText && renderer) renderer.addDamageText(effect.floatText, effect.floatColor);
     if (effect.floatText && renderer?.triggerHitFeedback) renderer.triggerHitFeedback(220);

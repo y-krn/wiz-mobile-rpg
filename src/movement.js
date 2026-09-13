@@ -157,7 +157,6 @@ function isBlockedByOneWayPassage(x, y, dir) {
 
 function blockOneWayMove() {
   playSound("bump");
-  if (renderer) renderer.triggerShake(4, 150);
   addLog("見えない力に押し返された。ここは一方通行だ…");
 }
 
@@ -221,7 +220,6 @@ export function handleMove(action) {
   } else if (action === "forward") {
     if (currentCell.walls[state.dir]) {
       playSound("bump");
-      if (renderer) renderer.triggerShake(4, 150);
     } else if (isBlockedByOneWayPassage(state.x, state.y, state.dir)) {
       blockOneWayMove();
     } else {
@@ -255,7 +253,6 @@ export function handleMove(action) {
     const backDir = (state.dir + 2) % 4;
     if (currentCell.walls[backDir]) {
       playSound("bump");
-      if (renderer) renderer.triggerShake(4, 150);
     } else if (isBlockedByOneWayPassage(state.x, state.y, backDir)) {
       blockOneWayMove();
     } else {
@@ -320,9 +317,6 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     addLog("【⚠️落とし穴】足元が抜けた！暗闇へ落下していく…");
     playSound("chest_trap");
     if (renderer) {
-      if (typeof renderer.triggerShake === "function") {
-        renderer.triggerShake(10, 400);
-      }
       if (typeof renderer.triggerFlash === "function") {
         renderer.triggerFlash(400);
       }
@@ -641,7 +635,6 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     if (!milestoneBoss && !state.inventory.includes("DRAGON_KEY")) {
       addLog("扉は閉ざされている。「竜の鍵」がなければ開かないようだ…");
       playSound("bump");
-      if (renderer) renderer.triggerShake(4, 150);
       state.x = prevX;
       state.y = prevY;
       return;
@@ -767,7 +760,6 @@ export function applyExplorationPoison() {
 
   if (tookDamage) {
     playSound("hit");
-    if (renderer) renderer.triggerShake(4, 150);
   }
 
   const allPartyDead = state.party.every(c => c.status === "dead");
@@ -781,7 +773,6 @@ export function applyExplorationPoison() {
 export function triggerFlameTrap() {
   addLog("【⚠️熱気の気配】周囲に熱気が走った！");
   playSound("chest_trap");
-  if (renderer) renderer.triggerShake(10, 400);
   if (renderer && typeof renderer.triggerFlash === "function") {
     renderer.triggerFlash(400);
   }

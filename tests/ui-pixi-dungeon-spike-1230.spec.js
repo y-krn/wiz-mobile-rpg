@@ -104,7 +104,7 @@ test('PixiJS 2.5D keeps six navigation archetypes readable at every required wid
   }
 });
 
-test('PixiJS motion uses projection continuity, turn sweep, and combat feedback @smoke @visual', async ({ page }, testInfo) => {
+test('PixiJS motion uses projection continuity, restrained turns, and combat feedback @smoke @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?renderer=pixi');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
@@ -147,9 +147,11 @@ test('PixiJS motion uses projection continuity, turn sweep, and combat feedback 
   expect(motion.forwardEnd.active).toBe(false);
   expect(Math.abs(motion.leftMid.outgoingX)).toBeGreaterThan(0);
   expect(Math.abs(motion.leftMid.incomingX)).toBeGreaterThan(0);
-  expect(Math.abs(motion.leftMid.outgoingRotation)).toBeGreaterThan(0);
+  expect(Math.abs(motion.leftMid.outgoingX)).toBeLessThanOrEqual(8);
+  expect(motion.leftMid.outgoingRotation).toBe(0);
   expect(Math.abs(motion.rightMid.incomingX)).toBeGreaterThan(0);
-  expect(Math.abs(motion.rightMid.outgoingRotation)).toBeGreaterThan(0);
+  expect(Math.abs(motion.rightMid.incomingX)).toBeLessThanOrEqual(8);
+  expect(motion.rightMid.outgoingRotation).toBe(0);
   const forwardFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('pixi-forward-end-390.png') });
   await testInfo.attach('pixi-forward-end-390', { body: forwardFrame, contentType: 'image/png' });
   const forwardMidFrame = Buffer.from(motion.forwardMidFrame.split(',')[1], 'base64');
