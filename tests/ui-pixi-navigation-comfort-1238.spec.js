@@ -79,17 +79,26 @@ test('PixiJS navigation motion stays low-amplitude and screen-stable @smoke @vis
       dungeonRenderer.draw();
       dungeonRenderer.update(62);
       dungeonRenderer.draw();
+      const rootSnapshot = (root) => ({
+        x: root.position.x,
+        y: root.position.y,
+        rotation: root.rotation,
+        scaleX: root.scale.x,
+        scaleY: root.scale.y,
+        alpha: root.alpha
+      });
+      const layerSnapshot = (root) => Object.fromEntries(
+        ['far-environment', 'floor', 'structural-walls', 'environment-fx', 'actors', 'combat-fx', 'overlays']
+          .map((name) => [name, { x: root.layers[name].position.x, y: root.layers[name].position.y }])
+      );
       return {
         action: dungeonRenderer.transition?.action,
         duration: dungeonRenderer.transition?.duration,
         progress: dungeonRenderer.transition ? dungeonRenderer.transition.elapsed / dungeonRenderer.transition.duration : null,
-        outgoingX: dungeonRenderer.transitionScene.position.x,
-        outgoingY: dungeonRenderer.transitionScene.position.y,
-        incomingX: dungeonRenderer.scene.position.x,
-        incomingY: dungeonRenderer.scene.position.y,
-        outgoingRotation: dungeonRenderer.transitionScene.rotation,
-        incomingRotation: dungeonRenderer.scene.rotation,
-        incomingScale: dungeonRenderer.scene.scale.x,
+        outgoingRoot: rootSnapshot(dungeonRenderer.transitionScene),
+        incomingRoot: rootSnapshot(dungeonRenderer.scene),
+        outgoingLayers: layerSnapshot(dungeonRenderer.transitionScene),
+        incomingLayers: layerSnapshot(dungeonRenderer.scene),
         shakeTime: dungeonRenderer.shakeTime,
         frame: document.querySelector('#dungeon-canvas').toDataURL()
       };
@@ -106,6 +115,8 @@ test('PixiJS navigation motion stays low-amplitude and screen-stable @smoke @vis
         sceneX: dungeonRenderer.scene.position.x,
         sceneY: dungeonRenderer.scene.position.y,
         rotation: dungeonRenderer.scene.rotation,
+        scaleX: dungeonRenderer.scene.scale.x,
+        scaleY: dungeonRenderer.scene.scale.y,
         shakeTime: dungeonRenderer.shakeTime
       };
     });
@@ -113,21 +124,30 @@ test('PixiJS navigation motion stays low-amplitude and screen-stable @smoke @vis
     results[action] = { mid, after };
   }
 
-  expect(results.forward.mid.duration).toBe(125);
-  expect(Math.abs(results.forward.mid.outgoingY)).toBeLessThanOrEqual(8);
-  expect(Math.abs(results.forward.mid.incomingY)).toBeLessThanOrEqual(8);
-  expect(Math.abs(results.forward.mid.incomingScale - 1)).toBeLessThan(0.02);
-  for (const action of ['turn-left', 'turn-right']) {
-    expect(Math.abs(results[action].mid.outgoingX)).toBeLessThanOrEqual(8);
-    expect(Math.abs(results[action].mid.incomingX)).toBeLessThanOrEqual(8);
-    expect(results[action].mid.outgoingRotation).toBe(0);
-    expect(results[action].mid.incomingRotation).toBe(0);
+  expect(results.forward.mid.duration).toBe(100);
+  for (const result of Object.values(results)) {
+    for (const root of [result.mid.outgoingRoot, result.mid.incomingRoot]) {
+      expect(root.x).toBe(0);
+      expect(root.y).toBe(0);
+      expect(root.rotation).toBe(0);
+      expect(root.scaleX).toBe(1);
+      expect(root.scaleY).toBe(1);
+    }
+    const allLayers = [result.mid.outgoingLayers, result.mid.incomingLayers];
+    for (const layers of allLayers) {
+      for (const name of ['actors', 'combat-fx', 'overlays']) {
+        expect(layers[name].x).toBe(0);
+        expect(layers[name].y).toBe(0);
+      }
+    }
   }
   for (const result of Object.values(results)) {
     expect(result.after.active).toBe(false);
     expect(result.after.sceneX).toBe(0);
     expect(result.after.sceneY).toBe(0);
     expect(result.after.rotation).toBe(0);
+    expect(result.after.scaleX).toBe(1);
+    expect(result.after.scaleY).toBe(1);
     expect(result.after.shakeTime).toBe(0);
   }
 });
@@ -153,6 +173,9 @@ test('PixiJS reduced motion disables navigation, shake, and ambient redraw while
       hitTime: dungeonRenderer.hitTime,
       sceneX: dungeonRenderer.scene.position.x,
       sceneY: dungeonRenderer.scene.position.y,
+      rotation: dungeonRenderer.scene.rotation,
+      scaleX: dungeonRenderer.scene.scale.x,
+      scaleY: dungeonRenderer.scene.scale.y,
       animating: dungeonRenderer.isAnimating(dungeonRenderer.getRenderInput())
     };
   });
@@ -162,6 +185,9 @@ test('PixiJS reduced motion disables navigation, shake, and ambient redraw while
   expect(evidence.hitTime).toBe(0);
   expect(evidence.sceneX).toBe(0);
   expect(evidence.sceneY).toBe(0);
+  expect(evidence.rotation).toBe(0);
+  expect(evidence.scaleX).toBe(1);
+  expect(evidence.scaleY).toBe(1);
   expect(evidence.animating).toBe(false);
 });
 
@@ -177,21 +203,32 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
     const input = dungeonRenderer.getRenderInput();
     const before = JSON.stringify({ x: state.x, y: state.y, dir: state.dir, mapRevision: state.mapRevision });
     const firstRenderMs = dungeonRenderer.lastRenderMs;
+    const rootTransformSamples = [];
+    const recordRootTransform = () => rootTransformSamples.push({
+      x: dungeonRenderer.scene.position.x,
+      y: dungeonRenderer.scene.position.y,
+      rotation: dungeonRenderer.scene.rotation,
+      scaleX: dungeonRenderer.scene.scale.x,
+      scaleY: dungeonRenderer.scene.scale.y
+    });
     const forwardRenderMs = [];
     for (let index = 0; index < 20; index += 1) {
       dungeonRenderer.beginNavigationTransition('forward', input);
       dungeonRenderer.update(125); dungeonRenderer.draw(input);
+      recordRootTransform();
       forwardRenderMs.push(dungeonRenderer.lastRenderMs);
     }
     const turnRenderMs = [];
     for (let index = 0; index < 20; index += 1) {
       dungeonRenderer.beginNavigationTransition('turn-left', input);
       dungeonRenderer.update(125); dungeonRenderer.draw(input);
+      recordRootTransform();
       turnRenderMs.push(dungeonRenderer.lastRenderMs);
     }
     for (let index = 0; index < 20; index += 1) {
       dungeonRenderer.beginNavigationTransition('turn-right', input);
       dungeonRenderer.update(125); dungeonRenderer.draw(input);
+      recordRootTransform();
     }
     dungeonRenderer.beginNavigationTransition('turn-left', input);
     dungeonRenderer.cancelNavigationTransition();
@@ -253,6 +290,7 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
       turnRenderMs,
       combatRenderMs,
       resizeRenderMs,
+      rootTransformSamples,
       disposed,
       sceneChildren: dungeonRenderer.scene.children.length,
       maxChildren: dungeonRenderer.resourceStats.maxChildren,
@@ -266,6 +304,10 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
   expect(evidence.replacement).toBe('forward');
   expect(evidence.rapidAlternatingAction).toBe('turn-right');
   expect(evidence.rapidForwardTurnAction).toBe('turn-right');
+  expect(evidence.rootTransformSamples).toHaveLength(60);
+  expect(evidence.rootTransformSamples.every((root) => (
+    root.x === 0 && root.y === 0 && root.rotation === 0 && root.scaleX === 1 && root.scaleY === 1
+  ))).toBe(true);
   expect(evidence.combatFeedback).toBe(10);
   expect(evidence.disposed).toBe(5);
   expect(evidence.sceneChildren).toBe(8);

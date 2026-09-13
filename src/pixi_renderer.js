@@ -17,10 +17,9 @@ export const PIXI_VIEW_W = 400;
 export const PIXI_VIEW_H = 260;
 export const PIXI_VERSION = "8.19.0";
 export const PIXI_MOTION_PROFILE = Object.freeze({
-  durationMs: 125,
-  forwardDepthPx: 8,
-  turnPositionPx: 8,
-  scaleDelta: 0.018,
+  durationMs: 100,
+  layerDepthPx: 0.75,
+  layerTurnPx: 0.75,
   layerParallax: 0.18
 });
 
@@ -420,31 +419,33 @@ export class PixiDungeonRenderer {
     const eased = outgoing ? 1 - clamp01(progress) : clamp01(progress);
     const remaining = 1 - eased;
     const direction = action === "turn-left" ? -1 : 1;
+    // Navigation must never move the screen-space scene root. Only the
+    // snapshot opacity and a sub-pixel shift inside visual layers may change.
+    const layerDepth = {
+      "far-environment": 0.25,
+      floor: 0.72,
+      "structural-walls": 0.88,
+      "environment-fx": 0.94
+    };
     if (action === "forward" || action === "backward") {
       const distance = action === "forward"
-        ? PIXI_MOTION_PROFILE.forwardDepthPx
-        : -PIXI_MOTION_PROFILE.forwardDepthPx;
-      root.position.y = outgoing ? -distance * eased : distance * remaining;
-      const scale = outgoing
-        ? 1 + PIXI_MOTION_PROFILE.scaleDelta * eased
-        : 1 - PIXI_MOTION_PROFILE.scaleDelta * remaining;
-      root.scale.set(scale, scale);
+        ? PIXI_MOTION_PROFILE.layerDepthPx
+        : -PIXI_MOTION_PROFILE.layerDepthPx;
       root.alpha = outgoing ? 1 - eased : eased;
-      Object.entries(root.layers || {}).forEach(([name, layer]) => {
-        const depth = name === "far-environment" ? 0.25 : name === "floor" ? 0.72 : name === "structural-walls" ? 0.88 : 1;
-        layer.position.y = (outgoing ? -1 : 1) * distance * remaining * (1 - depth) * PIXI_MOTION_PROFILE.layerParallax;
+      Object.entries(layerDepth).forEach(([name, depth]) => {
+        const layer = root.layers?.[name];
+        if (layer) layer.position.y = (outgoing ? -1 : 1) * distance * remaining * (1 - depth) * PIXI_MOTION_PROFILE.layerParallax;
       });
       return;
     }
 
-    const offset = PIXI_MOTION_PROFILE.turnPositionPx * direction;
-    root.position.x = outgoing ? offset * eased : -offset * remaining;
-    // Keep the horizon and HUD stable: turns interpolate position and depth
-    // layers, but never rotate the screen-space scene.
+    const offset = PIXI_MOTION_PROFILE.layerTurnPx * direction;
+    // Keep the horizon, HUD, and Dungeon View frame stable. Turns only
+    // cross-fade snapshots and gently interpolate internal visual layers.
     root.alpha = outgoing ? 1 - eased : eased;
-    Object.entries(root.layers || {}).forEach(([name, layer]) => {
-      const depth = name === "far-environment" ? 0.22 : name === "floor" ? 0.58 : name === "structural-walls" ? 0.82 : 1;
-      layer.position.x = (outgoing ? 1 : -1) * offset * remaining * (1 - depth) * PIXI_MOTION_PROFILE.layerParallax;
+    Object.entries(layerDepth).forEach(([name, depth]) => {
+      const layer = root.layers?.[name];
+      if (layer) layer.position.x = (outgoing ? 1 : -1) * offset * remaining * (1 - depth) * PIXI_MOTION_PROFILE.layerParallax;
     });
   }
 
@@ -464,7 +465,10 @@ export class PixiDungeonRenderer {
       this.applyMotion(this.transitionScene, this.transition.action, progress, true);
       this.applyMotion(this.scene, this.transition.action, progress, false);
     } else this.resetMotion(this.scene);
-    if (this.shakeTime > 0) {
+    // Navigation transitions are root-transform-free. Heavy combat shake is
+    // a separate feedback path and is ignored while a navigation transition
+    // is active so it can never leak into navigation comfort.
+    if (this.shakeTime > 0 && !this.transition) {
       const offset = (Math.sin(this.clockMs * 0.11) * 0.5) * this.shakeIntensity;
       this.scene.position.x += offset;
       this.scene.position.y += offset * 0.45;
