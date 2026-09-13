@@ -9,8 +9,8 @@ assert.equal(getEnemyArchetype({ name: "デーモンガード", isBoss: true }),
 assert.equal(getEnemyArchetype({ spriteType: "dragon" }), "boss");
 
 for (const [archetype, presentation] of Object.entries(ENEMY_ARCHETYPES)) {
-  assert.ok(presentation.asset.endsWith(`${archetype}.svg`), `${archetype} uses a local transparent asset`);
-  assert.ok(presentation.width <= 188 && presentation.height <= 220, `${archetype} stays bounded for mobile`);
+  assert.ok(presentation.asset.endsWith(`${archetype}.webp`), `${archetype} uses a local transparent asset`);
+  assert.ok(presentation.maxWidth <= 256 && presentation.maxHeight <= 256, `${archetype} stays bounded for mobile`);
   assert.ok(presentation.scale > 0 && presentation.scale <= 1, `${archetype} has a bounded display scale`);
 }
 

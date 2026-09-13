@@ -1,58 +1,58 @@
 // balance-impact: none — visual metadata only; combat rules and state are unchanged.
 // Production enemy presentation metadata. Assets are repository-authored,
-// transparent SVG cutouts with no external game-art dependency.
+// transparent generated WebP cutouts with no external game-art dependency.
 
 const ASSETS = Object.freeze({
-  small: new URL("./assets/enemies/small.svg", import.meta.url).href,
-  humanoid: new URL("./assets/enemies/humanoid.svg", import.meta.url).href,
-  brute: new URL("./assets/enemies/brute.svg", import.meta.url).href,
-  caster: new URL("./assets/enemies/caster.svg", import.meta.url).href,
-  boss: new URL("./assets/enemies/boss.svg", import.meta.url).href
+  small: new URL("./assets/enemies/generated/small.webp", import.meta.url).href,
+  humanoid: new URL("./assets/enemies/generated/humanoid.webp", import.meta.url).href,
+  brute: new URL("./assets/enemies/generated/brute.webp", import.meta.url).href,
+  caster: new URL("./assets/enemies/generated/caster.webp", import.meta.url).href,
+  boss: new URL("./assets/enemies/generated/boss.webp", import.meta.url).href
 });
 
 export const ENEMY_ARCHETYPES = Object.freeze({
   small: Object.freeze({
     asset: ASSETS.small,
-    width: 104,
-    height: 128,
-    maxWidth: 170,
-    maxHeight: 190,
-    scale: 0.96,
+    width: 150,
+    height: 100,
+    maxWidth: 256,
+    maxHeight: 170,
+    scale: 0.55,
     label: "small"
   }),
   humanoid: Object.freeze({
     asset: ASSETS.humanoid,
-    width: 116,
-    height: 168,
-    maxWidth: 185,
-    maxHeight: 235,
-    scale: 0.92,
+    width: 136,
+    height: 190,
+    maxWidth: 183,
+    maxHeight: 256,
+    scale: 0.75,
     label: "humanoid"
   }),
   brute: Object.freeze({
     asset: ASSETS.brute,
-    width: 158,
-    height: 190,
-    maxWidth: 230,
-    maxHeight: 245,
-    scale: 0.88,
+    width: 170,
+    height: 210,
+    maxWidth: 170,
+    maxHeight: 256,
+    scale: 0.82,
     label: "brute"
   }),
   caster: Object.freeze({
     asset: ASSETS.caster,
-    width: 118,
-    height: 180,
-    maxWidth: 215,
-    maxHeight: 235,
-    scale: 0.9,
+    width: 150,
+    height: 182,
+    maxWidth: 212,
+    maxHeight: 256,
+    scale: 0.72,
     label: "caster"
   }),
   boss: Object.freeze({
     asset: ASSETS.boss,
-    width: 188,
-    height: 220,
-    maxWidth: 256,
-    maxHeight: 250,
+    width: 166,
+    height: 200,
+    maxWidth: 213,
+    maxHeight: 256,
     scale: 0.78,
     label: "boss"
   })
