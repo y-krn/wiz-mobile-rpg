@@ -1,152 +1,78 @@
 # Review and design map
 
-`.agents/*.md` contains reference knowledge for implementation and review.
+`.agents/*.md` contains repository references for implementation and review.
 Read only the documents whose scope matches the task. This index does not
-define agent roles, operating modes, delegation, or authorization; the request
-and root [`AGENTS.md`](../AGENTS.md) define those boundaries.
+define authorization or agent roles; the request and root `AGENTS.md` do.
 
-`.agents/skills/*/SKILL.md` contains repeatable conditional workflows.
-The checklists below are references, not automatic skills or subagents.
+`.agents/issue-delivery.md` owns the lifecycle from a ready Issue to an
+acceptance/evidence map and PR handoff. It does not own domain rules,
+verification matrices, or independent review.
 
-`.agents/issue-delivery.md` owns the lifecycle routing from a ready Issue to
-an acceptance/evidence map and PR handoff. It does not own domain rules,
-verification matrices, or independent review; those remain with the references
-linked below.
-
-For progression, economy, materials, workshop, rewards, run quests, or B5F clear
-behavior, review against `.agents/game-design.md` in addition to the relevant
-checklist definition.
-
-Before broad repository searches, read `.agents/file-map.md` and start from the
-files listed for the request area. Expand only to direct imports, touched files,
-or verification targets.
-
-The codebase uses thin facade modules. Facade-to-concrete-module mappings are
-defined in `.agents/file-map.md` under `## Module Boundaries`. When a task
-touches a facade, inspect the concrete module before drawing conclusions.
+Use `.agents/file-map.md` before broad searches. The map's module boundaries,
+checklist scopes, and source/test routing are authoritative for the initial
+context. Load a design canon only when the changed area affects its durable
+meaning.
 
 ## Checklist ownership
 
-`.agents/game-logic.md` defines durable domain invariants: what must remain
-true. `.agents/qa-regression.md` defines verification strategy: how to prove
-those invariants and cover relevant failure classes. `.agents/balance-simulation.md`
-defines durable balance principles and claim/evidence boundaries. The
-conditional `.agents/skills/balance-simulation/SKILL.md` defines how to perform
-a measurement; source, manifests, scripts, and tests own the current executable
-contract and exact scenario inventory.
+- `game-logic.md`: durable gameplay and state invariants
+- `qa-regression.md`: regression strategy and verification sufficiency
+- `balance-simulation.md`: balance principles and claim/evidence boundaries
+- `content-design.md`: player-facing content review
+- `mobile-ui-ux.md`: mobile layout, input, and accessibility review
+
+The conditional skills below own only repository-specific decisions that need a
+repeatable workflow. Load only the row whose trigger matches the work.
 
 ## Conditional skill routing
 
-This is the repository-specific ownership map for the six skills currently
-available under `.agents/skills/`. Load only the row whose trigger matches the
-work; combine rows only when the task has genuinely distinct surfaces. The
-vendor skills are kept unchanged, so this routing document supplies the
-repository-specific boundary around them.
-
-| Skill | Load when | Owns | Does not own |
+| Skill | Load when | Owns | Excludes |
 | --- | --- | --- | --- |
-| `balance-simulation` | A claim needs a measured progression, economy, difficulty, reward, or pacing result | Production-backed measurement, determinism, provenance, matched comparison, and interpretation | Formula/spec review, mechanic reachability, or UI-only work |
-| `combat-model-change` | A combat expression, stage, scaling term, targeting rule, or combat observability contract changes | Combat semantics, physical/spell parity, specification alignment, and model evidence | Renderer geometry/staging evidence, balance measurement, or UI-only work |
-| `diagnosing-bugs` | QA triage cannot establish the cause or a red-capable repro, or the report is a performance regression | Tight repro, falsifiable hypotheses, causal probes, regression seam, and cleanup | Known-cause fixes with a sufficient QA path |
-| `gameplay-reachability-audit` | A mechanic is claimed to be live, dead, hidden, missing, or absent from a player/simulation/record path | Definition-to-execution, player operation, simulation, and record evidence | Ordinary code search or measured balance conclusions |
-| `playwright-cli` | Interactive browser reproduction or inspection needs terminal-driven DOM, rendered-state, console, network, trace, or storage evidence | Browser interaction and runtime inspection | Test ownership, regression matrix, and final QA verdict |
-| `writing-for-agents` | A repository skill or agent guidance document is created or materially revised | Trigger, context load, information hierarchy, deterministic steps, completion criteria, and pruning review | Normal implementation or domain-specific behavior |
+| `balance-simulation` | A progression, economy, difficulty, reward, or pacing claim needs measurement | Production-backed measurement, determinism, provenance, matched comparison, and uncertainty | Formula/spec review, reachability, UI-only work, and ordinary QA |
+| `combat-model-change` | Combat expression, stage, scaling, targeting, or combat observability semantics change | Physical/spell semantics, specification alignment, and model evidence | UI-only/rendering work, balance measurement, and reachability audits |
+| `diagnosing-bugs` | A bug cause or reliable reproduction is unresolved, including intermittent or performance regressions | Tight reproduction, causal localization, minimal fix, and regression evidence | Known-cause fixes, ordinary QA, and deterministic test failures |
+| `gameplay-reachability-audit` | A mechanic is claimed to be live, dead, hidden, or missing across a player, simulation, or record path | Definition-to-execution, player operation, simulation, and record evidence | Ordinary code search, balance measurement, combat semantics, and cleanup |
 
-Repository-specific checklists and source remain authoritative for their own
-contracts. A vendor skill supplies a reusable technique only after its routing
-condition is met; it does not replace the owning checklist or repository skill.
+Descriptions in each `SKILL.md` are trigger-first context pointers. Procedures
+and evidence gates belong in the body; current commands and exact scenarios
+belong in source, tests, `package.json`, configuration, or CLI help.
 
-Descriptions are always-loaded context pointers, so keep them to the trigger
-and leave procedures and reference behind the conditional skill load. The
-six current skills stay model-invoked because each has an autonomous task
-trigger or is an owner reached by another workflow; this map narrows those
-triggers without copying their procedures. Vendor descriptions and bodies are
-installer-owned and remain unchanged here.
+## Browser evidence boundary
 
-## Static check ownership
+QA owns browser test selection, regression coverage, and the final verdict.
+Interactive inspection may use any browser automation capability available in
+the environment to collect DOM, rendered-state, console, network, screenshot,
+trace, or storage evidence. Repository correctness does not depend on a named
+external capability. If browser evidence leaves the cause or reproduction
+unresolved, route the investigation to `diagnosing-bugs` and return the final
+QA decision to `qa-regression.md`.
 
-`npm run lint:docs` checks inline project-path references and source-driven
-design-document coverage. `npm run lint:markdown` checks Markdown link
-destinations, including the repository-root-relative convention used by
-evidence reports; it does not duplicate the inline-code or design-canon checks.
-`npm run lint:tests` checks Playwright naming and domain-entrypoint ownership
-rules from the current test files.
-`npm run lint:workflow` parses every GitHub Actions workflow and validates its
-basic `name`/`on`/`jobs`/step shape before CI runs.
+## Scope overlap
 
-## Canon and review-checklist ownership
+Select checklists by the nature of the change, not the filename. Mechanics and
+state use `game-logic`; progression and rewards use `balance-simulation`; new
+player-facing content uses `content-design`; layout and touch flow use
+`mobile-ui-ux`; test or regression risk uses `qa-regression`. Apply multiple
+lenses only when the change genuinely spans them, with each lens reporting
+only its own findings.
 
-Design canon answers what the game is intended to mean and feel like: player
-experience, domain semantics, and durable constraints. It does not record the
-current migration stage, implementation progress, or historical sequencing.
-Source/tests define how the intent is implemented; Issues, pull requests, and
-Git history define progress and history.
-
-Review checklists answer how to inspect a change through one lens. They should
-state review questions and routing rules without restating the whole design
-canon. Load a design document only when the changed area touches its durable
-meaning.
-
-## Review checklists
-
-1. `qa-regression.md`
-2. `mobile-ui-ux.md`
-3. `game-logic.md`
-4. `balance-simulation.md`
-5. `content-design.md`
+`qa-regression.md` is the regression backstop, not a substitute for a domain
+checklist. When ownership is still ambiguous after this map, ask before
+applying another checklist.
 
 ## Design references
 
-- `game-design-core-loop.md`: top-level design pillars, core loop,
-  information-disclosure principles, floor density and pacing targets,
-  push-your-luck structure, and FOE/camp direction. Check any feature or
-  balance proposal against it.
-- `game-design-combat-model.md`: physical and offensive-spell model structure,
-  application order, counterplay, and combat information disclosure. Executable
-  values remain in source and tests.
-- `game-design.md`: economy meaning for materials, resource ownership, status
-  counterplay, milestone merchants, run quests, and future possibility space.
-- `game-design-equipment-builds.md`: the Core/Support build model, equipment
-  knowledge, hands and Guard trade-offs, and horizontal supply principles. The
-  authoritative affix data boundary is `src/data/affixes.js`.
+- `game-design-core-loop.md`: player experience, depth, pacing, and push-your-luck
+- `game-design-combat-model.md`: combat stages, counterplay, and observability
+- `game-design.md`: economy, materials, status, milestones, and quests
+- `game-design-equipment-builds.md`: Core/Support builds and equipment knowledge
 
-## File routing
+Keep executable values and current implementation details in source/tests.
+When a design canon is unaffected, state that explicitly in the PR.
 
-Use `.agents/file-map.md` to decide the initial files for implementation and
-review. Each checklist's `Scope` section remains authoritative for what that
-checklist covers.
+## Review output
 
-## Scope overlap resolution
-
-Checklist scopes may overlap. Select by the nature of the change, not the file
-alone:
-
-- Mechanics, state shape, or rule correctness -> `game-logic.md`.
-- Progression, economy, drops, difficulty, or reward pacing ->
-  `balance-simulation.md`.
-- New or reworded player-facing content, items, enemies, spells, run quests, or
-  display text -> `content-design.md`.
-- Layout, tap flow, one-handed reach, or CSS -> `mobile-ui-ux.md`.
-- Test, reproduction, or regression risk -> `qa-regression.md`.
-
-Resolution rules:
-
-- A change that genuinely spans concerns applies each matching checklist, but
-  each reports only findings within its own lens; do not restate the same
-  finding under multiple checklists.
-- `qa-regression.md` is the regression backstop, not a substitute for the
-  domain checklist. Apply it in addition to the domain checklist when
-  regression risk is material, not instead of it.
-- When two checklists could each own a finding, the checklist whose `Role`
-  most directly matches the change intent owns it; the other omits it.
-- If the applicable checklist is still ambiguous after this, ask before
-  applying, rather than applying all of them.
-
-## Review output format
-
-Each review should return:
-
-1. `Blocking issues`: bugs or regressions that should be fixed before merge.
-2. `Non-blocking issues`: risks worth considering, but not required.
-3. `Missing verification`: tests or manual checks still needed.
-4. `Verdict`: `pass`, `pass with notes`, or `block`.
+Reviews report `Blocking issues`, `Non-blocking issues`, `Missing verification`,
+and a verdict of `pass`, `pass with notes`, or `block`. The lifecycle,
+immutable review, and current-head CI requirements remain in
+`issue-delivery.md` and `merge-gate.md`.
