@@ -10,7 +10,7 @@ Phase 1 は C2（B1F〜B5F の chest trap のみ無効）が retry-hypothesis �
 
 - 実装開始時に fresh fetch して確認した `origin/main` / current main SHA: `29cfd914320e29e553d5082f3d4045744f6607e7`（2026-09-13、開始時点）。
 - Phase 1 base: 同じ `29cfd914320e29e553d5082f3d4045744f6607e7` 上。candidate 前の measurement-only worktree で実行したため、raw provenance は dirty-tree opt-in（`SIM_SKIP_PROVENANCE=1`）。
-- Phase 2 measurement source SHA: `b84725875d488f8df4a258b64078aec319c67114`（fresh な `origin/main` `e969fe29ef19338cf8aa04cfaef4d3b58c71e633` に rebase 後）。
+- Phase 2 measurement source SHA: `7394338772143f3cbf68f8d234a3550d62171802`（fresh な `origin/main` `e969fe29ef19338cf8aa04cfaef4d3b58c71e633` に rebase 後、fixture更新込み）。
 - Phase 2 runner: `scratch/measurements/first_band_trap_diagnostic.js` / `first-band-trap-diagnostic-v1` / schema 1。
 - measurement source: canonical `simulateRun` (`scratch/simulations/sim_depth_material_ev.js`) + reusable `starting_kit_diagnostic`。独立 gameplay model は作っていない。
 - conditions: seed `1233`, `worldSeed=getDiagnosticWorldSeed(seed, runIndex)`, N=1000/condition, targetDepth=6（B1F〜B5F band）、fresh vanguard、Workshop ranks `{}`、持込回復なし、departure craftなし、B1F開始、fight policy。
@@ -69,9 +69,14 @@ Playwright CLIでブラウザデータを分離した fresh vanguard runを複�
 
 ## Rollback
 
-候補変更は commit `b84725875d488f8df4a258b64078aec319c67114` の `src/rules/chest_rules.js` に限定された1 branch。rollback はその1ファイルの B1F `return "none"` を従来の B1F poolへ戻すか、PR commitをrevertする。measurement runnerと `trapMpDrain`観測は rollback判断用であり、production behaviorではない。
+候補変更は commit `b84725875d488f8df4a258b64078aec319c67114` から始まる `issue/1233-first-band-trap-cost` branchの `src/rules/chest_rules.js` に限定された1 production軸。rollback はその1ファイルの B1F `return "none"` を従来の B1F poolへ戻すか、PR commitをrevertする。measurement runnerと `trapMpDrain`観測は rollback判断用であり、production behaviorではない。
 
 ## Verification
 
-必須の unit / lint / browser / browser-parallel は current HEADで実行し、結果をPR本文へ追記する。既存flakyが出た場合は原因と再実行結果をここへ追記する。PRは作成後にmergeせずレビュー待ちとする。
-
+- `npm run test:unit`: pass `201/201`。
+- `npm run lint`: pass（CSS/docs/skills/tests/markdown/workflow/ESLint）。
+- `npm run build`: pass（Vite build; chunk-size warning only）。
+- `npm run test:browser`: pass `88/88`。
+- `npm run test:browser:parallel`: first attemptは fixed port `15781` collision/EPERMで preflight停止。`PLAYWRIGHT_PORT=15782` へ切り替えて再実行し `88/88` pass。これは今回変更と無関係な環境要因。
+- unit initial runで simulation regression 3本が失敗したが、B1 chest candidateで古くなったfixture 2本（B2 fixtureへ更新）と aggregate attack orderingを不変とした1本（selector invariantへ更新）だった。3本を単独rerun後、current HEADで unit全体を再実行し `201/201` pass。黙って無視していない。
+- PRは作成後にmergeせずレビュー待ちとする。
