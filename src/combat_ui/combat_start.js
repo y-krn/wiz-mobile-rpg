@@ -12,6 +12,7 @@ import { setupChestState } from "../chest.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 import { trackCombatStart } from "../telemetry.js";
 import { recordEliteGreedAction } from "../systems/roaming_elites.js";
+import { dungeonRenderer as renderer } from "../renderer.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;
@@ -100,6 +101,8 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     isRoamingFlack
   }, state);
   state.chestState = null;
+
+  renderer?.triggerCombatEntry?.();
 
   combatSelection.charIdx = 0;
   combatSelection.actions = [];
