@@ -103,7 +103,11 @@ function summarize(values) {
   };
 }
 
-function compactDiagnosticRun(result, targetDepth) {
+function matchedWorldSeed(seed, runIndex) {
+  return `run-difficulty:${seed}:${runIndex}`;
+}
+
+function compactDiagnosticRun(result, targetDepth, { runIndex, worldSeed } = {}) {
   const reachedMeasurementTarget = Number(result.reachedFloor) >= targetDepth;
   const outcome = result.outcome === "death"
     ? "death"
@@ -116,6 +120,8 @@ function compactDiagnosticRun(result, targetDepth) {
           : "other";
   const diagnostics = result.runDiagnostics || {};
   return {
+    runIndex,
+    worldSeed,
     outcome,
     reachedFloor: Number(result.reachedFloor),
     deathFloor: result.deathFloor ?? null,
@@ -148,9 +154,43 @@ function finalizeConversionMetric(values) {
 }
 
 export function buildMatchedConversion(baselineRecords, candidateRecords) {
-  if (baselineRecords.length !== candidateRecords.length) {
-    throw new Error("matched conversion requires equal run counts");
-  }
+  const indexRecords = (records, label) => {
+    const byKey = new Map();
+    const byRunIndex = new Map();
+    records.forEach(record => {
+      if (!Number.isInteger(record.runIndex) || typeof record.worldSeed !== "string" || !record.worldSeed) {
+        throw new Error(`matched conversion ${label} record is missing runIndex/worldSeed`);
+      }
+      const key = JSON.stringify([record.runIndex, record.worldSeed]);
+      if (byKey.has(key)) throw new Error(`matched conversion duplicate ${label} key: ${key}`);
+      byKey.set(key, record);
+      byRunIndex.set(record.runIndex, [...(byRunIndex.get(record.runIndex) || []), record.worldSeed]);
+    });
+    return { byKey, byRunIndex };
+  };
+  const baselineIndex = indexRecords(baselineRecords, "baseline");
+  const candidateIndex = indexRecords(candidateRecords, "candidate");
+  const joined = baselineRecords.map(baseline => {
+    const key = JSON.stringify([baseline.runIndex, baseline.worldSeed]);
+    const candidate = candidateIndex.byKey.get(key);
+    if (!candidate) {
+      const sameRunIndex = candidateIndex.byRunIndex.get(baseline.runIndex);
+      if (sameRunIndex) {
+        throw new Error(`matched conversion worldSeed mismatch for runIndex ${baseline.runIndex}`);
+      }
+      throw new Error(`matched conversion missing candidate key: ${key}`);
+    }
+    return { baseline, candidate };
+  });
+  candidateRecords.forEach(candidate => {
+    const key = JSON.stringify([candidate.runIndex, candidate.worldSeed]);
+    if (!baselineIndex.byKey.has(key)) {
+      if (baselineIndex.byRunIndex.has(candidate.runIndex)) {
+        throw new Error(`matched conversion worldSeed mismatch for runIndex ${candidate.runIndex}`);
+      }
+      throw new Error(`matched conversion missing baseline key: ${key}`);
+    }
+  });
   const transitions = {};
   const deeperReachTransitions = {};
   const p0ReturnCohort = {
@@ -167,8 +207,7 @@ export function buildMatchedConversion(baselineRecords, candidateRecords) {
     terminalHpRate: [],
     terminalMpRate: []
   };
-  baselineRecords.forEach((baseline, index) => {
-    const candidate = candidateRecords[index];
+  joined.forEach(({ baseline, candidate }) => {
     addConversionCount(transitions, baseline.outcome, candidate.outcome);
     if (candidate.outcome !== "death" && candidate.reachedFloor > baseline.reachedFloor) {
       addConversionCount(deeperReachTransitions, baseline.outcome, "deeperReach");
@@ -310,9 +349,15 @@ export async function runPolicySensitivityMeasurement({
   const probeArgs = { scenarioId: normalizedScenarioIds[0], startingKitId: normalizedKitIds[0], runIndex: 0 };
   for (const policy of policies) {
     resetSimulationRandom(normalizedSeed);
-    const first = compactDiagnosticRun(runOne({ ...probeArgs, policy }), simulationTargetDepth);
+    const first = compactDiagnosticRun(runOne({ ...probeArgs, policy }), simulationTargetDepth, {
+      runIndex: probeArgs.runIndex,
+      worldSeed: matchedWorldSeed(normalizedSeed, probeArgs.runIndex)
+    });
     resetSimulationRandom(normalizedSeed);
-    const second = compactDiagnosticRun(runOne({ ...probeArgs, policy }), simulationTargetDepth);
+    const second = compactDiagnosticRun(runOne({ ...probeArgs, policy }), simulationTargetDepth, {
+      runIndex: probeArgs.runIndex,
+      worldSeed: matchedWorldSeed(normalizedSeed, probeArgs.runIndex)
+    });
     determinismByPolicy[policy.id] = { pass: JSON.stringify(first) === JSON.stringify(second), first, second };
     if (!determinismByPolicy[policy.id].pass) throw new Error(`policy sensitivity determinism probe failed: ${policy.id}`);
   }
@@ -329,7 +374,10 @@ export async function runPolicySensitivityMeasurement({
         for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
           const result = runOne({ scenarioId, startingKitId, runIndex, policy });
           observeRun(accumulator, result, normalizedTargetDepths);
-          records.push(compactDiagnosticRun(result, simulationTargetDepth));
+          records.push(compactDiagnosticRun(result, simulationTargetDepth, {
+            runIndex,
+            worldSeed: matchedWorldSeed(normalizedSeed, runIndex)
+          }));
         }
         policyRuns[policy.id] = records;
         policyReports.push({

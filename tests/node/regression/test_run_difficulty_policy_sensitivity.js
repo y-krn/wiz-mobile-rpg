@@ -47,14 +47,14 @@ assert.equal(forward.cases[0].comparisons.p1.conversion.transitions["death->deat
 
 const conversion = buildMatchedConversion(
   [
-    { outcome: "voluntaryReturn", reachedFloor: 3, steps: 10, combatCount: 2 },
-    { outcome: "voluntaryReturn", reachedFloor: 4, steps: 12, combatCount: 3 },
-    { outcome: "death", reachedFloor: 3, steps: 10, combatCount: 2 }
+    { runIndex: 0, worldSeed: "world:0", outcome: "voluntaryReturn", reachedFloor: 3, steps: 10, combatCount: 2 },
+    { runIndex: 1, worldSeed: "world:1", outcome: "voluntaryReturn", reachedFloor: 4, steps: 12, combatCount: 3 },
+    { runIndex: 2, worldSeed: "world:2", outcome: "death", reachedFloor: 3, steps: 10, combatCount: 2 }
   ],
   [
-    { outcome: "voluntaryReturn", reachedFloor: 5, steps: 20, combatCount: 5, hpRate: 0.3, mpRate: 0.1, recoveryRemaining: 0 },
-    { outcome: "death", reachedFloor: 5, deathFloor: 5, deathCause: "normal_enemy", steps: 18, combatCount: 4 },
-    { outcome: "voluntaryReturn", reachedFloor: 4, steps: 13, combatCount: 3 }
+    { runIndex: 2, worldSeed: "world:2", outcome: "voluntaryReturn", reachedFloor: 4, steps: 13, combatCount: 3 },
+    { runIndex: 0, worldSeed: "world:0", outcome: "voluntaryReturn", reachedFloor: 5, steps: 20, combatCount: 5, hpRate: 0.3, mpRate: 0.1, recoveryRemaining: 0 },
+    { runIndex: 1, worldSeed: "world:1", outcome: "death", reachedFloor: 5, deathFloor: 5, deathCause: "normal_enemy", steps: 18, combatCount: 4 }
   ]
 );
 assert.deepEqual(conversion.transitions, {
@@ -65,6 +65,23 @@ assert.deepEqual(conversion.transitions, {
 assert.equal(conversion.p0ReturnCohort.runs, 2);
 assert.equal(conversion.p0ReturnCohort.deeperReach, 1);
 assert.equal(conversion.p0ReturnCohort.death, 1);
+assert.throws(
+  () => buildMatchedConversion(
+    [{ runIndex: 0, worldSeed: "world:0", outcome: "death", reachedFloor: 2 }],
+    [{ runIndex: 0, worldSeed: "world:1", outcome: "death", reachedFloor: 2 }]
+  ),
+  /worldSeed mismatch/
+);
+assert.throws(
+  () => buildMatchedConversion(
+    [{ runIndex: 0, worldSeed: "world:0", outcome: "death", reachedFloor: 2 }],
+    [
+      { runIndex: 0, worldSeed: "world:0", outcome: "death", reachedFloor: 2 },
+      { runIndex: 0, worldSeed: "world:0", outcome: "death", reachedFloor: 2 }
+    ]
+  ),
+  /duplicate candidate key/
+);
 
 const diagnosticReport = buildPolicySensitivityReport(forward, {
   gameplaySourceCommit: "a".repeat(40),
