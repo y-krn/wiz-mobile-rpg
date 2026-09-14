@@ -64,6 +64,11 @@ const COST_SOURCE_IDS = Object.freeze([
   "poisonStatus",
   "unattributed"
 ]);
+const UNOBSERVED_FIELDS = Object.freeze([
+  "flee/parting damage is not separately emitted by production telemetry",
+  "enemy-inflicted poison/status damage can be inseparable from combat damage",
+  "merchant recovery acquisition is not present in diagnostic rewardEvents"
+]);
 
 function integer(value, label, minimum = 1) {
   const parsed = Number(value);
@@ -180,19 +185,16 @@ function compactBuildSnapshot(snapshot) {
     spells: Array.isArray(snapshot.spells) ? [...snapshot.spells] : [],
     coreIds: Array.isArray(snapshot.coreIds) ? [...snapshot.coreIds] : [],
     combatCoreIds: Array.isArray(snapshot.combatCoreIds) ? [...snapshot.combatCoreIds] : [],
-    supportAffixes: { ...(snapshot.supportAffixes || {}) },
-    effectiveAffixes: { ...(snapshot.effectiveAffixes || {}) },
+    supportAffixIds: Object.keys(snapshot.supportAffixes || {}).sort(),
+    effectiveAffixes: Object.fromEntries(
+      Object.entries(snapshot.effectiveAffixes || {}).filter(([, value]) => Number(value) !== 0)
+    ),
     equipment: Array.isArray(snapshot.equipment)
       ? snapshot.equipment.map(item => ({
           slot: item.slot || null,
           id: item.id || null,
           type: item.type || null,
-          rarity: item.rarity || null,
-          affixes: (item.affixes || []).map(affix => ({
-            id: affix.id || null,
-            kind: affix.kind || null,
-            value: finite(affix.value)
-          }))
+          rarity: item.rarity || null
         }))
       : []
   };
@@ -297,9 +299,7 @@ function compactFloor(stage, result, groupedCosts, rewardEvents, recoveryEvents,
       meaningfulLootOpportunity: floorRewards.some(event => event.meaningful === true),
       equipmentOpportunity: floorRewards.some(event => event.category === "equipment"),
       buildChange: buildShiftCount > 0,
-      buildShiftCount,
-      entrySnapshot: compactBuildSnapshot(stage.entryBuildSnapshot),
-      exitSnapshot: compactBuildSnapshot(stage.exitBuildSnapshot)
+      buildShiftCount
     },
     exit,
     waterfall: {
@@ -310,11 +310,7 @@ function compactFloor(stage, result, groupedCosts, rewardEvents, recoveryEvents,
     },
     terminal: floorTerminalKind(stage, result),
     terminalReason: stage.terminalReason || null,
-    observedEncounterCount: floorEncounters.length,
-    unobserved: [
-      "flee/parting damage is not separately emitted by production telemetry",
-      "enemy-inflicted poison/status damage remains inside combat damage when production does not emit a separate event"
-    ]
+    observedEncounterCount: floorEncounters.length
   };
 }
 
@@ -390,11 +386,6 @@ function compactRun(result, { scenarioId, startingKitId, policyId, runIndex, wor
       ending: compactBuildSnapshot(result.endingBuildSnapshot),
       shiftCount: (result.equipmentTelemetry || []).filter(event => event.type === "swap").length
     },
-    unobserved: [
-      "flee/parting damage is not separately emitted by production telemetry",
-      "enemy-inflicted poison/status damage can be inseparable from combat damage",
-      "merchant recovery acquisition is not present in diagnostic rewardEvents"
-    ]
   };
 }
 
@@ -832,7 +823,8 @@ export function buildReport(result, provenance = null, environmentSignature = nu
       environmentSignature,
       environmentSignatureHash: environmentSignature ? hashConfiguration(environmentSignature) : null,
       productionMechanism: "simulateRun",
-      rawTracePolicy: "compact floor snapshots and bounded last-three cost events only"
+      rawTracePolicy: "compact floor snapshots and bounded last-three cost events only",
+      unobserved: [...UNOBSERVED_FIELDS]
     },
     configuration: result.configuration,
     comparisonKey: result.comparisonKey,
