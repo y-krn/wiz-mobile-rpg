@@ -18,6 +18,38 @@ does not cover merge, deploy, purchases, destructive actions, or unrelated
 scope expansion. Higher-level sandbox, approval, and security settings always
 apply.
 
+## Mandatory execution guardrails
+
+- Keep one owning session and one task worktree per Issue. Before editing or
+  verifying, confirm `git status --short --branch`, the current branch, the
+  repository root, and `git rev-parse HEAD`; use `npm run check:repo` when
+  available. Never repurpose a managed worktree for another Issue or silently
+  switch to `main`.
+- Prefer direct execution by the owning session. Use subagents only for bounded,
+  independent read-heavy exploration or review; do not duplicate a reviewer or
+  restart the same full workflow after a timeout.
+- Use the smallest sufficient verification during implementation. Reserve the
+  full local suite for the final gate, and bound CI polling by attempts and
+  elapsed time. A pending check is not a failure; stop and report when the bound
+  is reached.
+- For repeated checks, use `npm run verify:once -- --name <stable-name> --
+  <command>`. It records the evidence fingerprint and reports a prior identical
+  success, but reruns by default. `--skip-known` is an explicit convenience
+  option for non-final work; never use it as the final gate. Use `--force` for
+  an intentional final rerun.
+- If a command reports a wrong repository, missing dependency, unavailable
+  browser, or stale base, stop the current workflow and resolve that preflight
+  failure before repeating implementation or verification.
+- Treat a changed base, `HEAD`, or PR diff as a new evidence target. Recheck the
+  applicable review and CI requirements instead of reusing stale results.
+- Bound context growth. For commands that may emit more than a short result,
+  filter or summarize in place and retain only actionable lines in the owning
+  session; do not paste raw logs or repeat unchanged output. Split independent
+  investigations only at an evidence boundary, and hand off with the objective,
+  current `HEAD`, inspected files, commands and checks run, findings, unresolved
+  items, and the next action. Do not rerun completed work unless the evidence
+  target changed.
+
 ## Durable contract
 
 - Keep local `main` clean. Preserve unrelated worktree changes.
