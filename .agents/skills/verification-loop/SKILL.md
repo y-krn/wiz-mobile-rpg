@@ -28,6 +28,10 @@ Apply `AGENTS.md` first and use `qa-regression.md` to select the checks.
 
 - Repeat an identical command only when the input changed, a transient cause is
   established, or the retry budget still permits it.
+- Prefer `npm run verify:once -- --name <stable-name> -- <command>` for repeated
+  local checks. It records a fingerprint of `HEAD`, changed files, command, and
+  relevant environment; it suppresses only a previously successful identical
+  target. Use `--force` when a final gate must run again.
 - Do not invoke a browser test before a successful browser preflight. Do not
   rerun preflight before every test unless the dependency tree, port, browser,
   or worktree state changed.

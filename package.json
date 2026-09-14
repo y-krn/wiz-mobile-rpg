@@ -24,6 +24,7 @@
     "test:browser:full": "node scripts/dependency-preflight.js && playwright test",
     "inspect:bounded": "node scripts/inspect-bounded.js",
     "check:repo": "node scripts/check-repo.js",
+    "verify:once": "node scripts/verify-once.js",
     "check:ci": "node scripts/check-ci-bounded.js",
     "lint:css": "stylelint \"src/style.css\" \"src/styles/**/*.css\"",
     "lint:docs": "node scripts/check_doc_paths.js",
