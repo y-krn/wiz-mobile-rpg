@@ -10,6 +10,7 @@ import {
   rateMetric
 } from "./balance_measurement.js";
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
+import { mergeFleeTelemetry, summarizeFleeTelemetry } from "./flee_telemetry.js";
 
 export const RUNNER_VERSION = "early-run-attrition-trajectory-v1";
 export const SCHEMA_VERSION = 1;
@@ -45,6 +46,7 @@ export const MEASUREMENT_RUNNER_PATHS = Object.freeze([
   "scratch/measurements/balance_measurement.js",
   "scratch/measurements/measurement_provenance.js",
   "scratch/measurements/measurement_env_signature.js",
+  "scratch/measurements/flee_telemetry.js",
   "src/state/initial_state.js",
   "src/rules/build_snapshot.js",
   "src/rules/chest_rules.js",
@@ -65,7 +67,6 @@ const COST_SOURCE_IDS = Object.freeze([
   "unattributed"
 ]);
 const UNOBSERVED_FIELDS = Object.freeze([
-  "flee/parting damage is not separately emitted by production telemetry",
   "enemy-inflicted poison/status damage can be inseparable from combat damage",
   "merchant recovery acquisition is not present in diagnostic rewardEvents"
 ]);
@@ -173,6 +174,7 @@ function groupCostEvents(events) {
 function compactBuildSnapshot(snapshot) {
   if (!snapshot) return null;
   return {
+    identity: snapshot.identity || null,
     point: snapshot.point || null,
     floor: finite(snapshot.floor),
     level: finite(snapshot.level),
@@ -221,11 +223,30 @@ function floorTerminalKind(stage, result) {
   return null;
 }
 
-function compactFloor(stage, result, groupedCosts, rewardEvents, recoveryEvents, encounters) {
+function compactFloor(
+  stage,
+  result,
+  groupedCosts,
+  rewardEvents,
+  recoveryEvents,
+  encounters,
+  diagnosticEncounters
+) {
   if (!stage) return null;
   const floor = Number(stage.floor);
   const floorCosts = groupedCosts.incrementalByFloor[floor] || emptyCosts();
   const floorEncounters = encounters.filter(encounter => Number(encounter.floor) === floor);
+  const floorDiagnosticEncounters = (diagnosticEncounters || []).filter(
+    encounter => Number(encounter.floor) === floor
+  );
+  const flee = mergeFleeTelemetry(floorDiagnosticEncounters.map((diagnostic, index) =>
+    summarizeFleeTelemetry({
+      identity: floorEncounters[index],
+      diagnostic
+    })
+  ));
+  // An empty full-diagnostic floor is an observed zero, not missing telemetry.
+  flee.observed = Array.isArray(diagnosticEncounters);
   const floorRewards = rewardEvents.filter(event => Number(event.floor) === floor);
   const floorRecovery = recoveryEvents.filter(event => Number(event.floor) === floor);
   const cumulative = groupedCosts.cumulativeByFloor[floor] || emptyCosts();
@@ -271,7 +292,7 @@ function compactFloor(stage, result, groupedCosts, rewardEvents, recoveryEvents,
       floorTrapDamageHp: floorCosts.floorTrap,
       chestTrapDamageHp: floorCosts.chestTrap,
       poisonStatusDamageHp: floorCosts.poisonStatus,
-      fleePartingDamageHp: null,
+      fleePartingDamageHp: flee.observed ? flee.partingAttackDamageHp : null,
       mpSpent: finite(stage.mpSpent),
       hpRecovered: finite(stage.healing),
       mpRecovered: finite(stage.mpRecovered),
@@ -282,8 +303,12 @@ function compactFloor(stage, result, groupedCosts, rewardEvents, recoveryEvents,
       combatCount: finite(stage.encounters),
       combatRounds: finite(stage.rounds),
       enemyActionCount: finite(stage.enemyActions),
-      fleeAttempts: finite(stage.fleeActions),
-      fleeExecutions: floorEncounters.filter(encounter => encounter.outcome === "flee").length,
+      fleeAttempts: flee.observed ? flee.fleeSelected : finite(stage.fleeActions),
+      fleeExecutions: flee.observed ? flee.fleeExecuted : null,
+      fleeSelectedButNotExecuted: flee.observed ? flee.fleeSelectedButNotExecuted : null,
+      fleePartingAttackCount: flee.observed ? flee.fleePartingAttackCount : null,
+      fleeSurvived: flee.observed ? flee.fleeSurvived : null,
+      fleeDiedFromPartingAttack: flee.observed ? flee.fleeDiedFromPartingAttack : null,
       steps: finite(stage.steps)
     },
     cumulativeCostBySource: { ...cumulative },
@@ -314,20 +339,24 @@ function compactFloor(stage, result, groupedCosts, rewardEvents, recoveryEvents,
   };
 }
 
-function compactRun(result, { scenarioId, startingKitId, policyId, runIndex, worldSeed }) {
+export function compactRun(result, { scenarioId, startingKitId, policyId, runIndex, worldSeed }) {
   const diagnostics = result.diagnostics || {};
   const groupedCosts = groupCostEvents(diagnostics.costEvents || []);
   const stages = result.stage15Diagnostics?.byFloor || {};
   const encounters = Array.isArray(result.encounterIdentityLog) ? result.encounterIdentityLog : [];
   const rewardEvents = Array.isArray(diagnostics.rewardEvents) ? diagnostics.rewardEvents : [];
   const recoveryEvents = Array.isArray(diagnostics.recoveryEvents) ? diagnostics.recoveryEvents : [];
+  const diagnosticEncounters = Array.isArray(diagnostics.encounters)
+    ? diagnostics.encounters
+    : null;
   const floors = Object.fromEntries(TRAJECTORY_FLOORS.map(floor => [floor, compactFloor(
     stages[String(floor)],
     result,
     groupedCosts,
     rewardEvents,
     recoveryEvents,
-    encounters
+    encounters,
+    diagnosticEncounters
   )]));
   const outcome = terminalKind(result);
   const finalFloor = Number(result.deathFloor ?? result.endFloor ?? result.reachedFloor);
