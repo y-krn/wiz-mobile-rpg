@@ -24,6 +24,32 @@ assert.deepEqual(MEASUREMENT_IDS, [
   "survival-policy"
 ]);
 assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 9);
+assert.deepEqual(MEASUREMENT_REGISTRY.standard.allowedRunTypes, [
+  "baseline-candidate", "diagnostic", "temporary"
+]);
+assert.deepEqual(MEASUREMENT_REGISTRY["run-difficulty"].allowedRunTypes, [
+  "baseline-candidate", "diagnostic", "temporary"
+]);
+for (const measurement of [
+  "starting-kit-early-run",
+  "early-b1f-composition",
+  "fixed-combat-composition",
+  "equipment-load",
+  "run-difficulty-policy-sensitivity",
+  "early-run-attrition",
+  "survival-policy"
+]) {
+  assert.deepEqual(MEASUREMENT_REGISTRY[measurement].allowedRunTypes, ["diagnostic"]);
+  assert.throws(
+    () => resolveMeasurementOptions({ measurement, purpose: "test", run_type: "baseline-candidate" }),
+    new RegExp(`run_type for ${measurement} must be diagnostic`)
+  );
+}
+assert.equal(resolveMeasurementOptions({
+  measurement: "standard",
+  purpose: "test",
+  run_type: "temporary"
+}).runType, "temporary");
 
 assert.throws(
   () => getMeasurementDefinition("unknown-measurement"),
@@ -77,7 +103,19 @@ for (const measurement of ["standard", "early-run-attrition", "survival-policy"]
 const enriched = enrichManifest({
   invocation: resolveRunnerInvocation({ measurement: "survival-policy", purpose: "provenance test" }),
   runId: "456",
-  runnerManifest: { schemaVersion: 1, status: "success", source: { runnerVersion: "survival-policy-comparison-v1" } },
+  runnerManifest: {
+    schemaVersion: 1,
+    status: "success",
+    source: { runnerVersion: "survival-policy-comparison-v1" },
+    provenance: {
+      baseRef: "origin/main",
+      baseCommit: "d".repeat(40),
+      originMainAncestor: true,
+      staleTreeAllowed: false,
+      workingTreeClean: true,
+      measurementRunnerDiffSha256: "e".repeat(64)
+    }
+  },
   report: {
     runnerVersion: "survival-policy-comparison-v1",
     measurement: {
@@ -94,13 +132,23 @@ const enriched = enrichManifest({
 assert.equal(enriched.measurementId, "survival-policy");
 assert.equal(enriched.runType, "diagnostic");
 assert.equal(enriched.purpose, "provenance test");
-assert.equal(enriched.provenance.sourceSha, "a".repeat(40));
-assert.equal(enriched.provenance.gameplaySourceSha, "b".repeat(40));
-assert.equal(enriched.provenance.measurementRunnerSha, "c".repeat(40));
-assert.equal(enriched.provenance.originMainAncestry, true);
-assert.equal(enriched.provenance.staleTree, false);
-assert.equal(enriched.provenance.workingTreeClean, true);
-assert.equal(enriched.provenance.environmentSignature, "env-hash");
+assert.equal(enriched.routerProvenance.sourceSha, "a".repeat(40));
+assert.equal(enriched.routerProvenance.gameplaySourceSha, "b".repeat(40));
+assert.equal(enriched.routerProvenance.measurementRunnerSha, "c".repeat(40));
+assert.equal(enriched.routerProvenance.originMainAncestry, true);
+assert.equal(enriched.routerProvenance.staleTree, false);
+assert.equal(enriched.routerProvenance.workingTreeClean, true);
+assert.equal(enriched.routerProvenance.environmentSignature, "env-hash");
+assert.deepEqual(enriched.provenance, {
+  baseRef: "origin/main",
+  baseCommit: "d".repeat(40),
+  originMainAncestor: true,
+  staleTreeAllowed: false,
+  workingTreeClean: true,
+  measurementRunnerDiffSha256: "e".repeat(64)
+});
+assert.equal(enriched.routerProvenance.sourceSha, "a".repeat(40));
+assert.equal(enriched.routerProvenance.measurementRunnerSha, "c".repeat(40));
 assert.equal(enriched.router.version, BALANCE_MEASUREMENT_ENTRY_VERSION);
 assert.deepEqual(enriched.artifact.files, ["measurement.json", "measurement.md", "manifest.json"]);
 

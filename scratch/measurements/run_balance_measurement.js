@@ -26,6 +26,7 @@ function freezeDefinition(definition) {
   return Object.freeze({
     ...definition,
     defaults: Object.freeze({ ...definition.defaults }),
+    allowedRunTypes: Object.freeze([...(definition.allowedRunTypes || MEASUREMENT_RUN_TYPES)]),
     allowed: Object.freeze({
       ...(definition.allowed || {})
     })
@@ -114,6 +115,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     runner: "scratch/measurements/measure_balance.js",
     adapter: "standard-manifest",
     defaultRunType: "baseline-candidate",
+    allowedRunTypes: ["baseline-candidate", "diagnostic", "temporary"],
     artifactPrefix: "balance-measurement",
     retentionDays: 90,
     defaults: { runs: 500, minimumRuns: 500, seed: 843, calibrationRuns: 100 },
@@ -125,6 +127,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     runner: "scratch/measurements/starting_kit_diagnostic.js",
     adapter: "native-manifest",
     defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
     retentionDays: 90,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1139, startingKit: "vanguard", policy: "fight", fleeHpThreshold: 0.20 },
@@ -140,6 +143,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     runner: "scratch/measurements/early_b1f_composition_diagnostic.js",
     adapter: "native-manifest",
     defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
     retentionDays: 90,
     defaults: {
@@ -161,6 +165,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     runner: "scratch/measurements/fixed_combat_composition_diagnostic.js",
     adapter: "native-manifest",
     defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
     retentionDays: 90,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1151, startingKit: "vanguard" },
@@ -173,6 +178,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     runner: "scratch/measurements/equipment_load_measurement.js",
     adapter: "native-manifest",
     defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
     retentionDays: 90,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1170 },
@@ -184,6 +190,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     runner: "scratch/measurements/measure_run_difficulty.js",
     adapter: "native-manifest",
     defaultRunType: "baseline-candidate",
+    allowedRunTypes: ["baseline-candidate", "diagnostic", "temporary"],
     artifactPrefix: "balance-measurement",
     retentionDays: 90,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
@@ -195,6 +202,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     runner: "scratch/measurements/measure_run_difficulty.js",
     adapter: "native-manifest",
     defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
     retentionDays: 90,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, policies: "p0,p1,p2" },
@@ -206,6 +214,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
     adapter: "native-manifest",
     defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
     retentionDays: 90,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
@@ -217,6 +226,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     runner: "scratch/measurements/measure_survival_policy_comparison.js",
     adapter: "native-manifest",
     defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
     retentionDays: 90,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
@@ -277,8 +287,10 @@ export function resolveMeasurementOptions(input = {}) {
     policies: nonEmpty(input.policies, defaults.policies)
   };
   if (!options.purpose) throw new Error("purpose is required");
-  if (!MEASUREMENT_RUN_TYPES.includes(options.runType)) {
-    throw new Error(`run_type must be ${MEASUREMENT_RUN_TYPES.join("|")}: ${options.runType}`);
+  if (!definition.allowedRunTypes.includes(options.runType)) {
+    throw new Error(
+      `run_type for ${definition.id} must be ${definition.allowedRunTypes.join("|")}: ${options.runType}`
+    );
   }
   if (!Number.isFinite(options.fleeHpThreshold) || options.fleeHpThreshold < 0 || options.fleeHpThreshold > 1) {
     throw new Error(`flee-hp-threshold must be a number between 0 and 1: ${options.fleeHpThreshold}`);
@@ -345,7 +357,7 @@ function commonManifestFields({ invocation, runId, runnerManifest, report }) {
       path: "scratch/measurements/run_balance_measurement.js",
       adapter: invocation.adapter
     },
-    provenance: source ? {
+    routerProvenance: source ? {
       sourceSha: source.sourceCommit || null,
       gameplaySourceSha: source.gameplaySourceCommit || source.productionBaselineSha || null,
       measurementRunnerSha: source.measurementRunnerCommit || source.simulatorRunnerCommit || null,
