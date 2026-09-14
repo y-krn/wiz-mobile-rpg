@@ -22,6 +22,7 @@ on:
           - run-difficulty
           - run-difficulty-policy-sensitivity
           - early-run-attrition
+          - b2-chest-trap
           - survival-policy
       runs:
         description: "Runs for the selected measurement; blank uses its registry default"

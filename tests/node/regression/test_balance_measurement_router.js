@@ -21,9 +21,10 @@ assert.deepEqual(MEASUREMENT_IDS, [
   "run-difficulty",
   "run-difficulty-policy-sensitivity",
   "early-run-attrition",
+  "b2-chest-trap",
   "survival-policy"
 ]);
-assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 9);
+assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 10);
 assert.deepEqual(MEASUREMENT_REGISTRY.standard.allowedRunTypes, [
   "baseline-candidate", "diagnostic", "temporary"
 ]);
@@ -37,6 +38,7 @@ for (const measurement of [
   "equipment-load",
   "run-difficulty-policy-sensitivity",
   "early-run-attrition",
+  "b2-chest-trap",
   "survival-policy"
 ]) {
   assert.deepEqual(MEASUREMENT_REGISTRY[measurement].allowedRunTypes, ["diagnostic"]);
@@ -70,6 +72,23 @@ assert.deepEqual(
   { runs: attrition.runs, seed: attrition.seed, runType: attrition.runType },
   { runs: 1000, seed: 1277, runType: "diagnostic" }
 );
+const b2ChestTrap = resolveMeasurementOptions({ measurement: "b2-chest-trap", purpose: "test" });
+assert.deepEqual(
+  { runs: b2ChestTrap.runs, seed: b2ChestTrap.seed, runType: b2ChestTrap.runType, treatment: b2ChestTrap.treatment },
+  { runs: 1000, seed: 1277, runType: "diagnostic", treatment: "b2-chest-trap" }
+);
+assert.throws(
+  () => resolveMeasurementOptions({ measurement: "b2-chest-trap", purpose: "test", run_type: "temporary" }),
+  /run_type for b2-chest-trap must be diagnostic/
+);
+assert.throws(
+  () => resolveMeasurementOptions({ measurement: "b2-chest-trap", purpose: "test", treatment: "portal-policy" }),
+  /treatment must be b2-chest-trap/
+);
+assert.throws(
+  () => resolveMeasurementOptions({ measurement: "b2-chest-trap", purpose: "test", runs: 999 }),
+  /runs must be an integer >= 1000/
+);
 const earlyB1F = resolveMeasurementOptions({ measurement: "early-b1f-composition", purpose: "test" });
 assert.deepEqual(
   {
@@ -92,7 +111,7 @@ assert.equal(
   "balance-measurement-early-run-attrition-123-attempt"
 );
 
-for (const measurement of ["standard", "early-run-attrition", "survival-policy"]) {
+for (const measurement of ["standard", "early-run-attrition", "b2-chest-trap", "survival-policy"]) {
   const invocation = resolveRunnerInvocation({ measurement, purpose: "smoke" }, "/tmp/router-test");
   assert.equal(invocation.measurement, measurement);
   assert.match(invocation.runner, /scratch\/measurements\//);

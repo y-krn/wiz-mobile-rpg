@@ -39,6 +39,7 @@ function parseArgs(argv) {
 const options = parseArgs(process.argv.slice(2));
 const runs = Number(options.runs || DEFAULT_RUNS);
 const seed = Number(options.seed || DEFAULT_SEED);
+const treatment = options.treatment || "portal-policy";
 const output = options.output;
 const summary = options.summary;
 const manifest = options.manifest;
@@ -63,7 +64,7 @@ const environmentSignature = {
   runnerVersion: RUNNER_VERSION
 };
 printMeasurementEnvSignature(config);
-const result = await runMeasurement(config);
+const result = await runMeasurement({ ...config, treatment });
 const report = buildReport(result, provenance, environmentSignature, {
   purpose: options.purpose || null,
   requestedRef: options.ref || process.env.MEASUREMENT_REQUESTED_REF || null

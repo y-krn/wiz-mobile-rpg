@@ -12,7 +12,7 @@ import {
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { mergeFleeTelemetry, summarizeFleeTelemetry } from "./flee_telemetry.js";
 
-export const RUNNER_VERSION = "early-run-attrition-trajectory-v1";
+export const RUNNER_VERSION = "early-run-attrition-trajectory-v2";
 export const SCHEMA_VERSION = 1;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1277;
@@ -37,6 +37,32 @@ export const TRAJECTORY_POLICIES = Object.freeze({
     portalHpThreshold: null,
     label: "push probe",
     description: "P2 semantics; HP-threshold auto-Return disabled only"
+  })
+});
+export const B2_CHEST_TRAP_POLICIES = Object.freeze({
+  t0: Object.freeze({
+    ...TRAJECTORY_POLICIES.t0,
+    label: "current production",
+    description: "current production; B2 chest-trap Cost applies"
+  }),
+  t1: Object.freeze({
+    ...TRAJECTORY_POLICIES.t0,
+    id: "t1",
+    label: "B2 chest-trap Cost suppressed",
+    description: "diagnostic override suppresses B2 chest-trap HP/status Cost only",
+    chestTrapCostSuppressionFloor: 2
+  })
+});
+export const MEASUREMENT_TREATMENTS = Object.freeze({
+  "portal-policy": Object.freeze({
+    id: "portal-policy",
+    policies: TRAJECTORY_POLICIES,
+    description: "Portal HP-threshold policy comparison"
+  }),
+  "b2-chest-trap": Object.freeze({
+    id: "b2-chest-trap",
+    policies: B2_CHEST_TRAP_POLICIES,
+    description: "matched B2 chest-trap Cost suppression"
   })
 });
 export const MEASUREMENT_RUNNER_PATHS = Object.freeze([
@@ -320,6 +346,11 @@ function compactFloor(
       )),
       itemUsed: countByItem(floorRecovery)
     },
+    loot: {
+      opportunities: floorRewards.length,
+      equipmentOpportunities: floorRewards.filter(event => event.category === "equipment").length,
+      buildOpportunities: floorRewards.filter(event => ["equipment", "rune"].includes(event.category)).length
+    },
     build: {
       meaningfulLootOpportunity: floorRewards.some(event => event.meaningful === true),
       equipmentOpportunity: floorRewards.some(event => event.category === "equipment"),
@@ -349,6 +380,12 @@ export function compactRun(result, { scenarioId, startingKitId, policyId, runInd
   const diagnosticEncounters = Array.isArray(diagnostics.encounters)
     ? diagnostics.encounters
     : null;
+  const chestTrapCostAudit = Array.isArray(result.chestTrapCostAudit)
+    ? result.chestTrapCostAudit.map(event => ({ ...event }))
+    : [];
+  const chestLootEvents = Array.isArray(result.chestLootEvents)
+    ? result.chestLootEvents.map(event => structuredClone(event))
+    : [];
   const floors = Object.fromEntries(TRAJECTORY_FLOORS.map(floor => [floor, compactFloor(
     stages[String(floor)],
     result,
@@ -405,6 +442,9 @@ export function compactRun(result, { scenarioId, startingKitId, policyId, runInd
       chestTrapDamageHp: finalFloorCost.chestTrap,
       poisonStatusDamageHp: finalFloorCost.poisonStatus
     },
+    chestLootEvents,
+    chestTrapCostAudit,
+    b2ChestTrapReceived: chestTrapCostAudit.some(event => Number(event.floor) === 2),
     lastCostEvents: (diagnostics.costEvents || []).slice(-3).map(compactCostEvent),
     floors,
     totalSteps: finite(result.steps),
@@ -521,14 +561,33 @@ function distributionForFloors(records, floor) {
       cumulative: quantiles(rows.map(row => row.cumulativeCostBySource[source]).filter(Number.isFinite))
     }
   ]));
+  const deathCauses = {};
+  rows.filter(row => row.waterfall.died).forEach(row => {
+    const cause = row.terminalCause || "unknown";
+    deathCauses[cause] = (deathCauses[cause] || 0) + 1;
+  });
   return {
     entrants: rows.length,
+    entryHp: values(row => row.entry.hp),
+    exitHp: values(row => row.exit.hp),
     entryHpRatio: values(row => row.entry.hpRatio),
     entryMpRatio: values(row => row.entry.mpRatio),
     exitHpRatio: values(row => row.exit.hpRatio),
     exitMpRatio: values(row => row.exit.mpRatio),
     recoveryRemainingEntry: values(row => row.entry.recoveryRemaining),
     recoveryRemainingExit: values(row => row.exit.recoveryRemaining),
+    recoveryUsed: values(row => Object.values(row.recovery?.itemUsed || {})
+      .reduce((total, amount) => total + amount, 0)),
+    recoveredHp: values(row => row.recovery?.healingHp),
+    combatDamageHp: values(row => row.incrementalCost.combatDamageHp),
+    chestTrapDamageHp: values(row => row.incrementalCost.chestTrapDamageHp),
+    floorTrapDamageHp: values(row => row.incrementalCost.floorTrapDamageHp),
+    poisonStatusDamageHp: values(row => row.incrementalCost.poisonStatusDamageHp),
+    deathCauses,
+    lootOpportunities: sum(rows.map(row => row.loot?.opportunities)),
+    equipmentOpportunities: sum(rows.map(row => row.loot?.equipmentOpportunities)),
+    buildOpportunities: sum(rows.map(row => row.loot?.buildOpportunities)),
+    buildChanges: sum(rows.map(row => row.build?.buildShiftCount)),
     encountersPerFloor: values(row => row.incrementalCost.combatCount),
     stepsPerFloor: values(row => row.incrementalCost.steps),
     incrementalCost: costDistribution,
@@ -549,6 +608,54 @@ function sumFloorCosts(record) {
     });
     return totals;
   }, emptyCosts());
+}
+
+function summarizeLootBuild(records) {
+  const chestEvents = records.reduce((total, record) => total + (record.chestLootEvents?.length || 0), 0);
+  const lootOpportunities = records.reduce((total, record) => total + Object.values(record.floors)
+    .reduce((floorTotal, floor) => floorTotal + (floor?.loot?.opportunities || 0), 0), 0);
+  const equipmentOpportunities = records.reduce((total, record) => total + Object.values(record.floors)
+    .reduce((floorTotal, floor) => floorTotal + (floor?.loot?.equipmentOpportunities || 0), 0), 0);
+  const buildOpportunities = records.reduce((total, record) => total + Object.values(record.floors)
+    .reduce((floorTotal, floor) => floorTotal + (floor?.loot?.buildOpportunities || 0), 0), 0);
+  const buildChanges = records.reduce((total, record) => total + record.build.shiftCount, 0);
+  const endingBuildSnapshots = {};
+  records.forEach(record => {
+    const identity = record.build.ending?.identity || "unknown";
+    endingBuildSnapshots[identity] = (endingBuildSnapshots[identity] || 0) + 1;
+  });
+  return {
+    runs: records.length,
+    chestEvents,
+    lootOpportunities,
+    equipmentOpportunities,
+    buildOpportunities,
+    buildChanges,
+    buildChangeRuns: records.filter(record => record.build.shiftCount > 0).length,
+    endingBuildSnapshots,
+    definitions: {
+      lootOpportunities: "accepted or explicitly left/discarded meaningful reward events",
+      equipmentOpportunities: "reward events with category=equipment",
+      buildOpportunities: "equipment or rune reward events",
+      buildChanges: "production equipmentTelemetry swap events"
+    }
+  };
+}
+
+function summarizeChestTrapCostAudit(records) {
+  const events = records.flatMap(record => record.chestTrapCostAudit || [])
+    .filter(event => Number(event.floor) === 2);
+  return {
+    events: events.length,
+    generatedDamageHp: sum(events.map(event => event.generatedDamageHp)),
+    appliedDamageHp: sum(events.map(event => event.appliedDamageHp)),
+    generatedStatusApplications: sum(events.map(event => event.generatedStatusApplications)),
+    appliedStatusApplications: sum(events.map(event => event.appliedStatusApplications)),
+    suppressedEvents: events.filter(event => event.suppressed).length,
+    allSuppressed: events.length > 0 && events.every(event => event.suppressed),
+    appliedCostZero: events.every(event => event.appliedDamageHp === 0 &&
+      event.appliedStatusApplications === 0)
+  };
 }
 
 export function aggregateCondition(records) {
@@ -581,6 +688,8 @@ export function aggregateCondition(records) {
       floor,
       distributionForFloors(records, floor)
     ])),
+    lootBuild: summarizeLootBuild(records),
+    b2ChestTrapCostAudit: summarizeChestTrapCostAudit(records),
     cumulativeCostBySource: sourceTotals,
     dominantIncrementalCostSource: totalCost > 0
       ? COST_SOURCE_IDS.slice().sort((left, right) => sourceTotals[right] - sourceTotals[left])[0]
@@ -687,11 +796,176 @@ export function buildReturnContinuation(baselineRecords, candidateRecords) {
   };
 }
 
+function reachMetric(records, floor) {
+  const count = records.filter(record => Number(record.reachedFloor) >= floor).length;
+  return { count, rate: rateMetric(count, records.length) };
+}
+
+function summarizeMatchedConversion(joined, label) {
+  const sameTerminal = joined.filter(({ baseline, candidate }) => baseline.outcome === candidate.outcome).length;
+  return {
+    label,
+    runs: joined.length,
+    b3Reach: reachMetric(joined.map(pair => pair.candidate), 3),
+    b4Reach: reachMetric(joined.map(pair => pair.candidate), 4),
+    b5Reach: reachMetric(joined.map(pair => pair.candidate), 5),
+    b6Cutoff: {
+      count: joined.filter(({ candidate }) => candidate.outcome === "syntheticCutoff" &&
+        Number(candidate.reachedFloor) >= MEASUREMENT_CUTOFF_FLOOR).length,
+      rate: rateMetric(joined.filter(({ candidate }) => candidate.outcome === "syntheticCutoff" &&
+        Number(candidate.reachedFloor) >= MEASUREMENT_CUTOFF_FLOOR).length, joined.length)
+    },
+    sameTerminal: { count: sameTerminal, rate: rateMetric(sameTerminal, joined.length) }
+  };
+}
+
+export function buildMatchedConversions(baselineRecords, candidateRecords) {
+  const joined = buildMatchedTrajectory(baselineRecords, candidateRecords);
+  const b2Deaths = joined.filter(({ baseline }) => baseline.floors[2]?.waterfall?.died ||
+    (baseline.outcome === "died" && baseline.terminalFloor === 2));
+  const b3Deaths = joined.filter(({ baseline }) => baseline.floors[3]?.waterfall?.died ||
+    (baseline.outcome === "died" && baseline.terminalFloor === 3));
+  const b2TrapSubset = joined.filter(({ baseline }) => baseline.b2ChestTrapReceived);
+  const b2TrapDeaths = b2TrapSubset.filter(({ baseline }) => baseline.floors[2]?.waterfall?.died ||
+    (baseline.outcome === "died" && baseline.terminalFloor === 2));
+  return {
+    all: summarizeMatchedConversion(joined, "all matched runs"),
+    t0B2DeathToT1: summarizeMatchedConversion(b2Deaths, "T0 B2 death → T1 continuation"),
+    t0B3DeathToT1: summarizeMatchedConversion(b3Deaths, "T0 B3 death → T1 deeper reach"),
+    t0B2ChestTrapSubset: summarizeMatchedConversion(b2TrapSubset, "T0 received a chest trap in B2"),
+    t0B2ChestTrapDeathSubset: summarizeMatchedConversion(b2TrapDeaths, "T0 B2 death after receiving a B2 chest trap"),
+    returnContinuation: buildReturnContinuation(baselineRecords, candidateRecords)
+  };
+}
+
+function comparableChestEvent(event) {
+  return {
+    floor: event.floor,
+    source: event.source,
+    x: event.x,
+    y: event.y,
+    trap: event.trap,
+    action: event.action,
+    generatedItems: event.generatedItems
+  };
+}
+
+function chestIdentity(event) {
+  if (![event.floor, event.x, event.y].every(Number.isInteger) || !event.source) return null;
+  return JSON.stringify([event.floor, event.source, event.x, event.y]);
+}
+
+export function buildMatchedChestComparison(baselineRecords, candidateRecords) {
+  const joined = buildMatchedTrajectory(baselineRecords, candidateRecords);
+  const exogenous = {
+    sharedEvents: 0,
+    mismatches: 0,
+    missingCandidateEvents: 0,
+    placementMismatches: 0,
+    lootMismatches: 0,
+    trapMismatches: 0,
+    actionMismatches: 0,
+    stateMismatches: 0,
+    postTreatmentIdentityComparisons: 0,
+    postTreatmentIdentityMismatches: 0
+  };
+  const endogenous = {
+    sharedEvents: 0,
+    mismatches: 0,
+    placementMismatches: 0,
+    lootMismatches: 0,
+    trapMismatches: 0,
+    actionMismatches: 0
+  };
+  let baselineEventsTotal = 0;
+  let candidateEventsTotal = 0;
+  joined.forEach(({ baseline, candidate }) => {
+    const baselineEvents = baseline.chestLootEvents || [];
+    const candidateEvents = candidate.chestLootEvents || [];
+    baselineEventsTotal += baselineEvents.length;
+    candidateEventsTotal += candidateEvents.length;
+    const candidateByOrdinal = new Map(candidateEvents.map(event => [event.ordinal, event]));
+    const candidateByIdentity = new Map();
+    candidateEvents.forEach(event => {
+      const identity = chestIdentity(event);
+      if (identity) candidateByIdentity.set(identity, [
+        ...(candidateByIdentity.get(identity) || []),
+        event
+      ]);
+    });
+    const treatmentOrdinal = baseline.chestTrapCostAudit
+      ?.filter(event => Number(event.floor) === 2 && Number.isInteger(event.ordinal))
+      .map(event => event.ordinal)
+      .sort((left, right) => left - right)[0] ?? null;
+    const compareEvent = (event, candidateEvent, target) => {
+      const placementEqual = event.floor === candidateEvent.floor &&
+        event.source === candidateEvent.source &&
+        event.x === candidateEvent.x &&
+        event.y === candidateEvent.y;
+      const lootEqual = JSON.stringify(event.generatedItems) === JSON.stringify(candidateEvent.generatedItems);
+      const trapEqual = event.trap === candidateEvent.trap;
+      const actionEqual = event.action === candidateEvent.action;
+      target.sharedEvents++;
+      if (!placementEqual) target.placementMismatches++;
+      if (!lootEqual) target.lootMismatches++;
+      if (!trapEqual) target.trapMismatches++;
+      if (!actionEqual) target.actionMismatches++;
+      if (JSON.stringify(comparableChestEvent(event)) !== JSON.stringify(comparableChestEvent(candidateEvent))) {
+        target.mismatches++;
+      }
+    };
+    baselineEvents.forEach(event => {
+      const isPreTreatment = treatmentOrdinal === null || event.ordinal <= treatmentOrdinal;
+      const target = isPreTreatment ? exogenous : endogenous;
+      const candidateEvent = candidateByOrdinal.get(event.ordinal);
+      if (!candidateEvent) {
+        if (isPreTreatment) target.missingCandidateEvents++;
+        return;
+      }
+      compareEvent(event, candidateEvent, target);
+      if (!isPreTreatment) {
+        const identity = chestIdentity(event);
+        const identityMatches = identity ? candidateByIdentity.get(identity) || [] : [];
+        identityMatches.forEach(identityEvent => {
+          exogenous.postTreatmentIdentityComparisons++;
+          if (event.trap !== identityEvent.trap ||
+            JSON.stringify(event.generatedItems) !== JSON.stringify(identityEvent.generatedItems)) {
+            exogenous.postTreatmentIdentityMismatches++;
+          }
+        });
+      }
+    });
+    const b1Baseline = JSON.stringify(baseline.floors[1] || null);
+    const b1Candidate = JSON.stringify(candidate.floors[1] || null);
+    const b2EntryBaseline = JSON.stringify(baseline.floors[2]?.entry || null);
+    const b2EntryCandidate = JSON.stringify(candidate.floors[2]?.entry || null);
+    exogenous.stateMismatches += Number(b1Baseline !== b1Candidate);
+    exogenous.stateMismatches += Number(b2EntryBaseline !== b2EntryCandidate);
+    if (treatmentOrdinal === null && baselineEvents.length !== candidateEvents.length) {
+      exogenous.missingCandidateEvents += Math.abs(baselineEvents.length - candidateEvents.length);
+    }
+  });
+  const exogenousMismatch = exogenous.mismatches +
+    exogenous.missingCandidateEvents + exogenous.stateMismatches;
+  const totalExogenousMismatch = exogenousMismatch + exogenous.postTreatmentIdentityMismatches;
+  return {
+    matchedRuns: joined.length,
+    baselineEvents: baselineEventsTotal,
+    candidateEvents: candidateEventsTotal,
+    countEqual: baselineEventsTotal === candidateEventsTotal,
+    exogenousMismatch: totalExogenousMismatch,
+    exogenous,
+    endogenous,
+    pass: totalExogenousMismatch === 0,
+    note: "B1/B2-entry and chest events through the first T0 B2 trap are exogenous parity checks; post-treatment chest exposure divergence is reported, not failed"
+  };
+}
+
 function worldSeedFor(seed, runIndex) {
   return `run-difficulty:${seed}:${runIndex}`;
 }
 
-function normalizeOptions({ runs, seed, startingKitIds, scenarioIds, allowSmallRunCount = false } = {}) {
+function normalizeOptions({ runs, seed, startingKitIds, scenarioIds, treatment = "portal-policy", allowSmallRunCount = false } = {}) {
   const minimum = allowSmallRunCount ? 1 : DEFAULT_RUNS;
   const normalizedRuns = integer(runs ?? DEFAULT_RUNS, "runs", minimum);
   const normalizedSeed = integer(seed ?? DEFAULT_SEED, "seed");
@@ -703,11 +977,21 @@ function normalizeOptions({ runs, seed, startingKitIds, scenarioIds, allowSmallR
   if (!scenarios.length || scenarios.some(id => !WORKSHOP_SCENARIO_IDS.includes(id))) {
     throw new Error(`scenarioIds must be drawn from ${WORKSHOP_SCENARIO_IDS.join("|")}`);
   }
-  return { runs: normalizedRuns, seed: normalizedSeed, startingKitIds: kits, scenarioIds: scenarios };
+  if (!Object.hasOwn(MEASUREMENT_TREATMENTS, treatment)) {
+    throw new Error(`treatment must be ${Object.keys(MEASUREMENT_TREATMENTS).join("|")}: ${treatment}`);
+  }
+  return {
+    runs: normalizedRuns,
+    seed: normalizedSeed,
+    startingKitIds: kits,
+    scenarioIds: scenarios,
+    treatment
+  };
 }
 
 export async function runMeasurement(options = {}) {
   const config = normalizeOptions(options);
+  const treatment = MEASUREMENT_TREATMENTS[config.treatment];
   applyStandardSimulationEnv({
     ...STANDARD_BALANCE_CONFIG,
     seed: config.seed,
@@ -730,6 +1014,7 @@ export async function runMeasurement(options = {}) {
         startingKit: startingKitId,
         portalPolicyId: policy.portalPolicyId,
         portalHpThreshold: policy.portalHpThreshold,
+        chestTrapCostSuppressionFloor: policy.chestTrapCostSuppressionFloor ?? null,
         collectEncounterIdentities: true,
         collectStage15Diagnostics: true,
         simDiagnosticLevel: "full"
@@ -755,7 +1040,7 @@ export async function runMeasurement(options = {}) {
     startingKitId: config.startingKitIds[0],
     runIndex: 0
   };
-  for (const policy of Object.values(TRAJECTORY_POLICIES)) {
+  for (const policy of Object.values(treatment.policies)) {
     resetSimulationRandom(config.seed);
     const first = runOne({ ...probe, policy });
     resetSimulationRandom(config.seed);
@@ -772,12 +1057,22 @@ export async function runMeasurement(options = {}) {
   for (const scenarioId of config.scenarioIds) {
     for (const startingKitId of config.startingKitIds) {
       const records = {};
-      for (const policy of Object.values(TRAJECTORY_POLICIES)) {
-        resetSimulationRandom(config.seed);
-        records[policy.id] = [];
-        for (let runIndex = 0; runIndex < config.runs; runIndex++) {
-          records[policy.id].push(runOne({ scenarioId, startingKitId, policy, runIndex }));
-        }
+      const t0Policy = treatment.policies.t0;
+      const t1Policy = treatment.policies.t1;
+      resetSimulationRandom(config.seed);
+      records.t0 = [];
+      for (let runIndex = 0; runIndex < config.runs; runIndex++) {
+        records.t0.push(runOne({ scenarioId, startingKitId, policy: t0Policy, runIndex }));
+      }
+      resetSimulationRandom(config.seed);
+      records.t1 = [];
+      for (let runIndex = 0; runIndex < config.runs; runIndex++) {
+        records.t1.push(runOne({
+          scenarioId,
+          startingKitId,
+          policy: t1Policy,
+          runIndex
+        }));
       }
       const t0 = records.t0;
       const t1 = records.t1;
@@ -785,9 +1080,11 @@ export async function runMeasurement(options = {}) {
         scenarioId,
         startingKitId,
         policies: {
-          t0: { ...TRAJECTORY_POLICIES.t0, aggregate: aggregateCondition(t0), records: t0 },
-          t1: { ...TRAJECTORY_POLICIES.t1, aggregate: aggregateCondition(t1), records: t1 }
+          t0: { ...treatment.policies.t0, aggregate: aggregateCondition(t0), records: t0 },
+          t1: { ...treatment.policies.t1, aggregate: aggregateCondition(t1), records: t1 }
         },
+        matchedConversions: buildMatchedConversions(t0, t1),
+        matchedChestComparison: buildMatchedChestComparison(t0, t1),
         returnContinuation: buildReturnContinuation(t0, t1)
       });
     }
@@ -800,7 +1097,9 @@ export async function runMeasurement(options = {}) {
     measurementCutoff: "B6",
     startingKitIds: config.startingKitIds,
     scenarioIds: config.scenarioIds,
-    policies: Object.values(TRAJECTORY_POLICIES).map(policy => ({ ...policy })),
+    treatment: treatment.id,
+    treatmentDescription: treatment.description,
+    policies: Object.values(treatment.policies).map(policy => ({ ...policy })),
     matchedIdentity: hashConfiguration({
       source: "production-simulateRun",
       seed: config.seed,
@@ -810,7 +1109,8 @@ export async function runMeasurement(options = {}) {
       observedFloors: TRAJECTORY_FLOORS,
       measurementCutoff: MEASUREMENT_CUTOFF_FLOOR,
       worldSeedTemplate: "run-difficulty:{seed}:{runIndex}",
-      policies: Object.values(TRAJECTORY_POLICIES),
+      treatment: treatment.id,
+      policies: Object.values(treatment.policies),
       matchedKey: "runIndex + worldSeed"
     }),
     seedPolicy: "same production worldSeed per runIndex across T0/T1; simulator RNG reset per condition",
@@ -826,7 +1126,8 @@ export async function runMeasurement(options = {}) {
     comparisonKey: hashConfiguration(configuration),
     determinism: {
       pass: Object.values(determinism).every(value => value.pass),
-      byPolicy: determinism
+      byPolicy: determinism,
+      treatment: treatment.id
     },
     cases
   };
@@ -895,7 +1196,9 @@ export function buildSummary(report) {
     "",
     `- source SHA: \`${report.measurement.sourceCommit || "not recorded"}\`; runner: \`${report.measurementRunnerCommit || report.measurement.measurementRunnerCommit || "not recorded"}\`; schema: ${report.runnerVersion || report.measurement.runnerVersion}`,
     `- N=${report.configuration.runs}/condition; seed=${report.configuration.seed}; observed B1–B5; B6 is a synthetic measurement cutoff, never voluntary Return`,
-    "- T0 = current P0 / Portal HP threshold 35%; T1 = P2 push probe / HP-threshold auto-Return disabled only",
+    report.configuration.treatment === "b2-chest-trap"
+      ? "- T0 = current production; T1 = B2 chest-trap HP/status Cost suppressed at application boundary only"
+      : "- T0 = current P0 / Portal HP threshold 35%; T1 = P2 push probe / HP-threshold auto-Return disabled only",
     `- matched identity: \`${report.configuration.matchedIdentity}\`; key = \`(runIndex, worldSeed)\``,
     `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}`,
     "",
@@ -919,18 +1222,47 @@ export function buildSummary(report) {
           `| ${testCase.scenarioId} / ${testCase.startingKitId} / T0 Return → T1 | cohort | ${continuation.runs} | reach B4 ${continuation.reach.b4}; B5 ${continuation.reach.b5}; B6 ${continuation.reach.b6} | same-floor death ${continuation.terminal.sameFloorDeath} | +1 floor death ${continuation.terminal.oneFloorDeath} | +2 floors death ${continuation.terminal.twoPlusFloorDeath}; other ${continuation.terminal.otherTerminal} |`
         );
       }
+      if (report.configuration.treatment === "b2-chest-trap" && policy.id === "t1") {
+        const t0 = testCase.policies.t0.aggregate;
+        const t1 = testCase.policies.t1.aggregate;
+        const t1Audit = t1.b2ChestTrapCostAudit;
+        const conversions = testCase.matchedConversions;
+        lines.push(
+          "",
+          `### ${testCase.scenarioId} / ${testCase.startingKitId} — B2 attrition and matched conversion`,
+          "",
+          `- T0 B2 HP p50: entry ${fmt(t0.distributions[2].entryHp.p50)} → exit ${fmt(t0.distributions[2].exitHp.p50)}; T1: entry ${fmt(t1.distributions[2].entryHp.p50)} → exit ${fmt(t1.distributions[2].exitHp.p50)}`,
+          `- T0 B2 recovery p50: entry ${fmt(t0.distributions[2].recoveryRemainingEntry.p50)} → exit ${fmt(t0.distributions[2].recoveryRemainingExit.p50)}; T1: entry ${fmt(t1.distributions[2].recoveryRemainingEntry.p50)} → exit ${fmt(t1.distributions[2].recoveryRemainingExit.p50)}`,
+          `- B2 damage p50 T0/T1: combat ${fmt(t0.distributions[2].combatDamageHp.p50)}/${fmt(t1.distributions[2].combatDamageHp.p50)}, chest trap ${fmt(t0.distributions[2].chestTrapDamageHp.p50)}/${fmt(t1.distributions[2].chestTrapDamageHp.p50)}, floor trap ${fmt(t0.distributions[2].floorTrapDamageHp.p50)}/${fmt(t1.distributions[2].floorTrapDamageHp.p50)}, poison/status ${fmt(t0.distributions[2].poisonStatusDamageHp.p50)}/${fmt(t1.distributions[2].poisonStatusDamageHp.p50)}`,
+          `- T1 B2 chest-trap Cost audit: events ${t1Audit.events}; applied HP ${fmt(t1Audit.appliedDamageHp)}; applied status ${fmt(t1Audit.appliedStatusApplications)}; measured zero=${t1Audit.appliedCostZero ? "yes" : "no"}; observed trap events=${t1Audit.events > 0 ? "yes" : "no"}`,
+          `- B2 death causes T0/T1: ${JSON.stringify(t0.distributions[2].deathCauses)}/${JSON.stringify(t1.distributions[2].deathCauses)}`,
+          `- Matched T0 B2 death → T1 reach: B3 ${conversions.t0B2DeathToT1.b3Reach.count}/${conversions.t0B2DeathToT1.runs}, B4 ${conversions.t0B2DeathToT1.b4Reach.count}/${conversions.t0B2DeathToT1.runs}, B5 ${conversions.t0B2DeathToT1.b5Reach.count}/${conversions.t0B2DeathToT1.runs}, B6 cutoff ${conversions.t0B2DeathToT1.b6Cutoff.count}/${conversions.t0B2DeathToT1.runs}`,
+          `- Matched T0 B3 death → T1 deeper: B4 ${conversions.t0B3DeathToT1.b4Reach.count}/${conversions.t0B3DeathToT1.runs}; T0 Return → T1 continuation rows ${conversions.returnContinuation.runs}; same terminal ${conversions.all.sameTerminal.count}/${conversions.all.runs}`,
+          `- T0 B2 chest-trap received subset: ${conversions.t0B2ChestTrapSubset.runs} runs; B5 reach ${conversions.t0B2ChestTrapSubset.b5Reach.count}/${conversions.t0B2ChestTrapSubset.runs}; T0 B2 death subset ${conversions.t0B2ChestTrapDeathSubset.runs} runs`,
+          `- Exogenous/world parity: ${testCase.matchedChestComparison.pass ? "PASS" : "FAIL"}; B1/B2-entry state mismatches=${testCase.matchedChestComparison.exogenous.stateMismatches}; pre-treatment chest shared=${testCase.matchedChestComparison.exogenous.sharedEvents}; mismatches=${testCase.matchedChestComparison.exogenous.mismatches}; missing=${testCase.matchedChestComparison.exogenous.missingCandidateEvents}`,
+          `- Endogenous/post-treatment chest exposure divergence (expected/allowed): T0/T1 chest events=${testCase.matchedChestComparison.baselineEvents}/${testCase.matchedChestComparison.candidateEvents}; shared=${testCase.matchedChestComparison.endogenous.sharedEvents}; mismatches=${testCase.matchedChestComparison.endogenous.mismatches} (placement ${testCase.matchedChestComparison.endogenous.placementMismatches}, loot ${testCase.matchedChestComparison.endogenous.lootMismatches}, trap ${testCase.matchedChestComparison.endogenous.trapMismatches}, action ${testCase.matchedChestComparison.endogenous.actionMismatches}); same-identity trap/loot mismatches=${testCase.matchedChestComparison.exogenous.postTreatmentIdentityMismatches}/${testCase.matchedChestComparison.exogenous.postTreatmentIdentityComparisons}`,
+          `- Loot/build T0: chests ${t0.lootBuild.chestEvents}, loot ${t0.lootBuild.lootOpportunities}, equipment ${t0.lootBuild.equipmentOpportunities}, build ${t0.lootBuild.buildOpportunities}, shifts ${t0.lootBuild.buildChanges}; T1: chests ${t1.lootBuild.chestEvents}, loot ${t1.lootBuild.lootOpportunities}, equipment ${t1.lootBuild.equipmentOpportunities}, build ${t1.lootBuild.buildOpportunities}, shifts ${t1.lootBuild.buildChanges}`,
+          `- Ending Build Snapshot identities T0/T1: ${Object.keys(t0.lootBuild.endingBuildSnapshots).length}/${Object.keys(t1.lootBuild.endingBuildSnapshots).length}`
+        );
+      }
     });
   });
   lines.push(
     "",
     "## Interpretation boundary",
     "",
+    report.configuration.treatment === "b2-chest-trap"
+      ? "- 暫定解釈: A（B2 chest trap dominant）〜E（Instrumentation-limited）を人手判定。固定閾値による自動判定なし。chest matched comparison が FAIL の場合、E寄りとしてB3以降の因果解釈を保留。"
+      : "- Interpretation: human review of measured evidence; no automatic balance classification.",
+    report.configuration.treatment === "b2-chest-trap"
+      ? "- 判定軸: A=罠抑制でB2/B3+改善、B=combat等との混合、C=B2局所、D=差小、E=RNG divergence/識別不足。"
+      : null,
     "- This is production-path diagnostic evidence, not balance tuning or a player-facing difficulty tier.",
     "- `combat`, `guardianBoss`, `floorTrap`, `chestTrap`, and `poisonStatus` are grouped only from emitted production cost events. Flee/parting and inseparable in-combat status damage remain unobserved rather than zero.",
     "- No raw combat log is persisted; each run keeps floor state, aggregate costs, terminal state, build snapshots, and at most the last three compact cost events.",
     "- T1 is a matched causal probe and is not a production recommendation."
   );
-  return lines.join("\n");
+  return lines.filter(line => line !== null).join("\n");
 }
 
 export function buildManifest(report, { runType = "diagnostic" } = {}) {

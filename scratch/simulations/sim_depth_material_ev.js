@@ -4688,6 +4688,9 @@ function createSimulationState(
       trapGuardOverride: scenario.trapGuardOverride || null,
       trapPolicy: trapPolicies.floor,
       chestTrapPolicy: trapPolicies.chest,
+      chestTrapCostSuppressionFloor: Number.isInteger(Number(scenario.chestTrapCostSuppressionFloor))
+        ? Number(scenario.chestTrapCostSuppressionFloor)
+        : null,
       floorTrapDetection: scenario.floorTrapDetection || "source",
       trapOverride: scenario.trapOverride || null,
       trapBonusValueOverride: scenario.trapBonusValueOverride || null,
@@ -9075,6 +9078,24 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
   effect.targetDamage = guardedEffect.targetDamage;
   effect.partyDamage = guardedEffect.partyDamage;
   recordTrapActivation(metrics, "chest", trap);
+  const suppressCost = state.simPolicy.chestTrapCostSuppressionFloor === state.floor;
+  const costAudit = {
+    ordinal: metrics.chestsOpened,
+    floor: state.floor,
+    trap,
+    weakened: Boolean(weakened),
+    suppressed: suppressCost,
+    generatedDamageHp: trap === "poison needle"
+      ? effect.targetDamage
+      : (effect.partyDamage || []).reduce((total, damage) => total + damage, 0),
+    appliedDamageHp: 0,
+    generatedStatusApplications: trap === "poison needle"
+      ? Number(effect.targetPoisonTriggered && !effect.targetPoisonResisted)
+      : trap === "flash bomb"
+        ? effect.partyBlind.filter(Boolean).length
+        : 0,
+    appliedStatusApplications: 0
+  };
 
   if (trap === "flash bomb") {
     metrics.chestFlashTrapActivationsByBlindStatus[blindStatus]++;
@@ -9091,51 +9112,62 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
 
   if (trap === "poison needle") {
     const hpBefore = character.hp;
-    character.hp = Math.max(0, character.hp - effect.targetDamage);
-    clearCharIncapacitationOnDamage(character);
-    if (character.hp === 0) {
-      character.status = "dead";
-    } else if (effect.targetPoisonTriggered && !effect.targetPoisonResisted) {
-      const poisonConfig = getSimulationExplorationPoisonConfig();
-      applyStatusEffect(character, STATUS_EFFECT_IDS.POISONED, {
-        remainingTurns: poisonConfig.durationSteps,
-        source: "chest"
-      });
-      recordStatusObservationApplication(metrics.statusObservations, "poisoned", "chest");
+    if (!suppressCost) {
+      character.hp = Math.max(0, character.hp - effect.targetDamage);
+      clearCharIncapacitationOnDamage(character);
+      if (character.hp === 0) {
+        character.status = "dead";
+      } else if (effect.targetPoisonTriggered && !effect.targetPoisonResisted) {
+        const poisonConfig = getSimulationExplorationPoisonConfig();
+        applyStatusEffect(character, STATUS_EFFECT_IDS.POISONED, {
+          remainingTurns: poisonConfig.durationSteps,
+          source: "chest"
+        });
+        costAudit.appliedStatusApplications++;
+        recordStatusObservationApplication(metrics.statusObservations, "poisoned", "chest");
+      }
+      costAudit.appliedDamageHp = effect.targetDamage;
     }
-    recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor, state, {
-      hpBefore,
-      hpAfter: character.hp,
-      maxHp: getCharMaxHp(character)
-    });
-    metrics.chestTrapDamageHpByBlindStatus[blindStatus] += effect.targetDamage;
+    if (!suppressCost) {
+      recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor, state, {
+        hpBefore,
+        hpAfter: character.hp,
+        maxHp: getCharMaxHp(character)
+      });
+      metrics.chestTrapDamageHpByBlindStatus[blindStatus] += effect.targetDamage;
+    }
   } else if (trap === "gas bomb") {
     effect.partyDamage.forEach((damage, index) => {
       const target = state.party[index];
       if (damage <= 0) return;
       const hpBefore = target.hp;
-      target.hp = Math.max(0, target.hp - damage);
-      clearCharIncapacitationOnDamage(target);
-      if (target.hp === 0) target.status = "dead";
-      recordTrapDamage(metrics, "chest", trap, damage, state.floor, state, {
-        hpBefore,
-        hpAfter: target.hp,
-        maxHp: getCharMaxHp(target)
-      });
-      metrics.chestTrapDamageHpByBlindStatus[blindStatus] += damage;
+      if (!suppressCost) {
+        target.hp = Math.max(0, target.hp - damage);
+        clearCharIncapacitationOnDamage(target);
+        if (target.hp === 0) target.status = "dead";
+        costAudit.appliedDamageHp += damage;
+        recordTrapDamage(metrics, "chest", trap, damage, state.floor, state, {
+          hpBefore,
+          hpAfter: target.hp,
+          maxHp: getCharMaxHp(target)
+        });
+        metrics.chestTrapDamageHpByBlindStatus[blindStatus] += damage;
+      }
     });
   } else if (trap === "teleporter") {
     metrics.trapTeleports += Number(effect.teleported);
   } else if (trap === "flash bomb") {
     effect.partyBlind.forEach((blinded, index) => {
-      if (blinded) {
+      if (blinded && !suppressCost) {
         state.party[index].status = "blind";
+        costAudit.appliedStatusApplications++;
         recordStatusObservationApplication(metrics.statusObservations, "blind", "chest");
         recordBlindApplications(metrics, "chest", 1);
       }
     });
   }
 
+  if (metrics.chestTrapCostAudit) metrics.chestTrapCostAudit.push(costAudit);
   useTrapRecoveryIfNeeded(state, metrics);
   return effect;
 }
@@ -12567,6 +12599,7 @@ function rollChestItems(
   }
   return {
     items,
+    trap,
     lethal: trapResult.lethal === true,
     mainItem: mainRewardItem,
     mainItemIndex: itemIndices.main ?? -1,
@@ -12592,6 +12625,37 @@ function chestRewardRole(chestItems, itemIndex) {
   if (itemIndex === chestItems.extraHealPotionIndex) return "extraHealPotion";
   if (itemIndex === chestItems.extraItemIndex) return "extra";
   return null;
+}
+
+function compactChestLootItem(item) {
+  if (typeof item === "string") return { id: item, type: null, rarity: null, affixes: [] };
+  return {
+    id: item?.baseId || item?.id || null,
+    type: item?.type || null,
+    rarity: item?.rarity || null,
+    curseEffectId: item?.curseEffectId || null,
+    affixes: Array.isArray(item?.affixes)
+      ? item.affixes.map(affix => ({
+          id: affix.id || affix.type || null,
+          value: affix.value ?? null
+        }))
+      : []
+  };
+}
+
+function recordChestLootEvent(metrics, state, floor, source, chestItems) {
+  if (!metrics?.chestLootEvents) return;
+  metrics.chestLootEvents.push({
+    ordinal: metrics.chestsOpened,
+    floor,
+    source,
+    x: Number.isInteger(state.x) ? state.x : null,
+    y: Number.isInteger(state.y) ? state.y : null,
+    trap: chestItems.trap || "none",
+    action: chestItems.trapAction || null,
+    generatedItems: chestItems.items.map(compactChestLootItem),
+    lostRewardRoles: [...(chestItems.lostRewardRoles || [])]
+  });
 }
 
 function resolveSimulationChest({
@@ -12628,6 +12692,7 @@ function resolveSimulationChest({
       chestSource: source
     }
   );
+  recordChestLootEvent(metrics, state, floor, source, chestItems);
   if (chestItems.lethal) {
     // Match src/chest.js: a lethal trap ends the chest transition before any
     // material, reward, or equipment telemetry is recorded.
@@ -13904,6 +13969,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     reserveMpViolations: metrics.reserveMpViolations,
     trapPolicy: state.simPolicy.trapPolicy,
     chestTrapPolicy: state.simPolicy.chestTrapPolicy,
+    chestTrapCostSuppressionFloor: state.simPolicy.chestTrapCostSuppressionFloor,
     floorTrapDetection: state.simPolicy.floorTrapDetection,
     trapActivations: metrics.trapActivations,
     trapActivationsBySource: { ...metrics.trapActivationsBySource },
@@ -13970,6 +14036,8 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     trapResolutionObservations: metrics.trapResolutionObservations.map(observation => ({
       ...observation
     })),
+    chestTrapCostAudit: metrics.chestTrapCostAudit.map(event => ({ ...event })),
+    chestLootEvents: metrics.chestLootEvents.map(event => structuredClone(event)),
     trapPlanEvaluations: metrics.trapPlanEvaluations,
     trapPlanActionCounts: { ...metrics.trapPlanActionCounts },
     trapActivationCauses: { ...metrics.trapActivationCauses },
@@ -14528,6 +14596,8 @@ export function simulateRun({
     trapResolutionCounts: { observed: 0, disarmed: 0, avoided: 0, triggered: 0 },
     trapResolutionObservations: [],
     trapResolutionKeys: new Set(),
+    chestTrapCostAudit: [],
+    chestLootEvents: [],
     trapPlanEvaluations: 0,
     trapPlanActionCounts: {},
     trapActivationCauses: {
@@ -15138,6 +15208,7 @@ export function simulateRun({
             futureChestCount: Math.max(0, pickedUpChests - chest - 1)
           }
         );
+        recordChestLootEvent(metrics, state, floor, "ordinary", chestItems);
         if (chestItems.lethal) {
           // Match src/chest.js: a lethal trap ends the chest transition before
           // any material, reward, or equipment telemetry is recorded.
