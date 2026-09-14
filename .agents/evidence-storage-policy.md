@@ -38,6 +38,11 @@ debug run. Long-term storage is reserved for explicitly approved canonical
 baselines. Existing measurement workflows retain their current explicit values;
 changing those uploads is outside this Issue.
 
+Policy changes and evidence changes must be separate pull requests. Existing
+grandfathered modes and size ceilings cannot be relaxed by a policy edit. The
+policy, schema, and checker are CODEOWNERS-protected and require maintainer
+review.
+
 Provenance should include runner path and version, source and base SHA, seed or
 configuration, determinism status, content hash, and retention. Secrets,
 tokens, and personal information must never be included. Artifact upload

@@ -88,7 +88,7 @@ function createRepo(extraExceptions = []) {
 }
 
 function check(repo, headRef = repo.policyHead) {
-  return checkEvidenceStorage({ root: repo.root, baseRef: repo.baseCommit, headRef });
+  return checkEvidenceStorage({ root: repo.root, baseRef: repo.policyHead, headRef });
 }
 
 function assertFail(result, text) {
@@ -102,7 +102,7 @@ try {
     const repo = createRepo();
     repos.push(repo);
     assert.equal(check(repo).ok, true, "current baseline passes");
-    assert.equal(checkEvidenceStorage({ root: repo.root, baseRef: repo.baseCommit, headRef: repo.policyHead }).changedPaths, 0);
+    assert.equal(checkEvidenceStorage({ root: repo.root, baseRef: repo.policyHead, headRef: repo.policyHead }).changedPaths, 0);
   }
 
   {
@@ -116,10 +116,50 @@ try {
   {
     const repo = createRepo();
     repos.push(repo);
+    const relaxed = policyFor(repo.baseTree, repo.baseBlob, [
+      exception("evidence/results/new-raw.json", "raw-generated-json", "allow-new", LIMIT + 1),
+    ]);
+    write(repo.root, POLICY_PATH, JSON.stringify(relaxed));
+    write(repo.root, "evidence/results/new-raw.json", "x".repeat(LIMIT + 1));
+    const head = commit(repo.root, "try to relax policy with evidence addition");
+    const result = checkEvidenceStorage({ root: repo.root, baseRef: repo.baseCommit, headRef: head });
+    assertFail(result, "policy and evidence changes must be separate");
+  }
+
+  {
+    const repo = createRepo();
+    repos.push(repo);
     assert.equal(check(repo).ok, true, "grandfathered unchanged large JSON passes");
     write(repo.root, "evidence/results/legacy.json", "x".repeat(LIMIT + 129));
     const head = commit(repo.root, "grow grandfathered output");
     assertFail(check(repo, head), "grandfathered size exceeds ceiling");
+  }
+
+  {
+    const repo = createRepo();
+    repos.push(repo);
+    const relaxed = policyFor(repo.baseTree, repo.baseBlob);
+    relaxed.exceptions[0].maximumSize += 1;
+    write(repo.root, POLICY_PATH, JSON.stringify(relaxed));
+    const head = commit(repo.root, "try to increase grandfather ceiling");
+    const result = checkEvidenceStorage({ root: repo.root, baseRef: repo.policyHead, headRef: head });
+    assertFail(result, "exception size ceiling increase is not allowed");
+  }
+
+  {
+    const repo = createRepo();
+    repos.push(repo);
+    write(repo.root, "unrelated.txt", "main advanced\n");
+    const advancedBase = commit(repo.root, "advance main outside evidence");
+    assert.equal(checkEvidenceStorage({ root: repo.root, baseRef: advancedBase, headRef: repo.policyHead }).ok, true, "unrelated main commit does not invalidate evidence tree baseline");
+  }
+
+  {
+    const workflow = fs.readFileSync(path.resolve(".github/workflows/test.yml"), "utf8");
+    assert.match(workflow, /github\.event\.pull_request\.base\.sha/);
+    assert.match(workflow, /github\.event\.before/);
+    assert.match(workflow, /github\.event\.merge_group\.base_sha/);
+    assert.match(workflow, /EVIDENCE_HEAD_SHA: \$\{\{ github\.sha \}\}/);
   }
 
   {
@@ -203,7 +243,7 @@ try {
     const first = commit(repo.root, "add small raw output");
     write(repo.root, "evidence/results/multi-commit.json", "x".repeat(LIMIT + 1));
     const second = commit(repo.root, "grow raw output in second commit");
-    const result = checkEvidenceStorage({ root: repo.root, baseRef: repo.baseCommit, headRef: second });
+    const result = checkEvidenceStorage({ root: repo.root, baseRef: repo.policyHead, headRef: second });
     assertFail(result, "raw/generated JSON exceeds");
     assert.notEqual(first, second, "multiple commits create distinct head");
   }

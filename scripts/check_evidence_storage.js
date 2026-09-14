@@ -21,7 +21,7 @@ function repoPath(filePath, root = ROOT) {
 }
 
 function runGit(root, args) {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8" });
+  return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
 function resolveCommit(root, ref) {
@@ -30,6 +30,15 @@ function resolveCommit(root, ref) {
 
 function resolveEvidenceTree(root, commit) {
   return runGit(root, ["rev-parse", "--verify", `${commit}:evidence`]).trim();
+}
+
+function readPolicyAtCommit(root, commit, policyPath) {
+  try {
+    return JSON.parse(runGit(root, ["show", `${commit}:${policyPath}`]));
+  } catch (error) {
+    if (error.status === 128 && /does not exist|exists on disk, but not in/.test(String(error.stderr || ""))) return null;
+    throw error;
+  }
 }
 
 function readTree(root, ref) {
@@ -76,6 +85,16 @@ function readChangedPaths(root, baseCommit, headCommit) {
   }
 
   return changes;
+}
+
+function hasPathChange(root, baseCommit, headCommit, filePath) {
+  try {
+    runGit(root, ["diff", "--quiet", "--no-renames", baseCommit, headCommit, "--", filePath]);
+    return false;
+  } catch (error) {
+    if (error.status === 1) return true;
+    throw error;
+  }
 }
 
 function isNonEmptyString(value) {
@@ -188,6 +207,10 @@ function diagnosticFor(filePath, size, reason, baseCommit, baseEntry, headCommit
   return `path=${filePath} size=${size ?? "-"} reason=${reason} base=${identity(baseCommit, baseEntry)} head=${identity(headCommit, headEntry)}`;
 }
 
+function policyDiagnostic(policyPath, reason, baseCommit, headCommit) {
+  return `path=${policyPath} size=- reason=${reason} base=commit:${baseCommit}:blob:-:size:- head=commit:${headCommit}:blob:-:size:-`;
+}
+
 function findException(policy, filePath) {
   return policy.exceptions.find(exception => exception.path === filePath);
 }
@@ -202,6 +225,55 @@ function checkGrandfatheredBase(exception, baseCommit, baseEvidenceTree, baseEnt
   if (exception.base.blob !== baseEntry.blob) return `grandfather base blob mismatch (policy=${exception.base.blob})`;
   if (exception.base.size !== baseEntry.size) return `grandfather base size mismatch (policy=${exception.base.size})`;
   return null;
+}
+
+function checkPolicyEvolution({ root, baseCommit, headCommit, policyPath, headPolicy, baseTree, headTree, changedEvidence }) {
+  const diagnostics = [];
+  let basePolicy;
+  try {
+    basePolicy = readPolicyAtCommit(root, baseCommit, policyPath);
+  } catch (error) {
+    diagnostics.push(policyDiagnostic(policyPath, `unable to read base policy: ${error.message}`, baseCommit, headCommit));
+    return diagnostics;
+  }
+
+  const policyChanged = hasPathChange(root, baseCommit, headCommit, policyPath);
+  if (policyChanged && changedEvidence > 0) {
+    diagnostics.push(policyDiagnostic(policyPath, "policy and evidence changes must be separate; this prevents same-PR policy relaxation", baseCommit, headCommit));
+  }
+  if (!basePolicy || !policyChanged) return diagnostics;
+
+  const baseValidation = validatePolicy(basePolicy, `${policyPath}@base`);
+  if (baseValidation.length > 0) {
+    diagnostics.push(...baseValidation.map(message => policyDiagnostic(policyPath, `base policy invalid: ${message}`, baseCommit, headCommit)));
+    return diagnostics;
+  }
+
+  const baseExceptions = new Map(basePolicy.exceptions.map(exception => [exception.path, exception]));
+  const headExceptions = new Map(headPolicy.exceptions.map(exception => [exception.path, exception]));
+  for (const [filePath, baseException] of baseExceptions) {
+    const headException = headExceptions.get(filePath);
+    if (!headException) continue;
+    if (baseException.mode === "grandfathered" && headException.mode !== "grandfathered") {
+      diagnostics.push(policyDiagnostic(policyPath, `grandfathered exception mode relaxation is not allowed for ${filePath}`, baseCommit, headCommit));
+    }
+    if (headException.maximumSize > baseException.maximumSize) {
+      diagnostics.push(policyDiagnostic(policyPath, `exception size ceiling increase is not allowed for ${filePath}`, baseCommit, headCommit));
+    }
+  }
+
+  // Keep an unchanged large blob protected even if a policy-only change removes
+  // its exception. Tree metadata is sufficient; no large blob is read.
+  for (const headEntry of headTree.values()) {
+    const rule = findRule(headPolicy, headEntry.path);
+    if (rule?.classification !== "raw-generated-json" || headEntry.size <= headPolicy.newTrackedRawGeneratedJsonMaxBytes) continue;
+    const exception = headExceptions.get(headEntry.path);
+    if (!exception) {
+      diagnostics.push(diagnosticFor(headEntry.path, headEntry.size, "large raw/generated JSON has no grandfather or exact exception", baseCommit, baseTree.get(headEntry.path), headCommit, headEntry));
+    }
+  }
+
+  return diagnostics;
 }
 
 export function checkEvidenceStorage({
@@ -240,6 +312,16 @@ export function checkEvidenceStorage({
 
   const diagnostics = [];
   const exceptions = loaded.policy.exceptions;
+  diagnostics.push(...checkPolicyEvolution({
+    root,
+    baseCommit,
+    headCommit,
+    policyPath,
+    headPolicy: loaded.policy,
+    baseTree,
+    headTree,
+    changedEvidence: changes.size,
+  }));
   for (const exception of exceptions.filter(item => item.mode === "grandfathered")) {
     const mismatch = checkGrandfatheredBase(exception, baseCommit, baseEvidenceTree, baseTree.get(exception.path), explicitBase);
     if (mismatch) {
