@@ -260,6 +260,9 @@ clean clone 相当の比較は local git clone --no-local で実測した。ネ�
 
 ## Validation
 
-- npm run lint:tests: pending at authoring time; run before commit
-- focused dependency checks: referenced protocol/fixture tests and direct reads were inspected
+- npm run lint:tests — PASS
+- npm run lint:markdown — PASS
+- npm run lint:docs — PASS
+- focused protocol / #990 / #793 tests — PASS
+- git diff --check — PASS
 - design canon impact: unaffected。storage/provenance audit onlyで、gameplay、balance、renderer、test behavior を変更していない。
