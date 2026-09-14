@@ -22,8 +22,9 @@ apply.
 
 - Keep one owning session and one task worktree per Issue. Before editing or
   verifying, confirm `git status --short --branch`, the current branch, the
-  repository root, and `git rev-parse HEAD`. Never repurpose a managed worktree
-  for another Issue or silently switch to `main`.
+  repository root, and `git rev-parse HEAD`; use `npm run check:repo` when
+  available. Never repurpose a managed worktree for another Issue or silently
+  switch to `main`.
 - Prefer direct execution by the owning session. Use subagents only for bounded,
   independent read-heavy exploration or review; do not duplicate a reviewer or
   restart the same full workflow after a timeout.
