@@ -14,8 +14,14 @@ test("builds safe search command with generated output excluded", () => {
   const command = buildCommand(parseArgs(["search", "needle", "src"]));
   assert.equal(command.command, "rg");
   assert.ok(command.args.includes("--no-such-option") === false);
+  assert.ok(command.args.includes("--fixed-strings"));
   assert.deepEqual(command.args.slice(-2), ["needle", "src"]);
   assert.ok(command.args.includes("!dist/**"));
+});
+
+test("requires an explicit opt-in for regular expressions", () => {
+  const command = buildCommand(parseArgs(["search", "foo.*bar", "--regex"]));
+  assert.equal(command.args.includes("--fixed-strings"), false);
 });
 
 test("diff defaults to stat and patch is explicitly bounded by line output", () => {
