@@ -13,9 +13,12 @@ Apply `AGENTS.md` first and use `qa-regression.md` to select the checks.
 
 - Define the changed scope, pass condition, smallest sufficient command, retry
   budget, and elapsed-time limit.
-- Confirm the current worktree, repository root, `HEAD`, package scripts, and
-  required local tools once. If the repository, dependency, browser, or base
-  preflight fails, stop and resolve that failure before repeating the check.
+- From the repository root, confirm the current worktree, branch, `HEAD`,
+  package scripts, and required local tools once. For browser checks, run the
+  existing `npm run test:browser:preflight` once per unchanged environment;
+  this reuses the repository dependency and Playwright preflight scripts. If
+  the repository, dependency, browser, or base preflight fails, stop and
+  resolve that failure before repeating the check.
 - Prefer targeted checks while editing. Run the full local suite once after the
   change is stable and before final handoff.
 
@@ -23,6 +26,9 @@ Apply `AGENTS.md` first and use `qa-regression.md` to select the checks.
 
 - Repeat an identical command only when the input changed, a transient cause is
   established, or the retry budget still permits it.
+- Do not invoke a browser test before a successful browser preflight. Do not
+  rerun preflight before every test unless the dependency tree, port, browser,
+  or worktree state changed.
 - Poll CI with an explicit maximum attempt count and elapsed-time limit. A
   pending check is not a failure. When the limit is reached, record the current
   status and stop.
