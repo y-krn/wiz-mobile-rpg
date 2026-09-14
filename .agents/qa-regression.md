@@ -145,6 +145,18 @@ the investigation to `diagnosing-bugs`, then return the regression decision to
 this checklist. Pure unit-test or data-only reviews do not need browser
 automation.
 
+### Browser verification stages
+
+- Run browser preflight once before the first browser check and reuse its result
+  while dependencies, ports, browser binaries, and worktree state are unchanged.
+- During implementation, run one relevant smoke or targeted scenario. Add an
+  `@e2e` or `@visual` scenario only when the changed behavior requires it.
+- Run the full browser suite once at the final local gate, after the change is
+  stable. Do not run smoke, e2e, visual, and full suites after every edit.
+- Repeat an identical browser command only after a code, test, configuration,
+  environment, or explicitly classified transient change. A preflight failure
+  stops browser retries; it is not evidence of a product regression.
+
 ## Verification cadence
 
 Use the smallest sufficient deterministic verification at each stage.
