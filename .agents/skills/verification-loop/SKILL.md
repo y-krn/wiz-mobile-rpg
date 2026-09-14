@@ -14,7 +14,9 @@ Apply `AGENTS.md` first and use `qa-regression.md` to select the checks.
 - Define the changed scope, pass condition, smallest sufficient command, retry
   budget, and elapsed-time limit.
 - From the repository root, confirm the current worktree, branch, `HEAD`,
-  package scripts, and required local tools once. For browser checks, run the
+  package scripts, and required local tools once. Prefer `npm run check:repo`
+  for repository identity and root validation; it does not require a clean
+  worktree or a particular branch. For browser checks, run the
   existing `npm run test:browser:preflight` once per unchanged environment;
   this reuses the repository dependency and Playwright preflight scripts. If
   the repository, dependency, browser, or base preflight fails, stop and
