@@ -36,6 +36,13 @@ apply.
   failure before repeating implementation or verification.
 - Treat a changed base, `HEAD`, or PR diff as a new evidence target. Recheck the
   applicable review and CI requirements instead of reusing stale results.
+- Bound context growth. For commands that may emit more than a short result,
+  filter or summarize in place and retain only actionable lines in the owning
+  session; do not paste raw logs or repeat unchanged output. Split independent
+  investigations only at an evidence boundary, and hand off with the objective,
+  current `HEAD`, inspected files, commands and checks run, findings, unresolved
+  items, and the next action. Do not rerun completed work unless the evidence
+  target changed.
 
 ## Durable contract
 
