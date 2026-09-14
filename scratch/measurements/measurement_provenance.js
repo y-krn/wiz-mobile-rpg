@@ -21,7 +21,7 @@ function gitOutput(args, cwd) {
 function gitDiffSha256(baseCommit, runnerCommit, cwd, paths = []) {
   try {
     const diff = execFileSync("git", [
-      "diff", "--binary", baseCommit, runnerCommit, "--", ...paths
+      "diff", "--binary", "--full-index", baseCommit, runnerCommit, "--", ...paths
     ], {
       cwd,
       encoding: null,
@@ -32,7 +32,7 @@ function gitDiffSha256(baseCommit, runnerCommit, cwd, paths = []) {
   } catch (error) {
     const detail = String(error.stderr || "").trim();
     throw new Error(
-      `measurement provenance failed: git diff --binary ${baseCommit} ${runnerCommit}: ` +
+      `measurement provenance failed: git diff --binary --full-index ${baseCommit} ${runnerCommit}: ` +
       `${detail || error.message}`
     );
   }
