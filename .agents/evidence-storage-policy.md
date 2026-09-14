@@ -24,8 +24,8 @@ The executable policy is [`evidence-storage-policy.json`](evidence-storage-polic
   it requires exact path, owner, rationale, review/expiry data, and a size
   ceiling.
 
-Grandfathered large JSON records require exact path, base tree SHA, base blob
-SHA, base size, maximum size, owner, rationale, and review/expiry data. The
+Grandfathered large JSON records require exact path, base evidence-tree SHA,
+base blob SHA, base size, maximum size, owner, rationale, and review/expiry data. The
 content must retain the base blob identity and must not exceed its ceiling.
 Changes to or deletion of tracked evidence fail.
 

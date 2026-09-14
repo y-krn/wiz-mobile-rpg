@@ -76,18 +76,19 @@ function createRepo(extraExceptions = []) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-policy-"));
   git(root, ["init", "--initial-branch=main", "-q"]);
   write(root, "evidence/results/legacy.json", "x".repeat(LIMIT + 128));
-  const baseTree = commit(root, "seed grandfathered evidence");
+  const baseCommit = commit(root, "seed grandfathered evidence");
+  const baseTree = git(root, ["rev-parse", `${baseCommit}:evidence`]);
   const baseBlob = {
     blob: git(root, ["rev-parse", "HEAD:evidence/results/legacy.json"]),
     size: Number(git(root, ["cat-file", "-s", "HEAD:evidence/results/legacy.json"])),
   };
   write(root, POLICY_PATH, JSON.stringify(policyFor(baseTree, baseBlob, extraExceptions), null, 2) + "\n");
   const policyHead = commit(root, "add policy");
-  return { root, baseTree, baseBlob, policyHead };
+  return { root, baseCommit, baseTree, baseBlob, policyHead };
 }
 
 function check(repo, headRef = repo.policyHead) {
-  return checkEvidenceStorage({ root: repo.root, baseRef: repo.baseTree, headRef });
+  return checkEvidenceStorage({ root: repo.root, baseRef: repo.baseCommit, headRef });
 }
 
 function assertFail(result, text) {
@@ -101,7 +102,7 @@ try {
     const repo = createRepo();
     repos.push(repo);
     assert.equal(check(repo).ok, true, "current baseline passes");
-    assert.equal(checkEvidenceStorage({ root: repo.root, baseRef: repo.baseTree, headRef: repo.policyHead }).changedPaths, 0);
+    assert.equal(checkEvidenceStorage({ root: repo.root, baseRef: repo.baseCommit, headRef: repo.policyHead }).changedPaths, 0);
   }
 
   {
@@ -202,7 +203,7 @@ try {
     const first = commit(repo.root, "add small raw output");
     write(repo.root, "evidence/results/multi-commit.json", "x".repeat(LIMIT + 1));
     const second = commit(repo.root, "grow raw output in second commit");
-    const result = checkEvidenceStorage({ root: repo.root, baseRef: repo.baseTree, headRef: second });
+    const result = checkEvidenceStorage({ root: repo.root, baseRef: repo.baseCommit, headRef: second });
     assertFail(result, "raw/generated JSON exceeds");
     assert.notEqual(first, second, "multiple commits create distinct head");
   }
