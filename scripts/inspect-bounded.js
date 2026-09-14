@@ -21,6 +21,7 @@ Options:
   --max-lines N              Maximum displayed lines (default: 80)
   --max-bytes N              Maximum command/file bytes (default: 65536)
   --max-matches N            Maximum matches for search (default: 100)
+  --regex                    Treat search PATTERN as a regular expression
   --patch                    Include a bounded diff patch
   --help                     Show this help
 
@@ -35,7 +36,7 @@ function positiveInteger(value, name, maximum = 1024 * 1024) {
 }
 
 export function parseArgs(argv) {
-  const options = { ...DEFAULTS, mode: null, patch: false, positional: [] };
+  const options = { ...DEFAULTS, mode: null, patch: false, regex: false, positional: [] };
   let endOptions = false;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -50,6 +51,10 @@ export function parseArgs(argv) {
     }
     if (!endOptions && argument === "--patch") {
       options.patch = true;
+      continue;
+    }
+    if (!endOptions && argument === "--regex") {
+      options.regex = true;
       continue;
     }
     if (!endOptions && ["--max-lines", "--max-bytes", "--max-matches"].includes(argument)) {
@@ -109,6 +114,7 @@ export function buildCommand(options) {
       args: [
         "--line-number",
         "--color=never",
+        ...(options.regex ? [] : ["--fixed-strings"]),
         "--max-count",
         String(options.maxMatches),
         "--glob",

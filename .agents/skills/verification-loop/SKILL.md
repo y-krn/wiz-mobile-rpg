@@ -42,6 +42,9 @@ Apply `AGENTS.md` first and use `qa-regression.md` to select the checks.
 - For potentially large inspection, prefer `npm run inspect:bounded -- diff|search|log|file`
   with explicit limits. It excludes generated directories for search, never
   enables binary diff output, and caps displayed bytes and lines.
+- Pass search patterns and paths as wrapper arguments, never by constructing a
+  shell pipeline or interpolated command string. Search is literal by default;
+  opt into regular expressions with `--regex` only when needed.
 - Summarize large outputs and retain the command, revision, result, and relevant
   failure excerpt as evidence.
 
