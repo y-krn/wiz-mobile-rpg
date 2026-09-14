@@ -104,6 +104,94 @@ assert.equal(aggregate.waterfall[2].died, 1);
 assert.equal(aggregate.waterfall[2].invariant.pass, true);
 assert.equal(aggregate.dominantIncrementalCostSource, "combat");
 
+const trajectoryRecord = (runIndex, worldSeed, costsByFloor) => {
+  const cumulative = {
+    combat: 0,
+    guardianBoss: 0,
+    floorTrap: 0,
+    chestTrap: 0,
+    poisonStatus: 0,
+    unattributed: 0
+  };
+  const floors = Object.fromEntries([1, 2, 3, 4, 5].map(number => {
+    const incremental = {
+      combat: 0,
+      guardianBoss: 0,
+      floorTrap: 0,
+      chestTrap: 0,
+      poisonStatus: 0,
+      unattributed: 0,
+      ...(costsByFloor[number] || {})
+    };
+    Object.keys(cumulative).forEach(source => {
+      cumulative[source] += incremental[source];
+    });
+    return [number, {
+      ...floor("reachedNextFloor", 0),
+      incrementalCost: {
+        ...floor("reachedNextFloor", 0).incrementalCost,
+        ...incremental
+      },
+      cumulativeCostBySource: { ...cumulative }
+    }];
+  }));
+  return {
+    ...base(runIndex, worldSeed, "died"),
+    outcome: "died",
+    floors,
+    cumulativeCostBySource: { ...cumulative }
+  };
+};
+const sourceAggregate = trajectory.aggregateCondition([
+  trajectoryRecord(0, "world:0", { 1: { combat: 8 }, 2: { floorTrap: 15 } }),
+  trajectoryRecord(1, "world:1", { 1: { combat: 4 }, 2: { floorTrap: 5 } })
+]);
+assert.equal(sourceAggregate.distributions[1].dominantIncrementalCostSource, "combat");
+assert.equal(sourceAggregate.distributions[2].dominantIncrementalCostSource, "floorTrap");
+assert.deepEqual(sourceAggregate.distributions[1].incrementalCostTotalBySource, {
+  combat: 12,
+  guardianBoss: 0,
+  floorTrap: 0,
+  chestTrap: 0,
+  poisonStatus: 0,
+  unattributed: 0
+});
+const summary = trajectory.buildSummary({
+  measurement: { sourceCommit: null, measurementRunnerCommit: null, runnerVersion: trajectory.RUNNER_VERSION },
+  runnerVersion: trajectory.RUNNER_VERSION,
+  configuration: { runs: 2, seed: 1277, matchedIdentity: "identity" },
+  determinism: { pass: true },
+  cases: [{
+    scenarioId: "workshop-empty",
+    startingKitId: "vanguard",
+    returnContinuation: null,
+    policies: {
+      t0: { id: "t0", aggregate: sourceAggregate },
+      t1: { id: "t1", aggregate: sourceAggregate }
+    }
+  }]
+});
+assert.match(summary, /workshop-empty \/ vanguard \/ t0 \| B1 .* \| combat \|/);
+assert.match(summary, /workshop-empty \/ vanguard \/ t0 \| B2 .* \| floorTrap \|/);
+
+const t1B5Death = {
+  ...base(0, "world:0", "died"),
+  outcome: "died",
+  reachedFloor: 5,
+  terminalFloor: 5,
+  terminalCause: "trap_hazard"
+};
+const detailedContinuation = trajectory.buildReturnContinuation(
+  [base(0, "world:0")],
+  [t1B5Death]
+);
+assert.equal(detailedContinuation.reach.b4, 1);
+assert.equal(detailedContinuation.reach.b5, 1);
+assert.equal(detailedContinuation.reach.b6, 0);
+assert.equal(detailedContinuation.terminal.twoPlusFloorDeath, 1);
+assert.equal(detailedContinuation.rows[0].reach.b5, true);
+assert.equal(detailedContinuation.rows[0].terminalCategory, "+2 floors death");
+
 const cutoff = {
   ...base(0, "world:0", "syntheticCutoff"),
   outcome: "syntheticCutoff",
@@ -112,6 +200,8 @@ const cutoff = {
 };
 const continuation = trajectory.buildReturnContinuation([base(0, "world:0")], [cutoff]);
 assert.equal(continuation.b6Cutoff, 1);
+assert.equal(continuation.reach.b6, 1);
+assert.equal(continuation.terminal.otherTerminal, 1);
 assert.equal(continuation.sameFloorDeath, 0, "B6 cutoff is not a Return");
 
 const report = trajectory.buildReport(

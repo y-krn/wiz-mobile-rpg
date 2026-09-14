@@ -489,6 +489,11 @@ function makeWaterfall(records, floor) {
 function distributionForFloors(records, floor) {
   const rows = records.map(record => record.floors[floor]).filter(Boolean);
   const values = field => quantiles(rows.map(row => Number(field(row))).filter(Number.isFinite));
+  const incrementalCostTotalBySource = Object.fromEntries(COST_SOURCE_IDS.map(source => [
+    source,
+    sum(rows.map(row => row.incrementalCost[source]))
+  ]));
+  const totalIncrementalCost = sum(Object.values(incrementalCostTotalBySource));
   const costDistribution = Object.fromEntries(COST_SOURCE_IDS.map(source => [
     source,
     {
@@ -506,7 +511,13 @@ function distributionForFloors(records, floor) {
     recoveryRemainingExit: values(row => row.exit.recoveryRemaining),
     encountersPerFloor: values(row => row.incrementalCost.combatCount),
     stepsPerFloor: values(row => row.incrementalCost.steps),
-    incrementalCost: costDistribution
+    incrementalCost: costDistribution,
+    incrementalCostTotalBySource,
+    dominantIncrementalCostSource: totalIncrementalCost > 0
+      ? COST_SOURCE_IDS.slice().sort((left, right) =>
+        incrementalCostTotalBySource[right] - incrementalCostTotalBySource[left]
+      )[0]
+      : null
   };
 }
 
@@ -562,19 +573,23 @@ export function aggregateCondition(records) {
   };
 }
 
-function continuationCategory(returnFloor, candidate) {
-  if (candidate.outcome === "syntheticCutoff" && candidate.reachedFloor >= MEASUREMENT_CUTOFF_FLOOR) {
-    return "B6 cutoff";
-  }
-  if (candidate.outcome === "death") {
+function continuationReach(candidate) {
+  const reachedFloor = Number(candidate.reachedFloor);
+  return {
+    b4: Number.isFinite(reachedFloor) && reachedFloor >= 4,
+    b5: Number.isFinite(reachedFloor) && reachedFloor >= 5,
+    b6: candidate.outcome === "syntheticCutoff" && reachedFloor >= MEASUREMENT_CUTOFF_FLOOR
+  };
+}
+
+function continuationTerminalCategory(returnFloor, candidate) {
+  if (["death", "died"].includes(candidate.outcome)) {
     const delta = Number(candidate.terminalFloor) - Number(returnFloor);
     if (delta === 0) return "same-floor death";
     if (delta === 1) return "+1 floor death";
     if (delta >= 2) return "+2 floors death";
   }
-  if (candidate.reachedFloor >= 5) return "B5 reach";
-  if (candidate.reachedFloor >= 4) return "B4 reach";
-  return candidate.outcome;
+  return "otherTerminal";
 }
 
 function difference(left, right) {
@@ -584,15 +599,30 @@ function difference(left, right) {
 export function buildReturnContinuation(baselineRecords, candidateRecords) {
   const joined = buildMatchedTrajectory(baselineRecords, candidateRecords)
     .filter(({ baseline }) => baseline.outcome === "voluntaryReturn");
-  const categories = {};
+  const reach = { b4: 0, b5: 0, b6: 0 };
+  const terminal = {
+    sameFloorDeath: 0,
+    oneFloorDeath: 0,
+    twoPlusFloorDeath: 0,
+    otherTerminal: 0
+  };
   const rows = joined.map(({ baseline, candidate }) => {
     const returnFloor = Number(baseline.returnFloor);
     const additionalCost = Object.fromEntries(COST_SOURCE_IDS.map(source => [
       source,
       difference(baseline.cumulativeCostBySource[source], candidate.cumulativeCostBySource[source])
     ]));
-    const category = continuationCategory(returnFloor, candidate);
-    addCounts(categories, category);
+    const candidateReach = continuationReach(candidate);
+    Object.entries(candidateReach).forEach(([key, reached]) => {
+      if (reached) reach[key]++;
+    });
+    const terminalCategory = continuationTerminalCategory(returnFloor, candidate);
+    terminal[{
+      "same-floor death": "sameFloorDeath",
+      "+1 floor death": "oneFloorDeath",
+      "+2 floors death": "twoPlusFloorDeath",
+      otherTerminal: "otherTerminal"
+    }[terminalCategory]]++;
     return {
       runIndex: baseline.runIndex,
       worldSeed: baseline.worldSeed,
@@ -611,20 +641,29 @@ export function buildReturnContinuation(baselineRecords, candidateRecords) {
       t1TerminalCause: candidate.terminalCause,
       t1TerminalHp: candidate.terminalState.hp,
       t1TerminalMp: candidate.terminalState.mp,
-      category,
+      reach: candidateReach,
+      terminalCategory,
+      category: terminalCategory,
       lastCostEvents: candidate.lastCostEvents
     };
   });
   return {
     runs: rows.length,
-    categories,
+    reach,
+    terminal,
+    categories: Object.fromEntries([
+      ["same-floor death", terminal.sameFloorDeath],
+      ["+1 floor death", terminal.oneFloorDeath],
+      ["+2 floors death", terminal.twoPlusFloorDeath],
+      ["otherTerminal", terminal.otherTerminal]
+    ]),
     rows,
-    sameFloorDeath: categories["same-floor death"] || 0,
-    oneFloorDeath: categories["+1 floor death"] || 0,
-    twoPlusFloorDeath: categories["+2 floors death"] || 0,
-    b4Reach: categories["B4 reach"] || 0,
-    b5Reach: categories["B5 reach"] || 0,
-    b6Cutoff: categories["B6 cutoff"] || 0
+    sameFloorDeath: terminal.sameFloorDeath,
+    oneFloorDeath: terminal.oneFloorDeath,
+    twoPlusFloorDeath: terminal.twoPlusFloorDeath,
+    b4Reach: reach.b4,
+    b5Reach: reach.b5,
+    b6Cutoff: reach.b6
   };
 }
 
@@ -850,13 +889,13 @@ export function buildSummary(report) {
         const waterfall = policy.aggregate.waterfall[floor];
         const distribution = policy.aggregate.distributions[floor];
         lines.push(
-          `| ${testCase.scenarioId} / ${testCase.startingKitId} / ${policy.id} | B${floor} | ${waterfallCell(waterfall)} | ${pct(Number.isFinite(distribution.entryHpRatio.p50) ? { estimate: distribution.entryHpRatio.p50 } : null)} | ${pct(Number.isFinite(distribution.entryMpRatio.p50) ? { estimate: distribution.entryMpRatio.p50 } : null)} | ${policy.aggregate.dominantIncrementalCostSource || "—"} |`
+          `| ${testCase.scenarioId} / ${testCase.startingKitId} / ${policy.id} | B${floor} | ${waterfallCell(waterfall)} | ${pct(Number.isFinite(distribution.entryHpRatio.p50) ? { estimate: distribution.entryHpRatio.p50 } : null)} | ${pct(Number.isFinite(distribution.entryMpRatio.p50) ? { estimate: distribution.entryMpRatio.p50 } : null)} | ${distribution.dominantIncrementalCostSource || "—"} |`
         );
       });
       const continuation = policy.id === "t1" ? testCase.returnContinuation : null;
       if (continuation) {
         lines.push(
-          `| ${testCase.scenarioId} / ${testCase.startingKitId} / T0 Return → T1 | cohort | ${continuation.runs} | same ${continuation.sameFloorDeath} | +1 ${continuation.oneFloorDeath} | +2 ${continuation.twoPlusFloorDeath}; B4 ${continuation.b4Reach}; B5 ${continuation.b5Reach}; B6 ${continuation.b6Cutoff} |`
+          `| ${testCase.scenarioId} / ${testCase.startingKitId} / T0 Return → T1 | cohort | ${continuation.runs} | reach B4 ${continuation.reach.b4}; B5 ${continuation.reach.b5}; B6 ${continuation.reach.b6} | same-floor death ${continuation.terminal.sameFloorDeath} | +1 floor death ${continuation.terminal.oneFloorDeath} | +2 floors death ${continuation.terminal.twoPlusFloorDeath}; other ${continuation.terminal.otherTerminal} |`
         );
       }
     });
