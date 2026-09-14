@@ -32,6 +32,10 @@ apply.
   full local suite for the final gate, and bound CI polling by attempts and
   elapsed time. A pending check is not a failure; stop and report when the bound
   is reached.
+- For repeated checks, use `npm run verify:once -- --name <stable-name> --
+  <command>`. It skips only a successful result with the same `HEAD`, changed
+  files, command, and relevant environment; use `--force` for an intentional
+  final rerun.
 - If a command reports a wrong repository, missing dependency, unavailable
   browser, or stale base, stop the current workflow and resolve that preflight
   failure before repeating implementation or verification.
