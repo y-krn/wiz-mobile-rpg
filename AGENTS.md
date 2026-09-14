@@ -33,9 +33,10 @@ apply.
   elapsed time. A pending check is not a failure; stop and report when the bound
   is reached.
 - For repeated checks, use `npm run verify:once -- --name <stable-name> --
-  <command>`. It skips only a successful result with the same `HEAD`, changed
-  files, command, and relevant environment; use `--force` for an intentional
-  final rerun.
+  <command>`. It records the evidence fingerprint and reports a prior identical
+  success, but reruns by default. `--skip-known` is an explicit convenience
+  option for non-final work; never use it as the final gate. Use `--force` for
+  an intentional final rerun.
 - If a command reports a wrong repository, missing dependency, unavailable
   browser, or stale base, stop the current workflow and resolve that preflight
   failure before repeating implementation or verification.

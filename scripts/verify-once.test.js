@@ -9,8 +9,9 @@ test("parses a named command without shell interpolation", () => {
 });
 
 test("parses force and custom ledger options", () => {
-  const options = parseArgs(["--name", "e2e", "--force", "--ledger", "/tmp/checks.json", "--", "npm", "test"]);
+  const options = parseArgs(["--name", "e2e", "--force", "--skip-known", "--ledger", "/tmp/checks.json", "--", "npm", "test"]);
   assert.equal(options.force, true);
+  assert.equal(options.skipKnown, true);
   assert.equal(options.ledger, "/tmp/checks.json");
 });
 

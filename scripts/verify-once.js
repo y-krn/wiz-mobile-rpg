@@ -17,6 +17,7 @@ are unchanged.
 Options:
   --name NAME       Stable check name, for example lint or browser-smoke
   --ledger PATH     Ledger path (default: temporary repository-scoped ledger)
+  --skip-known      Skip only a previously successful identical target
   --force           Run even when the same successful check is recorded
   --help            Show this help`;
 
@@ -34,7 +35,7 @@ function git(args, cwd) {
 }
 
 export function parseArgs(argv) {
-  const options = { name: null, ledger: null, force: false, command: [] };
+  const options = { name: null, ledger: null, force: false, skipKnown: false, command: [] };
   let commandStart = -1;
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -48,6 +49,10 @@ export function parseArgs(argv) {
     }
     if (argument === "--force") {
       options.force = true;
+      continue;
+    }
+    if (argument === "--skip-known") {
+      options.skipKnown = true;
       continue;
     }
     if (argument === "--name" || argument === "--ledger") {
@@ -141,9 +146,13 @@ export async function run(argv = process.argv.slice(2), { cwd = process.cwd() } 
   const ledgerPath = resolve(options.ledger ?? defaultLedgerPath(repoRoot));
   const ledger = readLedger(ledgerPath);
   const previous = ledger.checks[options.name];
-  if (!options.force && previous?.status === 0 && previous.fingerprint === fingerprint) {
+  const sameSuccessfulTarget = previous?.status === 0 && previous.fingerprint === fingerprint;
+  if (!options.force && options.skipKnown && sameSuccessfulTarget) {
     console.log(`[verification] SKIP ${options.name}: same successful evidence target`);
     return 0;
+  }
+  if (!options.force && sameSuccessfulTarget) {
+    console.log(`[verification] PRIOR SUCCESS ${options.name}: same target, rerunning by default`);
   }
 
   console.log(`[verification] RUN ${options.name}`);

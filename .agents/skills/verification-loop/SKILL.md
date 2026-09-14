@@ -30,8 +30,9 @@ Apply `AGENTS.md` first and use `qa-regression.md` to select the checks.
   established, or the retry budget still permits it.
 - Prefer `npm run verify:once -- --name <stable-name> -- <command>` for repeated
   local checks. It records a fingerprint of `HEAD`, changed files, command, and
-  relevant environment; it suppresses only a previously successful identical
-  target. Use `--force` when a final gate must run again.
+  relevant environment and reports prior identical success, but reruns by
+  default. Use `--skip-known` only for non-final convenience and `--force` when
+  a final gate must run again.
 - Do not invoke a browser test before a successful browser preflight. Do not
   rerun preflight before every test unless the dependency tree, port, browser,
   or worktree state changed.
@@ -41,6 +42,8 @@ Apply `AGENTS.md` first and use `qa-regression.md` to select the checks.
 - The repository helper defaults to 36 attempts, 10 seconds between checks, and
   a 360-second cap. Keep the bound above the observed full-unit duration unless
   the check has a documented shorter budget.
+- Calibrate a new bound from at least 10 completed runs and use the p95 duration
+  for the checks in scope; do not set it from one unusually fast or slow run.
 - For GitHub pull requests, prefer `npm run check:ci -- <PR or URL>`; it uses
   the repository's bounded polling helper and returns distinct outcomes for
   pass, failed/cancelled, pending timeout, and query error.
