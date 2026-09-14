@@ -54,7 +54,7 @@ du、find、stat、git ls-tree -r -l HEAD -- evidence/ で計測した。logical
 
 All 236 current files are tracked。 .gitignore は evidence/results/*.json を含むが、既存 tracked file は削除されない。git check-ignore --no-index では新規 result JSON が ignore 対象であることを確認した。
 
-上記の current tree は audit record 自身を追加する前の baseline である。この Markdown は 22,369 bytes なので、監査 record を含む作業 tree は 237 files / 129,772,575 bytes となる。
+上記の current tree は audit record 自身を追加する前の baseline である。この Markdown は 22,485 bytes なので、監査 record を含む作業 tree は 237 files / 129,772,691 bytes となる。
 
 ## Large-file audit
 
