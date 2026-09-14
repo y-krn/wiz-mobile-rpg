@@ -43,6 +43,10 @@ Apply `AGENTS.md` first and use `qa-regression.md` to select the checks.
   cause before rerunning.
 - Environment failure: repair through the permitted environment path; do not
   mask it with repeated product checks.
+- Playwright preflight `EPERM` or `EACCES` on a port: retry once with a
+  task-owned `PLAYWRIGHT_PORT` through the permitted environment path. If the
+  retry still fails, report an environment limitation and do not rerun the
+  browser suite.
 - Network or CI pending: use the bounded polling policy and report an
   unresolved external condition separately from a code failure.
 - Wrong worktree, repository, base, or `HEAD`: stop and re-run preflight; do
