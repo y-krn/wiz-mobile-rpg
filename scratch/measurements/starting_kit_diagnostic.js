@@ -20,6 +20,7 @@ import {
   observeEnemyActionCost
 } from "./enemy_action_cost.js";
 import { deriveFirstKillWindow } from "./first_kill_observation.js";
+import { summarizeFleeTelemetry } from "./flee_telemetry.js";
 
 export const RUNNER_VERSION = "issue1205-enemy-action-cost-v1";
 export const SCHEMA_VERSION = 11;
@@ -773,18 +774,13 @@ function observeEncounter(record, identity, diagnostic, encounterRow) {
   addDistribution(record.encounterOrdinal, encounterRow.encounterOrdinal);
 
   const logs = (diagnostic?.rounds || []).flatMap(round => round.log || []);
-  const fleeRounds = diagnostic?.rounds || [];
-  const fleeSelected = fleeRounds.filter(round => round.fleeSelected === true).length;
-  const fleeExecuted = fleeRounds.filter(round => round.fleeExecuted === true).length;
-  const fleePartingAttackCount = fleeRounds.filter(round => round.fleePartingAttack === true).length;
-  record.fleeSelected += fleeSelected;
-  record.fleeExecuted += fleeExecuted;
-  record.fleeSelectedButNotExecuted += Math.max(0, fleeSelected - fleeExecuted);
-  record.fleePartingAttackCount += fleePartingAttackCount;
-  record.fleeSurvived += Number(fleeExecuted > 0 && identity.outcome === "flee");
-  record.fleeDiedFromPartingAttack += Number(
-    fleeExecuted > 0 && fleePartingAttackCount > 0 && identity.outcome === "death"
-  );
+  const flee = summarizeFleeTelemetry({ identity, diagnostic });
+  record.fleeSelected += flee.fleeSelected;
+  record.fleeExecuted += flee.fleeExecuted;
+  record.fleeSelectedButNotExecuted += flee.fleeSelectedButNotExecuted;
+  record.fleePartingAttackCount += flee.fleePartingAttackCount;
+  record.fleeSurvived += flee.fleeSurvived;
+  record.fleeDiedFromPartingAttack += flee.fleeDiedFromPartingAttack;
   logs.forEach(message => {
     if (message.includes("庇った！")) {
       record.guardAdjacentTriggers++;
@@ -920,9 +916,7 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     ? mpBeforeEncounter / Math.max(1, maxMpBeforeEncounter)
     : null;
   const rounds = diagnostic?.rounds || [];
-  const fleeSelected = rounds.filter(round => round.fleeSelected === true).length;
-  const fleeExecuted = rounds.filter(round => round.fleeExecuted === true).length;
-  const fleePartingAttackCount = rounds.filter(round => round.fleePartingAttack === true).length;
+  const flee = summarizeFleeTelemetry({ identity, diagnostic });
   const firstRound = rounds[0] || null;
   return {
     runIndex,
@@ -969,14 +963,12 @@ function createEncounterRow(runIndex, encounterOrdinal, identity, diagnostic) {
     firstPlayerActionExecuted: firstRound?.playerActionExecuted === true,
     enemyActionsBeforeFirstPlayerAction: firstRound?.enemyActionsBeforeFirstPlayerAction ?? null,
     damageBeforeFirstPlayerAction: firstRound?.damageBeforeFirstPlayerAction ?? null,
-    fleeSelected,
-    fleeExecuted,
-    fleeSelectedButNotExecuted: Math.max(0, fleeSelected - fleeExecuted),
-    fleePartingAttackCount,
-    fleeSurvived: Number(fleeExecuted > 0 && identity.outcome === "flee"),
-    fleeDiedFromPartingAttack: Number(
-      fleeExecuted > 0 && fleePartingAttackCount > 0 && identity.outcome === "death"
-    ),
+    fleeSelected: flee.fleeSelected,
+    fleeExecuted: flee.fleeExecuted,
+    fleeSelectedButNotExecuted: flee.fleeSelectedButNotExecuted,
+    fleePartingAttackCount: flee.fleePartingAttackCount,
+    fleeSurvived: flee.fleeSurvived,
+    fleeDiedFromPartingAttack: flee.fleeDiedFromPartingAttack,
     firstKillWindow: deriveFirstKillWindow({ identity, diagnostic })
   };
 }

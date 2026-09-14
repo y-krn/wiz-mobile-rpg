@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 const comparison = await import("../../../scratch/measurements/survival_policy_comparison.js");
 const trajectory = await import("../../../scratch/measurements/early_run_attrition_trajectory.js");
+const fleeTelemetry = await import("../../../scratch/measurements/flee_telemetry.js");
 const { STARTING_KITS } = await import("../../../src/state/initial_state.js");
 
 assert.deepEqual(comparison.STARTING_KIT_IDS, STARTING_KITS.map(kit => kit.id));
@@ -14,7 +15,33 @@ assert.equal(comparison.SURVIVAL_POLICY_DEFINITIONS.p0.fleeHpThreshold, 0.20);
 assert.equal(comparison.SURVIVAL_POLICY_DEFINITIONS.p0.healPotionThreshold, 0.55);
 assert.equal(comparison.SURVIVAL_POLICY_DEFINITIONS.p1.fleePolicy, "threshold");
 assert.equal(comparison.SURVIVAL_POLICY_DEFINITIONS.p1.fleeHpThreshold, 0.35);
-assert.equal(comparison.SURVIVAL_POLICY_DEFINITIONS.p1.healPotionThreshold, 0.70);
+assert.equal(comparison.SURVIVAL_POLICY_DEFINITIONS.p1.healPotionThreshold, 0.35);
+assert.equal(comparison.SURVIVAL_POLICY_DEFINITIONS.p1.recoveryPolicy, "retention-threshold");
+assert.deepEqual(
+  fleeTelemetry.summarizeFleeTelemetry({
+    identity: { outcome: "death" },
+    diagnostic: {
+      result: "death",
+      rounds: [{
+        fleeSelected: true,
+        fleeExecuted: true,
+        fleePartingAttack: true,
+        log: ["追撃！ 7のダメージ"]
+      }]
+    }
+  }),
+  {
+    observed: true,
+    fleeSelected: 1,
+    fleeExecuted: 1,
+    fleeSelectedButNotExecuted: 0,
+    fleePartingAttackCount: 1,
+    fleeSurvived: 0,
+    fleeDiedFromPartingAttack: 1,
+    partingAttackDamage: [7],
+    partingAttackDamageHp: 7
+  }
+);
 assert.deepEqual(comparison.auditPolicyDifference().differingKeys, [
   "fleePolicy", "fleeHpThreshold", "healPotionThreshold", "recoveryPolicy"
 ]);
@@ -110,6 +137,10 @@ assert.ok(first.cases[0].policies.p0.aggregate.reachedByDepth[6]);
 assert.ok(first.cases[0].policies.p0.aggregate.recoveryByFloor[2].exitRecoveryCount);
 assert.ok(first.cases[0].policies.p0.aggregate.combat.combatCount);
 assert.ok(first.cases[0].policies.p0.aggregate.lootBuild.endingBuildSnapshotDistribution);
+assert.ok(Object.hasOwn(first.cases[0].policies.p0.aggregate.flee, "selectedButNotExecuted"));
+assert.ok(Object.hasOwn(first.cases[0].policies.p0.aggregate.flee, "partingAttackCount"));
+assert.ok(Object.hasOwn(first.cases[0].policies.p0.aggregate.flee, "diedFromPartingAttack"));
+assert.notEqual(first.cases[0].policies.p0.aggregate.flee.partingDamageHp, "unobserved");
 
 const canonicalTrajectory = await trajectory.runMeasurement({ ...options });
 const survivalP0 = first.cases[0].policies.p0.records[0];
@@ -135,7 +166,7 @@ const report = comparison.buildReport(first, {
   workingTreeClean: true
 }, { runnerVersion: comparison.RUNNER_VERSION }, { purpose: "regression", requestedRef: "test" });
 assert.match(comparison.buildSummary(report), /B3.*B4.*B5.*B6/);
-assert.match(comparison.buildSummary(report), /flee A\/E\/F/);
+assert.match(comparison.buildSummary(report), /flee S\/E\/N/);
 const manifest = comparison.buildManifest(report);
 assert.equal(manifest.baselineCandidate, false);
 assert.equal(manifest.matching.candidateOrderIndependent, true);

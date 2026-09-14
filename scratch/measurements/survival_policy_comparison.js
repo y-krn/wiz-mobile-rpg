@@ -32,7 +32,8 @@ export const POLICY_DIFFERENCE_KEYS = Object.freeze([
 
 // P0 is the current standard simulation policy from balance_measurement.js.
 // P1 deliberately composes existing production policy inputs; it is not a
-// new combat AI and is never used by player-facing code.
+// new combat AI and is never used by player-facing code. Its lower recovery
+// threshold is a retention/hold diagnostic, not the existing early-use mode.
 export const SURVIVAL_POLICY_DEFINITIONS = Object.freeze({
   p0: Object.freeze({
     id: "p0",
@@ -48,13 +49,13 @@ export const SURVIVAL_POLICY_DEFINITIONS = Object.freeze({
   p1: Object.freeze({
     id: "p1",
     label: "survival-oriented diagnostic",
-    description: "existing threshold flee at 35% plus existing early-use recovery at 70%",
+    description: "existing threshold flee at 35% plus recovery retained until 35% HP",
     fleePolicy: "threshold",
     fleeHpThreshold: 0.35,
-    healPotionThreshold: 0.70,
+    healPotionThreshold: 0.35,
     healPriorityPolicy: "potion-first",
     bloodWandHealPolicy: "reserve-potion",
-    recoveryPolicy: "early-use"
+    recoveryPolicy: "retention-threshold"
   })
 });
 export const MEASUREMENT_RUNNER_PATHS = Object.freeze([
@@ -65,6 +66,7 @@ export const MEASUREMENT_RUNNER_PATHS = Object.freeze([
   "scratch/measurements/balance_measurement.js",
   "scratch/measurements/measurement_provenance.js",
   "scratch/measurements/measurement_env_signature.js",
+  "scratch/measurements/flee_telemetry.js",
   "src/state/initial_state.js",
   "src/state/run_loot.js",
   "src/rules/build_snapshot.js",
@@ -138,19 +140,55 @@ function aggregateFlee(records) {
     const rows = floorRows(records, floor);
     const attempts = sum(rows.map(row => Number(row.incrementalCost.fleeAttempts) || 0));
     const executions = sum(rows.map(row => Number(row.incrementalCost.fleeExecutions) || 0));
+    const selectedButNotExecuted = sum(rows.map(row =>
+      Number(row.incrementalCost.fleeSelectedButNotExecuted) || 0
+    ));
+    const partingAttackCount = sum(rows.map(row =>
+      Number(row.incrementalCost.fleePartingAttackCount) || 0
+    ));
+    const survived = sum(rows.map(row => Number(row.incrementalCost.fleeSurvived) || 0));
+    const diedFromPartingAttack = sum(rows.map(row =>
+      Number(row.incrementalCost.fleeDiedFromPartingAttack) || 0
+    ));
+    const partingDamageHp = rows.some(row => row.incrementalCost.fleePartingDamageHp !== null)
+      ? sum(rows.map(row => Number(row.incrementalCost.fleePartingDamageHp) || 0))
+      : null;
     return [floor, {
       attempts,
+      selected: attempts,
       executions,
-      failures: Math.max(0, attempts - executions),
-      partingDamage: "unobserved"
+      selectedButNotExecuted,
+      failures: selectedButNotExecuted,
+      partingAttackCount,
+      survived,
+      diedFromPartingAttack,
+      partingDamageHp
     }];
   }));
   const totals = Object.values(byFloor).reduce((total, row) => ({
     attempts: total.attempts + row.attempts,
+    selected: total.selected + row.selected,
     executions: total.executions + row.executions,
-    failures: total.failures + row.failures
-  }), { attempts: 0, executions: 0, failures: 0 });
-  return { ...totals, byFloor, partingDamage: "unobserved" };
+    selectedButNotExecuted: total.selectedButNotExecuted + row.selectedButNotExecuted,
+    failures: total.failures + row.failures,
+    partingAttackCount: total.partingAttackCount + row.partingAttackCount,
+    survived: total.survived + row.survived,
+    diedFromPartingAttack: total.diedFromPartingAttack + row.diedFromPartingAttack,
+    partingDamageHp: total.partingDamageHp === null || row.partingDamageHp === null
+      ? null
+      : total.partingDamageHp + row.partingDamageHp
+  }), {
+    attempts: 0,
+    selected: 0,
+    executions: 0,
+    selectedButNotExecuted: 0,
+    failures: 0,
+    partingAttackCount: 0,
+    survived: 0,
+    diedFromPartingAttack: 0,
+    partingDamageHp: 0
+  });
+  return { ...totals, byFloor };
 }
 
 function aggregateCombat(records) {
@@ -520,7 +558,7 @@ export async function runMeasurement(options = {}) {
     sourceOfTruth: "src/state/initial_state.js STARTING_KITS",
     productionPath: "scratch/simulations/sim_depth_material_ev.js simulateRun",
     recoveryAcquisitionBoundary: "production diagnostics.rewardEvents; merchant acquisition unobserved",
-    fleeFailureDefinition: "flee attempts minus flee executions; parting damage unobserved",
+    fleeFailureDefinition: "selected-but-not-executed; execution, parting attack, parting death, and observed parting HP damage are separate",
     classNameBridge: "Fighter is a scratch-only simulator entry shim; scenario.startingKit creates production kit state"
   };
   return {
@@ -585,13 +623,13 @@ export function buildSummary(report) {
     `- source SHA: \`${report.measurement.sourceCommit || "not recorded"}\`; runner: \`${report.measurement.measurementRunnerCommit || "not recorded"}\`; schema: ${report.measurement.schemaVersion}`,
     `- N=${report.configuration.runs}/condition; seed=${report.configuration.seed}; B1–B5 observed; B6 is a synthetic cutoff, never Return`,
     "- P0 = current standard: EV flee, 20% flee threshold, production recovery at 55% HP",
-    "- P1 = diagnostic: existing threshold flee at 35% plus existing early-use recovery at 70% HP",
+    "- P1 = diagnostic: existing threshold flee at 35%; recovery potion threshold held to 35% HP",
     `- policy difference audit: ${report.configuration.policyDifferenceAudit.pass ? "PASS" : "FAIL"}; keys = \`${report.configuration.policyDifferenceAudit.differingKeys.join(", ")}\``,
     `- matched key: \`(runIndex, worldSeed)\`; identity: \`${report.configuration.matchedIdentity}\`; determinism: ${report.determinism.pass ? "PASS" : "FAIL"}`,
     "",
-    "Reach columns are B3 / B4 / B5 / B6. Flee columns are attempts / executions / failures.",
+    "Reach columns are B3 / B4 / B5 / B6. Flee columns are selected / executed / selected-but-not-executed; parting attacks, deaths, and HP damage are in the full artifact.",
     "",
-    "| kit × Workshop × policy | reach | death | Return | flee A/E/F | B2 exit rec p50 | B3 entry rec p50 | combat p50 | loot opp | Build change |",
+    "| kit × Workshop × policy | reach | death | Return | flee S/E/N | B2 exit rec p50 | B3 entry rec p50 | combat p50 | loot opp | Build change |",
     "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
   ];
   report.cases.forEach(testCase => {
@@ -620,7 +658,7 @@ export function buildSummary(report) {
     "## Interpretation boundary",
     "",
     "- This is production-backed diagnostic evidence, not a balance change or a claim about human optimal play.",
-    "- Flee parting damage and combat-inseparable status damage are unobserved; recovery acquisition from merchant paths is unobserved.",
+    "- Flee selection, execution, parting attacks, parting deaths, and observed parting HP damage use the existing round-level diagnostic; combat-inseparable status damage and merchant recovery acquisition remain unobserved.",
     "- Loot/build opportunity rates are measured from production reward and equipment telemetry; combat reward opportunities lost are unobserved.",
     "- Use the matched conversions and tradeoffs for human classification: Strategy-dominant, Survival-only tradeoff, Weak/neutral, Harmful, or Instrumentation-limited.",
     "- P1 is a diagnostic policy and is not a production recommendation."
@@ -650,7 +688,6 @@ export function buildReport(result, provenance = null, environmentSignature = nu
       productionMechanism: "simulateRun",
       rawTracePolicy: "compact floor snapshots and bounded last-three cost events only",
       unobserved: [
-        "flee/parting damage is not separately emitted by production telemetry",
         "enemy-inflicted poison/status damage can be inseparable from combat damage",
         "merchant recovery acquisition is not present in diagnostic rewardEvents",
         "combat reward opportunities lost are not separately identified"
