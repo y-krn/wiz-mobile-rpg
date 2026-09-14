@@ -54,7 +54,7 @@ du、find、stat、git ls-tree -r -l HEAD -- evidence/ で計測した。logical
 
 All 236 current files are tracked。 .gitignore は evidence/results/*.json を含むが、既存 tracked file は削除されない。git check-ignore --no-index では新規 result JSON が ignore 対象であることを確認した。
 
-上記の current tree は audit record 自身を追加する前の baseline である。この Markdown は 20,684 bytes なので、監査 record を含む作業 tree は 237 files / 129,770,890 bytes となる。
+上記の current tree は audit record 自身を追加する前の baseline である。この Markdown は 22,369 bytes なので、監査 record を含む作業 tree は 237 files / 129,772,575 bytes となる。
 
 ## Large-file audit
 
@@ -62,15 +62,15 @@ file で type を確認した。reproducible は runner/source/seed/provenance �
 
 | rank | path | bytes | type / category | reproducible? | test/workflow reference | source-of-truth? |
 | ---: | --- | ---: | --- | --- | --- | --- |
-| 1 | evidence/results/issue-990-phase2.json | 83,089,724 | JSON / raw generated | yes, runner + seed + source | measurement output; regression は path-only allowlist | no; companion MD |
+| 1 | evidence/results/issue-990-phase2.json | 83,089,724 | JSON / raw generated | conditional: source SHA + historical runner | measurement output; regression は path-only allowlist | no; companion MD |
 | 2 | evidence/results/issue-987-production-frequency.json | 15,444,999 | JSON / raw generated | yes, runner + config + seed | later measurement runners が直接読む | no; companion MD |
 | 3 | evidence/results/issue-990-reached-run.json | 11,133,803 | JSON / raw generated | yes, runner + config + seed | producer output; direct production/test read なし | no |
 | 4 | evidence/results/issue-984-pure-raw-decomposition.json | 6,673,696 | JSON / raw generated | yes, runner + config | producer output; direct production/test read なし | no |
 | 5 | evidence/results/issue-1100-build-payment-stake.json | 5,886,846 | JSON / raw generated | yes; summary says determinism pass | producer output; production read なし | no; decision JSON + MD |
-| 6 | evidence/results/issue-990-phase3-stage1.5.json | 1,903,430 | JSON / raw generated | yes, runner + config | producer output | no |
-| 7 | evidence/results/issue-990-phase3-stage3.json | 546,188 | JSON / structured generated | yes, runner + config | producer output | no; companion MD |
-| 8 | evidence/results/issue-990-phase3-stage1.json | 429,755 | JSON / structured generated | yes, runner + config | producer output | no |
-| 9 | evidence/results/issue-990-phase3-stage2.json | 312,941 | JSON / structured generated | yes, runner + config | producer output | no |
+| 6 | evidence/results/issue-990-phase3-stage1.5.json | 1,903,430 | JSON / raw generated | conditional: source SHA + historical runner | producer output | no |
+| 7 | evidence/results/issue-990-phase3-stage3.json | 546,188 | JSON / structured generated | conditional: source SHA + historical runner | producer output | no; companion MD |
+| 8 | evidence/results/issue-990-phase3-stage1.json | 429,755 | JSON / structured generated | conditional: source SHA + historical runner | producer output | no |
+| 9 | evidence/results/issue-990-phase3-stage2.json | 312,941 | JSON / structured generated | conditional: source SHA + historical runner | producer output | no |
 | 10 | evidence/results/issue-612-exp-pace.md | 141,509 | UTF-8 / audit result | N/A, derived | no direct code/test read | yes |
 | 11 | evidence/results/issue-494-combat-policy-default.md | 114,981 | UTF-8 / audit result | N/A, derived | no direct code/test read | yes |
 | 12 | evidence/results/issue-611-combat-formula.md | 106,429 | UTF-8 / audit result | N/A, derived | no direct code/test read | yes |
@@ -86,6 +86,19 @@ file で type を確認した。reproducible は runner/source/seed/provenance �
 issue-1100-build-payment-stake.json は 5.89 MB の raw dump。companion Markdown は runner version、source/baseline SHA、N、seed、fixtures、scenarios、determinism、decision、modeling boundary を記録している。したがって durable surface は Markdown と 779-byte decision JSON であり、raw dump は再生成可能な generated output である。
 
 PNG は binary という理由だけで削除候補にはしない。現行は #1220 9 files、#1228 3 files、#1230 15 files、#1238 10 files の四つの visual-review family。対応 Markdown からリンクされるが、runtime input や deterministic fixture input ではない。
+
+### #990 raw JSON の再生成可能性
+
+#990 の raw JSON は source SHA、seed、configuration、runner version を記録しているため、履歴上は再生成可能である。各 source commit に当時の Issue-specific runner が存在することも tree で確認した。
+
+- phase2 source 629ae43f512c7373c4299dd0c68c525a2e487009: scratch/measurements/issue990_partial_information_progression.js
+- stage1 / stage1.5 source 6445a4bd228bba3763b27ebbe180aa312b98b161: scratch/measurements/issue990_phase3_stage1.js と issue990_phase3_stage1_5.js
+- stage2 source c589a8f8fcf1af5fa0ff4e286944e2250a7bb3ae: scratch/measurements/issue990_phase3_stage2_combat_personas.js
+- stage3 source 98672f5789c7ec322e56095ea95eb225e9d82f66: scratch/measurements/issue990_phase3_stage3_checkpoint_continuation.js
+
+current base ではこれらは issue-independent 名へ移動している。phase2 は partial_information_progression_measurement.js、stage1/1.5 は persona_population_measurement.js、stage2 は combat_policy_sensitivity_measurement.js、stage3 は checkpoint_continuation_measurement.js である。
+
+したがって companion Markdown の #990 reproduction command は current checkout ではそのまま実行できず、記録された source commit を checkout するか、current runner へ同じ設定を mapping する必要がある。評価は「traceable / historically reproducible、ただし current base で turnkey ではない」とする。この command drift は raw artifact を Git に残す根拠ではなく、summary に source/runner/config/hash を保持し、artifact を取得または再生成できる workflow を必要とする根拠である。
 
 ## Git object/history cost
 
