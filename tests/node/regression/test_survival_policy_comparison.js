@@ -165,8 +165,11 @@ const report = comparison.buildReport(first, {
   staleTreeAllowed: false,
   workingTreeClean: true
 }, { runnerVersion: comparison.RUNNER_VERSION }, { purpose: "regression", requestedRef: "test" });
-assert.match(comparison.buildSummary(report), /B3.*B4.*B5.*B6/);
-assert.match(comparison.buildSummary(report), /flee S\/E\/N/);
+const summary = comparison.buildSummary(report);
+assert.match(summary, /B3.*B4.*B5.*B6/);
+assert.match(summary, /flee S\/E\/N/);
+const deltaRow = summary.split("\n").find(line => line.includes("P1−P0"));
+assert.equal(deltaRow.split("|").slice(1, -1).length, 10);
 const manifest = comparison.buildManifest(report);
 assert.equal(manifest.baselineCandidate, false);
 assert.equal(manifest.matching.candidateOrderIndependent, true);
