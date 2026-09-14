@@ -7,10 +7,32 @@ on:
         description: "Git ref to measure"
         required: false
         default: "main"
+        type: string
+      measurement:
+        description: "Measurement to run"
+        required: true
+        default: "standard"
+        type: choice
+        options:
+          - standard
+          - starting-kit-early-run
+          - early-b1f-composition
+          - fixed-combat-composition
+          - equipment-load
+          - run-difficulty
+          - run-difficulty-policy-sensitivity
+          - early-run-attrition
+          - survival-policy
       runs:
-        description: "Runs per scenario and class (minimum 500)"
+        description: "Runs for the selected measurement; blank uses its registry default"
         required: false
-        default: "500"
+        default: ""
+        type: string
+      seed:
+        description: "Seed for the selected measurement; blank uses its registry default"
+        required: false
+        default: ""
+        type: string
       purpose:
         description: "Why this measurement is being requested"
         required: true
@@ -18,12 +40,50 @@ on:
       run_type:
         description: "How this run may be used later"
         required: false
-        default: "baseline-candidate"
+        default: ""
+        type: string
+      starting_kit:
+        description: "Starting kit for measurements that expose this option"
+        required: false
+        default: "vanguard"
         type: choice
-        options:
-          - baseline-candidate
-          - diagnostic
-          - temporary
+        options: [vanguard, scout, devotion, arcana]
+      policy:
+        description: "Starting-kit diagnostic policy"
+        required: false
+        default: "fight"
+        type: choice
+        options: [fight, flee-threshold, visible-multi-enemy-flee]
+      flee_hp_threshold:
+        description: "Starting-kit flee threshold"
+        required: false
+        default: "0.20"
+        type: string
+      selection_runs:
+        description: "Early B1F selection runs; blank uses its registry default"
+        required: false
+        default: ""
+        type: string
+      selection_seed:
+        description: "Early B1F selection seed; blank uses its registry default"
+        required: false
+        default: ""
+        type: string
+      fixed_runs:
+        description: "Early B1F fixed-panel runs; blank uses its registry default"
+        required: false
+        default: ""
+        type: string
+      fixed_seed:
+        description: "Early B1F fixed-panel seed; blank uses its registry default"
+        required: false
+        default: ""
+        type: string
+      policies:
+        description: "Run-difficulty policy IDs, comma-separated; blank uses its registry default"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -42,59 +102,63 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Run standard statistical measurement
+      - name: Run selected balance measurement
         id: measurement
         continue-on-error: true
         env:
-          BALANCE_SIM_RUNS: ${{ inputs.runs }}
-        run: |
-          mkdir -p /tmp/balance-measurement
-          node scratch/measurements/measure_balance.js \
-            --output /tmp/balance-measurement/measurement.json \
-            --summary /tmp/balance-measurement/measurement.md
-      - name: Generate run manifest
-        if: always()
-        env:
+          MEASUREMENT_ID: ${{ inputs.measurement }}
+          MEASUREMENT_REF: ${{ inputs.ref }}
+          MEASUREMENT_RUNS: ${{ inputs.runs }}
+          MEASUREMENT_SEED: ${{ inputs.seed }}
           MEASUREMENT_PURPOSE: ${{ inputs.purpose }}
           MEASUREMENT_RUN_TYPE: ${{ inputs.run_type }}
+          MEASUREMENT_STARTING_KIT: ${{ inputs.starting_kit }}
+          MEASUREMENT_POLICY: ${{ inputs.policy }}
+          MEASUREMENT_FLEE_HP_THRESHOLD: ${{ inputs.flee_hp_threshold }}
+          MEASUREMENT_SELECTION_RUNS: ${{ inputs.selection_runs }}
+          MEASUREMENT_SELECTION_SEED: ${{ inputs.selection_seed }}
+          MEASUREMENT_FIXED_RUNS: ${{ inputs.fixed_runs }}
+          MEASUREMENT_FIXED_SEED: ${{ inputs.fixed_seed }}
+          MEASUREMENT_POLICIES: ${{ inputs.policies }}
           MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
           MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           MEASUREMENT_REPOSITORY: ${{ github.repository }}
-          MEASUREMENT_REQUESTED_REF: ${{ inputs.ref }}
           MEASUREMENT_RUN_ATTEMPT: ${{ github.run_attempt }}
           MEASUREMENT_AT: ${{ github.run_started_at }}
-          MEASUREMENT_STEP_OUTCOME: ${{ steps.measurement.outcome }}
+          MEASUREMENT_RUN_ID: ${{ github.run_id }}
         run: |
-          node scratch/measurements/measurement_manifest.js \
-            --measurement /tmp/balance-measurement/measurement.json \
-            --output /tmp/balance-measurement/manifest.json \
-            --summary /tmp/balance-measurement/manifest.md
+          node scratch/measurements/run_balance_measurement.js \
+            --measurement "$MEASUREMENT_ID" \
+            --ref "$MEASUREMENT_REF" \
+            --runs "$MEASUREMENT_RUNS" \
+            --seed "$MEASUREMENT_SEED" \
+            --purpose "$MEASUREMENT_PURPOSE" \
+            --run_type "$MEASUREMENT_RUN_TYPE" \
+            --starting_kit "$MEASUREMENT_STARTING_KIT" \
+            --policy "$MEASUREMENT_POLICY" \
+            --flee_hp_threshold "$MEASUREMENT_FLEE_HP_THRESHOLD" \
+            --selection_runs "$MEASUREMENT_SELECTION_RUNS" \
+            --selection_seed "$MEASUREMENT_SELECTION_SEED" \
+            --fixed_runs "$MEASUREMENT_FIXED_RUNS" \
+            --fixed_seed "$MEASUREMENT_FIXED_SEED" \
+            --policies "$MEASUREMENT_POLICIES" \
+            --run_id "$MEASUREMENT_RUN_ID" \
+            --output_dir /tmp/balance-measurement
       - name: Publish durable run summary
         if: always()
         run: |
-          cat /tmp/balance-measurement/manifest.md >> "$GITHUB_STEP_SUMMARY"
-          printf '\n### Machine-readable manifest\n\n```json\n' >> "$GITHUB_STEP_SUMMARY"
-          cat /tmp/balance-measurement/manifest.json >> "$GITHUB_STEP_SUMMARY"
-          printf '```\n' >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload raw measurement artifact
+          if [ -f /tmp/balance-measurement/measurement.md ]; then cat /tmp/balance-measurement/measurement.md >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f /tmp/balance-measurement/manifest.json ]; then printf '\n### Machine-readable manifest\n\n```json\n' >> "$GITHUB_STEP_SUMMARY"; cat /tmp/balance-measurement/manifest.json >> "$GITHUB_STEP_SUMMARY"; printf '```\n' >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Upload balance measurement artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: balance-measurement-${{ github.run_id }}
+          name: balance-measurement-${{ inputs.measurement }}-${{ github.run_id }}
           path: |
             /tmp/balance-measurement/measurement.json
             /tmp/balance-measurement/measurement.md
-          if-no-files-found: ignore
-          retention-days: 30
-      - name: Upload run manifest
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: balance-measurement-manifest-${{ github.run_id }}
-          path: |
             /tmp/balance-measurement/manifest.json
-            /tmp/balance-measurement/manifest.md
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 90
       - name: Fail failed measurement runs
         if: always() && steps.measurement.outcome != 'success'
