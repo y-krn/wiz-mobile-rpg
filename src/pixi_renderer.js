@@ -1,8 +1,9 @@
 // balance-impact: none — PixiJS screen-space presentation.
 // Pixi is the production-default renderer. This module consumes RendererInput
 // and deliberately stays within the shared screen-space projection contract.
-import { Application, Container, Graphics, Text } from "pixi.js";
+import { Application, Assets, Container, Graphics, Text } from "pixi.js";
 import { EVENT_TYPES } from "./data.js";
+import { getEnemyPresentation } from "./enemy_presentation.js";
 import {
   BASE_GEOMETRY,
   getCombatMonsterLayout,
@@ -12,6 +13,16 @@ import {
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { getVisibleCorridorTopology, isRenderableCorridorCell } from "./rules/renderer_topology.js";
 import { renderMiniMapOverlay } from "./minimap.js";
+import {
+  SIMPLE_ENEMY_PROTOTYPE_MODE,
+  createEnemyPrototype,
+  createProceduralEnemy,
+  getEnemyPrototypePresentation
+} from "./pixi_enemy_prototypes.js";
+
+// Exposed for deterministic visual-gate asset injection; production rendering
+// continues to use the same Pixi Assets singleton.
+export { Assets };
 
 export const PIXI_VIEW_W = 400;
 export const PIXI_VIEW_H = 260;
@@ -143,6 +154,14 @@ function getQueuedThreat(monster) {
     monster?.multiActionQueued || monster?.summonQueued || monster?.snipeQueued || monster?.statusPayoffQueued);
 }
 
+function getEnemyPresentationMode() {
+  if (typeof window === "undefined") return "production";
+  const requested = new URLSearchParams(window.location.search).get("enemyPresentation");
+  return requested === SIMPLE_ENEMY_PROTOTYPE_MODE.primitive || requested === SIMPLE_ENEMY_PROTOTYPE_MODE.simpleRich
+    ? requested
+    : "production";
+}
+
 /**
  * A PixiJS renderer that keeps the existing Canvas projection and topology.
  * Pixi is used only as a 2D drawing surface; there is no camera, FOV, eye,
@@ -168,6 +187,10 @@ export class PixiDungeonRenderer {
     this.combatEntryTime = 0;
     this.activeRoot = null;
     this.damageTexts = [];
+    this.enemyTextures = new Map();
+    this.enemyAssetFailures = new Set();
+    this.enemyAssetPromise = null;
+    this.enemyPresentationMode = getEnemyPresentationMode();
     this.resourceStats = {
       sceneRebuilds: 0,
       maxChildren: 0,
@@ -175,7 +198,11 @@ export class PixiDungeonRenderer {
       layerCount: LAYER_NAMES.length,
       generatedTextureCount: 0,
       filterCount: 0,
-      listenerCount: 0
+      listenerCount: 0,
+      enemyTextureCount: 0,
+      enemyAssetFailureCount: 0,
+      enemyPresentationCount: 0,
+      enemyFallbackCount: 0
     };
     this.failurePhase = failurePhase;
     this.initializationPhase = null;
@@ -222,6 +249,9 @@ export class PixiDungeonRenderer {
         autoStart: false,
         preference: "webgl"
       });
+      // Production enemies are procedural Graphics recipes. There is no enemy
+      // texture decode before the renderer is exposed.
+      if (this.enemyPresentationMode === "production") await this.loadEnemyTextures();
       this.initializationPhase = "mount";
       this.scene = this.createSceneRoot("pixi-current-scene");
       this.app.stage.addChild(this.scene);
@@ -234,6 +264,16 @@ export class PixiDungeonRenderer {
       this.dispose();
       throw error;
     }
+  }
+
+  async loadEnemyTextures() {
+    // Kept as an idempotent lifecycle hook for callers and historical tests.
+    // No rejected WebP asset is loaded by the production renderer.
+    this.enemyTextureManifest = [];
+    this.enemyTextures.clear();
+    this.resourceStats.enemyTextureCount = 0;
+    this.resourceStats.enemyAssetFailureCount = 0;
+    return Promise.resolve();
   }
 
   triggerShake(intensity = 10, duration = 300) {
@@ -295,7 +335,7 @@ export class PixiDungeonRenderer {
     const renderInput = this.resolveRenderInput(input);
     const { view, sceneVisibility } = renderInput;
     const combat = view.hasCombat
-      ? renderInput.combatMonsters.map((monster) => [monster.name, monster.hp, monster.maxHp, monster.color, getQueuedThreat(monster)].join(",")).join(";")
+      ? renderInput.combatMonsters.map((monster) => [monster.name, monster.hp, monster.maxHp, monster.color, monster.spriteType, monster.isBoss, monster.isMidboss, monster.isRare, getQueuedThreat(monster)].join(",")).join(";")
       : "";
     return [
       view.gameState,
@@ -404,7 +444,10 @@ export class PixiDungeonRenderer {
       this.scene.position.x += offset;
       this.scene.position.y += offset * 0.45;
     }
-    if (this.flashTime > 0) drawRect(this.layer("overlays"), 0, 0, PIXI_VIEW_W, PIXI_VIEW_H, "#ffffff", 0.24);
+    if (this.flashTime > 0) {
+      if (renderInput.sceneVisibility.showCombat) this.drawLocalFlash(renderInput);
+      else drawRect(this.layer("overlays"), 0, 0, PIXI_VIEW_W, PIXI_VIEW_H, "#ffffff", 0.24);
+    }
     if (this.hitTime > 0) this.drawHitFeedback(renderInput);
     this.app.render();
     renderMiniMapOverlay(renderInput);
@@ -641,27 +684,55 @@ export class PixiDungeonRenderer {
   }
 
   drawMonsters(renderInput) {
-    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion }) => {
+    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion, row, column }) => {
       const color = getMonsterColor(monster);
       const actors = this.layer("actors");
-      drawEllipse(actors, cx, cy + 28 * scale, 35 * scale, 5 * scale, "#000000", 0.58);
-      const spriteType = monster.spriteType || "biter";
-      if (["skeleton", "zombie", "orc", "kobold"].includes(spriteType)) {
-        drawRect(actors, cx - 19 * scale, cy - 34 * scale, 38 * scale, 52 * scale, color, 0.34, { color, width: Math.max(1, 3 * scale), alpha: 0.9 });
+      const presentation = this.enemyPresentationMode === "production"
+        ? getEnemyPresentation(monster)
+        : getEnemyPrototypePresentation(monster);
+      const floorY = cy + 30 * scale;
+      const visualScale = Math.min(
+        scale * presentation.scale,
+        (floorY * 0.94) / presentation.maxHeight,
+        (slotWidth * 0.82) / presentation.maxWidth
+      );
+      const hpY = Math.max(18, floorY - presentation.height * visualScale - 5);
+      drawEllipse(actors, cx, floorY, Math.min(42, presentation.width * visualScale * 0.42), 5.5 * scale, "#05070a", 0.66);
+      if (this.enemyPresentationMode === "production") {
+        this.drawProceduralEnemy(actors, presentation, cx, floorY, visualScale, color, row, column);
       } else {
-        drawEllipse(actors, cx, cy - 10 * scale, 25 * scale, 25 * scale, color, 0.34, { color, width: Math.max(1, 3 * scale), alpha: 0.9 });
+        this.drawEnemyPrototype(actors, monster, cx, floorY, visualScale, color, row, column, this.enemyPresentationMode);
       }
-      drawEllipse(actors, cx, cy - 10 * scale, 8 * scale, 8 * scale, "#ffffff", 0.82);
-      addLine(actors, [{ x: cx - 15 * scale, y: cy - 10 * scale }, { x: cx + 15 * scale, y: cy - 10 * scale }], { color: "#ffffff", width: Math.max(1, scale), alpha: 0.7 });
       const hp = Math.max(0, Math.min(1, monster.hp / Math.max(1, monster.maxHp)));
-      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, cy - 62, Math.min(100, slotWidth - 8), 5, "#ffffff", 0.12, { color: "#8e8e93", width: 1 });
-      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, cy - 62, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
+      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8), 5, "#ffffff", 0.12, { color: "#8e8e93", width: 1 });
+      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
       if (getQueuedThreat(monster)) {
         const pulse = 0.48 + 0.18 * Math.sin(this.clockMs / 180);
         drawEllipse(this.layer("combat-fx"), cx, cy - 10 * scale, 31 * scale, 31 * scale, "#ffcc00", 0, { color: "#ffcc00", width: 2, alpha: pulse });
       }
       if (renderInput.combatTargetSelection?.active) this.drawTargetMarker(hitRegion, cx, cy, scale, color);
     });
+  }
+
+  drawEnemyPrototype(actors, monster, cx, floorY, visualScale, color, row, column, mode) {
+    const billboard = new Container();
+    billboard.label = `enemy-${mode}-${row}-${column}`;
+    billboard.position.set(cx, floorY);
+    billboard.zIndex = row * 100 + column;
+    const prototype = createEnemyPrototype(mode, monster, visualScale, parseColor(color));
+    billboard.addChild(prototype);
+    actors.addChild(billboard);
+    this.resourceStats.enemyPresentationCount += 1;
+  }
+
+  drawProceduralEnemy(actors, presentation, cx, floorY, visualScale, color, row, column) {
+    const billboard = new Container();
+    billboard.label = `enemy-procedural-${presentation.recipe}-${row}-${column}`;
+    billboard.position.set(cx, floorY);
+    billboard.zIndex = row * 100 + column;
+    billboard.addChild(createProceduralEnemy(presentation.recipe, visualScale, parseColor(color)));
+    actors.addChild(billboard);
+    this.resourceStats.enemyPresentationCount += 1;
   }
 
   drawTargetMarker(hitRegion, cx, cy, scale, color) {
@@ -676,6 +747,13 @@ export class PixiDungeonRenderer {
     }
     graphic.stroke({ color, width: 1.5, alpha: 0.82 });
     this.layer("combat-fx").addChild(graphic);
+  }
+
+  drawLocalFlash(renderInput) {
+    const progress = clamp01(this.flashTime / 200);
+    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ cx, cy, scale }) => {
+      drawEllipse(this.layer("combat-fx"), cx, cy - 20 * scale, 28 * scale, 48 * scale, "#fff4dc", 0.05 + progress * 0.11);
+    });
   }
 
   drawChest() {
@@ -734,8 +812,14 @@ export class PixiDungeonRenderer {
   drawHitFeedback(renderInput) {
     const progress = clamp01(this.hitTime / 220);
     const color = safeColor(renderInput.visual.wallColor, "#e8f7f4");
-    const alpha = 0.10 * progress;
-    drawEllipse(this.layer("combat-fx"), 200, 105, 120 - progress * 24, 72 - progress * 14, color, alpha);
+    const alpha = 0.12 * progress;
+    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ cx, cy, scale }) => {
+      drawEllipse(this.layer("combat-fx"), cx, cy - 20 * scale, 24 * scale + progress * 8, 42 * scale + progress * 12, color, alpha);
+      addLine(this.layer("combat-fx"), [
+        { x: cx - 17 * scale, y: cy - 18 * scale },
+        { x: cx - 26 * scale, y: cy - 26 * scale }
+      ], { color: "#fff4dc", width: Math.max(1, scale * 2), alpha: alpha + 0.12 });
+    });
   }
 
   dispose() {
