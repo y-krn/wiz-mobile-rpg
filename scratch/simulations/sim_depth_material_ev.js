@@ -2304,6 +2304,12 @@ function createStage15FloorTelemetry(floor) {
     entryHp: null,
     entryMaxHp: null,
     entryHpRatio: null,
+    entryRecoveryRemaining: null,
+    entryCureItems: null,
+    entryStatus: null,
+    entryBuildSnapshot: null,
+    entryCumulativeSteps: null,
+    entryCumulativeCombatCount: null,
     exitHp: null,
     exitMaxHp: null,
     exitHpRatio: null,
@@ -2313,6 +2319,14 @@ function createStage15FloorTelemetry(floor) {
     exitMp: null,
     exitMaxMp: null,
     exitMpRatio: null,
+    exitRecoveryRemaining: null,
+    exitCureItems: null,
+    exitStatus: null,
+    exitBuildSnapshot: null,
+    exitCumulativeSteps: null,
+    exitCumulativeCombatCount: null,
+    terminal: null,
+    terminalReason: null,
     mpSpent: 0,
     combatMpSpent: 0,
     mpRecovered: 0,
@@ -2389,7 +2403,7 @@ function stage15Floor(metrics, floor = metrics?.stage15Diagnostics?.currentFloor
   return metrics.stage15Diagnostics.byFloor[String(normalizedFloor)] || null;
 }
 
-function startStage15Floor(state, metrics, floor) {
+function startStage15Floor(state, metrics, floor, scoringProfile = null) {
   if (!metrics?.stage15Diagnostics || floor > STAGE15_MAX_FLOOR) return;
   const character = state.party[0];
   const telemetry = metrics.stage15Diagnostics.byFloor[String(floor)] ||=
@@ -2400,6 +2414,14 @@ function startStage15Floor(state, metrics, floor) {
   telemetry.entryMp = character.mp;
   telemetry.entryMaxMp = getCharMaxMp(character);
   telemetry.entryMpRatio = character.mp / Math.max(1, telemetry.entryMaxMp);
+  telemetry.entryRecoveryRemaining = state.inventory.filter(item =>
+    item === "HEAL_POTION" || item === "GREATER_HEAL"
+  ).length;
+  telemetry.entryCureItems = countInventoryItems(state.inventory);
+  telemetry.entryStatus = character.status;
+  telemetry.entryBuildSnapshot = createBuildSnapshot(state, scoringProfile, "floor-entry");
+  telemetry.entryCumulativeSteps = metrics.steps;
+  telemetry.entryCumulativeCombatCount = state.currentRun.battles;
   metrics.stage15Diagnostics.currentFloor = floor;
   if (floor === 5) {
     metrics.stage15Diagnostics.b5Entry = {
@@ -2455,6 +2477,16 @@ function finalizeStage15Floor(state, metrics, floor, status, terminationReason =
   telemetry.exitMp = character.mp;
   telemetry.exitMaxMp = getCharMaxMp(character);
   telemetry.exitMpRatio = character.mp / Math.max(1, telemetry.exitMaxMp);
+  telemetry.exitRecoveryRemaining = state.inventory.filter(item =>
+    item === "HEAL_POTION" || item === "GREATER_HEAL"
+  ).length;
+  telemetry.exitCureItems = countInventoryItems(state.inventory);
+  telemetry.exitStatus = character.status;
+  telemetry.exitBuildSnapshot = createBuildSnapshot(state, null, "floor-exit");
+  telemetry.exitCumulativeSteps = metrics.steps;
+  telemetry.exitCumulativeCombatCount = state.currentRun.battles;
+  telemetry.terminal = status;
+  telemetry.terminalReason = terminationReason;
   telemetry.reachedNextFloor = Number(status === "survived");
   telemetry.died = Number(status === "died");
   telemetry.incomplete = Number(status === "incomplete");
@@ -14770,7 +14802,7 @@ export function simulateRun({
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
   for (let floor = startFloor; floor < targetDepth; floor++) {
     state.floor = floor;
-    startStage15Floor(state, metrics, floor);
+    startStage15Floor(state, metrics, floor, scoringProfile);
     applyTrapBonusExposureCeiling(state, floor);
     const buildSnapshots = metrics.diagnostics?.buildSnapshots || metrics.buildSnapshots;
     if (buildSnapshots) {
