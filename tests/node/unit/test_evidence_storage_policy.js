@@ -44,7 +44,7 @@ function exception(pathName, classification, mode, maximumSize, base) {
   };
 }
 
-function policyFor(baseTree, baseBlob, extraExceptions = []) {
+function policyFor(baseBlob, extraExceptions = []) {
   return {
     schemaVersion: 1,
     newTrackedRawGeneratedJsonMaxBytes: LIMIT,
@@ -63,7 +63,6 @@ function policyFor(baseTree, baseBlob, extraExceptions = []) {
     ],
     exceptions: [
       exception("evidence/results/legacy.json", "raw-generated-json", "grandfathered", baseBlob.size, {
-        tree: baseTree,
         blob: baseBlob.blob,
         size: baseBlob.size,
       }),
@@ -77,14 +76,13 @@ function createRepo(extraExceptions = []) {
   git(root, ["init", "--initial-branch=main", "-q"]);
   write(root, "evidence/results/legacy.json", "x".repeat(LIMIT + 128));
   const baseCommit = commit(root, "seed grandfathered evidence");
-  const baseTree = git(root, ["rev-parse", `${baseCommit}:evidence`]);
   const baseBlob = {
     blob: git(root, ["rev-parse", "HEAD:evidence/results/legacy.json"]),
     size: Number(git(root, ["cat-file", "-s", "HEAD:evidence/results/legacy.json"])),
   };
-  write(root, POLICY_PATH, JSON.stringify(policyFor(baseTree, baseBlob, extraExceptions), null, 2) + "\n");
+  write(root, POLICY_PATH, JSON.stringify(policyFor(baseBlob, extraExceptions), null, 2) + "\n");
   const policyHead = commit(root, "add policy");
-  return { root, baseCommit, baseTree, baseBlob, policyHead };
+  return { root, baseCommit, baseBlob, policyHead };
 }
 
 function check(repo, headRef = repo.policyHead) {
@@ -116,7 +114,7 @@ try {
   {
     const repo = createRepo();
     repos.push(repo);
-    const relaxed = policyFor(repo.baseTree, repo.baseBlob, [
+    const relaxed = policyFor(repo.baseBlob, [
       exception("evidence/results/new-raw.json", "raw-generated-json", "allow-new", LIMIT + 1),
     ]);
     write(repo.root, POLICY_PATH, JSON.stringify(relaxed));
@@ -138,7 +136,7 @@ try {
   {
     const repo = createRepo();
     repos.push(repo);
-    const relaxed = policyFor(repo.baseTree, repo.baseBlob);
+    const relaxed = policyFor(repo.baseBlob);
     relaxed.exceptions[0].maximumSize += 1;
     write(repo.root, POLICY_PATH, JSON.stringify(relaxed));
     const head = commit(repo.root, "try to increase grandfather ceiling");
@@ -149,9 +147,11 @@ try {
   {
     const repo = createRepo();
     repos.push(repo);
+    write(repo.root, "evidence/fixtures/allowed-fixture.json", "fixture\n");
+    const advancedBase = commit(repo.root, "advance main with allowed fixture");
     write(repo.root, "unrelated.txt", "main advanced\n");
-    const advancedBase = commit(repo.root, "advance main outside evidence");
-    assert.equal(checkEvidenceStorage({ root: repo.root, baseRef: advancedBase, headRef: repo.policyHead }).ok, true, "unrelated main commit does not invalidate evidence tree baseline");
+    const advancedHead = commit(repo.root, "advance main outside evidence");
+    assert.equal(checkEvidenceStorage({ root: repo.root, baseRef: advancedBase, headRef: advancedHead }).ok, true, "allowed fixture addition does not invalidate grandfather baseline");
   }
 
   {
@@ -208,7 +208,7 @@ try {
   {
     const repo = createRepo();
     repos.push(repo);
-    const malformed = policyFor(repo.baseTree, repo.baseBlob);
+    const malformed = policyFor(repo.baseBlob);
     delete malformed.exceptions[0].owner;
     write(repo.root, POLICY_PATH, JSON.stringify(malformed));
     const head = commit(repo.root, "malform exception metadata");

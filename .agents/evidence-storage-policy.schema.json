@@ -32,7 +32,7 @@
           },
           "base": {
             "type": "object",
-            "required": ["tree", "blob", "size"]
+            "required": ["blob", "size"]
           }
         }
       }

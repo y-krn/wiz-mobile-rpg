@@ -28,10 +28,6 @@ function resolveCommit(root, ref) {
   return runGit(root, ["rev-parse", "--verify", `${ref}^{commit}`]).trim();
 }
 
-function resolveEvidenceTree(root, commit) {
-  return runGit(root, ["rev-parse", "--verify", `${commit}:evidence`]).trim();
-}
-
 function readPolicyAtCommit(root, commit, policyPath) {
   try {
     return JSON.parse(runGit(root, ["show", `${commit}:${policyPath}`]));
@@ -169,8 +165,8 @@ export function validatePolicy(policy, policyPath = DEFAULT_POLICY_PATH) {
         addDiagnostic(diagnostics, policyPath, `${label}.review requires reviewedBy, reviewedAt, and expiresAt`);
       }
       if (exception.mode === "grandfathered") {
-        if (!exception.base || typeof exception.base !== "object" || !isSha(exception.base.tree) || !isSha(exception.base.blob) || !Number.isSafeInteger(exception.base.size) || exception.base.size <= 0) {
-          addDiagnostic(diagnostics, policyPath, `${label}.base requires tree, blob, and positive size`);
+        if (!exception.base || typeof exception.base !== "object" || !isSha(exception.base.blob) || !Number.isSafeInteger(exception.base.size) || exception.base.size <= 0) {
+          addDiagnostic(diagnostics, policyPath, `${label}.base requires blob and positive size`);
         }
       } else if (exception.base !== undefined) {
         addDiagnostic(diagnostics, policyPath, `${label}.base is only valid for grandfathered exceptions`);
@@ -219,8 +215,7 @@ function findRule(policy, filePath) {
   return policy.classificationRules.find(rule => matchesRule(filePath, rule));
 }
 
-function checkGrandfatheredBase(exception, baseCommit, baseEvidenceTree, baseEntry, enforceTree) {
-  if (enforceTree && exception.base.tree !== baseEvidenceTree) return `grandfather base tree mismatch (policy=${exception.base.tree})`;
+function checkGrandfatheredBase(exception, baseEntry) {
   if (!baseEntry) return "grandfather base path is missing";
   if (exception.base.blob !== baseEntry.blob) return `grandfather base blob mismatch (policy=${exception.base.blob})`;
   if (exception.base.size !== baseEntry.size) return `grandfather base size mismatch (policy=${exception.base.size})`;
@@ -285,7 +280,6 @@ export function checkEvidenceStorage({
   const loaded = loadPolicy(root, policyPath);
   if (loaded.diagnostics.length > 0) return { ok: false, diagnostics: loaded.diagnostics, changedPaths: 0 };
 
-  const explicitBase = Boolean(baseRef || process.env.EVIDENCE_BASE_SHA || process.env.BASE_SHA || process.env.BASE_REF);
   const baseName = baseRef || process.env.EVIDENCE_BASE_SHA || process.env.BASE_SHA || process.env.BASE_REF || "HEAD";
   const headName = headRef || process.env.EVIDENCE_HEAD_SHA || "HEAD";
   let baseCommit;
@@ -300,12 +294,10 @@ export function checkEvidenceStorage({
   let baseTree;
   let headTree;
   let changes;
-  let baseEvidenceTree;
   try {
     baseTree = readTree(root, baseCommit);
     headTree = readTree(root, headCommit);
     changes = readChangedPaths(root, baseCommit, headCommit);
-    baseEvidenceTree = resolveEvidenceTree(root, baseCommit);
   } catch (error) {
     return { ok: false, diagnostics: [`evidence: unable to inspect base/head trees: ${error.message}`], changedPaths: 0 };
   }
@@ -323,7 +315,7 @@ export function checkEvidenceStorage({
     changedEvidence: changes.size,
   }));
   for (const exception of exceptions.filter(item => item.mode === "grandfathered")) {
-    const mismatch = checkGrandfatheredBase(exception, baseCommit, baseEvidenceTree, baseTree.get(exception.path), explicitBase);
+    const mismatch = checkGrandfatheredBase(exception, baseTree.get(exception.path));
     if (mismatch) {
       const entry = baseTree.get(exception.path);
       diagnostics.push(diagnosticFor(exception.path, entry?.size, mismatch, baseCommit, entry, headCommit, headTree.get(exception.path)));
