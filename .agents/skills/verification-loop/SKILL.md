@@ -32,6 +32,9 @@ Apply `AGENTS.md` first and use `qa-regression.md` to select the checks.
 - Poll CI with an explicit maximum attempt count and elapsed-time limit. A
   pending check is not a failure. When the limit is reached, record the current
   status and stop.
+- For GitHub pull requests, prefer `npm run check:ci -- <PR or URL>`; it uses
+  the repository's bounded polling helper and returns distinct outcomes for
+  pass, failed/cancelled, pending timeout, and query error.
 - Inspect `git diff --stat` or `git diff --name-only` before opening a broad
   diff. Read only changed or decision-relevant sections.
 - Summarize large outputs and retain the command, revision, result, and relevant
