@@ -1,0 +1,185 @@
+{
+  "$schema": "./evidence-storage-policy.schema.json",
+  "schemaVersion": 1,
+  "newTrackedRawGeneratedJsonMaxBytes": 1048576,
+  "artifactPolicy": {
+    "defaultRetentionDays": 14,
+    "durableOutputs": ["summary", "provenance"],
+    "rawUpload": "failure-or-explicit-debug",
+    "provenanceFields": ["runnerPath", "runnerVersion", "sourceSha", "baseSha", "seed", "config", "determinismStatus", "contentHash", "retention"],
+    "forbiddenContent": ["secrets", "tokens", "personalInformation"]
+  },
+  "classificationRules": [
+    {
+      "classification": "fixture",
+      "pathPrefixes": ["evidence/fixtures/"],
+      "changePolicy": "allow"
+    },
+    {
+      "classification": "protocol",
+      "pathPrefixes": ["evidence/protocols/"],
+      "changePolicy": "allow"
+    },
+    {
+      "classification": "raw-generated-json",
+      "pathPrefixes": ["evidence/results/"],
+      "extensions": [".json"],
+      "changePolicy": "size-limit"
+    },
+    {
+      "classification": "visual-review",
+      "pathPrefixes": ["evidence/results/"],
+      "extensions": [".png", ".jpg", ".jpeg", ".webp"],
+      "changePolicy": "deny-change"
+    }
+  ],
+  "exceptions": [
+    {
+      "path": "evidence/results/issue-1096-build-payment-decision.json",
+      "classification": "decision/provenance",
+      "mode": "allow-new",
+      "maximumSize": 10240,
+      "rationale": "Small machine-readable decision record is the durable companion to a generated measurement.",
+      "owner": "evidence-maintainers",
+      "review": {
+        "reviewedBy": "evidence-maintainers",
+        "reviewedAt": "2026-09-15",
+        "expiresAt": "2027-09-15"
+      }
+    },
+    {
+      "path": "evidence/results/issue-1100-build-payment-stake-decision.json",
+      "classification": "decision/provenance",
+      "mode": "allow-new",
+      "maximumSize": 10240,
+      "rationale": "Small machine-readable decision record is the durable companion to a generated measurement.",
+      "owner": "evidence-maintainers",
+      "review": {
+        "reviewedBy": "evidence-maintainers",
+        "reviewedAt": "2026-09-15",
+        "expiresAt": "2027-09-15"
+      }
+    },
+    {
+      "path": "evidence/results/issue-980-causal-attribution.json",
+      "classification": "decision/provenance",
+      "mode": "allow-new",
+      "maximumSize": 10240,
+      "rationale": "Small machine-readable causal attribution is a durable decision record.",
+      "owner": "evidence-maintainers",
+      "review": {
+        "reviewedBy": "evidence-maintainers",
+        "reviewedAt": "2026-09-15",
+        "expiresAt": "2027-09-15"
+      }
+    },
+    {
+      "path": "evidence/results/issue-1100-build-payment-stake.json",
+      "classification": "raw-generated-json",
+      "mode": "grandfathered",
+      "maximumSize": 5886846,
+      "base": {
+        "tree": "425e99f6ebf4cf28f66fe2d9f4fbdc291c803cf3",
+        "blob": "a2a9028965f35cdc6374c2218414f62411ec7b80",
+        "size": 5886846
+      },
+      "rationale": "Existing raw measurement output remains tracked unchanged while future output uses CI artifacts.",
+      "owner": "evidence-maintainers",
+      "review": {
+        "reviewedBy": "evidence-maintainers",
+        "reviewedAt": "2026-09-15",
+        "expiresAt": "2027-09-15"
+      }
+    },
+    {
+      "path": "evidence/results/issue-984-pure-raw-decomposition.json",
+      "classification": "raw-generated-json",
+      "mode": "grandfathered",
+      "maximumSize": 6673696,
+      "base": {
+        "tree": "425e99f6ebf4cf28f66fe2d9f4fbdc291c803cf3",
+        "blob": "c28013c576cfe83ff69b0d32b2f08a2da6548349",
+        "size": 6673696
+      },
+      "rationale": "Existing raw measurement output remains tracked unchanged while future output uses CI artifacts.",
+      "owner": "evidence-maintainers",
+      "review": {
+        "reviewedBy": "evidence-maintainers",
+        "reviewedAt": "2026-09-15",
+        "expiresAt": "2027-09-15"
+      }
+    },
+    {
+      "path": "evidence/results/issue-987-production-frequency.json",
+      "classification": "raw-generated-json",
+      "mode": "grandfathered",
+      "maximumSize": 15444999,
+      "base": {
+        "tree": "425e99f6ebf4cf28f66fe2d9f4fbdc291c803cf3",
+        "blob": "f01cb4c771d8abd11c9fa4f47fb4e8957dc1be4d",
+        "size": 15444999
+      },
+      "rationale": "Existing raw measurement output remains tracked unchanged while future output uses CI artifacts.",
+      "owner": "evidence-maintainers",
+      "review": {
+        "reviewedBy": "evidence-maintainers",
+        "reviewedAt": "2026-09-15",
+        "expiresAt": "2027-09-15"
+      }
+    },
+    {
+      "path": "evidence/results/issue-990-phase2.json",
+      "classification": "raw-generated-json",
+      "mode": "grandfathered",
+      "maximumSize": 83089724,
+      "base": {
+        "tree": "425e99f6ebf4cf28f66fe2d9f4fbdc291c803cf3",
+        "blob": "18023ee28b2b35bf65a9ec8722e4c7cdde0cadbc",
+        "size": 83089724
+      },
+      "rationale": "Existing raw measurement output remains tracked unchanged while future output uses CI artifacts.",
+      "owner": "evidence-maintainers",
+      "review": {
+        "reviewedBy": "evidence-maintainers",
+        "reviewedAt": "2026-09-15",
+        "expiresAt": "2027-09-15"
+      }
+    },
+    {
+      "path": "evidence/results/issue-990-phase3-stage1.5.json",
+      "classification": "raw-generated-json",
+      "mode": "grandfathered",
+      "maximumSize": 1903430,
+      "base": {
+        "tree": "425e99f6ebf4cf28f66fe2d9f4fbdc291c803cf3",
+        "blob": "42d7aedaf0d8d8e6c261d99b6d724a1b996b53a7",
+        "size": 1903430
+      },
+      "rationale": "Existing raw measurement output remains tracked unchanged while future output uses CI artifacts.",
+      "owner": "evidence-maintainers",
+      "review": {
+        "reviewedBy": "evidence-maintainers",
+        "reviewedAt": "2026-09-15",
+        "expiresAt": "2027-09-15"
+      }
+    },
+    {
+      "path": "evidence/results/issue-990-reached-run.json",
+      "classification": "raw-generated-json",
+      "mode": "grandfathered",
+      "maximumSize": 11133803,
+      "base": {
+        "tree": "425e99f6ebf4cf28f66fe2d9f4fbdc291c803cf3",
+        "blob": "092c93495812ddb33c855d0e5f45408488a757f3",
+        "size": 11133803
+      },
+      "rationale": "Existing raw measurement output remains tracked unchanged while future output uses CI artifacts.",
+      "owner": "evidence-maintainers",
+      "review": {
+        "reviewedBy": "evidence-maintainers",
+        "reviewedAt": "2026-09-15",
+        "expiresAt": "2027-09-15"
+      }
+    }
+  ]
+}
