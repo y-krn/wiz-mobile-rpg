@@ -22,6 +22,7 @@
     "test:browser:e2e": "node scripts/dependency-preflight.js && playwright test --grep @e2e",
     "test:browser:visual": "node scripts/dependency-preflight.js && playwright test --grep @visual",
     "test:browser:full": "node scripts/dependency-preflight.js && playwright test",
+    "inspect:bounded": "node scripts/inspect-bounded.js",
     "check:ci": "node scripts/check-ci-bounded.js",
     "lint:css": "stylelint \"src/style.css\" \"src/styles/**/*.css\"",
     "lint:docs": "node scripts/check_doc_paths.js",
