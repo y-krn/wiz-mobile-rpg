@@ -21,7 +21,7 @@ function gitOutput(args, cwd) {
 function gitDiffSha256(baseCommit, runnerCommit, cwd, paths = []) {
   try {
     const diff = execFileSync("git", [
-      "diff", "--binary", baseCommit, runnerCommit, "--", ...paths
+      "diff", "--binary", "--full-index", baseCommit, runnerCommit, "--", ...paths
     ], {
       cwd,
       encoding: null,
