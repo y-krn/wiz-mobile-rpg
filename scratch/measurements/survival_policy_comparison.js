@@ -173,10 +173,7 @@ function aggregateFlee(records) {
     failures: total.failures + row.failures,
     partingAttackCount: total.partingAttackCount + row.partingAttackCount,
     survived: total.survived + row.survived,
-    diedFromPartingAttack: total.diedFromPartingAttack + row.diedFromPartingAttack,
-    partingDamageHp: total.partingDamageHp === null || row.partingDamageHp === null
-      ? null
-      : total.partingDamageHp + row.partingDamageHp
+    diedFromPartingAttack: total.diedFromPartingAttack + row.diedFromPartingAttack
   }), {
     attempts: 0,
     selected: 0,
@@ -185,10 +182,16 @@ function aggregateFlee(records) {
     failures: 0,
     partingAttackCount: 0,
     survived: 0,
-    diedFromPartingAttack: 0,
-    partingDamageHp: 0
+    diedFromPartingAttack: 0
   });
-  return { ...totals, byFloor };
+  const observedPartingDamage = Object.values(byFloor)
+    .filter(row => row.partingDamageHp !== null)
+    .map(row => row.partingDamageHp);
+  return {
+    ...totals,
+    partingDamageHp: observedPartingDamage.length > 0 ? sum(observedPartingDamage) : null,
+    byFloor
+  };
 }
 
 function aggregateCombat(records) {
