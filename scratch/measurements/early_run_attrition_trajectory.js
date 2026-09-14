@@ -173,6 +173,7 @@ function groupCostEvents(events) {
 function compactBuildSnapshot(snapshot) {
   if (!snapshot) return null;
   return {
+    identity: snapshot.identity || null,
     point: snapshot.point || null,
     floor: finite(snapshot.floor),
     level: finite(snapshot.level),
@@ -314,7 +315,7 @@ function compactFloor(stage, result, groupedCosts, rewardEvents, recoveryEvents,
   };
 }
 
-function compactRun(result, { scenarioId, startingKitId, policyId, runIndex, worldSeed }) {
+export function compactRun(result, { scenarioId, startingKitId, policyId, runIndex, worldSeed }) {
   const diagnostics = result.diagnostics || {};
   const groupedCosts = groupCostEvents(diagnostics.costEvents || []);
   const stages = result.stage15Diagnostics?.byFloor || {};
