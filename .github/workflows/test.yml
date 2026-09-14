@@ -57,14 +57,22 @@ jobs:
           filters: |
             browser:
               - 'src/**'
-              - 'tests/**'
+              - 'tests/**/*.spec.js'
+              - 'tests/**/*.cases.js'
+              - 'tests/fixtures/**'
+              - 'tests/*-helpers.js'
+              - 'tests/*-fixtures.js'
+              - 'tests/**/*-snapshots/**'
               - '**/*.css'
               - 'package.json'
               - 'package-lock.json'
               - 'playwright.config.js'
-              - 'scripts/**'
+              - 'scripts/dependency-preflight.js'
+              - 'scripts/playwright-diagnostics.js'
+              - 'scripts/playwright-diagnostics-reporter.js'
+              - 'scripts/playwright-preflight.js'
               - 'tests/node/regression/test_playwright_diagnostics.js'
-              - '.github/workflows/**'
+              - '.github/workflows/test.yml'
       - uses: actions/setup-node@v4
         if: steps.changes.outputs.browser == 'true'
         with:
@@ -115,14 +123,22 @@ jobs:
           filters: |
             browser:
               - 'src/**'
-              - 'tests/**'
+              - 'tests/**/*.spec.js'
+              - 'tests/**/*.cases.js'
+              - 'tests/fixtures/**'
+              - 'tests/*-helpers.js'
+              - 'tests/*-fixtures.js'
+              - 'tests/**/*-snapshots/**'
               - '**/*.css'
               - 'package.json'
               - 'package-lock.json'
               - 'playwright.config.js'
-              - 'scripts/**'
+              - 'scripts/dependency-preflight.js'
+              - 'scripts/playwright-diagnostics.js'
+              - 'scripts/playwright-diagnostics-reporter.js'
+              - 'scripts/playwright-preflight.js'
               - 'tests/node/regression/test_playwright_diagnostics.js'
-              - '.github/workflows/**'
+              - '.github/workflows/test.yml'
       - uses: actions/setup-node@v4
         if: steps.changes.outputs.browser == 'true'
         with:

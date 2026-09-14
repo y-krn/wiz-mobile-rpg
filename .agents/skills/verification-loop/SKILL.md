@@ -38,6 +38,9 @@ Apply `AGENTS.md` first and use `qa-regression.md` to select the checks.
 - Poll CI with an explicit maximum attempt count and elapsed-time limit. A
   pending check is not a failure. When the limit is reached, record the current
   status and stop.
+- The repository helper defaults to 36 attempts, 10 seconds between checks, and
+  a 360-second cap. Keep the bound above the observed full-unit duration unless
+  the check has a documented shorter budget.
 - For GitHub pull requests, prefer `npm run check:ci -- <PR or URL>`; it uses
   the repository's bounded polling helper and returns distinct outcomes for
   pass, failed/cancelled, pending timeout, and query error.

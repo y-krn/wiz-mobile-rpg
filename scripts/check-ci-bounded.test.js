@@ -12,6 +12,13 @@ test("parseArgs applies bounded polling options", () => {
   });
 });
 
+test("defaults cover the observed full unit-check duration", () => {
+  const options = parseArgs([]);
+  assert.equal(options.attempts, 36);
+  assert.equal(options.intervalSeconds, 10);
+  assert.equal(options.maxSeconds, 360);
+});
+
 test("summarizeChecks separates pending and failures", () => {
   const summary = summarizeChecks([
     { name: "lint", bucket: "pass" },

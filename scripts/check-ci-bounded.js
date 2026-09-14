@@ -2,9 +2,9 @@ import { spawnSync } from "node:child_process";
 import process from "node:process";
 
 const DEFAULTS = {
-  attempts: 12,
+  attempts: 36,
   intervalSeconds: 10,
-  maxSeconds: 180
+  maxSeconds: 360
 };
 
 const BUCKETS = new Set(["pass", "fail", "pending", "skipping", "cancel"]);
