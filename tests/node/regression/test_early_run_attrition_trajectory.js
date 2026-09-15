@@ -258,26 +258,60 @@ assert.equal(smoke.cases[0].policies.t0.aggregate.buildProgression.B2Entry.popul
 assert.equal(smoke.cases[0].policies.t0.aggregate.buildProgression.B2Entry.combatGrowth.atk.delta.n >= 0, true);
 assert.equal(smoke.cases[0].policies.t0.aggregate.distributions[1].lootSupply.status, "observed");
 assert.equal(smoke.cases[0].policies.t0.aggregate.distributions[1].equipmentDecisionActivity.status, "observed");
+assert.equal(smoke.cases[0].policies.t0.aggregate.selectedCandidateSwapConsistency.pass, true);
 const auditedRecord = smoke.cases[0].policies.t0.records[0];
 assert.equal(auditedRecord.buildCheckpoints.runStart.build.identity, auditedRecord.build.starting.identity);
 assert.equal(auditedRecord.buildCheckpoints.terminal.build.identity, auditedRecord.build.ending.identity);
-const selectedAudits = (auditedRecord.equipmentCandidateAudit || []).filter(audit => audit.selected);
-const selectedSwaps = (auditedRecord.equipmentTelemetry || []).filter(event => event.type === "swap");
-assert.equal(selectedAudits.length, selectedSwaps.length);
-selectedAudits.forEach(audit => {
-  assert.equal(selectedSwaps.some(event => event.candidateAuditId === audit.id), true);
-});
-const qualifiedRejectedAudits = smoke.cases[0].policies.t0.records
-  .flatMap(record => record.equipmentCandidateAudit || [])
-  .filter(audit => audit.evaluableCandidate && audit.qualifies && !audit.selected)
-;
-assert.ok(qualifiedRejectedAudits.length > 0);
-qualifiedRejectedAudits.forEach(audit => {
-  assert.equal(
-    ["not-best-selection-score", "out-ranked-by-later-candidate"].includes(audit.rejectionReason),
-    true
-  );
-});
+assert.equal(Object.hasOwn(auditedRecord, "equipmentCandidateAudit"), false);
+assert.equal(Object.hasOwn(auditedRecord, "equipmentTelemetry"), false);
+assert.equal(
+  auditedRecord.equipmentCandidateAuditSummary.selectedCandidateSwapConsistency.pass,
+  true
+);
+assert.equal(
+  auditedRecord.equipmentCandidateAuditSummary.selectedCandidateSwapConsistency.selectedCandidateCount,
+  auditedRecord.equipmentCandidateAuditSummary.selectedEvents
+);
+const qualifiedRejectedCandidateCount = smoke.cases[0].policies.t0.records
+  .reduce((total, record) => total + record.equipmentCandidateAuditSummary.qualifiedRejectedCandidateCount, 0);
+assert.ok(qualifiedRejectedCandidateCount > 0);
+const candidateSample = smoke.cases[0].policies.t0.candidateAuditSample;
+assert.equal(candidateSample.policy, trajectory.CANDIDATE_AUDIT_SAMPLE_POLICY);
+assert.equal(candidateSample.retainedCount, candidateSample.events.length);
+assert.equal(candidateSample.retainedCount + candidateSample.droppedCount, candidateSample.totalCount);
+assert.ok(candidateSample.retainedCount <= trajectory.CANDIDATE_AUDIT_SAMPLE_LIMIT);
+
+const largeCandidateSample = trajectory.createCandidateAuditSampleCollector(4);
+largeCandidateSample.addAll(
+  Array.from({ length: 10000 }, (_, index) => ({ id: `candidate:${index}`, payload: "x".repeat(2048) })),
+  0
+);
+const boundedSample = largeCandidateSample.finalize();
+assert.equal(boundedSample.retainedCount, 4);
+assert.equal(boundedSample.droppedCount, 9996);
+assert.ok(
+  JSON.stringify({ candidateAuditSample: boundedSample }).length < 20000,
+  "candidate report detail must stay bounded when candidate event count grows"
+);
+const auditedReport = trajectory.buildReport(
+  smoke,
+  { sourceCommit: "a".repeat(40), measurementRunnerCommit: "b".repeat(40) },
+  { SIM_SEED: "1277" },
+  { measurementId: "build-progression-audit", purpose: "regression" }
+);
+assert.equal(
+  auditedReport.measurement.candidateAuditSampleLimit,
+  trajectory.CANDIDATE_AUDIT_SAMPLE_LIMIT
+);
+const auditedManifest = trajectory.buildManifest(auditedReport);
+assert.equal(
+  auditedManifest.provenance.candidateAuditSampling[0].retainedCount,
+  candidateSample.retainedCount
+);
+assert.equal(
+  auditedManifest.provenance.candidateAuditSampling[0].droppedCount,
+  candidateSample.droppedCount
+);
 
 const b2Smoke = await trajectory.runMeasurement({
   runs: 4,

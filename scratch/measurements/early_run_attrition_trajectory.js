@@ -19,6 +19,10 @@ export const DEFAULT_SEED = 1277;
 export const TRAJECTORY_FLOORS = Object.freeze([1, 2, 3, 4, 5]);
 export const MEASUREMENT_CUTOFF_FLOOR = 6;
 export const STARTING_KIT_IDS = Object.freeze(STARTING_KITS.map(kit => kit.id));
+export const CANDIDATE_AUDIT_SAMPLE_LIMIT = 128;
+export const CANDIDATE_AUDIT_SAMPLE_POLICY = Object.freeze(
+  "first-N candidate events in deterministic condition/runIndex/audit order"
+);
 export const WORKSHOP_SCENARIO_IDS = Object.freeze([
   "workshop-empty",
   "workshop-complete"
@@ -278,7 +282,8 @@ function compactFloor(
   rewardEvents,
   recoveryEvents,
   encounters,
-  diagnosticEncounters
+  diagnosticEncounters,
+  candidateAuditSummary
 ) {
   if (!stage) return null;
   const floor = Number(stage.floor);
@@ -329,9 +334,7 @@ function compactFloor(
   const buildShiftCount = (result.equipmentTelemetry || []).filter(event =>
     Number(event.floor) === floor && event.type === "swap"
   ).length;
-  const candidateAudit = Array.isArray(result.equipmentCandidateAudit)
-    ? result.equipmentCandidateAudit.filter(event => Number(event.floor) === floor)
-    : null;
+  const candidateActivity = candidateAuditSummary?.byFloor?.[String(floor)] || null;
   const loot = {
     opportunities: floorRewards.length,
     equipmentOpportunities: floorRewards.filter(event => event.category === "equipment").length,
@@ -345,13 +348,13 @@ function compactFloor(
     runeOpportunities: floorRewards.filter(event => event.category === "rune").length,
     buildOpportunities: loot.buildOpportunities
   };
-  if (candidateAudit) {
+  if (candidateActivity) {
     loot.equipmentDecisionActivity = {
       observed: true,
-      evaluationEvents: candidateAudit.length,
-      evaluableEvents: candidateAudit.filter(event => event.evaluableCandidate).length,
-      qualifiedEvents: candidateAudit.filter(event => event.evaluableCandidate && event.qualifies).length,
-      selectedEvents: candidateAudit.filter(event => event.selected).length,
+      evaluationEvents: candidateActivity.evaluationEvents,
+      evaluableEvents: candidateActivity.evaluableEvents,
+      qualifiedEvents: candidateActivity.qualifiedEvents,
+      selectedEvents: candidateActivity.selectedEvents,
       observableBuildChanges: buildShiftCount
     };
   }
@@ -484,7 +487,76 @@ function compactBuildCheckpoints(result, floors) {
   return checkpoints;
 }
 
-export function compactRun(result, { scenarioId, startingKitId, policyId, runIndex, worldSeed }) {
+function emptyCandidateAuditFloorSummary() {
+  return {
+    evaluationEvents: 0,
+    evaluableEvents: 0,
+    qualifiedEvents: 0,
+    selectedEvents: 0
+  };
+}
+
+function summarizeCandidateAudit(result) {
+  if (!Array.isArray(result.equipmentCandidateAudit)) return null;
+  const byFloor = Object.fromEntries(
+    TRAJECTORY_FLOORS.map(floor => [String(floor), emptyCandidateAuditFloorSummary()])
+  );
+  const rejectedClassifications = {};
+  let evaluableRejectedCandidateCount = 0;
+  let qualifiedRejectedCandidateCount = 0;
+  let selectedEvents = 0;
+  result.equipmentCandidateAudit.forEach(audit => {
+    const floor = byFloor[String(audit.floor)];
+    if (floor) {
+      floor.evaluationEvents++;
+      floor.evaluableEvents += Number(Boolean(audit.evaluableCandidate));
+      floor.qualifiedEvents += Number(Boolean(audit.evaluableCandidate && audit.qualifies));
+      floor.selectedEvents += Number(Boolean(audit.selected));
+    }
+    selectedEvents += Number(Boolean(audit.selected));
+    if (!audit.evaluableCandidate || audit.selected) return;
+    evaluableRejectedCandidateCount++;
+    qualifiedRejectedCandidateCount += Number(Boolean(audit.qualifies));
+    (audit.sidegradeClassifications || []).forEach(id => {
+      rejectedClassifications[id] = (rejectedClassifications[id] || 0) + 1;
+    });
+  });
+  const swaps = (result.equipmentTelemetry || []).filter(event => event.type === "swap");
+  const selectedAuditIds = new Set(
+    result.equipmentCandidateAudit.filter(audit => audit.selected).map(audit => audit.id)
+  );
+  const swapAuditIds = swaps.map(event => event.candidateAuditId).filter(Boolean);
+  const selectedSwapIds = new Set(swapAuditIds);
+  const unmatchedSelectedAuditIds = [...selectedAuditIds].filter(id => !selectedSwapIds.has(id));
+  const unmatchedSwapAuditIds = [...selectedSwapIds].filter(id => !selectedAuditIds.has(id));
+  return {
+    status: "observed",
+    evaluationEvents: result.equipmentCandidateAudit.length,
+    evaluableEvents: result.equipmentCandidateAudit.filter(audit => audit.evaluableCandidate).length,
+    qualifiedEvents: result.equipmentCandidateAudit.filter(audit =>
+      audit.evaluableCandidate && audit.qualifies
+    ).length,
+    selectedEvents,
+    evaluableRejectedCandidateCount,
+    qualifiedRejectedCandidateCount,
+    rejectedClassifications,
+    byFloor,
+    selectedCandidateSwapConsistency: {
+      pass: selectedAuditIds.size === swaps.length &&
+        unmatchedSelectedAuditIds.length === 0 &&
+        unmatchedSwapAuditIds.length === 0,
+      selectedCandidateCount: selectedAuditIds.size,
+      swapTelemetryCount: swaps.length,
+      unmatchedSelectedAuditCount: unmatchedSelectedAuditIds.length,
+      unmatchedSwapTelemetryCount: unmatchedSwapAuditIds.length
+    }
+  };
+}
+
+export function compactRun(
+  result,
+  { scenarioId, startingKitId, policyId, runIndex, worldSeed, candidateSampleCollector = null }
+) {
   const diagnostics = result.diagnostics || {};
   const groupedCosts = groupCostEvents(diagnostics.costEvents || []);
   const stages = result.stage15Diagnostics?.byFloor || {};
@@ -494,6 +566,8 @@ export function compactRun(result, { scenarioId, startingKitId, policyId, runInd
   const diagnosticEncounters = Array.isArray(diagnostics.encounters)
     ? diagnostics.encounters
     : null;
+  const candidateAuditSummary = summarizeCandidateAudit(result);
+  candidateSampleCollector?.addAll(result.equipmentCandidateAudit || [], runIndex);
   const chestTrapCostAudit = Array.isArray(result.chestTrapCostAudit)
     ? result.chestTrapCostAudit.map(event => ({ ...event }))
     : [];
@@ -507,7 +581,8 @@ export function compactRun(result, { scenarioId, startingKitId, policyId, runInd
     rewardEvents,
     recoveryEvents,
     encounters,
-    diagnosticEncounters
+    diagnosticEncounters,
+    candidateAuditSummary
   )]));
   const outcome = terminalKind(result);
   const finalFloor = Number(result.deathFloor ?? result.endFloor ?? result.reachedFloor);
@@ -570,21 +645,48 @@ export function compactRun(result, { scenarioId, startingKitId, policyId, runInd
       shiftCount: (result.equipmentTelemetry || []).filter(event => event.type === "swap").length
     },
   };
-  if (Array.isArray(result.equipmentCandidateAudit)) {
-    compacted.equipmentCandidateAudit = result.equipmentCandidateAudit.map(event => structuredClone(event));
-    compacted.equipmentTelemetry = Array.isArray(result.equipmentTelemetry)
-      ? result.equipmentTelemetry.map(event => structuredClone(event))
-      : [];
+  if (candidateAuditSummary) {
+    compacted.equipmentCandidateAuditSummary = candidateAuditSummary;
     compacted.buildCheckpoints = compactBuildCheckpoints(result, floors);
   }
   return compacted;
 }
 
+export function createCandidateAuditSampleCollector(limit = CANDIDATE_AUDIT_SAMPLE_LIMIT) {
+  if (!Number.isInteger(limit) || limit < 0) {
+    throw new Error(`candidate audit sample limit must be a non-negative integer: ${limit}`);
+  }
+  const retained = [];
+  let totalCount = 0;
+  return {
+    addAll(audits, runIndex) {
+      audits.forEach(audit => {
+        totalCount++;
+        if (retained.length >= limit) return;
+        retained.push({
+          runIndex,
+          audit: structuredClone(audit)
+        });
+      });
+    },
+    finalize() {
+      return {
+        policy: CANDIDATE_AUDIT_SAMPLE_POLICY,
+        limit,
+        totalCount,
+        retainedCount: retained.length,
+        droppedCount: totalCount - retained.length,
+        events: retained
+      };
+    }
+  };
+}
+
 export function projectGameplayRecord(record) {
   const projected = structuredClone(record);
-  delete projected.equipmentCandidateAudit;
+  delete projected.equipmentCandidateAuditSummary;
   delete projected.buildCheckpoints;
-  delete projected.equipmentTelemetry;
+  delete projected.equipmentDecisionTelemetryConsistency;
   Object.values(projected.floors || {}).forEach(floor => {
     if (floor?.loot) delete floor.loot.equipmentDecisionActivity;
   });
@@ -924,16 +1026,39 @@ function summarizeEquipmentDecisionRows(rows) {
 }
 
 function summarizeRejectedCandidates(records) {
-  const audits = records.flatMap(record => (record.equipmentCandidateAudit || [])
-    .filter(audit => audit.evaluableCandidate && !audit.selected)
-    .map(audit => ({ audit, runIndex: record.runIndex })));
+  const observedRecords = records.filter(record => record.equipmentCandidateAuditSummary);
+  if (observedRecords.length === 0) {
+    return {
+      status: "unobserved",
+      evaluableRejectedCandidateCount: 0,
+      affectedRunCount: 0,
+      classifications: Object.fromEntries([
+        "strictUpgrade",
+        "combatTradeoff",
+        "durabilityTradeoff",
+        "safetyTradeoff",
+        "buildTradeoff",
+        "noMeaningfulGain"
+      ].map(id => [id, {
+        totalCount: 0,
+        affectedRunCount: 0,
+        affectedRunRate: rate(0, records.length),
+        perRunRate: rate(0, records.length)
+      }]))
+    };
+  }
   const classifications = {};
   const affectedRuns = {};
-  audits.forEach(({ audit, runIndex }) => {
-    (audit.sidegradeClassifications || []).forEach(id => {
-      classifications[id] = (classifications[id] || 0) + 1;
-      affectedRuns[id] ||= new Set();
-      affectedRuns[id].add(runIndex);
+  let evaluableRejectedCandidateCount = 0;
+  let affectedRunCount = 0;
+  observedRecords.forEach(record => {
+    const summary = record.equipmentCandidateAuditSummary;
+    evaluableRejectedCandidateCount += summary.evaluableRejectedCandidateCount;
+    if (summary.evaluableRejectedCandidateCount > 0) affectedRunCount++;
+    Object.entries(summary.rejectedClassifications || {}).forEach(([id, count]) => {
+      classifications[id] = (classifications[id] || 0) + count;
+      affectedRuns[id] ||= 0;
+      if (count > 0) affectedRuns[id]++;
     });
   });
   const classificationSummary = Object.fromEntries([
@@ -945,15 +1070,39 @@ function summarizeRejectedCandidates(records) {
     "noMeaningfulGain"
   ].map(id => [id, {
     totalCount: classifications[id] || 0,
-    affectedRunCount: affectedRuns[id]?.size || 0,
-    affectedRunRate: rate(affectedRuns[id]?.size || 0, records.length),
+    affectedRunCount: affectedRuns[id] || 0,
+    affectedRunRate: rate(affectedRuns[id] || 0, records.length),
     perRunRate: rate(classifications[id] || 0, records.length)
   }]));
   return {
-    status: records.some(record => Array.isArray(record.equipmentCandidateAudit)) ? "observed" : "unobserved",
-    evaluableRejectedCandidateCount: audits.length,
-    affectedRunCount: new Set(audits.map(entry => entry.runIndex)).size,
+    status: "observed",
+    evaluableRejectedCandidateCount,
+    affectedRunCount,
     classifications: classificationSummary
+  };
+}
+
+function summarizeCandidateSwapConsistency(records) {
+  const summaries = records
+    .map(record => record.equipmentCandidateAuditSummary?.selectedCandidateSwapConsistency)
+    .filter(Boolean);
+  if (summaries.length === 0) {
+    return {
+      status: "unobserved",
+      pass: null,
+      selectedCandidateCount: null,
+      swapTelemetryCount: null,
+      unmatchedSelectedAuditCount: null,
+      unmatchedSwapTelemetryCount: null
+    };
+  }
+  return {
+    status: "observed",
+    pass: summaries.every(summary => summary.pass),
+    selectedCandidateCount: sum(summaries.map(summary => summary.selectedCandidateCount)),
+    swapTelemetryCount: sum(summaries.map(summary => summary.swapTelemetryCount)),
+    unmatchedSelectedAuditCount: sum(summaries.map(summary => summary.unmatchedSelectedAuditCount)),
+    unmatchedSwapTelemetryCount: sum(summaries.map(summary => summary.unmatchedSwapTelemetryCount))
   };
 }
 
@@ -1050,6 +1199,7 @@ export function aggregateCondition(records) {
       summarizeBuildCheckpoint(records, checkpoint)
     ])),
     rejectedCandidates: summarizeRejectedCandidates(records),
+    selectedCandidateSwapConsistency: summarizeCandidateSwapConsistency(records),
     lootBuild: summarizeLootBuild(records),
     b2ChestTrapCostAudit: summarizeChestTrapCostAudit(records),
     cumulativeCostBySource: sourceTotals,
@@ -1370,7 +1520,14 @@ export async function runMeasurement(options = {}) {
   });
   const { getScenarioById, resetSimulationRandom, simulateRun } =
     await import("../simulations/sim_depth_material_ev.js");
-  const runOne = ({ scenarioId, startingKitId, policy, runIndex, audit = config.collectEquipmentCandidateAudit }) => {
+  const runOne = ({
+    scenarioId,
+    startingKitId,
+    policy,
+    runIndex,
+    audit = config.collectEquipmentCandidateAudit,
+    candidateSampleCollector = null
+  }) => {
     const baseScenario = getScenarioById(scenarioId);
     const worldSeed = worldSeedFor(config.seed, runIndex);
     const result = simulateRun({
@@ -1402,7 +1559,8 @@ export async function runMeasurement(options = {}) {
       startingKitId,
       policyId: policy.id,
       runIndex,
-      worldSeed
+      worldSeed,
+      candidateSampleCollector
     });
   };
 
@@ -1440,12 +1598,26 @@ export async function runMeasurement(options = {}) {
   for (const scenarioId of config.scenarioIds) {
     for (const startingKitId of config.startingKitIds) {
       const records = {};
+      const candidateSampleCollectors = {
+        t0: config.collectEquipmentCandidateAudit
+          ? createCandidateAuditSampleCollector()
+          : null,
+        t1: config.collectEquipmentCandidateAudit
+          ? createCandidateAuditSampleCollector()
+          : null
+      };
       const t0Policy = treatment.policies.t0;
       const t1Policy = treatment.policies.t1;
       resetSimulationRandom(config.seed);
       records.t0 = [];
       for (let runIndex = 0; runIndex < config.runs; runIndex++) {
-        records.t0.push(runOne({ scenarioId, startingKitId, policy: t0Policy, runIndex }));
+        records.t0.push(runOne({
+          scenarioId,
+          startingKitId,
+          policy: t0Policy,
+          runIndex,
+          candidateSampleCollector: candidateSampleCollectors.t0
+        }));
       }
       resetSimulationRandom(config.seed);
       records.t1 = [];
@@ -1454,17 +1626,32 @@ export async function runMeasurement(options = {}) {
           scenarioId,
           startingKitId,
           policy: t1Policy,
-          runIndex
+          runIndex,
+          candidateSampleCollector: candidateSampleCollectors.t1
         }));
       }
       const t0 = records.t0;
       const t1 = records.t1;
+      const t0Aggregate = aggregateCondition(t0);
+      const t1Aggregate = aggregateCondition(t1);
+      const t0CandidateAuditSample = candidateSampleCollectors.t0?.finalize() || null;
+      const t1CandidateAuditSample = candidateSampleCollectors.t1?.finalize() || null;
       cases.push({
         scenarioId,
         startingKitId,
         policies: {
-          t0: { ...treatment.policies.t0, aggregate: aggregateCondition(t0), records: t0 },
-          t1: { ...treatment.policies.t1, aggregate: aggregateCondition(t1), records: t1 }
+          t0: {
+            ...treatment.policies.t0,
+            aggregate: t0Aggregate,
+            candidateAuditSample: t0CandidateAuditSample,
+            records: t0
+          },
+          t1: {
+            ...treatment.policies.t1,
+            aggregate: t1Aggregate,
+            candidateAuditSample: t1CandidateAuditSample,
+            records: t1
+          }
         },
         matchedConversions: buildMatchedConversions(t0, t1),
         matchedChestComparison: buildMatchedChestComparison(t0, t1),
@@ -1544,7 +1731,9 @@ export function buildReport(result, provenance = null, environmentSignature = nu
       environmentSignatureHash: environmentSignature ? hashConfiguration(environmentSignature) : null,
       productionMechanism: "simulateRun",
       rawTracePolicy:
-        "compact floor snapshots; build audit checkpoints/candidates only for build-progression-audit; bounded last-three cost events",
+        "compact floor snapshots; exact candidate aggregates plus a bounded deterministic candidate sample for build-progression-audit; bounded last-three cost events",
+      candidateAuditSamplePolicy: CANDIDATE_AUDIT_SAMPLE_POLICY,
+      candidateAuditSampleLimit: CANDIDATE_AUDIT_SAMPLE_LIMIT,
       unobserved: [...UNOBSERVED_FIELDS]
     },
     configuration: result.configuration,
@@ -1660,6 +1849,8 @@ function buildProgressionLines(policy) {
     "| floor | status | evaluation events | evaluable events | qualified events | selected events | observable Build changes |",
     "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
     ...decisionRows,
+    "",
+    `- selected candidate ↔ swap telemetry: ${policy.aggregate.selectedCandidateSwapConsistency.status === "observed" ? (policy.aggregate.selectedCandidateSwapConsistency.pass ? "PASS" : "FAIL") : "unobserved"}; selected=${policy.aggregate.selectedCandidateSwapConsistency.selectedCandidateCount ?? "—"}; swaps=${policy.aggregate.selectedCandidateSwapConsistency.swapTelemetryCount ?? "—"}`,
     "",
     "### Rejected candidate sidegrade classification",
     "",
@@ -1784,7 +1975,23 @@ export function buildManifest(report, { runType = "diagnostic" } = {}) {
       originMainAncestor: report.measurement.originMainAncestor,
       staleTreeAllowed: report.measurement.staleTreeAllowed,
       workingTreeClean: report.measurement.workingTreeClean,
-      measurementRunnerDiffSha256: report.measurement.measurementRunnerDiffSha256
+      measurementRunnerDiffSha256: report.measurement.measurementRunnerDiffSha256,
+      candidateAuditSampling: report.cases.flatMap(testCase =>
+        Object.entries(testCase.policies).map(([policyId, policy]) => ({
+          scenarioId: testCase.scenarioId,
+          startingKitId: testCase.startingKitId,
+          policyId,
+          ...(policy.candidateAuditSample
+            ? {
+                policy: policy.candidateAuditSample.policy,
+                limit: policy.candidateAuditSample.limit,
+                totalCount: policy.candidateAuditSample.totalCount,
+                retainedCount: policy.candidateAuditSample.retainedCount,
+                droppedCount: policy.candidateAuditSample.droppedCount
+              }
+            : { status: "unobserved" })
+        }))
+      )
     },
     configuration: report.configuration,
     environment: {
