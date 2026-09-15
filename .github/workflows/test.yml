@@ -124,6 +124,7 @@ jobs:
             --staging-dir "$RUNNER_TEMP"
             --status "${{ steps.browser_test.outcome }}"
             --visual-dir test-results
+            --visual-dir output/playwright
             --diagnostics-dir playwright-report
             --logs "$RUNNER_TEMP/browser-test.log"
             --github-output "$GITHUB_OUTPUT"

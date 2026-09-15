@@ -10,7 +10,7 @@ export const DEFAULT_MAX_ARTIFACT_BYTES = 50 * 1024 * 1024;
 export const OPTIONAL_REDUCTION_PRIORITY = Object.freeze(["logs", "visual", "raw"]);
 const REQUIRED_CATEGORIES = Object.freeze(["summary", "provenance", "decision", "diagnostics", "execution"]);
 const SAFE_VISUAL_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
-const SAFE_DIAGNOSTIC_EXTENSIONS = new Set([".json", ".txt", ".log", ".md", ".html", ".xml", ".zip"]);
+const SAFE_DIAGNOSTIC_EXTENSIONS = new Set([".json", ".txt", ".log", ".md", ".html", ".xml"]);
 const SECRET_PATTERNS = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/i,
   /(?:^|[\s"'])github_pat_[A-Za-z0-9_]+/i,
@@ -32,7 +32,15 @@ export function createEvidenceArtifactName({ runId, jobName, runAttempt }) {
 }
 
 function parseArgs(argv) {
-  const options = { raw: [], visual: [], diagnostics: [], logs: [] };
+  const options = {
+    raw: [],
+    visual: [],
+    diagnostics: [],
+    logs: [],
+    visual_dirs: [],
+    diagnostics_dirs: [],
+    logs_dirs: []
+  };
   const valueOptions = new Set([
     "staging-dir", "summary", "provenance", "decision", "metadata", "raw", "visual",
     "diagnostics", "logs", "status", "run-id", "run-attempt", "job-name", "source-sha",
@@ -53,7 +61,7 @@ function parseArgs(argv) {
     if (value === undefined) throw new Error(`--${key} requires a value`);
     const target = ["raw", "visual", "diagnostics", "logs"].includes(key) ? key : key.replaceAll("-", "_");
     if (["raw", "visual", "diagnostics", "logs"].includes(key)) options[target].push(value);
-    else if (["visual-dir", "diagnostics-dir", "logs-dir"].includes(key)) options[target] = value;
+    else if (["visual-dir", "diagnostics-dir", "logs-dir"].includes(key)) options[`${target}s`].push(value);
     else options[target] = value;
   }
   return options;
@@ -78,11 +86,20 @@ function containsForbiddenContent(filePath, content) {
   return match ? "secret, credential, token, or personal-information pattern" : null;
 }
 
+function isAllowedExtension(category, extension) {
+  if (category === "visual") return SAFE_VISUAL_EXTENSIONS.has(extension);
+  if (category === "raw") return extension === ".json";
+  return SAFE_DIAGNOSTIC_EXTENSIONS.has(extension);
+}
+
 function candidateFiles(inputPath, category) {
   if (!inputPath || !fs.existsSync(inputPath)) return [];
   const stat = fs.lstatSync(inputPath);
   if (stat.isSymbolicLink()) return [];
-  if (stat.isFile()) return [{ source: inputPath, relative: path.basename(inputPath) }];
+  if (stat.isFile()) {
+    const extension = path.extname(inputPath).toLowerCase();
+    return isAllowedExtension(category, extension) ? [{ source: inputPath, relative: path.basename(inputPath) }] : [];
+  }
   if (!stat.isDirectory()) return [];
   const files = [];
   for (const entry of fs.readdirSync(inputPath, { withFileTypes: true })) {
@@ -94,9 +111,7 @@ function candidateFiles(inputPath, category) {
       }
     } else if (entry.isFile()) {
       const extension = path.extname(entry.name).toLowerCase();
-      if (category === "visual" && !SAFE_VISUAL_EXTENSIONS.has(extension)) continue;
-      if (category === "raw" && extension !== ".json") continue;
-      if (category !== "visual" && category !== "raw" && !SAFE_DIAGNOSTIC_EXTENSIONS.has(extension)) continue;
+      if (!isAllowedExtension(category, extension)) continue;
       files.push({ source, relative: entry.name });
     }
   }
@@ -193,14 +208,11 @@ function trimOptionalEvidence(root, maxBytes) {
   };
 }
 
-function appendSizeReductionSummary(root, reduction) {
+function writeSizeReductionSummary(root, reduction) {
   if (!reduction) return;
   const summaryDirectory = path.join(root, "summary");
-  const markdownSummary = fileList(summaryDirectory).find(file => path.extname(file).toLowerCase() === ".md") ||
-    path.join(summaryDirectory, "size-reduction.md");
   const lines = [
-    "",
-    "## Artifact size policy",
+    "# Artifact size policy",
     "",
     `- action: ${reduction.action}`,
     `- limit bytes: ${reduction.maxBytes}`,
@@ -211,7 +223,58 @@ function appendSizeReductionSummary(root, reduction) {
     ...reduction.removedFiles.map(file => `- removed: ${file.path} (${file.bytes} bytes; ${file.reason})`),
     ""
   ];
-  fs.appendFileSync(markdownSummary, `${lines.join("\n")}\n`);
+  fs.writeFileSync(path.join(summaryDirectory, "size-reduction.md"), `${lines.join("\n")}\n`);
+}
+
+function mergeSizeReduction(previous, next, requiredExceeded = false) {
+  if (!previous) return next;
+  return {
+    ...next,
+    action: requiredExceeded ? "required-evidence-exceeds-limit" : "optional-evidence-removed",
+    bytesBeforeTrim: previous.bytesBeforeTrim,
+    removedFiles: [...previous.removedFiles, ...next.removedFiles]
+  };
+}
+
+function writeGeneratedFiles({ stagingRoot, payloadStatus, options, artifactName, status, sizeReduction, maxBytes, securityDiagnostics }) {
+  payloadStatus.sizeReduction = sizeReduction;
+  ensureDirectory(path.join(stagingRoot, "decision"));
+  fs.writeFileSync(path.join(stagingRoot, "decision", "result.json"), `${JSON.stringify(payloadStatus, null, 2)}\n`);
+
+  const contentHash = payloadHash(stagingRoot);
+  ensureDirectory(path.join(stagingRoot, "provenance"));
+  const provenance = JSON.stringify(buildProvenance({ options, artifactName, contentHash, status, sizeReduction }), null, 2);
+  const generatedForbidden = containsForbiddenContent("provenance.json", Buffer.from(provenance));
+  if (generatedForbidden) throw new Error(`provenance contains forbidden content: ${generatedForbidden}`);
+  fs.writeFileSync(path.join(stagingRoot, "provenance", "provenance.json"), `${provenance}\n`);
+
+  ensureDirectory(path.join(stagingRoot, "execution"));
+  if (securityDiagnostics.length > 0 || sizeReduction) {
+    const diagnostics = JSON.stringify({ security: securityDiagnostics, sizeWarning: sizeReduction }, null, 2);
+    const diagnosticsForbidden = containsForbiddenContent("diagnostics.json", Buffer.from(diagnostics));
+    if (diagnosticsForbidden) throw new Error(`execution diagnostics contain forbidden content: ${diagnosticsForbidden}`);
+    fs.writeFileSync(path.join(stagingRoot, "execution", "diagnostics.json"), `${diagnostics}\n`);
+  }
+
+  const metadataPath = path.join(stagingRoot, "execution", "metadata.json");
+  const writeMetadata = bytes => fs.writeFileSync(metadataPath, `${JSON.stringify({
+    schemaVersion: 1,
+    artifactName,
+    status,
+    retentionDays: EVIDENCE_ARTIFACT_RETENTION_DAYS,
+    bytes,
+    maxBytes,
+    contentHash,
+    generatedAt: new Date().toISOString()
+  }, null, 2)}\n`);
+  let bytes = totalBytes(stagingRoot);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    writeMetadata(bytes);
+    const nextBytes = totalBytes(stagingRoot);
+    if (nextBytes === bytes) break;
+    bytes = nextBytes;
+  }
+  return { contentHash, bytes: totalBytes(stagingRoot) };
 }
 
 function configValue(value) {
@@ -258,6 +321,9 @@ export function stageEvidence(options = {}) {
   });
   const securityDiagnostics = [];
   const usedNames = new Set();
+  const visualDirectories = options.visual_dirs || (options.visual_dir ? [options.visual_dir] : []);
+  const diagnosticsDirectories = options.diagnostics_dirs || (options.diagnostics_dir ? [options.diagnostics_dir] : []);
+  const logDirectories = options.logs_dirs || (options.logs_dir ? [options.logs_dir] : []);
   copyAllowlisted(options.summary ? [options.summary] : [], "summary", stagingRoot, securityDiagnostics, usedNames);
   copyAllowlisted(options.provenance ? [options.provenance] : [], "provenance", stagingRoot, securityDiagnostics, usedNames);
   copyAllowlisted(options.decision ? [options.decision] : [], "decision", stagingRoot, securityDiagnostics, usedNames);
@@ -278,8 +344,8 @@ export function stageEvidence(options = {}) {
     copyAllowlisted(options.visual || [], "visual", stagingRoot, securityDiagnostics, usedNames);
     copyAllowlisted(options.diagnostics || [], "diagnostics", stagingRoot, securityDiagnostics, usedNames);
     copyAllowlisted(options.logs || [], "logs", stagingRoot, securityDiagnostics, usedNames);
-    for (const [category, option] of [["visual", options.visual_dir], ["diagnostics", options.diagnostics_dir], ["logs", options.logs_dir]]) {
-      copyAllowlisted(option ? [option] : [], category, stagingRoot, securityDiagnostics, usedNames);
+    for (const [category, directories] of [["visual", visualDirectories], ["diagnostics", diagnosticsDirectories], ["logs", logDirectories]]) {
+      copyAllowlisted(directories, category, stagingRoot, securityDiagnostics, usedNames);
     }
   }
 
@@ -292,74 +358,65 @@ export function stageEvidence(options = {}) {
       provenance: options.provenance ? [path.basename(options.provenance)] : [],
       decision: options.decision ? [path.basename(options.decision)] : [],
       raw: (options.raw || []).map(value => path.basename(value)),
-      visual: (options.visual || []).concat(options.visual_dir ? [options.visual_dir] : []).map(value => path.basename(value)),
-      diagnostics: (options.diagnostics || []).concat(options.diagnostics_dir ? [options.diagnostics_dir] : []).map(value => path.basename(value)),
-      logs: (options.logs || []).concat(options.logs_dir ? [options.logs_dir] : []).map(value => path.basename(value))
+      visual: (options.visual || []).concat(visualDirectories).map(value => path.basename(value)),
+      diagnostics: (options.diagnostics || []).concat(diagnosticsDirectories).map(value => path.basename(value)),
+      logs: (options.logs || []).concat(logDirectories).map(value => path.basename(value))
     },
     excluded: securityDiagnostics,
     trackedEvidenceGlobUsed: false
   };
   const maxBytes = Number(options.max_bytes || DEFAULT_MAX_ARTIFACT_BYTES);
-  let size = totalBytes(stagingRoot);
   let sizeWarning = null;
-  if (size > maxBytes && includeExtra) {
-    sizeWarning = trimOptionalEvidence(stagingRoot, maxBytes);
-    size = totalBytes(stagingRoot);
-  } else if (size > maxBytes) {
-    sizeWarning = {
-      action: "required-evidence-exceeds-limit",
+  let generated;
+  for (;;) {
+    if (sizeWarning) writeSizeReductionSummary(stagingRoot, sizeWarning);
+    generated = writeGeneratedFiles({
+      stagingRoot,
+      payloadStatus,
+      options,
+      artifactName,
+      status,
+      sizeReduction: sizeWarning,
       maxBytes,
-      bytesBeforeTrim: size,
-      bytesAfterTrim: size,
-      priority: [...OPTIONAL_REDUCTION_PRIORITY],
-      requiredCategories: [...REQUIRED_CATEGORIES],
-      removedFiles: []
-    };
+      securityDiagnostics
+    });
+    if (generated.bytes <= maxBytes) break;
+
+    const reduction = includeExtra
+      ? trimOptionalEvidence(stagingRoot, maxBytes)
+      : {
+          action: "required-evidence-exceeds-limit",
+          maxBytes,
+          bytesBeforeTrim: generated.bytes,
+          bytesAfterTrim: generated.bytes,
+          priority: [...OPTIONAL_REDUCTION_PRIORITY],
+          requiredCategories: [...REQUIRED_CATEGORIES],
+          removedFiles: []
+        };
+    sizeWarning = mergeSizeReduction(sizeWarning, reduction, reduction.removedFiles.length === 0);
+    if (reduction.removedFiles.length === 0) {
+      if (sizeWarning) writeSizeReductionSummary(stagingRoot, sizeWarning);
+      generated = writeGeneratedFiles({
+        stagingRoot,
+        payloadStatus,
+        options,
+        artifactName,
+        status,
+        sizeReduction: sizeWarning,
+        maxBytes,
+        securityDiagnostics
+      });
+      break;
+    }
   }
-  if (sizeWarning) appendSizeReductionSummary(stagingRoot, sizeWarning);
-  payloadStatus.sizeReduction = sizeWarning;
-  ensureDirectory(path.join(stagingRoot, "decision"));
-  fs.writeFileSync(path.join(stagingRoot, "decision", "result.json"), `${JSON.stringify(payloadStatus, null, 2)}\n`);
-  const contentHash = payloadHash(stagingRoot);
-  ensureDirectory(path.join(stagingRoot, "provenance"));
-  const provenance = JSON.stringify(buildProvenance({ options, artifactName, contentHash, status, sizeReduction: sizeWarning }), null, 2);
-  const generatedForbidden = containsForbiddenContent("provenance.json", Buffer.from(provenance));
-  if (generatedForbidden) throw new Error(`provenance contains forbidden content: ${generatedForbidden}`);
-  fs.writeFileSync(path.join(stagingRoot, "provenance", "provenance.json"), `${provenance}\n`);
-  ensureDirectory(path.join(stagingRoot, "execution"));
-  const metadataPath = path.join(stagingRoot, "execution", "metadata.json");
-  fs.writeFileSync(metadataPath, `${JSON.stringify({
-    schemaVersion: 1,
-    artifactName,
-    status,
-    retentionDays: EVIDENCE_ARTIFACT_RETENTION_DAYS,
-    bytes: size,
-    maxBytes,
-    contentHash,
-    generatedAt: new Date().toISOString()
-  }, null, 2)}\n`);
-  if (securityDiagnostics.length > 0 || sizeWarning) {
-    fs.writeFileSync(path.join(stagingRoot, "execution", "diagnostics.json"), `${JSON.stringify({ security: securityDiagnostics, sizeWarning }, null, 2)}\n`);
-  }
-  size = totalBytes(stagingRoot);
-  fs.writeFileSync(metadataPath, `${JSON.stringify({
-    schemaVersion: 1,
-    artifactName,
-    status,
-    retentionDays: EVIDENCE_ARTIFACT_RETENTION_DAYS,
-    bytes: size,
-    maxBytes,
-    contentHash,
-    generatedAt: new Date().toISOString()
-  }, null, 2)}\n`);
-  size = totalBytes(stagingRoot);
+  const size = generated.bytes;
   if (size > maxBytes) {
     throw new Error(`evidence artifact exceeds ${maxBytes} bytes after optional evidence trim: ${size}`);
   }
   if (options.github_output) {
     fs.appendFileSync(options.github_output, `artifact_name=${artifactName}\nartifact_dir=${stagingRoot}\n`);
   }
-  return { stagingRoot, artifactName, status, includeExtra, contentHash, bytes: size, securityDiagnostics, sizeWarning };
+  return { stagingRoot, artifactName, status, includeExtra, contentHash: generated.contentHash, bytes: size, securityDiagnostics, sizeWarning };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
