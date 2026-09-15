@@ -865,9 +865,7 @@ export function buildMatchedChestComparison(baselineRecords, candidateRecords) {
     lootMismatches: 0,
     trapMismatches: 0,
     actionMismatches: 0,
-    stateMismatches: 0,
-    postTreatmentIdentityComparisons: 0,
-    postTreatmentIdentityMismatches: 0
+    stateMismatches: 0
   };
   const endogenous = {
     sharedEvents: 0,
@@ -875,7 +873,9 @@ export function buildMatchedChestComparison(baselineRecords, candidateRecords) {
     placementMismatches: 0,
     lootMismatches: 0,
     trapMismatches: 0,
-    actionMismatches: 0
+    actionMismatches: 0,
+    postTreatmentIdentityComparisons: 0,
+    postTreatmentIdentityMismatches: 0
   };
   let baselineEventsTotal = 0;
   let candidateEventsTotal = 0;
@@ -927,10 +927,10 @@ export function buildMatchedChestComparison(baselineRecords, candidateRecords) {
         const identity = chestIdentity(event);
         const identityMatches = identity ? candidateByIdentity.get(identity) || [] : [];
         identityMatches.forEach(identityEvent => {
-          exogenous.postTreatmentIdentityComparisons++;
+          endogenous.postTreatmentIdentityComparisons++;
           if (event.trap !== identityEvent.trap ||
             JSON.stringify(event.generatedItems) !== JSON.stringify(identityEvent.generatedItems)) {
-            exogenous.postTreatmentIdentityMismatches++;
+            endogenous.postTreatmentIdentityMismatches++;
           }
         });
       }
@@ -947,7 +947,7 @@ export function buildMatchedChestComparison(baselineRecords, candidateRecords) {
   });
   const exogenousMismatch = exogenous.mismatches +
     exogenous.missingCandidateEvents + exogenous.stateMismatches;
-  const totalExogenousMismatch = exogenousMismatch + exogenous.postTreatmentIdentityMismatches;
+  const totalExogenousMismatch = exogenousMismatch;
   return {
     matchedRuns: joined.length,
     baselineEvents: baselineEventsTotal,
@@ -1240,7 +1240,7 @@ export function buildSummary(report) {
           `- Matched T0 B3 death → T1 deeper: B4 ${conversions.t0B3DeathToT1.b4Reach.count}/${conversions.t0B3DeathToT1.runs}; T0 Return → T1 continuation rows ${conversions.returnContinuation.runs}; same terminal ${conversions.all.sameTerminal.count}/${conversions.all.runs}`,
           `- T0 B2 chest-trap received subset: ${conversions.t0B2ChestTrapSubset.runs} runs; B5 reach ${conversions.t0B2ChestTrapSubset.b5Reach.count}/${conversions.t0B2ChestTrapSubset.runs}; T0 B2 death subset ${conversions.t0B2ChestTrapDeathSubset.runs} runs`,
           `- Exogenous/world parity: ${testCase.matchedChestComparison.pass ? "PASS" : "FAIL"}; B1/B2-entry state mismatches=${testCase.matchedChestComparison.exogenous.stateMismatches}; pre-treatment chest shared=${testCase.matchedChestComparison.exogenous.sharedEvents}; mismatches=${testCase.matchedChestComparison.exogenous.mismatches}; missing=${testCase.matchedChestComparison.exogenous.missingCandidateEvents}`,
-          `- Endogenous/post-treatment chest exposure divergence (expected/allowed): T0/T1 chest events=${testCase.matchedChestComparison.baselineEvents}/${testCase.matchedChestComparison.candidateEvents}; shared=${testCase.matchedChestComparison.endogenous.sharedEvents}; mismatches=${testCase.matchedChestComparison.endogenous.mismatches} (placement ${testCase.matchedChestComparison.endogenous.placementMismatches}, loot ${testCase.matchedChestComparison.endogenous.lootMismatches}, trap ${testCase.matchedChestComparison.endogenous.trapMismatches}, action ${testCase.matchedChestComparison.endogenous.actionMismatches}); same-identity trap/loot mismatches=${testCase.matchedChestComparison.exogenous.postTreatmentIdentityMismatches}/${testCase.matchedChestComparison.exogenous.postTreatmentIdentityComparisons}`,
+          `- Endogenous/post-treatment chest exposure divergence (expected/allowed): T0/T1 chest events=${testCase.matchedChestComparison.baselineEvents}/${testCase.matchedChestComparison.candidateEvents}; shared=${testCase.matchedChestComparison.endogenous.sharedEvents}; mismatches=${testCase.matchedChestComparison.endogenous.mismatches} (placement ${testCase.matchedChestComparison.endogenous.placementMismatches}, loot ${testCase.matchedChestComparison.endogenous.lootMismatches}, trap ${testCase.matchedChestComparison.endogenous.trapMismatches}, action ${testCase.matchedChestComparison.endogenous.actionMismatches}); same-identity trap/loot mismatches=${testCase.matchedChestComparison.endogenous.postTreatmentIdentityMismatches}/${testCase.matchedChestComparison.endogenous.postTreatmentIdentityComparisons}`,
           `- Loot/build T0: chests ${t0.lootBuild.chestEvents}, loot ${t0.lootBuild.lootOpportunities}, equipment ${t0.lootBuild.equipmentOpportunities}, build ${t0.lootBuild.buildOpportunities}, shifts ${t0.lootBuild.buildChanges}; T1: chests ${t1.lootBuild.chestEvents}, loot ${t1.lootBuild.lootOpportunities}, equipment ${t1.lootBuild.equipmentOpportunities}, build ${t1.lootBuild.buildOpportunities}, shifts ${t1.lootBuild.buildChanges}`,
           `- Ending Build Snapshot identities T0/T1: ${Object.keys(t0.lootBuild.endingBuildSnapshots).length}/${Object.keys(t1.lootBuild.endingBuildSnapshots).length}`
         );

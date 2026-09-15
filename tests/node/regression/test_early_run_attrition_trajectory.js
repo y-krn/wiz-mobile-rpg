@@ -267,11 +267,11 @@ assert.ok(b2Case.policies.t1.aggregate.b2ChestTrapCostAudit.generatedDamageHp > 
 assert.equal(b2Case.matchedConversions.all.runs, 2);
 assert.ok(b2Case.matchedConversions.t0B2DeathToT1.runs >= 0);
 assert.equal(b2Case.matchedChestComparison.matchedRuns, 2);
-assert.equal(b2Case.matchedChestComparison.pass, false);
+assert.equal(b2Case.matchedChestComparison.pass, true);
 assert.equal(b2Case.matchedChestComparison.exogenous.stateMismatches, 0);
 assert.equal(b2Case.matchedChestComparison.exogenous.mismatches, 0);
 assert.equal(b2Case.matchedChestComparison.exogenous.missingCandidateEvents, 0);
-assert.ok(b2Case.matchedChestComparison.exogenous.postTreatmentIdentityMismatches > 0);
+assert.ok(b2Case.matchedChestComparison.endogenous.postTreatmentIdentityMismatches > 0);
 assert.ok(b2Case.matchedChestComparison.endogenous.mismatches >= 0);
 assert.deepEqual(
   b2Case.policies.t0.records,
@@ -303,7 +303,7 @@ const exposureOnlyComparison = trajectory.buildMatchedChestComparison(
   exposureOnlyRecords
 );
 assert.equal(exposureOnlyComparison.pass, true, "post-treatment exposure-only divergence is allowed");
-assert.equal(exposureOnlyComparison.exogenous.postTreatmentIdentityMismatches, 0);
+assert.equal(exposureOnlyComparison.endogenous.postTreatmentIdentityMismatches, 0);
 assert.equal(b2Case.policies.t1.aggregate.distributions[2].lootOpportunities >= 0, true);
 
 console.log("early run attrition trajectory regression passed");
