@@ -12,7 +12,8 @@ import {
   createStandardSimulationTasks,
   mergeStandardMeasurementShards,
   resolveBalanceMeasurementConfig,
-  renderDiagnosticsMarkdown
+  renderDiagnosticsMarkdown,
+  resolveStandardMeasurementShard
 } from "./balance_measurement.js";
 
 function parseArgs(argv) {
