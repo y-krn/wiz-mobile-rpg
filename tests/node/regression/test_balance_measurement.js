@@ -113,6 +113,9 @@ assert.deepEqual(
 );
 
 const workflow = fs.readFileSync(path.resolve(".github/workflows/balance-measurement.yml"), "utf8");
+assert.match(workflow, /measurement:\n[\s\S]*- build-progression-audit/);
+assert.match(workflow, /measure-standard:\n\s+if: inputs\.measurement == 'standard'/);
+assert.match(workflow, /measure-other:\n\s+if: inputs\.measurement != 'standard'/);
 assert.match(workflow, /measure-standard:\n[\s\S]*timeout-minutes: 20/);
 assert.match(workflow, /name: Run standard balance measurement shard[\s\S]*timeout-minutes: 15/);
 assert.match(workflow, /fail-fast: false/);
@@ -122,6 +125,22 @@ assert.match(workflow, /merge-standard:[\s\S]*merge_balance_measurement\.js/);
 assert.match(workflow, /merge-standard:[\s\S]*name: Upload final CI evidence artifact/);
 assert.match(workflow, /if: always\(\)/);
 assert.match(workflow, /retention-days: 14/);
+assert.match(workflow, /inputs\.measurement == 'build-progression-audit' && 45 \|\| 20/);
+assert.match(workflow, /inputs\.measurement == 'build-progression-audit' && 30 \|\| 15/);
+assert.match(workflow, /--job-timeout-minutes/);
+assert.match(workflow, /--step-timeout-minutes/);
+assert.doesNotMatch(
+  workflow.slice(workflow.indexOf("  measure-standard:"), workflow.indexOf("  merge-standard:")),
+  /--include-raw/
+);
+assert.match(workflow, /name: Upload standard shard merge input/);
+assert.match(workflow, /retention-days: 1/);
+assert.match(workflow, /balance-measurement-merge-input-\$\{\{ github\.run_id \}\}/);
+assert.match(workflow, /measurement merge-input artifact is temporary and final-merge-only/);
+const nonStandardSection = workflow.slice(workflow.indexOf("  measure-other:"));
+assert.doesNotMatch(nonStandardSection, /name: Run selected balance measurement[\s\S]*?timeout-minutes: 15\n/);
+assert.match(nonStandardSection, /node scratch\/measurements\/run_balance_measurement\.js[\s\S]*tee/);
+assert.match(nonStandardSection, /name: Publish durable run summary\n\s+if: always\(\)/);
 
 const rate = rateMetric(50, 100);
 assert.equal(rate.estimate, 0.5);

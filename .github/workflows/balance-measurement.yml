@@ -174,9 +174,12 @@ jobs:
             --seed "${{ inputs.seed }}"
             --config "$EVIDENCE_CONFIG"
             --logs "$RUNNER_TEMP/balance-measurement.log"
+            --job-timeout-minutes 20
+            --step-timeout-minutes 15
+            --timeout-basis "standard shard smoke budget"
             --github-output "$GITHUB_OUTPUT"
-            --include-raw
           )
+          touch "$RUNNER_TEMP/balance-measurement.log"
           node scripts/stage_evidence_artifact.js "${stage_args[@]}"
       - name: Upload CI evidence artifact
         if: always() && steps.evidence.outcome == 'success'
@@ -186,6 +189,16 @@ jobs:
           path: ${{ steps.evidence.outputs.artifact_dir }}
           if-no-files-found: ignore
           retention-days: 14
+          compression-level: 6
+      # measurement merge-input artifact is temporary and final-merge-only; it is not durable evidence.
+      - name: Upload standard shard merge input
+        if: always() && steps.measurement.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: balance-measurement-merge-input-${{ github.run_id }}-${{ matrix.shard }}
+          path: /tmp/balance-measurement-shard/partial.json
+          if-no-files-found: ignore
+          retention-days: 1
           compression-level: 6
       - name: Fail failed measurement runs
         if: always() && steps.measurement.outcome != 'success'
@@ -210,10 +223,11 @@ jobs:
       - name: Download standard measurement shards
         uses: actions/download-artifact@v4
         with:
-          pattern: evidence-${{ github.run_id }}-measure-standard-shard-*
+          pattern: balance-measurement-merge-input-${{ github.run_id }}-*
           path: /tmp/balance-measurement-shards
       - name: Merge standard balance measurement shards
         id: merge
+        if: always()
         timeout-minutes: 15
         continue-on-error: true
         env:
@@ -226,7 +240,9 @@ jobs:
           MEASUREMENT_RUN_ATTEMPT: ${{ github.run_attempt }}
           MEASUREMENT_AT: ${{ github.run_started_at }}
           MEASUREMENT_PARALLELISM: 4
-        run: node scratch/measurements/merge_balance_measurement.js --input-dir /tmp/balance-measurement-shards --output-dir /tmp/balance-measurement
+        run: |
+          set -o pipefail
+          node scratch/measurements/merge_balance_measurement.js --input-dir /tmp/balance-measurement-shards --output-dir /tmp/balance-measurement 2>&1 | tee "$RUNNER_TEMP/balance-measurement.log"
       - name: Publish durable run summary
         if: always()
         run: |
@@ -249,8 +265,12 @@ jobs:
             --raw /tmp/balance-measurement/measurement.json
             --diagnostics /tmp/balance-measurement/manifest.md
             --logs "$RUNNER_TEMP/balance-measurement.log"
+            --job-timeout-minutes 20
+            --step-timeout-minutes 15
+            --timeout-basis "standard shard merge budget"
             --github-output "$GITHUB_OUTPUT"
           )
+          touch "$RUNNER_TEMP/balance-measurement.log"
           if [ "${{ inputs.debug_raw }}" = "true" ]; then stage_args+=(--include-raw); fi
           node scripts/stage_evidence_artifact.js "${stage_args[@]}"
       - name: Upload final CI evidence artifact
@@ -268,8 +288,12 @@ jobs:
 
   measure-other:
     if: inputs.measurement != 'standard'
-    timeout-minutes: 20
+    timeout-minutes: ${{ inputs.measurement == 'build-progression-audit' && 45 || 20 }}
     runs-on: ubuntu-latest
+    env:
+      MEASUREMENT_JOB_TIMEOUT_MINUTES: ${{ inputs.measurement == 'build-progression-audit' && 45 || 20 }}
+      MEASUREMENT_STEP_TIMEOUT_MINUTES: ${{ inputs.measurement == 'build-progression-audit' && 30 || 15 }}
+      MEASUREMENT_TIMEOUT_BASIS: "10 completed local N=1000 candidate-audit runs; p95 recorded in PR evidence"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -283,7 +307,7 @@ jobs:
       - run: npm ci
       - name: Run selected balance measurement
         id: measurement
-        timeout-minutes: 15
+        timeout-minutes: ${{ inputs.measurement == 'build-progression-audit' && 30 || 15 }}
         continue-on-error: true
         env:
           MEASUREMENT_ID: ${{ inputs.measurement }}
@@ -330,6 +354,7 @@ jobs:
         run: |
           if [ -f /tmp/balance-measurement/measurement.md ]; then cat /tmp/balance-measurement/measurement.md >> "$GITHUB_STEP_SUMMARY"; fi
           if [ -f /tmp/balance-measurement/manifest.json ]; then printf '\n### Machine-readable manifest\n\n```json\n' >> "$GITHUB_STEP_SUMMARY"; cat /tmp/balance-measurement/manifest.json >> "$GITHUB_STEP_SUMMARY"; printf '```\n' >> "$GITHUB_STEP_SUMMARY"; fi
+          printf '\n- timeout: job=%sm; measurement step=%sm; basis=%s\n' "$MEASUREMENT_JOB_TIMEOUT_MINUTES" "$MEASUREMENT_STEP_TIMEOUT_MINUTES" "$MEASUREMENT_TIMEOUT_BASIS" >> "$GITHUB_STEP_SUMMARY"
       - name: Stage CI evidence artifact
         id: evidence
         if: always()
@@ -347,8 +372,12 @@ jobs:
             --raw /tmp/balance-measurement/measurement.json
             --diagnostics /tmp/balance-measurement/manifest.md
             --logs "$RUNNER_TEMP/balance-measurement.log"
+            --job-timeout-minutes "$MEASUREMENT_JOB_TIMEOUT_MINUTES"
+            --step-timeout-minutes "$MEASUREMENT_STEP_TIMEOUT_MINUTES"
+            --timeout-basis "$MEASUREMENT_TIMEOUT_BASIS"
             --github-output "$GITHUB_OUTPUT"
           )
+          touch "$RUNNER_TEMP/balance-measurement.log"
           if [ "${{ inputs.debug_raw }}" = "true" ]; then stage_args+=(--include-raw); fi
           node scripts/stage_evidence_artifact.js "${stage_args[@]}"
       - name: Upload CI evidence artifact
