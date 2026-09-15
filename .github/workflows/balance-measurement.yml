@@ -85,6 +85,11 @@ on:
         required: false
         default: ""
         type: string
+      debug_raw:
+        description: "Retain raw, visual, diagnostic, and log evidence for this run"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -128,6 +133,7 @@ jobs:
           MEASUREMENT_AT: ${{ github.run_started_at }}
           MEASUREMENT_RUN_ID: ${{ github.run_id }}
         run: |
+          set -o pipefail
           node scratch/measurements/run_balance_measurement.js \
             --measurement "$MEASUREMENT_ID" \
             --ref "$MEASUREMENT_REF" \
@@ -144,23 +150,42 @@ jobs:
             --fixed_seed "$MEASUREMENT_FIXED_SEED" \
             --policies "$MEASUREMENT_POLICIES" \
             --run_id "$MEASUREMENT_RUN_ID" \
-            --output_dir /tmp/balance-measurement
+            --output_dir /tmp/balance-measurement 2>&1 | tee "$RUNNER_TEMP/balance-measurement.log"
       - name: Publish durable run summary
         if: always()
         run: |
           if [ -f /tmp/balance-measurement/measurement.md ]; then cat /tmp/balance-measurement/measurement.md >> "$GITHUB_STEP_SUMMARY"; fi
           if [ -f /tmp/balance-measurement/manifest.json ]; then printf '\n### Machine-readable manifest\n\n```json\n' >> "$GITHUB_STEP_SUMMARY"; cat /tmp/balance-measurement/manifest.json >> "$GITHUB_STEP_SUMMARY"; printf '```\n' >> "$GITHUB_STEP_SUMMARY"; fi
-      - name: Upload balance measurement artifact
+      - name: Stage CI evidence artifact
+        id: evidence
         if: always()
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before || github.sha }}
+          EVIDENCE_CONFIG: ${{ toJSON(inputs) }}
+          MEASUREMENT_SEED: ${{ inputs.seed }}
+        run: |
+          stage_args=(
+            --staging-dir "$RUNNER_TEMP"
+            --status "${{ steps.measurement.outcome }}"
+            --summary /tmp/balance-measurement/measurement.md
+            --provenance /tmp/balance-measurement/manifest.json
+            --decision /tmp/balance-measurement/manifest.json
+            --raw /tmp/balance-measurement/measurement.json
+            --diagnostics /tmp/balance-measurement/manifest.md
+            --logs "$RUNNER_TEMP/balance-measurement.log"
+            --github-output "$GITHUB_OUTPUT"
+          )
+          if [ "${{ inputs.debug_raw }}" = "true" ]; then stage_args+=(--include-raw); fi
+          node scripts/stage_evidence_artifact.js "${stage_args[@]}"
+      - name: Upload CI evidence artifact
+        if: always() && steps.evidence.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: balance-measurement-${{ inputs.measurement }}-${{ github.run_id }}
-          path: |
-            /tmp/balance-measurement/measurement.json
-            /tmp/balance-measurement/measurement.md
-            /tmp/balance-measurement/manifest.json
+          name: ${{ steps.evidence.outputs.artifact_name }}
+          path: ${{ steps.evidence.outputs.artifact_dir }}
           if-no-files-found: ignore
-          retention-days: 90
+          retention-days: 14
+          compression-level: 6
       - name: Fail failed measurement runs
         if: always() && steps.measurement.outcome != 'success'
         run: exit 1

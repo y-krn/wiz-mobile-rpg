@@ -6,3 +6,4 @@
 /.github/workflows/test.yml @y-krn
 /.github/CODEOWNERS @y-krn
 /scripts/check_evidence_storage.js @y-krn
+/scripts/stage_evidence_artifact.js @y-krn
