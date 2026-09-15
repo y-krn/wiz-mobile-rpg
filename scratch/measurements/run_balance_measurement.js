@@ -94,6 +94,7 @@ const runDifficultyArgs = ({ options, output }) => [
 
 const earlyAttritionArgs = ({ options, output }) => [
   "--ref", options.ref,
+  "--treatment", options.treatment,
   "--runs", String(options.runs),
   "--seed", String(options.seed),
   "--purpose", options.purpose,
@@ -217,7 +218,20 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
     retentionDays: 90,
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" },
+    buildArgs: earlyAttritionArgs
+  }),
+  "b2-chest-trap": freezeDefinition({
+    id: "b2-chest-trap",
+    label: "B2 chest-trap suppression diagnostic",
+    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    artifactPrefix: "balance-measurement",
+    retentionDays: 90,
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "b2-chest-trap" },
+    allowed: { treatment: ["b2-chest-trap"] },
     buildArgs: earlyAttritionArgs
   }),
   "survival-policy": freezeDefinition({
@@ -274,6 +288,7 @@ export function resolveMeasurementOptions(input = {}) {
     runType: nonEmpty(input.run_type, definition.defaultRunType),
     runs: positiveInteger(input.runs, defaults.runs, defaults.minimumRuns, "runs"),
     seed: positiveInteger(input.seed, defaults.seed, 1, "seed"),
+    treatment: nonEmpty(input.treatment, defaults.treatment),
     calibrationRuns: positiveInteger(input.calibration_runs, defaults.calibrationRuns ?? 1, 1, "calibration-runs"),
     startingKit: nonEmpty(input.starting_kit, defaults.startingKit),
     policy: nonEmpty(input.policy, defaults.policy),
@@ -297,6 +312,7 @@ export function resolveMeasurementOptions(input = {}) {
   }
   assertAllowed(options.startingKit, definition.allowed.startingKit, "starting-kit");
   assertAllowed(options.policy, definition.allowed.policy, "policy");
+  assertAllowed(options.treatment, definition.allowed.treatment, "treatment");
   return Object.freeze(options);
 }
 
@@ -439,7 +455,7 @@ function parseArgs(argv) {
   const options = {};
   const valueOptions = new Set([
     "measurement", "ref", "runs", "seed", "purpose", "run_type", "output_dir", "run_id",
-    "calibration_runs", "starting_kit", "policy", "flee_hp_threshold", "selection_runs",
+    "calibration_runs", "starting_kit", "policy", "treatment", "flee_hp_threshold", "selection_runs",
     "selection_seed", "fixed_runs", "fixed_seed", "policies"
   ]);
   for (let index = 0; index < argv.length; index++) {

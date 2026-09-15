@@ -8,6 +8,9 @@ assert.deepEqual(trajectory.TRAJECTORY_FLOORS, [1, 2, 3, 4, 5]);
 assert.equal(trajectory.MEASUREMENT_CUTOFF_FLOOR, 6);
 assert.equal(trajectory.TRAJECTORY_POLICIES.t0.portalHpThreshold, 0.35);
 assert.equal(trajectory.TRAJECTORY_POLICIES.t1.portalHpThreshold, null);
+assert.equal(trajectory.B2_CHEST_TRAP_POLICIES.t0.chestTrapCostSuppressionFloor, undefined);
+assert.equal(trajectory.B2_CHEST_TRAP_POLICIES.t1.chestTrapCostSuppressionFloor, 2);
+assert.equal(trajectory.MEASUREMENT_TREATMENTS["b2-chest-trap"].policies, trajectory.B2_CHEST_TRAP_POLICIES);
 
 const base = (runIndex, worldSeed, outcome = "voluntaryReturn") => ({
   runIndex,
@@ -245,5 +248,62 @@ assert.equal(smoke.cases[0].policies.t0.aggregate.runs, 2);
 assert.equal(smoke.cases[0].policies.t0.aggregate.waterfall[1].invariant.pass, true);
 assert.equal(smoke.cases[0].policies.t1.aggregate.waterfall[1].invariant.pass, true);
 assert.equal(smoke.cases[0].returnContinuation.rows.every(row => row.worldSeed), true);
+
+const b2Smoke = await trajectory.runMeasurement({
+  runs: 2,
+  seed: 1277,
+  treatment: "b2-chest-trap",
+  startingKitIds: ["vanguard"],
+  scenarioIds: ["workshop-empty"],
+  allowSmallRunCount: true
+});
+const b2Case = b2Smoke.cases[0];
+assert.equal(b2Smoke.configuration.treatment, "b2-chest-trap");
+assert.equal(b2Smoke.determinism.pass, true);
+assert.ok(b2Case.policies.t0.aggregate.b2ChestTrapCostAudit.events > 0);
+assert.equal(b2Case.policies.t1.aggregate.b2ChestTrapCostAudit.allSuppressed, true);
+assert.equal(b2Case.policies.t1.aggregate.b2ChestTrapCostAudit.appliedCostZero, true);
+assert.ok(b2Case.policies.t1.aggregate.b2ChestTrapCostAudit.generatedDamageHp > 0);
+assert.equal(b2Case.matchedConversions.all.runs, 2);
+assert.ok(b2Case.matchedConversions.t0B2DeathToT1.runs >= 0);
+assert.equal(b2Case.matchedChestComparison.matchedRuns, 2);
+assert.equal(b2Case.matchedChestComparison.pass, true);
+assert.equal(b2Case.matchedChestComparison.exogenous.stateMismatches, 0);
+assert.equal(b2Case.matchedChestComparison.exogenous.mismatches, 0);
+assert.equal(b2Case.matchedChestComparison.exogenous.missingCandidateEvents, 0);
+assert.ok(b2Case.matchedChestComparison.endogenous.postTreatmentIdentityMismatches > 0);
+assert.ok(b2Case.matchedChestComparison.endogenous.mismatches >= 0);
+assert.deepEqual(
+  b2Case.policies.t0.records,
+  smoke.cases[0].policies.t0.records,
+  "B2 diagnostic T0 preserves canonical runner output"
+);
+const exogenousMismatchRecords = structuredClone(b2Case.policies.t1.records);
+exogenousMismatchRecords[0].chestLootEvents[0].trap = "exogenous-mismatch";
+const exogenousComparison = trajectory.buildMatchedChestComparison(
+  b2Case.policies.t0.records,
+  exogenousMismatchRecords
+);
+assert.equal(exogenousComparison.pass, false);
+assert.ok(exogenousComparison.exogenousMismatch > 0);
+const exposureOnlyRecords = structuredClone(b2Case.policies.t1.records);
+exposureOnlyRecords.forEach(record => {
+  const firstTreatmentOrdinal = record.chestTrapCostAudit
+    .filter(event => event.floor === 2)
+    .map(event => event.ordinal)
+    .sort((left, right) => left - right)[0];
+  record.chestLootEvents
+    .filter(event => firstTreatmentOrdinal !== undefined && event.ordinal > firstTreatmentOrdinal)
+    .forEach(event => {
+      event.x += 1000;
+    });
+});
+const exposureOnlyComparison = trajectory.buildMatchedChestComparison(
+  b2Case.policies.t0.records,
+  exposureOnlyRecords
+);
+assert.equal(exposureOnlyComparison.pass, true, "post-treatment exposure-only divergence is allowed");
+assert.equal(exposureOnlyComparison.endogenous.postTreatmentIdentityMismatches, 0);
+assert.equal(b2Case.policies.t1.aggregate.distributions[2].lootOpportunities >= 0, true);
 
 console.log("early run attrition trajectory regression passed");
