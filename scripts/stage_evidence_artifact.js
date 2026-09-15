@@ -46,7 +46,8 @@ function parseArgs(argv) {
     "diagnostics", "logs", "status", "run-id", "run-attempt", "job-name", "source-sha",
     "base-sha", "seed", "config", "determinism-status", "runner-os", "runner-path",
     "runner-version", "retention-days", "max-bytes", "github-output", "summary-label",
-    "visual-dir", "diagnostics-dir", "logs-dir"
+    "visual-dir", "diagnostics-dir", "logs-dir", "job-timeout-minutes", "step-timeout-minutes",
+    "timeout-basis"
   ]);
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -249,8 +250,13 @@ function writeGeneratedFiles({ stagingRoot, payloadStatus, options, artifactName
   fs.writeFileSync(path.join(stagingRoot, "provenance", "provenance.json"), `${provenance}\n`);
 
   ensureDirectory(path.join(stagingRoot, "execution"));
-  if (securityDiagnostics.length > 0 || sizeReduction) {
-    const diagnostics = JSON.stringify({ security: securityDiagnostics, sizeWarning: sizeReduction }, null, 2);
+  {
+    const diagnostics = JSON.stringify({
+      status,
+      failure: status === "failure" ? { reason: "measurement or merge step failed" } : null,
+      security: securityDiagnostics,
+      sizeWarning: sizeReduction
+    }, null, 2);
     const diagnosticsForbidden = containsForbiddenContent("diagnostics.json", Buffer.from(diagnostics));
     if (diagnosticsForbidden) throw new Error(`execution diagnostics contain forbidden content: ${diagnosticsForbidden}`);
     fs.writeFileSync(path.join(stagingRoot, "execution", "diagnostics.json"), `${diagnostics}\n`);
@@ -265,7 +271,8 @@ function writeGeneratedFiles({ stagingRoot, payloadStatus, options, artifactName
     bytes,
     maxBytes,
     contentHash,
-    generatedAt: new Date().toISOString()
+    generatedAt: new Date().toISOString(),
+    timeoutMinutes: timeoutMinutes(options)
   }, null, 2)}\n`);
   let bytes = totalBytes(stagingRoot);
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -280,6 +287,19 @@ function writeGeneratedFiles({ stagingRoot, payloadStatus, options, artifactName
 function configValue(value) {
   if (!value) return {};
   try { return JSON.parse(value); } catch { return { value: String(value) }; }
+}
+
+function timeoutValue(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function timeoutMinutes(options) {
+  return {
+    job: timeoutValue(options.job_timeout_minutes),
+    step: timeoutValue(options.step_timeout_minutes)
+  };
 }
 
 export function buildProvenance({ options, artifactName, contentHash, status, sizeReduction = null }) {
@@ -300,6 +320,8 @@ export function buildProvenance({ options, artifactName, contentHash, status, si
     determinismStatus: envOr(options.determinism_status, "DETERMINISM_STATUS", "not-provided"),
     contentHash,
     retentionDays: EVIDENCE_ARTIFACT_RETENTION_DAYS,
+    timeoutMinutes: timeoutMinutes(options),
+    timeoutBasis: options.timeout_basis || null,
     artifactName,
     sizeReduction,
     status
@@ -353,6 +375,8 @@ export function stageEvidence(options = {}) {
     status,
     rawIncluded: includeExtra,
     explicitDebug: Boolean(options.includeRaw),
+    timeoutMinutes: timeoutMinutes(options),
+    timeoutBasis: options.timeout_basis || null,
     allowlist: {
       summary: options.summary ? [path.basename(options.summary)] : [],
       provenance: options.provenance ? [path.basename(options.provenance)] : [],

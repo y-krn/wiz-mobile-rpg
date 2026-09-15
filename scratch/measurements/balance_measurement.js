@@ -24,6 +24,8 @@ export const STANDARD_BALANCE_CONFIG = Object.freeze({
   seedPolicy: "Each scenario/fixture task resets the canonical simulator to seed; run index is deterministic."
 });
 
+export const STANDARD_BALANCE_SHARD_COUNT = 12;
+
 function getAxisIds(config) {
   return config.fixtureIds || [];
 }
@@ -150,6 +152,183 @@ export function applyStandardSimulationEnv(config, env = process.env) {
   });
   delete env.SIM_PRESET;
   return env;
+}
+
+export function createStandardSimulationTasks(config) {
+  return config.scenarioIds.flatMap(scenarioId =>
+    config.fixtureIds.map(fixtureId => ({
+      kind: "scenario",
+      scenarioId,
+      fixtureId,
+      identificationPolicyId: config.identificationPolicy,
+      runCount: config.calibrationRuns
+    }))
+  );
+}
+
+function standardTaskKey(task) {
+  return `${task.scenarioId}/${task.fixtureId}`;
+}
+
+export function resolveStandardMeasurementShard(
+  config,
+  { shardIndex, shardCount = STANDARD_BALANCE_SHARD_COUNT } = {}
+) {
+  const tasks = createStandardSimulationTasks(config);
+  if (!Number.isInteger(shardCount) || shardCount < 1 || shardCount > tasks.length) {
+    throw new Error(`shard-count must be an integer in [1, ${tasks.length}]`);
+  }
+  if (!Number.isInteger(shardIndex) || shardIndex < 0 || shardIndex >= shardCount) {
+    throw new Error(`shard-index must be an integer in [0, ${shardCount})`);
+  }
+  return {
+    shardIndex,
+    shardCount,
+    tasks: tasks.filter((_, index) => index % shardCount === shardIndex)
+  };
+}
+
+function measurementShardConfiguration(config) {
+  return {
+    profile: config.profile,
+    seed: config.seed,
+    runs: config.runs,
+    calibrationRuns: config.calibrationRuns,
+    identificationPolicy: config.identificationPolicy,
+    fixtureIds: [...config.fixtureIds],
+    scenarioIds: [...config.scenarioIds],
+    targetDepths: [...config.targetDepths],
+    comparisonKey: config.comparisonKey
+  };
+}
+
+function assertShardConfiguration(config, shard) {
+  const actual = shard.configuration;
+  const expected = measurementShardConfiguration(config);
+  if (!actual || actual.comparisonKey !== expected.comparisonKey) {
+    throw new Error(`standard measurement shard configuration mismatch: ${actual?.comparisonKey} != ${expected.comparisonKey}`);
+  }
+  ["profile", "seed", "runs", "calibrationRuns", "identificationPolicy"].forEach(field => {
+    if (actual[field] !== expected[field]) {
+      throw new Error(`standard measurement shard ${field} mismatch`);
+    }
+  });
+  ["fixtureIds", "scenarioIds", "targetDepths"].forEach(field => {
+    if (JSON.stringify(actual[field]) !== JSON.stringify(expected[field])) {
+      throw new Error(`standard measurement shard ${field} mismatch`);
+    }
+  });
+}
+
+export function createStandardMeasurementShard({
+  config,
+  provenance,
+  shardIndex,
+  shardCount = STANDARD_BALANCE_SHARD_COUNT,
+  taskResults
+}) {
+  const shard = resolveStandardMeasurementShard(config, { shardIndex, shardCount });
+  if (!Array.isArray(taskResults) || taskResults.length !== shard.tasks.length) {
+    throw new Error(`standard measurement shard ${shardIndex} expected ${shard.tasks.length} task results`);
+  }
+  const entries = taskResults.map((entry, index) => {
+    const task = entry.task || shard.tasks[index];
+    if (standardTaskKey(task) !== standardTaskKey(shard.tasks[index])) {
+      throw new Error(`standard measurement shard task order mismatch at index ${index}`);
+    }
+    return { task, result: entry.result || entry };
+  });
+  return {
+    schemaVersion: 1,
+    kind: "standard-balance-measurement-shard",
+    shard: { shardIndex, shardCount },
+    configuration: measurementShardConfiguration(config),
+    provenance: {
+      baseCommit: provenance.baseCommit,
+      sourceCommit: provenance.sourceCommit,
+      measurementRunnerCommit: provenance.measurementRunnerCommit,
+      measurementRunnerDiffSha256: provenance.measurementRunnerDiffSha256,
+      originMainAncestor: provenance.originMainAncestor,
+      staleTreeAllowed: provenance.staleTreeAllowed,
+      workingTreeClean: provenance.workingTreeClean,
+      measurementRunnerPaths: provenance.measurementRunnerPaths
+    },
+    taskResults: entries
+  };
+}
+
+function assertShardProvenance(expected, actual) {
+  ["baseCommit", "sourceCommit", "measurementRunnerCommit", "measurementRunnerDiffSha256",
+    "originMainAncestor", "staleTreeAllowed", "workingTreeClean"].forEach(field => {
+    if (actual?.[field] !== expected?.[field]) {
+      throw new Error(`standard measurement shard provenance ${field} mismatch`);
+    }
+  });
+  if (JSON.stringify(actual?.measurementRunnerPaths) !== JSON.stringify(expected?.measurementRunnerPaths)) {
+    throw new Error("standard measurement shard provenance paths mismatch");
+  }
+}
+
+function standardScenarioResults(config, taskResultsByKey) {
+  return config.scenarioIds.map(scenarioId => ({
+    scenarioId,
+    fixtureResults: config.fixtureIds.map(fixtureId => {
+      const key = `${scenarioId}/${fixtureId}`;
+      const entry = taskResultsByKey.get(key);
+      if (!entry) throw new Error(`missing standard simulation task: ${key}`);
+      return { fixtureId, results: entry.result.results };
+    })
+  }));
+}
+
+export function mergeStandardMeasurementShards({
+  config,
+  provenance,
+  shards,
+  execution = null
+}) {
+  const expectedTasks = createStandardSimulationTasks(config);
+  if (!Array.isArray(shards) || shards.length === 0) {
+    throw new Error("standard measurement shards are required");
+  }
+  const taskResultsByKey = new Map();
+  shards.forEach(shard => {
+    if (shard?.kind !== "standard-balance-measurement-shard") {
+      throw new Error("invalid standard measurement shard");
+    }
+    assertShardConfiguration(config, shard);
+    assertShardProvenance(provenance, shard.provenance);
+    if (!Array.isArray(shard.taskResults)) throw new Error("standard measurement shard task results are missing");
+    const declaredShard = shard.shard || {};
+    const expectedShard = resolveStandardMeasurementShard(config, declaredShard);
+    if (expectedShard.tasks.length !== shard.taskResults.length) {
+      throw new Error(`standard measurement shard ${declaredShard.shardIndex} task count mismatch`);
+    }
+    shard.taskResults.forEach((entry, index) => {
+      const key = standardTaskKey(entry.task);
+      if (key !== standardTaskKey(expectedShard.tasks[index])) {
+        throw new Error(`standard measurement shard task order mismatch: ${key}`);
+      }
+      if (taskResultsByKey.has(key)) throw new Error(`duplicate standard measurement task: ${key}`);
+      taskResultsByKey.set(key, entry);
+    });
+  });
+  const missing = expectedTasks.map(standardTaskKey).filter(key => !taskResultsByKey.has(key));
+  if (missing.length > 0) throw new Error(`missing standard measurement tasks: ${missing.join(", ")}`);
+  if (taskResultsByKey.size !== expectedTasks.length) {
+    throw new Error(`unexpected standard measurement task count: ${taskResultsByKey.size}`);
+  }
+  return summarizeSimulationResults({
+    config,
+    provenance,
+    scenarioResults: standardScenarioResults(config, taskResultsByKey),
+    execution: execution || {
+      taskCount: expectedTasks.length,
+      parallelism: 1,
+      wallClockMs: null,
+      cpuTimeMs: null
+    }
+  });
 }
 
 function wilsonInterval(successes, trials) {

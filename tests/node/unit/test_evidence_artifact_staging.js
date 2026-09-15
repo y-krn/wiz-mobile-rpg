@@ -67,7 +67,9 @@ const success = stageEvidence({
   base_sha: "b".repeat(40),
   seed: "42",
   config: JSON.stringify({ measurement: "standard" }),
-  determinism_status: "pass"
+  determinism_status: "pass",
+  job_timeout_minutes: "20",
+  step_timeout_minutes: "15"
 });
 assert.equal(success.includeExtra, false);
 assert.ok(existsSync(path.join(success.stagingRoot, "summary", "summary.md")));
@@ -80,6 +82,7 @@ const successProvenance = JSON.parse(readFileSync(path.join(success.stagingRoot,
 assert.equal(successProvenance.sourceSha, "a".repeat(40));
 assert.equal(successProvenance.baseSha, "b".repeat(40));
 assert.equal(successProvenance.retentionDays, EVIDENCE_ARTIFACT_RETENTION_DAYS);
+assert.deepEqual(successProvenance.timeoutMinutes, { job: 20, step: 15 });
 assert.match(successProvenance.contentHash, /^[0-9a-f]{64}$/);
 
 const failure = stageEvidence({
@@ -102,6 +105,7 @@ assert.ok(existsSync(path.join(failure.stagingRoot, "visual", "capture.png")));
 assert.ok(existsSync(path.join(failure.stagingRoot, "visual", "browser-capture.png")));
 assert.ok(existsSync(path.join(failure.stagingRoot, "diagnostics", "failure.log")));
 assert.ok(existsSync(path.join(failure.stagingRoot, "provenance", "provenance.json")));
+assert.ok(existsSync(path.join(failure.stagingRoot, "execution", "diagnostics.json")));
 
 const debug = stageEvidence({
   staging_dir: path.join(fixtureRoot, "debug"),
