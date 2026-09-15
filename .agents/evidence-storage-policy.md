@@ -40,9 +40,11 @@ baselines. Existing measurement workflows retain their current explicit values;
 changing those uploads is outside this Issue.
 
 Policy changes and evidence changes must be separate pull requests. Existing
-grandfathered modes and size ceilings cannot be relaxed by a policy edit. The
-policy, schema, and checker are CODEOWNERS-protected and require maintainer
-review.
+grandfathered modes and size ceilings cannot be relaxed by a policy edit.
+Classification rules, including raw JSON and visual review protection, are also
+immutable outside a versioned policy migration with explicit approval. The
+policy, schema, documentation, enforcement wiring, and checker are
+CODEOWNERS-protected and require maintainer review.
 
 Provenance should include runner path and version, source and base SHA, seed or
 configuration, determinism status, content hash, and retention. Secrets,

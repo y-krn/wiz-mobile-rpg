@@ -1,4 +1,8 @@
 # Evidence policy and its executable guard require maintainer review.
 /.agents/evidence-storage-policy.json @y-krn
 /.agents/evidence-storage-policy.schema.json @y-krn
+/.agents/evidence-storage-policy.md @y-krn
+/package.json @y-krn
+/.github/workflows/test.yml @y-krn
+/.github/CODEOWNERS @y-krn
 /scripts/check_evidence_storage.js @y-krn

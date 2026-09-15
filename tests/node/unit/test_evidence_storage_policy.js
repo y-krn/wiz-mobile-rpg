@@ -147,6 +147,17 @@ try {
   {
     const repo = createRepo();
     repos.push(repo);
+    const relaxed = policyFor(repo.baseBlob);
+    relaxed.classificationRules[2].changePolicy = "allow";
+    write(repo.root, POLICY_PATH, JSON.stringify(relaxed));
+    const head = commit(repo.root, "try to relax raw classification rule");
+    const result = checkEvidenceStorage({ root: repo.root, baseRef: repo.policyHead, headRef: head });
+    assertFail(result, "classification rule changes require");
+  }
+
+  {
+    const repo = createRepo();
+    repos.push(repo);
     write(repo.root, "evidence/fixtures/allowed-fixture.json", "fixture\n");
     const advancedBase = commit(repo.root, "advance main with allowed fixture");
     write(repo.root, "unrelated.txt", "main advanced\n");
@@ -160,6 +171,16 @@ try {
     assert.match(workflow, /github\.event\.before/);
     assert.match(workflow, /github\.event\.merge_group\.base_sha/);
     assert.match(workflow, /EVIDENCE_HEAD_SHA: \$\{\{ github\.sha \}\}/);
+
+    const codeowners = fs.readFileSync(path.resolve(".github/CODEOWNERS"), "utf8");
+    for (const protectedPath of [
+      "/.agents/evidence-storage-policy.md",
+      "/.github/workflows/test.yml",
+      "/package.json",
+      "/.github/CODEOWNERS",
+    ]) {
+      assert.ok(codeowners.includes(`${protectedPath} @y-krn`), `${protectedPath} is CODEOWNERS-protected`);
+    }
   }
 
   {

@@ -207,6 +207,15 @@ function policyDiagnostic(policyPath, reason, baseCommit, headCommit) {
   return `path=${policyPath} size=- reason=${reason} base=commit:${baseCommit}:blob:-:size:- head=commit:${headCommit}:blob:-:size:-`;
 }
 
+function normalizedRules(rules) {
+  return JSON.stringify(rules.map(rule => ({
+    classification: rule.classification,
+    pathPrefixes: [...rule.pathPrefixes].sort(),
+    ...(rule.extensions ? { extensions: [...rule.extensions].sort() } : {}),
+    changePolicy: rule.changePolicy,
+  })));
+}
+
 function findException(policy, filePath) {
   return policy.exceptions.find(exception => exception.path === filePath);
 }
@@ -242,6 +251,10 @@ function checkPolicyEvolution({ root, baseCommit, headCommit, policyPath, headPo
   if (baseValidation.length > 0) {
     diagnostics.push(...baseValidation.map(message => policyDiagnostic(policyPath, `base policy invalid: ${message}`, baseCommit, headCommit)));
     return diagnostics;
+  }
+
+  if (normalizedRules(basePolicy.classificationRules) !== normalizedRules(headPolicy.classificationRules)) {
+    diagnostics.push(policyDiagnostic(policyPath, "classification rule changes require a versioned policy migration and explicit approval", baseCommit, headCommit));
   }
 
   const baseExceptions = new Map(basePolicy.exceptions.map(exception => [exception.path, exception]));
