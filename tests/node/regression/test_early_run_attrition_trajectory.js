@@ -106,6 +106,10 @@ assert.equal(aggregate.waterfall[1].reachedNextFloor, 1);
 assert.equal(aggregate.waterfall[2].died, 1);
 assert.equal(aggregate.waterfall[2].invariant.pass, true);
 assert.equal(aggregate.dominantIncrementalCostSource, "combat");
+assert.deepEqual(
+  trajectory.rankBuildCompositions({ "main:z": 1, "main:a": 3, "main:b": 2 }),
+  [["main:a", 3], ["main:b", 2], ["main:z", 1]]
+);
 
 const trajectoryRecord = (runIndex, worldSeed, costsByFloor) => {
   const cumulative = {
@@ -236,25 +240,52 @@ assert.equal(manifest.cutoff.semantics.includes("never voluntary Return"), true)
 assert.equal(manifest.source.runnerVersion, trajectory.RUNNER_VERSION);
 
 const smoke = await trajectory.runMeasurement({
-  runs: 2,
+  runs: 4,
   seed: 1277,
   startingKitIds: ["vanguard"],
   scenarioIds: ["workshop-empty"],
+  collectEquipmentCandidateAudit: true,
   allowSmallRunCount: true
 });
 assert.equal(smoke.determinism.pass, true);
+assert.equal(Object.values(smoke.observationInvariance).every(value => value.pass), true);
 assert.equal(smoke.cases.length, 1);
-assert.equal(smoke.cases[0].policies.t0.aggregate.runs, 2);
+assert.equal(smoke.cases[0].policies.t0.aggregate.runs, 4);
 assert.equal(smoke.cases[0].policies.t0.aggregate.waterfall[1].invariant.pass, true);
 assert.equal(smoke.cases[0].policies.t1.aggregate.waterfall[1].invariant.pass, true);
 assert.equal(smoke.cases[0].returnContinuation.rows.every(row => row.worldSeed), true);
+assert.equal(smoke.cases[0].policies.t0.aggregate.buildProgression.B2Entry.population.condition, "B2 entrants");
+assert.equal(smoke.cases[0].policies.t0.aggregate.buildProgression.B2Entry.combatGrowth.atk.delta.n >= 0, true);
+assert.equal(smoke.cases[0].policies.t0.aggregate.distributions[1].lootSupply.status, "observed");
+assert.equal(smoke.cases[0].policies.t0.aggregate.distributions[1].equipmentDecisionActivity.status, "observed");
+const auditedRecord = smoke.cases[0].policies.t0.records[0];
+assert.equal(auditedRecord.buildCheckpoints.runStart.build.identity, auditedRecord.build.starting.identity);
+assert.equal(auditedRecord.buildCheckpoints.terminal.build.identity, auditedRecord.build.ending.identity);
+const selectedAudits = (auditedRecord.equipmentCandidateAudit || []).filter(audit => audit.selected);
+const selectedSwaps = (auditedRecord.equipmentTelemetry || []).filter(event => event.type === "swap");
+assert.equal(selectedAudits.length, selectedSwaps.length);
+selectedAudits.forEach(audit => {
+  assert.equal(selectedSwaps.some(event => event.candidateAuditId === audit.id), true);
+});
+const qualifiedRejectedAudits = smoke.cases[0].policies.t0.records
+  .flatMap(record => record.equipmentCandidateAudit || [])
+  .filter(audit => audit.evaluableCandidate && audit.qualifies && !audit.selected)
+;
+assert.ok(qualifiedRejectedAudits.length > 0);
+qualifiedRejectedAudits.forEach(audit => {
+  assert.equal(
+    ["not-best-selection-score", "out-ranked-by-later-candidate"].includes(audit.rejectionReason),
+    true
+  );
+});
 
 const b2Smoke = await trajectory.runMeasurement({
-  runs: 2,
+  runs: 4,
   seed: 1277,
   treatment: "b2-chest-trap",
   startingKitIds: ["vanguard"],
   scenarioIds: ["workshop-empty"],
+  collectEquipmentCandidateAudit: true,
   allowSmallRunCount: true
 });
 const b2Case = b2Smoke.cases[0];
@@ -264,9 +295,9 @@ assert.ok(b2Case.policies.t0.aggregate.b2ChestTrapCostAudit.events > 0);
 assert.equal(b2Case.policies.t1.aggregate.b2ChestTrapCostAudit.allSuppressed, true);
 assert.equal(b2Case.policies.t1.aggregate.b2ChestTrapCostAudit.appliedCostZero, true);
 assert.ok(b2Case.policies.t1.aggregate.b2ChestTrapCostAudit.generatedDamageHp > 0);
-assert.equal(b2Case.matchedConversions.all.runs, 2);
+assert.equal(b2Case.matchedConversions.all.runs, 4);
 assert.ok(b2Case.matchedConversions.t0B2DeathToT1.runs >= 0);
-assert.equal(b2Case.matchedChestComparison.matchedRuns, 2);
+assert.equal(b2Case.matchedChestComparison.matchedRuns, 4);
 assert.equal(b2Case.matchedChestComparison.pass, true);
 assert.equal(b2Case.matchedChestComparison.exogenous.stateMismatches, 0);
 assert.equal(b2Case.matchedChestComparison.exogenous.mismatches, 0);
