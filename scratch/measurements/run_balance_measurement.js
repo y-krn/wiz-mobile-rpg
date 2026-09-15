@@ -93,6 +93,7 @@ const runDifficultyArgs = ({ options, output }) => [
 ];
 
 const earlyAttritionArgs = ({ options, output }) => [
+  "--measurement", options.measurement,
   "--ref", options.ref,
   "--treatment", options.treatment,
   "--runs", String(options.runs),
@@ -212,6 +213,18 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
   "early-run-attrition": freezeDefinition({
     id: "early-run-attrition",
     label: "Early run attrition trajectory",
+    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" },
+    buildArgs: earlyAttritionArgs
+  }),
+  "build-progression-audit": freezeDefinition({
+    id: "build-progression-audit",
+    label: "B1-B5 Build progression audit",
     runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
     adapter: "native-manifest",
     defaultRunType: "diagnostic",

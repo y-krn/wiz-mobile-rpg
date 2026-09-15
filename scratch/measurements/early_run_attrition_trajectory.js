@@ -12,8 +12,8 @@ import {
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { mergeFleeTelemetry, summarizeFleeTelemetry } from "./flee_telemetry.js";
 
-export const RUNNER_VERSION = "early-run-attrition-trajectory-v2";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "early-run-attrition-trajectory-v3";
+export const SCHEMA_VERSION = 2;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1277;
 export const TRAJECTORY_FLOORS = Object.freeze([1, 2, 3, 4, 5]);
@@ -75,6 +75,7 @@ export const MEASUREMENT_RUNNER_PATHS = Object.freeze([
   "scratch/measurements/flee_telemetry.js",
   "src/state/initial_state.js",
   "src/rules/build_snapshot.js",
+  "scratch/measurements/build_progression_audit.js",
   "src/rules/chest_rules.js",
   "src/rules/trap_rules.js",
   "src/rules/trap_effect_rules.js",
@@ -94,7 +95,9 @@ const COST_SOURCE_IDS = Object.freeze([
 ]);
 const UNOBSERVED_FIELDS = Object.freeze([
   "enemy-inflicted poison/status damage can be inseparable from combat damage",
-  "merchant recovery acquisition is not present in diagnostic rewardEvents"
+  "merchant recovery acquisition is not present in diagnostic rewardEvents",
+  "unidentified held candidates have no true-feature delta until production identification permits evaluation",
+  "rune loot is counted as a Build opportunity; deterministic_greedy candidate audit covers equipment evaluation only"
 ]);
 
 function integer(value, label, minimum = 1) {
@@ -199,8 +202,11 @@ function groupCostEvents(events) {
 
 function compactBuildSnapshot(snapshot) {
   if (!snapshot) return null;
+  const canonical = snapshot.canonicalBuildSnapshot || (
+    snapshot.schemaVersion === 1 && snapshot.weaponProfile ? snapshot : null
+  );
   return {
-    identity: snapshot.identity || null,
+    identity: canonical?.identity || snapshot.identity || null,
     point: snapshot.point || null,
     floor: finite(snapshot.floor),
     level: finite(snapshot.level),
@@ -214,6 +220,22 @@ function compactBuildSnapshot(snapshot) {
     coreIds: Array.isArray(snapshot.coreIds) ? [...snapshot.coreIds] : [],
     combatCoreIds: Array.isArray(snapshot.combatCoreIds) ? [...snapshot.combatCoreIds] : [],
     supportAffixIds: Object.keys(snapshot.supportAffixes || {}).sort(),
+    weaponProfile: canonical?.weaponProfile || null,
+    weaponHands: canonical?.weaponHands ?? null,
+    guardProfileId: canonical?.guardProfileId || null,
+    mediumId: canonical?.mediumId || null,
+    runeSlotCapacity: canonical?.runeSlotCapacity ?? null,
+    activeRuneSpellIds: Array.isArray(canonical?.activeRuneSpellIds)
+      ? [...canonical.activeRuneSpellIds]
+      : [],
+    mainCoreIds: Array.isArray(canonical?.mainCoreIds) ? [...canonical.mainCoreIds] : [],
+    auxiliaryCoreIds: Array.isArray(canonical?.auxiliaryCoreIds)
+      ? [...canonical.auxiliaryCoreIds]
+      : [],
+    supportValues: canonical?.supportValues ? { ...canonical.supportValues } : {},
+    explorationSupportValues: canonical?.explorationSupportValues
+      ? { ...canonical.explorationSupportValues }
+      : {},
     effectiveAffixes: Object.fromEntries(
       Object.entries(snapshot.effectiveAffixes || {}).filter(([, value]) => Number(value) !== 0)
     ),
@@ -307,6 +329,24 @@ function compactFloor(
   const buildShiftCount = (result.equipmentTelemetry || []).filter(event =>
     Number(event.floor) === floor && event.type === "swap"
   ).length;
+  const candidateAudit = Array.isArray(result.equipmentCandidateAudit)
+    ? result.equipmentCandidateAudit.filter(event => Number(event.floor) === floor)
+    : null;
+  const loot = {
+    opportunities: floorRewards.length,
+    equipmentOpportunities: floorRewards.filter(event => event.category === "equipment").length,
+    buildOpportunities: floorRewards.filter(event => ["equipment", "rune"].includes(event.category)).length
+  };
+  if (candidateAudit) {
+    loot.conversion = {
+      observed: true,
+      opportunity: loot.buildOpportunities,
+      evaluable: candidateAudit.filter(event => event.evaluableCandidate).length,
+      qualified: candidateAudit.filter(event => event.evaluableCandidate && event.qualifies).length,
+      selected: candidateAudit.filter(event => event.selected).length,
+      observableBuildChange: buildShiftCount
+    };
+  }
   return {
     floor,
     entered: true,
@@ -346,11 +386,7 @@ function compactFloor(
       )),
       itemUsed: countByItem(floorRecovery)
     },
-    loot: {
-      opportunities: floorRewards.length,
-      equipmentOpportunities: floorRewards.filter(event => event.category === "equipment").length,
-      buildOpportunities: floorRewards.filter(event => ["equipment", "rune"].includes(event.category)).length
-    },
+    loot,
     build: {
       meaningfulLootOpportunity: floorRewards.some(event => event.meaningful === true),
       equipmentOpportunity: floorRewards.some(event => event.category === "equipment"),
@@ -368,6 +404,76 @@ function compactFloor(
     terminalReason: stage.terminalReason || null,
     observedEncounterCount: floorEncounters.length
   };
+}
+
+function equipmentBySlot(snapshot) {
+  return Object.fromEntries((snapshot?.equipment || []).map(item => [item.slot, item.id]));
+}
+
+function checkpointMaturity(start, snapshot, cumulativeEquipmentSwaps) {
+  if (!start || !snapshot) {
+    return {
+      status: "unreachable",
+      changedEquipmentSlots: null,
+      cumulativeEquipmentSwaps: null,
+      buildIdentityChanged: null
+    };
+  }
+  const startEquipment = equipmentBySlot(start);
+  const checkpointEquipment = equipmentBySlot(snapshot);
+  const slots = new Set([...Object.keys(startEquipment), ...Object.keys(checkpointEquipment)]);
+  return {
+    status: "observed",
+    changedEquipmentSlots: [...slots].filter(slot =>
+      (startEquipment[slot] || null) !== (checkpointEquipment[slot] || null)
+    ).length,
+    cumulativeEquipmentSwaps,
+    buildIdentityChanged: start.identity !== snapshot.identity
+  };
+}
+
+function compactBuildCheckpoints(result, floors) {
+  const start = compactBuildSnapshot(result.startingBuildSnapshot);
+  const terminal = compactBuildSnapshot(result.diagnostics?.finalBuild || result.endingBuildSnapshot);
+  const checkpoints = {
+    runStart: {
+      checkpoint: "runStart",
+      status: start ? "observed" : "unobserved",
+      floor: 1,
+      build: start,
+      maturity: checkpointMaturity(start, start, 0)
+    }
+  };
+  [2, 3, 4, 5].forEach(floor => {
+    const snapshot = floors[floor]?.entry?.build || null;
+    checkpoints[`B${floor}Entry`] = {
+      checkpoint: `B${floor}Entry`,
+      status: snapshot ? "observed" : "unreachable",
+      floor,
+      build: snapshot,
+      maturity: checkpointMaturity(
+        start,
+        snapshot,
+        (result.equipmentTelemetry || []).filter(event =>
+          event.type === "swap" && Number(event.floor) < floor
+        ).length
+      )
+    };
+  });
+  checkpoints.terminal = {
+    checkpoint: "terminal",
+    status: terminal ? "observed" : "unobserved",
+    floor: Number.isFinite(Number(result.deathFloor ?? result.endFloor))
+      ? Number(result.deathFloor ?? result.endFloor)
+      : null,
+    build: terminal,
+    maturity: checkpointMaturity(
+      start,
+      terminal,
+      (result.equipmentTelemetry || []).filter(event => event.type === "swap").length
+    )
+  };
+  return checkpoints;
 }
 
 export function compactRun(result, { scenarioId, startingKitId, policyId, runIndex, worldSeed }) {
@@ -403,7 +509,7 @@ export function compactRun(result, { scenarioId, startingKitId, policyId, runInd
       : Math.min(TRAJECTORY_FLOORS.at(-1), Math.max(TRAJECTORY_FLOORS[0], finalFloor)))
     : null;
   const finalFloorCost = groupedCosts.incrementalByFloor[finalObservedFloor] || emptyCosts();
-  return {
+  const compacted = {
     scenarioId,
     startingKitId,
     policyId,
@@ -452,9 +558,54 @@ export function compactRun(result, { scenarioId, startingKitId, policyId, runInd
     totalCombatRounds: finite(result.combatRounds),
     build: {
       starting: compactBuildSnapshot(result.startingBuildSnapshot),
-      ending: compactBuildSnapshot(result.endingBuildSnapshot),
+      ending: compactBuildSnapshot(result.diagnostics?.finalBuild || result.endingBuildSnapshot),
       shiftCount: (result.equipmentTelemetry || []).filter(event => event.type === "swap").length
     },
+  };
+  if (Array.isArray(result.equipmentCandidateAudit)) {
+    compacted.equipmentCandidateAudit = result.equipmentCandidateAudit.map(event => structuredClone(event));
+    compacted.equipmentTelemetry = Array.isArray(result.equipmentTelemetry)
+      ? result.equipmentTelemetry.map(event => structuredClone(event))
+      : [];
+    compacted.buildCheckpoints = compactBuildCheckpoints(result, floors);
+  }
+  return compacted;
+}
+
+export function projectGameplayRecord(record) {
+  const projected = structuredClone(record);
+  delete projected.equipmentCandidateAudit;
+  delete projected.buildCheckpoints;
+  delete projected.equipmentTelemetry;
+  Object.values(projected.floors || {}).forEach(floor => {
+    if (floor?.loot) delete floor.loot.conversion;
+  });
+  return projected;
+}
+
+export function compareObservationInvariance(auditOff, auditOn) {
+  const off = projectGameplayRecord(auditOff);
+  const on = projectGameplayRecord(auditOn);
+  return {
+    pass: JSON.stringify(off) === JSON.stringify(on),
+    comparedFields: [
+      "loot",
+      "encounter",
+      "equipment swap",
+      "outcome",
+      "reached floors",
+      "terminal state"
+    ],
+    auditOff: {
+      outcome: auditOff.outcome,
+      reachedFloor: auditOff.reachedFloor,
+      equipmentSwapCount: auditOff.build?.shiftCount || 0
+    },
+    auditOn: {
+      outcome: auditOn.outcome,
+      reachedFloor: auditOn.reachedFloor,
+      equipmentSwapCount: auditOn.build?.shiftCount || 0
+    }
   };
 }
 
@@ -587,6 +738,7 @@ function distributionForFloors(records, floor) {
     lootOpportunities: sum(rows.map(row => row.loot?.opportunities)),
     equipmentOpportunities: sum(rows.map(row => row.loot?.equipmentOpportunities)),
     buildOpportunities: sum(rows.map(row => row.loot?.buildOpportunities)),
+    lootConversion: summarizeLootConversionRows(rows),
     buildChanges: sum(rows.map(row => row.build?.buildShiftCount)),
     encountersPerFloor: values(row => row.incrementalCost.combatCount),
     stepsPerFloor: values(row => row.incrementalCost.steps),
@@ -597,6 +749,194 @@ function distributionForFloors(records, floor) {
         incrementalCostTotalBySource[right] - incrementalCostTotalBySource[left]
       )[0]
       : null
+  };
+}
+
+const BUILD_CHECKPOINT_IDS = Object.freeze(["runStart", "B2Entry", "B3Entry", "B4Entry", "B5Entry", "terminal"]);
+
+function rate(count, denominator) {
+  return Number.isFinite(Number(denominator)) && denominator > 0
+    ? count / denominator
+    : null;
+}
+
+function summarizeDistribution(rows, getter) {
+  return quantiles(rows.map(getter).filter(Number.isFinite));
+}
+
+function summarizeGrowth(rows, field) {
+  return {
+    absolute: summarizeDistribution(rows, row => row.build?.[field]),
+    delta: summarizeDistribution(rows, row =>
+      Number(row.build?.[field]) - Number(row.start?.[field])
+    ),
+    startRatio: summarizeDistribution(rows, row => {
+      const start = Number(row.start?.[field]);
+      const current = Number(row.build?.[field]);
+      return Number.isFinite(start) && start !== 0 ? current / start : null;
+    })
+  };
+}
+
+function checkpointRows(records, checkpoint) {
+  return records.map(record => {
+    const checkpointRow = record.buildCheckpoints?.[checkpoint];
+    if (!checkpointRow || checkpointRow.status !== "observed" || !checkpointRow.build) return null;
+    return {
+      record,
+      build: checkpointRow.build,
+      start: record.buildCheckpoints?.runStart?.build || record.build.starting
+    };
+  }).filter(Boolean);
+}
+
+function buildPopulation(rows, checkpoint) {
+  if (checkpoint === "runStart" || checkpoint === "terminal") {
+    return {
+      entered: rows.length,
+      reachedNextFloor: null,
+      died: checkpoint === "terminal" ? rows.filter(row => row.record.outcome === "died").length : null,
+      voluntaryReturn: checkpoint === "terminal"
+        ? rows.filter(row => row.record.outcome === "voluntaryReturn").length
+        : null,
+      otherTerminal: checkpoint === "terminal"
+        ? rows.filter(row => !["died", "voluntaryReturn"].includes(row.record.outcome)).length
+        : null,
+      condition: checkpoint === "terminal" ? "all run terminal outcomes" : "all run starts"
+    };
+  }
+  const floor = Number(checkpoint.slice(1, 2));
+  const floorRows = rows.map(row => row.record.floors?.[floor]).filter(Boolean);
+  return {
+    entered: rows.length,
+    reachedNextFloor: floorRows.filter(row => row.waterfall?.reachedNextFloor).length,
+    died: floorRows.filter(row => row.waterfall?.died).length,
+    voluntaryReturn: floorRows.filter(row => row.waterfall?.voluntaryReturn).length,
+    otherTerminal: floorRows.filter(row => row.waterfall?.otherTerminal).length,
+    condition: `B${floor} entrants`
+  };
+}
+
+function countPositiveSupport(rows, field) {
+  return rows.filter(row => Number(row.build?.explorationSupportValues?.[field]) > 0).length;
+}
+
+function summarizeBuildCheckpoint(records, checkpoint) {
+  const rows = checkpointRows(records, checkpoint);
+  const population = buildPopulation(rows, checkpoint);
+  const status = rows.length > 0 ? "observed" : "unreachable";
+  const supportIds = [...new Set(rows.flatMap(row =>
+    Object.entries(row.build?.supportValues || {})
+      .filter(([, value]) => Number(value) !== 0)
+      .map(([id]) => id)
+  ))].sort();
+  const coreCompositions = {};
+  rows.forEach(row => {
+    const main = (row.build?.mainCoreIds || []).join("+") || "none";
+    const auxiliary = (row.build?.auxiliaryCoreIds || []).join("+") || "none";
+    const key = `main:${main}|auxiliary:${auxiliary}`;
+    coreCompositions[key] = (coreCompositions[key] || 0) + 1;
+  });
+  const maturity = {
+    changedEquipmentSlots: summarizeDistribution(rows, row => row.record.buildCheckpoints[checkpoint].maturity.changedEquipmentSlots),
+    cumulativeEquipmentSwaps: summarizeDistribution(rows, row => row.record.buildCheckpoints[checkpoint].maturity.cumulativeEquipmentSwaps),
+    buildIdentityChanged: rows.filter(row => row.record.buildCheckpoints[checkpoint].maturity.buildIdentityChanged).length,
+    buildIdentityChangedRate: rate(
+      rows.filter(row => row.record.buildCheckpoints[checkpoint].maturity.buildIdentityChanged).length,
+      rows.length
+    ),
+    coreCount: summarizeDistribution(rows, row =>
+      (row.build?.mainCoreIds || []).length + (row.build?.auxiliaryCoreIds || []).length
+    ),
+    supportCount: summarizeDistribution(rows, row =>
+      Object.values(row.build?.supportValues || {}).filter(value => Number(value) !== 0).length
+    ),
+    supportIds,
+    mainCoreIds: [...new Set(rows.flatMap(row => row.build?.mainCoreIds || []))].sort(),
+    auxiliaryCoreIds: [...new Set(rows.flatMap(row => row.build?.auxiliaryCoreIds || []))].sort(),
+    activeRuneSpellIds: [...new Set(rows.flatMap(row => row.build?.activeRuneSpellIds || []))].sort(),
+    spellIds: [...new Set(rows.flatMap(row => row.build?.spells || []))].sort(),
+    coreCompositions
+  };
+  const explorationSupportIds = [...new Set(rows.flatMap(row =>
+    Object.keys(row.build?.explorationSupportValues || {})
+  ))].sort();
+  const explorationSupport = Object.fromEntries(explorationSupportIds.map(id => [id, {
+    value: summarizeDistribution(rows, row => row.build?.explorationSupportValues?.[id]),
+    holderCount: countPositiveSupport(rows, id),
+    holderRate: rate(countPositiveSupport(rows, id), rows.length)
+  }]));
+  return {
+    status,
+    population,
+    combatGrowth: {
+      atk: summarizeGrowth(rows, "atk"),
+      def: summarizeGrowth(rows, "def"),
+      maxHp: summarizeGrowth(rows, "maxHp"),
+      maxMp: summarizeGrowth(rows, "maxMp")
+    },
+    explorationSafetyGrowth: {
+      support: explorationSupport,
+      observedSupportIds: explorationSupportIds
+    },
+    buildMaturity: maturity
+  };
+}
+
+function summarizeLootConversionRows(rows) {
+  const observedRows = rows.map(row => row.loot?.conversion).filter(value => value?.observed);
+  if (observedRows.length === 0) {
+    return {
+      status: "unobserved",
+      opportunity: null,
+      evaluable: null,
+      qualified: null,
+      selected: null,
+      observableBuildChange: null
+    };
+  }
+  return {
+    status: "observed",
+    opportunity: sum(observedRows.map(row => row.opportunity)),
+    evaluable: sum(observedRows.map(row => row.evaluable)),
+    qualified: sum(observedRows.map(row => row.qualified)),
+    selected: sum(observedRows.map(row => row.selected)),
+    observableBuildChange: sum(observedRows.map(row => row.observableBuildChange)),
+    observedRuns: observedRows.length
+  };
+}
+
+function summarizeRejectedCandidates(records) {
+  const audits = records.flatMap(record => (record.equipmentCandidateAudit || [])
+    .filter(audit => audit.evaluableCandidate && !audit.selected)
+    .map(audit => ({ audit, runIndex: record.runIndex })));
+  const classifications = {};
+  const affectedRuns = {};
+  audits.forEach(({ audit, runIndex }) => {
+    (audit.sidegradeClassifications || []).forEach(id => {
+      classifications[id] = (classifications[id] || 0) + 1;
+      affectedRuns[id] ||= new Set();
+      affectedRuns[id].add(runIndex);
+    });
+  });
+  const classificationSummary = Object.fromEntries([
+    "strictUpgrade",
+    "combatTradeoff",
+    "durabilityTradeoff",
+    "safetyTradeoff",
+    "buildTradeoff",
+    "noMeaningfulGain"
+  ].map(id => [id, {
+    totalCount: classifications[id] || 0,
+    affectedRunCount: affectedRuns[id]?.size || 0,
+    affectedRunRate: rate(affectedRuns[id]?.size || 0, records.length),
+    perRunRate: rate(classifications[id] || 0, records.length)
+  }]));
+  return {
+    status: records.some(record => Array.isArray(record.equipmentCandidateAudit)) ? "observed" : "unobserved",
+    evaluableRejectedCandidateCount: audits.length,
+    affectedRunCount: new Set(audits.map(entry => entry.runIndex)).size,
+    classifications: classificationSummary
   };
 }
 
@@ -688,6 +1028,11 @@ export function aggregateCondition(records) {
       floor,
       distributionForFloors(records, floor)
     ])),
+    buildProgression: Object.fromEntries(BUILD_CHECKPOINT_IDS.map(checkpoint => [
+      checkpoint,
+      summarizeBuildCheckpoint(records, checkpoint)
+    ])),
+    rejectedCandidates: summarizeRejectedCandidates(records),
     lootBuild: summarizeLootBuild(records),
     b2ChestTrapCostAudit: summarizeChestTrapCostAudit(records),
     cumulativeCostBySource: sourceTotals,
@@ -965,7 +1310,15 @@ function worldSeedFor(seed, runIndex) {
   return `run-difficulty:${seed}:${runIndex}`;
 }
 
-function normalizeOptions({ runs, seed, startingKitIds, scenarioIds, treatment = "portal-policy", allowSmallRunCount = false } = {}) {
+function normalizeOptions({
+  runs,
+  seed,
+  startingKitIds,
+  scenarioIds,
+  treatment = "portal-policy",
+  allowSmallRunCount = false,
+  collectEquipmentCandidateAudit = false
+} = {}) {
   const minimum = allowSmallRunCount ? 1 : DEFAULT_RUNS;
   const normalizedRuns = integer(runs ?? DEFAULT_RUNS, "runs", minimum);
   const normalizedSeed = integer(seed ?? DEFAULT_SEED, "seed");
@@ -985,7 +1338,8 @@ function normalizeOptions({ runs, seed, startingKitIds, scenarioIds, treatment =
     seed: normalizedSeed,
     startingKitIds: kits,
     scenarioIds: scenarios,
-    treatment
+    treatment,
+    collectEquipmentCandidateAudit: Boolean(collectEquipmentCandidateAudit)
   };
 }
 
@@ -999,7 +1353,7 @@ export async function runMeasurement(options = {}) {
   });
   const { getScenarioById, resetSimulationRandom, simulateRun } =
     await import("../simulations/sim_depth_material_ev.js");
-  const runOne = ({ scenarioId, startingKitId, policy, runIndex }) => {
+  const runOne = ({ scenarioId, startingKitId, policy, runIndex, audit = config.collectEquipmentCandidateAudit }) => {
     const baseScenario = getScenarioById(scenarioId);
     const worldSeed = worldSeedFor(config.seed, runIndex);
     const result = simulateRun({
@@ -1023,7 +1377,8 @@ export async function runMeasurement(options = {}) {
       worldSeed,
       collectDiagnostics: true,
       collectBuildSnapshots: true,
-      collectEquipmentTelemetry: true
+      collectEquipmentTelemetry: true,
+      collectEquipmentCandidateAudit: audit
     });
     return compactRun(result, {
       scenarioId,
@@ -1035,6 +1390,7 @@ export async function runMeasurement(options = {}) {
   };
 
   const determinism = {};
+  const observationInvariance = {};
   const probe = {
     scenarioId: config.scenarioIds[0],
     startingKitId: config.startingKitIds[0],
@@ -1051,6 +1407,16 @@ export async function runMeasurement(options = {}) {
       second
     };
     if (!determinism[policy.id].pass) throw new Error(`trajectory determinism probe failed: ${policy.id}`);
+    if (config.collectEquipmentCandidateAudit) {
+      resetSimulationRandom(config.seed);
+      const auditOff = runOne({ ...probe, policy, audit: false });
+      resetSimulationRandom(config.seed);
+      const auditOn = runOne({ ...probe, policy, audit: true });
+      observationInvariance[policy.id] = compareObservationInvariance(auditOff, auditOn);
+      if (!observationInvariance[policy.id].pass) {
+        throw new Error(`equipment candidate audit changed gameplay result: ${policy.id}`);
+      }
+    }
   }
 
   const cases = [];
@@ -1098,6 +1464,7 @@ export async function runMeasurement(options = {}) {
     startingKitIds: config.startingKitIds,
     scenarioIds: config.scenarioIds,
     treatment: treatment.id,
+    candidateAudit: config.collectEquipmentCandidateAudit,
     treatmentDescription: treatment.description,
     policies: Object.values(treatment.policies).map(policy => ({ ...policy })),
     matchedIdentity: hashConfiguration({
@@ -1129,13 +1496,19 @@ export async function runMeasurement(options = {}) {
       byPolicy: determinism,
       treatment: treatment.id
     },
+    observationInvariance,
     cases
   };
 }
 
-export function buildReport(result, provenance = null, environmentSignature = null, { purpose = null, requestedRef = null } = {}) {
+export function buildReport(result, provenance = null, environmentSignature = null, {
+  purpose = null,
+  requestedRef = null,
+  measurementId = "early-run-attrition"
+} = {}) {
   return {
     measurement: {
+      measurementId,
       schemaVersion: result.schemaVersion,
       runnerVersion: result.runnerVersion,
       purpose,
@@ -1153,12 +1526,14 @@ export function buildReport(result, provenance = null, environmentSignature = nu
       environmentSignature,
       environmentSignatureHash: environmentSignature ? hashConfiguration(environmentSignature) : null,
       productionMechanism: "simulateRun",
-      rawTracePolicy: "compact floor snapshots and bounded last-three cost events only",
+      rawTracePolicy:
+        "compact floor snapshots; build audit checkpoints/candidates only for build-progression-audit; bounded last-three cost events",
       unobserved: [...UNOBSERVED_FIELDS]
     },
     configuration: result.configuration,
     comparisonKey: result.comparisonKey,
     determinism: result.determinism,
+    observationInvariance: result.observationInvariance,
     cases: result.cases,
     interpretation: {
       candidates: [
@@ -1188,6 +1563,84 @@ function pct(metric) {
 
 function waterfallCell(row) {
   return `${row.entered}/${row.reachedNextFloor}/${row.died}/${row.voluntaryReturn}/${row.otherTerminal}`;
+}
+
+function distributionCell(distribution, suffix = "") {
+  if (!distribution || distribution.n === 0) return "unobserved";
+  return `${fmt(distribution.p10)} / ${fmt(distribution.p50)} / ${fmt(distribution.p90)}${suffix}`;
+}
+
+function rateCell(value) {
+  return Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(1)}%` : "unobserved";
+}
+
+function buildProgressionLines(policy) {
+  const progression = policy.aggregate.buildProgression;
+  const checkpointRows = BUILD_CHECKPOINT_IDS.map(checkpoint => {
+    const row = progression[checkpoint];
+    const population = row.population;
+    const combat = row.combatGrowth;
+    const safety = row.explorationSafetyGrowth.support;
+    const maturity = row.buildMaturity;
+    const trapBonus = safety.trapBonus;
+    const trapGuard = safety.trapGuard;
+    const checkpointLabel = checkpoint === "runStart"
+      ? "Run Start"
+      : checkpoint === "terminal" ? "Terminal" : checkpoint;
+    return `| ${checkpointLabel} | ${population.condition} | ${population.entered} | ${population.reachedNextFloor ?? "—"} | ${population.died ?? "—"} | ${population.voluntaryReturn ?? "—"} | ${population.otherTerminal ?? "—"} | ${distributionCell(combat.atk.delta)} | ${distributionCell(combat.def.delta)} | ${distributionCell(combat.maxHp.delta)} | ${distributionCell(combat.maxMp.delta)} | ${distributionCell(trapBonus?.value)} | ${trapGuard ? `${trapGuard.holderCount}/${population.entered} (${rateCell(trapGuard.holderRate)})` : "unobserved"} | ${distributionCell(maturity.changedEquipmentSlots)} | ${distributionCell(maturity.cumulativeEquipmentSwaps)} | ${rateCell(maturity.buildIdentityChangedRate)} |`;
+  });
+  const funnelRows = TRAJECTORY_FLOORS.map(floor => {
+    const conversion = policy.aggregate.distributions[floor].lootConversion;
+    return `| B${floor} | ${conversion.status} | ${conversion.opportunity ?? "—"} | ${conversion.evaluable ?? "—"} | ${conversion.qualified ?? "—"} | ${conversion.selected ?? "—"} | ${conversion.observableBuildChange ?? "—"} |`;
+  });
+  const rejected = policy.aggregate.rejectedCandidates;
+  const sidegradeRows = Object.entries(rejected.classifications).map(([id, values]) =>
+    `| ${id} | ${values.totalCount} | ${values.affectedRunCount} | ${rateCell(values.affectedRunRate)} | ${rateCell(values.perRunRate)} |`
+  );
+  const b2 = progression.B2Entry;
+  const b3 = progression.B3Entry;
+  const composition = Object.entries(progression.B5Entry.buildMaturity.coreCompositions || {})
+    .slice(0, 8)
+    .map(([key, count]) => `${key}=${count}`)
+    .join(", ") || "unobserved";
+  return [
+    "",
+    `## Build progression audit — ${policy.id}`,
+    "",
+    "Population uses each checkpoint entrant; B2/B3/B4/B5 are conditional populations, not only terminal survivors.",
+    "Combat Growth = ATK / DEF / max HP / max MP relative to Run Start.",
+    "Exploration Safety Growth = Build Snapshot exploration Support values and holder rates; it is not folded into Combat Growth.",
+    "Build Maturity = changed equipment slots, cumulative swaps, Core / Support / Rune / spell composition, and Build Snapshot identity.",
+    "Loot Conversion = Build loot opportunity → evaluable candidate → greedy qualified → selected → observable Build change.",
+    "",
+    "| checkpoint | population | entered | next | died | Return | other | ΔATK p10/p50/p90 | ΔDEF p10/p50/p90 | ΔmaxHP p10/p50/p90 | ΔmaxMP p10/p50/p90 | trapBonus p10/p50/p90 | trapGuard holders | changed slots p10/p50/p90 | swaps p10/p50/p90 | identity changed |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | ---: |",
+    ...checkpointRows,
+    "",
+    "Build maturity composition observed at B5 entrants (top 8): " + composition,
+    `B2 entrant → B3 entrant: ${b2.population.entered} → ${b3.population.entered}; B2 Build state is summarized above before the B3 selection population.`,
+    `Core IDs observed at B5: ${(progression.B5Entry.buildMaturity.mainCoreIds || []).join(", ") || "unobserved"} / ${(progression.B5Entry.buildMaturity.auxiliaryCoreIds || []).join(", ") || "unobserved"}; Support IDs: ${(progression.B5Entry.buildMaturity.supportIds || []).join(", ") || "unobserved"}; active Rune IDs: ${(progression.B5Entry.buildMaturity.activeRuneSpellIds || []).join(", ") || "unobserved"}; spell IDs: ${(progression.B5Entry.buildMaturity.spellIds || []).join(", ") || "unobserved"}.`,
+    "",
+    "### Loot conversion funnel",
+    "",
+    "| floor | status | opportunity | evaluable | qualified | selected | observable Build change |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+    ...funnelRows,
+    "",
+    "### Rejected candidate sidegrade classification",
+    "",
+    `- status: ${rejected.status}; rejected evaluable candidates=${rejected.evaluableRejectedCandidateCount}; affected runs=${rejected.affectedRunCount}`,
+    "",
+    "| classification | total count | affected runs | affected-run rate | per-run rate |",
+    "| --- | ---: | ---: | ---: | ---: |",
+    ...sidegradeRows,
+    "",
+    "Classifications describe candidate features independently of greedy selection; they do not recommend an equipment choice.",
+    "A candidate can be evaluated more than once while the existing greedy loop converges; counts are evaluation events, not unique item IDs.",
+    "observed zero is represented by numeric zero; unobserved candidate features are null/status=unobserved; unreachable checkpoints keep status=unreachable.",
+    "Combat Growth and Exploration Safety Growth remain separate axes; no weighted Build Power score is reported.",
+    "Diagnostic hypotheses for human review only: Loot starvation, Quality starvation, Decision-model problem, Healthy Build progression / insufficient survival, and Survivorship bottleneck. No automatic threshold or single diagnosis is applied."
+  ];
 }
 
 export function buildSummary(report) {
@@ -1245,6 +1698,9 @@ export function buildSummary(report) {
           `- Ending Build Snapshot identities T0/T1: ${Object.keys(t0.lootBuild.endingBuildSnapshots).length}/${Object.keys(t1.lootBuild.endingBuildSnapshots).length}`
         );
       }
+      if (report.measurement.measurementId === "build-progression-audit") {
+        lines.push(...buildProgressionLines(policy));
+      }
     });
   });
   lines.push(
@@ -1262,6 +1718,13 @@ export function buildSummary(report) {
     "- No raw combat log is persisted; each run keeps floor state, aggregate costs, terminal state, build snapshots, and at most the last three compact cost events.",
     "- T1 is a matched causal probe and is not a production recommendation."
   );
+  if (report.measurement.measurementId === "build-progression-audit") {
+    const invarianceValues = Object.values(report.observationInvariance || {});
+    const invarianceStatus = invarianceValues.length === 0
+      ? "unobserved"
+      : invarianceValues.every(value => value.pass) ? "PASS" : "FAIL";
+    lines.splice(6, 0, `- observation invariance (candidate audit ON/OFF): ${invarianceStatus}`);
+  }
   return lines.filter(line => line !== null).join("\n");
 }
 

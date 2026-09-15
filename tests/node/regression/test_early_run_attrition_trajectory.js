@@ -240,14 +240,28 @@ const smoke = await trajectory.runMeasurement({
   seed: 1277,
   startingKitIds: ["vanguard"],
   scenarioIds: ["workshop-empty"],
+  collectEquipmentCandidateAudit: true,
   allowSmallRunCount: true
 });
 assert.equal(smoke.determinism.pass, true);
+assert.equal(Object.values(smoke.observationInvariance).every(value => value.pass), true);
 assert.equal(smoke.cases.length, 1);
 assert.equal(smoke.cases[0].policies.t0.aggregate.runs, 2);
 assert.equal(smoke.cases[0].policies.t0.aggregate.waterfall[1].invariant.pass, true);
 assert.equal(smoke.cases[0].policies.t1.aggregate.waterfall[1].invariant.pass, true);
 assert.equal(smoke.cases[0].returnContinuation.rows.every(row => row.worldSeed), true);
+assert.equal(smoke.cases[0].policies.t0.aggregate.buildProgression.B2Entry.population.condition, "B2 entrants");
+assert.equal(smoke.cases[0].policies.t0.aggregate.buildProgression.B2Entry.combatGrowth.atk.delta.n >= 0, true);
+assert.equal(smoke.cases[0].policies.t0.aggregate.distributions[1].lootConversion.status, "observed");
+const auditedRecord = smoke.cases[0].policies.t0.records[0];
+assert.equal(auditedRecord.buildCheckpoints.runStart.build.identity, auditedRecord.build.starting.identity);
+assert.equal(auditedRecord.buildCheckpoints.terminal.build.identity, auditedRecord.build.ending.identity);
+const selectedAudits = (auditedRecord.equipmentCandidateAudit || []).filter(audit => audit.selected);
+const selectedSwaps = (auditedRecord.equipmentTelemetry || []).filter(event => event.type === "swap");
+assert.equal(selectedAudits.length, selectedSwaps.length);
+selectedAudits.forEach(audit => {
+  assert.equal(selectedSwaps.some(event => event.candidateAuditId === audit.id), true);
+});
 
 const b2Smoke = await trajectory.runMeasurement({
   runs: 2,
@@ -255,6 +269,7 @@ const b2Smoke = await trajectory.runMeasurement({
   treatment: "b2-chest-trap",
   startingKitIds: ["vanguard"],
   scenarioIds: ["workshop-empty"],
+  collectEquipmentCandidateAudit: true,
   allowSmallRunCount: true
 });
 const b2Case = b2Smoke.cases[0];

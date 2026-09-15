@@ -257,6 +257,10 @@ const { BUILD_FIXTURE_IDS, createBuildFixture } =
 const { getActiveSpellKeys } = await import("../../src/rules/magic_rules.js");
 const { resolveBuildSnapshot } = await import("../../src/rules/build_snapshot.js");
 const { calculateSecretDoorSearchChance } = await import("../../src/rules/exploration_rules.js");
+const {
+  classifySidegrade,
+  diffBuildObservations
+} = await import("../measurements/build_progression_audit.js");
 
 // Historical class-axis simulations keep their old learned spell list in
 // scratch only. Production auto/combat permission is always socket-backed.
@@ -10025,6 +10029,7 @@ function qualifiesAsBuildCore(candidateScore, currentScore) {
 
 function createBuildSnapshot(state, scoringProfile, point) {
   const character = state.party[0];
+  const canonicalBuildSnapshot = resolveBuildSnapshot(character, { party: state.party });
   const withoutEquipment = {
     ...structuredClone(character),
     equipment: {}
@@ -10075,6 +10080,8 @@ function createBuildSnapshot(state, scoringProfile, point) {
   const combatCoreIds = coreIds.filter(id => COMBAT_CORE_IDS.has(id));
 
   return {
+    canonicalBuildSnapshot,
+    identity: canonicalBuildSnapshot.identity,
     point,
     floor: state.floor,
     level: character.level,
@@ -10112,6 +10119,24 @@ function createBuildSnapshot(state, scoringProfile, point) {
     resistanceScore:
       (supportAffixes.poisonWard || 0) + (supportAffixes.statusResistance || 0),
     equipment
+  };
+}
+
+function createCandidateBuildObservation(state) {
+  const character = state.party[0];
+  const snapshot = resolveBuildSnapshot(character, { party: state.party });
+  return {
+    identity: snapshot.identity,
+    atk: getCharWeaponAtk(character),
+    def: getCharDef(character),
+    maxHp: getCharMaxHp(character),
+    maxMp: getCharMaxMp(character),
+    mainCoreIds: [...snapshot.mainCoreIds],
+    auxiliaryCoreIds: [...snapshot.auxiliaryCoreIds],
+    supportValues: { ...snapshot.supportValues },
+    explorationSupportValues: { ...snapshot.explorationSupportValues },
+    activeRuneSpellIds: [...snapshot.activeRuneSpellIds],
+    spellIds: [...getSimulationActiveSpellKeys(character)]
   };
 }
 
@@ -10303,6 +10328,93 @@ function addAffixlessVirtualSlots(character) {
   });
 }
 
+function createEquipmentCandidateAudit(metrics, state, {
+  slot,
+  oldEquipment,
+  candidate,
+  currentGreedyScore,
+  candidateGreedyScore = null,
+  selectionScore = null,
+  qualifies = false,
+  rejectionReason = null,
+  before = null,
+  after = null
+}) {
+  if (!metrics.equipmentCandidateAudit) return null;
+  const delta = before && after ? diffBuildObservations(before, after) : null;
+  const audit = {
+    id: `candidate:${metrics.equipmentCandidateAuditSequence++}`,
+    floor: state.floor,
+    step: metrics.steps,
+    slot,
+    candidateId: candidate?.baseId || null,
+    candidateInstanceId: candidate?.instanceId || null,
+    currentCoreId: getItemCoreId(oldEquipment),
+    candidateCoreId: getItemCoreId(candidate),
+    currentGreedyScore: Number.isFinite(Number(currentGreedyScore)) ? currentGreedyScore : null,
+    candidateGreedyScore: Number.isFinite(Number(candidateGreedyScore)) ? candidateGreedyScore : null,
+    currentScore: Number.isFinite(Number(currentGreedyScore)) ? currentGreedyScore : null,
+    candidateScore: Number.isFinite(Number(candidateGreedyScore)) ? candidateGreedyScore : null,
+    scoreBefore: Number.isFinite(Number(currentGreedyScore)) ? currentGreedyScore : null,
+    scoreAfter: Number.isFinite(Number(candidateGreedyScore)) ? candidateGreedyScore : null,
+    selectionScore: Number.isFinite(Number(selectionScore)) ? selectionScore : null,
+    qualifies: Boolean(qualifies),
+    rejectionReason,
+    selected: false,
+    evaluableCandidate: Boolean(delta),
+    classificationStatus: delta ? "observed" : "unobserved",
+    sidegradeClassifications: delta ? classifySidegrade(delta) : [],
+    deltas: delta
+      ? {
+          atk: delta.atk,
+          def: delta.def,
+          maxHp: delta.maxHp,
+          maxMp: delta.maxMp,
+          explorationAbility: delta.explorationAbilityDelta,
+          core: {
+            mainAdded: delta.mainCoreIdsAdded,
+            mainRemoved: delta.mainCoreIdsRemoved,
+            auxiliaryAdded: delta.auxiliaryCoreIdsAdded,
+            auxiliaryRemoved: delta.auxiliaryCoreIdsRemoved
+          },
+          support: delta.supportDelta,
+          activeRuneSpell: {
+            added: delta.activeRuneSpellIdsAdded,
+            removed: delta.activeRuneSpellIdsRemoved
+          },
+          spell: {
+            added: delta.spellIdsAdded,
+            removed: delta.spellIdsRemoved
+          }
+        }
+      : null,
+    buildIdentityBefore: before?.identity || null,
+    buildIdentityAfter: after?.identity || null,
+    atkDelta: delta?.atk ?? null,
+    defDelta: delta?.def ?? null,
+    maxHpDelta: delta?.maxHp ?? null,
+    maxMpDelta: delta?.maxMp ?? null,
+    explorationAbilityDelta: delta?.explorationAbilityDelta || null,
+    coreChange: delta
+      ? {
+          mainAdded: delta.mainCoreIdsAdded,
+          mainRemoved: delta.mainCoreIdsRemoved,
+          auxiliaryAdded: delta.auxiliaryCoreIdsAdded,
+          auxiliaryRemoved: delta.auxiliaryCoreIdsRemoved
+        }
+      : null,
+    supportChange: delta?.supportDelta || null,
+    activeRuneSpellChange: delta
+      ? {
+          added: delta.activeRuneSpellIdsAdded,
+          removed: delta.activeRuneSpellIdsRemoved
+        }
+      : null
+  };
+  metrics.equipmentCandidateAudit.push(audit);
+  return audit;
+}
+
 function equipGreedyUpgrades(state, metrics, scoringProfile) {
   const character = state.party[0];
   if (EQUIPMENT_SLOT_MODE === "affixless-duplicates") {
@@ -10327,6 +10439,13 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       recordCoreItemEncounter(metrics, inventoryItem, state.floor);
       if (itemData.classes && !character.startingKit && !itemData.classes.includes(character.class)) {
         recordCoreDecision(metrics, inventoryItem, "class-incompatible");
+        createEquipmentCandidateAudit(metrics, state, {
+          slot: itemData.type,
+          oldEquipment: character.equipment[itemData.type],
+          candidate: inventoryItem,
+          currentGreedyScore: currentScore,
+          rejectionReason: "class-incompatible"
+        });
         return;
       }
       if (
@@ -10334,6 +10453,13 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         isEquipmentAlreadyEquipped(character, inventoryItem)
       ) {
         recordCoreDecision(metrics, inventoryItem, "already-equipped-unlimited");
+        createEquipmentCandidateAudit(metrics, state, {
+          slot: getEquipmentTargetSlot(character, itemData.type),
+          oldEquipment: character.equipment[itemData.type],
+          candidate: inventoryItem,
+          currentGreedyScore: currentScore,
+          rejectionReason: "already-equipped-unlimited"
+        });
         return;
       }
 
@@ -10359,6 +10485,13 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
             oldCursed: true
           });
         }
+        createEquipmentCandidateAudit(metrics, state, {
+          slot,
+          oldEquipment,
+          candidate: inventoryItem,
+          currentGreedyScore: currentScore,
+          rejectionReason: "current-curse-locked"
+        });
         return;
       }
       const policy = state.simPolicy.identificationPolicy;
@@ -10374,16 +10507,34 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       let candidateScore = null;
       let qualifies;
       let rejectionReason;
+      let candidateAudit = null;
 
       if (policy === "gamble" && candidateIsUnidentified) {
         // 未鑑定品は真値を見ず、同階層以上の装備なら「更新になりうる」として着用候補化。
         qualifies = isPotentialUnidentifiedUpgrade(inventoryItem, oldEquipment);
         selectionScore = getUnidentifiedSelectionScore(inventoryItem);
         rejectionReason = "unidentified-not-potential-upgrade";
+        candidateAudit = createEquipmentCandidateAudit(metrics, state, {
+          slot,
+          oldEquipment,
+          candidate,
+          currentGreedyScore: currentScore,
+          selectionScore,
+          qualifies,
+          rejectionReason
+        });
       } else if (policy === "powder" && candidateIsUnidentified && !keenEyeActive) {
         qualifies = false;
         selectionScore = -Infinity;
         rejectionReason = "unidentified-held";
+        candidateAudit = createEquipmentCandidateAudit(metrics, state, {
+          slot,
+          oldEquipment,
+          candidate,
+          currentGreedyScore: currentScore,
+          qualifies,
+          rejectionReason
+        });
       } else {
         if (policy === "powder" && candidateIsUnidentified && keenEyeActive) {
           const effectDelta = getUnidentifiedEffectDelta(character, inventoryItem);
@@ -10398,8 +10549,14 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
             });
           }
         }
+        const before = metrics.equipmentCandidateAudit
+          ? createCandidateBuildObservation(state)
+          : null;
         character.equipment[slot] = candidate;
         candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
+        const after = metrics.equipmentCandidateAudit
+          ? createCandidateBuildObservation(state)
+          : null;
         character.equipment[slot] = oldEquipment;
         const matchingSupport = candidateMatchesEquippedCore(character, candidate);
         const oldMatchingSupport = candidateMatchesEquippedCore(character, oldEquipment);
@@ -10448,13 +10605,28 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
             : candidateScore > currentScore / ECONOMY_CORE_KEEP_RATIO;
           rejectionReason = "equipped-core-retained";
         }
+        candidateAudit = createEquipmentCandidateAudit(metrics, state, {
+          slot,
+          oldEquipment,
+          candidate,
+          currentGreedyScore: currentScore,
+          candidateGreedyScore: candidateScore,
+          selectionScore,
+          qualifies,
+          rejectionReason,
+          before,
+          after
+        });
       }
 
       if (!qualifies) {
         recordCoreDecision(metrics, candidate, rejectionReason);
         return;
       }
-      if (best && selectionScore <= best.selectionScore) return;
+      if (best && selectionScore <= best.selectionScore) {
+        if (candidateAudit) candidateAudit.rejectionReason = "not-best-selection-score";
+        return;
+      }
       best = {
         candidate,
         candidateCoreId,
@@ -10465,7 +10637,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         oldCoreId,
         scoreBefore: currentScore,
         selectionScore,
-        slot
+        slot,
+        candidateAudit
       };
     });
 
@@ -10478,6 +10651,10 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       : best.candidate;
     const selectedCandidateCoreId = getItemCoreId(selectedCandidate);
     character.equipment[best.slot] = selectedCandidate;
+    if (best.candidateAudit) {
+      best.candidateAudit.selected = true;
+      best.candidateAudit.rejectionReason = null;
+    }
     recordAffixEquipped(metrics, selectedCandidate);
     if (wasUnidentified && state.simPolicy.identificationPolicy === "gamble") {
       revealEquipmentOnEquip(selectedCandidate);
@@ -10495,6 +10672,9 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         encounterOrdinal: state.currentRun?.battles || 0,
         scoreBefore: best.scoreBefore,
         scoreAfter: getEquipmentScore(character, scoringProfile, state.floor),
+        slot: best.slot,
+        candidateId: selectedCandidate?.baseId || null,
+        candidateAuditId: best.candidateAudit?.id || null,
         oldCoreId: best.oldCoreId,
         candidateCoreId: selectedCandidateCoreId,
         oldMainAxisIds: getItemMainAxisIds(best.oldEquipment),
@@ -14195,6 +14375,9 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       : {}),
     ...(metrics.equipmentTelemetry
       ? { equipmentTelemetry: metrics.equipmentTelemetry }
+      : {}),
+    ...(metrics.equipmentCandidateAudit
+      ? { equipmentCandidateAudit: metrics.equipmentCandidateAudit }
       : {})
   };
 }
@@ -14231,6 +14414,7 @@ export function simulateRun({
   encounterRateOverride = null,
   collectBuildSnapshots = false,
   collectEquipmentTelemetry = false,
+  collectEquipmentCandidateAudit = false,
   collectCombatFormula = false,
   worldSeed = null,
   checkpointState = null,
@@ -14325,6 +14509,8 @@ export function simulateRun({
     earlyEquipmentUpgrades: 0,
     deepEquipmentUpgrades: 0,
     equipmentTelemetry: collectEquipmentTelemetry ? [] : null,
+    equipmentCandidateAudit: collectEquipmentCandidateAudit ? [] : null,
+    equipmentCandidateAuditSequence: 0,
     equipmentCraft: createEquipmentCraftMetrics(state.simPolicy.equipmentCraftPolicy),
     equipmentFound: 0,
     objectLootKnownEntries: new Map(),
