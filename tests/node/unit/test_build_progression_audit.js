@@ -62,21 +62,28 @@ assert.deepEqual(
     { atk: 10, mainCoreIds: ["CORE_OLD"] },
     { atk: 12, mainCoreIds: [] }
   )),
-  ["noMeaningfulGain"]
+  ["buildTradeoff"]
 );
 assert.deepEqual(
   classifySidegrade(delta(
     { atk: 10, activeRuneSpellIds: ["RUNE_OLD"] },
     { atk: 12, activeRuneSpellIds: [] }
   )),
-  ["noMeaningfulGain"]
+  ["buildTradeoff"]
 );
 assert.deepEqual(
   classifySidegrade(delta(
     { atk: 10, supportValues: { SUPPORT_OLD: 1 } },
     { atk: 12, supportValues: { SUPPORT_OLD: 0 } }
   )),
-  ["noMeaningfulGain"]
+  ["buildTradeoff"]
+);
+assert.deepEqual(
+  classifySidegrade(delta(
+    { atk: 10, spellIds: ["SPELL_OLD"] },
+    { atk: 12, spellIds: [] }
+  )),
+  ["buildTradeoff"]
 );
 assert.deepEqual(
   classifySidegrade(delta({ atk: 10, def: 10 }, { atk: 10, def: 10 })),

@@ -120,7 +120,9 @@ export function classifySidegrade(delta) {
   if (combatImproved && combatReduced) classifications.push("combatTradeoff");
   if (offenseReduced && durabilityImproved) classifications.push("durabilityTradeoff");
   if (combatReduced && explorationImproved) classifications.push("safetyTradeoff");
-  if (combatReduced && featureImproved) classifications.push("buildTradeoff");
+  if ((combatReduced && featureImproved) || (combatImproved && featureReduced)) {
+    classifications.push("buildTradeoff");
+  }
   if (classifications.length === 0) classifications.push("noMeaningfulGain");
   return classifications;
 }
