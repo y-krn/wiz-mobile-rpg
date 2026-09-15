@@ -8,9 +8,11 @@ import { resolveMeasurementProvenance } from "./measurement_provenance.js";
 import { resolveSimParallelism, runSimTasks } from "../simulations/sim_parallel.js";
 import {
   applyStandardSimulationEnv,
+  createStandardMeasurementShard,
+  createStandardSimulationTasks,
+  mergeStandardMeasurementShards,
   resolveBalanceMeasurementConfig,
-  renderDiagnosticsMarkdown,
-  summarizeSimulationResults
+  renderDiagnosticsMarkdown
 } from "./balance_measurement.js";
 
 function parseArgs(argv) {
@@ -21,19 +23,32 @@ function parseArgs(argv) {
       const next = argv[++index];
       if (!next) throw new Error(`${value} requires a path`);
       options[value.slice(2)] = next;
-    } else if (value === "--runs" || value === "--calibration-runs" || value === "--seed") {
+    } else if (value === "--runs" || value === "--calibration-runs" || value === "--seed" ||
+      value === "--shard-index" || value === "--shard-count") {
       const next = argv[++index];
       if (!next) throw new Error(`${value} requires a value`);
-      const optionName = value === "--calibration-runs" ? "calibrationRuns" : value.slice(2);
-      options[optionName] = Number(next);
+      const optionName = value === "--calibration-runs"
+        ? "calibrationRuns"
+        : value === "--shard-index"
+          ? "shardIndex"
+          : value === "--shard-count"
+            ? "shardCount"
+            : value.slice(2);
+      options[optionName] = next === "" ? undefined : Number(next);
     } else if (value === "--help") {
-      console.log("Usage: node scratch/measurements/measure_balance.js --output /private/tmp/balance.json [--summary /private/tmp/balance.md]");
+      console.log("Usage: node scratch/measurements/measure_balance.js --output /private/tmp/balance.json [--summary /private/tmp/balance.md] [--partial-output /private/tmp/shard.json --shard-index 0 --shard-count 12]");
       process.exit(0);
+    } else if (value === "--partial-output") {
+      const next = argv[++index];
+      if (!next) throw new Error("--partial-output requires a path");
+      options.partialOutput = next;
     } else {
       throw new Error(`unknown option: ${value}`);
     }
   }
-  if (!options.output) throw new Error("--output is required; raw measurements must be explicitly placed in a temporary/results path");
+  if (!options.output && !options.partialOutput) {
+    throw new Error("--output or --partial-output is required; raw measurements must be explicitly placed in a temporary/results path");
+  }
   return options;
 }
 
@@ -47,6 +62,7 @@ const provenance = resolveMeasurementProvenance({
     "scratch/measurements/balance_measurement.js",
     "scratch/measurements/build_fixtures.js",
     "scratch/measurements/measure_balance.js",
+    "scratch/measurements/merge_balance_measurement.js",
     "scratch/simulations/sim_depth_material_ev.js",
     "scratch/simulations/sim_parallel.js",
     "scratch/measurements/measurement_provenance.js",
@@ -60,15 +76,17 @@ standardEnv.IDENTIFICATION_STARTING_POWDER = String(IDENTIFICATION_BALANCE.start
 standardEnv.IDENTIFICATION_COST_OVERRIDE = String(IDENTIFICATION_BALANCE.identifyCost);
 const { runCalibratedDepthSimulationTask } = await import("../simulations/sim_depth_material_ev.js");
 
-const tasks = config.scenarioIds.flatMap(scenarioId =>
-  config.fixtureIds.map(fixtureId => ({
-    kind: "scenario",
-    scenarioId,
-    fixtureId,
-    identificationPolicyId: config.identificationPolicy,
-    runCount: config.calibrationRuns
-  }))
-);
+const allTasks = createStandardSimulationTasks(config);
+const shard = options.partialOutput || options.shardIndex !== undefined || options.shardCount !== undefined
+  ? resolveStandardMeasurementShard(config, {
+      shardIndex: options.shardIndex,
+      shardCount: options.shardCount
+    })
+  : { shardIndex: 0, shardCount: 1, tasks: allTasks };
+if (options.partialOutput && options.shardIndex === undefined) {
+  throw new Error("--partial-output requires --shard-index");
+}
+const tasks = shard.tasks;
 const startedAt = performance.now();
 const startedResourceUsage = process.resourceUsage();
 const taskResults = await runSimTasks({
@@ -89,19 +107,26 @@ const execution = {
       endedResourceUsage.systemCPUTime - startedResourceUsage.systemCPUTime) / 1000
   )
 };
-const taskResultsByKey = new Map(tasks.map((task, index) => [
-  `${task.scenarioId}/${task.fixtureId}`,
-  taskResults[index]
-]));
-const scenarioResults = config.scenarioIds.map(scenarioId => ({
-  scenarioId,
-  fixtureResults: config.fixtureIds.map(fixtureId => {
-    const task = taskResultsByKey.get(`${scenarioId}/${fixtureId}`);
-    if (!task) throw new Error(`missing standard simulation task: ${scenarioId}/${fixtureId}`);
-    return { fixtureId: fixtureId, results: task.results };
-  })
-}));
-const report = summarizeSimulationResults({ config, provenance, scenarioResults, execution });
+const partial = createStandardMeasurementShard({
+  config,
+  provenance,
+  shardIndex: shard.shardIndex,
+  shardCount: shard.shardCount,
+  taskResults: tasks.map((task, index) => ({ task, result: taskResults[index] }))
+});
+if (options.partialOutput) {
+  const partialPath = resolve(options.partialOutput);
+  fs.mkdirSync(dirname(partialPath), { recursive: true });
+  fs.writeFileSync(partialPath, `${JSON.stringify({ ...partial, execution }, null, 2)}\n`);
+  console.log(`Wrote standard balance measurement shard: ${partialPath}`);
+  process.exit(0);
+}
+const report = mergeStandardMeasurementShards({
+  config,
+  provenance,
+  shards: [partial],
+  execution
+});
 const outputPath = resolve(options.output);
 fs.mkdirSync(dirname(outputPath), { recursive: true });
 fs.writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`);

@@ -3,10 +3,17 @@ import {
   BALANCE_MEASUREMENT_SCHEMA_VERSION,
   REGRESSION_RULES,
   STANDARD_BALANCE_CONFIG,
+  createStandardMeasurementShard,
   compareBalanceMeasurements,
+  createStandardSimulationTasks,
+  mergeStandardMeasurementShards,
   rateMetric,
-  resolveBalanceMeasurementConfig
+  resolveBalanceMeasurementConfig,
+  resolveStandardMeasurementShard
 } from "../../../scratch/measurements/balance_measurement.js";
+
+import fs from "node:fs";
+import path from "node:path";
 
 const defaults = resolveBalanceMeasurementConfig({}, {});
 assert.equal(defaults.runs, 500);
@@ -16,6 +23,105 @@ assert.deepEqual(defaults.fixtureIds, [...STANDARD_BALANCE_CONFIG.fixtureIds]);
 assert.deepEqual(defaults.scenarioIds, [...STANDARD_BALANCE_CONFIG.scenarioIds]);
 assert.deepEqual(defaults.targetDepths, [...STANDARD_BALANCE_CONFIG.targetDepths]);
 assert.throws(() => resolveBalanceMeasurementConfig({ runs: 499 }, {}), /N>=500/);
+
+const standardTasks = createStandardSimulationTasks(defaults);
+assert.equal(standardTasks.length, 12);
+assert.deepEqual(
+  standardTasks.map(task => `${task.scenarioId}/${task.fixtureId}`),
+  defaults.scenarioIds.flatMap(scenarioId => defaults.fixtureIds.map(fixtureId => `${scenarioId}/${fixtureId}`))
+);
+assert.deepEqual(
+  resolveStandardMeasurementShard(defaults, { shardIndex: 0, shardCount: 12 }),
+  { shardIndex: 0, shardCount: 12, tasks: [standardTasks[0]] }
+);
+assert.throws(
+  () => resolveStandardMeasurementShard(defaults, { shardIndex: 12, shardCount: 12 }),
+  /shard-index must be an integer in \[0, 12\)/
+);
+
+const syntheticTaskResults = standardTasks.map((task, index) => ({
+  task,
+  result: {
+    results: defaults.targetDepths.map(targetDepth => ({
+      targetDepth,
+      runs: defaults.runs,
+      entrantsByFloor: Object.fromEntries(defaults.targetDepths.map(depth => [depth, defaults.runs - index])),
+      breakthroughsByFloor: Object.fromEntries(defaults.targetDepths.map(depth => [depth, index])),
+      deathsByFloor: Object.fromEntries(defaults.targetDepths.map(depth => [depth, 0])),
+      retreatsByFloor: Object.fromEntries(defaults.targetDepths.map(depth => [depth, 0])),
+      mean95CI: {
+        bankedMaterialEv: "1 [1,1; N=500]",
+        materialEvPerTime: "2 [2,2; N=500]",
+        materialAcquired: "3 [3,3; N=500]",
+        materialConsumed: "4 [4,4; N=500]",
+        reachedFloor: "5 [5,5; N=500]"
+      },
+      outcomeCounts: {},
+      averageTimeCost: 1,
+      averageMaterialAcquired: 3,
+      averageMaterialConsumed: 4,
+      bankedMaterialEv: 1,
+      materialEvPerTime: 2,
+      runDiagnostics: {},
+      endingBuildSnapshotDistributionByFixtureId: { [task.fixtureId]: {} }
+    }))
+  }
+}));
+const syntheticProvenance = {
+  baseCommit: "a".repeat(40),
+  sourceCommit: "b".repeat(40),
+  measurementRunnerCommit: "c".repeat(40),
+  measurementRunnerDiffSha256: "d".repeat(64),
+  originMainAncestor: true,
+  staleTreeAllowed: false,
+  workingTreeClean: true,
+  measurementRunnerPaths: ["scratch/measurements/measure_balance.js"]
+};
+const fullSynthetic = mergeStandardMeasurementShards({
+  config: defaults,
+  provenance: syntheticProvenance,
+  shards: [createStandardMeasurementShard({
+    config: defaults,
+    provenance: syntheticProvenance,
+    shardIndex: 0,
+    shardCount: 1,
+    taskResults: syntheticTaskResults
+  })],
+  execution: { taskCount: 12, parallelism: 4, wallClockMs: 1, cpuTimeMs: 1 }
+});
+const splitSynthetic = mergeStandardMeasurementShards({
+  config: defaults,
+  provenance: syntheticProvenance,
+  shards: syntheticTaskResults.map((taskResult, shardIndex) => createStandardMeasurementShard({
+    config: defaults,
+    provenance: syntheticProvenance,
+    shardIndex,
+    shardCount: 12,
+    taskResults: [taskResult]
+  })),
+  execution: { taskCount: 12, parallelism: 4, wallClockMs: 2, cpuTimeMs: 2 }
+});
+assert.deepEqual(
+  {
+    measurement: { ...fullSynthetic.measurement, execution: undefined },
+    cases: fullSynthetic.cases
+  },
+  {
+    measurement: { ...splitSynthetic.measurement, execution: undefined },
+    cases: splitSynthetic.cases
+  }
+);
+
+const workflow = fs.readFileSync(path.resolve(".github/workflows/balance-measurement.yml"), "utf8");
+assert.match(workflow, /measure-standard:\n[\s\S]*timeout-minutes: 20/);
+assert.match(workflow, /name: Run standard balance measurement shard[\s\S]*timeout-minutes: 15/);
+assert.match(workflow, /fail-fast: false/);
+assert.match(workflow, /max-parallel: 4/);
+assert.match(workflow, /merge-standard:[\s\S]*download-artifact@v4/);
+assert.match(workflow, /merge-standard:[\s\S]*merge_balance_measurement\.js/);
+assert.match(workflow, /merge-standard:[\s\S]*name: Upload final CI evidence artifact/);
+assert.match(workflow, /if: always\(\)/);
+assert.match(workflow, /retention-days: 14/);
 
 const rate = rateMetric(50, 100);
 assert.equal(rate.estimate, 0.5);
