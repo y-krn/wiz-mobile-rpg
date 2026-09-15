@@ -23,6 +23,7 @@
     "test:browser:full": "node scripts/dependency-preflight.js && playwright test",
     "inspect:bounded": "node scripts/inspect-bounded.js",
     "check:repo": "node scripts/check-repo.js",
+    "lint:evidence": "node scripts/check_evidence_storage.js",
     "verify:once": "node scripts/verify-once.js",
     "check:ci": "node scripts/check-ci-bounded.js",
     "lint:css": "stylelint \"src/style.css\" \"src/styles/**/*.css\"",
@@ -31,7 +32,7 @@
     "lint:tests": "node scripts/check_playwright_test_names.js && node scripts/check_playwright_test_names.test.js && node scripts/check_playwright_test_ownership.js && node scripts/check_playwright_test_ownership.test.js",
     "lint:markdown": "node scripts/check_markdown_links.js",
     "lint:workflow": "node scripts/check_workflow_yaml.js",
-    "lint": "npm run lint:css && npm run lint:docs && npm run lint:skills && npm run lint:tests && npm run lint:markdown && npm run lint:workflow && eslint . --cache"
+    "lint": "npm run lint:evidence && npm run lint:css && npm run lint:docs && npm run lint:skills && npm run lint:tests && npm run lint:markdown && npm run lint:workflow && eslint . --cache"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
