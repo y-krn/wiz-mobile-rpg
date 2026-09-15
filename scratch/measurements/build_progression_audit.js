@@ -103,9 +103,17 @@ export function classifySidegrade(delta) {
     delta?.spellIdsAdded
   ].some(values => Array.isArray(values) && values.length > 0) ||
     anyPositive(delta?.supportDelta);
+  const featureReduced = [
+    delta?.mainCoreIdsRemoved,
+    delta?.auxiliaryCoreIdsRemoved,
+    delta?.activeRuneSpellIdsRemoved,
+    delta?.spellIdsRemoved
+  ].some(values => Array.isArray(values) && values.length > 0) ||
+    anyNegative(delta?.supportDelta);
   const classifications = [];
 
   if (!combatReduced && !anyNegative(delta?.explorationAbilityDelta) &&
+    !featureReduced &&
     (combatImproved || explorationImproved || featureImproved)) {
     classifications.push("strictUpgrade");
   }

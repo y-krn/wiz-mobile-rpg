@@ -10627,6 +10627,9 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         if (candidateAudit) candidateAudit.rejectionReason = "not-best-selection-score";
         return;
       }
+      if (best?.candidateAudit) {
+        best.candidateAudit.rejectionReason = "out-ranked-by-later-candidate";
+      }
       best = {
         candidate,
         candidateCoreId,

@@ -97,7 +97,7 @@ const UNOBSERVED_FIELDS = Object.freeze([
   "enemy-inflicted poison/status damage can be inseparable from combat damage",
   "merchant recovery acquisition is not present in diagnostic rewardEvents",
   "unidentified held candidates have no true-feature delta until production identification permits evaluation",
-  "rune loot is counted as a Build opportunity; deterministic_greedy candidate audit covers equipment evaluation only"
+  "loot reward events and equipment candidate audits have no stable cross-link; Rune supply to equipment evaluation conversion is unobserved"
 ]);
 
 function integer(value, label, minimum = 1) {
@@ -337,14 +337,22 @@ function compactFloor(
     equipmentOpportunities: floorRewards.filter(event => event.category === "equipment").length,
     buildOpportunities: floorRewards.filter(event => ["equipment", "rune"].includes(event.category)).length
   };
+  loot.supply = {
+    observed: true,
+    meaningfulOpportunities: floorRewards.filter(event => event.meaningful === true).length,
+    lootEvents: floorRewards.length,
+    equipmentOpportunities: loot.equipmentOpportunities,
+    runeOpportunities: floorRewards.filter(event => event.category === "rune").length,
+    buildOpportunities: loot.buildOpportunities
+  };
   if (candidateAudit) {
-    loot.conversion = {
+    loot.equipmentDecisionActivity = {
       observed: true,
-      opportunity: loot.buildOpportunities,
-      evaluable: candidateAudit.filter(event => event.evaluableCandidate).length,
-      qualified: candidateAudit.filter(event => event.evaluableCandidate && event.qualifies).length,
-      selected: candidateAudit.filter(event => event.selected).length,
-      observableBuildChange: buildShiftCount
+      evaluationEvents: candidateAudit.length,
+      evaluableEvents: candidateAudit.filter(event => event.evaluableCandidate).length,
+      qualifiedEvents: candidateAudit.filter(event => event.evaluableCandidate && event.qualifies).length,
+      selectedEvents: candidateAudit.filter(event => event.selected).length,
+      observableBuildChanges: buildShiftCount
     };
   }
   return {
@@ -578,7 +586,7 @@ export function projectGameplayRecord(record) {
   delete projected.buildCheckpoints;
   delete projected.equipmentTelemetry;
   Object.values(projected.floors || {}).forEach(floor => {
-    if (floor?.loot) delete floor.loot.conversion;
+    if (floor?.loot) delete floor.loot.equipmentDecisionActivity;
   });
   return projected;
 }
@@ -738,7 +746,15 @@ function distributionForFloors(records, floor) {
     lootOpportunities: sum(rows.map(row => row.loot?.opportunities)),
     equipmentOpportunities: sum(rows.map(row => row.loot?.equipmentOpportunities)),
     buildOpportunities: sum(rows.map(row => row.loot?.buildOpportunities)),
-    lootConversion: summarizeLootConversionRows(rows),
+    lootSupply: {
+      status: rows.length > 0 ? "observed" : "unreachable",
+      lootEvents: sum(rows.map(row => row.loot?.supply?.lootEvents)),
+      meaningfulOpportunities: sum(rows.map(row => row.loot?.supply?.meaningfulOpportunities)),
+      equipmentOpportunities: sum(rows.map(row => row.loot?.supply?.equipmentOpportunities)),
+      runeOpportunities: sum(rows.map(row => row.loot?.supply?.runeOpportunities)),
+      buildOpportunities: sum(rows.map(row => row.loot?.supply?.buildOpportunities))
+    },
+    equipmentDecisionActivity: summarizeEquipmentDecisionRows(rows),
     buildChanges: sum(rows.map(row => row.build?.buildShiftCount)),
     encountersPerFloor: values(row => row.incrementalCost.combatCount),
     stepsPerFloor: values(row => row.incrementalCost.steps),
@@ -883,25 +899,26 @@ function summarizeBuildCheckpoint(records, checkpoint) {
   };
 }
 
-function summarizeLootConversionRows(rows) {
-  const observedRows = rows.map(row => row.loot?.conversion).filter(value => value?.observed);
+function summarizeEquipmentDecisionRows(rows) {
+  const observedRows = rows.map(row => row.loot?.equipmentDecisionActivity)
+    .filter(value => value?.observed);
   if (observedRows.length === 0) {
     return {
       status: "unobserved",
-      opportunity: null,
-      evaluable: null,
-      qualified: null,
-      selected: null,
-      observableBuildChange: null
+      evaluationEvents: null,
+      evaluableEvents: null,
+      qualifiedEvents: null,
+      selectedEvents: null,
+      observableBuildChanges: null
     };
   }
   return {
     status: "observed",
-    opportunity: sum(observedRows.map(row => row.opportunity)),
-    evaluable: sum(observedRows.map(row => row.evaluable)),
-    qualified: sum(observedRows.map(row => row.qualified)),
-    selected: sum(observedRows.map(row => row.selected)),
-    observableBuildChange: sum(observedRows.map(row => row.observableBuildChange)),
+    evaluationEvents: sum(observedRows.map(row => row.evaluationEvents)),
+    evaluableEvents: sum(observedRows.map(row => row.evaluableEvents)),
+    qualifiedEvents: sum(observedRows.map(row => row.qualifiedEvents)),
+    selectedEvents: sum(observedRows.map(row => row.selectedEvents)),
+    observableBuildChanges: sum(observedRows.map(row => row.observableBuildChanges)),
     observedRuns: observedRows.length
   };
 }
@@ -1574,6 +1591,14 @@ function rateCell(value) {
   return Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(1)}%` : "unobserved";
 }
 
+export function rankBuildCompositions(compositions, limit = 8) {
+  return Object.entries(compositions || {})
+    .sort(([leftKey, leftCount], [rightKey, rightCount]) =>
+      Number(rightCount) - Number(leftCount) || leftKey.localeCompare(rightKey)
+    )
+    .slice(0, limit);
+}
+
 function buildProgressionLines(policy) {
   const progression = policy.aggregate.buildProgression;
   const checkpointRows = BUILD_CHECKPOINT_IDS.map(checkpoint => {
@@ -1589,9 +1614,13 @@ function buildProgressionLines(policy) {
       : checkpoint === "terminal" ? "Terminal" : checkpoint;
     return `| ${checkpointLabel} | ${population.condition} | ${population.entered} | ${population.reachedNextFloor ?? "—"} | ${population.died ?? "—"} | ${population.voluntaryReturn ?? "—"} | ${population.otherTerminal ?? "—"} | ${distributionCell(combat.atk.delta)} | ${distributionCell(combat.def.delta)} | ${distributionCell(combat.maxHp.delta)} | ${distributionCell(combat.maxMp.delta)} | ${distributionCell(trapBonus?.value)} | ${trapGuard ? `${trapGuard.holderCount}/${population.entered} (${rateCell(trapGuard.holderRate)})` : "unobserved"} | ${distributionCell(maturity.changedEquipmentSlots)} | ${distributionCell(maturity.cumulativeEquipmentSwaps)} | ${rateCell(maturity.buildIdentityChangedRate)} |`;
   });
-  const funnelRows = TRAJECTORY_FLOORS.map(floor => {
-    const conversion = policy.aggregate.distributions[floor].lootConversion;
-    return `| B${floor} | ${conversion.status} | ${conversion.opportunity ?? "—"} | ${conversion.evaluable ?? "—"} | ${conversion.qualified ?? "—"} | ${conversion.selected ?? "—"} | ${conversion.observableBuildChange ?? "—"} |`;
+  const supplyRows = TRAJECTORY_FLOORS.map(floor => {
+    const supply = policy.aggregate.distributions[floor].lootSupply;
+    return `| B${floor} | ${supply.status} | ${supply.lootEvents} | ${supply.meaningfulOpportunities} | ${supply.equipmentOpportunities} | ${supply.runeOpportunities} | ${supply.buildOpportunities} |`;
+  });
+  const decisionRows = TRAJECTORY_FLOORS.map(floor => {
+    const activity = policy.aggregate.distributions[floor].equipmentDecisionActivity;
+    return `| B${floor} | ${activity.status} | ${activity.evaluationEvents ?? "—"} | ${activity.evaluableEvents ?? "—"} | ${activity.qualifiedEvents ?? "—"} | ${activity.selectedEvents ?? "—"} | ${activity.observableBuildChanges ?? "—"} |`;
   });
   const rejected = policy.aggregate.rejectedCandidates;
   const sidegradeRows = Object.entries(rejected.classifications).map(([id, values]) =>
@@ -1599,8 +1628,7 @@ function buildProgressionLines(policy) {
   );
   const b2 = progression.B2Entry;
   const b3 = progression.B3Entry;
-  const composition = Object.entries(progression.B5Entry.buildMaturity.coreCompositions || {})
-    .slice(0, 8)
+  const composition = rankBuildCompositions(progression.B5Entry.buildMaturity.coreCompositions)
     .map(([key, count]) => `${key}=${count}`)
     .join(", ") || "unobserved";
   return [
@@ -1611,7 +1639,7 @@ function buildProgressionLines(policy) {
     "Combat Growth = ATK / DEF / max HP / max MP relative to Run Start.",
     "Exploration Safety Growth = Build Snapshot exploration Support values and holder rates; it is not folded into Combat Growth.",
     "Build Maturity = changed equipment slots, cumulative swaps, Core / Support / Rune / spell composition, and Build Snapshot identity.",
-    "Loot Conversion = Build loot opportunity → evaluable candidate → greedy qualified → selected → observable Build change.",
+    "Loot supply and equipment decision activity are reported separately; no loot-to-candidate conversion rate is claimed because reward events and candidate audits have no stable cross-link.",
     "",
     "| checkpoint | population | entered | next | died | Return | other | ΔATK p10/p50/p90 | ΔDEF p10/p50/p90 | ΔmaxHP p10/p50/p90 | ΔmaxMP p10/p50/p90 | trapBonus p10/p50/p90 | trapGuard holders | changed slots p10/p50/p90 | swaps p10/p50/p90 | identity changed |",
     "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | ---: |",
@@ -1621,11 +1649,17 @@ function buildProgressionLines(policy) {
     `B2 entrant → B3 entrant: ${b2.population.entered} → ${b3.population.entered}; B2 Build state is summarized above before the B3 selection population.`,
     `Core IDs observed at B5: ${(progression.B5Entry.buildMaturity.mainCoreIds || []).join(", ") || "unobserved"} / ${(progression.B5Entry.buildMaturity.auxiliaryCoreIds || []).join(", ") || "unobserved"}; Support IDs: ${(progression.B5Entry.buildMaturity.supportIds || []).join(", ") || "unobserved"}; active Rune IDs: ${(progression.B5Entry.buildMaturity.activeRuneSpellIds || []).join(", ") || "unobserved"}; spell IDs: ${(progression.B5Entry.buildMaturity.spellIds || []).join(", ") || "unobserved"}.`,
     "",
-    "### Loot conversion funnel",
+    "### Loot supply",
     "",
-    "| floor | status | opportunity | evaluable | qualified | selected | observable Build change |",
+    "| floor | status | loot events | meaningful | equipment | Rune | build-category |",
     "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
-    ...funnelRows,
+    ...supplyRows,
+    "",
+    "### Equipment decision activity (not a conversion funnel)",
+    "",
+    "| floor | status | evaluation events | evaluable events | qualified events | selected events | observable Build changes |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+    ...decisionRows,
     "",
     "### Rejected candidate sidegrade classification",
     "",
@@ -1636,7 +1670,8 @@ function buildProgressionLines(policy) {
     ...sidegradeRows,
     "",
     "Classifications describe candidate features independently of greedy selection; they do not recommend an equipment choice.",
-    "A candidate can be evaluated more than once while the existing greedy loop converges; counts are evaluation events, not unique item IDs.",
+    "Candidate activity counts are evaluation events; the same candidate can be re-evaluated while the existing greedy loop converges. They are not loot conversion counts or unique item counts.",
+    "Rune supply is observed separately; Rune-to-equipment evaluation linkage is unobserved.",
     "observed zero is represented by numeric zero; unobserved candidate features are null/status=unobserved; unreachable checkpoints keep status=unreachable.",
     "Combat Growth and Exploration Safety Growth remain separate axes; no weighted Build Power score is reported.",
     "Diagnostic hypotheses for human review only: Loot starvation, Quality starvation, Decision-model problem, Healthy Build progression / insufficient survival, and Survivorship bottleneck. No automatic threshold or single diagnosis is applied."
