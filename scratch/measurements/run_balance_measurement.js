@@ -118,7 +118,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaultRunType: "baseline-candidate",
     allowedRunTypes: ["baseline-candidate", "diagnostic", "temporary"],
     artifactPrefix: "balance-measurement",
-    retentionDays: 90,
+    retentionDays: 14,
     defaults: { runs: 500, minimumRuns: 500, seed: 843, calibrationRuns: 100 },
     buildArgs: standardArgs
   }),
@@ -130,7 +130,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaultRunType: "diagnostic",
     allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
-    retentionDays: 90,
+    retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1139, startingKit: "vanguard", policy: "fight", fleeHpThreshold: 0.20 },
     allowed: {
       startingKit: ["vanguard", "scout", "devotion", "arcana"],
@@ -146,7 +146,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaultRunType: "diagnostic",
     allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
-    retentionDays: 90,
+    retentionDays: 14,
     defaults: {
       runs: 1000,
       minimumRuns: 1000,
@@ -168,7 +168,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaultRunType: "diagnostic",
     allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
-    retentionDays: 90,
+    retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1151, startingKit: "vanguard" },
     allowed: { startingKit: ["vanguard", "scout", "devotion", "arcana"] },
     buildArgs: fixedCombatArgs
@@ -181,7 +181,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaultRunType: "diagnostic",
     allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
-    retentionDays: 90,
+    retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1170 },
     buildArgs: equipmentLoadArgs
   }),
@@ -193,7 +193,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaultRunType: "baseline-candidate",
     allowedRunTypes: ["baseline-candidate", "diagnostic", "temporary"],
     artifactPrefix: "balance-measurement",
-    retentionDays: 90,
+    retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
     buildArgs: runDifficultyArgs
   }),
@@ -205,7 +205,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaultRunType: "diagnostic",
     allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
-    retentionDays: 90,
+    retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, policies: "p0,p1,p2" },
     buildArgs: runDifficultyArgs
   }),
@@ -217,7 +217,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaultRunType: "diagnostic",
     allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
-    retentionDays: 90,
+    retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" },
     buildArgs: earlyAttritionArgs
   }),
@@ -229,7 +229,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaultRunType: "diagnostic",
     allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
-    retentionDays: 90,
+    retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "b2-chest-trap" },
     allowed: { treatment: ["b2-chest-trap"] },
     buildArgs: earlyAttritionArgs
@@ -242,7 +242,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaultRunType: "diagnostic",
     allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
-    retentionDays: 90,
+    retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
     buildArgs: survivalPolicyArgs
   })
