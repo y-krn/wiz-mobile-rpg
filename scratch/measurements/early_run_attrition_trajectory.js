@@ -1030,8 +1030,8 @@ function summarizeRejectedCandidates(records) {
   if (observedRecords.length === 0) {
     return {
       status: "unobserved",
-      evaluableRejectedCandidateCount: null,
-      affectedRunCount: null,
+      evaluableRejectedCandidateCount: 0,
+      affectedRunCount: 0,
       classifications: Object.fromEntries([
         "strictUpgrade",
         "combatTradeoff",
@@ -1040,10 +1040,10 @@ function summarizeRejectedCandidates(records) {
         "buildTradeoff",
         "noMeaningfulGain"
       ].map(id => [id, {
-        totalCount: null,
-        affectedRunCount: null,
-        affectedRunRate: null,
-        perRunRate: null
+        totalCount: 0,
+        affectedRunCount: 0,
+        affectedRunRate: rate(0, records.length),
+        perRunRate: rate(0, records.length)
       }]))
     };
   }
