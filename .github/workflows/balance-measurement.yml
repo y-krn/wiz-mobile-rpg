@@ -293,7 +293,7 @@ jobs:
     env:
       MEASUREMENT_JOB_TIMEOUT_MINUTES: ${{ inputs.measurement == 'build-progression-audit' && 45 || 20 }}
       MEASUREMENT_STEP_TIMEOUT_MINUTES: ${{ inputs.measurement == 'build-progression-audit' && 30 || 15 }}
-      MEASUREMENT_TIMEOUT_BASIS: "10 completed local N=1000 candidate-audit runs; p95 recorded in PR evidence"
+      MEASUREMENT_TIMEOUT_BASIS: "10 completed local N=1000 candidate-audit runs; p95=319.54s; max=319.54s; 30m step/45m job"
     steps:
       - uses: actions/checkout@v4
         with:

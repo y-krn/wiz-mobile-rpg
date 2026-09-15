@@ -129,6 +129,7 @@ assert.match(workflow, /inputs\.measurement == 'build-progression-audit' && 45 \
 assert.match(workflow, /inputs\.measurement == 'build-progression-audit' && 30 \|\| 15/);
 assert.match(workflow, /--job-timeout-minutes/);
 assert.match(workflow, /--step-timeout-minutes/);
+assert.match(workflow, /p95=319\.54s; max=319\.54s; 30m step\/45m job/);
 assert.doesNotMatch(
   workflow.slice(workflow.indexOf("  measure-standard:"), workflow.indexOf("  merge-standard:")),
   /--include-raw/
