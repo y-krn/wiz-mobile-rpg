@@ -398,6 +398,16 @@ assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.totalCount, 16)
 assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.retainedCount, trajectory.RUN_EVIDENCE_SAMPLE_LIMIT);
 assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.droppedCount, 8);
 assert.equal(largerReport.cases[0].returnContinuation.rows.length <= trajectory.RETURN_CONTINUATION_SAMPLE_LIMIT, true);
+assert.ok(
+  largerSmoke.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab.byFloor["1"]
+    .byRejectionReason["out-ranked-by-later-candidate"].strictUpgrade.rejectedCandidateCount > 0,
+  "aggregate must retain strictUpgrade out-ranked-by-later-candidate reasons"
+);
+assert.ok(
+  largerSmoke.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab.byFloor["1"]
+    .byRejectionReason["not-best-selection-score"].strictUpgrade.rejectedCandidateCount > 0,
+  "aggregate must retain strictUpgrade not-best-selection-score reasons"
+);
 
 const b2Smoke = await trajectory.runMeasurement({
   runs: 4,

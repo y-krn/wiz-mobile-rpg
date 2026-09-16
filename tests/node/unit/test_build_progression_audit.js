@@ -119,6 +119,14 @@ const candidateAudits = [
     rejectionReason: "not-best-selection-score",
     sidegradeClassifications: ["strictUpgrade"],
     explorationAbilityDelta: { arcaneSense: 1 }
+  },
+  {
+    floor: 2,
+    evaluableCandidate: true,
+    qualifies: false,
+    selected: false,
+    rejectionReason: "future-reason",
+    sidegradeClassifications: ["strictUpgrade"]
   }
 ];
 const candidateActivity = summarizeExplorationCandidateActivity(candidateAudits, [1, 2]);
@@ -135,6 +143,10 @@ assert.equal(
 );
 assert.equal(
   rejectionCrossTab.byFloor["2"].byRejectionReason["not-best-selection-score"].strictUpgrade,
+  1
+);
+assert.equal(
+  rejectionCrossTab.byFloor["2"].byRejectionReason.other.strictUpgrade,
   1
 );
 
