@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 
 import {
   diffBuildObservations,
-  isParetoSafeDelta
+  isParetoSafeDelta,
+  normalizeRejectionReason,
+  REJECTION_REASON_IDS
 } from "../../../scratch/measurements/build_progression_audit.js";
 import {
   buildManifest,
@@ -12,7 +14,11 @@ import {
   summarizeFirstPolicyDivergence,
   runMeasurement
 } from "../../../scratch/measurements/early_run_attrition_trajectory.js";
-import { shouldApplyParetoSafeOverride } from "../../../scratch/simulations/sim_depth_material_ev.js";
+import {
+  createEquipmentStateCycleGuard,
+  createEquipmentStateFingerprint,
+  shouldApplyParetoSafeOverride
+} from "../../../scratch/simulations/sim_depth_material_ev.js";
 
 const observation = ({ atk = 10, explorationSupportValues = {} } = {}) => ({
   atk,
@@ -61,6 +67,71 @@ assert.equal(
   "non-score eligibility cannot be bypassed"
 );
 assert.equal(isParetoSafeDelta(safeDelta), true);
+assert.ok(REJECTION_REASON_IDS.includes("cycle-state"));
+assert.equal(normalizeRejectionReason("cycle-state"), "cycle-state");
+
+const equipment = (instanceId, baseId) => ({
+  kind: "equipment",
+  instanceId,
+  baseId,
+  type: "weapon",
+  identified: true,
+  affixes: []
+});
+const armor = (instanceId, baseId) => ({
+  kind: "equipment",
+  instanceId,
+  baseId,
+  type: "armor",
+  identified: true,
+  affixes: []
+});
+
+const cycleCharacter = {
+  equipment: {
+    weapon: equipment("A", "A_WEAPON"),
+    shield: null,
+    armor: armor("ARMOR_A", "A_ARMOR"),
+    accessory: null,
+    accessory2: null
+  }
+};
+const twoStateGuard = createEquipmentStateCycleGuard(
+  "deterministic_greedy_pareto_safe",
+  cycleCharacter
+);
+cycleCharacter.equipment.weapon = equipment("B", "B_WEAPON");
+twoStateGuard.record(cycleCharacter);
+cycleCharacter.equipment.weapon = equipment("A", "A_WEAPON");
+assert.equal(twoStateGuard.hasVisited(cycleCharacter), true, "2-state A→B→A cycle is blocked");
+
+const threeStateGuard = createEquipmentStateCycleGuard(
+  "deterministic_greedy_pareto_safe",
+  cycleCharacter
+);
+cycleCharacter.equipment.weapon = equipment("B", "B_WEAPON");
+threeStateGuard.record(cycleCharacter);
+cycleCharacter.equipment.weapon = equipment("C", "C_WEAPON");
+threeStateGuard.record(cycleCharacter);
+cycleCharacter.equipment.weapon = equipment("A", "A_WEAPON");
+assert.equal(threeStateGuard.hasVisited(cycleCharacter), true, "3-state A→B→C→A cycle is blocked");
+
+cycleCharacter.equipment.armor = armor("ARMOR_B", "B_ARMOR");
+assert.equal(
+  threeStateGuard.hasVisited(cycleCharacter),
+  false,
+  "same weapon with a different slot state remains eligible"
+);
+assert.notEqual(
+  createEquipmentStateFingerprint(cycleCharacter),
+  createEquipmentStateFingerprint({ ...cycleCharacter, equipment: { ...cycleCharacter.equipment, armor: armor("ARMOR_A", "A_ARMOR") } }),
+  "state fingerprint includes slot equipment identity"
+);
+
+const baselineGuard = createEquipmentStateCycleGuard("deterministic_greedy", cycleCharacter);
+baselineGuard.record(cycleCharacter);
+cycleCharacter.equipment.weapon = equipment("A", "A_WEAPON");
+assert.equal(baselineGuard.hasVisited(cycleCharacter), false, "baseline greedy has no cycle guard");
 
 const run = (trace, runIndex) => ({
   runIndex,

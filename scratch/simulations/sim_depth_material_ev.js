@@ -9568,6 +9568,46 @@ function isEquipment(item) {
   return ["weapon", "shield", "armor", "accessory"].includes(item?.type);
 }
 
+function stableEquipmentStateValue(value, seen = new Set()) {
+  if (value === null) return "null";
+  if (typeof value !== "object") return `${typeof value}:${JSON.stringify(value)}`;
+  if (seen.has(value)) return "object:[Circular]";
+  seen.add(value);
+  const serialized = Array.isArray(value)
+    ? `[${value.map(entry => stableEquipmentStateValue(entry, seen)).join(",")}]`
+    : `{${Object.keys(value).sort().map(key =>
+        `${JSON.stringify(key)}:${stableEquipmentStateValue(value[key], seen)}`
+      ).join(",")}}`;
+  seen.delete(value);
+  return serialized;
+}
+
+// Runtime-only identity for the counterfactual equipment state. Include the
+// slot and the complete stable item shape so instance IDs cannot collapse
+// semantically distinct equipment in duplicate-slot modes.
+export function createEquipmentStateFingerprint(character) {
+  return Object.entries(character?.equipment || {})
+    .sort(([leftSlot], [rightSlot]) => leftSlot.localeCompare(rightSlot))
+    .map(([slot, item]) => `${JSON.stringify(slot)}:${stableEquipmentStateValue(item)}`)
+    .join("|");
+}
+
+export function createEquipmentStateCycleGuard(policyId, character) {
+  const enabled = policyId === "deterministic_greedy_pareto_safe";
+  const visited = enabled
+    ? new Set([createEquipmentStateFingerprint(character)])
+    : null;
+  return {
+    enabled,
+    hasVisited(nextCharacter) {
+      return Boolean(enabled && visited.has(createEquipmentStateFingerprint(nextCharacter)));
+    },
+    record(nextCharacter) {
+      if (enabled) visited.add(createEquipmentStateFingerprint(nextCharacter));
+    }
+  };
+}
+
 function applyCoreEncounterCeiling(item) {
   if (CORE_ENCOUNTER_CEILING_MODE !== "epic-core" || !item || typeof item !== "object") {
     return item;
@@ -10442,6 +10482,10 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     clearAffixlessVirtualSlots(character);
   }
   identifyAvailableEquipment(state, metrics, Math.random);
+  const cycleGuard = createEquipmentStateCycleGuard(
+    metrics.equipmentUpdatePolicy,
+    character
+  );
   let upgrades = 0;
   const maxIterations = state.inventory.length * 2 + Object.keys(character.equipment).length;
 
@@ -10531,6 +10575,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       let candidateAudit = null;
       let paretoSafe = false;
       let paretoSafeOverride = false;
+      let candidateWouldCycle = false;
 
       if (policy === "gamble" && candidateIsUnidentified) {
         // 未鑑定品は真値を見ず、同階層以上の装備なら「更新になりうる」として着用候補化。
@@ -10576,6 +10621,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         character.equipment[slot] = candidate;
         candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
         const after = createCandidateBuildObservation(state);
+        candidateWouldCycle = cycleGuard.hasVisited(character);
         character.equipment[slot] = oldEquipment;
         const matchingSupport = candidateMatchesEquippedCore(character, candidate);
         const oldMatchingSupport = candidateMatchesEquippedCore(character, oldEquipment);
@@ -10633,6 +10679,10 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         if (paretoSafeOverride) {
           qualifies = true;
           rejectionReason = "pareto-safe-override";
+        }
+        if (candidateWouldCycle) {
+          qualifies = false;
+          rejectionReason = "cycle-state";
         }
         candidateAudit = createEquipmentCandidateAudit(metrics, state, {
           slot,
@@ -10745,6 +10795,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     } else {
       state.inventory.splice(best.index, 1);
     }
+    cycleGuard.record(character);
     character.hp = Math.min(character.hp, getCharMaxHp(character));
     upgrades++;
   }

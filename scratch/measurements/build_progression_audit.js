@@ -38,6 +38,7 @@ export const REJECTION_REASON_IDS = Object.freeze([
   "economy-below-95pct",
   "equipped-core-retained",
   "pareto-safe-override",
+  "cycle-state",
   "not-best-selection-score",
   "out-ranked-by-later-candidate",
   "other"
