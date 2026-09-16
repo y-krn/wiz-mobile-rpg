@@ -198,6 +198,20 @@ assert.equal(
   "baseline loop has no cycle guard intervention"
 );
 
+const actualCurseBoundary = runActualLoopFixture({
+  candidateCount: 2,
+  currentCursed: true
+});
+assert.equal(actualCurseBoundary.upgrades, 0, "Pareto override cannot replace a curse-locked item");
+assert.equal(actualCurseBoundary.state.party[0].equipment.weapon.instanceId, "A");
+assert.equal(
+  actualCurseBoundary.metrics.equipmentCandidateAudit.some(audit =>
+    audit.candidateInstanceId === "B" && audit.rejectionReason === "current-curse-locked"
+  ),
+  true,
+  "actual loop preserves current-curse-locked eligibility boundary"
+);
+
 const run = (trace, runIndex) => ({
   runIndex,
   worldSeed: `seed:${runIndex}`,
