@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 
 import {
   classifySidegrade,
-  diffBuildObservations
+  diffBuildObservations,
+  summarizeExplorationCandidateActivity,
+  summarizeRejectedCandidateCrossTab
 } from "../../../scratch/measurements/build_progression_audit.js";
 
 const observation = ({
@@ -88,6 +90,64 @@ assert.deepEqual(
 assert.deepEqual(
   classifySidegrade(delta({ atk: 10, def: 10 }, { atk: 10, def: 10 })),
   ["noMeaningfulGain"]
+);
+
+const candidateAudits = [
+  {
+    floor: 2,
+    evaluableCandidate: true,
+    qualifies: true,
+    selected: false,
+    rejectionReason: "out-ranked-by-later-candidate",
+    sidegradeClassifications: ["strictUpgrade"],
+    explorationAbilityDelta: { trapBonus: 2, arcaneSense: 1 }
+  },
+  {
+    floor: 2,
+    evaluableCandidate: true,
+    qualifies: true,
+    selected: true,
+    rejectionReason: null,
+    sidegradeClassifications: ["strictUpgrade"],
+    explorationAbilityDelta: { trapBonus: 1 }
+  },
+  {
+    floor: 2,
+    evaluableCandidate: true,
+    qualifies: false,
+    selected: false,
+    rejectionReason: "not-best-selection-score",
+    sidegradeClassifications: ["strictUpgrade"],
+    explorationAbilityDelta: { arcaneSense: 1 }
+  },
+  {
+    floor: 2,
+    evaluableCandidate: true,
+    qualifies: false,
+    selected: false,
+    rejectionReason: "future-reason",
+    sidegradeClassifications: ["strictUpgrade"]
+  }
+];
+const candidateActivity = summarizeExplorationCandidateActivity(candidateAudits, [1, 2]);
+assert.equal(candidateActivity.byFloor["1"].categories.trapBonus.candidateCount, 0);
+assert.equal(candidateActivity.byFloor["2"].categories.positiveExplorationDelta.candidateCount, 3);
+assert.equal(candidateActivity.byFloor["2"].categories.trapBonus.qualifies, 2);
+assert.equal(candidateActivity.byFloor["2"].categories.trapBonus.selected, 1);
+assert.equal(candidateActivity.byFloor["2"].categories.arcaneSense.candidateCount, 2);
+
+const rejectionCrossTab = summarizeRejectedCandidateCrossTab(candidateAudits, [1, 2]);
+assert.equal(
+  rejectionCrossTab.byFloor["2"].byRejectionReason["out-ranked-by-later-candidate"].strictUpgrade,
+  1
+);
+assert.equal(
+  rejectionCrossTab.byFloor["2"].byRejectionReason["not-best-selection-score"].strictUpgrade,
+  1
+);
+assert.equal(
+  rejectionCrossTab.byFloor["2"].byRejectionReason.other.strictUpgrade,
+  1
 );
 
 console.log("build progression audit classification passed");

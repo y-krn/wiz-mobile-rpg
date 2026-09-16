@@ -258,6 +258,20 @@ assert.equal(smoke.cases[0].policies.t0.aggregate.buildProgression.B2Entry.popul
 assert.equal(smoke.cases[0].policies.t0.aggregate.buildProgression.B2Entry.combatGrowth.atk.delta.n >= 0, true);
 assert.equal(smoke.cases[0].policies.t0.aggregate.distributions[1].lootSupply.status, "observed");
 assert.equal(smoke.cases[0].policies.t0.aggregate.distributions[1].equipmentDecisionActivity.status, "observed");
+const safetyActivity = smoke.cases[0].policies.t0.aggregate.candidateEvaluationActivity;
+assert.equal(safetyActivity.byFloor["1"].status, "observed");
+assert.ok(Object.hasOwn(safetyActivity.byFloor["1"].categories, "positiveExplorationDelta"));
+assert.ok(Object.hasOwn(safetyActivity.byFloor["1"].categories, "trapBonus"));
+assert.ok(safetyActivity.byFloor["1"].categories.positiveExplorationDelta.candidateCount >= 0);
+assert.equal(
+  smoke.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab.status,
+  "observed"
+);
+assert.equal(
+  smoke.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab.byFloor["1"]
+    .byRejectionReason["out-ranked-by-later-candidate"].strictUpgrade.rejectedCandidateCount >= 0,
+  true
+);
 assert.equal(smoke.cases[0].policies.t0.aggregate.selectedCandidateSwapConsistency.pass, true);
 const auditedRecord = smoke.cases[0].policies.t0.runEvidenceSample.runs[0];
 assert.equal(auditedRecord.buildCheckpoints.runStart.build.identity, auditedRecord.build.starting.identity);
@@ -317,8 +331,20 @@ assert.equal(
 );
 assert.equal(auditedReport.cases[0].policies.t0.records, undefined);
 assert.equal(auditedReport.determinism.byPolicy.t0.first, undefined);
+assert.equal(auditedReport.determinism.byPolicy.t0.second, undefined);
+assert.equal(auditedReport.determinism.byPolicy.t1.first, undefined);
+assert.equal(auditedReport.determinism.byPolicy.t1.second, undefined);
 assert.equal(JSON.stringify(auditedReport).includes('"records"'), false);
+assert.equal(JSON.stringify(auditedReport).includes('"first"'), false);
+assert.equal(JSON.stringify(auditedReport).includes('"second"'), false);
+Object.values(auditedReport.cases[0].policies).forEach(policy => {
+  assert.equal(policy.records, undefined);
+});
 const auditedManifest = trajectory.buildManifest(auditedReport);
+const auditedSummary = trajectory.buildSummary(auditedReport);
+assert.match(auditedSummary, /Exploration Support candidate evaluation activity/);
+assert.match(auditedSummary, /strictUpgrade rejected reason cross-tab:/);
+assert.ok(JSON.stringify(auditedReport).length < 50 * 1024 * 1024);
 assert.equal(
   auditedManifest.provenance.candidateAuditSampling[0].retainedCount,
   candidateSample.retainedCount
@@ -372,6 +398,16 @@ assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.totalCount, 16)
 assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.retainedCount, trajectory.RUN_EVIDENCE_SAMPLE_LIMIT);
 assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.droppedCount, 8);
 assert.equal(largerReport.cases[0].returnContinuation.rows.length <= trajectory.RETURN_CONTINUATION_SAMPLE_LIMIT, true);
+assert.ok(
+  largerSmoke.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab.byFloor["1"]
+    .byRejectionReason["out-ranked-by-later-candidate"].strictUpgrade.rejectedCandidateCount > 0,
+  "aggregate must retain strictUpgrade out-ranked-by-later-candidate reasons"
+);
+assert.ok(
+  largerSmoke.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab.byFloor["1"]
+    .byRejectionReason["not-best-selection-score"].strictUpgrade.rejectedCandidateCount > 0,
+  "aggregate must retain strictUpgrade not-best-selection-score reasons"
+);
 
 const b2Smoke = await trajectory.runMeasurement({
   runs: 4,

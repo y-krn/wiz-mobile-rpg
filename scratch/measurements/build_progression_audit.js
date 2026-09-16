@@ -9,6 +9,34 @@ export const SIDEGRADE_CLASSIFICATIONS = Object.freeze([
   "noMeaningfulGain"
 ]);
 
+export const EXPLORATION_SUPPORT_IDS = Object.freeze([
+  "trapBonus",
+  "trapGuard",
+  "treasureSense",
+  "arcaneSense",
+  "hearRange",
+  "traceRead",
+  "materialFind",
+  "identifyDiscount"
+]);
+
+export const REJECTION_REASON_IDS = Object.freeze([
+  "class-incompatible",
+  "already-equipped-unlimited",
+  "current-curse-locked",
+  "unidentified-not-potential-upgrade",
+  "unidentified-held",
+  "combat-score-not-higher",
+  "economy-ev-not-higher",
+  "score-not-higher",
+  "economy-core-retained",
+  "economy-below-95pct",
+  "equipped-core-retained",
+  "not-best-selection-score",
+  "out-ranked-by-later-candidate",
+  "other"
+]);
+
 function numeric(value) {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
@@ -136,4 +164,93 @@ export function countClassifications(audits, { rejectedOnly = false } = {}) {
     });
   });
   return counts;
+}
+
+function candidateMetric() {
+  return {
+    candidateCount: 0,
+    evaluable: 0,
+    qualifies: 0,
+    selected: 0
+  };
+}
+
+function incrementCandidateMetric(target, audit) {
+  target.candidateCount++;
+  target.evaluable += Number(Boolean(audit.evaluableCandidate));
+  target.qualifies += Number(Boolean(audit.evaluableCandidate && audit.qualifies));
+  target.selected += Number(Boolean(audit.evaluableCandidate && audit.selected));
+}
+
+function explorationDelta(audit) {
+  return audit?.explorationAbilityDelta || audit?.deltas?.explorationAbility || {};
+}
+
+function positiveExplorationIds(audit) {
+  return Object.entries(explorationDelta(audit))
+    .filter(([, value]) => Number(value) > 0)
+    .map(([id]) => id)
+    .filter(id => EXPLORATION_SUPPORT_IDS.includes(id));
+}
+
+function emptyFloorMap(floors, factory) {
+  return Object.fromEntries(floors.map(floor => [String(floor), factory()]));
+}
+
+export function summarizeExplorationCandidateActivity(audits = [], floors = []) {
+  const byFloor = emptyFloorMap(floors, () => ({
+    candidateCount: 0,
+    evaluable: 0,
+    qualifies: 0,
+    selected: 0,
+    categories: Object.fromEntries([
+      "positiveExplorationDelta",
+      ...EXPLORATION_SUPPORT_IDS
+    ].map(id => [id, candidateMetric()]))
+  }));
+  audits.forEach(audit => {
+    const floor = byFloor[String(audit?.floor)];
+    if (!floor) return;
+    floor.candidateCount++;
+    floor.evaluable += Number(Boolean(audit.evaluableCandidate));
+    floor.qualifies += Number(Boolean(audit.evaluableCandidate && audit.qualifies));
+    floor.selected += Number(Boolean(audit.evaluableCandidate && audit.selected));
+    const positiveIds = positiveExplorationIds(audit);
+    if (positiveIds.length === 0) return;
+    incrementCandidateMetric(floor.categories.positiveExplorationDelta, audit);
+    positiveIds.forEach(id => incrementCandidateMetric(floor.categories[id], audit));
+  });
+  return {
+    status: "observed",
+    byFloor
+  };
+}
+
+export function normalizeRejectionReason(reason) {
+  return REJECTION_REASON_IDS.includes(reason) ? reason : "other";
+}
+
+export function summarizeRejectedCandidateCrossTab(audits = [], floors = []) {
+  const byFloor = emptyFloorMap(floors, () => ({
+    byRejectionReason: {}
+  }));
+  audits.forEach(audit => {
+    if (!audit?.evaluableCandidate || audit.selected) return;
+    const floor = byFloor[String(audit.floor)];
+    if (!floor) return;
+    const reason = normalizeRejectionReason(audit.rejectionReason);
+    const classifications = audit.sidegradeClassifications?.length
+      ? audit.sidegradeClassifications
+      : ["noMeaningfulGain"];
+    classifications.forEach(classification => {
+      if (!SIDEGRADE_CLASSIFICATIONS.includes(classification)) return;
+      floor.byRejectionReason[reason] ||= {};
+      floor.byRejectionReason[reason][classification] =
+        (floor.byRejectionReason[reason][classification] || 0) + 1;
+    });
+  });
+  return {
+    status: "observed",
+    byFloor
+  };
 }

@@ -11,6 +11,13 @@ import {
 } from "./balance_measurement.js";
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { mergeFleeTelemetry, summarizeFleeTelemetry } from "./flee_telemetry.js";
+import {
+  EXPLORATION_SUPPORT_IDS,
+  REJECTION_REASON_IDS,
+  SIDEGRADE_CLASSIFICATIONS,
+  summarizeExplorationCandidateActivity,
+  summarizeRejectedCandidateCrossTab as summarizeRejectedCandidateCrossTabForRun
+} from "./build_progression_audit.js";
 
 export const RUNNER_VERSION = "early-run-attrition-trajectory-v4";
 export const SCHEMA_VERSION = 3;
@@ -365,6 +372,15 @@ function compactFloor(
       selectedEvents: candidateActivity.selectedEvents,
       observableBuildChanges: buildShiftCount
     };
+    loot.candidateEvaluationActivity = {
+      observed: true,
+      candidateCount: candidateActivity.candidateCount,
+      evaluable: candidateActivity.evaluable,
+      qualifies: candidateActivity.qualifies,
+      selected: candidateActivity.selected,
+      categories: candidateAuditSummary.explorationCandidateActivity
+        .byFloor[String(floor)]?.categories || {}
+    };
   }
   return {
     floor,
@@ -500,12 +516,30 @@ function emptyCandidateAuditFloorSummary() {
     evaluationEvents: 0,
     evaluableEvents: 0,
     qualifiedEvents: 0,
-    selectedEvents: 0
+    selectedEvents: 0,
+    candidateCount: 0,
+    evaluable: 0,
+    qualifies: 0,
+    selected: 0
   };
 }
 
 function summarizeCandidateAudit(result) {
   if (!Array.isArray(result.equipmentCandidateAudit)) return null;
+  const explorationCandidateActivity = summarizeExplorationCandidateActivity(
+    result.equipmentCandidateAudit,
+    TRAJECTORY_FLOORS
+  );
+  const rejectedCandidateCrossTab = summarizeRejectedCandidateCrossTabForRun(
+    result.equipmentCandidateAudit,
+    TRAJECTORY_FLOORS
+  );
+  TRAJECTORY_FLOORS.forEach(floor => {
+    const categories = explorationCandidateActivity.byFloor[String(floor)]?.categories || {};
+    explorationCandidateActivity.byFloor[String(floor)].categories = Object.fromEntries(
+      Object.entries(categories).filter(([, metric]) => metric.candidateCount > 0)
+    );
+  });
   const byFloor = Object.fromEntries(
     TRAJECTORY_FLOORS.map(floor => [String(floor), emptyCandidateAuditFloorSummary()])
   );
@@ -520,6 +554,10 @@ function summarizeCandidateAudit(result) {
       floor.evaluableEvents += Number(Boolean(audit.evaluableCandidate));
       floor.qualifiedEvents += Number(Boolean(audit.evaluableCandidate && audit.qualifies));
       floor.selectedEvents += Number(Boolean(audit.selected));
+      floor.candidateCount++;
+      floor.evaluable += Number(Boolean(audit.evaluableCandidate));
+      floor.qualifies += Number(Boolean(audit.evaluableCandidate && audit.qualifies));
+      floor.selected += Number(Boolean(audit.evaluableCandidate && audit.selected));
     }
     selectedEvents += Number(Boolean(audit.selected));
     if (!audit.evaluableCandidate || audit.selected) return;
@@ -548,6 +586,8 @@ function summarizeCandidateAudit(result) {
     evaluableRejectedCandidateCount,
     qualifiedRejectedCandidateCount,
     rejectedClassifications,
+    explorationCandidateActivity,
+    rejectedCandidateCrossTab,
     byFloor,
     selectedCandidateSwapConsistency: {
       pass: selectedAuditIds.size === swaps.length &&
@@ -720,7 +760,10 @@ export function projectGameplayRecord(record) {
   delete projected.buildCheckpoints;
   delete projected.equipmentDecisionTelemetryConsistency;
   Object.values(projected.floors || {}).forEach(floor => {
-    if (floor?.loot) delete floor.loot.equipmentDecisionActivity;
+    if (floor?.loot) {
+      delete floor.loot.equipmentDecisionActivity;
+      delete floor.loot.candidateEvaluationActivity;
+    }
   });
   return projected;
 }
@@ -1057,7 +1100,134 @@ function summarizeEquipmentDecisionRows(rows) {
   };
 }
 
-function summarizeRejectedCandidates(records) {
+function nullCandidateMetric() {
+  return {
+    candidateCount: null,
+    evaluable: null,
+    qualifies: null,
+    selected: null,
+    affectedRunCount: null,
+    affectedRunRate: null
+  };
+}
+
+function observedCandidateMetric(rows, category, denominator) {
+  return {
+    candidateCount: sum(rows.map(row => row?.[category]?.candidateCount)),
+    evaluable: sum(rows.map(row => row?.[category]?.evaluable)),
+    qualifies: sum(rows.map(row => row?.[category]?.qualifies)),
+    selected: sum(rows.map(row => row?.[category]?.selected)),
+    affectedRunCount: rows.filter(row => (row?.[category]?.candidateCount || 0) > 0).length,
+    affectedRunRate: rate(
+      rows.filter(row => (row?.[category]?.candidateCount || 0) > 0).length,
+      denominator
+    )
+  };
+}
+
+function summarizeCandidateEvaluationActivity(records) {
+  const categories = ["positiveExplorationDelta", ...EXPLORATION_SUPPORT_IDS];
+  const byFloor = Object.fromEntries(TRAJECTORY_FLOORS.map(floor => {
+    const floorRows = records.filter(record => record.floors?.[floor]);
+    const summaries = floorRows
+      .map(record => record.equipmentCandidateAuditSummary?.explorationCandidateActivity?.byFloor?.[String(floor)])
+      .filter(Boolean);
+    const base = {
+      status: floorRows.length === 0
+        ? "unreachable"
+        : summaries.length === floorRows.length ? "observed" : "unobserved",
+      entrantRunCount: floorRows.length,
+      observedRunCount: summaries.length,
+      candidateCount: null,
+      evaluable: null,
+      qualifies: null,
+      selected: null,
+      affectedRunCount: null,
+      affectedRunRate: null,
+      categories: Object.fromEntries(categories.map(category => [category, nullCandidateMetric()]))
+    };
+    if (base.status !== "observed") return [floor, base];
+    return [floor, {
+      ...base,
+      candidateCount: sum(summaries.map(row => row.candidateCount)),
+      evaluable: sum(summaries.map(row => row.evaluable)),
+      qualifies: sum(summaries.map(row => row.qualifies)),
+      selected: sum(summaries.map(row => row.selected)),
+      affectedRunCount: summaries.filter(row => row.candidateCount > 0).length,
+      affectedRunRate: rate(summaries.filter(row => row.candidateCount > 0).length, floorRows.length),
+      categories: Object.fromEntries(categories.map(category => [
+        category,
+        observedCandidateMetric(summaries.map(row => row.categories || {}), category, floorRows.length)
+      ]))
+    }];
+  }));
+  return {
+    status: Object.values(byFloor).some(row => row.status === "observed") ? "observed"
+      : records.length === 0 ? "unreachable" : "unobserved",
+    byFloor
+  };
+}
+
+function nullRejectedMetric() {
+  return {
+    rejectedCandidateCount: null,
+    affectedRunCount: null,
+    affectedRunRate: null
+  };
+}
+
+function summarizeRejectedCandidateCrossTab(records) {
+  const byFloor = Object.fromEntries(TRAJECTORY_FLOORS.map(floor => {
+    const floorRows = records.filter(record => record.floors?.[floor]);
+    const summaries = floorRows
+      .map(record => record.equipmentCandidateAuditSummary?.rejectedCandidateCrossTab?.byFloor?.[String(floor)])
+      .filter(Boolean);
+    const status = floorRows.length === 0
+      ? "unreachable"
+      : summaries.length === floorRows.length ? "observed" : "unobserved";
+    const byRejectionReason = Object.fromEntries(REJECTION_REASON_IDS.map(reason => [
+      reason,
+      Object.fromEntries(SIDEGRADE_CLASSIFICATIONS.map(classification => [
+        classification,
+        nullRejectedMetric()
+      ]))
+    ]));
+    if (status !== "observed") {
+      return [floor, {
+        status,
+        entrantRunCount: floorRows.length,
+        observedRunCount: summaries.length,
+        byRejectionReason
+      }];
+    }
+    REJECTION_REASON_IDS.forEach(reason => {
+      SIDEGRADE_CLASSIFICATIONS.forEach(classification => {
+        const cellRows = summaries.map(row =>
+          row.byRejectionReason?.[reason]?.[classification] || 0
+        );
+        const affectedRunCount = cellRows.filter(count => count > 0).length;
+        byRejectionReason[reason][classification] = {
+          rejectedCandidateCount: sum(cellRows),
+          affectedRunCount,
+          affectedRunRate: rate(affectedRunCount, floorRows.length)
+        };
+      });
+    });
+    return [floor, {
+      status,
+      entrantRunCount: floorRows.length,
+      observedRunCount: summaries.length,
+      byRejectionReason
+    }];
+  }));
+  return {
+    status: Object.values(byFloor).some(row => row.status === "observed") ? "observed"
+      : records.length === 0 ? "unreachable" : "unobserved",
+    byFloor
+  };
+}
+
+function summarizeRejectedCandidates(records, crossTab = summarizeRejectedCandidateCrossTab(records)) {
   const observedRecords = records.filter(record => record.equipmentCandidateAuditSummary);
   if (observedRecords.length === 0) {
     return {
@@ -1076,7 +1246,8 @@ function summarizeRejectedCandidates(records) {
         affectedRunCount: 0,
         affectedRunRate: rate(0, records.length),
         perRunRate: rate(0, records.length)
-      }]))
+      }])),
+      crossTab
     };
   }
   const classifications = {};
@@ -1110,7 +1281,8 @@ function summarizeRejectedCandidates(records) {
     status: "observed",
     evaluableRejectedCandidateCount,
     affectedRunCount,
-    classifications: classificationSummary
+    classifications: classificationSummary,
+    crossTab
   };
 }
 
@@ -1198,6 +1370,8 @@ function summarizeChestTrapCostAudit(records) {
 
 export function aggregateCondition(records) {
   const waterfall = Object.fromEntries(TRAJECTORY_FLOORS.map(floor => [floor, makeWaterfall(records, floor)]));
+  const candidateEvaluationActivity = summarizeCandidateEvaluationActivity(records);
+  const rejectedCandidateCrossTab = summarizeRejectedCandidateCrossTab(records);
   const outcomeCounts = {};
   const terminalCauses = {};
   records.forEach(record => {
@@ -1230,7 +1404,8 @@ export function aggregateCondition(records) {
       checkpoint,
       summarizeBuildCheckpoint(records, checkpoint)
     ])),
-    rejectedCandidates: summarizeRejectedCandidates(records),
+    candidateEvaluationActivity,
+    rejectedCandidates: summarizeRejectedCandidates(records, rejectedCandidateCrossTab),
     selectedCandidateSwapConsistency: summarizeCandidateSwapConsistency(records),
     lootBuild: summarizeLootBuild(records),
     b2ChestTrapCostAudit: summarizeChestTrapCostAudit(records),
@@ -1899,10 +2074,30 @@ function buildProgressionLines(policy) {
     const activity = policy.aggregate.distributions[floor].equipmentDecisionActivity;
     return `| B${floor} | ${activity.status} | ${activity.evaluationEvents ?? "—"} | ${activity.evaluableEvents ?? "—"} | ${activity.qualifiedEvents ?? "—"} | ${activity.selectedEvents ?? "—"} | ${activity.observableBuildChanges ?? "—"} |`;
   });
+  const candidateActivity = policy.aggregate.candidateEvaluationActivity;
+  const candidateActivityRows = TRAJECTORY_FLOORS.flatMap(floor => {
+    const activity = candidateActivity?.byFloor?.[String(floor)];
+    return Object.entries(activity?.categories || {}).map(([category, metric]) =>
+      `| B${floor} | ${category} | ${activity.status} | ${metric.candidateCount ?? "—"} | ${metric.evaluable ?? "—"} | ${metric.qualifies ?? "—"} | ${metric.selected ?? "—"} | ${metric.affectedRunCount ?? "—"} | ${rateCell(metric.affectedRunRate)} |`
+    );
+  });
   const rejected = policy.aggregate.rejectedCandidates;
   const sidegradeRows = Object.entries(rejected.classifications).map(([id, values]) =>
     `| ${id} | ${values.totalCount} | ${values.affectedRunCount} | ${rateCell(values.affectedRunRate)} | ${rateCell(values.perRunRate)} |`
   );
+  const rejectionCrossTabRows = TRAJECTORY_FLOORS.flatMap(floor => {
+    const floorCrossTab = rejected.crossTab?.byFloor?.[String(floor)];
+    return REJECTION_REASON_IDS.flatMap(reason => SIDEGRADE_CLASSIFICATIONS.map(classification => {
+      const metric = floorCrossTab?.byRejectionReason?.[reason]?.[classification];
+      return metric?.rejectedCandidateCount > 0
+        ? `| B${floor} | ${reason} | ${classification} | ${metric.rejectedCandidateCount} | ${metric.affectedRunCount} | ${rateCell(metric.affectedRunRate)} |`
+        : null;
+    }).filter(Boolean));
+  });
+  const strictUpgradeReasons = rejectionCrossTabRows
+    .filter(row => row.includes("| strictUpgrade |"))
+    .map(row => row.replace(/^\| /, "").replace(/ \|/g, "").split(" | ").slice(0, 4).join(" / "))
+    .join(", ") || "observed zero";
   const b2 = progression.B2Entry;
   const b3 = progression.B3Entry;
   const composition = rankBuildCompositions(progression.B5Entry.buildMaturity.coreCompositions)
@@ -1938,6 +2133,13 @@ function buildProgressionLines(policy) {
     "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
     ...decisionRows,
     "",
+    "### Exploration Support candidate evaluation activity (not a conversion funnel)",
+    "",
+    "Candidate count is evaluation-event count; support rows count an event once per positive support delta. affected-run rate denominator is floor entrants.",
+    "| floor | category | status | candidate count | evaluable | qualifies | selected | affected runs | affected-run rate |",
+    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...candidateActivityRows,
+    "",
     `- selected candidate ↔ swap telemetry: ${policy.aggregate.selectedCandidateSwapConsistency.status === "observed" ? (policy.aggregate.selectedCandidateSwapConsistency.pass ? "PASS" : "FAIL") : "unobserved"}; selected=${policy.aggregate.selectedCandidateSwapConsistency.selectedCandidateCount ?? "—"}; swaps=${policy.aggregate.selectedCandidateSwapConsistency.swapTelemetryCount ?? "—"}`,
     "",
     "### Rejected candidate sidegrade classification",
@@ -1948,6 +2150,11 @@ function buildProgressionLines(policy) {
     "| --- | ---: | ---: | ---: | ---: |",
     ...sidegradeRows,
     "",
+    "| floor | rejection reason | sidegrade classification | rejected candidate count | affected runs | affected-run rate |",
+    "| --- | --- | --- | ---: | ---: | ---: |",
+    ...(rejectionCrossTabRows.length ? rejectionCrossTabRows : ["| — | observed zero | — | 0 | 0 | 0.0% |"]),
+    "",
+    `strictUpgrade rejected reason cross-tab: ${strictUpgradeReasons}`,
     "Classifications describe candidate features independently of greedy selection; they do not recommend an equipment choice.",
     "Candidate activity counts are evaluation events; the same candidate can be re-evaluated while the existing greedy loop converges. They are not loot conversion counts or unique item counts.",
     "Rune supply is observed separately; Rune-to-equipment evaluation linkage is unobserved.",
