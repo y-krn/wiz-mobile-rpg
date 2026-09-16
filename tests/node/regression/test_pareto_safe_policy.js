@@ -9,6 +9,7 @@ import {
   buildReport,
   buildSummary,
   compareEquipmentDecisionPrefix,
+  summarizeFirstPolicyDivergence,
   runMeasurement
 } from "../../../scratch/measurements/early_run_attrition_trajectory.js";
 import { shouldApplyParetoSafeOverride } from "../../../scratch/simulations/sim_depth_material_ev.js";
@@ -86,6 +87,21 @@ const laterDivergence = compareEquipmentDecisionPrefix(
 );
 assert.equal(laterDivergence.firstDivergenceFloor, 3);
 
+const divergenceSummary = summarizeFirstPolicyDivergence([
+  run([sameDecision], 0),
+  run([], 1),
+  run([sameDecision], 2)
+], [
+  run([sameDecision], 0),
+  run([{ ...sameDecision, paretoSafeOverride: true }], 1),
+  run([sameDecision, { ...sameDecision, floor: 3, step: 2, decisionOrdinal: 1, candidateId: "DAGGER" }], 2)
+]);
+assert.equal(divergenceSummary.comparedRunCount, 3);
+assert.equal(divergenceSummary.affectedRunCount, 2);
+assert.equal(divergenceSummary.evidenceSample.totalCount, 2);
+assert.deepEqual(divergenceSummary.evidenceSample.runs.map(row => row.runIndex), [1, 2]);
+assert.ok(divergenceSummary.evidenceSample.runs.every(row => row.diverged));
+
 const result = await runMeasurement({
   runs: 1,
   seed: 1322,
@@ -102,10 +118,17 @@ const report = buildReport(result, null, null, {
   measurementId: "build-progression-pareto-safe",
   purpose: "small policy contract smoke"
 });
+report.cases[0].policies.t0.aggregate.outcomeCounts.died = 1;
+report.cases[0].policies.t1.aggregate.outcomeCounts.died = 2;
 const summary = buildSummary(report);
 const manifest = buildManifest(report);
 assert.equal(JSON.stringify(report).includes("equipmentDecisionTrace"), false);
 assert.match(summary, /same-seed loot, encounter, chest exposure, path, and event correspondence are not claimed/);
+assert.match(summary, /terminal death T0\/T1: 1\/2/);
+const expectedReach = [2, 3, 4, 5]
+  .map(floor => `${testCase.policies.t0.aggregate.waterfall[floor].entered}/${testCase.policies.t1.aggregate.waterfall[floor].entered}`)
+  .join(" / ");
+assert.match(summary, new RegExp(`B2/B3/B4/B5 reach T0/T1: ${expectedReach.replaceAll("/", "\\/")}`));
 assert.equal(manifest.artifactPolicy.runEvidenceSampleLimit, 8);
 assert.equal(manifest.artifactPolicy.firstDivergenceEvidenceSampleLimit, 8);
 assert.equal(testCase.matchedChestComparison, null, "equipment comparison does not claim chest parity");
