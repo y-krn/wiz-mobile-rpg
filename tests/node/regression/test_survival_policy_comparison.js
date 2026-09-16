@@ -144,7 +144,7 @@ assert.notEqual(first.cases[0].policies.p0.aggregate.flee.partingDamageHp, "unob
 
 const canonicalTrajectory = await trajectory.runMeasurement({ ...options });
 const survivalP0 = first.cases[0].policies.p0.records[0];
-const canonicalP0 = canonicalTrajectory.cases[0].policies.t0.records[0];
+const canonicalP0 = canonicalTrajectory.cases[0].policies.t0.runEvidenceSample.runs[0];
 const {
   flee: _flee,
   recoveryByFloor: _recoveryByFloor,
