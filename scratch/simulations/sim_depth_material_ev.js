@@ -9582,13 +9582,28 @@ function stableEquipmentStateValue(value, seen = new Set()) {
   return serialized;
 }
 
+function normalizeEquipmentStateItem(item) {
+  if (!item || typeof item !== "object") return item;
+  const normalized = { ...item };
+  // legacy identification adds these defaults while evaluating a candidate;
+  // they do not make an otherwise identical item a distinct equipment state.
+  if (normalized.identified !== false) delete normalized.identified;
+  if (!normalized.halfIdentified) delete normalized.halfIdentified;
+  if (normalized.curseEffectId == null) delete normalized.curseEffectId;
+  if (!normalized.cursePower) delete normalized.cursePower;
+  if (!normalized.curseSuspected) delete normalized.curseSuspected;
+  return normalized;
+}
+
 // Runtime-only identity for the counterfactual equipment state. Include the
 // slot and the complete stable item shape so instance IDs cannot collapse
 // semantically distinct equipment in duplicate-slot modes.
 export function createEquipmentStateFingerprint(character) {
   return Object.entries(character?.equipment || {})
     .sort(([leftSlot], [rightSlot]) => leftSlot.localeCompare(rightSlot))
-    .map(([slot, item]) => `${JSON.stringify(slot)}:${stableEquipmentStateValue(item)}`)
+    .map(([slot, item]) => `${JSON.stringify(slot)}:${stableEquipmentStateValue(
+      normalizeEquipmentStateItem(item)
+    )}`)
     .join("|");
 }
 
@@ -10476,8 +10491,11 @@ function createEquipmentCandidateAudit(metrics, state, {
   return audit;
 }
 
-function equipGreedyUpgrades(state, metrics, scoringProfile) {
+function equipGreedyUpgrades(state, metrics, scoringProfile, equipmentScoreOverride = null) {
   const character = state.party[0];
+  const scoreEquipment = typeof equipmentScoreOverride === "function"
+    ? equipmentScoreOverride
+    : (currentCharacter => getEquipmentScore(currentCharacter, scoringProfile, state.floor));
   if (EQUIPMENT_SLOT_MODE === "affixless-duplicates") {
     clearAffixlessVirtualSlots(character);
   }
@@ -10493,7 +10511,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     if (upgrades > maxIterations) {
       throw new Error("equipment upgrade loop did not converge");
     }
-    const currentScore = getEquipmentScore(character, scoringProfile, state.floor);
+    const currentScore = scoreEquipment(character);
     let best = null;
     const keenEyeActive = Boolean(getCharCoreParams(character, "CORE_KEEN_EYE"));
 
@@ -10619,7 +10637,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         }
         const before = createCandidateBuildObservation(state);
         character.equipment[slot] = candidate;
-        candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
+        candidateScore = scoreEquipment(character);
         const after = createCandidateBuildObservation(state);
         candidateWouldCycle = cycleGuard.hasVisited(character);
         character.equipment[slot] = oldEquipment;
@@ -10757,7 +10775,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         step: metrics.steps,
         encounterOrdinal: state.currentRun?.battles || 0,
         scoreBefore: best.scoreBefore,
-        scoreAfter: getEquipmentScore(character, scoringProfile, state.floor),
+        scoreAfter: scoreEquipment(character),
         slot: best.slot,
         decisionOrdinal: metrics.equipmentDecisionOrdinal++,
         paretoSafeOverride: Boolean(best.paretoSafeOverride),
@@ -10806,6 +10824,57 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     addAffixlessVirtualSlots(character);
   }
   return upgrades;
+}
+
+// Test-only production-backed fixture. The score override supplies a small
+// deterministic counterfactual where scalar score and tracked build axes
+// intentionally disagree; normal simulation callers never pass it.
+export function runEquipmentUpgradeFixture({
+  policyId = "deterministic_greedy_pareto_safe",
+  candidateCount = 2
+} = {}) {
+  const makeItem = (instanceId, trapBonus = 0) => ({
+    kind: "equipment",
+    instanceId,
+    baseId: "DAGGER",
+    type: "weapon",
+    identified: true,
+    rarity: "common",
+    level: 1,
+    affixes: trapBonus > 0
+      ? [{ id: "trapBonus", type: "trapBonus", kind: "support", value: trapBonus }]
+      : []
+  });
+  const items = [makeItem("A"), makeItem("B", 1), makeItem("C", 2)];
+  const character = createStartingKitCharacter("vanguard");
+  character.equipment.weapon = items[0];
+  const inventory = items.slice(1, candidateCount);
+  const state = {
+    party: [character],
+    inventory,
+    floor: 1,
+    simPolicy: { identificationPolicy: "legacy" }
+  };
+  const metrics = {
+    equipmentUpdatePolicy: policyId,
+    steps: 0,
+    equipmentCandidateAudit: [],
+    equipmentCandidateAuditSequence: 0,
+    equipmentTelemetry: [],
+    equipmentDecisionOrdinal: 0,
+    affixReachability: createAffixReachability(),
+    coreCursedLockedIds: new Set(),
+    unidentifiedWearCount: 0,
+    curseHitCount: 0
+  };
+  const scoreByInstanceId = { A: 100, B: 90, C: 80 };
+  const scoreOverride = currentCharacter => {
+    const equipped = Object.values(currentCharacter.equipment || {})
+      .find(item => item?.instanceId);
+    return scoreByInstanceId[equipped?.instanceId] ?? 0;
+  };
+  const upgrades = equipGreedyUpgrades(state, metrics, null, scoreOverride);
+  return { state, metrics, upgrades };
 }
 
 function applyFloorTransitionHeal(character, recoveryRate = 0.15) {
