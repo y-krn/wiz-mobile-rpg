@@ -2392,7 +2392,7 @@ export function buildSummary(report) {
           `- first policy divergence: affected runs ${divergence.affectedRunCount}/${divergence.comparedRunCount}; affected-run rate ${rateCell(divergence.affectedRunRate)}; no divergence ${divergence.noDivergenceRunCount}`,
           `- first-divergence evidence sample: ${divergence.evidenceSample.retainedCount}/${divergence.evidenceSample.totalCount} (limit ${divergence.evidenceSample.limit})`,
           `- B2/B3/B4/B5 reach T0/T1: ${reach(2)} / ${reach(3)} / ${reach(4)} / ${reach(5)}`,
-          `- terminal death T0/T1: ${t0.outcomeCounts.death || 0}/${t1.outcomeCounts.death || 0}; voluntary Return: ${(t0.outcomeCounts.retreat || 0)}/${(t1.outcomeCounts.retreat || 0)}`,
+          `- terminal death T0/T1: ${t0.outcomeCounts.death || 0}/${t1.outcomeCounts.death || 0}; voluntary Return: ${(t0.outcomeCounts.voluntaryReturn || 0)}/${(t1.outcomeCounts.voluntaryReturn || 0)}`,
           "- first divergence is the paired boundary; after it, same-seed loot, encounter, chest exposure, path, and event correspondence are not claimed",
           "- T0/T1 Build Maturity, Combat Growth, Exploration Safety Growth, trapBonus holder rate, trapGuard holder rate, and selected candidate ↔ swap consistency are reported above per policy",
           `- Pareto-safe override swaps T0/T1: ${t0.lootBuild.paretoSafeOverrideCount || 0}/${t1.lootBuild.paretoSafeOverrideCount || 0}`
