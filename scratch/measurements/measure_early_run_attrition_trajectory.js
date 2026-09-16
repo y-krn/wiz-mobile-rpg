@@ -77,8 +77,8 @@ const report = buildReport(result, provenance, environmentSignature, {
 });
 const runType = process.env.MEASUREMENT_RUN_TYPE || "diagnostic";
 
-// Keep the per-run trajectory machine-readable without pretty-printing tens of
-// thousands of compact records into an oversized JSON string.
+// The report contains aggregates and bounded evidence samples; full per-run
+// records remain temporary inside runMeasurement only.
 fs.writeFileSync(resolve(output), `${JSON.stringify(report)}\n`);
 fs.writeFileSync(resolve(summary), `${buildSummary(report)}\n`);
 fs.writeFileSync(resolve(manifest), `${JSON.stringify(buildManifest(report, { runType }), null, 2)}\n`);

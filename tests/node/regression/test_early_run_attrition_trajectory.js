@@ -273,7 +273,7 @@ assert.equal(
   true
 );
 assert.equal(smoke.cases[0].policies.t0.aggregate.selectedCandidateSwapConsistency.pass, true);
-const auditedRecord = smoke.cases[0].policies.t0.records[0];
+const auditedRecord = smoke.cases[0].policies.t0.runEvidenceSample.runs[0];
 assert.equal(auditedRecord.buildCheckpoints.runStart.build.identity, auditedRecord.build.starting.identity);
 assert.equal(auditedRecord.buildCheckpoints.terminal.build.identity, auditedRecord.build.ending.identity);
 assert.equal(Object.hasOwn(auditedRecord, "equipmentCandidateAudit"), false);
@@ -286,7 +286,7 @@ assert.equal(
   auditedRecord.equipmentCandidateAuditSummary.selectedCandidateSwapConsistency.selectedCandidateCount,
   auditedRecord.equipmentCandidateAuditSummary.selectedEvents
 );
-const qualifiedRejectedCandidateCount = smoke.cases[0].policies.t0.records
+const qualifiedRejectedCandidateCount = smoke.cases[0].policies.t0.runEvidenceSample.runs
   .reduce((total, record) => total + record.equipmentCandidateAuditSummary.qualifiedRejectedCandidateCount, 0);
 assert.ok(qualifiedRejectedCandidateCount > 0);
 const candidateSample = smoke.cases[0].policies.t0.candidateAuditSample;
@@ -294,6 +294,18 @@ assert.equal(candidateSample.policy, trajectory.CANDIDATE_AUDIT_SAMPLE_POLICY);
 assert.equal(candidateSample.retainedCount, candidateSample.events.length);
 assert.equal(candidateSample.retainedCount + candidateSample.droppedCount, candidateSample.totalCount);
 assert.ok(candidateSample.retainedCount <= trajectory.CANDIDATE_AUDIT_SAMPLE_LIMIT);
+assert.equal(smoke.cases[0].policies.t0.records, undefined);
+assert.equal(smoke.cases[0].policies.t1.records, undefined);
+assert.equal(smoke.cases[0].policies.t0.runEvidenceSample.policy, trajectory.RUN_EVIDENCE_SAMPLE_POLICY);
+assert.equal(smoke.cases[0].policies.t0.runEvidenceSample.limit, trajectory.RUN_EVIDENCE_SAMPLE_LIMIT);
+assert.equal(smoke.cases[0].policies.t0.runEvidenceSample.retainedCount, 4);
+assert.equal(smoke.cases[0].policies.t0.runEvidenceSample.droppedCount, 0);
+assert.equal(smoke.cases[0].returnContinuation.rowSample.policy, trajectory.RETURN_CONTINUATION_SAMPLE_POLICY);
+assert.equal(smoke.cases[0].returnContinuation.rowSample.limit, trajectory.RETURN_CONTINUATION_SAMPLE_LIMIT);
+assert.equal(
+  smoke.cases[0].returnContinuation.rows.length,
+  Math.min(smoke.cases[0].returnContinuation.runs, trajectory.RETURN_CONTINUATION_SAMPLE_LIMIT)
+);
 
 const largeCandidateSample = trajectory.createCandidateAuditSampleCollector(4);
 largeCandidateSample.addAll(
@@ -317,6 +329,9 @@ assert.equal(
   auditedReport.measurement.candidateAuditSampleLimit,
   trajectory.CANDIDATE_AUDIT_SAMPLE_LIMIT
 );
+assert.equal(auditedReport.cases[0].policies.t0.records, undefined);
+assert.equal(auditedReport.determinism.byPolicy.t0.first, undefined);
+assert.equal(JSON.stringify(auditedReport).includes('"records"'), false);
 const auditedManifest = trajectory.buildManifest(auditedReport);
 const auditedSummary = trajectory.buildSummary(auditedReport);
 assert.match(auditedSummary, /Exploration Support candidate evaluation activity/);
@@ -330,6 +345,51 @@ assert.equal(
   auditedManifest.provenance.candidateAuditSampling[0].droppedCount,
   candidateSample.droppedCount
 );
+assert.equal(
+  auditedManifest.provenance.runEvidenceSampling[0].droppedCount,
+  smoke.cases[0].policies.t0.runEvidenceSample.droppedCount
+);
+
+const largerSmoke = await trajectory.runMeasurement({
+  runs: 16,
+  seed: 1277,
+  startingKitIds: ["vanguard"],
+  scenarioIds: ["workshop-empty"],
+  collectEquipmentCandidateAudit: true,
+  allowSmallRunCount: true
+});
+const largerReport = trajectory.buildReport(
+  largerSmoke,
+  { sourceCommit: "a".repeat(40), measurementRunnerCommit: "b".repeat(40) },
+  { SIM_SEED: "1277" },
+  { measurementId: "build-progression-audit", purpose: "regression" }
+);
+const largestSmoke = await trajectory.runMeasurement({
+  runs: 32,
+  seed: 1277,
+  startingKitIds: ["vanguard"],
+  scenarioIds: ["workshop-empty"],
+  collectEquipmentCandidateAudit: true,
+  allowSmallRunCount: true
+});
+const largestReport = trajectory.buildReport(
+  largestSmoke,
+  { sourceCommit: "a".repeat(40), measurementRunnerCommit: "b".repeat(40) },
+  { SIM_SEED: "1277" },
+  { measurementId: "build-progression-audit", purpose: "regression" }
+);
+const largerReportSize = JSON.stringify(largerReport).length;
+const largestReportSize = JSON.stringify(largestReport).length;
+assert.ok(
+  largestReportSize < largerReportSize * 1.5,
+  `bounded report size must not track full run count: N16=${largerReportSize} -> N32=${largestReportSize}`
+);
+assert.ok(largerReportSize < 5_000_000, `synthetic heavy report unexpectedly large: ${largerReportSize}`);
+assert.ok(largestReportSize < 2_000_000, `synthetic heavy report unexpectedly large: ${largestReportSize}`);
+assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.totalCount, 16);
+assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.retainedCount, trajectory.RUN_EVIDENCE_SAMPLE_LIMIT);
+assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.droppedCount, 8);
+assert.equal(largerReport.cases[0].returnContinuation.rows.length <= trajectory.RETURN_CONTINUATION_SAMPLE_LIMIT, true);
 
 const b2Smoke = await trajectory.runMeasurement({
   runs: 4,
@@ -341,6 +401,8 @@ const b2Smoke = await trajectory.runMeasurement({
   allowSmallRunCount: true
 });
 const b2Case = b2Smoke.cases[0];
+const b2T0Records = b2Case.policies.t0.runEvidenceSample.runs;
+const b2T1Records = b2Case.policies.t1.runEvidenceSample.runs;
 assert.equal(b2Smoke.configuration.treatment, "b2-chest-trap");
 assert.equal(b2Smoke.determinism.pass, true);
 assert.ok(b2Case.policies.t0.aggregate.b2ChestTrapCostAudit.events > 0);
@@ -357,19 +419,19 @@ assert.equal(b2Case.matchedChestComparison.exogenous.missingCandidateEvents, 0);
 assert.ok(b2Case.matchedChestComparison.endogenous.postTreatmentIdentityMismatches > 0);
 assert.ok(b2Case.matchedChestComparison.endogenous.mismatches >= 0);
 assert.deepEqual(
-  b2Case.policies.t0.records,
-  smoke.cases[0].policies.t0.records,
+  b2T0Records,
+  smoke.cases[0].policies.t0.runEvidenceSample.runs,
   "B2 diagnostic T0 preserves canonical runner output"
 );
-const exogenousMismatchRecords = structuredClone(b2Case.policies.t1.records);
+const exogenousMismatchRecords = structuredClone(b2T1Records);
 exogenousMismatchRecords[0].chestLootEvents[0].trap = "exogenous-mismatch";
 const exogenousComparison = trajectory.buildMatchedChestComparison(
-  b2Case.policies.t0.records,
+  b2T0Records,
   exogenousMismatchRecords
 );
 assert.equal(exogenousComparison.pass, false);
 assert.ok(exogenousComparison.exogenousMismatch > 0);
-const exposureOnlyRecords = structuredClone(b2Case.policies.t1.records);
+const exposureOnlyRecords = structuredClone(b2T1Records);
 exposureOnlyRecords.forEach(record => {
   const firstTreatmentOrdinal = record.chestTrapCostAudit
     .filter(event => event.floor === 2)
@@ -382,7 +444,7 @@ exposureOnlyRecords.forEach(record => {
     });
 });
 const exposureOnlyComparison = trajectory.buildMatchedChestComparison(
-  b2Case.policies.t0.records,
+  b2T0Records,
   exposureOnlyRecords
 );
 assert.equal(exposureOnlyComparison.pass, true, "post-treatment exposure-only divergence is allowed");

@@ -30,6 +30,14 @@ export const CANDIDATE_AUDIT_SAMPLE_LIMIT = 128;
 export const CANDIDATE_AUDIT_SAMPLE_POLICY = Object.freeze(
   "first-N candidate events in deterministic condition/runIndex/audit order"
 );
+export const RUN_EVIDENCE_SAMPLE_LIMIT = 8;
+export const RUN_EVIDENCE_SAMPLE_POLICY = Object.freeze(
+  "first-N compact run records in deterministic condition/runIndex order"
+);
+export const RETURN_CONTINUATION_SAMPLE_LIMIT = 8;
+export const RETURN_CONTINUATION_SAMPLE_POLICY = Object.freeze(
+  "first-N matched T0 Return continuation rows in deterministic runIndex order"
+);
 export const WORKSHOP_SCENARIO_IDS = Object.freeze([
   "workshop-empty",
   "workshop-complete"
@@ -717,6 +725,30 @@ export function createCandidateAuditSampleCollector(limit = CANDIDATE_AUDIT_SAMP
         retainedCount: retained.length,
         droppedCount: totalCount - retained.length,
         events: retained
+      };
+    }
+  };
+}
+
+export function createRunEvidenceSampleCollector(limit = RUN_EVIDENCE_SAMPLE_LIMIT) {
+  if (!Number.isInteger(limit) || limit < 0) {
+    throw new Error(`run evidence sample limit must be a non-negative integer: ${limit}`);
+  }
+  const retained = [];
+  let totalCount = 0;
+  return {
+    add(record) {
+      totalCount++;
+      if (retained.length < limit) retained.push(structuredClone(record));
+    },
+    finalize() {
+      return {
+        policy: RUN_EVIDENCE_SAMPLE_POLICY,
+        limit,
+        totalCount,
+        retainedCount: retained.length,
+        droppedCount: totalCount - retained.length,
+        runs: retained
       };
     }
   };
@@ -1412,7 +1444,14 @@ function difference(left, right) {
   return finite(Number(right) - Number(left));
 }
 
-export function buildReturnContinuation(baselineRecords, candidateRecords) {
+export function buildReturnContinuation(
+  baselineRecords,
+  candidateRecords,
+  { sampleLimit = RETURN_CONTINUATION_SAMPLE_LIMIT } = {}
+) {
+  if (!Number.isInteger(sampleLimit) || sampleLimit < 0) {
+    throw new Error(`return continuation sample limit must be a non-negative integer: ${sampleLimit}`);
+  }
   const joined = buildMatchedTrajectory(baselineRecords, candidateRecords)
     .filter(({ baseline }) => baseline.outcome === "voluntaryReturn");
   const reach = { b4: 0, b5: 0, b6: 0 };
@@ -1422,7 +1461,8 @@ export function buildReturnContinuation(baselineRecords, candidateRecords) {
     twoPlusFloorDeath: 0,
     otherTerminal: 0
   };
-  const rows = joined.map(({ baseline, candidate }) => {
+  const rows = [];
+  joined.forEach(({ baseline, candidate }) => {
     const returnFloor = Number(baseline.returnFloor);
     const additionalCost = Object.fromEntries(COST_SOURCE_IDS.map(source => [
       source,
@@ -1439,7 +1479,7 @@ export function buildReturnContinuation(baselineRecords, candidateRecords) {
       "+2 floors death": "twoPlusFloorDeath",
       otherTerminal: "otherTerminal"
     }[terminalCategory]]++;
-    return {
+    const row = {
       runIndex: baseline.runIndex,
       worldSeed: baseline.worldSeed,
       t0ReturnFloor: baseline.returnFloor,
@@ -1462,9 +1502,10 @@ export function buildReturnContinuation(baselineRecords, candidateRecords) {
       category: terminalCategory,
       lastCostEvents: candidate.lastCostEvents
     };
+    if (rows.length < sampleLimit) rows.push(row);
   });
   return {
-    runs: rows.length,
+    runs: joined.length,
     reach,
     terminal,
     categories: Object.fromEntries([
@@ -1473,6 +1514,13 @@ export function buildReturnContinuation(baselineRecords, candidateRecords) {
       ["+2 floors death", terminal.twoPlusFloorDeath],
       ["otherTerminal", terminal.otherTerminal]
     ]),
+    rowSample: {
+      policy: RETURN_CONTINUATION_SAMPLE_POLICY,
+      limit: sampleLimit,
+      totalCount: joined.length,
+      retainedCount: rows.length,
+      droppedCount: joined.length - rows.length
+    },
     rows,
     sameFloorDeath: terminal.sameFloorDeath,
     oneFloorDeath: terminal.oneFloorDeath,
@@ -1753,8 +1801,12 @@ export async function runMeasurement(options = {}) {
     const second = runOne({ ...probe, policy });
     determinism[policy.id] = {
       pass: JSON.stringify(first) === JSON.stringify(second),
-      first,
-      second
+      comparedRun: {
+        scenarioId: probe.scenarioId,
+        startingKitId: probe.startingKitId,
+        runIndex: probe.runIndex,
+        worldSeed: worldSeedFor(config.seed, probe.runIndex)
+      }
     };
     if (!determinism[policy.id].pass) throw new Error(`trajectory determinism probe failed: ${policy.id}`);
     if (config.collectEquipmentCandidateAudit) {
@@ -1781,29 +1833,37 @@ export async function runMeasurement(options = {}) {
           ? createCandidateAuditSampleCollector()
           : null
       };
+      const runEvidenceSampleCollectors = {
+        t0: createRunEvidenceSampleCollector(),
+        t1: createRunEvidenceSampleCollector()
+      };
       const t0Policy = treatment.policies.t0;
       const t1Policy = treatment.policies.t1;
       resetSimulationRandom(config.seed);
       records.t0 = [];
       for (let runIndex = 0; runIndex < config.runs; runIndex++) {
-        records.t0.push(runOne({
+        const record = runOne({
           scenarioId,
           startingKitId,
           policy: t0Policy,
           runIndex,
           candidateSampleCollector: candidateSampleCollectors.t0
-        }));
+        });
+        records.t0.push(record);
+        runEvidenceSampleCollectors.t0.add(record);
       }
       resetSimulationRandom(config.seed);
       records.t1 = [];
       for (let runIndex = 0; runIndex < config.runs; runIndex++) {
-        records.t1.push(runOne({
+        const record = runOne({
           scenarioId,
           startingKitId,
           policy: t1Policy,
           runIndex,
           candidateSampleCollector: candidateSampleCollectors.t1
-        }));
+        });
+        records.t1.push(record);
+        runEvidenceSampleCollectors.t1.add(record);
       }
       const t0 = records.t0;
       const t1 = records.t1;
@@ -1811,6 +1871,9 @@ export async function runMeasurement(options = {}) {
       const t1Aggregate = aggregateCondition(t1);
       const t0CandidateAuditSample = candidateSampleCollectors.t0?.finalize() || null;
       const t1CandidateAuditSample = candidateSampleCollectors.t1?.finalize() || null;
+      const t0RunEvidenceSample = runEvidenceSampleCollectors.t0.finalize();
+      const t1RunEvidenceSample = runEvidenceSampleCollectors.t1.finalize();
+      const matchedConversions = buildMatchedConversions(t0, t1);
       cases.push({
         scenarioId,
         startingKitId,
@@ -1819,18 +1882,18 @@ export async function runMeasurement(options = {}) {
             ...treatment.policies.t0,
             aggregate: t0Aggregate,
             candidateAuditSample: t0CandidateAuditSample,
-            records: t0
+            runEvidenceSample: t0RunEvidenceSample
           },
           t1: {
             ...treatment.policies.t1,
             aggregate: t1Aggregate,
             candidateAuditSample: t1CandidateAuditSample,
-            records: t1
+            runEvidenceSample: t1RunEvidenceSample
           }
         },
-        matchedConversions: buildMatchedConversions(t0, t1),
+        matchedConversions,
         matchedChestComparison: buildMatchedChestComparison(t0, t1),
-        returnContinuation: buildReturnContinuation(t0, t1)
+        returnContinuation: matchedConversions.returnContinuation
       });
     }
   }
@@ -1844,6 +1907,8 @@ export async function runMeasurement(options = {}) {
     scenarioIds: config.scenarioIds,
     treatment: treatment.id,
     candidateAudit: config.collectEquipmentCandidateAudit,
+    runEvidenceSampleLimit: RUN_EVIDENCE_SAMPLE_LIMIT,
+    returnContinuationSampleLimit: RETURN_CONTINUATION_SAMPLE_LIMIT,
     treatmentDescription: treatment.description,
     policies: Object.values(treatment.policies).map(policy => ({ ...policy })),
     matchedIdentity: hashConfiguration({
@@ -1885,6 +1950,25 @@ export function buildReport(result, provenance = null, environmentSignature = nu
   requestedRef = null,
   measurementId = "early-run-attrition"
 } = {}) {
+  const cases = (result.cases || []).map(testCase => ({
+    ...testCase,
+    policies: Object.fromEntries(Object.entries(testCase.policies || {}).map(([policyId, policy]) => {
+      const boundedPolicy = { ...policy };
+      delete boundedPolicy.records;
+      return [policyId, boundedPolicy];
+    }))
+  }));
+  const determinism = {
+    pass: Boolean(result.determinism?.pass),
+    byPolicy: Object.fromEntries(Object.entries(result.determinism?.byPolicy || {}).map(([policyId, value]) => [
+      policyId,
+      {
+        pass: Boolean(value.pass),
+        comparedRun: value.comparedRun || null
+      }
+    ])),
+    treatment: result.determinism?.treatment || null
+  };
   return {
     measurement: {
       measurementId,
@@ -1906,16 +1990,20 @@ export function buildReport(result, provenance = null, environmentSignature = nu
       environmentSignatureHash: environmentSignature ? hashConfiguration(environmentSignature) : null,
       productionMechanism: "simulateRun",
       rawTracePolicy:
-        "compact floor snapshots; exact candidate aggregates plus a bounded deterministic candidate sample for build-progression-audit; bounded last-three cost events",
+        "full compact run records are transient; report retains aggregate evidence plus bounded deterministic run/candidate/continuation samples and last-three cost events",
       candidateAuditSamplePolicy: CANDIDATE_AUDIT_SAMPLE_POLICY,
       candidateAuditSampleLimit: CANDIDATE_AUDIT_SAMPLE_LIMIT,
+      runEvidenceSamplePolicy: RUN_EVIDENCE_SAMPLE_POLICY,
+      runEvidenceSampleLimit: RUN_EVIDENCE_SAMPLE_LIMIT,
+      returnContinuationSamplePolicy: RETURN_CONTINUATION_SAMPLE_POLICY,
+      returnContinuationSampleLimit: RETURN_CONTINUATION_SAMPLE_LIMIT,
       unobserved: [...UNOBSERVED_FIELDS]
     },
     configuration: result.configuration,
     comparisonKey: result.comparisonKey,
-    determinism: result.determinism,
+    determinism,
     observationInvariance: result.observationInvariance,
-    cases: result.cases,
+    cases,
     interpretation: {
       candidates: [
         "A — B1 combat-dominated",
@@ -2183,6 +2271,22 @@ export function buildManifest(report, { runType = "diagnostic" } = {}) {
       staleTreeAllowed: report.measurement.staleTreeAllowed,
       workingTreeClean: report.measurement.workingTreeClean,
       measurementRunnerDiffSha256: report.measurement.measurementRunnerDiffSha256,
+      runEvidenceSampling: report.cases.flatMap(testCase =>
+        Object.entries(testCase.policies).map(([policyId, policy]) => ({
+          scenarioId: testCase.scenarioId,
+          startingKitId: testCase.startingKitId,
+          policyId,
+          ...(policy.runEvidenceSample
+            ? {
+                policy: policy.runEvidenceSample.policy,
+                limit: policy.runEvidenceSample.limit,
+                totalCount: policy.runEvidenceSample.totalCount,
+                retainedCount: policy.runEvidenceSample.retainedCount,
+                droppedCount: policy.runEvidenceSample.droppedCount
+              }
+            : { status: "unobserved" })
+        }))
+      ),
       candidateAuditSampling: report.cases.flatMap(testCase =>
         Object.entries(testCase.policies).map(([policyId, policy]) => ({
           scenarioId: testCase.scenarioId,
@@ -2217,7 +2321,10 @@ export function buildManifest(report, { runType = "diagnostic" } = {}) {
     },
     artifactPolicy: {
       rawCombatLog: "omitted",
-      boundedTerminalCostEvents: 3
+      boundedTerminalCostEvents: 3,
+      fullRunRecords: "omitted",
+      runEvidenceSampleLimit: RUN_EVIDENCE_SAMPLE_LIMIT,
+      returnContinuationSampleLimit: RETURN_CONTINUATION_SAMPLE_LIMIT
     },
     workflow: {
       repository: process.env.MEASUREMENT_REPOSITORY || null,
