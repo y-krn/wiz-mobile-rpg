@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   classifySidegrade,
   diffBuildObservations,
+  isParetoSafeDelta,
   summarizeExplorationCandidateActivity,
   summarizeRejectedCandidateCrossTab
 } from "../../../scratch/measurements/build_progression_audit.js";
@@ -35,6 +36,73 @@ const observation = ({
 const delta = (before, after) => diffBuildObservations(
   observation(before),
   observation(after)
+);
+
+assert.equal(
+  isParetoSafeDelta(delta({ atk: 10 }, { atk: 12 })),
+  true,
+  "ATK-only improvement is Pareto-safe"
+);
+assert.equal(
+  isParetoSafeDelta(delta(
+    { explorationSupportValues: { trapBonus: 0 } },
+    { explorationSupportValues: { trapBonus: 10 } }
+  )),
+  true,
+  "trapBonus-only improvement is Pareto-safe"
+);
+assert.equal(
+  isParetoSafeDelta(delta(
+    { explorationSupportValues: { trapGuard: 0 } },
+    { explorationSupportValues: { trapGuard: 10 } }
+  )),
+  true,
+  "trapGuard-only improvement is Pareto-safe"
+);
+assert.equal(
+  isParetoSafeDelta(delta(
+    {},
+    {
+      mainCoreIds: ["CORE_NEW"],
+      auxiliaryCoreIds: ["CORE_AUX"],
+      supportValues: { followUp: 1 },
+      activeRuneSpellIds: ["RUNE_NEW"],
+      spellIds: ["SPELL_NEW"]
+    }
+  )),
+  true,
+  "tracked feature additions are Pareto-safe"
+);
+assert.equal(
+  isParetoSafeDelta(delta({ atk: 10 }, { atk: 9, def: 11 })),
+  false,
+  "any combat loss is not Pareto-safe"
+);
+assert.equal(
+  isParetoSafeDelta(delta(
+    { explorationSupportValues: { trapBonus: 10, trapGuard: 10 } },
+    { explorationSupportValues: { trapBonus: 9, trapGuard: 11 } }
+  )),
+  false,
+  "any Exploration Support loss is not Pareto-safe"
+);
+assert.equal(
+  isParetoSafeDelta(delta(
+    { supportValues: { followUp: 1 }, activeRuneSpellIds: ["RUNE_OLD"] },
+    { supportValues: { followUp: 2 }, activeRuneSpellIds: [] }
+  )),
+  false,
+  "tracked feature loss is not Pareto-safe"
+);
+assert.equal(
+  isParetoSafeDelta(delta({}, {})),
+  false,
+  "no improvement is not Pareto-safe"
+);
+assert.equal(
+  isParetoSafeDelta(delta({ atk: 10 }, { atk: 9, mainCoreIds: ["CORE_NEW"] })),
+  false,
+  "mixed improvement and loss is a tradeoff"
 );
 
 assert.deepEqual(

@@ -259,8 +259,25 @@ const { resolveBuildSnapshot } = await import("../../src/rules/build_snapshot.js
 const { calculateSecretDoorSearchChance } = await import("../../src/rules/exploration_rules.js");
 const {
   classifySidegrade,
-  diffBuildObservations
+  diffBuildObservations,
+  isParetoSafeDelta
 } = await import("../measurements/build_progression_audit.js");
+
+export const EQUIPMENT_UPDATE_POLICY_IDS = Object.freeze([
+  "fixed",
+  "deterministic_greedy",
+  "deterministic_greedy_pareto_safe"
+]);
+
+export function shouldApplyParetoSafeOverride({
+  policyId,
+  delta,
+  greedyQualifies,
+  eligible = true
+} = {}) {
+  return eligible && policyId === "deterministic_greedy_pareto_safe" &&
+    !greedyQualifies && isParetoSafeDelta(delta);
+}
 
 // Historical class-axis simulations keep their old learned spell list in
 // scratch only. Production auto/combat permission is always socket-backed.
@@ -10337,6 +10354,8 @@ function createEquipmentCandidateAudit(metrics, state, {
   selectionScore = null,
   qualifies = false,
   rejectionReason = null,
+  paretoSafe = false,
+  paretoSafeOverride = false,
   before = null,
   after = null
 }) {
@@ -10359,6 +10378,8 @@ function createEquipmentCandidateAudit(metrics, state, {
     scoreAfter: Number.isFinite(Number(candidateGreedyScore)) ? candidateGreedyScore : null,
     selectionScore: Number.isFinite(Number(selectionScore)) ? selectionScore : null,
     qualifies: Boolean(qualifies),
+    paretoSafe: Boolean(paretoSafe),
+    paretoSafeOverride: Boolean(paretoSafeOverride),
     rejectionReason,
     selected: false,
     evaluableCandidate: Boolean(delta),
@@ -10508,6 +10529,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       let qualifies;
       let rejectionReason;
       let candidateAudit = null;
+      let paretoSafe = false;
+      let paretoSafeOverride = false;
 
       if (policy === "gamble" && candidateIsUnidentified) {
         // 未鑑定品は真値を見ず、同階層以上の装備なら「更新になりうる」として着用候補化。
@@ -10549,14 +10572,10 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
             });
           }
         }
-        const before = metrics.equipmentCandidateAudit
-          ? createCandidateBuildObservation(state)
-          : null;
+        const before = createCandidateBuildObservation(state);
         character.equipment[slot] = candidate;
         candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
-        const after = metrics.equipmentCandidateAudit
-          ? createCandidateBuildObservation(state)
-          : null;
+        const after = createCandidateBuildObservation(state);
         character.equipment[slot] = oldEquipment;
         const matchingSupport = candidateMatchesEquippedCore(character, candidate);
         const oldMatchingSupport = candidateMatchesEquippedCore(character, oldEquipment);
@@ -10605,6 +10624,16 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
             : candidateScore > currentScore / ECONOMY_CORE_KEEP_RATIO;
           rejectionReason = "equipped-core-retained";
         }
+        paretoSafe = isParetoSafeDelta(diffBuildObservations(before, after));
+        paretoSafeOverride = shouldApplyParetoSafeOverride({
+          policyId: metrics.equipmentUpdatePolicy,
+          delta: diffBuildObservations(before, after),
+          greedyQualifies: qualifies
+        });
+        if (paretoSafeOverride) {
+          qualifies = true;
+          rejectionReason = "pareto-safe-override";
+        }
         candidateAudit = createEquipmentCandidateAudit(metrics, state, {
           slot,
           oldEquipment,
@@ -10614,6 +10643,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
           selectionScore,
           qualifies,
           rejectionReason,
+          paretoSafe,
+          paretoSafeOverride,
           before,
           after
         });
@@ -10641,7 +10672,9 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         scoreBefore: currentScore,
         selectionScore,
         slot,
-        candidateAudit
+        candidateAudit,
+        paretoSafe,
+        paretoSafeOverride
       };
     });
 
@@ -10676,7 +10709,10 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         scoreBefore: best.scoreBefore,
         scoreAfter: getEquipmentScore(character, scoringProfile, state.floor),
         slot: best.slot,
+        decisionOrdinal: metrics.equipmentDecisionOrdinal++,
+        paretoSafeOverride: Boolean(best.paretoSafeOverride),
         candidateId: selectedCandidate?.baseId || null,
+        candidateInstanceId: selectedCandidate?.instanceId || null,
         candidateAuditId: best.candidateAudit?.id || null,
         oldCoreId: best.oldCoreId,
         candidateCoreId: selectedCandidateCoreId,
@@ -13897,6 +13933,8 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     steps: metrics.steps,
     routePolicy: metrics.routePolicy,
     equipmentUpdatePolicy: metrics.equipmentUpdatePolicy,
+    paretoSafeOverrideCount: (metrics.equipmentTelemetry || [])
+      .filter(event => event.type === "swap" && event.paretoSafeOverride).length,
     mpConsumed: metrics.mpConsumed,
     exploredCells: metrics.exploredCells,
     exploredCellsByFloor: { ...metrics.exploredCellsByFloor },
@@ -14511,6 +14549,7 @@ export function simulateRun({
     equipmentUpgrades: 0,
     earlyEquipmentUpgrades: 0,
     deepEquipmentUpgrades: 0,
+    equipmentDecisionOrdinal: 0,
     equipmentTelemetry: collectEquipmentTelemetry ? [] : null,
     equipmentCandidateAudit: collectEquipmentCandidateAudit ? [] : null,
     equipmentCandidateAuditSequence: 0,

@@ -234,6 +234,19 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" },
     buildArgs: earlyAttritionArgs
   }),
+  "build-progression-pareto-safe": freezeDefinition({
+    id: "build-progression-pareto-safe",
+    label: "Pareto-safe equipment policy diagnostic",
+    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "equipment-pareto-safe" },
+    allowed: { treatment: ["equipment-pareto-safe"] },
+    buildArgs: earlyAttritionArgs
+  }),
   "b2-chest-trap": freezeDefinition({
     id: "b2-chest-trap",
     label: "B2 chest-trap suppression diagnostic",

@@ -37,6 +37,7 @@ export const REJECTION_REASON_IDS = Object.freeze([
   "economy-core-retained",
   "economy-below-95pct",
   "equipped-core-retained",
+  "pareto-safe-override",
   "not-best-selection-score",
   "out-ranked-by-later-candidate",
   "other"
@@ -122,6 +123,39 @@ function anyNegative(values) {
   return Object.values(values || {}).some(negative);
 }
 
+function hasFeatureAddition(delta) {
+  return [
+    delta?.mainCoreIdsAdded,
+    delta?.auxiliaryCoreIdsAdded,
+    delta?.activeRuneSpellIdsAdded,
+    delta?.spellIdsAdded
+  ].some(values => Array.isArray(values) && values.length > 0) ||
+    anyPositive(delta?.supportDelta);
+}
+
+function hasFeatureRemoval(delta) {
+  return [
+    delta?.mainCoreIdsRemoved,
+    delta?.auxiliaryCoreIdsRemoved,
+    delta?.activeRuneSpellIdsRemoved,
+    delta?.spellIdsRemoved
+  ].some(values => Array.isArray(values) && values.length > 0) ||
+    anyNegative(delta?.supportDelta);
+}
+
+// This is the shared Build-axis predicate. Keep it pure so measurement
+// classification and the simulation-only counterfactual policy cannot drift.
+export function isParetoSafeDelta(delta) {
+  const combat = [delta?.atk, delta?.def, delta?.maxHp, delta?.maxMp];
+  const hasCombatLoss = combat.some(negative);
+  const hasExplorationLoss = anyNegative(delta?.explorationAbilityDelta);
+  const hasFeatureLoss = hasFeatureRemoval(delta);
+  const hasImprovement = combat.some(positive) ||
+    anyPositive(delta?.explorationAbilityDelta) ||
+    hasFeatureAddition(delta);
+  return !hasCombatLoss && !hasExplorationLoss && !hasFeatureLoss && hasImprovement;
+}
+
 export function classifySidegrade(delta) {
   const combat = [delta?.atk, delta?.def, delta?.maxHp, delta?.maxMp];
   const combatImproved = combat.some(positive);
@@ -129,25 +163,11 @@ export function classifySidegrade(delta) {
   const offenseReduced = negative(delta?.atk);
   const durabilityImproved = [delta?.def, delta?.maxHp, delta?.maxMp].some(positive);
   const explorationImproved = anyPositive(delta?.explorationAbilityDelta);
-  const featureImproved = [
-    delta?.mainCoreIdsAdded,
-    delta?.auxiliaryCoreIdsAdded,
-    delta?.activeRuneSpellIdsAdded,
-    delta?.spellIdsAdded
-  ].some(values => Array.isArray(values) && values.length > 0) ||
-    anyPositive(delta?.supportDelta);
-  const featureReduced = [
-    delta?.mainCoreIdsRemoved,
-    delta?.auxiliaryCoreIdsRemoved,
-    delta?.activeRuneSpellIdsRemoved,
-    delta?.spellIdsRemoved
-  ].some(values => Array.isArray(values) && values.length > 0) ||
-    anyNegative(delta?.supportDelta);
+  const featureImproved = hasFeatureAddition(delta);
+  const featureReduced = hasFeatureRemoval(delta);
   const classifications = [];
 
-  if (!combatReduced && !anyNegative(delta?.explorationAbilityDelta) &&
-    !featureReduced &&
-    (combatImproved || explorationImproved || featureImproved)) {
+  if (isParetoSafeDelta(delta)) {
     classifications.push("strictUpgrade");
   }
   if (combatImproved && combatReduced) classifications.push("combatTradeoff");
