@@ -23,6 +23,7 @@ on:
           - run-difficulty-policy-sensitivity
           - early-run-attrition
           - build-progression-audit
+          - build-progression-pareto-safe
           - b2-chest-trap
           - survival-policy
       runs:
@@ -288,11 +289,11 @@ jobs:
 
   measure-other:
     if: inputs.measurement != 'standard'
-    timeout-minutes: ${{ inputs.measurement == 'build-progression-audit' && 45 || 20 }}
+    timeout-minutes: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe"]'), inputs.measurement) && 45 || 20 }}
     runs-on: ubuntu-latest
     env:
-      MEASUREMENT_JOB_TIMEOUT_MINUTES: ${{ inputs.measurement == 'build-progression-audit' && 45 || 20 }}
-      MEASUREMENT_STEP_TIMEOUT_MINUTES: ${{ inputs.measurement == 'build-progression-audit' && 30 || 15 }}
+      MEASUREMENT_JOB_TIMEOUT_MINUTES: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe"]'), inputs.measurement) && 45 || 20 }}
+      MEASUREMENT_STEP_TIMEOUT_MINUTES: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe"]'), inputs.measurement) && 30 || 15 }}
       MEASUREMENT_TIMEOUT_BASIS: "10 completed local N=1000 candidate-audit runs; p95=319.54s; max=319.54s; 30m step/45m job"
     steps:
       - uses: actions/checkout@v4
@@ -307,7 +308,7 @@ jobs:
       - run: npm ci
       - name: Run selected balance measurement
         id: measurement
-        timeout-minutes: ${{ inputs.measurement == 'build-progression-audit' && 30 || 15 }}
+        timeout-minutes: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe"]'), inputs.measurement) && 30 || 15 }}
         continue-on-error: true
         env:
           MEASUREMENT_ID: ${{ inputs.measurement }}

@@ -82,6 +82,26 @@ export const MEASUREMENT_TREATMENTS = Object.freeze({
     id: "b2-chest-trap",
     policies: B2_CHEST_TRAP_POLICIES,
     description: "matched B2 chest-trap Cost suppression"
+  }),
+  "equipment-pareto-safe": Object.freeze({
+    id: "equipment-pareto-safe",
+    policies: Object.freeze({
+      t0: Object.freeze({
+        ...TRAJECTORY_POLICIES.t0,
+        id: "t0",
+        label: "current deterministic greedy",
+        description: "current deterministic_greedy equipment policy",
+        equipmentUpdatePolicy: "deterministic_greedy"
+      }),
+      t1: Object.freeze({
+        ...TRAJECTORY_POLICIES.t0,
+        id: "t1",
+        label: "Pareto-safe counterfactual",
+        description: "deterministic_greedy with Pareto-safe scalar-gate override",
+        equipmentUpdatePolicy: "deterministic_greedy_pareto_safe"
+      })
+    }),
+    description: "equipment policy comparison; only the equipment update policy differs"
   })
 });
 export const MEASUREMENT_RUNNER_PATHS = Object.freeze([
@@ -690,9 +710,28 @@ export function compactRun(
     build: {
       starting: compactBuildSnapshot(result.startingBuildSnapshot),
       ending: compactBuildSnapshot(result.diagnostics?.finalBuild || result.endingBuildSnapshot),
-      shiftCount: (result.equipmentTelemetry || []).filter(event => event.type === "swap").length
+      shiftCount: (result.equipmentTelemetry || []).filter(event => event.type === "swap").length,
+      equipmentUpdatePolicy: result.equipmentUpdatePolicy || "deterministic_greedy",
+      paretoSafeOverrideCount: Number(result.paretoSafeOverrideCount) || 0
     },
   };
+  // Decision trace is transient coordination data for the paired comparison.
+  // It is non-enumerable so bounded run samples and JSON reports cannot retain
+  // a new unbounded per-run array.
+  Object.defineProperty(compacted, "equipmentDecisionTrace", {
+    value: (result.equipmentTelemetry || [])
+      .filter(event => event.type === "swap")
+      .map(event => ({
+        floor: finite(event.floor),
+        step: finite(event.step),
+        decisionOrdinal: finite(event.decisionOrdinal),
+        slot: event.slot || null,
+        candidateId: event.candidateId || null,
+        candidateInstanceId: event.candidateInstanceId || null,
+        paretoSafeOverride: Boolean(event.paretoSafeOverride)
+      })),
+    enumerable: false
+  });
   if (candidateAuditSummary) {
     compacted.equipmentCandidateAuditSummary = candidateAuditSummary;
     compacted.buildCheckpoints = compactBuildCheckpoints(result, floors);
@@ -840,6 +879,95 @@ export function buildMatchedTrajectory(baselineRecords, candidateRecords) {
     }
   });
   return joined;
+}
+
+function compactEquipmentDecision(decision) {
+  if (!decision) return { type: "no-swap" };
+  return {
+    type: "swap",
+    floor: finite(decision.floor),
+    step: finite(decision.step),
+    decisionOrdinal: finite(decision.decisionOrdinal),
+    slot: decision.slot || null,
+    candidateId: decision.candidateId || null,
+    candidateInstanceId: decision.candidateInstanceId || null
+  };
+}
+
+export function compareEquipmentDecisionPrefix(baselineRecord, candidateRecord) {
+  const baselineTrace = baselineRecord?.equipmentDecisionTrace || [];
+  const candidateTrace = candidateRecord?.equipmentDecisionTrace || [];
+  const length = Math.max(baselineTrace.length, candidateTrace.length);
+  for (let index = 0; index < length; index++) {
+    const baseline = baselineTrace[index] || null;
+    const candidate = candidateTrace[index] || null;
+    if (JSON.stringify(compactEquipmentDecision(baseline)) ===
+        JSON.stringify(compactEquipmentDecision(candidate))) continue;
+    const first = candidate || baseline;
+    return {
+      diverged: true,
+      firstDivergenceFloor: finite(first?.floor),
+      firstDivergenceDecisionOrdinal: finite(first?.decisionOrdinal ?? index),
+      baselineDecision: compactEquipmentDecision(baseline),
+      counterfactualDecision: compactEquipmentDecision(candidate),
+      paretoSafeOverride: Boolean(candidate?.paretoSafeOverride),
+      decisionIndex: index
+    };
+  }
+  return {
+    diverged: false,
+    firstDivergenceFloor: null,
+    firstDivergenceDecisionOrdinal: null,
+    baselineDecision: null,
+    counterfactualDecision: null,
+    paretoSafeOverride: false,
+    decisionIndex: null
+  };
+}
+
+export function summarizeFirstPolicyDivergence(
+  baselineRecords,
+  candidateRecords,
+  { sampleLimit = RUN_EVIDENCE_SAMPLE_LIMIT } = {}
+) {
+  if (!Number.isInteger(sampleLimit) || sampleLimit < 0) {
+    throw new Error(`first-divergence sample limit must be a non-negative integer: ${sampleLimit}`);
+  }
+  const joined = buildMatchedTrajectory(baselineRecords, candidateRecords);
+  const byFloor = Object.fromEntries(TRAJECTORY_FLOORS.map(floor => [String(floor), {
+    count: 0,
+    rate: null
+  }]));
+  const rows = joined.map(({ baseline, candidate }) => ({
+    runIndex: baseline.runIndex,
+    worldSeed: baseline.worldSeed,
+    ...compareEquipmentDecisionPrefix(baseline, candidate)
+  }));
+  const divergent = rows.filter(row => row.diverged);
+  divergent.forEach(row => {
+    const floor = String(row.firstDivergenceFloor);
+    byFloor[floor] ||= { count: 0, rate: null };
+    byFloor[floor].count++;
+  });
+  Object.values(byFloor).forEach(row => {
+    row.rate = rate(row.count, rows.length);
+  });
+  return {
+    status: rows.length > 0 ? "observed" : "unobserved",
+    comparedRunCount: rows.length,
+    noDivergenceRunCount: rows.length - divergent.length,
+    affectedRunCount: divergent.length,
+    affectedRunRate: rate(divergent.length, rows.length),
+    firstDivergenceFloorDistribution: byFloor,
+    evidenceSample: {
+      policy: "first-N paired run decisions in deterministic runIndex order",
+      limit: sampleLimit,
+      totalCount: rows.length,
+      retainedCount: Math.min(sampleLimit, rows.length),
+      droppedCount: Math.max(0, rows.length - sampleLimit),
+      runs: rows.slice(0, sampleLimit)
+    }
+  };
 }
 
 function addCounts(target, key, amount = 1) {
@@ -1329,6 +1457,10 @@ function summarizeLootBuild(records) {
   const buildOpportunities = records.reduce((total, record) => total + Object.values(record.floors)
     .reduce((floorTotal, floor) => floorTotal + (floor?.loot?.buildOpportunities || 0), 0), 0);
   const buildChanges = records.reduce((total, record) => total + record.build.shiftCount, 0);
+  const paretoSafeOverrideCount = records.reduce(
+    (total, record) => total + (record.build.paretoSafeOverrideCount || 0),
+    0
+  );
   const endingBuildSnapshots = {};
   records.forEach(record => {
     const identity = record.build.ending?.identity || "unknown";
@@ -1342,6 +1474,7 @@ function summarizeLootBuild(records) {
     buildOpportunities,
     buildChanges,
     buildChangeRuns: records.filter(record => record.build.shiftCount > 0).length,
+    paretoSafeOverrideCount,
     endingBuildSnapshots,
     definitions: {
       lootOpportunities: "accepted or explicitly left/discarded meaningful reward events",
@@ -1763,6 +1896,7 @@ export async function runMeasurement(options = {}) {
       scenario: {
         ...baseScenario,
         startingKit: startingKitId,
+        equipmentUpdatePolicy: policy.equipmentUpdatePolicy || "deterministic_greedy",
         portalPolicyId: policy.portalPolicyId,
         portalHpThreshold: policy.portalHpThreshold,
         chestTrapCostSuppressionFloor: policy.chestTrapCostSuppressionFloor ?? null,
@@ -1873,7 +2007,12 @@ export async function runMeasurement(options = {}) {
       const t1CandidateAuditSample = candidateSampleCollectors.t1?.finalize() || null;
       const t0RunEvidenceSample = runEvidenceSampleCollectors.t0.finalize();
       const t1RunEvidenceSample = runEvidenceSampleCollectors.t1.finalize();
-      const matchedConversions = buildMatchedConversions(t0, t1);
+      const firstPolicyDivergence = treatment.id === "equipment-pareto-safe"
+        ? summarizeFirstPolicyDivergence(t0, t1)
+        : null;
+      const matchedConversions = treatment.id === "equipment-pareto-safe"
+        ? null
+        : buildMatchedConversions(t0, t1);
       cases.push({
         scenarioId,
         startingKitId,
@@ -1892,8 +2031,11 @@ export async function runMeasurement(options = {}) {
           }
         },
         matchedConversions,
-        matchedChestComparison: buildMatchedChestComparison(t0, t1),
-        returnContinuation: matchedConversions.returnContinuation
+        matchedChestComparison: treatment.id === "equipment-pareto-safe"
+          ? null
+          : buildMatchedChestComparison(t0, t1),
+        returnContinuation: matchedConversions?.returnContinuation || null,
+        firstPolicyDivergence
       });
     }
   }
@@ -1909,7 +2051,17 @@ export async function runMeasurement(options = {}) {
     candidateAudit: config.collectEquipmentCandidateAudit,
     runEvidenceSampleLimit: RUN_EVIDENCE_SAMPLE_LIMIT,
     returnContinuationSampleLimit: RETURN_CONTINUATION_SAMPLE_LIMIT,
+    firstDivergenceEvidenceSampleLimit: RUN_EVIDENCE_SAMPLE_LIMIT,
     treatmentDescription: treatment.description,
+    comparisonSemantics: treatment.id === "equipment-pareto-safe"
+      ? {
+          boundary: "first policy decision divergence",
+          pairedKey: "condition + runIndex + worldSeed",
+          afterBoundary: "compare each policy outcome distribution; do not claim same-seed loot, encounter, chest, or path parity",
+          baselinePolicy: "deterministic_greedy",
+          counterfactualPolicy: "deterministic_greedy_pareto_safe"
+        }
+      : null,
     policies: Object.values(treatment.policies).map(policy => ({ ...policy })),
     matchedIdentity: hashConfiguration({
       source: "production-simulateRun",
@@ -1997,6 +2149,7 @@ export function buildReport(result, provenance = null, environmentSignature = nu
       runEvidenceSampleLimit: RUN_EVIDENCE_SAMPLE_LIMIT,
       returnContinuationSamplePolicy: RETURN_CONTINUATION_SAMPLE_POLICY,
       returnContinuationSampleLimit: RETURN_CONTINUATION_SAMPLE_LIMIT,
+      firstDivergenceEvidenceSampleLimit: RUN_EVIDENCE_SAMPLE_LIMIT,
       unobserved: [...UNOBSERVED_FIELDS]
     },
     configuration: result.configuration,
@@ -2064,7 +2217,7 @@ function buildProgressionLines(policy) {
     const checkpointLabel = checkpoint === "runStart"
       ? "Run Start"
       : checkpoint === "terminal" ? "Terminal" : checkpoint;
-    return `| ${checkpointLabel} | ${population.condition} | ${population.entered} | ${population.reachedNextFloor ?? "—"} | ${population.died ?? "—"} | ${population.voluntaryReturn ?? "—"} | ${population.otherTerminal ?? "—"} | ${distributionCell(combat.atk.delta)} | ${distributionCell(combat.def.delta)} | ${distributionCell(combat.maxHp.delta)} | ${distributionCell(combat.maxMp.delta)} | ${distributionCell(trapBonus?.value)} | ${trapGuard ? `${trapGuard.holderCount}/${population.entered} (${rateCell(trapGuard.holderRate)})` : "unobserved"} | ${distributionCell(maturity.changedEquipmentSlots)} | ${distributionCell(maturity.cumulativeEquipmentSwaps)} | ${rateCell(maturity.buildIdentityChangedRate)} |`;
+    return `| ${checkpointLabel} | ${population.condition} | ${population.entered} | ${population.reachedNextFloor ?? "—"} | ${population.died ?? "—"} | ${population.voluntaryReturn ?? "—"} | ${population.otherTerminal ?? "—"} | ${distributionCell(combat.atk.delta)} | ${distributionCell(combat.def.delta)} | ${distributionCell(combat.maxHp.delta)} | ${distributionCell(combat.maxMp.delta)} | ${distributionCell(trapBonus?.value)} | ${trapBonus ? `${trapBonus.holderCount}/${population.entered} (${rateCell(trapBonus.holderRate)})` : "unobserved"} | ${trapGuard ? `${trapGuard.holderCount}/${population.entered} (${rateCell(trapGuard.holderRate)})` : "unobserved"} | ${distributionCell(maturity.changedEquipmentSlots)} | ${distributionCell(maturity.cumulativeEquipmentSwaps)} | ${rateCell(maturity.buildIdentityChangedRate)} |`;
   });
   const supplyRows = TRAJECTORY_FLOORS.map(floor => {
     const supply = policy.aggregate.distributions[floor].lootSupply;
@@ -2113,8 +2266,8 @@ function buildProgressionLines(policy) {
     "Build Maturity = changed equipment slots, cumulative swaps, Core / Support / Rune / spell composition, and Build Snapshot identity.",
     "Loot supply and equipment decision activity are reported separately; no loot-to-candidate conversion rate is claimed because reward events and candidate audits have no stable cross-link.",
     "",
-    "| checkpoint | population | entered | next | died | Return | other | ΔATK p10/p50/p90 | ΔDEF p10/p50/p90 | ΔmaxHP p10/p50/p90 | ΔmaxMP p10/p50/p90 | trapBonus p10/p50/p90 | trapGuard holders | changed slots p10/p50/p90 | swaps p10/p50/p90 | identity changed |",
-    "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | ---: |",
+    "| checkpoint | population | entered | next | died | Return | other | ΔATK p10/p50/p90 | ΔDEF p10/p50/p90 | ΔmaxHP p10/p50/p90 | ΔmaxMP p10/p50/p90 | trapBonus p10/p50/p90 | trapBonus holders | trapGuard holders | changed slots p10/p50/p90 | swaps p10/p50/p90 | identity changed |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: |",
     ...checkpointRows,
     "",
     "Build maturity composition observed at B5 entrants (top 8): " + composition,
@@ -2172,7 +2325,9 @@ export function buildSummary(report) {
     `- N=${report.configuration.runs}/condition; seed=${report.configuration.seed}; observed B1–B5; B6 is a synthetic measurement cutoff, never voluntary Return`,
     report.configuration.treatment === "b2-chest-trap"
       ? "- T0 = current production; T1 = B2 chest-trap HP/status Cost suppressed at application boundary only"
-      : "- T0 = current P0 / Portal HP threshold 35%; T1 = P2 push probe / HP-threshold auto-Return disabled only",
+      : report.configuration.treatment === "equipment-pareto-safe"
+        ? "- T0 = current deterministic_greedy; T1 = deterministic_greedy_pareto_safe; only equipment update policy differs"
+        : "- T0 = current P0 / Portal HP threshold 35%; T1 = P2 push probe / HP-threshold auto-Return disabled only",
     `- matched identity: \`${report.configuration.matchedIdentity}\`; key = \`(runIndex, worldSeed)\``,
     `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}`,
     "",
@@ -2219,8 +2374,29 @@ export function buildSummary(report) {
           `- Ending Build Snapshot identities T0/T1: ${Object.keys(t0.lootBuild.endingBuildSnapshots).length}/${Object.keys(t1.lootBuild.endingBuildSnapshots).length}`
         );
       }
-      if (report.measurement.measurementId === "build-progression-audit") {
+      if (["build-progression-audit", "build-progression-pareto-safe"].includes(
+        report.measurement.measurementId
+      )) {
         lines.push(...buildProgressionLines(policy));
+      }
+      if (report.configuration.treatment === "equipment-pareto-safe" && policy.id === "t1") {
+        const divergence = testCase.firstPolicyDivergence;
+        const t0 = testCase.policies.t0.aggregate;
+        const t1 = testCase.policies.t1.aggregate;
+        const reach = floor => `${t0.waterfall[floor].reachedNextFloor}/${t1.waterfall[floor].reachedNextFloor}`;
+        lines.push(
+          "",
+          `### ${testCase.scenarioId} / ${testCase.startingKitId} — equipment policy comparison`,
+          "",
+          `- first policy divergence floor distribution: ${JSON.stringify(divergence.firstDivergenceFloorDistribution)}`,
+          `- first policy divergence: affected runs ${divergence.affectedRunCount}/${divergence.comparedRunCount}; affected-run rate ${rateCell(divergence.affectedRunRate)}; no divergence ${divergence.noDivergenceRunCount}`,
+          `- first-divergence evidence sample: ${divergence.evidenceSample.retainedCount}/${divergence.evidenceSample.totalCount} (limit ${divergence.evidenceSample.limit})`,
+          `- B2/B3/B4/B5 reach T0/T1: ${reach(2)} / ${reach(3)} / ${reach(4)} / ${reach(5)}`,
+          `- terminal death T0/T1: ${t0.outcomeCounts.death || 0}/${t1.outcomeCounts.death || 0}; voluntary Return: ${(t0.outcomeCounts.retreat || 0)}/${(t1.outcomeCounts.retreat || 0)}`,
+          "- first divergence is the paired boundary; after it, same-seed loot, encounter, chest exposure, path, and event correspondence are not claimed",
+          "- T0/T1 Build Maturity, Combat Growth, Exploration Safety Growth, trapBonus holder rate, trapGuard holder rate, and selected candidate ↔ swap consistency are reported above per policy",
+          `- Pareto-safe override swaps T0/T1: ${t0.lootBuild.paretoSafeOverrideCount || 0}/${t1.lootBuild.paretoSafeOverrideCount || 0}`
+        );
       }
     });
   });
@@ -2239,7 +2415,9 @@ export function buildSummary(report) {
     "- No raw combat log is persisted; each run keeps floor state, aggregate costs, terminal state, build snapshots, and at most the last three compact cost events.",
     "- T1 is a matched causal probe and is not a production recommendation."
   );
-  if (report.measurement.measurementId === "build-progression-audit") {
+  if (["build-progression-audit", "build-progression-pareto-safe"].includes(
+    report.measurement.measurementId
+  )) {
     const invarianceValues = Object.values(report.observationInvariance || {});
     const invarianceStatus = invarianceValues.length === 0
       ? "unobserved"
@@ -2324,7 +2502,8 @@ export function buildManifest(report, { runType = "diagnostic" } = {}) {
       boundedTerminalCostEvents: 3,
       fullRunRecords: "omitted",
       runEvidenceSampleLimit: RUN_EVIDENCE_SAMPLE_LIMIT,
-      returnContinuationSampleLimit: RETURN_CONTINUATION_SAMPLE_LIMIT
+      returnContinuationSampleLimit: RETURN_CONTINUATION_SAMPLE_LIMIT,
+      firstDivergenceEvidenceSampleLimit: RUN_EVIDENCE_SAMPLE_LIMIT
     },
     workflow: {
       repository: process.env.MEASUREMENT_REPOSITORY || null,

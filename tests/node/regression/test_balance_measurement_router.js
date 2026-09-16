@@ -22,10 +22,11 @@ assert.deepEqual(MEASUREMENT_IDS, [
   "run-difficulty-policy-sensitivity",
   "early-run-attrition",
   "build-progression-audit",
+  "build-progression-pareto-safe",
   "b2-chest-trap",
   "survival-policy"
 ]);
-assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 11);
+assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 12);
 assert.deepEqual(MEASUREMENT_REGISTRY.standard.allowedRunTypes, [
   "baseline-candidate", "diagnostic", "temporary"
 ]);
@@ -40,6 +41,7 @@ for (const measurement of [
   "run-difficulty-policy-sensitivity",
   "early-run-attrition",
   "build-progression-audit",
+  "build-progression-pareto-safe",
   "b2-chest-trap",
   "survival-policy"
 ]) {
@@ -78,6 +80,11 @@ const buildProgression = resolveMeasurementOptions({ measurement: "build-progres
 assert.deepEqual(
   { runs: buildProgression.runs, seed: buildProgression.seed, runType: buildProgression.runType },
   { runs: 1000, seed: 1277, runType: "diagnostic" }
+);
+const paretoSafe = resolveMeasurementOptions({ measurement: "build-progression-pareto-safe", purpose: "test" });
+assert.deepEqual(
+  { runs: paretoSafe.runs, seed: paretoSafe.seed, runType: paretoSafe.runType, treatment: paretoSafe.treatment },
+  { runs: 1000, seed: 1277, runType: "diagnostic", treatment: "equipment-pareto-safe" }
 );
 const b2ChestTrap = resolveMeasurementOptions({ measurement: "b2-chest-trap", purpose: "test" });
 assert.deepEqual(
@@ -118,7 +125,7 @@ assert.equal(
   "balance-measurement-early-run-attrition-123-attempt"
 );
 
-for (const measurement of ["standard", "early-run-attrition", "build-progression-audit", "b2-chest-trap", "survival-policy"]) {
+for (const measurement of ["standard", "early-run-attrition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy"]) {
   const invocation = resolveRunnerInvocation({ measurement, purpose: "smoke" }, "/tmp/router-test");
   assert.equal(invocation.measurement, measurement);
   assert.match(invocation.runner, /scratch\/measurements\//);

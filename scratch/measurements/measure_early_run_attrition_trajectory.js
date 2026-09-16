@@ -68,7 +68,12 @@ printMeasurementEnvSignature(config);
 const result = await runMeasurement({
   ...config,
   treatment,
-  collectEquipmentCandidateAudit: measurementId === "build-progression-audit"
+  // Both build diagnostics need the exact same candidate telemetry; the
+  // existing audit's default treatment/output semantics remain unchanged.
+  collectEquipmentCandidateAudit: [
+    "build-progression-audit",
+    "build-progression-pareto-safe"
+  ].includes(measurementId)
 });
 const report = buildReport(result, provenance, environmentSignature, {
   purpose: options.purpose || null,
