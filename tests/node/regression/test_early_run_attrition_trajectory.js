@@ -331,7 +331,15 @@ assert.equal(
 );
 assert.equal(auditedReport.cases[0].policies.t0.records, undefined);
 assert.equal(auditedReport.determinism.byPolicy.t0.first, undefined);
+assert.equal(auditedReport.determinism.byPolicy.t0.second, undefined);
+assert.equal(auditedReport.determinism.byPolicy.t1.first, undefined);
+assert.equal(auditedReport.determinism.byPolicy.t1.second, undefined);
 assert.equal(JSON.stringify(auditedReport).includes('"records"'), false);
+assert.equal(JSON.stringify(auditedReport).includes('"first"'), false);
+assert.equal(JSON.stringify(auditedReport).includes('"second"'), false);
+Object.values(auditedReport.cases[0].policies).forEach(policy => {
+  assert.equal(policy.records, undefined);
+});
 const auditedManifest = trajectory.buildManifest(auditedReport);
 const auditedSummary = trajectory.buildSummary(auditedReport);
 assert.match(auditedSummary, /Exploration Support candidate evaluation activity/);
