@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 
 import {
   diffBuildObservations,
-  isParetoSafeDelta
+  isParetoSafeDelta,
+  normalizeRejectionReason,
+  REJECTION_REASON_IDS
 } from "../../../scratch/measurements/build_progression_audit.js";
 import {
   buildManifest,
@@ -12,7 +14,12 @@ import {
   summarizeFirstPolicyDivergence,
   runMeasurement
 } from "../../../scratch/measurements/early_run_attrition_trajectory.js";
-import { shouldApplyParetoSafeOverride } from "../../../scratch/simulations/sim_depth_material_ev.js";
+import {
+  createEquipmentStateCycleGuard,
+  createEquipmentStateFingerprint,
+  runEquipmentUpgradeFixture,
+  shouldApplyParetoSafeOverride
+} from "../../../scratch/simulations/sim_depth_material_ev.js";
 
 const observation = ({ atk = 10, explorationSupportValues = {} } = {}) => ({
   atk,
@@ -61,6 +68,149 @@ assert.equal(
   "non-score eligibility cannot be bypassed"
 );
 assert.equal(isParetoSafeDelta(safeDelta), true);
+assert.ok(REJECTION_REASON_IDS.includes("cycle-state"));
+assert.equal(normalizeRejectionReason("cycle-state"), "cycle-state");
+
+const equipment = (instanceId, baseId) => ({
+  kind: "equipment",
+  instanceId,
+  baseId,
+  type: "weapon",
+  identified: true,
+  affixes: []
+});
+const armor = (instanceId, baseId) => ({
+  kind: "equipment",
+  instanceId,
+  baseId,
+  type: "armor",
+  identified: true,
+  affixes: []
+});
+
+const cycleCharacter = {
+  equipment: {
+    weapon: equipment("A", "A_WEAPON"),
+    shield: null,
+    armor: armor("ARMOR_A", "A_ARMOR"),
+    accessory: null,
+    accessory2: null
+  }
+};
+const twoStateGuard = createEquipmentStateCycleGuard(
+  "deterministic_greedy_pareto_safe",
+  cycleCharacter
+);
+cycleCharacter.equipment.weapon = equipment("B", "B_WEAPON");
+twoStateGuard.record(cycleCharacter);
+cycleCharacter.equipment.weapon = equipment("A", "A_WEAPON");
+assert.equal(twoStateGuard.hasVisited(cycleCharacter), true, "2-state A→B→A cycle is blocked");
+
+const threeStateGuard = createEquipmentStateCycleGuard(
+  "deterministic_greedy_pareto_safe",
+  cycleCharacter
+);
+cycleCharacter.equipment.weapon = equipment("B", "B_WEAPON");
+threeStateGuard.record(cycleCharacter);
+cycleCharacter.equipment.weapon = equipment("C", "C_WEAPON");
+threeStateGuard.record(cycleCharacter);
+cycleCharacter.equipment.weapon = equipment("A", "A_WEAPON");
+assert.equal(threeStateGuard.hasVisited(cycleCharacter), true, "3-state A→B→C→A cycle is blocked");
+
+cycleCharacter.equipment.armor = armor("ARMOR_B", "B_ARMOR");
+assert.equal(
+  threeStateGuard.hasVisited(cycleCharacter),
+  false,
+  "same weapon with a different slot state remains eligible"
+);
+assert.notEqual(
+  createEquipmentStateFingerprint(cycleCharacter),
+  createEquipmentStateFingerprint({ ...cycleCharacter, equipment: { ...cycleCharacter.equipment, armor: armor("ARMOR_A", "A_ARMOR") } }),
+  "state fingerprint includes slot equipment identity"
+);
+
+const baselineGuard = createEquipmentStateCycleGuard("deterministic_greedy", cycleCharacter);
+baselineGuard.record(cycleCharacter);
+cycleCharacter.equipment.weapon = equipment("A", "A_WEAPON");
+assert.equal(baselineGuard.hasVisited(cycleCharacter), false, "baseline greedy has no cycle guard");
+
+const assertActualLoopConsistency = (fixture, expectedSwaps) => {
+  const swaps = fixture.metrics.equipmentTelemetry.filter(event => event.type === "swap");
+  const selected = fixture.metrics.equipmentCandidateAudit.filter(audit => audit.selected);
+  assert.deepEqual(
+    selected.map(audit => audit.id),
+    swaps.map(event => event.candidateAuditId),
+    "selected candidate ↔ swap consistency"
+  );
+  assert.equal(swaps.length, expectedSwaps.length);
+  assert.deepEqual(swaps.map(event => event.candidateInstanceId), expectedSwaps);
+};
+
+const runActualLoopFixture = options => {
+  let fixture;
+  assert.doesNotThrow(() => {
+    fixture = runEquipmentUpgradeFixture(options);
+  }, "equipment upgrade loop converges through the actual evaluation path");
+  return fixture;
+};
+
+const actualTwoState = runActualLoopFixture({ candidateCount: 2 });
+assert.equal(actualTwoState.upgrades, 1, "actual upgrade loop converges after A→B");
+assert.equal(actualTwoState.state.party[0].equipment.weapon.instanceId, "B");
+assertActualLoopConsistency(actualTwoState, ["B"]);
+assert.equal(
+  actualTwoState.metrics.equipmentCandidateAudit.some(audit =>
+    audit.candidateInstanceId === "A" && audit.rejectionReason === "cycle-state"
+  ),
+  true,
+  "actual loop records cycle-state rejection for B→A"
+);
+assert.equal(
+  actualTwoState.metrics.equipmentTelemetry.some(event => event.candidateInstanceId === "A"),
+  false,
+  "actual loop never swaps B→A"
+);
+
+// Without the guard, A is scalar-greedy after B and repeatedly replaces the
+// current item; the same fixture therefore reaches the maxIterations throw.
+const actualThreeState = runActualLoopFixture({ candidateCount: 3 });
+assert.equal(actualThreeState.upgrades, 2, "actual three-state loop converges after A→B→C");
+assert.equal(actualThreeState.state.party[0].equipment.weapon.instanceId, "C");
+assertActualLoopConsistency(actualThreeState, ["B", "C"]);
+assert.equal(
+  actualThreeState.metrics.equipmentCandidateAudit.some(audit =>
+    audit.candidateInstanceId === "A" && audit.rejectionReason === "cycle-state"
+  ),
+  true,
+  "actual three-state loop records return-to-A rejection"
+);
+
+const actualBaseline = runActualLoopFixture({
+  policyId: "deterministic_greedy",
+  candidateCount: 2
+});
+assert.equal(actualBaseline.upgrades, 0, "baseline loop keeps scalar-greedy A");
+assert.equal(actualBaseline.state.party[0].equipment.weapon.instanceId, "A");
+assertActualLoopConsistency(actualBaseline, []);
+assert.equal(
+  actualBaseline.metrics.equipmentCandidateAudit.some(audit => audit.rejectionReason === "cycle-state"),
+  false,
+  "baseline loop has no cycle guard intervention"
+);
+
+const actualCurseBoundary = runActualLoopFixture({
+  candidateCount: 2,
+  currentCursed: true
+});
+assert.equal(actualCurseBoundary.upgrades, 0, "Pareto override cannot replace a curse-locked item");
+assert.equal(actualCurseBoundary.state.party[0].equipment.weapon.instanceId, "A");
+assert.equal(
+  actualCurseBoundary.metrics.equipmentCandidateAudit.some(audit =>
+    audit.candidateInstanceId === "B" && audit.rejectionReason === "current-curse-locked"
+  ),
+  true,
+  "actual loop preserves current-curse-locked eligibility boundary"
+);
 
 const run = (trace, runIndex) => ({
   runIndex,

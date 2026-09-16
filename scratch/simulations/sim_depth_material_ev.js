@@ -9568,6 +9568,61 @@ function isEquipment(item) {
   return ["weapon", "shield", "armor", "accessory"].includes(item?.type);
 }
 
+function stableEquipmentStateValue(value, seen = new Set()) {
+  if (value === null) return "null";
+  if (typeof value !== "object") return `${typeof value}:${JSON.stringify(value)}`;
+  if (seen.has(value)) return "object:[Circular]";
+  seen.add(value);
+  const serialized = Array.isArray(value)
+    ? `[${value.map(entry => stableEquipmentStateValue(entry, seen)).join(",")}]`
+    : `{${Object.keys(value).sort().map(key =>
+        `${JSON.stringify(key)}:${stableEquipmentStateValue(value[key], seen)}`
+      ).join(",")}}`;
+  seen.delete(value);
+  return serialized;
+}
+
+function normalizeEquipmentStateItem(item) {
+  if (!item || typeof item !== "object") return item;
+  const normalized = { ...item };
+  // legacy identification adds these defaults while evaluating a candidate;
+  // they do not make an otherwise identical item a distinct equipment state.
+  if (normalized.identified !== false) delete normalized.identified;
+  if (!normalized.halfIdentified) delete normalized.halfIdentified;
+  if (normalized.curseEffectId == null) delete normalized.curseEffectId;
+  if (!normalized.cursePower) delete normalized.cursePower;
+  if (!normalized.curseSuspected) delete normalized.curseSuspected;
+  return normalized;
+}
+
+// Runtime-only identity for the counterfactual equipment state. Include the
+// slot and the complete stable item shape so instance IDs cannot collapse
+// semantically distinct equipment in duplicate-slot modes.
+export function createEquipmentStateFingerprint(character) {
+  return Object.entries(character?.equipment || {})
+    .sort(([leftSlot], [rightSlot]) => leftSlot.localeCompare(rightSlot))
+    .map(([slot, item]) => `${JSON.stringify(slot)}:${stableEquipmentStateValue(
+      normalizeEquipmentStateItem(item)
+    )}`)
+    .join("|");
+}
+
+export function createEquipmentStateCycleGuard(policyId, character) {
+  const enabled = policyId === "deterministic_greedy_pareto_safe";
+  const visited = enabled
+    ? new Set([createEquipmentStateFingerprint(character)])
+    : null;
+  return {
+    enabled,
+    hasVisited(nextCharacter) {
+      return Boolean(enabled && visited.has(createEquipmentStateFingerprint(nextCharacter)));
+    },
+    record(nextCharacter) {
+      if (enabled) visited.add(createEquipmentStateFingerprint(nextCharacter));
+    }
+  };
+}
+
 function applyCoreEncounterCeiling(item) {
   if (CORE_ENCOUNTER_CEILING_MODE !== "epic-core" || !item || typeof item !== "object") {
     return item;
@@ -10436,12 +10491,19 @@ function createEquipmentCandidateAudit(metrics, state, {
   return audit;
 }
 
-function equipGreedyUpgrades(state, metrics, scoringProfile) {
+function equipGreedyUpgrades(state, metrics, scoringProfile, equipmentScoreOverride = null) {
   const character = state.party[0];
+  const scoreEquipment = typeof equipmentScoreOverride === "function"
+    ? equipmentScoreOverride
+    : (currentCharacter => getEquipmentScore(currentCharacter, scoringProfile, state.floor));
   if (EQUIPMENT_SLOT_MODE === "affixless-duplicates") {
     clearAffixlessVirtualSlots(character);
   }
   identifyAvailableEquipment(state, metrics, Math.random);
+  const cycleGuard = createEquipmentStateCycleGuard(
+    metrics.equipmentUpdatePolicy,
+    character
+  );
   let upgrades = 0;
   const maxIterations = state.inventory.length * 2 + Object.keys(character.equipment).length;
 
@@ -10449,7 +10511,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     if (upgrades > maxIterations) {
       throw new Error("equipment upgrade loop did not converge");
     }
-    const currentScore = getEquipmentScore(character, scoringProfile, state.floor);
+    const currentScore = scoreEquipment(character);
     let best = null;
     const keenEyeActive = Boolean(getCharCoreParams(character, "CORE_KEEN_EYE"));
 
@@ -10531,6 +10593,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       let candidateAudit = null;
       let paretoSafe = false;
       let paretoSafeOverride = false;
+      let candidateWouldCycle = false;
+      let paretoEligible = true;
 
       if (policy === "gamble" && candidateIsUnidentified) {
         // 未鑑定品は真値を見ず、同階層以上の装備なら「更新になりうる」として着用候補化。
@@ -10574,8 +10638,9 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         }
         const before = createCandidateBuildObservation(state);
         character.equipment[slot] = candidate;
-        candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
+        candidateScore = scoreEquipment(character);
         const after = createCandidateBuildObservation(state);
+        candidateWouldCycle = cycleGuard.hasVisited(character);
         character.equipment[slot] = oldEquipment;
         const matchingSupport = candidateMatchesEquippedCore(character, candidate);
         const oldMatchingSupport = candidateMatchesEquippedCore(character, oldEquipment);
@@ -10589,6 +10654,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
           : candidateScore > currentScore;
         if (EQUIPMENT_POLICY === "compatibility-aware" && oldMatchingSupport) {
           // 対応support同士の相互置換を防ぎ、対応装備を非対応候補で外さない。
+          paretoEligible = matchingSupport;
           qualifies = matchingSupport && candidateScore > currentScore;
         } else if (matchingSupport && !candidateCoreId) {
           // 相性を狙う方針では、対応supportを個別scoreの改善条件から解放する。
@@ -10601,11 +10667,13 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
 
         // EV算出不能な探索コアだけ、従来の95%保持規則を残す。
         if (candidateIsEconomyCore && oldCoreId) {
+          paretoEligible = false;
           qualifies = coreSwap
             ? candidateScore > currentScore
             : qualifiesAsBuildCore(candidateScore, currentScore);
           rejectionReason = "economy-core-retained";
         } else if (candidateIsHoldOnlyCore) {
+          paretoEligible = false;
           const holdRatio = Math.min(
             ECONOMY_CORE_KEEP_RATIO,
             1 - CORE_SCORE_DROP_TOLERANCE
@@ -10619,6 +10687,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
           rejectionReason = "economy-below-95pct";
         // 装備済みcoreは、非coreが保持幅を明確に超えた場合だけ外す。
         } else if (oldCoreId && !candidateCoreId) {
+          paretoEligible = false;
           qualifies = CORE_SCORE_DROP_TOLERANCE > 0
             ? false
             : candidateScore > currentScore / ECONOMY_CORE_KEEP_RATIO;
@@ -10628,11 +10697,16 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         paretoSafeOverride = shouldApplyParetoSafeOverride({
           policyId: metrics.equipmentUpdatePolicy,
           delta: diffBuildObservations(before, after),
-          greedyQualifies: qualifies
+          greedyQualifies: qualifies,
+          eligible: paretoEligible
         });
         if (paretoSafeOverride) {
           qualifies = true;
           rejectionReason = "pareto-safe-override";
+        }
+        if (candidateWouldCycle) {
+          qualifies = false;
+          rejectionReason = "cycle-state";
         }
         candidateAudit = createEquipmentCandidateAudit(metrics, state, {
           slot,
@@ -10707,7 +10781,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         step: metrics.steps,
         encounterOrdinal: state.currentRun?.battles || 0,
         scoreBefore: best.scoreBefore,
-        scoreAfter: getEquipmentScore(character, scoringProfile, state.floor),
+        scoreAfter: scoreEquipment(character),
         slot: best.slot,
         decisionOrdinal: metrics.equipmentDecisionOrdinal++,
         paretoSafeOverride: Boolean(best.paretoSafeOverride),
@@ -10745,6 +10819,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     } else {
       state.inventory.splice(best.index, 1);
     }
+    cycleGuard.record(character);
     character.hp = Math.min(character.hp, getCharMaxHp(character));
     upgrades++;
   }
@@ -10755,6 +10830,65 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     addAffixlessVirtualSlots(character);
   }
   return upgrades;
+}
+
+// Test-only production-backed fixture. The score override supplies a small
+// deterministic counterfactual where scalar score and tracked build axes
+// intentionally disagree; normal simulation callers never pass it.
+export function runEquipmentUpgradeFixture({
+  policyId = "deterministic_greedy_pareto_safe",
+  candidateCount = 2,
+  currentCursed = false
+} = {}) {
+  const makeItem = (instanceId, trapBonus = 0, extra = {}) => ({
+    kind: "equipment",
+    instanceId,
+    baseId: "DAGGER",
+    type: "weapon",
+    identified: true,
+    rarity: "common",
+    level: 1,
+    affixes: trapBonus > 0
+      ? [{ id: "trapBonus", type: "trapBonus", kind: "support", value: trapBonus }]
+      : [],
+    ...extra
+  });
+  const items = [
+    makeItem("A", 0, currentCursed
+      ? { curseEffectId: "curse_blood_thirst", cursePower: 1, curseLocked: true }
+      : {}),
+    makeItem("B", 1),
+    makeItem("C", 2)
+  ];
+  const character = createStartingKitCharacter("vanguard");
+  character.equipment.weapon = items[0];
+  const inventory = items.slice(1, candidateCount);
+  const state = {
+    party: [character],
+    inventory,
+    floor: 1,
+    simPolicy: { identificationPolicy: "legacy" }
+  };
+  const metrics = {
+    equipmentUpdatePolicy: policyId,
+    steps: 0,
+    equipmentCandidateAudit: [],
+    equipmentCandidateAuditSequence: 0,
+    equipmentTelemetry: [],
+    equipmentDecisionOrdinal: 0,
+    affixReachability: createAffixReachability(),
+    coreCursedLockedIds: new Set(),
+    unidentifiedWearCount: 0,
+    curseHitCount: 0
+  };
+  const scoreByInstanceId = { A: 100, B: 90, C: 80 };
+  const scoreOverride = currentCharacter => {
+    const equipped = Object.values(currentCharacter.equipment || {})
+      .find(item => item?.instanceId);
+    return scoreByInstanceId[equipped?.instanceId] ?? 0;
+  };
+  const upgrades = equipGreedyUpgrades(state, metrics, null, scoreOverride);
+  return { state, metrics, upgrades };
 }
 
 function applyFloorTransitionHeal(character, recoveryRate = 0.15) {
