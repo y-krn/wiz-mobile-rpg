@@ -272,6 +272,12 @@ assert.equal(
     .byRejectionReason["out-ranked-by-later-candidate"].strictUpgrade.rejectedCandidateCount >= 0,
   true
 );
+const safetyRejectionCell = smoke.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab
+  .byFloor["1"].byCategory.trapBonus["score-not-higher"];
+assert.equal(safetyRejectionCell.sidegradeClassificationCounts.strictUpgrade >= 0, true);
+assert.equal(safetyRejectionCell.strictUpgradeCount >= 0, true);
+assert.equal(safetyRejectionCell.affectedRunCount >= 0, true);
+assert.equal(safetyRejectionCell.affectedRunRate >= 0, true);
 assert.equal(smoke.cases[0].policies.t0.aggregate.selectedCandidateSwapConsistency.pass, true);
 const auditedRecord = smoke.cases[0].policies.t0.runEvidenceSample.runs[0];
 assert.equal(auditedRecord.buildCheckpoints.runStart.build.identity, auditedRecord.build.starting.identity);
@@ -343,6 +349,8 @@ Object.values(auditedReport.cases[0].policies).forEach(policy => {
 const auditedManifest = trajectory.buildManifest(auditedReport);
 const auditedSummary = trajectory.buildSummary(auditedReport);
 assert.match(auditedSummary, /Exploration Support candidate evaluation activity/);
+assert.match(auditedSummary, /Exploration Safety candidate rejection reason cross-tab/);
+assert.match(auditedSummary, /category \| rejection reason \| rejected candidate count/);
 assert.match(auditedSummary, /strictUpgrade rejected reason cross-tab:/);
 assert.ok(JSON.stringify(auditedReport).length < 50 * 1024 * 1024);
 assert.equal(

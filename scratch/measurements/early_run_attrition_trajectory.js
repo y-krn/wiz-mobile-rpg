@@ -12,6 +12,7 @@ import {
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { mergeFleeTelemetry, summarizeFleeTelemetry } from "./flee_telemetry.js";
 import {
+  EXPLORATION_CANDIDATE_CATEGORIES,
   EXPLORATION_SUPPORT_IDS,
   REJECTION_REASON_IDS,
   SIDEGRADE_CLASSIFICATIONS,
@@ -19,8 +20,8 @@ import {
   summarizeRejectedCandidateCrossTab as summarizeRejectedCandidateCrossTabForRun
 } from "./build_progression_audit.js";
 
-export const RUNNER_VERSION = "early-run-attrition-trajectory-v4";
-export const SCHEMA_VERSION = 3;
+export const RUNNER_VERSION = "early-run-attrition-trajectory-v5";
+export const SCHEMA_VERSION = 4;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1277;
 export const TRAJECTORY_FLOORS = Object.freeze([1, 2, 3, 4, 5]);
@@ -1176,6 +1177,37 @@ function nullRejectedMetric() {
   };
 }
 
+function nullRejectedCategoryMetric() {
+  return {
+    rejectedCandidateCount: null,
+    affectedRunCount: null,
+    affectedRunRate: null,
+    sidegradeClassificationCounts: Object.fromEntries(
+      SIDEGRADE_CLASSIFICATIONS.map(classification => [classification, null])
+    ),
+    strictUpgradeCount: null
+  };
+}
+
+function observedRejectedCategoryMetric(summaries, category, reason, denominator) {
+  const cellRows = summaries.map(row => row.byCategory?.[category]?.[reason] || null);
+  const observedCounts = cellRows.map(cell => cell?.rejectedCandidateCount || 0);
+  const sidegradeClassificationCounts = Object.fromEntries(
+    SIDEGRADE_CLASSIFICATIONS.map(classification => [
+      classification,
+      sum(cellRows.map(cell => cell?.sidegradeClassificationCounts?.[classification] || 0))
+    ])
+  );
+  const affectedRunCount = observedCounts.filter(count => count > 0).length;
+  return {
+    rejectedCandidateCount: sum(observedCounts),
+    affectedRunCount,
+    affectedRunRate: rate(affectedRunCount, denominator),
+    sidegradeClassificationCounts,
+    strictUpgradeCount: sidegradeClassificationCounts.strictUpgrade
+  };
+}
+
 function summarizeRejectedCandidateCrossTab(records) {
   const byFloor = Object.fromEntries(TRAJECTORY_FLOORS.map(floor => {
     const floorRows = records.filter(record => record.floors?.[floor]);
@@ -1192,12 +1224,20 @@ function summarizeRejectedCandidateCrossTab(records) {
         nullRejectedMetric()
       ]))
     ]));
+    const byCategory = Object.fromEntries(EXPLORATION_CANDIDATE_CATEGORIES.map(category => [
+      category,
+      Object.fromEntries(REJECTION_REASON_IDS.map(reason => [
+        reason,
+        nullRejectedCategoryMetric()
+      ]))
+    ]));
     if (status !== "observed") {
       return [floor, {
         status,
         entrantRunCount: floorRows.length,
         observedRunCount: summaries.length,
-        byRejectionReason
+        byRejectionReason,
+        byCategory
       }];
     }
     REJECTION_REASON_IDS.forEach(reason => {
@@ -1212,12 +1252,21 @@ function summarizeRejectedCandidateCrossTab(records) {
           affectedRunRate: rate(affectedRunCount, floorRows.length)
         };
       });
+      EXPLORATION_CANDIDATE_CATEGORIES.forEach(category => {
+        byCategory[category][reason] = observedRejectedCategoryMetric(
+          summaries,
+          category,
+          reason,
+          floorRows.length
+        );
+      });
     });
     return [floor, {
       status,
       entrantRunCount: floorRows.length,
       observedRunCount: summaries.length,
-      byRejectionReason
+      byRejectionReason,
+      byCategory
     }];
   }));
   return {
@@ -2094,6 +2143,38 @@ function buildProgressionLines(policy) {
         : null;
     }).filter(Boolean));
   });
+  const rejectionCrossTabDisplayRows = TRAJECTORY_FLOORS.flatMap(floor => {
+    const hasRow = rejectionCrossTabRows.some(row => row.startsWith(`| B${floor} |`));
+    if (hasRow) return [];
+    const status = rejected.crossTab?.byFloor?.[String(floor)]?.status || "unobserved";
+    const label = status === "observed" ? "observed zero" : status;
+    return [`| B${floor} | ${label} | — | ${status === "observed" ? 0 : "—"} | ${status === "observed" ? 0 : "—"} | ${status === "observed" ? "0.0%" : "unobserved"} |`];
+  });
+  const explorationRejectionCrossTabEntries = TRAJECTORY_FLOORS.flatMap(floor => {
+    const floorCrossTab = rejected.crossTab?.byFloor?.[String(floor)];
+    return EXPLORATION_CANDIDATE_CATEGORIES.flatMap(category =>
+      REJECTION_REASON_IDS.map(reason => {
+        const metric = floorCrossTab?.byCategory?.[category]?.[reason];
+        const candidateMetric = candidateActivity?.byFloor?.[String(floor)]
+          ?.categories?.[category];
+        const observedZero = metric?.rejectedCandidateCount === 0 &&
+          (candidateMetric?.candidateCount || 0) > 0;
+        if (!metric || (metric.rejectedCandidateCount === 0 && !observedZero)) return null;
+        return { floor, category, reason, metric };
+      }).filter(Boolean)
+    );
+  });
+  const explorationRejectionCrossTabRows = explorationRejectionCrossTabEntries.map((entry) => {
+    const counts = entry.metric.sidegradeClassificationCounts || {};
+    return `| B${entry.floor} | ${entry.category} | ${entry.reason} | ${entry.metric.rejectedCandidateCount ?? "—"} | ${entry.metric.affectedRunCount ?? "—"} | ${rateCell(entry.metric.affectedRunRate)} | ${entry.metric.strictUpgradeCount ?? "—"} | ${counts.combatTradeoff ?? "—"} | ${counts.durabilityTradeoff ?? "—"} | ${counts.safetyTradeoff ?? "—"} | ${counts.buildTradeoff ?? "—"} | ${counts.noMeaningfulGain ?? "—"} |`;
+  });
+  const explorationRejectionCrossTabDisplayRows = TRAJECTORY_FLOORS.flatMap(floor => {
+    const hasRow = explorationRejectionCrossTabEntries.some(entry => entry.floor === floor);
+    if (hasRow) return [];
+    const status = rejected.crossTab?.byFloor?.[String(floor)]?.status || "unobserved";
+    const label = status === "observed" ? "observed zero" : status;
+    return [`| B${floor} | — | ${label} | ${status === "observed" ? 0 : "—"} | ${status === "observed" ? 0 : "—"} | ${status === "observed" ? "0.0%" : "unobserved"} | ${status === "observed" ? 0 : "—"} | ${status === "observed" ? 0 : "—"} | ${status === "observed" ? 0 : "—"} | ${status === "observed" ? 0 : "—"} | ${status === "observed" ? 0 : "—"} | ${status === "observed" ? 0 : "—"} |`];
+  });
   const strictUpgradeReasons = rejectionCrossTabRows
     .filter(row => row.includes("| strictUpgrade |"))
     .map(row => row.replace(/^\| /, "").replace(/ \|/g, "").split(" | ").slice(0, 4).join(" / "))
@@ -2152,9 +2233,19 @@ function buildProgressionLines(policy) {
     "",
     "| floor | rejection reason | sidegrade classification | rejected candidate count | affected runs | affected-run rate |",
     "| --- | --- | --- | ---: | ---: | ---: |",
-    ...(rejectionCrossTabRows.length ? rejectionCrossTabRows : ["| — | observed zero | — | 0 | 0 | 0.0% |"]),
+    ...rejectionCrossTabRows,
+    ...rejectionCrossTabDisplayRows,
     "",
     `strictUpgrade rejected reason cross-tab: ${strictUpgradeReasons}`,
+    "",
+    "### Exploration Safety candidate rejection reason cross-tab",
+    "",
+    "This cross-tab counts candidate evaluation events, not unique items or a loot conversion funnel. A candidate with multiple positive Exploration Support deltas is counted once in each matching category.",
+    "The affected-run rate denominator is the floor entrant population; a category with candidate activity and no rejected event is shown as observed zero.",
+    "| floor | category | rejection reason | rejected candidate count | affected runs | affected-run rate | strictUpgrade | combatTradeoff | durabilityTradeoff | safetyTradeoff | buildTradeoff | noMeaningfulGain |",
+    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...explorationRejectionCrossTabRows,
+    ...explorationRejectionCrossTabDisplayRows,
     "Classifications describe candidate features independently of greedy selection; they do not recommend an equipment choice.",
     "Candidate activity counts are evaluation events; the same candidate can be re-evaluated while the existing greedy loop converges. They are not loot conversion counts or unique item counts.",
     "Rune supply is observed separately; Rune-to-equipment evaluation linkage is unobserved.",
