@@ -20,6 +20,11 @@ export const EXPLORATION_SUPPORT_IDS = Object.freeze([
   "identifyDiscount"
 ]);
 
+export const EXPLORATION_CANDIDATE_CATEGORIES = Object.freeze([
+  "positiveExplorationDelta",
+  ...EXPLORATION_SUPPORT_IDS
+]);
+
 export const REJECTION_REASON_IDS = Object.freeze([
   "class-incompatible",
   "already-equipped-unlimited",
@@ -193,6 +198,13 @@ function positiveExplorationIds(audit) {
     .filter(id => EXPLORATION_SUPPORT_IDS.includes(id));
 }
 
+function positiveExplorationCategories(audit) {
+  const positiveIds = positiveExplorationIds(audit);
+  return positiveIds.length > 0
+    ? ["positiveExplorationDelta", ...positiveIds]
+    : [];
+}
+
 function emptyFloorMap(floors, factory) {
   return Object.fromEntries(floors.map(floor => [String(floor), factory()]));
 }
@@ -232,7 +244,8 @@ export function normalizeRejectionReason(reason) {
 
 export function summarizeRejectedCandidateCrossTab(audits = [], floors = []) {
   const byFloor = emptyFloorMap(floors, () => ({
-    byRejectionReason: {}
+    byRejectionReason: {},
+    byCategory: {}
   }));
   audits.forEach(audit => {
     if (!audit?.evaluableCandidate || audit.selected) return;
@@ -247,6 +260,19 @@ export function summarizeRejectedCandidateCrossTab(audits = [], floors = []) {
       floor.byRejectionReason[reason] ||= {};
       floor.byRejectionReason[reason][classification] =
         (floor.byRejectionReason[reason][classification] || 0) + 1;
+    });
+    positiveExplorationCategories(audit).forEach(category => {
+      floor.byCategory[category] ||= {};
+      floor.byCategory[category][reason] ||= {
+        rejectedCandidateCount: 0,
+        sidegradeClassificationCounts: {}
+      };
+      floor.byCategory[category][reason].rejectedCandidateCount++;
+      classifications.forEach(classification => {
+        if (!SIDEGRADE_CLASSIFICATIONS.includes(classification)) return;
+        const counts = floor.byCategory[category][reason].sidegradeClassificationCounts;
+        counts[classification] = (counts[classification] || 0) + 1;
+      });
     });
   });
   return {

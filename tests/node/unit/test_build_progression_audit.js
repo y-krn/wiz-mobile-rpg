@@ -126,15 +126,17 @@ const candidateAudits = [
     qualifies: false,
     selected: false,
     rejectionReason: "future-reason",
-    sidegradeClassifications: ["strictUpgrade"]
+    sidegradeClassifications: ["strictUpgrade"],
+    explorationAbilityDelta: { trapGuard: 1 }
   }
 ];
 const candidateActivity = summarizeExplorationCandidateActivity(candidateAudits, [1, 2]);
 assert.equal(candidateActivity.byFloor["1"].categories.trapBonus.candidateCount, 0);
-assert.equal(candidateActivity.byFloor["2"].categories.positiveExplorationDelta.candidateCount, 3);
+assert.equal(candidateActivity.byFloor["2"].categories.positiveExplorationDelta.candidateCount, 4);
 assert.equal(candidateActivity.byFloor["2"].categories.trapBonus.qualifies, 2);
 assert.equal(candidateActivity.byFloor["2"].categories.trapBonus.selected, 1);
 assert.equal(candidateActivity.byFloor["2"].categories.arcaneSense.candidateCount, 2);
+assert.equal(candidateActivity.byFloor["2"].categories.trapGuard.candidateCount, 1);
 
 const rejectionCrossTab = summarizeRejectedCandidateCrossTab(candidateAudits, [1, 2]);
 assert.equal(
@@ -147,6 +149,34 @@ assert.equal(
 );
 assert.equal(
   rejectionCrossTab.byFloor["2"].byRejectionReason.other.strictUpgrade,
+  1
+);
+assert.equal(
+  rejectionCrossTab.byFloor["2"].byCategory.trapBonus["out-ranked-by-later-candidate"]
+    .rejectedCandidateCount,
+  1
+);
+assert.equal(
+  rejectionCrossTab.byFloor["2"].byCategory.trapBonus["out-ranked-by-later-candidate"]
+    .sidegradeClassificationCounts.strictUpgrade,
+  1
+);
+assert.equal(
+  rejectionCrossTab.byFloor["2"].byCategory.arcaneSense["not-best-selection-score"]
+    .rejectedCandidateCount,
+  1
+);
+assert.equal(
+  rejectionCrossTab.byFloor["2"].byCategory.arcaneSense["future-reason"],
+  undefined
+);
+assert.equal(
+  rejectionCrossTab.byFloor["2"].byCategory.trapGuard.other.rejectedCandidateCount,
+  1
+);
+assert.equal(
+  rejectionCrossTab.byFloor["2"].byCategory.trapGuard.other.sidegradeClassificationCounts
+    .strictUpgrade,
   1
 );
 
