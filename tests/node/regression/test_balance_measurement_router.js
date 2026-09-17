@@ -21,12 +21,13 @@ assert.deepEqual(MEASUREMENT_IDS, [
   "run-difficulty",
   "run-difficulty-policy-sensitivity",
   "early-run-attrition",
+  "b3plus-survival-decomposition",
   "build-progression-audit",
   "build-progression-pareto-safe",
   "b2-chest-trap",
   "survival-policy"
 ]);
-assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 12);
+assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 13);
 assert.deepEqual(MEASUREMENT_REGISTRY.standard.allowedRunTypes, [
   "baseline-candidate", "diagnostic", "temporary"
 ]);
@@ -40,6 +41,7 @@ for (const measurement of [
   "equipment-load",
   "run-difficulty-policy-sensitivity",
   "early-run-attrition",
+  "b3plus-survival-decomposition",
   "build-progression-audit",
   "build-progression-pareto-safe",
   "b2-chest-trap",
@@ -75,6 +77,32 @@ const attrition = resolveMeasurementOptions({ measurement: "early-run-attrition"
 assert.deepEqual(
   { runs: attrition.runs, seed: attrition.seed, runType: attrition.runType },
   { runs: 1000, seed: 1277, runType: "diagnostic" }
+);
+const survivalDecomposition = resolveMeasurementOptions({
+  measurement: "b3plus-survival-decomposition",
+  purpose: "test"
+});
+assert.deepEqual(
+  {
+    runs: survivalDecomposition.runs,
+    seed: survivalDecomposition.seed,
+    runType: survivalDecomposition.runType,
+    treatment: survivalDecomposition.treatment
+  },
+  {
+    runs: 1000,
+    seed: 1277,
+    runType: "diagnostic",
+    treatment: "b3plus-survival-decomposition"
+  }
+);
+assert.throws(
+  () => resolveMeasurementOptions({
+    measurement: "b3plus-survival-decomposition",
+    purpose: "test",
+    treatment: "portal-policy"
+  }),
+  /treatment must be b3plus-survival-decomposition/
 );
 const buildProgression = resolveMeasurementOptions({ measurement: "build-progression-audit", purpose: "test" });
 assert.deepEqual(
@@ -125,7 +153,7 @@ assert.equal(
   "balance-measurement-early-run-attrition-123-attempt"
 );
 
-for (const measurement of ["standard", "early-run-attrition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy"]) {
+for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy"]) {
   const invocation = resolveRunnerInvocation({ measurement, purpose: "smoke" }, "/tmp/router-test");
   assert.equal(invocation.measurement, measurement);
   assert.match(invocation.runner, /scratch\/measurements\//);

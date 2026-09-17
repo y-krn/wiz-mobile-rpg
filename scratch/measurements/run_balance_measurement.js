@@ -222,6 +222,19 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" },
     buildArgs: earlyAttritionArgs
   }),
+  "b3plus-survival-decomposition": freezeDefinition({
+    id: "b3plus-survival-decomposition",
+    label: "B3-B5 survival decomposition",
+    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "b3plus-survival-decomposition" },
+    allowed: { treatment: ["b3plus-survival-decomposition"] },
+    buildArgs: earlyAttritionArgs
+  }),
   "build-progression-audit": freezeDefinition({
     id: "build-progression-audit",
     label: "B1-B5 Build progression audit",

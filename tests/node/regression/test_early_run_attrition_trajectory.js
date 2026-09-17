@@ -163,6 +163,122 @@ assert.deepEqual(sourceAggregate.distributions[1].incrementalCostTotalBySource, 
   poisonStatus: 0,
   unattributed: 0
 });
+
+const outcomeRecord = (runIndex, floorNumber, cohort, cost, hp, deathCause = null) => {
+  const sourceCosts = {
+    combat: 0,
+    guardianBoss: 0,
+    floorTrap: 0,
+    chestTrap: 0,
+    poisonStatus: 0,
+    unattributed: 0,
+    ...cost
+  };
+  const waterfall = Object.fromEntries(
+    trajectory.OUTCOME_COHORT_IDS.map(id => [id, id === cohort])
+  );
+  const floorRow = {
+    floor: floorNumber,
+    entry: {
+      hp,
+      maxHp: 100,
+      hpRatio: hp / 100,
+      mp: 8,
+      maxMp: 10,
+      mpRatio: 0.8,
+      recoveryRemaining: 2,
+      cureItems: { HEAL_POTION: 2 },
+      status: null,
+      build: { identity: "test-build", weaponProfile: "light", mainCoreIds: [], auxiliaryCoreIds: [], supportAffixIds: [], level: 1, atk: 10, def: 5, maxHp: 100, maxMp: 10 }
+    },
+    exit: {
+      hp: Math.max(0, hp - Object.values(cost).reduce((total, value) => total + value, 0)),
+      maxHp: 100,
+      hpRatio: Math.max(0, hp - Object.values(cost).reduce((total, value) => total + value, 0)) / 100,
+      mp: 6,
+      maxMp: 10,
+      mpRatio: 0.6,
+      recoveryRemaining: 1,
+      status: null
+    },
+    incrementalCost: {
+      ...sourceCosts,
+      combatDamageHp: sourceCosts.combat + sourceCosts.guardianBoss,
+      guardianBossDamageHp: sourceCosts.guardianBoss,
+      chestTrapDamageHp: sourceCosts.chestTrap,
+      floorTrapDamageHp: sourceCosts.floorTrap,
+      poisonStatusDamageHp: sourceCosts.poisonStatus,
+      fleePartingDamageHp: 0,
+      mpSpent: 2,
+      hpRecovered: 4,
+      mpRecovered: 1,
+      recoveryItemAcquired: { HEAL_POTION: 1 },
+      recoveryItemUsed: { HEAL_POTION: 1 },
+      combatCount: 2,
+      combatRounds: 3,
+      enemyActionCount: 5,
+      fleeAttempts: 0,
+      fleeExecutions: 0,
+      steps: 8
+    },
+    recovery: { healingHp: 4, healingMp: 1, itemAcquired: { HEAL_POTION: 1 }, itemUsed: { HEAL_POTION: 1 } },
+    cumulativeCostBySource: { ...sourceCosts },
+    terminal: cohort,
+    terminalReason: cohort === "voluntaryReturn" ? "town-portal" : null,
+    waterfall
+  };
+  return {
+    ...base(runIndex, `world:${runIndex}`, cohort === "died" ? "died" : "voluntaryReturn"),
+    runIndex,
+    worldSeed: `world:${runIndex}`,
+    outcome: cohort === "died" ? "died" : cohort === "voluntaryReturn" ? "voluntaryReturn" : "syntheticCutoff",
+    terminalFloor: floorNumber,
+    terminalCause: deathCause,
+    finalFloorIncrementalCost: sourceCosts,
+    cumulativeCostBySource: sourceCosts,
+    floors: { [floorNumber]: floorRow }
+  };
+};
+
+const cohortRecords = [
+  outcomeRecord(0, 3, "reachedNextFloor", { combat: 10 }, 40),
+  outcomeRecord(1, 3, "reachedNextFloor", { combat: 20 }, 50),
+  outcomeRecord(2, 3, "reachedNextFloor", { combat: 30 }, 60),
+  outcomeRecord(3, 3, "died", { combat: 40 }, 15, "raw_damage"),
+  outcomeRecord(4, 3, "voluntaryReturn", { chestTrap: 25 }, 25, null),
+  outcomeRecord(5, 4, "died", { chestTrap: 90 }, 30, "trap_hazard")
+];
+const cohortAggregate = trajectory.aggregateCondition(cohortRecords);
+const b3Cohorts = cohortAggregate.distributions[3].outcomeCohorts;
+assert.deepEqual(
+  Object.fromEntries(trajectory.OUTCOME_COHORT_IDS.map(id => [id, b3Cohorts[id].count])),
+  { reachedNextFloor: 3, died: 1, voluntaryReturn: 1, otherTerminal: 0 }
+);
+assert.equal(
+  Object.values(b3Cohorts).reduce((total, cohort) => total + cohort.count, 0),
+  cohortAggregate.waterfall[3].entered,
+  "outcome cohort counts must equal floor entrants"
+);
+assert.equal(b3Cohorts.reachedNextFloor.entry.hp.p50, 50);
+assert.equal(b3Cohorts.reachedNextFloor.entry.hp.p10, 42);
+assert.equal(b3Cohorts.reachedNextFloor.status, "insufficient");
+assert.equal(b3Cohorts.otherTerminal.status, "observed", "zero cohort with entrants is observed zero");
+assert.equal(b3Cohorts.otherTerminal.availability.entryHp, "unobserved");
+assert.equal(cohortAggregate.distributions[2].outcomeCohorts.died.status, "unreachable");
+assert.equal(cohortAggregate.distributions[3].outcomeCohorts.reachedNextFloor.incrementalCost.combatDamageHp.p50, 20);
+assert.equal(cohortAggregate.distributions[3].outcomeCohorts.voluntaryReturn.incrementalCost.chestTrapDamageHp.p50, 25);
+assert.equal(cohortAggregate.distributions[4].outcomeCohorts.died.incrementalCost.chestTrapDamageHp.p50, 90);
+assert.equal(b3Cohorts.died.terminal.deathCauseCounts.raw_damage, 1);
+assert.equal(b3Cohorts.died.terminal.cumulativeCostBySource.combat.p50, 40);
+assert.equal(b3Cohorts.died.terminal.finalFloorIncrementalCost.combat.p50, 40);
+assert.equal(trajectory.classifyTerminalOutcome({ outcome: "retreat", terminationReason: "target-depth" }), "syntheticCutoff");
+assert.equal(trajectory.classifyTerminalOutcome({ outcome: "retreat", terminationReason: "town-portal" }), "voluntaryReturn");
+assert.notEqual(
+  trajectory.classifyTerminalOutcome({ outcome: "retreat", terminationReason: "target-depth" }),
+  "voluntaryReturn",
+  "B6 synthetic cutoff must not be a voluntary Return"
+);
+
 const summary = trajectory.buildSummary({
   measurement: { sourceCommit: null, measurementRunnerCommit: null, runnerVersion: trajectory.RUNNER_VERSION },
   runnerVersion: trajectory.RUNNER_VERSION,
@@ -313,6 +429,44 @@ assert.equal(
   Math.min(smoke.cases[0].returnContinuation.runs, trajectory.RETURN_CONTINUATION_SAMPLE_LIMIT)
 );
 
+const canonicalOnlySmoke = await trajectory.runMeasurement({
+  runs: 8,
+  seed: 1277,
+  treatment: "b3plus-survival-decomposition",
+  startingKitIds: ["vanguard"],
+  scenarioIds: ["workshop-empty"],
+  allowSmallRunCount: true
+});
+assert.deepEqual(Object.keys(canonicalOnlySmoke.cases[0].policies), ["canonical"]);
+assert.equal(canonicalOnlySmoke.configuration.policyExecution.startsWith("canonical-only"), true);
+assert.equal(canonicalOnlySmoke.determinism.pass, true);
+assert.equal(Object.values(canonicalOnlySmoke.observationInvariance).every(value => value.pass), true);
+assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts.died.count >= 0, true);
+assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 3);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts)
+    .map(([id, cohort]) => [id, cohort.count])),
+  { reachedNextFloor: 1, died: 1, voluntaryReturn: 1, otherTerminal: 0 }
+);
+assert.equal(canonicalOnlySmoke.cases[0].policies.t0, undefined);
+const canonicalOnlyReport = trajectory.buildReport(
+  canonicalOnlySmoke,
+  { sourceCommit: "a".repeat(40), measurementRunnerCommit: "b".repeat(40) },
+  { SIM_SEED: "1277" },
+  { measurementId: "b3plus-survival-decomposition", purpose: "regression" }
+);
+const canonicalOnlySummary = trajectory.buildSummary(canonicalOnlyReport);
+assert.match(canonicalOnlySummary, /canonical-only/);
+assert.match(canonicalOnlySummary, /B3–B5 outcome cohorts/);
+assert.match(canonicalOnlySummary, /Next causal probe/);
+assert.equal(canonicalOnlyReport.interpretation.nextAxis, "select at most one floor × one axis from measured evidence");
+assert.ok(JSON.stringify(canonicalOnlyReport).length < 50 * 1024 * 1024);
+const canonicalOnlyManifest = trajectory.buildManifest(canonicalOnlyReport);
+assert.equal(canonicalOnlyManifest.cutoff.semantics.includes("never voluntary Return"), true);
+assert.equal(canonicalOnlyManifest.artifactPolicy.fullRunRecords, "omitted");
+assert.equal(canonicalOnlyManifest.artifactPolicy.rawCombatLog, "omitted");
+assert.equal(canonicalOnlyManifest.artifactPolicy.runEvidenceSampleLimit, trajectory.RUN_EVIDENCE_SAMPLE_LIMIT);
+
 const largeCandidateSample = trajectory.createCandidateAuditSampleCollector(4);
 largeCandidateSample.addAll(
   Array.from({ length: 10000 }, (_, index) => ({ id: `candidate:${index}`, payload: "x".repeat(2048) })),
@@ -401,7 +555,10 @@ assert.ok(
   `bounded report size must not track full run count: N16=${largerReportSize} -> N32=${largestReportSize}`
 );
 assert.ok(largerReportSize < 5_000_000, `synthetic heavy report unexpectedly large: ${largerReportSize}`);
-assert.ok(largestReportSize < 2_000_000, `synthetic heavy report unexpectedly large: ${largestReportSize}`);
+assert.ok(
+  largestReportSize < 3_000_000,
+  `synthetic heavy report unexpectedly large after bounded cohort aggregates: ${largestReportSize}`
+);
 assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.totalCount, 16);
 assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.retainedCount, trajectory.RUN_EVIDENCE_SAMPLE_LIMIT);
 assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.droppedCount, 8);
