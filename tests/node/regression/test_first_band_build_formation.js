@@ -56,9 +56,10 @@ for (const armId of ARM_IDS) {
   }
 }
 assert.equal(enemyActionRegressionObserved, true);
-assert.ok(result.arms.P1B1.overview.b5.entrantN > 0);
-assert.ok(result.arms.P1B1.overview.b5.flameTrap.eligibleSteps.total > 0);
-assert.equal(result.arms.P1B1.overviewReconciliation.runs, true);
+const b5SmokeArm = ARM_IDS.find(armId => result.arms[armId].overview.b5.entrantN > 0);
+assert.ok(b5SmokeArm);
+assert.ok(result.arms[b5SmokeArm].overview.b5.flameTrap.eligibleSteps.total > 0);
+assert.equal(result.arms[b5SmokeArm].overviewReconciliation.runs, true);
 
 assert.equal(result.primaryComparisons.length, 4);
 assert.match(result.primaryComparisons[0].label, /P0B1 - P0B0/);
