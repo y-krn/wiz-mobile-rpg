@@ -478,7 +478,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
   }));
   const runOne = ({ arm, kitId, runIndex, audit = true, samples }) => {
     const prep = preparations[arm.preparationId];
-    const worldSeed = `first-band-build-formation:${seed}:${runIndex}`;
+    const worldSeed = `run-difficulty:${seed}:${runIndex}`;
     const scenario = {
       ...baseScenario,
       startingKit: kitId,
@@ -626,6 +626,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
     productionPath: "scratch/simulations/sim_depth_material_ev.js",
     adaptivePolicy: CANONICAL_ADAPTIVE_POLICY_ID,
     fixedPolicy: "fixed",
+    worldSeedTemplate: "run-difficulty:{seed}:{runIndex}",
     identityBoundary: "HP/MP/bag/floor/starting-kit excluded from Build Snapshot identity",
     artifactPolicy: {
       fullRunRecords: "omitted",
