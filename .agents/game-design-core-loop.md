@@ -91,6 +91,55 @@ and direction change while retaining earlier possibilities. Depth should expand
 choices, not turn the collection into obsolete filler or a simple base-stat
 treadmill.
 
+### First Band: B1-B5 is Build Formation
+
+B1-B5 is the First Band: the player learns to form and test a run-local build.
+It is not a build-free tutorial, and it must not be a passage that can be
+stably cleared by Starting Gear plus a large consumable supply while mostly
+ignoring dungeon equipment, affixes, Runes, Cores, and Supports.
+
+The intended pacing is:
+
+- **B1-B2: Build seed.** The run should expose a plausible direction through
+  found equipment, information, and resource choices.
+- **B3-B4: Build identity.** Reinforcement and supporting choices begin to make
+  the run's plan distinct, without requiring a finished build.
+- **B5: First-band graduation.** The player first puts that emerging build
+  through a compound milestone test.
+- **B6+: Build Development.** Cost conversion, direction change, counterplay,
+  and the interaction between build choices and Push/Return decisions become
+  increasingly important.
+
+B1-B5 does not require a complete build. It does require that the run-local
+build is already becoming a meaningful source of power and answers to risk.
+Preparation can buy time and absorb early variance, but it cannot make that
+formation irrelevant.
+
+B5 is a mandatory progression gate for the next band: the milestone guardian
+must be defeated before the down stairs, merchant, and Portal can be used.
+The flame trap, guardian, and the available merchant/Portal choices are one
+compound milestone context, not separate reasons to reduce B5 to an HP/ATK
+check. The guardian tests the first run-local build; the merchant offers
+recovery and counterplay choices afterward; the Portal makes the explicit
+Push/Return decision. None of these contracts replaces the build test.
+
+### Starting kit and preparation
+
+Starting Kit is an initial condition, not a permanent class. Preparation is the
+run's first build/risk decision, not the answer for the whole run. Starting
+weapons and consumables may:
+
+- absorb early variance;
+- provide time to form a run-local build;
+- consume bag and material opportunity; and
+- represent one of several viable preparations.
+
+The following are anti-goals: carrying the maximum number of medicines being
+nearly always optimal, the highest-ATK starting weapon being nearly always
+optimal across kits, Preparation erasing run-local build differences, or
+Preparation becoming an effective entry fee. Preparation safety is not build
+power, and consumables do not universally substitute for a build.
+
 Strong enemies are temptations and risks of greedy exploration, not a mandatory
 fixed encounter on every floor. The player should understand the pressure and
 have a meaningful response before the threat becomes decisive.
@@ -112,6 +161,67 @@ Recovered dungeon equipment is terminal evidence, not permanent next-run
 combat equipment. Returned consumables may replenish preparation supplies when
 their economy contract permits it; this does not make recovered equipment a
 second inventory.
+
+### Permanent progression meaning
+
+The repeat loop should feel stronger because the player understands more and
+has more meaningful possibilities, not because permanent ATK/HP is the primary
+answer. The main progression sources are:
+
+- player knowledge and Codex knowledge;
+- Workshop horizontal unlocks;
+- broader starting and preparation choices;
+- more possible Rune, Core, Support, and affix combinations; and
+- new ways to convert risk into another resource or response.
+
+Workshop progression must not make earlier choices completely obsolete. For
+example, a newly unlocked RAPIER 12 that is always correct for every kit after
+DAGGER 3 is an audit target, not an expected outcome. A permanent advantage
+may exist at the front of a run, but it must not remove the need to form and
+test the run-local build.
+
+## Canon invariants
+
+- Starting Kit = initial condition, not permanent class.
+- The run-local build is a primary power source.
+- Preparation safety is not build power.
+- Permanent progression primarily broadens possibility and knowledge.
+- The First Band teaches build formation.
+- Deeper bands deepen build transformation and interaction.
+- B5 tests the first run-local build.
+- Consumables do not universally substitute for a build.
+- Recovered equipment is not permanent next-run combat gear.
+- Do not introduce a scalar "Build Power" as the design model.
+
+## Follow-up measurement contract
+
+This canon is validated by a separate First Band diagnostic after review and
+merge; this design-only change does not add a runner or tune production values.
+The diagnostic must keep Preparation and run-local Build as separate causes and
+must not collapse them into a scalar Build Power.
+
+### Build formation
+
+At B2, B3, B4, and B5, measure:
+
+- equipment changes and materially distinct Build Snapshots from the start;
+- reinforcement, cost-conversion, and direction-change opportunities;
+- Core, Support, Rune, and Medium participation; and
+- Build identity differences by Starting Kit.
+
+### Build usefulness
+
+At equal Preparation, compare whether a stronger or more coherent run-local
+build changes B5 boss arrival, B5 clear, or B6 reach. Separate the outcome
+variation explained by Preparation from the variation explained by the
+run-local build, including cases where good build decisions overcome weaker
+Preparation and cases where Preparation makes build differences negligible.
+
+### B5 decomposition
+
+For B5 entrants, keep separate counts for flame-trap exposure/count/damage/death,
+boss arrival and arrival HP/MP/recovery, boss start/victory/flee/death, Return
+before or after the boss, and B6 transition.
 
 ## Design pillars
 

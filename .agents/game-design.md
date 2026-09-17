@@ -25,11 +25,25 @@ Every economic knob must support “descend again, deeper.” A loop that pays
 better than descending—shallow farming, merchant arbitrage, or a target-build
 lottery—is a failure of the economy.
 
+The repeat-run feeling of becoming stronger is primarily knowledge and
+possibility growth: player knowledge, Codex knowledge, Workshop horizontal
+unlock, broader starting/preparation choices, more Rune/Core/Support/affix
+possibilities, and new risk-conversion methods. Permanent ATK/HP growth is not
+the central progression model. Starting Kit is an initial condition, not a
+permanent class, and a run-local build remains a primary power source.
+
 Five-floor bands are resource-allocation chapters, not a second currency. A
 band may make HP, MP, status, information, actions, or inventory pressure more
 important, but it must not impose a build-specific loot guarantee or a
 mandatory consumable tax. Player-facing clues communicate the kind of pressure
 without exposing exact odds or hidden theme metadata.
+
+The First Band is B1-B5 and teaches build formation: B1-B2 expose a build seed,
+B3-B4 begin to form run identity, and B5 is the first compound test of that
+emerging build. B6+ develops build transformation through cost conversion,
+direction change, and counterplay. The First Band is not a build-free tutorial;
+Preparation may absorb early variance and buy formation time, but Preparation
+safety is not Build power and must not make run-local build choices irrelevant.
 
 ## Materials are the only currency
 
@@ -157,6 +171,28 @@ The Workshop should broaden combinations involving HP, MP, status, actions,
 information, and curses while keeping resource competition and improvisation as
 the source of power.
 
+Workshop does not provide a permanent upper tier that makes prior choices
+completely obsolete. A post-unlock state where RAPIER 12 is always correct for
+every kit after DAGGER 3 is an audit target. Horizontal progression should add
+possibilities and knowledge while preserving multiple viable preparations and
+the need for a run-local build.
+
+## Preparation boundary
+
+Preparation is the run's first build/risk decision, not its complete solution.
+Starting weapons and consumables absorb early variance, create time to form a
+build, and carry bag/material opportunity cost. They are one of multiple viable
+choices. The following are anti-goals:
+
+- maximum consumable supply being nearly always optimal;
+- the highest-ATK starting weapon being nearly always optimal across kits;
+- Preparation erasing run-local build differences; and
+- Preparation becoming an effective entry fee.
+
+Consumables provide safety with opportunity cost; they do not universally
+substitute for a build. Recovered dungeon equipment remains history and
+knowledge, not permanent next-run combat gear.
+
 ### Supply roles
 
 Loot supply is build-blind: candidate availability and weighting must not read
@@ -218,6 +254,9 @@ conversation with deeper threats. It does not grant MP, spells, permission to
 use equipment, critical scaling, melee scaling, or exploration authority. Power
 should come from choices made in the run—equipment, Runes, Supports, Cores,
 tools, and resource timing—not from a permanent class or level ladder.
+Do not introduce a scalar "Build Power" as the design model; build identity is
+structural and contextual, and must be assessed through its choices and
+interactions.
 
 ## Avoid
 
