@@ -2636,6 +2636,20 @@ function cohortCountCell(cohort) {
   return `${cohort.count} (${cohort.status})`;
 }
 
+const COHORT_LABELS = Object.freeze({
+  reachedNextFloor: "advance",
+  died: "death",
+  voluntaryReturn: "Return",
+  otherTerminal: "other"
+});
+
+function cohortP50Line(cohorts, nested, fields) {
+  return OUTCOME_COHORT_IDS.map(id => {
+    const values = fields.map(field => cohortP50(cohorts[id], field, nested));
+    return `${COHORT_LABELS[id]} ${values.join("/")}`;
+  }).join("; ");
+}
+
 function buildOutcomeCohortLines(testCase, policy) {
   const lines = [
     "",
@@ -2650,11 +2664,11 @@ function buildOutcomeCohortLines(testCase, policy) {
     lines.push(
       `### B${floor} — entrants ${distribution.entrants}`,
       `- cohort N: advance ${cohortCountCell(cohorts.reachedNextFloor)}; death ${cohortCountCell(cohorts.died)}; Return ${cohortCountCell(cohorts.voluntaryReturn)}; other ${cohortCountCell(cohorts.otherTerminal)}`,
-      `- entry p50 HP/maxHP/ratio · MP/maxMP/ratio · recovery: ${cohortP50(cohorts.reachedNextFloor, "hp", "entry")}/${cohortP50(cohorts.reachedNextFloor, "maxHp", "entry")}/${cohortP50(cohorts.reachedNextFloor, "hpRatio", "entry")} · ${cohortP50(cohorts.reachedNextFloor, "mp", "entry")}/${cohortP50(cohorts.reachedNextFloor, "maxMp", "entry")}/${cohortP50(cohorts.reachedNextFloor, "mpRatio", "entry")} · ${cohortP50(cohorts.reachedNextFloor, "recoveryRemaining", "entry")} | death ${cohortP50(cohorts.died, "hp", "entry")}/${cohortP50(cohorts.died, "maxHp", "entry")}/${cohortP50(cohorts.died, "hpRatio", "entry")} · ${cohortP50(cohorts.died, "mp", "entry")}/${cohortP50(cohorts.died, "maxMp", "entry")}/${cohortP50(cohorts.died, "mpRatio", "entry")} · ${cohortP50(cohorts.died, "recoveryRemaining", "entry")}`,
-      `- incremental Cost p50 HP combat/guardian/chest-trap/floor-trap/poison · MP spent: advance ${cohortP50(cohorts.reachedNextFloor, "combatDamageHp", "incrementalCost")}/${cohortP50(cohorts.reachedNextFloor, "guardianBossDamageHp", "incrementalCost")}/${cohortP50(cohorts.reachedNextFloor, "chestTrapDamageHp", "incrementalCost")}/${cohortP50(cohorts.reachedNextFloor, "floorTrapDamageHp", "incrementalCost")}/${cohortP50(cohorts.reachedNextFloor, "poisonStatusDamageHp", "incrementalCost")} · ${cohortP50(cohorts.reachedNextFloor, "mpSpent", "incrementalCost")} | death ${cohortP50(cohorts.died, "combatDamageHp", "incrementalCost")}/${cohortP50(cohorts.died, "guardianBossDamageHp", "incrementalCost")}/${cohortP50(cohorts.died, "chestTrapDamageHp", "incrementalCost")}/${cohortP50(cohorts.died, "floorTrapDamageHp", "incrementalCost")}/${cohortP50(cohorts.died, "poisonStatusDamageHp", "incrementalCost")} · ${cohortP50(cohorts.died, "mpSpent", "incrementalCost")}`,
-      `- recovery p50 HP/MP recovered · items acquired/used: advance ${cohortP50(cohorts.reachedNextFloor, "hpRecovered", "recovery")}/${cohortP50(cohorts.reachedNextFloor, "mpRecovered", "recovery")} · ${cohortP50(cohorts.reachedNextFloor, "recoveryItemAcquired", "recovery")}/${cohortP50(cohorts.reachedNextFloor, "recoveryItemUsed", "recovery")}; death ${cohortP50(cohorts.died, "hpRecovered", "recovery")}/${cohortP50(cohorts.died, "mpRecovered", "recovery")} · ${cohortP50(cohorts.died, "recoveryItemAcquired", "recovery")}/${cohortP50(cohorts.died, "recoveryItemUsed", "recovery")}`,
-      `- exposure p50 combats/rounds/enemy actions · flee attempts/executions · steps: advance ${cohortP50(cohorts.reachedNextFloor, "combatCount", "exposure")}/${cohortP50(cohorts.reachedNextFloor, "rounds", "exposure")}/${cohortP50(cohorts.reachedNextFloor, "enemyActionCount", "exposure")} · ${cohortP50(cohorts.reachedNextFloor, "fleeAttempts", "exposure")}/${cohortP50(cohorts.reachedNextFloor, "fleeExecutions", "exposure")} · ${cohortP50(cohorts.reachedNextFloor, "steps", "exposure")}; death ${cohortP50(cohorts.died, "combatCount", "exposure")}/${cohortP50(cohorts.died, "rounds", "exposure")}/${cohortP50(cohorts.died, "enemyActionCount", "exposure")} · ${cohortP50(cohorts.died, "fleeAttempts", "exposure")}/${cohortP50(cohorts.died, "fleeExecutions", "exposure")} · ${cohortP50(cohorts.died, "steps", "exposure")}`,
-      `- exit p50 HP/MP/recovery: advance ${cohortP50(cohorts.reachedNextFloor, "hp", "exit")}/${cohortP50(cohorts.reachedNextFloor, "mp", "exit")}/${cohortP50(cohorts.reachedNextFloor, "recoveryRemaining", "exit")}; death ${cohortP50(cohorts.died, "hp", "exit")}/${cohortP50(cohorts.died, "mp", "exit")}/${cohortP50(cohorts.died, "recoveryRemaining", "exit")}; death causes ${JSON.stringify(cohorts.died.terminal.deathCauseCounts)}`,
+      `- entry p50 HP/maxHP/ratio · MP/maxMP/ratio · recovery (all cohorts): ${cohortP50Line(cohorts, "entry", ["hp", "maxHp", "hpRatio", "mp", "maxMp", "mpRatio", "recoveryRemaining"])}`,
+      `- incremental Cost p50 HP combat/guardian/chest-trap/floor-trap/poison · MP spent (all cohorts): ${cohortP50Line(cohorts, "incrementalCost", ["combatDamageHp", "guardianBossDamageHp", "chestTrapDamageHp", "floorTrapDamageHp", "poisonStatusDamageHp", "mpSpent"])}`,
+      `- recovery p50 HP/MP recovered · items acquired/used (all cohorts): ${cohortP50Line(cohorts, "recovery", ["hpRecovered", "mpRecovered", "recoveryItemAcquired", "recoveryItemUsed"])}`,
+      `- exposure p50 combats/rounds/enemy actions · flee attempts/executions · steps (all cohorts): ${cohortP50Line(cohorts, "exposure", ["combatCount", "rounds", "enemyActionCount", "fleeAttempts", "fleeExecutions", "steps"])}`,
+      `- exit p50 HP/MP/recovery (all cohorts): ${cohortP50Line(cohorts, "exit", ["hp", "mp", "recoveryRemaining"])}; death causes ${JSON.stringify(cohorts.died.terminal.deathCauseCounts)}`,
       `- terminal Cost separation: death final-floor incremental source p50 ${JSON.stringify(Object.fromEntries(COST_SOURCE_IDS.map(source => [source, cohorts.died.terminal.finalFloorIncrementalCost[source]?.p50 ?? null])))}; death cumulative source p50 ${JSON.stringify(Object.fromEntries(COST_SOURCE_IDS.map(source => [source, cohorts.died.terminal.cumulativeCostBySource[source]?.p50 ?? null])))}. Death cause is terminal attribution, not cumulative Cost attribution.`,
       ""
     );
