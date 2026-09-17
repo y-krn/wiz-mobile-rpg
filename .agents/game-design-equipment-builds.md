@@ -21,6 +21,13 @@ Build quality is not a collection score or a count of equipped Cores. Equipment
 slots, the fixed 20-slot ordinary bag, consumables, unknown information, and
 resource timing create the competition that gives a build meaning.
 
+The run-local build is a primary power source. Starting Kit is an initial
+condition, not a permanent class, and Preparation safety is not Build power.
+Consumables can absorb early variance and buy time for formation, but they do
+not universally substitute for equipment, affix, Rune, Core, or Support
+decisions. Do not introduce a scalar "Build Power" as the design model; build
+identity is a structural set of choices tested by depth and resource pressure.
+
 Equipped items provide power while spare items provide adaptation. Recovered
 dungeon equipment is terminal history and knowledge, not permanent next-run
 battle gear. The Workshop may broaden what can appear in future runs, but it
@@ -141,6 +148,12 @@ parameters belong to the data source. Floor bands should establish and
 reinforce a build before offering more cost-conversion and direction-change
 possibilities. Earlier horizontal bases remain eligible as depth increases.
 
+The First Band has an explicit formation sequence: B1-B2 expose a build seed,
+B3-B4 begin to establish run identity, and B5 is the first compound test of
+that build. B1-B5 does not require a finished build, but it is not a build-free
+tutorial. B6+ should deepen transformation through cost conversion, direction
+change, and counterplay rather than only increasing base values.
+
 Supply is build-blind. Candidate availability and weighting must not inspect the
 equipped loadout, starting choice, current shortage, or desired build. Mediums
 and Runes are separate choices; supply should not answer their pairing for the
@@ -211,3 +224,8 @@ and allowlisted Support values. HP/MP, bag, floor, and starting-kit context stay
 outside the identity so a run outcome cannot silently become a build definition.
 Canonical fixture personas are explicit loadouts and are ordered by registry or
 socket order, never by save-object enumeration.
+
+Measurement may compare build outcomes at equal Preparation, but it must keep
+Preparation safety, run-local build formation, and B5's compound test as
+separate observations. The comparison must not collapse them into a scalar
+Build Power or treat starting supplies as a permanent combat identity.
