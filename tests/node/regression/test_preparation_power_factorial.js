@@ -66,7 +66,15 @@ const summary = buildSummary({
   result
 });
 assert.match(summary, /Kit × condition decision view/);
-assert.match(summary, /Each floor metric is reported as total \/ entrant mean \/ entrant p50/);
+assert.match(summary, /Run-level combat values are overview only/);
+assert.match(summary, /floor-local entrant metrics: B1 N=/);
+assert.match(summary, /; B2 N=/);
+assert.match(summary, /; B3 N=/);
+const summaryFloor = byId.W0R0.byStartingKit.vanguard.recovery.byFloor[1];
+const summaryMetricValue = value => value == null ? "unobserved" : Number(value).toFixed(3);
+assert.match(summary, new RegExp(
+  `B1 N=${summaryFloor.observedEntrantN} actions ${summaryMetricValue(summaryFloor.enemyActions.meanPerEntrant)}/${summaryMetricValue(summaryFloor.enemyActions.p50)}, rounds ${summaryMetricValue(summaryFloor.rounds.meanPerEntrant)}/${summaryMetricValue(summaryFloor.rounds.p50)}, dmg ${summaryMetricValue(summaryFloor.combatHpDamage.meanPerEntrant)}/${summaryMetricValue(summaryFloor.combatHpDamage.p50)}`
+));
 for (const kitId of STARTING_KIT_IDS) {
   assert.match(summary, new RegExp(`### ${kitId}`));
   for (const conditionId of CONDITION_IDS) assert.match(summary, new RegExp(`- ${conditionId}:`));

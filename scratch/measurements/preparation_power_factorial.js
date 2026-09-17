@@ -718,6 +718,13 @@ function inventoryRejectionTotal(aggregate) {
     .reduce((sum, value) => sum + value, 0);
 }
 
+function formatFloorLocalMetrics(aggregate) {
+  return [1, 2, 3].map(floor => {
+    const metrics = aggregate.recovery.byFloor[floor];
+    return `B${floor} N=${metrics.observedEntrantN} actions ${format(metrics.enemyActions.meanPerEntrant)}/${format(metrics.enemyActions.p50)}, rounds ${format(metrics.rounds.meanPerEntrant)}/${format(metrics.rounds.p50)}, dmg ${format(metrics.combatHpDamage.meanPerEntrant)}/${format(metrics.combatHpDamage.p50)}`;
+  }).join("; ");
+}
+
 export function buildSummary(report) {
   const { measurement, result } = report;
   const conditionById = Object.fromEntries(result.conditions.map(condition => [condition.id, condition]));
@@ -752,14 +759,17 @@ export function buildSummary(report) {
     "",
     "## Kit × condition decision view",
     "",
-    "Each floor metric is reported as total / entrant mean / entrant p50. The lines below use run-level means; B3 entry values are observed entrant means.",
+    "Run-level combat values are overview only and must not be used for floor-local mechanism decisions. Floor-local metrics below are entrant N; meanPerEntrant/p50. B3 entry values are observed entrant means.",
     "",
     ...STARTING_KIT_IDS.flatMap(kitId => [
       `### ${kitId}`,
-      ...CONDITION_IDS.map(conditionId => {
+      ...CONDITION_IDS.flatMap(conditionId => {
         const condition = conditionById[conditionId].byStartingKit[kitId];
         const b3Entry = condition.recovery.b2ExitB3Entry;
-        return `- ${conditionId}: reach B3/B4/B5/B6 ${[3, 4, 5, 6].map(floor => `${condition.reach[floor].count}/${formatRate(condition.reach[floor].rate)}`).join("/")}; death/Return/cutoff ${condition.outcome.death}/${condition.outcome.voluntaryReturn}/${condition.outcome.b6Cutoff}; enemy actions ${format(condition.combat.enemyActions)}; rounds ${format(condition.combat.rounds)}; combat HP damage ${format(condition.combat.hpDamage)}; B3 entry HP ${format(b3Entry.b3EntryHp)} (${format(b3Entry.b3EntryHpRatio)} ratio); B3 entry potions ${format(b3Entry.b3EntryPotionRemaining)}; potion used ${format(condition.recovery.potionUsed)}; HP recovered ${format(condition.recovery.hpRecovered)}; loot acquired/bagged ${format(condition.loot.acquired)}/${format(condition.loot.bagged)}; inventory rejection ${inventoryRejectionTotal(condition)}; equipment opportunities/swaps ${format(condition.loot.equipmentOpportunities)}/${format(condition.loot.equipmentSwaps)}; Build changes ${format(condition.loot.buildChanges)}; ending bag ${format(condition.loot.endingBagUsed.p50)}`;
+        return [
+          `- ${conditionId}: reach B3/B4/B5/B6 ${[3, 4, 5, 6].map(floor => `${condition.reach[floor].count}/${formatRate(condition.reach[floor].rate)}`).join("/")}; death/Return/cutoff ${condition.outcome.death}/${condition.outcome.voluntaryReturn}/${condition.outcome.b6Cutoff}; run-level overview actions/rounds/dmg ${format(condition.combat.enemyActions)}/${format(condition.combat.rounds)}/${format(condition.combat.hpDamage)}; B3 entry HP ${format(b3Entry.b3EntryHp)} (${format(b3Entry.b3EntryHpRatio)} ratio); B3 entry potions ${format(b3Entry.b3EntryPotionRemaining)}; potion used ${format(condition.recovery.potionUsed)}; HP recovered ${format(condition.recovery.hpRecovered)}; loot acquired/bagged ${format(condition.loot.acquired)}/${format(condition.loot.bagged)}; inventory rejection ${inventoryRejectionTotal(condition)}; equipment opportunities/swaps ${format(condition.loot.equipmentOpportunities)}/${format(condition.loot.equipmentSwaps)}; Build changes ${format(condition.loot.buildChanges)}; ending bag ${format(condition.loot.endingBagUsed.p50)}`,
+          `  - floor-local entrant metrics: ${formatFloorLocalMetrics(condition)}`
+        ];
       })
     ]),
     "",
