@@ -302,7 +302,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1328 },
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
     buildArgs: preparationPowerArgs
   })
 });

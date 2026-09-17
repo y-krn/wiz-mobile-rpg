@@ -14,10 +14,10 @@ import { applyStandardSimulationEnv, getStandardSimulationEnv, STANDARD_BALANCE_
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 
-export const RUNNER_VERSION = "issue1328-preparation-power-factorial-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "issue1328-preparation-power-factorial-v2";
+export const SCHEMA_VERSION = 2;
 export const DEFAULT_RUNS = 1000;
-export const DEFAULT_SEED = 1328;
+export const DEFAULT_SEED = 1277;
 export const TARGET_DEPTH = 6;
 export const RUN_EVIDENCE_SAMPLE_LIMIT = 8;
 export const CANDIDATE_SAMPLE_LIMIT = 128;
@@ -91,6 +91,15 @@ function equalJson(left, right) {
 
 function mean(values) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+function metricSummary(values) {
+  const observed = values.filter(Number.isFinite);
+  return {
+    total: observed.reduce((sum, value) => sum + value, 0),
+    meanPerEntrant: mean(observed),
+    p50: quantiles(observed).p50
+  };
 }
 
 function rate(count, total) {
@@ -348,28 +357,30 @@ function validatePreparation(row, condition, workshop) {
   reconcileMaterialPayment(row, condition);
 }
 
-function aggregateFloor(rows, floor) {
+export function aggregateFloor(rows, floor) {
   const values = rows.map(row => row.recovery.floors[String(floor)]).filter(Boolean);
-  const sum = key => values.reduce((total, value) => total + (Number(value[key]) || 0), 0);
-  const average = key => mean(values.map(value => value[key]).filter(Number.isFinite));
+  const average = key => {
+    const observed = values.map(value => value[key]).filter(Number.isFinite);
+    return { meanPerEntrant: mean(observed), p50: quantiles(observed).p50 };
+  };
   return {
-    observed: values.length,
+    observedEntrantN: values.length,
     entryHpRatio: average("entryHpRatio"),
     exitHpRatio: average("exitHpRatio"),
     entryRecoveryRemaining: average("entryRecoveryRemaining"),
     exitRecoveryRemaining: average("exitRecoveryRemaining"),
-    potionUsed: sum("healPotionUses"),
-    hpRecovered: sum("hpRecovered"),
-    combatCount: sum("combatCount"),
-    rounds: sum("rounds"),
-    enemyActions: sum("enemyActions"),
-    combatHpDamage: sum("combatHpDamage"),
-    equipmentOpportunities: sum("equipmentOpportunities"),
-    equipmentSwaps: sum("equipmentSwaps")
+    potionUsed: metricSummary(values.map(value => value.healPotionUses)),
+    hpRecovered: metricSummary(values.map(value => value.hpRecovered)),
+    combatCount: metricSummary(values.map(value => value.combatCount)),
+    rounds: metricSummary(values.map(value => value.rounds)),
+    enemyActions: metricSummary(values.map(value => value.enemyActions)),
+    combatHpDamage: metricSummary(values.map(value => value.combatHpDamage)),
+    equipmentOpportunities: metricSummary(values.map(value => value.equipmentOpportunities)),
+    equipmentSwaps: metricSummary(values.map(value => value.equipmentSwaps))
   };
 }
 
-function aggregateCondition(rows, condition) {
+function aggregateCondition(rows, condition, { includeStartingKitBreakdown = true } = {}) {
   const n = rows.length;
   const reached = floor => rows.filter(row => row.outcome.reachedFloor >= floor).length;
   const outcomes = rows.reduce((result, row) => {
@@ -391,11 +402,28 @@ function aggregateCondition(rows, condition) {
     return [kitId, first];
   }));
   const material = rows[0]?.materials || null;
-  return {
+  const combatTotals = Object.fromEntries(["count", "rounds", "enemyActions", "enemyDamageTurns", "hpDamage"].map(key => [
+    key,
+    rows.reduce((sum, row) => sum + (Number(row.combat[key]) || 0), 0)
+  ]));
+  const recoveryTotals = {
+    potionUsed: rows.reduce((sum, row) => sum + (Number(row.recovery.potionUsed) || 0), 0),
+    hpRecovered: rows.reduce((sum, row) => sum + (Number(row.recovery.hpRecovered) || 0), 0)
+  };
+  const lootTotals = {
+    acquired: rows.reduce((sum, row) => sum + (Number(row.loot.acquired) || 0), 0),
+    bagged: rows.reduce((sum, row) => sum + (Number(row.loot.bagged) || 0), 0),
+    equipmentOpportunities: rows.reduce((sum, row) => sum + (Number(row.loot.equipmentOpportunities) || 0), 0),
+    equipmentSwaps: rows.reduce((sum, row) => sum + (Number(row.loot.equipmentSwaps) || 0), 0),
+    buildChanges: rows.reduce((sum, row) => sum + (Number(row.loot.buildChanges) || 0), 0),
+    inventoryRejectionsByCategory: { ...rejectionTotals }
+  };
+  const aggregate = {
     id: condition.id,
     weaponAxis: condition.weaponMode,
     recoveryAxis: condition.recoveryMode,
     runs: n,
+    preparation: rows[0]?.preparation || null,
     preparationByKit,
     reach: Object.fromEntries([2, 3, 4, 5, 6].map(floor => [floor, {
       count: reached(floor),
@@ -419,6 +447,7 @@ function aggregateCondition(rows, condition) {
       enemyActions: mean(rows.map(row => row.combat.enemyActions)),
       enemyDamageTurns: mean(rows.map(row => row.combat.enemyDamageTurns)),
       hpDamage: mean(rows.map(row => row.combat.hpDamage)),
+      totals: combatTotals,
       damageBySource: Object.fromEntries(["normal", "elite", "midboss", "boss", "floor-trap", "chest-trap"].map(source => [
         source,
         mean(rows.map(row => row.combat.damageBySource[source]))
@@ -427,6 +456,7 @@ function aggregateCondition(rows, condition) {
     recovery: {
       potionUsed: mean(rows.map(row => row.recovery.potionUsed)),
       hpRecovered: mean(rows.map(row => row.recovery.hpRecovered).filter(Number.isFinite)),
+      totals: recoveryTotals,
       byFloor: Object.fromEntries([1, 2, 3, 4, 5].map(floor => [floor, aggregateFloor(rows, floor)])),
       b2ExitB3Entry: {
         observed: rows.filter(row => row.recovery.b2ExitB3Entry.observed).length,
@@ -443,6 +473,7 @@ function aggregateCondition(rows, condition) {
       equipmentOpportunities: mean(rows.map(row => row.loot.equipmentOpportunities).filter(Number.isFinite)),
       equipmentSwaps: mean(rows.map(row => row.loot.equipmentSwaps)),
       buildChanges: mean(rows.map(row => row.loot.buildChanges)),
+      totals: lootTotals,
       endingBagUsed: quantiles(rows.map(row => row.loot.endingBagUsed).filter(Number.isFinite)),
       returnObjectLoot: ["banked", "salvaged", "discarded", "lost", "left"].reduce((result, key) => {
         result[key] = rows.reduce((sum, row) => sum + row.loot.returnObjectLoot[key], 0);
@@ -462,6 +493,39 @@ function aggregateCondition(rows, condition) {
       acquiredBySource: sumNestedCounts(rows, "acquiredBySource"),
       consumedByMerchant: sumNestedCounts(rows, "consumedByMerchant")
     }
+  };
+  if (includeStartingKitBreakdown) {
+    aggregate.byStartingKit = Object.fromEntries(STARTING_KIT_IDS.map(kitId => {
+      const kitRows = rows.filter(row => row.startingKit === kitId);
+      return [kitId, aggregateCondition(kitRows, condition, { includeStartingKitBreakdown: false })];
+    }));
+    aggregate.overviewReconciliation = reconcileKitAggregates(aggregate);
+  }
+  return aggregate;
+}
+
+function reconcileKitAggregates(overview) {
+  const kits = Object.values(overview.byStartingKit);
+  const sum = values => values.reduce((total, value) => total + (Number(value) || 0), 0);
+  const checks = {
+    runs: sum(kits.map(kit => kit.runs)) === overview.runs,
+    reach: [2, 3, 4, 5, 6].every(floor => sum(kits.map(kit => kit.reach[floor].count)) === overview.reach[floor].count),
+    outcomes: ["death", "voluntaryReturn", "b6Cutoff"].every(key => sum(kits.map(kit => kit.outcome[key])) === overview.outcome[key]),
+    combatTotals: Object.keys(overview.combat.totals).every(key => sum(kits.map(kit => kit.combat.totals[key])) === overview.combat.totals[key]),
+    recoveryTotals: Object.keys(overview.recovery.totals).every(key => sum(kits.map(kit => kit.recovery.totals[key])) === overview.recovery.totals[key]),
+    floorTotals: [1, 2, 3, 4, 5].every(floor => [
+      "potionUsed", "hpRecovered", "combatCount", "rounds", "enemyActions", "combatHpDamage",
+      "equipmentOpportunities", "equipmentSwaps"
+    ].every(key => sum(kits.map(kit => kit.recovery.byFloor[floor][key].total)) === overview.recovery.byFloor[floor][key].total)),
+    lootTotals: ["acquired", "bagged", "equipmentOpportunities", "equipmentSwaps", "buildChanges"].every(key =>
+      sum(kits.map(kit => kit.loot.totals[key])) === overview.loot.totals[key]),
+    inventoryRejections: ["item", "equipment", "material"].every(category =>
+      sum(kits.map(kit => kit.loot.totals.inventoryRejectionsByCategory[category])) === overview.loot.totals.inventoryRejectionsByCategory[category])
+  };
+  return {
+    status: Object.values(checks).every(Boolean) ? "PASS" : "FAIL",
+    semantics: "overview counts/totals equal the sum of the four starting-kit aggregates; rates and means are recomputed for their observed population",
+    checks
   };
 }
 
@@ -637,8 +701,18 @@ function format(value) {
   return value == null ? "unobserved" : typeof value === "number" ? value.toFixed(3) : String(value);
 }
 
+function formatRate(value) {
+  return value == null ? "unobserved" : `${(value * 100).toFixed(1)}%`;
+}
+
+function inventoryRejectionTotal(aggregate) {
+  return Object.values(aggregate.loot.inventoryRejectionsByCategory)
+    .reduce((sum, value) => sum + value, 0);
+}
+
 export function buildSummary(report) {
   const { measurement, result } = report;
+  const conditionById = Object.fromEntries(result.conditions.map(condition => [condition.id, condition]));
   const lines = [
     "# Issue #1328 preparation-power factorial",
     "",
@@ -647,10 +721,10 @@ export function buildSummary(report) {
     `- initial bank: ${JSON.stringify(result.configuration.initialMaterialBank)}; inventory: ${result.configuration.inventoryContract.capacity} slots; R12 uses ${result.configuration.inventoryContract.potionSlots} slots`,
     "- same seed is used only for initial-condition matching; encounter, loot, and path parity after divergence are not claimed",
     "",
-    "## Preparation and outcome",
+    "## Overview",
     "",
     ...result.conditions.map(condition =>
-      `- ${condition.id}: B2/B3/B4/B5/B6 ${[2, 3, 4, 5, 6].map(floor => `${format(condition.reach[floor].rate * 100)}%`).join("/")}; death ${format(rate(condition.outcome.death, condition.runs) * 100)}%; voluntary Return ${condition.outcome.voluntaryReturn}; deepest p50 ${format(condition.outcome.deepestFloor.p50)}`
+      `- ${condition.id}: B2/B3/B4/B5/B6 ${[2, 3, 4, 5, 6].map(floor => formatRate(condition.reach[floor].rate)).join("/")}; death ${formatRate(rate(condition.outcome.death, condition.runs))}; voluntary Return ${condition.outcome.voluntaryReturn}; B6 cutoff ${condition.outcome.b6Cutoff}; deepest p50 ${format(condition.outcome.deepestFloor.p50)}`
     ),
     "",
     "## Preparation details",
@@ -661,11 +735,24 @@ export function buildSummary(report) {
       return `- ${kitId}: W0 ${w0.startingWeapon}/${w0.weaponAtk} ${w0.weaponBehavior}, load ${w0.equipmentLoad.class}, medium ${w0.medium.present ? w0.medium.id : "none"}, Rune ${w0.runeSlots}/${w0.activeRunes.join(",") || "none"}, MP ${w0.startingMaxMp}; W1 ${w1.startingWeapon}/${w1.weaponAtk} ${w1.weaponBehavior}, load ${w1.equipmentLoad.class}, medium ${w1.medium.present ? w1.medium.id : "none"}, Rune ${w1.runeSlots}/${w1.activeRunes.join(",") || "none"}, MP ${w1.startingMaxMp}`;
     }),
     "",
+    "## Kit × condition decision view",
+    "",
+    "Each floor metric is reported as total / entrant mean / entrant p50. The lines below use run-level means; B3 entry values are observed entrant means.",
+    "",
+    ...STARTING_KIT_IDS.flatMap(kitId => [
+      `### ${kitId}`,
+      ...CONDITION_IDS.map(conditionId => {
+        const condition = conditionById[conditionId].byStartingKit[kitId];
+        const b3Entry = condition.recovery.b2ExitB3Entry;
+        return `- ${conditionId}: reach B3/B4/B5/B6 ${[3, 4, 5, 6].map(floor => `${condition.reach[floor].count}/${formatRate(condition.reach[floor].rate)}`).join("/")}; death/Return/cutoff ${condition.outcome.death}/${condition.outcome.voluntaryReturn}/${condition.outcome.b6Cutoff}; enemy actions ${format(condition.combat.enemyActions)}; rounds ${format(condition.combat.rounds)}; combat HP damage ${format(condition.combat.hpDamage)}; B3 entry HP ${format(b3Entry.b3EntryHpRatio)}; B3 entry potions ${format(b3Entry.b3EntryPotionRemaining)}; potion used ${format(condition.recovery.potionUsed)}; HP recovered ${format(condition.recovery.hpRecovered)}; loot acquired/bagged ${format(condition.loot.acquired)}/${format(condition.loot.bagged)}; inventory rejection ${inventoryRejectionTotal(condition)}; equipment opportunities/swaps ${format(condition.loot.equipmentOpportunities)}/${format(condition.loot.equipmentSwaps)}; Build changes ${format(condition.loot.buildChanges)}; ending bag ${format(condition.loot.endingBagUsed.p50)}`;
+      })
+    ]),
+    "",
     "## Invariants",
     "",
     `- determinism: ${result.determinism.status}; observation invariance: ${result.observationInvariance.status}`,
     `- R0/R12 starting potions: ${result.conditions.map(condition => `${condition.id}=${condition.preparationByKit.vanguard.startingPotionCount}`).join(", ")}`,
-    `- B6 cutoff is separate from voluntary Return: ${result.conditions.every(condition => condition.outcome.b6Cutoff + condition.outcome.voluntaryReturn <= condition.runs) ? "PASS" : "FAIL"}`,
+    `- B6 cutoff is separate from voluntary Return: ${result.conditions.every(condition => condition.outcome.b6Cutoff + condition.outcome.voluntaryReturn <= condition.runs) ? "PASS" : "FAIL"}; overview/kit reconciliation: ${result.conditions.every(condition => condition.overviewReconciliation.status === "PASS") ? "PASS" : "FAIL"}`,
     "- production balance values are not modified; this runner reports diagnostic evidence only",
     "- no raw run records persisted; representative compact samples are capped at 8 per condition; candidate sample is not applicable"
   ];
