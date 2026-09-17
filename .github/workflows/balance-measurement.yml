@@ -22,6 +22,7 @@ on:
           - run-difficulty
           - run-difficulty-policy-sensitivity
           - early-run-attrition
+          - b3plus-survival-decomposition
           - build-progression-audit
           - build-progression-pareto-safe
           - b2-chest-trap

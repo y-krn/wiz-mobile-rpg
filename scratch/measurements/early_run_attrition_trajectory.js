@@ -20,12 +20,18 @@ import {
   summarizeRejectedCandidateCrossTab as summarizeRejectedCandidateCrossTabForRun
 } from "./build_progression_audit.js";
 
-export const RUNNER_VERSION = "early-run-attrition-trajectory-v5";
-export const SCHEMA_VERSION = 4;
+export const RUNNER_VERSION = "early-run-attrition-trajectory-v6";
+export const SCHEMA_VERSION = 5;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1277;
 export const TRAJECTORY_FLOORS = Object.freeze([1, 2, 3, 4, 5]);
 export const MEASUREMENT_CUTOFF_FLOOR = 6;
+export const OUTCOME_COHORT_IDS = Object.freeze([
+  "reachedNextFloor",
+  "died",
+  "voluntaryReturn",
+  "otherTerminal"
+]);
 export const STARTING_KIT_IDS = Object.freeze(STARTING_KITS.map(kit => kit.id));
 export const CANDIDATE_AUDIT_SAMPLE_LIMIT = 128;
 export const CANDIDATE_AUDIT_SAMPLE_POLICY = Object.freeze(
@@ -73,6 +79,15 @@ export const B2_CHEST_TRAP_POLICIES = Object.freeze({
     chestTrapCostSuppressionFloor: 2
   })
 });
+export const SURVIVAL_DECOMPOSITION_POLICIES = Object.freeze({
+  canonical: Object.freeze({
+    ...TRAJECTORY_POLICIES.t0,
+    id: "canonical",
+    label: "current canonical",
+    description: "current canonical deterministic_greedy policy; no counterfactual",
+    equipmentUpdatePolicy: "deterministic_greedy"
+  })
+});
 export const MEASUREMENT_TREATMENTS = Object.freeze({
   "portal-policy": Object.freeze({
     id: "portal-policy",
@@ -103,6 +118,11 @@ export const MEASUREMENT_TREATMENTS = Object.freeze({
       })
     }),
     description: "equipment policy comparison; only the equipment update policy differs"
+  }),
+  "b3plus-survival-decomposition": Object.freeze({
+    id: "b3plus-survival-decomposition",
+    policies: SURVIVAL_DECOMPOSITION_POLICIES,
+    description: "canonical-only B3-B5 floor × terminal outcome cohort decomposition"
   })
 });
 export const MEASUREMENT_RUNNER_PATHS = Object.freeze([
@@ -302,6 +322,10 @@ function terminalKind(result) {
   return "otherTerminal";
 }
 
+export function classifyTerminalOutcome(result) {
+  return terminalKind(result);
+}
+
 function floorTerminalKind(stage, result) {
   if (stage?.reachedNextFloor) return "reachedNextFloor";
   if (stage?.died) return "died";
@@ -309,6 +333,10 @@ function floorTerminalKind(stage, result) {
   if (stage?.terminal === "incomplete") return "otherTerminal";
   if (result.outcome === "death" && Number(stage?.floor) === Number(result.deathFloor)) return "died";
   return null;
+}
+
+export function classifyFloorOutcome(stage, result) {
+  return floorTerminalKind(stage, result);
 }
 
 function compactFloor(
@@ -1011,6 +1039,192 @@ function makeWaterfall(records, floor) {
   };
 }
 
+function summarizeCohortDistribution(rows, getter) {
+  return quantiles(rows.map(getter).filter(Number.isFinite));
+}
+
+function cohortStatus(count, entrants) {
+  if (entrants === 0) return "unreachable";
+  if (count === 0) return "observed";
+  return rateMetric(count, count).confidence === "sufficient" ? "observed" : "insufficient";
+}
+
+function countByValue(values) {
+  return values.reduce((counts, value) => {
+    const key = value || "none";
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+function itemCount(row, field) {
+  return Object.values(row?.[field] || {}).reduce((total, amount) => total + (Number(amount) || 0), 0);
+}
+
+function summarizeCohortBuild(rows) {
+  const snapshots = rows.map(row => row.entry?.build).filter(Boolean);
+  const identities = countByValue(snapshots.map(snapshot => snapshot.identity));
+  const weaponProfiles = countByValue(snapshots.map(snapshot => snapshot.weaponProfile));
+  const coreIds = countByValue(snapshots.flatMap(snapshot => [
+    ...(snapshot.mainCoreIds || []),
+    ...(snapshot.auxiliaryCoreIds || [])
+  ]));
+  const supportIds = countByValue(snapshots.flatMap(snapshot => snapshot.supportAffixIds || []));
+  return {
+    status: snapshots.length > 0 ? "observed" : "unobserved",
+    identityCounts: identities,
+    weaponProfileCounts: weaponProfiles,
+    coreIdCounts: coreIds,
+    supportIdCounts: supportIds,
+    level: summarizeCohortDistribution(snapshots, snapshot => snapshot.level),
+    atk: summarizeCohortDistribution(snapshots, snapshot => snapshot.atk),
+    def: summarizeCohortDistribution(snapshots, snapshot => snapshot.def),
+    maxHp: summarizeCohortDistribution(snapshots, snapshot => snapshot.maxHp),
+    maxMp: summarizeCohortDistribution(snapshots, snapshot => snapshot.maxMp)
+  };
+}
+
+function summarizeOutcomeCohort(rows, cohort, entrants) {
+  const entryHp = summarizeCohortDistribution(rows, row => row.entry?.hp);
+  const entryMaxHp = summarizeCohortDistribution(rows, row => row.entry?.maxHp);
+  const entryMp = summarizeCohortDistribution(rows, row => row.entry?.mp);
+  const entryMaxMp = summarizeCohortDistribution(rows, row => row.entry?.maxMp);
+  const entryHpRatio = summarizeCohortDistribution(rows, row => row.entry?.hpRatio);
+  const entryMpRatio = summarizeCohortDistribution(rows, row => row.entry?.mpRatio);
+  const exitHp = summarizeCohortDistribution(rows, row => row.exit?.hp);
+  const exitMaxHp = summarizeCohortDistribution(rows, row => row.exit?.maxHp);
+  const exitMp = summarizeCohortDistribution(rows, row => row.exit?.mp);
+  const exitMaxMp = summarizeCohortDistribution(rows, row => row.exit?.maxMp);
+  const exitHpRatio = summarizeCohortDistribution(rows, row => row.exit?.hpRatio);
+  const exitMpRatio = summarizeCohortDistribution(rows, row => row.exit?.mpRatio);
+  const cost = field => summarizeCohortDistribution(rows, row => row.incrementalCost?.[field]);
+  const cumulativeCost = field => summarizeCohortDistribution(rows, row => row.record?.cumulativeCostBySource?.[field]);
+  const finalFloorCost = field => summarizeCohortDistribution(rows, row => row.record?.finalFloorIncrementalCost?.[field]);
+  const deathRows = rows.filter(row => row.waterfall?.died);
+  const fieldStatus = distribution => entrants === 0
+    ? "unreachable"
+    : distribution.n > 0 ? "observed" : "unobserved";
+  return {
+    cohort,
+    count: rows.length,
+    status: cohortStatus(rows.length, entrants),
+    availability: {
+      entryHp: fieldStatus(entryHp),
+      entryMp: fieldStatus(entryMp),
+      entryRecovery: fieldStatus(summarizeCohortDistribution(rows, row => row.entry?.recoveryRemaining)),
+      combatDamage: fieldStatus(cost("combatDamageHp")),
+      guardianBossDamage: fieldStatus(cost("guardianBossDamageHp")),
+      chestTrapDamage: fieldStatus(cost("chestTrapDamageHp")),
+      floorTrapDamage: fieldStatus(cost("floorTrapDamageHp")),
+      poisonStatusDamage: fieldStatus(cost("poisonStatusDamageHp")),
+      mpSpent: fieldStatus(cost("mpSpent")),
+      hpRecovered: fieldStatus(cost("hpRecovered")),
+      recoveryItemUsed: fieldStatus(summarizeCohortDistribution(rows, row => itemCount(row.incrementalCost, "recoveryItemUsed"))),
+      combatCount: fieldStatus(cost("combatCount")),
+      rounds: fieldStatus(cost("combatRounds")),
+      enemyActions: fieldStatus(cost("enemyActionCount")),
+      exitHp: fieldStatus(exitHp),
+      exitMp: fieldStatus(exitMp),
+      exitRecovery: fieldStatus(summarizeCohortDistribution(rows, row => row.exit?.recoveryRemaining))
+    },
+    entry: {
+      hp: entryHp,
+      maxHp: entryMaxHp,
+      hpRatio: entryHpRatio,
+      mp: entryMp,
+      maxMp: entryMaxMp,
+      mpRatio: entryMpRatio,
+      recoveryRemaining: summarizeCohortDistribution(rows, row => row.entry?.recoveryRemaining),
+      statusCounts: countByValue(rows.map(row => row.entry?.status)),
+      cureItemCounts: rows.reduce((counts, row) => {
+        Object.entries(row.entry?.cureItems || {}).forEach(([item, amount]) => {
+          counts[item] = (counts[item] || 0) + (Number(amount) || 0);
+        });
+        return counts;
+      }, {}),
+      build: summarizeCohortBuild(rows)
+    },
+    incrementalCost: {
+      combatDamageHp: cost("combatDamageHp"),
+      guardianBossDamageHp: cost("guardianBossDamageHp"),
+      chestTrapDamageHp: cost("chestTrapDamageHp"),
+      floorTrapDamageHp: cost("floorTrapDamageHp"),
+      poisonStatusDamageHp: cost("poisonStatusDamageHp"),
+      fleePartingDamageHp: cost("fleePartingDamageHp"),
+      mpSpent: cost("mpSpent"),
+      bySource: Object.fromEntries(COST_SOURCE_IDS.map(source => [source, cost(source)]))
+    },
+    recovery: {
+      hpRecovered: cost("hpRecovered"),
+      mpRecovered: cost("mpRecovered"),
+      recoveryItemAcquired: summarizeCohortDistribution(rows, row => itemCount(row.incrementalCost, "recoveryItemAcquired")),
+      recoveryItemUsed: summarizeCohortDistribution(rows, row => itemCount(row.incrementalCost, "recoveryItemUsed")),
+      recoveryItemAcquiredCounts: rows.reduce((counts, row) => {
+        Object.entries(row.incrementalCost?.recoveryItemAcquired || {}).forEach(([item, amount]) => {
+          counts[item] = (counts[item] || 0) + (Number(amount) || 0);
+        });
+        return counts;
+      }, {}),
+      recoveryItemUsedCounts: rows.reduce((counts, row) => {
+        Object.entries(row.incrementalCost?.recoveryItemUsed || {}).forEach(([item, amount]) => {
+          counts[item] = (counts[item] || 0) + (Number(amount) || 0);
+        });
+        return counts;
+      }, {})
+    },
+    exposure: {
+      combatCount: cost("combatCount"),
+      rounds: cost("combatRounds"),
+      enemyActionCount: cost("enemyActionCount"),
+      fleeAttempts: cost("fleeAttempts"),
+      fleeExecutions: cost("fleeExecutions"),
+      steps: cost("steps")
+    },
+    exit: {
+      hp: exitHp,
+      maxHp: exitMaxHp,
+      hpRatio: exitHpRatio,
+      mp: exitMp,
+      maxMp: exitMaxMp,
+      mpRatio: exitMpRatio,
+      recoveryRemaining: summarizeCohortDistribution(rows, row => row.exit?.recoveryRemaining),
+      statusCounts: countByValue(rows.map(row => row.exit?.status))
+    },
+    terminal: {
+      reasonCounts: countByValue(rows.map(row => row.terminalReason)),
+      deathCauseCounts: countByValue(deathRows.map(row => row.record?.terminalCause)),
+      finalFloorIncrementalCost: Object.fromEntries(COST_SOURCE_IDS.map(source => [
+        source,
+        finalFloorCost(source)
+      ])),
+      cumulativeCostBySource: Object.fromEntries(COST_SOURCE_IDS.map(source => [
+        source,
+        cumulativeCost(source)
+      ]))
+    }
+  };
+}
+
+export function summarizeFloorOutcomeCohorts(records, floor) {
+  const rows = records.map(record => {
+    const floorRow = record.floors?.[floor];
+    return floorRow ? { ...floorRow, record } : null;
+  }).filter(Boolean);
+  const cohorts = Object.fromEntries(OUTCOME_COHORT_IDS.map(cohort => [
+    cohort,
+    summarizeOutcomeCohort(
+      rows.filter(row => row.waterfall?.[cohort]),
+      cohort,
+      rows.length
+    )
+  ]));
+  const partition = Object.values(cohorts).reduce((total, cohort) => total + cohort.count, 0);
+  if (partition !== rows.length) {
+    throw new Error(`outcome cohort invariant failed at B${floor}: entrants=${rows.length} cohorts=${partition}`);
+  }
+  return cohorts;
+}
+
 function distributionForFloors(records, floor) {
   const rows = records.map(record => record.floors[floor]).filter(Boolean);
   const values = field => quantiles(rows.map(row => Number(field(row))).filter(Number.isFinite));
@@ -1070,7 +1284,8 @@ function distributionForFloors(records, floor) {
       ? COST_SOURCE_IDS.slice().sort((left, right) =>
         incrementalCostTotalBySource[right] - incrementalCostTotalBySource[left]
       )[0]
-      : null
+      : null,
+    outcomeCohorts: summarizeFloorOutcomeCohorts(records, floor)
   };
 }
 
@@ -1992,7 +2207,7 @@ export async function runMeasurement(options = {}) {
       }
     };
     if (!determinism[policy.id].pass) throw new Error(`trajectory determinism probe failed: ${policy.id}`);
-    if (config.collectEquipmentCandidateAudit) {
+    if (config.collectEquipmentCandidateAudit || treatment.id === "b3plus-survival-decomposition") {
       resetSimulationRandom(config.seed);
       const auditOff = runOne({ ...probe, policy, audit: false });
       resetSimulationRandom(config.seed);
@@ -2007,82 +2222,62 @@ export async function runMeasurement(options = {}) {
   const cases = [];
   for (const scenarioId of config.scenarioIds) {
     for (const startingKitId of config.startingKitIds) {
-      const records = {};
-      const candidateSampleCollectors = {
-        t0: config.collectEquipmentCandidateAudit
-          ? createCandidateAuditSampleCollector()
-          : null,
-        t1: config.collectEquipmentCandidateAudit
-          ? createCandidateAuditSampleCollector()
-          : null
-      };
-      const runEvidenceSampleCollectors = {
-        t0: createRunEvidenceSampleCollector(),
-        t1: createRunEvidenceSampleCollector()
-      };
-      const t0Policy = treatment.policies.t0;
-      const t1Policy = treatment.policies.t1;
-      resetSimulationRandom(config.seed);
-      records.t0 = [];
-      for (let runIndex = 0; runIndex < config.runs; runIndex++) {
-        const record = runOne({
-          scenarioId,
-          startingKitId,
-          policy: t0Policy,
-          runIndex,
-          candidateSampleCollector: candidateSampleCollectors.t0
-        });
-        records.t0.push(record);
-        runEvidenceSampleCollectors.t0.add(record);
+      const policyEntries = Object.entries(treatment.policies);
+      const records = Object.fromEntries(policyEntries.map(([policyId]) => [policyId, []]));
+      const candidateSampleCollectors = Object.fromEntries(policyEntries.map(([policyId]) => [
+        policyId,
+        config.collectEquipmentCandidateAudit ? createCandidateAuditSampleCollector() : null
+      ]));
+      const runEvidenceSampleCollectors = Object.fromEntries(policyEntries.map(([policyId]) => [
+        policyId,
+        createRunEvidenceSampleCollector()
+      ]));
+      for (const [policyId, policy] of policyEntries) {
+        resetSimulationRandom(config.seed);
+        for (let runIndex = 0; runIndex < config.runs; runIndex++) {
+          const record = runOne({
+            scenarioId,
+            startingKitId,
+            policy,
+            runIndex,
+            candidateSampleCollector: candidateSampleCollectors[policyId]
+          });
+          records[policyId].push(record);
+          runEvidenceSampleCollectors[policyId].add(record);
+        }
       }
-      resetSimulationRandom(config.seed);
-      records.t1 = [];
-      for (let runIndex = 0; runIndex < config.runs; runIndex++) {
-        const record = runOne({
-          scenarioId,
-          startingKitId,
-          policy: t1Policy,
-          runIndex,
-          candidateSampleCollector: candidateSampleCollectors.t1
-        });
-        records.t1.push(record);
-        runEvidenceSampleCollectors.t1.add(record);
-      }
-      const t0 = records.t0;
-      const t1 = records.t1;
-      const t0Aggregate = aggregateCondition(t0);
-      const t1Aggregate = aggregateCondition(t1);
-      const t0CandidateAuditSample = candidateSampleCollectors.t0?.finalize() || null;
-      const t1CandidateAuditSample = candidateSampleCollectors.t1?.finalize() || null;
-      const t0RunEvidenceSample = runEvidenceSampleCollectors.t0.finalize();
-      const t1RunEvidenceSample = runEvidenceSampleCollectors.t1.finalize();
+      const aggregates = Object.fromEntries(policyEntries.map(([policyId]) => [
+        policyId,
+        aggregateCondition(records[policyId])
+      ]));
+      const candidateAuditSamples = Object.fromEntries(policyEntries.map(([policyId]) => [
+        policyId,
+        candidateSampleCollectors[policyId]?.finalize() || null
+      ]));
+      const runEvidenceSamples = Object.fromEntries(policyEntries.map(([policyId]) => [
+        policyId,
+        runEvidenceSampleCollectors[policyId].finalize()
+      ]));
       const firstPolicyDivergence = treatment.id === "equipment-pareto-safe"
-        ? summarizeFirstPolicyDivergence(t0, t1)
+        ? summarizeFirstPolicyDivergence(records.t0, records.t1)
         : null;
-      const matchedConversions = treatment.id === "equipment-pareto-safe"
+      const hasMatchedPair = Boolean(records.t0 && records.t1);
+      const matchedConversions = treatment.id === "equipment-pareto-safe" || !hasMatchedPair
         ? null
-        : buildMatchedConversions(t0, t1);
+        : buildMatchedConversions(records.t0, records.t1);
       cases.push({
         scenarioId,
         startingKitId,
-        policies: {
-          t0: {
-            ...treatment.policies.t0,
-            aggregate: t0Aggregate,
-            candidateAuditSample: t0CandidateAuditSample,
-            runEvidenceSample: t0RunEvidenceSample
-          },
-          t1: {
-            ...treatment.policies.t1,
-            aggregate: t1Aggregate,
-            candidateAuditSample: t1CandidateAuditSample,
-            runEvidenceSample: t1RunEvidenceSample
-          }
-        },
+        policies: Object.fromEntries(policyEntries.map(([policyId, policy]) => [policyId, {
+          ...policy,
+          aggregate: aggregates[policyId],
+          candidateAuditSample: candidateAuditSamples[policyId],
+          runEvidenceSample: runEvidenceSamples[policyId]
+        }])),
         matchedConversions,
-        matchedChestComparison: treatment.id === "equipment-pareto-safe"
+        matchedChestComparison: treatment.id === "equipment-pareto-safe" || !hasMatchedPair
           ? null
-          : buildMatchedChestComparison(t0, t1),
+          : buildMatchedChestComparison(records.t0, records.t1),
         returnContinuation: matchedConversions?.returnContinuation || null,
         firstPolicyDivergence
       });
@@ -2097,6 +2292,9 @@ export async function runMeasurement(options = {}) {
     startingKitIds: config.startingKitIds,
     scenarioIds: config.scenarioIds,
     treatment: treatment.id,
+    outcomeCohorts: [...OUTCOME_COHORT_IDS],
+    cohortInvariant: "sum(cohort counts) === floor entrants",
+    cohortSampleSufficiency: "rateMetric confidence convention: N>=30 observed, 1<=N<30 insufficient, zero with entrants observed zero, no entrants unreachable",
     candidateAudit: config.collectEquipmentCandidateAudit,
     runEvidenceSampleLimit: RUN_EVIDENCE_SAMPLE_LIMIT,
     returnContinuationSampleLimit: RETURN_CONTINUATION_SAMPLE_LIMIT,
@@ -2112,6 +2310,9 @@ export async function runMeasurement(options = {}) {
         }
       : null,
     policies: Object.values(treatment.policies).map(policy => ({ ...policy })),
+    policyExecution: Object.keys(treatment.policies).length === 1
+      ? "canonical-only; one production policy execution per condition"
+      : "paired policy execution; one production execution per policy per condition",
     matchedIdentity: hashConfiguration({
       source: "production-simulateRun",
       seed: config.seed,
@@ -2125,7 +2326,9 @@ export async function runMeasurement(options = {}) {
       policies: Object.values(treatment.policies),
       matchedKey: "runIndex + worldSeed"
     }),
-    seedPolicy: "same production worldSeed per runIndex across T0/T1; simulator RNG reset per condition",
+    seedPolicy: Object.keys(treatment.policies).length === 1
+      ? "same production worldSeed per runIndex; simulator RNG reset per condition"
+      : "same production worldSeed per runIndex across T0/T1; simulator RNG reset per condition",
     sourceOfTruth: "src/state/initial_state.js STARTING_KITS",
     productionPath: "scratch/simulations/sim_depth_material_ev.js simulateRun",
     costAttribution: "diagnostics.costEvents grouped by floor; unseparable sources remain null/unobserved",
@@ -2206,19 +2409,33 @@ export function buildReport(result, provenance = null, environmentSignature = nu
     determinism,
     observationInvariance: result.observationInvariance,
     cases,
-    interpretation: {
-      candidates: [
-        "A — B1 combat-dominated",
-        "B — B2 carry-over attrition-dominated",
-        "C — B3–B5 trap/exploration-dominated",
-        "D — recovery exhaustion-dominated",
-        "E — mixed",
-        "F — instrumentation-limited"
-      ],
-      decision: "human review after durable N>=1000 measurement; no automatic balance classification",
-      productionRecommendation: "none; T1 is a causal probe, not a production candidate",
-      nextAxis: "select at most one follow-up axis from measured evidence"
-    }
+    interpretation: measurementId === "b3plus-survival-decomposition"
+      ? {
+          candidates: [
+            "A — combat exposure dominated",
+            "B — carry-over / recovery exhaustion dominated",
+            "C — exploration / chest-trap dominated",
+            "D — mixed phase structure",
+            "E — outcome separation weak",
+            "F — instrumentation-limited"
+          ],
+          decision: "human review after durable canonical measurement; no automatic balance classification",
+          productionRecommendation: "none; canonical-only observational decomposition",
+          nextAxis: "select at most one floor × one axis from measured evidence"
+        }
+      : {
+          candidates: [
+            "A — B1 combat-dominated",
+            "B — B2 carry-over attrition-dominated",
+            "C — B3–B5 trap/exploration-dominated",
+            "D — recovery exhaustion-dominated",
+            "E — mixed",
+            "F — instrumentation-limited"
+          ],
+          decision: "human review after durable N>=1000 measurement; no automatic balance classification",
+          productionRecommendation: "none; T1 is a causal probe, not a production candidate",
+          nextAxis: "select at most one follow-up axis from measured evidence"
+        }
   };
 }
 
@@ -2408,13 +2625,98 @@ function buildProgressionLines(policy) {
   ];
 }
 
+function cohortP50(cohort, field, nested = null) {
+  const value = nested ? cohort?.[nested]?.[field]?.p50 : cohort?.[field]?.p50;
+  return value === null || value === undefined || !Number.isFinite(Number(value))
+    ? "—"
+    : fmt(value);
+}
+
+function cohortQuantile(cohort, field, nested = null) {
+  const distribution = nested ? cohort?.[nested]?.[field] : cohort?.[field];
+  return ["p10", "p50", "p90"].map(key => {
+    const value = distribution?.[key];
+    return value === null || value === undefined || !Number.isFinite(Number(value))
+      ? "—"
+      : fmt(value);
+  }).join("/");
+}
+
+function cohortCountCell(cohort) {
+  return `${cohort.count} (${cohort.status})`;
+}
+
+const COHORT_LABELS = Object.freeze({
+  reachedNextFloor: "advance",
+  died: "death",
+  voluntaryReturn: "Return",
+  otherTerminal: "other"
+});
+
+function cohortP50Line(cohorts, nested, fields) {
+  return OUTCOME_COHORT_IDS.map(id => {
+    const values = fields.map(field => cohortP50(cohorts[id], field, nested));
+    return `${COHORT_LABELS[id]} ${values.join("/")}`;
+  }).join("; ");
+}
+
+function cohortEntryQuantileLine(cohorts) {
+  return OUTCOME_COHORT_IDS.map(id => {
+    const cohort = cohorts[id];
+    const values = ["hp", "hpRatio", "mp", "mpRatio", "recoveryRemaining"].map(field => cohortQuantile(cohort, field, "entry"));
+    const availability = ["entryHp", "entryMp", "entryRecovery"].map(field => cohort.availability[field]);
+    return `${COHORT_LABELS[id]} ${values.join(" · ")} [${cohort.status}; ${availability.join("/")}]`;
+  }).join("; ");
+}
+
+function cohortAvailabilityLine(cohorts) {
+  return OUTCOME_COHORT_IDS.map(id => {
+    const availability = cohorts[id].availability;
+    return `${COHORT_LABELS[id]} entry HP/MP/recovery ${availability.entryHp}/${availability.entryMp}/${availability.entryRecovery} · Cost combat/chest-trap ${availability.combatDamage}/${availability.chestTrapDamage} · exposure combat/rounds/actions ${availability.combatCount}/${availability.rounds}/${availability.enemyActions}`;
+  }).join("; ");
+}
+
+function buildOutcomeCohortLines(testCase, policy) {
+  const lines = [
+    "",
+    `## B3–B5 outcome cohorts — ${testCase.scenarioId} / ${testCase.startingKitId} / ${policy.id}`,
+    "",
+    "Cohorts are exclusive floor entrants from the existing waterfall. `insufficient` reuses the existing rate confidence convention (N<30); a zero-count cohort with entrants is an observed zero, while a floor with no entrants is unreachable.",
+    ""
+  ];
+  for (const floor of [3, 4, 5]) {
+    const distribution = policy.aggregate.distributions[floor];
+    const cohorts = distribution.outcomeCohorts;
+    lines.push(
+      `### B${floor} — entrants ${distribution.entrants}`,
+      `- cohort N: advance ${cohortCountCell(cohorts.reachedNextFloor)}; death ${cohortCountCell(cohorts.died)}; Return ${cohortCountCell(cohorts.voluntaryReturn)}; other ${cohortCountCell(cohorts.otherTerminal)}`,
+      `- entry HP · HP ratio · MP · MP ratio · recovery p10/p50/p90 (all cohorts; p25/p75 in JSON): ${cohortEntryQuantileLine(cohorts)}`,
+      `- incremental Cost p50 HP combat/guardian/chest-trap/floor-trap/poison · MP spent (all cohorts): ${cohortP50Line(cohorts, "incrementalCost", ["combatDamageHp", "guardianBossDamageHp", "chestTrapDamageHp", "floorTrapDamageHp", "poisonStatusDamageHp", "mpSpent"])}`,
+      `- recovery p50 HP/MP recovered · items acquired/used (all cohorts): ${cohortP50Line(cohorts, "recovery", ["hpRecovered", "mpRecovered", "recoveryItemAcquired", "recoveryItemUsed"])}`,
+      `- exposure p50 combats/rounds/enemy actions · flee attempts/executions · steps (all cohorts): ${cohortP50Line(cohorts, "exposure", ["combatCount", "rounds", "enemyActionCount", "fleeAttempts", "fleeExecutions", "steps"])}`,
+      `- exit p50 HP/MP/recovery (all cohorts): ${cohortP50Line(cohorts, "exit", ["hp", "mp", "recoveryRemaining"])}; death causes ${JSON.stringify(cohorts.died.terminal.deathCauseCounts)}`,
+      `- availability: ${cohortAvailabilityLine(cohorts)}`,
+      `- terminal Cost separation: death final-floor incremental source p50 ${JSON.stringify(Object.fromEntries(COST_SOURCE_IDS.map(source => [source, cohorts.died.terminal.finalFloorIncrementalCost[source]?.p50 ?? null])))}; death cumulative source p50 ${JSON.stringify(Object.fromEntries(COST_SOURCE_IDS.map(source => [source, cohorts.died.terminal.cumulativeCostBySource[source]?.p50 ?? null])))}. Death cause is terminal attribution, not cumulative Cost attribution.`,
+      ""
+    );
+  }
+  lines.push(
+    "Interpretation inputs: compare entry state before same-floor exposure; compare combat count, rounds, enemy actions, and Cost separately; inspect B4 trap Cost by death/Return/advance; do not infer causality from this observational split.",
+    "Next causal probe: human review must select at most one floor × one axis after the durable canonical measurement; no production balance change is made here."
+  );
+  return lines;
+}
+
 export function buildSummary(report) {
+  const schemaVersion = report.measurement.schemaVersion || report.schemaVersion || "not recorded";
   const lines = [
     "# Early run attrition trajectory",
     "",
-    `- source SHA: \`${report.measurement.sourceCommit || "not recorded"}\`; runner: \`${report.measurementRunnerCommit || report.measurement.measurementRunnerCommit || "not recorded"}\`; schema: ${report.runnerVersion || report.measurement.runnerVersion}`,
+    `- source SHA: \`${report.measurement.sourceCommit || "not recorded"}\`; runner: \`${report.measurementRunnerCommit || report.measurement.measurementRunnerCommit || "not recorded"}\`; schema: ${schemaVersion}`,
     `- N=${report.configuration.runs}/condition; seed=${report.configuration.seed}; observed B1–B5; B6 is a synthetic measurement cutoff, never voluntary Return`,
-    report.configuration.treatment === "b2-chest-trap"
+    report.configuration.treatment === "b3plus-survival-decomposition"
+      ? "- canonical-only: one current deterministic_greedy production policy per condition; no T0/T1 or counterfactual comparison"
+      : report.configuration.treatment === "b2-chest-trap"
       ? "- T0 = current production; T1 = B2 chest-trap HP/status Cost suppressed at application boundary only"
       : report.configuration.treatment === "equipment-pareto-safe"
         ? "- T0 = current deterministic_greedy; T1 = deterministic_greedy_pareto_safe; only equipment update policy differs"
@@ -2489,6 +2791,9 @@ export function buildSummary(report) {
           `- Pareto-safe override swaps T0/T1: ${t0.lootBuild.paretoSafeOverrideCount || 0}/${t1.lootBuild.paretoSafeOverrideCount || 0}`
         );
       }
+      if (report.measurement.measurementId === "b3plus-survival-decomposition") {
+        lines.push(...buildOutcomeCohortLines(testCase, policy));
+      }
     });
   });
   lines.push(
@@ -2497,16 +2802,20 @@ export function buildSummary(report) {
     "",
     report.configuration.treatment === "b2-chest-trap"
       ? "- 暫定解釈: A（B2 chest trap dominant）〜E（Instrumentation-limited）を人手判定。固定閾値による自動判定なし。chest matched comparison が FAIL の場合、E寄りとしてB3以降の因果解釈を保留。"
-      : "- Interpretation: human review of measured evidence; no automatic balance classification.",
+      : report.configuration.treatment === "b3plus-survival-decomposition"
+        ? "- Interpretation: A〜F evidence inputs are human-reviewed; no automatic threshold, causal claim, or production lever is selected by the runner."
+        : "- Interpretation: human review of measured evidence; no automatic balance classification.",
     report.configuration.treatment === "b2-chest-trap"
       ? "- 判定軸: A=罠抑制でB2/B3+改善、B=combat等との混合、C=B2局所、D=差小、E=RNG divergence/識別不足。"
       : null,
     "- This is production-path diagnostic evidence, not balance tuning or a player-facing difficulty tier.",
     "- `combat`, `guardianBoss`, `floorTrap`, `chestTrap`, and `poisonStatus` are grouped only from emitted production cost events. Flee/parting and inseparable in-combat status damage remain unobserved rather than zero.",
     "- No raw combat log is persisted; each run keeps floor state, aggregate costs, terminal state, build snapshots, and at most the last three compact cost events.",
-    "- T1 is a matched causal probe and is not a production recommendation."
+    report.configuration.treatment === "b3plus-survival-decomposition"
+      ? "- Canonical-only observational decomposition; no T1 or counterfactual is run, and no production recommendation is made."
+      : "- T1 is a matched causal probe and is not a production recommendation."
   );
-  if (["build-progression-audit", "build-progression-pareto-safe"].includes(
+  if (["build-progression-audit", "build-progression-pareto-safe", "b3plus-survival-decomposition"].includes(
     report.measurement.measurementId
   )) {
     const invarianceValues = Object.values(report.observationInvariance || {});
