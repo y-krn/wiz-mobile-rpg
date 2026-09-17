@@ -567,6 +567,17 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
       };
     }
     const overview = aggregate(allRows);
+    const overviewReconciliation = {
+      runs: Object.values(byKit).reduce((sum, kit) => sum + kit.aggregate.runs, 0) === overview.runs,
+      reach: [2, 3, 4, 5, 6].every(floor => Object.values(byKit)
+        .reduce((sum, kit) => sum + kit.aggregate.reach[floor].count, 0) === overview.reach[floor].count),
+      outcomes: ["death", "voluntaryReturn", "otherTerminal"].every(field => Object.values(byKit)
+        .reduce((sum, kit) => sum + kit.aggregate[field].count, 0) === overview[field].count),
+      b5Entrants: Object.values(byKit).reduce((sum, kit) => sum + kit.aggregate.b5.entrantN, 0) === overview.b5.entrantN
+    };
+    if (!Object.values(overviewReconciliation).every(Boolean)) {
+      throw new Error(`${armId}: overview/by-kit reconciliation failed`);
+    }
     overview.buildIdentitySample = [...new Set(allRows.flatMap(row => CHECKPOINTS
       .map(floor => row.buildCheckpoints?.[`B${floor}Entry`]?.build?.identity)
       .filter(Boolean)))].slice(0, BUILD_IDENTITY_SAMPLE_LIMIT);
@@ -589,6 +600,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
       },
       byKit,
       overview,
+      overviewReconciliation,
       samples: { runs: armRunSamples.finalize(), candidates: armCandidateSamples.finalize() },
       smoke: { runsPerKit: runs, kitCount: KIT_IDS.length, totalRuns: allRows.length }
     };

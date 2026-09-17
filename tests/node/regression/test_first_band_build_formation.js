@@ -16,6 +16,7 @@ assert.equal(result.configuration.workshop, "workshop-complete");
 assert.equal(result.configuration.adaptivePolicy, CANONICAL_ADAPTIVE_POLICY_ID);
 assert.equal(result.determinism.pass, true);
 assert.equal(result.observationInvariance.pass, true);
+let enemyActionRegressionObserved = false;
 
 for (const armId of ARM_IDS) {
   const arm = result.arms[armId];
@@ -35,6 +36,7 @@ for (const armId of ARM_IDS) {
     }
     if (row.aggregate.combat[1].rounds.total > 0 && row.aggregate.combat[1].combatHpDamage.total > 0) {
       assert.ok(row.aggregate.combat[1].enemyActions.total > 0);
+      enemyActionRegressionObserved = true;
     }
     assert.ok(row.aggregate.buildCheckpoints[2]);
     assert.ok(row.aggregate.buildCheckpoints[5]);
@@ -53,6 +55,10 @@ for (const armId of ARM_IDS) {
     }
   }
 }
+assert.equal(enemyActionRegressionObserved, true);
+assert.ok(result.arms.P1B1.overview.b5.entrantN > 0);
+assert.ok(result.arms.P1B1.overview.b5.flameTrap.eligibleSteps.total > 0);
+assert.equal(result.arms.P1B1.overviewReconciliation.runs, true);
 
 assert.equal(result.primaryComparisons.length, 4);
 assert.match(result.primaryComparisons[0].label, /P0B1 - P0B0/);
