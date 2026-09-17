@@ -223,7 +223,9 @@ function buildStartingPreparation(result, condition, startingKitId, workshop) {
 
 function compactFloor(floor) {
   return {
+    entryHp: floor.entryHp,
     entryHpRatio: floor.entryHpRatio,
+    exitHp: floor.exitHp,
     exitHpRatio: floor.exitHpRatio,
     entryRecoveryRemaining: floor.entryRecoveryRemaining,
     exitRecoveryRemaining: floor.exitRecoveryRemaining,
@@ -300,6 +302,8 @@ function compactRun(result, condition, startingKitId, worldSeed, workshop) {
         observed: Boolean(floors["2"]?.exitHpRatio != null && floors["3"]?.entryHpRatio != null),
         b2ExitPotionRemaining: floors["2"]?.exitRecoveryRemaining ?? null,
         b3EntryPotionRemaining: floors["3"]?.entryRecoveryRemaining ?? null,
+        b2ExitHp: floors["2"]?.exitHp ?? null,
+        b3EntryHp: floors["3"]?.entryHp ?? null,
         b2ExitHpRatio: floors["2"]?.exitHpRatio ?? null,
         b3EntryHpRatio: floors["3"]?.entryHpRatio ?? null
       }
@@ -365,7 +369,9 @@ export function aggregateFloor(rows, floor) {
   };
   return {
     observedEntrantN: values.length,
+    entryHp: average("entryHp"),
     entryHpRatio: average("entryHpRatio"),
+    exitHp: average("exitHp"),
     exitHpRatio: average("exitHpRatio"),
     entryRecoveryRemaining: average("entryRecoveryRemaining"),
     exitRecoveryRemaining: average("exitRecoveryRemaining"),
@@ -462,6 +468,8 @@ function aggregateCondition(rows, condition, { includeStartingKitBreakdown = tru
         observed: rows.filter(row => row.recovery.b2ExitB3Entry.observed).length,
         b2ExitPotionRemaining: mean(rows.map(row => row.recovery.b2ExitB3Entry.b2ExitPotionRemaining).filter(Number.isFinite)),
         b3EntryPotionRemaining: mean(rows.map(row => row.recovery.b2ExitB3Entry.b3EntryPotionRemaining).filter(Number.isFinite)),
+        b2ExitHp: mean(rows.map(row => row.recovery.b2ExitB3Entry.b2ExitHp).filter(Number.isFinite)),
+        b3EntryHp: mean(rows.map(row => row.recovery.b2ExitB3Entry.b3EntryHp).filter(Number.isFinite)),
         b2ExitHpRatio: mean(rows.map(row => row.recovery.b2ExitB3Entry.b2ExitHpRatio).filter(Number.isFinite)),
         b3EntryHpRatio: mean(rows.map(row => row.recovery.b2ExitB3Entry.b3EntryHpRatio).filter(Number.isFinite))
       }
@@ -744,7 +752,7 @@ export function buildSummary(report) {
       ...CONDITION_IDS.map(conditionId => {
         const condition = conditionById[conditionId].byStartingKit[kitId];
         const b3Entry = condition.recovery.b2ExitB3Entry;
-        return `- ${conditionId}: reach B3/B4/B5/B6 ${[3, 4, 5, 6].map(floor => `${condition.reach[floor].count}/${formatRate(condition.reach[floor].rate)}`).join("/")}; death/Return/cutoff ${condition.outcome.death}/${condition.outcome.voluntaryReturn}/${condition.outcome.b6Cutoff}; enemy actions ${format(condition.combat.enemyActions)}; rounds ${format(condition.combat.rounds)}; combat HP damage ${format(condition.combat.hpDamage)}; B3 entry HP ${format(b3Entry.b3EntryHpRatio)}; B3 entry potions ${format(b3Entry.b3EntryPotionRemaining)}; potion used ${format(condition.recovery.potionUsed)}; HP recovered ${format(condition.recovery.hpRecovered)}; loot acquired/bagged ${format(condition.loot.acquired)}/${format(condition.loot.bagged)}; inventory rejection ${inventoryRejectionTotal(condition)}; equipment opportunities/swaps ${format(condition.loot.equipmentOpportunities)}/${format(condition.loot.equipmentSwaps)}; Build changes ${format(condition.loot.buildChanges)}; ending bag ${format(condition.loot.endingBagUsed.p50)}`;
+        return `- ${conditionId}: reach B3/B4/B5/B6 ${[3, 4, 5, 6].map(floor => `${condition.reach[floor].count}/${formatRate(condition.reach[floor].rate)}`).join("/")}; death/Return/cutoff ${condition.outcome.death}/${condition.outcome.voluntaryReturn}/${condition.outcome.b6Cutoff}; enemy actions ${format(condition.combat.enemyActions)}; rounds ${format(condition.combat.rounds)}; combat HP damage ${format(condition.combat.hpDamage)}; B3 entry HP ${format(b3Entry.b3EntryHp)} (${format(b3Entry.b3EntryHpRatio)} ratio); B3 entry potions ${format(b3Entry.b3EntryPotionRemaining)}; potion used ${format(condition.recovery.potionUsed)}; HP recovered ${format(condition.recovery.hpRecovered)}; loot acquired/bagged ${format(condition.loot.acquired)}/${format(condition.loot.bagged)}; inventory rejection ${inventoryRejectionTotal(condition)}; equipment opportunities/swaps ${format(condition.loot.equipmentOpportunities)}/${format(condition.loot.equipmentSwaps)}; Build changes ${format(condition.loot.buildChanges)}; ending bag ${format(condition.loot.endingBagUsed.p50)}`;
       })
     ]),
     "",
