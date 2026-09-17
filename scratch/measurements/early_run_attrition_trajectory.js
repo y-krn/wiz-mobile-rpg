@@ -2708,10 +2708,11 @@ function buildOutcomeCohortLines(testCase, policy) {
 }
 
 export function buildSummary(report) {
+  const schemaVersion = report.measurement.schemaVersion || report.schemaVersion || "not recorded";
   const lines = [
     "# Early run attrition trajectory",
     "",
-    `- source SHA: \`${report.measurement.sourceCommit || "not recorded"}\`; runner: \`${report.measurementRunnerCommit || report.measurement.measurementRunnerCommit || "not recorded"}\`; schema: ${report.runnerVersion || report.measurement.runnerVersion}`,
+    `- source SHA: \`${report.measurement.sourceCommit || "not recorded"}\`; runner: \`${report.measurementRunnerCommit || report.measurement.measurementRunnerCommit || "not recorded"}\`; schema: ${schemaVersion}`,
     `- N=${report.configuration.runs}/condition; seed=${report.configuration.seed}; observed B1–B5; B6 is a synthetic measurement cutoff, never voluntary Return`,
     report.configuration.treatment === "b3plus-survival-decomposition"
       ? "- canonical-only: one current deterministic_greedy production policy per condition; no T0/T1 or counterfactual comparison"
