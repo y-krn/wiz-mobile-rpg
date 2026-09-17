@@ -740,7 +740,14 @@ export function buildSummary(report) {
     ...STARTING_KIT_IDS.map(kitId => {
       const w0 = result.conditions[0].preparationByKit[kitId];
       const w1 = result.conditions[1].preparationByKit[kitId];
-      return `- ${kitId}: W0 ${w0.startingWeapon}/${w0.weaponAtk} ${w0.weaponBehavior}, load ${w0.equipmentLoad.class}, medium ${w0.medium.present ? w0.medium.id : "none"}, Rune ${w0.runeSlots}/${w0.activeRunes.join(",") || "none"}, MP ${w0.startingMaxMp}; W1 ${w1.startingWeapon}/${w1.weaponAtk} ${w1.weaponBehavior}, load ${w1.equipmentLoad.class}, medium ${w1.medium.present ? w1.medium.id : "none"}, Rune ${w1.runeSlots}/${w1.activeRunes.join(",") || "none"}, MP ${w1.startingMaxMp}`;
+      return `- ${kitId}: W0 ${w0.startingWeapon}/${w0.weaponAtk} ${w0.weaponBehavior}, load ${w0.equipmentLoad.class}, HP ${w0.startingHp}/${w0.startingMaxHp}, MP ${w0.startingMp}/${w0.startingMaxMp}, medium ${w0.medium.present ? w0.medium.id : "none"}, Rune ${w0.runeSlots}/${w0.activeRunes.join(",") || "none"}; W1 ${w1.startingWeapon}/${w1.weaponAtk} ${w1.weaponBehavior}, load ${w1.equipmentLoad.class}, HP ${w1.startingHp}/${w1.startingMaxHp}, MP ${w1.startingMp}/${w1.startingMaxMp}, medium ${w1.medium.present ? w1.medium.id : "none"}, Rune ${w1.runeSlots}/${w1.activeRunes.join(",") || "none"}`;
+    }),
+    "",
+    "## Preparation accounting",
+    "",
+    ...result.conditions.map(condition => {
+      const preparation = condition.preparationByKit.vanguard;
+      return `- ${condition.id}: potions ${preparation.startingPotionCount}; bag used/free ${preparation.startingBagUsed}/${preparation.startingBagFree}; exact payment ${JSON.stringify(condition.materials.departureCraftPayment)}; post-purchase bank ${JSON.stringify(condition.materials.postPurchaseBank)}; final bank mean ${JSON.stringify(condition.materials.finalBank)}`;
     }),
     "",
     "## Kit × condition decision view",
