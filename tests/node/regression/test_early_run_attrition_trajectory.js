@@ -459,6 +459,7 @@ const canonicalOnlySummary = trajectory.buildSummary(canonicalOnlyReport);
 assert.match(canonicalOnlySummary, /canonical-only/);
 assert.match(canonicalOnlySummary, /B3–B5 outcome cohorts/);
 assert.match(canonicalOnlySummary, /Next causal probe/);
+assert.doesNotMatch(canonicalOnlySummary, /T1 is a matched causal probe/);
 assert.equal(canonicalOnlyReport.interpretation.nextAxis, "select at most one floor × one axis from measured evidence");
 assert.ok(JSON.stringify(canonicalOnlyReport).length < 50 * 1024 * 1024);
 const canonicalOnlyManifest = trajectory.buildManifest(canonicalOnlyReport);

@@ -2627,7 +2627,9 @@ function buildProgressionLines(policy) {
 
 function cohortP50(cohort, field, nested = null) {
   const value = nested ? cohort?.[nested]?.[field]?.p50 : cohort?.[field]?.p50;
-  return fmt(value);
+  return value === null || value === undefined || !Number.isFinite(Number(value))
+    ? "—"
+    : fmt(value);
 }
 
 function cohortCountCell(cohort) {
@@ -2767,7 +2769,9 @@ export function buildSummary(report) {
     "- This is production-path diagnostic evidence, not balance tuning or a player-facing difficulty tier.",
     "- `combat`, `guardianBoss`, `floorTrap`, `chestTrap`, and `poisonStatus` are grouped only from emitted production cost events. Flee/parting and inseparable in-combat status damage remain unobserved rather than zero.",
     "- No raw combat log is persisted; each run keeps floor state, aggregate costs, terminal state, build snapshots, and at most the last three compact cost events.",
-    "- T1 is a matched causal probe and is not a production recommendation."
+    report.configuration.treatment === "b3plus-survival-decomposition"
+      ? "- Canonical-only observational decomposition; no T1 or counterfactual is run, and no production recommendation is made."
+      : "- T1 is a matched causal probe and is not a production recommendation."
   );
   if (["build-progression-audit", "build-progression-pareto-safe", "b3plus-survival-decomposition"].includes(
     report.measurement.measurementId
