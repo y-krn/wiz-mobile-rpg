@@ -110,6 +110,14 @@ const survivalPolicyArgs = ({ options, output }) => [
   ...outputArgs(output)
 ];
 
+const preparationPowerArgs = ({ options, output }) => [
+  "--ref", options.ref,
+  "--runs", String(options.runs),
+  "--seed", String(options.seed),
+  "--purpose", options.purpose,
+  ...outputArgs(output)
+];
+
 export const MEASUREMENT_REGISTRY = Object.freeze({
   standard: freezeDefinition({
     id: "standard",
@@ -284,6 +292,18 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
     buildArgs: survivalPolicyArgs
+  }),
+  "preparation-power-factorial": freezeDefinition({
+    id: "preparation-power-factorial",
+    label: "Preparation power 2x2 factorial diagnostic",
+    runner: "scratch/measurements/preparation_power_factorial.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1328 },
+    buildArgs: preparationPowerArgs
   })
 });
 

@@ -25,9 +25,10 @@ assert.deepEqual(MEASUREMENT_IDS, [
   "build-progression-audit",
   "build-progression-pareto-safe",
   "b2-chest-trap",
-  "survival-policy"
+  "survival-policy",
+  "preparation-power-factorial"
 ]);
-assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 13);
+assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 14);
 assert.deepEqual(MEASUREMENT_REGISTRY.standard.allowedRunTypes, [
   "baseline-candidate", "diagnostic", "temporary"
 ]);
@@ -45,7 +46,8 @@ for (const measurement of [
   "build-progression-audit",
   "build-progression-pareto-safe",
   "b2-chest-trap",
-  "survival-policy"
+  "survival-policy",
+  "preparation-power-factorial"
 ]) {
   assert.deepEqual(MEASUREMENT_REGISTRY[measurement].allowedRunTypes, ["diagnostic"]);
   assert.throws(
@@ -153,7 +155,7 @@ assert.equal(
   "balance-measurement-early-run-attrition-123-attempt"
 );
 
-for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy"]) {
+for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial"]) {
   const invocation = resolveRunnerInvocation({ measurement, purpose: "smoke" }, "/tmp/router-test");
   assert.equal(invocation.measurement, measurement);
   assert.match(invocation.runner, /scratch\/measurements\//);
