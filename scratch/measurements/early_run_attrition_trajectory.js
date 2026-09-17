@@ -2632,6 +2632,16 @@ function cohortP50(cohort, field, nested = null) {
     : fmt(value);
 }
 
+function cohortQuantile(cohort, field, nested = null) {
+  const distribution = nested ? cohort?.[nested]?.[field] : cohort?.[field];
+  return ["p10", "p50", "p90"].map(key => {
+    const value = distribution?.[key];
+    return value === null || value === undefined || !Number.isFinite(Number(value))
+      ? "—"
+      : fmt(value);
+  }).join("/");
+}
+
 function cohortCountCell(cohort) {
   return `${cohort.count} (${cohort.status})`;
 }
@@ -2650,6 +2660,22 @@ function cohortP50Line(cohorts, nested, fields) {
   }).join("; ");
 }
 
+function cohortEntryQuantileLine(cohorts) {
+  return OUTCOME_COHORT_IDS.map(id => {
+    const cohort = cohorts[id];
+    const values = ["hp", "mp", "recoveryRemaining"].map(field => cohortQuantile(cohort, field, "entry"));
+    const availability = ["entryHp", "entryMp", "entryRecovery"].map(field => cohort.availability[field]);
+    return `${COHORT_LABELS[id]} ${values.join(" · ")} [${cohort.status}; ${availability.join("/")}]`;
+  }).join("; ");
+}
+
+function cohortAvailabilityLine(cohorts) {
+  return OUTCOME_COHORT_IDS.map(id => {
+    const availability = cohorts[id].availability;
+    return `${COHORT_LABELS[id]} entry HP/MP/recovery ${availability.entryHp}/${availability.entryMp}/${availability.entryRecovery} · Cost combat/chest-trap ${availability.combatDamage}/${availability.chestTrapDamage} · exposure combat/rounds/actions ${availability.combatCount}/${availability.rounds}/${availability.enemyActions}`;
+  }).join("; ");
+}
+
 function buildOutcomeCohortLines(testCase, policy) {
   const lines = [
     "",
@@ -2664,11 +2690,12 @@ function buildOutcomeCohortLines(testCase, policy) {
     lines.push(
       `### B${floor} — entrants ${distribution.entrants}`,
       `- cohort N: advance ${cohortCountCell(cohorts.reachedNextFloor)}; death ${cohortCountCell(cohorts.died)}; Return ${cohortCountCell(cohorts.voluntaryReturn)}; other ${cohortCountCell(cohorts.otherTerminal)}`,
-      `- entry p50 HP/maxHP/ratio · MP/maxMP/ratio · recovery (all cohorts): ${cohortP50Line(cohorts, "entry", ["hp", "maxHp", "hpRatio", "mp", "maxMp", "mpRatio", "recoveryRemaining"])}`,
+      `- entry HP · MP · recovery p10/p50/p90 (all cohorts; p25/p75 in JSON): ${cohortEntryQuantileLine(cohorts)}`,
       `- incremental Cost p50 HP combat/guardian/chest-trap/floor-trap/poison · MP spent (all cohorts): ${cohortP50Line(cohorts, "incrementalCost", ["combatDamageHp", "guardianBossDamageHp", "chestTrapDamageHp", "floorTrapDamageHp", "poisonStatusDamageHp", "mpSpent"])}`,
       `- recovery p50 HP/MP recovered · items acquired/used (all cohorts): ${cohortP50Line(cohorts, "recovery", ["hpRecovered", "mpRecovered", "recoveryItemAcquired", "recoveryItemUsed"])}`,
       `- exposure p50 combats/rounds/enemy actions · flee attempts/executions · steps (all cohorts): ${cohortP50Line(cohorts, "exposure", ["combatCount", "rounds", "enemyActionCount", "fleeAttempts", "fleeExecutions", "steps"])}`,
       `- exit p50 HP/MP/recovery (all cohorts): ${cohortP50Line(cohorts, "exit", ["hp", "mp", "recoveryRemaining"])}; death causes ${JSON.stringify(cohorts.died.terminal.deathCauseCounts)}`,
+      `- availability: ${cohortAvailabilityLine(cohorts)}`,
       `- terminal Cost separation: death final-floor incremental source p50 ${JSON.stringify(Object.fromEntries(COST_SOURCE_IDS.map(source => [source, cohorts.died.terminal.finalFloorIncrementalCost[source]?.p50 ?? null])))}; death cumulative source p50 ${JSON.stringify(Object.fromEntries(COST_SOURCE_IDS.map(source => [source, cohorts.died.terminal.cumulativeCostBySource[source]?.p50 ?? null])))}. Death cause is terminal attribution, not cumulative Cost attribution.`,
       ""
     );
