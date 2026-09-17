@@ -2663,7 +2663,7 @@ function cohortP50Line(cohorts, nested, fields) {
 function cohortEntryQuantileLine(cohorts) {
   return OUTCOME_COHORT_IDS.map(id => {
     const cohort = cohorts[id];
-    const values = ["hp", "mp", "recoveryRemaining"].map(field => cohortQuantile(cohort, field, "entry"));
+    const values = ["hp", "hpRatio", "mp", "mpRatio", "recoveryRemaining"].map(field => cohortQuantile(cohort, field, "entry"));
     const availability = ["entryHp", "entryMp", "entryRecovery"].map(field => cohort.availability[field]);
     return `${COHORT_LABELS[id]} ${values.join(" · ")} [${cohort.status}; ${availability.join("/")}]`;
   }).join("; ");
@@ -2690,7 +2690,7 @@ function buildOutcomeCohortLines(testCase, policy) {
     lines.push(
       `### B${floor} — entrants ${distribution.entrants}`,
       `- cohort N: advance ${cohortCountCell(cohorts.reachedNextFloor)}; death ${cohortCountCell(cohorts.died)}; Return ${cohortCountCell(cohorts.voluntaryReturn)}; other ${cohortCountCell(cohorts.otherTerminal)}`,
-      `- entry HP · MP · recovery p10/p50/p90 (all cohorts; p25/p75 in JSON): ${cohortEntryQuantileLine(cohorts)}`,
+      `- entry HP · HP ratio · MP · MP ratio · recovery p10/p50/p90 (all cohorts; p25/p75 in JSON): ${cohortEntryQuantileLine(cohorts)}`,
       `- incremental Cost p50 HP combat/guardian/chest-trap/floor-trap/poison · MP spent (all cohorts): ${cohortP50Line(cohorts, "incrementalCost", ["combatDamageHp", "guardianBossDamageHp", "chestTrapDamageHp", "floorTrapDamageHp", "poisonStatusDamageHp", "mpSpent"])}`,
       `- recovery p50 HP/MP recovered · items acquired/used (all cohorts): ${cohortP50Line(cohorts, "recovery", ["hpRecovered", "mpRecovered", "recoveryItemAcquired", "recoveryItemUsed"])}`,
       `- exposure p50 combats/rounds/enemy actions · flee attempts/executions · steps (all cohorts): ${cohortP50Line(cohorts, "exposure", ["combatCount", "rounds", "enemyActionCount", "fleeAttempts", "fleeExecutions", "steps"])}`,

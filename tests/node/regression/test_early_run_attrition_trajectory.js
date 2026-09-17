@@ -458,7 +458,7 @@ const canonicalOnlyReport = trajectory.buildReport(
 const canonicalOnlySummary = trajectory.buildSummary(canonicalOnlyReport);
 assert.match(canonicalOnlySummary, /canonical-only/);
 assert.match(canonicalOnlySummary, /B3–B5 outcome cohorts/);
-assert.match(canonicalOnlySummary, /entry HP.*p10\/p50\/p90.*all cohorts/);
+assert.match(canonicalOnlySummary, /entry HP · HP ratio · MP · MP ratio · recovery p10\/p50\/p90.*all cohorts/);
 assert.match(canonicalOnlySummary, /p25\/p75 in JSON/);
 assert.match(canonicalOnlySummary, /incremental Cost p50.*all cohorts/);
 assert.match(canonicalOnlySummary, /recovery p50.*all cohorts/);
