@@ -440,7 +440,9 @@ function comparison(left, right, label) {
     bossStart: aggregate.b5.boss.combatStart.meanPerEntrant,
     b5ToB6: aggregate.b5.b6Transition.rate
   });
-  return { label, baseline: left, treatment: right, delta: delta(scalar(left), scalar(right)), metricDefinitions: scalar(right) };
+  const baseline = scalar(left);
+  const treatment = scalar(right);
+  return { label, baseline, treatment, delta: delta(baseline, treatment) };
 }
 
 function validatePreparation(result, arm, kitId, prep, workshop) {
