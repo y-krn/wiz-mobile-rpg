@@ -12350,7 +12350,7 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
     y: trap.position?.y
   });
   if (trap.type === "pitfall") {
-    descendToNextFloor(state, floor + 1);
+    descendToNextFloor(state, floor + 1, metrics);
     applyFloorTrapEffect(state, trap, state.floor, resolution.partialSuccess, metrics);
     return { pitfallTriggered: true };
   }

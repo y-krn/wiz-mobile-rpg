@@ -7,6 +7,11 @@ import {
   buildSummary,
   runMeasurement
 } from "../../../scratch/measurements/first_band_build_formation.js";
+import {
+  getScenarioById,
+  resetSimulationRandom,
+  simulateRun
+} from "../../../scratch/simulations/sim_depth_material_ev.js";
 
 const result = await runMeasurement({
   runs: 1,
@@ -30,6 +35,38 @@ assert.deepEqual(result.configuration.preparation, {
 assert.equal(result.baselineParity.pass, true);
 assert.equal(result.determinism.pass, true);
 assert.equal(result.observationInvariance.pass, true);
+
+const pitfallScenario = getScenarioById("workshop-complete");
+resetSimulationRandom(16);
+const pitfallResult = simulateRun({
+  className: "Fighter",
+  startFloor: 1,
+  targetDepth: 6,
+  runIndex: 16,
+  seriesId: "issue1336-pitfall-smoke",
+  scenario: {
+    ...pitfallScenario,
+    startingKit: "vanguard",
+    startingHealPotions: 4,
+    startingAntidotes: 1,
+    startingGuardPotions: 1,
+    startingTownPortals: 1,
+    trapPolicy: "legacy",
+    floorTrapDetection: "source",
+    equipmentUpdatePolicy: "fixed",
+    collectStage15Diagnostics: true
+  },
+  workshop: pitfallScenario.workshop,
+  worldSeed: "pitfall:legacy:source:16",
+  collectDiagnostics: true
+});
+const pitfallEvents = (pitfallResult.floorTransitionRecovery || [])
+  .filter(event => event.source === "pitfall");
+assert.ok(pitfallEvents.length > 0, "pitfall transition must be observable");
+for (const event of pitfallEvents) {
+  assert.equal(event.hpAfter, event.hpBefore + event.actualHealedHp);
+  assert.ok(event.hpAfter <= event.maxHp);
+}
 
 for (const armId of TRANSITION_ARM_IDS) {
   const arm = result.arms[armId];
