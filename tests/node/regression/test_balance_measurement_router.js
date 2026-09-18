@@ -26,9 +26,10 @@ assert.deepEqual(MEASUREMENT_IDS, [
   "build-progression-pareto-safe",
   "b2-chest-trap",
   "survival-policy",
-  "preparation-power-factorial"
+  "preparation-power-factorial",
+  "first-band-build-formation"
 ]);
-assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 14);
+assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 15);
 assert.deepEqual(MEASUREMENT_REGISTRY.standard.allowedRunTypes, [
   "baseline-candidate", "diagnostic", "temporary"
 ]);
@@ -47,7 +48,8 @@ for (const measurement of [
   "build-progression-pareto-safe",
   "b2-chest-trap",
   "survival-policy",
-  "preparation-power-factorial"
+  "preparation-power-factorial",
+  "first-band-build-formation"
 ]) {
   assert.deepEqual(MEASUREMENT_REGISTRY[measurement].allowedRunTypes, ["diagnostic"]);
   assert.throws(
@@ -78,6 +80,11 @@ assert.deepEqual(
 const attrition = resolveMeasurementOptions({ measurement: "early-run-attrition", purpose: "test" });
 assert.deepEqual(
   { runs: attrition.runs, seed: attrition.seed, runType: attrition.runType },
+  { runs: 1000, seed: 1277, runType: "diagnostic" }
+);
+const firstBand = resolveMeasurementOptions({ measurement: "first-band-build-formation", purpose: "test" });
+assert.deepEqual(
+  { runs: firstBand.runs, seed: firstBand.seed, runType: firstBand.runType },
   { runs: 1000, seed: 1277, runType: "diagnostic" }
 );
 const survivalDecomposition = resolveMeasurementOptions({
@@ -155,7 +162,7 @@ assert.equal(
   "balance-measurement-early-run-attrition-123-attempt"
 );
 
-for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial"]) {
+for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "first-band-build-formation"]) {
   const invocation = resolveRunnerInvocation({ measurement, purpose: "smoke" }, "/tmp/router-test");
   assert.equal(invocation.measurement, measurement);
   assert.match(invocation.runner, /scratch\/measurements\//);

@@ -125,11 +125,11 @@ assert.match(workflow, /merge-standard:[\s\S]*merge_balance_measurement\.js/);
 assert.match(workflow, /merge-standard:[\s\S]*name: Upload final CI evidence artifact/);
 assert.match(workflow, /if: always\(\)/);
 assert.match(workflow, /retention-days: 14/);
-assert.match(workflow, /contains\(fromJSON\('\["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial"\]'\), inputs\.measurement\) && 45 \|\| 20/);
-assert.match(workflow, /contains\(fromJSON\('\["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial"\]'\), inputs\.measurement\) && 30 \|\| 15/);
+assert.match(workflow, /contains\(fromJSON\('\["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation"\]'\), inputs\.measurement\) && 45 \|\| 20/);
+assert.match(workflow, /contains\(fromJSON\('\["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation"\]'\), inputs\.measurement\) && 30 \|\| 15/);
 assert.match(workflow, /--job-timeout-minutes/);
 assert.match(workflow, /--step-timeout-minutes/);
-assert.match(workflow, /N=1000 diagnostic; preparation-power-factorial includes four kits/);
+assert.match(workflow, /N=1000 diagnostic; first-band-build-formation includes four kits/);
 assert.doesNotMatch(
   workflow.slice(workflow.indexOf("  measure-standard:"), workflow.indexOf("  merge-standard:")),
   /--include-raw/

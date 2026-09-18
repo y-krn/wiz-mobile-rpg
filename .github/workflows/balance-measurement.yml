@@ -28,6 +28,7 @@ on:
           - b2-chest-trap
           - survival-policy
           - preparation-power-factorial
+          - first-band-build-formation
       runs:
         description: "Runs for the selected measurement; blank uses its registry default"
         required: false
@@ -291,12 +292,12 @@ jobs:
 
   measure-other:
     if: inputs.measurement != 'standard'
-    timeout-minutes: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial"]'), inputs.measurement) && 45 || 20 }}
+    timeout-minutes: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation"]'), inputs.measurement) && 45 || 20 }}
     runs-on: ubuntu-latest
     env:
-      MEASUREMENT_JOB_TIMEOUT_MINUTES: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial"]'), inputs.measurement) && 45 || 20 }}
-      MEASUREMENT_STEP_TIMEOUT_MINUTES: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial"]'), inputs.measurement) && 30 || 15 }}
-      MEASUREMENT_TIMEOUT_BASIS: "N=1000 diagnostic; preparation-power-factorial includes four kits × four conditions; 30m step/45m job"
+      MEASUREMENT_JOB_TIMEOUT_MINUTES: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation"]'), inputs.measurement) && 45 || 20 }}
+      MEASUREMENT_STEP_TIMEOUT_MINUTES: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation"]'), inputs.measurement) && 30 || 15 }}
+      MEASUREMENT_TIMEOUT_BASIS: "N=1000 diagnostic; first-band-build-formation includes four kits × four arms; 30m step/45m job"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -310,7 +311,7 @@ jobs:
       - run: npm ci
       - name: Run selected balance measurement
         id: measurement
-        timeout-minutes: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial"]'), inputs.measurement) && 30 || 15 }}
+        timeout-minutes: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation"]'), inputs.measurement) && 30 || 15 }}
         continue-on-error: true
         env:
           MEASUREMENT_ID: ${{ inputs.measurement }}
