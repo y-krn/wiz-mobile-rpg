@@ -2327,6 +2327,7 @@ function createStage15FloorTelemetry(floor) {
     entryMaxHp: null,
     entryHpRatio: null,
     entryRecoveryRemaining: null,
+    entryHealPotionRemaining: null,
     entryCureItems: null,
     entryStatus: null,
     entryBuildSnapshot: null,
@@ -2342,6 +2343,7 @@ function createStage15FloorTelemetry(floor) {
     exitMaxMp: null,
     exitMpRatio: null,
     exitRecoveryRemaining: null,
+    exitHealPotionRemaining: null,
     exitCureItems: null,
     exitStatus: null,
     exitBuildSnapshot: null,
@@ -2357,6 +2359,8 @@ function createStage15FloorTelemetry(floor) {
     otherMpRecovery: 0,
     damageTaken: 0,
     healing: 0,
+    healPotionRecoveryHp: 0,
+    floorTransitionRecoveryHp: 0,
     healPotionUses: 0,
     encounters: 0,
     combatActions: 0,
@@ -2439,6 +2443,7 @@ function startStage15Floor(state, metrics, floor, scoringProfile = null) {
   telemetry.entryRecoveryRemaining = state.inventory.filter(item =>
     item === "HEAL_POTION" || item === "GREATER_HEAL"
   ).length;
+  telemetry.entryHealPotionRemaining = state.inventory.filter(item => item === "HEAL_POTION").length;
   telemetry.entryCureItems = countInventoryItems(state.inventory);
   telemetry.entryStatus = character.status;
   telemetry.entryBuildSnapshot = createBuildSnapshot(state, scoringProfile, "floor-entry");
@@ -2489,6 +2494,13 @@ function recordStage15Healing(metrics, amount, source = "other") {
   if (source === "potion") telemetry.healPotionUses++;
 }
 
+function recordStage15PotionHealing(metrics, itemKey, amount) {
+  const telemetry = stage15Floor(metrics);
+  const healing = Math.max(0, Number(amount) || 0);
+  if (!telemetry || healing <= 0) return;
+  if (itemKey === "HEAL_POTION") telemetry.healPotionRecoveryHp += healing;
+}
+
 function finalizeStage15Floor(state, metrics, floor, status, terminationReason = null, terminationContext = null) {
   const telemetry = stage15Floor(metrics, floor);
   if (!telemetry || telemetry.closed) return;
@@ -2502,6 +2514,7 @@ function finalizeStage15Floor(state, metrics, floor, status, terminationReason =
   telemetry.exitRecoveryRemaining = state.inventory.filter(item =>
     item === "HEAL_POTION" || item === "GREATER_HEAL"
   ).length;
+  telemetry.exitHealPotionRemaining = state.inventory.filter(item => item === "HEAL_POTION").length;
   telemetry.exitCureItems = countInventoryItems(state.inventory);
   telemetry.exitStatus = character.status;
   telemetry.exitBuildSnapshot = createBuildSnapshot(state, null, "floor-exit");
@@ -5706,6 +5719,7 @@ function recordRecoveryHealing(metrics, itemKey, level, requestedHp, actualHp) {
     stats.overhealHp += Math.max(0, requested - actual);
   });
   recordStage15Healing(metrics, actual, "potion");
+  recordStage15PotionHealing(metrics, itemKey, actual);
 }
 
 function recordHealPotionConsumption(state, metrics, count = 1) {
@@ -14303,6 +14317,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     recoveryPotionDepletedFloor: metrics.recoveryPotionDepletedFloor,
     recoveryPotionShortageFloor: metrics.recoveryPotionShortageFloor,
     stairsHealingHp: metrics.stairsHealingHp,
+    floorTransitionRecovery: structuredClone(metrics.floorTransitionRecovery),
     campHealingHp: metrics.campHealingHp,
     extraCampRestCount: metrics.extraCampRestCount,
     extraCampHealingHp: metrics.extraCampHealingHp,
@@ -14559,6 +14574,8 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
 }
 
 function descendToNextFloor(state, nextFloor, metrics = null, { stairsHeal = false } = {}) {
+  const fromFloor = state.floor;
+  const character = state.party[0];
   state.floor = nextFloor;
   state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
   state.currentRun.floorsVisited.push(nextFloor);
@@ -14566,11 +14583,32 @@ function descendToNextFloor(state, nextFloor, metrics = null, { stairsHeal = fal
     state.currentRun,
     getCharAffixSum(state.party[0], "contractReward")
   );
-  if (stairsHeal) applySimulatedStairsHeal(state.party[0], metrics);
-  applyFloorTransitionHeal(
-    state.party[0],
+  if (stairsHeal) applySimulatedStairsHeal(character, metrics);
+  const maxHp = getCharMaxHp(character);
+  const hpBefore = character.hp;
+  const requestedHp = Math.max(1, Math.floor(maxHp * state.simPolicy.floorTransitionRecoveryRate));
+  const actualHealedHp = applyFloorTransitionHeal(
+    character,
     state.simPolicy.floorTransitionRecoveryRate
   );
+  if (metrics) {
+    metrics.floorTransitionRecovery.push({
+      fromFloor,
+      toFloor: nextFloor,
+      source: stairsHeal ? "stairs" : "pitfall",
+      hpBefore,
+      hpAfter: character.hp,
+      maxHp,
+      requestedHp,
+      actualHealedHp,
+      actualHealedRate: maxHp > 0 ? actualHealedHp / maxHp : null,
+      cappedByMaxHp: actualHealedHp < requestedHp,
+      reachedMaxHp: character.hp >= maxHp,
+      maxHpOverage: Math.max(0, character.hp - maxHp)
+    });
+    const floorTelemetry = stage15Floor(metrics, fromFloor);
+    if (floorTelemetry) floorTelemetry.floorTransitionRecoveryHp += actualHealedHp;
+  }
 }
 
 export function simulateRun({
@@ -14806,6 +14844,7 @@ export function simulateRun({
       byLevelBand: createRecoveryHealingByLevelBand()
     },
     stairsHealingHp: 0,
+    floorTransitionRecovery: [],
     campHealingHp: 0,
     extraCampRestCount: 0,
     extraCampHealingHp: 0,

@@ -375,6 +375,7 @@ function compactFloor(
     maxMp: finite(stage.entryMaxMp),
     mpRatio: finite(stage.entryMpRatio),
     recoveryRemaining: finite(stage.entryRecoveryRemaining),
+    healPotionRemaining: finite(stage.entryHealPotionRemaining),
     cureItems: stage.entryCureItems ? { ...stage.entryCureItems } : null,
     status: stage.entryStatus || null,
     build: compactBuildSnapshot(stage.entryBuildSnapshot),
@@ -389,6 +390,7 @@ function compactFloor(
     maxMp: finite(stage.exitMaxMp),
     mpRatio: finite(stage.exitMpRatio),
     recoveryRemaining: finite(stage.exitRecoveryRemaining),
+    healPotionRemaining: finite(stage.exitHealPotionRemaining),
     cureItems: stage.exitCureItems ? { ...stage.exitCureItems } : null,
     status: stage.exitStatus || null,
     build: compactBuildSnapshot(stage.exitBuildSnapshot),
@@ -445,6 +447,8 @@ function compactFloor(
       fleePartingDamageHp: flee.observed ? flee.partingAttackDamageHp : null,
       mpSpent: finite(stage.mpSpent),
       hpRecovered: finite(stage.healing),
+      healPotionRecoveryHp: finite(stage.healPotionRecoveryHp),
+      floorTransitionRecoveryHp: finite(stage.floorTransitionRecoveryHp),
       mpRecovered: finite(stage.mpRecovered),
       recoveryItemAcquired: countByItem(floorRewards.filter(event =>
         ["HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "HOLY_WATER", "ETHER"].includes(event.itemId)
@@ -464,6 +468,8 @@ function compactFloor(
     cumulativeCostBySource: { ...cumulative },
     recovery: {
       healingHp: finite(stage.healing),
+      healPotionRecoveryHp: finite(stage.healPotionRecoveryHp),
+      floorTransitionRecoveryHp: finite(stage.floorTransitionRecoveryHp),
       healingMp: finite(stage.mpRecovered),
       itemAcquired: countByItem(floorRewards.filter(event =>
         ["HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "HOLY_WATER", "ETHER"].includes(event.itemId)
