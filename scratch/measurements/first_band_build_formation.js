@@ -226,7 +226,21 @@ function preparationRecord(result, arm, kitId, workshop, initialBank, expectedWe
   };
 }
 
-function normalizeB5(result, record) {
+export function normalizeBossTrace(trace = [], finalBattle = null) {
+  const bossEvents = trace.filter(item => item?.type === "boss");
+  const resultEvents = bossEvents.filter(item => typeof item.result === "string");
+  return {
+    actualBossEventArrival: bossEvents.some(item => item.encounterAllowed === true),
+    bossCombatResultEventCount: resultEvents.length,
+    fleeEventCount: resultEvents.filter(item => item.result === "flee").length,
+    victoryEventCount: resultEvents.filter(item => item.result === "victory").length,
+    deathEventCount: resultEvents.filter(item => item.result === "death").length,
+    combatStart: resultEvents.length > 0 || Number(finalBattle?.attempts?.length || 0) > 0,
+    retryRevisit: resultEvents.length >= 2
+  };
+}
+
+export function normalizeB5(result, record) {
   const entrant = Boolean(result.b5Entrant);
   if (!entrant) return { status: "unreachable" };
   const route = (result.specialRouteFloors || []).find(item => Number(item.floor) === 5);
@@ -238,10 +252,13 @@ function normalizeB5(result, record) {
     Number(item.floor) === 5 && item.type === "boss"
   );
   const routeBossDetected = Number(route?.detectedBosses || 0) > 0;
-  const actualBossEventArrival = bossTrace.some(item => item.encounterAllowed === true);
-  const bossStarted = Boolean(bossBattle?.attempts?.length || bossTrace.some(item => "result" in item));
+  const bossTraceSummary = normalizeBossTrace(bossTrace, bossBattle);
+  const milestonePortalVisit = (result.milestoneEventTrace || []).some(item =>
+    Number(item.floor) === 5 && item.type === "return_portal" && item.gateOpen === true
+  );
+  const terminalReason = record.terminalReason || result.terminationReason || null;
+  const bossStarted = bossTraceSummary.combatStart;
   const reachedB6 = Number(result.reachedFloor) >= 6;
-  const finalBossResult = bossBattle?.finalResult || null;
   const ratio = (value, max) => Number.isFinite(Number(value)) && Number.isFinite(Number(max)) && Number(max) > 0
     ? Number(value) / Number(max)
     : null;
@@ -259,7 +276,7 @@ function normalizeB5(result, record) {
     },
     boss: {
       routeBossDetected,
-      actualBossEventArrival,
+      ...bossTraceSummary,
       combatStart: bossStarted,
       arrivalHp: metric([finite(bossEncounter?.startHp)]),
       arrivalHpRatio: metric([ratio(bossEncounter?.startHp, bossEncounter?.startMaxHp)]),
@@ -267,12 +284,20 @@ function normalizeB5(result, record) {
       arrivalMpRatio: metric([ratio(bossEncounter?.startMp, bossEncounter?.startMaxMp)]),
       remainingHealPotion: metric([finite(bossEncounter?.startHealPotions)]),
       buildAtArrival: structuralBuild(bossBattle?.firstBuild),
-      victory: finalBossResult === "victory",
-      flee: finalBossResult === "flee-retreat",
-      death: finalBossResult === "death",
-      retry: Number(bossBattle?.attempts?.length || 0) > 1,
-      notReached: !actualBossEventArrival
+      victory: bossTraceSummary.victoryEventCount > 0,
+      flee: bossTraceSummary.fleeEventCount > 0,
+      death: bossTraceSummary.deathEventCount > 0,
+      retry: bossTraceSummary.retryRevisit,
+      notReached: !bossTraceSummary.actualBossEventArrival
     },
+    townPortalReturnBeforeBoss: terminalReason === "town-portal" && !bossTraceSummary.actualBossEventArrival,
+    townPortalReturnAfterBossAttemptBeforeB6: terminalReason === "town-portal" &&
+      bossTraceSummary.bossCombatResultEventCount > 0 && !reachedB6,
+    milestonePortalVisit,
+    milestonePortalReturnAfterGuardian: terminalReason === "milestone_portal" &&
+      milestonePortalVisit && bossTraceSummary.victoryEventCount > 0,
+    // Legacy fields remain for aggregate compatibility; the decision view uses
+    // the explicit terminal-reason fields above.
     returnBeforeBoss: record.outcome.voluntaryReturn && !bossStarted,
     returnAfterBossBeforeB6: record.outcome.voluntaryReturn && bossStarted && !reachedB6,
     b6Transition: reachedB6
@@ -403,6 +428,11 @@ function summarizeB5(rows) {
       routeBossDetected: boss("routeBossDetected"),
       actualBossEventArrival: boss("actualBossEventArrival"),
       combatStart: boss("combatStart"),
+      bossCombatResultEventCount: metric(entrants.map(item => item.boss.bossCombatResultEventCount)),
+      fleeEventCount: metric(entrants.map(item => item.boss.fleeEventCount)),
+      victoryEventCount: metric(entrants.map(item => item.boss.victoryEventCount)),
+      deathEventCount: metric(entrants.map(item => item.boss.deathEventCount)),
+      retryRevisit: boss("retryRevisit"),
       arrivalHp: metric(entrants.flatMap(item => item.boss.arrivalHp.p50 == null ? [] : [item.boss.arrivalHp.p50])),
       arrivalHpRatio: metric(entrants.flatMap(item => item.boss.arrivalHpRatio.p50 == null ? [] : [item.boss.arrivalHpRatio.p50])),
       arrivalMp: metric(entrants.flatMap(item => item.boss.arrivalMp.p50 == null ? [] : [item.boss.arrivalMp.p50])),
@@ -415,6 +445,9 @@ function summarizeB5(rows) {
       retry: boss("retry"),
       notReached: boss("notReached")
     },
+    townPortalReturnBeforeBoss: { count: count(item => item.townPortalReturnBeforeBoss), rate: rate(count(item => item.townPortalReturnBeforeBoss), entrants.length) },
+    townPortalReturnAfterBossAttemptBeforeB6: { count: count(item => item.townPortalReturnAfterBossAttemptBeforeB6), rate: rate(count(item => item.townPortalReturnAfterBossAttemptBeforeB6), entrants.length) },
+    milestonePortalReturnAfterGuardian: { count: count(item => item.milestonePortalReturnAfterGuardian), rate: rate(count(item => item.milestonePortalReturnAfterGuardian), entrants.length) },
     returnBeforeBoss: { count: count(item => item.returnBeforeBoss), rate: rate(count(item => item.returnBeforeBoss), entrants.length) },
     returnAfterBossBeforeB6: { count: count(item => item.returnAfterBossBeforeB6), rate: rate(count(item => item.returnAfterBossBeforeB6), entrants.length) },
     b6Transition: { count: count(item => item.b6Transition), rate: rate(count(item => item.b6Transition), entrants.length) }
@@ -793,7 +826,8 @@ export function buildSummary(report) {
     "",
     ...ARM_IDS.map(armId => {
       const boss = report.arms[armId].overview.b5.boss;
-      return `- ${armId}: route detected=${boss.routeBossDetected.total}; actual arrival=${boss.actualBossEventArrival.total}; start=${boss.combatStart.total}; victory=${boss.victory.total}; flee=${boss.flee.total}; death=${boss.death.total}; retry=${boss.retry.total}; not reached=${boss.notReached.total}; Return before/after=${report.arms[armId].overview.b5.returnBeforeBoss.count}/${report.arms[armId].overview.b5.returnAfterBossBeforeB6.count}`;
+      const b5 = report.arms[armId].overview.b5;
+      return `- ${armId}: route detected=${boss.routeBossDetected.total}; actual arrival=${boss.actualBossEventArrival.total}; combat start=${boss.combatStart.total}; result events=${boss.bossCombatResultEventCount.total}; victory=${boss.victoryEventCount.total}; flee=${boss.fleeEventCount.total}; retry/revisit=${boss.retryRevisit.total}; death=${boss.deathEventCount.total}; town-portal before boss=${b5.townPortalReturnBeforeBoss.count}; town-portal after boss attempt=${b5.townPortalReturnAfterBossAttemptBeforeB6.count}; milestone Portal return after guardian=${b5.milestonePortalReturnAfterGuardian.count}; B6=${b5.b6Transition.count}`;
     }),
     "",
     "## B5→B6",

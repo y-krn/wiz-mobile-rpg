@@ -5,6 +5,8 @@ import {
   CANONICAL_ADAPTIVE_POLICY_ID,
   KIT_IDS,
   MEASUREMENT_ID,
+  normalizeB5,
+  normalizeBossTrace,
   buildSummary,
   runMeasurement
 } from "../../../scratch/measurements/first_band_build_formation.js";
@@ -112,8 +114,61 @@ assert.ok(focusedBattle.attempts.length > 0, "focused probe did not start boss c
 assert.equal(focusedBattle.finalResult, "victory");
 assert.ok(focusedTrace.some(event => event.result === "victory"));
 
+const portalScenario = { ...focusedScenario, milestonePortalPolicy: "retreat" };
+resetSimulationRandom(123);
+const portalBoss = simulateRun({
+  className: "Thief",
+  startFloor: 1,
+  targetDepth: 6,
+  runIndex: 0,
+  seriesId: "issue1332-focused-b5-portal-return",
+  scenario: portalScenario,
+  workshop: portalScenario.workshop,
+  collectDiagnostics: true,
+  collectBuildSnapshots: true,
+  collectEquipmentTelemetry: true
+});
+const portalTrace = portalBoss.milestoneEventTrace.filter(event => event.floor === 5);
+const portalDiagnostic = normalizeB5(portalBoss, {
+  outcome: { voluntaryReturn: false },
+  terminalReason: portalBoss.terminationReason
+});
+assert.equal(portalBoss.outcome, "retreat");
+assert.equal(portalBoss.terminationReason, "milestone_portal");
+assert.equal(portalBoss.reachedFloor, 5);
+assert.ok(portalTrace.some(event => event.type === "boss" && event.result === "victory"));
+assert.ok(portalTrace.some(event => event.type === "return_portal" && event.gateOpen === true));
+assert.equal(portalDiagnostic.milestonePortalReturnAfterGuardian, true);
+assert.equal(portalDiagnostic.b6Transition, false);
+
+const fleeScenario = {
+  ...focusedScenario,
+  fleePolicy: "threshold",
+  fleeHpThreshold: 0.8,
+  milestonePortalPolicy: "continue"
+};
+resetSimulationRandom(6);
+const fleeBoss = simulateRun({
+  className: "Thief",
+  startFloor: 1,
+  targetDepth: 6,
+  runIndex: 0,
+  seriesId: "probe-threshold-0.8-6",
+  scenario: fleeScenario,
+  workshop: fleeScenario.workshop,
+  collectDiagnostics: true,
+  collectBuildSnapshots: true,
+  collectEquipmentTelemetry: true
+});
+const fleeTrace = fleeBoss.milestoneEventTrace.filter(event => event.floor === 5 && event.type === "boss");
+const fleeDiagnostic = normalizeBossTrace(fleeTrace);
+assert.ok(fleeDiagnostic.actualBossEventArrival);
+assert.ok(fleeDiagnostic.fleeEventCount > 0);
+assert.ok(fleeDiagnostic.bossCombatResultEventCount >= 2);
+assert.equal(fleeDiagnostic.retryRevisit, true);
+
 const summary = buildSummary(result);
-for (const token of ["B2", "B3", "B4", "B5", "P0B1 - P0B0", "P1B1 - P1B0", "P1B1 - P0B1", "P1B0 - P0B0", "actual arrival", "boss arrival/start/victory"]) {
+for (const token of ["B2", "B3", "B4", "B5", "P0B1 - P0B0", "P1B1 - P1B0", "P1B1 - P0B1", "P1B0 - P0B0", "actual arrival", "boss arrival/start/victory", "result events", "town-portal before boss", "milestone Portal return after guardian"]) {
   assert.match(summary, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 }
 const arcanaP0 = result.arms.P0B1.byKit.arcana.preparation;
