@@ -1170,6 +1170,15 @@ function parseOptionalChance(value, name = "chestHealPotionExtraChance") {
   return chance;
 }
 
+function parseOptionalFlatHp(value) {
+  if (value === undefined || value === null || value === "") return 0;
+  const flatHp = Number(value);
+  if (!Number.isInteger(flatHp) || flatHp < 0) {
+    throw new Error(`levelUpRecoveryFlatHp must be a non-negative integer: ${value}`);
+  }
+  return flatHp;
+}
+
 function parseOptionalChestHealPotionWeight(value) {
   if (value === undefined || value === null || value === "") return null;
   const weight = Number(value);
@@ -2390,10 +2399,13 @@ function createStage15FloorTelemetry(floor) {
     levelTransitions: {},
     levelUpRecoverySamples: [],
     naturalLevelGrowthHp: 0,
-    extraLevelUpRecoveryRequestedHp: 0,
-    extraLevelUpRecoveryActualHp: 0,
-    extraLevelUpRecoveryCappedAtFullCount: 0,
-    extraLevelUpRecoveryMaxHpOverage: 0,
+    percentageLevelUpRecoveryRequestedHp: 0,
+    percentageLevelUpRecoveryActualHp: 0,
+    percentageLevelUpRecoveryCappedAtFullCount: 0,
+    flatLevelUpRecoveryRequestedHp: 0,
+    flatLevelUpRecoveryActualHp: 0,
+    flatLevelUpRecoveryCappedAtFullCount: 0,
+    levelUpRecoveryMaxHpOverage: 0,
     expGained: 0,
     steps: 0,
     exploredRatio: null,
@@ -2572,19 +2584,27 @@ function applySimulationLevelUpRecovery(
   telemetry.naturalLevelGrowthHp += Math.max(0, newMaxHp - fromMaxHp);
 
   const rate = state.simPolicy.levelUpRecoveryRate;
+  const flatHp = state.simPolicy.levelUpRecoveryFlatHp;
   for (let levelIndex = 0; levelIndex < levelsGained; levelIndex++) {
-    const requestedHp = rate > 0 ? Math.max(1, Math.floor(newMaxHp * rate)) : 0;
+    const percentageRequestedHp = rate > 0 ? Math.max(1, Math.floor(newMaxHp * rate)) : 0;
+    const flatRequestedHp = flatHp > 0 ? flatHp : 0;
+    const requestedHp = percentageRequestedHp + flatRequestedHp;
     const availableHp = Math.max(0, newMaxHp - character.hp);
     const actualHp = Math.min(requestedHp, availableHp);
     const hpBeforeRecovery = character.hp;
-    if (requestedHp > 0 && availableHp === 0) {
-      telemetry.extraLevelUpRecoveryCappedAtFullCount++;
+    if (availableHp === 0) {
+      if (percentageRequestedHp > 0) telemetry.percentageLevelUpRecoveryCappedAtFullCount++;
+      if (flatRequestedHp > 0) telemetry.flatLevelUpRecoveryCappedAtFullCount++;
     }
     character.hp += actualHp;
-    telemetry.extraLevelUpRecoveryRequestedHp += requestedHp;
-    telemetry.extraLevelUpRecoveryActualHp += actualHp;
-    telemetry.extraLevelUpRecoveryMaxHpOverage = Math.max(
-      telemetry.extraLevelUpRecoveryMaxHpOverage,
+    const percentageActualHp = Math.min(percentageRequestedHp, actualHp);
+    const flatActualHp = Math.max(0, actualHp - percentageActualHp);
+    telemetry.percentageLevelUpRecoveryRequestedHp += percentageRequestedHp;
+    telemetry.percentageLevelUpRecoveryActualHp += percentageActualHp;
+    telemetry.flatLevelUpRecoveryRequestedHp += flatRequestedHp;
+    telemetry.flatLevelUpRecoveryActualHp += flatActualHp;
+    telemetry.levelUpRecoveryMaxHpOverage = Math.max(
+      telemetry.levelUpRecoveryMaxHpOverage,
       Math.max(0, character.hp - newMaxHp)
     );
     if (telemetry.levelUpRecoverySamples.length < 8) {
@@ -2593,6 +2613,12 @@ function applySimulationLevelUpRecovery(
         toLevel,
         newMaxHp,
         rate,
+        flatHp,
+        recoveryType: rate > 0 ? "percentage" : (flatHp > 0 ? "flat" : "none"),
+        percentageRequestedHp,
+        percentageActualHp,
+        flatRequestedHp,
+        flatActualHp,
         requestedHp,
         actualHp,
         hpBefore: hpBeforeRecovery,
@@ -4649,6 +4675,12 @@ function createSimulationState(
   const levelUpRecoveryRate = Object.hasOwn(scenario, "levelUpRecoveryRate")
     ? parseOptionalChance(scenario.levelUpRecoveryRate, "levelUpRecoveryRate")
     : 0;
+  const levelUpRecoveryFlatHp = Object.hasOwn(scenario, "levelUpRecoveryFlatHp")
+    ? parseOptionalFlatHp(scenario.levelUpRecoveryFlatHp)
+    : 0;
+  if (levelUpRecoveryRate > 0 && levelUpRecoveryFlatHp > 0) {
+    throw new Error("levelUpRecoveryRate and levelUpRecoveryFlatHp cannot both be positive");
+  }
   const workshopEffects = {
     stats: { ...workshopGrants.stats },
     startingGearCandidates: [
@@ -4798,6 +4830,7 @@ function createSimulationState(
       extraCampTimeCost,
       floorTransitionRecoveryRate,
       levelUpRecoveryRate,
+      levelUpRecoveryFlatHp,
       hpGrowthBonus: Number(scenario.hpGrowthBonus) || 0,
       trapGuardOverride: scenario.trapGuardOverride || null,
       trapPolicy: trapPolicies.floor,
