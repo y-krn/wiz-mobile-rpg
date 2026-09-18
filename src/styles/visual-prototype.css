@@ -7,6 +7,8 @@
   --tap-min: 44px;
   --motion-fast: 120ms;
   --motion-state: 180ms;
+  --mono: "DM Mono", monospace;
+  --display: "Shippori Mincho", serif;
 }
 
 * { box-sizing: border-box; }
@@ -31,32 +33,32 @@ button:focus-visible, select:focus-visible {
 .prototype-header, .comparison-rail, #prototype-stage { width: min(100%, 980px); margin-inline: auto; }
 
 .prototype-header { display: flex; justify-content: space-between; gap: 16px; align-items: end; padding: 4px 2px 14px; }
-.prototype-kicker, .decision-kicker, .state-badge { margin: 0; font: 500 .67rem/1.2 "DM Mono", monospace; letter-spacing: .08em; }
+.prototype-kicker, .decision-kicker, .state-badge { margin: 0; font: 500 .67rem/1.2 var(--mono); letter-spacing: .08em; }
 .prototype-kicker { color: #95a7ae; }
-.prototype-header h1 { margin: 4px 0 0; font-family: "Shippori Mincho", serif; font-size: clamp(1.25rem, 4vw, 1.8rem); letter-spacing: .03em; }
+.prototype-header h1 { margin: 4px 0 0; font-family: var(--display); font-size: clamp(1.25rem, 4vw, 1.8rem); letter-spacing: .03em; }
 .prototype-note { max-width: 310px; margin: 0; color: #8a969d; font-size: .77rem; text-align: right; }
 
 .comparison-rail { display: flex; gap: 10px; align-items: stretch; margin-bottom: 12px; }
 .direction-switch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex: 1; gap: 6px; }
 .direction-button, .state-picker select { min-height: var(--tap-min); color: #d8e0df; background: #11181e; border: 1px solid #334650; border-radius: 6px; }
 .direction-button { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 10px; font-size: .72rem; text-align: left; }
-.direction-button span { color: #f0cf83; font: 500 .75rem "DM Mono", monospace; }
+.direction-button span { color: #f0cf83; font: 500 .75rem var(--mono); }
 .direction-button[aria-pressed="true"] { color: #fff7df; border-color: #e2b36f; background: #202b31; box-shadow: inset 0 -2px #e2b36f; }
-.state-picker { display: grid; gap: 4px; color: #95a7ae; font: 500 .67rem "DM Mono", monospace; }
+.state-picker { display: grid; gap: 4px; color: #95a7ae; font: 500 .67rem var(--mono); }
 .state-picker select { min-width: 178px; padding: 0 10px; color: #f3f1e9; }
 
 .direction-caption { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin: 0 2px 8px; color: #aab7ba; font-size: .75rem; }
 .direction-caption > div { display: flex; align-items: center; gap: 8px; }
 .direction-caption strong { color: #f4e8cb; font-size: .88rem; }
 .direction-caption > span { text-align: right; }
-.direction-letter { display: grid; place-items: center; width: 24px; height: 24px; color: #0d1114; background: #e2b36f; border-radius: 50%; font: 600 .7rem "DM Mono", monospace; }
+.direction-letter { display: grid; place-items: center; width: 24px; height: 24px; color: #0d1114; background: #e2b36f; border-radius: 50%; font: 600 .7rem var(--mono); }
 
 .game-shell { overflow: hidden; border: 1px solid var(--frame); border-radius: var(--shell-radius); background: var(--shell); box-shadow: var(--shell-shadow); transition: background var(--motion-state), border-color var(--motion-state), border-radius var(--motion-state); }
 .minimal-hud { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 13px 16px; border-bottom: 1px solid var(--rule); color: var(--text); background: var(--hud); }
-.brand-lockup { display: flex; align-items: center; gap: 8px; font: 600 .78rem "DM Mono", monospace; letter-spacing: .07em; }
+.brand-lockup { display: flex; align-items: center; gap: 8px; font: 600 .78rem var(--mono); letter-spacing: .07em; }
 .brand-mark { display: grid; place-items: center; width: 24px; height: 24px; color: var(--accent); border: 1px solid var(--accent); transform: rotate(45deg); }
 .brand-mark::first-letter { transform: rotate(-45deg); }
-.hud-facts { display: flex; gap: 12px; color: var(--muted); font: .72rem "DM Mono", monospace; }
+.hud-facts { display: flex; gap: 12px; color: var(--muted); font: .72rem var(--mono); }
 .hud-facts strong { color: var(--text); font-weight: 500; }
 
 .dungeon-view { position: relative; display: grid; min-height: 212px; place-items: end start; overflow: hidden; padding: 22px 18px; isolation: isolate; background: var(--scene); }
@@ -69,13 +71,13 @@ button:focus-visible, select:focus-visible {
 .scene-copy strong { color: var(--text); font-family: var(--display); font-size: clamp(1.15rem, 5vw, 1.7rem); letter-spacing: .04em; }
 .scene-copy > span:last-child { color: var(--muted); font-size: .88rem; }
 .enemy-frame { position: absolute; right: 18px; bottom: 22px; display: grid; gap: 4px; min-width: 140px; padding: 10px; border: 1px solid var(--danger); background: var(--enemy-surface); }
-.enemy-frame span, .enemy-frame small { color: var(--danger); font: .66rem "DM Mono", monospace; }
+.enemy-frame span, .enemy-frame small { color: var(--danger); font: .66rem var(--mono); }
 .enemy-frame strong { color: var(--text); font-size: .88rem; }
 
 .current-event-strip { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: center; min-height: 54px; padding: 9px 14px; border-block: 1px solid var(--rule); background: var(--event); }
 .event-pin { color: var(--accent); font-size: .65rem; }
 .current-event-strip p { margin: 0; color: var(--text); font-size: .78rem; line-height: 1.45; }
-.log-button { min-width: var(--tap-min); min-height: 34px; padding: 4px 8px; color: var(--muted); border: 1px solid var(--rule-strong); border-radius: 4px; background: transparent; font-size: .7rem; }
+.log-button { min-width: var(--tap-min); min-height: var(--tap-min); padding: 4px 8px; color: var(--muted); border: 1px solid var(--rule-strong); border-radius: 4px; background: transparent; font-size: .7rem; }
 
 .decision-surface { padding: 17px 16px 16px; background: var(--decision); }
 .decision-kicker { color: var(--accent); }
@@ -88,7 +90,7 @@ button:focus-visible, select:focus-visible {
 .fixture-action:active { transform: translateY(1px); }
 .fixture-action span { font-weight: 600; font-size: .82rem; }
 .fixture-action small { color: var(--muted); font-size: .68rem; line-height: 1.3; }
-.action-state { color: var(--accent); font: 500 .62rem "DM Mono", monospace; font-style: normal; }
+.action-state { color: var(--accent); font: 500 .62rem var(--mono); font-style: normal; }
 .fixture-action--primary { color: var(--primary-text); border-color: var(--primary); background: var(--primary); }
 .fixture-action--primary small { color: var(--primary-muted); }
 .fixture-action--selected { border-width: 2px; border-color: var(--selected); background: var(--selected-surface); }
@@ -101,24 +103,24 @@ button:focus-visible, select:focus-visible {
 .fixture-action--back { color: var(--muted); }
 
 .character-panel { display: grid; grid-template-columns: 1fr 1fr auto; gap: 13px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--rule); background: var(--hud); }
-.vital { display: grid; grid-template-columns: auto 1fr auto; gap: 7px; align-items: center; color: var(--muted); font: .68rem "DM Mono", monospace; }
+.vital { display: grid; grid-template-columns: auto 1fr auto; gap: 7px; align-items: center; color: var(--muted); font: .68rem var(--mono); }
 .vital strong, .bag-fact strong { color: var(--text); font-weight: 500; }
 .meter { height: 6px; overflow: hidden; border: 1px solid var(--rule-strong); background: var(--meter); }
 .meter i { display: block; height: 100%; background: var(--life); }
 .meter--mp i { background: var(--magic); }
-.bag-fact { display: grid; gap: 2px; color: var(--muted); font: .68rem "DM Mono", monospace; }
+.bag-fact { display: grid; gap: 2px; color: var(--muted); font: .68rem var(--mono); }
 
 /* A: the existing Dark Archive control. */
-#prototype-root[data-theme="dark"] { --shell: #11181f; --hud: #0c1217; --event: #0d151b; --decision: #151f27; --scene: radial-gradient(circle at 75% 25%, rgba(110, 141, 148, .18), transparent 22%), linear-gradient(145deg, #101a21, #0c1116 70%); --control: #14141a; --enemy-surface: #161319; --frame: #3a4c56; --rule: #26343d; --rule-strong: #3a4c56; --grid: rgba(139, 175, 180, .14); --scene-line: rgba(178, 194, 190, .4); --text: #f1eee5; --muted: #a5b0b3; --accent: #e2b36f; --danger: #e07870; --life: #b7dfc1; --magic: #9bd7d2; --meter: #0c0c0e; --primary: #293a40; --primary-text: #f1eee5; --primary-muted: #b7cfcd; --selected: #f0cf83; --selected-surface: #2a261b; --reward: #e2b36f; --reward-surface: #2b2418; --choice-rule: #879da0; --choice-surface: #1b252a; --control-rule: #3b4b53; --shell-radius: 5px; --control-radius: 4px; --shell-shadow: 0 12px 28px rgba(0,0,0,.28); --display: "Shippori Mincho", serif; }
+#prototype-root[data-theme="dark"] { --shell: #11181f; --hud: #10181e; --event: #0d141a; --decision: #151f27; --scene: radial-gradient(circle at 75% 25%, rgba(110, 141, 148, .18), transparent 22%), linear-gradient(145deg, #101a21, #0c1116 70%); --control: #14141a; --enemy-surface: #161319; --frame: #3a4c56; --rule: #26343d; --rule-strong: #3a4c56; --grid: rgba(139, 175, 180, .14); --scene-line: rgba(178, 194, 190, .4); --text: #f1eee5; --muted: #a5b0b3; --accent: #e2b36f; --danger: #e07870; --life: #b7dfc1; --magic: #9bd7d2; --meter: #0c0c0e; --primary: #293a40; --primary-text: #f1eee5; --primary-muted: #b7cfcd; --selected: #f0cf83; --selected-surface: #2a261b; --reward: #e2b36f; --reward-surface: #2b2418; --choice-rule: #879da0; --choice-surface: #1b252a; --control-rule: #3b4b53; --shell-radius: 5px; --control-radius: 4px; --shell-shadow: 0 12px 28px rgba(0,0,0,.28); --display: "Hiragino Mincho ProN", "Yu Mincho", serif; --mono: "Share Tech Mono", monospace; }
 
 /* B: brighter mineral surfaces with an arcane diagram language, not white cards. */
-#prototype-root[data-theme="modern"] { color-scheme: light; --shell: #e6e5dc; --hud: #d9dedb; --event: #d6dedc; --decision: #f0eee5; --scene: radial-gradient(circle at 76% 20%, rgba(37, 102, 127, .24), transparent 23%), linear-gradient(135deg, #b8d0d0, #d8ded5 58%, #b4c7c4); --control: #e5e7df; --enemy-surface: #d8c9c2; --frame: #273e4b; --rule: #9baaa5; --rule-strong: #607984; --grid: rgba(24, 73, 91, .17); --scene-line: rgba(27, 71, 84, .52); --text: #172630; --muted: #4b626b; --accent: #995c12; --danger: #a93232; --life: #176f53; --magic: #1e6780; --meter: #c4cfca; --primary: #1e5a6c; --primary-text: #fffdf4; --primary-muted: #cfe7e5; --selected: #9a5a10; --selected-surface: #f0dfb8; --reward: #8f5c18; --reward-surface: #f1e1b7; --choice-rule: #3d6370; --choice-surface: #dbe5e2; --control-rule: #82979a; --shell-radius: 16px; --control-radius: 10px; --shell-shadow: 0 12px 26px rgba(32, 58, 58, .18); --display: "Outfit", sans-serif; }
+#prototype-root[data-theme="modern"] { color-scheme: light; --shell: #e6e5dc; --hud: #d9dedb; --event: #d6dedc; --decision: #f0eee5; --scene: radial-gradient(circle at 76% 20%, rgba(37, 102, 127, .24), transparent 23%), linear-gradient(135deg, #b8d0d0, #d8ded5 58%, #b4c7c4); --control: #e5e7df; --enemy-surface: #d8c9c2; --frame: #273e4b; --rule: #9baaa5; --rule-strong: #607984; --grid: rgba(24, 73, 91, .17); --scene-line: rgba(27, 71, 84, .52); --text: #172630; --muted: #4b626b; --accent: #995c12; --danger: #a93232; --life: #176f53; --magic: #1e6780; --meter: #c4cfca; --primary: #1e5a6c; --primary-text: #fffdf4; --primary-muted: #cfe7e5; --selected: #9a5a10; --selected-surface: #f0dfb8; --reward: #8f5c18; --reward-surface: #f1e1b7; --choice-rule: #3d6370; --choice-surface: #dbe5e2; --control-rule: #82979a; --shell-radius: 16px; --control-radius: 10px; --shell-shadow: 0 12px 26px rgba(32, 58, 58, .18); --display: "Outfit", sans-serif; --mono: "DM Mono", monospace; }
 #prototype-root[data-theme="modern"] .brand-mark { transform: none; border-radius: 7px 2px; }
 #prototype-root[data-theme="modern"] .scene-insignia { border-radius: 18px 50%; transform: rotate(12deg); }
 #prototype-root[data-theme="modern"] .scene-copy strong, #prototype-root[data-theme="modern"] .decision-heading h2 { font-weight: 700; letter-spacing: -.02em; }
 
 /* C: a warmer map-and-treasure direction, intentionally pushed past B. */
-#prototype-root[data-theme="warm"] { color-scheme: light; --shell: #f2dfbd; --hud: #f8edda; --event: #f5e4c7; --decision: #f8eddb; --scene: radial-gradient(circle at 77% 22%, rgba(224, 91, 65, .25), transparent 22%), linear-gradient(135deg, #f0bd7d, #f3dba5 55%, #afd0c3); --control: #fff4de; --enemy-surface: #f6c8a9; --frame: #643f42; --rule: #c79569; --rule-strong: #9d5f51; --grid: rgba(94, 73, 69, .19); --scene-line: rgba(111, 67, 66, .5); --text: #352a34; --muted: #73585a; --accent: #a84438; --danger: #9d2f34; --life: #27745c; --magic: #2e6878; --meter: #e1c59e; --primary: #b2493b; --primary-text: #fff8e8; --primary-muted: #ffe0bd; --selected: #a75d18; --selected-surface: #f5d69a; --reward: #b45b1d; --reward-surface: #f7d48f; --choice-rule: #587b78; --choice-surface: #d8e6d6; --control-rule: #b6785a; --shell-radius: 24px; --control-radius: 14px; --shell-shadow: 0 14px 24px rgba(89, 54, 45, .18); --display: "Outfit", sans-serif; }
+#prototype-root[data-theme="warm"] { color-scheme: light; --shell: #f2dfbd; --hud: #f8edda; --event: #f5e4c7; --decision: #f8eddb; --scene: radial-gradient(circle at 77% 22%, rgba(224, 91, 65, .25), transparent 22%), linear-gradient(135deg, #f0bd7d, #f3dba5 55%, #afd0c3); --control: #fff4de; --enemy-surface: #f6c8a9; --frame: #643f42; --rule: #c79569; --rule-strong: #9d5f51; --grid: rgba(94, 73, 69, .19); --scene-line: rgba(111, 67, 66, .5); --text: #352a34; --muted: #73585a; --accent: #a84438; --danger: #9d2f34; --life: #27745c; --magic: #2e6878; --meter: #e1c59e; --primary: #b2493b; --primary-text: #fff8e8; --primary-muted: #ffe0bd; --selected: #a75d18; --selected-surface: #f5d69a; --reward: #b45b1d; --reward-surface: #f7d48f; --choice-rule: #587b78; --choice-surface: #d8e6d6; --control-rule: #b6785a; --shell-radius: 24px; --control-radius: 14px; --shell-shadow: 0 14px 24px rgba(89, 54, 45, .18); --display: "Outfit", sans-serif; --mono: "DM Mono", monospace; }
 #prototype-root[data-theme="warm"] .brand-mark { transform: rotate(45deg); border-radius: 8px; background: #f1b565; }
 #prototype-root[data-theme="warm"] .scene-insignia { border-width: 2px; border-style: dashed; color: #a84438; }
 #prototype-root[data-theme="warm"] .scene-grid { opacity: .72; background-size: 26px 26px; }

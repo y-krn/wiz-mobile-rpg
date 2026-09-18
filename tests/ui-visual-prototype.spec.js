@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures/browser-health.js';
 
 const themes = ['dark', 'modern', 'warm'];
-const states = ['town', 'preparation', 'explore', 'combat', 'loot', 'portal', 'return', 'death'];
+const states = ['town', 'preparation', 'explore', 'combat', 'loot', 'portal', 'portal-confirm', 'return', 'death'];
 const viewports = [
   { width: 320, height: 568 },
   { width: 390, height: 844 },
@@ -25,12 +25,12 @@ test('visual prototype exposes the same fixture and action grammar across A/B/C 
       snapshots.set(`${state}:${theme}`, shell);
 
       await expect(page.locator('body')).toHaveCSS('overflow-x', 'visible');
-      const actionSizes = await page.locator('.fixture-action').evaluateAll(buttons => buttons.map(button => {
-        const rect = button.getBoundingClientRect();
-        return { width: rect.width, height: rect.height, label: button.textContent.trim() };
+      const controlSizes = await page.locator('button, select').evaluateAll(controls => controls.map(control => {
+        const rect = control.getBoundingClientRect();
+        return { width: rect.width, height: rect.height, label: control.textContent.trim() };
       }));
-      expect(actionSizes.length).toBeGreaterThan(0);
-      expect(actionSizes.every(size => size.width >= 44 && size.height >= 44), `${theme}/${state} action target`).toBe(true);
+      expect(controlSizes.length).toBeGreaterThan(0);
+      expect(controlSizes.every(size => size.width >= 44 && size.height >= 44), `${theme}/${state} interactive target`).toBe(true);
 
       await page.screenshot({ path: `output/playwright/issue-1341-${theme}-${state}-390.png`, fullPage: true });
     }
@@ -48,10 +48,15 @@ test('critical tension states retain explicit non-color cues and mobile reach @v
     await openPrototype(page, 'modern', 'portal', viewport);
     const portalChoices = page.locator('.fixture-action--choice');
     await expect(portalChoices).toHaveCount(2);
+    await expect(page.locator('.fixture-action--primary')).toHaveCount(0);
     expect(await portalChoices.nth(0).evaluate(element => getComputedStyle(element).borderColor))
       .toBe(await portalChoices.nth(1).evaluate(element => getComputedStyle(element).borderColor));
     expect(await portalChoices.nth(0).evaluate(element => getComputedStyle(element).backgroundColor))
       .toBe(await portalChoices.nth(1).evaluate(element => getComputedStyle(element).backgroundColor));
+
+    await openPrototype(page, 'modern', 'portal-confirm', viewport);
+    await expect(page.locator('.fixture-action--selected')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: /帰還を確定/ })).toBeVisible();
 
     await openPrototype(page, 'warm', 'death', viewport);
     await expect(page.getByText('喪失', { exact: true })).toBeVisible();

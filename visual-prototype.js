@@ -61,7 +61,7 @@ const STATES = Object.freeze({
   combat: {
     eyebrow: "B1F / COMBAT",
     title: FIXTURE.enemy,
-    description: "攻撃にはHP costがある。逃走も、確実な帰還ではない。",
+    description: "戦闘を続ければ、HPを失う可能性がある。逃走も、確実な帰還ではない。",
     scene: "敵影 / 対峙中",
     event: `HP ${FIXTURE.hp} / MP ${FIXTURE.mp} / 敵HP ${FIXTURE.enemyHp}`,
     actions: [
@@ -95,8 +95,19 @@ const STATES = Object.freeze({
     actions: [
       { label: "帰還", detail: "現在の戦果を確定", role: "choice" },
       { label: "Push", detail: "次のPortalまで再び賭ける", role: "choice" },
-      { label: "確定", detail: "選択したPortalへ進む", role: "primary" },
       { label: "戻る", detail: "Portal選択を破棄", role: "back" },
+    ],
+  },
+  "portal-confirm": {
+    eyebrow: "B1F / PORTAL / CONFIRM",
+    title: "帰還を確定しますか",
+    description: "選択中: 帰還。現在の戦果を確定する。戻るとPortalの選択へ戻る。",
+    scene: "帰還門 / 確定前",
+    event: `選択中: 帰還 / 持ち帰り候補 ${FIXTURE.bag}`,
+    actions: [
+      { label: "帰還", detail: "選択中", role: "selected", pressed: true },
+      { label: "帰還を確定", detail: "現在の戦果を確定", role: "primary" },
+      { label: "戻る", detail: "Portalの選択へ戻る", role: "back" },
     ],
   },
   return: {
@@ -124,7 +135,7 @@ const STATES = Object.freeze({
 });
 
 const THEMES = Object.freeze({
-  dark: { name: "Current Dark Archive", note: "煤けた黒 / 青黒い鉄 / 鈍い真鍮" },
+  dark: { name: "Current Dark Archive proxy", note: "current token/font baseline / actual production screenshot別参照" },
   modern: { name: "Bright Modern Arcane", note: "鉱物色の明るい面 / 高彩度の魔術光" },
   warm: { name: "Pop / Warm Adventure", note: "暖色の地図 / 親しみある形 / 強い感情差" },
 });

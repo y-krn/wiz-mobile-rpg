@@ -5,10 +5,10 @@
 このartifactは、Issue #1341の比較prototypeを記録する。production UI、gameplay rule、balance、ownership、loss semanticsは変更していない。
 
 - Base SHA: `781be9e5234d3a3fa5462b2dc1f1664cfb7b9144`
-- Prototype revision: `issue-1341-visual-prototype-v1`
+- Prototype revision: `issue-1341-visual-prototype-v2`
 - Route: `/visual-prototype.html?theme=<dark|modern|warm>&state=<state>`
 - Fixture: B1F、HP `18 / 24`、MP `7 / 12`、bag `14 / 20`、敵 `黒曜の番兵`、戦果候補 `霧銀の短剣`
-- Fixed across A/B/C: copy、information quantity、action order、action count、tap target contract、selected meaning、Portal choice semantics
+- Fixed across A/B/C: copy、information quantity、action order、action count、tap target contract、selected meaning、Portal choice/confirmation semantics
 
 ## Tension ownership
 
@@ -30,9 +30,11 @@ Gameplay-owned tensionはfixture間で固定した。
 
 ## Directions
 
-### A — Current Dark Archive
+### A — Current Dark Archive proxy
 
-現行control。煤けた黒、青黒い鉄、鈍い真鍮、Minchoのlocation/result、monoのcompact valuesを維持。combatの敵枠、danger border、Portalの対等な二択は強く読める。第一印象の緊張は最も強いが、入口の心理的ハードルも最も高い。
+現行token/font基準のproxy。`Share Tech Mono`、`Hiragino Mincho ProN` / `Yu Mincho`、現行Dark Archiveのsurface値を使用する。production rendererを再現するものではないため、現行production screenshot baselineを別参照する。
+
+actual production baseline: `tests/ui-golden-journeys.spec.js-snapshots/golden-town-390-linux.png`、`golden-preparation-390-linux.png`、`golden-result-390-linux.png`。Aの比較画像と混同しない。
 
 ### B — Bright Modern Arcane
 
@@ -44,16 +46,17 @@ Gameplay-owned tensionはfixture間で固定した。
 
 ## State coverage
 
-同一fixtureで次の8 stateを実装した。
+同一fixtureで次の9 stateを実装した。Issue本文の8分類ではPortalをchoice/confirmationの2段階として扱う。
 
 1. Town Home
 2. Preparation
 3. Explore normal
 4. Combat
 5. Loot / equipment comparison
-6. Portal
-7. Result — Return
-8. Result — Death
+6. Portal — choice
+7. Portal — confirmation
+8. Result — Return
+9. Result — Death
 
 全stateのA/B/Cは390x844でscreenshotを生成した。Combat、Portal、Deathは320x568、390x844、430x932でも確認した。全screenshotはPlaywright artifact出力 `output/playwright/issue-1341-*.png` に生成される。
 
@@ -61,13 +64,15 @@ Gameplay-owned tensionはfixture間で固定した。
 
 実描画screenshotを確認した結果:
 
-- AはDark Archiveのcontrolとして意図的に成立。darknessがdangerを補助するが、dangerそのものはtext、border、敵frame、cost表示でも成立。
-- Bはsurfaceが明るくなっても、Combatの敵対、HP cost、`危険`、PortalのPushの再賭け、Deathのloss copyを維持。Portalの`帰還` / `Push`は同色・同shapeで、推奨色を置いていない。
+- AはDark Archive proxyとして成立。darknessがdangerを補助するが、dangerそのものはtext、border、敵frame、HP / MP表示でも成立。
+- Bはsurfaceが明るくなっても、Combatの敵対、HPを失う可能性、`危険`、PortalのPushの再賭け、Deathのloss copyを維持。Portalはchoice stateとconfirmation stateを分離し、未選択時に`確定`を表示しない。
 - CはTownとRewardが最もapproachable。Deathでは`冒険者は倒れた`、`未確定の戦果は失われる`、`喪失`、dashed borderが残り、明るさだけでlossを軽くしていない。
 - 390x844では3方向ともaction dock、event strip、vital footerが読める。320幅でも代表critical stateに横overflowなし。
 - B/Cはwhite cardの積層、glassmorphism、SaaS dashboard、pastel-only paletteにはしていない。scene grid、insignia、event strip、fixed action grammarでwiz-mobile-rpgの構造を残した。
 
 ## Evaluation notes
+
+以下は実ユーザー調査ではない。L0 / internal design observationとして、actual rendered screenshot inspectionとfixture contractから記録する。
 
 単一winnerは決めない。
 
@@ -77,7 +82,7 @@ Gameplay-owned tensionはfixture間で固定した。
 - Reward / delight: C > B > A。Cはreward surfaceと暖色で喜びが伝わる。lootの未知情報は`効果は未確認`のまま。
 - Distinctiveness: Aは既存identityが最も明確。Bはarcane diagram/insigniaがidentityを支える。Cはwarm map languageを増やすほど一般的mobile RPGへ寄るリスクがある。
 - Comfort: B/Cの明るいsurfaceは長時間の可読性に有利な可能性がある。実機、dark-room、長時間利用は未検証。
-- Accessibility: state label、copy、border、dashed frame、`aria-pressed`、focus-visible、44px以上のaction target、reduced-motionを維持。色だけでselected/danger/lost/unknownを判別しない。
+- Accessibility: state label、copy、border、dashed frame、`aria-pressed`、focus-visible、button/selectを含む全interactive controlの44px以上target、reduced-motionを維持。色だけでselected/danger/lost/unknownを判別しない。
 
 ## Verification
 
