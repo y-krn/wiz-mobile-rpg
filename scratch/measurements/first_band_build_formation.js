@@ -39,9 +39,11 @@ export const DEFAULT_SEED = 1277;
 export const TARGET_DEPTH = 6;
 export const MEASUREMENT_ID = "first-band-build-formation";
 export const TRANSITION_MEASUREMENT_ID = "first-band-transition-recovery";
+export const LEVEL_UP_MEASUREMENT_ID = "first-band-levelup-recovery";
 export const KIT_IDS = Object.freeze(STARTING_KITS.map(kit => kit.id));
 export const ARM_IDS = Object.freeze(["P0B1", "P0B0", "P1B1", "P1B0"]);
 export const TRANSITION_ARM_IDS = Object.freeze(["R15A", "R25A", "R35A", "R35F"]);
+export const LEVEL_UP_ARM_IDS = Object.freeze(["L0A", "L10A", "L20A", "L20F"]);
 export const CHECKPOINTS = Object.freeze([2, 3, 4, 5]);
 export const RUN_SAMPLE_LIMIT = 8;
 export const BUILD_IDENTITY_SAMPLE_LIMIT = 32;
@@ -74,6 +76,12 @@ const TRANSITION_ARM_DEFINITIONS = Object.freeze({
   R35A: Object.freeze({ id: "R35A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.35 }),
   R35F: Object.freeze({ id: "R35F", preparationId: "P0", buildId: "F", healPotions: 4, fixed: true, recoveryRate: 0.35 })
 });
+const LEVEL_UP_ARM_DEFINITIONS = Object.freeze({
+  L0A: Object.freeze({ id: "L0A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0 }),
+  L10A: Object.freeze({ id: "L10A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0.10 }),
+  L20A: Object.freeze({ id: "L20A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0.20 }),
+  L20F: Object.freeze({ id: "L20F", preparationId: "P0", buildId: "F", healPotions: 4, fixed: true, recoveryRate: 0.25, levelUpRecoveryRate: 0.20 })
+});
 
 function getMeasurementMode(mode) {
   if (mode === "transition-recovery") {
@@ -82,6 +90,15 @@ function getMeasurementMode(mode) {
       runnerVersion: "first-band-build-formation-v2",
       armIds: TRANSITION_ARM_IDS,
       armDefinitions: TRANSITION_ARM_DEFINITIONS,
+      preparationPotions: [4]
+    };
+  }
+  if (mode === "levelup-recovery") {
+    return {
+      id: LEVEL_UP_MEASUREMENT_ID,
+      runnerVersion: "first-band-build-formation-v3",
+      armIds: LEVEL_UP_ARM_IDS,
+      armDefinitions: LEVEL_UP_ARM_DEFINITIONS,
       preparationPotions: [4]
     };
   }
@@ -479,12 +496,68 @@ function recoveryCheckpoints(rows) {
     const itemUsed = entered.map(item => Number(item.recovery?.itemUsed?.HEAL_POTION || 0));
     return [floor, {
       entrantN: entered.length,
+      entryHp: metric(entered.map(item => item.entry?.hp).filter(Number.isFinite)),
+      entryHpRatio: metric(entered.map(item => item.entry?.hpRatio).filter(Number.isFinite)),
       entryHealPotionRemaining: metric(entered.map(item => item.entry?.healPotionRemaining).filter(Number.isFinite)),
       potionUsed: metric(itemUsed),
       potionRecoveryHp: metric(entered.map(item => item.recovery?.healPotionRecoveryHp).filter(Number.isFinite)),
-      floorTransitionRecoveryHp: metric(entered.map(item => item.recovery?.floorTransitionRecoveryHp).filter(Number.isFinite))
+      floorTransitionRecoveryHp: metric(entered.map(item => item.recovery?.floorTransitionRecoveryHp).filter(Number.isFinite)),
+      naturalLevelGrowthHp: metric(entered.map(item => item.recovery?.naturalLevelGrowthHp).filter(Number.isFinite)),
+      extraLevelUpRecoveryHp: metric(entered.map(item => item.recovery?.extraLevelUpRecoveryHp).filter(Number.isFinite)),
+      extraLevelUpRecoveryRequestedHp: metric(entered.map(item => item.recovery?.extraLevelUpRecoveryRequestedHp).filter(Number.isFinite)),
+      extraLevelUpRecoveryCappedAtFullCount: metric(entered.map(item => item.recovery?.extraLevelUpRecoveryCappedAtFullCount).filter(Number.isFinite)),
+      totalObservedRecoveryHp: metric(entered.map(item => item.recovery?.totalObservedRecoveryHp).filter(Number.isFinite))
     }];
   }));
+}
+
+function mergeCountMaps(items) {
+  const counts = {};
+  items.forEach(item => Object.entries(item || {}).forEach(([key, value]) => {
+    counts[key] = (counts[key] || 0) + Number(value || 0);
+  }));
+  return counts;
+}
+
+function levelProgressionCheckpoints(rows) {
+  return Object.fromEntries([1, 2, 3, 4, 5].map(floor => {
+    const entered = rows.map(row => row.floors?.[floor]).filter(Boolean);
+    const progression = entered.map(item => item.progression || {});
+    const fullHpInvalidCount = metric(entered.map(item => item.recovery?.extraLevelUpRecoveryCappedAtFullCount).filter(Number.isFinite));
+    const levelUpCount = metric(progression.map(item => item.levelUpCount).filter(Number.isFinite));
+    return [floor, {
+      entrantN: entered.length,
+      entryLevel: metric(entered.map(item => item.entry?.level).filter(Number.isFinite)),
+      levelUpCount,
+      fromToLevel: mergeCountMaps(progression.map(item => item.fromToLevel)),
+      expGained: metric(progression.map(item => item.expGained).filter(Number.isFinite)),
+      naturalHpGrowth: metric(entered.map(item => item.recovery?.naturalLevelGrowthHp).filter(Number.isFinite)),
+      extraRequestedHp: metric(entered.map(item => item.recovery?.extraLevelUpRecoveryRequestedHp).filter(Number.isFinite)),
+      extraActualHp: metric(entered.map(item => item.recovery?.extraLevelUpRecoveryHp).filter(Number.isFinite)),
+      fullHpInvalidCount,
+      fullHpInvalidRate: rate(fullHpInvalidCount.total, levelUpCount.total),
+      cumulativeExtraRecovery: metric(entered.map(item => item.recovery?.extraLevelUpRecoveryHp).filter(Number.isFinite))
+    }];
+  }));
+}
+
+function snowballSummary(rows) {
+  const floorSum = (row, field) => Object.values(row.floors || {})
+    .reduce((sum, floor) => sum + Number(floor?.incrementalCost?.[field] || 0), 0);
+  const levelSum = (row, field) => Object.values(row.floors || {})
+    .reduce((sum, floor) => sum + Number(floor?.progression?.[field] || 0), 0);
+  return {
+    combatCount: metric(rows.map(row => row.totalCombatCount).filter(Number.isFinite)),
+    rounds: metric(rows.map(row => row.totalCombatRounds).filter(Number.isFinite)),
+    enemyActions: metric(rows.map(row => floorSum(row, "enemyActionCount"))),
+    expGained: metric(rows.map(row => row.totalExpGained).filter(Number.isFinite)),
+    levelUpCount: metric(rows.map(row => levelSum(row, "levelUpCount"))),
+    b3EntryLevel: metric(rows.map(row => row.floors?.[3]?.entry?.level).filter(Number.isFinite)),
+    b4EntryLevel: metric(rows.map(row => row.floors?.[4]?.entry?.level).filter(Number.isFinite)),
+    b5EntryLevel: metric(rows.map(row => row.floors?.[5]?.entry?.level).filter(Number.isFinite)),
+    extraLevelUpRecoveryTotal: metric(rows.map(row => Object.values(row.floors || {})
+      .reduce((sum, floor) => sum + Number(floor?.recovery?.extraLevelUpRecoveryHp || 0), 0)))
+  };
 }
 
 function summarizeB5(rows) {
@@ -549,6 +622,8 @@ function aggregate(rows) {
     buildCheckpoints: Object.fromEntries(CHECKPOINTS.map(floor => [floor, buildCheckpoints(rows, floor)])),
     combat: combatCheckpoints(rows),
     recovery: recoveryCheckpoints(rows),
+    levelProgression: levelProgressionCheckpoints(rows),
+    snowball: snowballSummary(rows),
     transitionRecovery: summarizeTransitionRecovery(rows),
     b5: summarizeB5(rows),
     loot: {
@@ -625,7 +700,15 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     const arm = { preparationId: healPotions === 4 ? "P0" : "P1", healPotions };
     return [arm.preparationId, preparationSpec(arm)];
   }));
-  const runOne = ({ arm, kitId, runIndex, audit = true, samples, includeTransitionRecoveryRate = true }) => {
+  const runOne = ({
+    arm,
+    kitId,
+    runIndex,
+    audit = true,
+    samples,
+    includeTransitionRecoveryRate = true,
+    includeLevelUpRecoveryRate = true
+  }) => {
     const prep = preparations[arm.preparationId];
     const worldSeed = `run-difficulty:${seed}:${runIndex}`;
     const scenario = {
@@ -644,8 +727,11 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       collectStage15Diagnostics: true,
       simDiagnosticLevel: "full"
     };
-    if (mode === "transition-recovery" && includeTransitionRecoveryRate) {
+    if (arm.recoveryRate !== undefined && includeTransitionRecoveryRate) {
       scenario.floorTransitionRecoveryRate = arm.recoveryRate;
+    }
+    if (arm.levelUpRecoveryRate !== undefined && includeLevelUpRecoveryRate) {
+      scenario.levelUpRecoveryRate = arm.levelUpRecoveryRate;
     }
     if (arm.preparationId === "P0") scenario.startingGearChoice = DEFAULT_WEAPON_BY_KIT[kitId];
     const raw = simulateRun({
@@ -777,28 +863,56 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
         comparison(overview.R25A, overview.R35A, "R35A - R25A: 35% - 25% transition recovery"),
         comparison(overview.R35F, overview.R35A, "R35A - R35F: adaptive - fixed at 35%")
       ]
-    : [
+    : mode === "levelup-recovery"
+      ? [
+        comparison(overview.L0A, overview.L10A, "L10A - L0A: 10% - 0% level-up recovery"),
+        comparison(overview.L0A, overview.L20A, "L20A - L0A: 20% - 0% level-up recovery"),
+        comparison(overview.L10A, overview.L20A, "L20A - L10A: 20% - 10% level-up recovery"),
+        comparison(overview.L20F, overview.L20A, "L20A - L20F: adaptive - fixed at 20%")
+      ]
+      : [
         comparison(overview.P0B0, overview.P0B1, "P0B1 - P0B0: Standard Prep Build contribution"),
         comparison(overview.P1B0, overview.P1B1, "P1B1 - P1B0: Strong Prep residual Build contribution"),
         comparison(overview.P0B1, overview.P1B1, "P1B1 - P0B1: Preparation effect under adaptive Build"),
         comparison(overview.P0B0, overview.P1B0, "P1B0 - P0B0: Preparation effect with fixed Build")
       ];
   let baselineParity = null;
-  if (mode === "transition-recovery") {
+  if (mode === "transition-recovery" || mode === "levelup-recovery") {
     const arm = modeDefinition.armDefinitions.R15A;
     const byKit = {};
     for (const kitId of KIT_IDS) {
-      resetSimulationRandom(seed);
-      const explicit = runOne({ arm, kitId, runIndex: 0, includeTransitionRecoveryRate: true });
-      resetSimulationRandom(seed);
-      const omitted = runOne({ arm, kitId, runIndex: 0, includeTransitionRecoveryRate: false });
-      byKit[kitId] = compareObservationInvariance(omitted, explicit);
+      if (mode === "transition-recovery") {
+        resetSimulationRandom(seed);
+        const explicit = runOne({ arm, kitId, runIndex: 0, includeTransitionRecoveryRate: true });
+        resetSimulationRandom(seed);
+        const omitted = runOne({ arm, kitId, runIndex: 0, includeTransitionRecoveryRate: false });
+        byKit[kitId] = compareObservationInvariance(omitted, explicit);
+      } else {
+        const l0a = modeDefinition.armDefinitions.L0A;
+        const r25a = TRANSITION_ARM_DEFINITIONS.R25A;
+        resetSimulationRandom(seed);
+        const levelUpBaseline = runOne({ arm: l0a, kitId, runIndex: 0 });
+        resetSimulationRandom(seed);
+        const transitionBaseline = runOne({ arm: r25a, kitId, runIndex: 0, includeLevelUpRecoveryRate: false });
+        resetSimulationRandom(seed);
+        const omitted = runOne({ arm: l0a, kitId, runIndex: 0, includeLevelUpRecoveryRate: false });
+        byKit[kitId] = {
+          r25aVsL0a: compareObservationInvariance(transitionBaseline, levelUpBaseline),
+          omittedVsZero: compareObservationInvariance(omitted, levelUpBaseline)
+        };
+      }
     }
     baselineParity = {
-      pass: Object.values(byKit).every(value => value.pass),
+      pass: mode === "transition-recovery"
+        ? Object.values(byKit).every(value => value.pass)
+        : Object.values(byKit).every(value => value.r25aVsL0a.pass && value.omittedVsZero.pass),
       byKit,
-      comparedFields: Object.values(byKit)[0]?.comparedFields || [],
-      semantics: "floorTransitionRecoveryRate omitted vs explicit 0.15"
+      comparedFields: mode === "transition-recovery"
+        ? Object.values(byKit)[0]?.comparedFields || []
+        : Object.values(byKit)[0]?.r25aVsL0a.comparedFields || [],
+      semantics: mode === "transition-recovery"
+        ? "floorTransitionRecoveryRate omitted vs explicit 0.15"
+        : "R25A vs L0A gameplay parity; levelUpRecoveryRate omitted vs explicit 0"
     };
     if (!baselineParity.pass) throw new Error("R15 baseline parity failed");
   }
@@ -816,10 +930,13 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     productionPath: "scratch/simulations/sim_depth_material_ev.js",
     adaptivePolicy: CANONICAL_ADAPTIVE_POLICY_ID,
     fixedPolicy: "fixed",
-    transitionRecoveryRates: mode === "transition-recovery"
+    transitionRecoveryRates: ["transition-recovery", "levelup-recovery"].includes(mode)
       ? Object.fromEntries(modeDefinition.armIds.map(id => [id, modeDefinition.armDefinitions[id].recoveryRate]))
       : null,
-    preparation: mode === "transition-recovery"
+    levelUpRecoveryRates: mode === "levelup-recovery"
+      ? Object.fromEntries(modeDefinition.armIds.map(id => [id, modeDefinition.armDefinitions[id].levelUpRecoveryRate]))
+      : null,
+    preparation: ["transition-recovery", "levelup-recovery"].includes(mode)
       ? { name: "Standard Preparation", startingWeaponMode: "kit-default", healPotions: 4 }
       : null,
     worldSeedTemplate: "run-difficulty:{seed}:{runIndex}",
@@ -890,6 +1007,70 @@ function buildReport(result, provenance, purpose, requestedRef, environment) {
 }
 
 export function buildSummary(report) {
+  if (report.configuration.measurementId === LEVEL_UP_MEASUREMENT_ID) {
+    const display = value => value == null ? "unobserved" : value;
+    const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;
+    const comparisonLine = item => [
+      `B3/B4/B5/B6 ${["b3", "b4", "b5", "b6"].map(key => display(item.delta[key])).join("/")}`,
+      `death/Return ${display(item.delta.death)}/${display(item.delta.voluntaryReturn)}`,
+      `boss arrival/start/victory ${["bossActualArrival", "bossStart", "bossVictory"].map(key => display(item.delta[key])).join("/")}`,
+      `B5→B6 ${display(item.delta.b5ToB6)}`
+    ].join("; ");
+    const levelLine = (aggregate, floor) => {
+      const level = aggregate.levelProgression[floor];
+      const recovery = aggregate.recovery[floor];
+      return `B${floor} entry level p50=${display(level.entryLevel.p50)}; entry HP/ratio=${display(recovery.entryHp.p50)}/${rateDisplay(recovery.entryHpRatio.p50)}; level-ups=${display(level.levelUpCount.meanPerEntrant)}; from/to=${JSON.stringify(level.fromToLevel)}; natural HP=${display(level.naturalHpGrowth.meanPerEntrant)}; extra requested/actual=${display(level.extraRequestedHp.meanPerEntrant)}/${display(level.extraActualHp.meanPerEntrant)}; full-invalid=${display(level.fullHpInvalidCount.total)}/${rateDisplay(level.fullHpInvalidRate)}; cumulative extra=${display(level.cumulativeExtraRecovery.meanPerEntrant)}; total recovery=${display(recovery.totalObservedRecoveryHp.meanPerEntrant)}`;
+    };
+    const snowballLine = aggregate => {
+      const item = aggregate.snowball;
+      return `combat=${display(item.combatCount.meanPerEntrant)}; rounds=${display(item.rounds.meanPerEntrant)}; enemy actions=${display(item.enemyActions.meanPerEntrant)}; EXP=${display(item.expGained.meanPerEntrant)}; level-ups=${display(item.levelUpCount.meanPerEntrant)}; B3/B4/B5 entry level=${display(item.b3EntryLevel.p50)}/${display(item.b4EntryLevel.p50)}/${display(item.b5EntryLevel.p50)}; extra HP=${display(item.extraLevelUpRecoveryTotal.meanPerEntrant)}`;
+    };
+    const b5Line = armId => {
+      const aggregate = report.arms[armId].overview;
+      const boss = aggregate.b5.boss;
+      const b5 = aggregate.b5;
+      return `${armId}: flame=${aggregate.b5.flameTrap.triggerCount.total}; route=${boss.routeBossDetected.total}; actual arrival=${boss.actualBossEventArrival.total}; result events=${boss.bossCombatResultEventCount.total}; victory=${boss.victoryEventCount.total}; flee=${boss.fleeEventCount.total}; retry/revisit=${boss.retryRevisit.total}; death=${boss.deathEventCount.total}; town-portal before boss=${b5.townPortalReturnBeforeBoss.count}; town-portal after boss attempt=${b5.townPortalReturnAfterBossAttemptBeforeB6.count}; milestone Portal return=${b5.milestonePortalReturnAfterGuardian.count}; B6=${b5.b6Transition.count}`;
+    };
+    const lines = [
+      "# First Band level-up recovery",
+      "",
+      `- measurement: ${LEVEL_UP_MEASUREMENT_ID}; N=${report.configuration.runs}/kit/arm; seed=${report.configuration.seed}; workshop=${report.configuration.workshop}`,
+      "- Standard Preparation fixed: kit-default weapon; TOWN_PORTAL ×1; HEAL_POTION ×4; ANTIDOTE ×1; GUARD_POTION ×1; floor transition recovery=25%",
+      `- exact level-up rates: ${JSON.stringify(report.configuration.levelUpRecoveryRates)}; transition rates: ${JSON.stringify(report.configuration.transitionRecoveryRates)}; adaptive=${report.configuration.adaptivePolicy}; fixed=${report.configuration.fixedPolicy}`,
+      "",
+      "## Level progression and recovery",
+      "",
+      ...report.configuration.arms.flatMap(armId => KIT_IDS.map(kitId => {
+        const aggregate = report.arms[armId].byKit[kitId].aggregate;
+        return `- ${armId}/${kitId}: ${[1, 2, 3, 4, 5].map(floor => levelLine(aggregate, floor)).join("; ")}`;
+      })),
+      "",
+      "## Potion replacement and snowball proxy",
+      "",
+      ...report.configuration.arms.map(armId => `- ${armId}: ${snowballLine(report.arms[armId].overview)}; recovery B3/B4/B5 extra=${[3, 4, 5].map(floor => display(report.arms[armId].overview.recovery[floor].extraLevelUpRecoveryHp.meanPerEntrant)).join("/")}; Potion used B3/B4/B5=${[3, 4, 5].map(floor => display(report.arms[armId].overview.recovery[floor].potionUsed.meanPerEntrant)).join("/")}`),
+      "",
+      "## Build checkpoints",
+      "",
+      ...report.configuration.arms.flatMap(armId => KIT_IDS.map(kitId => {
+        const aggregate = report.arms[armId].byKit[kitId].aggregate;
+        return `- ${armId}/${kitId}: ${[2, 3, 4, 5].map(floor => `B${floor} changed=${rateDisplay(aggregate.buildCheckpoints[floor].changedFromDeparture.rate)}; swap p50=${display(aggregate.buildCheckpoints[floor].equipmentSwapCount.p50)}; identity=${aggregate.buildCheckpoints[floor].structuralBuildIdentity.uniqueCount}`).join("; ")}`;
+      })),
+      "",
+      "## B5 guardian decomposition",
+      "",
+      ...report.configuration.arms.map(b5Line),
+      "",
+      "## Comparisons",
+      "",
+      ...report.primaryComparisons.map(item => `- ${item.label}: ${comparisonLine(item)}`),
+      `- R25A/L0A parity: ${report.baselineParity?.pass ? "PASS" : "FAIL"}; omitted/0: ${report.baselineParity?.pass ? "PASS" : "FAIL"}`,
+      "",
+      `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; observation invariance: ${report.observationInvariance.pass ? "PASS" : "FAIL"}`,
+      "- level-up recovery is simulation-only and applied after production reward resolution, before post-combat Potion decision; natural +5 HP and extra HP are separate; farming incentive is not proven by this non-farming simulator.",
+      "- no production src/ balance change; raw run records omitted; heavy N=1000 is not run by pre-PR smoke."
+    ];
+    return `${lines.join("\n")}\n`;
+  }
   if (report.configuration.measurementId === TRANSITION_MEASUREMENT_ID) {
     const display = value => value == null ? "unobserved" : value;
     const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;

@@ -2333,6 +2333,8 @@ function createStage15FloorTelemetry(floor) {
     entryBuildSnapshot: null,
     entryCumulativeSteps: null,
     entryCumulativeCombatCount: null,
+    entryLevel: null,
+    entryExp: null,
     exitHp: null,
     exitMaxHp: null,
     exitHpRatio: null,
@@ -2349,6 +2351,8 @@ function createStage15FloorTelemetry(floor) {
     exitBuildSnapshot: null,
     exitCumulativeSteps: null,
     exitCumulativeCombatCount: null,
+    exitLevel: null,
+    exitExp: null,
     terminal: null,
     terminalReason: null,
     mpSpent: 0,
@@ -2382,6 +2386,15 @@ function createStage15FloorTelemetry(floor) {
     combatsEnteredZeroMp: 0,
     equipmentDrops: 0,
     equipmentChanges: 0,
+    levelUpCount: 0,
+    levelTransitions: {},
+    levelUpRecoverySamples: [],
+    naturalLevelGrowthHp: 0,
+    extraLevelUpRecoveryRequestedHp: 0,
+    extraLevelUpRecoveryActualHp: 0,
+    extraLevelUpRecoveryCappedAtFullCount: 0,
+    extraLevelUpRecoveryMaxHpOverage: 0,
+    expGained: 0,
     steps: 0,
     exploredRatio: null,
     closed: false
@@ -2449,6 +2462,8 @@ function startStage15Floor(state, metrics, floor, scoringProfile = null) {
   telemetry.entryBuildSnapshot = createBuildSnapshot(state, scoringProfile, "floor-entry");
   telemetry.entryCumulativeSteps = metrics.steps;
   telemetry.entryCumulativeCombatCount = state.currentRun.battles;
+  telemetry.entryLevel = character.level;
+  telemetry.entryExp = character.exp;
   metrics.stage15Diagnostics.currentFloor = floor;
   if (floor === 5) {
     metrics.stage15Diagnostics.b5Entry = {
@@ -2520,6 +2535,8 @@ function finalizeStage15Floor(state, metrics, floor, status, terminationReason =
   telemetry.exitBuildSnapshot = createBuildSnapshot(state, null, "floor-exit");
   telemetry.exitCumulativeSteps = metrics.steps;
   telemetry.exitCumulativeCombatCount = state.currentRun.battles;
+  telemetry.exitLevel = character.level;
+  telemetry.exitExp = character.exp;
   telemetry.terminal = status;
   telemetry.terminalReason = terminationReason;
   telemetry.reachedNextFloor = Number(status === "survived");
@@ -2533,6 +2550,64 @@ function finalizeStage15Floor(state, metrics, floor, status, terminationReason =
       (telemetry.incompleteTerminationReasons[rawReason] || 0) + 1;
   }
   telemetry.closed = true;
+}
+
+function applySimulationLevelUpRecovery(
+  state,
+  metrics,
+  floor,
+  { fromLevel, fromMaxHp, fromHp }
+) {
+  const character = state.party[0];
+  const toLevel = character.level;
+  const levelsGained = Math.max(0, toLevel - fromLevel);
+  if (levelsGained <= 0) return;
+  const telemetry = stage15Floor(metrics, floor);
+  if (!telemetry) return;
+  const newMaxHp = getCharMaxHp(character);
+  telemetry.levelUpCount += levelsGained;
+  const transitionKey = `${fromLevel}->${toLevel}`;
+  telemetry.levelTransitions[transitionKey] =
+    (telemetry.levelTransitions[transitionKey] || 0) + 1;
+  telemetry.naturalLevelGrowthHp += Math.max(0, newMaxHp - fromMaxHp);
+
+  const rate = state.simPolicy.levelUpRecoveryRate;
+  for (let levelIndex = 0; levelIndex < levelsGained; levelIndex++) {
+    const requestedHp = rate > 0 ? Math.max(1, Math.floor(newMaxHp * rate)) : 0;
+    const availableHp = Math.max(0, newMaxHp - character.hp);
+    const actualHp = Math.min(requestedHp, availableHp);
+    const hpBeforeRecovery = character.hp;
+    if (requestedHp > 0 && availableHp === 0) {
+      telemetry.extraLevelUpRecoveryCappedAtFullCount++;
+    }
+    character.hp += actualHp;
+    telemetry.extraLevelUpRecoveryRequestedHp += requestedHp;
+    telemetry.extraLevelUpRecoveryActualHp += actualHp;
+    telemetry.extraLevelUpRecoveryMaxHpOverage = Math.max(
+      telemetry.extraLevelUpRecoveryMaxHpOverage,
+      Math.max(0, character.hp - newMaxHp)
+    );
+    if (telemetry.levelUpRecoverySamples.length < 8) {
+      telemetry.levelUpRecoverySamples.push({
+        fromLevel,
+        toLevel,
+        newMaxHp,
+        rate,
+        requestedHp,
+        actualHp,
+        hpBefore: hpBeforeRecovery,
+        hpAfter: character.hp,
+        maxHpOverage: Math.max(0, character.hp - newMaxHp),
+        step: metrics.steps
+      });
+    }
+  }
+  if (character.hp > newMaxHp) {
+    throw new Error(
+      `simulation level-up recovery exceeded max HP: floor=${floor}, ` +
+      `before=${fromHp}, after=${character.hp}, max=${newMaxHp}`
+    );
+  }
 }
 
 function recordStage15Encounter(metrics, encounter) {
@@ -4571,6 +4646,9 @@ function createSimulationState(
   const floorTransitionRecoveryRate = Object.hasOwn(scenario, "floorTransitionRecoveryRate")
     ? parseOptionalChance(scenario.floorTransitionRecoveryRate, "floorTransitionRecoveryRate")
     : 0.15;
+  const levelUpRecoveryRate = Object.hasOwn(scenario, "levelUpRecoveryRate")
+    ? parseOptionalChance(scenario.levelUpRecoveryRate, "levelUpRecoveryRate")
+    : 0;
   const workshopEffects = {
     stats: { ...workshopGrants.stats },
     startingGearCandidates: [
@@ -4719,6 +4797,7 @@ function createSimulationState(
       extraCampRecoveryRate,
       extraCampTimeCost,
       floorTransitionRecoveryRate,
+      levelUpRecoveryRate,
       hpGrowthBonus: Number(scenario.hpGrowthBonus) || 0,
       trapGuardOverride: scenario.trapGuardOverride || null,
       trapPolicy: trapPolicies.floor,
@@ -15843,6 +15922,8 @@ export function simulateRun({
           const cureItemsUsedBeforeCombat = { ...metrics.statusCureItemsUsed };
           const levelBeforeCombat = state.party[0].level;
           const expBeforeCombat = state.party[0].exp;
+          const maxHpBeforeCombat = getCharMaxHp(state.party[0]);
+          const hpBeforeCombat = state.party[0].hp;
           const combatResult = runEncounter(
             state,
             metrics.coreObservations,
@@ -15872,6 +15953,15 @@ export function simulateRun({
             if (routePlan.partialInformation && isBoss && specialEvent.milestone) {
               floorRoute.bossDefeated = true;
             }
+            const floorTelemetry = stage15Floor(metrics, floor);
+            if (floorTelemetry) {
+              floorTelemetry.expGained += Math.max(0, state.party[0].exp - expBeforeCombat);
+            }
+            applySimulationLevelUpRecovery(state, metrics, floor, {
+              fromLevel: levelBeforeCombat,
+              fromMaxHp: maxHpBeforeCombat,
+              fromHp: hpBeforeCombat
+            });
             const hpGrowthBonus = Number(state.simPolicy.hpGrowthBonus) || 0;
             const levelsGained = Math.max(0, state.party[0].level - levelBeforeCombat);
             if (hpGrowthBonus !== 0 && levelsGained > 0) {
