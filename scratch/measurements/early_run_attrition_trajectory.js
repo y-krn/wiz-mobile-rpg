@@ -477,15 +477,19 @@ function compactFloor(
       healPotionRecoveryHp: finite(stage.healPotionRecoveryHp),
       floorTransitionRecoveryHp: finite(stage.floorTransitionRecoveryHp),
       naturalLevelGrowthHp: finite(stage.naturalLevelGrowthHp),
-      extraLevelUpRecoveryRequestedHp: finite(stage.extraLevelUpRecoveryRequestedHp),
-      extraLevelUpRecoveryHp: finite(stage.extraLevelUpRecoveryActualHp),
-      extraLevelUpRecoveryCappedAtFullCount: finite(stage.extraLevelUpRecoveryCappedAtFullCount),
-      extraLevelUpRecoveryMaxHpOverage: finite(stage.extraLevelUpRecoveryMaxHpOverage),
+      percentageExtraLevelUpRecoveryRequestedHp: finite(stage.percentageLevelUpRecoveryRequestedHp),
+      percentageExtraLevelUpRecoveryHp: finite(stage.percentageLevelUpRecoveryActualHp),
+      percentageExtraLevelUpRecoveryCappedAtFullCount: finite(stage.percentageLevelUpRecoveryCappedAtFullCount),
+      flatExtraLevelUpRecoveryRequestedHp: finite(stage.flatLevelUpRecoveryRequestedHp),
+      flatExtraLevelUpRecoveryHp: finite(stage.flatLevelUpRecoveryActualHp),
+      flatExtraLevelUpRecoveryCappedAtFullCount: finite(stage.flatLevelUpRecoveryCappedAtFullCount),
+      levelUpRecoveryMaxHpOverage: finite(stage.levelUpRecoveryMaxHpOverage),
       totalObservedRecoveryHp: [
         stage.healing,
         stage.floorTransitionRecoveryHp,
         stage.naturalLevelGrowthHp,
-        stage.extraLevelUpRecoveryActualHp
+        stage.percentageLevelUpRecoveryActualHp,
+        stage.flatLevelUpRecoveryActualHp
       ].reduce((sum, value) => sum + (Number(value) || 0), 0),
       healingMp: finite(stage.mpRecovered),
       itemAcquired: countByItem(floorRewards.filter(event =>

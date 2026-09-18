@@ -103,7 +103,7 @@ assert.deepEqual(
 const levelUpRecovery = resolveMeasurementOptions({ measurement: "first-band-levelup-recovery", purpose: "test" });
 assert.deepEqual(
   { runs: levelUpRecovery.runs, seed: levelUpRecovery.seed, runType: levelUpRecovery.runType },
-  { runs: 1000, seed: 1277, runType: "diagnostic" }
+  { runs: 500, seed: 1277, runType: "diagnostic" }
 );
 assert.deepEqual(
   {
