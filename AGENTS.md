@@ -18,6 +18,17 @@ does not cover merge, deploy, purchases, destructive actions, or unrelated
 scope expansion. Higher-level sandbox, approval, and security settings always
 apply.
 
+## Repository Skill routing
+
+- Issue implementation or delivery requests, including `#<issue>着手`: load
+  `.agents/skills/issue-delivery/SKILL.md`.
+- Pull-request review, audit, approval, or current-head CI review requests:
+  load `.agents/skills/pr-review/SKILL.md`.
+- These Skills define execution order and trigger-specific routing. Keep
+  detailed lifecycle, regression, and current-head gate procedures in
+  `.agents/issue-delivery.md`, `.agents/qa-regression.md`, and
+  `.agents/merge-gate.md`; do not duplicate them here.
+
 ## Mandatory execution guardrails
 
 - Keep one owning session and one task worktree per Issue. Before editing or
