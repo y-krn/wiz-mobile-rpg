@@ -5,7 +5,7 @@
 このartifactは、Issue #1341の比較prototypeを記録する。production UI、gameplay rule、balance、ownership、loss semanticsは変更していない。
 
 - Base SHA: `781be9e5234d3a3fa5462b2dc1f1664cfb7b9144`
-- Prototype revision: `issue-1341-visual-prototype-v2`
+- Prototype revision: `issue-1341-visual-prototype-v3`
 - Route: `/visual-prototype.html?theme=<dark|modern|warm>&state=<state>`
 - Fixture: B1F、HP `18 / 24`、MP `7 / 12`、bag `14 / 20`、敵 `黒曜の番兵`、戦果候補 `霧銀の短剣`
 - Fixed across A/B/C: copy、information quantity、action order、action count、tap target contract、selected meaning、Portal choice/confirmation semantics
@@ -32,7 +32,7 @@ Gameplay-owned tensionはfixture間で固定した。
 
 ### A — Current Dark Archive proxy
 
-現行token/font基準のproxy。`Share Tech Mono`、`Hiragino Mincho ProN` / `Yu Mincho`、現行Dark Archiveのsurface値を使用する。production rendererを再現するものではないため、現行production screenshot baselineを別参照する。
+現行token/font基準のproxy。`visual-prototype.html`で`Share Tech Mono`をロードし、`Share Tech Mono`、`Hiragino Mincho ProN` / `Yu Mincho`、現行Dark Archiveのsurface値を使用する。production rendererを再現するものではないため、現行production screenshot baselineを別参照する。
 
 actual production baseline: `tests/ui-golden-journeys.spec.js-snapshots/golden-town-390-linux.png`、`golden-preparation-390-linux.png`、`golden-result-390-linux.png`。Aの比較画像と混同しない。
 
