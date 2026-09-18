@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { STARTING_KITS } from "../../src/state/initial_state.js";
 import { MATERIAL_TYPES } from "../../src/data/materials.js";
+import { getCharacterEquipmentLoad } from "../../src/rules/equipment_load.js";
 import {
   getDepartureCraftCost,
   purchaseDepartureCraft,
@@ -26,6 +27,8 @@ import {
   createRunEvidenceSampleCollector,
   projectGameplayRecord
 } from "./early_run_attrition_trajectory.js";
+import { expectedAutoBestWeapon } from "./preparation_power_factorial.js";
+import { CANONICAL_EQUIPMENT_UPDATE_POLICY_ID } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 
@@ -43,7 +46,7 @@ export const BUILD_IDENTITY_SAMPLE_LIMIT = 32;
 export const BUILD_IDENTITY_SAMPLE_PER_KIT_LIMIT = 8;
 export const CANDIDATE_SAMPLE_LIMIT = 128;
 export const WORKSHOP_SCENARIO_ID = "workshop-complete";
-export const CANONICAL_ADAPTIVE_POLICY_ID = "deterministic_greedy";
+export const CANONICAL_ADAPTIVE_POLICY_ID = CANONICAL_EQUIPMENT_UPDATE_POLICY_ID;
 
 const DEFAULT_WEAPON_BY_KIT = Object.freeze({
   vanguard: "SHORT_SWORD",
@@ -67,6 +70,7 @@ const PRODUCTION_PATHS = Object.freeze([
   "scratch/simulations/sim_depth_material_ev.js",
   "scratch/measurements/early_run_attrition_trajectory.js",
   "scratch/measurements/first_band_build_formation.js",
+  "scratch/measurements/preparation_power_factorial.js",
   "scratch/measurements/build_progression_audit.js",
   "src/state/initial_state.js",
   "src/systems/workshop.js",
@@ -151,20 +155,29 @@ function deriveBank(recipeIds) {
   const payment = getDepartureCraftCost(recipeIds);
   const bank = Object.fromEntries(MATERIAL_TYPES.map(material => [material, payment.typed[material] || 0]));
   if (payment.any > 0) bank[MATERIAL_TYPES[0]] += payment.any;
-  return { bank, expectedCost: purchaseDepartureCraft(bank, recipeIds) };
+  return { bank };
 }
 
 function preparationSpec(arm) {
   const recipeIds = recipesFor(arm.healPotions);
-  const { bank, expectedCost } = deriveBank(recipesFor(12));
+  const { bank } = deriveBank(recipesFor(12));
+  const expectedCost = purchaseDepartureCraft(bank, recipeIds);
   if (!expectedCost?.ok) throw new Error("production departure craft bank derivation failed");
   return {
     id: arm.preparationId,
     startingWeaponMode: arm.preparationId === "P0" ? "kit-default" : "canonical-workshop-auto-best",
     healPotions: arm.healPotions,
     recipeIds,
-    materials: { ...bank }
+    materials: { ...bank },
+    expectedPayment: { ...expectedCost.cost }
   };
+}
+
+function getStartingEquipmentLoad(snapshot) {
+  const equipment = Object.fromEntries(
+    (snapshot?.equipment || []).map(item => [item.slot, item.id])
+  );
+  return getCharacterEquipmentLoad({ equipment });
 }
 
 function startingBagUsed(result, workshop) {
@@ -173,9 +186,10 @@ function startingBagUsed(result, workshop) {
   return consumables + getWorkshopGrants(workshop).returnItems.length + (result.departureCraft?.items?.length || 0);
 }
 
-function preparationRecord(result, arm, kitId, workshop, initialBank) {
+function preparationRecord(result, arm, kitId, workshop, initialBank, expectedWeapon, expectedPayment) {
   const snapshot = result.startingBuildSnapshot;
   const weapon = snapshot?.equipment?.find(item => item.slot === "weapon");
+  const canonical = snapshot?.canonicalBuildSnapshot || {};
   const payment = { ...(result.departureCraft?.cost || {}) };
   const postPurchaseBank = Object.fromEntries(MATERIAL_TYPES.map(material => [
     material,
@@ -184,19 +198,25 @@ function preparationRecord(result, arm, kitId, workshop, initialBank) {
   const used = startingBagUsed(result, workshop);
   return {
     kit: kitId,
+    expectedStartingWeapon: expectedWeapon,
     startingWeapon: weapon?.id || null,
     startingWeaponMode: arm.preparationId === "P0" ? "kit-default" : "canonical-workshop-auto-best",
-    weaponBehavior: snapshot?.canonicalBuildSnapshot?.weaponProfile || null,
-    guardProfile: snapshot?.canonicalBuildSnapshot?.guardProfileId || null,
-    medium: snapshot?.canonicalBuildSnapshot?.mediumId || null,
-    runeSlots: snapshot?.canonicalBuildSnapshot?.runeSlotCapacity ?? null,
-    activeRunes: [...(snapshot?.canonicalBuildSnapshot?.activeRuneSpellIds || [])],
+    weaponAtk: weapon?.atk ?? null,
+    weaponHands: canonical.weaponHands ?? null,
+    equipmentLoad: getStartingEquipmentLoad(snapshot),
+    weaponBehavior: canonical.weaponProfile || null,
+    guardProfile: canonical.guardProfileId || null,
+    medium: canonical.mediumId || null,
+    runeSlots: canonical.runeSlotCapacity ?? null,
+    activeRunes: [...(canonical.activeRuneSpellIds || [])],
+    startingMp: snapshot?.mp ?? null,
+    maxMp: snapshot?.maxMp ?? null,
     healPotions: arm.healPotions,
     supplies: { TOWN_PORTAL: 1, HEAL_POTION: arm.healPotions, ANTIDOTE: 1, GUARD_POTION: 1 },
     departureCraft: {
       recipeIds: [...(result.departureCraft?.recipeIds || [])],
       payment,
-      expectedPayment: { ...payment },
+      expectedPayment: { ...expectedPayment },
       purchaseSource: result.departureCraft?.purchaseSource || null,
       initialBank: { ...initialBank },
       postPurchaseBank
@@ -214,7 +234,12 @@ function normalizeB5(result, record) {
   const bossEncounter = (result.diagnostics?.encounters || []).find(item =>
     Number(item.floor) === 5 && item.type === "boss"
   );
-  const bossStarted = Boolean(bossBattle);
+  const bossTrace = (result.milestoneEventTrace || []).filter(item =>
+    Number(item.floor) === 5 && item.type === "boss"
+  );
+  const routeBossDetected = Number(route?.detectedBosses || 0) > 0;
+  const actualBossEventArrival = bossTrace.some(item => item.encounterAllowed === true);
+  const bossStarted = Boolean(bossBattle?.attempts?.length || bossTrace.some(item => "result" in item));
   const reachedB6 = Number(result.reachedFloor) >= 6;
   const finalBossResult = bossBattle?.finalResult || null;
   const ratio = (value, max) => Number.isFinite(Number(value)) && Number.isFinite(Number(max)) && Number(max) > 0
@@ -233,7 +258,8 @@ function normalizeB5(result, record) {
       schedule: "production flame-trap effect; simulator B5 step scheduling is approximate"
     },
     boss: {
-      routeCellArrival: Number(route?.detectedBosses || 0) > 0,
+      routeBossDetected,
+      actualBossEventArrival,
       combatStart: bossStarted,
       arrivalHp: metric([finite(bossEncounter?.startHp)]),
       arrivalHpRatio: metric([ratio(bossEncounter?.startHp, bossEncounter?.startMaxHp)]),
@@ -245,7 +271,7 @@ function normalizeB5(result, record) {
       flee: finalBossResult === "flee-retreat",
       death: finalBossResult === "death",
       retry: Number(bossBattle?.attempts?.length || 0) > 1,
-      notReached: !bossStarted
+      notReached: !actualBossEventArrival
     },
     returnBeforeBoss: record.outcome.voluntaryReturn && !bossStarted,
     returnAfterBossBeforeB6: record.outcome.voluntaryReturn && bossStarted && !reachedB6,
@@ -374,7 +400,8 @@ function summarizeB5(rows) {
       schedule: "production flame-trap effect; simulator B5 step scheduling is approximate"
     },
     boss: {
-      routeCellArrival: boss("routeCellArrival"),
+      routeBossDetected: boss("routeBossDetected"),
+      actualBossEventArrival: boss("actualBossEventArrival"),
       combatStart: boss("combatStart"),
       arrivalHp: metric(entrants.flatMap(item => item.boss.arrivalHp.p50 == null ? [] : [item.boss.arrivalHp.p50])),
       arrivalHpRatio: metric(entrants.flatMap(item => item.boss.arrivalHpRatio.p50 == null ? [] : [item.boss.arrivalHpRatio.p50])),
@@ -422,7 +449,7 @@ function aggregate(rows) {
 
 function delta(left, right) {
   const result = {};
-  ["b6", "b5", "death", "voluntaryReturn", "buildB5Changed", "buildB5Swaps", "flameHpDamage", "bossStart", "b5ToB6"].forEach(key => {
+  ["b3", "b4", "b5", "b6", "death", "voluntaryReturn", "bossActualArrival", "bossStart", "bossVictory", "b5ToB6"].forEach(key => {
     result[key] = finite(right[key]) === null || finite(left[key]) === null ? null : right[key] - left[key];
   });
   return result;
@@ -430,14 +457,15 @@ function delta(left, right) {
 
 function comparison(left, right, label) {
   const scalar = aggregate => ({
+    b3: aggregate.reach[3].rate,
+    b4: aggregate.reach[4].rate,
     b6: aggregate.reach[6].rate,
     b5: aggregate.reach[5].rate,
     death: aggregate.death.rate,
     voluntaryReturn: aggregate.voluntaryReturn.rate,
-    buildB5Changed: aggregate.buildCheckpoints[5].changedFromDeparture.rate,
-    buildB5Swaps: aggregate.buildCheckpoints[5].equipmentSwapCount.meanPerEntrant,
-    flameHpDamage: aggregate.b5.flameTrap.hpDamage.meanPerEntrant,
+    bossActualArrival: aggregate.b5.boss.actualBossEventArrival.meanPerEntrant,
     bossStart: aggregate.b5.boss.combatStart.meanPerEntrant,
+    bossVictory: aggregate.b5.boss.victory.meanPerEntrant,
     b5ToB6: aggregate.b5.b6Transition.rate
   });
   const baseline = scalar(left);
@@ -447,8 +475,11 @@ function comparison(left, right, label) {
 
 function validatePreparation(result, arm, kitId, prep, workshop) {
   const actual = result.preparation;
-  if (actual.startingWeapon !== (arm.preparationId === "P0" ? DEFAULT_WEAPON_BY_KIT[kitId] : actual.startingWeapon)) {
-    throw new Error(`${arm.id}/${kitId}: P0 starting weapon mismatch`);
+  const expectedWeapon = arm.preparationId === "P0"
+    ? DEFAULT_WEAPON_BY_KIT[kitId]
+    : expectedAutoBestWeapon(workshop, kitId);
+  if (actual.expectedStartingWeapon !== expectedWeapon || actual.startingWeapon !== expectedWeapon) {
+    throw new Error(`${arm.id}/${kitId}: starting weapon mismatch expected ${expectedWeapon}, got ${actual.startingWeapon}`);
   }
   if (actual.healPotions !== arm.healPotions || actual.supplies.TOWN_PORTAL !== 1 || actual.supplies.ANTIDOTE !== 1 || actual.supplies.GUARD_POTION !== 1) {
     throw new Error(`${arm.id}/${kitId}: exact preparation mismatch`);
@@ -460,7 +491,8 @@ function validatePreparation(result, arm, kitId, prep, workshop) {
     throw new Error(`${arm.id}/${kitId}: preparation/bag invariant failed`);
   }
   const expected = purchaseDepartureCraft(prep.materials, prep.recipeIds);
-  if (!expected.ok || JSON.stringify(expected.cost) !== JSON.stringify(actual.departureCraft.payment)) {
+  if (!expected.ok || JSON.stringify(expected.cost) !== JSON.stringify(actual.departureCraft.payment) ||
+      JSON.stringify(expected.cost) !== JSON.stringify(actual.departureCraft.expectedPayment)) {
     throw new Error(`${arm.id}/${kitId}: production payment reconciliation failed`);
   }
   if (!workshop) throw new Error("workshop missing");
@@ -518,7 +550,18 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
       worldSeed,
       candidateSampleCollector: samples?.candidate
     });
-    compact.preparation = preparationRecord(raw, arm, kitId, baseScenario.workshop, prep.materials);
+    const expectedWeapon = arm.preparationId === "P0"
+      ? DEFAULT_WEAPON_BY_KIT[kitId]
+      : expectedAutoBestWeapon(baseScenario.workshop, kitId);
+    compact.preparation = preparationRecord(
+      raw,
+      arm,
+      kitId,
+      baseScenario.workshop,
+      prep.materials,
+      expectedWeapon,
+      prep.expectedPayment
+    );
     validatePreparation(compact, arm, kitId, prep, baseScenario.workshop);
     samples?.runs.add(compact);
     return compact;
@@ -692,7 +735,29 @@ function buildReport(result, provenance, purpose, requestedRef, environment) {
   };
 }
 
-function buildSummary(report) {
+export function buildSummary(report) {
+  const display = value => value == null ? "unobserved" : value;
+  const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;
+  const preparationLines = ["P0B1", "P1B1"].flatMap(armId => KIT_IDS.map(kitId => {
+    const preparation = report.arms[armId].byKit[kitId].preparation;
+    return `- ${armId}: ${kitId} expected/actual ${preparation.expectedStartingWeapon}/${preparation.startingWeapon}; ATK ${display(preparation.weaponAtk)}; hands ${display(preparation.weaponHands)}; load ${display(preparation.equipmentLoad?.class)}; Medium ${display(preparation.medium)}; Rune ${display(preparation.runeSlots)}/${preparation.activeRunes.join(",") || "none"}; MP ${display(preparation.startingMp)}/${display(preparation.maxMp)}`;
+  }));
+  const formationLines = ARM_IDS.flatMap(armId => KIT_IDS.map(kitId => {
+    const aggregate = report.arms[armId].byKit[kitId].aggregate;
+    const checkpoints = [2, 3, 4, 5].map(floor => {
+      const checkpoint = aggregate.buildCheckpoints[floor];
+      return `B${floor} ${rateDisplay(checkpoint.changedFromDeparture.rate)}/${display(checkpoint.equipmentSwapCount.p50)}`;
+    }).join("; ");
+    const reach = [2, 3, 4, 5, 6].map(floor => `${aggregate.reach[floor].count}/${rateDisplay(aggregate.reach[floor].rate)}`).join("/");
+    return `- ${armId}/${kitId}: ${checkpoints}; reach ${reach}`;
+  }));
+  const comparisonLine = item => [
+    `B3/B4/B5/B6 ${["b3", "b4", "b5", "b6"].map(key => display(item.delta[key])).join("/")}`,
+    `death/Return ${display(item.delta.death)}/${display(item.delta.voluntaryReturn)}`,
+    `boss arrival/start/victory ${["bossActualArrival", "bossStart", "bossVictory"].map(key => display(item.delta[key])).join("/")}`,
+    `B5→B6 ${display(item.delta.b5ToB6)}`
+  ].join("; ");
+  const [p0Build, p1Build, p1Preparation, p0Preparation] = report.primaryComparisons;
   const lines = [
     "# First Band formation",
     "",
@@ -701,20 +766,24 @@ function buildSummary(report) {
     "",
     "## First Band formation",
     "",
-    "| arm | kit | B2/B3/B4/B5/B6 reach | B5 changed-from-departure | B5 swaps |",
-    "| --- | --- | --- | --- | --- |",
-    ...ARM_IDS.flatMap(armId => KIT_IDS.map(kitId => {
-      const aggregate = report.arms[armId].byKit[kitId].aggregate;
-      return `| ${armId} | ${kitId} | ${[2, 3, 4, 5, 6].map(floor => `${aggregate.reach[floor].count}/${aggregate.reach[floor].rate ?? "—"}`).join(" / ")} | ${aggregate.buildCheckpoints[5].changedFromDeparture.count}/${aggregate.buildCheckpoints[5].changedFromDeparture.rate ?? "—"} | ${aggregate.buildCheckpoints[5].equipmentSwapCount.p50 ?? "—"} |`;
-    })),
+    "compact cell = changed-from-departure rate / equipment-swap p50",
+    ...formationLines,
+    "",
+    "## Preparation provenance",
+    "",
+    "P0/P1 provenance is shared by B0/B1; expected P1 weapon is independently derived from workshop grants + item data.",
+    ...preparationLines,
     "",
     "## Build usefulness",
     "",
     "Build identity distributions are structural only: weapon identity/behavior, Guard, Medium, Rune slots/active Runes, Core and Support axes. HP, MP, bag, floor, and starting-kit are excluded.",
+    `- P0B1 - P0B0: ${comparisonLine(p0Build)}`,
+    `- P1B1 - P1B0: ${comparisonLine(p1Build)}`,
     "",
     "## Preparation interaction",
     "",
-    ...report.primaryComparisons.map(item => `- ${item.label}: B6 ${(item.delta.b6 ?? "unobserved")} / B5 ${(item.delta.b5 ?? "unobserved")} / death ${(item.delta.death ?? "unobserved")} / B5→B6 ${(item.delta.b5ToB6 ?? "unobserved")}`),
+    `- P1B1 - P0B1: ${comparisonLine(p1Preparation)}`,
+    `- P1B0 - P0B0: ${comparisonLine(p0Preparation)}`,
     "",
     "## B5 flame trap",
     "",
@@ -724,7 +793,7 @@ function buildSummary(report) {
     "",
     ...ARM_IDS.map(armId => {
       const boss = report.arms[armId].overview.b5.boss;
-      return `- ${armId}: route=${boss.routeCellArrival.total}; start=${boss.combatStart.total}; victory=${boss.victory.total}; flee=${boss.flee.total}; death=${boss.death.total}; not reached=${boss.notReached.total}; Return before/after=${report.arms[armId].overview.b5.returnBeforeBoss.count}/${report.arms[armId].overview.b5.returnAfterBossBeforeB6.count}`;
+      return `- ${armId}: route detected=${boss.routeBossDetected.total}; actual arrival=${boss.actualBossEventArrival.total}; start=${boss.combatStart.total}; victory=${boss.victory.total}; flee=${boss.flee.total}; death=${boss.death.total}; retry=${boss.retry.total}; not reached=${boss.notReached.total}; Return before/after=${report.arms[armId].overview.b5.returnBeforeBoss.count}/${report.arms[armId].overview.b5.returnAfterBossBeforeB6.count}`;
     }),
     "",
     "## B5→B6",

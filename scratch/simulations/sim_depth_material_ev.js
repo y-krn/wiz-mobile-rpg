@@ -263,9 +263,10 @@ const {
   isParetoSafeDelta
 } = await import("../measurements/build_progression_audit.js");
 
+export const CANONICAL_EQUIPMENT_UPDATE_POLICY_ID = "deterministic_greedy";
 export const EQUIPMENT_UPDATE_POLICY_IDS = Object.freeze([
   "fixed",
-  "deterministic_greedy",
+  CANONICAL_EQUIPMENT_UPDATE_POLICY_ID,
   "deterministic_greedy_pareto_safe"
 ]);
 
@@ -14652,7 +14653,7 @@ export function simulateRun({
   );
   const metrics = {
     routePolicy: scenario.routePolicy || "omniscient_shortest_route",
-    equipmentUpdatePolicy: scenario.equipmentUpdatePolicy || "deterministic_greedy",
+    equipmentUpdatePolicy: scenario.equipmentUpdatePolicy || CANONICAL_EQUIPMENT_UPDATE_POLICY_ID,
     mpConsumed: 0,
     exploredCells: 0,
     exploredCellsByFloor: {},

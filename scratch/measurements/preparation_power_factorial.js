@@ -182,7 +182,7 @@ function getStartingBagUsed(result, workshop) {
   return startingConsumables + returnItems + departureItems;
 }
 
-function expectedAutoBestWeapon(workshop, kitId) {
+export function expectedAutoBestWeapon(workshop, kitId) {
   const current = DEFAULT_WEAPON_BY_KIT[kitId];
   const candidates = getWorkshopGrants(workshop).startingGear
     .map(itemId => ITEMS[itemId])
