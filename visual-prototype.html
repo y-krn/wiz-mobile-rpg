@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#10181e" />
+    <title>DEPTHWARD — Visual Direction Prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&family=Shippori+Mincho:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/styles/visual-prototype.css" />
+  </head>
+  <body>
+    <div id="prototype-root" data-theme="dark" data-state="town">
+      <header class="prototype-header" aria-label="ビジュアル比較コントロール">
+        <div>
+          <p class="prototype-kicker">ISSUE 1341 / VISUAL PROTOTYPE</p>
+          <h1>同じ冒険、3つの表情</h1>
+        </div>
+        <p class="prototype-note">gameplay semantics・copy・action geometryは固定</p>
+      </header>
+
+      <nav class="comparison-rail" aria-label="方向比較">
+        <div class="direction-switch" role="group" aria-label="ビジュアル方向">
+          <button type="button" class="direction-button" data-theme-choice="dark" aria-pressed="true"><span>A</span> Current Dark Archive</button>
+          <button type="button" class="direction-button" data-theme-choice="modern" aria-pressed="false"><span>B</span> Bright Modern Arcane</button>
+          <button type="button" class="direction-button" data-theme-choice="warm" aria-pressed="false"><span>C</span> Pop / Warm Adventure</button>
+        </div>
+        <label class="state-picker">比較state
+          <select id="state-select" aria-label="比較するstate">
+            <option value="town">Town Home</option>
+            <option value="preparation">Preparation</option>
+            <option value="explore">Explore normal</option>
+            <option value="combat">Combat</option>
+            <option value="loot">Loot / equipment comparison</option>
+            <option value="portal">Portal</option>
+            <option value="return">Result — Return</option>
+            <option value="death">Result — Death</option>
+          </select>
+        </label>
+      </nav>
+
+      <main id="prototype-stage" aria-live="polite"></main>
+    </div>
+    <script type="module" src="/visual-prototype.js"></script>
+  </body>
+</html>
