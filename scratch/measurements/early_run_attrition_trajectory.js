@@ -380,7 +380,9 @@ function compactFloor(
     status: stage.entryStatus || null,
     build: compactBuildSnapshot(stage.entryBuildSnapshot),
     cumulativeSteps: finite(stage.entryCumulativeSteps),
-    cumulativeCombatCount: finite(stage.entryCumulativeCombatCount)
+    cumulativeCombatCount: finite(stage.entryCumulativeCombatCount),
+    level: finite(stage.entryLevel),
+    exp: finite(stage.entryExp)
   };
   const exit = {
     hp: finite(stage.exitHp),
@@ -395,7 +397,9 @@ function compactFloor(
     status: stage.exitStatus || null,
     build: compactBuildSnapshot(stage.exitBuildSnapshot),
     cumulativeSteps: finite(stage.exitCumulativeSteps),
-    cumulativeCombatCount: finite(stage.exitCumulativeCombatCount)
+    cumulativeCombatCount: finite(stage.exitCumulativeCombatCount),
+    level: finite(stage.exitLevel),
+    exp: finite(stage.exitExp)
   };
   const buildShiftCount = (result.equipmentTelemetry || []).filter(event =>
     Number(event.floor) === floor && event.type === "swap"
@@ -457,6 +461,8 @@ function compactFloor(
       combatCount: finite(stage.encounters),
       combatRounds: finite(stage.rounds),
       enemyActionCount: finite(stage.enemyActions),
+      expGained: finite(stage.expGained),
+      levelUpCount: finite(stage.levelUpCount),
       fleeAttempts: flee.observed ? flee.fleeSelected : finite(stage.fleeActions),
       fleeExecutions: flee.observed ? flee.fleeExecuted : null,
       fleeSelectedButNotExecuted: flee.observed ? flee.fleeSelectedButNotExecuted : null,
@@ -470,11 +476,29 @@ function compactFloor(
       healingHp: finite(stage.healing),
       healPotionRecoveryHp: finite(stage.healPotionRecoveryHp),
       floorTransitionRecoveryHp: finite(stage.floorTransitionRecoveryHp),
+      naturalLevelGrowthHp: finite(stage.naturalLevelGrowthHp),
+      extraLevelUpRecoveryRequestedHp: finite(stage.extraLevelUpRecoveryRequestedHp),
+      extraLevelUpRecoveryHp: finite(stage.extraLevelUpRecoveryActualHp),
+      extraLevelUpRecoveryCappedAtFullCount: finite(stage.extraLevelUpRecoveryCappedAtFullCount),
+      extraLevelUpRecoveryMaxHpOverage: finite(stage.extraLevelUpRecoveryMaxHpOverage),
+      totalObservedRecoveryHp: [
+        stage.healing,
+        stage.floorTransitionRecoveryHp,
+        stage.naturalLevelGrowthHp,
+        stage.extraLevelUpRecoveryActualHp
+      ].reduce((sum, value) => sum + (Number(value) || 0), 0),
       healingMp: finite(stage.mpRecovered),
       itemAcquired: countByItem(floorRewards.filter(event =>
         ["HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "HOLY_WATER", "ETHER"].includes(event.itemId)
       )),
       itemUsed: countByItem(floorRecovery)
+    },
+    progression: {
+      entryLevel: finite(stage.entryLevel),
+      levelUpCount: finite(stage.levelUpCount),
+      fromToLevel: { ...(stage.levelTransitions || {}) },
+      expGained: finite(stage.expGained),
+      levelUpRecoverySamples: (stage.levelUpRecoverySamples || []).slice(0, 8).map(sample => ({ ...sample }))
     },
     loot,
     build: {
@@ -742,6 +766,7 @@ export function compactRun(
     totalSteps: finite(result.steps),
     totalCombatCount: finite(result.battles),
     totalCombatRounds: finite(result.combatRounds),
+    totalExpGained: finite(result.expGained),
     build: {
       starting: compactBuildSnapshot(result.startingBuildSnapshot),
       ending: compactBuildSnapshot(result.diagnostics?.finalBuild || result.endingBuildSnapshot),

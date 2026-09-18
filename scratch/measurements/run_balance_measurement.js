@@ -135,6 +135,15 @@ const firstBandTransitionRecoveryArgs = ({ options, output }) => [
   ...outputArgs(output)
 ];
 
+const firstBandLevelUpRecoveryArgs = ({ options, output }) => [
+  "--mode", "levelup-recovery",
+  "--ref", options.ref,
+  "--runs", String(options.runs),
+  "--seed", String(options.seed),
+  "--purpose", options.purpose,
+  ...outputArgs(output)
+];
+
 export const MEASUREMENT_REGISTRY = Object.freeze({
   standard: freezeDefinition({
     id: "standard",
@@ -345,6 +354,18 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
     buildArgs: firstBandTransitionRecoveryArgs
+  }),
+  "first-band-levelup-recovery": freezeDefinition({
+    id: "first-band-levelup-recovery",
+    label: "First Band level-up recovery diagnostic",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
+    buildArgs: firstBandLevelUpRecoveryArgs
   })
 });
 
