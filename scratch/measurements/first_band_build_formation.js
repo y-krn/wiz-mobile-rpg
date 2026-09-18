@@ -38,8 +38,10 @@ export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1277;
 export const TARGET_DEPTH = 6;
 export const MEASUREMENT_ID = "first-band-build-formation";
+export const TRANSITION_MEASUREMENT_ID = "first-band-transition-recovery";
 export const KIT_IDS = Object.freeze(STARTING_KITS.map(kit => kit.id));
 export const ARM_IDS = Object.freeze(["P0B1", "P0B0", "P1B1", "P1B0"]);
+export const TRANSITION_ARM_IDS = Object.freeze(["R15A", "R25A", "R35A", "R35F"]);
 export const CHECKPOINTS = Object.freeze([2, 3, 4, 5]);
 export const RUN_SAMPLE_LIMIT = 8;
 export const BUILD_IDENTITY_SAMPLE_LIMIT = 32;
@@ -66,6 +68,32 @@ const ARM_DEFINITIONS = Object.freeze({
   P1B1: Object.freeze({ id: "P1B1", preparationId: "P1", buildId: "B1", healPotions: 12, fixed: false }),
   P1B0: Object.freeze({ id: "P1B0", preparationId: "P1", buildId: "B0", healPotions: 12, fixed: true })
 });
+const TRANSITION_ARM_DEFINITIONS = Object.freeze({
+  R15A: Object.freeze({ id: "R15A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.15 }),
+  R25A: Object.freeze({ id: "R25A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25 }),
+  R35A: Object.freeze({ id: "R35A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.35 }),
+  R35F: Object.freeze({ id: "R35F", preparationId: "P0", buildId: "F", healPotions: 4, fixed: true, recoveryRate: 0.35 })
+});
+
+function getMeasurementMode(mode) {
+  if (mode === "transition-recovery") {
+    return {
+      id: TRANSITION_MEASUREMENT_ID,
+      runnerVersion: "first-band-build-formation-v2",
+      armIds: TRANSITION_ARM_IDS,
+      armDefinitions: TRANSITION_ARM_DEFINITIONS,
+      preparationPotions: [4]
+    };
+  }
+  if (mode !== "build-formation") throw new Error(`unknown first-band mode: ${mode}`);
+  return {
+    id: MEASUREMENT_ID,
+    runnerVersion: RUNNER_VERSION,
+    armIds: ARM_IDS,
+    armDefinitions: ARM_DEFINITIONS,
+    preparationPotions: [4, 12]
+  };
+}
 const PRODUCTION_PATHS = Object.freeze([
   "scratch/simulations/sim_depth_material_ev.js",
   "scratch/measurements/early_run_attrition_trajectory.js",
@@ -334,8 +362,47 @@ function compactDiagnostic(result, context) {
     equipmentLootAcquired: finite(result.equipmentFound)
   };
   record.b5 = normalizeB5(result, record);
+  record.transitionRecovery = (result.floorTransitionRecovery || []).map(event => ({
+    fromFloor: finite(event.fromFloor),
+    toFloor: finite(event.toFloor),
+    source: event.source || null,
+    hpBefore: finite(event.hpBefore),
+    hpAfter: finite(event.hpAfter),
+    maxHp: finite(event.maxHp),
+    requestedHp: finite(event.requestedHp),
+    actualHealedHp: finite(event.actualHealedHp),
+    actualHealedRate: finite(event.actualHealedRate),
+    cappedByMaxHp: Boolean(event.cappedByMaxHp),
+    reachedMaxHp: Boolean(event.reachedMaxHp),
+    maxHpOverage: finite(event.maxHpOverage)
+  }));
   checkEnemyActions(record);
   return record;
+}
+
+function summarizeTransitionRecovery(rows) {
+  return Object.fromEntries([2, 3, 4, 5, 6].map(toFloor => {
+    const events = rows.flatMap(row => row.transitionRecovery || [])
+      .filter(event => event.toFloor === toFloor);
+    const numeric = field => metric(events.map(event => event[field]).filter(Number.isFinite));
+    const capCount = events.filter(event => event.cappedByMaxHp).length;
+    const maxCount = events.filter(event => event.reachedMaxHp).length;
+    return [toFloor, {
+      status: events.length ? "observed" : "unreachable",
+      entrantN: events.length,
+      sourceCounts: Object.fromEntries(["stairs", "pitfall"].map(source => [
+        source,
+        events.filter(event => event.source === source).length
+      ])),
+      hpBefore: numeric("hpBefore"),
+      hpAfter: numeric("hpAfter"),
+      actualHealedHp: numeric("actualHealedHp"),
+      actualHealedRate: numeric("actualHealedRate"),
+      capAtFull: { count: capCount, rate: rate(capCount, events.length) },
+      reachedMaxHp: { count: maxCount, rate: rate(maxCount, events.length) },
+      maxHpOverage: numeric("maxHpOverage")
+    }];
+  }));
 }
 
 function buildCheckpoints(rows, floor) {
@@ -406,6 +473,20 @@ function combatCheckpoints(rows) {
   }));
 }
 
+function recoveryCheckpoints(rows) {
+  return Object.fromEntries([1, 2, 3, 4, 5].map(floor => {
+    const entered = rows.map(row => row.floors?.[floor]).filter(Boolean);
+    const itemUsed = entered.map(item => Number(item.recovery?.itemUsed?.HEAL_POTION || 0));
+    return [floor, {
+      entrantN: entered.length,
+      entryHealPotionRemaining: metric(entered.map(item => item.entry?.healPotionRemaining).filter(Number.isFinite)),
+      potionUsed: metric(itemUsed),
+      potionRecoveryHp: metric(entered.map(item => item.recovery?.healPotionRecoveryHp).filter(Number.isFinite)),
+      floorTransitionRecoveryHp: metric(entered.map(item => item.recovery?.floorTransitionRecoveryHp).filter(Number.isFinite))
+    }];
+  }));
+}
+
 function summarizeB5(rows) {
   const entrants = rows.map(row => row.b5).filter(item => item.status === "observed");
   const count = predicate => entrants.filter(predicate).length;
@@ -467,6 +548,8 @@ function aggregate(rows) {
     b5ToB6: summarizeB5(rows).b6Transition,
     buildCheckpoints: Object.fromEntries(CHECKPOINTS.map(floor => [floor, buildCheckpoints(rows, floor)])),
     combat: combatCheckpoints(rows),
+    recovery: recoveryCheckpoints(rows),
+    transitionRecovery: summarizeTransitionRecovery(rows),
     b5: summarizeB5(rows),
     loot: {
       acquired: metric(rows.map(row => row.loot.acquired).filter(Number.isFinite)),
@@ -531,17 +614,18 @@ function validatePreparation(result, arm, kitId, prep, workshop) {
   if (!workshop) throw new Error("workshop missing");
 }
 
-export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED } = {}) {
+export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED, mode = "build-formation" } = {}) {
   if (!Number.isInteger(runs) || runs < 1) throw new Error(`runs must be a positive integer: ${runs}`);
   if (!Number.isInteger(seed) || seed < 1) throw new Error(`seed must be a positive integer: ${seed}`);
+  const modeDefinition = getMeasurementMode(mode);
   applyStandardSimulationEnv({ ...STANDARD_BALANCE_CONFIG, seed, runs });
   const { simulateRun, getScenarioById, resetSimulationRandom } = await import("../simulations/sim_depth_material_ev.js");
   const baseScenario = getScenarioById(WORKSHOP_SCENARIO_ID);
-  const preparations = Object.fromEntries([4, 12].map(healPotions => {
+  const preparations = Object.fromEntries(modeDefinition.preparationPotions.map(healPotions => {
     const arm = { preparationId: healPotions === 4 ? "P0" : "P1", healPotions };
     return [arm.preparationId, preparationSpec(arm)];
   }));
-  const runOne = ({ arm, kitId, runIndex, audit = true, samples }) => {
+  const runOne = ({ arm, kitId, runIndex, audit = true, samples, includeTransitionRecoveryRate = true }) => {
     const prep = preparations[arm.preparationId];
     const worldSeed = `run-difficulty:${seed}:${runIndex}`;
     const scenario = {
@@ -560,13 +644,16 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
       collectStage15Diagnostics: true,
       simDiagnosticLevel: "full"
     };
+    if (mode === "transition-recovery" && includeTransitionRecoveryRate) {
+      scenario.floorTransitionRecoveryRate = arm.recoveryRate;
+    }
     if (arm.preparationId === "P0") scenario.startingGearChoice = DEFAULT_WEAPON_BY_KIT[kitId];
     const raw = simulateRun({
       className: "Fighter",
       startFloor: 1,
       targetDepth: TARGET_DEPTH,
       runIndex,
-      seriesId: `${MEASUREMENT_ID}:${arm.id}:${kitId}`,
+      seriesId: `${modeDefinition.id}:${arm.id}:${kitId}`,
       scenario,
       workshop: baseScenario.workshop,
       worldSeed,
@@ -602,8 +689,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
 
   const determinism = {};
   const observationInvariance = {};
-  for (const armId of ARM_IDS) {
-    const arm = ARM_DEFINITIONS[armId];
+  for (const armId of modeDefinition.armIds) {
+    const arm = modeDefinition.armDefinitions[armId];
     for (const kitId of KIT_IDS) {
       const key = `${armId}/${kitId}`;
       resetSimulationRandom(seed);
@@ -623,8 +710,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
   }
 
   const armReports = {};
-  for (const armId of ARM_IDS) {
-    const arm = ARM_DEFINITIONS[armId];
+  for (const armId of modeDefinition.armIds) {
+    const arm = modeDefinition.armDefinitions[armId];
     const byKit = {};
     const allRows = [];
     const armRunSamples = createRunEvidenceSampleCollector(RUN_SAMPLE_LIMIT);
@@ -682,19 +769,46 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
     };
   }
 
-  const overview = Object.fromEntries(ARM_IDS.map(id => [id, armReports[id].overview]));
-  const comparisons = [
-    comparison(overview.P0B0, overview.P0B1, "P0B1 - P0B0: Standard Prep Build contribution"),
-    comparison(overview.P1B0, overview.P1B1, "P1B1 - P1B0: Strong Prep residual Build contribution"),
-    comparison(overview.P0B1, overview.P1B1, "P1B1 - P0B1: Preparation effect under adaptive Build"),
-    comparison(overview.P0B0, overview.P1B0, "P1B0 - P0B0: Preparation effect with fixed Build")
-  ];
+  const overview = Object.fromEntries(modeDefinition.armIds.map(id => [id, armReports[id].overview]));
+  const comparisons = mode === "transition-recovery"
+    ? [
+        comparison(overview.R15A, overview.R25A, "R25A - R15A: 25% - 15% transition recovery"),
+        comparison(overview.R15A, overview.R35A, "R35A - R15A: 35% - 15% transition recovery"),
+        comparison(overview.R25A, overview.R35A, "R35A - R25A: 35% - 25% transition recovery"),
+        comparison(overview.R35F, overview.R35A, "R35A - R35F: adaptive - fixed at 35%")
+      ]
+    : [
+        comparison(overview.P0B0, overview.P0B1, "P0B1 - P0B0: Standard Prep Build contribution"),
+        comparison(overview.P1B0, overview.P1B1, "P1B1 - P1B0: Strong Prep residual Build contribution"),
+        comparison(overview.P0B1, overview.P1B1, "P1B1 - P0B1: Preparation effect under adaptive Build"),
+        comparison(overview.P0B0, overview.P1B0, "P1B0 - P0B0: Preparation effect with fixed Build")
+      ];
+  let baselineParity = null;
+  if (mode === "transition-recovery") {
+    const arm = modeDefinition.armDefinitions.R15A;
+    const byKit = {};
+    for (const kitId of KIT_IDS) {
+      resetSimulationRandom(seed);
+      const explicit = runOne({ arm, kitId, runIndex: 0, includeTransitionRecoveryRate: true });
+      resetSimulationRandom(seed);
+      const omitted = runOne({ arm, kitId, runIndex: 0, includeTransitionRecoveryRate: false });
+      byKit[kitId] = compareObservationInvariance(omitted, explicit);
+    }
+    baselineParity = {
+      pass: Object.values(byKit).every(value => value.pass),
+      byKit,
+      comparedFields: Object.values(byKit)[0]?.comparedFields || [],
+      semantics: "floorTransitionRecoveryRate omitted vs explicit 0.15"
+    };
+    if (!baselineParity.pass) throw new Error("R15 baseline parity failed");
+  }
   const configuration = {
-    measurementId: MEASUREMENT_ID,
+    measurementId: modeDefinition.id,
+    mode,
     runs,
     seed,
     startingKits: [...KIT_IDS],
-    arms: [...ARM_IDS],
+    arms: [...modeDefinition.armIds],
     workshop: WORKSHOP_SCENARIO_ID,
     targetDepth: TARGET_DEPTH,
     checkpoints: CHECKPOINTS.map(floor => `B${floor}Entry`),
@@ -702,6 +816,12 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
     productionPath: "scratch/simulations/sim_depth_material_ev.js",
     adaptivePolicy: CANONICAL_ADAPTIVE_POLICY_ID,
     fixedPolicy: "fixed",
+    transitionRecoveryRates: mode === "transition-recovery"
+      ? Object.fromEntries(modeDefinition.armIds.map(id => [id, modeDefinition.armDefinitions[id].recoveryRate]))
+      : null,
+    preparation: mode === "transition-recovery"
+      ? { name: "Standard Preparation", startingWeaponMode: "kit-default", healPotions: 4 }
+      : null,
     worldSeedTemplate: "run-difficulty:{seed}:{runIndex}",
     identityBoundary: "HP/MP/bag/floor/starting-kit excluded from Build Snapshot identity",
     artifactPolicy: {
@@ -715,7 +835,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
   };
   return {
     schemaVersion: SCHEMA_VERSION,
-    runnerVersion: RUNNER_VERSION,
+    runnerVersion: modeDefinition.runnerVersion,
     configuration,
     comparisonKey: hashConfiguration(configuration),
     arms: armReports,
@@ -727,7 +847,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED 
     observationInvariance: {
       pass: Object.values(observationInvariance).every(value => value.pass),
       byCase: observationInvariance
-    }
+    },
+    baselineParity
   };
 }
 
@@ -747,7 +868,7 @@ function parseArgs(argv) {
 function buildReport(result, provenance, purpose, requestedRef, environment) {
   return {
     measurement: {
-      measurementId: MEASUREMENT_ID,
+      measurementId: result.configuration.measurementId,
       schemaVersion: result.schemaVersion,
       runnerVersion: result.runnerVersion,
       purpose,
@@ -769,6 +890,71 @@ function buildReport(result, provenance, purpose, requestedRef, environment) {
 }
 
 export function buildSummary(report) {
+  if (report.configuration.measurementId === TRANSITION_MEASUREMENT_ID) {
+    const display = value => value == null ? "unobserved" : value;
+    const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;
+    const comparisonLine = item => [
+      `B3/B4/B5/B6 ${["b3", "b4", "b5", "b6"].map(key => display(item.delta[key])).join("/")}`,
+      `death/Return ${display(item.delta.death)}/${display(item.delta.voluntaryReturn)}`,
+      `boss arrival/start/victory ${["bossActualArrival", "bossStart", "bossVictory"].map(key => display(item.delta[key])).join("/")}`,
+      `B5→B6 ${display(item.delta.b5ToB6)}`
+    ].join("; ");
+    const transitionLine = (aggregate, toFloor) => {
+      const item = aggregate.transitionRecovery[toFloor];
+      return `B${toFloor - 1}→B${toFloor} N=${item.entrantN}; before p50=${display(item.hpBefore.p50)}; after p50=${display(item.hpAfter.p50)}; healed p50=${display(item.actualHealedHp.p50)}; rate p50=${rateDisplay(item.actualHealedRate.p50)}; cap=${item.capAtFull.count}/${rateDisplay(item.capAtFull.rate)}`;
+    };
+    const lines = [
+      "# First Band transition recovery",
+      "",
+      `- measurement: ${TRANSITION_MEASUREMENT_ID}; N=${report.configuration.runs}/kit/arm; seed=${report.configuration.seed}; workshop=${report.configuration.workshop}`,
+      "- Standard Preparation fixed: kit-default weapon; TOWN_PORTAL ×1; HEAL_POTION ×4; ANTIDOTE ×1; GUARD_POTION ×1; workshop-complete",
+      `- exact rates: ${JSON.stringify(report.configuration.transitionRecoveryRates)}; adaptive=${report.configuration.adaptivePolicy}; fixed=${report.configuration.fixedPolicy}`,
+      "",
+      "## Transition recovery",
+      "",
+      ...report.configuration.arms.flatMap(armId => [
+        `### ${armId}`,
+        ...KIT_IDS.map(kitId => {
+          const aggregate = report.arms[armId].byKit[kitId].aggregate;
+          return `- ${kitId}: ${[2, 3, 4, 5, 6].map(toFloor => transitionLine(aggregate, toFloor)).join("; ")}`;
+        })
+      ]),
+      "",
+      "## Potion and entry recovery",
+      "",
+      ...report.configuration.arms.flatMap(armId => KIT_IDS.map(kitId => {
+        const aggregate = report.arms[armId].byKit[kitId].aggregate;
+        return `- ${armId}/${kitId}: ${[1, 2, 3, 4, 5].map(floor => {
+          const item = aggregate.recovery[floor];
+          return `B${floor} entry=${display(item.entryHealPotionRemaining.p50)}; potion used=${display(item.potionUsed.meanPerEntrant)}; potion HP=${display(item.potionRecoveryHp.meanPerEntrant)}; transition HP=${display(item.floorTransitionRecoveryHp.meanPerEntrant)}`;
+        }).join("; ")}`;
+      })),
+      "",
+      "## Build checkpoints",
+      "",
+      ...report.configuration.arms.flatMap(armId => KIT_IDS.map(kitId => {
+        const aggregate = report.arms[armId].byKit[kitId].aggregate;
+        return `- ${armId}/${kitId}: ${[2, 3, 4, 5].map(floor => `B${floor} changed=${rateDisplay(aggregate.buildCheckpoints[floor].changedFromDeparture.rate)}; swap p50=${display(aggregate.buildCheckpoints[floor].equipmentSwapCount.p50)}; identity=${aggregate.buildCheckpoints[floor].structuralBuildIdentity.uniqueCount}`).join("; ")}`;
+      })),
+      "",
+      "## B5 guardian decomposition",
+      "",
+      ...report.configuration.arms.map(armId => {
+        const boss = report.arms[armId].overview.b5.boss;
+        const b5 = report.arms[armId].overview.b5;
+        return `- ${armId}: flame trigger=${report.arms[armId].overview.b5.flameTrap.triggerCount.total}; flame HP=${report.arms[armId].overview.b5.flameTrap.hpDamage.total}; route=${boss.routeBossDetected.total}; actual arrival=${boss.actualBossEventArrival.total}; result events=${boss.bossCombatResultEventCount.total}; victory=${boss.victoryEventCount.total}; flee=${boss.fleeEventCount.total}; retry/revisit=${boss.retryRevisit.total}; death=${boss.deathEventCount.total}; town-portal before boss=${b5.townPortalReturnBeforeBoss.count}; town-portal after boss attempt=${b5.townPortalReturnAfterBossAttemptBeforeB6.count}; milestone Portal return=${b5.milestonePortalReturnAfterGuardian.count}; B6=${b5.b6Transition.count}`;
+      }),
+      "",
+      "## Comparisons",
+      "",
+      ...report.primaryComparisons.map(item => `- ${item.label}: ${comparisonLine(item)}`),
+      `- R15 parity: ${report.baselineParity?.pass ? "PASS" : "FAIL"} (${report.baselineParity?.semantics || "unobserved"})`,
+      "",
+      `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; observation invariance: ${report.observationInvariance.pass ? "PASS" : "FAIL"}`,
+      "- transition recovery and Potion recovery are separate fields; no production src/ balance change; heavy N=1000 is not run by pre-PR smoke."
+    ];
+    return `${lines.join("\n")}\n`;
+  }
   const display = value => value == null ? "unobserved" : value;
   const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;
   const preparationLines = ["P0B1", "P1B1"].flatMap(armId => KIT_IDS.map(kitId => {
@@ -845,7 +1031,7 @@ export function buildSummary(report) {
 function buildManifest(report, runType = "diagnostic") {
   return {
     schemaVersion: report.schemaVersion,
-    measurementId: MEASUREMENT_ID,
+    measurementId: report.measurement.measurementId,
     runner: report.runnerVersion,
     runType,
     status: "success",
@@ -867,14 +1053,16 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const config = { runs, seed, calibrationRuns: STANDARD_BALANCE_CONFIG.calibrationRuns };
     applyStandardSimulationEnv(config);
     const provenance = requireRunnerProvenance({ fetchOriginMain: false, measurementRunnerPaths: [...PRODUCTION_PATHS] });
-    const environment = { ...getStandardSimulationEnv(config), runnerVersion: RUNNER_VERSION };
+    const mode = options.mode || "build-formation";
+    const modeDefinition = getMeasurementMode(mode);
+    const environment = { ...getStandardSimulationEnv(config), runnerVersion: modeDefinition.runnerVersion };
     printEnvSignatureBanner(environment, { label: "first-band-build-formation env" });
-    const result = await runMeasurement({ runs, seed });
+    const result = await runMeasurement({ runs, seed, mode });
     const report = buildReport(result, provenance, options.purpose || null, options.ref || process.env.MEASUREMENT_REQUESTED_REF || null, environment);
     fs.writeFileSync(resolve(options.output), `${JSON.stringify(report)}\n`);
     fs.writeFileSync(resolve(options.summary), buildSummary(report));
     fs.writeFileSync(resolve(options.manifest), `${JSON.stringify(buildManifest(report, process.env.MEASUREMENT_RUN_TYPE || "diagnostic"), null, 2)}\n`);
-    console.log(`Wrote ${RUNNER_VERSION}: ${resolve(options.output)}`);
+    console.log(`Wrote ${result.runnerVersion}: ${resolve(options.output)}`);
   } catch (error) {
     console.error(error.stack || error.message);
     process.exitCode = 1;
