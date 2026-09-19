@@ -7,6 +7,8 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { STARTING_KITS } from "../../src/state/initial_state.js";
+import { MEDIUMS } from "../../src/data/magic.js";
+import { getEncounterPoolForFloor } from "../../src/data.js";
 import { MATERIAL_TYPES } from "../../src/data/materials.js";
 import { getCharacterEquipmentLoad } from "../../src/rules/equipment_load.js";
 import {
@@ -51,6 +53,9 @@ export const BUILD_IDENTITY_SAMPLE_PER_KIT_LIMIT = 8;
 export const CANDIDATE_SAMPLE_LIMIT = 128;
 export const WORKSHOP_SCENARIO_ID = "workshop-complete";
 export const CANONICAL_ADAPTIVE_POLICY_ID = CANONICAL_EQUIPMENT_UPDATE_POLICY_ID;
+export const ARCANA_WEAPON_MODE = "arcana-weapon-diagnostic";
+export const ARCANA_WEAPON_MEASUREMENT_ID = "first-band-arcana-weapon-diagnostic";
+export const ARCANA_KIT_IDS = Object.freeze(["arcana"]);
 
 const DEFAULT_WEAPON_BY_KIT = Object.freeze({
   vanguard: "SHORT_SWORD",
@@ -82,19 +87,59 @@ const LEVEL_UP_ARM_DEFINITIONS = Object.freeze({
   H5A: Object.freeze({ id: "H5A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0, levelUpRecoveryFlatHp: 5 }),
   H5F: Object.freeze({ id: "H5F", preparationId: "P0", buildId: "F", healPotions: 4, fixed: true, recoveryRate: 0.25, levelUpRecoveryRate: 0, levelUpRecoveryFlatHp: 5 })
 });
+const ARCANA_WEAPON_ARM_DEFINITIONS = Object.freeze({
+  C: Object.freeze({
+    id: "C",
+    preparationId: "P0",
+    buildId: "canonical-adaptive",
+    healPotions: 4,
+    startingWeapon: "WAND",
+    fixed: false,
+    lockedEquipmentSlots: []
+  }),
+  W: Object.freeze({
+    id: "W",
+    preparationId: "P0",
+    buildId: "wand-halito-weapon-lock",
+    healPotions: 4,
+    startingWeapon: "WAND",
+    fixed: false,
+    lockedEquipmentSlots: ["weapon"]
+  }),
+  R: Object.freeze({
+    id: "R",
+    preparationId: "P0",
+    buildId: "rapier-weapon-lock",
+    healPotions: 4,
+    startingWeapon: "RAPIER",
+    fixed: false,
+    lockedEquipmentSlots: ["weapon"]
+  })
+});
 const LEGACY_LEVEL_UP_ARM_DEFINITIONS = Object.freeze({
   L0A: Object.freeze({ id: "L0A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0 }),
   L20A: Object.freeze({ id: "L20A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0.20 })
 });
 
 function getMeasurementMode(mode) {
+  if (mode === ARCANA_WEAPON_MODE) {
+    return {
+      id: ARCANA_WEAPON_MEASUREMENT_ID,
+      runnerVersion: "first-band-build-formation-v5",
+      armIds: Object.freeze(["C", "W", "R"]),
+      armDefinitions: ARCANA_WEAPON_ARM_DEFINITIONS,
+      preparationPotions: [4],
+      kitIds: ARCANA_KIT_IDS
+    };
+  }
   if (mode === "transition-recovery") {
     return {
       id: TRANSITION_MEASUREMENT_ID,
       runnerVersion: "first-band-build-formation-v2",
       armIds: TRANSITION_ARM_IDS,
       armDefinitions: TRANSITION_ARM_DEFINITIONS,
-      preparationPotions: [4]
+      preparationPotions: [4],
+      kitIds: KIT_IDS
     };
   }
   if (mode === "levelup-recovery") {
@@ -103,7 +148,8 @@ function getMeasurementMode(mode) {
       runnerVersion: "first-band-build-formation-v4",
       armIds: LEVEL_UP_ARM_IDS,
       armDefinitions: LEVEL_UP_ARM_DEFINITIONS,
-      preparationPotions: [4]
+      preparationPotions: [4],
+      kitIds: KIT_IDS
     };
   }
   if (mode !== "build-formation") throw new Error(`unknown first-band mode: ${mode}`);
@@ -112,7 +158,8 @@ function getMeasurementMode(mode) {
     runnerVersion: RUNNER_VERSION,
     armIds: ARM_IDS,
     armDefinitions: ARM_DEFINITIONS,
-    preparationPotions: [4, 12]
+    preparationPotions: [4, 12],
+    kitIds: KIT_IDS
   };
 }
 const PRODUCTION_PATHS = Object.freeze([
@@ -375,6 +422,40 @@ function compactDiagnostic(result, context) {
     reached: Object.fromEntries([2, 3, 4, 5, 6].map(floor => [floor, Number(record.reachedFloor) >= floor])),
     deepestFloor: record.reachedFloor
   };
+  if (context.arcanaWeaponDiagnostic) {
+    const audits = new Map((result.equipmentCandidateAudit || []).map(audit => [audit.id, audit]));
+    const swaps = (result.equipmentTelemetry || []).filter(event =>
+      event.type === "swap" && event.slot === "weapon"
+    );
+    const firstIndex = swaps.findIndex(event => {
+      const audit = audits.get(event.candidateAuditId);
+      const currentId = audit?.currentEquipmentId || null;
+      return currentId === "WAND" && event.candidateId && !MEDIUMS[event.candidateId];
+    });
+    if (firstIndex >= 0) {
+      const event = swaps[firstIndex];
+      const audit = audits.get(event.candidateAuditId);
+      const laterMediumReacquisition = swaps.slice(firstIndex + 1).some(candidate =>
+        Boolean(MEDIUMS[candidate.candidateId])
+      );
+      record.mediumAbandonment = {
+        firstDeparture: {
+          floor: finite(event.floor),
+          step: finite(event.step),
+          targetWeapon: event.candidateId || null,
+          currentScore: finite(audit?.currentScore ?? event.scoreBefore),
+          candidateScore: finite(audit?.candidateScore ?? event.scoreAfter),
+          atkDelta: finite(audit?.atkDelta),
+          maxMPDelta: finite(audit?.maxMpDelta),
+          mediumLoss: true,
+          activeRuneRemoval: [...(audit?.activeRuneSpellChange?.removed || [])]
+        },
+        laterMediumReacquisition
+      };
+    } else {
+      record.mediumAbandonment = null;
+    }
+  }
   record.loot = {
     acquired: finite(lifecycle.found),
     bagged: finite(lifecycle.bagged),
@@ -427,12 +508,22 @@ function summarizeTransitionRecovery(rows) {
 }
 
 function buildCheckpoints(rows, floor) {
-  const observed = rows.map(row => row.buildCheckpoints?.[`B${floor}Entry`])
-    .filter(checkpoint => checkpoint?.status === "observed" && checkpoint.build);
+  const observedRows = rows.filter(row => {
+    const checkpoint = row.buildCheckpoints?.[`B${floor}Entry`];
+    return checkpoint?.status === "observed" && checkpoint.build;
+  });
+  const observed = observedRows.map(row => row.buildCheckpoints[`B${floor}Entry`]);
   const identities = observed.map(item => item.build.identity);
   const swaps = observed.map(item => item.maturity.cumulativeEquipmentSwaps);
   const changed = observed.filter(item => item.maturity.buildIdentityChanged).length;
   const structural = observed.map(item => structuralBuild(item.build));
+  const swapCounts = observedRows.map(row => {
+    const swaps = (row.equipmentDecisionTrace || []).filter(event => event.floor < floor);
+    return {
+      weapon: swaps.filter(event => event.slot === "weapon").length,
+      nonWeapon: swaps.filter(event => event.slot !== "weapon").length
+    };
+  });
   const first = structural[0] || null;
   const candidateSummaries = rows.map(row => row.equipmentCandidateAuditSummary).filter(Boolean);
   const opportunities = candidateSummaries.reduce((sum, summary) => sum + [1, 2, 3, 4]
@@ -447,6 +538,8 @@ function buildCheckpoints(rows, floor) {
     entrantN: observed.length,
     changedFromDeparture: { count: changed, rate: rate(changed, observed.length) },
     equipmentSwapCount: metric(swaps),
+    weaponSwapCount: metric(swapCounts.map(item => item.weapon)),
+    nonWeaponSwapCount: metric(swapCounts.map(item => item.nonWeapon)),
     weaponIdentity: countValues(structural.map(item => item.weapon.id)),
     weaponBehavior: countValues(structural.map(item => item.weapon.behavior)),
     guardProfile: countValues(structural.map(item => item.guardProfile)),
@@ -482,6 +575,28 @@ function combatCheckpoints(rows) {
       rounds: metric(values(item => item.incrementalCost.combatRounds)),
       enemyActions: metric(values(item => item.incrementalCost.enemyActionCount)),
       combatHpDamage: metric(values(item => item.incrementalCost.combatDamageHp)),
+      spellTelemetry: {
+        combatCount: metric(values(item => item.incrementalCost.combatCount)),
+        rounds: metric(values(item => item.incrementalCost.combatRounds)),
+        enemyActions: metric(values(item => item.incrementalCost.enemyActionCount)),
+        fightActions: metric(values(item => item.incrementalCost.physicalFightActions)),
+        spellActions: metric(values(item => item.incrementalCost.spellActions)),
+        physicalDamage: metric(values(item => item.incrementalCost.physicalDamage)),
+        spellDamage: metric(values(item => item.incrementalCost.spellDamage)),
+        halitoCasts: metric(values(item => item.incrementalCost.spellCastsBySpell?.HALITO || 0)),
+        mpStart: metric(values(item => item.incrementalCost.mpStart)),
+        mpSpent: metric(values(item => item.incrementalCost.combatMpSpent)),
+        mpEnd: metric(values(item => item.incrementalCost.mpEnd)),
+        spellOpportunityRounds: metric(values(item => item.incrementalCost.spellOpportunityRounds)),
+        eligibleSpellSelected: metric(values(item => item.incrementalCost.eligibleSpellSelected)),
+        eligibleFightFallback: metric(values(item => item.incrementalCost.eligibleFightFallback)),
+        fallbackReasons: mergeCountMaps(entered.map(item => item.incrementalCost.fallbackReasons)),
+        mpZeroCombatCount: metric(values(item => item.incrementalCost.mpZeroCombatCount)),
+        mpZeroCombatShare: rate(
+          entered.reduce((sum, item) => sum + Number(item.incrementalCost.mpZeroCombatCount || 0), 0),
+          entered.reduce((sum, item) => sum + Number(item.incrementalCost.combatCount || 0), 0)
+        )
+      },
       potionUsed: metric(values(item => Object.values(item.recovery?.itemUsed || {})
         .reduce((sum, amount) => sum + Number(amount || 0), 0))),
       hpRecovered: metric(values(item => item.recovery?.healingHp)),
@@ -621,6 +736,37 @@ function summarizeB5(rows) {
   };
 }
 
+function summarizeMediumAbandonment(rows) {
+  const eventRows = rows.filter(row => row.mediumAbandonment);
+  const events = eventRows.map(row => row.mediumAbandonment);
+  const firstDepartures = events.map(item => item.firstDeparture);
+  const laterReacquisitionCount = events.filter(item => item.laterMediumReacquisition).length;
+  return {
+    status: rows.length ? "observed" : "unobserved",
+    runN: rows.length,
+    departureCount: events.length,
+    departureRate: rate(events.length, rows.length),
+    firstDepartureFloor: metric(firstDepartures.map(item => item.floor)),
+    firstDepartureStep: metric(firstDepartures.map(item => item.step)),
+    targetWeapon: countValues(firstDepartures.map(item => item.targetWeapon)),
+    currentScore: metric(firstDepartures.map(item => item.currentScore)),
+    candidateScore: metric(firstDepartures.map(item => item.candidateScore)),
+    atkDelta: metric(firstDepartures.map(item => item.atkDelta)),
+    maxMPDelta: metric(firstDepartures.map(item => item.maxMPDelta)),
+    mediumLossCount: firstDepartures.filter(item => item.mediumLoss).length,
+    activeRuneRemoval: countValues(firstDepartures.flatMap(item => item.activeRuneRemoval || [])),
+    laterMediumReacquisition: {
+      count: laterReacquisitionCount,
+      rate: rate(laterReacquisitionCount, events.length)
+    },
+    samples: firstDepartures.slice(0, RUN_SAMPLE_LIMIT).map((item, index) => ({
+      runIndex: eventRows[index]?.runIndex ?? null,
+      ...item,
+      laterMediumReacquisition: events[index].laterMediumReacquisition
+    }))
+  };
+}
+
 function aggregate(rows) {
   const n = rows.length;
   const reaches = floor => rows.filter(row => row.outcome.reached[floor]).length;
@@ -639,6 +785,7 @@ function aggregate(rows) {
     snowball: snowballSummary(rows),
     transitionRecovery: summarizeTransitionRecovery(rows),
     b5: summarizeB5(rows),
+    mediumAbandonment: summarizeMediumAbandonment(rows),
     loot: {
       acquired: metric(rows.map(row => row.loot.acquired).filter(Number.isFinite)),
       bagged: metric(rows.map(row => row.loot.bagged).filter(Number.isFinite)),
@@ -680,7 +827,7 @@ function comparison(left, right, label) {
 function validatePreparation(result, arm, kitId, prep, workshop) {
   const actual = result.preparation;
   const expectedWeapon = arm.preparationId === "P0"
-    ? DEFAULT_WEAPON_BY_KIT[kitId]
+    ? (arm.startingWeapon || DEFAULT_WEAPON_BY_KIT[kitId])
     : expectedAutoBestWeapon(workshop, kitId);
   if (actual.expectedStartingWeapon !== expectedWeapon || actual.startingWeapon !== expectedWeapon) {
     throw new Error(`${arm.id}/${kitId}: starting weapon mismatch expected ${expectedWeapon}, got ${actual.startingWeapon}`);
@@ -707,7 +854,12 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
   if (!Number.isInteger(seed) || seed < 1) throw new Error(`seed must be a positive integer: ${seed}`);
   const modeDefinition = getMeasurementMode(mode);
   applyStandardSimulationEnv({ ...STANDARD_BALANCE_CONFIG, seed, runs });
-  const { simulateRun, getScenarioById, resetSimulationRandom } = await import("../simulations/sim_depth_material_ev.js");
+  const {
+    simulateRun,
+    getScenarioById,
+    getArcanaWeaponScoreAudit,
+    resetSimulationRandom
+  } = await import("../simulations/sim_depth_material_ev.js");
   const baseScenario = getScenarioById(WORKSHOP_SCENARIO_ID);
   const preparations = Object.fromEntries(modeDefinition.preparationPotions.map(healPotions => {
     const arm = { preparationId: healPotions === 4 ? "P0" : "P1", healPotions };
@@ -737,6 +889,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       departureCraftMaterials: { ...prep.materials },
       departureCraftMeasurement: true,
       equipmentUpdatePolicy: arm.fixed ? "fixed" : CANONICAL_ADAPTIVE_POLICY_ID,
+      lockedEquipmentSlots: [...(arm.lockedEquipmentSlots || [])],
       collectEncounterIdentities: true,
       collectStage15Diagnostics: true,
       simDiagnosticLevel: "full"
@@ -750,7 +903,9 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     if (arm.levelUpRecoveryFlatHp !== undefined && includeLevelUpRecoveryFlatHp) {
       scenario.levelUpRecoveryFlatHp = arm.levelUpRecoveryFlatHp;
     }
-    if (arm.preparationId === "P0") scenario.startingGearChoice = DEFAULT_WEAPON_BY_KIT[kitId];
+    if (arm.preparationId === "P0") {
+      scenario.startingGearChoice = arm.startingWeapon || DEFAULT_WEAPON_BY_KIT[kitId];
+    }
     const raw = simulateRun({
       className: "Fighter",
       startFloor: 1,
@@ -771,10 +926,11 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       policyId: arm.fixed ? "fixed" : CANONICAL_ADAPTIVE_POLICY_ID,
       runIndex,
       worldSeed,
-      candidateSampleCollector: samples?.candidate
+      candidateSampleCollector: samples?.candidate,
+      arcanaWeaponDiagnostic: mode === ARCANA_WEAPON_MODE
     });
     const expectedWeapon = arm.preparationId === "P0"
-      ? DEFAULT_WEAPON_BY_KIT[kitId]
+      ? (arm.startingWeapon || DEFAULT_WEAPON_BY_KIT[kitId])
       : expectedAutoBestWeapon(baseScenario.workshop, kitId);
     compact.preparation = preparationRecord(
       raw,
@@ -794,7 +950,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
   const observationInvariance = {};
   for (const armId of modeDefinition.armIds) {
     const arm = modeDefinition.armDefinitions[armId];
-    for (const kitId of KIT_IDS) {
+    for (const kitId of modeDefinition.kitIds) {
       const key = `${armId}/${kitId}`;
       resetSimulationRandom(seed);
       const first = runOne({ arm, kitId, runIndex: 0 });
@@ -819,7 +975,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     const allRows = [];
     const armRunSamples = createRunEvidenceSampleCollector(RUN_SAMPLE_LIMIT);
     const armCandidateSamples = createCandidateAuditSampleCollector(CANDIDATE_SAMPLE_LIMIT);
-    for (const kitId of KIT_IDS) {
+    for (const kitId of modeDefinition.kitIds) {
       const rows = [];
       resetSimulationRandom(seed);
       for (let runIndex = 0; runIndex < runs; runIndex++) {
@@ -868,12 +1024,18 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       overview,
       overviewReconciliation,
       samples: { runs: armRunSamples.finalize(), candidates: armCandidateSamples.finalize() },
-      smoke: { runsPerKit: runs, kitCount: KIT_IDS.length, totalRuns: allRows.length }
+      smoke: { runsPerKit: runs, kitCount: modeDefinition.kitIds.length, totalRuns: allRows.length }
     };
   }
 
   const overview = Object.fromEntries(modeDefinition.armIds.map(id => [id, armReports[id].overview]));
-  const comparisons = mode === "transition-recovery"
+  const comparisons = mode === ARCANA_WEAPON_MODE
+    ? [
+        comparison(overview.W, overview.R, "R - W: RAPIER weapon lock - WAND + HALITO weapon lock"),
+        comparison(overview.C, overview.W, "C - W: canonical adaptive - WAND + HALITO weapon lock"),
+        comparison(overview.C, overview.R, "C - R: canonical adaptive - RAPIER weapon lock")
+      ]
+    : mode === "transition-recovery"
     ? [
         comparison(overview.R15A, overview.R25A, "R25A - R15A: 25% - 15% transition recovery"),
         comparison(overview.R15A, overview.R35A, "R35A - R15A: 35% - 15% transition recovery"),
@@ -899,7 +1061,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       ? modeDefinition.armDefinitions.R25A
       : modeDefinition.armDefinitions.F0A;
     const byKit = {};
-    for (const kitId of KIT_IDS) {
+    for (const kitId of modeDefinition.kitIds) {
       if (mode === "transition-recovery") {
         resetSimulationRandom(seed);
         const explicit = runOne({ arm, kitId, runIndex: 0, includeTransitionRecoveryRate: true });
@@ -967,7 +1129,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     mode,
     runs,
     seed,
-    startingKits: [...KIT_IDS],
+    startingKits: [...modeDefinition.kitIds],
     arms: [...modeDefinition.armIds],
     workshop: WORKSHOP_SCENARIO_ID,
     targetDepth: TARGET_DEPTH,
@@ -997,9 +1159,18 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       candidateSamplesPerArm: CANDIDATE_SAMPLE_LIMIT,
       rawEncounterIdentities: "omitted"
     },
-    comparisonSemantics: "Only within-arm treatment deltas are decision comparisons; no post-divergence same-seed path/encounter/loot/trap parity claim"
+    comparisonSemantics: mode === ARCANA_WEAPON_MODE
+      ? "Cross-arm C/W/R treatment comparisons use matched initial conditions; no post-divergence same-seed path/encounter/loot/trap parity claim"
+      : "Only within-arm treatment deltas are decision comparisons; no post-divergence same-seed path/encounter/loot/trap parity claim",
+    armSemantics: mode === ARCANA_WEAPON_MODE
+      ? {
+          C: "Arcana Standard Preparation WAND + HALITO; canonical adaptive; weapon swappable",
+          W: "Arcana Standard Preparation WAND + HALITO; weapon slot locked; other slots adaptive",
+          R: "Arcana Standard Preparation RAPIER; no Medium/Rune; weapon slot locked; other slots adaptive"
+        }
+      : null
   };
-  return {
+  const result = {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: modeDefinition.runnerVersion,
     configuration,
@@ -1016,6 +1187,85 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     },
     baselineParity
   };
+  if (mode === ARCANA_WEAPON_MODE) {
+    const sanityBase = {
+      ...baseScenario,
+      startingKit: "arcana",
+      startingHealPotions: 0,
+      startingAntidotes: 0,
+      startingGuardPotions: 0,
+      startingTownPortals: 0,
+      departureCraft: [...preparations.P0.recipeIds],
+      departureCraftMaterialsAreActualBank: true,
+      departureCraftMaterials: { ...preparations.P0.materials },
+      departureCraftMeasurement: true,
+      collectEncounterIdentities: true,
+      collectStage15Diagnostics: true,
+      simDiagnosticLevel: "full",
+      fleePolicy: "never",
+      fixedCombat: {
+        monsterNames: [getEncounterPoolForFloor(1)[0]],
+        entryHpRatio: 1,
+        entryMpRatio: 1
+      }
+    };
+    const runSanity = (weapon, key) => {
+      resetSimulationRandom(seed);
+      const raw = simulateRun({
+        className: "Fighter",
+        startFloor: 1,
+        targetDepth: 2,
+        runIndex: 0,
+        seriesId: `arcana-combat-sanity:${key}`,
+        scenario: { ...sanityBase, startingGearChoice: weapon },
+        workshop: baseScenario.workshop,
+        worldSeed: `arcana-combat-sanity:${seed}:matched`,
+        collectDiagnostics: true,
+        collectBuildSnapshots: true
+      });
+      const encounter = raw.diagnostics?.encounters?.[0];
+      const firstRound = encounter?.rounds?.[0] || null;
+      const rounds = encounter?.rounds || [];
+      const playerDamage = (actionType) => rounds.reduce((sum, round) => sum +
+        (round.log || []).reduce((roundSum, message) => {
+          if (!message.startsWith("[味方]") || !message.includes("ダメージ")) return roundSum;
+          if (actionType === "spell" && !message.includes("唱えた")) return roundSum;
+          if (actionType === "fight" && !message.includes("攻撃")) return roundSum;
+          const match = message.match(/に(\d+)の[^！。]*ダメージ/);
+          return roundSum + (match ? Number(match[1]) : 0);
+        }, 0), 0);
+      return {
+        weapon,
+        activeRune: raw.startingBuildSnapshot?.canonicalBuildSnapshot?.activeRuneSpellIds || [],
+        selectedAction: firstRound ? {
+          type: firstRound.action,
+          spellName: firstRound.spellName || null
+        } : null,
+        mpPayment: firstRound ? {
+          start: firstRound.mpBefore,
+          spent: Math.max(0, firstRound.mpBefore - rounds.at(-1).mpAfter),
+          end: rounds.at(-1).mpAfter
+        } : null,
+        damage: {
+          physical: playerDamage("fight"),
+          spell: playerDamage("spell")
+        },
+        rounds: rounds.length,
+        incomingDamage: raw.combatDamageHp ?? null
+      };
+    };
+    const wandSanity = runSanity("WAND", "wand");
+    const rapierSanity = runSanity("RAPIER", "rapier");
+    const repeatWandSanity = runSanity("WAND", "wand");
+    result.scoringAudit = getArcanaWeaponScoreAudit();
+    result.combatSanity = {
+      productionEnemy: sanityBase.fixedCombat.monsterNames[0],
+      wand: wandSanity,
+      rapier: rapierSanity,
+      determinism: JSON.stringify(wandSanity) === JSON.stringify(repeatWandSanity)
+    };
+  }
+  return result;
 }
 
 function parseArgs(argv) {
@@ -1056,6 +1306,68 @@ function buildReport(result, provenance, purpose, requestedRef, environment) {
 }
 
 export function buildSummary(report) {
+  if (report.configuration.mode === ARCANA_WEAPON_MODE) {
+    const display = value => value == null ? "unobserved" : value;
+    const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;
+    const score = report.scoringAudit;
+    const scoreLine = item => `ATK=${display(item.weaponAtk)} MP=${display(item.maxMP)} Medium=${item.medium || "none"} RuneSlots=${display(item.runeSlots)} active=${item.activeRunes.join(",") || "none"} base=${display(item.baseEquipmentScore)} total=${display(item.totalScore)}`;
+    const outcomeLine = armId => {
+      const aggregate = report.arms[armId].overview;
+      return `${armId}: reach B2/B3/B4/B5/B6=${[2, 3, 4, 5, 6].map(floor => rateDisplay(aggregate.reach[floor].rate)).join("/")}; death=${rateDisplay(aggregate.death.rate)}; Return=${rateDisplay(aggregate.voluntaryReturn.rate)}; deepest p50=${display(aggregate.deepestFloor.p50)}; B5→B6=${rateDisplay(aggregate.b5.b6Transition.rate)}`;
+    };
+    const spellLine = (armId, floor) => {
+      const spell = report.arms[armId].overview.combat[floor].spellTelemetry;
+      return `B${floor} combat=${display(spell.combatCount.meanPerEntrant)} rounds=${display(spell.rounds.meanPerEntrant)} enemy=${display(spell.enemyActions.meanPerEntrant)} fight=${display(spell.fightActions.meanPerEntrant)} spell=${display(spell.spellActions.meanPerEntrant)} HALITO=${display(spell.halitoCasts.meanPerEntrant)} physicalDmg=${display(spell.physicalDamage.meanPerEntrant)} spellDmg=${display(spell.spellDamage.meanPerEntrant)} MP=${display(spell.mpStart.p50)}/${display(spell.mpSpent.meanPerEntrant)}/${display(spell.mpEnd.p50)} opportunity=${display(spell.spellOpportunityRounds.meanPerEntrant)} selected=${display(spell.eligibleSpellSelected.meanPerEntrant)} fallback=${display(spell.eligibleFightFallback.meanPerEntrant)} MP0share=${rateDisplay(spell.mpZeroCombatShare)}`;
+    };
+    const b5Line = armId => {
+      const b5 = report.arms[armId].overview.b5;
+      const boss = b5.boss;
+      return `${armId}: entrant=${b5.entrantN}; flame=${b5.flameTrap.triggerCount.total}; boss route/arrival/start/victory/death=${boss.routeBossDetected.total}/${boss.actualBossEventArrival.total}/${boss.combatStart.total}/${boss.victoryEventCount.total}/${boss.deathEventCount.total}; Return before/after=${b5.townPortalReturnBeforeBoss.count}/${b5.townPortalReturnAfterBossAttemptBeforeB6.count}; entryHP p50=${display(b5.boss.arrivalHp.p50)} potion=${display(b5.boss.remainingHealPotion.p50)}`;
+    };
+    const lines = [
+      "# First Band Arcana weapon diagnostic",
+      "",
+      `- measurement: ${report.configuration.measurementId}; N=${report.configuration.runs}/arm; seed=${report.configuration.seed}; target=B6; workshop=${report.configuration.workshop}`,
+      "- C: WAND + HALITO, canonical adaptive, weapon swappable.",
+      "- W: WAND + HALITO, weapon slot locked, non-weapon slots adaptive.",
+      "- R: RAPIER, no Medium/Rune, weapon slot locked, non-weapon slots adaptive.",
+      "- Standard Preparation; production recovery baseline; Arcana only; production simulateRun/auto-action; raw full-run records omitted.",
+      "",
+      "## Score audit",
+      "",
+      `- WAND + HALITO: ${scoreLine(score.wand)}`,
+      `- RAPIER: ${scoreLine(score.rapier)}`,
+      `- structural delta R-W: ${JSON.stringify(score.structuralDelta)}; score delta=${JSON.stringify(score.scoreDelta)}`,
+      "",
+      "## Outcomes",
+      "",
+      ...["C", "W", "R"].map(outcomeLine),
+      "",
+      "## B2-B5 Build checkpoints",
+      "",
+      ...["C", "W", "R"].map(armId => `- ${armId}: ${[2, 3, 4, 5].map(floor => { const checkpoint = report.arms[armId].overview.buildCheckpoints[floor]; return `B${floor} swaps p50=${display(checkpoint.equipmentSwapCount.p50)} weaponSwaps=${display(checkpoint.weaponSwapCount.p50)} nonWeaponSwaps=${display(checkpoint.nonWeaponSwapCount.p50)} changed=${rateDisplay(checkpoint.changedFromDeparture.rate)} weapon=${JSON.stringify(checkpoint.weaponIdentity.distribution)}`; }).join("; ")}`),
+      "",
+      "## B5 decomposition",
+      "",
+      ...["C", "W", "R"].map(b5Line),
+      "",
+      "## W spell-use telemetry",
+      "",
+      ...[1, 2, 3, 4, 5].map(floor => `- ${spellLine("W", floor)}; fallback reasons=${JSON.stringify(report.arms.W.overview.combat[floor].spellTelemetry.fallbackReasons)}`),
+      "",
+      "## C Medium abandonment",
+      "",
+      `- ${JSON.stringify(report.arms.C.overview.mediumAbandonment)}`,
+      "",
+      "## Combat sanity",
+      "",
+      `- enemy=${report.combatSanity.productionEnemy}; W=${JSON.stringify(report.combatSanity.wand)}; R=${JSON.stringify(report.combatSanity.rapier)}; determinism=${report.combatSanity.determinism}`,
+      "",
+      `- determinism=${report.determinism.pass}; observation invariance=${report.observationInvariance.pass}; production balance change=false; Heavy N=500/arm not run.`,
+      ""
+    ];
+    return lines.join("\n");
+  }
   if (report.configuration.measurementId === LEVEL_UP_MEASUREMENT_ID) {
     const display = value => value == null ? "unobserved" : value;
     const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;
