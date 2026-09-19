@@ -41,6 +41,19 @@ to verify the change.
 - UI modules (`src/ui/*`, `src/combat_ui/*_menu.js`,
   `src/combat_ui/combat_overlay.js`) own DOM construction. Avoid duplicating
   the same control in both an overlay and `submenu-options`.
+
+## TypeScript Migration Routing
+
+- Keep JavaScript and TypeScript coexistence explicit. For a migrated contract,
+  identify one canonical TypeScript owner and retain a thin compatibility
+  facade only when existing consumers require it.
+- Route raw runtime, save, and external inputs through runtime validation before
+  typed internal use. Do not treat a type assertion as validation.
+- Inspect direct consumers and every reached Node, Vite, browser, or simulation
+  import path before widening a typed owner. Preserve behavior, object identity,
+  state-owned references, hot-path cost, and save compatibility.
+- Load `.agents/skills/typescript-migration/SKILL.md` for migration, typed
+  boundary, facade, interop, or TypeScript soundness work.
 - `src/style.css` is the CSS entrypoint and should stay limited to `@import`
   statements. Feature styles live under `src/styles/*`; start with the relevant
   feature stylesheet instead of reading all CSS.
