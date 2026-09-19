@@ -109,7 +109,11 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           filter: blob:none
-      - uses: ./.github/actions/setup-node-deps
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
       - name: Run standard balance measurement shard
         id: measurement
         timeout-minutes: 15
@@ -201,7 +205,11 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           filter: blob:none
-      - uses: ./.github/actions/setup-node-deps
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
       - name: Download standard measurement shards
         uses: actions/download-artifact@v4
         with:
@@ -274,7 +282,11 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           filter: blob:none
-      - uses: ./.github/actions/setup-node-deps
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
       - name: Run selected balance measurement
         id: measurement
         timeout-minutes: 30

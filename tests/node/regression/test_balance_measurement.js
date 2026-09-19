@@ -163,7 +163,10 @@ for (const commonEnv of [
 ]) {
   assert.equal(workflow.split(commonEnv).length - 1, 1, `${commonEnv} must have one owner`);
 }
-assert.equal((workflow.match(/uses: \.\/\.github\/actions\/setup-node-deps/g) || []).length, 3);
+assert.equal((workflow.match(/uses: \.\/\.github\/actions\/setup-node-deps/g) || []).length, 0);
+assert.equal((workflow.match(/uses: actions\/setup-node@v4/g) || []).length, 3);
+assert.equal((workflow.match(/node-version: 20/g) || []).length, 3);
+assert.equal((workflow.match(/run: npm ci/g) || []).length, 3);
 
 const testWorkflow = fs.readFileSync(path.resolve(".github/workflows/test.yml"), "utf8");
 assert.match(testWorkflow, /pull_request:/);
@@ -171,6 +174,7 @@ assert.match(testWorkflow, /push:\n\s+branches: \[main\]/);
 assert.match(testWorkflow, /merge_group:/);
 assert.match(testWorkflow, /workflow_dispatch:/);
 assert.match(testWorkflow, /- '\.github\/actions\/setup-node-deps\/action\.yml'/);
+assert.equal((testWorkflow.match(/uses: \.\/\.github\/actions\/setup-node-deps/g) || []).length, 3);
 for (const jobId of ["unit", "lint", "browser"]) {
   assert.match(testWorkflow, new RegExp(`\\n  ${jobId}:\\n`));
 }
