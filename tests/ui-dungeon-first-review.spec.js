@@ -35,7 +35,10 @@ async function seedDungeon(page, { renderer = 'canvas', gameState = 'explore', m
     const { menuContext } = await import('/src/navigation.js');
     const { combatSelection } = await import('/src/combat.js');
     const { updateUI } = await import('/src/ui.js');
-    state.party = [createStartingKitCharacter(gameState === 'combat' ? 'arcana' : 'vanguard')];
+    state.party = [
+      createStartingKitCharacter(gameState === 'combat' ? 'arcana' : 'vanguard'),
+      createStartingKitCharacter('vanguard'),
+    ];
     state.currentRun = createDefaultCurrentRun();
     state.floor = floor;
     state.x = 4;
