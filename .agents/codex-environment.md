@@ -1,8 +1,9 @@
 # Codex environment workflow
 
 This document contains the repository's detailed workflow for Codex-managed
-worktrees, Git base provenance, independent review, subagents, and sandbox
-boundaries. `AGENTS.md` contains only the durable rules that apply at a glance.
+worktrees, Git base provenance, optional independent review, subagents, and
+sandbox boundaries. `AGENTS.md` contains only the durable rules that apply at a
+glance.
 
 ## Fix the intended base before editing
 
@@ -75,22 +76,24 @@ required CI.
 
 ## Subagents and waiting
 
-Use subagents only for bounded, independent work such as read-heavy
-exploration, test analysis, log triage, or independent review. Keep the main
-agent responsible for requirements, decisions, edits, and final evidence.
+Use subagents only for bounded, independent read-heavy exploration, test
+analysis, or log triage. Do not autonomously create a review-purpose subagent
+or separate session. Independent review is allowed only when the user
+explicitly requests it. Keep the main agent responsible for requirements,
+decisions, edits, and final evidence.
 Start independent work in parallel, continue useful local verification, then
 collect summaries. Do not run a short `wait -> timeout -> wait` loop or treat an
 unchanged status poll as progress. Use one bounded, completion-aware wait and
 back off when work remains; a timeout is not a failure by itself.
 
-### Review delegation and replacement
+### Review delegation and replacement (explicit request only)
 
-The owning Issue session coordinates merge-gate completion and remains
-responsible for the final evidence. For one immutable `BASE_SHA` / `HEAD_SHA`
-and substantially the same review scope, keep at most one active reviewer.
-Do not launch another full reviewer merely because the current reviewer is
-slow or a bounded wait timed out. Replace that reviewer only after it is
-confirmed failed, cancelled, or intentionally abandoned.
+When the user explicitly requests independent review, the owning Issue session
+coordinates it and remains responsible for the final evidence. For one
+immutable `BASE_SHA` / `HEAD_SHA` and substantially the same review scope, keep
+at most one active reviewer. Do not launch another full reviewer merely because
+the current reviewer is slow or a bounded wait timed out. Replace that reviewer
+only after it is confirmed failed, cancelled, or intentionally abandoned.
 
 A reviewer may delegate a bounded, materially distinct sub-review when
 specialization, parallel read-heavy analysis, or independent evidence improves

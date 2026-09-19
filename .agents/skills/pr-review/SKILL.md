@@ -9,6 +9,10 @@ Review one immutable pull-request change set at a time. This skill produces a
 current review verdict; it does not implement unrelated fixes, merge, deploy,
 or enable auto-merge.
 
+Normal Issue delivery does not invoke this skill for review purposes. Use it
+only when the user explicitly requests independent review, audit, approval, or
+current-head PR review.
+
 ## 1. Fix the review target
 
 1. Resolve the PR number, repository, base ref, current `BASE_SHA`, and
@@ -24,8 +28,8 @@ or enable auto-merge.
    applicable.
 4. Read `.agents/file-map.md`, then the applicable `.agents/*.md` checklist
    and trigger-matched Skill. Use `.agents/merge-gate.md` for immutable review,
-   independent-review, and CI semantics; use `.agents/qa-regression.md` for
-   regression sufficiency. Do not duplicate their detailed matrices here.
+   optional independent-review, and CI semantics; use `.agents/qa-regression.md`
+   for regression sufficiency. Do not duplicate their detailed matrices here.
 
 ## 2. Prevent duplicate or stale review
 

@@ -69,14 +69,16 @@ Open or update the PR that closes the Issue. Keep the body concise but traceable
 - canon impact or an explicit unaffected statement;
 - `Closes #<issue>` and current review/CI state.
 
-After the head is fixed, use `merge-gate.md` for immutable base/head evidence,
-changed-file identity, independent review, and required current-head CI. A
-changed PR-specific diff invalidates the corresponding old evidence.
+After the head is fixed, use `merge-gate.md` for owning-session self-review,
+immutable base/head evidence, changed-file identity, and required current-head
+CI. Independent review is optional and runs only when the user explicitly
+requests it. A changed PR-specific diff invalidates the corresponding old
+evidence.
 
 ## Completion boundary
 
 Delivery is complete only when every acceptance criterion has an evidence-backed
 disposition, current self-review is clean, applicable local verification is
-current, independent review covers the current change set, and required CI
-passes for the current PR head. Merge and deploy remain outside the Issue
-authorization.
+current, and required CI passes for the current PR head. Independent review is
+not a standard completion condition; run it only when the user explicitly
+requests it. Merge and deploy remain outside the Issue authorization.
