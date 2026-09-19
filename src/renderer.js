@@ -13,6 +13,7 @@ import {
   getProjectionPlanes,
   getProjectionProfile
 } from "./rules/renderer_projection.js";
+import { getChestPropGeometry, getChestPropPalette } from "./chest_prop.js";
 
 export { getVisibleCorridorCells, getVisibleCorridorTopology } from "./rules/renderer_topology.js";
 export { BASE_GEOMETRY, BASE_PROJECTION, PORTRAIT_NEAR_COVERAGE_MIN, getCombatMonsterLayout, getProjectionColumn, getProjectionPlanes, getProjectionProfile } from "./rules/renderer_projection.js";
@@ -925,24 +926,77 @@ export class DungeonRenderer {
 
   drawChestIcon(ctx, z, style, projection = getProjectionPlanes()) {
     const plane = getProjectionColumn(projection, z);
-    const xl = plane.leftBottom;
-    const xr = plane.rightBottom;
-    const yb = plane.bottom;
-
-    const corridorWidth = xr - xl;
-    const chestWidth = corridorWidth * 0.28;
-    const chestHeight = chestWidth * 0.58;
-    const x = xl + (corridorWidth - chestWidth) / 2;
-    const y = yb - chestHeight - 2;
     const safeStyle = getChestStyle(style);
+    const geometry = getChestPropGeometry(plane, safeStyle);
 
     ctx.save();
-    ctx.strokeStyle = "#ffd60a";
-    ctx.lineWidth = Math.max(1, corridorWidth * 0.008);
-    ctx.shadowColor = "#ffd60a";
-    ctx.shadowBlur = Math.max(3, corridorWidth * 0.025);
-    this.drawChestShape(ctx, safeStyle, x, y, chestWidth, chestHeight, "#ffd60a");
+    this.drawChestProp(ctx, geometry, getChestPropPalette(safeStyle));
     ctx.restore();
+  }
+
+  drawChestProp(ctx, geometry, palette) {
+    const polygon = (points, fill, stroke = palette.outline, width = Math.max(1, geometry.width * 0.018)) => {
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      points.slice(1).forEach(point => ctx.lineTo(point.x, point.y));
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = width;
+      ctx.stroke();
+    };
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.38)";
+    ctx.beginPath();
+    ctx.ellipse(geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowColor = palette.glow;
+    ctx.shadowBlur = Math.max(2, geometry.width * 0.08);
+    polygon(geometry.body, palette.body);
+    polygon(geometry.side, "#241a19");
+    polygon(geometry.lid, palette.lid);
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = palette.metal;
+    ctx.fillRect(geometry.band.x, geometry.band.y, geometry.band.width, geometry.band.height);
+    ctx.strokeStyle = palette.outline;
+    ctx.lineWidth = Math.max(1, geometry.width * 0.014);
+    ctx.strokeRect(geometry.band.x, geometry.band.y, geometry.band.width, geometry.band.height);
+
+    ctx.fillStyle = "#171116";
+    geometry.feet.forEach(foot => ctx.fillRect(foot.x, foot.y, foot.width, foot.height));
+    ctx.fillStyle = palette.metal;
+    ctx.fillRect(geometry.lock.x, geometry.lock.y, geometry.lock.width, geometry.lock.height);
+    ctx.strokeStyle = palette.outline;
+    ctx.strokeRect(geometry.lock.x, geometry.lock.y, geometry.lock.width, geometry.lock.height);
+    ctx.fillStyle = "#21151a";
+    ctx.beginPath();
+    ctx.arc(geometry.keyhole.x, geometry.keyhole.y, geometry.keyhole.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = palette.outline;
+    ctx.lineWidth = Math.max(1, geometry.width * 0.012);
+    const marks = geometry.marks;
+    if (palette.mark === "cross") {
+      ctx.beginPath();
+      ctx.moveTo(marks.left, marks.top); ctx.lineTo(marks.right, marks.bottom);
+      ctx.moveTo(marks.right, marks.top); ctx.lineTo(marks.left, marks.bottom);
+      ctx.stroke();
+    } else if (palette.mark === "runes") {
+      ctx.beginPath();
+      ctx.moveTo(marks.left, marks.top); ctx.lineTo(marks.left, marks.bottom);
+      ctx.moveTo(marks.right, marks.top); ctx.lineTo(marks.right, marks.bottom);
+      ctx.stroke();
+    } else if (palette.mark === "rivets") {
+      ctx.fillStyle = palette.metal;
+      [marks.left, marks.right].forEach(x => {
+        ctx.beginPath();
+        ctx.arc(x, marks.top, Math.max(1, geometry.width * 0.024), 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
   }
 
   drawChestShape(ctx, style, x, y, chestWidth, chestHeight, color, bodyTopRatio = 0.35) {

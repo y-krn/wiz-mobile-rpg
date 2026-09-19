@@ -15,6 +15,7 @@ import {
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { getVisibleCorridorTopology, isRenderableCorridorCell } from "./rules/renderer_topology.js";
 import { renderMiniMapOverlay } from "./minimap.js";
+import { getChestPropGeometry, getChestPropPalette, getChestPropStyle } from "./chest_prop.js";
 import {
   SIMPLE_ENEMY_PROTOTYPE_MODE,
   createEnemyPrototype,
@@ -24,7 +25,7 @@ import {
 
 // Exposed for deterministic visual-gate asset injection; production rendering
 // continues to use the same Pixi Assets singleton.
-export { Assets };
+export { Assets, Graphics };
 
 export const PIXI_VIEW_W = CANONICAL_VIEW.width;
 export const PIXI_VIEW_H = CANONICAL_VIEW.height;
@@ -663,7 +664,7 @@ export class PixiDungeonRenderer {
           if (cellTopology.frontOneWayBarrier && column === 0) this.drawOneWayBarrier(nextPlane, wallColor);
         }
 
-        if (column === 0 && z > 0) this.drawLandmark(cell, nextPlane, renderInput.visual.wallColor);
+        if (column === 0 && z > 0) this.drawLandmark(cell, plane, renderInput.visual.wallColor, renderInput.visual.landmarks?.chestStyle);
         if (column === 0 && renderInput.roamingMonsters.some((monster) => monster.floor === renderInput.floor && monster.x === cellTopology.x && monster.y === cellTopology.y) && z > 0) {
           drawEllipse(this.layer("environment-fx"), (nextPlane.leftBottom + nextPlane.rightBottom) / 2, nextPlane.bottom - 12, width * 0.10, Math.max(4, width * 0.04), "#ff3b30", 0.12, { color: "#ff3b30", width: 2, alpha: 0.85 });
         }
@@ -716,7 +717,7 @@ export class PixiDungeonRenderer {
     }
   }
 
-  drawLandmark(cell, plane, color) {
+  drawLandmark(cell, plane, color, chestStyle) {
     const cx = (plane.leftBottom + plane.rightBottom) / 2;
     const width = Math.max(8, plane.rightBottom - plane.leftBottom);
     const y = plane.bottom - width * 0.12;
@@ -728,11 +729,42 @@ export class PixiDungeonRenderer {
       graphic.stroke({ color: cell.type === "stairs-up" ? "#00b7ff" : "#ffb300", width: 1.5, alpha: 0.9 });
       this.layer("structural-walls").addChild(graphic);
     } else if (cell.event === EVENT_TYPES.CHEST) {
-      drawRect(this.layer("actors"), cx - width * 0.14, y - width * 0.10, width * 0.28, width * 0.10, "#8a5a2b", 0.92, { color: "#ffd60a", width: 1.2 });
+      this.drawChestProp(plane, getChestPropStyle(chestStyle));
     } else if (cell.trap?.state === "discovered") {
       drawEllipse(this.layer("actors"), cx, y - width * 0.05, width * 0.10, width * 0.06, "#ff3b30", 0.12, { color: "#ff3b30", width: 1.4 });
     }
     if (color && cell.type === "stairs-down") addLine(this.layer("actors"), [{ x: cx, y: y - width * 0.22 }, { x: cx, y: y - width * 0.04 }], { color, width: 1, alpha: 0.55 });
+  }
+
+  drawChestProp(plane, style) {
+    const geometry = getChestPropGeometry(plane, style);
+    const palette = getChestPropPalette(style);
+    const actors = this.layer("actors");
+    const polygon = (points, fill, stroke = palette.outline, width = Math.max(1, geometry.width * 0.018)) => {
+      addPolygon(actors, points, fill, 1, { color: stroke, width });
+    };
+
+    drawEllipse(actors, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, "#000000", 0.38);
+    drawEllipse(actors, geometry.centerX, geometry.bodyY + geometry.bodyHeight * 0.42, geometry.width * 0.58, geometry.bodyHeight * 0.78, palette.glow, 0.055);
+    polygon(geometry.body, palette.body);
+    polygon(geometry.side, "#241a19");
+    polygon(geometry.lid, palette.lid);
+    drawRect(actors, geometry.band.x, geometry.band.y, geometry.band.width, geometry.band.height, palette.metal, 1, { color: palette.outline, width: Math.max(1, geometry.width * 0.014) });
+    geometry.feet.forEach(foot => drawRect(actors, foot.x, foot.y, foot.width, foot.height, "#171116", 1));
+    drawRect(actors, geometry.lock.x, geometry.lock.y, geometry.lock.width, geometry.lock.height, palette.metal, 1, { color: palette.outline, width: Math.max(1, geometry.width * 0.014) });
+    drawEllipse(actors, geometry.keyhole.x, geometry.keyhole.y, geometry.keyhole.radius, geometry.keyhole.radius, "#21151a", 1);
+
+    const marks = geometry.marks;
+    if (palette.mark === "cross") {
+      addLine(actors, [{ x: marks.left, y: marks.top }, { x: marks.right, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
+      addLine(actors, [{ x: marks.right, y: marks.top }, { x: marks.left, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
+    } else if (palette.mark === "runes") {
+      addLine(actors, [{ x: marks.left, y: marks.top }, { x: marks.left, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
+      addLine(actors, [{ x: marks.right, y: marks.top }, { x: marks.right, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
+    } else if (palette.mark === "rivets") {
+      drawEllipse(actors, marks.left, marks.top, Math.max(1, geometry.width * 0.024), Math.max(1, geometry.width * 0.024), palette.metal, 1);
+      drawEllipse(actors, marks.right, marks.top, Math.max(1, geometry.width * 0.024), Math.max(1, geometry.width * 0.024), palette.metal, 1);
+    }
   }
 
   drawOneWayBarrier(plane, color) {
