@@ -27,7 +27,11 @@ import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.j
 import { RUN_QUEST_TEMPLATES } from "./data/run_quests.js";
 import { assignRunQuests, createRunQuest, updateRunQuests } from "./systems/run_quests.js";
 import { calculateFloorTrapSuccessRate, resolveTrapAction } from "./rules/trap_rules.js";
-import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "./rules/trap_effect_rules.js";
+import {
+  applyTrapGuardToEffect,
+  B5_FLAME_TRAP_DAMAGE_PROFILE,
+  resolveFloorTrapEffect
+} from "./rules/trap_effect_rules.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
@@ -777,7 +781,7 @@ export function triggerFlameTrap() {
     renderer.triggerFlash(400);
   }
 
-  const trap = { type: "damage" };
+  const trap = { type: "damage", damageProfile: B5_FLAME_TRAP_DAMAGE_PROFILE };
   const activeCharacter = state.party.find(
     char => char?.hp > 0 && !["dead", "ash"].includes(char.status)
   );
