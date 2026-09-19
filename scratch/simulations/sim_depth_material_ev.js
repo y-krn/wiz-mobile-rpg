@@ -10,6 +10,7 @@ import { runSimTasks } from "./sim_parallel.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "../measurements/measurement_env_signature.js";
 import { reportMechanismFiring } from "../measurements/mechanism_wiring_report.js";
 import { classifyCausalDeath } from "../measurements/build_sensitivity_measurement.js";
+import { recordRuntimeCall } from "../../src/runtime_diagnostics.js";
 // Unit tests import this shared module for wiring checks, not measurements.
 const IS_TEST_PROCESS = process.env.SIM_SKIP_PROVENANCE === "1" ||
   basename(process.argv[1] || "").startsWith("test_");
@@ -369,7 +370,6 @@ const {
   getStartingHealPotionCount
 } = await import("../../src/rules/recovery_rules.js");
 const {
-  calculateCombatRecoveryAction,
   evaluateCombatRecoveryAction
 } = await import("./sim_recovery_policy.js");
 const { getPerceptionIntent } = await import("../../src/systems/elite_perception.js");
@@ -6709,8 +6709,9 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
     healThreshold: state.simPolicy.healPotionThreshold,
     runtimeDiagnostics: metrics?.runtimeDiagnostics
   };
+  recordRuntimeCall(recoveryArgs.runtimeDiagnostics, "recovery.combat-policy");
   const evaluation = evaluateCombatRecoveryAction(recoveryArgs);
-  const decision = calculateCombatRecoveryAction(recoveryArgs);
+  const decision = evaluation.decision;
   const policyProbeAction = state.simPolicy.b5GuardianFleeEvObservation
     ? getCombatPolicyProbeAction(state)
     : null;
