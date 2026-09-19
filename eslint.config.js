@@ -1,5 +1,12 @@
 import js from "@eslint/js";
 import globals from "globals";
+import tseslint from "typescript-eslint";
+
+const tsFiles = ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"];
+const tsRecommended = tseslint.configs.recommended.map((config) => ({
+  ...config,
+  files: config.files ?? tsFiles
+}));
 
 export default [
   {
@@ -11,20 +18,37 @@ export default [
       "scratch/benchmarks/**",
       "scratch/measurements/**",
       "scratch/simulations/**",
-      // TypeScript syntax is checked by `tsc`; ESLint 10 has no TS parser here.
-      "**/*.ts",
-      "**/*.tsx",
       "tests/node/unit/**",
       "tests/node/regression/**",
     ],
   },
   js.configs.recommended,
+  ...tsRecommended,
   {
-    files: ["src/**/*.js"],
+    files: ["src/**/*.js", "src/**/*.ts", "src/**/*.tsx"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
       globals: globals.browser,
+    },
+  },
+  {
+    files: ["scripts/**/*.ts", "scripts/**/*.tsx"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.node,
+    },
+  },
+  {
+    files: ["tests/**/*.ts", "tests/**/*.tsx"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
     },
   },
   {
