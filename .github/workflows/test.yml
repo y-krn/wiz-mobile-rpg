@@ -101,6 +101,12 @@ jobs:
           set -o pipefail
           npm run test:browser 2>&1 | tee "$RUNNER_TEMP/browser-test.log"
         if: steps.changes.outputs.browser == 'true'
+      - name: Run browser debug visual evidence
+        id: browser_visual
+        run: |
+          set -o pipefail
+          npx playwright test --grep @visual 2>&1 | tee "$RUNNER_TEMP/browser-visual.log"
+        if: always() && steps.changes.outputs.browser == 'true' && inputs.debug_raw == true
       - name: Stage CI evidence artifact
         id: evidence
         if: always() && steps.changes.outputs.browser == 'true'
@@ -115,6 +121,7 @@ jobs:
             --visual-dir output/playwright
             --diagnostics-dir playwright-report
             --logs "$RUNNER_TEMP/browser-test.log"
+            --logs "$RUNNER_TEMP/browser-visual.log"
             --github-output "$GITHUB_OUTPUT"
           )
           if [ "${{ inputs.debug_raw }}" = "true" ]; then

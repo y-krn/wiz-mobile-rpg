@@ -194,6 +194,9 @@ for (const viewport of VIEWPORTS) {
         state.maps[targetFloor - 1] = map;
         state.visitedMaps[targetFloor - 1] = map.map(row => row.map(() => true));
         state.map = map;
+        // This focused theme test compares canonical renderer geometry; the
+        // responsive viewport contract is covered by the Dungeon First tests.
+        dungeonRenderer.resize(400, 260);
 
         const geometry = getFloorTheme(targetFloor).visualSignature.geometry;
         const projection = getProjectionPlanes(geometry);

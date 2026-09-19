@@ -42,13 +42,14 @@ test('combat spell cards expose tags and enter enemy targeting through the cast 
   await expect(page.locator('#combat-overlay .combat-target-card.enemy')).toHaveCount(0);
   await expect(page.locator('#combat-overlay .combat-target-a11y')).toHaveCount(1);
   const point = await page.evaluate(async () => {
-    const { getCombatMonsterLayout } = await import('/src/renderer.js');
+    const { dungeonRenderer, getCombatMonsterLayout } = await import('/src/renderer.js');
     const rect = document.querySelector('#dungeon-canvas').getBoundingClientRect();
-    const region = getCombatMonsterLayout((await import('/src/state.js')).state.combatState.monsters)[0].hitRegion;
-    const scale = Math.min(rect.width / 400, rect.height / 260);
+    const profile = dungeonRenderer.viewport;
+    const region = getCombatMonsterLayout((await import('/src/state.js')).state.combatState.monsters, profile)[0].hitRegion;
+    const scale = Math.min(rect.width / profile.width, rect.height / profile.height);
     return {
-      x: (region.x + region.width / 2) * scale + (rect.width - 400 * scale) / 2,
-      y: (region.y + region.height / 2) * scale + (rect.height - 260 * scale) / 2,
+      x: (region.x + region.width / 2) * scale + (rect.width - profile.width * scale) / 2,
+      y: (region.y + region.height / 2) * scale + (rect.height - profile.height * scale) / 2,
     };
   });
   await page.locator('#dungeon-canvas').click({ position: point });
