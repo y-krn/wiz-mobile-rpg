@@ -8,8 +8,15 @@ import {
   buildSummary,
   runMeasurement
 } from "../../../scratch/measurements/first_band_build_formation.js";
+import { normalizeTrackedConsumableSource } from "../../../scratch/simulations/sim_depth_material_ev.js";
 
 process.env.SIM_SKIP_PROVENANCE = "1";
+
+assert.equal(normalizeTrackedConsumableSource("ordinary"), "chest");
+assert.equal(normalizeTrackedConsumableSource("fromDrop"), "combat/drop");
+assert.equal(normalizeTrackedConsumableSource("chest"), "chest");
+assert.equal(normalizeTrackedConsumableSource("secretRoom"), "chest");
+assert.equal(normalizeTrackedConsumableSource("special-reward"), "chest");
 
 const result = await runMeasurement({ runs: 1, seed: 1277, mode: ARCANA_MP_SUPPLY_MODE });
 

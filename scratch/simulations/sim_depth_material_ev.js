@@ -5779,9 +5779,10 @@ function recordDiagnosticCost(
   });
 }
 
-function normalizeTrackedConsumableSource(source) {
-  if (["combat", "fromDrop", "secretRoom", "ordinary", "special-reward"].includes(source)) {
-    return "combat/drop";
+export function normalizeTrackedConsumableSource(source) {
+  if (["combat", "fromDrop"].includes(source)) return "combat/drop";
+  if (["chest", "ordinary", "secretRoom", "special-reward"].includes(source)) {
+    return "chest";
   }
   return TRACKED_CONSUMABLE_SOURCE_IDS.includes(source) ? source : "other";
 }
