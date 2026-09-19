@@ -46,6 +46,17 @@ async function readDungeonFirstLayout(page) {
       buttons: visibleButtons,
       scrollWidth: document.documentElement.scrollWidth,
       reducedMotionRule: getComputedStyle(document.querySelector('#controls-panel')).transitionDuration,
+      visualHierarchy: {
+        viewportBackground: getComputedStyle(document.querySelector('#viewport-panel')).backgroundImage,
+        headerBorderBottom: getComputedStyle(document.querySelector('#game-header')).borderBottomWidth,
+        goalBorderLeft: getComputedStyle(document.querySelector('#goal-banner')).borderLeftWidth,
+        goalBorderRight: getComputedStyle(document.querySelector('#goal-banner')).borderRightWidth,
+        controlsBorderTop: getComputedStyle(document.querySelector('#controls-panel')).borderTopWidth,
+        controlsBorderBottom: getComputedStyle(document.querySelector('#controls-panel')).borderBottomWidth,
+        controlsBackground: getComputedStyle(document.querySelector('#controls-panel')).backgroundImage,
+        forwardShadow: getComputedStyle(document.querySelector('#btn-move-forward')).boxShadow,
+        secondaryShadow: getComputedStyle(document.querySelector('#btn-inspect')).boxShadow,
+      },
     };
   });
 }
@@ -79,6 +90,15 @@ for (const renderer of ['canvas', 'pixi']) {
 
     const layout = await readDungeonFirstLayout(page);
     expectDungeonFirstShell(layout, 'explore');
+    expect(layout.visualHierarchy.viewportBackground).toContain('radial-gradient');
+    expect(layout.visualHierarchy.headerBorderBottom).toBe('0px');
+    expect(layout.visualHierarchy.goalBorderLeft).toBe('1px');
+    expect(layout.visualHierarchy.goalBorderRight).toBe('0px');
+    expect(layout.visualHierarchy.controlsBorderTop).toBe('0px');
+    expect(layout.visualHierarchy.controlsBorderBottom).toBe('0px');
+    expect(layout.visualHierarchy.controlsBackground).toContain('linear-gradient');
+    expect(layout.visualHierarchy.forwardShadow).not.toBe('none');
+    expect(layout.visualHierarchy.secondaryShadow).toBe('none');
     const screenshot = await page.screenshot({ path: testInfo.outputPath(`issue-1349-${renderer}-explore-390.png`), fullPage: true });
     await testInfo.attach(`issue-1349-${renderer}-explore-390`, { body: screenshot, contentType: 'image/png' });
   });
