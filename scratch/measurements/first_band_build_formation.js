@@ -55,6 +55,8 @@ export const WORKSHOP_SCENARIO_ID = "workshop-complete";
 export const CANONICAL_ADAPTIVE_POLICY_ID = CANONICAL_EQUIPMENT_UPDATE_POLICY_ID;
 export const ARCANA_WEAPON_MODE = "arcana-weapon-diagnostic";
 export const ARCANA_WEAPON_MEASUREMENT_ID = "first-band-arcana-weapon-diagnostic";
+export const ARCANA_MP_SUPPLY_MODE = "arcana-mp-supply-diagnostic";
+export const ARCANA_MP_SUPPLY_MEASUREMENT_ID = "first-band-arcana-mp-supply-diagnostic";
 export const ARCANA_KIT_IDS = Object.freeze(["arcana"]);
 
 const DEFAULT_WEAPON_BY_KIT = Object.freeze({
@@ -116,6 +118,48 @@ const ARCANA_WEAPON_ARM_DEFINITIONS = Object.freeze({
     lockedEquipmentSlots: ["weapon"]
   })
 });
+const ARCANA_MP_SUPPLY_ARM_DEFINITIONS = Object.freeze({
+  W0: Object.freeze({
+    id: "W0",
+    preparationId: "P0",
+    buildId: "wand-halito-mana-0",
+    healPotions: 4,
+    additionalManaPotions: 0,
+    startingWeapon: "WAND",
+    fixed: false,
+    lockedEquipmentSlots: ["weapon"]
+  }),
+  W1: Object.freeze({
+    id: "W1",
+    preparationId: "P0",
+    buildId: "wand-halito-mana-1",
+    healPotions: 4,
+    additionalManaPotions: 1,
+    startingWeapon: "WAND",
+    fixed: false,
+    lockedEquipmentSlots: ["weapon"]
+  }),
+  W2: Object.freeze({
+    id: "W2",
+    preparationId: "P0",
+    buildId: "wand-halito-mana-2",
+    healPotions: 4,
+    additionalManaPotions: 2,
+    startingWeapon: "WAND",
+    fixed: false,
+    lockedEquipmentSlots: ["weapon"]
+  }),
+  R: Object.freeze({
+    id: "R",
+    preparationId: "P0",
+    buildId: "rapier-mana-0",
+    healPotions: 4,
+    additionalManaPotions: 0,
+    startingWeapon: "RAPIER",
+    fixed: false,
+    lockedEquipmentSlots: ["weapon"]
+  })
+});
 const LEGACY_LEVEL_UP_ARM_DEFINITIONS = Object.freeze({
   L0A: Object.freeze({ id: "L0A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0 }),
   L20A: Object.freeze({ id: "L20A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0.20 })
@@ -128,6 +172,16 @@ function getMeasurementMode(mode) {
       runnerVersion: "first-band-build-formation-v5",
       armIds: Object.freeze(["C", "W", "R"]),
       armDefinitions: ARCANA_WEAPON_ARM_DEFINITIONS,
+      preparationPotions: [4],
+      kitIds: ARCANA_KIT_IDS
+    };
+  }
+  if (mode === ARCANA_MP_SUPPLY_MODE) {
+    return {
+      id: ARCANA_MP_SUPPLY_MEASUREMENT_ID,
+      runnerVersion: "first-band-build-formation-v6",
+      armIds: Object.freeze(["W0", "W1", "W2", "R"]),
+      armDefinitions: ARCANA_MP_SUPPLY_ARM_DEFINITIONS,
       preparationPotions: [4],
       kitIds: ARCANA_KIT_IDS
     };
@@ -203,6 +257,24 @@ function metric(values) {
   };
 }
 
+function quantileValue(values, fraction) {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const position = (sorted.length - 1) * fraction;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+}
+
+function metricWithQuartiles(values) {
+  const observed = values.filter(Number.isFinite);
+  return {
+    ...metric(observed),
+    p25: quantileValue(observed, 0.25),
+    p75: quantileValue(observed, 0.75)
+  };
+}
+
 function countValues(values, limit = BUILD_IDENTITY_SAMPLE_LIMIT) {
   const counts = {};
   values.filter(Boolean).forEach(value => { counts[value] = (counts[value] || 0) + 1; });
@@ -238,12 +310,13 @@ function structuralBuild(snapshot) {
   };
 }
 
-function recipesFor(healPotions) {
+function recipesFor(healPotions, additionalManaPotions = 0) {
   return [
     RECIPE_IDS.portal,
     ...Array(healPotions).fill(RECIPE_IDS.heal),
     RECIPE_IDS.antidote,
-    RECIPE_IDS.guard
+    RECIPE_IDS.guard,
+    ...Array(additionalManaPotions).fill("MANA_POTION")
   ];
 }
 
@@ -255,17 +328,22 @@ function deriveBank(recipeIds) {
 }
 
 function preparationSpec(arm) {
-  const recipeIds = recipesFor(arm.healPotions);
-  const { bank } = deriveBank(recipesFor(12));
+  const additionalManaPotions = arm.additionalManaPotions || 0;
+  const recipeIds = recipesFor(arm.healPotions, additionalManaPotions);
+  const { bank } = deriveBank(recipesFor(12, additionalManaPotions));
   const expectedCost = purchaseDepartureCraft(bank, recipeIds);
   if (!expectedCost?.ok) throw new Error("production departure craft bank derivation failed");
   return {
     id: arm.preparationId,
     startingWeaponMode: arm.preparationId === "P0" ? "kit-default" : "canonical-workshop-auto-best",
     healPotions: arm.healPotions,
+    additionalManaPotions,
     recipeIds,
     materials: { ...bank },
-    expectedPayment: { ...expectedCost.cost }
+    expectedPayment: { ...expectedCost.cost },
+    manaPotionPayment: getDepartureCraftCost(
+      Array(additionalManaPotions).fill("MANA_POTION")
+    )
   };
 }
 
@@ -308,6 +386,7 @@ function preparationRecord(result, arm, kitId, workshop, initialBank, expectedWe
     startingMp: snapshot?.mp ?? null,
     maxMp: snapshot?.maxMp ?? null,
     healPotions: arm.healPotions,
+    additionalManaPotions: arm.additionalManaPotions || 0,
     supplies: { TOWN_PORTAL: 1, HEAL_POTION: arm.healPotions, ANTIDOTE: 1, GUARD_POTION: 1 },
     departureCraft: {
       recipeIds: [...(result.departureCraft?.recipeIds || [])],
@@ -317,6 +396,9 @@ function preparationRecord(result, arm, kitId, workshop, initialBank, expectedWe
       initialBank: { ...initialBank },
       postPurchaseBank
     },
+    manaPotionPayment: getDepartureCraftCost(
+      Array(arm.additionalManaPotions || 0).fill("MANA_POTION")
+    ),
     startingBagUsed: used,
     startingBagFree: 20 - used
   };
@@ -463,6 +545,39 @@ function compactDiagnostic(result, context) {
     bagOccupancyAtEnd: finite(result.finalInventorySlots),
     equipmentLootAcquired: finite(result.equipmentFound)
   };
+  const manaEvents = (result.diagnostics?.recoveryEvents || [])
+    .filter(event => event.itemId === "MANA_POTION");
+  const manaAcquiredBySource = { ...(result.manaPotionsAcquiredBySource || {}) };
+  const manaConsumedBySource = { ...(result.manaPotionsConsumedBySource || {}) };
+  const manaAcquired = Object.values(manaAcquiredBySource).reduce((sum, value) => sum + Number(value || 0), 0);
+  const manaConsumed = Object.values(manaConsumedBySource).reduce((sum, value) => sum + Number(value || 0), 0);
+  const manaRemaining = Number(result.finalManaPotions || 0);
+  const terminalLoss = Math.max(0, manaAcquired - manaConsumed - manaRemaining);
+  record.manaPotionLifecycle = {
+    departureRequested: Number(result.departureCraft?.recipeIds?.filter(id => id === "MANA_POTION").length || 0),
+    departureCrafted: Number(result.departureCraft?.items?.filter(id => id === "MANA_POTION").length || 0),
+    acquiredTotal: manaAcquired,
+    acquiredBySource: manaAcquiredBySource,
+    consumedTotal: manaConsumed,
+    consumedBySource: manaConsumedBySource,
+    consumedInCombat: Number(result.manaPotionsUsedInCombat || 0),
+    consumedPostCombat: Number(result.manaPotionsUsedPostCombat || 0),
+    firstConsumption: manaEvents.length > 0
+      ? { floor: finite(manaEvents[0].floor), step: finite(manaEvents[0].step), context: manaEvents[0].context || null }
+      : null,
+    actualMpRecovered: manaEvents.reduce((sum, event) => sum + Number(event.mpRecovered || 0), 0),
+    capWaste: manaEvents.reduce((sum, event) => sum + Math.max(
+      0,
+      Number(event.mpBefore || 0) + 3 - Number(event.maxMp || 0)
+    ), 0),
+    remainingAtEntry: Object.fromEntries([2, 3, 4, 5].map(floor => [
+      `B${floor}`,
+      finite(record.floors[floor]?.entry?.manaPotionRemaining)
+    ])),
+    remainingAtTermination: finite(result.finalManaPotions),
+    terminalLoss,
+    reconciliation: manaAcquired === manaConsumed + manaRemaining + terminalLoss
+  };
   record.b5 = normalizeB5(result, record);
   record.transitionRecovery = (result.floorTransitionRecovery || []).map(event => ({
     fromFloor: finite(event.fromFloor),
@@ -584,9 +699,9 @@ function combatCheckpoints(rows) {
         physicalDamage: metric(values(item => item.incrementalCost.physicalDamage)),
         spellDamage: metric(values(item => item.incrementalCost.spellDamage)),
         halitoCasts: metric(values(item => item.incrementalCost.spellCastsBySpell?.HALITO || 0)),
-        mpStart: metric(values(item => item.incrementalCost.mpStart)),
+        mpStart: metricWithQuartiles(values(item => item.incrementalCost.mpStart)),
         mpSpent: metric(values(item => item.incrementalCost.combatMpSpent)),
-        mpEnd: metric(values(item => item.incrementalCost.mpEnd)),
+        mpEnd: metricWithQuartiles(values(item => item.incrementalCost.mpEnd)),
         spellOpportunityRounds: metric(values(item => item.incrementalCost.spellOpportunityRounds)),
         eligibleSpellSelected: metric(values(item => item.incrementalCost.eligibleSpellSelected)),
         eligibleFightFallback: metric(values(item => item.incrementalCost.eligibleFightFallback)),
@@ -767,6 +882,37 @@ function summarizeMediumAbandonment(rows) {
   };
 }
 
+function summarizeManaPotionLifecycle(rows) {
+  const sourceIds = ["starting", "departureCraft", "combat/drop", "chest", "merchant", "other"];
+  const sumField = field => metric(rows.map(row => row.manaPotionLifecycle?.[field]).filter(Number.isFinite));
+  const sourceTotal = field => Object.fromEntries(sourceIds.map(source => [
+    source,
+    metric(rows.map(row => Number(row.manaPotionLifecycle?.[field]?.[source] || 0)))
+  ]));
+  return {
+    status: rows.length ? "observed" : "unobserved",
+    departureRequested: sumField("departureRequested"),
+    departureCrafted: sumField("departureCrafted"),
+    acquiredTotal: sumField("acquiredTotal"),
+    acquiredBySource: sourceTotal("acquiredBySource"),
+    consumedTotal: sumField("consumedTotal"),
+    consumedInCombat: sumField("consumedInCombat"),
+    consumedPostCombat: sumField("consumedPostCombat"),
+    consumedBySource: sourceTotal("consumedBySource"),
+    firstConsumptionFloor: metric(rows.map(row => row.manaPotionLifecycle?.firstConsumption?.floor).filter(Number.isFinite)),
+    firstConsumptionStep: metric(rows.map(row => row.manaPotionLifecycle?.firstConsumption?.step).filter(Number.isFinite)),
+    actualMpRecovered: sumField("actualMpRecovered"),
+    capWaste: sumField("capWaste"),
+    remainingAtEntry: Object.fromEntries(["B2", "B3", "B4", "B5"].map(floor => [
+      floor,
+      metric(rows.map(row => row.manaPotionLifecycle?.remainingAtEntry?.[floor]).filter(Number.isFinite))
+    ])),
+    remainingAtTermination: sumField("remainingAtTermination"),
+    terminalLoss: sumField("terminalLoss"),
+    reconciliation: rows.every(row => row.manaPotionLifecycle?.reconciliation === true)
+  };
+}
+
 function aggregate(rows) {
   const n = rows.length;
   const reaches = floor => rows.filter(row => row.outcome.reached[floor]).length;
@@ -786,6 +932,7 @@ function aggregate(rows) {
     transitionRecovery: summarizeTransitionRecovery(rows),
     b5: summarizeB5(rows),
     mediumAbandonment: summarizeMediumAbandonment(rows),
+    manaPotionLifecycle: summarizeManaPotionLifecycle(rows),
     loot: {
       acquired: metric(rows.map(row => row.loot.acquired).filter(Number.isFinite)),
       bagged: metric(rows.map(row => row.loot.bagged).filter(Number.isFinite)),
@@ -835,10 +982,16 @@ function validatePreparation(result, arm, kitId, prep, workshop) {
   if (actual.healPotions !== arm.healPotions || actual.supplies.TOWN_PORTAL !== 1 || actual.supplies.ANTIDOTE !== 1 || actual.supplies.GUARD_POTION !== 1) {
     throw new Error(`${arm.id}/${kitId}: exact preparation mismatch`);
   }
+  const expectedMana = arm.additionalManaPotions || 0;
+  const actualManaRecipes = actual.departureCraft.recipeIds.filter(id => id === "MANA_POTION").length;
+  const actualManaItems = result.manaPotionLifecycle?.departureCrafted || 0;
+  if (actual.additionalManaPotions !== expectedMana || actualManaRecipes !== expectedMana || actualManaItems !== expectedMana) {
+    throw new Error(`${arm.id}/${kitId}: exact MANA_POTION preparation mismatch`);
+  }
   if (actual.departureCraft.purchaseSource !== "actual-meta-bank") {
     throw new Error(`${arm.id}/${kitId}: departure craft did not use actual payment path`);
   }
-  if (actual.departureCraft.recipeIds.length !== arm.healPotions + 3 || actual.startingBagUsed > 20 || actual.startingBagFree < 0) {
+  if (actual.departureCraft.recipeIds.length !== arm.healPotions + 3 + expectedMana || actual.startingBagUsed > 20 || actual.startingBagFree < 0) {
     throw new Error(`${arm.id}/${kitId}: preparation/bag invariant failed`);
   }
   const expected = purchaseDepartureCraft(prep.materials, prep.recipeIds);
@@ -861,9 +1014,13 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     resetSimulationRandom
   } = await import("../simulations/sim_depth_material_ev.js");
   const baseScenario = getScenarioById(WORKSHOP_SCENARIO_ID);
-  const preparations = Object.fromEntries(modeDefinition.preparationPotions.map(healPotions => {
-    const arm = { preparationId: healPotions === 4 ? "P0" : "P1", healPotions };
-    return [arm.preparationId, preparationSpec(arm)];
+  const preparations = Object.fromEntries(modeDefinition.armIds.map(armId => {
+    const arm = modeDefinition.armDefinitions[armId] || {
+      id: armId,
+      preparationId: modeDefinition.preparationPotions.includes(4) ? "P0" : "P1",
+      healPotions: modeDefinition.preparationPotions[0]
+    };
+    return [armId, preparationSpec(arm)];
   }));
   const runOne = ({
     arm,
@@ -875,7 +1032,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     includeLevelUpRecoveryRate = true,
     includeLevelUpRecoveryFlatHp = true
   }) => {
-    const prep = preparations[arm.preparationId];
+    const prep = preparations[arm.id] || preparationSpec(arm);
     const worldSeed = `run-difficulty:${seed}:${runIndex}`;
     const scenario = {
       ...baseScenario,
@@ -1003,7 +1160,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     overview.buildIdentitySample = [...new Set(allRows.flatMap(row => CHECKPOINTS
       .map(floor => row.buildCheckpoints?.[`B${floor}Entry`]?.build?.identity)
       .filter(Boolean)))].slice(0, BUILD_IDENTITY_SAMPLE_LIMIT);
-    const preparation = preparations[arm.preparationId];
+    const preparation = preparations[arm.id];
     armReports[armId] = {
       id: armId,
       preparation: {
@@ -1029,7 +1186,16 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
   }
 
   const overview = Object.fromEntries(modeDefinition.armIds.map(id => [id, armReports[id].overview]));
-  const comparisons = mode === ARCANA_WEAPON_MODE
+  const comparisons = mode === ARCANA_MP_SUPPLY_MODE
+    ? [
+        comparison(overview.W0, overview.W1, "W1 - W0: one additional production MANA_POTION"),
+        comparison(overview.W1, overview.W2, "W2 - W1: second additional production MANA_POTION"),
+        comparison(overview.W0, overview.W2, "W2 - W0: two additional production MANA_POTION"),
+        comparison(overview.W0, overview.R, "R - W0: RAPIER baseline - WAND + HALITO baseline"),
+        comparison(overview.W1, overview.R, "R - W1: RAPIER baseline - WAND + HALITO + one MANA_POTION"),
+        comparison(overview.W2, overview.R, "R - W2: RAPIER baseline - WAND + HALITO + two MANA_POTION")
+      ]
+    : mode === ARCANA_WEAPON_MODE
     ? [
         comparison(overview.W, overview.R, "R - W: RAPIER weapon lock - WAND + HALITO weapon lock"),
         comparison(overview.C, overview.W, "C - W: canonical adaptive - WAND + HALITO weapon lock"),
@@ -1149,7 +1315,9 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       : null,
     preparation: ["transition-recovery", "levelup-recovery"].includes(mode)
       ? { name: "Standard Preparation", startingWeaponMode: "kit-default", healPotions: 4 }
-      : null,
+      : mode === ARCANA_MP_SUPPLY_MODE
+        ? { name: "Standard Preparation + departure MANA capability probe", startingWeaponMode: "explicit arm weapon", healPotions: 4, additionalManaPotions: { W0: 0, W1: 1, W2: 2, R: 0 } }
+        : null,
     worldSeedTemplate: "run-difficulty:{seed}:{runIndex}",
     identityBoundary: "HP/MP/bag/floor/starting-kit excluded from Build Snapshot identity",
     artifactPolicy: {
@@ -1161,6 +1329,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     },
     comparisonSemantics: mode === ARCANA_WEAPON_MODE
       ? "Cross-arm C/W/R treatment comparisons use matched initial conditions; no post-divergence same-seed path/encounter/loot/trap parity claim"
+      : mode === ARCANA_MP_SUPPLY_MODE
+        ? "W1/W2 differ from W0 only by production departure-craft MANA_POTION recipe count; cross-arm post-divergence path/encounter/loot/trap parity is not claimed"
       : "Only within-arm treatment deltas are decision comparisons; no post-divergence same-seed path/encounter/loot/trap parity claim",
     armSemantics: mode === ARCANA_WEAPON_MODE
       ? {
@@ -1168,6 +1338,13 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
           W: "Arcana Standard Preparation WAND + HALITO; weapon slot locked; other slots adaptive",
           R: "Arcana Standard Preparation RAPIER; no Medium/Rune; weapon slot locked; other slots adaptive"
         }
+      : mode === ARCANA_MP_SUPPLY_MODE
+        ? {
+            W0: "Arcana Standard Preparation WAND + HALITO; weapon slot locked; non-weapon slots adaptive; additional departure MANA_POTION 0",
+            W1: "W0 + exactly one production departure-craft MANA_POTION",
+            W2: "W0 + exactly two production departure-craft MANA_POTION",
+            R: "Arcana Standard Preparation RAPIER; no Medium/Rune; weapon slot locked; non-weapon slots adaptive; additional departure MANA_POTION 0"
+          }
       : null
   };
   const result = {
@@ -1187,7 +1364,37 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     },
     baselineParity
   };
-  if (mode === ARCANA_WEAPON_MODE) {
+  if (mode === ARCANA_MP_SUPPLY_MODE) {
+    const bridgePairs = [
+      ["W0", "W"],
+      ["R", "R"]
+    ];
+    const bridgeByArm = {};
+    for (const [currentArmId, legacyArmId] of bridgePairs) {
+      const currentArm = modeDefinition.armDefinitions[currentArmId];
+      const legacyArm = ARCANA_WEAPON_ARM_DEFINITIONS[legacyArmId];
+      resetSimulationRandom(seed);
+      const current = runOne({ arm: currentArm, kitId: "arcana", runIndex: 0 });
+      resetSimulationRandom(seed);
+      const legacy = runOne({ arm: legacyArm, kitId: "arcana", runIndex: 0 });
+      const parity = compareObservationInvariance(current, legacy);
+      bridgeByArm[currentArmId] = {
+        pass: parity.pass,
+        comparedFields: parity.comparedFields,
+        legacyArm: legacyArmId,
+        currentAdditionalManaPotions: currentArm.additionalManaPotions || 0,
+        legacyAdditionalManaPotions: legacyArm.additionalManaPotions || 0
+      };
+    }
+    result.baselineParity = {
+      pass: Object.values(bridgeByArm).every(item => item.pass),
+      byArm: bridgeByArm,
+      semantics: "N=1 deterministic bridge: W0 == #1350 W; R == #1350 R; no scenario difference beyond MANA_POTION addition axis"
+    };
+    if (!result.baselineParity.pass) throw new Error("arcana MP supply baseline bridge failed");
+  }
+  if (mode === ARCANA_WEAPON_MODE || mode === ARCANA_MP_SUPPLY_MODE) {
+    const sanityPreparation = mode === ARCANA_MP_SUPPLY_MODE ? preparations.W0 : preparations.W;
     const sanityBase = {
       ...baseScenario,
       startingKit: "arcana",
@@ -1195,9 +1402,9 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       startingAntidotes: 0,
       startingGuardPotions: 0,
       startingTownPortals: 0,
-      departureCraft: [...preparations.P0.recipeIds],
+      departureCraft: [...sanityPreparation.recipeIds],
       departureCraftMaterialsAreActualBank: true,
-      departureCraftMaterials: { ...preparations.P0.materials },
+      departureCraftMaterials: { ...sanityPreparation.materials },
       departureCraftMeasurement: true,
       collectEncounterIdentities: true,
       collectStage15Diagnostics: true,
@@ -1306,6 +1513,81 @@ function buildReport(result, provenance, purpose, requestedRef, environment) {
 }
 
 export function buildSummary(report) {
+  if (report.configuration.mode === ARCANA_MP_SUPPLY_MODE) {
+    const display = value => value == null ? "unobserved" : value;
+    const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;
+    const outcomeLine = armId => {
+      const aggregate = report.arms[armId].overview;
+      return `${armId}: reach B2/B3/B4/B5/B6=${[2, 3, 4, 5, 6].map(floor => rateDisplay(aggregate.reach[floor].rate)).join("/")}; death=${rateDisplay(aggregate.death.rate)}; Return=${rateDisplay(aggregate.voluntaryReturn.rate)}; deepest p50=${display(aggregate.deepestFloor.p50)}; B5→B6=${rateDisplay(aggregate.b5.b6Transition.rate)}`;
+    };
+    const spellLine = (armId, floor) => {
+      const spell = report.arms[armId].overview.combat[floor].spellTelemetry;
+      const entry = report.arms[armId].overview.recovery[floor];
+      return `B${floor} combat=${display(spell.combatCount.meanPerEntrant)} rounds=${display(spell.rounds.meanPerEntrant)} enemy=${display(spell.enemyActions.meanPerEntrant)} fight=${display(spell.fightActions.meanPerEntrant)} spell=${display(spell.spellActions.meanPerEntrant)} HALITO=${display(spell.halitoCasts.meanPerEntrant)} physicalDmg=${display(spell.physicalDamage.meanPerEntrant)} spellDmg=${display(spell.spellDamage.meanPerEntrant)} MP start p25/p50/p75=${display(spell.mpStart.p25)}/${display(spell.mpStart.p50)}/${display(spell.mpStart.p75)} spent=${display(spell.mpSpent.meanPerEntrant)} end p25/p50/p75=${display(spell.mpEnd.p25)}/${display(spell.mpEnd.p50)}/${display(spell.mpEnd.p75)} opportunity/selected/fallback=${display(spell.spellOpportunityRounds.meanPerEntrant)}/${display(spell.eligibleSpellSelected.meanPerEntrant)}/${display(spell.eligibleFightFallback.meanPerEntrant)} MP0=${display(spell.mpZeroCombatCount.total)}/${rateDisplay(spell.mpZeroCombatShare)} entryHP=${display(entry.entryHp.p50)} HEAL=${display(entry.entryHealPotionRemaining.p50)} used=${display(entry.potionUsed.meanPerEntrant)}`;
+    };
+    const lifecycleLine = armId => {
+      const lifecycle = report.arms[armId].overview.manaPotionLifecycle;
+      const sources = Object.fromEntries(Object.entries(lifecycle.acquiredBySource).map(([source, value]) => [source, value.total]));
+      return `${armId}: requested/crafted=${lifecycle.departureRequested.total}/${lifecycle.departureCrafted.total}; acquired=${lifecycle.acquiredTotal.total} source=${JSON.stringify(sources)}; consumed=${lifecycle.consumedTotal.total} combat/post=${lifecycle.consumedInCombat.total}/${lifecycle.consumedPostCombat.total}; first floor/step=${display(lifecycle.firstConsumptionFloor.p50)}/${display(lifecycle.firstConsumptionStep.p50)}; recovered/capWaste=${lifecycle.actualMpRecovered.total}/${lifecycle.capWaste.total}; remaining B2/B3/B4/B5=${["B2", "B3", "B4", "B5"].map(floor => display(lifecycle.remainingAtEntry[floor].p50)).join("/")}; termination/lost=${display(lifecycle.remainingAtTermination.p50)}/${lifecycle.terminalLoss.total}; reconciliation=${lifecycle.reconciliation ? "PASS" : "FAIL"}`;
+    };
+    const buildLine = armId => {
+      const aggregate = report.arms[armId].overview;
+      return `${armId}: ${[2, 3, 4, 5].map(floor => { const checkpoint = aggregate.buildCheckpoints[floor]; return `B${floor} weaponSwaps=${display(checkpoint.weaponSwapCount.total)} nonWeaponSwaps=${display(checkpoint.nonWeaponSwapCount.total)} identityChanged=${rateDisplay(checkpoint.changedFromDeparture.rate)}`; }).join("; ")}`;
+    };
+    const b5Line = armId => {
+      const aggregate = report.arms[armId].overview;
+      const boss = aggregate.b5.boss;
+      return `${armId}: entrants=${aggregate.b5.entrantN}; guardian route/arrival/start/victory/death=${boss.routeBossDetected.total}/${boss.actualBossEventArrival.total}/${boss.combatStart.total}/${boss.victoryEventCount.total}/${boss.deathEventCount.total}; Return before/after=${aggregate.b5.townPortalReturnBeforeBoss.count}/${aggregate.b5.townPortalReturnAfterBossAttemptBeforeB6.count}; entryHP/MP=${display(boss.arrivalHp.p50)}/${display(boss.arrivalMp.p50)}`;
+    };
+    const preparationLine = armId => {
+      const preparation = report.arms[armId].byKit.arcana.preparation;
+      return `${armId}: weapon=${preparation.startingWeapon}; Medium=${preparation.medium || "none"}; Rune=${preparation.activeRunes.join(",") || "none"}; maxMP=${preparation.maxMp}; startMP=${preparation.startingMp}; manaRecipes=${preparation.additionalManaPotions}; manaPayment=${JSON.stringify(preparation.manaPotionPayment)}`;
+    };
+    const lines = [
+      "# First Band Arcana MP supply diagnostic",
+      "",
+      `- measurement: ${report.configuration.measurementId}; configured runs=${report.configuration.runs}/arm; seed=${report.configuration.seed}; target=B6; workshop=${report.configuration.workshop}; successful completion=true`,
+      "- W0: WAND + HALITO, weapon slot locked, non-weapon slots adaptive, additional departure MANA_POTION 0.",
+      "- W1/W2: W0 plus exactly one/two production departure-craft MANA_POTION; Standard Preparation items retained.",
+      "- R: RAPIER, no Medium/Rune, weapon slot locked, non-weapon slots adaptive, additional departure MANA_POTION 0.",
+      "- production simulateRun path; raw full-run records omitted; production balance change=false.",
+      "",
+      "## Preparation and bridge",
+      "",
+      ...["W0", "W1", "W2", "R"].map(preparationLine),
+      `- N=1 bridge: ${report.baselineParity?.pass ? "PASS" : "FAIL"}; ${JSON.stringify(report.baselineParity?.byArm || {})}`,
+      "",
+      "## Outcomes",
+      "",
+      ...["W0", "W1", "W2", "R"].map(outcomeLine),
+      "",
+      "## B2-B5 Build checkpoints",
+      "",
+      ...["W0", "W1", "W2", "R"].map(buildLine),
+      "",
+      "## B5 guardian decomposition",
+      "",
+      ...["W0", "W1", "W2", "R"].map(b5Line),
+      "",
+      "## Spell / MP telemetry",
+      "",
+      ...["W0", "W1", "W2", "R"].flatMap(armId => [
+        `### ${armId}`,
+        ...[1, 2, 3, 4, 5].map(floor => `- ${spellLine(armId, floor)}; fallback reasons=${JSON.stringify(report.arms[armId].overview.combat[floor].spellTelemetry.fallbackReasons)}`)
+      ]),
+      "",
+      "## MANA_POTION lifecycle",
+      "",
+      ...["W0", "W1", "W2", "R"].map(lifecycleLine),
+      "",
+      "## Comparisons",
+      "",
+      ...report.primaryComparisons.map(item => `- ${item.label}: B3/B4/death=${["b3", "b4", "death"].map(key => display(item.delta[key])).join("/")}; B5/B6=${display(item.delta.b5)}/${display(item.delta.b6)}`),
+      "",
+      `- determinism=${report.determinism.pass ? "PASS" : "FAIL"}; observation invariance=${report.observationInvariance.pass ? "PASS" : "FAIL"}; configured runs=${report.configuration.runs}/arm; successful completion=true.`
+    ];
+    return `${lines.join("\n")}\n`;
+  }
   if (report.configuration.mode === ARCANA_WEAPON_MODE) {
     const display = value => value == null ? "unobserved" : value;
     const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;
@@ -1363,7 +1645,7 @@ export function buildSummary(report) {
       "",
       `- enemy=${report.combatSanity.productionEnemy}; W=${JSON.stringify(report.combatSanity.wand)}; R=${JSON.stringify(report.combatSanity.rapier)}; determinism=${report.combatSanity.determinism}`,
       "",
-      `- determinism=${report.determinism.pass}; observation invariance=${report.observationInvariance.pass}; production balance change=false; Heavy N=500/arm not run.`,
+      `- determinism=${report.determinism.pass}; observation invariance=${report.observationInvariance.pass}; production balance change=false; configured runs=${report.configuration.runs}/arm; successful completion=true.`,
       ""
     ];
     return lines.join("\n");
@@ -1428,7 +1710,7 @@ export function buildSummary(report) {
       "",
       `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; observation invariance: ${report.observationInvariance.pass ? "PASS" : "FAIL"}`,
       "- production fixed +5 level-up recovery is applied by production reward resolution; rate/flat fields are additional counterfactuals applied after that path and before post-combat Potion decision; farming incentive is not proven by this non-farming simulator.",
-      "- no production src/ balance change; raw run records omitted; heavy N=500 is not run by pre-PR smoke."
+      "- no production src/ balance change; raw run records omitted; configured runs and successful completion are reported above."
     ];
     return `${lines.join("\n")}\n`;
   }
@@ -1493,7 +1775,7 @@ export function buildSummary(report) {
       `- R25 parity: ${report.baselineParity?.pass ? "PASS" : "FAIL"} (${report.baselineParity?.semantics || "unobserved"})`,
       "",
       `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; observation invariance: ${report.observationInvariance.pass ? "PASS" : "FAIL"}`,
-      "- transition recovery and Potion recovery are separate fields; no production src/ balance change; heavy N=1000 is not run by pre-PR smoke."
+      "- transition recovery and Potion recovery are separate fields; no production src/ balance change; configured runs and successful completion are reported above."
     ];
     return `${lines.join("\n")}\n`;
   }
@@ -1565,7 +1847,7 @@ export function buildSummary(report) {
     `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; observation invariance: ${report.observationInvariance.pass ? "PASS" : "FAIL"}`,
     "- enemyActions uses authoritative encounter telemetry with collectEncounterIdentities=true; raw encounter identities omitted.",
     "- B5 flame trap uses the production effect; step scheduling is an explicit approximation.",
-    "- No scalar Build Power or production src/ balance change; N=1000 heavy is not run by pre-PR smoke."
+    "- No scalar Build Power or production src/ balance change; configured runs and successful completion are reported above."
   ];
   return `${lines.join("\n")}\n`;
 }

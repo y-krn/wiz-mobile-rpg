@@ -1546,6 +1546,7 @@ if (!EQUIPMENT_CRAFT_POLICY_IDS.includes(SIM_EQUIPMENT_CRAFT_POLICY)) {
 const TRACKED_CONSUMABLE_SOURCE_IDS = Object.freeze([
   "starting",
   "departureCraft",
+  "combat/drop",
   "chest",
   "merchant",
   "other"
@@ -2337,6 +2338,7 @@ function createStage15FloorTelemetry(floor) {
     entryHpRatio: null,
     entryRecoveryRemaining: null,
     entryHealPotionRemaining: null,
+    entryManaPotionRemaining: null,
     entryCureItems: null,
     entryStatus: null,
     entryBuildSnapshot: null,
@@ -2355,6 +2357,7 @@ function createStage15FloorTelemetry(floor) {
     exitMpRatio: null,
     exitRecoveryRemaining: null,
     exitHealPotionRemaining: null,
+    exitManaPotionRemaining: null,
     exitCureItems: null,
     exitStatus: null,
     exitBuildSnapshot: null,
@@ -2482,6 +2485,7 @@ function startStage15Floor(state, metrics, floor, scoringProfile = null) {
     item === "HEAL_POTION" || item === "GREATER_HEAL"
   ).length;
   telemetry.entryHealPotionRemaining = state.inventory.filter(item => item === "HEAL_POTION").length;
+  telemetry.entryManaPotionRemaining = state.inventory.filter(item => item === "MANA_POTION").length;
   telemetry.entryCureItems = countInventoryItems(state.inventory);
   telemetry.entryStatus = character.status;
   telemetry.entryBuildSnapshot = createBuildSnapshot(state, scoringProfile, "floor-entry");
@@ -2555,6 +2559,7 @@ function finalizeStage15Floor(state, metrics, floor, status, terminationReason =
     item === "HEAL_POTION" || item === "GREATER_HEAL"
   ).length;
   telemetry.exitHealPotionRemaining = state.inventory.filter(item => item === "HEAL_POTION").length;
+  telemetry.exitManaPotionRemaining = state.inventory.filter(item => item === "MANA_POTION").length;
   telemetry.exitCureItems = countInventoryItems(state.inventory);
   telemetry.exitStatus = character.status;
   telemetry.exitBuildSnapshot = createBuildSnapshot(state, null, "floor-exit");
@@ -5742,6 +5747,7 @@ function recordDiagnosticRecoveryEvent(
     hpAfter: character.hp,
     mpBefore: Number.isFinite(mpBefore) ? mpBefore : character.mp,
     mpAfter: character.mp,
+    maxMp: getCharMaxMp(character),
     hpRecovered: Math.max(0, character.hp - (Number.isFinite(hpBefore) ? hpBefore : character.hp)),
     mpRecovered: Math.max(0, character.mp - (Number.isFinite(mpBefore) ? mpBefore : character.mp)),
     hpRequested: Math.max(0, Number(hpRequested) || 0),
@@ -5774,6 +5780,9 @@ function recordDiagnosticCost(
 }
 
 function normalizeTrackedConsumableSource(source) {
+  if (["combat", "fromDrop", "secretRoom", "ordinary", "special-reward"].includes(source)) {
+    return "combat/drop";
+  }
   return TRACKED_CONSUMABLE_SOURCE_IDS.includes(source) ? source : "other";
 }
 
@@ -8773,6 +8782,11 @@ function runEncounter(
         "combatManaPotion",
         Math.max(0, state.party[0].mp - characterBeforeRound.mp)
       );
+      recordDiagnosticRecoveryEvent(metrics, state, "MANA_POTION", "combat", {
+        hpBefore: characterBeforeRound.hp,
+        mpBefore: characterBeforeRound.mp,
+        statusBefore: characterBeforeRound.status
+      });
     }
     if (consumableCountBefore !== null) {
       const consumableCountAfter = state.inventory.filter(item => item === action.itemKey).length;
@@ -14681,6 +14695,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     trapDetectionCapHits: metrics.trapDetectionCapHits,
     trapTeleports: metrics.trapTeleports,
     finalHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
+    finalManaPotions: state.inventory.filter(item => item === "MANA_POTION").length,
     finalGreaterHeals: state.inventory.filter(item => item === "GREATER_HEAL").length,
     finalRecoveryPotions: state.inventory.filter(item =>
       item === "HEAL_POTION" || item === "GREATER_HEAL"
