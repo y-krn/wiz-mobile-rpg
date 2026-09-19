@@ -1,15 +1,20 @@
 # Merge gate
 
-The merge gate has two separate responsibilities:
+The merge gate has three distinct responsibilities:
 
 - **GitHub protections** are objective repository controls. Keep pull requests
   required, required status checks enabled, the branch up to date with its
   base, and bypass prohibited. Do not add an approval requirement. These
   protections must not be weakened to accommodate the review workflow.
-- **Independent review** is a Codex-native safety check recorded on the pull
-  request. It supplements GitHub's protections; it does not replace them.
+- **Standard gate** is the owning session's self-review plus required
+  current-head CI. GitHub protections remain in force.
+- **Independent review** is optional and runs only when the user explicitly
+  requests it. It supplements GitHub's protections; it does not replace them.
 
-## Independent review
+## Optional independent review (explicit user request only)
+
+Do not initiate this review during normal Issue delivery. Run it only after the
+user explicitly requests independent review.
 
 A review passes only when all of the following are true:
 
@@ -87,7 +92,8 @@ completion-aware wait and refetch. They are not failures, but the gate must
 not pass until the current head's required checks succeed. A failed,
 cancelled, or timed-out required check stops the merge.
 
-The final merge decision therefore requires both a passing independent review
-whose evidence is valid for the current change set and passing required CI for
-the current pull request head, while GitHub's repository protections remain in
-force.
+The standard gate therefore requires a clean owning-session self-review and
+passing required CI for the current pull request head, while GitHub's repository
+protections remain in force. If the user explicitly requests independent
+review, report its evidence separately; it does not replace self-review or
+required CI.

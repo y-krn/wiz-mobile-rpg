@@ -82,17 +82,20 @@ Include the summary, scoped boundaries, acceptance/evidence dispositions,
 current verification, `BASE_SHA`, `HEAD_SHA`, changed files, omitted checks,
 canon impact, and current review/CI state.
 
-Apply `.agents/merge-gate.md` to the fixed PR head: obtain valid independent
-review evidence for the current change set and evaluate required CI for the
-current head. Pending checks require a bounded wait; failure, timeout, or
-cancellation blocks completion. Merge, deploy, and auto-merge are outside
-this skill's authorization.
+Apply `.agents/merge-gate.md` to the fixed PR head: complete the owning
+session's self-review and evaluate required CI for the current head. Do not
+autonomously create a review-purpose subagent or separate session. Independent
+review is optional and runs only when the user explicitly requests it; use the
+`pr-review` Skill for that request. Pending checks require a bounded wait;
+failure, timeout, or cancellation blocks completion. Merge, deploy, and
+auto-merge are outside this skill's authorization.
 
 ## Stop conditions
 
 Stop and report the blocker when the repository/worktree is wrong, the base is
 stale or changed unexpectedly, unrelated changes cannot be preserved, an
 acceptance criterion is ambiguous or lacks evidence, scope crosses the stated
-boundary, a required check fails, review evidence is stale or unresolved, or
-the bounded CI wait expires. Do not turn a timeout into approval or silently
-expand scope to make the Issue pass.
+boundary, a required check fails, self-review evidence is missing or
+unresolved, explicitly requested independent-review evidence is stale or
+unresolved, or the bounded CI wait expires. Do not turn a timeout into approval
+or silently expand scope to make the Issue pass.
