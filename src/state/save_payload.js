@@ -6,6 +6,7 @@ import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 import { isUsableCombatState } from "./view_state.js";
 import { normalizeRecords } from "./records_state.js";
 import { EQUIPMENT_SLOTS } from "../rules/equipment_slots.js";
+import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 
 const STABLE_PERSISTED_GAME_STATES = new Set([
   "town", "explore", "combat", "result", "gameover", "victory"
@@ -100,6 +101,9 @@ export function createSavePayload() {
   const persistedCombatState = isUsableCombatState(state.combatState)
     ? {
       ...state.combatState,
+      lastActions: Array.isArray(state.combatState.lastActions)
+        ? normalizeCombatActions(state.combatState.lastActions)
+        : null,
       monsters: state.combatState.monsters.map(monster => {
         const persistedMonster = { ...monster };
         normalizeStatusEffectTarget(persistedMonster);

@@ -27,4 +27,13 @@ state.inventory = ["MANA_POTION"];
 state.combatState.lastActions = [{ type: "item", actorIdx: 0, targetIdx: 0, itemKey: "HEAL_POTION", itemIdx: 0 }];
 assert.equal(getRepeatActionStatus().available, false);
 
+state.combatState.lastActions = [
+  { type: "spell", actorIdx: 0, targetIdx: 0 },
+  { type: "defend", actorIdx: 0 }
+];
+assert.equal(getRepeatActionStatus().available, true, "malformed raw action must not be trusted over valid action");
+
+state.combatState.lastActions = [{ type: "spell", actorIdx: 0, targetIdx: 0 }];
+assert.equal(getRepeatActionStatus().available, false, "malformed raw action must fail closed");
+
 console.log("[PASS] combat repeat action validates live targets and never falls back");

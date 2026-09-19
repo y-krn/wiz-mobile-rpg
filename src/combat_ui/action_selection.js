@@ -5,7 +5,7 @@ import { SPELLS, ITEMS, getSpellPayment } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { chooseAutoCombatAction, getAutoHealTargetIdx } from "../combat_logic/auto_action.js";
-import { combatSelection } from "./combat_state.js";
+import { combatSelection, queueCombatAction } from "./combat_state.js";
 import { resolveCombatRound } from "./round_runner.js";
 import { openCombatTargetMenu } from "./target_menu.js";
 import { openCombatSpellMenu } from "./spell_menu.js";
@@ -14,6 +14,7 @@ import { openSubmenu } from "../navigation.js";
 import { COMBAT_SPELL_TARGETS, getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 import { getItemBaseId } from "../rules/item_rules.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
+import { assignCombatActor, normalizeCombatActions } from "../combat_logic/combat_action.js";
 import {
   trackCombatDecisionCancel,
   trackCombatDecisionPending
@@ -31,7 +32,8 @@ function getCurrentSelectionActor() {
 function getLastActionForCurrentActor() {
   const current = getCurrentSelectionActor();
   if (!current || !Array.isArray(state.combatState?.lastActions)) return null;
-  return state.combatState.lastActions.find(action => action?.actorIdx === current.index) || null;
+  return normalizeCombatActions(state.combatState.lastActions)
+    .find(action => action.actorIdx === current.index) || null;
 }
 
 function isRepeatableAction(action, actorIdx) {
@@ -77,7 +79,7 @@ export function getRepeatActionStatus() {
 export function repeatLastCombatAction() {
   const status = getRepeatActionStatus();
   if (!status.available) return false;
-  combatSelection.actions.push({ ...status.action, actorIdx: status.actorIdx });
+  queueCombatAction({ ...status.action, actorIdx: status.actorIdx });
   combatSelection.charIdx++;
   advanceActionSelection();
   return true;
@@ -165,10 +167,8 @@ export function advanceActionSelection() {
             (payment.resource !== "mp" || character.mp - reserveMp >= payment.cost);
         }
       });
-      combatSelection.actions.push({
-        ...(autoAction || { type: "fight", targetIdx: 0 }),
-        actorIdx: charOriginalIdx
-      });
+      const queuedAction = assignCombatActor(autoAction || { type: "fight", targetIdx: 0 }, charOriginalIdx);
+      if (queuedAction) queueCombatAction(queuedAction);
       combatSelection.charIdx++;
     }
   }
@@ -197,7 +197,7 @@ export function selectCombatAction(type) {
     openCombatTargetMenu("enemy", (targetIdx) => {
       if (!canCommitCombatAction() || !isValidEnemyTarget(targetIdx)) return;
       state.gameState = "combat";
-      combatSelection.actions.push({
+      queueCombatAction({
         type: "fight",
         actorIdx: charOriginalIdx,
         targetIdx
@@ -232,7 +232,7 @@ export function selectCombatAction(type) {
         openCombatTargetMenu("enemy", (targetIdx) => {
           if (!canCommitCombatAction() || !isValidEnemyTarget(targetIdx)) return;
           state.gameState = "combat";
-          combatSelection.actions.push({
+          queueCombatAction({
             type: "spell",
             actorIdx: charOriginalIdx,
             targetIdx,
@@ -254,7 +254,7 @@ export function selectCombatAction(type) {
           if (!canCommitCombatAction() || !isUsableSpellForActor(state.party, charOriginalIdx, spellName, "single_ally") ||
               !isValidAllyTarget(targetIdx, getSpellAllyTargetIndices(spellName, state.party))) return;
           state.gameState = "combat";
-          combatSelection.actions.push({
+          queueCombatAction({
             type: "spell",
             actorIdx: charOriginalIdx,
             targetIdx,
@@ -282,7 +282,7 @@ export function selectCombatAction(type) {
         // All enemies / all allies
         if (!canCommitCombatAction()) return;
         state.gameState = "combat";
-        combatSelection.actions.push({
+        queueCombatAction({
           type: "spell",
           actorIdx: charOriginalIdx,
           targetIdx: -1, // targets all
@@ -323,7 +323,7 @@ export function selectCombatAction(type) {
       const enqueueAllyItem = (targetIdx) => {
         if (!canCommitCombatAction() || !isValidAllyTarget(targetIdx, getItemAllyTargetIndices(state.party))) return;
         state.gameState = "combat";
-        combatSelection.actions.push({
+        queueCombatAction({
           type: "item",
           actorIdx: charOriginalIdx,
           targetIdx,
@@ -351,7 +351,7 @@ export function selectCombatAction(type) {
       }
     });
   } else if (type === "defend") {
-    combatSelection.actions.push({
+    queueCombatAction({
       type: "defend",
       actorIdx: charOriginalIdx
     });
@@ -364,7 +364,7 @@ export function selectCombatAction(type) {
     combatSelection.charIdx++;
     advanceActionSelection();
   } else if (type === "run") {
-    combatSelection.actions.push({
+    queueCombatAction({
       type: "run",
       actorIdx: charOriginalIdx
     });
