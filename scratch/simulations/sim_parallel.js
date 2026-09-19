@@ -3,8 +3,10 @@ import { availableParallelism } from "node:os";
 import { MessageChannel, Worker } from "node:worker_threads";
 
 const TSX_CLI_ENTRYPOINT = /(?:[\\/]tsx[\\/]dist[\\/]cli\.mjs|[\\/]\.bin[\\/]tsx)$/;
+const TSX_LOADER_ENTRYPOINT = /(?:[\\/]tsx[\\/]dist[\\/]loader\.mjs|^tsx[\\/]esm$)/;
 const USE_TSX_RUNTIME = process.env.TSX_MODULE_RUNNER === "1" ||
-  process.argv.some(argument => TSX_CLI_ENTRYPOINT.test(argument));
+  process.argv.some(argument => TSX_CLI_ENTRYPOINT.test(argument)) ||
+  process.execArgv.some(argument => TSX_LOADER_ENTRYPOINT.test(argument));
 const WORKER_RUNTIME_OPTIONS = USE_TSX_RUNTIME
   ? { execArgv: ["--import", "tsx/esm"] }
   : {};
