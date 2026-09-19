@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import {
   ARM_IDS,
   ARCANA_WEAPON_MODE,
+  B5_WALL_ARM_IDS,
+  B5_WALL_MODE,
+  B5_WALL_MEASUREMENT_ID,
   CANONICAL_ADAPTIVE_POLICY_ID,
   KIT_IDS,
   MEASUREMENT_ID,
@@ -225,5 +228,31 @@ assert.equal(arcana.arms.C.overview.mediumAbandonment.departureCount, 1);
 assert.equal(arcana.arms.C.overview.mediumAbandonment.mediumLossCount, 1);
 assert.ok(arcana.arms.W.overview.combat[1].spellTelemetry.spellOpportunityRounds.total > 0);
 assert.ok(arcana.arms.W.overview.combat[1].spellTelemetry.eligibleSpellSelected.total > 0);
+
+const b5Wall = await runMeasurement({ runs: 1, seed: 1277, mode: B5_WALL_MODE });
+assert.equal(b5Wall.configuration.measurementId, B5_WALL_MEASUREMENT_ID);
+assert.deepEqual(b5Wall.configuration.arms, B5_WALL_ARM_IDS);
+assert.equal(b5Wall.configuration.preparation.recovery, "current production recovery");
+assert.equal(b5Wall.preB5Parity.pass, true);
+assert.equal(b5Wall.determinism.pass, true);
+assert.equal(b5Wall.observationInvariance.pass, true);
+assert.deepEqual(b5Wall.arms.C.samples.runs.runs[0].b5.intervention, {
+  flameTrapDisabled: false,
+  guardianFleeDisabled: false
+});
+assert.deepEqual(b5Wall.arms.F.samples.runs.runs[0].b5.intervention, {
+  flameTrapDisabled: true,
+  guardianFleeDisabled: false
+});
+assert.deepEqual(b5Wall.arms.G.samples.runs.runs[0].b5.intervention, {
+  flameTrapDisabled: false,
+  guardianFleeDisabled: true
+});
+assert.deepEqual(b5Wall.arms.FG.samples.runs.runs[0].b5.intervention, {
+  flameTrapDisabled: true,
+  guardianFleeDisabled: true
+});
+assert.deepEqual(Object.keys(b5Wall.b5Comparisons), ["F-C", "G-C", "FG-C", "interaction"]);
+assert.match(buildSummary(b5Wall), /pre-B5 parity: PASS/);
 
 console.log("first-band-build-formation diagnostic smoke: PASS");
