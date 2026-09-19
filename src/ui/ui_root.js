@@ -27,6 +27,8 @@ import {
 import { releaseFocusSurface, syncFocusSurface } from "./focus_manager.js";
 
 let floorStingerTimer = null;
+let combatEntryCueTimer = null;
+let wasCombatContext = false;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
 const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, viewport-fit=cover";
 const FLOOR_THEME_STYLE_PROPERTIES = [
@@ -249,6 +251,18 @@ export function updateUI() {
   const hasUsableCombat = view.hasCombat && view.hasUsableCombatActor;
   const isUsableCombatScreen = gameState === "combat" && hasUsableCombat;
   const isCombatOverlaySubmenu = view.isCombatOverlaySubmenu && combatOverlayTypes.includes(view.menuType);
+  const isCombatContext = (gameState === "combat" && view.hasCombat) || isCombatOverlaySubmenu;
+  const combatPhase = isCombatOverlaySubmenu
+    ? view.menuType === "combat_target"
+      ? "choose_target"
+      : view.menuType === "combat_spell"
+        ? "choose_spell"
+        : "choose_item"
+    : gameState === "combat" && state.combatState?.phase === "resolving"
+      ? "resolving"
+      : isCombatContext
+        ? "choose_action"
+        : "";
   const departurePrepSubmenu = view.isDeparturePrepSubmenu;
   const workshopSubmenu = view.isWorkshopSubmenu;
   const merchantSubmenu = view.isSubmenu && view.menuType === "milestone_merchant";
@@ -284,6 +298,14 @@ export function updateUI() {
     if (container.dataset) {
       if (isDungeonFirstMode) container.dataset.dungeonFirstState = dungeonFirstState;
       else delete container.dataset.dungeonFirstState;
+      if (isCombatContext) {
+        container.dataset.combatPhase = combatPhase;
+        container.dataset.combatContext = "active";
+      } else {
+        delete container.dataset.combatPhase;
+        delete container.dataset.combatContext;
+        delete container.dataset.combatEntry;
+      }
     }
     if (state.currentRun &&
         gameState !== "town" &&
@@ -330,8 +352,20 @@ export function updateUI() {
     const lightText = state.lightTurns > 0 ? ` (${lightLabel}:${state.lightTurns})` : "";
     const repelText = state.repelTurns > 0 ? ` (REPEL:${state.repelTurns})` : "";
     locLabel.textContent = `B${state.floor}F${themeLabel}${lightText}${repelText}`;
-  } else if (gameState === "combat") {
-    locLabel.textContent = "BATTLE ENCOUNTER";
+  } else if (isCombatContext) {
+    if (!wasCombatContext) {
+      clearTimeout(combatEntryCueTimer);
+      const reducedMotion = typeof window !== "undefined" && typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (container?.dataset) container.dataset.combatEntry = reducedMotion ? "compact" : "cue";
+      locLabel.textContent = reducedMotion ? "COMBAT" : "BATTLE ENCOUNTER";
+      combatEntryCueTimer = setTimeout(() => {
+        if (container?.dataset?.combatContext === "active") container.dataset.combatEntry = "compact";
+        if (document.getElementById("location-label")) document.getElementById("location-label").textContent = "COMBAT";
+      }, reducedMotion ? 0 : 1200);
+    } else if (container?.dataset?.combatEntry !== "cue") {
+      locLabel.textContent = "COMBAT";
+    }
   } else if (gameState === "chest") {
     locLabel.textContent = "TREASURE CHEST";
   } else if (gameState === "victory") {
@@ -339,10 +373,16 @@ export function updateUI() {
   } else if (gameState === "gameover") {
     locLabel.textContent = "GAME OVER";
   }
+  wasCombatContext = isCombatContext;
   
   // Update Goal HUD
   const goalBanner = document.getElementById("goal-banner");
   if (goalBanner) {
+    const hideCombatGoal = isCombatContext;
+    goalBanner.hidden = hideCombatGoal;
+    if (typeof goalBanner.setAttribute === "function") {
+      goalBanner.setAttribute("aria-hidden", hideCombatGoal ? "true" : "false");
+    }
     goalBanner.innerHTML = "";
     const goalRow = document.createElement("div");
     goalRow.className = "goal-row";
@@ -410,8 +450,8 @@ export function updateUI() {
   const logScrollState = captureScrollState(logPanel);
   logContent.replaceChildren();
   const eventEntries = getEventStripEntries(getLogEntries(), {
-    unresolvedLimit: 4,
-    transientLimit: RECENT_LOG_LINES - 4,
+    unresolvedLimit: isCombatContext ? 1 : 4,
+    transientLimit: isCombatContext ? 1 : RECENT_LOG_LINES - 4,
     activeObservations: state.currentRun?.eventObservations
   });
   const appendEventEntry = ({ kind, text, side, presentationKind }) => {
@@ -430,7 +470,9 @@ export function updateUI() {
   };
   // Keep unresolved observations in their own four-slot contract so a burst
   // of combat results cannot hide a threat or trap that still needs a decision.
-  const persistentEvents = [...eventEntries.unresolved, ...(eventEntries.results || [])];
+  const persistentEvents = isCombatContext
+    ? [...eventEntries.unresolved, ...(eventEntries.results || []).slice(-1)]
+    : [...eventEntries.unresolved, ...(eventEntries.results || [])];
   const transientBudget = Math.max(0, RECENT_LOG_LINES - persistentEvents.length);
   [...persistentEvents, ...eventEntries.transient.slice(-transientBudget)]
     .forEach(appendEventEntry);
@@ -552,13 +594,10 @@ export function updateUI() {
         
         const cancelBtn = document.getElementById("btn-combat-cancel");
         if (cancelBtn) {
-          if (combatSelection.charIdx === 0) {
-            cancelBtn.style.opacity = "0.3";
-            cancelBtn.style.pointerEvents = "none";
-          } else {
-            cancelBtn.style.opacity = "1";
-            cancelBtn.style.pointerEvents = "auto";
-          }
+          const canCancel = combatSelection.charIdx > 0;
+          cancelBtn.hidden = !canCancel;
+          cancelBtn.style.opacity = canCancel ? "1" : "0.3";
+          cancelBtn.style.pointerEvents = canCancel ? "auto" : "none";
         }
       }
 
@@ -577,6 +616,8 @@ export function updateUI() {
       if (repeatBtn) {
         const repeatStatus = getRepeatActionStatus();
         repeatBtn.disabled = !repeatStatus.available;
+        repeatBtn.hidden = !repeatStatus.available;
+        repeatBtn.classList.toggle("is-unavailable", !repeatStatus.available);
         repeatBtn.title = repeatStatus.available
           ? "前回の行動をこのターンに1回だけ再実行"
           : repeatStatus.reason;

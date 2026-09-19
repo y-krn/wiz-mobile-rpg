@@ -637,6 +637,10 @@
   pointer-events: none;
 }
 
+#game-container[data-combat-context="active"] #goal-banner {
+  display: none;
+}
+
 #game-container.dungeon-first-mode #goal-banner::before {
   top: 7px;
   bottom: 7px;
@@ -666,6 +670,13 @@
   background: linear-gradient(90deg, rgba(8, 14, 18, 0.58), rgba(8, 14, 18, 0.12) 76%, transparent 100%);
   box-shadow: none;
   pointer-events: none;
+}
+
+#game-container[data-combat-context="active"] #log-panel {
+  max-height: 42px;
+  bottom: calc(var(--safe-area-bottom) + 238px);
+  padding: 3px 8px;
+  background: linear-gradient(90deg, rgba(8, 14, 18, 0.48), rgba(8, 14, 18, 0.08) 76%, transparent 100%);
 }
 
 #game-container.dungeon-first-mode.event-mode #log-panel {
@@ -830,6 +841,20 @@
   box-shadow: none;
 }
 
+#game-container[data-combat-context="active"] #character-panel {
+  min-height: 48px;
+  padding: 2px 12px;
+  background: linear-gradient(0deg, rgba(8, 14, 18, 0.72), transparent);
+}
+
+#game-container[data-combat-context="active"] #character-panel .character-card {
+  min-height: 42px;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(90deg, rgba(16, 26, 33, 0.68), rgba(16, 26, 33, 0.18));
+}
+
 #game-container.dungeon-first-mode #character-panel .character-card {
   border-color: color-mix(in srgb, var(--floor-border, var(--hud-frame)) 34%, transparent);
   background: linear-gradient(105deg, rgba(25, 39, 47, 0.62), rgba(16, 26, 33, 0.3));
@@ -888,4 +913,12 @@
   #game-container.dungeon-first-mode #character-panel {
     backdrop-filter: none;
   }
+}
+
+#game-container[data-combat-entry="cue"] #location-label {
+  color: var(--neon-amber);
+}
+
+#game-container[data-combat-entry="compact"] #location-label {
+  color: var(--text-tertiary);
 }

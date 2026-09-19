@@ -92,16 +92,16 @@
 
         <!-- Combat controls (shown in combat mode) -->
         <div id="combat-controls" class="controls-group">
-          <div id="combat-prompt">行動を選択してください</div>
+          <div id="combat-prompt" role="status" aria-live="polite">行動を選択してください</div>
           <div class="combat-grid">
-            <button id="btn-combat-fight" class="btn btn-neon btn-combat">攻撃</button>
-            <button id="btn-combat-spell" class="btn btn-neon btn-combat">魔法</button>
-            <button id="btn-combat-item" class="btn btn-neon btn-combat">道具</button>
+            <button id="btn-combat-fight" class="btn btn-neon btn-combat" data-command-tier="primary" aria-label="攻撃。敵を選択">攻撃</button>
+            <button id="btn-combat-spell" class="btn btn-neon btn-combat" data-command-tier="secondary">魔法</button>
+            <button id="btn-combat-item" class="btn btn-neon btn-combat" data-command-tier="secondary">道具</button>
             <button id="btn-combat-repeat" class="btn btn-neon btn-combat" disabled>↻ 前回の行動</button>
             <!-- Kept as a compatibility hook for saved/test state; Auto is not a visible combat action. -->
             <button id="btn-combat-auto" class="btn btn-neon btn-combat" hidden aria-hidden="true">オート</button>
-            <button id="btn-combat-defend" class="btn btn-neon btn-combat">防御</button>
-            <button id="btn-combat-run" class="btn btn-neon btn-combat">逃走</button>
+            <button id="btn-combat-defend" class="btn btn-neon btn-combat" data-command-tier="secondary">防御</button>
+            <button id="btn-combat-run" class="btn btn-neon btn-combat" data-command-tier="secondary">逃走</button>
             <button id="btn-combat-cancel" class="btn btn-neon btn-combat dock-action-back" data-action-role="back">キャンセル</button>
           </div>
         </div>
