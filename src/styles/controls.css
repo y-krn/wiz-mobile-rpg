@@ -723,7 +723,7 @@
 
 #combat-controls.active {
   flex-direction: column; /* Prompt on top, action grid below */
-  gap: var(--sp-sm);
+  gap: var(--sp-xs);
 }
 
 .combat-grid {
@@ -768,6 +768,10 @@
   cursor: not-allowed;
 }
 
+#game-container[data-combat-context="active"] #btn-combat-repeat.is-unavailable {
+  display: none;
+}
+
 #btn-combat-auto {
   grid-column: 1;
   grid-row: 2;
@@ -796,6 +800,10 @@
   border-color: var(--border-strong) !important;
   color: var(--text-muted) !important;
   background: linear-gradient(180deg, rgba(26, 32, 36, 0.96), rgba(17, 23, 27, 0.96));
+}
+
+#game-container[data-combat-context="active"] #btn-combat-cancel[hidden] {
+  display: none;
 }
 #btn-combat-cancel:active {
   background-color: rgba(224, 120, 112, 0.15) !important;
@@ -1097,14 +1105,28 @@
 
 /* Combat prompt */
 #combat-prompt {
-  padding: var(--sp-xs) var(--sp-sm);
-  border-left: 2px solid var(--neon-red);
-  background: rgba(224, 120, 112, 0.08);
+  padding: 2px var(--sp-sm);
+  border-left: 2px solid var(--semantic-selected);
+  background: rgba(155, 215, 210, 0.06);
   font-family: var(--font-display);
-  font-size: var(--fs-md);
-  color: var(--neon-cyan);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
   letter-spacing: 0.04em;
   text-align: left;
+}
+
+#game-container[data-combat-context="active"] #btn-combat-fight {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+#game-container[data-combat-context="active"] #btn-combat-spell,
+#game-container[data-combat-context="active"] #btn-combat-item,
+#game-container[data-combat-context="active"] #btn-combat-defend,
+#game-container[data-combat-context="active"] #btn-combat-run {
+  font-size: var(--fs-sm);
+  background: rgba(22, 32, 39, 0.84);
+  box-shadow: none;
 }
 
 /* Trap Encounter Panel Style */

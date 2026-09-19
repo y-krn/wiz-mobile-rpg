@@ -105,6 +105,18 @@
   font-size: var(--fs-xs);
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 #character-hud > .list-empty {
   display: grid;
   min-height: 52px;

@@ -774,6 +774,22 @@ export class PixiDungeonRenderer {
       const hp = Math.max(0, Math.min(1, monster.hp / Math.max(1, monster.maxHp)));
       drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8), 5, "#ffffff", 0.12, { color: "#8e8e93", width: 1 });
       drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
+      const enemyLabel = new Text({
+        text: monster.name,
+        style: { fill: 0xffffff, fontFamily: "monospace", fontSize: 11, fontWeight: "bold", stroke: { color: 0x081016, width: 3 } }
+      });
+      enemyLabel.anchor.set(0.5, 1);
+      enemyLabel.position.set(cx, hpY - 3);
+      enemyLabel.scale.set(Math.min(1, Math.max(0.64, slotWidth / 120)));
+      actors.addChild(enemyLabel);
+      const enemyHpLabel = new Text({
+        text: `HP ${Math.max(0, monster.hp)}/${monster.maxHp}`,
+        style: { fill: 0xd7e7e8, fontFamily: "monospace", fontSize: 9, stroke: { color: 0x081016, width: 2 } }
+      });
+      enemyHpLabel.anchor.set(0.5, 0);
+      enemyHpLabel.position.set(cx, hpY + 7);
+      enemyHpLabel.scale.set(Math.min(1, Math.max(0.64, slotWidth / 120)));
+      actors.addChild(enemyHpLabel);
       if (getQueuedThreat(monster)) {
         const pulse = 0.48 + 0.18 * Math.sin(this.clockMs / 180);
         drawEllipse(this.layer("combat-fx"), cx, cy - 10 * scale, 31 * scale, 31 * scale, "#ffcc00", 0, { color: "#ffcc00", width: 2, alpha: pulse });

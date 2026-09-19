@@ -1709,6 +1709,9 @@ export class DungeonRenderer {
     ctx.strokeStyle = "#8e8e93";
     ctx.lineWidth = 1;
     ctx.strokeRect(cx - barW / 2, cy - 62, barW, barH);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.78)";
+    ctx.font = `normal ${scale < 0.6 ? 8 : 10}px 'Share Tech Mono', monospace`;
+    ctx.fillText(`HP ${Math.max(0, monster.hp)}/${monster.maxHp}`, cx, cy - 52, maxLabelWidth);
   }
 
   drawFloatingTexts(ctx) {
