@@ -184,6 +184,16 @@ const ROUTER_CONTRACTS = [
     override: { input: { runs: 501, seed: 1278 }, expected: { runs: 501, seed: 1278 } }
   },
   {
+    id: "first-band-b5-guardian-retry-diagnostic",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
+    args: nativeArgs("--mode", "b5-guardian-retry-diagnostic", "--ref", "main", "--runs", "500", "--seed", "1277"),
+    override: { input: { runs: 501, seed: 1278 }, expected: { runs: 501, seed: 1278 } }
+  },
+  {
     id: "first-band-arcana-weapon-diagnostic",
     runner: "scratch/measurements/first_band_build_formation.js",
     adapter: "native-manifest",
@@ -282,6 +292,7 @@ for (const measurement of [
   "preparation-power-factorial",
   "first-band-build-formation",
   "first-band-b5-wall-diagnostic",
+  "first-band-b5-guardian-retry-diagnostic",
   "first-band-arcana-weapon-diagnostic",
   "first-band-arcana-mp-supply-diagnostic",
   "first-band-transition-recovery",
@@ -339,6 +350,18 @@ const b5WallInvocation = resolveRunnerInvocation({
 assert.equal(b5WallInvocation.measurement, "first-band-b5-wall-diagnostic");
 assert.ok(b5WallInvocation.args.includes("--mode"));
 assert.ok(b5WallInvocation.args.includes("b5-wall-diagnostic"));
+const b5GuardianRetry = resolveMeasurementOptions({ measurement: "first-band-b5-guardian-retry-diagnostic", purpose: "test" });
+assert.deepEqual(
+  { runs: b5GuardianRetry.runs, seed: b5GuardianRetry.seed, runType: b5GuardianRetry.runType },
+  { runs: 500, seed: 1277, runType: "diagnostic" }
+);
+const b5GuardianRetryInvocation = resolveRunnerInvocation({
+  measurement: "first-band-b5-guardian-retry-diagnostic",
+  purpose: "smoke"
+}, "/tmp/router-test");
+assert.equal(b5GuardianRetryInvocation.measurement, "first-band-b5-guardian-retry-diagnostic");
+assert.ok(b5GuardianRetryInvocation.args.includes("--mode"));
+assert.ok(b5GuardianRetryInvocation.args.includes("b5-guardian-retry-diagnostic"));
 const arcanaWeapon = resolveMeasurementOptions({ measurement: "first-band-arcana-weapon-diagnostic", purpose: "test" });
 assert.deepEqual(
   { runs: arcanaWeapon.runs, seed: arcanaWeapon.seed, runType: arcanaWeapon.runType },
@@ -448,7 +471,7 @@ assert.equal(
   "balance-measurement-early-run-attrition-123-attempt"
 );
 
-for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "first-band-build-formation", "first-band-b5-wall-diagnostic", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
+for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "first-band-build-formation", "first-band-b5-wall-diagnostic", "first-band-b5-guardian-retry-diagnostic", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
   const invocation = resolveRunnerInvocation({ measurement, purpose: "smoke" }, "/tmp/router-test");
   assert.equal(invocation.measurement, measurement);
   assert.match(invocation.runner, /scratch\/measurements\//);

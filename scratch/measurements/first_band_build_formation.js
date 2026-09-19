@@ -60,6 +60,9 @@ export const ARCANA_MP_SUPPLY_MEASUREMENT_ID = "first-band-arcana-mp-supply-diag
 export const B5_WALL_MODE = "b5-wall-diagnostic";
 export const B5_WALL_MEASUREMENT_ID = "first-band-b5-wall-diagnostic";
 export const B5_WALL_ARM_IDS = Object.freeze(["C", "F", "G", "FG"]);
+export const B5_GUARDIAN_RETRY_MODE = "b5-guardian-retry-diagnostic";
+export const B5_GUARDIAN_RETRY_MEASUREMENT_ID = "first-band-b5-guardian-retry-diagnostic";
+export const B5_GUARDIAN_RETRY_ARM_IDS = Object.freeze(["C", "R"]);
 export const ARCANA_KIT_IDS = Object.freeze(["arcana"]);
 
 const DEFAULT_WEAPON_BY_KIT = Object.freeze({
@@ -169,6 +172,10 @@ const B5_WALL_ARM_DEFINITIONS = Object.freeze({
   G: Object.freeze({ id: "G", preparationId: "P0", buildId: "b5-guardian-no-flee", healPotions: 4, fixed: false, b5GuardianFleeDisabled: true }),
   FG: Object.freeze({ id: "FG", preparationId: "P0", buildId: "b5-flame-disabled-guardian-no-flee", healPotions: 4, fixed: false, b5FlameTrapDisabled: true, b5GuardianFleeDisabled: true })
 });
+const B5_GUARDIAN_RETRY_ARM_DEFINITIONS = Object.freeze({
+  C: Object.freeze({ id: "C", preparationId: "P0", buildId: "current", healPotions: 4, fixed: false }),
+  R: Object.freeze({ id: "R", preparationId: "P0", buildId: "b5-guardian-fracture-checkpoint", healPotions: 4, fixed: false, b5GuardianRetryCheckpoint: true })
+});
 const LEGACY_LEVEL_UP_ARM_DEFINITIONS = Object.freeze({
   L0A: Object.freeze({ id: "L0A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0 }),
   L20A: Object.freeze({ id: "L20A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0.20 })
@@ -201,6 +208,16 @@ function getMeasurementMode(mode) {
       runnerVersion: "first-band-build-formation-v7",
       armIds: B5_WALL_ARM_IDS,
       armDefinitions: B5_WALL_ARM_DEFINITIONS,
+      preparationPotions: [4],
+      kitIds: KIT_IDS
+    };
+  }
+  if (mode === B5_GUARDIAN_RETRY_MODE) {
+    return {
+      id: B5_GUARDIAN_RETRY_MEASUREMENT_ID,
+      runnerVersion: "first-band-build-formation-v8",
+      armIds: B5_GUARDIAN_RETRY_ARM_IDS,
+      armDefinitions: B5_GUARDIAN_RETRY_ARM_DEFINITIONS,
       preparationPotions: [4],
       kitIds: KIT_IDS
     };
@@ -245,6 +262,7 @@ const PRODUCTION_PATHS = Object.freeze([
   "src/systems/workshop.js",
   "src/rules/craft_rules.js",
   "src/rules/build_snapshot.js",
+  "src/rules/boss_rules.js",
   "src/combat_logic/turn_order.js",
   "src/run_map_generator.js"
 ]);
@@ -437,6 +455,38 @@ export function normalizeBossTrace(trace = [], finalBattle = null) {
   };
 }
 
+function normalizeGuardianRetry(result) {
+  const diagnostic = result.b5GuardianRetry;
+  if (!diagnostic) return null;
+  const attempts = (diagnostic.attempts || []).map(attempt => ({
+    attempt: finite(attempt.attempt),
+    result: attempt.result || null,
+    retry: Boolean(attempt.retry),
+    rounds: finite(attempt.rounds),
+    qualifyingFlee: Boolean(attempt.qualifyingFlee),
+    checkpointApplied: Boolean(attempt.checkpointApplied),
+    bossStartHp: finite(attempt.bossStartHp),
+    bossStartMaxHp: finite(attempt.bossStartMaxHp),
+    bossStartHpRate: finite(attempt.bossStartHpRate),
+    bossHpAtFlee: finite(attempt.bossHpAtFlee),
+    bossHpAtFleeRate: finite(attempt.bossHpAtFleeRate),
+    playerHpAtFlee: finite(attempt.playerHpAtFlee),
+    playerHpAtFleeRate: finite(attempt.playerHpAtFleeRate),
+    guardBreakCount: finite(attempt.guardBreakCount),
+    actionTypes: [...(attempt.actionTypes || [])],
+    bossStartGuardBroken: Boolean(attempt.bossStartGuardBroken),
+    bossStartExposureTurns: finite(attempt.bossStartExposureTurns)
+  }));
+  return {
+    enabled: Boolean(diagnostic.enabled),
+    checkpointRate: finite(diagnostic.checkpointRate),
+    checkpointEarned: Boolean(diagnostic.checkpointEarned),
+    checkpointEarnedCount: finite(diagnostic.checkpointEarnedCount),
+    checkpointAppliedCount: finite(diagnostic.checkpointAppliedCount),
+    attempts
+  };
+}
+
 function normalizeInventoryCounts(inventory) {
   return Object.fromEntries(
     Object.entries(inventory || {}).sort(([left], [right]) => left.localeCompare(right))
@@ -491,7 +541,11 @@ export function normalizeB5(result, record) {
   const entrant = Boolean(result.b5Entrant);
   const route = (result.specialRouteFloors || []).find(item => Number(item.floor) === 5);
   if (!entrant) {
-    return { status: "unreachable", entryParity: normalizeB5Entry(result, route) };
+    return {
+      status: "unreachable",
+      guardianRetry: normalizeGuardianRetry(result),
+      entryParity: normalizeB5Entry(result, route)
+    };
   }
   const bossBattle = (result.specialBattles || []).find(item => item.type === "boss" && Number(item.floor) === 5);
   const bossEncounters = (result.diagnostics?.encounters || []).filter(item =>
@@ -557,6 +611,7 @@ export function normalizeB5(result, record) {
     returnBeforeBoss: record.outcome.voluntaryReturn && !bossStarted,
     returnAfterBossBeforeB6: record.outcome.voluntaryReturn && bossStarted && !reachedB6,
     b6Transition: reachedB6,
+    guardianRetry: normalizeGuardianRetry(result),
     entryParity: normalizeB5Entry(result, route)
   };
 }
@@ -661,7 +716,8 @@ function compactDiagnostic(result, context) {
   if (context.b5Intervention) {
     record.b5.intervention = {
       flameTrapDisabled: context.b5Intervention.b5FlameTrapDisabled === true,
-      guardianFleeDisabled: context.b5Intervention.b5GuardianFleeDisabled === true
+      guardianFleeDisabled: context.b5Intervention.b5GuardianFleeDisabled === true,
+      guardianRetryCheckpoint: context.b5Intervention.b5GuardianRetryCheckpoint === true
     };
   }
   record.transitionRecovery = (result.floorTransitionRecovery || []).map(event => ({
@@ -893,6 +949,7 @@ function summarizeB5(rows) {
   const count = predicate => entrants.filter(predicate).length;
   const flame = field => metric(entrants.map(item => item.flameTrap[field]).filter(Number.isFinite));
   const boss = field => metric(entrants.map(item => item.boss[field] ? 1 : 0));
+  const guardianRetry = summarizeGuardianRetry(entrants);
   return {
     entrantN: entrants.length,
     flameTrap: {
@@ -934,7 +991,51 @@ function summarizeB5(rows) {
     milestonePortalReturnAfterGuardian: { count: count(item => item.milestonePortalReturnAfterGuardian), rate: rate(count(item => item.milestonePortalReturnAfterGuardian), entrants.length) },
     returnBeforeBoss: { count: count(item => item.returnBeforeBoss), rate: rate(count(item => item.returnBeforeBoss), entrants.length) },
     returnAfterBossBeforeB6: { count: count(item => item.returnAfterBossBeforeB6), rate: rate(count(item => item.returnAfterBossBeforeB6), entrants.length) },
-    b6Transition: { count: count(item => item.b6Transition), rate: rate(count(item => item.b6Transition), entrants.length) }
+    b6Transition: { count: count(item => item.b6Transition), rate: rate(count(item => item.b6Transition), entrants.length) },
+    guardianRetry
+  };
+}
+
+function eventCount(count, denominator) {
+  return { count, denominator, rate: rate(count, denominator) };
+}
+
+function summarizeGuardianRetry(entrants) {
+  const diagnostics = entrants.map(item => item.guardianRetry).filter(Boolean);
+  const attempts = diagnostics.flatMap(item => item.attempts || []);
+  const flees = attempts.filter(item => item.result === "flee");
+  const retries = attempts.filter(item => item.retry);
+  const applied = attempts.filter(item => item.checkpointApplied);
+  const reset = applied.filter(item => !item.bossStartGuardBroken && item.bossStartExposureTurns === 0);
+  const sum = field => attempts.reduce((total, item) => total + Number(item[field] || 0), 0);
+  const fleeBossHp = flees.map(item => item.bossHpAtFleeRate).filter(Number.isFinite);
+  const fleePlayerHp = flees.map(item => item.playerHpAtFleeRate).filter(Number.isFinite);
+  return {
+    enabled: diagnostics.some(item => item.enabled),
+    checkpointRate: diagnostics.find(item => Number.isFinite(item.checkpointRate))?.checkpointRate ?? null,
+    attempts: eventCount(attempts.length, entrants.length),
+    flee: eventCount(flees.length, entrants.length),
+    retry: eventCount(retries.length, entrants.length),
+    fleeToRetry: eventCount(retries.length, flees.length),
+    qualifyingFlee: eventCount(flees.filter(item => item.qualifyingFlee).length, flees.length),
+    checkpointEarned: eventCount(diagnostics.filter(item => item.checkpointEarned).length, entrants.length),
+    checkpointApplied: eventCount(applied.length, retries.length),
+    bossHpAtFlee: {
+      ...metric(fleeBossHp),
+      count: fleeBossHp.length,
+      denominator: flees.length
+    },
+    playerHpAtFlee: {
+      ...metric(fleePlayerHp),
+      count: fleePlayerHp.length,
+      denominator: flees.length
+    },
+    guardBreak: eventCount(sum("guardBreakCount"), attempts.length),
+    victory: eventCount(attempts.filter(item => item.result === "victory").length, entrants.length),
+    death: eventCount(attempts.filter(item => item.result === "death").length, entrants.length),
+    retryStartAt80: eventCount(applied.filter(item => item.bossStartHpRate === 0.8).length, applied.length),
+    guardStateReset: eventCount(reset.length, applied.length),
+    checkpointAppliedRunCount: eventCount(diagnostics.filter(item => item.checkpointAppliedCount > 0).length, entrants.length)
   };
 }
 
@@ -1123,10 +1224,10 @@ function preB5ParityProjection(row) {
   };
 }
 
-function buildB5Parity(armRowsByKit, kitIds) {
+function buildB5Parity(armRowsByKit, kitIds, armIds = B5_WALL_ARM_IDS) {
   const baseline = armRowsByKit.C;
   const byArm = {};
-  for (const armId of B5_WALL_ARM_IDS.filter(id => id !== "C")) {
+  for (const armId of armIds.filter(id => id !== "C")) {
     const byKit = {};
     for (const kitId of kitIds) {
       const currentRows = armRowsByKit[armId]?.[kitId] || [];
@@ -1149,6 +1250,61 @@ function buildB5Parity(armRowsByKit, kitIds) {
     pass: Object.values(byArm).every(byKit => Object.values(byKit).every(value => value.pass)),
     comparedFields: ["B1-B4 compact production path", "B5 reached/not reached", "B5 entry HP/maxHP", "B5 entry MP/maxMP", "B5 entry inventory/HEAL_POTION", "B5 entry equipment/Build Snapshot", "B5 route-relevant state"],
     byArm
+  };
+}
+
+function buildGuardianRetryPairing(armRowsByKit, kitIds) {
+  const byKit = {};
+  for (const kitId of kitIds) {
+    const currentRows = armRowsByKit.C?.[kitId] || [];
+    const treatmentRows = armRowsByKit.R?.[kitId] || [];
+    const mismatches = [];
+    const comparedRuns = Math.min(currentRows.length, treatmentRows.length);
+    for (let index = 0; index < comparedRuns; index++) {
+      const current = currentRows[index];
+      const treatment = treatmentRows[index];
+      const treatmentAttempts = treatment.b5?.guardianRetry?.attempts || [];
+      const firstAppliedIndex = treatmentAttempts.findIndex(attempt => attempt.checkpointApplied);
+      const boundary = firstAppliedIndex >= 0 ? firstAppliedIndex : treatmentAttempts.length;
+      const currentAttempts = current.b5?.guardianRetry?.attempts || [];
+      const commonAttempts = Math.min(boundary, currentAttempts.length);
+      const projection = attempt => ({
+        result: attempt.result,
+        retry: attempt.retry,
+        actionTypes: attempt.actionTypes,
+        rounds: attempt.rounds,
+        bossStartHp: attempt.bossStartHp,
+        bossStartMaxHp: attempt.bossStartMaxHp,
+        bossHpAtFlee: attempt.bossHpAtFlee,
+        playerHpAtFlee: attempt.playerHpAtFlee,
+        guardBreakCount: attempt.guardBreakCount,
+        qualifyingFlee: attempt.qualifyingFlee
+      });
+      for (let attemptIndex = 0; attemptIndex < commonAttempts; attemptIndex++) {
+        if (JSON.stringify(projection(currentAttempts[attemptIndex])) !== JSON.stringify(projection(treatmentAttempts[attemptIndex]))) {
+          mismatches.push({ runIndex: current.runIndex, attempt: attemptIndex + 1 });
+          break;
+        }
+      }
+      if (JSON.stringify(current.b5?.entryParity || null) !== JSON.stringify(treatment.b5?.entryParity || null)) {
+        mismatches.push({ runIndex: current.runIndex, boundary: "b5-entry" });
+      }
+    }
+    byKit[kitId] = {
+      pass: currentRows.length === treatmentRows.length && mismatches.length === 0,
+      comparedRuns,
+      mismatches: mismatches.slice(0, RUN_SAMPLE_LIMIT)
+    };
+  }
+  return {
+    pass: Object.values(byKit).every(value => value.pass),
+    comparedFields: [
+      "B1-B4 compact production path",
+      "B5 entry HP/MP/inventory/equipment",
+      "first Guardian attempt action sequence/outcome",
+      "checkpoint application boundary exclusive"
+    ],
+    byKit
   };
 }
 
@@ -1232,7 +1388,9 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       collectStage15Diagnostics: true,
       simDiagnosticLevel: "full",
       b5FlameTrapDisabled: arm.b5FlameTrapDisabled === true,
-      b5GuardianFleeDisabled: arm.b5GuardianFleeDisabled === true
+      b5GuardianFleeDisabled: arm.b5GuardianFleeDisabled === true,
+      b5GuardianRetryCheckpoint: arm.b5GuardianRetryCheckpoint === true,
+      b5GuardianRetryObservation: mode === B5_GUARDIAN_RETRY_MODE
     };
     if (arm.recoveryRate !== undefined && includeTransitionRecoveryRate) {
       scenario.floorTransitionRecoveryRate = arm.recoveryRate;
@@ -1367,10 +1525,11 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
         requestedPolicy: arm.fixed ? "fixed" : CANONICAL_ADAPTIVE_POLICY_ID,
         effectivePolicyIds: [...new Set(allRows.map(row => row.build.equipmentUpdatePolicy))]
       },
-      intervention: mode === B5_WALL_MODE
+      intervention: [B5_WALL_MODE, B5_GUARDIAN_RETRY_MODE].includes(mode)
         ? {
             flameTrapDisabled: arm.b5FlameTrapDisabled === true,
-            guardianFleeDisabled: arm.b5GuardianFleeDisabled === true
+            guardianFleeDisabled: arm.b5GuardianFleeDisabled === true,
+            guardianRetryCheckpoint: arm.b5GuardianRetryCheckpoint === true
           }
         : null,
       byKit,
@@ -1381,10 +1540,16 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     };
   }
 
-  const preB5Parity = mode === B5_WALL_MODE
-    ? buildB5Parity(parityRowsByArm, modeDefinition.kitIds)
+  const preB5Parity = [B5_WALL_MODE, B5_GUARDIAN_RETRY_MODE].includes(mode)
+    ? buildB5Parity(parityRowsByArm, modeDefinition.kitIds, modeDefinition.armIds)
     : null;
   if (preB5Parity && !preB5Parity.pass) throw new Error("B5 pre-intervention parity failed");
+  const guardianRetryPairing = mode === B5_GUARDIAN_RETRY_MODE
+    ? buildGuardianRetryPairing(parityRowsByArm, modeDefinition.kitIds)
+    : null;
+  if (guardianRetryPairing && !guardianRetryPairing.pass) {
+    throw new Error("B5 Guardian checkpoint pairing failed");
+  }
 
   const overview = Object.fromEntries(modeDefinition.armIds.map(id => [id, armReports[id].overview]));
   const comparisons = mode === B5_WALL_MODE
@@ -1393,6 +1558,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
         comparison(overview.C, overview.G, "G - C: B5 Guardian flee disabled"),
         comparison(overview.C, overview.FG, "FG - C: both B5 interventions")
       ]
+    : mode === B5_GUARDIAN_RETRY_MODE
+    ? [comparison(overview.C, overview.R, "R - C: B5 Guardian 80% fracture checkpoint")]
     : mode === ARCANA_MP_SUPPLY_MODE
     ? [
         comparison(overview.W0, overview.W1, "W1 - W0: one additional production MANA_POTION"),
@@ -1435,6 +1602,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
         "FG-C": b5Comparison(overview.C, overview.FG, "FG - C"),
         interaction: b5Interaction(overview.C, overview.F, overview.G, overview.FG)
       }
+    : mode === B5_GUARDIAN_RETRY_MODE
+    ? { "R-C": b5Comparison(overview.C, overview.R, "R - C") }
     : null;
   let baselineParity = null;
   if (mode === "transition-recovery" || mode === "levelup-recovery") {
@@ -1534,6 +1703,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
         ? { name: "Standard Preparation + departure MANA capability probe", startingWeaponMode: "explicit arm weapon", healPotions: 4, additionalManaPotions: { W0: 0, W1: 1, W2: 2, R: 0 } }
         : mode === B5_WALL_MODE
           ? { name: "Standard Preparation", startingWeaponMode: "kit-default", healPotions: 4, recovery: "current production recovery", manaRecipe: "current production MANA recipe" }
+        : mode === B5_GUARDIAN_RETRY_MODE
+          ? { name: "Standard Preparation", startingWeaponMode: "kit-default", healPotions: 4, recovery: "current production recovery", manaRecipe: "current production MANA recipe" }
         : null,
     worldSeedTemplate: "run-difficulty:{seed}:{runIndex}",
     identityBoundary: "HP/MP/bag/floor/starting-kit excluded from Build Snapshot identity",
@@ -1546,6 +1717,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     },
     comparisonSemantics: mode === B5_WALL_MODE
       ? "B1-B4 exact paired parity and B5-entry parity are asserted; F/G/FG interventions begin at B5; no post-intervention path/RNG parity claim"
+      : mode === B5_GUARDIAN_RETRY_MODE
+      ? "C/R B1-B4 and B5-entry parity are asserted; first Guardian attempt is paired through the checkpoint-application boundary; no post-application path/RNG parity claim"
       : mode === ARCANA_WEAPON_MODE
       ? "Cross-arm C/W/R treatment comparisons use matched initial conditions; no post-divergence same-seed path/encounter/loot/trap parity claim"
       : mode === ARCANA_MP_SUPPLY_MODE
@@ -1557,6 +1730,11 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
           F: "C + B5 flame trap disabled in diagnostic only",
           G: "C + flee disabled after B5 Guardian combat starts; pre-boss Return unchanged",
           FG: "F + G"
+        }
+      : mode === B5_GUARDIAN_RETRY_MODE
+      ? {
+          C: "current production B5 behavior; checkpoint observation only",
+          R: "C + B5 デーモンガード 80% fracture checkpoint on successful qualifying flee; run-local, non-stacking; guard reset"
         }
       : mode === ARCANA_WEAPON_MODE
       ? {
@@ -1590,7 +1768,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     },
     baselineParity,
     preB5Parity,
-    b5Comparisons
+    b5Comparisons,
+    guardianRetryPairing
   };
   if (mode === ARCANA_MP_SUPPLY_MODE) {
     const bridgePairs = [
@@ -1741,6 +1920,43 @@ function buildReport(result, provenance, purpose, requestedRef, environment) {
 }
 
 export function buildSummary(report) {
+  if (report.configuration.mode === B5_GUARDIAN_RETRY_MODE) {
+    const event = value => `${value.count}/${value.denominator}`;
+    const display = value => value == null ? "unobserved" : value;
+    const outcomeLine = (armId, aggregate, label = armId) => {
+      const b5 = aggregate.b5;
+      const retry = b5.guardianRetry;
+      return `- ${label}: B5 entrants=${b5.entrantN}; attempts/flee/retry=${event(retry.attempts)}/${event(retry.flee)}/${event(retry.retry)}; flee→retry=${event(retry.fleeToRetry)}; qualifying flee=${event(retry.qualifyingFlee)}; earned/applied=${event(retry.checkpointEarned)}/${event(retry.checkpointApplied)}; bossHP%/playerHP% at flee p50=${display(retry.bossHpAtFlee.p50)}/${display(retry.playerHpAtFlee.p50)} n=${retry.bossHpAtFlee.count}/${retry.bossHpAtFlee.denominator}; guardBreak/victory/death=${event(retry.guardBreak)}/${event(retry.victory)}/${event(retry.death)}; Return before/after/milestonePortal=${b5.townPortalReturnBeforeBoss.count}/${b5.entrantN}/${b5.townPortalReturnAfterBossAttemptBeforeB6.count}/${b5.entrantN}/${b5.milestonePortalReturnAfterGuardian.count}/${b5.entrantN}; B6=${b5.b6Transition.count}/${b5.entrantN}`;
+    };
+    const armLines = B5_GUARDIAN_RETRY_ARM_IDS.map(armId => outcomeLine(armId, report.arms[armId].overview));
+    const kitLines = B5_GUARDIAN_RETRY_ARM_IDS.flatMap(armId =>
+      report.configuration.startingKits.map(kitId => outcomeLine(
+        armId,
+        report.arms[armId].byKit[kitId].aggregate,
+        `${armId}/${kitId}`
+      ))
+    );
+    return [
+      "# First Band B5 Guardian fracture checkpoint diagnostic",
+      "",
+      `- measurement: ${report.configuration.measurementId}; N=${report.configuration.runs}/kit/arm; seed=${report.configuration.seed}; target=B6; production balance change=false; raw run records omitted; Heavy=not run`,
+      "- C=current; R=B5 デーモンガード only: successful qualifying flee earns one run-local 80% checkpoint; retry applies exactly 80%; below-80% carryover and stacking prohibited.",
+      "- LAHALITO / break 80% / exposure 4 / 1.5x unchanged; retry start guardBroken=false / exposure=0.",
+      "- C/R B1-B4, B5 entry, and pre-checkpoint Guardian attempt pairing asserted; post-application path/RNG parity not claimed.",
+      "",
+      "## Aggregate",
+      "",
+      ...armLines,
+      "",
+      "## Kit",
+      "",
+      ...kitLines,
+      "",
+      `- R-C: ${JSON.stringify(report.b5Comparisons?.["R-C"]?.delta || null)}`,
+      `- pre-B5 parity: ${report.preB5Parity?.pass ? "PASS" : "FAIL"}; guardian pairing: ${report.guardianRetryPairing?.pass ? "PASS" : "FAIL"}`,
+      `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; observation invariance: ${report.observationInvariance.pass ? "PASS" : "FAIL"}; smoke/diagnostic evidence, no distributional claim.`
+    ].join("\n") + "\n";
+  }
   if (report.configuration.mode === B5_WALL_MODE) {
     const display = value => value == null ? "unobserved" : value;
     const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;

@@ -71,6 +71,7 @@ const { getFloorTemplate } = await import("../../src/data/floor_templates.js");
 const { EVENT_TYPES } = await import("../../src/constants/events.js");
 const { DX, DY } = await import("../../src/constants/directions.js");
 const { generateChestMaterials } = await import("../../src/chest.js");
+const { getMilestoneBossRule } = await import("../../src/rules/boss_rules.js");
 
 const ISSUE538_LEGACY_SPELL_POLICY = process.env.ISSUE538_SPELL_POLICY === "legacy";
 
@@ -4847,6 +4848,8 @@ function createSimulationState(
         : DEFAULT_FLEE_HP_THRESHOLD,
       b5FlameTrapDisabled: scenario.b5FlameTrapDisabled === true,
       b5GuardianFleeDisabled: scenario.b5GuardianFleeDisabled === true,
+      b5GuardianRetryCheckpoint: scenario.b5GuardianRetryCheckpoint === true,
+      b5GuardianRetryCheckpointEarned: false,
       statusCurePolicy: scenario.statusCurePolicy || DEFAULT_STATUS_CURE_POLICY,
       statusCureHpThreshold: Object.hasOwn(scenario, "statusCureHpThreshold")
         ? scenario.statusCureHpThreshold
@@ -8123,6 +8126,21 @@ function runEncounter(
     phase: "choose_actions",
     roundNumber: 1
   };
+  const milestoneBossRule = getMilestoneBossRule(state.floor, monsters[0]?.name, { isBoss });
+  const guardianRetryEnabled = Boolean(
+    milestoneBossRule && state.simPolicy.b5GuardianRetryCheckpoint === true
+  );
+  let checkpointApplied = false;
+  if (guardianRetryEnabled && state.simPolicy.b5GuardianRetryCheckpointEarned === true) {
+    const guardian = monsters.find(monster => monster.name === milestoneBossRule.bossName);
+    if (guardian) {
+      guardian.hp = Math.max(1, Math.round(guardian.maxHp * milestoneBossRule.breakHpRate));
+      guardian.b5GuardBroken = false;
+      guardian.b5ExposureTurns = 0;
+      checkpointApplied = true;
+      metrics.b5GuardianRetry.checkpointAppliedCount++;
+    }
+  }
   if (encounterCoord) {
     state.x = encounterCoord.x;
     state.y = encounterCoord.y;
@@ -8138,6 +8156,18 @@ function runEncounter(
   const encounterStartMaxMp = getCharMaxMp(state.party[0]);
   const enemyTurnEventStart = metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0;
   let productionLevelUpRecoveryHp = 0;
+  const boss = milestoneBossRule
+    ? state.combatState.monsters.find(monster => monster.name === milestoneBossRule.bossName)
+    : null;
+  const getCurrentBoss = () => milestoneBossRule
+    ? state.combatState?.monsters?.find(monster => monster.name === milestoneBossRule.bossName) || null
+    : null;
+  const bossStartHp = boss?.hp ?? null;
+  const bossStartMaxHp = boss?.maxHp ?? null;
+  const bossStartGuardBroken = boss?.b5GuardBroken === true;
+  const bossStartExposureTurns = Number(boss?.b5ExposureTurns || 0);
+  let bossHpMinimum = boss?.hp ?? null;
+  const actionTypes = [];
   let encounterMinimumMp = encounterStartMp;
   const blockedRounds = [];
   const stage15Encounter = metrics?.stage15Diagnostics && encounterFloor <= STAGE15_MAX_FLOOR
@@ -8501,7 +8531,18 @@ function runEncounter(
         (metrics?.mpPressure?.combat?.total?.mpBlocked || 0) - mpBlockedAtEncounterStart
       ),
       productionLevelUpRecoveryHp,
-      triggerChest
+      triggerChest,
+      actionTypes,
+      bossStartHp,
+      bossStartMaxHp,
+      bossStartGuardBroken,
+      bossStartExposureTurns,
+      bossHpAtEnd: getCurrentBoss()?.hp ?? null,
+      bossHpMinimum,
+      bossGuardBreakCount: getCurrentBoss()?.b5GuardBroken ? 1 : 0,
+      checkpointApplied,
+      playerHpAtEnd: state.party[0].hp,
+      playerMaxHpAtEnd: getCharMaxHp(state.party[0])
     };
   };
 
@@ -8517,6 +8558,7 @@ function runEncounter(
     }
 
     const action = selectCombatAction(state, metrics);
+    actionTypes.push(action.type);
     recordDamageEstimateAction(metrics, state, action);
     const policyProbeAction = getCombatPolicyProbeAction(state);
     recordCombatPolicyProbe(state, metrics, policyProbeAction, action);
@@ -8772,6 +8814,8 @@ function runEncounter(
     // decisions. Keep that runner-local state attached after the clean combat
     // result is returned; the production combat result itself remains clean.
     state = { ...roundResult.state, simPolicy: combatPolicy };
+    const currentBoss = getCurrentBoss();
+    if (currentBoss) bossHpMinimum = Math.min(bossHpMinimum ?? currentBoss.hp, currentBoss.hp);
     productionLevelUpRecoveryHp += (roundResult.logQueue || []).reduce(
       (sum, entry) => sum + Number(entry?.levelUpRecoveryHp || 0),
       0
@@ -14789,6 +14833,10 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     milestonePortalBlockedVisits: metrics.milestonePortalBlockedVisits,
     milestonePortalRetreats: metrics.milestonePortalRetreats,
     milestoneEventTrace: metrics.milestoneEventTrace,
+    b5GuardianRetry: {
+      ...metrics.b5GuardianRetry,
+      attempts: metrics.b5GuardianRetry.attempts.map(attempt => ({ ...attempt }))
+    },
     merchantUncurseAttempts: metrics.merchantUncurseAttempts,
     merchantUncursePurchases: metrics.merchantUncursePurchases,
     merchantUncurseFailures: { ...metrics.merchantUncurseFailures },
@@ -15413,6 +15461,16 @@ export function simulateRun({
     merchantWingFailures: {},
     milestoneDecisions: [],
     fleeCount: 0,
+    b5GuardianRetry: {
+      enabled: scenario.b5GuardianRetryCheckpoint === true,
+      observationEnabled: scenario.b5GuardianRetryCheckpoint === true ||
+        scenario.b5GuardianRetryObservation === true,
+      checkpointRate: 0.80,
+      checkpointEarned: false,
+      checkpointEarnedCount: 0,
+      checkpointAppliedCount: 0,
+      attempts: []
+    },
     elitePolicy: state.simPolicy.elitePolicy,
     eliteEncounters: 0,
     eliteVictories: 0,
@@ -16230,6 +16288,28 @@ export function simulateRun({
               attempt,
               result: combatResult.result,
               rounds: combatResult.rounds,
+              actionTypes: [...(combatResult.actionTypes || [])],
+              bossStartHp: combatResult.bossStartHp,
+              bossStartMaxHp: combatResult.bossStartMaxHp,
+              bossStartHpRate: combatResult.bossStartHp !== null && combatResult.bossStartMaxHp > 0
+                ? combatResult.bossStartHp / combatResult.bossStartMaxHp
+                : null,
+              bossHpAtFlee: combatResult.result === "flee" ? combatResult.bossHpAtEnd : null,
+              bossHpAtFleeRate: combatResult.result === "flee" && combatResult.bossHpAtEnd !== null && combatResult.bossStartMaxHp > 0
+                ? combatResult.bossHpAtEnd / combatResult.bossStartMaxHp
+                : null,
+              bossHpMinimum: combatResult.bossHpMinimum,
+              bossHpMinimumRate: combatResult.bossHpMinimum !== null && combatResult.bossStartMaxHp > 0
+                ? combatResult.bossHpMinimum / combatResult.bossStartMaxHp
+                : null,
+              playerHpAtFlee: combatResult.result === "flee" ? combatResult.playerHpAtEnd : null,
+              playerHpAtFleeRate: combatResult.result === "flee" && combatResult.playerMaxHpAtEnd > 0
+                ? combatResult.playerHpAtEnd / combatResult.playerMaxHpAtEnd
+                : null,
+              guardBreakCount: combatResult.bossGuardBreakCount,
+              checkpointApplied: combatResult.checkpointApplied,
+              bossStartGuardBroken: combatResult.bossStartGuardBroken,
+              bossStartExposureTurns: combatResult.bossStartExposureTurns,
               telemetry: combatResult.telemetry,
               bloodWandObservations: combatResult.bloodWandObservations
             });
@@ -16249,6 +16329,45 @@ export function simulateRun({
             metrics.normalCombatTelemetry.heavyHitCount += Number(
               combatResult.telemetry.maxIncomingHitRate >= 0.5
             );
+          }
+
+          if (isBoss && specialEvent.milestone && metrics.b5GuardianRetry.observationEnabled) {
+            const diagnostic = metrics.b5GuardianRetry;
+            const guardianAttempt = diagnostic.attempts.length + 1;
+            const qualifyingFlee = combatResult.result === "flee" &&
+              combatResult.bossHpMinimum !== null &&
+              combatResult.bossStartMaxHp > 0 &&
+              combatResult.bossHpMinimum <= combatResult.bossStartMaxHp * diagnostic.checkpointRate;
+            diagnostic.attempts.push({
+              attempt: guardianAttempt,
+              result: combatResult.result,
+              rounds: combatResult.rounds,
+              retry: guardianAttempt > 1,
+              qualifyingFlee,
+              checkpointApplied: combatResult.checkpointApplied,
+              bossStartHp: combatResult.bossStartHp,
+              bossStartMaxHp: combatResult.bossStartMaxHp,
+              bossStartHpRate: combatResult.bossStartHp !== null && combatResult.bossStartMaxHp > 0
+                ? combatResult.bossStartHp / combatResult.bossStartMaxHp
+                : null,
+              bossHpAtFlee: combatResult.result === "flee" ? combatResult.bossHpAtEnd : null,
+              bossHpAtFleeRate: combatResult.result === "flee" && combatResult.bossHpAtEnd !== null && combatResult.bossStartMaxHp > 0
+                ? combatResult.bossHpAtEnd / combatResult.bossStartMaxHp
+                : null,
+              playerHpAtFlee: combatResult.result === "flee" ? combatResult.playerHpAtEnd : null,
+              playerHpAtFleeRate: combatResult.result === "flee" && combatResult.playerMaxHpAtEnd > 0
+                ? combatResult.playerHpAtEnd / combatResult.playerMaxHpAtEnd
+                : null,
+              guardBreakCount: combatResult.bossGuardBreakCount,
+              actionTypes: [...(combatResult.actionTypes || [])],
+              bossStartGuardBroken: combatResult.bossStartGuardBroken,
+              bossStartExposureTurns: combatResult.bossStartExposureTurns
+            });
+            if (combatResult.result === "flee" && qualifyingFlee && !diagnostic.checkpointEarned) {
+              diagnostic.checkpointEarned = true;
+              diagnostic.checkpointEarnedCount++;
+              state.simPolicy.b5GuardianRetryCheckpointEarned = true;
+            }
           }
 
           if (combatResult.result === "flee") {
