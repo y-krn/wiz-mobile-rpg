@@ -46,7 +46,7 @@ try {
   assert.match(measurement.stdout, /Wrote standard balance measurement shard:/);
   const shard = JSON.parse(fs.readFileSync(partialOutput, "utf8"));
   assert.equal(shard.execution.taskCount, 1);
-  assert.equal(shard.config.runs, 500);
+  assert.equal(shard.configuration.runs, 500);
 } finally {
   fs.rmSync(outputDir, { recursive: true, force: true });
 }
