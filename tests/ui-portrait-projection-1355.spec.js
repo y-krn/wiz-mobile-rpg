@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { writeFile } from 'node:fs/promises';
 import { PORTRAIT_NEAR_COVERAGE_MIN } from '../src/rules/renderer_projection.js';
 
 const PRIMARY = { width: 390, height: 844 };
@@ -198,7 +199,11 @@ for (const viewport of [{ width: 320, height: 568 }, { width: 430, height: 932 }
       expect(current.canvas[0]).toBeGreaterThanOrEqual(minimumWidth);
       expect(current.canvas[1]).toBeGreaterThanOrEqual(viewport.height - 2);
       expect(current.overflow).toBeLessThanOrEqual(viewport.width + 1);
-      const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-${renderer}-${viewport.width}x${viewport.height}.png`) });
+      const screenshotPath = testInfo.outputPath(`issue-1355-${renderer}-${viewport.width}x${viewport.height}.png`);
+      const screenshot = renderer === 'pixi' && viewport.width >= 1000
+        ? Buffer.from((await page.evaluate(() => document.querySelector('#dungeon-canvas').toDataURL('image/png'))).split(',')[1], 'base64')
+        : await page.locator('#dungeon-canvas').screenshot({ path: screenshotPath });
+      if (renderer === 'pixi' && viewport.width >= 1000) await writeFile(screenshotPath, screenshot);
       await testInfo.attach(`issue-1355-${renderer}-${viewport.width}x${viewport.height}`, { body: screenshot, contentType: 'image/png' });
     }
   });
