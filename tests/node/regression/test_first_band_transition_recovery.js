@@ -130,7 +130,7 @@ for (const token of [
   "potion HP",
   "transition HP",
   "B5 guardian decomposition",
-  "R15 parity"
+  "R25 parity"
 ]) {
   assert.match(summary, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 }

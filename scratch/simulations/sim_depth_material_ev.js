@@ -2399,6 +2399,7 @@ function createStage15FloorTelemetry(floor) {
     levelTransitions: {},
     levelUpRecoverySamples: [],
     naturalLevelGrowthHp: 0,
+    productionExtraLevelUpRecoveryHp: 0,
     percentageLevelUpRecoveryRequestedHp: 0,
     percentageLevelUpRecoveryActualHp: 0,
     percentageLevelUpRecoveryCappedAtFullCount: 0,
@@ -2568,7 +2569,7 @@ function applySimulationLevelUpRecovery(
   state,
   metrics,
   floor,
-  { fromLevel, fromMaxHp, fromHp }
+  { fromLevel, fromMaxHp, fromHp, productionLevelUpRecoveryHp = 0 }
 ) {
   const character = state.party[0];
   const toLevel = character.level;
@@ -2581,7 +2582,12 @@ function applySimulationLevelUpRecovery(
   const transitionKey = `${fromLevel}->${toLevel}`;
   telemetry.levelTransitions[transitionKey] =
     (telemetry.levelTransitions[transitionKey] || 0) + 1;
-  telemetry.naturalLevelGrowthHp += Math.max(0, newMaxHp - fromMaxHp);
+  const naturalLevelGrowthHp = Math.max(0, newMaxHp - fromMaxHp);
+  telemetry.naturalLevelGrowthHp += naturalLevelGrowthHp;
+  telemetry.productionExtraLevelUpRecoveryHp += Math.max(
+    0,
+    productionLevelUpRecoveryHp - naturalLevelGrowthHp
+  );
 
   const rate = state.simPolicy.levelUpRecoveryRate;
   const flatHp = state.simPolicy.levelUpRecoveryFlatHp;
@@ -4671,7 +4677,7 @@ function createSimulationState(
   }
   const floorTransitionRecoveryRate = Object.hasOwn(scenario, "floorTransitionRecoveryRate")
     ? parseOptionalChance(scenario.floorTransitionRecoveryRate, "floorTransitionRecoveryRate")
-    : 0.15;
+    : 0.25;
   const levelUpRecoveryRate = Object.hasOwn(scenario, "levelUpRecoveryRate")
     ? parseOptionalChance(scenario.levelUpRecoveryRate, "levelUpRecoveryRate")
     : 0;
@@ -8070,6 +8076,7 @@ function runEncounter(
   const encounterStartMaxHp = getCharMaxHp(state.party[0]);
   const encounterStartMaxMp = getCharMaxMp(state.party[0]);
   const enemyTurnEventStart = metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0;
+  let productionLevelUpRecoveryHp = 0;
   let encounterMinimumMp = encounterStartMp;
   const blockedRounds = [];
   const stage15Encounter = metrics?.stage15Diagnostics && encounterFloor <= STAGE15_MAX_FLOOR
@@ -8421,6 +8428,7 @@ function runEncounter(
         0,
         (metrics?.mpPressure?.combat?.total?.mpBlocked || 0) - mpBlockedAtEncounterStart
       ),
+      productionLevelUpRecoveryHp,
       triggerChest
     };
   };
@@ -8663,6 +8671,10 @@ function runEncounter(
     // decisions. Keep that runner-local state attached after the clean combat
     // result is returned; the production combat result itself remains clean.
     state = { ...roundResult.state, simPolicy: combatPolicy };
+    productionLevelUpRecoveryHp += (roundResult.logQueue || []).reduce(
+      (sum, entry) => sum + Number(entry?.levelUpRecoveryHp || 0),
+      0
+    );
     const roundEnemyActions = Math.max(
       0,
       (metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0) - enemyTurnEventsBeforeRound
@@ -11018,7 +11030,7 @@ export function runEquipmentUpgradeFixture({
   return { state, metrics, upgrades };
 }
 
-function applyFloorTransitionHeal(character, recoveryRate = 0.15) {
+function applyFloorTransitionHeal(character, recoveryRate = 0.25) {
   if (!isAlive(character)) return 0;
   const maxHp = getCharMaxHp(character);
   const healed = Math.min(
@@ -15993,7 +16005,8 @@ export function simulateRun({
             applySimulationLevelUpRecovery(state, metrics, floor, {
               fromLevel: levelBeforeCombat,
               fromMaxHp: maxHpBeforeCombat,
-              fromHp: hpBeforeCombat
+              fromHp: hpBeforeCombat,
+              productionLevelUpRecoveryHp: combatResult.productionLevelUpRecoveryHp
             });
             const hpGrowthBonus = Number(state.simPolicy.hpGrowthBonus) || 0;
             const levelsGained = Math.max(0, state.party[0].level - levelBeforeCombat);

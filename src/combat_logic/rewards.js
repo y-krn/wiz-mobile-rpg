@@ -227,14 +227,17 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
 
   livingChars.forEach(c => {
     c.exp += (expShare + bonusExpShare);
+    const hpBeforeLevelUp = c.hp;
     const lvlUp = checkCharLevelUp(c);
     if (lvlUp) {
+      const levelUpRecoveryHp = Math.max(0, c.hp - hpBeforeLevelUp);
       logQueue.push({
-        msg: `[★] レベルアップ！${c.name}はレベル${c.level}になった！`,
+        msg: `[★] レベルアップ！${c.name}はレベル${c.level}になった！HPが${levelUpRecoveryHp}回復した。`,
         sound: "level_up",
         flash: true,
         floatText: "LEVEL UP!",
-        floatColor: "#ffb300"
+        floatColor: "#ffb300",
+        levelUpRecoveryHp
       });
     }
   });

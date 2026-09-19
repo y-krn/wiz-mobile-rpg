@@ -507,6 +507,7 @@ function recoveryCheckpoints(rows) {
       potionRecoveryHp: metric(entered.map(item => item.recovery?.healPotionRecoveryHp).filter(Number.isFinite)),
       floorTransitionRecoveryHp: metric(entered.map(item => item.recovery?.floorTransitionRecoveryHp).filter(Number.isFinite)),
       naturalLevelGrowthHp: metric(entered.map(item => item.recovery?.naturalLevelGrowthHp).filter(Number.isFinite)),
+      productionExtraLevelUpRecoveryHp: metric(entered.map(item => item.recovery?.productionExtraLevelUpRecoveryHp).filter(Number.isFinite)),
       percentageExtraLevelUpRecoveryHp: metric(entered.map(item => item.recovery?.percentageExtraLevelUpRecoveryHp).filter(Number.isFinite)),
       flatExtraLevelUpRecoveryHp: metric(entered.map(item => item.recovery?.flatExtraLevelUpRecoveryHp).filter(Number.isFinite)),
       totalObservedRecoveryHp: metric(entered.map(item => item.recovery?.totalObservedRecoveryHp).filter(Number.isFinite))
@@ -538,6 +539,7 @@ function levelProgressionCheckpoints(rows) {
       fromToLevel: mergeCountMaps(progression.map(item => item.fromToLevel)),
       expGained: metric(progression.map(item => item.expGained).filter(Number.isFinite)),
       naturalHpGrowth: metric(entered.map(item => item.recovery?.naturalLevelGrowthHp).filter(Number.isFinite)),
+      productionExtraHpRecovery: metric(entered.map(item => item.recovery?.productionExtraLevelUpRecoveryHp).filter(Number.isFinite)),
       percentageRequestedHp: metric(entered.map(item => item.recovery?.percentageExtraLevelUpRecoveryRequestedHp).filter(Number.isFinite)),
       percentageActualHp: metric(entered.map(item => item.recovery?.percentageExtraLevelUpRecoveryHp).filter(Number.isFinite)),
       flatRequestedHp: metric(entered.map(item => item.recovery?.flatExtraLevelUpRecoveryRequestedHp).filter(Number.isFinite)),
@@ -880,10 +882,10 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       ]
     : mode === "levelup-recovery"
       ? [
-        comparison(overview.F0A, overview.H5A, "H5A - F0A: flat +5 - no extra level-up recovery"),
-        comparison(overview.F0A, overview.P20A, "P20A - F0A: percentage 20% - no extra level-up recovery"),
-        comparison(overview.P20A, overview.H5A, "H5A - P20A: flat +5 - percentage 20%"),
-        comparison(overview.H5F, overview.H5A, "H5A - H5F: adaptive - fixed Build at flat +5")
+        comparison(overview.F0A, overview.H5A, "H5A - F0A: additional flat +5 counterfactual - production baseline"),
+        comparison(overview.F0A, overview.P20A, "P20A - F0A: additional percentage 20% counterfactual - production baseline"),
+        comparison(overview.P20A, overview.H5A, "H5A - P20A: additional flat +5 counterfactual - additional percentage 20%"),
+        comparison(overview.H5F, overview.H5A, "H5A - H5F: adaptive - fixed Build at additional flat +5")
       ]
       : [
         comparison(overview.P0B0, overview.P0B1, "P0B1 - P0B0: Standard Prep Build contribution"),
@@ -894,7 +896,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
   let baselineParity = null;
   if (mode === "transition-recovery" || mode === "levelup-recovery") {
     const arm = mode === "transition-recovery"
-      ? modeDefinition.armDefinitions.R15A
+      ? modeDefinition.armDefinitions.R25A
       : modeDefinition.armDefinitions.F0A;
     const byKit = {};
     for (const kitId of KIT_IDS) {
@@ -955,7 +957,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
         ? Object.values(byKit)[0]?.comparedFields || []
         : Object.values(byKit)[0]?.f0aVsL0a.comparedFields || [],
       semantics: mode === "transition-recovery"
-        ? "floorTransitionRecoveryRate omitted vs explicit 0.15"
+        ? "floorTransitionRecoveryRate omitted vs explicit 0.25"
         : "F0A == legacy L0A; P20A == legacy L20A; R25A == F0A; flat omitted == explicit 0"
     };
     if (!baselineParity.pass) throw new Error("baseline parity failed");
@@ -1066,7 +1068,7 @@ export function buildSummary(report) {
     const levelLine = (aggregate, floor) => {
       const level = aggregate.levelProgression[floor];
       const recovery = aggregate.recovery[floor];
-      return `B${floor} entry level p50=${display(level.entryLevel.p50)}; entry HP/ratio=${display(recovery.entryHp.p50)}/${rateDisplay(recovery.entryHpRatio.p50)}; level-ups=${display(level.levelUpCount.meanPerEntrant)}; from/to=${JSON.stringify(level.fromToLevel)}; natural HP=${display(level.naturalHpGrowth.meanPerEntrant)}; percentage requested/actual=${display(level.percentageRequestedHp.meanPerEntrant)}/${display(level.percentageActualHp.meanPerEntrant)}; flat requested/actual=${display(level.flatRequestedHp.meanPerEntrant)}/${display(level.flatActualHp.meanPerEntrant)}; full-invalid=${display(level.fullHpInvalidCount.total)}/${rateDisplay(level.fullHpInvalidRate)}; cumulative percentage/flat=${display(level.cumulativePercentageRecovery.meanPerEntrant)}/${display(level.cumulativeFlatRecovery.meanPerEntrant)}; total recovery=${display(recovery.totalObservedRecoveryHp.meanPerEntrant)}`;
+      return `B${floor} entry level p50=${display(level.entryLevel.p50)}; entry HP/ratio=${display(recovery.entryHp.p50)}/${rateDisplay(recovery.entryHpRatio.p50)}; level-ups=${display(level.levelUpCount.meanPerEntrant)}; from/to=${JSON.stringify(level.fromToLevel)}; natural HP=${display(level.naturalHpGrowth.meanPerEntrant)}; production fixed +5 extra HP=${display(level.productionExtraHpRecovery.meanPerEntrant)}; additional percentage requested/actual=${display(level.percentageRequestedHp.meanPerEntrant)}/${display(level.percentageActualHp.meanPerEntrant)}; additional flat requested/actual=${display(level.flatRequestedHp.meanPerEntrant)}/${display(level.flatActualHp.meanPerEntrant)}; full-invalid=${display(level.fullHpInvalidCount.total)}/${rateDisplay(level.fullHpInvalidRate)}; cumulative additional percentage/flat=${display(level.cumulativePercentageRecovery.meanPerEntrant)}/${display(level.cumulativeFlatRecovery.meanPerEntrant)}; total recovery=${display(recovery.totalObservedRecoveryHp.meanPerEntrant)}`;
     };
     const snowballLine = aggregate => {
       const item = aggregate.snowball;
@@ -1094,7 +1096,7 @@ export function buildSummary(report) {
       "",
       "## Potion replacement and snowball proxy",
       "",
-      ...report.configuration.arms.map(armId => `- ${armId}: ${snowballLine(report.arms[armId].overview)}; recovery B3/B4/B5 percentage/flat=${[3, 4, 5].map(floor => `${display(report.arms[armId].overview.recovery[floor].percentageExtraLevelUpRecoveryHp.meanPerEntrant)}/${display(report.arms[armId].overview.recovery[floor].flatExtraLevelUpRecoveryHp.meanPerEntrant)}`).join("/")}; Potion used B3/B4/B5=${[3, 4, 5].map(floor => display(report.arms[armId].overview.recovery[floor].potionUsed.meanPerEntrant)).join("/")}`),
+      ...report.configuration.arms.map(armId => `- ${armId}: ${snowballLine(report.arms[armId].overview)}; production fixed +5 extra HP B3/B4/B5=${[3, 4, 5].map(floor => display(report.arms[armId].overview.recovery[floor].productionExtraLevelUpRecoveryHp.meanPerEntrant)).join("/")}; additional percentage/flat B3/B4/B5=${[3, 4, 5].map(floor => `${display(report.arms[armId].overview.recovery[floor].percentageExtraLevelUpRecoveryHp.meanPerEntrant)}/${display(report.arms[armId].overview.recovery[floor].flatExtraLevelUpRecoveryHp.meanPerEntrant)}`).join("/")}; Potion used B3/B4/B5=${[3, 4, 5].map(floor => display(report.arms[armId].overview.recovery[floor].potionUsed.meanPerEntrant)).join("/")}`),
       "",
       "## Build checkpoints",
       "",
@@ -1113,7 +1115,7 @@ export function buildSummary(report) {
       `- bridge parity F0A/L0A, P20A/L20A, R25A/F0A, flat omitted/0: ${report.baselineParity?.pass ? "PASS" : "FAIL"}`,
       "",
       `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; observation invariance: ${report.observationInvariance.pass ? "PASS" : "FAIL"}`,
-      "- level-up recovery is simulation-only and applied after production reward resolution, before post-combat Potion decision; natural +5 HP and extra HP are separate; farming incentive is not proven by this non-farming simulator.",
+      "- production fixed +5 level-up recovery is applied by production reward resolution; rate/flat fields are additional counterfactuals applied after that path and before post-combat Potion decision; farming incentive is not proven by this non-farming simulator.",
       "- no production src/ balance change; raw run records omitted; heavy N=500 is not run by pre-PR smoke."
     ];
     return `${lines.join("\n")}\n`;
@@ -1176,7 +1178,7 @@ export function buildSummary(report) {
       "## Comparisons",
       "",
       ...report.primaryComparisons.map(item => `- ${item.label}: ${comparisonLine(item)}`),
-      `- R15 parity: ${report.baselineParity?.pass ? "PASS" : "FAIL"} (${report.baselineParity?.semantics || "unobserved"})`,
+      `- R25 parity: ${report.baselineParity?.pass ? "PASS" : "FAIL"} (${report.baselineParity?.semantics || "unobserved"})`,
       "",
       `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; observation invariance: ${report.observationInvariance.pass ? "PASS" : "FAIL"}`,
       "- transition recovery and Potion recovery are separate fields; no production src/ balance change; heavy N=1000 is not run by pre-PR smoke."
