@@ -345,7 +345,8 @@ function assertAllowed(value, allowed, label) {
 }
 
 export function getMeasurementDefinition(measurementId) {
-  const definition = MEASUREMENT_REGISTRY[measurementId];
+  const normalizedMeasurementId = nonEmpty(measurementId, "");
+  const definition = MEASUREMENT_REGISTRY[normalizedMeasurementId];
   if (!definition) {
     throw new Error(`unknown measurement ID: ${measurementId}; expected ${MEASUREMENT_IDS.join(", ")}`);
   }
