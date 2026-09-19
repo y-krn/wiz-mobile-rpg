@@ -12,27 +12,7 @@ on:
         description: "Measurement to run"
         required: true
         default: "standard"
-        type: choice
-        options:
-          - standard
-          - starting-kit-early-run
-          - early-b1f-composition
-          - fixed-combat-composition
-          - equipment-load
-          - run-difficulty
-          - run-difficulty-policy-sensitivity
-          - early-run-attrition
-          - b3plus-survival-decomposition
-          - build-progression-audit
-          - build-progression-pareto-safe
-          - b2-chest-trap
-          - survival-policy
-          - preparation-power-factorial
-          - first-band-build-formation
-          - first-band-arcana-weapon-diagnostic
-          - first-band-arcana-mp-supply-diagnostic
-          - first-band-transition-recovery
-          - first-band-levelup-recovery
+        type: string
       runs:
         description: "Runs for the selected measurement; blank uses its registry default"
         required: false
@@ -103,6 +83,16 @@ on:
 permissions:
   contents: read
 
+env:
+  MEASUREMENT_REF: ${{ inputs.ref }}
+  MEASUREMENT_PURPOSE: ${{ inputs.purpose }}
+  MEASUREMENT_RUN_TYPE: ${{ inputs.run_type }}
+  MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
+  MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  MEASUREMENT_REPOSITORY: ${{ github.repository }}
+  MEASUREMENT_RUN_ATTEMPT: ${{ github.run_attempt }}
+  MEASUREMENT_AT: ${{ github.run_started_at }}
+
 jobs:
   measure-standard:
     if: inputs.measurement == 'standard'
@@ -119,22 +109,15 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           filter: blob:none
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-node-deps
       - name: Run standard balance measurement shard
         id: measurement
         timeout-minutes: 15
         continue-on-error: true
         env:
           MEASUREMENT_ID: ${{ inputs.measurement }}
-          MEASUREMENT_REF: ${{ inputs.ref }}
           MEASUREMENT_RUNS: ${{ inputs.runs }}
           MEASUREMENT_SEED: ${{ inputs.seed }}
-          MEASUREMENT_PURPOSE: ${{ inputs.purpose }}
-          MEASUREMENT_RUN_TYPE: ${{ inputs.run_type }}
           MEASUREMENT_STARTING_KIT: ${{ inputs.starting_kit }}
           MEASUREMENT_POLICY: ${{ inputs.policy }}
           MEASUREMENT_FLEE_HP_THRESHOLD: ${{ inputs.flee_hp_threshold }}
@@ -143,11 +126,6 @@ jobs:
           MEASUREMENT_FIXED_RUNS: ${{ inputs.fixed_runs }}
           MEASUREMENT_FIXED_SEED: ${{ inputs.fixed_seed }}
           MEASUREMENT_POLICIES: ${{ inputs.policies }}
-          MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
-          MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          MEASUREMENT_REPOSITORY: ${{ github.repository }}
-          MEASUREMENT_RUN_ATTEMPT: ${{ github.run_attempt }}
-          MEASUREMENT_AT: ${{ github.run_started_at }}
           MEASUREMENT_RUN_ID: ${{ github.run_id }}
         run: |
           set -o pipefail
@@ -223,11 +201,7 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           filter: blob:none
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-node-deps
       - name: Download standard measurement shards
         uses: actions/download-artifact@v4
         with:
@@ -239,14 +213,6 @@ jobs:
         timeout-minutes: 15
         continue-on-error: true
         env:
-          MEASUREMENT_PURPOSE: ${{ inputs.purpose }}
-          MEASUREMENT_RUN_TYPE: ${{ inputs.run_type }}
-          MEASUREMENT_REF: ${{ inputs.ref }}
-          MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
-          MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          MEASUREMENT_REPOSITORY: ${{ github.repository }}
-          MEASUREMENT_RUN_ATTEMPT: ${{ github.run_attempt }}
-          MEASUREMENT_AT: ${{ github.run_started_at }}
           MEASUREMENT_PARALLELISM: 4
         run: |
           set -o pipefail
@@ -296,34 +262,27 @@ jobs:
 
   measure-other:
     if: inputs.measurement != 'standard'
-    timeout-minutes: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]'), inputs.measurement) && 45 || 20 }}
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     env:
-      MEASUREMENT_JOB_TIMEOUT_MINUTES: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]'), inputs.measurement) && 45 || 20 }}
-      MEASUREMENT_STEP_TIMEOUT_MINUTES: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]'), inputs.measurement) && 30 || 15 }}
-      MEASUREMENT_TIMEOUT_BASIS: "diagnostic; Arcana weapon uses three arms; first-band build measurements include four kits × four arms; 30m step/45m job"
+      MEASUREMENT_JOB_TIMEOUT_MINUTES: 45
+      MEASUREMENT_STEP_TIMEOUT_MINUTES: 30
+      MEASUREMENT_TIMEOUT_BASIS: "non-standard measurement budget"
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           filter: blob:none
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-node-deps
       - name: Run selected balance measurement
         id: measurement
-        timeout-minutes: ${{ contains(fromJSON('["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]'), inputs.measurement) && 30 || 15 }}
+        timeout-minutes: 30
         continue-on-error: true
         env:
           MEASUREMENT_ID: ${{ inputs.measurement }}
-          MEASUREMENT_REF: ${{ inputs.ref }}
           MEASUREMENT_RUNS: ${{ inputs.runs }}
           MEASUREMENT_SEED: ${{ inputs.seed }}
-          MEASUREMENT_PURPOSE: ${{ inputs.purpose }}
-          MEASUREMENT_RUN_TYPE: ${{ inputs.run_type }}
           MEASUREMENT_STARTING_KIT: ${{ inputs.starting_kit }}
           MEASUREMENT_POLICY: ${{ inputs.policy }}
           MEASUREMENT_FLEE_HP_THRESHOLD: ${{ inputs.flee_hp_threshold }}
@@ -332,11 +291,6 @@ jobs:
           MEASUREMENT_FIXED_RUNS: ${{ inputs.fixed_runs }}
           MEASUREMENT_FIXED_SEED: ${{ inputs.fixed_seed }}
           MEASUREMENT_POLICIES: ${{ inputs.policies }}
-          MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
-          MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          MEASUREMENT_REPOSITORY: ${{ github.repository }}
-          MEASUREMENT_RUN_ATTEMPT: ${{ github.run_attempt }}
-          MEASUREMENT_AT: ${{ github.run_started_at }}
           MEASUREMENT_RUN_ID: ${{ github.run_id }}
         run: |
           set -o pipefail

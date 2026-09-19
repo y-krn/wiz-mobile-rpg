@@ -28,11 +28,7 @@ jobs:
           # Full history makes that base ref available in the actual PR job.
           fetch-depth: 0
           filter: blob:none
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-node-deps
       - run: npm run test:unit:full
       - name: Verify measurement provenance
         run: node tests/node/regression/test_measurement_provenance.js
@@ -44,11 +40,7 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-node-deps
       - run: npm run lint
         env:
           EVIDENCE_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'push' && github.event.before || github.event_name == 'merge_group' && github.event.merge_group.base_sha || github.sha }}
@@ -85,13 +77,9 @@ jobs:
               - 'scripts/playwright-diagnostics-reporter.js'
               - 'scripts/playwright-preflight.js'
               - 'tests/node/regression/test_playwright_diagnostics.js'
+              - '.github/actions/setup-node-deps/action.yml'
               - '.github/workflows/test.yml'
-      - uses: actions/setup-node@v4
-        if: steps.changes.outputs.browser == 'true'
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-node-deps
         if: steps.changes.outputs.browser == 'true'
       - name: Resolve Playwright version
         id: pw
