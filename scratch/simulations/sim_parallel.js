@@ -4,7 +4,9 @@ import { MessageChannel, Worker } from "node:worker_threads";
 import { fileURLToPath } from "node:url";
 
 const TSX_CLI_ENTRYPOINT = /(?:[\\/]tsx[\\/]dist[\\/]cli\.mjs|[\\/]\.bin[\\/]tsx)$/;
-const WORKER_RUNTIME_OPTIONS = process.argv.some(argument => TSX_CLI_ENTRYPOINT.test(argument))
+const USE_TSX_RUNTIME = process.env.TSX_MODULE_RUNNER === "1" ||
+  process.argv.some(argument => TSX_CLI_ENTRYPOINT.test(argument));
+const WORKER_RUNTIME_OPTIONS = USE_TSX_RUNTIME
   ? { execArgv: ["--import", fileURLToPath(new URL("../../node_modules/tsx/dist/loader.mjs", import.meta.url))] }
   : {};
 
