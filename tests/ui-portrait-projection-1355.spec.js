@@ -175,6 +175,18 @@ for (const renderer of ['canvas', 'pixi']) {
   test(`Portrait ${renderer} combat pointer keeps Fight and HALITO targets aligned @smoke @visual`, async ({ page }, testInfo) => {
     await page.setViewportSize(PRIMARY);
     await seed(page, renderer, 'combat');
+    await page.evaluate(async () => {
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      dungeonRenderer.resize(400, 260);
+      dungeonRenderer.draw();
+    });
+    const beforeFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-before-${renderer}-combat-390.png`) });
+    await testInfo.attach(`issue-1355-before-${renderer}-combat-390`, { body: beforeFrame, contentType: 'image/png' });
+    await page.evaluate(async () => {
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      dungeonRenderer.resize();
+      dungeonRenderer.draw();
+    });
     await page.locator('#btn-combat-fight').click();
     const fightFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-${renderer}-combat-fight-390.png`) });
     await testInfo.attach(`issue-1355-${renderer}-combat-fight-390`, { body: fightFrame, contentType: 'image/png' });
