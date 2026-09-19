@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   ARM_IDS,
+  ARCANA_WEAPON_MODE,
   CANONICAL_ADAPTIVE_POLICY_ID,
   KIT_IDS,
   MEASUREMENT_ID,
@@ -188,5 +189,39 @@ assert.match(result.primaryComparisons[1].label, /P1B1 - P1B0/);
 assert.match(result.primaryComparisons[2].label, /P1B1 - P0B1/);
 assert.match(result.primaryComparisons[3].label, /P1B0 - P0B0/);
 assert.ok(!JSON.stringify(result).includes("encounterIdentityLog"));
+
+const arcana = await runMeasurement({ runs: 1, seed: 1277, mode: ARCANA_WEAPON_MODE });
+assert.deepEqual(arcana.configuration.arms, ["C", "W", "R"]);
+assert.deepEqual(arcana.configuration.startingKits, ["arcana"]);
+assert.equal(arcana.determinism.pass, true);
+assert.equal(arcana.observationInvariance.pass, true);
+assert.deepEqual(
+  { weapon: arcana.arms.W.byKit.arcana.preparation.startingWeapon, medium: arcana.arms.W.byKit.arcana.preparation.medium, rune: arcana.arms.W.byKit.arcana.preparation.activeRunes, maxMp: arcana.arms.W.byKit.arcana.preparation.maxMp },
+  { weapon: "WAND", medium: "WAND", rune: ["HALITO"], maxMp: 3 }
+);
+assert.deepEqual(
+  { weapon: arcana.arms.R.byKit.arcana.preparation.startingWeapon, medium: arcana.arms.R.byKit.arcana.preparation.medium, rune: arcana.arms.R.byKit.arcana.preparation.activeRunes, maxMp: arcana.arms.R.byKit.arcana.preparation.maxMp },
+  { weapon: "RAPIER", medium: null, rune: [], maxMp: 1 }
+);
+assert.equal(arcana.arms.W.overview.buildCheckpoints[2].weaponSwapCount.total, 0);
+assert.equal(arcana.arms.R.overview.buildCheckpoints[2].weaponSwapCount.total, 0);
+assert.ok(arcana.arms.W.overview.buildCheckpoints[2].nonWeaponSwapCount.total > 0);
+assert.ok(arcana.arms.R.overview.buildCheckpoints[2].nonWeaponSwapCount.total > 0);
+assert.equal(arcana.scoringAudit.wand.weaponAtk, 1.5);
+assert.equal(arcana.scoringAudit.rapier.weaponAtk, 12);
+assert.deepEqual(arcana.scoringAudit.structuralDelta, {
+  atk: 10.5,
+  maxMP: -2,
+  mediumLoss: true,
+  runeSlots: -1,
+  activeRunesRemoved: ["HALITO"]
+});
+assert.equal(arcana.combatSanity.wand.selectedAction.spellName, "HALITO");
+assert.equal(arcana.combatSanity.rapier.selectedAction.type, "fight");
+assert.equal(arcana.combatSanity.determinism, true);
+assert.equal(arcana.arms.C.overview.mediumAbandonment.departureCount, 1);
+assert.equal(arcana.arms.C.overview.mediumAbandonment.mediumLossCount, 1);
+assert.ok(arcana.arms.W.overview.combat[1].spellTelemetry.spellOpportunityRounds.total > 0);
+assert.ok(arcana.arms.W.overview.combat[1].spellTelemetry.eligibleSpellSelected.total > 0);
 
 console.log("first-band-build-formation diagnostic smoke: PASS");

@@ -2379,6 +2379,18 @@ function createStage15FloorTelemetry(floor) {
     combatActions: 0,
     spellActions: 0,
     normalAttackActions: 0,
+    physicalDamage: 0,
+    spellDamage: 0,
+    spellCastsBySpell: {},
+    spellOpportunityRounds: 0,
+    eligibleSpellSelected: 0,
+    eligibleFightFallback: 0,
+    fallbackReasons: {
+      insufficientMp: 0,
+      noActiveSpell: 0,
+      silenceStatus: 0,
+      policyDecision: 0
+    },
     defensiveSupportActions: 0,
     itemActions: 0,
     guardActions: 0,
@@ -2652,6 +2664,18 @@ function recordStage15Encounter(metrics, encounter) {
   floorTelemetry.combatMpSpent += encounter.combatMpSpent;
   floorTelemetry.spellActions += encounter.spellActions;
   floorTelemetry.normalAttackActions += encounter.normalAttacks;
+  floorTelemetry.physicalDamage += encounter.physicalDamage;
+  floorTelemetry.spellDamage += encounter.spellDamage;
+  Object.entries(encounter.spellUsage || {}).forEach(([spellId, usage]) => {
+    floorTelemetry.spellCastsBySpell[spellId] =
+      (floorTelemetry.spellCastsBySpell[spellId] || 0) + (usage.castCount || 0);
+  });
+  floorTelemetry.spellOpportunityRounds += encounter.spellOpportunityRounds;
+  floorTelemetry.eligibleSpellSelected += encounter.eligibleSpellSelected;
+  floorTelemetry.eligibleFightFallback += encounter.eligibleFightFallback;
+  Object.entries(encounter.fallbackReasons || {}).forEach(([reason, count]) => {
+    floorTelemetry.fallbackReasons[reason] += count || 0;
+  });
   floorTelemetry.defensiveSupportActions += encounter.defensiveSupportActions;
   floorTelemetry.itemActions += encounter.itemActions;
   floorTelemetry.guardActions += encounter.guardActions;
@@ -4792,6 +4816,9 @@ function createSimulationState(
         };
       })(),
       combatPolicy: scenario.combatPolicy || "balanced-combat",
+      lockedEquipmentSlots: Array.isArray(scenario.lockedEquipmentSlots)
+        ? [...new Set(scenario.lockedEquipmentSlots)]
+        : [],
       tacticalConsumablePolicy: SIM_412_POLICY,
       equipmentCraftPolicy,
       identificationPolicy,
@@ -8096,6 +8123,17 @@ function runEncounter(
         fleeActions: 0,
         failedNoopActions: 0,
         combatMpSpent: 0,
+        physicalDamage: 0,
+        spellDamage: 0,
+        spellOpportunityRounds: 0,
+        eligibleSpellSelected: 0,
+        eligibleFightFallback: 0,
+        fallbackReasons: {
+          insufficientMp: 0,
+          noActiveSpell: 0,
+          silenceStatus: 0,
+          policyDecision: 0
+        },
         insufficientMpDecisionCount: 0,
         insufficientMpRounds: 0,
         insufficientMpNormalAttackRounds: 0,
@@ -8448,6 +8486,33 @@ function runEncounter(
     recordDamageEstimateAction(metrics, state, action);
     const policyProbeAction = getCombatPolicyProbeAction(state);
     recordCombatPolicyProbe(state, metrics, policyProbeAction, action);
+    if (stage15Encounter) {
+      const activeSpellKeys = getSimulationActiveSpellKeys(state.party[0]);
+      const hasActiveOffensiveSpell = activeSpellKeys.some(spellName =>
+        SPELLS[spellName]?.target?.includes("enemy")
+      );
+      if (policyProbeAction?.type === "spell") {
+        stage15Encounter.spellOpportunityRounds++;
+        if (action.type === "spell") {
+          stage15Encounter.eligibleSpellSelected++;
+        } else if (action.type === "fight") {
+          stage15Encounter.eligibleFightFallback++;
+          const pressurePayment = getSpellActionPayment(
+            state,
+            policyProbeAction.spellName,
+            hasSpell(state.party[0], "DIOS") ? 1 : 0
+          );
+          const reason = pressurePayment
+            ? (state.silenceTurns > 0 || ["paralyzed", "paralyze", "sleep"].includes(state.party[0].status)
+              ? "silenceStatus"
+              : "policyDecision")
+            : "insufficientMp";
+          stage15Encounter.fallbackReasons[reason]++;
+        }
+      } else if (action.type === "fight" && !hasActiveOffensiveSpell) {
+        stage15Encounter.fallbackReasons.noActiveSpell++;
+      }
+    }
     const roundNumber = state.combatState.roundNumber;
     const pressureEvent = recordCombatSpellPressure(
       state,
@@ -8601,6 +8666,8 @@ function runEncounter(
     recordStage15MpSpend(metrics, Math.max(0, mpBeforeRound - mpAfterRound));
     if (stage15Encounter) {
       stage15Encounter.combatMpSpent += Math.max(0, mpBeforeRound - mpAfterRound);
+      stage15Encounter.physicalDamage += sumLoggedDamage(roundResult.logQueue, characterBeforeRound, "fight");
+      stage15Encounter.spellDamage += sumLoggedDamage(roundResult.logQueue, characterBeforeRound, "spell");
     }
     if (!(action.type === "item" && action.itemKey === "MANA_POTION")) {
       recordStage15MpDelta(metrics, 0, Math.max(0, mpAfterRound - mpBeforeRound), "other");
@@ -10233,6 +10300,59 @@ function getEquipmentScore(character, scoringProfile, floor) {
     getEconomyCoreScore(character, scoringProfile, floor) * economyCoreWeight;
 }
 
+export function getArcanaWeaponScoreAudit() {
+  const wand = createStartingKitCharacter("arcana");
+  const rapier = structuredClone(wand);
+  rapier.equipment.weapon = "RAPIER";
+  rapier.mediumState = { mediumKey: null, socketedRunes: [] };
+  const componentValues = character => ({
+    weaponAtk: getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk,
+    defense: getCharDef(character) * EQUIPMENT_SCORE_WEIGHTS.defense,
+    maxHp: getCharMaxHp(character) * EQUIPMENT_SCORE_WEIGHTS.maxHp,
+    guardian: getCharAffixSum(character, "guardian") * EQUIPMENT_SCORE_WEIGHTS.guardian,
+    spellGuard: getCharAffixSum(character, "spellGuard") * EQUIPMENT_SCORE_WEIGHTS.spellGuard,
+    followUp: getCharAffixSum(character, "followUp") * EQUIPMENT_SCORE_WEIGHTS.followUp,
+    firstStrike: getCharAffixSum(character, "firstStrike") * EQUIPMENT_SCORE_WEIGHTS.firstStrike,
+    arcane: getCharAffixSum(character, "arcane") * EQUIPMENT_SCORE_WEIGHTS.arcane,
+    devotion: getCharAffixSum(character, "devotion") * EQUIPMENT_SCORE_WEIGHTS.devotion
+  });
+  const snapshot = character => {
+    const build = resolveBuildSnapshot(character);
+    const components = componentValues(character);
+    return {
+      weapon: character.equipment.weapon,
+      weaponAtk: getCharWeaponAtk(character),
+      maxMP: getCharMaxMp(character),
+      medium: build.mediumId,
+      runeSlots: build.runeSlotCapacity,
+      activeRunes: [...build.activeRuneSpellIds],
+      scoreComponents: components,
+      baseEquipmentScore: getBaseEquipmentScore(character),
+      totalScore: getEquipmentScore(character, null, 1)
+    };
+  };
+  const wandSnapshot = snapshot(wand);
+  const rapierSnapshot = snapshot(rapier);
+  return {
+    source: "production getBaseEquipmentScore/getEquipmentScore + Arcana item/magic data",
+    wand: wandSnapshot,
+    rapier: rapierSnapshot,
+    structuralDelta: {
+      atk: rapierSnapshot.weaponAtk - wandSnapshot.weaponAtk,
+      maxMP: rapierSnapshot.maxMP - wandSnapshot.maxMP,
+      mediumLoss: Boolean(wandSnapshot.medium && !rapierSnapshot.medium),
+      runeSlots: rapierSnapshot.runeSlots - wandSnapshot.runeSlots,
+      activeRunesRemoved: wandSnapshot.activeRunes.filter(
+        spell => !rapierSnapshot.activeRunes.includes(spell)
+      )
+    },
+    scoreDelta: {
+      baseEquipmentScore: rapierSnapshot.baseEquipmentScore - wandSnapshot.baseEquipmentScore,
+      totalScore: rapierSnapshot.totalScore - wandSnapshot.totalScore
+    }
+  };
+}
+
 function qualifiesAsBuildCore(candidateScore, currentScore) {
   if (CORE_SCORE_DROP_TOLERANCE <= 0) return candidateScore > currentScore;
   return candidateScore > currentScore * (1 - CORE_SCORE_DROP_TOLERANCE);
@@ -10570,6 +10690,7 @@ function createEquipmentCandidateAudit(metrics, state, {
     candidateScore: Number.isFinite(Number(candidateGreedyScore)) ? candidateGreedyScore : null,
     scoreBefore: Number.isFinite(Number(currentGreedyScore)) ? currentGreedyScore : null,
     scoreAfter: Number.isFinite(Number(candidateGreedyScore)) ? candidateGreedyScore : null,
+    currentEquipmentId: getItemData(oldEquipment)?.id || oldEquipment?.baseId || oldEquipment || null,
     selectionScore: Number.isFinite(Number(selectionScore)) ? selectionScore : null,
     qualifies: Boolean(qualifies),
     paretoSafe: Boolean(paretoSafe),
@@ -10632,6 +10753,7 @@ function createEquipmentCandidateAudit(metrics, state, {
 
 function equipGreedyUpgrades(state, metrics, scoringProfile, equipmentScoreOverride = null) {
   const character = state.party[0];
+  const lockedEquipmentSlots = state.simPolicy.lockedEquipmentSlots || [];
   const scoreEquipment = typeof equipmentScoreOverride === "function"
     ? equipmentScoreOverride
     : (currentCharacter => getEquipmentScore(currentCharacter, scoringProfile, state.floor));
@@ -10690,6 +10812,16 @@ function equipGreedyUpgrades(state, metrics, scoringProfile, equipmentScoreOverr
           slot.includes("#")
         ? null
         : character.equipment[slot];
+      if (lockedEquipmentSlots.includes(slot)) {
+        createEquipmentCandidateAudit(metrics, state, {
+          slot,
+          oldEquipment,
+          candidate: inventoryItem,
+          currentGreedyScore: currentScore,
+          rejectionReason: "locked-slot"
+        });
+        return;
+      }
       if (isSimulationCurseLocked(oldEquipment)) {
         const blockedCoreId = getItemCoreId(inventoryItem);
         if (blockedCoreId) metrics.coreBlockedByCurseLockIds.add(blockedCoreId);

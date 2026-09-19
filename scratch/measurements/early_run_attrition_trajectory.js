@@ -450,6 +450,19 @@ function compactFloor(
       poisonStatusDamageHp: floorCosts.poisonStatus,
       fleePartingDamageHp: flee.observed ? flee.partingAttackDamageHp : null,
       mpSpent: finite(stage.mpSpent),
+      combatMpSpent: finite(stage.combatMpSpent),
+      physicalDamage: finite(stage.physicalDamage),
+      spellDamage: finite(stage.spellDamage),
+      spellCastsBySpell: stage.spellCastsBySpell ? { ...stage.spellCastsBySpell } : {},
+      spellActions: finite(stage.spellActions),
+      physicalFightActions: finite(stage.normalAttackActions),
+      spellOpportunityRounds: finite(stage.spellOpportunityRounds),
+      eligibleSpellSelected: finite(stage.eligibleSpellSelected),
+      eligibleFightFallback: finite(stage.eligibleFightFallback),
+      fallbackReasons: stage.fallbackReasons ? { ...stage.fallbackReasons } : null,
+      mpStart: finite(stage.entryMp),
+      mpEnd: finite(stage.exitMp),
+      mpZeroCombatCount: finite(stage.combatsEnteredZeroMp),
       hpRecovered: finite(stage.healing),
       healPotionRecoveryHp: finite(stage.healPotionRecoveryHp),
       floorTransitionRecoveryHp: finite(stage.floorTransitionRecoveryHp),
@@ -864,6 +877,7 @@ export function projectGameplayRecord(record) {
   delete projected.equipmentCandidateAuditSummary;
   delete projected.buildCheckpoints;
   delete projected.equipmentDecisionTelemetryConsistency;
+  delete projected.mediumAbandonment;
   Object.values(projected.floors || {}).forEach(floor => {
     if (floor?.loot) {
       delete floor.loot.equipmentDecisionActivity;
