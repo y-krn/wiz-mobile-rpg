@@ -13,6 +13,7 @@ import { isUsableCombatState } from "./view_state.js";
 import { BASE_STARTING_MP, BASIC_RUNE_ITEM_ID, MEDIUM_IDS } from "../data/magic.js";
 import { ITEMS } from "../data/items.js";
 import { getEquipmentHands } from "../rules/equipment_hands.js";
+import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
@@ -823,7 +824,13 @@ export function normalizeSavePayload(data) {
   normalized.activeMerchantStock = arrayOr(data.activeMerchantStock);
   const persistedCombatState = recordOr(data.combatState, null);
   normalized.combatState = isUsableCombatState(persistedCombatState)
-    ? { ...persistedCombatState, monsters: persistedCombatState.monsters.slice() }
+    ? {
+      ...persistedCombatState,
+      monsters: persistedCombatState.monsters.slice(),
+      lastActions: Array.isArray(persistedCombatState.lastActions)
+        ? normalizeCombatActions(persistedCombatState.lastActions)
+        : null
+    }
     : null;
   normalized.chestState = recordOr(data.chestState, null);
   normalized.gameState = normalizePersistedGameState(data.gameState, currentRun, normalized.combatState);
