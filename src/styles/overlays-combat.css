@@ -59,20 +59,6 @@
   padding-right: 2px;
 }
 
-.combat-target-selection-message {
-  flex: 0 1 auto;
-  display: grid;
-  place-items: center;
-  min-height: 52px;
-  padding: var(--sp-sm);
-  color: var(--neon-amber);
-  border: 1px solid rgba(226, 179, 111, 0.42);
-  background: rgba(226, 179, 111, 0.05);
-  text-align: center;
-  font-size: var(--fs-base);
-  font-weight: 600;
-}
-
 .combat-target-a11y-list {
   position: absolute;
   width: 1px;
