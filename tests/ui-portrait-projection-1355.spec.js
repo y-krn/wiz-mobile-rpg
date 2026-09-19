@@ -66,10 +66,11 @@ async function seed(page, renderer, gameState = 'explore', map = makeMap('straig
 async function readProjection(page) {
   return page.evaluate(async () => {
     const { state } = await import('/src/state.js');
-    const { dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
+    const { BASE_GEOMETRY, dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
     const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
     const profile = dungeonRenderer.viewport;
     const projection = getProjectionPlanes(dungeonRenderer.getRenderInput().visual.geometry, profile);
+    const canonicalProjection = getProjectionPlanes(BASE_GEOMETRY, profile);
     const topology = getVisibleCorridorTopology(state.map, state.x, state.y, state.dir)
       .map(({ z, column, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }) => ({ z, column, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }));
     const bounds = topology.reduce((result, { z, column }) => {
@@ -86,7 +87,9 @@ async function readProjection(page) {
       profile: { width: profile.width, height: profile.height, vanishingY: profile.vanishingPoint.y },
       canvas: [canvas.width, canvas.height],
       projection: { nearTop: projection.yt[0], nearBottom: projection.yb[0], farTop: projection.yt[4], farBottom: projection.yb[4] },
-      nearCoverage: (projection.xr[0] - projection.xl[0]) / profile.width,
+      nearCoverage: (canonicalProjection.xr[0] - canonicalProjection.xl[0]) / profile.width,
+      nearWorldCoverage: projection.columnLayout?.[0]?.span || (projection.xr[0] - projection.xl[0]) / profile.width,
+      depthCoverage: projection.xr.map((right, index) => (right - projection.xl[index]) / profile.width),
       bounds,
       topology,
       overflow: document.documentElement.scrollWidth,
@@ -152,6 +155,8 @@ test('Portrait projection shares geometry across Canvas and Pixi @smoke @visual'
       expect(current.canvas[1]).toBeGreaterThanOrEqual(843);
       expect(current.projection.nearBottom).toBeGreaterThan(260);
       expect(current.nearCoverage).toBeGreaterThanOrEqual(PORTRAIT_NEAR_COVERAGE_MIN);
+      expect(current.nearWorldCoverage).toBeGreaterThan(0.78);
+      expect(current.depthCoverage[4]).toBeLessThan(current.depthCoverage[0]);
       expect(current.profile.vanishingY / current.profile.height).toBeGreaterThan(0.35);
       expect(current.profile.vanishingY / current.profile.height).toBeLessThan(0.5);
       expect(current.bounds.left).toBeGreaterThanOrEqual(-1);
