@@ -1,5 +1,4 @@
 import { test, expect } from './fixtures/browser-health.js';
-import { writeFile } from 'node:fs/promises';
 import { PORTRAIT_NEAR_COVERAGE_MIN } from '../src/rules/renderer_projection.js';
 
 const PRIMARY = { width: 390, height: 844 };
@@ -66,10 +65,11 @@ async function seed(page, renderer, gameState = 'explore', map = makeMap('straig
 async function readProjection(page) {
   return page.evaluate(async () => {
     const { state } = await import('/src/state.js');
-    const { dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
+    const { BASE_GEOMETRY, dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
     const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
     const profile = dungeonRenderer.viewport;
     const projection = getProjectionPlanes(dungeonRenderer.getRenderInput().visual.geometry, profile);
+    const canonicalProjection = getProjectionPlanes(BASE_GEOMETRY, profile);
     const topology = getVisibleCorridorTopology(state.map, state.x, state.y, state.dir)
       .map(({ z, column, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }) => ({ z, column, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }));
     const bounds = topology.reduce((result, { z, column }) => {
@@ -86,7 +86,9 @@ async function readProjection(page) {
       profile: { width: profile.width, height: profile.height, vanishingY: profile.vanishingPoint.y },
       canvas: [canvas.width, canvas.height],
       projection: { nearTop: projection.yt[0], nearBottom: projection.yb[0], farTop: projection.yt[4], farBottom: projection.yb[4] },
-      nearCoverage: (projection.xr[0] - projection.xl[0]) / profile.width,
+      nearCoverage: (canonicalProjection.xr[0] - canonicalProjection.xl[0]) / profile.width,
+      nearWorldCoverage: projection.columnLayout?.[0]?.span || (projection.xr[0] - projection.xl[0]) / profile.width,
+      depthCoverage: projection.xr.map((right, index) => (right - projection.xl[index]) / profile.width),
       bounds,
       topology,
       overflow: document.documentElement.scrollWidth,
@@ -152,6 +154,8 @@ test('Portrait projection shares geometry across Canvas and Pixi @smoke @visual'
       expect(current.canvas[1]).toBeGreaterThanOrEqual(843);
       expect(current.projection.nearBottom).toBeGreaterThan(260);
       expect(current.nearCoverage).toBeGreaterThanOrEqual(PORTRAIT_NEAR_COVERAGE_MIN);
+      expect(current.nearWorldCoverage).toBeGreaterThan(0.78);
+      expect(current.depthCoverage[4]).toBeLessThan(current.depthCoverage[0]);
       expect(current.profile.vanishingY / current.profile.height).toBeGreaterThan(0.35);
       expect(current.profile.vanishingY / current.profile.height).toBeLessThan(0.5);
       expect(current.bounds.left).toBeGreaterThanOrEqual(-1);
@@ -170,6 +174,18 @@ for (const renderer of ['canvas', 'pixi']) {
   test(`Portrait ${renderer} combat pointer keeps Fight and HALITO targets aligned @smoke @visual`, async ({ page }, testInfo) => {
     await page.setViewportSize(PRIMARY);
     await seed(page, renderer, 'combat');
+    await page.evaluate(async () => {
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      dungeonRenderer.resize(400, 260);
+      dungeonRenderer.draw();
+    });
+    const beforeFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-before-${renderer}-combat-390.png`) });
+    await testInfo.attach(`issue-1355-before-${renderer}-combat-390`, { body: beforeFrame, contentType: 'image/png' });
+    await page.evaluate(async () => {
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      dungeonRenderer.resize();
+      dungeonRenderer.draw();
+    });
     await page.locator('#btn-combat-fight').click();
     const fightFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-${renderer}-combat-fight-390.png`) });
     await testInfo.attach(`issue-1355-${renderer}-combat-fight-390`, { body: fightFrame, contentType: 'image/png' });
@@ -200,10 +216,7 @@ for (const viewport of [{ width: 320, height: 568 }, { width: 430, height: 932 }
       expect(current.canvas[1]).toBeGreaterThanOrEqual(viewport.height - 2);
       expect(current.overflow).toBeLessThanOrEqual(viewport.width + 1);
       const screenshotPath = testInfo.outputPath(`issue-1355-${renderer}-${viewport.width}x${viewport.height}.png`);
-      const screenshot = renderer === 'pixi' && viewport.width >= 1000
-        ? Buffer.from((await page.evaluate(() => document.querySelector('#dungeon-canvas').toDataURL('image/png'))).split(',')[1], 'base64')
-        : await page.locator('#dungeon-canvas').screenshot({ path: screenshotPath });
-      if (renderer === 'pixi' && viewport.width >= 1000) await writeFile(screenshotPath, screenshot);
+      const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: screenshotPath });
       await testInfo.attach(`issue-1355-${renderer}-${viewport.width}x${viewport.height}`, { body: screenshot, contentType: 'image/png' });
     }
   });

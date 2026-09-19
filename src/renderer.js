@@ -323,8 +323,9 @@ export class DungeonRenderer {
       ctx.translate(dx, dy);
     }
 
-    // Clear with dark void
-    ctx.fillStyle = "#0c0c0e";
+    // Clear with the biome base so the generated near-world can dissolve into
+    // the screen edge without introducing a second renderer rectangle.
+    ctx.fillStyle = renderInput.visual.background || "#0c0c0e";
     ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
 
     const { showTownBackground, showCombat, showChest } = sceneVisibility;
@@ -332,6 +333,7 @@ export class DungeonRenderer {
       this.drawTownBackground(ctx);
     } else {
       // Exploration or Combat or Chest
+      this.drawEdgeAtmosphere(ctx, renderInput);
       this.draw3DCorridors(ctx, renderInput);
       
       // Draw monsters only for combat and combat-derived submenus.
@@ -369,6 +371,77 @@ export class DungeonRenderer {
 
   drawStairMiniMapIcon(...args) {
     drawSharedStairMiniMapIcon(...args);
+  }
+
+  drawEdgeAtmosphere(ctx, renderInput) {
+    const edge = this.viewport.edgeBlend;
+    if (!edge) return;
+
+    const { width, height } = this.viewport;
+    const wallColor = renderInput.visual.wallColor || "#58d6e8";
+    const background = renderInput.visual.background || "#0c0c0e";
+    const sideEnd = width * edge.sideFadeEnd;
+    const topEnd = height * edge.topFadeEnd;
+    const bottomStart = height * edge.bottomFadeStart;
+
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+
+    const left = ctx.createLinearGradient(0, 0, sideEnd, 0);
+    left.addColorStop(0, wallColor);
+    left.addColorStop(edge.sideFadeStart / edge.sideFadeEnd, wallColor);
+    left.addColorStop(1, background);
+    ctx.fillStyle = left;
+    ctx.fillRect(0, 0, sideEnd, height);
+
+    const right = ctx.createLinearGradient(width, 0, width - sideEnd, 0);
+    right.addColorStop(0, wallColor);
+    right.addColorStop(edge.sideFadeStart / edge.sideFadeEnd, wallColor);
+    right.addColorStop(1, background);
+    ctx.fillStyle = right;
+    ctx.fillRect(width - sideEnd, 0, sideEnd, height);
+
+    const top = ctx.createLinearGradient(0, 0, 0, topEnd);
+    top.addColorStop(0, wallColor);
+    top.addColorStop(1, background);
+    ctx.fillStyle = top;
+    ctx.fillRect(0, 0, width, topEnd);
+
+    const bottom = ctx.createLinearGradient(0, height, 0, bottomStart);
+    bottom.addColorStop(0, wallColor);
+    bottom.addColorStop(1, background);
+    ctx.fillStyle = bottom;
+    ctx.fillRect(0, bottomStart, width, height - bottomStart);
+
+    const vignette = ctx.createRadialGradient(
+      width / 2,
+      height / 2,
+      Math.min(width, height) * 0.34,
+      width / 2,
+      height / 2,
+      Math.max(width, height) * 0.72
+    );
+    vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+    vignette.addColorStop(1, `rgba(0, 0, 0, ${edge.vignetteAlpha})`);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = wallColor;
+    ctx.globalAlpha = 0.24;
+    for (let index = 0; index < edge.particleCount; index += 1) {
+      const side = index % 2 === 0 ? 1 : -1;
+      const seed = index * 37 + renderInput.floor * 11;
+      const x = side > 0
+        ? width * (0.02 + ((Math.sin(seed) + 1) / 2) * 0.16)
+        : width * (0.82 + ((Math.sin(seed) + 1) / 2) * 0.16);
+      const y = height * (0.08 + ((Math.sin(seed * 1.7) + 1) / 2) * 0.84);
+      const radius = 0.7 + ((Math.sin(seed * 2.3) + 1) / 2) * 0.8;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   drawTownBackground(ctx) {

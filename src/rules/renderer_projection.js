@@ -4,7 +4,7 @@
 // with the measured viewport aspect ratio.
 
 export const CANONICAL_VIEW = Object.freeze({ width: 400, height: 260 });
-export const PORTRAIT_NEAR_COVERAGE_MIN = 0.55;
+export const PORTRAIT_NEAR_COVERAGE_MIN = 0.80;
 
 export const BASE_PROJECTION = Object.freeze({
   xl: Object.freeze([0, 100, 145, 170, 184]),
@@ -21,12 +21,23 @@ export const BASE_GEOMETRY = Object.freeze({
 });
 
 const PORTRAIT_COLUMN_LAYOUT = Object.freeze([
-  Object.freeze({ span: 0.96, weights: Object.freeze([0.15, 0.70, 0.15]) }),
-  Object.freeze({ span: 0.72, weights: Object.freeze([0.17, 0.66, 0.17]) }),
-  Object.freeze({ span: 0.48, weights: Object.freeze([0.12, 0.16, 0.44, 0.16, 0.12]) }),
-  Object.freeze({ span: 0.30, weights: Object.freeze([0.12, 0.18, 0.40, 0.18, 0.12]) }),
-  Object.freeze({ span: 0.18, weights: Object.freeze([0.12, 0.18, 0.40, 0.18, 0.12]) })
+  // Total spans and centre weights intentionally diverge: the near plane
+  // expands across the camera while depth still contracts quickly.
+  Object.freeze({ span: 0.99, weights: Object.freeze([0.07, 0.86, 0.07]) }),
+  Object.freeze({ span: 0.92, weights: Object.freeze([0.12, 0.76, 0.12]) }),
+  Object.freeze({ span: 0.78, weights: Object.freeze([0.10, 0.15, 0.64, 0.15, 0.10]) }),
+  Object.freeze({ span: 0.72, weights: Object.freeze([0.11, 0.19, 0.40, 0.19, 0.11]) }),
+  Object.freeze({ span: 0.45, weights: Object.freeze([0.13, 0.17, 0.40, 0.17, 0.13]) })
 ]);
+
+const PORTRAIT_EDGE_BLEND = Object.freeze({
+  sideFadeStart: 0.01,
+  sideFadeEnd: 0.20,
+  topFadeEnd: 0.16,
+  bottomFadeStart: 0.84,
+  vignetteAlpha: 0.18,
+  particleCount: 10
+});
 
 const GEOMETRY_STYLES = new Set(["flat", "arch"]);
 
@@ -44,9 +55,9 @@ function freezeArray(values) {
 }
 
 /**
- * C strategy: preserve the canonical horizontal topology and choose vertical
- * depth framing from the viewport aspect. Portrait planes occupy the stage;
- * they are generated geometry, never a stretched 400x260 bitmap.
+ * Wide-frustum strategy: preserve the canonical horizontal topology while
+ * making the near planes broad and the far planes converge rapidly. Portrait
+ * planes are generated geometry, never a stretched 400x260 bitmap.
  */
 export function getProjectionProfile(width = CANONICAL_VIEW.width, height = CANONICAL_VIEW.height) {
   const viewportWidth = Math.round(finitePositive(width, CANONICAL_VIEW.width));
@@ -80,6 +91,10 @@ export function getProjectionProfile(width = CANONICAL_VIEW.width, height = CANO
       x: viewportWidth / 2,
       y: (yt[4] + yb[4]) / 2
     }),
+    coverage: Object.freeze(portrait
+      ? PORTRAIT_COLUMN_LAYOUT.map(({ span, weights }) => span * weights[Math.floor(weights.length / 2)])
+      : BASE_PROJECTION.xr.map((right, index) => (right - BASE_PROJECTION.xl[index]) / CANONICAL_VIEW.width)),
+    edgeBlend: portrait ? PORTRAIT_EDGE_BLEND : null,
     base: Object.freeze({
       xl: freezeArray(portrait ? portraitXl : BASE_PROJECTION.xl.map(value => value * xScale)),
       xr: freezeArray(portrait ? portraitXr : BASE_PROJECTION.xr.map(value => value * xScale)),
@@ -98,6 +113,12 @@ function normalizeProfile(profile) {
 export function getProjectionPlanes(geometry = BASE_GEOMETRY, profile = getProjectionProfile()) {
   const viewport = normalizeProfile(profile);
   const corridorWidth = finiteOr(geometry?.corridorWidth, BASE_GEOMETRY.corridorWidth);
+  // Portrait camera framing owns a minimum horizontal near-world presence.
+  // Keep biome-specific vertical geometry intact, but do not let a narrow
+  // biome profile recreate the old portrait tunnel at the screen edge.
+  const horizontalCorridorWidth = viewport.orientation === "portrait"
+    ? Math.max(corridorWidth, 0.94)
+    : corridorWidth;
   const ceilingHeight = finiteOr(geometry?.ceilingHeight, BASE_GEOMETRY.ceilingHeight);
   const wallLean = finiteOr(geometry?.wallLean, BASE_GEOMETRY.wallLean);
   const ceilingStyle = GEOMETRY_STYLES.has(geometry?.ceilingStyle)
@@ -114,7 +135,7 @@ export function getProjectionPlanes(geometry = BASE_GEOMETRY, profile = getProje
 
   for (let z = 0; z < viewport.base.xl.length; z++) {
     const baseWidth = viewport.base.xr[z] - viewport.base.xl[z];
-    const width = baseWidth * corridorWidth;
+    const width = baseWidth * horizontalCorridorWidth;
     const center = (viewport.base.xr[z] + viewport.base.xl[z]) / 2;
     const projectedLeft = center - width / 2;
     const projectedRight = center + width / 2;
@@ -145,7 +166,7 @@ export function getProjectionPlanes(geometry = BASE_GEOMETRY, profile = getProje
     ceilingStyle,
     viewport: viewport,
     columnLayout: viewport.columnLayout
-      ? viewport.columnLayout.map(({ span, weights }) => Object.freeze({ span: span * corridorWidth, weights }))
+      ? viewport.columnLayout.map(({ span, weights }) => Object.freeze({ span: span * horizontalCorridorWidth, weights }))
       : null
   });
 }

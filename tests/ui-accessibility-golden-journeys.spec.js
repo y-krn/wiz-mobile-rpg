@@ -15,7 +15,9 @@ async function seedCombat(page) {
   await page.evaluate(async () => {
     const { state, createStartingKitCharacter } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
-    state.party = [createStartingKitCharacter('vanguard')];
+    // Keep a second actor so the selected keyboard action remains observable
+    // before round resolution clears the transient selection buffer.
+    state.party = [createStartingKitCharacter('vanguard'), createStartingKitCharacter('vanguard')];
     state.map = [[{ walls: [false, false, false, false], type: 'empty' }]];
     state.visitedMap = [[true]];
     state.x = 0; state.y = 0; state.dir = 0;

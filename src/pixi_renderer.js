@@ -512,6 +512,46 @@ export class PixiDungeonRenderer {
         { x: this.viewport.width, y: bottom }, { x: 0, y: bottom }
       ], mixColor(color, wallColor, 0.08 + amount * 0.08), 0.11);
     }
+    this.drawEdgeAtmosphere(renderInput);
+  }
+
+  drawEdgeAtmosphere(renderInput) {
+    const edge = this.viewport.edgeBlend;
+    if (!edge) return;
+
+    const { width, height } = this.viewport;
+    const wallColor = safeColor(renderInput.visual.wallColor, "#58d6e8");
+    const background = safeColor(renderInput.visual.background, FALLBACK_BACKGROUND);
+    const wallTint = mixColor(background, wallColor, 0.58);
+    const sideEnd = width * edge.sideFadeEnd;
+    const topEnd = height * edge.topFadeEnd;
+    const bottomStart = height * edge.bottomFadeStart;
+    const sideFade = Math.max(0, edge.sideFadeEnd - edge.sideFadeStart);
+    const topFade = Math.max(0, edge.topFadeEnd);
+    const bottomFade = Math.max(0, 1 - edge.bottomFadeStart);
+
+    drawRect(this.layer("background"), 0, 0, sideEnd, height, wallTint, 0.16 * sideFade / edge.sideFadeEnd);
+    drawRect(this.layer("background"), width - sideEnd, 0, sideEnd, height, wallTint, 0.16 * sideFade / edge.sideFadeEnd);
+    drawRect(this.layer("background"), 0, 0, width, topEnd, wallTint, 0.12 * topFade);
+    drawRect(this.layer("background"), 0, bottomStart, width, height - bottomStart, wallTint, 0.12 * bottomFade);
+
+    const vignette = edge.vignetteAlpha;
+    drawRect(this.layer("background"), 0, 0, width * edge.sideFadeStart, height, 0x000000, vignette * 0.42);
+    drawRect(this.layer("background"), width * (1 - edge.sideFadeStart), 0, width * edge.sideFadeStart, height, 0x000000, vignette * 0.42);
+    drawRect(this.layer("background"), 0, 0, width, height * 0.04, 0x000000, vignette * 0.30);
+    drawRect(this.layer("background"), 0, height * 0.96, width, height * 0.04, 0x000000, vignette * 0.30);
+
+    const fx = this.layer("far-environment");
+    for (let index = 0; index < edge.particleCount; index += 1) {
+      const side = index % 2 === 0 ? 1 : -1;
+      const seed = index * 37 + renderInput.floor * 11;
+      const x = side > 0
+        ? width * (0.02 + ((Math.sin(seed) + 1) / 2) * 0.16)
+        : width * (0.82 + ((Math.sin(seed) + 1) / 2) * 0.16);
+      const y = height * (0.08 + ((Math.sin(seed * 1.7) + 1) / 2) * 0.84);
+      const radius = 0.7 + ((Math.sin(seed * 2.3) + 1) / 2) * 0.8;
+      drawEllipse(fx, x, y, radius, radius, wallColor, 0.20);
+    }
   }
 
   drawTownBackground(renderInput) {
