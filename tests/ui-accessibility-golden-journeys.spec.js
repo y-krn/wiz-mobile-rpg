@@ -151,6 +151,15 @@ test('Combat target selection exposes the player-known equivalent and restores c
   const focusEntry = await readFocusEvidence(page);
   expect(focusEntry).toMatchObject({ inDialog: 'combat-overlay', visible: true, inViewport: true });
   await expect(page.locator('.combat-target-a11y')).toHaveCount(2);
+  const instructions = page.locator('#combat-target-instructions');
+  await expect(instructions).toHaveText('敵をタップして対象を選択');
+  await expect(instructions).toHaveCSS('position', 'absolute');
+  await expect(instructions).toHaveAttribute('role', 'status');
+  await expect(instructions).toHaveAttribute('aria-live', 'polite');
+  await expect.poll(() => instructions.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  })).toEqual({ width: 1, height: 1 });
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('aria-describedby', 'combat-target-instructions');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('aria-label', '敵対象選択。敵をタップして対象を選択');
   await page.locator('#combat-overlay .btn-combat-back').click();
