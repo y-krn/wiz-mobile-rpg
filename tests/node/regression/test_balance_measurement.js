@@ -140,6 +140,7 @@ assert.match(workflow, /measure-standard:\n\s+if: inputs\.measurement == 'standa
 assert.match(workflow, /measure-other:\n\s+if: inputs\.measurement != 'standard'/);
 assert.match(workflow, /measure-standard:\n[\s\S]*timeout-minutes: 20/);
 assert.match(workflow, /name: Run standard balance measurement shard[\s\S]*timeout-minutes: 15/);
+assert.equal((workflow.match(/node --import tsx\/esm scratch\/measurements\/measure_balance\.js/g) || []).length, 1);
 assert.match(workflow, /fail-fast: false/);
 assert.match(workflow, /max-parallel: 4/);
 assert.match(workflow, /merge-standard:[\s\S]*download-artifact@v4/);
@@ -163,7 +164,8 @@ assert.match(workflow, /balance-measurement-merge-input-\$\{\{ github\.run_id \}
 assert.match(workflow, /measurement merge-input artifact is temporary and final-merge-only/);
 const nonStandardSection = workflow.slice(workflow.indexOf("  measure-other:"));
 assert.doesNotMatch(nonStandardSection, /name: Run selected balance measurement[\s\S]*?timeout-minutes: 15\n/);
-assert.match(nonStandardSection, /node scratch\/measurements\/run_balance_measurement\.js[\s\S]*tee/);
+assert.equal((nonStandardSection.match(/node --import tsx\/esm scratch\/measurements\/run_balance_measurement\.js/g) || []).length, 1);
+assert.match(nonStandardSection, /node --import tsx\/esm scratch\/measurements\/run_balance_measurement\.js[\s\S]*tee/);
 assert.match(nonStandardSection, /if \[ -n "\$MEASUREMENT_RUNS" \]/);
 assert.match(nonStandardSection, /if \[ -n "\$MEASUREMENT_SEED" \]/);
 assert.doesNotMatch(nonStandardSection, /--run_type|--starting_kit|--policy|--flee_hp_threshold|--selection_runs|--selection_seed|--fixed_runs|--fixed_seed|--policies/);

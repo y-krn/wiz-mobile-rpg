@@ -512,6 +512,13 @@ function writeManifest(invocation, runId, status) {
   }
 }
 
+export function createRunnerProcessInvocation(invocation) {
+  return Object.freeze({
+    executable: process.execPath,
+    args: Object.freeze(["--import", "tsx/esm", invocation.runner, ...invocation.args])
+  });
+}
+
 export function runBalanceMeasurement(input = {}) {
   const invocation = resolveRunnerInvocation(input, input.output_dir || DEFAULT_OUTPUT_DIRECTORY);
   const runId = nonEmpty(input.run_id, process.env.MEASUREMENT_WORKFLOW_RUN_ID || "local");
@@ -522,7 +529,8 @@ export function runBalanceMeasurement(input = {}) {
     MEASUREMENT_PURPOSE: invocation.options.purpose,
     MEASUREMENT_RUN_TYPE: invocation.options.runType
   };
-  const child = spawnSync(process.execPath, [invocation.runner, ...invocation.args], {
+  const childInvocation = createRunnerProcessInvocation(invocation);
+  const child = spawnSync(childInvocation.executable, childInvocation.args, {
     cwd: REPOSITORY_ROOT,
     env: environment,
     stdio: "inherit"
