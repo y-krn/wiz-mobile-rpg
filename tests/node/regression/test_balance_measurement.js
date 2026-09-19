@@ -14,6 +14,7 @@ import {
 
 import fs from "node:fs";
 import path from "node:path";
+import { MEASUREMENT_IDS } from "../../../scratch/measurements/run_balance_measurement.js";
 
 const defaults = resolveBalanceMeasurementConfig({}, {});
 assert.equal(defaults.runs, 500);
@@ -113,8 +114,14 @@ assert.deepEqual(
 );
 
 const workflow = fs.readFileSync(path.resolve(".github/workflows/balance-measurement.yml"), "utf8");
-assert.match(workflow, /measurement:\n[\s\S]*- build-progression-audit/);
-assert.match(workflow, /- first-band-arcana-weapon-diagnostic/);
+const workflowFiles = fs.readdirSync(path.resolve(".github/workflows")).filter(name => /\.ya?ml$/i.test(name)).sort();
+assert.deepEqual(workflowFiles, ["balance-measurement.yml", "test.yml"]);
+const measurementInput = workflow.slice(workflow.indexOf("      measurement:"), workflow.indexOf("      runs:"));
+assert.match(measurementInput, /description: "Measurement to run"\n\s+required: true\n\s+default: "standard"\n\s+type: string/);
+assert.doesNotMatch(measurementInput, /options:/);
+for (const measurementId of MEASUREMENT_IDS.filter(id => id !== "standard")) {
+  assert.doesNotMatch(workflow, new RegExp(`\\b${measurementId.replaceAll("-", "\\-")}\\b`));
+}
 assert.match(workflow, /measure-standard:\n\s+if: inputs\.measurement == 'standard'/);
 assert.match(workflow, /measure-other:\n\s+if: inputs\.measurement != 'standard'/);
 assert.match(workflow, /measure-standard:\n[\s\S]*timeout-minutes: 20/);
@@ -126,11 +133,12 @@ assert.match(workflow, /merge-standard:[\s\S]*merge_balance_measurement\.js/);
 assert.match(workflow, /merge-standard:[\s\S]*name: Upload final CI evidence artifact/);
 assert.match(workflow, /if: always\(\)/);
 assert.match(workflow, /retention-days: 14/);
-assert.match(workflow, /contains\(fromJSON\('\["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"\]'\), inputs\.measurement\) && 45 \|\| 20/);
-assert.match(workflow, /contains\(fromJSON\('\["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"\]'\), inputs\.measurement\) && 30 \|\| 15/);
+assert.match(workflow, /measure-other:\n[\s\S]*timeout-minutes: 45/);
+assert.match(workflow, /name: Run selected balance measurement\n\s+id: measurement\n\s+timeout-minutes: 30/);
+assert.doesNotMatch(workflow, /fromJSON\('\[/);
+assert.doesNotMatch(workflow, /long-running|Arcana weapon uses three arms|first-band build measurements include four kits/);
 assert.match(workflow, /--job-timeout-minutes/);
 assert.match(workflow, /--step-timeout-minutes/);
-assert.match(workflow, /Arcana weapon uses three arms; first-band build measurements include four kits/);
 assert.doesNotMatch(
   workflow.slice(workflow.indexOf("  measure-standard:"), workflow.indexOf("  merge-standard:")),
   /--include-raw/
@@ -143,6 +151,33 @@ const nonStandardSection = workflow.slice(workflow.indexOf("  measure-other:"));
 assert.doesNotMatch(nonStandardSection, /name: Run selected balance measurement[\s\S]*?timeout-minutes: 15\n/);
 assert.match(nonStandardSection, /node scratch\/measurements\/run_balance_measurement\.js[\s\S]*tee/);
 assert.match(nonStandardSection, /name: Publish durable run summary\n\s+if: always\(\)/);
+for (const commonEnv of [
+  "MEASUREMENT_REF: ${{ inputs.ref }}",
+  "MEASUREMENT_PURPOSE: ${{ inputs.purpose }}",
+  "MEASUREMENT_RUN_TYPE: ${{ inputs.run_type }}",
+  "MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}",
+  "MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+  "MEASUREMENT_REPOSITORY: ${{ github.repository }}",
+  "MEASUREMENT_RUN_ATTEMPT: ${{ github.run_attempt }}",
+  "MEASUREMENT_AT: ${{ github.run_started_at }}"
+]) {
+  assert.equal(workflow.split(commonEnv).length - 1, 1, `${commonEnv} must have one owner`);
+}
+assert.equal((workflow.match(/uses: \.\/\.github\/actions\/setup-node-deps/g) || []).length, 0);
+assert.equal((workflow.match(/uses: actions\/setup-node@v4/g) || []).length, 3);
+assert.equal((workflow.match(/node-version: 20/g) || []).length, 3);
+assert.equal((workflow.match(/run: npm ci/g) || []).length, 3);
+
+const testWorkflow = fs.readFileSync(path.resolve(".github/workflows/test.yml"), "utf8");
+assert.match(testWorkflow, /pull_request:/);
+assert.match(testWorkflow, /push:\n\s+branches: \[main\]/);
+assert.match(testWorkflow, /merge_group:/);
+assert.match(testWorkflow, /workflow_dispatch:/);
+assert.match(testWorkflow, /- '\.github\/actions\/setup-node-deps\/action\.yml'/);
+assert.equal((testWorkflow.match(/uses: \.\/\.github\/actions\/setup-node-deps/g) || []).length, 3);
+for (const jobId of ["unit", "lint", "browser"]) {
+  assert.match(testWorkflow, new RegExp(`\\n  ${jobId}:\\n`));
+}
 
 const rate = rateMetric(50, 100);
 assert.equal(rate.estimate, 0.5);
