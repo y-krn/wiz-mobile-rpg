@@ -518,6 +518,15 @@
   background: var(--floor-bg, #0a0e12);
 }
 
+/* The world owns the safe-area strips in Dungeon First mode. HUD content
+   remains inset below, while the renderer background can continue behind the
+   sensor housing and home indicator. */
+#game-container.dungeon-first-mode::before,
+#game-container.dungeon-first-mode::after {
+  z-index: 1;
+  background-color: transparent;
+}
+
 #game-container.dungeon-first-mode #viewport-panel {
   position: absolute;
   inset: 0;
@@ -529,7 +538,7 @@
   aspect-ratio: auto;
   display: block;
   overflow: hidden;
-  background: var(--floor-bg, #0a0e12);
+  background: var(--biome-aura, none), var(--floor-bg, #0a0e12);
   box-shadow: none;
 }
 
@@ -542,7 +551,10 @@
 }
 
 #game-container.dungeon-first-mode #dungeon-canvas {
-  object-fit: cover;
+  /* Preserve the complete 400x260 logical surface. The themed viewport
+     background fills the portrait letterbox instead of cropping navigation
+     landmarks and corridor branches. */
+  object-fit: contain;
   object-position: center;
 }
 
@@ -732,11 +744,11 @@
 }
 
 #game-container.dungeon-first-mode #controls-panel.combat-overlay-mode {
-  pointer-events: none;
+  pointer-events: none !important;
 }
 
 #game-container.dungeon-first-mode #controls-panel.combat-overlay-mode > #combat-overlay button {
-  pointer-events: auto;
+  pointer-events: auto !important;
 }
 
 #game-container.dungeon-first-mode #character-panel {
