@@ -3,6 +3,7 @@ import { test, expect } from './fixtures/browser-health.js';
 const COMBAT_VIEWPORTS = [
   { width: 390, height: 844 },
   { width: 320, height: 568 },
+  { width: 360, height: 800 },
   { width: 430, height: 932 },
 ];
 
