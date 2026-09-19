@@ -33,6 +33,7 @@ async function seedDungeon(page, { renderer = 'canvas', gameState = 'explore', m
   await page.evaluate(async ({ gameState, map, floor }) => {
     const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');
+    const { combatSelection } = await import('/src/combat.js');
     const { updateUI } = await import('/src/ui.js');
     state.party = [createStartingKitCharacter(gameState === 'combat' ? 'arcana' : 'vanguard')];
     state.currentRun = createDefaultCurrentRun();
@@ -50,6 +51,8 @@ async function seedDungeon(page, { renderer = 'canvas', gameState = 'explore', m
     state.combatState = gameState === 'combat'
       ? { phase: 'choose_actions', monsters: [{ name: '検証敵', level: 1, hp: 100, maxHp: 100, magicResist: 0, color: '#00e5ff', spriteType: 'biter' }] }
       : null;
+    combatSelection.charIdx = 0;
+    combatSelection.actions = [];
     Object.assign(menuContext, { type: '', targetType: '', actorIdx: -1, spellName: '', prevGameState: null });
     updateUI();
     const { dungeonRenderer } = await import('/src/renderer.js');
