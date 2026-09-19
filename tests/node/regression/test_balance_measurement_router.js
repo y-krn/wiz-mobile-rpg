@@ -303,6 +303,7 @@ for (const measurement of [
   "first-band-build-formation",
   "first-band-b5-wall-diagnostic",
   "first-band-b5-guardian-retry-diagnostic",
+  "first-band-b5-guardian-flee-ev-diagnostic",
   "first-band-arcana-weapon-diagnostic",
   "first-band-arcana-mp-supply-diagnostic",
   "first-band-transition-recovery",
@@ -505,7 +506,7 @@ assert.equal(
   "balance-measurement-early-run-attrition-123-attempt"
 );
 
-for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "first-band-build-formation", "first-band-b5-wall-diagnostic", "first-band-b5-guardian-retry-diagnostic", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
+for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "first-band-build-formation", "first-band-b5-wall-diagnostic", "first-band-b5-guardian-retry-diagnostic", "first-band-b5-guardian-flee-ev-diagnostic", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
   const invocation = resolveRunnerInvocation({ measurement, purpose: "smoke" }, "/tmp/router-test");
   assert.equal(invocation.measurement, measurement);
   assert.match(invocation.runner, /scratch\/measurements\//);
