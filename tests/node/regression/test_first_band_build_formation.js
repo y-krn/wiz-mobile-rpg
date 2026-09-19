@@ -6,6 +6,9 @@ import {
   B5_WALL_ARM_IDS,
   B5_WALL_MODE,
   B5_WALL_MEASUREMENT_ID,
+  B5_GUARDIAN_RETRY_MODE,
+  B5_GUARDIAN_RETRY_ARM_IDS,
+  B5_GUARDIAN_RETRY_MEASUREMENT_ID,
   CANONICAL_ADAPTIVE_POLICY_ID,
   KIT_IDS,
   MEASUREMENT_ID,
@@ -17,6 +20,19 @@ import {
 
 const { getScenarioById, resetSimulationRandom, simulateRun } =
   await import("../../../scratch/simulations/sim_depth_material_ev.js");
+const { getMilestoneBossRule } = await import("../../../src/rules/boss_rules.js");
+
+assert.deepEqual(
+  getMilestoneBossRule(5, "デーモンガード", { isBoss: true }),
+  {
+    id: "B5_DEMON_GUARD_BREAK",
+    floor: 5,
+    bossName: "デーモンガード",
+    breakHpRate: 0.80,
+    exposureTurns: 4,
+    exposureDamageMultiplier: 1.50
+  }
+);
 
 const result = await runMeasurement({ runs: 1, seed: 1277 });
 assert.equal(result.configuration.measurementId, MEASUREMENT_ID);
@@ -294,19 +310,23 @@ assert.equal(b5Wall.determinism.pass, true);
 assert.equal(b5Wall.observationInvariance.pass, true);
 assert.deepEqual(b5Wall.arms.C.samples.runs.runs[0].b5.intervention, {
   flameTrapDisabled: false,
-  guardianFleeDisabled: false
+  guardianFleeDisabled: false,
+  guardianRetryCheckpoint: false
 });
 assert.deepEqual(b5Wall.arms.F.samples.runs.runs[0].b5.intervention, {
   flameTrapDisabled: true,
-  guardianFleeDisabled: false
+  guardianFleeDisabled: false,
+  guardianRetryCheckpoint: false
 });
 assert.deepEqual(b5Wall.arms.G.samples.runs.runs[0].b5.intervention, {
   flameTrapDisabled: false,
-  guardianFleeDisabled: true
+  guardianFleeDisabled: true,
+  guardianRetryCheckpoint: false
 });
 assert.deepEqual(b5Wall.arms.FG.samples.runs.runs[0].b5.intervention, {
   flameTrapDisabled: true,
-  guardianFleeDisabled: true
+  guardianFleeDisabled: true,
+  guardianRetryCheckpoint: false
 });
 for (const armId of B5_WALL_ARM_IDS) {
   const flame = b5Wall.arms[armId].overview.b5.flameTrap;
@@ -315,5 +335,134 @@ for (const armId of B5_WALL_ARM_IDS) {
 assert.deepEqual(Object.keys(b5Wall.b5Comparisons), ["F-C", "G-C", "FG-C", "interaction"]);
 assert.ok(b5Wall.b5Comparisons["F-C"].baseline.flameTriggerRate <= 1);
 assert.match(buildSummary(b5Wall), /pre-B5 parity: PASS/);
+
+const guardianRetry = await runMeasurement({ runs: 1, seed: 1277, mode: B5_GUARDIAN_RETRY_MODE });
+assert.equal(guardianRetry.configuration.measurementId, B5_GUARDIAN_RETRY_MEASUREMENT_ID);
+assert.deepEqual(guardianRetry.configuration.arms, B5_GUARDIAN_RETRY_ARM_IDS);
+assert.equal(guardianRetry.preB5Parity.pass, true);
+assert.equal(guardianRetry.guardianRetryPairing.pass, true);
+assert.equal(guardianRetry.determinism.pass, true);
+assert.equal(guardianRetry.observationInvariance.pass, true);
+assert.match(buildSummary(guardianRetry), /checkpoint/);
+
+const runGuardianRetryProbe = (scenario, seed, seriesId) => {
+  resetSimulationRandom(seed);
+  return simulateRun({
+    className: "Thief",
+    startFloor: 1,
+    targetDepth: 6,
+    runIndex: 0,
+    seriesId,
+    scenario,
+    workshop: scenario.workshop,
+    worldSeed: `issue1374:${seed}:0`,
+    collectDiagnostics: true,
+    collectBuildSnapshots: true,
+    collectEquipmentTelemetry: true
+  });
+};
+const qualifyingGuardianScenario = {
+  ...getScenarioById("workshop-complete"),
+  startingHealPotions: 20,
+  startingGreaterHeals: 5,
+  trapPolicy: "disabled",
+  useTownPortal: false,
+  fleePolicy: "threshold",
+  fleeHpThreshold: 0.8,
+  milestonePortalPolicy: "continue",
+  hpBaseBonus: 1000,
+  merchantPolicy: "supply-missing",
+  b5GuardianRetryCheckpoint: true,
+  b5GuardianRetryObservation: true
+};
+const qualifyingGuardian = runGuardianRetryProbe(
+  qualifyingGuardianScenario,
+  6,
+  "issue1374-qualifying-flee"
+);
+const qualifyingRepeat = runGuardianRetryProbe(
+  qualifyingGuardianScenario,
+  6,
+  "issue1374-qualifying-flee"
+);
+assert.deepEqual(qualifyingGuardian.b5GuardianRetry, qualifyingRepeat.b5GuardianRetry);
+const qualifyingAttempts = qualifyingGuardian.b5GuardianRetry.attempts;
+assert.equal(qualifyingGuardian.b5GuardianRetry.checkpointEarnedCount, 1);
+assert.ok(qualifyingAttempts.some(attempt => attempt.qualifyingFlee));
+const appliedAttempts = qualifyingAttempts.filter(attempt => attempt.checkpointApplied);
+assert.ok(appliedAttempts.length > 0);
+assert.ok(appliedAttempts.every(attempt =>
+  attempt.bossStartHpRate === 0.8 &&
+  attempt.bossStartGuardBroken === false &&
+  attempt.bossStartExposureTurns === 0
+));
+assert.equal(
+  qualifyingGuardian.b5GuardianRetry.checkpointAppliedCount,
+  appliedAttempts.length
+);
+assert.equal(
+  new Set(appliedAttempts.map(attempt => attempt.bossStartHpRate)).size,
+  1
+);
+
+const nonQualifyingGuardianScenario = {
+  ...getScenarioById("workshop-complete"),
+  startingHealPotions: 20,
+  startingGreaterHeals: 5,
+  trapPolicy: "disabled",
+  useTownPortal: true,
+  fleePolicy: "threshold",
+  fleeHpThreshold: 1.0,
+  milestonePortalPolicy: "continue",
+  hpBaseBonus: 1000,
+  merchantPolicy: "supply-missing",
+  b5GuardianRetryCheckpoint: true,
+  b5GuardianRetryObservation: true,
+  startingKit: "vanguard"
+};
+const nonQualifyingGuardian = runGuardianRetryProbe(
+  nonQualifyingGuardianScenario,
+  6,
+  "issue1374-non-qualifying-flee"
+);
+const nonQualifyingRepeat = runGuardianRetryProbe(
+  nonQualifyingGuardianScenario,
+  6,
+  "issue1374-non-qualifying-flee"
+);
+assert.deepEqual(nonQualifyingGuardian.b5GuardianRetry, nonQualifyingRepeat.b5GuardianRetry);
+assert.equal(nonQualifyingGuardian.b5GuardianRetry.checkpointEarnedCount, 0);
+assert.equal(nonQualifyingGuardian.b5GuardianRetry.checkpointAppliedCount, 0);
+assert.ok(nonQualifyingGuardian.b5GuardianRetry.attempts.some(attempt =>
+  attempt.result === "flee" && attempt.bossHpAtFleeRate > 0.8
+));
+
+const pairingScenario = { ...qualifyingGuardianScenario, useTownPortal: true };
+const currentGuardian = runGuardianRetryProbe(
+  { ...pairingScenario, b5GuardianRetryCheckpoint: false },
+  6,
+  "issue1374-current-pair"
+);
+const candidateGuardian = runGuardianRetryProbe(
+  { ...pairingScenario, b5GuardianRetryCheckpoint: true },
+  6,
+  "issue1374-candidate-pair"
+);
+assert.deepEqual(
+  {
+    actionTypes: currentGuardian.b5GuardianRetry.attempts[0].actionTypes,
+    result: currentGuardian.b5GuardianRetry.attempts[0].result,
+    rounds: currentGuardian.b5GuardianRetry.attempts[0].rounds,
+    bossHpAtFlee: currentGuardian.b5GuardianRetry.attempts[0].bossHpAtFlee,
+    playerHpAtFlee: currentGuardian.b5GuardianRetry.attempts[0].playerHpAtFlee
+  },
+  {
+    actionTypes: candidateGuardian.b5GuardianRetry.attempts[0].actionTypes,
+    result: candidateGuardian.b5GuardianRetry.attempts[0].result,
+    rounds: candidateGuardian.b5GuardianRetry.attempts[0].rounds,
+    bossHpAtFlee: candidateGuardian.b5GuardianRetry.attempts[0].bossHpAtFlee,
+    playerHpAtFlee: candidateGuardian.b5GuardianRetry.attempts[0].playerHpAtFlee
+  }
+);
 
 console.log("first-band-build-formation diagnostic smoke: PASS");
