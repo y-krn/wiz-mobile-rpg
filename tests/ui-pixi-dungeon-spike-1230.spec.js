@@ -195,10 +195,15 @@ test('PixiJS motion uses projection continuity, restrained turns, and combat fee
     dungeonRenderer.addDamageText('24');
     dungeonRenderer.update(80); dungeonRenderer.draw(input);
     const layers = Object.fromEntries(Object.entries(dungeonRenderer.scene.layers).map(([name, layer]) => [name, layer.children.length]));
-    const layout = getCombatMonsterLayout(input.combatMonsters);
-    const combatCounts = [1, 2, 3].map((count) => getCombatMonsterLayout(input.combatMonsters.slice(0, count)).length);
+    const layout = getCombatMonsterLayout(input.combatMonsters, dungeonRenderer.viewport);
+    const combatCounts = [1, 2, 3].map((count) => getCombatMonsterLayout(input.combatMonsters.slice(0, count), dungeonRenderer.viewport).length);
     const rect = document.querySelector('#dungeon-canvas').getBoundingClientRect();
-    const target = dungeonRenderer.getCombatTargetAtClientPoint(rect.left + rect.width * (layout[1].hitRegion.centerX / 400), rect.top + rect.height * (layout[1].hitRegion.centerY / 260), input);
+    const scale = Math.min(rect.width / dungeonRenderer.viewport.width, rect.height / dungeonRenderer.viewport.height);
+    const target = dungeonRenderer.getCombatTargetAtClientPoint(
+      rect.left + layout[1].hitRegion.centerX * scale + (rect.width - dungeonRenderer.viewport.width * scale) / 2,
+      rect.top + layout[1].hitRegion.centerY * scale + (rect.height - dungeonRenderer.viewport.height * scale) / 2,
+      input
+    );
     return { layers, target, combatCounts, combatEntry: dungeonRenderer.combatEntryTime, hitTime: dungeonRenderer.hitTime, damageTexts: dungeonRenderer.damageTexts.length, danger: input.dangerCue.active };
   });
   expect(combat.target).toBe(1);

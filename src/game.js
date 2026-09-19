@@ -191,6 +191,12 @@ function lockViewportScale() {
   window.scrollTo(0, 0);
 }
 
+function resizeRenderer() {
+  if (!renderer?.resize) return;
+  renderer.resize();
+  renderer.lastSignature = null;
+}
+
 function scheduleGameLoop() {
   animationFrameId = requestAnimationFrame(gameLoop);
 }
@@ -372,9 +378,12 @@ function bindButtons() {
   // Keep the viewport metadata stable across browser UI changes without
   // intercepting pinch/double-tap gestures that users may need for zoom.
   window.addEventListener("resize", lockViewportScale);
+  window.addEventListener("resize", resizeRenderer);
   window.addEventListener("orientationchange", lockViewportScale);
+  window.addEventListener("orientationchange", resizeRenderer);
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", lockViewportScale);
+    window.visualViewport.addEventListener("resize", resizeRenderer);
     window.visualViewport.addEventListener("scroll", lockViewportScale);
   }
 

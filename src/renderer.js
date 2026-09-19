@@ -6,8 +6,16 @@ import {
 } from "./rules/renderer_topology.js";
 import { BLEEDING_PAYOFF_DAMAGE, VULNERABLE_DAMAGE_MULTIPLIER } from "./combat_logic/status_effects.js";
 import { drawMiniMap as drawSharedMiniMap, drawStairMiniMapIcon as drawSharedStairMiniMapIcon, isMiniMapAnimating, renderMiniMapOverlay } from "./minimap.js";
+import {
+  CANONICAL_VIEW,
+  getCombatMonsterLayout,
+  getProjectionColumn,
+  getProjectionPlanes,
+  getProjectionProfile
+} from "./rules/renderer_projection.js";
 
 export { getVisibleCorridorCells, getVisibleCorridorTopology } from "./rules/renderer_topology.js";
+export { BASE_GEOMETRY, BASE_PROJECTION, getCombatMonsterLayout, getProjectionColumn, getProjectionPlanes, getProjectionProfile } from "./rules/renderer_projection.js";
 
 export let dungeonRenderer = null;
 export function setDungeonRenderer(r) {
@@ -15,29 +23,13 @@ export function setDungeonRenderer(r) {
 }
 
 // Canvas dimensions
-const VIEW_W = 400;
-const VIEW_H = 260;
+const VIEW_W = CANONICAL_VIEW.width;
+const VIEW_H = CANONICAL_VIEW.height;
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
-
-const MONSTER_VISUAL_BOUNDS = Object.freeze({
-  biter: Object.freeze({ left: -35, top: -35, right: 35, bottom: 33 }),
-  kobold: Object.freeze({ left: -35, top: -50, right: 25, bottom: 30 }),
-  zombie: Object.freeze({ left: -45, top: -45, right: 45, bottom: 25 }),
-  skeleton: Object.freeze({ left: -18, top: -47, right: 40, bottom: 15 }),
-  orc: Object.freeze({ left: -35, top: -55, right: 35, bottom: 30 }),
-  mage: Object.freeze({ left: -35, top: -47, right: 20, bottom: 30 }),
-  spirit: Object.freeze({ left: -24, top: -42, right: 24, bottom: 24 }),
-  wisp: Object.freeze({ left: -26, top: -48, right: 26, bottom: 28 }),
-  spider: Object.freeze({ left: -50, top: -47, right: 50, bottom: 22 }),
-  bat: Object.freeze({ left: -55, top: -50, right: 55, bottom: 26 }),
-  rabbit: Object.freeze({ left: -20, top: -78, right: 20, bottom: 28 }),
-  flack: Object.freeze({ left: -45, top: -58, right: 45, bottom: 32 }),
-  dragon: Object.freeze({ left: -90, top: -70, right: 90, bottom: 32 })
-});
 
 function getMonsterSpriteType(monster) {
   if (monster?.spriteType) return monster.spriteType;
@@ -67,80 +59,6 @@ function getMonsterScaleMultiplier(monster) {
   return 1;
 }
 
-function getCombatMonsterHitRegion(monster, cx, cy, scale) {
-  const bounds = MONSTER_VISUAL_BOUNDS[getMonsterSpriteType(monster)] || MONSTER_VISUAL_BOUNDS.biter;
-  const visualScale = scale * getMonsterScaleMultiplier(monster);
-  // Keep the target forgiving on small sprites while preserving a bounded
-  // region around the drawn silhouette instead of the whole layout slot.
-  const touchPadding = Math.max(8, 12 / scale);
-  const left = (bounds.left - touchPadding) * visualScale;
-  const top = (bounds.top - touchPadding) * visualScale;
-  const right = (bounds.right + touchPadding) * visualScale;
-  const bottom = (bounds.bottom + touchPadding) * visualScale;
-
-  return {
-    x: cx + left,
-    y: cy + top,
-    width: right - left,
-    height: bottom - top,
-    centerX: cx + (left + right) / 2,
-    centerY: cy + (top + bottom) / 2,
-    radiusX: (right - left) / 2,
-    radiusY: (bottom - top) / 2,
-    shape: "ellipse"
-  };
-}
-
-export function getCombatMonsterLayout(monsters) {
-  if (!Array.isArray(monsters)) return [];
-  const alive = monsters
-    .map((monster, index) => ({ monster, index }))
-    .filter(({ monster }) => monster && typeof monster === "object" && monster.hp > 0);
-  if (alive.length === 0) return [];
-
-  const columns = alive.length >= 4 ? Math.ceil(alive.length / 2) : alive.length;
-  const rows = alive.length >= 4 ? 2 : 1;
-  const scale = alive.length >= 4 ? 0.52 : alive.length >= 2 ? 0.72 : 1;
-
-  return alive.map(({ monster, index }, layoutIndex) => {
-    const row = Math.floor(layoutIndex / columns);
-    const rowStart = row * columns;
-    const rowCount = Math.min(columns, alive.length - rowStart);
-    const slotWidth = VIEW_W / rowCount;
-    const column = layoutIndex - rowStart;
-    const cx = slotWidth * (column + 0.5);
-    const cy = rows === 1 ? VIEW_H / 2 + 15 : row === 0 ? 100 : 210;
-    return {
-      monster,
-      monsterIndex: index,
-      row,
-      column,
-      cx,
-      cy,
-      scale,
-      slotWidth,
-      hitRegion: getCombatMonsterHitRegion(monster, cx, cy, scale)
-    };
-  });
-}
-
-// Baseline depth planes for 3D projection. Geometry profiles deform this
-// canonical shape without changing the map or any gameplay state.
-export const BASE_PROJECTION = Object.freeze({
-  xl: Object.freeze([0, 100, 145, 170, 184]),
-  xr: Object.freeze([400, 300, 255, 230, 216]),
-  yt: Object.freeze([0, 52, 86, 106, 118]),
-  yb: Object.freeze([260, 208, 174, 154, 142])
-});
-
-export const BASE_GEOMETRY = Object.freeze({
-  corridorWidth: 1,
-  ceilingHeight: 1,
-  wallLean: 0,
-  ceilingStyle: "flat"
-});
-
-const GEOMETRY_STYLES = new Set(["flat", "arch"]);
 
 export const LANDMARK_STYLE_IDS = Object.freeze({
   chest: Object.freeze(["wood_crate", "stone_ossuary", "bone_cache", "sealed_book_coffer", "iron_strongbox", "abyss_reliquary"]),
@@ -167,73 +85,6 @@ function getChestStyle(style) {
   return LANDMARK_STYLE_SETS.chest.has(style) ? style : LANDMARK_STYLE_IDS.chest[0];
 }
 
-function finiteOr(value, fallback) {
-  return Number.isFinite(Number(value)) ? Number(value) : fallback;
-}
-
-export function getProjectionPlanes(geometry = BASE_GEOMETRY) {
-  const corridorWidth = finiteOr(geometry?.corridorWidth, BASE_GEOMETRY.corridorWidth);
-  const ceilingHeight = finiteOr(geometry?.ceilingHeight, BASE_GEOMETRY.ceilingHeight);
-  const wallLean = finiteOr(geometry?.wallLean, BASE_GEOMETRY.wallLean);
-  const ceilingStyle = GEOMETRY_STYLES.has(geometry?.ceilingStyle)
-    ? geometry.ceilingStyle
-    : BASE_GEOMETRY.ceilingStyle;
-  const xl = [];
-  const xr = [];
-  const yt = [];
-  const yb = [];
-  const leftTop = [];
-  const leftBottom = [];
-  const rightTop = [];
-  const rightBottom = [];
-
-  for (let z = 0; z < BASE_PROJECTION.xl.length; z++) {
-    const baseWidth = BASE_PROJECTION.xr[z] - BASE_PROJECTION.xl[z];
-    const width = baseWidth * corridorWidth;
-    const center = (BASE_PROJECTION.xr[z] + BASE_PROJECTION.xl[z]) / 2;
-    const projectedLeft = center - width / 2;
-    const projectedRight = center + width / 2;
-    const horizon = (BASE_PROJECTION.yb[z] + BASE_PROJECTION.yt[z]) / 2;
-    const projectedTop = horizon - (horizon - BASE_PROJECTION.yt[z]) * ceilingHeight;
-    const projectedBottom = horizon + (BASE_PROJECTION.yb[z] - horizon) * ceilingHeight;
-    const lean = width * wallLean * 0.5;
-
-    xl.push(projectedLeft);
-    xr.push(projectedRight);
-    yt.push(projectedTop);
-    yb.push(projectedBottom);
-    leftTop.push(projectedLeft + lean);
-    leftBottom.push(projectedLeft - lean);
-    rightTop.push(projectedRight - lean);
-    rightBottom.push(projectedRight + lean);
-  }
-
-  return Object.freeze({
-    xl: Object.freeze(xl),
-    xr: Object.freeze(xr),
-    yt: Object.freeze(yt),
-    yb: Object.freeze(yb),
-    leftTop: Object.freeze(leftTop),
-    leftBottom: Object.freeze(leftBottom),
-    rightTop: Object.freeze(rightTop),
-    rightBottom: Object.freeze(rightBottom),
-    ceilingStyle
-  });
-}
-
-export function getProjectionColumn(projection, z, column = 0) {
-  const topWidth = projection.rightTop[z] - projection.leftTop[z];
-  const bottomWidth = projection.rightBottom[z] - projection.leftBottom[z];
-  return {
-    leftTop: projection.leftTop[z] + topWidth * column,
-    leftBottom: projection.leftBottom[z] + bottomWidth * column,
-    rightTop: projection.leftTop[z] + topWidth * (column + 1),
-    rightBottom: projection.leftBottom[z] + bottomWidth * (column + 1),
-    top: projection.yt[z],
-    bottom: projection.yb[z]
-  };
-}
-
 // The state owner guarantees this shape for a playable floor. The renderer
 // still checks it at the boundary because a save or a transition can expose
 // a partially initialized cell for one frame.
@@ -241,10 +92,15 @@ export class DungeonRenderer {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
     this.mode = "canvas";
+    this.viewport = getProjectionProfile(VIEW_W, VIEW_H);
+    this.resizeObserver = null;
     if (this.canvas) {
       this.ctx = this.canvas.getContext("2d");
-      this.canvas.width = VIEW_W;
-      this.canvas.height = VIEW_H;
+      this.resize();
+      if (typeof ResizeObserver === "function" && this.canvas.parentElement) {
+        this.resizeObserver = new ResizeObserver(() => this.resize());
+        this.resizeObserver.observe(this.canvas.parentElement);
+      }
     }
     this.shakeTime = 0;
     this.shakeIntensity = 0;
@@ -254,6 +110,21 @@ export class DungeonRenderer {
     this.monsterPathCache = new Map();
     this.monsterDetailCache = new Map();
     this.monsterGradientCache = new Map();
+  }
+
+  resize(width = null, height = null) {
+    if (!this.canvas) return this.viewport;
+    const rect = this.canvas.parentElement?.getBoundingClientRect?.() || this.canvas.getBoundingClientRect?.() || {};
+    const viewportWidth = width || rect.width || VIEW_W;
+    const viewportHeight = height || rect.height || VIEW_H;
+    const next = getProjectionProfile(viewportWidth, viewportHeight);
+    if (next.width === this.viewport.width && next.height === this.viewport.height &&
+        this.canvas.width === next.width && this.canvas.height === next.height) return this.viewport;
+    this.viewport = next;
+    this.canvas.width = next.width;
+    this.canvas.height = next.height;
+    this.lastSignature = null;
+    return this.viewport;
   }
 
   triggerShake(intensity = 10, duration = 300) {
@@ -272,10 +143,11 @@ export class DungeonRenderer {
   }
 
   addDamageText(text, color = "#ff3b30") {
+    const { width, height } = this.viewport;
     this.damageTexts.push({
       text,
-      x: VIEW_W / 2 + (Math.random() * 40 - 20),
-      y: VIEW_H / 2 - 30 + (Math.random() * 20 - 10),
+      x: width / 2 + (Math.random() * width * 0.1 - width * 0.05),
+      y: height * 0.48 + (Math.random() * height * 0.04 - height * 0.02),
       age: 0,
       maxAge: 40,
       color
@@ -315,17 +187,17 @@ export class DungeonRenderer {
     const rect = this.canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
 
-    // object-fit: contain can letterbox the fixed 400x260 drawing inside the
-    // CSS canvas box. Convert the pointer to the same internal coordinates
-    // used by drawMonsters before testing the shared hit regions.
-    const scale = Math.min(rect.width / VIEW_W, rect.height / VIEW_H);
-    const renderedWidth = VIEW_W * scale;
-    const renderedHeight = VIEW_H * scale;
+    // Keep client conversion tied to the same viewport profile used to place
+    // the rendered enemy. contain remains safe if a host adds letterboxing.
+    const { width, height } = this.viewport;
+    const scale = Math.min(rect.width / width, rect.height / height);
+    const renderedWidth = width * scale;
+    const renderedHeight = height * scale;
     const x = (clientX - rect.left - (rect.width - renderedWidth) / 2) / scale;
     const y = (clientY - rect.top - (rect.height - renderedHeight) / 2) / scale;
-    if (x < 0 || x > VIEW_W || y < 0 || y > VIEW_H) return null;
+    if (x < 0 || x > width || y < 0 || y > height) return null;
 
-    return getCombatMonsterLayout(renderInput.combatMonsters)
+    return getCombatMonsterLayout(renderInput.combatMonsters, this.viewport)
       .find(({ hitRegion }) => {
         if (hitRegion.shape !== "ellipse" || !hitRegion.radiusX || !hitRegion.radiusY) return false;
         const normalizedX = (x - hitRegion.centerX) / hitRegion.radiusX;
@@ -453,7 +325,7 @@ export class DungeonRenderer {
 
     // Clear with dark void
     ctx.fillStyle = "#0c0c0e";
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
 
     const { showTownBackground, showCombat, showChest } = sceneVisibility;
     if (showTownBackground) {
@@ -480,7 +352,7 @@ export class DungeonRenderer {
     // Apply Screen Flash
     if (this.flashTime > 0) {
       ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
     }
 
     ctx.restore();
@@ -553,12 +425,12 @@ export class DungeonRenderer {
     ctx.shadowBlur = 10;
     ctx.font = "bold 20px 'Share Tech Mono', monospace";
     ctx.textAlign = "center";
-    ctx.fillText("CASTLE OF LLYLGAMYN", VIEW_W / 2, 60);
+    ctx.fillText("CASTLE OF LLYLGAMYN", this.viewport.width / 2, this.viewport.height * 0.23);
 
     ctx.fillStyle = "#8e8e93";
     ctx.shadowBlur = 0;
     ctx.font = "11px 'Outfit', sans-serif";
-    ctx.fillText("Select options below to prepare your quest.", VIEW_W / 2, 85);
+    ctx.fillText("Select options below to prepare your quest.", this.viewport.width / 2, this.viewport.height * 0.33);
   }
 
   draw3DCorridors(ctx, input = null) {
@@ -574,7 +446,7 @@ export class DungeonRenderer {
     ctx.shadowBlur = 0;
 
     const visual = renderInput.visual;
-    const projection = getProjectionPlanes(visual.geometry);
+    const projection = getProjectionPlanes(visual.geometry, this.viewport);
     const landmarks = getLandmarkStyles(visual);
     const depthCorruption = renderInput.depthCorruption;
     const environment = visual.environment;
@@ -1219,8 +1091,8 @@ export class DungeonRenderer {
   drawChest(ctx, style, input = null) {
     const renderInput = this.resolveRenderInput(input);
     // Render the current biome's treasure chest in front.
-    const cx = VIEW_W / 2;
-    const cy = VIEW_H / 2 + 20;
+    const cx = this.viewport.width / 2;
+    const cy = this.viewport.height * 0.58;
 
     const chestStyle = style === undefined
       ? getLandmarkStyles(renderInput.visual).chestStyle
@@ -1262,7 +1134,7 @@ export class DungeonRenderer {
   drawMonsters(ctx, input = null) {
     const renderInput = this.resolveRenderInput(input);
     if (!renderInput.view.hasCombat) return;
-    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion }) => {
+    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion }) => {
       if (renderInput.combatTargetSelection?.active) {
         this.drawTargetableMonsterMarker(ctx, hitRegion, cx, cy, scale, monster.color || "#ffb300");
       }
@@ -1759,7 +1631,7 @@ export class DungeonRenderer {
     ctx.strokeRect(cx - barW / 2, cy - 62, barW, barH);
   }
 
- drawFloatingTexts(ctx) {
+  drawFloatingTexts(ctx) {
     ctx.font = "bold 16px 'Share Tech Mono', monospace";
     ctx.textAlign = "center";
     
@@ -1774,5 +1646,10 @@ export class DungeonRenderer {
       
       ctx.shadowBlur = 0;
     });
+  }
+
+  dispose() {
+    this.resizeObserver?.disconnect?.();
+    this.resizeObserver = null;
   }
 }

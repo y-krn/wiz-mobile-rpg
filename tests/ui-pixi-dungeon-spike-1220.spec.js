@@ -88,7 +88,8 @@ test('PixiJS 2.5D keeps Canvas screen-space topology readable at supported width
     for (const archetype of ARCHETYPES) {
       const evidence = await configureSynthetic(page, archetype);
       expect(evidence.mode).toBe('pixi');
-      expect(evidence.canvasSize).toEqual([400, 260]);
+      expect(evidence.canvasSize[0]).toBeGreaterThanOrEqual(viewport.width - 2);
+      expect(evidence.canvasSize[1]).toBeGreaterThanOrEqual(viewport.height - 2);
       expect(evidence.childCount).toBeGreaterThan(0);
       const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`pixi-${archetype}-${viewport.width}px.png`) });
       await testInfo.attach(`pixi-${archetype}-${viewport.width}px`, { body: screenshot, contentType: 'image/png' });
@@ -151,15 +152,23 @@ test('PixiJS preserves combat staging, target mapping, danger cue, resize, and l
   });
   expect(oneWay.frontOneWayBarrier).toBe(true);
   await page.setViewportSize({ width: 430, height: 932 });
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => [canvas.width, canvas.height])).toEqual([400, 260]);
+  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => [canvas.width, canvas.height])).toEqual(expect.arrayContaining([expect.any(Number), expect.any(Number)]));
+  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.width)).toBeGreaterThanOrEqual(428);
+  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.height)).toBeGreaterThanOrEqual(930);
   await page.setViewportSize({ width: 320, height: 568 });
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => [canvas.width, canvas.height])).toEqual([400, 260]);
+  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.width)).toBeGreaterThanOrEqual(318);
+  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.height)).toBeGreaterThanOrEqual(566);
   await page.setViewportSize({ width: 390, height: 844 });
   const evidence = await page.evaluate(async () => {
     const { dungeonRenderer, getCombatMonsterLayout } = await import('/src/renderer.js');
-    const input = dungeonRenderer.getRenderInput(); const layout = getCombatMonsterLayout(input.combatMonsters);
+    const input = dungeonRenderer.getRenderInput(); const layout = getCombatMonsterLayout(input.combatMonsters, dungeonRenderer.viewport);
     const rect = document.querySelector('#dungeon-canvas').getBoundingClientRect();
-    const target = dungeonRenderer.getCombatTargetAtClientPoint(rect.left + rect.width * (layout[1].hitRegion.centerX / 400), rect.top + rect.height * (layout[1].hitRegion.centerY / 260), input);
+    const scale = Math.min(rect.width / dungeonRenderer.viewport.width, rect.height / dungeonRenderer.viewport.height);
+    const target = dungeonRenderer.getCombatTargetAtClientPoint(
+      rect.left + layout[1].hitRegion.centerX * scale + (rect.width - dungeonRenderer.viewport.width * scale) / 2,
+      rect.top + layout[1].hitRegion.centerY * scale + (rect.height - dungeonRenderer.viewport.height * scale) / 2,
+      input
+    );
     const before = { children: dungeonRenderer.scene.children.length, renders: dungeonRenderer.renderCount };
     dungeonRenderer.draw(input); dungeonRenderer.draw(input);
     const after = { children: dungeonRenderer.scene.children.length, renders: dungeonRenderer.renderCount };

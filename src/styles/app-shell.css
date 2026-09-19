@@ -147,7 +147,7 @@
 #viewport-panel {
   width: 100%;
   /* Map absorbs spare vertical space (priority: buttons > party HUD > map > log).
-     The canvas is object-fit:contain so the 400x260 render never distorts when
+     The canvas is object-fit:contain so the active projection profile never distorts when
      the panel grows taller or shorter. Buttons and party HUD are fixed-height
      and never shrink; the map keeps the render aspect ratio and yields only
      when the viewport is too short. */
@@ -251,7 +251,7 @@
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: contain; /* keep the 400x260 render undistorted if the panel grows taller */
+  object-fit: contain; /* keep the active logical projection undistorted */
 }
 
 #dungeon-minimap-overlay {
@@ -569,15 +569,15 @@
 }
 
 #game-container.dungeon-first-mode #dungeon-canvas {
-  /* Preserve the complete 400x260 logical surface. The themed viewport
-     background fills the portrait letterbox instead of cropping navigation
-     landmarks and corridor branches. */
+  /* Preserve the complete aspect-aware logical surface. contain remains the
+     safety contract for hosts that add letterboxing; projection owns portrait
+     expansion instead of CSS crop. */
   object-fit: contain;
   object-position: center;
 }
 
-/* Keep the complete 400x260 combat scene visible so enemy hit regions and
-   keyboard-equivalent canvas targeting retain their existing geometry. */
+/* Keep the complete aspect-aware combat scene visible so enemy hit regions and
+   keyboard-equivalent canvas targeting retain the renderer profile geometry. */
 #game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #dungeon-canvas {
   object-fit: contain;
 }

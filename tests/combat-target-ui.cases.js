@@ -59,11 +59,12 @@ async function clickCanvasMonster(page, layoutIndex = 0) {
       .map((monster, monsterIndex) => ({ monster, monsterIndex }))
       .filter(({ monster }) => monster.hp > 0);
     const target = regions[index];
-    const layout = (await import('/src/renderer.js')).getCombatMonsterLayout(state.combatState.monsters)[index];
-    const scale = Math.min(rect.width / 400, rect.height / 260);
+    const profile = dungeonRenderer.viewport;
+    const layout = (await import('/src/renderer.js')).getCombatMonsterLayout(state.combatState.monsters, profile)[index];
+    const scale = Math.min(rect.width / profile.width, rect.height / profile.height);
     return {
-      x: (layout.hitRegion.x + layout.hitRegion.width / 2) * scale + (rect.width - 400 * scale) / 2,
-      y: (layout.hitRegion.y + layout.hitRegion.height / 2) * scale + (rect.height - 260 * scale) / 2,
+      x: (layout.hitRegion.x + layout.hitRegion.width / 2) * scale + (rect.width - profile.width * scale) / 2,
+      y: (layout.hitRegion.y + layout.hitRegion.height / 2) * scale + (rect.height - profile.height * scale) / 2,
       targetIndex: target.monsterIndex,
     };
   }, layoutIndex);
@@ -72,12 +73,14 @@ async function clickCanvasMonster(page, layoutIndex = 0) {
 }
 
 async function clickCanvasInternalPoint(page, internalPoint) {
-  const point = await page.evaluate(({ x, y }) => {
+  const point = await page.evaluate(async ({ x, y }) => {
+    const { dungeonRenderer } = await import('/src/renderer.js');
     const rect = document.querySelector('#dungeon-canvas').getBoundingClientRect();
-    const scale = Math.min(rect.width / 400, rect.height / 260);
+    const profile = dungeonRenderer.viewport;
+    const scale = Math.min(rect.width / profile.width, rect.height / profile.height);
     return {
-      x: x * scale + (rect.width - 400 * scale) / 2,
-      y: y * scale + (rect.height - 260 * scale) / 2,
+      x: x * scale + (rect.width - profile.width * scale) / 2,
+      y: y * scale + (rect.height - profile.height * scale) / 2,
     };
   }, internalPoint);
   await page.locator('#dungeon-canvas').click({ position: point });
@@ -186,11 +189,12 @@ test('敵対象Canvasはdead敵をhit-testせず、戻るは行動を確定し�
     const { dungeonRenderer } = await import('/src/renderer.js');
     const { state } = await import('/src/state.js');
     const rect = document.querySelector('#dungeon-canvas').getBoundingClientRect();
-    const scale = Math.min(rect.width / 400, rect.height / 260);
-    const layout = (await import('/src/renderer.js')).getCombatMonsterLayout(state.combatState.monsters);
+    const profile = dungeonRenderer.viewport;
+    const scale = Math.min(rect.width / profile.width, rect.height / profile.height);
+    const layout = (await import('/src/renderer.js')).getCombatMonsterLayout(state.combatState.monsters, profile);
     const point = {
-      x: (layout[0].hitRegion.x + layout[0].hitRegion.width / 2) * scale + (rect.width - 400 * scale) / 2,
-      y: (layout[0].hitRegion.y + layout[0].hitRegion.height / 2) * scale + (rect.height - 260 * scale) / 2,
+      x: (layout[0].hitRegion.x + layout[0].hitRegion.width / 2) * scale + (rect.width - profile.width * scale) / 2,
+      y: (layout[0].hitRegion.y + layout[0].hitRegion.height / 2) * scale + (rect.height - profile.height * scale) / 2,
     };
     return {
       point,

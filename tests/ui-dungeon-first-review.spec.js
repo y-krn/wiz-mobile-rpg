@@ -98,14 +98,15 @@ async function seedPortal(page) {
 async function canvasTargetPoint(page, index = 0) {
   return page.evaluate(async (monsterIndex) => {
     const { state } = await import('/src/state.js');
-    const { getCombatMonsterLayout } = await import('/src/renderer.js');
+    const { dungeonRenderer, getCombatMonsterLayout } = await import('/src/renderer.js');
     const canvas = document.querySelector('#dungeon-canvas');
     const rect = canvas.getBoundingClientRect();
-    const hitRegion = getCombatMonsterLayout(state.combatState.monsters)[monsterIndex].hitRegion;
-    const scale = Math.min(rect.width / 400, rect.height / 260);
+    const profile = dungeonRenderer.viewport;
+    const hitRegion = getCombatMonsterLayout(state.combatState.monsters, profile)[monsterIndex].hitRegion;
+    const scale = Math.min(rect.width / profile.width, rect.height / profile.height);
     return {
-      x: (hitRegion.centerX * scale) + (rect.width - 400 * scale) / 2,
-      y: (hitRegion.centerY * scale) + (rect.height - 260 * scale) / 2,
+      x: (hitRegion.centerX * scale) + (rect.width - profile.width * scale) / 2,
+      y: (hitRegion.centerY * scale) + (rect.height - profile.height * scale) / 2,
     };
   }, index);
 }
@@ -159,7 +160,8 @@ test('Dungeon First preserves complete navigation surface across six 390x844 top
         };
       });
       expect(metrics.fit).toBe('contain');
-      expect(metrics.natural).toEqual([400, 260]);
+      expect(metrics.natural[0]).toBeGreaterThanOrEqual(388);
+      expect(metrics.natural[1]).toBeGreaterThanOrEqual(843);
       expect(metrics.canvas.width).toBeGreaterThanOrEqual(388);
       expect(metrics.canvas.height).toBeGreaterThanOrEqual(843);
       expect(metrics.viewport.height).toBeGreaterThanOrEqual(843);

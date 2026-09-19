@@ -6,10 +6,12 @@ import { EVENT_TYPES } from "./data.js";
 import { getEnemyPresentation } from "./enemy_presentation.js";
 import {
   BASE_GEOMETRY,
+  CANONICAL_VIEW,
   getCombatMonsterLayout,
   getProjectionColumn,
-  getProjectionPlanes
-} from "./renderer.js";
+  getProjectionPlanes,
+  getProjectionProfile
+} from "./rules/renderer_projection.js";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { getVisibleCorridorTopology, isRenderableCorridorCell } from "./rules/renderer_topology.js";
 import { renderMiniMapOverlay } from "./minimap.js";
@@ -24,8 +26,8 @@ import {
 // continues to use the same Pixi Assets singleton.
 export { Assets };
 
-export const PIXI_VIEW_W = 400;
-export const PIXI_VIEW_H = 260;
+export const PIXI_VIEW_W = CANONICAL_VIEW.width;
+export const PIXI_VIEW_H = CANONICAL_VIEW.height;
 export const PIXI_VERSION = "8.19.0";
 
 const COLUMN_ORDER = [-2, 2, -1, 1, 0];
@@ -206,6 +208,13 @@ export class PixiDungeonRenderer {
     };
     this.failurePhase = failurePhase;
     this.initializationPhase = null;
+    this.viewport = getProjectionProfile(PIXI_VIEW_W, PIXI_VIEW_H);
+    this.resizeObserver = null;
+    this.resize();
+    if (typeof ResizeObserver === "function" && this.canvas?.parentElement) {
+      this.resizeObserver = new ResizeObserver(() => this.resize());
+      this.resizeObserver.observe(this.canvas.parentElement);
+    }
   }
 
   createSceneRoot(name) {
@@ -224,6 +233,17 @@ export class PixiDungeonRenderer {
     return root?.layers?.[name] || root;
   }
 
+  resize(width = null, height = null) {
+    if (!this.canvas) return this.viewport;
+    const rect = this.canvas.parentElement?.getBoundingClientRect?.() || this.canvas.getBoundingClientRect?.() || {};
+    const next = getProjectionProfile(width || rect.width || PIXI_VIEW_W, height || rect.height || PIXI_VIEW_H);
+    if (next.width === this.viewport.width && next.height === this.viewport.height) return this.viewport;
+    this.viewport = next;
+    this.lastSignature = null;
+    this.app?.renderer?.resize(next.width, next.height);
+    return this.viewport;
+  }
+
   async init() {
     if (!this.canvas) throw new Error("Pixi dungeon canvas is unavailable");
     const startedAt = performance.now();
@@ -240,8 +260,8 @@ export class PixiDungeonRenderer {
       }
       await app.init({
         canvas: this.canvas,
-        width: PIXI_VIEW_W,
-        height: PIXI_VIEW_H,
+        width: this.viewport.width,
+        height: this.viewport.height,
         resolution: 1,
         autoDensity: false,
         antialias: true,
@@ -370,13 +390,14 @@ export class PixiDungeonRenderer {
     if (!renderInput.combatTargetSelection?.active || !this.canvas) return null;
     const rect = this.canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
-    const scale = Math.min(rect.width / PIXI_VIEW_W, rect.height / PIXI_VIEW_H);
-    const renderedWidth = PIXI_VIEW_W * scale;
-    const renderedHeight = PIXI_VIEW_H * scale;
+    const { width, height } = this.viewport;
+    const scale = Math.min(rect.width / width, rect.height / height);
+    const renderedWidth = width * scale;
+    const renderedHeight = height * scale;
     const x = (clientX - rect.left - (rect.width - renderedWidth) / 2) / scale;
     const y = (clientY - rect.top - (rect.height - renderedHeight) / 2) / scale;
-    if (x < 0 || x > PIXI_VIEW_W || y < 0 || y > PIXI_VIEW_H) return null;
-    return getCombatMonsterLayout(renderInput.combatMonsters)
+    if (x < 0 || x > width || y < 0 || y > height) return null;
+    return getCombatMonsterLayout(renderInput.combatMonsters, this.viewport)
       .find(({ hitRegion }) => {
         const normalizedX = (x - hitRegion.centerX) / hitRegion.radiusX;
         const normalizedY = (y - hitRegion.centerY) / hitRegion.radiusY;
@@ -446,7 +467,7 @@ export class PixiDungeonRenderer {
     }
     if (this.flashTime > 0) {
       if (renderInput.sceneVisibility.showCombat) this.drawLocalFlash(renderInput);
-      else drawRect(this.layer("overlays"), 0, 0, PIXI_VIEW_W, PIXI_VIEW_H, "#ffffff", 0.24);
+      else drawRect(this.layer("overlays"), 0, 0, this.viewport.width, this.viewport.height, "#ffffff", 0.24);
     }
     if (this.hitTime > 0) this.drawHitFeedback(renderInput);
     this.app.render();
@@ -480,13 +501,15 @@ export class PixiDungeonRenderer {
   drawBackground(renderInput) {
     const color = safeColor(renderInput.visual.background, FALLBACK_BACKGROUND);
     const background = this.layer("background");
-    drawRect(background, 0, 0, PIXI_VIEW_W, PIXI_VIEW_H, color);
+    drawRect(background, 0, 0, this.viewport.width, this.viewport.height, color);
     const wallColor = safeColor(renderInput.visual.wallColor, "#58d6e8");
     for (let band = 0; band < 7; band += 1) {
       const amount = band / 6;
+      const top = (band / 7) * this.viewport.height;
+      const bottom = ((band + 1) / 7) * this.viewport.height;
       addPolygon(background, [
-        { x: 0, y: band * 38 }, { x: PIXI_VIEW_W, y: band * 38 },
-        { x: PIXI_VIEW_W, y: (band + 1) * 38 }, { x: 0, y: (band + 1) * 38 }
+        { x: 0, y: top }, { x: this.viewport.width, y: top },
+        { x: this.viewport.width, y: bottom }, { x: 0, y: bottom }
       ], mixColor(color, wallColor, 0.08 + amount * 0.08), 0.11);
     }
   }
@@ -495,29 +518,34 @@ export class PixiDungeonRenderer {
     const color = safeColor(renderInput.visual.wallColor, "#00e5ff");
     const far = this.layer("far-environment");
     const walls = this.layer("structural-walls");
-    addLine(far, [{ x: 0, y: 180 }, { x: 80, y: 150 }, { x: 130, y: 170 }, { x: 200, y: 130 }, { x: 280, y: 165 }, { x: 340, y: 145 }, { x: 400, y: 180 }], { color, alpha: 0.35, width: 1 });
-    drawRect(walls, 150, 110, 10, 70, color, 0, { color, width: 2 });
-    drawRect(walls, 240, 110, 10, 70, color, 0, { color, width: 2 });
-    drawRect(walls, 160, 160, 80, 20, color, 0, { color, width: 2 });
-    drawEllipse(walls, 200, 180, 20, 20, color, 0, { color, width: 2 });
+    const sx = this.viewport.width / PIXI_VIEW_W;
+    const sy = this.viewport.height / PIXI_VIEW_H;
+    const point = (x, y) => ({ x: x * sx, y: y * sy });
+    addLine(far, [point(0, 180), point(80, 150), point(130, 170), point(200, 130), point(280, 165), point(340, 145), point(400, 180)], { color, alpha: 0.35, width: 1 });
+    drawRect(walls, 150 * sx, 110 * sy, 10 * sx, 70 * sy, color, 0, { color, width: 2 });
+    drawRect(walls, 240 * sx, 110 * sy, 10 * sx, 70 * sy, color, 0, { color, width: 2 });
+    drawRect(walls, 160 * sx, 160 * sy, 80 * sx, 20 * sy, color, 0, { color, width: 2 });
+    drawEllipse(walls, 200 * sx, 180 * sy, 20 * sx, 20 * sy, color, 0, { color, width: 2 });
   }
 
   drawFarEnvironment(renderInput) {
     const far = this.layer("far-environment");
     const color = safeColor(renderInput.visual.wallColor, "#58d6e8");
     const phase = Number(renderInput.visual.environment?.animatedCyclePosition || 0);
+    const sx = this.viewport.width / PIXI_VIEW_W;
+    const sy = this.viewport.height / PIXI_VIEW_H;
     for (let index = 0; index < 5; index += 1) {
-      const x = 36 + seededUnit(renderInput.floor * 19 + index * 7 + phase) * 328;
-      const y = 32 + seededUnit(renderInput.floor * 29 + index * 11 + phase) * 86;
-      drawEllipse(far, x, y, 1.4, 1.4, color, 0.18);
+      const x = (36 + seededUnit(renderInput.floor * 19 + index * 7 + phase) * 328) * sx;
+      const y = (32 + seededUnit(renderInput.floor * 29 + index * 11 + phase) * 86) * sy;
+      drawEllipse(far, x, y, 1.4 * sx, 1.4 * sy, color, 0.18);
     }
-    addPolygon(far, [{ x: 150, y: 0 }, { x: 250, y: 0 }, { x: 224, y: 124 }, { x: 176, y: 124 }], color, 0.025);
+    addPolygon(far, [{ x: 150 * sx, y: 0 }, { x: 250 * sx, y: 0 }, { x: 224 * sx, y: 124 * sy }, { x: 176 * sx, y: 124 * sy }], color, 0.025);
   }
 
   drawCorridors(renderInput) {
     const map = renderInput.map;
     if (!Array.isArray(map)) return;
-    const projection = getProjectionPlanes(renderInput.visual.geometry || BASE_GEOMETRY);
+    const projection = getProjectionPlanes(renderInput.visual.geometry || BASE_GEOMETRY, this.viewport);
     const topology = new Map(getVisibleCorridorTopology(map, renderInput.x, renderInput.y, renderInput.dir)
       .map((cell) => [`${cell.z}:${cell.column}`, cell]));
     const background = safeColor(renderInput.visual.background, FALLBACK_BACKGROUND);
@@ -684,7 +712,7 @@ export class PixiDungeonRenderer {
   }
 
   drawMonsters(renderInput) {
-    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion, row, column }) => {
+    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion, row, column }) => {
       const color = getMonsterColor(monster);
       const actors = this.layer("actors");
       const presentation = this.enemyPresentationMode === "production"
@@ -751,23 +779,27 @@ export class PixiDungeonRenderer {
 
   drawLocalFlash(renderInput) {
     const progress = clamp01(this.flashTime / 200);
-    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ cx, cy, scale }) => {
+    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ cx, cy, scale }) => {
       drawEllipse(this.layer("combat-fx"), cx, cy - 20 * scale, 28 * scale, 48 * scale, "#fff4dc", 0.05 + progress * 0.11);
     });
   }
 
   drawChest() {
     const actors = this.layer("actors");
-    drawRect(actors, 170, 145, 60, 40, "#6b3a00", 0.92, { color: "#ffb300", width: 2.5 });
-    addLine(actors, [{ x: 170, y: 160 }, { x: 230, y: 160 }], { color: "#ffb300", width: 2 });
-    drawEllipse(actors, 200, 164, 4, 4, "#ff3b30", 0.95);
+    const sx = this.viewport.width / PIXI_VIEW_W;
+    const sy = this.viewport.height / PIXI_VIEW_H;
+    drawRect(actors, 170 * sx, 145 * sy, 60 * sx, 40 * sy, "#6b3a00", 0.92, { color: "#ffb300", width: 2.5 });
+    addLine(actors, [{ x: 170 * sx, y: 160 * sy }, { x: 230 * sx, y: 160 * sy }], { color: "#ffb300", width: 2 });
+    drawEllipse(actors, 200 * sx, 164 * sy, 4 * sx, 4 * sy, "#ff3b30", 0.95);
   }
 
   drawDangerPulse(renderInput) {
     if (!renderInput.dangerCue?.active || prefersReducedMotion()) return;
     const pulse = 0.05 + 0.03 * (Math.sin(this.clockMs / 220) + 1);
-    drawEllipse(this.layer("environment-fx"), 200, 174, 150, 22, "#ff3b30", pulse, { color: "#ff3b30", width: 1.3, alpha: 0.48 });
-    drawEllipse(this.layer("combat-fx"), 200, 124, 42, 18, "#ff3b30", 0.035 + pulse * 0.35);
+    const sx = this.viewport.width / PIXI_VIEW_W;
+    const sy = this.viewport.height / PIXI_VIEW_H;
+    drawEllipse(this.layer("environment-fx"), 200 * sx, 174 * sy, 150 * sx, 22 * sy, "#ff3b30", pulse, { color: "#ff3b30", width: 1.3, alpha: 0.48 });
+    drawEllipse(this.layer("combat-fx"), 200 * sx, 124 * sy, 42 * sx, 18 * sy, "#ff3b30", 0.035 + pulse * 0.35);
   }
 
   drawFloatingTexts() {
@@ -777,7 +809,7 @@ export class PixiDungeonRenderer {
         style: { fill: entry.color, fontFamily: "sans-serif", fontSize: 17, fontWeight: "bold", stroke: { color: "#170b0b", width: 4 } }
       });
       text.anchor.set(0.5);
-      text.position.set(200, 100 - entry.age * 0.9);
+      text.position.set(this.viewport.width / 2, this.viewport.height * 0.38 - entry.age * this.viewport.height / 260 * 0.9);
       text.scale.set(1 + Math.max(0, 0.12 - entry.age * 0.008));
       text.alpha = Math.max(0, 1 - entry.age / entry.maxAge);
       this.layer("combat-fx").addChild(text);
@@ -789,11 +821,13 @@ export class PixiDungeonRenderer {
     const color = safeColor(renderInput.visual.wallColor, "#58d6e8");
     const background = safeColor(renderInput.visual.background, FALLBACK_BACKGROUND);
     const alpha = renderInput.visual.environment?.animated ? 0.055 : 0.035;
-    addPolygon(fx, [{ x: 0, y: 112 }, { x: 400, y: 112 }, { x: 400, y: 166 }, { x: 0, y: 166 }], mixColor(background, color, 0.45), alpha);
-    drawEllipse(fx, 200, 108, 88, 34, color, 0.025);
+    const sx = this.viewport.width / PIXI_VIEW_W;
+    const sy = this.viewport.height / PIXI_VIEW_H;
+    addPolygon(fx, [{ x: 0, y: 112 * sy }, { x: this.viewport.width, y: 112 * sy }, { x: this.viewport.width, y: 166 * sy }, { x: 0, y: 166 * sy }], mixColor(background, color, 0.45), alpha);
+    drawEllipse(fx, this.viewport.width / 2, 108 * sy, 88 * sx, 34 * sy, color, 0.025);
     if (renderInput.visual.geometry?.ceilingStyle === "arch") {
-      addLine(fx, [{ x: 106, y: 30 }, { x: 128, y: 22 }, { x: 160, y: 18 }], { color, width: 1, alpha: 0.25 });
-      addLine(fx, [{ x: 240, y: 18 }, { x: 272, y: 22 }, { x: 294, y: 30 }], { color, width: 1, alpha: 0.25 });
+      addLine(fx, [{ x: 106 * sx, y: 30 * sy }, { x: 128 * sx, y: 22 * sy }, { x: 160 * sx, y: 18 * sy }], { color, width: 1, alpha: 0.25 });
+      addLine(fx, [{ x: 240 * sx, y: 18 * sy }, { x: 272 * sx, y: 22 * sy }, { x: 294 * sx, y: 30 * sy }], { color, width: 1, alpha: 0.25 });
     }
   }
 
@@ -803,7 +837,7 @@ export class PixiDungeonRenderer {
     const fx = this.layer("combat-fx");
     const color = safeColor(renderInput.visual.wallColor, "#58d6e8");
     const radius = 46 + eased * 78;
-    drawEllipse(fx, 200, 174, radius, 15, color, 0, { color, width: 2, alpha: 0.45 * (1 - eased) });
+    drawEllipse(fx, this.viewport.width / 2, this.viewport.height * 0.67, radius * this.viewport.width / PIXI_VIEW_W, 15 * this.viewport.height / PIXI_VIEW_H, color, 0, { color, width: 2, alpha: 0.45 * (1 - eased) });
     fx.alpha = 1;
     this.layer("actors").position.y = (1 - eased) * 12;
     this.layer("actors").scale.set(0.90 + eased * 0.10);
@@ -813,7 +847,7 @@ export class PixiDungeonRenderer {
     const progress = clamp01(this.hitTime / 220);
     const color = safeColor(renderInput.visual.wallColor, "#e8f7f4");
     const alpha = 0.12 * progress;
-    getCombatMonsterLayout(renderInput.combatMonsters).forEach(({ cx, cy, scale }) => {
+    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ cx, cy, scale }) => {
       drawEllipse(this.layer("combat-fx"), cx, cy - 20 * scale, 24 * scale + progress * 8, 42 * scale + progress * 12, color, alpha);
       addLine(this.layer("combat-fx"), [
         { x: cx - 17 * scale, y: cy - 18 * scale },
@@ -823,6 +857,8 @@ export class PixiDungeonRenderer {
   }
 
   dispose() {
+    this.resizeObserver?.disconnect?.();
+    this.resizeObserver = null;
     if (!this.app) {
       this.resourceStats.destroyed = true;
       return;
