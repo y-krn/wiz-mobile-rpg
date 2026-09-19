@@ -40,12 +40,14 @@ try {
     "--calibration-runs", "1",
     "--partial-output", partialOutput,
     "--shard-index", "0",
-    "--shard-count", "12"
+    "--shard-count", "6"
   ], measurementEnv);
   assert.equal(measurement.status, 0, `${measurement.stdout}\n${measurement.stderr}`);
   assert.match(measurement.stdout, /Wrote standard balance measurement shard:/);
   const shard = JSON.parse(fs.readFileSync(partialOutput, "utf8"));
-  assert.equal(shard.execution.taskCount, 1);
+  assert.equal(shard.execution.taskCount, 2);
+  assert.equal(shard.execution.parallelism, 2);
+  assert.equal(shard.shard.shardCount, 6);
   assert.equal(shard.configuration.runs, 500);
 } finally {
   fs.rmSync(outputDir, { recursive: true, force: true });

@@ -31,10 +31,6 @@ function resolveSimMapCacheEntries() {
 
 export function resolveSimParallelism(taskCount) {
   const raw = String(process.env.SIM_PARALLEL || "").trim().toLowerCase();
-  // Node 20's tsx ESM hook is not inherited reliably by worker_threads;
-  // keep TypeScript-backed test runners deterministic and worker-free unless
-  // a caller explicitly requests a parallelism value.
-  if (USE_TSX_RUNTIME && !raw) return 1;
   const requested = raw === "max"
     ? MAX_SIM_PARALLEL
     : raw
