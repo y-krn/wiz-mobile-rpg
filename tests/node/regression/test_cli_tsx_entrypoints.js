@@ -6,8 +6,8 @@ import { spawnSync } from "node:child_process";
 
 const root = path.resolve(".");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
-assert.equal(packageJson.scripts.simulation, "tsx scratch/simulations/sim_depth_material_ev.js");
-assert.equal(packageJson.scripts["measure:balance"], "tsx scratch/measurements/measure_balance.js");
+assert.equal(packageJson.scripts.simulation, "node --import tsx/esm scratch/simulations/sim_depth_material_ev.js");
+assert.equal(packageJson.scripts["measure:balance"], "node --import tsx/esm scratch/measurements/measure_balance.js");
 
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const simulationEnv = { ...process.env, ISSUE624_SMOKE: "1", SIM_RUNS: "1", SIM_CALIBRATION_RUNS: "1", SIM_SKIP_PROVENANCE: "1" };
