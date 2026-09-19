@@ -6,8 +6,8 @@ import { dirname, resolve } from "node:path";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 function runWithMetrics(flag) {
   const result = spawnSync(
-    process.execPath,
-    ["node_modules/tsx/dist/cli.mjs", "scratch/simulations/sim_commit_depth.js"],
+    resolve(repoRoot, "node_modules/.bin/tsx"),
+    ["scratch/simulations/sim_commit_depth.js"],
     {
       cwd: repoRoot,
       env: {

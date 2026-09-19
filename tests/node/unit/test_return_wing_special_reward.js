@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
 import {
   CHEST_ITEM_CANDIDATES_BY_FLOOR,
   CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
@@ -221,7 +222,7 @@ await liveCheck("combat-generated Return Wing remains protected when smashed", a
 });
 
 check("real-run telemetry exposes acquisition, use, floor, HP band, and outcome fields", () => {
-  const output = execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scratch/simulations/sim_depth_material_ev.js"], {
+  const output = execFileSync(resolve(process.cwd(), "node_modules/.bin/tsx"), ["scratch/simulations/sim_depth_material_ev.js"], {
     cwd: process.cwd(),
     env: {
       ...process.env,
