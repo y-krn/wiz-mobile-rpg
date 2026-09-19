@@ -95,7 +95,7 @@ jobs:
           MEASUREMENT_RUN_ID: ${{ github.run_id }}
         run: |
           set -o pipefail
-          node scratch/measurements/measure_balance.js \
+          node --import tsx/esm scratch/measurements/measure_balance.js \
             --runs "$MEASUREMENT_RUNS" \
             --seed "$MEASUREMENT_SEED" \
             --calibration-runs 100 \
@@ -279,7 +279,7 @@ jobs:
           )
           if [ -n "$MEASUREMENT_RUNS" ]; then router_args+=(--runs "$MEASUREMENT_RUNS"); fi
           if [ -n "$MEASUREMENT_SEED" ]; then router_args+=(--seed "$MEASUREMENT_SEED"); fi
-          node scratch/measurements/run_balance_measurement.js "${router_args[@]}" 2>&1 | tee "$RUNNER_TEMP/balance-measurement.log"
+          node --import tsx/esm scratch/measurements/run_balance_measurement.js "${router_args[@]}" 2>&1 | tee "$RUNNER_TEMP/balance-measurement.log"
       - name: Publish durable run summary
         if: always()
         run: |

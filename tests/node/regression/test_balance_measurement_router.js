@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 
 import { STANDARD_BALANCE_CONFIG } from "../../../scratch/measurements/balance_measurement.js";
 import {
@@ -7,6 +8,7 @@ import {
   MEASUREMENT_REGISTRY,
   createMeasurementArtifactName,
   createMeasurementOutputPaths,
+  createRunnerProcessInvocation,
   enrichManifest,
   getMeasurementDefinition,
   resolveMeasurementOptions,
@@ -21,6 +23,18 @@ const OUTPUT_PATHS = [
 ];
 const STANDARD_OUTPUT_PATHS = OUTPUT_PATHS.slice(0, 4);
 const nativeArgs = (...args) => [...args, "--purpose", "smoke", ...OUTPUT_PATHS];
+
+const smokeChild = createRunnerProcessInvocation({
+  runner: "tests/node/fixtures/typescript/tsx_root.js",
+  args: []
+});
+assert.equal(smokeChild.executable, process.execPath);
+assert.deepEqual(smokeChild.args, ["--import", "tsx/esm", "tests/node/fixtures/typescript/tsx_root.js"]);
+const smokeResult = spawnSync(smokeChild.executable, smokeChild.args, {
+  cwd: process.cwd(),
+  encoding: "utf8"
+});
+assert.equal(smokeResult.status, 0, `${smokeResult.stdout}\n${smokeResult.stderr}`);
 
 const ROUTER_CONTRACTS = [
   {
