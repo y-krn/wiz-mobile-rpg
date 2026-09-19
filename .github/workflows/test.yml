@@ -106,7 +106,7 @@ jobs:
         run: |
           set -o pipefail
           npx playwright test --grep @visual 2>&1 | tee "$RUNNER_TEMP/browser-visual.log"
-        if: steps.changes.outputs.browser == 'true' && inputs.debug_raw == true
+        if: always() && steps.changes.outputs.browser == 'true' && inputs.debug_raw == true
       - name: Stage CI evidence artifact
         id: evidence
         if: always() && steps.changes.outputs.browser == 'true'
