@@ -194,6 +194,16 @@ const ROUTER_CONTRACTS = [
     override: { input: { runs: 501, seed: 1278 }, expected: { runs: 501, seed: 1278 } }
   },
   {
+    id: "first-band-b5-guardian-flee-ev-diagnostic",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
+    args: nativeArgs("--mode", "b5-guardian-flee-ev-diagnostic", "--ref", "main", "--runs", "500", "--seed", "1277"),
+    override: { input: { runs: 501, seed: 1278 }, expected: { runs: 501, seed: 1278 } }
+  },
+  {
     id: "first-band-arcana-weapon-diagnostic",
     runner: "scratch/measurements/first_band_build_formation.js",
     adapter: "native-manifest",
@@ -293,6 +303,7 @@ for (const measurement of [
   "first-band-build-formation",
   "first-band-b5-wall-diagnostic",
   "first-band-b5-guardian-retry-diagnostic",
+  "first-band-b5-guardian-flee-ev-diagnostic",
   "first-band-arcana-weapon-diagnostic",
   "first-band-arcana-mp-supply-diagnostic",
   "first-band-transition-recovery",
@@ -495,7 +506,7 @@ assert.equal(
   "balance-measurement-early-run-attrition-123-attempt"
 );
 
-for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "first-band-build-formation", "first-band-b5-wall-diagnostic", "first-band-b5-guardian-retry-diagnostic", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
+for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "first-band-build-formation", "first-band-b5-wall-diagnostic", "first-band-b5-guardian-retry-diagnostic", "first-band-b5-guardian-flee-ev-diagnostic", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
   const invocation = resolveRunnerInvocation({ measurement, purpose: "smoke" }, "/tmp/router-test");
   assert.equal(invocation.measurement, measurement);
   assert.match(invocation.runner, /scratch\/measurements\//);

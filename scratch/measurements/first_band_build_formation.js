@@ -33,6 +33,7 @@ import { expectedAutoBestWeapon } from "./preparation_power_factorial.js";
 import { CANONICAL_EQUIPMENT_UPDATE_POLICY_ID } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
+import { getMilestoneBossRule } from "../../src/rules/boss_rules.js";
 
 export const RUNNER_VERSION = "first-band-build-formation-v1";
 export const SCHEMA_VERSION = 1;
@@ -63,6 +64,9 @@ export const B5_WALL_ARM_IDS = Object.freeze(["C", "F", "G", "FG"]);
 export const B5_GUARDIAN_RETRY_MODE = "b5-guardian-retry-diagnostic";
 export const B5_GUARDIAN_RETRY_MEASUREMENT_ID = "first-band-b5-guardian-retry-diagnostic";
 export const B5_GUARDIAN_RETRY_ARM_IDS = Object.freeze(["C", "R"]);
+export const B5_GUARDIAN_FLEE_EV_MODE = "b5-guardian-flee-ev-diagnostic";
+export const B5_GUARDIAN_FLEE_EV_MEASUREMENT_ID = "first-band-b5-guardian-flee-ev-diagnostic";
+export const B5_GUARDIAN_FLEE_EV_ARM_IDS = Object.freeze(["C"]);
 export const ARCANA_KIT_IDS = Object.freeze(["arcana"]);
 
 const DEFAULT_WEAPON_BY_KIT = Object.freeze({
@@ -222,6 +226,16 @@ function getMeasurementMode(mode) {
       kitIds: KIT_IDS
     };
   }
+  if (mode === B5_GUARDIAN_FLEE_EV_MODE) {
+    return {
+      id: B5_GUARDIAN_FLEE_EV_MEASUREMENT_ID,
+      runnerVersion: "first-band-build-formation-v9",
+      armIds: B5_GUARDIAN_FLEE_EV_ARM_IDS,
+      armDefinitions: { C: B5_GUARDIAN_RETRY_ARM_DEFINITIONS.C },
+      preparationPotions: [4],
+      kitIds: KIT_IDS
+    };
+  }
   if (mode === "transition-recovery") {
     return {
       id: TRANSITION_MEASUREMENT_ID,
@@ -254,6 +268,7 @@ function getMeasurementMode(mode) {
 }
 const PRODUCTION_PATHS = Object.freeze([
   "scratch/simulations/sim_depth_material_ev.js",
+  "scratch/simulations/sim_recovery_policy.js",
   "scratch/measurements/early_run_attrition_trajectory.js",
   "scratch/measurements/first_band_build_formation.js",
   "scratch/measurements/preparation_power_factorial.js",
@@ -487,6 +502,53 @@ function normalizeGuardianRetry(result) {
   };
 }
 
+function normalizeGuardianFleeEv(result, kitId) {
+  const diagnostic = result.b5GuardianFleeEvDiagnostic;
+  if (!diagnostic) return null;
+  return {
+    enabled: Boolean(diagnostic.enabled),
+    observations: (diagnostic.observations || []).map(observation => ({
+      ...observation,
+      kit: kitId,
+      terms: { ...(observation.terms || {}) },
+      hp: observation.hp ? { ...observation.hp } : null,
+      mp: observation.mp ? { ...observation.mp } : null,
+      stock: { ...(observation.stock || {}) },
+      recovery: observation.recovery ? {
+        ...observation.recovery,
+        diosPayment: observation.recovery.diosPayment
+          ? { ...observation.recovery.diosPayment }
+          : null
+      } : null,
+      preferredAction: observation.preferredAction ? {
+        ...observation.preferredAction,
+        payment: observation.preferredAction.payment
+          ? { ...observation.preferredAction.payment }
+          : null
+      } : null,
+      offensiveSpell: observation.offensiveSpell ? {
+        ...observation.offensiveSpell,
+        names: [...(observation.offensiveSpell.names || [])]
+      } : null,
+      guardian: observation.guardian ? { ...observation.guardian } : null,
+      productionBossRule: observation.productionBossRule
+        ? { ...observation.productionBossRule }
+        : null
+    }))
+  };
+}
+
+function normalizeGuardianActionSequence(result) {
+  const bossBattle = (result.specialBattles || []).find(item =>
+    item.type === "boss" && Number(item.floor) === 5
+  );
+  return (bossBattle?.attempts || []).map(attempt => ({
+    attempt: finite(attempt.attempt),
+    result: attempt.result || null,
+    actionTypes: [...(attempt.actionTypes || [])]
+  }));
+}
+
 function normalizeInventoryCounts(inventory) {
   return Object.fromEntries(
     Object.entries(inventory || {}).sort(([left], [right]) => left.localeCompare(right))
@@ -537,13 +599,15 @@ function normalizeB5Entry(result, route) {
   };
 }
 
-export function normalizeB5(result, record) {
+export function normalizeB5(result, record, kitId = null) {
   const entrant = Boolean(result.b5Entrant);
   const route = (result.specialRouteFloors || []).find(item => Number(item.floor) === 5);
   if (!entrant) {
     return {
       status: "unreachable",
       guardianRetry: normalizeGuardianRetry(result),
+      guardianFleeEv: normalizeGuardianFleeEv(result, kitId),
+      guardianActionSequence: normalizeGuardianActionSequence(result),
       entryParity: normalizeB5Entry(result, route)
     };
   }
@@ -612,6 +676,8 @@ export function normalizeB5(result, record) {
     returnAfterBossBeforeB6: record.outcome.voluntaryReturn && bossStarted && !reachedB6,
     b6Transition: reachedB6,
     guardianRetry: normalizeGuardianRetry(result),
+    guardianFleeEv: normalizeGuardianFleeEv(result, kitId),
+    guardianActionSequence: normalizeGuardianActionSequence(result),
     entryParity: normalizeB5Entry(result, route)
   };
 }
@@ -712,7 +778,7 @@ function compactDiagnostic(result, context) {
     terminalLoss,
     reconciliation: manaAcquired === manaConsumed + manaRemaining + terminalLoss
   };
-  record.b5 = normalizeB5(result, record);
+  record.b5 = normalizeB5(result, record, context.startingKitId);
   if (context.b5Intervention) {
     record.b5.intervention = {
       flameTrapDisabled: context.b5Intervention.b5FlameTrapDisabled === true,
@@ -736,6 +802,22 @@ function compactDiagnostic(result, context) {
   }));
   checkEnemyActions(record);
   return record;
+}
+
+function compareGuardianObservationInvariance(observationOff, observationOn) {
+  const stripDiagnostic = record => {
+    const copy = structuredClone(record);
+    if (copy.b5) delete copy.b5.guardianFleeEv;
+    return copy;
+  };
+  const result = compareObservationInvariance(
+    stripDiagnostic(observationOff),
+    stripDiagnostic(observationOn)
+  );
+  return {
+    ...result,
+    comparedFields: [...result.comparedFields, "Guardian action sequence", "Guardian outcome"]
+  };
 }
 
 function summarizeTransitionRecovery(rows) {
@@ -992,7 +1074,8 @@ function summarizeB5(rows) {
     returnBeforeBoss: { count: count(item => item.returnBeforeBoss), rate: rate(count(item => item.returnBeforeBoss), entrants.length) },
     returnAfterBossBeforeB6: { count: count(item => item.returnAfterBossBeforeB6), rate: rate(count(item => item.returnAfterBossBeforeB6), entrants.length) },
     b6Transition: { count: count(item => item.b6Transition), rate: rate(count(item => item.b6Transition), entrants.length) },
-    guardianRetry
+    guardianRetry,
+    guardianFleeEv: summarizeGuardianFleeEv(entrants)
   };
 }
 
@@ -1036,6 +1119,109 @@ function summarizeGuardianRetry(entrants) {
     retryStartAt80: eventCount(applied.filter(item => item.bossStartHpRate === 0.8).length, applied.length),
     guardStateReset: eventCount(reset.length, applied.length),
     checkpointAppliedRunCount: eventCount(diagnostics.filter(item => item.checkpointAppliedCount > 0).length, entrants.length)
+  };
+}
+
+function distribution90(values) {
+  const observed = values.filter(Number.isFinite);
+  return {
+    n: observed.length,
+    p10: quantileValue(observed, 0.10),
+    p50: quantileValue(observed, 0.50),
+    p90: quantileValue(observed, 0.90)
+  };
+}
+
+function countRateBy(values, denominator) {
+  const counts = {};
+  values.forEach(value => {
+    const key = String(value);
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return Object.fromEntries(
+    Object.entries(counts).sort(([left], [right]) => left.localeCompare(right)).map(([key, count]) => [
+      key,
+      { count, rate: rate(count, denominator) }
+    ])
+  );
+}
+
+function crossTab(rows, leftKey, rightKey) {
+  const counts = {};
+  rows.forEach(row => {
+    const left = String(row[leftKey]);
+    const right = String(row[rightKey]);
+    counts[left] ||= {};
+    counts[left][right] = (counts[left][right] || 0) + 1;
+  });
+  return Object.fromEntries(Object.entries(counts).map(([left, values]) => [
+    left,
+    Object.fromEntries(Object.entries(values).map(([right, count]) => [
+      right,
+      { count, rate: rate(count, rows.length) }
+    ]))
+  ]));
+}
+
+function summarizeGuardianFleeEv(entrants) {
+  const observations = entrants.flatMap(item => item.guardianFleeEv?.observations || []);
+  const flee = observations.filter(item => item.decision === "flee");
+  const decision = item => item.decision || "unknown";
+  const reason = item => item.reason || "unknown";
+  const metricTerm = path => distribution90(observations.map(item => {
+    let value = item;
+    path.forEach(key => { value = value?.[key]; });
+    return Number(value);
+  }));
+  const booleanRate = values => ({
+    count: values.filter(Boolean).length,
+    denominator: values.length,
+    rate: rate(values.filter(Boolean).length, values.length)
+  });
+  const fleeCrossTab = (key, rows = flee) => crossTab(
+    rows.map(item => ({ reason: reason(item), value: key.split(".").reduce((value, part) => value?.[part], item) })),
+    "reason",
+    "value"
+  );
+  return {
+    enabled: entrants.some(item => item.guardianFleeEv?.enabled),
+    firstDecisionN: observations.length,
+    productionBossRule: observations[0]?.productionBossRule || null,
+    decisions: countRateBy(observations.map(decision), observations.length),
+    reasons: countRateBy(observations.map(reason), observations.length),
+    expectedTurnsToWin: metricTerm(["terms", "expectedTurnsToWin"]),
+    survivalTurns: metricTerm(["terms", "survivalTurns"]),
+    turnDeficit: metricTerm(["terms", "turnDeficit"]),
+    physicalDamageEstimate: metricTerm(["terms", "playerDamagePerRound"]),
+    incomingDamage: metricTerm(["terms", "incomingDamagePerRound"]),
+    hpRate: metricTerm(["hp", "rate"]),
+    mpRate: metricTerm(["mp", "rate"]),
+    hpBelowFleeThreshold: booleanRate(observations.map(item => item.terms?.hpBelowFleeThreshold === true)),
+    guardPotionAvailable: booleanRate(observations.map(item => item.round1GuardPotionAvailable === true)),
+    preferredAction: countRateBy(
+      observations.map(item => item.preferredAction?.kind || "none"),
+      observations.length
+    ),
+    preferredSpell: booleanRate(observations.map(item => item.preferredAction?.kind === "spell")),
+    preferredFight: booleanRate(observations.map(item => item.preferredAction?.kind === "fight")),
+    offensiveSpellPaymentAvailable: booleanRate(observations.map(item =>
+      item.preferredAction?.payment?.actionPaymentAvailable === true
+    )),
+    crossTabs: {
+      fleeReasonByHpBelowFleeThreshold: fleeCrossTab("terms.hpBelowFleeThreshold"),
+      fleeReasonByGuardAvailability: fleeCrossTab("round1GuardPotionAvailable"),
+      fleeReasonByPreferredAction: crossTab(
+        flee.map(item => ({ reason: reason(item), value: item.preferredAction?.kind || "none" })),
+        "reason",
+        "value"
+      ),
+      fleeReasonByKit: fleeCrossTab("kit"),
+      fleeReasonByAttempt: crossTab(
+        flee.map(item => ({ reason: reason(item), value: item.retry ? "retry" : "first" })),
+        "reason",
+        "value"
+      )
+    }
   };
 }
 
@@ -1343,6 +1529,16 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
   if (!Number.isInteger(runs) || runs < 1) throw new Error(`runs must be a positive integer: ${runs}`);
   if (!Number.isInteger(seed) || seed < 1) throw new Error(`seed must be a positive integer: ${seed}`);
   const modeDefinition = getMeasurementMode(mode);
+  if (mode === B5_GUARDIAN_FLEE_EV_MODE) {
+    const rule = getMilestoneBossRule(5, "デーモンガード", { isBoss: true });
+    if (
+      rule?.breakHpRate !== 0.80 ||
+      rule?.exposureTurns !== 4 ||
+      rule?.exposureDamageMultiplier !== 1.50
+    ) {
+      throw new Error("production B5 Guardian rule values changed");
+    }
+  }
   applyStandardSimulationEnv({ ...STANDARD_BALANCE_CONFIG, seed, runs });
   const {
     simulateRun,
@@ -1364,6 +1560,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     kitId,
     runIndex,
     audit = true,
+    guardianEvObservation = mode === B5_GUARDIAN_FLEE_EV_MODE,
     samples,
     includeTransitionRecoveryRate = true,
     includeLevelUpRecoveryRate = true,
@@ -1390,7 +1587,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       b5FlameTrapDisabled: arm.b5FlameTrapDisabled === true,
       b5GuardianFleeDisabled: arm.b5GuardianFleeDisabled === true,
       b5GuardianRetryCheckpoint: arm.b5GuardianRetryCheckpoint === true,
-      b5GuardianRetryObservation: mode === B5_GUARDIAN_RETRY_MODE
+      b5GuardianRetryObservation: mode === B5_GUARDIAN_RETRY_MODE,
+      b5GuardianFleeEvObservation: guardianEvObservation
     };
     if (arm.recoveryRate !== undefined && includeTransitionRecoveryRate) {
       scenario.floorTransitionRecoveryRate = arm.recoveryRate;
@@ -1461,7 +1659,9 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       const auditOff = runOne({ arm, kitId, runIndex: 0, audit: false });
       resetSimulationRandom(seed);
       const auditOn = runOne({ arm, kitId, runIndex: 0, audit: true });
-      const invariant = compareObservationInvariance(projectGameplayRecord(auditOff), projectGameplayRecord(auditOn));
+      const invariant = mode === B5_GUARDIAN_FLEE_EV_MODE
+        ? compareGuardianObservationInvariance(auditOff, auditOn)
+        : compareObservationInvariance(projectGameplayRecord(auditOff), projectGameplayRecord(auditOn));
       observationInvariance[key] = invariant;
       if (!invariant.pass) throw new Error(`observation invariance failed: ${key}`);
     }
@@ -1560,6 +1760,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       ]
     : mode === B5_GUARDIAN_RETRY_MODE
     ? [comparison(overview.C, overview.R, "R - C: B5 Guardian 80% fracture checkpoint")]
+    : mode === B5_GUARDIAN_FLEE_EV_MODE
+    ? []
     : mode === ARCANA_MP_SUPPLY_MODE
     ? [
         comparison(overview.W0, overview.W1, "W1 - W0: one additional production MANA_POTION"),
@@ -1705,6 +1907,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
           ? { name: "Standard Preparation", startingWeaponMode: "kit-default", healPotions: 4, recovery: "current production recovery", manaRecipe: "current production MANA recipe" }
         : mode === B5_GUARDIAN_RETRY_MODE
           ? { name: "Standard Preparation", startingWeaponMode: "kit-default", healPotions: 4, recovery: "current production recovery", manaRecipe: "current production MANA recipe" }
+        : mode === B5_GUARDIAN_FLEE_EV_MODE
+          ? { name: "Standard Preparation", startingWeaponMode: "kit-default", healPotions: 4, recovery: "current production recovery", manaRecipe: "current production MANA recipe" }
         : null,
     worldSeedTemplate: "run-difficulty:{seed}:{runIndex}",
     identityBoundary: "HP/MP/bag/floor/starting-kit excluded from Build Snapshot identity",
@@ -1719,6 +1923,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       ? "B1-B4 exact paired parity and B5-entry parity are asserted; F/G/FG interventions begin at B5; no post-intervention path/RNG parity claim"
       : mode === B5_GUARDIAN_RETRY_MODE
       ? "C/R B1-B4 and B5-entry parity are asserted; first Guardian attempt is paired through the checkpoint-application boundary; no post-application path/RNG parity claim"
+      : mode === B5_GUARDIAN_FLEE_EV_MODE
+      ? "C=current only; B5 Guardian first player EV evaluation observed once per attempt; observation ON/OFF compares outcome, action sequence, and RNG invariance"
       : mode === ARCANA_WEAPON_MODE
       ? "Cross-arm C/W/R treatment comparisons use matched initial conditions; no post-divergence same-seed path/encounter/loot/trap parity claim"
       : mode === ARCANA_MP_SUPPLY_MODE
@@ -1736,6 +1942,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
           C: "current production B5 behavior; checkpoint observation only",
           R: "C + B5 デーモンガード 80% fracture checkpoint on successful qualifying flee; run-local, non-stacking; guard reset"
         }
+      : mode === B5_GUARDIAN_FLEE_EV_MODE
+      ? { C: "current production B5 behavior; first Guardian EV decision observation only" }
       : mode === ARCANA_WEAPON_MODE
       ? {
           C: "Arcana Standard Preparation WAND + HALITO; canonical adaptive; weapon swappable",
@@ -1920,6 +2128,34 @@ function buildReport(result, provenance, purpose, requestedRef, environment) {
 }
 
 export function buildSummary(report) {
+  if (report.configuration.mode === B5_GUARDIAN_FLEE_EV_MODE) {
+    const diagnosticLine = (label, aggregate) => {
+      const ev = aggregate.b5.guardianFleeEv;
+      return `- ${label}: first-decision N=${ev.firstDecisionN}; fight/recover/flee=${JSON.stringify(ev.decisions)}; reasons=${JSON.stringify(ev.reasons)}; expectedTurnsToWin p10/p50/p90=${JSON.stringify(ev.expectedTurnsToWin)}; survivalTurns=${JSON.stringify(ev.survivalTurns)}; turnDeficit=${JSON.stringify(ev.turnDeficit)}; physicalDamageEstimate=${JSON.stringify(ev.physicalDamageEstimate)}; incomingDamage=${JSON.stringify(ev.incomingDamage)}; HP/MP rate=${JSON.stringify(ev.hpRate)}/${JSON.stringify(ev.mpRate)}; hpBelowFlee=${JSON.stringify(ev.hpBelowFleeThreshold)}; GUARD_POTION=${JSON.stringify(ev.guardPotionAvailable)}; preferred=${JSON.stringify(ev.preferredAction)}; preferredSpell/fight=${JSON.stringify(ev.preferredSpell)}/${JSON.stringify(ev.preferredFight)}; offensivePayment=${JSON.stringify(ev.offensiveSpellPaymentAvailable)}`;
+    };
+    const crossTabLine = (label, aggregate) => `- ${label} cross-tab: ${JSON.stringify(aggregate.b5.guardianFleeEv.crossTabs)}`;
+    const lines = [
+      "# First Band B5 Guardian flee EV diagnostic",
+      "",
+      `- measurement: ${report.configuration.measurementId}; C=current only; N=${report.configuration.runs}/kit; seed=${report.configuration.seed}; production balance change=false; raw run records omitted; Heavy=not run`,
+      `- production boss rule: ${JSON.stringify(report.arms.C.overview.b5.guardianFleeEv.productionBossRule)}; observation ON/OFF outcome/action/RNG invariance=${report.observationInvariance.pass ? "PASS" : "FAIL"}; determinism=${report.determinism.pass ? "PASS" : "FAIL"}`,
+      "",
+      "## Aggregate",
+      "",
+      diagnosticLine("C", report.arms.C.overview),
+      crossTabLine("C", report.arms.C.overview),
+      "",
+      "## Kit",
+      "",
+      ...KIT_IDS.map(kitId => [
+        diagnosticLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
+        crossTabLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate)
+      ]).flat(),
+      "",
+      "- evaluator terms/reasons are observation-only; production policy, action ordering, thresholds, checkpoints, and RNG path unchanged."
+    ];
+    return `${lines.join("\n")}\n`;
+  }
   if (report.configuration.mode === B5_GUARDIAN_RETRY_MODE) {
     const event = value => `${value.count}/${value.denominator}`;
     const display = value => value == null ? "unobserved" : value;

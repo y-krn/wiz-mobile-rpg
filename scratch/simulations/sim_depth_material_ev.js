@@ -368,7 +368,10 @@ const { MILESTONE_MERCHANT_STOCK } = await import("../../src/data/milestone_merc
 const {
   getStartingHealPotionCount
 } = await import("../../src/rules/recovery_rules.js");
-const { calculateCombatRecoveryAction } = await import("./sim_recovery_policy.js");
+const {
+  calculateCombatRecoveryAction,
+  evaluateCombatRecoveryAction
+} = await import("./sim_recovery_policy.js");
 const { getPerceptionIntent } = await import("../../src/systems/elite_perception.js");
 
 function getScholarMaterialBonus(monsters, state) {
@@ -4848,6 +4851,7 @@ function createSimulationState(
         : DEFAULT_FLEE_HP_THRESHOLD,
       b5FlameTrapDisabled: scenario.b5FlameTrapDisabled === true,
       b5GuardianFleeDisabled: scenario.b5GuardianFleeDisabled === true,
+      b5GuardianFleeEvObservation: scenario.b5GuardianFleeEvObservation === true,
       b5GuardianRetryCheckpoint: scenario.b5GuardianRetryCheckpoint === true,
       b5GuardianRetryCheckpointEarned: false,
       statusCurePolicy: scenario.statusCurePolicy || DEFAULT_STATUS_CURE_POLICY,
@@ -6573,10 +6577,124 @@ function getEvDamageEstimate(state) {
   return Math.max(1, damage);
 }
 
+function inventoryStock(state, itemKey) {
+  return state.inventory.filter(item => item === itemKey).length;
+}
+
+function getPaymentObservation(state, spellName, reserveMp = 0) {
+  const character = state.party[0];
+  const spell = SPELLS[spellName];
+  if (!spell || !hasSpell(character, spellName)) return null;
+  const payment = getSpellPayment(character, spell.cost);
+  const actionPayment = getSpellActionPayment(state, spellName, reserveMp, {
+    minHpAfterPaymentRate: null
+  });
+  return {
+    canCast: Boolean(payment.canCast),
+    resource: payment.resource,
+    cost: payment.cost,
+    actionPaymentAvailable: Boolean(actionPayment)
+  };
+}
+
+function recordB5GuardianFleeEvObservation(
+  state,
+  metrics,
+  evaluation,
+  recoveryItem,
+  diosAction,
+  policyProbeAction,
+  playerDamagePerRound
+) {
+  const diagnostic = metrics?.b5GuardianFleeEvDiagnostic;
+  const rule = getMilestoneBossRule(
+    state.floor,
+    state.combatState?.monsters?.[0]?.name,
+    { isBoss: state.combatState?.isBoss }
+  );
+  if (
+    !diagnostic?.enabled ||
+    state.floor !== 5 ||
+    state.combatState?.isBoss !== true ||
+    !rule ||
+    state.combatState.b5GuardianFirstEvObserved
+  ) return;
+
+  const character = state.party[0];
+  const preferredSpellName = policyProbeAction?.type === "spell"
+    ? policyProbeAction.spellName
+    : null;
+  const preferredSpellPayment = preferredSpellName
+    ? getPaymentObservation(
+        state,
+        preferredSpellName,
+        hasSpell(character, "DIOS") ? 1 : 0
+      )
+    : null;
+  const diosKnown = hasSpell(character, "DIOS");
+  const diosPayment = getPaymentObservation(state, "DIOS");
+  const offensiveSpellNames = getSimulationActiveSpellKeys(character)
+    .filter(spellName => SPELLS[spellName]?.target?.includes("enemy"));
+  const boss = state.combatState.monsters.find(monster => monster.name === rule.bossName);
+  state.combatState.b5GuardianFirstEvObserved = true;
+  diagnostic.observations.push({
+    attempt: state.combatState.guardianAttempt,
+    retry: Number(state.combatState.guardianAttempt) > 1,
+    round: state.combatState.roundNumber,
+    decision: evaluation.decision,
+    reason: evaluation.reason,
+    terms: structuredClone(evaluation.terms),
+    hp: {
+      current: character.hp,
+      max: getCharMaxHp(character),
+      rate: character.hp / Math.max(1, getCharMaxHp(character))
+    },
+    mp: {
+      current: character.mp,
+      max: getCharMaxMp(character),
+      rate: character.mp / Math.max(1, getCharMaxMp(character))
+    },
+    stock: Object.fromEntries(
+      ["HEAL_POTION", "MANA_POTION", "GUARD_POTION", "STR_POTION", "HASTE_POTION"]
+        .map(itemKey => [itemKey, inventoryStock(state, itemKey)])
+    ),
+    recovery: {
+      item: recoveryItem,
+      available: Boolean(recoveryItem),
+      diosActionAvailable: Boolean(diosAction),
+      diosKnown,
+      diosPayment
+    },
+    round1GuardPotionAvailable: state.combatState.roundNumber === 1 &&
+      inventoryStock(state, "GUARD_POTION") > 0,
+    preferredAction: {
+      kind: policyProbeAction?.type || null,
+      spellName: preferredSpellName,
+      payment: preferredSpellPayment
+    },
+    offensiveSpell: {
+      available: offensiveSpellNames.length > 0,
+      names: offensiveSpellNames
+    },
+    playerDamagePerRound,
+    guardian: {
+      currentHp: boss?.hp ?? null,
+      maxHp: boss?.maxHp ?? null,
+      hpRate: boss?.maxHp > 0 ? boss.hp / boss.maxHp : null,
+      attack: boss?.atk ?? null
+    },
+    productionBossRule: {
+      breakHpRate: rule.breakHpRate,
+      exposureTurns: rule.exposureTurns,
+      exposureDamageMultiplier: rule.exposureDamageMultiplier
+    }
+  });
+}
+
 function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = null) {
   const character = state.party[0];
   const livingMonsters = state.combatState.monsters.filter(monster => monster.hp > 0);
-  const decision = calculateCombatRecoveryAction({
+  const recoveryArgs = {
     currentHp: character.hp,
     maxHp: getCharMaxHp(character),
     enemyHp: livingMonsters.map(monster => monster.hp),
@@ -6590,8 +6708,31 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
     fleeThreshold: state.simPolicy.fleeHpThreshold ?? 0.20,
     healThreshold: state.simPolicy.healPotionThreshold,
     runtimeDiagnostics: metrics?.runtimeDiagnostics
-  });
-  recordDamageEstimateDecision(metrics, state, getEvDamageEstimate(state), decision);
+  };
+  const shouldObserveGuardian = state.simPolicy.b5GuardianFleeEvObservation === true &&
+    state.floor === 5 &&
+    state.combatState.isBoss === true &&
+    !state.combatState.b5GuardianFirstEvObserved &&
+    state.combatState.monsters.some(monster => monster.name === "デーモンガード");
+  const evaluation = shouldObserveGuardian
+    ? evaluateCombatRecoveryAction(recoveryArgs)
+    : null;
+  const decision = calculateCombatRecoveryAction(recoveryArgs);
+  const policyProbeAction = shouldObserveGuardian
+    ? getCombatPolicyProbeAction(state)
+    : null;
+  if (evaluation) {
+    recordB5GuardianFleeEvObservation(
+      state,
+      metrics,
+      evaluation,
+      recoveryItem,
+      diosAction,
+      policyProbeAction,
+      recoveryArgs.playerDamagePerRound
+    );
+  }
+  recordDamageEstimateDecision(metrics, state, recoveryArgs.playerDamagePerRound, decision);
   if (decision === "flee") {
     return { decision, action: { type: "run", actorIdx: 0 } };
   }
@@ -7977,7 +8118,8 @@ function runEncounter(
     fixedMonsterNames = null,
     encounterCoord = null,
     retreatCoord = null,
-    encounterEventKey = null
+    encounterEventKey = null,
+    guardianAttempt = null
   } = {}
 ) {
   const combatPolicy = state.simPolicy;
@@ -8124,7 +8266,9 @@ function runEncounter(
     retreatPosition: retreatCoord ? { ...retreatCoord } : null,
     allParalyzedTurns: 0,
     phase: "choose_actions",
-    roundNumber: 1
+    roundNumber: 1,
+    guardianAttempt,
+    b5GuardianFirstEvObserved: false
   };
   const milestoneBossRule = getMilestoneBossRule(state.floor, monsters[0]?.name, { isBoss });
   const guardianRetryEnabled = Boolean(
@@ -14837,6 +14981,35 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       ...metrics.b5GuardianRetry,
       attempts: metrics.b5GuardianRetry.attempts.map(attempt => ({ ...attempt }))
     },
+    b5GuardianFleeEvDiagnostic: {
+      enabled: metrics.b5GuardianFleeEvDiagnostic.enabled,
+      observations: metrics.b5GuardianFleeEvDiagnostic.observations.map(observation => ({
+        ...observation,
+        terms: { ...observation.terms },
+        stock: { ...observation.stock },
+        hp: { ...observation.hp },
+        mp: { ...observation.mp },
+        recovery: observation.recovery ? {
+          ...observation.recovery,
+          diosPayment: observation.recovery.diosPayment
+            ? { ...observation.recovery.diosPayment }
+            : null
+        } : null,
+        preferredAction: observation.preferredAction ? {
+          ...observation.preferredAction,
+          payment: observation.preferredAction.payment
+            ? { ...observation.preferredAction.payment }
+            : null
+        } : null,
+        offensiveSpell: observation.offensiveSpell
+          ? { ...observation.offensiveSpell, names: [...observation.offensiveSpell.names] }
+          : null,
+        guardian: observation.guardian ? { ...observation.guardian } : null,
+        productionBossRule: observation.productionBossRule
+          ? { ...observation.productionBossRule }
+          : null
+      }))
+    },
     merchantUncurseAttempts: metrics.merchantUncurseAttempts,
     merchantUncursePurchases: metrics.merchantUncursePurchases,
     merchantUncurseFailures: { ...metrics.merchantUncurseFailures },
@@ -15470,6 +15643,10 @@ export function simulateRun({
       checkpointEarnedCount: 0,
       checkpointAppliedCount: 0,
       attempts: []
+    },
+    b5GuardianFleeEvDiagnostic: {
+      enabled: scenario.b5GuardianFleeEvObservation === true,
+      observations: []
     },
     elitePolicy: state.simPolicy.elitePolicy,
     eliteEncounters: 0,
@@ -16219,7 +16396,8 @@ export function simulateRun({
               encounterCoord: Number.isFinite(specialEvent?.x) && Number.isFinite(specialEvent?.y)
                 ? specialEvent
                 : floorRoute.current,
-              retreatCoord: specialEvent?.retreatCoord || null
+              retreatCoord: specialEvent?.retreatCoord || null,
+              guardianAttempt: attempt
             }
           );
           state = combatResult.state;
