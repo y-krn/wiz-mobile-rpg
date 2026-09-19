@@ -20,7 +20,9 @@ function evaluateCombatRecoveryActionInternal({
   const normalizedMaxHp = Math.max(1, Number(maxHp) || 0);
   const normalizedHp = Math.max(0, Number(currentHp) || 0);
   const normalizedDefense = Math.max(0, Number(playerDefense) || 0);
-  const normalizedEnemyAttack = enemyAttack.map(attack => Number(attack) || 0);
+  const normalizedEnemyAttack = includeTerms
+    ? enemyAttack.map(attack => Number(attack) || 0)
+    : undefined;
   const incomingDamagePerRound = Math.max(
     1,
     enemyAttack.reduce(
@@ -42,14 +44,13 @@ function evaluateCombatRecoveryActionInternal({
   );
   const normalizedHealThreshold = Math.max(0, Math.min(1, Number(healThreshold)));
   const normalizedFleeThreshold = Math.max(0, Math.min(1, Number(fleeThreshold)));
-  const hpRate = normalizedHp / normalizedMaxHp;
   const hpBelowHealThreshold = normalizedHp <= normalizedMaxHp * normalizedHealThreshold;
   const hpBelowFleeThreshold = normalizedHp <= normalizedMaxHp * normalizedFleeThreshold;
   const terms = includeTerms
     ? {
         currentHp: normalizedHp,
         maxHp: normalizedMaxHp,
-        hpRate,
+        hpRate: normalizedHp / normalizedMaxHp,
         totalEnemyHp,
         enemyAttack: normalizedEnemyAttack,
         playerDefense: normalizedDefense,
