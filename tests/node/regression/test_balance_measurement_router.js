@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 
+import { STANDARD_BALANCE_CONFIG } from "../../../scratch/measurements/balance_measurement.js";
 import {
   BALANCE_MEASUREMENT_ENTRY_VERSION,
   MEASUREMENT_IDS,
@@ -12,29 +13,254 @@ import {
   resolveRunnerInvocation
 } from "../../../scratch/measurements/run_balance_measurement.js";
 
-assert.deepEqual(MEASUREMENT_IDS, [
-  "standard",
-  "starting-kit-early-run",
-  "early-b1f-composition",
-  "fixed-combat-composition",
-  "equipment-load",
-  "run-difficulty",
-  "run-difficulty-policy-sensitivity",
-  "early-run-attrition",
-  "b3plus-survival-decomposition",
-  "build-progression-audit",
-  "build-progression-pareto-safe",
-  "b2-chest-trap",
-  "survival-policy",
-  "preparation-power-factorial",
-  "first-band-build-formation",
-  "first-band-b5-wall-diagnostic",
-  "first-band-arcana-weapon-diagnostic",
-  "first-band-arcana-mp-supply-diagnostic",
-  "first-band-transition-recovery",
-  "first-band-levelup-recovery"
-]);
-assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 20);
+const OUTPUT_DIRECTORY = "/tmp/router-test";
+const OUTPUT_PATHS = [
+  "--output", `${OUTPUT_DIRECTORY}/measurement.json`,
+  "--summary", `${OUTPUT_DIRECTORY}/measurement.md`,
+  "--manifest", `${OUTPUT_DIRECTORY}/manifest.json`
+];
+const STANDARD_OUTPUT_PATHS = OUTPUT_PATHS.slice(0, 4);
+const nativeArgs = (...args) => [...args, "--purpose", "smoke", ...OUTPUT_PATHS];
+
+const ROUTER_CONTRACTS = [
+  {
+    id: "standard",
+    runner: "scratch/measurements/measure_balance.js",
+    adapter: "standard-manifest",
+    defaultRunType: "baseline-candidate",
+    allowedRunTypes: ["baseline-candidate", "diagnostic", "temporary"],
+    defaults: { runs: 500, minimumRuns: 500, seed: 843, calibrationRuns: 100 },
+    args: ["--runs", "500", "--seed", "843", "--calibration-runs", "100", ...STANDARD_OUTPUT_PATHS],
+    override: { input: { runs: 501, seed: 844, calibration_runs: 101 }, expected: { runs: 501, seed: 844, calibrationRuns: 101 } }
+  },
+  {
+    id: "starting-kit-early-run",
+    runner: "scratch/measurements/starting_kit_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1139, startingKit: "vanguard", policy: "fight", fleeHpThreshold: 0.20 },
+    args: nativeArgs("--ref", "main", "--starting-kit", "vanguard", "--runs", "1000", "--seed", "1139", "--policy", "fight", "--flee-hp-threshold", "0.2"),
+    override: { input: { seed: 1140, starting_kit: "scout", policy: "flee-threshold", flee_hp_threshold: "0.3" }, expected: { seed: 1140, startingKit: "scout", policy: "flee-threshold", fleeHpThreshold: 0.3 } }
+  },
+  {
+    id: "early-b1f-composition",
+    runner: "scratch/measurements/early_b1f_composition_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 2192, selectionRuns: 5000, minimumSelectionRuns: 5000, selectionSeed: 1192, fixedRuns: 1000, minimumFixedRuns: 1000, fixedSeed: 1151 },
+    args: nativeArgs("--ref", "main", "--runs", "1000", "--selection-runs", "5000", "--fixed-runs", "1000", "--seed", "2192", "--selection-seed", "1192", "--fixed-seed", "1151"),
+    override: { input: { selection_runs: 5001, selection_seed: 1193 }, expected: { selectionRuns: 5001, selectionSeed: 1193 } }
+  },
+  {
+    id: "fixed-combat-composition",
+    runner: "scratch/measurements/fixed_combat_composition_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1151, startingKit: "vanguard" },
+    args: nativeArgs("--ref", "main", "--runs", "1000", "--seed", "1151", "--starting-kit", "vanguard"),
+    override: { input: { seed: 1152, starting_kit: "scout" }, expected: { seed: 1152, startingKit: "scout" } }
+  },
+  {
+    id: "equipment-load",
+    runner: "scratch/measurements/equipment_load_measurement.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1170 },
+    args: ["--runs", "1000", "--seed", "1170", ...STANDARD_OUTPUT_PATHS],
+    override: { input: { runs: 1001, seed: 1171 }, expected: { runs: 1001, seed: 1171 } }
+  },
+  {
+    id: "run-difficulty",
+    runner: "scratch/measurements/measure_run_difficulty.js",
+    adapter: "native-manifest",
+    defaultRunType: "baseline-candidate",
+    allowedRunTypes: ["baseline-candidate", "diagnostic", "temporary"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
+    args: nativeArgs("--ref", "main", "--runs", "1000", "--seed", "1277"),
+    override: { input: { seed: 1278 }, expected: { seed: 1278 } }
+  },
+  {
+    id: "run-difficulty-policy-sensitivity",
+    runner: "scratch/measurements/measure_run_difficulty.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, policies: "p0,p1,p2" },
+    args: nativeArgs("--ref", "main", "--runs", "1000", "--seed", "1277", "--policies", "p0,p1,p2"),
+    override: { input: { policies: "p0" }, expected: { policies: "p0" } }
+  },
+  {
+    id: "early-run-attrition",
+    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" },
+    args: nativeArgs("--measurement", "early-run-attrition", "--ref", "main", "--treatment", "portal-policy", "--runs", "1000", "--seed", "1277"),
+    override: { input: { treatment: "custom" }, expected: { treatment: "custom" } }
+  },
+  {
+    id: "b3plus-survival-decomposition",
+    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "b3plus-survival-decomposition" },
+    args: nativeArgs("--measurement", "b3plus-survival-decomposition", "--ref", "main", "--treatment", "b3plus-survival-decomposition", "--runs", "1000", "--seed", "1277"),
+    override: { input: { seed: 1278 }, expected: { seed: 1278 } }
+  },
+  {
+    id: "build-progression-audit",
+    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" },
+    args: nativeArgs("--measurement", "build-progression-audit", "--ref", "main", "--treatment", "portal-policy", "--runs", "1000", "--seed", "1277"),
+    override: { input: { treatment: "custom" }, expected: { treatment: "custom" } }
+  },
+  {
+    id: "build-progression-pareto-safe",
+    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "equipment-pareto-safe" },
+    args: nativeArgs("--measurement", "build-progression-pareto-safe", "--ref", "main", "--treatment", "equipment-pareto-safe", "--runs", "1000", "--seed", "1277"),
+    override: { input: { seed: 1278 }, expected: { seed: 1278 } }
+  },
+  {
+    id: "b2-chest-trap",
+    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "b2-chest-trap" },
+    args: nativeArgs("--measurement", "b2-chest-trap", "--ref", "main", "--treatment", "b2-chest-trap", "--runs", "1000", "--seed", "1277"),
+    override: { input: { seed: 1278 }, expected: { seed: 1278 } }
+  },
+  {
+    id: "survival-policy",
+    runner: "scratch/measurements/measure_survival_policy_comparison.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
+    args: nativeArgs("--ref", "main", "--runs", "1000", "--seed", "1277"),
+    override: { input: { seed: 1278 }, expected: { seed: 1278 } }
+  },
+  {
+    id: "preparation-power-factorial",
+    runner: "scratch/measurements/preparation_power_factorial.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
+    args: nativeArgs("--ref", "main", "--runs", "1000", "--seed", "1277"),
+    override: { input: { seed: 1278 }, expected: { seed: 1278 } }
+  },
+  {
+    id: "first-band-build-formation",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
+    args: nativeArgs("--ref", "main", "--runs", "1000", "--seed", "1277"),
+    override: { input: { runs: 1001, seed: 1278 }, expected: { runs: 1001, seed: 1278 } }
+  },
+  {
+    id: "first-band-b5-wall-diagnostic",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
+    args: nativeArgs("--mode", "b5-wall-diagnostic", "--ref", "main", "--runs", "500", "--seed", "1277"),
+    override: { input: { runs: 501, seed: 1278 }, expected: { runs: 501, seed: 1278 } }
+  },
+  {
+    id: "first-band-arcana-weapon-diagnostic",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
+    args: nativeArgs("--mode", "arcana-weapon-diagnostic", "--ref", "main", "--runs", "500", "--seed", "1277"),
+    override: { input: { seed: 1278 }, expected: { seed: 1278 } }
+  },
+  {
+    id: "first-band-arcana-mp-supply-diagnostic",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
+    args: nativeArgs("--mode", "arcana-mp-supply-diagnostic", "--ref", "main", "--runs", "500", "--seed", "1277"),
+    override: { input: { seed: 1278 }, expected: { seed: 1278 } }
+  },
+  {
+    id: "first-band-transition-recovery",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
+    args: nativeArgs("--mode", "transition-recovery", "--ref", "main", "--runs", "1000", "--seed", "1277"),
+    override: { input: { runs: 1001, seed: 1278 }, expected: { runs: 1001, seed: 1278 } }
+  },
+  {
+    id: "first-band-levelup-recovery",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
+    args: nativeArgs("--mode", "levelup-recovery", "--ref", "main", "--runs", "500", "--seed", "1277"),
+    override: { input: { seed: 1278 }, expected: { seed: 1278 } }
+  }
+];
+
+assert.deepEqual(MEASUREMENT_IDS, ROUTER_CONTRACTS.map(contract => contract.id));
+assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, ROUTER_CONTRACTS.length);
+assert.equal(MEASUREMENT_REGISTRY.standard.defaults.runs, STANDARD_BALANCE_CONFIG.runs);
+assert.equal(MEASUREMENT_REGISTRY.standard.defaults.minimumRuns, STANDARD_BALANCE_CONFIG.runs);
+assert.equal(MEASUREMENT_REGISTRY.standard.defaults.seed, STANDARD_BALANCE_CONFIG.seed);
+assert.equal(MEASUREMENT_REGISTRY.standard.defaults.calibrationRuns, STANDARD_BALANCE_CONFIG.calibrationRuns);
+for (const contract of ROUTER_CONTRACTS) {
+  const definition = MEASUREMENT_REGISTRY[contract.id];
+  assert.equal(definition.runner, contract.runner);
+  assert.equal(definition.adapter, contract.adapter);
+  assert.equal(definition.defaultRunType, contract.defaultRunType);
+  assert.deepEqual(definition.allowedRunTypes, contract.allowedRunTypes);
+  assert.deepEqual(definition.defaults, contract.defaults);
+
+  const invocation = resolveRunnerInvocation({ measurement: contract.id, purpose: "smoke" }, OUTPUT_DIRECTORY);
+  assert.deepEqual(invocation.args, contract.args);
+  assert.deepEqual(invocation.output, createMeasurementOutputPaths(OUTPUT_DIRECTORY));
+  assert.equal(
+    createMeasurementArtifactName(contract.id, "456"),
+    `balance-measurement-${contract.id}-456`
+  );
+  assert.deepEqual(enrichManifest({ invocation, runId: "456" }).artifact, {
+    name: `balance-measurement-${contract.id}-456`,
+    files: ["measurement.json", "measurement.md", "manifest.json"],
+    retentionDays: 14
+  });
+
+  const override = resolveMeasurementOptions({
+    measurement: contract.id,
+    purpose: "override",
+    ...contract.override.input
+  });
+  for (const [key, value] of Object.entries(contract.override.expected)) {
+    assert.equal(override[key], value, `${contract.id} override ${key}`);
+  }
+}
 assert.deepEqual(MEASUREMENT_REGISTRY.standard.allowedRunTypes, [
   "baseline-candidate", "diagnostic", "temporary"
 ]);

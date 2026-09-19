@@ -10,6 +10,7 @@ import {
   createMeasurementManifest,
   renderMeasurementManifestMarkdown
 } from "./measurement_manifest.js";
+import { STANDARD_BALANCE_CONFIG } from "./balance_measurement.js";
 
 export const BALANCE_MEASUREMENT_ENTRY_VERSION = "balance-entry-v1";
 export const MEASUREMENT_RUN_TYPES = Object.freeze([
@@ -33,6 +34,28 @@ function freezeDefinition(definition) {
   });
 }
 
+const STANDARD_BALANCE_DEFAULTS = Object.freeze({
+  runs: STANDARD_BALANCE_CONFIG.runs,
+  minimumRuns: STANDARD_BALANCE_CONFIG.runs,
+  seed: STANDARD_BALANCE_CONFIG.seed,
+  calibrationRuns: STANDARD_BALANCE_CONFIG.calibrationRuns
+});
+
+const NATIVE_DIAGNOSTIC_DEFINITION = Object.freeze({
+  adapter: "native-manifest",
+  defaultRunType: "diagnostic",
+  allowedRunTypes: ["diagnostic"],
+  artifactPrefix: "balance-measurement",
+  retentionDays: 14
+});
+
+function nativeDiagnosticDefinition(definition) {
+  return freezeDefinition({
+    ...definition,
+    ...NATIVE_DIAGNOSTIC_DEFINITION
+  });
+}
+
 const outputArgs = (output, names = ["output", "summary", "manifest"]) => names.flatMap(name => [
   `--${name}`,
   output[name === "output" ? "measurement" : name]
@@ -45,37 +68,54 @@ const standardArgs = ({ options, output }) => [
   ...outputArgs(output, ["output", "summary"])
 ];
 
-const startingKitArgs = ({ options, output }) => [
+const nativeMeasurementArgs = ({
+  options,
+  output,
+  beforeRef = [],
+  afterRef = [],
+  afterRuns = [],
+  afterSeed = [],
+  outputNames = ["output", "summary", "manifest"]
+}) => [
+  ...beforeRef,
   "--ref", options.ref,
-  "--starting-kit", options.startingKit,
+  ...afterRef,
   "--runs", String(options.runs),
+  ...afterRuns,
   "--seed", String(options.seed),
-  "--policy", options.policy,
-  "--flee-hp-threshold", String(options.fleeHpThreshold),
+  ...afterSeed,
   "--purpose", options.purpose,
-  ...outputArgs(output)
+  ...outputArgs(output, outputNames)
 ];
 
-const earlyB1FArgs = ({ options, output }) => [
-  "--ref", options.ref,
-  "--runs", String(options.runs),
-  "--selection-runs", String(options.selectionRuns),
-  "--fixed-runs", String(options.fixedRuns),
-  "--seed", String(options.seed),
-  "--selection-seed", String(options.selectionSeed),
-  "--fixed-seed", String(options.fixedSeed),
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
+const startingKitArgs = ({ options, output }) => nativeMeasurementArgs({
+  options,
+  output,
+  afterRef: ["--starting-kit", options.startingKit],
+  afterSeed: [
+    "--policy", options.policy,
+    "--flee-hp-threshold", String(options.fleeHpThreshold)
+  ]
+});
 
-const fixedCombatArgs = ({ options, output }) => [
-  "--ref", options.ref,
-  "--runs", String(options.runs),
-  "--seed", String(options.seed),
-  "--starting-kit", options.startingKit,
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
+const earlyB1FArgs = ({ options, output }) => nativeMeasurementArgs({
+  options,
+  output,
+  afterRuns: [
+    "--selection-runs", String(options.selectionRuns),
+    "--fixed-runs", String(options.fixedRuns)
+  ],
+  afterSeed: [
+    "--selection-seed", String(options.selectionSeed),
+    "--fixed-seed", String(options.fixedSeed)
+  ]
+});
+
+const fixedCombatArgs = ({ options, output }) => nativeMeasurementArgs({
+  options,
+  output,
+  afterSeed: ["--starting-kit", options.startingKit]
+});
 
 const equipmentLoadArgs = ({ options, output }) => [
   "--runs", String(options.runs),
@@ -83,93 +123,26 @@ const equipmentLoadArgs = ({ options, output }) => [
   ...outputArgs(output, ["output", "summary"])
 ];
 
-const runDifficultyArgs = ({ options, output }) => [
-  "--ref", options.ref,
-  "--runs", String(options.runs),
-  "--seed", String(options.seed),
-  ...(options.policies ? ["--policies", options.policies] : []),
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
+const runDifficultyArgs = ({ options, output }) => nativeMeasurementArgs({
+  options,
+  output,
+  afterSeed: options.policies ? ["--policies", options.policies] : []
+});
 
-const earlyAttritionArgs = ({ options, output }) => [
-  "--measurement", options.measurement,
-  "--ref", options.ref,
-  "--treatment", options.treatment,
-  "--runs", String(options.runs),
-  "--seed", String(options.seed),
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
+const earlyAttritionArgs = ({ options, output }) => nativeMeasurementArgs({
+  options,
+  output,
+  beforeRef: ["--measurement", options.measurement],
+  afterRef: ["--treatment", options.treatment]
+});
 
-const survivalPolicyArgs = ({ options, output }) => [
-  "--ref", options.ref,
-  "--runs", String(options.runs),
-  "--seed", String(options.seed),
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
-
-const preparationPowerArgs = ({ options, output }) => [
-  "--ref", options.ref,
-  "--runs", String(options.runs),
-  "--seed", String(options.seed),
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
-
-const firstBandBuildFormationArgs = ({ options, output }) => [
-  "--ref", options.ref,
-  "--runs", String(options.runs),
-  "--seed", String(options.seed),
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
-
-const firstBandB5WallArgs = ({ options, output }) => [
-  "--mode", "b5-wall-diagnostic",
-  "--ref", options.ref,
-  "--runs", String(options.runs),
-  "--seed", String(options.seed),
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
-
-const firstBandArcanaWeaponArgs = ({ options, output }) => [
-  "--mode", "arcana-weapon-diagnostic",
-  "--ref", options.ref,
-  "--runs", String(options.runs),
-  "--seed", String(options.seed),
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
-
-const firstBandArcanaMpSupplyArgs = ({ options, output }) => [
-  "--mode", "arcana-mp-supply-diagnostic",
-  "--ref", options.ref,
-  "--runs", String(options.runs),
-  "--seed", String(options.seed),
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
-
-const firstBandTransitionRecoveryArgs = ({ options, output }) => [
-  "--mode", "transition-recovery",
-  "--ref", options.ref,
-  "--runs", String(options.runs),
-  "--seed", String(options.seed),
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
-
-const firstBandLevelUpRecoveryArgs = ({ options, output }) => [
-  "--mode", "levelup-recovery",
-  "--ref", options.ref,
-  "--runs", String(options.runs),
-  "--seed", String(options.seed),
-  "--purpose", options.purpose,
-  ...outputArgs(output)
-];
+const survivalPolicyArgs = nativeMeasurementArgs;
+const preparationPowerArgs = nativeMeasurementArgs;
+const firstBandArgs = mode => ({ options, output }) => nativeMeasurementArgs({
+  options,
+  output,
+  beforeRef: mode ? ["--mode", mode] : []
+});
 
 export const MEASUREMENT_REGISTRY = Object.freeze({
   standard: freezeDefinition({
@@ -181,10 +154,10 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     allowedRunTypes: ["baseline-candidate", "diagnostic", "temporary"],
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
-    defaults: { runs: 500, minimumRuns: 500, seed: 843, calibrationRuns: 100 },
+    defaults: STANDARD_BALANCE_DEFAULTS,
     buildArgs: standardArgs
   }),
-  "starting-kit-early-run": freezeDefinition({
+  "starting-kit-early-run": nativeDiagnosticDefinition({
     id: "starting-kit-early-run",
     label: "Starting-kit early-run diagnostic",
     runner: "scratch/measurements/starting_kit_diagnostic.js",
@@ -200,7 +173,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     },
     buildArgs: startingKitArgs
   }),
-  "early-b1f-composition": freezeDefinition({
+  "early-b1f-composition": nativeDiagnosticDefinition({
     id: "early-b1f-composition",
     label: "Early B1F composition diagnostic",
     runner: "scratch/measurements/early_b1f_composition_diagnostic.js",
@@ -222,7 +195,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     },
     buildArgs: earlyB1FArgs
   }),
-  "fixed-combat-composition": freezeDefinition({
+  "fixed-combat-composition": nativeDiagnosticDefinition({
     id: "fixed-combat-composition",
     label: "Fixed combat composition diagnostic",
     runner: "scratch/measurements/fixed_combat_composition_diagnostic.js",
@@ -235,7 +208,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     allowed: { startingKit: ["vanguard", "scout", "devotion", "arcana"] },
     buildArgs: fixedCombatArgs
   }),
-  "equipment-load": freezeDefinition({
+  "equipment-load": nativeDiagnosticDefinition({
     id: "equipment-load",
     label: "Equipment-load measurement",
     runner: "scratch/measurements/equipment_load_measurement.js",
@@ -259,7 +232,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
     buildArgs: runDifficultyArgs
   }),
-  "run-difficulty-policy-sensitivity": freezeDefinition({
+  "run-difficulty-policy-sensitivity": nativeDiagnosticDefinition({
     id: "run-difficulty-policy-sensitivity",
     label: "Run difficulty policy sensitivity",
     runner: "scratch/measurements/measure_run_difficulty.js",
@@ -271,7 +244,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, policies: "p0,p1,p2" },
     buildArgs: runDifficultyArgs
   }),
-  "early-run-attrition": freezeDefinition({
+  "early-run-attrition": nativeDiagnosticDefinition({
     id: "early-run-attrition",
     label: "Early run attrition trajectory",
     runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
@@ -283,7 +256,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" },
     buildArgs: earlyAttritionArgs
   }),
-  "b3plus-survival-decomposition": freezeDefinition({
+  "b3plus-survival-decomposition": nativeDiagnosticDefinition({
     id: "b3plus-survival-decomposition",
     label: "B3-B5 survival decomposition",
     runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
@@ -296,7 +269,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     allowed: { treatment: ["b3plus-survival-decomposition"] },
     buildArgs: earlyAttritionArgs
   }),
-  "build-progression-audit": freezeDefinition({
+  "build-progression-audit": nativeDiagnosticDefinition({
     id: "build-progression-audit",
     label: "B1-B5 Build progression audit",
     runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
@@ -308,7 +281,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" },
     buildArgs: earlyAttritionArgs
   }),
-  "build-progression-pareto-safe": freezeDefinition({
+  "build-progression-pareto-safe": nativeDiagnosticDefinition({
     id: "build-progression-pareto-safe",
     label: "Pareto-safe equipment policy diagnostic",
     runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
@@ -321,7 +294,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     allowed: { treatment: ["equipment-pareto-safe"] },
     buildArgs: earlyAttritionArgs
   }),
-  "b2-chest-trap": freezeDefinition({
+  "b2-chest-trap": nativeDiagnosticDefinition({
     id: "b2-chest-trap",
     label: "B2 chest-trap suppression diagnostic",
     runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
@@ -334,7 +307,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     allowed: { treatment: ["b2-chest-trap"] },
     buildArgs: earlyAttritionArgs
   }),
-  "survival-policy": freezeDefinition({
+  "survival-policy": nativeDiagnosticDefinition({
     id: "survival-policy",
     label: "Survival policy comparison",
     runner: "scratch/measurements/measure_survival_policy_comparison.js",
@@ -346,7 +319,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
     buildArgs: survivalPolicyArgs
   }),
-  "preparation-power-factorial": freezeDefinition({
+  "preparation-power-factorial": nativeDiagnosticDefinition({
     id: "preparation-power-factorial",
     label: "Preparation power 2x2 factorial diagnostic",
     runner: "scratch/measurements/preparation_power_factorial.js",
@@ -358,7 +331,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
     buildArgs: preparationPowerArgs
   }),
-  "first-band-build-formation": freezeDefinition({
+  "first-band-build-formation": nativeDiagnosticDefinition({
     id: "first-band-build-formation",
     label: "First Band Build Formation diagnostic",
     runner: "scratch/measurements/first_band_build_formation.js",
@@ -368,9 +341,9 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
-    buildArgs: firstBandBuildFormationArgs
+    buildArgs: firstBandArgs()
   }),
-  "first-band-b5-wall-diagnostic": freezeDefinition({
+  "first-band-b5-wall-diagnostic": nativeDiagnosticDefinition({
     id: "first-band-b5-wall-diagnostic",
     label: "First Band B5 wall diagnostic",
     runner: "scratch/measurements/first_band_build_formation.js",
@@ -380,9 +353,9 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
     defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
-    buildArgs: firstBandB5WallArgs
+    buildArgs: firstBandArgs("b5-wall-diagnostic")
   }),
-  "first-band-arcana-weapon-diagnostic": freezeDefinition({
+  "first-band-arcana-weapon-diagnostic": nativeDiagnosticDefinition({
     id: "first-band-arcana-weapon-diagnostic",
     label: "First Band Arcana weapon diagnostic",
     runner: "scratch/measurements/first_band_build_formation.js",
@@ -392,9 +365,9 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
     defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
-    buildArgs: firstBandArcanaWeaponArgs
+    buildArgs: firstBandArgs("arcana-weapon-diagnostic")
   }),
-  "first-band-arcana-mp-supply-diagnostic": freezeDefinition({
+  "first-band-arcana-mp-supply-diagnostic": nativeDiagnosticDefinition({
     id: "first-band-arcana-mp-supply-diagnostic",
     label: "First Band Arcana MP supply diagnostic",
     runner: "scratch/measurements/first_band_build_formation.js",
@@ -404,9 +377,9 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
     defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
-    buildArgs: firstBandArcanaMpSupplyArgs
+    buildArgs: firstBandArgs("arcana-mp-supply-diagnostic")
   }),
-  "first-band-transition-recovery": freezeDefinition({
+  "first-band-transition-recovery": nativeDiagnosticDefinition({
     id: "first-band-transition-recovery",
     label: "First Band transition recovery diagnostic",
     runner: "scratch/measurements/first_band_build_formation.js",
@@ -416,9 +389,9 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
-    buildArgs: firstBandTransitionRecoveryArgs
+    buildArgs: firstBandArgs("transition-recovery")
   }),
-  "first-band-levelup-recovery": freezeDefinition({
+  "first-band-levelup-recovery": nativeDiagnosticDefinition({
     id: "first-band-levelup-recovery",
     label: "First Band level-up recovery diagnostic",
     runner: "scratch/measurements/first_band_build_formation.js",
@@ -428,7 +401,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
     defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
-    buildArgs: firstBandLevelUpRecoveryArgs
+    buildArgs: firstBandArgs("levelup-recovery")
   })
 });
 
