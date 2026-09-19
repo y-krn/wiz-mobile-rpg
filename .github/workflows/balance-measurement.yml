@@ -3,16 +3,33 @@ name: Balance measurement
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: "Git ref to measure"
-        required: false
-        default: "main"
-        type: string
       measurement:
         description: "Measurement to run"
         required: true
         default: "standard"
-        type: string
+        type: choice
+        options:
+          - standard
+          - starting-kit-early-run
+          - early-b1f-composition
+          - fixed-combat-composition
+          - equipment-load
+          - run-difficulty
+          - run-difficulty-policy-sensitivity
+          - early-run-attrition
+          - b3plus-survival-decomposition
+          - build-progression-audit
+          - build-progression-pareto-safe
+          - b2-chest-trap
+          - survival-policy
+          - preparation-power-factorial
+          - first-band-build-formation
+          - first-band-b5-wall-diagnostic
+          - first-band-b5-guardian-retry-diagnostic
+          - first-band-arcana-weapon-diagnostic
+          - first-band-arcana-mp-supply-diagnostic
+          - first-band-transition-recovery
+          - first-band-levelup-recovery
       runs:
         description: "Runs for the selected measurement; blank uses its registry default"
         required: false
@@ -25,52 +42,6 @@ on:
         type: string
       purpose:
         description: "Why this measurement is being requested"
-        required: true
-        type: string
-      run_type:
-        description: "How this run may be used later"
-        required: false
-        default: ""
-        type: string
-      starting_kit:
-        description: "Starting kit for measurements that expose this option"
-        required: false
-        default: "vanguard"
-        type: choice
-        options: [vanguard, scout, devotion, arcana]
-      policy:
-        description: "Starting-kit diagnostic policy"
-        required: false
-        default: "fight"
-        type: choice
-        options: [fight, flee-threshold, visible-multi-enemy-flee]
-      flee_hp_threshold:
-        description: "Starting-kit flee threshold"
-        required: false
-        default: "0.20"
-        type: string
-      selection_runs:
-        description: "Early B1F selection runs; blank uses its registry default"
-        required: false
-        default: ""
-        type: string
-      selection_seed:
-        description: "Early B1F selection seed; blank uses its registry default"
-        required: false
-        default: ""
-        type: string
-      fixed_runs:
-        description: "Early B1F fixed-panel runs; blank uses its registry default"
-        required: false
-        default: ""
-        type: string
-      fixed_seed:
-        description: "Early B1F fixed-panel seed; blank uses its registry default"
-        required: false
-        default: ""
-        type: string
-      policies:
-        description: "Run-difficulty policy IDs, comma-separated; blank uses its registry default"
         required: false
         default: ""
         type: string
@@ -84,9 +55,8 @@ permissions:
   contents: read
 
 env:
-  MEASUREMENT_REF: ${{ inputs.ref }}
-  MEASUREMENT_PURPOSE: ${{ inputs.purpose }}
-  MEASUREMENT_RUN_TYPE: ${{ inputs.run_type }}
+  MEASUREMENT_REF: ${{ github.sha }}
+  MEASUREMENT_PURPOSE: "${{ inputs.purpose || format('manual workflow dispatch: {0}', inputs.measurement) }}"
   MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
   MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   MEASUREMENT_REPOSITORY: ${{ github.repository }}
@@ -106,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           filter: blob:none
       - uses: actions/setup-node@v4
@@ -119,17 +89,8 @@ jobs:
         timeout-minutes: 15
         continue-on-error: true
         env:
-          MEASUREMENT_ID: ${{ inputs.measurement }}
           MEASUREMENT_RUNS: ${{ inputs.runs }}
           MEASUREMENT_SEED: ${{ inputs.seed }}
-          MEASUREMENT_STARTING_KIT: ${{ inputs.starting_kit }}
-          MEASUREMENT_POLICY: ${{ inputs.policy }}
-          MEASUREMENT_FLEE_HP_THRESHOLD: ${{ inputs.flee_hp_threshold }}
-          MEASUREMENT_SELECTION_RUNS: ${{ inputs.selection_runs }}
-          MEASUREMENT_SELECTION_SEED: ${{ inputs.selection_seed }}
-          MEASUREMENT_FIXED_RUNS: ${{ inputs.fixed_runs }}
-          MEASUREMENT_FIXED_SEED: ${{ inputs.fixed_seed }}
-          MEASUREMENT_POLICIES: ${{ inputs.policies }}
           MEASUREMENT_RUN_ID: ${{ github.run_id }}
         run: |
           set -o pipefail
@@ -152,6 +113,11 @@ jobs:
           EVIDENCE_CONFIG: ${{ toJSON(inputs) }}
           MEASUREMENT_SEED: ${{ inputs.seed }}
         run: |
+          EVIDENCE_CONFIG="$(node -e '
+            const config = JSON.parse(process.env.EVIDENCE_CONFIG);
+            config.purpose = process.env.MEASUREMENT_PURPOSE;
+            process.stdout.write(JSON.stringify(config));
+          ')"
           stage_args=(
             --staging-dir "$RUNNER_TEMP"
             --status "${{ steps.measurement.outcome }}"
@@ -202,7 +168,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           filter: blob:none
       - uses: actions/setup-node@v4
@@ -238,6 +204,11 @@ jobs:
           EVIDENCE_CONFIG: ${{ toJSON(inputs) }}
           MEASUREMENT_SEED: ${{ inputs.seed }}
         run: |
+          EVIDENCE_CONFIG="$(node -e '
+            const config = JSON.parse(process.env.EVIDENCE_CONFIG);
+            config.purpose = process.env.MEASUREMENT_PURPOSE;
+            process.stdout.write(JSON.stringify(config));
+          ')"
           stage_args=(
             --staging-dir "$RUNNER_TEMP"
             --status "${{ steps.merge.outcome }}"
@@ -279,7 +250,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           filter: blob:none
       - uses: actions/setup-node@v4
@@ -295,34 +266,19 @@ jobs:
           MEASUREMENT_ID: ${{ inputs.measurement }}
           MEASUREMENT_RUNS: ${{ inputs.runs }}
           MEASUREMENT_SEED: ${{ inputs.seed }}
-          MEASUREMENT_STARTING_KIT: ${{ inputs.starting_kit }}
-          MEASUREMENT_POLICY: ${{ inputs.policy }}
-          MEASUREMENT_FLEE_HP_THRESHOLD: ${{ inputs.flee_hp_threshold }}
-          MEASUREMENT_SELECTION_RUNS: ${{ inputs.selection_runs }}
-          MEASUREMENT_SELECTION_SEED: ${{ inputs.selection_seed }}
-          MEASUREMENT_FIXED_RUNS: ${{ inputs.fixed_runs }}
-          MEASUREMENT_FIXED_SEED: ${{ inputs.fixed_seed }}
-          MEASUREMENT_POLICIES: ${{ inputs.policies }}
           MEASUREMENT_RUN_ID: ${{ github.run_id }}
         run: |
           set -o pipefail
-          node scratch/measurements/run_balance_measurement.js \
-            --measurement "$MEASUREMENT_ID" \
-            --ref "$MEASUREMENT_REF" \
-            --runs "$MEASUREMENT_RUNS" \
-            --seed "$MEASUREMENT_SEED" \
-            --purpose "$MEASUREMENT_PURPOSE" \
-            --run_type "$MEASUREMENT_RUN_TYPE" \
-            --starting_kit "$MEASUREMENT_STARTING_KIT" \
-            --policy "$MEASUREMENT_POLICY" \
-            --flee_hp_threshold "$MEASUREMENT_FLEE_HP_THRESHOLD" \
-            --selection_runs "$MEASUREMENT_SELECTION_RUNS" \
-            --selection_seed "$MEASUREMENT_SELECTION_SEED" \
-            --fixed_runs "$MEASUREMENT_FIXED_RUNS" \
-            --fixed_seed "$MEASUREMENT_FIXED_SEED" \
-            --policies "$MEASUREMENT_POLICIES" \
-            --run_id "$MEASUREMENT_RUN_ID" \
-            --output_dir /tmp/balance-measurement 2>&1 | tee "$RUNNER_TEMP/balance-measurement.log"
+          router_args=(
+            --measurement "$MEASUREMENT_ID"
+            --ref "$MEASUREMENT_REF"
+            --purpose "$MEASUREMENT_PURPOSE"
+            --run_id "$MEASUREMENT_RUN_ID"
+            --output_dir /tmp/balance-measurement
+          )
+          if [ -n "$MEASUREMENT_RUNS" ]; then router_args+=(--runs "$MEASUREMENT_RUNS"); fi
+          if [ -n "$MEASUREMENT_SEED" ]; then router_args+=(--seed "$MEASUREMENT_SEED"); fi
+          node scratch/measurements/run_balance_measurement.js "${router_args[@]}" 2>&1 | tee "$RUNNER_TEMP/balance-measurement.log"
       - name: Publish durable run summary
         if: always()
         run: |
@@ -337,6 +293,11 @@ jobs:
           EVIDENCE_CONFIG: ${{ toJSON(inputs) }}
           MEASUREMENT_SEED: ${{ inputs.seed }}
         run: |
+          EVIDENCE_CONFIG="$(node -e '
+            const config = JSON.parse(process.env.EVIDENCE_CONFIG);
+            config.purpose = process.env.MEASUREMENT_PURPOSE;
+            process.stdout.write(JSON.stringify(config));
+          ')"
           stage_args=(
             --staging-dir "$RUNNER_TEMP"
             --status "${{ steps.measurement.outcome }}"
