@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import {
   ARM_IDS,
   ARCANA_WEAPON_MODE,
+  B5_WALL_ARM_IDS,
+  B5_WALL_MODE,
+  B5_WALL_MEASUREMENT_ID,
   CANONICAL_ADAPTIVE_POLICY_ID,
   KIT_IDS,
   MEASUREMENT_ID,
@@ -168,6 +171,62 @@ assert.ok(fleeDiagnostic.fleeEventCount > 0);
 assert.ok(fleeDiagnostic.bossCombatResultEventCount >= 2);
 assert.equal(fleeDiagnostic.retryRevisit, true);
 
+const runB5InterventionProbe = (scenario, seed, seriesId) => {
+  resetSimulationRandom(seed);
+  return simulateRun({
+    className: "Thief",
+    startFloor: 1,
+    targetDepth: 6,
+    runIndex: 0,
+    seriesId,
+    scenario,
+    workshop: scenario.workshop,
+    collectDiagnostics: true,
+    collectBuildSnapshots: true,
+    collectEquipmentTelemetry: true
+  });
+};
+
+const flameProbeBase = { ...focusedScenario };
+const flameCurrent = runB5InterventionProbe(flameProbeBase, 1, "probe-b5-flame-current");
+const flameDisabled = runB5InterventionProbe(
+  { ...flameProbeBase, b5FlameTrapDisabled: true },
+  1,
+  "probe-b5-flame-disabled"
+);
+const flameDisabledBoth = runB5InterventionProbe(
+  { ...flameProbeBase, b5FlameTrapDisabled: true, b5GuardianFleeDisabled: true },
+  1,
+  "probe-b5-flame-disabled-both"
+);
+assert.equal(flameCurrent.b5Entrant, true);
+assert.ok(flameCurrent.flameTrapActivations > 0, "current B5 probe did not trigger flame trap");
+for (const [label, probe] of [["F", flameDisabled], ["FG", flameDisabledBoth]]) {
+  assert.equal(probe.b5Entrant, true, `${label} B5 probe did not enter B5`);
+  assert.equal(probe.flameTrapActivations, 0, `${label} B5 flame intervention failed`);
+}
+
+const guardianCurrent = runB5InterventionProbe(fleeScenario, 6, "probe-b5-guardian-current");
+const guardianDisabled = runB5InterventionProbe(
+  { ...fleeScenario, b5GuardianFleeDisabled: true },
+  6,
+  "probe-b5-guardian-disabled"
+);
+const guardianDisabledBoth = runB5InterventionProbe(
+  { ...fleeScenario, b5FlameTrapDisabled: true, b5GuardianFleeDisabled: true },
+  6,
+  "probe-b5-guardian-disabled-both"
+);
+const b5BossTrace = result => result.milestoneEventTrace.filter(event => event.floor === 5 && event.type === "boss");
+const guardianFleeCount = result => normalizeBossTrace(b5BossTrace(result)).fleeEventCount;
+assert.ok(guardianFleeCount(guardianCurrent) > 0, "current B5 probe did not flee from Guardian");
+for (const [label, probe] of [["G", guardianDisabled], ["FG", guardianDisabledBoth]]) {
+  const diagnostic = normalizeBossTrace(b5BossTrace(probe));
+  assert.equal(diagnostic.actualBossEventArrival, true, `${label} Guardian probe did not arrive`);
+  assert.equal(diagnostic.combatStart, true, `${label} Guardian probe did not start combat`);
+  assert.equal(diagnostic.fleeEventCount, 0, `${label} Guardian flee intervention failed`);
+}
+
 const summary = buildSummary(result);
 for (const token of ["B2", "B3", "B4", "B5", "P0B1 - P0B0", "P1B1 - P1B0", "P1B1 - P0B1", "P1B0 - P0B0", "actual arrival", "boss arrival/start/victory", "result events", "town-portal before boss", "milestone Portal return after guardian"]) {
   assert.match(summary, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -225,5 +284,36 @@ assert.equal(arcana.arms.C.overview.mediumAbandonment.departureCount, 1);
 assert.equal(arcana.arms.C.overview.mediumAbandonment.mediumLossCount, 1);
 assert.ok(arcana.arms.W.overview.combat[1].spellTelemetry.spellOpportunityRounds.total > 0);
 assert.ok(arcana.arms.W.overview.combat[1].spellTelemetry.eligibleSpellSelected.total > 0);
+
+const b5Wall = await runMeasurement({ runs: 1, seed: 1277, mode: B5_WALL_MODE });
+assert.equal(b5Wall.configuration.measurementId, B5_WALL_MEASUREMENT_ID);
+assert.deepEqual(b5Wall.configuration.arms, B5_WALL_ARM_IDS);
+assert.equal(b5Wall.configuration.preparation.recovery, "current production recovery");
+assert.equal(b5Wall.preB5Parity.pass, true);
+assert.equal(b5Wall.determinism.pass, true);
+assert.equal(b5Wall.observationInvariance.pass, true);
+assert.deepEqual(b5Wall.arms.C.samples.runs.runs[0].b5.intervention, {
+  flameTrapDisabled: false,
+  guardianFleeDisabled: false
+});
+assert.deepEqual(b5Wall.arms.F.samples.runs.runs[0].b5.intervention, {
+  flameTrapDisabled: true,
+  guardianFleeDisabled: false
+});
+assert.deepEqual(b5Wall.arms.G.samples.runs.runs[0].b5.intervention, {
+  flameTrapDisabled: false,
+  guardianFleeDisabled: true
+});
+assert.deepEqual(b5Wall.arms.FG.samples.runs.runs[0].b5.intervention, {
+  flameTrapDisabled: true,
+  guardianFleeDisabled: true
+});
+for (const armId of B5_WALL_ARM_IDS) {
+  const flame = b5Wall.arms[armId].overview.b5.flameTrap;
+  assert.ok(flame.triggerRate >= 0 && flame.triggerRate <= 1, `${armId} flame trigger rate must be entrant-bounded`);
+}
+assert.deepEqual(Object.keys(b5Wall.b5Comparisons), ["F-C", "G-C", "FG-C", "interaction"]);
+assert.ok(b5Wall.b5Comparisons["F-C"].baseline.flameTriggerRate <= 1);
+assert.match(buildSummary(b5Wall), /pre-B5 parity: PASS/);
 
 console.log("first-band-build-formation diagnostic smoke: PASS");

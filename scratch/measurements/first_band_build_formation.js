@@ -57,6 +57,9 @@ export const ARCANA_WEAPON_MODE = "arcana-weapon-diagnostic";
 export const ARCANA_WEAPON_MEASUREMENT_ID = "first-band-arcana-weapon-diagnostic";
 export const ARCANA_MP_SUPPLY_MODE = "arcana-mp-supply-diagnostic";
 export const ARCANA_MP_SUPPLY_MEASUREMENT_ID = "first-band-arcana-mp-supply-diagnostic";
+export const B5_WALL_MODE = "b5-wall-diagnostic";
+export const B5_WALL_MEASUREMENT_ID = "first-band-b5-wall-diagnostic";
+export const B5_WALL_ARM_IDS = Object.freeze(["C", "F", "G", "FG"]);
 export const ARCANA_KIT_IDS = Object.freeze(["arcana"]);
 
 const DEFAULT_WEAPON_BY_KIT = Object.freeze({
@@ -160,6 +163,12 @@ const ARCANA_MP_SUPPLY_ARM_DEFINITIONS = Object.freeze({
     lockedEquipmentSlots: ["weapon"]
   })
 });
+const B5_WALL_ARM_DEFINITIONS = Object.freeze({
+  C: Object.freeze({ id: "C", preparationId: "P0", buildId: "current", healPotions: 4, fixed: false }),
+  F: Object.freeze({ id: "F", preparationId: "P0", buildId: "b5-flame-disabled", healPotions: 4, fixed: false, b5FlameTrapDisabled: true }),
+  G: Object.freeze({ id: "G", preparationId: "P0", buildId: "b5-guardian-no-flee", healPotions: 4, fixed: false, b5GuardianFleeDisabled: true }),
+  FG: Object.freeze({ id: "FG", preparationId: "P0", buildId: "b5-flame-disabled-guardian-no-flee", healPotions: 4, fixed: false, b5FlameTrapDisabled: true, b5GuardianFleeDisabled: true })
+});
 const LEGACY_LEVEL_UP_ARM_DEFINITIONS = Object.freeze({
   L0A: Object.freeze({ id: "L0A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0 }),
   L20A: Object.freeze({ id: "L20A", preparationId: "P0", buildId: "A", healPotions: 4, fixed: false, recoveryRate: 0.25, levelUpRecoveryRate: 0.20 })
@@ -184,6 +193,16 @@ function getMeasurementMode(mode) {
       armDefinitions: ARCANA_MP_SUPPLY_ARM_DEFINITIONS,
       preparationPotions: [4],
       kitIds: ARCANA_KIT_IDS
+    };
+  }
+  if (mode === B5_WALL_MODE) {
+    return {
+      id: B5_WALL_MEASUREMENT_ID,
+      runnerVersion: "first-band-build-formation-v7",
+      armIds: B5_WALL_ARM_IDS,
+      armDefinitions: B5_WALL_ARM_DEFINITIONS,
+      preparationPotions: [4],
+      kitIds: KIT_IDS
     };
   }
   if (mode === "transition-recovery") {
@@ -418,14 +437,67 @@ export function normalizeBossTrace(trace = [], finalBattle = null) {
   };
 }
 
+function normalizeInventoryCounts(inventory) {
+  return Object.fromEntries(
+    Object.entries(inventory || {}).sort(([left], [right]) => left.localeCompare(right))
+  );
+}
+
+function normalizeEquipment(snapshot) {
+  return (snapshot?.equipment || [])
+    .map(item => ({ slot: item.slot || null, id: item.id || null }))
+    .sort((left, right) => String(left.slot).localeCompare(String(right.slot)) || String(left.id).localeCompare(String(right.id)));
+}
+
+function normalizeB5Entry(result, route) {
+  const stage = result.stage15Diagnostics?.byFloor?.["5"] || null;
+  const build = stage?.entryBuildSnapshot || null;
+  const reached = Boolean(result.b5Entrant);
+  if (!reached) {
+    return {
+      status: "unreachable",
+      reached,
+      reachedFloor: finite(result.reachedFloor),
+      outcome: result.outcome || null,
+      terminalReason: result.terminationReason || null
+    };
+  }
+  return {
+    status: "observed",
+    reached,
+    hp: finite(stage?.entryHp),
+    maxHp: finite(stage?.entryMaxHp),
+    mp: finite(stage?.entryMp),
+    maxMp: finite(stage?.entryMaxMp),
+    inventorySlots: Object.values(stage?.entryInventory || {}).reduce((sum, count) => sum + Number(count || 0), 0),
+    inventory: normalizeInventoryCounts(stage?.entryInventory),
+    healPotion: finite(stage?.entryHealPotionRemaining),
+    equipment: normalizeEquipment(build),
+    buildSnapshot: structuralBuild(build),
+    routeRelevantState: route ? {
+      floorSteps: finite(route.floorSteps),
+      routeDistance: finite(route.routeDistance),
+      bossExitDistance: finite(route.bossExitDistance),
+      bossToStairsDistance: finite(route.bossToStairsDistance),
+      naturalBossToStairsDistance: finite(route.naturalBossToStairsDistance),
+      routeEventTypes: [...(route.routeEventTypes || [])],
+      routeEventDistances: [...(route.routeEventDistances || [])],
+      milestoneForced: Boolean(route.milestoneForced)
+    } : null
+  };
+}
+
 export function normalizeB5(result, record) {
   const entrant = Boolean(result.b5Entrant);
-  if (!entrant) return { status: "unreachable" };
   const route = (result.specialRouteFloors || []).find(item => Number(item.floor) === 5);
+  if (!entrant) {
+    return { status: "unreachable", entryParity: normalizeB5Entry(result, route) };
+  }
   const bossBattle = (result.specialBattles || []).find(item => item.type === "boss" && Number(item.floor) === 5);
-  const bossEncounter = (result.diagnostics?.encounters || []).find(item =>
+  const bossEncounters = (result.diagnostics?.encounters || []).filter(item =>
     Number(item.floor) === 5 && item.type === "boss"
   );
+  const bossEncounter = bossEncounters[0];
   const bossTrace = (result.milestoneEventTrace || []).filter(item =>
     Number(item.floor) === 5 && item.type === "boss"
   );
@@ -437,6 +509,10 @@ export function normalizeB5(result, record) {
   const terminalReason = record.terminalReason || result.terminationReason || null;
   const bossStarted = bossTraceSummary.combatStart;
   const reachedB6 = Number(result.reachedFloor) >= 6;
+  const guardBreakCount = bossEncounters
+    .flatMap(encounter => encounter.rounds || [])
+    .flatMap(round => round.log || [])
+    .filter(message => String(message).includes("装甲が砕け")).length;
   const ratio = (value, max) => Number.isFinite(Number(value)) && Number.isFinite(Number(max)) && Number(max) > 0
     ? Number(value) / Number(max)
     : null;
@@ -466,6 +542,8 @@ export function normalizeB5(result, record) {
       flee: bossTraceSummary.fleeEventCount > 0,
       death: bossTraceSummary.deathEventCount > 0,
       retry: bossTraceSummary.retryRevisit,
+      guardBreakCount: metric([guardBreakCount]),
+      guardBreak: guardBreakCount > 0,
       notReached: !bossTraceSummary.actualBossEventArrival
     },
     townPortalReturnBeforeBoss: terminalReason === "town-portal" && !bossTraceSummary.actualBossEventArrival,
@@ -478,7 +556,8 @@ export function normalizeB5(result, record) {
     // the explicit terminal-reason fields above.
     returnBeforeBoss: record.outcome.voluntaryReturn && !bossStarted,
     returnAfterBossBeforeB6: record.outcome.voluntaryReturn && bossStarted && !reachedB6,
-    b6Transition: reachedB6
+    b6Transition: reachedB6,
+    entryParity: normalizeB5Entry(result, route)
   };
 }
 
@@ -579,6 +658,12 @@ function compactDiagnostic(result, context) {
     reconciliation: manaAcquired === manaConsumed + manaRemaining + terminalLoss
   };
   record.b5 = normalizeB5(result, record);
+  if (context.b5Intervention) {
+    record.b5.intervention = {
+      flameTrapDisabled: context.b5Intervention.b5FlameTrapDisabled === true,
+      guardianFleeDisabled: context.b5Intervention.b5GuardianFleeDisabled === true
+    };
+  }
   record.transitionRecovery = (result.floorTransitionRecovery || []).map(event => ({
     fromFloor: finite(event.fromFloor),
     toFloor: finite(event.toFloor),
@@ -829,6 +914,8 @@ function summarizeB5(rows) {
       fleeEventCount: metric(entrants.map(item => item.boss.fleeEventCount)),
       victoryEventCount: metric(entrants.map(item => item.boss.victoryEventCount)),
       deathEventCount: metric(entrants.map(item => item.boss.deathEventCount)),
+      guardBreakCount: metric(entrants.map(item => item.boss.guardBreakCount.total)),
+      guardBreak: boss("guardBreak"),
       retryRevisit: boss("retryRevisit"),
       arrivalHp: metric(entrants.flatMap(item => item.boss.arrivalHp.p50 == null ? [] : [item.boss.arrivalHp.p50])),
       arrivalHpRatio: metric(entrants.flatMap(item => item.boss.arrivalHpRatio.p50 == null ? [] : [item.boss.arrivalHpRatio.p50])),
@@ -971,6 +1058,100 @@ function comparison(left, right, label) {
   return { label, baseline, treatment, delta: delta(baseline, treatment) };
 }
 
+function b5ComparisonMetrics(aggregate) {
+  const b5 = aggregate.b5;
+  const entrants = b5.entrantN;
+  const rateFromCounts = (count, denominator = entrants) => rate(count, denominator);
+  return {
+    flameEligibleStepsMeanPerEntrant: b5.flameTrap.eligibleSteps.meanPerEntrant,
+    flameTriggerMeanPerEntrant: b5.flameTrap.triggerCount.meanPerEntrant,
+    flameTriggerRate: b5.flameTrap.triggerRate,
+    flameAvoidRate: rate(b5.flameTrap.warningOrAvoidCount.total, b5.flameTrap.triggerCount.total),
+    flameHpDamageMeanPerEntrant: b5.flameTrap.hpDamage.meanPerEntrant,
+    flameTerminalDeathRate: rateFromCounts(b5.flameTrap.terminalDeaths.total),
+    returnBeforeBossRate: b5.townPortalReturnBeforeBoss.rate,
+    entrantToArrivalRate: b5.boss.actualBossEventArrival.meanPerEntrant,
+    arrivalToVictoryRate: rate(b5.boss.victoryEventCount.total, b5.boss.actualBossEventArrival.total),
+    entrantToB6Rate: b5.b6Transition.rate,
+    combatStartRate: b5.boss.combatStart.meanPerEntrant,
+    victoryRate: b5.boss.victory.meanPerEntrant,
+    fleeRate: b5.boss.flee.meanPerEntrant,
+    retryRate: b5.boss.retry.meanPerEntrant,
+    deathRate: b5.boss.death.meanPerEntrant,
+    guardBreakRate: b5.boss.guardBreak.meanPerEntrant,
+    returnAfterBossAttemptBeforeB6Rate: b5.townPortalReturnAfterBossAttemptBeforeB6.rate,
+    milestonePortalReturnRate: b5.milestonePortalReturnAfterGuardian.rate,
+    bossArrivalHpP50: b5.boss.arrivalHp.p50,
+    bossArrivalMpP50: b5.boss.arrivalMp.p50,
+    bossArrivalHealPotionP50: b5.boss.remainingHealPotion.p50
+  };
+}
+
+function subtractMetrics(left, right) {
+  return Object.fromEntries(Object.keys(left).map(key => [
+    key,
+    finite(left[key]) === null || finite(right[key]) === null ? null : left[key] - right[key]
+  ]));
+}
+
+function b5Comparison(base, treatment, label) {
+  const baseline = b5ComparisonMetrics(base);
+  const candidate = b5ComparisonMetrics(treatment);
+  return { label, baseline, treatment: candidate, delta: subtractMetrics(candidate, baseline) };
+}
+
+function b5Interaction(base, flame, guardian, both) {
+  const current = b5ComparisonMetrics(base);
+  const f = b5ComparisonMetrics(flame);
+  const g = b5ComparisonMetrics(guardian);
+  const fg = b5ComparisonMetrics(both);
+  return {
+    label: "FG - F - G + C",
+    delta: Object.fromEntries(Object.keys(current).map(key => [
+      key,
+      [current[key], f[key], g[key], fg[key]].every(value => finite(value) !== null)
+        ? fg[key] - f[key] - g[key] + current[key]
+        : null
+    ]))
+  };
+}
+
+function preB5ParityProjection(row) {
+  return {
+    floors: [1, 2, 3, 4].map(floor => row.floors?.[floor] || null),
+    b5Entry: row.b5?.entryParity || null
+  };
+}
+
+function buildB5Parity(armRowsByKit, kitIds) {
+  const baseline = armRowsByKit.C;
+  const byArm = {};
+  for (const armId of B5_WALL_ARM_IDS.filter(id => id !== "C")) {
+    const byKit = {};
+    for (const kitId of kitIds) {
+      const currentRows = armRowsByKit[armId]?.[kitId] || [];
+      const baselineRows = baseline?.[kitId] || [];
+      const mismatches = [];
+      currentRows.forEach((row, index) => {
+        if (JSON.stringify(preB5ParityProjection(row)) !== JSON.stringify(preB5ParityProjection(baselineRows[index]))) {
+          mismatches.push({ runIndex: row.runIndex, baselineRunIndex: baselineRows[index]?.runIndex ?? null });
+        }
+      });
+      byKit[kitId] = {
+        pass: currentRows.length === baselineRows.length && mismatches.length === 0,
+        comparedRuns: Math.min(currentRows.length, baselineRows.length),
+        mismatches: mismatches.slice(0, RUN_SAMPLE_LIMIT)
+      };
+    }
+    byArm[armId] = byKit;
+  }
+  return {
+    pass: Object.values(byArm).every(byKit => Object.values(byKit).every(value => value.pass)),
+    comparedFields: ["B1-B4 compact production path", "B5 reached/not reached", "B5 entry HP/maxHP", "B5 entry MP/maxMP", "B5 entry inventory/HEAL_POTION", "B5 entry equipment/Build Snapshot", "B5 route-relevant state"],
+    byArm
+  };
+}
+
 function validatePreparation(result, arm, kitId, prep, workshop) {
   const actual = result.preparation;
   const expectedWeapon = arm.preparationId === "P0"
@@ -1049,7 +1230,9 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       lockedEquipmentSlots: [...(arm.lockedEquipmentSlots || [])],
       collectEncounterIdentities: true,
       collectStage15Diagnostics: true,
-      simDiagnosticLevel: "full"
+      simDiagnosticLevel: "full",
+      b5FlameTrapDisabled: arm.b5FlameTrapDisabled === true,
+      b5GuardianFleeDisabled: arm.b5GuardianFleeDisabled === true
     };
     if (arm.recoveryRate !== undefined && includeTransitionRecoveryRate) {
       scenario.floorTransitionRecoveryRate = arm.recoveryRate;
@@ -1083,6 +1266,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       policyId: arm.fixed ? "fixed" : CANONICAL_ADAPTIVE_POLICY_ID,
       runIndex,
       worldSeed,
+      b5Intervention: arm,
       candidateSampleCollector: samples?.candidate,
       arcanaWeaponDiagnostic: mode === ARCANA_WEAPON_MODE
     });
@@ -1126,9 +1310,11 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
   }
 
   const armReports = {};
+  const parityRowsByArm = {};
   for (const armId of modeDefinition.armIds) {
     const arm = modeDefinition.armDefinitions[armId];
     const byKit = {};
+    const rowsByKit = {};
     const allRows = [];
     const armRunSamples = createRunEvidenceSampleCollector(RUN_SAMPLE_LIMIT);
     const armCandidateSamples = createCandidateAuditSampleCollector(CANDIDATE_SAMPLE_LIMIT);
@@ -1144,7 +1330,9 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
         preparation: rows[0]?.preparation || null,
         aggregate: aggregate(rows)
       };
+      rowsByKit[kitId] = rows;
     }
+    parityRowsByArm[armId] = rowsByKit;
     const overview = aggregate(allRows);
     const overviewReconciliation = {
       runs: Object.values(byKit).reduce((sum, kit) => sum + kit.aggregate.runs, 0) === overview.runs,
@@ -1173,10 +1361,18 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       },
       build: {
         id: arm.buildId,
-        semantics: arm.fixed ? "fixed equipment diagnostic intervention" : "adaptive canonical simulation equipment-update policy",
+        semantics: mode === B5_WALL_MODE
+          ? "canonical adaptive equipment policy; B5-only diagnostic intervention"
+          : arm.fixed ? "fixed equipment diagnostic intervention" : "adaptive canonical simulation equipment-update policy",
         requestedPolicy: arm.fixed ? "fixed" : CANONICAL_ADAPTIVE_POLICY_ID,
         effectivePolicyIds: [...new Set(allRows.map(row => row.build.equipmentUpdatePolicy))]
       },
+      intervention: mode === B5_WALL_MODE
+        ? {
+            flameTrapDisabled: arm.b5FlameTrapDisabled === true,
+            guardianFleeDisabled: arm.b5GuardianFleeDisabled === true
+          }
+        : null,
       byKit,
       overview,
       overviewReconciliation,
@@ -1185,8 +1381,19 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     };
   }
 
+  const preB5Parity = mode === B5_WALL_MODE
+    ? buildB5Parity(parityRowsByArm, modeDefinition.kitIds)
+    : null;
+  if (preB5Parity && !preB5Parity.pass) throw new Error("B5 pre-intervention parity failed");
+
   const overview = Object.fromEntries(modeDefinition.armIds.map(id => [id, armReports[id].overview]));
-  const comparisons = mode === ARCANA_MP_SUPPLY_MODE
+  const comparisons = mode === B5_WALL_MODE
+    ? [
+        comparison(overview.C, overview.F, "F - C: B5 flame diagnostic disabled"),
+        comparison(overview.C, overview.G, "G - C: B5 Guardian flee disabled"),
+        comparison(overview.C, overview.FG, "FG - C: both B5 interventions")
+      ]
+    : mode === ARCANA_MP_SUPPLY_MODE
     ? [
         comparison(overview.W0, overview.W1, "W1 - W0: one additional production MANA_POTION"),
         comparison(overview.W1, overview.W2, "W2 - W1: second additional production MANA_POTION"),
@@ -1221,6 +1428,14 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
         comparison(overview.P0B1, overview.P1B1, "P1B1 - P0B1: Preparation effect under adaptive Build"),
         comparison(overview.P0B0, overview.P1B0, "P1B0 - P0B0: Preparation effect with fixed Build")
       ];
+  const b5Comparisons = mode === B5_WALL_MODE
+    ? {
+        "F-C": b5Comparison(overview.C, overview.F, "F - C"),
+        "G-C": b5Comparison(overview.C, overview.G, "G - C"),
+        "FG-C": b5Comparison(overview.C, overview.FG, "FG - C"),
+        interaction: b5Interaction(overview.C, overview.F, overview.G, overview.FG)
+      }
+    : null;
   let baselineParity = null;
   if (mode === "transition-recovery" || mode === "levelup-recovery") {
     const arm = mode === "transition-recovery"
@@ -1317,6 +1532,8 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       ? { name: "Standard Preparation", startingWeaponMode: "kit-default", healPotions: 4 }
       : mode === ARCANA_MP_SUPPLY_MODE
         ? { name: "Standard Preparation + departure MANA capability probe", startingWeaponMode: "explicit arm weapon", healPotions: 4, additionalManaPotions: { W0: 0, W1: 1, W2: 2, R: 0 } }
+        : mode === B5_WALL_MODE
+          ? { name: "Standard Preparation", startingWeaponMode: "kit-default", healPotions: 4, recovery: "current production recovery", manaRecipe: "current production MANA recipe" }
         : null,
     worldSeedTemplate: "run-difficulty:{seed}:{runIndex}",
     identityBoundary: "HP/MP/bag/floor/starting-kit excluded from Build Snapshot identity",
@@ -1327,12 +1544,21 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       candidateSamplesPerArm: CANDIDATE_SAMPLE_LIMIT,
       rawEncounterIdentities: "omitted"
     },
-    comparisonSemantics: mode === ARCANA_WEAPON_MODE
+    comparisonSemantics: mode === B5_WALL_MODE
+      ? "B1-B4 exact paired parity and B5-entry parity are asserted; F/G/FG interventions begin at B5; no post-intervention path/RNG parity claim"
+      : mode === ARCANA_WEAPON_MODE
       ? "Cross-arm C/W/R treatment comparisons use matched initial conditions; no post-divergence same-seed path/encounter/loot/trap parity claim"
       : mode === ARCANA_MP_SUPPLY_MODE
         ? "W1/W2 differ from W0 only by production departure-craft MANA_POTION recipe count; cross-arm post-divergence path/encounter/loot/trap parity is not claimed"
       : "Only within-arm treatment deltas are decision comparisons; no post-divergence same-seed path/encounter/loot/trap parity claim",
-    armSemantics: mode === ARCANA_WEAPON_MODE
+    armSemantics: mode === B5_WALL_MODE
+      ? {
+          C: "current production B5 behavior",
+          F: "C + B5 flame trap disabled in diagnostic only",
+          G: "C + flee disabled after B5 Guardian combat starts; pre-boss Return unchanged",
+          FG: "F + G"
+        }
+      : mode === ARCANA_WEAPON_MODE
       ? {
           C: "Arcana Standard Preparation WAND + HALITO; canonical adaptive; weapon swappable",
           W: "Arcana Standard Preparation WAND + HALITO; weapon slot locked; other slots adaptive",
@@ -1362,7 +1588,9 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       pass: Object.values(observationInvariance).every(value => value.pass),
       byCase: observationInvariance
     },
-    baselineParity
+    baselineParity,
+    preB5Parity,
+    b5Comparisons
   };
   if (mode === ARCANA_MP_SUPPLY_MODE) {
     const bridgePairs = [
@@ -1513,6 +1741,38 @@ function buildReport(result, provenance, purpose, requestedRef, environment) {
 }
 
 export function buildSummary(report) {
+  if (report.configuration.mode === B5_WALL_MODE) {
+    const display = value => value == null ? "unobserved" : value;
+    const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;
+    const outcomeLine = armId => {
+      const aggregate = report.arms[armId].overview;
+      const b5 = aggregate.b5;
+      const boss = b5.boss;
+      return `- ${armId}: entrants=${b5.entrantN}; flame eligible/trigger mean-per-entrant/trigger rate/damage=${display(b5.flameTrap.eligibleSteps.meanPerEntrant)}/${display(b5.flameTrap.triggerCount.meanPerEntrant)}/${rateDisplay(b5.flameTrap.triggerRate)}/${display(b5.flameTrap.hpDamage.meanPerEntrant)}; boss arrival/start/victory/flee/retry/death=${rateDisplay(boss.actualBossEventArrival.meanPerEntrant)}/${rateDisplay(boss.combatStart.meanPerEntrant)}/${rateDisplay(boss.victory.meanPerEntrant)}/${rateDisplay(boss.flee.meanPerEntrant)}/${rateDisplay(boss.retry.meanPerEntrant)}/${rateDisplay(boss.death.meanPerEntrant)}; guardBreak=${rateDisplay(boss.guardBreak.meanPerEntrant)}; Return before/after=${rateDisplay(b5.townPortalReturnBeforeBoss.rate)}/${rateDisplay(b5.townPortalReturnAfterBossAttemptBeforeB6.rate)}; B6=${rateDisplay(b5.b6Transition.rate)}`;
+    };
+    const comparisonLine = key => {
+      const item = report.b5Comparisons[key];
+      return `- ${key}: ${JSON.stringify(item.delta)}`;
+    };
+    return [
+      "# First Band B5 wall diagnostic",
+      "",
+      `- measurement: ${report.configuration.measurementId}; N=${report.configuration.runs}/kit/arm; seed=${report.configuration.seed}; target=B6; workshop=${report.configuration.workshop}; production balance change=false; raw run records omitted`,
+      "- C=current; F=B5 flame diagnostic disabled; G=B5 Guardian combat後のみflee禁止; FG=F+G.",
+      "- B1-B4 and B5-entry pairing is asserted. Post-B5 path/RNG parity is not claimed.",
+      "",
+      "## Arms",
+      "",
+      ...B5_WALL_ARM_IDS.map(outcomeLine),
+      "",
+      "## B5 comparison rate differences",
+      "",
+      ...["F-C", "G-C", "FG-C", "interaction"].map(comparisonLine),
+      "",
+      `- pre-B5 parity: ${report.preB5Parity?.pass ? "PASS" : "FAIL"}; compared=${JSON.stringify(report.preB5Parity?.comparedFields || [])}`,
+      `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; observation invariance: ${report.observationInvariance.pass ? "PASS" : "FAIL"}; smoke only, no distributional claim.`
+    ].join("\n") + "\n";
+  }
   if (report.configuration.mode === ARCANA_MP_SUPPLY_MODE) {
     const display = value => value == null ? "unobserved" : value;
     const rateDisplay = value => value == null ? "unobserved" : `${Math.round(value * 100)}%`;

@@ -2339,6 +2339,7 @@ function createStage15FloorTelemetry(floor) {
     entryRecoveryRemaining: null,
     entryHealPotionRemaining: null,
     entryManaPotionRemaining: null,
+    entryInventory: null,
     entryCureItems: null,
     entryStatus: null,
     entryBuildSnapshot: null,
@@ -2486,6 +2487,7 @@ function startStage15Floor(state, metrics, floor, scoringProfile = null) {
   ).length;
   telemetry.entryHealPotionRemaining = state.inventory.filter(item => item === "HEAL_POTION").length;
   telemetry.entryManaPotionRemaining = state.inventory.filter(item => item === "MANA_POTION").length;
+  telemetry.entryInventory = countInventoryContents(state.inventory);
   telemetry.entryCureItems = countInventoryItems(state.inventory);
   telemetry.entryStatus = character.status;
   telemetry.entryBuildSnapshot = createBuildSnapshot(state, scoringProfile, "floor-entry");
@@ -4836,6 +4838,8 @@ function createSimulationState(
       fleeHpThreshold: Object.hasOwn(scenario, "fleeHpThreshold")
         ? scenario.fleeHpThreshold
         : DEFAULT_FLEE_HP_THRESHOLD,
+      b5FlameTrapDisabled: scenario.b5FlameTrapDisabled === true,
+      b5GuardianFleeDisabled: scenario.b5GuardianFleeDisabled === true,
       statusCurePolicy: scenario.statusCurePolicy || DEFAULT_STATUS_CURE_POLICY,
       statusCureHpThreshold: Object.hasOwn(scenario, "statusCureHpThreshold")
         ? scenario.statusCureHpThreshold
@@ -5264,6 +5268,14 @@ function countInventoryItems(inventory, itemIds = STATUS_CURE_ITEM_IDS) {
     if (itemIds.has(item)) counts[item]++;
   });
   return counts;
+}
+
+function countInventoryContents(inventory) {
+  return inventory.reduce((counts, item) => {
+    const itemId = typeof item === "string" ? item : item?.baseId || item?.id || null;
+    if (itemId) counts[itemId] = (counts[itemId] || 0) + 1;
+    return counts;
+  }, {});
 }
 
 function addItemCount(target, itemId, count = 1) {
@@ -7007,7 +7019,10 @@ function recordStatusCureDecision(metrics, decision, context, state = null) {
 function selectCombatAction(state, metrics) {
   const character = state.party[0];
   const monsters = state.combatState.monsters;
+  const b5GuardianFleeDisabled = state.simPolicy.b5GuardianFleeDisabled === true &&
+    state.floor === 5 && state.combatState.isBoss === true;
   if (
+    !b5GuardianFleeDisabled &&
     state.simPolicy.fleePolicy === "visible-multi-enemy-flee" &&
     state.combatState.initialLivingMonsterCount >= 2
   ) {
@@ -7028,10 +7043,12 @@ function selectCombatAction(state, metrics) {
     recoveryItem = getRecoveryPotionItem(state);
     diosAction = getDiosCombatAction(state);
     const evResult = getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics);
-    if (evResult.action?.type === "run") return evResult.action;
+    if (!b5GuardianFleeDisabled && evResult.action?.type === "run") return evResult.action;
     evRecoveryAction = evResult.decision === "recover" ? evResult.action : null;
-    evShouldFight = evResult.decision === "fight";
+    evShouldFight = evResult.decision === "fight" ||
+      (b5GuardianFleeDisabled && evResult.action?.type === "run");
   } else if (
+    !b5GuardianFleeDisabled &&
     fleeThreshold !== null &&
     character.hp <= getCharMaxHp(character) * fleeThreshold
   ) {
@@ -12093,6 +12110,7 @@ function resolveFlameTrapAtStep({
     state.flameTrapCooldownTurns && state.flameTrapCooldownTurns > 0;
   if (
     state.floor !== FLAME_TRAP_MODEL.floor ||
+    state.simPolicy.b5FlameTrapDisabled === true ||
     isFlameTrapSpecialStep(generated, routePlan, floorSteps, step) ||
     flameCooldownActive
   ) {
@@ -14485,6 +14503,8 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     bloodWandHealPolicy: state.simPolicy.bloodWandHealPolicy,
     fleePolicy: state.simPolicy.fleePolicy,
     fleeHpThreshold: state.simPolicy.fleeHpThreshold,
+    b5FlameTrapDisabled: state.simPolicy.b5FlameTrapDisabled,
+    b5GuardianFleeDisabled: state.simPolicy.b5GuardianFleeDisabled,
     startingKit: state.party[0].startingKit,
     startingConsumables: {
       healPotions: state.simStartingInventory.filter(item => item === "HEAL_POTION").length,

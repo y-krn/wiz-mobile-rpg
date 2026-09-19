@@ -126,6 +126,15 @@ const firstBandBuildFormationArgs = ({ options, output }) => [
   ...outputArgs(output)
 ];
 
+const firstBandB5WallArgs = ({ options, output }) => [
+  "--mode", "b5-wall-diagnostic",
+  "--ref", options.ref,
+  "--runs", String(options.runs),
+  "--seed", String(options.seed),
+  "--purpose", options.purpose,
+  ...outputArgs(output)
+];
+
 const firstBandArcanaWeaponArgs = ({ options, output }) => [
   "--mode", "arcana-weapon-diagnostic",
   "--ref", options.ref,
@@ -360,6 +369,18 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     retentionDays: 14,
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
     buildArgs: firstBandBuildFormationArgs
+  }),
+  "first-band-b5-wall-diagnostic": freezeDefinition({
+    id: "first-band-b5-wall-diagnostic",
+    label: "First Band B5 wall diagnostic",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
+    buildArgs: firstBandB5WallArgs
   }),
   "first-band-arcana-weapon-diagnostic": freezeDefinition({
     id: "first-band-arcana-weapon-diagnostic",
