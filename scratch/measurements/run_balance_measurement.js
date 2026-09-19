@@ -135,6 +135,15 @@ const firstBandArcanaWeaponArgs = ({ options, output }) => [
   ...outputArgs(output)
 ];
 
+const firstBandArcanaMpSupplyArgs = ({ options, output }) => [
+  "--mode", "arcana-mp-supply-diagnostic",
+  "--ref", options.ref,
+  "--runs", String(options.runs),
+  "--seed", String(options.seed),
+  "--purpose", options.purpose,
+  ...outputArgs(output)
+];
+
 const firstBandTransitionRecoveryArgs = ({ options, output }) => [
   "--mode", "transition-recovery",
   "--ref", options.ref,
@@ -363,6 +372,18 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     retentionDays: 14,
     defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
     buildArgs: firstBandArcanaWeaponArgs
+  }),
+  "first-band-arcana-mp-supply-diagnostic": freezeDefinition({
+    id: "first-band-arcana-mp-supply-diagnostic",
+    label: "First Band Arcana MP supply diagnostic",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
+    buildArgs: firstBandArcanaMpSupplyArgs
   }),
   "first-band-transition-recovery": freezeDefinition({
     id: "first-band-transition-recovery",
