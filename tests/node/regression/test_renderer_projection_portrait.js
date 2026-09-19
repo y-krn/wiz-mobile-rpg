@@ -5,7 +5,8 @@ import {
   getCombatMonsterLayout,
   getProjectionColumn,
   getProjectionPlanes,
-  getProjectionProfile
+  getProjectionProfile,
+  PORTRAIT_NEAR_COVERAGE_MIN
 } from "../../../src/rules/renderer_projection.js";
 
 const failures = [];
@@ -35,6 +36,10 @@ for (const [width, height] of [[320, 568], [390, 844], [430, 932]]) {
     assert.equal(projection.yb[0], height);
     assert.ok(projection.yb[1] > 260, "near floor must extend beyond the old logical frame");
     assert.ok(projection.yt[1] < profile.vanishingPoint.y);
+    assert.ok(
+      (projection.xr[0] - projection.xl[0]) / width >= PORTRAIT_NEAR_COVERAGE_MIN,
+      "near corridor coverage must remain readable on portrait viewports"
+    );
 
     for (const z of [0, 1, 2, 3]) {
       for (const column of [-2, -1, 0, 1, 2]) {

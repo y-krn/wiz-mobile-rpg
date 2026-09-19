@@ -4,6 +4,7 @@
 // with the measured viewport aspect ratio.
 
 export const CANONICAL_VIEW = Object.freeze({ width: 400, height: 260 });
+export const PORTRAIT_NEAR_COVERAGE_MIN = 0.55;
 
 export const BASE_PROJECTION = Object.freeze({
   xl: Object.freeze([0, 100, 145, 170, 184]),
@@ -18,6 +19,14 @@ export const BASE_GEOMETRY = Object.freeze({
   wallLean: 0,
   ceilingStyle: "flat"
 });
+
+const PORTRAIT_COLUMN_LAYOUT = Object.freeze([
+  Object.freeze({ span: 0.96, weights: Object.freeze([0.15, 0.70, 0.15]) }),
+  Object.freeze({ span: 0.72, weights: Object.freeze([0.17, 0.66, 0.17]) }),
+  Object.freeze({ span: 0.48, weights: Object.freeze([0.12, 0.16, 0.44, 0.16, 0.12]) }),
+  Object.freeze({ span: 0.30, weights: Object.freeze([0.12, 0.18, 0.40, 0.18, 0.12]) }),
+  Object.freeze({ span: 0.18, weights: Object.freeze([0.12, 0.18, 0.40, 0.18, 0.12]) })
+]);
 
 const GEOMETRY_STYLES = new Set(["flat", "arch"]);
 
@@ -46,7 +55,11 @@ export function getProjectionProfile(width = CANONICAL_VIEW.width, height = CANO
   const portrait = aspect < 1;
   const yScale = viewportHeight / CANONICAL_VIEW.height;
   const xScale = viewportWidth / CANONICAL_VIEW.width;
-  const portraitWidths = [0.32, 0.28, 0.20, 0.12, 0.08].map(value => value * viewportWidth);
+  // Keep the near corridor broad enough to read as the world, while reserving
+  // bounded side columns for openings without horizontal crop.
+  const portraitWidths = PORTRAIT_COLUMN_LAYOUT.map(({ span, weights }) => (
+    span * weights[Math.floor(weights.length / 2)] * viewportWidth
+  ));
   const portraitXl = portraitWidths.map(value => (viewportWidth - value) / 2);
   const portraitXr = portraitWidths.map((value, index) => portraitXl[index] + value);
   const yt = portrait
@@ -72,7 +85,8 @@ export function getProjectionProfile(width = CANONICAL_VIEW.width, height = CANO
       xr: freezeArray(portrait ? portraitXr : BASE_PROJECTION.xr.map(value => value * xScale)),
       yt: freezeArray(yt),
       yb: freezeArray(yb)
-    })
+    }),
+    columnLayout: portrait ? PORTRAIT_COLUMN_LAYOUT : null
   });
 }
 
@@ -129,11 +143,35 @@ export function getProjectionPlanes(geometry = BASE_GEOMETRY, profile = getProje
     rightTop: freezeArray(rightTop),
     rightBottom: freezeArray(rightBottom),
     ceilingStyle,
-    viewport: viewport
+    viewport: viewport,
+    columnLayout: viewport.columnLayout
+      ? viewport.columnLayout.map(({ span, weights }) => Object.freeze({ span: span * corridorWidth, weights }))
+      : null
   });
 }
 
 export function getProjectionColumn(projection, z, column = 0) {
+  const layout = projection.columnLayout?.[z];
+  if (layout) {
+    const index = column + Math.floor(layout.weights.length / 2);
+    if (index >= 0 && index < layout.weights.length) {
+      const centerTop = (projection.leftTop[z] + projection.rightTop[z]) / 2;
+      const centerBottom = (projection.leftBottom[z] + projection.rightBottom[z]) / 2;
+      const centerIndex = Math.floor(layout.weights.length / 2);
+      const totalTop = (projection.rightTop[z] - projection.leftTop[z]) / layout.weights[centerIndex];
+      const totalBottom = (projection.rightBottom[z] - projection.leftBottom[z]) / layout.weights[centerIndex];
+      const topStart = layout.weights.slice(0, index).reduce((sum, value) => sum + value, 0);
+      const topEnd = topStart + layout.weights[index];
+      return {
+        leftTop: centerTop - totalTop / 2 + totalTop * topStart,
+        leftBottom: centerBottom - totalBottom / 2 + totalBottom * topStart,
+        rightTop: centerTop - totalTop / 2 + totalTop * topEnd,
+        rightBottom: centerBottom - totalBottom / 2 + totalBottom * topEnd,
+        top: projection.yt[z],
+        bottom: projection.yb[z]
+      };
+    }
+  }
   const topWidth = projection.rightTop[z] - projection.leftTop[z];
   const bottomWidth = projection.rightBottom[z] - projection.leftBottom[z];
   return {

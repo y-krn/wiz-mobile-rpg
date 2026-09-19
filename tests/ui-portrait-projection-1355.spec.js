@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { PORTRAIT_NEAR_COVERAGE_MIN } from '../src/rules/renderer_projection.js';
 
 const PRIMARY = { width: 390, height: 844 };
 const ARCHETYPES = ['straight-corridor', 'left-opening', 'right-opening', 't-junction', 'dead-end', 'intersection'];
@@ -71,6 +72,7 @@ async function readProjection(page) {
     const topology = getVisibleCorridorTopology(state.map, state.x, state.y, state.dir)
       .map(({ z, column, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }) => ({ z, column, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }));
     const bounds = topology.reduce((result, { z, column }) => {
+      if (Math.abs(column) === 2 && z < 2) return result;
       const plane = getProjectionColumn(projection, z, column);
       return {
         left: Math.min(result.left, plane.leftTop, plane.leftBottom, plane.rightTop, plane.rightBottom),
@@ -83,6 +85,7 @@ async function readProjection(page) {
       profile: { width: profile.width, height: profile.height, vanishingY: profile.vanishingPoint.y },
       canvas: [canvas.width, canvas.height],
       projection: { nearTop: projection.yt[0], nearBottom: projection.yb[0], farTop: projection.yt[4], farBottom: projection.yb[4] },
+      nearCoverage: (projection.xr[0] - projection.xl[0]) / profile.width,
       bounds,
       topology,
       overflow: document.documentElement.scrollWidth,
@@ -147,6 +150,7 @@ test('Portrait projection shares geometry across Canvas and Pixi @smoke @visual'
       expect(current.canvas[0]).toBeGreaterThanOrEqual(388);
       expect(current.canvas[1]).toBeGreaterThanOrEqual(843);
       expect(current.projection.nearBottom).toBeGreaterThan(260);
+      expect(current.nearCoverage).toBeGreaterThanOrEqual(PORTRAIT_NEAR_COVERAGE_MIN);
       expect(current.profile.vanishingY / current.profile.height).toBeGreaterThan(0.35);
       expect(current.profile.vanishingY / current.profile.height).toBeLessThan(0.5);
       expect(current.bounds.left).toBeGreaterThanOrEqual(-1);
@@ -196,6 +200,35 @@ for (const viewport of [{ width: 320, height: 568 }, { width: 430, height: 932 }
       expect(current.overflow).toBeLessThanOrEqual(viewport.width + 1);
       const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-${renderer}-${viewport.width}x${viewport.height}.png`) });
       await testInfo.attach(`issue-1355-${renderer}-${viewport.width}x${viewport.height}`, { body: screenshot, contentType: 'image/png' });
+    }
+  });
+}
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 1024, height: 768 }]) {
+  test(`Town vector background remains visible at ${viewport.width}x${viewport.height} @smoke @visual`, async ({ page }, testInfo) => {
+    for (const renderer of ['canvas', 'pixi']) {
+      await page.setViewportSize(viewport);
+      await seed(page, renderer, 'town');
+      const cyanPixels = await page.evaluate(() => {
+        const canvas = document.querySelector('#dungeon-canvas');
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return { width: canvas.width, height: canvas.height, rightHalf: null };
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        let rightHalf = 0;
+        for (let index = 0; index < pixels.length; index += 4) {
+          const x = (index / 4) % canvas.width;
+          if (x < canvas.width / 2) continue;
+          if (pixels[index + 1] > 100 && pixels[index + 2] > 100) rightHalf += 1;
+        }
+        return { width: canvas.width, height: canvas.height, rightHalf };
+      });
+      expect(cyanPixels.width).toBeGreaterThan(300);
+      expect(cyanPixels.height).toBeGreaterThan(200);
+      if (cyanPixels.rightHalf !== null) expect(cyanPixels.rightHalf).toBeGreaterThan(0);
+      const screenshot = await page.locator('#dungeon-canvas').screenshot({
+        path: testInfo.outputPath(`issue-1355-town-${renderer}-${viewport.width}x${viewport.height}.png`)
+      });
+      await testInfo.attach(`issue-1355-town-${renderer}-${viewport.width}x${viewport.height}`, { body: screenshot, contentType: 'image/png' });
     }
   });
 }

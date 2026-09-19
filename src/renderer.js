@@ -15,7 +15,7 @@ import {
 } from "./rules/renderer_projection.js";
 
 export { getVisibleCorridorCells, getVisibleCorridorTopology } from "./rules/renderer_topology.js";
-export { BASE_GEOMETRY, BASE_PROJECTION, getCombatMonsterLayout, getProjectionColumn, getProjectionPlanes, getProjectionProfile } from "./rules/renderer_projection.js";
+export { BASE_GEOMETRY, BASE_PROJECTION, PORTRAIT_NEAR_COVERAGE_MIN, getCombatMonsterLayout, getProjectionColumn, getProjectionPlanes, getProjectionProfile } from "./rules/renderer_projection.js";
 
 export let dungeonRenderer = null;
 export function setDungeonRenderer(r) {
@@ -373,6 +373,11 @@ export class DungeonRenderer {
 
   drawTownBackground(ctx) {
     // Elegant neon town gate/castle vector art
+    const sx = this.viewport.width / VIEW_W;
+    const sy = this.viewport.height / VIEW_H;
+    ctx.save();
+    ctx.scale(sx, sy);
+
     ctx.strokeStyle = "rgba(0, 229, 255, 0.3)";
     ctx.lineWidth = 1;
     
@@ -418,6 +423,8 @@ export class DungeonRenderer {
     ctx.arc(200, 180, 20, Math.PI, 0, false);
     ctx.lineTo(220, 180);
     ctx.stroke();
+
+    ctx.restore();
 
     // Glowing title text
     ctx.fillStyle = "#ffb300";
