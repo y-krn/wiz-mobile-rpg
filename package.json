@@ -12,6 +12,7 @@
     "test:unit": "node tests/node/run_tests.js",
     "test:unit:fast": "FAST=1 node tests/node/run_tests.js",
     "test:unit:full": "FULL_TEST=1 node tests/node/run_tests.js",
+    "typecheck": "tsc --noEmit",
     "simulation": "node scratch/simulations/sim_depth_material_ev.js",
     "measure:balance": "node scratch/measurements/measure_balance.js",
     "compare:balance": "node scratch/measurements/compare_balance.js",
@@ -42,6 +43,8 @@
     "globals": "^17.7.0",
     "stylelint": "^17.14.0",
     "stylelint-config-standard": "^40.0.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
     "vite": "^8.0.12",
     "yaml": "^2.9.0"
   },
