@@ -24,6 +24,8 @@ apply.
   `.agents/skills/issue-delivery/SKILL.md`.
 - Pull-request review, audit, approval, or current-head CI review requests:
   load `.agents/skills/pr-review/SKILL.md`.
+- JavaScript/TypeScript migration, typed boundary, facade, interop, or
+  TypeScript soundness work: load `.agents/skills/typescript-migration/SKILL.md`.
 - These Skills define execution order and trigger-specific routing. Keep
   detailed lifecycle, regression, and current-head gate procedures in
   `.agents/issue-delivery.md`, `.agents/qa-regression.md`, and

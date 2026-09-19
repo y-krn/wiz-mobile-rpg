@@ -33,6 +33,7 @@ repeatable workflow. Load only the row whose trigger matches the work.
 | `diagnosing-bugs` | A bug cause is unresolved after normal QA, with a deterministic or intermittent reproduction, or the report is a performance regression | Tight reproduction, causal localization, minimal fix, and regression evidence | Known-cause fixes and ordinary QA with an established cause |
 | `gameplay-reachability-audit` | A mechanic is claimed to be live, dead, hidden, or missing across a player, simulation, or record path | Definition-to-execution, player operation, simulation, and record evidence | Ordinary code search, balance measurement, combat semantics, and cleanup |
 | `verification-loop` | Verification becomes repetitive, CI needs bounded polling, or a failure may be environmental | Check selection cadence, retry/polling bounds, preflight, failure classification, and evidence | Domain-specific QA selection, unresolved-bug diagnosis, and product behavior |
+| `typescript-migration` | JavaScript/TypeScript migration, typed boundary or facade changes, or TypeScript soundness review | Raw-to-validated-to-typed boundaries, runtime validation, JS/TS interop, assertion and `any` discipline, and behavior/performance/persistence preservation | Issue lifecycle, generic CI polling, independent PR review, gameplay design/balance, and ordinary non-TypeScript refactor |
 
 Descriptions in each `SKILL.md` are trigger-first context pointers. Procedures
 and evidence gates belong in the body; current commands and exact scenarios
