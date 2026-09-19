@@ -1,6 +1,6 @@
 import { state } from "../state.js";
 import { combatSelection } from "../combat.js";
-import { getScreenViewState } from "../state/view_state.ts";
+import { getScreenViewState } from "../state/view_state.js";
 import { menuContext } from "../navigation.js";
 
 export function updateCombatPrompt() {

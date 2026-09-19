@@ -1,6 +1,6 @@
 import { state } from "../state.js";
 import { menuContext } from "../navigation.js";
-import { getScreenViewState } from "../state/view_state.ts";
+import { getScreenViewState } from "../state/view_state.js";
 
 export function updateViewportHUD() {
   const hud = document.getElementById("viewport-hud");

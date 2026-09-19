@@ -1,6 +1,6 @@
 import { state } from "../state.js";
 import { menuContext } from "../navigation.js";
-import { getScreenViewState } from "../state/view_state.ts";
+import { getScreenViewState } from "../state/view_state.js";
 
 // Combat action selection state
 export const combatSelection = {

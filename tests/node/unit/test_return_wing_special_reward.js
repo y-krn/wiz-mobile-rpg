@@ -222,7 +222,10 @@ await liveCheck("combat-generated Return Wing remains protected when smashed", a
 });
 
 check("real-run telemetry exposes acquisition, use, floor, HP band, and outcome fields", () => {
-  const output = execFileSync(resolve(process.cwd(), "node_modules/.bin/tsx"), ["scratch/simulations/sim_depth_material_ev.js"], {
+  const output = execFileSync(process.execPath, [
+    "tests/node/fixtures/run_ts_module.js",
+    resolve(process.cwd(), "scratch/simulations/sim_depth_material_ev.js")
+  ], {
     cwd: process.cwd(),
     env: {
       ...process.env,

@@ -3,7 +3,7 @@ import { EVENT_TYPES, getPartyMaxAffix } from "../data.js";
 import { getDepthCorruption, getFloorTheme } from "../data/floor_themes.js";
 import { menuContext } from "../navigation.js";
 import { state } from "./state_core.js";
-import { getScreenViewState } from "./view_state.ts";
+import { getScreenViewState } from "./view_state.js";
 
 const RENDERER_INPUT_KIND = "renderer-input";
 

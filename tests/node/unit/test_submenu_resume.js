@@ -41,7 +41,7 @@ globalThis.localStorage = (() => {
   const assert = (await import("assert")).default;
   const { state, initNewGame, saveAutosave, loadGame, createDefaultCurrentRun } = await import("../../../src/state.js");
   const { goBackSubmenu, menuContext, menuHistory, openSubmenu } = await import("../../../src/navigation.js");
-  const { getScreenViewState } = await import("../../../src/state/view_state.ts");
+  const { getScreenViewState } = await import("../../../src/state/view_state.js");
 
   console.log("=== SUBMENU SAVE COLLAPSE VERIFICATION ===");
 

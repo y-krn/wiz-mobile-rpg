@@ -58,7 +58,7 @@ async function main() {
     }
     const { EVENT_TYPES } = await import("/src/constants/events.js");
     const { getRendererInput } = await import("/src/state/renderer_view.js");
-    const { getScreenViewState, isUsableMap } = await import("/src/state/view_state.ts");
+    const { getScreenViewState, isUsableMap } = await import("/src/state/view_state.js");
     const { isMiniMapAnimating } = await import("/src/minimap.js");
     const { createStartingKitCharacter } = await import("/src/state/initial_state.js");
     const { dungeonRenderer } = await import("/src/renderer.js");

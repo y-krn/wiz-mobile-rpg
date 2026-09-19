@@ -6,7 +6,7 @@ import {
   getScreenViewState,
   normalizeMenuHistoryEntry,
   normalizeSubmenuType
-} from "./state/view_state.ts";
+} from "./state/view_state.js";
 import { trackUxDecisionResolved } from "./telemetry.js";
 
 // Submenu navigation tracker

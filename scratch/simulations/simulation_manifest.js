@@ -1049,7 +1049,7 @@ function isCombatBoundaryLine(text, file) {
     return importedNames.every(name => ["hasCombatRoundActor", "hasUsableCombatActor", "isUsableCombatScreen", "isUsableSpellForActor"].includes(name));
   }
   return new Set([
-    'import { isUsableCombatScreen } from "../state/view_state.ts";',
+    'import { isUsableCombatScreen } from "../state/view_state.js";',
     "if (!isUsableCombatScreen(state, menuContext)) return;",
     'if (state.combatState?.phase !== "choose_actions" || !hasUsableCombatActor(state.party)) return;',
     'if (state.transitioning || !isUsableCombatScreen(state, menuContext) ||',

@@ -639,7 +639,7 @@ for (const vp of VIEWPORTS) {
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
-      const { getScreenViewState } = await import('/src/state/view_state.ts');
+      const { getScreenViewState } = await import('/src/state/view_state.js');
       const { getFloorExplorationRate, updateUI } = await import('/src/ui.js');
       const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
       const { renderSpellOverlay, spellMenuState } = await import('/src/spell_menu.js');
@@ -1043,7 +1043,7 @@ for (const vp of VIEWPORTS) {
 
       results.push(await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
-        const { getScreenViewState } = await import('/src/state/view_state.ts');
+        const { getScreenViewState } = await import('/src/state/view_state.js');
         const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
         const view = getScreenViewState(state, null);
         return {
@@ -1119,7 +1119,7 @@ for (const vp of VIEWPORTS) {
       const { menuContext, menuHistory, goBackSubmenu } = await import('/src/navigation.js');
       const { combatCallbacks, combatSelection } = await import('/src/combat_ui/combat_state.js');
       const { selectCombatAction } = await import('/src/combat.js');
-        const { getScreenViewState } = await import('/src/state/view_state.ts');
+        const { getScreenViewState } = await import('/src/state/view_state.js');
 
       const reset = (spellKeys = ['HALITO']) => {
         const actor = createStartingKitCharacter('devotion');
@@ -1438,7 +1438,7 @@ for (const vp of VIEWPORTS) {
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
-        const { getScreenViewState } = await import('/src/state/view_state.ts');
+        const { getScreenViewState } = await import('/src/state/view_state.js');
       const { dungeonRenderer } = await import('/src/renderer.js');
       const { updateViewportHUD } = await import('/src/ui/viewport_hud.js');
 
@@ -1495,7 +1495,7 @@ for (const vp of VIEWPORTS) {
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
-      const { getScreenViewState } = await import('/src/state/view_state.ts');
+      const { getScreenViewState } = await import('/src/state/view_state.js');
       const { dungeonRenderer } = await import('/src/renderer.js');
       const { updateViewportHUD } = await import('/src/ui/viewport_hud.js');
 
@@ -1980,7 +1980,7 @@ test('Defeat during battle log playback reloads into game over', async ({ page }
   await startSoloRun(page);
   const playback = await page.evaluate(async () => {
     const { state, saveAutosave } = await import('/src/state.js');
-    const { getScreenViewState } = await import('/src/state/view_state.ts');
+    const { getScreenViewState } = await import('/src/state/view_state.js');
     const { startCombat, resolveCombatRound, combatSelection } = await import('/src/combat.js');
     startCombat(false, false);
     state.combatState.monsters = [state.combatState.monsters[0]];

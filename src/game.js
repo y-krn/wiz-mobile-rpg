@@ -7,7 +7,7 @@ import { setUiUpdateCallback, goBackSubmenu, menuContext } from "./navigation.js
 import { handleTrapAction } from "./systems/traps.js";
 import { blockGuardedControlsEvent } from "./controls_guard.js";
 import { openChestMenu } from "./chest.js";
-import { getScreenViewState } from "./state/view_state.ts";
+import { getScreenViewState } from "./state/view_state.js";
 import { getRendererInput } from "./state/renderer_view.js";
 import { hasPendingRewardBundle, openPendingRewardMenu } from "./pending_rewards.js";
 import {

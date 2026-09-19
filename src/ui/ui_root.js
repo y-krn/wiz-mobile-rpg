@@ -13,7 +13,7 @@ import { getDepthCorruption, getFloorDisplayName, getFloorLabel, getFloorTheme }
 import { formatRunQuestProgress } from "../systems/run_quests.js";
 import { updateRecordsStrip } from "./records_view.js";
 import { renderTownHome } from "./town_home.js";
-import { getScreenViewState } from "../state/view_state.ts";
+import { getScreenViewState } from "../state/view_state.js";
 import {
   getDockStateForView,
   getEventStripEntries,

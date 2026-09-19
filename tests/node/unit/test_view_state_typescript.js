@@ -9,7 +9,7 @@ const {
   isUsableMap,
   normalizeMenuContext,
   normalizeMenuHistoryEntry,
-} = await import("../../../src/state/view_state.ts");
+} = await import("../../../src/state/view_state.js");
 
 const cell = { type: "floor", walls: [false, false, false, false] };
 const map = [[cell]];

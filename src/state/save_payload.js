@@ -3,7 +3,7 @@ import { SAVE_VERSION, backfillItemAffixes, normalizeSavePayload } from "./save_
 import { menuContext, menuHistory } from "../navigation.js";
 import { resetEquipState } from "../equip.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
-import { isUsableCombatState } from "./view_state.ts";
+import { isUsableCombatState } from "./view_state.js";
 import { normalizeRecords } from "./records_state.js";
 import { EQUIPMENT_SLOTS } from "../rules/equipment_slots.js";
 
