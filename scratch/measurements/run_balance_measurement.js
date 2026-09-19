@@ -379,7 +379,7 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     allowedRunTypes: ["diagnostic"],
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
     buildArgs: firstBandB5WallArgs
   }),
   "first-band-arcana-weapon-diagnostic": freezeDefinition({

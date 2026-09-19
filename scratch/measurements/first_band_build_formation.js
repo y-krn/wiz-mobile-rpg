@@ -1064,7 +1064,8 @@ function b5ComparisonMetrics(aggregate) {
   const rateFromCounts = (count, denominator = entrants) => rate(count, denominator);
   return {
     flameEligibleStepsMeanPerEntrant: b5.flameTrap.eligibleSteps.meanPerEntrant,
-    flameTriggerRate: rateFromCounts(b5.flameTrap.triggerCount.total),
+    flameTriggerMeanPerEntrant: b5.flameTrap.triggerCount.meanPerEntrant,
+    flameTriggerRate: b5.flameTrap.triggerRate,
     flameAvoidRate: rate(b5.flameTrap.warningOrAvoidCount.total, b5.flameTrap.triggerCount.total),
     flameHpDamageMeanPerEntrant: b5.flameTrap.hpDamage.meanPerEntrant,
     flameTerminalDeathRate: rateFromCounts(b5.flameTrap.terminalDeaths.total),
@@ -1747,7 +1748,7 @@ export function buildSummary(report) {
       const aggregate = report.arms[armId].overview;
       const b5 = aggregate.b5;
       const boss = b5.boss;
-      return `- ${armId}: entrants=${b5.entrantN}; flame eligible/trigger/damage=${display(b5.flameTrap.eligibleSteps.meanPerEntrant)}/${display(b5.flameTrap.triggerCount.meanPerEntrant)}/${display(b5.flameTrap.hpDamage.meanPerEntrant)}; boss arrival/start/victory/flee/retry/death=${rateDisplay(boss.actualBossEventArrival.meanPerEntrant)}/${rateDisplay(boss.combatStart.meanPerEntrant)}/${rateDisplay(boss.victory.meanPerEntrant)}/${rateDisplay(boss.flee.meanPerEntrant)}/${rateDisplay(boss.retry.meanPerEntrant)}/${rateDisplay(boss.death.meanPerEntrant)}; guardBreak=${rateDisplay(boss.guardBreak.meanPerEntrant)}; Return before/after=${rateDisplay(b5.townPortalReturnBeforeBoss.rate)}/${rateDisplay(b5.townPortalReturnAfterBossAttemptBeforeB6.rate)}; B6=${rateDisplay(b5.b6Transition.rate)}`;
+      return `- ${armId}: entrants=${b5.entrantN}; flame eligible/trigger mean-per-entrant/trigger rate/damage=${display(b5.flameTrap.eligibleSteps.meanPerEntrant)}/${display(b5.flameTrap.triggerCount.meanPerEntrant)}/${rateDisplay(b5.flameTrap.triggerRate)}/${display(b5.flameTrap.hpDamage.meanPerEntrant)}; boss arrival/start/victory/flee/retry/death=${rateDisplay(boss.actualBossEventArrival.meanPerEntrant)}/${rateDisplay(boss.combatStart.meanPerEntrant)}/${rateDisplay(boss.victory.meanPerEntrant)}/${rateDisplay(boss.flee.meanPerEntrant)}/${rateDisplay(boss.retry.meanPerEntrant)}/${rateDisplay(boss.death.meanPerEntrant)}; guardBreak=${rateDisplay(boss.guardBreak.meanPerEntrant)}; Return before/after=${rateDisplay(b5.townPortalReturnBeforeBoss.rate)}/${rateDisplay(b5.townPortalReturnAfterBossAttemptBeforeB6.rate)}; B6=${rateDisplay(b5.b6Transition.rate)}`;
     };
     const comparisonLine = key => {
       const item = report.b5Comparisons[key];

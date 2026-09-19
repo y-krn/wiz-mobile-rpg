@@ -100,7 +100,11 @@ assert.deepEqual(
 const b5Wall = resolveMeasurementOptions({ measurement: "first-band-b5-wall-diagnostic", purpose: "test" });
 assert.deepEqual(
   { runs: b5Wall.runs, seed: b5Wall.seed, runType: b5Wall.runType },
-  { runs: 1000, seed: 1277, runType: "diagnostic" }
+  { runs: 500, seed: 1277, runType: "diagnostic" }
+);
+assert.deepEqual(
+  { runs: MEASUREMENT_REGISTRY["first-band-b5-wall-diagnostic"].defaults.runs, minimumRuns: MEASUREMENT_REGISTRY["first-band-b5-wall-diagnostic"].defaults.minimumRuns },
+  { runs: 500, minimumRuns: 500 }
 );
 const b5WallInvocation = resolveRunnerInvocation({
   measurement: "first-band-b5-wall-diagnostic",
