@@ -507,3 +507,282 @@
     max-height: none;
   }
 }
+
+/* Dungeon First shell
+   Dungeon-backed screens keep the existing DOM and renderer, but the viewport
+   owns the stage. Other screens retain the ordinary document flow above. */
+#game-container.dungeon-first-mode {
+  display: block;
+  padding-top: 0;
+  padding-bottom: 0;
+  background: var(--floor-bg, #0a0e12);
+}
+
+#game-container.dungeon-first-mode #viewport-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
+  display: block;
+  overflow: hidden;
+  background: var(--floor-bg, #0a0e12);
+  box-shadow: none;
+}
+
+#game-container.dungeon-first-mode #dungeon-canvas,
+#game-container.dungeon-first-mode #dungeon-minimap-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#game-container.dungeon-first-mode #dungeon-canvas {
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Keep the complete 400x260 combat scene visible so enemy hit regions and
+   keyboard-equivalent canvas targeting retain their existing geometry. */
+#game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #dungeon-canvas {
+  object-fit: contain;
+}
+
+#game-container.dungeon-first-mode #dungeon-minimap-overlay {
+  object-fit: contain;
+}
+
+#game-container.dungeon-first-mode #game-header {
+  position: absolute;
+  top: var(--safe-area-top);
+  right: 8px;
+  left: 8px;
+  z-index: 10;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--floor-border, var(--hud-frame)) 58%, transparent);
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, rgba(8, 14, 18, 0.86), rgba(8, 14, 18, 0.38));
+  box-shadow: var(--shadow-soft);
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode #btn-mute {
+  pointer-events: auto;
+}
+
+#game-container.dungeon-first-mode #location-label {
+  max-width: calc(100% - 78px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-md);
+}
+
+#game-container.dungeon-first-mode #goal-banner {
+  position: absolute;
+  top: calc(var(--safe-area-top) + 58px);
+  right: 12px;
+  left: 12px;
+  z-index: 9;
+  width: auto;
+  min-height: 0;
+  max-height: 76px;
+  padding: 6px 9px 6px 13px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--floor-border, var(--neon-amber)) 48%, transparent);
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, rgba(8, 14, 18, 0.76), rgba(8, 14, 18, 0.28));
+  box-shadow: var(--shadow-soft);
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode #goal-banner::before {
+  top: 7px;
+  bottom: 7px;
+  left: 6px;
+}
+
+#game-container.dungeon-first-mode #goal-banner .quest-hud-list {
+  display: grid;
+  max-height: 38px;
+  overflow-y: auto;
+}
+
+#game-container.dungeon-first-mode #log-panel {
+  position: absolute;
+  right: 12px;
+  bottom: calc(var(--safe-area-bottom) + 252px);
+  left: 12px;
+  z-index: 9;
+  width: auto;
+  min-height: 0;
+  max-height: 58px;
+  padding: 5px 8px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--floor-border, var(--border-color)) 48%, transparent);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgba(8, 14, 18, 0.76), rgba(8, 14, 18, 0.32));
+  box-shadow: var(--shadow-soft);
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode.event-mode #log-panel {
+  display: flex;
+}
+
+#game-container.dungeon-first-mode #log-content {
+  min-width: 0;
+  overflow: hidden;
+}
+
+#game-container.dungeon-first-mode #log-content .event-strip-item {
+  display: none;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#game-container.dungeon-first-mode #log-content .event-strip-item:last-child,
+#game-container.dungeon-first-mode #log-content .event-strip-item--unresolved,
+#game-container.dungeon-first-mode #log-content .event-strip-item--result {
+  display: flex;
+}
+
+#game-container.dungeon-first-mode #btn-log-expand {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  margin: 0;
+  background-color: rgba(8, 14, 18, 0.86);
+  pointer-events: auto;
+}
+
+#game-container.dungeon-first-mode #viewport-hud {
+  top: calc(var(--safe-area-top) + 118px);
+  right: 12px;
+  bottom: auto;
+  z-index: 6;
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #viewport-hud {
+  top: calc(var(--safe-area-top) + 118px);
+  bottom: auto;
+}
+
+#game-container.dungeon-first-mode #controls-panel {
+  position: absolute;
+  right: 8px;
+  bottom: calc(var(--safe-area-bottom) + 76px);
+  left: 8px;
+  z-index: 10;
+  width: auto;
+  min-height: 0;
+  max-height: min(62svh, 520px);
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--floor-border, var(--hud-frame)) 58%, transparent);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 14, 18, 0.68);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(4px);
+}
+
+#game-container.dungeon-first-mode #controls-panel .btn {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
+#game-container.dungeon-first-mode #controls-panel.explore-mode {
+  height: 116px;
+  min-height: 116px;
+  background: linear-gradient(180deg, rgba(18, 35, 41, 0.78), rgba(14, 25, 30, 0.58));
+}
+
+#game-container.dungeon-first-mode #controls-panel.combat-mode {
+  height: auto;
+  min-height: 0;
+  background: linear-gradient(180deg, rgba(52, 25, 29, 0.82), rgba(23, 19, 23, 0.62));
+}
+
+#game-container.dungeon-first-mode #controls-panel.submenu-mode,
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode {
+  height: auto;
+  min-height: 0;
+  max-height: min(62svh, 520px);
+  background: rgba(8, 14, 18, 0.86);
+}
+
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode {
+  max-height: min(32svh, 260px);
+}
+
+/* Canvas target selection remains a first-class keyboard/touch surface while
+   the contextual message and overlay chrome sit above the world. Only the
+   actual decision buttons capture pointer input. */
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode > #combat-overlay {
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode {
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode > #combat-overlay button {
+  pointer-events: auto;
+}
+
+#game-container.dungeon-first-mode #character-panel {
+  position: absolute;
+  right: 8px;
+  bottom: var(--safe-area-bottom);
+  left: 8px;
+  z-index: 9;
+  min-height: 0;
+  padding: 5px 6px;
+  border: 1px solid color-mix(in srgb, var(--floor-border, var(--hud-frame)) 44%, transparent);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgba(16, 26, 32, 0.78), rgba(8, 14, 18, 0.58));
+  box-shadow: var(--shadow-soft);
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #log-panel {
+  bottom: calc(var(--safe-area-bottom) + 274px);
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state="decision"] #log-panel {
+  top: calc(var(--safe-area-top) + 120px);
+  bottom: auto;
+  max-height: 48px;
+}
+
+@media (max-height: 600px) {
+  #game-container.dungeon-first-mode #log-panel {
+    bottom: calc(var(--safe-area-bottom) + 226px);
+  }
+
+  #game-container.dungeon-first-mode #controls-panel {
+    bottom: calc(var(--safe-area-bottom) + 70px);
+  }
+
+  #game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #log-panel {
+    bottom: calc(var(--safe-area-bottom) + 244px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #game-container.dungeon-first-mode #game-header,
+  #game-container.dungeon-first-mode #goal-banner,
+  #game-container.dungeon-first-mode #log-panel,
+  #game-container.dungeon-first-mode #controls-panel,
+  #game-container.dungeon-first-mode #character-panel {
+    backdrop-filter: none;
+  }
+}

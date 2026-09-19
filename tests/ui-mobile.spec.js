@@ -320,11 +320,12 @@ for (const vp of VIEWPORTS) {
       });
 
       expect(layout.eventMode, `Chest menu should add event-mode on ${vp.name}`).toBe(true);
-      expect(layout.logDisplay, `Chest menu should hide inline logs on ${vp.name}`).toBe('none');
-      expect(layout.resultLogDisplay, `Chest result should restore inline logs on ${vp.name}`).not.toBe('none');
-      expect(layout.viewport.height, `Chest viewport should grow when logs are hidden on ${vp.name}`).toBeGreaterThan(layout.resultViewport.height);
+      expect(layout.logDisplay, `Chest menu should keep the transient log strip on ${vp.name}`).not.toBe('none');
+      expect(layout.resultLogDisplay, `Chest result should keep the transient log strip on ${vp.name}`).not.toBe('none');
+      expect(Math.abs(layout.viewport.height - layout.resultViewport.height), `Chest decision should keep the dungeon stage stable on ${vp.name}`).toBeLessThanOrEqual(1);
       expect(layout.header.top, `Header should clear standalone top safe area on ${vp.name}`).toBeGreaterThanOrEqual(59);
-      expect(layout.goal.bottom, `Goal banner should not be covered by viewport on ${vp.name}`).toBeLessThanOrEqual(layout.viewport.top);
+      expect(layout.goal.top, `Goal overlay should stay inside the dungeon stage on ${vp.name}`).toBeGreaterThanOrEqual(layout.viewport.top);
+      expect(layout.goal.right, `Goal overlay should stay inside the viewport width on ${vp.name}`).toBeLessThanOrEqual(layout.width || vp.width);
       expect(layout.party.bottom, `Solo HUD should clear standalone bottom safe area on ${vp.name}`).toBeLessThanOrEqual(layout.height - 34);
       expect(layout.buttons).toHaveLength(6);
       expect(layout.buttons.map(button => button.text)).toEqual([
@@ -362,7 +363,7 @@ for (const vp of VIEWPORTS) {
       await page.getByRole('button', { name: '宝箱を開ける' }).click();
       await expect(page.locator('#submenu-title')).toContainText('発見した戦果を解決');
       await expect(page.locator('.pending-reward-card')).toHaveCount(1);
-      await expect(page.locator('#log-panel')).toBeHidden();
+      await expect(page.locator('#log-panel')).toBeVisible();
       await expect(page.locator('#log-content')).toContainText('宝箱を開けた瞬間、罠 [毒針] が作動した！');
       await expect(page.locator('#log-content')).toContainText(/冒険者は\d+のダメージを受けた/);
       const gedHpAfterTrap = await page.evaluate(async () => {
@@ -390,7 +391,7 @@ for (const vp of VIEWPORTS) {
       }
     });
 
-    test('Dungeon event submenus hide logs only until result phase @visual', async ({ page }) => {
+    test('Dungeon event submenus keep the transient log strip accessible @visual', async ({ page }) => {
       await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
         const { openSubmenu } = await import('/src/navigation.js');
@@ -410,7 +411,7 @@ for (const vp of VIEWPORTS) {
       });
 
       await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
-      await expect(page.locator('#log-panel')).toBeHidden();
+      await expect(page.locator('#log-panel')).toBeVisible();
       await expect(page.getByRole('button', { name: '泉の水を飲む' })).toBeVisible();
       await page.getByRole('button', { name: '泉の水を飲む' }).click();
       await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
@@ -425,7 +426,7 @@ for (const vp of VIEWPORTS) {
         openSubmenu('event_tablet', '謎の石碑が立っている。古代の文字が刻まれている…');
       });
       await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
-      await expect(page.locator('#log-panel')).toBeHidden();
+      await expect(page.locator('#log-panel')).toBeVisible();
       await expect(page.getByRole('button', { name: '文字を読む' })).toBeVisible();
       await page.getByRole('button', { name: '文字を読む' }).click();
       await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
@@ -451,7 +452,7 @@ for (const vp of VIEWPORTS) {
         updateUI();
       });
       await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
-      await expect(page.locator('#log-panel')).toBeHidden();
+      await expect(page.locator('#log-panel')).toBeVisible();
       await expect(page.getByRole('button', { name: /鑑定粉/ })).toBeVisible();
       const merchantResult = await page.evaluate(async () => {
         const { state } = await import('/src/state.js');

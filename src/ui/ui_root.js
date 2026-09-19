@@ -254,6 +254,14 @@ export function updateUI() {
   const merchantSubmenu = view.isSubmenu && view.menuType === "milestone_merchant";
   const townSubmenu = view.isTownSubmenu;
   const isTownLikeGoal = gameState === "town" || departurePrepSubmenu;
+  const isDungeonFirstMode = view.hasMap &&
+    !["town", "result", "gameover", "victory"].includes(gameState) &&
+    !departurePrepSubmenu && !workshopSubmenu && !townSubmenu;
+  const dungeonFirstState = isUsableCombatScreen || view.isCombatOverlaySubmenu
+    ? "combat"
+    : gameState === "chest" || gameState === "trap_encounter" || view.isEventSubmenu
+      ? "decision"
+      : "explore";
 
   if (gameState === "town") renderTownHome();
 
@@ -272,6 +280,11 @@ export function updateUI() {
     container.classList.toggle("departure-mode", departurePrepSubmenu);
     container.classList.toggle("workshop-mode", workshopSubmenu);
     container.classList.toggle("town-submenu-mode", townSubmenu);
+    container.classList.toggle("dungeon-first-mode", isDungeonFirstMode);
+    if (container.dataset) {
+      if (isDungeonFirstMode) container.dataset.dungeonFirstState = dungeonFirstState;
+      else delete container.dataset.dungeonFirstState;
+    }
     if (state.currentRun &&
         gameState !== "town" &&
         gameState !== "gameover" &&
