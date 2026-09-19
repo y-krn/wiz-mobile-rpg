@@ -182,6 +182,8 @@ assert.equal((workflow.match(/uses: \.\/\.github\/actions\/setup-node-deps/g) ||
 assert.equal((workflow.match(/uses: actions\/setup-node@v4/g) || []).length, 3);
 assert.equal((workflow.match(/node-version: 20/g) || []).length, 3);
 assert.equal((workflow.match(/run: npm ci/g) || []).length, 3);
+assert.equal((workflow.match(/config\.purpose = process\.env\.MEASUREMENT_PURPOSE/g) || []).length, 3);
+assert.equal((workflow.match(/EVIDENCE_CONFIG="\$\(node -e '/g) || []).length, 3);
 
 const testWorkflow = fs.readFileSync(path.resolve(".github/workflows/test.yml"), "utf8");
 assert.match(testWorkflow, /pull_request:/);

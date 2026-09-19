@@ -113,6 +113,11 @@ jobs:
           EVIDENCE_CONFIG: ${{ toJSON(inputs) }}
           MEASUREMENT_SEED: ${{ inputs.seed }}
         run: |
+          EVIDENCE_CONFIG="$(node -e '
+            const config = JSON.parse(process.env.EVIDENCE_CONFIG);
+            config.purpose = process.env.MEASUREMENT_PURPOSE;
+            process.stdout.write(JSON.stringify(config));
+          ')"
           stage_args=(
             --staging-dir "$RUNNER_TEMP"
             --status "${{ steps.measurement.outcome }}"
@@ -199,6 +204,11 @@ jobs:
           EVIDENCE_CONFIG: ${{ toJSON(inputs) }}
           MEASUREMENT_SEED: ${{ inputs.seed }}
         run: |
+          EVIDENCE_CONFIG="$(node -e '
+            const config = JSON.parse(process.env.EVIDENCE_CONFIG);
+            config.purpose = process.env.MEASUREMENT_PURPOSE;
+            process.stdout.write(JSON.stringify(config));
+          ')"
           stage_args=(
             --staging-dir "$RUNNER_TEMP"
             --status "${{ steps.merge.outcome }}"
@@ -283,6 +293,11 @@ jobs:
           EVIDENCE_CONFIG: ${{ toJSON(inputs) }}
           MEASUREMENT_SEED: ${{ inputs.seed }}
         run: |
+          EVIDENCE_CONFIG="$(node -e '
+            const config = JSON.parse(process.env.EVIDENCE_CONFIG);
+            config.purpose = process.env.MEASUREMENT_PURPOSE;
+            process.stdout.write(JSON.stringify(config));
+          ')"
           stage_args=(
             --staging-dir "$RUNNER_TEMP"
             --status "${{ steps.measurement.outcome }}"
