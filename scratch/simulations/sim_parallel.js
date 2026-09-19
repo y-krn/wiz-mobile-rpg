@@ -1,13 +1,12 @@
 // sim-scope: infra
 import { availableParallelism } from "node:os";
 import { MessageChannel, Worker } from "node:worker_threads";
-import { fileURLToPath } from "node:url";
 
 const TSX_CLI_ENTRYPOINT = /(?:[\\/]tsx[\\/]dist[\\/]cli\.mjs|[\\/]\.bin[\\/]tsx)$/;
 const USE_TSX_RUNTIME = process.env.TSX_MODULE_RUNNER === "1" ||
   process.argv.some(argument => TSX_CLI_ENTRYPOINT.test(argument));
 const WORKER_RUNTIME_OPTIONS = USE_TSX_RUNTIME
-  ? { execArgv: ["--import", fileURLToPath(new URL("../../node_modules/tsx/dist/loader.mjs", import.meta.url))] }
+  ? { execArgv: ["--import", "tsx/esm"] }
   : {};
 
 const MAX_SIM_PARALLEL = Math.max(1, availableParallelism());
@@ -30,6 +29,10 @@ function resolveSimMapCacheEntries() {
 
 export function resolveSimParallelism(taskCount) {
   const raw = String(process.env.SIM_PARALLEL || "").trim().toLowerCase();
+  // Node 20's tsx ESM hook is not inherited reliably by worker_threads;
+  // keep TypeScript-backed test runners deterministic and worker-free unless
+  // a caller explicitly requests a parallelism value.
+  if (USE_TSX_RUNTIME && !raw) return 1;
   const requested = raw === "max"
     ? MAX_SIM_PARALLEL
     : raw
