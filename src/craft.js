@@ -20,7 +20,7 @@ export const CRAFT_RECIPES = [
   {
     resultId: "MANA_POTION",
     name: "魔力草",
-    mats: { "魔石片": 3, "呪布": 1 },
+    mats: { "獣の牙": 2, "硬い皮": 2 },
     desc: "使用するとMPを3回復する。"
   },
   {

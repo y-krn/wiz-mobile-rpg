@@ -73,6 +73,75 @@ check(
   JSON.stringify(recipeCost)
 );
 
+const manaRecipe = CRAFT_RECIPES.find(recipe => recipe.resultId === "MANA_POTION");
+const manaCost = getDepartureCraftCost(["MANA_POTION"]);
+check(
+  "MANA_POTION uses two fangs and two hides",
+  JSON.stringify(manaRecipe?.mats) === JSON.stringify({ "獣の牙": 2, "硬い皮": 2 })
+    && manaCost.typed["獣の牙"] === 2
+    && manaCost.typed["硬い皮"] === 2
+    && !manaCost.typed["魔石片"]
+    && !manaCost.typed["呪布"],
+  JSON.stringify({ recipe: manaRecipe?.mats, cost: manaCost })
+);
+check(
+  "MANA_POTION keeps four total materials",
+  Object.values(manaRecipe?.mats || {}).reduce((sum, quantity) => sum + quantity, 0) === 4
+);
+
+const unchangedRecipeCosts = {
+  HEAL_POTION: { "硬い皮": 1, "獣の牙": 1 },
+  ANTIDOTE: { "毒腺": 1 },
+  TRAP_KIT: { "鉄片": 2, "硬い皮": 1 },
+  GUARD_POTION: { "竜鱗": 1, "鉄片": 2 },
+  TOWN_PORTAL: undefined
+};
+for (const [recipeId, expectedMats] of Object.entries(unchangedRecipeCosts)) {
+  const recipe = CRAFT_RECIPES.find(candidate => candidate.resultId === recipeId);
+  check(
+    `${recipeId} recipe remains unchanged`,
+    expectedMats === undefined
+      ? recipe?.departureCost?.mode === "any" && recipe.departureCost.total === 8
+      : JSON.stringify(recipe?.mats) === JSON.stringify(expectedMats),
+    JSON.stringify(recipe)
+  );
+}
+
+const manaBank = { "獣の牙": 2, "硬い皮": 2 };
+const manaPurchase = purchaseDepartureCraft(manaBank, ["MANA_POTION"]);
+check("MANA_POTION can be crafted from its production bank", manaPurchase.ok);
+check(
+  "MANA_POTION purchase spends its exact production bank",
+  manaPurchase.ok
+    && manaPurchase.metaMaterials["獣の牙"] === 0
+    && manaPurchase.metaMaterials["硬い皮"] === 0
+    && JSON.stringify(manaPurchase.itemIds) === JSON.stringify(["MANA_POTION"]),
+  JSON.stringify(manaPurchase)
+);
+const healAlternative = purchaseDepartureCraft(
+  { "獣の牙": 2, "硬い皮": 2 },
+  ["HEAL_POTION", "HEAL_POTION"]
+);
+const bothAlternatives = purchaseDepartureCraft(
+  { "獣の牙": 2, "硬い皮": 2 },
+  ["MANA_POTION", "HEAL_POTION", "HEAL_POTION"]
+);
+check("the same bank can craft two HEAL_POTION items", healAlternative.ok);
+check(
+  "MANA_POTION and two HEAL_POTION items compete for the same bank",
+  !bothAlternatives.ok && bothAlternatives.reason === "insufficient_materials",
+  JSON.stringify(bothAlternatives)
+);
+const oldManaBank = purchaseDepartureCraft(
+  { "魔石片": 3, "呪布": 1 },
+  ["MANA_POTION"]
+);
+check(
+  "the old MANA_POTION bank is rejected",
+  !oldManaBank.ok && oldManaBank.reason === "insufficient_materials",
+  JSON.stringify(oldManaBank)
+);
+
 const bank = {
   "獣の牙": 10,
   "硬い皮": 10,

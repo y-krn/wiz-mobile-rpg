@@ -14,8 +14,8 @@ function check(condition, message) {
 const bank = {
   "魔石片": 3,
   "呪布": 1,
-  "硬い皮": 1,
-  "獣の牙": 1,
+  "硬い皮": 2,
+  "獣の牙": 2,
   "黒角": 2,
   "骨片": 2,
   "霊粉": 1
@@ -58,7 +58,7 @@ check(
   "MANA_POTION departure source was not recorded"
 );
 check(
-  priest.departureCraftPotentialByRecipe.HEAL_POTION === 1 &&
+  priest.departureCraftPotentialByRecipe.HEAL_POTION === 2 &&
     priest.departureCraftPotentialByRecipe.GREATER_HEAL === 1 &&
     priest.departureCraftPotentialByRecipe.HOLY_WATER === 0,
   "counterfactual craftability did not use the shared craft rules"
@@ -78,4 +78,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("[PASS] Issue #648 departure craft and source wiring");
+console.log("[PASS] departure craft and source wiring");
