@@ -123,7 +123,7 @@ export function renderCombatOverlay() {
     if (menuContext.targetType === "enemy") {
       const instructions = document.createElement("div");
       instructions.id = "combat-target-instructions";
-      instructions.className = "combat-target-selection-message";
+      instructions.className = "combat-target-selection-message sr-only";
       instructions.setAttribute("role", "status");
       instructions.setAttribute("aria-live", "polite");
       instructions.textContent = "敵をタップして対象を選択";
