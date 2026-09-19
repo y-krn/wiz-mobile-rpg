@@ -9,7 +9,7 @@ import { renderMilestonePortal } from "./milestone_portal.js";
 import { renderStairsDown } from "./stairs_down.js";
 import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderExploreManagement } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
-import { normalizeSubmenuType } from "../state/view_state.js";
+import { normalizeSubmenuType } from "../state/view_state.ts";
 import { openPendingRewardMenu } from "../pending_rewards.js";
 
 const SUBMENU_RENDERERS = {

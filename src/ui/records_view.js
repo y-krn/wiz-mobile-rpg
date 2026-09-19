@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { getScreenViewState } from "../state/view_state.js";
+import { getScreenViewState } from "../state/view_state.ts";
 
 function floorText(value) {
   return value > 0 ? `B${value}F` : "未記録";

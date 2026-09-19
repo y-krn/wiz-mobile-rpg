@@ -1,6 +1,6 @@
 import { state, saveAutosave, clearEventObservations } from "../state.js";
 import { menuContext } from "../navigation.js";
-import { hasCombatRoundActor, isUsableCombatScreen } from "../state/view_state.js";
+import { hasCombatRoundActor, isUsableCombatScreen } from "../state/view_state.ts";
 import { runCombatRoundCalculation } from "../combat_logic.js";
 import { combatSelection } from "./combat_state.js";
 import { playBattleLogs } from "./battle_log_player.js";

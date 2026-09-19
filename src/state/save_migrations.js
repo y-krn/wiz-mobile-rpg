@@ -9,7 +9,7 @@ import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
 import { addMaterials } from "../rules/material_rules.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 import { isUsableFloorCell, isUsableFloorMap } from "./run_floor_state.js";
-import { isUsableCombatState } from "./view_state.js";
+import { isUsableCombatState } from "./view_state.ts";
 import { BASE_STARTING_MP, BASIC_RUNE_ITEM_ID, MEDIUM_IDS } from "../data/magic.js";
 import { ITEMS } from "../data/items.js";
 import { getEquipmentHands } from "../rules/equipment_hands.js";

@@ -6,7 +6,7 @@ import { combatCallbacks } from "./combat_state.js";
 import { isSpellTargetAvailable, getSpellCombatSummary } from "./spell_menu.js";
 import { getUsableInventoryItems, INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
-import { getScreenViewState, getUsableSpellKeys } from "../state/view_state.js";
+import { getScreenViewState, getUsableSpellKeys } from "../state/view_state.ts";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
 import { trackUxDecisionResolved } from "../telemetry.js";

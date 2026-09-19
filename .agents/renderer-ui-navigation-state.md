@@ -2,7 +2,7 @@
 
 The runtime `state` object remains the source of gameplay data. Renderer, UI,
 and navigation code consume a validated screen snapshot from
-`src/state/view_state.js` instead of independently interpreting raw
+`src/state/view_state.ts` instead of independently interpreting raw
 `state.gameState` and `menuContext` values.
 
 The canonical snapshot shape is:

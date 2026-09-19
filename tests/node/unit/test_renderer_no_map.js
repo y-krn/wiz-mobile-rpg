@@ -11,7 +11,7 @@ globalThis.document = {
 const { state } = await import("../../../src/state.js");
 const { menuContext } = await import("../../../src/navigation.js");
 const { DungeonRenderer } = await import("../../../src/renderer.js");
-const { getScreenViewState } = await import("../../../src/state/view_state.js");
+const { getScreenViewState } = await import("../../../src/state/view_state.ts");
 
 const renderer = new DungeonRenderer("dungeon-canvas");
 state.floor = 2;

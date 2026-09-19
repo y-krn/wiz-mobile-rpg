@@ -1,6 +1,6 @@
 import { state, addLog, saveAutosave } from "../state.js";
 import { menuContext } from "../navigation.js";
-import { hasCombatRoundActor, hasUsableCombatActor, isActionableCombatContext, isActionableCombatScreen, isUsableCombatScreen, isUsableSpellForActor } from "../state/view_state.js";
+import { hasCombatRoundActor, hasUsableCombatActor, isActionableCombatContext, isActionableCombatScreen, isUsableCombatScreen, isUsableSpellForActor } from "../state/view_state.ts";
 import { SPELLS, ITEMS, getSpellPayment } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";

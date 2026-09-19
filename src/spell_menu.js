@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog } from "./state.js";
-import { getScreenViewState, getUsableSpellKeys, isUsableSpellForActor } from "./state/view_state.js";
+import { getScreenViewState, getUsableSpellKeys, isUsableSpellForActor } from "./state/view_state.ts";
 import { getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp, getCharMaxMp } from "./data.js";
 import { SPELLS } from "./data/spells.js";
 import { SPELL_EFFECTS } from "./systems/spell_effects.js";
