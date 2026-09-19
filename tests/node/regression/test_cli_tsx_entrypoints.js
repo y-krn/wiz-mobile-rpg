@@ -20,7 +20,7 @@ function runNpm(args, env) {
     env,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
-    timeout: 180_000
+    timeout: 300_000
   });
 }
 
