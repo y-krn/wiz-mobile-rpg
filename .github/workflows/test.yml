@@ -102,6 +102,12 @@ jobs:
           set -o pipefail
           npm run test:browser 2>&1 | tee "$RUNNER_TEMP/browser-test.log"
         if: steps.changes.outputs.browser == 'true'
+      - name: Run treasure chest visual evidence
+        id: treasure_chest_visual
+        run: |
+          set -o pipefail
+          npx playwright test tests/ui-treasure-chest.spec.js --grep @visual 2>&1 | tee "$RUNNER_TEMP/treasure-chest-visual.log"
+        if: steps.changes.outputs.browser == 'true'
       - name: Run browser debug visual evidence
         id: browser_visual
         run: |
@@ -122,6 +128,7 @@ jobs:
             --visual-dir output/playwright
             --diagnostics-dir playwright-report
             --logs "$RUNNER_TEMP/browser-test.log"
+            --logs "$RUNNER_TEMP/treasure-chest-visual.log"
             --logs "$RUNNER_TEMP/browser-visual.log"
             --github-output "$GITHUB_OUTPUT"
           )
