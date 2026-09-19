@@ -177,8 +177,10 @@ const {
 } = await import("../../src/rules/trap_rules.js");
 const {
   applyTrapGuardToEffect,
+  B5_FLAME_TRAP_DAMAGE_PROFILE,
   calculateChestTrapExpectedRisk,
   calculateFloorTrapExpectedDamage,
+  getFloorTrapDamageRange,
   resolveChestTrapEffect,
   resolveFloorTrapEffect
 } = await import("../../src/rules/trap_effect_rules.js");
@@ -1051,7 +1053,12 @@ if (!Number.isFinite(EXPLORATION_FACTOR) || EXPLORATION_FACTOR <= 0) {
 const FLAME_TRAP_MODEL = Object.freeze({
   floor: 5,
   chance: 0.05,
-  cooldownTurns: 5
+  cooldownTurns: 5,
+  damageProfile: B5_FLAME_TRAP_DAMAGE_PROFILE
+});
+const FLAME_TRAP_DAMAGE_RANGE = getFloorTrapDamageRange({
+  trap: { type: "damage", damageProfile: FLAME_TRAP_MODEL.damageProfile },
+  floor: FLAME_TRAP_MODEL.floor
 });
 // 仮値・感度分析対象: 探索係数1.4に対応し、配置宝箱の70%を拾えると置く。
 const CHEST_PICKUP_RATE = 0.7;
@@ -12124,7 +12131,11 @@ function resolveFlameTrapAtStep({
   metrics.flameTrapActivations++;
   metrics.b5FlameActivationSteps.push(step);
   recordB5HpSnapshot(state, metrics, step);
-  const trap = { type: "damage", id: "flame" };
+  const trap = {
+    type: "damage",
+    id: "flame",
+    damageProfile: FLAME_TRAP_MODEL.damageProfile
+  };
   const trapId = `flame:${state.floor}:${step}`;
   const activeCharacter = state.party.find(character => isAlive(character));
   const successRate = activeCharacter
@@ -19720,8 +19731,9 @@ const ENV_SIGNATURE = {
     floor: FLAME_TRAP_MODEL.floor,
     chance: FLAME_TRAP_MODEL.chance,
     cooldownTurns: FLAME_TRAP_MODEL.cooldownTurns,
-    damageMin: 6 + FLAME_TRAP_MODEL.floor * 2,
-    damageMax: 12 + FLAME_TRAP_MODEL.floor * 4,
+    damageProfile: FLAME_TRAP_MODEL.damageProfile,
+    damageMin: FLAME_TRAP_DAMAGE_RANGE.min,
+    damageMax: FLAME_TRAP_DAMAGE_RANGE.max,
     resolution: "floor-trap-damage"
   },
   chestPickupRate: CHEST_PICKUP_RATE,

@@ -9,6 +9,10 @@ const CHEST_GAS_BOMB_RANGE = Object.freeze({
 const CHEST_POISON_WEAKENED_TRIGGER_CHANCE = 0.50;
 const CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE = 0.50;
 const CHEST_FLASH_BLIND_CHANCE = Object.freeze({ full: 0.60, weakened: 0.30 });
+export const B5_FLAME_TRAP_DAMAGE_PROFILE = "b5-flame";
+const FLOOR_TRAP_DAMAGE_PROFILES = Object.freeze({
+  [B5_FLAME_TRAP_DAMAGE_PROFILE]: Object.freeze({ min: 8, max: 16 })
+});
 
 function reduceTrapDamage(damage, trapGuard = 0) {
   const numericGuard = Number(trapGuard);
@@ -163,7 +167,11 @@ export function calculateChestTrapExpectedRisk({
   return effect;
 }
 
-function getFloorTrapDamageRange(trapType, floor) {
+export function getFloorTrapDamageRange({ trap, floor } = {}) {
+  const profile = FLOOR_TRAP_DAMAGE_PROFILES[trap?.damageProfile];
+  if (profile) return profile;
+
+  const trapType = trap?.type;
   if (trapType === "damage") {
     return { min: 6 + floor * 2, max: 12 + floor * 4 };
   }
@@ -185,7 +193,7 @@ export function calculateFloorTrapExpectedDamage({
   party = [],
   weakened = false
 } = {}) {
-  const range = getFloorTrapDamageRange(trap?.type, floor);
+  const range = getFloorTrapDamageRange({ trap, floor });
   if (!range) return party.map(() => 0);
 
   const powerMultiplier = getFloorTrapPowerMultiplier({
@@ -219,7 +227,7 @@ export function resolveFloorTrapEffect({
   });
 
   if (trap?.type === "damage") {
-    const range = getFloorTrapDamageRange(trap.type, floor);
+    const range = getFloorTrapDamageRange({ trap, floor });
     const rollCount = range.max - range.min + 1;
     effect.partyDamage = party.map(char => {
       if (char?.status === "dead") return 0;
@@ -236,7 +244,7 @@ export function resolveFloorTrapEffect({
       return Math.max(1, Math.floor(rawDrain * powerMultiplier));
     });
   } else if (trap?.type === "pitfall") {
-    const range = getFloorTrapDamageRange(trap.type, floor);
+    const range = getFloorTrapDamageRange({ trap, floor });
     const rollCount = range.max - range.min + 1;
     effect.partyDamage = party.map(char => {
       if (char?.status === "dead") return 0;

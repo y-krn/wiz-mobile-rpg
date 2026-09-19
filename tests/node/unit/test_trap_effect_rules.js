@@ -4,6 +4,7 @@ import {
   resolveTrapAction
 } from "../../../src/rules/trap_rules.js";
 import {
+  B5_FLAME_TRAP_DAMAGE_PROFILE,
   calculateChestTrapExpectedRisk,
   calculateFloorTrapExpectedDamage,
   resolveChestTrapEffect,
@@ -92,6 +93,43 @@ const expectedThiefDamage = calculateFloorTrapExpectedDamage({
 })[0];
 check("expected damage follows full effect", expectedFighterDamage, 12);
 check("expected damage has no scout mitigation", expectedThiefDamage, 12);
+const ordinaryB5Trap = resolveFloorTrapEffect({
+  trap: { type: "damage" },
+  floor: 5,
+  party: [soloFighter],
+  rng: () => 0
+});
+const ordinaryB5TrapMax = resolveFloorTrapEffect({
+  trap: { type: "damage" },
+  floor: 5,
+  party: [soloFighter],
+  rng: () => 0.999
+});
+check("ordinary B5 floor damage min is unchanged", ordinaryB5Trap.partyDamage[0], 16);
+check("ordinary B5 floor damage max is unchanged", ordinaryB5TrapMax.partyDamage[0], 32);
+const flameTrap = { type: "damage", damageProfile: B5_FLAME_TRAP_DAMAGE_PROFILE };
+const flameFullMin = resolveFloorTrapEffect({
+  trap: flameTrap,
+  floor: 5,
+  party: [soloFighter],
+  rng: () => 0
+});
+const flameFullMax = resolveFloorTrapEffect({
+  trap: flameTrap,
+  floor: 5,
+  party: [soloFighter],
+  rng: () => 0.999
+});
+const flamePartialMin = resolveFloorTrapEffect({
+  trap: flameTrap,
+  floor: 5,
+  party: [soloFighter],
+  weakened: true,
+  rng: () => 0
+});
+check("B5 flame full failure min is 8", flameFullMin.partyDamage[0], 8);
+check("B5 flame full failure max is 16", flameFullMax.partyDamage[0], 16);
+check("B5 flame partial success is weaker", flamePartialMin.partyDamage[0] < flameFullMin.partyDamage[0], true);
 check(
   "expected full gas risk uses source range",
   calculateChestTrapExpectedRisk({
@@ -155,4 +193,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`[PASS] ${12} shared trap rule assertions`);
+console.log(`[PASS] ${21} shared trap rule assertions`);

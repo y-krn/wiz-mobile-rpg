@@ -480,7 +480,7 @@ for (const floor of [1, 10, 30]) {
 }
 console.log("PASS: Trap placement verified.");
 
-// 9. B5F flame trap uses the ordinary floor-trap model without an encounter UI
+// 9. B5F flame trap uses the shared floor-trap path without an encounter UI
 console.log("\n[9] Verifying flame trap resolution:");
 const { triggerFlameTrap } = await import("../../../src/movement.js");
 const realFlameRandom = Math.random;
@@ -553,8 +553,8 @@ try {
 } finally {
   Math.random = realFlameRandom;
 }
-if (state.party[0].hp !== 12 || !state.logs.some(log => log.includes("部分回避"))) {
-  console.error(`FAIL: partial flame success should use weakened B5 damage (expected 8, got ${20 - state.party[0].hp}).`);
+if (state.party[0].hp !== 16 || !state.logs.some(log => log.includes("部分回避"))) {
+  console.error(`FAIL: partial flame success should use weakened B5 damage (expected 4, got ${20 - state.party[0].hp}).`);
   process.exit(1);
 }
 
@@ -574,8 +574,8 @@ try {
 } finally {
   Math.random = realFlameRandom;
 }
-if (state.party[0].hp !== 18) {
-  console.error(`FAIL: full flame failure should use the B5 damage maximum of 32, got ${50 - state.party[0].hp}.`);
+if (state.party[0].hp !== 34) {
+  console.error(`FAIL: full flame failure should use the B5 damage maximum of 16, got ${50 - state.party[0].hp}.`);
   process.exit(1);
 }
 
@@ -601,8 +601,8 @@ try {
 } finally {
   Math.random = realFlameRandom;
 }
-if (state.party[0].hp !== 10) {
-  console.error(`FAIL: equipment trapGuard should reduce 16 flame damage to 10, got ${20 - state.party[0].hp}.`);
+if (state.party[0].hp !== 15) {
+  console.error(`FAIL: equipment trapGuard should reduce 8 flame damage to 5, got ${20 - state.party[0].hp}.`);
   process.exit(1);
 }
 if (!state.logs.some(log => log.includes("熱気の気配")) ||
@@ -621,7 +621,7 @@ try {
 } finally {
   Math.random = realFlameRandom;
 }
-if (state.party[0].hp !== 12 || !state.logs.some(log => log.includes("部分回避"))) {
+if (state.party[0].hp !== 16 || !state.logs.some(log => log.includes("部分回避"))) {
   console.error("FAIL: the partial success band should weaken the flame hit.");
   process.exit(1);
 }
