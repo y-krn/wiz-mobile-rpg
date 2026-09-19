@@ -292,6 +292,13 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
     defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
     buildArgs: firstBandArgs("b5-guardian-retry-diagnostic")
   }),
+  "first-band-b5-guardian-flee-ev-diagnostic": nativeDiagnosticDefinition({
+    id: "first-band-b5-guardian-flee-ev-diagnostic",
+    label: "First Band B5 Guardian flee EV diagnostic",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
+    buildArgs: firstBandArgs("b5-guardian-flee-ev-diagnostic")
+  }),
   "first-band-arcana-weapon-diagnostic": nativeDiagnosticDefinition({
     id: "first-band-arcana-weapon-diagnostic",
     label: "First Band Arcana weapon diagnostic",

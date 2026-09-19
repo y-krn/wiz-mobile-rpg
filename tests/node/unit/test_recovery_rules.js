@@ -6,7 +6,10 @@ import {
   getStartingHealPotionCount,
   RECOVERY_BALANCE
 } from "../../../src/rules/recovery_rules.js";
-import { calculateCombatRecoveryAction } from "../../../scratch/simulations/sim_recovery_policy.js";
+import {
+  calculateCombatRecoveryAction,
+  evaluateCombatRecoveryAction
+} from "../../../scratch/simulations/sim_recovery_policy.js";
 
 const failures = [];
 
@@ -62,6 +65,69 @@ check(
   }) === "recover",
   "adopted default heal threshold should use recovery before fleeing"
 );
+
+const reasonCases = [
+  {
+    expectedDecision: "fight",
+    expectedReason: "fight-current-survival",
+    args: { currentHp: 6, maxHp: 20, enemyHp: [5], enemyAttack: [2], playerDamagePerRound: 10 }
+  },
+  {
+    expectedDecision: "recover",
+    expectedReason: "recover-then-survive",
+    args: {
+      currentHp: 5,
+      maxHp: 20,
+      enemyHp: [15],
+      enemyAttack: [5],
+      playerDamagePerRound: 5,
+      potionHeal: 15,
+      potionAvailable: true,
+      healThreshold: 0.35
+    }
+  },
+  {
+    expectedDecision: "flee",
+    expectedReason: "flee-low-hp-recovery-insufficient",
+    args: {
+      currentHp: 3,
+      maxHp: 20,
+      enemyHp: [100],
+      enemyAttack: [5],
+      playerDamagePerRound: 5,
+      potionHeal: 5,
+      potionAvailable: true,
+      fleeThreshold: 0.20
+    }
+  },
+  {
+    expectedDecision: "flee",
+    expectedReason: "flee-survival-deficit",
+    args: {
+      currentHp: 18,
+      maxHp: 20,
+      enemyHp: [100],
+      enemyAttack: [5],
+      playerDamagePerRound: 1,
+      fleeThreshold: 0.20
+    }
+  }
+];
+reasonCases.forEach(({ expectedDecision, expectedReason, args }) => {
+  const evaluation = evaluateCombatRecoveryAction(args);
+  check(evaluation.decision === expectedDecision, `${expectedReason}: decision`);
+  check(evaluation.reason === expectedReason, `${expectedReason}: reason`);
+  check([
+    "currentHp", "maxHp", "hpRate", "totalEnemyHp", "enemyAttack", "playerDefense",
+    "incomingDamagePerRound", "playerDamagePerRound", "expectedTurnsToWin", "survivalTurns",
+    "maxRecovery", "recoveryHp", "recoverySurvivalTurns", "healThreshold", "fleeThreshold",
+    "hpBelowHealThreshold", "hpBelowFleeThreshold", "turnDeficit"
+  ].every(key => Object.hasOwn(evaluation.terms, key)), `${expectedReason}: terms`);
+  check(evaluation.terms.turnDeficit ===
+    evaluation.terms.expectedTurnsToWin - evaluation.terms.survivalTurns,
+  `${expectedReason}: turn deficit`);
+  check(calculateCombatRecoveryAction(args) === evaluation.decision, `${expectedReason}: compat`);
+});
 
 process.env.SIM_SEED = "489";
 process.env.SIM_RUNS = "2";

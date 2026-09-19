@@ -194,6 +194,16 @@ const ROUTER_CONTRACTS = [
     override: { input: { runs: 501, seed: 1278 }, expected: { runs: 501, seed: 1278 } }
   },
   {
+    id: "first-band-b5-guardian-flee-ev-diagnostic",
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
+    args: nativeArgs("--mode", "b5-guardian-flee-ev-diagnostic", "--ref", "main", "--runs", "500", "--seed", "1277"),
+    override: { input: { runs: 501, seed: 1278 }, expected: { runs: 501, seed: 1278 } }
+  },
+  {
     id: "first-band-arcana-weapon-diagnostic",
     runner: "scratch/measurements/first_band_build_formation.js",
     adapter: "native-manifest",

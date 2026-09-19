@@ -3,7 +3,7 @@
 import { recordRuntimeCall } from "../../src/runtime_diagnostics.js";
 
 // Simulation-only combat policy helper. The game action loop does not call this.
-export function calculateCombatRecoveryAction({
+export function evaluateCombatRecoveryAction({
   currentHp,
   maxHp,
   enemyHp = [],
@@ -16,12 +16,11 @@ export function calculateCombatRecoveryAction({
   diosAvailable = false,
   fleeThreshold = 0.20,
   healThreshold = 0.55,
-  runtimeDiagnostics = null
 }) {
-  recordRuntimeCall(runtimeDiagnostics, "recovery.combat-policy");
   const normalizedMaxHp = Math.max(1, Number(maxHp) || 0);
   const normalizedHp = Math.max(0, Number(currentHp) || 0);
   const normalizedDefense = Math.max(0, Number(playerDefense) || 0);
+  const normalizedEnemyAttack = enemyAttack.map(attack => Number(attack) || 0);
   const incomingDamagePerRound = Math.max(
     1,
     enemyAttack.reduce(
@@ -41,18 +40,60 @@ export function calculateCombatRecoveryAction({
   const recoverySurvivalTurns = Math.floor(
     Math.max(0, recoveryHp - 1) / incomingDamagePerRound
   );
+  const normalizedHealThreshold = Math.max(0, Math.min(1, Number(healThreshold)));
+  const normalizedFleeThreshold = Math.max(0, Math.min(1, Number(fleeThreshold)));
+  const hpRate = normalizedHp / normalizedMaxHp;
+  const hpBelowHealThreshold = normalizedHp <= normalizedMaxHp * normalizedHealThreshold;
+  const hpBelowFleeThreshold = normalizedHp <= normalizedMaxHp * normalizedFleeThreshold;
+  const terms = {
+    currentHp: normalizedHp,
+    maxHp: normalizedMaxHp,
+    hpRate,
+    totalEnemyHp,
+    enemyAttack: normalizedEnemyAttack,
+    playerDefense: normalizedDefense,
+    incomingDamagePerRound,
+    playerDamagePerRound: playerDamage,
+    expectedTurnsToWin,
+    survivalTurns,
+    maxRecovery,
+    recoveryHp,
+    recoverySurvivalTurns,
+    healThreshold: normalizedHealThreshold,
+    fleeThreshold: normalizedFleeThreshold,
+    hpBelowHealThreshold,
+    hpBelowFleeThreshold,
+    turnDeficit: expectedTurnsToWin - survivalTurns
+  };
 
-  if (expectedTurnsToWin <= survivalTurns) return "fight";
+  if (expectedTurnsToWin <= survivalTurns) {
+    return { decision: "fight", reason: "fight-current-survival", terms };
+  }
   if (
-    normalizedHp <= normalizedMaxHp * Math.max(0, Math.min(1, Number(healThreshold))) &&
+    hpBelowHealThreshold &&
     maxRecovery > 0 &&
     expectedTurnsToWin <= recoverySurvivalTurns
-  ) return "recover";
-
-  const normalizedFleeThreshold = Math.max(0, Math.min(1, Number(fleeThreshold)));
+  ) {
+    return { decision: "recover", reason: "recover-then-survive", terms };
+  }
   if (
     expectedTurnsToWin > recoverySurvivalTurns &&
-    normalizedHp <= normalizedMaxHp * normalizedFleeThreshold
-  ) return "flee";
-  return expectedTurnsToWin > survivalTurns ? "flee" : "fight";
+    hpBelowFleeThreshold
+  ) {
+    return {
+      decision: "flee",
+      reason: "flee-low-hp-recovery-insufficient",
+      terms
+    };
+  }
+  return {
+    decision: expectedTurnsToWin > survivalTurns ? "flee" : "fight",
+    reason: "flee-survival-deficit",
+    terms
+  };
+}
+
+export function calculateCombatRecoveryAction(args) {
+  recordRuntimeCall(args.runtimeDiagnostics, "recovery.combat-policy");
+  return evaluateCombatRecoveryAction(args).decision;
 }
