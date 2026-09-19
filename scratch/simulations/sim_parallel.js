@@ -1,6 +1,12 @@
 // sim-scope: infra
 import { availableParallelism } from "node:os";
 import { MessageChannel, Worker } from "node:worker_threads";
+import { fileURLToPath } from "node:url";
+
+const TSX_CLI_ENTRYPOINT = /[\\/]tsx[\\/]dist[\\/]cli\.mjs$/;
+const WORKER_RUNTIME_OPTIONS = process.argv.some(argument => TSX_CLI_ENTRYPOINT.test(argument))
+  ? { execArgv: ["--import", fileURLToPath(new URL("../../node_modules/tsx/dist/loader.mjs", import.meta.url))] }
+  : {};
 
 const MAX_SIM_PARALLEL = Math.max(1, availableParallelism());
 const CI_SIM_PARALLEL = 4;
@@ -32,6 +38,7 @@ export function resolveSimParallelism(taskCount) {
 
 function createWorker(moduleUrl, exportName, context) {
   return new Worker(new URL("./sim_parallel_worker.js", import.meta.url), {
+    ...WORKER_RUNTIME_OPTIONS,
     workerData: { moduleUrl, exportName, context }
   });
 }
@@ -120,6 +127,7 @@ function createMapBroker(generatorExportName) {
 function createWorkerWithMapBroker(moduleUrl, exportName, context, mapBroker) {
   const mapState = mapBroker.createWorkerState();
   const worker = new Worker(new URL("./sim_parallel_worker.js", import.meta.url), {
+    ...WORKER_RUNTIME_OPTIONS,
     workerData: {
       moduleUrl,
       exportName,
