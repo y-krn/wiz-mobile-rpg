@@ -4,6 +4,7 @@ import path from 'path';
 import { execFileSync, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { runDependencyPreflight } from '../../scripts/dependency-preflight.js';
+import { collectRelativeDependencies } from './fixtures/dependency_resolver.js';
 
 if (!runDependencyPreflight()) process.exit(1);
 
@@ -41,42 +42,6 @@ function parseCommandOutput(command, args) {
     .filter(Boolean);
 }
 
-function resolveRelativeImport(importer, specifier) {
-  const unresolved = path.resolve(path.dirname(importer), specifier);
-  const candidates = [
-    unresolved,
-    `${unresolved}.js`,
-    path.join(unresolved, 'index.js'),
-  ];
-  const resolved = candidates.find(candidate => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
-
-  if (!resolved) {
-    throw new Error(`Unable to resolve "${specifier}" from ${toRepoPath(importer)}`);
-  }
-
-  return resolved;
-}
-
-function findRelativeImports(filePath) {
-  const source = fs.readFileSync(filePath, 'utf8');
-  const specifiers = new Set();
-  const patterns = [
-    /\bimport\s+(?:[^'";]*?\s+from\s*)?['"]([^'"]+)['"]/g,
-    /\bexport\s+(?:[^'";]*?\s+from\s*)['"]([^'"]+)['"]/g,
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-  ];
-
-  for (const pattern of patterns) {
-    for (const match of source.matchAll(pattern)) {
-      if (match[1].startsWith('.')) {
-        specifiers.add(match[1]);
-      }
-    }
-  }
-
-  return [...specifiers];
-}
-
 function collectHeavyDependencies(testFile) {
   const ownedTestPath = testFile.includes('/')
     ? testFile
@@ -87,23 +52,9 @@ function collectHeavyDependencies(testFile) {
     throw new Error(`Heavy test is not owned by a test directory: ${testFile}`);
   }
   const testPath = path.join(repoRoot, ownedTestPath);
-  const dependencies = new Set([toRepoPath(testPath)]);
-  const visited = new Set();
-
-  function visit(filePath) {
-    const absolutePath = path.resolve(filePath);
-    if (visited.has(absolutePath)) return;
-    visited.add(absolutePath);
-
-    for (const specifier of findRelativeImports(absolutePath)) {
-      const dependency = resolveRelativeImport(absolutePath, specifier);
-      dependencies.add(toRepoPath(dependency));
-      visit(dependency);
-    }
-  }
-
-  visit(testPath);
-  return dependencies;
+  return new Set(
+    [...collectRelativeDependencies(testPath)].map(dependency => toRepoPath(dependency)),
+  );
 }
 
 function findChangedFiles() {
@@ -181,7 +132,7 @@ function runTest(task) {
   }
 
   return new Promise(resolve => {
-    const child = spawn(process.execPath, [path.join(repoRoot, file)], {
+    const child = spawn(process.execPath, ['--import', 'tsx/esm', path.join(repoRoot, file)], {
       cwd: repoRoot,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],

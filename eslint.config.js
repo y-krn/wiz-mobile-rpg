@@ -11,6 +11,9 @@ export default [
       "scratch/benchmarks/**",
       "scratch/measurements/**",
       "scratch/simulations/**",
+      // TypeScript syntax is checked by `tsc`; ESLint 10 has no TS parser here.
+      "**/*.ts",
+      "**/*.tsx",
       "tests/node/unit/**",
       "tests/node/regression/**",
     ],
