@@ -507,3 +507,385 @@
     max-height: none;
   }
 }
+
+/* Dungeon First shell
+   Dungeon-backed screens keep the existing DOM and renderer, but the viewport
+   owns the stage. Other screens retain the ordinary document flow above. */
+#game-container.dungeon-first-mode {
+  display: block;
+  padding-top: 0;
+  padding-bottom: 0;
+  background: var(--floor-bg, #0a0e12);
+}
+
+/* The world owns the safe-area strips in Dungeon First mode. HUD content
+   remains inset below, while the renderer background can continue behind the
+   sensor housing and home indicator. */
+#game-container.dungeon-first-mode::before,
+#game-container.dungeon-first-mode::after {
+  z-index: 1;
+  background-color: transparent;
+}
+
+#game-container.dungeon-first-mode #viewport-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
+  display: block;
+  overflow: hidden;
+  /* The logical render stays centered and uncropped. Extend the existing
+     floor/aura language through the letterbox so the world does not stop at
+     the 400x260 canvas edge. */
+  background:
+    radial-gradient(ellipse at 50% 48%, color-mix(in srgb, var(--floor-border, var(--neon-cyan)) 18%, transparent) 0%, transparent 62%),
+    linear-gradient(180deg, transparent 18%, color-mix(in srgb, var(--floor-border, var(--neon-cyan)) 5%, transparent) 42%, color-mix(in srgb, var(--floor-border, var(--neon-cyan)) 5%, transparent) 58%, transparent 82%),
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--floor-bg, #0a0e12) 54%, #000) 0%,
+      color-mix(in srgb, var(--floor-bg, #0a0e12) 88%, #000) 24%,
+      var(--floor-bg, #0a0e12) 47%,
+      color-mix(in srgb, var(--floor-bg, #0a0e12) 86%, #000) 72%,
+      color-mix(in srgb, var(--floor-bg, #0a0e12) 48%, #000) 100%);
+  box-shadow: none;
+}
+
+#game-container.dungeon-first-mode #viewport-panel::after {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, transparent 25%, transparent 72%, rgba(0, 0, 0, 0.26) 100%),
+    var(--biome-aura, none);
+  opacity: calc(var(--biome-aura-opacity, 0) * 0.62 + (var(--depth-corruption, 0) * 0.04));
+}
+
+#game-container.dungeon-first-mode #dungeon-canvas,
+#game-container.dungeon-first-mode #dungeon-minimap-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#game-container.dungeon-first-mode #dungeon-canvas {
+  /* Preserve the complete 400x260 logical surface. The themed viewport
+     background fills the portrait letterbox instead of cropping navigation
+     landmarks and corridor branches. */
+  object-fit: contain;
+  object-position: center;
+}
+
+/* Keep the complete 400x260 combat scene visible so enemy hit regions and
+   keyboard-equivalent canvas targeting retain their existing geometry. */
+#game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #dungeon-canvas {
+  object-fit: contain;
+}
+
+#game-container.dungeon-first-mode #dungeon-minimap-overlay {
+  object-fit: contain;
+}
+
+#game-container.dungeon-first-mode #game-header {
+  position: absolute;
+  top: var(--safe-area-top);
+  right: 8px;
+  left: 8px;
+  z-index: 10;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(90deg, rgba(8, 14, 18, 0.72), rgba(8, 14, 18, 0.18) 62%, transparent 100%);
+  box-shadow: none;
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode #btn-mute {
+  pointer-events: auto;
+  background: rgba(8, 14, 18, 0.42);
+  border-color: color-mix(in srgb, var(--floor-border, var(--hud-frame)) 58%, transparent);
+  box-shadow: none;
+}
+
+#game-container.dungeon-first-mode #location-label {
+  max-width: calc(100% - 78px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+}
+
+#game-container.dungeon-first-mode #goal-banner {
+  position: absolute;
+  top: calc(var(--safe-area-top) + 58px);
+  right: 18px;
+  left: 18px;
+  z-index: 9;
+  width: auto;
+  min-height: 0;
+  max-height: 76px;
+  padding: 4px 8px 4px 13px;
+  overflow: hidden;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--floor-border, var(--neon-amber)) 56%, transparent);
+  border-radius: 0;
+  background: linear-gradient(90deg, rgba(8, 14, 18, 0.62), rgba(8, 14, 18, 0.16) 72%, transparent 100%);
+  box-shadow: none;
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode #goal-banner::before {
+  top: 7px;
+  bottom: 7px;
+  left: 6px;
+}
+
+#game-container.dungeon-first-mode #goal-banner .quest-hud-list {
+  display: grid;
+  max-height: 38px;
+  overflow-y: auto;
+}
+
+#game-container.dungeon-first-mode #log-panel {
+  position: absolute;
+  right: 18px;
+  bottom: calc(var(--safe-area-bottom) + 252px);
+  left: 18px;
+  z-index: 9;
+  width: auto;
+  min-height: 0;
+  max-height: 58px;
+  padding: 4px 8px;
+  overflow: hidden;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--floor-border, var(--border-color)) 48%, transparent);
+  border-radius: 0;
+  background: linear-gradient(90deg, rgba(8, 14, 18, 0.58), rgba(8, 14, 18, 0.12) 76%, transparent 100%);
+  box-shadow: none;
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode.event-mode #log-panel {
+  display: flex;
+}
+
+#game-container.dungeon-first-mode #log-content {
+  min-width: 0;
+  overflow: hidden;
+}
+
+#game-container.dungeon-first-mode #log-content .event-strip-item {
+  display: none;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#game-container.dungeon-first-mode #log-content .event-strip-item:last-child,
+#game-container.dungeon-first-mode #log-content .event-strip-item--unresolved,
+#game-container.dungeon-first-mode #log-content .event-strip-item--result {
+  display: flex;
+}
+
+#game-container.dungeon-first-mode #btn-log-expand {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  margin: 0;
+  background-color: rgba(8, 14, 18, 0.86);
+  pointer-events: auto;
+}
+
+#game-container.dungeon-first-mode #viewport-hud {
+  top: calc(var(--safe-area-top) + 118px);
+  right: 12px;
+  bottom: auto;
+  z-index: 6;
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #viewport-hud {
+  top: calc(var(--safe-area-top) + 118px);
+  bottom: auto;
+}
+
+#game-container.dungeon-first-mode #controls-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(var(--safe-area-bottom) + 76px);
+  left: 0;
+  z-index: 10;
+  width: auto;
+  min-height: 0;
+  max-height: min(62svh, 520px);
+  padding: 6px 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(8, 14, 18, 0.22) 25%, rgba(8, 14, 18, 0.72) 100%);
+  box-shadow: none;
+  backdrop-filter: blur(4px);
+}
+
+#game-container.dungeon-first-mode #controls-panel .btn {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
+#game-container.dungeon-first-mode #controls-panel.explore-mode {
+  height: 116px;
+  min-height: 116px;
+  background: linear-gradient(180deg, transparent 0%, rgba(18, 35, 41, 0.18) 24%, rgba(14, 25, 30, 0.66) 100%);
+}
+
+#game-container.dungeon-first-mode #controls-panel.combat-mode {
+  height: auto;
+  min-height: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(52, 25, 29, 0.2) 24%, rgba(23, 19, 23, 0.68) 100%);
+}
+
+#game-container.dungeon-first-mode #controls-panel.submenu-mode,
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode {
+  height: auto;
+  min-height: 0;
+  max-height: min(62svh, 520px);
+  background: linear-gradient(180deg, transparent 0%, rgba(8, 14, 18, 0.2) 16%, rgba(8, 14, 18, 0.78) 100%);
+}
+
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode {
+  max-height: min(32svh, 260px);
+}
+
+/* Canvas target selection remains a first-class keyboard/touch surface while
+   the contextual message and overlay chrome sit above the world. Only the
+   actual decision buttons capture pointer input. */
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode > #combat-overlay {
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode {
+  pointer-events: none !important;
+}
+
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode > #combat-overlay button {
+  pointer-events: auto !important;
+}
+
+#game-container.dungeon-first-mode #explore-controls.active {
+  gap: var(--sp-sm);
+}
+
+#game-container.dungeon-first-mode #explore-controls .dpad .btn {
+  border-color: color-mix(in srgb, var(--border-strong) 62%, transparent);
+  color: var(--text-secondary);
+  background: rgba(8, 14, 18, 0.26);
+  box-shadow: none;
+}
+
+#game-container.dungeon-first-mode #explore-controls #btn-move-forward {
+  border-color: color-mix(in srgb, var(--neon-cyan) 86%, transparent);
+  color: var(--neon-cyan);
+  background: linear-gradient(180deg, rgba(42, 72, 74, 0.76), rgba(18, 38, 42, 0.62));
+  box-shadow: inset 0 1px 0 rgba(155, 215, 210, 0.14), 0 0 8px rgba(155, 215, 210, 0.1);
+}
+
+#game-container.dungeon-first-mode #explore-controls #btn-search {
+  border-color: color-mix(in srgb, var(--neon-amber) 70%, transparent);
+  color: var(--neon-amber);
+  background: rgba(57, 47, 31, 0.48);
+  box-shadow: none;
+}
+
+#game-container.dungeon-first-mode #explore-controls .action-grid {
+  gap: var(--sp-xs);
+}
+
+#game-container.dungeon-first-mode #explore-controls .action-grid .btn-action {
+  border-color: color-mix(in srgb, var(--border-strong) 58%, transparent);
+  color: var(--text-secondary);
+  background: rgba(8, 14, 18, 0.24);
+  box-shadow: none;
+  font-size: var(--fs-sm);
+}
+
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode > #combat-overlay {
+  background: linear-gradient(180deg, transparent, rgba(12, 12, 14, 0.72));
+  backdrop-filter: none;
+}
+
+#game-container.dungeon-first-mode #character-panel {
+  position: absolute;
+  right: 12px;
+  bottom: var(--safe-area-bottom);
+  left: 12px;
+  z-index: 9;
+  min-height: 0;
+  padding: 4px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(0deg, rgba(8, 14, 18, 0.56), transparent);
+  box-shadow: none;
+}
+
+#game-container.dungeon-first-mode #character-panel .character-card {
+  border-color: color-mix(in srgb, var(--floor-border, var(--hud-frame)) 34%, transparent);
+  background: linear-gradient(105deg, rgba(25, 39, 47, 0.62), rgba(16, 26, 33, 0.3));
+  box-shadow: none;
+}
+
+#game-container.dungeon-first-mode #submenu-title {
+  border-bottom-color: color-mix(in srgb, var(--floor-border, var(--neon-amber)) 28%, transparent);
+  background: linear-gradient(90deg, rgba(8, 14, 18, 0.42), transparent 82%);
+}
+
+#game-container.dungeon-first-mode #submenu-options .btn,
+#game-container.dungeon-first-mode .milestone-portal-choice-card,
+#game-container.dungeon-first-mode .chest-info-panel {
+  background: rgba(8, 14, 18, 0.48);
+  box-shadow: none;
+}
+
+#game-container.dungeon-first-mode .milestone-portal-choice-card {
+  border-color: color-mix(in srgb, var(--floor-border, var(--border-color)) 42%, transparent);
+}
+
+#game-container.dungeon-first-mode .milestone-portal-choice {
+  background: rgba(21, 31, 39, 0.58);
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #log-panel {
+  bottom: calc(var(--safe-area-bottom) + 274px);
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state="decision"] #log-panel {
+  top: calc(var(--safe-area-top) + 120px);
+  bottom: auto;
+  max-height: 48px;
+}
+
+@media (max-height: 600px) {
+  #game-container.dungeon-first-mode #log-panel {
+    bottom: calc(var(--safe-area-bottom) + 226px);
+  }
+
+  #game-container.dungeon-first-mode #controls-panel {
+    bottom: calc(var(--safe-area-bottom) + 70px);
+  }
+
+  #game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #log-panel {
+    bottom: calc(var(--safe-area-bottom) + 244px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #game-container.dungeon-first-mode #game-header,
+  #game-container.dungeon-first-mode #goal-banner,
+  #game-container.dungeon-first-mode #log-panel,
+  #game-container.dungeon-first-mode #controls-panel,
+  #game-container.dungeon-first-mode #character-panel {
+    backdrop-filter: none;
+  }
+}
