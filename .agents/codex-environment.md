@@ -92,12 +92,15 @@ When the user explicitly requests independent review, the owning Issue session
 coordinates it and remains responsible for the final evidence. For one
 immutable `BASE_SHA` / `HEAD_SHA` and substantially the same review scope, keep
 at most one active reviewer. Do not launch another full reviewer merely because
-the current reviewer is slow or a bounded wait timed out. Replace that reviewer
-only after it is confirmed failed, cancelled, or intentionally abandoned.
+the current reviewer is slow or a bounded wait timed out. A replacement
+review-purpose reviewer requires an explicit user request, and may start only
+after the current reviewer is confirmed failed, cancelled, or intentionally
+abandoned.
 
-A reviewer may delegate a bounded, materially distinct sub-review when
-specialization, parallel read-heavy analysis, or independent evidence improves
-the review. Give that sub-review a specific scope and completion condition.
+Do not autonomously delegate a sub-review or create a review-purpose subagent
+or separate session. Permit a bounded, materially distinct sub-review only
+when the user explicitly requests that sub-review execution. Give that
+sub-review a specific scope and completion condition.
 The sub-review returns findings to its parent reviewer; it must not independently
 restart the full merge-gate workflow or spawn another full reviewer for the same
 immutable change set and substantially the same scope.

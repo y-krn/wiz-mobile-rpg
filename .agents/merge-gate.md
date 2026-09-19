@@ -1,6 +1,6 @@
 # Merge gate
 
-The merge gate has two separate responsibilities:
+The merge gate has three distinct responsibilities:
 
 - **GitHub protections** are objective repository controls. Keep pull requests
   required, required status checks enabled, the branch up to date with its
