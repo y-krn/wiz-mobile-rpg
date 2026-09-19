@@ -193,6 +193,7 @@ assert.ok(!JSON.stringify(result).includes("encounterIdentityLog"));
 const arcana = await runMeasurement({ runs: 1, seed: 1277, mode: ARCANA_WEAPON_MODE });
 assert.deepEqual(arcana.configuration.arms, ["C", "W", "R"]);
 assert.deepEqual(arcana.configuration.startingKits, ["arcana"]);
+assert.match(arcana.configuration.comparisonSemantics, /^Cross-arm C\/W\/R treatment comparisons/);
 assert.equal(arcana.determinism.pass, true);
 assert.equal(arcana.observationInvariance.pass, true);
 assert.deepEqual(
@@ -209,6 +210,7 @@ assert.ok(arcana.arms.W.overview.buildCheckpoints[2].nonWeaponSwapCount.total > 
 assert.ok(arcana.arms.R.overview.buildCheckpoints[2].nonWeaponSwapCount.total > 0);
 assert.equal(arcana.scoringAudit.wand.weaponAtk, 1.5);
 assert.equal(arcana.scoringAudit.rapier.weaponAtk, 12);
+assert.match(arcana.scoringAudit.source, /^canonical simulator /);
 assert.deepEqual(arcana.scoringAudit.structuralDelta, {
   atk: 10.5,
   maxMP: -2,

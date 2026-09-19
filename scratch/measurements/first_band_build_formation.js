@@ -1159,7 +1159,9 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       candidateSamplesPerArm: CANDIDATE_SAMPLE_LIMIT,
       rawEncounterIdentities: "omitted"
     },
-    comparisonSemantics: "Only within-arm treatment deltas are decision comparisons; no post-divergence same-seed path/encounter/loot/trap parity claim",
+    comparisonSemantics: mode === ARCANA_WEAPON_MODE
+      ? "Cross-arm C/W/R treatment comparisons use matched initial conditions; no post-divergence same-seed path/encounter/loot/trap parity claim"
+      : "Only within-arm treatment deltas are decision comparisons; no post-divergence same-seed path/encounter/loot/trap parity claim",
     armSemantics: mode === ARCANA_WEAPON_MODE
       ? {
           C: "Arcana Standard Preparation WAND + HALITO; canonical adaptive; weapon swappable",

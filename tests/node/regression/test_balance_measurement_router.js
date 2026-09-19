@@ -28,10 +28,11 @@ assert.deepEqual(MEASUREMENT_IDS, [
   "survival-policy",
   "preparation-power-factorial",
   "first-band-build-formation",
+  "first-band-arcana-weapon-diagnostic",
   "first-band-transition-recovery",
   "first-band-levelup-recovery"
 ]);
-assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 17);
+assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, 18);
 assert.deepEqual(MEASUREMENT_REGISTRY.standard.allowedRunTypes, [
   "baseline-candidate", "diagnostic", "temporary"
 ]);
@@ -52,6 +53,7 @@ for (const measurement of [
   "survival-policy",
   "preparation-power-factorial",
   "first-band-build-formation",
+  "first-band-arcana-weapon-diagnostic",
   "first-band-transition-recovery",
   "first-band-levelup-recovery"
 ]) {
@@ -91,6 +93,18 @@ assert.deepEqual(
   { runs: firstBand.runs, seed: firstBand.seed, runType: firstBand.runType },
   { runs: 1000, seed: 1277, runType: "diagnostic" }
 );
+const arcanaWeapon = resolveMeasurementOptions({ measurement: "first-band-arcana-weapon-diagnostic", purpose: "test" });
+assert.deepEqual(
+  { runs: arcanaWeapon.runs, seed: arcanaWeapon.seed, runType: arcanaWeapon.runType },
+  { runs: 500, seed: 1277, runType: "diagnostic" }
+);
+const arcanaWeaponInvocation = resolveRunnerInvocation({
+  measurement: "first-band-arcana-weapon-diagnostic",
+  purpose: "smoke"
+}, "/tmp/router-test");
+assert.equal(arcanaWeaponInvocation.measurement, "first-band-arcana-weapon-diagnostic");
+assert.ok(arcanaWeaponInvocation.args.includes("--mode"));
+assert.ok(arcanaWeaponInvocation.args.includes("arcana-weapon-diagnostic"));
 const survivalDecomposition = resolveMeasurementOptions({
   measurement: "b3plus-survival-decomposition",
   purpose: "test"
@@ -176,7 +190,7 @@ assert.equal(
   "balance-measurement-early-run-attrition-123-attempt"
 );
 
-for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "first-band-build-formation", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
+for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "first-band-build-formation", "first-band-arcana-weapon-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
   const invocation = resolveRunnerInvocation({ measurement, purpose: "smoke" }, "/tmp/router-test");
   assert.equal(invocation.measurement, measurement);
   assert.match(invocation.runner, /scratch\/measurements\//);

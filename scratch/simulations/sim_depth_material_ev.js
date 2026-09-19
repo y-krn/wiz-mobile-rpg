@@ -10334,7 +10334,7 @@ export function getArcanaWeaponScoreAudit() {
   const wandSnapshot = snapshot(wand);
   const rapierSnapshot = snapshot(rapier);
   return {
-    source: "production getBaseEquipmentScore/getEquipmentScore + Arcana item/magic data",
+    source: "canonical simulator getBaseEquipmentScore/getEquipmentScore + Arcana item/magic data",
     wand: wandSnapshot,
     rapier: rapierSnapshot,
     structuralDelta: {

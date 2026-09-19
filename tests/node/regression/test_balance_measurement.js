@@ -114,6 +114,7 @@ assert.deepEqual(
 
 const workflow = fs.readFileSync(path.resolve(".github/workflows/balance-measurement.yml"), "utf8");
 assert.match(workflow, /measurement:\n[\s\S]*- build-progression-audit/);
+assert.match(workflow, /- first-band-arcana-weapon-diagnostic/);
 assert.match(workflow, /measure-standard:\n\s+if: inputs\.measurement == 'standard'/);
 assert.match(workflow, /measure-other:\n\s+if: inputs\.measurement != 'standard'/);
 assert.match(workflow, /measure-standard:\n[\s\S]*timeout-minutes: 20/);
@@ -125,11 +126,11 @@ assert.match(workflow, /merge-standard:[\s\S]*merge_balance_measurement\.js/);
 assert.match(workflow, /merge-standard:[\s\S]*name: Upload final CI evidence artifact/);
 assert.match(workflow, /if: always\(\)/);
 assert.match(workflow, /retention-days: 14/);
-assert.match(workflow, /contains\(fromJSON\('\["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation", "first-band-transition-recovery", "first-band-levelup-recovery"\]'\), inputs\.measurement\) && 45 \|\| 20/);
-assert.match(workflow, /contains\(fromJSON\('\["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation", "first-band-transition-recovery", "first-band-levelup-recovery"\]'\), inputs\.measurement\) && 30 \|\| 15/);
+assert.match(workflow, /contains\(fromJSON\('\["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation", "first-band-arcana-weapon-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"\]'\), inputs\.measurement\) && 45 \|\| 20/);
+assert.match(workflow, /contains\(fromJSON\('\["build-progression-audit", "build-progression-pareto-safe", "preparation-power-factorial", "first-band-build-formation", "first-band-arcana-weapon-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"\]'\), inputs\.measurement\) && 30 \|\| 15/);
 assert.match(workflow, /--job-timeout-minutes/);
 assert.match(workflow, /--step-timeout-minutes/);
-assert.match(workflow, /N=1000 diagnostic; first-band build measurements include four kits/);
+assert.match(workflow, /Arcana weapon uses three arms; first-band build measurements include four kits/);
 assert.doesNotMatch(
   workflow.slice(workflow.indexOf("  measure-standard:"), workflow.indexOf("  merge-standard:")),
   /--include-raw/
