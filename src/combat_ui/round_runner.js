@@ -5,6 +5,7 @@ import { runCombatRoundCalculation } from "../combat_logic.js";
 import { combatSelection } from "./combat_state.js";
 import { playBattleLogs } from "./battle_log_player.js";
 import { trackCombatDecisionCommit, trackCombatEnd } from "../telemetry.js";
+import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 
 // balance-impact: none — combat round-entry and party state boundary only; resolution rules unchanged
 function resolvePendingOutcome(logQueue) {
@@ -38,8 +39,10 @@ export function resolveCombatRound() {
     backBtn.style.display = "none";
   }
   
-  const executedActions = combatSelection.actions.map(action => ({ ...action }));
-  const { logQueue, state: nextState } = runCombatRoundCalculation(state, combatSelection);
+  const canonicalActions = normalizeCombatActions(combatSelection.actions);
+  const canonicalSelection = { ...combatSelection, actions: canonicalActions };
+  const executedActions = canonicalActions.map(action => ({ ...action }));
+  const { logQueue, state: nextState } = runCombatRoundCalculation(state, canonicalSelection);
   
   // Apply state mutations calculated in pure combat_logic
   state.party = nextState.party;
