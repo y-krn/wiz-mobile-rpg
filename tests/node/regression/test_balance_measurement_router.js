@@ -324,6 +324,30 @@ assert.throws(
   () => getMeasurementDefinition("unknown-measurement"),
   /unknown measurement ID/
 );
+assert.equal(
+  getMeasurementDefinition("  first-band-b5-wall-diagnostic  ").id,
+  "first-band-b5-wall-diagnostic"
+);
+const trimmedOptions = resolveMeasurementOptions({
+  measurement: "  first-band-b5-wall-diagnostic  ",
+  ref: "  refs/heads/main  ",
+  purpose: "  trimmed purpose  ",
+  run_type: " diagnostic "
+});
+assert.deepEqual(
+  {
+    measurement: trimmedOptions.measurement,
+    ref: trimmedOptions.ref,
+    purpose: trimmedOptions.purpose,
+    runType: trimmedOptions.runType
+  },
+  {
+    measurement: "first-band-b5-wall-diagnostic",
+    ref: "refs/heads/main",
+    purpose: "trimmed purpose",
+    runType: "diagnostic"
+  }
+);
 assert.throws(
   () => resolveMeasurementOptions({ measurement: "standard", purpose: "test", runs: 499 }),
   /runs must be an integer >= 500/

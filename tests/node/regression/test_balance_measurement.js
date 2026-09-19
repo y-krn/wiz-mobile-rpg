@@ -14,6 +14,7 @@ import {
 
 import fs from "node:fs";
 import path from "node:path";
+import YAML from "yaml";
 import { MEASUREMENT_IDS } from "../../../scratch/measurements/run_balance_measurement.js";
 
 const defaults = resolveBalanceMeasurementConfig({}, {});
@@ -116,11 +117,24 @@ assert.deepEqual(
 const workflow = fs.readFileSync(path.resolve(".github/workflows/balance-measurement.yml"), "utf8");
 const workflowFiles = fs.readdirSync(path.resolve(".github/workflows")).filter(name => /\.ya?ml$/i.test(name)).sort();
 assert.deepEqual(workflowFiles, ["balance-measurement.yml", "test.yml"]);
-const measurementInput = workflow.slice(workflow.indexOf("      measurement:"), workflow.indexOf("      runs:"));
-assert.match(measurementInput, /description: "Measurement to run"\n\s+required: true\n\s+default: "standard"\n\s+type: string/);
-assert.doesNotMatch(measurementInput, /options:/);
-for (const measurementId of MEASUREMENT_IDS.filter(id => id !== "standard")) {
-  assert.doesNotMatch(workflow, new RegExp(`\\b${measurementId.replaceAll("-", "\\-")}\\b`));
+const workflowDocument = YAML.parse(workflow);
+const workflowInputs = workflowDocument.on.workflow_dispatch.inputs;
+assert.deepEqual(Object.keys(workflowInputs), ["measurement", "runs", "seed", "purpose", "debug_raw"]);
+assert.deepEqual(workflowInputs.measurement.options, MEASUREMENT_IDS);
+assert.equal(workflowInputs.measurement.type, "choice");
+assert.equal(workflowInputs.measurement.default, "standard");
+assert.equal(workflowInputs.measurement.required, true);
+for (const input of ["runs", "seed", "purpose", "debug_raw"]) assert.equal(workflowInputs[input].required, false);
+assert.equal(workflowInputs.debug_raw.type, "boolean");
+assert.equal(workflowInputs.debug_raw.default, false);
+assert.match(workflow, /MEASUREMENT_REF: .*github\.sha/);
+assert.match(workflow, /MEASUREMENT_PURPOSE: .*manual workflow dispatch: \{0\}/);
+assert.equal((workflow.match(/ref: \$\{\{ github\.sha \}\}/g) || []).length, 3);
+for (const obsoleteInput of [
+  "ref", "run_type", "starting_kit", "policy", "flee_hp_threshold", "selection_runs",
+  "selection_seed", "fixed_runs", "fixed_seed", "policies"
+]) {
+  assert.equal(workflowInputs[obsoleteInput], undefined, `${obsoleteInput} must not be a dispatch input`);
 }
 assert.match(workflow, /measure-standard:\n\s+if: inputs\.measurement == 'standard'/);
 assert.match(workflow, /measure-other:\n\s+if: inputs\.measurement != 'standard'/);
@@ -150,11 +164,12 @@ assert.match(workflow, /measurement merge-input artifact is temporary and final-
 const nonStandardSection = workflow.slice(workflow.indexOf("  measure-other:"));
 assert.doesNotMatch(nonStandardSection, /name: Run selected balance measurement[\s\S]*?timeout-minutes: 15\n/);
 assert.match(nonStandardSection, /node scratch\/measurements\/run_balance_measurement\.js[\s\S]*tee/);
+assert.match(nonStandardSection, /if \[ -n "\$MEASUREMENT_RUNS" \]/);
+assert.match(nonStandardSection, /if \[ -n "\$MEASUREMENT_SEED" \]/);
+assert.doesNotMatch(nonStandardSection, /--run_type|--starting_kit|--policy|--flee_hp_threshold|--selection_runs|--selection_seed|--fixed_runs|--fixed_seed|--policies/);
 assert.match(nonStandardSection, /name: Publish durable run summary\n\s+if: always\(\)/);
 for (const commonEnv of [
-  "MEASUREMENT_REF: ${{ inputs.ref }}",
-  "MEASUREMENT_PURPOSE: ${{ inputs.purpose }}",
-  "MEASUREMENT_RUN_TYPE: ${{ inputs.run_type }}",
+  "MEASUREMENT_REF: ${{ github.sha }}",
   "MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}",
   "MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
   "MEASUREMENT_REPOSITORY: ${{ github.repository }}",
@@ -167,6 +182,8 @@ assert.equal((workflow.match(/uses: \.\/\.github\/actions\/setup-node-deps/g) ||
 assert.equal((workflow.match(/uses: actions\/setup-node@v4/g) || []).length, 3);
 assert.equal((workflow.match(/node-version: 20/g) || []).length, 3);
 assert.equal((workflow.match(/run: npm ci/g) || []).length, 3);
+assert.equal((workflow.match(/config\.purpose = process\.env\.MEASUREMENT_PURPOSE/g) || []).length, 3);
+assert.equal((workflow.match(/EVIDENCE_CONFIG="\$\(node -e '/g) || []).length, 3);
 
 const testWorkflow = fs.readFileSync(path.resolve(".github/workflows/test.yml"), "utf8");
 assert.match(testWorkflow, /pull_request:/);

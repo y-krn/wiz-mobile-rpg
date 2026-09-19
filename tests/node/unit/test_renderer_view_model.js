@@ -38,9 +38,34 @@ assert.deepEqual(
 );
 assert.equal(input.sceneVisibility.showCombat, true, "combat scene is projected once");
 assert.equal(input.view.hasMap, true, "valid map is accepted by the screen boundary");
+assert.equal(Object.isFrozen(input), true, "renderer input is frozen");
+assert.equal(Object.isFrozen(input.sceneVisibility), true, "scene visibility is frozen");
+assert.equal(Object.isFrozen(input.combatTargetSelection), true, "combat target selection is frozen");
+assert.equal(Object.isFrozen(input.dangerCue), true, "danger cue is frozen");
+assert.equal(input.map, stateLike.map, "map keeps the state-owned reference");
+assert.equal(input.party, stateLike.party, "party keeps the state-owned reference");
 assert.equal(input.combatMonsters, stateLike.combatState.monsters, "combat data is passed without a render-loop copy");
+assert.equal(input.roamingMonsters, stateLike.roamingMonsters, "roaming data keeps the state-owned reference");
+assert.equal(input.visitedMap, stateLike.visitedMap, "visited map keeps the state-owned reference");
 assert.deepEqual(input.mapFragments, ["1,1"], "floor-specific map fragments are projected");
+assert.equal(input.mapFragments, stateLike.dungeonMemory.mapFragments[2], "map fragments keep the state-owned reference");
 assert.deepEqual(input.dangerCue, { active: false, source: "none" }, "danger presentation state is projected as a safe cue");
+
+const visibilityCases = [
+  ["town", null, { showTownBackground: true, showCombat: false, showChest: false, showEventScene: false, showItemMenu: false }],
+  ["explore", null, { showTownBackground: false, showCombat: false, showChest: false, showEventScene: false, showItemMenu: false }],
+  ["chest", null, { showTownBackground: false, showCombat: false, showChest: true, showEventScene: false, showItemMenu: false }],
+  ["trap_encounter", null, { showTownBackground: false, showCombat: false, showChest: false, showEventScene: true, showItemMenu: false }],
+  ["submenu", { type: "event_spring", prevGameState: "explore" }, { showTownBackground: false, showCombat: false, showChest: false, showEventScene: true, showItemMenu: false }],
+  ["submenu", { type: "item_inventory", prevGameState: "explore" }, { showTownBackground: false, showCombat: false, showChest: false, showEventScene: false, showItemMenu: true }]
+];
+for (const [gameState, menu, expected] of visibilityCases) {
+  assert.deepEqual(
+    getRendererInput({ ...stateLike, gameState }, menu).sceneVisibility,
+    expected,
+    `${gameState} scene visibility remains canonical`
+  );
+}
 
 const mapDangerInput = getRendererInput({
   ...stateLike,
@@ -78,5 +103,18 @@ const invalidMapInput = getRendererInput({
 assert.equal(invalidMapInput.view.hasMap, false, "partial maps fail closed at the boundary");
 assert.equal(invalidMapInput.map, null, "invalid maps are not exposed to drawing code");
 assert.equal(invalidMapInput.sceneVisibility.showTownBackground, true, "invalid maps use the safe scene");
+
+const malformedInput = getRendererInput({
+  gameState: "not-a-game-state",
+  map: "not-a-map",
+  party: { not: "an-array" },
+  combatState: { monsters: "not-an-array" },
+  dungeonMemory: null,
+  roamingMonsters: null
+}, null);
+assert.equal(malformedInput.view.gameState, "explore", "malformed raw state is normalized at the view boundary");
+assert.equal(malformedInput.map, null, "malformed raw map fails closed");
+assert.deepEqual(malformedInput.combatMonsters, [], "malformed raw combat state fails closed");
+assert.equal(isRendererInput({ kind: "renderer-input" }), true, "marker check remains a lightweight boolean check");
 
 console.log("RENDERER VIEW MODEL TEST PASSED");
