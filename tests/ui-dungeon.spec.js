@@ -1119,7 +1119,7 @@ for (const vp of VIEWPORTS) {
       const { menuContext, menuHistory, goBackSubmenu } = await import('/src/navigation.js');
       const { combatCallbacks, combatSelection } = await import('/src/combat_ui/combat_state.js');
       const { selectCombatAction } = await import('/src/combat.js');
-      const { getScreenViewState } = await import('/src/state/view_state.js');
+        const { getScreenViewState } = await import('/src/state/view_state.js');
 
       const reset = (spellKeys = ['HALITO']) => {
         const actor = createStartingKitCharacter('devotion');
@@ -1438,7 +1438,7 @@ for (const vp of VIEWPORTS) {
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
-      const { getScreenViewState } = await import('/src/state/view_state.js');
+        const { getScreenViewState } = await import('/src/state/view_state.js');
       const { dungeonRenderer } = await import('/src/renderer.js');
       const { updateViewportHUD } = await import('/src/ui/viewport_hud.js');
 

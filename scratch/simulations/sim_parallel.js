@@ -2,6 +2,16 @@
 import { availableParallelism } from "node:os";
 import { MessageChannel, Worker } from "node:worker_threads";
 
+const TSX_CLI_ENTRYPOINT = /(?:[\\/]tsx[\\/]dist[\\/]cli\.mjs|[\\/]\.bin[\\/]tsx)$/;
+const TSX_LOADER_ENTRYPOINT = /(?:[\\/]tsx[\\/]dist[\\/](?:loader\.mjs|esm[\\/]index\.mjs)|^tsx[\\/]esm$)/;
+const TSX_WORKER_LOADER = new URL("../../scripts/tsx_worker_preload.js", import.meta.url);
+const USE_TSX_RUNTIME = process.env.TSX_MODULE_RUNNER === "1" ||
+  process.argv.some(argument => TSX_CLI_ENTRYPOINT.test(argument)) ||
+  process.execArgv.some(argument => TSX_LOADER_ENTRYPOINT.test(argument));
+const WORKER_RUNTIME_OPTIONS = USE_TSX_RUNTIME
+  ? { execArgv: ["--import", TSX_WORKER_LOADER.href] }
+  : {};
+
 const MAX_SIM_PARALLEL = Math.max(1, availableParallelism());
 const CI_SIM_PARALLEL = 4;
 const IS_CI = ["1", "true"].includes(
@@ -32,6 +42,7 @@ export function resolveSimParallelism(taskCount) {
 
 function createWorker(moduleUrl, exportName, context) {
   return new Worker(new URL("./sim_parallel_worker.js", import.meta.url), {
+    ...WORKER_RUNTIME_OPTIONS,
     workerData: { moduleUrl, exportName, context }
   });
 }
@@ -120,6 +131,7 @@ function createMapBroker(generatorExportName) {
 function createWorkerWithMapBroker(moduleUrl, exportName, context, mapBroker) {
   const mapState = mapBroker.createWorkerState();
   const worker = new Worker(new URL("./sim_parallel_worker.js", import.meta.url), {
+    ...WORKER_RUNTIME_OPTIONS,
     workerData: {
       moduleUrl,
       exportName,

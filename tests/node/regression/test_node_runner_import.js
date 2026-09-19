@@ -8,7 +8,7 @@ const probe = [
   "await import('./src/state.js');",
   "await import('./scratch/simulations/sim_depth_material_ev.js');",
 ].join("\n");
-const result = spawnSync(process.execPath, ["--input-type=module", "-e", probe], {
+const result = spawnSync(process.execPath, ["--import", "tsx/esm", "--input-type=module", "-e", probe], {
   cwd: process.cwd(),
   env: { ...process.env, SIM_SKIP_PROVENANCE: "1" },
   encoding: "utf8",

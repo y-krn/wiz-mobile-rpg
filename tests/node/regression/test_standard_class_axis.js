@@ -38,7 +38,7 @@ const probe = String.raw`
     }
   }
 `;
-const result = spawnSync(process.execPath, ["--input-type=module", "-e", probe], {
+const result = spawnSync(process.execPath, ["--import", "tsx/esm", "--input-type=module", "-e", probe], {
   cwd: process.cwd(),
   env: {
     ...process.env,

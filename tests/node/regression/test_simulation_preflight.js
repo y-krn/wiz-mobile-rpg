@@ -97,6 +97,7 @@ try {
   }
 
   const nodeImport = spawnSync(process.execPath, [
+    "--import", "tsx/esm",
     "--input-type=module",
     "-e",
     "await import('./src/state.js'); await import('./src/sentry.js'); console.log('node-import-ok');"

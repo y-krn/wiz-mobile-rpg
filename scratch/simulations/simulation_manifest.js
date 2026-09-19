@@ -250,8 +250,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
   balanceImpactNone: Object.freeze([
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
     "src/combat_ui/spell_summary.js", "src/combat_ui/combat_overlay.js", "src/combat_log_semantics.js", "src/spell_menu.js",
-    "src/combat_ui/action_selection.js", "src/combat_ui/battle_log_player.js", "src/combat_ui/combat_log_presentation.js", "src/combat_ui/round_runner.js", "src/combat_ui/target_menu.js",
-    "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**", "src/renderer.js", "src/rules/map_movement.js", "src/state.js", "src/state/view_state.js", "src/state/renderer_view.js",
+    "src/combat_ui/action_selection.js", "src/combat_ui/battle_log_player.js", "src/combat_ui/combat_log_presentation.js", "src/combat_ui/combat_state.js", "src/combat_ui/round_runner.js", "src/combat_ui/target_menu.js",
+    "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**", "src/renderer.js", "src/rules/map_movement.js", "src/state.js", "src/state/view_state.js", "src/state/view_state.ts", "src/state/renderer_view.js",
     "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js", "src/state/save_migrations.js", "src/state/save_payload.js",
     "src/error_context.js", "src/controls_guard.js", "src/state/codex_state.js",
     "src/state/initial_state.js", "src/state/records_state.js", "src/state/state_core.js", "src/result.js", "src/rules/renderer_topology.js", "src/renderer_selection.js",
