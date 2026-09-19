@@ -1,14 +1,16 @@
 // sim-scope: infra
 import { availableParallelism } from "node:os";
+import { createRequire } from "node:module";
 import { MessageChannel, Worker } from "node:worker_threads";
 
 const TSX_CLI_ENTRYPOINT = /(?:[\\/]tsx[\\/]dist[\\/]cli\.mjs|[\\/]\.bin[\\/]tsx)$/;
 const TSX_LOADER_ENTRYPOINT = /(?:[\\/]tsx[\\/]dist[\\/]loader\.mjs|^tsx[\\/]esm$)/;
+const TSX_WORKER_LOADER = createRequire(import.meta.url).resolve("tsx/esm");
 const USE_TSX_RUNTIME = process.env.TSX_MODULE_RUNNER === "1" ||
   process.argv.some(argument => TSX_CLI_ENTRYPOINT.test(argument)) ||
   process.execArgv.some(argument => TSX_LOADER_ENTRYPOINT.test(argument));
 const WORKER_RUNTIME_OPTIONS = USE_TSX_RUNTIME
-  ? { execArgv: ["--import", "tsx/esm"] }
+  ? { execArgv: ["--import", TSX_WORKER_LOADER] }
   : {};
 
 const MAX_SIM_PARALLEL = Math.max(1, availableParallelism());
