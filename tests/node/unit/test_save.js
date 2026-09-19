@@ -682,14 +682,25 @@ check("legacy equipment objects receive stable distinct identities across save/l
   );
 });
 
-check("floor transition applies provisional 15 percent solo heal", () => {
+check("floor transition applies 25 percent solo heal with cap and death guards", () => {
   state.party = [createStartingKitCharacter("vanguard")];
   state.party[0].hp = 10;
   state.logs = [];
   const healed = applyFloorTransitionHeal();
-  assert.equal(healed, 3);
-  assert.equal(state.party[0].hp, 13);
-  assert.match(state.logs.at(-1), /HPが3回復/);
+  assert.equal(healed, 5);
+  assert.equal(state.party[0].hp, 15);
+  assert.match(state.logs.at(-1), /HPが5回復/);
+
+  state.party[0].hp = 19;
+  assert.equal(applyFloorTransitionHeal(), 1);
+  assert.equal(state.party[0].hp, 20);
+
+  state.party[0].hp = 20;
+  assert.equal(applyFloorTransitionHeal(), 0);
+
+  state.party[0].hp = 0;
+  state.party[0].status = "dead";
+  assert.equal(applyFloorTransitionHeal(), 0);
 });
 
 check("下り階段サブメニュー中のセーブはexploreに畳まれる", () => {

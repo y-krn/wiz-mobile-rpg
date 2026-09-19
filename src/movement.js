@@ -396,7 +396,7 @@ export function applyFloorTransitionHeal() {
   const char = state.party[0];
   if (!char || char.hp <= 0 || char.status === "dead") return 0;
   const maxHp = getCharMaxHp(char);
-  const healed = Math.min(maxHp - char.hp, Math.max(1, Math.floor(maxHp * 0.15)));
+  const healed = Math.min(maxHp - char.hp, Math.max(1, Math.floor(maxHp * 0.25)));
   if (healed <= 0) return 0;
   char.hp += healed;
   addLog(`階層移動の小休止でHPが${healed}回復した。`);

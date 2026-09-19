@@ -95,6 +95,10 @@ assert.equal(extraObserved, true, "smoke must observe at least one extra level-u
 assert.equal(potionReplacementObserved, true, "smoke must show extra heal with no Potion use on a floor");
 
 assert.equal(result.arms.F0A.overview.recovery[1].percentageExtraLevelUpRecoveryHp.total, 0);
+assert.ok(
+  result.arms.F0A.overview.recovery[1].productionExtraLevelUpRecoveryHp.total > 0,
+  "production fixed +5 extra recovery must be observed by the simulator"
+);
 assert.equal(result.arms.F0A.overview.recovery[1].flatExtraLevelUpRecoveryHp.total, 0);
 assert.equal(result.arms.P20A.overview.recovery[1].flatExtraLevelUpRecoveryHp.total, 0);
 assert.equal(result.arms.H5A.overview.recovery[1].percentageExtraLevelUpRecoveryHp.total, 0);
@@ -126,8 +130,10 @@ const simulatorSource = fs.readFileSync("scratch/simulations/sim_depth_material_
 const levelingSource = fs.readFileSync("src/systems/leveling.js", "utf8");
 assert.doesNotMatch(simulatorSource, /checkCharLevelUp\s*\(/);
 assert.match(levelingSource, /UNIVERSAL_HP_GROWTH = 5/);
+assert.match(levelingSource, /UNIVERSAL_LEVEL_UP_EXTRA_HEAL = 5/);
 assert.match(levelingSource, /char\.maxHp \+= UNIVERSAL_HP_GROWTH/);
 assert.match(levelingSource, /char\.hp \+= \(newMaxHp - oldMaxHp\)/);
+assert.match(levelingSource, /Math\.min\(UNIVERSAL_LEVEL_UP_EXTRA_HEAL, newMaxHp - char\.hp\)/);
 assert.ok(
   simulatorSource.indexOf("applySimulationLevelUpRecovery(state, metrics, floor") <
     simulatorSource.indexOf("applyPostCombatRecovery(state, metrics)")
@@ -136,6 +142,7 @@ assert.match(simulatorSource, /parseOptionalChance\(scenario\.levelUpRecoveryRat
 assert.match(simulatorSource, /parseOptionalFlatHp\(scenario\.levelUpRecoveryFlatHp\)/);
 assert.match(simulatorSource, /levelUpRecoveryRate > 0 && levelUpRecoveryFlatHp > 0/);
 assert.doesNotMatch(simulatorSource, /extraLevelUpRecoveryActualHp/);
+assert.match(simulatorSource, /productionExtraLevelUpRecoveryHp/);
 
 const { getScenarioById, simulateRun } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 const rejectScenario = {
@@ -181,6 +188,7 @@ for (const token of [
   "H5A - P20A",
   "H5A - H5F",
   "natural HP",
+  "production fixed +5 extra HP",
   "percentage requested/actual",
   "flat requested/actual",
   "Potion used",

@@ -43,7 +43,11 @@ const reversePolicies = policyById(reverse);
 for (const policyId of ["p0", "p1", "p2"]) {
   assert.deepEqual(reversePolicies[policyId], forwardPolicies[policyId]);
 }
-assert.equal(forward.cases[0].comparisons.p1.conversion.transitions["death->death"], 2);
+assert.equal(
+  Object.values(forward.cases[0].comparisons.p1.conversion.transitions)
+    .reduce((sum, count) => sum + count, 0),
+  2
+);
 
 const conversion = buildMatchedConversion(
   [

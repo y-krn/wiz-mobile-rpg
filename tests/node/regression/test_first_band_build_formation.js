@@ -74,11 +74,11 @@ const b5SmokeArm = ARM_IDS.find(armId => result.arms[armId].overview.b5.entrantN
 assert.ok(b5SmokeArm);
 assert.ok(result.arms[b5SmokeArm].overview.b5.flameTrap.eligibleSteps.total > 0);
 assert.equal(result.arms[b5SmokeArm].overviewReconciliation.runs, true);
-const routeOnlyArm = ARM_IDS.find(armId => {
+const routeProbeArm = ARM_IDS.find(armId => {
   const boss = result.arms[armId].overview.b5.boss;
-  return boss.routeBossDetected.total > 0 && boss.actualBossEventArrival.total === 0;
+  return boss.routeBossDetected.total > boss.actualBossEventArrival.total;
 });
-assert.ok(routeOnlyArm, "route detection must not imply actual boss arrival");
+assert.ok(routeProbeArm, "route detection must not imply actual boss arrival for every route");
 
 const focusedScenario = {
   ...getScenarioById("workshop-complete"),

@@ -477,6 +477,7 @@ function compactFloor(
       healPotionRecoveryHp: finite(stage.healPotionRecoveryHp),
       floorTransitionRecoveryHp: finite(stage.floorTransitionRecoveryHp),
       naturalLevelGrowthHp: finite(stage.naturalLevelGrowthHp),
+      productionExtraLevelUpRecoveryHp: finite(stage.productionExtraLevelUpRecoveryHp),
       percentageExtraLevelUpRecoveryRequestedHp: finite(stage.percentageLevelUpRecoveryRequestedHp),
       percentageExtraLevelUpRecoveryHp: finite(stage.percentageLevelUpRecoveryActualHp),
       percentageExtraLevelUpRecoveryCappedAtFullCount: finite(stage.percentageLevelUpRecoveryCappedAtFullCount),
@@ -488,6 +489,7 @@ function compactFloor(
         stage.healing,
         stage.floorTransitionRecoveryHp,
         stage.naturalLevelGrowthHp,
+        stage.productionExtraLevelUpRecoveryHp,
         stage.percentageLevelUpRecoveryActualHp,
         stage.flatLevelUpRecoveryActualHp
       ].reduce((sum, value) => sum + (Number(value) || 0), 0),
