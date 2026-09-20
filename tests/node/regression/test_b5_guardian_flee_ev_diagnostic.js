@@ -28,6 +28,7 @@ for (const kitId of result.configuration.startingKits) {
 }
 
 const {
+  finalizeB5GuardianDecisionTrace,
   getScenarioById,
   recordB5GuardianFleeEvObservation,
   resetSimulationRandom,
@@ -159,5 +160,21 @@ assert.deepEqual(noOpeningTrace.actualAction, {
   itemKey: null,
   spellName: null
 });
+
+const selectedOpeningExecuted = finalizeB5GuardianDecisionTrace(
+  traceDecision({ roundNumber: 1, itemKey: "GUARD_POTION" }),
+  { actionObservation: { executed: true }, itemInventoryDelta: 1 }
+);
+assert.equal(selectedOpeningExecuted.fleeDeferredByOpening, true);
+assert.equal(selectedOpeningExecuted.executed, true);
+assert.deepEqual(selectedOpeningExecuted.executedAction, selectedOpeningExecuted.actualAction);
+
+const selectedOpeningPreempted = finalizeB5GuardianDecisionTrace(
+  traceDecision({ roundNumber: 1, itemKey: "GUARD_POTION" }),
+  { actionObservation: { executed: false }, itemInventoryDelta: 0 }
+);
+assert.equal(selectedOpeningPreempted.fleeDeferredByOpening, true);
+assert.equal(selectedOpeningPreempted.executed, false);
+assert.equal(selectedOpeningPreempted.executedAction, null);
 
 console.log("[PASS] B5 Guardian first-decision EV observation, invariance, and N=1");

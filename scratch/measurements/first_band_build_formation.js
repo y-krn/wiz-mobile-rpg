@@ -543,6 +543,7 @@ function normalizeGuardianFleeEv(result, kitId) {
       mp: observation.mp ? { ...observation.mp } : null,
       stock: { ...(observation.stock || {}) },
       actualAction: observation.actualAction ? { ...observation.actualAction } : null,
+      executedAction: observation.executedAction ? { ...observation.executedAction } : null,
       recovery: observation.recovery ? {
         ...observation.recovery,
         diosPayment: observation.recovery.diosPayment
@@ -583,20 +584,37 @@ function normalizeGuardianActionSequence(result) {
     : action?.type === "spell"
       ? `spell:${action.spellName || "unknown"}`
       : action?.type || "unknown";
+  const normalizeAction = action => action
+    ? {
+        type: action.type || null,
+        itemKey: action.itemKey || null,
+        spellName: action.spellName || null
+      }
+    : null;
+  const sequencePattern = (actions, result, fleeIndex) => result === "flee" && fleeIndex >= 0
+    ? actions.length ? actions.join(" -> ") + " -> run" : "run"
+    : result || "unknown";
   return (bossBattle?.attempts || []).map(attempt => {
     const attemptTrace = traceByAttempt[String(attempt.attempt)] || [];
     const actionSignatures = (attempt.actionSignatures || attemptTrace.map(item => item.actualAction))
-      .map(action => ({
-        type: action?.type || null,
-        itemKey: action?.itemKey || null,
-        spellName: action?.spellName || null
-      }));
-    const fleeIndex = attemptTrace.findIndex(item => item.actualAction?.type === "run");
-    const fleeTrace = fleeIndex >= 0 ? attemptTrace[fleeIndex] : null;
-    const actionsBeforeFlee = fleeIndex >= 0
-      ? actionSignatures.slice(0, fleeIndex).map(actionKey)
+      .map(normalizeAction);
+    const executedActionSignatures = (
+      attempt.executedActionSignatures || attemptTrace.map(item => item.executedAction)
+    ).map(normalizeAction);
+    const selectedFleeIndex = actionSignatures.findIndex(action => action?.type === "run");
+    const executedFleeIndex = executedActionSignatures.findIndex(action => action?.type === "run");
+    const selectedFleeTrace = selectedFleeIndex >= 0 ? attemptTrace[selectedFleeIndex] : null;
+    const executedFleeTrace = executedFleeIndex >= 0 ? attemptTrace[executedFleeIndex] : null;
+    const selectedActionsBeforeFlee = selectedFleeIndex >= 0
+      ? actionSignatures.slice(0, selectedFleeIndex).map(actionKey)
       : [];
-    const openingItemsBeforeFlee = actionsBeforeFlee
+    const executedActionsBeforeFlee = executedFleeIndex >= 0
+      ? executedActionSignatures.slice(0, executedFleeIndex).filter(Boolean).map(actionKey)
+      : [];
+    const selectedOpeningItemsBeforeFlee = selectedActionsBeforeFlee
+      .filter(action => ["item:GUARD_POTION", "item:STR_POTION", "item:HASTE_POTION"].includes(action))
+      .map(action => action.slice("item:".length));
+    const executedOpeningItemsBeforeFlee = executedActionsBeforeFlee
       .filter(action => ["item:GUARD_POTION", "item:STR_POTION", "item:HASTE_POTION"].includes(action))
       .map(action => action.slice("item:".length));
     const guardianDamageBeforeFlee = attempt.result === "flee" &&
@@ -609,15 +627,51 @@ function normalizeGuardianActionSequence(result) {
       rounds: finite(attempt.rounds),
       actionTypes: [...(attempt.actionTypes || [])],
       actionSignatures,
+      executedActionSignatures,
+      selectedFirstAction: actionSignatures[0] ? { ...actionSignatures[0] } : null,
+      executedFirstAction: executedActionSignatures.find(Boolean)
+        ? { ...executedActionSignatures.find(Boolean) }
+        : null,
       actualFirstAction: actionSignatures[0] ? { ...actionSignatures[0] } : null,
-      fleeDecisionIndex: fleeTrace ? finite(fleeTrace.playerDecisionIndex) : null,
-      fleeRound: fleeTrace ? finite(fleeTrace.round) : null,
-      actionsBeforeFlee,
-      actionsBeforeFleePattern: attempt.result === "flee"
-        ? actionsBeforeFlee.length ? actionsBeforeFlee.join(" -> ") + " -> run" : "run"
-        : attempt.result || "unknown",
-      openingItemsBeforeFlee,
-      openingItemsUsedBeforeFlee: [...openingItemsBeforeFlee],
+      selectedFleeDecisionIndex: selectedFleeTrace
+        ? finite(selectedFleeTrace.playerDecisionIndex)
+        : selectedFleeIndex >= 0 ? selectedFleeIndex + 1 : null,
+      executedFleeDecisionIndex: executedFleeTrace
+        ? finite(executedFleeTrace.playerDecisionIndex)
+        : executedFleeIndex >= 0 ? executedFleeIndex + 1 : null,
+      fleeDecisionIndex: executedFleeTrace
+        ? finite(executedFleeTrace.playerDecisionIndex)
+        : executedFleeIndex >= 0 ? executedFleeIndex + 1 : null,
+      selectedFleeRound: selectedFleeTrace
+        ? finite(selectedFleeTrace.round)
+        : selectedFleeIndex >= 0 ? selectedFleeIndex + 1 : null,
+      executedFleeRound: executedFleeTrace
+        ? finite(executedFleeTrace.round)
+        : executedFleeIndex >= 0 ? executedFleeIndex + 1 : null,
+      fleeRound: executedFleeTrace
+        ? finite(executedFleeTrace.round)
+        : executedFleeIndex >= 0 ? executedFleeIndex + 1 : null,
+      selectedActionsBeforeFlee,
+      executedActionsBeforeFlee,
+      actionsBeforeFlee: selectedActionsBeforeFlee,
+      selectedActionsBeforeFleePattern: sequencePattern(
+        selectedActionsBeforeFlee,
+        attempt.result,
+        selectedFleeIndex
+      ),
+      executedActionsBeforeFleePattern: sequencePattern(
+        executedActionsBeforeFlee,
+        attempt.result,
+        executedFleeIndex
+      ),
+      actionsBeforeFleePattern: sequencePattern(
+        selectedActionsBeforeFlee,
+        attempt.result,
+        selectedFleeIndex
+      ),
+      selectedOpeningItemsBeforeFlee,
+      openingItemsBeforeFlee: selectedOpeningItemsBeforeFlee,
+      openingItemsUsedBeforeFlee: executedOpeningItemsBeforeFlee,
       bossStartHp: finite(attempt.bossStartHp),
       bossHpAtFlee: finite(attempt.bossHpAtFlee),
       bossHpAtFleeRate: finite(attempt.bossHpAtFleeRate),
@@ -1329,14 +1383,42 @@ function summarizeGuardianFleeEv(entrants) {
       )
     },
     attemptsObserved: attempts.length,
-    actualFirstAction: countRateBy(
-      attempts.map(item => actionKey(item.actualFirstAction)),
+    selectedFirstAction: countRateBy(
+      attempts.map(item => actionKey(item.selectedFirstAction)),
       attempts.length
     ),
+    executedFirstAction: countRateBy(
+      attempts.map(item => actionKey(item.executedFirstAction)),
+      attempts.length
+    ),
+    actualFirstAction: countRateBy(
+      attempts.map(item => actionKey(item.selectedFirstAction)),
+      attempts.length
+    ),
+    selectedFleeDecisionIndex: distribution90(
+      fleeAttempts.map(item => Number(item.selectedFleeDecisionIndex))
+    ),
+    executedFleeDecisionIndex: distribution90(
+      fleeAttempts.map(item => Number(item.executedFleeDecisionIndex))
+    ),
     fleeDecisionIndex: distribution90(fleeAttempts.map(item => Number(item.fleeDecisionIndex))),
+    selectedFleeRound: distribution90(fleeAttempts.map(item => Number(item.selectedFleeRound))),
+    executedFleeRound: distribution90(fleeAttempts.map(item => Number(item.executedFleeRound))),
     fleeRound: distribution90(fleeAttempts.map(item => Number(item.fleeRound))),
+    selectedActionsBeforeFlee: countRateBy(
+      attempts.map(item => item.selectedActionsBeforeFleePattern),
+      attempts.length
+    ),
+    executedActionsBeforeFlee: countRateBy(
+      attempts.map(item => item.executedActionsBeforeFleePattern),
+      attempts.length
+    ),
     actionsBeforeFlee: countRateBy(
-      attempts.map(item => item.actionsBeforeFleePattern),
+      attempts.map(item => item.selectedActionsBeforeFleePattern),
+      attempts.length
+    ),
+    selectedOpeningItemUsage: countRateBy(
+      fleeAttempts.flatMap(item => item.selectedOpeningItemsBeforeFlee),
       attempts.length
     ),
     openingItemUsage: countRateBy(
@@ -2271,7 +2353,7 @@ export function buildSummary(report) {
     const crossTabLine = (label, aggregate) => `- ${label} cross-tab: ${JSON.stringify(aggregate.b5.guardianFleeEv.crossTabs)}`;
     const traceLine = (label, aggregate) => {
       const ev = aggregate.b5.guardianFleeEv;
-      return `- ${label} trace: attempts=${ev.attemptsObserved}; actualFirst=${JSON.stringify(ev.actualFirstAction)}; fleeIndex=${JSON.stringify(ev.fleeDecisionIndex)}; fleeRound=${JSON.stringify(ev.fleeRound)}; beforeFlee=${JSON.stringify(ev.actionsBeforeFlee)}; openingUsed=${JSON.stringify(ev.openingItemUsage)}; bossHp%=${JSON.stringify(ev.bossHpAtFleeRate)}; guardianDamage=${JSON.stringify(ev.guardianDamageBeforeFlee)}; playerHp%=${JSON.stringify(ev.playerHpAtFleeRate)}; rawByIndex=${JSON.stringify(ev.rawDecisionByDecisionIndex)}; fleeDeferredByOpening=${JSON.stringify(ev.fleeDeferredByOpening)}`;
+      return `- ${label} trace: attempts=${ev.attemptsObserved}; selectedFirst=${JSON.stringify(ev.selectedFirstAction)}; executedFirst=${JSON.stringify(ev.executedFirstAction)}; selectedFleeIndex=${JSON.stringify(ev.selectedFleeDecisionIndex)}; executedFleeIndex=${JSON.stringify(ev.executedFleeDecisionIndex)}; selectedFleeRound=${JSON.stringify(ev.selectedFleeRound)}; executedFleeRound=${JSON.stringify(ev.executedFleeRound)}; selectedBeforeFlee=${JSON.stringify(ev.selectedActionsBeforeFlee)}; executedBeforeFlee=${JSON.stringify(ev.executedActionsBeforeFlee)}; selectedOpening=${JSON.stringify(ev.selectedOpeningItemUsage)}; openingUsed=${JSON.stringify(ev.openingItemUsage)}; bossHp%=${JSON.stringify(ev.bossHpAtFleeRate)}; guardianDamage=${JSON.stringify(ev.guardianDamageBeforeFlee)}; playerHp%=${JSON.stringify(ev.playerHpAtFleeRate)}; rawByIndex=${JSON.stringify(ev.rawDecisionByDecisionIndex)}; fleeDeferredByOpening=${JSON.stringify(ev.fleeDeferredByOpening)}`;
     };
     const lines = [
       "# First Band B5 Guardian flee EV diagnostic",

@@ -6169,6 +6169,28 @@ function compactCombatAction(action) {
   };
 }
 
+export function finalizeB5GuardianDecisionTrace(
+  trace,
+  { actionObservation = null, itemInventoryDelta = null } = {}
+) {
+  const selectedAction = trace?.actualAction || null;
+  const observationExecuted = actionObservation?.executed === true;
+  const normalizedItemDelta = Number.isFinite(Number(itemInventoryDelta))
+    ? Number(itemInventoryDelta)
+    : null;
+  const executed = selectedAction?.type === "item"
+    ? normalizedItemDelta === null
+      ? observationExecuted
+      : normalizedItemDelta > 0
+    : observationExecuted;
+  if (!trace) return null;
+  trace.executed = executed;
+  trace.executionObservationExecuted = observationExecuted;
+  trace.itemInventoryDelta = normalizedItemDelta;
+  trace.executedAction = executed ? { ...selectedAction } : null;
+  return trace;
+}
+
 function createCombatPolicyProbeMetrics() {
   return {
     rounds: 0,
@@ -6554,6 +6576,10 @@ export function recordB5GuardianFleeEvObservation(
     eligibleOpeningItemKey,
     fleeDeferredByOpening: Boolean(fleeDeferredByOpening),
     actualAction: compactCombatAction(actualAction),
+    executed: null,
+    executionObservationExecuted: null,
+    itemInventoryDelta: null,
+    executedAction: null,
     hp: {
       current: character.hp,
       max: getCharMaxHp(character),
@@ -6606,6 +6632,7 @@ export function recordB5GuardianFleeEvObservation(
     state.combatState.b5GuardianFirstEvObserved = true;
     diagnostic.observations.push(trace);
   }
+  return trace;
 }
 
 function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = null) {
@@ -8231,6 +8258,7 @@ function runEncounter(
   let bossHpMinimum = boss?.hp ?? null;
   const actionTypes = [];
   const actionSignatures = [];
+  const executedActionSignatures = [];
   let encounterMinimumMp = encounterStartMp;
   const blockedRounds = [];
   const stage15Encounter = metrics?.stage15Diagnostics && encounterFloor <= STAGE15_MAX_FLOOR
@@ -8597,6 +8625,7 @@ function runEncounter(
       triggerChest,
       actionTypes,
       actionSignatures,
+      executedActionSignatures,
       bossStartHp,
       bossStartMaxHp,
       bossStartGuardBroken,
@@ -8624,8 +8653,9 @@ function runEncounter(
     const action = selectCombatAction(state, metrics);
     actionTypes.push(action.type);
     actionSignatures.push(compactCombatAction(action));
+    let selectedDecisionTrace = null;
     if (state.combatState.b5GuardianPendingDecision) {
-      recordB5GuardianFleeEvObservation(
+      selectedDecisionTrace = recordB5GuardianFleeEvObservation(
         state,
         metrics,
         state.combatState.b5GuardianPendingDecision,
@@ -9016,6 +9046,20 @@ function runEncounter(
     const playerActionObservation = (roundResult.actionObservations || []).find(observation =>
       observation.actor === "char" && observation.actionType === action.type
     ) || null;
+    const itemInventoryDelta = action.type === "item" && consumableCountBefore !== null
+      ? consumableCountBefore - state.inventory.filter(item => item === action.itemKey).length
+      : null;
+    if (selectedDecisionTrace) {
+      finalizeB5GuardianDecisionTrace(selectedDecisionTrace, {
+        actionObservation: playerActionObservation,
+        itemInventoryDelta
+      });
+    }
+    const playerActionExecuted = playerActionObservation?.executed === true ||
+      (action.type === "item" && itemInventoryDelta !== null && itemInventoryDelta > 0);
+    executedActionSignatures.push(
+      playerActionExecuted ? compactCombatAction(action) : null
+    );
     const enemyActionDetails = fullDiagnostics
       ? buildEnemyActionDetails(roundResult, roundNumber, character.name)
       : null;
@@ -14882,6 +14926,8 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
         stock: { ...observation.stock },
         hp: { ...observation.hp },
         mp: { ...observation.mp },
+        actualAction: { ...observation.actualAction },
+        executedAction: observation.executedAction ? { ...observation.executedAction } : null,
         recovery: observation.recovery ? {
           ...observation.recovery,
           diosPayment: observation.recovery.diosPayment
@@ -14909,6 +14955,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
         hp: { ...observation.hp },
         mp: { ...observation.mp },
         actualAction: { ...observation.actualAction },
+        executedAction: observation.executedAction ? { ...observation.executedAction } : null,
         recovery: observation.recovery ? {
           ...observation.recovery,
           diosPayment: observation.recovery.diosPayment
@@ -16379,6 +16426,9 @@ export function simulateRun({
               rounds: combatResult.rounds,
               actionTypes: [...(combatResult.actionTypes || [])],
               actionSignatures: (combatResult.actionSignatures || []).map(action => ({ ...action })),
+              executedActionSignatures: (combatResult.executedActionSignatures || []).map(action =>
+                action ? { ...action } : null
+              ),
               bossStartHp: combatResult.bossStartHp,
               bossStartMaxHp: combatResult.bossStartMaxHp,
               bossStartHpRate: combatResult.bossStartHp !== null && combatResult.bossStartMaxHp > 0
@@ -16451,6 +16501,9 @@ export function simulateRun({
               guardBreakCount: combatResult.bossGuardBreakCount,
               actionTypes: [...(combatResult.actionTypes || [])],
               actionSignatures: (combatResult.actionSignatures || []).map(action => ({ ...action })),
+              executedActionSignatures: (combatResult.executedActionSignatures || []).map(action =>
+                action ? { ...action } : null
+              ),
               bossStartGuardBroken: combatResult.bossStartGuardBroken,
               bossStartExposureTurns: combatResult.bossStartExposureTurns
             });
