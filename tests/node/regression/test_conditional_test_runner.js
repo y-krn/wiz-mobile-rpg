@@ -10,8 +10,8 @@ import {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
-assert.equal(PR_CONDITIONAL_MANIFEST.length, 29);
-assert.equal(new Set(PR_CONDITIONAL_MANIFEST.map(entry => entry.file)).size, 29);
+assert.equal(PR_CONDITIONAL_MANIFEST.length, 27);
+assert.equal(new Set(PR_CONDITIONAL_MANIFEST.map(entry => entry.file)).size, 27);
 assert.ok(PR_CONDITIONAL_MANIFEST.every(entry => entry.ownership === 'PR_CONDITIONAL'));
 assert.ok(PR_CONDITIONAL_MANIFEST.every(entry => entry.file.startsWith('tests/node/')));
 
@@ -56,7 +56,7 @@ const failedBase = resolveConditionalSelection({
   includeWorkingTree: false,
 });
 assert.ok(failedBase.resolverError);
-assert.equal(failedBase.selected.size, 29);
+assert.equal(failedBase.selected.size, 27);
 assert.equal(failedBase.results.length, 0);
 
 const stairTasks = createConditionalTasks({

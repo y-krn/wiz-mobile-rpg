@@ -19,10 +19,8 @@ const canonicalFiles = [
   'tests/node/unit/test_stairs_min_distance.js',
   'tests/node/unit/test_heal_priority_policy.js',
   'tests/node/unit/test_reachability_loop.js',
-  'tests/node/regression/test_bleeding_measurement_provenance.js',
   'tests/node/regression/test_cli_tsx_entrypoints.js',
   'tests/node/unit/test_shared_wall_corridors.js',
-  'tests/node/regression/test_damage_metrics.js',
   'tests/node/unit/test_terrain_structures.js',
   'tests/node/unit/test_evidence_storage_policy.js',
   'tests/node/unit/test_camp_waypoints.js',
@@ -71,13 +69,13 @@ const canonicalFiles = [
 ];
 
 assert.equal(HEAVY_TEST_MANIFEST.length, HEAVY_TEST_COUNT);
-assert.equal(HEAVY_TEST_COUNT, 52);
+assert.equal(HEAVY_TEST_COUNT, 50);
 assert.deepEqual(
   [...new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file))].sort(),
   [...new Set(canonicalFiles)].sort(),
   'manifest must equal the canonical #1421 file set',
 );
-assert.equal(new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file)).size, 52);
+assert.equal(new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file)).size, 50);
 
 const ownershipCounts = HEAVY_TEST_MANIFEST.reduce((counts, entry) => {
   counts[entry.ownership] = (counts[entry.ownership] || 0) + 1;
@@ -114,7 +112,6 @@ const representative = [
   ['test_heal_priority_policy.js', 'scratch/simulations/sim_depth_material_ev.js'],
   ['test_first_band_build_formation.js', 'scratch/measurements/measurement_manifest.js'],
   ['test_cli_tsx_entrypoints.js', 'package.json'],
-  ['test_bleeding_measurement_provenance.js', 'evidence/fixtures/issue-793-measurement-provenance.json'],
 ];
 for (const [testFile, dependency] of representative) {
   const selection = selectFor(findEntry(testFile), dependency);
@@ -143,10 +140,6 @@ function assertNestedRunnerDependencySelected(testFile, runnerPath) {
   );
 }
 
-assertNestedRunnerDependencySelected(
-  'test_bleeding_measurement_provenance.js',
-  'scratch/simulations/sim_bleeding_measurement.js',
-);
 assertNestedRunnerDependencySelected(
   'test_cli_tsx_entrypoints.js',
   'scratch/simulations/sim_depth_material_ev.js',
