@@ -91,7 +91,9 @@ async function clickCanvasInternalPoint(page, internalPoint) {
 for (const viewport of VIEWPORTS) {
   test(`単体敵の明確なCanvas空白は対象にしない (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await installCombat(page, ['vanguard']);
+    // Keep a second actionable actor so target selection remains observable
+    // before the one-actor round resolver clears the queued action.
+    await installCombat(page, ['vanguard', 'arcana']);
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const { updateUI } = await import('/src/ui.js');
