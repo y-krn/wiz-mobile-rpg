@@ -534,6 +534,35 @@ function normalizeGuardianFleeEv(result, kitId) {
       productionBossRule: observation.productionBossRule
         ? { ...observation.productionBossRule }
         : null
+    })),
+    decisionTrace: (diagnostic.decisionTrace || []).map(observation => ({
+      ...observation,
+      kit: kitId,
+      terms: { ...(observation.terms || {}) },
+      hp: observation.hp ? { ...observation.hp } : null,
+      mp: observation.mp ? { ...observation.mp } : null,
+      stock: { ...(observation.stock || {}) },
+      actualAction: observation.actualAction ? { ...observation.actualAction } : null,
+      recovery: observation.recovery ? {
+        ...observation.recovery,
+        diosPayment: observation.recovery.diosPayment
+          ? { ...observation.recovery.diosPayment }
+          : null
+      } : null,
+      preferredAction: observation.preferredAction ? {
+        ...observation.preferredAction,
+        payment: observation.preferredAction.payment
+          ? { ...observation.preferredAction.payment }
+          : null
+      } : null,
+      offensiveSpell: observation.offensiveSpell ? {
+        ...observation.offensiveSpell,
+        names: [...(observation.offensiveSpell.names || [])]
+      } : null,
+      guardian: observation.guardian ? { ...observation.guardian } : null,
+      productionBossRule: observation.productionBossRule
+        ? { ...observation.productionBossRule }
+        : null
     }))
   };
 }
@@ -542,11 +571,62 @@ function normalizeGuardianActionSequence(result) {
   const bossBattle = (result.specialBattles || []).find(item =>
     item.type === "boss" && Number(item.floor) === 5
   );
-  return (bossBattle?.attempts || []).map(attempt => ({
-    attempt: finite(attempt.attempt),
-    result: attempt.result || null,
-    actionTypes: [...(attempt.actionTypes || [])]
-  }));
+  const traceByAttempt = {};
+  const trace = result.b5GuardianFleeEvDiagnostic?.decisionTrace || [];
+  trace.forEach(item => {
+    const key = String(item.attempt);
+    traceByAttempt[key] ||= [];
+    traceByAttempt[key].push(item);
+  });
+  const actionKey = action => action?.type === "item"
+    ? `item:${action.itemKey || "unknown"}`
+    : action?.type === "spell"
+      ? `spell:${action.spellName || "unknown"}`
+      : action?.type || "unknown";
+  return (bossBattle?.attempts || []).map(attempt => {
+    const attemptTrace = traceByAttempt[String(attempt.attempt)] || [];
+    const actionSignatures = (attempt.actionSignatures || attemptTrace.map(item => item.actualAction))
+      .map(action => ({
+        type: action?.type || null,
+        itemKey: action?.itemKey || null,
+        spellName: action?.spellName || null
+      }));
+    const fleeIndex = attemptTrace.findIndex(item => item.actualAction?.type === "run");
+    const fleeTrace = fleeIndex >= 0 ? attemptTrace[fleeIndex] : null;
+    const actionsBeforeFlee = fleeIndex >= 0
+      ? actionSignatures.slice(0, fleeIndex).map(actionKey)
+      : [];
+    const openingItemsBeforeFlee = actionsBeforeFlee
+      .filter(action => ["item:GUARD_POTION", "item:STR_POTION", "item:HASTE_POTION"].includes(action))
+      .map(action => action.slice("item:".length));
+    const guardianDamageBeforeFlee = attempt.result === "flee" &&
+      Number.isFinite(Number(attempt.bossStartHp)) && Number.isFinite(Number(attempt.bossHpAtFlee))
+      ? Number(attempt.bossStartHp) - Number(attempt.bossHpAtFlee)
+      : null;
+    return {
+      attempt: finite(attempt.attempt),
+      result: attempt.result || null,
+      rounds: finite(attempt.rounds),
+      actionTypes: [...(attempt.actionTypes || [])],
+      actionSignatures,
+      actualFirstAction: actionSignatures[0] ? { ...actionSignatures[0] } : null,
+      fleeDecisionIndex: fleeTrace ? finite(fleeTrace.playerDecisionIndex) : null,
+      fleeRound: fleeTrace ? finite(fleeTrace.round) : null,
+      actionsBeforeFlee,
+      actionsBeforeFleePattern: attempt.result === "flee"
+        ? actionsBeforeFlee.length ? actionsBeforeFlee.join(" -> ") + " -> run" : "run"
+        : attempt.result || "unknown",
+      openingItemsBeforeFlee,
+      openingItemsUsedBeforeFlee: [...openingItemsBeforeFlee],
+      bossStartHp: finite(attempt.bossStartHp),
+      bossHpAtFlee: finite(attempt.bossHpAtFlee),
+      bossHpAtFleeRate: finite(attempt.bossHpAtFleeRate),
+      guardianDamageBeforeFlee,
+      playerHpAtFlee: finite(attempt.playerHpAtFlee),
+      playerHpAtFleeRate: finite(attempt.playerHpAtFleeRate),
+      decisionTrace: attemptTrace.map(item => ({ ...item }))
+    };
+  });
 }
 
 function normalizeInventoryCounts(inventory) {
@@ -1165,7 +1245,10 @@ function crossTab(rows, leftKey, rightKey) {
 
 function summarizeGuardianFleeEv(entrants) {
   const observations = entrants.flatMap(item => item.guardianFleeEv?.observations || []);
+  const traces = entrants.flatMap(item => item.guardianFleeEv?.decisionTrace || []);
+  const attempts = entrants.flatMap(item => item.guardianActionSequence || []);
   const flee = observations.filter(item => item.decision === "flee");
+  const fleeAttempts = attempts.filter(item => item.result === "flee");
   const decision = item => item.decision || "unknown";
   const reason = item => item.reason || "unknown";
   const metricTerm = path => distribution90(observations.map(item => {
@@ -1182,6 +1265,29 @@ function summarizeGuardianFleeEv(entrants) {
     rows.map(item => ({ reason: reason(item), value: key.split(".").reduce((value, part) => value?.[part], item) })),
     "reason",
     "value"
+  );
+  const actionKey = action => action?.type === "item"
+    ? `item:${action.itemKey || "unknown"}`
+    : action?.type === "spell"
+      ? `spell:${action.spellName || "unknown"}`
+      : action?.type || "unknown";
+  const rawByDecisionIndex = {};
+  traces.forEach(item => {
+    const key = String(item.playerDecisionIndex);
+    rawByDecisionIndex[key] ||= [];
+    rawByDecisionIndex[key].push(item);
+  });
+  const rawDecisionSummary = Object.fromEntries(
+    Object.entries(rawByDecisionIndex)
+      .sort(([left], [right]) => Number(left) - Number(right))
+      .map(([index, rows]) => [index, {
+        decisions: countRateBy(rows.map(item => item.decision), rows.length),
+        reasons: countRateBy(rows.map(item => item.reason), rows.length),
+        fleeDeferredByOpening: eventCount(
+          rows.filter(item => item.fleeDeferredByOpening).length,
+          rows.length
+        )
+      }])
   );
   return {
     enabled: entrants.some(item => item.guardianFleeEv?.enabled),
@@ -1221,7 +1327,36 @@ function summarizeGuardianFleeEv(entrants) {
         "reason",
         "value"
       )
-    }
+    },
+    attemptsObserved: attempts.length,
+    actualFirstAction: countRateBy(
+      attempts.map(item => actionKey(item.actualFirstAction)),
+      attempts.length
+    ),
+    fleeDecisionIndex: distribution90(fleeAttempts.map(item => Number(item.fleeDecisionIndex))),
+    fleeRound: distribution90(fleeAttempts.map(item => Number(item.fleeRound))),
+    actionsBeforeFlee: countRateBy(
+      attempts.map(item => item.actionsBeforeFleePattern),
+      attempts.length
+    ),
+    openingItemUsage: countRateBy(
+      fleeAttempts.flatMap(item => item.openingItemsUsedBeforeFlee),
+      attempts.length
+    ),
+    bossHpAtFlee: distribution90(fleeAttempts.map(item => Number(item.bossHpAtFlee))),
+    bossHpAtFleeRate: distribution90(fleeAttempts.map(item => Number(item.bossHpAtFleeRate))),
+    guardianDamageBeforeFlee: distribution90(
+      fleeAttempts.map(item => Number(item.guardianDamageBeforeFlee))
+    ),
+    playerHpAtFlee: distribution90(fleeAttempts.map(item => Number(item.playerHpAtFlee))),
+    playerHpAtFleeRate: distribution90(
+      fleeAttempts.map(item => Number(item.playerHpAtFleeRate))
+    ),
+    rawDecisionByDecisionIndex: rawDecisionSummary,
+    fleeDeferredByOpening: eventCount(
+      traces.filter(item => item.fleeDeferredByOpening).length,
+      traces.filter(item => item.decision === "flee").length
+    )
   };
 }
 
@@ -2134,6 +2269,10 @@ export function buildSummary(report) {
       return `- ${label}: first-decision N=${ev.firstDecisionN}; fight/recover/flee=${JSON.stringify(ev.decisions)}; reasons=${JSON.stringify(ev.reasons)}; expectedTurnsToWin p10/p50/p90=${JSON.stringify(ev.expectedTurnsToWin)}; survivalTurns=${JSON.stringify(ev.survivalTurns)}; turnDeficit=${JSON.stringify(ev.turnDeficit)}; physicalDamageEstimate=${JSON.stringify(ev.physicalDamageEstimate)}; incomingDamage=${JSON.stringify(ev.incomingDamage)}; HP/MP rate=${JSON.stringify(ev.hpRate)}/${JSON.stringify(ev.mpRate)}; hpBelowFlee=${JSON.stringify(ev.hpBelowFleeThreshold)}; GUARD_POTION=${JSON.stringify(ev.guardPotionAvailable)}; preferred=${JSON.stringify(ev.preferredAction)}; preferredSpell/fight=${JSON.stringify(ev.preferredSpell)}/${JSON.stringify(ev.preferredFight)}; offensivePayment=${JSON.stringify(ev.offensiveSpellPaymentAvailable)}`;
     };
     const crossTabLine = (label, aggregate) => `- ${label} cross-tab: ${JSON.stringify(aggregate.b5.guardianFleeEv.crossTabs)}`;
+    const traceLine = (label, aggregate) => {
+      const ev = aggregate.b5.guardianFleeEv;
+      return `- ${label} trace: attempts=${ev.attemptsObserved}; actualFirst=${JSON.stringify(ev.actualFirstAction)}; fleeIndex=${JSON.stringify(ev.fleeDecisionIndex)}; fleeRound=${JSON.stringify(ev.fleeRound)}; beforeFlee=${JSON.stringify(ev.actionsBeforeFlee)}; openingUsed=${JSON.stringify(ev.openingItemUsage)}; bossHp%=${JSON.stringify(ev.bossHpAtFleeRate)}; guardianDamage=${JSON.stringify(ev.guardianDamageBeforeFlee)}; playerHp%=${JSON.stringify(ev.playerHpAtFleeRate)}; rawByIndex=${JSON.stringify(ev.rawDecisionByDecisionIndex)}; fleeDeferredByOpening=${JSON.stringify(ev.fleeDeferredByOpening)}`;
+    };
     const lines = [
       "# First Band B5 Guardian flee EV diagnostic",
       "",
@@ -2144,12 +2283,14 @@ export function buildSummary(report) {
       "",
       diagnosticLine("C", report.arms.C.overview),
       crossTabLine("C", report.arms.C.overview),
+      traceLine("C", report.arms.C.overview),
       "",
       "## Kit",
       "",
       ...KIT_IDS.map(kitId => [
         diagnosticLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
-        crossTabLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate)
+        crossTabLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
+        traceLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate)
       ]).flat(),
       "",
       "- evaluator terms/reasons are observation-only; production policy, action ordering, thresholds, checkpoints, and RNG path unchanged."
