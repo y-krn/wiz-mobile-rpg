@@ -14,6 +14,7 @@ import { BASE_STARTING_MP, BASIC_RUNE_ITEM_ID, MEDIUM_IDS } from "../data/magic.
 import { ITEMS } from "../data/items.js";
 import { getEquipmentHands } from "../rules/equipment_hands.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
+import { isRuntimeItemRef } from "./item.js";
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
@@ -72,8 +73,106 @@ function normalizeInventory(inventory) {
 
 const EQUIPMENT_ITEM_TYPES = new Set(["weapon", "shield", "armor", "accessory"]);
 
+function isKnownEquipmentBaseId(baseId) {
+  return typeof baseId === "string" &&
+    Object.hasOwn(ITEMS, baseId) &&
+    EQUIPMENT_ITEM_TYPES.has(ITEMS[baseId]?.type);
+}
+
+function isPersistedItemShape(value) {
+  if (typeof value === "string") return value.trim().length > 0;
+  if (!isRecord(value) || typeof value.baseId !== "string" || value.baseId.trim().length === 0) return false;
+  if (Object.hasOwn(value, "instanceId") && value.instanceId !== "" && typeof value.instanceId !== "string") return false;
+  if (Object.hasOwn(value, "kind") && value.kind !== "equipment") return false;
+  if (Object.hasOwn(value, "rarity") && value.rarity !== null && typeof value.rarity !== "string") return false;
+  if (Object.hasOwn(value, "level") && value.level !== null &&
+      (typeof value.level !== "number" || !Number.isFinite(value.level) || value.level <= 0)) return false;
+  if (Object.hasOwn(value, "identified") && typeof value.identified !== "boolean") return false;
+  if (Object.hasOwn(value, "affixes") &&
+      (!Array.isArray(value.affixes) || value.affixes.some(affix => !isRecord(affix)))) return false;
+  return true;
+}
+
+function isSupportedPersistedItem(value) {
+  return isPersistedItemShape(value) &&
+    (typeof value === "string" || isKnownEquipmentBaseId(value.baseId));
+}
+
 function isEquipmentObject(item) {
-  return isRecord(item) && EQUIPMENT_ITEM_TYPES.has(ITEMS[getItemBaseId(item)]?.type);
+  return isSupportedPersistedItem(item) && typeof item === "object";
+}
+
+function isSupportedRuntimeItem(value) {
+  if (!isRuntimeItemRef(value)) return false;
+  return typeof value === "string" || isKnownEquipmentBaseId(value.baseId);
+}
+
+function filterPersistedItems(items) {
+  return arrayOr(items).filter(isSupportedPersistedItem);
+}
+
+function filterPersistedItemSlot(item) {
+  return item === null || isSupportedPersistedItem(item) ? item : null;
+}
+
+function filterRawRuntimeItems(data) {
+  data.inventory = filterPersistedItems(data.inventory);
+  data.storage = filterPersistedItems(data.storage);
+  data.activeMerchantStock = filterPersistedItems(data.activeMerchantStock);
+  data.party?.forEach(char => {
+    if (!isRecord(char.equipment)) return;
+    Object.keys(char.equipment).forEach(slot => {
+      char.equipment[slot] = filterPersistedItemSlot(char.equipment[slot]);
+    });
+  });
+
+  const run = data.currentRun;
+  if (!isRecord(run)) return;
+  ["townInventory", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems", "itemsFound", "equipmentFound", "departureItems"]
+    .forEach(field => {
+      run[field] = filterPersistedItems(run[field]);
+    });
+  run.departureEquipment = Object.fromEntries(
+    Object.entries(recordOr(run.departureEquipment, {}))
+      .map(([slot, item]) => [slot, filterPersistedItemSlot(item)])
+  );
+  run.unbankedObjectLoot = arrayOr(run.unbankedObjectLoot)
+    .filter(entry => isRecord(entry) && typeof entry.id === "string" && isSupportedPersistedItem(entry.item));
+  if (isRecord(run.pendingRewardBundle)) {
+    run.pendingRewardBundle.entries = arrayOr(run.pendingRewardBundle.entries)
+      .filter(entry => isRecord(entry) && typeof entry.id === "string" && isSupportedPersistedItem(entry.item));
+    if (run.pendingRewardBundle.entries.length === 0) run.pendingRewardBundle = null;
+  }
+}
+
+function filterNormalizedRuntimeItems(data) {
+  data.inventory = data.inventory.filter(isSupportedRuntimeItem);
+  data.storage = data.storage.filter(isSupportedRuntimeItem);
+  data.activeMerchantStock = data.activeMerchantStock.filter(isSupportedRuntimeItem);
+  data.party?.forEach(char => {
+    Object.keys(char.equipment || {}).forEach(slot => {
+      const item = char.equipment[slot];
+      char.equipment[slot] = item === null || isSupportedRuntimeItem(item) ? item : null;
+    });
+  });
+
+  const run = data.currentRun;
+  if (!isRecord(run)) return;
+  ["townInventory", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems", "itemsFound", "equipmentFound", "departureItems"]
+    .forEach(field => {
+      run[field] = arrayOr(run[field]).filter(isSupportedRuntimeItem);
+    });
+  run.departureEquipment = Object.fromEntries(
+    Object.entries(recordOr(run.departureEquipment, {}))
+      .filter(([, item]) => item === null || isSupportedRuntimeItem(item))
+  );
+  run.unbankedObjectLoot = arrayOr(run.unbankedObjectLoot)
+    .filter(entry => isRecord(entry) && typeof entry.id === "string" && isSupportedRuntimeItem(entry.item));
+  if (isRecord(run.pendingRewardBundle)) {
+    run.pendingRewardBundle.entries = arrayOr(run.pendingRewardBundle.entries)
+      .filter(entry => isRecord(entry) && typeof entry.id === "string" && isSupportedRuntimeItem(entry.item));
+    if (run.pendingRewardBundle.entries.length === 0) run.pendingRewardBundle = null;
+  }
 }
 
 function backfillEquipmentInstanceIds(data) {
@@ -325,6 +424,15 @@ function backfillAffixMetadata(data) {
       Object.values(char?.equipment || {}).forEach(backfillItemAffixes);
     });
   });
+  const run = data.currentRun;
+  if (run) {
+    [run.townInventory, run.bankedObjectLoot, run.lostObjectLoot, run.returnedTownItems,
+      run.itemsFound, run.equipmentFound, run.departureItems]
+      .forEach(collection => collection?.forEach(backfillItemAffixes));
+    run.departureEquipment && Object.values(run.departureEquipment).forEach(backfillItemAffixes);
+    run.unbankedObjectLoot?.forEach(entry => backfillItemAffixes(entry?.item));
+    run.pendingRewardBundle?.entries?.forEach(entry => backfillItemAffixes(entry?.item));
+  }
   return data;
 }
 
@@ -814,14 +922,14 @@ export function normalizeSavePayload(data) {
     .filter(isRecord)
     .slice(0, 1)
     .map(stripLegacyCharacterStats);
-  normalized.inventory = normalizeInventory(arrayOr(data.inventory));
+  normalized.inventory = normalizeInventory(filterPersistedItems(data.inventory));
   normalized.seed = typeof data.seed === "string" && data.seed ? data.seed : generateRandomSeed();
   normalized.lightTurns = numberOr(data.lightTurns, 0);
   normalized.lightPower = typeof data.lightPower === "string" ? data.lightPower : "";
   normalized.repelTurns = numberOr(data.repelTurns, 0);
   normalized.silenceTurns = numberOr(data.silenceTurns, 0);
   normalized.forcedEncounterSteps = numberOr(data.forcedEncounterSteps, 0);
-  normalized.activeMerchantStock = arrayOr(data.activeMerchantStock);
+  normalized.activeMerchantStock = filterPersistedItems(data.activeMerchantStock);
   const persistedCombatState = recordOr(data.combatState, null);
   normalized.combatState = isUsableCombatState(persistedCombatState)
     ? {
@@ -889,7 +997,7 @@ export function normalizeSavePayload(data) {
     : false;
   normalized.roamingMovementStepCount = numberOr(data.roamingMovementStepCount, 0);
   normalized.noiseEvents = arrayOr(data.noiseEvents);
-  normalized.storage = arrayOr(data.storage);
+  normalized.storage = filterPersistedItems(data.storage);
   normalized.storageMax = numberOr(data.storageMax, 30);
   normalized.identifyTickets = numberOr(data.identifyTickets, 0);
   normalized.cleared = typeof data.cleared === "boolean" ? data.cleared : false;
@@ -915,11 +1023,13 @@ export function normalizeSavePayload(data) {
   };
 
   normalized.party.forEach(char => normalizeCharEquipment(char, normalized));
+  filterRawRuntimeItems(normalized);
   // Legacy saves may contain equipment objects created before instance IDs
   // were required. Assign stable, path-derived IDs once at this boundary so
   // loadout comparison never has to invent identity during gameplay.
   backfillEquipmentInstanceIds(normalized);
   backfillAffixMetadata(normalized);
+  filterNormalizedRuntimeItems(normalized);
   discardTransientRunAffixState(normalized);
   backfillMonsterCriticalEligibility(normalized);
   normalizeStatusEffectState(normalized);

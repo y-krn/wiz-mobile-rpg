@@ -4,8 +4,10 @@ import {
   isItemDefinition,
   isItemRef,
   isItemType,
+  isRuntimeItemRef,
   resolveItemDefinition
 } from "../../../src/state/item.js";
+import { isLegacyEquipmentRef } from "../../../src/state/equipment.js";
 
 const validEquipment = {
   kind: "equipment",
@@ -36,6 +38,12 @@ assert.equal(isItemRef("UNKNOWN_ITEM_ID"), true, "unknown ID passes shape guard"
 assert.equal(isItemRef(""), false, "empty string rejected");
 assert.equal(isItemRef("   "), false, "whitespace-only string rejected");
 assert.equal(isItemRef(validEquipment), true, "EquipmentInstance accepted as ItemRef");
+const legacyEquipment = { baseId: "WAND", instanceId: "legacy-item-contract", affixes: [] };
+assert.equal(isItemRef(legacyEquipment), false, "legacy equipment stays outside ItemRef");
+assert.equal(isLegacyEquipmentRef(legacyEquipment), true, "supported legacy equipment accepted");
+assert.equal(isRuntimeItemRef(legacyEquipment), true, "legacy equipment accepted as RuntimeItemRef");
+assert.equal(isLegacyEquipmentRef({ ...legacyEquipment, affixes: [null] }), false, "malformed legacy affix rejected");
+assert.equal(isLegacyEquipmentRef({ ...legacyEquipment, level: "floor-3" }), false, "malformed legacy level rejected");
 assert.equal(isItemRef({ baseId: "HEAL_POTION" }), false, "malformed EquipmentInstance rejected");
 assert.equal(isItemRef({ ...validEquipment, affixes: [null] }), false, "malformed EquipmentInstance affix rejected");
 assert.equal(isItemRef({ ...validEquipment, kind: "item" }), false, "malformed EquipmentInstance kind rejected");

@@ -1,6 +1,6 @@
 // balance-impact: none — canonical generated equipment contract and runtime boundary only.
 
-import { isItemRef, type ItemRef } from "./item.js";
+import { isRuntimeItemRef, type RuntimeItemRef } from "./item.js";
 
 export type EquipmentRarity = "magic" | "rare" | "epic";
 export type EquipmentAffixKind = "core" | "support";
@@ -25,6 +25,26 @@ export interface EquipmentInstance {
   [key: string]: unknown;
 }
 
+export interface LegacyEquipmentAffix {
+  id?: string;
+  kind?: EquipmentAffixKind;
+  type?: string;
+  value?: number;
+  buildRole?: EquipmentBuildRole | null;
+  [key: string]: unknown;
+}
+
+export interface LegacyEquipmentRef {
+  baseId: string;
+  instanceId: string;
+  affixes: LegacyEquipmentAffix[];
+  kind?: "equipment";
+  rarity?: string | null;
+  level?: number | null;
+  identified?: boolean;
+  [key: string]: unknown;
+}
+
 export type EquipmentSlotId =
   | "weapon"
   | "shield"
@@ -33,11 +53,11 @@ export type EquipmentSlotId =
   | "accessory2";
 
 export interface CharacterEquipment {
-  weapon: ItemRef | null;
-  shield: ItemRef | null;
-  armor: ItemRef | null;
-  accessory: ItemRef | null;
-  accessory2: ItemRef | null;
+  weapon: RuntimeItemRef | null;
+  shield: RuntimeItemRef | null;
+  armor: RuntimeItemRef | null;
+  accessory: RuntimeItemRef | null;
+  accessory2: RuntimeItemRef | null;
 }
 
 export const EQUIPMENT_SLOT_IDS = Object.freeze([
@@ -88,6 +108,19 @@ function isEquipmentBuildRole(value: unknown): value is EquipmentBuildRole {
   return typeof value === "string" && EQUIPMENT_BUILD_ROLES.has(value);
 }
 
+function isLegacyEquipmentAffix(value: unknown): value is LegacyEquipmentAffix {
+  if (!isRecord(value)) return false;
+  if (!isNonEmptyString(value.id) && !isNonEmptyString(value.type)) return false;
+  if (Object.hasOwn(value, "id") && !isNonEmptyString(value.id)) return false;
+  if (Object.hasOwn(value, "kind") && !isEquipmentAffixKind(value.kind)) return false;
+  if (Object.hasOwn(value, "type") && !isNonEmptyString(value.type)) return false;
+  if (Object.hasOwn(value, "value") &&
+      (typeof value.value !== "number" || !Number.isFinite(value.value))) return false;
+  if (Object.hasOwn(value, "buildRole") &&
+      value.buildRole !== null && !isEquipmentBuildRole(value.buildRole)) return false;
+  return true;
+}
+
 export function isEquipmentAffix(value: unknown): value is EquipmentAffix {
   if (!isRecord(value) || !hasOwnFields(value, EQUIPMENT_AFFIX_FIELDS)) return false;
   return isNonEmptyString(value.id) &&
@@ -110,14 +143,27 @@ export function isEquipmentInstance(value: unknown): value is EquipmentInstance 
   return true;
 }
 
+export function isLegacyEquipmentRef(value: unknown): value is LegacyEquipmentRef {
+  if (isEquipmentInstance(value) || !isRecord(value)) return false;
+  if (!isNonEmptyString(value.baseId) || !isNonEmptyString(value.instanceId) || !Array.isArray(value.affixes)) {
+    return false;
+  }
+  if (value.affixes.some(affix => !isLegacyEquipmentAffix(affix))) return false;
+  if (Object.hasOwn(value, "kind") && value.kind !== "equipment") return false;
+  if (Object.hasOwn(value, "rarity") && value.rarity !== null && typeof value.rarity !== "string") return false;
+  if (Object.hasOwn(value, "level") && value.level !== null &&
+      (typeof value.level !== "number" || !Number.isFinite(value.level) || value.level <= 0)) return false;
+  if (Object.hasOwn(value, "identified") && typeof value.identified !== "boolean") return false;
+  return true;
+}
+
 export function isEquipmentSlotId(value: unknown): value is EquipmentSlotId {
   return typeof value === "string" && EQUIPMENT_SLOT_ID_SET.has(value);
 }
 
-function isCharacterEquipmentSlotValue(value: unknown): value is ItemRef | null {
+function isCharacterEquipmentSlotValue(value: unknown): value is RuntimeItemRef | null {
   if (value === null) return true;
-  if (!isItemRef(value)) return false;
-  return typeof value === "object" ? isEquipmentInstance(value) : true;
+  return isRuntimeItemRef(value);
 }
 
 export function isCharacterEquipment(value: unknown): value is CharacterEquipment {

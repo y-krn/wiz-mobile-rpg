@@ -89,5 +89,6 @@ const legacyState = createState();
 const legacyItem = { baseId: "WAND", instanceId: "legacy-compatible" };
 assert.equal(addInventoryItemToState(legacyState, legacyItem), true, "legacy helper remains permissive");
 assert.strictEqual(legacyState.inventory[0], legacyItem);
+assert.equal(addCanonicalInventoryItemToState(createState(), { ...legacyItem, affixes: [] }), false, "canonical write rejects legacy ref");
 
 console.log("[PASS] canonical inventory write validates, delegates, preserves identity, and keeps legacy semantics");

@@ -6,6 +6,7 @@ import { menuContext, menuHistory, openGuardedSubmenu } from "../../../src/navig
 import { equipState } from "../../../src/equip.js";
 import { EVENT_TYPES } from "../../../src/data.js";
 import { applyFloorTransitionHeal, checkCellEvents } from "../../../src/movement.js";
+import { resolveItemDefinition } from "../../../src/state/item.js";
 
 const saveValues = new Map();
 globalThis.localStorage = {
@@ -680,6 +681,48 @@ check("legacy equipment objects receive stable distinct identities across save/l
     normalized.currentRun.pendingRewardBundle.entries[0].item.instanceId,
     "save/load preserves pending equipment identity"
   );
+});
+
+check("runtime item normalization keeps legacy facts and rejects malformed objects", () => {
+  const sharedLegacy = { baseId: "SHORT_SWORD", affixes: [] };
+  const payload = structuredClone(createSavePayload());
+  payload.party = [{ equipment: { weapon: sharedLegacy } }];
+  payload.inventory = [sharedLegacy, "UNKNOWN_ITEM_ID", { baseId: "WAND", affixes: "malformed" }, { baseId: "NOT_AN_ITEM", affixes: [] }];
+  payload.storage = [{ baseId: "WAND", instanceId: 42, affixes: [] }];
+  payload.currentRun = {
+    ...createDefaultCurrentRun(),
+    pendingRewardBundle: {
+      id: "runtime-boundary",
+      entries: [
+        { id: "malformed-entry", item: { baseId: "WAND", affixes: [null] } },
+        { id: "legacy-entry", item: sharedLegacy }
+      ]
+    }
+  };
+
+  const normalized = normalizeSavePayload(payload);
+  const legacy = normalized.inventory.find(item => typeof item === "object");
+  assert.equal(legacy.baseId, "SHORT_SWORD");
+  assert.equal(typeof legacy.instanceId, "string");
+  assert.ok(legacy.instanceId.startsWith("legacy_eq_"));
+  assert.equal(Object.hasOwn(legacy, "rarity"), false);
+  assert.equal(Object.hasOwn(legacy, "level"), false);
+  assert.equal(Object.hasOwn(legacy, "identified"), false);
+  assert.strictEqual(normalized.party[0].equipment.weapon, legacy);
+  assert.equal(normalized.storage.length, 0);
+  assert.deepEqual(normalized.inventory.map(item => typeof item === "object" ? item.baseId : item), [
+    "SHORT_SWORD",
+    "UNKNOWN_ITEM_ID"
+  ]);
+  assert.equal(resolveItemDefinition("UNKNOWN_ITEM_ID", {}), null);
+  assert.equal(normalized.currentRun.pendingRewardBundle.entries.length, 1);
+  assert.strictEqual(normalized.currentRun.pendingRewardBundle.entries[0].item, legacy);
+
+  const roundTrip = normalizeSavePayload(JSON.parse(JSON.stringify(normalized)));
+  assert.equal(roundTrip.inventory[0].instanceId, legacy.instanceId);
+  assert.equal(Object.hasOwn(roundTrip.inventory[0], "rarity"), false);
+  assert.equal(Object.hasOwn(roundTrip.inventory[0], "level"), false);
+  assert.equal(Object.hasOwn(roundTrip.inventory[0], "identified"), false);
 });
 
 check("floor transition applies 25 percent solo heal with cap and death guards", () => {

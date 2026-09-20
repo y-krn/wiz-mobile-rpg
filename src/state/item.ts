@@ -1,6 +1,11 @@
 // balance-impact: none — canonical item definition/reference contracts only.
 
-import { isEquipmentInstance, type EquipmentInstance } from "./equipment.js";
+import {
+  isEquipmentInstance,
+  isLegacyEquipmentRef,
+  type EquipmentInstance,
+  type LegacyEquipmentRef
+} from "./equipment.js";
 
 export type ItemType =
   | "weapon"
@@ -19,6 +24,7 @@ export interface ItemDefinition {
 }
 
 export type ItemRef = string | EquipmentInstance;
+export type RuntimeItemRef = ItemRef | LegacyEquipmentRef;
 
 const ITEM_TYPES: ReadonlySet<string> = new Set([
   "weapon",
@@ -53,6 +59,10 @@ export function isItemDefinition(value: unknown): value is ItemDefinition {
 export function isItemRef(value: unknown): value is ItemRef {
   if (typeof value === "string") return value.trim().length > 0;
   return isEquipmentInstance(value);
+}
+
+export function isRuntimeItemRef(value: unknown): value is RuntimeItemRef {
+  return isItemRef(value) || isLegacyEquipmentRef(value);
 }
 
 export function resolveItemDefinition(
