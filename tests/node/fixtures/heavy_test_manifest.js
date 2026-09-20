@@ -16,11 +16,6 @@ export const HEAVY_TEST_MANIFEST = [
     { path: 'scratch/simulations/simulation_manifest.js', kind: 'manifest', reason: 'simulation registry is an external contract' },
   ]),
   entry(unit('test_reachability_loop.js'), 'PR_CONDITIONAL', 'map', [], 4),
-  entry(regression('test_bleeding_measurement_provenance.js'), 'PR_CONDITIONAL', 'fixture-policy', [
-    { path: 'evidence/fixtures/issue-793-measurement-provenance.json', kind: 'fixture', reason: 'provenance fixture loaded with fs' },
-    { path: 'scratch/simulations/sim_bleeding_measurement.js', kind: 'child-process', reason: 'measurement runner started with node' },
-    { path: '.agents/evidence-storage-policy.json', kind: 'policy', reason: 'evidence policy governs the fixture contract' },
-  ]),
   entry(regression('test_cli_tsx_entrypoints.js'), 'PR_CONDITIONAL', 'tooling', [
     { path: 'package.json', kind: 'repository', reason: 'npm scripts are read and executed' },
     { path: 'scratch/simulations/sim_depth_material_ev.js', kind: 'child-process', reason: 'depth simulation is an npm entrypoint' },
@@ -30,7 +25,6 @@ export const HEAVY_TEST_MANIFEST = [
     { path: '.github/CODEOWNERS', kind: 'repository', reason: 'workflow-owned tooling contract' },
   ]),
   entry(unit('test_shared_wall_corridors.js'), 'PR_CONDITIONAL', 'map', [], 3),
-  entry(regression('test_damage_metrics.js'), 'PR_CONDITIONAL', 'simulation'),
   entry(unit('test_terrain_structures.js'), 'PR_CONDITIONAL', 'map'),
   entry(unit('test_evidence_storage_policy.js'), 'PR_CONDITIONAL', 'fixture-policy', [
     { path: '.agents/evidence-storage-policy.json', kind: 'policy', reason: 'policy document loaded with fs' },
@@ -86,9 +80,9 @@ export const HEAVY_TEST_MANIFEST = [
   entry(regression('test_phase3_stage2_combat_personas.js'), 'MANUAL_MEASUREMENT', 'measurement'),
 ];
 
-export const HEAVY_TEST_COUNT = 52;
+export const HEAVY_TEST_COUNT = 50;
 export const HEAVY_TEST_OWNERSHIP_COUNTS = {
-  PR_CONDITIONAL: 29,
+  PR_CONDITIONAL: 27,
   MAIN_PUSH: 6,
   SCHEDULED: 7,
   MANUAL_MEASUREMENT: 10,

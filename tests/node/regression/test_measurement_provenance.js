@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -20,6 +21,75 @@ function check(label, assertion) {
   } catch (error) {
     failures.push(`${label}: ${error.message}`);
   }
+}
+
+function expectRejected(action, pattern) {
+  assert.throws(action, pattern);
+}
+
+const provenanceEnvKeys = [
+  "SIM_PROVENANCE_BASE_REF",
+  "SIM_PROVENANCE_BASE_COMMIT",
+  "SIM_PROVENANCE_BASE_REF_REASON",
+  "SIM_PROVENANCE_TEST_FIXTURE",
+  "SIM_PROVENANCE_ALLOW_DIRTY_TREE"
+];
+
+function withProvenanceEnv(overrides, callback) {
+  const previous = Object.fromEntries(
+    provenanceEnvKeys.map(key => [key, process.env[key]])
+  );
+  provenanceEnvKeys.forEach(key => { delete process.env[key]; });
+  Object.entries(overrides).forEach(([key, value]) => {
+    if (value !== undefined) process.env[key] = value;
+  });
+  try {
+    return callback();
+  } finally {
+    provenanceEnvKeys.forEach(key => {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    });
+  }
+}
+
+function createFixture({ dirty = false } = {}) {
+  const cwd = mkdtempSync(join(tmpdir(), "measurement-provenance-contract-"));
+  const git = args => execFileSync("git", args, { cwd, stdio: "ignore" });
+  git(["init", "--initial-branch=main"]);
+  git(["config", "user.email", "test@example.com"]);
+  git(["config", "user.name", "Measurement Test"]);
+  writeFileSync(join(cwd, "runner.txt"), "base\n");
+  git(["add", "runner.txt"]);
+  git(["commit", "-m", "base"]);
+  const baseCommit = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd,
+    encoding: "utf8"
+  }).trim();
+  git(["update-ref", "refs/remotes/origin/main", baseCommit]);
+  writeFileSync(join(cwd, "runner.txt"), "base\nhead\n");
+  git(["commit", "-am", "head"]);
+  if (dirty) writeFileSync(join(cwd, "runner.txt"), "base\nhead\ndirty\n");
+  return { cwd, baseCommit };
+}
+
+function withFixture(options, callback) {
+  const fixture = createFixture(options);
+  try {
+    return callback(fixture);
+  } finally {
+    rmSync(fixture.cwd, { recursive: true, force: true });
+  }
+}
+
+function fixtureEnv(fixture, overrides = {}) {
+  return {
+    SIM_PROVENANCE_BASE_REF: "origin/main",
+    SIM_PROVENANCE_BASE_COMMIT: fixture.baseCommit,
+    SIM_PROVENANCE_BASE_REF_REASON: "generic-provenance-test",
+    SIM_PROVENANCE_TEST_FIXTURE: "generic-provenance-test",
+    ...overrides
+  };
 }
 
 const provenance = resolveMeasurementProvenance({ fetchOriginMain: false });
@@ -72,6 +142,72 @@ check("clone-independent runner diff hash", () => {
   } finally {
     fixtureRoots.forEach(cwd => rmSync(cwd, { recursive: true, force: true }));
   }
+});
+
+check("fixture-less explicit base is rejected", () => withFixture({}, fixture => {
+  withProvenanceEnv({
+    SIM_PROVENANCE_BASE_REF: "origin/main",
+    SIM_PROVENANCE_BASE_COMMIT: fixture.baseCommit
+  }, () => {
+    expectRejected(
+      () => resolveMeasurementProvenance({ cwd: fixture.cwd, fetchOriginMain: false }),
+      /explicit base ref\/commit requires an explicit test fixture marker/
+    );
+  });
+}));
+
+check("fixture requires base ref and commit", () => withFixture({}, fixture => {
+  for (const key of ["SIM_PROVENANCE_BASE_REF", "SIM_PROVENANCE_BASE_COMMIT"]) {
+    const overrides = fixtureEnv(fixture);
+    delete overrides[key];
+    withProvenanceEnv(overrides, () => {
+      expectRejected(
+        () => resolveMeasurementProvenance({ cwd: fixture.cwd, fetchOriginMain: false }),
+        /test fixture requires SIM_PROVENANCE_BASE_REF and SIM_PROVENANCE_BASE_COMMIT/
+      );
+    });
+  }
+}));
+
+check("explicit base requires reason", () => withFixture({}, fixture => {
+  const overrides = fixtureEnv(fixture);
+  delete overrides.SIM_PROVENANCE_BASE_REF_REASON;
+  withProvenanceEnv(overrides, () => {
+    expectRejected(
+      () => resolveMeasurementProvenance({ cwd: fixture.cwd, fetchOriginMain: false }),
+      /explicit base ref origin\/main requires SIM_PROVENANCE_BASE_REF_REASON/
+    );
+  });
+}));
+
+check("invalid base ref is rejected", () => withFixture({}, fixture => {
+  withProvenanceEnv(fixtureEnv(fixture, {
+    SIM_PROVENANCE_BASE_REF: "refs/remotes/origin/missing"
+  }), () => {
+    expectRejected(
+      () => resolveMeasurementProvenance({ cwd: fixture.cwd, fetchOriginMain: false }),
+      /measurement provenance failed: git rev-parse --verify/
+    );
+  });
+}));
+
+check("dirty-tree override is test-fixture-only", () => {
+  withFixture({ dirty: true }, fixture => {
+    withProvenanceEnv({ SIM_PROVENANCE_ALLOW_DIRTY_TREE: "1" }, () => {
+      expectRejected(
+        () => resolveMeasurementProvenance({ cwd: fixture.cwd, fetchOriginMain: false }),
+        /Only an explicit test fixture may opt in to dirty-tree execution/
+      );
+    });
+    withProvenanceEnv(fixtureEnv(fixture, {
+      SIM_PROVENANCE_ALLOW_DIRTY_TREE: "1"
+    }), () => {
+      const provenance = resolveMeasurementProvenance({ cwd: fixture.cwd, fetchOriginMain: false });
+      if (!provenance.workingTreeDirty || !provenance.dirtyTreeAllowed) {
+        throw new Error("fixture dirty-tree override was not recorded");
+      }
+    });
+  });
 });
 
 if (failures.length) {
