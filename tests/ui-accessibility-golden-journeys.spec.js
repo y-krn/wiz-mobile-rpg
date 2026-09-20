@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs';
 import { test, expect } from './fixtures/browser-health.js';
 import {
   assertNamedInteractiveControls,
@@ -67,7 +68,8 @@ async function seedEnemyHpPresentation(page, renderer) {
 }
 
 async function attachEnemyHpEvidence(page, testInfo, name) {
-  const screenshot = await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true });
+  mkdirSync('output/playwright', { recursive: true });
+  const screenshot = await page.screenshot({ path: `output/playwright/${name}.png`, fullPage: true });
   await testInfo.attach(name, { body: screenshot, contentType: 'image/png' });
 }
 
