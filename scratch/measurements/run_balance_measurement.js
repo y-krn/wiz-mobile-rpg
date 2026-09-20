@@ -41,21 +41,6 @@ const STANDARD_BALANCE_DEFAULTS = Object.freeze({
   calibrationRuns: STANDARD_BALANCE_CONFIG.calibrationRuns
 });
 
-const NATIVE_DIAGNOSTIC_DEFINITION = Object.freeze({
-  adapter: "native-manifest",
-  defaultRunType: "diagnostic",
-  allowedRunTypes: ["diagnostic"],
-  artifactPrefix: "balance-measurement",
-  retentionDays: 14
-});
-
-function nativeDiagnosticDefinition(definition) {
-  return freezeDefinition({
-    ...definition,
-    ...NATIVE_DIAGNOSTIC_DEFINITION
-  });
-}
-
 const outputArgs = (output, names = ["output", "summary", "manifest"]) => names.flatMap(name => [
   `--${name}`,
   output[name === "output" ? "measurement" : name]
@@ -129,49 +114,156 @@ const runDifficultyArgs = ({ options, output }) => nativeMeasurementArgs({
   afterSeed: options.policies ? ["--policies", options.policies] : []
 });
 
-const earlyAttritionArgs = ({ options, output }) => nativeMeasurementArgs({
+const earlyRunArgs = ({ options, output, profile }) => nativeMeasurementArgs({
   options,
   output,
-  beforeRef: ["--measurement", options.measurement],
+  beforeRef: ["--measurement", profile.measurement],
   afterRef: ["--treatment", options.treatment]
 });
 
 const survivalPolicyArgs = nativeMeasurementArgs;
 const preparationPowerArgs = nativeMeasurementArgs;
-const firstBandArgs = mode => ({ options, output }) => nativeMeasurementArgs({
+const firstBandArgs = ({ options, output, profile }) => nativeMeasurementArgs({
   options,
   output,
-  beforeRef: mode ? ["--mode", mode] : []
+  beforeRef: profile.mode ? ["--mode", profile.mode] : []
 });
 
-export const MEASUREMENT_REGISTRY = Object.freeze({
-  standard: freezeDefinition({
-    id: "standard",
-    label: "Standard statistical balance",
+const ALL_RUN_TYPES = Object.freeze([...MEASUREMENT_RUN_TYPES]);
+const DIAGNOSTIC_ONLY_RUN_TYPES = Object.freeze(["diagnostic"]);
+
+function freezeFamily(family) {
+  return Object.freeze({
+    ...family,
+    allowedRunTypes: Object.freeze([...(family.allowedRunTypes || MEASUREMENT_RUN_TYPES)])
+  });
+}
+
+export const MEASUREMENT_FAMILIES = Object.freeze({
+  standard: freezeFamily({
     runner: "scratch/measurements/measure_balance.js",
     adapter: "standard-manifest",
     defaultRunType: "baseline-candidate",
-    allowedRunTypes: ["baseline-candidate", "diagnostic", "temporary"],
+    allowedRunTypes: ALL_RUN_TYPES,
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
-    defaults: STANDARD_BALANCE_DEFAULTS,
     buildArgs: standardArgs
   }),
-  "starting-kit-early-run": nativeDiagnosticDefinition({
+  "starting-kit": freezeFamily({
+    runner: "scratch/measurements/starting_kit_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: startingKitArgs
+  }),
+  "early-b1f-composition": freezeFamily({
+    runner: "scratch/measurements/early_b1f_composition_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: earlyB1FArgs
+  }),
+  "fixed-combat-composition": freezeFamily({
+    runner: "scratch/measurements/fixed_combat_composition_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: fixedCombatArgs
+  }),
+  "equipment-load": freezeFamily({
+    runner: "scratch/measurements/equipment_load_measurement.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: equipmentLoadArgs
+  }),
+  "run-difficulty": freezeFamily({
+    runner: "scratch/measurements/measure_run_difficulty.js",
+    adapter: "native-manifest",
+    defaultRunType: profile => profile.runTypePolicy === "diagnostic" ? "diagnostic" : "baseline-candidate",
+    allowedRunTypes: ALL_RUN_TYPES,
+    resolveAllowedRunTypes: profile => profile.runTypePolicy === "diagnostic" ? DIAGNOSTIC_ONLY_RUN_TYPES : ALL_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: runDifficultyArgs
+  }),
+  "early-run": freezeFamily({
+    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: earlyRunArgs
+  }),
+  "survival-policy": freezeFamily({
+    runner: "scratch/measurements/measure_survival_policy_comparison.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: survivalPolicyArgs
+  }),
+  "preparation-power": freezeFamily({
+    runner: "scratch/measurements/preparation_power_factorial.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: preparationPowerArgs
+  }),
+  "first-band": freezeFamily({
+    runner: "scratch/measurements/first_band_build_formation.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: firstBandArgs
+  })
+});
+
+function freezeProfile(profile) {
+  return Object.freeze({
+    ...profile,
+    defaults: Object.freeze({ ...profile.defaults }),
+    allowed: Object.freeze({
+      ...(profile.allowed || {})
+    })
+  });
+}
+
+const PROFILE_LIST = [
+  {
+    id: "standard",
+    label: "Standard statistical balance",
+    family: "standard",
+    defaults: STANDARD_BALANCE_DEFAULTS
+  },
+  {
     id: "starting-kit-early-run",
     label: "Starting-kit early-run diagnostic",
-    runner: "scratch/measurements/starting_kit_diagnostic.js",
+    family: "starting-kit",
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1139, startingKit: "vanguard", policy: "fight", fleeHpThreshold: 0.20 },
     allowed: {
       startingKit: ["vanguard", "scout", "devotion", "arcana"],
       policy: ["fight", "flee-threshold", "visible-multi-enemy-flee"]
-    },
-    buildArgs: startingKitArgs
-  }),
-  "early-b1f-composition": nativeDiagnosticDefinition({
+    }
+  },
+  {
     id: "early-b1f-composition",
     label: "Early B1F composition diagnostic",
-    runner: "scratch/measurements/early_b1f_composition_diagnostic.js",
+    family: "early-b1f-composition",
     defaults: {
       runs: 1000,
       minimumRuns: 1000,
@@ -182,152 +274,175 @@ export const MEASUREMENT_REGISTRY = Object.freeze({
       fixedRuns: 1000,
       minimumFixedRuns: 1000,
       fixedSeed: 1151
-    },
-    buildArgs: earlyB1FArgs
-  }),
-  "fixed-combat-composition": nativeDiagnosticDefinition({
+    }
+  },
+  {
     id: "fixed-combat-composition",
     label: "Fixed combat composition diagnostic",
-    runner: "scratch/measurements/fixed_combat_composition_diagnostic.js",
+    family: "fixed-combat-composition",
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1151, startingKit: "vanguard" },
-    allowed: { startingKit: ["vanguard", "scout", "devotion", "arcana"] },
-    buildArgs: fixedCombatArgs
-  }),
-  "equipment-load": nativeDiagnosticDefinition({
+    allowed: { startingKit: ["vanguard", "scout", "devotion", "arcana"] }
+  },
+  {
     id: "equipment-load",
     label: "Equipment-load measurement",
-    runner: "scratch/measurements/equipment_load_measurement.js",
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1170 },
-    buildArgs: equipmentLoadArgs
-  }),
-  "run-difficulty": freezeDefinition({
+    family: "equipment-load",
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1170 }
+  },
+  {
     id: "run-difficulty",
     label: "Run difficulty measurement",
-    runner: "scratch/measurements/measure_run_difficulty.js",
-    adapter: "native-manifest",
-    defaultRunType: "baseline-candidate",
-    allowedRunTypes: ["baseline-candidate", "diagnostic", "temporary"],
-    artifactPrefix: "balance-measurement",
-    retentionDays: 14,
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
-    buildArgs: runDifficultyArgs
-  }),
-  "run-difficulty-policy-sensitivity": nativeDiagnosticDefinition({
+    family: "run-difficulty",
+    runTypePolicy: "baseline",
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 }
+  },
+  {
     id: "run-difficulty-policy-sensitivity",
     label: "Run difficulty policy sensitivity",
-    runner: "scratch/measurements/measure_run_difficulty.js",
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, policies: "p0,p1,p2" },
-    buildArgs: runDifficultyArgs
-  }),
-  "early-run-attrition": nativeDiagnosticDefinition({
+    family: "run-difficulty",
+    runTypePolicy: "diagnostic",
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, policies: "p0,p1,p2" }
+  },
+  {
     id: "early-run-attrition",
     label: "Early run attrition trajectory",
-    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" },
-    buildArgs: earlyAttritionArgs
-  }),
-  "b3plus-survival-decomposition": nativeDiagnosticDefinition({
+    family: "early-run",
+    measurement: "early-run-attrition",
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" }
+  },
+  {
     id: "b3plus-survival-decomposition",
     label: "B3-B5 survival decomposition",
-    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    family: "early-run",
+    measurement: "b3plus-survival-decomposition",
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "b3plus-survival-decomposition" },
-    allowed: { treatment: ["b3plus-survival-decomposition"] },
-    buildArgs: earlyAttritionArgs
-  }),
-  "build-progression-audit": nativeDiagnosticDefinition({
+    allowed: { treatment: ["b3plus-survival-decomposition"] }
+  },
+  {
     id: "build-progression-audit",
     label: "B1-B5 Build progression audit",
-    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" },
-    buildArgs: earlyAttritionArgs
-  }),
-  "build-progression-pareto-safe": nativeDiagnosticDefinition({
+    family: "early-run",
+    measurement: "build-progression-audit",
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "portal-policy" }
+  },
+  {
     id: "build-progression-pareto-safe",
     label: "Pareto-safe equipment policy diagnostic",
-    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    family: "early-run",
+    measurement: "build-progression-pareto-safe",
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "equipment-pareto-safe" },
-    allowed: { treatment: ["equipment-pareto-safe"] },
-    buildArgs: earlyAttritionArgs
-  }),
-  "b2-chest-trap": nativeDiagnosticDefinition({
+    allowed: { treatment: ["equipment-pareto-safe"] }
+  },
+  {
     id: "b2-chest-trap",
     label: "B2 chest-trap suppression diagnostic",
-    runner: "scratch/measurements/measure_early_run_attrition_trajectory.js",
+    family: "early-run",
+    measurement: "b2-chest-trap",
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1277, treatment: "b2-chest-trap" },
-    allowed: { treatment: ["b2-chest-trap"] },
-    buildArgs: earlyAttritionArgs
-  }),
-  "survival-policy": nativeDiagnosticDefinition({
+    allowed: { treatment: ["b2-chest-trap"] }
+  },
+  {
     id: "survival-policy",
     label: "Survival policy comparison",
-    runner: "scratch/measurements/measure_survival_policy_comparison.js",
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
-    buildArgs: survivalPolicyArgs
-  }),
-  "preparation-power-factorial": nativeDiagnosticDefinition({
+    family: "survival-policy",
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 }
+  },
+  {
     id: "preparation-power-factorial",
     label: "Preparation power 2x2 factorial diagnostic",
-    runner: "scratch/measurements/preparation_power_factorial.js",
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
-    buildArgs: preparationPowerArgs
-  }),
-  "first-band-build-formation": nativeDiagnosticDefinition({
+    family: "preparation-power",
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 }
+  },
+  {
     id: "first-band-build-formation",
     label: "First Band Build Formation diagnostic",
-    runner: "scratch/measurements/first_band_build_formation.js",
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
-    buildArgs: firstBandArgs()
-  }),
-  "first-band-b5-wall-diagnostic": nativeDiagnosticDefinition({
+    family: "first-band",
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 }
+  },
+  {
     id: "first-band-b5-wall-diagnostic",
     label: "First Band B5 wall diagnostic",
-    runner: "scratch/measurements/first_band_build_formation.js",
-    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
-    buildArgs: firstBandArgs("b5-wall-diagnostic")
-  }),
-  "first-band-b5-guardian-retry-diagnostic": nativeDiagnosticDefinition({
+    family: "first-band",
+    mode: "b5-wall-diagnostic",
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 }
+  },
+  {
     id: "first-band-b5-guardian-retry-diagnostic",
     label: "First Band B5 Guardian fracture checkpoint diagnostic",
-    runner: "scratch/measurements/first_band_build_formation.js",
-    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
-    buildArgs: firstBandArgs("b5-guardian-retry-diagnostic")
-  }),
-  "first-band-b5-guardian-flee-ev-diagnostic": nativeDiagnosticDefinition({
+    family: "first-band",
+    mode: "b5-guardian-retry-diagnostic",
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 }
+  },
+  {
     id: "first-band-b5-guardian-flee-ev-diagnostic",
     label: "First Band B5 Guardian flee EV diagnostic",
-    runner: "scratch/measurements/first_band_build_formation.js",
-    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
-    buildArgs: firstBandArgs("b5-guardian-flee-ev-diagnostic")
-  }),
-  "first-band-arcana-weapon-diagnostic": nativeDiagnosticDefinition({
+    family: "first-band",
+    mode: "b5-guardian-flee-ev-diagnostic",
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 }
+  },
+  {
     id: "first-band-arcana-weapon-diagnostic",
     label: "First Band Arcana weapon diagnostic",
-    runner: "scratch/measurements/first_band_build_formation.js",
-    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
-    buildArgs: firstBandArgs("arcana-weapon-diagnostic")
-  }),
-  "first-band-arcana-mp-supply-diagnostic": nativeDiagnosticDefinition({
+    family: "first-band",
+    mode: "arcana-weapon-diagnostic",
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 }
+  },
+  {
     id: "first-band-arcana-mp-supply-diagnostic",
     label: "First Band Arcana MP supply diagnostic",
-    runner: "scratch/measurements/first_band_build_formation.js",
-    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
-    buildArgs: firstBandArgs("arcana-mp-supply-diagnostic")
-  }),
-  "first-band-transition-recovery": nativeDiagnosticDefinition({
+    family: "first-band",
+    mode: "arcana-mp-supply-diagnostic",
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 }
+  },
+  {
     id: "first-band-transition-recovery",
     label: "First Band transition recovery diagnostic",
-    runner: "scratch/measurements/first_band_build_formation.js",
-    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 },
-    buildArgs: firstBandArgs("transition-recovery")
-  }),
-  "first-band-levelup-recovery": nativeDiagnosticDefinition({
+    family: "first-band",
+    mode: "transition-recovery",
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1277 }
+  },
+  {
     id: "first-band-levelup-recovery",
     label: "First Band level-up recovery diagnostic",
-    runner: "scratch/measurements/first_band_build_formation.js",
-    defaults: { runs: 500, minimumRuns: 500, seed: 1277 },
-    buildArgs: firstBandArgs("levelup-recovery")
-  })
-});
+    family: "first-band",
+    mode: "levelup-recovery",
+    defaults: { runs: 500, minimumRuns: 500, seed: 1277 }
+  }
+].map(freezeProfile);
+
+export const MEASUREMENT_PROFILES = Object.freeze(Object.fromEntries(
+  PROFILE_LIST.map(profile => [profile.id, profile])
+));
+
+function resolveFamilySetting(setting, profile) {
+  return typeof setting === "function" ? setting(profile) : setting;
+}
+
+export function getMeasurementFamily(familyId) {
+  const family = MEASUREMENT_FAMILIES[familyId];
+  if (!family) throw new Error(`unknown measurement family: ${familyId}`);
+  return family;
+}
+
+function createMeasurementDefinition(profile) {
+  const family = getMeasurementFamily(profile.family);
+  return freezeDefinition({
+    ...profile,
+    runner: family.runner,
+    adapter: family.adapter,
+    defaultRunType: resolveFamilySetting(family.defaultRunType, profile),
+    allowedRunTypes: family.resolveAllowedRunTypes
+      ? family.resolveAllowedRunTypes(profile)
+      : family.allowedRunTypes,
+    artifactPrefix: family.artifactPrefix,
+    retentionDays: family.retentionDays,
+    buildArgs: family.buildArgs
+  });
+}
+
+export const MEASUREMENT_REGISTRY = Object.freeze(Object.fromEntries(
+  PROFILE_LIST.map(profile => [profile.id, createMeasurementDefinition(profile)])
+));
 
 export const MEASUREMENT_IDS = Object.freeze(Object.keys(MEASUREMENT_REGISTRY));
 
@@ -422,7 +537,7 @@ export function resolveRunnerInvocation(input, outputDirectory = DEFAULT_OUTPUT_
     measurement: definition.id,
     runner: definition.runner,
     adapter: definition.adapter,
-    args: Object.freeze(definition.buildArgs({ options, output })),
+    args: Object.freeze(definition.buildArgs({ options, output, profile: definition })),
     output,
     options
   });
