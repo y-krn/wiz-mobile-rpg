@@ -13,6 +13,8 @@ export const CHEST_PROP_STYLES = Object.freeze({
 });
 
 const DEFAULT_STYLE = "wood_crate";
+const SHORT_PORTRAIT_MAX_HEIGHT = 600;
+const SHORT_PORTRAIT_FLOOR_RATIO = 0.64;
 
 export function getChestPropStyle(style) {
   return Object.hasOwn(CHEST_PROP_STYLES, style) ? style : DEFAULT_STYLE;
@@ -51,7 +53,11 @@ export function getChestPropGeometry(plane, style = DEFAULT_STYLE) {
   const bodyHeight = Math.max(4, width * 0.43);
   const lidHeight = Math.max(3, width * 0.25);
   const centerX = (left + right) / 2;
-  const baseY = bottom - Math.max(1, width * 0.018);
+  const projectedBaseY = bottom - Math.max(1, width * 0.018);
+  const shortPortrait = plane?.viewport?.orientation === "portrait" && plane.viewport.height <= SHORT_PORTRAIT_MAX_HEIGHT;
+  const baseY = shortPortrait
+    ? Math.min(projectedBaseY, plane.viewport.height * SHORT_PORTRAIT_FLOOR_RATIO)
+    : projectedBaseY;
   const bodyX = centerX - width / 2;
   const bodyY = baseY - bodyHeight;
   const safeStyle = getChestPropStyle(style);

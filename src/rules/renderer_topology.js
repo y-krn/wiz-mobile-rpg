@@ -8,6 +8,16 @@ export function isRenderableCorridorCell(cell) {
 }
 
 /**
+ * World objects use only the forward centre cells already admitted by the
+ * renderer topology. Wall occlusion is applied by the Pixi layer order after
+ * this visibility fact is consumed; object-specific visibility is forbidden.
+ */
+export function isVisibleWorldObjectCell(topology) {
+  return topology?.valid === true && topology.z > 0 && topology.column === 0 &&
+    isRenderableCorridorCell(topology.cell);
+}
+
+/**
  * Return the map cells visible from the player through the same directed
  * movement rules used by exploration. The result is renderer-neutral and
  * consumed by the Pixi presentation.

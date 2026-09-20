@@ -2,7 +2,8 @@ import assert from "assert";
 import {
   getVisibleCorridorCells,
   getVisibleCorridorTopology,
-  isRenderableCorridorCell
+  isRenderableCorridorCell,
+  isVisibleWorldObjectCell
 } from "../../../src/rules/renderer_topology.js";
 import { DX, DY } from "../../../src/constants/directions.js";
 
@@ -61,6 +62,23 @@ assert.equal(front.frontWall, false);
 assert.equal(front.frontBlocked, false);
 assert.equal(front.frontOneWayBarrier, false);
 assert.equal(topologyFor(openFront, 1, 0).x, CENTER.x);
+assert.equal(isVisibleWorldObjectCell(topologyFor(openFront, 1, 0)), true);
+
+const solidFrontWallWithObject = makeGrid();
+carve(solidFrontWallWithObject, CENTER.x, CENTER.y, DIR);
+solidFrontWallWithObject[CENTER.y - 1][CENTER.x].event = "chest";
+const solidObjectCell = topologyFor(solidFrontWallWithObject, 1, 0);
+assert.equal(solidObjectCell.frontWall, true);
+assert.equal(solidObjectCell.frontBlocked, true);
+assert.equal(isVisibleWorldObjectCell(solidObjectCell), true, "visible floor object remains admitted when its front wall is solid");
+
+const occludedObject = makeGrid();
+carve(occludedObject, CENTER.x, CENTER.y, DIR);
+carve(occludedObject, CENTER.x, CENTER.y - 1, DIR);
+occludedObject[CENTER.y - 2][CENTER.x].event = "chest";
+occludedObject[CENTER.y - 1][CENTER.x].walls[DIR] = true;
+const occludedTopology = topologyFor(occludedObject, 2, 0);
+assert.equal(occludedTopology, undefined, "world object beyond a front wall is absent from renderer topology");
 
 const oneWay = makeGrid();
 carve(oneWay, CENTER.x, CENTER.y, DIR);
