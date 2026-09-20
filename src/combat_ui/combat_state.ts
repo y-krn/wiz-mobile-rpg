@@ -2,6 +2,7 @@
 import { state } from "../state.js";
 import { menuContext } from "../navigation.js";
 import { getScreenViewState } from "../state/view_state.js";
+import { isCombatPlayerActionableActor } from "../state/character.js";
 import { isCombatAction } from "../combat_logic/combat_action.js";
 import type { CombatAction } from "../combat_logic/combat_action.js";
 
@@ -27,11 +28,10 @@ export function queueCombatAction(action: unknown): action is CombatAction {
   return true;
 }
 
-function isLivingCombatActor(actor: unknown): actor is { name: string; status: string } {
-  if (!actor || typeof actor !== "object" || Array.isArray(actor)) return false;
-  const candidate = actor as { name?: unknown; status?: unknown };
-  return typeof candidate.name === "string" &&
-    ["ok", "poisoned", "blind"].includes(candidate.status as string);
+function getPartyActor(party: unknown, actorIdx: unknown): unknown {
+  if (!Array.isArray(party) || typeof actorIdx !== "number" ||
+      !Number.isInteger(actorIdx) || actorIdx < 0 || !Object.hasOwn(party, actorIdx)) return null;
+  return party[actorIdx];
 }
 
 // balance-impact: none — combat callback context boundary only
@@ -41,11 +41,8 @@ export function bindCombatCallback(callback: unknown, context: Record<string, un
   const expected = Object.freeze({ ...context });
   return (...args: unknown[]) => {
     const view = getScreenViewState(state, menuContext);
-    const party = state.party as unknown[];
-    const actor = typeof expected.actorIdx === "number" && Number.isInteger(expected.actorIdx) && expected.actorIdx >= 0
-      ? party[expected.actorIdx]
-      : null;
-    const livingActor = isLivingCombatActor(actor);
+    const actor = getPartyActor(state.party, expected.actorIdx);
+    const livingActor = isCombatPlayerActionableActor(actor);
     const actorName = livingActor ? actor.name : null;
     if (typeof callback !== "function" || !view.isActionableCombat ||
         menuContext.prevGameState !== "combat" ||
