@@ -142,8 +142,14 @@ test.describe('Common UI vNext shell @smoke', () => {
     const ownership = await page.evaluate(async () => {
       const { state, createDefaultCurrentRun } = await import('/src/state.js');
       const { renderItemInventory } = await import('/src/menu/explore_actions.js');
-      const townItem = { baseId: 'HEAL_POTION', instanceId: 'town-1' };
-      const dungeonItem = { baseId: 'GREATER_HEAL', instanceId: 'dungeon-1' };
+      const townItem = {
+        kind: 'equipment', instanceId: 'town-1', baseId: 'HEAL_POTION',
+        rarity: 'magic', level: 1, identified: false, affixes: [],
+      };
+      const dungeonItem = {
+        kind: 'equipment', instanceId: 'dungeon-1', baseId: 'GREATER_HEAL',
+        rarity: 'magic', level: 1, identified: false, affixes: [],
+      };
       state.currentRun = createDefaultCurrentRun();
       state.currentRun.townInventory = [townItem];
       state.currentRun.unbankedObjectLoot = [{ id: 'loot-1', item: dungeonItem }];
