@@ -1,10 +1,11 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { execFileSync, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { runDependencyPreflight } from '../../scripts/dependency-preflight.js';
-import { collectRelativeDependencies } from './fixtures/dependency_resolver.js';
+import { HEAVY_TEST_MANIFEST } from './fixtures/heavy_test_manifest.js';
+import { collectChangedFiles, selectTestsForChanges } from './fixtures/dependency_resolver.js';
 
 if (!runDependencyPreflight()) process.exit(1);
 
@@ -12,6 +13,8 @@ if (!runDependencyPreflight()) process.exit(1);
 // directories are suite candidates. Simulations and measurements live under
 // scratch/ and cannot be picked up by naming accidents.
 const EXCLUDE_LIST = [];
+// Keep the runner contract stable. #1425 supplies selection metadata for the
+// later conditional gate; it does not move all #1421 ownership into this job.
 const HEAVY_TESTS = {
   'test_stairs_min_distance.js': 4,
   'test_reachability_loop.js': 4,
@@ -29,51 +32,6 @@ const testRoots = [
 ];
 const startTime = Date.now();
 
-const toRepoPath = filePath => path.relative(repoRoot, filePath).split(path.sep).join('/');
-const normalizeRepoPath = filePath => path.normalize(filePath).split(path.sep).join('/').replace(/^\.\//, '');
-
-function parseCommandOutput(command, args) {
-  return execFileSync(command, args, {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-    .split(/\r?\n/)
-    .filter(Boolean);
-}
-
-function collectHeavyDependencies(testFile) {
-  const ownedTestPath = testFile.includes('/')
-    ? testFile
-    : ['unit', 'regression']
-      .map(directory => `tests/node/${directory}/${testFile}`)
-      .find(candidate => fs.existsSync(path.join(repoRoot, candidate)));
-  if (!ownedTestPath) {
-    throw new Error(`Heavy test is not owned by a test directory: ${testFile}`);
-  }
-  const testPath = path.join(repoRoot, ownedTestPath);
-  return new Set(
-    [...collectRelativeDependencies(testPath)].map(dependency => toRepoPath(dependency)),
-  );
-}
-
-function findChangedFiles() {
-  const baseRef = process.env.BASE_REF || 'origin/main';
-  const [mergeBase] = parseCommandOutput('git', ['merge-base', 'HEAD', baseRef]);
-  if (!mergeBase) {
-    throw new Error(`No merge base found for ${baseRef}`);
-  }
-
-  const changedFiles = new Set([
-    ...parseCommandOutput('git', ['diff', '--name-only', `${mergeBase}...HEAD`]),
-    ...parseCommandOutput('git', ['diff', '--name-only']),
-    ...parseCommandOutput('git', ['diff', '--name-only', '--cached']),
-    ...parseCommandOutput('git', ['ls-files', '--others', '--exclude-standard']),
-  ].map(normalizeRepoPath));
-
-  return changedFiles;
-}
-
 function selectHeavyTests() {
   if (process.env.FULL_TEST === '1') {
     return new Set(heavyTestFiles);
@@ -84,17 +42,22 @@ function selectHeavyTests() {
   }
 
   try {
-    const changedFiles = findChangedFiles();
-    const selected = new Set();
-
-    for (const testFile of heavyTestFiles) {
-      const dependencies = collectHeavyDependencies(testFile);
-      if ([...dependencies].some(dependency => changedFiles.has(dependency))) {
-        selected.add(testFile);
+    const changedFiles = collectChangedFiles({
+      repoRoot,
+      baseRef: process.env.BASE_REF || 'origin/main',
+      headRef: process.env.HEAD_REF || 'HEAD',
+    });
+    const selection = selectTestsForChanges({
+      manifest: HEAVY_TEST_MANIFEST.filter(entry => heavyTestFiles.includes(path.basename(entry.file))),
+      repoRoot,
+      changedFiles,
+    });
+    for (const result of selection.results) {
+      if (result.closure.safeToSelect) {
+        console.warn(`[WARN] Safe-select ${result.entry.file}: unresolved dependency or resolver error`);
       }
     }
-
-    return selected;
+    return new Set([...selection.selected].map(file => path.basename(file)));
   } catch (error) {
     console.warn(`[WARN] Scope detection failed; running all HEAVY tests: ${error.message}`);
     return new Set(heavyTestFiles);
