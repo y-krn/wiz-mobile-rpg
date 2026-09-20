@@ -66,28 +66,24 @@ export const HEAVY_TEST_MANIFEST = [
   entry(regression('test_run_difficulty_policy_sensitivity.js'), 'SCHEDULED', 'simulation'),
   entry(regression('test_first_band_arcana_mp_supply.js'), 'SCHEDULED', 'measurement'),
   entry(regression('test_survival_policy_comparison.js'), 'SCHEDULED', 'simulation'),
-  entry(regression('test_phase3_stage1_5_diagnostics.js'), 'SCHEDULED', 'measurement'),
 
   entry(regression('test_early_b1f_composition_diagnostic.js'), 'MANUAL_MEASUREMENT', 'measurement'),
   entry(regression('test_preparation_power_factorial.js'), 'MANUAL_MEASUREMENT', 'measurement'),
   entry(regression('test_b5_guardian_flee_ev_diagnostic.js'), 'MANUAL_MEASUREMENT', 'measurement'),
   entry(regression('test_first_kill_window_diagnostic.js'), 'MANUAL_MEASUREMENT', 'measurement'),
-  entry(regression('test_phase3_stage3_checkpoint_continuation.js'), 'MANUAL_MEASUREMENT', 'measurement'),
-  entry(regression('test_partial_information_progression.js'), 'MANUAL_MEASUREMENT', 'measurement'),
   entry(unit('test_build_sensitivity.js'), 'MANUAL_MEASUREMENT', 'measurement'),
   entry(regression('test_reached_run_measurement.js'), 'MANUAL_MEASUREMENT', 'measurement'),
   entry(regression('test_standard_class_axis.js'), 'MANUAL_MEASUREMENT', 'measurement'),
-  entry(regression('test_phase3_stage2_combat_personas.js'), 'MANUAL_MEASUREMENT', 'measurement'),
 ];
 
 export const MAIN_PUSH_MANIFEST = HEAVY_TEST_MANIFEST.filter(
   entry => entry.ownership === 'MAIN_PUSH',
 );
 
-export const HEAVY_TEST_COUNT = 50;
+export const HEAVY_TEST_COUNT = 46;
 export const HEAVY_TEST_OWNERSHIP_COUNTS = {
   PR_CONDITIONAL: 27,
   MAIN_PUSH: 6,
-  SCHEDULED: 7,
-  MANUAL_MEASUREMENT: 10,
+  SCHEDULED: 6,
+  MANUAL_MEASUREMENT: 7,
 };

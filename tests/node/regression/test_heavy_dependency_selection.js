@@ -55,27 +55,23 @@ const canonicalFiles = [
   'tests/node/regression/test_run_difficulty_policy_sensitivity.js',
   'tests/node/regression/test_first_band_arcana_mp_supply.js',
   'tests/node/regression/test_survival_policy_comparison.js',
-  'tests/node/regression/test_phase3_stage1_5_diagnostics.js',
   'tests/node/regression/test_early_b1f_composition_diagnostic.js',
   'tests/node/regression/test_preparation_power_factorial.js',
   'tests/node/regression/test_b5_guardian_flee_ev_diagnostic.js',
   'tests/node/regression/test_first_kill_window_diagnostic.js',
-  'tests/node/regression/test_phase3_stage3_checkpoint_continuation.js',
-  'tests/node/regression/test_partial_information_progression.js',
   'tests/node/unit/test_build_sensitivity.js',
   'tests/node/regression/test_reached_run_measurement.js',
   'tests/node/regression/test_standard_class_axis.js',
-  'tests/node/regression/test_phase3_stage2_combat_personas.js',
 ];
 
 assert.equal(HEAVY_TEST_MANIFEST.length, HEAVY_TEST_COUNT);
-assert.equal(HEAVY_TEST_COUNT, 50);
+assert.equal(HEAVY_TEST_COUNT, 46);
 assert.deepEqual(
   [...new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file))].sort(),
   [...new Set(canonicalFiles)].sort(),
-  'manifest must equal the canonical #1421 file set',
+  'manifest must equal the canonical heavy file set',
 );
-assert.equal(new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file)).size, 50);
+assert.equal(new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file)).size, 46);
 
 const ownershipCounts = HEAVY_TEST_MANIFEST.reduce((counts, entry) => {
   counts[entry.ownership] = (counts[entry.ownership] || 0) + 1;
@@ -84,7 +80,7 @@ const ownershipCounts = HEAVY_TEST_MANIFEST.reduce((counts, entry) => {
 assert.deepEqual(
   ownershipCounts,
   HEAVY_TEST_OWNERSHIP_COUNTS,
-  'manifest ownership counts must equal #1421',
+  'manifest ownership counts must equal the canonical heavy set',
 );
 
 for (const entry of HEAVY_TEST_MANIFEST) {
@@ -186,4 +182,4 @@ const baseHeadChanges = collectChangedFiles({
 });
 assert.ok(baseHeadChanges instanceof Set, 'BASE...HEAD change set was not returned as a Set');
 
-console.log('[PASS] canonical #1421 heavy inventory, ownership counts, recursive supplemental closure, and safe selection');
+console.log('[PASS] canonical heavy inventory, ownership counts, recursive supplemental closure, and safe selection');

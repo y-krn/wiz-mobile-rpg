@@ -25,8 +25,8 @@ assert.equal(new Set(MAIN_PUSH_MANIFEST.map(entry => entry.file)).size, 6);
 assert.ok(MAIN_PUSH_MANIFEST.every(entry => entry.ownership === 'MAIN_PUSH'));
 assert.deepEqual(MAIN_PUSH_MANIFEST.map(entry => entry.file), expectedPaths);
 assert.equal(HEAVY_TEST_MANIFEST.filter(entry => entry.ownership === 'PR_CONDITIONAL').length, 27);
-assert.equal(HEAVY_TEST_MANIFEST.filter(entry => entry.ownership === 'SCHEDULED').length, 7);
-assert.equal(HEAVY_TEST_MANIFEST.filter(entry => entry.ownership === 'MANUAL_MEASUREMENT').length, 10);
+assert.equal(HEAVY_TEST_MANIFEST.filter(entry => entry.ownership === 'SCHEDULED').length, 6);
+assert.equal(HEAVY_TEST_MANIFEST.filter(entry => entry.ownership === 'MANUAL_MEASUREMENT').length, 7);
 
 const mainPushTasks = createMainPushTasks();
 assert.deepEqual(mainPushTasks.map(task => task.file), expectedPaths);

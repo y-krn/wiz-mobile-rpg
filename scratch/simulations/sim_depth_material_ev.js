@@ -4833,7 +4833,6 @@ function createSimulationState(
           portalMinFloor: portalPolicy.minFloor
         };
       })(),
-      combatPolicy: scenario.combatPolicy || "balanced-combat",
       lockedEquipmentSlots: Array.isArray(scenario.lockedEquipmentSlots)
         ? [...new Set(scenario.lockedEquipmentSlots)]
         : [],
@@ -6068,36 +6067,6 @@ function chooseLegacyClassCombatAction(args) {
   });
 }
 
-export const COMBAT_POLICY_IDS = Object.freeze([
-  "balanced-combat",
-  "mp-conservative",
-  "burst-combat"
-]);
-
-export const COMBAT_POLICY_RULES = Object.freeze({
-  "balanced-combat": Object.freeze({
-    description: "Stage 1.5 legacy Mage selector; no new reserve rule"
-  }),
-  "mp-conservative": Object.freeze({
-    reserveMpRatio: 0.5,
-    lowPressureSingleEnemyMaxHp: 22,
-    dangerHpRatio: 0.45,
-    description: "low-pressure single enemy uses physical attack; otherwise HALITO preserves 50% max MP when payable; multi-enemy opens with KATINO then uses LAHALITO, while high-threat single fights may use emergency HALITO"
-  }),
-  "burst-combat": Object.freeze({
-    description: "highest currently payable offensive damage spell, with physical fallback"
-  })
-});
-
-const BURST_MAGE_MULTI_SPELLS = Object.freeze([
-  "TILTOWAIT",
-  "MADALTO",
-  "LAHALITO",
-  "MAHALITO",
-  "HALITO"
-]);
-const BURST_MAGE_SINGLE_SPELLS = Object.freeze(["MAHALITO", "HALITO"]);
-
 function getLowestLivingEnemyIndex(monsters) {
   let index = -1;
   let hp = Infinity;
@@ -6108,82 +6077,6 @@ function getLowestLivingEnemyIndex(monsters) {
     }
   });
   return index;
-}
-
-function getPolicySpellAction({ character, enemies, canCastSpell }, spellName, reserveMp = 0) {
-  const targetIdx = getLowestLivingEnemyIndex(enemies);
-  if (targetIdx < 0 || !hasSpell(character, spellName) || !canCastSpell(spellName, reserveMp)) {
-    return null;
-  }
-  return { type: "spell", targetIdx, spellName };
-}
-
-function selectBalancedCombatAction(context) {
-  return chooseSimulationAutoCombatAction({
-    character: context.character,
-    monsters: context.enemies,
-    roundNumber: context.roundNumber,
-    canCastSpell: context.canCastSpell
-  });
-}
-
-// Measurement-only policies receive only current combat state. They do not
-// receive the simulation state, maps, future encounters, RNG, or hidden data.
-function selectMpConservingCombatAction(context) {
-  const { character, enemies, roundNumber, encounterType } = context;
-  const living = enemies.filter(enemy => enemy.hp > 0);
-  const lowestHp = living.length ? Math.min(...living.map(enemy => enemy.hp)) : 0;
-  const targetIdx = getLowestLivingEnemyIndex(enemies);
-  if (targetIdx < 0) return null;
-  const rules = COMBAT_POLICY_RULES["mp-conservative"];
-  const hpRatio = character.hp === undefined
-    ? 1
-    : character.hp / Math.max(1, character.maxHp || character.hp);
-  const highThreat = living.length >= 2 || ["boss", "midboss", "elite"].includes(encounterType) || hpRatio <= rules.dangerHpRatio;
-  if (roundNumber === 1 && living.length >= 2) {
-    const crowdControl = getPolicySpellAction(context, "KATINO");
-    if (crowdControl) return crowdControl;
-  }
-  if (highThreat && living.length >= 2) {
-    const areaSpell = getPolicySpellAction(context, "LAHALITO");
-    if (areaSpell) return areaSpell;
-  }
-  const lowPressure = living.length === 1 && lowestHp <= rules.lowPressureSingleEnemyMaxHp && hpRatio > rules.dangerHpRatio;
-  if (!lowPressure) {
-    const reserveMp = Math.ceil((character.maxMp || character.mp || 0) * rules.reserveMpRatio);
-    const singleSpell = getPolicySpellAction(context, "HALITO", reserveMp);
-    if (singleSpell) return singleSpell;
-  }
-  if (highThreat && living.length === 1) {
-    const emergencySpell = getPolicySpellAction(context, "HALITO");
-    if (emergencySpell) return emergencySpell;
-  }
-  return { type: "fight", targetIdx };
-}
-
-function selectBurstCombatAction(context) {
-  const { enemies } = context;
-  const living = enemies.filter(enemy => enemy.hp > 0);
-  const targetIdx = getLowestLivingEnemyIndex(enemies);
-  if (targetIdx < 0) return null;
-  const candidates = living.length >= 2 ? BURST_MAGE_MULTI_SPELLS : BURST_MAGE_SINGLE_SPELLS;
-  for (const spellName of candidates) {
-    const action = getPolicySpellAction(context, spellName);
-    if (action) return action;
-  }
-  return { type: "fight", targetIdx };
-}
-
-const COMBAT_POLICY_SELECTORS = Object.freeze({
-  "balanced-combat": selectBalancedCombatAction,
-  "mp-conservative": selectMpConservingCombatAction,
-  "burst-combat": selectBurstCombatAction
-});
-
-export function selectSimulationCombatActionForPolicy(context) {
-  const selector = COMBAT_POLICY_SELECTORS[context.combatPolicy || "balanced-combat"];
-  if (!selector) throw new Error(`Unknown combat policy: ${context.combatPolicy}`);
-  return selector(context);
 }
 
 function chooseSimulationCombatActionForCharacter(character, monsters, roundNumber, healThreshold) {
@@ -7274,19 +7167,10 @@ export function selectCombatAction(state, metrics) {
   const combatManaPotionAction = getCombatManaPotionAction(state);
   if (combatManaPotionAction) return combatManaPotionAction;
 
-  const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
-  const sharedAutoAction = selectSimulationCombatActionForPolicy({
-    combatPolicy: state.simPolicy.combatPolicy,
+  const sharedAutoAction = chooseSimulationAutoCombatAction({
     character,
-    enemies: monsters,
+    monsters,
     roundNumber: state.combatState.roundNumber,
-    encounterType: state.combatState.isBoss
-      ? "boss"
-      : state.combatState.isMidboss
-        ? "midboss"
-        : state.combatState.isRoamingFlack
-          ? "elite"
-          : "normal",
     canCastSpell: (spellName, reserveMp) =>
       getSpellActionPayment(state, spellName, reserveMp)
   });
@@ -8128,7 +8012,7 @@ function runEncounter(
     guardianAttempt = null
   } = {}
 ) {
-  const combatPolicy = state.simPolicy;
+  const simulationPolicy = state.simPolicy;
   const combatMeasurement = metrics?.killHeal || null;
   const diagnosticLevel = metrics?.diagnosticLevel || "full";
   const fullDiagnostics = diagnosticLevel === "full";
@@ -8873,7 +8757,7 @@ function runEncounter(
         actions: [action]
       }, {
         rng: roundRng,
-        policy: combatPolicy,
+        policy: simulationPolicy,
         measurement: combatMeasurement
       }));
     } finally {
@@ -8963,7 +8847,7 @@ function runEncounter(
     // The large simulation runner still uses these two values for non-combat
     // decisions. Keep that runner-local state attached after the clean combat
     // result is returned; the production combat result itself remains clean.
-    state = { ...roundResult.state, simPolicy: combatPolicy };
+    state = { ...roundResult.state, simPolicy: simulationPolicy };
     const currentBoss = getCurrentBoss();
     if (currentBoss) bossHpMinimum = Math.min(bossHpMinimum ?? currentBoss.hp, currentBoss.hp);
     productionLevelUpRecoveryHp += (roundResult.logQueue || []).reduce(
@@ -10744,43 +10628,6 @@ function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
     campUsageSoFar: state.currentRun.campRestCount || 0,
     previousEncounterDamage: previousEncounters
   };
-}
-
-// Measurement-only checkpoint transport.  This is intentionally separate from
-// the production save shape: it carries the live production-backed run state
-// between a prefix measurement and a continuation measurement, while omitting
-// the generated map/combat object and telemetry references.
-function snapshotCheckpointState(state) {
-  const snapshot = structuredClone(state);
-  snapshot.map = null;
-  snapshot.combatState = null;
-  snapshot.encounterRateOverride = null;
-  return snapshot;
-}
-
-function hydrateCheckpointState(state, checkpointState, scenario, runSeed) {
-  if (!checkpointState) return;
-  const configuredPolicy = structuredClone(state.simPolicy);
-  Object.assign(state, structuredClone(checkpointState));
-  state.map = null;
-  state.combatState = null;
-  state.encounterRateOverride = null;
-  state.roamingMonsters = [];
-  state.currentRun.runSeed = runSeed;
-  state.currentRun.startFloor = state.floor;
-  state.floor = Number.isInteger(Number(state.floor))
-    ? Number(state.floor)
-    : Number(scenario.startFloor) || 1;
-  state.simPolicy = {
-    ...configuredPolicy,
-    ...(state.simPolicy || {}),
-    combatPolicy: scenario.combatPolicy || configuredPolicy.combatPolicy || "balanced-combat"
-  };
-  // Continuation metrics count only what happens after the checkpoint. The
-  // queues themselves remain part of the checkpoint state for real supply
-  // accounting, while the synthetic "starting" arrays are not re-counted.
-  state.simStartingInventory = [];
-  state.simDepartureCraftItems = [];
 }
 
 function createDeathStateSnapshot(state, scoringProfile) {
@@ -15160,9 +15007,7 @@ export function simulateRun({
   collectEquipmentTelemetry = false,
   collectEquipmentCandidateAudit = false,
   collectCombatFormula = false,
-  worldSeed = null,
-  checkpointState = null,
-  captureCheckpointAtFloor = null
+  worldSeed = null
 }) {
   if (!className && !fixtureId) throw new Error("simulateRun requires className or fixtureId");
   const axisId = fixtureId || className;
@@ -15184,7 +15029,6 @@ export function simulateRun({
     unlockedMilestones,
     fixtureId
   );
-  hydrateCheckpointState(state, checkpointState, scenario, runSeed);
   state.simPolicy.statusCureTargetDepth = targetDepth;
   if (CORE_WORKSHOP_GATE_MODE === "off") {
     state.party[0].unlockedAffixIds = [...ALL_CORE_AFFIX_IDS];
@@ -15890,13 +15734,6 @@ export function simulateRun({
     if (floorStart) {
       state.x = floorStart.x;
       state.y = floorStart.y;
-    }
-    if (captureCheckpointAtFloor === floor) {
-      return {
-        checkpointFloor: floor,
-        checkpointState: snapshotCheckpointState(state),
-        checkpointSnapshot: createCheckpointSnapshot(state, metrics, scoringProfile, floor)
-      };
     }
     if (floor === FLAME_TRAP_MODEL.floor) {
       const entrant = state.party[0];
