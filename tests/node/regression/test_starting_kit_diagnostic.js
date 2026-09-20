@@ -89,6 +89,14 @@ assert.ok(Object.hasOwn(entry, "startRecoveryBenefit"));
 assert.ok(Object.hasOwn(entry, "endRecoveryBenefit"));
 assert.equal(typeof entry.initialVisibleEnemyCount, "number");
 assert.ok(entry.initialVisibleEnemyCount >= 1);
+assert.equal(typeof entry.rawInitialVisibleEnemyCount, "number");
+assert.ok(entry.rawInitialVisibleEnemyCount >= entry.initialVisibleEnemyCount);
+assert.ok(["player-before-any-enemy", "after-enemy-action", "not-executed-before-end", "unobserved"]
+  .includes(entry.firstPlayerActionExecutionTiming));
+assert.equal(typeof entry.firstPlayerActionExecuted, "boolean");
+assert.equal(typeof entry.enemyActionsBeforeFirstPlayerAction, "number");
+assert.equal(typeof entry.damageBeforeFirstPlayerAction, "number");
+assert.equal(entry.earlyCompositionPolicy, "baseline");
 for (const field of [
   "hpBeforeEncounter", "maxHpBeforeEncounter", "hpRateBeforeEncounter",
   "mpBeforeEncounter", "maxMpBeforeEncounter", "mpRateBeforeEncounter"
@@ -140,6 +148,9 @@ for (const type of ["meaningfulReward", "objectLoot", "buildChangeOpportunity", 
 }
 assert.equal(typeof report.encounterExposure.enemyEncounterCount, "number");
 assert.ok(report.encounterExposure.byInitialVisibleEnemyCount);
+assert.ok(report.enemyActionCost.byEncounterOrdinal["1"].all);
+assert.ok(report.enemyActionCost.byEncounterOrdinal["2"].all);
+assert.ok(report.enemyActionCost.reconciliation.encounters >= 0);
 assert.equal(typeof report.combatCost.splitOnDeath.triggers, "number");
 assert.equal(typeof report.combatCost.guardAdjacent.guardedCount, "number");
 assert.equal(typeof report.combatCost.nonCombat.trapDamageHp, "number");

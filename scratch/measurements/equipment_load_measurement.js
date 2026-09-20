@@ -287,7 +287,11 @@ async function runB1FCondition(runs, seed, {
   return results;
 }
 
-export async function runEquipmentLoadMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED } = {}) {
+export async function runEquipmentLoadMeasurement({
+  runs = DEFAULT_RUNS,
+  seed = DEFAULT_SEED,
+  allowSmallRunCount = false
+} = {}) {
   const normalizedRuns = positiveInteger(runs, "runs");
   const normalizedSeed = positiveInteger(seed, "seed");
   const loadoutMetadata = Object.values(LOADOUTS).map(loadout => {
@@ -303,7 +307,8 @@ export async function runEquipmentLoadMeasurement({ runs = DEFAULT_RUNS, seed = 
     fixedCombat[loadoutId] = await runFixedCombatDiagnostic({
       runs: normalizedRuns,
       seed: normalizedSeed,
-      loadoutId
+      loadoutId,
+      allowSmallRunCount
     });
   }
   return {
