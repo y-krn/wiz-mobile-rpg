@@ -1,5 +1,7 @@
 // balance-impact: none — canonical generated equipment contract and runtime boundary only.
 
+import { isItemRef, type ItemRef } from "./item.js";
+
 export type EquipmentRarity = "magic" | "rare" | "epic";
 export type EquipmentAffixKind = "core" | "support";
 export type EquipmentBuildRole = "reinforce" | "convert" | "pivot";
@@ -22,6 +24,31 @@ export interface EquipmentInstance {
   affixes: EquipmentAffix[];
   [key: string]: unknown;
 }
+
+export type EquipmentSlotId =
+  | "weapon"
+  | "shield"
+  | "armor"
+  | "accessory"
+  | "accessory2";
+
+export interface CharacterEquipment {
+  weapon: ItemRef | null;
+  shield: ItemRef | null;
+  armor: ItemRef | null;
+  accessory: ItemRef | null;
+  accessory2: ItemRef | null;
+}
+
+export const EQUIPMENT_SLOT_IDS = Object.freeze([
+  "weapon",
+  "shield",
+  "armor",
+  "accessory",
+  "accessory2"
+] as const satisfies readonly EquipmentSlotId[]);
+
+const EQUIPMENT_SLOT_ID_SET: ReadonlySet<string> = new Set(EQUIPMENT_SLOT_IDS);
 
 const EQUIPMENT_RARITIES: ReadonlySet<string> = new Set(["magic", "rare", "epic"]);
 const EQUIPMENT_AFFIX_KINDS: ReadonlySet<string> = new Set(["core", "support"]);
@@ -81,4 +108,21 @@ export function isEquipmentInstance(value: unknown): value is EquipmentInstance 
     if (!Object.hasOwn(value.affixes, index) || !isEquipmentAffix(value.affixes[index])) return false;
   }
   return true;
+}
+
+export function isEquipmentSlotId(value: unknown): value is EquipmentSlotId {
+  return typeof value === "string" && EQUIPMENT_SLOT_ID_SET.has(value);
+}
+
+function isCharacterEquipmentSlotValue(value: unknown): value is ItemRef | null {
+  if (value === null) return true;
+  if (!isItemRef(value)) return false;
+  return typeof value === "object" ? isEquipmentInstance(value) : true;
+}
+
+export function isCharacterEquipment(value: unknown): value is CharacterEquipment {
+  if (!isRecord(value)) return false;
+  return EQUIPMENT_SLOT_IDS.every(slot =>
+    Object.hasOwn(value, slot) && isCharacterEquipmentSlotValue(value[slot])
+  );
 }

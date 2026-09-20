@@ -13,6 +13,7 @@ import {
   getEquipmentSlot,
   getEquipmentSlotsForType
 } from "./equipment_slots.js";
+import { isCharacterEquipment } from "../state/equipment.js";
 
 export const EQUIPMENT_PREVIEW_STATS = [
   { key: "attack", label: "攻撃" },
@@ -83,9 +84,11 @@ function getPrimaryDiff(itemType, rows) {
 }
 
 export function createEquipmentPreviewChar(char) {
+  if (!isCharacterEquipment(char?.equipment)) return null;
+  const source = char.equipment;
   const equipment = {};
   EQUIPMENT_SLOTS.forEach(({ id }) => {
-    equipment[id] = getEquipmentSlotValue(char?.equipment, id);
+    equipment[id] = source[id];
   });
   return { ...char, equipment };
 }
@@ -115,6 +118,7 @@ export function getEquipmentPreview(char, itemKey, requestedSlot = null, { floor
   if (!isEquipmentItem(item)) return null;
 
   const previewChar = createEquipmentPreviewChar(char);
+  if (!previewChar) return null;
   const slot = getTargetSlot(previewChar, item.type, requestedSlot);
   if (!slot) return null;
   const current = getDisplayStats(previewChar, floor);
@@ -127,6 +131,7 @@ export function getEquipmentPreview(char, itemKey, requestedSlot = null, { floor
 
 export function getUnequipPreview(char, slot, { floor = 1 } = {}) {
   const previewChar = createEquipmentPreviewChar(char);
+  if (!previewChar) return null;
   const itemKey = getEquipmentSlotValue(previewChar.equipment, slot);
   const item = getItemData(itemKey);
   if (!item) return null;
