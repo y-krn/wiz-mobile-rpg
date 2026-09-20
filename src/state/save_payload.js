@@ -7,6 +7,7 @@ import { isUsableCombatState } from "./view_state.js";
 import { normalizeRecords } from "./records_state.js";
 import { EQUIPMENT_SLOTS } from "../rules/equipment_slots.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
+import { assertNormalizedSavePayload } from "./save_contract.js";
 
 const STABLE_PERSISTED_GAME_STATES = new Set([
   "town", "explore", "combat", "result", "gameover", "victory"
@@ -179,36 +180,37 @@ export function applySavePayload(data) {
   // Normalize the complete payload before mutating state. This keeps malformed
   // direct callers atomic and leaves loadGame's existing fallback path in
   // control when a payload cannot be safely normalized.
-  data = normalizeSavePayload(data);
+  /** @type {import("./save_contract.js").NormalizedSavePayload} */
+  const normalized = assertNormalizedSavePayload(normalizeSavePayload(data));
   resetTransientState();
-  state.x = data.x;
-  state.y = data.y;
-  state.dir = data.dir;
-  state.prevX = data.prevX;
-  state.prevY = data.prevY;
-  state.party = data.party.slice(0, 1).map(char => {
+  state.x = normalized.x;
+  state.y = normalized.y;
+  state.dir = normalized.dir;
+  state.prevX = normalized.prevX;
+  state.prevY = normalized.prevY;
+  state.party = normalized.party.slice(0, 1).map(char => {
     const restoredChar = { ...char };
     delete restoredChar.runTrapAttackBonus;
     ["str", "int", "pie", "vit", "agi", "luk"].forEach(key => delete restoredChar[key]);
     normalizeStatusEffectTarget(restoredChar);
     return restoredChar;
   });
-  state.inventory = data.inventory;
-  state.seed = data.seed;
-  state.floor = data.floor;
-  state.maps = data.maps;
-  state.visitedMaps = data.visitedMaps;
-  state.lightTurns = data.lightTurns;
-  state.lightPower = data.lightPower;
-  state.repelTurns = data.repelTurns;
-  state.silenceTurns = data.silenceTurns;
-  state.forcedEncounterSteps = data.forcedEncounterSteps;
-  state.activeMerchantStock = data.activeMerchantStock;
-  state.gameState = data.gameState;
-  state.combatState = data.combatState;
+  state.inventory = normalized.inventory;
+  state.seed = normalized.seed;
+  state.floor = normalized.floor;
+  state.maps = normalized.maps;
+  state.visitedMaps = normalized.visitedMaps;
+  state.lightTurns = normalized.lightTurns;
+  state.lightPower = normalized.lightPower;
+  state.repelTurns = normalized.repelTurns;
+  state.silenceTurns = normalized.silenceTurns;
+  state.forcedEncounterSteps = normalized.forcedEncounterSteps;
+  state.activeMerchantStock = normalized.activeMerchantStock;
+  state.gameState = normalized.gameState;
+  state.combatState = normalized.combatState;
   state.combatState?.monsters?.forEach(normalizeStatusEffectTarget);
-  state.chestState = data.chestState?.fromDrop
-    ? { ...data.chestState, phase: "menu" }
+  state.chestState = normalized.chestState?.fromDrop
+    ? { ...normalized.chestState, phase: "menu" }
     : null;
   if (state.chestState) {
     delete state.chestState.smashTelemetry;
@@ -217,31 +219,31 @@ export function applySavePayload(data) {
     menuContext.prevGameState = null;
     menuHistory.length = 0;
   }
-  state.logs = data.logs;
-  state.floorChestsOpened = data.floorChestsOpened;
-  state.floorChestsTotal = data.floorChestsTotal;
-  state.firstKills = data.firstKills;
-  state.sessionMaxFloor = data.floor;
-  state.currentRun = data.currentRun;
-  state.records = data.records;
-  state.unlockedMilestones = data.unlockedMilestones;
-  state.runHistory = data.runHistory;
-  state.deathLogs = data.deathLogs;
-  state.codex = data.codex;
-  state.roamingMonsters = data.roamingMonsters;
-  state.firstChestUnidentifiedGuaranteed = data.firstChestUnidentifiedGuaranteed;
-  state.roamingMovementStepCount = data.roamingMovementStepCount;
-  state.noiseEvents = data.noiseEvents ?? [];
-  state.storage = data.storage;
-  state.storageMax = data.storageMax;
-  state.identifyTickets = data.identifyTickets;
-  state.cleared = data.cleared;
-  state.metaMaterials = data.metaMaterials;
-  state.workshop = data.workshop;
-  state.keyItems = data.keyItems ?? [];
+  state.logs = normalized.logs;
+  state.floorChestsOpened = normalized.floorChestsOpened;
+  state.floorChestsTotal = normalized.floorChestsTotal;
+  state.firstKills = normalized.firstKills;
+  state.sessionMaxFloor = normalized.floor;
+  state.currentRun = normalized.currentRun;
+  state.records = normalized.records;
+  state.unlockedMilestones = normalized.unlockedMilestones;
+  state.runHistory = normalized.runHistory;
+  state.deathLogs = normalized.deathLogs;
+  state.codex = normalized.codex;
+  state.roamingMonsters = normalized.roamingMonsters;
+  state.firstChestUnidentifiedGuaranteed = normalized.firstChestUnidentifiedGuaranteed;
+  state.roamingMovementStepCount = normalized.roamingMovementStepCount;
+  state.noiseEvents = normalized.noiseEvents ?? [];
+  state.storage = normalized.storage;
+  state.storageMax = normalized.storageMax;
+  state.identifyTickets = normalized.identifyTickets;
+  state.cleared = normalized.cleared;
+  state.metaMaterials = normalized.metaMaterials;
+  state.workshop = normalized.workshop;
+  state.keyItems = normalized.keyItems ?? [];
   state.dungeonMemory = {
-    mapFragments: data.dungeonMemory?.mapFragments || {},
-    visitedFloors: data.dungeonMemory?.visitedFloors || [1]
+    mapFragments: normalized.dungeonMemory?.mapFragments || {},
+    visitedFloors: normalized.dungeonMemory?.visitedFloors || [1]
   };
   markMapChanged();
 }
