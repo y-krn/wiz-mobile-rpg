@@ -9,7 +9,7 @@ const entry = (file, ownership, category, dependencies = [], shardCount = 1) => 
   shardCount,
 });
 
-// Canonical #1421 ownership matrix. Gate wiring belongs to a later issue.
+// Canonical #1421 ownership matrix. Gate wiring is defined by each ownership runner.
 export const HEAVY_TEST_MANIFEST = [
   entry(unit('test_stairs_min_distance.js'), 'PR_CONDITIONAL', 'map', [], 4),
   entry(unit('test_heal_priority_policy.js'), 'PR_CONDITIONAL', 'simulation', [
@@ -83,6 +83,9 @@ export const MAIN_PUSH_MANIFEST = HEAVY_TEST_MANIFEST.filter(
 export const HEAVY_TEST_COUNT = 46;
 export const SCHEDULED_MANIFEST = HEAVY_TEST_MANIFEST.filter(
   entry => entry.ownership === 'SCHEDULED',
+);
+export const MANUAL_MEASUREMENT_MANIFEST = HEAVY_TEST_MANIFEST.filter(
+  entry => entry.ownership === 'MANUAL_MEASUREMENT',
 );
 export const HEAVY_TEST_OWNERSHIP_COUNTS = {
   PR_CONDITIONAL: 27,

@@ -39,9 +39,9 @@ const mainPushExclusions = getUnitExclusions({ unitMode: 'main-push' });
 for (const exclusions of [pullRequestExclusions, mergeGroupExclusions, mainPushExclusions]) {
   for (const file of expectedPaths) assert.ok(exclusions.has(file));
 }
-assert.equal(pullRequestExclusions.size, 39);
-assert.equal(mergeGroupExclusions.size, 39);
-assert.equal(mainPushExclusions.size, 12);
+assert.equal(pullRequestExclusions.size, 46);
+assert.equal(mergeGroupExclusions.size, 46);
+assert.equal(mainPushExclusions.size, 19);
 assert.equal(getUnitExclusions({ unitMode: 'local' }).size, 0);
 assert.match(
   workflow,
