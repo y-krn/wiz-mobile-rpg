@@ -86,9 +86,15 @@ assert.deepEqual(
 __resetTelemetryForTests();
 
 const legacyState = createState();
-const legacyItem = { baseId: "WAND", instanceId: "legacy-compatible" };
-assert.equal(addInventoryItemToState(legacyState, legacyItem), true, "legacy helper remains permissive");
+const legacyItem = { baseId: "WAND", instanceId: "legacy-compatible", affixes: [] };
+assert.equal(addInventoryItemToState(legacyState, legacyItem), true, "runtime helper accepts supported legacy ref");
 assert.strictEqual(legacyState.inventory[0], legacyItem);
 assert.equal(addCanonicalInventoryItemToState(createState(), { ...legacyItem, affixes: [] }), false, "canonical write rejects legacy ref");
+
+for (const invalid of ["UNKNOWN_ITEM_ID", { baseId: "WAND", instanceId: "malformed" }, { baseId: "NO_SUCH_ITEM", instanceId: "unknown", affixes: [] }]) {
+  const state = createState(["HEAL_POTION"]);
+  assert.equal(addInventoryItemToState(state, invalid), false, `runtime write rejects ${String(invalid)}`);
+  assert.deepEqual(state.inventory, ["HEAL_POTION"], "invalid runtime write leaves inventory unchanged");
+}
 
 console.log("[PASS] canonical inventory write validates, delegates, preserves identity, and keeps legacy semantics");

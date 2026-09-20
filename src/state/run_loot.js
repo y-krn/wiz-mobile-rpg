@@ -1,5 +1,6 @@
 import { getItemBaseId, getItemData, isSpecialOrQuestItem } from "../rules/item_rules.js";
 import { trackLootLifecycle } from "../telemetry.js";
+import { isRuntimeItemCollection } from "./item.js";
 
 // This is intentionally separate from equipped/unbagged state. An item can be
 // equipped and still remain an unbanked dungeon result until the run ends.
@@ -246,9 +247,16 @@ function removeTrackedItemsFromEquipment(stateLike, entries, inventoryBeforeRemo
   });
 }
 
+function canAppendToTownStorage(stateLike, items) {
+  if (!isRuntimeItemCollection(items)) return false;
+  const currentStorage = stateLike.storage ?? [];
+  return isRuntimeItemCollection(currentStorage);
+}
+
 function appendToTownStorage(stateLike, items) {
-  if (!Array.isArray(items) || items.length === 0) return;
-  stateLike.storage ||= [];
+  if (items.length === 0) return;
+  const currentStorage = stateLike.storage ?? [];
+  stateLike.storage = currentStorage;
   stateLike.storage.push(...items);
 }
 
@@ -280,6 +288,10 @@ export function settleRunObjectLoot(stateLike, outcome, salvageIds = null) {
   const returnedDungeonItems = returnedLoot.map(entry => entry.item);
   const bankedItems = [...townItems, ...returnedDungeonItems];
   const returnedPreparationItems = returnedDungeonItems.filter(isTownPreparationItem);
+  const storageItems = [...townItems, ...returnedPreparationItems];
+  if (!canAppendToTownStorage(stateLike, storageItems)) {
+    return { banked: [], lost: [] };
+  }
 
   returnedLoot.forEach(entry => trackLootLifecycle(
     outcome === "wing" ? "salvaged" : "banked",
@@ -299,7 +311,7 @@ export function settleRunObjectLoot(stateLike, outcome, salvageIds = null) {
     ownership: "unbanked"
   }));
 
-  appendToTownStorage(stateLike, [...townItems, ...returnedPreparationItems]);
+  appendToTownStorage(stateLike, storageItems);
   removeTrackedItemsFromEquipment(stateLike, unbanked, stateLike.inventory, townItems);
   removeTrackedItemsFromInventory(stateLike, [
     ...townItems,

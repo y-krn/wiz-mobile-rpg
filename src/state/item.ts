@@ -25,6 +25,9 @@ export interface ItemDefinition {
 
 export type ItemRef = string | EquipmentInstance;
 export type RuntimeItemRef = ItemRef | LegacyEquipmentRef;
+export type RuntimeItemCollection = RuntimeItemRef[];
+export type InventoryCollection = RuntimeItemCollection;
+export type StorageCollection = RuntimeItemCollection;
 
 const ITEM_TYPES: ReadonlySet<string> = new Set([
   "weapon",
@@ -63,6 +66,22 @@ export function isItemRef(value: unknown): value is ItemRef {
 
 export function isRuntimeItemRef(value: unknown): value is RuntimeItemRef {
   return isItemRef(value) || isLegacyEquipmentRef(value);
+}
+
+export function isRuntimeItemCollection(value: unknown): value is RuntimeItemCollection {
+  if (!Array.isArray(value)) return false;
+  for (let index = 0; index < value.length; index++) {
+    if (!Object.hasOwn(value, index) || !isRuntimeItemRef(value[index])) return false;
+  }
+  return true;
+}
+
+export function isInventoryCollection(value: unknown): value is InventoryCollection {
+  return isRuntimeItemCollection(value);
+}
+
+export function isStorageCollection(value: unknown): value is StorageCollection {
+  return isRuntimeItemCollection(value);
 }
 
 export function resolveItemDefinition(

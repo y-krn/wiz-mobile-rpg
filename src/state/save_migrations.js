@@ -14,7 +14,7 @@ import { BASE_STARTING_MP, BASIC_RUNE_ITEM_ID, MEDIUM_IDS } from "../data/magic.
 import { ITEMS } from "../data/items.js";
 import { getEquipmentHands } from "../rules/equipment_hands.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
-import { isRuntimeItemRef } from "./item.js";
+import { isRuntimeItemCollection, isRuntimeItemRef } from "./item.js";
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
@@ -111,6 +111,11 @@ function filterPersistedItems(items) {
   return arrayOr(items).filter(isSupportedPersistedItem);
 }
 
+function filterRuntimeCollection(items) {
+  const filtered = arrayOr(items).filter(isSupportedRuntimeItem);
+  return isRuntimeItemCollection(filtered) ? filtered : [];
+}
+
 function filterPersistedItemSlot(item) {
   return item === null || isSupportedPersistedItem(item) ? item : null;
 }
@@ -146,9 +151,9 @@ function filterRawRuntimeItems(data) {
 }
 
 function filterNormalizedRuntimeItems(data) {
-  data.inventory = data.inventory.filter(isSupportedRuntimeItem);
-  data.storage = data.storage.filter(isSupportedRuntimeItem);
-  data.activeMerchantStock = data.activeMerchantStock.filter(isSupportedRuntimeItem);
+  data.inventory = filterRuntimeCollection(data.inventory);
+  data.storage = filterRuntimeCollection(data.storage);
+  data.activeMerchantStock = filterRuntimeCollection(data.activeMerchantStock);
   data.party?.forEach(char => {
     Object.keys(char.equipment || {}).forEach(slot => {
       const item = char.equipment[slot];
@@ -159,9 +164,7 @@ function filterNormalizedRuntimeItems(data) {
   const run = data.currentRun;
   if (!isRecord(run)) return;
   ["townInventory", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems", "itemsFound", "equipmentFound", "departureItems"]
-    .forEach(field => {
-      run[field] = arrayOr(run[field]).filter(isSupportedRuntimeItem);
-    });
+    .forEach(field => { run[field] = filterRuntimeCollection(run[field]); });
   run.departureEquipment = Object.fromEntries(
     Object.entries(recordOr(run.departureEquipment, {}))
       .filter(([, item]) => item === null || isSupportedRuntimeItem(item))
