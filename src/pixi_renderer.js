@@ -815,14 +815,6 @@ export class PixiDungeonRenderer {
       enemyLabel.position.set(cx, hpY - 3);
       enemyLabel.scale.set(Math.min(1, Math.max(0.64, slotWidth / 120)));
       actors.addChild(enemyLabel);
-      const enemyHpLabel = new Text({
-        text: `HP ${Math.max(0, monster.hp)}/${monster.maxHp}`,
-        style: { fill: 0xd7e7e8, fontFamily: "monospace", fontSize: 9, stroke: { color: 0x081016, width: 2 } }
-      });
-      enemyHpLabel.anchor.set(0.5, 0);
-      enemyHpLabel.position.set(cx, hpY + 7);
-      enemyHpLabel.scale.set(Math.min(1, Math.max(0.64, slotWidth / 120)));
-      actors.addChild(enemyHpLabel);
       if (getQueuedThreat(monster)) {
         const pulse = 0.48 + 0.18 * Math.sin(this.clockMs / 180);
         drawEllipse(this.layer("combat-fx"), cx, cy - 10 * scale, 31 * scale, 31 * scale, "#ffcc00", 0, { color: "#ffcc00", width: 2, alpha: pulse });

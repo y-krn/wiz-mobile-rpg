@@ -9,6 +9,7 @@ import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/sp
 import { getScreenViewState, getUsableSpellKeys } from "../state/view_state.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
+import { getEnemyHpState } from "../rules/enemy_hp_state.js";
 import { trackUxDecisionResolved } from "../telemetry.js";
 
 function isLivingEnemy(targetIdx) {
@@ -138,8 +139,9 @@ export function renderCombatOverlay() {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "combat-target-a11y";
-        button.textContent = `${m.name}、HP ${m.hp}/${m.maxHp}`;
-        button.setAttribute("aria-label", `${m.name}、HP ${m.hp}/${m.maxHp}、攻撃対象にする`);
+        const hpState = getEnemyHpState(m);
+        button.textContent = `${m.name}、${hpState}、攻撃対象にする`;
+        button.setAttribute("aria-label", `${m.name}、${hpState}、攻撃対象にする`);
         button.addEventListener("click", () => {
           if (canCommitOverlayAction()) commitCombatTarget(idx);
         });

@@ -1,6 +1,7 @@
 import { state } from "../state.js";
 import { menuContext } from "../navigation.js";
 import { getScreenViewState } from "../state/view_state.js";
+import { getEnemyHpState } from "../rules/enemy_hp_state.js";
 
 export function updateViewportHUD() {
   const hud = document.getElementById("viewport-hud");
@@ -34,7 +35,7 @@ export function updateViewportHUD() {
     state.combatState.monsters.filter(monster => monster.hp > 0).forEach(monster => {
       const status = document.createElement("span");
       status.className = "sr-only";
-      status.textContent = `${monster.name}、HP ${monster.hp}/${monster.maxHp}`;
+      status.textContent = `${monster.name}、${getEnemyHpState(monster)}、攻撃対象`;
       enemyStatus.appendChild(status);
     });
     hud.appendChild(enemyStatus);
