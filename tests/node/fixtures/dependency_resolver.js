@@ -94,7 +94,13 @@ function resolveSupplementalDependency(repoRoot, dependency) {
   if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
     throw new Error(`Unable to resolve supplemental dependency "${relativePath}"`);
   }
-  return absolutePath;
+  return {
+    path: absolutePath,
+    recursive: typeof dependency === 'object' && dependency !== null
+      && (dependency.recursive === true
+        || dependency.kind === 'source'
+        || dependency.kind === 'child-process'),
+  };
 }
 
 export function resolveDependencyClosure({ entryPath, repoRoot, supplementalDependencies = [] }) {
@@ -151,7 +157,12 @@ export function resolveDependencyClosure({ entryPath, repoRoot, supplementalDepe
 
   for (const supplementalDependency of supplementalDependencies) {
     try {
-      dependencies.add(resolveSupplementalDependency(root, supplementalDependency));
+      const resolved = resolveSupplementalDependency(root, supplementalDependency);
+      if (resolved.recursive) {
+        visit(resolved.path);
+      } else {
+        dependencies.add(resolved.path);
+      }
     } catch (error) {
       unresolved.push({
         source: relativeRepoPath(path.resolve(entryPath), root),

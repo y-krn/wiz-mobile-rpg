@@ -5,7 +5,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { runDependencyPreflight } from '../../scripts/dependency-preflight.js';
 import { HEAVY_TEST_MANIFEST } from './fixtures/heavy_test_manifest.js';
-import { collectChangedFiles, selectTestsForChanges, resolveTestPath } from './fixtures/dependency_resolver.js';
+import { collectChangedFiles, selectTestsForChanges } from './fixtures/dependency_resolver.js';
 
 if (!runDependencyPreflight()) process.exit(1);
 
@@ -13,9 +13,16 @@ if (!runDependencyPreflight()) process.exit(1);
 // directories are suite candidates. Simulations and measurements live under
 // scratch/ and cannot be picked up by naming accidents.
 const EXCLUDE_LIST = [];
-const HEAVY_TESTS = Object.fromEntries(
-  HEAVY_TEST_MANIFEST.map(entry => [entry.file, entry.shardCount]),
-);
+// Keep the runner contract stable. #1425 supplies selection metadata for the
+// later conditional gate; it does not move all #1421 ownership into this job.
+const HEAVY_TESTS = {
+  'test_stairs_min_distance.js': 4,
+  'test_reachability_loop.js': 4,
+  'test_shared_wall_corridors.js': 3,
+  'test_observability_after_stairs.js': 1,
+  'test_explore_spell_usage.js': 1,
+  'test_heal_priority_policy.js': 1,
+};
 const heavyTestFiles = Object.keys(HEAVY_TESTS);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -24,8 +31,6 @@ const testRoots = [
   path.join(repoRoot, 'tests/node/regression'),
 ];
 const startTime = Date.now();
-
-const toRepoPath = filePath => path.relative(repoRoot, filePath).split(path.sep).join('/');
 
 function selectHeavyTests() {
   if (process.env.FULL_TEST === '1') {
@@ -43,7 +48,7 @@ function selectHeavyTests() {
       headRef: process.env.HEAD_REF || 'HEAD',
     });
     const selection = selectTestsForChanges({
-      manifest: HEAVY_TEST_MANIFEST,
+      manifest: HEAVY_TEST_MANIFEST.filter(entry => heavyTestFiles.includes(path.basename(entry.file))),
       repoRoot,
       changedFiles,
     });
@@ -52,7 +57,7 @@ function selectHeavyTests() {
         console.warn(`[WARN] Safe-select ${result.entry.file}: unresolved dependency or resolver error`);
       }
     }
-    return selection.selected;
+    return new Set([...selection.selected].map(file => path.basename(file)));
   } catch (error) {
     console.warn(`[WARN] Scope detection failed; running all HEAVY tests: ${error.message}`);
     return new Set(heavyTestFiles);
@@ -155,7 +160,7 @@ const scheduledTests = [
   ...heavyTestFiles
     .filter(file => selectedHeavyTests.has(file))
     .flatMap(file => {
-      const testPath = testFilePathsByName.get(file) || toRepoPath(resolveTestPath(file, repoRoot));
+      const testPath = testFilePathsByName.get(file);
       if (!testPath) throw new Error(`Heavy test is not owned by a test directory: ${file}`);
       const shardCount = process.env.CI ? 1 : HEAVY_TESTS[file];
       return Array.from({ length: shardCount }, (_, shardIndex) =>
