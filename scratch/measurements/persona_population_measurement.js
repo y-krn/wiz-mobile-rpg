@@ -15,6 +15,12 @@ import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 
 export const RUNNER_VERSION = "issue990-phase3-stage1-v1";
 export const SCHEMA_VERSION = 1;
+export const PERSONA_RUNNER_PATH = "scratch/measurements/persona_population_measurement.js";
+export const MEASUREMENT_RUNNER_PATHS = Object.freeze([
+  PERSONA_RUNNER_PATH,
+  "scratch/simulations/sim_depth_material_ev.js",
+  "scratch/measurements/measurement_provenance.js"
+]);
 export const DEFAULT_SEED = "issue990-phase3-stage1";
 export const DEFAULT_RUNS = 500;
 export const TARGET_DEPTH = 30;
@@ -512,7 +518,7 @@ function deathPrecedingCheckpoints(rows) {
   }));
 }
 
-export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, personas = PERSONA_IDS, provenance = null, environmentSignature = null, collectStage15Diagnostics = false, runnerVersion = RUNNER_VERSION, schemaVersion = SCHEMA_VERSION, runnerPath = "scratch/measurements/persona_population_measurement.js" } = {}) {
+export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, personas = PERSONA_IDS, provenance = null, environmentSignature = null, collectStage15Diagnostics = false, runnerVersion = RUNNER_VERSION, schemaVersion = SCHEMA_VERSION, runnerPath = PERSONA_RUNNER_PATH } = {}) {
   if (!Number.isInteger(runs) || runs < 1) throw new Error(`runs must be a positive integer: ${runs}`);
   const selected = [...new Set(personas)];
   if (!selected.length || selected.some(id => !PERSONA_POLICIES[id])) throw new Error(`personas must be ${PERSONA_IDS.join(",")}`);
@@ -898,10 +904,10 @@ export async function main(argv = process.argv.slice(2), overrides = {}) {
   const stage15 = Boolean(overrides.stage15 || options.stage15);
   const runnerVersion = stage15 ? "issue990-phase3-stage1.5-v2" : RUNNER_VERSION;
   const schemaVersion = stage15 ? 3 : SCHEMA_VERSION;
-  const runnerPath = "scratch/measurements/persona_population_measurement.js";
+  const runnerPath = PERSONA_RUNNER_PATH;
   const provenance = requireRunnerProvenance({
     fetchOriginMain: false,
-    measurementRunnerPaths: [runnerPath, "scratch/measurements/persona_population_measurement.js", "scratch/simulations/sim_depth_material_ev.js", "scratch/measurements/measurement_provenance.js"]
+    measurementRunnerPaths: [...MEASUREMENT_RUNNER_PATHS]
   });
   const environmentSignature = printEnvSignatureBanner({ runnerVersion, seed: options.seed, runs: options.runs, personas: options.personas, targetDepth: TARGET_DEPTH }, { label: stage15 ? "issue990 phase3 stage1.5 env" : "issue990 phase3 stage1 env" });
   const report = runMeasurement({ ...options, provenance, environmentSignature, collectStage15Diagnostics: stage15, runnerVersion, schemaVersion, runnerPath });

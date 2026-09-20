@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import {
+  MEASUREMENT_RUNNER_PATHS,
+  PERSONA_RUNNER_PATH,
   PERSONA_POLICIES,
   runMeasurement
 } from "../../../scratch/measurements/persona_population_measurement.js";
+
+assert.equal(new Set(MEASUREMENT_RUNNER_PATHS).size, MEASUREMENT_RUNNER_PATHS.length);
+assert.equal(MEASUREMENT_RUNNER_PATHS.filter(path => path === PERSONA_RUNNER_PATH).length, 1);
 
 const floors = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const report = runMeasurement({
