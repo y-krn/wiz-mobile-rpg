@@ -80,9 +80,12 @@ assert.deepEqual(
 );
 assert.equal(new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file)).size, 53);
 
-const ownershipCounts = Object.groupBy(HEAVY_TEST_MANIFEST, entry => entry.ownership);
+const ownershipCounts = HEAVY_TEST_MANIFEST.reduce((counts, entry) => {
+  counts[entry.ownership] = (counts[entry.ownership] || 0) + 1;
+  return counts;
+}, {});
 assert.deepEqual(
-  Object.fromEntries(Object.entries(ownershipCounts).map(([key, entries]) => [key, entries.length])),
+  ownershipCounts,
   HEAVY_TEST_OWNERSHIP_COUNTS,
   'manifest ownership counts must equal #1421',
 );
