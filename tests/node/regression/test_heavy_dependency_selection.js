@@ -59,7 +59,6 @@ const canonicalFiles = [
   'tests/node/regression/test_survival_policy_comparison.js',
   'tests/node/regression/test_phase3_stage1_5_diagnostics.js',
   'tests/node/regression/test_early_b1f_composition_diagnostic.js',
-  'tests/node/regression/test_early_encounter_cause_diagnostic.js',
   'tests/node/regression/test_preparation_power_factorial.js',
   'tests/node/regression/test_b5_guardian_flee_ev_diagnostic.js',
   'tests/node/regression/test_first_kill_window_diagnostic.js',
@@ -72,13 +71,13 @@ const canonicalFiles = [
 ];
 
 assert.equal(HEAVY_TEST_MANIFEST.length, HEAVY_TEST_COUNT);
-assert.equal(HEAVY_TEST_COUNT, 53);
+assert.equal(HEAVY_TEST_COUNT, 52);
 assert.deepEqual(
   [...new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file))].sort(),
   [...new Set(canonicalFiles)].sort(),
   'manifest must equal the canonical #1421 file set',
 );
-assert.equal(new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file)).size, 53);
+assert.equal(new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file)).size, 52);
 
 const ownershipCounts = HEAVY_TEST_MANIFEST.reduce((counts, entry) => {
   counts[entry.ownership] = (counts[entry.ownership] || 0) + 1;
