@@ -247,13 +247,17 @@ function removeTrackedItemsFromEquipment(stateLike, entries, inventoryBeforeRemo
   });
 }
 
-function appendToTownStorage(stateLike, items) {
-  if (!isRuntimeItemCollection(items) || items.length === 0) return false;
+function canAppendToTownStorage(stateLike, items) {
+  if (!isRuntimeItemCollection(items)) return false;
   const currentStorage = stateLike.storage ?? [];
-  if (!isRuntimeItemCollection(currentStorage)) return false;
+  return isRuntimeItemCollection(currentStorage);
+}
+
+function appendToTownStorage(stateLike, items) {
+  if (items.length === 0) return;
+  const currentStorage = stateLike.storage ?? [];
   stateLike.storage = currentStorage;
   stateLike.storage.push(...items);
-  return true;
 }
 
 function isTownPreparationItem(item) {
@@ -284,6 +288,10 @@ export function settleRunObjectLoot(stateLike, outcome, salvageIds = null) {
   const returnedDungeonItems = returnedLoot.map(entry => entry.item);
   const bankedItems = [...townItems, ...returnedDungeonItems];
   const returnedPreparationItems = returnedDungeonItems.filter(isTownPreparationItem);
+  const storageItems = [...townItems, ...returnedPreparationItems];
+  if (!canAppendToTownStorage(stateLike, storageItems)) {
+    return { banked: [], lost: [] };
+  }
 
   returnedLoot.forEach(entry => trackLootLifecycle(
     outcome === "wing" ? "salvaged" : "banked",
@@ -303,7 +311,7 @@ export function settleRunObjectLoot(stateLike, outcome, salvageIds = null) {
     ownership: "unbanked"
   }));
 
-  appendToTownStorage(stateLike, [...townItems, ...returnedPreparationItems]);
+  appendToTownStorage(stateLike, storageItems);
   removeTrackedItemsFromEquipment(stateLike, unbanked, stateLike.inventory, townItems);
   removeTrackedItemsFromInventory(stateLike, [
     ...townItems,

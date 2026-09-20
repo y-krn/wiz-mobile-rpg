@@ -41,6 +41,10 @@ const {
   resolvePendingObjectLootDisposition,
   settleRunObjectLoot
 } = await import("../../../src/state/run_loot.js");
+const {
+  __resetTelemetryForTests,
+  __setTelemetryClientForTests
+} = await import("../../../src/telemetry.js");
 const { triggerRunResult } = await import("../../../src/result.js");
 
 function setupRun() {
@@ -156,10 +160,32 @@ console.log("[PASS] portal confirms all dungeon object loot without storing equi
 
 setupRun();
 const malformedStorageItem = { baseId: "GREATER_HEAL", instanceId: "malformed-storage", affixes: [null] };
-state.currentRun.townInventory = [malformedStorageItem];
-settleRunObjectLoot(state, "retreat");
-assert.deepEqual(state.storage, [], "storage rejects malformed incoming runtime collection");
-console.log("[PASS] storage append rejects malformed runtime items");
+state.inventory = [malformedStorageItem];
+state.party[0].equipment.weapon = malformedStorageItem;
+state.currentRun.unbankedObjectLoot = [{ id: "malformed-storage", item: malformedStorageItem }];
+const beforeSettlement = {
+  inventory: state.inventory.slice(),
+  equipment: state.party[0].equipment.weapon,
+  storage: state.storage.slice(),
+  townInventory: state.currentRun.townInventory.slice(),
+  unbankedObjectLoot: state.currentRun.unbankedObjectLoot.slice(),
+  bankedObjectLoot: state.currentRun.bankedObjectLoot.slice(),
+  lostObjectLoot: state.currentRun.lostObjectLoot.slice()
+};
+const settlementEvents = [];
+__setTelemetryClientForTests({ capture: (name, properties) => settlementEvents.push({ name, properties }) });
+const settlementResult = settleRunObjectLoot(state, "retreat");
+assert.deepEqual(settlementResult, { banked: [], lost: [] }, "malformed storage input aborts settlement");
+assert.deepEqual(state.inventory, beforeSettlement.inventory, "aborted settlement preserves inventory");
+assert.strictEqual(state.party[0].equipment.weapon, beforeSettlement.equipment, "aborted settlement preserves equipment");
+assert.deepEqual(state.storage, beforeSettlement.storage, "aborted settlement preserves storage");
+assert.deepEqual(state.currentRun.townInventory, beforeSettlement.townInventory, "aborted settlement preserves Town ownership");
+assert.deepEqual(state.currentRun.unbankedObjectLoot, beforeSettlement.unbankedObjectLoot, "aborted settlement preserves unbanked ownership");
+assert.deepEqual(state.currentRun.bankedObjectLoot, beforeSettlement.bankedObjectLoot, "aborted settlement preserves banked ledger");
+assert.deepEqual(state.currentRun.lostObjectLoot, beforeSettlement.lostObjectLoot, "aborted settlement preserves lost ledger");
+assert.deepEqual(settlementEvents, [], "aborted settlement emits no lifecycle telemetry");
+__resetTelemetryForTests();
+console.log("[PASS] storage validation aborts settlement without partial mutation or telemetry");
 
 setupRun();
 state.currentRun.materials = { "獣の牙": 4 };
