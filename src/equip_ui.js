@@ -557,6 +557,7 @@ function createFooter(overlay, { organizing = false } = {}) {
   actorRow.className = "bottom-actions-row equip-actor-row";
   getDraftParty().forEach((liveChar, idx) => {
     const char = createEquipmentPreviewChar(liveChar);
+    if (!char) return;
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = `equip-actor-chip ${idx === equipState.actorIdx ? "active" : ""}`;
@@ -1523,6 +1524,10 @@ export function renderEquip() {
     return;
   }
   const char = createEquipmentPreviewChar(liveChar);
+  if (!char) {
+    closeEquipOverlay();
+    return;
+  }
 
   createHeader(overlay, char);
 
