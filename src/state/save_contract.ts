@@ -1,6 +1,7 @@
 // balance-impact: none — canonical save boundary types and runtime guards only.
 
 import { isCharacterEquipment, type CharacterEquipment } from "./equipment.js";
+import { isNormalizedCurrentRun, type NormalizedCurrentRun } from "./run_state.js";
 import {
   isInventoryCollection,
   isRuntimeItemCollection,
@@ -49,7 +50,7 @@ export interface NormalizedSavePayload {
   floorChestsOpened: unknown[];
   floorChestsTotal: unknown[];
   firstKills: string[];
-  currentRun: Record<string, unknown> | null;
+  currentRun: NormalizedCurrentRun | null;
   records: Record<string, unknown>;
   unlockedMilestones: number[];
   runHistory: unknown[];
@@ -128,7 +129,7 @@ export function isNormalizedSavePayload(value: unknown): value is NormalizedSave
       !isFiniteNumber(value.forcedEncounterSteps) || !isFiniteNumber(value.roamingMovementStepCount) ||
       !isFiniteNumber(value.storageMax) || !isFiniteNumber(value.identifyTickets)) return false;
   if (!Array.isArray(value.firstKills) || !value.firstKills.every(item => typeof item === "string")) return false;
-  if (value.currentRun !== null && !isRecord(value.currentRun)) return false;
+  if (value.currentRun !== null && !isNormalizedCurrentRun(value.currentRun)) return false;
   if (!isRecord(value.records) || !isRecord(value.codex) || !isRecord(value.metaMaterials) ||
       !isRecord(value.workshop)) return false;
   if (!Array.isArray(value.unlockedMilestones) ||
