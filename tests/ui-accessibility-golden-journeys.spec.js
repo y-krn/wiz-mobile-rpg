@@ -55,8 +55,8 @@ async function seedEnemyHpPresentation(page, renderer) {
     state.combatState = {
       phase: 'choose_actions',
       monsters: [
-        { name: '負傷した敵', level: 1, hp: 4, maxHp: 10, magicResist: 0, tags: [] },
-        { name: '健在な敵', level: 1, hp: 10, maxHp: 10, magicResist: 0, tags: [] },
+        { name: '対象A', level: 1, hp: 4, maxHp: 10, magicResist: 0, tags: [] },
+        { name: '対象B', level: 1, hp: 10, maxHp: 10, magicResist: 0, tags: [] },
       ],
       roundNumber: 1, isAuto: false, pendingOutcome: null,
     };
@@ -187,7 +187,7 @@ test('Combat target selection exposes the player-known equivalent and restores c
   const focusEntry = await readFocusEvidence(page);
   expect(focusEntry).toMatchObject({ inDialog: 'combat-overlay', visible: true, inViewport: true });
   await expect(page.locator('.combat-target-a11y')).toHaveCount(2);
-  await expect(page.locator('.combat-target-a11y').first()).toHaveText('対象A、攻撃対象にする');
+  await expect(page.locator('.combat-target-a11y').first()).toHaveText('対象A、健在、攻撃対象にする');
   await expect(page.locator('.combat-target-a11y').first()).not.toContainText(/HP\s*\d+\s*\/\s*\d+/);
   await expect(page.locator('#viewport-hud .combat-enemy-semantic')).not.toContainText(/HP\s*\d+\s*\/\s*\d+/);
   const instructions = page.locator('#combat-target-instructions');
@@ -223,12 +223,18 @@ for (const viewport of ENEMY_HP_VIEWPORTS) {
       await seedEnemyHpPresentation(page, renderer);
       await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', renderer);
       await expect(page.locator('#viewport-hud .combat-enemy-semantic')).not.toContainText(/HP\s*\d+\s*\/\s*\d+/);
+      await expect(page.locator('#viewport-hud .combat-enemy-semantic')).toContainText('対象A、負傷、攻撃対象');
+      await expect(page.locator('#viewport-hud .combat-enemy-semantic')).toContainText('対象B、健在、攻撃対象');
       await attachEnemyHpEvidence(page, testInfo, `issue-1404-${renderer}-${viewport.width}x${viewport.height}-combat`);
 
       await page.locator('#btn-combat-fight').click();
       await expect(page.locator('.combat-target-a11y')).toHaveCount(2);
       const targetLabels = await page.locator('.combat-target-a11y').allTextContents();
       expect(targetLabels.every(label => !/HP\s*\d+\s*\/\s*\d+/.test(label))).toBe(true);
+      expect(targetLabels).toEqual([
+        '対象A、負傷、攻撃対象にする',
+        '対象B、健在、攻撃対象にする',
+      ]);
       await attachEnemyHpEvidence(page, testInfo, `issue-1404-${renderer}-${viewport.width}x${viewport.height}-target`);
     }
   });
