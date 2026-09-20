@@ -36,9 +36,9 @@ const scheduledExclusions = [
 for (const exclusions of scheduledExclusions) {
   for (const file of expectedPaths) assert.ok(exclusions.has(file));
 }
-assert.equal(scheduledExclusions[0].size, 39);
-assert.equal(scheduledExclusions[1].size, 39);
-assert.equal(scheduledExclusions[2].size, 12);
+assert.equal(scheduledExclusions[0].size, 46);
+assert.equal(scheduledExclusions[1].size, 46);
+assert.equal(scheduledExclusions[2].size, 19);
 assert.equal(getUnitExclusions({ unitMode: 'local' }).size, 0);
 
 assert.match(workflow, /schedule:\n\s+- cron: '17 18 \* \* \*'/);

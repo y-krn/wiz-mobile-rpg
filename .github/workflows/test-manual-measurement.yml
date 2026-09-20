@@ -1,0 +1,15 @@
+name: Manual measurement tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  unit-heavy-manual-measurement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: ./.github/actions/setup-node-deps
+      - run: npm run test:unit:manual-measurement
