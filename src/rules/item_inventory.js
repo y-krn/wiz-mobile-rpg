@@ -1,6 +1,6 @@
 import { ITEMS } from "../data/items.js";
 import { ITEM_CATEGORY, ITEM_CATEGORY_ORDER } from "../constants/item_categories.js";
-import { getItemBaseId } from "./item_rules.js";
+import { resolveItemDefinition } from "../state/item.js";
 
 // balance-impact: none — this module centralizes the fixed bag boundary only.
 export const INVENTORY_CAPACITY = 20;
@@ -36,7 +36,7 @@ export function getUsableInventoryItems(inventory) {
 
   return inventory
     .map((itemKey, idx) => {
-      const item = ITEMS[getItemBaseId(itemKey)];
+      const item = resolveItemDefinition(itemKey, ITEMS);
       return { itemKey, idx, item };
     })
     .filter(({ item }) => item?.type === "usable")

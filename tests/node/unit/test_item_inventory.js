@@ -49,8 +49,23 @@ check(
   "equipment is excluded from usable inventory"
 );
 
+const equipmentRef = {
+  kind: "equipment",
+  instanceId: "eq-item-inventory",
+  baseId: "HEAL_POTION",
+  rarity: "magic",
+  level: 1,
+  identified: false,
+  affixes: []
+};
+const invalidObject = { baseId: "HEAL_POTION" };
+const identityResult = getUsableInventoryItems([equipmentRef, invalidObject]);
+check(identityResult.length, 1, "malformed object is fail closed");
+check(identityResult[0].itemKey, equipmentRef, "valid object reference identity is preserved");
+check(identityResult[0].itemKey === equipmentRef, true, "valid object reference is not cloned");
+
 const unregisteredItemKey = "TEST_UNREGISTERED_USABLE";
-ITEMS[unregisteredItemKey] = { id: unregisteredItemKey, name: "テスト道具", type: "usable" };
+ITEMS[unregisteredItemKey] = { id: unregisteredItemKey, name: "テスト道具", type: "usable", desc: "テスト用道具" };
 check(
   getUsableInventoryItems([unregisteredItemKey, "HEAL_POTION"]).map(({ itemKey }) => itemKey),
   ["HEAL_POTION", unregisteredItemKey],
