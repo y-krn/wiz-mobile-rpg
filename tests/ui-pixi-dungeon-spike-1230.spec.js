@@ -318,7 +318,7 @@ test('PixiJS performance and lifecycle stay bounded across repeated transitions 
     return { repeated, disposed, stateUnchanged };
   });
   console.log(`[issue-1230] runtime ${JSON.stringify(evidence)}`);
-  expect(evidence.repeated.sceneChildren).toBe(8);
+  expect(evidence.repeated.sceneChildren).toBe(9);
   expect(evidence.repeated.maxChildren).toBeLessThan(12);
   expect(evidence.repeated.generatedTextureCount).toBe(0);
   expect(evidence.repeated.filterCount).toBe(0);

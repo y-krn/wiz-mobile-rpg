@@ -41,7 +41,7 @@ test('Chest opened immediately after entering the dungeon does not draw the town
       prevGameStateAfterEntry,
       prevGameStateInChest,
       showTownBackground: dungeonRenderer.getSceneVisibility().showTownBackground,
-      actorCount: dungeonRenderer.scene.layers.actors.children.length,
+      worldObjectCount: dungeonRenderer.scene.layers['world-objects'].children.length,
       gameStateAfterClose: state.gameState,
     };
   });
@@ -50,7 +50,7 @@ test('Chest opened immediately after entering the dungeon does not draw the town
   expect(result.prevGameStateAfterEntry).toBeNull();
   expect(result.prevGameStateInChest).toBeNull();
   expect(result.showTownBackground).toBe(false);
-  expect(result.actorCount).toBeGreaterThan(0);
+  expect(result.worldObjectCount).toBeGreaterThan(0);
   expect(result.gameStateAfterClose).toBe('explore');
 });
 

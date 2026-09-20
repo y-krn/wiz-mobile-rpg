@@ -322,7 +322,7 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
   ))).toBe(true);
   expect(evidence.combatFeedback).toBe(10);
   expect(evidence.disposed).toBe(5);
-  expect(evidence.sceneChildren).toBe(8);
+  expect(evidence.sceneChildren).toBe(9);
   expect(evidence.maxChildren).toBeLessThan(12);
   expect(evidence.maxRenderMs).toBeLessThan(100);
   expect(evidence.firstRenderMs).toBeLessThan(100);

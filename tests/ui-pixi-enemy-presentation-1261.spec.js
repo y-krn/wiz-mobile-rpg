@@ -140,7 +140,7 @@ test('procedural production registry renders all named recipes without enemy tex
   expect(current.failureCount).toBe(0);
   expect(current.fallbackCount).toBe(0);
   expect(current.billboards.every(({ children }) => children.includes('enemy-procedural'))).toBe(true);
-  expect(current.sceneChildren).toBe(8);
+  expect(current.sceneChildren).toBe(9);
   expect(current.layoutIndices).toEqual([0]);
 });
 
@@ -160,7 +160,7 @@ test('procedural registry preserves distinct recipe mappings, target indices, an
   const current = await evidence(page);
   expect(current.layoutIndices).toEqual([0, 1, 2]);
   expect(current.billboards).toHaveLength(3);
-  expect(current.sceneChildren).toBe(8);
+  expect(current.sceneChildren).toBe(9);
 
   for (const fallback of Object.values(FALLBACKS)) {
     await setCombat(page, [withVitals(fallback)]);
@@ -180,7 +180,7 @@ for (const viewport of VIEWPORTS) {
     expect(current.textureCount).toBe(0);
     expect(current.billboards).toHaveLength(3);
     expect(current.layoutIndices).toEqual([0, 1, 2]);
-    expect(current.sceneChildren).toBe(8);
+    expect(current.sceneChildren).toBe(9);
   });
 }
 

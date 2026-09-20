@@ -46,7 +46,7 @@ test('Pixi landmarks keep biome-specific geometry and remain readable @visual', 
       return {
         style: getFloorTheme(targetFloor).visualSignature.landmarks,
         chestShape: [chest.lid, chest.body, chest.lock],
-        actorCount: dungeonRenderer.scene.layers.actors.children.length,
+        worldObjectCount: dungeonRenderer.scene.layers['world-objects'].children.length,
         renderCount: dungeonRenderer.renderCount,
       };
     }, floor);
@@ -58,7 +58,7 @@ test('Pixi landmarks keep biome-specific geometry and remain readable @visual', 
 
   expect(new Set(REPRESENTATIVE_FLOORS.map(floor => JSON.stringify(evidence[floor].chestShape))).size)
     .toBe(REPRESENTATIVE_FLOORS.length);
-  expect(REPRESENTATIVE_FLOORS.every(floor => evidence[floor].actorCount > 0)).toBe(true);
+  expect(REPRESENTATIVE_FLOORS.every(floor => evidence[floor].worldObjectCount > 0)).toBe(true);
   expect(evidence[1].style).toEqual({ chestStyle: 'wood_crate', trapStyle: 'rockfall_mark', stairsStyle: 'rough_stone' });
   expect(evidence[26].style).toEqual({ chestStyle: 'abyss_reliquary', trapStyle: 'void_sigill', stairsStyle: 'impossible_stair' });
 });
