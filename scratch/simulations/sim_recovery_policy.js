@@ -100,7 +100,11 @@ export function evaluateCombatRecoveryAction(args) {
   return evaluateCombatRecoveryActionInternal(args, true);
 }
 
-export function calculateCombatRecoveryAction(args) {
+export function getCombatRecoveryDecision(args) {
   recordRuntimeCall(args.runtimeDiagnostics, "recovery.combat-policy");
-  return evaluateCombatRecoveryActionInternal(args, false).decision;
+  return evaluateCombatRecoveryActionInternal(args, false);
+}
+
+export function calculateCombatRecoveryAction(args) {
+  return getCombatRecoveryDecision(args).decision;
 }
