@@ -4,13 +4,16 @@ import { spawnSync } from "node:child_process";
 import { STANDARD_BALANCE_CONFIG } from "../../../scratch/measurements/balance_measurement.js";
 import {
   BALANCE_MEASUREMENT_ENTRY_VERSION,
+  MEASUREMENT_FAMILIES,
   MEASUREMENT_IDS,
+  MEASUREMENT_PROFILES,
   MEASUREMENT_REGISTRY,
   createMeasurementArtifactName,
   createMeasurementOutputPaths,
   createRunnerProcessInvocation,
   enrichManifest,
   getMeasurementDefinition,
+  getMeasurementFamily,
   resolveMeasurementOptions,
   resolveRunnerInvocation
 } from "../../../scratch/measurements/run_balance_measurement.js";
@@ -261,6 +264,36 @@ const ROUTER_CONTRACTS = [
 
 assert.deepEqual(MEASUREMENT_IDS, ROUTER_CONTRACTS.map(contract => contract.id));
 assert.equal(Object.keys(MEASUREMENT_REGISTRY).length, ROUTER_CONTRACTS.length);
+assert.deepEqual(Object.keys(MEASUREMENT_PROFILES), MEASUREMENT_IDS);
+assert.deepEqual(Object.keys(MEASUREMENT_FAMILIES), [
+  "standard",
+  "starting-kit",
+  "early-b1f-composition",
+  "fixed-combat-composition",
+  "equipment-load",
+  "run-difficulty",
+  "early-run",
+  "survival-policy",
+  "preparation-power",
+  "first-band"
+]);
+for (const profile of Object.values(MEASUREMENT_PROFILES)) {
+  assert.equal(profile.runner, undefined, `${profile.id} profile must not own runner`);
+  assert.equal(profile.buildArgs, undefined, `${profile.id} profile must not own buildArgs`);
+  assert.ok(MEASUREMENT_FAMILIES[profile.family], `${profile.id} must reference a known family`);
+}
+for (const [familyId, family] of Object.entries(MEASUREMENT_FAMILIES)) {
+  const familyProfiles = Object.values(MEASUREMENT_PROFILES).filter(profile => profile.family === familyId);
+  assert.ok(familyProfiles.length > 0, `${familyId} must own at least one profile`);
+  assert.equal(typeof family.buildArgs, "function", `${familyId} must own one args builder`);
+  assert.equal(new Set(familyProfiles.map(profile => MEASUREMENT_REGISTRY[profile.id].runner)).size, 1);
+  assert.equal(new Set(familyProfiles.map(profile => MEASUREMENT_REGISTRY[profile.id].buildArgs)).size, 1);
+  assert.equal(MEASUREMENT_REGISTRY[familyProfiles[0].id].buildArgs, family.buildArgs);
+}
+assert.equal(Object.values(MEASUREMENT_PROFILES).filter(profile => profile.family === "run-difficulty").length, 2);
+assert.equal(Object.values(MEASUREMENT_PROFILES).filter(profile => profile.family === "early-run").length, 5);
+assert.equal(Object.values(MEASUREMENT_PROFILES).filter(profile => profile.family === "first-band").length, 8);
+assert.throws(() => getMeasurementFamily("unknown-family"), /unknown measurement family/);
 assert.equal(MEASUREMENT_REGISTRY.standard.defaults.runs, STANDARD_BALANCE_CONFIG.runs);
 assert.equal(MEASUREMENT_REGISTRY.standard.defaults.minimumRuns, STANDARD_BALANCE_CONFIG.runs);
 assert.equal(MEASUREMENT_REGISTRY.standard.defaults.seed, STANDARD_BALANCE_CONFIG.seed);
