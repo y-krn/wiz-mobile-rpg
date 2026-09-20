@@ -37,7 +37,6 @@ function makeState({
       fleeHpThreshold: 0.20,
       healPotionThreshold: 0.35,
       healPriorityPolicy: "potion-first",
-      combatPolicy: "balanced-combat",
       statusCurePolicy: "smart",
       statusCureHpThreshold: 0.35,
       bloodWandHpPaymentMinRate: 0.20,

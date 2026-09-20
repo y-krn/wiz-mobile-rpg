@@ -20,10 +20,6 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   // though they are not direct simulation entrypoints themselves.
   { path: "scratch/simulations/sim_recovery_policy.js", lifecycle: "reusable", scope: "infra" },
   { path: "scratch/simulations/sim_workshop_purchase_policy.js", lifecycle: "reusable", scope: "infra" },
-  { path: "scratch/measurements/partial_information_progression_measurement.js", lifecycle: "reusable", scope: "run" },
-  { path: "scratch/measurements/persona_population_measurement.js", lifecycle: "reusable", scope: "run" },
-  { path: "scratch/measurements/combat_policy_sensitivity_measurement.js", lifecycle: "reusable", scope: "run" },
-  { path: "scratch/measurements/checkpoint_continuation_measurement.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/starting_kit_diagnostic.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/preparation_power_factorial.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/first_band_build_formation.js", lifecycle: "reusable", scope: "run" },
