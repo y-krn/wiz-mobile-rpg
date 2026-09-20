@@ -30,8 +30,24 @@ jobs:
           filter: blob:none
       - uses: ./.github/actions/setup-node-deps
       - run: npm run test:unit:full
+        env:
+          PR_UNIT: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '1' || '0' }}
       - name: Verify measurement provenance
         run: node tests/node/regression/test_measurement_provenance.js
+
+  unit-heavy-conditional:
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: ./.github/actions/setup-node-deps
+      - run: npm run test:unit:conditional
+        env:
+          BASE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_REF: ${{ github.sha }}
 
   lint:
     runs-on: ubuntu-latest

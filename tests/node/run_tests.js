@@ -24,6 +24,18 @@ const HEAVY_TESTS = {
   'test_heal_priority_policy.js': 1,
 };
 const heavyTestFiles = Object.keys(HEAVY_TESTS);
+const prConditionalTestPaths = new Set(
+  HEAVY_TEST_MANIFEST
+    .filter(entry => entry.ownership === 'PR_CONDITIONAL')
+    .map(entry => entry.file),
+);
+const prConditionalHeavyTestFiles = new Set(
+  [...prConditionalTestPaths].map(file => path.basename(file)),
+);
+const prUnit = process.env.PR_UNIT === '1';
+const activeHeavyTestFiles = heavyTestFiles.filter(file =>
+  !prUnit || !prConditionalHeavyTestFiles.has(file),
+);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const testRoots = [
@@ -34,7 +46,7 @@ const startTime = Date.now();
 
 function selectHeavyTests() {
   if (process.env.FULL_TEST === '1') {
-    return new Set(heavyTestFiles);
+    return new Set(activeHeavyTestFiles);
   }
 
   if (process.env.FAST === '1') {
@@ -48,7 +60,7 @@ function selectHeavyTests() {
       headRef: process.env.HEAD_REF || 'HEAD',
     });
     const selection = selectTestsForChanges({
-      manifest: HEAVY_TEST_MANIFEST.filter(entry => heavyTestFiles.includes(path.basename(entry.file))),
+      manifest: HEAVY_TEST_MANIFEST.filter(entry => activeHeavyTestFiles.includes(path.basename(entry.file))),
       repoRoot,
       changedFiles,
     });
@@ -151,13 +163,14 @@ const testFiles = testRoots
     .filter(file => file.startsWith('test_') && file.endsWith('.js'))
     .map(file => path.relative(repoRoot, path.join(testRoot, file)).split(path.sep).join('/')))
   .filter(file => !EXCLUDE_LIST.includes(path.basename(file)))
+  .filter(file => !prUnit || !prConditionalTestPaths.has(file))
   .sort();
 const testFilePathsByName = new Map(testFiles.map(file => [path.basename(file), file]));
 const selectedHeavyTests = selectHeavyTests();
-const skippedHeavyTests = heavyTestFiles.filter(file => !selectedHeavyTests.has(file));
-const cheapTests = testFiles.filter(file => !heavyTestFiles.includes(path.basename(file)));
+const skippedHeavyTests = activeHeavyTestFiles.filter(file => !selectedHeavyTests.has(file));
+const cheapTests = testFiles.filter(file => !activeHeavyTestFiles.includes(path.basename(file)));
 const scheduledTests = [
-  ...heavyTestFiles
+  ...activeHeavyTestFiles
     .filter(file => selectedHeavyTests.has(file))
     .flatMap(file => {
       const testPath = testFilePathsByName.get(file);
