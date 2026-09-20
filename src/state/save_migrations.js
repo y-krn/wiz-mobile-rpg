@@ -15,6 +15,7 @@ import { ITEMS } from "../data/items.js";
 import { getEquipmentHands } from "../rules/equipment_hands.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 import { isRuntimeItemCollection, isRuntimeItemRef } from "./item.js";
+import { isNormalizedPendingRewardBundle } from "./pending_reward.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -1020,6 +1021,10 @@ export function normalizeSavePayload(data) {
   backfillEquipmentInstanceIds(normalized);
   backfillAffixMetadata(normalized);
   filterNormalizedRuntimeItems(normalized);
+  if (normalized.currentRun && normalized.currentRun.pendingRewardBundle !== null &&
+      !isNormalizedPendingRewardBundle(normalized.currentRun.pendingRewardBundle)) {
+    normalized.currentRun.pendingRewardBundle = null;
+  }
   discardTransientRunAffixState(normalized);
   backfillMonsterCriticalEligibility(normalized);
   normalizeStatusEffectState(normalized);
