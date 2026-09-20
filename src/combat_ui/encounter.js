@@ -6,6 +6,7 @@ import {
 } from "../data.js";
 import { isEncounterCompositionAllowed, pickEncounterSize } from "../rules/encounter_rules.js";
 import { scaleEnemyForDepth } from "../rules/depth_scaling.js";
+import { createCombatMonsterInstance } from "../state/monster.js";
 import {
   getBandIndexForFloor,
   getBandTrialForFloor,
@@ -60,11 +61,12 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
     monsters.push(guardian);
   } else if (isMidboss) {
     const midbossTemplate = MONSTERS.find(m => m.name === "デーモンガード");
-    monsters.push({
-      ...midbossTemplate,
+    monsters.push(createCombatMonsterInstance(midbossTemplate, {
       hp: midbossTemplate.hp,
-      maxHp: midbossTemplate.hp
-    });
+      maxHp: midbossTemplate.hp,
+      atk: midbossTemplate.atk,
+      def: midbossTemplate.def
+    }));
   } else if (isRoamingFlack) {
     const eliteName = roamingMonster?.name || getBiomeForFloor(state.floor).eliteName;
     const eliteTemplate = MONSTERS.find(m => m.name === eliteName) || MONSTERS.find(m => m.name === "フラック");
