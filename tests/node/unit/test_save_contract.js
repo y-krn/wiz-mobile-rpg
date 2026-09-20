@@ -8,7 +8,7 @@ globalThis.localStorage = {
 };
 
 const { state } = await import("../../../src/state/state_core.js");
-const { createStartingKitCharacter } = await import("../../../src/state/initial_state.js");
+const { createDefaultCurrentRun, createStartingKitCharacter } = await import("../../../src/state/initial_state.js");
 const { applySavePayload, createSavePayload } = await import("../../../src/state/save_payload.js");
 const {
   SAVE_PAYLOAD_FIELDS,
@@ -18,12 +18,60 @@ const {
 const {
   isNormalizedSavePayload
 } = await import("../../../src/state/save_contract.js");
+const { isNormalizedCurrentRun } = await import("../../../src/state/run_state.js");
 
 state.party = [createStartingKitCharacter("vanguard")];
 state.gameState = "town";
 const valid = normalizeSavePayload(createSavePayload());
 
 assert.equal(isNormalizedSavePayload(valid), true, "normalized payload satisfies the canonical contract");
+
+const normalizedRunPayload = normalizeSavePayload({
+  ...valid,
+  currentRun: createDefaultCurrentRun()
+});
+const normalizedRun = normalizedRunPayload.currentRun;
+assert.equal(isNormalizedCurrentRun(normalizedRun), true, "normalized currentRun satisfies the canonical contract");
+assert.equal(isNormalizedCurrentRun(null), false, "null is outside the currentRun contract");
+assert.equal(isNormalizedCurrentRun({ ...normalizedRun, townInventory: new Array(1) }), false,
+  "sparse currentRun item collection is rejected");
+assert.equal(isNormalizedCurrentRun({ ...normalizedRun, unbankedObjectLoot: [{ id: "bad", item: {} }] }), false,
+  "malformed unbanked object loot is rejected");
+assert.equal(isNormalizedCurrentRun({ ...normalizedRun, startedAt: "invalid" }), false,
+  "malformed numeric core field is rejected");
+assert.equal(isNormalizedCurrentRun({ ...normalizedRun, floorSteps: [] }), false,
+  "malformed container core field is rejected");
+assert.equal(isNormalizedCurrentRun({ ...normalizedRun, outcome: "invalid" }), false,
+  "invalid outcome is rejected");
+assert.equal(isNormalizedCurrentRun({ ...normalizedRun, runSeed: undefined }), true,
+  "runSeed is not required");
+
+const legacyRunItem = { baseId: "WAND", instanceId: "legacy-run-item", affixes: [] };
+const legacyRun = normalizeSavePayload({
+  ...valid,
+  currentRun: {
+    ...createDefaultCurrentRun(),
+    townInventory: [legacyRunItem],
+    bankedObjectLoot: [legacyRunItem],
+    lostObjectLoot: [legacyRunItem],
+    returnedTownItems: [legacyRunItem],
+    itemsFound: [legacyRunItem],
+    equipmentFound: [legacyRunItem],
+    departureItems: [legacyRunItem],
+    unbankedObjectLoot: [{ id: "legacy-run-loot", item: legacyRunItem }]
+  }
+});
+assert.equal(isNormalizedCurrentRun(legacyRun.currentRun), true,
+  "supported legacy equipment remains accepted in currentRun collections");
+assert.equal(legacyRun.currentRun.runSeed, undefined, "normalization does not invent runSeed");
+
+const activeRun = normalizeSavePayload({
+  ...valid,
+  currentRun: { ...createDefaultCurrentRun(), runSeed: "active-run-seed" }
+});
+assert.equal(activeRun.currentRun.runSeed, "active-run-seed", "active-run runSeed is preserved");
+assert.equal(isNormalizedCurrentRun(JSON.parse(JSON.stringify(activeRun.currentRun))), true,
+  "normalized currentRun survives JSON roundtrip");
 
 const supportedLegacyEquipment = structuredClone(valid);
 const legacyEquipment = {
@@ -89,6 +137,16 @@ assert.throws(
   () => applySavePayload({ ...valid, logs: [Symbol("unsupported-save-value")] }),
   error => error?.name === "MalformedSavePayloadError",
   "validation failure rejects before live mutation"
+);
+assert.equal(state.x, before.x);
+assert.equal(state.y, before.y);
+assert.equal(state.gameState, before.gameState);
+assert.strictEqual(state.party, before.party);
+
+assert.throws(
+  () => applySavePayload({ ...valid, currentRun: { ...createDefaultCurrentRun(), startedAt: Symbol("invalid-run") } }),
+  error => error?.name === "MalformedSavePayloadError",
+  "malformed currentRun is rejected before live mutation"
 );
 assert.equal(state.x, before.x);
 assert.equal(state.y, before.y);
