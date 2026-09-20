@@ -1,10 +1,18 @@
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { MAIN_PUSH_MANIFEST } from './heavy_test_manifest.js';
+import { MAIN_PUSH_MANIFEST, SCHEDULED_MANIFEST } from './heavy_test_manifest.js';
+
+function createManifestTasks(manifest) {
+  return manifest.map(entry => ({ file: entry.file }));
+}
 
 export function createMainPushTasks() {
-  return MAIN_PUSH_MANIFEST.map(entry => ({ file: entry.file }));
+  return createManifestTasks(MAIN_PUSH_MANIFEST);
+}
+
+export function createScheduledTasks() {
+  return createManifestTasks(SCHEDULED_MANIFEST);
 }
 
 export function runHeavyTest({ repoRoot, file, shardIndex, shardCount }) {

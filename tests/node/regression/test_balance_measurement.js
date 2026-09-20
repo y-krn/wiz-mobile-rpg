@@ -116,7 +116,7 @@ assert.deepEqual(
 
 const workflow = fs.readFileSync(path.resolve(".github/workflows/balance-measurement.yml"), "utf8");
 const workflowFiles = fs.readdirSync(path.resolve(".github/workflows")).filter(name => /\.ya?ml$/i.test(name)).sort();
-assert.deepEqual(workflowFiles, ["balance-measurement.yml", "test.yml"]);
+assert.deepEqual(workflowFiles, ["balance-measurement.yml", "test-scheduled.yml", "test.yml"]);
 const workflowDocument = YAML.parse(workflow);
 const workflowInputs = workflowDocument.on.workflow_dispatch.inputs;
 assert.deepEqual(Object.keys(workflowInputs), ["measurement", "runs", "seed", "purpose", "debug_raw"]);

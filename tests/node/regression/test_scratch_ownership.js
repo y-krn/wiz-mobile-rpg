@@ -40,7 +40,7 @@ const nodeTopLevelEntries = fs.readdirSync(nodeTestsRoot, { withFileTypes: true 
   .map(entry => entry.name);
 assert.deepEqual(
   nodeTopLevelEntries.sort(),
-  ["fixtures", "regression", "run_conditional_tests.js", "run_main_push_tests.js", "run_tests.js", "unit"],
+  ["fixtures", "regression", "run_conditional_tests.js", "run_main_push_tests.js", "run_scheduled_tests.js", "run_tests.js", "unit"],
   "tests/node must contain only owned Node-test assets"
 );
 

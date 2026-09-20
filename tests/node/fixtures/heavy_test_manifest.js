@@ -81,6 +81,9 @@ export const MAIN_PUSH_MANIFEST = HEAVY_TEST_MANIFEST.filter(
 );
 
 export const HEAVY_TEST_COUNT = 46;
+export const SCHEDULED_MANIFEST = HEAVY_TEST_MANIFEST.filter(
+  entry => entry.ownership === 'SCHEDULED',
+);
 export const HEAVY_TEST_OWNERSHIP_COUNTS = {
   PR_CONDITIONAL: 27,
   MAIN_PUSH: 6,
