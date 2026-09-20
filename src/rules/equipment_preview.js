@@ -13,6 +13,7 @@ import {
   getEquipmentSlot,
   getEquipmentSlotsForType
 } from "./equipment_slots.js";
+import { isCharacterEquipment } from "../state/equipment.js";
 
 export const EQUIPMENT_PREVIEW_STATS = [
   { key: "attack", label: "攻撃" },
@@ -83,9 +84,10 @@ function getPrimaryDiff(itemType, rows) {
 }
 
 export function createEquipmentPreviewChar(char) {
+  const source = isCharacterEquipment(char?.equipment) ? char.equipment : null;
   const equipment = {};
   EQUIPMENT_SLOTS.forEach(({ id }) => {
-    equipment[id] = getEquipmentSlotValue(char?.equipment, id);
+    equipment[id] = source ? source[id] : null;
   });
   return { ...char, equipment };
 }
