@@ -51,10 +51,10 @@ export function isCombatPlayerStatus(value: unknown): value is CombatPlayerStatu
 export function isCombatPlayerActor(value: unknown): value is CombatPlayerActor {
   if (!isRecord(value) || !COMBAT_PLAYER_CORE_FIELDS.every(field => Object.hasOwn(value, field))) return false;
   return typeof value.name === "string" &&
-    isFiniteNumber(value.hp) &&
-    isFiniteNumber(value.maxHp) &&
-    isFiniteNumber(value.mp) &&
-    isFiniteNumber(value.maxMp) &&
+    isFiniteNumber(value.hp) && value.hp >= 0 &&
+    isFiniteNumber(value.maxHp) && value.maxHp > 0 &&
+    isFiniteNumber(value.mp) && value.mp >= 0 &&
+    isFiniteNumber(value.maxMp) && value.maxMp >= 0 &&
     isCombatPlayerStatus(value.status);
 }
 

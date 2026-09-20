@@ -44,6 +44,16 @@ for (const [field, value] of [
   assert.equal(isCombatPlayerActor({ ...actor, [field]: value }), false, `${field} rejects malformed value`);
 }
 
+for (const [field, value] of [
+  ["hp", -5],
+  ["maxHp", -1],
+  ["maxHp", 0],
+  ["mp", -1],
+  ["maxMp", -1]
+]) {
+  assert.equal(isCombatPlayerActor({ ...actor, [field]: value }), false, `${field} rejects invalid negative/range value`);
+}
+
 const dead = { ...actor, status: "dead" };
 assert.equal(isCombatPlayerActor(dead), true);
 assert.equal(isCombatPlayerActionableActor(dead), false);
