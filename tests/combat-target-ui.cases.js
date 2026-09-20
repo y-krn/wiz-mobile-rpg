@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { waitForPixiReady } from './ui-ux-helpers.js';
 
 const VIEWPORTS = [
   { width: 320, height: 568 },
@@ -8,7 +9,8 @@ const VIEWPORTS = [
 ];
 
 async function installCombat(page, partyFactory) {
-  await page.goto('/?renderer=canvas');
+  await page.goto('/');
+  await waitForPixiReady(page);
   await page.evaluate(async (partyKits) => {
     const { state, createStartingKitCharacter } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');

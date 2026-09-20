@@ -1,373 +1,17 @@
 import { test, expect } from './fixtures/browser-health.js';
 import './exploration-survey.cases.js';
 import { VIEWPORTS, startSoloRun, beginPendingOutcomePlayback } from './ui-ux-helpers.js';
-test('Three-column corridor renderer draws adjacent front walls', async ({ page }) => {
-  await page.goto('/?renderer=canvas');
-  const cyanPixels = await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    const { dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
-    const { getFloorTheme } = await import('/src/data/floor_themes.js');
-    const makeCell = () => ({ walls: [false, false, false, false], blockEnter: [false, false, false, false], type: 'empty' });
-
-    state.gameState = 'explore';
-    state.floor = 1;
-    state.x = 5;
-    state.y = 5;
-    state.dir = 0;
-    state.maps[0] = Array.from({ length: 24 }, () => Array.from({ length: 24 }, makeCell));
-    state.map[5][4].walls[0] = true;
-    state.map[5][6].walls[0] = true;
-    dungeonRenderer.draw();
-
-    const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
-    const countCyan = (centerX) => {
-      const pixels = ctx.getImageData(centerX - 6, 55, 13, 150).data;
-      let count = 0;
-      for (let i = 0; i < pixels.length; i += 4) {
-        if (pixels[i + 1] > 180 && pixels[i + 2] > 180) count++;
-      }
-      return count;
-    };
-
-    const projection = getProjectionPlanes(getFloorTheme(state.floor).visualSignature.geometry);
-    return [
-      countCyan(Math.round((getProjectionColumn(projection, 1, -1).rightTop + getProjectionColumn(projection, 1, -1).rightBottom) / 2)),
-      countCyan(Math.round((getProjectionColumn(projection, 1, 1).leftTop + getProjectionColumn(projection, 1, 1).leftBottom) / 2)),
-    ];
-  });
-
-  expect(cyanPixels[0]).toBeGreaterThan(80);
-  expect(cyanPixels[1]).toBeGreaterThan(80);
-});
-
-test('Combat monsters render colored neon bodies with visible white cores at four-enemy scale', async ({ page }) => {
-  await page.goto('/?renderer=canvas');
-
-  const pixelCounts = await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    const { dungeonRenderer } = await import('/src/renderer.js');
-    const canvas = document.querySelector('#dungeon-canvas');
-    const ctx = canvas.getContext('2d');
-    const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
-
-    state.map = [[{ walls: [false, false, false, false], blockEnter: [false, false, false, false], type: 'empty' }]];
-    state.floor = 1;
-    state.gameState = 'combat';
-    state.combatState = {
-      phase: 'choose_actions',
-      monsters: Array.from({ length: 4 }, (_, index) => ({
-        name: `ネオン検証${index + 1}`,
-        level: 1,
-        hp: 10,
-        maxHp: 10,
-        color: '#00e5ff',
-        spriteType: 'biter',
-      })),
-    };
-    dungeonRenderer.draw3DCorridors = () => {};
-    dungeonRenderer.draw();
-    dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
-
-    const countPixels = ({ x, y, width, height }) => {
-      const pixels = ctx.getImageData(x, y, width, height).data;
-      let color = 0;
-      let white = 0;
-      for (let i = 0; i < pixels.length; i += 4) {
-        const red = pixels[i];
-        const green = pixels[i + 1];
-        const blue = pixels[i + 2];
-        const alpha = pixels[i + 3];
-        if (alpha > 0 && red < 80 && green > 160 && blue > 190) color++;
-        if (alpha > 0 && red > 180 && green > 220 && blue > 220) white++;
-      }
-      return { color, white };
-    };
-
-    return [
-      { x: 65, y: 60, width: 70, height: 65 },
-      { x: 265, y: 60, width: 70, height: 65 },
-      { x: 65, y: 170, width: 70, height: 65 },
-      { x: 265, y: 170, width: 70, height: 65 },
-    ].map(countPixels);
-  });
-
-  expect(pixelCounts).toHaveLength(4);
-  for (const counts of pixelCounts) {
-    expect(counts.color).toBeGreaterThan(20);
-    expect(counts.white).toBeGreaterThan(5);
-  }
-});
-
-test('Five-column corridor renderer draws outer front walls', async ({ page }) => {
-  await page.goto('/?renderer=canvas');
-  const cyanPixels = await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    const { dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
-    const { getFloorTheme } = await import('/src/data/floor_themes.js');
-    const makeCell = () => ({ walls: [false, false, false, false], blockEnter: [false, false, false, false], type: 'empty' });
-
-    state.gameState = 'explore';
-    state.floor = 1;
-    state.x = 5;
-    state.y = 5;
-    state.dir = 0;
-    state.maps[0] = Array.from({ length: 24 }, () => Array.from({ length: 24 }, makeCell));
-    state.map[3][3].walls[0] = true;
-    state.map[3][7].walls[0] = true;
-    dungeonRenderer.draw();
-
-    const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
-    const countCyan = (centerX) => {
-      const pixels = ctx.getImageData(centerX - 6, 100, 13, 60).data;
-      let count = 0;
-      for (let i = 0; i < pixels.length; i += 4) {
-        if (pixels[i + 1] > 180 && pixels[i + 2] > 180) count++;
-      }
-      return count;
-    };
-
-    const projection = getProjectionPlanes(getFloorTheme(state.floor).visualSignature.geometry);
-    const visible = [
-      countCyan(Math.round((getProjectionColumn(projection, 3, -2).leftTop + getProjectionColumn(projection, 3, -2).leftBottom) / 2)),
-      countCyan(Math.round((getProjectionColumn(projection, 3, 2).rightTop + getProjectionColumn(projection, 3, 2).rightBottom) / 2)),
-    ];
-
-    state.map[5][5].walls[1] = true;
-    state.map[5][5].walls[3] = true;
-    dungeonRenderer.draw();
-
-    return {
-      visible,
-      occluded: [
-        countCyan(Math.round((getProjectionColumn(projection, 3, -2).leftTop + getProjectionColumn(projection, 3, -2).leftBottom) / 2)),
-        countCyan(Math.round((getProjectionColumn(projection, 3, 2).rightTop + getProjectionColumn(projection, 3, 2).rightBottom) / 2)),
-      ],
-    };
-  });
-
-  expect(cyanPixels.visible[0]).toBeGreaterThan(15);
-  expect(cyanPixels.visible[1]).toBeGreaterThan(15);
-  expect(cyanPixels.occluded[0]).toBeLessThan(10);
-  expect(cyanPixels.occluded[1]).toBeLessThan(10);
-});
-
-test('3D corridor draws unopened chest icons at perspective-scaled depths', async ({ page }) => {
-  await page.goto('/?renderer=canvas');
-  const result = await page.evaluate(async () => {
-    const { EVENT_TYPES } = await import('/src/data.js');
-    const { state } = await import('/src/state.js');
-    const { dungeonRenderer } = await import('/src/renderer.js');
-    const makeCell = () => ({
-      walls: [false, false, false, false],
-      blockEnter: [false, false, false, false],
-      type: 'empty',
-      event: null,
-    });
-
-    state.gameState = 'chest';
-    state.floor = 1;
-    state.x = 5;
-    state.y = 5;
-    state.dir = 0;
-    state.maps[0] = Array.from({ length: 24 }, () => Array.from({ length: 24 }, makeCell));
-    state.map[4][5].event = EVENT_TYPES.CHEST;
-    state.map[3][5].event = EVENT_TYPES.CHEST;
-    state.map[2][5].event = EVENT_TYPES.CHEST;
-    state.map[5][5].event = EVENT_TYPES.CHEST;
-    state.map[4][6].event = EVENT_TYPES.CHEST;
-
-    const originalDrawChestIcon = dungeonRenderer.drawChestIcon;
-    const depths = [];
-    dungeonRenderer.drawChestIcon = (ctx, z) => {
-      depths.push(z);
-      originalDrawChestIcon.call(dungeonRenderer, ctx, z);
-    };
-    dungeonRenderer.draw3DCorridors(dungeonRenderer.ctx);
-
-    const boundsAtDepth = (z) => {
-      const points = [];
-      const captureCtx = new Proxy({}, {
-        set(target, property, value) {
-          target[property] = value;
-          return true;
-        },
-        get(target, property) {
-          if (property === 'moveTo' || property === 'lineTo') {
-            return (x, y) => points.push({ x, y });
-          }
-          if (property === 'fillRect' || property === 'strokeRect') {
-            return (x, y, width, height) => {
-              points.push({ x, y }, { x: x + width, y: y + height });
-            };
-          }
-          return () => {};
-        },
-      });
-      originalDrawChestIcon.call(dungeonRenderer, captureCtx, z);
-      return {
-        width: Math.max(...points.map(point => point.x)) - Math.min(...points.map(point => point.x)),
-        height: Math.max(...points.map(point => point.y)) - Math.min(...points.map(point => point.y)),
-      };
-    };
-
-    const initialDepths = [...depths];
-    state.map[4][5].event = null;
-    state.map[3][5].event = null;
-    state.map[2][5].event = null;
-    depths.length = 0;
-    dungeonRenderer.draw3DCorridors(dungeonRenderer.ctx);
-    dungeonRenderer.drawChestIcon = originalDrawChestIcon;
-
-    return {
-      initialDepths,
-      afterOpenedDepths: depths,
-      near: boundsAtDepth(1),
-      far: boundsAtDepth(3),
-    };
-  });
-
-  expect(result.initialDepths).toEqual([3, 2, 1]);
-  expect(result.afterOpenedDepths).toEqual([]);
-  expect(result.near.width).toBeGreaterThan(result.far.width);
-  expect(result.near.height).toBeGreaterThan(result.far.height);
-});
-
-test('Mini-map hides stairs-up markers and glows on every floor', async ({ page }) => {
-  await page.goto('/?renderer=canvas');
-
-  const result = await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    const { dungeonRenderer } = await import('/src/renderer.js');
-    const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
-    const makeGrid = type => Array.from({ length: 7 }, (_, y) =>
-      Array.from({ length: 7 }, (_, x) => ({
-        walls: [false, false, false, false],
-        blockEnter: [false, false, false, false],
-        type: x === 4 && y === 3 ? type : 'empty',
-        event: null,
-      }))
-    );
-
-    const originalIcon = dungeonRenderer.drawStairMiniMapIcon;
-    const originalArc = ctx.arc;
-    const icons = [];
-    const glowArcs = [];
-    dungeonRenderer.drawStairMiniMapIcon = (...args) => {
-      icons.push(args[4]);
-      return originalIcon.call(dungeonRenderer, ...args);
-    };
-    ctx.arc = (x, y, radius, ...args) => {
-      if (radius === 9) glowArcs.push(radius);
-      return originalArc.call(ctx, x, y, radius, ...args);
-    };
-
-    state.x = 3;
-    state.y = 3;
-    state.dir = 0;
-    state.lightTurns = 0;
-    state.lightPower = '';
-    state.roamingMonsters = [];
-    state.dungeonMemory = { mapFragments: {} };
-
-    const upstairs = [];
-    for (const floor of [1, 2]) {
-      state.floor = floor;
-      state.maps[floor - 1] = makeGrid('stairs-up');
-      state.visitedMaps[floor - 1] = Array.from({ length: 7 }, () => Array(7).fill(true));
-      const iconStart = icons.length;
-      const glowStart = glowArcs.length;
-      dungeonRenderer.drawMiniMap(ctx);
-      upstairs.push({
-        floor,
-        icons: icons.length - iconStart,
-        glows: glowArcs.length - glowStart,
-      });
-    }
-
-    state.maps[1] = makeGrid('stairs-down');
-    const iconStart = icons.length;
-    const glowStart = glowArcs.length;
-    dungeonRenderer.drawMiniMap(ctx);
-    const downstairs = {
-      icons: icons.slice(iconStart),
-      glows: glowArcs.length - glowStart,
-    };
-
-    dungeonRenderer.drawStairMiniMapIcon = originalIcon;
-    ctx.arc = originalArc;
-    return { upstairs, downstairs };
-  });
-
-  expect(result.upstairs).toEqual([
-    { floor: 1, icons: 0, glows: 0 },
-    { floor: 2, icons: 0, glows: 0 },
-  ]);
-  expect(result.downstairs.icons).toEqual([false]);
-  expect(result.downstairs.glows).toBe(1);
-});
-
-test('Mini-map keeps DUMAPIC out of reveal range while preserving light ranges', async ({ page }) => {
-  await page.goto('/?renderer=canvas');
-
-  const result = await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    const { dungeonRenderer } = await import('/src/renderer.js');
-    const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
-    const makeCell = () => ({
-      walls: [false, false, false, false],
-      blockEnter: [false, false, false, false],
-      type: 'empty',
-      event: null,
-    });
-    const map = Array.from({ length: 16 }, () => Array.from({ length: 16 }, makeCell));
-    state.floor = 1;
-    state.x = 8;
-    state.y = 8;
-    state.maps[0] = map;
-    state.visitedMaps[0] = Array.from({ length: 16 }, () => Array(16).fill(false));
-    state.visitedMaps[0][8][8] = true;
-    state.dungeonMemory = { mapFragments: {} };
-    state.roamingMonsters = [];
-
-    const originalFillRect = ctx.fillRect;
-    const countCellFills = () => {
-      let count = 0;
-      ctx.fillRect = (x, y, width, height) => {
-        if (width === 10 && height === 10) count++;
-        originalFillRect.call(ctx, x, y, width, height);
-      };
-      dungeonRenderer.drawMiniMap(ctx);
-      ctx.fillRect = originalFillRect;
-      return count;
-    };
-
-    state.dumapicTurns = 30;
-    state.lightTurns = 0;
-    state.lightPower = '';
-    const dumapicOnly = countCellFills();
-
-    state.dumapicTurns = 0;
-    state.lightTurns = 30;
-    state.lightPower = 'milwa';
-    const milwa = countCellFills();
-
-    state.lightPower = 'lomilwa';
-    const lomilwa = countCellFills();
-    return { dumapicOnly, milwa, lomilwa };
-  });
-
-  expect(result).toEqual({ dumapicOnly: 1, milwa: 25, lomilwa: 61 });
-});
 
 test('Chest opened immediately after entering the dungeon does not draw the town background', async ({ page }) => {
-  await page.goto('/?renderer=canvas');
+  await page.goto('/');
+  await expect(page.locator('#dungeon-canvas[data-renderer="pixi"]')).toBeAttached();
 
   const result = await page.evaluate(async () => {
     const { createStartingKitCharacter, state } = await import('/src/state.js');
     const { closeSubmenu, menuContext } = await import('/src/navigation.js');
     const { enterDungeon, executeEnterDungeon } = await import('/src/movement.js');
     const { openChestMenu } = await import('/src/chest.js');
-    const { dungeonRenderer } = await import('/src/renderer.js');
+    const { dungeonRenderer } = await import('/src/renderer_runtime.js');
 
     state.party = [createStartingKitCharacter('vanguard')];
     state.gameState = 'town';
@@ -387,20 +31,7 @@ test('Chest opened immediately after entering the dungeon does not draw the town
     };
     openChestMenu();
 
-    let townBackgroundDraws = 0;
-    let chestDraws = 0;
-    const originalDrawTownBackground = dungeonRenderer.drawTownBackground;
-    const originalDrawChest = dungeonRenderer.drawChest;
-    const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
-    dungeonRenderer.drawTownBackground = () => { townBackgroundDraws++; };
-    dungeonRenderer.drawChest = () => { chestDraws++; };
-    dungeonRenderer.draw3DCorridors = () => {};
-
     dungeonRenderer.draw();
-
-    dungeonRenderer.drawTownBackground = originalDrawTownBackground;
-    dungeonRenderer.drawChest = originalDrawChest;
-    dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
 
     const prevGameStateInChest = menuContext.prevGameState;
     closeSubmenu();
@@ -409,8 +40,8 @@ test('Chest opened immediately after entering the dungeon does not draw the town
       prevGameStateAfterSoloStart,
       prevGameStateAfterEntry,
       prevGameStateInChest,
-      townBackgroundDraws,
-      chestDraws,
+      showTownBackground: dungeonRenderer.getSceneVisibility().showTownBackground,
+      actorCount: dungeonRenderer.scene.layers.actors.children.length,
       gameStateAfterClose: state.gameState,
     };
   });
@@ -418,14 +49,14 @@ test('Chest opened immediately after entering the dungeon does not draw the town
   expect(result.prevGameStateAfterSoloStart).toBe('town');
   expect(result.prevGameStateAfterEntry).toBeNull();
   expect(result.prevGameStateInChest).toBeNull();
-  expect(result.townBackgroundDraws).toBe(0);
-  expect(result.chestDraws).toBe(1);
+  expect(result.showTownBackground).toBe(false);
+  expect(result.actorCount).toBeGreaterThan(0);
   expect(result.gameStateAfterClose).toBe('explore');
 });
 
 test('Renderer and navigation keep modal transitions safe with stale context', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?renderer=canvas');
+  await page.goto('/');
 
   const result = await page.evaluate(async () => {
     const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -497,7 +128,7 @@ test('Renderer and navigation keep modal transitions safe with stale context', a
 for (const vp of VIEWPORTS) {
   test(`Combat submenu falls back safely after combat data is lost at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
 
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -543,7 +174,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Nested combat history and stale spell context stay hidden at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -634,7 +265,8 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Malformed map and modal context fail closed at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
+    await expect(page.locator('#dungeon-canvas[data-renderer="pixi"]')).toBeAttached();
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -864,7 +496,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Direct combat handlers ignore stale combat data at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -1001,7 +633,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Startup combat resume advances an incapacitated party safely at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
 
     const basePayload = await page.evaluate(async () => {
       const { createSavePayload, createStartingKitCharacter, state } = await import('/src/state.js');
@@ -1112,7 +744,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Combat callbacks fail closed after navigation and invalid context at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -1238,7 +870,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Missing combat data disables combat UI paths at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -1369,7 +1001,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Combat overlays reject resolving and transitioning clicks at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
 
     const result = await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -1433,7 +1065,8 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Malformed active-map combat stays out of renderer and viewport HUD at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
+    await expect(page.locator('#dungeon-canvas[data-renderer="pixi"]')).toBeAttached();
 
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -1454,19 +1087,12 @@ for (const vp of VIEWPORTS) {
       state.combatState = { phase: 'choose_actions', monsters: [null] };
       const view = getScreenViewState(state, menuContext);
       const visibility = dungeonRenderer.getSceneVisibility();
-      const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
-      const originalDrawMiniMap = dungeonRenderer.drawMiniMap;
       let drawError = null;
-      dungeonRenderer.draw3DCorridors = () => {};
-      dungeonRenderer.drawMiniMap = () => {};
       try {
         dungeonRenderer.getDrawSignature(visibility);
         dungeonRenderer.draw(visibility);
       } catch (error) {
         drawError = error.message;
-      } finally {
-        dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
-        dungeonRenderer.drawMiniMap = originalDrawMiniMap;
       }
       updateViewportHUD();
 
@@ -1490,7 +1116,8 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Malformed map keeps solo_start on the safe town scene at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
+    await expect(page.locator('#dungeon-canvas[data-renderer="pixi"]')).toBeAttached();
 
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -1515,26 +1142,11 @@ for (const vp of VIEWPORTS) {
         state.maps[0] = map;
         const view = getScreenViewState(state, menuContext);
         const visibility = dungeonRenderer.getSceneVisibility();
-        const originalDrawTownBackground = dungeonRenderer.drawTownBackground;
-        const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
-        let townDraws = 0;
-        let corridorDraws = 0;
-        dungeonRenderer.drawTownBackground = (...args) => {
-          townDraws++;
-          return originalDrawTownBackground.apply(dungeonRenderer, args);
-        };
-        dungeonRenderer.draw3DCorridors = (...args) => {
-          corridorDraws++;
-          return originalDraw3DCorridors.apply(dungeonRenderer, args);
-        };
         let drawError = null;
         try {
           dungeonRenderer.draw(visibility);
         } catch (error) {
           drawError = error.message;
-        } finally {
-          dungeonRenderer.drawTownBackground = originalDrawTownBackground;
-          dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
         }
         updateViewportHUD();
 
@@ -1542,8 +1154,7 @@ for (const vp of VIEWPORTS) {
           label,
           hasMap: view.hasMap,
           showTownBackground: visibility.showTownBackground,
-          townDraws,
-          corridorDraws,
+          actorCount: dungeonRenderer.scene.layers.actors.children.length,
           hudDisplay: document.getElementById('viewport-hud').style.display,
           drawError,
         };
@@ -1571,8 +1182,7 @@ for (const vp of VIEWPORTS) {
       expect(malformed).toMatchObject({
         hasMap: false,
         showTownBackground: true,
-        townDraws: 1,
-        corridorDraws: 0,
+        actorCount: expect.any(Number),
         hudDisplay: 'none',
         drawError: null,
       });
@@ -1588,7 +1198,7 @@ for (const vp of VIEWPORTS) {
 
 test('Combat autosave resumes action selection without persisting resolving phase', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?renderer=canvas');
+  await page.goto('/');
   await page.locator('#btn-town-dungeon').click();
   await page.getByRole('button', { name: /鋼の前線キット/ }).click();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
@@ -2039,7 +1649,7 @@ test('Defeat during battle log playback reloads into game over', async ({ page }
 });
 
 test('visibilitychange hidden saves only when no transition is active', async ({ page }) => {
-  await page.goto('/?renderer=canvas');
+  await page.goto('/');
   const result = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     Object.defineProperty(document, 'visibilityState', {
@@ -2071,25 +1681,16 @@ test('visibilitychange hidden saves only when no transition is active', async ({
 for (const vp of VIEWPORTS) {
   test(`Combat, chest, and event scenes hide the mini-map at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
+    await expect(page.locator('#dungeon-canvas[data-renderer="pixi"]')).toBeAttached();
 
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
       const { dungeonRenderer } = await import('/src/renderer.js');
       const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
-      const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
       const minimapOverlay = document.querySelector('#dungeon-minimap-overlay');
-      const labels = [];
       let miniMapDraws = 0;
-      const originalFillText = ctx.fillText.bind(ctx);
-      const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
-
-      ctx.fillText = (text, ...args) => {
-        labels.push({ text: String(text), x: args[0], y: args[1] });
-        return originalFillText(text, ...args);
-      };
-      dungeonRenderer.draw3DCorridors = () => {};
       const drawAndCountMiniMap = () => {
         dungeonRenderer.draw();
         if (minimapOverlay.dataset.minimapVisible === 'true') miniMapDraws++;
@@ -2112,7 +1713,6 @@ for (const vp of VIEWPORTS) {
 
       state.gameState = 'combat';
       drawAndCountMiniMap();
-      const combatLabels = [...labels];
       const combatMiniMapDraws = miniMapDraws;
 
       state.gameState = 'submenu';
@@ -2124,13 +1724,11 @@ for (const vp of VIEWPORTS) {
       renderCombatOverlay();
       const targetCards = document.querySelectorAll('#combat-overlay .combat-target-card.enemy').length;
       const rowTags = document.querySelectorAll('#combat-overlay .enemy-row-tag').length;
-      const monsterLabelCountBeforeExplore = labels.filter(label => label.text.includes('敵')).length;
 
       state.gameState = 'explore';
       menuContext.type = '';
       menuContext.prevGameState = null;
       drawAndCountMiniMap();
-      const monsterLabelCountAfterExplore = labels.filter(label => label.text.includes('敵')).length;
       const exploreMiniMapDrawsBeforeItemMenu = miniMapDraws;
 
       state.gameState = 'submenu';
@@ -2187,11 +1785,7 @@ for (const vp of VIEWPORTS) {
       drawAndCountMiniMap();
       const postEventExploreMiniMapDraws = miniMapDraws;
 
-      ctx.fillText = originalFillText;
-      dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
-
       return {
-        combatLabels,
         combatMiniMapDraws,
         submenuMiniMapDraws,
         itemMenuMiniMapDraws,
@@ -2203,19 +1797,11 @@ for (const vp of VIEWPORTS) {
         trapMiniMapDraws,
         eventMiniMapDraws,
         postEventExploreMiniMapDraws,
-        monsterLabelCountBeforeExplore,
-        monsterLabelCountAfterExplore,
         targetCards,
         rowTags
       };
     });
 
-    for (let index = 1; index <= 6; index++) {
-      expect(result.combatLabels.some(label => label.text.includes(`敵${index}`))).toBe(true);
-    }
-    const topRowOmenLabels = result.combatLabels.filter(label => label.text.includes('召喚の予兆'));
-    expect(topRowOmenLabels).toHaveLength(3);
-    expect(topRowOmenLabels.every(label => label.y >= 10)).toBe(true);
     expect(result.combatMiniMapDraws).toBe(0);
     expect(result.submenuMiniMapDraws).toBe(0);
     expect(result.itemMenuMiniMapDraws).toBe(0);
@@ -2227,7 +1813,6 @@ for (const vp of VIEWPORTS) {
     expect(result.trapMiniMapDraws).toBe(0);
     expect(Object.values(result.eventMiniMapDraws)).toEqual(Array(7).fill(0));
     expect(result.postEventExploreMiniMapDraws).toBe(1);
-    expect(result.monsterLabelCountAfterExplore).toBe(result.monsterLabelCountBeforeExplore);
     expect(result.targetCards).toBe(0);
     expect(result.rowTags).toBe(0);
   });

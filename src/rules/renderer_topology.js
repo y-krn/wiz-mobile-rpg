@@ -9,8 +9,8 @@ export function isRenderableCorridorCell(cell) {
 
 /**
  * Return the map cells visible from the player through the same directed
- * movement rules used by exploration. The result is renderer-neutral; Canvas
- * and Pixi decide independently how to present these cells.
+ * movement rules used by exploration. The result is renderer-neutral and
+ * consumed by the Pixi presentation.
  */
 export function getVisibleCorridorCells(map, px, py, dir, maxDepth = 3, maxColumn = 2) {
   const dirRight = (dir + 1) % 4;

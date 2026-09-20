@@ -1,7 +1,7 @@
 // balance-impact: none — dungeon chest presentation only; gameplay state and
 // loot/trap semantics remain unchanged.
 // Shared screen-space geometry for the dungeon chest prop.
-// Rendering stays separate so Canvas and Pixi can use their native primitives.
+// Geometry stays renderer-neutral; Pixi owns the production presentation.
 
 export const CHEST_PROP_STYLES = Object.freeze({
   wood_crate: Object.freeze({ body: "#6b3a00", lid: "#9a5d16", metal: "#f1c45b", outline: "#ffe29a", glow: "#ffd166", mark: "bands" }),

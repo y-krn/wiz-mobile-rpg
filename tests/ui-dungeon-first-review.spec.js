@@ -27,7 +27,7 @@ function makeMap(archetype) {
   return map;
 }
 
-async function seedDungeon(page, { renderer = 'canvas', gameState = 'explore', map = makeMap('straight-corridor'), floor = 1 } = {}) {
+async function seedDungeon(page, { renderer = 'pixi', gameState = 'explore', map = makeMap('straight-corridor'), floor = 1 } = {}) {
   await page.goto(`/?renderer=${renderer}`);
   if (renderer === 'pixi') await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
   await page.evaluate(async ({ gameState, map, floor }) => {
@@ -65,7 +65,7 @@ async function seedDungeon(page, { renderer = 'canvas', gameState = 'explore', m
 }
 
 async function seedPortal(page) {
-  await page.goto('/?renderer=canvas');
+  await page.goto('/');
   await page.evaluate(async () => {
     const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
     const { openSubmenu } = await import('/src/navigation.js');
@@ -117,7 +117,7 @@ async function selectCanvasEnemy(page) {
 }
 
 test('Dungeon First preserves complete navigation surface across six 390x844 topologies @smoke', async ({ page }, testInfo) => {
-  for (const renderer of ['canvas', 'pixi']) {
+  for (const renderer of ['pixi']) {
     await page.setViewportSize(VIEWPORT);
     await page.goto(`/?renderer=${renderer}`);
     if (renderer === 'pixi') await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
@@ -173,7 +173,7 @@ test('Dungeon First preserves complete navigation surface across six 390x844 top
   }
 });
 
-for (const renderer of ['canvas', 'pixi']) {
+for (const renderer of ['pixi']) {
   test(`Dungeon First ${renderer} combat canvas target passes through overlay for fight and spell @smoke`, async ({ page }) => {
     await page.setViewportSize(VIEWPORT);
     await seedDungeon(page, { renderer, gameState: 'combat' });

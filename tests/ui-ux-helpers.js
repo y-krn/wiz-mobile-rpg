@@ -14,6 +14,11 @@ const SOLO_HUD_VIEWPORTS = [
 
 const SOLO_HUD_STATES = ['town', 'explore', 'combat', 'submenu'];
 
+async function waitForPixiReady(page) {
+  await expect(page.locator('#dungeon-canvas[data-renderer="pixi"]')).toBeAttached();
+  await expect(page.locator('#controls-panel')).toBeVisible();
+}
+
 async function startSoloRun(page) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -130,4 +135,5 @@ export {
   startSoloRun,
   openDeparturePreparation,
   beginPendingOutcomePlayback,
+  waitForPixiReady,
 };

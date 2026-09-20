@@ -1,25 +1,9 @@
 import assert from "node:assert/strict";
 
-const noopContext = new Proxy({}, {
-  get(target, property) {
-    if (!(property in target)) target[property] = () => {};
-    return target[property];
-  }
-});
-
-globalThis.document = {
-  getElementById: () => ({
-    getContext: () => noopContext,
-    width: 0,
-    height: 0
-  })
-};
-
 const { state } = await import("../../../src/state.js");
 const { menuContext } = await import("../../../src/navigation.js");
-const { DungeonRenderer } = await import("../../../src/renderer.js");
-
-const renderer = new DungeonRenderer("dungeon-canvas");
+const { getRendererInput } = await import("../../../src/state/renderer_view.js");
+const { getVisibleCorridorTopology } = await import("../../../src/rules/renderer_topology.js");
 
 function createCell() {
   return {
@@ -46,39 +30,29 @@ function configureExploration(map) {
   menuContext.prevGameState = null;
 }
 
-function renderInProductionOrder(message) {
+function assertRendererContractIsSafe(message) {
+  const input = getRendererInput(state, menuContext);
   assert.doesNotThrow(
-    () => {
-      const sceneVisibility = renderer.getSceneVisibility();
-      renderer.isAnimating(sceneVisibility);
-      renderer.draw(sceneVisibility);
-    },
+    () => getVisibleCorridorTopology(input.map, input.x, input.y, input.dir),
     message
   );
+  assert.equal(input.sceneVisibility.showTownBackground, input.map === null, message + ": map absence selects the safe scene");
+  assert.equal(input.map === null || Array.isArray(input.map), true, message + ": map is normalized");
 }
 
 configureExploration([null]);
-renderInProductionOrder(
-  "renderer does not animate or draw dungeon walls before the floor map is initialized"
-);
+assertRendererContractIsSafe("renderer input tolerates an uninitialized floor map");
 
 configureExploration([undefined]);
-renderInProductionOrder(
-  "renderer does not animate or draw dungeon walls when a map row is malformed"
-);
+assertRendererContractIsSafe("renderer input tolerates a malformed map row");
 
 const partialMap = Array.from({ length: 5 }, () => Array.from({ length: 5 }, createCell));
 delete partialMap[0][1];
 configureExploration(partialMap);
-renderInProductionOrder(
-  "renderer does not dereference walls from a sparse visible map cell"
-);
+assertRendererContractIsSafe("renderer topology tolerates a sparse visible map cell");
 
 const validMap = Array.from({ length: 5 }, () => Array.from({ length: 5 }, createCell));
 configureExploration(validMap);
-assert.deepEqual(state.map[0][0].walls, [false, false, false, false]);
-renderInProductionOrder(
-  "renderer keeps animating and drawing a valid map cell with walls"
-);
+assertRendererContractIsSafe("renderer input preserves a valid map cell");
 
-console.log("ISSUE 800 UNDEFINED MAP STATE TEST PASSED");
+console.log("RENDERER-NEUTRAL UNDEFINED MAP CONTRACT TEST PASSED");

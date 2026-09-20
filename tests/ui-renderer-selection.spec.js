@@ -14,25 +14,17 @@ async function readSelection(page) {
   });
 }
 
-test('renderer selection defaults to Pixi, preserves explicit overrides, and normalizes unknown values @smoke @e2e', async ({ page }) => {
-  for (const path of ['/', '/?renderer=pixi', '/?renderer=foo']) {
+test('renderer selection always mounts Pixi and normalizes renderer query values @smoke @e2e', async ({ page }) => {
+  for (const path of ['/', '/?renderer=pixi', '/?renderer=foo', '/']) {
     await page.goto(path);
     await expect.poll(async () => (await readSelection(page)).selectedRenderer).toBe('pixi');
     const state = await readSelection(page);
     expect(state.requestedRenderer).toBe('pixi');
-    expect(state.fallbackOccurred).toBe(false);
+    expect(state.failureOccurred).toBe(false);
     expect(state.canvasCount).toBe(1);
     expect(state.canvasRenderer).toBe('pixi');
     expect(state.panelRenderer).toBe('pixi');
     expect(state.pixiCanvasContext).toBe(true);
   }
 
-  await page.goto('/?renderer=canvas');
-  const canvasState = await readSelection(page);
-  expect(canvasState.requestedRenderer).toBe('canvas');
-  expect(canvasState.selectedRenderer).toBe('canvas');
-  expect(canvasState.fallbackOccurred).toBe(false);
-  expect(canvasState.canvasCount).toBe(1);
-  expect(canvasState.canvasRenderer).toBeNull();
-  expect(canvasState.panelRenderer).toBe('canvas');
 });

@@ -81,7 +81,7 @@ function expectDungeonFirstShell(layout, state, viewport = VIEWPORT) {
   }
 }
 
-for (const renderer of ['canvas', 'pixi']) {
+for (const renderer of ['pixi']) {
   test(`Dungeon First keeps Explore dominant at 390x844 with ${renderer} @visual`, async ({ page }, testInfo) => {
     await page.setViewportSize(VIEWPORT);
     await page.goto(`/?renderer=${renderer}`);
@@ -120,7 +120,7 @@ for (const renderer of ['canvas', 'pixi']) {
 
 test('Dungeon First keeps loot decision over the world at 390x844 @visual', async ({ page }, testInfo) => {
   await page.setViewportSize(VIEWPORT);
-  await page.goto('/?renderer=canvas');
+  await page.goto('/');
   await seedDungeonState(page, 'chest');
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -154,7 +154,7 @@ for (const viewport of [
 ]) {
   test(`Dungeon First keeps safe-area controls reachable at ${viewport.width}x${viewport.height} @visual`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
     await seedDungeonState(page, 'explore');
     const layout = await readDungeonFirstLayout(page);
     expectDungeonFirstShell(layout, 'explore', viewport);

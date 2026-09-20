@@ -4,7 +4,7 @@ const HOSTILE = '<img src=x onerror="globalThis.__xss = 1"><b>evil</b>';
 
 test('combat and solo UI render hostile character, monster, and item text literally', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?renderer=canvas');
+  await page.goto('/');
   const evidence = await page.evaluate(async hostile => {
     const { state, createStartingKitCharacter } = await import('/src/state.js');
     const { ITEMS } = await import('/src/data/items.js');

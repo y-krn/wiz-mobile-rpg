@@ -175,7 +175,7 @@ function getCombatMonsters(source: RawRendererState, view: ScreenViewSnapshot): 
 }
 
 /**
- * The only raw-state-to-render conversion used by DungeonRenderer.
+ * The only raw-state-to-render conversion used by the production Dungeon View.
  *
  * Collections intentionally retain state-owned references. Creating defensive
  * copies here would add work to every render-loop tick and would not improve

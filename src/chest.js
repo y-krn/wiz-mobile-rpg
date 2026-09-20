@@ -5,7 +5,7 @@ import {
   resolveChestSmashRewardLosses
 } from "./rules/chest_rules.js";
 import { playSound } from "./audio.js";
-import { dungeonRenderer as renderer } from "./renderer.js";
+import { dungeonRenderer as renderer } from "./renderer_runtime.js";
 import { updateUI } from "./ui.js";
 import { menuContext, resetSubmenuBackButton } from "./navigation.js";
 import { triggerGameOver } from "./combat.js";

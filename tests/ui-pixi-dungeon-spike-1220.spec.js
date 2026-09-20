@@ -122,18 +122,15 @@ test('PixiJS keeps production-backed B1F near side opening visible with minimap 
   }
 });
 
-test('Canvas baseline and Pixi candidate share the same state and viewport artifact naming @smoke @visual', async ({ page }, testInfo) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-  for (const renderer of ['canvas', 'pixi']) {
-    await page.goto(renderer === 'pixi' ? '/?renderer=pixi' : '/?renderer=canvas');
-    await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', renderer);
-    if (renderer === 'pixi') await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
-    await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
-    for (const archetype of ARCHETYPES) {
-      await configureSynthetic(page, archetype);
-      const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`${renderer}-${archetype}-390px.png`) });
-      await testInfo.attach(`${renderer}-${archetype}-390px`, { body: screenshot, contentType: 'image/png' });
-    }
+test('Pixi keeps the same state and viewport artifact naming across topology archetypes @smoke @visual', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?renderer=pixi');
+  await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'pixi');
+  await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
+  for (const archetype of ARCHETYPES) {
+    await configureSynthetic(page, archetype);
+    const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`pixi-${archetype}-390px.png`) });
+    await testInfo.attach(`pixi-${archetype}-390px`, { body: screenshot, contentType: 'image/png' });
   }
 });
 

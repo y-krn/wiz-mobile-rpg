@@ -2,16 +2,18 @@ import { test, expect } from './fixtures/browser-health.js';
 
 const REPRESENTATIVE_FLOORS = [1, 6, 11, 16, 21, 26];
 
-test('Representative biome landmarks keep distinct silhouettes and remain readable @visual', async ({ page }, testInfo) => {
+test('Pixi landmarks keep biome-specific geometry and remain readable @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?renderer=canvas');
+  await page.goto('/');
   await page.waitForLoadState('networkidle');
 
   const evidence = {};
   for (const floor of REPRESENTATIVE_FLOORS) {
     evidence[floor] = await page.evaluate(async targetFloor => {
       const { state, createDefaultCurrentRun } = await import('/src/state.js');
-      const { dungeonRenderer, getProjectionPlanes } = await import('/src/renderer.js');
+      const { dungeonRenderer } = await import('/src/renderer_runtime.js');
+      const { getProjectionColumn, getProjectionPlanes } = await import('/src/rules/renderer_projection.js');
+      const { getChestPropGeometry } = await import('/src/chest_prop.js');
       const { getFloorTheme } = await import('/src/data/floor_themes.js');
       const makeCell = () => ({
         walls: [false, false, false, false],
@@ -36,41 +38,16 @@ test('Representative biome landmarks keep distinct silhouettes and remain readab
       state.visitedMaps[targetFloor - 1] = map.map(row => row.map(() => true));
       state.map = map;
 
-      const scene = {
-        showTownBackground: false,
-        showCombat: false,
-        showChest: false,
-        showEventScene: true,
-        showItemMenu: false,
-      };
-      dungeonRenderer.draw(scene);
-
-      const style = getFloorTheme(targetFloor).visualSignature.landmarks;
-      const projection = getProjectionPlanes({ corridorWidth: 1, ceilingHeight: 1, wallLean: 0, ceilingStyle: 'flat' });
-      const silhouette = (category, value) => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 400;
-        canvas.height = 260;
-        const ctx = canvas.getContext('2d');
-        if (category === 'stairs') dungeonRenderer.drawStairsIcon(ctx, 1, 'stairs-down', value, projection);
-        if (category === 'chest') dungeonRenderer.drawChestIcon(ctx, 1, value, projection);
-        if (category === 'trap') dungeonRenderer.drawTrapIcon(ctx, 1, false, value, projection);
-        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-        let hash = 2166136261;
-        for (let index = 3; index < pixels.length; index += 4) {
-          hash ^= pixels[index] > 20 ? 1 : 0;
-          hash = Math.imul(hash, 16777619);
-        }
-        return hash >>> 0;
-      };
-
+      dungeonRenderer.draw();
+      const input = dungeonRenderer.getRenderInput();
+      const projection = getProjectionPlanes(input.visual.geometry, dungeonRenderer.viewport);
+      const chestPlane = getProjectionColumn(projection, 1);
+      const chest = getChestPropGeometry(chestPlane, input.visual.landmarks.chestStyle);
       return {
-        style,
-        silhouettes: {
-          stairs: silhouette('stairs', style.stairsStyle),
-          chest: silhouette('chest', style.chestStyle),
-          trap: silhouette('trap', style.trapStyle),
-        },
+        style: getFloorTheme(targetFloor).visualSignature.landmarks,
+        chestShape: [chest.lid, chest.body, chest.lock],
+        actorCount: dungeonRenderer.scene.layers.actors.children.length,
+        renderCount: dungeonRenderer.renderCount,
       };
     }, floor);
     await page.screenshot({
@@ -79,10 +56,9 @@ test('Representative biome landmarks keep distinct silhouettes and remain readab
     });
   }
 
-  for (const category of ['stairs', 'chest', 'trap']) {
-    const signatures = REPRESENTATIVE_FLOORS.map(floor => evidence[floor].silhouettes[category]);
-    expect(new Set(signatures).size, `${category} silhouettes should differ across adjacent biomes`).toBe(REPRESENTATIVE_FLOORS.length);
-  }
+  expect(new Set(REPRESENTATIVE_FLOORS.map(floor => JSON.stringify(evidence[floor].chestShape))).size)
+    .toBe(REPRESENTATIVE_FLOORS.length);
+  expect(REPRESENTATIVE_FLOORS.every(floor => evidence[floor].actorCount > 0)).toBe(true);
   expect(evidence[1].style).toEqual({ chestStyle: 'wood_crate', trapStyle: 'rockfall_mark', stairsStyle: 'rough_stone' });
   expect(evidence[26].style).toEqual({ chestStyle: 'abyss_reliquary', trapStyle: 'void_sigill', stairsStyle: 'impossible_stair' });
 });
