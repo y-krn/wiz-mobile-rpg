@@ -138,8 +138,8 @@ export function renderCombatOverlay() {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "combat-target-a11y";
-        button.textContent = `${m.name}、HP ${m.hp}/${m.maxHp}`;
-        button.setAttribute("aria-label", `${m.name}、HP ${m.hp}/${m.maxHp}、攻撃対象にする`);
+        button.textContent = `${m.name}、攻撃対象にする`;
+        button.setAttribute("aria-label", `${m.name}、攻撃対象にする`);
         button.addEventListener("click", () => {
           if (canCommitOverlayAction()) commitCombatTarget(idx);
         });

@@ -12,6 +12,7 @@ import { GOLDEN_JOURNEYS, GOLDEN_VIEWPORTS, RENDERER_CLASSIFICATIONS } from './g
 const HIDDEN_SURFACES = ['#combat-overlay', '#equip-overlay', '#spell-overlay', '#result-overlay', '#submenu-controls'];
 
 async function seedCombat(page) {
+  await page.goto('/');
   await page.evaluate(async () => {
     const { state, createStartingKitCharacter } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
@@ -33,6 +34,41 @@ async function seedCombat(page) {
     state.transitioning = false;
     updateUI();
   });
+}
+
+const ENEMY_HP_VIEWPORTS = [
+  { width: 320, height: 568 },
+  { width: 390, height: 844 },
+  { width: 430, height: 932 },
+];
+
+async function seedEnemyHpPresentation(page, renderer) {
+  await page.goto(`/?renderer=${renderer}`);
+  await page.waitForLoadState('networkidle');
+  await page.evaluate(async () => {
+    const { state, createStartingKitCharacter } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.map = [[{ walls: [false, false, false, false], type: 'empty' }]];
+    state.visitedMap = [[true]];
+    state.x = 0; state.y = 0; state.dir = 0;
+    state.combatState = {
+      phase: 'choose_actions',
+      monsters: [
+        { name: '負傷した敵', level: 1, hp: 4, maxHp: 10, magicResist: 0, tags: [] },
+        { name: '健在な敵', level: 1, hp: 10, maxHp: 10, magicResist: 0, tags: [] },
+      ],
+      roundNumber: 1, isAuto: false, pendingOutcome: null,
+    };
+    state.gameState = 'combat';
+    state.transitioning = false;
+    updateUI();
+  });
+}
+
+async function attachEnemyHpEvidence(page, testInfo, name) {
+  const screenshot = await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true });
+  await testInfo.attach(name, { body: screenshot, contentType: 'image/png' });
 }
 
 async function seedPortal(page) {
@@ -151,6 +187,9 @@ test('Combat target selection exposes the player-known equivalent and restores c
   const focusEntry = await readFocusEvidence(page);
   expect(focusEntry).toMatchObject({ inDialog: 'combat-overlay', visible: true, inViewport: true });
   await expect(page.locator('.combat-target-a11y')).toHaveCount(2);
+  await expect(page.locator('.combat-target-a11y').first()).toHaveText('対象A、攻撃対象にする');
+  await expect(page.locator('.combat-target-a11y').first()).not.toContainText(/HP\s*\d+\s*\/\s*\d+/);
+  await expect(page.locator('#viewport-hud .combat-enemy-semantic')).not.toContainText(/HP\s*\d+\s*\/\s*\d+/);
   const instructions = page.locator('#combat-target-instructions');
   await expect(instructions).toHaveText('敵をタップして対象を選択');
   await expect(instructions).toHaveCSS('position', 'absolute');
@@ -176,6 +215,24 @@ test('Combat target selection exposes the player-known equivalent and restores c
     return combatSelection.actions.length;
   })).toBe(1);
 });
+
+for (const viewport of ENEMY_HP_VIEWPORTS) {
+  test(`Enemy HP presentation stays proportional and non-exact for Canvas/Pixi at ${viewport.width}x${viewport.height} @e2e @smoke`, async ({ page }, testInfo) => {
+    for (const renderer of ['canvas', 'pixi']) {
+      await page.setViewportSize(viewport);
+      await seedEnemyHpPresentation(page, renderer);
+      await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', renderer);
+      await expect(page.locator('#viewport-hud .combat-enemy-semantic')).not.toContainText(/HP\s*\d+\s*\/\s*\d+/);
+      await attachEnemyHpEvidence(page, testInfo, `issue-1404-${renderer}-${viewport.width}x${viewport.height}-combat`);
+
+      await page.locator('#btn-combat-fight').click();
+      await expect(page.locator('.combat-target-a11y')).toHaveCount(2);
+      const targetLabels = await page.locator('.combat-target-a11y').allTextContents();
+      expect(targetLabels.every(label => !/HP\s*\d+\s*\/\s*\d+/.test(label))).toBe(true);
+      await attachEnemyHpEvidence(page, testInfo, `issue-1404-${renderer}-${viewport.width}x${viewport.height}-target`);
+    }
+  });
+}
 
 test('Equipment comparison preserves long Japanese content and critical actions at 320x568 with a text-scaling proxy @e2e @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });

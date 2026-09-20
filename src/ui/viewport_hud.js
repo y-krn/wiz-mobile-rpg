@@ -34,7 +34,7 @@ export function updateViewportHUD() {
     state.combatState.monsters.filter(monster => monster.hp > 0).forEach(monster => {
       const status = document.createElement("span");
       status.className = "sr-only";
-      status.textContent = `${monster.name}、HP ${monster.hp}/${monster.maxHp}`;
+      status.textContent = `${monster.name}、攻撃対象`;
       enemyStatus.appendChild(status);
     });
     hud.appendChild(enemyStatus);
