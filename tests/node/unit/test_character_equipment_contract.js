@@ -6,7 +6,11 @@ import {
   isEquipmentSlotId
 } from "../../../src/state/equipment.js";
 import { normalizeSavePayload, SAVE_VERSION } from "../../../src/state/save_migrations.js";
-import { createEquipmentPreviewChar } from "../../../src/rules/equipment_preview.js";
+import {
+  createEquipmentPreviewChar,
+  getEquipmentPreview,
+  getUnequipPreview
+} from "../../../src/rules/equipment_preview.js";
 import { EQUIPMENT_SLOTS } from "../../../src/rules/equipment_slots.js";
 
 const validEquipment = {
@@ -54,7 +58,13 @@ assert.strictEqual(previewChar.equipment.weapon, validEquipment);
 const malformedPreviewChar = createEquipmentPreviewChar({
   equipment: { ...emptyEquipment(), weapon: { baseId: "WAND" } }
 });
-assert.deepEqual(malformedPreviewChar.equipment, emptyEquipment());
+assert.equal(malformedPreviewChar, null);
+assert.equal(getEquipmentPreview({
+  equipment: { ...emptyEquipment(), weapon: { baseId: "WAND" } }
+}, "WAND"), null);
+assert.equal(getUnequipPreview({
+  equipment: { ...emptyEquipment(), weapon: { baseId: "WAND" } }
+}, "weapon"), null);
 
 const legacySave = normalizeSavePayload({
   version: SAVE_VERSION,
