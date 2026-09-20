@@ -2,7 +2,7 @@ import { state, saveAutosave, addLog, addEventLog, clearEventObservations, creat
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
-import { dungeonRenderer as renderer } from "./renderer.js";
+import { dungeonRenderer as renderer } from "./renderer_runtime.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
 import { showFloorEntryStinger, updateUI } from "./ui.js";
 import { getFloorLabel, getFloorTheme, revealFloor } from "./data/floor_themes.js";

@@ -254,6 +254,46 @@
   object-fit: contain; /* keep the active logical projection undistorted */
 }
 
+#controls-panel[hidden] {
+  display: none !important;
+}
+
+#renderer-safe-ui {
+  position: absolute;
+  inset: 12%;
+  z-index: 20;
+  display: grid;
+  align-content: center;
+  gap: var(--sp-md);
+  padding: var(--sp-lg);
+  border: 1px solid var(--semantic-danger, #ff3b30);
+  border-radius: var(--radius-md);
+  background: rgba(8, 14, 18, 0.96);
+  color: var(--text-main);
+  text-align: center;
+  box-shadow: var(--shadow-soft);
+}
+
+#renderer-safe-ui h2 {
+  color: var(--semantic-danger, #ff3b30);
+  font-size: var(--fs-lg);
+}
+
+#renderer-safe-ui p {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.renderer-safe-ui-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--sp-sm);
+}
+
+#renderer-safe-ui button {
+  min-width: 7rem;
+}
+
 #dungeon-minimap-overlay {
   position: absolute;
   inset: 0;

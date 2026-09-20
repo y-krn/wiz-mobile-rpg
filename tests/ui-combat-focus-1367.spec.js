@@ -7,7 +7,7 @@ const COMBAT_VIEWPORTS = [
   { width: 430, height: 932 },
 ];
 
-async function seedCombat(page, renderer = 'canvas') {
+async function seedCombat(page, renderer = 'pixi') {
   await page.goto(`/?renderer=${renderer}`);
   await page.evaluate(async () => {
     const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
@@ -94,7 +94,7 @@ async function expectCombatFocus(page, height = 844) {
   expect(layout.canvas.height).toBeGreaterThanOrEqual(layout.viewport.height - 1);
 }
 
-for (const renderer of ['canvas', 'pixi']) {
+for (const renderer of ['pixi']) {
   test(`Combat Focus ${renderer} keeps enemy, actions, and status primary @e2e @visual`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedCombat(page, renderer);
@@ -140,8 +140,8 @@ for (const renderer of ['canvas', 'pixi']) {
   });
 }
 
-test('Combat Focus preserves Canvas/Pixi keyboard back and focus restoration @e2e @smoke', async ({ page }) => {
-  for (const renderer of ['canvas', 'pixi']) {
+test('Combat Focus preserves Pixi keyboard back and focus restoration @e2e @smoke', async ({ page }) => {
+  for (const renderer of ['pixi']) {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedCombat(page, renderer);
     await page.locator('#btn-combat-fight').focus();
@@ -156,7 +156,7 @@ test('Combat Focus preserves Canvas/Pixi keyboard back and focus restoration @e2
 
 test('Combat-only exploration suppression restores Explore information @e2e @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await seedCombat(page, 'canvas');
+  await seedCombat(page, 'pixi');
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
@@ -173,9 +173,9 @@ test('Combat-only exploration suppression restores Explore information @e2e @smo
 for (const viewport of COMBAT_VIEWPORTS) {
   test(`Combat Focus responsive decision surface ${viewport.width}x${viewport.height} @e2e @visual`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
-    await seedCombat(page, 'canvas');
+    await seedCombat(page, 'pixi');
     await expectCombatFocus(page, viewport.height);
-    await attachScreenshot(page, testInfo, `issue-1367-canvas-choose-action-${viewport.width}x${viewport.height}`);
+    await attachScreenshot(page, testInfo, `issue-1367-pixi-choose-action-${viewport.width}x${viewport.height}`);
     await page.locator('#btn-combat-fight').click();
     await expect(page.locator('#game-container')).toHaveAttribute('data-combat-phase', 'choose_target');
     await expect(page.locator('#combat-overlay .btn-combat-back')).toBeVisible();

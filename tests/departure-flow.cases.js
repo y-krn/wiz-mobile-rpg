@@ -1,9 +1,11 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { waitForPixiReady } from './ui-ux-helpers.js';
 
 test('Primary run path reaches Town again through UI actions @e2e @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 430, height: 932 });
   await page.goto('/');
   await page.waitForLoadState('networkidle');
+  await waitForPixiReady(page);
   await page.addStyleTag({ content: ':root { --safe-area-top: 59px; --safe-area-bottom: 34px; }' });
 
   const screen = async () => page.evaluate(async () => {

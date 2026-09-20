@@ -2,7 +2,7 @@ import { state, saveAutosave, addLog, addEventLog, resolveEventObservation, reco
 import { updateUI } from "../ui.js";
 import { playSound } from "../audio.js";
 import { triggerGameOver } from "../combat.js";
-import { dungeonRenderer as renderer } from "../renderer.js";
+import { dungeonRenderer as renderer } from "../renderer_runtime.js";
 import { createRng } from "../seed_rng.js";
 import { descendToFloor, findCellCoordsByType } from "../movement.js";
 import { MAP_WIDTH, MAP_HEIGHT, DX, DY, getPartyMaxAffix, getCharAffixSum, getCharTrapBonus } from "../data.js";

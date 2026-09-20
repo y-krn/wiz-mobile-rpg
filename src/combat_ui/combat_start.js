@@ -12,7 +12,7 @@ import { setupChestState } from "../chest.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 import { trackCombatStart } from "../telemetry.js";
 import { recordEliteGreedAction } from "../systems/roaming_elites.js";
-import { dungeonRenderer as renderer } from "../renderer.js";
+import { dungeonRenderer as renderer } from "../renderer_runtime.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;

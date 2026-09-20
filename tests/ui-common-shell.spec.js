@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { waitForPixiReady } from './ui-ux-helpers.js';
 import './shell-layout.cases.js';
 import './mobile-viewport.cases.js';
 
@@ -6,6 +7,7 @@ test.describe('Common UI vNext shell @smoke', () => {
   test('exposes the four shell regions and preserves unresolved events at 320x568', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 568 });
     await page.goto('/');
+    await waitForPixiReady(page);
     await page.evaluate(async () => {
       const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
       const { updateUI, openLogOverlay } = await import('/src/ui.js');

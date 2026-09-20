@@ -10,11 +10,11 @@ for (const vp of VIEWPORTS) {
   test(`DUMAPIC shows an instant survey without persistent coordinates on ${vp.name} (${vp.width}x${vp.height}) @e2e`, async ({ page }) => {
     // Set viewport
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
 
     // Clear local storage and reload
     await page.evaluate(() => localStorage.clear());
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
 
     // 1. 旧クラス由来の呪文経路は開始キットとは独立して検証する
     await page.click('#btn-town-dungeon');

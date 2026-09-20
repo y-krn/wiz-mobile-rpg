@@ -1,5 +1,5 @@
 // balance-impact: none — renderer projection only; gameplay rules and state mutation are unchanged.
-// Shared screen-space projection contract for Canvas and Pixi.
+// Shared screen-space projection contract consumed by Pixi.
 // Gameplay topology remains canonical; only the presentation profile changes
 // with the measured viewport aspect ratio.
 

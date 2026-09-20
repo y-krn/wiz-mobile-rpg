@@ -27,9 +27,9 @@ function makeMap(archetype) {
   return map;
 }
 
-async function seed(page, renderer, gameState = 'explore', map = makeMap('straight-corridor')) {
-  await page.goto(`/?renderer=${renderer}`);
-  if (renderer === 'pixi') await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
+async function seed(page, gameState = 'explore', map = makeMap('straight-corridor')) {
+  await page.goto('/?renderer=pixi');
+  await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
   await page.evaluate(async ({ gameState, map }) => {
     const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');
@@ -55,7 +55,7 @@ async function seed(page, renderer, gameState = 'explore', map = makeMap('straig
     combatSelection.actions = [];
     Object.assign(menuContext, { type: '', targetType: '', actorIdx: -1, spellName: '', prevGameState: null });
     updateUI();
-    const { dungeonRenderer } = await import('/src/renderer.js');
+    const { dungeonRenderer } = await import('/src/renderer_runtime.js');
     dungeonRenderer.resize();
     dungeonRenderer.draw();
   }, { gameState, map });
@@ -65,7 +65,8 @@ async function seed(page, renderer, gameState = 'explore', map = makeMap('straig
 async function readProjection(page) {
   return page.evaluate(async () => {
     const { state } = await import('/src/state.js');
-    const { BASE_GEOMETRY, dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
+    const { BASE_GEOMETRY, getProjectionColumn, getProjectionPlanes } = await import('/src/rules/renderer_projection.js');
+    const { dungeonRenderer } = await import('/src/renderer_runtime.js');
     const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
     const profile = dungeonRenderer.viewport;
     const projection = getProjectionPlanes(dungeonRenderer.getRenderInput().visual.geometry, profile);
@@ -98,7 +99,8 @@ async function readProjection(page) {
 
 async function canvasTargetPoint(page) {
   return page.evaluate(async () => {
-    const { dungeonRenderer, getCombatMonsterLayout } = await import('/src/renderer.js');
+    const { dungeonRenderer } = await import('/src/renderer_runtime.js');
+    const { getCombatMonsterLayout } = await import('/src/rules/renderer_projection.js');
     const canvas = document.querySelector('#dungeon-canvas');
     const rect = canvas.getBoundingClientRect();
     const profile = dungeonRenderer.viewport;
@@ -111,142 +113,90 @@ async function canvasTargetPoint(page) {
   });
 }
 
-test('Portrait projection shares geometry across Canvas and Pixi @smoke @visual', async ({ page }, testInfo) => {
-  const evidence = {};
-  for (const renderer of ['canvas', 'pixi']) {
-    evidence[renderer] = {};
-    await page.setViewportSize(PRIMARY);
-    await seed(page, renderer);
-    await page.locator('#viewport-hud').evaluate(element => { element.style.display = 'none'; });
-    await page.locator('#dungeon-minimap-overlay').evaluate(element => { element.style.display = 'none'; });
-    await page.evaluate(async () => {
-      const { dungeonRenderer } = await import('/src/renderer.js');
-      dungeonRenderer.resize(400, 260);
-      dungeonRenderer.draw();
-    });
-    const before = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-before-canonical-${renderer}-390.png`) });
-    await testInfo.attach(`issue-1355-before-canonical-${renderer}-390`, { body: before, contentType: 'image/png' });
-    await page.evaluate(async () => {
-      const { dungeonRenderer } = await import('/src/renderer.js');
+test('Portrait Pixi projection covers six topology archetypes @smoke @visual', async ({ page }, testInfo) => {
+  await page.setViewportSize(PRIMARY);
+  await seed(page);
+  for (const archetype of ARCHETYPES) {
+    await page.evaluate(async map => {
+      const { state } = await import('/src/state.js');
+      const { updateUI } = await import('/src/ui.js');
+      state.map = map;
+      state.maps[0] = map;
+      state.visitedMap = map.map(row => row.map(() => true));
+      state.visitedMaps[0] = state.visitedMap;
+      state.mapRevision += 1;
+      updateUI();
+      const { dungeonRenderer } = await import('/src/renderer_runtime.js');
       dungeonRenderer.resize();
       dungeonRenderer.draw();
-    });
-    await page.waitForTimeout(30);
-    for (const archetype of ARCHETYPES) {
-      await page.evaluate(async (map) => {
-        const { state } = await import('/src/state.js');
-        const { updateUI } = await import('/src/ui.js');
-        state.map = map;
-        state.maps[0] = map;
-        state.visitedMap = map.map(row => row.map(() => true));
-        state.visitedMaps[0] = state.visitedMap;
-        state.mapRevision += 1;
-        updateUI();
-        const { dungeonRenderer } = await import('/src/renderer.js');
-        dungeonRenderer.resize();
-        dungeonRenderer.draw();
-      }, makeMap(archetype));
-      await page.waitForTimeout(30);
-      const current = await readProjection(page);
-      evidence[renderer][archetype] = current;
-      expect(current.orientation).toBe('portrait');
-      expect(current.canvas[0]).toBeGreaterThanOrEqual(388);
-      expect(current.canvas[1]).toBeGreaterThanOrEqual(843);
-      expect(current.projection.nearBottom).toBeGreaterThan(260);
-      expect(current.nearCoverage).toBeGreaterThanOrEqual(PORTRAIT_NEAR_COVERAGE_MIN);
-      expect(current.nearWorldCoverage).toBeGreaterThan(0.78);
-      expect(current.depthCoverage[4]).toBeLessThan(current.depthCoverage[0]);
-      expect(current.profile.vanishingY / current.profile.height).toBeGreaterThan(0.35);
-      expect(current.profile.vanishingY / current.profile.height).toBeLessThan(0.5);
-      expect(current.bounds.left).toBeGreaterThanOrEqual(-1);
-      expect(current.bounds.right).toBeLessThanOrEqual(current.profile.width + 1);
-      expect(current.overflow).toBeLessThanOrEqual(PRIMARY.width + 1);
-      const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-${renderer}-${archetype}-390.png`) });
-      await testInfo.attach(`issue-1355-${renderer}-${archetype}-390`, { body: screenshot, contentType: 'image/png' });
-    }
-  }
-  for (const archetype of ARCHETYPES) {
-    expect(evidence.canvas[archetype].topology, `${archetype} Canvas/Pixi topology`).toEqual(evidence.pixi[archetype].topology);
+    }, makeMap(archetype));
+    const current = await readProjection(page);
+    expect(current.orientation).toBe('portrait');
+    expect(current.canvas[0]).toBeGreaterThanOrEqual(388);
+    expect(current.canvas[1]).toBeGreaterThanOrEqual(843);
+    expect(current.projection.nearBottom).toBeGreaterThan(260);
+    expect(current.nearCoverage).toBeGreaterThanOrEqual(PORTRAIT_NEAR_COVERAGE_MIN);
+    expect(current.nearWorldCoverage).toBeGreaterThan(0.78);
+    expect(current.depthCoverage[4]).toBeLessThan(current.depthCoverage[0]);
+    expect(current.profile.vanishingY / current.profile.height).toBeGreaterThan(0.35);
+    expect(current.profile.vanishingY / current.profile.height).toBeLessThan(0.5);
+    expect(current.bounds.left).toBeGreaterThanOrEqual(-1);
+    expect(current.bounds.right).toBeLessThanOrEqual(current.profile.width + 1);
+    expect(current.overflow).toBeLessThanOrEqual(PRIMARY.width + 1);
+    const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-pixi-${archetype}-390.png`) });
+    await testInfo.attach(`issue-1355-pixi-${archetype}-390`, { body: screenshot, contentType: 'image/png' });
   }
 });
 
-for (const renderer of ['canvas', 'pixi']) {
-  test(`Portrait ${renderer} combat pointer keeps Fight and HALITO targets aligned @smoke @visual`, async ({ page }, testInfo) => {
-    await page.setViewportSize(PRIMARY);
-    await seed(page, renderer, 'combat');
-    await page.evaluate(async () => {
-      const { dungeonRenderer } = await import('/src/renderer.js');
-      dungeonRenderer.resize(400, 260);
-      dungeonRenderer.draw();
-    });
-    const beforeFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-before-${renderer}-combat-390.png`) });
-    await testInfo.attach(`issue-1355-before-${renderer}-combat-390`, { body: beforeFrame, contentType: 'image/png' });
-    await page.evaluate(async () => {
-      const { dungeonRenderer } = await import('/src/renderer.js');
-      dungeonRenderer.resize();
-      dungeonRenderer.draw();
-    });
-    await page.locator('#btn-combat-fight').click();
-    const fightFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-${renderer}-combat-fight-390.png`) });
-    await testInfo.attach(`issue-1355-${renderer}-combat-fight-390`, { body: fightFrame, contentType: 'image/png' });
-    await page.locator('#dungeon-canvas').click({ position: await canvasTargetPoint(page) });
-    await expect.poll(() => page.evaluate(async () => (await import('/src/combat.js')).combatSelection.actions[0])).toMatchObject({ type: 'fight', targetIdx: 0 });
+test('Portrait Pixi combat pointer keeps Fight and HALITO targets aligned @smoke @visual', async ({ page }) => {
+  await page.setViewportSize(PRIMARY);
+  await seed(page, 'combat');
+  await page.locator('#btn-combat-fight').click();
+  await page.locator('#dungeon-canvas').click({ position: await canvasTargetPoint(page) });
+  await expect.poll(() => page.evaluate(async () => (await import('/src/combat.js')).combatSelection.actions[0])).toMatchObject({ type: 'fight', targetIdx: 0 });
 
-    await seed(page, renderer, 'combat');
-    await page.evaluate(async () => {
-      const { state } = await import('/src/state.js');
-      state.party[0].mp = state.party[0].maxMp = 10;
-      (await import('/src/ui.js')).updateUI();
-    });
-    await page.locator('#btn-combat-spell').click();
-    await page.locator('#combat-overlay .combat-item-card.spell', { has: page.locator('.spell-name', { hasText: /^HALITO$/ }) }).click();
-    await page.locator('#dungeon-canvas').click({ position: await canvasTargetPoint(page) });
-    await expect.poll(() => page.evaluate(async () => (await import('/src/combat.js')).combatSelection.actions[0])).toMatchObject({ type: 'spell', targetIdx: 0, spellName: 'HALITO' });
+  await seed(page, 'combat');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    state.party[0].mp = state.party[0].maxMp = 10;
+    (await import('/src/ui.js')).updateUI();
   });
-}
+  await page.locator('#btn-combat-spell').click();
+  await page.locator('#combat-overlay .combat-item-card.spell', { has: page.locator('.spell-name', { hasText: /^HALITO$/ }) }).click();
+  await page.locator('#dungeon-canvas').click({ position: await canvasTargetPoint(page) });
+  await expect.poll(() => page.evaluate(async () => (await import('/src/combat.js')).combatSelection.actions[0])).toMatchObject({ type: 'spell', targetIdx: 0, spellName: 'HALITO' });
+});
 
 for (const viewport of [{ width: 320, height: 568 }, { width: 430, height: 932 }, { width: 1024, height: 768 }]) {
-  test(`Portrait projection remains usable at ${viewport.width}x${viewport.height} @smoke @visual`, async ({ page }, testInfo) => {
-    for (const renderer of ['canvas', 'pixi']) {
-      await page.setViewportSize(viewport);
-      await seed(page, renderer);
-      const current = await readProjection(page);
-      const minimumWidth = viewport.width < 500 ? viewport.width - 2 : 300;
-      expect(current.canvas[0]).toBeGreaterThanOrEqual(minimumWidth);
-      expect(current.canvas[1]).toBeGreaterThanOrEqual(viewport.height - 2);
-      expect(current.overflow).toBeLessThanOrEqual(viewport.width + 1);
-      const screenshotPath = testInfo.outputPath(`issue-1355-${renderer}-${viewport.width}x${viewport.height}.png`);
-      const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: screenshotPath });
-      await testInfo.attach(`issue-1355-${renderer}-${viewport.width}x${viewport.height}`, { body: screenshot, contentType: 'image/png' });
-    }
+  test(`Pixi projection remains usable at ${viewport.width}x${viewport.height} @smoke @visual`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await seed(page);
+    const current = await readProjection(page);
+    const minimumWidth = viewport.width < 500 ? viewport.width - 2 : 300;
+    expect(current.canvas[0]).toBeGreaterThanOrEqual(minimumWidth);
+    expect(current.canvas[1]).toBeGreaterThanOrEqual(viewport.height - 2);
+    expect(current.overflow).toBeLessThanOrEqual(viewport.width + 1);
+    const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1355-pixi-${viewport.width}x${viewport.height}.png`) });
+    await testInfo.attach(`issue-1355-pixi-${viewport.width}x${viewport.height}`, { body: screenshot, contentType: 'image/png' });
   });
 }
 
-for (const viewport of [{ width: 390, height: 844 }, { width: 1024, height: 768 }]) {
-  test(`Town vector background remains visible at ${viewport.width}x${viewport.height} @smoke @visual`, async ({ page }, testInfo) => {
-    for (const renderer of ['canvas', 'pixi']) {
-      await page.setViewportSize(viewport);
-      await seed(page, renderer, 'town');
-      const cyanPixels = await page.evaluate(() => {
-        const canvas = document.querySelector('#dungeon-canvas');
-        const context = canvas.getContext('2d', { willReadFrequently: true });
-        if (!context) return { width: canvas.width, height: canvas.height, rightHalf: null };
-        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-        let rightHalf = 0;
-        for (let index = 0; index < pixels.length; index += 4) {
-          const x = (index / 4) % canvas.width;
-          if (x < canvas.width / 2) continue;
-          if (pixels[index + 1] > 100 && pixels[index + 2] > 100) rightHalf += 1;
-        }
-        return { width: canvas.width, height: canvas.height, rightHalf };
-      });
-      expect(cyanPixels.width).toBeGreaterThan(300);
-      expect(cyanPixels.height).toBeGreaterThan(200);
-      if (cyanPixels.rightHalf !== null) expect(cyanPixels.rightHalf).toBeGreaterThan(0);
-      const screenshot = await page.locator('#dungeon-canvas').screenshot({
-        path: testInfo.outputPath(`issue-1355-town-${renderer}-${viewport.width}x${viewport.height}.png`)
-      });
-      await testInfo.attach(`issue-1355-town-${renderer}-${viewport.width}x${viewport.height}`, { body: screenshot, contentType: 'image/png' });
-    }
-  });
-}
+test('Pixi town vector scene remains visible across responsive widths @smoke @visual', async ({ page }) => {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1024, height: 768 }]) {
+    await page.setViewportSize(viewport);
+    await seed(page, 'town');
+    const evidence = await page.evaluate(async () => {
+      const { dungeonRenderer } = await import('/src/renderer_runtime.js');
+      return {
+        width: dungeonRenderer.viewport.width,
+        height: dungeonRenderer.viewport.height,
+        backgroundChildren: dungeonRenderer.scene.layers.background.children.length,
+        farEnvironmentChildren: dungeonRenderer.scene.layers['far-environment'].children.length,
+      };
+    });
+    expect(evidence.width).toBeGreaterThan(300);
+    expect(evidence.height).toBeGreaterThan(200);
+    expect(evidence.backgroundChildren).toBeGreaterThan(0);
+    expect(evidence.farEnvironmentChildren).toBeGreaterThan(0);
+  }
+});

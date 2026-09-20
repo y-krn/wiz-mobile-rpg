@@ -6,7 +6,7 @@ import { SPELL_EFFECTS } from "./systems/spell_effects.js";
 import { isSpellcaster } from "./rules/magic_rules.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { playSound } from "./audio.js";
-import { dungeonRenderer as renderer } from "./renderer.js";
+import { dungeonRenderer as renderer } from "./renderer_runtime.js";
 import {
   CURE_SPELL_KEYS,
   HEAL_SPELL_KEYS,

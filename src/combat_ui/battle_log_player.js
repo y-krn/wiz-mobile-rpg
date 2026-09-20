@@ -1,6 +1,6 @@
 import { state, saveAutosave, addEventLog, addLog, clearEventObservations } from "../state.js";
 import { playSound } from "../audio.js";
-import { dungeonRenderer as renderer } from "../renderer.js";
+import { dungeonRenderer as renderer } from "../renderer_runtime.js";
 import { updateUI } from "../ui.js";
 import { openGuardedSubmenu, resetSubmenuBackButton } from "../navigation.js";
 import { triggerRunResult } from "../result.js";

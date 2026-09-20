@@ -218,23 +218,21 @@ test('PixiJS motion uses projection continuity, restrained turns, and combat fee
   await testInfo.attach('pixi-combat-entry-hit-danger-390', { body: combatFrame, contentType: 'image/png' });
 });
 
-test('Canvas and Pixi share identical deterministic states for visual A/B evidence @smoke @visual', async ({ page }, testInfo) => {
+test('Pixi keeps deterministic exploration evidence for representative states @smoke @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const renderer of ['canvas', 'pixi']) {
-    await page.goto(renderer === 'pixi' ? '/?renderer=pixi' : '/?renderer=canvas');
-    await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', renderer);
-    await hideHud(page);
-    await setState(page, { map: makeSyntheticFixture('straight-corridor') });
-    const corridor = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`${renderer}-straight-390.png`) });
-    await testInfo.attach(`${renderer}-straight-390`, { body: corridor, contentType: 'image/png' });
-    const production = await page.evaluate(async (fixture) => {
-      const { generateRunFloor } = await import('/src/run_map_generator.js');
-      return generateRunFloor({ runSeed: fixture.seed, floor: fixture.floor }).grid;
-    }, PRODUCTION_FIXTURE);
-    await setState(page, { map: production, floor: 1, x: PRODUCTION_FIXTURE.x, y: PRODUCTION_FIXTURE.y, dir: PRODUCTION_FIXTURE.dir });
-    const productionFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`${renderer}-production-b1f-390.png`) });
-    await testInfo.attach(`${renderer}-production-b1f-390`, { body: productionFrame, contentType: 'image/png' });
-  }
+  await page.goto('/?renderer=pixi');
+  await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'pixi');
+  await hideHud(page);
+  await setState(page, { map: makeSyntheticFixture('straight-corridor') });
+  const corridor = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('pixi-straight-390.png') });
+  await testInfo.attach('pixi-straight-390', { body: corridor, contentType: 'image/png' });
+  const production = await page.evaluate(async (fixture) => {
+    const { generateRunFloor } = await import('/src/run_map_generator.js');
+    return generateRunFloor({ runSeed: fixture.seed, floor: fixture.floor }).grid;
+  }, PRODUCTION_FIXTURE);
+  await setState(page, { map: production, floor: 1, x: PRODUCTION_FIXTURE.x, y: PRODUCTION_FIXTURE.y, dir: PRODUCTION_FIXTURE.dir });
+  const productionFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('pixi-production-b1f-390.png') });
+  await testInfo.attach('pixi-production-b1f-390', { body: productionFrame, contentType: 'image/png' });
 });
 
 test('PixiJS material/atmosphere differs by biome and preserves production B1F/minimap @smoke @visual', async ({ page }, testInfo) => {

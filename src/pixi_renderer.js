@@ -166,7 +166,7 @@ function getEnemyPresentationMode() {
 }
 
 /**
- * A PixiJS renderer that keeps the existing Canvas projection and topology.
+ * A PixiJS renderer that consumes the shared projection and topology contract.
  * Pixi is used only as a 2D drawing surface; there is no camera, FOV, eye,
  * world-space mesh, or 3D occlusion contract here.
  */
@@ -255,9 +255,9 @@ export class PixiDungeonRenderer {
     const app = new Application();
     this.app = app;
     try {
-      this.initializationPhase = "canvas/context";
-      if (this.failurePhase === "canvas/context") {
-        throw new Error("Injected renderer failure: canvas/context");
+      this.initializationPhase = "pixi/context";
+      if (this.failurePhase === "pixi/context") {
+        throw new Error("Injected renderer failure: pixi/context");
       }
       await app.init({
         canvas: this.canvas,
@@ -382,7 +382,8 @@ export class PixiDungeonRenderer {
     const environment = renderInput.visual.environment;
     if (this.shakeTime > 0 || this.flashTime > 0 || this.hitTime > 0 || this.combatEntryTime > 0 || this.damageTexts.length > 0) return true;
     if (prefersReducedMotion()) return false;
-    if (environment.animated || renderInput.dangerCue.active) return true;
+    const cyclePosition = (renderInput.floor - 1) % 5;
+    if (environment.animated || environment.animatedCyclePosition === cyclePosition || renderInput.dangerCue.active) return true;
     return false;
   }
 
@@ -611,7 +612,7 @@ export class PixiDungeonRenderer {
         }
 
         // Enhancement 1: restrained depth shading on the walkable floor. The
-        // polygon follows the Canvas projection exactly, so side openings stay
+        // polygon follows the shared projection exactly, so side openings stay
         // floor, not panels or decorative markers.
         const depthAlpha = 0.09 + (3 - z) * 0.025;
         addPolygon(this.layer("floor"), [
@@ -872,13 +873,10 @@ export class PixiDungeonRenderer {
     });
   }
 
-  drawChest() {
-    const actors = this.layer("actors");
-    const sx = this.viewport.width / PIXI_VIEW_W;
-    const sy = this.viewport.height / PIXI_VIEW_H;
-    drawRect(actors, 170 * sx, 145 * sy, 60 * sx, 40 * sy, "#6b3a00", 0.92, { color: "#ffb300", width: 2.5 });
-    addLine(actors, [{ x: 170 * sx, y: 160 * sy }, { x: 230 * sx, y: 160 * sy }], { color: "#ffb300", width: 2 });
-    drawEllipse(actors, 200 * sx, 164 * sy, 4 * sx, 4 * sy, "#ff3b30", 0.95);
+  drawChest(renderInput) {
+    const projection = getProjectionPlanes(renderInput.visual.geometry || BASE_GEOMETRY, this.viewport);
+    const plane = getProjectionColumn(projection, 1);
+    this.drawChestProp(plane, getChestPropStyle(renderInput.visual.landmarks?.chestStyle));
   }
 
   drawDangerPulse(renderInput) {
@@ -956,7 +954,7 @@ export class PixiDungeonRenderer {
       this.app.destroy({ removeView: false }, { children: true });
     } catch {
       // Initialization can fail before Pixi has a renderer. The app reference
-      // is still cleared so fallback cannot retain a ticker or stale scene.
+      // is still cleared so a failed init cannot retain a ticker or stale scene.
     }
     this.app = null;
     this.scene = null;

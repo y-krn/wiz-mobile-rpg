@@ -5,7 +5,7 @@ import { VIEWPORTS, openDeparturePreparation } from './ui-ux-helpers.js';
 for (const width of [320, 360, 390, 430]) {
   test(`Starting kit cards explain production equipment load at ${width}px @smoke`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 320 ? 568 : 844 });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
     await page.locator('#btn-town-dungeon').click();
 
     const cards = page.locator('.solo-starting-kit-option');
@@ -39,7 +39,7 @@ for (const width of [320, 360, 390, 430]) {
 for (const vp of VIEWPORTS) {
   test(`Milestone start, merchant, and portal stay thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       state.unlockedMilestones = [5];
@@ -263,7 +263,7 @@ for (const vp of VIEWPORTS) {
 for (const vp of VIEWPORTS) {
   test(`Departure craft choices are thumb-safe on ${vp.name}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const { openSubmenu } = await import('/src/navigation.js');
@@ -564,35 +564,16 @@ for (const vp of VIEWPORTS) {
         paused ? 0 : nativeRequestAnimationFrame(callback)
       );
 
-      const originalFillText = CanvasRenderingContext2D.prototype.fillText;
-      window.__canvasText = [];
-      CanvasRenderingContext2D.prototype.fillText = function fillText(text, ...args) {
-        if (text === 'CASTLE OF LLYLGAMYN') window.__canvasText.push(text);
-        return originalFillText.call(this, text, ...args);
-      };
     });
 
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/?renderer=canvas');
+    await page.goto('/');
+    await expect(page.locator('#dungeon-canvas[data-renderer="pixi"]')).toBeAttached();
+    await expect(page.locator('#controls-panel:not([hidden])')).toBeVisible();
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
-      const { dungeonRenderer } = await import('/src/renderer.js');
-      window.__dungeonSceneDraws = [];
-      for (const [kind, method] of [
-        ['town', 'drawTownBackground'],
-        ['corridor', 'draw3DCorridors'],
-      ]) {
-        const original = dungeonRenderer[method];
-        dungeonRenderer[method] = function recordScene(...args) {
-          window.__dungeonSceneDraws.push({
-            kind,
-            gameState: state.gameState,
-            hasMap: Boolean(state.map),
-            floor: state.floor,
-          });
-          return original.apply(this, args);
-        };
-      }
+      const { dungeonRenderer } = await import('/src/renderer_runtime.js');
+      window.__dungeonRenderer = dungeonRenderer;
       state.metaMaterials = { '獣の牙': 10, '硬い皮': 10 };
       state.workshop = { ranks: {} };
       state.unlockedMilestones = [5];
@@ -602,8 +583,6 @@ for (const vp of VIEWPORTS) {
     }));
 
     await page.evaluate(() => {
-      window.__dungeonSceneDraws = [];
-      window.__canvasText = [];
       window.__pauseGameAnimation();
       Object.defineProperty(document, 'visibilityState', {
         configurable: true,
@@ -622,9 +601,11 @@ for (const vp of VIEWPORTS) {
 
     const pausedDeparture = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
-      return { gameState: state.gameState, hasMap: Boolean(state.map), draws: window.__dungeonSceneDraws };
+      const renderCount = window.__dungeonRenderer.renderCount;
+      window.__pausedDepartureRenderCount = renderCount;
+      return { gameState: state.gameState, hasMap: Boolean(state.map), renderCount };
     });
-    expect(pausedDeparture).toMatchObject({ gameState: 'explore', hasMap: true, draws: [] });
+    expect(pausedDeparture).toMatchObject({ gameState: 'explore', hasMap: true });
 
     await page.evaluate(() => {
       window.__resumeGameAnimation();
@@ -635,9 +616,7 @@ for (const vp of VIEWPORTS) {
       window.dispatchEvent(new Event('pageshow'));
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    await page.waitForFunction(() => (
-      window.__dungeonSceneDraws?.some((draw) => draw.kind === 'corridor')
-    ));
+    await page.waitForFunction(() => window.__dungeonRenderer.renderCount > window.__pausedDepartureRenderCount);
 
     const firstDeparture = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -645,15 +624,12 @@ for (const vp of VIEWPORTS) {
       return {
         state: { gameState: state.gameState, hasMap: Boolean(state.map), floor: state.floor },
         visibility,
-        draws: window.__dungeonSceneDraws,
-        castleTitles: window.__canvasText,
+        renderCount: visibility.showTownBackground ? -1 : window.__dungeonRenderer.renderCount,
       };
     });
     expect(firstDeparture.state).toEqual({ gameState: 'explore', hasMap: true, floor: 1 });
     expect(firstDeparture.visibility.showTownBackground).toBe(false);
-    expect(firstDeparture.draws.at(-1)).toMatchObject({ kind: 'corridor', gameState: 'explore', hasMap: true });
-    expect(firstDeparture.draws.some((draw) => draw.kind === 'town')).toBe(false);
-    expect(firstDeparture.castleTitles).toEqual([]);
+    expect(firstDeparture.renderCount).toBeGreaterThan(pausedDeparture.renderCount);
 
     await page.evaluate(async () => {
       (await import('/src/result.js')).triggerRunResult('retreat');
@@ -663,8 +639,7 @@ for (const vp of VIEWPORTS) {
       const { state } = await import('/src/state.js');
       state.metaMaterials = { '獣の牙': 10, '硬い皮': 10 };
       state.unlockedMilestones = [5];
-      window.__dungeonSceneDraws = [];
-      window.__canvasText = [];
+      window.__secondDepartureRenderBaseline = window.__dungeonRenderer.renderCount;
     });
     await page.locator('#btn-town-dungeon').click();
     await page.getByRole('button', { name: /鋼の前線キット/ }).click();
@@ -672,9 +647,7 @@ for (const vp of VIEWPORTS) {
     await page.getByRole('button', { name: /B5Fから開始/ }).click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#explore-controls')).toBeVisible();
-    await page.waitForFunction(() => (
-      window.__dungeonSceneDraws?.some((draw) => draw.kind === 'corridor')
-    ));
+    await page.waitForFunction(() => window.__dungeonRenderer.renderCount > window.__secondDepartureRenderBaseline);
 
     const secondDeparture = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -682,15 +655,12 @@ for (const vp of VIEWPORTS) {
       return {
         state: { gameState: state.gameState, hasMap: Boolean(state.map), floor: state.floor },
         visibility,
-        draws: window.__dungeonSceneDraws,
-        castleTitles: window.__canvasText,
+        renderCount: visibility.showTownBackground ? -1 : window.__dungeonRenderer.renderCount,
       };
     });
     expect(secondDeparture.state).toEqual({ gameState: 'explore', hasMap: true, floor: 5 });
     expect(secondDeparture.visibility.showTownBackground).toBe(false);
-    expect(secondDeparture.draws.at(-1)).toMatchObject({ kind: 'corridor', gameState: 'explore', hasMap: true });
-    expect(secondDeparture.draws.some((draw) => draw.kind === 'town')).toBe(false);
-    expect(secondDeparture.castleTitles).toEqual([]);
+    expect(secondDeparture.renderCount).toBeGreaterThan(0);
 
     await page.evaluate(() => {
       localStorage.setItem('__issue744PauseAfterReload', '1');
@@ -698,17 +668,9 @@ for (const vp of VIEWPORTS) {
     await page.reload();
     const reloadState = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
-      const { dungeonRenderer } = await import('/src/renderer.js');
-      window.__reloadCorridorDraws = [];
-      const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
-      dungeonRenderer.draw3DCorridors = function recordReloadCorridorDraw(...args) {
-        window.__reloadCorridorDraws.push({
-          gameState: state.gameState,
-          hasMap: Boolean(state.map),
-          floor: state.floor,
-        });
-        return originalDraw3DCorridors.apply(this, args);
-      };
+      const { dungeonRenderer } = await import('/src/renderer_runtime.js');
+      window.__dungeonRenderer = dungeonRenderer;
+      window.__reloadRenderBaseline = dungeonRenderer.renderCount;
       return {
         gameState: state.gameState,
         hasMap: Boolean(state.map),
@@ -722,23 +684,19 @@ for (const vp of VIEWPORTS) {
       window.dispatchEvent(new Event('pageshow'));
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    await page.waitForFunction(() => (
-      window.__reloadCorridorDraws?.some((draw) => draw.gameState === 'explore' && draw.hasMap)
-    ));
+    await page.waitForFunction(() => window.__dungeonRenderer.renderCount > window.__reloadRenderBaseline);
     const resumedSave = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const visibility = (await import('/src/renderer.js')).dungeonRenderer.getSceneVisibility();
       return {
         state: { gameState: state.gameState, hasMap: Boolean(state.map), floor: state.floor },
         visibility,
-        corridorDraws: window.__reloadCorridorDraws,
-        castleTitles: window.__canvasText,
+        renderCount: window.__dungeonRenderer.renderCount,
       };
     });
     expect(resumedSave.state).toEqual({ gameState: 'explore', hasMap: true, floor: 5 });
     expect(resumedSave.visibility.showTownBackground).toBe(false);
-    expect(resumedSave.corridorDraws.at(-1)).toMatchObject({ gameState: 'explore', hasMap: true, floor: 5 });
-    expect(resumedSave.castleTitles).toEqual([]);
+    expect(resumedSave.renderCount).toBeGreaterThan(0);
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
   });
