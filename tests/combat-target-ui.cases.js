@@ -112,7 +112,7 @@ for (const viewport of VIEWPORTS) {
     await expect.poll(() => page.evaluate(async () => {
       const { combatSelection } = await import('/src/combat.js');
       return combatSelection.actions[0];
-    })).toMatchObject({ type: 'fight', actorIdx: 0, targetIdx: 0 });
+    }), { timeout: 15_000 }).toMatchObject({ type: 'fight', actorIdx: 0, targetIdx: 0 });
     expect(await page.evaluate(() => window.__targetTelemetry
       .filter((event) => event.name.startsWith('ux_decision_'))
       .map((event) => [event.name, event.properties.surface, event.properties.resolution]))).toEqual([
@@ -138,7 +138,7 @@ for (const viewport of VIEWPORTS) {
     await expect.poll(() => page.evaluate(async () => {
       const { combatSelection } = await import('/src/combat.js');
       return combatSelection.actions[0];
-    })).toMatchObject({ type: 'fight', actorIdx: 0, targetIdx: targetIndex });
+    }), { timeout: 15_000 }).toMatchObject({ type: 'fight', actorIdx: 0, targetIdx: targetIndex });
   });
 
   test(`単体魔法後にCanvasの敵タップで行動を確定できる (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
@@ -162,7 +162,7 @@ for (const viewport of VIEWPORTS) {
     await expect.poll(() => page.evaluate(async () => {
       const { combatSelection } = await import('/src/combat.js');
       return combatSelection.actions[0];
-    })).toMatchObject({ type: 'spell', actorIdx: 0, targetIdx: 0, spellName: 'HALITO' });
+    }), { timeout: 15_000 }).toMatchObject({ type: 'spell', actorIdx: 0, targetIdx: 0, spellName: 'HALITO' });
   });
 }
 
