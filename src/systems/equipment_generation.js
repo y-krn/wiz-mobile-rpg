@@ -13,6 +13,7 @@ import {
   getIdentificationGambleProfile
 } from "../rules/identification_rules.js";
 import { recordRuntimeCall } from "../runtime_diagnostics.js";
+import { isEquipmentInstance } from "../state/equipment.js";
 
 const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
 // Workshop pool nodes intentionally gate pre-existing core IDs to make the
@@ -44,6 +45,13 @@ function requireGenerationOptions(options, functionName) {
     throw new TypeError(`${functionName} requires an options object; positional arguments are not supported`);
   }
   return options;
+}
+
+function requireGeneratedEquipment(value) {
+  if (!isEquipmentInstance(value)) {
+    return null;
+  }
+  return value;
 }
 
 export function pickCurseEffectId(rng, heavyCurseShare) {
@@ -439,7 +447,7 @@ export function generateRandomEquipment(floor, options) {
   });
   meta.unidentifiedName = `${prefix}${baseItem.name}（未鑑定・${typeName}）`;
 
-  return {
+  return requireGeneratedEquipment({
     kind: "equipment",
     instanceId,
     baseId,
@@ -460,7 +468,7 @@ export function generateRandomEquipment(floor, options) {
     buildRole,
     buildRoles,
     lootRole
-  };
+  });
 }
 
 export function generateRandomAccessory(floor, options) {
@@ -581,7 +589,7 @@ export function generateRandomAccessory(floor, options) {
   });
   meta.unidentifiedName = `${baseItem.name}（未鑑定・${typeName}）`;
 
-  return {
+  return requireGeneratedEquipment({
     kind: "equipment",
     instanceId: `eq_${rng().toString(36).substr(2, 9)}`,
     baseId,
@@ -602,5 +610,5 @@ export function generateRandomAccessory(floor, options) {
     buildRole,
     buildRoles,
     lootRole
-  };
+  });
 }
