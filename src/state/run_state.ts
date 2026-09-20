@@ -1,6 +1,7 @@
 // balance-impact: none — canonical normalized current-run boundary only.
 
 import { isRuntimeItemCollection, isRuntimeItemRef, type RuntimeItemCollection, type RuntimeItemRef } from "./item.js";
+import { isNormalizedPendingRewardBundle, type NormalizedPendingRewardBundle } from "./pending_reward.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -31,7 +32,7 @@ export interface NormalizedCurrentRun {
   bankedMaterials: Record<string, unknown>;
   townInventory: RuntimeItemCollection;
   unbankedObjectLoot: NormalizedRunObjectLootEntry[];
-  pendingRewardBundle: Record<string, unknown> | null;
+  pendingRewardBundle: NormalizedPendingRewardBundle | null;
   bankedObjectLoot: RuntimeItemCollection;
   lostObjectLoot: RuntimeItemCollection;
   eventObservations: Record<string, unknown>;
@@ -139,7 +140,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!ITEM_COLLECTION_FIELDS.every(field => isRuntimeItemCollection(value[field]))) return false;
   if (!Array.isArray(value.unbankedObjectLoot) ||
       !value.unbankedObjectLoot.every(isNormalizedRunObjectLootEntry)) return false;
-  if (value.pendingRewardBundle !== null && !isRecord(value.pendingRewardBundle)) return false;
+  if (value.pendingRewardBundle !== null && !isNormalizedPendingRewardBundle(value.pendingRewardBundle)) return false;
   if (value.representativeItem !== null && !isRecord(value.representativeItem)) return false;
   if (value.returnProcessing !== null && !isRecord(value.returnProcessing)) return false;
   return true;
