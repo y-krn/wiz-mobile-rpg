@@ -195,6 +195,6 @@ test('procedural enemy feedback and lifecycle remain local and stable with reduc
     for (let index = 0; index < 10; index += 1) dungeonRenderer.draw();
     return { initial, final: { textures: dungeonRenderer.resourceStats.enemyTextureCount, children: dungeonRenderer.scene.children.length, listeners: dungeonRenderer.resourceStats.listenerCount } };
   });
-  expect(state.initial).toMatchObject({ entry: 0, hit: 0, shake: 0, textures: 0, children: 8 });
-  expect(state.final).toEqual({ textures: 0, children: 8, listeners: 0 });
+  expect(state.initial).toMatchObject({ entry: 0, hit: 0, shake: 0, textures: 0, children: 9 });
+  expect(state.final).toEqual({ textures: 0, children: 9, listeners: 0 });
 });
