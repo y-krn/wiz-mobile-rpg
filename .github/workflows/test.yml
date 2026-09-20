@@ -108,6 +108,12 @@ jobs:
           set -o pipefail
           npx playwright test tests/ui-treasure-chest.spec.js --grep @visual 2>&1 | tee "$RUNNER_TEMP/treasure-chest-visual.log"
         if: steps.changes.outputs.browser == 'true'
+      - name: Run dungeon world-object visual evidence
+        id: dungeon_world_object_visual
+        run: |
+          set -o pipefail
+          npx playwright test tests/ui-dungeon-world-objects-1417.spec.js --grep @visual 2>&1 | tee "$RUNNER_TEMP/dungeon-world-object-visual.log"
+        if: steps.changes.outputs.browser == 'true'
       - name: Run browser debug visual evidence
         id: browser_visual
         run: |
@@ -129,12 +135,11 @@ jobs:
             --diagnostics-dir playwright-report
             --logs "$RUNNER_TEMP/browser-test.log"
             --logs "$RUNNER_TEMP/treasure-chest-visual.log"
+            --logs "$RUNNER_TEMP/dungeon-world-object-visual.log"
             --logs "$RUNNER_TEMP/browser-visual.log"
             --github-output "$GITHUB_OUTPUT"
           )
-          if [ "${{ inputs.debug_raw }}" = "true" ]; then
-            stage_args+=(--include-raw --raw test-results)
-          fi
+          stage_args+=(--include-raw --raw test-results)
           node scripts/stage_evidence_artifact.js "${stage_args[@]}"
       - name: Upload CI evidence artifact
         if: always() && steps.evidence.outcome == 'success'
