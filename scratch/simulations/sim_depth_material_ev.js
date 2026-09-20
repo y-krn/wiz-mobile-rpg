@@ -369,8 +369,8 @@ const {
   getStartingHealPotionCount
 } = await import("../../src/rules/recovery_rules.js");
 const {
-  calculateCombatRecoveryAction,
-  evaluateCombatRecoveryAction
+  evaluateCombatRecoveryAction,
+  getCombatRecoveryDecision
 } = await import("./sim_recovery_policy.js");
 const { getPerceptionIntent } = await import("../../src/systems/elite_perception.js");
 
@@ -6717,7 +6717,8 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
   const evaluation = shouldObserveGuardian
     ? evaluateCombatRecoveryAction(recoveryArgs)
     : null;
-  const decision = calculateCombatRecoveryAction(recoveryArgs);
+  const decisionEvaluation = getCombatRecoveryDecision(recoveryArgs);
+  const decision = decisionEvaluation.decision;
   const policyProbeAction = shouldObserveGuardian
     ? getCombatPolicyProbeAction(state)
     : null;
@@ -6734,15 +6735,21 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
   }
   recordDamageEstimateDecision(metrics, state, recoveryArgs.playerDamagePerRound, decision);
   if (decision === "flee") {
-    return { decision, action: { type: "run", actorIdx: 0 } };
+    return {
+      decision,
+      reason: decisionEvaluation.reason,
+      action: { type: "run", actorIdx: 0 }
+    };
   }
-  if (decision !== "recover") return { decision, action: null };
+  if (decision !== "recover") {
+    return { decision, reason: decisionEvaluation.reason, action: null };
+  }
   const action = state.simPolicy.healPriorityPolicy === "dios-first" && diosAction
     ? diosAction
     : recoveryItem
       ? { type: "item", actorIdx: 0, targetIdx: 0, itemKey: recoveryItem }
       : diosAction;
-  return { decision, action };
+  return { decision, reason: decisionEvaluation.reason, action };
 }
 
 export function getSimulationHealAmount(state, itemKey) {
@@ -7167,7 +7174,21 @@ function recordStatusCureDecision(metrics, decision, context, state = null) {
   }
 }
 
-function selectCombatAction(state, metrics) {
+export function getEligibleBossOpeningItemKey(state) {
+  const roundNumber = state.combatState?.roundNumber;
+  const openingItemKey = {
+    1: "GUARD_POTION",
+    2: "STR_POTION",
+    3: "HASTE_POTION"
+  }[roundNumber];
+  if (!openingItemKey) return null;
+  if (!state.combatState.monsters.some(monster => monster.isBoss || monster.isMidboss)) {
+    return null;
+  }
+  return state.inventory.includes(openingItemKey) ? openingItemKey : null;
+}
+
+export function selectCombatAction(state, metrics) {
   const character = state.party[0];
   const monsters = state.combatState.monsters;
   const b5GuardianFleeDisabled = state.simPolicy.b5GuardianFleeDisabled === true &&
@@ -7194,7 +7215,11 @@ function selectCombatAction(state, metrics) {
     recoveryItem = getRecoveryPotionItem(state);
     diosAction = getDiosCombatAction(state);
     const evResult = getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics);
-    if (!b5GuardianFleeDisabled && evResult.action?.type === "run") return evResult.action;
+    const canDeferSurvivalDeficitFlee = evResult.reason === "flee-survival-deficit" &&
+      getEligibleBossOpeningItemKey(state) !== null;
+    if (!b5GuardianFleeDisabled && evResult.action?.type === "run" && !canDeferSurvivalDeficitFlee) {
+      return evResult.action;
+    }
     evRecoveryAction = evResult.decision === "recover" ? evResult.action : null;
     evShouldFight = evResult.decision === "fight" ||
       (b5GuardianFleeDisabled && evResult.action?.type === "run");
@@ -7220,32 +7245,13 @@ function selectCombatAction(state, metrics) {
 
   // #271: 守りの薬はボス/中ボス戦の開幕に使う保守的方針。通常戦では温存する。
   // combat_start.js が戦闘開始時にbuffsを消すため、戦闘外の事前使用は無意味。
-  if (
-    state.combatState.roundNumber === 1 &&
-    monsters.some(monster => monster.isBoss || monster.isMidboss) &&
-    state.inventory.includes("GUARD_POTION")
-  ) {
-    return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "GUARD_POTION" };
-  }
-
   // #304: 攻勢バフもボス/中ボス戦の開幕へ寄せる。1ラウンド1個で 守り → 剛力 → 疾風 の順。
   // 使用ターンは攻撃を捨てるため代価がある。実測は B5撤退 生還 87.8%→86.2%、
   // B20撤退 51.4%（+1.0pt）で、浅層では割に合わず深層では見合う。
   // なお中ボス（デーモンガード）は isBoss も持つため、isBoss だけに絞っても挙動は同じ。
-  if (
-    state.combatState.roundNumber === 2 &&
-    monsters.some(monster => monster.isBoss || monster.isMidboss) &&
-    state.inventory.includes("STR_POTION")
-  ) {
-    return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "STR_POTION" };
-  }
-
-  if (
-    state.combatState.roundNumber === 3 &&
-    monsters.some(monster => monster.isBoss || monster.isMidboss) &&
-    state.inventory.includes("HASTE_POTION")
-  ) {
-    return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "HASTE_POTION" };
+  const bossOpeningItemKey = getEligibleBossOpeningItemKey(state);
+  if (bossOpeningItemKey) {
+    return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: bossOpeningItemKey };
   }
 
   recoveryItem ||= getRecoveryPotionItem(state);
