@@ -4,7 +4,7 @@ import {
 } from "../data.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
-import { addInventoryItemToState } from "../state/inventory_state.js";
+import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { createMonsterCodexRecord, recordEquipmentDiscovery, recordMonsterLoot } from "../state/codex_state.js";
 import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js";
 
@@ -279,7 +279,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
   }
 
   if (dropEquipment) {
-    const added = addInventoryItemToState(state, dropEquipment, { dungeonLoot: true, source: "combat" });
+    const added = addCanonicalInventoryItemToState(state, dropEquipment, { dungeonLoot: true, source: "combat" });
     if (added) {
       recordEquipmentDiscovery(dropEquipment, state);
       if (state.currentRun) {
@@ -303,7 +303,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
 
   const dropAccessory = rollCombatAccessoryDrop(state, rng);
   if (dropAccessory) {
-    const added = addInventoryItemToState(state, dropAccessory, { dungeonLoot: true, source: "combat" });
+    const added = addCanonicalInventoryItemToState(state, dropAccessory, { dungeonLoot: true, source: "combat" });
     if (added) {
       recordEquipmentDiscovery(dropAccessory, state);
       if (state.currentRun) {
