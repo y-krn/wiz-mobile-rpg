@@ -22,6 +22,7 @@ import {
 assert.doesNotThrow(() => assertValidSimulationManifest());
 const currentInfrastructure = [
   "scratch/simulations/sim_recovery_policy.js",
+  "scratch/simulations/sim_workshop_purchase_policy.js",
   "scratch/simulations/sim_parallel.js",
   "scratch/simulations/sim_parallel_worker.js"
 ];
@@ -30,9 +31,11 @@ for (const file of currentInfrastructure) {
   assert.equal(rule?.lifecycle, "reusable", `${file} must remain reusable while current code depends on it`);
   assert.equal(rule?.scope, "infra", `${file} must remain infra-scoped`);
 }
-for (const file of ["scratch/simulations/sim_balance.js", "scratch/simulations/sim_camp_recovery.js"]) {
-  assert.equal(classifySimulationRunner(file)?.lifecycle, "historical", `${file} is retained as historical evidence`);
-}
+assert.equal(
+  SIMULATION_RUNNER_INVENTORY.filter(runner => runner.lifecycle === "historical").length,
+  0,
+  "current simulation inventory must not retain historical lifecycle entries"
+);
 assert.equal(Object.hasOwn(SIMULATION_MANIFEST.canonical.runtimeCoverage, "status"), true);
 assert.equal(Object.hasOwn(SIMULATION_MANIFEST.canonical.runtimeCoverage, "merchant"), false);
 assert.match(

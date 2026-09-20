@@ -5,7 +5,7 @@ Every executable belongs to exactly one owner directory:
 
 | Directory | Ownership | Naming | Lifecycle |
 | --- | --- | --- | --- |
-| `simulations/` | balance, progression, formula, map, and simulation infrastructure | `sim_<subject>.js`; infra may use an explicit descriptive name | canonical, reusable, or grandfathered historical; never auto-run by the unit runner |
+| `simulations/` | balance, progression, formula, map, and simulation infrastructure | `sim_<subject>.js`; infra may use an explicit descriptive name | canonical or reusable; never auto-run by the unit runner |
 | `measurements/` | statistical measurement, comparison, provenance, and measurement reports | `<verb>_<subject>.js` or `measurement_<subject>.js` | reusable infrastructure or explicit one-off command |
 | `benchmarks/` | performance probes | `bench_<subject>.js` | explicit command only |
 
@@ -18,10 +18,9 @@ Simulation lifecycle is explicit in `simulations/simulation_manifest.js`.
 The production-backed `sim_depth_material_ev.js` is canonical. Runners and
 helpers that remain part of current regression or measurement infrastructure are
 named for their behavior and use the `reusable` lifecycle, including `infra`
-dependencies used by a canonical or reusable runner. `historical` is reserved
-for runners retained only as historical evidence and no longer used by current
-simulation or measurement infrastructure. Existing generic historical runners
-may remain until separately retired.
+dependencies used by a canonical or reusable runner. Current executable
+inventory contains only canonical and reusable assets. Past results remain in
+`evidence/` for provenance; historical executable runners are not retained.
 
 Issue-specific one-off runners are temporary branch assets: before merge they
 must either be deleted after their evidence is recorded or promoted to an

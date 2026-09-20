@@ -6,15 +6,8 @@ const simulationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 const readSimulation = name => fs.readFileSync(path.join(simulationsDir, name), "utf8");
 const failures = [];
 
-const workshopSource = readSimulation("sim_workshop_progression.js");
 const depthSource = readSimulation("sim_depth_material_ev.js");
 
-if (!/IDENTIFICATION_BALANCE\.startingPowder/.test(workshopSource)) {
-  failures.push("sim_workshop_progression.js: starting powder must use IDENTIFICATION_BALANCE");
-}
-if (!/IDENTIFICATION_BALANCE\.identifyCost/.test(workshopSource)) {
-  failures.push("sim_workshop_progression.js: identify cost must use IDENTIFICATION_BALANCE");
-}
 if (!/IDENTIFICATION_BALANCE\.startingPowder/.test(depthSource)) {
   failures.push("sim_depth_material_ev.js: starting powder source fallback is missing");
 }

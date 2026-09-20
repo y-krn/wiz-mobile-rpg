@@ -19,6 +19,7 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   // Current canonical/reusable dependencies are reusable infrastructure, even
   // though they are not direct simulation entrypoints themselves.
   { path: "scratch/simulations/sim_recovery_policy.js", lifecycle: "reusable", scope: "infra" },
+  { path: "scratch/simulations/sim_workshop_purchase_policy.js", lifecycle: "reusable", scope: "infra" },
   { path: "scratch/measurements/partial_information_progression_measurement.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/persona_population_measurement.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/shallow_combat_diagnostic.js", lifecycle: "reusable", scope: "run" },
@@ -37,27 +38,10 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: "scratch/measurements/early_b1f_composition_diagnostic.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/shared_enemy_action_slot_measurement.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/equipment_load_measurement.js", lifecycle: "reusable", scope: "run" },
-  { path: "scratch/simulations/sim_balance.js", lifecycle: "historical", scope: "formula" },
-  { path: "scratch/simulations/sim_camp_recovery.js", lifecycle: "historical", scope: "formula" },
-  { path: "scratch/simulations/sim_caster_pack.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_commit_depth.js", lifecycle: "reusable", scope: "run" },
-  { path: "scratch/simulations/sim_depth_scaling.js", lifecycle: "historical", scope: "formula" },
-  { path: "scratch/simulations/sim_early_mortality.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_encounter_rate_options.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_frontline_formula.js", lifecycle: "historical", scope: "formula" },
-  { path: "scratch/simulations/sim_identification_gamble.js", lifecycle: "historical", scope: "formula" },
-  { path: "scratch/simulations/sim_inflow_reduction.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/simulations/sim_bleeding_measurement.js", lifecycle: "reusable", scope: "run" },
-  { path: "scratch/simulations/sim_material_income.js", lifecycle: "historical", scope: "formula" },
-  { path: "scratch/simulations/sim_maze_metrics.js", lifecycle: "historical", scope: "map" },
-  { path: "scratch/simulations/sim_new_spells.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_parallel.js", lifecycle: "reusable", scope: "infra" },
-  { path: "scratch/simulations/sim_parallel_worker.js", lifecycle: "reusable", scope: "infra" },
-  { path: "scratch/simulations/sim_physical_defense_curve.js", lifecycle: "historical", scope: "formula" },
-  { path: "scratch/simulations/sim_retreat_access.js", lifecycle: "historical", scope: "formula" },
-  { path: "scratch/simulations/sim_run_floor_templates.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_solo_b1f.js", lifecycle: "historical", scope: "run" },
-  { path: "scratch/simulations/sim_workshop_progression.js", lifecycle: "historical", scope: "run" }
+  { path: "scratch/simulations/sim_parallel_worker.js", lifecycle: "reusable", scope: "infra" }
 ]);
 
 export const EXECUTABLE_MEASUREMENT_RUNNERS = Object.freeze(
@@ -129,8 +113,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
       ])
     })
   }),
-  // Issue-specific runners remain historical. This inventory is intentionally
-  // exact: an unmatched new sim or executable measurement runner is an error.
+  // This inventory is intentionally exact: an unmatched new sim or executable
+  // measurement runner is an error.
   runnerLifecycleRules: Object.freeze(SIMULATION_RUNNER_INVENTORY.map(runner => ({
     pattern: runner.path,
     lifecycle: runner.lifecycle,
