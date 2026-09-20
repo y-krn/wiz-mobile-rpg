@@ -39,7 +39,7 @@ test('Pixi chest scene uses the current biome chest signature @visual', async ({
       result[floor] = {
         style,
         safeStyle: getChestPropStyle(style),
-        actorCount: dungeonRenderer.scene.layers.actors.children.length,
+        worldObjectCount: dungeonRenderer.scene.layers['world-objects'].children.length,
         renderCount: dungeonRenderer.renderCount,
         signature: dungeonRenderer.getDrawSignature(input),
       };
@@ -51,6 +51,6 @@ test('Pixi chest scene uses the current biome chest signature @visual', async ({
     'wood_crate', 'stone_ossuary', 'bone_cache', 'sealed_book_coffer', 'iron_strongbox', 'abyss_reliquary',
   ]);
   expect(Object.values(evidence).every(value => value.safeStyle === value.style)).toBe(true);
-  expect(Object.values(evidence).every(value => value.actorCount > 0)).toBe(true);
+  expect(Object.values(evidence).every(value => value.worldObjectCount > 0)).toBe(true);
   expect(new Set(Object.values(evidence).map(value => value.signature)).size).toBe(6);
 });

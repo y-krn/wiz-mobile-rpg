@@ -95,9 +95,9 @@ test('PixiJS 2.5D keeps six navigation archetypes readable at every required wid
         };
       });
       expect(evidence.mode).toBe('pixi');
-      expect(evidence.layers).toEqual(['background', 'far-environment', 'floor', 'structural-walls', 'environment-fx', 'actors', 'combat-fx', 'overlays']);
+      expect(evidence.layers).toEqual(['background', 'far-environment', 'floor', 'world-objects', 'structural-walls', 'environment-fx', 'actors', 'combat-fx', 'overlays']);
       expect(evidence.topology.length).toBeGreaterThan(0);
-      expect(evidence.children).toBe(8);
+      expect(evidence.children).toBe(9);
       const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`pixi-${archetype}-${viewport.width}.png`) });
       await testInfo.attach(`pixi-${archetype}-${viewport.width}`, { body: screenshot, contentType: 'image/png' });
     }
@@ -251,7 +251,7 @@ test('PixiJS material/atmosphere differs by biome and preserves production B1F/m
     return { ceiling: dungeonRenderer.getRenderInput().visual.geometry.ceilingStyle, layerCount: dungeonRenderer.resourceStats.layerCount };
   });
   expect(biomeEvidence.ceiling).toBe('arch');
-  expect(biomeEvidence.layerCount).toBe(8);
+  expect(biomeEvidence.layerCount).toBe(9);
 
   const production = await page.evaluate(async (fixture) => {
     const { generateRunFloor } = await import('/src/run_map_generator.js');
@@ -318,7 +318,7 @@ test('PixiJS performance and lifecycle stay bounded across repeated transitions 
     return { repeated, disposed, stateUnchanged };
   });
   console.log(`[issue-1230] runtime ${JSON.stringify(evidence)}`);
-  expect(evidence.repeated.sceneChildren).toBe(8);
+  expect(evidence.repeated.sceneChildren).toBe(9);
   expect(evidence.repeated.maxChildren).toBeLessThan(12);
   expect(evidence.repeated.generatedTextureCount).toBe(0);
   expect(evidence.repeated.filterCount).toBe(0);

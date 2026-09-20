@@ -13,7 +13,7 @@ import {
   getProjectionProfile
 } from "./rules/renderer_projection.js";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
-import { getVisibleCorridorTopology, isRenderableCorridorCell } from "./rules/renderer_topology.js";
+import { getVisibleCorridorTopology, isRenderableCorridorCell, isVisibleWorldObjectCell } from "./rules/renderer_topology.js";
 import { renderMiniMapOverlay } from "./minimap.js";
 import { getChestPropGeometry, getChestPropPalette, getChestPropStyle } from "./chest_prop.js";
 import {
@@ -43,6 +43,7 @@ const LAYER_NAMES = Object.freeze([
   "background",
   "far-environment",
   "floor",
+  "world-objects",
   "structural-walls",
   "environment-fx",
   "actors",
@@ -649,6 +650,8 @@ export class PixiDungeonRenderer {
           { x: nextPlane.rightTop, y: nextPlane.top }, { x: plane.rightTop, y: plane.top }
         ], { color: gridColor, width: 1.1, alpha: 0.76 });
 
+        if (isVisibleWorldObjectCell(cellTopology)) this.drawLandmark(cell, plane, renderInput.visual.wallColor, renderInput.visual.landmarks);
+
         if (cellTopology.leftBlocked) {
           const walls = this.layer("structural-walls");
           drawProjectedSideWall(walls, plane, nextPlane, "left", background, 0.98);
@@ -671,7 +674,6 @@ export class PixiDungeonRenderer {
           if (cellTopology.frontOneWayBarrier && column === 0) this.drawOneWayBarrier(nextPlane, wallColor);
         }
 
-        if (column === 0 && z > 0) this.drawLandmark(cell, plane, renderInput.visual.wallColor, renderInput.visual.landmarks);
         if (column === 0 && renderInput.roamingMonsters.some((monster) => monster.floor === renderInput.floor && monster.x === cellTopology.x && monster.y === cellTopology.y) && z > 0) {
           drawEllipse(this.layer("environment-fx"), (nextPlane.leftBottom + nextPlane.rightBottom) / 2, nextPlane.bottom - 12, width * 0.10, Math.max(4, width * 0.04), "#ff3b30", 0.12, { color: "#ff3b30", width: 2, alpha: 0.85 });
         }
@@ -737,40 +739,40 @@ export class PixiDungeonRenderer {
       const cx = (plane.leftBottom + plane.rightBottom) / 2;
       const width = Math.max(8, plane.rightBottom - plane.leftBottom);
       const y = plane.bottom - width * 0.12;
-      drawEllipse(this.layer("actors"), cx, y - width * 0.05, width * 0.10, width * 0.06, "#ff3b30", 0.12, { color: "#ff3b30", width: 1.4 });
+      drawEllipse(this.layer("world-objects"), cx, y - width * 0.05, width * 0.10, width * 0.06, "#ff3b30", 0.12, { color: "#ff3b30", width: 1.4 });
     }
   }
 
   drawSpringProp(plane, wallColor) {
     const geometry = getSpringPropGeometry(plane);
     const palette = getDungeonPropPalette("spring", wallColor);
-    const actors = this.layer("actors");
+    const worldObjects = this.layer("world-objects");
     const polygon = (points, fill, stroke = palette.highlight, width = Math.max(1, geometry.width * 0.016)) => {
-      addPolygon(actors, points, fill, 1, { color: stroke, width });
+      addPolygon(worldObjects, points, fill, 1, { color: stroke, width });
     };
-    drawEllipse(actors, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, palette.shadow, 0.40);
-    drawEllipse(actors, geometry.centerX, geometry.basin.y, geometry.basin.radiusX * 1.10, geometry.basin.radiusY * 1.45, palette.water, 0.045);
+    drawEllipse(worldObjects, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, palette.shadow, 0.40);
+    drawEllipse(worldObjects, geometry.centerX, geometry.basin.y, geometry.basin.radiusX * 1.10, geometry.basin.radiusY * 1.45, palette.water, 0.045);
     polygon(geometry.pedestal, palette.pedestal, palette.basin);
     polygon(geometry.fountain, palette.pedestal, palette.highlight);
-    drawEllipse(actors, geometry.fountainDrop.x, geometry.fountainDrop.y, geometry.fountainDrop.radiusX, geometry.fountainDrop.radiusY, palette.water, 0.92, { color: palette.highlight, width: Math.max(1, geometry.width * 0.012) });
-    drawEllipse(actors, geometry.basin.x, geometry.basin.y, geometry.basin.radiusX, geometry.basin.radiusY, palette.basin, 1, { color: palette.highlight, width: Math.max(1, geometry.width * 0.018) });
-    drawEllipse(actors, geometry.water.x, geometry.water.y, geometry.water.radiusX, geometry.water.radiusY, palette.water, 0.90, { color: palette.highlight, width: Math.max(1, geometry.width * 0.012) });
-    addLine(actors, [{ x: geometry.rim.left, y: geometry.rim.y }, { x: geometry.rim.right, y: geometry.rim.y }], { color: palette.highlight, width: Math.max(1, geometry.width * 0.014), alpha: 0.84 });
-    addLine(actors, [{ x: geometry.centerX - geometry.width * 0.18, y: geometry.water.y }, { x: geometry.centerX + geometry.width * 0.08, y: geometry.water.y - geometry.width * 0.015 }], { color: palette.highlight, width: Math.max(1, geometry.width * 0.012), alpha: 0.85 });
+    drawEllipse(worldObjects, geometry.fountainDrop.x, geometry.fountainDrop.y, geometry.fountainDrop.radiusX, geometry.fountainDrop.radiusY, palette.water, 0.92, { color: palette.highlight, width: Math.max(1, geometry.width * 0.012) });
+    drawEllipse(worldObjects, geometry.basin.x, geometry.basin.y, geometry.basin.radiusX, geometry.basin.radiusY, palette.basin, 1, { color: palette.highlight, width: Math.max(1, geometry.width * 0.018) });
+    drawEllipse(worldObjects, geometry.water.x, geometry.water.y, geometry.water.radiusX, geometry.water.radiusY, palette.water, 0.90, { color: palette.highlight, width: Math.max(1, geometry.width * 0.012) });
+    addLine(worldObjects, [{ x: geometry.rim.left, y: geometry.rim.y }, { x: geometry.rim.right, y: geometry.rim.y }], { color: palette.highlight, width: Math.max(1, geometry.width * 0.014), alpha: 0.84 });
+    addLine(worldObjects, [{ x: geometry.centerX - geometry.width * 0.18, y: geometry.water.y }, { x: geometry.centerX + geometry.width * 0.08, y: geometry.water.y - geometry.width * 0.015 }], { color: palette.highlight, width: Math.max(1, geometry.width * 0.012), alpha: 0.85 });
   }
 
   drawMonumentProp(plane, wallColor) {
     const geometry = getMonumentPropGeometry(plane);
     const palette = getDungeonPropPalette("monument", wallColor);
-    const actors = this.layer("actors");
+    const worldObjects = this.layer("world-objects");
     const polygon = (points, fill, stroke = palette.inscription, width = Math.max(1, geometry.width * 0.016)) => {
-      addPolygon(actors, points, fill, 1, { color: stroke, width });
+      addPolygon(worldObjects, points, fill, 1, { color: stroke, width });
     };
-    drawEllipse(actors, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, palette.shadow, 0.42);
+    drawEllipse(worldObjects, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, palette.shadow, 0.42);
     polygon(geometry.plinth, palette.plinth, palette.stone);
     polygon(geometry.side, palette.side, palette.side);
     polygon(geometry.face, palette.stone);
-    geometry.inscriptionLines.forEach(line => addLine(actors, [
+    geometry.inscriptionLines.forEach(line => addLine(worldObjects, [
       { x: line.left, y: line.y },
       { x: line.right, y: line.y }
     ], { color: palette.inscription, width: Math.max(1, geometry.width * 0.012), alpha: 0.82 }));
@@ -779,18 +781,18 @@ export class PixiDungeonRenderer {
   drawStairsProp(plane, direction, style, wallColor) {
     const geometry = getStairsPropGeometry(plane, direction, style);
     const palette = getDungeonPropPalette("stairs", wallColor, direction);
-    const actors = this.layer("actors");
-    drawEllipse(actors, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, palette.shadow, 0.44);
-    addPolygon(actors, geometry.well, palette.well, 1, { color: palette.edge, width: Math.max(1, geometry.width * 0.014) });
+    const worldObjects = this.layer("world-objects");
+    drawEllipse(worldObjects, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, palette.shadow, 0.44);
+    addPolygon(worldObjects, geometry.well, palette.well, 1, { color: palette.edge, width: Math.max(1, geometry.width * 0.014) });
     geometry.steps.forEach((step, index) => {
-      addPolygon(actors, step.points, palette.stone, 1, { color: palette.edge, width: Math.max(1, geometry.width * 0.014) });
-      addLine(actors, [{ x: step.left, y: step.y }, { x: step.right, y: step.y }], { color: palette.edge, width: Math.max(1, geometry.width * 0.016), alpha: 0.92 - index * 0.06 });
+      addPolygon(worldObjects, step.points, palette.stone, 1, { color: palette.edge, width: Math.max(1, geometry.width * 0.014) });
+      addLine(worldObjects, [{ x: step.left, y: step.y }, { x: step.right, y: step.y }], { color: palette.edge, width: Math.max(1, geometry.width * 0.016), alpha: 0.92 - index * 0.06 });
     });
-    addLine(actors, [
+    addLine(worldObjects, [
       { x: geometry.steps[0].left, y: geometry.steps[0].y },
       { x: geometry.steps.at(-1).left, y: geometry.steps.at(-1).y - geometry.steps.at(-1).depth }
     ], { color: palette.edge, width: Math.max(1, geometry.width * 0.012), alpha: 0.72 });
-    addLine(actors, [
+    addLine(worldObjects, [
       { x: geometry.steps[0].right, y: geometry.steps[0].y },
       { x: geometry.steps.at(-1).right, y: geometry.steps.at(-1).y - geometry.steps.at(-1).depth }
     ], { color: palette.edge, width: Math.max(1, geometry.width * 0.012), alpha: 0.72 });
@@ -799,31 +801,31 @@ export class PixiDungeonRenderer {
   drawChestProp(plane, style) {
     const geometry = getChestPropGeometry(plane, style);
     const palette = getChestPropPalette(style);
-    const actors = this.layer("actors");
+    const worldObjects = this.layer("world-objects");
     const polygon = (points, fill, stroke = palette.outline, width = Math.max(1, geometry.width * 0.018)) => {
-      addPolygon(actors, points, fill, 1, { color: stroke, width });
+      addPolygon(worldObjects, points, fill, 1, { color: stroke, width });
     };
 
-    drawEllipse(actors, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, "#000000", 0.38);
-    drawEllipse(actors, geometry.centerX, geometry.bodyY + geometry.bodyHeight * 0.42, geometry.width * 0.58, geometry.bodyHeight * 0.78, palette.glow, 0.055);
+    drawEllipse(worldObjects, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, "#000000", 0.38);
+    drawEllipse(worldObjects, geometry.centerX, geometry.bodyY + geometry.bodyHeight * 0.42, geometry.width * 0.58, geometry.bodyHeight * 0.78, palette.glow, 0.055);
     polygon(geometry.body, palette.body);
     polygon(geometry.side, "#241a19");
     polygon(geometry.lid, palette.lid);
-    drawRect(actors, geometry.band.x, geometry.band.y, geometry.band.width, geometry.band.height, palette.metal, 1, { color: palette.outline, width: Math.max(1, geometry.width * 0.014) });
-    geometry.feet.forEach(foot => drawRect(actors, foot.x, foot.y, foot.width, foot.height, "#171116", 1));
-    drawRect(actors, geometry.lock.x, geometry.lock.y, geometry.lock.width, geometry.lock.height, palette.metal, 1, { color: palette.outline, width: Math.max(1, geometry.width * 0.014) });
-    drawEllipse(actors, geometry.keyhole.x, geometry.keyhole.y, geometry.keyhole.radius, geometry.keyhole.radius, "#21151a", 1);
+    drawRect(worldObjects, geometry.band.x, geometry.band.y, geometry.band.width, geometry.band.height, palette.metal, 1, { color: palette.outline, width: Math.max(1, geometry.width * 0.014) });
+    geometry.feet.forEach(foot => drawRect(worldObjects, foot.x, foot.y, foot.width, foot.height, "#171116", 1));
+    drawRect(worldObjects, geometry.lock.x, geometry.lock.y, geometry.lock.width, geometry.lock.height, palette.metal, 1, { color: palette.outline, width: Math.max(1, geometry.width * 0.014) });
+    drawEllipse(worldObjects, geometry.keyhole.x, geometry.keyhole.y, geometry.keyhole.radius, geometry.keyhole.radius, "#21151a", 1);
 
     const marks = geometry.marks;
     if (palette.mark === "cross") {
-      addLine(actors, [{ x: marks.left, y: marks.top }, { x: marks.right, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
-      addLine(actors, [{ x: marks.right, y: marks.top }, { x: marks.left, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
+      addLine(worldObjects, [{ x: marks.left, y: marks.top }, { x: marks.right, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
+      addLine(worldObjects, [{ x: marks.right, y: marks.top }, { x: marks.left, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
     } else if (palette.mark === "runes") {
-      addLine(actors, [{ x: marks.left, y: marks.top }, { x: marks.left, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
-      addLine(actors, [{ x: marks.right, y: marks.top }, { x: marks.right, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
+      addLine(worldObjects, [{ x: marks.left, y: marks.top }, { x: marks.left, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
+      addLine(worldObjects, [{ x: marks.right, y: marks.top }, { x: marks.right, y: marks.bottom }], { color: palette.outline, width: Math.max(1, geometry.width * 0.012) });
     } else if (palette.mark === "rivets") {
-      drawEllipse(actors, marks.left, marks.top, Math.max(1, geometry.width * 0.024), Math.max(1, geometry.width * 0.024), palette.metal, 1);
-      drawEllipse(actors, marks.right, marks.top, Math.max(1, geometry.width * 0.024), Math.max(1, geometry.width * 0.024), palette.metal, 1);
+      drawEllipse(worldObjects, marks.left, marks.top, Math.max(1, geometry.width * 0.024), Math.max(1, geometry.width * 0.024), palette.metal, 1);
+      drawEllipse(worldObjects, marks.right, marks.top, Math.max(1, geometry.width * 0.024), Math.max(1, geometry.width * 0.024), palette.metal, 1);
     }
   }
 

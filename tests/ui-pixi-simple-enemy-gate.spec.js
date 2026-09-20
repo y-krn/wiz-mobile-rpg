@@ -125,7 +125,7 @@ test('Simple Enemy Presentation Gate produces actual-pixel A/B/C evidence for fo
     expect(simpleRichEvidence.textureCount).toBe(0);
     expect(simpleRichEvidence.enemyLabels[0].children.map((item) => item.label)).toContain('enemy-simple-rich');
     expect(simpleRichEvidence.layoutIndices).toEqual([0]);
-    expect(simpleRichEvidence.sceneChildren).toBe(8);
+    expect(simpleRichEvidence.sceneChildren).toBe(9);
   }
 
   await openPixi(page, 'simple-rich');
@@ -136,5 +136,5 @@ test('Simple Enemy Presentation Gate produces actual-pixel A/B/C evidence for fo
   expect(combinedEvidence.textureCount).toBe(0);
   expect(combinedEvidence.enemyLabels).toHaveLength(4);
   expect(combinedEvidence.layoutIndices).toEqual([0, 1, 2, 3]);
-  expect(combinedEvidence.sceneChildren).toBe(8);
+  expect(combinedEvidence.sceneChildren).toBe(9);
 });

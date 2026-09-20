@@ -73,7 +73,7 @@ test('Pixi treasure chest prop stays readable across mobile widths @visual', asy
           width: geometry.width,
           height: geometry.bodyHeight + geometry.lidHeight,
         },
-        actorCount: dungeonRenderer.scene.layers.actors.children.length,
+        worldObjectCount: dungeonRenderer.scene.layers['world-objects'].children.length,
       };
     });
     const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`issue-1383-pixi-${viewport.label}.png`) });
@@ -88,6 +88,6 @@ test('Pixi treasure chest prop stays readable across mobile widths @visual', asy
     expect(entry.chest.floorShadowRadius).toBeGreaterThan(0);
     expect(entry.chest.width).toBeGreaterThan(4);
     expect(entry.chest.height).toBeGreaterThan(4);
-    expect(entry.actorCount).toBeGreaterThan(0);
+    expect(entry.worldObjectCount).toBeGreaterThan(0);
   }
 });
