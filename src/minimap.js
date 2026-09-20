@@ -256,19 +256,13 @@ export function drawMiniMap(ctx, input = null, options = {}) {
       const cell = map[y][x];
       const dist = Math.abs(x - renderInput.x) + Math.abs(y - renderInput.y);
       if (dist > 4) continue;
-      const hasStairs = cell.type === "stairs-down";
-      const hasEvent = [EVENT_TYPES.SPRING, EVENT_TYPES.CAMP, EVENT_TYPES.TABLET, EVENT_TYPES.MERCHANT,
+      const hasEvent = [EVENT_TYPES.CAMP, EVENT_TYPES.MERCHANT,
         EVENT_TYPES.RETURN_PORTAL, EVENT_TYPES.MIDBOSS, EVENT_TYPES.BOSS].includes(cell.event);
-      if (!hasStairs && !hasEvent) continue;
+      if (!hasEvent) continue;
       const screenX = PANEL_LEFT + x * CELL_SIZE + offsetX;
       const screenY = PANEL_TOP + y * CELL_SIZE + offsetY;
       ctx.save();
-      if (hasStairs) {
-        ctx.fillStyle = "rgba(255, 179, 0, 0.12)";
-        ctx.beginPath();
-        ctx.arc(screenX + CELL_SIZE / 2, screenY + CELL_SIZE / 2, CELL_SIZE * 0.9, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS) {
+      if (cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS) {
         const pulse = 0.14 + 0.08 * Math.sin(Date.now() / 200);
         ctx.fillStyle = `rgba(255, 59, 48, ${pulse})`;
         ctx.beginPath();
