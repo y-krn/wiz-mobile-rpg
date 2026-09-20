@@ -22,7 +22,11 @@ for (let index = stateLike.inventory.length; index < INVENTORY_CAPACITY; index +
   assert.equal(addInventoryItemToState(stateLike, {
     kind: "equipment",
     baseId: index % 2 === 0 ? "LONG_SWORD" : "AMULET_HP",
-    instanceId: `bag-${index}`
+    instanceId: `bag-${index}`,
+    rarity: "rare",
+    level: 1,
+    identified: true,
+    affixes: []
   }), true);
 }
 assert.equal(getInventoryUsedSlots(stateLike.inventory), INVENTORY_CAPACITY);

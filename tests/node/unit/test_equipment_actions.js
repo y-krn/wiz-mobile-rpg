@@ -90,6 +90,12 @@ assert.equal(unequipResult.ok, true);
 assert.equal(state.party[0].equipment.weapon, null);
 assert.deepEqual(state.inventory, [candidate]);
 
+const legacyEquipped = { baseId: "LONG_SWORD", instanceId: "legacy-unequip", affixes: [] };
+resetState({ character: makeCharacter({ weapon: legacyEquipped }) });
+const legacyUnequipResult = unequipEquipment({ actorIdx: 0, slot: "weapon" });
+assert.equal(legacyUnequipResult.ok, true);
+assert.strictEqual(state.inventory[0], legacyEquipped, "legacy equipment relocation preserves identity");
+
 const fullBagCharacter = makeCharacter({ weapon: equipped });
 resetState({
   character: fullBagCharacter,

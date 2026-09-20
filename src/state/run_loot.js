@@ -1,5 +1,6 @@
 import { getItemBaseId, getItemData, isSpecialOrQuestItem } from "../rules/item_rules.js";
 import { trackLootLifecycle } from "../telemetry.js";
+import { isRuntimeItemCollection } from "./item.js";
 
 // This is intentionally separate from equipped/unbagged state. An item can be
 // equipped and still remain an unbanked dungeon result until the run ends.
@@ -247,9 +248,12 @@ function removeTrackedItemsFromEquipment(stateLike, entries, inventoryBeforeRemo
 }
 
 function appendToTownStorage(stateLike, items) {
-  if (!Array.isArray(items) || items.length === 0) return;
-  stateLike.storage ||= [];
+  if (!isRuntimeItemCollection(items) || items.length === 0) return false;
+  const currentStorage = stateLike.storage ?? [];
+  if (!isRuntimeItemCollection(currentStorage)) return false;
+  stateLike.storage = currentStorage;
   stateLike.storage.push(...items);
+  return true;
 }
 
 function isTownPreparationItem(item) {

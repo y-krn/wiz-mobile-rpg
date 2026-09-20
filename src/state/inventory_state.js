@@ -1,7 +1,7 @@
 import { state } from "./state_core.js";
 import { getItemBaseId, isSpecialOrQuestItem } from "../data.js";
 import { ITEMS } from "../data/items.js";
-import { isItemRef, resolveItemDefinition } from "./item.js";
+import { isItemRef, isRuntimeItemRef, resolveItemDefinition } from "./item.js";
 import { recordDungeonObjectLoot } from "./run_loot.js";
 import { trackLootLifecycle } from "../telemetry.js";
 import { getInventoryRemainingSlots as getRemainingSlots, hasInventorySpace } from "../rules/item_inventory.js";
@@ -14,6 +14,10 @@ export function getInventoryRemainingSlots(inventory) {
 
 
 export function addInventoryItemToState(targetState, item, options = {}) {
+  if (!isRuntimeItemRef(item)) return false;
+  const itemDefinitionRef = typeof item === "string" ? item : item.baseId;
+  if (!resolveItemDefinition(itemDefinitionRef, ITEMS)) return false;
+
   const allowQuestOverflow = options.allowQuestOverflow ?? false;
   const itemId = getItemBaseId(item);
   

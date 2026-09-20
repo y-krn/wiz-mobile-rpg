@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { applySavePayload, createSavePayload } from "../../../src/state/save_payload.js";
 import { SAVE_PAYLOAD_FIELDS, SAVE_VERSION, migrateSavePayload, normalizeSavePayload } from "../../../src/state/save_migrations.js";
+import { isRuntimeItemCollection } from "../../../src/state/item.js";
 import { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, loadGame, saveAutosave, state } from "../../../src/state.js";
 import { menuContext, menuHistory, openGuardedSubmenu } from "../../../src/navigation.js";
 import { equipState } from "../../../src/equip.js";
@@ -701,6 +702,8 @@ check("runtime item normalization keeps legacy facts and rejects malformed objec
   };
 
   const normalized = normalizeSavePayload(payload);
+  assert.equal(isRuntimeItemCollection(normalized.inventory), true, "normalized inventory satisfies RuntimeItemCollection");
+  assert.equal(isRuntimeItemCollection(normalized.storage), true, "normalized storage satisfies RuntimeItemCollection");
   const legacy = normalized.inventory.find(item => typeof item === "object");
   assert.equal(legacy.baseId, "SHORT_SWORD");
   assert.equal(typeof legacy.instanceId, "string");

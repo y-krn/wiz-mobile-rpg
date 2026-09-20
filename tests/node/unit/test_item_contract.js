@@ -4,7 +4,10 @@ import {
   isItemDefinition,
   isItemRef,
   isItemType,
+  isInventoryCollection,
+  isRuntimeItemCollection,
   isRuntimeItemRef,
+  isStorageCollection,
   resolveItemDefinition
 } from "../../../src/state/item.js";
 import { isLegacyEquipmentRef } from "../../../src/state/equipment.js";
@@ -42,6 +45,15 @@ const legacyEquipment = { baseId: "WAND", instanceId: "legacy-item-contract", af
 assert.equal(isItemRef(legacyEquipment), false, "legacy equipment stays outside ItemRef");
 assert.equal(isLegacyEquipmentRef(legacyEquipment), true, "supported legacy equipment accepted");
 assert.equal(isRuntimeItemRef(legacyEquipment), true, "legacy equipment accepted as RuntimeItemRef");
+assert.equal(isRuntimeItemCollection(["UNKNOWN_ITEM_ID", validEquipment, legacyEquipment]), true,
+  "runtime collection accepts canonical and supported legacy refs without registry lookup");
+assert.equal(isInventoryCollection(["HEAL_POTION"]), true);
+assert.equal(isStorageCollection([legacyEquipment]), true);
+const sparseCollection = [];
+sparseCollection.length = 1;
+assert.equal(isRuntimeItemCollection(sparseCollection), false, "sparse runtime collection rejected");
+assert.equal(isRuntimeItemCollection([validEquipment, { baseId: "WAND" }]), false,
+  "malformed runtime collection member rejected");
 assert.equal(isLegacyEquipmentRef({ ...legacyEquipment, affixes: [null] }), false, "malformed legacy affix rejected");
 assert.equal(isLegacyEquipmentRef({ ...legacyEquipment, level: "floor-3" }), false, "malformed legacy level rejected");
 assert.equal(isItemRef({ baseId: "HEAL_POTION" }), false, "malformed EquipmentInstance rejected");

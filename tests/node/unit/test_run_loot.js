@@ -155,6 +155,13 @@ assert.deepEqual(state.currentRun.lostObjectLoot, []);
 console.log("[PASS] portal confirms all dungeon object loot without storing equipment");
 
 setupRun();
+const malformedStorageItem = { baseId: "GREATER_HEAL", instanceId: "malformed-storage", affixes: [null] };
+state.currentRun.townInventory = [malformedStorageItem];
+settleRunObjectLoot(state, "retreat");
+assert.deepEqual(state.storage, [], "storage rejects malformed incoming runtime collection");
+console.log("[PASS] storage append rejects malformed runtime items");
+
+setupRun();
 state.currentRun.materials = { "獣の牙": 4 };
 addDungeonLoot("GREATER_HEAL");
 triggerRunResult("milestone_portal");
