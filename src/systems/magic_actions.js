@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog } from "../state.js";
-import { addInventoryItemToState } from "../state/inventory_state.js";
+import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { hasInventorySpace } from "../rules/item_inventory.js";
 import {
   getRuneItemId,
@@ -36,7 +36,7 @@ export function unsocketRuneToInventory({ actorIdx, spellKey } = {}) {
 
   const result = unsocketRune(character, spellKey);
   if (!result.ok) return result;
-  if (!addInventoryItemToState(state, runeId)) {
+  if (!addCanonicalInventoryItemToState(state, runeId)) {
     socketRune(character, runeId);
     return { ok: false, reason: "inventory_full" };
   }

@@ -2,7 +2,7 @@ import { MILESTONE_MERCHANT_STOCK, MILESTONE_UNCURSE_COST } from "../data/milest
 import { canAffordMaterials, spendMaterials } from "../rules/material_rules.js";
 import { isCurseLocked } from "../rules/identification_rules.js";
 import { purifyEquipmentCurse } from "./identification.js";
-import { addInventoryItemToState } from "../state/inventory_state.js";
+import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 
 export function purchaseMilestoneStock(stateLike, stockId) {
@@ -17,7 +17,7 @@ export function purchaseMilestoneStock(stateLike, stockId) {
   stateLike.currentRun.materials = spendMaterials(materials, entry.cost);
   if (entry.kind === "identify") stateLike.identifyTickets = (stateLike.identifyTickets || 0) + 1;
   else {
-    const added = addInventoryItemToState(stateLike, entry.itemId, {
+    const added = addCanonicalInventoryItemToState(stateLike, entry.itemId, {
       dungeonLoot: true,
       source: "merchant"
     });

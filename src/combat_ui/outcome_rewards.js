@@ -1,5 +1,5 @@
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
-import { addInventoryItemToState } from "../state/inventory_state.js";
+import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { recordEquipmentDiscovery, recordMonsterLoot } from "../state/codex_state.js";
 import { markMapChanged } from "../state/state_core.js";
 import { recordMilestoneVictory } from "../state/run_state.js";
@@ -52,7 +52,7 @@ function applyGiveKeyRewards(stateLike, rng) {
     (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY"
   ));
   if (!hasKey) {
-    addInventoryItemToState(stateLike, "DRAGON_KEY");
+    addCanonicalInventoryItemToState(stateLike, "DRAGON_KEY");
     if (defeatedMonster) recordMonsterLoot(defeatedMonster, "竜の鍵", stateLike);
     if (stateLike.currentRun) {
       stateLike.currentRun.itemsFound.push("DRAGON_KEY");
@@ -68,7 +68,7 @@ function applyGiveKeyRewards(stateLike, rng) {
   });
   if (rewardEquip) {
     rewardEquip.identified = false;
-    const added = addInventoryItemToState(stateLike, rewardEquip, { dungeonLoot: true, source: "combat" });
+    const added = addCanonicalInventoryItemToState(stateLike, rewardEquip, { dungeonLoot: true, source: "combat" });
     if (added) {
       recordEquipmentDiscovery(rewardEquip, stateLike);
       if (defeatedMonster) recordMonsterLoot(defeatedMonster, getItemData(rewardEquip)?.name, stateLike);
@@ -85,7 +85,7 @@ function applyGiveKeyRewards(stateLike, rng) {
       party: stateLike.party
     });
     if (rewardAccessory) {
-      const added = addInventoryItemToState(stateLike, rewardAccessory, { dungeonLoot: true, source: "combat" });
+      const added = addCanonicalInventoryItemToState(stateLike, rewardAccessory, { dungeonLoot: true, source: "combat" });
       if (added) {
         recordEquipmentDiscovery(rewardAccessory, stateLike);
         if (defeatedMonster) recordMonsterLoot(defeatedMonster, getItemData(rewardAccessory)?.name, stateLike);

@@ -1,5 +1,7 @@
 import { state } from "./state_core.js";
 import { getItemBaseId, isSpecialOrQuestItem } from "../data.js";
+import { ITEMS } from "../data/items.js";
+import { isItemRef, resolveItemDefinition } from "./item.js";
 import { recordDungeonObjectLoot } from "./run_loot.js";
 import { trackLootLifecycle } from "../telemetry.js";
 import { getInventoryRemainingSlots as getRemainingSlots, hasInventorySpace } from "../rules/item_inventory.js";
@@ -61,6 +63,11 @@ export function addInventoryItemToState(targetState, item, options = {}) {
     });
   }
   return true;
+}
+
+export function addCanonicalInventoryItemToState(targetState, item, options = {}) {
+  if (!isItemRef(item) || !resolveItemDefinition(item, ITEMS)) return false;
+  return addInventoryItemToState(targetState, item, options);
 }
 
 export function addInventoryItem(item, options = {}) {
