@@ -1,3 +1,5 @@
+import { createCombatMonsterInstance, isMonsterTemplate } from "../state/monster.js";
+
 export function getDepthScaling(floor) {
   const depth = Math.max(1, Math.floor(Number(floor) || 1));
   const milestoneTier = Math.floor((depth - 1) / 5);
@@ -12,6 +14,7 @@ export function getDepthScaling(floor) {
 }
 
 export function scaleEnemyForDepth(monster, floor, { boss = false } = {}) {
+  if (!isMonsterTemplate(monster)) throw new TypeError("Invalid MonsterTemplate");
   const scaling = getDepthScaling(floor);
   const bossMultiplier = boss ? 1.12 : 1;
   const hpMultiplier = scaling.enemy * bossMultiplier;
@@ -19,8 +22,7 @@ export function scaleEnemyForDepth(monster, floor, { boss = false } = {}) {
   const defenseMultiplier = 1 + (scaling.enemy - 1) * 0.34;
   const rewardMultiplier = scaling.reward * (boss ? 1.2 : 1);
   const hp = Math.max(1, Math.round(monster.hp * hpMultiplier));
-  return {
-    ...monster,
+  return createCombatMonsterInstance(monster, {
     hp,
     maxHp: hp,
     atk: Math.max(1, Math.round(monster.atk * attackMultiplier)),
@@ -28,5 +30,5 @@ export function scaleEnemyForDepth(monster, floor, { boss = false } = {}) {
     exp: Math.max(1, Math.round(monster.exp * rewardMultiplier)),
     isBoss: boss || monster.isBoss,
     depthFloor: scaling.floor
-  };
+  });
 }
