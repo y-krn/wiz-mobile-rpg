@@ -12,7 +12,7 @@ const report = runMeasurement({
   collectStage15Diagnostics: true,
   runnerVersion: "issue990-phase3-stage1.5-v2",
   schemaVersion: 3,
-  runnerPath: "scratch/measurements/shallow_combat_diagnostic.js"
+  runnerPath: "scratch/measurements/persona_population_measurement.js"
 });
 
 assert.equal(report.schemaVersion, 3);
@@ -81,7 +81,7 @@ const repeat = runMeasurement({
   collectStage15Diagnostics: true,
   runnerVersion: "issue990-phase3-stage1.5-v2",
   schemaVersion: 3,
-  runnerPath: "scratch/measurements/shallow_combat_diagnostic.js"
+  runnerPath: "scratch/measurements/persona_population_measurement.js"
 });
 assert.deepEqual(repeat.stage15Diagnostics, report.stage15Diagnostics, "Stage 1.5 diagnostics are deterministic");
 assert.equal(report.raw, undefined);

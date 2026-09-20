@@ -886,6 +886,7 @@ function parseArgs(argv) {
     runs: options.runs === undefined ? DEFAULT_RUNS : Number(options.runs),
     seed: options.seed || DEFAULT_SEED,
     personas: options.personas ? options.personas.split(",").map(value => value.trim()).filter(Boolean) : PERSONA_IDS,
+    stage15: Boolean(options.stage15),
     output: options.output || null,
     summary: options.summary || null
   };
@@ -897,7 +898,7 @@ export async function main(argv = process.argv.slice(2), overrides = {}) {
   const stage15 = Boolean(overrides.stage15 || options.stage15);
   const runnerVersion = stage15 ? "issue990-phase3-stage1.5-v2" : RUNNER_VERSION;
   const schemaVersion = stage15 ? 3 : SCHEMA_VERSION;
-  const runnerPath = stage15 ? "scratch/measurements/shallow_combat_diagnostic.js" : "scratch/measurements/persona_population_measurement.js";
+  const runnerPath = "scratch/measurements/persona_population_measurement.js";
   const provenance = requireRunnerProvenance({
     fetchOriginMain: false,
     measurementRunnerPaths: [runnerPath, "scratch/measurements/persona_population_measurement.js", "scratch/simulations/sim_depth_material_ev.js", "scratch/measurements/measurement_provenance.js"]
