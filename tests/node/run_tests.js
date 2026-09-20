@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { runDependencyPreflight } from '../../scripts/dependency-preflight.js';
 import { HEAVY_TEST_MANIFEST } from './fixtures/heavy_test_manifest.js';
 import { collectChangedFiles, selectTestsForChanges } from './fixtures/dependency_resolver.js';
+import { getUnitExclusions, resolveUnitMode } from './fixtures/unit_gate.js';
 
 if (!runDependencyPreflight()) process.exit(1);
 
@@ -24,17 +25,12 @@ const HEAVY_TESTS = {
   'test_heal_priority_policy.js': 1,
 };
 const heavyTestFiles = Object.keys(HEAVY_TESTS);
-const prConditionalTestPaths = new Set(
-  HEAVY_TEST_MANIFEST
-    .filter(entry => entry.ownership === 'PR_CONDITIONAL')
-    .map(entry => entry.file),
-);
-const prConditionalHeavyTestFiles = new Set(
-  [...prConditionalTestPaths].map(file => path.basename(file)),
-);
 const prUnit = process.env.PR_UNIT === '1';
+const unitMode = resolveUnitMode({ unitMode: process.env.UNIT_MODE, prUnit });
+const unitExclusions = getUnitExclusions({ unitMode, prUnit });
+const unitExclusionBasenames = new Set([...unitExclusions].map(file => path.basename(file)));
 const activeHeavyTestFiles = heavyTestFiles.filter(file =>
-  !prUnit || !prConditionalHeavyTestFiles.has(file),
+  !unitExclusionBasenames.has(file),
 );
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -72,7 +68,7 @@ function selectHeavyTests() {
     return new Set([...selection.selected].map(file => path.basename(file)));
   } catch (error) {
     console.warn(`[WARN] Scope detection failed; running all HEAVY tests: ${error.message}`);
-    return new Set(heavyTestFiles);
+    return new Set(activeHeavyTestFiles);
   }
 }
 
@@ -163,7 +159,7 @@ const testFiles = testRoots
     .filter(file => file.startsWith('test_') && file.endsWith('.js'))
     .map(file => path.relative(repoRoot, path.join(testRoot, file)).split(path.sep).join('/')))
   .filter(file => !EXCLUDE_LIST.includes(path.basename(file)))
-  .filter(file => !prUnit || !prConditionalTestPaths.has(file))
+  .filter(file => !unitExclusions.has(file))
   .sort();
 const testFilePathsByName = new Map(testFiles.map(file => [path.basename(file), file]));
 const selectedHeavyTests = selectHeavyTests();

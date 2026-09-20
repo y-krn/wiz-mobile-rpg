@@ -80,6 +80,10 @@ export const HEAVY_TEST_MANIFEST = [
   entry(regression('test_phase3_stage2_combat_personas.js'), 'MANUAL_MEASUREMENT', 'measurement'),
 ];
 
+export const MAIN_PUSH_MANIFEST = HEAVY_TEST_MANIFEST.filter(
+  entry => entry.ownership === 'MAIN_PUSH',
+);
+
 export const HEAVY_TEST_COUNT = 50;
 export const HEAVY_TEST_OWNERSHIP_COUNTS = {
   PR_CONDITIONAL: 27,
