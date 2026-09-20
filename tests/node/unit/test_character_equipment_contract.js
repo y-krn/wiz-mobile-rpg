@@ -40,8 +40,10 @@ assert.equal(isEquipmentSlotId("helmet"), false);
 assert.equal(isEquipmentSlotId(null), false);
 
 const stringEquipment = { ...emptyEquipment(), weapon: "WAND" };
+const legacyEquipment = { baseId: "WAND", instanceId: "legacy-character-equipment", affixes: [] };
 assert.equal(isCharacterEquipment(stringEquipment), true);
 assert.equal(isCharacterEquipment({ ...emptyEquipment(), weapon: validEquipment }), true);
+assert.equal(isCharacterEquipment({ ...emptyEquipment(), weapon: legacyEquipment }), true);
 assert.equal(isCharacterEquipment(emptyEquipment()), true);
 assert.equal(isCharacterEquipment({ ...stringEquipment, accessory2: undefined }), false);
 assert.equal(isCharacterEquipment({ ...stringEquipment, weapon: {} }), false);
@@ -68,15 +70,17 @@ assert.equal(getUnequipPreview({
 
 const legacySave = normalizeSavePayload({
   version: SAVE_VERSION,
-  party: [{ equipment: { weapon: "WAND" } }]
+  inventory: [legacyEquipment],
+  party: [{ equipment: { weapon: legacyEquipment } }]
 });
 assert.equal(legacySave.version, SAVE_VERSION);
 assert.deepEqual(legacySave.party[0].equipment, {
-  weapon: "WAND",
+  weapon: legacySave.party[0].equipment.weapon,
   shield: null,
   armor: null,
   accessory: null,
   accessory2: null
 });
+assert.strictEqual(legacySave.party[0].equipment.weapon, legacySave.inventory[0]);
 
 console.log("[PASS] canonical CharacterEquipment slots, guards, identity, drift, and legacy normalization");
