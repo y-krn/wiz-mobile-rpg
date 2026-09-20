@@ -34,6 +34,8 @@ assertGeneratedEquipment(equipment, "equipment");
 assertGeneratedEquipment(accessory, "accessory");
 assert.notEqual(equipment, accessory);
 assert.notEqual(equipment.affixes, accessory.affixes);
+assert.equal(generateRandomEquipment(undefined, { forceRarity: "rare", rng: lcg(1413) }), null);
+assert.equal(generateRandomAccessory(undefined, { forceRarity: "rare", rng: lcg(1414) }), null);
 
 const valid = {
   kind: "equipment",

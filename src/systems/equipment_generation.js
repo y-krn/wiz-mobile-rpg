@@ -47,9 +47,9 @@ function requireGenerationOptions(options, functionName) {
   return options;
 }
 
-function requireGeneratedEquipment(value, generatorName) {
+function requireGeneratedEquipment(value) {
   if (!isEquipmentInstance(value)) {
-    throw new TypeError(`${generatorName} produced an invalid EquipmentInstance`);
+    return null;
   }
   return value;
 }
@@ -452,7 +452,7 @@ export function generateRandomEquipment(floor, options) {
     instanceId,
     baseId,
     rarity,
-    level: floor === undefined ? 1 : floor,
+    level: floor,
     identified: false,
     halfIdentified: false,
     knowledgeStage: "discovery",
@@ -468,7 +468,7 @@ export function generateRandomEquipment(floor, options) {
     buildRole,
     buildRoles,
     lootRole
-  }, "generateRandomEquipment");
+  });
 }
 
 export function generateRandomAccessory(floor, options) {
@@ -594,7 +594,7 @@ export function generateRandomAccessory(floor, options) {
     instanceId: `eq_${rng().toString(36).substr(2, 9)}`,
     baseId,
     rarity,
-    level: floor === undefined ? 1 : floor,
+    level: floor,
     identified: false,
     halfIdentified: false,
     knowledgeStage: "discovery",
@@ -610,5 +610,5 @@ export function generateRandomAccessory(floor, options) {
     buildRole,
     buildRoles,
     lootRole
-  }, "generateRandomAccessory");
+  });
 }
