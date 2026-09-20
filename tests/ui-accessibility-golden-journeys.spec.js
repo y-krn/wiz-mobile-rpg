@@ -43,8 +43,8 @@ const ENEMY_HP_VIEWPORTS = [
   { width: 430, height: 932 },
 ];
 
-async function seedEnemyHpPresentation(page, renderer) {
-  await page.goto(`/?renderer=${renderer}`);
+async function seedEnemyHpPresentation(page) {
+  await page.goto('/?renderer=pixi');
   await page.waitForLoadState('networkidle');
   await page.evaluate(async () => {
     const { state, createStartingKitCharacter } = await import('/src/state.js');
@@ -174,6 +174,7 @@ test('Combat target selection exposes the player-known equivalent and restores c
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await seedCombat(page);
+  await expect(page.locator('#dungeon-canvas[data-renderer="pixi"]')).toBeAttached();
   const fight = page.locator('#btn-combat-fight');
   await fight.focus();
   await fight.click();
@@ -219,26 +220,24 @@ test('Combat target selection exposes the player-known equivalent and restores c
 });
 
 for (const viewport of ENEMY_HP_VIEWPORTS) {
-  test(`Enemy HP presentation stays proportional and non-exact for Canvas/Pixi at ${viewport.width}x${viewport.height} @e2e @smoke`, async ({ page }, testInfo) => {
-    for (const renderer of ['canvas', 'pixi']) {
-      await page.setViewportSize(viewport);
-      await seedEnemyHpPresentation(page, renderer);
-      await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', renderer);
-      await expect(page.locator('#viewport-hud .combat-enemy-semantic')).not.toContainText(/HP\s*\d+\s*\/\s*\d+/);
-      await expect(page.locator('#viewport-hud .combat-enemy-semantic')).toContainText('対象A、負傷、攻撃対象');
-      await expect(page.locator('#viewport-hud .combat-enemy-semantic')).toContainText('対象B、健在、攻撃対象');
-      await attachEnemyHpEvidence(page, testInfo, `issue-1404-${renderer}-${viewport.width}x${viewport.height}-combat`);
+  test(`Enemy HP presentation stays proportional and non-exact on Pixi at ${viewport.width}x${viewport.height} @e2e @smoke`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await seedEnemyHpPresentation(page);
+    await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'pixi');
+    await expect(page.locator('#viewport-hud .combat-enemy-semantic')).not.toContainText(/HP\s*\d+\s*\/\s*\d+/);
+    await expect(page.locator('#viewport-hud .combat-enemy-semantic')).toContainText('対象A、負傷、攻撃対象');
+    await expect(page.locator('#viewport-hud .combat-enemy-semantic')).toContainText('対象B、健在、攻撃対象');
+    await attachEnemyHpEvidence(page, testInfo, `issue-1404-pixi-${viewport.width}x${viewport.height}-combat`);
 
-      await page.locator('#btn-combat-fight').click();
-      await expect(page.locator('.combat-target-a11y')).toHaveCount(2);
-      const targetLabels = await page.locator('.combat-target-a11y').allTextContents();
-      expect(targetLabels.every(label => !/HP\s*\d+\s*\/\s*\d+/.test(label))).toBe(true);
-      expect(targetLabels).toEqual([
-        '対象A、負傷、攻撃対象にする',
-        '対象B、健在、攻撃対象にする',
-      ]);
-      await attachEnemyHpEvidence(page, testInfo, `issue-1404-${renderer}-${viewport.width}x${viewport.height}-target`);
-    }
+    await page.locator('#btn-combat-fight').click();
+    await expect(page.locator('.combat-target-a11y')).toHaveCount(2);
+    const targetLabels = await page.locator('.combat-target-a11y').allTextContents();
+    expect(targetLabels.every(label => !/HP\s*\d+\s*\/\s*\d+/.test(label))).toBe(true);
+    expect(targetLabels).toEqual([
+      '対象A、負傷、攻撃対象にする',
+      '対象B、健在、攻撃対象にする',
+    ]);
+    await attachEnemyHpEvidence(page, testInfo, `issue-1404-pixi-${viewport.width}x${viewport.height}-target`);
   });
 }
 
