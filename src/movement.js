@@ -424,18 +424,12 @@ function checkSensoryAura() {
     addEventLog(text, { key, scope: `aura:${state.floor}` });
   };
   
-  let nearestSpring = null;
   let nearestBoss = null;
-  let nearestTablet = null;
   let nearestMerchant = null;
-  let nearestDownStairs = null;
   let nearestChest = null;
 
-  let minDistSpring = 999;
   let minDistBoss = 999;
-  let minDistTablet = 999;
   let minDistMerchant = 999;
-  let minDistDownStairs = 999;
   let minDistChest = 999;
 
   for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -447,20 +441,12 @@ function checkSensoryAura() {
       const cell = state.map[y][x];
       const dist = Math.abs(x - px) + Math.abs(y - py);
 
-      if (cell.event === EVENT_TYPES.SPRING) {
-        if (dist < minDistSpring) { minDistSpring = dist; nearestSpring = { x, y }; }
-      } else if (cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS) {
+      if (cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS) {
         if (dist < minDistBoss) { minDistBoss = dist; nearestBoss = { x, y }; }
-      } else if (cell.event === EVENT_TYPES.TABLET) {
-        if (dist < minDistTablet) { minDistTablet = dist; nearestTablet = { x, y }; }
       } else if (cell.event === EVENT_TYPES.MERCHANT) {
         if (dist < minDistMerchant) { minDistMerchant = dist; nearestMerchant = { x, y }; }
       } else if (cell.event === EVENT_TYPES.CHEST) {
         if (dist < minDistChest) { minDistChest = dist; nearestChest = { x, y }; }
-      }
-
-      if (cell.type === "stairs-down") {
-        if (dist < minDistDownStairs) { minDistDownStairs = dist; nearestDownStairs = { x, y }; }
       }
     }
   }
@@ -478,36 +464,17 @@ function checkSensoryAura() {
     observe(`aura:${state.floor}:boss:${nearestBoss.x}:${nearestBoss.y}`, `【気配】${dirStr}の方から${aura?.boss || "ただならぬ魔力の気配を感じる…"}`);
   }
 
-  // 2. Spring water sound
-  if (minDistSpring <= soundRange && nearestSpring) {
-    observe(`aura:${state.floor}:spring:${nearestSpring.x}:${nearestSpring.y}`, `【気配】${aura?.spring || "近くからかすかに水音が聞こえる…"}`);
-  }
-
-  // 3. Tablet magic wave
-  if (minDistTablet <= arcaneRange && nearestTablet) {
-    if (arcaneSense >= 1) {
-      observe(`aura:${state.floor}:tablet:${nearestTablet.x}:${nearestTablet.y}`, `【気配】${getRelativeDirectionText(nearestTablet.x, nearestTablet.y, px, py)}に${aura?.tablet || "弱い魔力の波動を感じる…"}`);
-    } else {
-      observe(`aura:${state.floor}:tablet:${nearestTablet.x}:${nearestTablet.y}`, `【気配】${aura?.tablet || "近くの壁から弱い魔力の波動を感じる…"}`);
-    }
-  }
-
-  // 4. Merchant footsteps/presence
+  // 2. Merchant footsteps/presence
   if (minDistMerchant <= soundRange && nearestMerchant) {
     observe(`aura:${state.floor}:merchant:${nearestMerchant.x}:${nearestMerchant.y}`, `【気配】${aura?.merchant || "近くから静かな衣擦れの音が聞こえる気がする…"}`);
   }
 
-  // 5. Down stairs wind draft
-  if (minDistDownStairs <= soundRange && nearestDownStairs) {
-    observe(`aura:${state.floor}:stairs:${nearestDownStairs.x}:${nearestDownStairs.y}`, `【気配】${aura?.stairs || "下へ続く空洞から、冷たい風が流れてきている…"}`);
-  }
-
-  // 6. Chest hidden treasure vibe
+  // 3. Chest hidden treasure vibe
   if (minDistChest <= baseSenseRange && nearestChest) {
     observe(`aura:${state.floor}:chest:${nearestChest.x}:${nearestChest.y}`, `【気配】${aura?.chest || "この近くに何かが隠されている気がする…"}`);
   }
 
-  // 7. Hidden door wall sense
+  // 4. Hidden door wall sense
   if (arcaneSense >= 2) {
     const secretDir = getAdjacentHiddenSecretDoorDir();
     if (secretDir !== null) {
@@ -515,7 +482,7 @@ function checkSensoryAura() {
     }
   }
 
-  // 8. Roaming threat presence
+  // 5. Roaming threat presence
   if (state.roamingMonsters) {
     const currentFlacks = state.roamingMonsters.filter(rm => rm.floor === state.floor);
     let minFlackDist = 999;
@@ -538,13 +505,6 @@ function checkSensoryAura() {
   // A floor move, defeated/left encounter, or leaving an aura's range marks
   // the previous observation resolved. The log remains available in history.
   clearEventObservations({ scopePrefix: "aura:", keepKeys: activeObservationKeys });
-}
-
-function getRelativeDirectionText(x, y, px, py) {
-  const dy = y - py;
-  const dx = x - px;
-  if (Math.abs(dy) > Math.abs(dx)) return dy < 0 ? "北" : "南";
-  return dx < 0 ? "西" : "東";
 }
 
 function getAdjacentHiddenSecretDoorDir() {

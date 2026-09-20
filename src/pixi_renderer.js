@@ -17,6 +17,12 @@ import { getVisibleCorridorTopology, isRenderableCorridorCell } from "./rules/re
 import { renderMiniMapOverlay } from "./minimap.js";
 import { getChestPropGeometry, getChestPropPalette, getChestPropStyle } from "./chest_prop.js";
 import {
+  getDungeonPropPalette,
+  getMonumentPropGeometry,
+  getSpringPropGeometry,
+  getStairsPropGeometry
+} from "./dungeon_prop.js";
+import {
   SIMPLE_ENEMY_PROTOTYPE_MODE,
   createEnemyPrototype,
   createProceduralEnemy,
@@ -665,7 +671,7 @@ export class PixiDungeonRenderer {
           if (cellTopology.frontOneWayBarrier && column === 0) this.drawOneWayBarrier(nextPlane, wallColor);
         }
 
-        if (column === 0 && z > 0) this.drawLandmark(cell, plane, renderInput.visual.wallColor, renderInput.visual.landmarks?.chestStyle);
+        if (column === 0 && z > 0) this.drawLandmark(cell, plane, renderInput.visual.wallColor, renderInput.visual.landmarks);
         if (column === 0 && renderInput.roamingMonsters.some((monster) => monster.floor === renderInput.floor && monster.x === cellTopology.x && monster.y === cellTopology.y) && z > 0) {
           drawEllipse(this.layer("environment-fx"), (nextPlane.leftBottom + nextPlane.rightBottom) / 2, nextPlane.bottom - 12, width * 0.10, Math.max(4, width * 0.04), "#ff3b30", 0.12, { color: "#ff3b30", width: 2, alpha: 0.85 });
         }
@@ -718,23 +724,76 @@ export class PixiDungeonRenderer {
     }
   }
 
-  drawLandmark(cell, plane, color, chestStyle) {
-    const cx = (plane.leftBottom + plane.rightBottom) / 2;
-    const width = Math.max(8, plane.rightBottom - plane.leftBottom);
-    const y = plane.bottom - width * 0.12;
+  drawLandmark(cell, plane, color, landmarks = {}) {
     if (cell.type === "stairs-up" || cell.type === "stairs-down") {
-      const graphic = new Graphics();
-      graphic.moveTo(cx - width * 0.18, y).lineTo(cx + width * 0.18, y);
-      graphic.moveTo(cx - width * 0.13, y - width * 0.08).lineTo(cx + width * 0.13, y - width * 0.08);
-      graphic.moveTo(cx - width * 0.08, y - width * 0.16).lineTo(cx + width * 0.08, y - width * 0.16);
-      graphic.stroke({ color: cell.type === "stairs-up" ? "#00b7ff" : "#ffb300", width: 1.5, alpha: 0.9 });
-      this.layer("structural-walls").addChild(graphic);
+      this.drawStairsProp(plane, cell.type === "stairs-up" ? "up" : "down", landmarks.stairsStyle, color);
     } else if (cell.event === EVENT_TYPES.CHEST) {
-      this.drawChestProp(plane, getChestPropStyle(chestStyle));
+      this.drawChestProp(plane, getChestPropStyle(landmarks.chestStyle));
+    } else if (cell.event === EVENT_TYPES.SPRING) {
+      this.drawSpringProp(plane, color);
+    } else if (cell.event === EVENT_TYPES.TABLET) {
+      this.drawMonumentProp(plane, color);
     } else if (cell.trap?.state === "discovered") {
+      const cx = (plane.leftBottom + plane.rightBottom) / 2;
+      const width = Math.max(8, plane.rightBottom - plane.leftBottom);
+      const y = plane.bottom - width * 0.12;
       drawEllipse(this.layer("actors"), cx, y - width * 0.05, width * 0.10, width * 0.06, "#ff3b30", 0.12, { color: "#ff3b30", width: 1.4 });
     }
-    if (color && cell.type === "stairs-down") addLine(this.layer("actors"), [{ x: cx, y: y - width * 0.22 }, { x: cx, y: y - width * 0.04 }], { color, width: 1, alpha: 0.55 });
+  }
+
+  drawSpringProp(plane, wallColor) {
+    const geometry = getSpringPropGeometry(plane);
+    const palette = getDungeonPropPalette("spring", wallColor);
+    const actors = this.layer("actors");
+    const polygon = (points, fill, stroke = palette.highlight, width = Math.max(1, geometry.width * 0.016)) => {
+      addPolygon(actors, points, fill, 1, { color: stroke, width });
+    };
+    drawEllipse(actors, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, palette.shadow, 0.40);
+    drawEllipse(actors, geometry.centerX, geometry.basin.y, geometry.basin.radiusX * 1.10, geometry.basin.radiusY * 1.45, palette.water, 0.045);
+    polygon(geometry.pedestal, palette.pedestal, palette.basin);
+    polygon(geometry.fountain, palette.pedestal, palette.highlight);
+    drawEllipse(actors, geometry.fountainDrop.x, geometry.fountainDrop.y, geometry.fountainDrop.radiusX, geometry.fountainDrop.radiusY, palette.water, 0.92, { color: palette.highlight, width: Math.max(1, geometry.width * 0.012) });
+    drawEllipse(actors, geometry.basin.x, geometry.basin.y, geometry.basin.radiusX, geometry.basin.radiusY, palette.basin, 1, { color: palette.highlight, width: Math.max(1, geometry.width * 0.018) });
+    drawEllipse(actors, geometry.water.x, geometry.water.y, geometry.water.radiusX, geometry.water.radiusY, palette.water, 0.90, { color: palette.highlight, width: Math.max(1, geometry.width * 0.012) });
+    addLine(actors, [{ x: geometry.rim.left, y: geometry.rim.y }, { x: geometry.rim.right, y: geometry.rim.y }], { color: palette.highlight, width: Math.max(1, geometry.width * 0.014), alpha: 0.84 });
+    addLine(actors, [{ x: geometry.centerX - geometry.width * 0.18, y: geometry.water.y }, { x: geometry.centerX + geometry.width * 0.08, y: geometry.water.y - geometry.width * 0.015 }], { color: palette.highlight, width: Math.max(1, geometry.width * 0.012), alpha: 0.85 });
+  }
+
+  drawMonumentProp(plane, wallColor) {
+    const geometry = getMonumentPropGeometry(plane);
+    const palette = getDungeonPropPalette("monument", wallColor);
+    const actors = this.layer("actors");
+    const polygon = (points, fill, stroke = palette.inscription, width = Math.max(1, geometry.width * 0.016)) => {
+      addPolygon(actors, points, fill, 1, { color: stroke, width });
+    };
+    drawEllipse(actors, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, palette.shadow, 0.42);
+    polygon(geometry.plinth, palette.plinth, palette.stone);
+    polygon(geometry.side, palette.side, palette.side);
+    polygon(geometry.face, palette.stone);
+    geometry.inscriptionLines.forEach(line => addLine(actors, [
+      { x: line.left, y: line.y },
+      { x: line.right, y: line.y }
+    ], { color: palette.inscription, width: Math.max(1, geometry.width * 0.012), alpha: 0.82 }));
+  }
+
+  drawStairsProp(plane, direction, style, wallColor) {
+    const geometry = getStairsPropGeometry(plane, direction, style);
+    const palette = getDungeonPropPalette("stairs", wallColor, direction);
+    const actors = this.layer("actors");
+    drawEllipse(actors, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, palette.shadow, 0.44);
+    addPolygon(actors, geometry.well, palette.well, 1, { color: palette.edge, width: Math.max(1, geometry.width * 0.014) });
+    geometry.steps.forEach((step, index) => {
+      addPolygon(actors, step.points, palette.stone, 1, { color: palette.edge, width: Math.max(1, geometry.width * 0.014) });
+      addLine(actors, [{ x: step.left, y: step.y }, { x: step.right, y: step.y }], { color: palette.edge, width: Math.max(1, geometry.width * 0.016), alpha: 0.92 - index * 0.06 });
+    });
+    addLine(actors, [
+      { x: geometry.steps[0].left, y: geometry.steps[0].y },
+      { x: geometry.steps.at(-1).left, y: geometry.steps.at(-1).y - geometry.steps.at(-1).depth }
+    ], { color: palette.edge, width: Math.max(1, geometry.width * 0.012), alpha: 0.72 });
+    addLine(actors, [
+      { x: geometry.steps[0].right, y: geometry.steps[0].y },
+      { x: geometry.steps.at(-1).right, y: geometry.steps.at(-1).y - geometry.steps.at(-1).depth }
+    ], { color: palette.edge, width: Math.max(1, geometry.width * 0.012), alpha: 0.72 });
   }
 
   drawChestProp(plane, style) {

@@ -189,7 +189,8 @@ export function getProjectionColumn(projection, z, column = 0) {
         rightTop: centerTop - totalTop / 2 + totalTop * topEnd,
         rightBottom: centerBottom - totalBottom / 2 + totalBottom * topEnd,
         top: projection.yt[z],
-        bottom: projection.yb[z]
+        bottom: projection.yb[z],
+        viewport: projection.viewport
       };
     }
   }
@@ -201,7 +202,8 @@ export function getProjectionColumn(projection, z, column = 0) {
     rightTop: projection.leftTop[z] + topWidth * (column + 1),
     rightBottom: projection.leftBottom[z] + bottomWidth * (column + 1),
     top: projection.yt[z],
-    bottom: projection.yb[z]
+    bottom: projection.yb[z],
+    viewport: projection.viewport
   };
 }
 
