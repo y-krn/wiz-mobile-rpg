@@ -15,6 +15,9 @@ import { ITEMS } from "../data/items.js";
 import { getEquipmentHands } from "../rules/equipment_hands.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 import { isRuntimeItemCollection, isRuntimeItemRef } from "./item.js";
+import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
+
+export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
@@ -23,22 +26,6 @@ export const SAVE_VERSION = 14;
 // Save/apply boundary contract. Unknown keys are deliberately ignored. Keep
 // this list in sync with createSavePayload; runtime-only state must not become
 // persistent merely because it was added to state.
-export const SAVE_PAYLOAD_FIELDS = Object.freeze([
-  "version", "x", "y", "dir", "party", "inventory", "floor", "maps",
-  "visitedMaps", "lightTurns", "lightPower", "repelTurns", "silenceTurns", "forcedEncounterSteps",
-  "activeMerchantStock", "floorChestsOpened", "floorChestsTotal",
-  "firstKills", "currentRun", "records", "unlockedMilestones", "runHistory",
-  "deathLogs", "codex", "seed", "gameState", "combatState", "chestState",
-  "prevX", "prevY", "roamingMonsters", "roamingMovementStepCount", "noiseEvents",
-  "firstChestUnidentifiedGuaranteed", "storage", "storageMax", "identifyTickets",
-  "cleared", "metaMaterials", "workshop", "keyItems", "dungeonMemory", "logs"
-]);
-
-export const TRANSIENT_STATE_FIELDS = Object.freeze([
-  "menuContext", "menuHistory", "equipState", "transitioning", "controlsGuardUntil",
-  "mapRevision", "sessionMaxFloor"
-]);
-
 const PERSISTED_GAME_STATES = new Set(["town", "explore", "combat", "result", "gameover", "victory"]);
 
 function isRecord(value) {
@@ -1141,5 +1128,6 @@ export function normalizeSavePayload(data) {
       return count;
     });
 
-  return normalized;
+  normalized.version = integerOr(data.version, SAVE_VERSION);
+  return assertNormalizedSavePayload(normalized);
 }
