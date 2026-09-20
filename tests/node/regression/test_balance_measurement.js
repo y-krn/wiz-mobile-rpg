@@ -193,8 +193,8 @@ assert.match(testWorkflow, /push:\n\s+branches: \[main\]/);
 assert.match(testWorkflow, /merge_group:/);
 assert.match(testWorkflow, /workflow_dispatch:/);
 assert.match(testWorkflow, /- '\.github\/actions\/setup-node-deps\/action\.yml'/);
-assert.equal((testWorkflow.match(/uses: \.\/\.github\/actions\/setup-node-deps/g) || []).length, 4);
-for (const jobId of ["unit", "unit-heavy-conditional", "lint", "browser"]) {
+assert.equal((testWorkflow.match(/uses: \.\/\.github\/actions\/setup-node-deps/g) || []).length, 5);
+for (const jobId of ["unit", "unit-heavy-conditional", "unit-heavy-main-push", "lint", "browser"]) {
   assert.match(testWorkflow, new RegExp(`\\n  ${jobId}:\\n`));
 }
 

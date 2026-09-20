@@ -13,6 +13,7 @@
     "test:unit:fast": "FAST=1 node tests/node/run_tests.js",
     "test:unit:full": "FULL_TEST=1 node tests/node/run_tests.js",
     "test:unit:conditional": "node tests/node/run_conditional_tests.js",
+    "test:unit:main-push": "node tests/node/run_main_push_tests.js",
     "typecheck": "tsc --noEmit",
     "simulation": "node --import tsx/esm scratch/simulations/sim_depth_material_ev.js",
     "measure:balance": "node --import tsx/esm scratch/measurements/measure_balance.js",

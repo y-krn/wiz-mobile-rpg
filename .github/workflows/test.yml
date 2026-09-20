@@ -32,6 +32,7 @@ jobs:
       - run: npm run test:unit:full
         env:
           PR_UNIT: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '1' || '0' }}
+          UNIT_MODE: ${{ github.event_name == 'pull_request' && 'pull-request' || github.event_name == 'merge_group' && 'merge-group' || github.event_name == 'push' && 'main-push' || 'local' }}
       - name: Verify measurement provenance
         run: node tests/node/regression/test_measurement_provenance.js
 
@@ -48,6 +49,17 @@ jobs:
         env:
           BASE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
           HEAD_REF: ${{ github.sha }}
+
+  unit-heavy-main-push:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: ./.github/actions/setup-node-deps
+      - run: npm run test:unit:main-push
 
   lint:
     runs-on: ubuntu-latest
