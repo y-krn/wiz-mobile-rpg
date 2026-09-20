@@ -254,7 +254,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**", "src/renderer.js", "src/rules/map_movement.js", "src/state.js", "src/state/view_state.js", "src/state/view_state.ts", "src/state/renderer_view.js", "src/state/renderer_view.ts",
     "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js", "src/state/save_migrations.js", "src/state/save_payload.js",
     "src/error_context.js", "src/controls_guard.js", "src/state/codex_state.js",
-    "src/state/initial_state.js", "src/state/records_state.js", "src/state/state_core.js", "src/result.js", "src/rules/renderer_topology.js", "src/chest_prop.js", "src/renderer_selection.js",
+    "src/state/initial_state.js", "src/state/records_state.js", "src/state/state_core.js", "src/state/character.js", "src/state/character.ts", "src/result.js", "src/rules/renderer_topology.js", "src/chest_prop.js", "src/renderer_selection.js",
     "src/data/spells.js", "src/data/status_treatments.js", "src/systems/spell_effects.js",
     "src/runtime_diagnostics.js", "src/telemetry.js", "src/systems/traps.js", "src/pixi_renderer.js", "src/pixi_enemy_prototypes.js", "src/minimap.js",
     "src/rules/item_inventory.js", "src/rules/object_loot_stake.js", "src/rules/renderer_projection.js",
