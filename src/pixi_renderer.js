@@ -10,7 +10,8 @@ import {
   getCombatMonsterLayout,
   getProjectionColumn,
   getProjectionPlanes,
-  getProjectionProfile
+  getProjectionProfile,
+  getWorldObjectProjection
 } from "./rules/renderer_projection.js";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { getVisibleCorridorTopology, isRenderableCorridorCell, isVisibleWorldObjectCell } from "./rules/renderer_topology.js";
@@ -650,7 +651,10 @@ export class PixiDungeonRenderer {
           { x: nextPlane.rightTop, y: nextPlane.top }, { x: plane.rightTop, y: plane.top }
         ], { color: gridColor, width: 1.1, alpha: 0.76 });
 
-        if (isVisibleWorldObjectCell(cellTopology)) this.drawLandmark(cell, plane, renderInput.visual.wallColor, renderInput.visual.landmarks);
+        if (isVisibleWorldObjectCell(cellTopology)) {
+          const objectPlane = getWorldObjectProjection(projection, z, column);
+          this.drawLandmark(cell, objectPlane, renderInput.visual.wallColor, renderInput.visual.landmarks);
+        }
 
         if (cellTopology.leftBlocked) {
           const walls = this.layer("structural-walls");
@@ -928,7 +932,7 @@ export class PixiDungeonRenderer {
 
   drawChest(renderInput) {
     const projection = getProjectionPlanes(renderInput.visual.geometry || BASE_GEOMETRY, this.viewport);
-    const plane = getProjectionColumn(projection, 1);
+    const plane = getWorldObjectProjection(projection, 1);
     this.drawChestProp(plane, getChestPropStyle(renderInput.visual.landmarks?.chestStyle));
   }
 
