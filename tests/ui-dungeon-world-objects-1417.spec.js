@@ -59,6 +59,19 @@ async function renderObject(page, object) {
       : target.id === 'monument'
         ? getMonumentPropGeometry(plane)
         : getStairsPropGeometry(plane, 'down', input.visual.landmarks?.stairsStyle);
+    const points = target.id === 'spring'
+      ? [
+        { x: geometry.basin.x - geometry.basin.radiusX, y: geometry.basin.y - geometry.basin.radiusY },
+        { x: geometry.basin.x + geometry.basin.radiusX, y: geometry.basin.y + geometry.basin.radiusY },
+        ...geometry.fountain,
+        ...geometry.pedestal,
+      ]
+      : target.id === 'monument'
+        ? [...geometry.face, ...geometry.side, ...geometry.plinth]
+        : [...geometry.well, ...geometry.steps.flatMap(step => step.points)];
+    const objectTop = Math.min(...points.map(point => point.y));
+    const objectBottom = Math.max(...points.map(point => point.y));
+    const controlsTop = document.querySelector('#controls-panel')?.getBoundingClientRect().top ?? window.innerHeight;
     return {
       canvasRenderer: document.querySelector('#dungeon-canvas')?.dataset.renderer || null,
       viewport: [dungeonRenderer.viewport.width, dungeonRenderer.viewport.height],
@@ -74,6 +87,11 @@ async function renderObject(page, object) {
             ? geometry.face.length + geometry.inscriptionLines.length
             : geometry.steps.length,
         depthScale: geometry.width / Math.max(1, plane.rightBottom - plane.leftBottom),
+        objectTop,
+        objectBottom,
+        controlsTop,
+        floorContactVisible: geometry.shadow.y < controlsTop,
+        visibleSilhouetteHeight: Math.max(0, Math.min(objectBottom, controlsTop) - objectTop),
       },
       activeObjectObservationKeys: Object.keys(state.currentRun.eventObservations)
         .filter(key => /:(spring|tablet|stairs):/.test(key)),
@@ -95,6 +113,9 @@ for (const viewport of VIEWPORTS) {
       expect(evidence[object.id].prop.shapeCount).toBeGreaterThan(2);
       expect(evidence[object.id].prop.shadowY).toBeGreaterThan(evidence[object.id].prop.baseY);
       expect(evidence[object.id].prop.depthScale).toBeGreaterThan(0);
+      expect(evidence[object.id].prop.floorContactVisible).toBe(true);
+      expect(evidence[object.id].prop.baseY).toBeLessThan(evidence[object.id].prop.controlsTop - 4);
+      expect(evidence[object.id].prop.visibleSilhouetteHeight).toBeGreaterThanOrEqual(20);
 
       const screenshot = await page.locator('#dungeon-canvas').screenshot({
         path: testInfo.outputPath(`issue-1417-${object.id}-${viewport.width}x${viewport.height}.png`),

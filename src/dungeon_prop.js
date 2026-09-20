@@ -3,6 +3,8 @@
 // Renderer-neutral screen-space geometry for non-chest dungeon landmarks.
 
 const DEFAULT_STAIR_STYLE = "rough_stone";
+export const SHORT_PORTRAIT_MAX_HEIGHT = 600;
+export const SHORT_PORTRAIT_FLOOR_RATIO = 0.64;
 
 export const STAIR_PROP_STYLES = Object.freeze({
   rough_stone: Object.freeze({ stepCount: 4, slope: 0.92 }),
@@ -27,17 +29,24 @@ function getPlaneBase(plane, widthRatio) {
   const bottom = Number(plane?.bottom) || 0;
   const corridorWidth = Math.max(1, right - left);
   const width = Math.max(8, corridorWidth * widthRatio);
+  const projectedBaseY = bottom - Math.max(1, width * 0.018);
+  const viewport = plane?.viewport;
+  const shortPortrait = viewport?.orientation === "portrait" && viewport.height <= SHORT_PORTRAIT_MAX_HEIGHT;
+  const baseY = shortPortrait
+    ? Math.min(projectedBaseY, viewport.height * SHORT_PORTRAIT_FLOOR_RATIO)
+    : projectedBaseY;
   return {
     corridorWidth,
     width,
     centerX: (left + right) / 2,
-    baseY: bottom - Math.max(1, width * 0.018)
+    baseY
   };
 }
 
 export function getSpringPropGeometry(plane) {
   const { width, centerX, baseY } = getPlaneBase(plane, 0.42);
   const basinY = baseY - width * 0.13;
+  const fountainTop = basinY - width * 0.34;
   const pedestalTop = basinY + width * 0.01;
   const pedestalBottom = baseY - width * 0.02;
   const shadow = Object.freeze({ x: centerX, y: baseY + width * 0.045, radiusX: width * 0.48, radiusY: Math.max(1.5, width * 0.085) });
@@ -47,6 +56,14 @@ export function getSpringPropGeometry(plane) {
     width,
     basin: Object.freeze({ x: centerX, y: basinY, radiusX: width * 0.45, radiusY: Math.max(2, width * 0.115) }),
     water: Object.freeze({ x: centerX, y: basinY - width * 0.012, radiusX: width * 0.31, radiusY: Math.max(1.5, width * 0.064) }),
+    fountain: freezePoints([
+      { x: centerX - width * 0.075, y: basinY + width * 0.015 },
+      { x: centerX + width * 0.075, y: basinY + width * 0.015 },
+      { x: centerX + width * 0.055, y: fountainTop + width * 0.07 },
+      { x: centerX, y: fountainTop },
+      { x: centerX - width * 0.055, y: fountainTop + width * 0.07 }
+    ]),
+    fountainDrop: Object.freeze({ x: centerX, y: fountainTop - width * 0.035, radiusX: width * 0.035, radiusY: width * 0.055 }),
     pedestal: freezePoints([
       { x: centerX - width * 0.17, y: pedestalTop },
       { x: centerX + width * 0.17, y: pedestalTop },

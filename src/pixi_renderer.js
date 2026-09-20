@@ -751,6 +751,8 @@ export class PixiDungeonRenderer {
     drawEllipse(actors, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, palette.shadow, 0.40);
     drawEllipse(actors, geometry.centerX, geometry.basin.y, geometry.basin.radiusX * 1.10, geometry.basin.radiusY * 1.45, palette.water, 0.045);
     polygon(geometry.pedestal, palette.pedestal, palette.basin);
+    polygon(geometry.fountain, palette.pedestal, palette.highlight);
+    drawEllipse(actors, geometry.fountainDrop.x, geometry.fountainDrop.y, geometry.fountainDrop.radiusX, geometry.fountainDrop.radiusY, palette.water, 0.92, { color: palette.highlight, width: Math.max(1, geometry.width * 0.012) });
     drawEllipse(actors, geometry.basin.x, geometry.basin.y, geometry.basin.radiusX, geometry.basin.radiusY, palette.basin, 1, { color: palette.highlight, width: Math.max(1, geometry.width * 0.018) });
     drawEllipse(actors, geometry.water.x, geometry.water.y, geometry.water.radiusX, geometry.water.radiusY, palette.water, 0.90, { color: palette.highlight, width: Math.max(1, geometry.width * 0.012) });
     addLine(actors, [{ x: geometry.rim.left, y: geometry.rim.y }, { x: geometry.rim.right, y: geometry.rim.y }], { color: palette.highlight, width: Math.max(1, geometry.width * 0.014), alpha: 0.84 });
