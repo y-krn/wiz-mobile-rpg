@@ -56,11 +56,11 @@ test('Pixi treasure chest prop stays readable across mobile widths @visual', asy
     evidence[viewport.label] = await page.evaluate(async () => {
       const { dungeonRenderer } = await import('/src/renderer_runtime.js');
       const { getChestPropGeometry } = await import('/src/chest_prop.js');
-      const { getProjectionColumn, getProjectionPlanes } = await import('/src/rules/renderer_projection.js');
+      const { getProjectionPlanes, getWorldObjectProjection } = await import('/src/rules/renderer_projection.js');
       dungeonRenderer.draw();
       const input = dungeonRenderer.getRenderInput();
       const projection = getProjectionPlanes(input.visual.geometry, dungeonRenderer.viewport);
-      const geometry = getChestPropGeometry(getProjectionColumn(projection, 1), input.visual.landmarks.chestStyle);
+      const geometry = getChestPropGeometry(getWorldObjectProjection(projection, 1), input.visual.landmarks.chestStyle);
       return {
         renderer: dungeonRenderer.mode,
         viewport: dungeonRenderer.viewport,

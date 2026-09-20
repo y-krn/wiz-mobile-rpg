@@ -12,7 +12,7 @@ test('Pixi landmarks keep biome-specific geometry and remain readable @visual', 
     evidence[floor] = await page.evaluate(async targetFloor => {
       const { state, createDefaultCurrentRun } = await import('/src/state.js');
       const { dungeonRenderer } = await import('/src/renderer_runtime.js');
-      const { getProjectionColumn, getProjectionPlanes } = await import('/src/rules/renderer_projection.js');
+      const { getProjectionPlanes, getWorldObjectProjection } = await import('/src/rules/renderer_projection.js');
       const { getChestPropGeometry } = await import('/src/chest_prop.js');
       const { getFloorTheme } = await import('/src/data/floor_themes.js');
       const makeCell = () => ({
@@ -41,7 +41,7 @@ test('Pixi landmarks keep biome-specific geometry and remain readable @visual', 
       dungeonRenderer.draw();
       const input = dungeonRenderer.getRenderInput();
       const projection = getProjectionPlanes(input.visual.geometry, dungeonRenderer.viewport);
-      const chestPlane = getProjectionColumn(projection, 1);
+      const chestPlane = getWorldObjectProjection(projection, 1);
       const chest = getChestPropGeometry(chestPlane, input.visual.landmarks.chestStyle);
       return {
         style: getFloorTheme(targetFloor).visualSignature.landmarks,

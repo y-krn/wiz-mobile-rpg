@@ -5,6 +5,8 @@
 
 export const CANONICAL_VIEW = Object.freeze({ width: 400, height: 260 });
 export const PORTRAIT_NEAR_COVERAGE_MIN = 0.80;
+export const WORLD_OBJECT_CELL_DEPTH = 0.5;
+export const WORLD_OBJECT_SCALE_EXPONENT = 0.70;
 
 export const BASE_PROJECTION = Object.freeze({
   xl: Object.freeze([0, 100, 145, 170, 184]),
@@ -205,6 +207,64 @@ export function getProjectionColumn(projection, z, column = 0) {
     bottom: projection.yb[z],
     viewport: projection.viewport
   };
+}
+
+function interpolateProjectionColumn(near, far, amount) {
+  const lerp = (first, second) => first + (second - first) * amount;
+  return {
+    leftTop: lerp(near.leftTop, far.leftTop),
+    leftBottom: lerp(near.leftBottom, far.leftBottom),
+    rightTop: lerp(near.rightTop, far.rightTop),
+    rightBottom: lerp(near.rightBottom, far.rightBottom),
+    top: lerp(near.top, far.top),
+    bottom: lerp(near.bottom, far.bottom),
+    viewport: near.viewport
+  };
+}
+
+/**
+ * Shared placement for every dungeon world object.
+ *
+ * A prop occupies the middle of the same floor segment used by the corridor,
+ * so its contact Y and centre come from the projection rather than a portrait
+ * coordinate clamp. Its screen width uses one profile-derived easing curve;
+ * this keeps adjacent depth steps readable without giving any object its own
+ * distance tuning.
+ */
+export function getWorldObjectProjection(projection, z, column = 0) {
+  const maxDepth = Math.max(0, projection.xl.length - 2);
+  const depth = Math.max(0, Math.min(maxDepth, Math.floor(Number(z) || 0)));
+  const near = getProjectionColumn(projection, depth, column);
+  const far = getProjectionColumn(projection, depth + 1, column);
+  const placement = interpolateProjectionColumn(near, far, WORLD_OBJECT_CELL_DEPTH);
+  const corridorWidth = Math.max(1, placement.rightBottom - placement.leftBottom);
+  const referenceWidth = Math.max(1, projection.rightBottom[0] - projection.leftBottom[0]);
+  const objectWidth = referenceWidth * Math.pow(corridorWidth / referenceWidth, WORLD_OBJECT_SCALE_EXPONENT);
+  const fullNearCenterBottom = (projection.leftBottom[depth] + projection.rightBottom[depth]) / 2;
+  const fullFarCenterBottom = (projection.leftBottom[depth + 1] + projection.rightBottom[depth + 1]) / 2;
+  const fullNearCenterTop = (projection.leftTop[depth] + projection.rightTop[depth]) / 2;
+  const fullFarCenterTop = (projection.leftTop[depth + 1] + projection.rightTop[depth + 1]) / 2;
+  const centerBottom = column === 0
+    ? fullNearCenterBottom + (fullFarCenterBottom - fullNearCenterBottom) * WORLD_OBJECT_CELL_DEPTH
+    : (placement.leftBottom + placement.rightBottom) / 2;
+  const centerTop = column === 0
+    ? fullNearCenterTop + (fullFarCenterTop - fullNearCenterTop) * WORLD_OBJECT_CELL_DEPTH
+    : (placement.leftTop + placement.rightTop) / 2;
+  const floorContactY = placement.bottom - Math.max(1, corridorWidth * 0.005);
+  return Object.freeze({
+    ...placement,
+    leftTop: centerTop - objectWidth / 2,
+    rightTop: centerTop + objectWidth / 2,
+    leftBottom: centerBottom - objectWidth / 2,
+    rightBottom: centerBottom + objectWidth / 2,
+    worldObject: Object.freeze({
+      depth,
+      corridorWidth,
+      objectWidth,
+      floorContactY,
+      scale: objectWidth / corridorWidth
+    })
+  });
 }
 
 export function getCombatMonsterLayout(monsters, profile = getProjectionProfile()) {

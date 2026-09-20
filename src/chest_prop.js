@@ -3,6 +3,8 @@
 // Shared screen-space geometry for the dungeon chest prop.
 // Geometry stays renderer-neutral; Pixi owns the production presentation.
 
+import { getDungeonPropBase } from "./dungeon_prop.js";
+
 export const CHEST_PROP_STYLES = Object.freeze({
   wood_crate: Object.freeze({ body: "#6b3a00", lid: "#9a5d16", metal: "#f1c45b", outline: "#ffe29a", glow: "#ffd166", mark: "bands" }),
   stone_ossuary: Object.freeze({ body: "#5f5a58", lid: "#8c8580", metal: "#d8c9a5", outline: "#eee3c5", glow: "#d5c7a0", mark: "cross" }),
@@ -13,8 +15,6 @@ export const CHEST_PROP_STYLES = Object.freeze({
 });
 
 const DEFAULT_STYLE = "wood_crate";
-const SHORT_PORTRAIT_MAX_HEIGHT = 600;
-const SHORT_PORTRAIT_FLOOR_RATIO = 0.64;
 
 export function getChestPropStyle(style) {
   return Object.hasOwn(CHEST_PROP_STYLES, style) ? style : DEFAULT_STYLE;
@@ -45,19 +45,9 @@ function makeLidPoints(x, y, width, height, style) {
 }
 
 export function getChestPropGeometry(plane, style = DEFAULT_STYLE) {
-  const left = Number(plane?.leftBottom) || 0;
-  const right = Number(plane?.rightBottom) || left;
-  const bottom = Number(plane?.bottom) || 0;
-  const corridorWidth = Math.max(1, right - left);
-  const width = corridorWidth * 0.30;
+  const { width, centerX, baseY } = getDungeonPropBase(plane, 0.30);
   const bodyHeight = Math.max(4, width * 0.43);
   const lidHeight = Math.max(3, width * 0.25);
-  const centerX = (left + right) / 2;
-  const projectedBaseY = bottom - Math.max(1, width * 0.018);
-  const shortPortrait = plane?.viewport?.orientation === "portrait" && plane.viewport.height <= SHORT_PORTRAIT_MAX_HEIGHT;
-  const baseY = shortPortrait
-    ? Math.min(projectedBaseY, plane.viewport.height * SHORT_PORTRAIT_FLOOR_RATIO)
-    : projectedBaseY;
   const bodyX = centerX - width / 2;
   const bodyY = baseY - bodyHeight;
   const safeStyle = getChestPropStyle(style);

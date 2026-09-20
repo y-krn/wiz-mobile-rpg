@@ -19,7 +19,7 @@ async function renderObject(page, object) {
     const { updateUI } = await import('/src/ui.js');
     const { closeSubmenu } = await import('/src/navigation.js');
     const { dungeonRenderer } = await import('/src/renderer.js');
-    const { getProjectionColumn, getProjectionPlanes } = await import('/src/rules/renderer_projection.js');
+    const { getProjectionColumn, getProjectionPlanes, getWorldObjectProjection } = await import('/src/rules/renderer_projection.js');
     const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
     const { getChestPropGeometry } = await import('/src/chest_prop.js');
     const { getMonumentPropGeometry, getSpringPropGeometry, getStairsPropGeometry } = await import('/src/dungeon_prop.js');
@@ -57,8 +57,8 @@ async function renderObject(page, object) {
 
     const input = dungeonRenderer.getRenderInput();
     const projection = getProjectionPlanes(input.visual.geometry, dungeonRenderer.viewport);
-    const plane = getProjectionColumn(projection, 1, 0);
-    const nextPlane = getProjectionColumn(projection, 2, 0);
+    const plane = getWorldObjectProjection(projection, 1, 0);
+    const wallPlane = getProjectionColumn(projection, 2, 0);
     const topologyCell = getVisibleCorridorTopology(map, state.x, state.y, state.dir)
       .find(cell => cell.z === 1 && cell.column === 0);
     const geometry = target.id === 'chest'
@@ -94,8 +94,8 @@ async function renderObject(page, object) {
         frontWall: topologyCell?.frontWall || false,
         frontBlocked: topologyCell?.frontBlocked || false,
       },
-      plane: { bottom: plane.bottom, width: plane.rightBottom - plane.leftBottom },
-      wallPlane: { top: nextPlane.top, bottom: nextPlane.bottom },
+      plane: { bottom: plane.bottom, width: plane.rightBottom - plane.leftBottom, floorContactY: plane.worldObject.floorContactY },
+      wallPlane: { top: wallPlane.top, bottom: wallPlane.bottom },
       prop: {
         width: geometry.width,
         baseY: geometry.baseY,
@@ -107,7 +107,7 @@ async function renderObject(page, object) {
           : target.id === 'monument'
             ? geometry.face.length + geometry.inscriptionLines.length
             : geometry.steps.length,
-        depthScale: geometry.width / Math.max(1, plane.rightBottom - plane.leftBottom),
+        depthScale: plane.worldObject.scale,
         objectTop,
         objectBottom,
         controlsTop,

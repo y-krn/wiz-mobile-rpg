@@ -3,8 +3,6 @@
 // Renderer-neutral screen-space geometry for non-chest dungeon landmarks.
 
 const DEFAULT_STAIR_STYLE = "rough_stone";
-export const SHORT_PORTRAIT_MAX_HEIGHT = 600;
-export const SHORT_PORTRAIT_FLOOR_RATIO = 0.64;
 
 export const STAIR_PROP_STYLES = Object.freeze({
   rough_stone: Object.freeze({ stepCount: 4, slope: 0.92 }),
@@ -23,18 +21,14 @@ function safeStairStyle(style) {
   return Object.hasOwn(STAIR_PROP_STYLES, style) ? style : DEFAULT_STAIR_STYLE;
 }
 
-function getPlaneBase(plane, widthRatio) {
+export function getDungeonPropBase(plane, widthRatio) {
   const left = Number(plane?.leftBottom) || 0;
   const right = Number(plane?.rightBottom) || left;
   const bottom = Number(plane?.bottom) || 0;
-  const corridorWidth = Math.max(1, right - left);
+  const corridorWidth = Math.max(1, Number(plane?.worldObject?.objectWidth) || right - left);
   const width = Math.max(8, corridorWidth * widthRatio);
-  const projectedBaseY = bottom - Math.max(1, width * 0.018);
-  const viewport = plane?.viewport;
-  const shortPortrait = viewport?.orientation === "portrait" && viewport.height <= SHORT_PORTRAIT_MAX_HEIGHT;
-  const baseY = shortPortrait
-    ? Math.min(projectedBaseY, viewport.height * SHORT_PORTRAIT_FLOOR_RATIO)
-    : projectedBaseY;
+  const baseY = Number(plane?.worldObject?.floorContactY) ||
+    bottom - Math.max(1, corridorWidth * 0.005);
   return {
     corridorWidth,
     width,
@@ -44,7 +38,7 @@ function getPlaneBase(plane, widthRatio) {
 }
 
 export function getSpringPropGeometry(plane) {
-  const { width, centerX, baseY } = getPlaneBase(plane, 0.42);
+  const { width, centerX, baseY } = getDungeonPropBase(plane, 0.42);
   const basinY = baseY - width * 0.13;
   const fountainTop = basinY - width * 0.34;
   const pedestalTop = basinY + width * 0.01;
@@ -76,7 +70,7 @@ export function getSpringPropGeometry(plane) {
 }
 
 export function getMonumentPropGeometry(plane) {
-  const { width, centerX, baseY } = getPlaneBase(plane, 0.36);
+  const { width, centerX, baseY } = getDungeonPropBase(plane, 0.36);
   const height = Math.max(12, width * 0.84);
   const bodyBottom = baseY - width * 0.09;
   const bodyTop = bodyBottom - height;
@@ -125,7 +119,7 @@ export function getMonumentPropGeometry(plane) {
 }
 
 export function getStairsPropGeometry(plane, direction = "down", style = DEFAULT_STAIR_STYLE) {
-  const { width, centerX, baseY } = getPlaneBase(plane, 0.62);
+  const { width, centerX, baseY } = getDungeonPropBase(plane, 0.62);
   const safeStyle = safeStairStyle(style);
   const profile = STAIR_PROP_STYLES[safeStyle];
   const stepCount = profile.stepCount;

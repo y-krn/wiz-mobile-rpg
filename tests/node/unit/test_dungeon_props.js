@@ -2,9 +2,7 @@ import assert from "assert";
 import {
   getMonumentPropGeometry,
   getSpringPropGeometry,
-  getStairsPropGeometry,
-  SHORT_PORTRAIT_FLOOR_RATIO,
-  SHORT_PORTRAIT_MAX_HEIGHT
+  getStairsPropGeometry
 } from "../../../src/dungeon_prop.js";
 
 const nearPlane = { leftBottom: 110, rightBottom: 290, bottom: 208 };
@@ -35,15 +33,14 @@ assert.notDeepStrictEqual(monument.face, stairs.steps[0].points, "monument and s
 const shortPortraitPlane = {
   ...nearPlane,
   bottom: 520,
-  viewport: { orientation: "portrait", height: SHORT_PORTRAIT_MAX_HEIGHT - 32 }
+  viewport: { orientation: "portrait", height: 568 }
 };
 const shortPortraitSpring = getSpringPropGeometry(shortPortraitPlane);
 const shortPortraitMonument = getMonumentPropGeometry(shortPortraitPlane);
 const shortPortraitStairs = getStairsPropGeometry(shortPortraitPlane, "down", "rough_stone");
-const shortPortraitFloorY = shortPortraitPlane.viewport.height * SHORT_PORTRAIT_FLOOR_RATIO;
-assert.equal(shortPortraitSpring.baseY, shortPortraitFloorY, "short portrait spring uses a visible floor anchor");
-assert.equal(shortPortraitMonument.baseY, shortPortraitFloorY, "short portrait monument uses a visible floor anchor");
-assert.equal(shortPortraitStairs.baseY, shortPortraitFloorY, "short portrait stairs use a visible floor anchor");
+assert.ok(shortPortraitSpring.baseY < shortPortraitPlane.bottom, "short portrait spring follows the projected floor");
+assert.ok(shortPortraitMonument.baseY < shortPortraitPlane.bottom, "short portrait monument follows the projected floor");
+assert.ok(shortPortraitStairs.baseY < shortPortraitPlane.bottom, "short portrait stairs follow the projected floor");
 assert.ok(shortPortraitSpring.shadow.y < shortPortraitPlane.viewport.height, "short portrait spring stays inside the viewport");
 
 console.log("[PASS] dungeon spring, monument, and stairs prop geometry contracts");
