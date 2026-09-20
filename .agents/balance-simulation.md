@@ -210,43 +210,10 @@ Pending rewards that do not enter the ledger are issued production loot IDs and
 resolved through the production pending-disposition helper, so `discarded` and
 `left` are measured explicitly rather than accepted as omitted stages.
 
-## Issue #1096 payment vector evidence
+## Payment and stake observation ownership
 
-`scratch/measurements/build_payment_measurement.js` is the dedicated observation
-runner for the six Build Snapshot fixtures. It delegates to the canonical
-`simulateRun` path and measures per-run action mix, combat/round cost, HP/MP
-pressure, physical and status Guard mitigation, Rune casts and unused sockets, Core/Support
-exposure/adoption/firing/dead-support observations, exploration Support observed-use proxies, equipment
-adoption/build shifts, bag occupancy, and Portal Push/Return/Wing resource
-state. A deliberate measurement uses the standard two workshop scenarios, B5,
-B10, B15, and B20, and N>=500 per fixture/depth/scenario.
-
-The runner writes a machine-readable JSON record and an optional durable
-Markdown summary; deliberate runs also require an explicit post-measurement
-decision input. The record includes schema and runner version, fixture and
-scenario identity, seed/configuration key, source and `origin/main` ancestry,
-clean-tree status, quantiles/counts, and a repeated-task determinism probe.
-Object-loot ownership for Rune/Core/Support and unconfirmed Portal loot are
-measured from the production `currentRun.unbankedObjectLoot` ledger; pending
-`discarded`/`left` outcomes use production loot IDs; item value proxy remains
-`not_modeled`. Equipment-
-affix ownership fields are observed proxies. This evidence classifies the result as numeric balance change,
-additional observation, or a follow-up balance Issue; it does not tune values,
-equalize win rates, or make player recommendations.
-The committed decision input and review summary live under
-`evidence/results/issue-1096-build-payment-*` and
-`evidence/results/issue-1100-build-payment-stake-*`.
-
-## Issue #1100 unconfirmed object-loot stake evidence
-
-`scratch/measurements/build_payment_stake_measurement.js` preserves the #1096
-Build Snapshot payment vector and adds production-backed stake snapshots at
-reward resolution, Portal decision, Wing salvage, and terminal settlement
-boundaries. Each snapshot records count, equipment/Rune/consumable/other
-composition, bag/equipped/active-Rune location, Rune supply band,
-Core/Support/Main/Aux, reinforce/convert/pivot, identification/curse state,
-and bag occupancy. The same production loot IDs are used to report
-found/bagged/consumed/discarded/left/banked/salvaged/lost counts. TOWN_PORTAL
-settlement is measured as Wing for every acquisition source. It uses the
-standard six fixtures, workshop scenarios, B5/B10/B15/B20, and N>=500 per
-case; it does not tune balance values or make a player recommendation.
+Payment and object-loot stake observations belong to the canonical simulator.
+The canonical `simulateRun` path observes production action classification,
+resource cost, Portal state, `currentRun.unbankedObjectLoot`, and settlement
+lifecycle without creating a second gameplay ledger. Historical rationale,
+results, and review decisions remain under `evidence/`.

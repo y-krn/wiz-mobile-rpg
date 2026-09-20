@@ -49,6 +49,10 @@ assert.ok(report.candidateProfile.replacementMass > 0);
 assert.equal(report.fixedCombat.riskDistribution["100:fight"].compositionCount, 43);
 assert.equal(report.fixedCombat.riskDistribution["100:fight"].risk.count, 43);
 for (const [caseId, result] of Object.entries(report.cases)) {
+  assert.equal(
+    result.configuration.earlyCompositionPolicy,
+    caseId === "cadence-first-single" ? "suppress-first-multi" : "baseline"
+  );
   assert.equal(typeof result.metrics.b1DeathRate, "number");
   assert.equal(typeof result.metrics.b2ArrivalRate, "number");
   assert.equal(typeof result.metrics.byEncounterOrdinal["1"].pair.exposureRate, "number");
@@ -62,6 +66,10 @@ for (const [caseId, result] of Object.entries(report.cases)) {
   assert.equal(typeof result.metrics.byEncounterOrdinal["1"].generatedPair.deathRate, "number");
   const ordinal1 = result.metrics.byEncounterOrdinal["1"];
   const ordinal2 = result.metrics.byEncounterOrdinal["2"];
+  assert.ok(ordinal1.generatedPairExposureRate >= ordinal1.effectivePairExposureRate);
+  assert.ok(ordinal2.generatedPairExposureRate >= ordinal2.effectivePairExposureRate);
+  assert.ok(ordinal1.generatedPairEncounters >= ordinal1.effectivePairEncounters);
+  assert.ok(ordinal2.generatedPairEncounters >= ordinal2.effectivePairEncounters);
   const candidateActions = ordinal1.candidateActions;
   assert.ok(candidateActions && Object.keys(candidateActions).length > 0);
   assert.ok(!Object.hasOwn(candidateActions, "release-deferred"));
