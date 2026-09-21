@@ -26,6 +26,7 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: "scratch/measurements/fixed_combat_composition_diagnostic.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/early_b1f_composition_diagnostic.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/equipment_load_measurement.js", lifecycle: "reusable", scope: "run" },
+  { path: "scratch/measurements/production_gear_decomposition_measurement.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/simulations/sim_parallel.js", lifecycle: "reusable", scope: "infra" },
   { path: "scratch/simulations/sim_parallel_worker.js", lifecycle: "reusable", scope: "infra" }
 ]);

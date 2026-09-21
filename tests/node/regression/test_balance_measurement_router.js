@@ -91,6 +91,16 @@ const ROUTER_CONTRACTS = [
     override: { input: { runs: 1001, seed: 1171 }, expected: { runs: 1001, seed: 1171 } }
   },
   {
+    id: "production-gear-decomposition",
+    runner: "scratch/measurements/production_gear_decomposition_measurement.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1173, fixedSeed: 1151 },
+    args: nativeArgs("--ref", "main", "--runs", "1000", "--seed", "1173", "--fixed-seed", "1151"),
+    override: { input: { runs: 1001, seed: 1174, fixed_seed: 1152 }, expected: { runs: 1001, seed: 1174, fixedSeed: 1152 } }
+  },
+  {
     id: "run-difficulty",
     runner: "scratch/measurements/measure_run_difficulty.js",
     adapter: "native-manifest",
@@ -271,6 +281,7 @@ assert.deepEqual(Object.keys(MEASUREMENT_FAMILIES), [
   "early-b1f-composition",
   "fixed-combat-composition",
   "equipment-load",
+  "production-gear-decomposition",
   "run-difficulty",
   "early-run",
   "survival-policy",
@@ -339,6 +350,7 @@ for (const measurement of [
   "early-b1f-composition",
   "fixed-combat-composition",
   "equipment-load",
+  "production-gear-decomposition",
   "run-difficulty-policy-sensitivity",
   "early-run-attrition",
   "b3plus-survival-decomposition",

@@ -108,6 +108,12 @@ const equipmentLoadArgs = ({ options, output }) => [
   ...outputArgs(output, ["output", "summary"])
 ];
 
+const productionGearDecompositionArgs = ({ options, output }) => nativeMeasurementArgs({
+  options,
+  output,
+  afterSeed: ["--fixed-seed", String(options.fixedSeed)]
+});
+
 const runDifficultyArgs = ({ options, output }) => nativeMeasurementArgs({
   options,
   output,
@@ -184,6 +190,15 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
     buildArgs: equipmentLoadArgs
+  }),
+  "production-gear-decomposition": freezeFamily({
+    runner: "scratch/measurements/production_gear_decomposition_measurement.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: productionGearDecompositionArgs
   }),
   "run-difficulty": freezeFamily({
     runner: "scratch/measurements/measure_run_difficulty.js",
@@ -288,6 +303,12 @@ const PROFILE_LIST = [
     label: "Equipment-load measurement",
     family: "equipment-load",
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1170 }
+  },
+  {
+    id: "production-gear-decomposition",
+    label: "Production gear performance decomposition diagnostic",
+    family: "production-gear-decomposition",
+    defaults: { runs: 1000, minimumRuns: 1000, seed: 1173, fixedSeed: 1151 }
   },
   {
     id: "run-difficulty",
