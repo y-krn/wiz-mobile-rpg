@@ -304,14 +304,15 @@ function isUsableVisitedMaps(visitedMaps, maps) {
 }
 
 function normalizePersistedGameState(gameState, currentRun, combatState) {
-  const hasActiveRunSeed = isNormalizedRunSeed(currentRun?.runSeed) && !currentRun.returnReason;
+  const hasCanonicalRunSeed = isNormalizedRunSeed(currentRun?.runSeed);
+  const hasActiveRunSeed = hasCanonicalRunSeed && !currentRun.returnReason;
   if (gameState === "combat") {
     if (isUsableCombatState(combatState)) return "combat";
     return hasActiveRunSeed ? "explore" : "town";
   }
   if (PERSISTED_GAME_STATES.has(gameState)) return gameState;
   if (["equip_overlay", "chest", "trap_encounter"].includes(gameState)) return "explore";
-  if (gameState === "submenu") return hasActiveRunSeed ? "explore" : "town";
+  if (gameState === "submenu") return hasCanonicalRunSeed ? "explore" : "town";
   if (hasActiveRunSeed) return "explore";
   return "town";
 }

@@ -55,6 +55,10 @@ const activeSave = normalizeSavePayload({
 });
 assert.equal(activeSave.gameState, "explore", "valid seed remains a seed-backed active run");
 assert.equal(activeSave.currentRun.runSeed, "active-run-seed");
+assert.equal(normalizeSavePayload({
+  gameState: "submenu",
+  currentRun: { ...baseRun, runSeed: "returned-run-seed", returnReason: "retreat" }
+}).gameState, "explore", "submenu preserves canonical seeded run with returnReason");
 assert.deepEqual(
   normalizeSavePayload(JSON.parse(JSON.stringify(activeSave))),
   activeSave,
