@@ -59,7 +59,6 @@ jobs:
       ISSUE_1471_SAMPLE: ${{ matrix.source }}-${{ matrix.mode }}-w${{ matrix.worker }}-r${{ matrix.repeat }}
       ISSUE_1471_MODE: ${{ matrix.mode }}
       ISSUE_1471_REPEAT: ${{ matrix.repeat }}
-      ISSUE_1471_EVIDENCE_DIR: ${{ runner.temp }}/issue-1471
     steps:
       - name: Checkout source under test
         uses: actions/checkout@v4
@@ -81,6 +80,8 @@ jobs:
       - name: Initialize sample diagnostics
         run: |
           set -euo pipefail
+          export ISSUE_1471_EVIDENCE_DIR="$RUNNER_TEMP/issue-1471"
+          echo "ISSUE_1471_EVIDENCE_DIR=$ISSUE_1471_EVIDENCE_DIR" >> "$GITHUB_ENV"
           mkdir -p "$ISSUE_1471_EVIDENCE_DIR"
           date +%s%3N > "$ISSUE_1471_EVIDENCE_DIR/job-start-ms"
           {
