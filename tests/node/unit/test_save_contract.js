@@ -43,6 +43,8 @@ assert.equal(isNormalizedCurrentRun({ ...normalizedRun, floorSteps: [] }), false
   "malformed container core field is rejected");
 assert.equal(isNormalizedCurrentRun({ ...normalizedRun, outcome: "invalid" }), false,
   "invalid outcome is rejected");
+assert.equal(isNormalizedSavePayload({ ...valid, deathLogs: [{ id: "raw" }] }), false,
+  "unnormalized global death history is rejected");
 assert.equal(isNormalizedCurrentRun({ ...normalizedRun, runSeed: undefined }), true,
   "runSeed is not required");
 

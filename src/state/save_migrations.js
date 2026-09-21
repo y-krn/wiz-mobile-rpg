@@ -53,6 +53,7 @@ import {
   normalizeRunWorkshopDiscoveries
 } from "./run_discovery_state.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
+import { normalizeDeathHistory, normalizeRunDeathLogs } from "./death_logs.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
 
@@ -560,31 +561,6 @@ function normalizeRunHistoryEntry(entry) {
   return normalized;
 }
 
-function normalizeDeathLogEntry(entry) {
-  if (!isRecord(entry)) return null;
-  const normalized = { ...entry };
-  if (Object.hasOwn(entry, "floor")) normalized.floor = Math.max(1, integerOr(entry.floor, 1));
-  if (Object.hasOwn(entry, "x")) normalized.x = integerOr(entry.x, 0);
-  if (Object.hasOwn(entry, "y")) normalized.y = integerOr(entry.y, 0);
-  if (Object.hasOwn(entry, "deepestFloor")) {
-    normalized.deepestFloor = Math.max(1, integerOr(entry.deepestFloor, 1));
-  }
-  if (Object.hasOwn(entry, "kills")) normalized.kills = Math.max(0, integerOr(entry.kills, 0));
-  if (Object.hasOwn(normalized, "lostItems") && !Array.isArray(normalized.lostItems)) {
-    normalized.lostItems = [];
-  }
-  if (Object.hasOwn(normalized, "character") && normalized.character !== null && !isRecord(normalized.character)) {
-    normalized.character = null;
-  }
-  if (isRecord(normalized.character) && Object.hasOwn(normalized.character, "level")) {
-    normalized.character = {
-      ...normalized.character,
-      level: Math.max(1, integerOr(normalized.character.level, 1))
-    };
-  }
-  return normalized;
-}
-
 function normalizePendingRewardBundle(bundle) {
   if (!isRecord(bundle) || !Array.isArray(bundle.entries)) return null;
   const entries = bundle.entries
@@ -760,9 +736,7 @@ function normalizeCurrentRun(run, saveFloor) {
   });
   delete normalized.eliteOmenSteps;
   normalized.lootSequence = Math.max(0, Math.floor(Number(normalized.lootSequence) || 0));
-  normalized.deathLogs = normalized.deathLogs
-    .map(normalizeDeathLogEntry)
-    .filter(isRecord);
+  normalized.deathLogs = normalizeRunDeathLogs(run.deathLogs);
   return normalized;
 }
 
@@ -942,9 +916,7 @@ export function normalizeSavePayload(data) {
   normalized.runHistory = Array.isArray(data.runHistory)
     ? data.runHistory.map(normalizeRunHistoryEntry).filter(isRecord).slice(0, 20)
     : [];
-  normalized.deathLogs = arrayOr(data.deathLogs)
-    .map(normalizeDeathLogEntry)
-    .filter(isRecord);
+  normalized.deathLogs = normalizeDeathHistory(data.deathLogs);
   normalized.codex = recordOr(data.codex, createDefaultCodex());
   normalized.codex.equipment = Object.fromEntries(
     Object.entries(recordOr(normalized.codex.equipment, {}))

@@ -69,6 +69,7 @@ import {
   type NormalizedRunCodexDiscoveries,
   type NormalizedRunWorkshopDiscoveries
 } from "./run_discovery_state.js";
+import { isNormalizedRunDeathLogs, type NormalizedRunDeathLogs } from "./death_logs.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -115,7 +116,7 @@ export interface NormalizedCurrentRun {
   dangerScore: number;
   returnReason: string;
   outcome: RunOutcome;
-  deathLogs: unknown[];
+  deathLogs: NormalizedRunDeathLogs;
   campRested: NormalizedCampRested;
   pendingCampEntryFloor: NormalizedPendingCampEntryFloor;
   completedCampEntryFloors: NormalizedCompletedCampEntryFloors;
@@ -143,10 +144,6 @@ const NUMBER_FIELDS = [
   "trapsTriggered", "trapsDisarmed", "expGained", "dangerScore"
 ] as const;
 
-const ARRAY_FIELDS = [
-  "deathLogs"
-] as const;
-
 const ITEM_COLLECTION_FIELDS = [
   "townInventory", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems",
   "itemsFound", "equipmentFound", "departureItems"
@@ -163,7 +160,7 @@ const REQUIRED_FIELDS = [
   "defeatedMilestones", "visitedMilestoneMerchants",
   "materials", "bankedMaterials", "defeatsByRole",
   "codexRewards",
-  ...ARRAY_FIELDS,
+  "deathLogs",
   "firstKillsBefore", "keyItemsBefore", "codexDiscoveries", "workshopDiscoveries",
   ...ITEM_COLLECTION_FIELDS
 ] as const;
@@ -213,7 +210,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (Object.hasOwn(value, "runSeed") && value.runSeed !== undefined && !isNormalizedRunSeed(value.runSeed)) {
     return false;
   }
-  if (!ARRAY_FIELDS.every(field => Array.isArray(value[field]))) return false;
+  if (!isNormalizedRunDeathLogs(value.deathLogs)) return false;
   if (!isNormalizedRunQuestCollection(value.quests)) return false;
   if (!isNormalizedDefeatsByRole(value.defeatsByRole)) return false;
   if (!isNormalizedRunFirstKillsBefore(value.firstKillsBefore) ||
