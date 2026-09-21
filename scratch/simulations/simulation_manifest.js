@@ -153,6 +153,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/data/progression.js", domains: ["progression"] },
     { pattern: "src/data/magic.js", domains: ["combat", "equipment", "chests"] },
     { pattern: "src/state/inventory_state.js", domains: ["economy"] },
+    { pattern: "src/state/records_state.js", domains: [] },
+    { pattern: "src/state/records_state.ts", domains: [] },
     { pattern: "src/state/run_loot.js", domains: ["economy"] },
     { pattern: "src/state/run_floor_state.js", domains: ["maps", "combat"] },
     { pattern: "src/rules/character_stats.js", domains: ["combat", "equipment", "traps"] },
