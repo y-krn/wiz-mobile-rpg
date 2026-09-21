@@ -151,6 +151,43 @@ function timingFixture(playerHp, monsterAtk) {
   };
 }
 
+function spellTimingFixture(playerHp) {
+  return {
+    party: [{
+      name: "Spell Tester",
+      level: 1,
+      hp: playerHp,
+      maxHp: 100,
+      mp: 10,
+      maxMp: 10,
+      int: 10,
+      status: "ok",
+      equipment: { weapon: "WAND", shield: null, armor: null, accessory: null },
+      mediumState: { mediumKey: "WAND", socketedRunes: ["RUNE_HALITO"] }
+    }],
+    combatState: {
+      monsters: [{
+        name: "Spell Target",
+        hp: 100,
+        maxHp: 100,
+        atk: 10,
+        def: 0,
+        row: "front",
+        status: "ok"
+      }],
+      roundNumber: 1,
+      phase: "choose_actions"
+    },
+    inventory: [],
+    firstKills: [],
+    codex: null,
+    currentRun: { itemsFound: [], equipmentFound: [], deathLogs: [] },
+    floorChestsTotal: [],
+    roamingMonsters: [],
+    floor: 1
+  };
+}
+
 let randomValues = [];
 {
   randomValues = [0, 0.99];
@@ -169,6 +206,24 @@ let randomValues = [];
   assert.deepEqual(preempted.actionObservations, [
     { actor: "monster", actionType: "enemy", order: 0, executed: true },
     { actor: "char", actionType: "fight", order: 1, executed: false }
+  ]);
+
+  randomValues = [0.99, 0, 0];
+  const spellExecuted = runCombatRoundCalculation(spellTimingFixture(100), {
+    actions: [{ type: "spell", actorIdx: 0, targetIdx: 0, spellName: "HALITO" }]
+  }, { rng: () => randomValues.shift() ?? 0 });
+  assert.deepEqual(spellExecuted.actionObservations, [
+    { actor: "char", actionType: "spell", order: 0, executed: true },
+    { actor: "monster", actionType: "enemy", order: 1, executed: true }
+  ]);
+
+  randomValues = [0, 0.99, 0];
+  const spellPreempted = runCombatRoundCalculation(spellTimingFixture(1), {
+    actions: [{ type: "spell", actorIdx: 0, targetIdx: 0, spellName: "HALITO" }]
+  }, { rng: () => randomValues.shift() ?? 0 });
+  assert.deepEqual(spellPreempted.actionObservations, [
+    { actor: "monster", actionType: "enemy", order: 0, executed: true },
+    { actor: "char", actionType: "spell", order: 1, executed: false }
   ]);
 }
 

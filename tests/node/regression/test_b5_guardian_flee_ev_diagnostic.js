@@ -177,4 +177,16 @@ assert.equal(selectedOpeningPreempted.fleeDeferredByOpening, true);
 assert.equal(selectedOpeningPreempted.executed, false);
 assert.equal(selectedOpeningPreempted.executedAction, null);
 
+const selectedSpellExecuted = finalizeB5GuardianDecisionTrace({
+  actualAction: { type: "spell", itemKey: null, spellName: "HALITO" }
+}, { actionObservation: { executed: true } });
+assert.equal(selectedSpellExecuted.executed, true);
+assert.deepEqual(selectedSpellExecuted.executedAction, selectedSpellExecuted.actualAction);
+
+const selectedSpellPreempted = finalizeB5GuardianDecisionTrace({
+  actualAction: { type: "spell", itemKey: null, spellName: "HALITO" }
+}, { actionObservation: { executed: false } });
+assert.equal(selectedSpellPreempted.executed, false);
+assert.equal(selectedSpellPreempted.executedAction, null);
+
 console.log("[PASS] B5 Guardian first-decision EV observation, invariance, and N=1");
