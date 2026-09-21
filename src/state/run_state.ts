@@ -54,6 +54,10 @@ import {
   type NormalizedRunReturnProcessing,
   type NormalizedRunWorkshopUnlock
 } from "./run_return_state.js";
+import {
+  isNormalizedRunRecordResult,
+  type NormalizedRunRecordResult
+} from "./run_record_result.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -119,7 +123,7 @@ export interface NormalizedCurrentRun {
   keyItemsBefore: unknown[];
   codexDiscoveries: unknown[];
   workshopDiscoveries: unknown[];
-  recordResult: unknown;
+  recordResult: NormalizedRunRecordResult | null;
   runSeed?: NormalizedRunSeed;
   [key: string]: unknown;
 }
@@ -212,6 +216,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!isNormalizedRunInsights(value.codexInsights)) return false;
   if (!isNormalizedWorkshopUnlocks(value.workshopUnlocks)) return false;
   if (value.returnProcessing !== null && !isNormalizedReturnProcessing(value.returnProcessing)) return false;
+  if (value.recordResult !== null && !isNormalizedRunRecordResult(value.recordResult)) return false;
   return true;
 }
 

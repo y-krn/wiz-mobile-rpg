@@ -44,6 +44,7 @@ import {
   normalizeWorkshopUnlocks,
   normalizeReturnProcessing
 } from "./run_return_state.js";
+import { normalizeRunRecordResult } from "./run_record_result.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -725,6 +726,7 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.codexInsights = normalizeRunInsights(normalized.codexInsights);
   normalized.workshopUnlocks = normalizeWorkshopUnlocks(normalized.workshopUnlocks);
   normalized.returnProcessing = normalizeReturnProcessing(normalized.returnProcessing);
+  normalized.recordResult = normalizeRunRecordResult(normalized.recordResult);
   normalized.trialBands = normalizeTrialBands(normalized.trialBands);
   normalized.eliteFloors = normalizeEliteFloors(normalized.eliteFloors);
   normalized.eliteDefeatedFloors = normalizeEliteDefeatedFloors(normalized.eliteDefeatedFloors);
@@ -908,13 +910,6 @@ export function normalizeSavePayload(data) {
   normalized.currentRun = currentRun;
   if (normalized.currentRun) {
     normalized.currentRun = normalizeCurrentRun(normalized.currentRun, normalized.floor);
-    if (isRecord(normalized.currentRun.recordResult)) {
-      delete normalized.currentRun.recordResult.className;
-      normalized.currentRun.recordResult.updates = arrayOr(normalized.currentRun.recordResult.updates)
-        .filter(update => typeof update === "string" && (
-          update === "最深到達記録" || update === "撤退最深" || update === "死亡最深" || !update.endsWith("最深")
-        ));
-    }
     delete normalized.currentRun.seenOmenFloors;
     delete normalized.currentRun.matchedOmenFloors;
   }
