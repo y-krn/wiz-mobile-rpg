@@ -17,6 +17,7 @@ import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 import { isRuntimeItemCollection, isRuntimeItemRef } from "./item.js";
 import { isNormalizedPendingRewardBundle } from "./pending_reward.js";
 import { normalizeRunQuest } from "./run_quest.js";
+import { normalizeTrialBands } from "./trial_band.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -734,12 +735,7 @@ function normalizeCurrentRun(run) {
       recoveredEquipmentCount: Math.max(0, integerOr(normalized.returnProcessing.recoveredEquipmentCount, 0))
     }
     : null;
-  normalized.trialBands = Object.fromEntries(
-    Object.entries(normalized.trialBands).filter(([bandIndex, trial]) =>
-      Number.isInteger(Number(bandIndex)) && Number(bandIndex) >= 0 &&
-      isRecord(trial) && typeof trial.mainId === "string" && typeof trial.subId === "string"
-    )
-  );
+  normalized.trialBands = normalizeTrialBands(normalized.trialBands);
   normalized.eliteFloors = Object.fromEntries(
     Object.entries(normalized.eliteFloors).filter(([floor, elite]) =>
       /^\d+$/.test(floor) && Number(floor) >= 1 && isRecord(elite)
