@@ -130,7 +130,6 @@ function makeCurrentRun(condition) {
   }));
   currentRun.defeatsByRole = { beast: condition.runHistory, undead: Math.floor(condition.runHistory / 2) };
   currentRun.floorsVisited = Array.from({ length: Math.min(20, Math.max(1, Math.floor(condition.runHistory / 8))) }, (_, index) => index + 1);
-  currentRun.firstKills = Array.from({ length: Math.min(100, Math.floor(condition.runHistory / 5)) }, (_, index) => `初討伐${index}`);
   return currentRun;
 }
 

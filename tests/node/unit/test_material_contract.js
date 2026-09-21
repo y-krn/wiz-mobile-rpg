@@ -68,7 +68,6 @@ const normalized = normalizeSavePayload({
     materials: rawMaterials,
     bankedMaterials: { "banked-only": 5, "霊粉": 0 },
     codexRewards: saveCodexRewards,
-    firstKills: ["history-only"],
     codexDiscoveries: ["codex-state-only"]
   }
 }).currentRun;
@@ -77,7 +76,7 @@ assert.deepEqual(normalized.bankedMaterials, { "banked-only": 5, "霊粉": 0 },
   "save boundary canonicalizes bankedMaterials independently");
 assert.deepEqual(normalized.codexRewards, saveCodexRewards,
   "save boundary canonicalizes codexRewards independently");
-assert.deepEqual(normalized.firstKills, ["history-only"], "firstKills remain independent");
+assert.equal(Object.hasOwn(normalized, "firstKills"), false, "retired currentRun.firstKills is omitted");
 assert.deepEqual(normalized.codexDiscoveries, ["codex-state-only"], "codex state remains independent");
 assert.equal(normalized.materials["banked-only"], undefined,
   "materials are not repaired from bankedMaterials");

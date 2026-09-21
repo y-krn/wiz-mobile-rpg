@@ -46,6 +46,12 @@ import {
 } from "./run_return_state.js";
 import { normalizeRunRecordResult } from "./run_record_result.js";
 import { normalizeStartingKitId } from "./starting_kit.js";
+import {
+  normalizeRunFirstKillsBefore,
+  normalizeRunKeyItemsBefore,
+  normalizeRunCodexDiscoveries,
+  normalizeRunWorkshopDiscoveries
+} from "./run_discovery_state.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -544,6 +550,12 @@ function normalizeRunHistoryEntry(entry) {
   if (Object.hasOwn(normalized, "returnProcessing")) {
     normalized.returnProcessing = normalizeReturnProcessing(normalized.returnProcessing);
   }
+  if (Object.hasOwn(entry, "codexDiscoveries")) {
+    normalized.codexDiscoveries = normalizeRunCodexDiscoveries(entry.codexDiscoveries);
+  }
+  if (Object.hasOwn(entry, "workshopDiscoveries")) {
+    normalized.workshopDiscoveries = normalizeRunWorkshopDiscoveries(entry.workshopDiscoveries);
+  }
   return normalized;
 }
 
@@ -693,6 +705,11 @@ function normalizeCurrentRun(run, saveFloor) {
       normalized[key] = normalized[key] ?? defaultValue;
     }
   });
+  normalized.firstKillsBefore = normalizeRunFirstKillsBefore(run.firstKillsBefore);
+  normalized.keyItemsBefore = normalizeRunKeyItemsBefore(run.keyItemsBefore);
+  normalized.codexDiscoveries = normalizeRunCodexDiscoveries(run.codexDiscoveries);
+  normalized.workshopDiscoveries = normalizeRunWorkshopDiscoveries(run.workshopDiscoveries);
+  delete normalized.firstKills;
   normalized.startingKit = normalizeStartingKitId(run.startingKit);
   normalized.eventObservations = normalizeEventObservations(run.eventObservations);
   normalized.floorSteps = normalizeFloorSteps(run.floorSteps);

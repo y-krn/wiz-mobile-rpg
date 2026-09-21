@@ -50,6 +50,10 @@ function setupRun() {
   state.currentRun.deepestFloor = 5;
   state.currentRun.materials = { "獣の牙": 10 };
   state.currentRun.equipmentFound = [{ baseId: "SHORT_SWORD" }];
+  state.firstKills = ["before", "new", 3, "new"];
+  state.keyItems = ["key-before", "key-new", null, "key-new"];
+  state.currentRun.firstKillsBefore = ["before", "before"];
+  state.currentRun.keyItemsBefore = ["key-before", "key-before"];
   state.gameState = "explore";
   state.floor = 5;
   state.codex = createDefaultCodex();
@@ -94,6 +98,12 @@ assert.equal(state.codex.stats.totalRuns, 1);
 assert.equal(state.codex.stats.totalDeaths, 0);
 assert.equal(state.deathLogs.length, 0);
 assert.equal(state.currentRun.recordResult.outcome, "abandon");
+assert.deepEqual(state.currentRun.codexDiscoveries, ["new", "new"],
+  "run result keeps set-difference semantics and canonicalizes discovery strings");
+assert.deepEqual(state.currentRun.workshopDiscoveries, ["key-new", "key-new"]);
+assert.deepEqual(state.runHistory[0].codexDiscoveries, ["new", "new"],
+  "run history stores canonical codex discoveries");
+assert.deepEqual(state.runHistory[0].workshopDiscoveries, ["key-new", "key-new"]);
 assert.deepEqual(Object.keys(state.currentRun.recordResult).sort(), [
   "depth", "milestones", "outcome", "runNumber", "updated", "updates"
 ]);
