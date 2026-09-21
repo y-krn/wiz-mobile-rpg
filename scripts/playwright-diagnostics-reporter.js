@@ -26,6 +26,18 @@ class PlaywrightDiagnosticsReporter {
   }
 
   onTestEnd(_test, result) {
+    if (process.env.ISSUE_1471_MEASUREMENT === '1') {
+      console.log(`[issue-1471-result] ${JSON.stringify({
+        title: _test.title,
+        file: _test.location?.file,
+        status: result.status,
+        durationMs: result.duration,
+        retry: result.retry,
+        workerIndex: result.workerIndex,
+        errors: (result.errors || []).map(error => error.message || String(error)),
+        attachments: (result.attachments || []).map(attachment => ({ name: attachment.name, path: attachment.path })),
+      })}`);
+    }
     for (const error of result.errors || []) {
       this.reportLaunchFailure(error);
     }

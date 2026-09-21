@@ -1,5 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 
+const MEASUREMENT_ENABLED = process.env.ISSUE_1471_MEASUREMENT === '1';
+
 // These are the only external origins the app intentionally contacts during
 // browser tests. Other external console/request failures are actionable.
 const THIRD_PARTY_HOSTS = [
@@ -47,6 +49,7 @@ const test = base.extend({
       .concat(browserHealth.allowConsoleErrorPatterns || []);
     page.on('pageerror', error => {
       failures.push(formatFailure('pageerror', error.message));
+      if (MEASUREMENT_ENABLED) console.log(`[issue-1471-browser-health] ${formatFailure('pageerror', error.message)}`);
     });
 
     page.on('console', message => {
@@ -57,6 +60,7 @@ const test = base.extend({
       const isAllowed = allowedConsoleErrorPatterns.some(pattern => message.text().includes(pattern));
       if ((isAppError || !isKnownThirdPartyError) && !isAllowed) {
         failures.push(formatFailure('console.error', message.text()));
+        if (MEASUREMENT_ENABLED) console.log(`[issue-1471-browser-health] ${formatFailure('console.error', message.text())}`);
       }
     });
 
@@ -73,6 +77,7 @@ const test = base.extend({
           'requestfailed',
           `${isAppRequest ? 'app' : 'external'} ${request.method()} ${url} (${request.failure()?.errorText || 'unknown error'})`,
         ));
+        if (MEASUREMENT_ENABLED) console.log(`[issue-1471-browser-health] ${failures.at(-1)}`);
       }
     });
 

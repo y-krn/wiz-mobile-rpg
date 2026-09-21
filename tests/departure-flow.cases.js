@@ -1,11 +1,13 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { createIssue1471Measurement } from './issue-1471-measurement.js';
 import { waitForPixiReady } from './ui-ux-helpers.js';
 
-test('Primary run path reaches Town again through UI actions @e2e @smoke', async ({ page }) => {
+test('Primary run path reaches Town again through UI actions @e2e @smoke', async ({ page }, testInfo) => {
+  const measurement = createIssue1471Measurement(testInfo);
   await page.setViewportSize({ width: 430, height: 932 });
-  await page.goto('/');
-  await page.waitForLoadState('networkidle');
-  await waitForPixiReady(page);
+  await measurement.phase('goto', () => page.goto('/'));
+  await measurement.phase('networkidle', () => page.waitForLoadState('networkidle'));
+  await measurement.phase('Pixi ready', () => waitForPixiReady(page));
   await page.addStyleTag({ content: ':root { --safe-area-top: 59px; --safe-area-bottom: 34px; }' });
 
   const screen = async () => page.evaluate(async () => {
@@ -32,14 +34,16 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
   await expectSingleDock('town-controls');
 
   // Town -> Preparation -> Explore are crossed using the real departure controls.
-  await page.locator('#btn-town-dungeon').click();
-  await expect(page.locator('#submenu-controls')).toBeVisible();
-  await page.locator('.solo-starting-kit-option').first().click();
-  await page.getByRole('button', { name: /B1Fから開始/ }).click();
-  const departButton = page.getByRole('button', { name: '迷宮へ向かう' });
-  if (await departButton.isVisible()) await departButton.click();
-  await expectSingleDock('explore-controls');
-  expect(await screen()).toMatchObject({ gameState: 'explore' });
+  await measurement.phase('Town→Preparation→Explore', async () => {
+    await page.locator('#btn-town-dungeon').click();
+    await expect(page.locator('#submenu-controls')).toBeVisible();
+    await page.locator('.solo-starting-kit-option').first().click();
+    await page.getByRole('button', { name: /B1Fから開始/ }).click();
+    const departButton = page.getByRole('button', { name: '迷宮へ向かう' });
+    if (await departButton.isVisible()) await departButton.click();
+    await expectSingleDock('explore-controls');
+    expect(await screen()).toMatchObject({ gameState: 'explore' });
+  });
 
   // Make the next visible forward action produce a deterministic encounter.
   await page.evaluate(async () => {
@@ -61,16 +65,20 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
     state.forcedEncounterSteps = 2;
     updateUI();
   });
-  await page.locator('#btn-move-forward').click();
-  await expect(page.locator('#combat-controls')).toBeVisible({ timeout: 10_000 });
-  expect(await screen()).toMatchObject({ gameState: 'combat', menu: '' });
+  await measurement.phase('encounter→Combat', async () => {
+    await page.locator('#btn-move-forward').click();
+    await expect(page.locator('#combat-controls')).toBeVisible({ timeout: 10_000 });
+    expect(await screen()).toMatchObject({ gameState: 'combat', menu: '' });
+  });
 
   // Keep the combat interaction real while making its result deterministic:
   // the escape action ends combat without depending on enemy traits or rolls.
-  await page.locator('#btn-combat-run').click();
-  await expect(page.locator('#explore-controls')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('#combat-overlay')).toBeHidden();
-  await expectSingleDock('explore-controls');
+  await measurement.phase('Run→Explore', async () => {
+    await page.locator('#btn-combat-run').click();
+    await expect(page.locator('#explore-controls')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#combat-overlay')).toBeHidden();
+    await expectSingleDock('explore-controls');
+  });
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
@@ -79,16 +87,18 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
   });
 
   // Explore -> Bag is also crossed through its visible action.
-  await page.locator('#btn-inspect').click();
-  await expect(page.locator('#submenu-controls')).toBeVisible();
-  await expect(page.locator('#submenu-options')).toContainText('傷薬');
-  expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'item_inventory' });
-  await page.locator('#btn-submenu-back').click();
-  await expectSingleDock('explore-controls');
+  await measurement.phase('Bag open/back', async () => {
+    await page.locator('#btn-inspect').click();
+    await expect(page.locator('#submenu-controls')).toBeVisible();
+    await expect(page.locator('#submenu-options')).toContainText('傷薬');
+    expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'item_inventory' });
+    await page.locator('#btn-submenu-back').click();
+    await expectSingleDock('explore-controls');
+  });
 
   // Prepare a reachable B5F portal target; the portal and every subsequent gate
   // are still opened and confirmed through the rendered UI.
-  await page.evaluate(async () => {
+  await measurement.phase('B5 portal setup', () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
     const map = structuredClone(state.maps[0]);
@@ -129,28 +139,34 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
     state.currentRun.defeatedMilestones = [5];
     state.currentRun.unbankedObjectLoot ||= [];
     updateUI();
-  });
-  await page.locator('#btn-move-forward').click();
-  await expect(page.locator('#submenu-controls')).toBeVisible();
-  await expect(page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button')).toBeVisible();
-  await expect.poll(async () => page.evaluate(async () => {
+  }));
+  await measurement.phase('portal confirm', async () => {
+    await page.locator('#btn-move-forward').click();
+    await expect(page.locator('#submenu-controls')).toBeVisible();
+    await expect(page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button')).toBeVisible();
+    await expect.poll(async () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { isControlsGuarded } = await import('/src/controls_guard.js');
     return !state.transitioning && !isControlsGuarded();
-  })).toBe(true);
-  expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'milestone_portal' });
-  expect((await screen()).visibleDocks).toEqual(['submenu-controls']);
+    })).toBe(true);
+    expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'milestone_portal' });
+    expect((await screen()).visibleDocks).toEqual(['submenu-controls']);
 
-  // Portal Return -> Result -> Town -> Preparation remains one UI-operated chain.
-  await page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button').click();
-  await expect(page.locator('.milestone-portal-confirmation')).toBeVisible();
-  await page.locator('#btn-portal-confirm').click();
-  await expect(page.locator('#result-overlay')).toBeVisible();
-  expect(await screen()).toMatchObject({ gameState: 'result', returnReason: 'milestone_portal' });
-  await page.locator('#btn-result-castle').click();
-  await expectSingleDock('town-controls');
-  expect(await screen()).toMatchObject({ gameState: 'town' });
-  await page.locator('#btn-town-dungeon').click();
-  await expect(page.locator('#submenu-controls')).toBeVisible();
-  expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'solo_start' });
+    // Portal Return -> Result -> Town -> Preparation remains one UI-operated chain.
+    await page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button').click();
+    await expect(page.locator('.milestone-portal-confirmation')).toBeVisible();
+    await page.locator('#btn-portal-confirm').click();
+    await expect(page.locator('#result-overlay')).toBeVisible();
+    expect(await screen()).toMatchObject({ gameState: 'result', returnReason: 'milestone_portal' });
+  });
+
+  await measurement.phase('Result→Town→Preparation', async () => {
+    await page.locator('#btn-result-castle').click();
+    await expectSingleDock('town-controls');
+    expect(await screen()).toMatchObject({ gameState: 'town' });
+    await page.locator('#btn-town-dungeon').click();
+    await expect(page.locator('#submenu-controls')).toBeVisible();
+    expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'solo_start' });
+  });
+  measurement.finish('passed');
 });

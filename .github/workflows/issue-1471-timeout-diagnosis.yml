@@ -1,0 +1,177 @@
+name: Issue 1471 departure-flow timeout diagnosis
+
+on:
+  push:
+    branches: [issue-1471-measurement]
+  workflow_dispatch:
+
+concurrency:
+  group: issue-1471-timeout-diagnosis-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    name: ${{ matrix.source }} ${{ matrix.mode }} worker=${{ matrix.worker }} repeat=${{ matrix.repeat }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target, worker: 1, repeat: 1 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target, worker: 1, repeat: 2 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target, worker: 1, repeat: 3 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target, worker: 1, repeat: 4 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target, worker: 1, repeat: 5 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target, worker: 2, repeat: 1 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target, worker: 2, repeat: 2 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target, worker: 2, repeat: 3 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target, worker: 2, repeat: 4 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target, worker: 2, repeat: 5 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target-light, worker: 2, repeat: 1 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target-light, worker: 2, repeat: 2 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target-light, worker: 2, repeat: 3 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target-light, worker: 2, repeat: 4 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target-light, worker: 2, repeat: 5 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target-heavy, worker: 2, repeat: 1 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target-heavy, worker: 2, repeat: 2 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target-heavy, worker: 2, repeat: 3 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target-heavy, worker: 2, repeat: 4 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: target-heavy, worker: 2, repeat: 5 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: full, worker: 2, repeat: 1 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: full, worker: 2, repeat: 2 }
+          - { source: fixed, ref: 7419e86f61a2b900ef41cad01d19ef0081435128, mode: full, worker: 2, repeat: 3 }
+          - { source: latest-main, ref: 4d62c97385bd0f3fec759fbe8837eeac787e2be5, mode: target, worker: 1, repeat: 1 }
+          - { source: latest-main, ref: 4d62c97385bd0f3fec759fbe8837eeac787e2be5, mode: target, worker: 1, repeat: 2 }
+          - { source: latest-main, ref: 4d62c97385bd0f3fec759fbe8837eeac787e2be5, mode: target, worker: 1, repeat: 3 }
+          - { source: latest-main, ref: 4d62c97385bd0f3fec759fbe8837eeac787e2be5, mode: full, worker: 2, repeat: 1 }
+          - { source: latest-main, ref: 4d62c97385bd0f3fec759fbe8837eeac787e2be5, mode: full, worker: 2, repeat: 2 }
+          - { source: latest-main, ref: 4d62c97385bd0f3fec759fbe8837eeac787e2be5, mode: full, worker: 2, repeat: 3 }
+    permissions:
+      contents: read
+    env:
+      SOURCE_UNDER_TEST: ${{ matrix.ref }}
+      MEASUREMENT_WORKFLOW_SHA: ${{ github.sha }}
+      PLAYWRIGHT_WORKERS: ${{ matrix.worker }}
+      PLAYWRIGHT_PORT: 16589
+      ISSUE_1471_MEASUREMENT: '1'
+      ISSUE_1471_SAMPLE: ${{ matrix.source }}-${{ matrix.mode }}-w${{ matrix.worker }}-r${{ matrix.repeat }}
+      ISSUE_1471_MODE: ${{ matrix.mode }}
+      ISSUE_1471_REPEAT: ${{ matrix.repeat }}
+      ISSUE_1471_EVIDENCE_DIR: ${{ runner.temp }}/issue-1471
+    steps:
+      - name: Checkout source under test
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.ref }}
+          fetch-depth: 1
+
+      - name: Overlay measurement probes
+        run: |
+          set -euo pipefail
+          git fetch origin "${MEASUREMENT_WORKFLOW_SHA}" --depth=1
+          git checkout "${MEASUREMENT_WORKFLOW_SHA}" -- \
+            tests/departure-flow.cases.js \
+            tests/fixtures/browser-health.js \
+            tests/issue-1471-measurement.js \
+            scripts/playwright-diagnostics-reporter.js \
+            scripts/issue-1471-summarize-sample.js
+
+      - name: Initialize sample diagnostics
+        run: |
+          set -euo pipefail
+          mkdir -p "$ISSUE_1471_EVIDENCE_DIR"
+          date +%s%3N > "$ISSUE_1471_EVIDENCE_DIR/job-start-ms"
+          {
+            echo "source=$SOURCE_UNDER_TEST"
+            echo "workflow_sha=$MEASUREMENT_WORKFLOW_SHA"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "image_os=${ImageOS:-unknown}"
+            echo "image_version=${ImageVersion:-unknown}"
+            echo "kernel=$(uname -srmo)"
+            echo "worker=$PLAYWRIGHT_WORKERS"
+            echo "mode=$ISSUE_1471_MODE"
+            echo "repeat=$ISSUE_1471_REPEAT"
+          } > "$ISSUE_1471_EVIDENCE_DIR/environment.txt"
+
+      - uses: ./.github/actions/setup-node-deps
+
+      - name: Capture tool metadata
+        run: |
+          set -euo pipefail
+          {
+            node --version
+            npm --version
+            node -p "'playwright=' + require('./node_modules/@playwright/test/package.json').version"
+            node -p "'chromium_revision=' + require('./node_modules/playwright-core/browsers.json').browsers.find(browser => browser.name === 'chromium').revision"
+          } > "$ISSUE_1471_EVIDENCE_DIR/tool-versions.txt"
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Capture runner load before
+        run: |
+          ps -axo pid=,ppid=,pcpu=,rss=,etime=,command= > "$ISSUE_1471_EVIDENCE_DIR/processes-before.txt"
+          { uptime; nproc; lscpu | sed -n '1,18p'; } > "$ISSUE_1471_EVIDENCE_DIR/load.txt"
+
+      - name: Run selected browser measurement
+        id: smoke
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          date +%s%3N > "$ISSUE_1471_EVIDENCE_DIR/smoke-start-ms"
+          case "$ISSUE_1471_MODE" in
+            target)
+              npx playwright test tests/ui-departure.spec.js \
+                --grep 'Primary run path reaches Town again through UI actions' 2>&1 | tee "$ISSUE_1471_EVIDENCE_DIR/browser-test.log"
+              ;;
+            target-light)
+              npx playwright test tests/ui-departure.spec.js \
+                --grep 'Primary run path reaches Town again through UI actions|Starting kit cards explain production equipment load' 2>&1 | tee "$ISSUE_1471_EVIDENCE_DIR/browser-test.log"
+              ;;
+            target-heavy)
+              npx playwright test tests/ui-departure.spec.js tests/ui-pixi-dungeon-spike-1230.spec.js \
+                --grep 'Primary run path reaches Town again through UI actions|PixiJS performance and lifecycle stay bounded' \
+                --grep-invert '@visual' 2>&1 | tee "$ISSUE_1471_EVIDENCE_DIR/browser-test.log"
+              ;;
+            full)
+              npm run test:browser:smoke 2>&1 | tee "$ISSUE_1471_EVIDENCE_DIR/browser-test.log"
+              ;;
+            *)
+              echo "unknown measurement mode: $ISSUE_1471_MODE" >&2
+              exit 2
+              ;;
+          esac
+
+      - name: Capture runner load after
+        if: always()
+        run: |
+          date +%s%3N > "$ISSUE_1471_EVIDENCE_DIR/smoke-end-ms"
+          ps -axo pid=,ppid=,pcpu=,rss=,etime=,command= > "$ISSUE_1471_EVIDENCE_DIR/processes-after.txt"
+          date +%s%3N > "$ISSUE_1471_EVIDENCE_DIR/job-end-ms"
+
+      - name: Summarize sample
+        if: always()
+        env:
+          ISSUE_1471_SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        run: node scripts/issue-1471-summarize-sample.js | tee "$ISSUE_1471_EVIDENCE_DIR/summary.txt"
+
+      - name: Publish sample summary
+        if: always()
+        run: cat "$ISSUE_1471_EVIDENCE_DIR/sample.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sample evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1471-${{ matrix.source }}-${{ matrix.mode }}-w${{ matrix.worker }}-r${{ matrix.repeat }}
+          path: |
+            ${{ runner.temp }}/issue-1471
+            test-results
+            playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
+          compression-level: 6
