@@ -143,7 +143,7 @@ const REQUIRED_FIELDS = [
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
   "returnProcessing", "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
   "campRested", "completedCampEntryFloors", "recordResult", "quests", "trialBands",
-  "floorSteps",
+  "floorSteps", "eventObservations",
   "eliteFloors", "eliteDefeatedFloors",
   "defeatedMilestones", "visitedMilestoneMerchants",
   "materials", "bankedMaterials", "defeatsByRole",

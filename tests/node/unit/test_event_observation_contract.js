@@ -107,6 +107,10 @@ assert.deepEqual(normalizedRun.eventObservations, {
   "resolved:key": { ...resolvedEntry, key: "resolved:key" }
 });
 assert.equal(isNormalizedCurrentRun(normalizedRun), true);
+const missingObservations = { ...normalizedRun };
+delete missingObservations.eventObservations;
+assert.equal(isNormalizedCurrentRun(missingObservations), false,
+  "currentRun guard requires eventObservations as an own property");
 assert.equal(isNormalizedCurrentRun({ ...normalizedRun, eventObservations: {
   "bad:key": { ...activeEntry, key: "other:key" }
 } }), false, "currentRun guard delegates identity validation");
