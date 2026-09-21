@@ -1,0 +1,117 @@
+name: Issue 1480 departure-flow granular probe
+
+on:
+  push:
+    branches: [issue-1480-departure-probe]
+  workflow_dispatch:
+
+concurrency:
+  group: issue-1480-departure-probe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    name: target worker=1 repeat=${{ matrix.repeat }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        repeat: [1, 2, 3, 4, 5]
+    permissions:
+      contents: read
+    env:
+      SOURCE_UNDER_TEST: 56391e3f2c1054faafa3cb3ec571391a79c36807
+      MEASUREMENT_WORKFLOW_SHA: ${{ github.sha }}
+      PLAYWRIGHT_WORKERS: 1
+      PLAYWRIGHT_PORT: 16589
+      ISSUE_1480_MEASUREMENT: '1'
+      ISSUE_1480_SAMPLE: target-w1-r${{ matrix.repeat }}
+      ISSUE_1480_EVIDENCE_DIR: ${{ runner.temp }}/issue-1480
+    steps:
+      - name: Checkout fixed source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_UNDER_TEST }}
+          fetch-depth: 1
+
+      - name: Overlay branch-only probes
+        run: |
+          set -euo pipefail
+          git fetch origin "${MEASUREMENT_WORKFLOW_SHA}" --depth=1
+          git checkout "${MEASUREMENT_WORKFLOW_SHA}" -- \
+            tests/departure-flow.cases.js \
+            tests/issue-1480-measurement.js
+
+      - name: Capture environment
+        run: |
+          set -euo pipefail
+          mkdir -p "$ISSUE_1480_EVIDENCE_DIR"
+          {
+            echo "source=$SOURCE_UNDER_TEST"
+            echo "workflow_sha=$MEASUREMENT_WORKFLOW_SHA"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "image_os=${ImageOS:-unknown}"
+            echo "image_version=${ImageVersion:-unknown}"
+            echo "kernel=$(uname -srmo)"
+            echo "worker=$PLAYWRIGHT_WORKERS"
+            echo "sample=$ISSUE_1480_SAMPLE"
+          } > "$ISSUE_1480_EVIDENCE_DIR/environment.txt"
+          { uptime; nproc; lscpu | sed -n '1,18p'; } > "$ISSUE_1480_EVIDENCE_DIR/load-before.txt"
+
+      - uses: ./.github/actions/setup-node-deps
+
+      - name: Capture tool metadata
+        run: |
+          set -euo pipefail
+          {
+            node --version
+            npm --version
+            node -p "'playwright=' + require('./node_modules/@playwright/test/package.json').version"
+            node -p "'chromium_revision=' + require('./node_modules/playwright-core/browsers.json').browsers.find(browser => browser.name === 'chromium').revision"
+          } > "$ISSUE_1480_EVIDENCE_DIR/tool-versions.txt"
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run target probe
+        id: probe
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          date +%s%3N > "$ISSUE_1480_EVIDENCE_DIR/start-ms"
+          npx playwright test tests/ui-departure.spec.js \
+            --grep 'Primary run path reaches Town again through UI actions' \
+            2>&1 | tee "$ISSUE_1480_EVIDENCE_DIR/browser-test.log"
+
+      - name: Capture post-run diagnostics
+        if: always()
+        run: |
+          date +%s%3N > "$ISSUE_1480_EVIDENCE_DIR/end-ms"
+          ps -axo pid=,ppid=,pcpu=,rss=,etime=,command= > "$ISSUE_1480_EVIDENCE_DIR/processes-after.txt"
+          { uptime; nproc; } > "$ISSUE_1480_EVIDENCE_DIR/load-after.txt"
+
+      - name: Summarize sample
+        if: always()
+        env:
+          ISSUE_1480_SMOKE_OUTCOME: ${{ steps.probe.outcome }}
+        run: node scripts/issue-1480-summarize-sample.js | tee "$ISSUE_1480_EVIDENCE_DIR/summary.txt"
+
+      - name: Publish sample summary
+        if: always()
+        run: cat "$ISSUE_1480_EVIDENCE_DIR/sample.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sample evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1480-${{ matrix.repeat }}
+          path: |
+            ${{ runner.temp }}/issue-1480
+            test-results
+            playwright-report
+          if-no-files-found: ignore
+          retention-days: 14

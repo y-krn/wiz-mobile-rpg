@@ -1,7 +1,9 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { createIssue1480Measurement } from './issue-1480-measurement.js';
 import { waitForPixiReady } from './ui-ux-helpers.js';
 
-test('Primary run path reaches Town again through UI actions @e2e @smoke', async ({ page }) => {
+test('Primary run path reaches Town again through UI actions @e2e @smoke', async ({ page }, testInfo) => {
+  const measurement = createIssue1480Measurement(page, testInfo);
   await page.setViewportSize({ width: 430, height: 932 });
   await page.goto('/');
   await page.waitForLoadState('networkidle');
@@ -23,10 +25,10 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
   });
 
   const expectSingleDock = async (dockId) => {
-    await expect(page.locator(`#${dockId}`)).toBeVisible({ timeout: 10_000 });
+    await measurement.wait(`assertion:${dockId}:visible`, () => expect(page.locator(`#${dockId}`)).toBeVisible({ timeout: 10_000 }));
     const state = await screen();
-    expect(state.visibleDocks, `only ${dockId} should be visible`).toEqual([dockId]);
-    expect(state.combatOverlay, `${dockId} should not leave the combat overlay behind`).toBe(false);
+    await measurement.wait(`assertion:${dockId}:single-dock`, () => expect(state.visibleDocks, `only ${dockId} should be visible`).toEqual([dockId]));
+    await measurement.wait(`assertion:${dockId}:combat-overlay-hidden`, () => expect(state.combatOverlay, `${dockId} should not leave the combat overlay behind`).toBe(false));
   };
 
   await expectSingleDock('town-controls');
@@ -67,10 +69,13 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
 
   // Keep the combat interaction real while making its result deterministic:
   // the escape action ends combat without depending on enemy traits or rolls.
-  await page.locator('#btn-combat-run').click();
-  await expect(page.locator('#explore-controls')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('#combat-overlay')).toBeHidden();
-  await expectSingleDock('explore-controls');
+  await measurement.phase('Run→Explore', async () => {
+    await measurement.arm('run');
+    await measurement.click('combat-run', page.locator('#btn-combat-run'));
+    await measurement.wait('assertion:run:explore-controls-visible', () => expect(page.locator('#explore-controls')).toBeVisible({ timeout: 15_000 }));
+    await measurement.wait('assertion:run:combat-overlay-hidden', () => expect(page.locator('#combat-overlay')).toBeHidden());
+    await expectSingleDock('explore-controls');
+  });
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
@@ -130,27 +135,33 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
     state.currentRun.unbankedObjectLoot ||= [];
     updateUI();
   });
-  await page.locator('#btn-move-forward').click();
-  await expect(page.locator('#submenu-controls')).toBeVisible();
-  await expect(page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button')).toBeVisible();
-  await expect.poll(async () => page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    const { isControlsGuarded } = await import('/src/controls_guard.js');
-    return !state.transitioning && !isControlsGuarded();
-  })).toBe(true);
-  expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'milestone_portal' });
-  expect((await screen()).visibleDocks).toEqual(['submenu-controls']);
+  await measurement.phase('portal confirm', async () => {
+    await measurement.arm('portal-entry');
+    await measurement.click('portal-entry', page.locator('#btn-move-forward'));
+    await measurement.wait('assertion:portal:submenu-visible', () => expect(page.locator('#submenu-controls')).toBeVisible());
+    await measurement.wait('assertion:portal:return-choice-visible', () => expect(page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button')).toBeVisible());
+    await measurement.wait('assertion:portal:controls-guard-released', () => expect.poll(async () => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { isControlsGuarded } = await import('/src/controls_guard.js');
+      return !state.transitioning && !isControlsGuarded();
+    })).toBe(true));
+    await measurement.wait('assertion:portal:submenu-state', async () => expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'milestone_portal' }));
+    await measurement.wait('assertion:portal:single-dock', async () => expect((await screen()).visibleDocks).toEqual(['submenu-controls']));
 
-  // Portal Return -> Result -> Town -> Preparation remains one UI-operated chain.
-  await page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button').click();
-  await expect(page.locator('.milestone-portal-confirmation')).toBeVisible();
-  await page.locator('#btn-portal-confirm').click();
-  await expect(page.locator('#result-overlay')).toBeVisible();
-  expect(await screen()).toMatchObject({ gameState: 'result', returnReason: 'milestone_portal' });
+    // Portal Return -> Result -> Town -> Preparation remains one UI-operated chain.
+    await measurement.arm('portal-choice');
+    await measurement.click('portal-choice', page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button'));
+    await measurement.wait('assertion:portal:confirmation-dom-visible', () => expect(page.locator('.milestone-portal-confirmation')).toBeVisible());
+    await measurement.arm('portal-confirm');
+    await measurement.click('portal-confirm', page.locator('#btn-portal-confirm'));
+    await measurement.wait('assertion:result-overlay-visible', () => expect(page.locator('#result-overlay')).toBeVisible());
+    await measurement.wait('assertion:result-state', async () => expect(await screen()).toMatchObject({ gameState: 'result', returnReason: 'milestone_portal' }));
+  });
   await page.locator('#btn-result-castle').click();
   await expectSingleDock('town-controls');
   expect(await screen()).toMatchObject({ gameState: 'town' });
   await page.locator('#btn-town-dungeon').click();
   await expect(page.locator('#submenu-controls')).toBeVisible();
   expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'solo_start' });
+  await measurement.finish('passed');
 });
