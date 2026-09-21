@@ -74,7 +74,6 @@ export const createDefaultCurrentRun = () => ({
   lootSequence: 0,
   itemsFound: [],
   equipmentFound: [],
-  floorsVisited: [],
   dangerScore: 0,
   returnReason: "",
   outcome: "",

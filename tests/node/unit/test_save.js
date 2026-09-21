@@ -342,7 +342,6 @@ check("malformed current-run collections receive safe defaults", () => {
       quests: [null, validQuest],
       itemsFound: null,
       equipmentFound: "invalid",
-      floorsVisited: null,
       floorSteps: null,
       materials: null,
       bankedMaterials: null,
@@ -355,7 +354,7 @@ check("malformed current-run collections receive safe defaults", () => {
   assert.deepEqual(normalized.currentRun.quests, [validQuest]);
   assert.deepEqual(normalized.currentRun.itemsFound, []);
   assert.deepEqual(normalized.currentRun.equipmentFound, []);
-  assert.deepEqual(normalized.currentRun.floorsVisited, []);
+  assert.equal(Object.hasOwn(normalized.currentRun, "floorsVisited"), false);
   assert.deepEqual(normalized.currentRun.floorSteps, {});
   assert.deepEqual(normalized.currentRun.materials, {});
   assert.deepEqual(normalized.currentRun.bankedMaterials, {});
@@ -365,6 +364,26 @@ check("malformed current-run collections receive safe defaults", () => {
   assert.deepEqual(normalized.currentRun.eliteDefeatedFloors, []);
   assert.deepEqual(normalized.currentRun.defeatsByRole, {});
   assert.deepEqual(normalized.currentRun.codexRewards, {});
+});
+
+check("legacy floorsVisited loads and is dropped without repairing run facts", () => {
+  const legacyPayload = createSavePayload();
+  legacyPayload.floor = 2;
+  legacyPayload.currentRun = {
+    ...createDefaultCurrentRun(),
+    deepestFloor: 2,
+    floorSteps: { "1": 4 },
+    floorsVisited: [1, 99]
+  };
+
+  const normalized = migrateSavePayload(legacyPayload);
+  assert.equal(normalized.floor, 2);
+  assert.equal(normalized.currentRun.deepestFloor, 2);
+  assert.deepEqual(normalized.currentRun.floorSteps, { "1": 4 });
+  assert.deepEqual(normalized.currentRun.defeatedMilestones, []);
+  assert.equal(Object.hasOwn(normalized.currentRun, "floorsVisited"), false);
+  assert.doesNotThrow(() => applySavePayload(JSON.parse(JSON.stringify(legacyPayload))));
+  assert.equal(Object.hasOwn(state.currentRun, "floorsVisited"), false);
 });
 
 check("non-active malformed visited maps default to safe grids", () => {

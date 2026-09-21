@@ -112,7 +112,6 @@ export interface NormalizedCurrentRun {
   lootSequence: number;
   itemsFound: RuntimeItemCollection;
   equipmentFound: RuntimeItemCollection;
-  floorsVisited: unknown[];
   dangerScore: number;
   returnReason: string;
   outcome: RunOutcome;
@@ -145,7 +144,7 @@ const NUMBER_FIELDS = [
 ] as const;
 
 const ARRAY_FIELDS = [
-  "floorsVisited", "deathLogs"
+  "deathLogs"
 ] as const;
 
 const ITEM_COLLECTION_FIELDS = [

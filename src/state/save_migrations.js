@@ -482,6 +482,7 @@ function normalizeRunOutcome(run) {
     outcome: RUN_OUTCOMES.has(run.outcome) ? run.outcome : inferRunOutcome(run.returnReason)
   };
   delete normalized.departureEquipment;
+  delete normalized.floorsVisited;
   return normalized;
 }
 

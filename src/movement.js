@@ -339,9 +339,6 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     state.floor = nextFloor;
     state.sessionMaxFloor = Math.max(state.sessionMaxFloor, state.floor);
     if (state.currentRun) {
-      if (!state.currentRun.floorsVisited.includes(nextFloor)) {
-        state.currentRun.floorsVisited.push(nextFloor);
-      }
       state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
       updateRunQuests(state.currentRun, getPartyMaxAffix(state.party, "contractReward")).forEach(quest => {
         addLog(`【依頼達成】${quest.name}：素材ボーナスを獲得した。`);
@@ -858,7 +855,6 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   state.currentRun.startFloor = floor;
   state.currentRun.deepestFloor = floor;
   state.currentRun.startingKit = normalizeStartingKitId(state.party[0]?.startingKit);
-  state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
   if (Array.isArray(runQuestTemplateIds) && runQuestTemplateIds.length > 0) {
     assignSelectedRunQuests(state.currentRun, runQuestTemplateIds);

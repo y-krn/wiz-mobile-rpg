@@ -123,7 +123,7 @@ test('Town, departure, exploration, and combat keep the goal banner', async ({ p
     state.gameState = nextGameState;
     state.currentRun = nextGameState === 'town' || nextGameState === 'submenu'
       ? null
-      : { floorsVisited: [1], deepestFloor: 1 };
+      : { deepestFloor: 1 };
     state.combatState = nextGameState === 'combat'
       ? { phase: 'choose_actions', monsters: [], playerActions: [], isAuto: false }
       : null;
