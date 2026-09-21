@@ -74,6 +74,12 @@ const { DX, DY } = await import("../../src/constants/directions.js");
 const { generateChestMaterials } = await import("../../src/chest.js");
 const { getMilestoneBossRule } = await import("../../src/rules/boss_rules.js");
 
+export const PARTIAL_INFORMATION_ELITE_POLICY_VALIDATION = Object.freeze({
+  status: "unvalidated",
+  comparison: "not_run",
+  reason: "production elite observation requires the movement visibility boundary; this simulator cannot reproduce it without hidden elite coordinates"
+});
+
 const ISSUE538_LEGACY_SPELL_POLICY = process.env.ISSUE538_SPELL_POLICY === "legacy";
 
 const SIM_MAP_STATS_ENABLED = process.env.SIM_MAP_STATS === "1";
@@ -11896,6 +11902,9 @@ function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
     equippedBaseIds: build.equipment.map(item => item.id),
     activeCoreIds: [...build.coreIds],
     supportAffixes: { ...build.supportAffixes },
+    inventoryBaseIds: state.inventory.map(item =>
+      typeof item === "string" ? item : item?.baseId || item?.id || null
+    ).filter(Boolean),
     combatBuildScore: build.combatBuildScore,
     equipmentChangesSoFar: metrics.equipmentUpgrades,
     equipmentDropsSeen: metrics.equipmentFound,
@@ -15760,6 +15769,8 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     keyItems: [...state.keyItems],
     unlockedMilestones: [...state.unlockedMilestones],
     elitePolicy: metrics.elitePolicy,
+    elitePolicyValidation: metrics.elitePolicyValidation,
+    eliteOpportunities: metrics.eliteOpportunities,
     eliteEncounters: metrics.eliteEncounters,
     eliteVictories: metrics.eliteVictories,
     eliteFlees: metrics.eliteFlees,
@@ -16831,6 +16842,10 @@ export function simulateRun({
       guardBlocked: []
     },
     elitePolicy: state.simPolicy.elitePolicy,
+    elitePolicyValidation: scenario.routePolicy === "partial_information_exploration"
+      ? { ...PARTIAL_INFORMATION_ELITE_POLICY_VALIDATION }
+      : { status: "validated", comparison: "available", reason: "full-map route policy" },
+    eliteOpportunities: scenario.routePolicy === "partial_information_exploration" ? null : 0,
     eliteEncounters: 0,
     eliteVictories: 0,
     eliteFlees: 0,
@@ -17017,12 +17032,16 @@ export function simulateRun({
           metrics.bossPolicy,
           bossExitPolicy
         );
-    // Partial-information personas do not schedule a roaming encounter from
-    // its future map position. The production movement/combat path still
-    // handles encounters that are actually observed.
+    // Partial-information cannot reproduce the production visibility boundary
+    // for roaming elites. Do not inspect or route toward hidden coordinates.
+    // Engage/avoid remains explicitly unvalidated until the production
+    // movement observation boundary is available in this simulator.
     const elitePlan = routePlan.partialInformation
       ? { elite: null, extraSteps: 0, encounterStep: null, avoidNoRoute: false }
       : createEliteRoutePlan(generated, floor, runSeed, state.simPolicy.elitePolicy);
+    if (Number.isFinite(metrics.eliteOpportunities)) {
+      metrics.eliteOpportunities += Number(Boolean(elitePlan.elite));
+    }
     const staticFloorSteps = getFloorStepCount(generated, floor);
     let floorSteps = routePlan.floorSteps + elitePlan.extraSteps;
     const floorRoute = createSimulationFloorRoute(
