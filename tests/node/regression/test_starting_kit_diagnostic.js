@@ -10,6 +10,8 @@ const {
   isEventBeforeTargetEncounter,
   isEventBetweenEncounters,
   carriedUnusedInventoryCount,
+  normalizeEquipmentSnapshot,
+  collectB1AccessoryAffixIdsCarriedToB2,
   createDiagnosticScenario,
   getDiagnosticWorldSeed,
   runMatchedRecoveryPolicies,
@@ -25,6 +27,48 @@ assert.deepEqual(RECOVERY_RESOURCE_IDS, [
 assert.equal(getDiagnosticWorldSeed(1139, 2), "issue-1176:1139:2");
 assert.equal(carriedUnusedInventoryCount(1), 1);
 assert.equal(carriedUnusedInventoryCount(0), 0);
+
+const suspectedOnly = normalizeEquipmentSnapshot({
+  equipment: {
+    instanceId: "suspected-only",
+    baseId: "test-accessory",
+    slot: "accessory",
+    curseEffectId: null,
+    curseSuspected: true,
+    affixes: []
+  }
+});
+assert.equal(suspectedOnly.cursed, false);
+assert.equal(suspectedOnly.curseSuspected, true);
+
+assert.deepEqual(
+  [...collectB1AccessoryAffixIdsCarriedToB2(
+    [{ instanceId: "b1-accessory", affixIds: ["sameNameAffix"] }],
+    [{ instanceId: "different-accessory", slot: "accessory", affixes: [{ id: "sameNameAffix" }] }]
+  )],
+  [],
+  "same-name affix on a different instance is not B1 accessory-derived"
+);
+assert.deepEqual(
+  [...collectB1AccessoryAffixIdsCarriedToB2(
+    [{ instanceId: "b1-accessory", affixIds: ["sameNameAffix"] }],
+    [{ instanceId: "b1-accessory", slot: "accessory", affixes: [{ id: "sameNameAffix" }] }]
+  )],
+  ["sameNameAffix"],
+  "the carried B1 accessory instance is attributed"
+);
+assert.equal(
+  collectB1AccessoryAffixIdsCarriedToB2(
+    [{ instanceId: "b1-accessory", affixIds: ["duplicateAffix"] }],
+    [{
+      instanceId: "b1-accessory",
+      slot: "accessory",
+      affixes: [{ id: "duplicateAffix" }, { id: "duplicateAffix" }]
+    }]
+  ).size,
+  1,
+  "duplicate affixes in one run count once"
+);
 
 const fight = createDiagnosticScenario({
   startingKit: "vanguard",

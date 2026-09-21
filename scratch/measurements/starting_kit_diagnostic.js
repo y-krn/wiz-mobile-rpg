@@ -240,7 +240,12 @@ function observeLootBreadth(aggregate, result, rewardEvents, runIndex) {
   );
   const flow = aggregate.lootBreadth.b1EquipmentFlow;
   const exposure = observeB1Equipment(flow, result, runIndex, b1EquippedIds, b2CarryIds);
-  const b2Entry = observeB2EntryBuild(flow, result, exposure.accessoryAffixes);
+  const b2Entry = observeB2EntryBuild(
+    flow,
+    result,
+    exposure.b1AccessoryRecords,
+    runIndex
+  );
   observeEquipmentProgressionAssociation(
     flow,
     exposure,
@@ -386,7 +391,7 @@ function createB2EntryBuildObservation() {
     rarity: createEquipmentCounterMap(EQUIPMENT_RARITIES),
     affixIds: {},
     affixCategories: {},
-    b1AccessoryAffixRuns: {}
+    b1AccessoryAffixRunIndexes: {}
   };
 }
 
@@ -413,7 +418,7 @@ function normalizeLootSource(source) {
   return B1_EQUIPMENT_SOURCES.includes(source) ? source : "other";
 }
 
-function normalizeEquipmentSnapshot(event) {
+export function normalizeEquipmentSnapshot(event) {
   const snapshot = event?.equipment || event;
   const slot = snapshot?.slot || snapshot?.type || event?.itemType || null;
   if (!EQUIPMENT_SLOTS.has(slot)) return null;
@@ -432,7 +437,9 @@ function normalizeEquipmentSnapshot(event) {
     slot,
     rarity: EQUIPMENT_RARITIES.includes(snapshot?.rarity) ? snapshot.rarity : "other",
     affixes,
-    cursed: Boolean(snapshot?.cursed || snapshot?.curseEffectId || event?.curseEffectId)
+    curseEffectId: snapshot?.curseEffectId || event?.curseEffectId || null,
+    cursed: Boolean(snapshot?.curseEffectId || event?.curseEffectId),
+    curseSuspected: Boolean(snapshot?.curseSuspected || event?.curseSuspected)
   };
 }
 
@@ -559,7 +566,8 @@ function observeB1Equipment(aggregate, result, runIndex, b1EquippedIds, b2CarryI
     hasAccessory: false,
     hasRarePlusAccessory: false,
     focusAffixes: new Set(),
-    accessoryAffixes: new Set()
+    accessoryAffixes: new Set(),
+    b1AccessoryRecords: []
   };
   const settlementLost = result.objectLootSettlement?.lost || [];
   buildB1RewardRecords(result).forEach(record => {
@@ -599,6 +607,12 @@ function observeB1Equipment(aggregate, result, runIndex, b1EquippedIds, b2CarryI
     });
     if (snapshot.slot !== "accessory") return;
     exposure.hasAccessory = true;
+    if (snapshot.instanceId) {
+      exposure.b1AccessoryRecords.push({
+        instanceId: snapshot.instanceId,
+        affixIds: snapshot.affixes.map(affix => affix.id)
+      });
+    }
     observation.accessory.runsWithAccessory.add(runIndex);
     incrementEquipmentCounter(observation.accessory.all, flags, runIndex);
     incrementEquipmentCounterByKey(observation.accessory.byRarity, snapshot.rarity, flags, runIndex);
@@ -625,7 +639,29 @@ function observeB1Equipment(aggregate, result, runIndex, b1EquippedIds, b2CarryI
   return exposure;
 }
 
-function observeB2EntryBuild(aggregate, result, b1AccessoryAffixes) {
+export function collectB1AccessoryAffixIdsCarriedToB2(
+  b1AccessoryRecords,
+  b2EntryEquipment
+) {
+  const affixesByInstanceId = new Map(
+    (b1AccessoryRecords || [])
+      .filter(record => record?.instanceId)
+      .map(record => [record.instanceId, new Set(record.affixIds || [])])
+  );
+  const carriedAffixes = new Set();
+  (b2EntryEquipment || []).forEach(item => {
+    if (!item?.instanceId || !["accessory", "accessory2"].includes(item.slot)) return;
+    const b1Affixes = affixesByInstanceId.get(item.instanceId);
+    if (!b1Affixes) return;
+    (item.affixes || []).forEach(affix => {
+      const id = affix.id || affix.type;
+      if (id && b1Affixes.has(id)) carriedAffixes.add(id);
+    });
+  });
+  return carriedAffixes;
+}
+
+function observeB2EntryBuild(aggregate, result, b1AccessoryRecords, runIndex) {
   const build = getB2EntryBuild(result);
   if (!build) return null;
   const equipment = build.equipment || [];
@@ -633,6 +669,10 @@ function observeB2EntryBuild(aggregate, result, b1AccessoryAffixes) {
   const accessoryAffixes = equipment
     .filter(item => item.slot === "accessory" || item.slot === "accessory2")
     .flatMap(item => item.affixes || []);
+  const carriedB1AccessoryAffixes = collectB1AccessoryAffixIdsCarriedToB2(
+    b1AccessoryRecords,
+    equipment
+  );
   const observation = aggregate.b2EntryBuild;
   observation.runsObserved++;
   addDistribution(observation.totalAffixes, affixes.length);
@@ -652,11 +692,11 @@ function observeB2EntryBuild(aggregate, result, b1AccessoryAffixes) {
       if (!id) return;
       increment(observation.affixIds, id);
       increment(observation.affixCategories, getAffixCategory(id));
-      if (b1AccessoryAffixes.has(id)) {
-        observation.b1AccessoryAffixRuns[id] =
-          (observation.b1AccessoryAffixRuns[id] || 0) + 1;
-      }
     });
+  });
+  carriedB1AccessoryAffixes.forEach(id => {
+    observation.b1AccessoryAffixRunIndexes[id] ||= new Set();
+    observation.b1AccessoryAffixRunIndexes[id].add(runIndex);
   });
   return {
     hp: build.hp,
@@ -721,6 +761,10 @@ function finalizeB1EquipmentObservation(observation, runs) {
 }
 
 function finalizeB2EntryBuildObservation(observation, runs) {
+  const b1AccessoryAffixRunCounts = Object.fromEntries(
+    Object.entries(observation.b1AccessoryAffixRunIndexes)
+      .map(([id, runIndexes]) => [id, runIndexes.size])
+  );
   return {
     runsObserved: observation.runsObserved,
     runRate: runs > 0 ? observation.runsObserved / runs : null,
@@ -731,9 +775,9 @@ function finalizeB2EntryBuildObservation(observation, runs) {
     rarity: finalizeEquipmentCounterMap(observation.rarity, Math.max(1, observation.runsObserved)),
     affixIds: { ...observation.affixIds },
     affixCategories: { ...observation.affixCategories },
-    b1AccessoryAffixRunCounts: { ...observation.b1AccessoryAffixRuns },
+    b1AccessoryAffixRunCounts,
     b1AccessoryAffixRunRates: Object.fromEntries(
-      Object.entries(observation.b1AccessoryAffixRuns)
+      Object.entries(b1AccessoryAffixRunCounts)
         .map(([id, count]) => [id, observation.runsObserved > 0 ? count / observation.runsObserved : null])
     )
   };

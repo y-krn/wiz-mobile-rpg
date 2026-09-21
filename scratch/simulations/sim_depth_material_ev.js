@@ -5581,8 +5581,9 @@ function recordDiagnosticReward(metrics, state, item, {
               category: getAffixDefinition(affix)?.category || null
             }))
           : [],
-        cursed: Boolean(item?.curseEffectId || item?.curseSuspected),
-        curseEffectId: item?.curseEffectId || null
+        cursed: Boolean(item?.curseEffectId),
+        curseEffectId: item?.curseEffectId || null,
+        curseSuspected: Boolean(item?.curseSuspected)
       }
     : null;
   rewards.push({
@@ -10610,9 +10611,8 @@ function createBuildSnapshot(state, scoringProfile, point) {
       name: item?.name || null,
       type: item?.type || null,
       rarity: equipped && typeof equipped === "object" ? equipped.rarity : null,
-      cursed: Boolean(equipped && typeof equipped === "object" && (
-        equipped.curseEffectId || equipped.curseSuspected
-      )),
+      cursed: Boolean(equipped && typeof equipped === "object" && equipped.curseEffectId),
+      curseSuspected: Boolean(equipped && typeof equipped === "object" && equipped.curseSuspected),
       atk: item?.atk || 0,
       def: item?.def || 0,
       affixes: affixes.map(affix => ({
@@ -13452,7 +13452,8 @@ function compactChestLootItem(item, role = null) {
     type: item?.type || itemData?.type || null,
     rarity: item?.rarity || null,
     curseEffectId: item?.curseEffectId || null,
-    cursed: Boolean(item?.curseEffectId || item?.curseSuspected),
+    cursed: Boolean(item?.curseEffectId),
+    curseSuspected: Boolean(item?.curseSuspected),
     role,
     affixes: Array.isArray(item?.affixes)
       ? item.affixes.map(affix => ({
