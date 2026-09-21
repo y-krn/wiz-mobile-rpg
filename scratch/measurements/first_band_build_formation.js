@@ -730,6 +730,11 @@ export function buildGuardianStrFightCohorts(result, kitId = null, runIndex = nu
       const terminalGuardianHp = finite(terminalEnemy?.hp) ?? (
         attempt?.result === "victory" ? 0 : null
       );
+      const pairedComparison = (result?.b5GuardianFleeEvDiagnostic?.strFightPairs || [])
+        .find(pair =>
+          Number(pair.attempt) === attemptNumber &&
+          Number(pair.productionDecisionIndex) === Number(next.playerDecisionIndex)
+        ) || null;
       const itemCounts = {};
       const spellCounts = {};
       continuationRounds
@@ -797,6 +802,7 @@ export function buildGuardianStrFightCohorts(result, kitId = null, runIndex = nu
           mp: terminalMp,
           guardianHp: terminalGuardianHp
         },
+        pairedComparison: pairedComparison ? structuredClone(pairedComparison) : null,
         guardianDamage: transitionGuardianHp === null || terminalGuardianHp === null
           ? null
           : Math.max(0, transitionGuardianHp - terminalGuardianHp),
@@ -884,6 +890,11 @@ function normalizeGuardianFleeEv(result, kitId, runIndex = null) {
         : null
     })),
     strFightCohorts: buildGuardianStrFightCohorts(result, kitId, runIndex),
+    strFightPairs: (diagnostic.strFightPairs || []).map(pair => ({
+      ...structuredClone(pair),
+      kit: kitId,
+      runIndex
+    })),
     decisionTrace,
     transitions: buildGuardianDecisionTransitions(decisionTrace, kitId)
   };
@@ -1690,16 +1701,98 @@ function summarizeGuardianStrFightRows(cohorts) {
   };
 }
 
+function summarizeGuardianStrFightPairs(pairs) {
+  const productionVictory = pairs.filter(pair => pair.production?.outcome === "victory");
+  const countRate = predicate => eventCount(
+    pairs.filter(predicate).length,
+    pairs.length
+  );
+  const metric = selector => distribution90(pairs.map(pair => Number(selector(pair))));
+  return {
+    pairN: pairs.length,
+    productionOutcome: countRateBy(pairs.map(pair => pair.production?.outcome || "unobserved"), pairs.length),
+    immediateFleeOutcome: countRateBy(pairs.map(pair => pair.immediateFlee?.outcome || "unobserved"), pairs.length),
+    productionTerminalHp: metric(pair => pair.production?.terminalHp),
+    immediateFleeTerminalHp: metric(pair => pair.immediateFlee?.terminalHp),
+    productionHpLoss: metric(pair => pair.production?.hpLoss),
+    immediateFleeHpLoss: metric(pair => pair.immediateFlee?.hpLoss),
+    productionRounds: metric(pair => pair.production?.rounds),
+    immediateFleeRounds: metric(pair => pair.immediateFlee?.rounds),
+    productionActions: metric(pair => pair.production?.actions),
+    immediateFleeActions: metric(pair => pair.immediateFlee?.actions),
+    productionGuardianDamage: metric(pair => pair.production?.guardianDamage),
+    immediateFleeGuardianDamage: metric(pair => pair.immediateFlee?.guardianDamage),
+    productionResourceItemCount: metric(pair => pair.production?.resourcesConsumed?.itemCount),
+    immediateFleeResourceItemCount: metric(pair => pair.immediateFlee?.resourcesConsumed?.itemCount),
+    productionMpCost: metric(pair => pair.production?.resourcesConsumed?.mp),
+    immediateFleeMpCost: metric(pair => pair.immediateFlee?.resourcesConsumed?.mp),
+    productionPartingAttackCount: metric(pair => pair.production?.partingAttackCount),
+    immediateFleePartingAttackCount: metric(pair => pair.immediateFlee?.partingAttackCount),
+    productionPartingDamage: metric(pair => pair.production?.partingDamage),
+    immediateFleePartingDamage: metric(pair => pair.immediateFlee?.partingDamage),
+    productionPartingDeath: countRate(pair => pair.production?.partingDeath === true),
+    immediateFleePartingDeath: countRate(pair => pair.immediateFlee?.partingDeath === true),
+    immediateFleeSurvival: countRate(pair => pair.immediateFlee?.survived === true),
+    immediateFleePartingDeath: countRate(pair => pair.immediateFlee?.partingDeath === true),
+    productionVictoryGained: countRate(pair => pair.pairedDelta?.productionVictoryGained === true),
+    productionLaterFleeImmediateFleeHigherHp: countRate(pair =>
+      pair.pairedDelta?.avoidableLaterFlee === true
+    ),
+    productionDeathImmediateFleeSurvived: countRate(pair =>
+      pair.pairedDelta?.avoidableDeath === true
+    ),
+    terminalHpDeltaImmediateFleeMinusProduction: distribution90(
+      pairs.map(pair => Number(pair.pairedDelta?.terminalHpImmediateFleeMinusProduction))
+    ),
+    extraRoundsProductionMinusImmediateFlee: distribution90(
+      pairs.map(pair => Number(pair.pairedDelta?.roundsProductionMinusImmediateFlee))
+    ),
+    extraActionsProductionMinusImmediateFlee: distribution90(
+      pairs.map(pair => Number(pair.pairedDelta?.actionsProductionMinusImmediateFlee))
+    ),
+    extraHpCostProductionMinusImmediateFlee: distribution90(
+      pairs.map(pair => Number(pair.pairedDelta?.hpLossProductionMinusImmediateFlee))
+    ),
+    extraResourceItemCountProductionMinusImmediateFlee: distribution90(
+      pairs.map(pair => Number(pair.pairedDelta?.itemCountProductionMinusImmediateFlee))
+    ),
+    extraMpCostProductionMinusImmediateFlee: distribution90(
+      pairs.map(pair => Number(pair.pairedDelta?.mpProductionMinusImmediateFlee))
+    ),
+    productionVictoryAdditionalCost: {
+      pairN: productionVictory.length,
+      hp: distribution90(productionVictory.map(pair =>
+        Number(pair.pairedDelta?.hpLossProductionMinusImmediateFlee)
+      )),
+      rounds: distribution90(productionVictory.map(pair =>
+        Number(pair.pairedDelta?.roundsProductionMinusImmediateFlee)
+      )),
+      resources: distribution90(productionVictory.map(pair =>
+        Number(pair.pairedDelta?.itemCountProductionMinusImmediateFlee)
+      )),
+      mp: distribution90(productionVictory.map(pair =>
+        Number(pair.pairedDelta?.mpProductionMinusImmediateFlee)
+      ))
+    },
+    samples: pairs.slice(0, GUARDIAN_STR_FIGHT_SAMPLE_LIMIT)
+  };
+}
+
 function summarizeGuardianStrFightCohort(cohorts) {
   const outcomes = ["victory", "laterFlee", "death"];
+  const withPairs = cohorts.map(item => item.pairedComparison).filter(Boolean);
   return {
     cohortN: cohorts.length,
     outcomes: countRateBy(cohorts.map(item => item.terminalOutcome), cohorts.length),
     all: summarizeGuardianStrFightRows(cohorts),
+    paired: summarizeGuardianStrFightPairs(withPairs),
     byOutcome: Object.fromEntries(outcomes.map(outcome => {
       const rows = cohorts.filter(item => item.terminalOutcome === outcome);
       return [outcome, {
         ...summarizeGuardianStrFightRows(rows),
+        paired: summarizeGuardianStrFightPairs(
+          rows.map(item => item.pairedComparison).filter(Boolean)
+        ),
         rate: rate(rows.length, cohorts.length)
       }];
     })),
@@ -2554,6 +2647,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       representativeRunsPerArm: RUN_SAMPLE_LIMIT,
       buildIdentitySamplesPerArm: BUILD_IDENTITY_SAMPLE_LIMIT,
       candidateSamplesPerArm: CANDIDATE_SAMPLE_LIMIT,
+      pairedSamplesPerArm: GUARDIAN_STR_FIGHT_SAMPLE_LIMIT,
       rawEncounterIdentities: "omitted"
     },
     comparisonSemantics: mode === B5_WALL_MODE
@@ -2561,7 +2655,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       : mode === B5_GUARDIAN_RETRY_MODE
       ? "C/R B1-B4 and B5-entry parity are asserted; first Guardian attempt is paired through the checkpoint-application boundary; no post-application path/RNG parity claim"
       : mode === B5_GUARDIAN_FLEE_EV_MODE
-      ? "C=current only; B5 Guardian first player EV evaluation observed once per attempt; observation ON/OFF compares outcome, action sequence, and RNG invariance"
+      ? "C=current only; B5 Guardian first player EV evaluation observed once per attempt; STR→fight pairs clone the post-STR branch state and restore the production RNG around production flee resolver execution; observation ON/OFF compares outcome, action sequence, and RNG invariance"
       : mode === ARCANA_WEAPON_MODE
       ? "Cross-arm C/W/R treatment comparisons use matched initial conditions; no post-divergence same-seed path/encounter/loot/trap parity claim"
       : mode === ARCANA_MP_SUPPLY_MODE
@@ -2777,7 +2871,7 @@ export function buildSummary(report) {
     };
     const strFightLine = (label, aggregate) => {
       const cohort = aggregate.b5.guardianFleeEv.strFightCohort;
-      return `- ${label} STR→fight cohort: N=${cohort.cohortN}; outcomes=${JSON.stringify(cohort.outcomes)}; all=${JSON.stringify(cohort.all)}; byOutcome=${JSON.stringify(cohort.byOutcome)}; samples=${JSON.stringify(cohort.samples)}`;
+      return `- ${label} STR→fight cohort: N=${cohort.cohortN}; outcomes=${JSON.stringify(cohort.outcomes)}; paired=${JSON.stringify(cohort.paired)}; all=${JSON.stringify(cohort.all)}; byOutcome=${JSON.stringify(cohort.byOutcome)}; samples=${JSON.stringify(cohort.samples)}`;
     };
     const lines = [
       "# First Band B5 Guardian flee EV diagnostic",
