@@ -6942,6 +6942,242 @@ export function runB5GuardianImmediateFleeCounterfactual({ state, rngState, poli
   };
 }
 
+const B5_GUARDIAN_UNSUPPORTED_DAMAGE_ACTIONS = new Set([
+  "LAHALITO",
+  "HALITO",
+  "MADALTO",
+  "TILTOWAIT",
+  "狙撃",
+  "目眩まし狙撃",
+  "毒喰らい",
+  "溜めて大打撃",
+  "自爆",
+  "炎の息"
+]);
+
+export function classifyB5GuardianUnsupportedThreat(action = {}) {
+  const actionNames = action.actionNames || [];
+  const damageSources = (action.damageEvents || []).map(event => event.source);
+  const reasons = [];
+  if (damageSources.some(source => ["spell", "snipe", "poison"].includes(source))) {
+    reasons.push("non-normal-damage");
+  }
+  if (action.statusSources?.length) reasons.push("status-payoff-or-status");
+  if (action.extraMultiAction === true) reasons.push("multi-action");
+  if (actionNames.some(name => B5_GUARDIAN_UNSUPPORTED_DAMAGE_ACTIONS.has(name))) {
+    reasons.push("damaging-special");
+  }
+  return [...new Set(reasons)];
+}
+
+function cloneB5GuardianCandidateState(state) {
+  const candidateState = cloneCombatStateForRound(state);
+  candidateState.simPolicy = {
+    ...state.simPolicy,
+    b5GuardianCandidatePolicy: true
+  };
+  candidateState.currentRun = state.currentRun ? structuredClone(state.currentRun) : null;
+  candidateState.combatFormulaTelemetry = state.combatFormulaTelemetry
+    ? structuredClone(state.combatFormulaTelemetry)
+    : state.combatFormulaTelemetry;
+  candidateState.metaMaterials = structuredClone(state.metaMaterials || {});
+  candidateState.combatState.b5GuardianPendingDecision = null;
+  return candidateState;
+}
+
+function candidateDecisionTraceFromPending(state, pendingDecision, action) {
+  const productionEvaluation = pendingDecision?.evaluation || null;
+  const candidateEvaluation = pendingDecision?.candidateEvaluation ||
+    pendingDecision?.incomingShadowEvaluation || null;
+  const character = state.party[0];
+  const boss = state.combatState.monsters.find(monster => monster.name === "デーモンガード") ||
+    state.combatState.monsters[0] || null;
+  return {
+    attempt: state.combatState.guardianAttempt,
+    round: state.combatState.roundNumber,
+    playerDecisionIndex: Number(state.combatState.b5GuardianPlayerDecisionIndex || 0) + 1,
+    productionDecision: productionEvaluation?.decision || null,
+    productionReason: productionEvaluation?.reason || null,
+    productionTerms: productionEvaluation?.terms ? structuredClone(productionEvaluation.terms) : null,
+    candidateDecision: candidateEvaluation?.decision || null,
+    candidateReason: candidateEvaluation?.reason || null,
+    candidateTerms: candidateEvaluation?.terms ? structuredClone(candidateEvaluation.terms) : null,
+    actualAction: compactCombatAction(action),
+    executed: null,
+    executedAction: null,
+    hp: {
+      current: character.hp,
+      max: getCharMaxHp(character),
+      rate: character.hp / Math.max(1, getCharMaxHp(character))
+    },
+    mp: {
+      current: character.mp,
+      max: getCharMaxMp(character),
+      rate: character.mp / Math.max(1, getCharMaxMp(character))
+    },
+    buffs: structuredClone(character.buffs || []),
+    guardian: boss ? {
+      hp: boss.hp,
+      maxHp: boss.maxHp,
+      buffs: structuredClone(boss.buffs || []),
+      guardBroken: boss.b5GuardBroken === true,
+      exposureTurns: Number(boss.b5ExposureTurns || 0)
+    } : null
+  };
+}
+
+function summarizeB5GuardianCandidateResources(branchPoint, terminal) {
+  const resourcesConsumed = subtractGuardianInventory(branchPoint.inventory, terminal.inventory);
+  return {
+    itemCounts: resourcesConsumed,
+    itemCount: Object.values(resourcesConsumed).reduce((sum, count) => sum + count, 0),
+    mp: Math.max(0, branchPoint.player.mp - terminal.player.mp)
+  };
+}
+
+export function runB5GuardianCombinedCandidateContinuation({
+  state,
+  rngState,
+  policy = null
+} = {}) {
+  if (!state?.combatState?.isBoss || state.floor !== 5) {
+    throw new Error("B5 Guardian candidate continuation requires the B5 boss state");
+  }
+  if (!Number.isInteger(Number(rngState))) {
+    throw new Error("B5 Guardian candidate continuation requires an integer RNG state");
+  }
+  const productionRngStateBefore = getSimulationRandomState();
+  const candidateStateAtBranch = cloneB5GuardianCandidateState(state);
+  const branchPoint = snapshotGuardianPairedState(candidateStateAtBranch);
+  const candidatePolicy = candidateStateAtBranch.simPolicy;
+  const candidateDecisionTrace = [];
+  const roundsTrace = [];
+  let candidateState = candidateStateAtBranch;
+  let outcome = "stalemate";
+  let rounds = 0;
+  let candidateRngStateAfter = null;
+  const measurement = { measurementEnemyActionDetails: true };
+  try {
+    setSimulationRandomStateExact(Number(rngState));
+    for (; rounds < MAX_COMBAT_TURNS; rounds++) {
+      if (!isAlive(candidateState.party[0])) {
+        outcome = "death";
+        break;
+      }
+      if (candidateState.combatState.monsters.every(monster => monster.hp <= 0)) {
+        outcome = "victory";
+        break;
+      }
+      const roundNumber = candidateState.combatState.roundNumber;
+      const action = selectCombatAction(candidateState, null);
+      const pendingDecision = candidateState.combatState.b5GuardianPendingDecision;
+      candidateState.combatState.b5GuardianPendingDecision = null;
+      const decisionTrace = candidateDecisionTraceFromPending(
+        candidateState,
+        pendingDecision,
+        action
+      );
+      const characterBefore = structuredClone(candidateState.party[0]);
+      const inventoryBefore = countInventoryContents(candidateState.inventory);
+      const roundResult = runCombatRoundCalculation(candidateState, {
+        actions: [action]
+      }, {
+        rng: Math.random,
+        policy: policy || state.simPolicy,
+        measurement
+      });
+      const playerActionObservation = (roundResult.actionObservations || []).find(observation =>
+        observation.actor === "char" && observation.actionType === action.type
+      );
+      const inventoryAfter = countInventoryContents(roundResult.state.inventory);
+      const itemInventoryDelta = action.type === "item"
+        ? Math.max(0, Number(inventoryBefore[action.itemKey] || 0) - Number(inventoryAfter[action.itemKey] || 0))
+        : null;
+      const executed = playerActionObservation?.executed === true || itemInventoryDelta > 0;
+      decisionTrace.executed = executed;
+      decisionTrace.executedAction = executed ? { ...decisionTrace.actualAction } : null;
+      decisionTrace.hpAfter = roundResult.state.party[0].hp;
+      decisionTrace.mpAfter = roundResult.state.party[0].mp;
+      decisionTrace.guardianAfter = snapshotGuardianPairedState(roundResult.state).guardian;
+      candidateDecisionTrace.push(decisionTrace);
+      const enemyActionDetails = buildEnemyActionDetails(
+        roundResult,
+        roundNumber,
+        characterBefore.name
+      );
+      roundsTrace.push({
+        round: roundNumber,
+        action: action.type,
+        itemKey: action.itemKey || null,
+        spellName: action.spellName || null,
+        playerActionExecuted: executed,
+        hpBefore: characterBefore.hp,
+        hpAfter: roundResult.state.party[0].hp,
+        mpBefore: characterBefore.mp,
+        mpAfter: roundResult.state.party[0].mp,
+        enemyActionEvents: enemyActionDetails.enemyActionEvents,
+        statusDamageEvents: enemyActionDetails.statusDamageEvents,
+        log: roundResult.logQueue.map(entry => entry.msg || ""),
+        fleeExecuted: roundResult.logQueue.some(entry => entry.fleeExecution === true),
+        fleePartingAttack: roundResult.logQueue.some(entry => entry.fleePartingAttack === true)
+      });
+      candidateState = { ...roundResult.state, simPolicy: candidatePolicy };
+      const fled = roundResult.logQueue.some(entry => entry.runEscape);
+      if (!isAlive(candidateState.party[0])) {
+        outcome = "death";
+        break;
+      }
+      if (fled) {
+        outcome = "flee";
+        break;
+      }
+      if (candidateState.combatState.monsters.every(monster => monster.hp <= 0)) {
+        outcome = "victory";
+        break;
+      }
+    }
+    candidateRngStateAfter = getSimulationRandomState();
+  } finally {
+    setSimulationRandomStateExact(productionRngStateBefore);
+  }
+  const terminal = snapshotGuardianPairedState(candidateState);
+  const unsupportedThreats = [
+    ...roundsTrace.flatMap(round => round.enemyActionEvents || []),
+    ...roundsTrace.flatMap(round => (round.statusDamageEvents || []).map(event => ({
+      ...event,
+      actionNames: [event.statusSource || event.source || "status"]
+    })))
+  ].flatMap(action => classifyB5GuardianUnsupportedThreat(action));
+  const continuation = summarizeNormalPhysicalContinuation(roundsTrace);
+  return {
+    resolver: "production-runCombatRoundCalculation",
+    policy: "duration-aware-outgoing+production-parity-incoming",
+    initialStateMatchesBranchPoint:
+      JSON.stringify(branchPoint) === JSON.stringify(snapshotGuardianPairedState(state)),
+    initialRngState: Number(rngState),
+    candidateRngStateAfter,
+    productionRngStateBeforeCounterfactual: productionRngStateBefore,
+    productionRngStateAfterCounterfactual: getSimulationRandomState(),
+    productionRngRestored: getSimulationRandomState() === productionRngStateBefore,
+    outcome,
+    branchPoint,
+    terminal,
+    terminalHp: terminal.player.hp,
+    hpLoss: Math.max(0, branchPoint.player.hp - terminal.player.hp),
+    guardianDamage: Math.max(0, (branchPoint.guardian?.hp || 0) - (terminal.guardian?.hp || 0)),
+    rounds,
+    actions: candidateDecisionTrace.length,
+    resourcesConsumed: summarizeB5GuardianCandidateResources(branchPoint, terminal),
+    roundsTrace,
+    decisionTrace: candidateDecisionTrace,
+    crossingCountAfterBranch: candidateDecisionTrace.filter(trace =>
+      trace.productionDecision && trace.candidateDecision &&
+      trace.productionDecision !== trace.candidateDecision
+    ).length,
+    unsupportedThreats: [...new Set(unsupportedThreats)]
+  };
+}
+
 export function recordB5GuardianFleeEvObservation(
   state,
   metrics,
@@ -7028,6 +7264,11 @@ export function recordB5GuardianFleeEvObservation(
       shadowEvaluation?.incomingShadowEvaluation?.decision || null,
     durationIncomingShadowReason:
       shadowEvaluation?.incomingShadowEvaluation?.reason || null,
+    candidateDecision: shadowEvaluation?.incomingShadowEvaluation?.decision || null,
+    candidateReason: shadowEvaluation?.incomingShadowEvaluation?.reason || null,
+    candidateTerms: shadowEvaluation?.incomingShadowEvaluation?.terms
+      ? structuredClone(shadowEvaluation.incomingShadowEvaluation.terms)
+      : null,
     durationAwareToIncomingShadowDecisionCrossing: shadowEvaluation
       ? {
           crossed: shadowEvaluation.shadowEvaluation.decision !==
@@ -7085,7 +7326,8 @@ export function recordB5GuardianFleeEvObservation(
       currentHp: boss?.hp ?? null,
       maxHp: boss?.maxHp ?? null,
       hpRate: boss?.maxHp > 0 ? boss.hp / boss.maxHp : null,
-      attack: boss?.atk ?? null
+      attack: boss?.atk ?? null,
+      buffs: structuredClone(boss?.buffs || [])
     },
     productionBossRule: {
       breakHpRate: rule.breakHpRate,
@@ -7102,7 +7344,13 @@ export function recordB5GuardianFleeEvObservation(
   return trace;
 }
 
-function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = null) {
+function getEnemyAwareCombatAction(
+  state,
+  recoveryItem,
+  diosAction,
+  metrics = null,
+  { candidatePolicy = false } = {}
+) {
   const character = state.party[0];
   const livingMonsters = state.combatState.monsters.filter(monster => monster.hp > 0);
   const recoveryArgs = {
@@ -7131,7 +7379,10 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
     ? getGuardianDurationAwareEvShadow(state, recoveryArgs, evaluation)
     : null;
   const decisionEvaluation = getCombatRecoveryDecision(recoveryArgs);
-  const decision = decisionEvaluation.decision;
+  const candidateEvaluation = shadowEvaluation?.incomingShadowEvaluation || null;
+  const selectedEvaluation = candidatePolicy && candidateEvaluation
+    ? candidateEvaluation
+    : decisionEvaluation;
   const policyProbeAction = shouldObserveGuardian
     ? getCombatPolicyProbeAction(state)
     : null;
@@ -7150,33 +7401,43 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
       expectedTurnsToWinDelta: shadowEvaluation?.expectedTurnsToWinDelta ?? 0,
       incomingShadow: shadowEvaluation?.incomingShadow || null,
       incomingShadowEvaluation: shadowEvaluation?.incomingShadowEvaluation || null,
+      candidateEvaluation,
+      candidatePolicy,
       recoveryItem,
       diosAction,
       policyProbeAction,
       playerDamagePerRound: recoveryArgs.playerDamagePerRound,
       eligibleOpeningItemKey,
-      fleeDeferredByOpening: decisionEvaluation.decision === "flee" &&
-        decisionEvaluation.reason === "flee-survival-deficit" &&
+      fleeDeferredByOpening: selectedEvaluation.decision === "flee" &&
+        selectedEvaluation.reason === "flee-survival-deficit" &&
         eligibleOpeningItemKey !== null
     };
   }
-  recordDamageEstimateDecision(metrics, state, recoveryArgs.playerDamagePerRound, decision);
-  if (decision === "flee") {
+  recordDamageEstimateDecision(metrics, state, recoveryArgs.playerDamagePerRound, selectedEvaluation.decision);
+  if (selectedEvaluation.decision === "flee") {
     return {
-      decision,
-      reason: decisionEvaluation.reason,
+      decision: selectedEvaluation.decision,
+      reason: selectedEvaluation.reason,
       action: { type: "run", actorIdx: 0 }
     };
   }
-  if (decision !== "recover") {
-    return { decision, reason: decisionEvaluation.reason, action: null };
+  if (selectedEvaluation.decision !== "recover") {
+    return {
+      decision: selectedEvaluation.decision,
+      reason: selectedEvaluation.reason,
+      action: null
+    };
   }
   const action = state.simPolicy.healPriorityPolicy === "dios-first" && diosAction
     ? diosAction
     : recoveryItem
       ? { type: "item", actorIdx: 0, targetIdx: 0, itemKey: recoveryItem }
       : diosAction;
-  return { decision, reason: decisionEvaluation.reason, action };
+  return {
+    decision: selectedEvaluation.decision,
+    reason: selectedEvaluation.reason,
+    action
+  };
 }
 
 export function getSimulationHealAmount(state, itemKey) {
@@ -7641,7 +7902,9 @@ export function selectCombatAction(state, metrics) {
   if (state.simPolicy.fleePolicy === "ev") {
     recoveryItem = getRecoveryPotionItem(state);
     diosAction = getDiosCombatAction(state);
-    const evResult = getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics);
+    const evResult = getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics, {
+      candidatePolicy: state.simPolicy.b5GuardianCandidatePolicy === true
+    });
     const canDeferSurvivalDeficitFlee = evResult.reason === "flee-survival-deficit" &&
       getEligibleBossOpeningItemKey(state) !== null;
     if (!b5GuardianFleeDisabled && evResult.action?.type === "run" && !canDeferSurvivalDeficitFlee) {
@@ -9158,6 +9421,82 @@ function runEncounter(
         avoidableDeath: productionOutcome === "death" && immediate.survived
       };
     });
+    const candidatePairs = metrics.b5GuardianFleeEvDiagnostic.combinedCandidatePairs
+      .filter(pair => pair.attempt === guardianAttempt && !pair.production);
+    candidatePairs.forEach(pair => {
+      const continuationRows = (encounterDiagnostic?.rounds || []).filter(round =>
+        Number(round.round) >= Number(pair.branchDecisionRound)
+      );
+      const productionTerminal = snapshotGuardianPairedState(state);
+      const productionOutcome = result === "flee" ? "laterFlee" : result;
+      const productionResources = subtractGuardianInventory(
+        pair.branchPoint.inventory,
+        productionTerminal.inventory
+      );
+      const productionContinuation = summarizeNormalPhysicalContinuation(continuationRows);
+      const production = {
+        outcome: productionOutcome,
+        terminal: productionTerminal,
+        terminalHp: productionTerminal.player.hp,
+        hpLoss: Math.max(0, pair.branchPoint.player.hp - productionTerminal.player.hp),
+        guardianDamage: Math.max(
+          0,
+          (pair.branchPoint.guardian?.hp || 0) - (productionTerminal.guardian?.hp || 0)
+        ),
+        rounds: continuationRows.length,
+        actions: metrics.b5GuardianFleeEvDiagnostic.decisionTrace.filter(trace =>
+          trace.attempt === guardianAttempt &&
+          Number(trace.playerDecisionIndex) >= Number(pair.branchDecisionIndex)
+        ).length,
+        resourcesConsumed: {
+          itemCounts: productionResources,
+          itemCount: Object.values(productionResources).reduce((sum, count) => sum + count, 0),
+          mp: Math.max(0, pair.branchPoint.player.mp - productionTerminal.player.mp)
+        },
+        ...productionContinuation,
+        decisionTrace: metrics.b5GuardianFleeEvDiagnostic.decisionTrace
+          .filter(trace => trace.attempt === guardianAttempt &&
+            Number(trace.playerDecisionIndex) >= Number(pair.branchDecisionIndex))
+          .map(trace => structuredClone(trace))
+      };
+      const productionThreats = continuationRows.flatMap(round => [
+        ...(round.enemyActionEvents || []),
+        ...((round.statusDamageEvents || []).map(event => ({
+          ...event,
+          actionNames: [event.statusSource || event.source || "status"]
+        })))
+      ]).flatMap(action => classifyB5GuardianUnsupportedThreat(action));
+      const unsupportedThreats = [...new Set([
+        ...(pair.candidate.unsupportedThreats || []),
+        ...productionThreats
+      ])];
+      pair.production = production;
+      pair.unsupportedThreat = {
+        eligible: unsupportedThreats.length === 0,
+        reasons: unsupportedThreats
+      };
+      const candidateOutcome = pair.candidate.outcome === "flee"
+        ? "laterFlee"
+        : pair.candidate.outcome;
+      pair.pairedDelta = {
+        candidateOutcome,
+        productionOutcome,
+        candidateTerminalHpMinusProduction: pair.candidate.terminalHp - production.terminalHp,
+        candidateHpLossMinusProduction: pair.candidate.hpLoss - production.hpLoss,
+        candidateRoundsMinusProduction: pair.candidate.rounds - production.rounds,
+        candidateActionsMinusProduction: pair.candidate.actions - production.actions,
+        candidateGuardianDamageMinusProduction:
+          pair.candidate.guardianDamage - production.guardianDamage,
+        candidateItemCountMinusProduction:
+          pair.candidate.resourcesConsumed.itemCount - production.resourcesConsumed.itemCount,
+        candidateMpMinusProduction:
+          pair.candidate.resourcesConsumed.mp - production.resourcesConsumed.mp,
+        candidateDeathIntroduced: candidateOutcome === "death" && productionOutcome !== "death",
+        productionVictoryLost: productionOutcome === "victory" && candidateOutcome !== "victory",
+        laterFleeAvoided: productionOutcome === "laterFlee" && candidateOutcome === "victory",
+        candidateVictoryGained: candidateOutcome === "victory" && productionOutcome !== "victory"
+      };
+    });
     return {
       result,
       rounds,
@@ -9206,6 +9545,7 @@ function runEncounter(
   let greaterHealPotionsUsed = 0;
   let triggerChest = false;
   let guardianStrFleeBranch = null;
+  let guardianCandidateBranched = false;
   for (; rounds < MAX_COMBAT_TURNS; rounds++) {
     const character = state.party[0];
     if (!isAlive(character)) return finishEncounter("death", rounds, healPotionsUsed, greaterHealPotionsUsed);
@@ -9225,6 +9565,54 @@ function runEncounter(
         action
       );
       state.combatState.b5GuardianPendingDecision = null;
+    }
+    if (
+      !guardianCandidateBranched &&
+      selectedDecisionTrace?.durationAwareToIncomingShadowDecisionCrossing?.crossed === true
+    ) {
+      const branchRngState = getSimulationRandomState();
+      const candidateContinuation = runB5GuardianCombinedCandidateContinuation({
+        state,
+        rngState: branchRngState,
+        policy: simulationPolicy
+      });
+      if (
+        !candidateContinuation.productionRngRestored ||
+        getSimulationRandomState() !== branchRngState
+      ) {
+        throw new Error("B5 Guardian combined candidate changed production RNG state");
+      }
+      metrics.b5GuardianFleeEvDiagnostic.combinedCandidatePairs.push({
+        attempt: guardianAttempt,
+        encounterEventKey: stableEventKey,
+        runSeed: state.currentRun?.runSeed || null,
+        branchPoint: candidateContinuation.branchPoint,
+        branchRngState,
+        branchDecisionIndex: selectedDecisionTrace.playerDecisionIndex,
+        branchDecisionRound: selectedDecisionTrace.round,
+        crossingDirection: `${selectedDecisionTrace.productionDecision}->${selectedDecisionTrace.candidateDecision}`,
+        productionDecision: {
+          decision: selectedDecisionTrace.productionDecision,
+          reason: selectedDecisionTrace.productionReason,
+          terms: structuredClone(selectedDecisionTrace.terms),
+          candidateDecision: selectedDecisionTrace.candidateDecision,
+          candidateReason: selectedDecisionTrace.candidateReason,
+          candidateTerms: structuredClone(selectedDecisionTrace.candidateTerms),
+          currentDamageEstimate: selectedDecisionTrace.currentDamageEstimate,
+          baseDamageEstimate: selectedDecisionTrace.baseDamageEstimate,
+          staticExpectedTurnsToWin: selectedDecisionTrace.staticExpectedTurnsToWin,
+          durationAwareExpectedTurnsToWin: selectedDecisionTrace.durationAwareExpectedTurnsToWin,
+          legacySurvivalTurns: selectedDecisionTrace.legacySurvivalTurns,
+          productionParityIncomingSurvivalTurns: selectedDecisionTrace.productionShadowSurvivalTurns
+        },
+        actualAction: structuredClone(selectedDecisionTrace.actualAction),
+        executedAction: null,
+        candidate: candidateContinuation,
+        production: null,
+        unsupportedThreat: null,
+        pairedDelta: null
+      });
+      guardianCandidateBranched = true;
     }
     recordDamageEstimateAction(metrics, state, action);
     const policyProbeAction = getCombatPolicyProbeAction(state);
@@ -9617,6 +10005,16 @@ function runEncounter(
         actionObservation: playerActionObservation,
         itemInventoryDelta
       });
+      const candidatePair = metrics.b5GuardianFleeEvDiagnostic.combinedCandidatePairs.find(pair =>
+        pair.attempt === guardianAttempt &&
+        Number(pair.branchDecisionIndex) === Number(selectedDecisionTrace.playerDecisionIndex) &&
+        pair.production === null
+      );
+      if (candidatePair) {
+        candidatePair.executedAction = selectedDecisionTrace.executedAction
+          ? structuredClone(selectedDecisionTrace.executedAction)
+          : null;
+      }
     }
     if (guardianStrFleeBranch) {
       if (
@@ -15640,6 +16038,9 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       })),
       strFightPairs: metrics.b5GuardianFleeEvDiagnostic.strFightPairs.map(pair =>
         structuredClone(pair)
+      ),
+      combinedCandidatePairs: metrics.b5GuardianFleeEvDiagnostic.combinedCandidatePairs.map(pair =>
+        structuredClone(pair)
       )
     },
     merchantUncurseAttempts: metrics.merchantUncurseAttempts,
@@ -16277,7 +16678,8 @@ export function simulateRun({
       enabled: scenario.b5GuardianFleeEvObservation === true,
       observations: [],
       decisionTrace: [],
-      strFightPairs: []
+      strFightPairs: [],
+      combinedCandidatePairs: []
     },
     elitePolicy: state.simPolicy.elitePolicy,
     eliteEncounters: 0,

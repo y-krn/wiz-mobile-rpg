@@ -319,11 +319,13 @@ const {
   calculateDurationAwareExpectedTurnsToWin,
   calculateProductionPhysicalIncomingHitShadow,
   calculateProductionPhysicalIncomingShadow,
+  classifyB5GuardianUnsupportedThreat,
   getFiniteAtkBuffObservation,
   getSimulationRandomState,
   getScenarioById,
   recordB5GuardianFleeEvObservation,
   resetSimulationRandom,
+  runB5GuardianCombinedCandidateContinuation,
   runB5GuardianImmediateFleeCounterfactual,
   selectCombatAction,
   simulateRun
@@ -501,6 +503,34 @@ assert.equal(partingDeath.outcome, "death");
 assert.equal(partingDeath.survived, false);
 assert.equal(partingDeath.partingDeath, true);
 assert.equal(partingDeath.partingAttackCount, 1);
+
+assert.deepEqual(classifyB5GuardianUnsupportedThreat({
+  actionNames: ["通常攻撃"],
+  damageEvents: [{ source: "normal", damage: 5 }],
+  statusSources: []
+}), []);
+assert.deepEqual(classifyB5GuardianUnsupportedThreat({
+  actionNames: ["LAHALITO"],
+  damageEvents: [{ source: "spell", damage: 5 }],
+  statusSources: []
+}), ["non-normal-damage", "damaging-special"]);
+
+const candidateStateBefore = JSON.stringify(counterfactualState);
+resetSimulationRandom(123);
+const candidateBranchRngState = getSimulationRandomState();
+const candidateContinuation = runB5GuardianCombinedCandidateContinuation({
+  state: counterfactualState,
+  rngState: candidateBranchRngState
+});
+assert.equal(candidateContinuation.resolver, "production-runCombatRoundCalculation");
+assert.equal(candidateContinuation.policy, "duration-aware-outgoing+production-parity-incoming");
+assert.equal(candidateContinuation.initialStateMatchesBranchPoint, true);
+assert.equal(candidateContinuation.productionRngRestored, true);
+assert.equal(getSimulationRandomState(), candidateBranchRngState);
+assert.equal(JSON.stringify(counterfactualState), candidateStateBefore);
+assert.ok(candidateContinuation.decisionTrace.length >= 1);
+assert.ok(candidateContinuation.roundsTrace.length >= 1);
+assert.ok(Object.hasOwn(candidateContinuation, "unsupportedThreats"));
 
 const focusedScenario = {
   ...getScenarioById("workshop-complete"),
