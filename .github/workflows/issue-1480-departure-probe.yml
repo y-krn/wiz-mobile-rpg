@@ -48,6 +48,8 @@ jobs:
       - name: Capture environment
         run: |
           set -euo pipefail
+          echo "ISSUE_1480_EVIDENCE_DIR=$RUNNER_TEMP/issue-1480" >> "$GITHUB_ENV"
+          export ISSUE_1480_EVIDENCE_DIR="$RUNNER_TEMP/issue-1480"
           mkdir -p "$ISSUE_1480_EVIDENCE_DIR"
           {
             echo "source=$SOURCE_UNDER_TEST"
