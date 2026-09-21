@@ -18,6 +18,11 @@ import { isRuntimeItemCollection, isRuntimeItemRef } from "./item.js";
 import { isNormalizedPendingRewardBundle } from "./pending_reward.js";
 import { normalizeRunQuest } from "./run_quest.js";
 import { normalizeTrialBands } from "./trial_band.js";
+import {
+  createDefaultNormalizedEliteFloorState,
+  isCanonicalEliteFloorKey,
+  normalizeEliteFloors
+} from "./elite_floor.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -736,32 +741,10 @@ function normalizeCurrentRun(run) {
     }
     : null;
   normalized.trialBands = normalizeTrialBands(normalized.trialBands);
-  normalized.eliteFloors = Object.fromEntries(
-    Object.entries(normalized.eliteFloors).filter(([floor, elite]) =>
-      /^\d+$/.test(floor) && Number(floor) >= 1 && isRecord(elite)
-    ).map(([floor, elite]) => [floor, {
-      entryRollResolved: elite.entryRollResolved === true,
-      spawned: elite.spawned === true,
-      defeated: elite.defeated === true,
-      warningStage: Math.min(3, Math.max(0, integerOr(elite.warningStage, 0))),
-      prolongedChecks: Math.max(0, integerOr(elite.prolongedChecks, 0)),
-      greedScore: Math.max(0, numberOr(elite.greedScore, 0)),
-      stairsFound: elite.stairsFound === true,
-      actionKeys: arrayOr(elite.actionKeys).filter(key => typeof key === "string").slice(-100)
-    }])
-  );
+  normalized.eliteFloors = normalizeEliteFloors(normalized.eliteFloors);
   Object.entries(recordOr(normalized.eliteOmenSteps, {})).forEach(([floor, omenSteps]) => {
-    if (!/^\d+$/.test(floor) || !Array.isArray(omenSteps)) return;
-    const elite = normalized.eliteFloors[floor] || {
-      entryRollResolved: false,
-      spawned: false,
-      defeated: false,
-      warningStage: 0,
-      prolongedChecks: 0,
-      greedScore: 0,
-      stairsFound: false,
-      actionKeys: []
-    };
+    if (!isCanonicalEliteFloorKey(floor) || !Array.isArray(omenSteps)) return;
+    const elite = normalized.eliteFloors[floor] || createDefaultNormalizedEliteFloorState();
     elite.warningStage = Math.max(elite.warningStage, Math.min(3, omenSteps.length));
     normalized.eliteFloors[floor] = elite;
   });
