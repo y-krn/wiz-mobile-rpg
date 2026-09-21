@@ -34,6 +34,7 @@ import {
   normalizeCompletedCampEntryFloors,
   normalizePendingCampEntryFloor
 } from "./camp_state.js";
+import { normalizeFloorSteps } from "./floor_steps.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -721,6 +722,7 @@ function normalizeCurrentRun(run, saveFloor) {
       normalized[key] = normalized[key] ?? defaultValue;
     }
   });
+  normalized.floorSteps = normalizeFloorSteps(run.floorSteps);
 
   const runSeed = normalizeRunSeed(run.runSeed);
   if (runSeed === undefined) delete normalized.runSeed;
