@@ -4,6 +4,7 @@ import { isCharacterEquipment, type CharacterEquipment } from "./equipment.js";
 import { isNormalizedCurrentRun, type NormalizedCurrentRun } from "./run_state.js";
 import { isNormalizedDeathHistory, type NormalizedDeathHistory } from "./death_logs.js";
 import { isNormalizedStartingKitId, type NormalizedStartingKitId } from "./starting_kit.js";
+import { isNormalizedRecords, type NormalizedRecords } from "./records_state.js";
 import {
   isInventoryCollection,
   isRuntimeItemCollection,
@@ -54,7 +55,7 @@ export interface NormalizedSavePayload {
   floorChestsTotal: unknown[];
   firstKills: string[];
   currentRun: NormalizedCurrentRun | null;
-  records: Record<string, unknown>;
+  records: NormalizedRecords;
   unlockedMilestones: number[];
   runHistory: unknown[];
   deathLogs: NormalizedDeathHistory;
@@ -135,7 +136,7 @@ export function isNormalizedSavePayload(value: unknown): value is NormalizedSave
       !isFiniteNumber(value.storageMax) || !isFiniteNumber(value.identifyTickets)) return false;
   if (!Array.isArray(value.firstKills) || !value.firstKills.every(item => typeof item === "string")) return false;
   if (value.currentRun !== null && !isNormalizedCurrentRun(value.currentRun)) return false;
-  if (!isRecord(value.records) || !isRecord(value.codex) || !isRecord(value.metaMaterials) ||
+  if (!isNormalizedRecords(value.records) || !isRecord(value.codex) || !isRecord(value.metaMaterials) ||
       !isRecord(value.workshop)) return false;
   if (!Array.isArray(value.unlockedMilestones) ||
       !value.unlockedMilestones.every(item => Number.isInteger(item))) return false;
