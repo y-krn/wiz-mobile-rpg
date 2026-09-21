@@ -3,6 +3,13 @@ import assert from "node:assert/strict";
 const { createDefaultCodex, createDefaultCurrentRun, createStartingKitCharacter } =
   await import("../../../src/state/initial_state.js");
 const { processRunReturn } = await import("../../../src/systems/run_return.js");
+const {
+  isNormalizedReturnItemRecord,
+  isNormalizedReturnItemHistory,
+  isNormalizedRunInsights,
+  isNormalizedWorkshopUnlocks,
+  isNormalizedReturnProcessing
+} = await import("../../../src/state/run_return_state.js");
 const { recordDungeonObjectLoot } = await import("../../../src/state/run_loot.js");
 const { applyAutomaticWorkshopUnlock, getWorkshopGrants } = await import("../../../src/systems/workshop.js");
 const { generateRandomAccessory } = await import("../../../src/systems/equipment_generation.js");
@@ -49,6 +56,11 @@ function setupRun(deepestFloor = 5) {
   assert.equal(result.representativeItem.status, "returned");
   assert.equal(result.representativeItem.wasEquipped, true);
   assert.equal(result.meaningfulItemHistory.length, 2);
+  assert.equal(isNormalizedReturnItemRecord(result.representativeItem), true);
+  assert.equal(isNormalizedReturnItemHistory(result.meaningfulItemHistory), true);
+  assert.equal(isNormalizedRunInsights(result.insights), true);
+  assert.equal(isNormalizedWorkshopUnlocks(result.workshopUnlocks), true);
+  assert.equal(isNormalizedReturnProcessing(state.currentRun.returnProcessing), true);
   assert.equal(Object.hasOwn(result.representativeItem, "atk"), false);
   assert.equal(Object.hasOwn(result.representativeItem, "affixes"), false);
   assert.deepEqual(state.workshop.lateralUnlocks, ["pool_trap_eater"]);
