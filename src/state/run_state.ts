@@ -2,7 +2,12 @@
 
 import { isRuntimeItemCollection, isRuntimeItemRef, type RuntimeItemCollection, type RuntimeItemRef } from "./item.js";
 import { isNormalizedPendingRewardBundle, type NormalizedPendingRewardBundle } from "./pending_reward.js";
-import { isNormalizedRunQuestCollection, type NormalizedRunQuest } from "./run_quest.js";
+import {
+  isNormalizedDefeatsByRole,
+  isNormalizedRunQuestCollection,
+  type NormalizedDefeatsByRole,
+  type NormalizedRunQuest
+} from "./run_quest.js";
 import { isNormalizedTrialBands, type NormalizedTrialBands } from "./trial_band.js";
 import {
   isNormalizedEliteDefeatedFloors,
@@ -91,7 +96,7 @@ export interface NormalizedCurrentRun {
   defeatedMilestones: NormalizedDefeatedMilestones;
   visitedMilestoneMerchants: NormalizedVisitedMilestoneMerchants;
   quests: NormalizedRunQuest[];
-  defeatsByRole: Record<string, unknown>;
+  defeatsByRole: NormalizedDefeatsByRole;
   codexRewards: Record<string, unknown>;
   departureItems: RuntimeItemCollection;
   departureEquipment: Record<string, unknown>;
@@ -112,7 +117,7 @@ const NUMBER_FIELDS = [
 
 const RECORD_FIELDS = [
   "eventObservations",
-  "eliteOmenSteps", "defeatsByRole", "codexRewards",
+  "eliteOmenSteps", "codexRewards",
   "departureEquipment"
 ] as const;
 
@@ -136,7 +141,7 @@ const REQUIRED_FIELDS = [
   "floorSteps",
   "eliteFloors", "eliteDefeatedFloors",
   "defeatedMilestones", "visitedMilestoneMerchants",
-  "materials", "bankedMaterials",
+  "materials", "bankedMaterials", "defeatsByRole",
   ...RECORD_FIELDS,
   ...ARRAY_FIELDS,
   ...ITEM_COLLECTION_FIELDS
@@ -187,6 +192,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   }
   if (!ARRAY_FIELDS.every(field => Array.isArray(value[field]))) return false;
   if (!isNormalizedRunQuestCollection(value.quests)) return false;
+  if (!isNormalizedDefeatsByRole(value.defeatsByRole)) return false;
   if (!ITEM_COLLECTION_FIELDS.every(field => isRuntimeItemCollection(value[field]))) return false;
   if (!Array.isArray(value.unbankedObjectLoot) ||
       !value.unbankedObjectLoot.every(isNormalizedRunObjectLootEntry)) return false;
