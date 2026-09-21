@@ -47,6 +47,11 @@ global.setTimeout = callback => {
 try {
   state.party = [createStartingKitCharacter('scout')];
   executeEnterDungeon(1);
+  assert.equal(state.currentRun.startingKit, 'scout', 'run start preserves canonical kit identity');
+  state.party[0].startingKit = 'Fighter';
+  executeEnterDungeon(1);
+  assert.equal(state.currentRun.startingKit, null, 'run start rejects malformed kit identity');
+  state.party[0].startingKit = 'scout';
   assert.equal(Object.hasOwn(state.currentRun, 'departureEquipment'), false,
     'run start does not recreate retired departureEquipment');
 

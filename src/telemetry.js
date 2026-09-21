@@ -28,6 +28,7 @@ import { getActiveRuneSpellKeys, getRuneItemId } from "./rules/magic_rules.js";
 import { RUNE_SUPPLY_BANDS, RUNES } from "./data/magic.js";
 import { resolveBuildSnapshot } from "./rules/build_snapshot.js";
 import { buildObjectLootStakeSnapshot } from "./rules/object_loot_stake.js";
+import { isStartingKitId } from "./state/starting_kit.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -412,7 +413,9 @@ export function buildPlayerSnapshot(character, { floor = 1 } = {}) {
     // Malformed optional state must never interfere with gameplay.
   }
   const snapshot = {
-    startingKit: normalizeOptionalStableValue(character.startingKit, new Set(["vanguard", "scout", "devotion", "arcana"])),
+    startingKit: character.startingKit === null || character.startingKit === undefined || character.startingKit === ""
+      ? null
+      : isStartingKitId(character.startingKit) ? character.startingKit : "other",
     level: boundedFiniteOrNull(character.level),
     hp: boundedFiniteOrNull(character.hp),
     maxHp: boundedFiniteOrNull(getCharMaxHp(character)),

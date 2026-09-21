@@ -2,6 +2,7 @@
 
 import { isCharacterEquipment, type CharacterEquipment } from "./equipment.js";
 import { isNormalizedCurrentRun, type NormalizedCurrentRun } from "./run_state.js";
+import { isNormalizedStartingKitId, type NormalizedStartingKitId } from "./starting_kit.js";
 import {
   isInventoryCollection,
   isRuntimeItemCollection,
@@ -20,6 +21,7 @@ export type PersistedGameState =
   | "victory";
 
 export interface NormalizedSaveCharacter {
+  startingKit: NormalizedStartingKitId;
   equipment: CharacterEquipment;
   [key: string]: unknown;
 }
@@ -106,7 +108,8 @@ function hasRequiredFields(value: Record<string, unknown>): boolean {
 }
 
 function isNormalizedCharacter(value: unknown): value is NormalizedSaveCharacter {
-  return isRecord(value) && isCharacterEquipment(value.equipment);
+  return isRecord(value) && Object.hasOwn(value, "startingKit") &&
+    isNormalizedStartingKitId(value.startingKit) && isCharacterEquipment(value.equipment);
 }
 
 export function isNormalizedSavePayload(value: unknown): value is NormalizedSavePayload {

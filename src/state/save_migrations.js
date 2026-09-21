@@ -45,6 +45,7 @@ import {
   normalizeReturnProcessing
 } from "./run_return_state.js";
 import { normalizeRunRecordResult } from "./run_record_result.js";
+import { normalizeStartingKitId } from "./starting_kit.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -339,6 +340,7 @@ function normalizeCharEquipment(char, normalized) {
   // fields are intentionally discarded instead of being reconstructed.
   delete char.class;
   delete char.spells;
+  char.startingKit = normalizeStartingKitId(char.startingKit);
   char.equipment = {
     weapon: char.equipment?.weapon ?? null,
     shield: char.equipment?.shield ?? null,
@@ -354,7 +356,7 @@ function normalizeCharEquipment(char, normalized) {
     normalized.storage.push(char.equipment.shield);
     char.equipment.shield = null;
   }
-  if (char.startingKit) {
+  if (char.startingKit !== null) {
     if (!Number.isFinite(char.maxMp) || char.maxMp < BASE_STARTING_MP) char.maxMp = BASE_STARTING_MP;
     if (!Number.isFinite(char.mp)) char.mp = 0;
     if (!char.mediumState || typeof char.mediumState !== "object") {
@@ -480,6 +482,7 @@ function normalizeRunOutcome(run) {
 function normalizeRunHistoryEntry(entry) {
   if (!isRecord(entry)) return null;
   const normalized = normalizeRunOutcome(entry);
+  normalized.startingKit = normalizeStartingKitId(entry.startingKit);
   if (Object.hasOwn(entry, "deepestFloor")) {
     normalized.deepestFloor = Math.max(0, integerOr(entry.deepestFloor, 0));
   }
@@ -690,6 +693,7 @@ function normalizeCurrentRun(run, saveFloor) {
       normalized[key] = normalized[key] ?? defaultValue;
     }
   });
+  normalized.startingKit = normalizeStartingKitId(run.startingKit);
   normalized.eventObservations = normalizeEventObservations(run.eventObservations);
   normalized.floorSteps = normalizeFloorSteps(run.floorSteps);
   normalized.materials = normalizeRunMaterials(run.materials);

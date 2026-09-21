@@ -4,6 +4,7 @@ import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DI
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer_runtime.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
+import { normalizeStartingKitId } from "./state/starting_kit.js";
 import { showFloorEntryStinger, updateUI } from "./ui.js";
 import { getFloorLabel, getFloorTheme, revealFloor } from "./data/floor_themes.js";
 import { ensureRunFloor, isUsableFloorCell, resetRunFloors } from "./state/run_floor_state.js";
@@ -855,7 +856,7 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   state.currentRun.runSeed = `${state.seed}:run:${state.currentRun.startedAt}`;
   state.currentRun.startFloor = floor;
   state.currentRun.deepestFloor = floor;
-  state.currentRun.startingKit = state.party[0]?.startingKit || null;
+  state.currentRun.startingKit = normalizeStartingKitId(state.party[0]?.startingKit);
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
   if (Array.isArray(runQuestTemplateIds) && runQuestTemplateIds.length > 0) {

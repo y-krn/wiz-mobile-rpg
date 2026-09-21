@@ -463,7 +463,7 @@ check("malformed history entries are filtered without changing valid records", (
     deathLogs: [null, { ...validDeath, lostItems: "invalid" }]
   });
 
-  assert.deepEqual(normalized.runHistory, [validHistory]);
+  assert.deepEqual(normalized.runHistory, [{ ...validHistory, startingKit: null }]);
   assert.equal(normalized.deathLogs.length, 1);
   assert.deepEqual(normalized.deathLogs[0].lostItems, []);
 });
