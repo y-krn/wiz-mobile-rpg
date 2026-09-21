@@ -7,6 +7,7 @@ import {
   runMeasurement,
   summarizeGuardianOpeningTransitions
 } from "../../../scratch/measurements/first_band_build_formation.js";
+import { evaluateCombatRecoveryAction } from "../../../scratch/simulations/sim_recovery_policy.js";
 
 const result = await runMeasurement({
   runs: 1,
@@ -315,6 +316,8 @@ for (const transition of transitions) {
 
 const {
   finalizeB5GuardianDecisionTrace,
+  calculateDurationAwareExpectedTurnsToWin,
+  getFiniteAtkBuffObservation,
   getSimulationRandomState,
   getScenarioById,
   recordB5GuardianFleeEvObservation,
@@ -323,6 +326,61 @@ const {
   selectCombatAction,
   simulateRun
 } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
+
+const finiteAtkBuff = getFiniteAtkBuffObservation({
+  buffs: [
+    { type: "atk", value: 15, turns: 5 },
+    { type: "atk", value: -3, turns: 3 },
+    { type: "physGuard", value: 40, turns: 99 },
+    { type: "firstStrike", value: 5, turns: 5 }
+  ]
+});
+assert.deepEqual(finiteAtkBuff, { active: true, value: 15, remainingTurns: 5 });
+assert.deepEqual(getFiniteAtkBuffObservation({
+  buffs: [
+    { type: "physGuard", value: 40, turns: 99 },
+    { type: "firstStrike", value: 5, turns: 5 }
+  ]
+}), { active: false, value: 0, remainingTurns: 0 });
+assert.equal(calculateDurationAwareExpectedTurnsToWin({
+  totalEnemyHp: 100,
+  currentDamage: 40,
+  baseDamage: 10,
+  remainingBuffTurns: 3
+}), 3, "buff内kill uses static current-damage ETW");
+assert.equal(calculateDurationAwareExpectedTurnsToWin({
+  totalEnemyHp: 230,
+  currentDamage: 25,
+  baseDamage: 10,
+  remainingBuffTurns: 4
+}), 17, "buff expiry kill uses remaining buff turns plus base damage");
+assert.equal(calculateDurationAwareExpectedTurnsToWin({
+  totalEnemyHp: 230,
+  currentDamage: 25,
+  baseDamage: 10,
+  remainingBuffTurns: 0
+}), 10, "no finite ATK buff preserves static ETW");
+const staticFight = evaluateCombatRecoveryAction({
+  currentHp: 13,
+  maxHp: 100,
+  enemyHp: [230],
+  enemyAttack: [1],
+  playerDamagePerRound: 25,
+  fleeThreshold: 0.20,
+  healThreshold: 0.55
+});
+const shadowFlee = evaluateCombatRecoveryAction({
+  currentHp: 13,
+  maxHp: 100,
+  enemyHp: [230],
+  enemyAttack: [1],
+  playerDamagePerRound: 25,
+  expectedTurnsToWinOverride: 17,
+  fleeThreshold: 0.20,
+  healThreshold: 0.55
+});
+assert.equal(staticFight.decision, "fight", "static ETW remains fight");
+assert.equal(shadowFlee.decision, "flee", "duration-aware ETW crosses to flee");
 
 const counterfactualState = {
   party: [{
@@ -437,6 +495,30 @@ assert.deepEqual(
   focused.b5GuardianFleeEvDiagnostic.observations[0],
   focused.b5GuardianFleeEvDiagnostic.decisionTrace[0]
 );
+const focusedDecisionTrace = focused.b5GuardianFleeEvDiagnostic.decisionTrace;
+assert.ok(focusedDecisionTrace.every(trace =>
+  trace.productionDecision === trace.decision &&
+  trace.productionReason === trace.reason &&
+  trace.atkBuff &&
+  Number.isFinite(trace.currentDamageEstimate) &&
+  Number.isFinite(trace.baseDamageEstimate) &&
+  Number.isFinite(trace.staticExpectedTurnsToWin) &&
+  Number.isFinite(trace.durationAwareExpectedTurnsToWin) &&
+  trace.shadowTerms
+));
+const focusedNoFiniteAtkTrace = focusedDecisionTrace.find(trace => !trace.atkBuff.active);
+assert.ok(focusedNoFiniteAtkTrace);
+assert.equal(
+  focusedNoFiniteAtkTrace.currentDamageEstimate,
+  focusedNoFiniteAtkTrace.baseDamageEstimate,
+  "no finite ATK buff keeps current/base damage parity"
+);
+assert.equal(
+  focusedNoFiniteAtkTrace.staticExpectedTurnsToWin,
+  focusedNoFiniteAtkTrace.durationAwareExpectedTurnsToWin,
+  "no finite ATK buff keeps static/duration-aware ETW parity"
+);
+assert.equal(focusedNoFiniteAtkTrace.staticToShadowDecisionCrossing.crossed, false);
 assert.deepEqual(focused.b5GuardianFleeEvDiagnostic.observations[0].productionBossRule, {
   breakHpRate: 0.80,
   exposureTurns: 4,

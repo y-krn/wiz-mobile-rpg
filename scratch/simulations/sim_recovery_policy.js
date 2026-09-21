@@ -16,6 +16,7 @@ function evaluateCombatRecoveryActionInternal({
   diosAvailable = false,
   fleeThreshold = 0.20,
   healThreshold = 0.55,
+  expectedTurnsToWinOverride = null,
 }, includeTerms) {
   const normalizedMaxHp = Math.max(1, Number(maxHp) || 0);
   const normalizedHp = Math.max(0, Number(currentHp) || 0);
@@ -32,7 +33,13 @@ function evaluateCombatRecoveryActionInternal({
   );
   const totalEnemyHp = enemyHp.reduce((sum, hp) => sum + Math.max(0, Number(hp) || 0), 0);
   const playerDamage = Math.max(1, Number(playerDamagePerRound) || 0);
-  const expectedTurnsToWin = Math.max(1, Math.ceil(totalEnemyHp / playerDamage));
+  const normalizedExpectedTurnsToWinOverride = Number(expectedTurnsToWinOverride);
+  const hasExpectedTurnsToWinOverride = expectedTurnsToWinOverride !== null &&
+    expectedTurnsToWinOverride !== undefined &&
+    Number.isFinite(normalizedExpectedTurnsToWinOverride);
+  const expectedTurnsToWin = hasExpectedTurnsToWinOverride
+    ? Math.max(1, Math.ceil(normalizedExpectedTurnsToWinOverride))
+    : Math.max(1, Math.ceil(totalEnemyHp / playerDamage));
   const survivalTurns = Math.floor(Math.max(0, normalizedHp - 1) / incomingDamagePerRound);
   const maxRecovery = Math.max(
     potionAvailable ? Number(potionHeal) || 0 : 0,

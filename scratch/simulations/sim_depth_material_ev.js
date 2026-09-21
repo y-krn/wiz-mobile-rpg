@@ -6501,9 +6501,11 @@ function getDamageEstimateActionTotals(audit) {
   );
 }
 
-function getEvPhysicalDamageEstimate(state, monster) {
+function getEvPhysicalDamageEstimate(state, monster, buffAtkOverride = null) {
   const character = state.party[0];
-  const buffAtk = getBuffTotal(character, "atk");
+  const buffAtk = buffAtkOverride === null
+    ? getBuffTotal(character, "atk")
+    : buffAtkOverride;
   const meleeMod = getMeleeModifiers(character, 0, { state });
   const resolved = resolveWeaponAttack({
     char: character,
@@ -6526,6 +6528,84 @@ function getEvDamageEstimate(state) {
     0
   ) / livingMonsters.length;
   return Math.max(1, damage);
+}
+
+export function getFiniteAtkBuffObservation(character) {
+  const buffs = (character?.buffs || []).filter(buff =>
+    buff?.type === "atk" &&
+    Number.isFinite(Number(buff.value)) &&
+    Number(buff.value) > 0 &&
+    Number.isFinite(Number(buff.turns)) &&
+    Number(buff.turns) > 0
+  );
+  return {
+    active: buffs.length > 0,
+    value: buffs.reduce((sum, buff) => sum + Number(buff.value), 0),
+    remainingTurns: buffs.length
+      ? Math.min(...buffs.map(buff => Number(buff.turns)))
+      : 0
+  };
+}
+
+function getEvDamageEstimateWithoutFiniteAtkBuff(state, finiteAtkBuffValue) {
+  const livingMonsters = state.combatState?.monsters?.filter(monster => monster.hp > 0) || [];
+  if (livingMonsters.length === 0) return 1;
+  const character = state.party[0];
+  const baseBuffAtk = getBuffTotal(character, "atk") - finiteAtkBuffValue;
+  const damage = livingMonsters.reduce(
+    (total, monster) => total + getEvPhysicalDamageEstimate(state, monster, baseBuffAtk),
+    0
+  ) / livingMonsters.length;
+  return Math.max(1, damage);
+}
+
+export function calculateDurationAwareExpectedTurnsToWin({
+  totalEnemyHp,
+  currentDamage,
+  baseDamage,
+  remainingBuffTurns
+} = {}) {
+  const hp = Math.max(0, Number(totalEnemyHp) || 0);
+  const current = Math.max(1, Number(currentDamage) || 0);
+  const base = Math.max(1, Number(baseDamage) || 0);
+  const remaining = Math.max(0, Math.floor(Number(remainingBuffTurns) || 0));
+  const staticTurns = Math.max(1, Math.ceil(hp / current));
+  if (remaining === 0 || hp <= current * remaining) return staticTurns;
+  return remaining + Math.ceil((hp - current * remaining) / base);
+}
+
+function getGuardianDurationAwareEvShadow(state, recoveryArgs, productionEvaluation) {
+  const character = state.party[0];
+  const finiteAtkBuff = getFiniteAtkBuffObservation(character);
+  const currentDamageEstimate = recoveryArgs.playerDamagePerRound;
+  const baseDamageEstimate = getEvDamageEstimateWithoutFiniteAtkBuff(
+    state,
+    finiteAtkBuff.value
+  );
+  const totalEnemyHp = recoveryArgs.enemyHp.reduce(
+    (sum, hp) => sum + Math.max(0, Number(hp) || 0),
+    0
+  );
+  const durationAwareExpectedTurnsToWin = calculateDurationAwareExpectedTurnsToWin({
+    totalEnemyHp,
+    currentDamage: currentDamageEstimate,
+    baseDamage: baseDamageEstimate,
+    remainingBuffTurns: finiteAtkBuff.remainingTurns
+  });
+  const shadowEvaluation = evaluateCombatRecoveryAction({
+    ...recoveryArgs,
+    expectedTurnsToWinOverride: durationAwareExpectedTurnsToWin
+  });
+  return {
+    finiteAtkBuff,
+    currentDamageEstimate,
+    baseDamageEstimate,
+    staticExpectedTurnsToWin: productionEvaluation.terms.expectedTurnsToWin,
+    durationAwareExpectedTurnsToWin,
+    expectedTurnsToWinDelta:
+      durationAwareExpectedTurnsToWin - productionEvaluation.terms.expectedTurnsToWin,
+    shadowEvaluation
+  };
 }
 
 function inventoryStock(state, itemKey) {
@@ -6687,6 +6767,13 @@ export function recordB5GuardianFleeEvObservation(
   const character = state.party[0];
   const {
     evaluation,
+    shadowEvaluation,
+    finiteAtkBuff,
+    currentDamageEstimate,
+    baseDamageEstimate,
+    staticExpectedTurnsToWin,
+    durationAwareExpectedTurnsToWin,
+    expectedTurnsToWinDelta,
     recoveryItem,
     diosAction,
     policyProbeAction,
@@ -6716,7 +6803,27 @@ export function recordB5GuardianFleeEvObservation(
     playerDecisionIndex: state.combatState.b5GuardianPlayerDecisionIndex + 1,
     decision: evaluation.decision,
     reason: evaluation.reason,
+    productionDecision: evaluation.decision,
+    productionReason: evaluation.reason,
+    durationAwareShadowDecision: shadowEvaluation?.shadowEvaluation?.decision || null,
+    durationAwareShadowReason: shadowEvaluation?.shadowEvaluation?.reason || null,
+    staticToShadowDecisionCrossing: shadowEvaluation
+      ? {
+          crossed: evaluation.decision !== shadowEvaluation.shadowEvaluation.decision,
+          from: evaluation.decision,
+          to: shadowEvaluation.shadowEvaluation.decision
+        }
+      : null,
     terms: structuredClone(evaluation.terms),
+    atkBuff: finiteAtkBuff ? { ...finiteAtkBuff } : null,
+    currentDamageEstimate,
+    baseDamageEstimate,
+    staticExpectedTurnsToWin,
+    durationAwareExpectedTurnsToWin,
+    expectedTurnsToWinDelta,
+    shadowTerms: shadowEvaluation?.shadowEvaluation?.terms
+      ? structuredClone(shadowEvaluation.shadowEvaluation.terms)
+      : null,
     eligibleOpeningItemKey,
     fleeDeferredByOpening: Boolean(fleeDeferredByOpening),
     actualAction: compactCombatAction(actualAction),
@@ -6804,6 +6911,9 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
   const evaluation = shouldObserveGuardian
     ? evaluateCombatRecoveryAction(recoveryArgs)
     : null;
+  const shadowEvaluation = evaluation
+    ? getGuardianDurationAwareEvShadow(state, recoveryArgs, evaluation)
+    : null;
   const decisionEvaluation = getCombatRecoveryDecision(recoveryArgs);
   const decision = decisionEvaluation.decision;
   const policyProbeAction = shouldObserveGuardian
@@ -6813,6 +6923,15 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
     const eligibleOpeningItemKey = getEligibleBossOpeningItemKey(state);
     state.combatState.b5GuardianPendingDecision = {
       evaluation,
+      shadowEvaluation,
+      finiteAtkBuff: shadowEvaluation?.finiteAtkBuff || null,
+      currentDamageEstimate: shadowEvaluation?.currentDamageEstimate ?? recoveryArgs.playerDamagePerRound,
+      baseDamageEstimate: shadowEvaluation?.baseDamageEstimate ?? recoveryArgs.playerDamagePerRound,
+      staticExpectedTurnsToWin: shadowEvaluation?.staticExpectedTurnsToWin
+        ?? evaluation.terms.expectedTurnsToWin,
+      durationAwareExpectedTurnsToWin: shadowEvaluation?.durationAwareExpectedTurnsToWin
+        ?? evaluation.terms.expectedTurnsToWin,
+      expectedTurnsToWinDelta: shadowEvaluation?.expectedTurnsToWinDelta ?? 0,
       recoveryItem,
       diosAction,
       policyProbeAction,
@@ -9288,16 +9407,36 @@ function runEncounter(
         if (!productionDecisionTrace) {
           throw new Error("B5 Guardian paired production decision trace mismatch");
         }
+        const productionDecision = {
+          decision: productionDecisionTrace.decision,
+          reason: productionDecisionTrace.reason,
+          terms: structuredClone(productionDecisionTrace.terms)
+        };
+        if (Object.hasOwn(productionDecisionTrace, "productionDecision")) {
+          Object.assign(productionDecision, {
+            productionDecision: productionDecisionTrace.productionDecision,
+            productionReason: productionDecisionTrace.productionReason,
+            durationAwareShadowDecision: productionDecisionTrace.durationAwareShadowDecision,
+            durationAwareShadowReason: productionDecisionTrace.durationAwareShadowReason,
+            staticToShadowDecisionCrossing: structuredClone(
+              productionDecisionTrace.staticToShadowDecisionCrossing
+            ),
+            atkBuff: structuredClone(productionDecisionTrace.atkBuff),
+            currentDamageEstimate: productionDecisionTrace.currentDamageEstimate,
+            baseDamageEstimate: productionDecisionTrace.baseDamageEstimate,
+            staticExpectedTurnsToWin: productionDecisionTrace.staticExpectedTurnsToWin,
+            durationAwareExpectedTurnsToWin:
+              productionDecisionTrace.durationAwareExpectedTurnsToWin,
+            expectedTurnsToWinDelta: productionDecisionTrace.expectedTurnsToWinDelta,
+            shadowTerms: structuredClone(productionDecisionTrace.shadowTerms)
+          });
+        }
         metrics.b5GuardianFleeEvDiagnostic.strFightPairs.push({
           attempt: guardianStrFleeBranch.attempt,
           branchPoint: guardianStrFleeBranch.branchPoint,
           productionDecisionIndex,
           productionDecisionRound: selectedDecisionTrace.round,
-          productionDecision: {
-            decision: productionDecisionTrace.decision,
-            reason: productionDecisionTrace.reason,
-            terms: structuredClone(productionDecisionTrace.terms)
-          },
+          productionDecision,
           immediateFlee,
           production: null,
           pairedDelta: null
