@@ -97,7 +97,6 @@ export interface NormalizedCurrentRun {
   completedCampEntryFloors: NormalizedCompletedCampEntryFloors;
   trialBands: NormalizedTrialBands;
   eliteFloors: NormalizedEliteFloors;
-  eliteOmenSteps: Record<string, unknown>;
   eliteDefeatedFloors: NormalizedEliteDefeatedFloors;
   defeatedMilestones: NormalizedDefeatedMilestones;
   visitedMilestoneMerchants: NormalizedVisitedMilestoneMerchants;
@@ -122,7 +121,6 @@ const NUMBER_FIELDS = [
 ] as const;
 
 const RECORD_FIELDS = [
-  "eliteOmenSteps",
   "departureEquipment"
 ] as const;
 

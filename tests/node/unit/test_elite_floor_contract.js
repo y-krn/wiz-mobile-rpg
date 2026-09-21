@@ -85,6 +85,7 @@ assert.equal(isNormalizedEliteFloors(normalizedLastActions), true);
 assert.deepEqual(normalizeEliteFloors(normalizedLastActions), normalizedLastActions);
 
 const validCurrentRun = createDefaultCurrentRun();
+assert.equal(Object.hasOwn(validCurrentRun, "eliteOmenSteps"), false);
 validCurrentRun.eliteFloors = { "1": progress };
 validCurrentRun.eliteDefeatedFloors = defeatedFloors;
 assert.equal(isNormalizedCurrentRun(validCurrentRun), true);
@@ -115,11 +116,11 @@ assert.equal(normalized.eliteFloors["2"].prolongedChecks, 4);
 assert.equal(normalized.eliteFloors["2"].greedScore, 8);
 assert.equal(normalized.eliteFloors["2"].stairsFound, true);
 assert.deepEqual(normalized.eliteDefeatedFloors, [3, 3, 7]);
+assert.equal(Object.hasOwn(normalized, "eliteOmenSteps"), false);
 assert.equal(isNormalizedCurrentRun(normalized), true);
 
 const defeatedFloorState = structuredClone(normalized);
 defeatedFloorState.eliteDefeatedFloors = [3];
-defeatedFloorState.eliteOmenSteps = {};
 defeatedFloorState.eliteFloors = { "3": { ...progress, defeated: false } };
 const unchangedEliteFloors = structuredClone(defeatedFloorState.eliteFloors);
 const normalizedDefeatSignal = normalizeSavePayload({ currentRun: defeatedFloorState }).currentRun;
@@ -132,13 +133,32 @@ assert.equal(Object.hasOwn(normalizedDefeatSignal.eliteFloors, "4"), false);
 const legacyOnly = normalizeSavePayload({ currentRun: {
   ...createDefaultCurrentRun(),
   eliteFloors: {},
-  eliteOmenSteps: { "1": ["omen-1", "omen-2"], "01": ["invalid"] }
+  eliteOmenSteps: {
+    "1": ["omen-1", "omen-2"],
+    "0": ["invalid"],
+    "-1": ["invalid"],
+    "01": ["invalid"],
+    "+1": ["invalid"],
+    "1.5": ["invalid"],
+    "1e0": ["invalid"],
+    arbitrary: ["invalid"],
+    "2": "not-an-array",
+    "3": [null, {}, "unknown-element", 4]
+  }
 }}).currentRun;
 assert.deepEqual(legacyOnly.eliteFloors, {
-  "1": { ...createDefaultNormalizedEliteFloorState(), warningStage: 2 }
+  "1": { ...createDefaultNormalizedEliteFloorState(), warningStage: 2 },
+  "3": { ...createDefaultNormalizedEliteFloorState(), warningStage: 3 }
 });
+assert.equal(Object.hasOwn(legacyOnly, "eliteOmenSteps"), false);
 
 const beforeReroll = structuredClone(normalized.eliteFloors);
-assert.deepEqual(normalizeSavePayload({ currentRun: normalized }).currentRun.eliteFloors, beforeReroll);
+const normalizedAgain = normalizeSavePayload({ currentRun: normalized }).currentRun;
+assert.deepEqual(normalizedAgain.eliteFloors, beforeReroll);
+assert.deepEqual(normalizedAgain, normalized);
+assert.deepEqual(
+  normalizeSavePayload(JSON.parse(JSON.stringify({ currentRun: normalized }))).currentRun,
+  normalized
+);
 
-console.log("[PASS] #1476 canonical elite defeated-floor contract, save normalization, legacy omen migration, and progress preservation verified.");
+console.log("[PASS] #1513 elite omen legacy migration, canonical floor progress, and progress preservation verified.");

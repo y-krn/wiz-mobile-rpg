@@ -708,6 +708,7 @@ function normalizeMonsterCodexRecord(record) {
 
 function normalizeCurrentRun(run, saveFloor) {
   if (!isRecord(run)) return null;
+  const legacyEliteOmenSteps = Object.hasOwn(run, "eliteOmenSteps") ? run.eliteOmenSteps : undefined;
   const normalized = normalizeRunOutcome(run);
   const defaults = createDefaultCurrentRun();
 
@@ -781,12 +782,13 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.trialBands = normalizeTrialBands(normalized.trialBands);
   normalized.eliteFloors = normalizeEliteFloors(normalized.eliteFloors);
   normalized.eliteDefeatedFloors = normalizeEliteDefeatedFloors(normalized.eliteDefeatedFloors);
-  Object.entries(recordOr(normalized.eliteOmenSteps, {})).forEach(([floor, omenSteps]) => {
+  Object.entries(recordOr(legacyEliteOmenSteps, {})).forEach(([floor, omenSteps]) => {
     if (!isCanonicalEliteFloorKey(floor) || !Array.isArray(omenSteps)) return;
     const elite = normalized.eliteFloors[floor] || createDefaultNormalizedEliteFloorState();
     elite.warningStage = Math.max(elite.warningStage, Math.min(3, omenSteps.length));
     normalized.eliteFloors[floor] = elite;
   });
+  delete normalized.eliteOmenSteps;
   normalized.lootSequence = Math.max(0, Math.floor(Number(normalized.lootSequence) || 0));
   normalized.deathLogs = normalized.deathLogs
     .map(normalizeDeathLogEntry)

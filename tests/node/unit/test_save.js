@@ -361,7 +361,7 @@ check("malformed current-run collections receive safe defaults", () => {
   assert.deepEqual(normalized.currentRun.bankedMaterials, {});
   assert.deepEqual(normalized.currentRun.campRested, {});
   assert.deepEqual(normalized.currentRun.eliteFloors, {});
-  assert.deepEqual(normalized.currentRun.eliteOmenSteps, {});
+  assert.equal(Object.hasOwn(normalized.currentRun, "eliteOmenSteps"), false);
   assert.deepEqual(normalized.currentRun.eliteDefeatedFloors, []);
   assert.deepEqual(normalized.currentRun.defeatsByRole, {});
   assert.deepEqual(normalized.currentRun.codexRewards, {});
