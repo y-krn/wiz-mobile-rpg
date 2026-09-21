@@ -25,6 +25,7 @@ import {
   type NormalizedCompletedCampEntryFloors,
   type NormalizedPendingCampEntryFloor
 } from "./camp_state.js";
+import { isNormalizedFloorSteps, type NormalizedFloorSteps } from "./floor_steps.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -40,7 +41,7 @@ export interface NormalizedCurrentRun {
   startingKit: unknown;
   deepestFloor: number;
   steps: number;
-  floorSteps: Record<string, unknown>;
+  floorSteps: NormalizedFloorSteps;
   battles: number;
   kills: number;
   elitesKilled: number;
@@ -104,7 +105,7 @@ const NUMBER_FIELDS = [
 ] as const;
 
 const RECORD_FIELDS = [
-  "floorSteps", "materials", "bankedMaterials", "eventObservations",
+  "materials", "bankedMaterials", "eventObservations",
   "eliteOmenSteps", "defeatsByRole", "codexRewards",
   "departureEquipment"
 ] as const;
@@ -126,6 +127,7 @@ const REQUIRED_FIELDS = [
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
   "returnProcessing", "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
   "campRested", "completedCampEntryFloors", "recordResult", "quests", "trialBands",
+  "floorSteps",
   "eliteFloors", "eliteDefeatedFloors",
   "defeatedMilestones", "visitedMilestoneMerchants",
   ...RECORD_FIELDS,
@@ -161,6 +163,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   }
   if (typeof value.returnReason !== "string" || !isRunOutcome(value.outcome)) return false;
   if (!RECORD_FIELDS.every(field => isRecord(value[field]))) return false;
+  if (!isNormalizedFloorSteps(value.floorSteps)) return false;
   if (!isNormalizedCampRested(value.campRested)) return false;
   if (!isNormalizedPendingCampEntryFloor(value.pendingCampEntryFloor)) return false;
   if (!isNormalizedCompletedCampEntryFloors(value.completedCampEntryFloors)) return false;
