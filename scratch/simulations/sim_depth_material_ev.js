@@ -7035,6 +7035,18 @@ function summarizeB5GuardianCandidateResources(branchPoint, terminal) {
   };
 }
 
+export function shouldBranchB5GuardianCombinedCandidate({
+  decisionTrace,
+  guardianCandidateBranched = false
+} = {}) {
+  if (guardianCandidateBranched) return false;
+  const productionDecision = decisionTrace?.productionDecision;
+  const candidateDecision = decisionTrace?.candidateDecision;
+  return productionDecision !== null &&
+    candidateDecision !== null &&
+    productionDecision !== candidateDecision;
+}
+
 export function runB5GuardianCombinedCandidateContinuation({
   state,
   rngState,
@@ -9567,8 +9579,10 @@ function runEncounter(
       state.combatState.b5GuardianPendingDecision = null;
     }
     if (
-      !guardianCandidateBranched &&
-      selectedDecisionTrace?.durationAwareToIncomingShadowDecisionCrossing?.crossed === true
+      shouldBranchB5GuardianCombinedCandidate({
+        decisionTrace: selectedDecisionTrace,
+        guardianCandidateBranched
+      })
     ) {
       const branchRngState = getSimulationRandomState();
       const candidateContinuation = runB5GuardianCombinedCandidateContinuation({

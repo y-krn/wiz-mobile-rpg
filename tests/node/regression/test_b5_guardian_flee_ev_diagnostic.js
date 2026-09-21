@@ -328,6 +328,7 @@ const {
   runB5GuardianCombinedCandidateContinuation,
   runB5GuardianImmediateFleeCounterfactual,
   selectCombatAction,
+  shouldBranchB5GuardianCombinedCandidate,
   simulateRun
 } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 
@@ -514,6 +515,33 @@ assert.deepEqual(classifyB5GuardianUnsupportedThreat({
   damageEvents: [{ source: "spell", damage: 5 }],
   statusSources: []
 }), ["non-normal-damage", "damaging-special"]);
+const productionFightDurationFlee = {
+  productionDecision: "fight",
+  durationAwareShadowDecision: "flee",
+  candidateDecision: "flee"
+};
+assert.equal(
+  shouldBranchB5GuardianCombinedCandidate({
+    decisionTrace: productionFightDurationFlee
+  }),
+  true,
+  "production=fight / duration-only=flee / candidate=flee branches"
+);
+assert.equal(
+  shouldBranchB5GuardianCombinedCandidate({
+    decisionTrace: { ...productionFightDurationFlee, candidateDecision: "fight" }
+  }),
+  false,
+  "production=fight / duration-only=flee / candidate=fight does not branch"
+);
+assert.equal(
+  shouldBranchB5GuardianCombinedCandidate({
+    decisionTrace: productionFightDurationFlee,
+    guardianCandidateBranched: true
+  }),
+  false,
+  "a Guardian encounter branches only once"
+);
 
 const candidateStateBefore = JSON.stringify(counterfactualState);
 resetSimulationRandom(123);
