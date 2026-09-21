@@ -15,6 +15,14 @@ import {
   isNormalizedDefeatedMilestones,
   type NormalizedDefeatedMilestones
 } from "./milestone_state.js";
+import {
+  isNormalizedCampRested,
+  isNormalizedCompletedCampEntryFloors,
+  isNormalizedPendingCampEntryFloor,
+  type NormalizedCampRested,
+  type NormalizedCompletedCampEntryFloors,
+  type NormalizedPendingCampEntryFloor
+} from "./camp_state.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -64,9 +72,9 @@ export interface NormalizedCurrentRun {
   returnReason: string;
   outcome: RunOutcome;
   deathLogs: unknown[];
-  campRested: Record<string, unknown>;
-  pendingCampEntryFloor: unknown;
-  completedCampEntryFloors: unknown[];
+  campRested: NormalizedCampRested;
+  pendingCampEntryFloor: NormalizedPendingCampEntryFloor;
+  completedCampEntryFloors: NormalizedCompletedCampEntryFloors;
   trialBands: NormalizedTrialBands;
   eliteFloors: NormalizedEliteFloors;
   eliteOmenSteps: Record<string, unknown>;
@@ -94,14 +102,14 @@ const NUMBER_FIELDS = [
 ] as const;
 
 const RECORD_FIELDS = [
-  "floorSteps", "materials", "bankedMaterials", "eventObservations", "campRested",
+  "floorSteps", "materials", "bankedMaterials", "eventObservations",
   "eliteOmenSteps", "defeatsByRole", "codexRewards",
   "departureEquipment"
 ] as const;
 
 const ARRAY_FIELDS = [
   "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "firstKills",
-  "floorsVisited", "deathLogs", "completedCampEntryFloors",
+  "floorsVisited", "deathLogs",
   "visitedMilestoneMerchants", "firstKillsBefore",
   "keyItemsBefore", "codexDiscoveries", "workshopDiscoveries"
 ] as const;
@@ -115,7 +123,8 @@ const REQUIRED_FIELDS = [
   ...NUMBER_FIELDS,
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
   "returnProcessing", "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
-  "recordResult", "quests", "trialBands", "eliteFloors", "eliteDefeatedFloors",
+  "campRested", "completedCampEntryFloors", "recordResult", "quests", "trialBands",
+  "eliteFloors", "eliteDefeatedFloors",
   "defeatedMilestones",
   ...RECORD_FIELDS,
   ...ARRAY_FIELDS,
@@ -150,6 +159,9 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   }
   if (typeof value.returnReason !== "string" || !isRunOutcome(value.outcome)) return false;
   if (!RECORD_FIELDS.every(field => isRecord(value[field]))) return false;
+  if (!isNormalizedCampRested(value.campRested)) return false;
+  if (!isNormalizedPendingCampEntryFloor(value.pendingCampEntryFloor)) return false;
+  if (!isNormalizedCompletedCampEntryFloors(value.completedCampEntryFloors)) return false;
   if (!isNormalizedTrialBands(value.trialBands)) return false;
   if (!isNormalizedEliteFloors(value.eliteFloors)) return false;
   if (!isNormalizedEliteDefeatedFloors(value.eliteDefeatedFloors)) return false;

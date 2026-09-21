@@ -26,6 +26,11 @@ import {
 } from "./elite_floor.js";
 import { isNormalizedRunSeed, normalizeRunSeed } from "./run_seed.js";
 import { normalizeDefeatedMilestones } from "./milestone_state.js";
+import {
+  normalizeCampRested,
+  normalizeCompletedCampEntryFloors,
+  normalizePendingCampEntryFloor
+} from "./camp_state.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -695,7 +700,7 @@ function normalizeMonsterCodexRecord(record) {
   return normalized;
 }
 
-function normalizeCurrentRun(run) {
+function normalizeCurrentRun(run, saveFloor) {
   if (!isRecord(run)) return null;
   const normalized = normalizeRunOutcome(run);
   const defaults = createDefaultCurrentRun();
@@ -718,6 +723,16 @@ function normalizeCurrentRun(run) {
   if (runSeed === undefined) delete normalized.runSeed;
   else normalized.runSeed = runSeed;
   normalized.defeatedMilestones = normalizeDefeatedMilestones(normalized.defeatedMilestones);
+  normalized.campRested = normalizeCampRested(normalized.campRested);
+  normalized.completedCampEntryFloors = normalizeCompletedCampEntryFloors(normalized.completedCampEntryFloors);
+  normalized.pendingCampEntryFloor = normalizePendingCampEntryFloor(normalized.pendingCampEntryFloor);
+  if (normalized.pendingCampEntryFloor !== null && (
+    normalized.pendingCampEntryFloor !== saveFloor ||
+    normalized.completedCampEntryFloors.includes(normalized.pendingCampEntryFloor) ||
+    !normalized.defeatedMilestones.includes(normalized.pendingCampEntryFloor - 1)
+  )) {
+    normalized.pendingCampEntryFloor = null;
+  }
 
   normalized.quests = normalized.quests.map(normalizeRunQuest).filter(isRecord);
   normalized.townInventory = normalized.townInventory.filter(item => item != null);
@@ -931,7 +946,7 @@ export function normalizeSavePayload(data) {
   normalized.firstKills = normalized.firstKills.filter(name => !/の分裂体\d+/.test(name));
   normalized.currentRun = currentRun;
   if (normalized.currentRun) {
-    normalized.currentRun = normalizeCurrentRun(normalized.currentRun);
+    normalized.currentRun = normalizeCurrentRun(normalized.currentRun, normalized.floor);
     if (isRecord(normalized.currentRun.recordResult)) {
       delete normalized.currentRun.recordResult.className;
       normalized.currentRun.recordResult.updates = arrayOr(normalized.currentRun.recordResult.updates)
