@@ -4,7 +4,12 @@ import { isRuntimeItemCollection, isRuntimeItemRef, type RuntimeItemCollection, 
 import { isNormalizedPendingRewardBundle, type NormalizedPendingRewardBundle } from "./pending_reward.js";
 import { isNormalizedRunQuestCollection, type NormalizedRunQuest } from "./run_quest.js";
 import { isNormalizedTrialBands, type NormalizedTrialBands } from "./trial_band.js";
-import { isNormalizedEliteFloors, type NormalizedEliteFloors } from "./elite_floor.js";
+import {
+  isNormalizedEliteDefeatedFloors,
+  isNormalizedEliteFloors,
+  type NormalizedEliteDefeatedFloors,
+  type NormalizedEliteFloors
+} from "./elite_floor.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -60,7 +65,7 @@ export interface NormalizedCurrentRun {
   trialBands: NormalizedTrialBands;
   eliteFloors: NormalizedEliteFloors;
   eliteOmenSteps: Record<string, unknown>;
-  eliteDefeatedFloors: unknown[];
+  eliteDefeatedFloors: NormalizedEliteDefeatedFloors;
   defeatedMilestones: unknown[];
   visitedMilestoneMerchants: unknown[];
   quests: NormalizedRunQuest[];
@@ -91,7 +96,7 @@ const RECORD_FIELDS = [
 
 const ARRAY_FIELDS = [
   "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "firstKills",
-  "floorsVisited", "deathLogs", "completedCampEntryFloors", "eliteDefeatedFloors",
+  "floorsVisited", "deathLogs", "completedCampEntryFloors",
   "defeatedMilestones", "visitedMilestoneMerchants", "firstKillsBefore",
   "keyItemsBefore", "codexDiscoveries", "workshopDiscoveries"
 ] as const;
@@ -105,7 +110,7 @@ const REQUIRED_FIELDS = [
   ...NUMBER_FIELDS,
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
   "returnProcessing", "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
-  "recordResult", "quests", "trialBands", "eliteFloors",
+  "recordResult", "quests", "trialBands", "eliteFloors", "eliteDefeatedFloors",
   ...RECORD_FIELDS,
   ...ARRAY_FIELDS,
   ...ITEM_COLLECTION_FIELDS
@@ -141,6 +146,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!RECORD_FIELDS.every(field => isRecord(value[field]))) return false;
   if (!isNormalizedTrialBands(value.trialBands)) return false;
   if (!isNormalizedEliteFloors(value.eliteFloors)) return false;
+  if (!isNormalizedEliteDefeatedFloors(value.eliteDefeatedFloors)) return false;
   if (!ARRAY_FIELDS.every(field => Array.isArray(value[field]))) return false;
   if (!isNormalizedRunQuestCollection(value.quests)) return false;
   if (!ITEM_COLLECTION_FIELDS.every(field => isRuntimeItemCollection(value[field]))) return false;

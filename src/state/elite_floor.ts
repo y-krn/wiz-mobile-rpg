@@ -12,6 +12,7 @@ export interface NormalizedEliteFloorState {
 }
 
 export type NormalizedEliteFloors = Record<string, NormalizedEliteFloorState>;
+export type NormalizedEliteDefeatedFloors = number[];
 
 const CANONICAL_POSITIVE_DECIMAL_FLOOR_KEY = /^[1-9]\d*$/;
 
@@ -25,6 +26,18 @@ function integerOr(value: unknown, fallback: number): number {
 
 function numberOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function isPositiveIntegerFloor(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value >= 1;
+}
+
+export function isNormalizedEliteDefeatedFloors(value: unknown): value is NormalizedEliteDefeatedFloors {
+  return Array.isArray(value) && value.every(isPositiveIntegerFloor);
+}
+
+export function normalizeEliteDefeatedFloors(value: unknown): NormalizedEliteDefeatedFloors {
+  return Array.isArray(value) ? value.filter(isPositiveIntegerFloor) : [];
 }
 
 export function isCanonicalEliteFloorKey(value: string): boolean {

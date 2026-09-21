@@ -21,6 +21,7 @@ import { normalizeTrialBands } from "./trial_band.js";
 import {
   createDefaultNormalizedEliteFloorState,
   isCanonicalEliteFloorKey,
+  normalizeEliteDefeatedFloors,
   normalizeEliteFloors
 } from "./elite_floor.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
@@ -742,6 +743,7 @@ function normalizeCurrentRun(run) {
     : null;
   normalized.trialBands = normalizeTrialBands(normalized.trialBands);
   normalized.eliteFloors = normalizeEliteFloors(normalized.eliteFloors);
+  normalized.eliteDefeatedFloors = normalizeEliteDefeatedFloors(normalized.eliteDefeatedFloors);
   Object.entries(recordOr(normalized.eliteOmenSteps, {})).forEach(([floor, omenSteps]) => {
     if (!isCanonicalEliteFloorKey(floor) || !Array.isArray(omenSteps)) return;
     const elite = normalized.eliteFloors[floor] || createDefaultNormalizedEliteFloorState();
