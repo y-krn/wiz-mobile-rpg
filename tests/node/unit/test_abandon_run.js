@@ -101,6 +101,7 @@ assert.equal(Object.hasOwn(state.currentRun.recordResult, "records"), false);
 assert.equal(Object.hasOwn(state.currentRun.recordResult, "personalBestUpdates"), false);
 assert.equal(state.runHistory[0].returnReason, "abandon");
 assert.equal(state.runHistory[0].outcome, "abandon");
+assert.equal(state.runHistory[0].startingKit, "vanguard");
 assert.equal(state.runHistory[0].lostUnidentifiedCount, 1);
 assert.equal(state.party[0].status, "ok", "abandon is not a character death");
 
@@ -121,6 +122,7 @@ roundTripOutcome("retreat");
 
 state.currentRun = createDefaultCurrentRun();
 state.currentRun.characterClass = "Fighter";
+state.currentRun.startingKit = "Mage";
 state.currentRun.deepestFloor = 6;
 state.currentRun.materials = { "獣の牙": 10 };
 state.floor = 6;
@@ -128,6 +130,7 @@ state.gameState = "explore";
 state.combatState = { monsters: [{ name: "検証敵", hp: 10 }] };
 triggerRunResult("gameover");
 assert.equal(state.records.totalRuns, 2);
+assert.equal(state.runHistory[0].startingKit, null, "run history writer rejects malformed kit identity");
 assert.equal(state.records.deepestDeath, 6);
 assert.equal(state.codex.stats.totalDeaths, 1);
 assert.equal(state.deathLogs.length, 1);

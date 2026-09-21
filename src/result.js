@@ -7,6 +7,7 @@ import { findMapCellByType } from "./rules/map_queries.js";
 import { trackCombatEnd, trackLootStakeSnapshot, trackRunEnd } from "./telemetry.js";
 import { processRunReturn } from "./systems/run_return.js";
 import { normalizeRunRecordResult } from "./state/run_record_result.js";
+import { normalizeStartingKitId } from "./state/starting_kit.js";
 
 export function triggerRunResult(reason, { salvageIds = null } = {}) {
   if (!state.currentRun || state.gameState === "result" || state.currentRun.returnReason) return;
@@ -150,7 +151,7 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
     id: `run_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     endedAt: Date.now(),
     runNumber: recordResult.runNumber,
-    startingKit: run.startingKit || state.party[0]?.startingKit || null,
+    startingKit: normalizeStartingKitId(run.startingKit || state.party[0]?.startingKit),
     result: isSuccess ? "returned" : "failed",
     deepestFloor: run.deepestFloor,
     kills: run.kills,
