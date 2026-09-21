@@ -919,6 +919,11 @@ function normalizeGuardianFleeEv(result, kitId, runIndex = null) {
       kit: kitId,
       runIndex
     })),
+    guardBlocked: (diagnostic.guardBlocked || []).map(item => ({
+      ...structuredClone(item),
+      kit: kitId,
+      runIndex
+    })),
     decisionTrace,
     transitions: buildGuardianDecisionTransitions(decisionTrace, kitId)
   };
@@ -1926,6 +1931,19 @@ function summarizeGuardianCombinedCandidatePairs(pairs, includeBreakdowns = true
       pairs.filter(pair => pair.pairedDelta?.productionVictoryLost === true).length,
       pairs.length
     ),
+    productionDeathAvoided: eventCount(
+      pairs.filter(pair => pair.pairedDelta?.productionOutcome === "death" &&
+        pair.pairedDelta?.candidateOutcome !== "death").length,
+      pairs.length
+    ),
+    lahalitoQueuedAtBranch: eventCount(
+      pairs.filter(pair => pair.lahalitoQueuedAtBranch === true).length,
+      pairs.length
+    ),
+    lahalitoQueuedLater: eventCount(
+      pairs.filter(pair => pair.lahalitoQueuedLater === true).length,
+      pairs.length
+    ),
     laterFleeAvoided: eventCount(
       pairs.filter(pair => pair.pairedDelta?.laterFleeAvoided === true).length,
       pairs.length
@@ -1978,6 +1996,21 @@ function summarizeGuardianCombinedCandidatePairs(pairs, includeBreakdowns = true
         summarizeGroup(pairs.filter(pair => (pair.crossingDirection || "unobserved") === direction))
       ]))
     } : {}),
+    boundedSamples: {
+      introducedDeath: pairs
+        .filter(pair => pair.pairedDelta?.candidateDeathIntroduced === true)
+        .slice(0, GUARDIAN_STR_FIGHT_SAMPLE_LIMIT)
+        .map(pair => structuredClone(pair)),
+      productionVictoryLost: pairs
+        .filter(pair => pair.pairedDelta?.productionVictoryLost === true)
+        .slice(0, GUARDIAN_STR_FIGHT_SAMPLE_LIMIT)
+        .map(pair => structuredClone(pair)),
+      fleeVictory: pairs
+        .filter(pair => pair.production?.outcome === "flee" &&
+          pair.pairedDelta?.candidateOutcome === "victory")
+        .slice(0, GUARDIAN_STR_FIGHT_SAMPLE_LIMIT)
+        .map(pair => structuredClone(pair))
+    },
     samples: pairs.slice(0, GUARDIAN_STR_FIGHT_SAMPLE_LIMIT).map(pair => structuredClone(pair))
   };
 }
@@ -1991,6 +2024,7 @@ function summarizeGuardianFleeEv(entrants) {
   const combinedCandidatePairs = entrants.flatMap(item =>
     item.guardianFleeEv?.combinedCandidatePairs || []
   );
+  const guardBlocked = entrants.flatMap(item => item.guardianFleeEv?.guardBlocked || []);
   const flee = observations.filter(item => item.decision === "flee");
   const fleeAttempts = attempts.filter(item => item.result === "flee");
   const decision = item => item.decision || "unknown";
@@ -2213,6 +2247,17 @@ function summarizeGuardianFleeEv(entrants) {
       traces.filter(item => item.fleeDeferredByOpening).length,
       traces.filter(item => item.decision === "flee").length
     ),
+    guardBlocked: {
+      count: guardBlocked.length,
+      reasons: countRateBy(
+        guardBlocked.flatMap(item => item.reasons || []),
+        guardBlocked.length
+      ),
+      lahalitoQueuedAtBranch: eventCount(
+        guardBlocked.filter(item => item.lahalitoQueued === true).length,
+        guardBlocked.length
+      )
+    },
     transitionsObserved: transitions.length,
     openingTransitionsByItem: summarizeGuardianOpeningTransitions(transitions),
     strFightCohort: summarizeGuardianStrFightCohort(strFightCohorts),
@@ -2920,7 +2965,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
       : mode === B5_GUARDIAN_RETRY_MODE
       ? "C/R B1-B4 and B5-entry parity are asserted; first Guardian attempt is paired through the checkpoint-application boundary; no post-application path/RNG parity claim"
       : mode === B5_GUARDIAN_FLEE_EV_MODE
-      ? "C=current only; B5 Guardian incoming-only candidate branches at the first production/candidate decision crossing per encounter, clones same state and RNG, then continues to terminal with production selector/opening/recovery/resolver paths; duration-aware outgoing remains observation-only; observation ON/OFF compares outcome, action sequence, and RNG invariance"
+      ? "C=current only; B5 Guardian candidate overrides only production flee→incoming-only fight when no known special threat is active; each eligible encounter branches once from cloned state/RNG and re-evaluates the guarded candidate at every later decision; duration-aware outgoing remains observation-only; observation ON/OFF compares outcome, action sequence, and RNG invariance"
       : mode === ARCANA_WEAPON_MODE
       ? "Cross-arm C/W/R treatment comparisons use matched initial conditions; no post-divergence same-seed path/encounter/loot/trap parity claim"
       : mode === ARCANA_MP_SUPPLY_MODE
@@ -2939,7 +2984,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
           R: "C + B5 デーモンガード 80% fracture checkpoint on successful qualifying flee; run-local, non-stacking; guard reset"
         }
       : mode === B5_GUARDIAN_FLEE_EV_MODE
-      ? { C: "current production B5 behavior; incoming-only candidate terminal comparison is observation-only" }
+      ? { C: "current production B5 behavior; guarded incoming-only flee→fight candidate terminal comparison is observation-only" }
       : mode === ARCANA_WEAPON_MODE
       ? {
           C: "Arcana Standard Preparation WAND + HALITO; canonical adaptive; weapon swappable",
@@ -3150,16 +3195,20 @@ export function buildSummary(report) {
         outcomeConversion: value.outcomeConversion,
         candidateDeathIntroduced: value.candidateDeathIntroduced,
         productionVictoryLost: value.productionVictoryLost,
+        productionDeathAvoided: value.productionDeathAvoided,
+        lahalitoQueuedAtBranch: value.lahalitoQueuedAtBranch,
+        lahalitoQueuedLater: value.lahalitoQueuedLater,
         laterFleeAvoided: value.laterFleeAvoided,
         terminalHpDeltaCandidateMinusProduction: value.terminalHpDeltaCandidateMinusProduction,
         hpLossDeltaCandidateMinusProduction: value.hpLossDeltaCandidateMinusProduction,
         guardianDamageDeltaCandidateMinusProduction: value.guardianDamageDeltaCandidateMinusProduction,
         roundsDeltaCandidateMinusProduction: value.roundsDeltaCandidateMinusProduction,
-        actionsDeltaCandidateMinusProduction: value.actionsDeltaCandidateMinusProduction
+        actionsDeltaCandidateMinusProduction: value.actionsDeltaCandidateMinusProduction,
+        boundedSamples: value.boundedSamples
       });
       const crossing = Object.fromEntries(Object.entries(candidate.byCrossingDirection)
         .map(([direction, value]) => [direction, compact(value)]));
-      return `- ${label} candidate paired: branch/normal-only/unsupported=${candidate.branchN}/${candidate.normalOnlyN}/${candidate.unsupportedThreatN}; productionOutcome=${JSON.stringify(candidate.productionOutcome)}; candidateOutcome=${JSON.stringify(candidate.candidateOutcome)}; crossing=${JSON.stringify(crossing)}; production→candidate=${JSON.stringify(candidate.outcomeConversion)}; introducedDeath/lostVictory/laterFleeAvoided=${JSON.stringify(candidate.candidateDeathIntroduced)}/${JSON.stringify(candidate.productionVictoryLost)}/${JSON.stringify(candidate.laterFleeAvoided)}; terminalHP/HP-loss/GuardianDamage/rounds/actions delta=${JSON.stringify(candidate.terminalHpDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.hpLossDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.guardianDamageDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.roundsDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.actionsDeltaCandidateMinusProduction)}; items/MP delta=${JSON.stringify(candidate.itemDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.mpDeltaCandidateMinusProduction)}; threatReasons=${JSON.stringify(candidate.unsupportedThreatReasons)}; dedupe=${JSON.stringify(candidate.firstCrossingPerAttempt)}`;
+      return `- ${label} candidate paired: branch/normal-only/unsupported=${candidate.branchN}/${candidate.normalOnlyN}/${candidate.unsupportedThreatN}; productionOutcome=${JSON.stringify(candidate.productionOutcome)}; candidateOutcome=${JSON.stringify(candidate.candidateOutcome)}; crossing=${JSON.stringify(crossing)}; production→candidate=${JSON.stringify(candidate.outcomeConversion)}; introducedDeath/lostVictory/deathAvoided/laterFleeAvoided=${JSON.stringify(candidate.candidateDeathIntroduced)}/${JSON.stringify(candidate.productionVictoryLost)}/${JSON.stringify(candidate.productionDeathAvoided)}/${JSON.stringify(candidate.laterFleeAvoided)}; LAHALITO queued at branch/later=${JSON.stringify(candidate.lahalitoQueuedAtBranch)}/${JSON.stringify(candidate.lahalitoQueuedLater)}; terminalHP/HP-loss/GuardianDamage/rounds/actions delta=${JSON.stringify(candidate.terminalHpDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.hpLossDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.guardianDamageDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.roundsDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.actionsDeltaCandidateMinusProduction)}; items/MP delta=${JSON.stringify(candidate.itemDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.mpDeltaCandidateMinusProduction)}; threatReasons=${JSON.stringify(candidate.unsupportedThreatReasons)}; boundedSamples=${JSON.stringify(candidate.boundedSamples)}; dedupe=${JSON.stringify(candidate.firstCrossingPerAttempt)}`;
     };
     const lines = [
       "# First Band B5 Guardian flee EV diagnostic",
@@ -3173,6 +3222,7 @@ export function buildSummary(report) {
       crossTabLine("C", report.arms.C.overview),
       traceLine("C", report.arms.C.overview),
       strFightLine("C", report.arms.C.overview),
+      `- C guard-blocked: ${JSON.stringify(report.arms.C.overview.b5.guardianFleeEv.guardBlocked)}`,
       candidateLine("C", report.arms.C.overview),
       "",
       "## Kit",
@@ -3182,6 +3232,7 @@ export function buildSummary(report) {
         crossTabLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
         traceLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
         strFightLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
+        `- C/${kitId} guard-blocked: ${JSON.stringify(report.arms.C.byKit[kitId].aggregate.b5.guardianFleeEv.guardBlocked)}`,
         candidateLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate)
       ]).flat(),
       "",

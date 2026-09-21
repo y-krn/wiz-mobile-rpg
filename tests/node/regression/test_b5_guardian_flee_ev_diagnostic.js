@@ -320,6 +320,7 @@ const {
   calculateProductionPhysicalIncomingHitShadow,
   calculateProductionPhysicalIncomingShadow,
   classifyB5GuardianUnsupportedThreat,
+  getB5GuardianIncomingOverrideGuard,
   getFiniteAtkBuffObservation,
   getSimulationRandomState,
   getScenarioById,
@@ -515,28 +516,80 @@ assert.deepEqual(classifyB5GuardianUnsupportedThreat({
   damageEvents: [{ source: "spell", damage: 5 }],
   statusSources: []
 }), ["non-normal-damage", "damaging-special"]);
-const productionFightDurationFlee = {
-  productionDecision: "fight",
-  durationAwareShadowDecision: "flee",
-  candidateDecision: "flee"
+const productionFleeIncomingFight = {
+  productionDecision: "flee",
+  incomingOnlyDecision: "fight",
+  candidateDecision: "fight",
+  candidateOverrideApplied: true,
+  candidateGuardBlockedReasons: []
 };
 assert.equal(
   shouldBranchB5GuardianCombinedCandidate({
-    decisionTrace: productionFightDurationFlee
+    decisionTrace: productionFleeIncomingFight
   }),
   true,
-  "production=fight / duration-only=flee / candidate=flee branches"
+  "only production=flee / incoming-only=fight branches"
 );
 assert.equal(
   shouldBranchB5GuardianCombinedCandidate({
-    decisionTrace: { ...productionFightDurationFlee, candidateDecision: "fight" }
+    decisionTrace: {
+      ...productionFleeIncomingFight,
+      productionDecision: "fight",
+      incomingOnlyDecision: "flee",
+      candidateDecision: "flee"
+    }
   }),
   false,
-  "production=fight / duration-only=flee / candidate=fight does not branch"
+  "fight→flee does not branch"
 );
 assert.equal(
   shouldBranchB5GuardianCombinedCandidate({
-    decisionTrace: productionFightDurationFlee,
+    decisionTrace: {
+      ...productionFleeIncomingFight,
+      incomingOnlyDecision: "recover",
+      candidateDecision: "recover",
+      candidateOverrideApplied: false,
+      candidateGuardBlockedReasons: ["incoming-only-not-fight"]
+    }
+  }),
+  false,
+  "flee→recover does not branch"
+);
+const guardianGuardState = {
+  combatState: {
+    monsters: [{ name: "デーモンガード", lahalitoQueued: false, b5GuardBroken: false, b5ExposureTurns: 0 }]
+  }
+};
+assert.deepEqual(
+  getB5GuardianIncomingOverrideGuard({
+    state: guardianGuardState,
+    productionDecision: "flee",
+    incomingOnlyDecision: "fight"
+  }),
+  {
+    eligible: true,
+    reasons: [],
+    specialThreats: [],
+    lahalitoQueued: false
+  },
+  "normal Guardian state permits flee→fight"
+);
+assert.equal(
+  getB5GuardianIncomingOverrideGuard({
+    state: {
+      combatState: {
+        monsters: [{ name: "デーモンガード", lahalitoQueued: true }]
+      }
+    },
+    productionDecision: "flee",
+    incomingOnlyDecision: "fight"
+  }).eligible,
+  false,
+  "LAHALITO queued blocks override"
+);
+assert.equal(
+  shouldBranchB5GuardianCombinedCandidate({
+    decisionTrace: productionFleeIncomingFight,
     guardianCandidateBranched: true
   }),
   false,

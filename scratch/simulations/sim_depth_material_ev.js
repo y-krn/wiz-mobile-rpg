@@ -6976,6 +6976,37 @@ export function classifyB5GuardianUnsupportedThreat(action = {}) {
   return [...new Set(reasons)];
 }
 
+function getB5GuardianSpecialThreats(state) {
+  const monsters = state?.combatState?.monsters || [];
+  const reasons = [];
+  if (monsters.some(monster => monster?.lahalitoQueued === true)) {
+    reasons.push("lahalito-queued");
+  }
+  if (monsters.some(monster => monster?.b5GuardBroken === true || Number(monster?.b5ExposureTurns || 0) > 0)) {
+    reasons.push("guardian-special-state");
+  }
+  return [...new Set(reasons)];
+}
+
+export function getB5GuardianIncomingOverrideGuard({
+  state,
+  productionDecision,
+  incomingOnlyDecision
+} = {}) {
+  const specialThreats = getB5GuardianSpecialThreats(state);
+  const reasons = [
+    productionDecision !== "flee" ? "production-not-flee" : null,
+    incomingOnlyDecision !== "fight" ? "incoming-only-not-fight" : null,
+    ...specialThreats
+  ].filter(Boolean);
+  return {
+    eligible: reasons.length === 0,
+    reasons,
+    specialThreats,
+    lahalitoQueued: specialThreats.includes("lahalito-queued")
+  };
+}
+
 function cloneB5GuardianCandidateState(state) {
   const candidateState = cloneCombatStateForRound(state);
   candidateState.simPolicy = {
@@ -6993,7 +7024,7 @@ function cloneB5GuardianCandidateState(state) {
 
 function candidateDecisionTraceFromPending(state, pendingDecision, action) {
   const productionEvaluation = pendingDecision?.evaluation || null;
-  const candidateEvaluation = pendingDecision?.candidateEvaluation || null;
+  const candidateEvaluation = pendingDecision?.guardedCandidateEvaluation || null;
   const character = state.party[0];
   const boss = state.combatState.monsters.find(monster => monster.name === "デーモンガード") ||
     state.combatState.monsters[0] || null;
@@ -7007,6 +7038,15 @@ function candidateDecisionTraceFromPending(state, pendingDecision, action) {
     candidateDecision: candidateEvaluation?.decision || null,
     candidateReason: candidateEvaluation?.reason || null,
     candidateTerms: candidateEvaluation?.terms ? structuredClone(candidateEvaluation.terms) : null,
+    incomingOnlyDecision: pendingDecision?.incomingOnlyEvaluation?.decision || null,
+    incomingOnlyReason: pendingDecision?.incomingOnlyEvaluation?.reason || null,
+    incomingOnlyTerms: pendingDecision?.incomingOnlyEvaluation?.terms
+      ? structuredClone(pendingDecision.incomingOnlyEvaluation.terms)
+      : null,
+    candidateOverrideApplied: pendingDecision?.candidateOverrideApplied === true,
+    candidateGuardBlockedReasons: [...(pendingDecision?.candidateGuard?.reasons || [])],
+    specialThreats: [...(pendingDecision?.candidateGuard?.specialThreats || [])],
+    lahalitoQueuedAtDecision: pendingDecision?.candidateGuard?.lahalitoQueued === true,
     actualAction: compactCombatAction(action),
     executed: null,
     executedAction: null,
@@ -7049,7 +7089,10 @@ export function shouldBranchB5GuardianCombinedCandidate({
   const candidateDecision = decisionTrace?.candidateDecision;
   return productionDecision !== null &&
     candidateDecision !== null &&
-    productionDecision !== candidateDecision;
+    productionDecision === "flee" &&
+    candidateDecision === "fight" &&
+    decisionTrace?.candidateOverrideApplied === true &&
+    !(decisionTrace?.candidateGuardBlockedReasons || []).length;
 }
 
 export function runB5GuardianCombinedCandidateContinuation({
@@ -7066,9 +7109,11 @@ export function runB5GuardianCombinedCandidateContinuation({
   const productionRngStateBefore = getSimulationRandomState();
   const candidateStateAtBranch = cloneB5GuardianCandidateState(state);
   const branchPoint = snapshotGuardianPairedState(candidateStateAtBranch);
+  const branchSpecialThreats = getB5GuardianSpecialThreats(candidateStateAtBranch);
   const candidatePolicy = candidateStateAtBranch.simPolicy;
   const candidateDecisionTrace = [];
   const roundsTrace = [];
+  const laterSpecialThreats = new Set();
   let candidateState = candidateStateAtBranch;
   let outcome = "stalemate";
   let rounds = 0;
@@ -7085,6 +7130,7 @@ export function runB5GuardianCombinedCandidateContinuation({
         outcome = "victory";
         break;
       }
+      getB5GuardianSpecialThreats(candidateState).forEach(reason => laterSpecialThreats.add(reason));
       const roundNumber = candidateState.combatState.roundNumber;
       const action = selectCombatAction(candidateState, null);
       const pendingDecision = candidateState.combatState.b5GuardianPendingDecision;
@@ -7165,6 +7211,9 @@ export function runB5GuardianCombinedCandidateContinuation({
       actionNames: [event.statusSource || event.source || "status"]
     })))
   ].flatMap(action => classifyB5GuardianUnsupportedThreat(action));
+  if (laterSpecialThreats.size > 0) {
+    laterSpecialThreats.forEach(reason => unsupportedThreats.push(reason));
+  }
   const continuation = summarizeNormalPhysicalContinuation(roundsTrace);
   return {
     resolver: "production-runCombatRoundCalculation",
@@ -7177,6 +7226,12 @@ export function runB5GuardianCombinedCandidateContinuation({
     productionRngStateAfterCounterfactual: getSimulationRandomState(),
     productionRngRestored: getSimulationRandomState() === productionRngStateBefore,
     outcome,
+    lahalitoQueuedAtBranch: branchSpecialThreats.includes("lahalito-queued"),
+    lahalitoQueuedLater: candidateDecisionTrace.slice(1).some(trace =>
+      trace.lahalitoQueuedAtDecision === true
+    ),
+    specialThreatsAtBranch: branchSpecialThreats,
+    specialThreatsLater: [...laterSpecialThreats],
     branchPoint,
     terminal,
     terminalHp: terminal.player.hp,
@@ -7281,16 +7336,20 @@ export function recordB5GuardianFleeEvObservation(
       shadowEvaluation?.incomingShadowEvaluation?.decision || null,
     durationIncomingShadowReason:
       shadowEvaluation?.incomingShadowEvaluation?.reason || null,
-    candidateDecision: shadowEvaluation?.incomingOnlyEvaluation?.decision || null,
-    candidateReason: shadowEvaluation?.incomingOnlyEvaluation?.reason || null,
-    candidateTerms: shadowEvaluation?.incomingOnlyEvaluation?.terms
-      ? structuredClone(shadowEvaluation.incomingOnlyEvaluation.terms)
+    candidateDecision: pendingDecision?.guardedCandidateEvaluation?.decision || null,
+    candidateReason: pendingDecision?.guardedCandidateEvaluation?.reason || null,
+    candidateTerms: pendingDecision?.guardedCandidateEvaluation?.terms
+      ? structuredClone(pendingDecision.guardedCandidateEvaluation.terms)
       : null,
     incomingOnlyDecision: shadowEvaluation?.incomingOnlyEvaluation?.decision || null,
     incomingOnlyReason: shadowEvaluation?.incomingOnlyEvaluation?.reason || null,
     incomingOnlyTerms: shadowEvaluation?.incomingOnlyEvaluation?.terms
       ? structuredClone(shadowEvaluation.incomingOnlyEvaluation.terms)
       : null,
+    candidateOverrideApplied: pendingDecision?.candidateOverrideApplied === true,
+    candidateGuardBlockedReasons: [...(pendingDecision?.candidateGuard?.reasons || [])],
+    specialThreats: [...(pendingDecision?.candidateGuard?.specialThreats || [])],
+    lahalitoQueuedAtDecision: pendingDecision?.candidateGuard?.lahalitoQueued === true,
     durationAwareToIncomingShadowDecisionCrossing: shadowEvaluation
       ? {
           crossed: shadowEvaluation.shadowEvaluation.decision !==
@@ -7409,9 +7468,20 @@ function getEnemyAwareCombatAction(
     ? getGuardianDurationAwareEvShadow(state, recoveryArgs, evaluation)
     : null;
   const decisionEvaluation = getCombatRecoveryDecision(recoveryArgs);
-  const candidateEvaluation = shadowEvaluation?.incomingOnlyEvaluation || null;
-  const selectedEvaluation = candidatePolicy && candidateEvaluation
-    ? candidateEvaluation
+  const incomingOnlyEvaluation = shadowEvaluation?.incomingOnlyEvaluation || null;
+  const candidateGuard = evaluation && incomingOnlyEvaluation
+    ? getB5GuardianIncomingOverrideGuard({
+        state,
+        productionDecision: evaluation.decision,
+        incomingOnlyDecision: incomingOnlyEvaluation.decision
+      })
+    : null;
+  const candidateOverrideApplied = candidateGuard?.eligible === true;
+  const guardedCandidateEvaluation = candidateOverrideApplied
+    ? incomingOnlyEvaluation
+    : evaluation;
+  const selectedEvaluation = candidatePolicy
+    ? (candidateOverrideApplied ? incomingOnlyEvaluation : decisionEvaluation)
     : decisionEvaluation;
   const policyProbeAction = shouldObserveGuardian
     ? getCombatPolicyProbeAction(state)
@@ -7431,8 +7501,11 @@ function getEnemyAwareCombatAction(
       expectedTurnsToWinDelta: shadowEvaluation?.expectedTurnsToWinDelta ?? 0,
       incomingShadow: shadowEvaluation?.incomingShadow || null,
       incomingShadowEvaluation: shadowEvaluation?.incomingShadowEvaluation || null,
-      incomingOnlyEvaluation: shadowEvaluation?.incomingOnlyEvaluation || null,
-      candidateEvaluation,
+      incomingOnlyEvaluation,
+      candidateEvaluation: incomingOnlyEvaluation,
+      guardedCandidateEvaluation,
+      candidateGuard,
+      candidateOverrideApplied,
       candidatePolicy,
       recoveryItem,
       diosAction,
@@ -9497,10 +9570,18 @@ function runEncounter(
           actionNames: [event.statusSource || event.source || "status"]
         })))
       ]).flatMap(action => classifyB5GuardianUnsupportedThreat(action));
+      const productionSpecialThreats = metrics.b5GuardianFleeEvDiagnostic.decisionTrace
+        .filter(trace => trace.attempt === guardianAttempt &&
+          Number(trace.playerDecisionIndex) >= Number(pair.branchDecisionIndex))
+        .flatMap(trace => trace.specialThreats || []);
       const unsupportedThreats = [...new Set([
         ...(pair.candidate.unsupportedThreats || []),
-        ...productionThreats
+        ...productionThreats,
+        ...productionSpecialThreats
       ])];
+      pair.lahalitoQueuedAtBranch = pair.candidate.lahalitoQueuedAtBranch === true;
+      pair.lahalitoQueuedLater = pair.candidate.lahalitoQueuedLater === true ||
+        productionSpecialThreats.includes("lahalito-queued");
       pair.production = production;
       pair.unsupportedThreat = {
         eligible: unsupportedThreats.length === 0,
@@ -9598,6 +9679,24 @@ function runEncounter(
       state.combatState.b5GuardianPendingDecision = null;
     }
     if (
+      selectedDecisionTrace &&
+      selectedDecisionTrace.productionDecision !== selectedDecisionTrace.incomingOnlyDecision &&
+      selectedDecisionTrace.candidateOverrideApplied !== true
+    ) {
+      metrics.b5GuardianFleeEvDiagnostic.guardBlocked.push({
+        attempt: guardianAttempt,
+        encounterEventKey: stableEventKey,
+        runSeed: state.currentRun?.runSeed || null,
+        decisionIndex: selectedDecisionTrace.playerDecisionIndex,
+        round: selectedDecisionTrace.round,
+        productionDecision: selectedDecisionTrace.productionDecision,
+        incomingOnlyDecision: selectedDecisionTrace.incomingOnlyDecision,
+        reasons: [...(selectedDecisionTrace.candidateGuardBlockedReasons || [])],
+        specialThreats: [...(selectedDecisionTrace.specialThreats || [])],
+        lahalitoQueued: selectedDecisionTrace.lahalitoQueuedAtDecision === true
+      });
+    }
+    if (
       shouldBranchB5GuardianCombinedCandidate({
         decisionTrace: selectedDecisionTrace,
         guardianCandidateBranched
@@ -9624,6 +9723,12 @@ function runEncounter(
         branchDecisionIndex: selectedDecisionTrace.playerDecisionIndex,
         branchDecisionRound: selectedDecisionTrace.round,
         crossingDirection: `${selectedDecisionTrace.productionDecision}->${selectedDecisionTrace.candidateDecision}`,
+        incomingOnlyDecision: selectedDecisionTrace.incomingOnlyDecision,
+        incomingOnlyReason: selectedDecisionTrace.incomingOnlyReason,
+        candidateOverrideApplied: selectedDecisionTrace.candidateOverrideApplied,
+        candidateGuardBlockedReasons: [...(selectedDecisionTrace.candidateGuardBlockedReasons || [])],
+        lahalitoQueuedAtBranch: selectedDecisionTrace.lahalitoQueuedAtDecision === true,
+        lahalitoQueuedLater: null,
         productionDecision: {
           decision: selectedDecisionTrace.productionDecision,
           reason: selectedDecisionTrace.productionReason,
@@ -16081,6 +16186,9 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       ),
       combinedCandidatePairs: metrics.b5GuardianFleeEvDiagnostic.combinedCandidatePairs.map(pair =>
         structuredClone(pair)
+      ),
+      guardBlocked: metrics.b5GuardianFleeEvDiagnostic.guardBlocked.map(item =>
+        structuredClone(item)
       )
     },
     merchantUncurseAttempts: metrics.merchantUncurseAttempts,
@@ -16719,7 +16827,8 @@ export function simulateRun({
       observations: [],
       decisionTrace: [],
       strFightPairs: [],
-      combinedCandidatePairs: []
+      combinedCandidatePairs: [],
+      guardBlocked: []
     },
     elitePolicy: state.simPolicy.elitePolicy,
     eliteEncounters: 0,
