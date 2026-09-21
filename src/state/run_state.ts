@@ -2,6 +2,7 @@
 
 import { isRuntimeItemCollection, isRuntimeItemRef, type RuntimeItemCollection, type RuntimeItemRef } from "./item.js";
 import { isNormalizedPendingRewardBundle, type NormalizedPendingRewardBundle } from "./pending_reward.js";
+import { isNormalizedRunQuestCollection, type NormalizedRunQuest } from "./run_quest.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -60,7 +61,7 @@ export interface NormalizedCurrentRun {
   eliteDefeatedFloors: unknown[];
   defeatedMilestones: unknown[];
   visitedMilestoneMerchants: unknown[];
-  quests: unknown[];
+  quests: NormalizedRunQuest[];
   defeatsByRole: Record<string, unknown>;
   codexRewards: Record<string, unknown>;
   departureItems: RuntimeItemCollection;
@@ -89,7 +90,7 @@ const RECORD_FIELDS = [
 const ARRAY_FIELDS = [
   "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "firstKills",
   "floorsVisited", "deathLogs", "completedCampEntryFloors", "eliteDefeatedFloors",
-  "defeatedMilestones", "visitedMilestoneMerchants", "quests", "firstKillsBefore",
+  "defeatedMilestones", "visitedMilestoneMerchants", "firstKillsBefore",
   "keyItemsBefore", "codexDiscoveries", "workshopDiscoveries"
 ] as const;
 
@@ -102,7 +103,7 @@ const REQUIRED_FIELDS = [
   ...NUMBER_FIELDS,
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
   "returnProcessing", "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
-  "recordResult",
+  "recordResult", "quests",
   ...RECORD_FIELDS,
   ...ARRAY_FIELDS,
   ...ITEM_COLLECTION_FIELDS
@@ -137,6 +138,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (typeof value.returnReason !== "string" || !isRunOutcome(value.outcome)) return false;
   if (!RECORD_FIELDS.every(field => isRecord(value[field]))) return false;
   if (!ARRAY_FIELDS.every(field => Array.isArray(value[field]))) return false;
+  if (!isNormalizedRunQuestCollection(value.quests)) return false;
   if (!ITEM_COLLECTION_FIELDS.every(field => isRuntimeItemCollection(value[field]))) return false;
   if (!Array.isArray(value.unbankedObjectLoot) ||
       !value.unbankedObjectLoot.every(isNormalizedRunObjectLootEntry)) return false;

@@ -8,6 +8,8 @@ import { equipState } from "../../../src/equip.js";
 import { EVENT_TYPES } from "../../../src/data.js";
 import { applyFloorTransitionHeal, checkCellEvents } from "../../../src/movement.js";
 import { resolveItemDefinition } from "../../../src/state/item.js";
+import { RUN_QUEST_TEMPLATES } from "../../../src/data/run_quests.js";
+import { createRunQuest } from "../../../src/systems/run_quests.js";
 
 const saveValues = new Map();
 globalThis.localStorage = {
@@ -52,7 +54,8 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   state.unlockedMilestones = [5, 10];
   state.records = { deepestRetreat: 12, deepestDeath: 9, totalRuns: 7 };
   state.currentRun = createDefaultCurrentRun();
-  state.currentRun.quests = [{ id: "depth", currentValue: 4, targetValue: 5, completed: false }];
+  state.currentRun.quests = [createRunQuest(RUN_QUEST_TEMPLATES[0], 1)];
+  state.currentRun.quests[0].currentValue = 4;
   state.codex.monsters = {
     "ワーウルフ": {
       encountered: 2,
@@ -331,7 +334,7 @@ check("applying a save clears omitted transient runtime state", () => {
 });
 
 check("malformed current-run collections receive safe defaults", () => {
-  const validQuest = { id: "depth", currentValue: 1, targetValue: 2, completed: false };
+  const validQuest = createRunQuest(RUN_QUEST_TEMPLATES[0], 1);
   const normalized = migrateSavePayload({
     ...createSavePayload(),
     currentRun: {
