@@ -49,21 +49,54 @@ assert.equal(isNormalizedCurrentRun({ ...normalizedRun, runSeed: undefined }), t
 const legacyRunItem = { baseId: "WAND", instanceId: "legacy-run-item", affixes: [] };
 const legacyRun = normalizeSavePayload({
   ...valid,
+  party: [{
+    ...valid.party[0],
+    equipment: {
+      ...valid.party[0].equipment,
+      weapon: { baseId: "DAGGER", affixes: [] }
+    }
+  }],
   currentRun: {
     ...createDefaultCurrentRun(),
-    townInventory: [legacyRunItem],
+    townInventory: ["TOWN_SENTINEL"],
     bankedObjectLoot: [legacyRunItem],
     lostObjectLoot: [legacyRunItem],
     returnedTownItems: [legacyRunItem],
     itemsFound: [legacyRunItem],
     equipmentFound: [legacyRunItem],
     departureItems: [legacyRunItem],
+    firstKillsBefore: ["legacy-kill"],
+    keyItemsBefore: ["legacy-key"],
+    departureEquipment: {
+      weapon: {
+        baseId: "SHORT_SWORD",
+        statsBonus: { atk: 999 },
+        affixes: [{ type: "str", value: 999 }]
+      }
+    },
     unbankedObjectLoot: [{ id: "legacy-run-loot", item: legacyRunItem }]
   }
 });
 assert.equal(isNormalizedCurrentRun(legacyRun.currentRun), true,
   "supported legacy equipment remains accepted in currentRun collections");
+assert.equal(Object.hasOwn(createDefaultCurrentRun(), "departureEquipment"), false,
+  "fresh currentRun does not create the retired field");
+assert.equal(Object.hasOwn(legacyRun.currentRun, "departureEquipment"), false,
+  "legacy departureEquipment is removed from normalized currentRun");
+assert.deepEqual(legacyRun.currentRun.townInventory, ["TOWN_SENTINEL"],
+  "legacy departureEquipment does not repair townInventory");
+assert.deepEqual(legacyRun.currentRun.departureItems.map(item => item.baseId), ["WAND"],
+  "legacy departureEquipment does not replace departureItems");
+assert.equal(legacyRun.party[0].equipment.weapon.baseId, "DAGGER",
+  "legacy departureEquipment does not repair party equipment");
+assert.deepEqual(legacyRun.currentRun.firstKillsBefore, ["legacy-kill"],
+  "legacy departureEquipment does not replace discovery snapshots");
+assert.deepEqual(legacyRun.currentRun.keyItemsBefore, ["legacy-key"],
+  "legacy departureEquipment does not replace key-item snapshots");
 assert.equal(legacyRun.currentRun.runSeed, undefined, "normalization does not invent runSeed");
+
+const legacyRoundTrip = normalizeSavePayload(JSON.parse(JSON.stringify(legacyRun)));
+assert.deepEqual(legacyRoundTrip, legacyRun, "legacy retirement normalization is idempotent after JSON roundtrip");
 
 const activeRun = normalizeSavePayload({
   ...valid,
