@@ -49,21 +49,21 @@ export const CONVERGENCE_ROUTE_POLICIES = Object.freeze({
     id: "stairs-first",
     routePolicy: "partial_information_exploration",
     personaPolicy: Object.freeze({
-      exploration: Object.freeze({ budgetMultiplier: 1, budgetExtraSteps: 0, afterStairsSteps: 0 })
+      exploration: Object.freeze({ budgetMultiplier: 2.5, budgetExtraSteps: 10, afterStairsSteps: 0 })
     })
   }),
   balanced: Object.freeze({
     id: "balanced",
     routePolicy: "partial_information_exploration",
     personaPolicy: Object.freeze({
-      exploration: Object.freeze({ budgetMultiplier: 1.15, budgetExtraSteps: 8, afterStairsSteps: 4 })
+      exploration: Object.freeze({ budgetMultiplier: 2.5, budgetExtraSteps: 10, afterStairsSteps: 8 })
     })
   }),
   greedier: Object.freeze({
     id: "greedier",
     routePolicy: "partial_information_exploration",
     personaPolicy: Object.freeze({
-      exploration: Object.freeze({ budgetMultiplier: 1.5, budgetExtraSteps: 16, afterStairsSteps: 10 })
+      exploration: Object.freeze({ budgetMultiplier: 3.2, budgetExtraSteps: 18, afterStairsSteps: 24 })
     })
   })
 });

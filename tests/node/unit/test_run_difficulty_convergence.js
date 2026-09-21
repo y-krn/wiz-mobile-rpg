@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 const {
   CONVERGENCE_TARGET_DEPTHS,
+  CONVERGENCE_ROUTE_POLICIES,
   buildConvergenceSummary,
   runConvergenceAuditMeasurement
 } = await import("../../../scratch/measurements/run_difficulty_measurement.js");
@@ -40,6 +41,16 @@ assert.equal(first.conditions[0].reach[0].depth, 5);
 assert.ok(first.conditions[0].reach[0].checkpoint.populationStatus);
 assert.equal(first.conditions[0].interpretation.scalarStrategyScore, "forbidden");
 assert.deepEqual(CONVERGENCE_TARGET_DEPTHS, [5, 10, 15, 20, 25, 30]);
+assert.deepEqual(
+  Object.fromEntries(
+    Object.values(CONVERGENCE_ROUTE_POLICIES).map(policy => [policy.id, policy.personaPolicy.exploration])
+  ),
+  {
+    "stairs-first": { budgetMultiplier: 2.5, budgetExtraSteps: 10, afterStairsSteps: 0 },
+    balanced: { budgetMultiplier: 2.5, budgetExtraSteps: 10, afterStairsSteps: 8 },
+    greedier: { budgetMultiplier: 3.2, budgetExtraSteps: 18, afterStairsSteps: 24 }
+  }
+);
 
 const summary = buildConvergenceSummary({
   ...first,
