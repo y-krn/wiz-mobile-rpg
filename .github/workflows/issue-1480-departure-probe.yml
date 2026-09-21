@@ -42,7 +42,8 @@ jobs:
           git fetch origin "${MEASUREMENT_WORKFLOW_SHA}" --depth=1
           git checkout "${MEASUREMENT_WORKFLOW_SHA}" -- \
             tests/departure-flow.cases.js \
-            tests/issue-1480-measurement.js
+            tests/issue-1480-measurement.js \
+            scripts/issue-1480-summarize-sample.js
 
       - name: Capture environment
         run: |
@@ -102,7 +103,12 @@ jobs:
 
       - name: Publish sample summary
         if: always()
-        run: cat "$ISSUE_1480_EVIDENCE_DIR/sample.md" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          if [ -f "$ISSUE_1480_EVIDENCE_DIR/sample.md" ]; then
+            cat "$ISSUE_1480_EVIDENCE_DIR/sample.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Probe summary unavailable; inspect browser-test.log and uploaded artifacts." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload sample evidence
         if: always()
