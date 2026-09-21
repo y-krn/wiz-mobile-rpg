@@ -124,7 +124,6 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
     state.x = source.x;
     state.y = source.y;
     state.dir = source.dir;
-    state.currentRun.floorsVisited = [1, 5];
     state.currentRun.deepestFloor = 5;
     state.currentRun.defeatedMilestones = [5];
     state.currentRun.unbankedObjectLoot ||= [];

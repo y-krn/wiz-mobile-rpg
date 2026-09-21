@@ -35,7 +35,7 @@ global.localStorage = {
 };
 
 const { state, createStartingKitCharacter } = await import('../../../src/state.js');
-const { executeEnterDungeon, handleMove } = await import('../../../src/movement.js');
+const { descendToFloor, executeEnterDungeon, handleMove } = await import('../../../src/movement.js');
 const { handleTrapAction } = await import('../../../src/systems/traps.js');
 
 const originalSetTimeout = global.setTimeout;
@@ -49,6 +49,8 @@ try {
   state.firstKills = ['FIRST', 3, 'FIRST', ''];
   state.keyItems = ['KEY', null, ''];
   executeEnterDungeon(1);
+  assert.equal(Object.hasOwn(state.currentRun, 'floorsVisited'), false,
+    'fresh run retires the unused visited-floor snapshot');
   assert.equal(state.currentRun.startingKit, 'scout', 'run start preserves canonical kit identity');
   assert.deepEqual(state.currentRun.firstKillsBefore, ['FIRST', 'FIRST', ''],
     'run start filters malformed first-kill baseline entries');
@@ -96,10 +98,23 @@ try {
   handleTrapAction('force');
 
   assert.equal(state.floor, 2);
+  assert.equal(state.currentRun.deepestFloor, 2);
+  assert.equal(Object.hasOwn(state.currentRun, 'floorsVisited'), false,
+    'pitfall descent does not recreate the retired visited-floor snapshot');
   assert.equal(state.gameState, 'explore');
   assert.equal(state.transitioning, false);
   assert.equal(state.activeTrapState, null);
   assert.equal(Boolean(state.maps[1]), true);
+
+  executeEnterDungeon(1);
+  state.currentRun.floorSteps = { '1': 4 };
+  descendToFloor(2);
+  assert.equal(state.floor, 2);
+  assert.equal(state.sessionMaxFloor, 2);
+  assert.equal(state.currentRun.deepestFloor, 2);
+  assert.deepEqual(state.currentRun.floorSteps, { '1': 4 });
+  assert.equal(Object.hasOwn(state.currentRun, 'floorsVisited'), false,
+    'stairs descent does not recreate the retired visited-floor snapshot');
 } finally {
   global.setTimeout = originalSetTimeout;
 }

@@ -49,7 +49,7 @@ const rawRun = {
   steps: 42,
   floorSteps: { "1": 0, "2": 12, "03": 7, "4": "8" },
   floor: 99,
-  deepestFloor: 9,
+  deepestFloor: 3,
   floorsVisited: [1, 9]
 };
 const normalized = normalizeSavePayload({
@@ -60,9 +60,21 @@ const normalized = normalizeSavePayload({
 
 assert.deepEqual(normalized.floorSteps, { "1": 0, "2": 12 });
 assert.equal(normalized.steps, 42);
-assert.equal(normalized.deepestFloor, 9);
-assert.deepEqual(normalized.floorsVisited, [1, 9]);
+assert.equal(normalized.deepestFloor, 3);
+assert.equal(Object.hasOwn(normalized, "floorsVisited"), false);
 assert.equal(Object.hasOwn(normalized.floorSteps, "6"), false);
 assert.equal(isNormalizedCurrentRun(normalized), true);
 
-console.log("[PASS] #1495 canonical floorSteps contract, save normalization, and non-repair policy verified.");
+const roundTrip = normalizeSavePayload(JSON.parse(JSON.stringify({
+  version: SAVE_VERSION,
+  floor: 6,
+  currentRun: rawRun
+}))).currentRun;
+assert.deepEqual(roundTrip, normalized);
+
+const withoutFloorsVisited = { ...normalized };
+delete withoutFloorsVisited.floorsVisited;
+assert.equal(isNormalizedCurrentRun(withoutFloorsVisited), true);
+assert.equal(isNormalizedCurrentRun({ ...withoutFloorsVisited, deathLogs: undefined }), false);
+
+console.log("[PASS] #1495/#1530 canonical floorSteps contract, retired floorsVisited, and non-repair policy verified.");

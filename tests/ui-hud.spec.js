@@ -136,7 +136,7 @@ for (const vp of VIEWPORTS) {
       const { state } = await import('/src/state.js');
       const { showFloorEntryStinger, updateUI } = await import('/src/ui.js');
       state.gameState = 'explore';
-      state.currentRun = { floorsVisited: [1], deepestFloor: 1 };
+      state.currentRun = { deepestFloor: 1 };
       state.floor = 1;
       state.dungeonMemory = { mapFragments: {}, visitedFloors: [1] };
       updateUI();
