@@ -8,6 +8,12 @@ import { trackCombatEnd, trackLootStakeSnapshot, trackRunEnd } from "./telemetry
 import { processRunReturn } from "./systems/run_return.js";
 import { normalizeRunRecordResult } from "./state/run_record_result.js";
 import { normalizeStartingKitId } from "./state/starting_kit.js";
+import {
+  normalizeRunFirstKillsBefore,
+  normalizeRunKeyItemsBefore,
+  normalizeRunCodexDiscoveries,
+  normalizeRunWorkshopDiscoveries
+} from "./state/run_discovery_state.js";
 
 export function triggerRunResult(reason, { salvageIds = null } = {}) {
   if (!state.currentRun || state.gameState === "result" || state.currentRun.returnReason) return;
@@ -53,10 +59,14 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
     }
   }
   updateRunQuests(run, getPartyMaxAffix(state.party, "contractReward"));
-  const previousFirstKills = new Set(run.firstKillsBefore || []);
-  run.codexDiscoveries = (state.firstKills || []).filter(name => !previousFirstKills.has(name));
-  const previousKeyItems = new Set(run.keyItemsBefore || []);
-  run.workshopDiscoveries = (state.keyItems || []).filter(keyItem => !previousKeyItems.has(keyItem));
+  const previousFirstKills = new Set(normalizeRunFirstKillsBefore(run.firstKillsBefore));
+  run.codexDiscoveries = normalizeRunCodexDiscoveries(
+    normalizeRunFirstKillsBefore(state.firstKills).filter(name => !previousFirstKills.has(name))
+  );
+  const previousKeyItems = new Set(normalizeRunKeyItemsBefore(run.keyItemsBefore));
+  run.workshopDiscoveries = normalizeRunWorkshopDiscoveries(
+    normalizeRunKeyItemsBefore(state.keyItems).filter(keyItem => !previousKeyItems.has(keyItem))
+  );
   run.materialsBeforeBanking = { ...(run.materials || {}) };
   run.goldEarned = Number(run.goldEarned ?? run.gold) || 0;
   run.lootCount = Number(run.lootCount) || Object.values(run.materialsBeforeBanking)
@@ -187,8 +197,8 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
       identified: typeof item === "object" ? item.identified !== false : true
     }))
     .filter(item => item.baseId);
-  runSummary.codexDiscoveries = [...(run.codexDiscoveries || [])];
-  runSummary.workshopDiscoveries = [...(run.workshopDiscoveries || [])];
+  runSummary.codexDiscoveries = normalizeRunCodexDiscoveries(run.codexDiscoveries);
+  runSummary.workshopDiscoveries = normalizeRunWorkshopDiscoveries(run.workshopDiscoveries);
   state.runHistory ||= [];
   state.runHistory.unshift(runSummary);
   state.runHistory = state.runHistory.slice(0, HISTORY_LIMIT);

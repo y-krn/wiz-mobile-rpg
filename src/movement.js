@@ -37,6 +37,7 @@ import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
 import { observeCarriedEquipment } from "./systems/identification.js";
+import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -890,8 +891,8 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   state.currentRun.townInventory = state.inventory.slice();
   state.currentRun.unbankedObjectLoot = [];
   state.currentRun.departureItems = state.inventory.slice();
-  state.currentRun.firstKillsBefore = [...(state.firstKills || [])];
-  state.currentRun.keyItemsBefore = [...(state.keyItems || [])];
+  state.currentRun.firstKillsBefore = normalizeRunFirstKillsBefore(state.firstKills);
+  state.currentRun.keyItemsBefore = normalizeRunKeyItemsBefore(state.keyItems);
   state.party.forEach(char => {
     char.runTrapAttackBonus = 0;
   });

@@ -59,6 +59,16 @@ import {
   isNormalizedRunRecordResult,
   type NormalizedRunRecordResult
 } from "./run_record_result.js";
+import {
+  isNormalizedRunFirstKillsBefore,
+  isNormalizedRunKeyItemsBefore,
+  isNormalizedRunCodexDiscoveries,
+  isNormalizedRunWorkshopDiscoveries,
+  type NormalizedRunFirstKillsBefore,
+  type NormalizedRunKeyItemsBefore,
+  type NormalizedRunCodexDiscoveries,
+  type NormalizedRunWorkshopDiscoveries
+} from "./run_discovery_state.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -102,7 +112,6 @@ export interface NormalizedCurrentRun {
   lootSequence: number;
   itemsFound: RuntimeItemCollection;
   equipmentFound: RuntimeItemCollection;
-  firstKills: unknown[];
   floorsVisited: unknown[];
   dangerScore: number;
   returnReason: string;
@@ -120,10 +129,10 @@ export interface NormalizedCurrentRun {
   defeatsByRole: NormalizedDefeatsByRole;
   codexRewards: NormalizedCodexRewards;
   departureItems: RuntimeItemCollection;
-  firstKillsBefore: unknown[];
-  keyItemsBefore: unknown[];
-  codexDiscoveries: unknown[];
-  workshopDiscoveries: unknown[];
+  firstKillsBefore: NormalizedRunFirstKillsBefore;
+  keyItemsBefore: NormalizedRunKeyItemsBefore;
+  codexDiscoveries: NormalizedRunCodexDiscoveries;
+  workshopDiscoveries: NormalizedRunWorkshopDiscoveries;
   recordResult: NormalizedRunRecordResult | null;
   runSeed?: NormalizedRunSeed;
   [key: string]: unknown;
@@ -136,9 +145,7 @@ const NUMBER_FIELDS = [
 ] as const;
 
 const ARRAY_FIELDS = [
-  "firstKills", "floorsVisited", "deathLogs",
-  "firstKillsBefore",
-  "keyItemsBefore", "codexDiscoveries", "workshopDiscoveries"
+  "floorsVisited", "deathLogs"
 ] as const;
 
 const ITEM_COLLECTION_FIELDS = [
@@ -158,6 +165,7 @@ const REQUIRED_FIELDS = [
   "materials", "bankedMaterials", "defeatsByRole",
   "codexRewards",
   ...ARRAY_FIELDS,
+  "firstKillsBefore", "keyItemsBefore", "codexDiscoveries", "workshopDiscoveries",
   ...ITEM_COLLECTION_FIELDS
 ] as const;
 
@@ -209,6 +217,10 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!ARRAY_FIELDS.every(field => Array.isArray(value[field]))) return false;
   if (!isNormalizedRunQuestCollection(value.quests)) return false;
   if (!isNormalizedDefeatsByRole(value.defeatsByRole)) return false;
+  if (!isNormalizedRunFirstKillsBefore(value.firstKillsBefore) ||
+      !isNormalizedRunKeyItemsBefore(value.keyItemsBefore) ||
+      !isNormalizedRunCodexDiscoveries(value.codexDiscoveries) ||
+      !isNormalizedRunWorkshopDiscoveries(value.workshopDiscoveries)) return false;
   if (!ITEM_COLLECTION_FIELDS.every(field => isRuntimeItemCollection(value[field]))) return false;
   if (!Array.isArray(value.unbankedObjectLoot) ||
       !value.unbankedObjectLoot.every(isNormalizedRunObjectLootEntry)) return false;

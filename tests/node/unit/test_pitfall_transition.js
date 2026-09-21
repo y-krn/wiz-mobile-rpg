@@ -46,8 +46,14 @@ global.setTimeout = callback => {
 
 try {
   state.party = [createStartingKitCharacter('scout')];
+  state.firstKills = ['FIRST', 3, 'FIRST', ''];
+  state.keyItems = ['KEY', null, ''];
   executeEnterDungeon(1);
   assert.equal(state.currentRun.startingKit, 'scout', 'run start preserves canonical kit identity');
+  assert.deepEqual(state.currentRun.firstKillsBefore, ['FIRST', 'FIRST', ''],
+    'run start filters malformed first-kill baseline entries');
+  assert.deepEqual(state.currentRun.keyItemsBefore, ['KEY', ''],
+    'run start filters malformed key-item baseline entries');
   state.party[0].startingKit = 'Fighter';
   executeEnterDungeon(1);
   assert.equal(state.currentRun.startingKit, null, 'run start rejects malformed kit identity');
