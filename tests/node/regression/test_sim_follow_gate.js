@@ -3,6 +3,7 @@ import {
   SIMULATION_MANIFEST,
   assertBalanceImpactCovered,
   analyzeBalanceImpact,
+  assertVNextDiagnosticBoundary,
   classifySimulationRunner,
   assertRuntimeMechanismsFired,
   assertValidSimulationManifest,
@@ -20,6 +21,14 @@ import {
 } from "../../../scratch/simulations/simulation_manifest.js";
 
 assert.doesNotThrow(() => assertValidSimulationManifest());
+assert.doesNotThrow(() => assertVNextDiagnosticBoundary());
+assert.throws(
+  () => assertVNextDiagnosticBoundary({
+    sourceByPath: new Map([["src/data/future_production.js", 'import { VNEXT_SUPPORT_IDS } from "./equipment_vnext.js";']])
+  }),
+  /future_production\.js/,
+  "production source must not import vNext diagnostic modules"
+);
 const currentInfrastructure = [
   "scratch/simulations/sim_recovery_policy.js",
   "scratch/simulations/sim_workshop_purchase_policy.js",

@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
   CANONICAL_BASE_IDS,
+  CANONICAL_BASES,
   ITEM_ID_TO_VNEXT_BASE,
   NAMED_RULE_IDS,
   VNEXT_CORE_IDS,
+  VNEXT_CORE_CANDIDATE_IDS,
   VNEXT_SUPPORT_IDS,
+  VNEXT_SUPPORT_CANDIDATE_IDS,
   getCanonicalBaseId,
   getNamedRuleId
 } from "../../../src/data/equipment_vnext.js";
@@ -35,14 +38,21 @@ assert.equal(getCanonicalBaseId("NINJA_DAGGER"), "dagger");
 assert.equal(getCanonicalBaseId("KNIGHT_SHIELD"), "largeShield");
 assert.equal(getCanonicalBaseId("AMULET_MP"), "amulet");
 assert.equal(getCanonicalBaseId("UNKNOWN_ITEM"), null);
+assert.equal(CANONICAL_BASES.wand.weaponProfile, "medium");
+assert.equal(CANONICAL_BASES.staff.weaponProfile, "medium");
 
 assert.deepEqual(NAMED_RULE_IDS, [
   "venom_fang", "moonshadow", "flame_blade", "holy_oath", "muramasa",
   "excalibur", "archmage_staff", "aegis", "dragon_scale"
 ]);
 assert.equal(getNamedRuleId("SEALED_EXCALIBUR"), "excalibur");
-assert.ok(VNEXT_SUPPORT_IDS.includes("guardRuneBoost"));
+assert.equal(VNEXT_SUPPORT_IDS.length, 23);
+assert.ok(!VNEXT_SUPPORT_IDS.includes("poisonWard"));
+assert.ok(VNEXT_SUPPORT_CANDIDATE_IDS.includes("poisonWard"));
+assert.ok(VNEXT_SUPPORT_CANDIDATE_IDS.includes("longFightDefense"));
 assert.ok(VNEXT_CORE_IDS.includes("thin_ice_pact"));
+assert.ok(!VNEXT_CORE_IDS.includes("overmix"));
+assert.deepEqual(VNEXT_CORE_CANDIDATE_IDS, ["overmix", "discarded_baggage_smoke"]);
 
 assert.equal(getCombatTierForStartFloor(1), 0);
 assert.equal(getCombatTierForStartFloor(5), 1);

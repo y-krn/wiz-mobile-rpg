@@ -23,8 +23,8 @@ export const CANONICAL_BASES = Object.freeze({
   sword: Object.freeze({ id: "sword", slot: "weapon", hands: 1, load: "standard", weaponProfile: "blade" }),
   mace: Object.freeze({ id: "mace", slot: "weapon", hands: 1, load: "standard", weaponProfile: "impact" }),
   greatsword: Object.freeze({ id: "greatsword", slot: "weapon", hands: 2, load: "heavy", weaponProfile: "heavy" }),
-  wand: Object.freeze({ id: "wand", slot: "weapon", hands: 1, load: "standard", medium: true, runeSlots: 1 }),
-  staff: Object.freeze({ id: "staff", slot: "weapon", hands: 2, load: "standard", medium: true, runeSlots: 2 }),
+  wand: Object.freeze({ id: "wand", slot: "weapon", hands: 1, load: "standard", weaponProfile: "medium", medium: true, runeSlots: 1 }),
+  staff: Object.freeze({ id: "staff", slot: "weapon", hands: 2, load: "standard", weaponProfile: "medium", medium: true, runeSlots: 2 }),
   lightArmor: Object.freeze({ id: "lightArmor", slot: "armor", load: "light" }),
   mediumArmor: Object.freeze({ id: "mediumArmor", slot: "armor", load: "standard" }),
   heavyArmor: Object.freeze({ id: "heavyArmor", slot: "armor", load: "heavy" }),
@@ -59,22 +59,32 @@ export const NAMED_RULES = Object.freeze({
   dragon_scale: Object.freeze({ id: "dragon_scale", baseId: "heavyArmor" })
 });
 
-// Support IDs describe candidate vocabulary only. Values, rarity composition,
-// and production eligibility belong to a later vNext implementation phase.
+// Adopted Phase 0 vocabulary only. Values, rarity composition, and production
+// eligibility belong to a later vNext implementation phase.
 export const VNEXT_SUPPORT_IDS = Object.freeze([
   "hp", "mp",
-  "poisonWard", "spellGuard", "statusResistance", "physicalAccuracy", "spellAccuracy", "escapeChance",
+  "spellGuard", "statusResistance", "escapeChance",
   "trapBonus", "trapGuard", "treasureSense", "arcaneSense", "hearRange", "traceRead",
   "poisonAtk", "bleedingAtk", "followUp", "firstStrike", "firstStrikeFollowUp",
   "fullHpDamage", "lowHpDamage", "highHpTargetDamage",
   "killHeal", "followUpMp", "hitFlinch", "stairsHeal",
+]);
+
+export const VNEXT_SUPPORTS = Object.freeze(Object.fromEntries(
+  VNEXT_SUPPORT_IDS.map(id => [id, Object.freeze({ id })])
+));
+
+// Candidate vocabulary is intentionally separate from the adopted Phase 0
+// vocabulary. Adoption requires the later Support/Core boundary decision.
+export const VNEXT_SUPPORT_CANDIDATE_IDS = Object.freeze([
+  "poisonWard", "physicalAccuracy", "spellAccuracy",
   "identifyDiscount", "materialFind", "victoryMaterial", "contractReward",
   "guardCounter", "guardFortify", "guardRuneBoost", "attackRuneBoost", "runeAttackBoost",
   "longFightDamage", "longFightDefense"
 ]);
 
-export const VNEXT_SUPPORTS = Object.freeze(Object.fromEntries(
-  VNEXT_SUPPORT_IDS.map(id => [id, Object.freeze({ id })])
+export const VNEXT_SUPPORT_CANDIDATES = Object.freeze(Object.fromEntries(
+  VNEXT_SUPPORT_CANDIDATE_IDS.map(id => [id, Object.freeze({ id })])
 ));
 
 export const VNEXT_CORE_IDS = Object.freeze([
@@ -87,13 +97,20 @@ export const VNEXT_CORE_IDS = Object.freeze([
   "sneak_step",
   "tomb_raider",
   "keen_eye",
-  "purify_ring",
-  "overmix",
-  "discarded_baggage_smoke"
+  "purify_ring"
 ]);
 
 export const VNEXT_CORES = Object.freeze(Object.fromEntries(
   VNEXT_CORE_IDS.map(id => [id, Object.freeze({ id })])
+));
+
+export const VNEXT_CORE_CANDIDATE_IDS = Object.freeze([
+  "overmix",
+  "discarded_baggage_smoke"
+]);
+
+export const VNEXT_CORE_CANDIDATES = Object.freeze(Object.fromEntries(
+  VNEXT_CORE_CANDIDATE_IDS.map(id => [id, Object.freeze({ id })])
 ));
 
 const ITEM_ID_TO_CANONICAL_BASE = Object.freeze({
