@@ -1,6 +1,7 @@
-// balance-impact: none — canonical defeated-milestone persistence boundary only.
+// balance-impact: none — canonical milestone persistence boundaries only.
 
 export type NormalizedDefeatedMilestones = number[];
+export type NormalizedVisitedMilestoneMerchants = number[];
 
 function isMilestoneFloor(value: unknown): value is number {
   return typeof value === "number" &&
@@ -29,6 +30,23 @@ export function isNormalizedDefeatedMilestones(value: unknown): value is Normali
 }
 
 export function normalizeDefeatedMilestones(value: unknown): NormalizedDefeatedMilestones {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter(isMilestoneFloor))].sort((a, b) => a - b);
+}
+
+export function isNormalizedVisitedMilestoneMerchants(value: unknown): value is NormalizedVisitedMilestoneMerchants {
+  if (!isDenseArray(value)) return false;
+  let previous: number | undefined;
+  for (let index = 0; index < value.length; index++) {
+    const entry = value[index];
+    if (!isMilestoneFloor(entry)) return false;
+    if (previous !== undefined && previous >= entry) return false;
+    previous = entry;
+  }
+  return true;
+}
+
+export function normalizeVisitedMilestoneMerchants(value: unknown): NormalizedVisitedMilestoneMerchants {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter(isMilestoneFloor))].sort((a, b) => a - b);
 }

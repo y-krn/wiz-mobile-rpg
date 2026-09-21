@@ -13,7 +13,9 @@ import {
 import { isNormalizedRunSeed, type NormalizedRunSeed } from "./run_seed.js";
 import {
   isNormalizedDefeatedMilestones,
-  type NormalizedDefeatedMilestones
+  isNormalizedVisitedMilestoneMerchants,
+  type NormalizedDefeatedMilestones,
+  type NormalizedVisitedMilestoneMerchants
 } from "./milestone_state.js";
 import {
   isNormalizedCampRested,
@@ -80,7 +82,7 @@ export interface NormalizedCurrentRun {
   eliteOmenSteps: Record<string, unknown>;
   eliteDefeatedFloors: NormalizedEliteDefeatedFloors;
   defeatedMilestones: NormalizedDefeatedMilestones;
-  visitedMilestoneMerchants: unknown[];
+  visitedMilestoneMerchants: NormalizedVisitedMilestoneMerchants;
   quests: NormalizedRunQuest[];
   defeatsByRole: Record<string, unknown>;
   codexRewards: Record<string, unknown>;
@@ -110,7 +112,7 @@ const RECORD_FIELDS = [
 const ARRAY_FIELDS = [
   "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "firstKills",
   "floorsVisited", "deathLogs",
-  "visitedMilestoneMerchants", "firstKillsBefore",
+  "firstKillsBefore",
   "keyItemsBefore", "codexDiscoveries", "workshopDiscoveries"
 ] as const;
 
@@ -125,7 +127,7 @@ const REQUIRED_FIELDS = [
   "returnProcessing", "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
   "campRested", "completedCampEntryFloors", "recordResult", "quests", "trialBands",
   "eliteFloors", "eliteDefeatedFloors",
-  "defeatedMilestones",
+  "defeatedMilestones", "visitedMilestoneMerchants",
   ...RECORD_FIELDS,
   ...ARRAY_FIELDS,
   ...ITEM_COLLECTION_FIELDS
@@ -166,6 +168,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!isNormalizedEliteFloors(value.eliteFloors)) return false;
   if (!isNormalizedEliteDefeatedFloors(value.eliteDefeatedFloors)) return false;
   if (!isNormalizedDefeatedMilestones(value.defeatedMilestones)) return false;
+  if (!isNormalizedVisitedMilestoneMerchants(value.visitedMilestoneMerchants)) return false;
   if (Object.hasOwn(value, "runSeed") && value.runSeed !== undefined && !isNormalizedRunSeed(value.runSeed)) {
     return false;
   }

@@ -25,7 +25,10 @@ import {
   normalizeEliteFloors
 } from "./elite_floor.js";
 import { isNormalizedRunSeed, normalizeRunSeed } from "./run_seed.js";
-import { normalizeDefeatedMilestones } from "./milestone_state.js";
+import {
+  normalizeDefeatedMilestones,
+  normalizeVisitedMilestoneMerchants
+} from "./milestone_state.js";
 import {
   normalizeCampRested,
   normalizeCompletedCampEntryFloors,
@@ -723,6 +726,7 @@ function normalizeCurrentRun(run, saveFloor) {
   if (runSeed === undefined) delete normalized.runSeed;
   else normalized.runSeed = runSeed;
   normalized.defeatedMilestones = normalizeDefeatedMilestones(normalized.defeatedMilestones);
+  normalized.visitedMilestoneMerchants = normalizeVisitedMilestoneMerchants(normalized.visitedMilestoneMerchants);
   normalized.campRested = normalizeCampRested(normalized.campRested);
   normalized.completedCampEntryFloors = normalizeCompletedCampEntryFloors(normalized.completedCampEntryFloors);
   normalized.pendingCampEntryFloor = normalizePendingCampEntryFloor(normalized.pendingCampEntryFloor);
