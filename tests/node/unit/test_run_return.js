@@ -96,6 +96,37 @@ function setupRun(deepestFloor = 5) {
 }
 
 {
+  const state = {
+    party: [createStartingKitCharacter("vanguard")],
+    currentRun: {
+      ...createDefaultCurrentRun(),
+      deepestFloor: 5,
+      returnReason: "milestone_portal",
+      itemsFound: ["RUNE_DIOS"],
+      equipmentFound: [],
+      townInventory: [],
+      unbankedObjectLoot: [],
+      bankedObjectLoot: [],
+      lostObjectLoot: []
+    },
+    codex: createDefaultCodex(),
+    workshop: { ranks: {}, lateralUnlocks: [] },
+    storage: [],
+    inventory: ["RUNE_DIOS"],
+    floor: 5
+  };
+  recordDungeonObjectLoot(state, "RUNE_DIOS");
+  const result = processRunReturn(state, "retreat");
+  assert.equal(result.representativeItem.baseId, "RUNE_DIOS");
+  assert.equal(result.representativeItem.type, "item");
+  assert.equal(result.meaningfulItemHistory[0].baseId, "RUNE_DIOS");
+  assert.equal(result.meaningfulItemHistory[0].type, "item");
+  assert.equal(isNormalizedReturnItemRecord(result.representativeItem), true);
+  assert.equal(isNormalizedReturnItemHistory(result.meaningfulItemHistory), true);
+  console.log("[PASS] normal Rune return artifacts use the canonical item type");
+}
+
+{
   const first = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
     deepestFloor: 4,
     recoveredEquipment: [{ baseId: "LONG_SWORD", tags: ["ambush"], knowledgeStage: "discovery" }]
