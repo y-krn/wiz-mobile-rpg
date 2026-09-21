@@ -231,6 +231,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/data/spells.js", "src/data/status_treatments.js", "src/systems/spell_effects.js",
     "src/runtime_diagnostics.js", "src/telemetry.js", "src/systems/traps.js", "src/pixi_renderer.js", "src/pixi_enemy_prototypes.js", "src/minimap.js",
     "src/rules/item_inventory.js", "src/rules/object_loot_stake.js", "src/rules/renderer_projection.js", "src/rules/enemy_hp_state.js",
+    "src/data/equipment_vnext.js", "src/rules/combat_tier.js", "src/rules/diagnostic_build_identity.js",
     "src/combat_logic/combat_action.js", "src/combat_logic/combat_action.ts", "src/combat_ui/combat_state.ts",
     "src/enemy_presentation.js", "src/enemy_presentation_palette.js", "src/assets/enemies/**",
     "src/equipment_ui_loader.js", "src/equipment_ui_state.js"
@@ -322,6 +323,70 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/result.js"
   ])
 });
+
+export const VNEXT_DIAGNOSTIC_MODULES = Object.freeze([
+  "src/data/equipment_vnext.js",
+  "src/rules/combat_tier.js",
+  "src/rules/diagnostic_build_identity.js"
+]);
+
+const VNEXT_DIAGNOSTIC_IMPORT_ALLOWLIST = new Set([
+  "src/rules/diagnostic_build_identity.js"
+]);
+
+function getSourceEntries({ repoRoot = process.cwd(), sourceByPath = null } = {}) {
+  if (sourceByPath instanceof Map) {
+    return [...sourceByPath.entries()].map(([file, source]) => [normalizePath(file), source]);
+  }
+  const entries = [];
+  const visit = directory => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(absolute);
+      else if (/\.(?:js|ts)$/.test(entry.name)) {
+        entries.push([normalizePath(path.relative(repoRoot, absolute)), fs.readFileSync(absolute, "utf8")]);
+      }
+    }
+  };
+  visit(path.join(repoRoot, "src"));
+  return entries;
+}
+
+function resolveKnownVNextModule(importer, specifier) {
+  if (typeof specifier !== "string" || !specifier.startsWith(".")) return null;
+  const base = normalizePath(path.join(path.dirname(importer), specifier));
+  const candidates = [base, `${base}.js`, `${base}.ts`, `${base}/index.js`, `${base}/index.ts`];
+  return VNEXT_DIAGNOSTIC_MODULES.find(modulePath => candidates.includes(modulePath)) || null;
+}
+
+function getStaticImportSpecifiers(source) {
+  const specifiers = [];
+  for (const match of source.matchAll(/\b(?:from|import)\s*["']([^"']+)["']/g)) specifiers.push(match[1]);
+  for (const match of source.matchAll(/\bimport\s*\(\s*["']([^"']+)["']/g)) specifiers.push(match[1]);
+  return specifiers;
+}
+
+export function findVNextProductionReferences(options = {}) {
+  const references = [];
+  for (const [file, source] of getSourceEntries(options)) {
+    if (!file.startsWith("src/") || typeof source !== "string") continue;
+    for (const specifier of getStaticImportSpecifiers(source)) {
+      const target = resolveKnownVNextModule(file, specifier);
+      if (target && !VNEXT_DIAGNOSTIC_IMPORT_ALLOWLIST.has(file)) {
+        references.push({ importer: file, target });
+      }
+    }
+  }
+  return references;
+}
+
+export function assertVNextDiagnosticBoundary(options = {}) {
+  const references = findVNextProductionReferences(options);
+  if (references.length > 0) {
+    throw new Error(`vNext diagnostic module connected from production source: ${references.map(({ importer, target }) => `${importer} -> ${target}`).join(", ")}`);
+  }
+  return true;
+}
 
 // This is a known stale-reference regression guard, not a general deleted-
 // mechanism detector. Add a guard here only when a retired identifier needs a
