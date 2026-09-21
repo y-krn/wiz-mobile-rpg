@@ -33,7 +33,7 @@ jobs:
       - name: Checkout fixed source
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.SOURCE_UNDER_TEST }}
+          ref: 56391e3f2c1054faafa3cb3ec571391a79c36807
           fetch-depth: 1
 
       - name: Overlay branch-only probes
