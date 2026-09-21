@@ -31,6 +31,8 @@ for (const kitId of result.configuration.startingKits) {
   assert.ok(diagnostic.transitionsObserved >= 0);
   assert.ok(diagnostic.strFightCohort);
   assert.ok(diagnostic.strFightCohort.cohortN >= 0);
+  assert.ok(diagnostic.strFightCohort.paired);
+  assert.ok(diagnostic.strFightCohort.paired.samples.length <= 2);
   assert.ok(Object.hasOwn(diagnostic.strFightCohort.outcomes, "victory") || diagnostic.strFightCohort.cohortN === 0);
   for (const aggregate of [diagnostic.strFightCohort.all, ...Object.values(diagnostic.strFightCohort.byOutcome)]) {
     for (const field of ["fleePartingAttackCount", "partingAttackDamageHp", "fleeDiedFromPartingAttack"]) {
@@ -56,6 +58,7 @@ const cohortTrace = (attempt, decision, executed, itemKey, playerDecisionIndex, 
   round,
   decision,
   reason: decision === "flee" ? "flee-survival-deficit" : "fight-current-survival",
+  terms: { expectedTurnsToWin: 6, survivalTurns: attempt === 1 ? 6 : 5 },
   executed,
   actualAction: itemKey
     ? { type: "item", itemKey, spellName: null }
@@ -72,6 +75,7 @@ const cohortTrace = (attempt, decision, executed, itemKey, playerDecisionIndex, 
 
 const cohortResult = {
   b5GuardianFleeEvDiagnostic: {
+    strFightPairs: [],
     decisionTrace: [
       cohortTrace(1, "flee", true, "STR_POTION", 1, 1),
       cohortTrace(1, "fight", true, null, 2, 2),
@@ -134,7 +138,7 @@ const cohortResult = {
     }))
   }
 };
-const cohorts = buildGuardianStrFightCohorts(cohortResult, "vanguard", 9);
+let cohorts = buildGuardianStrFightCohorts(cohortResult, "vanguard", 9);
 assert.equal(cohorts.length, 3);
 assert.deepEqual(cohorts.map(item => item.terminalOutcome), ["victory", "laterFlee", "death"]);
 assert.equal(cohorts[0].runIndex, 9);
@@ -156,6 +160,117 @@ assert.equal(
   cohorts.reduce((sum, cohort) => sum + cohort.partingAttackDamageHp, 0),
   10
 );
+
+const pairedFixture = (productionOutcome, productionDecision) => ({
+  attempt: productionOutcome === "victory" ? 1 : 2,
+  productionDecisionIndex: 2,
+  productionDecisionRound: 2,
+  productionDecision,
+  immediateFlee: {
+    outcome: "flee",
+    survived: true,
+    terminalHp: productionOutcome === "victory" ? 35 : 12,
+    hpLoss: productionOutcome === "victory" ? 5 : 28,
+    rounds: 1,
+    actions: 1,
+    guardianDamage: 0,
+    resourcesConsumed: { itemCounts: {}, itemCount: 0, mp: 1 },
+    partingAttackCount: 1,
+    partingDamage: 1,
+    partingDeath: false
+  },
+  production: {
+    outcome: productionOutcome,
+    survived: true,
+    terminalHp: productionOutcome === "victory" ? 25 : 8,
+    hpLoss: productionOutcome === "victory" ? 15 : 32,
+    rounds: productionOutcome === "victory" ? 4 : 5,
+    actions: productionOutcome === "victory" ? 4 : 5,
+    guardianDamage: productionOutcome === "victory" ? 75 : 100,
+    resourcesConsumed: {
+      itemCounts: { HEAL_POTION: productionOutcome === "victory" ? 1 : 2 },
+      itemCount: productionOutcome === "victory" ? 1 : 2,
+      mp: productionOutcome === "victory" ? 2 : 3
+    },
+    partingAttackCount: 1,
+    partingDamage: 2,
+    partingDeath: false
+  },
+  pairedDelta: {
+    terminalHpImmediateFleeMinusProduction: productionOutcome === "victory" ? 10 : 4,
+    hpLossProductionMinusImmediateFlee: productionOutcome === "victory" ? 10 : 4,
+    roundsProductionMinusImmediateFlee: productionOutcome === "victory" ? 3 : 4,
+    actionsProductionMinusImmediateFlee: productionOutcome === "victory" ? 3 : 4,
+    guardianDamageProductionMinusImmediateFlee: productionOutcome === "victory" ? 75 : 100,
+    itemCountProductionMinusImmediateFlee: productionOutcome === "victory" ? 1 : 2,
+    mpProductionMinusImmediateFlee: productionOutcome === "victory" ? 1 : 2,
+    productionVictoryGained: productionOutcome === "victory",
+    avoidableLaterFlee: productionOutcome === "laterFlee",
+    avoidableDeath: false
+  }
+});
+const fixturePairs = [
+  pairedFixture("victory", {
+    decision: "fight",
+    reason: "fight-current-survival",
+    terms: { expectedTurnsToWin: 6, survivalTurns: 6 }
+  }),
+  pairedFixture("laterFlee", {
+    decision: "fight",
+    reason: "fight-current-survival",
+    terms: { expectedTurnsToWin: 6, survivalTurns: 5 }
+  })
+];
+fixturePairs.forEach(pair => {
+  cohortResult.b5GuardianFleeEvDiagnostic.strFightPairs.push(pair);
+});
+cohorts = buildGuardianStrFightCohorts(cohortResult, "vanguard", 9);
+const pairedVictory = cohorts[0].pairedComparison;
+const pairedLaterFlee = cohorts[1].pairedComparison;
+assert.equal(pairedVictory.production.outcome, "victory");
+assert.equal(pairedVictory.immediateFlee.outcome, "flee");
+assert.equal(pairedVictory.pairedDelta.productionVictoryGained, true);
+assert.equal(pairedLaterFlee.production.outcome, "laterFlee");
+assert.equal(pairedLaterFlee.immediateFlee.outcome, "flee");
+assert.equal(pairedLaterFlee.pairedDelta.avoidableLaterFlee, true);
+for (const pair of [pairedVictory, pairedLaterFlee]) {
+  const trace = cohortResult.b5GuardianFleeEvDiagnostic.decisionTrace.find(item =>
+    item.attempt === pair.attempt &&
+    Number(item.playerDecisionIndex) === Number(pair.productionDecisionIndex)
+  );
+  assert.ok(trace);
+  assert.deepEqual(pair.productionDecision, {
+    decision: trace.decision,
+    reason: trace.reason,
+    terms: trace.terms
+  });
+  assert.equal(pair.productionDecisionIndex, trace.playerDecisionIndex);
+  assert.equal(
+    pair.pairedDelta.terminalHpImmediateFleeMinusProduction,
+    pair.immediateFlee.terminalHp - pair.production.terminalHp
+  );
+  assert.equal(
+    pair.pairedDelta.hpLossProductionMinusImmediateFlee,
+    pair.production.hpLoss - pair.immediateFlee.hpLoss
+  );
+  assert.equal(
+    pair.pairedDelta.roundsProductionMinusImmediateFlee,
+    pair.production.rounds - pair.immediateFlee.rounds
+  );
+  assert.equal(
+    pair.pairedDelta.actionsProductionMinusImmediateFlee,
+    pair.production.actions - pair.immediateFlee.actions
+  );
+  assert.equal(
+    pair.pairedDelta.itemCountProductionMinusImmediateFlee,
+    pair.production.resourcesConsumed.itemCount - pair.immediateFlee.resourcesConsumed.itemCount
+  );
+  assert.equal(
+    pair.pairedDelta.mpProductionMinusImmediateFlee,
+    pair.production.resourcesConsumed.mp - pair.immediateFlee.resourcesConsumed.mp
+  );
+}
+assert.ok(cohorts.flatMap(item => item.pairedComparison ? [item.pairedComparison] : []).length <= 2);
 
 const terms = ({ expectedTurnsToWin = 5, survivalTurns = 2 } = {}) => ({
   expectedTurnsToWin,
@@ -252,9 +367,15 @@ const counterfactualState = {
   y: 5,
   simPolicy: {}
 };
+resetSimulationRandom(0x1_0000_0001);
+assert.equal(getSimulationRandomState(), 1);
+resetSimulationRandom(-1);
+assert.equal(getSimulationRandomState(), 0xFFFF_FFFF);
 resetSimulationRandom(123);
+for (let index = 0; index < 3; index++) Math.random();
 const productionStateBeforeCounterfactual = JSON.stringify(counterfactualState);
 const branchRngState = getSimulationRandomState();
+assert.ok(branchRngState > 0xFFFF_FFFF);
 const immediateFlee = runB5GuardianImmediateFleeCounterfactual({
   state: counterfactualState,
   rngState: branchRngState

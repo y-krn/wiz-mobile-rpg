@@ -4187,6 +4187,13 @@ function hashSimulationRunSeed(value) {
   return hash >>> 0;
 }
 
+function setSimulationRandomStateExact(state) {
+  if (!Number.isSafeInteger(state)) {
+    throw new Error("exact simulation RNG restore requires a safe integer state");
+  }
+  randomState = state;
+}
+
 function stableAuxiliaryRandom(...parts) {
   let value = hashSimulationRunSeed(parts.join("\u0000"));
   value = (value + 0x6D2B79F5) >>> 0;
@@ -6607,7 +6614,7 @@ export function runB5GuardianImmediateFleeCounterfactual({ state, rngState, poli
   let result;
   let counterfactualRngStateAfter;
   try {
-    resetSimulationRandom(branchRngState);
+    setSimulationRandomStateExact(branchRngState);
     result = runCombatRoundCalculation(branchState, {
       actions: [{ type: "run", actorIdx: 0 }]
     }, {
@@ -6617,7 +6624,7 @@ export function runB5GuardianImmediateFleeCounterfactual({ state, rngState, poli
     });
     counterfactualRngStateAfter = getSimulationRandomState();
   } finally {
-    resetSimulationRandom(productionRngStateBefore);
+    setSimulationRandomStateExact(productionRngStateBefore);
   }
 
   const terminal = snapshotGuardianPairedState(result.state);
@@ -9272,11 +9279,25 @@ function runEncounter(
         ) {
           throw new Error("B5 Guardian paired counterfactual changed production RNG state");
         }
+        const productionDecisionIndex = Number(selectedDecisionTrace.playerDecisionIndex);
+        const productionDecisionTrace = metrics.b5GuardianFleeEvDiagnostic.decisionTrace.find(trace =>
+          trace === selectedDecisionTrace &&
+          trace.attempt === guardianAttempt &&
+          Number(trace.playerDecisionIndex) === productionDecisionIndex
+        );
+        if (!productionDecisionTrace) {
+          throw new Error("B5 Guardian paired production decision trace mismatch");
+        }
         metrics.b5GuardianFleeEvDiagnostic.strFightPairs.push({
           attempt: guardianStrFleeBranch.attempt,
           branchPoint: guardianStrFleeBranch.branchPoint,
-          productionDecisionIndex: selectedDecisionTrace.playerDecisionIndex,
+          productionDecisionIndex,
           productionDecisionRound: selectedDecisionTrace.round,
+          productionDecision: {
+            decision: productionDecisionTrace.decision,
+            reason: productionDecisionTrace.reason,
+            terms: structuredClone(productionDecisionTrace.terms)
+          },
           immediateFlee,
           production: null,
           pairedDelta: null
@@ -18936,8 +18957,7 @@ export function calibrateCoreScoringProfile(
 }
 
 export function resetSimulationRandom(seed = SIM_SEED) {
-  const numericSeed = Number(seed);
-  randomState = Number.isSafeInteger(numericSeed) ? numericSeed : numericSeed >>> 0;
+  randomState = Number(seed) >>> 0;
 }
 
 export function getSimulationRandomState() {
