@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { getCharacterEquipmentLoad } from "../../src/rules/equipment_load.js";
+import { getAffixDefinition } from "../../src/data/affixes.js";
 import {
   getChestItemCandidatesByFloor,
   getChestItemWeightsBySource
@@ -23,7 +24,7 @@ import { deriveFirstKillWindow } from "./first_kill_observation.js";
 import { summarizeFleeTelemetry } from "./flee_telemetry.js";
 
 export const RUNNER_VERSION = "issue1205-enemy-action-cost-v1";
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 export const STARTING_KIT_IDS = Object.freeze(["vanguard", "scout", "devotion", "arcana"]);
 export const EARLY_COMPOSITION_POLICY_IDS = Object.freeze([
   "baseline",
@@ -51,6 +52,31 @@ export const CHEST_HEAL_POTION_WEIGHT_SOURCE_IDS = Object.freeze([
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1139;
 export const DEFAULT_FLEE_HP_THRESHOLD = 0.20;
+
+const B1_ACCESSORY_FOCUS_AFFIX_IDS = Object.freeze([
+  "physicalAccuracy",
+  "escapeChance",
+  "spellGuard",
+  "poisonWard",
+  "treasureSense",
+  "mp"
+]);
+const AFFIX_CATEGORY_IDS = Object.freeze({
+  "direct-combat-stat": new Set([
+    "atk", "def", "hp", "mp", "antiUndead", "antiDragon", "antiDemon",
+    "followUp", "spellPower", "arcane", "devotion", "firstStrike", "physicalAccuracy",
+    "deepAssault", "fullHpDamage", "firstTurnAttack", "antiBeast", "antiSpirit",
+    "spellAccuracy", "lowHpDamage", "highHpTargetDamage", "bossDamage", "hitFlinch",
+    "poisonAtk", "bleedingAtk", "firstStrikeFollowUp"
+  ]),
+  "survival-escape": new Set([
+    "poisonWard", "spellGuard", "trapGuard", "guardian", "frontGuard", "rearEvasion",
+    "firstStrikeDefense", "statusResistance", "escapeChance", "killHeal", "followUpMp",
+    "stairsHeal"
+  ]),
+  exploration: new Set(["trapBonus", "treasureSense", "arcaneSense", "hearRange", "traceRead"]),
+  economy: new Set(["identifyDiscount", "materialFind", "contractReward", "victoryMaterial"])
+});
 
 const B1_STATUS_CURE_ITEM_IDS = new Set([
   "ANTIDOTE",
@@ -162,7 +188,8 @@ function createLootBreadth() {
     mainRewardComposition: Object.fromEntries(
       B1_CHEST_SOURCES.map(source => [source, createMainRewardComposition()])
     ),
-    objectLootSettlement: { banked: 0, lost: 0 }
+    objectLootSettlement: { banked: 0, lost: 0 },
+    b1EquipmentFlow: createB1EquipmentFlow()
   };
 }
 
@@ -174,7 +201,7 @@ function classifyMainReward(event) {
   return "otherItem";
 }
 
-function observeLootBreadth(aggregate, result, rewardEvents) {
+function observeLootBreadth(aggregate, result, rewardEvents, runIndex) {
   const b1InventorySlots = rewardEvents
     .filter(event => event.floor === 1 && Number.isFinite(event.inventorySlots))
     .map(event => event.inventorySlots);
@@ -199,9 +226,38 @@ function observeLootBreadth(aggregate, result, rewardEvents) {
       increment(record.byItemId, event.itemId || "unknown");
       increment(record.byDisposition, event.disposition || "unknown");
     });
+  const b1EquippedIds = new Set(
+    (result.equipmentTelemetry || [])
+      .filter(event => event.type === "swap" && event.floor === 1)
+      .map(event => event.candidateInstanceId)
+      .filter(Boolean)
+  );
+  const b2EntryBuild = getB2EntryBuild(result);
+  const b2CarryIds = new Set(
+    (b2EntryBuild?.equipment || [])
+      .map(item => item.instanceId)
+      .filter(Boolean)
+  );
+  const flow = aggregate.lootBreadth.b1EquipmentFlow;
+  const exposure = observeB1Equipment(flow, result, runIndex, b1EquippedIds, b2CarryIds);
+  const b2Entry = observeB2EntryBuild(flow, result, exposure.accessoryAffixes);
+  observeEquipmentProgressionAssociation(
+    flow,
+    exposure,
+    b2Entry,
+    result.reachedFloor >= 2
+  );
 }
 
-function finalizeLootBreadth(aggregate) {
+function finalizeLootBreadth(aggregate, startingKit = null) {
+  const b1Equipment = finalizeB1EquipmentObservation(
+    aggregate.lootBreadth.b1EquipmentFlow.observation,
+    aggregate.runs
+  );
+  const b2EntryBuild = finalizeB2EntryBuildObservation(
+    aggregate.lootBreadth.b1EquipmentFlow.b2EntryBuild,
+    aggregate.runs
+  );
   return {
     bagOccupancy: finalizeDistribution(aggregate.lootBreadth.bagOccupancy),
     mainRewardComposition: Object.fromEntries(
@@ -213,7 +269,20 @@ function finalizeLootBreadth(aggregate) {
         byDisposition: { ...record.byDisposition }
       }])
     ),
-    objectLootSettlement: { ...aggregate.lootBreadth.objectLootSettlement }
+    objectLootSettlement: { ...aggregate.lootBreadth.objectLootSettlement },
+    b1EquipmentFlow: {
+      b1Equipment: {
+        ...b1Equipment,
+        byStartingKit: startingKit ? { [startingKit]: b1Equipment } : {}
+      },
+      b2EntryBuild: {
+        ...b2EntryBuild,
+        byStartingKit: startingKit ? { [startingKit]: b2EntryBuild } : {}
+      },
+      progressionAssociation: finalizeEquipmentProgressionAssociation(
+        aggregate.lootBreadth.b1EquipmentFlow.progressionAssociation
+      )
+    }
   };
 }
 
@@ -247,6 +316,439 @@ function finalizeDistribution(distribution) {
     min: values[0],
     max: values.at(-1)
   };
+}
+
+const EQUIPMENT_SLOTS = new Set(["weapon", "shield", "armor", "accessory"]);
+const EQUIPMENT_RARITIES = Object.freeze(["magic", "rare", "epic", "other"]);
+const B1_EQUIPMENT_SOURCES = Object.freeze(["ordinary", "fromDrop", "combat", "secretRoom", "other"]);
+const B1_EQUIPMENT_ROLES = Object.freeze(["main", "accessory", "other"]);
+const B1_ASSOCIATION_COHORTS = Object.freeze([
+  "noAccessory",
+  "accessory",
+  "rarePlusAccessory",
+  ...B1_ACCESSORY_FOCUS_AFFIX_IDS.map(id => `affix:${id}`)
+]);
+
+function createEquipmentCounter() {
+  return {
+    generated: 0,
+    bagged: 0,
+    lost: 0,
+    pickupLost: 0,
+    terminalLost: 0,
+    equippedInB1: 0,
+    carriedToB2: 0,
+    runIndexes: new Set()
+  };
+}
+
+function createEquipmentCounterMap(keys) {
+  return Object.fromEntries(keys.map(key => [key, createEquipmentCounter()]));
+}
+
+function createB1EquipmentObservation() {
+  return {
+    all: createEquipmentCounter(),
+    bySource: createEquipmentCounterMap(B1_EQUIPMENT_SOURCES),
+    byRole: createEquipmentCounterMap(B1_EQUIPMENT_ROLES),
+    bySourceRole: {},
+    bySlot: createEquipmentCounterMap([...EQUIPMENT_SLOTS, "other"]),
+    byRarity: createEquipmentCounterMap(EQUIPMENT_RARITIES),
+    byBaseId: {},
+    byAffixId: {},
+    byRoleAffixId: {},
+    byAffixCategory: createEquipmentCounterMap([
+      "direct-combat-stat", "survival-escape", "exploration", "economy", "other"
+    ]),
+    byCurse: createEquipmentCounterMap(["cursed", "uncursed"]),
+    accessory: {
+      all: createEquipmentCounter(),
+      byRarity: createEquipmentCounterMap(EQUIPMENT_RARITIES),
+      byAffixId: {},
+      focusAffixIds: createEquipmentCounterMap(B1_ACCESSORY_FOCUS_AFFIX_IDS),
+      runsWithAccessory: new Set(),
+      runsWithRarePlus: new Set(),
+      runsWithFocusAffix: Object.fromEntries(
+        B1_ACCESSORY_FOCUS_AFFIX_IDS.map(id => [id, new Set()])
+      )
+    },
+    generatedRuns: new Set()
+  };
+}
+
+function createB2EntryBuildObservation() {
+  return {
+    runsObserved: 0,
+    equippedSlots: {},
+    totalAffixes: createDistribution(),
+    accessoryAffixes: createDistribution(),
+    curseCount: createDistribution(),
+    rarity: createEquipmentCounterMap(EQUIPMENT_RARITIES),
+    affixIds: {},
+    affixCategories: {},
+    b1AccessoryAffixRuns: {}
+  };
+}
+
+function createEquipmentProgressionAssociation() {
+  return Object.fromEntries(B1_ASSOCIATION_COHORTS.map(cohort => [cohort, {
+    cohortRuns: 0,
+    b2ReachCount: 0,
+    b2EntryHp: createDistribution(),
+    b2EntryMp: createDistribution(),
+    b2EntryBuildAffixCount: createDistribution()
+  }]));
+}
+
+function createB1EquipmentFlow() {
+  return {
+    observation: createB1EquipmentObservation(),
+    b2EntryBuild: createB2EntryBuildObservation(),
+    progressionAssociation: createEquipmentProgressionAssociation()
+  };
+}
+
+function normalizeLootSource(source) {
+  if (source === "chest") return "ordinary";
+  return B1_EQUIPMENT_SOURCES.includes(source) ? source : "other";
+}
+
+function normalizeEquipmentSnapshot(event) {
+  const snapshot = event?.equipment || event;
+  const slot = snapshot?.slot || snapshot?.type || event?.itemType || null;
+  if (!EQUIPMENT_SLOTS.has(slot)) return null;
+  const affixes = Array.isArray(snapshot?.affixes)
+    ? snapshot.affixes.map(affix => {
+        const id = affix?.id || affix?.type || null;
+        return {
+          id,
+          category: affix?.category || getAffixCategory(id)
+        };
+      }).filter(affix => affix.id)
+    : [];
+  return {
+    instanceId: snapshot?.instanceId || null,
+    baseId: snapshot?.baseId || event?.itemId || null,
+    slot,
+    rarity: EQUIPMENT_RARITIES.includes(snapshot?.rarity) ? snapshot.rarity : "other",
+    affixes,
+    cursed: Boolean(snapshot?.cursed || snapshot?.curseEffectId || event?.curseEffectId)
+  };
+}
+
+function getAffixCategory(affixId) {
+  if (!affixId) return "other";
+  const category = Object.entries(AFFIX_CATEGORY_IDS).find(([, ids]) => ids.has(affixId))?.[0];
+  if (category) return category;
+  const authoredCategory = getAffixDefinition(affixId)?.category;
+  if (authoredCategory === "economy") return "economy";
+  return "other";
+}
+
+function incrementEquipmentCounter(counter, flags, runIndex) {
+  counter.generated++;
+  counter.bagged += Number(flags.bagged);
+  counter.lost += Number(flags.pickupLost || flags.terminalLost);
+  counter.pickupLost += Number(flags.pickupLost);
+  counter.terminalLost += Number(flags.terminalLost);
+  counter.equippedInB1 += Number(flags.equippedInB1);
+  counter.carriedToB2 += Number(flags.carriedToB2);
+  counter.runIndexes.add(runIndex);
+}
+
+function finalizeEquipmentCounter(counter, runs) {
+  const generated = counter.generated;
+  return {
+    generatedItems: generated,
+    runCount: counter.runIndexes.size,
+    runRate: runs > 0 ? counter.runIndexes.size / runs : null,
+    baggedItems: counter.bagged,
+    lostItems: counter.lost,
+    pickupLostItems: counter.pickupLost,
+    terminalLostItems: counter.terminalLost,
+    equippedInB1Items: counter.equippedInB1,
+    carriedToB2Items: counter.carriedToB2,
+    equipAdoptionRate: generated > 0 ? counter.equippedInB1 / generated : null,
+    b2CarryRate: generated > 0 ? counter.carriedToB2 / generated : null
+  };
+}
+
+function finalizeEquipmentCounterMap(records, runs) {
+  return Object.fromEntries(
+    Object.entries(records).map(([key, record]) => [key, finalizeEquipmentCounter(record, runs)])
+  );
+}
+
+function incrementEquipmentCounterByKey(records, key, flags, runIndex) {
+  const normalizedKey = Object.hasOwn(records, key)
+    ? key
+    : Object.hasOwn(records, "other") ? "other" : key;
+  records[normalizedKey] ||= createEquipmentCounter();
+  incrementEquipmentCounter(records[normalizedKey], flags, runIndex);
+}
+
+function sameEquipmentInstance(item, instanceId, baseId) {
+  if (!item) return false;
+  if (instanceId && item?.instanceId) return item.instanceId === instanceId;
+  return Boolean(baseId && (item?.baseId || item) === baseId);
+}
+
+function hasSettlementItem(items, snapshot) {
+  return (items || []).some(item => sameEquipmentInstance(item, snapshot.instanceId, snapshot.baseId));
+}
+
+function getB2EntryBuild(result) {
+  return result.stage15Diagnostics?.byFloor?.["2"]?.entryBuildSnapshot ||
+    (result.reachedFloor >= 2 ? result.diagnostics?.finalBuild || null : null);
+}
+
+function buildB1RewardRecords(result) {
+  const generated = [];
+  const byInstanceId = new Map();
+  const addGenerated = (event, item) => {
+    const snapshot = normalizeEquipmentSnapshot(item);
+    if (!snapshot) return;
+    const record = {
+      source: normalizeLootSource(event.source),
+      role: B1_EQUIPMENT_ROLES.includes(event.rewardRole || event.role)
+        ? event.rewardRole || event.role
+        : snapshot.slot === "accessory" ? "accessory" : "main",
+      snapshot,
+      rewardEvent: null
+    };
+    generated.push(record);
+    if (snapshot.instanceId) byInstanceId.set(snapshot.instanceId, record);
+  };
+  (result.chestLootEvents || [])
+    .filter(event => event.floor === 1)
+    .forEach(event => (event.generatedItems || []).forEach(item => addGenerated(event, item)));
+
+  const unmatched = new Map();
+  (result.diagnostics?.rewardEvents || [])
+    .filter(event => event.floor === 1 && event.category === "equipment")
+    .forEach(event => {
+      const snapshot = normalizeEquipmentSnapshot(event);
+      if (!snapshot) return;
+      const matched = snapshot.instanceId
+        ? byInstanceId.get(snapshot.instanceId)
+        : null;
+      if (matched) {
+        matched.rewardEvent = event;
+        return;
+      }
+      const fallbackKey = [normalizeLootSource(event.source), event.rewardRole || "", snapshot.baseId].join("|");
+      const candidates = unmatched.get(fallbackKey) || [];
+      const generatedFallback = generated.find(candidate =>
+        !candidate.rewardEvent &&
+        [candidate.source, candidate.role === "main" ? "main" : candidate.role, candidate.snapshot.baseId].join("|") === fallbackKey
+      );
+      if (generatedFallback) {
+        generatedFallback.rewardEvent = event;
+        return;
+      }
+      candidates.push(event);
+      unmatched.set(fallbackKey, candidates);
+      addGenerated(event, event);
+      generated.at(-1).rewardEvent = event;
+    });
+  return generated;
+}
+
+function observeB1Equipment(aggregate, result, runIndex, b1EquippedIds, b2CarryIds) {
+  const exposure = {
+    hasAccessory: false,
+    hasRarePlusAccessory: false,
+    focusAffixes: new Set(),
+    accessoryAffixes: new Set()
+  };
+  const settlementLost = result.objectLootSettlement?.lost || [];
+  buildB1RewardRecords(result).forEach(record => {
+    const { snapshot } = record;
+    const rewardEvent = record.rewardEvent;
+    const bagged = rewardEvent?.disposition === "bagged";
+    const pickupLost = rewardEvent
+      ? rewardEvent.disposition !== "bagged"
+      : true;
+    const terminalLost = bagged && hasSettlementItem(settlementLost, snapshot);
+    const flags = {
+      bagged,
+      pickupLost,
+      terminalLost,
+      equippedInB1: bagged && b1EquippedIds.has(snapshot.instanceId),
+      carriedToB2: bagged && b2CarryIds.has(snapshot.instanceId)
+    };
+    const observation = aggregate.observation;
+    incrementEquipmentCounter(observation.all, flags, runIndex);
+    incrementEquipmentCounterByKey(observation.bySource, record.source, flags, runIndex);
+    incrementEquipmentCounterByKey(observation.byRole, record.role, flags, runIndex);
+    incrementEquipmentCounterByKey(observation.bySlot, snapshot.slot, flags, runIndex);
+    incrementEquipmentCounterByKey(observation.byRarity, snapshot.rarity, flags, runIndex);
+    incrementEquipmentCounterByKey(observation.byCurse, snapshot.cursed ? "cursed" : "uncursed", flags, runIndex);
+    incrementEquipmentCounterByKey(observation.byBaseId, snapshot.baseId, flags, runIndex);
+    const sourceRoleKey = `${record.source}:${record.role}`;
+    observation.bySourceRole[sourceRoleKey] ||= createEquipmentCounter();
+    incrementEquipmentCounter(observation.bySourceRole[sourceRoleKey], flags, runIndex);
+    snapshot.affixes.forEach(affix => {
+      observation.byAffixId[affix.id] ||= createEquipmentCounter();
+      incrementEquipmentCounter(observation.byAffixId[affix.id], flags, runIndex);
+      const roleAffixKey = `${record.role}:${affix.id}`;
+      observation.byRoleAffixId[roleAffixKey] ||= createEquipmentCounter();
+      incrementEquipmentCounter(observation.byRoleAffixId[roleAffixKey], flags, runIndex);
+      const category = getAffixCategory(affix.id);
+      incrementEquipmentCounterByKey(observation.byAffixCategory, category, flags, runIndex);
+    });
+    if (snapshot.slot !== "accessory") return;
+    exposure.hasAccessory = true;
+    observation.accessory.runsWithAccessory.add(runIndex);
+    incrementEquipmentCounter(observation.accessory.all, flags, runIndex);
+    incrementEquipmentCounterByKey(observation.accessory.byRarity, snapshot.rarity, flags, runIndex);
+    if (["rare", "epic"].includes(snapshot.rarity)) {
+      exposure.hasRarePlusAccessory = true;
+      observation.accessory.runsWithRarePlus.add(runIndex);
+    }
+    snapshot.affixes.forEach(affix => {
+      exposure.accessoryAffixes.add(affix.id);
+      observation.accessory.byAffixId[affix.id] ||= createEquipmentCounter();
+      incrementEquipmentCounter(observation.accessory.byAffixId[affix.id], flags, runIndex);
+      if (B1_ACCESSORY_FOCUS_AFFIX_IDS.includes(affix.id)) {
+        exposure.focusAffixes.add(affix.id);
+        observation.accessory.runsWithFocusAffix[affix.id].add(runIndex);
+        incrementEquipmentCounter(
+          observation.accessory.focusAffixIds[affix.id],
+          flags,
+          runIndex
+        );
+      }
+    });
+  });
+  if (exposure.hasAccessory) aggregate.observation.generatedRuns.add(runIndex);
+  return exposure;
+}
+
+function observeB2EntryBuild(aggregate, result, b1AccessoryAffixes) {
+  const build = getB2EntryBuild(result);
+  if (!build) return null;
+  const equipment = build.equipment || [];
+  const affixes = equipment.flatMap(item => item.affixes || []);
+  const accessoryAffixes = equipment
+    .filter(item => item.slot === "accessory" || item.slot === "accessory2")
+    .flatMap(item => item.affixes || []);
+  const observation = aggregate.b2EntryBuild;
+  observation.runsObserved++;
+  addDistribution(observation.totalAffixes, affixes.length);
+  addDistribution(observation.accessoryAffixes, accessoryAffixes.length);
+  addDistribution(observation.curseCount, equipment.filter(item => item.cursed).length);
+  equipment.forEach(item => {
+    increment(observation.equippedSlots, item.slot || "other");
+    incrementEquipmentCounterByKey(observation.rarity, item.rarity, {
+      bagged: false,
+      pickupLost: false,
+      terminalLost: false,
+      equippedInB1: false,
+      carriedToB2: false
+    }, aggregate.b2EntryBuild.runsObserved);
+    (item.affixes || []).forEach(affix => {
+      const id = affix.id || affix.type;
+      if (!id) return;
+      increment(observation.affixIds, id);
+      increment(observation.affixCategories, getAffixCategory(id));
+      if (b1AccessoryAffixes.has(id)) {
+        observation.b1AccessoryAffixRuns[id] =
+          (observation.b1AccessoryAffixRuns[id] || 0) + 1;
+      }
+    });
+  });
+  return {
+    hp: build.hp,
+    mp: build.mp,
+    affixCount: affixes.length
+  };
+}
+
+function observeEquipmentProgressionAssociation(aggregate, exposure, b2Entry, reachedB2) {
+  const cohorts = [
+    ...(exposure.hasAccessory ? ["accessory"] : ["noAccessory"]),
+    ...(exposure.hasRarePlusAccessory ? ["rarePlusAccessory"] : []),
+    ...[...exposure.focusAffixes].map(id => `affix:${id}`)
+  ];
+  if (!exposure.hasAccessory) cohorts.push("noAccessory");
+  [...new Set(cohorts)].forEach(cohort => {
+    const record = aggregate.progressionAssociation[cohort];
+    record.cohortRuns++;
+    record.b2ReachCount += Number(reachedB2);
+    if (b2Entry) {
+      addDistribution(record.b2EntryHp, b2Entry.hp);
+      addDistribution(record.b2EntryMp, b2Entry.mp);
+      addDistribution(record.b2EntryBuildAffixCount, b2Entry.affixCount);
+    }
+  });
+}
+
+function finalizeB1EquipmentObservation(observation, runs) {
+  const finalized = {
+    all: finalizeEquipmentCounter(observation.all, runs),
+    bySource: finalizeEquipmentCounterMap(observation.bySource, runs),
+    byRole: finalizeEquipmentCounterMap(observation.byRole, runs),
+    bySourceRole: finalizeEquipmentCounterMap(observation.bySourceRole, runs),
+    bySlot: finalizeEquipmentCounterMap(observation.bySlot, runs),
+    byRarity: finalizeEquipmentCounterMap(observation.byRarity, runs),
+    byBaseId: finalizeEquipmentCounterMap(observation.byBaseId, runs),
+    byAffixId: finalizeEquipmentCounterMap(observation.byAffixId, runs),
+    byRoleAffixId: finalizeEquipmentCounterMap(observation.byRoleAffixId, runs),
+    byAffixCategory: finalizeEquipmentCounterMap(observation.byAffixCategory, runs),
+    byCurse: finalizeEquipmentCounterMap(observation.byCurse, runs),
+    accessory: {
+      all: finalizeEquipmentCounter(observation.accessory.all, runs),
+      runsWithAccessory: observation.accessory.runsWithAccessory.size,
+      accessoryRunRate: observation.accessory.runsWithAccessory.size / runs,
+      runsWithRarePlus: observation.accessory.runsWithRarePlus.size,
+      rarePlusRunRate: observation.accessory.runsWithRarePlus.size / runs,
+      byRarity: finalizeEquipmentCounterMap(observation.accessory.byRarity, runs),
+      byAffixId: finalizeEquipmentCounterMap(observation.accessory.byAffixId, runs),
+      focusAffixIds: finalizeEquipmentCounterMap(observation.accessory.focusAffixIds, runs),
+      focusAffixRunRates: Object.fromEntries(
+        Object.entries(observation.accessory.runsWithFocusAffix)
+          .map(([id, runIndexes]) => [id, {
+            runs: runIndexes.size,
+            rate: runIndexes.size / runs
+          }])
+      )
+    },
+    runsWithAnyAccessory: observation.generatedRuns.size,
+    runRateAnyAccessory: observation.generatedRuns.size / runs
+  };
+  return finalized;
+}
+
+function finalizeB2EntryBuildObservation(observation, runs) {
+  return {
+    runsObserved: observation.runsObserved,
+    runRate: runs > 0 ? observation.runsObserved / runs : null,
+    equippedSlots: { ...observation.equippedSlots },
+    totalAffixes: finalizeDistribution(observation.totalAffixes),
+    accessoryAffixes: finalizeDistribution(observation.accessoryAffixes),
+    curseCount: finalizeDistribution(observation.curseCount),
+    rarity: finalizeEquipmentCounterMap(observation.rarity, Math.max(1, observation.runsObserved)),
+    affixIds: { ...observation.affixIds },
+    affixCategories: { ...observation.affixCategories },
+    b1AccessoryAffixRunCounts: { ...observation.b1AccessoryAffixRuns },
+    b1AccessoryAffixRunRates: Object.fromEntries(
+      Object.entries(observation.b1AccessoryAffixRuns)
+        .map(([id, count]) => [id, observation.runsObserved > 0 ? count / observation.runsObserved : null])
+    )
+  };
+}
+
+function finalizeEquipmentProgressionAssociation(association) {
+  return Object.fromEntries(Object.entries(association).map(([cohort, record]) => [cohort, {
+    cohortRuns: record.cohortRuns,
+    b2ReachCount: record.b2ReachCount,
+    b2ReachRate: record.cohortRuns > 0 ? record.b2ReachCount / record.cohortRuns : null,
+    b2EntryHp: finalizeDistribution(record.b2EntryHp),
+    b2EntryMp: finalizeDistribution(record.b2EntryMp),
+    b2EntryBuildAffixCount: finalizeDistribution(record.b2EntryBuildAffixCount),
+    interpretation: "association only; selection and survivorship are not causal evidence"
+  }]));
 }
 
 const EARLY_SURVIVAL_ORDINALS = Object.freeze([1, 2, 3]);
@@ -1009,7 +1511,7 @@ function observeRun(aggregate, result, runIndex) {
   }
 
   const rewardEvents = result.diagnostics?.rewardEvents || [];
-  observeLootBreadth(aggregate, result, rewardEvents);
+  observeLootBreadth(aggregate, result, rewardEvents, runIndex);
   const firstMeaningfulReward = firstEvent(rewardEvents, event => event.meaningful === true);
   const firstObjectLoot = firstEvent(rewardEvents, event => event.objectLoot === true);
   const firstBuildChangeOpportunity = firstEvent(
@@ -1268,7 +1770,7 @@ function finalizeAggregate(aggregate, configuration) {
     rewardOpportunity,
     continuationResource,
     linkedTrajectory,
-    lootBreadth: finalizeLootBreadth(aggregate),
+    lootBreadth: finalizeLootBreadth(aggregate, configuration.startingKit),
     naturalEntryHpBands: { ...aggregate.naturalEntryHpBands },
     naturalEntryHpBandResource,
     enemyActionCost: finalizeEnemyActionCostAggregate(aggregate.enemyActionCost),
@@ -1372,6 +1874,7 @@ export function createDiagnosticScenario({
     useTownPortal: false,
     allowChestTownPortal: false,
     collectEncounterIdentities: true,
+    collectStage15Diagnostics: true,
     simDiagnosticLevel: "full",
     fleePolicy: policy === "fight"
       ? "never"
@@ -1564,7 +2067,7 @@ function buildSummary(report) {
     .sort(([, left], [, right]) => right.deathContributionRate - left.deathContributionRate)
     .slice(0, 10);
   return [
-    "# Issue #1198 starting-kit continuation-resource diagnostic",
+    "# Issue #1485 B1 loot to B2 build diagnostic",
     "",
     `- runner: \`${report.runnerVersion}\` / schema: ${report.schemaVersion}`,
     `- source SHA: \`${measurement.sourceCommit || "not recorded"}\``,
@@ -1607,6 +2110,12 @@ function buildSummary(report) {
     ),
     `- Bag occupancy slots: ${JSON.stringify(result.lootBreadth.bagOccupancy)}`,
     `- object-loot settlement items banked / lost: ${result.lootBreadth.objectLootSettlement.banked} / ${result.lootBreadth.objectLootSettlement.lost}`,
+    `- B1 equipment generated / bagged / lost: ${result.lootBreadth.b1EquipmentFlow.b1Equipment.all.generatedItems} / ${result.lootBreadth.b1EquipmentFlow.b1Equipment.all.baggedItems} / ${result.lootBreadth.b1EquipmentFlow.b1Equipment.all.lostItems}`,
+    `- B1 accessory runs: ${result.lootBreadth.b1EquipmentFlow.b1Equipment.accessory.runsWithAccessory}/${result.runs} (${(result.lootBreadth.b1EquipmentFlow.b1Equipment.accessory.accessoryRunRate * 100).toFixed(2)}%); Rare+ ${result.lootBreadth.b1EquipmentFlow.b1Equipment.accessory.runsWithRarePlus}/${result.runs} (${(result.lootBreadth.b1EquipmentFlow.b1Equipment.accessory.rarePlusRunRate * 100).toFixed(2)}%)`,
+    `- B1 accessory rarity: ${JSON.stringify(Object.fromEntries(Object.entries(result.lootBreadth.b1EquipmentFlow.b1Equipment.accessory.byRarity).map(([rarity, values]) => [rarity, values.generatedItems])))}`,
+    `- B1 accessory focus affixes: ${JSON.stringify(result.lootBreadth.b1EquipmentFlow.b1Equipment.accessory.focusAffixRunRates)}`,
+    `- B2 entry build runs: ${result.lootBreadth.b1EquipmentFlow.b2EntryBuild.runsObserved}/${result.runs}; slots ${JSON.stringify(result.lootBreadth.b1EquipmentFlow.b2EntryBuild.equippedSlots)}; affixes ${JSON.stringify(result.lootBreadth.b1EquipmentFlow.b2EntryBuild.affixIds)}`,
+    "- B1 accessory/B2 reach cohorts are associations only; selection and survivorship do not establish causality",
     "",
     "## First meaningful opportunity",
     "",

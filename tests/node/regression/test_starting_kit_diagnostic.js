@@ -195,6 +195,70 @@ assert.equal(
 assert.equal(report.configuration.candidateId, "b1-heal-potion-none-baseline");
 assert.ok(report.naturalEntryHpBands);
 assert.ok(report.naturalEntryHpBandResource);
+const b1EquipmentFlow = report.lootBreadth.b1EquipmentFlow;
+assert.ok(b1EquipmentFlow);
+assert.deepEqual(
+  Object.keys(b1EquipmentFlow.b1Equipment.accessory.focusAffixIds).sort(),
+  ["escapeChance", "mp", "physicalAccuracy", "poisonWard", "spellGuard", "treasureSense"]
+);
+assert.ok(b1EquipmentFlow.b1Equipment.bySource.ordinary);
+assert.ok(b1EquipmentFlow.b1Equipment.bySource.fromDrop);
+assert.ok(b1EquipmentFlow.b1Equipment.byRole.main);
+assert.ok(b1EquipmentFlow.b1Equipment.byRole.accessory);
+assert.ok(b1EquipmentFlow.b1Equipment.byRoleAffixId);
+assert.ok(b1EquipmentFlow.b1Equipment.byStartingKit.vanguard);
+assert.ok(b1EquipmentFlow.b2EntryBuild.byStartingKit.vanguard);
+assert.ok(b1EquipmentFlow.b2EntryBuild.rarity.magic);
+assert.ok(b1EquipmentFlow.progressionAssociation.noAccessory);
+assert.ok(b1EquipmentFlow.progressionAssociation.accessory);
+assert.equal(
+  b1EquipmentFlow.progressionAssociation.noAccessory.cohortRuns +
+    b1EquipmentFlow.progressionAssociation.accessory.cohortRuns,
+  report.runs
+);
+for (const cohort of Object.values(b1EquipmentFlow.progressionAssociation)) {
+  assert.equal(cohort.b2EntryHp.count, cohort.b2ReachCount);
+  assert.equal(cohort.b2EntryMp.count, cohort.b2ReachCount);
+  assert.equal(cohort.b2EntryBuildAffixCount.count, cohort.b2ReachCount);
+}
+assert.ok(
+  b1EquipmentFlow.b1Equipment.all.carriedToB2Items <=
+    b1EquipmentFlow.b1Equipment.all.equippedInB1Items,
+  "generated but unequipped items must not count as B2 carry"
+);
+
+const { resetSimulationRandom, simulateRun } = await import(
+  "../../../scratch/simulations/sim_depth_material_ev.js"
+);
+const observationScenario = createDiagnosticScenario({
+  startingKit: "vanguard",
+  policy: "fight",
+  fleeHpThreshold: 0.2
+});
+function runObservationVariant(collectDiagnostics, collectEquipmentTelemetry) {
+  resetSimulationRandom(1139);
+  return simulateRun({
+    className: "Fighter",
+    startFloor: 1,
+    targetDepth: 2,
+    runIndex: 0,
+    seriesId: "issue-1485-observation-invariance",
+    scenario: observationScenario,
+    workshop: { ranks: {} },
+    worldSeed: getDiagnosticWorldSeed(1139, 0),
+    collectDiagnostics,
+    collectEquipmentTelemetry
+  });
+}
+const observationOn = runObservationVariant(true, true);
+const observationOff = runObservationVariant(false, false);
+for (const field of [
+  "reachedFloor", "endFloor", "outcome", "finalLevel", "expGained", "deathCause",
+  "materialAcquired", "materialConsumed", "carriedMaterials", "bankedMaterials", "timeCost",
+  "battles", "trapEncounterCount", "trapDamageHp", "fleeCount", "townPortalsUsed", "mpDepleted"
+]) {
+  assert.deepEqual(observationOn[field], observationOff[field], `observation changed gameplay field: ${field}`);
+}
 
 const boundaryFrom = { encounterOrdinal: 1, endStep: 10 };
 const boundaryTo = { encounterOrdinal: 2, startStep: 10 };
