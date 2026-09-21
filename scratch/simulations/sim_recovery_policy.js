@@ -17,6 +17,7 @@ function evaluateCombatRecoveryActionInternal({
   fleeThreshold = 0.20,
   healThreshold = 0.55,
   expectedTurnsToWinOverride = null,
+  incomingDamagePerRoundOverride = null,
 }, includeTerms) {
   const normalizedMaxHp = Math.max(1, Number(maxHp) || 0);
   const normalizedHp = Math.max(0, Number(currentHp) || 0);
@@ -24,13 +25,19 @@ function evaluateCombatRecoveryActionInternal({
   const normalizedEnemyAttack = includeTerms
     ? enemyAttack.map(attack => Number(attack) || 0)
     : undefined;
-  const incomingDamagePerRound = Math.max(
-    1,
-    enemyAttack.reduce(
-      (sum, attack) => sum + Math.max(1, (Number(attack) || 0) - normalizedDefense),
-      0
-    )
-  );
+  const normalizedIncomingDamageOverride = Number(incomingDamagePerRoundOverride);
+  const hasIncomingDamageOverride = incomingDamagePerRoundOverride !== null &&
+    incomingDamagePerRoundOverride !== undefined &&
+    Number.isFinite(normalizedIncomingDamageOverride);
+  const incomingDamagePerRound = hasIncomingDamageOverride
+    ? Math.max(1, normalizedIncomingDamageOverride)
+    : Math.max(
+      1,
+      enemyAttack.reduce(
+        (sum, attack) => sum + Math.max(1, (Number(attack) || 0) - normalizedDefense),
+        0
+      )
+    );
   const totalEnemyHp = enemyHp.reduce((sum, hp) => sum + Math.max(0, Number(hp) || 0), 0);
   const playerDamage = Math.max(1, Number(playerDamagePerRound) || 0);
   const normalizedExpectedTurnsToWinOverride = Number(expectedTurnsToWinOverride);
