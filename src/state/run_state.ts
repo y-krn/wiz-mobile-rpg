@@ -3,6 +3,7 @@
 import { isRuntimeItemCollection, isRuntimeItemRef, type RuntimeItemCollection, type RuntimeItemRef } from "./item.js";
 import { isNormalizedPendingRewardBundle, type NormalizedPendingRewardBundle } from "./pending_reward.js";
 import { isNormalizedRunQuestCollection, type NormalizedRunQuest } from "./run_quest.js";
+import { isNormalizedTrialBands, type NormalizedTrialBands } from "./trial_band.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -55,7 +56,7 @@ export interface NormalizedCurrentRun {
   campRested: Record<string, unknown>;
   pendingCampEntryFloor: unknown;
   completedCampEntryFloors: unknown[];
-  trialBands: Record<string, unknown>;
+  trialBands: NormalizedTrialBands;
   eliteFloors: Record<string, unknown>;
   eliteOmenSteps: Record<string, unknown>;
   eliteDefeatedFloors: unknown[];
@@ -83,7 +84,7 @@ const NUMBER_FIELDS = [
 
 const RECORD_FIELDS = [
   "floorSteps", "materials", "bankedMaterials", "eventObservations", "campRested",
-  "trialBands", "eliteFloors", "eliteOmenSteps", "defeatsByRole", "codexRewards",
+  "eliteFloors", "eliteOmenSteps", "defeatsByRole", "codexRewards",
   "departureEquipment"
 ] as const;
 
@@ -103,7 +104,7 @@ const REQUIRED_FIELDS = [
   ...NUMBER_FIELDS,
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
   "returnProcessing", "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
-  "recordResult", "quests",
+  "recordResult", "quests", "trialBands",
   ...RECORD_FIELDS,
   ...ARRAY_FIELDS,
   ...ITEM_COLLECTION_FIELDS
@@ -137,6 +138,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   }
   if (typeof value.returnReason !== "string" || !isRunOutcome(value.outcome)) return false;
   if (!RECORD_FIELDS.every(field => isRecord(value[field]))) return false;
+  if (!isNormalizedTrialBands(value.trialBands)) return false;
   if (!ARRAY_FIELDS.every(field => Array.isArray(value[field]))) return false;
   if (!isNormalizedRunQuestCollection(value.quests)) return false;
   if (!ITEM_COLLECTION_FIELDS.every(field => isRuntimeItemCollection(value[field]))) return false;
