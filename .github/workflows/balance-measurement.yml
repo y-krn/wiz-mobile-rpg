@@ -13,6 +13,7 @@ on:
           - starting-kit-early-run
           - early-b1f-composition
           - fixed-combat-composition
+          - equipment-vnext-combat-diagnostic
           - equipment-load
           - run-difficulty
           - run-difficulty-policy-sensitivity
