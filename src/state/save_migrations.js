@@ -25,6 +25,7 @@ import {
   normalizeEliteFloors
 } from "./elite_floor.js";
 import { isNormalizedRunSeed, normalizeRunSeed } from "./run_seed.js";
+import { normalizeDefeatedMilestones } from "./milestone_state.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -716,6 +717,7 @@ function normalizeCurrentRun(run) {
   const runSeed = normalizeRunSeed(run.runSeed);
   if (runSeed === undefined) delete normalized.runSeed;
   else normalized.runSeed = runSeed;
+  normalized.defeatedMilestones = normalizeDefeatedMilestones(normalized.defeatedMilestones);
 
   normalized.quests = normalized.quests.map(normalizeRunQuest).filter(isRecord);
   normalized.townInventory = normalized.townInventory.filter(item => item != null);
