@@ -36,7 +36,7 @@ import { printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { getMilestoneBossRule } from "../../src/rules/boss_rules.js";
 
 export const RUNNER_VERSION = "first-band-build-formation-v1";
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 1;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1277;
 export const TARGET_DEPTH = 6;
