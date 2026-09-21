@@ -914,6 +914,11 @@ function normalizeGuardianFleeEv(result, kitId, runIndex = null) {
       kit: kitId,
       runIndex
     })),
+    combinedCandidatePairs: (diagnostic.combinedCandidatePairs || []).map(pair => ({
+      ...structuredClone(pair),
+      kit: kitId,
+      runIndex
+    })),
     decisionTrace,
     transitions: buildGuardianDecisionTransitions(decisionTrace, kitId)
   };
@@ -1868,12 +1873,121 @@ function summarizeGuardianStrFightCohort(cohorts) {
   };
 }
 
+function summarizeGuardianCombinedCandidatePairs(pairs, includeBreakdowns = true) {
+  const normalizeOutcome = outcome => outcome === "laterFlee" ? "flee" : outcome || "unobserved";
+  const eligiblePairs = pairs.filter(pair => pair.unsupportedThreat?.eligible === true);
+  const unsupportedPairs = pairs.filter(pair => pair.unsupportedThreat?.eligible !== true);
+  const conversionKeys = [
+    "flee->victory", "flee->flee", "flee->death",
+    "victory->flee", "victory->victory", "victory->death",
+    "death->flee", "death->victory", "death->death"
+  ];
+  const conversion = Object.fromEntries(conversionKeys.map(key => [
+    key,
+    eventCount(eligiblePairs.filter(pair =>
+      `${normalizeOutcome(pair.production?.outcome)}->${normalizeOutcome(pair.pairedDelta?.candidateOutcome)}` === key
+    ).length, eligiblePairs.length)
+  ]));
+  const metric = selector => distribution90(eligiblePairs.map(pair => Number(selector(pair))));
+  const summarizeGroup = group => summarizeGuardianCombinedCandidatePairs(group, false);
+  const directions = [...new Set(pairs.map(pair => pair.crossingDirection || "unobserved"))].sort();
+  const kits = [...new Set(pairs.map(pair => pair.kit || "unobserved"))].sort();
+  const attemptKeys = pairs.map(pair =>
+    `${pair.encounterEventKey ?? pair.runSeed ?? pair.runIndex ?? "run"}:${pair.kit ?? "kit"}:${pair.attempt}`
+  );
+  return {
+    branchN: pairs.length,
+    eligibleN: eligiblePairs.length,
+    unsupportedThreatN: unsupportedPairs.length,
+    unsupportedThreatReasons: countRateBy(
+      unsupportedPairs.flatMap(pair => pair.unsupportedThreat?.reasons || []),
+      unsupportedPairs.length
+    ),
+    firstCrossingPerAttempt: {
+      uniqueBranchKeys: new Set(attemptKeys).size,
+      duplicateBranchKeyN: attemptKeys.length - new Set(attemptKeys).size,
+      pass: attemptKeys.length === new Set(attemptKeys).size
+    },
+    productionOutcome: countRateBy(
+      eligiblePairs.map(pair => pair.production?.outcome || "unobserved"),
+      eligiblePairs.length
+    ),
+    candidateOutcome: countRateBy(
+      eligiblePairs.map(pair => pair.pairedDelta?.candidateOutcome || "unobserved"),
+      eligiblePairs.length
+    ),
+    outcomeConversion: conversion,
+    candidateDeathIntroduced: eventCount(
+      eligiblePairs.filter(pair => pair.pairedDelta?.candidateDeathIntroduced === true).length,
+      eligiblePairs.length
+    ),
+    productionVictoryLost: eventCount(
+      eligiblePairs.filter(pair => pair.pairedDelta?.productionVictoryLost === true).length,
+      eligiblePairs.length
+    ),
+    laterFleeAvoided: eventCount(
+      eligiblePairs.filter(pair => pair.pairedDelta?.laterFleeAvoided === true).length,
+      eligiblePairs.length
+    ),
+    crossingCountAfterBranch: metric(pair => pair.candidate?.crossingCountAfterBranch),
+    productionHp: metric(pair => pair.production?.terminalHp),
+    candidateHp: metric(pair => pair.candidate?.terminalHp),
+    terminalHpDeltaCandidateMinusProduction: metric(pair =>
+      pair.pairedDelta?.candidateTerminalHpMinusProduction
+    ),
+    productionGuardianDamage: metric(pair => pair.production?.guardianDamage),
+    candidateGuardianDamage: metric(pair => pair.candidate?.guardianDamage),
+    productionRounds: metric(pair => pair.production?.rounds),
+    candidateRounds: metric(pair => pair.candidate?.rounds),
+    productionActions: metric(pair => pair.production?.actions),
+    candidateActions: metric(pair => pair.candidate?.actions),
+    normalPhysicalHits: {
+      production: metric(pair => pair.production?.normalPhysicalHitCount),
+      candidate: metric(pair => pair.candidate?.normalPhysicalHitCount)
+    },
+    normalPhysicalDamage: {
+      production: metric(pair => pair.production?.physicalDamageTotal),
+      candidate: metric(pair => pair.candidate?.physicalDamageTotal)
+    },
+    enemyActionBreakdown: {
+      production: metric(pair => pair.production?.enemyActionCount),
+      candidate: metric(pair => pair.candidate?.enemyActionCount),
+      productionNonDamagingOrSpecial: metric(pair => pair.production?.nonDamagingOrSpecialEnemyActionCount),
+      candidateNonDamagingOrSpecial: metric(pair => pair.candidate?.nonDamagingOrSpecialEnemyActionCount)
+    },
+    hpLossDeltaCandidateMinusProduction: metric(pair =>
+      pair.pairedDelta?.candidateHpLossMinusProduction
+    ),
+    guardianDamageDeltaCandidateMinusProduction: metric(pair =>
+      pair.pairedDelta?.candidateGuardianDamageMinusProduction
+    ),
+    roundsDeltaCandidateMinusProduction: metric(pair => pair.pairedDelta?.candidateRoundsMinusProduction),
+    actionsDeltaCandidateMinusProduction: metric(pair => pair.pairedDelta?.candidateActionsMinusProduction),
+    itemDeltaCandidateMinusProduction: metric(pair => pair.pairedDelta?.candidateItemCountMinusProduction),
+    mpDeltaCandidateMinusProduction: metric(pair => pair.pairedDelta?.candidateMpMinusProduction),
+    ...(includeBreakdowns ? {
+      byKit: Object.fromEntries(kits.map(kit => [
+        kit,
+        summarizeGroup(pairs.filter(pair => (pair.kit || "unobserved") === kit))
+      ])),
+      byCrossingDirection: Object.fromEntries(directions.map(direction => [
+        direction,
+        summarizeGroup(pairs.filter(pair => (pair.crossingDirection || "unobserved") === direction))
+      ]))
+    } : {}),
+    samples: pairs.slice(0, GUARDIAN_STR_FIGHT_SAMPLE_LIMIT).map(pair => structuredClone(pair))
+  };
+}
+
 function summarizeGuardianFleeEv(entrants) {
   const observations = entrants.flatMap(item => item.guardianFleeEv?.observations || []);
   const traces = entrants.flatMap(item => item.guardianFleeEv?.decisionTrace || []);
   const transitions = entrants.flatMap(item => item.guardianFleeEv?.transitions || []);
   const attempts = entrants.flatMap(item => item.guardianActionSequence || []);
   const strFightCohorts = entrants.flatMap(item => item.guardianFleeEv?.strFightCohorts || []);
+  const combinedCandidatePairs = entrants.flatMap(item =>
+    item.guardianFleeEv?.combinedCandidatePairs || []
+  );
   const flee = observations.filter(item => item.decision === "flee");
   const fleeAttempts = attempts.filter(item => item.result === "flee");
   const decision = item => item.decision || "unknown";
@@ -2076,7 +2190,8 @@ function summarizeGuardianFleeEv(entrants) {
     ),
     transitionsObserved: transitions.length,
     openingTransitionsByItem: summarizeGuardianOpeningTransitions(transitions),
-    strFightCohort: summarizeGuardianStrFightCohort(strFightCohorts)
+    strFightCohort: summarizeGuardianStrFightCohort(strFightCohorts),
+    combinedCandidate: summarizeGuardianCombinedCandidatePairs(combinedCandidatePairs)
   };
 }
 
@@ -2998,6 +3113,26 @@ export function buildSummary(report) {
       const cohort = aggregate.b5.guardianFleeEv.strFightCohort;
       return `- ${label} STR→fight cohort: N=${cohort.cohortN}; outcomes=${JSON.stringify(cohort.outcomes)}; paired=${JSON.stringify(cohort.paired)}; physicalHits/total/mean=${JSON.stringify(cohort.all.normalPhysicalHitCount)}/${JSON.stringify(cohort.all.physicalDamageTotal)}/${JSON.stringify(cohort.all.physicalDamageMean)}; enemyActions/nonDamagingOrSpecial=${JSON.stringify(cohort.all.enemyActionCount)}/${JSON.stringify(cohort.all.nonDamagingOrSpecialEnemyActionCount)}; all=${JSON.stringify(cohort.all)}; byOutcome=${JSON.stringify(cohort.byOutcome)}; samples=${JSON.stringify(cohort.samples)}`;
     };
+    const candidateLine = (label, aggregate) => {
+      const candidate = aggregate.b5.guardianFleeEv.combinedCandidate;
+      const compact = value => ({
+        branchN: value.branchN,
+        eligibleN: value.eligibleN,
+        unsupportedThreatN: value.unsupportedThreatN,
+        outcomeConversion: value.outcomeConversion,
+        candidateDeathIntroduced: value.candidateDeathIntroduced,
+        productionVictoryLost: value.productionVictoryLost,
+        laterFleeAvoided: value.laterFleeAvoided,
+        terminalHpDeltaCandidateMinusProduction: value.terminalHpDeltaCandidateMinusProduction,
+        hpLossDeltaCandidateMinusProduction: value.hpLossDeltaCandidateMinusProduction,
+        guardianDamageDeltaCandidateMinusProduction: value.guardianDamageDeltaCandidateMinusProduction,
+        roundsDeltaCandidateMinusProduction: value.roundsDeltaCandidateMinusProduction,
+        actionsDeltaCandidateMinusProduction: value.actionsDeltaCandidateMinusProduction
+      });
+      const crossing = Object.fromEntries(Object.entries(candidate.byCrossingDirection)
+        .map(([direction, value]) => [direction, compact(value)]));
+      return `- ${label} candidate paired: branch/eligible/unsupported=${candidate.branchN}/${candidate.eligibleN}/${candidate.unsupportedThreatN}; crossing=${JSON.stringify(crossing)}; production→candidate=${JSON.stringify(candidate.outcomeConversion)}; introducedDeath/lostVictory/laterFleeAvoided=${JSON.stringify(candidate.candidateDeathIntroduced)}/${JSON.stringify(candidate.productionVictoryLost)}/${JSON.stringify(candidate.laterFleeAvoided)}; terminalHP/HP-loss/GuardianDamage/rounds/actions delta=${JSON.stringify(candidate.terminalHpDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.hpLossDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.guardianDamageDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.roundsDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.actionsDeltaCandidateMinusProduction)}; items/MP delta=${JSON.stringify(candidate.itemDeltaCandidateMinusProduction)}/${JSON.stringify(candidate.mpDeltaCandidateMinusProduction)}; threatReasons=${JSON.stringify(candidate.unsupportedThreatReasons)}; dedupe=${JSON.stringify(candidate.firstCrossingPerAttempt)}`;
+    };
     const lines = [
       "# First Band B5 Guardian flee EV diagnostic",
       "",
@@ -3010,6 +3145,7 @@ export function buildSummary(report) {
       crossTabLine("C", report.arms.C.overview),
       traceLine("C", report.arms.C.overview),
       strFightLine("C", report.arms.C.overview),
+      candidateLine("C", report.arms.C.overview),
       "",
       "## Kit",
       "",
@@ -3017,7 +3153,8 @@ export function buildSummary(report) {
         diagnosticLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
         crossTabLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
         traceLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
-        strFightLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate)
+        strFightLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
+        candidateLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate)
       ]).flat(),
       "",
       "- evaluator terms/reasons are observation-only; production policy, action ordering, thresholds, checkpoints, and RNG path unchanged."
