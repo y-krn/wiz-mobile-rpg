@@ -68,6 +68,25 @@ export const B5_GUARDIAN_FLEE_EV_MODE = "b5-guardian-flee-ev-diagnostic";
 export const B5_GUARDIAN_FLEE_EV_MEASUREMENT_ID = "first-band-b5-guardian-flee-ev-diagnostic";
 export const B5_GUARDIAN_FLEE_EV_ARM_IDS = Object.freeze(["C"]);
 export const ARCANA_KIT_IDS = Object.freeze(["arcana"]);
+const GUARDIAN_OPENING_ITEM_KEYS = Object.freeze([
+  "GUARD_POTION",
+  "STR_POTION",
+  "HASTE_POTION"
+]);
+const GUARDIAN_TRANSITION_TERM_KEYS = Object.freeze([
+  "expectedTurnsToWin",
+  "survivalTurns",
+  "turnDeficit",
+  "currentHp",
+  "hpRate",
+  "totalEnemyHp",
+  "playerDefense",
+  "incomingDamagePerRound",
+  "playerDamagePerRound",
+  "maxRecovery",
+  "recoverySurvivalTurns"
+]);
+const GUARDIAN_TRANSITION_SAMPLE_DECISIONS = Object.freeze(["fight", "recover", "flee"]);
 
 const DEFAULT_WEAPON_BY_KIT = Object.freeze({
   vanguard: "SHORT_SWORD",
@@ -229,7 +248,7 @@ function getMeasurementMode(mode) {
   if (mode === B5_GUARDIAN_FLEE_EV_MODE) {
     return {
       id: B5_GUARDIAN_FLEE_EV_MEASUREMENT_ID,
-      runnerVersion: "first-band-build-formation-v9",
+      runnerVersion: "first-band-build-formation-v10",
       armIds: B5_GUARDIAN_FLEE_EV_ARM_IDS,
       armDefinitions: { C: B5_GUARDIAN_RETRY_ARM_DEFINITIONS.C },
       preparationPotions: [4],
@@ -502,9 +521,169 @@ function normalizeGuardianRetry(result) {
   };
 }
 
+function normalizeGuardianTraceAction(action) {
+  return action
+    ? {
+        type: action.type || null,
+        itemKey: action.itemKey || null,
+        spellName: action.spellName || null
+      }
+    : null;
+}
+
+function projectGuardianTransitionTerms(observation) {
+  const terms = observation?.terms || {};
+  return Object.fromEntries(GUARDIAN_TRANSITION_TERM_KEYS.map(key => [key, finite(terms[key])]));
+}
+
+function subtractGuardianTransitionTerms(before, after) {
+  return Object.fromEntries(GUARDIAN_TRANSITION_TERM_KEYS.map(key => [
+    key,
+    before[key] === null || after[key] === null ? null : after[key] - before[key]
+  ]));
+}
+
+function guardianBoundaryState(terms) {
+  if (terms.expectedTurnsToWin === null || terms.survivalTurns === null) return null;
+  return terms.expectedTurnsToWin <= terms.survivalTurns;
+}
+
+function projectGuardianTransitionObservation(observation) {
+  return {
+    attempt: finite(observation?.attempt),
+    playerDecisionIndex: finite(observation?.playerDecisionIndex),
+    decision: observation?.decision || null,
+    reason: observation?.reason || null,
+    selectedAction: normalizeGuardianTraceAction(observation?.actualAction),
+    executed: typeof observation?.executed === "boolean" ? observation.executed : null,
+    executedAction: normalizeGuardianTraceAction(observation?.executedAction),
+    eligibleOpeningItemKey: observation?.eligibleOpeningItemKey || null,
+    fleeDeferredByOpening: Boolean(observation?.fleeDeferredByOpening)
+  };
+}
+
+export function buildGuardianDecisionTransitions(trace, kitId = null) {
+  const transitions = [];
+  for (let index = 0; index < (trace || []).length - 1; index++) {
+    const from = trace[index];
+    const to = trace[index + 1];
+    if (
+      String(from?.attempt) !== String(to?.attempt) ||
+      Number(to?.playerDecisionIndex) !== Number(from?.playerDecisionIndex) + 1
+    ) continue;
+
+    const before = projectGuardianTransitionTerms(from);
+    const after = projectGuardianTransitionTerms(to);
+    const fromObservation = projectGuardianTransitionObservation(from);
+    const toObservation = projectGuardianTransitionObservation(to);
+    const openingItemKey = fromObservation.executed === true &&
+      fromObservation.executedAction?.type === "item" &&
+      GUARDIAN_OPENING_ITEM_KEYS.includes(fromObservation.executedAction.itemKey)
+      ? fromObservation.executedAction.itemKey
+      : null;
+    const boundaryBefore = guardianBoundaryState(before);
+    const boundaryAfter = guardianBoundaryState(after);
+    transitions.push({
+      kit: kitId || from?.kit || to?.kit || null,
+      attempt: fromObservation.attempt,
+      from: fromObservation,
+      to: toObservation,
+      openingItemKey,
+      eligibleOpeningItemKey: fromObservation.eligibleOpeningItemKey,
+      fleeDeferredByOpening: fromObservation.fleeDeferredByOpening,
+      before,
+      after,
+      delta: subtractGuardianTransitionTerms(before, after),
+      boundaryBefore,
+      boundaryAfter,
+      boundaryCrossed: boundaryBefore !== null && boundaryAfter !== null &&
+        boundaryBefore !== boundaryAfter
+    });
+  }
+  return transitions;
+}
+
+function compactGuardianTransition(transition) {
+  return {
+    kit: transition.kit,
+    attempt: transition.attempt,
+    openingItemKey: transition.openingItemKey,
+    eligibleOpeningItemKey: transition.eligibleOpeningItemKey,
+    fleeDeferredByOpening: transition.fleeDeferredByOpening,
+    from: transition.from,
+    to: transition.to,
+    before: transition.before,
+    after: transition.after,
+    delta: transition.delta,
+    boundaryBefore: transition.boundaryBefore,
+    boundaryAfter: transition.boundaryAfter,
+    boundaryCrossed: transition.boundaryCrossed
+  };
+}
+
+export function summarizeGuardianOpeningTransitions(transitions) {
+  return Object.fromEntries(GUARDIAN_OPENING_ITEM_KEYS.map(itemKey => {
+    const rows = (transitions || []).filter(item => item.openingItemKey === itemKey);
+    const boundaryCrossingCount = rows.filter(item => item.boundaryCrossed).length;
+    const representativeTransitions = GUARDIAN_TRANSITION_SAMPLE_DECISIONS
+      .map(decision => rows.find(item => item.to.decision === decision))
+      .filter(Boolean)
+      .map(compactGuardianTransition);
+    return [itemKey, {
+      executedTransitionCount: eventCount(rows.length, (transitions || []).length),
+      nextDecision: countRateBy(rows.map(item => item.to.decision || "unknown"), rows.length),
+      nextReason: countRateBy(rows.map(item => item.to.reason || "unknown"), rows.length),
+      termBefore: Object.fromEntries(GUARDIAN_TRANSITION_TERM_KEYS.map(term => [
+        term,
+        distribution90(rows.map(item => finite(item.before[term])))
+      ])),
+      termAfter: Object.fromEntries(GUARDIAN_TRANSITION_TERM_KEYS.map(term => [
+        term,
+        distribution90(rows.map(item => finite(item.after[term])))
+      ])),
+      termDelta: Object.fromEntries(GUARDIAN_TRANSITION_TERM_KEYS.map(term => [
+        term,
+        distribution90(rows.map(item => finite(item.delta[term])))
+      ])),
+      boundaryCrossing: eventCount(boundaryCrossingCount, rows.length),
+      representativeTransitions
+    }];
+  }));
+}
+
 function normalizeGuardianFleeEv(result, kitId) {
   const diagnostic = result.b5GuardianFleeEvDiagnostic;
   if (!diagnostic) return null;
+  const decisionTrace = (diagnostic.decisionTrace || []).map(observation => ({
+    ...observation,
+    kit: kitId,
+    terms: { ...(observation.terms || {}) },
+    hp: observation.hp ? { ...observation.hp } : null,
+    mp: observation.mp ? { ...observation.mp } : null,
+    stock: { ...(observation.stock || {}) },
+    actualAction: observation.actualAction ? { ...observation.actualAction } : null,
+    executedAction: observation.executedAction ? { ...observation.executedAction } : null,
+    recovery: observation.recovery ? {
+      ...observation.recovery,
+      diosPayment: observation.recovery.diosPayment
+        ? { ...observation.recovery.diosPayment }
+        : null
+    } : null,
+    preferredAction: observation.preferredAction ? {
+      ...observation.preferredAction,
+      payment: observation.preferredAction.payment
+        ? { ...observation.preferredAction.payment }
+        : null
+    } : null,
+    offensiveSpell: observation.offensiveSpell ? {
+      ...observation.offensiveSpell,
+      names: [...(observation.offensiveSpell.names || [])]
+    } : null,
+    guardian: observation.guardian ? { ...observation.guardian } : null,
+    productionBossRule: observation.productionBossRule
+      ? { ...observation.productionBossRule }
+      : null
+  }));
   return {
     enabled: Boolean(diagnostic.enabled),
     observations: (diagnostic.observations || []).map(observation => ({
@@ -535,36 +714,8 @@ function normalizeGuardianFleeEv(result, kitId) {
         ? { ...observation.productionBossRule }
         : null
     })),
-    decisionTrace: (diagnostic.decisionTrace || []).map(observation => ({
-      ...observation,
-      kit: kitId,
-      terms: { ...(observation.terms || {}) },
-      hp: observation.hp ? { ...observation.hp } : null,
-      mp: observation.mp ? { ...observation.mp } : null,
-      stock: { ...(observation.stock || {}) },
-      actualAction: observation.actualAction ? { ...observation.actualAction } : null,
-      executedAction: observation.executedAction ? { ...observation.executedAction } : null,
-      recovery: observation.recovery ? {
-        ...observation.recovery,
-        diosPayment: observation.recovery.diosPayment
-          ? { ...observation.recovery.diosPayment }
-          : null
-      } : null,
-      preferredAction: observation.preferredAction ? {
-        ...observation.preferredAction,
-        payment: observation.preferredAction.payment
-          ? { ...observation.preferredAction.payment }
-          : null
-      } : null,
-      offensiveSpell: observation.offensiveSpell ? {
-        ...observation.offensiveSpell,
-        names: [...(observation.offensiveSpell.names || [])]
-      } : null,
-      guardian: observation.guardian ? { ...observation.guardian } : null,
-      productionBossRule: observation.productionBossRule
-        ? { ...observation.productionBossRule }
-        : null
-    }))
+    decisionTrace,
+    transitions: buildGuardianDecisionTransitions(decisionTrace, kitId)
   };
 }
 
@@ -1300,6 +1451,7 @@ function crossTab(rows, leftKey, rightKey) {
 function summarizeGuardianFleeEv(entrants) {
   const observations = entrants.flatMap(item => item.guardianFleeEv?.observations || []);
   const traces = entrants.flatMap(item => item.guardianFleeEv?.decisionTrace || []);
+  const transitions = entrants.flatMap(item => item.guardianFleeEv?.transitions || []);
   const attempts = entrants.flatMap(item => item.guardianActionSequence || []);
   const flee = observations.filter(item => item.decision === "flee");
   const fleeAttempts = attempts.filter(item => item.result === "flee");
@@ -1438,7 +1590,9 @@ function summarizeGuardianFleeEv(entrants) {
     fleeDeferredByOpening: eventCount(
       traces.filter(item => item.fleeDeferredByOpening).length,
       traces.filter(item => item.decision === "flee").length
-    )
+    ),
+    transitionsObserved: transitions.length,
+    openingTransitionsByItem: summarizeGuardianOpeningTransitions(transitions)
   };
 }
 
@@ -2351,9 +2505,9 @@ export function buildSummary(report) {
       return `- ${label}: first-decision N=${ev.firstDecisionN}; fight/recover/flee=${JSON.stringify(ev.decisions)}; reasons=${JSON.stringify(ev.reasons)}; expectedTurnsToWin p10/p50/p90=${JSON.stringify(ev.expectedTurnsToWin)}; survivalTurns=${JSON.stringify(ev.survivalTurns)}; turnDeficit=${JSON.stringify(ev.turnDeficit)}; physicalDamageEstimate=${JSON.stringify(ev.physicalDamageEstimate)}; incomingDamage=${JSON.stringify(ev.incomingDamage)}; HP/MP rate=${JSON.stringify(ev.hpRate)}/${JSON.stringify(ev.mpRate)}; hpBelowFlee=${JSON.stringify(ev.hpBelowFleeThreshold)}; GUARD_POTION=${JSON.stringify(ev.guardPotionAvailable)}; preferred=${JSON.stringify(ev.preferredAction)}; preferredSpell/fight=${JSON.stringify(ev.preferredSpell)}/${JSON.stringify(ev.preferredFight)}; offensivePayment=${JSON.stringify(ev.offensiveSpellPaymentAvailable)}`;
     };
     const crossTabLine = (label, aggregate) => `- ${label} cross-tab: ${JSON.stringify(aggregate.b5.guardianFleeEv.crossTabs)}`;
-    const traceLine = (label, aggregate) => {
+      const traceLine = (label, aggregate) => {
       const ev = aggregate.b5.guardianFleeEv;
-      return `- ${label} trace: attempts=${ev.attemptsObserved}; selectedFirst=${JSON.stringify(ev.selectedFirstAction)}; executedFirst=${JSON.stringify(ev.executedFirstAction)}; selectedFleeIndex=${JSON.stringify(ev.selectedFleeDecisionIndex)}; executedFleeIndex=${JSON.stringify(ev.executedFleeDecisionIndex)}; selectedFleeRound=${JSON.stringify(ev.selectedFleeRound)}; executedFleeRound=${JSON.stringify(ev.executedFleeRound)}; selectedBeforeFlee=${JSON.stringify(ev.selectedActionsBeforeFlee)}; executedBeforeFlee=${JSON.stringify(ev.executedActionsBeforeFlee)}; selectedOpening=${JSON.stringify(ev.selectedOpeningItemUsage)}; openingUsed=${JSON.stringify(ev.openingItemUsage)}; bossHp%=${JSON.stringify(ev.bossHpAtFleeRate)}; guardianDamage=${JSON.stringify(ev.guardianDamageBeforeFlee)}; playerHp%=${JSON.stringify(ev.playerHpAtFleeRate)}; rawByIndex=${JSON.stringify(ev.rawDecisionByDecisionIndex)}; fleeDeferredByOpening=${JSON.stringify(ev.fleeDeferredByOpening)}`;
+      return `- ${label} trace: attempts=${ev.attemptsObserved}; selectedFirst=${JSON.stringify(ev.selectedFirstAction)}; executedFirst=${JSON.stringify(ev.executedFirstAction)}; selectedFleeIndex=${JSON.stringify(ev.selectedFleeDecisionIndex)}; executedFleeIndex=${JSON.stringify(ev.executedFleeDecisionIndex)}; selectedFleeRound=${JSON.stringify(ev.selectedFleeRound)}; executedFleeRound=${JSON.stringify(ev.executedFleeRound)}; selectedBeforeFlee=${JSON.stringify(ev.selectedActionsBeforeFlee)}; executedBeforeFlee=${JSON.stringify(ev.executedActionsBeforeFlee)}; selectedOpening=${JSON.stringify(ev.selectedOpeningItemUsage)}; openingUsed=${JSON.stringify(ev.openingItemUsage)}; bossHp%=${JSON.stringify(ev.bossHpAtFleeRate)}; guardianDamage=${JSON.stringify(ev.guardianDamageBeforeFlee)}; playerHp%=${JSON.stringify(ev.playerHpAtFleeRate)}; rawByIndex=${JSON.stringify(ev.rawDecisionByDecisionIndex)}; fleeDeferredByOpening=${JSON.stringify(ev.fleeDeferredByOpening)}; transitions=${ev.transitionsObserved}; openingTransitions=${JSON.stringify(ev.openingTransitionsByItem)}`;
     };
     const lines = [
       "# First Band B5 Guardian flee EV diagnostic",
