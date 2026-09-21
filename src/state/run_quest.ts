@@ -11,6 +11,8 @@ export interface NormalizedRunQuestReward {
   materials: Record<string, number>;
 }
 
+export type NormalizedDefeatsByRole = Record<string, number>;
+
 export interface NormalizedRunQuest {
   id: string;
   templateId: string;
@@ -46,6 +48,28 @@ function isRunQuestType(value: unknown): value is RunQuestType {
 
 function isNonNegativeFiniteInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value >= 0;
+}
+
+export function isNormalizedDefeatsByRole(value: unknown): value is NormalizedDefeatsByRole {
+  return isRecord(value) && Object.entries(value).every(([role, defeats]) =>
+    role.length > 0 && isNonNegativeFiniteInteger(defeats)
+  );
+}
+
+export function normalizeDefeatsByRole(value: unknown): NormalizedDefeatsByRole {
+  if (!isRecord(value)) return {};
+
+  const normalized: NormalizedDefeatsByRole = {};
+  for (const [role, defeats] of Object.entries(value)) {
+    if (role.length === 0 || !isNonNegativeFiniteInteger(defeats)) continue;
+    Object.defineProperty(normalized, role, {
+      configurable: true,
+      enumerable: true,
+      value: defeats,
+      writable: true
+    });
+  }
+  return normalized;
 }
 
 function isPositiveFiniteInteger(value: unknown): value is number {

@@ -67,6 +67,7 @@ check("役割討伐は分裂体を除外し、達成報酬を一度だけ付与�
   };
   recordRunQuestDefeats(run, [
     { role: "disruptor", fled: false },
+    { role: "disruptor", fled: true },
     { role: "disruptor", fled: false, hasSplit: true }
   ], 2);
   updateRunQuests(run);

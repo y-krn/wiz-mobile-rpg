@@ -16,7 +16,7 @@ import { getEquipmentHands } from "../rules/equipment_hands.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 import { isRuntimeItemCollection, isRuntimeItemRef } from "./item.js";
 import { isNormalizedPendingRewardBundle } from "./pending_reward.js";
-import { normalizeRunQuest } from "./run_quest.js";
+import { normalizeDefeatsByRole, normalizeRunQuest } from "./run_quest.js";
 import { normalizeTrialBands } from "./trial_band.js";
 import {
   createDefaultNormalizedEliteFloorState,
@@ -726,6 +726,7 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.floorSteps = normalizeFloorSteps(run.floorSteps);
   normalized.materials = normalizeRunMaterials(run.materials);
   normalized.bankedMaterials = normalizeBankedMaterials(run.bankedMaterials);
+  normalized.defeatsByRole = normalizeDefeatsByRole(run.defeatsByRole);
 
   const runSeed = normalizeRunSeed(run.runSeed);
   if (runSeed === undefined) delete normalized.runSeed;
