@@ -104,7 +104,6 @@ export interface NormalizedCurrentRun {
   defeatsByRole: NormalizedDefeatsByRole;
   codexRewards: NormalizedCodexRewards;
   departureItems: RuntimeItemCollection;
-  departureEquipment: Record<string, unknown>;
   firstKillsBefore: unknown[];
   keyItemsBefore: unknown[];
   codexDiscoveries: unknown[];
@@ -118,10 +117,6 @@ const NUMBER_FIELDS = [
   "startedAt", "startFloor", "deepestFloor", "steps", "battles", "kills",
   "elitesKilled", "bossesKilled", "chestsOpened", "goldEarned", "lootCount",
   "trapsTriggered", "trapsDisarmed", "expGained", "dangerScore"
-] as const;
-
-const RECORD_FIELDS = [
-  "departureEquipment"
 ] as const;
 
 const ARRAY_FIELDS = [
@@ -146,7 +141,6 @@ const REQUIRED_FIELDS = [
   "defeatedMilestones", "visitedMilestoneMerchants",
   "materials", "bankedMaterials", "defeatsByRole",
   "codexRewards",
-  ...RECORD_FIELDS,
   ...ARRAY_FIELDS,
   ...ITEM_COLLECTION_FIELDS
 ] as const;
@@ -178,7 +172,6 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
     return false;
   }
   if (typeof value.returnReason !== "string" || !isRunOutcome(value.outcome)) return false;
-  if (!RECORD_FIELDS.every(field => isRecord(value[field]))) return false;
   if (!isNormalizedEventObservations(value.eventObservations)) return false;
   if (!isNormalizedRunMaterials(value.materials) || !isNormalizedBankedMaterials(value.bankedMaterials)) {
     return false;

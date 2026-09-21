@@ -96,7 +96,6 @@ export const createDefaultCurrentRun = () => ({
   defeatsByRole: {},
   codexRewards: {},
   departureItems: [],
-  departureEquipment: {},
   firstKillsBefore: [],
   keyItemsBefore: [],
   codexDiscoveries: [],

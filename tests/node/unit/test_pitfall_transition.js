@@ -47,6 +47,8 @@ global.setTimeout = callback => {
 try {
   state.party = [createStartingKitCharacter('scout')];
   executeEnterDungeon(1);
+  assert.equal(Object.hasOwn(state.currentRun, 'departureEquipment'), false,
+    'run start does not recreate retired departureEquipment');
 
   let edge = null;
   for (let y = 1; y < state.map.length - 1 && !edge; y++) {

@@ -146,10 +146,6 @@ function filterRawRuntimeItems(data) {
     .forEach(field => {
       run[field] = filterPersistedItems(run[field]);
     });
-  run.departureEquipment = Object.fromEntries(
-    Object.entries(recordOr(run.departureEquipment, {}))
-      .map(([slot, item]) => [slot, filterPersistedItemSlot(item)])
-  );
   run.unbankedObjectLoot = arrayOr(run.unbankedObjectLoot)
     .filter(entry => isRecord(entry) && typeof entry.id === "string" && isSupportedPersistedItem(entry.item));
   if (isRecord(run.pendingRewardBundle)) {
@@ -174,10 +170,6 @@ function filterNormalizedRuntimeItems(data) {
   if (!isRecord(run)) return;
   ["townInventory", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems", "itemsFound", "equipmentFound", "departureItems"]
     .forEach(field => { run[field] = filterRuntimeCollection(run[field]); });
-  run.departureEquipment = Object.fromEntries(
-    Object.entries(recordOr(run.departureEquipment, {}))
-      .filter(([, item]) => item === null || isSupportedRuntimeItem(item))
-  );
   run.unbankedObjectLoot = arrayOr(run.unbankedObjectLoot)
     .filter(entry => isRecord(entry) && typeof entry.id === "string" && isSupportedRuntimeItem(entry.item));
   if (isRecord(run.pendingRewardBundle)) {
@@ -212,7 +204,6 @@ function backfillEquipmentInstanceIds(data) {
     collectItems(run.itemsFound, "run_items_found");
     collectItems(run.equipmentFound, "run_equipment_found");
     collectItems(run.departureItems, "run_departure");
-    Object.entries(run.departureEquipment || {}).forEach(([slot, item]) => collect(item, `run_departure_equipment_${slot}`));
     run.unbankedObjectLoot?.forEach((entry, index) => collect(entry?.item, `run_unbanked_${index}`));
     run.pendingRewardBundle?.entries?.forEach((entry, index) => collect(entry?.item, `run_pending_${index}`));
   }
@@ -443,7 +434,6 @@ function backfillAffixMetadata(data) {
     [run.townInventory, run.bankedObjectLoot, run.lostObjectLoot, run.returnedTownItems,
       run.itemsFound, run.equipmentFound, run.departureItems]
       .forEach(collection => collection?.forEach(backfillItemAffixes));
-    run.departureEquipment && Object.values(run.departureEquipment).forEach(backfillItemAffixes);
     run.unbankedObjectLoot?.forEach(entry => backfillItemAffixes(entry?.item));
     run.pendingRewardBundle?.entries?.forEach(entry => backfillItemAffixes(entry?.item));
   }
@@ -469,10 +459,12 @@ function inferRunOutcome(returnReason) {
 
 function normalizeRunOutcome(run) {
   if (!run || typeof run !== "object") return run;
-  return {
+  const normalized = {
     ...run,
     outcome: RUN_OUTCOMES.has(run.outcome) ? run.outcome : inferRunOutcome(run.returnReason)
   };
+  delete normalized.departureEquipment;
+  return normalized;
 }
 
 function normalizeRunHistoryEntry(entry) {
