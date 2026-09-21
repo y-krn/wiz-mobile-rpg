@@ -1,0 +1,272 @@
+name: Issue 1474 serial lane A-B measurement
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: issue-1474-serial-lane-ab-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SOURCE_UNDER_TEST: e3a16667e1223f0e90d66da5b8eaef297e5ef071
+  LATEST_MAIN_SHA: e3a16667e1223f0e90d66da5b8eaef297e5ef071
+  PLAYWRIGHT_PORT: 16589
+  CI: 'true'
+
+jobs:
+  measure:
+    name: ${{ matrix.variant }} repeat=${{ matrix.repeat }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - { variant: baseline, repeat: 1 }
+          - { variant: candidate, repeat: 1 }
+          - { variant: baseline, repeat: 2 }
+          - { variant: candidate, repeat: 2 }
+          - { variant: baseline, repeat: 3 }
+          - { variant: candidate, repeat: 3 }
+          - { variant: baseline, repeat: 4 }
+          - { variant: candidate, repeat: 4 }
+          - { variant: baseline, repeat: 5 }
+          - { variant: candidate, repeat: 5 }
+    permissions:
+      contents: read
+    env:
+      MEASUREMENT_WORKFLOW_SHA: ${{ github.sha }}
+      ISSUE_1474_VARIANT: ${{ matrix.variant }}
+      ISSUE_1474_REPEAT: ${{ matrix.repeat }}
+    steps:
+      - name: Checkout fixed source
+        uses: actions/checkout@v4
+        with:
+          ref: e3a16667e1223f0e90d66da5b8eaef297e5ef071
+          fetch-depth: 1
+
+      - name: Overlay measurement helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$MEASUREMENT_WORKFLOW_SHA" --depth=1
+          git checkout "$MEASUREMENT_WORKFLOW_SHA" -- \
+            scripts/issue-1474-parity.js \
+            scripts/issue-1474-summarize-sample.js
+
+      - name: Initialize sample
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ISSUE_1474_EVIDENCE_DIR="$RUNNER_TEMP/issue-1474"
+          echo "ISSUE_1474_EVIDENCE_DIR=$ISSUE_1474_EVIDENCE_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$ISSUE_1474_EVIDENCE_DIR"
+          date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/job-start-ms"
+          {
+            echo "source=$SOURCE_UNDER_TEST"
+            echo "latest_main=$LATEST_MAIN_SHA"
+            echo "workflow_sha=$MEASUREMENT_WORKFLOW_SHA"
+            echo "variant=$ISSUE_1474_VARIANT"
+            echo "repeat=$ISSUE_1474_REPEAT"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "image_os=${ImageOS:-unknown}"
+            echo "image_version=${ImageVersion:-unknown}"
+            echo "kernel=$(uname -srmo)"
+          } > "$ISSUE_1474_EVIDENCE_DIR/environment.txt"
+
+      - name: Start setup timer
+        run: date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/setup-start-ms"
+
+      - uses: ./.github/actions/setup-node-deps
+
+      - name: Capture setup and tool metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/setup-end-ms"
+          {
+            node --version
+            npm --version
+            node -p "'playwright=' + require('./node_modules/@playwright/test/package.json').version"
+            node -p "'chromium_revision=' + require('./node_modules/playwright-core/browsers.json').browsers.find(browser => browser.name === 'chromium').revision"
+          } > "$ISSUE_1474_EVIDENCE_DIR/tool-versions.txt"
+
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('./node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Start install-deps timer
+        run: date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/install-deps-start-ms"
+
+      - name: Install Chromium with OS dependencies on cache miss
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Chromium OS dependencies on cache hit
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Capture install-deps end
+        run: date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/install-deps-end-ms"
+
+      - name: Prove exact test-set parity
+        shell: bash
+        run: node scripts/issue-1474-parity.js 2>&1 | tee "$ISSUE_1474_EVIDENCE_DIR/parity.log"
+
+      - name: Start baseline timer
+        if: matrix.variant == 'baseline'
+        run: date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/baseline-start-ms"
+
+      - name: Run baseline smoke
+        id: baseline
+        if: matrix.variant == 'baseline'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:browser:smoke 2>&1 | tee "$ISSUE_1474_EVIDENCE_DIR/baseline.log"
+          status=${PIPESTATUS[0]}
+          echo "$status" > "$ISSUE_1474_EVIDENCE_DIR/baseline-status"
+          date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/baseline-end-ms"
+          exit "$status"
+
+      - name: Start candidate timer
+        if: matrix.variant == 'candidate'
+        run: date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/candidate-start-ms"
+
+      - name: Run candidate serial target
+        id: serial
+        if: matrix.variant == 'candidate'
+        continue-on-error: true
+        shell: bash
+        env:
+          PLAYWRIGHT_WORKERS: '1'
+        run: |
+          set +e
+          log="$ISSUE_1474_EVIDENCE_DIR/serial.log"
+          date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/serial-start-ms"
+          node scripts/dependency-preflight.js >> "$log" 2>&1
+          preflight_status=$?
+          if [ "$preflight_status" -eq 0 ]; then
+            npx playwright test \
+              --grep 'Primary run path reaches Town again through UI actions @e2e @smoke' \
+              2>&1 | tee -a "$log"
+            status=${PIPESTATUS[0]}
+          else
+            status=$preflight_status
+          fi
+          echo "$status" > "$ISSUE_1474_EVIDENCE_DIR/serial-status"
+          date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/serial-end-ms"
+          exit "$status"
+
+      - name: Run candidate parallel remainder
+        id: remainder
+        if: matrix.variant == 'candidate'
+        continue-on-error: true
+        shell: bash
+        env:
+          PLAYWRIGHT_WORKERS: '2'
+        run: |
+          set +e
+          log="$ISSUE_1474_EVIDENCE_DIR/remainder.log"
+          date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/remainder-start-ms"
+          node scripts/dependency-preflight.js >> "$log" 2>&1
+          preflight_status=$?
+          if [ "$preflight_status" -eq 0 ]; then
+            npx playwright test \
+              --grep '@smoke' \
+              --grep-invert '@visual|Primary run path reaches Town again through UI actions' \
+              2>&1 | tee -a "$log"
+            status=${PIPESTATUS[0]}
+          else
+            status=$preflight_status
+          fi
+          echo "$status" > "$ISSUE_1474_EVIDENCE_DIR/remainder-status"
+          date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/remainder-end-ms"
+          exit "$status"
+
+      - name: Capture candidate end
+        if: matrix.variant == 'candidate'
+        run: date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/candidate-end-ms"
+
+      - name: Summarize sample
+        if: always()
+        env:
+          PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright-cache.outputs.cache-hit }}
+        run: |
+          date +%s%3N > "$ISSUE_1474_EVIDENCE_DIR/job-end-ms"
+          node scripts/issue-1474-summarize-sample.js | tee "$ISSUE_1474_EVIDENCE_DIR/sample-summary.log"
+
+      - name: Publish sample summary
+        if: always()
+        run: cat "$ISSUE_1474_EVIDENCE_DIR/sample.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sample evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1474-sample-${{ matrix.variant }}-r${{ matrix.repeat }}
+          path: |
+            ${{ runner.temp }}/issue-1474
+            test-results
+            playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
+          compression-level: 6
+
+      - name: Fail sample when measured test failed
+        if: always()
+        shell: bash
+        run: |
+          node -e "const fs=require('node:fs'); const s=JSON.parse(fs.readFileSync(process.env.ISSUE_1474_EVIDENCE_DIR + '/sample.json','utf8')); process.exit(s.sampleFailed ? 1 : 0)"
+
+  summarize:
+    name: Aggregate Issue 1474 measurement
+    if: always()
+    needs: measure
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout measurement branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Download sample evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: issue-1474-sample-*
+          path: ${{ runner.temp }}/issue-1474/artifacts
+          merge-multiple: false
+
+      - name: Aggregate samples
+        env:
+          ISSUE_1474_ARTIFACT_ROOT: ${{ runner.temp }}/issue-1474/artifacts
+        run: node scripts/issue-1474-aggregate.js | tee "$RUNNER_TEMP/issue-1474/aggregate.log"
+
+      - name: Publish aggregate summary
+        if: always()
+        run: cat "$RUNNER_TEMP/issue-1474/artifacts/aggregate.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1474-aggregate
+          path: |
+            ${{ runner.temp }}/issue-1474/artifacts/aggregate.json
+            ${{ runner.temp }}/issue-1474/artifacts/aggregate.md
+            ${{ runner.temp }}/issue-1474/aggregate.log
+          if-no-files-found: ignore
+          retention-days: 14
+          compression-level: 6
