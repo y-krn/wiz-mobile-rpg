@@ -229,6 +229,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/data/spells.js", "src/data/status_treatments.js", "src/systems/spell_effects.js",
     "src/runtime_diagnostics.js", "src/telemetry.js", "src/systems/traps.js", "src/pixi_renderer.js", "src/pixi_enemy_prototypes.js", "src/minimap.js",
     "src/rules/item_inventory.js", "src/rules/object_loot_stake.js", "src/rules/renderer_projection.js", "src/rules/enemy_hp_state.js",
+    "src/data/equipment_vnext.js", "src/rules/combat_tier.js", "src/rules/diagnostic_build_identity.js",
     "src/combat_logic/combat_action.js", "src/combat_logic/combat_action.ts", "src/combat_ui/combat_state.ts",
     "src/enemy_presentation.js", "src/enemy_presentation_palette.js", "src/assets/enemies/**",
     "src/equipment_ui_loader.js", "src/equipment_ui_state.js"
