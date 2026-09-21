@@ -5567,6 +5567,25 @@ function recordDiagnosticReward(metrics, state, item, {
   const equipment = isEquipment(itemData);
   const itemId = typeof item === "string" ? item : item.baseId || null;
   const core = equipment && hasBuildCoreAffix(item);
+  const equipmentSnapshot = equipment
+    ? {
+        instanceId: item?.instanceId || null,
+        baseId: item?.baseId || itemId,
+        slot: itemType,
+        rarity: item?.rarity || null,
+        affixes: Array.isArray(item?.affixes)
+          ? item.affixes.map(affix => ({
+              id: affix.id || affix.type || null,
+              kind: getAffixKind(affix),
+              value: affix.value ?? null,
+              category: getAffixDefinition(affix)?.category || null
+            }))
+          : [],
+        cursed: Boolean(item?.curseEffectId),
+        curseEffectId: item?.curseEffectId || null,
+        curseSuspected: Boolean(item?.curseSuspected)
+      }
+    : null;
   rewards.push({
     source,
     disposition,
@@ -5584,6 +5603,7 @@ function recordDiagnosticReward(metrics, state, item, {
       : null,
     category: equipment ? "equipment" : itemType === "rune" ? "rune" : "item",
     isCore: core,
+    equipment: equipmentSnapshot,
     meaningful: true,
     objectLoot,
     rewardRole
@@ -10586,10 +10606,13 @@ function createBuildSnapshot(state, scoringProfile, point) {
     });
     return {
       slot,
+      instanceId: equipped && typeof equipped === "object" ? equipped.instanceId || null : null,
       id: equipped && typeof equipped === "object" ? equipped.baseId : equipped,
       name: item?.name || null,
       type: item?.type || null,
       rarity: equipped && typeof equipped === "object" ? equipped.rarity : null,
+      cursed: Boolean(equipped && typeof equipped === "object" && equipped.curseEffectId),
+      curseSuspected: Boolean(equipped && typeof equipped === "object" && equipped.curseSuspected),
       atk: item?.atk || 0,
       def: item?.def || 0,
       affixes: affixes.map(affix => ({
@@ -13420,13 +13443,18 @@ function chestRewardRole(chestItems, itemIndex) {
   return null;
 }
 
-function compactChestLootItem(item) {
-  if (typeof item === "string") return { id: item, type: null, rarity: null, affixes: [] };
+function compactChestLootItem(item, role = null) {
+  if (typeof item === "string") return { id: item, type: null, rarity: null, affixes: [], role };
+  const itemData = getItemData(item);
   return {
     id: item?.baseId || item?.id || null,
-    type: item?.type || null,
+    instanceId: item?.instanceId || null,
+    type: item?.type || itemData?.type || null,
     rarity: item?.rarity || null,
     curseEffectId: item?.curseEffectId || null,
+    cursed: Boolean(item?.curseEffectId),
+    curseSuspected: Boolean(item?.curseSuspected),
+    role,
     affixes: Array.isArray(item?.affixes)
       ? item.affixes.map(affix => ({
           id: affix.id || affix.type || null,
@@ -13446,7 +13474,9 @@ function recordChestLootEvent(metrics, state, floor, source, chestItems) {
     y: Number.isInteger(state.y) ? state.y : null,
     trap: chestItems.trap || "none",
     action: chestItems.trapAction || null,
-    generatedItems: chestItems.items.map(compactChestLootItem),
+    generatedItems: chestItems.items.map((item, index) =>
+      compactChestLootItem(item, chestRewardRole(chestItems, index))
+    ),
     lostRewardRoles: [...(chestItems.lostRewardRoles || [])]
   });
 }
@@ -16727,6 +16757,27 @@ export function simulateRun({
             state.currentRun.equipmentFound.length - equipmentFoundBeforeRewards,
             ...ceilingCombatEquipment
           );
+          const baselineCombatEquipmentCount = baselineCombatEquipment.length;
+          ceilingCombatEquipment.slice(0, baselineCombatEquipmentCount).forEach(item => {
+            const alreadyRecorded = (metrics.diagnostics?.rewardEvents || []).some(event => (
+              event.source === "combat" &&
+              event.category === "equipment" &&
+              event.equipment?.instanceId &&
+              event.equipment.instanceId === item?.instanceId
+            ));
+            if (alreadyRecorded) return;
+            const bagged = state.inventory.some(candidate =>
+              candidate === item || (
+                candidate?.instanceId && item?.instanceId &&
+                candidate.instanceId === item.instanceId
+              )
+            );
+            recordDiagnosticReward(metrics, state, item, {
+              source: "combat",
+              disposition: bagged ? "bagged" : "left",
+              rewardRole: "main"
+            });
+          });
           recordEquipmentGenerations(metrics, ceilingCombatEquipment);
           recordEquipmentAcquisitions(
             metrics,
