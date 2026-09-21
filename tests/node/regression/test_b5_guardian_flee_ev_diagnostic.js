@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   B5_GUARDIAN_FLEE_EV_MODE,
+  buildGuardianStrFightCohorts,
   buildGuardianDecisionTransitions,
   runMeasurement,
   summarizeGuardianOpeningTransitions
@@ -28,11 +29,133 @@ for (const kitId of result.configuration.startingKits) {
     assert.ok(Object.keys(diagnostic.crossTabs.fleeReasonByAttempt).length >= 0);
   }
   assert.ok(diagnostic.transitionsObserved >= 0);
+  assert.ok(diagnostic.strFightCohort);
+  assert.ok(diagnostic.strFightCohort.cohortN >= 0);
+  assert.ok(Object.hasOwn(diagnostic.strFightCohort.outcomes, "victory") || diagnostic.strFightCohort.cohortN === 0);
+  for (const aggregate of [diagnostic.strFightCohort.all, ...Object.values(diagnostic.strFightCohort.byOutcome)]) {
+    for (const field of ["fleePartingAttackCount", "partingAttackDamageHp", "fleeDiedFromPartingAttack"]) {
+      assert.ok(Object.hasOwn(aggregate, field), `cohort aggregate missing ${field}`);
+    }
+  }
+  for (const sample of Object.values(diagnostic.strFightCohort.samples).flat()) {
+    for (const field of ["fleePartingAttackCount", "partingAttackDamageHp", "fleeDiedFromPartingAttack"]) {
+      assert.ok(Object.hasOwn(sample, field), `cohort sample missing ${field}`);
+    }
+  }
+  assert.ok(Object.values(diagnostic.strFightCohort.samples)
+    .reduce((total, samples) => total + samples.length, 0) <= 6);
   assert.deepEqual(
     Object.keys(diagnostic.openingTransitionsByItem),
     ["GUARD_POTION", "STR_POTION", "HASTE_POTION"]
   );
 }
+
+const cohortTrace = (attempt, decision, executed, itemKey, playerDecisionIndex, round) => ({
+  attempt,
+  playerDecisionIndex,
+  round,
+  decision,
+  reason: decision === "flee" ? "flee-survival-deficit" : "fight-current-survival",
+  executed,
+  actualAction: itemKey
+    ? { type: "item", itemKey, spellName: null }
+    : { type: decision === "flee" ? "run" : "fight", itemKey: null, spellName: null },
+  executedAction: executed
+    ? itemKey
+      ? { type: "item", itemKey, spellName: null }
+      : { type: decision === "flee" ? "run" : "fight", itemKey: null, spellName: null }
+    : null,
+  hp: { current: 40 - round, max: 50, rate: (40 - round) / 50 },
+  mp: { current: 8 - round, max: 10, rate: (8 - round) / 10 },
+  guardian: { currentHp: 100 - round * 10, maxHp: 100 }
+});
+
+const cohortResult = {
+  b5GuardianFleeEvDiagnostic: {
+    decisionTrace: [
+      cohortTrace(1, "flee", true, "STR_POTION", 1, 1),
+      cohortTrace(1, "fight", true, null, 2, 2),
+      cohortTrace(1, "recover", true, "HEAL_POTION", 3, 3),
+      cohortTrace(2, "flee", true, "STR_POTION", 1, 1),
+      cohortTrace(2, "fight", true, null, 2, 2),
+      cohortTrace(3, "fight", true, "STR_POTION", 1, 1),
+      cohortTrace(3, "fight", true, null, 2, 2),
+      cohortTrace(4, "flee", false, "STR_POTION", 1, 1),
+      cohortTrace(4, "fight", true, null, 2, 2),
+      cohortTrace(5, "flee", true, "STR_POTION", 1, 1),
+      cohortTrace(5, "fight", true, null, 2, 2)
+    ]
+  },
+  specialBattles: [{
+    type: "boss",
+    floor: 5,
+    attempts: [
+      { attempt: 1, result: "victory" },
+      { attempt: 2, result: "flee" },
+      { attempt: 3, result: "death" },
+      { attempt: 4, result: "victory" },
+      { attempt: 5, result: "death" }
+    ]
+  }],
+  diagnostics: {
+    encounters: [1, 2, 3, 4, 5].map((attempt, index) => ({
+      floor: 5,
+      type: "boss",
+      endHp: 30 - index * 5,
+      endMp: 4 - index,
+      endEnemyHp: [{ name: "デーモンガード", hp: 20 - index * 5, maxHp: 100 }],
+      rounds: [
+        { round: 1, action: "item", itemKey: "STR_POTION", playerActionExecuted: true, mpBefore: 8, mpAfter: 8 },
+        {
+          round: 2,
+          action: "spell",
+          spellName: "HALITO",
+          playerActionExecuted: true,
+          mpBefore: 8,
+          mpAfter: 7,
+          fleeSelected: index >= 2,
+          fleeExecuted: index >= 2,
+          fleePartingAttack: index >= 2,
+          log: index >= 2 ? ["追撃！ 6のダメージ"] : []
+        },
+        {
+          round: 3,
+          action: "item",
+          itemKey: "HEAL_POTION",
+          playerActionExecuted: true,
+          mpBefore: 7,
+          mpAfter: 7,
+          fleeSelected: index === 1,
+          fleeExecuted: index === 1,
+          fleePartingAttack: index === 1,
+          log: index === 1 ? ["追撃！ 4のダメージ"] : []
+        }
+      ]
+    }))
+  }
+};
+const cohorts = buildGuardianStrFightCohorts(cohortResult, "vanguard", 9);
+assert.equal(cohorts.length, 3);
+assert.deepEqual(cohorts.map(item => item.terminalOutcome), ["victory", "laterFlee", "death"]);
+assert.equal(cohorts[0].runIndex, 9);
+assert.equal(cohorts[0].additionalDecisions, 2);
+assert.equal(cohorts[0].additionalRounds, 2);
+assert.equal(cohorts[0].decisionCounts.recovery, 1);
+assert.equal(cohorts[0].decisionCounts.fight, 1);
+assert.equal(cohorts[0].guardianDamage, 60);
+assert.equal(cohorts[0].resources.itemCounts.HEAL_POTION, 1);
+assert.equal(cohorts[0].resources.mpSpent, 1);
+assert.equal(cohorts[0].executedFleeActions, 0);
+assert.equal(cohorts[1].fleePartingAttackCount, 1);
+assert.equal(cohorts[1].partingAttackDamageHp, 4);
+assert.equal(cohorts[1].fleeDiedFromPartingAttack, 0);
+assert.equal(cohorts[2].fleePartingAttackCount, 1);
+assert.equal(cohorts[2].partingAttackDamageHp, 6);
+assert.equal(cohorts[2].fleeDiedFromPartingAttack, 1);
+assert.equal(
+  cohorts.reduce((sum, cohort) => sum + cohort.partingAttackDamageHp, 0),
+  10
+);
 
 const terms = ({ expectedTurnsToWin = 5, survivalTurns = 2 } = {}) => ({
   expectedTurnsToWin,
