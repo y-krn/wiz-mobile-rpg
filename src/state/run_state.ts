@@ -11,6 +11,10 @@ import {
   type NormalizedEliteFloors
 } from "./elite_floor.js";
 import { isNormalizedRunSeed, type NormalizedRunSeed } from "./run_seed.js";
+import {
+  isNormalizedDefeatedMilestones,
+  type NormalizedDefeatedMilestones
+} from "./milestone_state.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -67,7 +71,7 @@ export interface NormalizedCurrentRun {
   eliteFloors: NormalizedEliteFloors;
   eliteOmenSteps: Record<string, unknown>;
   eliteDefeatedFloors: NormalizedEliteDefeatedFloors;
-  defeatedMilestones: unknown[];
+  defeatedMilestones: NormalizedDefeatedMilestones;
   visitedMilestoneMerchants: unknown[];
   quests: NormalizedRunQuest[];
   defeatsByRole: Record<string, unknown>;
@@ -98,7 +102,7 @@ const RECORD_FIELDS = [
 const ARRAY_FIELDS = [
   "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "firstKills",
   "floorsVisited", "deathLogs", "completedCampEntryFloors",
-  "defeatedMilestones", "visitedMilestoneMerchants", "firstKillsBefore",
+  "visitedMilestoneMerchants", "firstKillsBefore",
   "keyItemsBefore", "codexDiscoveries", "workshopDiscoveries"
 ] as const;
 
@@ -112,6 +116,7 @@ const REQUIRED_FIELDS = [
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
   "returnProcessing", "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
   "recordResult", "quests", "trialBands", "eliteFloors", "eliteDefeatedFloors",
+  "defeatedMilestones",
   ...RECORD_FIELDS,
   ...ARRAY_FIELDS,
   ...ITEM_COLLECTION_FIELDS
@@ -148,6 +153,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!isNormalizedTrialBands(value.trialBands)) return false;
   if (!isNormalizedEliteFloors(value.eliteFloors)) return false;
   if (!isNormalizedEliteDefeatedFloors(value.eliteDefeatedFloors)) return false;
+  if (!isNormalizedDefeatedMilestones(value.defeatedMilestones)) return false;
   if (Object.hasOwn(value, "runSeed") && value.runSeed !== undefined && !isNormalizedRunSeed(value.runSeed)) {
     return false;
   }
@@ -163,7 +169,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
 }
 
 interface MilestoneState {
-  currentRun?: { defeatedMilestones?: number[] } | null;
+  currentRun?: { defeatedMilestones?: NormalizedDefeatedMilestones } | null;
   unlockedMilestones?: number[];
 }
 
