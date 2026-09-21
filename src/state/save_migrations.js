@@ -37,9 +37,18 @@ import {
 import { normalizeFloorSteps } from "./floor_steps.js";
 import { normalizeBankedMaterials, normalizeCodexRewards, normalizeRunMaterials } from "./material_state.js";
 import { normalizeEventObservations } from "./event_observation.js";
+import {
+  normalizeReturnItemRecord,
+  normalizeReturnItemHistory,
+  normalizeRunInsights,
+  normalizeWorkshopUnlocks,
+  normalizeReturnProcessing
+} from "./run_return_state.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
+
+const EQUIPMENT_RARITIES = new Set(["common", "magic", "rare", "epic", "legendary"]);
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
@@ -520,24 +529,16 @@ function normalizeRunHistoryEntry(entry) {
     normalized.representativeItem = normalizeReturnItemRecord(normalized.representativeItem);
   }
   if (Object.hasOwn(normalized, "meaningfulItemHistory")) {
-    normalized.meaningfulItemHistory = arrayOr(normalized.meaningfulItemHistory)
-      .map(normalizeReturnItemRecord)
-      .filter(isRecord)
-      .slice(0, 5);
+    normalized.meaningfulItemHistory = normalizeReturnItemHistory(normalized.meaningfulItemHistory);
   }
   if (Object.hasOwn(normalized, "codexInsights")) {
     normalized.codexInsights = normalizeRunInsights(normalized.codexInsights);
   }
   if (Object.hasOwn(normalized, "workshopUnlocks")) {
-    normalized.workshopUnlocks = arrayOr(normalized.workshopUnlocks)
-      .filter(isRecord)
-      .map(unlock => ({
-        nodeId: typeof unlock.nodeId === "string" ? unlock.nodeId : "",
-        name: typeof unlock.name === "string" ? unlock.name : "",
-        description: typeof unlock.description === "string" ? unlock.description : "",
-        matchedSignals: arrayOr(unlock.matchedSignals).filter(signal => typeof signal === "string").slice(0, 6)
-      }))
-      .filter(unlock => unlock.nodeId);
+    normalized.workshopUnlocks = normalizeWorkshopUnlocks(normalized.workshopUnlocks);
+  }
+  if (Object.hasOwn(normalized, "returnProcessing")) {
+    normalized.returnProcessing = normalizeReturnProcessing(normalized.returnProcessing);
   }
   return normalized;
 }
@@ -565,24 +566,6 @@ function normalizeDeathLogEntry(entry) {
     };
   }
   return normalized;
-}
-
-const EQUIPMENT_RARITIES = new Set(["common", "magic", "rare", "epic", "legendary"]);
-
-const RETURN_ITEM_TYPES = new Set(["weapon", "shield", "armor", "accessory", "usable", "item"]);
-
-function normalizeReturnItemRecord(record) {
-  if (!isRecord(record) || typeof record.baseId !== "string") return null;
-  return {
-    baseId: record.baseId,
-    name: typeof record.name === "string" ? record.name : record.baseId,
-    type: RETURN_ITEM_TYPES.has(record.type) ? record.type : "item",
-    rarity: EQUIPMENT_RARITIES.has(record.rarity) ? record.rarity : "common",
-    knowledgeStage: typeof record.knowledgeStage === "string" ? record.knowledgeStage : "unknown",
-    status: ["returned", "rescued", "lost", "observed"].includes(record.status) ? record.status : "observed",
-    wasEquipped: record.wasEquipped === true,
-    depth: Math.max(1, integerOr(record.depth, 1))
-  };
 }
 
 function normalizePendingRewardBundle(bundle) {
@@ -613,17 +596,6 @@ function normalizePendingRewardBundle(bundle) {
     discardIndexes: [...new Set(arrayOr(bundle.discardIndexes)
       .filter(index => Number.isInteger(index) && index >= 0))]
   };
-}
-
-function normalizeRunInsights(insights) {
-  return arrayOr(insights)
-    .filter(isRecord)
-    .map(insight => ({
-      id: typeof insight.id === "string" ? insight.id : "",
-      label: typeof insight.label === "string" ? insight.label : ""
-    }))
-    .filter(insight => insight.id)
-    .slice(0, 20);
 }
 
 function normalizeCodexInsightRecord(record) {
@@ -749,28 +721,10 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.returnedTownItems = normalized.returnedTownItems.filter(item => item != null);
   normalized.pendingRewardBundle = normalizePendingRewardBundle(normalized.pendingRewardBundle);
   normalized.representativeItem = normalizeReturnItemRecord(normalized.representativeItem);
-  normalized.meaningfulItemHistory = normalized.meaningfulItemHistory
-    .map(normalizeReturnItemRecord)
-    .filter(isRecord)
-    .slice(0, 5);
+  normalized.meaningfulItemHistory = normalizeReturnItemHistory(normalized.meaningfulItemHistory);
   normalized.codexInsights = normalizeRunInsights(normalized.codexInsights);
-  normalized.workshopUnlocks = normalized.workshopUnlocks
-    .filter(isRecord)
-    .map(unlock => ({
-      nodeId: typeof unlock.nodeId === "string" ? unlock.nodeId : "",
-      name: typeof unlock.name === "string" ? unlock.name : "",
-      description: typeof unlock.description === "string" ? unlock.description : "",
-      matchedSignals: arrayOr(unlock.matchedSignals).filter(signal => typeof signal === "string").slice(0, 6)
-    }))
-    .filter(unlock => unlock.nodeId);
-  normalized.returnProcessing = isRecord(normalized.returnProcessing)
-    ? {
-      outcome: typeof normalized.returnProcessing.outcome === "string" ? normalized.returnProcessing.outcome : "",
-      returnedObjectCount: Math.max(0, integerOr(normalized.returnProcessing.returnedObjectCount, 0)),
-      lostObjectCount: Math.max(0, integerOr(normalized.returnProcessing.lostObjectCount, 0)),
-      recoveredEquipmentCount: Math.max(0, integerOr(normalized.returnProcessing.recoveredEquipmentCount, 0))
-    }
-    : null;
+  normalized.workshopUnlocks = normalizeWorkshopUnlocks(normalized.workshopUnlocks);
+  normalized.returnProcessing = normalizeReturnProcessing(normalized.returnProcessing);
   normalized.trialBands = normalizeTrialBands(normalized.trialBands);
   normalized.eliteFloors = normalizeEliteFloors(normalized.eliteFloors);
   normalized.eliteDefeatedFloors = normalizeEliteDefeatedFloors(normalized.eliteDefeatedFloors);

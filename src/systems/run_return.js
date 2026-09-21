@@ -84,7 +84,7 @@ function toHistoryRecord(snapshot, status) {
   return {
     baseId: snapshot.baseId,
     name: snapshot.name,
-    type: snapshot.type,
+    type: snapshot.type === "rune" ? "item" : snapshot.type,
     rarity: snapshot.rarity,
     knowledgeStage: snapshot.knowledgeStage,
     status,

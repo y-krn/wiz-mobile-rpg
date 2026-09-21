@@ -43,6 +43,17 @@ import {
   isNormalizedEventObservations,
   type NormalizedEventObservations
 } from "./event_observation.js";
+import {
+  isNormalizedReturnItemRecord,
+  isNormalizedReturnItemHistory,
+  isNormalizedRunInsights,
+  isNormalizedWorkshopUnlocks,
+  isNormalizedReturnProcessing,
+  type NormalizedRunCodexInsight,
+  type NormalizedRunReturnItemRecord,
+  type NormalizedRunReturnProcessing,
+  type NormalizedRunWorkshopUnlock
+} from "./run_return_state.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -78,11 +89,11 @@ export interface NormalizedCurrentRun {
   lostObjectLoot: RuntimeItemCollection;
   eventObservations: NormalizedEventObservations;
   returnedTownItems: RuntimeItemCollection;
-  representativeItem: Record<string, unknown> | null;
-  meaningfulItemHistory: unknown[];
-  codexInsights: unknown[];
-  workshopUnlocks: unknown[];
-  returnProcessing: Record<string, unknown> | null;
+  representativeItem: NormalizedRunReturnItemRecord | null;
+  meaningfulItemHistory: NormalizedRunReturnItemRecord[];
+  codexInsights: NormalizedRunCodexInsight[];
+  workshopUnlocks: NormalizedRunWorkshopUnlock[];
+  returnProcessing: NormalizedRunReturnProcessing | null;
   lootSequence: number;
   itemsFound: RuntimeItemCollection;
   equipmentFound: RuntimeItemCollection;
@@ -120,8 +131,7 @@ const NUMBER_FIELDS = [
 ] as const;
 
 const ARRAY_FIELDS = [
-  "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "firstKills",
-  "floorsVisited", "deathLogs",
+  "firstKills", "floorsVisited", "deathLogs",
   "firstKillsBefore",
   "keyItemsBefore", "codexDiscoveries", "workshopDiscoveries"
 ] as const;
@@ -134,7 +144,8 @@ const ITEM_COLLECTION_FIELDS = [
 const REQUIRED_FIELDS = [
   ...NUMBER_FIELDS,
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
-  "returnProcessing", "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
+  "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing",
+  "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
   "campRested", "completedCampEntryFloors", "recordResult", "quests", "trialBands",
   "floorSteps", "eventObservations",
   "eliteFloors", "eliteDefeatedFloors",
@@ -196,8 +207,11 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!Array.isArray(value.unbankedObjectLoot) ||
       !value.unbankedObjectLoot.every(isNormalizedRunObjectLootEntry)) return false;
   if (value.pendingRewardBundle !== null && !isNormalizedPendingRewardBundle(value.pendingRewardBundle)) return false;
-  if (value.representativeItem !== null && !isRecord(value.representativeItem)) return false;
-  if (value.returnProcessing !== null && !isRecord(value.returnProcessing)) return false;
+  if (value.representativeItem !== null && !isNormalizedReturnItemRecord(value.representativeItem)) return false;
+  if (!isNormalizedReturnItemHistory(value.meaningfulItemHistory)) return false;
+  if (!isNormalizedRunInsights(value.codexInsights)) return false;
+  if (!isNormalizedWorkshopUnlocks(value.workshopUnlocks)) return false;
+  if (value.returnProcessing !== null && !isNormalizedReturnProcessing(value.returnProcessing)) return false;
   return true;
 }
 

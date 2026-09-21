@@ -3,6 +3,13 @@ import assert from "node:assert/strict";
 const { createDefaultCodex, createDefaultCurrentRun, createStartingKitCharacter } =
   await import("../../../src/state/initial_state.js");
 const { processRunReturn } = await import("../../../src/systems/run_return.js");
+const {
+  isNormalizedReturnItemRecord,
+  isNormalizedReturnItemHistory,
+  isNormalizedRunInsights,
+  isNormalizedWorkshopUnlocks,
+  isNormalizedReturnProcessing
+} = await import("../../../src/state/run_return_state.js");
 const { recordDungeonObjectLoot } = await import("../../../src/state/run_loot.js");
 const { applyAutomaticWorkshopUnlock, getWorkshopGrants } = await import("../../../src/systems/workshop.js");
 const { generateRandomAccessory } = await import("../../../src/systems/equipment_generation.js");
@@ -49,6 +56,11 @@ function setupRun(deepestFloor = 5) {
   assert.equal(result.representativeItem.status, "returned");
   assert.equal(result.representativeItem.wasEquipped, true);
   assert.equal(result.meaningfulItemHistory.length, 2);
+  assert.equal(isNormalizedReturnItemRecord(result.representativeItem), true);
+  assert.equal(isNormalizedReturnItemHistory(result.meaningfulItemHistory), true);
+  assert.equal(isNormalizedRunInsights(result.insights), true);
+  assert.equal(isNormalizedWorkshopUnlocks(result.workshopUnlocks), true);
+  assert.equal(isNormalizedReturnProcessing(state.currentRun.returnProcessing), true);
   assert.equal(Object.hasOwn(result.representativeItem, "atk"), false);
   assert.equal(Object.hasOwn(result.representativeItem, "affixes"), false);
   assert.deepEqual(state.workshop.lateralUnlocks, ["pool_trap_eater"]);
@@ -81,6 +93,37 @@ function setupRun(deepestFloor = 5) {
   assert.equal(result.representativeItem.name, "未鑑定の長剣");
   assert.equal(result.meaningfulItemHistory[0].name, "未鑑定の長剣");
   console.log("[PASS] unidentified return records keep the representative name concealed");
+}
+
+{
+  const state = {
+    party: [createStartingKitCharacter("vanguard")],
+    currentRun: {
+      ...createDefaultCurrentRun(),
+      deepestFloor: 5,
+      returnReason: "milestone_portal",
+      itemsFound: ["RUNE_DIOS"],
+      equipmentFound: [],
+      townInventory: [],
+      unbankedObjectLoot: [],
+      bankedObjectLoot: [],
+      lostObjectLoot: []
+    },
+    codex: createDefaultCodex(),
+    workshop: { ranks: {}, lateralUnlocks: [] },
+    storage: [],
+    inventory: ["RUNE_DIOS"],
+    floor: 5
+  };
+  recordDungeonObjectLoot(state, "RUNE_DIOS");
+  const result = processRunReturn(state, "retreat");
+  assert.equal(result.representativeItem.baseId, "RUNE_DIOS");
+  assert.equal(result.representativeItem.type, "item");
+  assert.equal(result.meaningfulItemHistory[0].baseId, "RUNE_DIOS");
+  assert.equal(result.meaningfulItemHistory[0].type, "item");
+  assert.equal(isNormalizedReturnItemRecord(result.representativeItem), true);
+  assert.equal(isNormalizedReturnItemHistory(result.meaningfulItemHistory), true);
+  console.log("[PASS] normal Rune return artifacts use the canonical item type");
 }
 
 {
