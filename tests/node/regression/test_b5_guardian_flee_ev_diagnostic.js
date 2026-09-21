@@ -200,12 +200,88 @@ for (const transition of transitions) {
 
 const {
   finalizeB5GuardianDecisionTrace,
+  getSimulationRandomState,
   getScenarioById,
   recordB5GuardianFleeEvObservation,
   resetSimulationRandom,
+  runB5GuardianImmediateFleeCounterfactual,
   selectCombatAction,
   simulateRun
 } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
+
+const counterfactualState = {
+  party: [{
+    name: "Counterfactual Tester",
+    level: 5,
+    hp: 100,
+    maxHp: 100,
+    mp: 0,
+    maxMp: 0,
+    status: "ok",
+    buffs: [],
+    spells: [],
+    equipment: { weapon: "SHORT_SWORD", shield: null, armor: "PLATE_MAIL", accessory: null }
+  }],
+  combatState: {
+    monsters: [{
+      name: "デーモンガード",
+      hp: 100,
+      maxHp: 100,
+      atk: 10,
+      def: 0,
+      status: "ok",
+      row: "front"
+    }],
+    isBoss: true,
+    isMidboss: false,
+    isRoamingFlack: false,
+    allParalyzedTurns: 0,
+    roundNumber: 1,
+    retreatPosition: { x: 4, y: 5 },
+    phase: "choose_actions"
+  },
+  inventory: [],
+  firstKills: [],
+  codex: null,
+  currentRun: { itemsFound: [], equipmentFound: [], deathLogs: [] },
+  roamingMonsters: [],
+  floorChestsTotal: [],
+  gold: 0,
+  floor: 5,
+  x: 5,
+  y: 5,
+  simPolicy: {}
+};
+resetSimulationRandom(123);
+const productionStateBeforeCounterfactual = JSON.stringify(counterfactualState);
+const branchRngState = getSimulationRandomState();
+const immediateFlee = runB5GuardianImmediateFleeCounterfactual({
+  state: counterfactualState,
+  rngState: branchRngState
+});
+assert.equal(immediateFlee.resolver, "production-runCombatRoundCalculation");
+assert.equal(immediateFlee.action.type, "run");
+assert.equal(immediateFlee.initialRngState, branchRngState);
+assert.equal(immediateFlee.initialStateMatchesBranchPoint, true);
+assert.equal(immediateFlee.productionRngRestored, true);
+assert.equal(getSimulationRandomState(), branchRngState);
+assert.equal(immediateFlee.fleeExecuted, true);
+assert.equal(immediateFlee.partingAttackCount, 1);
+assert.equal(immediateFlee.survived, true);
+assert.equal(JSON.stringify(counterfactualState), productionStateBeforeCounterfactual);
+const partingDeathState = structuredClone(counterfactualState);
+partingDeathState.party[0].hp = 1;
+partingDeathState.party[0].buffs = [{ type: "firstStrike", value: 100 }];
+resetSimulationRandom(123);
+const partingDeath = runB5GuardianImmediateFleeCounterfactual({
+  state: partingDeathState,
+  rngState: getSimulationRandomState()
+});
+assert.equal(partingDeath.outcome, "death");
+assert.equal(partingDeath.survived, false);
+assert.equal(partingDeath.partingDeath, true);
+assert.equal(partingDeath.partingAttackCount, 1);
+
 const focusedScenario = {
   ...getScenarioById("workshop-complete"),
   startingKit: "vanguard",
