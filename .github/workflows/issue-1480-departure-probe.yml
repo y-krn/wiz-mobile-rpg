@@ -28,7 +28,7 @@ jobs:
       PLAYWRIGHT_PORT: 16589
       ISSUE_1480_MEASUREMENT: '1'
       ISSUE_1480_SAMPLE: target-w1-r${{ matrix.repeat }}
-      ISSUE_1480_EVIDENCE_DIR: ${{ runner.temp }}/issue-1480
+      ISSUE_1480_EVIDENCE_DIR: /tmp/issue-1480
     steps:
       - name: Checkout fixed source
         uses: actions/checkout@v4
