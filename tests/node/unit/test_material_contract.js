@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 
 import {
   isNormalizedBankedMaterials,
+  isNormalizedCodexRewards,
   isNormalizedMaterialRecord,
   isNormalizedRunMaterials,
   normalizeBankedMaterials,
+  normalizeCodexRewards,
   normalizeMaterialRecord,
   normalizeRunMaterials
 } from "../../../src/state/material_state.js";
@@ -36,6 +38,8 @@ const expectedMaterials = {
   "removed-material": 3,
   " 獣の牙 ": 2
 };
+const expectedCodexRewards = expectedMaterials;
+const saveCodexRewards = { "codex-only": 4, "霊粉": 0 };
 
 assert.deepEqual(normalizeMaterialRecord(rawMaterials), expectedMaterials,
   "shared material normalizer keeps valid values and exact non-empty keys");
@@ -43,6 +47,11 @@ assert.deepEqual(normalizeRunMaterials(rawMaterials), expectedMaterials,
   "run-material normalizer delegates to the shared record normalizer");
 assert.deepEqual(normalizeBankedMaterials(rawMaterials), expectedMaterials,
   "banked-material normalizer delegates to the shared record normalizer");
+assert.deepEqual(normalizeCodexRewards(rawMaterials), expectedCodexRewards,
+  "codex reward normalizer delegates to the shared material record normalizer");
+assert.deepEqual(normalizeCodexRewards(null), {}, "non-record codex rewards become empty");
+assert.equal(isNormalizedCodexRewards(expectedCodexRewards), true, "canonical codex rewards accepted");
+assert.equal(isNormalizedCodexRewards(rawMaterials), false, "invalid codex reward quantity rejects the record");
 assert.deepEqual(normalizeMaterialRecord(null), {}, "non-record material input becomes empty");
 assert.deepEqual(normalizeMaterialRecord([]), {}, "array material input becomes empty");
 assert.equal(isNormalizedMaterialRecord(expectedMaterials), true, "canonical material record accepted");
@@ -57,16 +66,33 @@ const normalized = normalizeSavePayload({
   currentRun: {
     ...baseRun,
     materials: rawMaterials,
-    bankedMaterials: { "banked-only": 5, "霊粉": 0 }
+    bankedMaterials: { "banked-only": 5, "霊粉": 0 },
+    codexRewards: saveCodexRewards,
+    firstKills: ["history-only"],
+    codexDiscoveries: ["codex-state-only"]
   }
 }).currentRun;
 assert.deepEqual(normalized.materials, expectedMaterials, "save boundary canonicalizes materials");
 assert.deepEqual(normalized.bankedMaterials, { "banked-only": 5, "霊粉": 0 },
   "save boundary canonicalizes bankedMaterials independently");
+assert.deepEqual(normalized.codexRewards, saveCodexRewards,
+  "save boundary canonicalizes codexRewards independently");
+assert.deepEqual(normalized.firstKills, ["history-only"], "firstKills remain independent");
+assert.deepEqual(normalized.codexDiscoveries, ["codex-state-only"], "codex state remains independent");
 assert.equal(normalized.materials["banked-only"], undefined,
   "materials are not repaired from bankedMaterials");
 assert.equal(normalized.bankedMaterials["removed-material"], undefined,
   "bankedMaterials are not repaired from materials");
+assert.equal(normalized.materials["codex-only"], undefined,
+  "materials are not repaired from codexRewards");
+assert.equal(normalized.bankedMaterials["codex-only"], undefined,
+  "bankedMaterials are not repaired from codexRewards");
+assert.equal(normalized.codexRewards["banked-only"], undefined,
+  "codexRewards are not repaired from bankedMaterials");
+assert.equal(normalized.codexRewards["meta-only"], undefined,
+  "codexRewards are not repaired from metaMaterials");
+assert.equal(normalized.codexRewards["history-only"], undefined,
+  "codexRewards are not inferred from firstKills");
 assert.deepEqual(normalizeSavePayload({
   metaMaterials: { "meta-only": 8 },
   workshop: { ranks: {}, lateralUnlocks: [] },
@@ -78,12 +104,14 @@ assert.equal(isNormalizedCurrentRun({ ...normalized, materials: { "獣の牙": "
   "currentRun guard delegates materials validation");
 assert.equal(isNormalizedCurrentRun({ ...normalized, bankedMaterials: { "獣の牙": -1 } }), false,
   "currentRun guard delegates bankedMaterials validation");
+assert.equal(isNormalizedCurrentRun({ ...normalized, codexRewards: { "獣の牙": "2" } }), false,
+  "currentRun guard delegates codex reward validation");
 assert.deepEqual(normalizeSavePayload({ currentRun: normalized }).currentRun, normalized,
-  "material normalization is idempotent");
+  "material and codex reward normalization is idempotent");
 assert.deepEqual(
   normalizeSavePayload({ currentRun: JSON.parse(JSON.stringify(normalized)) }).currentRun,
   normalized,
-  "canonical material fields survive JSON roundtrip"
+  "canonical material and codex reward fields survive JSON roundtrip"
 );
 
 assert.equal(canAffordMaterials({ "獣の牙": 1 }, { "獣の牙": 1 }), true,

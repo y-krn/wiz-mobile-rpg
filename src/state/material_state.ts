@@ -3,6 +3,7 @@
 export type NormalizedMaterialRecord = Record<string, number>;
 export type NormalizedRunMaterials = NormalizedMaterialRecord;
 export type NormalizedBankedMaterials = NormalizedMaterialRecord;
+export type NormalizedCodexRewards = NormalizedMaterialRecord;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -51,5 +52,13 @@ export function isNormalizedBankedMaterials(value: unknown): value is Normalized
 }
 
 export function normalizeBankedMaterials(value: unknown): NormalizedBankedMaterials {
+  return normalizeMaterialRecord(value);
+}
+
+export function isNormalizedCodexRewards(value: unknown): value is NormalizedCodexRewards {
+  return isNormalizedMaterialRecord(value);
+}
+
+export function normalizeCodexRewards(value: unknown): NormalizedCodexRewards {
   return normalizeMaterialRecord(value);
 }

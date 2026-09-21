@@ -32,9 +32,11 @@ import {
 } from "./camp_state.js";
 import { isNormalizedFloorSteps, type NormalizedFloorSteps } from "./floor_steps.js";
 import {
+  isNormalizedCodexRewards,
   isNormalizedBankedMaterials,
   isNormalizedRunMaterials,
   type NormalizedBankedMaterials,
+  type NormalizedCodexRewards,
   type NormalizedRunMaterials
 } from "./material_state.js";
 
@@ -97,7 +99,7 @@ export interface NormalizedCurrentRun {
   visitedMilestoneMerchants: NormalizedVisitedMilestoneMerchants;
   quests: NormalizedRunQuest[];
   defeatsByRole: NormalizedDefeatsByRole;
-  codexRewards: Record<string, unknown>;
+  codexRewards: NormalizedCodexRewards;
   departureItems: RuntimeItemCollection;
   departureEquipment: Record<string, unknown>;
   firstKillsBefore: unknown[];
@@ -117,7 +119,7 @@ const NUMBER_FIELDS = [
 
 const RECORD_FIELDS = [
   "eventObservations",
-  "eliteOmenSteps", "codexRewards",
+  "eliteOmenSteps",
   "departureEquipment"
 ] as const;
 
@@ -142,6 +144,7 @@ const REQUIRED_FIELDS = [
   "eliteFloors", "eliteDefeatedFloors",
   "defeatedMilestones", "visitedMilestoneMerchants",
   "materials", "bankedMaterials", "defeatsByRole",
+  "codexRewards",
   ...RECORD_FIELDS,
   ...ARRAY_FIELDS,
   ...ITEM_COLLECTION_FIELDS
@@ -178,6 +181,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!isNormalizedRunMaterials(value.materials) || !isNormalizedBankedMaterials(value.bankedMaterials)) {
     return false;
   }
+  if (!isNormalizedCodexRewards(value.codexRewards)) return false;
   if (!isNormalizedFloorSteps(value.floorSteps)) return false;
   if (!isNormalizedCampRested(value.campRested)) return false;
   if (!isNormalizedPendingCampEntryFloor(value.pendingCampEntryFloor)) return false;
