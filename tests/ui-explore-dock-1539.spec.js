@@ -1,5 +1,8 @@
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { test, expect } from './fixtures/browser-health.js';
+
+const EVIDENCE_DIR = resolve(process.env.ISSUE_1539_EVIDENCE_DIR || 'output/playwright/issue-1539');
 
 const VIEWPORTS = [
   { width: 320, height: 568 },
@@ -106,13 +109,14 @@ test('Explore Dock keeps primary movement separated and tappable at required mob
     expect(evidence.buttons['btn-move-backward'].x).toBeLessThan(evidence.buttons['btn-turn-right'].x);
 
     const raw = Buffer.from(JSON.stringify(evidence, null, 2));
-    const rawPath = testInfo.outputPath(`issue-1539-explore-dock-${viewport.width}x${viewport.height}-raw.json`);
+    mkdirSync(EVIDENCE_DIR, { recursive: true });
+    const rawPath = join(EVIDENCE_DIR, `issue-1539-explore-dock-${viewport.width}x${viewport.height}-raw.json`);
     writeFileSync(rawPath, raw);
     await testInfo.attach(`issue-1539-explore-dock-${viewport.width}x${viewport.height}-raw`, {
       path: rawPath,
       contentType: 'application/json',
     });
-    const screenshotPath = testInfo.outputPath(`issue-1539-explore-dock-${viewport.width}x${viewport.height}.png`);
+    const screenshotPath = join(EVIDENCE_DIR, `issue-1539-explore-dock-${viewport.width}x${viewport.height}.png`);
     await page.screenshot({ path: screenshotPath, fullPage: true });
     await testInfo.attach(`issue-1539-explore-dock-${viewport.width}x${viewport.height}`, {
       path: screenshotPath,

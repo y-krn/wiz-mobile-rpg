@@ -138,10 +138,6 @@
   min-width: 0;
 }
 
-.dpad > div {
-  display: none;
-}
-
 .dpad .btn-dpad {
   border-color: var(--border-strong);
   color: var(--text-secondary);
