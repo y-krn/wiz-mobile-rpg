@@ -6161,6 +6161,36 @@ function getCombatPolicyProbeAction(state) {
   });
 }
 
+function compactCombatAction(action) {
+  return {
+    type: action?.type || null,
+    itemKey: action?.itemKey || null,
+    spellName: action?.spellName || null
+  };
+}
+
+export function finalizeB5GuardianDecisionTrace(
+  trace,
+  { actionObservation = null, itemInventoryDelta = null } = {}
+) {
+  const selectedAction = trace?.actualAction || null;
+  const observationExecuted = actionObservation?.executed === true;
+  const normalizedItemDelta = Number.isFinite(Number(itemInventoryDelta))
+    ? Number(itemInventoryDelta)
+    : null;
+  const executed = selectedAction?.type === "item"
+    ? normalizedItemDelta === null
+      ? observationExecuted
+      : normalizedItemDelta > 0
+    : observationExecuted;
+  if (!trace) return null;
+  trace.executed = executed;
+  trace.executionObservationExecuted = observationExecuted;
+  trace.itemInventoryDelta = normalizedItemDelta;
+  trace.executedAction = executed ? { ...selectedAction } : null;
+  return trace;
+}
+
 function createCombatPolicyProbeMetrics() {
   return {
     rounds: 0,
@@ -6490,14 +6520,11 @@ function getPaymentObservation(state, spellName, reserveMp = 0) {
   };
 }
 
-function recordB5GuardianFleeEvObservation(
+export function recordB5GuardianFleeEvObservation(
   state,
   metrics,
-  evaluation,
-  recoveryItem,
-  diosAction,
-  policyProbeAction,
-  playerDamagePerRound
+  pendingDecision,
+  actualAction
 ) {
   const diagnostic = metrics?.b5GuardianFleeEvDiagnostic;
   const rule = getMilestoneBossRule(
@@ -6510,10 +6537,19 @@ function recordB5GuardianFleeEvObservation(
     state.floor !== 5 ||
     state.combatState?.isBoss !== true ||
     !rule ||
-    state.combatState.b5GuardianFirstEvObserved
+    !pendingDecision
   ) return;
 
   const character = state.party[0];
+  const {
+    evaluation,
+    recoveryItem,
+    diosAction,
+    policyProbeAction,
+    playerDamagePerRound,
+    eligibleOpeningItemKey,
+    fleeDeferredByOpening
+  } = pendingDecision;
   const preferredSpellName = policyProbeAction?.type === "spell"
     ? policyProbeAction.spellName
     : null;
@@ -6529,14 +6565,21 @@ function recordB5GuardianFleeEvObservation(
   const offensiveSpellNames = getSimulationActiveSpellKeys(character)
     .filter(spellName => SPELLS[spellName]?.target?.includes("enemy"));
   const boss = state.combatState.monsters.find(monster => monster.name === rule.bossName);
-  state.combatState.b5GuardianFirstEvObserved = true;
-  diagnostic.observations.push({
+  const trace = {
     attempt: state.combatState.guardianAttempt,
     retry: Number(state.combatState.guardianAttempt) > 1,
     round: state.combatState.roundNumber,
+    playerDecisionIndex: state.combatState.b5GuardianPlayerDecisionIndex + 1,
     decision: evaluation.decision,
     reason: evaluation.reason,
     terms: structuredClone(evaluation.terms),
+    eligibleOpeningItemKey,
+    fleeDeferredByOpening: Boolean(fleeDeferredByOpening),
+    actualAction: compactCombatAction(actualAction),
+    executed: null,
+    executionObservationExecuted: null,
+    itemInventoryDelta: null,
+    executedAction: null,
     hp: {
       current: character.hp,
       max: getCharMaxHp(character),
@@ -6571,6 +6614,7 @@ function recordB5GuardianFleeEvObservation(
     },
     playerDamagePerRound,
     guardian: {
+      hpBeforeDecision: boss?.hp ?? null,
       currentHp: boss?.hp ?? null,
       maxHp: boss?.maxHp ?? null,
       hpRate: boss?.maxHp > 0 ? boss.hp / boss.maxHp : null,
@@ -6581,7 +6625,14 @@ function recordB5GuardianFleeEvObservation(
       exposureTurns: rule.exposureTurns,
       exposureDamageMultiplier: rule.exposureDamageMultiplier
     }
-  });
+  };
+  state.combatState.b5GuardianPlayerDecisionIndex++;
+  diagnostic.decisionTrace.push(trace);
+  if (!state.combatState.b5GuardianFirstEvObserved) {
+    state.combatState.b5GuardianFirstEvObserved = true;
+    diagnostic.observations.push(trace);
+  }
+  return trace;
 }
 
 function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = null) {
@@ -6605,7 +6656,6 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
   const shouldObserveGuardian = state.simPolicy.b5GuardianFleeEvObservation === true &&
     state.floor === 5 &&
     state.combatState.isBoss === true &&
-    !state.combatState.b5GuardianFirstEvObserved &&
     state.combatState.monsters.some(monster => monster.name === "デーモンガード");
   const evaluation = shouldObserveGuardian
     ? evaluateCombatRecoveryAction(recoveryArgs)
@@ -6616,15 +6666,18 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
     ? getCombatPolicyProbeAction(state)
     : null;
   if (evaluation) {
-    recordB5GuardianFleeEvObservation(
-      state,
-      metrics,
+    const eligibleOpeningItemKey = getEligibleBossOpeningItemKey(state);
+    state.combatState.b5GuardianPendingDecision = {
       evaluation,
       recoveryItem,
       diosAction,
       policyProbeAction,
-      recoveryArgs.playerDamagePerRound
-    );
+      playerDamagePerRound: recoveryArgs.playerDamagePerRound,
+      eligibleOpeningItemKey,
+      fleeDeferredByOpening: decisionEvaluation.decision === "flee" &&
+        decisionEvaluation.reason === "flee-survival-deficit" &&
+        eligibleOpeningItemKey !== null
+    };
   }
   recordDamageEstimateDecision(metrics, state, recoveryArgs.playerDamagePerRound, decision);
   if (decision === "flee") {
@@ -8158,7 +8211,9 @@ function runEncounter(
     phase: "choose_actions",
     roundNumber: 1,
     guardianAttempt,
-    b5GuardianFirstEvObserved: false
+    b5GuardianFirstEvObserved: false,
+    b5GuardianPlayerDecisionIndex: 0,
+    b5GuardianPendingDecision: null
   };
   const milestoneBossRule = getMilestoneBossRule(state.floor, monsters[0]?.name, { isBoss });
   const guardianRetryEnabled = Boolean(
@@ -8202,6 +8257,8 @@ function runEncounter(
   const bossStartExposureTurns = Number(boss?.b5ExposureTurns || 0);
   let bossHpMinimum = boss?.hp ?? null;
   const actionTypes = [];
+  const actionSignatures = [];
+  const executedActionSignatures = [];
   let encounterMinimumMp = encounterStartMp;
   const blockedRounds = [];
   const stage15Encounter = metrics?.stage15Diagnostics && encounterFloor <= STAGE15_MAX_FLOOR
@@ -8567,6 +8624,8 @@ function runEncounter(
       productionLevelUpRecoveryHp,
       triggerChest,
       actionTypes,
+      actionSignatures,
+      executedActionSignatures,
       bossStartHp,
       bossStartMaxHp,
       bossStartGuardBroken,
@@ -8593,6 +8652,17 @@ function runEncounter(
 
     const action = selectCombatAction(state, metrics);
     actionTypes.push(action.type);
+    actionSignatures.push(compactCombatAction(action));
+    let selectedDecisionTrace = null;
+    if (state.combatState.b5GuardianPendingDecision) {
+      selectedDecisionTrace = recordB5GuardianFleeEvObservation(
+        state,
+        metrics,
+        state.combatState.b5GuardianPendingDecision,
+        action
+      );
+      state.combatState.b5GuardianPendingDecision = null;
+    }
     recordDamageEstimateAction(metrics, state, action);
     const policyProbeAction = getCombatPolicyProbeAction(state);
     recordCombatPolicyProbe(state, metrics, policyProbeAction, action);
@@ -8976,6 +9046,20 @@ function runEncounter(
     const playerActionObservation = (roundResult.actionObservations || []).find(observation =>
       observation.actor === "char" && observation.actionType === action.type
     ) || null;
+    const itemInventoryDelta = action.type === "item" && consumableCountBefore !== null
+      ? consumableCountBefore - state.inventory.filter(item => item === action.itemKey).length
+      : null;
+    if (selectedDecisionTrace) {
+      finalizeB5GuardianDecisionTrace(selectedDecisionTrace, {
+        actionObservation: playerActionObservation,
+        itemInventoryDelta
+      });
+    }
+    const playerActionExecuted = playerActionObservation?.executed === true ||
+      (action.type === "item" && itemInventoryDelta !== null && itemInventoryDelta > 0);
+    executedActionSignatures.push(
+      playerActionExecuted ? compactCombatAction(action) : null
+    );
     const enemyActionDetails = fullDiagnostics
       ? buildEnemyActionDetails(roundResult, roundNumber, character.name)
       : null;
@@ -14842,6 +14926,36 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
         stock: { ...observation.stock },
         hp: { ...observation.hp },
         mp: { ...observation.mp },
+        actualAction: { ...observation.actualAction },
+        executedAction: observation.executedAction ? { ...observation.executedAction } : null,
+        recovery: observation.recovery ? {
+          ...observation.recovery,
+          diosPayment: observation.recovery.diosPayment
+            ? { ...observation.recovery.diosPayment }
+            : null
+        } : null,
+        preferredAction: observation.preferredAction ? {
+          ...observation.preferredAction,
+          payment: observation.preferredAction.payment
+            ? { ...observation.preferredAction.payment }
+            : null
+        } : null,
+        offensiveSpell: observation.offensiveSpell
+          ? { ...observation.offensiveSpell, names: [...observation.offensiveSpell.names] }
+          : null,
+        guardian: observation.guardian ? { ...observation.guardian } : null,
+        productionBossRule: observation.productionBossRule
+          ? { ...observation.productionBossRule }
+          : null
+      })),
+      decisionTrace: metrics.b5GuardianFleeEvDiagnostic.decisionTrace.map(observation => ({
+        ...observation,
+        terms: { ...observation.terms },
+        stock: { ...observation.stock },
+        hp: { ...observation.hp },
+        mp: { ...observation.mp },
+        actualAction: { ...observation.actualAction },
+        executedAction: observation.executedAction ? { ...observation.executedAction } : null,
         recovery: observation.recovery ? {
           ...observation.recovery,
           diosPayment: observation.recovery.diosPayment
@@ -15496,7 +15610,8 @@ export function simulateRun({
     },
     b5GuardianFleeEvDiagnostic: {
       enabled: scenario.b5GuardianFleeEvObservation === true,
-      observations: []
+      observations: [],
+      decisionTrace: []
     },
     elitePolicy: state.simPolicy.elitePolicy,
     eliteEncounters: 0,
@@ -16310,6 +16425,10 @@ export function simulateRun({
               result: combatResult.result,
               rounds: combatResult.rounds,
               actionTypes: [...(combatResult.actionTypes || [])],
+              actionSignatures: (combatResult.actionSignatures || []).map(action => ({ ...action })),
+              executedActionSignatures: (combatResult.executedActionSignatures || []).map(action =>
+                action ? { ...action } : null
+              ),
               bossStartHp: combatResult.bossStartHp,
               bossStartMaxHp: combatResult.bossStartMaxHp,
               bossStartHpRate: combatResult.bossStartHp !== null && combatResult.bossStartMaxHp > 0
@@ -16381,6 +16500,10 @@ export function simulateRun({
                 : null,
               guardBreakCount: combatResult.bossGuardBreakCount,
               actionTypes: [...(combatResult.actionTypes || [])],
+              actionSignatures: (combatResult.actionSignatures || []).map(action => ({ ...action })),
+              executedActionSignatures: (combatResult.executedActionSignatures || []).map(action =>
+                action ? { ...action } : null
+              ),
               bossStartGuardBroken: combatResult.bossStartGuardBroken,
               bossStartExposureTurns: combatResult.bossStartExposureTurns
             });

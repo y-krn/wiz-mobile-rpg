@@ -882,6 +882,8 @@ export function runCombatRoundCalculation(
           processMonsterDefeat(monsters, finalTarget, logQueue);
         }
       } else if (act.type === "spell") {
+        actionObservation.executed = true;
+        actionObservation.hpBeforeExecution = char.hp;
         resolvePlayerSpell(char, act, state, monsters, logQueue, {
           rng,
           measurement,
