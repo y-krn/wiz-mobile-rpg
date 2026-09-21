@@ -1,0 +1,227 @@
+name: Issue 1466 browser worker A-B measurement
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: issue-1466-worker-ab-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  browser-smoke:
+    name: worker=${{ matrix.worker }} repeat=${{ matrix.repeat }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - { worker: 1, repeat: 1 }
+          - { worker: 2, repeat: 1 }
+          - { worker: 1, repeat: 2 }
+          - { worker: 2, repeat: 2 }
+          - { worker: 1, repeat: 3 }
+          - { worker: 2, repeat: 3 }
+          - { worker: 1, repeat: 4 }
+          - { worker: 2, repeat: 4 }
+          - { worker: 1, repeat: 5 }
+          - { worker: 2, repeat: 5 }
+    permissions:
+      contents: read
+    env:
+      SOURCE_UNDER_TEST: 7419e86f61a2b900ef41cad01d19ef0081435128
+      PLAYWRIGHT_WORKERS: ${{ matrix.worker }}
+      PLAYWRIGHT_PORT: 16589
+    steps:
+      - name: Checkout fixed source
+        uses: actions/checkout@v4
+        with:
+          ref: 7419e86f61a2b900ef41cad01d19ef0081435128
+          fetch-depth: 1
+
+      - name: Initialize measurement
+        id: measurement
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/issue-1466"
+          date +%s%3N > "$RUNNER_TEMP/issue-1466/job-start-ms"
+          {
+            echo "source=$SOURCE_UNDER_TEST"
+            echo "workflow_sha=${GITHUB_SHA}"
+            echo "runner_name=${RUNNER_NAME}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            echo "image_os=${ImageOS:-unknown}"
+            echo "image_version=${ImageVersion:-unknown}"
+            echo "kernel=$(uname -srmo)"
+            echo "worker=$PLAYWRIGHT_WORKERS"
+            echo "repeat=${{ matrix.repeat }}"
+            echo "command=npm run test:browser:smoke"
+          } > "$RUNNER_TEMP/issue-1466/environment.txt"
+          {
+            echo '## Issue #1466 measurement'
+            echo
+            echo "- source: $SOURCE_UNDER_TEST"
+            echo "- worker: $PLAYWRIGHT_WORKERS"
+            echo "- repeat: ${{ matrix.repeat }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Start setup timer
+        shell: bash
+        run: date +%s%3N > "$RUNNER_TEMP/issue-1466/setup-start-ms"
+
+      - uses: ./.github/actions/setup-node-deps
+
+      - name: Capture setup metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          date +%s%3N > "$RUNNER_TEMP/issue-1466/setup-end-ms"
+          {
+            node --version
+            npm --version
+            node -p "'playwright=' + require('./node_modules/@playwright/test/package.json').version"
+            node -p "'chromium_revision=' + require('./node_modules/playwright-core/browsers.json').browsers.find(browser => browser.name === 'chromium').revision"
+          } > "$RUNNER_TEMP/issue-1466/tool-versions.txt"
+
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('./node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Start install-deps timer
+        shell: bash
+        run: date +%s%3N > "$RUNNER_TEMP/issue-1466/install-deps-start-ms"
+
+      - name: Install Chromium with OS dependencies on cache miss
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        id: install_with_deps
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Chromium OS dependencies on cache hit
+        id: install_deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Capture install-deps end
+        shell: bash
+        run: date +%s%3N > "$RUNNER_TEMP/issue-1466/install-deps-end-ms"
+
+      - name: Start smoke timer
+        shell: bash
+        run: date +%s%3N > "$RUNNER_TEMP/issue-1466/smoke-start-ms"
+
+      - name: Run browser smoke tests
+        id: smoke
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:browser:smoke 2>&1 | tee "$RUNNER_TEMP/issue-1466/browser-test.log"
+
+      - name: Capture smoke end
+        if: always()
+        shell: bash
+        run: date +%s%3N > "$RUNNER_TEMP/issue-1466/smoke-end-ms"
+
+      - name: Build sample metadata
+        if: always()
+        env:
+          PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright-cache.outputs.cache-hit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          date +%s%3N > "$RUNNER_TEMP/issue-1466/job-end-ms"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = path.join(process.env.RUNNER_TEMP, 'issue-1466');
+          const read = name => Number(fs.readFileSync(path.join(root, name), 'utf8').trim());
+          const log = fs.existsSync(path.join(root, 'browser-test.log'))
+            ? fs.readFileSync(path.join(root, 'browser-test.log'), 'utf8')
+            : '';
+          const durationMatches = [...log.matchAll(/\(([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m)\)/g)];
+          const durationSeconds = value => value[2] === 'ms'
+            ? Number(value[1]) / 1000
+            : value[2] === 'm' ? Number(value[1]) * 60 : Number(value[1]);
+          const reported = durationMatches.length > 0
+            ? durationSeconds(durationMatches.at(-1))
+            : null;
+          const count = pattern => (log.match(pattern) || []).length;
+          const firstNumber = pattern => log.match(pattern)?.[1] ? Number(log.match(pattern)[1]) : 0;
+          const metadata = {
+            sourceUnderTest: process.env.SOURCE_UNDER_TEST,
+            workflowSha: process.env.GITHUB_SHA,
+            runId: process.env.GITHUB_RUN_ID,
+            job: process.env.GITHUB_JOB,
+            worker: Number(process.env.PLAYWRIGHT_WORKERS),
+            repeat: Number('${{ matrix.repeat }}'),
+            runner: {
+              name: process.env.RUNNER_NAME,
+              os: process.env.RUNNER_OS,
+              arch: process.env.RUNNER_ARCH,
+              imageOs: process.env.ImageOS || 'unknown',
+              imageVersion: process.env.ImageVersion || 'unknown',
+            },
+            timingsMs: {
+              setup: read('setup-end-ms') - read('setup-start-ms'),
+              installDeps: read('install-deps-end-ms') - read('install-deps-start-ms'),
+              smoke: read('smoke-end-ms') - read('smoke-start-ms'),
+              measuredJob: read('job-end-ms') - read('job-start-ms'),
+            },
+            browserCacheHit: process.env.PLAYWRIGHT_CACHE_HIT === 'true',
+            browserInstallMode: process.env.PLAYWRIGHT_CACHE_HIT === 'true' ? 'install-deps chromium' : 'install --with-deps chromium',
+            playwrightReportedDurationSeconds: reported,
+            tests: {
+              passed: firstNumber(/(\d+)\s+passed\b/),
+              failed: firstNumber(/(\d+)\s+failed\b/),
+              skipped: firstNumber(/(\d+)\s+skipped\b/),
+              totalExpected: 104,
+              selection: 'npm run test:browser:smoke -> @smoke excluding @visual',
+            },
+            retries: count(/retry\s*#\d+/gi) + count(/retrying/gi),
+            flaky: count(/flaky/gi),
+            timeouts: count(/timeout|timed out/gi),
+            failures: {
+              stepOutcome: '${{ steps.smoke.outcome }}',
+              browserCrash: /browserType\.launch|target page, context or browser has been closed|browser has been closed|chromium.*(crash|crashed)/i.test(log),
+              launchError: /\[playwright-diagnostics\] launch error:/i.test(log),
+              portCollision: /port collision target|address already in use|EADDRINUSE/i.test(log),
+            },
+            diagnostics: {
+              pageerror: count(/pageerror:/gi),
+              consoleError: count(/console\.error:/gi),
+              requestFailed: count(/requestfailed:/gi),
+              isolationPass: log.includes('profile isolation: passed') && log.includes('temp/test-data isolation: passed'),
+              workerLine: log.match(/\[playwright-diagnostics\] worker count:.*$/m)?.[0] || null,
+            },
+            traceVideoScreenshotPolicy: 'config unchanged: retain-on-failure / retain-on-failure / only-on-failure',
+          };
+          fs.writeFileSync(path.join(root, 'sample.json'), `${JSON.stringify(metadata, null, 2)}\n`);
+          NODE
+          {
+            echo
+            echo '### Sample metadata'
+            echo
+            sed 's/^/- /' "$RUNNER_TEMP/issue-1466/environment.txt"
+            echo
+            cat "$RUNNER_TEMP/issue-1466/sample.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sample evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1466-worker-${{ matrix.worker }}-repeat-${{ matrix.repeat }}
+          path: |
+            ${{ runner.temp }}/issue-1466
+            test-results
+            playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
+          compression-level: 6
