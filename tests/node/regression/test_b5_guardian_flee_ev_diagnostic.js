@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 
 import {
   B5_GUARDIAN_FLEE_EV_MODE,
-  runMeasurement
+  buildGuardianDecisionTransitions,
+  runMeasurement,
+  summarizeGuardianOpeningTransitions
 } from "../../../scratch/measurements/first_band_build_formation.js";
 
 const result = await runMeasurement({
@@ -25,6 +27,52 @@ for (const kitId of result.configuration.startingKits) {
     assert.ok(Object.keys(diagnostic.reasons).length > 0);
     assert.ok(Object.keys(diagnostic.crossTabs.fleeReasonByAttempt).length >= 0);
   }
+  assert.ok(diagnostic.transitionsObserved >= 0);
+  assert.deepEqual(
+    Object.keys(diagnostic.openingTransitionsByItem),
+    ["GUARD_POTION", "STR_POTION", "HASTE_POTION"]
+  );
+}
+
+const terms = ({ expectedTurnsToWin = 5, survivalTurns = 2 } = {}) => ({
+  expectedTurnsToWin,
+  survivalTurns,
+  turnDeficit: expectedTurnsToWin - survivalTurns,
+  currentHp: 10,
+  hpRate: 0.5,
+  totalEnemyHp: 50,
+  playerDefense: 5,
+  incomingDamagePerRound: 4,
+  playerDamagePerRound: 10,
+  maxRecovery: 15,
+  recoverySurvivalTurns: 5
+});
+const action = itemKey => ({ type: "item", itemKey, spellName: null });
+const trace = [
+  { attempt: 1, playerDecisionIndex: 1, decision: "flee", reason: "flee-survival-deficit", terms: terms(), actualAction: action("GUARD_POTION"), executed: true, executedAction: action("GUARD_POTION"), eligibleOpeningItemKey: "GUARD_POTION", fleeDeferredByOpening: true },
+  { attempt: 1, playerDecisionIndex: 2, decision: "fight", reason: "fight-current-survival", terms: terms({ survivalTurns: 6 }), actualAction: { type: "fight", itemKey: null, spellName: null }, executed: true, executedAction: { type: "fight", itemKey: null, spellName: null }, eligibleOpeningItemKey: null, fleeDeferredByOpening: false },
+  { attempt: 1, playerDecisionIndex: 3, decision: "flee", reason: "flee-survival-deficit", terms: terms(), actualAction: action("STR_POTION"), executed: true, executedAction: action("STR_POTION"), eligibleOpeningItemKey: "STR_POTION", fleeDeferredByOpening: true },
+  { attempt: 1, playerDecisionIndex: 4, decision: "recover", reason: "recover-then-survive", terms: terms({ survivalTurns: 4 }), actualAction: { type: "item", itemKey: "HEAL_POTION", spellName: null }, executed: true, executedAction: { type: "item", itemKey: "HEAL_POTION", spellName: null }, eligibleOpeningItemKey: null, fleeDeferredByOpening: false },
+  { attempt: 1, playerDecisionIndex: 5, decision: "flee", reason: "flee-survival-deficit", terms: terms(), actualAction: action("HASTE_POTION"), executed: true, executedAction: action("HASTE_POTION"), eligibleOpeningItemKey: "HASTE_POTION", fleeDeferredByOpening: true },
+  { attempt: 1, playerDecisionIndex: 6, decision: "flee", reason: "flee-low-hp-recovery-insufficient", terms: terms({ survivalTurns: 1 }), actualAction: { type: "run", itemKey: null, spellName: null }, executed: true, executedAction: { type: "run", itemKey: null, spellName: null }, eligibleOpeningItemKey: null, fleeDeferredByOpening: false },
+  { attempt: 1, playerDecisionIndex: 7, decision: "flee", reason: "flee-survival-deficit", terms: terms(), actualAction: action("HASTE_POTION"), executed: false, executedAction: null, eligibleOpeningItemKey: "HASTE_POTION", fleeDeferredByOpening: true },
+  { attempt: 1, playerDecisionIndex: 8, decision: "fight", reason: "fight-current-survival", terms: terms({ survivalTurns: 6 }), actualAction: { type: "fight", itemKey: null, spellName: null }, executed: true, executedAction: { type: "fight", itemKey: null, spellName: null }, eligibleOpeningItemKey: null, fleeDeferredByOpening: false },
+  { attempt: 2, playerDecisionIndex: 1, decision: "flee", reason: "flee-survival-deficit", terms: terms(), actualAction: action("GUARD_POTION"), executed: true, executedAction: action("GUARD_POTION"), eligibleOpeningItemKey: "GUARD_POTION", fleeDeferredByOpening: true }
+];
+const transitions = buildGuardianDecisionTransitions(trace, "vanguard");
+const opening = summarizeGuardianOpeningTransitions(transitions);
+assert.equal(transitions.length, 7);
+assert.equal(opening.GUARD_POTION.nextDecision.fight.count, 1);
+assert.equal(opening.GUARD_POTION.boundaryCrossing.count, 1);
+assert.equal(opening.GUARD_POTION.boundaryCrossing.rate, 1);
+assert.equal(opening.STR_POTION.nextDecision.recover.count, 1);
+assert.equal(opening.HASTE_POTION.nextDecision.flee.count, 1);
+assert.equal(opening.HASTE_POTION.nextDecision.fight, undefined);
+for (const transition of transitions) {
+  assert.equal(
+    transition.delta.turnDeficit,
+    transition.delta.expectedTurnsToWin - transition.delta.survivalTurns
+  );
 }
 
 const {
