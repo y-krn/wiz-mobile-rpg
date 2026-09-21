@@ -33,6 +33,7 @@ import { expectedAutoBestWeapon } from "./preparation_power_factorial.js";
 import { CANONICAL_EQUIPMENT_UPDATE_POLICY_ID } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner } from "./measurement_env_signature.js";
+import { summarizeFleeTelemetry } from "./flee_telemetry.js";
 import { getMilestoneBossRule } from "../../src/rules/boss_rules.js";
 
 export const RUNNER_VERSION = "first-band-build-formation-v1";
@@ -249,7 +250,7 @@ function getMeasurementMode(mode) {
   if (mode === B5_GUARDIAN_FLEE_EV_MODE) {
     return {
       id: B5_GUARDIAN_FLEE_EV_MEASUREMENT_ID,
-      runnerVersion: "first-band-build-formation-v11",
+      runnerVersion: "first-band-build-formation-v12",
       armIds: B5_GUARDIAN_FLEE_EV_ARM_IDS,
       armDefinitions: { C: B5_GUARDIAN_RETRY_ARM_DEFINITIONS.C },
       preparationPotions: [4],
@@ -291,6 +292,7 @@ const PRODUCTION_PATHS = Object.freeze([
   "scratch/simulations/sim_recovery_policy.js",
   "scratch/measurements/early_run_attrition_trajectory.js",
   "scratch/measurements/first_band_build_formation.js",
+  "scratch/measurements/flee_telemetry.js",
   "scratch/measurements/preparation_power_factorial.js",
   "scratch/measurements/build_progression_audit.js",
   "src/state/initial_state.js",
@@ -713,6 +715,10 @@ export function buildGuardianStrFightCohorts(result, kitId = null, runIndex = nu
       const continuationRounds = (encounter?.rounds || []).filter(round =>
         transitionRound !== null && Number(round.round) >= transitionRound
       );
+      const fleeTelemetry = summarizeFleeTelemetry({
+        identity: { outcome: attempt?.result || null },
+        diagnostic: { rounds: continuationRounds }
+      });
       const terminalEnemy = encounter?.endEnemyHp?.find(enemy =>
         enemy.name === "デーモンガード"
       ) || encounter?.endEnemyHp?.[0] || null;
@@ -778,6 +784,9 @@ export function buildGuardianStrFightCohorts(result, kitId = null, runIndex = nu
         executedFleeActions: continuationTrace.filter(item =>
           item.executed === true && item.executedAction?.type === "run"
         ).length,
+        fleePartingAttackCount: fleeTelemetry.fleePartingAttackCount,
+        partingAttackDamageHp: fleeTelemetry.partingAttackDamageHp,
+        fleeDiedFromPartingAttack: fleeTelemetry.fleeDiedFromPartingAttack,
         transition: {
           hp: transitionHp,
           mp: transitionMp,
@@ -1669,6 +1678,12 @@ function summarizeGuardianStrFightRows(cohorts) {
     mpRecovered: cohortMetric(cohorts.map(item => item.resources?.mpRecovered)),
     decisionAttempts,
     executedFleeActions: cohortMetric(cohorts.map(item => item.executedFleeActions)),
+    fleePartingAttackCount: cohortMetric(cohorts.map(item => item.fleePartingAttackCount)),
+    partingAttackDamageHp: cohortMetric(cohorts.map(item => item.partingAttackDamageHp)),
+    fleeDiedFromPartingAttack: eventCount(
+      cohorts.reduce((total, item) => total + item.fleeDiedFromPartingAttack, 0),
+      cohorts.length
+    ),
     resourceUsage,
     spellUsage,
     executedActionUsage: actionUsage

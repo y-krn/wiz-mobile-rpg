@@ -32,6 +32,16 @@ for (const kitId of result.configuration.startingKits) {
   assert.ok(diagnostic.strFightCohort);
   assert.ok(diagnostic.strFightCohort.cohortN >= 0);
   assert.ok(Object.hasOwn(diagnostic.strFightCohort.outcomes, "victory") || diagnostic.strFightCohort.cohortN === 0);
+  for (const aggregate of [diagnostic.strFightCohort.all, ...Object.values(diagnostic.strFightCohort.byOutcome)]) {
+    for (const field of ["fleePartingAttackCount", "partingAttackDamageHp", "fleeDiedFromPartingAttack"]) {
+      assert.ok(Object.hasOwn(aggregate, field), `cohort aggregate missing ${field}`);
+    }
+  }
+  for (const sample of Object.values(diagnostic.strFightCohort.samples).flat()) {
+    for (const field of ["fleePartingAttackCount", "partingAttackDamageHp", "fleeDiedFromPartingAttack"]) {
+      assert.ok(Object.hasOwn(sample, field), `cohort sample missing ${field}`);
+    }
+  }
   assert.ok(Object.values(diagnostic.strFightCohort.samples)
     .reduce((total, samples) => total + samples.length, 0) <= 6);
   assert.deepEqual(
@@ -96,8 +106,30 @@ const cohortResult = {
       endEnemyHp: [{ name: "デーモンガード", hp: 20 - index * 5, maxHp: 100 }],
       rounds: [
         { round: 1, action: "item", itemKey: "STR_POTION", playerActionExecuted: true, mpBefore: 8, mpAfter: 8 },
-        { round: 2, action: "spell", spellName: "HALITO", playerActionExecuted: true, mpBefore: 8, mpAfter: 7 },
-        { round: 3, action: "item", itemKey: "HEAL_POTION", playerActionExecuted: true, mpBefore: 7, mpAfter: 7 }
+        {
+          round: 2,
+          action: "spell",
+          spellName: "HALITO",
+          playerActionExecuted: true,
+          mpBefore: 8,
+          mpAfter: 7,
+          fleeSelected: index >= 2,
+          fleeExecuted: index >= 2,
+          fleePartingAttack: index >= 2,
+          log: index >= 2 ? ["追撃！ 6のダメージ"] : []
+        },
+        {
+          round: 3,
+          action: "item",
+          itemKey: "HEAL_POTION",
+          playerActionExecuted: true,
+          mpBefore: 7,
+          mpAfter: 7,
+          fleeSelected: index === 1,
+          fleeExecuted: index === 1,
+          fleePartingAttack: index === 1,
+          log: index === 1 ? ["追撃！ 4のダメージ"] : []
+        }
       ]
     }))
   }
@@ -114,6 +146,16 @@ assert.equal(cohorts[0].guardianDamage, 60);
 assert.equal(cohorts[0].resources.itemCounts.HEAL_POTION, 1);
 assert.equal(cohorts[0].resources.mpSpent, 1);
 assert.equal(cohorts[0].executedFleeActions, 0);
+assert.equal(cohorts[1].fleePartingAttackCount, 1);
+assert.equal(cohorts[1].partingAttackDamageHp, 4);
+assert.equal(cohorts[1].fleeDiedFromPartingAttack, 0);
+assert.equal(cohorts[2].fleePartingAttackCount, 1);
+assert.equal(cohorts[2].partingAttackDamageHp, 6);
+assert.equal(cohorts[2].fleeDiedFromPartingAttack, 1);
+assert.equal(
+  cohorts.reduce((sum, cohort) => sum + cohort.partingAttackDamageHp, 0),
+  10
+);
 
 const terms = ({ expectedTurnsToWin = 5, survivalTurns = 2 } = {}) => ({
   expectedTurnsToWin,
