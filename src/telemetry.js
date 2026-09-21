@@ -29,6 +29,7 @@ import { RUNE_SUPPLY_BANDS, RUNES } from "./data/magic.js";
 import { resolveBuildSnapshot } from "./rules/build_snapshot.js";
 import { buildObjectLootStakeSnapshot } from "./rules/object_loot_stake.js";
 import { isStartingKitId } from "./state/starting_kit.js";
+import { isKnownDeathType } from "./state/death_logs.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -42,7 +43,6 @@ const VALID_COMBAT_RESULTS = new Set([
   "gameover",
   "other"
 ]);
-const VALID_DEATH_TYPES = new Set(["combat", "trap", "status"]);
 const PRE_INIT_BUFFER_LIMIT = 64;
 const SNAPSHOT_STAT_KEYS = [
   "spellGuard",
@@ -667,7 +667,7 @@ export function normalizeCombatResult(result) {
 }
 
 export function normalizeDeathType(type) {
-  return VALID_DEATH_TYPES.has(type) ? type : null;
+  return isKnownDeathType(type) ? type : null;
 }
 
 function normalizeDeathCause(cause) {

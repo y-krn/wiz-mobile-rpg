@@ -1,6 +1,6 @@
 import { DIR_N, START_X, START_Y } from "../data.js";
 import { createDefaultRecords } from "./records_state.js";
-import { normalizeDeathSource } from "./death_logs.js";
+import { normalizeDeathSource, normalizeRunDeathLog } from "./death_logs.js";
 import {
   COMBAT_LOG_PRESENTATION_KINDS,
   normalizeCombatLogPresentationKind,
@@ -246,12 +246,12 @@ export function recordCharDeath(stateObj, char, cause, details = null) {
   if (alreadyRecorded) return null;
 
   const turn = stateObj.combatState ? stateObj.combatState.roundNumber ?? null : null;
-  const deathLog = {
+  const deathLog = normalizeRunDeathLog({
     charName: char.name,
     cause: cause,
     floor: stateObj.floor,
     turn: turn
-  };
+  });
   if (details?.type && details?.source) {
     deathLog.type = details.type;
     deathLog.source = normalizeDeathSource(details.source);

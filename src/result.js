@@ -8,6 +8,7 @@ import { trackCombatEnd, trackLootStakeSnapshot, trackRunEnd } from "./telemetry
 import { processRunReturn } from "./systems/run_return.js";
 import { normalizeRunRecordResult } from "./state/run_record_result.js";
 import { normalizeStartingKitId } from "./state/starting_kit.js";
+import { normalizeDeathHistory, normalizeDeathHistoryEntry } from "./state/death_logs.js";
 import {
   normalizeRunFirstKillsBefore,
   normalizeRunKeyItemsBefore,
@@ -108,7 +109,7 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
 
     run.wipedFloor = state.floor;
 
-    const deathEntry = {
+    const deathEntry = normalizeDeathHistoryEntry({
       id: `death_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       endedAt: Date.now(),
       floor: state.floor,
@@ -127,10 +128,8 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
       deepestFloor: run.deepestFloor,
       kills: run.kills,
       chestsOpened: run.chestsOpened,
-    };
-    state.deathLogs ||= [];
-    state.deathLogs.unshift(deathEntry);
-    state.deathLogs = state.deathLogs.slice(0, 20);
+    });
+    state.deathLogs = normalizeDeathHistory([deathEntry, ...normalizeDeathHistory(state.deathLogs)]).slice(0, 20);
   }
 
   if (isDeath) {

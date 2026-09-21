@@ -5,6 +5,7 @@ test('real trap, status, and combat deaths keep structured causes', async ({ pag
 
   const deaths = await page.evaluate(async () => {
     const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+    const { isNormalizedRunDeathLog } = await import('/src/state/death_logs.ts');
     const { triggerTrap } = await import('/src/systems/traps.js');
     const { applyExplorationPoison } = await import('/src/movement.js');
     const { applyPartyDamage } = await import('/src/combat_logic/damage.js');
@@ -43,12 +44,18 @@ test('real trap, status, and combat deaths keep structured causes', async ({ pag
     applyPartyDamage(state, { actions: [] }, [], 'ゴブリン A', 1, 1);
     const combat = state.currentRun.deathLogs.at(-1);
 
-    return { trap, status, combat };
+    return {
+      trap,
+      status,
+      combat,
+      canonical: [trap, status, combat].every(isNormalizedRunDeathLog)
+    };
   });
 
   expect(deaths.trap).toMatchObject({ cause: '仕掛けられた罠', type: 'trap', source: '床のダメージ罠' });
   expect(deaths.status).toMatchObject({ cause: '毒のダメージ', type: 'status', source: '毒' });
   expect(deaths.combat).toMatchObject({ cause: 'ゴブリン Aの攻撃', type: 'combat', source: 'ゴブリン', turn: 3 });
+  expect(deaths.canonical).toBe(true);
 });
 
 test('spring poison uses the finite exploration lifecycle', async ({ page }) => {
@@ -131,6 +138,7 @@ test('stone tablet trap death is recorded instead of using the old fallback', as
   const death = await page.evaluate(async () => {
     const { state, createDefaultCurrentRun, createStartingKitCharacter, initNewGame } = await import('/src/state.js');
     const { renderEventTablet } = await import('/src/menu/explore_actions.js');
+    const { isNormalizedDeathHistoryEntry } = await import('/src/state/death_logs.ts');
 
     initNewGame();
     const character = createStartingKitCharacter('vanguard');
@@ -150,6 +158,7 @@ test('stone tablet trap death is recorded instead of using the old fallback', as
     return {
       runDeath: state.currentRun.deathLogs.at(-1),
       deathLog: state.deathLogs.at(-1),
+      canonical: isNormalizedDeathHistoryEntry(state.deathLogs.at(-1)),
       gameState: state.gameState,
     };
   });
@@ -157,6 +166,7 @@ test('stone tablet trap death is recorded instead of using the old fallback', as
   expect(death.gameState).toBe('result');
   expect(death.runDeath).toMatchObject({ cause: '石碑の罠', type: 'trap', source: '石碑の矢罠' });
   expect(death.deathLog).toMatchObject({ cause: '石碑の罠', type: 'trap', source: '石碑の矢罠' });
+  expect(death.canonical).toBe(true);
   expect(death.deathLog.cause).not.toBe('不測の罠またはダメージ');
 });
 

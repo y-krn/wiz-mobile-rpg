@@ -2,6 +2,7 @@
 
 import { isCharacterEquipment, type CharacterEquipment } from "./equipment.js";
 import { isNormalizedCurrentRun, type NormalizedCurrentRun } from "./run_state.js";
+import { isNormalizedDeathHistory, type NormalizedDeathHistory } from "./death_logs.js";
 import { isNormalizedStartingKitId, type NormalizedStartingKitId } from "./starting_kit.js";
 import {
   isInventoryCollection,
@@ -56,7 +57,7 @@ export interface NormalizedSavePayload {
   records: Record<string, unknown>;
   unlockedMilestones: number[];
   runHistory: unknown[];
-  deathLogs: unknown[];
+  deathLogs: NormalizedDeathHistory;
   codex: Record<string, unknown>;
   seed: string;
   gameState: PersistedGameState;
@@ -125,8 +126,9 @@ export function isNormalizedSavePayload(value: unknown): value is NormalizedSave
   if (!isRuntimeItemCollection(value.activeMerchantStock)) return false;
   if (!Array.isArray(value.maps) ||
       (value.visitedMaps !== null && value.visitedMaps !== undefined && !Array.isArray(value.visitedMaps))) return false;
-  if (![value.floorChestsOpened, value.floorChestsTotal, value.runHistory, value.deathLogs,
+  if (![value.floorChestsOpened, value.floorChestsTotal, value.runHistory,
     value.roamingMonsters, value.noiseEvents, value.keyItems].every(Array.isArray)) return false;
+  if (!isNormalizedDeathHistory(value.deathLogs)) return false;
   if (!isFiniteNumber(value.lightTurns) || typeof value.lightPower !== "string" ||
       !isFiniteNumber(value.repelTurns) || !isFiniteNumber(value.silenceTurns) ||
       !isFiniteNumber(value.forcedEncounterSteps) || !isFiniteNumber(value.roamingMovementStepCount) ||
