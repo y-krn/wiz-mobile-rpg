@@ -16,6 +16,7 @@ import { getEquipmentHands } from "../rules/equipment_hands.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 import { isRuntimeItemCollection, isRuntimeItemRef } from "./item.js";
 import { isNormalizedPendingRewardBundle } from "./pending_reward.js";
+import { normalizeRunQuest } from "./run_quest.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -702,7 +703,7 @@ function normalizeCurrentRun(run) {
     }
   });
 
-  normalized.quests = normalized.quests.filter(isRecord);
+  normalized.quests = normalized.quests.map(normalizeRunQuest).filter(isRecord);
   normalized.townInventory = normalized.townInventory.filter(item => item != null);
   normalized.unbankedObjectLoot = normalized.unbankedObjectLoot
     .filter(entry => isRecord(entry) && typeof entry.id === "string" && entry.item != null);
