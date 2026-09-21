@@ -26,6 +26,12 @@ import {
   type NormalizedPendingCampEntryFloor
 } from "./camp_state.js";
 import { isNormalizedFloorSteps, type NormalizedFloorSteps } from "./floor_steps.js";
+import {
+  isNormalizedBankedMaterials,
+  isNormalizedRunMaterials,
+  type NormalizedBankedMaterials,
+  type NormalizedRunMaterials
+} from "./material_state.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -52,8 +58,8 @@ export interface NormalizedCurrentRun {
   trapsTriggered: number;
   trapsDisarmed: number;
   expGained: number;
-  materials: Record<string, unknown>;
-  bankedMaterials: Record<string, unknown>;
+  materials: NormalizedRunMaterials;
+  bankedMaterials: NormalizedBankedMaterials;
   townInventory: RuntimeItemCollection;
   unbankedObjectLoot: NormalizedRunObjectLootEntry[];
   pendingRewardBundle: NormalizedPendingRewardBundle | null;
@@ -105,7 +111,7 @@ const NUMBER_FIELDS = [
 ] as const;
 
 const RECORD_FIELDS = [
-  "materials", "bankedMaterials", "eventObservations",
+  "eventObservations",
   "eliteOmenSteps", "defeatsByRole", "codexRewards",
   "departureEquipment"
 ] as const;
@@ -130,6 +136,7 @@ const REQUIRED_FIELDS = [
   "floorSteps",
   "eliteFloors", "eliteDefeatedFloors",
   "defeatedMilestones", "visitedMilestoneMerchants",
+  "materials", "bankedMaterials",
   ...RECORD_FIELDS,
   ...ARRAY_FIELDS,
   ...ITEM_COLLECTION_FIELDS
@@ -163,6 +170,9 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   }
   if (typeof value.returnReason !== "string" || !isRunOutcome(value.outcome)) return false;
   if (!RECORD_FIELDS.every(field => isRecord(value[field]))) return false;
+  if (!isNormalizedRunMaterials(value.materials) || !isNormalizedBankedMaterials(value.bankedMaterials)) {
+    return false;
+  }
   if (!isNormalizedFloorSteps(value.floorSteps)) return false;
   if (!isNormalizedCampRested(value.campRested)) return false;
   if (!isNormalizedPendingCampEntryFloor(value.pendingCampEntryFloor)) return false;

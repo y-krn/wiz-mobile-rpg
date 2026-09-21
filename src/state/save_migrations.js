@@ -35,6 +35,7 @@ import {
   normalizePendingCampEntryFloor
 } from "./camp_state.js";
 import { normalizeFloorSteps } from "./floor_steps.js";
+import { normalizeBankedMaterials, normalizeRunMaterials } from "./material_state.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -723,6 +724,8 @@ function normalizeCurrentRun(run, saveFloor) {
     }
   });
   normalized.floorSteps = normalizeFloorSteps(run.floorSteps);
+  normalized.materials = normalizeRunMaterials(run.materials);
+  normalized.bankedMaterials = normalizeBankedMaterials(run.bankedMaterials);
 
   const runSeed = normalizeRunSeed(run.runSeed);
   if (runSeed === undefined) delete normalized.runSeed;
