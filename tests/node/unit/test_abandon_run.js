@@ -88,10 +88,17 @@ assert.deepEqual(state.currentRun.lostMaterials, { "獣の牙": 7 });
 assert.equal(state.records.totalRuns, 1);
 assert.equal(state.records.deepestRetreat, 0);
 assert.equal(state.records.deepestDeath, 0);
+assert.equal(state.records.personalBests.deepestFloor, 5);
+assert.equal(state.records.adventureStats.reachedB5, 1);
 assert.equal(state.codex.stats.totalRuns, 1);
 assert.equal(state.codex.stats.totalDeaths, 0);
 assert.equal(state.deathLogs.length, 0);
 assert.equal(state.currentRun.recordResult.outcome, "abandon");
+assert.deepEqual(Object.keys(state.currentRun.recordResult).sort(), [
+  "depth", "milestones", "outcome", "runNumber", "updated", "updates"
+]);
+assert.equal(Object.hasOwn(state.currentRun.recordResult, "records"), false);
+assert.equal(Object.hasOwn(state.currentRun.recordResult, "personalBestUpdates"), false);
 assert.equal(state.runHistory[0].returnReason, "abandon");
 assert.equal(state.runHistory[0].outcome, "abandon");
 assert.equal(state.runHistory[0].lostUnidentifiedCount, 1);

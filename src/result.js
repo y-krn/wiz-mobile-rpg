@@ -6,6 +6,7 @@ import { updateRunQuests } from "./systems/run_quests.js";
 import { findMapCellByType } from "./rules/map_queries.js";
 import { trackCombatEnd, trackLootStakeSnapshot, trackRunEnd } from "./telemetry.js";
 import { processRunReturn } from "./systems/run_return.js";
+import { normalizeRunRecordResult } from "./state/run_record_result.js";
 
 export function triggerRunResult(reason, { salvageIds = null } = {}) {
   if (!state.currentRun || state.gameState === "result" || state.currentRun.returnReason) return;
@@ -72,7 +73,7 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
     outcome
   );
   state.records = recordResult.records;
-  run.recordResult = recordResult;
+  run.recordResult = normalizeRunRecordResult(recordResult);
   const danger = calculateDangerScore();
   run.dangerScore = danger.score;
   run.dangerRank = danger.rank;
