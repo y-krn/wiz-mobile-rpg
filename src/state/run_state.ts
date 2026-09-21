@@ -39,6 +39,10 @@ import {
   type NormalizedCodexRewards,
   type NormalizedRunMaterials
 } from "./material_state.js";
+import {
+  isNormalizedEventObservations,
+  type NormalizedEventObservations
+} from "./event_observation.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -72,7 +76,7 @@ export interface NormalizedCurrentRun {
   pendingRewardBundle: NormalizedPendingRewardBundle | null;
   bankedObjectLoot: RuntimeItemCollection;
   lostObjectLoot: RuntimeItemCollection;
-  eventObservations: Record<string, unknown>;
+  eventObservations: NormalizedEventObservations;
   returnedTownItems: RuntimeItemCollection;
   representativeItem: Record<string, unknown> | null;
   meaningfulItemHistory: unknown[];
@@ -118,7 +122,6 @@ const NUMBER_FIELDS = [
 ] as const;
 
 const RECORD_FIELDS = [
-  "eventObservations",
   "eliteOmenSteps",
   "departureEquipment"
 ] as const;
@@ -178,6 +181,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   }
   if (typeof value.returnReason !== "string" || !isRunOutcome(value.outcome)) return false;
   if (!RECORD_FIELDS.every(field => isRecord(value[field]))) return false;
+  if (!isNormalizedEventObservations(value.eventObservations)) return false;
   if (!isNormalizedRunMaterials(value.materials) || !isNormalizedBankedMaterials(value.bankedMaterials)) {
     return false;
   }
