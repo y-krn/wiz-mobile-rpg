@@ -551,7 +551,7 @@ const candidateContinuation = runB5GuardianCombinedCandidateContinuation({
   rngState: candidateBranchRngState
 });
 assert.equal(candidateContinuation.resolver, "production-runCombatRoundCalculation");
-assert.equal(candidateContinuation.policy, "duration-aware-outgoing+production-parity-incoming");
+assert.equal(candidateContinuation.policy, "static-outgoing+production-parity-incoming");
 assert.equal(candidateContinuation.initialStateMatchesBranchPoint, true);
 assert.equal(candidateContinuation.productionRngRestored, true);
 assert.equal(getSimulationRandomState(), candidateBranchRngState);
@@ -559,6 +559,30 @@ assert.equal(JSON.stringify(counterfactualState), candidateStateBefore);
 assert.ok(candidateContinuation.decisionTrace.length >= 1);
 assert.ok(candidateContinuation.roundsTrace.length >= 1);
 assert.ok(Object.hasOwn(candidateContinuation, "unsupportedThreats"));
+assert.ok(candidateContinuation.decisionTrace.every(trace =>
+  trace.candidateTerms?.expectedTurnsToWin === trace.productionTerms?.expectedTurnsToWin
+), "incoming-only candidate must keep production static ETW");
+
+const finiteBuffCandidateState = structuredClone(counterfactualState);
+finiteBuffCandidateState.simPolicy = {
+  ...finiteBuffCandidateState.simPolicy,
+  fleePolicy: "ev",
+  b5GuardianFleeEvObservation: true
+};
+finiteBuffCandidateState.party[0].buffs = [{ type: "atk", value: 100, turns: 1 }];
+finiteBuffCandidateState.combatState.monsters[0].hp = 1000;
+finiteBuffCandidateState.combatState.monsters[0].maxHp = 1000;
+resetSimulationRandom(123);
+const finiteBuffCandidate = runB5GuardianCombinedCandidateContinuation({
+  state: finiteBuffCandidateState,
+  rngState: getSimulationRandomState()
+});
+assert.ok(finiteBuffCandidate.decisionTrace.length >= 1);
+assert.equal(
+  finiteBuffCandidate.decisionTrace[0].candidateTerms.expectedTurnsToWin,
+  finiteBuffCandidate.decisionTrace[0].productionTerms.expectedTurnsToWin,
+  "finite ATK buff must not switch candidate to duration-aware outgoing ETW"
+);
 
 const focusedScenario = {
   ...getScenarioById("workshop-complete"),

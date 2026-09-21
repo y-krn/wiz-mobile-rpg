@@ -6781,6 +6781,11 @@ function getGuardianDurationAwareEvShadow(state, recoveryArgs, productionEvaluat
     expectedTurnsToWinOverride: durationAwareExpectedTurnsToWin,
     incomingDamagePerRoundOverride: incomingShadow.incoming.mean
   });
+  const incomingOnlyEvaluation = evaluateCombatRecoveryAction({
+    ...recoveryArgs,
+    expectedTurnsToWinOverride: productionEvaluation.terms.expectedTurnsToWin,
+    incomingDamagePerRoundOverride: incomingShadow.incoming.mean
+  });
   incomingShadow.survivalTurns = incomingShadowEvaluation.terms.survivalTurns;
   return {
     finiteAtkBuff,
@@ -6792,7 +6797,8 @@ function getGuardianDurationAwareEvShadow(state, recoveryArgs, productionEvaluat
       durationAwareExpectedTurnsToWin - productionEvaluation.terms.expectedTurnsToWin,
     shadowEvaluation,
     incomingShadow,
-    incomingShadowEvaluation
+    incomingShadowEvaluation,
+    incomingOnlyEvaluation
   };
 }
 
@@ -6987,8 +6993,7 @@ function cloneB5GuardianCandidateState(state) {
 
 function candidateDecisionTraceFromPending(state, pendingDecision, action) {
   const productionEvaluation = pendingDecision?.evaluation || null;
-  const candidateEvaluation = pendingDecision?.candidateEvaluation ||
-    pendingDecision?.incomingShadowEvaluation || null;
+  const candidateEvaluation = pendingDecision?.candidateEvaluation || null;
   const character = state.party[0];
   const boss = state.combatState.monsters.find(monster => monster.name === "デーモンガード") ||
     state.combatState.monsters[0] || null;
@@ -7163,7 +7168,7 @@ export function runB5GuardianCombinedCandidateContinuation({
   const continuation = summarizeNormalPhysicalContinuation(roundsTrace);
   return {
     resolver: "production-runCombatRoundCalculation",
-    policy: "duration-aware-outgoing+production-parity-incoming",
+    policy: "static-outgoing+production-parity-incoming",
     initialStateMatchesBranchPoint:
       JSON.stringify(branchPoint) === JSON.stringify(snapshotGuardianPairedState(state)),
     initialRngState: Number(rngState),
@@ -7276,10 +7281,15 @@ export function recordB5GuardianFleeEvObservation(
       shadowEvaluation?.incomingShadowEvaluation?.decision || null,
     durationIncomingShadowReason:
       shadowEvaluation?.incomingShadowEvaluation?.reason || null,
-    candidateDecision: shadowEvaluation?.incomingShadowEvaluation?.decision || null,
-    candidateReason: shadowEvaluation?.incomingShadowEvaluation?.reason || null,
-    candidateTerms: shadowEvaluation?.incomingShadowEvaluation?.terms
-      ? structuredClone(shadowEvaluation.incomingShadowEvaluation.terms)
+    candidateDecision: shadowEvaluation?.incomingOnlyEvaluation?.decision || null,
+    candidateReason: shadowEvaluation?.incomingOnlyEvaluation?.reason || null,
+    candidateTerms: shadowEvaluation?.incomingOnlyEvaluation?.terms
+      ? structuredClone(shadowEvaluation.incomingOnlyEvaluation.terms)
+      : null,
+    incomingOnlyDecision: shadowEvaluation?.incomingOnlyEvaluation?.decision || null,
+    incomingOnlyReason: shadowEvaluation?.incomingOnlyEvaluation?.reason || null,
+    incomingOnlyTerms: shadowEvaluation?.incomingOnlyEvaluation?.terms
+      ? structuredClone(shadowEvaluation.incomingOnlyEvaluation.terms)
       : null,
     durationAwareToIncomingShadowDecisionCrossing: shadowEvaluation
       ? {
@@ -7289,10 +7299,18 @@ export function recordB5GuardianFleeEvObservation(
           to: shadowEvaluation.incomingShadowEvaluation.decision
         }
       : null,
+    staticToIncomingOnlyDecisionCrossing: shadowEvaluation
+      ? {
+          crossed: evaluation.decision !== shadowEvaluation.incomingOnlyEvaluation.decision,
+          from: evaluation.decision,
+          to: shadowEvaluation.incomingOnlyEvaluation.decision
+        }
+      : null,
     incomingShadow: incomingShadow ? structuredClone(incomingShadow) : null,
     legacyIncomingDamage: evaluation.terms.incomingDamagePerRound,
     legacySurvivalTurns: evaluation.terms.survivalTurns,
     productionShadowSurvivalTurns: incomingShadow?.survivalTurns ?? null,
+    incomingOnlySurvivalTurns: shadowEvaluation?.incomingOnlyEvaluation?.terms?.survivalTurns ?? null,
     eligibleOpeningItemKey,
     fleeDeferredByOpening: Boolean(fleeDeferredByOpening),
     actualAction: compactCombatAction(actualAction),
@@ -7391,7 +7409,7 @@ function getEnemyAwareCombatAction(
     ? getGuardianDurationAwareEvShadow(state, recoveryArgs, evaluation)
     : null;
   const decisionEvaluation = getCombatRecoveryDecision(recoveryArgs);
-  const candidateEvaluation = shadowEvaluation?.incomingShadowEvaluation || null;
+  const candidateEvaluation = shadowEvaluation?.incomingOnlyEvaluation || null;
   const selectedEvaluation = candidatePolicy && candidateEvaluation
     ? candidateEvaluation
     : decisionEvaluation;
@@ -7413,6 +7431,7 @@ function getEnemyAwareCombatAction(
       expectedTurnsToWinDelta: shadowEvaluation?.expectedTurnsToWinDelta ?? 0,
       incomingShadow: shadowEvaluation?.incomingShadow || null,
       incomingShadowEvaluation: shadowEvaluation?.incomingShadowEvaluation || null,
+      incomingOnlyEvaluation: shadowEvaluation?.incomingOnlyEvaluation || null,
       candidateEvaluation,
       candidatePolicy,
       recoveryItem,
@@ -10078,6 +10097,12 @@ function runEncounter(
             durationAwareToIncomingShadowDecisionCrossing: structuredClone(
               productionDecisionTrace.durationAwareToIncomingShadowDecisionCrossing
             ),
+            staticToIncomingOnlyDecisionCrossing: structuredClone(
+              productionDecisionTrace.staticToIncomingOnlyDecisionCrossing
+            ),
+            incomingOnlyDecision: productionDecisionTrace.incomingOnlyDecision,
+            incomingOnlyReason: productionDecisionTrace.incomingOnlyReason,
+            incomingOnlyTerms: structuredClone(productionDecisionTrace.incomingOnlyTerms),
             atkBuff: structuredClone(productionDecisionTrace.atkBuff),
             currentDamageEstimate: productionDecisionTrace.currentDamageEstimate,
             baseDamageEstimate: productionDecisionTrace.baseDamageEstimate,
@@ -10088,7 +10113,8 @@ function runEncounter(
             shadowTerms: structuredClone(productionDecisionTrace.shadowTerms),
             incomingShadow: structuredClone(productionDecisionTrace.incomingShadow),
             legacySurvivalTurns: productionDecisionTrace.legacySurvivalTurns,
-            productionShadowSurvivalTurns: productionDecisionTrace.productionShadowSurvivalTurns
+            productionShadowSurvivalTurns: productionDecisionTrace.productionShadowSurvivalTurns,
+            incomingOnlySurvivalTurns: productionDecisionTrace.incomingOnlySurvivalTurns
           });
         }
         metrics.b5GuardianFleeEvDiagnostic.strFightPairs.push({
