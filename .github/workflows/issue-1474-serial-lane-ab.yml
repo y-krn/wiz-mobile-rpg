@@ -1,6 +1,8 @@
 name: Issue 1474 serial lane A-B measurement
 
 on:
+  push:
+    branches: [issue-1474-measurement]
   workflow_dispatch:
 
 concurrency:
