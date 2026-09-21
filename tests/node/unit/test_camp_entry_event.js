@@ -80,6 +80,7 @@ initNewGame();
 state.gameState = "explore";
 state.floor = 6;
 state.currentRun = createDefaultCurrentRun();
+state.currentRun.runSeed = "camp-resume-test";
 state.currentRun.defeatedMilestones = [5];
 state.currentRun.pendingCampEntryFloor = 6;
 state.currentRun.completedCampEntryFloors = [];
