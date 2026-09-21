@@ -67,6 +67,7 @@ export const B5_GUARDIAN_RETRY_ARM_IDS = Object.freeze(["C", "R"]);
 export const B5_GUARDIAN_FLEE_EV_MODE = "b5-guardian-flee-ev-diagnostic";
 export const B5_GUARDIAN_FLEE_EV_MEASUREMENT_ID = "first-band-b5-guardian-flee-ev-diagnostic";
 export const B5_GUARDIAN_FLEE_EV_ARM_IDS = Object.freeze(["C"]);
+export const GUARDIAN_STR_FIGHT_SAMPLE_LIMIT = 2;
 export const ARCANA_KIT_IDS = Object.freeze(["arcana"]);
 const GUARDIAN_OPENING_ITEM_KEYS = Object.freeze([
   "GUARD_POTION",
@@ -248,7 +249,7 @@ function getMeasurementMode(mode) {
   if (mode === B5_GUARDIAN_FLEE_EV_MODE) {
     return {
       id: B5_GUARDIAN_FLEE_EV_MEASUREMENT_ID,
-      runnerVersion: "first-band-build-formation-v10",
+      runnerVersion: "first-band-build-formation-v11",
       armIds: B5_GUARDIAN_FLEE_EV_ARM_IDS,
       armDefinitions: { C: B5_GUARDIAN_RETRY_ARM_DEFINITIONS.C },
       preparationPotions: [4],
@@ -651,7 +652,166 @@ export function summarizeGuardianOpeningTransitions(transitions) {
   }));
 }
 
-function normalizeGuardianFleeEv(result, kitId) {
+function guardianActionKey(action) {
+  return action?.type === "item"
+    ? `item:${action.itemKey || "unknown"}`
+    : action?.type === "spell"
+      ? `spell:${action.spellName || "unknown"}`
+      : action?.type || "unknown";
+}
+
+function guardianAttemptOutcome(result) {
+  if (result === "victory") return "victory";
+  if (result === "flee") return "laterFlee";
+  if (result === "death") return "death";
+  return result || "unobserved";
+}
+
+function sumFinite(values) {
+  return values.filter(Number.isFinite).reduce((sum, value) => sum + value, 0);
+}
+
+export function buildGuardianStrFightCohorts(result, kitId = null, runIndex = null) {
+  const trace = result?.b5GuardianFleeEvDiagnostic?.decisionTrace || [];
+  const bossBattle = (result?.specialBattles || []).find(item =>
+    item.type === "boss" && Number(item.floor) === 5
+  );
+  const bossAttempts = new Map((bossBattle?.attempts || []).map(attempt => [
+    String(attempt.attempt),
+    attempt
+  ]));
+  const bossDiagnostics = (result?.diagnostics?.encounters || [])
+    .filter(item => Number(item.floor) === 5 && item.type === "boss");
+  const traceByAttempt = new Map();
+  trace.forEach((observation, index) => {
+    const key = String(observation.attempt);
+    const rows = traceByAttempt.get(key) || [];
+    rows.push({ observation, index });
+    traceByAttempt.set(key, rows);
+  });
+  const cohorts = [];
+  traceByAttempt.forEach((rows, attemptKey) => {
+    rows.forEach(({ observation, index: traceIndex }, rowIndex) => {
+      const next = rows[rowIndex + 1]?.observation || null;
+      if (
+        observation.decision !== "flee" ||
+        observation.executed !== true ||
+        observation.executedAction?.type !== "item" ||
+        observation.executedAction.itemKey !== "STR_POTION" ||
+        !next ||
+        next.decision !== "fight" ||
+        Number(next.playerDecisionIndex) !== Number(observation.playerDecisionIndex) + 1
+      ) return;
+
+      const attempt = bossAttempts.get(attemptKey) || null;
+      const attemptNumber = Number(observation.attempt);
+      const encounter = bossDiagnostics[attemptNumber - 1] || null;
+      const continuationTrace = rows
+        .slice(rowIndex + 1)
+        .map(item => item.observation);
+      const transitionRound = finite(next.round);
+      const continuationRounds = (encounter?.rounds || []).filter(round =>
+        transitionRound !== null && Number(round.round) >= transitionRound
+      );
+      const terminalEnemy = encounter?.endEnemyHp?.find(enemy =>
+        enemy.name === "デーモンガード"
+      ) || encounter?.endEnemyHp?.[0] || null;
+      const transitionHp = finite(next.hp?.current);
+      const terminalHp = finite(encounter?.endHp);
+      const transitionMp = finite(next.mp?.current);
+      const terminalMp = finite(encounter?.endMp);
+      const transitionGuardianHp = finite(next.guardian?.currentHp);
+      const terminalGuardianHp = finite(terminalEnemy?.hp) ?? (
+        attempt?.result === "victory" ? 0 : null
+      );
+      const itemCounts = {};
+      const spellCounts = {};
+      continuationRounds
+        .filter(round => round.playerActionExecuted === true)
+        .forEach(round => {
+          if (round.action === "item" && round.itemKey) {
+            itemCounts[round.itemKey] = (itemCounts[round.itemKey] || 0) + 1;
+          }
+          if (round.action === "spell" && round.spellName) {
+            spellCounts[round.spellName] = (spellCounts[round.spellName] || 0) + 1;
+          }
+        });
+      const mpSpent = sumFinite(continuationRounds
+        .filter(round => round.playerActionExecuted === true && round.action === "spell")
+        .map(round => {
+          const before = finite(round.mpBefore);
+          const after = finite(round.mpAfter);
+          return before === null || after === null ? null : Math.max(0, before - after);
+        }));
+      const mpRecovered = sumFinite(continuationRounds
+        .filter(round => round.playerActionExecuted === true && round.action === "item" && round.itemKey === "MANA_POTION")
+        .map(round => {
+          const before = finite(round.mpBefore);
+          const after = finite(round.mpAfter);
+          return before === null || after === null ? null : Math.max(0, after - before);
+        }));
+      cohorts.push({
+        kit: kitId,
+        runIndex,
+        attempt: attemptNumber,
+        traceIndex,
+        rawReason: observation.reason || null,
+        transitionRound,
+        terminalOutcome: guardianAttemptOutcome(attempt?.result),
+        additionalDecisions: continuationTrace.length,
+        additionalRounds: continuationRounds.length,
+        decisionCounts: Object.fromEntries(["recovery", "fight", "flee"].map(decision => [
+          decision,
+          continuationTrace.filter(item =>
+            item.decision === (decision === "recovery" ? "recover" : decision)
+          ).length
+        ])),
+        executedActionCounts: Object.fromEntries(
+          continuationTrace
+            .filter(item => item.executed === true && item.executedAction)
+            .reduce((counts, item) => {
+              const key = guardianActionKey(item.executedAction);
+              counts.set(key, (counts.get(key) || 0) + 1);
+              return counts;
+            }, new Map())
+        ),
+        executedFleeActions: continuationTrace.filter(item =>
+          item.executed === true && item.executedAction?.type === "run"
+        ).length,
+        transition: {
+          hp: transitionHp,
+          mp: transitionMp,
+          guardianHp: transitionGuardianHp
+        },
+        terminal: {
+          hp: terminalHp,
+          mp: terminalMp,
+          guardianHp: terminalGuardianHp
+        },
+        guardianDamage: transitionGuardianHp === null || terminalGuardianHp === null
+          ? null
+          : Math.max(0, transitionGuardianHp - terminalGuardianHp),
+        hpDelta: transitionHp === null || terminalHp === null ? null : terminalHp - transitionHp,
+        hpLoss: transitionHp === null || terminalHp === null
+          ? null
+          : Math.max(0, transitionHp - terminalHp),
+        mpDelta: transitionMp === null || terminalMp === null ? null : terminalMp - transitionMp,
+        mpLoss: transitionMp === null || terminalMp === null
+          ? null
+          : Math.max(0, transitionMp - terminalMp),
+        resources: {
+          itemCounts,
+          spellCounts,
+          mpSpent,
+          mpRecovered
+        }
+      });
+    });
+  });
+  return cohorts;
+}
+
+function normalizeGuardianFleeEv(result, kitId, runIndex = null) {
   const diagnostic = result.b5GuardianFleeEvDiagnostic;
   if (!diagnostic) return null;
   const decisionTrace = (diagnostic.decisionTrace || []).map(observation => ({
@@ -714,6 +874,7 @@ function normalizeGuardianFleeEv(result, kitId) {
         ? { ...observation.productionBossRule }
         : null
     })),
+    strFightCohorts: buildGuardianStrFightCohorts(result, kitId, runIndex),
     decisionTrace,
     transitions: buildGuardianDecisionTransitions(decisionTrace, kitId)
   };
@@ -884,14 +1045,14 @@ function normalizeB5Entry(result, route) {
   };
 }
 
-export function normalizeB5(result, record, kitId = null) {
+export function normalizeB5(result, record, kitId = null, runIndex = null) {
   const entrant = Boolean(result.b5Entrant);
   const route = (result.specialRouteFloors || []).find(item => Number(item.floor) === 5);
   if (!entrant) {
     return {
       status: "unreachable",
       guardianRetry: normalizeGuardianRetry(result),
-      guardianFleeEv: normalizeGuardianFleeEv(result, kitId),
+      guardianFleeEv: normalizeGuardianFleeEv(result, kitId, runIndex),
       guardianActionSequence: normalizeGuardianActionSequence(result),
       entryParity: normalizeB5Entry(result, route)
     };
@@ -961,7 +1122,7 @@ export function normalizeB5(result, record, kitId = null) {
     returnAfterBossBeforeB6: record.outcome.voluntaryReturn && bossStarted && !reachedB6,
     b6Transition: reachedB6,
     guardianRetry: normalizeGuardianRetry(result),
-    guardianFleeEv: normalizeGuardianFleeEv(result, kitId),
+    guardianFleeEv: normalizeGuardianFleeEv(result, kitId, runIndex),
     guardianActionSequence: normalizeGuardianActionSequence(result),
     entryParity: normalizeB5Entry(result, route)
   };
@@ -1063,7 +1224,7 @@ function compactDiagnostic(result, context) {
     terminalLoss,
     reconciliation: manaAcquired === manaConsumed + manaRemaining + terminalLoss
   };
-  record.b5 = normalizeB5(result, record, context.startingKitId);
+  record.b5 = normalizeB5(result, record, context.startingKitId, context.runIndex);
   if (context.b5Intervention) {
     record.b5.intervention = {
       flameTrapDisabled: context.b5Intervention.b5FlameTrapDisabled === true,
@@ -1448,11 +1609,100 @@ function crossTab(rows, leftKey, rightKey) {
   ]));
 }
 
+function cohortMetric(values) {
+  const observed = values.filter(Number.isFinite);
+  return {
+    ...distribution90(observed),
+    total: sumFinite(observed),
+    meanPerCohort: observed.length ? sumFinite(observed) / observed.length : null
+  };
+}
+
+const GUARDIAN_STR_FIGHT_RESOURCE_KEYS = Object.freeze([
+  "HEAL_POTION",
+  "GREATER_HEAL",
+  "MANA_POTION",
+  "GUARD_POTION",
+  "STR_POTION",
+  "HASTE_POTION",
+  "HOLY_WATER",
+  "ANTIDOTE"
+]);
+
+function summarizeGuardianStrFightRows(cohorts) {
+  const decisionKeys = ["recovery", "fight", "flee"];
+  const decisionAttempts = Object.fromEntries(decisionKeys.map(key => [
+    key,
+    cohortMetric(cohorts.map(item => Number(item.decisionCounts?.[key] || 0)))
+  ]));
+  const resourceUsage = Object.fromEntries(GUARDIAN_STR_FIGHT_RESOURCE_KEYS.map(itemKey => {
+    const values = cohorts.map(item => Number(item.resources?.itemCounts?.[itemKey] || 0));
+    return [itemKey, {
+      ...cohortMetric(values),
+      used: eventCount(values.filter(value => value > 0).length, cohorts.length)
+    }];
+  }));
+  const spellUsage = countRateBy(
+    cohorts.flatMap(item => Object.keys(item.resources?.spellCounts || {})),
+    cohorts.length
+  );
+  const actionUsage = countRateBy(
+    cohorts.flatMap(item => Object.keys(item.executedActionCounts || {})),
+    cohorts.length
+  );
+  return {
+    cohortN: cohorts.length,
+    additionalDecisions: cohortMetric(cohorts.map(item => item.additionalDecisions)),
+    additionalRounds: cohortMetric(cohorts.map(item => item.additionalRounds)),
+    guardianDamage: cohortMetric(cohorts.map(item => item.guardianDamage)),
+    hpAtTransition: cohortMetric(cohorts.map(item => item.transition?.hp)),
+    hpAtTerminal: cohortMetric(cohorts.map(item => item.terminal?.hp)),
+    hpLoss: cohortMetric(cohorts.map(item => item.hpLoss)),
+    hpDelta: cohortMetric(cohorts.map(item => item.hpDelta)),
+    guardianHpAtTransition: cohortMetric(cohorts.map(item => item.transition?.guardianHp)),
+    guardianHpAtTerminal: cohortMetric(cohorts.map(item => item.terminal?.guardianHp)),
+    mpAtTransition: cohortMetric(cohorts.map(item => item.transition?.mp)),
+    mpAtTerminal: cohortMetric(cohorts.map(item => item.terminal?.mp)),
+    mpLoss: cohortMetric(cohorts.map(item => item.mpLoss)),
+    mpDelta: cohortMetric(cohorts.map(item => item.mpDelta)),
+    mpSpent: cohortMetric(cohorts.map(item => item.resources?.mpSpent)),
+    mpRecovered: cohortMetric(cohorts.map(item => item.resources?.mpRecovered)),
+    decisionAttempts,
+    executedFleeActions: cohortMetric(cohorts.map(item => item.executedFleeActions)),
+    resourceUsage,
+    spellUsage,
+    executedActionUsage: actionUsage
+  };
+}
+
+function summarizeGuardianStrFightCohort(cohorts) {
+  const outcomes = ["victory", "laterFlee", "death"];
+  return {
+    cohortN: cohorts.length,
+    outcomes: countRateBy(cohorts.map(item => item.terminalOutcome), cohorts.length),
+    all: summarizeGuardianStrFightRows(cohorts),
+    byOutcome: Object.fromEntries(outcomes.map(outcome => {
+      const rows = cohorts.filter(item => item.terminalOutcome === outcome);
+      return [outcome, {
+        ...summarizeGuardianStrFightRows(rows),
+        rate: rate(rows.length, cohorts.length)
+      }];
+    })),
+    samples: Object.fromEntries(outcomes.map(outcome => [
+      outcome,
+      cohorts
+        .filter(item => item.terminalOutcome === outcome)
+        .slice(0, GUARDIAN_STR_FIGHT_SAMPLE_LIMIT)
+    ]))
+  };
+}
+
 function summarizeGuardianFleeEv(entrants) {
   const observations = entrants.flatMap(item => item.guardianFleeEv?.observations || []);
   const traces = entrants.flatMap(item => item.guardianFleeEv?.decisionTrace || []);
   const transitions = entrants.flatMap(item => item.guardianFleeEv?.transitions || []);
   const attempts = entrants.flatMap(item => item.guardianActionSequence || []);
+  const strFightCohorts = entrants.flatMap(item => item.guardianFleeEv?.strFightCohorts || []);
   const flee = observations.filter(item => item.decision === "flee");
   const fleeAttempts = attempts.filter(item => item.result === "flee");
   const decision = item => item.decision || "unknown";
@@ -1592,7 +1842,8 @@ function summarizeGuardianFleeEv(entrants) {
       traces.filter(item => item.decision === "flee").length
     ),
     transitionsObserved: transitions.length,
-    openingTransitionsByItem: summarizeGuardianOpeningTransitions(transitions)
+    openingTransitionsByItem: summarizeGuardianOpeningTransitions(transitions),
+    strFightCohort: summarizeGuardianStrFightCohort(strFightCohorts)
   };
 }
 
@@ -2509,6 +2760,10 @@ export function buildSummary(report) {
       const ev = aggregate.b5.guardianFleeEv;
       return `- ${label} trace: attempts=${ev.attemptsObserved}; selectedFirst=${JSON.stringify(ev.selectedFirstAction)}; executedFirst=${JSON.stringify(ev.executedFirstAction)}; selectedFleeIndex=${JSON.stringify(ev.selectedFleeDecisionIndex)}; executedFleeIndex=${JSON.stringify(ev.executedFleeDecisionIndex)}; selectedFleeRound=${JSON.stringify(ev.selectedFleeRound)}; executedFleeRound=${JSON.stringify(ev.executedFleeRound)}; selectedBeforeFlee=${JSON.stringify(ev.selectedActionsBeforeFlee)}; executedBeforeFlee=${JSON.stringify(ev.executedActionsBeforeFlee)}; selectedOpening=${JSON.stringify(ev.selectedOpeningItemUsage)}; openingUsed=${JSON.stringify(ev.openingItemUsage)}; bossHp%=${JSON.stringify(ev.bossHpAtFleeRate)}; guardianDamage=${JSON.stringify(ev.guardianDamageBeforeFlee)}; playerHp%=${JSON.stringify(ev.playerHpAtFleeRate)}; rawByIndex=${JSON.stringify(ev.rawDecisionByDecisionIndex)}; fleeDeferredByOpening=${JSON.stringify(ev.fleeDeferredByOpening)}; transitions=${ev.transitionsObserved}; openingTransitions=${JSON.stringify(ev.openingTransitionsByItem)}`;
     };
+    const strFightLine = (label, aggregate) => {
+      const cohort = aggregate.b5.guardianFleeEv.strFightCohort;
+      return `- ${label} STR→fight cohort: N=${cohort.cohortN}; outcomes=${JSON.stringify(cohort.outcomes)}; all=${JSON.stringify(cohort.all)}; byOutcome=${JSON.stringify(cohort.byOutcome)}; samples=${JSON.stringify(cohort.samples)}`;
+    };
     const lines = [
       "# First Band B5 Guardian flee EV diagnostic",
       "",
@@ -2520,13 +2775,15 @@ export function buildSummary(report) {
       diagnosticLine("C", report.arms.C.overview),
       crossTabLine("C", report.arms.C.overview),
       traceLine("C", report.arms.C.overview),
+      strFightLine("C", report.arms.C.overview),
       "",
       "## Kit",
       "",
       ...KIT_IDS.map(kitId => [
         diagnosticLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
         crossTabLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
-        traceLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate)
+        traceLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate),
+        strFightLine(`C/${kitId}`, report.arms.C.byKit[kitId].aggregate)
       ]).flat(),
       "",
       "- evaluator terms/reasons are observation-only; production policy, action ordering, thresholds, checkpoints, and RNG path unchanged."
