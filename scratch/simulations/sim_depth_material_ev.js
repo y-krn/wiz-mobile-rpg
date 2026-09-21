@@ -242,6 +242,10 @@ const {
   getCharMaxHp,
   getCharMaxMp,
   getCharTrapBonus,
+  getPhysicalDefenseResistance,
+  PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
+  calculatePhysicalDefenseFormula,
+  applyPhysicalResistance,
   resolveWeaponAttack,
   getCharTrapEaterBonus,
   getTrapEaterBonusAfterDisarm,
@@ -341,8 +345,12 @@ const {
 } = await import("../../src/combat_logic/status_effects.js");
 const {
   getEffectiveDef,
-  getMeleeModifiers
+  getEffectiveAtk,
+  getMeleeModifiers,
+  reduceIncomingDamage,
+  resolveGuardMitigation
 } = await import("../../src/combat_logic/damage.js");
+const { getEliteAttackMultiplier } = await import("../../src/combat_logic/monster_traits.js");
 const {
   applyWorkshopToCharacter,
   getDepartureCraftCost,
@@ -6559,6 +6567,173 @@ function getEvDamageEstimateWithoutFiniteAtkBuff(state, finiteAtkBuffValue) {
   return Math.max(1, damage);
 }
 
+const NORMAL_PHYSICAL_INCOMING_ROLLS = Object.freeze([0, 1, 2, 3]);
+
+function summarizeIncomingValues(values) {
+  const observed = values.filter(Number.isFinite);
+  return {
+    min: observed.length ? Math.min(...observed) : null,
+    mean: observed.length ? observed.reduce((sum, value) => sum + value, 0) / observed.length : null,
+    max: observed.length ? Math.max(...observed) : null
+  };
+}
+
+function addIncomingSummaries(left, right) {
+  return {
+    min: left.min === null || right.min === null ? null : left.min + right.min,
+    mean: left.mean === null || right.mean === null ? null : left.mean + right.mean,
+    max: left.max === null || right.max === null ? null : left.max + right.max
+  };
+}
+
+export function calculateProductionPhysicalIncomingHitShadow({
+  state,
+  monster,
+  target = state?.party?.[0],
+  targetIdx = 0,
+  includePhysGuard = true
+} = {}) {
+  const activeTarget = target || {};
+  const effectiveEnemyAtk = getEffectiveAtk(monster || {});
+  const eliteAttackMultiplier = getEliteAttackMultiplier(monster, activeTarget);
+  const activeDef = getBuffTotal(activeTarget, "def");
+  const frontGuard = targetIdx < 2 ? getCharAffixSum(activeTarget, "frontGuard") : 0;
+  const firstStrikeDefense = activeTarget.combatFirstStrikeActive
+    ? getCharAffixSum(activeTarget, "firstStrikeDefense")
+    : 0;
+  const tempDefDown = Number(activeTarget.tempDefDown) || 0;
+  const finalDef = calculatePhysicalDefenseFormula({
+    baseDef: getCharDef(activeTarget),
+    bonusDef: activeDef + frontGuard + firstStrikeDefense,
+    tempDefDown
+  });
+  const defResistance = getPhysicalDefenseResistance(
+    finalDef,
+    PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING
+  );
+  const physGuard = includePhysGuard
+    ? Math.min(60, getBuffTotal(activeTarget, "physGuard"))
+    : 0;
+  const rolls = NORMAL_PHYSICAL_INCOMING_ROLLS.map(randomRoll => {
+    const finalAtk = Math.max(
+      1,
+      Math.round((effectiveEnemyAtk + randomRoll) * eliteAttackMultiplier)
+    );
+    const formulaRaw = finalAtk;
+    const formulaDmg = Math.max(
+      1,
+      Math.floor(applyPhysicalResistance(formulaRaw, defResistance))
+    );
+    const preMitigationDmg = resolveGuardMitigation(activeTarget, formulaDmg, {
+      isDefending: false,
+      attackType: "physical"
+    });
+    const physGuardDmg = Math.max(
+      1,
+      Math.round(preMitigationDmg * (1 - physGuard / 100))
+    );
+    const reductionTarget = structuredClone(activeTarget);
+    if (!includePhysGuard) {
+      reductionTarget.buffs = (reductionTarget.buffs || [])
+        .filter(buff => buff?.type !== "physGuard");
+    }
+    const finalDmg = reduceIncomingDamage(
+      reductionTarget,
+      preMitigationDmg,
+      {
+        dragon: monster?.spriteType === "dragon" || monster?.tags?.includes("dragon"),
+        state: { floor: state?.floor }
+      }
+    );
+    return {
+      randomRoll,
+      effectiveEnemyAtk,
+      eliteAttackMultiplier,
+      finalAtk,
+      formulaRaw,
+      finalDef,
+      defResistance,
+      formulaDmg,
+      preMitigationDmg,
+      physGuard,
+      physGuardDmg,
+      finalDmg
+    };
+  });
+  const finalDamage = summarizeIncomingValues(rolls.map(roll => roll.finalDmg));
+  const formulaDamage = summarizeIncomingValues(rolls.map(roll => roll.formulaDmg));
+  const physGuardDamage = summarizeIncomingValues(rolls.map(roll => roll.physGuardDmg));
+  return {
+    attack: {
+      effectiveEnemyAtk,
+      eliteAttackMultiplier,
+      rolls: [...NORMAL_PHYSICAL_INCOMING_ROLLS],
+      finalAtk: summarizeIncomingValues(rolls.map(roll => roll.finalAtk))
+    },
+    defense: {
+      baseDef: getCharDef(activeTarget),
+      activeDef,
+      frontGuard,
+      firstStrikeDefense,
+      tempDefDown,
+      finalDef,
+      defResistance,
+      formulaDamage,
+      defReduction: summarizeIncomingValues(rolls.map(roll => roll.finalAtk - roll.formulaDmg))
+    },
+    physGuard: {
+      value: physGuard,
+      before: summarizeIncomingValues(rolls.map(roll => roll.preMitigationDmg)),
+      after: physGuardDamage,
+      reduction: summarizeIncomingValues(rolls.map(roll => roll.preMitigationDmg - roll.physGuardDmg))
+    },
+    incoming: finalDamage,
+    rolls,
+    noPhysGuard: includePhysGuard
+      ? calculateProductionPhysicalIncomingHitShadow({
+          state,
+          monster,
+          target,
+          targetIdx,
+          includePhysGuard: false
+        })
+      : null
+  };
+}
+
+export function calculateProductionPhysicalIncomingShadow({
+  state,
+  monsters = state?.combatState?.monsters?.filter(monster => monster.hp > 0) || [],
+  target = state?.party?.[0],
+  targetIdx = 0
+} = {}) {
+  const attacks = monsters.map(monster => calculateProductionPhysicalIncomingHitShadow({
+    state,
+    monster,
+    target,
+    targetIdx
+  }));
+  const incoming = attacks.reduce(
+    (summary, attack) => addIncomingSummaries(summary, attack.incoming),
+    { min: 0, mean: 0, max: 0 }
+  );
+  return {
+    attackCount: attacks.length,
+    effectiveEnemyAtk: attacks.reduce((sum, attack) => sum + attack.attack.effectiveEnemyAtk, 0),
+    incoming,
+    defReduction: attacks.reduce(
+      (summary, attack) => addIncomingSummaries(summary, attack.defense.defReduction),
+      { min: 0, mean: 0, max: 0 }
+    ),
+    physGuardReduction: attacks.reduce(
+      (summary, attack) => addIncomingSummaries(summary, attack.physGuard.reduction),
+      { min: 0, mean: 0, max: 0 }
+    ),
+    attacks,
+    survivalTurns: null
+  };
+}
+
 export function calculateDurationAwareExpectedTurnsToWin({
   totalEnemyHp,
   currentDamage,
@@ -6596,6 +6771,17 @@ function getGuardianDurationAwareEvShadow(state, recoveryArgs, productionEvaluat
     ...recoveryArgs,
     expectedTurnsToWinOverride: durationAwareExpectedTurnsToWin
   });
+  const incomingShadow = calculateProductionPhysicalIncomingShadow({
+    state,
+    target: character,
+    targetIdx: 0
+  });
+  const incomingShadowEvaluation = evaluateCombatRecoveryAction({
+    ...recoveryArgs,
+    expectedTurnsToWinOverride: durationAwareExpectedTurnsToWin,
+    incomingDamagePerRoundOverride: incomingShadow.incoming.mean
+  });
+  incomingShadow.survivalTurns = incomingShadowEvaluation.terms.survivalTurns;
   return {
     finiteAtkBuff,
     currentDamageEstimate,
@@ -6604,7 +6790,9 @@ function getGuardianDurationAwareEvShadow(state, recoveryArgs, productionEvaluat
     durationAwareExpectedTurnsToWin,
     expectedTurnsToWinDelta:
       durationAwareExpectedTurnsToWin - productionEvaluation.terms.expectedTurnsToWin,
-    shadowEvaluation
+    shadowEvaluation,
+    incomingShadow,
+    incomingShadowEvaluation
   };
 }
 
@@ -6709,6 +6897,15 @@ export function runB5GuardianImmediateFleeCounterfactual({ state, rngState, poli
 
   const terminal = snapshotGuardianPairedState(result.state);
   const fleeTelemetry = summarizeGuardianFleeRound(result.logQueue);
+  const continuation = summarizeNormalPhysicalContinuation([
+    {
+      enemyActionEvents: buildEnemyActionDetails(
+        result,
+        branchPoint.round,
+        state.party[0]?.name || ""
+      ).enemyActionEvents
+    }
+  ]);
   const survived = isAlive(result.state.party[0]);
   const resourcesConsumed = subtractGuardianInventory(
     branchPoint.inventory,
@@ -6740,7 +6937,8 @@ export function runB5GuardianImmediateFleeCounterfactual({ state, rngState, poli
       mp: Math.max(0, branchPoint.player.mp - terminal.player.mp)
     },
     partingAttackCount: fleeTelemetry.partingAttackCount,
-    partingDamage: fleeTelemetry.partingDamage
+    partingDamage: fleeTelemetry.partingDamage,
+    ...continuation
   };
 }
 
@@ -6774,6 +6972,8 @@ export function recordB5GuardianFleeEvObservation(
     staticExpectedTurnsToWin,
     durationAwareExpectedTurnsToWin,
     expectedTurnsToWinDelta,
+    incomingShadow,
+    incomingShadowEvaluation,
     recoveryItem,
     diosAction,
     policyProbeAction,
@@ -6824,6 +7024,22 @@ export function recordB5GuardianFleeEvObservation(
     shadowTerms: shadowEvaluation?.shadowEvaluation?.terms
       ? structuredClone(shadowEvaluation.shadowEvaluation.terms)
       : null,
+    durationIncomingShadowDecision:
+      shadowEvaluation?.incomingShadowEvaluation?.decision || null,
+    durationIncomingShadowReason:
+      shadowEvaluation?.incomingShadowEvaluation?.reason || null,
+    durationAwareToIncomingShadowDecisionCrossing: shadowEvaluation
+      ? {
+          crossed: shadowEvaluation.shadowEvaluation.decision !==
+            shadowEvaluation.incomingShadowEvaluation.decision,
+          from: shadowEvaluation.shadowEvaluation.decision,
+          to: shadowEvaluation.incomingShadowEvaluation.decision
+        }
+      : null,
+    incomingShadow: incomingShadow ? structuredClone(incomingShadow) : null,
+    legacyIncomingDamage: evaluation.terms.incomingDamagePerRound,
+    legacySurvivalTurns: evaluation.terms.survivalTurns,
+    productionShadowSurvivalTurns: incomingShadow?.survivalTurns ?? null,
     eligibleOpeningItemKey,
     fleeDeferredByOpening: Boolean(fleeDeferredByOpening),
     actualAction: compactCombatAction(actualAction),
@@ -6932,6 +7148,8 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
       durationAwareExpectedTurnsToWin: shadowEvaluation?.durationAwareExpectedTurnsToWin
         ?? evaluation.terms.expectedTurnsToWin,
       expectedTurnsToWinDelta: shadowEvaluation?.expectedTurnsToWinDelta ?? 0,
+      incomingShadow: shadowEvaluation?.incomingShadow || null,
+      incomingShadowEvaluation: shadowEvaluation?.incomingShadowEvaluation || null,
       recoveryItem,
       diosAction,
       policyProbeAction,
@@ -8311,6 +8529,24 @@ function buildEnemyActionDetails(roundResult, roundNumber, characterName) {
   return { enemyActionEvents: actionEvents, statusDamageEvents };
 }
 
+function summarizeNormalPhysicalContinuation(rounds = []) {
+  const enemyActions = rounds.flatMap(round => round.enemyActionEvents || []);
+  const normalHits = enemyActions.flatMap(action =>
+    (action.damageEvents || []).filter(event => event.source === "normal")
+  );
+  return {
+    enemyActionCount: enemyActions.length,
+    normalPhysicalHitCount: normalHits.length,
+    physicalDamageTotal: normalHits.reduce((sum, event) => sum + Number(event.damage || 0), 0),
+    physicalDamageMean: normalHits.length
+      ? normalHits.reduce((sum, event) => sum + Number(event.damage || 0), 0) / normalHits.length
+      : null,
+    nonDamagingOrSpecialEnemyActionCount: enemyActions.filter(action =>
+      !(action.damageEvents || []).some(event => event.source === "normal")
+    ).length
+  };
+}
+
 function runEncounter(
   state,
   observations,
@@ -8865,6 +9101,7 @@ function runEncounter(
       const continuationRows = (encounterDiagnostic?.rounds || []).filter(round =>
         Number(round.round) >= pair.productionDecisionRound
       );
+      const continuation = summarizeNormalPhysicalContinuation(continuationRows);
       const partingRows = continuationRows.filter(round => round.fleePartingAttack === true);
       const productionTerminal = snapshotGuardianPairedState(state);
       const productionOutcome = result === "flee"
@@ -8900,7 +9137,8 @@ function runEncounter(
         partingDamage: partingRows.flatMap(round => round.log || []).reduce((sum, message) => {
           const match = String(message).match(/追撃！.*?(\d+)のダメージ/);
           return sum + Number(match?.[1] || 0);
-        }, 0)
+        }, 0),
+        ...continuation
       };
       const immediate = pair.immediateFlee;
       pair.production = production;
@@ -9421,6 +9659,13 @@ function runEncounter(
             staticToShadowDecisionCrossing: structuredClone(
               productionDecisionTrace.staticToShadowDecisionCrossing
             ),
+            durationIncomingShadowDecision:
+              productionDecisionTrace.durationIncomingShadowDecision,
+            durationIncomingShadowReason:
+              productionDecisionTrace.durationIncomingShadowReason,
+            durationAwareToIncomingShadowDecisionCrossing: structuredClone(
+              productionDecisionTrace.durationAwareToIncomingShadowDecisionCrossing
+            ),
             atkBuff: structuredClone(productionDecisionTrace.atkBuff),
             currentDamageEstimate: productionDecisionTrace.currentDamageEstimate,
             baseDamageEstimate: productionDecisionTrace.baseDamageEstimate,
@@ -9428,7 +9673,10 @@ function runEncounter(
             durationAwareExpectedTurnsToWin:
               productionDecisionTrace.durationAwareExpectedTurnsToWin,
             expectedTurnsToWinDelta: productionDecisionTrace.expectedTurnsToWinDelta,
-            shadowTerms: structuredClone(productionDecisionTrace.shadowTerms)
+            shadowTerms: structuredClone(productionDecisionTrace.shadowTerms),
+            incomingShadow: structuredClone(productionDecisionTrace.incomingShadow),
+            legacySurvivalTurns: productionDecisionTrace.legacySurvivalTurns,
+            productionShadowSurvivalTurns: productionDecisionTrace.productionShadowSurvivalTurns
           });
         }
         metrics.b5GuardianFleeEvDiagnostic.strFightPairs.push({

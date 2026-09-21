@@ -715,6 +715,16 @@ export function buildGuardianStrFightCohorts(result, kitId = null, runIndex = nu
       const continuationRounds = (encounter?.rounds || []).filter(round =>
         transitionRound !== null && Number(round.round) >= transitionRound
       );
+      const continuationEnemyActions = continuationRounds.flatMap(round =>
+        round.enemyActionEvents || []
+      );
+      const continuationNormalHits = continuationEnemyActions.flatMap(action =>
+        (action.damageEvents || []).filter(event => event.source === "normal")
+      );
+      const continuationPhysicalDamageTotal = continuationNormalHits.reduce(
+        (sum, event) => sum + Number(event.damage || 0),
+        0
+      );
       const fleeTelemetry = summarizeFleeTelemetry({
         identity: { outcome: attempt?.result || null },
         diagnostic: { rounds: continuationRounds }
@@ -771,6 +781,15 @@ export function buildGuardianStrFightCohorts(result, kitId = null, runIndex = nu
         terminalOutcome: guardianAttemptOutcome(attempt?.result),
         additionalDecisions: continuationTrace.length,
         additionalRounds: continuationRounds.length,
+        normalPhysicalHitCount: continuationNormalHits.length,
+        physicalDamageTotal: continuationPhysicalDamageTotal,
+        physicalDamageMean: continuationNormalHits.length
+          ? continuationPhysicalDamageTotal / continuationNormalHits.length
+          : null,
+        enemyActionCount: continuationEnemyActions.length,
+        nonDamagingOrSpecialEnemyActionCount: continuationEnemyActions.filter(action =>
+          !(action.damageEvents || []).some(event => event.source === "normal")
+        ).length,
         decisionCounts: Object.fromEntries(["recovery", "fight", "flee"].map(decision => [
           decision,
           continuationTrace.filter(item =>
@@ -1674,6 +1693,13 @@ function summarizeGuardianStrFightRows(cohorts) {
     cohortN: cohorts.length,
     additionalDecisions: cohortMetric(cohorts.map(item => item.additionalDecisions)),
     additionalRounds: cohortMetric(cohorts.map(item => item.additionalRounds)),
+    normalPhysicalHitCount: cohortMetric(cohorts.map(item => item.normalPhysicalHitCount)),
+    physicalDamageTotal: cohortMetric(cohorts.map(item => item.physicalDamageTotal)),
+    physicalDamageMean: cohortMetric(cohorts.map(item => item.physicalDamageMean)),
+    enemyActionCount: cohortMetric(cohorts.map(item => item.enemyActionCount)),
+    nonDamagingOrSpecialEnemyActionCount: cohortMetric(
+      cohorts.map(item => item.nonDamagingOrSpecialEnemyActionCount)
+    ),
     guardianDamage: cohortMetric(cohorts.map(item => item.guardianDamage)),
     hpAtTransition: cohortMetric(cohorts.map(item => item.transition?.hp)),
     hpAtTerminal: cohortMetric(cohorts.map(item => item.terminal?.hp)),
@@ -1742,12 +1768,34 @@ function summarizeGuardianStrFightPairs(pairs) {
       pairs.map(pair => pair.productionDecision?.durationAwareShadowReason || "unobserved"),
       pairs.length
     ),
+    durationIncomingShadowDecision: countRateBy(
+      pairs.map(pair => pair.productionDecision?.durationIncomingShadowDecision || "unobserved"),
+      pairs.length
+    ),
+    durationIncomingShadowReason: countRateBy(
+      pairs.map(pair => pair.productionDecision?.durationIncomingShadowReason || "unobserved"),
+      pairs.length
+    ),
     staticToShadowDecisionCrossing: countRate(pair =>
       pair.productionDecision?.staticToShadowDecisionCrossing?.crossed === true
     ),
     staticFightShadowFlee: countRate(pair =>
       pair.productionDecision?.decision === "fight" &&
       pair.productionDecision?.durationAwareShadowDecision === "flee"
+    ),
+    durationAwareToIncomingShadowDecisionCrossing: countRate(pair =>
+      pair.productionDecision?.durationAwareToIncomingShadowDecisionCrossing?.crossed === true
+    ),
+    durationFightIncomingShadowFlee: countRate(pair =>
+      pair.productionDecision?.durationAwareShadowDecision === "fight" &&
+      pair.productionDecision?.durationIncomingShadowDecision === "flee"
+    ),
+    productionNormalPhysicalHitCount: metric(pair => pair.production?.normalPhysicalHitCount),
+    productionPhysicalDamageTotal: metric(pair => pair.production?.physicalDamageTotal),
+    productionPhysicalDamageMean: metric(pair => pair.production?.physicalDamageMean),
+    productionEnemyActionCount: metric(pair => pair.production?.enemyActionCount),
+    productionNonDamagingOrSpecialEnemyActionCount: metric(
+      pair => pair.production?.nonDamagingOrSpecialEnemyActionCount
     ),
     productionVictoryGained: countRate(pair => pair.pairedDelta?.productionVictoryGained === true),
     productionLaterFleeImmediateFleeHigherHp: countRate(pair =>
@@ -1901,6 +1949,14 @@ function summarizeGuardianFleeEv(entrants) {
       observations.map(item => item.durationAwareShadowReason || "unobserved"),
       observations.length
     ),
+    durationIncomingShadowDecisions: countRateBy(
+      observations.map(item => item.durationIncomingShadowDecision || "unobserved"),
+      observations.length
+    ),
+    durationIncomingShadowReasons: countRateBy(
+      observations.map(item => item.durationIncomingShadowReason || "unobserved"),
+      observations.length
+    ),
     staticToShadowDecisionCrossing: eventCount(
       observations.filter(item => item.staticToShadowDecisionCrossing?.crossed === true).length,
       observations.length
@@ -1912,7 +1968,27 @@ function summarizeGuardianFleeEv(entrants) {
       }),
       observations.length
     ),
+    durationAwareToIncomingShadowDecisionCrossing: eventCount(
+      observations.filter(item =>
+        item.durationAwareToIncomingShadowDecisionCrossing?.crossed === true
+      ).length,
+      observations.length
+    ),
+    durationAwareToIncomingShadowDecisionTransitions: countRateBy(
+      observations.map(item => {
+        const crossing = item.durationAwareToIncomingShadowDecisionCrossing;
+        return crossing ? `${crossing.from}->${crossing.to}` : "unobserved";
+      }),
+      observations.length
+    ),
     incomingDamage: metricTerm(["terms", "incomingDamagePerRound"]),
+    legacySurvivalTurns: metricTerm(["legacySurvivalTurns"]),
+    productionShadowSurvivalTurns: metricTerm(["productionShadowSurvivalTurns"]),
+    productionIncomingDamage: metricTerm(["incomingShadow", "incoming", "mean"]),
+    productionIncomingDamageMin: metricTerm(["incomingShadow", "incoming", "min"]),
+    productionIncomingDamageMax: metricTerm(["incomingShadow", "incoming", "max"]),
+    productionDefReduction: metricTerm(["incomingShadow", "defReduction", "mean"]),
+    productionPhysGuardReduction: metricTerm(["incomingShadow", "physGuardReduction", "mean"]),
     hpRate: metricTerm(["hp", "rate"]),
     mpRate: metricTerm(["mp", "rate"]),
     hpBelowFleeThreshold: booleanRate(observations.map(item => item.terms?.hpBelowFleeThreshold === true)),
@@ -2911,7 +2987,7 @@ export function buildSummary(report) {
   if (report.configuration.mode === B5_GUARDIAN_FLEE_EV_MODE) {
     const diagnosticLine = (label, aggregate) => {
       const ev = aggregate.b5.guardianFleeEv;
-      return `- ${label}: first-decision N=${ev.firstDecisionN}; production fight/recover/flee=${JSON.stringify(ev.productionDecisions)}; production reasons=${JSON.stringify(ev.productionReasons)}; shadow decisions=${JSON.stringify(ev.durationAwareShadowDecisions)}; shadow reasons=${JSON.stringify(ev.durationAwareShadowReasons)}; finiteAtkBuff=${JSON.stringify(ev.finiteAtkBuff)}; current/base damage=${JSON.stringify(ev.currentDamageEstimate)}/${JSON.stringify(ev.baseDamageEstimate)}; static/duration-aware ETW=${JSON.stringify(ev.staticExpectedTurnsToWin)}/${JSON.stringify(ev.durationAwareExpectedTurnsToWin)}; ETW delta=${JSON.stringify(ev.expectedTurnsToWinDelta)}; crossing=${JSON.stringify(ev.staticToShadowDecisionCrossing)}; expectedTurnsToWin p10/p50/p90=${JSON.stringify(ev.expectedTurnsToWin)}; survivalTurns=${JSON.stringify(ev.survivalTurns)}; turnDeficit=${JSON.stringify(ev.turnDeficit)}; incomingDamage=${JSON.stringify(ev.incomingDamage)}; HP/MP rate=${JSON.stringify(ev.hpRate)}/${JSON.stringify(ev.mpRate)}; hpBelowFlee=${JSON.stringify(ev.hpBelowFleeThreshold)}; GUARD_POTION=${JSON.stringify(ev.guardPotionAvailable)}; preferred=${JSON.stringify(ev.preferredAction)}; preferredSpell/fight=${JSON.stringify(ev.preferredSpell)}/${JSON.stringify(ev.preferredFight)}; offensivePayment=${JSON.stringify(ev.offensiveSpellPaymentAvailable)}`;
+      return `- ${label}: first-decision N=${ev.firstDecisionN}; production fight/recover/flee=${JSON.stringify(ev.productionDecisions)}; production reasons=${JSON.stringify(ev.productionReasons)}; duration-only=${JSON.stringify(ev.durationAwareShadowDecisions)}; duration+incoming=${JSON.stringify(ev.durationIncomingShadowDecisions)}; shadow reasons=${JSON.stringify(ev.durationAwareShadowReasons)}/${JSON.stringify(ev.durationIncomingShadowReasons)}; finiteAtkBuff=${JSON.stringify(ev.finiteAtkBuff)}; current/base damage=${JSON.stringify(ev.currentDamageEstimate)}/${JSON.stringify(ev.baseDamageEstimate)}; static/duration-aware ETW=${JSON.stringify(ev.staticExpectedTurnsToWin)}/${JSON.stringify(ev.durationAwareExpectedTurnsToWin)}; ETW delta=${JSON.stringify(ev.expectedTurnsToWinDelta)}; crossing=${JSON.stringify(ev.staticToShadowDecisionCrossing)}/${JSON.stringify(ev.durationAwareToIncomingShadowDecisionCrossing)}; legacy/shadow survival=${JSON.stringify(ev.survivalTurns)}/${JSON.stringify(ev.legacySurvivalTurns)}/${JSON.stringify(ev.productionShadowSurvivalTurns)}; incoming legacy/min/mean/max=${JSON.stringify(ev.incomingDamage)}/${JSON.stringify(ev.productionIncomingDamageMin)}/${JSON.stringify(ev.productionIncomingDamage)}/${JSON.stringify(ev.productionIncomingDamageMax)}; DEF/physGuard reduction=${JSON.stringify(ev.productionDefReduction)}/${JSON.stringify(ev.productionPhysGuardReduction)}; HP/MP rate=${JSON.stringify(ev.hpRate)}/${JSON.stringify(ev.mpRate)}; hpBelowFlee=${JSON.stringify(ev.hpBelowFleeThreshold)}; GUARD_POTION=${JSON.stringify(ev.guardPotionAvailable)}; preferred=${JSON.stringify(ev.preferredAction)}; preferredSpell/fight=${JSON.stringify(ev.preferredSpell)}/${JSON.stringify(ev.preferredFight)}; offensivePayment=${JSON.stringify(ev.offensiveSpellPaymentAvailable)}`;
     };
     const crossTabLine = (label, aggregate) => `- ${label} cross-tab: ${JSON.stringify(aggregate.b5.guardianFleeEv.crossTabs)}`;
       const traceLine = (label, aggregate) => {
@@ -2920,7 +2996,7 @@ export function buildSummary(report) {
     };
     const strFightLine = (label, aggregate) => {
       const cohort = aggregate.b5.guardianFleeEv.strFightCohort;
-      return `- ${label} STR→fight cohort: N=${cohort.cohortN}; outcomes=${JSON.stringify(cohort.outcomes)}; paired=${JSON.stringify(cohort.paired)}; all=${JSON.stringify(cohort.all)}; byOutcome=${JSON.stringify(cohort.byOutcome)}; samples=${JSON.stringify(cohort.samples)}`;
+      return `- ${label} STR→fight cohort: N=${cohort.cohortN}; outcomes=${JSON.stringify(cohort.outcomes)}; paired=${JSON.stringify(cohort.paired)}; physicalHits/total/mean=${JSON.stringify(cohort.all.normalPhysicalHitCount)}/${JSON.stringify(cohort.all.physicalDamageTotal)}/${JSON.stringify(cohort.all.physicalDamageMean)}; enemyActions/nonDamagingOrSpecial=${JSON.stringify(cohort.all.enemyActionCount)}/${JSON.stringify(cohort.all.nonDamagingOrSpecialEnemyActionCount)}; all=${JSON.stringify(cohort.all)}; byOutcome=${JSON.stringify(cohort.byOutcome)}; samples=${JSON.stringify(cohort.samples)}`;
     };
     const lines = [
       "# First Band B5 Guardian flee EV diagnostic",

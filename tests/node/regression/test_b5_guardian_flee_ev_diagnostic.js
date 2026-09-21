@@ -317,6 +317,8 @@ for (const transition of transitions) {
 const {
   finalizeB5GuardianDecisionTrace,
   calculateDurationAwareExpectedTurnsToWin,
+  calculateProductionPhysicalIncomingHitShadow,
+  calculateProductionPhysicalIncomingShadow,
   getFiniteAtkBuffObservation,
   getSimulationRandomState,
   getScenarioById,
@@ -360,6 +362,45 @@ assert.equal(calculateDurationAwareExpectedTurnsToWin({
   baseDamage: 10,
   remainingBuffTurns: 0
 }), 10, "no finite ATK buff preserves static ETW");
+const incomingState = { floor: 5 };
+const incomingTarget = {
+  hp: 100,
+  maxHp: 100,
+  equipment: {},
+  buffs: [{ type: "def", value: 5 }, { type: "physGuard", value: 40 }]
+};
+const incomingMonster = { atk: 21, hp: 100, maxHp: 100, buffs: [] };
+const incomingShadow = calculateProductionPhysicalIncomingHitShadow({
+  state: incomingState,
+  monster: incomingMonster,
+  target: incomingTarget
+});
+assert.deepEqual(incomingShadow.attack.rolls, [0, 1, 2, 3]);
+assert.equal(incomingShadow.defense.finalDef, 5);
+assert.equal(incomingShadow.defense.defResistance, 5 / 9);
+assert.deepEqual(incomingShadow.incoming, { min: 5, mean: 5.5, max: 6 });
+assert.deepEqual(incomingShadow.noPhysGuard.incoming, { min: 9, mean: 9.5, max: 10 });
+assert.deepEqual(incomingShadow.physGuard.reduction, { min: 4, mean: 4, max: 4 });
+assert.deepEqual(
+  calculateProductionPhysicalIncomingShadow({
+    state: { ...incomingState, combatState: { monsters: [incomingMonster] } },
+    target: incomingTarget
+  }).incoming,
+  incomingShadow.incoming
+);
+const overrideEvaluation = evaluateCombatRecoveryAction({
+  currentHp: 40,
+  maxHp: 56,
+  enemyHp: [230],
+  enemyAttack: [21],
+  playerDamagePerRound: 25,
+  expectedTurnsToWinOverride: 7,
+  incomingDamagePerRoundOverride: 5.5,
+  fleeThreshold: 0.20,
+  healThreshold: 0.55
+});
+assert.equal(overrideEvaluation.terms.survivalTurns, 7);
+assert.equal(overrideEvaluation.decision, "fight");
 const staticFight = evaluateCombatRecoveryAction({
   currentHp: 13,
   maxHp: 100,
