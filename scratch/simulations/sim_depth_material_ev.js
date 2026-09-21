@@ -11896,6 +11896,9 @@ function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
     equippedBaseIds: build.equipment.map(item => item.id),
     activeCoreIds: [...build.coreIds],
     supportAffixes: { ...build.supportAffixes },
+    inventoryBaseIds: state.inventory.map(item =>
+      typeof item === "string" ? item : item?.baseId || item?.id || null
+    ).filter(Boolean),
     combatBuildScore: build.combatBuildScore,
     equipmentChangesSoFar: metrics.equipmentUpgrades,
     equipmentDropsSeen: metrics.equipmentFound,
@@ -15760,6 +15763,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     keyItems: [...state.keyItems],
     unlockedMilestones: [...state.unlockedMilestones],
     elitePolicy: metrics.elitePolicy,
+    eliteOpportunities: metrics.eliteOpportunities,
     eliteEncounters: metrics.eliteEncounters,
     eliteVictories: metrics.eliteVictories,
     eliteFlees: metrics.eliteFlees,
@@ -16831,6 +16835,7 @@ export function simulateRun({
       guardBlocked: []
     },
     elitePolicy: state.simPolicy.elitePolicy,
+    eliteOpportunities: 0,
     eliteEncounters: 0,
     eliteVictories: 0,
     eliteFlees: 0,
@@ -17017,12 +17022,20 @@ export function simulateRun({
           metrics.bossPolicy,
           bossExitPolicy
         );
-    // Partial-information personas do not schedule a roaming encounter from
-    // its future map position. The production movement/combat path still
-    // handles encounters that are actually observed.
+    // Partial-information avoid observes the generated elite opportunity but
+    // does not schedule a future-map encounter. Opportunistic engage uses the
+    // existing elite route/combat path; no enemy, reward, or RNG rule changes.
     const elitePlan = routePlan.partialInformation
-      ? { elite: null, extraSteps: 0, encounterStep: null, avoidNoRoute: false }
+      ? state.simPolicy.elitePolicy === "engage"
+        ? createEliteRoutePlan(generated, floor, runSeed, "engage")
+        : {
+            elite: createFloorElite({ runSeed, floor, mapData: generated }),
+            extraSteps: 0,
+            encounterStep: null,
+            avoidNoRoute: false
+          }
       : createEliteRoutePlan(generated, floor, runSeed, state.simPolicy.elitePolicy);
+    metrics.eliteOpportunities += Number(Boolean(elitePlan.elite));
     const staticFloorSteps = getFloorStepCount(generated, floor);
     let floorSteps = routePlan.floorSteps + elitePlan.extraSteps;
     const floorRoute = createSimulationFloorRoute(

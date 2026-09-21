@@ -15,7 +15,10 @@ import {
   buildSummary,
   buildPolicySensitivityReport,
   buildPolicySensitivitySummary,
+  buildConvergenceReport,
+  buildConvergenceSummary,
   positiveInteger,
+  runConvergenceAuditMeasurement,
   runPolicySensitivityMeasurement,
   runMeasurement
 } from "./run_difficulty_measurement.js";
@@ -52,15 +55,23 @@ const purpose = options.purpose || null;
 const policyIds = options.policies
   ? String(options.policies).split(",").map(value => value.trim()).filter(Boolean)
   : null;
-const result = policyIds
-  ? await runPolicySensitivityMeasurement({ runs, seed, portalPolicyIds: policyIds })
-  : await runMeasurement({ runs, seed });
-const report = policyIds
-  ? buildPolicySensitivityReport(result, provenance, { purpose, requestedRef })
-  : buildReport(result, provenance, { purpose, requestedRef });
+const audit = options.audit || null;
+const result = audit === "convergence"
+  ? await runConvergenceAuditMeasurement({ runs, seed })
+  : policyIds
+    ? await runPolicySensitivityMeasurement({ runs, seed, portalPolicyIds: policyIds })
+    : await runMeasurement({ runs, seed });
+const report = audit === "convergence"
+  ? buildConvergenceReport(result, provenance, { purpose, requestedRef })
+  : policyIds
+    ? buildPolicySensitivityReport(result, provenance, { purpose, requestedRef })
+    : buildReport(result, provenance, { purpose, requestedRef });
 const runType = process.env.MEASUREMENT_RUN_TYPE || options["run-type"] || "baseline-candidate";
 
 fs.writeFileSync(resolve(output), `${JSON.stringify(report, null, 2)}\n`);
-fs.writeFileSync(resolve(summary), `${(policyIds ? buildPolicySensitivitySummary : buildSummary)(report)}\n`);
+const summaryBuilder = audit === "convergence"
+  ? buildConvergenceSummary
+  : policyIds ? buildPolicySensitivitySummary : buildSummary;
+fs.writeFileSync(resolve(summary), `${summaryBuilder(report)}\n`);
 fs.writeFileSync(resolve(manifest), `${JSON.stringify(buildManifest(report, { runType }), null, 2)}\n`);
 console.log(`Wrote run difficulty measurement: ${resolve(output)}`);

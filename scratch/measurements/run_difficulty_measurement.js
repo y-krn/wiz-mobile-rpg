@@ -15,10 +15,13 @@ export const RUNNER_VERSION = "run-difficulty-v1";
 export const SCHEMA_VERSION = 1;
 export const POLICY_SENSITIVITY_RUNNER_VERSION = "run-difficulty-policy-sensitivity-v1";
 export const POLICY_SENSITIVITY_SCHEMA_VERSION = 1;
+export const CONVERGENCE_RUNNER_VERSION = "run-difficulty-convergence-v1";
+export const CONVERGENCE_SCHEMA_VERSION = 1;
 export const DEFAULT_RUNS = 1000;
 export const DEFAULT_SEED = 1277;
 export const SCENARIO_IDS = Object.freeze(["workshop-empty", "workshop-complete"]);
 export const TARGET_DEPTHS = Object.freeze([5, 10, 15, 20]);
+export const CONVERGENCE_TARGET_DEPTHS = Object.freeze([5, 10, 15, 20, 25, 30]);
 export const STARTING_KIT_IDS = Object.freeze(STARTING_KITS.map(kit => kit.id));
 export const PORTAL_POLICY_DEFINITIONS = Object.freeze({
   p0: Object.freeze({
@@ -41,6 +44,38 @@ export const PORTAL_POLICY_DEFINITIONS = Object.freeze({
   })
 });
 export const DEFAULT_PORTAL_POLICY_ID = "p0";
+export const CONVERGENCE_ROUTE_POLICIES = Object.freeze({
+  stairsFirst: Object.freeze({
+    id: "stairs-first",
+    routePolicy: "partial_information_exploration",
+    personaPolicy: Object.freeze({
+      exploration: Object.freeze({ budgetMultiplier: 1, budgetExtraSteps: 0, afterStairsSteps: 0 })
+    })
+  }),
+  balanced: Object.freeze({
+    id: "balanced",
+    routePolicy: "partial_information_exploration",
+    personaPolicy: Object.freeze({
+      exploration: Object.freeze({ budgetMultiplier: 1.15, budgetExtraSteps: 8, afterStairsSteps: 4 })
+    })
+  }),
+  greedier: Object.freeze({
+    id: "greedier",
+    routePolicy: "partial_information_exploration",
+    personaPolicy: Object.freeze({
+      exploration: Object.freeze({ budgetMultiplier: 1.5, budgetExtraSteps: 16, afterStairsSteps: 10 })
+    })
+  })
+});
+export const CONVERGENCE_ELITE_POLICIES = Object.freeze(["avoid", "engage"]);
+export const CONVERGENCE_PORTAL_POLICIES = Object.freeze({
+  canonical: Object.freeze({ id: "canonical", portalHpThreshold: 0.35 }),
+  morePushOriented: Object.freeze({ id: "more-push-oriented", portalHpThreshold: null })
+});
+export const CONVERGENCE_EQUIPMENT_POLICIES = Object.freeze({
+  canonicalAdaptive: Object.freeze({ id: "canonical-adaptive", equipmentUpdatePolicy: "deterministic_greedy" })
+});
+export const MINIMUM_INTERPRETIVE_COHORT = 30;
 export const MEASUREMENT_RUNNER_PATHS = Object.freeze([
   "scratch/measurements/measure_run_difficulty.js",
   "scratch/measurements/run_difficulty_measurement.js",
@@ -624,6 +659,7 @@ function finalizeAccumulator(accumulator, targetDepths) {
 function compactProbe(result) {
   return {
     outcome: result.outcome,
+    terminationReason: result.terminationReason || null,
     reachedFloor: result.reachedFloor,
     deathFloor: result.deathFloor ?? null,
     terminationReason: result.terminationReason ?? null,
@@ -757,6 +793,676 @@ export async function runMeasurement({
     determinism,
     cases
   };
+}
+
+function sortedObject(value) {
+  return Object.fromEntries(Object.entries(value || {}).sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function loadoutObservation(checkpoint) {
+  const equippedBaseIds = [...(checkpoint?.equippedBaseIds || [])].filter(Boolean).sort();
+  const activeCoreIds = [...(checkpoint?.activeCoreIds || [])].filter(Boolean).sort();
+  const supportAffixes = sortedObject(checkpoint?.supportAffixes);
+  const inventoryBaseIds = [...(checkpoint?.inventoryBaseIds || [])].filter(Boolean);
+  const has = id => equippedBaseIds.includes(id) || inventoryBaseIds.includes(id);
+  const dragonCharmEquipped = equippedBaseIds.includes("DRAGON_CHARM");
+  const dragonRingEquipped = equippedBaseIds.includes("DRAGON_RING");
+  const dragonCharmOwned = has("DRAGON_CHARM");
+  const dragonRingOwned = has("DRAGON_RING");
+  const countermeasureCount = Number(dragonCharmOwned) + Number(dragonRingOwned);
+  const weaponIds = equippedBaseIds.filter(id => ![
+    "DRAGON_CHARM",
+    "SMALL_SHIELD",
+    "BUCKLER",
+    "LARGE_SHIELD",
+    "KNIGHT_SHIELD",
+    "MAGIC_SHIELD",
+    "LEGENDARY_SHIELD"
+  ].includes(id));
+  const twoHandWeaponIds = new Set([
+    "SAGE_STAFF",
+    "ARCH_WAND",
+    "CLAYMORE",
+    "KATANA",
+    "LEGENDARY_SWORD",
+    "SEALED_EXCALIBUR"
+  ]);
+  const weaponMode = weaponIds.some(id => twoHandWeaponIds.has(id)) ? "2H" : "1H-or-none";
+  const signature = JSON.stringify({
+    equippedBaseIds,
+    activeCoreIds,
+    supportAffixes,
+    weaponMode
+  });
+  return {
+    signature,
+    equippedBaseIds,
+    activeCoreIds,
+    supportAffixes,
+    inventoryBaseIds,
+    weaponMode,
+    dragonCharmOwned,
+    dragonRingOwned,
+    dragonCharmEquipped,
+    dragonRingEquipped,
+    antiDragonSupport: Number(supportAffixes.antiDragon || 0),
+    countermeasureClass: countermeasureCount === 0 ? "none" : countermeasureCount === 1 ? "one" : "both"
+  };
+}
+
+function readLootLifecycle(result) {
+  const settlement = result?.objectLootSettlement;
+  if (settlement && (Array.isArray(settlement.banked) || Array.isArray(settlement.lost))) {
+    const banked = Array.isArray(settlement.banked) ? settlement.banked.length : 0;
+    const lost = Array.isArray(settlement.lost) ? settlement.lost.length : 0;
+    return {
+      status: "measured_terminal_settlement",
+      counts: {
+        found: banked + lost,
+        bagged: null,
+        consumed: null,
+        banked,
+        salvaged: null,
+        lost,
+        discarded: null,
+        left: null
+      }
+    };
+  }
+  const candidates = [
+    result?.objectLootSettlement?.lifecycle?.counts,
+    result?.buildPayment?.stake?.lifecycle?.counts,
+    result?.runDiagnostics?.objectLootLifecycle
+  ];
+  const lifecycle = candidates.find(value => value && typeof value === "object");
+  if (!lifecycle) return { status: "unobserved", counts: null };
+  return {
+    status: "measured",
+    counts: Object.fromEntries([
+      "found", "bagged", "consumed", "banked", "salvaged", "lost", "discarded", "left"
+    ].map(key => [key, Number(lifecycle[key]) || 0]))
+  };
+}
+
+function compactConvergenceRun(result, {
+  runIndex,
+  worldSeed,
+  condition
+} = {}) {
+  const diagnostics = result.runDiagnostics || {};
+  const checkpoints = Object.fromEntries(
+    (result.checkpointSnapshots || [])
+      .filter(snapshot => CONVERGENCE_TARGET_DEPTHS.includes(Number(snapshot.floor)))
+      .map(snapshot => [String(snapshot.floor), loadoutObservation(snapshot)])
+  );
+  const equipmentChanges = (result.equipmentTelemetry || [])
+    .filter(event => event.type === "swap").length;
+  const loot = readLootLifecycle(result);
+  const consumables = Object.fromEntries(
+    Object.entries(result.consumableUsageByItem || {}).map(([itemId, usage]) => [itemId, {
+      acquired: Number(usage?.acquired) || 0,
+      consumed: Number(usage?.consumed) || 0
+    }])
+  );
+  const milestoneDecisions = Array.isArray(result.milestoneDecisions)
+    ? result.milestoneDecisions.length
+    : 0;
+  const portalUseEvents = Array.isArray(result.portalUseEvents) ? result.portalUseEvents : [];
+  return {
+    runIndex,
+    worldSeed,
+    condition,
+    outcome: result.outcome,
+    reachedFloor: Number(result.reachedFloor) || 0,
+    deathFloor: result.deathFloor ?? null,
+    deathCause: diagnostics.deathCauseCategory || result.deathCause || null,
+    returnReason: diagnostics.retreatReason || null,
+    steps: Number(result.steps) || 0,
+    encounters: Array.isArray(result.encounterIdentityLog) ? result.encounterIdentityLog.length : 0,
+    combatRounds: Number(result.combatRounds) || 0,
+    combatDamageHp: Number(result.combatDamageHp) || 0,
+    mpConsumed: Number(result.mpConsumed) || 0,
+    recoveryPotionsUsed: Number(result.recoveryPotionsUsed) || 0,
+    endingHpRate: Number.isFinite(result.finalHpRate) ? result.finalHpRate : null,
+    endingMpRate: Number.isFinite(result.finalMpRate) ? result.finalMpRate : null,
+    portal: {
+      pushDecisions: milestoneDecisions,
+      returnDecisions: portalUseEvents.length,
+      wingUses: portalUseEvents.length,
+      events: portalUseEvents.map(event => ({
+        floor: event.floor,
+        situation: event.situation,
+        reason: event.reason,
+        hpRate: event.hpRate,
+        recoveryPotions: event.recoveryPotions
+      }))
+    },
+    elite: {
+      opportunities: Number(result.eliteOpportunities) || Number(result.specialCellsDetected?.elite) || Number(result.eliteEncounters) || 0,
+      encounters: Number(result.eliteEncounters) || 0,
+      victories: Number(result.eliteVictories) || 0,
+      flees: Number(result.eliteFlees) || 0,
+      deaths: Number(result.eliteDeaths) || 0,
+      avoidDetourSteps: Number(result.eliteAvoidDetourSteps) || 0
+    },
+    loot,
+    equipped: Number(equipmentChanges > 0),
+    equipmentChanges,
+    consumables,
+    checkpoints
+  };
+}
+
+function createConvergenceAccumulator(runs, targetDepths) {
+  return {
+    runs,
+    outcomeCounts: {},
+    returnDecisionRuns: 0,
+    deathFloors: {},
+    deathCauses: {},
+    returnReasons: {},
+    reachedByDepth: Object.fromEntries(targetDepths.map(depth => [depth, 0])),
+    breakthroughByDepth: Object.fromEntries(targetDepths.map(depth => [depth, 0])),
+    steps: [],
+    encounters: [],
+    combatRounds: [],
+    combatDamageHp: [],
+    mpConsumed: [],
+    recoveryPotionsUsed: [],
+    endingHpRate: [],
+    endingMpRate: [],
+    portal: { pushDecisions: 0, returnDecisions: 0, wingUses: 0 },
+    elite: { opportunities: 0, encounters: 0, victories: 0, flees: 0, deaths: 0, avoidDetourSteps: 0 },
+    loot: { status: "unobserved", found: 0, equipped: 0, banked: 0, salvaged: null, lost: 0, discarded: null, left: null, consumed: null },
+    consumables: {},
+    buildChanges: [],
+    checkpoints: Object.fromEntries(targetDepths.map(depth => [String(depth), {
+      entrants: 0,
+      observed: 0,
+      loadouts: {},
+      weaponModes: {},
+      dragon: {
+        entrants: 0,
+        antiDragonSupport: 0,
+        countermeasure: { none: 0, one: 0, both: 0 },
+        charmOwned: 0,
+        charmEquipped: 0,
+        ringOwned: 0,
+        ringEquipped: 0,
+        outcomes: { death: 0, return: 0, deeper: 0 }
+      }
+    }]))
+  };
+}
+
+function observeConvergenceRun(accumulator, record, targetDepths) {
+  increment(accumulator.outcomeCounts, record.outcome);
+  if (record.outcome === "death") {
+    increment(accumulator.deathFloors, record.deathFloor ?? record.reachedFloor ?? "unknown");
+    increment(accumulator.deathCauses, record.deathCause || "unknown");
+  }
+  if (record.returnReason) increment(accumulator.returnReasons, record.returnReason);
+  accumulator.returnDecisionRuns += Number(record.portal.returnDecisions > 0);
+  targetDepths.forEach(depth => {
+    const reached = record.reachedFloor >= depth;
+    accumulator.reachedByDepth[depth] += Number(reached);
+    accumulator.breakthroughByDepth[depth] += Number(record.reachedFloor > depth);
+    const checkpoint = accumulator.checkpoints[String(depth)];
+    checkpoint.entrants += Number(reached);
+    const loadout = record.checkpoints[String(depth)];
+    if (!loadout) return;
+    checkpoint.observed++;
+    increment(checkpoint.loadouts, loadout.signature);
+    increment(checkpoint.weaponModes, loadout.weaponMode);
+    checkpoint.dragon.entrants++;
+    checkpoint.dragon.antiDragonSupport += Number(loadout.antiDragonSupport > 0);
+    checkpoint.dragon.countermeasure[loadout.countermeasureClass]++;
+    checkpoint.dragon.charmOwned += Number(loadout.dragonCharmOwned);
+    checkpoint.dragon.charmEquipped += Number(loadout.dragonCharmEquipped);
+    checkpoint.dragon.ringOwned += Number(loadout.dragonRingOwned);
+    checkpoint.dragon.ringEquipped += Number(loadout.dragonRingEquipped);
+    checkpoint.dragon.outcomes.death += Number(record.outcome === "death");
+    checkpoint.dragon.outcomes.return += Number(record.outcome === "retreat");
+    checkpoint.dragon.outcomes.deeper += Number(record.reachedFloor > depth);
+  });
+  accumulator.steps.push(record.steps);
+  accumulator.encounters.push(record.encounters);
+  accumulator.combatRounds.push(record.combatRounds);
+  accumulator.combatDamageHp.push(record.combatDamageHp);
+  accumulator.mpConsumed.push(record.mpConsumed);
+  accumulator.recoveryPotionsUsed.push(record.recoveryPotionsUsed);
+  if (record.endingHpRate !== null) accumulator.endingHpRate.push(record.endingHpRate);
+  if (record.endingMpRate !== null) accumulator.endingMpRate.push(record.endingMpRate);
+  Object.entries(record.portal).forEach(([key, value]) => {
+    if (key === "events") return;
+    accumulator.portal[key] += value;
+  });
+  Object.entries(record.elite).forEach(([key, value]) => { accumulator.elite[key] += value; });
+  if (record.loot.status !== "unobserved") {
+    accumulator.loot.status = record.loot.status;
+    Object.entries(record.loot.counts).forEach(([key, value]) => {
+      if (Object.hasOwn(accumulator.loot, key) && Number.isFinite(value)) {
+        accumulator.loot[key] = (accumulator.loot[key] || 0) + value;
+      }
+    });
+  }
+  accumulator.buildChanges.push(record.equipmentChanges);
+  accumulator.loot.equipped += record.equipmentChanges;
+  Object.entries(record.consumables).forEach(([itemId, usage]) => {
+    const total = accumulator.consumables[itemId] ||= { acquired: 0, consumed: 0 };
+    total.acquired += usage.acquired;
+    total.consumed += usage.consumed;
+  });
+}
+
+function finalizeConvergenceCheckpoint(checkpoint, runs) {
+  const loadouts = Object.entries(checkpoint.loadouts)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
+  const entrantN = checkpoint.entrants;
+  const cohortN = checkpoint.dragon.entrants;
+  const concentration = entries => ({
+    distinct: entries.length,
+    top1: rateMetric(entries[0]?.[1] || 0, cohortN),
+    top3: rateMetric(entries.slice(0, 3).reduce((sum, [, count]) => sum + count, 0), cohortN)
+  });
+  const cohortStatus = cohortN >= MINIMUM_INTERPRETIVE_COHORT ? "eligible" : "insufficient_population";
+  return {
+    entrantN,
+    observedN: checkpoint.observed,
+    populationStatus: cohortStatus,
+    loadoutConcentration: concentration(loadouts),
+    topLoadouts: loadouts.slice(0, 3).map(([signature, count]) => ({ signature, count })),
+    weaponModes: { ...checkpoint.weaponModes },
+    dragon: {
+      ...checkpoint.dragon,
+      antiDragonSupportRate: rateMetric(checkpoint.dragon.antiDragonSupport, cohortN),
+      charmOwnedRate: rateMetric(checkpoint.dragon.charmOwned, cohortN),
+      charmEquippedRate: rateMetric(checkpoint.dragon.charmEquipped, cohortN),
+      ringOwnedRate: rateMetric(checkpoint.dragon.ringOwned, cohortN),
+      ringEquippedRate: rateMetric(checkpoint.dragon.ringEquipped, cohortN)
+    },
+    denominatorNote: `natural B1-start entrants; interpretation requires N>=${MINIMUM_INTERPRETIVE_COHORT}`,
+    runs
+  };
+}
+
+function finalizeConvergenceAccumulator(accumulator, targetDepths) {
+  const runs = accumulator.runs;
+  return {
+    runs,
+    population: "natural B1-start",
+    outcomeCounts: { ...accumulator.outcomeCounts },
+    outcomeRates: {
+      death: rateMetric(accumulator.outcomeCounts.death || 0, runs),
+      return: rateMetric(accumulator.returnDecisionRuns, runs),
+      retreat: rateMetric(accumulator.outcomeCounts.retreat || 0, runs),
+      push: rateMetric(accumulator.portal.pushDecisions, runs),
+      wing: rateMetric(accumulator.portal.wingUses, runs)
+    },
+    deathFloors: { ...accumulator.deathFloors },
+    deathCauses: { ...accumulator.deathCauses },
+    returnReasons: { ...accumulator.returnReasons },
+    reach: targetDepths.map(depth => ({
+      depth,
+      entrantN: accumulator.checkpoints[String(depth)].entrants,
+      reachedRate: rateMetric(accumulator.reachedByDepth[depth], runs),
+      breakthroughRate: rateMetric(accumulator.breakthroughByDepth[depth], runs),
+      checkpoint: finalizeConvergenceCheckpoint(accumulator.checkpoints[String(depth)], runs)
+    })),
+    portal: { ...accumulator.portal },
+    elite: { ...accumulator.elite },
+    loot: {
+      ...accumulator.loot,
+      secured: accumulator.loot.banked + (accumulator.loot.salvaged || 0),
+      perRun: Object.fromEntries(Object.entries(accumulator.loot)
+        .filter(([key]) => !["status"].includes(key))
+        .map(([key, value]) => [key, Number.isFinite(value) ? value / Math.max(1, runs) : null]))
+    },
+    buildChanges: summarize(accumulator.buildChanges),
+    resources: {
+      steps: summarize(accumulator.steps),
+      encounters: summarize(accumulator.encounters),
+      combatRounds: summarize(accumulator.combatRounds),
+      combatDamageHp: summarize(accumulator.combatDamageHp),
+      mpConsumed: summarize(accumulator.mpConsumed),
+      recoveryPotionsUsed: summarize(accumulator.recoveryPotionsUsed),
+      endingHpRate: summarize(accumulator.endingHpRate),
+      endingMpRate: summarize(accumulator.endingMpRate)
+    },
+    consumables: Object.fromEntries(Object.entries(accumulator.consumables)
+      .sort(([left], [right]) => left.localeCompare(right))),
+    interpretation: {
+      status: targetDepths.some(depth => accumulator.checkpoints[String(depth)].dragon.entrants < MINIMUM_INTERPRETIVE_COHORT)
+        ? "needs_more_measurement"
+        : "measured",
+      minimumCohort: MINIMUM_INTERPRETIVE_COHORT,
+      scalarStrategyScore: "forbidden",
+      causalClaim: "correlation_only"
+    }
+  };
+}
+
+function convergenceConditionKey(condition) {
+  return [
+    condition.scenarioId,
+    condition.startingKitId,
+    condition.routePolicyId,
+    condition.elitePolicy,
+    condition.portalPolicyId,
+    condition.equipmentPolicyId
+  ].join("/");
+}
+
+function convergencePairSummary(baselineRecords, candidateRecords) {
+  const normalizeOutcome = record => ({
+    ...record,
+    outcome: record.outcome === "retreat" ? "voluntaryReturn" : record.outcome
+  });
+  const conversion = buildMatchedConversion(
+    baselineRecords.map(normalizeOutcome),
+    candidateRecords.map(normalizeOutcome)
+  );
+  const transitions = conversion.transitions;
+  const deeper = candidateRecords.filter((candidate, index) => {
+    const baseline = baselineRecords[index];
+    return candidate.reachedFloor > baseline.reachedFloor;
+  }).length;
+  const shallower = candidateRecords.filter((candidate, index) => {
+    const baseline = baselineRecords[index];
+    return candidate.reachedFloor < baseline.reachedFloor;
+  }).length;
+  const same = candidateRecords.length - deeper - shallower;
+  const resourceDelta = candidateRecords.map((candidate, index) => ({
+    combatDamageHp: candidate.combatDamageHp - baselineRecords[index].combatDamageHp,
+    mpConsumed: candidate.mpConsumed - baselineRecords[index].mpConsumed,
+    recoveryPotionsUsed: candidate.recoveryPotionsUsed - baselineRecords[index].recoveryPotionsUsed,
+    equipmentChanges: candidate.equipmentChanges - baselineRecords[index].equipmentChanges
+  }));
+  return {
+    pairedRuns: candidateRecords.length,
+    worldSeedIntegrity: true,
+    reachDirection: {
+      candidateDeeper: deeper,
+      same: same,
+      candidateShallower: shallower
+    },
+    outcomeTransitions: transitions,
+    resourceDelta: {
+      combatDamageHp: summarize(resourceDelta.map(row => row.combatDamageHp)),
+      mpConsumed: summarize(resourceDelta.map(row => row.mpConsumed)),
+      recoveryPotionsUsed: summarize(resourceDelta.map(row => row.recoveryPotionsUsed)),
+      equipmentChanges: summarize(resourceDelta.map(row => row.equipmentChanges))
+    },
+    lootLifecycle: "condition aggregates retain measured/unobserved status; no scalar utility"
+  };
+}
+
+export async function runConvergenceAuditMeasurement({
+  runs = DEFAULT_RUNS,
+  seed = DEFAULT_SEED,
+  startingKitIds = STARTING_KIT_IDS,
+  scenarioIds = ["workshop-empty"],
+  targetDepths = CONVERGENCE_TARGET_DEPTHS,
+  routePolicyIds = Object.values(CONVERGENCE_ROUTE_POLICIES).map(policy => policy.id),
+  elitePolicies = CONVERGENCE_ELITE_POLICIES,
+  portalPolicyIds = Object.values(CONVERGENCE_PORTAL_POLICIES).map(policy => policy.id),
+  equipmentPolicyIds = Object.values(CONVERGENCE_EQUIPMENT_POLICIES).map(policy => policy.id),
+  allowSmallRunCount = false
+} = {}) {
+  const minimumRuns = allowSmallRunCount ? 1 : DEFAULT_RUNS;
+  const normalizedRuns = positiveInteger(runs, "runs", minimumRuns);
+  const normalizedSeed = positiveInteger(seed, "seed");
+  const normalizedTargetDepths = [...targetDepths].map(depth => positiveInteger(depth, "targetDepth"));
+  const normalizedKitIds = [...startingKitIds];
+  const normalizedScenarioIds = [...scenarioIds];
+  const routePolicies = routePolicyIds.map(id => Object.values(CONVERGENCE_ROUTE_POLICIES)
+    .find(policy => policy.id === id));
+  const elitePolicyList = [...elitePolicies];
+  const portalPolicies = portalPolicyIds.map(id => Object.values(CONVERGENCE_PORTAL_POLICIES)
+    .find(policy => policy.id === id));
+  const equipmentPolicies = equipmentPolicyIds.map(id => Object.values(CONVERGENCE_EQUIPMENT_POLICIES)
+    .find(policy => policy.id === id));
+  if (normalizedTargetDepths.length === 0 || Math.max(...normalizedTargetDepths) > 30) {
+    throw new Error("convergence targetDepths must be non-empty and <= 30");
+  }
+  if (normalizedKitIds.length === 0 || normalizedKitIds.some(id => !STARTING_KIT_IDS.includes(id))) {
+    throw new Error(`startingKitIds must be non-empty and drawn from ${STARTING_KIT_IDS.join("|")}`);
+  }
+  if (normalizedScenarioIds.length === 0 || normalizedScenarioIds.some(id => !SCENARIO_IDS.includes(id))) {
+    throw new Error(`scenarioIds must be non-empty and drawn from ${SCENARIO_IDS.join("|")}`);
+  }
+  if (routePolicies.some(policy => !policy) || elitePolicyList.some(policy => !CONVERGENCE_ELITE_POLICIES.includes(policy)) ||
+      portalPolicies.some(policy => !policy) || equipmentPolicies.some(policy => !policy)) {
+    throw new Error("unknown convergence policy");
+  }
+
+  const envConfig = { ...STANDARD_BALANCE_CONFIG, seed: normalizedSeed, runs: normalizedRuns };
+  applyStandardSimulationEnv(envConfig);
+  const { getScenarioById, resetSimulationRandom, simulateRun } =
+    await import("../simulations/sim_depth_material_ev.js");
+  const simulationTargetDepth = Math.max(...normalizedTargetDepths) + 1;
+  const conditions = [];
+  for (const scenarioId of normalizedScenarioIds) {
+    for (const startingKitId of normalizedKitIds) {
+      for (const routePolicy of routePolicies) {
+        for (const elitePolicy of elitePolicyList) {
+          for (const portalPolicy of portalPolicies) {
+            for (const equipmentPolicy of equipmentPolicies) {
+              conditions.push({
+                scenarioId,
+                startingKitId,
+                routePolicyId: routePolicy.id,
+                elitePolicy,
+                portalPolicyId: portalPolicy.id,
+                equipmentPolicyId: equipmentPolicy.id,
+                routePolicy: routePolicy.routePolicy,
+                personaPolicy: routePolicy.personaPolicy,
+                portalHpThreshold: portalPolicy.portalHpThreshold,
+                equipmentUpdatePolicy: equipmentPolicy.equipmentUpdatePolicy
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+  const runOne = condition => {
+    const baseScenario = getScenarioById(condition.scenarioId);
+    const scenario = {
+      ...baseScenario,
+      startingKit: condition.startingKitId,
+      routePolicy: condition.routePolicy,
+      personaPolicy: condition.personaPolicy,
+      elitePolicy: condition.elitePolicy,
+      portalPolicyId: condition.portalPolicyId,
+      portalHpThreshold: condition.portalHpThreshold,
+      equipmentUpdatePolicy: condition.equipmentUpdatePolicy,
+      collectEncounterIdentities: true,
+      collectCheckpointSnapshots: true,
+      simDiagnosticLevel: "full"
+    };
+    return simulateRun({
+      className: "Fighter",
+      startFloor: 1,
+      targetDepth: simulationTargetDepth,
+      runIndex: condition.runIndex,
+      seriesId: `run-difficulty-convergence:${condition.scenarioId}:${condition.startingKitId}`,
+      scoringProfile: null,
+      scenario,
+      workshop: scenario.workshop,
+      worldSeed: `run-difficulty:${normalizedSeed}:${condition.runIndex}`,
+      collectDiagnostics: true,
+      collectBuildSnapshots: true,
+      collectEquipmentTelemetry: true
+    });
+  };
+
+  const probeCondition = { ...conditions[0], runIndex: 0 };
+  resetSimulationRandom(normalizedSeed);
+  const firstProbe = compactConvergenceRun(runOne(probeCondition), {
+    runIndex: 0,
+    worldSeed: `run-difficulty:${normalizedSeed}:0`,
+    condition: convergenceConditionKey(probeCondition)
+  });
+  resetSimulationRandom(normalizedSeed);
+  const secondProbe = compactConvergenceRun(runOne(probeCondition), {
+    runIndex: 0,
+    worldSeed: `run-difficulty:${normalizedSeed}:0`,
+    condition: convergenceConditionKey(probeCondition)
+  });
+  const determinism = {
+    pass: JSON.stringify(firstProbe) === JSON.stringify(secondProbe),
+    first: firstProbe,
+    second: secondProbe
+  };
+  if (!determinism.pass) throw new Error("run difficulty convergence determinism probe failed");
+
+  const recordsByKey = new Map();
+  const reports = [];
+  for (const condition of conditions) {
+    resetSimulationRandom(normalizedSeed);
+    const key = convergenceConditionKey(condition);
+    const accumulator = createConvergenceAccumulator(normalizedRuns, normalizedTargetDepths);
+    const records = [];
+    for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
+      const conditionWithIndex = { ...condition, runIndex };
+      const result = runOne(conditionWithIndex);
+      const record = compactConvergenceRun(result, {
+        runIndex,
+        worldSeed: `run-difficulty:${normalizedSeed}:${runIndex}`,
+        condition: key
+      });
+      records.push(record);
+      observeConvergenceRun(accumulator, record, normalizedTargetDepths);
+    }
+    recordsByKey.set(key, records);
+    reports.push({
+      ...condition,
+      key,
+      ...finalizeConvergenceAccumulator(accumulator, normalizedTargetDepths)
+    });
+  }
+
+  const baselineKeys = new Set(normalizedScenarioIds.map(scenarioId => convergenceConditionKey({
+    scenarioId,
+    startingKitId: "vanguard",
+    routePolicyId: "balanced",
+    elitePolicy: "avoid",
+    portalPolicyId: "canonical",
+    equipmentPolicyId: "canonical-adaptive"
+  })));
+  const comparisons = reports
+    .filter(report => !baselineKeys.has(report.key))
+    .map(report => {
+      const baselineRecords = recordsByKey.get([...baselineKeys].find(key => key.startsWith(`${report.scenarioId}/`))) ||
+        recordsByKey.values().next().value;
+      return {
+        condition: report.key,
+        comparison: convergencePairSummary(baselineRecords, recordsByKey.get(report.key))
+      };
+    });
+  const configuration = {
+    runs: normalizedRuns,
+    seed: normalizedSeed,
+    startingKitIds: normalizedKitIds,
+    scenarioIds: normalizedScenarioIds,
+    targetDepths: normalizedTargetDepths,
+    simulationTargetDepth,
+    routePolicies: routePolicies.map(policy => ({
+      id: policy.id,
+      routePolicy: policy.routePolicy,
+      personaPolicy: policy.personaPolicy
+    })),
+    elitePolicies: elitePolicyList,
+    portalPolicies: portalPolicies.map(policy => ({ id: policy.id, portalHpThreshold: policy.portalHpThreshold })),
+    equipmentPolicies: equipmentPolicies.map(policy => ({ ...policy })),
+    seedPolicy: "same worldSeed runIndex across every condition; paired only until policy divergence",
+    population: "natural B1-start",
+    syntheticDeepPopulation: false,
+    sameStateCounterfactual: {
+      status: "not_run",
+      reason: "simulateRun exposes deterministic matched reruns, not resumable state clone at Portal decision"
+    },
+    policy: "production-backed convergence audit; no balance tuning; no scalar strategy score"
+  };
+  return {
+    schemaVersion: CONVERGENCE_SCHEMA_VERSION,
+    runnerVersion: CONVERGENCE_RUNNER_VERSION,
+    configuration,
+    comparisonKey: hashConfiguration(configuration),
+    determinism,
+    baselineCondition: baselineKeys.size === 1 ? [...baselineKeys][0] : [...baselineKeys],
+    conditions: reports,
+    comparisons
+  };
+}
+
+export function buildConvergenceReport(result, provenance, { purpose = null, requestedRef = null } = {}) {
+  const scope = readSimScopeDeclaration(import.meta.url)?.name || "run";
+  const environmentHash = printEnvSignatureBanner({
+    scope,
+    runnerVersion: result.runnerVersion,
+    schemaVersion: result.schemaVersion,
+    ...result.configuration
+  }, { label: "run-difficulty-convergence" });
+  return {
+    ...result,
+    measurement: {
+      scope,
+      schemaVersion: result.schemaVersion,
+      runnerVersion: result.runnerVersion,
+      profile: result.runnerVersion,
+      purpose,
+      requestedRef,
+      comparisonKey: result.comparisonKey,
+      productionBaselineSha: provenance?.gameplaySourceCommit || null,
+      sourceCommit: provenance?.sourceCommit || null,
+      simulatorRunnerCommit: provenance?.measurementRunnerCommit || provenance?.sourceCommit || null,
+      measurementRunnerPaths: provenance?.measurementRunnerPaths || [...MEASUREMENT_RUNNER_PATHS],
+      measurementRunnerDiffSha256: provenance?.measurementRunnerDiffSha256 || null,
+      originMainAncestor: provenance?.originMainAncestor ?? null,
+      staleTreeAllowed: provenance?.staleTreeAllowed ?? null,
+      workingTreeClean: provenance?.workingTreeClean ?? null,
+      environmentHash,
+      configuration: result.configuration
+    }
+  };
+}
+
+export function buildConvergenceSummary(report) {
+  const lines = [
+    "# Run difficulty convergence audit",
+    "",
+    `- runner: \`${report.runnerVersion}\` / schema: ${report.schemaVersion}`,
+    `- source: \`${report.measurement.sourceCommit || "not recorded"}\` / production baseline: \`${report.measurement.productionBaselineSha || "not recorded"}\``,
+    `- N=${report.configuration.runs}/condition; seed=${report.configuration.seed}; population=${report.configuration.population}`,
+    `- depths: ${report.configuration.targetDepths.map(depth => `B${depth}`).join(", ")}`,
+    `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; same-state Portal counterfactual: ${report.configuration.sameStateCounterfactual.status}`,
+    "",
+    "Natural B1-start only. B25/B30 synthetic or frozen deep population is not included.",
+    "No scalar strategy score or Build Power. Pairing reports direction, outcome conversion, resource, and loot dimensions separately.",
+    ""
+  ];
+  report.conditions.forEach(condition => {
+    const reach = Object.fromEntries(condition.reach.map(row => [row.depth, row]));
+    lines.push(
+      `- ${condition.key}: death=${percent(condition.outcomeRates.death)}, Return=${percent(condition.outcomeRates.return)}, ` +
+      `Push=${condition.portal.pushDecisions}, Wing=${condition.portal.wingUses}, ` +
+      `B5=${percent(reach[5]?.reachedRate)}, B10=${percent(reach[10]?.reachedRate)}, ` +
+      `B15=${percent(reach[15]?.reachedRate)}, B20=${percent(reach[20]?.reachedRate)}, ` +
+      `B25 entrants=${reach[25]?.entrantN ?? "—"}, B30 entrants=${reach[30]?.entrantN ?? "—"}`
+    );
+  });
+  lines.push(
+    "",
+    "## Evidence boundary",
+    "",
+    "- Reach, death, Return, Push, Wing, resource use, loot lifecycle, build changes, and checkpoint loadout distributions are separate observations.",
+    "- Checkpoint top1/top3 and Dragon cohort results are descriptive only when the natural entrant cohort is N>=30; smaller cohorts remain needs_more_measurement.",
+    "- Same-world-seed pairing is valid for matched runs. Same-state Portal Return vs Push cloning is not claimed because the current production-backed simulator has no resumable state-clone boundary.",
+    "- Correlation does not establish causation. Gameplay, loot, enemy, Portal, elite, RNG, and balance values remain unchanged."
+  );
+  return lines.join("\n");
 }
 
 export function buildReport(result, provenance, { purpose = null, requestedRef = null } = {}) {
