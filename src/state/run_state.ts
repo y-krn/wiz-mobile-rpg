@@ -10,6 +10,7 @@ import {
   type NormalizedEliteDefeatedFloors,
   type NormalizedEliteFloors
 } from "./elite_floor.js";
+import { isNormalizedRunSeed, type NormalizedRunSeed } from "./run_seed.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
@@ -78,7 +79,7 @@ export interface NormalizedCurrentRun {
   codexDiscoveries: unknown[];
   workshopDiscoveries: unknown[];
   recordResult: unknown;
-  runSeed?: unknown;
+  runSeed?: NormalizedRunSeed;
   [key: string]: unknown;
 }
 
@@ -147,6 +148,9 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!isNormalizedTrialBands(value.trialBands)) return false;
   if (!isNormalizedEliteFloors(value.eliteFloors)) return false;
   if (!isNormalizedEliteDefeatedFloors(value.eliteDefeatedFloors)) return false;
+  if (Object.hasOwn(value, "runSeed") && value.runSeed !== undefined && !isNormalizedRunSeed(value.runSeed)) {
+    return false;
+  }
   if (!ARRAY_FIELDS.every(field => Array.isArray(value[field]))) return false;
   if (!isNormalizedRunQuestCollection(value.quests)) return false;
   if (!ITEM_COLLECTION_FIELDS.every(field => isRuntimeItemCollection(value[field]))) return false;

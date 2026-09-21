@@ -24,6 +24,7 @@ import {
   normalizeEliteDefeatedFloors,
   normalizeEliteFloors
 } from "./elite_floor.js";
+import { isNormalizedRunSeed, normalizeRunSeed } from "./run_seed.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
@@ -303,14 +304,16 @@ function isUsableVisitedMaps(visitedMaps, maps) {
 }
 
 function normalizePersistedGameState(gameState, currentRun, combatState) {
+  const hasCanonicalRunSeed = isNormalizedRunSeed(currentRun?.runSeed);
+  const hasActiveRunSeed = hasCanonicalRunSeed && !currentRun.returnReason;
   if (gameState === "combat") {
     if (isUsableCombatState(combatState)) return "combat";
-    return currentRun?.runSeed && !currentRun.returnReason ? "explore" : "town";
+    return hasActiveRunSeed ? "explore" : "town";
   }
   if (PERSISTED_GAME_STATES.has(gameState)) return gameState;
   if (["equip_overlay", "chest", "trap_encounter"].includes(gameState)) return "explore";
-  if (gameState === "submenu") return currentRun?.runSeed ? "explore" : "town";
-  if (currentRun?.runSeed && !currentRun.returnReason) return "explore";
+  if (gameState === "submenu") return hasCanonicalRunSeed ? "explore" : "town";
+  if (hasActiveRunSeed) return "explore";
   return "town";
 }
 
@@ -710,6 +713,10 @@ function normalizeCurrentRun(run) {
     }
   });
 
+  const runSeed = normalizeRunSeed(run.runSeed);
+  if (runSeed === undefined) delete normalized.runSeed;
+  else normalized.runSeed = runSeed;
+
   normalized.quests = normalized.quests.map(normalizeRunQuest).filter(isRecord);
   normalized.townInventory = normalized.townInventory.filter(item => item != null);
   normalized.unbankedObjectLoot = normalized.unbankedObjectLoot
@@ -879,7 +886,7 @@ export function normalizeSavePayload(data) {
 
   normalized.floor = Math.max(1, integerOr(data.floor, 1));
   const currentRun = recordOr(data.currentRun, null);
-  const activeRunMap = Boolean(currentRun?.runSeed && !currentRun.returnReason);
+  const activeRunMap = Boolean(isNormalizedRunSeed(currentRun?.runSeed) && !currentRun.returnReason);
   const activeFloorMap = data.maps?.[normalized.floor - 1];
   const activeFloorMapUsable = !activeRunMap || isUsableFloorMap(activeFloorMap, normalized.floor);
   const defaultStart = (activeFloorMapUsable
@@ -1013,7 +1020,7 @@ export function normalizeSavePayload(data) {
 
   let loadedMaps = Array.isArray(data.maps) ? data.maps.slice() : [];
   let needsMigration = false;
-  const generatedRunMaps = Boolean(normalized.currentRun?.runSeed);
+  const generatedRunMaps = isNormalizedRunSeed(normalized.currentRun?.runSeed);
   if (generatedRunMaps) {
     // Run maps are derived from currentRun.runSeed. Preserve an all-missing
     // run map so active-run recovery can fail closed instead of silently
