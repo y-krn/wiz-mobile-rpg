@@ -13,7 +13,7 @@ const options = {
   scenarioIds: ["workshop-empty"],
   targetDepths: [5],
   routePolicyIds: ["balanced"],
-  elitePolicies: ["avoid"],
+  elitePolicies: ["avoid", "engage"],
   portalPolicyIds: ["canonical"],
   equipmentPolicyIds: ["canonical-adaptive"],
   allowSmallRunCount: true
@@ -28,9 +28,14 @@ assert.deepEqual(first.configuration.targetDepths, [5]);
 assert.equal(first.configuration.population, "natural B1-start");
 assert.equal(first.configuration.syntheticDeepPopulation, false);
 assert.equal(first.configuration.sameStateCounterfactual.status, "not_run");
-assert.equal(first.conditions.length, 1);
+assert.equal(first.conditions.length, 2);
 assert.equal(first.conditions[0].runs, 1);
 assert.equal(first.conditions[0].population, "natural B1-start");
+assert.equal(first.conditions[0].elitePolicyValidation.status, "unvalidated");
+assert.equal(first.conditions[1].elitePolicyValidation.comparison, "not_run");
+assert.equal(first.comparisons.length, 1);
+assert.equal(first.comparisons[0].comparison.status, "not_run");
+assert.equal(first.comparisons[0].comparison.elitePolicyComparison, "unvalidated");
 assert.equal(first.conditions[0].reach[0].depth, 5);
 assert.ok(first.conditions[0].reach[0].checkpoint.populationStatus);
 assert.equal(first.conditions[0].interpretation.scalarStrategyScore, "forbidden");
@@ -46,5 +51,6 @@ const summary = buildConvergenceSummary({
 assert.match(summary, /Natural B1-start only/);
 assert.match(summary, /N>=30/);
 assert.match(summary, /same-state Portal counterfactual/);
+assert.match(summary, /elite engage\/avoid comparison: not_run/);
 
 console.log("run difficulty convergence audit regression passed");

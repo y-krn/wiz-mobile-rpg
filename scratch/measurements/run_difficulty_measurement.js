@@ -938,12 +938,20 @@ function compactConvergenceRun(result, {
       }))
     },
     elite: {
-      opportunities: Number(result.eliteOpportunities) || Number(result.specialCellsDetected?.elite) || Number(result.eliteEncounters) || 0,
+      status: result.elitePolicyValidation?.status || "unobserved",
+      opportunities: Number.isFinite(result.eliteOpportunities)
+        ? Number(result.eliteOpportunities)
+        : null,
       encounters: Number(result.eliteEncounters) || 0,
       victories: Number(result.eliteVictories) || 0,
       flees: Number(result.eliteFlees) || 0,
       deaths: Number(result.eliteDeaths) || 0,
       avoidDetourSteps: Number(result.eliteAvoidDetourSteps) || 0
+    },
+    elitePolicyValidation: result.elitePolicyValidation || {
+      status: "unobserved",
+      comparison: "not_run",
+      reason: "simulator did not provide an elite observation boundary"
     },
     loot,
     equipped: Number(equipmentChanges > 0),
@@ -973,6 +981,7 @@ function createConvergenceAccumulator(runs, targetDepths) {
     endingMpRate: [],
     portal: { pushDecisions: 0, returnDecisions: 0, wingUses: 0 },
     elite: { opportunities: 0, encounters: 0, victories: 0, flees: 0, deaths: 0, avoidDetourSteps: 0 },
+    elitePolicyValidation: null,
     loot: { status: "unobserved", found: 0, equipped: 0, banked: 0, salvaged: null, lost: 0, discarded: null, left: null, consumed: null },
     consumables: {},
     buildChanges: [],
@@ -1037,7 +1046,12 @@ function observeConvergenceRun(accumulator, record, targetDepths) {
     if (key === "events") return;
     accumulator.portal[key] += value;
   });
-  Object.entries(record.elite).forEach(([key, value]) => { accumulator.elite[key] += value; });
+  if (!accumulator.elitePolicyValidation && record.elitePolicyValidation) {
+    accumulator.elitePolicyValidation = record.elitePolicyValidation;
+  }
+  Object.entries(record.elite).forEach(([key, value]) => {
+    if (Number.isFinite(value)) accumulator.elite[key] += value;
+  });
   if (record.loot.status !== "unobserved") {
     accumulator.loot.status = record.loot.status;
     Object.entries(record.loot.counts).forEach(([key, value]) => {
@@ -1088,6 +1102,7 @@ function finalizeConvergenceCheckpoint(checkpoint, runs) {
 
 function finalizeConvergenceAccumulator(accumulator, targetDepths) {
   const runs = accumulator.runs;
+  const eliteUnvalidated = accumulator.elitePolicyValidation?.status === "unvalidated";
   return {
     runs,
     population: "natural B1-start",
@@ -1110,7 +1125,22 @@ function finalizeConvergenceAccumulator(accumulator, targetDepths) {
       checkpoint: finalizeConvergenceCheckpoint(accumulator.checkpoints[String(depth)], runs)
     })),
     portal: { ...accumulator.portal },
-    elite: { ...accumulator.elite },
+    elitePolicyValidation: accumulator.elitePolicyValidation || {
+      status: "unobserved",
+      comparison: "not_run",
+      reason: "simulator did not provide an elite observation boundary"
+    },
+    elite: eliteUnvalidated
+      ? {
+          status: "unvalidated",
+          opportunities: null,
+          encounters: null,
+          victories: null,
+          flees: null,
+          deaths: null,
+          avoidDetourSteps: null
+        }
+      : { status: "validated", ...accumulator.elite },
     loot: {
       ...accumulator.loot,
       secured: accumulator.loot.banked + (accumulator.loot.salvaged || 0),
@@ -1153,7 +1183,23 @@ function convergenceConditionKey(condition) {
   ].join("/");
 }
 
-function convergencePairSummary(baselineRecords, candidateRecords) {
+function convergencePairSummary(
+  baselineRecords,
+  candidateRecords,
+  { baselineCondition = null, candidateCondition = null } = {}
+) {
+  const partialInformationEliteComparison = baselineCondition?.routePolicy === "partial_information_exploration" &&
+    candidateCondition?.routePolicy === "partial_information_exploration" &&
+    baselineCondition.elitePolicy !== candidateCondition.elitePolicy;
+  if (partialInformationEliteComparison) {
+    return {
+      status: "not_run",
+      elitePolicyComparison: "unvalidated",
+      reason: "partial-information production elite observation boundary is unavailable; hidden elite coordinates are not used",
+      pairedRuns: 0,
+      worldSeedIntegrity: true
+    };
+  }
   const normalizeOutcome = record => ({
     ...record,
     outcome: record.outcome === "retreat" ? "voluntaryReturn" : record.outcome
@@ -1179,6 +1225,8 @@ function convergencePairSummary(baselineRecords, candidateRecords) {
     equipmentChanges: candidate.equipmentChanges - baselineRecords[index].equipmentChanges
   }));
   return {
+    status: "measured",
+    elitePolicyComparison: "not_applicable",
     pairedRuns: candidateRecords.length,
     worldSeedIntegrity: true,
     reachDirection: {
@@ -1351,14 +1399,20 @@ export async function runConvergenceAuditMeasurement({
     portalPolicyId: "canonical",
     equipmentPolicyId: "canonical-adaptive"
   })));
+  const reportsByKey = new Map(reports.map(report => [report.key, report]));
   const comparisons = reports
     .filter(report => !baselineKeys.has(report.key))
     .map(report => {
-      const baselineRecords = recordsByKey.get([...baselineKeys].find(key => key.startsWith(`${report.scenarioId}/`))) ||
+      const baselineKey = [...baselineKeys].find(key => key.startsWith(`${report.scenarioId}/`));
+      const baselineReport = reportsByKey.get(baselineKey) || reports.find(item => item.key === [...baselineKeys][0]);
+      const baselineRecords = recordsByKey.get(baselineKey) ||
         recordsByKey.values().next().value;
       return {
         condition: report.key,
-        comparison: convergencePairSummary(baselineRecords, recordsByKey.get(report.key))
+        comparison: convergencePairSummary(baselineRecords, recordsByKey.get(report.key), {
+          baselineCondition: baselineReport,
+          candidateCondition: report
+        })
       };
     });
   const configuration = {
@@ -1382,6 +1436,10 @@ export async function runConvergenceAuditMeasurement({
     sameStateCounterfactual: {
       status: "not_run",
       reason: "simulateRun exposes deterministic matched reruns, not resumable state clone at Portal decision"
+    },
+    elitePolicyComparison: {
+      status: "not_run",
+      reason: "partial-information production elite observation boundary is unavailable; engage/avoid comparisons are unvalidated and hidden elite coordinates are not used"
     },
     policy: "production-backed convergence audit; no balance tuning; no scalar strategy score"
   };
@@ -1438,6 +1496,7 @@ export function buildConvergenceSummary(report) {
     `- N=${report.configuration.runs}/condition; seed=${report.configuration.seed}; population=${report.configuration.population}`,
     `- depths: ${report.configuration.targetDepths.map(depth => `B${depth}`).join(", ")}`,
     `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; same-state Portal counterfactual: ${report.configuration.sameStateCounterfactual.status}`,
+    `- elite engage/avoid comparison: ${report.configuration.elitePolicyComparison.status} (${report.configuration.elitePolicyComparison.reason})`,
     "",
     "Natural B1-start only. B25/B30 synthetic or frozen deep population is not included.",
     "No scalar strategy score or Build Power. Pairing reports direction, outcome conversion, resource, and loot dimensions separately.",
@@ -1460,6 +1519,7 @@ export function buildConvergenceSummary(report) {
     "- Reach, death, Return, Push, Wing, resource use, loot lifecycle, build changes, and checkpoint loadout distributions are separate observations.",
     "- Checkpoint top1/top3 and Dragon cohort results are descriptive only when the natural entrant cohort is N>=30; smaller cohorts remain needs_more_measurement.",
     "- Same-world-seed pairing is valid for matched runs. Same-state Portal Return vs Push cloning is not claimed because the current production-backed simulator has no resumable state-clone boundary.",
+    "- Partial-information elite engage/avoid is unvalidated and omitted from oracle comparison because the production observation boundary is not reproduced.",
     "- Correlation does not establish causation. Gameplay, loot, enemy, Portal, elite, RNG, and balance values remain unchanged."
   );
   return lines.join("\n");
