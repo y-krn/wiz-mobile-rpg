@@ -89,7 +89,6 @@ export const createDefaultCurrentRun = () => ({
   // Per-floor elite lifecycle and greed-trigger state. This is persisted so
   // entry/prolonged rolls and qualitative warnings cannot reroll on load.
   eliteFloors: {},
-  eliteOmenSteps: {},
   eliteDefeatedFloors: [],
   defeatedMilestones: [],
   visitedMilestoneMerchants: [],

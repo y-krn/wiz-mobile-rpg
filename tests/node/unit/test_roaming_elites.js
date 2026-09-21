@@ -215,7 +215,6 @@ check("prolonged exploration can spawn an absent entry elite", () => {
       runSeed,
       floorSteps: { [ELITE_MIN_FLOOR]: 400 },
       eliteFloors: { [ELITE_MIN_FLOOR]: { greedScore: 12, prolongedChecks: 0, warningStage: 0 } },
-      eliteOmenSteps: {},
       eliteDefeatedFloors: []
     },
     x: start.x,
@@ -237,7 +236,6 @@ check("prolonged spawn and omen sequence survive a save/load round trip", () => 
       runSeed,
       floorSteps: { [ELITE_MIN_FLOOR]: 390 },
       eliteFloors: { [ELITE_MIN_FLOOR]: { greedScore: 0, prolongedChecks: 0, warningStage: 0 } },
-      eliteOmenSteps: {},
       eliteDefeatedFloors: []
     },
     roamingMonsters: []
