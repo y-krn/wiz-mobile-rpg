@@ -20,8 +20,8 @@ import {
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1599-composition-trait-diagnostic-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "issue1605-composition-trait-diagnostic-v1";
+export const SCHEMA_VERSION = 2;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1599;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -72,9 +72,18 @@ export const TRAIT_FIXTURES = Object.freeze([
 ]);
 
 export const CONDITIONS = Object.freeze([
-  Object.freeze({ id: "trait-present", label: "traitあり", removeTrait: null }),
-  Object.freeze({ id: "trait-absent", label: "該当traitのみ除去", removeTrait: "fixture-trait" })
+  Object.freeze({ id: "trait-absent", label: "traitなし", removeTrait: "fixture-trait" }),
+  Object.freeze({ id: "production", label: "current production semantics", removeTrait: null }),
+  Object.freeze({ id: "candidate", label: "diagnostic candidate", removeTrait: null })
 ]);
+
+const SUPPORT_ACTION_TRAITS = new Set(["buffAtk", "buffPhysicalDef", "summonAlly"]);
+
+function conditionsForTrait(traitId) {
+  return SUPPORT_ACTION_TRAITS.has(traitId)
+    ? CONDITIONS
+    : CONDITIONS.filter(condition => condition.id !== "candidate");
+}
 
 const RUNNER_PATH = "scratch/measurements/composition_trait_diagnostic.js";
 const SIMULATION_PATH = "scratch/simulations/sim_depth_material_ev.js";
@@ -180,6 +189,7 @@ function createScenario({ fixture, condition, depth }) {
     measurementGuardTiming: playerFixture.guardTiming,
     measurementCombatTier: playerFixture.combatTier,
     measurementPlayerWeaponCandidate: playerFixture.weaponProfile,
+    measurementSupportActionContinuation: condition.id === "candidate",
     measurementInitiative: {
       playerLoadModifier: playerFixture.load.effectiveTempoModifier
     },
@@ -259,12 +269,22 @@ function observeRun(result, traitId, conditionId) {
   const initialMonsters = encounter?.monsters || [];
   const endEnemyHp = encounter?.endEnemyHp || [];
   const spawnedAllies = Math.max(0, endEnemyHp.length - initialMonsters.length);
+  const ownerName = TRAIT_FIXTURES.find(fixture => fixture.id === traitId)?.ownerName;
+  const normalActionContinuation = rounds.reduce((count, round) => count +
+    (round.enemyActionEvents || []).filter(action => {
+      if (action.monsterName !== ownerName) return false;
+      const supportAction = action.actionNames?.includes(ACTIVATION_ACTION_NAMES[traitId]);
+      const summonWarning = traitId === "summonAlly" &&
+        (round.log || []).some(message => message.includes("召喚の予兆"));
+      return (supportAction || summonWarning) && action.actionNames?.includes("通常攻撃");
+    }).length, 0);
   return {
     conditionId,
     outcome: result.fixedCombatResult,
     rounds: rounds.length,
     damageTaken: result.combatDamageHp || 0,
     enemyActions: result.normalCombatTelemetry?.enemyActions || 0,
+    normalActionContinuation,
     survival: Number(result.fixedCombatResult === "victory"),
     traitEffect: effect,
     spawnedAllies,
@@ -291,6 +311,7 @@ function summarizeRuns(rows, traitId, depth, conditionId) {
     rounds: summarize(rows.map(row => row.rounds)),
     damageTaken: summarize(rows.map(row => row.damageTaken)),
     enemyActions: summarize(rows.map(row => row.enemyActions)),
+    normalActionContinuation: summarize(rows.map(row => row.normalActionContinuation)),
     survivalRate: rows.reduce((sum, row) => sum + row.survival, 0) / rows.length,
     spawnedAllies: summarize(rows.map(row => row.spawnedAllies)),
     summonedAllies,
@@ -318,6 +339,7 @@ function deltaSummary(present, absent) {
     rounds: subtract(present.rounds, absent.rounds),
     damageTaken: subtract(present.damageTaken, absent.damageTaken),
     enemyActions: subtract(present.enemyActions, absent.enemyActions),
+    normalActionContinuation: subtract(present.normalActionContinuation, absent.normalActionContinuation),
     survivalRate: present.survivalRate - absent.survivalRate,
     spawnedAllies: subtract(present.spawnedAllies, absent.spawnedAllies),
     finalEnemyCount: subtract(present.finalEnemyCount, absent.finalEnemyCount),
@@ -344,12 +366,12 @@ function resolveTraitConfiguration() {
 }
 
 export function resolveWorldSeed({ seed, traitId, depth, runIndex }) {
-  return `${seed}:issue1599:${traitId}:B${depth}:${runIndex}`;
+  return `${seed}:issue1605:${traitId}:B${depth}:${runIndex}`;
 }
 
 function runCell({ traitId, depth, conditionId, runs, seed }) {
   const { fixture } = findFixture(traitId);
-  const condition = CONDITIONS.find(candidate => candidate.id === conditionId);
+  const condition = conditionsForTrait(traitId).find(candidate => candidate.id === conditionId);
   if (!condition) throw new Error(`unknown diagnostic condition: ${conditionId}`);
   const rows = [];
   for (let runIndex = 0; runIndex < runs; runIndex++) {
@@ -359,7 +381,7 @@ function runCell({ traitId, depth, conditionId, runs, seed }) {
       startFloor: depth,
       targetDepth: depth + 1,
       runIndex,
-      seriesId: `issue1599:${traitId}:B${depth}`,
+      seriesId: `issue1605:${traitId}:B${depth}`,
       scoringProfile: null,
       scenario: createScenario({ fixture, condition, depth }),
       workshop: { ranks: {} },
@@ -382,7 +404,7 @@ export async function runCompositionTraitDiagnostic({
   const cells = [];
   for (const trait of TRAIT_FIXTURES) {
     for (const depth of DEPTHS) {
-      for (const condition of CONDITIONS) {
+      for (const condition of conditionsForTrait(trait.id)) {
         cells.push(runCell({
           traitId: trait.id,
           depth,
@@ -394,9 +416,21 @@ export async function runCompositionTraitDiagnostic({
     }
   }
   const comparisons = TRAIT_FIXTURES.flatMap(trait => DEPTHS.map(depth => {
-    const present = cells.find(cell => cell.traitId === trait.id && cell.depth === depth && cell.conditionId === "trait-present");
-    const absent = cells.find(cell => cell.traitId === trait.id && cell.depth === depth && cell.conditionId === "trait-absent");
-    return { traitId: trait.id, depth, present, absent, delta: deltaSummary(present, absent) };
+    const noTrait = cells.find(cell => cell.traitId === trait.id && cell.depth === depth && cell.conditionId === "trait-absent");
+    const production = cells.find(cell => cell.traitId === trait.id && cell.depth === depth && cell.conditionId === "production");
+    const candidate = cells.find(cell => cell.traitId === trait.id && cell.depth === depth && cell.conditionId === "candidate") || null;
+    return {
+      traitId: trait.id,
+      depth,
+      noTrait,
+      production,
+      candidate,
+      deltas: {
+        productionVsNoTrait: deltaSummary(production, noTrait),
+        candidateVsNoTrait: candidate ? deltaSummary(candidate, noTrait) : null,
+        candidateVsProduction: candidate ? deltaSummary(candidate, production) : null
+      }
+    };
   }));
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -419,15 +453,17 @@ export async function runCompositionTraitDiagnostic({
       },
       traits: resolveTraitConfiguration(),
       conditions: CONDITIONS.map(condition => ({ ...condition })),
-      metrics: ["rounds", "damageTaken", "enemyActions", "survival", "trait activation/effect"],
+      traitConditionPolicy: "guardAdjacent retains no-trait/production only; buffAtk/buffPhysicalDef/summonAlly use all three conditions",
+      metrics: ["rounds", "damageTaken", "enemyActions", "survival", "trait activation/effect", "normal action continuation"],
       scaling: "HP = 1 + 0.20 × Tier; ATK = 1 + 0.10 × Tier; DEF = 1.0",
       reflectPhysicalDiagnosticFreeze: REFLECT_PHYSICAL_DIAGNOSTIC_RATE,
-      seedPolicy: "trait/depth/runIndex keyed worldSeed; trait-present/trait-absent pairs share the same initial RNG state",
+      seedPolicy: "trait/depth/runIndex keyed worldSeed; no-trait/production/candidate rows share the same initial RNG state",
       compositionPolicy: "production trait owner + the same production neutral ally; absent removes only the selected trait",
       omitted: [
         "production mutation",
         "Phase 1 freeze value changes",
-        "trait value tuning",
+        "trait chance/value tuning",
+        "support action rate/cadence/value scans",
         "cleanseAlly, buffMagicDef, targetLowHp",
         "status, spell, boss behavior",
         "loot, UI, save, map traversal, full Cartesian product",
@@ -475,6 +511,7 @@ function buildReport(result, provenance, options) {
       scaling: "diagnostic-only Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load",
       traits: "production trait owners, values, summon target, and summon cap retained; absent condition removes only the selected trait in the fixed composition",
+      supportAction: "candidate-only measurement hook resolves the production support effect, warning, or summon, then continues the same enemy turn with the normal action; default production path remains false",
       reflectPhysical: "diagnostic freeze reference 0.20; no reflectPhysical fixture in this scope",
       status: "diagnostic-only; production combat/enemy/loot/UI/save unchanged"
     }
@@ -483,28 +520,30 @@ function buildReport(result, provenance, options) {
 
 function buildSummary(report) {
   const lines = [
-    "# Composition trait diagnostic (#1599)",
+    "# Composition trait diagnostic (#1605)",
     "",
     `- runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; depths=B${report.configuration.depths.join(", B")}`,
     `- player fixture: ${report.configuration.playerFixture.id}; ${report.configuration.playerFixture.weapon}/${report.configuration.playerFixture.armor}/${report.configuration.playerFixture.shield}; Guard=${report.configuration.playerFixture.guardTiming}; Load=${report.configuration.playerFixture.loadCandidateId}`,
     "- scaling: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
-    "- production owner + same neutral ally; paired trait-present / selected-trait-absent seed",
+    "- production owner + same neutral ally; no-trait / production / candidate rows share paired seed",
     "",
-    "## Paired deltas (traitあり − 該当traitのみ除去)",
+    "## Paired deltas",
     "",
-    "- rounds / damage taken / enemy actions / spawned allies: average delta",
+    "- rounds / damage taken / enemy actions / spawned allies / normal-action continuation: average delta",
     "- survival: percentage-point delta",
     "- guardAdjacent: redirects; buffAtk / buffPhysicalDef: activations; summonAlly: activations / spawned allies",
     ""
   ];
   for (const comparison of report.comparisons) {
+    const delta = comparison.deltas.candidateVsNoTrait || comparison.deltas.productionVsNoTrait;
     lines.push(
-      `- ${comparison.traitId} B${comparison.depth}: rounds ${format(comparison.delta.rounds.average)}, ` +
-      `damage ${format(comparison.delta.damageTaken.average)}, enemy actions ${format(comparison.delta.enemyActions.average)}, ` +
-      `survival ${(comparison.delta.survivalRate * 100).toFixed(2)}pp, ` +
-      `effect ${format(comparison.delta.traitEffectAmount.average)} ${comparison.present.traitEffect.effectUnit}, ` +
-      `spawned ${format(comparison.delta.spawnedAllies.average)}`
+      `- ${comparison.traitId} B${comparison.depth}: candidate/no-trait rounds ${format(delta.rounds.average)}, ` +
+      `damage ${format(delta.damageTaken.average)}, enemy actions ${format(delta.enemyActions.average)}, ` +
+      `continuation ${format(delta.normalActionContinuation.average)}, ` +
+      `survival ${(delta.survivalRate * 100).toFixed(2)}pp, ` +
+      `effect ${format(delta.traitEffectAmount.average)} ${comparison.production.traitEffect.effectUnit}, ` +
+      `spawned ${format(delta.spawnedAllies.average)}`
     );
   }
   lines.push(

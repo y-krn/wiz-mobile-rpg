@@ -137,8 +137,20 @@ function resolveMeasurementWeaponAttack({
     measurementWeaponEffectiveDefense: effectiveDefense
   };
 }
+
 import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
 import { buildCombatTurnQueue } from "./turn_order.js";
+
+const MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS = new Set([
+  "buffAtk",
+  "buffPhysicalDef",
+  "summonAlly"
+]);
+
+function shouldContinueAfterMeasurementSupportAction(mon, policy) {
+  return policy?.measurementSupportActionContinuation === true &&
+    [...MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS].some(trait => hasTrait(mon, trait));
+}
 
 function findMonsterTemplate(name) {
   return MONSTERS.find(m => m.name === name);
@@ -1112,6 +1124,7 @@ export function runCombatRoundCalculation(
       }
 
       if (hasTrait(mon, "summonAlly")) {
+        const continueAfterSupportAction = shouldContinueAfterMeasurementSupportAction(mon, policy);
         if (mon.summonQueued) {
           mon.summonQueued = false;
           const livingMonsterCount = monsters.filter(m => m.hp > 0).length;
@@ -1122,7 +1135,7 @@ export function runCombatRoundCalculation(
               recordAction(mon, "仲間を呼ぶ");
               monsters.push({ ...template, hp: template.hp, maxHp: template.hp });
               logQueue.push({ msg: `[ 敵 ] ${mon.name}は${template.name}を召喚した！` });
-              return;
+              if (!continueAfterSupportAction) return;
             }
           }
         } else {
@@ -1132,7 +1145,7 @@ export function runCombatRoundCalculation(
           if (mon.turnCount % 3 === 0 && livingMonsterCount < summonLimit) {
             mon.summonQueued = true;
             logQueue.push({ msg: `[警告] ${mon.name}が怪しい声で呪文を唱え始めた！次のターン、召喚の予兆！`, sound: "cast_spell" });
-            return;
+            if (!continueAfterSupportAction) return;
           }
         }
       }
@@ -1213,10 +1226,11 @@ export function runCombatRoundCalculation(
       }
 
       if (hasTrait(mon, "buffPhysicalDef") && rng() < (mon.traitChance ?? 0.3)) {
+        const continueAfterSupportAction = shouldContinueAfterMeasurementSupportAction(mon, policy);
         recordAction(mon, "物理防御を強化");
         monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "def", mon.buffValue ?? 2, 3));
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は仲間の守りを固めた！` });
-        return;
+        if (!continueAfterSupportAction) return;
       }
 
       if (hasTrait(mon, "buffMagicDef") && rng() < (mon.traitChance ?? 0.3)) {
@@ -1227,10 +1241,11 @@ export function runCombatRoundCalculation(
       }
 
       if (hasTrait(mon, "buffAtk") && rng() < (mon.traitChance ?? 0.3)) {
+        const continueAfterSupportAction = shouldContinueAfterMeasurementSupportAction(mon, policy);
         recordAction(mon, "仲間を鼓舞");
         monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "atk", mon.buffValue ?? 3, 3));
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は仲間を鼓舞した！` });
-        return;
+        if (!continueAfterSupportAction) return;
       }
 
       // ボス固有の行動判定と実行
