@@ -11,7 +11,7 @@ import { createRng as createSeededRng } from "../../src/seed_rng.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1560-equipment-vnext-combat-diagnostic-v1";
+export const RUNNER_VERSION = "issue1563-equipment-vnext-combat-diagnostic-v1";
 export const SCHEMA_VERSION = 3;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1544;
@@ -34,9 +34,9 @@ export const ARMOR_CANDIDATES = Object.freeze({
 
 export const SHIELD_CANDIDATES = Object.freeze({
   noShield: Object.freeze({ id: "noShield", label: "盾なし", guard: Object.freeze({ physical: 0.72, spell: 0.72, breath: 0.72 }) }),
-  smallShield: Object.freeze({ id: "smallShield", label: "小盾", load: "light", guard: Object.freeze({ physical: 0.55, spell: 0.55, breath: 0.55 }) }),
-  largeShield: Object.freeze({ id: "largeShield", label: "大盾", load: "heavy", guard: Object.freeze({ physical: 0.40, spell: 0.72, breath: 0.72 }) }),
-  magicShield: Object.freeze({ id: "magicShield", label: "魔法盾", load: "standard", guard: Object.freeze({ physical: 0.72, spell: 0.40, breath: 0.40 }) })
+  smallShield: Object.freeze({ id: "smallShield", label: "小盾", load: "light", guard: Object.freeze({ physical: 0.50, spell: 0.50, breath: 0.50 }) }),
+  largeShield: Object.freeze({ id: "largeShield", label: "大盾", load: "heavy", guard: Object.freeze({ physical: 0.35, spell: 0.50, breath: 0.50 }) }),
+  magicShield: Object.freeze({ id: "magicShield", label: "魔法盾", load: "standard", guard: Object.freeze({ physical: 0.50, spell: 0.35, breath: 0.35 }) })
 });
 
 export const DEPTHS = Object.freeze([1, 5, 10, 20, 30]);
@@ -541,7 +541,7 @@ function buildReport(result, provenance, purpose) {
     depths: result.configuration.depths,
     representativeConditionIds: result.configuration.representativeConditionIds,
     loadPolicies: result.configuration.loadPolicies
-  }, { label: "issue1560 vNext combat diagnostic env" });
+  }, { label: "issue1563 vNext combat diagnostic env" });
   return {
     ...result,
     purpose,
@@ -563,7 +563,7 @@ function buildReport(result, provenance, purpose) {
       combatTier: "tierMultiplier = 1 + 0.16 × tier; Tier 0–5",
       weapon: "Mace keeps lower hit chance and normal-DEF damage-per-attempt than Sword; high-DEF advantage comes from capped penetration without increasing with DEF. Greatsword keeps the highest normal-attack multiplier, while the paired fixture includes small-shield Sword vs no-shield heavy Greatsword",
       armor: "direct incoming mitigation candidate; production DEF/(DEF+4) untouched",
-      guard: "Defend-only candidate multipliers by physical / spell / breath; Attack has no Guard mitigation",
+      guard: "Defend-only: no-shield=0.72 weak baseline; small=0.50 standard; large=0.35 physical with heavy load; magic=0.35 spell/breath and 0.50 physical; Attack has no Guard mitigation",
       rune: "wand and staff share one Rune action; slots, MP capacity, and hands are the only Rune scenario differences",
       load: "max burden = max slot score; aggregate = sum with max-burden floor",
       loadFixtures: LOAD_FIXTURES,
@@ -574,7 +574,7 @@ function buildReport(result, provenance, purpose) {
 
 function buildSummary(report) {
   const lines = [
-    "# Equipment vNext combat diagnostic (#1560)",
+    "# Equipment vNext combat diagnostic (#1563)",
     "",
     `- measurement: ${report.measurementId}; runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; confidence: ${report.confidencePolicy.belowMinimum} below N=${MIN_CONFIDENT_RUNS}`,
@@ -630,7 +630,7 @@ async function main() {
   const report = buildReport(result, provenance, options.purpose || process.env.MEASUREMENT_PURPOSE || "");
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));
-  console.log(`Wrote Issue #1560 vNext combat diagnostic: ${resolve(options.output)}`);
+  console.log(`Wrote Issue #1563 vNext combat diagnostic: ${resolve(options.output)}`);
 }
 
 export { buildReport, buildSummary, formulaTable, resolveLoadClass };

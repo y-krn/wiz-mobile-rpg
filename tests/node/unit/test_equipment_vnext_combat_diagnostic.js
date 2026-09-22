@@ -53,6 +53,19 @@ assert.notEqual(WEAPON_CANDIDATES.wand.hands, WEAPON_CANDIDATES.staff.hands);
 
 assert.deepEqual(Object.keys(ARMOR_CANDIDATES), ["lightArmor", "mediumArmor", "heavyArmor"]);
 assert.deepEqual(Object.keys(SHIELD_CANDIDATES), ["noShield", "smallShield", "largeShield", "magicShield"]);
+assert.deepEqual(SHIELD_CANDIDATES, {
+  noShield: { id: "noShield", label: "盾なし", guard: { physical: 0.72, spell: 0.72, breath: 0.72 } },
+  smallShield: { id: "smallShield", label: "小盾", load: "light", guard: { physical: 0.50, spell: 0.50, breath: 0.50 } },
+  largeShield: { id: "largeShield", label: "大盾", load: "heavy", guard: { physical: 0.35, spell: 0.50, breath: 0.50 } },
+  magicShield: { id: "magicShield", label: "魔法盾", load: "standard", guard: { physical: 0.50, spell: 0.35, breath: 0.35 } }
+});
+assert.ok(SHIELD_CANDIDATES.noShield.guard.physical > SHIELD_CANDIDATES.smallShield.guard.physical);
+assert.ok(SHIELD_CANDIDATES.largeShield.guard.physical < SHIELD_CANDIDATES.smallShield.guard.physical);
+assert.equal(SHIELD_CANDIDATES.largeShield.guard.spell, SHIELD_CANDIDATES.smallShield.guard.spell);
+assert.equal(SHIELD_CANDIDATES.magicShield.guard.physical, SHIELD_CANDIDATES.smallShield.guard.physical);
+assert.ok(SHIELD_CANDIDATES.magicShield.guard.spell < SHIELD_CANDIDATES.smallShield.guard.spell);
+assert.ok(SHIELD_CANDIDATES.magicShield.guard.breath < SHIELD_CANDIDATES.smallShield.guard.breath);
+assert.equal(SHIELD_CANDIDATES.largeShield.load, "heavy");
 assert.deepEqual(Object.keys(LOAD_FIXTURES), ["heavyArmorSword", "heavyArmorGreatsword", "lightArmorGreatsword"]);
 assert.equal(SHIELD_CANDIDATES.noShield.load, undefined, "no-shield must not add load burden");
 assert.deepEqual(Object.fromEntries(Object.entries(LOAD_FIXTURES).map(([id, fixture]) => [
@@ -202,4 +215,4 @@ assert.doesNotMatch(source, /src\/(combat|state|systems|ui|data\/items|data\/mon
 assert.deepEqual(REPRESENTATIVE_CONDITIONS.map(condition => condition.id), result.configuration.representativeConditionIds);
 assert.equal(buildReport(result, null, "bounded smoke").measurement.productionPaths.length, 0);
 
-console.log("[PASS] Issue #1560 vNext combat candidate tuning, threshold fixtures, common streams, and production boundary");
+console.log("[PASS] Issue #1563 vNext shield candidate tuning, threshold fixtures, common streams, and production boundary");
