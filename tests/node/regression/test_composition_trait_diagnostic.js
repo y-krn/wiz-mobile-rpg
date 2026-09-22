@@ -23,9 +23,9 @@ assert.deepEqual(first.configuration.traits.map(trait => trait.id), [
   "guardAdjacent", "buffAtk", "buffPhysicalDef", "summonAlly"
 ]);
 assert.deepEqual(first.configuration.conditions.map(condition => condition.id), [
-  "trait-present", "trait-absent"
+  "trait-absent", "production", "candidate"
 ]);
-assert.equal(first.cells.length, 32, "four traits × four depths × two conditions only");
+assert.equal(first.cells.length, 44, "guardAdjacent has two conditions; three support traits have three conditions");
 assert.equal(first.comparisons.length, 16);
 assert.equal(first.configuration.reflectPhysicalDiagnosticFreeze, REFLECT_PHYSICAL_DIAGNOSTIC_RATE);
 assert.deepEqual(first.configuration.playerFixture, {
@@ -37,8 +37,8 @@ assert.deepEqual(first.configuration.playerFixture, {
 assert.equal(first.configuration.scaling, "HP = 1 + 0.20 × Tier; ATK = 1 + 0.10 × Tier; DEF = 1.0");
 assert.equal(
   resolveWorldSeed({ seed: 1599, traitId: "buffAtk", depth: 20, runIndex: 2 }),
-  "1599:issue1599:buffAtk:B20:2",
-  "paired conditions must share the same world seed"
+  "1599:issue1605:buffAtk:B20:2",
+  "all paired conditions must share the same world seed"
 );
 
 for (const fixture of TRAIT_FIXTURES) {
@@ -57,18 +57,23 @@ for (const fixture of TRAIT_FIXTURES) {
 }
 
 for (const comparison of first.comparisons) {
-  assert.equal(comparison.present.runs, 1);
-  assert.equal(comparison.absent.runs, 1);
-  assert.ok(comparison.present.observedTraitPresence.includes(comparison.traitId));
-  assert.ok(!comparison.absent.observedTraitPresence.includes(comparison.traitId));
-  assert.ok(Number.isFinite(comparison.delta.rounds.average));
-  assert.ok(Number.isFinite(comparison.delta.damageTaken.average));
-  assert.ok(Number.isFinite(comparison.delta.enemyActions.average));
-  assert.ok(Number.isFinite(comparison.delta.survivalRate));
-  assert.ok(Number.isFinite(comparison.delta.traitEffectAmount.average));
+  assert.equal(comparison.production.runs, 1);
+  assert.equal(comparison.noTrait.runs, 1);
+  assert.ok(comparison.production.observedTraitPresence.includes(comparison.traitId));
+  assert.ok(!comparison.noTrait.observedTraitPresence.includes(comparison.traitId));
+  assert.ok(Number.isFinite(comparison.deltas.productionVsNoTrait.rounds.average));
+  assert.ok(Number.isFinite(comparison.deltas.productionVsNoTrait.damageTaken.average));
+  assert.ok(Number.isFinite(comparison.deltas.productionVsNoTrait.enemyActions.average));
+  assert.ok(Number.isFinite(comparison.deltas.productionVsNoTrait.survivalRate));
+  assert.ok(Number.isFinite(comparison.deltas.productionVsNoTrait.traitEffectAmount.average));
+  if (comparison.candidate) {
+    assert.equal(comparison.candidate.runs, 1);
+    assert.ok(comparison.candidate.observedTraitPresence.includes(comparison.traitId));
+    assert.ok(Number.isFinite(comparison.deltas.candidateVsProduction.normalActionContinuation.average));
+  }
   if (comparison.traitId === "summonAlly") {
-    assert.equal(comparison.present.spawnedAllies.average, comparison.present.traitEffect.effectAmount.average);
-    assert.equal(comparison.absent.spawnedAllies.average, 0);
+    assert.equal(comparison.production.spawnedAllies.average, comparison.production.traitEffect.effectAmount.average);
+    assert.equal(comparison.noTrait.spawnedAllies.average, 0);
     const measured = activationSmoke.comparisons.find(candidate =>
       candidate.traitId === comparison.traitId && candidate.depth === comparison.depth
     );
@@ -81,21 +86,29 @@ for (const comparison of first.comparisons) {
       atk: Math.round(target.atk * (1 + 0.10 * tier)),
       def: Math.round(target.def * 1.0)
     };
-    assert.ok(measured.present.summonedAllies.length > 0, `summonAlly B${comparison.depth} must observe a summon`);
-    assert.deepEqual(measured.present.summonedAllies, [expected]);
+    assert.ok(measured.production.summonedAllies.length > 0, `summonAlly B${comparison.depth} must observe a summon`);
+    assert.deepEqual(measured.production.summonedAllies, [expected]);
   }
 }
 
 for (const traitId of ["buffAtk", "buffPhysicalDef", "summonAlly"]) {
   const comparisons = activationSmoke.comparisons.filter(comparison => comparison.traitId === traitId);
   assert.ok(
-    comparisons.some(comparison => comparison.present.traitEffect.activationCount.average > 0),
-    `${traitId} present must observe an activation`
+    comparisons.some(comparison => comparison.production.traitEffect.activationCount.average > 0),
+    `${traitId} production must observe an activation`
   );
   assert.ok(
-    comparisons.every(comparison => comparison.absent.traitEffect.activationCount.average === 0),
-    `${traitId} absent must observe zero activations`
+    comparisons.every(comparison => comparison.production.normalActionContinuation.average === 0),
+    `${traitId} production support action must remain a normal-action replacement`
+  );
+  assert.ok(
+    comparisons.every(comparison => comparison.noTrait.traitEffect.activationCount.average === 0),
+    `${traitId} no-trait must observe zero activations`
+  );
+  assert.ok(
+    comparisons.some(comparison => comparison.candidate.normalActionContinuation.average > 0),
+    `${traitId} candidate must continue a normal action`
   );
 }
 
-console.log("[PASS] Issue #1599 composition trait pairing, fixed scope, and determinism");
+console.log("[PASS] Issue #1605 composition trait pairing, candidate continuation, and determinism");
