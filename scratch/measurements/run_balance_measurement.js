@@ -103,6 +103,7 @@ const fixedCombatArgs = ({ options, output }) => nativeMeasurementArgs({
 });
 
 const equipmentVNextCombatArgs = nativeMeasurementArgs;
+const depthScalingArgs = nativeMeasurementArgs;
 
 const equipmentLoadArgs = ({ options, output }) => [
   "--runs", String(options.runs),
@@ -186,6 +187,15 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
     buildArgs: equipmentVNextCombatArgs
+  }),
+  "depth-scaling": freezeFamily({
+    runner: "scratch/measurements/depth_scaling_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: depthScalingArgs
   }),
   "equipment-load": freezeFamily({
     runner: "scratch/measurements/equipment_load_measurement.js",
@@ -299,6 +309,12 @@ const PROFILE_LIST = [
     label: "Equipment vNext combat / Guard / load diagnostic",
     family: "equipment-vnext-combat",
     defaults: { runs: 200, minimumRuns: 200, seed: 1544 }
+  },
+  {
+    id: "depth-scaling-diagnostic",
+    label: "Generic enemy depth scaling diagnostic",
+    family: "depth-scaling",
+    defaults: { runs: 200, minimumRuns: 200, seed: 1582 }
   },
   {
     id: "equipment-load",

@@ -236,7 +236,7 @@ function summarize(values) {
   };
 }
 
-function tierMultiplier(tier) {
+export function tierMultiplier(tier) {
   return 1 + (tier * 0.16);
 }
 

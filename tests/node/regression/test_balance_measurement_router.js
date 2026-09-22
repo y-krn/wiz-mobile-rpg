@@ -91,6 +91,16 @@ const ROUTER_CONTRACTS = [
     override: { input: { runs: 201, seed: 1545 }, expected: { runs: 201, seed: 1545 } }
   },
   {
+    id: "depth-scaling-diagnostic",
+    runner: "scratch/measurements/depth_scaling_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 200, minimumRuns: 200, seed: 1582 },
+    args: nativeArgs("--ref", "main", "--runs", "200", "--seed", "1582"),
+    override: { input: { runs: 201, seed: 1583 }, expected: { runs: 201, seed: 1583 } }
+  },
+  {
     id: "equipment-load",
     runner: "scratch/measurements/equipment_load_measurement.js",
     adapter: "native-manifest",
@@ -281,6 +291,7 @@ assert.deepEqual(Object.keys(MEASUREMENT_FAMILIES), [
   "early-b1f-composition",
   "fixed-combat-composition",
   "equipment-vnext-combat",
+  "depth-scaling",
   "equipment-load",
   "run-difficulty",
   "early-run",
@@ -350,6 +361,7 @@ for (const measurement of [
   "early-b1f-composition",
   "fixed-combat-composition",
   "equipment-load",
+  "depth-scaling-diagnostic",
   "run-difficulty-policy-sensitivity",
   "early-run-attrition",
   "b3plus-survival-decomposition",
