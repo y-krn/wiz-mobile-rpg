@@ -13,6 +13,7 @@ import {
   type RuntimeItemCollection,
   type StorageCollection
 } from "./item.js";
+import { isNormalizedCodexPayload, type NormalizedCodexPayload } from "./codex_state.js";
 
 export type PersistedGameState =
   | "town"
@@ -59,7 +60,7 @@ export interface NormalizedSavePayload {
   unlockedMilestones: number[];
   runHistory: unknown[];
   deathLogs: NormalizedDeathHistory;
-  codex: Record<string, unknown>;
+  codex: NormalizedCodexPayload;
   seed: string;
   gameState: PersistedGameState;
   combatState: Record<string, unknown> | null;
@@ -136,7 +137,7 @@ export function isNormalizedSavePayload(value: unknown): value is NormalizedSave
       !isFiniteNumber(value.storageMax) || !isFiniteNumber(value.identifyTickets)) return false;
   if (!Array.isArray(value.firstKills) || !value.firstKills.every(item => typeof item === "string")) return false;
   if (value.currentRun !== null && !isNormalizedCurrentRun(value.currentRun)) return false;
-  if (!isNormalizedRecords(value.records) || !isRecord(value.codex) || !isRecord(value.metaMaterials) ||
+  if (!isNormalizedRecords(value.records) || !isNormalizedCodexPayload(value.codex) || !isRecord(value.metaMaterials) ||
       !isRecord(value.workshop)) return false;
   if (!Array.isArray(value.unlockedMilestones) ||
       !value.unlockedMilestones.every(item => Number.isInteger(item))) return false;

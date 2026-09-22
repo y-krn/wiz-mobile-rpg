@@ -10,6 +10,7 @@ import { applyFloorTransitionHeal, checkCellEvents } from "../../../src/movement
 import { resolveItemDefinition } from "../../../src/state/item.js";
 import { RUN_QUEST_TEMPLATES } from "../../../src/data/run_quests.js";
 import { createRunQuest } from "../../../src/systems/run_quests.js";
+import { isNormalizedSavePayload } from "../../../src/state/save_contract.js";
 
 const saveValues = new Map();
 globalThis.localStorage = {
@@ -135,6 +136,34 @@ check("older saves receive empty Castle/Codex/Workshop return fields", () => {
   assert.deepEqual(normalized.currentRun.codexInsights, []);
   assert.deepEqual(normalized.currentRun.workshopUnlocks, []);
   assert.equal(normalized.currentRun.returnProcessing, null);
+});
+
+check("legacy fractional Codex observation counts normalize to guard-valid saves", () => {
+  const legacyPayload = structuredClone(createSavePayload());
+  legacyPayload.codex.monsters["ワーウルフ"] = {
+    encountered: 1,
+    killed: 0,
+    firstKilled: false,
+    encounterFloors: { "1": 0.5, "2": 1.5 }
+  };
+  legacyPayload.codex.equipment.SHORT_SWORD = {
+    discovered: true,
+    foundCount: 1,
+    highestRarity: "common",
+    bestBonus: 0,
+    affixesSeen: [],
+    foundFloors: {},
+    tagObservations: {},
+    firstFoundAt: "B1F",
+    lastFoundSeed: "legacy"
+  };
+  legacyPayload.codex.equipment.SHORT_SWORD.foundFloors = { "1": 0.5, "2": 1.5 };
+  legacyPayload.codex.equipment.SHORT_SWORD.tagObservations = { blood: 0.5, spirit: 1.5 };
+  const normalized = normalizeSavePayload(legacyPayload);
+  assert.deepEqual(normalized.codex.monsters["ワーウルフ"].encounterFloors, { "2": 1 });
+  assert.deepEqual(normalized.codex.equipment.SHORT_SWORD.foundFloors, { "2": 1 });
+  assert.deepEqual(normalized.codex.equipment.SHORT_SWORD.tagObservations, { spirit: 1 });
+  assert.equal(isNormalizedSavePayload(normalized), true);
 });
 
 check("vNext migration removes legacy stats and translates equipment affixes", () => {
