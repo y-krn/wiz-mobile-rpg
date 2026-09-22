@@ -195,6 +195,7 @@ test('equipment retry failure keeps the original close context and focus @e2e @s
 
 test('equipment UI loads asynchronously once and stays cached across town and explore opens @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => performance.setResourceTimingBufferSize(1000));
   await page.goto('/');
   const evidence = await page.evaluate(async () => {
     const initialResources = performance.getEntriesByType('resource').map(({ name }) => name);
