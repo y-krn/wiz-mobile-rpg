@@ -115,6 +115,12 @@ for (const weapon of ["wand", "staff"]) {
   assert.equal(runeResult.runeActionId, RUNE_ACTION.id, `${weapon} must use the shared Rune action`);
   assert.equal(runeResult.mpSpent, runeResult.runeActions, `${weapon} MP must come from executed Rune actions`);
 }
+const repeatedWandRune = simulateOne({ id: "wand-repeated-rune", depth: 1, attackType: "spell", actionPlan: "rune" }, "wand", {
+  weapon: "wand", armor: "heavyArmor", shield: "noShield", policy: "max-burden", actionPlan: "rune"
+}, 1544, { initiativeOverride: true });
+assert.ok(repeatedWandRune.runeActions > WEAPON_CANDIDATES.wand.runeSlots, "wand must reuse the same Rune beyond its socket count");
+assert.equal(repeatedWandRune.runeActions, repeatedWandRune.mpCapacity / RUNE_ACTION.mpCost, "wand Rune use must stop at MP capacity");
+assert.equal(repeatedWandRune.mpSpent, repeatedWandRune.mpCapacity, "wand repeated Rune use must spend available MP");
 const runeRows = result.fixedCombat.filter(row => row.conditionId === "wand-vs-staff-rune");
 assert.equal(runeRows.every(row => row.runeActions.average > 0 && row.runeDamage.average > 0), true);
 

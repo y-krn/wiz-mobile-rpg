@@ -10,7 +10,7 @@ import { getCombatTierForStartFloor } from "../../src/rules/combat_tier.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1544-equipment-vnext-combat-diagnostic-v2";
+export const RUNNER_VERSION = "issue1544-equipment-vnext-combat-diagnostic-v3";
 export const SCHEMA_VERSION = 2;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1544;
@@ -236,7 +236,7 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
   };
   const playerRuneAction = () => {
     const rune = weapon.runeSlots > 0 ? RUNE_ACTION : null;
-    if (!rune || runeActions >= weapon.runeSlots || playerMp < rune.mpCost) return false;
+    if (!rune || playerMp < rune.mpCost) return false;
     playerMp -= rune.mpCost;
     mpSpent += rune.mpCost;
     const dealt = Math.max(1, rune.baseDamage * tierMultiplier(tier) * (0.92 + rng() * 0.16));
