@@ -73,7 +73,7 @@ export const TRAIT_FIXTURES = Object.freeze([
 
 export const CONDITIONS = Object.freeze([
   Object.freeze({ id: "trait-absent", label: "traitなし", removeTrait: "fixture-trait" }),
-  Object.freeze({ id: "production", label: "current production semantics", removeTrait: null }),
+  Object.freeze({ id: "production", label: "current flat DEF +2", removeTrait: null }),
   Object.freeze({ id: "candidate", label: "diagnostic candidate", removeTrait: null })
 ]);
 
@@ -182,6 +182,8 @@ export function resolvePlayerFixture(depth) {
 
 function createScenario({ fixture, condition, depth }) {
   const playerFixture = resolvePlayerFixture(depth);
+  const measurementSupportActionContinuation = condition.id === "candidate" ||
+    (fixture.id === "buffPhysicalDef" && condition.id === "production");
   return {
     startingKit: playerFixture.startingKit,
     hpBaseBonus: playerFixture.maxHp - 20,
@@ -193,7 +195,7 @@ function createScenario({ fixture, condition, depth }) {
       fixture.id === "buffPhysicalDef" && condition.id === "candidate"
         ? playerFixture.armorMitigation
         : null,
-    measurementSupportActionContinuation: condition.id === "candidate",
+    measurementSupportActionContinuation,
     measurementInitiative: {
       playerLoadModifier: playerFixture.load.effectiveTempoModifier
     },
