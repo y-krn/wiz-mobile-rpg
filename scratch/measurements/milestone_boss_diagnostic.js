@@ -144,11 +144,13 @@ export function resolveBossInventory(fixture) {
     rawStats: { hp: template.hp, atk: template.atk, def: template.def },
     spell: template.spell || null,
     spellChance: template.spellChance ?? null,
+    isPoisonous: template.isPoisonous === true,
     traits: [...(template.traits || [])],
     tags: [...(template.tags || [])],
     statusPattern: statusPattern
       ? {
           id: template.statusAttackPattern,
+          active: false,
           status: statusPattern.status,
           setupAction: statusPattern.setupAction,
           payoffAction: statusPattern.payoffAction,
@@ -157,6 +159,12 @@ export function resolveBossInventory(fixture) {
           runtimeEligibility: "excluded for boss encounters by resolveEnemyStatusPattern"
         }
       : null,
+    legacyPoison: {
+      active: template.isPoisonous === true,
+      source: "monster.isPoisonous",
+      runtimeEligibility: "active on the production Boss path as legacy poison fallback",
+      metric: "existing enemyActionEvents.statusSources"
+    },
     customBossAction: custom
       ? {
           actions: [...custom.actions],
@@ -473,7 +481,7 @@ export function buildSummary(report) {
     "- Inventory source: production biome boss mapping, monster templates, boss rules, boss actions, round status/spell/Guard path.",
     "- B5: production LAHALITO telegraph / guard-break / four-turn exposure; activation is measured from production logs.",
     "- B10: guardAdjacent is inventory-only in a fixed single-boss encounter; adjacent-Guard redirect is not exercised.",
-    "- B15: poison_payoff is template-defined but excluded from boss encounters by production status-pattern gating; zero is classified as unreachable through this boss path, not missing telemetry.",
+    "- B15: `isPoisonous=true` keeps the legacy poison fallback active on the production Boss path; template-defined `poison_payoff` is inactive there. Runtime status observation uses existing `statusSources`.",
     "- B20/B25: production MADALTO path and Guard mitigation are observed when the fixed action schedule reaches them.",
     "- B30: production breath/MADALTO/TILTOWAIT cycle, warnings, and special Guard interaction are measured.",
     "- N<30 is correctness-only; merge後 GitHub Actions N=200 is the gate evidence.",

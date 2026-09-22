@@ -50,8 +50,13 @@ assert.deepEqual(b10.traits, ["guardAdjacent"]);
 assert.match(b10.guardInteraction.fixedSingleBossAdjacentGuard, /not exercised/);
 
 const b15 = resolveBossInventory(BOSS_FIXTURES[2]);
+assert.equal(b15.isPoisonous, true);
 assert.equal(b15.statusPattern.id, "poison_payoff");
+assert.equal(b15.statusPattern.active, false);
 assert.match(b15.statusPattern.runtimeEligibility, /excluded/);
+assert.equal(b15.legacyPoison.active, true);
+assert.match(b15.legacyPoison.runtimeEligibility, /active/);
+assert.equal(b15.legacyPoison.metric, "existing enemyActionEvents.statusSources");
 
 const b30 = resolveBossInventory(BOSS_FIXTURES.at(-1));
 assert.deepEqual(b30.customBossAction.actions, ["炎の息", "MADALTO", "TILTOWAIT"]);
