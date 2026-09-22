@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import {
   ARMOR_CANDIDATES,
   DEPTHS,
+  GUARD_TIMING_CANDIDATES,
+  GUARD_TIMING_CONDITIONS,
   LOAD_INITIATIVE_CANDIDATES,
   LOAD_FIXTURES,
   RUNE_ACTION,
@@ -104,6 +106,40 @@ assert.equal(result.fixedCombat.length, 37);
 assert.equal(result.fixedCombat.length, new Set(result.fixedCombat.map(row => `${row.conditionId}:${row.candidateId}`)).size);
 assert.equal(result.fixedCombat.every(row => row.runs === 3 && row.invariant), true);
 assert.equal(result.fixedCombat.every(row => row.confidence === "runner-correctness-only"), true);
+assert.deepEqual(Object.keys(GUARD_TIMING_CANDIDATES), ["current", "declared"]);
+assert.deepEqual(GUARD_TIMING_CONDITIONS.map(condition => condition.id), [
+  "small-vs-large-physical",
+  "magic-vs-large-arcane",
+  "no-shield-defend-baseline"
+]);
+assert.equal(result.guardTimingComparison.length, 10);
+assert.equal(result.guardTimingComparison.every(row => row.runs === 3 && row.invariant), true);
+assert.equal(result.guardTimingComparison.every(row => row.confidence === "runner-correctness-only"), true);
+for (const condition of GUARD_TIMING_CONDITIONS) {
+  const rows = result.guardTimingComparison.filter(row => row.conditionId === condition.id);
+  assert.equal(rows.length, condition.shields.length * 2);
+  assert.equal(new Set(rows.map(row => row.guardTiming)).size, 2);
+  assert.equal(new Set(rows.map(row => row.shieldId)).size, condition.shields.length);
+  assert.equal(rows.every(row => row.loadCandidateId === "cappedHalfStep"), true);
+  for (const shieldId of condition.shields) {
+    const shieldRows = rows.filter(row => row.shieldId === shieldId);
+    assert.deepEqual(shieldRows[0].initiativeDraws, shieldRows[1].initiativeDraws);
+    assert.equal(shieldRows[0].rawBurden, shieldRows[1].rawBurden);
+    assert.equal(shieldRows[0].effectiveTempoModifier, shieldRows[1].effectiveTempoModifier);
+  }
+}
+assert.deepEqual(Object.fromEntries(result.guardTimingComparison
+  .filter(row => row.conditionId === "small-vs-large-physical" && row.guardTiming === "current")
+  .map(row => [row.shieldId, [row.rawBurden, row.effectiveTempoModifier]])), {
+  smallShield: [2, -1],
+  largeShield: [4, -2]
+});
+assert.deepEqual(Object.fromEntries(result.guardTimingComparison
+  .filter(row => row.conditionId === "magic-vs-large-arcane" && row.guardTiming === "current")
+  .map(row => [row.shieldId, [row.rawBurden, row.effectiveTempoModifier]])), {
+  magicShield: [3, -1.5],
+  largeShield: [4, -2]
+});
 const greatswordCondition = REPRESENTATIVE_CONDITIONS.find(condition => condition.id === "sword-vs-greatsword");
 assert.deepEqual(
   { actionPlan: greatswordCondition.actionPlan, swordShield: greatswordCondition.shield, greatswordShield: greatswordCondition.compareShield },
@@ -257,6 +293,26 @@ assert.equal(attackOnlyShield.guardedEnemyActions, 0, "Attack round must not app
 assert.equal(attackOnlyShield.guardReduction, 0, "Attack round must not receive passive Guard reduction");
 assert.ok(defendShield.guardedEnemyActions > 0, "Defend round must apply Guard candidate");
 assert.ok(defendShield.guardReduction > 0, "Defend round must record Guard reduction");
+const timingCondition = GUARD_TIMING_CONDITIONS[0];
+const timingCandidate = {
+  weapon: timingCondition.weapon,
+  armor: timingCondition.armor,
+  shield: "largeShield",
+  policy: timingCondition.policy,
+  loadCandidateId: timingCondition.loadCandidateId,
+  actionPlan: timingCondition.actionPlan
+};
+const currentTiming = simulateOne(timingCondition, "current", timingCandidate, 1544, {
+  initiativeOverride: false,
+  guardTiming: "current"
+});
+const declaredTiming = simulateOne(timingCondition, "declared", timingCandidate, 1544, {
+  initiativeOverride: false,
+  guardTiming: "declared"
+});
+assert.equal(currentTiming.guardedEnemyActions, 0, "current timing must wait for Defend execution");
+assert.ok(declaredTiming.guardedEnemyActions > 0, "declared timing must Guard enemy-first Defend rounds");
+assert.ok(declaredTiming.guardReduction > currentTiming.guardReduction);
 
 for (const weapon of ["wand", "staff"]) {
   const runeResult = simulateOne({ id: "rune-scenario", depth: 10, attackType: "spell", actionPlan: "rune" }, weapon, {
@@ -285,4 +341,4 @@ const report = buildReport(result, null, "bounded smoke");
 assert.equal(report.measurement.productionPaths.length, 0);
 assert.match(buildSummary(report), /Guard opportunity count/);
 
-console.log("[PASS] Issue #1576 capped raw burden tempo, fixed heavy -1, large shield Guard / tempo diagnostic, and production boundary");
+console.log("[PASS] Issue #1579 Guard timing, capped raw burden tempo, existing CRN fixtures, and production boundary");

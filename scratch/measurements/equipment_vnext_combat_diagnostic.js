@@ -11,8 +11,8 @@ import { createRng as createSeededRng } from "../../src/seed_rng.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1576-capped-raw-burden-tempo-diagnostic-v1";
-export const SCHEMA_VERSION = 5;
+export const RUNNER_VERSION = "issue1579-guard-timing-capped-raw-burden-diagnostic-v1";
+export const SCHEMA_VERSION = 6;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1544;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -147,6 +147,60 @@ const LARGE_SHIELD_DIAGNOSTIC_CANDIDATES = Object.freeze({
   largeShieldHeavyMinusOne: Object.freeze({ label: "大盾 / physical 0.35 / heavy -1", shield: "largeShield", initiativeLoad: "heavy", loadCandidateId: "heavyMinusOne" }),
   largeShieldStandardTempo: Object.freeze({ label: "大盾 / physical 0.35 / standard tempo", shield: "largeShield", initiativeLoad: "standard" })
 });
+export const GUARD_TIMING_CANDIDATES = Object.freeze({
+  current: Object.freeze({
+    id: "current",
+    label: "current: Defend実行後のみGuard",
+    guardTiming: "current"
+  }),
+  declared: Object.freeze({
+    id: "declared",
+    label: "declared: Defend選択roundはinitiative非依存でGuard",
+    guardTiming: "declared"
+  })
+});
+export const GUARD_TIMING_CONDITIONS = Object.freeze([
+  Object.freeze({
+    id: "small-vs-large-physical",
+    comparisonGroup: "guard-timing-physical",
+    depth: 10,
+    axis: "guard-timing",
+    weapon: "sword",
+    armor: "mediumArmor",
+    shields: Object.freeze(["smallShield", "largeShield"]),
+    attackType: "physical",
+    actionPlan: "attack-defend",
+    policy: "aggregate",
+    loadCandidateId: "cappedHalfStep"
+  }),
+  Object.freeze({
+    id: "magic-vs-large-arcane",
+    comparisonGroup: "guard-timing-arcane",
+    depth: 10,
+    axis: "guard-timing",
+    weapon: "wand",
+    armor: "mediumArmor",
+    shields: Object.freeze(["magicShield", "largeShield"]),
+    attackType: "spell",
+    actionPlan: "attack-defend",
+    policy: "aggregate",
+    loadCandidateId: "cappedHalfStep"
+  }),
+  Object.freeze({
+    id: "no-shield-defend-baseline",
+    comparisonGroup: "guard-timing-no-shield",
+    depth: 10,
+    axis: "guard-timing",
+    weapon: "sword",
+    armor: "mediumArmor",
+    shields: Object.freeze(["noShield"]),
+    attackType: "physical",
+    actionPlan: "attack-defend",
+    policy: "aggregate",
+    loadCandidateId: "cappedHalfStep"
+  })
+]);
+const GUARD_TIMING_CANDIDATE_IDS = Object.freeze(Object.keys(GUARD_TIMING_CANDIDATES));
 const RUNNER_PATH = "scratch/measurements/equipment_vnext_combat_diagnostic.js";
 const DIAGNOSTIC_PATHS = Object.freeze([
   RUNNER_PATH,
@@ -284,7 +338,8 @@ function createAccumulator(condition, candidateId, candidate) {
   };
 }
 
-export function simulateOne(condition, candidateId, candidate, runSeed, { initiativeOverride = null } = {}) {
+export function simulateOne(condition, candidateId, candidate, runSeed, { initiativeOverride = null, guardTiming = "current" } = {}) {
+  if (!GUARD_TIMING_CANDIDATES[guardTiming]) throw new Error(`unknown guard timing: ${guardTiming}`);
   const rng = createSeededRng(String(runSeed));
   const weapon = WEAPON_CANDIDATES[candidate.weapon];
   const armor = ARMOR_CANDIDATES[candidate.armor];
@@ -387,7 +442,12 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
       if (playerHp > 0 && enemyHp > 0) executePlayerAction(playerAction, roundActions);
       if (enemyHp > 0) enemyAttack({ defending: playerAction === "defend", roundActions });
     } else {
-      if (enemyHp > 0) enemyAttack({ roundActions });
+      if (enemyHp > 0) {
+        enemyAttack({
+          defending: guardTiming === "declared" && playerAction === "defend",
+          roundActions
+        });
+      }
       if (playerHp > 0 && enemyHp > 0) executePlayerAction(playerAction, roundActions);
     }
     actionTrace.push(roundActions);
@@ -419,6 +479,7 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
     maxBurdenScore: load.maxBurdenScore,
     loadCandidateId,
     initiativeLoad,
+    guardTiming,
     actionTrace
   };
 }
@@ -468,6 +529,7 @@ function finalizeAccumulator(accumulator, runs) {
 }
 
 export function comparisonGroupForCondition(condition) {
+  if (condition.comparisonGroup) return condition.comparisonGroup;
   if (condition.axis === "armor") return "armor";
   if (condition.axis === "shield") return condition.attackType === "spell" ? "shield-arcane" : "shield-physical";
   if (condition.axis === "load") return `load-${condition.fixtureId}`;
@@ -478,6 +540,72 @@ export function comparisonGroupForCondition(condition) {
 
 export function comparisonRunSeed(baseSeed, condition, runIndex) {
   return `${baseSeed}:${comparisonGroupForCondition(condition)}:${runIndex}`;
+}
+
+function recordAccumulatorResult(accumulator, result) {
+  accumulator.outcomes[result.outcome]++;
+  accumulator.survival += Number(result.outcome === "victory");
+  accumulator.playerBeforeAnyEnemy += Number(result.playerFirst);
+  accumulator.rounds.push(result.rounds);
+  accumulator.damageDealt.push(result.damageDealt);
+  accumulator.damageTaken.push(result.damageTaken);
+  accumulator.enemyActions.push(result.enemyActions);
+  accumulator.playerActions.push(result.playerActions);
+  accumulator.guardReduction.push(result.guardReduction);
+  accumulator.guardedEnemyActions.push(result.guardedEnemyActions);
+  accumulator.mpSpent.push(result.mpSpent);
+  accumulator.runeActions.push(result.runeActions);
+  accumulator.runeDamage.push(result.runeDamage);
+  accumulator.oneRoundKills += Number(result.oneRoundKill);
+  accumulator.guardOpportunityLoss.push(result.guardOpportunityLoss);
+  accumulator.initiativePlayerDraw.push(result.initiativeDraws.player);
+  accumulator.initiativeEnemyDraw.push(result.initiativeDraws.enemy);
+}
+
+function guardTimingCandidate(condition, shieldId) {
+  return {
+    weapon: condition.weapon,
+    armor: condition.armor,
+    shield: shieldId,
+    attackType: condition.attackType,
+    actionPlan: condition.actionPlan,
+    policy: condition.policy,
+    loadCandidateId: condition.loadCandidateId
+  };
+}
+
+async function runGuardTimingComparison(runs, seed) {
+  const comparison = [];
+  for (const condition of GUARD_TIMING_CONDITIONS) {
+    for (const shieldId of condition.shields) {
+      for (const timingId of GUARD_TIMING_CANDIDATE_IDS) {
+        const candidate = guardTimingCandidate(condition, shieldId);
+        const accumulator = createAccumulator(
+          { ...condition, shield: shieldId },
+          `${shieldId}:${timingId}`,
+          candidate
+        );
+        for (let runIndex = 0; runIndex < runs; runIndex++) {
+          const result = simulateOne(
+            condition,
+            timingId,
+            candidate,
+            comparisonRunSeed(seed, condition, runIndex),
+            { guardTiming: timingId }
+          );
+          recordAccumulatorResult(accumulator, result);
+        }
+        comparison.push({
+          comparisonGroup: comparisonGroupForCondition(condition),
+          guardTiming: timingId,
+          shieldId,
+          timingCandidate: GUARD_TIMING_CANDIDATES[timingId],
+          ...finalizeAccumulator(accumulator, runs)
+        });
+      }
+    }
+  }
+  return comparison;
 }
 
 function candidateForCondition(condition, candidateId) {
@@ -529,23 +657,7 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
       const accumulator = createAccumulator(condition, candidateId, candidate);
       for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
         const result = simulateOne(condition, candidateId, candidate, comparisonRunSeed(normalizedSeed, condition, runIndex));
-        accumulator.outcomes[result.outcome]++;
-        accumulator.survival += Number(result.outcome === "victory");
-        accumulator.playerBeforeAnyEnemy += Number(result.playerFirst);
-        accumulator.rounds.push(result.rounds);
-        accumulator.damageDealt.push(result.damageDealt);
-        accumulator.damageTaken.push(result.damageTaken);
-        accumulator.enemyActions.push(result.enemyActions);
-        accumulator.playerActions.push(result.playerActions);
-        accumulator.guardReduction.push(result.guardReduction);
-        accumulator.guardedEnemyActions.push(result.guardedEnemyActions);
-        accumulator.mpSpent.push(result.mpSpent);
-        accumulator.runeActions.push(result.runeActions);
-        accumulator.runeDamage.push(result.runeDamage);
-        accumulator.oneRoundKills += Number(result.oneRoundKill);
-        accumulator.guardOpportunityLoss.push(result.guardOpportunityLoss);
-        accumulator.initiativePlayerDraw.push(result.initiativeDraws.player);
-        accumulator.initiativeEnemyDraw.push(result.initiativeDraws.enemy);
+        recordAccumulatorResult(accumulator, result);
       }
       fixedCombat.push({ comparisonGroup, ...finalizeAccumulator(accumulator, normalizedRuns) });
     }
@@ -608,6 +720,15 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
         ],
         omitted: "heavy + stronger Guard; non-initiative cost; full Cartesian product"
       },
+      guardTimingDiagnostic: {
+        candidateIds: [...GUARD_TIMING_CANDIDATE_IDS],
+        candidates: Object.values(GUARD_TIMING_CANDIDATES),
+        conditionIds: GUARD_TIMING_CONDITIONS.map(condition => condition.id),
+        loadCandidateId: "cappedHalfStep",
+        loadMapping: "raw burden 2/3/4 → -1/-1.5/-2",
+        seedFormat: "<base seed>:<comparison group>:<run index>; shield and timing IDs excluded",
+        omitted: ["production combat semantics", "Guard multiplier changes", "Weapon/Armor/Tier/enemy scaling changes", "full Cartesian product", "Heavy run"]
+      },
       loadFixtures: Object.values(LOAD_FIXTURES),
       runeAction: RUNE_ACTION,
       comparisonGroups: [...new Set(REPRESENTATIVE_CONDITIONS.map(comparisonGroupForCondition))],
@@ -617,6 +738,7 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
     },
     formulaTable: formulaTable(),
     fixedCombat,
+    guardTimingComparison: await runGuardTimingComparison(normalizedRuns, normalizedSeed),
     loadComparison,
     rawAggregate: fixedCombat
   };
@@ -632,7 +754,7 @@ function buildReport(result, provenance, purpose) {
     depths: result.configuration.depths,
     representativeConditionIds: result.configuration.representativeConditionIds,
     loadPolicies: result.configuration.loadPolicies
-  }, { label: "issue1576 capped raw burden tempo diagnostic env" });
+  }, { label: "issue1579 Guard timing capped raw burden diagnostic env" });
   return {
     ...result,
     purpose,
@@ -657,6 +779,7 @@ function buildReport(result, provenance, purpose) {
       guard: "Defend-only: no-shield=0.72 weak baseline; small=0.50 standard; large=0.35 physical with heavy load; large standard-tempo isolation keeps 0.35 Guard; magic=0.35 spell/breath and 0.50 physical; Attack has no Guard mitigation",
       rune: "wand and staff share one Rune action; slots, MP capacity, and hands are the only Rune scenario differences",
       load: "production current = light +2 / standard 0 / heavy -2; fixed baseline = light +2 / standard 0 / heavy -1; capped half-step candidate uses heavy -1 - min(1, 0.5 × max(0, raw burden - 2)); UI remains light / standard / heavy",
+      guardTiming: "current = Guard only after Defend execution; declared = selected Defend round receives Guard independent of initiative; timing only, no production semantics",
       loadFixtures: LOAD_FIXTURES,
       confidence: `N < ${MIN_CONFIDENT_RUNS} is runner-correctness-only`
     }
@@ -665,7 +788,7 @@ function buildReport(result, provenance, purpose) {
 
 function buildSummary(report) {
   const lines = [
-    "# Capped raw burden tempo diagnostic (#1576)",
+    "# Guard timing / capped raw burden diagnostic (#1579)",
     "",
     `- measurement: ${report.measurementId}; runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; confidence: ${report.confidencePolicy.belowMinimum} below N=${MIN_CONFIDENT_RUNS}`,
@@ -686,6 +809,15 @@ function buildSummary(report) {
     "| condition | candidate | load | raw burden | tempo | enemy HP | survival | rounds p50 | 1-round kill | damage taken avg | enemy actions avg | player first | Guard opportunities avg | Guard reduction avg | Guard opportunity loss avg | Rune actions avg | Rune damage avg | MP spent avg |",
     "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ...report.fixedCombat.map(row => `| ${row.conditionId} | ${row.candidateId} | ${row.loadClass} | ${row.rawBurden} | ${row.effectiveTempoModifier} | ${row.enemyHpMultiplier.toFixed(2)}× | ${(row.survivalRate * 100).toFixed(1)}% | ${row.rounds.p50?.toFixed(2) ?? "-"} | ${(row.oneRoundKillRate * 100).toFixed(1)}% | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardedEnemyActions.average?.toFixed(2) ?? "-"} | ${row.guardReduction.average?.toFixed(2) ?? "-"} | ${row.guardOpportunityLoss.average?.toFixed(2) ?? "-"} | ${row.runeActions.average?.toFixed(2) ?? "-"} | ${row.runeDamage.average?.toFixed(2) ?? "-"} | ${row.mpSpent.average?.toFixed(2) ?? "-"} |`),
+    "",
+    "## Guard timing comparison",
+    "",
+    "- current: Defend実行後のみGuard。declared: Defend選択roundはinitiative順に関係なくGuard。Loadはcapped half-step固定。",
+    "- Minimal CRN: small vs large / physical; magic vs large / arcane; no-shield Defend baseline. No added candidate or Cartesian product.",
+    "",
+    "| group | shield | timing | raw burden | tempo | survival | player first | Guard applications avg | Guard reduction avg | damage taken avg | enemy actions avg |",
+    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...report.guardTimingComparison.map(row => `| ${row.comparisonGroup} | ${row.shieldId} | ${row.guardTiming} | ${row.rawBurden} | ${row.effectiveTempoModifier} | ${(row.survivalRate * 100).toFixed(1)}% | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardedEnemyActions.average?.toFixed(2) ?? "-"} | ${row.guardReduction.average?.toFixed(2) ?? "-"} | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} |`),
     "",
     "## Load comparison",
     "",
@@ -722,7 +854,7 @@ async function main() {
   const report = buildReport(result, provenance, options.purpose || process.env.MEASUREMENT_PURPOSE || "");
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));
-  console.log(`Wrote Issue #1576 capped raw burden tempo diagnostic: ${resolve(options.output)}`);
+  console.log(`Wrote Issue #1579 Guard timing capped raw burden diagnostic: ${resolve(options.output)}`);
 }
 
 export { buildReport, buildSummary, formulaTable, resolveLoadClass };
