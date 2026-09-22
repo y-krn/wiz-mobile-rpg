@@ -11,7 +11,7 @@ import { createRng as createSeededRng } from "../../src/seed_rng.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1567-equipment-vnext-combat-diagnostic-v1";
+export const RUNNER_VERSION = "issue1569-equipment-load-candidates-diagnostic-v1";
 export const SCHEMA_VERSION = 3;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1544;
@@ -112,21 +112,31 @@ export const REPRESENTATIVE_CONDITIONS = Object.freeze([
   Object.freeze({ id: "small-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "smallShield", attackType: "spell", actionPlan: "attack-defend" }),
   Object.freeze({ id: "large-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "largeShield", attackType: "spell", actionPlan: "attack-defend" }),
   Object.freeze({ id: "magic-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "magicShield", attackType: "spell", actionPlan: "attack-defend" }),
-  Object.freeze({ id: "max-burden-heavyArmorSword", depth: 20, axis: "load", policy: "max-burden", fixtureId: "heavyArmorSword", attackType: "physical" }),
-  Object.freeze({ id: "aggregate-heavyArmorSword", depth: 20, axis: "load", policy: "aggregate", fixtureId: "heavyArmorSword", attackType: "physical" }),
-  Object.freeze({ id: "max-burden-heavyArmorGreatsword", depth: 20, axis: "load", policy: "max-burden", fixtureId: "heavyArmorGreatsword", attackType: "physical" }),
-  Object.freeze({ id: "aggregate-heavyArmorGreatsword", depth: 20, axis: "load", policy: "aggregate", fixtureId: "heavyArmorGreatsword", attackType: "physical" }),
-  Object.freeze({ id: "max-burden-lightArmorGreatsword", depth: 20, axis: "load", policy: "max-burden", fixtureId: "lightArmorGreatsword", attackType: "physical" }),
-  Object.freeze({ id: "aggregate-lightArmorGreatsword", depth: 20, axis: "load", policy: "aggregate", fixtureId: "lightArmorGreatsword", attackType: "physical" })
+  Object.freeze({ id: "load-heavyArmorSword", depth: 20, axis: "load", policy: "max-burden", fixtureId: "heavyArmorSword", attackType: "physical", actionPlan: "attack-defend" }),
+  Object.freeze({ id: "load-heavyArmorGreatsword", depth: 20, axis: "load", policy: "max-burden", fixtureId: "heavyArmorGreatsword", attackType: "physical", actionPlan: "attack-defend" }),
+  Object.freeze({ id: "load-lightArmorGreatsword", depth: 20, axis: "load", policy: "max-burden", fixtureId: "lightArmorGreatsword", attackType: "physical", actionPlan: "attack-defend" })
 ]);
 
 const LOAD_SCORE = Object.freeze({ light: 0, standard: 1, heavy: 2 });
-const LOAD_INITIATIVE = Object.freeze({ light: 2, standard: 0, heavy: -2 });
+export const LOAD_INITIATIVE_CANDIDATES = Object.freeze({
+  current: Object.freeze({
+    id: "current",
+    label: "現行 light +2 / standard 0 / heavy -2",
+    modifiers: Object.freeze({ light: 2, standard: 0, heavy: -2 })
+  }),
+  heavyMinusOne: Object.freeze({
+    id: "heavyMinusOne",
+    label: "候補 light +2 / standard 0 / heavy -1",
+    modifiers: Object.freeze({ light: 2, standard: 0, heavy: -1 })
+  })
+});
+const LOAD_CANDIDATE_IDS = Object.freeze(Object.keys(LOAD_INITIATIVE_CANDIDATES));
 const ENEMY_DEFENSE = Object.freeze({ normal: 8, high: 20 });
 const ATTACK_PRESSURE = Object.freeze({ physical: 28, spell: 30, breath: 34 });
 const GUARD_REFERENCE_SHIELD = "smallShield";
 const LARGE_SHIELD_DIAGNOSTIC_CANDIDATES = Object.freeze({
   largeShield: Object.freeze({ label: "大盾 / physical 0.35 / heavy", shield: "largeShield", initiativeLoad: "heavy" }),
+  largeShieldHeavyMinusOne: Object.freeze({ label: "大盾 / physical 0.35 / heavy -1", shield: "largeShield", initiativeLoad: "heavy", loadCandidateId: "heavyMinusOne" }),
   largeShieldStandardTempo: Object.freeze({ label: "大盾 / physical 0.35 / standard tempo", shield: "largeShield", initiativeLoad: "standard" })
 });
 const RUNNER_PATH = "scratch/measurements/equipment_vnext_combat_diagnostic.js";
@@ -260,7 +270,10 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
   const tier = getCombatTierForStartFloor(condition.depth);
   const load = resolveLoadClass(candidate, candidate.policy);
   const initiativeLoad = candidate.initiativeLoad || load.class;
-  const playerSpeed = 10 + LOAD_INITIATIVE[initiativeLoad];
+  const loadCandidateId = candidate.loadCandidateId || "current";
+  const loadCandidate = LOAD_INITIATIVE_CANDIDATES[loadCandidateId];
+  if (!loadCandidate) throw new Error(`unknown load initiative candidate: ${loadCandidateId}`);
+  const playerSpeed = 10 + loadCandidate.modifiers[initiativeLoad];
   const enemySpeed = 10;
   const playerInitiativeDraw = initiativeOverride === null ? rng() : null;
   const enemyInitiativeDraw = initiativeOverride === null ? rng() : null;
@@ -377,6 +390,10 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
     initiativeDraws: { player: playerInitiativeDraw, enemy: enemyInitiativeDraw },
     playerSpeed,
     loadClass: load.class,
+    loadScore: load.score,
+    rawBurden: load.aggregateScore,
+    maxBurdenScore: load.maxBurdenScore,
+    loadCandidateId,
     initiativeLoad,
     actionTrace
   };
@@ -384,12 +401,18 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
 
 function finalizeAccumulator(accumulator, runs) {
   const outcomeCount = accumulator.outcomes.victory + accumulator.outcomes.death;
+  const load = resolveLoadClass(accumulator.candidate, accumulator.candidate.policy);
   return {
     conditionId: accumulator.conditionId,
     thresholdFixtureId: accumulator.thresholdFixtureId,
     enemyHpMultiplier: accumulator.enemyHpMultiplier,
     candidateId: accumulator.candidateId,
     candidate: accumulator.candidate,
+    loadCandidateId: accumulator.candidate.loadCandidateId || "current",
+    loadClass: load.class,
+    loadScore: load.score,
+    rawBurden: load.aggregateScore,
+    maxBurdenScore: load.maxBurdenScore,
     runs,
     outcomes: accumulator.outcomes,
     survivalRate: accumulator.survival / runs,
@@ -441,6 +464,7 @@ function candidateForCondition(condition, candidateId) {
   if (condition.id === "large-shield-physical" && LARGE_SHIELD_DIAGNOSTIC_CANDIDATES[candidateId]) {
     Object.assign(defaults, LARGE_SHIELD_DIAGNOSTIC_CANDIDATES[candidateId]);
   }
+  if (condition.axis === "load") defaults.loadCandidateId = candidateId;
   if (condition.axis === "weapon" && candidateId === condition.compareWith) defaults.weapon = candidateId;
   if (condition.axis === "weapon" && candidateId === condition.compareWith && condition.compareShield) {
     defaults.shield = condition.compareShield;
@@ -453,11 +477,11 @@ function conditionCandidates(condition) {
   if (condition.axis === "armor") return [condition.armor];
   if (condition.axis === "shield") {
     if (condition.id === "large-shield-physical") {
-      return [condition.shield, "largeShieldStandardTempo"];
+      return [condition.shield, "largeShieldHeavyMinusOne", "largeShieldStandardTempo"];
     }
     return [condition.shield];
   }
-  if (condition.axis === "load") return [condition.policy];
+  if (condition.axis === "load") return [...LOAD_CANDIDATE_IDS];
   return [];
 }
 
@@ -508,7 +532,9 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
         resolved,
         maxBurdenScore: maxBurden.score,
         invariant: resolved.score >= maxBurden.score,
-        result: fixedCombat.find(row => row.conditionId === `${policy}-${fixtureId}`)
+        result: policy === "max-burden"
+          ? fixedCombat.find(row => row.conditionId === `load-${fixtureId}` && row.loadCandidateId === "current")
+          : null
       };
     });
   });
@@ -534,21 +560,23 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
         noShieldCandidate: "universal_brace"
       },
       loadPolicies: [...LOAD_POLICIES],
+      loadInitiativeCandidates: Object.values(LOAD_INITIATIVE_CANDIDATES),
       largeShieldDiagnostic: {
         comparisonGroup: "shield-physical",
         baseline: { candidateId: "smallShield", guardPhysical: 0.50, initiativeLoad: "light" },
         candidates: [
           { candidateId: "largeShield", guardPhysical: 0.35, initiativeLoad: "heavy" },
+          { candidateId: "largeShieldHeavyMinusOne", guardPhysical: 0.35, initiativeLoad: "heavy", loadCandidateId: "heavyMinusOne" },
           { candidateId: "largeShieldStandardTempo", guardPhysical: 0.35, initiativeLoad: "standard" }
         ],
-        omitted: "heavy + stronger Guard; standard-tempo isolation is sufficient for this diagnostic"
+        omitted: "heavy + stronger Guard; non-initiative cost; full Cartesian product"
       },
       loadFixtures: Object.values(LOAD_FIXTURES),
       runeAction: RUNE_ACTION,
       comparisonGroups: [...new Set(REPRESENTATIVE_CONDITIONS.map(comparisonGroupForCondition))],
       seedFormat: "<base seed>:<comparison group>:<run index>; candidate ID excluded; common random numbers",
       representativeConditionIds: REPRESENTATIVE_CONDITIONS.map(condition => condition.id),
-      omitted: ["full Cartesian product", "production combat resolver", "production equipment generation", "enemy loot UI save paths", "Bag weight"]
+      omitted: ["full Cartesian product", "non-initiative cost candidate", "production combat resolver", "production equipment generation", "enemy loot UI save paths", "Bag weight"]
     },
     formulaTable: formulaTable(),
     fixedCombat,
@@ -567,7 +595,7 @@ function buildReport(result, provenance, purpose) {
     depths: result.configuration.depths,
     representativeConditionIds: result.configuration.representativeConditionIds,
     loadPolicies: result.configuration.loadPolicies
-  }, { label: "issue1567 vNext combat diagnostic env" });
+  }, { label: "issue1569 equipment load candidate diagnostic env" });
   return {
     ...result,
     purpose,
@@ -591,7 +619,7 @@ function buildReport(result, provenance, purpose) {
       armor: "direct incoming mitigation candidate; production DEF/(DEF+4) untouched",
       guard: "Defend-only: no-shield=0.72 weak baseline; small=0.50 standard; large=0.35 physical with heavy load; large standard-tempo isolation keeps 0.35 Guard; magic=0.35 spell/breath and 0.50 physical; Attack has no Guard mitigation",
       rune: "wand and staff share one Rune action; slots, MP capacity, and hands are the only Rune scenario differences",
-      load: "max burden = max slot score; aggregate = sum with max-burden floor",
+      load: "current = light +2 / standard 0 / heavy -2; candidate = light +2 / standard 0 / heavy -1; raw burden remains max-burden/aggregate diagnostic only",
       loadFixtures: LOAD_FIXTURES,
       confidence: `N < ${MIN_CONFIDENT_RUNS} is runner-correctness-only`
     }
@@ -600,7 +628,7 @@ function buildReport(result, provenance, purpose) {
 
 function buildSummary(report) {
   const lines = [
-    "# Equipment vNext combat diagnostic (#1567)",
+    "# Equipment Load candidate diagnostic (#1569)",
     "",
     `- measurement: ${report.measurementId}; runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; confidence: ${report.confidencePolicy.belowMinimum} below N=${MIN_CONFIDENT_RUNS}`,
@@ -614,13 +642,13 @@ function buildSummary(report) {
     "",
     "## Representative fixed combat",
     "",
-    "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and three representative load fixtures; threshold fixtures cover Mace B5 high DEF at 0.95/1.00/1.05× HP and Greatsword B10 at 1.30/1.35/1.40× HP.",
-    "- Metrics: survival, rounds, one-round kills, damage dealt/taken, enemy actions, player-before-any-enemy, Guard opportunity count, Defend-only Guard reduction/opportunity loss, actual Rune actions/damage/MP.",
+    "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and three representative load fixtures; load compares current light +2 / standard 0 / heavy -2 with heavy -1 using common random numbers.",
+    "- Metrics: survival, rounds, one-round kills, damage dealt/taken, enemy actions, player-before-any-enemy, Guard opportunity count, Defend-only Guard reduction/opportunity loss, load class, raw burden, actual Rune actions/damage/MP.",
     `- Rune scenario: shared ${report.configuration.runeAction.id} damage=${report.configuration.runeAction.baseDamage} MP=${report.configuration.runeAction.mpCost}; ${report.configuration.weaponProfiles.filter(row => row.runeSlots > 0).map(row => `${row.id}(slots=${row.runeSlots},MP=${row.mpCapacity},hands=${row.hands})`).join(" vs ")}.`,
     "",
-    "| condition | candidate | enemy HP | survival | rounds p50 | 1-round kill | damage taken avg | enemy actions avg | player first | Guard opportunities avg | Guard reduction avg | Guard opportunity loss avg | Rune actions avg | Rune damage avg | MP spent avg |",
-    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...report.fixedCombat.map(row => `| ${row.conditionId} | ${row.candidateId} | ${row.enemyHpMultiplier.toFixed(2)}× | ${(row.survivalRate * 100).toFixed(1)}% | ${row.rounds.p50?.toFixed(2) ?? "-"} | ${(row.oneRoundKillRate * 100).toFixed(1)}% | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardedEnemyActions.average?.toFixed(2) ?? "-"} | ${row.guardReduction.average?.toFixed(2) ?? "-"} | ${row.guardOpportunityLoss.average?.toFixed(2) ?? "-"} | ${row.runeActions.average?.toFixed(2) ?? "-"} | ${row.runeDamage.average?.toFixed(2) ?? "-"} | ${row.mpSpent.average?.toFixed(2) ?? "-"} |`),
+    "| condition | candidate | load | raw burden | enemy HP | survival | rounds p50 | 1-round kill | damage taken avg | enemy actions avg | player first | Guard opportunities avg | Guard reduction avg | Guard opportunity loss avg | Rune actions avg | Rune damage avg | MP spent avg |",
+    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...report.fixedCombat.map(row => `| ${row.conditionId} | ${row.candidateId} | ${row.loadClass} | ${row.rawBurden} | ${row.enemyHpMultiplier.toFixed(2)}× | ${(row.survivalRate * 100).toFixed(1)}% | ${row.rounds.p50?.toFixed(2) ?? "-"} | ${(row.oneRoundKillRate * 100).toFixed(1)}% | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardedEnemyActions.average?.toFixed(2) ?? "-"} | ${row.guardReduction.average?.toFixed(2) ?? "-"} | ${row.guardOpportunityLoss.average?.toFixed(2) ?? "-"} | ${row.runeActions.average?.toFixed(2) ?? "-"} | ${row.runeDamage.average?.toFixed(2) ?? "-"} | ${row.mpSpent.average?.toFixed(2) ?? "-"} |`),
     "",
     "## Load comparison",
     "",
@@ -628,7 +656,7 @@ function buildSummary(report) {
     "",
     "## Interpretation boundary",
     "",
-    "- This report is a vNext candidate diagnostic, not a production balance decision.",
+    "- This report is a diagnostic-only candidate comparison, not a production balance decision. Production remains light +2 / standard 0 / heavy -2 and UI remains 速い / 標準 / 遅い.",
     `- N < ${MIN_CONFIDENT_RUNS} cannot support a balance conclusion. Merge後GitHub Actions measurement artifact is the evidence source.`,
     "- No production combat, equipment, enemy, loot, UI, or save module is imported or changed."
   ];
@@ -656,7 +684,7 @@ async function main() {
   const report = buildReport(result, provenance, options.purpose || process.env.MEASUREMENT_PURPOSE || "");
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));
-  console.log(`Wrote Issue #1567 vNext combat diagnostic: ${resolve(options.output)}`);
+  console.log(`Wrote Issue #1569 equipment load candidate diagnostic: ${resolve(options.output)}`);
 }
 
 export { buildReport, buildSummary, formulaTable, resolveLoadClass };
