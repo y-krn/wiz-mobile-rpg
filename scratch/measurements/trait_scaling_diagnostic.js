@@ -38,7 +38,9 @@ export const PLAYER_FIXTURE = Object.freeze({
   loadPolicy: "aggregate",
   loadCandidateId: "cappedHalfStep",
   actionPlan: "attack-defend",
-  weaponPowerBase: 100
+  weaponPowerBase: 100,
+  armorMitigation: ARMOR_CANDIDATES.mediumArmor.mitigation,
+  guardMultiplier: SHIELD_CANDIDATES.smallShield.guard.physical
 });
 
 export const TRAIT_FIXTURES = Object.freeze([
@@ -217,8 +219,9 @@ function observeTraitEffect(result, traitId) {
   };
 }
 
-function observeRun(result, traitId, conditionId) {
+function observeRun(result, traitId, conditionId, depth) {
   const effect = observeTraitEffect(result, traitId);
+  const freezeApplication = observeFreezeApplication(result, depth);
   return {
     conditionId,
     outcome: result.fixedCombatResult,
@@ -227,7 +230,38 @@ function observeRun(result, traitId, conditionId) {
     enemyActions: result.normalCombatTelemetry?.enemyActions || 0,
     survival: Number(result.fixedCombatResult === "victory"),
     traitEffect: effect,
+    freezeApplication,
     observedTraits: result.diagnostics?.encounters?.[0]?.monsters?.[0]?.traits || []
+  };
+}
+
+function observeFreezeApplication(result, depth) {
+  const formula = result.combatFormula || {};
+  const playerHit = formula.physicalPlayerHits?.find(hit =>
+    hit.weaponBehaviorProfileId !== undefined
+  ) || null;
+  const monsterHit = formula.physicalMonsterHits?.find(hit => hit.attackType === "normal") || null;
+  const guard = formula.mitigations?.find(mitigation =>
+    mitigation.type === "guardAction" && mitigation.attackType === "physical"
+  ) || null;
+  const declaredGuardRound = (result.diagnostics?.encounters?.[0]?.rounds || []).some(round =>
+    round.action === "defend" &&
+    round.enemyActionEvents?.some(event => event.order < round.playerActionOrder)
+  );
+  const enemy = result.diagnostics?.encounters?.[0]?.monsters?.[0] || null;
+  return {
+    combatTier: getCombatTierForStartFloor(depth),
+    enemyMaxHp: enemy?.maxHp ?? null,
+    enemyAtk: enemy?.atk ?? null,
+    weaponBehaviorProfileId: playerHit?.weaponBehaviorProfileId ?? null,
+    weaponBehaviorDamageMultiplier: playerHit?.weaponBehaviorDamageMultiplier ?? null,
+    armorDefResistance: monsterHit?.defResistance ?? null,
+    guardBefore: guard?.before ?? null,
+    guardAfter: guard?.after ?? null,
+    guardResolvedMultiplier: guard
+      ? guard.after === Math.max(1, Math.round(guard.before * PLAYER_FIXTURE.guardMultiplier))
+      : false,
+    declaredGuardTimingObserved: declaredGuardRound
   };
 }
 
@@ -247,6 +281,7 @@ function summarizeRuns(rows, traitId, depth, conditionId) {
     damageTaken: summarize(rows.map(row => row.damageTaken)),
     enemyActions: summarize(rows.map(row => row.enemyActions)),
     survivalRate: rows.reduce((sum, row) => sum + row.survival, 0) / rows.length,
+    freezeApplication: rows[0]?.freezeApplication || null,
     traitEffect: {
       activationCount: summarize(activationRows),
       effectAmount: summarize(effectRows),
@@ -303,7 +338,7 @@ function runCell({ traitId, depth, conditionId, runs, seed }) {
       collectDiagnostics: true,
       collectCombatFormula: true
     });
-    rows.push(observeRun(result, traitId, conditionId));
+    rows.push(observeRun(result, traitId, conditionId, depth));
   }
   return summarizeRuns(rows, traitId, depth, conditionId);
 }
@@ -372,6 +407,7 @@ export async function runTraitScalingDiagnostic({
       ]
     },
     scaling: DEPTHS.map(resolveScaling),
+    freezeApplication: cells[0]?.freezeApplication || null,
     cells,
     comparisons
   };

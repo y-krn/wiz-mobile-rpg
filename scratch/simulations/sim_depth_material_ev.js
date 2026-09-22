@@ -8013,6 +8013,7 @@ export function selectCombatAction(state, metrics) {
   // Phase 1 freeze candidate; production combat values remain untouched.
   if (
     state.simPolicy.measurementCombatPlan === "attack-defend" &&
+    state.simPolicy.measurementGuardTiming === "declared" &&
     state.combatState.roundNumber % 2 === 0
   ) {
     return { type: "defend", actorIdx: 0 };
@@ -8687,7 +8688,9 @@ function createFixedDiagnosticMonsters(names, floor, {
 }
 
 function applyMeasurementPlayerCandidate(character, candidate) {
-  if (!candidate || !Number.isFinite(Number(candidate.attackPower))) return;
+  if (!candidate || !Number.isFinite(Number(candidate.attackPower))) {
+    return () => {};
+  }
   const weapon = character.equipment?.weapon;
   const baseId = getItemBaseId(weapon);
   if (!baseId) throw new Error("measurement player candidate requires a weapon");
@@ -8698,6 +8701,31 @@ function applyMeasurementPlayerCandidate(character, candidate) {
     affixes: bonus === 0
       ? []
       : [{ id: "phase1-freeze-weapon-power", type: "atk", value: bonus }]
+  };
+  const armor = character.equipment?.armor;
+  const shield = character.equipment?.shield;
+  const armorBaseId = getItemBaseId(armor);
+  const shieldBaseId = getItemBaseId(shield);
+  if (!armorBaseId || !shieldBaseId) {
+    throw new Error("measurement player candidate requires armor and shield");
+  }
+  const targetDef = Number(candidate.armorMitigation) * PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING /
+    (1 - Number(candidate.armorMitigation));
+  const armorBaseDef = Number(getItemData(armor)?.def || 0);
+  const shieldDef = Number(getItemData(shield)?.def || 0);
+  character.equipment.armor = {
+    baseId: armorBaseId,
+    identified: true,
+    affixes: [{
+      id: "phase1-freeze-armor-mitigation",
+      type: "def",
+      value: targetDef - armorBaseDef - shieldDef
+    }]
+  };
+  const previousGuardProfile = ITEMS.SMALL_SHIELD.guardProfile;
+  ITEMS.SMALL_SHIELD.guardProfile = "universal_brace";
+  return () => {
+    ITEMS.SMALL_SHIELD.guardProfile = previousGuardProfile;
   };
 }
 
@@ -17013,22 +17041,30 @@ export function simulateRun({
       throw new Error(`fixedCombat.entryMpRatio must be a number in [0,1]: ${fixedCombat.entryMpRatio}`);
     }
     const character = state.party[0];
-    applyMeasurementPlayerCandidate(character, fixedCombat.playerCandidate);
+    const restoreMeasurementPlayerCandidate = applyMeasurementPlayerCandidate(
+      character,
+      fixedCombat.playerCandidate
+    );
     character.hp = Math.max(1, Math.round(getCharMaxHp(character) * entryHpRatio));
     character.mp = Math.max(0, Math.round(getCharMaxMp(character) * entryMpRatio));
     state.currentRun.battles++;
-    const combatResult = runEncounter(
-      state,
-      metrics.coreObservations,
-      metrics.diagnostics,
-      metrics,
-      {
-        fixedMonsterNames: fixedCombat.monsterNames,
-        scalingPolicy: fixedCombat.scalingPolicy || "production",
-        removeTrait: fixedCombat.removeTrait || null,
-        encounterCoord: { x: 0, y: 0 }
-      }
-    );
+    let combatResult;
+    try {
+      combatResult = runEncounter(
+        state,
+        metrics.coreObservations,
+        metrics.diagnostics,
+        metrics,
+        {
+          fixedMonsterNames: fixedCombat.monsterNames,
+          scalingPolicy: fixedCombat.scalingPolicy || "production",
+          removeTrait: fixedCombat.removeTrait || null,
+          encounterCoord: { x: 0, y: 0 }
+        }
+      );
+    } finally {
+      restoreMeasurementPlayerCandidate();
+    }
     metrics.combatRounds += combatResult.rounds;
     metrics.combatDamageHp += combatResult.telemetry.incomingDamage;
     metrics.incomingHits += combatResult.telemetry.incomingHits;

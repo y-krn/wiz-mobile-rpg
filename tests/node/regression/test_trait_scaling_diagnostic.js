@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 
+const { MONSTERS } = await import("../../../src/data/monsters.js");
+const { buildCombatTurnQueue } = await import("../../../src/combat_logic/turn_order.js");
 const { resolveWorldSeed, runTraitScalingDiagnostic } = await import(
   "../../../scratch/measurements/trait_scaling_diagnostic.js"
 );
@@ -31,6 +33,8 @@ assert.deepEqual(
     loadCandidateId: "cappedHalfStep",
     actionPlan: "attack-defend",
     weaponPowerBase: 100,
+    armorMitigation: 0.2,
+    guardMultiplier: 0.5,
     weaponProfile: "sword",
     armorProfile: "mediumArmor",
     shieldProfile: "smallShield"
@@ -43,6 +47,50 @@ assert.equal(
   "paired conditions must share the same world seed"
 );
 assert.ok(!resolveWorldSeed({ seed: 1586, traitId: "evasive", depth: 10, runIndex: 3 }).includes("trait-present"));
+
+const freeze = first.freezeApplication;
+const evasiveTemplate = MONSTERS.find(monster => monster.name === "這い寄る影");
+assert.ok(evasiveTemplate);
+assert.equal(freeze.combatTier, 1);
+assert.equal(freeze.enemyMaxHp, Math.round(evasiveTemplate.hp * 1.2));
+assert.equal(freeze.enemyAtk, Math.round(evasiveTemplate.atk * 1.1));
+assert.equal(freeze.weaponBehaviorProfileId, "blade");
+assert.equal(freeze.weaponBehaviorDamageMultiplier, 1);
+assert.equal(freeze.armorDefResistance, 0.2);
+assert.equal(freeze.guardResolvedMultiplier, true);
+assert.equal(freeze.declaredGuardTimingObserved, true);
+
+function resolveFirstTurn(playerLoadModifier) {
+  const state = {
+    party: [{
+      status: "ok",
+      equipment: { weapon: null, armor: null, shield: null, accessory: null, accessory2: null },
+      buffs: []
+    }],
+    combatState: {
+      roundNumber: 1,
+      isBoss: false,
+      isMidboss: false,
+      isRoamingFlack: false,
+      monsters: [{ hp: 10, traits: [], name: "fixture" }]
+    }
+  };
+  return buildCombatTurnQueue(
+    state,
+    { actions: [{ type: "fight", actorIdx: 0 }] },
+    [],
+    {
+      rng: () => 0.1,
+      policy: {
+        measurementInitiative: { rollSize: 20, playerLoadModifier, enemySpeedModifier: 0 },
+        measurementDisableSharedNormalEnemyActionSlot: true
+      }
+    }
+  )[0].type;
+}
+
+assert.equal(resolveFirstTurn(-1), "monster", "capped half-step Load must affect initiative calculation");
+assert.equal(resolveFirstTurn(2), "char", "initiative regression must distinguish Load candidates");
 
 for (const comparison of first.comparisons) {
   assert.equal(comparison.present.runs, 1);
