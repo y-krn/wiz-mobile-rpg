@@ -20,8 +20,8 @@ import {
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1586-trait-scaling-diagnostic-v3";
-export const SCHEMA_VERSION = 3;
+export const RUNNER_VERSION = "issue1586-trait-scaling-diagnostic-v4";
+export const SCHEMA_VERSION = 4;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1586;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -188,7 +188,9 @@ function observeTraitEffect(result, traitId) {
   const enemyActions = rounds.flatMap(round => round.enemyActionEvents || []);
   const logs = rounds.flatMap(round => round.log || []);
   const evasionMisses = (result.combatFormula?.physicalPlayerMisses || [])
-    .filter(miss => miss.isEvasionMiss === true);
+    .filter(miss => miss.measurementWeaponCandidateId
+      ? miss.measurementWeaponEvasionMiss === true
+      : miss.isEvasionMiss === true);
   if (traitId === "evasive") {
     return {
       activationCount: evasionMisses.length,
@@ -231,6 +233,10 @@ function observeRun(result, traitId, conditionId, depth) {
     enemyActions: result.normalCombatTelemetry?.enemyActions || 0,
     survival: Number(result.fixedCombatResult === "victory"),
     traitEffect: effect,
+    evasionMisses: (result.combatFormula?.physicalPlayerMisses || [])
+      .filter(miss => miss.measurementWeaponCandidateId
+        ? miss.measurementWeaponEvasionMiss === true
+        : miss.isEvasionMiss === true).length,
     freezeApplication,
     observedTraits: result.diagnostics?.encounters?.[0]?.monsters?.[0]?.traits || []
   };
@@ -264,7 +270,9 @@ function observeFreezeApplication(result, depth) {
     weaponCandidateMultiplier: playerAttack?.measurementWeaponMultiplier ?? null,
     weaponCandidateHitChance: playerAttack?.measurementWeaponHitChance ?? null,
     weaponCandidateHighDefPenetration: playerAttack?.measurementWeaponHighDefPenetration ?? null,
+    weaponTargetEvasionChance: playerAttack?.targetEvasionChance ?? null,
     weaponHitChance: playerAttack?.hitChance ?? null,
+    evasionMissObserved: playerMiss?.measurementWeaponEvasionMiss === true,
     weaponBaseRaw: playerHit?.measurementWeaponBaseRaw ?? null,
     weaponFormulaRaw: playerHit?.formulaRaw ?? null,
     weaponEffectiveDefense: playerHit?.measurementWeaponEffectiveDefense ?? null,
@@ -295,6 +303,7 @@ function summarizeRuns(rows, traitId, depth, conditionId) {
     damageTaken: summarize(rows.map(row => row.damageTaken)),
     enemyActions: summarize(rows.map(row => row.enemyActions)),
     survivalRate: rows.reduce((sum, row) => sum + row.survival, 0) / rows.length,
+    evasionMisses: rows.reduce((sum, row) => sum + row.evasionMisses, 0),
     freezeApplication: rows[0]?.freezeApplication || null,
     traitEffect: {
       activationCount: summarize(activationRows),

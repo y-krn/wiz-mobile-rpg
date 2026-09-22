@@ -58,12 +58,25 @@ assert.equal(freeze.weaponCandidateId, "sword");
 assert.equal(freeze.weaponCandidateMultiplier, 1);
 assert.equal(freeze.weaponCandidateHitChance, 0.92);
 assert.equal(freeze.weaponCandidateHighDefPenetration, 0.05);
-assert.equal(freeze.weaponHitChance, 0.92);
+assert.equal(freeze.weaponTargetEvasionChance, evasiveTemplate.evasionChance);
+assert.equal(freeze.weaponHitChance, 0.92 - evasiveTemplate.evasionChance);
+assert.equal(freeze.evasionMissObserved, true);
 assert.equal(freeze.weaponFormulaRaw, freeze.weaponBaseRaw);
 assert.equal(freeze.weaponEffectiveDefense, freeze.weaponDefenseInput * 0.95);
 assert.equal(freeze.armorDefResistance, 0.2);
 assert.equal(freeze.guardResolvedMultiplier, true);
 assert.equal(freeze.declaredGuardTimingObserved, true);
+
+const evasiveB5 = first.comparisons.find(comparison =>
+  comparison.traitId === "evasive" && comparison.depth === 5
+);
+assert.ok(evasiveB5);
+assert.equal(evasiveB5.present.evasionMisses, 1, "paired present seed must observe evasive miss");
+assert.equal(evasiveB5.absent.evasionMisses, 0, "paired absent seed must remove evasive miss");
+assert.equal(evasiveB5.present.freezeApplication.evasionMissObserved, true);
+assert.equal(evasiveB5.absent.freezeApplication.evasionMissObserved, false);
+assert.equal(evasiveB5.absent.freezeApplication.weaponTargetEvasionChance, 0);
+assert.equal(evasiveB5.absent.freezeApplication.weaponHitChance, 0.92);
 
 function resolveFirstTurn(playerLoadModifier) {
   const state = {

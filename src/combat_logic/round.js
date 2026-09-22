@@ -2,7 +2,7 @@ import {
   MONSTERS,
   MONSTER_STATUS_ATTACK_PATTERNS,
 
-  getPhysicalHitChance, getMonsterEvasionChance,
+  getPhysicalHitChance, getMonsterEvasionChance, PHYSICAL_HIT_CHANCE_MIN,
   getCharWeaponAtk, getCharDef,
   rollCharWeaponPhysicalRandom,
   PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
@@ -693,8 +693,13 @@ export function runCombatRoundCalculation(
           isBlindMiss = true;
         }
 
-        const hitChance = measurementWeaponCandidate?.hitChance ??
-          getPhysicalHitChance(char, finalTarget);
+        const targetEvasionChance = getMonsterEvasionChance(finalTarget);
+        const hitChance = measurementWeaponCandidate
+          ? Math.max(
+            PHYSICAL_HIT_CHANCE_MIN,
+            Math.min(1, measurementWeaponCandidate.hitChance - targetEvasionChance)
+          )
+          : getPhysicalHitChance(char, finalTarget);
         if (!isBlindMiss && hitChance < 1 && rng() >= hitChance) {
           isBlindMiss = true;
           isEvasionMiss = true;
@@ -714,13 +719,14 @@ export function runCombatRoundCalculation(
             floor: state.floor,
             targetName: finalTarget.name,
             targetRole: finalTarget.role,
-            targetEvasionChance: getMonsterEvasionChance(finalTarget),
+            targetEvasionChance,
             hitChance,
             ...(measurementWeaponCandidate ? {
               measurementWeaponCandidateId: measurementWeaponCandidate.id,
               measurementWeaponMultiplier: measurementWeaponCandidate.multiplier,
               measurementWeaponHitChance: measurementWeaponCandidate.hitChance,
-              measurementWeaponHighDefPenetration: measurementWeaponCandidate.highDefPenetration
+              measurementWeaponHighDefPenetration: measurementWeaponCandidate.highDefPenetration,
+              measurementWeaponEvasionMiss: targetEvasionChance > 0
             } : {}),
             isEvasionMiss: true
           });
@@ -804,7 +810,7 @@ export function runCombatRoundCalculation(
               measurementWeaponEffectiveDefense: weaponAttack.measurementWeaponEffectiveDefense
             } : {}),
             physResistApplied: Boolean(finalTarget.physResist),
-            targetEvasionChance: getMonsterEvasionChance(finalTarget),
+            targetEvasionChance,
             hitChance,
             criticalChance: null,
             isCritical,
