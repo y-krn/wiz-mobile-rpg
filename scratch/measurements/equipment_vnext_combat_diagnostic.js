@@ -11,8 +11,8 @@ import { createRng as createSeededRng } from "../../src/seed_rng.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1573-raw-burden-stacking-diagnostic-v1";
-export const SCHEMA_VERSION = 4;
+export const RUNNER_VERSION = "issue1576-capped-raw-burden-tempo-diagnostic-v1";
+export const SCHEMA_VERSION = 5;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1544;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -129,15 +129,16 @@ export const LOAD_INITIATIVE_CANDIDATES = Object.freeze({
     label: "固定候補 light +2 / standard 0 / heavy -1",
     modifiers: Object.freeze({ light: 2, standard: 0, heavy: -1 })
   }),
-  rawBurdenHeavyCost: Object.freeze({
-    id: "rawBurdenHeavyCost",
-    label: "raw burden超過1点ごと追加heavy -1",
+  cappedHalfStep: Object.freeze({
+    id: "cappedHalfStep",
+    label: "raw burden 2/3/4 → heavy -1/-1.5/-2（cap）",
     modifiers: Object.freeze({ light: 2, standard: 0, heavy: -1 }),
     rawBurdenFloor: 2,
-    additionalHeavyCostPerBurden: 1
+    additionalHeavyCostPerBurden: 0.5,
+    additionalHeavyCostCap: 1
   })
 });
-const LOAD_CANDIDATE_IDS = Object.freeze(["heavyMinusOne", "rawBurdenHeavyCost"]);
+const LOAD_CANDIDATE_IDS = Object.freeze(["heavyMinusOne", "cappedHalfStep"]);
 const ENEMY_DEFENSE = Object.freeze({ normal: 8, high: 20 });
 const ATTACK_PRESSURE = Object.freeze({ physical: 28, spell: 30, breath: 34 });
 const GUARD_REFERENCE_SHIELD = "smallShield";
@@ -224,7 +225,7 @@ export function resolveEffectiveTempoModifier(load, candidateId, initiativeLoad 
     ? 0
     : Math.max(0, load.aggregateScore - candidate.rawBurdenFloor);
   const additionalHeavyCost = initiativeLoad === "heavy"
-    ? excessBurden * (candidate.additionalHeavyCostPerBurden || 0)
+    ? Math.min(candidate.additionalHeavyCostCap ?? Infinity, excessBurden * (candidate.additionalHeavyCostPerBurden || 0))
     : 0;
   return baseModifier - additionalHeavyCost;
 }
@@ -591,9 +592,10 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
       loadInitiativeCandidates: Object.values(LOAD_INITIATIVE_CANDIDATES),
       loadTempoComparison: {
         baselineCandidateId: "heavyMinusOne",
-        candidateId: "rawBurdenHeavyCost",
+        candidateId: "cappedHalfStep",
         rawBurdenFloor: 2,
-        additionalHeavyCostPerBurden: 1,
+        additionalHeavyCostPerBurden: 0.5,
+        additionalHeavyCostCap: 1,
         fixtureIds: Object.keys(LOAD_FIXTURES)
       },
       largeShieldDiagnostic: {
@@ -630,7 +632,7 @@ function buildReport(result, provenance, purpose) {
     depths: result.configuration.depths,
     representativeConditionIds: result.configuration.representativeConditionIds,
     loadPolicies: result.configuration.loadPolicies
-  }, { label: "issue1573 raw burden stacking diagnostic env" });
+  }, { label: "issue1576 capped raw burden tempo diagnostic env" });
   return {
     ...result,
     purpose,
@@ -654,7 +656,7 @@ function buildReport(result, provenance, purpose) {
       armor: "direct incoming mitigation candidate; production DEF/(DEF+4) untouched",
       guard: "Defend-only: no-shield=0.72 weak baseline; small=0.50 standard; large=0.35 physical with heavy load; large standard-tempo isolation keeps 0.35 Guard; magic=0.35 spell/breath and 0.50 physical; Attack has no Guard mitigation",
       rune: "wand and staff share one Rune action; slots, MP capacity, and hands are the only Rune scenario differences",
-      load: "production current = light +2 / standard 0 / heavy -2; #1573 fixed baseline = light +2 / standard 0 / heavy -1; candidate adds heavy -1 per raw burden above 2; UI remains light / standard / heavy",
+      load: "production current = light +2 / standard 0 / heavy -2; fixed baseline = light +2 / standard 0 / heavy -1; capped half-step candidate uses heavy -1 - min(1, 0.5 × max(0, raw burden - 2)); UI remains light / standard / heavy",
       loadFixtures: LOAD_FIXTURES,
       confidence: `N < ${MIN_CONFIDENT_RUNS} is runner-correctness-only`
     }
@@ -663,7 +665,7 @@ function buildReport(result, provenance, purpose) {
 
 function buildSummary(report) {
   const lines = [
-    "# Raw burden stacking diagnostic (#1573)",
+    "# Capped raw burden tempo diagnostic (#1576)",
     "",
     `- measurement: ${report.measurementId}; runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; confidence: ${report.confidencePolicy.belowMinimum} below N=${MIN_CONFIDENT_RUNS}`,
@@ -677,7 +679,7 @@ function buildSummary(report) {
     "",
     "## Representative fixed combat",
     "",
-    "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and three representative load fixtures; load compares fixed heavy -1 with one raw-burden candidate using common random numbers.",
+    "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and three representative load fixtures; load compares fixed heavy -1 with one capped half-step candidate using common random numbers.",
     "- Metrics: survival, rounds, one-round kills, damage dealt/taken, enemy actions, player-before-any-enemy, Guard opportunity count, Defend-only Guard reduction/opportunity loss, load class, raw burden, effective tempo modifier, actual Rune actions/damage/MP.",
     `- Rune scenario: shared ${report.configuration.runeAction.id} damage=${report.configuration.runeAction.baseDamage} MP=${report.configuration.runeAction.mpCost}; ${report.configuration.weaponProfiles.filter(row => row.runeSlots > 0).map(row => `${row.id}(slots=${row.runeSlots},MP=${row.mpCapacity},hands=${row.hands})`).join(" vs ")}.`,
     "",
@@ -688,7 +690,7 @@ function buildSummary(report) {
     "## Load comparison",
     "",
     ...report.loadComparison.map(row => `- ${row.policy}: fixture=${row.fixture.id}; class=${row.resolved.class}; score=${row.resolved.score}; aggregate raw=${row.resolved.aggregateScore}; max-burden floor=${row.maxBurdenScore}; invariant=${row.invariant}; aggregation=${row.resolved.aggregation}`),
-    "- Tempo candidates: fixed heavy -1; raw-burden candidate = heavy -1 - max(0, raw burden - 2). Expected effective tempo: raw 2→-1, raw 3→-2, raw 4→-3.",
+    "- Tempo candidates: fixed heavy -1; capped half-step candidate = -1 - min(1, 0.5 × max(0, raw burden - 2)). Expected effective tempo: raw 2→-1, raw 3→-1.5, raw 4→-2; raw 4+ remains capped at -2.",
     "",
     "## Interpretation boundary",
     "",
@@ -720,7 +722,7 @@ async function main() {
   const report = buildReport(result, provenance, options.purpose || process.env.MEASUREMENT_PURPOSE || "");
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));
-  console.log(`Wrote Issue #1573 raw burden stacking diagnostic: ${resolve(options.output)}`);
+  console.log(`Wrote Issue #1576 capped raw burden tempo diagnostic: ${resolve(options.output)}`);
 }
 
 export { buildReport, buildSummary, formulaTable, resolveLoadClass };
