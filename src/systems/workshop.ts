@@ -219,13 +219,14 @@ function isCraftRecipe(value: unknown): value is CraftRecipe {
   return isRecord(value) && typeof value.resultId === "string";
 }
 
-function getCraftRecipe(recipeId: string): CraftRecipe | undefined {
+function getCraftRecipe(recipeId: unknown): CraftRecipe | undefined {
+  if (typeof recipeId !== "string") return undefined;
   const recipe = CRAFT_RECIPES.find((candidate: unknown) => isCraftRecipe(candidate) && candidate.resultId === recipeId);
   return isCraftRecipe(recipe) ? recipe : undefined;
 }
 
-function normalizeDepartureCraftSelection(recipeIds: unknown): string[] {
-  return Array.isArray(recipeIds) ? recipeIds.filter((recipeId): recipeId is string => typeof recipeId === "string") : [];
+function normalizeDepartureCraftSelection(recipeIds: unknown): unknown[] {
+  return Array.isArray(recipeIds) ? [...recipeIds] : [];
 }
 
 export function getDepartureCraftRecipes(recipeIds: unknown): CraftRecipe[] {

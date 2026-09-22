@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import {
   applyAutomaticWorkshopUnlock,
   applyWorkshopToCharacter,
+  canAffordDepartureCraft,
   createDefaultWorkshopState,
+  getDepartureCraftRecipes,
   getWorkshopGrants,
   isNormalizedWorkshopState,
   normalizeWorkshopState,
+  purchaseDepartureCraft,
   purchaseWorkshopNode
 } from "../../../src/systems/workshop.js";
 import { normalizeSavePayload } from "../../../src/state/save_migrations.js";
@@ -64,6 +67,13 @@ assert.deepEqual(sourceWorkshop, { ranks: {}, lateralUnlocks: [] });
 assert.deepEqual(sourceMaterials, { "獣の牙": 4, "鉄片": 2 });
 assert.equal(purchased.workshop.ranks.gear_rapier, 1);
 assert.equal(purchased.metaMaterials["獣の牙"], 0);
+
+assert.equal(canAffordDepartureCraft({}, [123]), false);
+assert.equal(purchaseDepartureCraft({}, [123]).reason, "unknown_recipe");
+assert.deepEqual(
+  getDepartureCraftRecipes([123, "HEAL_POTION", 456, "HEAL_POTION"]).map(recipe => recipe.resultId),
+  ["HEAL_POTION", "HEAL_POTION"]
+);
 
 const beforeCharacter = { unlockedAffixIds: ["old"], marker: true };
 const character = applyWorkshopToCharacter(beforeCharacter, { ranks: { pool_blood_wand: 1 } });
