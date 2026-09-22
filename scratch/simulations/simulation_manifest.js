@@ -216,6 +216,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/systems/equipment_generation.js", domains: ["equipment", "traps"] },
     { pattern: "src/systems/traps.js", domains: ["traps"] },
     { pattern: "src/systems/equipment_discard.js", domains: ["equipment"] },
+    { pattern: "src/systems/equipment_discard.ts", domains: ["equipment"] },
     { pattern: "src/systems/loadout_transaction.js", domains: ["equipment", "maps"] },
     { pattern: "src/pending_rewards.js", domains: ["chests", "equipment", "economy", "maps"] },
     { pattern: "src/rules/pending_reward_bundle.js", domains: ["economy"] },
@@ -319,6 +320,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/equip_ui.js",
     "src/systems/equipment_actions.js",
     "src/systems/equipment_discard.js",
+    "src/systems/equipment_discard.ts",
     // Loadout commit records equipment decisions alongside the atomic state
     // transition and consumes one exploration turn at its caller.
     "src/systems/loadout_transaction.js",
