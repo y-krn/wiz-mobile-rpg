@@ -210,6 +210,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/systems/loadout_transaction.js", domains: ["equipment", "maps"] },
     { pattern: "src/pending_rewards.js", domains: ["chests", "equipment", "economy", "maps"] },
     { pattern: "src/rules/pending_reward_bundle.js", domains: ["economy"] },
+    { pattern: "src/systems/run_quests.js", domains: ["economy", "progression"] },
+    { pattern: "src/systems/run_quests.ts", domains: ["economy", "progression"] },
     { pattern: "src/systems/run_return.js", domains: ["economy", "progression", "workshop"] },
     { pattern: "src/systems/run_return.ts", domains: ["economy", "progression", "workshop"] },
     { pattern: "src/systems/workshop.js", domains: ["workshop"] },

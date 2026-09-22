@@ -76,6 +76,9 @@ function createState(monster, currentRunOverrides = {}, characterOverrides = {})
   assert.notStrictEqual(result.state.codex.monsters, state.codex.monsters);
   assert.notStrictEqual(result.state.currentRun, state.currentRun);
   assert.notStrictEqual(result.state.currentRun.quests, state.currentRun.quests);
+  assert.notStrictEqual(result.state.currentRun.quests[0], state.currentRun.quests[0]);
+  assert.notStrictEqual(result.state.currentRun.defeatsByRole, state.currentRun.defeatsByRole);
+  assert.notStrictEqual(result.state.currentRun.materials, state.currentRun.materials);
   assert.equal(result.state.currentRun.kills, 1);
   assert.equal(result.state.currentRun.defeatsByRole.beast, 1);
   assert.equal(result.state.codex.stats.totalKills, 1);
