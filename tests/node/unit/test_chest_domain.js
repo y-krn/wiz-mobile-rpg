@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   CHEST_PHASES,
+  CHEST_PHASE_TRANSITIONS,
   canTransitionChestPhase,
   createChestLootHint,
   generateChestMaterials,
@@ -14,6 +15,67 @@ import {
 } from "../../../src/chest/chest_domain.js";
 import * as chestDomainOwner from "../../../src/chest/chest_domain.ts";
 import { rollChestTrap } from "../../../src/rules/chest_rules.js";
+
+const phaseTransitionCases = [
+  {
+    phase: CHEST_PHASES.MENU,
+    allowed: [CHEST_PHASES.MENU, CHEST_PHASES.RESOLVING, CHEST_PHASES.TERMINAL]
+  },
+  {
+    phase: CHEST_PHASES.DISARM_SELECT,
+    allowed: [CHEST_PHASES.MENU, CHEST_PHASES.RESOLVING]
+  },
+  {
+    phase: CHEST_PHASES.OPEN_SELECT,
+    allowed: [CHEST_PHASES.MENU, CHEST_PHASES.RESOLVING]
+  },
+  {
+    phase: CHEST_PHASES.RESOLVING,
+    allowed: [CHEST_PHASES.REWARD, CHEST_PHASES.MENU, CHEST_PHASES.TERMINAL]
+  },
+  {
+    phase: CHEST_PHASES.REWARD,
+    allowed: [CHEST_PHASES.TERMINAL]
+  },
+  {
+    phase: CHEST_PHASES.TERMINAL,
+    allowed: []
+  }
+];
+const allChestPhases = phaseTransitionCases.map(({ phase }) => phase);
+
+for (const { phase, allowed } of phaseTransitionCases) {
+  assert.deepEqual(CHEST_PHASE_TRANSITIONS[phase], allowed, `${phase} transition table`);
+  for (const nextPhase of allChestPhases) {
+    assert.equal(
+      canTransitionChestPhase({ phase }, nextPhase),
+      allowed.includes(nextPhase),
+      `${phase} -> ${nextPhase}`
+    );
+  }
+}
+
+for (const { name, transitioning, allowTransition, expected } of [
+  { name: "stable action remains allowed", transitioning: false, allowTransition: false, expected: true },
+  { name: "transitioning action remains blocked", transitioning: true, allowTransition: false, expected: false },
+  { name: "explicit transition override allows action", transitioning: true, allowTransition: true, expected: true }
+]) {
+  assert.equal(
+    isChestActionAllowed(
+      { phase: CHEST_PHASES.MENU },
+      [CHEST_PHASES.MENU],
+      transitioning,
+      { allowTransition }
+    ),
+    expected,
+    name
+  );
+}
+assert.equal(
+  isChestActionAllowed(null, [CHEST_PHASES.MENU], true, { allowTransition: true }),
+  false,
+  "missing chest remains blocked even with transition override"
+);
 
 assert.equal(getChestPhase({}), CHEST_PHASES.MENU);
 assert.equal(getChestPhase({ phase: "unsupported" }), "unsupported");
@@ -90,15 +152,6 @@ assert.equal(forcedRolls.length, 0, "forced trap/item do not add RNG draws");
 
 const firstChest = rollChestEncounter({ floor: 1, x: 0, y: 0, party: [], customRng: () => 0 });
 assert.equal(firstChest.consumedFirstChestGuarantee, true);
-
-assert.equal(
-  canTransitionChestPhase({ phase: CHEST_PHASES.MENU }, CHEST_PHASES.RESOLVING),
-  true
-);
-assert.equal(
-  canTransitionChestPhase({ phase: CHEST_PHASES.TERMINAL }, CHEST_PHASES.MENU),
-  false
-);
 
 const inspection = resolveChestInspection({
   chest: { trap: "gas bomb" },
