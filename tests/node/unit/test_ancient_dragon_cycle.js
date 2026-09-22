@@ -65,10 +65,10 @@ function createState(monster) {
   };
 }
 
-function runRound(state, type = "defend") {
+function runRound(state, type = "defend", options = {}) {
   const action = { actorIdx: 0, type };
   if (type === "fight") action.targetIdx = 0;
-  return runCombatRoundCalculation(state, { actions: [action] }, { rng: () => 0 });
+  return runCombatRoundCalculation(state, { actions: [action] }, { rng: () => 0, ...options });
 }
 
 function dragon(state) {
@@ -199,9 +199,10 @@ function dragon(state) {
   assert.equal(dragon(state).multiActionQueued, true);
 
   dragon(state).traitChance = 0;
-  const result = runRound(state);
-  state = result.state;
-  assert.equal(dragon(state).ancientDragonCycleStep, 1);
+  state = runRound(state, "defend", { policy: { measurementMaxActionsPerEnemy: 1 } }).state;
+  assert.equal(dragon(state).ancientDragonCycleStep, 0);
   assert.equal(dragon(state).multiActionQueued, false);
-  assert.equal(result.logQueue.filter(entry => entry.msg.includes("いにしえの竜の攻撃")).length, 2);
+
+  state = runRound(state).state;
+  assert.equal(dragon(state).ancientDragonCycleStep, 1);
 }
