@@ -220,6 +220,15 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     retentionDays: 14,
     buildArgs: nativeMeasurementArgs
   }),
+  "milestone-boss": freezeFamily({
+    runner: "scratch/measurements/milestone_boss_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: nativeMeasurementArgs
+  }),
   "equipment-load": freezeFamily({
     runner: "scratch/measurements/equipment_load_measurement.js",
     adapter: "native-manifest",
@@ -357,6 +366,12 @@ const PROFILE_LIST = [
     label: "Phase 2c composition trait diagnostic",
     family: "composition-trait",
     defaults: { runs: 200, minimumRuns: 200, seed: 1599 }
+  },
+  {
+    id: "milestone-boss-diagnostic",
+    label: "Phase 2d milestone Boss decision-pressure diagnostic",
+    family: "milestone-boss",
+    defaults: { runs: 200, minimumRuns: 200, seed: 1613 }
   },
   {
     id: "equipment-load",
