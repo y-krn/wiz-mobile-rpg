@@ -60,6 +60,7 @@ import {
   normalizeEquipmentCodex,
   normalizeMonsterCodex
 } from "./codex_state.js";
+import { createDefaultWorkshopState, normalizeWorkshopState } from "../systems/workshop.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
 
@@ -865,16 +866,14 @@ export function normalizeSavePayload(data) {
   normalized.identifyTickets = numberOr(data.identifyTickets, 0);
   normalized.cleared = typeof data.cleared === "boolean" ? data.cleared : false;
   normalized.metaMaterials = recordOr(data.metaMaterials, {});
-  normalized.workshop = recordOr(data.workshop, { ranks: {} });
-  normalized.workshop.ranks = Object.fromEntries(
-    Object.entries(recordOr(normalized.workshop.ranks, {}))
-      .filter(([nodeId]) => !nodeId.startsWith("stat_"))
-  );
-  normalized.workshop.lateralUnlocks = [...new Set(
-    arrayOr(normalized.workshop.lateralUnlocks).filter(nodeId => typeof nodeId === "string")
-  )];
+  const rawWorkshop = recordOr(data.workshop, createDefaultWorkshopState());
+  normalized.workshop = {
+    ...rawWorkshop,
+    ranks: { ...recordOr(rawWorkshop.ranks, {}) }
+  };
   normalized.keyItems = arrayOr(data.keyItems);
   refundRetiredWorkshopNodes(normalized);
+  normalized.workshop = normalizeWorkshopState(normalized.workshop);
   normalized.dungeonMemory = {
     mapFragments: recordOr(data.dungeonMemory?.mapFragments, {}),
     visitedFloors: Array.isArray(data.dungeonMemory?.visitedFloors)
