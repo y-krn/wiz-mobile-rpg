@@ -11,6 +11,8 @@ import {
   SHIELD_CANDIDATES,
   WEAPON_CANDIDATES,
   buildReport,
+  comparisonGroupForCondition,
+  comparisonRunSeed,
   formulaTable,
   resolveFormula,
   resolveVNextLoadCandidate,
@@ -71,6 +73,22 @@ assert.equal(result.fixedCombat.length, 27);
 assert.equal(result.fixedCombat.length, new Set(result.fixedCombat.map(row => `${row.conditionId}:${row.candidateId}`)).size);
 assert.equal(result.fixedCombat.every(row => row.runs === 3 && row.invariant), true);
 assert.equal(result.fixedCombat.every(row => row.confidence === "runner-correctness-only"), true);
+assert.deepEqual(result.configuration.comparisonGroups, [
+  "dagger-vs-sword",
+  "sword-vs-mace-normal",
+  "sword-vs-mace-high-def",
+  "sword-vs-greatsword",
+  "wand-vs-staff-rune",
+  "armor",
+  "shield-physical",
+  "shield-arcane",
+  "load-heavyArmorSword",
+  "load-heavyArmorGreatsword",
+  "load-lightArmorGreatsword"
+]);
+assert.equal(result.configuration.seedFormat, "<base seed>:<comparison group>:<run index>; candidate ID excluded; common random numbers");
+assert.equal(comparisonGroupForCondition(REPRESENTATIVE_CONDITIONS[1]), "sword-vs-mace-normal");
+assert.equal(comparisonRunSeed(1544, REPRESENTATIVE_CONDITIONS[1], 0), "1544:sword-vs-mace-normal:0");
 assert.deepEqual(result.loadComparison.map(row => `${row.fixtureId}:${row.policy}`), [
   "heavyArmorSword:max-burden",
   "heavyArmorSword:aggregate",
@@ -81,6 +99,27 @@ assert.deepEqual(result.loadComparison.map(row => `${row.fixtureId}:${row.policy
 ]);
 assert.equal(result.loadComparison.every(row => row.invariant && row.resolved.score >= row.maxBurdenScore), true);
 assert.equal(result.loadComparison.find(row => row.fixtureId === "heavyArmorGreatsword" && row.policy === "aggregate").resolved.aggregateScore, 4);
+
+const aggregateFields = ({ conditionId, candidateId, candidate, ...fields }) => fields;
+for (const fixtureId of Object.keys(LOAD_FIXTURES)) {
+  const rows = result.fixedCombat.filter(row => row.comparisonGroup === `load-${fixtureId}`);
+  assert.equal(rows.length, 2, `${fixtureId} must have a paired load comparison`);
+  assert.deepEqual(aggregateFields(rows[0]), aggregateFields(rows[1]), `${fixtureId} max/aggregate must share combat aggregate for the same resolved load class`);
+}
+
+for (const comparisonGroup of ["sword-vs-mace-normal", "sword-vs-mace-high-def", "wand-vs-staff-rune"]) {
+  const rows = result.fixedCombat.filter(row => row.comparisonGroup === comparisonGroup);
+  assert.equal(rows.length, 2, `${comparisonGroup} must have two weapon candidates`);
+  assert.deepEqual(rows[0].initiativeDraws, rows[1].initiativeDraws, `${comparisonGroup} must share initiative draws`);
+}
+for (const comparisonGroup of ["armor", "shield-physical", "shield-arcane"]) {
+  const rows = result.fixedCombat.filter(row => row.comparisonGroup === comparisonGroup);
+  assert.ok(rows.length >= 2, `${comparisonGroup} must have paired candidates`);
+  assert.ok(rows.every(row => JSON.stringify(row.initiativeDraws) === JSON.stringify(rows[0].initiativeDraws)), `${comparisonGroup} must use one common random stream`);
+}
+
+const rerun = await runEquipmentVNextCombatDiagnostic({ runs: 3, seed: 1544, allowSmallRunCount: true });
+assert.deepEqual(rerun, result, "same seed and run count must be deterministic");
 
 const attackCondition = { id: "initiative-attack", depth: 1, attackType: "physical", actionPlan: "attack" };
 const playerFirstResult = simulateOne(attackCondition, "sword", {
@@ -125,8 +164,10 @@ const runeRows = result.fixedCombat.filter(row => row.conditionId === "wand-vs-s
 assert.equal(runeRows.every(row => row.runeActions.average > 0 && row.runeDamage.average > 0), true);
 
 const source = fs.readFileSync(resolve("scratch/measurements/equipment_vnext_combat_diagnostic.js"), "utf8");
+assert.doesNotMatch(source, /1664525|1013904223|stableHash/);
+assert.match(source, /createSeededRng/);
 assert.doesNotMatch(source, /src\/(combat|state|systems|ui|data\/items|data\/monsters|rules\/equipment_load)/);
 assert.deepEqual(REPRESENTATIVE_CONDITIONS.map(condition => condition.id), result.configuration.representativeConditionIds);
 assert.equal(buildReport(result, null, "bounded smoke").measurement.productionPaths.length, 0);
 
-console.log("[PASS] Issue #1544 vNext combat diagnostic candidates, bounded runner, and production boundary");
+console.log("[PASS] Issue #1549 vNext combat diagnostic RNG, common streams, and production boundary");
