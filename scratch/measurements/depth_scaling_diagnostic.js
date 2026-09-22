@@ -63,6 +63,9 @@ export const SCENARIOS = Object.freeze([
     enemyFixtureId: "standardPhysical",
     attackType: "physical",
     defenseProfile: "normal",
+    // Fixed scenario pressure only: keeps both policies matched and makes the
+    // even-round declared Defend action observable before the kill.
+    enemyHpMultiplier: 3,
     candidates: Object.freeze([
       Object.freeze({ id: "smallShield", weapon: "sword", armor: "mediumArmor", shield: "smallShield", actionPlan: "attack-defend" }),
       Object.freeze({ id: "largeShield", weapon: "sword", armor: "mediumArmor", shield: "largeShield", actionPlan: "attack-defend" })
@@ -227,7 +230,11 @@ function resolveInitiative(candidate, rng) {
 
 export function simulateOne({ policyId, scenario, candidate, depth, runSeed }) {
   const { template } = findFixture(scenario.enemyFixtureId);
-  const { scaling, stats: enemy } = resolveEnemyStats(policyId, depth, template);
+  const { scaling, stats: scaledEnemy } = resolveEnemyStats(policyId, depth, template);
+  const enemy = {
+    ...scaledEnemy,
+    hp: Math.max(1, Math.round(scaledEnemy.hp * (scenario.enemyHpMultiplier || 1)))
+  };
   const rng = createRng(String(runSeed));
   const tier = getCombatTierForStartFloor(depth);
   const initiative = resolveInitiative(candidate, rng);
@@ -349,6 +356,7 @@ function runScenario({ policyId, scenario, depth, runs, seed }) {
       tier: scaling.tier,
       enemyMultipliers: { hp: scaling.hp, atk: scaling.atk, def: scaling.def },
       enemyStats: stats,
+      scenarioHpMultiplier: scenario.enemyHpMultiplier || 1,
       loadClass: rows[0]?.loadClass || null,
       rawBurden: rows[0]?.rawBurden ?? null,
       effectiveTempoModifier: rows[0]?.effectiveTempoModifier ?? null,
@@ -483,6 +491,7 @@ function buildSummary(report) {
     "",
     "- Metrics: rounds p50, damage taken average, enemy actions average, survival, enemy HP/ATK/DEF multipliers.",
     "- Conditions: one standard physical row; Sword/Mace high DEF pair; small/large physical shield pair; small/magic arcane shield pair.",
+    "- Physical shield fixture uses fixed scenario-local HP pressure ×3 for both policies so the declared Defend/Guard round is observed; generic scaling remains unchanged.",
     "",
     "| policy | depth | condition | candidate | enemy HP/ATK/DEF | rounds p50 | damage taken | enemy actions | survival |",
     "| --- | ---: | --- | --- | --- | ---: | ---: | ---: | ---: |",

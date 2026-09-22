@@ -56,6 +56,10 @@ assert.deepEqual(result.configuration.tiers, [
 assert.equal(result.rows.filter(row => row.scenarioId === "high-def-sword-vs-mace").length, 20);
 assert.equal(result.rows.filter(row => row.scenarioId === "physical-small-vs-large-shield").length, 20);
 assert.equal(result.rows.filter(row => row.scenarioId === "arcane-small-vs-magic-shield").length, 20);
+const physicalShieldRows = result.rows.filter(row => row.scenarioId === "physical-small-vs-large-shield");
+assert.equal(physicalShieldRows.every(row => row.scenarioHpMultiplier === 3), true);
+assert.equal(physicalShieldRows.every(row => row.rounds.p50 >= 2), true);
+assert.equal(physicalShieldRows.every(row => row.guardedEnemyActions.average > 0), true);
 assert.equal(result.rows.find(row => row.policyId === "vNextCandidate" && row.depth === 30).enemyMultipliers.def, 1);
 assert.equal(result.rows.find(row => row.policyId === "vNextCandidate" && row.depth === 30).enemyMultipliers.hp, 2);
 assert.equal(result.rows.find(row => row.policyId === "vNextCandidate" && row.depth === 30).enemyMultipliers.atk, 1.5);
