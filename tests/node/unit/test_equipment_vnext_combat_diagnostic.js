@@ -63,6 +63,10 @@ assert.ok(invocation.args.includes("--purpose"));
 const result = await runEquipmentVNextCombatDiagnostic({ runs: 3, seed: 1544, allowSmallRunCount: true });
 assert.equal(result.measurementId, "equipment-vnext-combat-diagnostic");
 assert.equal(result.formulaTable.length, 30);
+assert.deepEqual(result.configuration.weaponProfiles.filter(row => row.runeSlots > 0), [
+  { id: "wand", hands: 1, runeSlots: 1, mpCapacity: 2 },
+  { id: "staff", hands: 2, runeSlots: 2, mpCapacity: 4 }
+]);
 assert.equal(result.fixedCombat.length, 27);
 assert.equal(result.fixedCombat.length, new Set(result.fixedCombat.map(row => `${row.conditionId}:${row.candidateId}`)).size);
 assert.equal(result.fixedCombat.every(row => row.runs === 3 && row.invariant), true);

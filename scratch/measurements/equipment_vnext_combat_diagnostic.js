@@ -417,6 +417,7 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
       depths: [...DEPTHS],
       tiers: DEPTHS.map(depth => ({ depth, tier: getCombatTierForStartFloor(depth) })),
       weaponIds: Object.keys(WEAPON_CANDIDATES),
+      weaponProfiles: Object.values(WEAPON_CANDIDATES).map(({ id, hands, runeSlots, mpCapacity = null }) => ({ id, hands, runeSlots, mpCapacity })),
       armorIds: Object.keys(ARMOR_CANDIDATES),
       shieldIds: Object.keys(SHIELD_CANDIDATES),
       baseProfile: {
@@ -496,6 +497,7 @@ function buildSummary(report) {
     "",
     "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and three representative load fixtures.",
     "- Metrics: survival, rounds, damage dealt/taken, one player/enemy action per round, player-before-any-enemy, Defend-only Guard reduction, actual Rune actions/damage/MP.",
+    `- Rune scenario: shared ${report.configuration.runeAction.id} damage=${report.configuration.runeAction.baseDamage} MP=${report.configuration.runeAction.mpCost}; ${report.configuration.weaponProfiles.filter(row => row.runeSlots > 0).map(row => `${row.id}(slots=${row.runeSlots},MP=${row.mpCapacity},hands=${row.hands})`).join(" vs ")}.`,
     "",
     "| condition | candidate | survival | rounds p50 | damage taken avg | enemy actions avg | player first | Guard reduction avg | Rune actions avg | Rune damage avg | MP spent avg |",
     "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
