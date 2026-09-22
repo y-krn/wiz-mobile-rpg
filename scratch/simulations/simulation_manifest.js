@@ -209,6 +209,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/equipment_equipped.js", domains: [] },
     { pattern: "src/rules/equipment_rules.js", domains: [] },
     { pattern: "src/systems/equipment_actions.js", domains: [] },
+    { pattern: "src/systems/equipment_actions.ts", domains: [] },
     { pattern: "src/systems/magic_actions.js", domains: ["combat", "equipment", "economy"] },
     { pattern: "src/systems/magic_actions.ts", domains: ["combat", "equipment", "economy"] },
     { pattern: "src/result.js", domains: ["drops", "economy", "progression"] },
@@ -320,6 +321,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/equip.js",
     "src/equip_ui.js",
     "src/systems/equipment_actions.js",
+    "src/systems/equipment_actions.ts",
     "src/systems/equipment_discard.js",
     "src/systems/equipment_discard.ts",
     // Loadout commit records equipment decisions alongside the atomic state
