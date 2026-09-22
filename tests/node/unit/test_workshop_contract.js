@@ -13,6 +13,7 @@ import {
 } from "../../../src/systems/workshop.js";
 import { normalizeSavePayload } from "../../../src/state/save_migrations.js";
 import { RETIRED_WORKSHOP_NODES } from "../../../src/data/workshop.js";
+import { isNormalizedMetaMaterialBalance } from "../../../src/state/material_balance.js";
 
 assert.deepEqual(createDefaultWorkshopState(), { ranks: {}, lateralUnlocks: [] });
 assert.equal(isNormalizedWorkshopState(createDefaultWorkshopState()), true);
@@ -52,6 +53,8 @@ assert.equal(migrated.workshop.ranks[RETIRED_WORKSHOP_NODES[0].id], undefined);
 assert.equal(migrated.workshop.ranks.stat_str, undefined);
 assert.equal(migrated.workshop.ranks.unknown_historical_node, 1);
 assert.equal(migrated.metaMaterials["霊粉"], 11);
+assert.equal(isNormalizedMetaMaterialBalance(migrated.metaMaterials), true,
+  "retired Workshop refund leaves a canonical meta material balance");
 assert.equal(isNormalizedWorkshopState(migrated.workshop), true);
 
 const sourceWorkshop = { ranks: {}, lateralUnlocks: [] };

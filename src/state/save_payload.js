@@ -8,6 +8,7 @@ import { normalizeRecords } from "./records_state.js";
 import { EQUIPMENT_SLOTS } from "../rules/equipment_slots.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 import { assertNormalizedSavePayload } from "./save_contract.js";
+import { normalizeMaterialBalance } from "./material_balance.js";
 
 const STABLE_PERSISTED_GAME_STATES = new Set([
   "town", "explore", "combat", "result", "gameover", "victory"
@@ -157,7 +158,7 @@ export function createSavePayload() {
     storageMax: state.storageMax,
     identifyTickets: state.identifyTickets,
     cleared: state.cleared,
-    metaMaterials: state.metaMaterials,
+    metaMaterials: normalizeMaterialBalance(state.metaMaterials),
     workshop: state.workshop,
     keyItems: state.keyItems,
     dungeonMemory: state.dungeonMemory,

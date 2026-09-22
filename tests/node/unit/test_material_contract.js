@@ -13,7 +13,17 @@ import {
 import { createDefaultCurrentRun } from "../../../src/state/initial_state.js";
 import { normalizeSavePayload } from "../../../src/state/save_migrations.js";
 import { isNormalizedCurrentRun } from "../../../src/state/run_state.js";
-import { canAffordMaterials, getBankedMaterials, spendMaterials } from "../../../src/rules/material_rules.js";
+import {
+  canAffordMaterials,
+  getBankedMaterials,
+  normalizeMaterialBalance as normalizeMaterialBalanceFromRules,
+  spendMaterials
+} from "../../../src/rules/material_rules.js";
+import { MATERIAL_TYPES } from "../../../src/data/materials.js";
+import {
+  isNormalizedMetaMaterialBalance,
+  normalizeMaterialBalance
+} from "../../../src/state/material_balance.js";
 
 const malformedValues = {
   "": 7,
@@ -40,6 +50,45 @@ const expectedMaterials = {
 };
 const expectedCodexRewards = expectedMaterials;
 const saveCodexRewards = { "codex-only": 4, "霊粉": 0 };
+const expectedMetaMaterials = Object.fromEntries(MATERIAL_TYPES.map(name => [name, 0]));
+const allZeroMetaMaterials = Object.fromEntries(MATERIAL_TYPES.map(name => [name, 0]));
+const normalizedMetaMaterials = normalizeMaterialBalance({
+  [MATERIAL_TYPES[0]]: 4.9,
+  [MATERIAL_TYPES[1]]: "2.8",
+  [MATERIAL_TYPES[2]]: -1,
+  [MATERIAL_TYPES[3]]: Number.NaN,
+  [MATERIAL_TYPES[4]]: Number.POSITIVE_INFINITY,
+  [MATERIAL_TYPES[5]]: Symbol("unsupported"),
+  unknown: 8
+});
+expectedMetaMaterials[MATERIAL_TYPES[0]] = 4;
+expectedMetaMaterials[MATERIAL_TYPES[1]] = 2;
+
+assert.deepEqual(normalizedMetaMaterials, expectedMetaMaterials,
+  "meta material normalizer keeps exact known keys and safe numeric coercion");
+assert.deepEqual(normalizeMaterialBalance(null), allZeroMetaMaterials,
+  "malformed meta material input becomes all-zero canonical balance");
+assert.doesNotThrow(() => normalizeMaterialBalance({ [MATERIAL_TYPES[0]]: Symbol("unsupported") }),
+  "Symbol material values use the safe zero fallback");
+assert.deepEqual(Object.keys(normalizedMetaMaterials), MATERIAL_TYPES,
+  "canonical meta material key order follows MATERIAL_TYPES");
+assert.equal(isNormalizedMetaMaterialBalance(normalizedMetaMaterials), true,
+  "canonical meta material balance satisfies its dedicated guard");
+assert.equal(isNormalizedMetaMaterialBalance({ ...normalizedMetaMaterials, unknown: 1 }), false,
+  "extra material key rejects the canonical guard");
+assert.equal(isNormalizedMetaMaterialBalance(Object.fromEntries(MATERIAL_TYPES.slice(1).map(name => [name, 0]))), false,
+  "missing material key rejects the canonical guard");
+assert.equal(isNormalizedMetaMaterialBalance({ ...normalizedMetaMaterials, [MATERIAL_TYPES[0]]: 1.5 }), false,
+  "fractional material value rejects the canonical guard");
+assert.equal(isNormalizedMetaMaterialBalance({ ...normalizedMetaMaterials, [MATERIAL_TYPES[0]]: -1 }), false,
+  "negative material value rejects the canonical guard");
+assert.deepEqual(normalizeMaterialBalance(normalizedMetaMaterials), normalizedMetaMaterials,
+  "meta material normalization is idempotent");
+assert.deepEqual(normalizeMaterialBalance(JSON.parse(JSON.stringify(normalizedMetaMaterials))), normalizedMetaMaterials,
+  "meta material normalization survives JSON roundtrip");
+assert.deepEqual(normalizeMaterialBalanceFromRules({ [MATERIAL_TYPES[0]]: "3.8", unknown: 9 }),
+  normalizeMaterialBalance({ [MATERIAL_TYPES[0]]: "3.8", unknown: 9 }),
+  "material_rules normalizer delegates to the canonical owner");
 
 assert.deepEqual(normalizeMaterialRecord(rawMaterials), expectedMaterials,
   "shared material normalizer keeps valid values and exact non-empty keys");
@@ -96,7 +145,7 @@ assert.deepEqual(normalizeSavePayload({
   metaMaterials: { "meta-only": 8 },
   workshop: { ranks: {}, lateralUnlocks: [] },
   currentRun: { ...baseRun, materials: {}, bankedMaterials: { "banked-only": 5 } }
-}).metaMaterials, { "meta-only": 8 }, "metaMaterials remain unchanged");
+}).metaMaterials, allZeroMetaMaterials, "metaMaterials remain isolated and canonical");
 
 assert.equal(isNormalizedCurrentRun(normalized), true, "currentRun guard accepts canonical material fields");
 assert.equal(isNormalizedCurrentRun({ ...normalized, materials: { "獣の牙": "2" } }), false,
