@@ -36,6 +36,9 @@ const {
   RETURN_WING_SALVAGE_COUNT,
   consumeRunObjectLoot,
   createPendingObjectLootEntry,
+  isNormalizedRunObjectLootEntry,
+  isNormalizedRunObjectLootLedger,
+  normalizeRunObjectLootLedger,
   recordDungeonObjectLoot,
   replaceRunObjectLoot,
   resolvePendingObjectLootDisposition,
@@ -65,6 +68,33 @@ function addDungeonLoot(item) {
 }
 
 setupRun();
+const canonicalEquipment = {
+  kind: "equipment",
+  instanceId: "canonical-loot",
+  baseId: "DAGGER",
+  rarity: "rare",
+  level: 1,
+  identified: true,
+  affixes: []
+};
+const normalizedLedger = normalizeRunObjectLootLedger([
+  { id: "duplicate", item: canonicalEquipment, role: "legacy" },
+  { id: "duplicate", item: "HEAL_POTION", source: "legacy" },
+  { id: 42, item: "DAGGER" },
+  { id: "invalid", item: {} }
+]);
+assert.deepEqual(normalizedLedger.map(entry => entry.id), ["duplicate", "duplicate"],
+  "ledger normalizer preserves order and duplicate IDs while dropping invalid entries");
+assert.strictEqual(normalizedLedger[0].item, canonicalEquipment, "normalizer preserves item identity");
+assert.deepEqual(Object.keys(normalizedLedger[0]).sort(), ["id", "item"]);
+assert.equal(isNormalizedRunObjectLootEntry(normalizedLedger[0]), true);
+assert.equal(isNormalizedRunObjectLootEntry({ ...normalizedLedger[0], role: "legacy" }), false);
+assert.equal(isNormalizedRunObjectLootLedger(normalizedLedger), true);
+assert.equal(isNormalizedRunObjectLootLedger([{ ...normalizedLedger[0], source: "legacy" }]), false);
+assert.deepEqual(normalizeRunObjectLootLedger(JSON.parse(JSON.stringify(normalizedLedger))), normalizedLedger,
+  "canonical ledger survives JSON roundtrip");
+console.log("[PASS] canonical owned ledger guard and normalizer preserve exact shape, order, duplicates, and identity");
+
 const pendingLeft = createPendingObjectLootEntry(state, "DAGGER", { source: "chest" });
 assert.equal(resolvePendingObjectLootDisposition(state, pendingLeft, "left", { source: "chest" }), true);
 assert.equal(state.currentRun.unbankedObjectLoot.length, 0, "left pending loot never enters owned ledger");
@@ -79,6 +109,7 @@ const foundWing = "TOWN_PORTAL";
 addDungeonLoot(foundPotion);
 addDungeonLoot(foundSword);
 addDungeonLoot(foundWing);
+state.currentRun.unbankedObjectLoot[0].source = "legacy-save";
 state.party[0].equipment.weapon = foundSword;
 state.inventory = state.inventory.filter(item => item !== foundSword);
 
@@ -90,6 +121,8 @@ applySavePayload(saved);
 assert.deepEqual(state.currentRun.townInventory, ["HEAL_POTION", "TOWN_PORTAL"]);
 assert.equal(state.currentRun.unbankedObjectLoot.length, 3);
 assert.equal(state.currentRun.unbankedObjectLoot[1].item.baseId, "LONG_SWORD");
+assert.deepEqual(Object.keys(state.currentRun.unbankedObjectLoot[0]).sort(), ["id", "item"],
+  "legacy ledger fields are dropped during save migration");
 assert.equal(state.party[0].equipment.weapon.baseId, "LONG_SWORD");
 console.log("[PASS] dungeon loot ownership survives save/load while equipped");
 

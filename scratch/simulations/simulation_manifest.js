@@ -156,6 +156,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/state/records_state.js", domains: [] },
     { pattern: "src/state/records_state.ts", domains: [] },
     { pattern: "src/state/run_loot.js", domains: ["economy"] },
+    { pattern: "src/state/run_loot.ts", domains: ["economy"] },
     { pattern: "src/state/run_floor_state.js", domains: ["maps", "combat"] },
     { pattern: "src/rules/character_stats.js", domains: ["combat", "equipment", "traps"] },
     { pattern: "src/rules/exploration_rules.js", domains: ["maps"] },
@@ -311,6 +312,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/combat_logic/item_resolution.js",
     "src/state/inventory_state.js",
     "src/state/run_loot.js",
+    "src/state/run_loot.ts",
     "src/systems/milestone_merchant.js",
     "src/pending_rewards.js",
     // Codex observations share combat entry/resolution paths with the
