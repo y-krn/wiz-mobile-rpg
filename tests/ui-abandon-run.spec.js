@@ -23,14 +23,14 @@ for (const vp of VIEWPORTS) {
       { id: 'btn-item', height: 44, tabIndex: 0 },
       { id: 'btn-explore-management', height: 44, tabIndex: 0 },
     ]);
-    await page.locator('#btn-turn-left').focus();
-    const focusOrder = [];
+    await page.locator('#btn-move-forward').focus();
+    const focusOrder = [await page.evaluate(() => document.activeElement?.id)];
     for (let i = 0; i < 8; i += 1) {
       await page.keyboard.press('Tab');
       focusOrder.push(await page.evaluate(() => document.activeElement?.id));
     }
     expect(focusOrder).toEqual([
-      'btn-move-forward', 'btn-turn-right', 'btn-move-backward', 'btn-search',
+      'btn-move-forward', 'btn-search', 'btn-turn-left', 'btn-move-backward', 'btn-turn-right',
       'btn-inspect', 'btn-cast', 'btn-item', 'btn-explore-management',
     ]);
 

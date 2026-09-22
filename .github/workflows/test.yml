@@ -168,6 +168,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
           )
           stage_args+=(--include-raw --raw test-results)
+          stage_args+=(--raw output/playwright/issue-1539)
           node scripts/stage_evidence_artifact.js "${stage_args[@]}"
       - name: Upload CI evidence artifact
         if: always() && steps.evidence.outcome == 'success'
