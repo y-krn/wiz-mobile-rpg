@@ -30,6 +30,7 @@ assert.deepEqual(
     loadPolicy: "aggregate",
     loadCandidateId: "cappedHalfStep",
     actionPlan: "attack-defend",
+    weaponPowerBase: 100,
     weaponProfile: "sword",
     armorProfile: "mediumArmor",
     shieldProfile: "smallShield"

@@ -248,6 +248,7 @@ const {
   getCharMaxHp,
   getCharMaxMp,
   getCharTrapBonus,
+  getItemBaseId,
   getPhysicalDefenseResistance,
   PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
   calculatePhysicalDefenseFormula,
@@ -8685,6 +8686,21 @@ function createFixedDiagnosticMonsters(names, floor, {
   });
 }
 
+function applyMeasurementPlayerCandidate(character, candidate) {
+  if (!candidate || !Number.isFinite(Number(candidate.attackPower))) return;
+  const weapon = character.equipment?.weapon;
+  const baseId = getItemBaseId(weapon);
+  if (!baseId) throw new Error("measurement player candidate requires a weapon");
+  const bonus = Number(candidate.attackPower) - getCharWeaponAtk(character);
+  character.equipment.weapon = {
+    baseId,
+    identified: true,
+    affixes: bonus === 0
+      ? []
+      : [{ id: "phase1-freeze-weapon-power", type: "atk", value: bonus }]
+  };
+}
+
 export function classifyBuildPaymentAction(action) {
   if (action?.type === "fight") return "attack";
   if (action?.type === "spell") return "spell";
@@ -16997,6 +17013,7 @@ export function simulateRun({
       throw new Error(`fixedCombat.entryMpRatio must be a number in [0,1]: ${fixedCombat.entryMpRatio}`);
     }
     const character = state.party[0];
+    applyMeasurementPlayerCandidate(character, fixedCombat.playerCandidate);
     character.hp = Math.max(1, Math.round(getCharMaxHp(character) * entryHpRatio));
     character.mp = Math.max(0, Math.round(getCharMaxMp(character) * entryMpRatio));
     state.currentRun.battles++;

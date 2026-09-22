@@ -14,6 +14,7 @@ import {
   resolveEffectiveTempoModifier,
   resolveVNextLoadCandidate,
   SHIELD_CANDIDATES,
+  tierMultiplier,
   WEAPON_CANDIDATES
 } from "./equipment_vnext_combat_diagnostic.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
@@ -36,7 +37,8 @@ export const PLAYER_FIXTURE = Object.freeze({
   guardTiming: "declared",
   loadPolicy: "aggregate",
   loadCandidateId: "cappedHalfStep",
-  actionPlan: "attack-defend"
+  actionPlan: "attack-defend",
+  weaponPowerBase: 100
 });
 
 export const TRAIT_FIXTURES = Object.freeze([
@@ -119,6 +121,7 @@ function resolvePlayerFixture(depth) {
   return {
     ...PLAYER_FIXTURE,
     combatTier: getCombatTierForStartFloor(depth),
+    attackPower: PLAYER_FIXTURE.weaponPowerBase * tierMultiplier(getCombatTierForStartFloor(depth)),
     weaponProfile: { ...WEAPON_CANDIDATES[PLAYER_FIXTURE.weapon] },
     armorProfile: { ...ARMOR_CANDIDATES[PLAYER_FIXTURE.armor] },
     shieldProfile: { ...SHIELD_CANDIDATES[PLAYER_FIXTURE.shield] },
@@ -163,6 +166,7 @@ function createScenario({ fixture, condition, depth }) {
       entryHpRatio: 1,
       entryMpRatio: 0,
       scalingPolicy: "phase2a",
+      playerCandidate: playerFixture,
       removeTrait: condition.removeTrait === "fixture-trait" ? fixture.id : null
     }
   };
