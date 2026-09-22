@@ -116,6 +116,15 @@ function countBy(values) {
   }, {});
 }
 
+function summarizeStructured(values) {
+  const counts = new Map();
+  values.forEach(value => {
+    const key = JSON.stringify(value);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return [...counts.entries()].map(([key, count]) => ({ ...JSON.parse(key), count }));
+}
+
 function countLogs(logs, pattern) {
   return logs.filter(message => pattern.test(String(message))).length;
 }
@@ -247,6 +256,7 @@ function observeRun(result, fixture) {
   const statusSources = enemyActions.flatMap(action => action.statusSources || []);
   const spellActions = actionNames.filter(action => SPELL_ACTIONS.has(action));
   const inventory = resolveBossInventory(fixture);
+  const trialPressures = encounter.monsters?.[0]?.trialPressures || [];
   const guardedPhysicalHits = (result.combatFormula?.physicalMonsterHits || [])
     .filter(hit => hit.isDefending === true);
   const guardRounds = rounds.filter(round => round.action === "defend" && round.playerActionExecuted).length;
@@ -297,7 +307,15 @@ function observeRun(result, fixture) {
     nonRawDecisionPressureObserved: nonRawSignals,
     observedActionNames: [...new Set(actionNames)],
     endPlayerHp: encounter.hpAfter ?? null,
-    endBossHp: encounter.endEnemyHp?.find(monster => monster.name === fixture.bossName)?.hp ?? null
+    endBossHp: encounter.endEnemyHp?.find(monster => monster.name === fixture.bossName)?.hp ?? null,
+    trial: encounter.generatedTrial || null,
+    trialPressures: trialPressures.map(pressure => ({
+      role: pressure.role,
+      themeId: pressure.themeId,
+      sourceName: pressure.sourceName,
+      additionalTraits: [...(pressure.additionalTraits || [])],
+      additionalBehavior: structuredClone(pressure.additionalBehavior || {})
+    }))
   };
 }
 
@@ -329,6 +347,8 @@ function summarizeRows(rows, fixture) {
       guardedAttackTypes: countBy(rows.flatMap(row => Object.keys(row.guard.guardedAttackTypes))),
       meaningfulNonNormalMitigationRuns: rows.filter(row => row.guard.meaningfulNonNormalMitigation).length
     },
+    trialBands: summarizeStructured(rows.map(row => row.trial).filter(Boolean)),
+    guardianPressures: summarizeStructured(rows.flatMap(row => row.trialPressures || [])),
     mechanicActivation: Object.fromEntries(Object.keys(rows[0].mechanicActivation).map(key => [
       key,
       summarize(rows.map(row => row.mechanicActivation[key]))
@@ -470,6 +490,9 @@ export function buildSummary(report) {
       `rounds=${format(cell.rounds.average)}; damage=${format(cell.damageTaken.average)}; ` +
       `actions=${format(cell.bossActionCount.average)}; warnings=${format(cell.warningCount.average)}; ` +
       `spells=${format(cell.spellActionCount.average)}; status=${format(cell.statusActionCount.average)}; ` +
+      `trial=${cell.trialBands.map(trial => `${trial.mainId}/${trial.subId}`).join(",")}; ` +
+      `pressures=${cell.guardianPressures.map(pressure => `${pressure.role}:${pressure.sourceName}`).join(",")}; ` +
+      `pressureDetails=${JSON.stringify(cell.guardianPressures.map(({ role, sourceName, additionalTraits, additionalBehavior }) => ({ role, sourceName, additionalTraits, additionalBehavior })))}; ` +
       `non-raw pressure runs=${cell.nonRawDecisionPressureObservedRuns}/${cell.runs}; ` +
       `confidence=${cell.confidence}`
     );

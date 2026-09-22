@@ -51,6 +51,8 @@ const {
   SILENCE_INCENSE_ENCOUNTER_MULTIPLIER
 } = await import("../../src/systems/exploration_items.js");
 const { generateEncounter } = await import("../../src/combat_ui/encounter.js");
+const { getBiomeForFloor } = await import("../../src/data/biomes.js");
+const { getTrialGuardianPressures } = await import("../../src/rules/floor_trials.js");
 const { applyPendingOutcomeRewards } = await import("../../src/combat_ui/outcome_rewards.js");
 const { runCombatRoundCalculation } = await import("../../src/combat_logic.js");
 const { cloneCombatStateForRound } = await import("../../src/combat_logic/round.js");
@@ -8645,7 +8647,8 @@ function applyThreatOverride(monsters, floor, override, encounter = {}) {
 function createFixedDiagnosticMonsters(names, floor, {
   scalingPolicy = "production",
   removeTrait = null,
-  reflectPhysicalRate = null
+  reflectPhysicalRate = null,
+  productionMonsters = null
 } = {}) {
   if (!Array.isArray(names) || names.length < 1) {
     throw new Error("fixed diagnostic encounter requires at least one monster name");
@@ -8659,6 +8662,9 @@ function createFixedDiagnosticMonsters(names, floor, {
   if (reflectPhysicalRate !== null && (!Number.isFinite(reflectPhysicalRate) || reflectPhysicalRate < 0 || reflectPhysicalRate > 1)) {
     throw new Error(`fixed diagnostic reflectPhysicalRate must be a number in [0,1] or null: ${reflectPhysicalRate}`);
   }
+  if (productionMonsters !== null && (!Array.isArray(productionMonsters) || productionMonsters.length !== names.length)) {
+    throw new Error("fixed diagnostic productionMonsters must match monster names");
+  }
   const templates = names.map(name => {
     const template = MONSTERS.find(monster => monster.name === name);
     if (!template) throw new Error(`unknown fixed diagnostic monster: ${name}`);
@@ -8668,8 +8674,8 @@ function createFixedDiagnosticMonsters(names, floor, {
     templates.map(template => [template.name, templates.filter(candidate => candidate.name === template.name).length])
   );
   const currentNameIndices = {};
-  return templates.map(template => {
-    const productionMonster = scaleEnemyForDepth(template, floor);
+  return templates.map((template, index) => {
+    const productionMonster = productionMonsters?.[index] || scaleEnemyForDepth(template, floor);
     const monster = scalingPolicy === "production"
       ? productionMonster
       : (() => {
@@ -8701,6 +8707,42 @@ function createFixedDiagnosticMonsters(names, floor, {
       monster.name = `${template.name} ${String.fromCharCode(64 + currentNameIndices[template.name])}`;
     }
     return monster;
+  });
+}
+
+function getProductionGuardianCandidates(floor) {
+  const biomeNames = getBiomeForFloor(floor).enemyPool;
+  return [
+    ...biomeNames.map(name => MONSTERS.find(monster => monster.name === name)).filter(Boolean),
+    ...MONSTERS
+  ].filter((template, index, all) =>
+    all.findIndex(candidate => candidate.name === template.name) === index
+  );
+}
+
+function recordAppliedBossPressureDetails(monster, template, floor, trial) {
+  if (!trial || !Array.isArray(monster?.trialPressures)) return;
+  const pressures = getTrialGuardianPressures(
+    trial,
+    getProductionGuardianCandidates(floor),
+    { maxLevel: template.level }
+  );
+  const pressureByKey = new Map(pressures.map(pressure => [
+    `${pressure.role}:${pressure.themeId}:${pressure.sourceName}`,
+    pressure
+  ]));
+  monster.trialPressures = monster.trialPressures.map(applied => {
+    const pressure = pressureByKey.get(
+      `${applied.role}:${applied.themeId}:${applied.sourceName}`
+    );
+    if (!pressure) throw new Error(`missing diagnostic guardian pressure: ${applied.sourceName}`);
+    return {
+      ...applied,
+      additionalTraits: pressure.traits.filter(trait => !(template.traits || []).includes(trait)),
+      additionalBehavior: Object.fromEntries(
+        Object.entries(pressure.behavior).filter(([key]) => template[key] === undefined)
+      )
+    };
   });
 }
 
@@ -9070,10 +9112,29 @@ function runEncounter(
   let generatedTrial = null;
   let monsters;
   if (fixedMonsterNames) {
+    let productionMonsters = null;
+    if (isBoss) {
+      const generatedEncounter = generateEncounter(
+        state,
+        true,
+        false,
+        false,
+        roamingMonster
+      );
+      generatedTrial = generatedEncounter.trial || null;
+      if (generatedEncounter.monsters.length !== fixedMonsterNames.length ||
+          generatedEncounter.monsters.some((monster, index) => monster.name !== fixedMonsterNames[index])) {
+        throw new Error("fixed diagnostic boss must match the production boss encounter");
+      }
+      productionMonsters = generatedEncounter.monsters;
+      const bossTemplate = MONSTERS.find(monster => monster.name === fixedMonsterNames[0]);
+      recordAppliedBossPressureDetails(productionMonsters[0], bossTemplate, state.floor, generatedTrial);
+    }
     monsters = createFixedDiagnosticMonsters(fixedMonsterNames, state.floor, {
       scalingPolicy,
       removeTrait,
-      reflectPhysicalRate
+      reflectPhysicalRate,
+      productionMonsters
     });
   } else {
     const generatedEncounter = generateEncounter(
@@ -9417,6 +9478,14 @@ function runEncounter(
           spell: monster.spell || null,
           traits: [...(monster.traits || [])],
           tags: [...(monster.tags || [])],
+          trialThemeIds: [...(monster.trialThemeIds || [])],
+          trialPressures: (monster.trialPressures || []).map(pressure => ({
+            role: pressure.role,
+            themeId: pressure.themeId,
+            sourceName: pressure.sourceName,
+            additionalTraits: [...(pressure.additionalTraits || [])],
+            additionalBehavior: structuredClone(pressure.additionalBehavior || {})
+          })),
           spriteType: monster.spriteType || null,
           statusChance: monster.statusChance ?? null,
           statusCapable: isStatusCapableMonster(monster),

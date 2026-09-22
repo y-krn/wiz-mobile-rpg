@@ -73,7 +73,43 @@ for (const cell of first.cells) {
   assert.ok(Number.isFinite(cell.statusActionCount.average));
   assert.ok(Number.isFinite(cell.guard.guardRounds.average));
   assert.equal(cell.confidence, "runner-correctness-only");
+  assert.equal(cell.trialBands.length, 1);
+  assert.deepEqual(Object.keys(cell.trialBands[0]).sort(), ["bandIndex", "count", "mainId", "subId"]);
+  assert.equal(cell.guardianPressures.length, 2);
+  for (const pressure of cell.guardianPressures) {
+    assert.ok(["main", "sub"].includes(pressure.role));
+    assert.ok(pressure.themeId);
+    assert.ok(pressure.sourceName);
+    assert.ok(Array.isArray(pressure.additionalTraits));
+    assert.equal(typeof pressure.additionalBehavior, "object");
+    assert.equal(pressure.count, 1);
+  }
 }
+
+assert.deepEqual(first.cells[0].trialBands[0], {
+  bandIndex: 0,
+  mainId: "status",
+  subId: "endurance",
+  count: 1
+});
+assert.deepEqual(first.cells[0].guardianPressures, [
+  {
+    role: "main",
+    themeId: "status",
+    sourceName: "泥の呪い子",
+    additionalTraits: ["debuffPhysicalDef"],
+    additionalBehavior: { traitChance: 0.2, debuffValue: 2 },
+    count: 1
+  },
+  {
+    role: "sub",
+    themeId: "endurance",
+    sourceName: "石像兵",
+    additionalTraits: ["guardAdjacent"],
+    additionalBehavior: { guard: { chance: 0.5 } },
+    count: 1
+  }
+]);
 
 assert.ok(MEASUREMENT_IDS.includes("milestone-boss-diagnostic"));
 const invocation = resolveRunnerInvocation({
