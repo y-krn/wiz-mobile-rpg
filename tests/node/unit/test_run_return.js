@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 const { createDefaultCodex, createDefaultCurrentRun, createStartingKitCharacter } =
   await import("../../../src/state/initial_state.js");
-const { processRunReturn } = await import("../../../src/systems/run_return.js");
+const { processRunReturn, setRepresentativeItem } = await import("../../../src/systems/run_return.js");
 const {
   isNormalizedReturnItemRecord,
   isNormalizedReturnItemHistory,
@@ -50,6 +50,21 @@ function setupRun(deepestFloor = 5) {
 }
 
 {
+  const state = { currentRun: null, workshop: { ranks: {}, lateralUnlocks: [] }, marker: "unchanged" };
+  const before = structuredClone(state);
+  const result = processRunReturn(state, "retreat");
+  assert.deepEqual(result, {
+    settlement: { banked: [], lost: [] },
+    representativeItem: null,
+    meaningfulItemHistory: [],
+    insights: [],
+    workshopUnlocks: []
+  });
+  assert.deepEqual(state, before);
+  console.log("[PASS] no-currentRun return processing is empty and mutation-free");
+}
+
+{
   const { state, sword } = setupRun(10);
   const result = processRunReturn(state, "retreat");
   assert.equal(result.representativeItem.baseId, "LONG_SWORD");
@@ -93,6 +108,42 @@ function setupRun(deepestFloor = 5) {
   assert.equal(result.representativeItem.name, "未鑑定の長剣");
   assert.equal(result.meaningfulItemHistory[0].name, "未鑑定の長剣");
   console.log("[PASS] unidentified return records keep the representative name concealed");
+}
+
+{
+  const { state } = setupRun(5);
+  state.runHistory = [{ representativeItem: { baseId: "OLD", extra: true } }];
+  const input = {
+    baseId: "LONG_SWORD",
+    name: "表示名",
+    type: "rune",
+    rarity: "unsupported",
+    knowledgeStage: "trial",
+    status: "returned",
+    wasEquipped: true,
+    depth: 5,
+    extra: "must not persist"
+  };
+  assert.equal(setRepresentativeItem(state, input), true);
+  assert.deepEqual(state.currentRun.representativeItem, {
+    baseId: "LONG_SWORD",
+    name: "表示名",
+    type: "item",
+    rarity: "common",
+    knowledgeStage: "trial",
+    status: "returned",
+    wasEquipped: true,
+    depth: 5
+  });
+  assert.deepEqual(state.runHistory[0].representativeItem, state.currentRun.representativeItem);
+  assert.notEqual(state.runHistory[0].representativeItem, state.currentRun.representativeItem);
+  assert.equal(Object.hasOwn(state.currentRun.representativeItem, "extra"), false);
+  input.name = "変更後";
+  assert.equal(state.currentRun.representativeItem.name, "表示名");
+  const before = structuredClone(state.currentRun.representativeItem);
+  assert.equal(setRepresentativeItem(state, { baseId: 42 }), false);
+  assert.deepEqual(state.currentRun.representativeItem, before);
+  console.log("[PASS] representative selection normalizes, mirrors, and rejects malformed input");
 }
 
 {
