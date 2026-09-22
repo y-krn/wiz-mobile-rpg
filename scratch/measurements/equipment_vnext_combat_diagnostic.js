@@ -11,7 +11,7 @@ import { createRng as createSeededRng } from "../../src/seed_rng.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1557-equipment-vnext-combat-diagnostic-v1";
+export const RUNNER_VERSION = "issue1560-equipment-vnext-combat-diagnostic-v1";
 export const SCHEMA_VERSION = 3;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1544;
@@ -20,8 +20,8 @@ export const MIN_CONFIDENT_RUNS = 30;
 export const WEAPON_CANDIDATES = Object.freeze({
   dagger: Object.freeze({ id: "dagger", label: "短剣", multiplier: 0.82, hitChance: 0.96, highDefPenetration: 0.02, hands: 1, load: "light", runeSlots: 0 }),
   sword: Object.freeze({ id: "sword", label: "片手剣", multiplier: 1.00, hitChance: 0.92, highDefPenetration: 0.05, hands: 1, load: "standard", runeSlots: 0 }),
-  mace: Object.freeze({ id: "mace", label: "メイス", multiplier: 0.98, hitChance: 0.88, highDefPenetration: 1.00, highDefOnly: true, hands: 1, load: "standard", runeSlots: 0 }),
-  greatsword: Object.freeze({ id: "greatsword", label: "大剣", multiplier: 1.32, hitChance: 0.82, highDefPenetration: 0.08, hands: 2, load: "heavy", runeSlots: 0 }),
+  mace: Object.freeze({ id: "mace", label: "メイス", multiplier: 1.02, hitChance: 0.88, highDefPenetration: 1.00, highDefOnly: true, hands: 1, load: "standard", runeSlots: 0 }),
+  greatsword: Object.freeze({ id: "greatsword", label: "大剣", multiplier: 1.36, hitChance: 0.82, highDefPenetration: 0.08, hands: 2, load: "heavy", runeSlots: 0 }),
   wand: Object.freeze({ id: "wand", label: "魔杖", multiplier: 0.68, hitChance: 0.94, highDefPenetration: 0.04, hands: 1, load: "standard", runeSlots: 1, mpCapacity: 2 }),
   staff: Object.freeze({ id: "staff", label: "大杖", multiplier: 0.58, hitChance: 0.90, highDefPenetration: 0.04, hands: 2, load: "standard", runeSlots: 2, mpCapacity: 4 })
 });
@@ -541,7 +541,7 @@ function buildReport(result, provenance, purpose) {
     depths: result.configuration.depths,
     representativeConditionIds: result.configuration.representativeConditionIds,
     loadPolicies: result.configuration.loadPolicies
-  }, { label: "issue1557 vNext combat diagnostic env" });
+  }, { label: "issue1560 vNext combat diagnostic env" });
   return {
     ...result,
     purpose,
@@ -561,7 +561,7 @@ function buildReport(result, provenance, purpose) {
     },
     candidatePolicy: {
       combatTier: "tierMultiplier = 1 + 0.16 × tier; Tier 0–5",
-      weapon: "Mace keeps its lower hit chance and base multiplier; its high-DEF advantage comes from penetration only. Greatsword keeps the highest normal-attack multiplier, while the paired fixture includes small-shield Sword vs no-shield heavy Greatsword",
+      weapon: "Mace keeps lower hit chance and normal-DEF damage-per-attempt than Sword; high-DEF advantage comes from capped penetration without increasing with DEF. Greatsword keeps the highest normal-attack multiplier, while the paired fixture includes small-shield Sword vs no-shield heavy Greatsword",
       armor: "direct incoming mitigation candidate; production DEF/(DEF+4) untouched",
       guard: "Defend-only candidate multipliers by physical / spell / breath; Attack has no Guard mitigation",
       rune: "wand and staff share one Rune action; slots, MP capacity, and hands are the only Rune scenario differences",
@@ -574,7 +574,7 @@ function buildReport(result, provenance, purpose) {
 
 function buildSummary(report) {
   const lines = [
-    "# Equipment vNext combat diagnostic (#1557)",
+    "# Equipment vNext combat diagnostic (#1560)",
     "",
     `- measurement: ${report.measurementId}; runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; confidence: ${report.confidencePolicy.belowMinimum} below N=${MIN_CONFIDENT_RUNS}`,
@@ -630,7 +630,7 @@ async function main() {
   const report = buildReport(result, provenance, options.purpose || process.env.MEASUREMENT_PURPOSE || "");
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));
-  console.log(`Wrote Issue #1557 vNext combat diagnostic: ${resolve(options.output)}`);
+  console.log(`Wrote Issue #1560 vNext combat diagnostic: ${resolve(options.output)}`);
 }
 
 export { buildReport, buildSummary, formulaTable, resolveLoadClass };
