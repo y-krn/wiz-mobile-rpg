@@ -16,6 +16,7 @@ on:
           - equipment-vnext-combat-diagnostic
           - depth-scaling-diagnostic
           - trait-scaling-diagnostic
+          - reflect-physical-diagnostic
           - equipment-load
           - run-difficulty
           - run-difficulty-policy-sensitivity

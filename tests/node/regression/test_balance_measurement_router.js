@@ -111,6 +111,16 @@ const ROUTER_CONTRACTS = [
     override: { input: { runs: 201, seed: 1587 }, expected: { runs: 201, seed: 1587 } }
   },
   {
+    id: "reflect-physical-diagnostic",
+    runner: "scratch/measurements/trait_scaling_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 200, minimumRuns: 200, seed: 1594 },
+    args: nativeArgs("--mode", "reflect-physical", "--ref", "main", "--runs", "200", "--seed", "1594"),
+    override: { input: { runs: 201, seed: 1595 }, expected: { runs: 201, seed: 1595 } }
+  },
+  {
     id: "equipment-load",
     runner: "scratch/measurements/equipment_load_measurement.js",
     adapter: "native-manifest",
@@ -588,7 +598,7 @@ assert.equal(
   "balance-measurement-early-run-attrition-123-attempt"
 );
 
-for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "trait-scaling-diagnostic", "first-band-build-formation", "first-band-b5-wall-diagnostic", "first-band-b5-guardian-retry-diagnostic", "first-band-b5-guardian-flee-ev-diagnostic", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
+for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "trait-scaling-diagnostic", "reflect-physical-diagnostic", "first-band-build-formation", "first-band-b5-wall-diagnostic", "first-band-b5-guardian-retry-diagnostic", "first-band-b5-guardian-flee-ev-diagnostic", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
   const invocation = resolveRunnerInvocation({ measurement, purpose: "smoke" }, "/tmp/router-test");
   assert.equal(invocation.measurement, measurement);
   assert.match(invocation.runner, /scratch\/measurements\//);

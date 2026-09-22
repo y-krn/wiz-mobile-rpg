@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 
 const { MONSTERS } = await import("../../../src/data/monsters.js");
 const { buildCombatTurnQueue } = await import("../../../src/combat_logic/turn_order.js");
-const { resolveWorldSeed, runTraitScalingDiagnostic } = await import(
+const {
+  REFLECT_PHYSICAL_RATE_CANDIDATE,
+  REFLECT_PHYSICAL_RATE_REFERENCE,
+  resolveWorldSeed,
+  runReflectPhysicalDiagnostic,
+  runTraitScalingDiagnostic
+} = await import(
   "../../../scratch/measurements/trait_scaling_diagnostic.js"
 );
 
@@ -109,6 +115,35 @@ function resolveFirstTurn(playerLoadModifier) {
 
 assert.equal(resolveFirstTurn(-1), "monster", "capped half-step Load must affect initiative calculation");
 assert.equal(resolveFirstTurn(2), "char", "initiative regression must distinguish Load candidates");
+
+const reflectFirst = await runReflectPhysicalDiagnostic({ runs: 1, seed: 1594, allowSmallRunCount: true });
+const reflectSecond = await runReflectPhysicalDiagnostic({ runs: 1, seed: 1594, allowSmallRunCount: true });
+assert.deepEqual(reflectFirst, reflectSecond, "reflectPhysical diagnostic smoke must be deterministic");
+assert.equal(reflectFirst.measurementId, "reflect-physical-diagnostic");
+assert.deepEqual(reflectFirst.configuration.depths, [5, 10, 20, 30]);
+assert.deepEqual(reflectFirst.configuration.traits.map(trait => trait.id), ["reflectPhysical"]);
+assert.deepEqual(reflectFirst.configuration.conditions.map(condition => condition.id), [
+  "trait-absent", "production-reference", "candidate-020"
+]);
+assert.deepEqual(reflectFirst.configuration.metrics, [
+  "rounds", "damageTaken", "enemyActions", "survival", "reflectedDamage"
+]);
+assert.equal(reflectFirst.configuration.reflectPhysical.productionReferenceRate, REFLECT_PHYSICAL_RATE_REFERENCE);
+assert.equal(reflectFirst.configuration.reflectPhysical.candidateRate, REFLECT_PHYSICAL_RATE_CANDIDATE);
+const reflectTemplate = MONSTERS.find(monster => monster.name === "鋼殻ビートル");
+assert.equal(reflectTemplate?.physicalReflect?.rate, REFLECT_PHYSICAL_RATE_REFERENCE);
+assert.equal(reflectFirst.cells.length, 12, "reflectPhysical scope must be one fixture × depth × three conditions");
+assert.equal(reflectFirst.comparisons.length, 4);
+for (const comparison of reflectFirst.comparisons) {
+  assert.equal(comparison.noTrait.observedTraitPresence.includes("reflectPhysical"), false);
+  assert.equal(comparison.productionReference.observedTraitPresence.includes("reflectPhysical"), true);
+  assert.equal(comparison.candidate.observedTraitPresence.includes("reflectPhysical"), true);
+  assert.equal(comparison.productionReference.freezeApplication.reflectPhysicalRate, null);
+  assert.equal(comparison.candidate.freezeApplication.reflectPhysicalRate, REFLECT_PHYSICAL_RATE_CANDIDATE);
+  assert.equal(comparison.noTrait.reflectedDamage.average, 0);
+  assert.ok(Number.isFinite(comparison.deltas.candidateVsNoTrait.reflectedDamage.average));
+  assert.ok(Number.isFinite(comparison.deltas.candidateVsProductionReference.reflectedDamage.average));
+}
 
 for (const comparison of first.comparisons) {
   assert.equal(comparison.present.runs, 1);

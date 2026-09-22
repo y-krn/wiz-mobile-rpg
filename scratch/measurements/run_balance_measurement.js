@@ -104,6 +104,11 @@ const fixedCombatArgs = ({ options, output }) => nativeMeasurementArgs({
 
 const equipmentVNextCombatArgs = nativeMeasurementArgs;
 const depthScalingArgs = nativeMeasurementArgs;
+const traitScalingArgs = ({ options, output, profile }) => nativeMeasurementArgs({
+  options,
+  output,
+  beforeRef: profile.mode ? ["--mode", profile.mode] : []
+});
 
 const equipmentLoadArgs = ({ options, output }) => [
   "--runs", String(options.runs),
@@ -204,7 +209,7 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
-    buildArgs: nativeMeasurementArgs
+    buildArgs: traitScalingArgs
   }),
   "equipment-load": freezeFamily({
     runner: "scratch/measurements/equipment_load_measurement.js",
@@ -330,6 +335,13 @@ const PROFILE_LIST = [
     label: "Phase 2a single-enemy trait scaling diagnostic",
     family: "trait-scaling",
     defaults: { runs: 200, minimumRuns: 200, seed: 1586 }
+  },
+  {
+    id: "reflect-physical-diagnostic",
+    label: "reflectPhysical rate diagnostic",
+    family: "trait-scaling",
+    mode: "reflect-physical",
+    defaults: { runs: 200, minimumRuns: 200, seed: 1594 }
   },
   {
     id: "equipment-load",
