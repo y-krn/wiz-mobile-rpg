@@ -220,6 +220,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/systems/equipment_discard.js", domains: ["equipment"] },
     { pattern: "src/systems/equipment_discard.ts", domains: ["equipment"] },
     { pattern: "src/systems/loadout_transaction.js", domains: ["equipment", "maps"] },
+    { pattern: "src/systems/loadout_transaction.ts", domains: ["equipment", "maps"] },
     { pattern: "src/pending_rewards.js", domains: ["chests", "equipment", "economy", "maps"] },
     { pattern: "src/rules/pending_reward_bundle.js", domains: ["economy"] },
     { pattern: "src/systems/run_quests.js", domains: ["economy", "progression"] },
@@ -327,6 +328,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // Loadout commit records equipment decisions alongside the atomic state
     // transition and consumes one exploration turn at its caller.
     "src/systems/loadout_transaction.js",
+    "src/systems/loadout_transaction.ts",
     "src/menu/explore_actions.js",
     // Back handling records UX boundaries without changing navigation or rules.
     "src/navigation.js",
