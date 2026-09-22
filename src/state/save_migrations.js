@@ -55,10 +55,13 @@ import {
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 import { normalizeDeathHistory, normalizeRunDeathLogs } from "./death_logs.js";
 import { normalizeRunObjectLootLedger } from "./run_loot.js";
+import {
+  normalizeCodexInsights,
+  normalizeEquipmentCodex,
+  normalizeMonsterCodex
+} from "./codex_state.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
-
-const EQUIPMENT_RARITIES = new Set(["common", "magic", "rare", "epic", "legendary"]);
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
@@ -591,78 +594,6 @@ function normalizePendingRewardBundle(bundle) {
   };
 }
 
-function normalizeCodexInsightRecord(record) {
-  if (!isRecord(record) || typeof record.id !== "string") return null;
-  return {
-    id: record.id,
-    count: Math.max(0, integerOr(record.count, 0)),
-    firstFloor: Math.max(1, integerOr(record.firstFloor, 1)),
-    lastFloor: Math.max(1, integerOr(record.lastFloor, 1))
-  };
-}
-
-function normalizeEquipmentCodexRecord(record) {
-  if (!isRecord(record)) return null;
-  const normalized = { ...record };
-  normalized.discovered = record.discovered !== false;
-  normalized.foundCount = Math.max(0, integerOr(record.foundCount, 0));
-  normalized.highestRarity = EQUIPMENT_RARITIES.has(record.highestRarity)
-    ? record.highestRarity
-    : "common";
-  normalized.bestBonus = Math.max(0, numberOr(record.bestBonus, 0));
-  normalized.affixesSeen = arrayOr(record.affixesSeen).filter(affix => typeof affix === "string");
-  normalized.foundFloors = Object.fromEntries(
-    Object.entries(recordOr(record.foundFloors, {}))
-      .filter(([floor, count]) => /^\d+$/.test(floor) && Number(floor) > 0 && Number.isFinite(count) && count > 0)
-      .map(([floor, count]) => [floor, Math.floor(count)])
-  );
-  normalized.tagObservations = Object.fromEntries(
-    Object.entries(recordOr(record.tagObservations, {}))
-      .filter(([tag, count]) => typeof tag === "string" && Number.isFinite(count) && count > 0)
-      .map(([tag, count]) => [tag, Math.floor(count)])
-  );
-  normalized.firstFoundAt = typeof record.firstFoundAt === "string" ? record.firstFoundAt : "";
-  normalized.lastFoundSeed = typeof record.lastFoundSeed === "string" ? record.lastFoundSeed : "";
-  return normalized;
-}
-
-function normalizeMonsterCodexRecord(record) {
-  if (!isRecord(record)) return null;
-  const normalized = { ...record };
-  normalized.encountered = Math.max(0, integerOr(record.encountered, 0));
-  normalized.killed = Math.max(0, integerOr(record.killed, 0));
-  normalized.firstKilled = record.firstKilled === true;
-  if (Object.hasOwn(record, "magicResistKnown")) {
-    normalized.magicResistKnown = record.magicResistKnown === true;
-  }
-  if (Object.hasOwn(record, "physResistKnown")) {
-    normalized.physResistKnown = record.physResistKnown === true;
-  }
-  if (Object.hasOwn(record, "observedActions")) {
-    normalized.observedActions = arrayOr(record.observedActions).filter(action => typeof action === "string");
-  }
-  if (Object.hasOwn(record, "observedConditions")) {
-    normalized.observedConditions = arrayOr(record.observedConditions).filter(condition => typeof condition === "string");
-  }
-  if (Object.hasOwn(record, "observedLoot")) {
-    normalized.observedLoot = arrayOr(record.observedLoot).filter(loot => typeof loot === "string");
-  }
-  if (Object.hasOwn(record, "encounterFloors")) {
-    normalized.encounterFloors = Object.fromEntries(
-      Object.entries(recordOr(record.encounterFloors, {}))
-        .filter(([floor, count]) => /^\d+$/.test(floor) && Number(floor) > 0 && Number.isFinite(count) && count > 0)
-        .map(([floor, count]) => [floor, Math.floor(count)])
-    );
-  }
-  if (Object.hasOwn(record, "firstEncounterFloor")) {
-    normalized.firstEncounterFloor = Math.max(0, integerOr(record.firstEncounterFloor, 0));
-  }
-  if (Object.hasOwn(record, "lastEncounterFloor")) {
-    normalized.lastEncounterFloor = Math.max(0, integerOr(record.lastEncounterFloor, 0));
-  }
-  return normalized;
-}
-
 function normalizeCurrentRun(run, saveFloor) {
   if (!isRecord(run)) return null;
   const legacyEliteOmenSteps = Object.hasOwn(run, "eliteOmenSteps") ? run.eliteOmenSteps : undefined;
@@ -917,23 +848,9 @@ export function normalizeSavePayload(data) {
     : [];
   normalized.deathLogs = normalizeDeathHistory(data.deathLogs);
   normalized.codex = recordOr(data.codex, createDefaultCodex());
-  normalized.codex.equipment = Object.fromEntries(
-    Object.entries(recordOr(normalized.codex.equipment, {}))
-      .map(([key, record]) => [key, normalizeEquipmentCodexRecord(record)])
-      .filter(([, record]) => record !== null)
-  );
-  normalized.codex.monsters = Object.fromEntries(
-    Object.entries(recordOr(normalized.codex.monsters, {}))
-      .filter(([name]) => !/の分裂体\d+/.test(name))
-      .map(([name, record]) => [name, normalizeMonsterCodexRecord(record)])
-      .filter(([, record]) => record !== null)
-  );
-  normalized.codex.insights = Object.values(Object.fromEntries(
-    arrayOr(normalized.codex.insights)
-      .map(normalizeCodexInsightRecord)
-      .filter(isRecord)
-      .map(insight => [insight.id, insight])
-  )).slice(0, 20);
+  normalized.codex.equipment = normalizeEquipmentCodex(normalized.codex.equipment);
+  normalized.codex.monsters = normalizeMonsterCodex(normalized.codex.monsters);
+  normalized.codex.insights = normalizeCodexInsights(normalized.codex.insights);
   if (normalized.codex && normalized.codex.events) {
     delete normalized.codex.events.omens;
   }
