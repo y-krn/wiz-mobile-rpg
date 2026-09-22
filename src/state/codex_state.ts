@@ -71,16 +71,56 @@ export interface NormalizedEquipmentCodexRecord {
 
 export type NormalizedEquipmentCodex = Record<string, NormalizedEquipmentCodexRecord>;
 
+export interface NormalizedCodexStats {
+  totalRuns: number;
+  totalDeaths: number;
+  deepestFloor: number;
+  totalKills: number;
+  totalChests: number;
+}
+
+export const CODEX_TRAP_IDS = Object.freeze([
+  "poison needle", "gas bomb", "teleporter", "flash bomb", "pitfall"
+] as const);
+
+export type CodexTrapId = typeof CODEX_TRAP_IDS[number];
+
+export interface NormalizedCodexTrapEvent {
+  triggered: number;
+  disarmed: number;
+  firstFloor: number;
+}
+
+export type NormalizedCodexFacilityEvent =
+  | { found: number; used: number }
+  | { found: number; purchased: number }
+  | { found: number; read: number }
+  | { found: number; opened: number };
+
+export interface NormalizedCodexEvents {
+  traps: Record<CodexTrapId, NormalizedCodexTrapEvent>;
+  facilities: {
+    spring: { found: number; used: number };
+    merchant: { found: number; purchased: number };
+    tablet: { found: number; read: number };
+    chest: { found: number; opened: number };
+  };
+}
+
 export interface NormalizedCodexPayload extends Record<string, unknown> {
   monsters: NormalizedMonsterCodex;
   equipment: NormalizedEquipmentCodex;
   insights: NormalizedCodexInsights;
+  stats: NormalizedCodexStats;
+  events: NormalizedCodexEvents;
 }
 
 interface RuntimeCodex extends Record<string, unknown> {
   insights?: unknown;
   monsters?: unknown;
   equipment?: unknown;
+  events?: unknown;
+  stats?: unknown;
 }
 
 interface CodexStateLike extends Record<string, unknown> {
@@ -108,6 +148,16 @@ const EQUIPMENT_FIELDS = [
   "discovered", "foundCount", "highestRarity", "bestBonus", "affixesSeen",
   "foundFloors", "tagObservations", "firstFoundAt", "lastFoundSeed"
 ] as const;
+const CODEX_STATS_FIELDS = [
+  "totalRuns", "totalDeaths", "deepestFloor", "totalKills", "totalChests"
+] as const;
+const CODEX_TRAP_FIELDS = ["triggered", "disarmed", "firstFloor"] as const;
+const CODEX_FACILITY_FIELDS = {
+  spring: ["found", "used"],
+  merchant: ["found", "purchased"],
+  tablet: ["found", "read"],
+  chest: ["found", "opened"]
+} as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -140,6 +190,16 @@ function finiteNumberOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function canonicalIntegerOr(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value)
+    ? value
+    : fallback;
+}
+
+function nonNegativeIntegerOr(value: unknown, fallback = 0): number {
+  return Math.max(0, canonicalIntegerOr(value, fallback));
+}
+
 function isPositiveFloorMap(value: unknown): value is Record<string, number> {
   return isRecord(value) && Object.entries(value).every(([floor, count]) =>
     /^\d+$/.test(floor) && Number(floor) > 0 && isPositiveInteger(count)
@@ -154,6 +214,129 @@ function isObservationCountMap(value: unknown): value is Record<string, number> 
 
 function isCodexEquipmentRarity(value: unknown): value is NormalizedCodexEquipmentRarity {
   return typeof value === "string" && CODEX_EQUIPMENT_RARITIES.includes(value as NormalizedCodexEquipmentRarity);
+}
+
+export function createDefaultCodexStats(): NormalizedCodexStats {
+  return {
+    totalRuns: 0,
+    totalDeaths: 0,
+    deepestFloor: 1,
+    totalKills: 0,
+    totalChests: 0
+  };
+}
+
+export function isNormalizedCodexStats(value: unknown): value is NormalizedCodexStats {
+  return isRecord(value) &&
+    hasOnlyFields(value, CODEX_STATS_FIELDS) &&
+    Object.hasOwn(value, "totalRuns") &&
+    Object.hasOwn(value, "totalDeaths") &&
+    Object.hasOwn(value, "deepestFloor") &&
+    Object.hasOwn(value, "totalKills") &&
+    Object.hasOwn(value, "totalChests") &&
+    isNonNegativeInteger(value.totalRuns) &&
+    isNonNegativeInteger(value.totalDeaths) &&
+    isPositiveInteger(value.deepestFloor) &&
+    isNonNegativeInteger(value.totalKills) &&
+    isNonNegativeInteger(value.totalChests);
+}
+
+export function normalizeCodexStats(value: unknown): NormalizedCodexStats {
+  if (!isRecord(value)) return createDefaultCodexStats();
+  return {
+    totalRuns: nonNegativeIntegerOr(value.totalRuns),
+    totalDeaths: nonNegativeIntegerOr(value.totalDeaths),
+    deepestFloor: Math.max(1, canonicalIntegerOr(value.deepestFloor, 1)),
+    totalKills: nonNegativeIntegerOr(value.totalKills),
+    totalChests: nonNegativeIntegerOr(value.totalChests)
+  };
+}
+
+export function isNormalizedCodexTrapEvent(value: unknown): value is NormalizedCodexTrapEvent {
+  return isRecord(value) &&
+    hasOnlyFields(value, CODEX_TRAP_FIELDS) &&
+    Object.hasOwn(value, "triggered") &&
+    Object.hasOwn(value, "disarmed") &&
+    Object.hasOwn(value, "firstFloor") &&
+    isNonNegativeInteger(value.triggered) &&
+    isNonNegativeInteger(value.disarmed) &&
+    isNonNegativeInteger(value.firstFloor);
+}
+
+export function normalizeCodexTrapEvent(value: unknown): NormalizedCodexTrapEvent {
+  const source = isRecord(value) ? value : {};
+  return {
+    triggered: nonNegativeIntegerOr(source.triggered),
+    disarmed: nonNegativeIntegerOr(source.disarmed),
+    firstFloor: nonNegativeIntegerOr(source.firstFloor)
+  };
+}
+
+function isNormalizedCodexFacilityRecord(
+  value: unknown,
+  fields: readonly string[]
+): value is { found: number } & Record<string, number> {
+  return isRecord(value) &&
+    hasOnlyFields(value, fields) &&
+    Object.hasOwn(value, "found") &&
+    fields.slice(1).every(field => Object.hasOwn(value, field)) &&
+    Object.values(value).every(isNonNegativeInteger);
+}
+
+type CodexFacilityField = "used" | "purchased" | "read" | "opened";
+
+function normalizeCodexFacilityRecord<T extends CodexFacilityField>(
+  value: unknown,
+  field: T
+): { found: number } & Record<T, number> {
+  const source = isRecord(value) ? value : {};
+  return {
+    found: nonNegativeIntegerOr(source.found),
+    [field]: nonNegativeIntegerOr(source[field])
+  } as { found: number } & Record<T, number>;
+}
+
+export function isNormalizedCodexEvents(value: unknown): value is NormalizedCodexEvents {
+  if (!isRecord(value) || !hasOnlyFields(value, ["traps", "facilities"]) ||
+      !isRecord(value.traps) || !isRecord(value.facilities)) return false;
+  const traps = value.traps;
+  const facilities = value.facilities;
+  if (Object.keys(traps).length !== CODEX_TRAP_IDS.length ||
+      !CODEX_TRAP_IDS.every(id => Object.hasOwn(traps, id) && isNormalizedCodexTrapEvent(traps[id]))) {
+    return false;
+  }
+  return Object.keys(facilities).length === Object.keys(CODEX_FACILITY_FIELDS).length &&
+    isNormalizedCodexFacilityRecord(facilities.spring, CODEX_FACILITY_FIELDS.spring) &&
+    isNormalizedCodexFacilityRecord(facilities.merchant, CODEX_FACILITY_FIELDS.merchant) &&
+    isNormalizedCodexFacilityRecord(facilities.tablet, CODEX_FACILITY_FIELDS.tablet) &&
+    isNormalizedCodexFacilityRecord(facilities.chest, CODEX_FACILITY_FIELDS.chest);
+}
+
+export function createDefaultCodexEvents(): NormalizedCodexEvents {
+  return {
+    traps: Object.fromEntries(CODEX_TRAP_IDS.map(id => [id, normalizeCodexTrapEvent(null)])) as Record<CodexTrapId, NormalizedCodexTrapEvent>,
+    facilities: {
+      spring: normalizeCodexFacilityRecord(null, "used"),
+      merchant: normalizeCodexFacilityRecord(null, "purchased"),
+      tablet: normalizeCodexFacilityRecord(null, "read"),
+      chest: normalizeCodexFacilityRecord(null, "opened")
+    }
+  };
+}
+
+export function normalizeCodexEvents(value: unknown): NormalizedCodexEvents {
+  const source = isRecord(value) ? value : {};
+  const rawTraps = isRecord(source.traps) ? source.traps : {};
+  const rawFacilities = isRecord(source.facilities) ? source.facilities : {};
+  return {
+    traps: Object.fromEntries(CODEX_TRAP_IDS.map(id => [id, normalizeCodexTrapEvent(rawTraps[id])])) as Record<CodexTrapId, NormalizedCodexTrapEvent>,
+    facilities: {
+      spring: normalizeCodexFacilityRecord(rawFacilities.spring, "used"),
+      merchant: normalizeCodexFacilityRecord(rawFacilities.merchant, "purchased"),
+      tablet: normalizeCodexFacilityRecord(rawFacilities.tablet, "read"),
+      chest: normalizeCodexFacilityRecord(rawFacilities.chest, "opened")
+    }
+  };
 }
 
 export function isNormalizedCodexInsightRecord(value: unknown): value is NormalizedCodexInsightRecord {
@@ -318,7 +501,9 @@ export function isNormalizedCodexPayload(value: unknown): value is NormalizedCod
   return isRecord(value) &&
     Object.hasOwn(value, "monsters") && isNormalizedMonsterCodex(value.monsters) &&
     Object.hasOwn(value, "equipment") && isNormalizedEquipmentCodex(value.equipment) &&
-    Object.hasOwn(value, "insights") && isNormalizedCodexInsights(value.insights);
+    Object.hasOwn(value, "insights") && isNormalizedCodexInsights(value.insights) &&
+    Object.hasOwn(value, "stats") && isNormalizedCodexStats(value.stats) &&
+    Object.hasOwn(value, "events") && isNormalizedCodexEvents(value.events);
 }
 
 export function normalizeCodexPayload(value: unknown): NormalizedCodexPayload | null {
@@ -327,7 +512,9 @@ export function normalizeCodexPayload(value: unknown): NormalizedCodexPayload | 
     ...value,
     monsters: normalizeMonsterCodex(value.monsters),
     equipment: normalizeEquipmentCodex(value.equipment),
-    insights: normalizeCodexInsights(value.insights)
+    insights: normalizeCodexInsights(value.insights),
+    stats: normalizeCodexStats(value.stats),
+    events: normalizeCodexEvents(value.events)
   };
 }
 
