@@ -13,6 +13,25 @@ import {
 import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
 import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 
+const ANCIENT_DRAGON_NAME = "いにしえの竜";
+
+function getAncientDragonCycleStep(mon) {
+  const step = Number.isInteger(mon.ancientDragonCycleStep)
+    ? mon.ancientDragonCycleStep
+    : 0;
+  return ((step % 4) + 4) % 4;
+}
+
+export function ensureAncientDragonCycleStep(mon) {
+  if (mon.name !== ANCIENT_DRAGON_NAME) return;
+  mon.ancientDragonCycleStep = getAncientDragonCycleStep(mon);
+}
+
+export function advanceAncientDragonCycleStep(mon) {
+  if (mon.name !== ANCIENT_DRAGON_NAME) return;
+  mon.ancientDragonCycleStep = (getAncientDragonCycleStep(mon) + 1) % 4;
+}
+
 function resolveB5MilestoneBossAction(mon, state, logQueue) {
   const rule = getMilestoneBossRule(
     state.floor,
@@ -218,7 +237,8 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
   }
 
   // いにしえの竜独自のギミック行動
-  if (mon.name === "いにしえの竜") {
+  if (mon.name === ANCIENT_DRAGON_NAME) {
+    ensureAncientDragonCycleStep(mon);
     const isSilenced = mon.silenceTurns > 0;
     if (isSilenced) {
       mon.tiltowaitQueued = false;
@@ -229,10 +249,10 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       mon.tiltowaitQueued = false;
       if (isSilenced) {
         logQueue.push({ msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えようとしたが、沈黙している！` });
-        mon.turnCount = (mon.turnCount || 0) + 1;
+        advanceAncientDragonCycleStep(mon);
         return true;
       }
-      mon.turnCount = (mon.turnCount || 0) + 1;
+      advanceAncientDragonCycleStep(mon);
       recordAction(mon, "TILTOWAIT");
       logQueue.push({
         msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！(防御で大幅軽減可能)`,
@@ -280,7 +300,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
 
     if (mon.dragonBreathQueued) {
       mon.dragonBreathQueued = false;
-      mon.turnCount = (mon.turnCount || 0) + 1;
+      advanceAncientDragonCycleStep(mon);
       recordAction(mon, "炎の息");
       logQueue.push({
         msg: `[ 敵 ] いにしえの竜は激しい炎の息を吐き出した！`,
@@ -319,7 +339,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
 
     if (mon.madaltoQueued) {
       mon.madaltoQueued = false;
-      mon.turnCount = (mon.turnCount || 0) + 1;
+      advanceAncientDragonCycleStep(mon);
       if (isSilenced) {
         logQueue.push({ msg: `[ 敵 ] いにしえの竜はマダルトを唱えようとしたが、沈黙している！` });
         return true;
@@ -360,12 +380,11 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       return true;
     }
 
-    mon.turnCount = mon.turnCount || 0;
-    const currentTurn = mon.turnCount % 4;
+    const currentStep = getAncientDragonCycleStep(mon);
     let action = "attack";
-    if (currentTurn === 1) {
+    if (currentStep === 1) {
       action = rng() < 0.5 ? "breath" : "madalto";
-    } else if (currentTurn === 2) {
+    } else if (currentStep === 2) {
       action = "tiltowait_queue";
     }
 
