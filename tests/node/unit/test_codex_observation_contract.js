@@ -28,6 +28,12 @@ assert.equal(isNormalizedMonsterCodexRecord({ ...legacyMonster, extra: true }), 
 assert.deepEqual(normalizeMonsterCodex({ "スライムの分裂体1": legacyMonster, スライム: legacyMonster }), {
   スライム: legacyMonster
 });
+const fractionalMonster = normalizeMonsterCodex({ スライム: {
+  ...legacyMonster,
+  encounterFloors: { "1": 0.5, "2": 1.5 }
+} });
+assert.deepEqual(fractionalMonster.スライム.encounterFloors, { "2": 1 });
+assert.equal(isNormalizedMonsterCodexRecord(fractionalMonster.スライム), true);
 
 const equipment = normalizeEquipmentCodexRecord({
   discovered: true,
@@ -46,6 +52,14 @@ assert.equal(isNormalizedEquipmentCodexRecord(equipment), true);
 assert.equal(Object.hasOwn(equipment, "extra"), false);
 assert.equal(equipment.bestBonus, 1.5);
 assert.deepEqual(CODEX_EQUIPMENT_RARITIES, ["common", "magic", "rare", "epic", "legendary"]);
+const fractionalEquipment = normalizeEquipmentCodexRecord({
+  ...equipment,
+  foundFloors: { "1": 0.5, "2": 1.5 },
+  tagObservations: { blood: 0.5, spirit: 1.5 }
+});
+assert.deepEqual(fractionalEquipment.foundFloors, { "2": 1 });
+assert.deepEqual(fractionalEquipment.tagObservations, { spirit: 1 });
+assert.equal(isNormalizedEquipmentCodexRecord(fractionalEquipment), true);
 
 const stateLike = {
   floor: 2,

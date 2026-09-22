@@ -214,14 +214,16 @@ function normalizePositiveCountMap(value: unknown): Record<string, number> {
     .filter(([key, count]) =>
       /^\d+$/.test(key) && Number(key) > 0 && typeof count === "number" && Number.isFinite(count) && count > 0
     )
-    .map(([key, count]) => [key, Math.floor(finiteNumberOr(count, 0))]));
+    .map(([key, count]) => [key, Math.floor(finiteNumberOr(count, 0))] as const)
+    .filter(([, count]) => count > 0));
 }
 
 function normalizeTagObservationMap(value: unknown): Record<string, number> {
   if (!isRecord(value)) return {};
   return Object.fromEntries(Object.entries(value)
     .filter(([, count]) => typeof count === "number" && Number.isFinite(count) && count > 0)
-    .map(([key, count]) => [key, Math.floor(finiteNumberOr(count, 0))]));
+    .map(([key, count]) => [key, Math.floor(finiteNumberOr(count, 0))] as const)
+    .filter(([, count]) => count > 0));
 }
 
 export function normalizeMonsterCodexRecord(value: unknown): NormalizedMonsterCodexRecord | null {
