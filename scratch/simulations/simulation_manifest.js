@@ -227,7 +227,9 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/combat_ui/combat_start.js", domains: ["combat"] },
     { pattern: "src/combat_ui/encounter.js", domains: ["combat", "maps"] },
     { pattern: "src/state/run_floor_state.js", domains: ["maps"] },
-    { pattern: "src/systems/roaming_elites.js", domains: ["combat", "maps"] }
+    { pattern: "src/systems/roaming_elites.js", domains: ["combat", "maps"] },
+    { pattern: "src/systems/elite_perception.js", domains: ["combat", "maps"] },
+    { pattern: "src/systems/elite_perception.ts", domains: ["combat", "maps"] }
   ].map(rule => ({ ...rule, domains: Object.freeze([...rule.domains]) }))),
   balanceImpactNone: Object.freeze([
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
