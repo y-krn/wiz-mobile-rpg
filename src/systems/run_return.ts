@@ -9,6 +9,7 @@ import {
   normalizeReturnProcessing,
   normalizeRunInsights,
   normalizeWorkshopUnlocks,
+  RUN_RETURN_HISTORY_LIMIT,
   type NormalizedRunCodexInsight,
   type NormalizedRunReturnItemRecord,
   type NormalizedRunReturnProcessing,
@@ -46,8 +47,6 @@ const RARITY_SCORE: Readonly<Record<string, number>> = Object.freeze({
   epic: 10,
   legendary: 15
 });
-const HISTORY_LIMIT = 5;
-
 interface ReturnRunLike {
   equipmentFound?: RuntimeItemCollection;
   unbankedObjectLoot?: unknown[];
@@ -303,7 +302,7 @@ export function processRunReturn(
     ? toHistoryRecord(representative.snapshot, representative.status)
     : null;
   const meaningfulItemHistory = normalizeReturnItemHistory(ranked
-    .slice(0, HISTORY_LIMIT)
+    .slice(0, RUN_RETURN_HISTORY_LIMIT)
     .map(({ snapshot, status }) => toHistoryRecord(snapshot, status)));
   run.representativeItem = representativeItem;
   run.meaningfulItemHistory = meaningfulItemHistory;

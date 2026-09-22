@@ -47,6 +47,8 @@ export interface NormalizedRunReturnProcessing {
   recoveredEquipmentCount: number;
 }
 
+export const RUN_RETURN_HISTORY_LIMIT = 5;
+
 const RETURN_ITEM_TYPES = new Set<NormalizedRunReturnItemType>([
   "weapon", "shield", "armor", "accessory", "usable", "item"
 ]);
@@ -105,7 +107,7 @@ export function normalizeReturnItemRecord(value: unknown): NormalizedRunReturnIt
 }
 
 export function isNormalizedReturnItemHistory(value: unknown): value is NormalizedRunReturnItemRecord[] {
-  return Array.isArray(value) && value.length <= 5 && value.every(isNormalizedReturnItemRecord);
+  return Array.isArray(value) && value.length <= RUN_RETURN_HISTORY_LIMIT && value.every(isNormalizedReturnItemRecord);
 }
 
 export function normalizeReturnItemHistory(value: unknown): NormalizedRunReturnItemRecord[] {
@@ -113,7 +115,7 @@ export function normalizeReturnItemHistory(value: unknown): NormalizedRunReturnI
   return value
     .map(normalizeReturnItemRecord)
     .filter((record): record is NormalizedRunReturnItemRecord => record !== null)
-    .slice(0, 5);
+    .slice(0, RUN_RETURN_HISTORY_LIMIT);
 }
 
 export function isNormalizedRunInsight(value: unknown): value is NormalizedRunCodexInsight {
