@@ -15,6 +15,7 @@ import {
   sameItemIdentity
 } from "../../../src/rules/loadout_transaction.js";
 import { commitLoadoutDraft } from "../../../src/systems/loadout_transaction.js";
+import { commitLoadoutDraft as commitLoadoutDraftOwner } from "../../../src/systems/loadout_transaction.ts";
 import { getActiveRuneSpellKeys } from "../../../src/rules/magic_rules.js";
 import { recordDungeonObjectLoot } from "../../../src/state/run_loot.js";
 import {
@@ -24,6 +25,8 @@ import {
 } from "../../../src/telemetry.js";
 
 globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+
+assert.equal(commitLoadoutDraft, commitLoadoutDraftOwner, "the JS compatibility facade preserves owner function identity");
 
 const identityA = { instanceId: "a", baseId: "SHORT_SWORD", rarity: "rare" };
 const identityAClone = { rarity: "rare", baseId: "SHORT_SWORD", instanceId: "a" };
@@ -40,6 +43,10 @@ let identityDraft = createLoadoutDraft(state);
 identityDraft.inventory = [identityAClone, "HEAL_POTION"];
 const duplicateChanges = getLoadoutDraftChanges(identityDraft);
 assert.deepEqual(duplicateChanges.discarded, [identityB, "HEAL_POTION"], "duplicate object and primitive accounting remain one-for-one");
+identityDraft.committed = true;
+const duplicateCombatState = { ...state, gameState: "combat" };
+assert.equal(commitLoadoutDraft(identityDraft, { stateLike: duplicateCombatState }).duplicate, true, "duplicate handling precedes combat lock");
+identityDraft.committed = false;
 
 const equipIdentityCharacter = createStartingKitCharacter("vanguard");
 const equipIdentityItem = { kind: "equipment", instanceId: "equip-identity", baseId: "DAGGER", rarity: "rare", identified: true, affixes: [] };
@@ -200,8 +207,16 @@ assert.equal(
 );
 const invalidDraft = createLoadoutDraft(state);
 invalidDraft.inventory = Array.from({ length: 21 }, (_, index) => `invalid-${index}`);
+const invalidPartyBefore = state.party;
+const invalidInventoryBefore = state.inventory;
+const invalidErrors = validateLoadoutDraft(invalidDraft).errors;
 const invalidCommit = commitLoadoutDraft(invalidDraft, { stateLike: state, turnCost: 1 });
 assert.equal(invalidCommit.ok, false);
+assert.equal(invalidCommit.reason, "invalid_draft");
+assert.deepEqual(invalidCommit.errors, invalidErrors, "validation errors pass through unchanged");
+assert.equal(invalidDraft.committed, undefined);
+assert.equal(state.party, invalidPartyBefore);
+assert.equal(state.inventory, invalidInventoryBefore);
 assert.equal(
   telemetryEvents.filter(event => event.name === "loadout_transaction").length,
   transactionCount,
@@ -247,8 +262,69 @@ assert.equal(telemetryEvents.filter(event => event.name === "equipment_decision"
 assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at(-1)?.properties.lifecycleStage, "tried");
 assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at(-1)?.properties.lootSequence, 7);
 assert.equal(telemetryEvents.filter(event => event.name === "loadout_transaction").at(-1)?.properties.mode, "trial");
+assert.equal(state.logs.at(-1), "試用を確定した。ダガー → 未鑑定の装備品（試用済）（探索時間が進む）");
+assert.ok(state.logs.includes("[呪い装備] 未鑑定の装備品（試用済）は外せない。"));
+
+// Trial policy keeps location, explicit world-action escape hatch, and strict turn-cost semantics.
+const locationTrialCharacter = createStartingKitCharacter("vanguard");
+locationTrialCharacter.equipment.weapon = "DAGGER";
+const locationTrialItem = { ...unknownTrial, instanceId: "location-trial", knowledgeStage: "discovery", trialCount: 0, curseLocked: false };
+resetState(locationTrialCharacter, [locationTrialItem]);
+draft = createLoadoutDraft(state);
+staged = stageTrialEquip(draft, { actorIdx: 0, inventoryIndex: 0 });
+state.gameState = "town";
+const locationFailure = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: 1 });
+assert.deepEqual(locationFailure, { ok: false, reason: "未鑑定装備の試用は探索中のみ実行できます。" });
+assert.equal(staged.draft.committed, undefined);
+const turnFailure = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: "1" });
+assert.deepEqual(turnFailure, { ok: false, reason: "未鑑定装備の試用は探索中のみ実行できます。" });
+const worldActionTrial = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: 1, worldAction: "explore" });
+assert.equal(worldActionTrial.ok, true, "worldAction explore retains the location escape hatch");
+assert.equal(worldActionTrial.changed && state.logs.at(-1), "試用を確定した。ダガー → 未鑑定の装備品（試用済）（探索時間が進む）");
+
+// Strict numeric turn cost, normal lifecycle, log, reference, copy, and finite MP clamp.
+const normalCharacter = createStartingKitCharacter("arcana");
+normalCharacter.equipment.weapon = "DAGGER";
+normalCharacter.mp = 1;
+resetState(normalCharacter, ["SHORT_SWORD"]);
+state.gameState = "explore";
+const normalDraft = createLoadoutDraft(state);
+staged = stageEquip(normalDraft, { actorIdx: 0, inventoryIndex: 0, requestedSlot: "weapon" });
+assert.equal(staged.ok, true);
+staged.draft.party[0].mp = 999;
+const previousParty = state.party;
+const normalDraftInventory = staged.draft.inventory;
+const normalCommit = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: "1" });
+assert.equal(normalCommit.ok, true);
+assert.equal(normalCommit.turnCost, 0, "string turn cost is not coerced");
+assert.equal(state.party, staged.draft.party, "commit preserves the draft party reference");
+assert.notEqual(state.inventory, normalDraftInventory, "commit shallow-copies the inventory array");
+assert.equal(state.inventory[0], normalDraftInventory[0], "inventory items preserve identity");
+assert.ok(state.party[0].mp < 999 && Number.isFinite(state.party[0].mp), "finite MP is clamped");
+assert.equal(state.logs.at(-1), "装備変更を確定した。ダガー → ショートソード");
+assert.equal(staged.draft.committed, true, "successful commit marks the draft only after applying it");
+
+// Trial turn-cost reason is exact when the location constraint is satisfied.
+const strictTrialCharacter = createStartingKitCharacter("vanguard");
+const strictTrialItem = { ...unknownTrial, instanceId: "strict-trial", knowledgeStage: "discovery", trialCount: 0, curseLocked: false };
+resetState(strictTrialCharacter, [strictTrialItem]);
+state.gameState = "explore";
+staged = stageTrialEquip(createLoadoutDraft(state), { actorIdx: 0, inventoryIndex: 0 });
+const strictTrialFailure = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: "1" });
+assert.deepEqual(strictTrialFailure, { ok: false, reason: "試用には探索時間1ターンが必要です。" });
+assert.equal(staged.draft.committed, undefined);
+recordDungeonObjectLoot(state, strictTrialItem);
+const fallbackTrialLootId = state.currentRun.unbankedObjectLoot[0].id;
+trackRunStart({ characterClass: "Fighter", startFloor: 1 }, state.party[0], state);
+staged = stageTrialEquip(createLoadoutDraft(state), { actorIdx: 0, inventoryIndex: 0, lootId: "" });
+assert.equal(commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: 1 }).ok, true);
+assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at(-1)?.properties.lootSequence, Number(fallbackTrialLootId.split(":loot:")[1]));
 
 // Use the same trial-stage lifecycle for a non-cursed item; cursed trial gear remains locked.
+const trialReequipCharacter = createStartingKitCharacter("vanguard");
+trialReequipCharacter.equipment.weapon = unknownTrial;
+resetState(trialReequipCharacter, []);
+state.gameState = "explore";
 unknownTrial.curseEffectId = null;
 unknownTrial.curseLocked = false;
 const triedLifecycleCount = telemetryEvents.filter(event => (
@@ -278,6 +354,33 @@ assert.equal(
 assert.equal(telemetryEvents.filter(event => event.name === "equipment_decision").at(-1)?.properties.action, "equip");
 assert.equal(telemetryEvents.filter(event => event.name === "loadout_transaction").at(-1)?.properties.mode, "loadout");
 
+// Ordinary equipment emits adopted lifecycle.
+const adoptedItem = { kind: "equipment", instanceId: "adopted-loadout", baseId: "DAGGER", rarity: "rare", identified: true, affixes: [] };
+resetState(createStartingKitCharacter("vanguard"), [adoptedItem]);
+state.gameState = "explore";
+trackRunStart({ characterClass: "Fighter", startFloor: 1 }, state.party[0], state);
+staged = stageEquip(createLoadoutDraft(state), { actorIdx: 0, inventoryIndex: 0, requestedSlot: "weapon" });
+assert.equal(commitLoadoutDraft(staged.draft, { stateLike: state }).ok, true);
+assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at(-1)?.properties.lifecycleStage, "adopted");
+assert.notEqual(state.party, previousParty);
+
+const discardedItem = { baseId: "DAGGER", instanceId: "discarded-loadout", type: "weapon", identified: true };
+resetState(createStartingKitCharacter("vanguard"), [discardedItem]);
+state.gameState = "explore";
+trackRunStart({ characterClass: "Fighter", startFloor: 1 }, state.party[0], state);
+recordDungeonObjectLoot(state, discardedItem);
+const discardedLootId = state.currentRun.unbankedObjectLoot[0].id;
+const discardStart = telemetryEvents.length;
+const discardStage = stageDiscardInventoryItem(createLoadoutDraft(state), 0);
+assert.equal(discardStage.ok, true);
+assert.equal(commitLoadoutDraft(discardStage.draft, { stateLike: state }).ok, true);
+assert.equal(state.currentRun.unbankedObjectLoot.length, 0);
+const discardEvents = telemetryEvents.slice(discardStart);
+assert.deepEqual(discardEvents.map(event => event.name), ["equipment_decision", "loot_lifecycle", "loadout_transaction"]);
+assert.equal(discardEvents[1].properties.lifecycleStage, "discarded");
+assert.equal(discardEvents[1].properties.lootSequence, Number(discardedLootId.split(":loot:")[1]));
+assert.equal(discardEvents[1].properties.unbankedObjectLootCount, 0, "loot is consumed before discarded lifecycle telemetry");
+
 const combatTrialCharacter = createStartingKitCharacter("vanguard");
 const combatTrialState = {
   ...state,
@@ -287,7 +390,11 @@ const combatTrialState = {
 };
 const combatTrial = stageTrialEquip(createLoadoutDraft(combatTrialState), { actorIdx: 0, inventoryIndex: 0 });
 combatTrialState.gameState = "combat";
-assert.equal(commitLoadoutDraft(combatTrial.draft, { stateLike: combatTrialState, turnCost: 1 }).ok, false, "combat cannot commit a trial");
+assert.deepEqual(
+  commitLoadoutDraft(combatTrial.draft, { stateLike: combatTrialState, turnCost: 1 }),
+  { ok: false, reason: "combat_locked" },
+  "combat lock rejects commits with its exact reason"
+);
 __resetTelemetryForTests();
 
 console.log("[PASS] loadout drafts validate and commit atomically");
