@@ -16,7 +16,10 @@ import {
   type NormalizedRunWorkshopUnlock
 } from "../state/run_return_state.js";
 import type { RuntimeItemCollection } from "../state/item.js";
-import { applyAutomaticWorkshopUnlock } from "./workshop.js";
+import {
+  applyAutomaticWorkshopUnlock,
+  type WorkshopUnlockResult
+} from "./workshop.js";
 
 type SettleRunObjectLootBoundary = (
   stateLike: ReturnStateLike,
@@ -28,16 +31,11 @@ type RecordRunInsightsBoundary = (
   items: unknown[],
   floor: unknown
 ) => unknown;
-type ApplyAutomaticWorkshopUnlockBoundary = (
-  workshop: unknown,
-  options: { deepestFloor: unknown; recoveredEquipment: unknown[] }
-) => unknown;
 
 // These dependencies remain JavaScript-owned in this Issue. The casts narrow
 // their legacy declarations to the minimal runtime boundaries used here.
 const settleRunObjectLootAtBoundary = settleRunObjectLoot as unknown as SettleRunObjectLootBoundary;
 const recordRunInsightsAtBoundary = recordRunInsights as unknown as RecordRunInsightsBoundary;
-const applyAutomaticWorkshopUnlockAtBoundary = applyAutomaticWorkshopUnlock as unknown as ApplyAutomaticWorkshopUnlockBoundary;
 
 const EQUIPMENT_TYPES = new Set(["weapon", "shield", "armor", "accessory"]);
 const RARITY_SCORE: Readonly<Record<string, number>> = Object.freeze({
@@ -237,12 +235,11 @@ function normalizeInsightInput(value: unknown): unknown[] {
   });
 }
 
-function normalizeWorkshopResult(value: unknown): {
-  workshop: unknown;
+function normalizeWorkshopResult(value: WorkshopUnlockResult): {
+  workshop: WorkshopUnlockResult["workshop"];
   unlocks: NormalizedRunWorkshopUnlock[];
 } {
-  if (!isRecord(value)) return { workshop: undefined, unlocks: [] };
-  const unlocked = isRecord(value.unlocked)
+  const unlocked = value.unlocked
     ? [{
       nodeId: value.unlocked.id,
       name: value.unlocked.name,
@@ -286,11 +283,10 @@ export function processRunReturn(
 
   const recoveredEquipment = asArray(run.bankedObjectLoot)
     .filter(item => EQUIPMENT_TYPES.has(String((getItemData(item) || {}).type)));
-  const rawWorkshopResult: unknown = applyAutomaticWorkshopUnlockAtBoundary(stateLike.workshop, {
+  const workshopResult = normalizeWorkshopResult(applyAutomaticWorkshopUnlock(stateLike.workshop, {
     deepestFloor: run.deepestFloor,
     recoveredEquipment: (outcome === "retreat" || outcome === "wing") ? recoveredEquipment : []
-  });
-  const workshopResult = normalizeWorkshopResult(rawWorkshopResult);
+  }));
   stateLike.workshop = workshopResult.workshop;
   run.workshopUnlocks = workshopResult.unlocks;
 

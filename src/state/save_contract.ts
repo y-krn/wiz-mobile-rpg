@@ -14,6 +14,7 @@ import {
   type StorageCollection
 } from "./item.js";
 import { isNormalizedCodexPayload, type NormalizedCodexPayload } from "./codex_state.js";
+import { isNormalizedWorkshopState, type NormalizedWorkshopState } from "../systems/workshop.js";
 
 export type PersistedGameState =
   | "town"
@@ -74,7 +75,7 @@ export interface NormalizedSavePayload {
   identifyTickets: number;
   cleared: boolean;
   metaMaterials: Record<string, unknown>;
-  workshop: Record<string, unknown>;
+  workshop: NormalizedWorkshopState;
   keyItems: unknown[];
   dungeonMemory: NormalizedDungeonMemory;
   logs: string[];
@@ -138,7 +139,7 @@ export function isNormalizedSavePayload(value: unknown): value is NormalizedSave
   if (!Array.isArray(value.firstKills) || !value.firstKills.every(item => typeof item === "string")) return false;
   if (value.currentRun !== null && !isNormalizedCurrentRun(value.currentRun)) return false;
   if (!isNormalizedRecords(value.records) || !isNormalizedCodexPayload(value.codex) || !isRecord(value.metaMaterials) ||
-      !isRecord(value.workshop)) return false;
+      !isNormalizedWorkshopState(value.workshop)) return false;
   if (!Array.isArray(value.unlockedMilestones) ||
       !value.unlockedMilestones.every(item => Number.isInteger(item))) return false;
   if (!isPersistedGameState(value.gameState)) return false;
