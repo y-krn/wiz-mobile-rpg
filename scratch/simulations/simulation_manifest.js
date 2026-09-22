@@ -188,6 +188,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/guard_rules.js", domains: ["combat"] },
     { pattern: "src/data/guard_profiles.js", domains: ["combat", "equipment"] },
     { pattern: "src/rules/map_queries.js", domains: ["maps"] },
+    { pattern: "src/rules/map_queries.ts", domains: ["maps"] },
     { pattern: "src/rules/recovery_rules.js", domains: ["recovery"] },
     { pattern: "src/movement.js", domains: ["maps", "traps", "chests", "recovery", "status"] },
     { pattern: "src/run_map_generator.js", domains: ["maps", "traps", "chests", "combat"] },
