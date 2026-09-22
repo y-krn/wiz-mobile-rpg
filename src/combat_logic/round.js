@@ -138,6 +138,15 @@ function resolveMeasurementWeaponAttack({
   };
 }
 
+function resolveMeasurementBuffPhysicalDefMitigation(policy) {
+  if (policy?.measurementBuffPhysicalDefMitigation == null) return 0;
+  const value = Number(policy.measurementBuffPhysicalDefMitigation);
+  if (!Number.isFinite(value) || value <= 0 || value > 0.9) {
+    throw new Error("invalid measurement buffPhysicalDef mitigation");
+  }
+  return value;
+}
+
 import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
 import { buildCombatTurnQueue } from "./turn_order.js";
 
@@ -591,6 +600,7 @@ export function runCombatRoundCalculation(
   const measurementWeaponCandidate = resolveMeasurementWeaponCandidate(
     policy?.measurementPlayerWeaponCandidate
   );
+  const measurementBuffPhysicalDefMitigation = resolveMeasurementBuffPhysicalDefMitigation(policy);
   const recordAction = (monster, action) => recordMonsterAction(monster, action, state, measurement);
   const recordCondition = (monster, condition) => recordMonsterCondition(monster, condition, state, measurement);
   const recordBleed = (event, target, metadata = {}) => recordBleedingEvent(state, event, target, metadata, measurement);
@@ -756,17 +766,18 @@ export function runCombatRoundCalculation(
           const randRoll = rollCharWeaponPhysicalRandom(char, rng);
           const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
+          const physicalMitigation = getBuffTotal(finalTarget, "physicalMitigation");
           const weaponAttack = resolveMeasurementWeaponAttack({
             candidate: measurementWeaponCandidate,
             weaponAtk, buffAtk, randRoll, meleeMod,
             def,
-            physResist: finalTarget.physResist,
+            physResist: combinePhysicalResistances(finalTarget.physResist, physicalMitigation),
             fixedDamageBonus: trapEaterBonus
           }) || resolveWeaponAttack({
             char,
             weaponAtk, buffAtk, randRoll, meleeMod,
             def,
-            physResist: finalTarget.physResist,
+            physResist: combinePhysicalResistances(finalTarget.physResist, physicalMitigation),
             fixedDamageBonus: trapEaterBonus
           });
           const { behavior } = weaponAttack;
@@ -812,6 +823,11 @@ export function runCombatRoundCalculation(
             weaponBehaviorHitChanceBonus: behavior.hitChanceBonus,
             weaponBehaviorDefenseScale: behavior.physicalDefenseScale,
             weaponBehaviorDamageMultiplier: behavior.rawDamageMultiplier,
+            measurementPhysicalMitigation: physicalMitigation,
+            measurementPhysicalResistanceWithoutMitigation: combinePhysicalResistances(
+              weaponAttack.defResistance,
+              finalTarget.physResist
+            ),
             ...(weaponAttack.measurementWeaponCandidate ? {
               measurementWeaponCandidateId: weaponAttack.measurementWeaponCandidate.id,
               measurementWeaponMultiplier: weaponAttack.measurementWeaponCandidate.multiplier,
@@ -934,12 +950,13 @@ export function runCombatRoundCalculation(
               const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
               const trapEaterBonus = getCharTrapEaterBonus(char);
               const def = getEffectiveDef(finalTarget);
+              const physicalMitigation = getBuffTotal(finalTarget, "physicalMitigation");
               const followUpAttack = resolveMeasurementWeaponAttack({
                 candidate: measurementWeaponCandidate,
                 weaponAtk,
                 randRoll: followUpDmgRand,
                 def,
-                physResist: finalTarget.physResist,
+                physResist: combinePhysicalResistances(finalTarget.physResist, physicalMitigation),
                 meleeMod: 0.7,
                 fixedDamageBonus: trapEaterBonus
               }) || resolveWeaponAttack({
@@ -947,7 +964,7 @@ export function runCombatRoundCalculation(
                 weaponAtk,
                 randRoll: followUpDmgRand,
                 def,
-                physResist: finalTarget.physResist,
+                physResist: combinePhysicalResistances(finalTarget.physResist, physicalMitigation),
                 meleeMod: 0.7,
                 fixedDamageBonus: trapEaterBonus
               });
@@ -1228,7 +1245,12 @@ export function runCombatRoundCalculation(
       if (hasTrait(mon, "buffPhysicalDef") && rng() < (mon.traitChance ?? 0.3)) {
         const continueAfterSupportAction = shouldContinueAfterMeasurementSupportAction(mon, policy);
         recordAction(mon, "物理防御を強化");
-        monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "def", mon.buffValue ?? 2, 3));
+        monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(
+          m,
+          measurementBuffPhysicalDefMitigation > 0 ? "physicalMitigation" : "def",
+          measurementBuffPhysicalDefMitigation > 0 ? measurementBuffPhysicalDefMitigation : mon.buffValue ?? 2,
+          3
+        ));
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は仲間の守りを固めた！` });
         if (!continueAfterSupportAction) return;
       }

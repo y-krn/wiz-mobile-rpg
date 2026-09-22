@@ -20,8 +20,8 @@ import {
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1605-composition-trait-diagnostic-v1";
-export const SCHEMA_VERSION = 2;
+export const RUNNER_VERSION = "issue1608-buff-physical-def-diagnostic-v1";
+export const SCHEMA_VERSION = 3;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1599;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -189,6 +189,10 @@ function createScenario({ fixture, condition, depth }) {
     measurementGuardTiming: playerFixture.guardTiming,
     measurementCombatTier: playerFixture.combatTier,
     measurementPlayerWeaponCandidate: playerFixture.weaponProfile,
+    measurementBuffPhysicalDefMitigation:
+      fixture.id === "buffPhysicalDef" && condition.id === "candidate"
+        ? playerFixture.armorMitigation
+        : null,
     measurementSupportActionContinuation: condition.id === "candidate",
     measurementInitiative: {
       playerLoadModifier: playerFixture.load.effectiveTempoModifier
@@ -266,6 +270,8 @@ function observeRun(result, traitId, conditionId) {
   const encounter = result.diagnostics?.encounters?.[0];
   const rounds = encounter?.rounds || [];
   const effect = observeTraitEffect(result, traitId);
+  const physicalMitigationHits = (result.combatFormula?.physicalPlayerHits || [])
+    .filter(hit => Number(hit.measurementPhysicalMitigation) > 0);
   const initialMonsters = encounter?.monsters || [];
   const endEnemyHp = encounter?.endEnemyHp || [];
   const spawnedAllies = Math.max(0, endEnemyHp.length - initialMonsters.length);
@@ -287,6 +293,10 @@ function observeRun(result, traitId, conditionId) {
     normalActionContinuation,
     survival: Number(result.fixedCombatResult === "victory"),
     traitEffect: effect,
+    physicalMitigationHits: physicalMitigationHits.length,
+    physicalMitigationConsumed: physicalMitigationHits.some(hit =>
+      Number(hit.physicalResistance) > Number(hit.measurementPhysicalResistanceWithoutMitigation)
+    ),
     spawnedAllies,
     summonedAllies: result.fixedCombat?.summonedAllies || [],
     observedTraits: [...new Set(initialMonsters.flatMap(monster => monster.traits || []))],
@@ -321,6 +331,8 @@ function summarizeRuns(rows, traitId, depth, conditionId) {
       effectAmount: summarize(rows.map(row => row.traitEffect.effectAmount)),
       effectUnit: rows[0]?.traitEffect.effectUnit || "unobserved"
     },
+    physicalMitigationHits: summarize(rows.map(row => row.physicalMitigationHits)),
+    physicalMitigationConsumed: rows.some(row => row.physicalMitigationConsumed),
     observedTraitPresence: [...new Set(rows.flatMap(row => row.observedTraits))]
   };
 }
@@ -366,7 +378,7 @@ function resolveTraitConfiguration() {
 }
 
 export function resolveWorldSeed({ seed, traitId, depth, runIndex }) {
-  return `${seed}:issue1605:${traitId}:B${depth}:${runIndex}`;
+  return `${seed}:issue1608:${traitId}:B${depth}:${runIndex}`;
 }
 
 function runCell({ traitId, depth, conditionId, runs, seed }) {
@@ -454,7 +466,7 @@ export async function runCompositionTraitDiagnostic({
       traits: resolveTraitConfiguration(),
       conditions: CONDITIONS.map(condition => ({ ...condition })),
       traitConditionPolicy: "guardAdjacent retains no-trait/production only; buffAtk/buffPhysicalDef/summonAlly use all three conditions",
-      metrics: ["rounds", "damageTaken", "enemyActions", "survival", "trait activation/effect", "normal action continuation"],
+      metrics: ["rounds", "damageTaken", "enemyActions", "survival", "trait activation/effect", "normal action continuation", "candidate physical mitigation consumption"],
       scaling: "HP = 1 + 0.20 × Tier; ATK = 1 + 0.10 × Tier; DEF = 1.0",
       reflectPhysicalDiagnosticFreeze: REFLECT_PHYSICAL_DIAGNOSTIC_RATE,
       seedPolicy: "trait/depth/runIndex keyed worldSeed; no-trait/production/candidate rows share the same initial RNG state",
@@ -512,6 +524,7 @@ function buildReport(result, provenance, options) {
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load",
       traits: "production trait owners, values, summon target, and summon cap retained; absent condition removes only the selected trait in the fixed composition",
       supportAction: "candidate-only measurement hook resolves the production support effect, warning, or summon, then continues the same enemy turn with the normal action; default production path remains false",
+      buffPhysicalDef: "candidate-only temporary physical mitigation 0.20 from the Phase 1 medium armor freeze; raw DEF, activation chance, and duration remain production values",
       reflectPhysical: "diagnostic freeze reference 0.20; no reflectPhysical fixture in this scope",
       status: "diagnostic-only; production combat/enemy/loot/UI/save unchanged"
     }
@@ -520,7 +533,7 @@ function buildReport(result, provenance, options) {
 
 function buildSummary(report) {
   const lines = [
-    "# Composition trait diagnostic (#1605)",
+    "# buffPhysicalDef effect semantic diagnostic (#1608)",
     "",
     `- runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; depths=B${report.configuration.depths.join(", B")}`,
@@ -533,6 +546,7 @@ function buildSummary(report) {
     "- rounds / damage taken / enemy actions / spawned allies / normal-action continuation: average delta",
     "- survival: percentage-point delta",
     "- guardAdjacent: redirects; buffAtk / buffPhysicalDef: activations; summonAlly: activations / spawned allies",
+    "- buffPhysicalDef candidate mitigation consumption: existing physical hit formula `physicalResistance` with hit evidence",
     ""
   ];
   for (const comparison of report.comparisons) {
