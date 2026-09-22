@@ -4898,6 +4898,8 @@ function createSimulationState(
       measurementGuardTiming: scenario.measurementGuardTiming || null,
       measurementCombatTier: scenario.measurementCombatTier || null,
       measurementPlayerWeaponCandidate: scenario.measurementPlayerWeaponCandidate || null,
+      measurementBuffPhysicalDefMitigation:
+        scenario.measurementBuffPhysicalDefMitigation ?? null,
       measurementSupportActionContinuation: scenario.measurementSupportActionContinuation === true,
       productionSharedNormalEnemyActionSlot:
         scenario.productionSharedNormalEnemyActionSlot !== false,

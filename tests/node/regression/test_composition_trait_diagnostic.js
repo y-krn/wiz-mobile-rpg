@@ -37,7 +37,7 @@ assert.deepEqual(first.configuration.playerFixture, {
 assert.equal(first.configuration.scaling, "HP = 1 + 0.20 × Tier; ATK = 1 + 0.10 × Tier; DEF = 1.0");
 assert.equal(
   resolveWorldSeed({ seed: 1599, traitId: "buffAtk", depth: 20, runIndex: 2 }),
-  "1599:issue1605:buffAtk:B20:2",
+  "1599:issue1608:buffAtk:B20:2",
   "all paired conditions must share the same world seed"
 );
 
@@ -97,10 +97,17 @@ for (const traitId of ["buffAtk", "buffPhysicalDef", "summonAlly"]) {
     comparisons.some(comparison => comparison.production.traitEffect.activationCount.average > 0),
     `${traitId} production must observe an activation`
   );
-  assert.ok(
-    comparisons.every(comparison => comparison.production.normalActionContinuation.average === 0),
-    `${traitId} production support action must remain a normal-action replacement`
-  );
+  if (traitId === "buffPhysicalDef") {
+    assert.ok(
+      comparisons.some(comparison => comparison.production.normalActionContinuation.average > 0),
+      "buffPhysicalDef current flat DEF row must continue with a normal action"
+    );
+  } else {
+    assert.ok(
+      comparisons.every(comparison => comparison.production.normalActionContinuation.average === 0),
+      `${traitId} production support action must remain a normal-action replacement`
+    );
+  }
   assert.ok(
     comparisons.every(comparison => comparison.noTrait.traitEffect.activationCount.average === 0),
     `${traitId} no-trait must observe zero activations`
@@ -111,4 +118,13 @@ for (const traitId of ["buffAtk", "buffPhysicalDef", "summonAlly"]) {
   );
 }
 
-console.log("[PASS] Issue #1605 composition trait pairing, candidate continuation, and determinism");
+for (const comparison of activationSmoke.comparisons.filter(item => item.traitId === "buffPhysicalDef")) {
+  assert.equal(comparison.noTrait.physicalMitigationHits.average, 0);
+  assert.equal(comparison.production.physicalMitigationHits.average, 0);
+  assert.ok(comparison.production.normalActionContinuation.average > 0);
+  assert.equal(comparison.candidate.physicalMitigationConsumed, true);
+  assert.ok(comparison.candidate.normalActionContinuation.average > 0);
+  assert.ok(comparison.candidate.physicalMitigationHits.average > 0);
+}
+
+console.log("[PASS] Issue #1608 buffPhysicalDef effect semantic pairing, mitigation consumption, and determinism");
