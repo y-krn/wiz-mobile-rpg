@@ -12,12 +12,23 @@ import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 
 type MerchantStockKind = "identify" | "item";
 
-interface MerchantStockEntry {
+interface MerchantStockEntryBase {
   readonly id: string;
   readonly kind: MerchantStockKind;
+  readonly name: string;
   readonly cost: Readonly<Record<string, number>>;
-  readonly itemId?: string;
 }
+
+export type MerchantIdentifyStockEntry = Omit<MerchantStockEntryBase, "kind"> & {
+  readonly kind: "identify";
+};
+
+export type MerchantItemStockEntry = Omit<MerchantStockEntryBase, "kind"> & {
+  readonly kind: "item";
+  readonly itemId: string;
+};
+
+export type MerchantStockEntry = MerchantIdentifyStockEntry | MerchantItemStockEntry;
 
 type MerchantInventoryObject = {
   readonly baseId?: unknown;
@@ -54,12 +65,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isMerchantStockEntry(value: unknown): value is MerchantStockEntry {
-  if (!isRecord(value) || typeof value.id !== "string" ||
-      (value.kind !== "identify" && value.kind !== "item") ||
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string" ||
       !isRecord(value.cost)) {
     return false;
   }
-  if (value.kind === "item" && typeof value.itemId !== "string") return false;
+  if (value.kind === "identify") {
+    return !Object.hasOwn(value, "itemId") && Object.values(value.cost).every(quantity =>
+      typeof quantity === "number" && Number.isFinite(quantity) && quantity >= 0
+    );
+  }
+  if (value.kind !== "item" || typeof value.itemId !== "string") return false;
   return Object.values(value.cost).every(quantity =>
     typeof quantity === "number" && Number.isFinite(quantity) && quantity >= 0
   );
