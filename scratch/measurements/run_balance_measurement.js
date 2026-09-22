@@ -102,6 +102,8 @@ const fixedCombatArgs = ({ options, output }) => nativeMeasurementArgs({
   afterSeed: ["--starting-kit", options.startingKit]
 });
 
+const equipmentVNextCombatArgs = nativeMeasurementArgs;
+
 const equipmentLoadArgs = ({ options, output }) => [
   "--runs", String(options.runs),
   "--seed", String(options.seed),
@@ -175,6 +177,15 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
     buildArgs: fixedCombatArgs
+  }),
+  "equipment-vnext-combat": freezeFamily({
+    runner: "scratch/measurements/equipment_vnext_combat_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: equipmentVNextCombatArgs
   }),
   "equipment-load": freezeFamily({
     runner: "scratch/measurements/equipment_load_measurement.js",
@@ -282,6 +293,12 @@ const PROFILE_LIST = [
     family: "fixed-combat-composition",
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1151, startingKit: "vanguard" },
     allowed: { startingKit: ["vanguard", "scout", "devotion", "arcana"] }
+  },
+  {
+    id: "equipment-vnext-combat-diagnostic",
+    label: "Equipment vNext combat / Guard / load diagnostic",
+    family: "equipment-vnext-combat",
+    defaults: { runs: 200, minimumRuns: 200, seed: 1544 }
   },
   {
     id: "equipment-load",
