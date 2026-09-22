@@ -4897,6 +4897,7 @@ function createSimulationState(
       measurementCombatPlan: scenario.measurementCombatPlan || null,
       measurementGuardTiming: scenario.measurementGuardTiming || null,
       measurementCombatTier: scenario.measurementCombatTier || null,
+      measurementPlayerWeaponCandidate: scenario.measurementPlayerWeaponCandidate || null,
       productionSharedNormalEnemyActionSlot:
         scenario.productionSharedNormalEnemyActionSlot !== false,
       measurementDisableSharedNormalEnemyActionSlot:

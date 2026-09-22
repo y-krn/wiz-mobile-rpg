@@ -20,8 +20,8 @@ import {
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1586-trait-scaling-diagnostic-v2";
-export const SCHEMA_VERSION = 2;
+export const RUNNER_VERSION = "issue1586-trait-scaling-diagnostic-v3";
+export const SCHEMA_VERSION = 3;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1586;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -146,6 +146,7 @@ function createScenario({ fixture, condition, depth }) {
     measurementCombatPlan: playerFixture.actionPlan,
     measurementGuardTiming: playerFixture.guardTiming,
     measurementCombatTier: playerFixture.combatTier,
+    measurementPlayerWeaponCandidate: playerFixture.weaponProfile,
     measurementInitiative: {
       playerLoadModifier: playerFixture.load.effectiveTempoModifier
     },
@@ -238,8 +239,12 @@ function observeRun(result, traitId, conditionId, depth) {
 function observeFreezeApplication(result, depth) {
   const formula = result.combatFormula || {};
   const playerHit = formula.physicalPlayerHits?.find(hit =>
-    hit.weaponBehaviorProfileId !== undefined
+    hit.measurementWeaponCandidateId === PLAYER_FIXTURE.weapon
   ) || null;
+  const playerMiss = formula.physicalPlayerMisses?.find(miss =>
+    miss.measurementWeaponCandidateId === PLAYER_FIXTURE.weapon
+  ) || null;
+  const playerAttack = playerHit || playerMiss;
   const monsterHit = formula.physicalMonsterHits?.find(hit => hit.attackType === "normal") || null;
   const guard = formula.mitigations?.find(mitigation =>
     mitigation.type === "guardAction" && mitigation.attackType === "physical"
@@ -255,6 +260,15 @@ function observeFreezeApplication(result, depth) {
     enemyAtk: enemy?.atk ?? null,
     weaponBehaviorProfileId: playerHit?.weaponBehaviorProfileId ?? null,
     weaponBehaviorDamageMultiplier: playerHit?.weaponBehaviorDamageMultiplier ?? null,
+    weaponCandidateId: playerAttack?.measurementWeaponCandidateId ?? null,
+    weaponCandidateMultiplier: playerAttack?.measurementWeaponMultiplier ?? null,
+    weaponCandidateHitChance: playerAttack?.measurementWeaponHitChance ?? null,
+    weaponCandidateHighDefPenetration: playerAttack?.measurementWeaponHighDefPenetration ?? null,
+    weaponHitChance: playerAttack?.hitChance ?? null,
+    weaponBaseRaw: playerHit?.measurementWeaponBaseRaw ?? null,
+    weaponFormulaRaw: playerHit?.formulaRaw ?? null,
+    weaponEffectiveDefense: playerHit?.measurementWeaponEffectiveDefense ?? null,
+    weaponDefenseInput: playerHit?.def ?? null,
     armorDefResistance: monsterHit?.defResistance ?? null,
     guardBefore: guard?.before ?? null,
     guardAfter: guard?.after ?? null,

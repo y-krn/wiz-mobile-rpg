@@ -7,6 +7,7 @@ import {
   rollCharWeaponPhysicalRandom,
   PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
   getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharTrapEaterBonus,
+  calculatePhysicalAttackRawFormula, combinePhysicalResistances,
   resolveWeaponAttack,
   calculatePhysicalDefenseFormula, applyPhysicalResistance,
   getPhysicalDefenseResistance
@@ -78,6 +79,64 @@ import {
   getStatusEffectChance,
   tryApplyExecutionerSetup
 } from "../rules/affix_rules.js";
+
+function resolveMeasurementWeaponCandidate(candidate) {
+  if (!candidate) return null;
+  const resolved = {
+    id: String(candidate.id || "measurement-weapon"),
+    multiplier: Number(candidate.multiplier),
+    hitChance: Number(candidate.hitChance),
+    highDefPenetration: Number(candidate.highDefPenetration)
+  };
+  if (!Number.isFinite(resolved.multiplier) || resolved.multiplier < 0 ||
+      !Number.isFinite(resolved.hitChance) || resolved.hitChance < 0 || resolved.hitChance > 1 ||
+      !Number.isFinite(resolved.highDefPenetration) ||
+      resolved.highDefPenetration < 0 || resolved.highDefPenetration > 1) {
+    throw new Error("invalid measurement weapon candidate");
+  }
+  return resolved;
+}
+
+function resolveMeasurementWeaponAttack({
+  candidate,
+  weaponAtk = 0,
+  buffAtk = 0,
+  randRoll = 0,
+  def = 0,
+  physResist = 0,
+  meleeMod = 1,
+  fixedDamageBonus = 0
+} = {}) {
+  if (!candidate) return null;
+  const baseRaw = calculatePhysicalAttackRawFormula({
+    weaponAtk,
+    buffAtk,
+    randRoll,
+    meleeMod
+  });
+  const formulaRaw = baseRaw * candidate.multiplier + fixedDamageBonus;
+  const effectiveDefense = Math.max(0, Number(def) * (1 - candidate.highDefPenetration));
+  const defenseMultiplier = Math.max(0.20, 1 - effectiveDefense / 100);
+  const defResistance = 1 - defenseMultiplier;
+  const physicalResistance = combinePhysicalResistances(defResistance, physResist);
+  const damage = Math.max(1, Math.floor(formulaRaw * (1 - physicalResistance)));
+  return {
+    behavior: {
+      id: candidate.id,
+      hitChanceBonus: 0,
+      physicalDefenseScale: null,
+      rawDamageMultiplier: candidate.multiplier
+    },
+    behaviorProfileId: candidate.id,
+    baseRaw,
+    formulaRaw,
+    defResistance,
+    physicalResistance,
+    damage,
+    measurementWeaponCandidate: candidate,
+    measurementWeaponEffectiveDefense: effectiveDefense
+  };
+}
 import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
 import { buildCombatTurnQueue } from "./turn_order.js";
 
@@ -517,6 +576,9 @@ export function runCombatRoundCalculation(
   let escaped = false;
   const roundNumber = state.combatState.roundNumber || 1;
   const actionObservations = [];
+  const measurementWeaponCandidate = resolveMeasurementWeaponCandidate(
+    policy?.measurementPlayerWeaponCandidate
+  );
   const recordAction = (monster, action) => recordMonsterAction(monster, action, state, measurement);
   const recordCondition = (monster, condition) => recordMonsterCondition(monster, condition, state, measurement);
   const recordBleed = (event, target, metadata = {}) => recordBleedingEvent(state, event, target, metadata, measurement);
@@ -631,7 +693,8 @@ export function runCombatRoundCalculation(
           isBlindMiss = true;
         }
 
-        const hitChance = getPhysicalHitChance(char, finalTarget);
+        const hitChance = measurementWeaponCandidate?.hitChance ??
+          getPhysicalHitChance(char, finalTarget);
         if (!isBlindMiss && hitChance < 1 && rng() >= hitChance) {
           isBlindMiss = true;
           isEvasionMiss = true;
@@ -653,6 +716,10 @@ export function runCombatRoundCalculation(
             targetRole: finalTarget.role,
             targetEvasionChance: getMonsterEvasionChance(finalTarget),
             hitChance,
+            measurementWeaponCandidateId: measurementWeaponCandidate?.id || null,
+            measurementWeaponMultiplier: measurementWeaponCandidate?.multiplier ?? null,
+            measurementWeaponHitChance: measurementWeaponCandidate?.hitChance ?? null,
+            measurementWeaponHighDefPenetration: measurementWeaponCandidate?.highDefPenetration ?? null,
             isEvasionMiss: true
           });
         } else if (isBlindMiss) {
@@ -669,7 +736,13 @@ export function runCombatRoundCalculation(
           const randRoll = rollCharWeaponPhysicalRandom(char, rng);
           const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
-          const weaponAttack = resolveWeaponAttack({
+          const weaponAttack = resolveMeasurementWeaponAttack({
+            candidate: measurementWeaponCandidate,
+            weaponAtk, buffAtk, randRoll, meleeMod,
+            def,
+            physResist: finalTarget.physResist,
+            fixedDamageBonus: trapEaterBonus
+          }) || resolveWeaponAttack({
             char,
             weaponAtk, buffAtk, randRoll, meleeMod,
             def,
@@ -719,6 +792,14 @@ export function runCombatRoundCalculation(
             weaponBehaviorHitChanceBonus: behavior.hitChanceBonus,
             weaponBehaviorDefenseScale: behavior.physicalDefenseScale,
             weaponBehaviorDamageMultiplier: behavior.rawDamageMultiplier,
+            measurementWeaponCandidateId: weaponAttack.measurementWeaponCandidate?.id || null,
+            measurementWeaponMultiplier: weaponAttack.measurementWeaponCandidate?.multiplier ?? null,
+            measurementWeaponHitChance: weaponAttack.measurementWeaponCandidate?.hitChance ?? null,
+            measurementWeaponHighDefPenetration:
+              weaponAttack.measurementWeaponCandidate?.highDefPenetration ?? null,
+            measurementWeaponBaseRaw: weaponAttack.measurementWeaponCandidate ? weaponAttack.baseRaw : null,
+            measurementWeaponEffectiveDefense:
+              weaponAttack.measurementWeaponEffectiveDefense ?? null,
             physResistApplied: Boolean(finalTarget.physResist),
             targetEvasionChance: getMonsterEvasionChance(finalTarget),
             hitChance,
@@ -832,7 +913,15 @@ export function runCombatRoundCalculation(
               const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
               const trapEaterBonus = getCharTrapEaterBonus(char);
               const def = getEffectiveDef(finalTarget);
-              const followUpAttack = resolveWeaponAttack({
+              const followUpAttack = resolveMeasurementWeaponAttack({
+                candidate: measurementWeaponCandidate,
+                weaponAtk,
+                randRoll: followUpDmgRand,
+                def,
+                physResist: finalTarget.physResist,
+                meleeMod: 0.7,
+                fixedDamageBonus: trapEaterBonus
+              }) || resolveWeaponAttack({
                 char,
                 weaponAtk,
                 randRoll: followUpDmgRand,
