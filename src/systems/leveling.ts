@@ -1,12 +1,13 @@
 import { EXP_LEVELS } from "../data/progression.js";
 import { getCharMaxHp } from "../rules/character_stats.js";
+import type { CharacterEquipment } from "../state/equipment.js";
 
 export interface LevelingCharacter {
   level: number;
   exp: number;
   hp: number;
   maxHp: number;
-  equipment?: Record<string, string | null | undefined>;
+  equipment?: CharacterEquipment;
 }
 
 // Level is a run-local floor, not a build identity. Keep this deliberately
