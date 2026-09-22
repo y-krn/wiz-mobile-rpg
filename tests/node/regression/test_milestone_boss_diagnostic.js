@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import {
   BOSS_FIXTURES,
   REFLECT_PHYSICAL_DIAGNOSTIC_RATE,
+  SCHEMA_VERSION,
   RUNNER_VERSION,
   resolveBossInventory,
   runMilestoneBossDiagnostic
 } from "../../../scratch/measurements/milestone_boss_diagnostic.js";
+import { getAppliedBossPressureMetadata } from "../../../scratch/simulations/sim_depth_material_ev.js";
 import { PLAYER_FIXTURE } from "../../../scratch/measurements/composition_trait_diagnostic.js";
 import {
   MEASUREMENT_IDS,
@@ -17,6 +19,8 @@ const first = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmall
 const second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmallRunCount: true });
 
 assert.deepEqual(first, second, "milestone boss smoke must be deterministic");
+assert.equal(RUNNER_VERSION, "issue1613-milestone-boss-decision-pressure-v2");
+assert.equal(SCHEMA_VERSION, 2);
 assert.equal(first.runnerVersion, RUNNER_VERSION);
 assert.equal(first.measurementId, "milestone-boss-diagnostic");
 assert.deepEqual(first.configuration.depths, [5, 10, 15, 20, 25, 30]);
@@ -73,7 +77,80 @@ for (const cell of first.cells) {
   assert.ok(Number.isFinite(cell.statusActionCount.average));
   assert.ok(Number.isFinite(cell.guard.guardRounds.average));
   assert.equal(cell.confidence, "runner-correctness-only");
+  assert.equal(cell.trialBands.length, 1);
+  assert.deepEqual(Object.keys(cell.trialBands[0]).sort(), ["bandIndex", "count", "mainId", "subId"]);
+  assert.equal(cell.guardianPressures.length, 2);
+  for (const pressure of cell.guardianPressures) {
+    assert.ok(["main", "sub"].includes(pressure.role));
+    assert.ok(pressure.themeId);
+    assert.ok(pressure.sourceName);
+    assert.ok(Array.isArray(pressure.additionalTraits));
+    assert.equal(typeof pressure.additionalBehavior, "object");
+    assert.equal(pressure.count, 1);
+  }
 }
+
+assert.deepEqual(first.cells[0].trialBands[0], {
+  bandIndex: 0,
+  mainId: "status",
+  subId: "endurance",
+  count: 1
+});
+assert.deepEqual(first.cells[0].guardianPressures, [
+  {
+    role: "main",
+    themeId: "status",
+    sourceName: "泥の呪い子",
+    additionalTraits: ["debuffPhysicalDef"],
+    additionalBehavior: { traitChance: 0.2, debuffValue: 2 },
+    count: 1
+  },
+  {
+    role: "sub",
+    themeId: "endurance",
+    sourceName: "石像兵",
+    additionalTraits: ["guardAdjacent"],
+    additionalBehavior: { guard: { chance: 0.5 } },
+    count: 1
+  }
+]);
+
+const overlapMetadata = getAppliedBossPressureMetadata(
+  {
+    traits: ["templateTrait"],
+    sharedBehavior: "template",
+    templateOnlyBehavior: true
+  },
+  [
+    {
+      role: "main",
+      themeId: "main-theme",
+      sourceName: "main-source",
+      traits: ["templateTrait", "sharedTrait", "mainTrait"],
+      behavior: { sharedBehavior: "main", mainBehavior: 1 }
+    },
+    {
+      role: "sub",
+      themeId: "sub-theme",
+      sourceName: "sub-source",
+      traits: ["sharedTrait", "subTrait"],
+      behavior: { sharedBehavior: "sub", mainBehavior: 2, subBehavior: 3 }
+    }
+  ]
+);
+assert.deepEqual(overlapMetadata.map(pressure => ({
+  additionalTraits: pressure.additionalTraits,
+  additionalBehavior: pressure.additionalBehavior
+})), [
+  {
+    additionalTraits: ["sharedTrait", "mainTrait"],
+    additionalBehavior: { mainBehavior: 1 }
+  },
+  {
+    additionalTraits: ["subTrait"],
+    additionalBehavior: { subBehavior: 3 }
+  }
+]);
 
 assert.ok(MEASUREMENT_IDS.includes("milestone-boss-diagnostic"));
 const invocation = resolveRunnerInvocation({
