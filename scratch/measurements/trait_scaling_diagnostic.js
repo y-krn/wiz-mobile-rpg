@@ -20,8 +20,8 @@ import {
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1586-trait-scaling-diagnostic-v4";
-export const SCHEMA_VERSION = 4;
+export const RUNNER_VERSION = "issue1586-trait-scaling-diagnostic-v5";
+export const SCHEMA_VERSION = 5;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1586;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -53,6 +53,13 @@ export const TRAIT_FIXTURES = Object.freeze([
 export const CONDITIONS = Object.freeze([
   Object.freeze({ id: "trait-present", label: "traitあり", removeTrait: null }),
   Object.freeze({ id: "trait-absent", label: "traitなし", removeTrait: "fixture-trait" })
+]);
+export const REFLECT_PHYSICAL_RATE_REFERENCE = 0.40;
+export const REFLECT_PHYSICAL_RATE_CANDIDATE = 0.20;
+export const REFLECT_PHYSICAL_CONDITIONS = Object.freeze([
+  Object.freeze({ id: "trait-absent", label: "traitなし", removeTrait: "fixture-trait", reflectPhysicalRate: null, expectedReflectPhysicalRate: null }),
+  Object.freeze({ id: "production-reference", label: "production reference 0.40", removeTrait: null, reflectPhysicalRate: null, expectedReflectPhysicalRate: REFLECT_PHYSICAL_RATE_REFERENCE }),
+  Object.freeze({ id: "candidate-020", label: "candidate 0.20", removeTrait: null, reflectPhysicalRate: REFLECT_PHYSICAL_RATE_CANDIDATE, expectedReflectPhysicalRate: REFLECT_PHYSICAL_RATE_CANDIDATE })
 ]);
 
 const RUNNER_PATH = "scratch/measurements/trait_scaling_diagnostic.js";
@@ -170,7 +177,8 @@ function createScenario({ fixture, condition, depth }) {
       entryMpRatio: 0,
       scalingPolicy: "phase2a",
       playerCandidate: playerFixture,
-      removeTrait: condition.removeTrait === "fixture-trait" ? fixture.id : null
+      removeTrait: condition.removeTrait === "fixture-trait" ? fixture.id : null,
+      reflectPhysicalRate: condition.reflectPhysicalRate ?? null
     }
   };
 }
@@ -232,6 +240,7 @@ function observeRun(result, traitId, conditionId, depth) {
     damageTaken: result.combatDamageHp || 0,
     enemyActions: result.normalCombatTelemetry?.enemyActions || 0,
     survival: Number(result.fixedCombatResult === "victory"),
+    reflectedDamage: traitId === "reflectPhysical" ? effect.effectAmount : 0,
     traitEffect: effect,
     evasionMisses: (result.combatFormula?.physicalPlayerMisses || [])
       .filter(miss => miss.measurementWeaponCandidateId
@@ -278,6 +287,7 @@ function observeFreezeApplication(result, depth) {
     weaponEffectiveDefense: playerHit?.measurementWeaponEffectiveDefense ?? null,
     weaponDefenseInput: playerHit?.def ?? null,
     armorDefResistance: monsterHit?.defResistance ?? null,
+    reflectPhysicalRate: result.fixedCombat?.reflectPhysicalRate ?? null,
     guardBefore: guard?.before ?? null,
     guardAfter: guard?.after ?? null,
     guardResolvedMultiplier: guard
@@ -302,6 +312,7 @@ function summarizeRuns(rows, traitId, depth, conditionId) {
     rounds: summarize(rows.map(row => row.rounds)),
     damageTaken: summarize(rows.map(row => row.damageTaken)),
     enemyActions: summarize(rows.map(row => row.enemyActions)),
+    reflectedDamage: summarize(rows.map(row => row.reflectedDamage)),
     survivalRate: rows.reduce((sum, row) => sum + row.survival, 0) / rows.length,
     evasionMisses: rows.reduce((sum, row) => sum + row.evasionMisses, 0),
     freezeApplication: rows[0]?.freezeApplication || null,
@@ -325,6 +336,7 @@ function deltaSummary(present, absent) {
     rounds: subtract(present.rounds, absent.rounds),
     damageTaken: subtract(present.damageTaken, absent.damageTaken),
     enemyActions: subtract(present.enemyActions, absent.enemyActions),
+    reflectedDamage: subtract(present.reflectedDamage, absent.reflectedDamage),
     survivalRate: present.survivalRate - absent.survivalRate,
     traitEffectAmount: subtract(present.traitEffect.effectAmount, absent.traitEffect.effectAmount)
   };
@@ -341,19 +353,20 @@ function resolveScaling(depth) {
   };
 }
 
-function runCell({ traitId, depth, conditionId, runs, seed }) {
+function runCell({ traitId, depth, conditionId, runs, seed, seriesIdPrefix = "issue1586", conditionSet = CONDITIONS }) {
   const { fixture } = findFixture(traitId);
-  const condition = CONDITIONS.find(candidate => candidate.id === conditionId);
+  const condition = conditionSet.find(candidate => candidate.id === conditionId);
+  if (!condition) throw new Error(`unknown diagnostic condition: ${conditionId}`);
   const rows = [];
   for (let runIndex = 0; runIndex < runs; runIndex++) {
-    const worldSeed = resolveWorldSeed({ seed, traitId, depth, runIndex });
+    const worldSeed = resolveWorldSeed({ seed, traitId, depth, runIndex, seriesIdPrefix });
     const result = simulateRun({
       className: "Fighter",
       fixtureId: BUILD_FIXTURE_ID,
       startFloor: depth,
       targetDepth: depth + 1,
       runIndex,
-      seriesId: `issue1586:${traitId}:B${depth}`,
+      seriesId: `${seriesIdPrefix}:${traitId}:B${depth}`,
       scoringProfile: null,
       scenario: createScenario({ fixture, condition, depth }),
       workshop: { ranks: {} },
@@ -366,8 +379,8 @@ function runCell({ traitId, depth, conditionId, runs, seed }) {
   return summarizeRuns(rows, traitId, depth, conditionId);
 }
 
-export function resolveWorldSeed({ seed, traitId, depth, runIndex }) {
-  return `${seed}:issue1586:${traitId}:B${depth}:${runIndex}`;
+export function resolveWorldSeed({ seed, traitId, depth, runIndex, seriesIdPrefix = "issue1586" }) {
+  return `${seed}:${seriesIdPrefix}:${traitId}:B${depth}:${runIndex}`;
 }
 
 export async function runTraitScalingDiagnostic({
@@ -436,6 +449,102 @@ export async function runTraitScalingDiagnostic({
   };
 }
 
+function reflectPhysicalComparison(cells, depth) {
+  const find = conditionId => cells.find(cell =>
+    cell.traitId === "reflectPhysical" && cell.depth === depth && cell.conditionId === conditionId
+  );
+  const noTrait = find("trait-absent");
+  const productionReference = find("production-reference");
+  const candidate = find("candidate-020");
+  return {
+    traitId: "reflectPhysical",
+    depth,
+    noTrait,
+    productionReference,
+    candidate,
+    deltas: {
+      productionReferenceVsNoTrait: deltaSummary(productionReference, noTrait),
+      candidateVsNoTrait: deltaSummary(candidate, noTrait),
+      candidateVsProductionReference: deltaSummary(candidate, productionReference)
+    }
+  };
+}
+
+export async function runReflectPhysicalDiagnostic({
+  runs = DEFAULT_RUNS,
+  seed = DEFAULT_SEED,
+  allowSmallRunCount = false
+} = {}) {
+  const normalizedRuns = positiveInteger(runs, "runs", allowSmallRunCount ? 1 : MIN_CONFIDENT_RUNS);
+  const normalizedSeed = positiveInteger(seed, "seed");
+  const trait = TRAIT_FIXTURES.find(candidate => candidate.id === "reflectPhysical");
+  const template = findFixture(trait.id).template;
+  const productionRate = template.physicalReflect?.rate;
+  if (productionRate !== REFLECT_PHYSICAL_RATE_REFERENCE) {
+    throw new Error(`鋼殻ビートル production reflect rate must remain ${REFLECT_PHYSICAL_RATE_REFERENCE}: ${productionRate}`);
+  }
+  const cells = [];
+  for (const depth of DEPTHS) {
+    for (const condition of REFLECT_PHYSICAL_CONDITIONS) {
+      cells.push(runCell({
+        traitId: trait.id,
+        depth,
+        conditionId: condition.id,
+        runs: normalizedRuns,
+        seed: normalizedSeed,
+        seriesIdPrefix: "issue1594",
+        conditionSet: REFLECT_PHYSICAL_CONDITIONS
+      }));
+    }
+  }
+  return {
+    schemaVersion: 1,
+    runnerVersion: "issue1594-reflect-physical-diagnostic-v1",
+    measurementId: "reflect-physical-diagnostic",
+    evidenceScope: "diagnostic",
+    confidencePolicy: {
+      minimumConfidentRuns: MIN_CONFIDENT_RUNS,
+      belowMinimum: "runner-correctness-only; no balance conclusion"
+    },
+    configuration: {
+      runs: normalizedRuns,
+      seed: normalizedSeed,
+      depths: [...DEPTHS],
+      buildFixtureId: BUILD_FIXTURE_ID,
+      playerFixture: {
+        ...PLAYER_FIXTURE,
+        weaponProfile: PLAYER_FIXTURE.weapon,
+        armorProfile: PLAYER_FIXTURE.armor,
+        shieldProfile: PLAYER_FIXTURE.shield
+      },
+      traits: [trait],
+      conditions: REFLECT_PHYSICAL_CONDITIONS.map(condition => ({ ...condition })),
+      metrics: ["rounds", "damageTaken", "enemyActions", "survival", "reflectedDamage"],
+      scaling: "HP = 1 + 0.20 × Tier; ATK = 1 + 0.10 × Tier; DEF = 1.0",
+      reflectPhysical: {
+        fixtureName: trait.templateName,
+        productionReferenceRate: REFLECT_PHYSICAL_RATE_REFERENCE,
+        candidateRate: REFLECT_PHYSICAL_RATE_CANDIDATE,
+        candidateId: "candidate-020"
+      },
+      seedPolicy: "trait/depth/runIndex keyed worldSeed; no-trait, production-reference, and candidate conditions share the same paired seed",
+      omitted: [
+        "production mutation",
+        "Phase 1 freeze value changes",
+        "Phase 2a scaling changes",
+        "other traits",
+        "composition, bosses, status attacks, spell scripts",
+        "loot, UI, save, map traversal, full Cartesian product",
+        "Heavy run"
+      ]
+    },
+    scaling: DEPTHS.map(resolveScaling),
+    freezeApplication: cells[0]?.freezeApplication || null,
+    cells,
+    comparisons: DEPTHS.map(depth => reflectPhysicalComparison(cells, depth))
+  };
+}
+
 function buildReport(result, provenance, options) {
   const environmentHash = printEnvSignatureBanner({
     runnerVersion: RUNNER_VERSION,
@@ -468,6 +577,44 @@ function buildReport(result, provenance, options) {
       scaling: "diagnostic-only Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load; no production fixture",
       traits: "production trait values and production combat resolver retained; absent condition removes only the selected trait in the measurement fixture",
+      status: "diagnostic-only; production combat/enemy/loot/UI/save unchanged"
+    }
+  };
+}
+
+function buildReflectPhysicalReport(result, provenance, options) {
+  const environmentHash = printEnvSignatureBanner({
+    runnerVersion: result.runnerVersion,
+    schemaVersion: result.schemaVersion,
+    measurementId: result.measurementId,
+    seed: result.configuration.seed,
+    runs: result.configuration.runs,
+    depths: result.configuration.depths,
+    traits: result.configuration.traits.map(trait => trait.id),
+    buildFixtureId: result.configuration.buildFixtureId
+  }, { label: "issue1594 reflectPhysical diagnostic env" });
+  return {
+    ...result,
+    purpose: options.purpose || process.env.MEASUREMENT_PURPOSE || "",
+    measurement: {
+      scope: readSimScopeDeclaration(import.meta.url)?.name || "diagnostic",
+      sourceCommit: provenance?.sourceCommit || null,
+      gameplaySourceCommit: provenance?.gameplaySourceCommit || null,
+      measurementRunnerCommit: provenance?.measurementRunnerCommit || null,
+      measurementRunnerPaths: provenance?.measurementRunnerPaths || [...DIAGNOSTIC_PATHS],
+      measurementRunnerDiffSha256: provenance?.measurementRunnerDiffSha256 || null,
+      originMainAncestor: provenance?.originMainAncestor ?? null,
+      staleTreeAllowed: provenance?.staleTreeAllowed ?? null,
+      workingTreeClean: provenance?.workingTreeClean ?? null,
+      productionPaths: [...PRODUCTION_PATHS],
+      diagnosticPaths: [...DIAGNOSTIC_PATHS],
+      environmentHash
+    },
+    candidatePolicy: {
+      reflectPhysical: "diagnostic-only measurement override: no trait, production reference rate 0.40, one candidate rate 0.20",
+      fixture: "鋼殻ビートル only; paired seed across all three conditions",
+      scaling: "diagnostic-only Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
+      player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load; no production fixture",
       status: "diagnostic-only; production combat/enemy/loot/UI/save unchanged"
     }
   };
@@ -519,6 +666,47 @@ function buildSummary(report) {
   return `${lines.join("\n")}\n`;
 }
 
+function buildReflectPhysicalSummary(report) {
+  const lines = [
+    "# reflectPhysical diagnostic (#1594)",
+    "",
+    `- runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
+    `- N=${report.configuration.runs}; seed=${report.configuration.seed}; fixture=${report.configuration.reflectPhysical.fixtureName}`,
+    `- rates: no trait / production reference ${report.configuration.reflectPhysical.productionReferenceRate.toFixed(2)} / candidate ${report.configuration.reflectPhysical.candidateRate.toFixed(2)}`,
+    `- player fixture: ${report.configuration.playerFixture.weapon}/${report.configuration.playerFixture.armor}/${report.configuration.playerFixture.shield}; Guard=${report.configuration.playerFixture.guardTiming}; Load=${report.configuration.playerFixture.loadCandidateId}`,
+    "- scaling: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
+    "",
+    "## Metrics",
+    "",
+    "- rounds / damage taken / enemy actions / survival / reflected damage",
+    "- deltas are condition A − condition B; paired seed and fixture",
+    ""
+  ];
+  for (const comparison of report.comparisons) {
+    const candidate = comparison.deltas.candidateVsNoTrait;
+    lines.push(
+      `- B${comparison.depth}: candidate vs no trait; rounds ${format(candidate.rounds.average)}, ` +
+      `damage ${format(candidate.damageTaken.average)}, enemy actions ${format(candidate.enemyActions.average)}, ` +
+      `survival ${(candidate.survivalRate * 100).toFixed(2)}pp, reflected damage ${format(candidate.reflectedDamage.average)}`
+    );
+  }
+  lines.push(
+    "",
+    "## Scope and limits",
+    "",
+    "- Production runEncounter / runCombatRoundCalculation path is used.",
+    "- The rate override is measurement-only and applies only to the fixed 鋼殻ビートル fixture.",
+    "- This diagnostic does not estimate full-run survival, encounter frequency, composition, boss, status, spell, or Heavy behavior.",
+    "- N<30 is correctness-only; N=200 is required for the GitHub Actions measurement.",
+    "",
+    "## Provenance",
+    "",
+    `- production paths: ${report.measurement.productionPaths.join(", ")}`,
+    `- environment hash: ${report.measurement.environmentHash}`
+  );
+  return `${lines.join("\n")}\n`;
+}
+
 function parseArgs(argv) {
   const options = {};
   for (let index = 0; index < argv.length; index++) {
@@ -539,14 +727,20 @@ async function main() {
     fetchOriginMain: false,
     measurementRunnerPaths: [...DIAGNOSTIC_PATHS]
   });
-  const result = await runTraitScalingDiagnostic({ runs, seed });
-  const report = buildReport(result, provenance, options);
+  const result = options.mode === "reflect-physical"
+    ? await runReflectPhysicalDiagnostic({ runs, seed })
+    : await runTraitScalingDiagnostic({ runs, seed });
+  const report = options.mode === "reflect-physical"
+    ? buildReflectPhysicalReport(result, provenance, options)
+    : buildReport(result, provenance, options);
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
-  fs.writeFileSync(resolve(options.summary), buildSummary(report));
-  console.log(`Wrote Issue #1586 trait scaling diagnostic: ${resolve(options.output)}`);
+  fs.writeFileSync(resolve(options.summary), options.mode === "reflect-physical"
+    ? buildReflectPhysicalSummary(report)
+    : buildSummary(report));
+  console.log(`Wrote ${report.measurementId}: ${resolve(options.output)}`);
 }
 
-export { buildReport, buildSummary, observeTraitEffect };
+export { buildReport, buildSummary, buildReflectPhysicalReport, buildReflectPhysicalSummary, observeTraitEffect };
 
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
   main().catch(error => {

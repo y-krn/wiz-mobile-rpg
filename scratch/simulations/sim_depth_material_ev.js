@@ -8641,7 +8641,8 @@ function applyThreatOverride(monsters, floor, override, encounter = {}) {
 
 function createFixedDiagnosticMonsters(names, floor, {
   scalingPolicy = "production",
-  removeTrait = null
+  removeTrait = null,
+  reflectPhysicalRate = null
 } = {}) {
   if (!Array.isArray(names) || names.length < 1) {
     throw new Error("fixed diagnostic encounter requires at least one monster name");
@@ -8651,6 +8652,9 @@ function createFixedDiagnosticMonsters(names, floor, {
   }
   if (removeTrait !== null && typeof removeTrait !== "string") {
     throw new Error(`fixed diagnostic removeTrait must be a string or null: ${removeTrait}`);
+  }
+  if (reflectPhysicalRate !== null && (!Number.isFinite(reflectPhysicalRate) || reflectPhysicalRate < 0 || reflectPhysicalRate > 1)) {
+    throw new Error(`fixed diagnostic reflectPhysicalRate must be a number in [0,1] or null: ${reflectPhysicalRate}`);
   }
   const templates = names.map(name => {
     const template = MONSTERS.find(monster => monster.name === name);
@@ -8679,6 +8683,15 @@ function createFixedDiagnosticMonsters(names, floor, {
         })();
     if (removeTrait !== null) {
       monster.traits = (monster.traits || []).filter(trait => trait !== removeTrait);
+    }
+    if (reflectPhysicalRate !== null) {
+      if (!(monster.traits || []).includes("reflectPhysical")) {
+        throw new Error("fixed diagnostic reflectPhysicalRate requires reflectPhysical trait");
+      }
+      monster.physicalReflect = {
+        ...(monster.physicalReflect || {}),
+        rate: reflectPhysicalRate
+      };
     }
     if (nameCounts[template.name] > 1) {
       currentNameIndices[template.name] = (currentNameIndices[template.name] || 0) + 1;
@@ -9017,6 +9030,7 @@ function runEncounter(
     fixedMonsterNames = null,
     scalingPolicy = "production",
     removeTrait = null,
+    reflectPhysicalRate = null,
     encounterCoord = null,
     retreatCoord = null,
     encounterEventKey = null,
@@ -9033,7 +9047,8 @@ function runEncounter(
   if (fixedMonsterNames) {
     monsters = createFixedDiagnosticMonsters(fixedMonsterNames, state.floor, {
       scalingPolicy,
-      removeTrait
+      removeTrait,
+      reflectPhysicalRate
     });
   } else {
     const generatedEncounter = generateEncounter(
@@ -17060,6 +17075,7 @@ export function simulateRun({
           fixedMonsterNames: fixedCombat.monsterNames,
           scalingPolicy: fixedCombat.scalingPolicy || "production",
           removeTrait: fixedCombat.removeTrait || null,
+          reflectPhysicalRate: fixedCombat.reflectPhysicalRate ?? null,
           encounterCoord: { x: 0, y: 0 }
         }
       );
@@ -17101,7 +17117,8 @@ export function simulateRun({
       fixedCombat: {
         monsterNames: [...fixedCombat.monsterNames],
         entryHpRatio,
-        entryMpRatio
+        entryMpRatio,
+        reflectPhysicalRate: fixedCombat.reflectPhysicalRate ?? null
       }
     };
   }
