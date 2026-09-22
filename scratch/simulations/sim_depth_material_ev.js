@@ -335,6 +335,7 @@ if (SIM_DAMAGE_PROBE_ENABLED && !globalThis.__simDamageProbeMathRoundWrapped) {
   };
   globalThis.__simDamageProbeMathRoundWrapped = true;
 }
+const { getCombatTierForStartFloor } = await import("../../src/rules/combat_tier.js");
 const { scaleEnemyForDepth } = await import("../../src/rules/depth_scaling.js");
 const { ITEM_EFFECTS } = await import("../../src/systems/item_effects.js");
 const { getUsableInventoryItems } = await import("../../src/rules/item_inventory.js");
@@ -8623,9 +8624,18 @@ function applyThreatOverride(monsters, floor, override, encounter = {}) {
   }
 }
 
-function createFixedDiagnosticMonsters(names, floor) {
+function createFixedDiagnosticMonsters(names, floor, {
+  scalingPolicy = "production",
+  removeTrait = null
+} = {}) {
   if (!Array.isArray(names) || names.length < 1) {
     throw new Error("fixed diagnostic encounter requires at least one monster name");
+  }
+  if (!["production", "phase2a"].includes(scalingPolicy)) {
+    throw new Error(`fixed diagnostic scalingPolicy must be production|phase2a: ${scalingPolicy}`);
+  }
+  if (removeTrait !== null && typeof removeTrait !== "string") {
+    throw new Error(`fixed diagnostic removeTrait must be a string or null: ${removeTrait}`);
   }
   const templates = names.map(name => {
     const template = MONSTERS.find(monster => monster.name === name);
@@ -8637,7 +8647,24 @@ function createFixedDiagnosticMonsters(names, floor) {
   );
   const currentNameIndices = {};
   return templates.map(template => {
-    const monster = scaleEnemyForDepth(template, floor);
+    const productionMonster = scaleEnemyForDepth(template, floor);
+    const monster = scalingPolicy === "production"
+      ? productionMonster
+      : (() => {
+          const tier = getCombatTierForStartFloor(floor);
+          const hpMultiplier = 1 + 0.20 * tier;
+          const atkMultiplier = 1 + 0.10 * tier;
+          return {
+            ...productionMonster,
+            hp: Math.max(1, Math.round(template.hp * hpMultiplier)),
+            maxHp: Math.max(1, Math.round(template.hp * hpMultiplier)),
+            atk: Math.max(1, Math.round(template.atk * atkMultiplier)),
+            def: Math.max(0, Math.round(template.def * 1.0))
+          };
+        })();
+    if (removeTrait !== null) {
+      monster.traits = (monster.traits || []).filter(trait => trait !== removeTrait);
+    }
     if (nameCounts[template.name] > 1) {
       currentNameIndices[template.name] = (currentNameIndices[template.name] || 0) + 1;
       monster.name = `${template.name} ${String.fromCharCode(64 + currentNameIndices[template.name])}`;
@@ -8931,6 +8958,8 @@ function runEncounter(
     isElite = false,
     roamingMonster = null,
     fixedMonsterNames = null,
+    scalingPolicy = "production",
+    removeTrait = null,
     encounterCoord = null,
     retreatCoord = null,
     encounterEventKey = null,
@@ -8945,7 +8974,10 @@ function runEncounter(
   let generatedTrial = null;
   let monsters;
   if (fixedMonsterNames) {
-    monsters = createFixedDiagnosticMonsters(fixedMonsterNames, state.floor);
+    monsters = createFixedDiagnosticMonsters(fixedMonsterNames, state.floor, {
+      scalingPolicy,
+      removeTrait
+    });
   } else {
     const generatedEncounter = generateEncounter(
       state,
@@ -16963,6 +16995,8 @@ export function simulateRun({
       metrics,
       {
         fixedMonsterNames: fixedCombat.monsterNames,
+        scalingPolicy: fixedCombat.scalingPolicy || "production",
+        removeTrait: fixedCombat.removeTrait || null,
         encounterCoord: { x: 0, y: 0 }
       }
     );
