@@ -31,6 +31,7 @@ assert.ok(resolveFormula({ weaponId: "mace", depth: 5, defense: "high" }).expect
 assert.ok(resolveFormula({ weaponId: "mace", depth: 5, defense: "high" }).expectedDamage > resolveFormula({ weaponId: "sword", depth: 5, defense: "high" }).expectedDamage);
 assert.ok(resolveFormula({ weaponId: "greatsword", depth: 10 }).expectedDamage > resolveFormula({ weaponId: "sword", depth: 10 }).expectedDamage);
 assert.ok(WEAPON_CANDIDATES.mace.multiplier <= 0.98, "Mace candidate must not gain base damage");
+assert.ok(WEAPON_CANDIDATES.mace.hitChance < WEAPON_CANDIDATES.sword.hitChance, "Mace hitChance must remain below Sword");
 assert.ok(WEAPON_CANDIDATES.mace.highDefPenetration > WEAPON_CANDIDATES.sword.highDefPenetration);
 assert.equal(RUNE_ACTION.id, "rune-bolt");
 assert.equal(RUNE_ACTION.mpCost, 1);
