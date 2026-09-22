@@ -168,3 +168,40 @@ function dragon(state) {
   const result = runRound(state);
   assert.equal(dragon(result.state).ancientDragonCycleStep, 3);
 }
+
+{
+  let state = createState(createAncientDragon({
+    isSniper: true,
+    traitChance: 1
+  }));
+
+  state = runRound(state).state;
+  assert.equal(dragon(state).ancientDragonCycleStep, 0);
+  assert.equal(dragon(state).snipeQueued, true);
+
+  state = runRound(state).state;
+  assert.equal(dragon(state).ancientDragonCycleStep, 0);
+  assert.equal(dragon(state).snipeQueued, false);
+
+  dragon(state).traitChance = 0;
+  state = runRound(state).state;
+  assert.equal(dragon(state).ancientDragonCycleStep, 1);
+}
+
+{
+  let state = createState(createAncientDragon({
+    traits: ["multiAction"],
+    traitChance: 1
+  }));
+
+  state = runRound(state).state;
+  assert.equal(dragon(state).ancientDragonCycleStep, 0);
+  assert.equal(dragon(state).multiActionQueued, true);
+
+  dragon(state).traitChance = 0;
+  const result = runRound(state);
+  state = result.state;
+  assert.equal(dragon(state).ancientDragonCycleStep, 1);
+  assert.equal(dragon(state).multiActionQueued, false);
+  assert.equal(result.logQueue.filter(entry => entry.msg.includes("いにしえの竜の攻撃")).length, 2);
+}

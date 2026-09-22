@@ -1562,7 +1562,9 @@ export function runCombatRoundCalculation(
           });
         }
       } else {
-        advanceAncientDragonCycleStep(mon);
+        if (!isSnipeAttack && !statusPayoff && !isMultiActionTurn) {
+          advanceAncientDragonCycleStep(mon);
+        }
         recordAction(mon, isSnipeAttack ? "狙撃" : "通常攻撃");
         let isEvaded = false;
         const evasion = getCharAffixSum(target, "evasion") / 100;
