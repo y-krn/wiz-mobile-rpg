@@ -6,7 +6,13 @@ import {
   SCHEMA_VERSION,
   RUNNER_VERSION,
   resolveBossInventory,
-  runMilestoneBossDiagnostic
+  runMilestoneBossDiagnostic,
+  buildSummary,
+  resolveGuardianPressureMechanisms,
+  resolveGuardianPressureSources,
+  isGuardianPressureStatusDamage,
+  observeRoundEndStatusDamage,
+  summarizeSpecialDamageByDefense
 } from "../../../scratch/measurements/milestone_boss_diagnostic.js";
 import { getAppliedBossPressureMetadata } from "../../../scratch/simulations/sim_depth_material_ev.js";
 import { PLAYER_FIXTURE } from "../../../scratch/measurements/composition_trait_diagnostic.js";
@@ -17,10 +23,13 @@ import {
 
 const first = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmallRunCount: true });
 const second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmallRunCount: true });
+const b30First = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, floor: 30, allowSmallRunCount: true });
+const b30Second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, floor: 30, allowSmallRunCount: true });
 
 assert.deepEqual(first, second, "milestone boss smoke must be deterministic");
-assert.equal(RUNNER_VERSION, "issue1613-milestone-boss-decision-pressure-v2");
-assert.equal(SCHEMA_VERSION, 2);
+assert.deepEqual(b30First, b30Second, "B30 diagnostic smoke must be deterministic");
+assert.equal(RUNNER_VERSION, "issue1629-b30-hard-wall-diagnostic-v4");
+assert.equal(SCHEMA_VERSION, 4);
 assert.equal(first.runnerVersion, RUNNER_VERSION);
 assert.equal(first.measurementId, "milestone-boss-diagnostic");
 assert.deepEqual(first.configuration.depths, [5, 10, 15, 20, 25, 30]);
@@ -33,6 +42,69 @@ assert.deepEqual(first.configuration.playerFixture, {
 assert.equal(first.configuration.reflectPhysicalDiagnosticFreeze, REFLECT_PHYSICAL_DIAGNOSTIC_RATE);
 assert.equal(first.configuration.scaling, "HP = 1 + 0.20 × Tier; ATK = 1 + 0.10 × Tier; DEF = 1.0");
 assert.equal(first.cells.length, BOSS_FIXTURES.length);
+assert.deepEqual(b30First.configuration.depths, [30]);
+assert.equal(b30First.measurementId, "b30-hard-wall-diagnostic");
+assert.equal(b30First.cells.length, 1);
+assert.equal(b30First.cells[0].runs, 1);
+assert.equal(b30First.cells[0].confidence, "runner-correctness-only");
+assert.ok(Object.hasOwn(b30First.cells[0].deathSources, "いにしえの竜のティルトウェイト"));
+assert.ok(Object.hasOwn(b30First.cells[0].lethalActions, "TILTOWAIT"));
+assert.equal(b30First.cells[0].specialDamageByDefense.TILTOWAIT.undefendedHitCount, 1);
+assert.equal(b30First.cells[0].specialDamageByDefense.TILTOWAIT.undefendedDamagePerHit.average, 62);
+assert.equal(b30First.cells[0].deathsWithoutPriorWarning, 0);
+assert.equal(b30First.cells[0].deathsWithMatchingWarning, 1);
+assert.ok(b30First.cells[0].guardianPressureDamage.totalDamagePerRun.average > 0);
+assert.ok(Object.keys(b30First.cells[0].guardianPressureDamage.bySource).some(source => source.startsWith("summonedAlly:")));
+for (const action of ["normal", "breath", "MADALTO", "TILTOWAIT", "guardian-pressure"]) {
+  assert.ok(Object.hasOwn(b30First.cells[0].damageByAction, action));
+}
+for (const action of ["breath", "MADALTO", "TILTOWAIT"]) {
+  assert.ok(Object.hasOwn(b30First.cells[0].specialDamageByDefense, action));
+}
+const pressureFixture = [{
+  additionalTraits: ["chargeAttack", "multiAction", "summonAlly"],
+  additionalBehavior: { isSniper: true, isPoisonous: true }
+}];
+const pressureTraitAction = {
+  monsterName: "いにしえの竜",
+  traitSources: ["chargeAttack", "isSniper", "multiAction"],
+  statusSources: ["poison"]
+};
+assert.deepEqual(resolveGuardianPressureMechanisms(pressureTraitAction, "いにしえの竜", pressureFixture), [
+  "pressureTraitAction", "pressureStatusAction"
+]);
+assert.deepEqual(resolveGuardianPressureSources(pressureTraitAction, "いにしえの竜", pressureFixture), [
+  "trait:chargeAttack", "trait:isSniper", "trait:multiAction", "status:poison"
+]);
+assert.deepEqual(resolveGuardianPressureMechanisms({ monsterName: "召喚敵" }, "いにしえの竜", pressureFixture), ["summonedAlly"]);
+assert.equal(isGuardianPressureStatusDamage("poison", pressureFixture), true);
+assert.equal(isGuardianPressureStatusDamage("poison", []), false);
+assert.deepEqual(observeRoundEndStatusDamage({ statusSource: "poison", damage: 7, lethal: true }, pressureFixture, [], 4), {
+  category: "round-end-status",
+  actionName: "poison",
+  sourceName: null,
+  damage: 7,
+  defended: false,
+  lethal: true,
+  roundIndex: 4,
+  pressureMechanisms: ["roundEndStatusDamage"],
+  pressureSources: ["status:poison"]
+});
+const guardDamage = summarizeSpecialDamageByDefense([
+  { category: "breath", damage: 10, defended: true },
+  { category: "breath", damage: 20, defended: false },
+  { category: "breath", damage: 22, defended: false },
+  { category: "MADALTO", damage: 15, defended: true }
+]);
+assert.equal(guardDamage.breath.defendedHitCount, 1);
+assert.equal(guardDamage.breath.undefendedHitCount, 2);
+assert.equal(guardDamage.breath.defendedDamagePerHit.average, 10);
+assert.equal(guardDamage.breath.undefendedDamagePerHit.average, 21);
+assert.equal(guardDamage.TILTOWAIT.defendedHitCount, 0);
+assert.match(buildSummary({
+  ...b30First,
+  measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
+}), /warning before death/i);
 
 assert.deepEqual(BOSS_FIXTURES.map(fixture => fixture.bossName), [
   "デーモンガード",
@@ -161,4 +233,4 @@ const invocation = resolveRunnerInvocation({
 assert.equal(invocation.runner, "scratch/measurements/milestone_boss_diagnostic.js");
 assert.ok(invocation.args.includes("--purpose"));
 
-console.log("[PASS] Issue #1613 milestone boss inventory, production path, and bounded diagnostic wiring");
+console.log("[PASS] Issue #1629 B30 death attribution, action damage, warnings, and bounded diagnostic wiring");

@@ -102,6 +102,11 @@ const fixedCombatArgs = ({ options, output }) => nativeMeasurementArgs({
   afterSeed: ["--starting-kit", options.startingKit]
 });
 
+const milestoneBossArgs = ({ options, output, profile }) => [
+  ...nativeMeasurementArgs({ options, output }),
+  ...(profile.floor ? ["--floor", String(profile.floor)] : [])
+];
+
 const equipmentVNextCombatArgs = nativeMeasurementArgs;
 const depthScalingArgs = nativeMeasurementArgs;
 const traitScalingArgs = ({ options, output, profile }) => nativeMeasurementArgs({
@@ -227,7 +232,7 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
-    buildArgs: nativeMeasurementArgs
+    buildArgs: milestoneBossArgs
   }),
   "equipment-load": freezeFamily({
     runner: "scratch/measurements/equipment_load_measurement.js",
@@ -371,6 +376,13 @@ const PROFILE_LIST = [
     id: "milestone-boss-diagnostic",
     label: "Phase 2d milestone Boss decision-pressure diagnostic",
     family: "milestone-boss",
+    defaults: { runs: 200, minimumRuns: 200, seed: 1613 }
+  },
+  {
+    id: "b30-hard-wall-diagnostic",
+    label: "B30 hard-wall cause diagnostic",
+    family: "milestone-boss",
+    floor: 30,
     defaults: { runs: 200, minimumRuns: 200, seed: 1613 }
   },
   {
