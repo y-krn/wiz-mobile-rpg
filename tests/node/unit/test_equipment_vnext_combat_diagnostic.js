@@ -5,8 +5,8 @@ import { resolve } from "node:path";
 import {
   ARMOR_CANDIDATES,
   DEPTHS,
-  LOAD_FIXTURE,
-  RUNE_ACTIONS,
+  LOAD_FIXTURES,
+  RUNE_ACTION,
   REPRESENTATIVE_CONDITIONS,
   SHIELD_CANDIDATES,
   WEAPON_CANDIDATES,
@@ -26,14 +26,29 @@ assert.equal(formulaTable().length, DEPTHS.length * Object.keys(WEAPON_CANDIDATE
 assert.ok(resolveFormula({ weaponId: "dagger", depth: 1 }).expectedDamage < resolveFormula({ weaponId: "sword", depth: 1 }).expectedDamage);
 assert.ok(resolveFormula({ weaponId: "mace", depth: 5, defense: "high" }).expectedDamage > resolveFormula({ weaponId: "sword", depth: 5, defense: "high" }).expectedDamage);
 assert.ok(resolveFormula({ weaponId: "greatsword", depth: 10 }).expectedDamage > resolveFormula({ weaponId: "sword", depth: 10 }).expectedDamage);
-assert.ok(Object.keys(RUNE_ACTIONS).includes("wand") && Object.keys(RUNE_ACTIONS).includes("staff"));
+assert.equal(RUNE_ACTION.id, "rune-bolt");
+assert.equal(RUNE_ACTION.mpCost, 1);
+assert.equal(RUNE_ACTION.baseDamage, 48);
+assert.equal(WEAPON_CANDIDATES.wand.runeSlots, 1);
+assert.equal(WEAPON_CANDIDATES.staff.runeSlots, 2);
+assert.ok(WEAPON_CANDIDATES.wand.mpCapacity < WEAPON_CANDIDATES.staff.mpCapacity);
+assert.notEqual(WEAPON_CANDIDATES.wand.hands, WEAPON_CANDIDATES.staff.hands);
 
 assert.deepEqual(Object.keys(ARMOR_CANDIDATES), ["lightArmor", "mediumArmor", "heavyArmor"]);
 assert.deepEqual(Object.keys(SHIELD_CANDIDATES), ["noShield", "smallShield", "largeShield", "magicShield"]);
-assert.equal(resolveVNextLoadCandidate(LOAD_FIXTURE, "max-burden").class, "standard");
-assert.equal(resolveVNextLoadCandidate(LOAD_FIXTURE, "aggregate").class, "heavy");
+assert.deepEqual(Object.keys(LOAD_FIXTURES), ["heavyArmorSword", "heavyArmorGreatsword", "lightArmorGreatsword"]);
 assert.equal(SHIELD_CANDIDATES.noShield.load, undefined, "no-shield must not add load burden");
-assert.ok(resolveVNextLoadCandidate(LOAD_FIXTURE, "aggregate").score >= resolveVNextLoadCandidate(LOAD_FIXTURE, "max-burden").score);
+assert.deepEqual(Object.fromEntries(Object.entries(LOAD_FIXTURES).map(([id, fixture]) => [
+  id,
+  [resolveVNextLoadCandidate(fixture, "max-burden").class, resolveVNextLoadCandidate(fixture, "aggregate").class]
+])), {
+  heavyArmorSword: ["heavy", "heavy"],
+  heavyArmorGreatsword: ["heavy", "heavy"],
+  lightArmorGreatsword: ["heavy", "heavy"]
+});
+assert.equal(resolveVNextLoadCandidate(LOAD_FIXTURES.heavyArmorGreatsword, "max-burden").score, resolveVNextLoadCandidate(LOAD_FIXTURES.heavyArmorSword, "max-burden").score);
+assert.ok(resolveVNextLoadCandidate(LOAD_FIXTURES.heavyArmorGreatsword, "aggregate").aggregateScore > resolveVNextLoadCandidate(LOAD_FIXTURES.heavyArmorSword, "aggregate").aggregateScore);
+assert.equal(Object.values(LOAD_FIXTURES).every(fixture => resolveVNextLoadCandidate(fixture, "aggregate").score >= resolveVNextLoadCandidate(fixture, "max-burden").score), true);
 assert.equal(Object.values(ARMOR_CANDIDATES).every(armor => !Object.hasOwn(armor, "initiative")), true);
 
 assert.ok(MEASUREMENT_IDS.includes("equipment-vnext-combat-diagnostic"));
@@ -48,12 +63,20 @@ assert.ok(invocation.args.includes("--purpose"));
 const result = await runEquipmentVNextCombatDiagnostic({ runs: 3, seed: 1544, allowSmallRunCount: true });
 assert.equal(result.measurementId, "equipment-vnext-combat-diagnostic");
 assert.equal(result.formulaTable.length, 30);
-assert.equal(result.fixedCombat.length, 23);
+assert.equal(result.fixedCombat.length, 27);
 assert.equal(result.fixedCombat.length, new Set(result.fixedCombat.map(row => `${row.conditionId}:${row.candidateId}`)).size);
 assert.equal(result.fixedCombat.every(row => row.runs === 3 && row.invariant), true);
 assert.equal(result.fixedCombat.every(row => row.confidence === "runner-correctness-only"), true);
-assert.deepEqual(result.loadComparison.map(row => row.resolved.class), ["standard", "heavy"]);
-assert.equal(result.loadComparison.every(row => row.invariant), true);
+assert.deepEqual(result.loadComparison.map(row => `${row.fixtureId}:${row.policy}`), [
+  "heavyArmorSword:max-burden",
+  "heavyArmorSword:aggregate",
+  "heavyArmorGreatsword:max-burden",
+  "heavyArmorGreatsword:aggregate",
+  "lightArmorGreatsword:max-burden",
+  "lightArmorGreatsword:aggregate"
+]);
+assert.equal(result.loadComparison.every(row => row.invariant && row.resolved.score >= row.maxBurdenScore), true);
+assert.equal(result.loadComparison.find(row => row.fixtureId === "heavyArmorGreatsword" && row.policy === "aggregate").resolved.aggregateScore, 4);
 
 const attackCondition = { id: "initiative-attack", depth: 1, attackType: "physical", actionPlan: "attack" };
 const playerFirstResult = simulateOne(attackCondition, "sword", {
@@ -85,6 +108,7 @@ for (const weapon of ["wand", "staff"]) {
   }, 1544, { initiativeOverride: true });
   assert.ok(runeResult.runeActions > 0, `${weapon} must execute a Rune action`);
   assert.ok(runeResult.runeDamage > 0, `${weapon} Rune action must affect combat damage`);
+  assert.equal(runeResult.runeActionId, RUNE_ACTION.id, `${weapon} must use the shared Rune action`);
   assert.equal(runeResult.mpSpent, runeResult.runeActions, `${weapon} MP must come from executed Rune actions`);
 }
 const runeRows = result.fixedCombat.filter(row => row.conditionId === "wand-vs-staff-rune");

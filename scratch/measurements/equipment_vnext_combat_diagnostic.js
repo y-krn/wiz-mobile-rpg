@@ -10,8 +10,8 @@ import { getCombatTierForStartFloor } from "../../src/rules/combat_tier.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1544-equipment-vnext-combat-diagnostic-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "issue1544-equipment-vnext-combat-diagnostic-v2";
+export const SCHEMA_VERSION = 2;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1544;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -21,8 +21,8 @@ export const WEAPON_CANDIDATES = Object.freeze({
   sword: Object.freeze({ id: "sword", label: "片手剣", multiplier: 1.00, hitChance: 0.92, highDefPenetration: 0.05, hands: 1, load: "standard", runeSlots: 0 }),
   mace: Object.freeze({ id: "mace", label: "メイス", multiplier: 0.98, hitChance: 0.88, highDefPenetration: 0.18, hands: 1, load: "standard", runeSlots: 0 }),
   greatsword: Object.freeze({ id: "greatsword", label: "大剣", multiplier: 1.32, hitChance: 0.82, highDefPenetration: 0.08, hands: 2, load: "heavy", runeSlots: 0 }),
-  wand: Object.freeze({ id: "wand", label: "魔杖", multiplier: 0.68, hitChance: 0.94, highDefPenetration: 0.04, hands: 1, load: "standard", runeSlots: 1 }),
-  staff: Object.freeze({ id: "staff", label: "大杖", multiplier: 0.58, hitChance: 0.90, highDefPenetration: 0.04, hands: 2, load: "standard", runeSlots: 2 })
+  wand: Object.freeze({ id: "wand", label: "魔杖", multiplier: 0.68, hitChance: 0.94, highDefPenetration: 0.04, hands: 1, load: "standard", runeSlots: 1, mpCapacity: 2 }),
+  staff: Object.freeze({ id: "staff", label: "大杖", multiplier: 0.58, hitChance: 0.90, highDefPenetration: 0.04, hands: 2, load: "standard", runeSlots: 2, mpCapacity: 4 })
 });
 
 export const ARMOR_CANDIDATES = Object.freeze({
@@ -40,18 +40,13 @@ export const SHIELD_CANDIDATES = Object.freeze({
 
 export const DEPTHS = Object.freeze([1, 5, 10, 20, 30]);
 export const LOAD_POLICIES = Object.freeze(["max-burden", "aggregate"]);
-export const LOAD_FIXTURE = Object.freeze({
-  id: "standard-weapon-medium-armor-small-shield",
-  weapon: "sword",
-  armor: "mediumArmor",
-  shield: "smallShield",
-  accessory: "ring"
+export const LOAD_FIXTURES = Object.freeze({
+  heavyArmorSword: Object.freeze({ id: "heavy-armor-sword", weapon: "sword", armor: "heavyArmor", shield: "noShield" }),
+  heavyArmorGreatsword: Object.freeze({ id: "heavy-armor-greatsword", weapon: "greatsword", armor: "heavyArmor", shield: "noShield" }),
+  lightArmorGreatsword: Object.freeze({ id: "light-armor-greatsword", weapon: "greatsword", armor: "lightArmor", shield: "noShield" })
 });
 
-export const RUNE_ACTIONS = Object.freeze({
-  wand: Object.freeze({ id: "rune-spark", mpCost: 1, baseDamage: 36 }),
-  staff: Object.freeze({ id: "rune-arc", mpCost: 1, baseDamage: 60 })
-});
+export const RUNE_ACTION = Object.freeze({ id: "rune-bolt", mpCost: 1, baseDamage: 48 });
 
 export const REPRESENTATIVE_CONDITIONS = Object.freeze([
   Object.freeze({ id: "dagger-vs-sword", depth: 1, axis: "weapon", weapon: "dagger", compareWith: "sword", defense: "normal", attackType: "physical" }),
@@ -70,8 +65,12 @@ export const REPRESENTATIVE_CONDITIONS = Object.freeze([
   Object.freeze({ id: "small-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "smallShield", attackType: "spell", actionPlan: "attack-defend" }),
   Object.freeze({ id: "large-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "largeShield", attackType: "spell", actionPlan: "attack-defend" }),
   Object.freeze({ id: "magic-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "magicShield", attackType: "spell", actionPlan: "attack-defend" }),
-  Object.freeze({ id: "max-burden-load", depth: 20, axis: "load", policy: "max-burden", weapon: LOAD_FIXTURE.weapon, armor: LOAD_FIXTURE.armor, shield: LOAD_FIXTURE.shield, attackType: "physical" }),
-  Object.freeze({ id: "aggregate-load", depth: 20, axis: "load", policy: "aggregate", weapon: LOAD_FIXTURE.weapon, armor: LOAD_FIXTURE.armor, shield: LOAD_FIXTURE.shield, attackType: "physical" })
+  Object.freeze({ id: "max-burden-heavyArmorSword", depth: 20, axis: "load", policy: "max-burden", fixtureId: "heavyArmorSword", attackType: "physical" }),
+  Object.freeze({ id: "aggregate-heavyArmorSword", depth: 20, axis: "load", policy: "aggregate", fixtureId: "heavyArmorSword", attackType: "physical" }),
+  Object.freeze({ id: "max-burden-heavyArmorGreatsword", depth: 20, axis: "load", policy: "max-burden", fixtureId: "heavyArmorGreatsword", attackType: "physical" }),
+  Object.freeze({ id: "aggregate-heavyArmorGreatsword", depth: 20, axis: "load", policy: "aggregate", fixtureId: "heavyArmorGreatsword", attackType: "physical" }),
+  Object.freeze({ id: "max-burden-lightArmorGreatsword", depth: 20, axis: "load", policy: "max-burden", fixtureId: "lightArmorGreatsword", attackType: "physical" }),
+  Object.freeze({ id: "aggregate-lightArmorGreatsword", depth: 20, axis: "load", policy: "aggregate", fixtureId: "lightArmorGreatsword", attackType: "physical" })
 ]);
 
 const LOAD_SCORE = Object.freeze({ light: 0, standard: 1, heavy: 2 });
@@ -212,7 +211,8 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
     : Boolean(initiativeOverride);
   let playerHp = 100;
   let enemyHp = 100 * tierMultiplier(tier);
-  let playerMp = 2 + tier;
+  const playerMpCapacity = weapon.mpCapacity ? weapon.mpCapacity + tier : 0;
+  let playerMp = playerMpCapacity;
   let rounds = 0;
   let enemyActions = 0;
   let playerActions = 0;
@@ -235,8 +235,8 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
     damageDealt += dealt;
   };
   const playerRuneAction = () => {
-    const rune = RUNE_ACTIONS[weapon.id];
-    if (!rune || playerMp < rune.mpCost) return false;
+    const rune = weapon.runeSlots > 0 ? RUNE_ACTION : null;
+    if (!rune || runeActions >= weapon.runeSlots || playerMp < rune.mpCost) return false;
     playerMp -= rune.mpCost;
     mpSpent += rune.mpCost;
     const dealt = Math.max(1, rune.baseDamage * tierMultiplier(tier) * (0.92 + rng() * 0.16));
@@ -305,6 +305,8 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
     mpSpent,
     runeActions,
     runeDamage,
+    runeActionId: weapon.runeSlots > 0 ? RUNE_ACTION.id : null,
+    mpCapacity: playerMpCapacity,
     playerFirst,
     playerSpeed,
     loadClass: load.class,
@@ -337,10 +339,12 @@ function finalizeAccumulator(accumulator, runs) {
 }
 
 function candidateForCondition(condition, candidateId) {
+  const fixture = condition.fixtureId ? LOAD_FIXTURES[condition.fixtureId] : null;
+  if (condition.fixtureId && !fixture) throw new Error(`unknown load fixture: ${condition.fixtureId}`);
   const defaults = {
-    weapon: condition.weapon || "sword",
-    armor: condition.armor || "mediumArmor",
-    shield: condition.shield || "smallShield",
+    weapon: condition.weapon || fixture?.weapon || "sword",
+    armor: condition.armor || fixture?.armor || "mediumArmor",
+    shield: condition.shield || fixture?.shield || "smallShield",
     policy: condition.policy || "max-burden",
     actionPlan: condition.actionPlan || "attack"
   };
@@ -386,16 +390,20 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
       fixedCombat.push(finalizeAccumulator(accumulator, normalizedRuns));
     }
   }
-  const maxBurden = resolveVNextLoadCandidate(LOAD_FIXTURE, "max-burden");
-  const loadComparison = LOAD_POLICIES.map(policy => {
-    const resolved = resolveVNextLoadCandidate(LOAD_FIXTURE, policy);
-    return {
-      policy,
-      fixture: LOAD_FIXTURE,
-      resolved,
-      invariant: resolved.score >= maxBurden.score,
-      result: fixedCombat.find(row => row.conditionId === `${policy}-load`)
-    };
+  const loadComparison = Object.entries(LOAD_FIXTURES).flatMap(([fixtureId, fixture]) => {
+    const maxBurden = resolveVNextLoadCandidate(fixture, "max-burden");
+    return LOAD_POLICIES.map(policy => {
+      const resolved = resolveVNextLoadCandidate(fixture, policy);
+      return {
+        fixtureId,
+        policy,
+        fixture,
+        resolved,
+        maxBurdenScore: maxBurden.score,
+        invariant: resolved.score >= maxBurden.score,
+        result: fixedCombat.find(row => row.conditionId === `${policy}-${fixtureId}`)
+      };
+    });
   });
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -418,6 +426,8 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
         noShieldCandidate: "universal_brace"
       },
       loadPolicies: [...LOAD_POLICIES],
+      loadFixtures: Object.values(LOAD_FIXTURES),
+      runeAction: RUNE_ACTION,
       representativeConditionIds: REPRESENTATIVE_CONDITIONS.map(condition => condition.id),
       omitted: ["full Cartesian product", "production combat resolver", "production equipment generation", "enemy loot UI save paths", "Bag weight"]
     },
@@ -461,8 +471,9 @@ function buildReport(result, provenance, purpose) {
       weapon: "raw = CombatPower(Tier) × WeaponMultiplier; hit chance and high-DEF penetration remain separate",
       armor: "direct incoming mitigation candidate; production DEF/(DEF+4) untouched",
       guard: "Defend-only candidate multipliers by physical / spell / breath; Attack has no Guard mitigation",
+      rune: "wand and staff share one Rune action; slots, MP capacity, and hands are the only Rune scenario differences",
       load: "max burden = max slot score; aggregate = sum with max-burden floor",
-      loadFixture: LOAD_FIXTURE,
+      loadFixtures: LOAD_FIXTURES,
       confidence: `N < ${MIN_CONFIDENT_RUNS} is runner-correctness-only`
     }
   };
@@ -483,7 +494,7 @@ function buildSummary(report) {
     "",
     "## Representative fixed combat",
     "",
-    "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and one shared load fixture.",
+    "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and three representative load fixtures.",
     "- Metrics: survival, rounds, damage dealt/taken, one player/enemy action per round, player-before-any-enemy, Defend-only Guard reduction, actual Rune actions/damage/MP.",
     "",
     "| condition | candidate | survival | rounds p50 | damage taken avg | enemy actions avg | player first | Guard reduction avg | Rune actions avg | Rune damage avg | MP spent avg |",
@@ -492,7 +503,7 @@ function buildSummary(report) {
     "",
     "## Load comparison",
     "",
-    ...report.loadComparison.map(row => `- ${row.policy}: fixture=${row.fixture.id}; class=${row.resolved.class}; score=${row.resolved.score}; max-burden floor invariant=${row.invariant}; aggregation=${row.resolved.aggregation}`),
+    ...report.loadComparison.map(row => `- ${row.policy}: fixture=${row.fixture.id}; class=${row.resolved.class}; score=${row.resolved.score}; aggregate raw=${row.resolved.aggregateScore}; max-burden floor=${row.maxBurdenScore}; invariant=${row.invariant}; aggregation=${row.resolved.aggregation}`),
     "",
     "## Interpretation boundary",
     "",
