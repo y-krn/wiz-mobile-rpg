@@ -71,7 +71,11 @@ import {
 import { trackBleedingEvent } from "../telemetry.js";
 import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 
-import { resolveBossAction } from "./boss_actions.js";
+import {
+  advanceAncientDragonCycleStep,
+  ensureAncientDragonCycleStep,
+  resolveBossAction
+} from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
 import { resolvePlayerSpell } from "./spell_resolution.js";
 import {
@@ -594,6 +598,7 @@ export function runCombatRoundCalculation(
   const logQueue = [];
   const state = cloneCombatStateForRound(originalState);
   const monsters = state.combatState.monsters;
+  monsters.forEach(ensureAncientDragonCycleStep);
   let escaped = false;
   const roundNumber = state.combatState.roundNumber || 1;
   const actionObservations = [];
@@ -1557,6 +1562,7 @@ export function runCombatRoundCalculation(
           });
         }
       } else {
+        advanceAncientDragonCycleStep(mon);
         recordAction(mon, isSnipeAttack ? "狙撃" : "通常攻撃");
         let isEvaded = false;
         const evasion = getCharAffixSum(target, "evasion") / 100;
