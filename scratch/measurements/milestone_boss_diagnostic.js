@@ -20,13 +20,20 @@ import { simulateRun } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1629-b30-hard-wall-diagnostic-v3";
-export const SCHEMA_VERSION = 3;
+export const RUNNER_VERSION = "issue1629-b30-hard-wall-diagnostic-v4";
+export const SCHEMA_VERSION = 4;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1613;
 export const MIN_CONFIDENT_RUNS = 30;
 export const REFLECT_PHYSICAL_DIAGNOSTIC_RATE = 0.20;
-const B30_ACTION_CATEGORIES = Object.freeze(["normal", "breath", "MADALTO", "TILTOWAIT", "guardian-pressure", "other"]);
+const B30_ACTION_CATEGORIES = Object.freeze(["normal", "breath", "MADALTO", "TILTOWAIT", "guardian-pressure", "round-end-status", "other"]);
+const PRESSURE_STATUS_BEHAVIOR = Object.freeze({
+  isPoisonous: "poison",
+  isParalyzing: "paralyze",
+  isBlinding: "blind",
+  isSleepInflicting: "sleep",
+  statusAttackPattern: "statusPattern"
+});
 
 export const BOSS_FIXTURES = Object.freeze([
   Object.freeze({ floor: 5, bossName: "デーモンガード" }),
@@ -128,6 +135,94 @@ function summarizeStructured(values) {
 
 function countLogs(logs, pattern) {
   return logs.filter(message => pattern.test(String(message))).length;
+}
+
+export function resolveGuardianPressureMechanisms(action, bossName, pressures) {
+  const mechanisms = [];
+  const pressureTraits = new Set(pressures.flatMap(pressure => pressure.additionalTraits || []));
+  const pressureBehaviors = new Set(pressures.flatMap(pressure => Object.keys(pressure.additionalBehavior || {})));
+  const actionTraits = new Set(action.traitSources || []);
+  if (action.extraMultiAction && pressureTraits.has("multiAction")) actionTraits.add("multiAction");
+  if (action.monsterName !== bossName && pressureTraits.has("summonAlly")) {
+    mechanisms.push("summonedAlly");
+  }
+  if ([...actionTraits].some(trait => pressureTraits.has(trait) || pressureBehaviors.has(trait))) {
+    mechanisms.push("pressureTraitAction");
+  }
+  const pressureStatuses = new Set([
+    ...pressureTraits,
+    ...pressures.flatMap(pressure => Object.entries(pressure.additionalBehavior || {})
+      .map(([key, value]) => value ? PRESSURE_STATUS_BEHAVIOR[key] : null)
+      .filter(Boolean))
+  ]);
+  if ((action.statusSources || []).some(source => pressureStatuses.has(source))) {
+    mechanisms.push("pressureStatusAction");
+  }
+  return [...new Set(mechanisms)];
+}
+
+export function resolveGuardianPressureSources(action, bossName, pressures) {
+  const pressureTraits = new Set(pressures.flatMap(pressure => pressure.additionalTraits || []));
+  const pressureBehaviors = new Set(pressures.flatMap(pressure => Object.keys(pressure.additionalBehavior || {})));
+  const pressureStatusSources = new Set(pressures.flatMap(pressure => [
+    ...(pressure.additionalTraits || []),
+    ...Object.entries(pressure.additionalBehavior || {})
+      .map(([key, value]) => value ? PRESSURE_STATUS_BEHAVIOR[key] : null)
+      .filter(Boolean)
+  ]));
+  const sources = [
+    ...(action.traitSources || [])
+      .filter(trait => pressureTraits.has(trait) || pressureBehaviors.has(trait))
+      .map(trait => `trait:${trait}`),
+    ...(action.statusSources || [])
+      .filter(source => pressureStatusSources.has(source))
+      .map(source => `status:${source}`)
+  ];
+  if (action.extraMultiAction && pressureTraits.has("multiAction")) sources.push("trait:multiAction");
+  if (action.monsterName !== bossName && pressureTraits.has("summonAlly")) {
+    sources.push(`summonedAlly:${action.monsterName || "unknown"}`);
+  }
+  return [...new Set(sources)];
+}
+
+export function isGuardianPressureStatusDamage(statusSource, pressures, observedPressureStatuses = []) {
+  if (observedPressureStatuses.includes(statusSource)) return true;
+  return pressures.some(pressure =>
+    (pressure.additionalTraits || []).includes(statusSource) ||
+    Object.entries(pressure.additionalBehavior || {}).some(([key, value]) =>
+      value && PRESSURE_STATUS_BEHAVIOR[key] === statusSource
+    )
+  );
+}
+
+export function observeRoundEndStatusDamage(event, pressures, observedPressureStatuses, roundIndex) {
+  const source = event.statusSource || event.source || "status";
+  const pressureLinked = isGuardianPressureStatusDamage(source, pressures, observedPressureStatuses);
+  return {
+    category: "round-end-status",
+    actionName: source,
+    sourceName: event.monsterName || null,
+    damage: Number(event.damage || 0),
+    defended: false,
+    lethal: event.lethal === true,
+    roundIndex,
+    pressureMechanisms: pressureLinked ? ["roundEndStatusDamage"] : [],
+    pressureSources: pressureLinked ? [`status:${source}`] : []
+  };
+}
+
+export function summarizeSpecialDamageByDefense(events) {
+  return Object.fromEntries(["breath", "MADALTO", "TILTOWAIT"].map(category => {
+    const hits = events.filter(event => event.category === category);
+    const defended = hits.filter(event => event.defended);
+    const undefended = hits.filter(event => !event.defended);
+    return [category, {
+      defendedHitCount: defended.length,
+      undefendedHitCount: undefended.length,
+      defendedDamagePerHit: summarize(defended.map(event => event.damage)),
+      undefendedDamagePerHit: summarize(undefended.map(event => event.damage))
+    }];
+  }));
 }
 
 function findBoss(fixture) {
@@ -264,8 +359,24 @@ function observeRun(result, fixture) {
   const spellActions = actionNames.filter(action => SPELL_ACTIONS.has(action));
   const inventory = resolveBossInventory(fixture);
   const trialPressures = encounter.monsters?.[0]?.trialPressures || [];
+  const pressureStatusSources = new Set(trialPressures.flatMap(pressure => [
+    ...Object.entries(pressure.additionalBehavior || {})
+      .map(([key, value]) => value ? PRESSURE_STATUS_BEHAVIOR[key] : null)
+      .filter(Boolean),
+    ...(pressure.additionalTraits || [])
+  ]));
+  const pressureMechanismsByAction = new Map();
+  allEnemyActions.forEach(action => {
+    const mechanisms = resolveGuardianPressureMechanisms(action, fixture.bossName, trialPressures);
+    pressureMechanismsByAction.set(action, mechanisms);
+    if (mechanisms.includes("pressureStatusAction") || mechanisms.includes("summonedAlly")) {
+      (action.statusSources || []).forEach(source => pressureStatusSources.add(source));
+    }
+  });
   const damageObservations = allEnemyActions.flatMap(action => (action.damageEvents || []).map(event => {
-    const isGuardianPressure = action.monsterName !== fixture.bossName;
+    const pressureMechanisms = pressureMechanismsByAction.get(action) || [];
+    const pressureSources = resolveGuardianPressureSources(action, fixture.bossName, trialPressures);
+    const isGuardianPressure = pressureMechanisms.includes("summonedAlly");
     const category = isGuardianPressure
       ? "guardian-pressure"
       : action.actionNames.includes("TILTOWAIT")
@@ -282,20 +393,56 @@ function observeRun(result, fixture) {
       damage: Number(event.damage || 0),
       defended: action.defended,
       lethal: action.lethal === true,
-      roundIndex: action.roundIndex
+      roundIndex: action.roundIndex,
+      pressureMechanisms,
+      pressureSources
     };
+  }));
+  const statusDamageObservations = rounds.flatMap((round, roundIndex) =>
+    (round.statusDamageEvents || []).map(event =>
+      observeRoundEndStatusDamage(event, trialPressures, [...pressureStatusSources], roundIndex)
+    )
+  );
+  const allDamageObservations = [...damageObservations, ...statusDamageObservations];
+  const guardianPressureDamageObservations = allDamageObservations
+    .filter(event => event.pressureMechanisms.length > 0);
+  const guardianPressureDamageByMechanism = Object.fromEntries([
+    "pressureTraitAction", "summonedAlly", "pressureStatusAction", "roundEndStatusDamage"
+  ].map(mechanism => {
+    const events = guardianPressureDamageObservations.filter(event => event.pressureMechanisms.includes(mechanism));
+    return [mechanism, {
+      hitCount: events.length,
+      totalDamage: events.reduce((sum, event) => sum + event.damage, 0),
+      lethal: events.some(event => event.lethal)
+    }];
+  }));
+  const guardianPressureDamageBySource = Object.fromEntries([...new Set(
+    guardianPressureDamageObservations.flatMap(event => event.pressureSources)
+  )].sort().map(source => {
+    const events = guardianPressureDamageObservations.filter(event => event.pressureSources.includes(source));
+    return [source, {
+      hitCount: events.length,
+      totalDamage: events.reduce((sum, event) => sum + event.damage, 0),
+      lethal: events.some(event => event.lethal)
+    }];
   }));
   const deathLog = rounds.flatMap(round => round.log || [])
     .find(message => /倒れた|力尽きた/.test(String(message)));
   const deathSource = deathLog?.match(/で(.+?)により倒れた/)?.[1] || null;
   const lethalAction = allEnemyActions.find(action => action.lethal) || null;
+  const lethalStatusDamage = statusDamageObservations.find(event => event.lethal) || null;
+  const deathRoundIndex = lethalAction?.roundIndex ?? lethalStatusDamage?.roundIndex ?? null;
   const warningsBeforeDeath = lethalAction
-    ? rounds.slice(0, lethalAction.roundIndex).flatMap((round, roundIndex) =>
+    ? rounds.slice(0, deathRoundIndex).flatMap((round, roundIndex) =>
       (round.log || [])
         .filter(message => String(message).includes("[警告]"))
-        .map(message => ({ message, roundsBeforeDeath: lethalAction.roundIndex - roundIndex }))
+        .map(message => ({ message, roundsBeforeDeath: deathRoundIndex - roundIndex }))
     )
-    : [];
+    : deathRoundIndex === null ? [] : rounds.slice(0, deathRoundIndex).flatMap((round, roundIndex) =>
+      (round.log || [])
+        .filter(message => String(message).includes("[警告]"))
+        .map(message => ({ message, roundsBeforeDeath: deathRoundIndex - roundIndex }))
+    );
   const lethalActionName = lethalAction?.actionNames?.join("+") || null;
   const warningKeyword = lethalActionName === "TILTOWAIT" ? "ティルトウェイト"
     : lethalActionName === "MADALTO" ? "マダルト"
@@ -305,7 +452,7 @@ function observeRun(result, fixture) {
     ? warningsBeforeDeath.filter(warning => String(warning.message).includes(warningKeyword))
     : [];
   const perActionDamage = Object.fromEntries(B30_ACTION_CATEGORIES.map(category => {
-    const events = damageObservations.filter(event => event.category === category);
+    const events = allDamageObservations.filter(event => event.category === category);
     return [category, {
       hitCount: events.length,
       totalDamage: events.reduce((sum, event) => sum + event.damage, 0),
@@ -342,7 +489,7 @@ function observeRun(result, fixture) {
     encounterType: encounter.type,
     outcome: result.fixedCombatResult,
     deathSource,
-    lethalAction: lethalActionName || (lethalAction ? "guardian-pressure" : null),
+    lethalAction: lethalActionName || (lethalAction ? "guardian-pressure" : lethalStatusDamage ? `round-end-status:${lethalStatusDamage.actionName}` : null),
     warningBeforeDeath: warningsBeforeDeath.length > 0,
     warningBeforeDeathMessages: warningsBeforeDeath.map(warning => warning.message),
     matchingWarningBeforeDeath: matchingWarningsBeforeDeath.length > 0,
@@ -352,12 +499,24 @@ function observeRun(result, fixture) {
     survival: Number(result.fixedCombatResult === "victory"),
     bossActionCount: enemyActions.length,
     actionNames: countBy(actionNames),
+    damageObservations: allDamageObservations,
+    guardianPressureDamage: {
+      hitCount: guardianPressureDamageObservations.length,
+      totalDamage: guardianPressureDamageObservations.reduce((sum, event) => sum + event.damage, 0),
+      lethal: guardianPressureDamageObservations.some(event => event.lethal),
+      byMechanism: guardianPressureDamageByMechanism,
+      bySource: guardianPressureDamageBySource
+    },
     damageByAction: perActionDamage,
     specialDamageByDefense: Object.fromEntries(["breath", "MADALTO", "TILTOWAIT"].map(category => {
       const events = damageObservations.filter(event => event.category === category);
+      const defended = events.filter(event => event.defended).map(event => event.damage);
+      const undefended = events.filter(event => !event.defended).map(event => event.damage);
       return [category, {
-        defended: events.filter(event => event.defended).reduce((sum, event) => sum + event.damage, 0),
-        undefended: events.filter(event => !event.defended).reduce((sum, event) => sum + event.damage, 0)
+        defendedDamages: defended,
+        undefendedDamages: undefended,
+        defendedTotal: defended.reduce((sum, damage) => sum + damage, 0),
+        undefendedTotal: undefended.reduce((sum, damage) => sum + damage, 0)
       }];
     })),
     warningCount: countLogs(logs, /\[警告\]/),
@@ -392,6 +551,38 @@ function observeRun(result, fixture) {
 
 function summarizeRows(rows, fixture) {
   const actionNames = [...new Set(rows.flatMap(row => Object.keys(row.actionNames)))].sort();
+  const specialDamageByDefense = summarizeSpecialDamageByDefense(rows.flatMap(row => row.damageObservations));
+  Object.keys(specialDamageByDefense).forEach(category => {
+    specialDamageByDefense[category].defendedDamagePerRun = summarize(
+      rows.map(row => row.specialDamageByDefense[category].defendedTotal)
+    );
+    specialDamageByDefense[category].undefendedDamagePerRun = summarize(
+      rows.map(row => row.specialDamageByDefense[category].undefendedTotal)
+    );
+  });
+  const guardianPressureDamage = {
+    hitCount: summarize(rows.map(row => row.guardianPressureDamage.hitCount)),
+    observedHitCount: rows.reduce((sum, row) => sum + row.guardianPressureDamage.hitCount, 0),
+    totalDamage: rows.reduce((sum, row) => sum + row.guardianPressureDamage.totalDamage, 0),
+    totalDamagePerRun: summarize(rows.map(row => row.guardianPressureDamage.totalDamage)),
+    lethalRuns: rows.filter(row => row.guardianPressureDamage.lethal).length,
+    byMechanism: Object.fromEntries([
+      "pressureTraitAction", "summonedAlly", "pressureStatusAction", "roundEndStatusDamage"
+    ].map(mechanism => [mechanism, {
+      hitCount: summarize(rows.map(row => row.guardianPressureDamage.byMechanism[mechanism].hitCount)),
+      observedHitCount: rows.reduce((sum, row) => sum + row.guardianPressureDamage.byMechanism[mechanism].hitCount, 0),
+      totalDamage: rows.reduce((sum, row) => sum + row.guardianPressureDamage.byMechanism[mechanism].totalDamage, 0),
+      totalDamagePerRun: summarize(rows.map(row => row.guardianPressureDamage.byMechanism[mechanism].totalDamage)),
+      lethalRuns: rows.filter(row => row.guardianPressureDamage.byMechanism[mechanism].lethal).length
+    }])),
+    bySource: Object.fromEntries([...new Set(rows.flatMap(row => Object.keys(row.guardianPressureDamage.bySource)))].sort().map(source => [source, {
+      hitCount: summarize(rows.map(row => row.guardianPressureDamage.bySource[source]?.hitCount || 0)),
+      observedHitCount: rows.reduce((sum, row) => sum + (row.guardianPressureDamage.bySource[source]?.hitCount || 0), 0),
+      totalDamage: rows.reduce((sum, row) => sum + (row.guardianPressureDamage.bySource[source]?.totalDamage || 0), 0),
+      totalDamagePerRun: summarize(rows.map(row => row.guardianPressureDamage.bySource[source]?.totalDamage || 0)),
+      lethalRuns: rows.filter(row => row.guardianPressureDamage.bySource[source]?.lethal).length
+    }]))
+  };
   return {
     floor: fixture.floor,
     bossName: fixture.bossName,
@@ -406,6 +597,7 @@ function summarizeRows(rows, fixture) {
     deathsWithMatchingWarning: rows.filter(row => row.outcome === "death" && row.matchingWarningBeforeDeath).length,
     deathsWithoutMatchingWarning: rows.filter(row => row.outcome === "death" && !row.matchingWarningBeforeDeath).length,
     matchingWarningRoundsBeforeDeath: summarize(rows.flatMap(row => row.matchingWarningRoundsBeforeDeath)),
+    guardianPressureDamage,
     damageByAction: Object.fromEntries(B30_ACTION_CATEGORIES.map(category => [category, {
       hitCount: summarize(rows.map(row => row.damageByAction[category].hitCount)),
       totalDamagePerRun: summarize(rows.map(row => row.damageByAction[category].totalDamage)),
@@ -413,10 +605,7 @@ function summarizeRows(rows, fixture) {
       undefendedDamagePerRun: summarize(rows.map(row => row.damageByAction[category].undefendedDamage)),
       lethalRuns: rows.filter(row => row.damageByAction[category].lethal).length
     }])),
-    specialDamageByDefense: Object.fromEntries(["breath", "MADALTO", "TILTOWAIT"].map(category => [category, {
-      defendedDamagePerRun: summarize(rows.map(row => row.specialDamageByDefense[category].defended)),
-      undefendedDamagePerRun: summarize(rows.map(row => row.specialDamageByDefense[category].undefended))
-    }])),
+    specialDamageByDefense,
     rounds: summarize(rows.map(row => row.rounds)),
     damageTaken: summarize(rows.map(row => row.damageTaken)),
     survivalRate: rows.reduce((sum, row) => sum + row.survival, 0) / rows.length,
@@ -534,7 +723,9 @@ function buildReport(result, provenance, options) {
     seed: result.configuration.seed,
     runs: result.configuration.runs,
     depths: result.configuration.depths
-  }, { label: "issue1613 milestone boss diagnostic env" });
+  }, { label: result.measurementId === "b30-hard-wall-diagnostic"
+    ? "issue1629 B30 hard-wall diagnostic env"
+    : "issue1613 milestone boss diagnostic env" });
   return {
     ...result,
     purpose: options.purpose || process.env.MEASUREMENT_PURPOSE || "",
@@ -592,7 +783,8 @@ export function buildSummary(report) {
       `deaths=${JSON.stringify(cell.deathSources)}; lethal actions=${JSON.stringify(cell.lethalActions)}; ` +
       `warning before death=${cell.warningBeforeDeathRuns}/${cell.deaths} deaths; matching warning=${cell.deathsWithMatchingWarning}/${cell.deaths}; ` +
       `damage by action=${JSON.stringify(Object.fromEntries(Object.entries(cell.damageByAction).map(([action, values]) => [action, { totalDamagePerRun: values.totalDamagePerRun.average, defended: values.defendedDamagePerRun.average, undefended: values.undefendedDamagePerRun.average }])))}; ` +
-      `special defended/undefended=${JSON.stringify(Object.fromEntries(Object.entries(cell.specialDamageByDefense).map(([action, values]) => [action, { defended: values.defendedDamagePerRun.average, undefended: values.undefendedDamagePerRun.average }])))}; ` +
+      `special defended/undefended=${JSON.stringify(cell.specialDamageByDefense)}; ` +
+      `guardian-pressure overlay=${JSON.stringify(cell.guardianPressureDamage)}; ` +
       `confidence=${cell.confidence}`
     );
   }
@@ -608,9 +800,9 @@ export function buildSummary(report) {
     "- B30: production breath/MADALTO/TILTOWAIT cycle, warnings, and special Guard interaction are measured.",
     "- B30 deaths are attributed from the production terminal death log and lethal enemy action event; action damage uses existing round diagnostics.",
     "- Warning counts include any earlier warning in the encounter; matching-warning counts require the warning text to name the lethal queued action.",
-    "- Guardian-pressure damage groups non-boss actors spawned by the fixed production boss encounter; no pressure rules are recreated.",
+    "- Guardian-pressure damage is a separate overlay: added trait/behavior actions, summoned allies, pressure-linked status actions, and matching round-end status ticks; overlay can overlap action categories.",
     "- Defended means the Phase 1 player selected Guard in that production combat round.",
-    "- Reported per-run damage separates normal, breath, MADALTO, TILTOWAIT, guardian-pressure, and uncategorized evidence.",
+    "- Reported per-run damage separates normal, breath, MADALTO, TILTOWAIT, guardian-pressure, round-end status, and uncategorized evidence.",
     "- N<30 is correctness-only; merge後 GitHub Actions N=200 is the gate evidence.",
     "",
     "## Scope and limits",
