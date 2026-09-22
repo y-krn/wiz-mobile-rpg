@@ -34,10 +34,12 @@ interface HealCharacter extends ItemEffectCharacter {
   maxHp: number;
 }
 
-interface ManaCharacter extends ItemEffectCharacter {
-  mp: number;
+type ManaCharacter = ItemEffectCharacter & {
   maxMp: number;
-}
+} & (
+  | { mp: number }
+  | { mp?: never }
+);
 
 interface FullRecoveryCharacter extends ItemEffectCharacter {
   hp: number;
@@ -94,14 +96,14 @@ export const ITEM_EFFECTS = {
   },
   MANA_POTION: ({ char }: ManaContext) => {
     if (canUseManaItems(char)) {
-      char.mp = Math.min(getCharMaxMp(char), char.mp + 3);
+      char.mp = Math.min(getCharMaxMp(char), char.mp! + 3);
       return `${char.name}は魔力草を使用し、MPが3回復した。(MP:${char.mp}/${getCharMaxMp(char)})`;
     }
     return `${char.name}は魔力草を使用したが、魔力を持たないため何も起こらなかった。`;
   },
   ETHER: ({ char }: ManaContext) => {
     if (canUseManaItems(char)) {
-      char.mp = Math.min(getCharMaxMp(char), char.mp + 8);
+      char.mp = Math.min(getCharMaxMp(char), char.mp! + 8);
       return `${char.name}は魔力の雫を使用し、MPが8回復した。(MP:${char.mp}/${getCharMaxMp(char)})`;
     }
     return `${char.name}は魔力の雫を使用したが、魔力を持たないため何も起こらなかった。`;

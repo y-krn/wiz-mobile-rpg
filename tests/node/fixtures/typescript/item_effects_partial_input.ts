@@ -6,6 +6,10 @@ ITEM_EFFECTS.HEAL_POTION({ char: healCharacter, party: [healCharacter], rng: Mat
 const manaCharacter = { name: "術者", mp: 1, maxMp: 3 };
 ITEM_EFFECTS.MANA_POTION({ char: manaCharacter, party: [manaCharacter], rng: Math.random });
 
+const nonManaCharacter = { name: "非術者", maxMp: 0 };
+ITEM_EFFECTS.MANA_POTION({ char: nonManaCharacter, party: [nonManaCharacter], rng: Math.random });
+ITEM_EFFECTS.ETHER({ char: nonManaCharacter, party: [nonManaCharacter], rng: Math.random });
+
 const statusOnlyCharacter = { name: "状態役", status: "poisoned" };
 ITEM_EFFECTS.ANTIDOTE({ char: statusOnlyCharacter, party: [statusOnlyCharacter], rng: Math.random });
 
