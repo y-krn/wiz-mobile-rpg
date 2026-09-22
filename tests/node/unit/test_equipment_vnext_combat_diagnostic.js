@@ -26,8 +26,12 @@ assert.deepEqual(DEPTHS.map(getCombatTierForStartFloor), [0, 1, 2, 4, 5]);
 assert.deepEqual(Object.keys(WEAPON_CANDIDATES), ["dagger", "sword", "mace", "greatsword", "wand", "staff"]);
 assert.equal(formulaTable().length, DEPTHS.length * Object.keys(WEAPON_CANDIDATES).length);
 assert.ok(resolveFormula({ weaponId: "dagger", depth: 1 }).expectedDamage < resolveFormula({ weaponId: "sword", depth: 1 }).expectedDamage);
+assert.ok(resolveFormula({ weaponId: "mace", depth: 5, defense: "normal" }).expectedDamagePerAttempt < resolveFormula({ weaponId: "sword", depth: 5, defense: "normal" }).expectedDamagePerAttempt);
+assert.ok(resolveFormula({ weaponId: "mace", depth: 5, defense: "high" }).expectedDamagePerAttempt > resolveFormula({ weaponId: "sword", depth: 5, defense: "high" }).expectedDamagePerAttempt);
 assert.ok(resolveFormula({ weaponId: "mace", depth: 5, defense: "high" }).expectedDamage > resolveFormula({ weaponId: "sword", depth: 5, defense: "high" }).expectedDamage);
 assert.ok(resolveFormula({ weaponId: "greatsword", depth: 10 }).expectedDamage > resolveFormula({ weaponId: "sword", depth: 10 }).expectedDamage);
+assert.ok(WEAPON_CANDIDATES.mace.multiplier <= 0.98, "Mace candidate must not gain base damage");
+assert.ok(WEAPON_CANDIDATES.mace.highDefPenetration > WEAPON_CANDIDATES.sword.highDefPenetration);
 assert.equal(RUNE_ACTION.id, "rune-bolt");
 assert.equal(RUNE_ACTION.mpCost, 1);
 assert.equal(RUNE_ACTION.baseDamage, 48);
@@ -73,6 +77,15 @@ assert.equal(result.fixedCombat.length, 27);
 assert.equal(result.fixedCombat.length, new Set(result.fixedCombat.map(row => `${row.conditionId}:${row.candidateId}`)).size);
 assert.equal(result.fixedCombat.every(row => row.runs === 3 && row.invariant), true);
 assert.equal(result.fixedCombat.every(row => row.confidence === "runner-correctness-only"), true);
+const greatswordCondition = REPRESENTATIVE_CONDITIONS.find(condition => condition.id === "sword-vs-greatsword");
+assert.deepEqual(
+  { actionPlan: greatswordCondition.actionPlan, swordShield: greatswordCondition.shield, greatswordShield: greatswordCondition.compareShield },
+  { actionPlan: "attack-defend", swordShield: "smallShield", greatswordShield: "noShield" }
+);
+assert.equal(greatswordCondition.enemyHpMultiplier, 1.35);
+const greatswordRows = result.fixedCombat.filter(row => row.conditionId === "sword-vs-greatsword");
+assert.deepEqual(greatswordRows.map(row => row.candidate.shield), ["smallShield", "noShield"]);
+assert.equal(greatswordRows.every(row => Number.isFinite(row.oneRoundKillRate) && row.guardOpportunityLoss.count === 3), true);
 assert.deepEqual(result.configuration.comparisonGroups, [
   "dagger-vs-sword",
   "sword-vs-mace-normal",
@@ -170,4 +183,4 @@ assert.doesNotMatch(source, /src\/(combat|state|systems|ui|data\/items|data\/mon
 assert.deepEqual(REPRESENTATIVE_CONDITIONS.map(condition => condition.id), result.configuration.representativeConditionIds);
 assert.equal(buildReport(result, null, "bounded smoke").measurement.productionPaths.length, 0);
 
-console.log("[PASS] Issue #1549 vNext combat diagnostic RNG, common streams, and production boundary");
+console.log("[PASS] Issue #1552 vNext combat diagnostic candidate, common streams, and production boundary");
