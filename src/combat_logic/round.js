@@ -716,10 +716,12 @@ export function runCombatRoundCalculation(
             targetRole: finalTarget.role,
             targetEvasionChance: getMonsterEvasionChance(finalTarget),
             hitChance,
-            measurementWeaponCandidateId: measurementWeaponCandidate?.id || null,
-            measurementWeaponMultiplier: measurementWeaponCandidate?.multiplier ?? null,
-            measurementWeaponHitChance: measurementWeaponCandidate?.hitChance ?? null,
-            measurementWeaponHighDefPenetration: measurementWeaponCandidate?.highDefPenetration ?? null,
+            ...(measurementWeaponCandidate ? {
+              measurementWeaponCandidateId: measurementWeaponCandidate.id,
+              measurementWeaponMultiplier: measurementWeaponCandidate.multiplier,
+              measurementWeaponHitChance: measurementWeaponCandidate.hitChance,
+              measurementWeaponHighDefPenetration: measurementWeaponCandidate.highDefPenetration
+            } : {}),
             isEvasionMiss: true
           });
         } else if (isBlindMiss) {
@@ -792,14 +794,15 @@ export function runCombatRoundCalculation(
             weaponBehaviorHitChanceBonus: behavior.hitChanceBonus,
             weaponBehaviorDefenseScale: behavior.physicalDefenseScale,
             weaponBehaviorDamageMultiplier: behavior.rawDamageMultiplier,
-            measurementWeaponCandidateId: weaponAttack.measurementWeaponCandidate?.id || null,
-            measurementWeaponMultiplier: weaponAttack.measurementWeaponCandidate?.multiplier ?? null,
-            measurementWeaponHitChance: weaponAttack.measurementWeaponCandidate?.hitChance ?? null,
-            measurementWeaponHighDefPenetration:
-              weaponAttack.measurementWeaponCandidate?.highDefPenetration ?? null,
-            measurementWeaponBaseRaw: weaponAttack.measurementWeaponCandidate ? weaponAttack.baseRaw : null,
-            measurementWeaponEffectiveDefense:
-              weaponAttack.measurementWeaponEffectiveDefense ?? null,
+            ...(weaponAttack.measurementWeaponCandidate ? {
+              measurementWeaponCandidateId: weaponAttack.measurementWeaponCandidate.id,
+              measurementWeaponMultiplier: weaponAttack.measurementWeaponCandidate.multiplier,
+              measurementWeaponHitChance: weaponAttack.measurementWeaponCandidate.hitChance,
+              measurementWeaponHighDefPenetration:
+                weaponAttack.measurementWeaponCandidate.highDefPenetration,
+              measurementWeaponBaseRaw: weaponAttack.baseRaw,
+              measurementWeaponEffectiveDefense: weaponAttack.measurementWeaponEffectiveDefense
+            } : {}),
             physResistApplied: Boolean(finalTarget.physResist),
             targetEvasionChance: getMonsterEvasionChance(finalTarget),
             hitChance,
