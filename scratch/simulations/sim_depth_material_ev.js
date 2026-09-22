@@ -17108,6 +17108,8 @@ export function simulateRun({
         metrics,
         {
           fixedMonsterNames: fixedCombat.monsterNames,
+          isBoss: fixedCombat.isBoss === true,
+          isMidboss: fixedCombat.isMidboss === true,
           scalingPolicy: fixedCombat.scalingPolicy || "production",
           removeTrait: fixedCombat.removeTrait || null,
           reflectPhysicalRate: fixedCombat.reflectPhysicalRate ?? null,
@@ -17152,6 +17154,8 @@ export function simulateRun({
       fixedCombatResult: fixedResult,
       fixedCombat: {
         monsterNames: [...fixedCombat.monsterNames],
+        isBoss: fixedCombat.isBoss === true,
+        isMidboss: fixedCombat.isMidboss === true,
         entryHpRatio,
         entryMpRatio,
         reflectPhysicalRate: fixedCombat.reflectPhysicalRate ?? null,

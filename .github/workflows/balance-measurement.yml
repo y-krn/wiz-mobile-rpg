@@ -18,6 +18,7 @@ on:
           - trait-scaling-diagnostic
           - reflect-physical-diagnostic
           - composition-trait-diagnostic
+          - milestone-boss-diagnostic
           - equipment-load
           - run-difficulty
           - run-difficulty-policy-sensitivity
