@@ -11,7 +11,7 @@ import { createRng as createSeededRng } from "../../src/seed_rng.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1552-equipment-vnext-combat-diagnostic-v1";
+export const RUNNER_VERSION = "issue1557-equipment-vnext-combat-diagnostic-v1";
 export const SCHEMA_VERSION = 3;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1544;
@@ -49,11 +49,57 @@ export const LOAD_FIXTURES = Object.freeze({
 
 export const RUNE_ACTION = Object.freeze({ id: "rune-bolt", mpCost: 1, baseDamage: 48 });
 
+export const THRESHOLD_FIXTURES = Object.freeze({
+  maceHighDef: Object.freeze([
+    Object.freeze({ id: "mace-high-def-hp-0.95", conditionId: "mace-high-def-hp-0.95", enemyHpMultiplier: 0.95 }),
+    Object.freeze({ id: "mace-high-def-hp-1.00", conditionId: "sword-vs-mace-high-def", enemyHpMultiplier: 1.00 }),
+    Object.freeze({ id: "mace-high-def-hp-1.05", conditionId: "mace-high-def-hp-1.05", enemyHpMultiplier: 1.05 })
+  ]),
+  greatsword: Object.freeze([
+    Object.freeze({ id: "greatsword-hp-1.30", conditionId: "greatsword-hp-1.30", enemyHpMultiplier: 1.30 }),
+    Object.freeze({ id: "greatsword-hp-1.35", conditionId: "sword-vs-greatsword", enemyHpMultiplier: 1.35 }),
+    Object.freeze({ id: "greatsword-hp-1.40", conditionId: "greatsword-hp-1.40", enemyHpMultiplier: 1.40 })
+  ])
+});
+
+function thresholdCondition(base, fixture) {
+  return Object.freeze({
+    ...base,
+    id: fixture.conditionId || fixture.id,
+    thresholdGroup: base.id,
+    thresholdFixtureId: fixture.id,
+    enemyHpMultiplier: fixture.enemyHpMultiplier
+  });
+}
+
+const MACE_HIGH_DEF_BASE = Object.freeze({
+  id: "sword-vs-mace-high-def",
+  depth: 5,
+  axis: "weapon",
+  weapon: "sword",
+  compareWith: "mace",
+  defense: "high",
+  attackType: "physical"
+});
+
+const GREATSWORD_BASE = Object.freeze({
+  id: "sword-vs-greatsword",
+  depth: 10,
+  axis: "weapon",
+  weapon: "sword",
+  compareWith: "greatsword",
+  defense: "normal",
+  attackType: "physical",
+  actionPlan: "attack-defend",
+  shield: "smallShield",
+  compareShield: "noShield"
+});
+
 export const REPRESENTATIVE_CONDITIONS = Object.freeze([
   Object.freeze({ id: "dagger-vs-sword", depth: 1, axis: "weapon", weapon: "dagger", compareWith: "sword", defense: "normal", attackType: "physical" }),
   Object.freeze({ id: "sword-vs-mace-normal-def", depth: 5, axis: "weapon", weapon: "sword", compareWith: "mace", defense: "normal", attackType: "physical" }),
-  Object.freeze({ id: "sword-vs-mace-high-def", depth: 5, axis: "weapon", weapon: "sword", compareWith: "mace", defense: "high", attackType: "physical" }),
-  Object.freeze({ id: "sword-vs-greatsword", depth: 10, axis: "weapon", weapon: "sword", compareWith: "greatsword", defense: "normal", attackType: "physical", actionPlan: "attack-defend", shield: "smallShield", compareShield: "noShield", enemyHpMultiplier: 1.35 }),
+  ...THRESHOLD_FIXTURES.maceHighDef.map(fixture => thresholdCondition(MACE_HIGH_DEF_BASE, fixture)),
+  ...THRESHOLD_FIXTURES.greatsword.map(fixture => thresholdCondition({ ...GREATSWORD_BASE, enemyHpMultiplier: fixture.enemyHpMultiplier }, fixture)),
   Object.freeze({ id: "wand-vs-staff-rune", depth: 10, axis: "weapon", weapon: "wand", compareWith: "staff", defense: "normal", attackType: "spell", actionPlan: "rune" }),
   Object.freeze({ id: "light-armor", depth: 10, axis: "armor", armor: "lightArmor", weapon: "sword", shield: "smallShield", attackType: "physical" }),
   Object.freeze({ id: "medium-armor", depth: 10, axis: "armor", armor: "mediumArmor", weapon: "sword", shield: "smallShield", attackType: "physical" }),
@@ -178,6 +224,8 @@ export function resolveFormula({ weaponId, depth, defense = "normal" }) {
 function createAccumulator(condition, candidateId, candidate) {
   return {
     conditionId: condition.id,
+    thresholdFixtureId: condition.thresholdFixtureId || null,
+    enemyHpMultiplier: condition.enemyHpMultiplier || 1,
     candidateId,
     candidate,
     outcomes: { victory: 0, death: 0 },
@@ -331,6 +379,8 @@ function finalizeAccumulator(accumulator, runs) {
   const outcomeCount = accumulator.outcomes.victory + accumulator.outcomes.death;
   return {
     conditionId: accumulator.conditionId,
+    thresholdFixtureId: accumulator.thresholdFixtureId,
+    enemyHpMultiplier: accumulator.enemyHpMultiplier,
     candidateId: accumulator.candidateId,
     candidate: accumulator.candidate,
     runs,
@@ -361,6 +411,7 @@ export function comparisonGroupForCondition(condition) {
   if (condition.axis === "armor") return "armor";
   if (condition.axis === "shield") return condition.attackType === "spell" ? "shield-arcane" : "shield-physical";
   if (condition.axis === "load") return `load-${condition.fixtureId}`;
+  if (condition.thresholdGroup) return condition.thresholdGroup;
   if (condition.id === "sword-vs-mace-normal-def") return "sword-vs-mace-normal";
   return condition.id;
 }
@@ -490,7 +541,7 @@ function buildReport(result, provenance, purpose) {
     depths: result.configuration.depths,
     representativeConditionIds: result.configuration.representativeConditionIds,
     loadPolicies: result.configuration.loadPolicies
-  }, { label: "issue1552 vNext combat diagnostic env" });
+  }, { label: "issue1557 vNext combat diagnostic env" });
   return {
     ...result,
     purpose,
@@ -523,7 +574,7 @@ function buildReport(result, provenance, purpose) {
 
 function buildSummary(report) {
   const lines = [
-    "# Equipment vNext combat diagnostic (#1552)",
+    "# Equipment vNext combat diagnostic (#1557)",
     "",
     `- measurement: ${report.measurementId}; runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; confidence: ${report.confidencePolicy.belowMinimum} below N=${MIN_CONFIDENT_RUNS}`,
@@ -537,13 +588,13 @@ function buildSummary(report) {
     "",
     "## Representative fixed combat",
     "",
-    "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and three representative load fixtures; Greatsword uses one near-threshold HP fixture to expose 2H/no-shield/heavy cost.",
+    "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and three representative load fixtures; threshold fixtures cover Mace B5 high DEF at 0.95/1.00/1.05× HP and Greatsword B10 at 1.30/1.35/1.40× HP.",
     "- Metrics: survival, rounds, one-round kills, damage dealt/taken, enemy actions, player-before-any-enemy, Defend-only Guard reduction/opportunity loss, actual Rune actions/damage/MP.",
     `- Rune scenario: shared ${report.configuration.runeAction.id} damage=${report.configuration.runeAction.baseDamage} MP=${report.configuration.runeAction.mpCost}; ${report.configuration.weaponProfiles.filter(row => row.runeSlots > 0).map(row => `${row.id}(slots=${row.runeSlots},MP=${row.mpCapacity},hands=${row.hands})`).join(" vs ")}.`,
     "",
-    "| condition | candidate | survival | rounds p50 | 1-round kill | damage taken avg | enemy actions avg | player first | Guard reduction avg | Guard opportunity loss avg | Rune actions avg | Rune damage avg | MP spent avg |",
-    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...report.fixedCombat.map(row => `| ${row.conditionId} | ${row.candidateId} | ${(row.survivalRate * 100).toFixed(1)}% | ${row.rounds.p50?.toFixed(2) ?? "-"} | ${(row.oneRoundKillRate * 100).toFixed(1)}% | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardReduction.average?.toFixed(2) ?? "-"} | ${row.guardOpportunityLoss.average?.toFixed(2) ?? "-"} | ${row.runeActions.average?.toFixed(2) ?? "-"} | ${row.runeDamage.average?.toFixed(2) ?? "-"} | ${row.mpSpent.average?.toFixed(2) ?? "-"} |`),
+    "| condition | candidate | enemy HP | survival | rounds p50 | 1-round kill | damage taken avg | enemy actions avg | player first | Guard reduction avg | Guard opportunity loss avg | Rune actions avg | Rune damage avg | MP spent avg |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...report.fixedCombat.map(row => `| ${row.conditionId} | ${row.candidateId} | ${row.enemyHpMultiplier.toFixed(2)}× | ${(row.survivalRate * 100).toFixed(1)}% | ${row.rounds.p50?.toFixed(2) ?? "-"} | ${(row.oneRoundKillRate * 100).toFixed(1)}% | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardReduction.average?.toFixed(2) ?? "-"} | ${row.guardOpportunityLoss.average?.toFixed(2) ?? "-"} | ${row.runeActions.average?.toFixed(2) ?? "-"} | ${row.runeDamage.average?.toFixed(2) ?? "-"} | ${row.mpSpent.average?.toFixed(2) ?? "-"} |`),
     "",
     "## Load comparison",
     "",
@@ -579,7 +630,7 @@ async function main() {
   const report = buildReport(result, provenance, options.purpose || process.env.MEASUREMENT_PURPOSE || "");
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));
-  console.log(`Wrote Issue #1552 vNext combat diagnostic: ${resolve(options.output)}`);
+  console.log(`Wrote Issue #1557 vNext combat diagnostic: ${resolve(options.output)}`);
 }
 
 export { buildReport, buildSummary, formulaTable, resolveLoadClass };

@@ -9,6 +9,7 @@ import {
   RUNE_ACTION,
   REPRESENTATIVE_CONDITIONS,
   SHIELD_CANDIDATES,
+  THRESHOLD_FIXTURES,
   WEAPON_CANDIDATES,
   buildReport,
   comparisonGroupForCondition,
@@ -81,7 +82,7 @@ assert.deepEqual(result.configuration.weaponProfiles.filter(row => row.runeSlots
   { id: "wand", hands: 1, runeSlots: 1, mpCapacity: 2 },
   { id: "staff", hands: 2, runeSlots: 2, mpCapacity: 4 }
 ]);
-assert.equal(result.fixedCombat.length, 27);
+assert.equal(result.fixedCombat.length, 35);
 assert.equal(result.fixedCombat.length, new Set(result.fixedCombat.map(row => `${row.conditionId}:${row.candidateId}`)).size);
 assert.equal(result.fixedCombat.every(row => row.runs === 3 && row.invariant), true);
 assert.equal(result.fixedCombat.every(row => row.confidence === "runner-correctness-only"), true);
@@ -94,6 +95,14 @@ assert.equal(greatswordCondition.enemyHpMultiplier, 1.35);
 const greatswordRows = result.fixedCombat.filter(row => row.conditionId === "sword-vs-greatsword");
 assert.deepEqual(greatswordRows.map(row => row.candidate.shield), ["smallShield", "noShield"]);
 assert.equal(greatswordRows.every(row => Number.isFinite(row.oneRoundKillRate) && row.guardOpportunityLoss.count === 3), true);
+assert.deepEqual(THRESHOLD_FIXTURES.maceHighDef.map(fixture => fixture.enemyHpMultiplier), [0.95, 1.00, 1.05]);
+assert.deepEqual(THRESHOLD_FIXTURES.greatsword.map(fixture => fixture.enemyHpMultiplier), [1.30, 1.35, 1.40]);
+for (const fixture of [...THRESHOLD_FIXTURES.maceHighDef, ...THRESHOLD_FIXTURES.greatsword]) {
+  const rows = result.fixedCombat.filter(row => row.thresholdFixtureId === fixture.id);
+  assert.equal(rows.length, 2, `${fixture.id} must have a paired threshold comparison`);
+  assert.equal(rows.every(row => row.enemyHpMultiplier === fixture.enemyHpMultiplier), true);
+  assert.deepEqual(rows[0].initiativeDraws, rows[1].initiativeDraws, `${fixture.id} must share common random draws`);
+}
 assert.deepEqual(result.configuration.comparisonGroups, [
   "dagger-vs-sword",
   "sword-vs-mace-normal",
@@ -128,7 +137,7 @@ for (const fixtureId of Object.keys(LOAD_FIXTURES)) {
   assert.deepEqual(aggregateFields(rows[0]), aggregateFields(rows[1]), `${fixtureId} max/aggregate must share combat aggregate for the same resolved load class`);
 }
 
-for (const comparisonGroup of ["sword-vs-mace-normal", "sword-vs-mace-high-def", "wand-vs-staff-rune"]) {
+for (const comparisonGroup of ["sword-vs-mace-normal", "wand-vs-staff-rune"]) {
   const rows = result.fixedCombat.filter(row => row.comparisonGroup === comparisonGroup);
   assert.equal(rows.length, 2, `${comparisonGroup} must have two weapon candidates`);
   assert.deepEqual(rows[0].initiativeDraws, rows[1].initiativeDraws, `${comparisonGroup} must share initiative draws`);
@@ -191,4 +200,4 @@ assert.doesNotMatch(source, /src\/(combat|state|systems|ui|data\/items|data\/mon
 assert.deepEqual(REPRESENTATIVE_CONDITIONS.map(condition => condition.id), result.configuration.representativeConditionIds);
 assert.equal(buildReport(result, null, "bounded smoke").measurement.productionPaths.length, 0);
 
-console.log("[PASS] Issue #1552 vNext combat diagnostic candidate, common streams, and production boundary");
+console.log("[PASS] Issue #1557 vNext combat threshold fixtures, common streams, and production boundary");
