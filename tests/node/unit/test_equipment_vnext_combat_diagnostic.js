@@ -37,10 +37,12 @@ assert.ok(maceHighFormula.expectedDamagePerAttempt <= maceNormalFormula.expected
 assert.ok(maceHighFormula.effectiveDefense >= maceNormalFormula.effectiveDefense, "Mace high DEF effective DEF must not fall below normal DEF");
 assert.ok(maceHighFormula.expectedDamage > swordHighFormula.expectedDamage);
 assert.ok(resolveFormula({ weaponId: "greatsword", depth: 10 }).expectedDamage > resolveFormula({ weaponId: "sword", depth: 10 }).expectedDamage);
-assert.ok(WEAPON_CANDIDATES.mace.multiplier <= 0.98, "Mace candidate must not gain base damage");
+assert.equal(WEAPON_CANDIDATES.mace.multiplier, 1.02);
 assert.ok(WEAPON_CANDIDATES.mace.hitChance < WEAPON_CANDIDATES.sword.hitChance, "Mace hitChance must remain below Sword");
 assert.equal(WEAPON_CANDIDATES.mace.highDefPenetration, 1.00);
 assert.ok(WEAPON_CANDIDATES.mace.highDefPenetration > WEAPON_CANDIDATES.sword.highDefPenetration);
+assert.equal(WEAPON_CANDIDATES.greatsword.multiplier, 1.36);
+assert.equal(WEAPON_CANDIDATES.greatsword.hitChance, 0.82);
 assert.equal(RUNE_ACTION.id, "rune-bolt");
 assert.equal(RUNE_ACTION.mpCost, 1);
 assert.equal(RUNE_ACTION.baseDamage, 48);
@@ -200,4 +202,4 @@ assert.doesNotMatch(source, /src\/(combat|state|systems|ui|data\/items|data\/mon
 assert.deepEqual(REPRESENTATIVE_CONDITIONS.map(condition => condition.id), result.configuration.representativeConditionIds);
 assert.equal(buildReport(result, null, "bounded smoke").measurement.productionPaths.length, 0);
 
-console.log("[PASS] Issue #1557 vNext combat threshold fixtures, common streams, and production boundary");
+console.log("[PASS] Issue #1560 vNext combat candidate tuning, threshold fixtures, common streams, and production boundary");
