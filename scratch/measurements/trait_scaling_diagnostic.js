@@ -9,16 +9,35 @@ import { pathToFileURL } from "node:url";
 import { MONSTERS } from "../../src/data/monsters.js";
 import { getCombatTierForStartFloor } from "../../src/rules/combat_tier.js";
 import { simulateRun } from "../simulations/sim_depth_material_ev.js";
+import {
+  ARMOR_CANDIDATES,
+  resolveEffectiveTempoModifier,
+  resolveVNextLoadCandidate,
+  SHIELD_CANDIDATES,
+  WEAPON_CANDIDATES
+} from "./equipment_vnext_combat_diagnostic.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1586-trait-scaling-diagnostic-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "issue1586-trait-scaling-diagnostic-v2";
+export const SCHEMA_VERSION = 2;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1586;
 export const MIN_CONFIDENT_RUNS = 30;
 export const DEPTHS = Object.freeze([5, 10, 20, 30]);
-export const BUILD_FIXTURE_ID = "light-shield";
+export const BUILD_FIXTURE_ID = null;
+export const PLAYER_FIXTURE = Object.freeze({
+  id: "phase1-freeze-candidate",
+  startingKit: "vanguard",
+  maxHp: 100,
+  weapon: "sword",
+  armor: "mediumArmor",
+  shield: "smallShield",
+  guardTiming: "declared",
+  loadPolicy: "aggregate",
+  loadCandidateId: "cappedHalfStep",
+  actionPlan: "attack-defend"
+});
 
 export const TRAIT_FIXTURES = Object.freeze([
   Object.freeze({ id: "evasive", label: "evasive", templateName: "這い寄る影" }),
@@ -90,8 +109,41 @@ function findFixture(traitId) {
   return { fixture, template };
 }
 
-function createScenario({ fixture, condition }) {
+function resolvePlayerFixture(depth) {
+  const candidate = {
+    weapon: PLAYER_FIXTURE.weapon,
+    armor: PLAYER_FIXTURE.armor,
+    shield: PLAYER_FIXTURE.shield
+  };
+  const load = resolveVNextLoadCandidate(candidate, PLAYER_FIXTURE.loadPolicy);
   return {
+    ...PLAYER_FIXTURE,
+    combatTier: getCombatTierForStartFloor(depth),
+    weaponProfile: { ...WEAPON_CANDIDATES[PLAYER_FIXTURE.weapon] },
+    armorProfile: { ...ARMOR_CANDIDATES[PLAYER_FIXTURE.armor] },
+    shieldProfile: { ...SHIELD_CANDIDATES[PLAYER_FIXTURE.shield] },
+    load: {
+      class: load.class,
+      aggregateScore: load.aggregateScore,
+      effectiveTempoModifier: resolveEffectiveTempoModifier(
+        load,
+        PLAYER_FIXTURE.loadCandidateId
+      )
+    }
+  };
+}
+
+function createScenario({ fixture, condition, depth }) {
+  const playerFixture = resolvePlayerFixture(depth);
+  return {
+    startingKit: playerFixture.startingKit,
+    hpBaseBonus: playerFixture.maxHp - 20,
+    measurementCombatPlan: playerFixture.actionPlan,
+    measurementGuardTiming: playerFixture.guardTiming,
+    measurementCombatTier: playerFixture.combatTier,
+    measurementInitiative: {
+      playerLoadModifier: playerFixture.load.effectiveTempoModifier
+    },
     startingHealPotions: 0,
     startingGreaterHeals: 0,
     startingManaPotions: 0,
@@ -232,15 +284,16 @@ function runCell({ traitId, depth, conditionId, runs, seed }) {
   const condition = CONDITIONS.find(candidate => candidate.id === conditionId);
   const rows = [];
   for (let runIndex = 0; runIndex < runs; runIndex++) {
-    const worldSeed = `${seed}:issue1586:${traitId}:B${depth}:${conditionId}:${runIndex}`;
+    const worldSeed = resolveWorldSeed({ seed, traitId, depth, runIndex });
     const result = simulateRun({
+      className: "Fighter",
       fixtureId: BUILD_FIXTURE_ID,
       startFloor: depth,
       targetDepth: depth + 1,
       runIndex,
-      seriesId: `issue1586:${traitId}:B${depth}:${conditionId}`,
+      seriesId: `issue1586:${traitId}:B${depth}`,
       scoringProfile: null,
-      scenario: createScenario({ fixture, condition }),
+      scenario: createScenario({ fixture, condition, depth }),
       workshop: { ranks: {} },
       worldSeed,
       collectDiagnostics: true,
@@ -249,6 +302,10 @@ function runCell({ traitId, depth, conditionId, runs, seed }) {
     rows.push(observeRun(result, traitId, conditionId));
   }
   return summarizeRuns(rows, traitId, depth, conditionId);
+}
+
+export function resolveWorldSeed({ seed, traitId, depth, runIndex }) {
+  return `${seed}:issue1586:${traitId}:B${depth}:${runIndex}`;
 }
 
 export async function runTraitScalingDiagnostic({
@@ -291,10 +348,16 @@ export async function runTraitScalingDiagnostic({
       seed: normalizedSeed,
       depths: [...DEPTHS],
       buildFixtureId: BUILD_FIXTURE_ID,
+      playerFixture: {
+        ...PLAYER_FIXTURE,
+        weaponProfile: PLAYER_FIXTURE.weapon,
+        armorProfile: PLAYER_FIXTURE.armor,
+        shieldProfile: PLAYER_FIXTURE.shield
+      },
       traits: TRAIT_FIXTURES.map(trait => ({ ...trait })),
       conditions: CONDITIONS.map(condition => ({ ...condition })),
       scaling: "HP = 1 + 0.20 × Tier; ATK = 1 + 0.10 × Tier; DEF = 1.0",
-      seedPolicy: "same worldSeed template for trait-present/trait-absent pairs; post-divergence random streams are not assumed identical",
+      seedPolicy: "trait/depth/runIndex keyed worldSeed; trait-present/trait-absent pairs share the same initial RNG state",
       omitted: [
         "production mutation",
         "Phase 1 freeze value changes",
@@ -340,7 +403,7 @@ function buildReport(result, provenance, options) {
     },
     candidatePolicy: {
       scaling: "diagnostic-only Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
-      player: "one light-shield build fixture; Phase 1 weapon/shield values unchanged",
+      player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load; no production fixture",
       traits: "production trait values and production combat resolver retained; absent condition removes only the selected trait in the measurement fixture",
       status: "diagnostic-only; production combat/enemy/loot/UI/save unchanged"
     }
@@ -356,7 +419,8 @@ function buildSummary(report) {
     "# Trait scaling diagnostic (#1586)",
     "",
     `- runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
-    `- N=${report.configuration.runs}; seed=${report.configuration.seed}; fixture=${report.configuration.buildFixtureId}`,
+    `- N=${report.configuration.runs}; seed=${report.configuration.seed}; production fixture=${report.configuration.buildFixtureId || "none"}`,
+    `- player fixture: ${report.configuration.playerFixture.id}; ${report.configuration.playerFixture.weapon}/${report.configuration.playerFixture.armor}/${report.configuration.playerFixture.shield}; Guard=${report.configuration.playerFixture.guardTiming}; Load=${report.configuration.playerFixture.loadCandidateId}`,
     "- scaling: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
     "- production values unchanged; trait-present/trait-absent uses the same production monster fixture and matched seed template",
     "",

@@ -4893,6 +4893,9 @@ function createSimulationState(
       chestHealPotionWeightSource,
       enemyHealPotionDropChance,
       measurementInitiative: scenario.measurementInitiative || null,
+      measurementCombatPlan: scenario.measurementCombatPlan || null,
+      measurementGuardTiming: scenario.measurementGuardTiming || null,
+      measurementCombatTier: scenario.measurementCombatTier || null,
       productionSharedNormalEnemyActionSlot:
         scenario.productionSharedNormalEnemyActionSlot !== false,
       measurementDisableSharedNormalEnemyActionSlot:
@@ -8004,6 +8007,15 @@ export function selectCombatAction(state, metrics) {
     monster => monster.status && !["ok", "dead"].includes(monster.status)
   );
   const lowestHpIdx = statusTargetIdx >= 0 ? statusTargetIdx : getLowestHpEnemyIndex(monsters);
+
+  // Diagnostic-only fixed player candidate. The action plan mirrors the
+  // Phase 1 freeze candidate; production combat values remain untouched.
+  if (
+    state.simPolicy.measurementCombatPlan === "attack-defend" &&
+    state.combatState.roundNumber % 2 === 0
+  ) {
+    return { type: "defend", actorIdx: 0 };
+  }
 
   const fleeThreshold = state.simPolicy.fleeHpThreshold;
   let recoveryItem = null;
