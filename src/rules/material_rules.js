@@ -1,4 +1,9 @@
+// balance-impact: none — material balance canonicalization delegation only; economy formulas unchanged.
+
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES, createEmptyMaterialBalance } from "../data/materials.js";
+import { normalizeMaterialBalance } from "../state/material_balance.js";
+
+export { normalizeMaterialBalance };
 
 export const BANKING_RATES = Object.freeze({ retreat: 1, death: 0.3 });
 
@@ -147,14 +152,6 @@ export function getChestMaterialPool(
   if (floor === 3) return pools.floor3;
   if (floor === 4) return pools.floor4;
   return pools.deep;
-}
-
-export function normalizeMaterialBalance(balance = {}) {
-  const normalized = createEmptyMaterialBalance();
-  MATERIAL_TYPES.forEach(name => {
-    normalized[name] = Math.max(0, Math.floor(Number(balance[name]) || 0));
-  });
-  return normalized;
 }
 
 export function addMaterials(balance, additions) {

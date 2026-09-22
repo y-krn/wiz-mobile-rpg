@@ -7,6 +7,7 @@ import { findMapCellByType } from "../rules/map_queries.js";
 import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
 import { addMaterials } from "../rules/material_rules.js";
+import { normalizeMaterialBalance } from "./material_balance.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 import { isUsableFloorCell, isUsableFloorMap } from "./run_floor_state.js";
 import { isUsableCombatState } from "./view_state.js";
@@ -865,7 +866,7 @@ export function normalizeSavePayload(data) {
   normalized.storageMax = numberOr(data.storageMax, 30);
   normalized.identifyTickets = numberOr(data.identifyTickets, 0);
   normalized.cleared = typeof data.cleared === "boolean" ? data.cleared : false;
-  normalized.metaMaterials = recordOr(data.metaMaterials, {});
+  normalized.metaMaterials = normalizeMaterialBalance(data.metaMaterials);
   const rawWorkshop = recordOr(data.workshop, createDefaultWorkshopState());
   normalized.workshop = {
     ...rawWorkshop,

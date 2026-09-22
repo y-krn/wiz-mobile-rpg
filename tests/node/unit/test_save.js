@@ -11,6 +11,7 @@ import { resolveItemDefinition } from "../../../src/state/item.js";
 import { RUN_QUEST_TEMPLATES } from "../../../src/data/run_quests.js";
 import { createRunQuest } from "../../../src/systems/run_quests.js";
 import { isNormalizedSavePayload } from "../../../src/state/save_contract.js";
+import { normalizeMaterialBalance } from "../../../src/state/material_balance.js";
 
 const saveValues = new Map();
 globalThis.localStorage = {
@@ -109,7 +110,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.equal(Object.hasOwn(state.party[0], "class"), false);
   assert.equal(state.party[0].hp, 4);
   assert.equal(state.gameState, "town");
-  assert.deepEqual(state.metaMaterials, { "獣の牙": 7, "竜鱗": 2 });
+  assert.deepEqual(state.metaMaterials, normalizeMaterialBalance({ "獣の牙": 7, "竜鱗": 2 }));
   assert.deepEqual(state.workshop, { ranks: { gear_rapier: 1 }, lateralUnlocks: [] });
   assert.deepEqual(state.keyItems, ["FORGE_SEAL", "ABYSS_SEAL"]);
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
@@ -597,9 +598,10 @@ check("a corrupt primary still falls back to the previous normal generation", ()
 
   loadGame();
 
-  assert.deepEqual(state.metaMaterials, { "獣の牙": 1 });
+  assert.deepEqual(state.metaMaterials, normalizeMaterialBalance({ "獣の牙": 1 }));
   assert.equal(saveValues.get("mobile_wiz_rpg_backup"), previousPayload);
-  assert.deepEqual(JSON.parse(saveValues.get("mobile_wiz_rpg_autosave")).metaMaterials, { "獣の牙": 1 });
+  assert.deepEqual(JSON.parse(saveValues.get("mobile_wiz_rpg_autosave")).metaMaterials,
+    normalizeMaterialBalance({ "獣の牙": 1 }));
 });
 
 check("loading a valid primary preserves the older backup generation", () => {
@@ -616,7 +618,7 @@ check("loading a valid primary preserves the older backup generation", () => {
 
   loadGame();
 
-  assert.deepEqual(state.metaMaterials, { "獣の牙": 2 });
+  assert.deepEqual(state.metaMaterials, normalizeMaterialBalance({ "獣の牙": 2 }));
   assert.equal(saveValues.get("mobile_wiz_rpg_backup"), previousPayload);
 });
 

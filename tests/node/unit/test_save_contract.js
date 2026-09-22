@@ -19,12 +19,21 @@ const {
   isNormalizedSavePayload
 } = await import("../../../src/state/save_contract.js");
 const { isNormalizedCurrentRun } = await import("../../../src/state/run_state.js");
+const { MATERIAL_TYPES } = await import("../../../src/data/materials.js");
 
 state.party = [createStartingKitCharacter("vanguard")];
 state.gameState = "town";
 const valid = normalizeSavePayload(createSavePayload());
 
 assert.equal(isNormalizedSavePayload(valid), true, "normalized payload satisfies the canonical contract");
+assert.deepEqual(Object.keys(valid.metaMaterials), MATERIAL_TYPES,
+  "normalized save payload persists the exact MATERIAL_TYPES key set");
+assert.equal(isNormalizedSavePayload({ ...valid, metaMaterials: {} }), false,
+  "save contract rejects missing meta material keys");
+assert.equal(isNormalizedSavePayload({
+  ...valid,
+  metaMaterials: { ...valid.metaMaterials, unexpected: 1 }
+}), false, "save contract rejects unknown meta material keys");
 
 const normalizedRunPayload = normalizeSavePayload({
   ...valid,
