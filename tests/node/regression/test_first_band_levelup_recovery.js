@@ -127,7 +127,7 @@ for (const armId of LEVEL_UP_ARM_IDS) {
 }
 
 const simulatorSource = fs.readFileSync("scratch/simulations/sim_depth_material_ev.js", "utf8");
-const levelingSource = fs.readFileSync("src/systems/leveling.js", "utf8");
+const levelingSource = fs.readFileSync("src/systems/leveling.ts", "utf8");
 assert.doesNotMatch(simulatorSource, /checkCharLevelUp\s*\(/);
 assert.match(levelingSource, /UNIVERSAL_HP_GROWTH = 5/);
 assert.match(levelingSource, /UNIVERSAL_LEVEL_UP_EXTRA_HEAL = 5/);
