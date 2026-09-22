@@ -1,6 +1,6 @@
 // balance-impact: none — canonical normalized current-run boundary only.
 
-import { isRuntimeItemCollection, isRuntimeItemRef, type RuntimeItemCollection, type RuntimeItemRef } from "./item.js";
+import { isRuntimeItemCollection, type RuntimeItemCollection } from "./item.js";
 import { isNormalizedStartingKitId, type NormalizedStartingKitId } from "./starting_kit.js";
 import { isNormalizedPendingRewardBundle, type NormalizedPendingRewardBundle } from "./pending_reward.js";
 import {
@@ -70,14 +70,12 @@ import {
   type NormalizedRunWorkshopDiscoveries
 } from "./run_discovery_state.js";
 import { isNormalizedRunDeathLogs, type NormalizedRunDeathLogs } from "./death_logs.js";
+import {
+  isNormalizedRunObjectLootLedger,
+  type NormalizedRunObjectLootLedger
+} from "./run_loot.js";
 
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
-
-export interface NormalizedRunObjectLootEntry {
-  id: string;
-  item: RuntimeItemRef;
-  [key: string]: unknown;
-}
 
 export interface NormalizedCurrentRun {
   startedAt: number;
@@ -99,7 +97,7 @@ export interface NormalizedCurrentRun {
   materials: NormalizedRunMaterials;
   bankedMaterials: NormalizedBankedMaterials;
   townInventory: RuntimeItemCollection;
-  unbankedObjectLoot: NormalizedRunObjectLootEntry[];
+  unbankedObjectLoot: NormalizedRunObjectLootLedger;
   pendingRewardBundle: NormalizedPendingRewardBundle | null;
   bankedObjectLoot: RuntimeItemCollection;
   lostObjectLoot: RuntimeItemCollection;
@@ -181,10 +179,6 @@ function isRunOutcome(value: unknown): value is RunOutcome {
   return value === "" || value === "retreat" || value === "death" || value === "abandon";
 }
 
-function isNormalizedRunObjectLootEntry(value: unknown): value is NormalizedRunObjectLootEntry {
-  return isRecord(value) && typeof value.id === "string" && isRuntimeItemRef(value.item);
-}
-
 export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurrentRun {
   if (!isRecord(value) || !hasRequiredFields(value)) return false;
   if (!isNormalizedStartingKitId(value.startingKit)) return false;
@@ -218,8 +212,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
       !isNormalizedRunCodexDiscoveries(value.codexDiscoveries) ||
       !isNormalizedRunWorkshopDiscoveries(value.workshopDiscoveries)) return false;
   if (!ITEM_COLLECTION_FIELDS.every(field => isRuntimeItemCollection(value[field]))) return false;
-  if (!Array.isArray(value.unbankedObjectLoot) ||
-      !value.unbankedObjectLoot.every(isNormalizedRunObjectLootEntry)) return false;
+  if (!isNormalizedRunObjectLootLedger(value.unbankedObjectLoot)) return false;
   if (value.pendingRewardBundle !== null && !isNormalizedPendingRewardBundle(value.pendingRewardBundle)) return false;
   if (value.representativeItem !== null && !isNormalizedReturnItemRecord(value.representativeItem)) return false;
   if (!isNormalizedReturnItemHistory(value.meaningfulItemHistory)) return false;

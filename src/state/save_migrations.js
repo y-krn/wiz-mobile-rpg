@@ -54,6 +54,7 @@ import {
 } from "./run_discovery_state.js";
 import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contract.js";
 import { normalizeDeathHistory, normalizeRunDeathLogs } from "./death_logs.js";
+import { normalizeRunObjectLootLedger } from "./run_loot.js";
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
 
@@ -188,8 +189,7 @@ function filterNormalizedRuntimeItems(data) {
   if (!isRecord(run)) return;
   ["townInventory", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems", "itemsFound", "equipmentFound", "departureItems"]
     .forEach(field => { run[field] = filterRuntimeCollection(run[field]); });
-  run.unbankedObjectLoot = arrayOr(run.unbankedObjectLoot)
-    .filter(entry => isRecord(entry) && typeof entry.id === "string" && isSupportedRuntimeItem(entry.item));
+  run.unbankedObjectLoot = normalizeRunObjectLootLedger(run.unbankedObjectLoot);
   if (isRecord(run.pendingRewardBundle)) {
     run.pendingRewardBundle.entries = arrayOr(run.pendingRewardBundle.entries)
       .filter(entry => isRecord(entry) && typeof entry.id === "string" && isSupportedRuntimeItem(entry.item));
@@ -713,8 +713,7 @@ function normalizeCurrentRun(run, saveFloor) {
 
   normalized.quests = normalized.quests.map(normalizeRunQuest).filter(isRecord);
   normalized.townInventory = normalized.townInventory.filter(item => item != null);
-  normalized.unbankedObjectLoot = normalized.unbankedObjectLoot
-    .filter(entry => isRecord(entry) && typeof entry.id === "string" && entry.item != null);
+  normalized.unbankedObjectLoot = arrayOr(normalized.unbankedObjectLoot);
   normalized.bankedObjectLoot = normalized.bankedObjectLoot.filter(item => item != null);
   normalized.lostObjectLoot = normalized.lostObjectLoot.filter(item => item != null);
   normalized.returnedTownItems = normalized.returnedTownItems.filter(item => item != null);
