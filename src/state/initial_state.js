@@ -2,6 +2,7 @@ import { START_X, START_Y } from "../data.js";
 import { ITEMS } from "../data/items.js";
 import { BASE_STARTING_MP, BASIC_RUNE_ITEM_ID } from "../data/magic.js";
 import { findMapCellByType } from "../rules/map_queries.js";
+import { createDefaultCodexEvents, createDefaultCodexStats } from "./codex_state.js";
 
 export function generateRandomSeed() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -16,28 +17,8 @@ export const createDefaultCodex = () => ({
   monsters: {},
   equipment: {},
   insights: [],
-  events: {
-    traps: {
-      "poison needle": { triggered: 0, disarmed: 0, firstFloor: 0 },
-      "gas bomb": { triggered: 0, disarmed: 0, firstFloor: 0 },
-      "teleporter": { triggered: 0, disarmed: 0, firstFloor: 0 },
-      "flash bomb": { triggered: 0, disarmed: 0, firstFloor: 0 },
-      "pitfall": { triggered: 0, disarmed: 0, firstFloor: 0 }
-    },
-    facilities: {
-      spring: { found: 0, used: 0 },
-      merchant: { found: 0, purchased: 0 },
-      tablet: { found: 0, read: 0 },
-      chest: { found: 0, opened: 0 }
-    }
-  },
-  stats: {
-    totalRuns: 0,
-    totalDeaths: 0,
-    deepestFloor: 1,
-    totalKills: 0,
-    totalChests: 0
-  }
+  events: createDefaultCodexEvents(),
+  stats: createDefaultCodexStats()
 });
 
 export const createDefaultCurrentRun = () => ({

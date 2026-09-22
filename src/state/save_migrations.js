@@ -57,9 +57,7 @@ import { SAVE_PAYLOAD_FIELDS, assertNormalizedSavePayload } from "./save_contrac
 import { normalizeDeathHistory, normalizeRunDeathLogs } from "./death_logs.js";
 import { normalizeRunObjectLootLedger } from "./run_loot.js";
 import {
-  normalizeCodexInsights,
-  normalizeEquipmentCodex,
-  normalizeMonsterCodex
+  normalizeCodexPayload
 } from "./codex_state.js";
 import { createDefaultWorkshopState, normalizeWorkshopState } from "../systems/workshop.js";
 
@@ -849,13 +847,8 @@ export function normalizeSavePayload(data) {
     ? data.runHistory.map(normalizeRunHistoryEntry).filter(isRecord).slice(0, 20)
     : [];
   normalized.deathLogs = normalizeDeathHistory(data.deathLogs);
-  normalized.codex = recordOr(data.codex, createDefaultCodex());
-  normalized.codex.equipment = normalizeEquipmentCodex(normalized.codex.equipment);
-  normalized.codex.monsters = normalizeMonsterCodex(normalized.codex.monsters);
-  normalized.codex.insights = normalizeCodexInsights(normalized.codex.insights);
-  if (normalized.codex && normalized.codex.events) {
-    delete normalized.codex.events.omens;
-  }
+  const rawCodex = recordOr(data.codex, createDefaultCodex());
+  normalized.codex = normalizeCodexPayload(rawCodex) || normalizeCodexPayload(createDefaultCodex());
   normalized.roamingMonsters = arrayOr(data.roamingMonsters);
   normalized.firstChestUnidentifiedGuaranteed = typeof data.firstChestUnidentifiedGuaranteed === "boolean"
     ? data.firstChestUnidentifiedGuaranteed
