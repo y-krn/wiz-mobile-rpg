@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import {
   ARMOR_CANDIDATES,
   DEPTHS,
+  LOAD_INITIATIVE_CANDIDATES,
   LOAD_FIXTURES,
   RUNE_ACTION,
   REPRESENTATIVE_CONDITIONS,
@@ -98,7 +99,7 @@ assert.deepEqual(result.configuration.weaponProfiles.filter(row => row.runeSlots
   { id: "wand", hands: 1, runeSlots: 1, mpCapacity: 2 },
   { id: "staff", hands: 2, runeSlots: 2, mpCapacity: 4 }
 ]);
-assert.equal(result.fixedCombat.length, 36);
+assert.equal(result.fixedCombat.length, 37);
 assert.equal(result.fixedCombat.length, new Set(result.fixedCombat.map(row => `${row.conditionId}:${row.candidateId}`)).size);
 assert.equal(result.fixedCombat.every(row => row.runs === 3 && row.invariant), true);
 assert.equal(result.fixedCombat.every(row => row.confidence === "runner-correctness-only"), true);
@@ -112,23 +113,27 @@ const greatswordRows = result.fixedCombat.filter(row => row.conditionId === "swo
 assert.deepEqual(greatswordRows.map(row => row.candidate.shield), ["smallShield", "noShield"]);
 assert.equal(greatswordRows.every(row => Number.isFinite(row.oneRoundKillRate) && row.guardOpportunityLoss.count === 3), true);
 const largeShieldRows = result.fixedCombat.filter(row => row.comparisonGroup === "shield-physical" && row.conditionId === "large-shield-physical");
-assert.deepEqual(largeShieldRows.map(row => row.candidateId), ["largeShield", "largeShieldStandardTempo"]);
+assert.deepEqual(largeShieldRows.map(row => row.candidateId), ["largeShield", "largeShieldHeavyMinusOne", "largeShieldStandardTempo"]);
 assert.deepEqual(largeShieldRows.map(row => [row.candidate.shield, row.candidate.initiativeLoad]), [
+  ["largeShield", "heavy"],
   ["largeShield", "heavy"],
   ["largeShield", "standard"]
 ]);
 const smallShieldRow = result.fixedCombat.find(row => row.conditionId === "small-shield-physical");
-assert.deepEqual(largeShieldRows.map(row => row.initiativeDraws), [smallShieldRow.initiativeDraws, smallShieldRow.initiativeDraws]);
+assert.deepEqual(largeShieldRows.map(row => row.initiativeDraws), [smallShieldRow.initiativeDraws, smallShieldRow.initiativeDraws, smallShieldRow.initiativeDraws]);
 assert.ok(largeShieldRows.every(row => row.guardedEnemyActions.count === 3));
 assert.deepEqual(result.configuration.largeShieldDiagnostic, {
   comparisonGroup: "shield-physical",
   baseline: { candidateId: "smallShield", guardPhysical: 0.50, initiativeLoad: "light" },
   candidates: [
     { candidateId: "largeShield", guardPhysical: 0.35, initiativeLoad: "heavy" },
+    { candidateId: "largeShieldHeavyMinusOne", guardPhysical: 0.35, initiativeLoad: "heavy", loadCandidateId: "heavyMinusOne" },
     { candidateId: "largeShieldStandardTempo", guardPhysical: 0.35, initiativeLoad: "standard" }
   ],
-  omitted: "heavy + stronger Guard; standard-tempo isolation is sufficient for this diagnostic"
+  omitted: "heavy + stronger Guard; non-initiative cost; full Cartesian product"
 });
+assert.deepEqual(LOAD_INITIATIVE_CANDIDATES.current.modifiers, { light: 2, standard: 0, heavy: -2 });
+assert.deepEqual(LOAD_INITIATIVE_CANDIDATES.heavyMinusOne.modifiers, { light: 2, standard: 0, heavy: -1 });
 assert.deepEqual(THRESHOLD_FIXTURES.maceHighDef.map(fixture => fixture.enemyHpMultiplier), [0.95, 1.00, 1.05]);
 assert.deepEqual(THRESHOLD_FIXTURES.greatsword.map(fixture => fixture.enemyHpMultiplier), [1.30, 1.35, 1.40]);
 for (const fixture of [...THRESHOLD_FIXTURES.maceHighDef, ...THRESHOLD_FIXTURES.greatsword]) {
@@ -163,12 +168,22 @@ assert.deepEqual(result.loadComparison.map(row => `${row.fixtureId}:${row.policy
 ]);
 assert.equal(result.loadComparison.every(row => row.invariant && row.resolved.score >= row.maxBurdenScore), true);
 assert.equal(result.loadComparison.find(row => row.fixtureId === "heavyArmorGreatsword" && row.policy === "aggregate").resolved.aggregateScore, 4);
+assert.deepEqual(result.fixedCombat.filter(row => row.comparisonGroup.startsWith("load-")).map(row => `${row.conditionId}:${row.loadCandidateId}`), [
+  "load-heavyArmorSword:current",
+  "load-heavyArmorSword:heavyMinusOne",
+  "load-heavyArmorGreatsword:current",
+  "load-heavyArmorGreatsword:heavyMinusOne",
+  "load-lightArmorGreatsword:current",
+  "load-lightArmorGreatsword:heavyMinusOne"
+]);
+assert.equal(result.fixedCombat.filter(row => row.comparisonGroup.startsWith("load-")).every(row => row.rawBurden >= row.maxBurdenScore), true);
 
-const aggregateFields = ({ conditionId, candidateId, candidate, ...fields }) => fields;
 for (const fixtureId of Object.keys(LOAD_FIXTURES)) {
   const rows = result.fixedCombat.filter(row => row.comparisonGroup === `load-${fixtureId}`);
   assert.equal(rows.length, 2, `${fixtureId} must have a paired load comparison`);
-  assert.deepEqual(aggregateFields(rows[0]), aggregateFields(rows[1]), `${fixtureId} max/aggregate must share combat aggregate for the same resolved load class`);
+  assert.deepEqual(rows[0].initiativeDraws, rows[1].initiativeDraws, `${fixtureId} load candidates must share common random draws`);
+  assert.equal(rows[0].loadClass, rows[1].loadClass, `${fixtureId} load candidates must preserve load class`);
+  assert.equal(rows[0].rawBurden, rows[1].rawBurden, `${fixtureId} load candidates must preserve raw burden`);
 }
 
 for (const comparisonGroup of ["sword-vs-mace-normal", "wand-vs-staff-rune"]) {
@@ -236,4 +251,4 @@ const report = buildReport(result, null, "bounded smoke");
 assert.equal(report.measurement.productionPaths.length, 0);
 assert.match(buildSummary(report), /Guard opportunity count/);
 
-console.log("[PASS] Issue #1567 large shield Guard / tempo diagnostic, threshold fixtures, common streams, and production boundary");
+console.log("[PASS] Issue #1569 load candidates, large shield Guard / tempo diagnostic, threshold fixtures, common streams, and production boundary");
