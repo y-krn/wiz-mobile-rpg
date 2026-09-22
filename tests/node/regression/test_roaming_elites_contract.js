@@ -5,7 +5,11 @@ import { createRng } from "../../../src/seed_rng.js";
 import { generateRunFloor } from "../../../src/run_map_generator.js";
 import { getBandTrialForFloor, getFloorRole } from "../../../src/rules/floor_trials.js";
 import { findMapCellByType } from "../../../src/rules/map_queries.js";
-import { recordMinimalEliteAction } from "../fixtures/typescript/roaming_elites_minimal_input.ts";
+import {
+  getStringCheckChance,
+  recordMinimalEliteAction,
+  spawnFromStringProgress
+} from "../fixtures/typescript/roaming_elites_minimal_input.ts";
 
 const exportNames = [
   "ELITE_MIN_FLOOR", "ELITE_PATROL_RADIUS", "ELITE_ENTRY_SPAWN_CHANCE",
@@ -83,7 +87,11 @@ assert.equal(optionalState.currentRun.eliteFloors["3"].greedScore, 3);
 const falsyKeyState = { floor: 3, currentRun: {} };
 assert.equal(facade.recordEliteGreedAction(falsyKeyState, "battle", 1, ""), true);
 assert.deepEqual(falsyKeyState.currentRun.eliteFloors["3"].actionKeys, []);
-assert.equal(recordMinimalEliteAction(), 2);
+assert.equal(recordMinimalEliteAction(), 4);
+assert.equal(getStringCheckChance(), facade.getEliteProlongedCheckChance(2));
+assert.equal(spawnFromStringProgress(), facade.shouldSpawnEliteAfterExploration({
+  floor: 3, runSeed: "x", greedScore: "12", checkIndex: "1"
+}));
 
 const grid = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => ({
   type: "empty", walls: [true, true, true, true], blockEnter: [false, false, false, false]

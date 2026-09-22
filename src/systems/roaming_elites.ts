@@ -176,7 +176,7 @@ export function applyEliteCombatTraitStats<T extends EliteMonsterLike>(monster: 
   };
 }
 
-export function getEliteProlongedCheckChance(checkIndex: number): number {
+export function getEliteProlongedCheckChance(checkIndex: unknown): number {
   const index = Math.max(1, Math.floor(Number(checkIndex) || 1));
   return Math.min(ELITE_PROLONGED_MAX_CHANCE, 0.10 + (index - 1) * 0.05);
 }
@@ -184,8 +184,8 @@ export function getEliteProlongedCheckChance(checkIndex: number): number {
 export function shouldSpawnEliteAfterExploration({ floor, runSeed, greedScore, checkIndex }: {
   floor: number;
   runSeed: string;
-  greedScore: number;
-  checkIndex: number;
+  greedScore: unknown;
+  checkIndex: unknown;
 }): boolean {
   if (!Number.isInteger(floor) || floor < ELITE_MIN_FLOOR || typeof runSeed !== "string" || !runSeed) return false;
   const score = Math.max(0, Math.floor(Number(greedScore) || 0));
@@ -222,7 +222,7 @@ export function markEliteEntryRollResolved(stateLike: EliteStateLike & { current
   return floorState;
 }
 
-export function recordEliteGreedAction(stateLike: EliteStateLike, action: string, amount = 1, actionKey: string | null = null): boolean {
+export function recordEliteGreedAction(stateLike: EliteStateLike, action: string, amount: unknown = 1, actionKey: string | null = null): boolean {
   const floor = stateLike?.floor;
   const currentRun = stateLike?.currentRun;
   if (!Number.isInteger(floor) || floor < ELITE_MIN_FLOOR || !currentRun) return false;
