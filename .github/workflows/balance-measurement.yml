@@ -19,6 +19,7 @@ on:
           - reflect-physical-diagnostic
           - composition-trait-diagnostic
           - milestone-boss-diagnostic
+          - b30-hard-wall-diagnostic
           - equipment-load
           - run-difficulty
           - run-difficulty-policy-sensitivity

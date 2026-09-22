@@ -20,12 +20,13 @@ import { simulateRun } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1613-milestone-boss-decision-pressure-v2";
-export const SCHEMA_VERSION = 2;
+export const RUNNER_VERSION = "issue1629-b30-hard-wall-diagnostic-v3";
+export const SCHEMA_VERSION = 3;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1613;
 export const MIN_CONFIDENT_RUNS = 30;
 export const REFLECT_PHYSICAL_DIAGNOSTIC_RATE = 0.20;
+const B30_ACTION_CATEGORIES = Object.freeze(["normal", "breath", "MADALTO", "TILTOWAIT", "guardian-pressure", "other"]);
 
 export const BOSS_FIXTURES = Object.freeze([
   Object.freeze({ floor: 5, bossName: "デーモンガード" }),
@@ -250,13 +251,69 @@ function observeRun(result, fixture) {
   if (!encounter) throw new Error(`B${fixture.floor} missing production encounter diagnostics`);
   const rounds = encounter.rounds || [];
   const logs = rounds.flatMap(round => round.log || []);
-  const enemyActions = rounds.flatMap(round => round.enemyActionEvents || [])
-    .filter(action => action.monsterName === fixture.bossName);
+  const allEnemyActions = rounds.flatMap((round, roundIndex) =>
+    (round.enemyActionEvents || []).map(action => ({
+      ...action,
+      roundIndex,
+      defended: round.action === "defend"
+    }))
+  );
+  const enemyActions = allEnemyActions.filter(action => action.monsterName === fixture.bossName);
   const actionNames = enemyActions.flatMap(action => action.actionNames || []);
   const statusSources = enemyActions.flatMap(action => action.statusSources || []);
   const spellActions = actionNames.filter(action => SPELL_ACTIONS.has(action));
   const inventory = resolveBossInventory(fixture);
   const trialPressures = encounter.monsters?.[0]?.trialPressures || [];
+  const damageObservations = allEnemyActions.flatMap(action => (action.damageEvents || []).map(event => {
+    const isGuardianPressure = action.monsterName !== fixture.bossName;
+    const category = isGuardianPressure
+      ? "guardian-pressure"
+      : action.actionNames.includes("TILTOWAIT")
+        ? "TILTOWAIT"
+        : action.actionNames.includes("MADALTO")
+          ? "MADALTO"
+          : action.actionNames.includes("炎の息")
+            ? "breath"
+            : event.source === "normal" ? "normal" : "other";
+    return {
+      category,
+      actionName: action.actionNames.join("+") || "通常攻撃",
+      sourceName: action.monsterName,
+      damage: Number(event.damage || 0),
+      defended: action.defended,
+      lethal: action.lethal === true,
+      roundIndex: action.roundIndex
+    };
+  }));
+  const deathLog = rounds.flatMap(round => round.log || [])
+    .find(message => /倒れた|力尽きた/.test(String(message)));
+  const deathSource = deathLog?.match(/で(.+?)により倒れた/)?.[1] || null;
+  const lethalAction = allEnemyActions.find(action => action.lethal) || null;
+  const warningsBeforeDeath = lethalAction
+    ? rounds.slice(0, lethalAction.roundIndex).flatMap((round, roundIndex) =>
+      (round.log || [])
+        .filter(message => String(message).includes("[警告]"))
+        .map(message => ({ message, roundsBeforeDeath: lethalAction.roundIndex - roundIndex }))
+    )
+    : [];
+  const lethalActionName = lethalAction?.actionNames?.join("+") || null;
+  const warningKeyword = lethalActionName === "TILTOWAIT" ? "ティルトウェイト"
+    : lethalActionName === "MADALTO" ? "マダルト"
+      : lethalActionName === "炎の息" ? "炎の息"
+        : lethalActionName === "仲間を呼ぶ" ? "召喚" : null;
+  const matchingWarningsBeforeDeath = warningKeyword
+    ? warningsBeforeDeath.filter(warning => String(warning.message).includes(warningKeyword))
+    : [];
+  const perActionDamage = Object.fromEntries(B30_ACTION_CATEGORIES.map(category => {
+    const events = damageObservations.filter(event => event.category === category);
+    return [category, {
+      hitCount: events.length,
+      totalDamage: events.reduce((sum, event) => sum + event.damage, 0),
+      defendedDamage: events.filter(event => event.defended).reduce((sum, event) => sum + event.damage, 0),
+      undefendedDamage: events.filter(event => !event.defended).reduce((sum, event) => sum + event.damage, 0),
+      lethal: events.some(event => event.lethal)
+    }];
+  }));
   const guardedPhysicalHits = (result.combatFormula?.physicalMonsterHits || [])
     .filter(hit => hit.isDefending === true);
   const guardRounds = rounds.filter(round => round.action === "defend" && round.playerActionExecuted).length;
@@ -284,11 +341,25 @@ function observeRun(result, fixture) {
     bossName: fixture.bossName,
     encounterType: encounter.type,
     outcome: result.fixedCombatResult,
+    deathSource,
+    lethalAction: lethalActionName || (lethalAction ? "guardian-pressure" : null),
+    warningBeforeDeath: warningsBeforeDeath.length > 0,
+    warningBeforeDeathMessages: warningsBeforeDeath.map(warning => warning.message),
+    matchingWarningBeforeDeath: matchingWarningsBeforeDeath.length > 0,
+    matchingWarningRoundsBeforeDeath: matchingWarningsBeforeDeath.map(warning => warning.roundsBeforeDeath),
     rounds: rounds.length,
     damageTaken: result.combatDamageHp || 0,
     survival: Number(result.fixedCombatResult === "victory"),
     bossActionCount: enemyActions.length,
     actionNames: countBy(actionNames),
+    damageByAction: perActionDamage,
+    specialDamageByDefense: Object.fromEntries(["breath", "MADALTO", "TILTOWAIT"].map(category => {
+      const events = damageObservations.filter(event => event.category === category);
+      return [category, {
+        defended: events.filter(event => event.defended).reduce((sum, event) => sum + event.damage, 0),
+        undefended: events.filter(event => !event.defended).reduce((sum, event) => sum + event.damage, 0)
+      }];
+    })),
     warningCount: countLogs(logs, /\[警告\]/),
     telegraphCount: countLogs(logs, /\[警告\]|予兆/),
     spellActionCount: spellActions.length,
@@ -327,6 +398,25 @@ function summarizeRows(rows, fixture) {
     encounterTypes: [...new Set(rows.map(row => row.encounterType))],
     runs: rows.length,
     outcomes: countBy(rows.map(row => row.outcome)),
+    deathSources: countBy(rows.map(row => row.deathSource).filter(Boolean)),
+    deaths: rows.filter(row => row.outcome === "death").length,
+    lethalActions: countBy(rows.map(row => row.lethalAction).filter(Boolean)),
+    warningBeforeDeathRuns: rows.filter(row => row.outcome === "death" && row.warningBeforeDeath).length,
+    deathsWithoutPriorWarning: rows.filter(row => row.outcome === "death" && !row.warningBeforeDeath).length,
+    deathsWithMatchingWarning: rows.filter(row => row.outcome === "death" && row.matchingWarningBeforeDeath).length,
+    deathsWithoutMatchingWarning: rows.filter(row => row.outcome === "death" && !row.matchingWarningBeforeDeath).length,
+    matchingWarningRoundsBeforeDeath: summarize(rows.flatMap(row => row.matchingWarningRoundsBeforeDeath)),
+    damageByAction: Object.fromEntries(B30_ACTION_CATEGORIES.map(category => [category, {
+      hitCount: summarize(rows.map(row => row.damageByAction[category].hitCount)),
+      totalDamagePerRun: summarize(rows.map(row => row.damageByAction[category].totalDamage)),
+      defendedDamagePerRun: summarize(rows.map(row => row.damageByAction[category].defendedDamage)),
+      undefendedDamagePerRun: summarize(rows.map(row => row.damageByAction[category].undefendedDamage)),
+      lethalRuns: rows.filter(row => row.damageByAction[category].lethal).length
+    }])),
+    specialDamageByDefense: Object.fromEntries(["breath", "MADALTO", "TILTOWAIT"].map(category => [category, {
+      defendedDamagePerRun: summarize(rows.map(row => row.specialDamageByDefense[category].defended)),
+      undefendedDamagePerRun: summarize(rows.map(row => row.specialDamageByDefense[category].undefended))
+    }])),
     rounds: summarize(rows.map(row => row.rounds)),
     damageTaken: summarize(rows.map(row => row.damageTaken)),
     survivalRate: rows.reduce((sum, row) => sum + row.survival, 0) / rows.length,
@@ -383,14 +473,17 @@ function runBossCell({ fixture, runs, seed }) {
 export async function runMilestoneBossDiagnostic({
   runs = DEFAULT_RUNS,
   seed = DEFAULT_SEED,
+  floor = null,
   allowSmallRunCount = false
 } = {}) {
   const normalizedRuns = positiveInteger(runs, "runs", allowSmallRunCount ? 1 : MIN_CONFIDENT_RUNS);
   const normalizedSeed = positiveInteger(seed, "seed");
+  const fixtures = floor === null ? BOSS_FIXTURES : BOSS_FIXTURES.filter(fixture => fixture.floor === positiveInteger(floor, "floor"));
+  if (!fixtures.length) throw new Error(`unsupported milestone boss floor: ${floor}`);
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
-    measurementId: "milestone-boss-diagnostic",
+    measurementId: floor === 30 ? "b30-hard-wall-diagnostic" : "milestone-boss-diagnostic",
     evidenceScope: "diagnostic",
     confidencePolicy: {
       minimumConfidentRuns: MIN_CONFIDENT_RUNS,
@@ -399,7 +492,7 @@ export async function runMilestoneBossDiagnostic({
     configuration: {
       runs: normalizedRuns,
       seed: normalizedSeed,
-      depths: BOSS_FIXTURES.map(fixture => fixture.floor),
+      depths: fixtures.map(fixture => fixture.floor),
       playerFixture: {
         ...PLAYER_FIXTURE,
         weaponProfile: PLAYER_FIXTURE.weapon,
@@ -429,7 +522,7 @@ export async function runMilestoneBossDiagnostic({
         "Heavy run; merge後 Actions N=200 is the bounded diagnostic"
       ]
     },
-    cells: BOSS_FIXTURES.map(fixture => runBossCell({ fixture, runs: normalizedRuns, seed: normalizedSeed }))
+    cells: fixtures.map(fixture => runBossCell({ fixture, runs: normalizedRuns, seed: normalizedSeed }))
   };
 }
 
@@ -475,7 +568,9 @@ function format(value) {
 
 export function buildSummary(report) {
   const lines = [
-    "# milestone Boss decision-pressure diagnostic (#1613)",
+    report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
+      ? "# B30 hard-wall cause diagnostic (#1629)"
+      : "# milestone Boss decision-pressure diagnostic (#1613)",
     "",
     `- runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; depths=B${report.configuration.depths.join(", B")}`,
@@ -494,6 +589,10 @@ export function buildSummary(report) {
       `pressures=${cell.guardianPressures.map(pressure => `${pressure.role}:${pressure.sourceName}`).join(",")}; ` +
       `pressureDetails=${JSON.stringify(cell.guardianPressures.map(({ role, sourceName, additionalTraits, additionalBehavior }) => ({ role, sourceName, additionalTraits, additionalBehavior })))}; ` +
       `non-raw pressure runs=${cell.nonRawDecisionPressureObservedRuns}/${cell.runs}; ` +
+      `deaths=${JSON.stringify(cell.deathSources)}; lethal actions=${JSON.stringify(cell.lethalActions)}; ` +
+      `warning before death=${cell.warningBeforeDeathRuns}/${cell.deaths} deaths; matching warning=${cell.deathsWithMatchingWarning}/${cell.deaths}; ` +
+      `damage by action=${JSON.stringify(Object.fromEntries(Object.entries(cell.damageByAction).map(([action, values]) => [action, { totalDamagePerRun: values.totalDamagePerRun.average, defended: values.defendedDamagePerRun.average, undefended: values.undefendedDamagePerRun.average }])))}; ` +
+      `special defended/undefended=${JSON.stringify(Object.fromEntries(Object.entries(cell.specialDamageByDefense).map(([action, values]) => [action, { defended: values.defendedDamagePerRun.average, undefended: values.undefendedDamagePerRun.average }])))}; ` +
       `confidence=${cell.confidence}`
     );
   }
@@ -507,6 +606,11 @@ export function buildSummary(report) {
     "- B15: `isPoisonous=true` keeps the legacy poison fallback active on the production Boss path; template-defined `poison_payoff` is inactive there. Runtime status observation uses existing `statusSources`.",
     "- B20/B25: production MADALTO path and Guard mitigation are observed when the fixed action schedule reaches them.",
     "- B30: production breath/MADALTO/TILTOWAIT cycle, warnings, and special Guard interaction are measured.",
+    "- B30 deaths are attributed from the production terminal death log and lethal enemy action event; action damage uses existing round diagnostics.",
+    "- Warning counts include any earlier warning in the encounter; matching-warning counts require the warning text to name the lethal queued action.",
+    "- Guardian-pressure damage groups non-boss actors spawned by the fixed production boss encounter; no pressure rules are recreated.",
+    "- Defended means the Phase 1 player selected Guard in that production combat round.",
+    "- Reported per-run damage separates normal, breath, MADALTO, TILTOWAIT, guardian-pressure, and uncategorized evidence.",
     "- N<30 is correctness-only; merge後 GitHub Actions N=200 is the gate evidence.",
     "",
     "## Scope and limits",
@@ -543,7 +647,8 @@ async function main() {
     fetchOriginMain: false,
     measurementRunnerPaths: [...DIAGNOSTIC_PATHS]
   });
-  const result = await runMilestoneBossDiagnostic({ runs, seed });
+  const floor = options.floor ? positiveInteger(options.floor, "floor") : null;
+  const result = await runMilestoneBossDiagnostic({ runs, seed, floor });
   const report = buildReport(result, provenance, options);
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));
