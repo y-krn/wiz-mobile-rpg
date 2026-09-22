@@ -121,6 +121,16 @@ const ROUTER_CONTRACTS = [
     override: { input: { runs: 201, seed: 1595 }, expected: { runs: 201, seed: 1595 } }
   },
   {
+    id: "composition-trait-diagnostic",
+    runner: "scratch/measurements/composition_trait_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 200, minimumRuns: 200, seed: 1599 },
+    args: nativeArgs("--ref", "main", "--runs", "200", "--seed", "1599"),
+    override: { input: { runs: 201, seed: 1600 }, expected: { runs: 201, seed: 1600 } }
+  },
+  {
     id: "equipment-load",
     runner: "scratch/measurements/equipment_load_measurement.js",
     adapter: "native-manifest",
@@ -313,6 +323,7 @@ assert.deepEqual(Object.keys(MEASUREMENT_FAMILIES), [
   "equipment-vnext-combat",
   "depth-scaling",
   "trait-scaling",
+  "composition-trait",
   "equipment-load",
   "run-difficulty",
   "early-run",
@@ -384,6 +395,7 @@ for (const measurement of [
   "equipment-load",
   "depth-scaling-diagnostic",
   "trait-scaling-diagnostic",
+  "composition-trait-diagnostic",
   "run-difficulty-policy-sensitivity",
   "early-run-attrition",
   "b3plus-survival-decomposition",
@@ -598,7 +610,7 @@ assert.equal(
   "balance-measurement-early-run-attrition-123-attempt"
 );
 
-for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "trait-scaling-diagnostic", "reflect-physical-diagnostic", "first-band-build-formation", "first-band-b5-wall-diagnostic", "first-band-b5-guardian-retry-diagnostic", "first-band-b5-guardian-flee-ev-diagnostic", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
+for (const measurement of ["standard", "early-run-attrition", "b3plus-survival-decomposition", "build-progression-audit", "build-progression-pareto-safe", "b2-chest-trap", "survival-policy", "preparation-power-factorial", "trait-scaling-diagnostic", "reflect-physical-diagnostic", "composition-trait-diagnostic", "first-band-build-formation", "first-band-b5-wall-diagnostic", "first-band-b5-guardian-retry-diagnostic", "first-band-b5-guardian-flee-ev-diagnostic", "first-band-arcana-weapon-diagnostic", "first-band-arcana-mp-supply-diagnostic", "first-band-transition-recovery", "first-band-levelup-recovery"]) {
   const invocation = resolveRunnerInvocation({ measurement, purpose: "smoke" }, "/tmp/router-test");
   assert.equal(invocation.measurement, measurement);
   assert.match(invocation.runner, /scratch\/measurements\//);
