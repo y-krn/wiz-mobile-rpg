@@ -72,10 +72,14 @@ function createState({ physicalAccuracy = 0, monster, accuracyCore = false } = {
   };
 }
 
-function runAttack({ monster, accuracyCore = false, physicalAccuracy = 0 } = {}, randomValues) {
+function runAttack(
+  { monster, accuracyCore = false, physicalAccuracy = 0 } = {},
+  randomValues,
+  options = {}
+) {
   return runCombatRoundCalculation(createState({ monster, accuracyCore, physicalAccuracy }), {
     actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
-  }, { rng: () => randomValues.shift() ?? 0 });
+  }, { rng: () => randomValues.shift() ?? 0, ...options });
 }
 
 const evasiveMonsters = MONSTERS.filter(monster => monster.traits?.includes("evasive"));
@@ -121,6 +125,18 @@ assert.deepEqual(miss.state.combatFormulaTelemetry.physicalPlayerMisses[0], {
   isEvasionMiss: true
 });
 assert.match(miss.logQueue.map(entry => entry.msg).join("\n"), /霧のようにかわした/);
+
+const defaultCombat = runAttack({ monster: liveEvasiveTarget }, [0, 0, 0.84, 0]);
+const emptyMeasurementPolicyCombat = runAttack(
+  { monster: liveEvasiveTarget },
+  [0, 0, 0.84, 0],
+  { policy: {} }
+);
+assert.deepEqual(
+  emptyMeasurementPolicyCombat,
+  defaultCombat,
+  "measurement weapon hook must be a no-op without an explicit candidate"
+);
 
 const guaranteedHit = runAttack({ monster: liveEvasiveTarget, physicalAccuracy: 50 }, [0, 0, 0.9999, 0]);
 assert.equal(guaranteedHit.state.combatFormulaTelemetry.physicalPlayerHits.length, 1);

@@ -248,6 +248,7 @@ const {
   getCharMaxHp,
   getCharMaxMp,
   getCharTrapBonus,
+  getItemBaseId,
   getPhysicalDefenseResistance,
   PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
   calculatePhysicalDefenseFormula,
@@ -335,6 +336,7 @@ if (SIM_DAMAGE_PROBE_ENABLED && !globalThis.__simDamageProbeMathRoundWrapped) {
   };
   globalThis.__simDamageProbeMathRoundWrapped = true;
 }
+const { getCombatTierForStartFloor } = await import("../../src/rules/combat_tier.js");
 const { scaleEnemyForDepth } = await import("../../src/rules/depth_scaling.js");
 const { ITEM_EFFECTS } = await import("../../src/systems/item_effects.js");
 const { getUsableInventoryItems } = await import("../../src/rules/item_inventory.js");
@@ -4892,6 +4894,10 @@ function createSimulationState(
       chestHealPotionWeightSource,
       enemyHealPotionDropChance,
       measurementInitiative: scenario.measurementInitiative || null,
+      measurementCombatPlan: scenario.measurementCombatPlan || null,
+      measurementGuardTiming: scenario.measurementGuardTiming || null,
+      measurementCombatTier: scenario.measurementCombatTier || null,
+      measurementPlayerWeaponCandidate: scenario.measurementPlayerWeaponCandidate || null,
       productionSharedNormalEnemyActionSlot:
         scenario.productionSharedNormalEnemyActionSlot !== false,
       measurementDisableSharedNormalEnemyActionSlot:
@@ -8004,6 +8010,16 @@ export function selectCombatAction(state, metrics) {
   );
   const lowestHpIdx = statusTargetIdx >= 0 ? statusTargetIdx : getLowestHpEnemyIndex(monsters);
 
+  // Diagnostic-only fixed player candidate. The action plan mirrors the
+  // Phase 1 freeze candidate; production combat values remain untouched.
+  if (
+    state.simPolicy.measurementCombatPlan === "attack-defend" &&
+    state.simPolicy.measurementGuardTiming === "declared" &&
+    state.combatState.roundNumber % 2 === 0
+  ) {
+    return { type: "defend", actorIdx: 0 };
+  }
+
   const fleeThreshold = state.simPolicy.fleeHpThreshold;
   let recoveryItem = null;
   let diosAction = null;
@@ -8623,9 +8639,18 @@ function applyThreatOverride(monsters, floor, override, encounter = {}) {
   }
 }
 
-function createFixedDiagnosticMonsters(names, floor) {
+function createFixedDiagnosticMonsters(names, floor, {
+  scalingPolicy = "production",
+  removeTrait = null
+} = {}) {
   if (!Array.isArray(names) || names.length < 1) {
     throw new Error("fixed diagnostic encounter requires at least one monster name");
+  }
+  if (!["production", "phase2a"].includes(scalingPolicy)) {
+    throw new Error(`fixed diagnostic scalingPolicy must be production|phase2a: ${scalingPolicy}`);
+  }
+  if (removeTrait !== null && typeof removeTrait !== "string") {
+    throw new Error(`fixed diagnostic removeTrait must be a string or null: ${removeTrait}`);
   }
   const templates = names.map(name => {
     const template = MONSTERS.find(monster => monster.name === name);
@@ -8637,13 +8662,72 @@ function createFixedDiagnosticMonsters(names, floor) {
   );
   const currentNameIndices = {};
   return templates.map(template => {
-    const monster = scaleEnemyForDepth(template, floor);
+    const productionMonster = scaleEnemyForDepth(template, floor);
+    const monster = scalingPolicy === "production"
+      ? productionMonster
+      : (() => {
+          const tier = getCombatTierForStartFloor(floor);
+          const hpMultiplier = 1 + 0.20 * tier;
+          const atkMultiplier = 1 + 0.10 * tier;
+          return {
+            ...productionMonster,
+            hp: Math.max(1, Math.round(template.hp * hpMultiplier)),
+            maxHp: Math.max(1, Math.round(template.hp * hpMultiplier)),
+            atk: Math.max(1, Math.round(template.atk * atkMultiplier)),
+            def: Math.max(0, Math.round(template.def * 1.0))
+          };
+        })();
+    if (removeTrait !== null) {
+      monster.traits = (monster.traits || []).filter(trait => trait !== removeTrait);
+    }
     if (nameCounts[template.name] > 1) {
       currentNameIndices[template.name] = (currentNameIndices[template.name] || 0) + 1;
       monster.name = `${template.name} ${String.fromCharCode(64 + currentNameIndices[template.name])}`;
     }
     return monster;
   });
+}
+
+function applyMeasurementPlayerCandidate(character, candidate) {
+  if (!candidate || !Number.isFinite(Number(candidate.attackPower))) {
+    return () => {};
+  }
+  const weapon = character.equipment?.weapon;
+  const baseId = getItemBaseId(weapon);
+  if (!baseId) throw new Error("measurement player candidate requires a weapon");
+  const bonus = Number(candidate.attackPower) - getCharWeaponAtk(character);
+  character.equipment.weapon = {
+    baseId,
+    identified: true,
+    affixes: bonus === 0
+      ? []
+      : [{ id: "phase1-freeze-weapon-power", type: "atk", value: bonus }]
+  };
+  const armor = character.equipment?.armor;
+  const shield = character.equipment?.shield;
+  const armorBaseId = getItemBaseId(armor);
+  const shieldBaseId = getItemBaseId(shield);
+  if (!armorBaseId || !shieldBaseId) {
+    throw new Error("measurement player candidate requires armor and shield");
+  }
+  const targetDef = Number(candidate.armorMitigation) * PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING /
+    (1 - Number(candidate.armorMitigation));
+  const armorBaseDef = Number(getItemData(armor)?.def || 0);
+  const shieldDef = Number(getItemData(shield)?.def || 0);
+  character.equipment.armor = {
+    baseId: armorBaseId,
+    identified: true,
+    affixes: [{
+      id: "phase1-freeze-armor-mitigation",
+      type: "def",
+      value: targetDef - armorBaseDef - shieldDef
+    }]
+  };
+  const previousGuardProfile = ITEMS.SMALL_SHIELD.guardProfile;
+  ITEMS.SMALL_SHIELD.guardProfile = "universal_brace";
+  return () => {
+    ITEMS.SMALL_SHIELD.guardProfile = previousGuardProfile;
+  };
 }
 
 export function classifyBuildPaymentAction(action) {
@@ -8931,6 +9015,8 @@ function runEncounter(
     isElite = false,
     roamingMonster = null,
     fixedMonsterNames = null,
+    scalingPolicy = "production",
+    removeTrait = null,
     encounterCoord = null,
     retreatCoord = null,
     encounterEventKey = null,
@@ -8945,7 +9031,10 @@ function runEncounter(
   let generatedTrial = null;
   let monsters;
   if (fixedMonsterNames) {
-    monsters = createFixedDiagnosticMonsters(fixedMonsterNames, state.floor);
+    monsters = createFixedDiagnosticMonsters(fixedMonsterNames, state.floor, {
+      scalingPolicy,
+      removeTrait
+    });
   } else {
     const generatedEncounter = generateEncounter(
       state,
@@ -16953,19 +17042,30 @@ export function simulateRun({
       throw new Error(`fixedCombat.entryMpRatio must be a number in [0,1]: ${fixedCombat.entryMpRatio}`);
     }
     const character = state.party[0];
+    const restoreMeasurementPlayerCandidate = applyMeasurementPlayerCandidate(
+      character,
+      fixedCombat.playerCandidate
+    );
     character.hp = Math.max(1, Math.round(getCharMaxHp(character) * entryHpRatio));
     character.mp = Math.max(0, Math.round(getCharMaxMp(character) * entryMpRatio));
     state.currentRun.battles++;
-    const combatResult = runEncounter(
-      state,
-      metrics.coreObservations,
-      metrics.diagnostics,
-      metrics,
-      {
-        fixedMonsterNames: fixedCombat.monsterNames,
-        encounterCoord: { x: 0, y: 0 }
-      }
-    );
+    let combatResult;
+    try {
+      combatResult = runEncounter(
+        state,
+        metrics.coreObservations,
+        metrics.diagnostics,
+        metrics,
+        {
+          fixedMonsterNames: fixedCombat.monsterNames,
+          scalingPolicy: fixedCombat.scalingPolicy || "production",
+          removeTrait: fixedCombat.removeTrait || null,
+          encounterCoord: { x: 0, y: 0 }
+        }
+      );
+    } finally {
+      restoreMeasurementPlayerCandidate();
+    }
     metrics.combatRounds += combatResult.rounds;
     metrics.combatDamageHp += combatResult.telemetry.incomingDamage;
     metrics.incomingHits += combatResult.telemetry.incomingHits;

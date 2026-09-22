@@ -197,6 +197,15 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     retentionDays: 14,
     buildArgs: depthScalingArgs
   }),
+  "trait-scaling": freezeFamily({
+    runner: "scratch/measurements/trait_scaling_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: nativeMeasurementArgs
+  }),
   "equipment-load": freezeFamily({
     runner: "scratch/measurements/equipment_load_measurement.js",
     adapter: "native-manifest",
@@ -315,6 +324,12 @@ const PROFILE_LIST = [
     label: "Generic enemy depth scaling diagnostic",
     family: "depth-scaling",
     defaults: { runs: 200, minimumRuns: 200, seed: 1582 }
+  },
+  {
+    id: "trait-scaling-diagnostic",
+    label: "Phase 2a single-enemy trait scaling diagnostic",
+    family: "trait-scaling",
+    defaults: { runs: 200, minimumRuns: 200, seed: 1586 }
   },
   {
     id: "equipment-load",
