@@ -104,7 +104,7 @@ function getQuestProgress(run: RunQuestRun | null | undefined, quest: Normalized
     return (run?.trapsTriggered || 0) === 0 ? (run?.deepestFloor || 0) : 0;
   }
   if (quest.type === "role_kill") {
-    return quest.role == null ? 0 : run?.defeatsByRole?.[quest.role] || 0;
+    return run?.defeatsByRole?.[String(quest.role)] || 0;
   }
   if (quest.type === "elite_kill") return run?.elitesKilled || 0;
   if (quest.type === "boss_kill") return run?.bossesKilled || 0;

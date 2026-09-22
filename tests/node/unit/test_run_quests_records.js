@@ -134,6 +134,18 @@ check("fled・split・missing-roleを除外し、custom incrementを維持する
   recordRunQuestDefeats(null, [{ role: "disruptor" }]);
 });
 
+check("role:nullは旧JS同様にnull property keyで進捗参照する", () => {
+  const template = RUN_QUEST_TEMPLATES.find(item => item.id === "disruptor_hunt");
+  const quest = createRunQuest(template, 1);
+  quest.role = null;
+  const run = {
+    defeatsByRole: { null: 2 },
+    quests: [quest]
+  };
+  assert.deepEqual(updateRunQuests(run), []);
+  assert.equal(quest.currentValue, 2);
+});
+
 check("全progress type・trapless invalidation・clamp・completion orderを維持する", () => {
   const bossTemplate = {
     id: "test_boss",
