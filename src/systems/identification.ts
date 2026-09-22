@@ -42,11 +42,11 @@ export type PurifyResult =
   | { ok: false; reason: "not_cursed" };
 
 function isIdentificationItem(value: unknown): value is IdentificationItem {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  return value !== null && typeof value === "object";
 }
 
 function getEquipmentValues(value: unknown): unknown[] {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return [];
+  if (value === null || typeof value !== "object") return [];
   return Object.values(value);
 }
 
@@ -106,7 +106,7 @@ export function observeCarriedEquipment(stateLike: IdentificationStateLike | nul
   const items = [
     ...inventory,
     ...party.flatMap(character => {
-      if (!character || typeof character !== "object" || Array.isArray(character)) return [];
+      if (!character || typeof character !== "object") return [];
       return getEquipmentValues((character as { equipment?: unknown }).equipment);
     })
   ];

@@ -20,7 +20,7 @@ for (const exportName of [
 const identified = identifyLegacyInput();
 assert.deepEqual(identified, { ok: true, cursed: false });
 
-const invalidInputs = [null, undefined, "legacy-item", [], 0];
+const invalidInputs = [null, undefined, "legacy-item", 0];
 for (const input of invalidInputs) {
   assert.deepEqual(
     identificationFacade.observeEquipment(input),
@@ -33,6 +33,27 @@ for (const input of invalidInputs) {
     "invalid item does not reveal"
   );
 }
+
+const legacyArray = [];
+assert.deepEqual(identificationFacade.observeEquipment(legacyArray), {
+  changed: true,
+  stage: "observation",
+  hintTag: null
+});
+assert.equal(legacyArray.observationCount, 1, "legacy array input keeps object semantics");
+
+const legacyArrayTrial = [];
+assert.deepEqual(identificationFacade.revealEquipmentOnEquip(legacyArrayTrial), {
+  revealed: false,
+  cursed: false
+});
+assert.equal(legacyArrayTrial.trialCount, 1, "legacy array trial semantics remain unchanged");
+
+const legacyArrayIdentification = [];
+assert.deepEqual(
+  identificationFacade.identifyEquipment({ identifyTickets: 1 }, legacyArrayIdentification),
+  { ok: true, cursed: false }
+);
 
 let rngCalls = 0;
 const noPowder = { identifyTickets: 0 };
