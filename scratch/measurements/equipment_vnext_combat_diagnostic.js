@@ -7,11 +7,12 @@ import { pathToFileURL } from "node:url";
 
 import { CANONICAL_BASES } from "../../src/data/equipment_vnext.js";
 import { getCombatTierForStartFloor } from "../../src/rules/combat_tier.js";
+import { createRng as createSeededRng } from "../../src/seed_rng.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1544-equipment-vnext-combat-diagnostic-v3";
-export const SCHEMA_VERSION = 2;
+export const RUNNER_VERSION = "issue1549-equipment-vnext-combat-diagnostic-v1";
+export const SCHEMA_VERSION = 3;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1544;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -81,25 +82,14 @@ const RUNNER_PATH = "scratch/measurements/equipment_vnext_combat_diagnostic.js";
 const DIAGNOSTIC_PATHS = Object.freeze([
   RUNNER_PATH,
   "src/data/equipment_vnext.js",
-  "src/rules/combat_tier.js"
+  "src/rules/combat_tier.js",
+  "src/seed_rng.js"
 ]);
 
 function positiveInteger(value, label, minimum = 1) {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < minimum) throw new Error(`${label} must be an integer >= ${minimum}: ${value}`);
   return parsed;
-}
-
-function createRng(seed) {
-  let state = (Number(seed) >>> 0) || 1;
-  return () => {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
-}
-
-function stableHash(value) {
-  return [...String(value)].reduce((hash, char) => ((hash * 31) + char.charCodeAt(0)) >>> 0, 7);
 }
 
 function percentile(values, ratio) {
@@ -192,13 +182,15 @@ function createAccumulator(condition, candidateId, candidate) {
     mpSpent: [],
     runeActions: [],
     runeDamage: [],
+    initiativePlayerDraw: [],
+    initiativeEnemyDraw: [],
     playerBeforeAnyEnemy: 0,
     survival: 0
   };
 }
 
 export function simulateOne(condition, candidateId, candidate, runSeed, { initiativeOverride = null } = {}) {
-  const rng = createRng(runSeed);
+  const rng = createSeededRng(String(runSeed));
   const weapon = WEAPON_CANDIDATES[candidate.weapon];
   const armor = ARMOR_CANDIDATES[candidate.armor];
   const shield = SHIELD_CANDIDATES[candidate.shield];
@@ -206,8 +198,10 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
   const load = resolveLoadClass(candidate, candidate.policy);
   const playerSpeed = 10 + LOAD_INITIATIVE[load.class];
   const enemySpeed = 10;
+  const playerInitiativeDraw = initiativeOverride === null ? rng() : null;
+  const enemyInitiativeDraw = initiativeOverride === null ? rng() : null;
   const playerFirst = initiativeOverride === null
-    ? playerSpeed + rng() * 4 >= enemySpeed + rng() * 4
+    ? playerSpeed + playerInitiativeDraw * 4 >= enemySpeed + enemyInitiativeDraw * 4
     : Boolean(initiativeOverride);
   let playerHp = 100;
   let enemyHp = 100 * tierMultiplier(tier);
@@ -308,6 +302,7 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
     runeActionId: weapon.runeSlots > 0 ? RUNE_ACTION.id : null,
     mpCapacity: playerMpCapacity,
     playerFirst,
+    initiativeDraws: { player: playerInitiativeDraw, enemy: enemyInitiativeDraw },
     playerSpeed,
     loadClass: load.class,
     actionTrace
@@ -332,10 +327,26 @@ function finalizeAccumulator(accumulator, runs) {
     mpSpent: summarize(accumulator.mpSpent),
     runeActions: summarize(accumulator.runeActions),
     runeDamage: summarize(accumulator.runeDamage),
+    initiativeDraws: {
+      player: summarize(accumulator.initiativePlayerDraw),
+      enemy: summarize(accumulator.initiativeEnemyDraw)
+    },
     playerBeforeAnyEnemyRate: accumulator.playerBeforeAnyEnemy / runs,
     confidence: runs >= MIN_CONFIDENT_RUNS ? "eligible-for-bounded-interpretation" : "runner-correctness-only",
     invariant: outcomeCount === runs
   };
+}
+
+export function comparisonGroupForCondition(condition) {
+  if (condition.axis === "armor") return "armor";
+  if (condition.axis === "shield") return condition.attackType === "spell" ? "shield-arcane" : "shield-physical";
+  if (condition.axis === "load") return `load-${condition.fixtureId}`;
+  if (condition.id === "sword-vs-mace-normal-def") return "sword-vs-mace-normal";
+  return condition.id;
+}
+
+export function comparisonRunSeed(baseSeed, condition, runIndex) {
+  return `${baseSeed}:${comparisonGroupForCondition(condition)}:${runIndex}`;
 }
 
 function candidateForCondition(condition, candidateId) {
@@ -369,11 +380,12 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
   const normalizedSeed = positiveInteger(seed, "seed");
   const fixedCombat = [];
   for (const condition of REPRESENTATIVE_CONDITIONS) {
+    const comparisonGroup = comparisonGroupForCondition(condition);
     for (const candidateId of conditionCandidates(condition)) {
       const candidate = candidateForCondition(condition, candidateId);
       const accumulator = createAccumulator(condition, candidateId, candidate);
       for (let runIndex = 0; runIndex < normalizedRuns; runIndex++) {
-        const result = simulateOne(condition, candidateId, candidate, normalizedSeed + stableHash(`${condition.id}:${candidateId}`) + runIndex);
+        const result = simulateOne(condition, candidateId, candidate, comparisonRunSeed(normalizedSeed, condition, runIndex));
         accumulator.outcomes[result.outcome]++;
         accumulator.survival += Number(result.outcome === "victory");
         accumulator.playerBeforeAnyEnemy += Number(result.playerFirst);
@@ -386,8 +398,10 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
         accumulator.mpSpent.push(result.mpSpent);
         accumulator.runeActions.push(result.runeActions);
         accumulator.runeDamage.push(result.runeDamage);
+        accumulator.initiativePlayerDraw.push(result.initiativeDraws.player);
+        accumulator.initiativeEnemyDraw.push(result.initiativeDraws.enemy);
       }
-      fixedCombat.push(finalizeAccumulator(accumulator, normalizedRuns));
+      fixedCombat.push({ comparisonGroup, ...finalizeAccumulator(accumulator, normalizedRuns) });
     }
   }
   const loadComparison = Object.entries(LOAD_FIXTURES).flatMap(([fixtureId, fixture]) => {
@@ -429,6 +443,8 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
       loadPolicies: [...LOAD_POLICIES],
       loadFixtures: Object.values(LOAD_FIXTURES),
       runeAction: RUNE_ACTION,
+      comparisonGroups: [...new Set(REPRESENTATIVE_CONDITIONS.map(comparisonGroupForCondition))],
+      seedFormat: "<base seed>:<comparison group>:<run index>; candidate ID excluded; common random numbers",
       representativeConditionIds: REPRESENTATIVE_CONDITIONS.map(condition => condition.id),
       omitted: ["full Cartesian product", "production combat resolver", "production equipment generation", "enemy loot UI save paths", "Bag weight"]
     },
@@ -449,7 +465,7 @@ function buildReport(result, provenance, purpose) {
     depths: result.configuration.depths,
     representativeConditionIds: result.configuration.representativeConditionIds,
     loadPolicies: result.configuration.loadPolicies
-  }, { label: "issue1544 vNext combat diagnostic env" });
+  }, { label: "issue1549 vNext combat diagnostic env" });
   return {
     ...result,
     purpose,
@@ -482,7 +498,7 @@ function buildReport(result, provenance, purpose) {
 
 function buildSummary(report) {
   const lines = [
-    "# Equipment vNext combat diagnostic (#1544)",
+    "# Equipment vNext combat diagnostic (#1549)",
     "",
     `- measurement: ${report.measurementId}; runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; confidence: ${report.confidencePolicy.belowMinimum} below N=${MIN_CONFIDENT_RUNS}`,
@@ -537,7 +553,7 @@ async function main() {
   const report = buildReport(result, provenance, options.purpose || process.env.MEASUREMENT_PURPOSE || "");
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));
-  console.log(`Wrote Issue #1544 vNext combat diagnostic: ${resolve(options.output)}`);
+  console.log(`Wrote Issue #1549 vNext combat diagnostic: ${resolve(options.output)}`);
 }
 
 export { buildReport, buildSummary, formulaTable, resolveLoadClass };
