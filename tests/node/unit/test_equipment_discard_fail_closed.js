@@ -1,7 +1,35 @@
 import assert from "node:assert/strict";
 import { discardEquipmentItems } from "../../../src/systems/equipment_discard.js";
 import { getItemEquippedStatus } from "../../../src/rules/equipment_equipped.js";
+import { getItemEquippedStatus as getItemEquippedStatusOwner } from "../../../src/rules/equipment_equipped.ts";
 import { configureSentry } from "../../../src/sentry.js";
+
+assert.equal(getItemEquippedStatus, getItemEquippedStatusOwner, "JS facade must re-export the TS owner function");
+
+assert.deepEqual(getItemEquippedStatus({ party: [{ equipment: { weapon: "SHORT_SWORD" } }] }, "SHORT_SWORD"), { equipped: true });
+assert.deepEqual(getItemEquippedStatus({ party: [{ equipment: { weapon: "DAGGER" } }] }, "SHORT_SWORD"), { equipped: false });
+assert.deepEqual(getItemEquippedStatus({ party: [
+  { equipment: { weapon: "DAGGER" } },
+  { equipment: { accessory: "SHORT_SWORD" } },
+  { get equipment() { throw new Error("later party member must not be read after a match"); } }
+] }, "SHORT_SWORD"), { equipped: true });
+assert.equal(getItemEquippedStatus({ party: [{ equipment: { weapon: 4 } }] }, 4).equipped, true);
+assert.equal(getItemEquippedStatus({ party: [{ equipment: { weapon: "4" } }] }, 4).equipped, false);
+const objectItemKey = { id: 1 };
+assert.equal(getItemEquippedStatus({ party: [{ equipment: { weapon: objectItemKey } }] }, objectItemKey).equipped, true);
+assert.equal(getItemEquippedStatus({ party: [{ equipment: { weapon: { id: 1 } } }] }, objectItemKey).equipped, false);
+for (const equipment of [undefined, null, false, 0, ""]) {
+  assert.deepEqual(getItemEquippedStatus({ party: [{ equipment }] }, "SHORT_SWORD"), { equipped: false });
+}
+
+const immutableEquipment = Object.freeze({ weapon: "DAGGER" });
+const immutableCharacter = Object.freeze({ equipment: immutableEquipment });
+const immutableParty = Object.freeze([immutableCharacter]);
+const immutableState = Object.freeze({ party: immutableParty });
+assert.deepEqual(getItemEquippedStatus(immutableState, "SHORT_SWORD"), { equipped: false });
+assert.equal(immutableState.party, immutableParty);
+assert.equal(immutableState.party[0], immutableCharacter);
+assert.equal(immutableState.party[0].equipment, immutableEquipment);
 
 const captured = [];
 configureSentry({
@@ -48,6 +76,15 @@ try {
   assert.equal(uiCheck.scope, "character-equipment");
   assert.equal(captured.length, 0, "the pure check must not report to Sentry");
 
+  const malformedValuesError = new Error("Object.values failed");
+  const malformedValuesCheck = getItemEquippedStatus({
+    party: [{ equipment: new Proxy({}, { ownKeys() { throw malformedValuesError; } }) }]
+  }, "SHORT_SWORD");
+  assert.equal(malformedValuesCheck.equipped, true);
+  assert.equal(malformedValuesCheck.error, malformedValuesError);
+  assert.equal(malformedValuesCheck.scope, "character-equipment");
+  assert.equal(captured.length, 0, "equipment failures must not report from the pure check");
+
   const result = discardEquipmentItems([{ index: 0, expectedItemKey: "SHORT_SWORD" }], { stateLike });
 
   assert.deepEqual(result, { ok: false, count: 0 });
@@ -74,6 +111,14 @@ try {
   assert.equal(malformedPartyCheck.equipped, true, "malformed party must fail closed");
   assert.equal(malformedPartyCheck.error, brokenParty);
   assert.equal(malformedPartyCheck.scope, "party");
+
+  for (const stateLike of [{}, { party: null }, { party: {} }]) {
+    const missingPartyCheck = getItemEquippedStatus(stateLike, "SHORT_SWORD");
+    assert.equal(missingPartyCheck.equipped, true);
+    assert.ok(missingPartyCheck.error instanceof TypeError);
+    assert.equal(missingPartyCheck.error.message, "party must be an array");
+    assert.equal(missingPartyCheck.scope, "party");
+  }
 
   confirmCalled = false;
   const malformedPartyResult = discardEquipmentItems(
