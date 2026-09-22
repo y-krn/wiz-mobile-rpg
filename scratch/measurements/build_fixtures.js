@@ -58,6 +58,67 @@ const FIXTURE_DEFINITIONS = Object.freeze({
   }
 });
 
+// Issue #1173 diagnostic-only loadouts. These use production item identities
+// and are intentionally excluded from the canonical Build Snapshot axis.
+const DIAGNOSTIC_FIXTURE_DEFINITIONS = Object.freeze({
+  "issue1173-weapon-dagger": {
+    label: "#1173 weapon DAGGER",
+    weapon: "DAGGER",
+    armor: "LEATHER_ARMOR"
+  },
+  "issue1173-weapon-short-sword": {
+    label: "#1173 weapon SHORT_SWORD",
+    weapon: "SHORT_SWORD",
+    armor: "LEATHER_ARMOR"
+  },
+  "issue1173-weapon-claymore": {
+    label: "#1173 weapon CLAYMORE",
+    weapon: "CLAYMORE",
+    armor: "LEATHER_ARMOR"
+  },
+  "issue1173-armor-explorer-cloak": {
+    label: "#1173 armor EXPLORER_CLOAK",
+    weapon: "SHORT_SWORD",
+    shield: "SMALL_SHIELD",
+    armor: "EXPLORER_CLOAK"
+  },
+  "issue1173-armor-leather-armor": {
+    label: "#1173 armor LEATHER_ARMOR",
+    weapon: "SHORT_SWORD",
+    shield: "SMALL_SHIELD",
+    armor: "LEATHER_ARMOR"
+  },
+  "issue1173-armor-plate-mail": {
+    label: "#1173 armor PLATE_MAIL",
+    weapon: "SHORT_SWORD",
+    shield: "SMALL_SHIELD",
+    armor: "PLATE_MAIL"
+  },
+  "issue1173-shield-none": {
+    label: "#1173 shield none",
+    weapon: "SHORT_SWORD",
+    armor: "LEATHER_ARMOR"
+  },
+  "issue1173-shield-buckler": {
+    label: "#1173 shield BUCKLER",
+    weapon: "SHORT_SWORD",
+    shield: "BUCKLER",
+    armor: "LEATHER_ARMOR"
+  },
+  "issue1173-shield-small-shield": {
+    label: "#1173 shield SMALL_SHIELD",
+    weapon: "SHORT_SWORD",
+    shield: "SMALL_SHIELD",
+    armor: "LEATHER_ARMOR"
+  },
+  "issue1173-shield-large-shield": {
+    label: "#1173 shield LARGE_SHIELD",
+    weapon: "SHORT_SWORD",
+    shield: "LARGE_SHIELD",
+    armor: "LEATHER_ARMOR"
+  }
+});
+
 function createEquipment(fixtureId, slot, baseId, { core = [], supports = [] } = {}) {
   const base = ITEMS[baseId];
   if (!base) throw new Error(`${fixtureId}: unknown item ${baseId}`);
@@ -82,7 +143,7 @@ export function getBuildFixtureDefinitions() {
 }
 
 export function createBuildFixture(fixtureId) {
-  const definition = FIXTURE_DEFINITIONS[fixtureId];
+  const definition = FIXTURE_DEFINITIONS[fixtureId] || DIAGNOSTIC_FIXTURE_DEFINITIONS[fixtureId];
   if (!definition) throw new Error(`unknown build fixture: ${fixtureId}`);
   const character = createStartingKitCharacter("arcana");
   character.equipment = {

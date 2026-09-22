@@ -15,6 +15,7 @@ on:
           - fixed-combat-composition
           - equipment-vnext-combat-diagnostic
           - equipment-load
+          - production-gear-decomposition
           - run-difficulty
           - run-difficulty-policy-sensitivity
           - early-run-attrition
