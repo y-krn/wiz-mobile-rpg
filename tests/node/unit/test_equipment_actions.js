@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
+import * as actionFacade from "../../../src/systems/equipment_actions.js";
+import * as actionOwner from "../../../src/systems/equipment_actions.ts";
 import {
   discardEquipmentAt,
+  discardEquipmentSelection,
   equipEquipment,
+  enhanceEquipment,
   identifyEquipmentAt,
+  polishEquipment,
   unequipEquipment
 } from "../../../src/systems/equipment_actions.js";
 import { canEquipEquipment } from "../../../src/rules/equipment_rules.js";
@@ -11,6 +16,18 @@ import {
   getUnequipPreview
 } from "../../../src/rules/equipment_preview.js";
 import { state } from "../../../src/state/state_core.js";
+
+for (const exportName of [
+  "equipEquipment",
+  "unequipEquipment",
+  "identifyEquipmentAt",
+  "enhanceEquipment",
+  "polishEquipment",
+  "discardEquipmentAt",
+  "discardEquipmentSelection"
+]) {
+  assert.strictEqual(actionFacade[exportName], actionOwner[exportName], `${exportName} facade delegates to TS owner`);
+}
 
 const saveValues = new Map();
 globalThis.localStorage = {
@@ -85,10 +102,19 @@ assert.equal(state.party[0].equipment.weapon, candidate);
 assert.deepEqual(state.inventory, []);
 assert.ok(saveValues.has("mobile_wiz_rpg_autosave"), "equip action must autosave");
 
+const coercionCandidate = makeEquipment("SHORT_SWORD", { instanceId: "coercion-input" });
+resetState({ inventory: [coercionCandidate] });
+const coercionEquipResult = equipEquipment({ inventoryIndex: "0", actorIdx: "0", requestedSlot: "weapon" });
+assert.equal(coercionEquipResult.ok, true, "legacy JS index coercion remains accepted");
+assert.strictEqual(state.party[0].equipment.weapon, coercionCandidate);
+
 const unequipResult = unequipEquipment({ actorIdx: 0, slot: "weapon" });
 assert.equal(unequipResult.ok, true);
 assert.equal(state.party[0].equipment.weapon, null);
-assert.deepEqual(state.inventory, [candidate]);
+assert.deepEqual(state.inventory, [coercionCandidate]);
+
+assert.equal(enhanceEquipment(null), false, "enhance remains a direct craft pass-through");
+assert.equal(polishEquipment(null, 0), false, "polish remains a direct craft pass-through");
 
 const legacyEquipped = { baseId: "LONG_SWORD", instanceId: "legacy-unequip", affixes: [] };
 resetState({ character: makeCharacter({ weapon: legacyEquipped }) });
@@ -139,6 +165,14 @@ try {
   assert.equal(discardResult.ok, true);
   assert.deepEqual(state.inventory, []);
   assert.ok(saveValues.has("mobile_wiz_rpg_autosave"), "discard action must autosave");
+
+  const firstSelected = makeEquipment("SHORT_SWORD", { instanceId: "selection-first" });
+  const secondSelected = makeEquipment("LEATHER_ARMOR", { instanceId: "selection-second" });
+  resetState({ inventory: [firstSelected, secondSelected] });
+  const selectionResult = discardEquipmentSelection([1, 0], { actorIdx: 0 });
+  assert.equal(selectionResult.ok, true);
+  assert.equal(selectionResult.count, 2);
+  assert.deepEqual(state.inventory, []);
 } finally {
   globalThis.confirm = originalConfirm;
 }
