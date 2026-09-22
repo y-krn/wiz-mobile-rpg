@@ -525,7 +525,7 @@ function buildReport(result, provenance, options) {
       scaling: "diagnostic-only Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load",
       traits: "production trait owners, values, summon target, and summon cap retained; absent condition removes only the selected trait in the fixed composition",
-      supportAction: "candidate-only measurement hook resolves the production support effect, warning, or summon, then continues the same enemy turn with the normal action; default production path remains false",
+      supportAction: "buffPhysicalDef current flat DEF +2 and candidate rows continue with a normal action; buffAtk and summonAlly continue only for candidate; default production path remains false/no-op",
       buffPhysicalDef: "candidate-only temporary physical mitigation 0.20 from the Phase 1 medium armor freeze; raw DEF, activation chance, and duration remain production values",
       reflectPhysical: "diagnostic freeze reference 0.20; no reflectPhysical fixture in this scope",
       status: "diagnostic-only; production combat/enemy/loot/UI/save unchanged"
