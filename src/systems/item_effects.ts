@@ -1,0 +1,170 @@
+// balance-impact: none — canonical item-effect owner and compatibility boundary only.
+
+import { getEffectiveHealAmount } from "../rules/item_rules.js";
+import { getCharMaxHp, getCharMaxMp } from "../rules/character_stats.js";
+import { canUseManaItems } from "../rules/magic_rules.js";
+import {
+  addCharBuff,
+  removeStatusEffect,
+  STATUS_EFFECT_IDS
+} from "../combat_logic/status_effects.js";
+
+export interface ItemEffectCharacter {
+  name?: string;
+  status?: string;
+  hp?: number;
+  maxHp?: number;
+  mp?: number;
+  maxMp?: number;
+  antiHealTurns?: number;
+  equipment?: Record<string, unknown> | null;
+  buffs?: Array<{ type?: string; value?: number; turns?: number }>;
+  statusEffects?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface ItemEffectContext<Character extends ItemEffectCharacter = ItemEffectCharacter> {
+  char: Character;
+  party?: readonly ItemEffectCharacter[] | null;
+  rng?: (() => number) | null;
+}
+
+interface HealCharacter extends ItemEffectCharacter {
+  hp: number;
+  maxHp: number;
+}
+
+type ManaCharacter = ItemEffectCharacter & {
+  maxMp: number;
+} & (
+  | { mp: number }
+  | { mp?: never }
+);
+
+interface FullRecoveryCharacter extends ItemEffectCharacter {
+  hp: number;
+  maxHp: number;
+  mp: number;
+  maxMp: number;
+}
+
+type HealContext = ItemEffectContext<HealCharacter>;
+type ManaContext = ItemEffectContext<ManaCharacter>;
+type FullRecoveryContext = ItemEffectContext<FullRecoveryCharacter>;
+
+export const ITEM_EFFECTS = {
+  NOISE_BALL: () => "鳴らし玉が甲高い音を響かせた。",
+  SILENCE_INCENSE: () => "静寂の香を焚いた。迷宮の気配が遠のく。",
+  TRAP_SENSE_STONE: () => "探知石を掲げた。周囲の罠が淡く光る。",
+  HEAL_POTION: ({ char }: HealContext) => {
+    const heal = getEffectiveHealAmount(char, 15);
+    char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
+    return `${char.name}は傷薬を使い、HPが${heal}回復した。`;
+  },
+  GREATER_HEAL: ({ char }: HealContext) => {
+    const heal = getEffectiveHealAmount(char, 40);
+    char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
+    return `${char.name}は上薬を使い、HPが${heal}回復した。`;
+  },
+  ANTIDOTE: ({ char }: ItemEffectContext) => {
+    if (char.status === "poisoned") {
+      removeStatusEffect(char, STATUS_EFFECT_IDS.POISONED);
+      return `${char.name}は解毒薬を使い、毒が消え去った。`;
+    }
+    return `${char.name}は解毒薬を使ったが、何も起こらなかった。`;
+  },
+  EYE_DROPS: ({ char }: ItemEffectContext) => {
+    if (char.status === "blind") {
+      removeStatusEffect(char, STATUS_EFFECT_IDS.BLIND);
+      return `${char.name}は目薬を使い、視界が戻った。`;
+    }
+    return `${char.name}は目薬を使ったが、何も起こらなかった。`;
+  },
+  PARALYZE_CURE: ({ char }: ItemEffectContext) => {
+    if (char.status === "paralyzed" || char.status === "paralyze") {
+      removeStatusEffect(char, STATUS_EFFECT_IDS.PARALYZED);
+      return `${char.name}は解痺薬を使い、麻痺が解けた。`;
+    }
+    return `${char.name}は解痺薬を使ったが、何も起こらなかった。`;
+  },
+  WAKE_POWDER: ({ char }: ItemEffectContext) => {
+    if (char.status === "sleep") {
+      removeStatusEffect(char, STATUS_EFFECT_IDS.SLEEP);
+      return `${char.name}は覚醒薬を使い、目を覚ました。`;
+    }
+    return `${char.name}は覚醒薬を使ったが、何も起こらなかった。`;
+  },
+  MANA_POTION: ({ char }: ManaContext) => {
+    if (canUseManaItems(char)) {
+      char.mp = Math.min(getCharMaxMp(char), char.mp! + 3);
+      return `${char.name}は魔力草を使用し、MPが3回復した。(MP:${char.mp}/${getCharMaxMp(char)})`;
+    }
+    return `${char.name}は魔力草を使用したが、魔力を持たないため何も起こらなかった。`;
+  },
+  ETHER: ({ char }: ManaContext) => {
+    if (canUseManaItems(char)) {
+      char.mp = Math.min(getCharMaxMp(char), char.mp! + 8);
+      return `${char.name}は魔力の雫を使用し、MPが8回復した。(MP:${char.mp}/${getCharMaxMp(char)})`;
+    }
+    return `${char.name}は魔力の雫を使用したが、魔力を持たないため何も起こらなかった。`;
+  },
+  HOLY_WATER: ({ char }: HealContext) => {
+    const heal = getEffectiveHealAmount(char, 15);
+    char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
+    let cured = false;
+    if (char.status === "poisoned") {
+      removeStatusEffect(char, STATUS_EFFECT_IDS.POISONED);
+      cured = true;
+    }
+    return `${char.name}は祝福の聖水を使い、HPが${heal}回復した。${cured ? "毒も綺麗に消え去った！" : ""}`;
+  },
+  TOWN_PORTAL: ({ char }: ItemEffectContext) => {
+    return `${char.name}は帰還の翼を掲げた！`;
+  },
+  PANACEA: ({ char }: ItemEffectContext) => {
+    if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {
+      const id = char.status === "poisoned"
+        ? STATUS_EFFECT_IDS.POISONED
+        : char.status === "blind"
+          ? STATUS_EFFECT_IDS.BLIND
+          : char.status === "sleep"
+            ? STATUS_EFFECT_IDS.SLEEP
+            : STATUS_EFFECT_IDS.PARALYZED;
+      removeStatusEffect(char, id);
+      return `${char.name}は万能薬を使い、状態異常が消え去った。`;
+    }
+    return `${char.name}は万能薬を使ったが、何も起こらなかった。`;
+  },
+  ELIXIR: ({ char }: FullRecoveryContext) => {
+    char.hp = getCharMaxHp(char);
+    char.mp = getCharMaxMp(char);
+    if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {
+      const id = char.status === "poisoned"
+        ? STATUS_EFFECT_IDS.POISONED
+        : char.status === "blind"
+          ? STATUS_EFFECT_IDS.BLIND
+          : char.status === "sleep"
+            ? STATUS_EFFECT_IDS.SLEEP
+            : STATUS_EFFECT_IDS.PARALYZED;
+      removeStatusEffect(char, id);
+    }
+    return `${char.name}はエリクサーを飲んだ！HP・MPが全回復し、全ての状態異常が消え去った！`;
+  },
+  STR_POTION: ({ char }: ItemEffectContext) => {
+    addCharBuff(char, "atk", 15, 5);
+    return `${char.name}は剛力の薬を使用し、攻撃力が上昇した！`;
+  },
+  GUARD_POTION: ({ char }: ItemEffectContext) => {
+    // #271: 旧実装の def+10 は逃走追撃の防御式に入らず、深層では敵atk上昇で
+    // 相対的に無力化していた。割合軽減へ変更し、被弾経路の共通部分で効かせる。
+    // 持続はその戦闘の間（combat_start.js が戦闘開始時にbuffsを消すため、
+    // 十分大きいturnsが「この戦闘中ずっと」と同義になる）。5ターン版は実測で
+    // 生還率+4.3pt に留まり、1run1個の希少性に対して窓が短すぎた。
+    addCharBuff(char, "physGuard", 40, 99);
+    return `${char.name}は守りの薬を使用し、体を守る膜が張られた！`;
+  },
+  HASTE_POTION: ({ char }: ItemEffectContext) => {
+    addCharBuff(char, "firstStrike", 5, 5);
+    return `${char.name}は疾風の薬を使用し、先手を取りやすくなった！`;
+  }
+};
