@@ -209,6 +209,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/equipment_rules.js", domains: [] },
     { pattern: "src/systems/equipment_actions.js", domains: [] },
     { pattern: "src/systems/magic_actions.js", domains: ["combat", "equipment", "economy"] },
+    { pattern: "src/systems/magic_actions.ts", domains: ["combat", "equipment", "economy"] },
     { pattern: "src/result.js", domains: ["drops", "economy", "progression"] },
     { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
     { pattern: "src/systems/camp_rest.ts", domains: ["recovery"] },
