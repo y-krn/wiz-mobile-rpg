@@ -11,7 +11,7 @@ import { createRng as createSeededRng } from "../../src/seed_rng.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1563-equipment-vnext-combat-diagnostic-v1";
+export const RUNNER_VERSION = "issue1567-equipment-vnext-combat-diagnostic-v1";
 export const SCHEMA_VERSION = 3;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1544;
@@ -125,6 +125,10 @@ const LOAD_INITIATIVE = Object.freeze({ light: 2, standard: 0, heavy: -2 });
 const ENEMY_DEFENSE = Object.freeze({ normal: 8, high: 20 });
 const ATTACK_PRESSURE = Object.freeze({ physical: 28, spell: 30, breath: 34 });
 const GUARD_REFERENCE_SHIELD = "smallShield";
+const LARGE_SHIELD_DIAGNOSTIC_CANDIDATES = Object.freeze({
+  largeShield: Object.freeze({ label: "大盾 / physical 0.35 / heavy", shield: "largeShield", initiativeLoad: "heavy" }),
+  largeShieldStandardTempo: Object.freeze({ label: "大盾 / physical 0.35 / standard tempo", shield: "largeShield", initiativeLoad: "standard" })
+});
 const RUNNER_PATH = "scratch/measurements/equipment_vnext_combat_diagnostic.js";
 const DIAGNOSTIC_PATHS = Object.freeze([
   RUNNER_PATH,
@@ -235,6 +239,7 @@ function createAccumulator(condition, candidateId, candidate) {
     enemyActions: [],
     playerActions: [],
     guardReduction: [],
+    guardedEnemyActions: [],
     mpSpent: [],
     runeActions: [],
     runeDamage: [],
@@ -254,7 +259,8 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
   const shield = SHIELD_CANDIDATES[candidate.shield];
   const tier = getCombatTierForStartFloor(condition.depth);
   const load = resolveLoadClass(candidate, candidate.policy);
-  const playerSpeed = 10 + LOAD_INITIATIVE[load.class];
+  const initiativeLoad = candidate.initiativeLoad || load.class;
+  const playerSpeed = 10 + LOAD_INITIATIVE[initiativeLoad];
   const enemySpeed = 10;
   const playerInitiativeDraw = initiativeOverride === null ? rng() : null;
   const enemyInitiativeDraw = initiativeOverride === null ? rng() : null;
@@ -371,6 +377,7 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
     initiativeDraws: { player: playerInitiativeDraw, enemy: enemyInitiativeDraw },
     playerSpeed,
     loadClass: load.class,
+    initiativeLoad,
     actionTrace
   };
 }
@@ -392,6 +399,7 @@ function finalizeAccumulator(accumulator, runs) {
     enemyActionCount: summarize(accumulator.enemyActions),
     playerActionCount: summarize(accumulator.playerActions),
     guardReduction: summarize(accumulator.guardReduction),
+    guardedEnemyActions: summarize(accumulator.guardedEnemyActions),
     mpSpent: summarize(accumulator.mpSpent),
     runeActions: summarize(accumulator.runeActions),
     runeDamage: summarize(accumulator.runeDamage),
@@ -430,6 +438,9 @@ function candidateForCondition(condition, candidateId) {
     policy: condition.policy || "max-burden",
     actionPlan: condition.actionPlan || "attack"
   };
+  if (condition.id === "large-shield-physical" && LARGE_SHIELD_DIAGNOSTIC_CANDIDATES[candidateId]) {
+    Object.assign(defaults, LARGE_SHIELD_DIAGNOSTIC_CANDIDATES[candidateId]);
+  }
   if (condition.axis === "weapon" && candidateId === condition.compareWith) defaults.weapon = candidateId;
   if (condition.axis === "weapon" && candidateId === condition.compareWith && condition.compareShield) {
     defaults.shield = condition.compareShield;
@@ -440,7 +451,12 @@ function candidateForCondition(condition, candidateId) {
 function conditionCandidates(condition) {
   if (condition.axis === "weapon") return [condition.weapon, condition.compareWith];
   if (condition.axis === "armor") return [condition.armor];
-  if (condition.axis === "shield") return [condition.shield];
+  if (condition.axis === "shield") {
+    if (condition.id === "large-shield-physical") {
+      return [condition.shield, "largeShieldStandardTempo"];
+    }
+    return [condition.shield];
+  }
   if (condition.axis === "load") return [condition.policy];
   return [];
 }
@@ -469,6 +485,7 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
         accumulator.enemyActions.push(result.enemyActions);
         accumulator.playerActions.push(result.playerActions);
         accumulator.guardReduction.push(result.guardReduction);
+        accumulator.guardedEnemyActions.push(result.guardedEnemyActions);
         accumulator.mpSpent.push(result.mpSpent);
         accumulator.runeActions.push(result.runeActions);
         accumulator.runeDamage.push(result.runeDamage);
@@ -517,6 +534,15 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
         noShieldCandidate: "universal_brace"
       },
       loadPolicies: [...LOAD_POLICIES],
+      largeShieldDiagnostic: {
+        comparisonGroup: "shield-physical",
+        baseline: { candidateId: "smallShield", guardPhysical: 0.50, initiativeLoad: "light" },
+        candidates: [
+          { candidateId: "largeShield", guardPhysical: 0.35, initiativeLoad: "heavy" },
+          { candidateId: "largeShieldStandardTempo", guardPhysical: 0.35, initiativeLoad: "standard" }
+        ],
+        omitted: "heavy + stronger Guard; standard-tempo isolation is sufficient for this diagnostic"
+      },
       loadFixtures: Object.values(LOAD_FIXTURES),
       runeAction: RUNE_ACTION,
       comparisonGroups: [...new Set(REPRESENTATIVE_CONDITIONS.map(comparisonGroupForCondition))],
@@ -541,7 +567,7 @@ function buildReport(result, provenance, purpose) {
     depths: result.configuration.depths,
     representativeConditionIds: result.configuration.representativeConditionIds,
     loadPolicies: result.configuration.loadPolicies
-  }, { label: "issue1563 vNext combat diagnostic env" });
+  }, { label: "issue1567 vNext combat diagnostic env" });
   return {
     ...result,
     purpose,
@@ -563,7 +589,7 @@ function buildReport(result, provenance, purpose) {
       combatTier: "tierMultiplier = 1 + 0.16 × tier; Tier 0–5",
       weapon: "Mace keeps lower hit chance and normal-DEF damage-per-attempt than Sword; high-DEF advantage comes from capped penetration without increasing with DEF. Greatsword keeps the highest normal-attack multiplier, while the paired fixture includes small-shield Sword vs no-shield heavy Greatsword",
       armor: "direct incoming mitigation candidate; production DEF/(DEF+4) untouched",
-      guard: "Defend-only: no-shield=0.72 weak baseline; small=0.50 standard; large=0.35 physical with heavy load; magic=0.35 spell/breath and 0.50 physical; Attack has no Guard mitigation",
+      guard: "Defend-only: no-shield=0.72 weak baseline; small=0.50 standard; large=0.35 physical with heavy load; large standard-tempo isolation keeps 0.35 Guard; magic=0.35 spell/breath and 0.50 physical; Attack has no Guard mitigation",
       rune: "wand and staff share one Rune action; slots, MP capacity, and hands are the only Rune scenario differences",
       load: "max burden = max slot score; aggregate = sum with max-burden floor",
       loadFixtures: LOAD_FIXTURES,
@@ -574,7 +600,7 @@ function buildReport(result, provenance, purpose) {
 
 function buildSummary(report) {
   const lines = [
-    "# Equipment vNext combat diagnostic (#1563)",
+    "# Equipment vNext combat diagnostic (#1567)",
     "",
     `- measurement: ${report.measurementId}; runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; confidence: ${report.confidencePolicy.belowMinimum} below N=${MIN_CONFIDENT_RUNS}`,
@@ -589,12 +615,12 @@ function buildSummary(report) {
     "## Representative fixed combat",
     "",
     "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and three representative load fixtures; threshold fixtures cover Mace B5 high DEF at 0.95/1.00/1.05× HP and Greatsword B10 at 1.30/1.35/1.40× HP.",
-    "- Metrics: survival, rounds, one-round kills, damage dealt/taken, enemy actions, player-before-any-enemy, Defend-only Guard reduction/opportunity loss, actual Rune actions/damage/MP.",
+    "- Metrics: survival, rounds, one-round kills, damage dealt/taken, enemy actions, player-before-any-enemy, Guard opportunity count, Defend-only Guard reduction/opportunity loss, actual Rune actions/damage/MP.",
     `- Rune scenario: shared ${report.configuration.runeAction.id} damage=${report.configuration.runeAction.baseDamage} MP=${report.configuration.runeAction.mpCost}; ${report.configuration.weaponProfiles.filter(row => row.runeSlots > 0).map(row => `${row.id}(slots=${row.runeSlots},MP=${row.mpCapacity},hands=${row.hands})`).join(" vs ")}.`,
     "",
-    "| condition | candidate | enemy HP | survival | rounds p50 | 1-round kill | damage taken avg | enemy actions avg | player first | Guard reduction avg | Guard opportunity loss avg | Rune actions avg | Rune damage avg | MP spent avg |",
+    "| condition | candidate | enemy HP | survival | rounds p50 | 1-round kill | damage taken avg | enemy actions avg | player first | Guard opportunities avg | Guard reduction avg | Guard opportunity loss avg | Rune actions avg | Rune damage avg | MP spent avg |",
     "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...report.fixedCombat.map(row => `| ${row.conditionId} | ${row.candidateId} | ${row.enemyHpMultiplier.toFixed(2)}× | ${(row.survivalRate * 100).toFixed(1)}% | ${row.rounds.p50?.toFixed(2) ?? "-"} | ${(row.oneRoundKillRate * 100).toFixed(1)}% | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardReduction.average?.toFixed(2) ?? "-"} | ${row.guardOpportunityLoss.average?.toFixed(2) ?? "-"} | ${row.runeActions.average?.toFixed(2) ?? "-"} | ${row.runeDamage.average?.toFixed(2) ?? "-"} | ${row.mpSpent.average?.toFixed(2) ?? "-"} |`),
+    ...report.fixedCombat.map(row => `| ${row.conditionId} | ${row.candidateId} | ${row.enemyHpMultiplier.toFixed(2)}× | ${(row.survivalRate * 100).toFixed(1)}% | ${row.rounds.p50?.toFixed(2) ?? "-"} | ${(row.oneRoundKillRate * 100).toFixed(1)}% | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardedEnemyActions.average?.toFixed(2) ?? "-"} | ${row.guardReduction.average?.toFixed(2) ?? "-"} | ${row.guardOpportunityLoss.average?.toFixed(2) ?? "-"} | ${row.runeActions.average?.toFixed(2) ?? "-"} | ${row.runeDamage.average?.toFixed(2) ?? "-"} | ${row.mpSpent.average?.toFixed(2) ?? "-"} |`),
     "",
     "## Load comparison",
     "",
@@ -630,7 +656,7 @@ async function main() {
   const report = buildReport(result, provenance, options.purpose || process.env.MEASUREMENT_PURPOSE || "");
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));
-  console.log(`Wrote Issue #1563 vNext combat diagnostic: ${resolve(options.output)}`);
+  console.log(`Wrote Issue #1567 vNext combat diagnostic: ${resolve(options.output)}`);
 }
 
 export { buildReport, buildSummary, formulaTable, resolveLoadClass };

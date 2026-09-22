@@ -12,6 +12,7 @@ import {
   THRESHOLD_FIXTURES,
   WEAPON_CANDIDATES,
   buildReport,
+  buildSummary,
   comparisonGroupForCondition,
   comparisonRunSeed,
   formulaTable,
@@ -97,7 +98,7 @@ assert.deepEqual(result.configuration.weaponProfiles.filter(row => row.runeSlots
   { id: "wand", hands: 1, runeSlots: 1, mpCapacity: 2 },
   { id: "staff", hands: 2, runeSlots: 2, mpCapacity: 4 }
 ]);
-assert.equal(result.fixedCombat.length, 35);
+assert.equal(result.fixedCombat.length, 36);
 assert.equal(result.fixedCombat.length, new Set(result.fixedCombat.map(row => `${row.conditionId}:${row.candidateId}`)).size);
 assert.equal(result.fixedCombat.every(row => row.runs === 3 && row.invariant), true);
 assert.equal(result.fixedCombat.every(row => row.confidence === "runner-correctness-only"), true);
@@ -110,6 +111,24 @@ assert.equal(greatswordCondition.enemyHpMultiplier, 1.35);
 const greatswordRows = result.fixedCombat.filter(row => row.conditionId === "sword-vs-greatsword");
 assert.deepEqual(greatswordRows.map(row => row.candidate.shield), ["smallShield", "noShield"]);
 assert.equal(greatswordRows.every(row => Number.isFinite(row.oneRoundKillRate) && row.guardOpportunityLoss.count === 3), true);
+const largeShieldRows = result.fixedCombat.filter(row => row.comparisonGroup === "shield-physical" && row.conditionId === "large-shield-physical");
+assert.deepEqual(largeShieldRows.map(row => row.candidateId), ["largeShield", "largeShieldStandardTempo"]);
+assert.deepEqual(largeShieldRows.map(row => [row.candidate.shield, row.candidate.initiativeLoad]), [
+  ["largeShield", "heavy"],
+  ["largeShield", "standard"]
+]);
+const smallShieldRow = result.fixedCombat.find(row => row.conditionId === "small-shield-physical");
+assert.deepEqual(largeShieldRows.map(row => row.initiativeDraws), [smallShieldRow.initiativeDraws, smallShieldRow.initiativeDraws]);
+assert.ok(largeShieldRows.every(row => row.guardedEnemyActions.count === 3));
+assert.deepEqual(result.configuration.largeShieldDiagnostic, {
+  comparisonGroup: "shield-physical",
+  baseline: { candidateId: "smallShield", guardPhysical: 0.50, initiativeLoad: "light" },
+  candidates: [
+    { candidateId: "largeShield", guardPhysical: 0.35, initiativeLoad: "heavy" },
+    { candidateId: "largeShieldStandardTempo", guardPhysical: 0.35, initiativeLoad: "standard" }
+  ],
+  omitted: "heavy + stronger Guard; standard-tempo isolation is sufficient for this diagnostic"
+});
 assert.deepEqual(THRESHOLD_FIXTURES.maceHighDef.map(fixture => fixture.enemyHpMultiplier), [0.95, 1.00, 1.05]);
 assert.deepEqual(THRESHOLD_FIXTURES.greatsword.map(fixture => fixture.enemyHpMultiplier), [1.30, 1.35, 1.40]);
 for (const fixture of [...THRESHOLD_FIXTURES.maceHighDef, ...THRESHOLD_FIXTURES.greatsword]) {
@@ -213,6 +232,8 @@ assert.doesNotMatch(source, /1664525|1013904223|stableHash/);
 assert.match(source, /createSeededRng/);
 assert.doesNotMatch(source, /src\/(combat|state|systems|ui|data\/items|data\/monsters|rules\/equipment_load)/);
 assert.deepEqual(REPRESENTATIVE_CONDITIONS.map(condition => condition.id), result.configuration.representativeConditionIds);
-assert.equal(buildReport(result, null, "bounded smoke").measurement.productionPaths.length, 0);
+const report = buildReport(result, null, "bounded smoke");
+assert.equal(report.measurement.productionPaths.length, 0);
+assert.match(buildSummary(report), /Guard opportunity count/);
 
-console.log("[PASS] Issue #1563 vNext shield candidate tuning, threshold fixtures, common streams, and production boundary");
+console.log("[PASS] Issue #1567 large shield Guard / tempo diagnostic, threshold fixtures, common streams, and production boundary");
