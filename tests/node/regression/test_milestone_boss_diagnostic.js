@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import {
   BOSS_FIXTURES,
   REFLECT_PHYSICAL_DIAGNOSTIC_RATE,
+  SCHEMA_VERSION,
   RUNNER_VERSION,
   resolveBossInventory,
   runMilestoneBossDiagnostic
 } from "../../../scratch/measurements/milestone_boss_diagnostic.js";
+import { getAppliedBossPressureMetadata } from "../../../scratch/simulations/sim_depth_material_ev.js";
 import { PLAYER_FIXTURE } from "../../../scratch/measurements/composition_trait_diagnostic.js";
 import {
   MEASUREMENT_IDS,
@@ -17,6 +19,8 @@ const first = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmall
 const second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmallRunCount: true });
 
 assert.deepEqual(first, second, "milestone boss smoke must be deterministic");
+assert.equal(RUNNER_VERSION, "issue1613-milestone-boss-decision-pressure-v2");
+assert.equal(SCHEMA_VERSION, 2);
 assert.equal(first.runnerVersion, RUNNER_VERSION);
 assert.equal(first.measurementId, "milestone-boss-diagnostic");
 assert.deepEqual(first.configuration.depths, [5, 10, 15, 20, 25, 30]);
@@ -108,6 +112,43 @@ assert.deepEqual(first.cells[0].guardianPressures, [
     additionalTraits: ["guardAdjacent"],
     additionalBehavior: { guard: { chance: 0.5 } },
     count: 1
+  }
+]);
+
+const overlapMetadata = getAppliedBossPressureMetadata(
+  {
+    traits: ["templateTrait"],
+    sharedBehavior: "template",
+    templateOnlyBehavior: true
+  },
+  [
+    {
+      role: "main",
+      themeId: "main-theme",
+      sourceName: "main-source",
+      traits: ["templateTrait", "sharedTrait", "mainTrait"],
+      behavior: { sharedBehavior: "main", mainBehavior: 1 }
+    },
+    {
+      role: "sub",
+      themeId: "sub-theme",
+      sourceName: "sub-source",
+      traits: ["sharedTrait", "subTrait"],
+      behavior: { sharedBehavior: "sub", mainBehavior: 2, subBehavior: 3 }
+    }
+  ]
+);
+assert.deepEqual(overlapMetadata.map(pressure => ({
+  additionalTraits: pressure.additionalTraits,
+  additionalBehavior: pressure.additionalBehavior
+})), [
+  {
+    additionalTraits: ["sharedTrait", "mainTrait"],
+    additionalBehavior: { mainBehavior: 1 }
+  },
+  {
+    additionalTraits: ["subTrait"],
+    additionalBehavior: { subBehavior: 3 }
   }
 ]);
 

@@ -20,8 +20,8 @@ import { simulateRun } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1613-milestone-boss-decision-pressure-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "issue1613-milestone-boss-decision-pressure-v2";
+export const SCHEMA_VERSION = 2;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1613;
 export const MIN_CONFIDENT_RUNS = 30;

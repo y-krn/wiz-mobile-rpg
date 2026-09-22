@@ -8720,30 +8720,33 @@ function getProductionGuardianCandidates(floor) {
   );
 }
 
-function recordAppliedBossPressureDetails(monster, template, floor, trial) {
-  if (!trial || !Array.isArray(monster?.trialPressures)) return;
+export function getAppliedBossPressureMetadata(template, pressures) {
+  const appliedTraits = new Set(template.traits || []);
+  const appliedBehavior = { ...template };
+  return pressures.map(pressure => {
+    const additionalTraits = pressure.traits.filter(trait => !appliedTraits.has(trait));
+    additionalTraits.forEach(trait => appliedTraits.add(trait));
+    const additionalBehavior = Object.fromEntries(
+      Object.entries(pressure.behavior).filter(([key]) => appliedBehavior[key] === undefined)
+    );
+    Object.assign(appliedBehavior, additionalBehavior);
+    return {
+      ...pressure,
+      additionalTraits,
+      additionalBehavior
+    };
+  });
+}
+
+function resolveAppliedBossPressureMetadata(template, floor, trial) {
+  if (!trial) return [];
   const pressures = getTrialGuardianPressures(
     trial,
     getProductionGuardianCandidates(floor),
     { maxLevel: template.level }
   );
-  const pressureByKey = new Map(pressures.map(pressure => [
-    `${pressure.role}:${pressure.themeId}:${pressure.sourceName}`,
-    pressure
-  ]));
-  monster.trialPressures = monster.trialPressures.map(applied => {
-    const pressure = pressureByKey.get(
-      `${applied.role}:${applied.themeId}:${applied.sourceName}`
-    );
-    if (!pressure) throw new Error(`missing diagnostic guardian pressure: ${applied.sourceName}`);
-    return {
-      ...applied,
-      additionalTraits: pressure.traits.filter(trait => !(template.traits || []).includes(trait)),
-      additionalBehavior: Object.fromEntries(
-        Object.entries(pressure.behavior).filter(([key]) => template[key] === undefined)
-      )
-    };
-  });
+  const metadata = getAppliedBossPressureMetadata(template, pressures);
+  return metadata;
 }
 
 function applyMeasurementSummonScaling(monsters, floor) {
@@ -9110,6 +9113,7 @@ function runEncounter(
   const fullDiagnostics = diagnosticLevel === "full";
   const compactDiagnostics = diagnosticLevel === "compact";
   let generatedTrial = null;
+  let generatedBossPressureMetadata = null;
   let monsters;
   if (fixedMonsterNames) {
     let productionMonsters = null;
@@ -9128,7 +9132,20 @@ function runEncounter(
       }
       productionMonsters = generatedEncounter.monsters;
       const bossTemplate = MONSTERS.find(monster => monster.name === fixedMonsterNames[0]);
-      recordAppliedBossPressureDetails(productionMonsters[0], bossTemplate, state.floor, generatedTrial);
+      generatedBossPressureMetadata = resolveAppliedBossPressureMetadata(
+        bossTemplate,
+        state.floor,
+        generatedTrial
+      );
+      if (generatedBossPressureMetadata.length !== productionMonsters[0].trialPressures.length ||
+          generatedBossPressureMetadata.some((pressure, index) => {
+            const applied = productionMonsters[0].trialPressures[index];
+            return pressure.role !== applied.role ||
+              pressure.themeId !== applied.themeId ||
+              pressure.sourceName !== applied.sourceName;
+          })) {
+        throw new Error("diagnostic guardian pressure order mismatch");
+      }
     }
     monsters = createFixedDiagnosticMonsters(fixedMonsterNames, state.floor, {
       scalingPolicy,
@@ -9471,7 +9488,7 @@ function runEncounter(
         generatedTrial: generatedTrial
           ? { bandIndex: generatedTrial.bandIndex, mainId: generatedTrial.mainId, subId: generatedTrial.subId }
           : null,
-        monsters: monsters.map(monster => ({
+        monsters: monsters.map((monster, index) => ({
           name: monster.name,
           atk: monster.atk,
           maxHp: monster.maxHp,
@@ -9479,7 +9496,9 @@ function runEncounter(
           traits: [...(monster.traits || [])],
           tags: [...(monster.tags || [])],
           trialThemeIds: [...(monster.trialThemeIds || [])],
-          trialPressures: (monster.trialPressures || []).map(pressure => ({
+          trialPressures: (generatedBossPressureMetadata && index === 0
+            ? generatedBossPressureMetadata
+            : (monster.trialPressures || [])).map(pressure => ({
             role: pressure.role,
             themeId: pressure.themeId,
             sourceName: pressure.sourceName,
