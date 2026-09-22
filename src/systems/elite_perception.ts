@@ -10,15 +10,15 @@ export type ElitePerception =
 export interface ElitePerceptionPlayer {
   x: number;
   y: number;
-  dir: number;
-  dx: readonly number[];
-  dy: readonly number[];
+  dir?: number;
+  dx?: readonly number[];
+  dy?: readonly number[];
 }
 
 export interface ElitePerceptionMonster {
   x: number;
   y: number;
-  floor: number;
+  floor?: number;
   perception?: string | null;
 }
 
@@ -39,7 +39,7 @@ export interface GetPerceptionIntentInput {
   monster: ElitePerceptionMonster;
   player: ElitePerceptionPlayer;
   noise?: ElitePerceptionNoise | null;
-  playerMoved: boolean;
+  playerMoved?: boolean;
   grid: ElitePerceptionGrid;
   rangeMultiplier?: number;
 }
@@ -78,11 +78,16 @@ export function isInPlayerLineOfSight(
   monster: ElitePerceptionMonster,
   grid: ElitePerceptionGrid
 ): boolean {
+  const direction = player.dir;
+  const dx = player.dx;
+  const dy = player.dy;
+  if (direction === undefined || !dx || !dy) return false;
+
   let x = player.x;
   let y = player.y;
-  while (grid[y]?.[x] && grid[y]?.[x]?.walls?.[player.dir] === false) {
-    x += player.dx[player.dir];
-    y += player.dy[player.dir];
+  while (grid[y]?.[x] && grid[y]?.[x]?.walls?.[direction] === false) {
+    x += dx[direction];
+    y += dy[direction];
     if (x === monster.x && y === monster.y) return true;
   }
   return false;
@@ -103,7 +108,7 @@ export function getPerceptionIntent({
 
   if (perception === "sound" || perception === "blind_charge") {
     if (distance <= detectionRange) return { target: player, speed: 1, detected: true };
-    if (noise?.floor === monster.floor && noise.ttl > 0) {
+    if (noise && noise.floor === monster.floor && noise.ttl > 0) {
       return { target: noise, speed: perception === "blind_charge" ? 2 : 1, detected: true };
     }
     return { target: null, speed: 1, detected: false };

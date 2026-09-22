@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import * as perceptionFacade from "../../../src/systems/elite_perception.js";
 import * as perceptionOwner from "../../../src/systems/elite_perception.ts";
+import { getMinimalPerceptionIntent } from "../fixtures/typescript/elite_perception_minimal_input.ts";
 
 for (const exportName of [
   "ELITE_PERCEPTIONS",
@@ -29,6 +30,10 @@ assert.deepEqual(perceptionFacade.ELITE_PERCEPTION_HINTS, {
 });
 assert.equal(Object.isFrozen(perceptionFacade.ELITE_PERCEPTIONS), false);
 assert.equal(Object.isFrozen(perceptionFacade.ELITE_PERCEPTION_HINTS), false);
+
+const minimalIntent = getMinimalPerceptionIntent();
+assert.equal(minimalIntent.detected, true);
+assert.equal(minimalIntent.speed, 1);
 
 const openGrid = Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => ({
   walls: [false, false, false, false]
