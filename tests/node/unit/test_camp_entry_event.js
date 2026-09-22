@@ -17,13 +17,26 @@ globalThis.localStorage = (() => {
 
 const { state, initNewGame, createDefaultCurrentRun, createStartingKitCharacter, saveAutosave, loadGame } =
   await import("../../../src/state.js");
+const campRestFacade = await import("../../../src/systems/camp_rest.js");
+const campRestOwner = await import("../../../src/systems/camp_rest.ts");
+for (const exportName of [
+  "isCampEntryEligible",
+  "beginCampEntry",
+  "completeCampEntry",
+  "getCampRestStatus",
+  "restAtCamp"
+]) {
+  assert.strictEqual(campRestFacade[exportName], campRestOwner[exportName],
+    `Camp facade preserves ${exportName} identity`);
+}
+
 const {
   beginCampEntry,
   completeCampEntry,
   getCampRestStatus,
   isCampEntryEligible,
   restAtCamp
-} = await import("../../../src/systems/camp_rest.js");
+} = campRestFacade;
 const { floorHasCampEvent } = await import("../../../src/run_map_generator.js");
 
 const targetFloors = [6, 11, 16, 21];
@@ -50,6 +63,19 @@ for (const floor of targetFloors) {
   assert.equal(beginCampEntry(entryState, floor), false, `B${floor} cannot fire twice`);
 }
 
+const sortState = {
+  floor: 6,
+  currentRun: {
+    defeatedMilestones: [5],
+    pendingCampEntryFloor: null,
+    completedCampEntryFloors: [11]
+  }
+};
+assert.equal(beginCampEntry(sortState, 6), true);
+assert.equal(completeCampEntry(sortState, 6), true);
+assert.deepEqual(sortState.currentRun.completedCampEntryFloors, [6, 11],
+  "completed Camp floors remain ascending");
+
 // Rest choice keeps the existing recovery and core multiplier, then completes the entry.
 const restChar = createStartingKitCharacter("vanguard");
 restChar.maxHp = 100;
@@ -74,6 +100,37 @@ assert.equal(restResult.mpRecovered, 16, "CORE_CAMP_MASTER doubles MP recovery")
 assert.equal(completeCampEntry(restState, 6), true);
 assert.equal(restState.currentRun.pendingCampEntryFloor, null);
 assert.deepEqual(restState.currentRun.completedCampEntryFloors, [6]);
+
+const clampChar = {
+  name: "Clamp",
+  hp: 99,
+  maxHp: 100,
+  mp: 24,
+  maxMp: 25,
+  status: "ok",
+  equipment: { weapon: null, shield: null, armor: null, accessory: null, accessory2: null }
+};
+const ashChar = {
+  name: "Ash",
+  hp: 1,
+  maxHp: 100,
+  mp: 1,
+  maxMp: 25,
+  status: "ash",
+  equipment: { weapon: null, shield: null, armor: null, accessory: null, accessory2: null }
+};
+const clampState = {
+  floor: 6,
+  party: [clampChar, ashChar],
+  currentRun: { campRested: {} }
+};
+const clampResult = restAtCamp(clampState);
+assert.equal(clampResult.hpRecovered, 1, "Camp HP recovery clamps to derived max HP");
+assert.equal(clampResult.mpRecovered, 1, "Camp MP recovery clamps to derived max MP");
+assert.equal(clampChar.hp, 100);
+assert.equal(clampChar.mp, 25);
+assert.equal(ashChar.hp, 1, "ash characters are excluded from Camp recovery");
+assert.equal(ashChar.mp, 1, "ash characters do not receive MP recovery");
 
 // Pending entry state survives the existing save/load round trip.
 initNewGame();
