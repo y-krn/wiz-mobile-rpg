@@ -17,6 +17,7 @@ import {
   comparisonGroupForCondition,
   comparisonRunSeed,
   formulaTable,
+  resolveEffectiveTempoModifier,
   resolveFormula,
   resolveVNextLoadCandidate,
   runEquipmentVNextCombatDiagnostic,
@@ -134,6 +135,22 @@ assert.deepEqual(result.configuration.largeShieldDiagnostic, {
 });
 assert.deepEqual(LOAD_INITIATIVE_CANDIDATES.current.modifiers, { light: 2, standard: 0, heavy: -2 });
 assert.deepEqual(LOAD_INITIATIVE_CANDIDATES.heavyMinusOne.modifiers, { light: 2, standard: 0, heavy: -1 });
+assert.deepEqual(LOAD_INITIATIVE_CANDIDATES.rawBurdenHeavyCost.modifiers, { light: 2, standard: 0, heavy: -1 });
+assert.equal(LOAD_INITIATIVE_CANDIDATES.rawBurdenHeavyCost.rawBurdenFloor, 2);
+assert.equal(LOAD_INITIATIVE_CANDIDATES.rawBurdenHeavyCost.additionalHeavyCostPerBurden, 1);
+assert.deepEqual(Object.fromEntries(Object.entries(LOAD_FIXTURES).map(([fixtureId, fixture]) => {
+  const load = resolveVNextLoadCandidate(fixture, "aggregate");
+  return [fixtureId, resolveEffectiveTempoModifier(load, "rawBurdenHeavyCost")];
+})), {
+  heavyArmorSword: -2,
+  heavyArmorGreatsword: -3,
+  lightArmorGreatsword: -1
+});
+assert.equal(resolveEffectiveTempoModifier(
+  resolveVNextLoadCandidate(LOAD_FIXTURES.heavyArmorGreatsword, "aggregate"),
+  "rawBurdenHeavyCost",
+  "standard"
+), 0, "non-heavy isolation must not receive raw-burden heavy cost");
 assert.deepEqual(THRESHOLD_FIXTURES.maceHighDef.map(fixture => fixture.enemyHpMultiplier), [0.95, 1.00, 1.05]);
 assert.deepEqual(THRESHOLD_FIXTURES.greatsword.map(fixture => fixture.enemyHpMultiplier), [1.30, 1.35, 1.40]);
 for (const fixture of [...THRESHOLD_FIXTURES.maceHighDef, ...THRESHOLD_FIXTURES.greatsword]) {
@@ -169,14 +186,21 @@ assert.deepEqual(result.loadComparison.map(row => `${row.fixtureId}:${row.policy
 assert.equal(result.loadComparison.every(row => row.invariant && row.resolved.score >= row.maxBurdenScore), true);
 assert.equal(result.loadComparison.find(row => row.fixtureId === "heavyArmorGreatsword" && row.policy === "aggregate").resolved.aggregateScore, 4);
 assert.deepEqual(result.fixedCombat.filter(row => row.comparisonGroup.startsWith("load-")).map(row => `${row.conditionId}:${row.loadCandidateId}`), [
-  "load-heavyArmorSword:current",
   "load-heavyArmorSword:heavyMinusOne",
-  "load-heavyArmorGreatsword:current",
+  "load-heavyArmorSword:rawBurdenHeavyCost",
   "load-heavyArmorGreatsword:heavyMinusOne",
-  "load-lightArmorGreatsword:current",
-  "load-lightArmorGreatsword:heavyMinusOne"
+  "load-heavyArmorGreatsword:rawBurdenHeavyCost",
+  "load-lightArmorGreatsword:heavyMinusOne",
+  "load-lightArmorGreatsword:rawBurdenHeavyCost"
 ]);
 assert.equal(result.fixedCombat.filter(row => row.comparisonGroup.startsWith("load-")).every(row => row.rawBurden >= row.maxBurdenScore), true);
+assert.deepEqual(result.configuration.loadTempoComparison, {
+  baselineCandidateId: "heavyMinusOne",
+  candidateId: "rawBurdenHeavyCost",
+  rawBurdenFloor: 2,
+  additionalHeavyCostPerBurden: 1,
+  fixtureIds: ["heavyArmorSword", "heavyArmorGreatsword", "lightArmorGreatsword"]
+});
 
 for (const fixtureId of Object.keys(LOAD_FIXTURES)) {
   const rows = result.fixedCombat.filter(row => row.comparisonGroup === `load-${fixtureId}`);
@@ -184,7 +208,15 @@ for (const fixtureId of Object.keys(LOAD_FIXTURES)) {
   assert.deepEqual(rows[0].initiativeDraws, rows[1].initiativeDraws, `${fixtureId} load candidates must share common random draws`);
   assert.equal(rows[0].loadClass, rows[1].loadClass, `${fixtureId} load candidates must preserve load class`);
   assert.equal(rows[0].rawBurden, rows[1].rawBurden, `${fixtureId} load candidates must preserve raw burden`);
+  assert.equal(rows[0].effectiveTempoModifier, -1, `${fixtureId} fixed heavy -1 must remain fixed`);
 }
+assert.deepEqual(Object.fromEntries(result.fixedCombat
+  .filter(row => row.loadCandidateId === "rawBurdenHeavyCost")
+  .map(row => [row.rawBurden, row.effectiveTempoModifier])), {
+  2: -1,
+  3: -2,
+  4: -3
+});
 
 for (const comparisonGroup of ["sword-vs-mace-normal", "wand-vs-staff-rune"]) {
   const rows = result.fixedCombat.filter(row => row.comparisonGroup === comparisonGroup);
@@ -251,4 +283,4 @@ const report = buildReport(result, null, "bounded smoke");
 assert.equal(report.measurement.productionPaths.length, 0);
 assert.match(buildSummary(report), /Guard opportunity count/);
 
-console.log("[PASS] Issue #1569 load candidates, large shield Guard / tempo diagnostic, threshold fixtures, common streams, and production boundary");
+console.log("[PASS] Issue #1573 raw burden stacking, fixed heavy -1, large shield Guard / tempo diagnostic, and production boundary");
