@@ -6,6 +6,7 @@ import {
   ARMOR_CANDIDATES,
   DEPTHS,
   LOAD_FIXTURE,
+  RUNE_ACTIONS,
   REPRESENTATIVE_CONDITIONS,
   SHIELD_CANDIDATES,
   WEAPON_CANDIDATES,
@@ -13,7 +14,8 @@ import {
   formulaTable,
   resolveFormula,
   resolveVNextLoadCandidate,
-  runEquipmentVNextCombatDiagnostic
+  runEquipmentVNextCombatDiagnostic,
+  simulateOne
 } from "../../../scratch/measurements/equipment_vnext_combat_diagnostic.js";
 import { getCombatTierForStartFloor } from "../../../src/rules/combat_tier.js";
 import { MEASUREMENT_IDS, resolveRunnerInvocation } from "../../../scratch/measurements/run_balance_measurement.js";
@@ -24,12 +26,15 @@ assert.equal(formulaTable().length, DEPTHS.length * Object.keys(WEAPON_CANDIDATE
 assert.ok(resolveFormula({ weaponId: "dagger", depth: 1 }).expectedDamage < resolveFormula({ weaponId: "sword", depth: 1 }).expectedDamage);
 assert.ok(resolveFormula({ weaponId: "mace", depth: 5, defense: "high" }).expectedDamage > resolveFormula({ weaponId: "sword", depth: 5, defense: "high" }).expectedDamage);
 assert.ok(resolveFormula({ weaponId: "greatsword", depth: 10 }).expectedDamage > resolveFormula({ weaponId: "sword", depth: 10 }).expectedDamage);
-assert.ok(resolveFormula({ weaponId: "staff", depth: 10 }).runeContribution > resolveFormula({ weaponId: "wand", depth: 10 }).runeContribution);
+assert.ok(Object.keys(RUNE_ACTIONS).includes("wand") && Object.keys(RUNE_ACTIONS).includes("staff"));
 
 assert.deepEqual(Object.keys(ARMOR_CANDIDATES), ["lightArmor", "mediumArmor", "heavyArmor"]);
 assert.deepEqual(Object.keys(SHIELD_CANDIDATES), ["noShield", "smallShield", "largeShield", "magicShield"]);
-assert.equal(resolveVNextLoadCandidate(LOAD_FIXTURE, "max-burden").class, "heavy");
-assert.equal(resolveVNextLoadCandidate(LOAD_FIXTURE, "aggregate").class, "standard");
+assert.equal(resolveVNextLoadCandidate(LOAD_FIXTURE, "max-burden").class, "standard");
+assert.equal(resolveVNextLoadCandidate(LOAD_FIXTURE, "aggregate").class, "heavy");
+assert.equal(SHIELD_CANDIDATES.noShield.load, undefined, "no-shield must not add load burden");
+assert.ok(resolveVNextLoadCandidate(LOAD_FIXTURE, "aggregate").score >= resolveVNextLoadCandidate(LOAD_FIXTURE, "max-burden").score);
+assert.equal(Object.values(ARMOR_CANDIDATES).every(armor => !Object.hasOwn(armor, "initiative")), true);
 
 assert.ok(MEASUREMENT_IDS.includes("equipment-vnext-combat-diagnostic"));
 const invocation = resolveRunnerInvocation({
@@ -47,7 +52,43 @@ assert.equal(result.fixedCombat.length, 23);
 assert.equal(result.fixedCombat.length, new Set(result.fixedCombat.map(row => `${row.conditionId}:${row.candidateId}`)).size);
 assert.equal(result.fixedCombat.every(row => row.runs === 3 && row.invariant), true);
 assert.equal(result.fixedCombat.every(row => row.confidence === "runner-correctness-only"), true);
-assert.deepEqual(result.loadComparison.map(row => row.resolved.class), ["heavy", "standard"]);
+assert.deepEqual(result.loadComparison.map(row => row.resolved.class), ["standard", "heavy"]);
+assert.equal(result.loadComparison.every(row => row.invariant), true);
+
+const attackCondition = { id: "initiative-attack", depth: 1, attackType: "physical", actionPlan: "attack" };
+const playerFirstResult = simulateOne(attackCondition, "sword", {
+  weapon: "sword", armor: "mediumArmor", shield: "smallShield", policy: "max-burden", actionPlan: "attack"
+}, 1544, { initiativeOverride: true });
+const enemyFirstResult = simulateOne(attackCondition, "sword", {
+  weapon: "sword", armor: "mediumArmor", shield: "smallShield", policy: "max-burden", actionPlan: "attack"
+}, 1544, { initiativeOverride: false });
+assert.equal(playerFirstResult.actionTrace[0][0], "player:attack");
+assert.equal(enemyFirstResult.actionTrace[0][0], "enemy");
+assert.equal(playerFirstResult.actionTrace.every(actions => actions.filter(action => action.startsWith("player:")).length <= 1), true);
+assert.equal(playerFirstResult.actionTrace.every(actions => actions.filter(action => action === "enemy").length <= 1), true);
+assert.equal(enemyFirstResult.playerActions <= enemyFirstResult.rounds, true);
+
+const attackOnlyShield = simulateOne({ ...attackCondition, actionPlan: "attack" }, "largeShield", {
+  weapon: "sword", armor: "mediumArmor", shield: "largeShield", policy: "max-burden", actionPlan: "attack"
+}, 1544, { initiativeOverride: true });
+const defendShield = simulateOne({ ...attackCondition, actionPlan: "attack-defend" }, "largeShield", {
+  weapon: "sword", armor: "mediumArmor", shield: "largeShield", policy: "max-burden", actionPlan: "attack-defend"
+}, 1544, { initiativeOverride: true });
+assert.equal(attackOnlyShield.guardedEnemyActions, 0, "Attack round must not apply Guard");
+assert.equal(attackOnlyShield.guardReduction, 0, "Attack round must not receive passive Guard reduction");
+assert.ok(defendShield.guardedEnemyActions > 0, "Defend round must apply Guard candidate");
+assert.ok(defendShield.guardReduction > 0, "Defend round must record Guard reduction");
+
+for (const weapon of ["wand", "staff"]) {
+  const runeResult = simulateOne({ id: "rune-scenario", depth: 10, attackType: "spell", actionPlan: "rune" }, weapon, {
+    weapon, armor: "mediumArmor", shield: "noShield", policy: "max-burden", actionPlan: "rune"
+  }, 1544, { initiativeOverride: true });
+  assert.ok(runeResult.runeActions > 0, `${weapon} must execute a Rune action`);
+  assert.ok(runeResult.runeDamage > 0, `${weapon} Rune action must affect combat damage`);
+  assert.equal(runeResult.mpSpent, runeResult.runeActions, `${weapon} MP must come from executed Rune actions`);
+}
+const runeRows = result.fixedCombat.filter(row => row.conditionId === "wand-vs-staff-rune");
+assert.equal(runeRows.every(row => row.runeActions.average > 0 && row.runeDamage.average > 0), true);
 
 const source = fs.readFileSync(resolve("scratch/measurements/equipment_vnext_combat_diagnostic.js"), "utf8");
 assert.doesNotMatch(source, /src\/(combat|state|systems|ui|data\/items|data\/monsters|rules\/equipment_load)/);

@@ -26,13 +26,13 @@ export const WEAPON_CANDIDATES = Object.freeze({
 });
 
 export const ARMOR_CANDIDATES = Object.freeze({
-  lightArmor: Object.freeze({ id: "lightArmor", label: "軽装", mitigation: 0.12, initiative: 1, load: "light" }),
-  mediumArmor: Object.freeze({ id: "mediumArmor", label: "中装", mitigation: 0.20, initiative: 0, load: "standard" }),
-  heavyArmor: Object.freeze({ id: "heavyArmor", label: "重装", mitigation: 0.30, initiative: -2, load: "heavy" })
+  lightArmor: Object.freeze({ id: "lightArmor", label: "軽装", mitigation: 0.12, load: "light" }),
+  mediumArmor: Object.freeze({ id: "mediumArmor", label: "中装", mitigation: 0.20, load: "standard" }),
+  heavyArmor: Object.freeze({ id: "heavyArmor", label: "重装", mitigation: 0.30, load: "heavy" })
 });
 
 export const SHIELD_CANDIDATES = Object.freeze({
-  noShield: Object.freeze({ id: "noShield", label: "盾なし", load: "standard", guard: Object.freeze({ physical: 0.72, spell: 0.72, breath: 0.72 }) }),
+  noShield: Object.freeze({ id: "noShield", label: "盾なし", guard: Object.freeze({ physical: 0.72, spell: 0.72, breath: 0.72 }) }),
   smallShield: Object.freeze({ id: "smallShield", label: "小盾", load: "light", guard: Object.freeze({ physical: 0.55, spell: 0.55, breath: 0.55 }) }),
   largeShield: Object.freeze({ id: "largeShield", label: "大盾", load: "heavy", guard: Object.freeze({ physical: 0.40, spell: 0.72, breath: 0.72 }) }),
   magicShield: Object.freeze({ id: "magicShield", label: "魔法盾", load: "standard", guard: Object.freeze({ physical: 0.72, spell: 0.40, breath: 0.40 }) })
@@ -41,11 +41,16 @@ export const SHIELD_CANDIDATES = Object.freeze({
 export const DEPTHS = Object.freeze([1, 5, 10, 20, 30]);
 export const LOAD_POLICIES = Object.freeze(["max-burden", "aggregate"]);
 export const LOAD_FIXTURE = Object.freeze({
-  id: "heavy-weapon-light-armor",
-  weapon: "greatsword",
-  armor: "lightArmor",
-  shield: "noShield",
+  id: "standard-weapon-medium-armor-small-shield",
+  weapon: "sword",
+  armor: "mediumArmor",
+  shield: "smallShield",
   accessory: "ring"
+});
+
+export const RUNE_ACTIONS = Object.freeze({
+  wand: Object.freeze({ id: "rune-spark", mpCost: 1, baseDamage: 36 }),
+  staff: Object.freeze({ id: "rune-arc", mpCost: 1, baseDamage: 60 })
 });
 
 export const REPRESENTATIVE_CONDITIONS = Object.freeze([
@@ -53,18 +58,18 @@ export const REPRESENTATIVE_CONDITIONS = Object.freeze([
   Object.freeze({ id: "sword-vs-mace-normal-def", depth: 5, axis: "weapon", weapon: "sword", compareWith: "mace", defense: "normal", attackType: "physical" }),
   Object.freeze({ id: "sword-vs-mace-high-def", depth: 5, axis: "weapon", weapon: "sword", compareWith: "mace", defense: "high", attackType: "physical" }),
   Object.freeze({ id: "sword-vs-greatsword", depth: 10, axis: "weapon", weapon: "sword", compareWith: "greatsword", defense: "normal", attackType: "physical" }),
-  Object.freeze({ id: "wand-vs-staff", depth: 10, axis: "weapon", weapon: "wand", compareWith: "staff", defense: "normal", attackType: "spell" }),
+  Object.freeze({ id: "wand-vs-staff-rune", depth: 10, axis: "weapon", weapon: "wand", compareWith: "staff", defense: "normal", attackType: "spell", actionPlan: "rune" }),
   Object.freeze({ id: "light-armor", depth: 10, axis: "armor", armor: "lightArmor", weapon: "sword", shield: "smallShield", attackType: "physical" }),
   Object.freeze({ id: "medium-armor", depth: 10, axis: "armor", armor: "mediumArmor", weapon: "sword", shield: "smallShield", attackType: "physical" }),
   Object.freeze({ id: "heavy-armor", depth: 10, axis: "armor", armor: "heavyArmor", weapon: "sword", shield: "smallShield", attackType: "physical" }),
-  Object.freeze({ id: "no-shield-physical", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "sword", shield: "noShield", attackType: "physical" }),
-  Object.freeze({ id: "small-shield-physical", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "sword", shield: "smallShield", attackType: "physical" }),
-  Object.freeze({ id: "large-shield-physical", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "sword", shield: "largeShield", attackType: "physical" }),
-  Object.freeze({ id: "magic-shield-physical", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "sword", shield: "magicShield", attackType: "physical" }),
-  Object.freeze({ id: "no-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "noShield", attackType: "spell" }),
-  Object.freeze({ id: "small-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "smallShield", attackType: "spell" }),
-  Object.freeze({ id: "large-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "largeShield", attackType: "spell" }),
-  Object.freeze({ id: "magic-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "magicShield", attackType: "spell" }),
+  Object.freeze({ id: "no-shield-physical", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "sword", shield: "noShield", attackType: "physical", actionPlan: "attack-defend" }),
+  Object.freeze({ id: "small-shield-physical", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "sword", shield: "smallShield", attackType: "physical", actionPlan: "attack-defend" }),
+  Object.freeze({ id: "large-shield-physical", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "sword", shield: "largeShield", attackType: "physical", actionPlan: "attack-defend" }),
+  Object.freeze({ id: "magic-shield-physical", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "sword", shield: "magicShield", attackType: "physical", actionPlan: "attack-defend" }),
+  Object.freeze({ id: "no-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "noShield", attackType: "spell", actionPlan: "attack-defend" }),
+  Object.freeze({ id: "small-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "smallShield", attackType: "spell", actionPlan: "attack-defend" }),
+  Object.freeze({ id: "large-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "largeShield", attackType: "spell", actionPlan: "attack-defend" }),
+  Object.freeze({ id: "magic-shield-arcane", depth: 10, axis: "shield", armor: "mediumArmor", weapon: "wand", shield: "magicShield", attackType: "spell", actionPlan: "attack-defend" }),
   Object.freeze({ id: "max-burden-load", depth: 20, axis: "load", policy: "max-burden", weapon: LOAD_FIXTURE.weapon, armor: LOAD_FIXTURE.armor, shield: LOAD_FIXTURE.shield, attackType: "physical" }),
   Object.freeze({ id: "aggregate-load", depth: 20, axis: "load", policy: "aggregate", weapon: LOAD_FIXTURE.weapon, armor: LOAD_FIXTURE.armor, shield: LOAD_FIXTURE.shield, attackType: "physical" })
 ]);
@@ -127,12 +132,25 @@ function resolveLoadClass({ weapon, armor, shield }, policy) {
   const scores = [WEAPON_CANDIDATES[weapon]?.load, ARMOR_CANDIDATES[armor]?.load, SHIELD_CANDIDATES[shield]?.load]
     .map(load => LOAD_SCORE[load])
     .filter(Number.isInteger);
+  const maxBurdenScore = scores.length ? Math.max(...scores) : LOAD_SCORE.standard;
   if (policy === "aggregate") {
-    const total = scores.reduce((sum, score) => sum + score, 0);
-    return { class: total >= 4 ? "heavy" : total >= 2 ? "standard" : "light", score: total, aggregation: "sum-with-thresholds" };
+    const aggregateScore = scores.reduce((sum, score) => sum + score, 0);
+    const score = Math.max(maxBurdenScore, Math.min(LOAD_SCORE.heavy, aggregateScore));
+    return {
+      class: Object.keys(LOAD_SCORE).find(key => LOAD_SCORE[key] === score),
+      score,
+      maxBurdenScore,
+      aggregateScore,
+      aggregation: "sum-with-max-burden-floor"
+    };
   }
-  const score = scores.length ? Math.max(...scores) : LOAD_SCORE.standard;
-  return { class: Object.keys(LOAD_SCORE).find(key => LOAD_SCORE[key] === score), score, aggregation: "max-burden" };
+  return {
+    class: Object.keys(LOAD_SCORE).find(key => LOAD_SCORE[key] === maxBurdenScore),
+    score: maxBurdenScore,
+    maxBurdenScore,
+    aggregateScore: scores.reduce((sum, value) => sum + value, 0),
+    aggregation: "max-burden"
+  };
 }
 
 export function resolveVNextLoadCandidate(fixture, policy) {
@@ -156,8 +174,7 @@ export function resolveFormula({ weaponId, depth, defense = "normal" }) {
     expectedRaw: raw,
     hitChance: weapon.hitChance,
     defense,
-    expectedDamage: damage,
-    runeContribution: weapon.runeSlots * (8 + tier * 2)
+    expectedDamage: damage
   };
 }
 
@@ -171,54 +188,109 @@ function createAccumulator(condition, candidateId, candidate) {
     damageDealt: [],
     damageTaken: [],
     enemyActions: [],
+    playerActions: [],
     guardReduction: [],
     mpSpent: [],
-    runeContribution: [],
+    runeActions: [],
+    runeDamage: [],
     playerBeforeAnyEnemy: 0,
     survival: 0
   };
 }
 
-function simulateOne(condition, candidateId, candidate, runSeed) {
+export function simulateOne(condition, candidateId, candidate, runSeed, { initiativeOverride = null } = {}) {
   const rng = createRng(runSeed);
   const weapon = WEAPON_CANDIDATES[candidate.weapon];
   const armor = ARMOR_CANDIDATES[candidate.armor];
   const shield = SHIELD_CANDIDATES[candidate.shield];
   const tier = getCombatTierForStartFloor(condition.depth);
   const load = resolveLoadClass(candidate, candidate.policy);
-  const playerSpeed = 10 + LOAD_INITIATIVE[load.class] + armor.initiative;
+  const playerSpeed = 10 + LOAD_INITIATIVE[load.class];
   const enemySpeed = 10;
-  const playerFirst = playerSpeed + rng() * 4 >= enemySpeed + rng() * 4;
+  const playerFirst = initiativeOverride === null
+    ? playerSpeed + rng() * 4 >= enemySpeed + rng() * 4
+    : Boolean(initiativeOverride);
   let playerHp = 100;
   let enemyHp = 100 * tierMultiplier(tier);
+  let playerMp = 2 + tier;
   let rounds = 0;
   let enemyActions = 0;
+  let playerActions = 0;
   let damageDealt = 0;
   let damageTaken = 0;
   let guardReduction = 0;
+  let mpSpent = 0;
+  let runeDamage = 0;
+  let runeActions = 0;
+  let guardedEnemyActions = 0;
+  const actionTrace = [];
+  const armorMitigation = 1 - armor.mitigation;
   const pressure = ATTACK_PRESSURE[condition.attackType] || ATTACK_PRESSURE.physical;
-  const mitigation = (shield.guard[condition.attackType] ?? shield.guard.physical) * (1 - armor.mitigation);
-  const attack = () => {
+  const resolveGuardMultiplier = () => shield.guard[condition.attackType] ?? shield.guard.physical;
+  const playerAttack = () => {
     if (rng() > weapon.hitChance) return;
     const formula = resolveFormula({ weaponId: weapon.id, depth: condition.depth, defense: condition.defense || "normal" });
     const dealt = Math.max(1, formula.expectedDamage * (0.92 + rng() * 0.16));
     enemyHp -= dealt;
     damageDealt += dealt;
   };
-  const enemyAttack = () => {
+  const playerRuneAction = () => {
+    const rune = RUNE_ACTIONS[weapon.id];
+    if (!rune || playerMp < rune.mpCost) return false;
+    playerMp -= rune.mpCost;
+    mpSpent += rune.mpCost;
+    const dealt = Math.max(1, rune.baseDamage * tierMultiplier(tier) * (0.92 + rng() * 0.16));
+    enemyHp -= dealt;
+    damageDealt += dealt;
+    runeDamage += dealt;
+    runeActions++;
+    return true;
+  };
+  const enemyAttack = ({ defending = false, roundActions = null } = {}) => {
     const incoming = pressure * tierMultiplier(tier) * (0.92 + rng() * 0.16);
-    const taken = Math.max(1, incoming * mitigation);
+    const guardMultiplier = defending ? resolveGuardMultiplier() : 1;
+    const taken = Math.max(1, incoming * armorMitigation * guardMultiplier);
     playerHp -= taken;
     damageTaken += taken;
-    guardReduction += Math.max(0, incoming - incoming * (shield.guard[condition.attackType] ?? shield.guard.physical));
+    if (defending) {
+      guardReduction += Math.max(0, incoming - incoming * guardMultiplier);
+      guardedEnemyActions++;
+    }
     enemyActions++;
+    roundActions?.push("enemy");
   };
-  if (playerFirst) attack();
+  const executePlayerAction = (action, roundActions) => {
+    if (action === "defend") {
+      playerActions++;
+      roundActions.push("player:defend");
+      return true;
+    }
+    if (action === "rune" && playerRuneAction()) {
+      playerActions++;
+      roundActions.push("player:rune");
+      return true;
+    }
+    playerAttack();
+    playerActions++;
+    roundActions.push(action === "rune" ? "player:attack-fallback" : "player:attack");
+    return true;
+  };
   while (playerHp > 0 && enemyHp > 0 && rounds < 30) {
     rounds++;
-    if (!playerFirst || rounds > 1) attack();
-    if (enemyHp > 0) enemyAttack();
-    if (playerHp > 0 && enemyHp > 0 && playerFirst) attack();
+    const playerAction = condition.actionPlan === "rune"
+      ? "rune"
+      : condition.actionPlan === "attack-defend" && rounds % 2 === 0
+        ? "defend"
+        : "attack";
+    const roundActions = [];
+    if (playerFirst) {
+      if (playerHp > 0 && enemyHp > 0) executePlayerAction(playerAction, roundActions);
+      if (enemyHp > 0) enemyAttack({ defending: playerAction === "defend", roundActions });
+    } else {
+      if (enemyHp > 0) enemyAttack({ roundActions });
+      if (playerHp > 0 && enemyHp > 0) executePlayerAction(playerAction, roundActions);
+    }
+    actionTrace.push(roundActions);
   }
   const victory = enemyHp <= 0 && playerHp > 0;
   return {
@@ -227,10 +299,16 @@ function simulateOne(condition, candidateId, candidate, runSeed) {
     damageDealt,
     damageTaken,
     enemyActions,
+    playerActions,
     guardReduction,
-    mpSpent: Math.min(weapon.runeSlots, 2 + tier),
-    runeContribution: weapon.runeSlots * (8 + tier * 2),
-    playerFirst
+    guardedEnemyActions,
+    mpSpent,
+    runeActions,
+    runeDamage,
+    playerFirst,
+    playerSpeed,
+    loadClass: load.class,
+    actionTrace
   };
 }
 
@@ -247,9 +325,11 @@ function finalizeAccumulator(accumulator, runs) {
     damageDealt: summarize(accumulator.damageDealt),
     damageTaken: summarize(accumulator.damageTaken),
     enemyActionCount: summarize(accumulator.enemyActions),
+    playerActionCount: summarize(accumulator.playerActions),
     guardReduction: summarize(accumulator.guardReduction),
     mpSpent: summarize(accumulator.mpSpent),
-    runeContribution: summarize(accumulator.runeContribution),
+    runeActions: summarize(accumulator.runeActions),
+    runeDamage: summarize(accumulator.runeDamage),
     playerBeforeAnyEnemyRate: accumulator.playerBeforeAnyEnemy / runs,
     confidence: runs >= MIN_CONFIDENT_RUNS ? "eligible-for-bounded-interpretation" : "runner-correctness-only",
     invariant: outcomeCount === runs
@@ -261,7 +341,8 @@ function candidateForCondition(condition, candidateId) {
     weapon: condition.weapon || "sword",
     armor: condition.armor || "mediumArmor",
     shield: condition.shield || "smallShield",
-    policy: condition.policy || "max-burden"
+    policy: condition.policy || "max-burden",
+    actionPlan: condition.actionPlan || "attack"
   };
   if (condition.axis === "weapon" && candidateId === condition.compareWith) defaults.weapon = candidateId;
   return defaults;
@@ -296,19 +377,26 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
         accumulator.damageDealt.push(result.damageDealt);
         accumulator.damageTaken.push(result.damageTaken);
         accumulator.enemyActions.push(result.enemyActions);
+        accumulator.playerActions.push(result.playerActions);
         accumulator.guardReduction.push(result.guardReduction);
         accumulator.mpSpent.push(result.mpSpent);
-        accumulator.runeContribution.push(result.runeContribution);
+        accumulator.runeActions.push(result.runeActions);
+        accumulator.runeDamage.push(result.runeDamage);
       }
       fixedCombat.push(finalizeAccumulator(accumulator, normalizedRuns));
     }
   }
-  const loadComparison = LOAD_POLICIES.map(policy => ({
-    policy,
-    fixture: LOAD_FIXTURE,
-    resolved: resolveVNextLoadCandidate(LOAD_FIXTURE, policy),
-    result: fixedCombat.find(row => row.conditionId === `${policy}-load`)
-  }));
+  const maxBurden = resolveVNextLoadCandidate(LOAD_FIXTURE, "max-burden");
+  const loadComparison = LOAD_POLICIES.map(policy => {
+    const resolved = resolveVNextLoadCandidate(LOAD_FIXTURE, policy);
+    return {
+      policy,
+      fixture: LOAD_FIXTURE,
+      resolved,
+      invariant: resolved.score >= maxBurden.score,
+      result: fixedCombat.find(row => row.conditionId === `${policy}-load`)
+    };
+  });
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
@@ -372,8 +460,8 @@ function buildReport(result, provenance, purpose) {
       combatTier: "tierMultiplier = 1 + 0.16 × tier; Tier 0–5",
       weapon: "raw = CombatPower(Tier) × WeaponMultiplier; hit chance and high-DEF penetration remain separate",
       armor: "direct incoming mitigation candidate; production DEF/(DEF+4) untouched",
-      guard: "active candidate multipliers by physical / spell / breath; no-shield universal baseline",
-      load: "max burden = max slot score; aggregate = sum with light/standard/heavy thresholds",
+      guard: "Defend-only candidate multipliers by physical / spell / breath; Attack has no Guard mitigation",
+      load: "max burden = max slot score; aggregate = sum with max-burden floor",
       loadFixture: LOAD_FIXTURE,
       confidence: `N < ${MIN_CONFIDENT_RUNS} is runner-correctness-only`
     }
@@ -396,15 +484,15 @@ function buildSummary(report) {
     "## Representative fixed combat",
     "",
     "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and one shared load fixture.",
-    "- Metrics: survival, rounds, damage dealt/taken, enemy actions, player-before-any-enemy, Guard reduction, MP/Rune contribution.",
+    "- Metrics: survival, rounds, damage dealt/taken, one player/enemy action per round, player-before-any-enemy, Defend-only Guard reduction, actual Rune actions/damage/MP.",
     "",
-    "| condition | candidate | survival | rounds p50 | damage taken avg | enemy actions avg | player first | Guard reduction avg |",
-    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...report.fixedCombat.map(row => `| ${row.conditionId} | ${row.candidateId} | ${(row.survivalRate * 100).toFixed(1)}% | ${row.rounds.p50?.toFixed(2) ?? "-"} | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardReduction.average?.toFixed(2) ?? "-"} |`),
+    "| condition | candidate | survival | rounds p50 | damage taken avg | enemy actions avg | player first | Guard reduction avg | Rune actions avg | Rune damage avg | MP spent avg |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...report.fixedCombat.map(row => `| ${row.conditionId} | ${row.candidateId} | ${(row.survivalRate * 100).toFixed(1)}% | ${row.rounds.p50?.toFixed(2) ?? "-"} | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardReduction.average?.toFixed(2) ?? "-"} | ${row.runeActions.average?.toFixed(2) ?? "-"} | ${row.runeDamage.average?.toFixed(2) ?? "-"} | ${row.mpSpent.average?.toFixed(2) ?? "-"} |`),
     "",
     "## Load comparison",
     "",
-    ...report.loadComparison.map(row => `- ${row.policy}: fixture=${row.fixture.id}; class=${row.resolved.class}; score=${row.resolved.score}; aggregation=${row.resolved.aggregation}`),
+    ...report.loadComparison.map(row => `- ${row.policy}: fixture=${row.fixture.id}; class=${row.resolved.class}; score=${row.resolved.score}; max-burden floor invariant=${row.invariant}; aggregation=${row.resolved.aggregation}`),
     "",
     "## Interpretation boundary",
     "",
