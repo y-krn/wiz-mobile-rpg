@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import * as equipmentHandsFacade from "../../../src/rules/equipment_hands.js";
+import * as equipmentHandsOwner from "../../../src/rules/equipment_hands.ts";
 import { ITEMS } from "../../../src/data/items.js";
 import {
   getCharacterEquipmentHands,
   getEquipmentHandConflict,
-  getEquipmentHands
+  getEquipmentHands,
+  getEquipmentHandSummary
 } from "../../../src/rules/equipment_hands.js";
 import { canEquipEquipment } from "../../../src/rules/equipment_rules.js";
 import {
@@ -22,6 +25,12 @@ globalThis.localStorage = {
   setItem: () => {},
   removeItem: () => {}
 };
+
+assert.deepEqual(Object.keys(equipmentHandsFacade).sort(), Object.keys(equipmentHandsOwner).sort());
+for (const name of Object.keys(equipmentHandsOwner)) {
+  assert.strictEqual(equipmentHandsFacade[name], equipmentHandsOwner[name], `${name} facade identity`);
+}
+assert.equal(equipmentHandsOwner.MAX_EQUIPMENT_HANDS, 2);
 
 function character(equipment = {}) {
   return {
@@ -60,7 +69,44 @@ assert.equal(ITEMS.ARCH_WAND.hands, 2);
 assert.equal(getEquipmentHands("SHORT_SWORD"), 1);
 assert.equal(getEquipmentHands("CLAYMORE"), 2);
 assert.equal(getEquipmentHands("SMALL_SHIELD"), 1);
+const originalWandHands = ITEMS.WAND.hands;
+try {
+  ITEMS.WAND.hands = "2";
+  assert.equal(getEquipmentHands("WAND"), 2, "weapon hands preserve Number coercion");
+  ITEMS.WAND.hands = "2.1";
+  assert.equal(getEquipmentHands("WAND"), 1, "non-exact coerced value remains one hand");
+  ITEMS.WAND.hands = 0;
+  assert.equal(getEquipmentHands("WAND"), 1, "zero weapon hands remains one hand");
+  ITEMS.WAND.hands = "2";
+  assert.equal(getEquipmentHands("SMALL_SHIELD"), 1, "shield hand cost ignores hands data");
+} finally {
+  ITEMS.WAND.hands = originalWandHands;
+}
+assert.equal(getEquipmentHands("UNKNOWN_HANDS_ITEM"), 0);
+assert.equal(getEquipmentHands("LEATHER_ARMOR"), 0);
+assert.equal(getEquipmentHands(null), 0);
+assert.equal(getEquipmentHandSummary("UNKNOWN_HANDS_ITEM"), "");
+assert.equal(getEquipmentHandSummary("LEATHER_ARMOR"), "");
+assert.equal(getEquipmentHandSummary("SHORT_SWORD"), "片手");
+assert.equal(getEquipmentHandSummary("CLAYMORE"), "両手");
+assert.equal(getEquipmentHandSummary("SMALL_SHIELD"), "片手");
 assert.equal(getCharacterEquipmentHands(character({ weapon: "SHORT_SWORD", shield: "SMALL_SHIELD" })), 2);
+assert.equal(getCharacterEquipmentHands({ equipment: { weapon: "CLAYMORE", shield: "SMALL_SHIELD" } }), 3);
+assert.equal(getCharacterEquipmentHands({ equipment: false }), 0);
+assert.equal(getCharacterEquipmentHands(null), 0);
+assert.throws(() => getCharacterEquipmentHands(null, null), TypeError, "null options retain destructuring failure");
+assert.equal(getCharacterEquipmentHands({ equipment: { weapon: "CLAYMORE", shield: "SMALL_SHIELD" } }, {
+  replacingSlot: "weapon",
+  nextItem: "SHORT_SWORD"
+}), 2);
+assert.equal(getCharacterEquipmentHands({ equipment: { weapon: "CLAYMORE", shield: "SMALL_SHIELD" } }, {
+  replacingSlot: new String("weapon"),
+  nextItem: "SHORT_SWORD"
+}), 4, "replacingSlot uses strict identity comparison");
+const handsInput = { equipment: { weapon: "CLAYMORE", shield: "SMALL_SHIELD" } };
+const handsInputBefore = JSON.stringify(handsInput);
+getCharacterEquipmentHands(handsInput, { replacingSlot: "weapon", nextItem: "SHORT_SWORD" });
+assert.equal(JSON.stringify(handsInput), handsInputBefore, "hand calculation does not mutate input");
 
 const oneHanded = character({ weapon: "SHORT_SWORD" });
 assert.equal(canEquipEquipment(oneHanded, "SMALL_SHIELD", "shield").ok, true);
@@ -72,7 +118,28 @@ assert.equal(getEquipmentHandConflict(character({ weapon: "SHORT_SWORD" }), "CLA
   "replacing a 1H weapon with a 2H weapon is valid when the shield slot is empty");
 const conflict = getEquipmentHandConflict(character({ weapon: "CLAYMORE", shield: "SMALL_SHIELD" }), "SMALL_SHIELD", "shield");
 assert.equal(conflict.hands, 3);
-assert.match(conflict.message, /両手武器/);
+assert.deepEqual(conflict, {
+  hands: 3,
+  maxHands: 2,
+  message: "スモールシールドを装備するには、両手武器を先に外してください。"
+});
+const weaponConflict = getEquipmentHandConflict(character({ weapon: "SHORT_SWORD", shield: "SMALL_SHIELD" }), "CLAYMORE", "weapon");
+assert.deepEqual(weaponConflict, {
+  hands: 3,
+  maxHands: 2,
+  message: "クレイモアは両手武器のため、盾を先に外してください。"
+});
+const originalClaymoreName = ITEMS.CLAYMORE.name;
+try {
+  ITEMS.CLAYMORE.name = "";
+  assert.equal(
+    getEquipmentHandConflict(character({ weapon: "SHORT_SWORD", shield: "SMALL_SHIELD" }), "CLAYMORE", "weapon").message,
+    "CLAYMOREは両手武器のため、盾を先に外してください。",
+    "empty item name falls back to getItemBaseId"
+  );
+} finally {
+  ITEMS.CLAYMORE.name = originalClaymoreName;
+}
 
 const blocked = character({ weapon: "CLAYMORE", shield: "SMALL_SHIELD" });
 state.party = [blocked];
