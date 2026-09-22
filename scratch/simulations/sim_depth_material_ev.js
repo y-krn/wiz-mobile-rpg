@@ -8701,6 +8701,27 @@ function createFixedDiagnosticMonsters(names, floor, {
   });
 }
 
+function applyMeasurementSummonScaling(monsters, floor) {
+  const tier = getCombatTierForStartFloor(floor);
+  const hpMultiplier = 1 + 0.20 * tier;
+  const atkMultiplier = 1 + 0.10 * tier;
+  return monsters.map(monster => {
+    const template = MONSTERS.find(candidate => candidate.name === monster.name);
+    if (!template) return null;
+    monster.hp = Math.max(1, Math.round(template.hp * hpMultiplier));
+    monster.maxHp = Math.max(1, Math.round(template.hp * hpMultiplier));
+    monster.atk = Math.max(1, Math.round(template.atk * atkMultiplier));
+    monster.def = Math.max(0, Math.round(template.def * 1.0));
+    return {
+      name: monster.name,
+      hp: monster.hp,
+      maxHp: monster.maxHp,
+      atk: monster.atk,
+      def: monster.def
+    };
+  }).filter(Boolean);
+}
+
 function applyMeasurementPlayerCandidate(character, candidate) {
   if (!candidate || !Number.isFinite(Number(candidate.attackPower))) {
     return () => {};
@@ -9031,6 +9052,7 @@ function runEncounter(
     scalingPolicy = "production",
     removeTrait = null,
     reflectPhysicalRate = null,
+    summonScalingPolicy = null,
     encounterCoord = null,
     retreatCoord = null,
     encounterEventKey = null,
@@ -9219,6 +9241,8 @@ function runEncounter(
   const encounterStartMp = state.party[0].mp;
   const encounterStartMaxHp = getCharMaxHp(state.party[0]);
   const encounterStartMaxMp = getCharMaxMp(state.party[0]);
+  const measurementSummonSnapshots = [];
+  let measurementMonsterCount = monsters.length;
   const enemyTurnEventStart = metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0;
   let productionLevelUpRecoveryHp = 0;
   const boss = milestoneBossRule
@@ -9758,7 +9782,8 @@ function runEncounter(
       bossGuardBreakCount: getCurrentBoss()?.b5GuardBroken ? 1 : 0,
       checkpointApplied,
       playerHpAtEnd: state.party[0].hp,
-      playerMaxHpAtEnd: getCharMaxHp(state.party[0])
+      playerMaxHpAtEnd: getCharMaxHp(state.party[0]),
+      summonedAllies: measurementSummonSnapshots
     };
   };
 
@@ -10117,6 +10142,13 @@ function runEncounter(
     // decisions. Keep that runner-local state attached after the clean combat
     // result is returned; the production combat result itself remains clean.
     state = { ...roundResult.state, simPolicy: simulationPolicy };
+    if (summonScalingPolicy === "phase2a") {
+      const newlySummoned = state.combatState.monsters.slice(measurementMonsterCount);
+      measurementSummonSnapshots.push(
+        ...applyMeasurementSummonScaling(newlySummoned, state.floor)
+      );
+      measurementMonsterCount = state.combatState.monsters.length;
+    }
     const currentBoss = getCurrentBoss();
     if (currentBoss) bossHpMinimum = Math.min(bossHpMinimum ?? currentBoss.hp, currentBoss.hp);
     productionLevelUpRecoveryHp += (roundResult.logQueue || []).reduce(
@@ -17076,6 +17108,7 @@ export function simulateRun({
           scalingPolicy: fixedCombat.scalingPolicy || "production",
           removeTrait: fixedCombat.removeTrait || null,
           reflectPhysicalRate: fixedCombat.reflectPhysicalRate ?? null,
+          summonScalingPolicy: fixedCombat.summonScalingPolicy || null,
           encounterCoord: { x: 0, y: 0 }
         }
       );
@@ -17118,7 +17151,8 @@ export function simulateRun({
         monsterNames: [...fixedCombat.monsterNames],
         entryHpRatio,
         entryMpRatio,
-        reflectPhysicalRate: fixedCombat.reflectPhysicalRate ?? null
+        reflectPhysicalRate: fixedCombat.reflectPhysicalRate ?? null,
+        summonedAllies: combatResult.summonedAllies || []
       }
     };
   }

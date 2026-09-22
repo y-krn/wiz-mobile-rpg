@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 const { MONSTERS } = await import("../../../src/data/monsters.js");
+const { getCombatTierForStartFloor } = await import("../../../src/rules/combat_tier.js");
 const {
   CONDITIONS,
   DEPTHS,
@@ -13,6 +14,7 @@ const {
 
 const first = await runCompositionTraitDiagnostic({ runs: 1, seed: 1599, allowSmallRunCount: true });
 const second = await runCompositionTraitDiagnostic({ runs: 1, seed: 1599, allowSmallRunCount: true });
+const activationSmoke = await runCompositionTraitDiagnostic({ runs: 30, seed: 1599 });
 
 assert.deepEqual(first, second, "composition trait smoke must be deterministic");
 assert.equal(first.measurementId, "composition-trait-diagnostic");
@@ -67,7 +69,33 @@ for (const comparison of first.comparisons) {
   if (comparison.traitId === "summonAlly") {
     assert.equal(comparison.present.spawnedAllies.average, comparison.present.traitEffect.effectAmount.average);
     assert.equal(comparison.absent.spawnedAllies.average, 0);
+    const measured = activationSmoke.comparisons.find(candidate =>
+      candidate.traitId === comparison.traitId && candidate.depth === comparison.depth
+    );
+    const target = MONSTERS.find(monster => monster.name === "ゴブリンの呪術師");
+    const tier = getCombatTierForStartFloor(comparison.depth);
+    const expected = {
+      name: target.name,
+      hp: Math.round(target.hp * (1 + 0.20 * tier)),
+      maxHp: Math.round(target.hp * (1 + 0.20 * tier)),
+      atk: Math.round(target.atk * (1 + 0.10 * tier)),
+      def: Math.round(target.def * 1.0)
+    };
+    assert.ok(measured.present.summonedAllies.length > 0, `summonAlly B${comparison.depth} must observe a summon`);
+    assert.deepEqual(measured.present.summonedAllies, [expected]);
   }
+}
+
+for (const traitId of ["buffAtk", "buffPhysicalDef", "summonAlly"]) {
+  const comparisons = activationSmoke.comparisons.filter(comparison => comparison.traitId === traitId);
+  assert.ok(
+    comparisons.some(comparison => comparison.present.traitEffect.activationCount.average > 0),
+    `${traitId} present must observe an activation`
+  );
+  assert.ok(
+    comparisons.every(comparison => comparison.absent.traitEffect.activationCount.average === 0),
+    `${traitId} absent must observe zero activations`
+  );
 }
 
 console.log("[PASS] Issue #1599 composition trait pairing, fixed scope, and determinism");

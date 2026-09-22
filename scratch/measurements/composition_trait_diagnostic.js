@@ -203,14 +203,24 @@ function createScenario({ fixture, condition, depth }) {
       entryHpRatio: 1,
       entryMpRatio: 0,
       scalingPolicy: "phase2a",
+      summonScalingPolicy: fixture.id === "summonAlly" ? "phase2a" : null,
       playerCandidate: playerFixture,
       removeTrait: condition.removeTrait === "fixture-trait" ? fixture.id : null
     }
   };
 }
 
-function countActionSource(actions, traitId) {
-  return actions.filter(action => action.traitSources?.includes(traitId)).length;
+const ACTIVATION_ACTION_NAMES = Object.freeze({
+  buffAtk: "仲間を鼓舞",
+  buffPhysicalDef: "物理防御を強化",
+  summonAlly: "仲間を呼ぶ"
+});
+
+function countActivationActions(actions, traitId) {
+  const actionName = ACTIVATION_ACTION_NAMES[traitId];
+  return actionName
+    ? actions.filter(action => action.actionNames?.includes(actionName)).length
+    : 0;
 }
 
 function observeTraitEffect(result, traitId) {
@@ -218,7 +228,7 @@ function observeTraitEffect(result, traitId) {
   const rounds = encounter?.rounds || [];
   const actions = rounds.flatMap(round => round.enemyActionEvents || []);
   const logs = rounds.flatMap(round => round.log || []);
-  const activationCount = countActionSource(actions, traitId);
+  const activationCount = countActivationActions(actions, traitId);
   if (traitId === "guardAdjacent") {
     const redirectCount = logs.filter(message => message.includes("庇った！")).length;
     return {
@@ -258,12 +268,17 @@ function observeRun(result, traitId, conditionId) {
     survival: Number(result.fixedCombatResult === "victory"),
     traitEffect: effect,
     spawnedAllies,
+    summonedAllies: result.fixedCombat?.summonedAllies || [],
     observedTraits: [...new Set(initialMonsters.flatMap(monster => monster.traits || []))],
     finalEnemyCount: endEnemyHp.length
   };
 }
 
 function summarizeRuns(rows, traitId, depth, conditionId) {
+  const summonedAllies = [...new Map(
+    rows.flatMap(row => row.summonedAllies || [])
+      .map(snapshot => [JSON.stringify(snapshot), snapshot])
+  ).values()];
   return {
     traitId,
     depth,
@@ -278,6 +293,7 @@ function summarizeRuns(rows, traitId, depth, conditionId) {
     enemyActions: summarize(rows.map(row => row.enemyActions)),
     survivalRate: rows.reduce((sum, row) => sum + row.survival, 0) / rows.length,
     spawnedAllies: summarize(rows.map(row => row.spawnedAllies)),
+    summonedAllies,
     finalEnemyCount: summarize(rows.map(row => row.finalEnemyCount)),
     traitEffect: {
       activationCount: summarize(rows.map(row => row.traitEffect.activationCount)),
