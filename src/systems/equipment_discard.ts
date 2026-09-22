@@ -16,7 +16,7 @@ export interface DiscardEntry {
 }
 
 export interface DiscardStateLike {
-  inventory?: unknown[];
+  inventory: unknown[];
   [key: string]: unknown;
 }
 
@@ -42,7 +42,7 @@ interface ItemDataLike {
 
 interface ResolvedDiscardEntry extends DiscardEntry {
   itemKey: unknown;
-  item: ItemDataLike;
+  item: unknown;
   lootId: unknown;
 }
 
@@ -93,24 +93,16 @@ const consumeRunObjectLootAtBoundary: ConsumeRunObjectLootAtBoundary = consumeRu
 const trackEquipmentDecisionAtBoundary: TrackEquipmentDecisionAtBoundary = trackEquipmentDecision;
 const trackLootLifecycleAtBoundary: TrackLootLifecycleAtBoundary = trackLootLifecycle;
 
-function isObjectLike(value: unknown): value is Record<string, unknown> {
+function isRiskItemKey(value: unknown): value is RiskItemKey {
   return value !== null && typeof value === "object";
 }
 
-function isRiskItemKey(value: unknown): value is RiskItemKey {
-  return isObjectLike(value);
-}
-
-function isDiscardEntry(value: unknown): value is DiscardEntry {
-  return isObjectLike(value) && Number.isInteger(value.index);
-}
-
 function isItemData(value: unknown): value is ItemDataLike {
-  return isObjectLike(value) && typeof value.name === "string" && typeof value.type === "string";
+  return value !== null && (typeof value === "object" || typeof value === "function");
 }
 
 function isEquipmentItem(item: unknown): item is ItemDataLike {
-  return isItemData(item) && EQUIPMENT_TYPES.has(item.type);
+  return Boolean(item) && isItemData(item) && EQUIPMENT_TYPES.has(item.type ?? "");
 }
 
 function reportEquippedCheckFailure(error: unknown, scope: unknown): void {
@@ -131,8 +123,8 @@ function isItemEquipped(stateLike: DiscardStateLike, itemKey: unknown): boolean 
   return result.equipped;
 }
 
-function getDisplayName(itemKey: unknown, item: ItemDataLike): string {
-  return `${isRiskItemKey(itemKey) && itemKey.identified !== true ? "? " : ""}${item.name}`;
+function getDisplayName(itemKey: unknown, item: unknown): string {
+  return `${isRiskItemKey(itemKey) && itemKey.identified !== true ? "? " : ""}${isItemData(item) ? item.name : undefined}`;
 }
 
 export function getDiscardRisk(itemKey: unknown): string[] {
@@ -163,41 +155,33 @@ function createDiscardConfirmation(entries: ResolvedDiscardEntry[]): string {
   return `選択した${count}件の装備を破棄しますか？この操作は取り消せません。${warning}`;
 }
 
-function getStateLike(options: DiscardEquipmentOptions): DiscardStateLike {
-  return options.stateLike === undefined ? state : options.stateLike;
-}
-
 export function discardEquipmentItems(
-  entries: unknown,
-  options: DiscardEquipmentOptions = {}
+  entries: DiscardEntry[],
+  { stateLike = state, character = null }: DiscardEquipmentOptions = {}
 ): { ok: boolean; count: number } {
-  if (!Array.isArray(entries) || entries.length === 0 || options === null || typeof options !== "object") {
+  if (!Array.isArray(entries) || entries.length === 0) {
     return { ok: false, count: 0 };
   }
-
-  const stateLike = getStateLike(options);
-  const character: DiscardCharacterLike | null = options.character ?? null;
-  if (!isObjectLike(stateLike) || !Array.isArray(stateLike.inventory)) {
-    return { ok: false, count: 0 };
-  }
-  if (!entries.every(isDiscardEntry)) return { ok: false, count: 0 };
 
   // Map keeps the established duplicate-index behavior: last value wins while
   // the first insertion position remains unchanged.
   const uniqueEntries = [...new Map(entries.map(entry => [entry.index, entry])).values()];
-  const validEntries: ResolvedDiscardEntry[] = [];
-  for (const entry of uniqueEntries) {
+  const validEntries = uniqueEntries.map((entry): ResolvedDiscardEntry => {
     const itemKey = stateLike.inventory[entry.index];
     const item = getItemDataAtBoundary(itemKey);
-    const lootEntry = findRunObjectLootEntryAtBoundary(stateLike, itemKey);
-    if (
-      entry.index < 0 || entry.index >= stateLike.inventory.length ||
-      (entry.expectedItemKey !== undefined && itemKey !== entry.expectedItemKey) ||
-      !isEquipmentItem(item) || isItemEquipped(stateLike, itemKey)
-    ) {
-      return { ok: false, count: 0 };
-    }
-    validEntries.push({ ...entry, itemKey, item, lootId: lootEntry?.id });
+    return {
+      ...entry,
+      itemKey,
+      item,
+      lootId: findRunObjectLootEntryAtBoundary(stateLike, itemKey)?.id
+    };
+  });
+  if (validEntries.some(({ itemKey, item, index, expectedItemKey }) => (
+    index < 0 || index >= stateLike.inventory.length ||
+    (expectedItemKey !== undefined && itemKey !== expectedItemKey) ||
+    !isEquipmentItem(item) || isItemEquipped(stateLike, itemKey)
+  ))) {
+    return { ok: false, count: 0 };
   }
 
   if (typeof globalThis.confirm !== "function" || !globalThis.confirm(createDiscardConfirmation(validEntries))) {
@@ -228,7 +212,7 @@ export function discardEquipmentItems(
   }));
   [...validEntries]
     .sort((a, b) => b.index - a.index)
-    .forEach(({ index }) => stateLike.inventory?.splice(index, 1));
+    .forEach(({ index }) => stateLike.inventory.splice(index, 1));
 
   if (displayNames.length === 1) {
     addLog(`[破棄] ${displayNames[0]}を破棄した。`);

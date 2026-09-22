@@ -118,6 +118,16 @@ try {
   assert.equal(confirmMessage, "「ダガー」を破棄しますか？この操作は取り消せません。");
   assert.deepEqual(duplicateState.inventory, []);
 
+  const stringIndexItem = equipment("DAGGER");
+  const stringIndexState = createState([stringIndexItem]);
+  assert.deepEqual(
+    discardFacade.discardEquipmentItems([{ index: "0", expectedItemKey: stringIndexItem }], {
+      stateLike: stringIndexState
+    }),
+    { ok: true, count: 1 }
+  );
+  assert.deepEqual(stringIndexState.inventory, []);
+
   const unidentified = equipment("DAGGER", {
     identified: false,
     rarity: "rare",
