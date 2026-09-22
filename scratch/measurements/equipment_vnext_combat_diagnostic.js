@@ -20,7 +20,7 @@ export const MIN_CONFIDENT_RUNS = 30;
 export const WEAPON_CANDIDATES = Object.freeze({
   dagger: Object.freeze({ id: "dagger", label: "短剣", multiplier: 0.82, hitChance: 0.96, highDefPenetration: 0.02, hands: 1, load: "light", runeSlots: 0 }),
   sword: Object.freeze({ id: "sword", label: "片手剣", multiplier: 1.00, hitChance: 0.92, highDefPenetration: 0.05, hands: 1, load: "standard", runeSlots: 0 }),
-  mace: Object.freeze({ id: "mace", label: "メイス", multiplier: 0.98, hitChance: 0.88, highDefPenetration: 1.50, highDefOnly: true, hands: 1, load: "standard", runeSlots: 0 }),
+  mace: Object.freeze({ id: "mace", label: "メイス", multiplier: 0.98, hitChance: 0.88, highDefPenetration: 1.00, highDefOnly: true, hands: 1, load: "standard", runeSlots: 0 }),
   greatsword: Object.freeze({ id: "greatsword", label: "大剣", multiplier: 1.32, hitChance: 0.82, highDefPenetration: 0.08, hands: 2, load: "heavy", runeSlots: 0 }),
   wand: Object.freeze({ id: "wand", label: "魔杖", multiplier: 0.68, hitChance: 0.94, highDefPenetration: 0.04, hands: 1, load: "standard", runeSlots: 1, mpCapacity: 2 }),
   staff: Object.freeze({ id: "staff", label: "大杖", multiplier: 0.58, hitChance: 0.90, highDefPenetration: 0.04, hands: 2, load: "standard", runeSlots: 2, mpCapacity: 4 })
@@ -169,6 +169,7 @@ export function resolveFormula({ weaponId, depth, defense = "normal" }) {
     expectedRaw: raw,
     hitChance: weapon.hitChance,
     defense,
+    effectiveDefense,
     expectedDamage: damage,
     expectedDamagePerAttempt: damage * weapon.hitChance
   };
