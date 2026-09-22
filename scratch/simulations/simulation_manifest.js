@@ -208,6 +208,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // owning system side effects; this refactor only makes those boundaries explicit.
     { pattern: "src/rules/equipment_preview.js", domains: [] },
     { pattern: "src/rules/equipment_equipped.js", domains: [] },
+    { pattern: "src/rules/equipment_equipped.ts", domains: [] },
     { pattern: "src/rules/equipment_rules.js", domains: [] },
     { pattern: "src/systems/equipment_actions.js", domains: [] },
     { pattern: "src/systems/equipment_actions.ts", domains: [] },
