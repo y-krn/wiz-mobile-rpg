@@ -11,8 +11,8 @@ import { createRng as createSeededRng } from "../../src/seed_rng.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1569-equipment-load-candidates-diagnostic-v1";
-export const SCHEMA_VERSION = 3;
+export const RUNNER_VERSION = "issue1573-raw-burden-stacking-diagnostic-v1";
+export const SCHEMA_VERSION = 4;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1544;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -126,11 +126,18 @@ export const LOAD_INITIATIVE_CANDIDATES = Object.freeze({
   }),
   heavyMinusOne: Object.freeze({
     id: "heavyMinusOne",
-    label: "候補 light +2 / standard 0 / heavy -1",
+    label: "固定候補 light +2 / standard 0 / heavy -1",
     modifiers: Object.freeze({ light: 2, standard: 0, heavy: -1 })
+  }),
+  rawBurdenHeavyCost: Object.freeze({
+    id: "rawBurdenHeavyCost",
+    label: "raw burden超過1点ごと追加heavy -1",
+    modifiers: Object.freeze({ light: 2, standard: 0, heavy: -1 }),
+    rawBurdenFloor: 2,
+    additionalHeavyCostPerBurden: 1
   })
 });
-const LOAD_CANDIDATE_IDS = Object.freeze(Object.keys(LOAD_INITIATIVE_CANDIDATES));
+const LOAD_CANDIDATE_IDS = Object.freeze(["heavyMinusOne", "rawBurdenHeavyCost"]);
 const ENEMY_DEFENSE = Object.freeze({ normal: 8, high: 20 });
 const ATTACK_PRESSURE = Object.freeze({ physical: 28, spell: 30, breath: 34 });
 const GUARD_REFERENCE_SHIELD = "smallShield";
@@ -208,6 +215,20 @@ export function resolveVNextLoadCandidate(fixture, policy) {
   return resolveLoadClass(fixture, policy);
 }
 
+export function resolveEffectiveTempoModifier(load, candidateId, initiativeLoad = load.class) {
+  const candidate = LOAD_INITIATIVE_CANDIDATES[candidateId];
+  if (!candidate) throw new Error(`unknown load initiative candidate: ${candidateId}`);
+  const baseModifier = candidate.modifiers[initiativeLoad];
+  if (!Number.isFinite(baseModifier)) throw new Error(`unknown initiative load: ${initiativeLoad}`);
+  const excessBurden = candidate.rawBurdenFloor === undefined
+    ? 0
+    : Math.max(0, load.aggregateScore - candidate.rawBurdenFloor);
+  const additionalHeavyCost = initiativeLoad === "heavy"
+    ? excessBurden * (candidate.additionalHeavyCostPerBurden || 0)
+    : 0;
+  return baseModifier - additionalHeavyCost;
+}
+
 export function resolveFormula({ weaponId, depth, defense = "normal" }) {
   const weapon = WEAPON_CANDIDATES[weaponId];
   if (!weapon) throw new Error(`unknown weapon candidate: ${weaponId}`);
@@ -273,7 +294,8 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
   const loadCandidateId = candidate.loadCandidateId || "current";
   const loadCandidate = LOAD_INITIATIVE_CANDIDATES[loadCandidateId];
   if (!loadCandidate) throw new Error(`unknown load initiative candidate: ${loadCandidateId}`);
-  const playerSpeed = 10 + loadCandidate.modifiers[initiativeLoad];
+  const effectiveTempoModifier = resolveEffectiveTempoModifier(load, loadCandidateId, initiativeLoad);
+  const playerSpeed = 10 + effectiveTempoModifier;
   const enemySpeed = 10;
   const playerInitiativeDraw = initiativeOverride === null ? rng() : null;
   const enemyInitiativeDraw = initiativeOverride === null ? rng() : null;
@@ -389,6 +411,7 @@ export function simulateOne(condition, candidateId, candidate, runSeed, { initia
     playerFirst,
     initiativeDraws: { player: playerInitiativeDraw, enemy: enemyInitiativeDraw },
     playerSpeed,
+    effectiveTempoModifier,
     loadClass: load.class,
     loadScore: load.score,
     rawBurden: load.aggregateScore,
@@ -413,6 +436,11 @@ function finalizeAccumulator(accumulator, runs) {
     loadScore: load.score,
     rawBurden: load.aggregateScore,
     maxBurdenScore: load.maxBurdenScore,
+    effectiveTempoModifier: resolveEffectiveTempoModifier(
+      load,
+      accumulator.candidate.loadCandidateId || "current",
+      accumulator.candidate.initiativeLoad || load.class
+    ),
     runs,
     outcomes: accumulator.outcomes,
     survivalRate: accumulator.survival / runs,
@@ -533,7 +561,7 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
         maxBurdenScore: maxBurden.score,
         invariant: resolved.score >= maxBurden.score,
         result: policy === "max-burden"
-          ? fixedCombat.find(row => row.conditionId === `load-${fixtureId}` && row.loadCandidateId === "current")
+          ? fixedCombat.find(row => row.conditionId === `load-${fixtureId}` && row.loadCandidateId === "heavyMinusOne")
           : null
       };
     });
@@ -561,6 +589,13 @@ export async function runEquipmentVNextCombatDiagnostic({ runs = DEFAULT_RUNS, s
       },
       loadPolicies: [...LOAD_POLICIES],
       loadInitiativeCandidates: Object.values(LOAD_INITIATIVE_CANDIDATES),
+      loadTempoComparison: {
+        baselineCandidateId: "heavyMinusOne",
+        candidateId: "rawBurdenHeavyCost",
+        rawBurdenFloor: 2,
+        additionalHeavyCostPerBurden: 1,
+        fixtureIds: Object.keys(LOAD_FIXTURES)
+      },
       largeShieldDiagnostic: {
         comparisonGroup: "shield-physical",
         baseline: { candidateId: "smallShield", guardPhysical: 0.50, initiativeLoad: "light" },
@@ -595,7 +630,7 @@ function buildReport(result, provenance, purpose) {
     depths: result.configuration.depths,
     representativeConditionIds: result.configuration.representativeConditionIds,
     loadPolicies: result.configuration.loadPolicies
-  }, { label: "issue1569 equipment load candidate diagnostic env" });
+  }, { label: "issue1573 raw burden stacking diagnostic env" });
   return {
     ...result,
     purpose,
@@ -619,7 +654,7 @@ function buildReport(result, provenance, purpose) {
       armor: "direct incoming mitigation candidate; production DEF/(DEF+4) untouched",
       guard: "Defend-only: no-shield=0.72 weak baseline; small=0.50 standard; large=0.35 physical with heavy load; large standard-tempo isolation keeps 0.35 Guard; magic=0.35 spell/breath and 0.50 physical; Attack has no Guard mitigation",
       rune: "wand and staff share one Rune action; slots, MP capacity, and hands are the only Rune scenario differences",
-      load: "current = light +2 / standard 0 / heavy -2; candidate = light +2 / standard 0 / heavy -1; raw burden remains max-burden/aggregate diagnostic only",
+      load: "production current = light +2 / standard 0 / heavy -2; #1573 fixed baseline = light +2 / standard 0 / heavy -1; candidate adds heavy -1 per raw burden above 2; UI remains light / standard / heavy",
       loadFixtures: LOAD_FIXTURES,
       confidence: `N < ${MIN_CONFIDENT_RUNS} is runner-correctness-only`
     }
@@ -628,7 +663,7 @@ function buildReport(result, provenance, purpose) {
 
 function buildSummary(report) {
   const lines = [
-    "# Equipment Load candidate diagnostic (#1569)",
+    "# Raw burden stacking diagnostic (#1573)",
     "",
     `- measurement: ${report.measurementId}; runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; confidence: ${report.confidencePolicy.belowMinimum} below N=${MIN_CONFIDENT_RUNS}`,
@@ -642,21 +677,22 @@ function buildSummary(report) {
     "",
     "## Representative fixed combat",
     "",
-    "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and three representative load fixtures; load compares current light +2 / standard 0 / heavy -2 with heavy -1 using common random numbers.",
-    "- Metrics: survival, rounds, one-round kills, damage dealt/taken, enemy actions, player-before-any-enemy, Guard opportunity count, Defend-only Guard reduction/opportunity loss, load class, raw burden, actual Rune actions/damage/MP.",
+    "- Explicit comparisons only: weapon pairs, armor candidates, shield candidates by physical/arcane pressure, and three representative load fixtures; load compares fixed heavy -1 with one raw-burden candidate using common random numbers.",
+    "- Metrics: survival, rounds, one-round kills, damage dealt/taken, enemy actions, player-before-any-enemy, Guard opportunity count, Defend-only Guard reduction/opportunity loss, load class, raw burden, effective tempo modifier, actual Rune actions/damage/MP.",
     `- Rune scenario: shared ${report.configuration.runeAction.id} damage=${report.configuration.runeAction.baseDamage} MP=${report.configuration.runeAction.mpCost}; ${report.configuration.weaponProfiles.filter(row => row.runeSlots > 0).map(row => `${row.id}(slots=${row.runeSlots},MP=${row.mpCapacity},hands=${row.hands})`).join(" vs ")}.`,
     "",
-    "| condition | candidate | load | raw burden | enemy HP | survival | rounds p50 | 1-round kill | damage taken avg | enemy actions avg | player first | Guard opportunities avg | Guard reduction avg | Guard opportunity loss avg | Rune actions avg | Rune damage avg | MP spent avg |",
-    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...report.fixedCombat.map(row => `| ${row.conditionId} | ${row.candidateId} | ${row.loadClass} | ${row.rawBurden} | ${row.enemyHpMultiplier.toFixed(2)}× | ${(row.survivalRate * 100).toFixed(1)}% | ${row.rounds.p50?.toFixed(2) ?? "-"} | ${(row.oneRoundKillRate * 100).toFixed(1)}% | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardedEnemyActions.average?.toFixed(2) ?? "-"} | ${row.guardReduction.average?.toFixed(2) ?? "-"} | ${row.guardOpportunityLoss.average?.toFixed(2) ?? "-"} | ${row.runeActions.average?.toFixed(2) ?? "-"} | ${row.runeDamage.average?.toFixed(2) ?? "-"} | ${row.mpSpent.average?.toFixed(2) ?? "-"} |`),
+    "| condition | candidate | load | raw burden | tempo | enemy HP | survival | rounds p50 | 1-round kill | damage taken avg | enemy actions avg | player first | Guard opportunities avg | Guard reduction avg | Guard opportunity loss avg | Rune actions avg | Rune damage avg | MP spent avg |",
+    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...report.fixedCombat.map(row => `| ${row.conditionId} | ${row.candidateId} | ${row.loadClass} | ${row.rawBurden} | ${row.effectiveTempoModifier} | ${row.enemyHpMultiplier.toFixed(2)}× | ${(row.survivalRate * 100).toFixed(1)}% | ${row.rounds.p50?.toFixed(2) ?? "-"} | ${(row.oneRoundKillRate * 100).toFixed(1)}% | ${row.damageTaken.average?.toFixed(2) ?? "-"} | ${row.enemyActionCount.average?.toFixed(2) ?? "-"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardedEnemyActions.average?.toFixed(2) ?? "-"} | ${row.guardReduction.average?.toFixed(2) ?? "-"} | ${row.guardOpportunityLoss.average?.toFixed(2) ?? "-"} | ${row.runeActions.average?.toFixed(2) ?? "-"} | ${row.runeDamage.average?.toFixed(2) ?? "-"} | ${row.mpSpent.average?.toFixed(2) ?? "-"} |`),
     "",
     "## Load comparison",
     "",
     ...report.loadComparison.map(row => `- ${row.policy}: fixture=${row.fixture.id}; class=${row.resolved.class}; score=${row.resolved.score}; aggregate raw=${row.resolved.aggregateScore}; max-burden floor=${row.maxBurdenScore}; invariant=${row.invariant}; aggregation=${row.resolved.aggregation}`),
+    "- Tempo candidates: fixed heavy -1; raw-burden candidate = heavy -1 - max(0, raw burden - 2). Expected effective tempo: raw 2→-1, raw 3→-2, raw 4→-3.",
     "",
     "## Interpretation boundary",
     "",
-    "- This report is a diagnostic-only candidate comparison, not a production balance decision. Production remains light +2 / standard 0 / heavy -2 and UI remains 速い / 標準 / 遅い.",
+    "- This report is diagnostic-only. Production remains light +2 / standard 0 / heavy -2; UI remains 速い / 標準 / 遅い; Bag weight, Guard, Weapon, Tier, and enemy scaling remain unchanged.",
     `- N < ${MIN_CONFIDENT_RUNS} cannot support a balance conclusion. Merge後GitHub Actions measurement artifact is the evidence source.`,
     "- No production combat, equipment, enemy, loot, UI, or save module is imported or changed."
   ];
@@ -684,7 +720,7 @@ async function main() {
   const report = buildReport(result, provenance, options.purpose || process.env.MEASUREMENT_PURPOSE || "");
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));
-  console.log(`Wrote Issue #1569 equipment load candidate diagnostic: ${resolve(options.output)}`);
+  console.log(`Wrote Issue #1573 raw burden stacking diagnostic: ${resolve(options.output)}`);
 }
 
 export { buildReport, buildSummary, formulaTable, resolveLoadClass };
