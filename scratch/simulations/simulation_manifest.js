@@ -188,6 +188,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // Chest domain owns the explicit orchestration boundary for these existing
     // rolls, so retain the controller's balance-domain coverage.
     { pattern: "src/chest/chest_domain.js", domains: ["chests", "traps", "drops", "equipment", "economy"] },
+    { pattern: "src/chest/chest_domain.ts", domains: ["chests", "traps", "drops", "equipment", "economy"] },
     { pattern: "src/chest/chest_view.js", domains: [] },
     { pattern: "src/craft.js", domains: ["workshop", "economy", "equipment"] },
     // Equipment preview/rendering changes do not alter economy rules; economy
