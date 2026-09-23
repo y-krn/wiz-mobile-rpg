@@ -52,6 +52,8 @@ assert.equal(b30First.cells[0].arms.baseline.deaths, b30First.cells[0].deaths);
 assert.equal(b30First.cells[0].arms.candidate.runs, 1);
 for (const armName of ["baseline", "candidate"]) {
   const arm = b30First.cells[0].arms[armName];
+  assert.ok(Number.isFinite(arm.endBossMaxHp.average));
+  assert.equal(arm.endBossMaxHp.count, arm.runs);
   assert.ok(Number.isFinite(arm.endBossHp.average));
   assert.ok(Number.isFinite(arm.endBossHpRate.average));
   assert.equal(arm.deathEndBossHp.count, arm.deaths);
@@ -60,6 +62,8 @@ for (const armName of ["baseline", "candidate"]) {
 }
 assert.equal(b30First.cells[0].arms.baseline.deaths, 1, "seed 1613 B30 smoke exercises death remaining HP summary");
 assert.equal(b30First.cells[0].arms.baseline.endBossHp.average, 970);
+assert.equal(b30First.cells[0].arms.baseline.endBossMaxHp.average, 1280);
+assert.equal(b30First.cells[0].arms.candidate.endBossMaxHp.average, 1280);
 assert.equal(b30First.cells[0].arms.baseline.endBossHpRate.average, 970 / 1280);
 assert.ok(b30First.cells[0].arms.baseline.deathEndBossHp.average > 0);
 assert.ok(b30First.cells[0].arms.baseline.deathEndBossHpRate.average > 0);
@@ -146,6 +150,8 @@ const b30Summary = buildSummary({
 });
 assert.match(b30Summary, /schema: 8/);
 assert.match(b30Summary, /baseline boss remaining=/);
+assert.match(b30Summary, /"maxHp":\{"count":1,"average":1280/);
+assert.match(b30Summary, /"endBossMaxHp":\{"count":1,"average":1280/);
 assert.match(b30Summary, /deathEndBossHp/);
 assert.match(b30Summary, /executedFightRoundsDelta/);
 
