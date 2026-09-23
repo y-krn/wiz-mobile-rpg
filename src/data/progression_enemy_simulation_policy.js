@@ -1,0 +1,133 @@
+// balance-impact: none — Pure diagnostic policy; intentionally disconnected from production rules.
+
+const freezeRows = rows => Object.freeze(rows.map(row => Object.freeze(row)));
+
+export const PROGRESSION_ENEMY_SIMULATION_POLICY = Object.freeze({
+  status: "design-only",
+  productionConnected: false,
+  contractSource: "PROGRESSION_ENEMY_CONTRACT",
+  candidateValues: "undecided; this policy defines measurement only",
+  priorDiagnosticEvidence: "Phase 1/2a numeric values may inform later measurement only; they are not candidate defaults, production values, or automatic adoption inputs",
+  comparison: Object.freeze([
+    "current production reference",
+    "one vNext player milestone baseline + generic enemy band scale candidate"
+  ]),
+  contexts: freezeRows([
+    {
+      id: "pre-milestone",
+      timing: "fight milestone Boss before defeat",
+      baselineSource: "entitlement for the actually selected startFloor",
+      baselineRule: "prior defeated milestone; selected startFloor entitlement is the floor"
+    },
+    {
+      id: "selected-deep-start",
+      timing: "start a run at the selected milestone floor",
+      baselineSource: "entitlement for the actually selected startFloor only",
+      level: 1,
+      baselineRule: "selected startFloor entitlement; ignore other globally unlocked milestones"
+    },
+    {
+      id: "post-milestone",
+      timing: "first floor after milestone Boss defeat",
+      baselineSource: "maximum of selected startFloor entitlement and highest milestone defeated in this run",
+      baselineRule: "milestone defeat advances baseline for the next floor"
+    }
+  ]),
+  coverage: Object.freeze({
+    referenceFloors: Object.freeze([
+      Object.freeze({ floor: 1, role: "B1 start / baseline 0 reference" }),
+      Object.freeze({ floor: 30, role: "generic B30 reference; exclude B30 Boss authored rule" })
+    ]),
+    milestoneFloors: Object.freeze([5, 10, 20]),
+    contextFloorMapping: Object.freeze({
+      "pre-milestone": "Boss floor M, before its defeat",
+      "selected-deep-start": "selected startFloor M at Level 1",
+      "post-milestone": "floor M+1 after defeating Boss M"
+    }),
+    focusedRegressionOnly: Object.freeze([
+      Object.freeze({ milestoneFloor: 15, preBaseline: 2, selectedStartBaseline: 3, postFloor: 16, postBaseline: 3 }),
+      Object.freeze({ milestoneFloor: 25, preBaseline: 4, selectedStartBaseline: 5, postFloor: 26, postBaseline: 5 })
+    ])
+  }),
+  layers: Object.freeze({
+    fixedGenericCombat: Object.freeze({
+      purpose: "isolate milestone baseline and generic enemy raw band scale",
+      reuse: "production combat semantics with fixed representative generic enemy and non-specialized equipment",
+      fixtures: Object.freeze([
+        Object.freeze({ id: "physical", axis: "physical combat" }),
+        Object.freeze({ id: "spell", axis: "spell combat; record MP spend" }),
+        Object.freeze({ id: "defensive-guard", axis: "defensive / Guard pressure; record Guard opportunities and guarded actions" })
+      ]),
+      holdConstant: Object.freeze([
+        "enemy fixture within each paired comparison",
+        "representative non-specialized equipment",
+        "no loot, rarity, Named, Support, or Core vertical modifiers",
+        "no Boss-authored mechanics"
+      ]),
+      metrics: Object.freeze([
+        "survival / death",
+        "rounds",
+        "damage dealt",
+        "damage taken",
+        "post-combat HP",
+        "enemy actions",
+        "player actions",
+        "player-before-any-enemy",
+        "Guard opportunity / guarded actions when applicable",
+        "spell / MP spent when applicable"
+      ])
+    }),
+    runLocalLevelDelta: Object.freeze({
+      purpose: "measure incremental run-local growth without substituting for milestone baseline",
+      compare: "Level 1 and production-earned run-local Level at the same baseline",
+      levelSource: "production EXP / Level contract or explicitly attributed existing run evidence; never candidate-invented",
+      metrics: Object.freeze(["Level", "max HP difference", "combat outcome difference", "baseline id", "baseline source"])
+    })
+  }),
+  pairedSeeds: Object.freeze({
+    required: true,
+    key: Object.freeze(["policy", "milestone context", "fixture", "runIndex"]),
+    rule: "share the same seed within each matched baseline/candidate cell; record seed derivation and seed per run"
+  }),
+  samplePolicy: Object.freeze({
+    below30: "correctness / runner validation only; no balance conclusion",
+    pullRequest: "smoke and focused regression only; no Heavy simulation",
+    postMerge: "GitHub Actions artifact at N=200 is the authoritative balance evidence",
+    expandN200AcrossEveryMilestone: false
+  }),
+  interpretationGates: Object.freeze([
+    "deep-start Level 1 is not fundamentally underpowered in its selected band",
+    "pre-milestone and post-milestone / deep-start baseline differences follow the timing contract",
+    "run-local Level remains incremental and does not replace milestone baseline",
+    "generic combat remains viable without equipment vertical differences",
+    "raw enemy stat growth alone does not dominate deep difficulty",
+    "physical, spell, and defensive fixtures avoid an extreme isolated collapse",
+    "no specific Support, Core, Rune, or Named item is required",
+    "Boss-authored mechanics remain separate from generic band scale"
+  ]),
+  exclusions: Object.freeze([
+    "candidate numeric values or automatic adoption of Phase 1/2a values",
+    "production player, enemy, Level, EXP, reward, item, loot, or Boss changes",
+    "all-coefficient scans or separate broad player/enemy coefficient sweeps",
+    "full build Cartesian product",
+    "Heavy simulation inside the PR",
+    "Boss-authored encounters, including B30 Boss mechanics, as generic-scale tuning targets",
+    "SAVE_VERSION changes and save migration",
+    "claims beyond the fixed fixtures, policies, and observed metrics"
+  ]),
+  artifact: Object.freeze({
+    authoritativeLocation: "merged GitHub Actions artifact",
+    sampleSize: 200,
+    requiredFiles: Object.freeze(["raw observations", "summary"]),
+    provenance: Object.freeze([
+      "source SHA",
+      "gameplay SHA",
+      "runner SHA and runner version",
+      "policy version",
+      "configuration and cell identity",
+      "seed policy and per-run seed",
+      "sample size",
+      "GitHub Actions run identity"
+    ])
+  })
+});
