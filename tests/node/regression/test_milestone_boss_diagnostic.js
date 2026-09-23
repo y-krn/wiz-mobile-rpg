@@ -21,6 +21,7 @@ import {
   MEASUREMENT_IDS,
   resolveRunnerInvocation
 } from "../../../scratch/measurements/run_balance_measurement.js";
+import { getMilestoneBossActionRule } from "../../../src/rules/boss_rules.js";
 
 const first = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmallRunCount: true });
 const second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmallRunCount: true });
@@ -65,8 +66,8 @@ assert.deepEqual(first.configuration.playerFixture, {
 assert.equal(first.configuration.reflectPhysicalDiagnosticFreeze, REFLECT_PHYSICAL_DIAGNOSTIC_RATE);
 assert.equal(first.configuration.scaling, "HP = 1 + 0.20 × Tier; ATK = 1 + 0.10 × Tier; DEF = 1.0");
 assert.equal(first.cells.length, BOSS_FIXTURES.length);
-assert.equal(b10Default.summary.crushStrike.queued, 0, "production default has no candidate telegraph");
-assert.equal(b10Default.summary.crushStrike.resolved, 0, "production default has no candidate resolve");
+assert.ok(b10Default.summary.crushStrike.queued > 0, "B10 production default telegraphs without an opt-in policy");
+assert.ok(b10Default.summary.crushStrike.resolved > 0, "B10 production default resolves without an opt-in policy");
 for (const armName of ["unread", "read"]) {
   const arm = b10Candidate.arms[armName];
   assert.ok(arm.crushStrike.queued > 0, `B10 ${armName} queues 砕岩打ち`);
@@ -122,15 +123,20 @@ assert.equal(unreadFightResolve.guarded, false);
 assert.equal(unreadFightResolve.tempDefDownAfter,
   Math.min(6, unreadFightResolve.tempDefDownBefore + 2));
 assert.equal(pairedReadResolve.tempDefDownAfter, pairedReadResolve.tempDefDownBefore);
-assert.equal(b10Default.summary.crushStrike.queued, 0,
-  "production default remains opt-out with no queue");
-assert.equal(b10Default.summary.crushStrike.resolved, 0,
-  "production default remains opt-out with no resolve");
+assert.ok(b10Default.summary.crushStrike.events.some(event => event.phase === "resolved"),
+  "B10 production resolves even when no measurement response is configured");
 assert.ok(b10Candidate.arms.read.crushStrike.events.some(event =>
   event.phase === "resolved" && event.guarded && event.tempDefDownBefore === event.tempDefDownAfter));
 assert.ok(b10Candidate.arms.unread.crushStrike.events.some(event =>
   event.phase === "resolved" && !event.guarded &&
   event.tempDefDownAfter === Math.min(6, event.tempDefDownBefore + 2)));
+assert.equal(getMilestoneBossActionRule(10, "ストーンガード", { isBoss: true }).damageMin, 18);
+assert.equal(getMilestoneBossActionRule(10, "ストーンガード", { isBoss: true }).damageMax, 32);
+assert.equal(getMilestoneBossActionRule(10, "ストーンガード", { isBoss: false }), null);
+for (const floor of [5, 15, 20, 25, 30]) {
+  assert.equal(getMilestoneBossActionRule(floor, "ストーンガード", { isBoss: true }), null,
+    `B${floor} must not receive the B10 action rule`);
+}
 assert.equal(fullB30.arms.baseline.endBossMaxHp.average, 1280);
 assert.equal(fullB30.arms.baseline.bossAtk.average, 39);
 assert.equal(fullB30.arms.candidate.endBossMaxHp.average, 640);

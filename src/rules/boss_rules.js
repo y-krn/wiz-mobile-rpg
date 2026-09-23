@@ -9,6 +9,14 @@ export const B5_MILESTONE_BOSS_RULE = Object.freeze({
   exposureDamageMultiplier: 1.50
 });
 
+export const B10_CRUSH_STRIKE_RULE = Object.freeze({
+  id: "B10_STONE_GUARD_CRUSH_STRIKE",
+  floor: 10,
+  bossName: "ストーンガード",
+  damageMin: 18,
+  damageMax: 32
+});
+
 export const B30_MILESTONE_BOSS_STAT_RULE = Object.freeze({
   id: "B30_ANCIENT_DRAGON_TEMPLATE_HP_ATK",
   floor: 30,
@@ -36,14 +44,15 @@ export function getMilestoneBossRule(
   bossName,
   { isBoss = false } = {}
 ) {
-  if (
-    !isBoss ||
-    floor !== B5_MILESTONE_BOSS_RULE.floor ||
-    bossName !== B5_MILESTONE_BOSS_RULE.bossName
-  ) {
+  if (!isBoss || floor !== B5_MILESTONE_BOSS_RULE.floor || bossName !== B5_MILESTONE_BOSS_RULE.bossName) return null;
+  return B5_MILESTONE_BOSS_RULE;
+}
+
+export function getMilestoneBossActionRule(floor, bossName, { isBoss = false } = {}) {
+  if (!isBoss || floor !== B10_CRUSH_STRIKE_RULE.floor || bossName !== B10_CRUSH_STRIKE_RULE.bossName) {
     return null;
   }
-  return B5_MILESTONE_BOSS_RULE;
+  return B10_CRUSH_STRIKE_RULE;
 }
 
 export function getMilestoneBossExposureMultiplier(

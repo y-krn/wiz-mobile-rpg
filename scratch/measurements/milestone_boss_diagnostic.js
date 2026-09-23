@@ -321,8 +321,7 @@ function createScenario(fixture, actionPlan = null, {
     startingKit: playerFixture.startingKit,
     hpBaseBonus: playerFixture.maxHp - 20,
     measurementCombatPlan: actionPlan || playerFixture.actionPlan,
-    measurementCrushStrike: fixture.floor === 10 && crushStrikeResponse !== null,
-    measurementCrushStrikeResponse: crushStrikeResponse,
+    b10CrushStrikeResponse: crushStrikeResponse,
     measurementGuardTiming: playerFixture.guardTiming,
     b30TiltowaitGuardRecoveryCandidate: b30GuardRecoveryCandidate,
     measurementCombatTier: playerFixture.combatTier,
@@ -981,7 +980,7 @@ function buildReport(result, provenance, options) {
       reflectPhysical: "freeze reference 0.20; no milestone boss template declares reflectPhysical, so no synthetic reflection is applied",
       behavior: "production boss template, production isBoss combat path, production boss action / warning / status / Guard resolution",
       status: result.configuration.depths.includes(10)
-        ? "diagnostic-only; B10 Stone Guard candidate requires explicit measurement opt-in and production default remains no-op"
+        ? "B10 read and unread compare responses to the production Stone Guard rule; only queued-target Guard behavior differs"
         : dedicatedB30AtkPressure
         ? "diagnostic-only; both B30 arms apply the same 0.5 HP multiplier after Phase 2a measurement scaling; candidate also applies a 2/3 ATK multiplier; production monster data and production scaling remain unchanged"
         : "diagnostic-only; only the B30 candidate applies a 0.5 HP multiplier after Phase 2a measurement scaling; production monster data and production scaling remain unchanged"
@@ -1049,7 +1048,7 @@ export function buildSummary(report) {
     "- Inventory source: production biome boss mapping, monster templates, boss rules, boss actions, round status/spell/Guard path.",
     "- B5: production LAHALITO telegraph / guard-break / four-turn exposure; activation is measured from production logs.",
     "- B10 production: guardAdjacent remains inventory-only in a fixed single-boss encounter; adjacent-Guard redirect is not exercised.",
-    "- B10 砕岩打ち: measurement-only opt-in on Stone Guard. The first normal action has no telegraph; the next normal action queues the strike, which resolves on the next boss turn against the queued living target. After resolution, the existing one-normal-turn cooldown remains before retelegraph. An invalid/dead target clears the queue and falls through to the ordinary action.",
+    "- B10 砕岩打ち: production Stone Guard rule. The first normal action has no telegraph; the next normal action queues the strike, which resolves on the next boss turn against the queued living target. After resolution, one normal turn passes before retelegraph. An invalid/dead target clears the queue and falls through to the ordinary action.",
     "- B10 read Guards the queued target only; unread has no crush-strike response. Both arms use identical Phase 1 fixture, Phase 2a scaling, stats, trial pressure, equipment, Load, and underlying action policy.",
     "- Guard uses existing physical Guard mitigation and applies no tempDefDown. Unguarded resolution applies +2 tempDefDown, capped at 6.",
     "- B15: `isPoisonous=true` keeps the legacy poison fallback active on the production Boss path; template-defined `poison_payoff` is inactive there. Runtime status observation uses existing `statusSources`.",
