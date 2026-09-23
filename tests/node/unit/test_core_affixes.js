@@ -46,6 +46,12 @@ import { increaseChestTrapTier } from "../../../src/systems/traps.js";
 import { restAtCamp } from "../../../src/systems/camp_rest.js";
 import { applyCombatRewards } from "../../../src/combat_logic/rewards.js";
 import { SPELL_EFFECTS } from "../../../src/systems/spell_effects.js";
+import {
+  VNEXT_CORE_AUDIT,
+  VNEXT_CORE_IDS,
+  VNEXT_CORE_CANDIDATE_IDS,
+  getVNextCoreId
+} from "../../../src/data/equipment_vnext.js";
 
 let failures = 0;
 
@@ -118,6 +124,42 @@ test("現行coreはすべてenabled", () => {
     "CORE_THORN_SHIELD", "CORE_EXECUTIONER", "CORE_THIN_ICE_PACT", "CORE_SNEAK_STEP",
     "CORE_TOMB_RAIDER", "CORE_KEEN_EYE", "CORE_CAMP_MASTER", "CORE_BOUNTY_HUNTER", "CORE_SCHOLAR_EYE"
   ]);
+});
+
+test("production Core 13件を一度ずつ監査しvNext語彙と一致させる", () => {
+  const productionIds = CORE_AFFIXES.map(core => core.id).sort();
+  const auditIds = Object.keys(VNEXT_CORE_AUDIT).sort();
+  assert.equal(productionIds.length, 13);
+  assert.equal(new Set(productionIds).size, 13);
+  assert.deepEqual(auditIds, productionIds);
+
+  const adoptedIds = [];
+  for (const core of CORE_AFFIXES) {
+    const audit = VNEXT_CORE_AUDIT[core.id];
+    assert.equal(audit.productionId, core.id);
+    assert.ok(["keep", "change", "support", "retire"].includes(audit.disposition));
+    assert.equal(audit.currentStatus, "active");
+    assert.equal(audit.productionSupply, true);
+    assert.ok(audit.supplyEvidence.length > 0);
+    assert.equal(audit.productionConsumer, true);
+    assert.ok(audit.consumerEvidence.length > 0);
+    assert.ok(audit.currentSemantic);
+    assert.ok(audit.identityOverlap.some(entry => entry.startsWith("Support ")));
+    assert.ok(audit.identityOverlap.some(entry => entry.startsWith("Named/Base:")));
+    if (audit.disposition === "change") assert.ok(audit.targetSemantic);
+    if (["keep", "change"].includes(audit.disposition)) {
+      assert.ok(getVNextCoreId(core.id));
+      adoptedIds.push(getVNextCoreId(core.id));
+    } else {
+      assert.equal(getVNextCoreId(core.id), null);
+    }
+  }
+
+  assert.deepEqual([...VNEXT_CORE_IDS].sort(), adoptedIds.sort());
+  assert.equal(new Set(VNEXT_CORE_IDS).size, VNEXT_CORE_IDS.length);
+  assert.ok(VNEXT_CORE_CANDIDATE_IDS.includes("overmix"));
+  assert.ok(VNEXT_CORE_CANDIDATE_IDS.includes("discarded_baggage_smoke"));
+  assert.ok(VNEXT_CORE_CANDIDATE_IDS.every(id => !VNEXT_CORE_IDS.includes(id)));
 });
 
 test("工房追加coreはpoolノード解放前後で抽選が切り替わる", () => {

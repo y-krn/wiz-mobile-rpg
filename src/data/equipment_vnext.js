@@ -144,13 +144,13 @@ export const VNEXT_CORE_IDS = Object.freeze([
   "blood_wand",
   "trap_eater",
   "curse_keeper",
-  "thorn_shield",
   "executioner",
   "thin_ice_pact",
   "sneak_step",
   "tomb_raider",
   "keen_eye",
-  "purify_ring"
+  "camp_master",
+  "scholar_eye"
 ]);
 
 export const VNEXT_CORES = Object.freeze(Object.fromEntries(
@@ -165,6 +165,24 @@ export const VNEXT_CORE_CANDIDATE_IDS = Object.freeze([
 export const VNEXT_CORE_CANDIDATES = Object.freeze(Object.fromEntries(
   VNEXT_CORE_CANDIDATE_IDS.map(id => [id, Object.freeze({ id })])
 ));
+
+// Production Core inventory audit for Equipment vNext Phase 3b. Design data
+// only: this module stays disconnected from production generation and effects.
+export const VNEXT_CORE_AUDIT = Object.freeze({
+  CORE_BLOOD_WAND: { productionId: "CORE_BLOOD_WAND", disposition: "keep", reasonCode: "spell_hp_resource_exchange", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js", "src/combat_logic/spell_resolution.js", "src/spell_menu.js"], currentSemantic: "When MP is short, pay 2x spell MP cost in HP.", identityOverlap: ["Support mp/spellPower: adjacent resource and output stats, not the same exchange", "Named/Base: no direct semantic duplicate"] },
+  CORE_PURIFY_RING: { productionId: "CORE_PURIFY_RING", disposition: "support", targetId: "killHeal", reasonCode: "enemy_tag_auto_recovery", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/rules/purify_rules.js", "src/combat_logic/damage.js"], currentSemantic: "On undead/spirit/demon defeat, recover 1 MP, or 2 HP at full MP.", identityOverlap: ["Support killHeal: defeat-triggered automatic recovery", "Named/Base: no direct semantic duplicate"] },
+  CORE_TRAP_EATER: { productionId: "CORE_TRAP_EATER", disposition: "keep", reasonCode: "trap_disarm_risk_reward", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/data/workshop.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js", "src/rules/character_stats.js", "src/chest.js"], currentSemantic: "Successful chest-trap disarms add run-long attack, capped at 20.", identityOverlap: ["Support trapBonus/trapGuard: disarm skill and mitigation, not risk-reward conversion", "Named/Base: no direct semantic duplicate"] },
+  CORE_CURSE_KEEPER: { productionId: "CORE_CURSE_KEEPER", disposition: "keep", reasonCode: "curse_power_tradeoff", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/rules/item_rules.js", "src/rules/character_stats.js"], currentSemantic: "Each equipped cursed item adds 3% attack and spell power.", identityOverlap: ["Support atk/spellPower: flat affix stats, not curse-scaled tradeoff", "Named/Base: no direct semantic duplicate"] },
+  CORE_THORN_SHIELD: { productionId: "CORE_THORN_SHIELD", disposition: "support", reasonCode: "passive_counterattack_proc", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/data/workshop.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/combat_logic/damage.js"], currentSemantic: "On hit, 30% chance to counter at 50% power.", identityOverlap: ["Support candidates guardCounter/guardFortify: adjacent shield vocabulary; neither is adopted or exact", "Named/Base: shield slot and guard profile remain separate"] },
+  CORE_EXECUTIONER: { productionId: "CORE_EXECUTIONER", disposition: "change", targetId: "status_setup_consume", reasonCode: "automatic_status_and_multiplier", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js", "src/combat_logic/status_effects.js", "src/combat_logic/round.js"], currentSemantic: "Before attack, 35% chance to poison; deal 1.4x damage to status-afflicted targets.", targetSemantic: "Choose when to set up poison, then choose when to consume the status for burst damage.", identityOverlap: ["Support poisonAtk/bleedingAtk: status application triggers, not player-controlled setup/consume", "Named/Base: no direct semantic duplicate"] },
+  CORE_THIN_ICE_PACT: { productionId: "CORE_THIN_ICE_PACT", disposition: "change", targetId: "voluntary_hp_risk", reasonCode: "automatic_low_hp_tradeoff", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/data/workshop.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js", "src/combat_logic/damage.js"], currentSemantic: "At or below 50% HP, deal 1.35x and take 1.2x damage.", targetSemantic: "Choose an HP payment to amplify the next action and accept explicit incoming risk.", identityOverlap: ["Support lowHpDamage: low-HP damage bonus without the pact's incoming-risk exchange", "Named/Base: no direct semantic duplicate"] },
+  CORE_SNEAK_STEP: { productionId: "CORE_SNEAK_STEP", disposition: "keep", reasonCode: "exploration_detection_control", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/movement.js"], currentSemantic: "Halves gatekeeper/boss detection and extends aura detection by one tile.", identityOverlap: ["Support hearRange/arcaneSense: information range, not enemy detection pressure", "Named/Base: no direct semantic duplicate"] },
+  CORE_TOMB_RAIDER: { productionId: "CORE_TOMB_RAIDER", disposition: "keep", reasonCode: "chest_material_trap_exchange", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/data/workshop.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/chest.js"], currentSemantic: "Chest adds one material and raises trap tier by one.", identityOverlap: ["Support trapBonus/trapGuard: trap interaction and mitigation, not chest reward-risk exchange", "Named/Base: no direct semantic duplicate"] },
+  CORE_KEEN_EYE: { productionId: "CORE_KEEN_EYE", disposition: "keep", reasonCode: "unidentified_equipment_gamble", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js", "src/rules/item_rules.js"], currentSemantic: "Equip unidentified items with effects active but hidden until identification.", identityOverlap: ["Support identifyDiscount: identification cost only, not blind equip/effect disclosure", "Named/Base: item identity stays concealed"] },
+  CORE_CAMP_MASTER: { productionId: "CORE_CAMP_MASTER", disposition: "keep", reasonCode: "camp_rest_vs_continue_choice", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/systems/camp_rest.ts", "src/menu/explore_actions.js"], currentSemantic: "Doubles HP/MP recovery when choosing camp rest.", identityOverlap: ["Support hp/mp: capacity, not recovery received at the rest-versus-continue decision", "Named/Base: no direct semantic duplicate"] },
+  CORE_BOUNTY_HUNTER: { productionId: "CORE_BOUNTY_HUNTER", disposition: "support", targetId: "contractReward", reasonCode: "automatic_contract_progress_multiplier", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js", "src/combat_logic/rewards.js"], currentSemantic: "Doubles matching contract-target defeat progress.", identityOverlap: ["Support contractReward: objective reward economy; adjacent, not the same progress effect", "Named/Base: no direct semantic duplicate"] },
+  CORE_SCHOLAR_EYE: { productionId: "CORE_SCHOLAR_EYE", disposition: "change", targetId: "unknown_enemy_study", reasonCode: "automatic_unknown_enemy_drop", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/data/workshop.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/combat_logic/rewards.js"], currentSemantic: "Guarantees a material drop from uncatalogued enemies.", targetSemantic: "Choose to study an unknown enemy and weigh the material opportunity against encounter risk.", identityOverlap: ["Support materialFind: general material chance, not a deliberate knowledge/risk choice", "Named/Base: no direct semantic duplicate"] }
+});
 
 const ITEM_ID_TO_CANONICAL_BASE = Object.freeze({
   DAGGER: "dagger",
@@ -240,13 +258,13 @@ const PRODUCTION_CORE_TO_VNEXT = Object.freeze({
   CORE_BLOOD_WAND: "blood_wand",
   CORE_TRAP_EATER: "trap_eater",
   CORE_CURSE_KEEPER: "curse_keeper",
-  CORE_THORN_SHIELD: "thorn_shield",
   CORE_EXECUTIONER: "executioner",
   CORE_THIN_ICE_PACT: "thin_ice_pact",
   CORE_SNEAK_STEP: "sneak_step",
   CORE_TOMB_RAIDER: "tomb_raider",
   CORE_KEEN_EYE: "keen_eye",
-  CORE_PURIFY_RING: "purify_ring"
+  CORE_CAMP_MASTER: "camp_master",
+  CORE_SCHOLAR_EYE: "scholar_eye"
 });
 
 export function getEquipmentIdentityId(itemOrId) {
