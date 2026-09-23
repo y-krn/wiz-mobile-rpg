@@ -10,6 +10,7 @@ import { getCharWeaponAtk } from "../../../src/rules/character_stats.js";
 import { getItemBaseId } from "../../../src/rules/item_rules.js";
 import { getActiveRuneSpellKeys, getEquippedMedium } from "../../../src/rules/magic_rules.js";
 import { applyMeasurementPlayerCandidate, resetSimulationRandom } from "../../../scratch/simulations/sim_depth_material_ev.js";
+import { isPlayerBeforeAnyEnemy } from "../../../scratch/measurements/progression_enemy_candidate_diagnostic.js";
 
 assert.equal(candidate.playerPhysicalMultiplier(0), 1);
 assert.equal(candidate.playerPhysicalMultiplier(5), 1.8);
@@ -74,16 +75,21 @@ assert.equal(Math.random(), pairStream, "paired current/candidate arms share the
 resetSimulationRandom(deriveProgressionEnemyRunSeed({ rootSeed: 1688, context: seedContext, fixtureId: "physical", runIndex: 8 }));
 assert.notEqual(Math.random(), pairStream, "different runIndex derives a distinct combat RNG stream");
 
-const fighter = createStartingKitCharacter("vanguard");
-const fighterBaseId = getItemBaseId(fighter.equipment.weapon);
-assert.equal(typeof fighter.equipment.weapon, "string", "starting weapon slot is an item ID");
-const baseWeaponAtk = getCharWeaponAtk(fighter);
-const restoreFighter = applyMeasurementPlayerCandidate(fighter, { physicalPowerMultiplier: 1.16 });
-assert.deepEqual(fighter.equipment.weapon.baseId, fighterBaseId);
-assert.equal(fighter.equipment.weapon.identified, true);
-assert.equal(getItemBaseId(fighter.equipment.weapon), fighterBaseId);
-assert.equal(getCharWeaponAtk(fighter), baseWeaponAtk + Math.round(baseWeaponAtk * 0.16));
-restoreFighter();
+for (let baseline = 1; baseline <= 5; baseline++) {
+  const fighter = createStartingKitCharacter("vanguard");
+  const fighterBaseId = getItemBaseId(fighter.equipment.weapon);
+  assert.equal(typeof fighter.equipment.weapon, "string", "starting weapon slot is an item ID");
+  const baseWeaponAtk = getCharWeaponAtk(fighter);
+  const physicalMultiplier = candidate.playerPhysicalMultiplier(baseline);
+  const restoreFighter = applyMeasurementPlayerCandidate(fighter, { physicalPowerMultiplier: physicalMultiplier });
+  assert.equal(fighter.equipment.weapon.baseId, fighterBaseId);
+  assert.equal(fighter.equipment.weapon.identified, true);
+  assert.equal(getItemBaseId(fighter.equipment.weapon), fighterBaseId);
+  const expectedAtk = baseWeaponAtk * physicalMultiplier;
+  assert.ok(Math.abs(getCharWeaponAtk(fighter) - expectedAtk) < 1e-10, `baseline ${baseline} retains fractional ATK multiplier`);
+  assert.ok(Math.abs(getCharWeaponAtk(fighter) / baseWeaponAtk - physicalMultiplier) < 1e-12);
+  restoreFighter();
+}
 
 const mage = createStartingKitCharacter("arcana");
 const restoreMage = applyMeasurementPlayerCandidate(mage, { physicalPowerMultiplier: 1.16, spellPowerMultiplier: 1.16 });
@@ -91,5 +97,16 @@ assert.equal(mage.equipment.weapon.baseId, "WAND");
 assert.equal(getEquippedMedium(mage)?.id, "WAND");
 assert.deepEqual(getActiveRuneSpellKeys(mage), ["HALITO"]);
 restoreMage();
+
+assert.equal(isPlayerBeforeAnyEnemy([{
+  playerActionExecutionTiming: "player-before-any-enemy",
+  playerActionExecuted: true,
+  killEvents: [{ targetName: "first-strike kill" }],
+  enemyActionEvents: []
+}]), true, "player-first kill remains true with zero enemy actions");
+assert.equal(isPlayerBeforeAnyEnemy([{
+  playerActionExecutionTiming: "after-enemy-action",
+  enemyActionEvents: []
+}]), false);
 
 console.log("progression enemy candidate diagnostic unit tests passed");

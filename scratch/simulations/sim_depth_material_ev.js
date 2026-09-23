@@ -8830,7 +8830,7 @@ export function applyMeasurementPlayerCandidate(character, candidate) {
       affixes.push({
         id: "milestone-baseline-physical-power",
         type: "atk",
-        value: Math.round(getCharWeaponAtk(character) * (physicalMultiplier - 1))
+        value: getCharWeaponAtk(character) * (physicalMultiplier - 1)
       });
     }
     if (Number.isFinite(spellMultiplier)) {

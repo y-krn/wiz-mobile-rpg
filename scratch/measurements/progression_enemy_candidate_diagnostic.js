@@ -44,6 +44,10 @@ function positiveInteger(value, name, min) {
   return number;
 }
 
+export function isPlayerBeforeAnyEnemy(rounds) {
+  return rounds?.[0]?.playerActionExecutionTiming === "player-before-any-enemy";
+}
+
 function summarize(values) {
   const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
   const quantile = p => {
@@ -96,7 +100,7 @@ function describe(result, { context, fixture, arm, seed, runIndex }) {
     maxHp: encounter.startMaxHp,
     enemyActions: identity.enemyActions,
     playerActions,
-    playerBeforeAnyEnemy: Boolean(rounds[0]?.playerActionOrder < rounds[0]?.enemyActionEvents?.[0]?.order),
+    playerBeforeAnyEnemy: isPlayerBeforeAnyEnemy(rounds),
     guardOpportunity: fixture.guard ? guardOpportunities : null,
     guardedActions: fixture.guard ? rounds.filter(round => round.action === "defend" && round.playerActionExecuted).length : null,
     spellActions: rounds.filter(round => round.spellName && round.playerActionExecuted).length,
