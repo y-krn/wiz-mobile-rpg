@@ -102,6 +102,8 @@ const fixedCombatArgs = ({ options, output }) => nativeMeasurementArgs({
   afterSeed: ["--starting-kit", options.startingKit]
 });
 
+const progressionEnemyCandidateArgs = nativeMeasurementArgs;
+
 const milestoneBossArgs = ({ options, output, profile }) => [
   ...nativeMeasurementArgs({ options, output }),
   ...(profile.floor ? ["--floor", String(profile.floor)] : []),
@@ -189,6 +191,15 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
     buildArgs: fixedCombatArgs
+  }),
+  "progression-enemy-candidate": freezeFamily({
+    runner: "scratch/measurements/progression_enemy_candidate_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: progressionEnemyCandidateArgs
   }),
   "equipment-vnext-combat": freezeFamily({
     runner: "scratch/measurements/equipment_vnext_combat_diagnostic.js",
@@ -341,6 +352,12 @@ const PROFILE_LIST = [
     family: "fixed-combat-composition",
     defaults: { runs: 1000, minimumRuns: 1000, seed: 1151, startingKit: "vanguard" },
     allowed: { startingKit: ["vanguard", "scout", "devotion", "arcana"] }
+  },
+  {
+    id: "progression-enemy-candidate-diagnostic",
+    label: "Progression enemy candidate diagnostic",
+    family: "progression-enemy-candidate",
+    defaults: { runs: 200, minimumRuns: 200, seed: 1688 }
   },
   {
     id: "equipment-vnext-combat-diagnostic",

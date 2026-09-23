@@ -81,6 +81,16 @@ const ROUTER_CONTRACTS = [
     override: { input: { seed: 1152, starting_kit: "scout" }, expected: { seed: 1152, startingKit: "scout" } }
   },
   {
+    id: "progression-enemy-candidate-diagnostic",
+    runner: "scratch/measurements/progression_enemy_candidate_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 200, minimumRuns: 200, seed: 1688 },
+    args: nativeArgs("--ref", "main", "--runs", "200", "--seed", "1688"),
+    override: { input: { runs: 300, seed: 1689 }, expected: { runs: 300, seed: 1689 } }
+  },
+  {
     id: "equipment-vnext-combat-diagnostic",
     runner: "scratch/measurements/equipment_vnext_combat_diagnostic.js",
     adapter: "native-manifest",
@@ -340,6 +350,7 @@ assert.deepEqual(Object.keys(MEASUREMENT_FAMILIES), [
   "starting-kit",
   "early-b1f-composition",
   "fixed-combat-composition",
+  "progression-enemy-candidate",
   "equipment-vnext-combat",
   "depth-scaling",
   "trait-scaling",
