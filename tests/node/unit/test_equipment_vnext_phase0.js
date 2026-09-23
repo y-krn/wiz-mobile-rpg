@@ -9,10 +9,12 @@ import {
   VNEXT_CORE_CANDIDATE_IDS,
   VNEXT_SUPPORT_IDS,
   VNEXT_SUPPORT_CANDIDATE_IDS,
+  VNEXT_SUPPORT_AUDIT,
   getCanonicalBaseId,
   getNamedRuleId
 } from "../../../src/data/equipment_vnext.js";
 import { ITEMS } from "../../../src/data/items.js";
+import { SUPPORT_AFFIXES } from "../../../src/data/affixes.js";
 import {
   DIAGNOSTIC_BUILD_IDENTITY_SCHEMA_VERSION,
   getDiagnosticBuildIdentity,
@@ -46,9 +48,50 @@ assert.deepEqual(NAMED_RULE_IDS, [
   "excalibur", "archmage_staff", "aegis", "dragon_scale"
 ]);
 assert.equal(getNamedRuleId("SEALED_EXCALIBUR"), "excalibur");
-assert.equal(VNEXT_SUPPORT_IDS.length, 23);
+assert.equal(Object.keys(VNEXT_SUPPORT_AUDIT).length, SUPPORT_AFFIXES.length);
+assert.equal(VNEXT_SUPPORT_IDS.length, 37);
+assert.equal(new Set(SUPPORT_AFFIXES.map(({ id }) => id)).size, SUPPORT_AFFIXES.length);
+const equipmentGenerationSource = fs.readFileSync("src/systems/equipment_generation.js", "utf8");
+const supportDispositionCounts = { keep: 0, change: 0, core: 0, retire: 0 };
+for (const { id } of SUPPORT_AFFIXES) {
+  const audit = VNEXT_SUPPORT_AUDIT[id];
+  assert.ok(audit, `${id} has an audit entry`);
+  assert.equal(audit.productionId, id);
+  assert.ok(["keep", "change", "core", "retire"].includes(audit.disposition), `${id} has one disposition`);
+  assert.equal(typeof audit.productionSupply, "boolean", `${id} records production supply`);
+  assert.equal(typeof audit.productionConsumer, "boolean", `${id} records production consumer`);
+  assert.equal(audit.productionSupply, true, `${id} is listed by production generation`);
+  assert.match(equipmentGenerationSource, new RegExp(`["']${id}["']`), `${id} has a generation candidate`);
+  assert.equal(audit.productionConsumer, true, `${id} has a live production consumer`);
+  assert.match(audit.reasonCode, /^[a-z][a-z0-9_]+$/, `${id} has a stable reason code`);
+  assert.ok(["active", "dead", "duplicate", "legacy"].includes(audit.currentStatus), `${id} records current status`);
+  assert.ok(Array.isArray(audit.consumerEvidence) && audit.consumerEvidence.length > 0, `${id} records consumer evidence`);
+  assert.ok(audit.consumerEvidence.every(file => fs.existsSync(file)), `${id} consumer evidence files exist`);
+  supportDispositionCounts[audit.disposition] += 1;
+  if (audit.disposition === "change") {
+    assert.ok(audit.targetId, `${id} records its revised vNext target`);
+  }
+}
+assert.deepEqual(supportDispositionCounts, { keep: 34, change: 3, core: 0, retire: 10 });
+assert.deepEqual(
+  Object.keys(VNEXT_SUPPORT_AUDIT).sort(),
+  SUPPORT_AFFIXES.map(({ id }) => id).sort(),
+  "each production Support appears exactly once"
+);
+assert.deepEqual(
+  [...new Set(Object.values(VNEXT_SUPPORT_AUDIT)
+    .filter(({ disposition }) => disposition === "keep" || disposition === "change")
+    .map(({ productionId, targetId }) => targetId || productionId))].sort(),
+  [...VNEXT_SUPPORT_IDS].sort(),
+  "adopted vNext Support vocabulary matches KEEP/CHANGE audit rows"
+);
+assert.equal(VNEXT_SUPPORT_AUDIT.atk.disposition, "retire");
+assert.equal(VNEXT_SUPPORT_AUDIT.antiDragon.disposition, "retire");
+assert.equal(VNEXT_SUPPORT_AUDIT.spellPower.disposition, "retire");
+assert.equal(VNEXT_SUPPORT_AUDIT.deepAssault.currentStatus, "legacy");
+assert.equal(VNEXT_SUPPORT_AUDIT.frontGuard.currentStatus, "legacy");
+assert.equal(VNEXT_SUPPORT_AUDIT.rearEvasion.disposition, "keep");
 assert.ok(!VNEXT_SUPPORT_IDS.includes("poisonWard"));
-assert.ok(VNEXT_SUPPORT_CANDIDATE_IDS.includes("poisonWard"));
 assert.ok(VNEXT_SUPPORT_CANDIDATE_IDS.includes("longFightDefense"));
 assert.ok(VNEXT_CORE_IDS.includes("thin_ice_pact"));
 assert.ok(!VNEXT_CORE_IDS.includes("overmix"));
