@@ -9,18 +9,26 @@ assert.deepEqual(contract.verticalPowerOwners.milestoneBaseline.owns, [
 ]);
 assert.deepEqual(contract.verticalPowerOwners.runLocalLevel.owns, ["small incremental max HP growth"]);
 assert.equal(contract.equipmentBoundary.verticalPowerOwner, false);
-assert.match(contract.bandSemantics, /not floor-entry power/);
+assert.match(contract.verticalPowerOwners.milestoneBaseline.source, /actually selected startFloor/);
+assert.match(contract.verticalPowerOwners.milestoneBaseline.timing, /maximum of that entitlement and the highest defeated milestone in this run/);
+assert.match(contract.bandSemantics, /globally unlocked but unselected milestones do not contribute/);
 assert.equal(contract.equipmentBoundary.phase3.base.includes("no depth-based ATK/DEF growth"), true);
 assert.match(contract.genericEnemyRawScale.policy, /do not make per-floor raw HP\/ATK\/DEF inflation/);
 assert.match(contract.bossException.boundary, /separate from generic enemy band scaling/);
 assert.equal(contract.rewardExpFollowUp.required, true);
 
-assert.deepEqual(contract.milestoneTiming.map(({ point, baseline }) => [point, baseline]), [
-  ["B1 start", "B1 entitlement (baseline 0)"],
-  ["unlocked B5/B10/... start", "the unlocked start milestone entitlement"],
-  ["B1 progression before B5 Boss defeat", "B1 entitlement (baseline 0)"],
-  ["after B5 Boss defeat, entering B6", "B5 defeated-milestone baseline (baseline 1)"],
-  ["each later milestone M (B10, B15, ...)", "highest unlocked start entitlement or defeated milestone"]
+assert.deepEqual(contract.milestoneTiming.map(({ point, selectedStartFloor, highestDefeatedMilestone, baseline }) => [
+  point,
+  selectedStartFloor,
+  highestDefeatedMilestone,
+  baseline
+]), [
+  ["B1 start, even when B20 is globally unlocked", "B1", null, "B1 entitlement (baseline 0)"],
+  ["unlocked B5/B10/... start when selected", "the selected unlocked milestone floor", null, "entitlement for that selected startFloor"],
+  ["B20 start", "B20", null, "B20 startFloor entitlement"],
+  ["B1 progression before B5 Boss defeat", "B1", null, "B1 entitlement (baseline 0)"],
+  ["after B5 Boss defeat, entering B6", "B1", "B5", "maximum of B1 startFloor entitlement and B5 defeated-milestone baseline (baseline 1)"],
+  ["each later milestone M (B10, B15, ...)", "the startFloor actually selected for this run", "highest milestone defeated in this run", "maximum of selected startFloor entitlement and highest defeated-milestone baseline"]
 ]);
 
 assert.equal(Object.isFrozen(contract), true);
