@@ -183,71 +183,77 @@ export const VNEXT_CORE_AUDIT = Object.freeze({
   CORE_SCHOLAR_EYE: { productionId: "CORE_SCHOLAR_EYE", disposition: "change", targetId: "unknown_enemy_study", reasonCode: "automatic_unknown_enemy_drop", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/data/workshop.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/combat_logic/rewards.js"], currentSemantic: "Guarantees a material drop from uncatalogued enemies.", targetSemantic: "Choose to study an unknown enemy and weigh the material opportunity against encounter risk.", identityOverlap: ["Support materialFind: general material chance, not a deliberate knowledge/risk choice", "Named/Base: no direct semantic duplicate"] }
 });
 
-const ITEM_ID_TO_CANONICAL_BASE = Object.freeze({
-  DAGGER: "dagger",
-  RAPIER: "dagger",
-  NINJA_DAGGER: "dagger",
-  NINJA_BLADE: "dagger",
-  VENOM_FANG: "dagger",
-  MOONSHADOW: "dagger",
-  SHORT_SWORD: "sword",
-  FIGHTER_SABER: "sword",
-  LONG_SWORD: "sword",
-  FLAME_SWORD: "sword",
-  HOLY_BLADE: "sword",
-  MACE: "mace",
-  SACRED_MACE: "mace",
-  CLAYMORE: "greatsword",
-  KATANA: "greatsword",
-  LEGENDARY_SWORD: "greatsword",
-  SEALED_EXCALIBUR: "greatsword",
-  WAND: "wand",
-  HOLY_STAFF: "wand",
-  SAGE_STAFF: "staff",
-  ARCH_WAND: "staff",
-  ROBE: "lightArmor",
-  MAGE_CLOAK: "lightArmor",
-  ARCANE_ROBE: "lightArmor",
-  SORCERER_ROBE: "lightArmor",
-  EXPLORER_CLOAK: "lightArmor",
-  NINJA_SUIT: "lightArmor",
-  BATTLE_GARB: "lightArmor",
-  LEATHER_ARMOR: "mediumArmor",
-  SCALE_MAIL: "mediumArmor",
-  CHAIN_MAIL: "mediumArmor",
-  PRIEST_ROBE: "mediumArmor",
-  PLATE_MAIL: "heavyArmor",
-  DRAGON_SCALE: "heavyArmor",
-  SMALL_SHIELD: "smallShield",
-  BUCKLER: "smallShield",
-  LARGE_SHIELD: "largeShield",
-  KNIGHT_SHIELD: "largeShield",
-  MAGIC_SHIELD: "magicShield",
-  LEGENDARY_SHIELD: "largeShield",
-  DRAGON_CHARM: "magicShield",
-  AMULET_HP: "amulet",
-  AMULET_MP: "amulet",
-  RING_STR: "ring",
-  RING_AGI: "ring",
-  THIEF_EYE: "ring",
-  WARD_CHARM: "amulet",
-  DRAGON_RING: "ring",
-  HOLY_BAND: "ring",
-  SWIFT_BAND: "ring"
-});
+// Phase 3c audit rows retain source evidence and current production semantics.
+// This pure design inventory has no production consumer.
+const VNEXT_BASE_ITEM_AUDIT_ROWS = [
+  ["DAGGER", "weapon", "keep", "dagger", null, "canonical_light_weapon", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "1H light profile; no fixed effect.", "Light; 1H; atk 3; rand 1-3."],
+  ["RAPIER", "weapon", "merge", "dagger", null, "same_light_profile", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same light/1H profile as dagger; thrust wording and stats add no owned rule.", "Light; 1H; atk 12."],
+  ["NINJA_DAGGER", "weapon", "merge", "dagger", null, "same_light_profile", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same light/1H profile; ambush/poison tags feed Support eligibility only.", "Light; 1H; atk 13.5."],
+  ["NINJA_BLADE", "weapon", "merge", "dagger", null, "same_light_profile", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same light/1H profile; tags and atk add no distinct tactic.", "Light; 1H; atk 21."],
+  ["VENOM_FANG", "weapon", "named", "dagger", "venom_fang", "poison_suppression_build_entry", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "#1536 proposes a Poison/Suppression build entry; rule should make status control a build choice beyond additive poisonAtk Support or automatic status Core.", "Production has light/1H profile and poison/ambush tags, but no intrinsic poison rule yet; atk 13.5; rand 0-4."],
+  ["MOONSHADOW", "weapon", "named", "dagger", "moonshadow", "initiative_opening_build_entry", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "#1536 proposes an initiative/opening build entry; Named should change opening action choices beyond a numeric firstStrike Support bonus.", "Production has light/1H profile and evasion tag, but no intrinsic initiative/opening rule yet; atk 30."],
+  ["SHORT_SWORD", "weapon", "keep", "sword", null, "canonical_blade_weapon", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "1H blade profile anchors sword; no unique fixed effect.", "Blade; standard; 1H; atk 9."],
+  ["FIGHTER_SABER", "weapon", "merge", "sword", null, "starting_weapon_vertical_duplicate", "starting_only", ["src/data/workshop.js#gear_fighter_saber startingGear"], "Same standard 1H blade and iron/blade tags as SHORT_SWORD; only stats/range differ.", "Workshop startingGear grant; blade; 1H; atk 12."],
+  ["LONG_SWORD", "weapon", "merge", "sword", null, "same_blade_profile", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same 1H blade profile; attack stat is vertical progression.", "Blade; standard; 1H; atk 18."],
+  ["FLAME_SWORD", "weapon", "named", "sword", "flame_blade", "heat_accumulation_burst_rule", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "#1536 proposes attack-driven heat accumulation followed by an explosion threshold; a burst cycle creates a distinct sword rule beyond Support stat bonuses.", "Production has blade/1H profile and fire tag, but no heat accumulation or explosion rule yet; atk 21."],
+  ["HOLY_BLADE", "weapon", "named", "sword", "holy_oath", "guard_followup_attack_rule", "active", ["src/data/equipment_tables.js#floor 6+ additions", "src/rules/chest_rules.js#floor equipment supply"], "#1536 proposes empowering the next attack after Guard, creating a sword-and-shield action loop rather than enemy-tag damage or passive defense Support.", "Production currently grants fixed antiUndead/antiDemon +20, retired in Phase 3a; the Guard-follow-up Named rule is not implemented."],
+  ["MACE", "weapon", "keep", "mace", null, "canonical_impact_weapon", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Impact profile establishes blunt-weapon tactic.", "Impact; standard; 1H; atk 7.5."],
+  ["SACRED_MACE", "weapon", "merge", "mace", null, "enemy_tag_support_overlap", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same impact/1H profile; holy/spirit lore has no owned rule.", "Impact; standard; 1H; atk 10.5; holy/spirit tags."],
+  ["CLAYMORE", "weapon", "keep", "greatsword", null, "canonical_two_hand_heavy", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "2H heavy profile establishes greatsword; profile, not atk, is identity.", "Heavy; 2H; atk 27."],
+  ["KATANA", "weapon", "named", "greatsword", "muramasa", "cursed_blood_tradeoff", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply", "src/systems/equipment_generation.js#guaranteed curse roll"], "Guaranteed curse roll and blood/curse identity support a voluntary risk/reward rule, distinct from passive Curse Keeper Core.", "Heavy; 2H; atk 37.5; guaranteed curseEffectId roll."],
+  ["LEGENDARY_SWORD", "weapon", "named", "greatsword", "excalibur", "special_reward_artifact", "special_supply", ["src/data/equipment_tables.js#floor 11+ additions", "src/rules/chest_rules.js#CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR"], "Artifact/quest reward identity anchors Excalibur; high atk is not the reason.", "Heavy; 2H; atk 60; holy; special/quest item."],
+  ["SEALED_EXCALIBUR", "weapon", "named", "greatsword", "excalibur", "excalibur_state_variant", "active", ["src/data/equipment_tables.js#floor 6+ additions", "src/rules/chest_rules.js#floor equipment supply", "src/systems/equipment_generation.js#guaranteed curse roll"], "Same Excalibur rule as LEGENDARY_SWORD; sealed state variant with guaranteed curse roll, not another Base/rule.", "Heavy; 2H; atk 39; guaranteed curseEffectId roll."],
+  ["WAND", "weapon", "keep", "wand", null, "canonical_one_hand_medium", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "1H medium; one Rune slot distinguishes wand structure; fixed arcane +10 is Support-like.", "Medium; 1H; runeSlots 1; maxMp +2; arcane +10."],
+  ["HOLY_STAFF", "weapon", "merge", "wand", null, "same_one_hand_medium", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same 1H medium structure as wand; holy tag and atk add no rule.", "Medium; 1H; runeSlots 1; atk 9."],
+  ["SAGE_STAFF", "weapon", "keep", "staff", null, "canonical_two_hand_medium", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "2H medium and two Rune slots establish staff configuration.", "Medium; 2H; runeSlots 2; maxMp +3; atk 3."],
+  ["ARCH_WAND", "weapon", "named", "staff", "archmage_staff", "three_rune_configuration", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "2H medium; third Rune slot beyond staff's two supports distinct multi-Rune loadout; atk is not identity.", "Medium; 2H; runeSlots 3; maxMp +4; atk 4.5."],
 
-const ITEM_ID_TO_NAMED_RULE = Object.freeze({
-  VENOM_FANG: "venom_fang",
-  MOONSHADOW: "moonshadow",
-  FLAME_SWORD: "flame_blade",
-  HOLY_BLADE: "holy_oath",
-  KATANA: "muramasa",
-  LEGENDARY_SWORD: "excalibur",
-  SEALED_EXCALIBUR: "excalibur",
-  ARCH_WAND: "archmage_staff",
-  LEGENDARY_SHIELD: "aegis",
-  DRAGON_SCALE: "dragon_scale"
-});
+  ["ROBE", "armor", "keep", "lightArmor", null, "canonical_light_armor", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Light load anchors lightArmor; tags are generation eligibility only.", "Light; def 1."],
+  ["MAGE_CLOAK", "armor", "merge", "lightArmor", null, "same_light_load", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same light load; def-only vertical increase.", "Light; def 4."],
+  ["ARCANE_ROBE", "armor", "merge", "lightArmor", null, "same_light_load", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same light load; spell Support eligibility is not armor Base identity.", "Light; def 5."],
+  ["SORCERER_ROBE", "armor", "merge", "lightArmor", null, "same_light_load", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same light load; def-only vertical increase.", "Light; def 6."],
+  ["EXPLORER_CLOAK", "armor", "merge", "lightArmor", null, "support_overlap_no_rule", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Trap/poison tags and eligibility belong to Support, not intrinsic armor identity.", "Light; def 3; trap/poison tags."],
+  ["NINJA_SUIT", "armor", "merge", "lightArmor", null, "support_overlap_no_rule", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Ambush/evasion tags influence Support eligibility only.", "Light; def 5; ambush/evasion tags."],
+  ["BATTLE_GARB", "armor", "merge", "lightArmor", null, "support_overlap_no_rule", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Ambush/followUp eligibility belongs to Support; same light load.", "Light; def 6; ambush/ward tags."],
+  ["LEATHER_ARMOR", "armor", "keep", "mediumArmor", null, "canonical_medium_armor", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Standard load anchors mediumArmor; no fixed effect.", "Standard; def 4."],
+  ["SCALE_MAIL", "armor", "merge", "mediumArmor", null, "same_standard_load", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same standard load; def is vertical; guardian eligibility is Support-owned.", "Standard; def 6."],
+  ["CHAIN_MAIL", "armor", "merge", "mediumArmor", null, "same_standard_load", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same standard load; def is vertical; guardian eligibility is Support-owned.", "Standard; def 8."],
+  ["PRIEST_ROBE", "armor", "merge", "mediumArmor", null, "same_standard_load", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same standard load; holy/spirit tags add no independent defense rule.", "Standard; def 8."],
+  ["PLATE_MAIL", "armor", "keep", "heavyArmor", null, "canonical_heavy_armor", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Heavy load anchors heavyArmor; pure def does not split Base.", "Heavy; def 16."],
+  ["DRAGON_SCALE", "armor", "named", "heavyArmor", "dragon_scale", "adaptive_attack_type_defense_rule", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "#1536 proposes adaptation to incoming attack type rather than a dragon-only answer; situational defense gives heavy armor a distinct rule beyond flat Guardian Support.", "Production is heavy armor with def 12 and a dragon tag; adaptive defense rule is not implemented."],
+
+  ["SMALL_SHIELD", "shield", "merge", "smallShield", null, "same_light_guard_profile", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Light guard; BUCKLER is same guard at lighter load, so no separate identity.", "1H; standard; light guard; def 2."],
+  ["BUCKLER", "shield", "keep", "smallShield", null, "canonical_light_guard", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "1H light load/light guard anchors smallShield.", "1H; light; light guard; def 2."],
+  ["LARGE_SHIELD", "shield", "keep", "largeShield", null, "canonical_physical_guard", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "1H heavy load/physical guard anchors largeShield.", "1H; heavy; physical guard; def 5."],
+  ["KNIGHT_SHIELD", "shield", "merge", "largeShield", null, "same_physical_guard_profile", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "Same 1H heavy/physical guard; def-only increase.", "1H; heavy; physical guard; def 8."],
+  ["MAGIC_SHIELD", "shield", "keep", "magicShield", null, "canonical_arcane_guard", "active", ["src/data/equipment_tables.js#floor 1-30 pool", "src/rules/chest_rules.js#floor equipment supply"], "1H standard load/arcane guard anchors magicShield; spellGuard eligibility is Support-owned.", "1H; standard; arcane guard; def 4."],
+  ["LEGENDARY_SHIELD", "shield", "named", "largeShield", "aegis", "distinct_aegis_guard_profile", "special_supply", ["src/data/equipment_tables.js#floor 11+ additions", "src/rules/chest_rules.js#CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR"], "Unique aegis guardProfile and special reward identity; def is not reason.", "1H; heavy; aegis guard; def 15; special/quest reward."],
+  ["DRAGON_CHARM", "shield", "merge", "magicShield", null, "retired_enemy_tag_effect", "active", ["src/data/equipment_tables.js#floor 6+ additions", "src/rules/chest_rules.js#floor equipment supply"], "Dragon guard/fixed antiDragon is narrow enemy-tag identity; Phase 3a retires antiDragon, ordinary shield body merges to magicShield.", "1H; standard; dragon guard; def 2; fixed antiDragon +30."],
+
+  ["AMULET_HP", "accessory", "keep", "amulet", null, "canonical_amulet", "active", ["src/data/equipment_tables.js#accessory floor 1-30", "src/rules/chest_rules.js#accessory supply"], "Amulet anchor; hp capacity moves to Phase 3a Support hp ownership.", "Accessory; fixed hpBonus +10."],
+  ["AMULET_MP", "accessory", "merge", "amulet", null, "support_owned_capacity", "active", ["src/data/equipment_tables.js#accessory floor 1-30", "src/rules/chest_rules.js#accessory supply"], "Same amulet; mp capacity belongs to Phase 3a Support mp.", "Accessory; fixed mpBonus +3."],
+  ["RING_STR", "accessory", "merge", "ring", null, "retired_atk_support", "active", ["src/data/equipment_tables.js#accessory floor 1-30", "src/rules/chest_rules.js#accessory supply"], "Fixed atk belongs to Phase 3a RETIRE Support atk; no remaining identity.", "Accessory; fixed atk +2."],
+  ["RING_AGI", "accessory", "keep", "ring", null, "canonical_ring", "active", ["src/data/equipment_tables.js#accessory floor 1-30", "src/rules/chest_rules.js#accessory supply"], "Ring anchor; physicalAccuracy is Phase 3a Support ownership.", "Accessory; fixed physicalAccuracy +5."],
+  ["THIEF_EYE", "accessory", "merge", "ring", null, "support_owned_trap_effect", "active", ["src/data/equipment_tables.js#accessory floor 1-30", "src/rules/chest_rules.js#accessory supply"], "Fixed trapBonus belongs to Phase 3a Support ownership.", "Accessory; trapBonus +10."],
+  ["WARD_CHARM", "accessory", "merge", "amulet", null, "support_owned_spell_guard", "active", ["src/data/equipment_tables.js#accessory floor 1-30", "src/rules/chest_rules.js#accessory supply"], "Fixed spellGuard belongs to Phase 3a Support ownership.", "Accessory; spellGuard +15."],
+  ["DRAGON_RING", "accessory", "retire", null, null, "retired_enemy_tag_only", "active", ["src/data/equipment_tables.js#accessory floor 1-30", "src/rules/chest_rules.js#accessory supply"], "Only antiDragon effect; Phase 3a RETIRE Support; no remaining identity to merge.", "Accessory; antiDragon +20."],
+  ["HOLY_BAND", "accessory", "retire", null, null, "retired_enemy_tag_only", "active", ["src/data/equipment_tables.js#accessory floor 1-30", "src/rules/chest_rules.js#accessory supply"], "Only antiUndead effect; Phase 3a RETIRE Support; no remaining identity to merge.", "Accessory; antiUndead +20."],
+  ["SWIFT_BAND", "accessory", "merge", "ring", null, "support_owned_initiative", "active", ["src/data/equipment_tables.js#accessory floor 1-30", "src/rules/chest_rules.js#accessory supply"], "Fixed firstStrike belongs to Phase 3a Support ownership.", "Accessory; firstStrike +5."]
+];
+
+export const VNEXT_BASE_ITEM_AUDIT = Object.freeze(Object.fromEntries(
+  VNEXT_BASE_ITEM_AUDIT_ROWS.map(([productionId, slot, disposition, targetBaseId, namedRuleId, reasonCode, currentStatus, supplyEvidence, identityEvidence, currentSemantic]) => [
+    productionId,
+    Object.freeze({ productionId, slot, disposition, ...(targetBaseId ? { targetBaseId } : {}), ...(namedRuleId ? { namedRuleId } : {}), reasonCode, currentStatus, supplyEvidence: Object.freeze(supplyEvidence), identityEvidence, currentSemantic })
+  ])
+));
+
+const ITEM_ID_TO_CANONICAL_BASE = Object.freeze(Object.fromEntries(
+  Object.values(VNEXT_BASE_ITEM_AUDIT).filter(({ disposition }) => disposition !== "retire").map(({ productionId, targetBaseId }) => [productionId, targetBaseId])
+));
+const ITEM_ID_TO_NAMED_RULE = Object.freeze(Object.fromEntries(
+  Object.values(VNEXT_BASE_ITEM_AUDIT).filter(({ disposition }) => disposition === "named").map(({ productionId, namedRuleId }) => [productionId, namedRuleId])
+));
 
 // The map is data, not an adapter in any production item or loot path.
 export const ITEM_ID_TO_VNEXT_BASE = ITEM_ID_TO_CANONICAL_BASE;
