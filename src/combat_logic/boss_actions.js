@@ -32,6 +32,148 @@ export function advanceAncientDragonCycleStep(mon) {
   mon.ancientDragonCycleStep = (getAncientDragonCycleStep(mon) + 1) % 4;
 }
 
+/** Resolves only an already-queued ancient-dragon special. */
+export function resolveQueuedAncientDragonAction(mon, state, combatSelection, logQueue, options = {}) {
+  if (mon.name !== ANCIENT_DRAGON_NAME) return false;
+
+  const rng = options.rng || Math.random;
+  const measurement = options.measurement || null;
+  const recordAction = action => recordMonsterAction(mon, action, state, measurement);
+  const isSilenced = mon.silenceTurns > 0;
+
+  if (mon.tiltowaitQueued && !isSilenced) {
+    mon.tiltowaitQueued = false;
+    advanceAncientDragonCycleStep(mon);
+    recordAction("TILTOWAIT");
+    logQueue.push({
+      msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！(防御で大幅軽減可能)`,
+      sound: "cast_spell",
+      shake: 25,
+      flash: true
+    });
+    state.party.forEach((c, charIdx) => {
+      if (c.status !== "dead") {
+        const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+        let dmg = Math.floor(rng() * 31) + 45; // 45-75 DMG
+        if (isDefending) {
+          dmg = resolveGuardMitigation(c, dmg, {
+            isDefending,
+            attackType: "special",
+            baseMultiplier: 0.4,
+            telemetry: state.combatFormulaTelemetry
+          });
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを大幅に軽減した！` });
+        } else {
+          dmg = resolveGuardMitigation(c, dmg, {
+            attackType: "special",
+            telemetry: state.combatFormulaTelemetry
+          });
+        }
+        const rawDamage = dmg;
+        const playerHpBefore = c.hp;
+        dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
+        c.hp = Math.max(0, c.hp - dmg);
+        recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "special", isDefending, measurement });
+        const recovered = clearCharIncapacitationOnDamage(c);
+        logQueue.push({
+          msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
+          presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+        });
+        if (c.hp === 0) {
+          c.status = "dead";
+          const deathLog = recordCharDeath(state, c, "いにしえの竜のティルトウェイト", { type: "combat", source: "いにしえの竜" });
+          queueCharDeathLog(logQueue, deathLog);
+        }
+      }
+    });
+    return true;
+  }
+
+  if (mon.dragonBreathQueued) {
+    if (isSilenced) {
+      mon.tiltowaitQueued = false;
+      mon.madaltoQueued = false;
+    }
+    mon.dragonBreathQueued = false;
+    advanceAncientDragonCycleStep(mon);
+    recordAction("炎の息");
+    logQueue.push({
+      msg: `[ 敵 ] いにしえの竜は激しい炎の息を吐き出した！`,
+      sound: "cast_spell",
+      shake: 15,
+      flash: true
+    });
+    state.party.forEach((c, charIdx) => {
+      if (c.status !== "dead") {
+        const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+        let dmg = Math.floor(rng() * 13) + 12; // 12-24 DMG
+        dmg = resolveGuardMitigation(c, dmg, {
+          isDefending,
+          attackType: "breath",
+          telemetry: state.combatFormulaTelemetry
+        });
+        const rawDamage = dmg;
+        const playerHpBefore = c.hp;
+        dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
+        c.hp = Math.max(0, c.hp - dmg);
+        recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "breath", isDefending, measurement });
+        const recovered = clearCharIncapacitationOnDamage(c);
+        logQueue.push({
+          msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
+          presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+        });
+        if (c.hp === 0) {
+          c.status = "dead";
+          const deathLog = recordCharDeath(state, c, "いにしえの竜の炎の息", { type: "combat", source: "いにしえの竜" });
+          queueCharDeathLog(logQueue, deathLog);
+        }
+      }
+    });
+    return true;
+  }
+
+  if (mon.madaltoQueued && !isSilenced) {
+    mon.madaltoQueued = false;
+    advanceAncientDragonCycleStep(mon);
+    logQueue.push({
+      msg: `[ 敵 ] いにしえの竜はマダルトを唱えた！氷の嵐が吹き荒れる！`,
+      sound: "cast_spell",
+      shake: 15,
+      flash: true
+    });
+    recordAction("MADALTO");
+    state.party.forEach((c, charIdx) => {
+      if (c.status !== "dead") {
+        const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+        let dmg = Math.floor(rng() * 21) + 15; // 15-35 DMG
+        dmg = resolveGuardMitigation(c, dmg, {
+          isDefending,
+          attackType: "spell",
+          telemetry: state.combatFormulaTelemetry
+        });
+        const rawDamage = dmg;
+        const playerHpBefore = c.hp;
+        dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
+        c.hp = Math.max(0, c.hp - dmg);
+        recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending, measurement });
+        const recovered = clearCharIncapacitationOnDamage(c);
+        logQueue.push({
+          msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
+          presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+        });
+        if (c.hp === 0) {
+          c.status = "dead";
+          const deathLog = recordCharDeath(state, c, "いにしえの竜のマダルト", { type: "combat", source: "いにしえの竜" });
+          queueCharDeathLog(logQueue, deathLog);
+        }
+      }
+    });
+    return true;
+  }
+
+  return false;
+}
+
 function resolveB5MilestoneBossAction(mon, state, logQueue) {
   const rule = getMilestoneBossRule(
     state.floor,
@@ -245,140 +387,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       mon.madaltoQueued = false;
     }
 
-    if (mon.tiltowaitQueued) {
-      mon.tiltowaitQueued = false;
-      if (isSilenced) {
-        logQueue.push({ msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えようとしたが、沈黙している！` });
-        advanceAncientDragonCycleStep(mon);
-        return true;
-      }
-      advanceAncientDragonCycleStep(mon);
-      recordAction(mon, "TILTOWAIT");
-      logQueue.push({
-        msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！(防御で大幅軽減可能)`,
-        sound: "cast_spell",
-        shake: 25,
-        flash: true
-      });
-      state.party.forEach((c, charIdx) => {
-        if (c.status !== "dead") {
-          const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-          let dmg = Math.floor(rng() * 31) + 45; // 45-75 DMG
-          if (isDefending) {
-            dmg = resolveGuardMitigation(c, dmg, {
-              isDefending,
-              attackType: "special",
-              baseMultiplier: 0.4,
-              telemetry: state.combatFormulaTelemetry
-            });
-            logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを大幅に軽減した！` });
-          } else {
-            dmg = resolveGuardMitigation(c, dmg, {
-              attackType: "special",
-              telemetry: state.combatFormulaTelemetry
-            });
-          }
-          const rawDamage = dmg;
-          const playerHpBefore = c.hp;
-          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
-          c.hp = Math.max(0, c.hp - dmg);
-          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "special", isDefending, measurement });
-          const recovered = clearCharIncapacitationOnDamage(c);
-          logQueue.push({
-            msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
-            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
-          });
-          if (c.hp === 0) {
-            c.status = "dead";
-            const deathLog = recordCharDeath(state, c, "いにしえの竜のティルトウェイト", { type: "combat", source: "いにしえの竜" });
-            queueCharDeathLog(logQueue, deathLog);
-          }
-        }
-      });
-      return true;
-    }
-
-    if (mon.dragonBreathQueued) {
-      mon.dragonBreathQueued = false;
-      advanceAncientDragonCycleStep(mon);
-      recordAction(mon, "炎の息");
-      logQueue.push({
-        msg: `[ 敵 ] いにしえの竜は激しい炎の息を吐き出した！`,
-        sound: "cast_spell",
-        shake: 15,
-        flash: true
-      });
-      state.party.forEach((c, charIdx) => {
-        if (c.status !== "dead") {
-          const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-          let dmg = Math.floor(rng() * 13) + 12; // 12-24 DMG
-          dmg = resolveGuardMitigation(c, dmg, {
-            isDefending,
-            attackType: "breath",
-            telemetry: state.combatFormulaTelemetry
-          });
-          const rawDamage = dmg;
-          const playerHpBefore = c.hp;
-          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
-          c.hp = Math.max(0, c.hp - dmg);
-          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "breath", isDefending, measurement });
-          const recovered = clearCharIncapacitationOnDamage(c);
-          logQueue.push({
-            msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
-            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
-          });
-          if (c.hp === 0) {
-            c.status = "dead";
-            const deathLog = recordCharDeath(state, c, "いにしえの竜の炎の息", { type: "combat", source: "いにしえの竜" });
-            queueCharDeathLog(logQueue, deathLog);
-          }
-        }
-      });
-      return true;
-    }
-
-    if (mon.madaltoQueued) {
-      mon.madaltoQueued = false;
-      advanceAncientDragonCycleStep(mon);
-      if (isSilenced) {
-        logQueue.push({ msg: `[ 敵 ] いにしえの竜はマダルトを唱えようとしたが、沈黙している！` });
-        return true;
-      }
-      logQueue.push({
-        msg: `[ 敵 ] いにしえの竜はマダルトを唱えた！氷の嵐が吹き荒れる！`,
-        sound: "cast_spell",
-        shake: 15,
-        flash: true
-      });
-      recordAction(mon, "MADALTO");
-      state.party.forEach((c, charIdx) => {
-        if (c.status !== "dead") {
-          const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-          let dmg = Math.floor(rng() * 21) + 15; // 15-35 DMG
-          dmg = resolveGuardMitigation(c, dmg, {
-            isDefending,
-            attackType: "spell",
-            telemetry: state.combatFormulaTelemetry
-          });
-          const rawDamage = dmg;
-          const playerHpBefore = c.hp;
-          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
-          c.hp = Math.max(0, c.hp - dmg);
-          recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending, measurement });
-          const recovered = clearCharIncapacitationOnDamage(c);
-          logQueue.push({
-            msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(軽減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}`,
-            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
-          });
-          if (c.hp === 0) {
-            c.status = "dead";
-            const deathLog = recordCharDeath(state, c, "いにしえの竜のマダルト", { type: "combat", source: "いにしえの竜" });
-            queueCharDeathLog(logQueue, deathLog);
-          }
-        }
-      });
-      return true;
-    }
+    if (resolveQueuedAncientDragonAction(mon, state, combatSelection, logQueue, { rng, measurement })) return true;
 
     const currentStep = getAncientDragonCycleStep(mon);
     let action = "attack";
