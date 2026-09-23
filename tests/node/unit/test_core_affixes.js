@@ -155,6 +155,16 @@ test("production Core 13件を一度ずつ監査しvNext語彙と一致させる
     }
   }
 
+  const dispositionCounts = CORE_AFFIXES.reduce((counts, core) => {
+    const disposition = VNEXT_CORE_AUDIT[core.id].disposition;
+    counts[disposition] = (counts[disposition] || 0) + 1;
+    return counts;
+  }, { keep: 0, change: 0, support: 0, retire: 0 });
+  assert.deepEqual(dispositionCounts, { keep: 6, change: 3, support: 4, retire: 0 });
+  assert.equal(VNEXT_CORE_AUDIT.CORE_CAMP_MASTER.reasonCode, "passive_recovery_multiplier");
+  assert.equal(Object.hasOwn(VNEXT_CORE_AUDIT.CORE_CAMP_MASTER, "targetId"), false);
+  assert.equal(getVNextCoreId("CORE_CAMP_MASTER"), null);
+  assert.equal(VNEXT_CORE_IDS.includes("camp_master"), false);
   assert.deepEqual([...VNEXT_CORE_IDS].sort(), adoptedIds.sort());
   assert.equal(new Set(VNEXT_CORE_IDS).size, VNEXT_CORE_IDS.length);
   assert.ok(VNEXT_CORE_CANDIDATE_IDS.includes("overmix"));

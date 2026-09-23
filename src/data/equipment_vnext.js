@@ -149,7 +149,6 @@ export const VNEXT_CORE_IDS = Object.freeze([
   "sneak_step",
   "tomb_raider",
   "keen_eye",
-  "camp_master",
   "scholar_eye"
 ]);
 
@@ -179,7 +178,7 @@ export const VNEXT_CORE_AUDIT = Object.freeze({
   CORE_SNEAK_STEP: { productionId: "CORE_SNEAK_STEP", disposition: "keep", reasonCode: "exploration_detection_control", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/movement.js"], currentSemantic: "Halves gatekeeper/boss detection and extends aura detection by one tile.", identityOverlap: ["Support hearRange/arcaneSense: information range, not enemy detection pressure", "Named/Base: no direct semantic duplicate"] },
   CORE_TOMB_RAIDER: { productionId: "CORE_TOMB_RAIDER", disposition: "keep", reasonCode: "chest_material_trap_exchange", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/data/workshop.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/chest.js"], currentSemantic: "Chest adds one material and raises trap tier by one.", identityOverlap: ["Support trapBonus/trapGuard: trap interaction and mitigation, not chest reward-risk exchange", "Named/Base: no direct semantic duplicate"] },
   CORE_KEEN_EYE: { productionId: "CORE_KEEN_EYE", disposition: "keep", reasonCode: "unidentified_equipment_gamble", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js", "src/rules/item_rules.js"], currentSemantic: "Equip unidentified items with effects active but hidden until identification.", identityOverlap: ["Support identifyDiscount: identification cost only, not blind equip/effect disclosure", "Named/Base: item identity stays concealed"] },
-  CORE_CAMP_MASTER: { productionId: "CORE_CAMP_MASTER", disposition: "keep", reasonCode: "camp_rest_vs_continue_choice", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/systems/camp_rest.ts", "src/menu/explore_actions.js"], currentSemantic: "Doubles HP/MP recovery when choosing camp rest.", identityOverlap: ["Support hp/mp: capacity, not recovery received at the rest-versus-continue decision", "Named/Base: no direct semantic duplicate"] },
+  CORE_CAMP_MASTER: { productionId: "CORE_CAMP_MASTER", disposition: "support", reasonCode: "passive_recovery_multiplier", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/systems/camp_rest.ts", "src/menu/explore_actions.js"], currentSemantic: "Doubles HP/MP recovery when choosing camp rest.", identityOverlap: ["Support hp/mp: capacity, not recovery received at the rest-versus-continue decision", "Named/Base: no direct semantic duplicate"] },
   CORE_BOUNTY_HUNTER: { productionId: "CORE_BOUNTY_HUNTER", disposition: "support", targetId: "contractReward", reasonCode: "automatic_contract_progress_multiplier", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js", "src/combat_logic/rewards.js"], currentSemantic: "Doubles matching contract-target defeat progress.", identityOverlap: ["Support contractReward: objective reward economy; adjacent, not the same progress effect", "Named/Base: no direct semantic duplicate"] },
   CORE_SCHOLAR_EYE: { productionId: "CORE_SCHOLAR_EYE", disposition: "change", targetId: "unknown_enemy_study", reasonCode: "automatic_unknown_enemy_drop", currentStatus: "active", productionSupply: true, supplyEvidence: ["src/data/affixes.js", "src/data/workshop.js", "src/systems/equipment_generation.js"], productionConsumer: true, consumerEvidence: ["src/combat_logic/rewards.js"], currentSemantic: "Guarantees a material drop from uncatalogued enemies.", targetSemantic: "Choose to study an unknown enemy and weigh the material opportunity against encounter risk.", identityOverlap: ["Support materialFind: general material chance, not a deliberate knowledge/risk choice", "Named/Base: no direct semantic duplicate"] }
 });
@@ -263,7 +262,6 @@ const PRODUCTION_CORE_TO_VNEXT = Object.freeze({
   CORE_SNEAK_STEP: "sneak_step",
   CORE_TOMB_RAIDER: "tomb_raider",
   CORE_KEEN_EYE: "keen_eye",
-  CORE_CAMP_MASTER: "camp_master",
   CORE_SCHOLAR_EYE: "scholar_eye"
 });
 
