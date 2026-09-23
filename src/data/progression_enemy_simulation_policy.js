@@ -16,8 +16,8 @@ export const PROGRESSION_ENEMY_SIMULATION_POLICY = Object.freeze({
     {
       id: "pre-milestone",
       timing: "fight milestone Boss before defeat",
-      baselineSource: "entitlement for the actually selected startFloor",
-      baselineRule: "prior defeated milestone; selected startFloor entitlement is the floor"
+      baselineSource: "maximum of entitlement for the actually selected startFloor and the highest milestone defeated earlier in this run",
+      baselineRule: "floor entry alone does not advance baseline; the current milestone Boss is excluded until defeated"
     },
     {
       id: "selected-deep-start",
@@ -47,6 +47,11 @@ export const PROGRESSION_ENEMY_SIMULATION_POLICY = Object.freeze({
     focusedRegressionOnly: Object.freeze([
       Object.freeze({ milestoneFloor: 15, preBaseline: 2, selectedStartBaseline: 3, postFloor: 16, postBaseline: 3 }),
       Object.freeze({ milestoneFloor: 25, preBaseline: 4, selectedStartBaseline: 5, postFloor: 26, postBaseline: 5 })
+    ]),
+    focusedBoundaryRegression: Object.freeze([
+      Object.freeze({ point: "B1 start before B5 defeat", selectedStartFloor: 1, highestEarlierDefeatedMilestone: null, baseline: 0 }),
+      Object.freeze({ point: "B6 after B5 defeat", selectedStartFloor: 1, highestEarlierDefeatedMilestone: 5, baseline: 1 }),
+      Object.freeze({ point: "B10 Boss before defeat; floor entry does not advance", selectedStartFloor: 1, highestEarlierDefeatedMilestone: 5, baseline: 1 })
     ])
   }),
   layers: Object.freeze({
@@ -86,8 +91,9 @@ export const PROGRESSION_ENEMY_SIMULATION_POLICY = Object.freeze({
   }),
   pairedSeeds: Object.freeze({
     required: true,
-    key: Object.freeze(["policy", "milestone context", "fixture", "runIndex"]),
-    rule: "share the same seed within each matched baseline/candidate cell; record seed derivation and seed per run"
+    key: Object.freeze(["milestone context", "fixture", "runIndex"]),
+    cellIdentity: Object.freeze(["policy", "comparison arm", "milestone context", "fixture", "runIndex"]),
+    rule: "current production and vNext candidate share the seed derived from milestone context, fixture, and runIndex; policy is recorded in cell identity / provenance, never in seed derivation"
   }),
   samplePolicy: Object.freeze({
     below30: "correctness / runner validation only; no balance conclusion",
