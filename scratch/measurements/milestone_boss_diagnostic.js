@@ -930,7 +930,9 @@ function format(value) {
 export function buildSummary(report) {
   const dedicatedB30AtkPressure = report.measurementId === "b30-atk-pressure-diagnostic";
   const lines = [
-    report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
+    dedicatedB30AtkPressure
+      ? "# B30 generic ATK scaling diagnostic (#1664)"
+      : report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
       ? "# B30 generic Tier HP scaling diagnostic (#1662)"
       : "# milestone Boss decision-pressure diagnostic (#1613)",
     "",

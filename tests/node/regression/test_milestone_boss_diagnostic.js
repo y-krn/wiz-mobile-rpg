@@ -188,6 +188,7 @@ const b30Summary = buildSummary({
   measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
 });
 assert.match(b30Summary, /schema: 10/);
+assert.equal(b30Summary.split("\n")[0], "# B30 generic ATK scaling diagnostic (#1664)");
 assert.match(b30Summary, /39→26/);
 assert.match(b30Summary, /baseline boss remaining=/);
 assert.match(b30Summary, /"maxHp":\{"count":1,"average":640/);
@@ -199,6 +200,7 @@ const milestoneSummary = buildSummary({
   measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
 });
 assert.match(milestoneSummary, /baseline HP=1280 \/ ATK=39, candidate HP=640 \/ ATK=39/);
+assert.equal(milestoneSummary.split("\n")[0], "# milestone Boss decision-pressure diagnostic (#1613)");
 
 assert.deepEqual(BOSS_FIXTURES.map(fixture => fixture.bossName), [
   "デーモンガード",
