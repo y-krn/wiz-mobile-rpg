@@ -51,8 +51,8 @@ function assertSameObservedSpecialDamage(cell, profile) {
 
 assert.deepEqual(first, second, "milestone boss smoke must be deterministic");
 assert.deepEqual(b30First, b30Second, "B30 diagnostic smoke must be deterministic");
-assert.equal(RUNNER_VERSION, "issue1672-b10-crush-strike-diagnostic-v1");
-assert.equal(SCHEMA_VERSION, 13);
+assert.equal(RUNNER_VERSION, "issue1674-b10-crush-strike-opening-v1");
+assert.equal(SCHEMA_VERSION, 14);
 assert.equal(first.runnerVersion, RUNNER_VERSION);
 assert.equal(first.measurementId, "milestone-boss-diagnostic");
 assert.deepEqual(first.configuration.depths, [5, 10, 15, 20, 25, 30]);
@@ -67,34 +67,65 @@ assert.equal(first.configuration.scaling, "HP = 1 + 0.20 × Tier; ATK = 1 + 0.10
 assert.equal(first.cells.length, BOSS_FIXTURES.length);
 assert.equal(b10Default.summary.crushStrike.queued, 0, "production default has no candidate telegraph");
 assert.equal(b10Default.summary.crushStrike.resolved, 0, "production default has no candidate resolve");
-assert.deepEqual(b10Candidate.arms.unread.crushStrike.queued, b10Candidate.arms.read.crushStrike.queued);
-assert.deepEqual(b10Candidate.arms.unread.crushStrike.resolved, b10Candidate.arms.read.crushStrike.resolved);
 for (const armName of ["unread", "read"]) {
   const arm = b10Candidate.arms[armName];
   assert.ok(arm.crushStrike.queued > 0, `B10 ${armName} queues 砕岩打ち`);
   assert.ok(arm.crushStrike.resolved > 0, `B10 ${armName} resolves 砕岩打ち`);
-  assert.equal(arm.crushStrike.queued, arm.crushStrike.resolved);
+  assert.ok(arm.crushStrike.queued === arm.crushStrike.resolved ||
+    arm.crushStrike.queued === arm.crushStrike.resolved + 1,
+  `B10 ${armName} may end with one outstanding telegraph when combat ends`);
   const events = arm.crushStrike.events;
   const queued = events.filter(event => event.phase === "queued");
   const resolved = events.filter(event => event.phase === "resolved");
-  assert.ok(queued.every((event, index) => event.targetIdx === resolved[index]?.targetIdx),
+  assert.ok(resolved.every((event, index) => event.targetIdx === queued[index]?.targetIdx),
     `B10 ${armName} telegraph and resolve target match`);
+  assert.equal(events[0].phase, "opening-delay",
+    `B10 ${armName} begins with one normal action without telegraph`);
+  assert.equal(events[0].round, 1);
+  assert.equal(events[1].phase, "queued",
+    `B10 ${armName} telegraphs after the second normal action`);
+  assert.equal(events[1].round, 2);
+  assert.equal(events[2].phase, "resolved",
+    `B10 ${armName} resolves on round three`);
+  assert.equal(events[2].round, 3);
   assert.ok(resolved.every((event, index) => event.round > queued[index].round),
     `B10 ${armName} resolves after telegraph`);
   assert.ok(resolved.every(event => event.rolledDamage >= 18 && event.rolledDamage <= 32));
-  assert.ok(events.some((event, index) => event.phase === "cooldown" &&
-    events[index + 1]?.phase === "queued" && events[index + 1].round > event.round),
-  `B10 ${armName} includes a normal turn before retelegraph`);
 }
+assert.ok(b10Candidate.arms.read.crushStrike.events.some((event, index, events) =>
+  event.phase === "cooldown" && events[index + 1]?.phase === "queued" &&
+  events[index + 1].round === event.round + 1),
+"B10 read preserves the existing one-normal-turn cooldown before retelegraph");
 assert.ok(b10Candidate.arms.read.crushStrike.events.some(event =>
   event.phase === "resolved" && event.guarded && event.responseAction === "defend"));
 const unreadFightResolve = b10Candidate.arms.unread.crushStrike.events.find(event =>
   event.phase === "resolved" && event.responseAction === "fight");
 assert.ok(unreadFightResolve, "B10 unread retains existing Fight policy on a queued resolve turn");
-assert.ok(b10Candidate.arms.read.crushStrike.events.some(event =>
+const pairedReadResolve = b10Candidate.arms.read.crushStrike.events.find(event =>
   event.phase === "resolved" && event.round === unreadFightResolve.round &&
-  event.guarded && event.responseAction === "defend"),
+  event.guarded && event.responseAction === "defend");
+assert.ok(pairedReadResolve,
 "B10 read adds Guard on the same paired queued-resolve turn where unread Fights");
+assert.equal(pairedReadResolve.targetIdx, unreadFightResolve.targetIdx,
+  "B10 paired arms resolve against the same queued target");
+const unreadOpeningQueue = b10Candidate.arms.unread.crushStrike.events.find(event =>
+  event.phase === "queued" && event.round === 2);
+const readOpeningQueue = b10Candidate.arms.read.crushStrike.events.find(event =>
+  event.phase === "queued" && event.round === 2);
+assert.equal(readOpeningQueue.targetIdx, unreadOpeningQueue.targetIdx,
+  "B10 paired opening telegraphs target the same character");
+assert.equal(readOpeningQueue.rolledDamage, unreadOpeningQueue.rolledDamage,
+  "B10 paired opening telegraphs schedule the same damage roll");
+assert.equal(pairedReadResolve.rolledDamage, unreadFightResolve.rolledDamage,
+  "B10 paired arms use the same seed-rolled crush-strike damage");
+assert.equal(unreadFightResolve.guarded, false);
+assert.equal(unreadFightResolve.tempDefDownAfter,
+  Math.min(6, unreadFightResolve.tempDefDownBefore + 2));
+assert.equal(pairedReadResolve.tempDefDownAfter, pairedReadResolve.tempDefDownBefore);
+assert.equal(b10Default.summary.crushStrike.queued, 0,
+  "production default remains opt-out with no queue");
+assert.equal(b10Default.summary.crushStrike.resolved, 0,
+  "production default remains opt-out with no resolve");
 assert.ok(b10Candidate.arms.read.crushStrike.events.some(event =>
   event.phase === "resolved" && event.guarded && event.tempDefDownBefore === event.tempDefDownAfter));
 assert.ok(b10Candidate.arms.unread.crushStrike.events.some(event =>
@@ -225,7 +256,7 @@ const b30Summary = buildSummary({
   ...b30First,
   measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
 });
-assert.match(b30Summary, /schema: 13/);
+assert.match(b30Summary, /schema: 14/);
 assert.equal(b30Summary.split("\n")[0], "# B30 generic ATK scaling diagnostic (#1664)");
 assert.match(b30Summary, /39→26/);
 assert.match(b30Summary, /baseline boss remaining=/);
@@ -239,15 +270,15 @@ const milestoneSummary = buildSummary({
 });
 assert.match(milestoneSummary, /baseline HP=1280 \/ ATK=39, candidate HP=640 \/ ATK=39/);
 assert.equal(milestoneSummary.split("\n")[0], "# milestone Boss decision-pressure diagnostic (#1613)");
-const issue1672Summary = buildSummary({
+const issue1674Summary = buildSummary({
   ...first,
   configuration: { ...first.configuration, depths: [10], runs: 1 },
   cells: [b10Candidate],
   measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
 });
-assert.equal(issue1672Summary.split("\n")[0], "# B10 砕岩打ち correctness diagnostic (#1672)");
-assert.match(issue1672Summary, /B10 paired 砕岩打ち: same seed=1613/);
-assert.match(issue1672Summary, /both arms enabled/);
+assert.equal(issue1674Summary.split("\n")[0], "# B10 砕岩打ち opening diagnostic (#1674)");
+assert.match(issue1674Summary, /B10 paired 砕岩打ち: same seed=1613/);
+assert.match(issue1674Summary, /both arms enabled/);
 
 assert.deepEqual(BOSS_FIXTURES.map(fixture => fixture.bossName), [
   "デーモンガード",
