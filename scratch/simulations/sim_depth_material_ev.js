@@ -8018,25 +8018,17 @@ export function selectCombatAction(state, metrics) {
   // Diagnostic-only fixed player candidate. The action plan mirrors the
   // Phase 1 freeze candidate; production combat values remain untouched.
   if (
-    ["attack-defend", "queued-special-guard"].includes(state.simPolicy.measurementCombatPlan) &&
+    ["attack-defend", "tiltowait-queued-guard"].includes(state.simPolicy.measurementCombatPlan) &&
     state.simPolicy.measurementGuardTiming === "declared"
   ) {
-    const queuedSpecials = state.floor === 30
-      ? monsters.flatMap(monster => [
-        monster.dragonBreathQueued ? "breath" : null,
-        monster.madaltoQueued ? "MADALTO" : null,
-        monster.tiltowaitQueued ? "TILTOWAIT" : null
-      ].filter(Boolean))
-      : [];
-    const shouldGuardQueuedSpecial = state.simPolicy.measurementCombatPlan === "queued-special-guard" &&
-      queuedSpecials.length > 0;
+    const shouldGuardQueuedSpecial = state.simPolicy.measurementCombatPlan === "tiltowait-queued-guard" &&
+      monsters.some(monster => monster.tiltowaitQueued === true);
     const shouldGuardByBaselinePlan =
       state.combatState.roundNumber % 2 === 0;
     const action = shouldGuardQueuedSpecial || shouldGuardByBaselinePlan
       ? { type: "defend", actorIdx: 0 }
       : null;
     if (action) {
-      if (state.floor === 30) action.measurementQueuedSpecials = queuedSpecials;
       return action;
     }
   }
@@ -9908,6 +9900,13 @@ function runEncounter(
     }
 
     const action = selectCombatAction(state, metrics);
+    if (state.floor === 30 && ["attack-defend", "tiltowait-queued-guard"].includes(state.simPolicy.measurementCombatPlan)) {
+      action.measurementQueuedSpecials = state.combatState.monsters.flatMap(monster => [
+        monster.dragonBreathQueued ? "breath" : null,
+        monster.madaltoQueued ? "MADALTO" : null,
+        monster.tiltowaitQueued ? "TILTOWAIT" : null
+      ].filter(Boolean));
+    }
     actionTypes.push(action.type);
     actionSignatures.push(compactCombatAction(action));
     let selectedDecisionTrace = null;
