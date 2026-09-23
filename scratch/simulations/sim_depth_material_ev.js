@@ -8018,11 +8018,27 @@ export function selectCombatAction(state, metrics) {
   // Diagnostic-only fixed player candidate. The action plan mirrors the
   // Phase 1 freeze candidate; production combat values remain untouched.
   if (
-    state.simPolicy.measurementCombatPlan === "attack-defend" &&
-    state.simPolicy.measurementGuardTiming === "declared" &&
-    state.combatState.roundNumber % 2 === 0
+    ["attack-defend", "queued-special-guard"].includes(state.simPolicy.measurementCombatPlan) &&
+    state.simPolicy.measurementGuardTiming === "declared"
   ) {
-    return { type: "defend", actorIdx: 0 };
+    const queuedSpecials = state.floor === 30
+      ? monsters.flatMap(monster => [
+        monster.dragonBreathQueued ? "breath" : null,
+        monster.madaltoQueued ? "MADALTO" : null,
+        monster.tiltowaitQueued ? "TILTOWAIT" : null
+      ].filter(Boolean))
+      : [];
+    const shouldGuardQueuedSpecial = state.simPolicy.measurementCombatPlan === "queued-special-guard" &&
+      queuedSpecials.length > 0;
+    const shouldGuardByBaselinePlan =
+      state.combatState.roundNumber % 2 === 0;
+    const action = shouldGuardQueuedSpecial || shouldGuardByBaselinePlan
+      ? { type: "defend", actorIdx: 0 }
+      : null;
+    if (action) {
+      if (state.floor === 30) action.measurementQueuedSpecials = queuedSpecials;
+      return action;
+    }
   }
 
   const fleeThreshold = state.simPolicy.fleeHpThreshold;
@@ -10506,6 +10522,7 @@ function runEncounter(
       encounterDiagnostic.rounds.push({
         round: roundNumber,
         action: action.type,
+        measurementQueuedSpecials: action.measurementQueuedSpecials || null,
         playerActorName: character.name,
         playerActionOrder: playerActionObservation?.order ?? null,
         playerActionExecuted: playerActionObservation?.executed === true,

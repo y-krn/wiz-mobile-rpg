@@ -20,8 +20,8 @@ import { simulateRun } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1629-b30-hard-wall-diagnostic-v4";
-export const SCHEMA_VERSION = 4;
+export const RUNNER_VERSION = "issue1638-b30-warning-guard-diagnostic-v1";
+export const SCHEMA_VERSION = 5;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1613;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -304,12 +304,12 @@ export function resolveWorldSeed({ seed, floor, runIndex }) {
   return `${seed}:issue1613:milestone-boss:B${floor}:${runIndex}`;
 }
 
-function createScenario(fixture) {
+function createScenario(fixture, actionPlan = null) {
   const playerFixture = resolvePlayerFixture(fixture.floor);
   return {
     startingKit: playerFixture.startingKit,
     hpBaseBonus: playerFixture.maxHp - 20,
-    measurementCombatPlan: playerFixture.actionPlan,
+    measurementCombatPlan: actionPlan || playerFixture.actionPlan,
     measurementGuardTiming: playerFixture.guardTiming,
     measurementCombatTier: playerFixture.combatTier,
     measurementPlayerWeaponCandidate: playerFixture.weaponProfile,
@@ -350,7 +350,8 @@ function observeRun(result, fixture) {
     (round.enemyActionEvents || []).map(action => ({
       ...action,
       roundIndex,
-      defended: round.action === "defend"
+      defended: round.action === "defend",
+      queuedSpecials: round.measurementQueuedSpecials || []
     }))
   );
   const enemyActions = allEnemyActions.filter(action => action.monsterName === fixture.bossName);
@@ -431,26 +432,47 @@ function observeRun(result, fixture) {
   const deathSource = deathLog?.match(/で(.+?)により倒れた/)?.[1] || null;
   const lethalAction = allEnemyActions.find(action => action.lethal) || null;
   const lethalStatusDamage = statusDamageObservations.find(event => event.lethal) || null;
-  const deathRoundIndex = lethalAction?.roundIndex ?? lethalStatusDamage?.roundIndex ?? null;
-  const warningsBeforeDeath = lethalAction
-    ? rounds.slice(0, deathRoundIndex).flatMap((round, roundIndex) =>
-      (round.log || [])
-        .filter(message => String(message).includes("[警告]"))
-        .map(message => ({ message, roundsBeforeDeath: deathRoundIndex - roundIndex }))
-    )
-    : deathRoundIndex === null ? [] : rounds.slice(0, deathRoundIndex).flatMap((round, roundIndex) =>
+  const lethalActionName = lethalAction?.actionNames?.join("+") || null;
+  let warningBeforeDeath = null;
+  let warningBeforeDeathMessages = null;
+  let matchingWarningBeforeDeath = null;
+  let matchingWarningRoundsBeforeDeath = null;
+  if (fixture.floor !== 30) {
+    const deathRoundIndex = lethalAction?.roundIndex ?? lethalStatusDamage?.roundIndex ?? null;
+    const warningsBeforeDeath = deathRoundIndex === null ? [] : rounds.slice(0, deathRoundIndex).flatMap((round, roundIndex) =>
       (round.log || [])
         .filter(message => String(message).includes("[警告]"))
         .map(message => ({ message, roundsBeforeDeath: deathRoundIndex - roundIndex }))
     );
-  const lethalActionName = lethalAction?.actionNames?.join("+") || null;
-  const warningKeyword = lethalActionName === "TILTOWAIT" ? "ティルトウェイト"
-    : lethalActionName === "MADALTO" ? "マダルト"
-      : lethalActionName === "炎の息" ? "炎の息"
-        : lethalActionName === "仲間を呼ぶ" ? "召喚" : null;
-  const matchingWarningsBeforeDeath = warningKeyword
-    ? warningsBeforeDeath.filter(warning => String(warning.message).includes(warningKeyword))
-    : [];
+    const warningKeyword = lethalActionName === "TILTOWAIT" ? "ティルトウェイト"
+      : lethalActionName === "MADALTO" ? "マダルト"
+        : lethalActionName === "炎の息" ? "炎の息"
+          : lethalActionName === "仲間を呼ぶ" ? "召喚" : null;
+    const matchingWarningsBeforeDeath = warningKeyword
+      ? warningsBeforeDeath.filter(warning => String(warning.message).includes(warningKeyword))
+      : [];
+    warningBeforeDeath = warningsBeforeDeath.length > 0;
+    warningBeforeDeathMessages = warningsBeforeDeath.map(warning => warning.message);
+    matchingWarningBeforeDeath = matchingWarningsBeforeDeath.length > 0;
+    matchingWarningRoundsBeforeDeath = matchingWarningsBeforeDeath.map(warning => warning.roundsBeforeDeath);
+  }
+  const warningCount = fixture.floor === 30 ? null : countLogs(logs, /\[警告\]/);
+  const telegraphCount = fixture.floor === 30 ? null : countLogs(logs, /\[警告\]|予兆/);
+  const queuedSpecialCorrespondence = rounds.flatMap((round, roundIndex) => {
+    const queued = round.measurementQueuedSpecials || [];
+    if (!queued.length) return [];
+    const resolved = allEnemyActions
+      .filter(action => action.roundIndex === roundIndex)
+      .flatMap(action => action.actionNames.map(name =>
+        name === "炎の息" ? "breath" : ["MADALTO", "TILTOWAIT"].includes(name) ? name : null
+      ).filter(Boolean));
+    return queued.map(special => ({
+        special,
+        guarded: round.action === "defend",
+        resolved: resolved.includes(special),
+        round: round.round
+      }));
+  });
   const perActionDamage = Object.fromEntries(B30_ACTION_CATEGORIES.map(category => {
     const events = allDamageObservations.filter(event => event.category === category);
     return [category, {
@@ -490,10 +512,13 @@ function observeRun(result, fixture) {
     outcome: result.fixedCombatResult,
     deathSource,
     lethalAction: lethalActionName || (lethalAction ? "guardian-pressure" : lethalStatusDamage ? `round-end-status:${lethalStatusDamage.actionName}` : null),
-    warningBeforeDeath: warningsBeforeDeath.length > 0,
-    warningBeforeDeathMessages: warningsBeforeDeath.map(warning => warning.message),
-    matchingWarningBeforeDeath: matchingWarningsBeforeDeath.length > 0,
-    matchingWarningRoundsBeforeDeath: matchingWarningsBeforeDeath.map(warning => warning.roundsBeforeDeath),
+    warningBeforeDeath,
+    warningBeforeDeathMessages,
+    matchingWarningBeforeDeath,
+    matchingWarningRoundsBeforeDeath,
+    warningCount,
+    telegraphCount,
+    queuedSpecialCorrespondence,
     rounds: rounds.length,
     damageTaken: result.combatDamageHp || 0,
     survival: Number(result.fixedCombatResult === "victory"),
@@ -519,8 +544,6 @@ function observeRun(result, fixture) {
         undefendedTotal: undefended.reduce((sum, damage) => sum + damage, 0)
       }];
     })),
-    warningCount: countLogs(logs, /\[警告\]/),
-    telegraphCount: countLogs(logs, /\[警告\]|予兆/),
     spellActionCount: spellActions.length,
     statusActionCount: statusSources.length,
     statusSources: countBy(statusSources),
@@ -592,11 +615,20 @@ function summarizeRows(rows, fixture) {
     deathSources: countBy(rows.map(row => row.deathSource).filter(Boolean)),
     deaths: rows.filter(row => row.outcome === "death").length,
     lethalActions: countBy(rows.map(row => row.lethalAction).filter(Boolean)),
-    warningBeforeDeathRuns: rows.filter(row => row.outcome === "death" && row.warningBeforeDeath).length,
-    deathsWithoutPriorWarning: rows.filter(row => row.outcome === "death" && !row.warningBeforeDeath).length,
-    deathsWithMatchingWarning: rows.filter(row => row.outcome === "death" && row.matchingWarningBeforeDeath).length,
-    deathsWithoutMatchingWarning: rows.filter(row => row.outcome === "death" && !row.matchingWarningBeforeDeath).length,
-    matchingWarningRoundsBeforeDeath: summarize(rows.flatMap(row => row.matchingWarningRoundsBeforeDeath)),
+    warningBeforeDeathRuns: fixture.floor === 30 ? null : rows.filter(row => row.outcome === "death" && row.warningBeforeDeath).length,
+    deathsWithoutPriorWarning: fixture.floor === 30 ? null : rows.filter(row => row.outcome === "death" && !row.warningBeforeDeath).length,
+    deathsWithMatchingWarning: fixture.floor === 30 ? null : rows.filter(row => row.outcome === "death" && row.matchingWarningBeforeDeath).length,
+    deathsWithoutMatchingWarning: fixture.floor === 30 ? null : rows.filter(row => row.outcome === "death" && !row.matchingWarningBeforeDeath).length,
+    matchingWarningRoundsBeforeDeath: fixture.floor === 30 ? null : summarize(rows.flatMap(row => row.matchingWarningRoundsBeforeDeath)),
+    queuedSpecialCorrespondence: Object.fromEntries(["breath", "MADALTO", "TILTOWAIT"].map(special => {
+      const observations = rows.flatMap(row => row.queuedSpecialCorrespondence).filter(item => item.special === special);
+      return [special, {
+        queuedTurns: observations.length,
+        guardedTurns: observations.filter(item => item.guarded).length,
+        resolvedTurns: observations.filter(item => item.resolved).length,
+        guardedAndResolvedTurns: observations.filter(item => item.guarded && item.resolved).length
+      }];
+    })),
     guardianPressureDamage,
     damageByAction: Object.fromEntries(B30_ACTION_CATEGORIES.map(category => [category, {
       hitCount: summarize(rows.map(row => row.damageByAction[category].hitCount)),
@@ -609,13 +641,13 @@ function summarizeRows(rows, fixture) {
     rounds: summarize(rows.map(row => row.rounds)),
     damageTaken: summarize(rows.map(row => row.damageTaken)),
     survivalRate: rows.reduce((sum, row) => sum + row.survival, 0) / rows.length,
+    warningCount: fixture.floor === 30 ? null : summarize(rows.map(row => row.warningCount)),
+    telegraphCount: fixture.floor === 30 ? null : summarize(rows.map(row => row.telegraphCount)),
     bossActionCount: summarize(rows.map(row => row.bossActionCount)),
     actionNames: Object.fromEntries(actionNames.map(name => [
       name,
       summarize(rows.map(row => row.actionNames[name] || 0))
     ])),
-    warningCount: summarize(rows.map(row => row.warningCount)),
-    telegraphCount: summarize(rows.map(row => row.telegraphCount)),
     spellActionCount: summarize(rows.map(row => row.spellActionCount)),
     statusActionCount: summarize(rows.map(row => row.statusActionCount)),
     specialActionCount: summarize(rows.map(row => row.specialActionCount)),
@@ -637,7 +669,7 @@ function summarizeRows(rows, fixture) {
   };
 }
 
-function runBossCell({ fixture, runs, seed }) {
+function runBossArm({ fixture, runs, seed, actionPlan }) {
   const rows = [];
   for (let runIndex = 0; runIndex < runs; runIndex++) {
     const result = simulateRun({
@@ -648,7 +680,7 @@ function runBossCell({ fixture, runs, seed }) {
       runIndex,
       seriesId: `issue1613:${fixture.bossName}:B${fixture.floor}`,
       scoringProfile: null,
-      scenario: createScenario(fixture),
+      scenario: createScenario(fixture, actionPlan),
       workshop: { ranks: {} },
       worldSeed: resolveWorldSeed({ seed, floor: fixture.floor, runIndex }),
       collectDiagnostics: true,
@@ -656,7 +688,60 @@ function runBossCell({ fixture, runs, seed }) {
     });
     rows.push(observeRun(result, fixture));
   }
-  return summarizeRows(rows, fixture);
+  return { rows, summary: summarizeRows(rows, fixture) };
+}
+
+function pairedComparison(baseline, candidate) {
+  const delta = key => summarize(candidate.rows.map((row, index) => row[key] - baseline.rows[index][key]));
+  const pairedOutcomes = countBy(candidate.rows.map((row, index) => `${baseline.rows[index].outcome}->${row.outcome}`));
+  const specialDelta = Object.fromEntries(["breath", "MADALTO", "TILTOWAIT"].map(special => {
+    const values = key => candidate.rows.map((row, index) => {
+      const before = baseline.rows[index].damageByAction[special][key];
+      const after = row.damageByAction[special][key];
+      return after - before;
+    });
+    return [special, {
+      hitCountPerRun: summarize(values("hitCount")),
+      defendedDamagePerRun: summarize(candidate.rows.map((row, index) =>
+        row.damageByAction[special].defendedDamage - baseline.rows[index].damageByAction[special].defendedDamage
+      )),
+      undefendedDamagePerRun: summarize(candidate.rows.map((row, index) =>
+        row.damageByAction[special].undefendedDamage - baseline.rows[index].damageByAction[special].undefendedDamage
+      ))
+    }];
+  }));
+  return {
+    pairing: "same worldSeed per runIndex; baseline and candidate independently execute production combat",
+    pairedOutcomes,
+    survivalRateDelta: delta("survival"),
+    deathCountDelta: candidate.summary.deaths - baseline.summary.deaths,
+    roundsDelta: delta("rounds"),
+    damageTakenDelta: delta("damageTaken"),
+    lethalActions: {
+      baseline: baseline.summary.lethalActions,
+      candidate: candidate.summary.lethalActions
+    },
+    specialDamageDelta: specialDelta,
+    guardianPressureDamageDelta: summarize(candidate.rows.map((row, index) =>
+      row.guardianPressureDamage.totalDamage - baseline.rows[index].guardianPressureDamage.totalDamage
+    )),
+    guardianPressureLethalRuns: {
+      baseline: baseline.summary.guardianPressureDamage.lethalRuns,
+      candidate: candidate.summary.guardianPressureDamage.lethalRuns
+    }
+  };
+}
+
+function runBossCell({ fixture, runs, seed }) {
+  const baseline = runBossArm({ fixture, runs, seed, actionPlan: "attack-defend" });
+  const candidate = fixture.floor === 30
+    ? runBossArm({ fixture, runs, seed, actionPlan: "queued-special-guard" })
+    : null;
+  return {
+    ...baseline.summary,
+    arms: { baseline: baseline.summary, candidate: candidate?.summary || null },
+    pairedComparison: candidate ? pairedComparison(baseline, candidate) : null
+  };
 }
 
 export async function runMilestoneBossDiagnostic({
@@ -697,7 +782,8 @@ export async function runMilestoneBossDiagnostic({
         "damage taken",
         "survival",
         "boss action count / actionNames",
-        "warning / telegraph count",
+        ...(fixtures.some(fixture => fixture.floor !== 30) ? ["warning / telegraph count"] : []),
+        ...(fixtures.some(fixture => fixture.floor === 30) ? ["queued-special Guard resolution correspondence"] : []),
         "spell / status / special action count",
         "Guard mitigation observation",
         "production boss-specific mechanic activation"
@@ -705,7 +791,7 @@ export async function runMilestoneBossDiagnostic({
       omitted: [
         "production mutation",
         "boss tuning or new mechanic",
-        "additional telemetry",
+        ...(fixtures.length === 1 && fixtures[0].floor === 30 ? ["production warning-text analysis"] : []),
         "loot, UI, save, map traversal",
         "full build Cartesian product",
         "Heavy run; merge後 Actions N=200 is the bounded diagnostic"
@@ -724,7 +810,7 @@ function buildReport(result, provenance, options) {
     runs: result.configuration.runs,
     depths: result.configuration.depths
   }, { label: result.measurementId === "b30-hard-wall-diagnostic"
-    ? "issue1629 B30 hard-wall diagnostic env"
+      ? "issue1638 B30 queued-special Guard diagnostic env"
     : "issue1613 milestone boss diagnostic env" });
   return {
     ...result,
@@ -746,6 +832,7 @@ function buildReport(result, provenance, options) {
     candidatePolicy: {
       scaling: "diagnostic-only Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load",
+      actions: "baseline=attack-defend; B30 candidate=Defend when existing queued special state is true, otherwise baseline",
       reflectPhysical: "freeze reference 0.20; no milestone boss template declares reflectPhysical, so no synthetic reflection is applied",
       behavior: "production boss template, production isBoss combat path, production boss action / warning / status / Guard resolution",
       status: "diagnostic-only; production combat, boss, enemy, loot, UI, and save unchanged"
@@ -760,7 +847,7 @@ function format(value) {
 export function buildSummary(report) {
   const lines = [
     report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
-      ? "# B30 hard-wall cause diagnostic (#1629)"
+      ? "# B30 queued-special Guard diagnostic (#1638)"
       : "# milestone Boss decision-pressure diagnostic (#1613)",
     "",
     `- runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
@@ -772,19 +859,20 @@ export function buildSummary(report) {
   ];
   for (const cell of report.cells) {
     lines.push(
-      `- B${cell.floor} ${cell.bossName}: outcome=${JSON.stringify(cell.outcomes)}; ` +
+      `- B${cell.floor} ${cell.bossName} baseline: outcome=${JSON.stringify(cell.outcomes)}; ` +
       `rounds=${format(cell.rounds.average)}; damage=${format(cell.damageTaken.average)}; ` +
-      `actions=${format(cell.bossActionCount.average)}; warnings=${format(cell.warningCount.average)}; ` +
+      `actions=${format(cell.bossActionCount.average)}; ` +
+      (cell.warningCount ? `warnings=${format(cell.warningCount.average)}; warning before death=${cell.warningBeforeDeathRuns}/${cell.deaths}; matching warning=${cell.deathsWithMatchingWarning}/${cell.deaths}; ` : "") +
       `spells=${format(cell.spellActionCount.average)}; status=${format(cell.statusActionCount.average)}; ` +
       `trial=${cell.trialBands.map(trial => `${trial.mainId}/${trial.subId}`).join(",")}; ` +
       `pressures=${cell.guardianPressures.map(pressure => `${pressure.role}:${pressure.sourceName}`).join(",")}; ` +
       `pressureDetails=${JSON.stringify(cell.guardianPressures.map(({ role, sourceName, additionalTraits, additionalBehavior }) => ({ role, sourceName, additionalTraits, additionalBehavior })))}; ` +
       `non-raw pressure runs=${cell.nonRawDecisionPressureObservedRuns}/${cell.runs}; ` +
       `deaths=${JSON.stringify(cell.deathSources)}; lethal actions=${JSON.stringify(cell.lethalActions)}; ` +
-      `warning before death=${cell.warningBeforeDeathRuns}/${cell.deaths} deaths; matching warning=${cell.deathsWithMatchingWarning}/${cell.deaths}; ` +
       `damage by action=${JSON.stringify(Object.fromEntries(Object.entries(cell.damageByAction).map(([action, values]) => [action, { totalDamagePerRun: values.totalDamagePerRun.average, defended: values.defendedDamagePerRun.average, undefended: values.undefendedDamagePerRun.average }])))}; ` +
       `special defended/undefended=${JSON.stringify(cell.specialDamageByDefense)}; ` +
       `guardian-pressure overlay=${JSON.stringify(cell.guardianPressureDamage)}; ` +
+      (cell.pairedComparison ? `candidate=${JSON.stringify({ outcomes: cell.arms.candidate.outcomes, survivalRate: cell.arms.candidate.survivalRate, deaths: cell.arms.candidate.deaths, lethalActions: cell.arms.candidate.lethalActions, rounds: cell.arms.candidate.rounds, damageTaken: cell.arms.candidate.damageTaken, guard: cell.arms.candidate.guard, damageByAction: cell.arms.candidate.damageByAction, queuedSpecialCorrespondence: cell.arms.candidate.queuedSpecialCorrespondence, specialDamageByDefense: cell.arms.candidate.specialDamageByDefense, guardianPressureDamage: cell.arms.candidate.guardianPressureDamage })}; paired delta=${JSON.stringify(cell.pairedComparison)}; ` : "") +
       `confidence=${cell.confidence}`
     );
   }
@@ -797,9 +885,9 @@ export function buildSummary(report) {
     "- B10: guardAdjacent is inventory-only in a fixed single-boss encounter; adjacent-Guard redirect is not exercised.",
     "- B15: `isPoisonous=true` keeps the legacy poison fallback active on the production Boss path; template-defined `poison_payoff` is inactive there. Runtime status observation uses existing `statusSources`.",
     "- B20/B25: production MADALTO path and Guard mitigation are observed when the fixed action schedule reaches them.",
-    "- B30: production breath/MADALTO/TILTOWAIT cycle, warnings, and special Guard interaction are measured.",
+    "- B30 uses the production breath/MADALTO/TILTOWAIT queue state; warning text is not inspected.",
+    "- Queue→Guard→special correspondence uses the queued state captured at player action selection and the existing same-round enemy action record.",
     "- B30 deaths are attributed from the production terminal death log and lethal enemy action event; action damage uses existing round diagnostics.",
-    "- Warning counts include any earlier warning in the encounter; matching-warning counts require the warning text to name the lethal queued action.",
     "- Guardian-pressure damage is a separate overlay: added trait/behavior actions, summoned allies, pressure-linked status actions, and matching round-end status ticks; overlay can overlap action categories.",
     "- Defended means the Phase 1 player selected Guard in that production combat round.",
     "- Reported per-run damage separates normal, breath, MADALTO, TILTOWAIT, guardian-pressure, round-end status, and uncategorized evidence.",
