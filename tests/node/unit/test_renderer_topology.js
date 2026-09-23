@@ -1,4 +1,6 @@
 import assert from "assert";
+import * as facade from "../../../src/rules/renderer_topology.js";
+import * as owner from "../../../src/rules/renderer_topology.ts";
 import {
   getVisibleCorridorCells,
   getVisibleCorridorTopology,
@@ -9,6 +11,27 @@ import { DX, DY } from "../../../src/constants/directions.js";
 
 const CENTER = { x: 4, y: 4 };
 const DIR = 0;
+
+assert.deepEqual(Object.keys(facade).sort(), Object.keys(owner).sort());
+for (const name of Object.keys(owner)) assert.strictEqual(facade[name], owner[name], `${name} facade identity`);
+
+for (const value of [null, undefined, false, 0, ""]) {
+  assert.strictEqual(isRenderableCorridorCell(value), value, `falsey cell ${String(value)} returns unchanged`);
+}
+assert.equal(isRenderableCorridorCell({ walls: [true, true, true, true] }), true, "blockEnter is not required");
+assert.equal(isRenderableCorridorCell({ walls: [true, , true, true] }), true, "sparse walls retain Array.every semantics");
+for (const cell of [
+  {},
+  { walls: [true, true, true] },
+  { walls: [true, true, true, true, true] },
+  { walls: [true, true, true, 1] }
+]) assert.strictEqual(isRenderableCorridorCell(cell), false);
+assert.strictEqual(isVisibleWorldObjectCell({ valid: true, z: 1, column: 0, cell: 0 }), 0);
+assert.strictEqual(isVisibleWorldObjectCell({ valid: true, z: 1, column: 0, cell: undefined }), undefined);
+assert.strictEqual(isVisibleWorldObjectCell({ valid: 1, z: 1, column: 0, cell: { walls: [true, true, true, true] } }), false);
+assert.strictEqual(isVisibleWorldObjectCell({ valid: true, z: 0, column: 0, cell: { walls: [true, true, true, true] } }), false);
+assert.strictEqual(isVisibleWorldObjectCell({ valid: true, z: "1", column: 0, cell: { walls: [true, true, true, true] } }), true);
+assert.strictEqual(isVisibleWorldObjectCell({ valid: true, z: 1, column: "0", cell: { walls: [true, true, true, true] } }), false);
 
 function makeGrid() {
   return Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => ({
@@ -89,6 +112,24 @@ assert.equal(oneWayFront.frontWall, false);
 assert.equal(oneWayFront.frontBlocked, true);
 assert.equal(oneWayFront.frontOneWayBarrier, true);
 
+const oneWayAllDirections = makeGrid();
+for (let direction = 0; direction < 4; direction++) {
+  const nx = CENTER.x + DX[direction];
+  const ny = CENTER.y + DY[direction];
+  oneWayAllDirections[CENTER.y][CENTER.x].walls[direction] = false;
+  oneWayAllDirections[ny][nx].walls[(direction + 2) % 4] = false;
+  oneWayAllDirections[ny][nx].blockEnter[(direction + 2) % 4] = true;
+}
+const allBarriers = getVisibleCorridorTopology(oneWayAllDirections, CENTER.x, CENTER.y, DIR, 0, 0)[0];
+assert.deepEqual([
+  allBarriers.frontOneWayBarrier,
+  allBarriers.leftOneWayBarrier,
+  allBarriers.rightOneWayBarrier,
+  allBarriers.backOneWayBarrier
+], [true, true, true, true]);
+assert.equal(allBarriers.frontWall, false);
+assert.equal(allBarriers.frontBlocked, true);
+
 const invalidDestination = makeGrid();
 carve(invalidDestination, CENTER.x, CENTER.y, DIR);
 delete invalidDestination[CENTER.y - 1][CENTER.x].blockEnter;
@@ -99,5 +140,39 @@ const invalidCurrent = makeGrid();
 delete invalidCurrent[CENTER.y][CENTER.x].walls;
 assert.equal(topologyFor(invalidCurrent).valid, false);
 assert.equal(topologyFor(invalidCurrent).cell, null);
+
+const invalidMapTopology = getVisibleCorridorTopology(undefined, CENTER.x, CENTER.y, DIR);
+assert.equal(invalidMapTopology.length, 1, "invalid map retains the initial centre offset");
+assert.deepEqual(Object.keys(invalidMapTopology[0]), ["z", "column", "x", "y", "cell", "valid"]);
+assert.deepEqual(invalidMapTopology[0], {
+  z: 0, column: 0, x: CENTER.x, y: CENTER.y, cell: null, valid: false
+});
+assert.equal(Object.isFrozen(invalidMapTopology[0]), true);
+assert.equal(Object.isFrozen(invalidMapTopology), false);
+
+const validTopology = getVisibleCorridorTopology(openFront, CENTER.x, CENTER.y, DIR);
+assert.deepEqual(Object.keys(validTopology[0]), [
+  "z", "column", "x", "y", "cell", "valid", "leftBlocked", "rightBlocked",
+  "frontWall", "frontBlocked", "backBlocked", "frontOneWayBarrier",
+  "leftOneWayBarrier", "rightOneWayBarrier", "backOneWayBarrier"
+]);
+assert.equal(validTopology[0].cell, openFront[CENTER.y][CENTER.x]);
+assert.equal(Object.isFrozen(validTopology[0]), true);
+assert.equal(Object.isFrozen(validTopology), false);
+const mutableOffsets = getVisibleCorridorCells(deadEnd, CENTER.x, CENTER.y, DIR);
+assert.equal(Object.isFrozen(mutableOffsets), false);
+assert.equal(Object.isFrozen(mutableOffsets[0]), false);
+
+const beforeNonmutation = structuredClone(openFront);
+getVisibleCorridorTopology(openFront, CENTER.x, CENTER.y, DIR);
+assert.deepEqual(openFront, beforeNonmutation, "topology queries do not mutate the map");
+
+assert.deepEqual(getVisibleCorridorCells(undefined, CENTER.x, CENTER.y, DIR), [{ z: 0, column: 0 }]);
+assert.deepEqual(getVisibleCorridorCells(makeGrid(), "4", 4, "0"), [{ z: 0, column: 0 }]);
+const numericStringBounds = makeGrid();
+carve(numericStringBounds, CENTER.x, CENTER.y, DIR);
+assert.deepEqual(getVisibleCorridorCells(numericStringBounds, CENTER.x, CENTER.y, DIR, "1", "0"), [
+  { z: 0, column: 0 }, { z: 1, column: 0 }
+]);
 
 console.log("RENDERER TOPOLOGY TEST PASSED");
