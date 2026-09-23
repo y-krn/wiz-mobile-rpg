@@ -20,8 +20,8 @@ import { simulateRun } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1660-b30-hard-wall-diagnostic-v1";
-export const SCHEMA_VERSION = 8;
+export const RUNNER_VERSION = "issue1662-b30-hp-hard-wall-diagnostic-v1";
+export const SCHEMA_VERSION = 9;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1613;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -304,7 +304,10 @@ export function resolveWorldSeed({ seed, floor, runIndex }) {
   return `${seed}:issue1613:milestone-boss:B${floor}:${runIndex}`;
 }
 
-function createScenario(fixture, actionPlan = null, b30GuardRecoveryCandidate = false) {
+function createScenario(fixture, actionPlan = null, {
+  b30GuardRecoveryCandidate = false,
+  b30GenericHpScalingRemoved = false
+} = {}) {
   const playerFixture = resolvePlayerFixture(fixture.floor);
   return {
     startingKit: playerFixture.startingKit,
@@ -331,6 +334,7 @@ function createScenario(fixture, actionPlan = null, b30GuardRecoveryCandidate = 
     simDiagnosticLevel: "full",
     fleePolicy: "never",
     consumablesAtDeparture: "none",
+    ...(b30GenericHpScalingRemoved ? { bossOverride: { floor: 30, hpMultiplier: 0.5 } } : {}),
     fixedCombat: {
       monsterNames: [fixture.bossName],
       isBoss: true,
@@ -692,7 +696,14 @@ function summarizeRows(rows, fixture) {
   };
 }
 
-function runBossArm({ fixture, runs, seed, actionPlan, b30GuardRecoveryCandidate = false }) {
+function runBossArm({
+  fixture,
+  runs,
+  seed,
+  actionPlan,
+  b30GuardRecoveryCandidate = false,
+  b30GenericHpScalingRemoved = false
+}) {
   const rows = [];
   for (let runIndex = 0; runIndex < runs; runIndex++) {
     const result = simulateRun({
@@ -703,7 +714,10 @@ function runBossArm({ fixture, runs, seed, actionPlan, b30GuardRecoveryCandidate
       runIndex,
       seriesId: `issue1613:${fixture.bossName}:B${fixture.floor}`,
       scoringProfile: null,
-      scenario: createScenario(fixture, actionPlan, b30GuardRecoveryCandidate),
+      scenario: createScenario(fixture, actionPlan, {
+        b30GuardRecoveryCandidate,
+        b30GenericHpScalingRemoved
+      }),
       workshop: { ranks: {} },
       worldSeed: resolveWorldSeed({ seed, floor: fixture.floor, runIndex }),
       collectDiagnostics: true,
@@ -762,14 +776,21 @@ function pairedComparison(baseline, candidate) {
 }
 
 function runBossCell({ fixture, runs, seed }) {
-  const baseline = runBossArm({ fixture, runs, seed, actionPlan: "tiltowait-queued-guard" });
+  const baseline = runBossArm({
+    fixture,
+    runs,
+    seed,
+    actionPlan: "tiltowait-queued-guard",
+    b30GuardRecoveryCandidate: fixture.floor === 30
+  });
   const candidate = fixture.floor === 30
     ? runBossArm({
       fixture,
       runs,
       seed,
       actionPlan: "tiltowait-queued-guard",
-      b30GuardRecoveryCandidate: true
+      b30GuardRecoveryCandidate: true,
+      b30GenericHpScalingRemoved: true
     })
     : null;
   return {
@@ -846,7 +867,7 @@ function buildReport(result, provenance, options) {
     runs: result.configuration.runs,
     depths: result.configuration.depths
   }, { label: result.measurementId === "b30-hard-wall-diagnostic"
-      ? "issue1660 B30 TILTOWAIT-only Guard diagnostic env"
+      ? "issue1662 B30 generic HP scaling diagnostic env"
     : "issue1613 milestone boss diagnostic env" });
   return {
     ...result,
@@ -866,12 +887,12 @@ function buildReport(result, provenance, options) {
       environmentHash
     },
     candidatePolicy: {
-      scaling: "diagnostic-only Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
+      scaling: "baseline Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0; B30 candidate restores template HP 640 after measurement scaling",
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load",
-      actions: "B30 baseline = TILTOWAIT-only Guard; candidate = existing Guard + recovery opening + opening Fight policy from #1653",
+      actions: "B30 baseline and candidate share the recovery opening + opening Fight policy from #1653; candidate removes only generic Tier HP scaling",
       reflectPhysical: "freeze reference 0.20; no milestone boss template declares reflectPhysical, so no synthetic reflection is applied",
       behavior: "production boss template, production isBoss combat path, production boss action / warning / status / Guard resolution",
-      status: "diagnostic-only; recovery candidate requires explicit simulation policy and B30 floor; damage, boss stats, other enemies, loot, UI, and save unchanged"
+      status: "diagnostic-only; B30 candidate applies a 0.5 HP multiplier after Phase 2a measurement scaling to restore template HP 640; production monster data, production scaling, ATK, DEF, combat mechanics, policy, other enemies, loot, UI, and save unchanged"
     }
   };
 }
@@ -883,7 +904,7 @@ function format(value) {
 export function buildSummary(report) {
   const lines = [
     report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
-      ? "# B30 TILTOWAIT Guard recovery diagnostic (#1660)"
+      ? "# B30 generic Tier HP scaling diagnostic (#1662)"
       : "# milestone Boss decision-pressure diagnostic (#1613)",
     "",
     `- runner: ${report.runnerVersion}; schema: ${report.schemaVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
@@ -891,7 +912,7 @@ export function buildSummary(report) {
     `- player fixture: ${report.configuration.playerFixture.id}; ${report.configuration.playerFixture.weapon}/${report.configuration.playerFixture.armor}/${report.configuration.playerFixture.shield}; Guard=${report.configuration.playerFixture.guardTiming}; Load=${report.configuration.playerFixture.loadCandidateId}`,
     "- scaling: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
     "- fixed boss encounter: production boss path with `isBoss=true`; no boss tuning or mechanic reimplementation",
-    "- B30 comparison unchanged from #1653: baseline = TILTOWAIT-only Guard; candidate = Guard + recovery opening + opening Fight.",
+    "- B30 baseline and candidate share recovery opening + opening Fight; candidate changes only generic Tier HP scaling (1280→640).",
     ""
   ];
   for (const cell of report.cells) {
@@ -933,7 +954,7 @@ export function buildSummary(report) {
     "## Scope and limits",
     "",
     "- Production `runEncounter` / `runCombatRoundCalculation` path is used.",
-    "- No production damage, boss stats, other enemy, loot, UI, save, or telemetry change; recovery requires the explicit B30 diagnostic policy.",
+    "- No production monster data/scaling, ATK, DEF, combat mechanics, player policy, other enemy, loot, UI, save, or telemetry change; candidate HP adjustment exists only in this measurement scenario.",
     "- This is a fixed-fixture diagnostic; it does not estimate full-run survival or equalize win rates.",
     "",
     "## Provenance",
