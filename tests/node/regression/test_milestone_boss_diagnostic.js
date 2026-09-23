@@ -28,8 +28,8 @@ const b30Second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, floor:
 
 assert.deepEqual(first, second, "milestone boss smoke must be deterministic");
 assert.deepEqual(b30First, b30Second, "B30 diagnostic smoke must be deterministic");
-assert.equal(RUNNER_VERSION, "issue1660-b30-hard-wall-diagnostic-v1");
-assert.equal(SCHEMA_VERSION, 8);
+assert.equal(RUNNER_VERSION, "issue1662-b30-hp-hard-wall-diagnostic-v1");
+assert.equal(SCHEMA_VERSION, 9);
 assert.equal(first.runnerVersion, RUNNER_VERSION);
 assert.equal(first.measurementId, "milestone-boss-diagnostic");
 assert.deepEqual(first.configuration.depths, [5, 10, 15, 20, 25, 30]);
@@ -63,12 +63,26 @@ for (const armName of ["baseline", "candidate"]) {
 assert.equal(b30First.cells[0].arms.baseline.deaths, 1, "seed 1613 B30 smoke exercises death remaining HP summary");
 assert.equal(b30First.cells[0].arms.baseline.endBossHp.average, 970);
 assert.equal(b30First.cells[0].arms.baseline.endBossMaxHp.average, 1280);
-assert.equal(b30First.cells[0].arms.candidate.endBossMaxHp.average, 1280);
 assert.equal(b30First.cells[0].arms.baseline.endBossHpRate.average, 970 / 1280);
 assert.ok(b30First.cells[0].arms.baseline.deathEndBossHp.average > 0);
 assert.ok(b30First.cells[0].arms.baseline.deathEndBossHpRate.average > 0);
-assert.equal(b30First.cells[0].arms.baseline.recoveryActivations.average, 0);
+assert.equal(b30First.cells[0].arms.baseline.recoveryActivations.average, 1);
 assert.ok(b30First.cells[0].arms.candidate.recoveryActivations.average > 0);
+assert.equal(b30First.cells[0].arms.candidate.recoveryActivations.average, 1);
+assert.equal(b30First.cells[0].arms.candidate.endBossMaxHp.average, 640);
+assert.equal(b30First.cells[0].arms.candidate.endBossHp.average, 330);
+assert.equal(b30First.cells[0].arms.candidate.endBossHpRate.average, 330 / 640);
+for (const key of [
+  "roundsDelta",
+  "executedFightRoundsDelta",
+  "damageTakenDelta",
+  "normalActionCountDelta",
+  "recoveryActivationsDelta",
+  "guardianPressureDamageDelta"
+]) {
+  assert.equal(b30First.cells[0].pairedComparison[key].average, 0, `${key} must stay frozen in the seed 1613 smoke`);
+}
+assert.equal(b30First.cells[0].pairedComparison.endBossHpDelta.average, -640);
 assert.equal(
   b30First.cells[0].arms.baseline.queuedSpecialCorrespondence.TILTOWAIT.guardedTurns,
   b30First.cells[0].arms.baseline.queuedSpecialCorrespondence.TILTOWAIT.queuedTurns
@@ -148,10 +162,11 @@ const b30Summary = buildSummary({
   ...b30First,
   measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
 });
-assert.match(b30Summary, /schema: 8/);
+assert.match(b30Summary, /schema: 9/);
+assert.match(b30Summary, /1280→640/);
 assert.match(b30Summary, /baseline boss remaining=/);
 assert.match(b30Summary, /"maxHp":\{"count":1,"average":1280/);
-assert.match(b30Summary, /"endBossMaxHp":\{"count":1,"average":1280/);
+assert.match(b30Summary, /"endBossMaxHp":\{"count":1,"average":640/);
 assert.match(b30Summary, /deathEndBossHp/);
 assert.match(b30Summary, /executedFightRoundsDelta/);
 
@@ -283,4 +298,4 @@ const invocation = resolveRunnerInvocation({
 assert.equal(invocation.runner, "scratch/measurements/milestone_boss_diagnostic.js");
 assert.ok(invocation.args.includes("--purpose"));
 
-console.log("[PASS] Issue #1660 B30 hard-wall diagnostic summaries and paired deltas");
+console.log("[PASS] Issue #1662 B30 HP-scaling diagnostic and paired deltas");
