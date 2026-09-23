@@ -96,8 +96,8 @@ const ROUTER_CONTRACTS = [
     adapter: "native-manifest",
     defaultRunType: "diagnostic",
     allowedRunTypes: ["diagnostic"],
-    defaults: { runs: 200, minimumRuns: 200, seed: 1690 },
-    args: nativeArgs("--ref", "main", "--runs", "200", "--seed", "1690"),
+    defaults: { runs: 200, minimumRuns: 200, seed: 1692 },
+    args: nativeArgs("--ref", "main", "--runs", "200", "--seed", "1692"),
     override: { input: { runs: 201, seed: 1691 }, expected: { runs: 201, seed: 1691 } }
   },
   {

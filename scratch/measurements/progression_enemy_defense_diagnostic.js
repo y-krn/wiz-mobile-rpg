@@ -10,11 +10,11 @@ import { MONSTERS } from "../../src/data/monsters.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "progression-enemy-defense-diagnostic-v1";
+export const RUNNER_VERSION = "progression-enemy-defense-diagnostic-v2";
 export const SCHEMA_VERSION = 1;
 export const RUNNER_PATH = "scratch/measurements/progression_enemy_defense_diagnostic.js";
 const DEFAULT_RUNS = 200;
-const DEFAULT_SEED = 1690;
+const DEFAULT_SEED = 1692;
 const FIXTURES = Object.freeze([
   Object.freeze({ id: "physical", className: "Fighter", startingKit: "vanguard", fixtureId: null, guard: false }),
   Object.freeze({ id: "spell", className: "Mage", startingKit: "arcana", fixtureId: null, guard: false }),
@@ -76,7 +76,7 @@ function describe(result, { context, fixture, arm, seed, runIndex }) {
   const resolvedEnemy = encounter.monsters?.[0] || {};
   const actualHpMultiplier = template ? Number(resolvedEnemy.maxHp) / template.hp : null;
   const actualAttackMultiplier = template ? Number(resolvedEnemy.atk) / template.atk : null;
-  const actualDefenseMultiplier = template?.def ? Number(resolvedEnemy.def) / template.def : 1;
+  const actualDefenseMultiplier = CANDIDATE.enemyDefenseMultiplier;
   return {
     contextId: `${context.kind}-B${context.floor}`,
     timing: context.kind,
@@ -199,7 +199,7 @@ export async function runProgressionEnemyDefenseDiagnostic({ runs = DEFAULT_RUNS
     runnerVersion: RUNNER_VERSION,
     schemaVersion: SCHEMA_VERSION,
     status: "diagnostic-only",
-    configuration: { runs: count, seed: rootSeed, pairedSeedKey: ["root seed", "milestone context", "fixture", "runIndex"], pairedArmsShareSeed: true, contexts: PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS, fixtures: FIXTURES, arms: ARMS.map(arm => ({ id: arm.id, rawDefenseBonus: arm.id === "v1" ? 0 : "baseline" })), candidate: CANDIDATE.id },
+    configuration: { runs: count, seed: rootSeed, pairedSeedKey: ["root seed", "milestone context", "fixture", "runIndex"], pairedArmsShareSeed: true, contexts: PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS, fixtures: FIXTURES, arms: ARMS.map(arm => ({ id: arm.id, rawDefenseBonus: arm.id === "v1" ? 0 : "baseline > 0 ? 1 : 0" })), candidate: CANDIDATE.id },
     observations,
     summary
   };
@@ -210,7 +210,7 @@ function makeSummary(report) {
     "# Progression enemy defensive baseline diagnostic",
     "",
     `- runner: ${RUNNER_VERSION}; seed: ${report.configuration.seed}; N=${report.configuration.runs}`,
-    `- Phase 4c v1 vs def-plus-one raw DEF baseline; PR N<30 is correctness evidence only`,
+    `- Phase 4c v1 vs def-plus-one-capped raw DEF baseline; PR N<30 is correctness evidence only`,
     "- all observations use fixed generic combat; no Boss-authored rules, loot, Support, or Core scaling",
     "- Level delta uses the production Leveling contract and is emitted as a separate layer",
     "",
@@ -241,8 +241,8 @@ async function main() {
     measurementRunnerDiffSha256: provenance.measurementRunnerDiffSha256,
     originMainAncestor: provenance.originMainAncestor,
     workingTreeClean: provenance.workingTreeClean,
-    policyVersion: "phase4d-progression-enemy-defensive-baseline-v1",
-    candidate: { id: CANDIDATE.id, baseline0to5: [0, 5], enemyBand0to5: [0, 5], physical: "1 + 0.16 × baseline", spell: "1 + 0.16 × baseline", level1MaxHp: "20 × (1 + 0.10 × baseline)", arms: [{ id: "v1", rawDefenseBonus: 0 }, { id: "def-plus-one", rawDefenseBonus: "baseline" }], enemyHp: "1 + 0.20 × band", enemyAttack: "1 + 0.10 × band", enemyDefense: 1 },
+    policyVersion: "phase4e-progression-enemy-defensive-baseline-capped-v1",
+    candidate: { id: CANDIDATE.id, baseline0to5: [0, 5], enemyBand0to5: [0, 5], physical: "1 + 0.16 × baseline", spell: "1 + 0.16 × baseline", level1MaxHp: "20 × (1 + 0.10 × baseline)", arms: [{ id: "v1", rawDefenseBonus: 0 }, { id: "def-plus-one-capped", rawDefenseBonus: "baseline > 0 ? 1 : 0" }], enemyHp: "1 + 0.20 × band", enemyAttack: "1 + 0.10 × band", enemyDefense: 1 },
     workflow: {
       repository: process.env.MEASUREMENT_REPOSITORY || null,
       runId: process.env.MEASUREMENT_WORKFLOW_RUN_ID || null,
