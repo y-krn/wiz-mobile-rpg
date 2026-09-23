@@ -4897,8 +4897,7 @@ function createSimulationState(
       enemyHealPotionDropChance,
       measurementInitiative: scenario.measurementInitiative || null,
       measurementCombatPlan: scenario.measurementCombatPlan || null,
-      measurementCrushStrike: scenario.measurementCrushStrike === true,
-      measurementCrushStrikeResponse: scenario.measurementCrushStrikeResponse || null,
+      b10CrushStrikeResponse: scenario.b10CrushStrikeResponse || null,
       measurementGuardTiming: scenario.measurementGuardTiming || null,
       b30TiltowaitGuardRecoveryCandidate: scenario.b30TiltowaitGuardRecoveryCandidate === true,
       measurementCombatTier: scenario.measurementCombatTier || null,
@@ -8019,9 +8018,8 @@ export function selectCombatAction(state, metrics) {
   const lowestHpIdx = statusTargetIdx >= 0 ? statusTargetIdx : getLowestHpEnemyIndex(monsters);
 
   if (
-    state.simPolicy.measurementCrushStrike === true &&
-    state.simPolicy.measurementCrushStrikeResponse === "read" &&
-    monsters.some(monster => monster.measurementCrushStrikeQueued?.targetIdx === 0)
+    state.simPolicy.b10CrushStrikeResponse === "read" &&
+    monsters.some(monster => monster.crushStrikeQueued?.targetIdx === 0)
   ) {
     return { type: "defend", actorIdx: 0 };
   }

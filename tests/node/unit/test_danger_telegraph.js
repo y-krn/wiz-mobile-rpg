@@ -138,6 +138,26 @@ function runWithFixedRandom(state, combatSelection) {
   assert(actual === false, "silenceによるMADALTOキュー解除", `madaltoQueued=${actual}`);
 }
 
+{
+  const state = createState(
+    [createPartyMember()],
+    [createMonster({
+      name: "ストーンガード",
+      hp: 999,
+      maxHp: 999,
+      crushStrikeOpeningDelayConsumed: true,
+      crushStrikeQueued: { targetIdx: 9, rolledDamage: 24 }
+    })]
+  );
+  state.floor = 10;
+  state.combatState.isBoss = true;
+  const res = runWithFixedRandom(state, { actions: [{ actorIdx: 0, type: "defend" }] });
+  const resolvedMonster = res.state.combatState.monsters[0];
+
+  assert(resolvedMonster.crushStrikeQueued?.targetIdx === 0, "無効な砕岩打ち対象キュー解除", "stale target is cleared before a fresh valid target is telegraphed");
+  assert(res.state.party[0].hp < state.party[0].hp, "無効な砕岩打ち対象時に通常行動へfallback", "regular attack damage was applied");
+}
+
 if (failed) {
   process.exit(1);
 }

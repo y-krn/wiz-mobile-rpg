@@ -70,6 +70,7 @@ import {
 } from "../state.js";
 import { trackBleedingEvent } from "../telemetry.js";
 import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
+import { getMilestoneBossActionRule } from "../rules/boss_rules.js";
 
 import {
   advanceAncientDragonCycleStep,
@@ -1079,13 +1080,14 @@ export function runCombatRoundCalculation(
 
       if (resolveQueuedAncientDragonAction(mon, state, combatSelection, logQueue, { rng, measurement, policy })) return;
 
-      const crushStrikeEnabled = policy?.measurementCrushStrike === true &&
-        state.floor === 10 && mon.name === "ストーンガード" && state.combatState?.isBoss === true;
-      if (crushStrikeEnabled && mon.measurementCrushStrikeQueued) {
-        const queued = mon.measurementCrushStrikeQueued;
+      const crushStrikeRule = getMilestoneBossActionRule(state.floor, mon.name, {
+        isBoss: state.combatState?.isBoss === true
+      });
+      if (crushStrikeRule && mon.crushStrikeQueued) {
+        const queued = mon.crushStrikeQueued;
         const target = state.party[queued.targetIdx];
         if (target && target.hp > 0 && target.status !== "dead") {
-          mon.measurementCrushStrikeQueued = null;
+          mon.crushStrikeQueued = null;
           recordAction(mon, "砕岩打ち");
           const isDefending = combatSelection.actions.some(action =>
             action.actorIdx === queued.targetIdx && action.type === "defend"
@@ -1132,10 +1134,10 @@ export function runCombatRoundCalculation(
           } else {
             logQueue.push({ msg: `[ 敵 ] ${target.name}の守りが崩れた！（防御力-2）` });
           }
-          mon.measurementCrushStrikeCooldown = true;
+          mon.crushStrikeCooldown = true;
           return;
         }
-        mon.measurementCrushStrikeQueued = null;
+        mon.crushStrikeQueued = null;
       }
 
       if (
@@ -1847,25 +1849,25 @@ export function runCombatRoundCalculation(
         logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
       }
 
-      if (crushStrikeEnabled && mon.hp > 0) {
-        if (!mon.measurementCrushStrikeOpeningDelayConsumed) {
-          mon.measurementCrushStrikeOpeningDelayConsumed = true;
+      if (crushStrikeRule && mon.hp > 0) {
+        if (!mon.crushStrikeOpeningDelayConsumed) {
+          mon.crushStrikeOpeningDelayConsumed = true;
           if (measurement?.measurementCurrentEnemyAction) {
             measurement.measurementCurrentEnemyAction.measurementCrushStrike = {
               phase: "opening-delay",
               round: roundNumber
             };
           }
-        } else if (mon.measurementCrushStrikeCooldown) {
-          mon.measurementCrushStrikeCooldown = false;
+        } else if (mon.crushStrikeCooldown) {
+          mon.crushStrikeCooldown = false;
           if (measurement?.measurementCurrentEnemyAction) {
             measurement.measurementCurrentEnemyAction.measurementCrushStrike = { phase: "cooldown", round: roundNumber };
           }
         } else {
           const queuedTarget = state.party.findIndex(character => character.hp > 0 && character.status !== "dead");
           if (queuedTarget >= 0) {
-            const rolledDamage = Math.floor(rng() * 15) + 18;
-            mon.measurementCrushStrikeQueued = { targetIdx: queuedTarget, rolledDamage };
+            const rolledDamage = Math.floor(rng() * (crushStrikeRule.damageMax - crushStrikeRule.damageMin + 1)) + crushStrikeRule.damageMin;
+            mon.crushStrikeQueued = { targetIdx: queuedTarget, rolledDamage };
             if (measurement?.measurementCurrentEnemyAction) {
               measurement.measurementCurrentEnemyAction.measurementCrushStrike = {
                 phase: "queued",
