@@ -5,7 +5,7 @@ import "../simulations/simulation_preflight.js";
 import fs from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { PROGRESSION_ENEMY_CANDIDATE as CANDIDATE, PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS } from "./progression_enemy_candidate_contract.js";
+import { deriveProgressionEnemyRunSeed, PROGRESSION_ENEMY_CANDIDATE as CANDIDATE, PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS } from "./progression_enemy_candidate_contract.js";
 import { MONSTERS } from "../../src/data/monsters.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
@@ -120,9 +120,9 @@ export async function runProgressionEnemyCandidateDiagnostic({ runs = DEFAULT_RU
   for (const context of PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS) {
     for (const fixture of FIXTURES) {
       for (const level of [1, 2]) for (let runIndex = 0; runIndex < count; runIndex++) {
-        const pairedSeed = `${rootSeed}:progression-enemy:${context.kind}:B${context.floor}:${fixture.id}:${runIndex}`;
+        const pairedSeed = deriveProgressionEnemyRunSeed({ rootSeed, context, fixtureId: fixture.id, runIndex });
         for (const arm of ["current", "candidate"]) {
-          resetSimulationRandom(rootSeed);
+          resetSimulationRandom(pairedSeed);
           const playerCandidate = arm === "candidate" ? {
             physicalPowerMultiplier: CANDIDATE.playerPhysicalMultiplier(context.baseline),
             spellPowerMultiplier: CANDIDATE.playerSpellMultiplier(context.baseline),
@@ -191,7 +191,7 @@ export async function runProgressionEnemyCandidateDiagnostic({ runs = DEFAULT_RU
     runnerVersion: RUNNER_VERSION,
     schemaVersion: SCHEMA_VERSION,
     status: "diagnostic-only",
-    configuration: { runs: count, seed: rootSeed, pairedSeedKey: ["milestone context", "fixture", "runIndex"], contexts: PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS, fixtures: FIXTURES, arms: ["current", "candidate"], candidate: CANDIDATE.id },
+    configuration: { runs: count, seed: rootSeed, pairedSeedKey: ["root seed", "milestone context", "fixture", "runIndex"], pairedArmsShareSeed: true, contexts: PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS, fixtures: FIXTURES, arms: ["current", "candidate"], candidate: CANDIDATE.id },
     observations,
     summary
   };

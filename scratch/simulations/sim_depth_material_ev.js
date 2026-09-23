@@ -8808,7 +8808,7 @@ function applyMeasurementSummonScaling(monsters, floor) {
   }).filter(Boolean);
 }
 
-function applyMeasurementPlayerCandidate(character, candidate) {
+export function applyMeasurementPlayerCandidate(character, candidate) {
   if (!candidate || typeof candidate !== "object") return () => {};
   const original = {
     maxHp: character.maxHp,
@@ -8823,8 +8823,9 @@ function applyMeasurementPlayerCandidate(character, candidate) {
   const spellMultiplier = Number(candidate.spellPowerMultiplier);
   if (Number.isFinite(physicalMultiplier) || Number.isFinite(spellMultiplier)) {
     const weapon = character.equipment?.weapon;
-    if (!getItemBaseId(weapon)) throw new Error("measurement player candidate requires a weapon");
-    const affixes = [...(weapon.affixes || [])];
+    const baseId = getItemBaseId(weapon);
+    if (!baseId) throw new Error("measurement player candidate requires a weapon");
+    const affixes = [...(typeof weapon === "object" ? (weapon.affixes || []) : [])];
     if (Number.isFinite(physicalMultiplier)) {
       affixes.push({
         id: "milestone-baseline-physical-power",
@@ -8839,7 +8840,7 @@ function applyMeasurementPlayerCandidate(character, candidate) {
         value: (spellMultiplier - 1) * 100
       });
     }
-    character.equipment.weapon = { ...weapon, affixes };
+    character.equipment.weapon = { baseId, identified: true, affixes };
   }
   const restoreCandidate = () => {
     character.maxHp = original.maxHp;

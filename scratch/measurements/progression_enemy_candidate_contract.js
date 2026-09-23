@@ -34,10 +34,11 @@ export function resolveProgressionEnemyDiagnosticContext({
     throw new Error(`invalid progression enemy diagnostic context: ${kind}/B${milestoneFloor}`);
   }
   if (kind === "pre-milestone") {
+    const selected = MILESTONES.find(entry => entry.floor === selectedStartFloor)?.baseline || 0;
     const earlier = highestEarlierDefeatedMilestone
       ? MILESTONES.find(entry => entry.floor === highestEarlierDefeatedMilestone)?.baseline || 0
       : 0;
-    return { kind, floor: milestone.floor, baseline: Math.max(earlier, 0), enemyBand: milestone.band };
+    return { kind, floor: milestone.floor, baseline: Math.max(selected, earlier), enemyBand: milestone.band };
   }
   if (kind === "selected-deep-start") {
     if (selectedStartFloor !== milestoneFloor) {
@@ -53,6 +54,16 @@ export function resolveProgressionEnemyDiagnosticContext({
     baseline: Math.max(selected, milestone.baseline),
     enemyBand: milestone.band
   };
+}
+
+export function deriveProgressionEnemyRunSeed({ rootSeed, context, fixtureId, runIndex }) {
+  const key = [rootSeed, context.kind, context.floor, fixtureId, runIndex].join(":");
+  let hash = 2166136261;
+  for (let index = 0; index < key.length; index++) {
+    hash ^= key.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }
 
 export const PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS = Object.freeze([
