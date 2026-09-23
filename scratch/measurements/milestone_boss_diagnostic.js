@@ -20,8 +20,8 @@ import { simulateRun } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1638-b30-warning-guard-diagnostic-v1";
-export const SCHEMA_VERSION = 5;
+export const RUNNER_VERSION = "issue1643-b30-tiltowait-guard-diagnostic-v1";
+export const SCHEMA_VERSION = 6;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1613;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -625,8 +625,10 @@ function summarizeRows(rows, fixture) {
       return [special, {
         queuedTurns: observations.length,
         guardedTurns: observations.filter(item => item.guarded).length,
+        addedGuardTurns: observations.filter(item => item.guarded && item.round % 2 !== 0).length,
         resolvedTurns: observations.filter(item => item.resolved).length,
-        guardedAndResolvedTurns: observations.filter(item => item.guarded && item.resolved).length
+        guardedAndResolvedTurns: observations.filter(item => item.guarded && item.resolved).length,
+        guardedButUnresolvedTurns: observations.filter(item => item.guarded && !item.resolved).length
       }];
     })),
     guardianPressureDamage,
@@ -694,7 +696,7 @@ function runBossArm({ fixture, runs, seed, actionPlan }) {
 function pairedComparison(baseline, candidate) {
   const delta = key => summarize(candidate.rows.map((row, index) => row[key] - baseline.rows[index][key]));
   const pairedOutcomes = countBy(candidate.rows.map((row, index) => `${baseline.rows[index].outcome}->${row.outcome}`));
-  const specialDelta = Object.fromEntries(["breath", "MADALTO", "TILTOWAIT"].map(special => {
+  const actionDamageDelta = Object.fromEntries(["normal", "breath", "MADALTO", "TILTOWAIT"].map(special => {
     const values = key => candidate.rows.map((row, index) => {
       const before = baseline.rows[index].damageByAction[special][key];
       const after = row.damageByAction[special][key];
@@ -721,7 +723,7 @@ function pairedComparison(baseline, candidate) {
       baseline: baseline.summary.lethalActions,
       candidate: candidate.summary.lethalActions
     },
-    specialDamageDelta: specialDelta,
+    damageByActionDelta: actionDamageDelta,
     guardianPressureDamageDelta: summarize(candidate.rows.map((row, index) =>
       row.guardianPressureDamage.totalDamage - baseline.rows[index].guardianPressureDamage.totalDamage
     )),
@@ -735,7 +737,7 @@ function pairedComparison(baseline, candidate) {
 function runBossCell({ fixture, runs, seed }) {
   const baseline = runBossArm({ fixture, runs, seed, actionPlan: "attack-defend" });
   const candidate = fixture.floor === 30
-    ? runBossArm({ fixture, runs, seed, actionPlan: "queued-special-guard" })
+    ? runBossArm({ fixture, runs, seed, actionPlan: "tiltowait-queued-guard" })
     : null;
   return {
     ...baseline.summary,
@@ -810,7 +812,7 @@ function buildReport(result, provenance, options) {
     runs: result.configuration.runs,
     depths: result.configuration.depths
   }, { label: result.measurementId === "b30-hard-wall-diagnostic"
-      ? "issue1638 B30 queued-special Guard diagnostic env"
+      ? "issue1643 B30 TILTOWAIT-only Guard diagnostic env"
     : "issue1613 milestone boss diagnostic env" });
   return {
     ...result,
@@ -832,7 +834,7 @@ function buildReport(result, provenance, options) {
     candidatePolicy: {
       scaling: "diagnostic-only Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load",
-      actions: "baseline=attack-defend; B30 candidate=Defend when existing queued special state is true, otherwise baseline",
+      actions: "baseline=attack-defend; B30 candidate=Defend only when existing tiltowaitQueued state is true, otherwise baseline",
       reflectPhysical: "freeze reference 0.20; no milestone boss template declares reflectPhysical, so no synthetic reflection is applied",
       behavior: "production boss template, production isBoss combat path, production boss action / warning / status / Guard resolution",
       status: "diagnostic-only; production combat, boss, enemy, loot, UI, and save unchanged"
@@ -847,7 +849,7 @@ function format(value) {
 export function buildSummary(report) {
   const lines = [
     report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
-      ? "# B30 queued-special Guard diagnostic (#1638)"
+      ? "# B30 TILTOWAIT-only Guard diagnostic (#1643)"
       : "# milestone Boss decision-pressure diagnostic (#1613)",
     "",
     `- runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
@@ -885,7 +887,7 @@ export function buildSummary(report) {
     "- B10: guardAdjacent is inventory-only in a fixed single-boss encounter; adjacent-Guard redirect is not exercised.",
     "- B15: `isPoisonous=true` keeps the legacy poison fallback active on the production Boss path; template-defined `poison_payoff` is inactive there. Runtime status observation uses existing `statusSources`.",
     "- B20/B25: production MADALTO path and Guard mitigation are observed when the fixed action schedule reaches them.",
-    "- B30 uses the production breath/MADALTO/TILTOWAIT queue state; warning text is not inspected.",
+    "- B30 candidate Guards only for existing `tiltowaitQueued === true`; breath/MADALTO-only queue leaves baseline plan intact. Warning text is not inspected.",
     "- Queue→Guard→special correspondence uses the queued state captured at player action selection and the existing same-round enemy action record.",
     "- B30 deaths are attributed from the production terminal death log and lethal enemy action event; action damage uses existing round diagnostics.",
     "- Guardian-pressure damage is a separate overlay: added trait/behavior actions, summoned allies, pressure-linked status actions, and matching round-end status ticks; overlay can overlap action categories.",

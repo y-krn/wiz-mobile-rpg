@@ -28,8 +28,8 @@ const b30Second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, floor:
 
 assert.deepEqual(first, second, "milestone boss smoke must be deterministic");
 assert.deepEqual(b30First, b30Second, "B30 diagnostic smoke must be deterministic");
-assert.equal(RUNNER_VERSION, "issue1638-b30-warning-guard-diagnostic-v1");
-assert.equal(SCHEMA_VERSION, 5);
+assert.equal(RUNNER_VERSION, "issue1643-b30-tiltowait-guard-diagnostic-v1");
+assert.equal(SCHEMA_VERSION, 6);
 assert.equal(first.runnerVersion, RUNNER_VERSION);
 assert.equal(first.measurementId, "milestone-boss-diagnostic");
 assert.deepEqual(first.configuration.depths, [5, 10, 15, 20, 25, 30]);
@@ -58,6 +58,11 @@ assert.ok(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT
 assert.equal(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.guardedTurns,
   b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.queuedTurns);
 assert.ok(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.guardedAndResolvedTurns > 0);
+assert.ok(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.addedGuardTurns > 0);
+assert.equal(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.breath.addedGuardTurns, 0);
+assert.ok(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.MADALTO.queuedTurns > 0);
+assert.equal(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.MADALTO.addedGuardTurns, 0);
+assert.ok(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.guardedButUnresolvedTurns > 0);
 assert.ok(b30First.cells[0].guardianPressureDamage.totalDamagePerRun.average > 0);
 assert.ok(Object.keys(b30First.cells[0].guardianPressureDamage.bySource).some(source => source.startsWith("summonedAlly:")));
 for (const action of ["normal", "breath", "MADALTO", "TILTOWAIT", "guardian-pressure"]) {
@@ -239,4 +244,4 @@ const invocation = resolveRunnerInvocation({
 assert.equal(invocation.runner, "scratch/measurements/milestone_boss_diagnostic.js");
 assert.ok(invocation.args.includes("--purpose"));
 
-console.log("[PASS] Issue #1638 paired B30 queued-special Guard diagnostic wiring");
+console.log("[PASS] Issue #1643 paired B30 TILTOWAIT-only Guard diagnostic wiring");
