@@ -13,13 +13,13 @@ on:
           - starting-kit-early-run
           - early-b1f-composition
           - fixed-combat-composition
+          - progression-enemy-candidate-diagnostic
           - equipment-vnext-combat-diagnostic
           - depth-scaling-diagnostic
           - trait-scaling-diagnostic
           - reflect-physical-diagnostic
           - composition-trait-diagnostic
           - milestone-boss-diagnostic
-          - progression-enemy-candidate-diagnostic
           - b30-atk-pressure-diagnostic
           - equipment-load
           - run-difficulty

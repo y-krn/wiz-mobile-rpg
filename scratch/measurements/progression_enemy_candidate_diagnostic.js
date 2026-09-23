@@ -222,7 +222,7 @@ async function main() {
   if (!options.output || !options.summary || !options.manifest) throw new Error("--output, --summary, and --manifest are required");
   const runs = positiveInteger(options.runs || DEFAULT_RUNS, "runs", 1);
   if (runs > 0 && runs < 30 && process.env.CI === "true") throw new Error("CI measurement requires N=200");
-  const provenance = requireRunnerProvenance({ fetchOriginMain: false, measurementRunnerPaths: [RUNNER_PATH, "scratch/measurements/progression_enemy_candidate_contract.js", "scratch/simulations/sim_depth_material_ev.js", "src/data/progression_enemy_simulation_policy.js"] });
+  const provenance = requireRunnerProvenance({ fetchOriginMain: false, measurementRunnerPaths: [RUNNER_PATH, "scratch/measurements/progression_enemy_candidate_contract.js", "scratch/measurements/progression_enemy_candidate_level.js", "scratch/simulations/sim_depth_material_ev.js", "src/data/progression_enemy_simulation_policy.js"] });
   const report = await runProgressionEnemyCandidateDiagnostic({ runs, seed: options.seed || DEFAULT_SEED });
   const measurement = {
     scope: readSimScopeDeclaration(import.meta.url)?.name || "run",

@@ -262,11 +262,10 @@ const {
   getItemData,
   getEquippedItemData,
   getEncounterPoolForFloor,
-  checkCharLevelUp,
-  EXP_LEVELS,
   MONSTERS,
   SPELLS
 } = await import("../../src/data.js");
+import { applyProductionDiagnosticLevelDelta } from "../measurements/progression_enemy_candidate_level.js";
 const { isEncounterCompositionAllowed } = await import("../../src/rules/encounter_rules.js");
 const { getBandIndexForFloor, getBandTrialForFloor } = await import("../../src/rules/floor_trials.js");
 const { createBuildCharacter: createProductionBuildCharacter } =
@@ -17272,10 +17271,9 @@ export function simulateRun({
       fixedCombat.playerCandidate
     );
     if (fixedCombat.productionLevelDelta === 1) {
-      character.exp = EXP_LEVELS[2];
-      if (!checkCharLevelUp(character) || character.level !== 2) {
+      if (!applyProductionDiagnosticLevelDelta(character)) {
         restoreMeasurementPlayerCandidate();
-        throw new Error("fixed combat Level delta failed production EXP Level 1 -> 2 contract");
+        throw new Error("fixed combat Level delta failed production Level 1 -> 2 contract");
       }
     }
     character.hp = Math.max(1, Math.round(getCharMaxHp(character) * entryHpRatio));
