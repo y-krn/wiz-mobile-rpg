@@ -387,22 +387,6 @@ const PROFILE_LIST = [
     defaults: { runs: 200, minimumRuns: 200, seed: 1613 }
   },
   {
-    id: "b30-production-hp-wall-diagnostic",
-    label: "B30 production scaling HP wall diagnostic",
-    family: "milestone-boss",
-    floor: 30,
-    profile: "production-hp-wall",
-    defaults: { runs: 200, minimumRuns: 200, seed: 1613 }
-  },
-  {
-    id: "b30-production-atk-pressure-diagnostic",
-    label: "B30 production scaling ATK pressure diagnostic",
-    family: "milestone-boss",
-    floor: 30,
-    profile: "production-atk-pressure",
-    defaults: { runs: 200, minimumRuns: 200, seed: 1613 }
-  },
-  {
     id: "equipment-load",
     label: "Equipment-load measurement",
     family: "equipment-load",

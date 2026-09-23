@@ -20,8 +20,6 @@ on:
           - composition-trait-diagnostic
           - milestone-boss-diagnostic
           - b30-atk-pressure-diagnostic
-          - b30-production-hp-wall-diagnostic
-          - b30-production-atk-pressure-diagnostic
           - equipment-load
           - run-difficulty
           - run-difficulty-policy-sensitivity

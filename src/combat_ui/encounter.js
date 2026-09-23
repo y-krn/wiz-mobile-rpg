@@ -6,6 +6,7 @@ import {
 } from "../data.js";
 import { isEncounterCompositionAllowed, pickEncounterSize } from "../rules/encounter_rules.js";
 import { scaleEnemyForDepth } from "../rules/depth_scaling.js";
+import { getMilestoneBossStatRule } from "../rules/boss_rules.js";
 import { createCombatMonsterInstance } from "../state/monster.js";
 import {
   getBandIndexForFloor,
@@ -31,8 +32,13 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
   if (isBoss) {
     const bossName = getBiomeForFloor(state.floor).bossName;
     const bossTemplate = MONSTERS.find(m => m.name === bossName);
+    const scaledBoss = scaleEnemyForDepth(bossTemplate, state.floor, { boss: true });
+    const statRule = getMilestoneBossStatRule(state.floor, bossName, { isBoss: true });
+    const bossStats = statRule?.templateStats || [];
     const guardian = {
-      ...scaleEnemyForDepth(bossTemplate, state.floor, { boss: true }),
+      ...scaledBoss,
+      ...(bossStats.includes("hp") ? { hp: bossTemplate.hp, maxHp: bossTemplate.hp } : {}),
+      ...(bossStats.includes("atk") ? { atk: bossTemplate.atk } : {}),
       // A guardian is a high-density confirmation of what this band already
       // taught. These IDs are internal and do not add a new boss rule.
       trialThemeIds: trial ? [trial.mainId, trial.subId] : [],
