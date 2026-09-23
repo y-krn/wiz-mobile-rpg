@@ -104,7 +104,8 @@ const fixedCombatArgs = ({ options, output }) => nativeMeasurementArgs({
 
 const milestoneBossArgs = ({ options, output, profile }) => [
   ...nativeMeasurementArgs({ options, output }),
-  ...(profile.floor ? ["--floor", String(profile.floor)] : [])
+  ...(profile.floor ? ["--floor", String(profile.floor)] : []),
+  ...(profile.profile ? ["--profile", profile.profile] : [])
 ];
 
 const equipmentVNextCombatArgs = nativeMeasurementArgs;
@@ -383,6 +384,14 @@ const PROFILE_LIST = [
     label: "B30 generic ATK scaling diagnostic",
     family: "milestone-boss",
     floor: 30,
+    defaults: { runs: 200, minimumRuns: 200, seed: 1613 }
+  },
+  {
+    id: "b30-production-hp-wall-diagnostic",
+    label: "B30 production scaling HP wall diagnostic",
+    family: "milestone-boss",
+    floor: 30,
+    profile: "production-hp-wall",
     defaults: { runs: 200, minimumRuns: 200, seed: 1613 }
   },
   {
