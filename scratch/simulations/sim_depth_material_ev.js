@@ -8024,9 +8024,29 @@ export function selectCombatAction(state, metrics) {
   ) {
     const shouldGuardQueuedSpecial = state.simPolicy.measurementCombatPlan === "tiltowait-queued-guard" &&
       monsters.some(monster => monster.tiltowaitQueued === true);
+    if (shouldGuardQueuedSpecial) {
+      return { type: "defend", actorIdx: 0 };
+    }
+    if (state.simPolicy.measurementCombatPlan === "tiltowait-queued-guard") {
+      const dragon = monsters.find(monster => monster.name === "いにしえの竜");
+      const cycleStep = Number.isInteger(dragon?.ancientDragonCycleStep)
+        ? ((dragon.ancientDragonCycleStep % 4) + 4) % 4
+        : 0;
+      const isPlainNormalSlot = cycleStep === 0 || cycleStep === 3 ||
+        (cycleStep === 2 && dragon?.silenceTurns > 0);
+      const canResolveRecovery = state.floor === 30 &&
+        state.simPolicy.b30TiltowaitGuardRecoveryCandidate === true &&
+        dragon?.b30TiltowaitGuardRecoveryQueued === true &&
+        !dragon.tiltowaitQueued && !dragon.dragonBreathQueued && !dragon.madaltoQueued &&
+        !dragon.flinched && !["sleep", "paralyzed", "paralyze"].includes(dragon.status) &&
+        isPlainNormalSlot;
+      if (canResolveRecovery) {
+        return { type: "fight", actorIdx: 0, targetIdx: lowestHpIdx };
+      }
+    }
     const shouldGuardByBaselinePlan =
       state.combatState.roundNumber % 2 === 0;
-    const action = shouldGuardQueuedSpecial || shouldGuardByBaselinePlan
+    const action = shouldGuardByBaselinePlan
       ? { type: "defend", actorIdx: 0 }
       : null;
     if (action) {
