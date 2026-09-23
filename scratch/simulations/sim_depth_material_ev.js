@@ -8842,6 +8842,22 @@ export function applyMeasurementPlayerCandidate(character, candidate) {
     }
     character.equipment.weapon = { baseId, identified: true, affixes };
   }
+  const rawDefenseBonus = Number(candidate.rawDefenseBonus);
+  if (Number.isFinite(rawDefenseBonus) && rawDefenseBonus !== 0) {
+    const slot = character.equipment?.armor ? "armor" : character.equipment?.shield ? "shield" : null;
+    if (!slot) throw new Error("measurement player candidate requires armor or shield for raw DEF injection");
+    const item = character.equipment[slot];
+    const baseId = getItemBaseId(item);
+    if (!baseId) throw new Error("measurement player candidate requires a Base identity for raw DEF injection");
+    character.equipment[slot] = {
+      ...(typeof item === "object" ? item : {}),
+      baseId,
+      affixes: [
+        ...(typeof item === "object" ? (item.affixes || []) : []),
+        { id: "milestone-defensive-baseline", type: "def", value: rawDefenseBonus }
+      ]
+    };
+  }
   const restoreCandidate = () => {
     character.maxHp = original.maxHp;
     character.equipment.weapon = original.weapon;
@@ -17271,6 +17287,16 @@ export function simulateRun({
       character,
       fixedCombat.playerCandidate
     );
+    const rawDefenseBonus = Number(fixedCombat.playerCandidate?.rawDefenseBonus);
+    const resolvedRawDefense = getCharDef(character);
+    const fixedCombatPlayerResolved = {
+      rawDefense: resolvedRawDefense,
+      incomingPhysicalResistance: getPhysicalDefenseResistance(
+        resolvedRawDefense,
+        PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING
+      ),
+      appliedMilestoneRawDefenseBonus: Number.isFinite(rawDefenseBonus) ? rawDefenseBonus : 0
+    };
     if (fixedCombat.productionLevelDelta === 1) {
       if (!applyProductionDiagnosticLevelDelta(character)) {
         restoreMeasurementPlayerCandidate();
@@ -17339,6 +17365,7 @@ export function simulateRun({
         isMidboss: fixedCombat.isMidboss === true,
         entryHpRatio,
         entryMpRatio,
+        playerResolved: fixedCombatPlayerResolved,
         reflectPhysicalRate: fixedCombat.reflectPhysicalRate ?? null,
         summonedAllies: combatResult.summonedAllies || []
       }
