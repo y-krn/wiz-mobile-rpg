@@ -19,6 +19,7 @@ on:
           - reflect-physical-diagnostic
           - composition-trait-diagnostic
           - milestone-boss-diagnostic
+          - progression-enemy-candidate-diagnostic
           - b30-atk-pressure-diagnostic
           - equipment-load
           - run-difficulty

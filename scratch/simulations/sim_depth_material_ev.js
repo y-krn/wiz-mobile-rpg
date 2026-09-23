@@ -262,6 +262,8 @@ const {
   getItemData,
   getEquippedItemData,
   getEncounterPoolForFloor,
+  checkCharLevelUp,
+  EXP_LEVELS,
   MONSTERS,
   SPELLS
 } = await import("../../src/data.js");
@@ -8808,9 +8810,45 @@ function applyMeasurementSummonScaling(monsters, floor) {
 }
 
 function applyMeasurementPlayerCandidate(character, candidate) {
-  if (!candidate || !Number.isFinite(Number(candidate.attackPower))) {
-    return () => {};
+  if (!candidate || typeof candidate !== "object") return () => {};
+  const original = {
+    maxHp: character.maxHp,
+    weapon: character.equipment?.weapon,
+    armor: character.equipment?.armor,
+    shield: character.equipment?.shield
+  };
+  if (Number.isFinite(Number(candidate.maxHpTarget))) {
+    character.maxHp = Number(candidate.maxHpTarget);
   }
+  const physicalMultiplier = Number(candidate.physicalPowerMultiplier);
+  const spellMultiplier = Number(candidate.spellPowerMultiplier);
+  if (Number.isFinite(physicalMultiplier) || Number.isFinite(spellMultiplier)) {
+    const weapon = character.equipment?.weapon;
+    if (!getItemBaseId(weapon)) throw new Error("measurement player candidate requires a weapon");
+    const affixes = [...(weapon.affixes || [])];
+    if (Number.isFinite(physicalMultiplier)) {
+      affixes.push({
+        id: "milestone-baseline-physical-power",
+        type: "atk",
+        value: Math.round(getCharWeaponAtk(character) * (physicalMultiplier - 1))
+      });
+    }
+    if (Number.isFinite(spellMultiplier)) {
+      affixes.push({
+        id: "milestone-baseline-spell-power",
+        type: "spellPower",
+        value: (spellMultiplier - 1) * 100
+      });
+    }
+    character.equipment.weapon = { ...weapon, affixes };
+  }
+  const restoreCandidate = () => {
+    character.maxHp = original.maxHp;
+    character.equipment.weapon = original.weapon;
+    character.equipment.armor = original.armor;
+    character.equipment.shield = original.shield;
+  };
+  if (!Number.isFinite(Number(candidate.attackPower))) return restoreCandidate;
   const weapon = character.equipment?.weapon;
   const baseId = getItemBaseId(weapon);
   if (!baseId) throw new Error("measurement player candidate requires a weapon");
@@ -8846,6 +8884,7 @@ function applyMeasurementPlayerCandidate(character, candidate) {
   ITEMS.SMALL_SHIELD.guardProfile = "universal_brace";
   return () => {
     ITEMS.SMALL_SHIELD.guardProfile = previousGuardProfile;
+    restoreCandidate();
   };
 }
 
@@ -17232,6 +17271,13 @@ export function simulateRun({
       character,
       fixedCombat.playerCandidate
     );
+    if (fixedCombat.productionLevelDelta === 1) {
+      character.exp = EXP_LEVELS[2];
+      if (!checkCharLevelUp(character) || character.level !== 2) {
+        restoreMeasurementPlayerCandidate();
+        throw new Error("fixed combat Level delta failed production EXP Level 1 -> 2 contract");
+      }
+    }
     character.hp = Math.max(1, Math.round(getCharMaxHp(character) * entryHpRatio));
     character.mp = Math.max(0, Math.round(getCharMaxMp(character) * entryMpRatio));
     state.currentRun.battles++;
