@@ -28,8 +28,8 @@ const b30Second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, floor:
 
 assert.deepEqual(first, second, "milestone boss smoke must be deterministic");
 assert.deepEqual(b30First, b30Second, "B30 diagnostic smoke must be deterministic");
-assert.equal(RUNNER_VERSION, "issue1629-b30-hard-wall-diagnostic-v4");
-assert.equal(SCHEMA_VERSION, 4);
+assert.equal(RUNNER_VERSION, "issue1638-b30-warning-guard-diagnostic-v1");
+assert.equal(SCHEMA_VERSION, 5);
 assert.equal(first.runnerVersion, RUNNER_VERSION);
 assert.equal(first.measurementId, "milestone-boss-diagnostic");
 assert.deepEqual(first.configuration.depths, [5, 10, 15, 20, 25, 30]);
@@ -51,8 +51,13 @@ assert.ok(Object.hasOwn(b30First.cells[0].deathSources, "いにしえの竜の�
 assert.ok(Object.hasOwn(b30First.cells[0].lethalActions, "TILTOWAIT"));
 assert.equal(b30First.cells[0].specialDamageByDefense.TILTOWAIT.undefendedHitCount, 1);
 assert.equal(b30First.cells[0].specialDamageByDefense.TILTOWAIT.undefendedDamagePerHit.average, 62);
-assert.equal(b30First.cells[0].deathsWithoutPriorWarning, 0);
-assert.equal(b30First.cells[0].deathsWithMatchingWarning, 1);
+assert.equal(b30First.cells[0].arms.baseline.deaths, b30First.cells[0].deaths);
+assert.equal(b30First.cells[0].arms.candidate.runs, 1);
+assert.equal(b30First.cells[0].pairedComparison.pairing.includes("same worldSeed"), true);
+assert.ok(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.queuedTurns > 0);
+assert.equal(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.guardedTurns,
+  b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.queuedTurns);
+assert.ok(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.guardedAndResolvedTurns > 0);
 assert.ok(b30First.cells[0].guardianPressureDamage.totalDamagePerRun.average > 0);
 assert.ok(Object.keys(b30First.cells[0].guardianPressureDamage.bySource).some(source => source.startsWith("summonedAlly:")));
 for (const action of ["normal", "breath", "MADALTO", "TILTOWAIT", "guardian-pressure"]) {
@@ -104,7 +109,7 @@ assert.equal(guardDamage.TILTOWAIT.defendedHitCount, 0);
 assert.match(buildSummary({
   ...b30First,
   measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
-}), /warning before death/i);
+}), /queue→Guard→special correspondence/i);
 
 assert.deepEqual(BOSS_FIXTURES.map(fixture => fixture.bossName), [
   "デーモンガード",
@@ -144,7 +149,8 @@ for (const cell of first.cells) {
   assert.ok(Number.isFinite(cell.rounds.average));
   assert.ok(Number.isFinite(cell.damageTaken.average));
   assert.ok(Number.isFinite(cell.bossActionCount.average));
-  assert.ok(Number.isFinite(cell.warningCount.average));
+  if (cell.floor === 30) assert.equal(cell.warningCount, null);
+  else assert.ok(Number.isFinite(cell.warningCount.average));
   assert.ok(Number.isFinite(cell.spellActionCount.average));
   assert.ok(Number.isFinite(cell.statusActionCount.average));
   assert.ok(Number.isFinite(cell.guard.guardRounds.average));
@@ -233,4 +239,4 @@ const invocation = resolveRunnerInvocation({
 assert.equal(invocation.runner, "scratch/measurements/milestone_boss_diagnostic.js");
 assert.ok(invocation.args.includes("--purpose"));
 
-console.log("[PASS] Issue #1629 B30 death attribution, action damage, warnings, and bounded diagnostic wiring");
+console.log("[PASS] Issue #1638 paired B30 queued-special Guard diagnostic wiring");
