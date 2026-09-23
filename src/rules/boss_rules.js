@@ -1,5 +1,4 @@
-// B5 milestone boss rules are deliberately scoped to the encounter itself.
-// They do not alter depth, rewards, materials, banking, or non-milestone floors.
+// Milestone boss rules are encounter-scoped and match by floor, name, and role.
 
 export const B5_MILESTONE_BOSS_RULE = Object.freeze({
   id: "B5_DEMON_GUARD_BREAK",
@@ -9,6 +8,28 @@ export const B5_MILESTONE_BOSS_RULE = Object.freeze({
   exposureTurns: 4,
   exposureDamageMultiplier: 1.50
 });
+
+export const B30_MILESTONE_BOSS_STAT_RULE = Object.freeze({
+  id: "B30_ANCIENT_DRAGON_TEMPLATE_HP_ATK",
+  floor: 30,
+  bossName: "いにしえの竜",
+  templateStats: Object.freeze(["hp", "atk"])
+});
+
+export function getMilestoneBossStatRule(
+  floor,
+  bossName,
+  { isBoss = false } = {}
+) {
+  if (
+    !isBoss ||
+    floor !== B30_MILESTONE_BOSS_STAT_RULE.floor ||
+    bossName !== B30_MILESTONE_BOSS_STAT_RULE.bossName
+  ) {
+    return null;
+  }
+  return B30_MILESTONE_BOSS_STAT_RULE;
+}
 
 export function getMilestoneBossRule(
   floor,

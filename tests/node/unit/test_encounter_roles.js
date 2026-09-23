@@ -6,8 +6,11 @@ import {
   getEncounterSizeWeightsForFloor
 } from "../../../src/data/encounters.js";
 import { ENEMY_ROLES, MONSTERS, MONSTER_ROLE_BY_NAME } from "../../../src/data/monsters.js";
+import { getBiomeForFloor } from "../../../src/data/biomes.js";
 import { generateEncounter } from "../../../src/combat_ui/encounter.js";
 import { isEncounterCompositionAllowed } from "../../../src/rules/encounter_rules.js";
+import { scaleEnemyForDepth } from "../../../src/rules/depth_scaling.js";
+import { getBandTrialForFloor, getTrialGuardianPressures } from "../../../src/rules/floor_trials.js";
 
 function createRng(seed) {
   let value = seed >>> 0;
@@ -26,6 +29,46 @@ function run() {
   assert.deepEqual(ENCOUNTER_SIZE_WEIGHTS[2], [0.55, 0.45, 0.00]);
   assert.equal(getEncounterSizeWeightsForFloor(6), ENCOUNTER_SIZE_WEIGHTS[1]);
   assert.equal(getEncounterSizeWeightsForFloor(7), ENCOUNTER_SIZE_WEIGHTS[2]);
+
+  for (const floor of [5, 10, 15, 20, 25, 30]) {
+    const bossName = getBiomeForFloor(floor).bossName;
+    const template = MONSTERS.find(monster => monster.name === bossName);
+    const encounterBoss = generateEncounter({ floor }, true, false, false).monsters[0];
+    const scaledBoss = scaleEnemyForDepth(template, floor, { boss: true });
+    for (const stat of ["def", "exp", "depthFloor"]) {
+      assert.equal(encounterBoss[stat], scaledBoss[stat], `B${floor} boss ${stat} must use production scaling`);
+    }
+    if (floor === 30) {
+      assert.equal(encounterBoss.hp, template.hp);
+      assert.equal(encounterBoss.maxHp, template.hp);
+      assert.equal(encounterBoss.atk, template.atk);
+      assert.deepEqual(
+        { hp: encounterBoss.hp, maxHp: encounterBoss.maxHp, atk: encounterBoss.atk, def: encounterBoss.def },
+        { hp: 640, maxHp: 640, atk: 26, def: 25 }
+      );
+    } else {
+      for (const stat of ["hp", "maxHp", "atk"]) {
+        assert.equal(encounterBoss[stat], scaledBoss[stat], `B${floor} boss ${stat} must retain production scaling`);
+      }
+    }
+  }
+  const runSeed = "ISSUE-1670-B30-TRIAL";
+  const b30Trial = getBandTrialForFloor(runSeed, 30);
+  const b30Biome = getBiomeForFloor(30);
+  const pressureTemplates = [
+    ...b30Biome.enemyPool.map(name => MONSTERS.find(monster => monster.name === name)).filter(Boolean),
+    ...MONSTERS
+  ].filter((template, index, all) => all.findIndex(candidate => candidate.name === template.name) === index);
+  const expectedPressures = getTrialGuardianPressures(
+    b30Trial,
+    pressureTemplates,
+    { maxLevel: MONSTERS.find(monster => monster.name === b30Biome.bossName).level }
+  );
+  const b30Guardian = generateEncounter({ floor: 30, currentRun: { runSeed } }, true, false, false).monsters[0];
+  assert.deepEqual(b30Guardian.trialThemeIds, [b30Trial.mainId, b30Trial.subId]);
+  assert.equal(b30Guardian.trialDensity, "high");
+  assert.deepEqual(b30Guardian.trialPressures.map(({ role, themeId, sourceName }) => ({ role, themeId, sourceName })),
+    expectedPressures.map(({ role, themeId, sourceName }) => ({ role, themeId, sourceName })));
 
   const validRoles = new Set(Object.values(ENEMY_ROLES));
   assert.equal(Object.keys(MONSTER_ROLE_BY_NAME).length, MONSTERS.length, "Every monster must have one role mapping.");
