@@ -25,6 +25,26 @@ const first = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmall
 const second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmallRunCount: true });
 const b30First = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, floor: 30, allowSmallRunCount: true });
 const b30Second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, floor: 30, allowSmallRunCount: true });
+const fullB30 = first.cells.find(cell => cell.floor === 30);
+
+function assertSameObservedSpecialDamage(cell, profile) {
+  for (const special of ["breath", "MADALTO", "TILTOWAIT"]) {
+    for (const defense of ["defendedDamagePerHit", "undefendedDamagePerHit"]) {
+      const baseline = cell.arms.baseline.specialDamageByDefense[special][defense];
+      const candidate = cell.arms.candidate.specialDamageByDefense[special][defense];
+      assert.equal(baseline.count, candidate.count, `${profile} ${special} ${defense} observation counts must match`);
+      if (baseline.count > 0) {
+        assert.notEqual(baseline.average, null, `${profile} ${special} ${defense} baseline must have an observed average`);
+        assert.notEqual(candidate.average, null, `${profile} ${special} ${defense} candidate must have an observed average`);
+        assert.equal(baseline.average, candidate.average, `${profile} ${special} ${defense} damage must stay unchanged`);
+      }
+    }
+  }
+  assert.ok(cell.arms.baseline.specialDamageByDefense.MADALTO.undefendedDamagePerHit.count > 0,
+    `${profile} must observe MADALTO damage`);
+  assert.ok(cell.arms.baseline.specialDamageByDefense.TILTOWAIT.defendedDamagePerHit.count > 0,
+    `${profile} must observe defended TILTOWAIT damage`);
+}
 
 assert.deepEqual(first, second, "milestone boss smoke must be deterministic");
 assert.deepEqual(b30First, b30Second, "B30 diagnostic smoke must be deterministic");
@@ -42,6 +62,17 @@ assert.deepEqual(first.configuration.playerFixture, {
 assert.equal(first.configuration.reflectPhysicalDiagnosticFreeze, REFLECT_PHYSICAL_DIAGNOSTIC_RATE);
 assert.equal(first.configuration.scaling, "HP = 1 + 0.20 × Tier; ATK = 1 + 0.10 × Tier; DEF = 1.0");
 assert.equal(first.cells.length, BOSS_FIXTURES.length);
+assert.equal(fullB30.arms.baseline.endBossMaxHp.average, 1280);
+assert.equal(fullB30.arms.baseline.bossAtk.average, 39);
+assert.equal(fullB30.arms.candidate.endBossMaxHp.average, 640);
+assert.equal(fullB30.arms.candidate.bossAtk.average, 39);
+for (const armName of ["baseline", "candidate"]) {
+  assert.ok(fullB30.arms[armName].executedFightRounds.average > 0,
+    `milestone-boss-diagnostic ${armName} must exercise opening Fight`);
+  assert.equal(fullB30.arms[armName].recoveryActivations.average, 1);
+}
+assert.equal(fullB30.pairedComparison.pairing.includes("same worldSeed"), true);
+assertSameObservedSpecialDamage(fullB30, "milestone-boss-diagnostic");
 assert.deepEqual(b30First.configuration.depths, [30]);
 assert.equal(b30First.measurementId, "b30-atk-pressure-diagnostic");
 assert.equal(b30First.cells.length, 1);
@@ -66,6 +97,7 @@ assert.equal(b30First.cells[0].arms.baseline.endBossHp.average, 330);
 assert.equal(b30First.cells[0].arms.baseline.endBossMaxHp.average, 640);
 assert.equal(b30First.cells[0].arms.baseline.bossAtk.average, 39);
 assert.equal(b30First.cells[0].arms.candidate.bossAtk.average, 26);
+assert.equal(b30First.cells[0].arms.candidate.endBossMaxHp.average, 640);
 assert.equal(b30First.cells[0].arms.baseline.endBossHpRate.average,
   330 / 640);
 assert.ok(b30First.cells[0].arms.baseline.deathEndBossHp.average > 0);
@@ -74,15 +106,7 @@ assert.equal(b30First.cells[0].arms.baseline.recoveryActivations.average, 1);
 assert.ok(b30First.cells[0].arms.candidate.recoveryActivations.average > 0);
 assert.equal(b30First.cells[0].arms.candidate.recoveryActivations.average, 1);
 assert.equal(b30First.cells[0].arms.candidate.endBossMaxHp.average, 640);
-for (const special of ["breath", "MADALTO", "TILTOWAIT"]) {
-  for (const defense of ["defendedDamagePerHit", "undefendedDamagePerHit"]) {
-    assert.equal(
-      b30First.cells[0].arms.baseline.specialDamageByDefense[special][defense].average,
-      b30First.cells[0].arms.candidate.specialDamageByDefense[special][defense].average,
-      `${special} ${defense} must stay unchanged`
-    );
-  }
-}
+assertSameObservedSpecialDamage(b30First.cells[0], "b30-atk-pressure-diagnostic");
 assert.equal(b30First.cells[0].pairedComparison.endBossHpDelta.count, 1);
 assert.equal(
   b30First.cells[0].arms.baseline.queuedSpecialCorrespondence.TILTOWAIT.guardedTurns,
@@ -170,6 +194,11 @@ assert.match(b30Summary, /"maxHp":\{"count":1,"average":640/);
 assert.match(b30Summary, /"endBossMaxHp":\{"count":1,"average":640/);
 assert.match(b30Summary, /deathEndBossHp/);
 assert.match(b30Summary, /executedFightRoundsDelta/);
+const milestoneSummary = buildSummary({
+  ...first,
+  measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
+});
+assert.match(milestoneSummary, /baseline HP=1280 \/ ATK=39, candidate HP=640 \/ ATK=39/);
 
 assert.deepEqual(BOSS_FIXTURES.map(fixture => fixture.bossName), [
   "デーモンガード",

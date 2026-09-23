@@ -306,6 +306,7 @@ export function resolveWorldSeed({ seed, floor, runIndex }) {
 
 function createScenario(fixture, actionPlan = null, {
   b30GuardRecoveryCandidate = false,
+  b30HpScalingRemoved = false,
   b30AtkScalingRemoved = false
 } = {}) {
   const playerFixture = resolvePlayerFixture(fixture.floor);
@@ -334,10 +335,10 @@ function createScenario(fixture, actionPlan = null, {
     simDiagnosticLevel: "full",
     fleePolicy: "never",
     consumablesAtDeparture: "none",
-    ...(fixture.floor === 30 ? {
+    ...(fixture.floor === 30 && (b30HpScalingRemoved || b30AtkScalingRemoved) ? {
       bossOverride: {
         floor: 30,
-        hpMultiplier: 0.5,
+        ...(b30HpScalingRemoved ? { hpMultiplier: 0.5 } : {}),
         ...(b30AtkScalingRemoved ? { atkMultiplier: 2 / 3 } : {})
       }
     } : {}),
@@ -711,6 +712,7 @@ function runBossArm({
   seed,
   actionPlan,
   b30GuardRecoveryCandidate = false,
+  b30HpScalingRemoved = false,
   b30AtkScalingRemoved = false
 }) {
   const rows = [];
@@ -725,6 +727,7 @@ function runBossArm({
       scoringProfile: null,
       scenario: createScenario(fixture, actionPlan, {
         b30GuardRecoveryCandidate,
+        b30HpScalingRemoved,
         b30AtkScalingRemoved
       }),
       workshop: { ranks: {} },
@@ -784,14 +787,14 @@ function pairedComparison(baseline, candidate) {
   };
 }
 
-function runBossCell({ fixture, runs, seed }) {
+function runBossCell({ fixture, runs, seed, dedicatedB30AtkPressure = false }) {
   const baseline = runBossArm({
     fixture,
     runs,
     seed,
     actionPlan: "tiltowait-queued-guard",
     b30GuardRecoveryCandidate: fixture.floor === 30,
-    b30AtkScalingRemoved: false
+    b30HpScalingRemoved: fixture.floor === 30 && dedicatedB30AtkPressure
   });
   const candidate = fixture.floor === 30
     ? runBossArm({
@@ -800,7 +803,8 @@ function runBossCell({ fixture, runs, seed }) {
       seed,
       actionPlan: "tiltowait-queued-guard",
       b30GuardRecoveryCandidate: true,
-      b30AtkScalingRemoved: true
+      b30HpScalingRemoved: true,
+      b30AtkScalingRemoved: dedicatedB30AtkPressure
     })
     : null;
   return {
@@ -864,11 +868,17 @@ export async function runMilestoneBossDiagnostic({
         "Heavy run; merge後 Actions N=200 is the bounded diagnostic"
       ]
     },
-    cells: fixtures.map(fixture => runBossCell({ fixture, runs: normalizedRuns, seed: normalizedSeed }))
+    cells: fixtures.map(fixture => runBossCell({
+      fixture,
+      runs: normalizedRuns,
+      seed: normalizedSeed,
+      dedicatedB30AtkPressure: floor === 30
+    }))
   };
 }
 
 function buildReport(result, provenance, options) {
+  const dedicatedB30AtkPressure = result.measurementId === "b30-atk-pressure-diagnostic";
   const environmentHash = printEnvSignatureBanner({
     runnerVersion: RUNNER_VERSION,
     schemaVersion: SCHEMA_VERSION,
@@ -897,12 +907,18 @@ function buildReport(result, provenance, options) {
       environmentHash
     },
     candidatePolicy: {
-      scaling: "Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0; both B30 arms use HP 640; candidate restores template ATK 26",
+      scaling: dedicatedB30AtkPressure
+        ? "Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0; both B30 arms use HP 640; candidate restores template ATK 26"
+        : "Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0; B30 baseline HP 1280 / ATK 39; candidate HP 640 / ATK 39",
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load",
-      actions: "B30 baseline and candidate share the recovery opening + opening Fight policy from #1653; candidate removes only generic Tier ATK scaling",
+      actions: dedicatedB30AtkPressure
+        ? "B30 baseline and candidate share the recovery opening + opening Fight policy from #1653; candidate removes only generic Tier ATK scaling"
+        : "B30 baseline and candidate share the recovery opening + opening Fight policy from #1653; candidate removes only generic Tier HP scaling",
       reflectPhysical: "freeze reference 0.20; no milestone boss template declares reflectPhysical, so no synthetic reflection is applied",
       behavior: "production boss template, production isBoss combat path, production boss action / warning / status / Guard resolution",
-      status: "diagnostic-only; both B30 arms apply the same 0.5 HP multiplier after Phase 2a measurement scaling; candidate also applies a 2/3 ATK multiplier; production monster data and production scaling remain unchanged"
+      status: dedicatedB30AtkPressure
+        ? "diagnostic-only; both B30 arms apply the same 0.5 HP multiplier after Phase 2a measurement scaling; candidate also applies a 2/3 ATK multiplier; production monster data and production scaling remain unchanged"
+        : "diagnostic-only; only the B30 candidate applies a 0.5 HP multiplier after Phase 2a measurement scaling; production monster data and production scaling remain unchanged"
     }
   };
 }
@@ -912,6 +928,7 @@ function format(value) {
 }
 
 export function buildSummary(report) {
+  const dedicatedB30AtkPressure = report.measurementId === "b30-atk-pressure-diagnostic";
   const lines = [
     report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
       ? "# B30 generic Tier HP scaling diagnostic (#1662)"
@@ -922,7 +939,9 @@ export function buildSummary(report) {
     `- player fixture: ${report.configuration.playerFixture.id}; ${report.configuration.playerFixture.weapon}/${report.configuration.playerFixture.armor}/${report.configuration.playerFixture.shield}; Guard=${report.configuration.playerFixture.guardTiming}; Load=${report.configuration.playerFixture.loadCandidateId}`,
     "- scaling: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
     "- fixed boss encounter: production boss path with `isBoss=true`; no boss tuning or mechanic reimplementation",
-    "- B30 baseline and candidate share recovery opening + opening Fight; both use HP 640, while candidate changes only ATK scaling (39→26).",
+    dedicatedB30AtkPressure
+      ? "- B30 baseline and candidate share recovery opening + opening Fight; both use HP 640, while candidate changes only ATK scaling (39→26)."
+      : "- B30 baseline and candidate share recovery opening + opening Fight; baseline HP=1280 / ATK=39, candidate HP=640 / ATK=39.",
     ""
   ];
   for (const cell of report.cells) {
