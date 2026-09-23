@@ -372,7 +372,7 @@ const PROFILE_LIST = [
     id: "progression-enemy-defense-diagnostic",
     label: "Progression enemy defensive baseline diagnostic",
     family: "progression-enemy-defensive-baseline",
-    defaults: { runs: 200, minimumRuns: 200, seed: 1690 }
+    defaults: { runs: 200, minimumRuns: 200, seed: 1692 }
   },
   {
     id: "equipment-vnext-combat-diagnostic",

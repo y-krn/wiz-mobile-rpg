@@ -12,9 +12,9 @@ import { getItemBaseId } from "../../../src/rules/item_rules.js";
 import { applyMeasurementPlayerCandidate } from "../../../scratch/simulations/sim_depth_material_ev.js";
 import { applyProductionDiagnosticLevelDelta } from "../../../scratch/measurements/progression_enemy_candidate_level.js";
 
-assert.deepEqual(PROGRESSION_ENEMY_DEFENSE_ARMS.map(arm => arm.id), ["v1", "def-plus-one"]);
+assert.deepEqual(PROGRESSION_ENEMY_DEFENSE_ARMS.map(arm => arm.id), ["v1", "def-plus-one-capped"]);
 assert.equal(PROGRESSION_ENEMY_DEFENSE_ARMS[0].rawDefenseBonus(5), 0);
-assert.equal(PROGRESSION_ENEMY_DEFENSE_ARMS[1].rawDefenseBonus(5), 5);
+assert.deepEqual([0, 1, 2, 3, 4, 5].map(PROGRESSION_ENEMY_DEFENSE_ARMS[1].rawDefenseBonus), [0, 1, 1, 1, 1, 1]);
 assert.equal(candidate.playerPhysicalMultiplier(5), 1.8);
 assert.equal(candidate.playerSpellMultiplier(5), 1.8);
 assert.equal(candidate.playerLevel1MaxHp(5), 30);
@@ -22,6 +22,7 @@ assert.equal(candidate.enemyHpMultiplier(5), 2);
 assert.equal(candidate.enemyAttackMultiplier(5), 1.5);
 assert.equal(candidate.enemyDefenseMultiplier, 1);
 assert.equal(PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS.length, 11);
+assert.deepEqual(PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS.map(context => context.floor), [1, 5, 5, 6, 10, 10, 11, 20, 20, 21, 30]);
 for (const [milestoneFloor, preBaseline, selectedBaseline, postFloor] of [[15, 2, 3, 16], [25, 4, 5, 26]]) {
   assert.equal(resolveProgressionEnemyDiagnosticContext({
     kind: "pre-milestone", milestoneFloor, highestEarlierDefeatedMilestone: milestoneFloor - 5
@@ -35,8 +36,8 @@ for (const [milestoneFloor, preBaseline, selectedBaseline, postFloor] of [[15, 2
 }
 
 const context = { kind: "pre-milestone", floor: 20 };
-const pairedSeed = deriveProgressionEnemyRunSeed({ rootSeed: 1690, context, fixtureId: "defensive-guard", runIndex: 0 });
-assert.equal(pairedSeed, deriveProgressionEnemyRunSeed({ rootSeed: 1690, context, fixtureId: "defensive-guard", runIndex: 0 }));
+const pairedSeed = deriveProgressionEnemyRunSeed({ rootSeed: 1692, context, fixtureId: "defensive-guard", runIndex: 0 });
+assert.equal(pairedSeed, deriveProgressionEnemyRunSeed({ rootSeed: 1692, context, fixtureId: "defensive-guard", runIndex: 0 }));
 
 for (const arm of PROGRESSION_ENEMY_DEFENSE_ARMS) {
   const character = createStartingKitCharacter("devotion");
