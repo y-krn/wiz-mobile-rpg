@@ -15,7 +15,11 @@ function makeState({
   hp = 18,
   enemyHp = 100,
   fleePolicy = "ev",
-  initialLivingMonsterCount = 1
+  initialLivingMonsterCount = 1,
+  floor = 5,
+  measurementCombatPlan = null,
+  b30TiltowaitGuardRecoveryCandidate = false,
+  dragonOverrides = {}
 } = {}) {
   const isBoss = encounter === "boss";
   const isMidboss = encounter === "midboss";
@@ -31,7 +35,7 @@ function makeState({
       spells: []
     }],
     inventory: [...inventory],
-    floor: 5,
+    floor,
     simPolicy: {
       fleePolicy,
       fleeHpThreshold: 0.20,
@@ -41,7 +45,10 @@ function makeState({
       statusCureHpThreshold: 0.35,
       bloodWandHpPaymentMinRate: 0.20,
       bloodWandHealPolicy: "allow-recovery-potion",
-      b5GuardianFleeDisabled: false
+      b5GuardianFleeDisabled: false,
+      measurementCombatPlan,
+      measurementGuardTiming: "declared",
+      b30TiltowaitGuardRecoveryCandidate
     },
     combatState: {
       roundNumber,
@@ -49,7 +56,7 @@ function makeState({
       isMidboss,
       initialLivingMonsterCount,
       monsters: [
-        { hp: enemyHp, atk: 5, def: 0, status: "ok", isBoss, isMidboss },
+        { hp: enemyHp, atk: 5, def: 0, status: "ok", isBoss, isMidboss, ...dragonOverrides },
         ...(initialLivingMonsterCount >= 2
           ? [{ hp: 100, atk: 5, def: 0, status: "ok", isBoss: false, isMidboss: false }]
           : [])
@@ -122,5 +129,99 @@ assert.equal(
   "GUARD_POTION",
   "midboss opening must use the generic boss opening policy"
 );
+
+const recoveryDragon = {
+  name: "いにしえの竜",
+  status: "ok",
+  ancientDragonCycleStep: 0,
+  b30TiltowaitGuardRecoveryQueued: true,
+  tiltowaitQueued: false,
+  dragonBreathQueued: false,
+  madaltoQueued: false
+};
+const recoveryCandidateState = makeState({
+  floor: 30,
+  roundNumber: 2,
+  inventory: ["STR_POTION", "HEAL_POTION"],
+  hp: 5,
+  fleePolicy: "never",
+  measurementCombatPlan: "tiltowait-queued-guard",
+  b30TiltowaitGuardRecoveryCandidate: true,
+  dragonOverrides: recoveryDragon
+});
+assert.deepEqual(selectCombatAction(recoveryCandidateState), {
+  type: "fight",
+  actorIdx: 0,
+  targetIdx: 0
+}, "candidate Fight must override even-round Guard and later heal/item policies");
+assert.deepEqual(selectCombatAction({
+  ...recoveryCandidateState,
+  simPolicy: {
+    ...recoveryCandidateState.simPolicy,
+    b30TiltowaitGuardRecoveryCandidate: false
+  }
+}), { type: "defend", actorIdx: 0 }, "baseline must retain even-round Defend");
+
+const queuedTiltowaitState = makeState({
+  floor: 30,
+  measurementCombatPlan: "tiltowait-queued-guard",
+  b30TiltowaitGuardRecoveryCandidate: true,
+  dragonOverrides: { ...recoveryDragon, ancientDragonCycleStep: 3, tiltowaitQueued: true }
+});
+assert.deepEqual(selectCombatAction(queuedTiltowaitState), { type: "defend", actorIdx: 0 },
+  "queued TILTOWAIT Guard must take priority over recovery Fight");
+
+for (const dragonOverrides of [
+  { ...recoveryDragon, ancientDragonCycleStep: 3 },
+  { ...recoveryDragon, ancientDragonCycleStep: 2, silenceTurns: 1 }
+]) {
+  const state = makeState({
+    floor: 30,
+    roundNumber: 1,
+    fleePolicy: "never",
+    measurementCombatPlan: "tiltowait-queued-guard",
+    b30TiltowaitGuardRecoveryCandidate: true,
+    dragonOverrides
+  });
+  assert.deepEqual(selectCombatAction(state), { type: "fight", actorIdx: 0, targetIdx: 0 },
+    "plain-normal slots include step 3 and silenced step 2");
+}
+
+for (const queuedSpecial of ["dragonBreathQueued", "madaltoQueued"]) {
+  const queuedRecoveryState = makeState({
+    floor: 30,
+    inventory: ["GUARD_POTION"],
+    measurementCombatPlan: "tiltowait-queued-guard",
+    b30TiltowaitGuardRecoveryCandidate: true,
+    dragonOverrides: { ...recoveryDragon, [queuedSpecial]: true }
+  });
+  assert.deepEqual(selectCombatAction(queuedRecoveryState), {
+    type: "item",
+    actorIdx: 0,
+    targetIdx: 0,
+    itemKey: "GUARD_POTION"
+  }, `${queuedSpecial} must block recovery opening Fight`);
+}
+
+for (const nonRecovery of [
+  { floor: 29, dragonOverrides: recoveryDragon },
+  { floor: 30, dragonOverrides: { ...recoveryDragon, b30TiltowaitGuardRecoveryQueued: false } },
+  { floor: 30, dragonOverrides: { ...recoveryDragon, ancientDragonCycleStep: 1 } },
+  { floor: 30, dragonOverrides: { ...recoveryDragon, ancientDragonCycleStep: 2 } }
+]) {
+  const candidate = makeState({
+    floor: nonRecovery.floor,
+    roundNumber: 2,
+    measurementCombatPlan: "tiltowait-queued-guard",
+    b30TiltowaitGuardRecoveryCandidate: true,
+    dragonOverrides: nonRecovery.dragonOverrides
+  });
+  const baseline = {
+    ...candidate,
+    simPolicy: { ...candidate.simPolicy, b30TiltowaitGuardRecoveryCandidate: false }
+  };
+  assert.deepEqual(selectCombatAction(candidate), selectCombatAction(baseline),
+    "actions outside eligible recovery slots must preserve existing policy");
+}
 
 console.log("[PASS] EV survival-deficit preserves existing boss openings and invariants");
