@@ -161,6 +161,16 @@ const ROUTER_CONTRACTS = [
     override: { input: { runs: 201, seed: 1614 }, expected: { runs: 201, seed: 1614 } }
   },
   {
+    id: "b30-production-atk-pressure-diagnostic",
+    runner: "scratch/measurements/milestone_boss_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 200, minimumRuns: 200, seed: 1613 },
+    args: [...nativeArgs("--ref", "main", "--runs", "200", "--seed", "1613"), "--floor", "30", "--profile", "production-atk-pressure"],
+    override: { input: { runs: 201, seed: 1614 }, expected: { runs: 201, seed: 1614 } }
+  },
+  {
     id: "equipment-load",
     runner: "scratch/measurements/equipment_load_measurement.js",
     adapter: "native-manifest",
