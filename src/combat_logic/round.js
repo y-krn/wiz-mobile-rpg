@@ -1090,7 +1090,7 @@ export function runCombatRoundCalculation(
           const isDefending = combatSelection.actions.some(action =>
             action.actorIdx === queued.targetIdx && action.type === "defend"
           );
-          const rolledDamage = Math.floor(rng() * 15) + 18;
+          const rolledDamage = queued.rolledDamage;
           const damage = resolveGuardMitigation(target, rolledDamage, {
             isDefending,
             attackType: "physical",
@@ -1848,7 +1848,15 @@ export function runCombatRoundCalculation(
       }
 
       if (crushStrikeEnabled && mon.hp > 0) {
-        if (mon.measurementCrushStrikeCooldown) {
+        if (!mon.measurementCrushStrikeOpeningDelayConsumed) {
+          mon.measurementCrushStrikeOpeningDelayConsumed = true;
+          if (measurement?.measurementCurrentEnemyAction) {
+            measurement.measurementCurrentEnemyAction.measurementCrushStrike = {
+              phase: "opening-delay",
+              round: roundNumber
+            };
+          }
+        } else if (mon.measurementCrushStrikeCooldown) {
           mon.measurementCrushStrikeCooldown = false;
           if (measurement?.measurementCurrentEnemyAction) {
             measurement.measurementCurrentEnemyAction.measurementCrushStrike = { phase: "cooldown", round: roundNumber };
@@ -1856,12 +1864,14 @@ export function runCombatRoundCalculation(
         } else {
           const queuedTarget = state.party.findIndex(character => character.hp > 0 && character.status !== "dead");
           if (queuedTarget >= 0) {
-            mon.measurementCrushStrikeQueued = { targetIdx: queuedTarget };
+            const rolledDamage = Math.floor(rng() * 15) + 18;
+            mon.measurementCrushStrikeQueued = { targetIdx: queuedTarget, rolledDamage };
             if (measurement?.measurementCurrentEnemyAction) {
               measurement.measurementCurrentEnemyAction.measurementCrushStrike = {
                 phase: "queued",
                 round: roundNumber,
-                targetIdx: queuedTarget
+                targetIdx: queuedTarget,
+                rolledDamage
               };
             }
             logQueue.push({ msg: `[警告] ${mon.name}は${state.party[queuedTarget].name}に砕岩打ちを構えた！次のターン、砕岩打ち！` });

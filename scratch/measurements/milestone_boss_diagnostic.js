@@ -21,8 +21,8 @@ import { simulateRun } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1672-b10-crush-strike-diagnostic-v1";
-export const SCHEMA_VERSION = 13;
+export const RUNNER_VERSION = "issue1674-b10-crush-strike-opening-v1";
+export const SCHEMA_VERSION = 14;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1613;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -1000,7 +1000,7 @@ export function buildSummary(report) {
     dedicatedB30AtkPressure
       ? "# B30 generic ATK scaling diagnostic (#1664)"
       : b10Only
-        ? "# B10 砕岩打ち correctness diagnostic (#1672)"
+        ? "# B10 砕岩打ち opening diagnostic (#1674)"
       : report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
       ? "# B30 generic Tier HP scaling diagnostic (#1662)"
       : "# milestone Boss decision-pressure diagnostic (#1613)",
@@ -1049,7 +1049,7 @@ export function buildSummary(report) {
     "- Inventory source: production biome boss mapping, monster templates, boss rules, boss actions, round status/spell/Guard path.",
     "- B5: production LAHALITO telegraph / guard-break / four-turn exposure; activation is measured from production logs.",
     "- B10 production: guardAdjacent remains inventory-only in a fixed single-boss encounter; adjacent-Guard redirect is not exercised.",
-    "- B10 砕岩打ち: measurement-only opt-in on Stone Guard. It queues after a normal action, resolves on the next boss turn against the queued living target, then waits one normal turn before queuing again. An invalid/dead target clears the queue and falls through to the ordinary action.",
+    "- B10 砕岩打ち: measurement-only opt-in on Stone Guard. The first normal action has no telegraph; the next normal action queues the strike, which resolves on the next boss turn against the queued living target. After resolution, the existing one-normal-turn cooldown remains before retelegraph. An invalid/dead target clears the queue and falls through to the ordinary action.",
     "- B10 read Guards the queued target only; unread has no crush-strike response. Both arms use identical Phase 1 fixture, Phase 2a scaling, stats, trial pressure, equipment, Load, and underlying action policy.",
     "- Guard uses existing physical Guard mitigation and applies no tempDefDown. Unguarded resolution applies +2 tempDefDown, capped at 6.",
     "- B15: `isPoisonous=true` keeps the legacy poison fallback active on the production Boss path; template-defined `poison_payoff` is inactive there. Runtime status observation uses existing `statusSources`.",
