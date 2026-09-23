@@ -1079,6 +1079,65 @@ export function runCombatRoundCalculation(
 
       if (resolveQueuedAncientDragonAction(mon, state, combatSelection, logQueue, { rng, measurement, policy })) return;
 
+      const crushStrikeEnabled = policy?.measurementCrushStrike === true &&
+        state.floor === 10 && mon.name === "ストーンガード" && state.combatState?.isBoss === true;
+      if (crushStrikeEnabled && mon.measurementCrushStrikeQueued) {
+        const queued = mon.measurementCrushStrikeQueued;
+        const target = state.party[queued.targetIdx];
+        if (target && target.hp > 0 && target.status !== "dead") {
+          mon.measurementCrushStrikeQueued = null;
+          recordAction(mon, "砕岩打ち");
+          const isDefending = combatSelection.actions.some(action =>
+            action.actorIdx === queued.targetIdx && action.type === "defend"
+          );
+          const rolledDamage = Math.floor(rng() * 15) + 18;
+          const damage = resolveGuardMitigation(target, rolledDamage, {
+            isDefending,
+            attackType: "physical",
+            telemetry: state.combatFormulaTelemetry
+          });
+          const playerHpBefore = target.hp;
+          target.hp = Math.max(0, target.hp - damage);
+          recordReceivedDamage(state, target, mon.name, rolledDamage, damage, playerHpBefore, {
+            attackType: "physical",
+            causalType: "crush_strike",
+            isDefending,
+            measurement
+          });
+          const tempDefDownBefore = target.tempDefDown || 0;
+          if (!isDefending && target.hp > 0) {
+            target.tempDefDown = Math.min(6, tempDefDownBefore + 2);
+          }
+          const measurementEvent = {
+            phase: "resolved",
+            round: roundNumber,
+            targetIdx: queued.targetIdx,
+            guarded: isDefending,
+            rolledDamage,
+            damage,
+            tempDefDownBefore,
+            tempDefDownAfter: target.tempDefDown || 0
+          };
+          if (measurement?.measurementCurrentEnemyAction) {
+            measurement.measurementCurrentEnemyAction.measurementCrushStrike = measurementEvent;
+          }
+          logQueue.push({ msg: `[ 敵 ] ${mon.name}は砕岩打ちを放った！` });
+          logQueue.push({ msg: `[ 敵 ] ${target.name}に${damage}の砕岩打ちダメージ！` });
+          if (target.hp === 0) {
+            target.status = "dead";
+            const deathLog = recordCharDeath(state, target, `${mon.name}の砕岩打ち`, { type: "combat", source: mon.name });
+            queueCharDeathLog(logQueue, deathLog);
+          } else if (isDefending) {
+            logQueue.push({ msg: `[ 敵 ] ${target.name}は身を守り、砕岩打ちを軽減した！` });
+          } else {
+            logQueue.push({ msg: `[ 敵 ] ${target.name}の守りが崩れた！（防御力-2）` });
+          }
+          mon.measurementCrushStrikeCooldown = true;
+          return;
+        }
+        mon.measurementCrushStrikeQueued = null;
+      }
+
       if (
         mon.name === "いにしえの竜" && state.floor === 30 &&
         policy?.b30TiltowaitGuardRecoveryCandidate === true &&
@@ -1786,6 +1845,28 @@ export function runCombatRoundCalculation(
         const deathLog = recordCharDeath(state, target, deathCause, { type: "combat", source: mon.name });
         queueCharDeathLog(logQueue, deathLog);
         logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
+      }
+
+      if (crushStrikeEnabled && mon.hp > 0) {
+        if (mon.measurementCrushStrikeCooldown) {
+          mon.measurementCrushStrikeCooldown = false;
+          if (measurement?.measurementCurrentEnemyAction) {
+            measurement.measurementCurrentEnemyAction.measurementCrushStrike = { phase: "cooldown", round: roundNumber };
+          }
+        } else {
+          const queuedTarget = state.party.findIndex(character => character.hp > 0 && character.status !== "dead");
+          if (queuedTarget >= 0) {
+            mon.measurementCrushStrikeQueued = { targetIdx: queuedTarget };
+            if (measurement?.measurementCurrentEnemyAction) {
+              measurement.measurementCurrentEnemyAction.measurementCrushStrike = {
+                phase: "queued",
+                round: roundNumber,
+                targetIdx: queuedTarget
+              };
+            }
+            logQueue.push({ msg: `[警告] ${mon.name}は${state.party[queuedTarget].name}に砕岩打ちを構えた！次のターン、砕岩打ち！` });
+          }
+        }
       }
       }
     } finally {
