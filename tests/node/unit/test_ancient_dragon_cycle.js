@@ -68,7 +68,7 @@ function createState(monster) {
 function runRound(state, type = "defend", options = {}) {
   const action = { actorIdx: 0, type };
   if (type === "fight") action.targetIdx = 0;
-  return runCombatRoundCalculation(state, { actions: [action] }, { rng: () => 0, ...options });
+  return runCombatRoundCalculation(state, { actions: [action] }, { rng: () => 0, policy: state.simPolicy, ...options });
 }
 
 function dragon(state) {
@@ -192,6 +192,109 @@ function dragon(state) {
     assert.equal(resolved.ancientDragonCycleStep, (special.cycleStep + 1) % 4);
     assert.equal(result.state.combatState.monsters.length, 1);
   }
+}
+
+{
+  const state = createState(createAncientDragon({
+    ancientDragonCycleStep: 2,
+    tiltowaitQueued: true,
+    chargeQueued: true,
+    summonQueued: true,
+    multiActionQueued: true
+  }));
+  state.floor = 30;
+  state.simPolicy = { b30TiltowaitGuardRecoveryCandidate: true };
+
+  const guardedResolution = runRound(state, "defend");
+  const resolvedDragon = dragon(guardedResolution.state);
+  assert.equal(resolvedDragon.b30TiltowaitGuardRecoveryQueued, true);
+  assert.equal(resolvedDragon.ancientDragonCycleStep, 3);
+
+  const recovery = runRound(guardedResolution.state, "defend", {
+    policy: { b30TiltowaitGuardRecoveryCandidate: true }
+  });
+  const recoveredDragon = dragon(recovery.state);
+  assert.ok(recovery.logQueue.some(entry => entry.msg.includes("体勢を立て直した")));
+  assert.equal(recoveredDragon.b30TiltowaitGuardRecoveryQueued, false);
+  assert.equal(recoveredDragon.ancientDragonCycleStep, 0);
+  assert.equal(recoveredDragon.chargeQueued, true);
+  assert.equal(recoveredDragon.summonQueued, true);
+  assert.equal(recoveredDragon.multiActionQueued, true);
+  assert.equal(recovery.state.party[0].hp, guardedResolution.state.party[0].hp);
+}
+
+{
+  for (const queuedSpecial of ["dragonBreathQueued", "madaltoQueued"]) {
+    const state = createState(createAncientDragon({
+      [queuedSpecial]: true,
+      ancientDragonCycleStep: 0
+    }));
+    state.floor = 30;
+    state.simPolicy = { b30TiltowaitGuardRecoveryCandidate: true };
+    const result = runRound(state, "defend");
+    assert.equal(dragon(result.state).b30TiltowaitGuardRecoveryQueued, undefined);
+  }
+}
+
+{
+  for (const status of ["sleep", "paralyzed"]) {
+    const state = createState(createAncientDragon({
+      status,
+      ancientDragonCycleStep: 3,
+      b30TiltowaitGuardRecoveryQueued: true
+    }));
+    state.floor = 30;
+    state.simPolicy = { b30TiltowaitGuardRecoveryCandidate: true };
+    const result = runRound(state, "defend");
+    assert.equal(dragon(result.state).b30TiltowaitGuardRecoveryQueued, true);
+    assert.ok(!result.logQueue.some(entry => entry.msg.includes("体勢を立て直した")));
+  }
+
+  const flinchedState = createState(createAncientDragon({
+    ancientDragonCycleStep: 3,
+    flinched: true,
+    b30TiltowaitGuardRecoveryQueued: true
+  }));
+  flinchedState.floor = 30;
+  flinchedState.simPolicy = { b30TiltowaitGuardRecoveryCandidate: true };
+  const flinched = runRound(flinchedState, "defend");
+  assert.equal(dragon(flinched.state).b30TiltowaitGuardRecoveryQueued, true);
+  assert.ok(!flinched.logQueue.some(entry => entry.msg.includes("体勢を立て直した")));
+
+  const silencedState = createState(createAncientDragon({
+    ancientDragonCycleStep: 2,
+    silenceTurns: 1,
+    tiltowaitQueued: true,
+    b30TiltowaitGuardRecoveryQueued: true
+  }));
+  silencedState.floor = 30;
+  silencedState.simPolicy = { b30TiltowaitGuardRecoveryCandidate: true };
+  const silenced = runRound(silencedState, "defend");
+  assert.equal(dragon(silenced.state).tiltowaitQueued, false);
+  assert.equal(dragon(silenced.state).b30TiltowaitGuardRecoveryQueued, false);
+  assert.ok(!silenced.logQueue.some(entry => entry.msg.includes("ティルトウェイトを唱えた")));
+}
+
+{
+  const state = createState(createAncientDragon({
+    ancientDragonCycleStep: 2,
+    tiltowaitQueued: true
+  }));
+  state.floor = 30;
+  state.simPolicy = { b30TiltowaitGuardRecoveryCandidate: true };
+  const unresolvedGuard = runRound(state, "fight");
+  assert.equal(dragon(unresolvedGuard.state).b30TiltowaitGuardRecoveryQueued, undefined);
+
+  const legacyState = createState(createAncientDragon({
+    ancientDragonCycleStep: 2,
+    tiltowaitQueued: true
+  }));
+  legacyState.floor = 30;
+  const legacyGuard = runRound(legacyState, "defend");
+  assert.equal(dragon(legacyGuard.state).b30TiltowaitGuardRecoveryQueued, undefined);
+  const legacyCycle = runRound(legacyGuard.state, "defend");
+  assert.equal(dragon(legacyCycle.state).ancientDragonCycleStep, 0);
+  assert.ok(!legacyCycle.logQueue.some(entry => entry.msg.includes("体勢を立て直した")));
 }
 
 {

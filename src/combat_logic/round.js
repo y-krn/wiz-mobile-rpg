@@ -1077,7 +1077,29 @@ export function runCombatRoundCalculation(
         return;
       }
 
-      if (resolveQueuedAncientDragonAction(mon, state, combatSelection, logQueue, { rng, measurement })) return;
+      if (resolveQueuedAncientDragonAction(mon, state, combatSelection, logQueue, { rng, measurement, policy })) return;
+
+      if (
+        mon.name === "いにしえの竜" && state.floor === 30 &&
+        policy?.b30TiltowaitGuardRecoveryCandidate === true &&
+        mon.b30TiltowaitGuardRecoveryQueued === true
+      ) {
+        ensureAncientDragonCycleStep(mon);
+        const cycleStep = mon.ancientDragonCycleStep;
+        const isPlainNormalSlot = cycleStep === 0 || cycleStep === 3 ||
+          (cycleStep === 2 && mon.silenceTurns > 0);
+        if (isPlainNormalSlot) {
+          if (mon.silenceTurns > 0) {
+            mon.tiltowaitQueued = false;
+            mon.madaltoQueued = false;
+          }
+          mon.b30TiltowaitGuardRecoveryQueued = false;
+          advanceAncientDragonCycleStep(mon);
+          recordAction(mon, "Guard recovery");
+          logQueue.push({ msg: `[ 敵 ] ${mon.name}は体勢を立て直した。` });
+          return;
+        }
+      }
 
       const isMultiActionTurn = mon.multiActionQueued;
       mon.multiActionQueued = false;

@@ -37,6 +37,7 @@ export function resolveQueuedAncientDragonAction(mon, state, combatSelection, lo
   if (mon.name !== ANCIENT_DRAGON_NAME) return false;
 
   const rng = options.rng || Math.random;
+  const policy = options.policy || state.simPolicy;
   const measurement = options.measurement || null;
   const recordAction = action => recordMonsterAction(mon, action, state, measurement);
   const isSilenced = mon.silenceTurns > 0;
@@ -44,6 +45,15 @@ export function resolveQueuedAncientDragonAction(mon, state, combatSelection, lo
   if (mon.tiltowaitQueued && !isSilenced) {
     mon.tiltowaitQueued = false;
     advanceAncientDragonCycleStep(mon);
+    const livingParty = state.party.filter(character => character.hp > 0 && character.status !== "dead");
+    if (
+      state.floor === 30 && policy?.b30TiltowaitGuardRecoveryCandidate === true &&
+      livingParty.length > 0 && livingParty.every(character =>
+        combatSelection.actions.some(action => action.actorIdx === state.party.indexOf(character) && action.type === "defend")
+      )
+    ) {
+      mon.b30TiltowaitGuardRecoveryQueued = true;
+    }
     recordAction("TILTOWAIT");
     logQueue.push({
       msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！(防御で大幅軽減可能)`,
