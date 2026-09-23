@@ -1,8 +1,8 @@
-type PendingRewardBagPlan = {
+type PendingRewardBagPlanFields = {
   bagCount?: unknown;
   discardCount?: unknown;
   takeCount?: unknown;
-} | string | number | boolean | null | undefined;
+};
 
 type PendingRewardPlanInput = {
   bagCount?: unknown;
@@ -21,9 +21,9 @@ type PendingRewardPlan = {
   turnCost: number;
 };
 
-export function getPendingRewardFinalBagCount(plan: PendingRewardBagPlan): number {
+export function getPendingRewardFinalBagCount(plan: unknown): number {
   if (!plan) return 0;
-  const planFields = plan as { bagCount?: unknown; discardCount?: unknown; takeCount?: unknown };
+  const planFields = plan as PendingRewardBagPlanFields;
   if (!Number.isFinite(planFields.bagCount as number)) return 0;
   return Math.max(
     0,
@@ -32,7 +32,7 @@ export function getPendingRewardFinalBagCount(plan: PendingRewardBagPlan): numbe
 }
 
 export function resolvePendingRewardPlan(
-  input: PendingRewardPlanInput | null = {}
+  input: unknown = {}
 ): PendingRewardPlan {
   const {
     bagCount = 0,

@@ -30,6 +30,9 @@ assert.deepEqual(rawPlan, rawPlanBefore, "final-bag helper does not mutate input
 const defaults = { ok: true, bagCount: 0, rewardCount: 0, takeCount: 0, discardCount: 0, turnCost: 0 };
 assert.deepEqual(resolvePendingRewardPlan(), defaults);
 assert.deepEqual(resolvePendingRewardPlan(undefined), defaults);
+assert.deepEqual(resolvePendingRewardPlan(0), defaults);
+assert.deepEqual(resolvePendingRewardPlan(false), defaults);
+assert.deepEqual(resolvePendingRewardPlan("legacy"), defaults);
 assert.throws(() => resolvePendingRewardPlan(null), TypeError);
 assert.deepEqual(resolvePendingRewardPlan({
   bagCount: "18", rewardCount: "4", takeCount: "2", discardCount: "1", loadoutChanged: true
@@ -61,4 +64,11 @@ const input = { bagCount: "18", rewardCount: "3", takeCount: "2", discardCount: 
 const inputBefore = { ...input };
 resolvePendingRewardPlan(input);
 assert.deepEqual(input, inputBefore, "plan resolver does not mutate input");
-assert.equal(typeof exercisePendingRewardPlanTypes(), "number");
+const typedUnknownInputs = exercisePendingRewardPlanTypes();
+assert.deepEqual(typedUnknownInputs.unknownContainerPlan,
+  { ok: true, bagCount: 4, rewardCount: 2, takeCount: 1, discardCount: 1, turnCost: 1 });
+assert.equal(typedUnknownInputs.unknownContainerBag, 31);
+assert.deepEqual(typedUnknownInputs.primitivePlan, defaults);
+assert.equal(typedUnknownInputs.primitiveBag, 0);
+assert.equal(typedUnknownInputs.legacyBag, 0);
+assert.equal(typedUnknownInputs.nullPlanThrowsAtRuntime, true);
