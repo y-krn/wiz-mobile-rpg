@@ -50,7 +50,7 @@ assert.equal(b30First.cells[0].confidence, "runner-correctness-only");
 assert.ok(Object.hasOwn(b30First.cells[0].deathSources, "いにしえの竜のティルトウェイト"));
 assert.ok(Object.hasOwn(b30First.cells[0].lethalActions, "TILTOWAIT"));
 assert.equal(b30First.cells[0].specialDamageByDefense.TILTOWAIT.undefendedHitCount, 1);
-assert.equal(b30First.cells[0].specialDamageByDefense.TILTOWAIT.undefendedDamagePerHit.average, 62);
+assert.equal(b30First.cells[0].specialDamageByDefense.TILTOWAIT.undefendedDamagePerHit.average, 61);
 assert.equal(b30First.cells[0].arms.baseline.deaths, b30First.cells[0].deaths);
 assert.equal(b30First.cells[0].arms.candidate.runs, 1);
 assert.equal(b30First.cells[0].pairedComparison.pairing.includes("same worldSeed"), true);
@@ -62,7 +62,7 @@ assert.ok(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT
 assert.equal(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.breath.addedGuardTurns, 0);
 assert.ok(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.MADALTO.queuedTurns > 0);
 assert.equal(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.MADALTO.addedGuardTurns, 0);
-assert.ok(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.guardedButUnresolvedTurns > 0);
+assert.equal(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.guardedButUnresolvedTurns, 0);
 assert.ok(b30First.cells[0].guardianPressureDamage.totalDamagePerRun.average > 0);
 assert.ok(Object.keys(b30First.cells[0].guardianPressureDamage.bySource).some(source => source.startsWith("summonedAlly:")));
 for (const action of ["normal", "breath", "MADALTO", "TILTOWAIT", "guardian-pressure"]) {

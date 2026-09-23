@@ -74,6 +74,7 @@ import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 import {
   advanceAncientDragonCycleStep,
   ensureAncientDragonCycleStep,
+  resolveQueuedAncientDragonAction,
   resolveBossAction
 } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
@@ -1075,6 +1076,8 @@ export function runCombatRoundCalculation(
         });
         return;
       }
+
+      if (resolveQueuedAncientDragonAction(mon, state, combatSelection, logQueue, { rng, measurement })) return;
 
       const isMultiActionTurn = mon.multiActionQueued;
       mon.multiActionQueued = false;

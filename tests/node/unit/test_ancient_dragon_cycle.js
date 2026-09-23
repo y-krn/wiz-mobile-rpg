@@ -161,12 +161,85 @@ function dragon(state) {
 }
 
 {
+  const queuedSpecials = [
+    { logFragment: "ティルトウェイトを唱えた", queued: "tiltowaitQueued", cycleStep: 2 },
+    { logFragment: "激しい炎の息を吐き出した", queued: "dragonBreathQueued", cycleStep: 0 },
+    { logFragment: "マダルトを唱えた", queued: "madaltoQueued", cycleStep: 0 }
+  ];
+
+  for (const special of queuedSpecials) {
+    const state = createState(createAncientDragon({
+      ancientDragonCycleStep: special.cycleStep,
+      traits: ["chargeAttack", "summonAlly", "multiAction"],
+      chargeQueued: true,
+      summonQueued: true,
+      multiActionQueued: true,
+      [special.queued]: true,
+      summon: { name: "ゴブリンの呪術師", maxAllies: 5 }
+    }));
+    const result = runRound(state, "defend", {
+      policy: { measurementMaxActionsPerEnemy: 1 },
+      rng: () => 0
+    });
+    const resolved = dragon(result.state);
+    const logs = result.logQueue.map(entry => entry.msg);
+
+    assert.ok(logs.some(msg => msg.includes(special.logFragment)));
+    assert.equal(resolved[special.queued], false);
+    assert.equal(resolved.chargeQueued, true);
+    assert.equal(resolved.summonQueued, true);
+    assert.equal(resolved.multiActionQueued, true);
+    assert.equal(resolved.ancientDragonCycleStep, (special.cycleStep + 1) % 4);
+    assert.equal(result.state.combatState.monsters.length, 1);
+  }
+}
+
+{
+  const monster = {
+    name: "汎用敵",
+    hp: 100,
+    maxHp: 100,
+    status: "ok",
+    atk: 10,
+    def: 0,
+    agi: 1,
+    traits: ["chargeAttack"],
+    chargeQueued: true
+  };
+  const state = createState(monster);
+  state.combatState.isBoss = false;
+  const result = runRound(state);
+  const resolvedMonster = result.state.combatState.monsters[0];
+
+  assert.equal(resolvedMonster.chargeQueued, false);
+  assert.ok(result.logQueue.some(entry => entry.msg.includes("破滅の波動を放った")));
+}
+
+{
   const state = createState(createAncientDragon({
     ancientDragonCycleStep: 2,
     silenceTurns: 1
   }));
   const result = runRound(state);
   assert.equal(dragon(result.state).ancientDragonCycleStep, 3);
+}
+
+{
+  const state = createState(createAncientDragon({
+    ancientDragonCycleStep: 3,
+    silenceTurns: 1,
+    dragonBreathQueued: true,
+    madaltoQueued: true,
+    tiltowaitQueued: true
+  }));
+  const result = runRound(state);
+  const resolved = dragon(result.state);
+
+  assert.equal(resolved.dragonBreathQueued, false);
+  assert.equal(resolved.madaltoQueued, false);
+  assert.equal(resolved.tiltowaitQueued, false);
+  assert.equal(resolved.ancientDragonCycleStep, 0);
+  assert.ok(result.logQueue.some(entry => entry.msg.includes("激しい炎の息を吐き出した")));
 }
 
 {
