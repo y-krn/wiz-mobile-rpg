@@ -28,8 +28,8 @@ const b30Second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, floor:
 
 assert.deepEqual(first, second, "milestone boss smoke must be deterministic");
 assert.deepEqual(b30First, b30Second, "B30 diagnostic smoke must be deterministic");
-assert.equal(RUNNER_VERSION, "issue1643-b30-tiltowait-guard-diagnostic-v1");
-assert.equal(SCHEMA_VERSION, 6);
+assert.equal(RUNNER_VERSION, "issue1653-b30-tiltowait-guard-recovery-diagnostic-v1");
+assert.equal(SCHEMA_VERSION, 7);
 assert.equal(first.runnerVersion, RUNNER_VERSION);
 assert.equal(first.measurementId, "milestone-boss-diagnostic");
 assert.deepEqual(first.configuration.depths, [5, 10, 15, 20, 25, 30]);
@@ -47,12 +47,17 @@ assert.equal(b30First.measurementId, "b30-hard-wall-diagnostic");
 assert.equal(b30First.cells.length, 1);
 assert.equal(b30First.cells[0].runs, 1);
 assert.equal(b30First.cells[0].confidence, "runner-correctness-only");
-assert.ok(Object.hasOwn(b30First.cells[0].deathSources, "いにしえの竜のティルトウェイト"));
-assert.ok(Object.hasOwn(b30First.cells[0].lethalActions, "TILTOWAIT"));
-assert.equal(b30First.cells[0].specialDamageByDefense.TILTOWAIT.undefendedHitCount, 1);
-assert.equal(b30First.cells[0].specialDamageByDefense.TILTOWAIT.undefendedDamagePerHit.average, 61);
+assert.ok(b30First.cells[0].specialDamageByDefense.TILTOWAIT.defendedHitCount > 0);
 assert.equal(b30First.cells[0].arms.baseline.deaths, b30First.cells[0].deaths);
 assert.equal(b30First.cells[0].arms.candidate.runs, 1);
+assert.equal(b30First.cells[0].arms.baseline.recoveryActivations.average, 0);
+assert.ok(b30First.cells[0].arms.candidate.recoveryActivations.average > 0);
+assert.equal(
+  b30First.cells[0].arms.baseline.queuedSpecialCorrespondence.TILTOWAIT.guardedTurns,
+  b30First.cells[0].arms.baseline.queuedSpecialCorrespondence.TILTOWAIT.queuedTurns
+);
+assert.ok(Number.isFinite(b30First.cells[0].pairedComparison.normalActionCountDelta.average));
+assert.ok(Number.isFinite(b30First.cells[0].pairedComparison.recoveryActivationsDelta.average));
 assert.equal(b30First.cells[0].pairedComparison.pairing.includes("same worldSeed"), true);
 assert.ok(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.queuedTurns > 0);
 assert.equal(b30First.cells[0].arms.candidate.queuedSpecialCorrespondence.TILTOWAIT.guardedTurns,
@@ -244,4 +249,4 @@ const invocation = resolveRunnerInvocation({
 assert.equal(invocation.runner, "scratch/measurements/milestone_boss_diagnostic.js");
 assert.ok(invocation.args.includes("--purpose"));
 
-console.log("[PASS] Issue #1643 paired B30 TILTOWAIT-only Guard diagnostic wiring");
+console.log("[PASS] Issue #1653 paired B30 TILTOWAIT Guard recovery diagnostic wiring");

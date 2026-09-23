@@ -20,8 +20,8 @@ import { simulateRun } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1643-b30-tiltowait-guard-diagnostic-v1";
-export const SCHEMA_VERSION = 6;
+export const RUNNER_VERSION = "issue1653-b30-tiltowait-guard-recovery-diagnostic-v1";
+export const SCHEMA_VERSION = 7;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1613;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -304,13 +304,14 @@ export function resolveWorldSeed({ seed, floor, runIndex }) {
   return `${seed}:issue1613:milestone-boss:B${floor}:${runIndex}`;
 }
 
-function createScenario(fixture, actionPlan = null) {
+function createScenario(fixture, actionPlan = null, b30GuardRecoveryCandidate = false) {
   const playerFixture = resolvePlayerFixture(fixture.floor);
   return {
     startingKit: playerFixture.startingKit,
     hpBaseBonus: playerFixture.maxHp - 20,
     measurementCombatPlan: actionPlan || playerFixture.actionPlan,
     measurementGuardTiming: playerFixture.guardTiming,
+    b30TiltowaitGuardRecoveryCandidate: b30GuardRecoveryCandidate,
     measurementCombatTier: playerFixture.combatTier,
     measurementPlayerWeaponCandidate: playerFixture.weaponProfile,
     measurementInitiative: {
@@ -521,6 +522,8 @@ function observeRun(result, fixture) {
     queuedSpecialCorrespondence,
     rounds: rounds.length,
     damageTaken: result.combatDamageHp || 0,
+    normalActionCount: actionNames.filter(action => action === "通常攻撃").length,
+    recoveryActivations: actionNames.filter(action => action === "Guard recovery").length,
     survival: Number(result.fixedCombatResult === "victory"),
     bossActionCount: enemyActions.length,
     actionNames: countBy(actionNames),
@@ -642,6 +645,9 @@ function summarizeRows(rows, fixture) {
     specialDamageByDefense,
     rounds: summarize(rows.map(row => row.rounds)),
     damageTaken: summarize(rows.map(row => row.damageTaken)),
+    normalActionCount: summarize(rows.map(row => row.normalActionCount)),
+    normalLethalRuns: rows.filter(row => row.lethalAction === "通常攻撃").length,
+    recoveryActivations: summarize(rows.map(row => row.recoveryActivations)),
     survivalRate: rows.reduce((sum, row) => sum + row.survival, 0) / rows.length,
     warningCount: fixture.floor === 30 ? null : summarize(rows.map(row => row.warningCount)),
     telegraphCount: fixture.floor === 30 ? null : summarize(rows.map(row => row.telegraphCount)),
@@ -671,7 +677,7 @@ function summarizeRows(rows, fixture) {
   };
 }
 
-function runBossArm({ fixture, runs, seed, actionPlan }) {
+function runBossArm({ fixture, runs, seed, actionPlan, b30GuardRecoveryCandidate = false }) {
   const rows = [];
   for (let runIndex = 0; runIndex < runs; runIndex++) {
     const result = simulateRun({
@@ -682,7 +688,7 @@ function runBossArm({ fixture, runs, seed, actionPlan }) {
       runIndex,
       seriesId: `issue1613:${fixture.bossName}:B${fixture.floor}`,
       scoringProfile: null,
-      scenario: createScenario(fixture, actionPlan),
+      scenario: createScenario(fixture, actionPlan, b30GuardRecoveryCandidate),
       workshop: { ranks: {} },
       worldSeed: resolveWorldSeed({ seed, floor: fixture.floor, runIndex }),
       collectDiagnostics: true,
@@ -719,6 +725,9 @@ function pairedComparison(baseline, candidate) {
     deathCountDelta: candidate.summary.deaths - baseline.summary.deaths,
     roundsDelta: delta("rounds"),
     damageTakenDelta: delta("damageTaken"),
+    normalActionCountDelta: delta("normalActionCount"),
+    normalLethalRunsDelta: candidate.summary.normalLethalRuns - baseline.summary.normalLethalRuns,
+    recoveryActivationsDelta: delta("recoveryActivations"),
     lethalActions: {
       baseline: baseline.summary.lethalActions,
       candidate: candidate.summary.lethalActions
@@ -735,9 +744,15 @@ function pairedComparison(baseline, candidate) {
 }
 
 function runBossCell({ fixture, runs, seed }) {
-  const baseline = runBossArm({ fixture, runs, seed, actionPlan: "attack-defend" });
+  const baseline = runBossArm({ fixture, runs, seed, actionPlan: "tiltowait-queued-guard" });
   const candidate = fixture.floor === 30
-    ? runBossArm({ fixture, runs, seed, actionPlan: "tiltowait-queued-guard" })
+    ? runBossArm({
+      fixture,
+      runs,
+      seed,
+      actionPlan: "tiltowait-queued-guard",
+      b30GuardRecoveryCandidate: true
+    })
     : null;
   return {
     ...baseline.summary,
@@ -781,9 +796,9 @@ export async function runMilestoneBossDiagnostic({
       inventory: BOSS_FIXTURES.map(resolveBossInventory),
       metrics: [
         "rounds",
-        "damage taken",
+        "total damage taken and damage by action",
         "survival",
-        "boss action count / actionNames",
+        "boss action count / normal action count / lethal action / recovery activations",
         ...(fixtures.some(fixture => fixture.floor !== 30) ? ["warning / telegraph count"] : []),
         ...(fixtures.some(fixture => fixture.floor === 30) ? ["queued-special Guard resolution correspondence"] : []),
         "spell / status / special action count",
@@ -834,10 +849,10 @@ function buildReport(result, provenance, options) {
     candidatePolicy: {
       scaling: "diagnostic-only Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load",
-      actions: "baseline=attack-defend; B30 candidate=Defend only when existing tiltowaitQueued state is true, otherwise baseline",
+      actions: "both arms use the existing queued-TILTOWAIT Guard policy; candidate alone replaces the next plain-normal B30 slot after a fully Guarded resolution",
       reflectPhysical: "freeze reference 0.20; no milestone boss template declares reflectPhysical, so no synthetic reflection is applied",
       behavior: "production boss template, production isBoss combat path, production boss action / warning / status / Guard resolution",
-      status: "diagnostic-only; production combat, boss, enemy, loot, UI, and save unchanged"
+      status: "diagnostic-only; recovery candidate requires explicit simulation policy and B30 floor; damage, boss stats, other enemies, loot, UI, and save unchanged"
     }
   };
 }
@@ -849,7 +864,7 @@ function format(value) {
 export function buildSummary(report) {
   const lines = [
     report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
-      ? "# B30 TILTOWAIT-only Guard diagnostic (#1643)"
+      ? "# B30 TILTOWAIT Guard recovery diagnostic (#1653)"
       : "# milestone Boss decision-pressure diagnostic (#1613)",
     "",
     `- runner: ${report.runnerVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
@@ -863,7 +878,7 @@ export function buildSummary(report) {
     lines.push(
       `- B${cell.floor} ${cell.bossName} baseline: outcome=${JSON.stringify(cell.outcomes)}; ` +
       `rounds=${format(cell.rounds.average)}; damage=${format(cell.damageTaken.average)}; ` +
-      `actions=${format(cell.bossActionCount.average)}; ` +
+      `actions=${format(cell.bossActionCount.average)}; normal=${format(cell.normalActionCount.average)}; normal lethal=${cell.normalLethalRuns}; recovery=${format(cell.recoveryActivations.average)}; ` +
       (cell.warningCount ? `warnings=${format(cell.warningCount.average)}; warning before death=${cell.warningBeforeDeathRuns}/${cell.deaths}; matching warning=${cell.deathsWithMatchingWarning}/${cell.deaths}; ` : "") +
       `spells=${format(cell.spellActionCount.average)}; status=${format(cell.statusActionCount.average)}; ` +
       `trial=${cell.trialBands.map(trial => `${trial.mainId}/${trial.subId}`).join(",")}; ` +
@@ -874,7 +889,7 @@ export function buildSummary(report) {
       `damage by action=${JSON.stringify(Object.fromEntries(Object.entries(cell.damageByAction).map(([action, values]) => [action, { totalDamagePerRun: values.totalDamagePerRun.average, defended: values.defendedDamagePerRun.average, undefended: values.undefendedDamagePerRun.average }])))}; ` +
       `special defended/undefended=${JSON.stringify(cell.specialDamageByDefense)}; ` +
       `guardian-pressure overlay=${JSON.stringify(cell.guardianPressureDamage)}; ` +
-      (cell.pairedComparison ? `candidate=${JSON.stringify({ outcomes: cell.arms.candidate.outcomes, survivalRate: cell.arms.candidate.survivalRate, deaths: cell.arms.candidate.deaths, lethalActions: cell.arms.candidate.lethalActions, rounds: cell.arms.candidate.rounds, damageTaken: cell.arms.candidate.damageTaken, guard: cell.arms.candidate.guard, damageByAction: cell.arms.candidate.damageByAction, queuedSpecialCorrespondence: cell.arms.candidate.queuedSpecialCorrespondence, specialDamageByDefense: cell.arms.candidate.specialDamageByDefense, guardianPressureDamage: cell.arms.candidate.guardianPressureDamage })}; paired delta=${JSON.stringify(cell.pairedComparison)}; ` : "") +
+      (cell.pairedComparison ? `candidate=${JSON.stringify({ outcomes: cell.arms.candidate.outcomes, survivalRate: cell.arms.candidate.survivalRate, deaths: cell.arms.candidate.deaths, lethalActions: cell.arms.candidate.lethalActions, normalActionCount: cell.arms.candidate.normalActionCount, normalLethalRuns: cell.arms.candidate.normalLethalRuns, recoveryActivations: cell.arms.candidate.recoveryActivations, rounds: cell.arms.candidate.rounds, damageTaken: cell.arms.candidate.damageTaken, guard: cell.arms.candidate.guard, damageByAction: cell.arms.candidate.damageByAction, queuedSpecialCorrespondence: cell.arms.candidate.queuedSpecialCorrespondence, specialDamageByDefense: cell.arms.candidate.specialDamageByDefense, guardianPressureDamage: cell.arms.candidate.guardianPressureDamage })}; paired delta=${JSON.stringify(cell.pairedComparison)}; ` : "") +
       `confidence=${cell.confidence}`
     );
   }
@@ -887,7 +902,7 @@ export function buildSummary(report) {
     "- B10: guardAdjacent is inventory-only in a fixed single-boss encounter; adjacent-Guard redirect is not exercised.",
     "- B15: `isPoisonous=true` keeps the legacy poison fallback active on the production Boss path; template-defined `poison_payoff` is inactive there. Runtime status observation uses existing `statusSources`.",
     "- B20/B25: production MADALTO path and Guard mitigation are observed when the fixed action schedule reaches them.",
-    "- B30 candidate Guards only for existing `tiltowaitQueued === true`; breath/MADALTO-only queue leaves baseline plan intact. Warning text is not inspected.",
+    "- B30 candidate Guards only for existing `tiltowaitQueued === true`; only a fully Guarded TILTOWAIT resolution queues one recovery replacement for the next plain-normal slot. Breath/MADALTO and warning text do not activate it.",
     "- Queue→Guard→special correspondence uses the queued state captured at player action selection and the existing same-round enemy action record.",
     "- B30 deaths are attributed from the production terminal death log and lethal enemy action event; action damage uses existing round diagnostics.",
     "- Guardian-pressure damage is a separate overlay: added trait/behavior actions, summoned allies, pressure-linked status actions, and matching round-end status ticks; overlay can overlap action categories.",
@@ -898,7 +913,7 @@ export function buildSummary(report) {
     "## Scope and limits",
     "",
     "- Production `runEncounter` / `runCombatRoundCalculation` path is used.",
-    "- No production combat, boss, enemy, loot, UI, save, tuning, or telemetry change.",
+    "- No production damage, boss stats, other enemy, loot, UI, save, or telemetry change; recovery requires the explicit B30 diagnostic policy.",
     "- This is a fixed-fixture diagnostic; it does not estimate full-run survival or equalize win rates.",
     "",
     "## Provenance",

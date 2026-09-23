@@ -4898,6 +4898,7 @@ function createSimulationState(
       measurementInitiative: scenario.measurementInitiative || null,
       measurementCombatPlan: scenario.measurementCombatPlan || null,
       measurementGuardTiming: scenario.measurementGuardTiming || null,
+      b30TiltowaitGuardRecoveryCandidate: scenario.b30TiltowaitGuardRecoveryCandidate === true,
       measurementCombatTier: scenario.measurementCombatTier || null,
       measurementPlayerWeaponCandidate: scenario.measurementPlayerWeaponCandidate || null,
       measurementBuffPhysicalDefMitigation:
