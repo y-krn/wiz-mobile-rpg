@@ -31,6 +31,12 @@ const productionB30First = await runMilestoneBossDiagnostic({
 const productionB30Second = await runMilestoneBossDiagnostic({
   runs: 1, seed: 1613, floor: 30, profile: "production-hp-wall", allowSmallRunCount: true
 });
+const productionAtkB30First = await runMilestoneBossDiagnostic({
+  runs: 1, seed: 1613, floor: 30, profile: "production-atk-pressure", allowSmallRunCount: true
+});
+const productionAtkB30Second = await runMilestoneBossDiagnostic({
+  runs: 1, seed: 1613, floor: 30, profile: "production-atk-pressure", allowSmallRunCount: true
+});
 const fullB30 = first.cells.find(cell => cell.floor === 30);
 
 function assertSameObservedSpecialDamage(cell, profile) {
@@ -55,8 +61,9 @@ function assertSameObservedSpecialDamage(cell, profile) {
 assert.deepEqual(first, second, "milestone boss smoke must be deterministic");
 assert.deepEqual(b30First, b30Second, "B30 diagnostic smoke must be deterministic");
 assert.deepEqual(productionB30First, productionB30Second, "production B30 HP wall smoke must be deterministic");
-assert.equal(RUNNER_VERSION, "issue1666-b30-production-hp-wall-v1");
-assert.equal(SCHEMA_VERSION, 11);
+assert.deepEqual(productionAtkB30First, productionAtkB30Second, "production B30 ATK pressure smoke must be deterministic");
+assert.equal(RUNNER_VERSION, "issue1668-b30-production-atk-pressure-v1");
+assert.equal(SCHEMA_VERSION, 12);
 assert.equal(first.runnerVersion, RUNNER_VERSION);
 assert.equal(first.measurementId, "milestone-boss-diagnostic");
 assert.deepEqual(first.configuration.depths, [5, 10, 15, 20, 25, 30]);
@@ -127,6 +134,42 @@ const productionSummary = buildSummary({
 });
 assert.equal(productionSummary.split("\n")[0], "# B30 production scaling HP wall diagnostic (#1666)");
 assert.match(productionSummary, /baseline HP=1842 \/ ATK=52 \/ DEF=25; candidate HP=640 \/ ATK=52 \/ DEF=25/);
+assert.equal(productionAtkB30First.measurementId, "b30-production-atk-pressure-diagnostic");
+assert.equal(productionAtkB30First.configuration.fixedEncounterScaling, "production scaleEnemyForDepth(..., { boss: true })");
+assert.deepEqual(productionAtkB30First.configuration.b30ExpectedStats, {
+  baseline: { hp: 640, atk: 52, def: 25 },
+  candidate: { hp: 640, atk: 26, def: 25 }
+});
+const productionAtkB30Cell = productionAtkB30First.cells[0];
+for (const [armName, expectedStats] of Object.entries(productionAtkB30First.configuration.b30ExpectedStats)) {
+  const arm = productionAtkB30Cell.arms[armName];
+  assert.equal(arm.endBossMaxHp.average, expectedStats.hp, `${armName} production B30 HP`);
+  assert.equal(arm.bossAtk.average, expectedStats.atk, `${armName} production B30 ATK`);
+  assert.equal(arm.bossDef.average, expectedStats.def, `${armName} production B30 DEF`);
+  assert.equal(arm.recoveryActivations.average, 1, `${armName} recovery opening`);
+  assert.ok(arm.executedFightRounds.average > 0, `${armName} opening Fight`);
+}
+assert.equal(productionAtkB30Cell.pairedComparison.recoveryActivationsDelta.average, 0);
+assert.match(productionAtkB30Cell.pairedComparison.pairing, /same worldSeed/);
+assertSameObservedSpecialDamage(productionAtkB30Cell, "production B30 ATK pressure");
+assert.deepEqual(
+  productionAtkB30Cell.arms.candidate.queuedSpecialCorrespondence,
+  productionAtkB30Cell.arms.baseline.queuedSpecialCorrespondence,
+  "production B30 special cycle must stay paired"
+);
+for (const armName of ["baseline", "candidate"]) {
+  const arm = productionAtkB30Cell.arms[armName];
+  for (const [special, observations] of Object.entries(arm.queuedSpecialCorrespondence)) {
+    assert.equal(observations.queuedTurns, observations.resolvedTurns,
+      `${armName} ${special} cycle resolves every queued special`);
+  }
+}
+const productionAtkSummary = buildSummary({
+  ...productionAtkB30First,
+  measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
+});
+assert.equal(productionAtkSummary.split("\n")[0], "# B30 production scaling ATK pressure diagnostic (#1668)");
+assert.match(productionAtkSummary, /baseline HP=640 \/ ATK=52 \/ DEF=25; candidate HP=640 \/ ATK=26 \/ DEF=25/);
 assert.equal(b30First.cells[0].arms.baseline.endBossHpRate.average,
   330 / 640);
 assert.ok(b30First.cells[0].arms.baseline.deathEndBossHp.average > 0);
@@ -216,7 +259,7 @@ const b30Summary = buildSummary({
   ...b30First,
   measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
 });
-assert.match(b30Summary, /schema: 11/);
+assert.match(b30Summary, /schema: 12/);
 assert.equal(b30Summary.split("\n")[0], "# B30 generic ATK scaling diagnostic (#1664)");
 assert.match(b30Summary, /39→26/);
 assert.match(b30Summary, /baseline boss remaining=/);
@@ -352,6 +395,14 @@ assert.deepEqual(overlapMetadata.map(pressure => ({
 
 assert.ok(MEASUREMENT_IDS.includes("milestone-boss-diagnostic"));
 assert.ok(MEASUREMENT_IDS.includes("b30-production-hp-wall-diagnostic"));
+assert.ok(MEASUREMENT_IDS.includes("b30-production-atk-pressure-diagnostic"));
+const productionAtkInvocation = resolveRunnerInvocation({
+  measurement: "b30-production-atk-pressure-diagnostic",
+  runType: "diagnostic",
+  purpose: "Issue 1668 production scaling ATK pressure smoke"
+});
+assert.ok(productionAtkInvocation.args.includes("--profile"));
+assert.ok(productionAtkInvocation.args.includes("production-atk-pressure"));
 const productionInvocation = resolveRunnerInvocation({
   measurement: "b30-production-hp-wall-diagnostic",
   runType: "diagnostic",
@@ -368,4 +419,4 @@ const invocation = resolveRunnerInvocation({
 assert.equal(invocation.runner, "scratch/measurements/milestone_boss_diagnostic.js");
 assert.ok(invocation.args.includes("--purpose"));
 
-console.log("[PASS] Issue #1666 production B30 HP wall and Issue #1664 ATK diagnostic");
+console.log("[PASS] Issue #1668 production B30 ATK pressure; Issue #1666 HP wall; Issue #1664 ATK diagnostic");

@@ -21,8 +21,8 @@ import { simulateRun } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1666-b30-production-hp-wall-v1";
-export const SCHEMA_VERSION = 11;
+export const RUNNER_VERSION = "issue1668-b30-production-atk-pressure-v1";
+export const SCHEMA_VERSION = 12;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1613;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -315,6 +315,8 @@ function createScenario(fixture, actionPlan = null, {
   b30HpScalingRemoved = false,
   b30AtkScalingRemoved = false,
   b30ProductionHpCandidate = false,
+  b30ProductionAtkCandidate = false,
+  b30ProductionAtkPressure = false,
   b30ProductionScaling = false
 } = {}) {
   const playerFixture = resolvePlayerFixture(fixture.floor);
@@ -343,12 +345,13 @@ function createScenario(fixture, actionPlan = null, {
     simDiagnosticLevel: "full",
     fleePolicy: "never",
     consumablesAtDeparture: "none",
-    ...(fixture.floor === 30 && (b30HpScalingRemoved || b30AtkScalingRemoved || b30ProductionHpCandidate) ? {
+    ...(fixture.floor === 30 && (b30HpScalingRemoved || b30AtkScalingRemoved || b30ProductionHpCandidate || b30ProductionAtkPressure) ? {
       bossOverride: {
         floor: 30,
-        ...(b30ProductionHpCandidate ? { hpMultiplier: 640 / 1842 } : {}),
+        ...(b30ProductionHpCandidate || b30ProductionAtkPressure ? { hpMultiplier: 640 / 1842 } : {}),
         ...(b30HpScalingRemoved ? { hpMultiplier: 0.5 } : {}),
-        ...(b30AtkScalingRemoved ? { atkMultiplier: 2 / 3 } : {})
+        ...(b30AtkScalingRemoved ? { atkMultiplier: 2 / 3 } : {}),
+        ...(b30ProductionAtkCandidate ? { atkMultiplier: 0.5 } : {})
       }
     } : {}),
     fixedCombat: {
@@ -726,6 +729,8 @@ function runBossArm({
   b30HpScalingRemoved = false,
   b30AtkScalingRemoved = false,
   b30ProductionHpCandidate = false,
+  b30ProductionAtkCandidate = false,
+  b30ProductionAtkPressure = false,
   b30ProductionScaling = false
 }) {
   const rows = [];
@@ -743,6 +748,8 @@ function runBossArm({
         b30HpScalingRemoved,
         b30AtkScalingRemoved,
         b30ProductionHpCandidate,
+        b30ProductionAtkCandidate,
+        b30ProductionAtkPressure,
         b30ProductionScaling
       }),
       workshop: { ranks: {} },
@@ -802,7 +809,7 @@ function pairedComparison(baseline, candidate) {
   };
 }
 
-function runBossCell({ fixture, runs, seed, dedicatedB30AtkPressure = false, dedicatedB30ProductionHpWall = false }) {
+function runBossCell({ fixture, runs, seed, dedicatedB30AtkPressure = false, dedicatedB30ProductionHpWall = false, dedicatedB30ProductionAtkPressure = false }) {
   const baseline = runBossArm({
     fixture,
     runs,
@@ -810,7 +817,9 @@ function runBossCell({ fixture, runs, seed, dedicatedB30AtkPressure = false, ded
     actionPlan: "tiltowait-queued-guard",
     b30GuardRecoveryCandidate: fixture.floor === 30,
     b30HpScalingRemoved: fixture.floor === 30 && dedicatedB30AtkPressure,
+    b30ProductionAtkPressure: fixture.floor === 30 && dedicatedB30ProductionAtkPressure,
     b30ProductionScaling: fixture.floor === 30 && dedicatedB30ProductionHpWall
+      || fixture.floor === 30 && dedicatedB30ProductionAtkPressure
   });
   const candidate = fixture.floor === 30
     ? runBossArm({
@@ -819,10 +828,12 @@ function runBossCell({ fixture, runs, seed, dedicatedB30AtkPressure = false, ded
       seed,
       actionPlan: "tiltowait-queued-guard",
       b30GuardRecoveryCandidate: true,
-      b30HpScalingRemoved: !dedicatedB30ProductionHpWall,
+      b30HpScalingRemoved: !dedicatedB30ProductionHpWall && !dedicatedB30ProductionAtkPressure,
       b30AtkScalingRemoved: dedicatedB30AtkPressure,
       b30ProductionHpCandidate: dedicatedB30ProductionHpWall,
-      b30ProductionScaling: dedicatedB30ProductionHpWall
+      b30ProductionAtkPressure: dedicatedB30ProductionAtkPressure,
+      b30ProductionAtkCandidate: dedicatedB30ProductionAtkPressure,
+      b30ProductionScaling: dedicatedB30ProductionHpWall || dedicatedB30ProductionAtkPressure
     })
     : null;
   return {
@@ -841,19 +852,25 @@ export async function runMilestoneBossDiagnostic({
 } = {}) {
   const normalizedRuns = positiveInteger(runs, "runs", allowSmallRunCount ? 1 : MIN_CONFIDENT_RUNS);
   const normalizedSeed = positiveInteger(seed, "seed");
-  if (!new Set(["default", "production-hp-wall"]).has(profile)) {
+  if (!new Set(["default", "production-hp-wall", "production-atk-pressure"]).has(profile)) {
     throw new Error(`unsupported milestone boss profile: ${profile}`);
   }
   if (profile === "production-hp-wall" && floor !== 30) {
     throw new Error("production-hp-wall profile requires floor 30");
   }
+  if (profile === "production-atk-pressure" && floor !== 30) {
+    throw new Error("production-atk-pressure profile requires floor 30");
+  }
+  const productionAtkPressure = profile === "production-atk-pressure";
   const fixtures = floor === null ? BOSS_FIXTURES : BOSS_FIXTURES.filter(fixture => fixture.floor === positiveInteger(floor, "floor"));
   if (!fixtures.length) throw new Error(`unsupported milestone boss floor: ${floor}`);
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
-    measurementId: profile === "production-hp-wall"
-      ? "b30-production-hp-wall-diagnostic"
+    measurementId: profile === "production-atk-pressure"
+      ? "b30-production-atk-pressure-diagnostic"
+      : profile === "production-hp-wall"
+        ? "b30-production-hp-wall-diagnostic"
       : floor === 30 ? "b30-atk-pressure-diagnostic" : "milestone-boss-diagnostic",
     evidenceScope: "diagnostic",
     confidencePolicy: {
@@ -874,6 +891,10 @@ export async function runMilestoneBossDiagnostic({
       ...(profile === "production-hp-wall" ? {
         fixedEncounterScaling: "production scaleEnemyForDepth(..., { boss: true })",
         b30ExpectedStats: { baseline: { hp: 1842, atk: 52, def: 25 }, candidate: { hp: 640, atk: 52, def: 25 } }
+      } : {}),
+      ...(productionAtkPressure ? {
+        fixedEncounterScaling: "production scaleEnemyForDepth(..., { boss: true })",
+        b30ExpectedStats: { baseline: { hp: 640, atk: 52, def: 25 }, candidate: { hp: 640, atk: 26, def: 25 } }
       } : {}),
       reflectPhysicalDiagnosticFreeze: REFLECT_PHYSICAL_DIAGNOSTIC_RATE,
       compositionFreeze: "single Phase 1 vanguard fixture; production Guard semantics; no Cartesian build sweep",
@@ -904,7 +925,8 @@ export async function runMilestoneBossDiagnostic({
       runs: normalizedRuns,
       seed: normalizedSeed,
       dedicatedB30AtkPressure: floor === 30 && profile === "default",
-      dedicatedB30ProductionHpWall: floor === 30 && profile === "production-hp-wall"
+      dedicatedB30ProductionHpWall: floor === 30 && profile === "production-hp-wall",
+      dedicatedB30ProductionAtkPressure: floor === 30 && productionAtkPressure
     }))
   };
 }
@@ -912,6 +934,7 @@ export async function runMilestoneBossDiagnostic({
 function buildReport(result, provenance, options) {
   const dedicatedB30AtkPressure = result.measurementId === "b30-atk-pressure-diagnostic";
   const dedicatedB30ProductionHpWall = result.measurementId === "b30-production-hp-wall-diagnostic";
+  const dedicatedB30ProductionAtkPressure = result.measurementId === "b30-production-atk-pressure-diagnostic";
   const environmentHash = printEnvSignatureBanner({
     runnerVersion: RUNNER_VERSION,
     schemaVersion: SCHEMA_VERSION,
@@ -919,7 +942,9 @@ function buildReport(result, provenance, options) {
     seed: result.configuration.seed,
     runs: result.configuration.runs,
     depths: result.configuration.depths
-  }, { label: dedicatedB30ProductionHpWall
+  }, { label: dedicatedB30ProductionAtkPressure
+      ? "issue1668 B30 production scaling ATK pressure diagnostic env"
+    : dedicatedB30ProductionHpWall
       ? "issue1666 B30 production scaling HP wall diagnostic env"
     : result.measurementId === "b30-atk-pressure-diagnostic"
       ? "issue1664 B30 generic ATK scaling diagnostic env"
@@ -944,12 +969,16 @@ function buildReport(result, provenance, options) {
     candidatePolicy: {
       scaling: dedicatedB30AtkPressure
         ? "Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0; both B30 arms use HP 640; candidate restores template ATK 26"
+        : dedicatedB30ProductionAtkPressure
+          ? "Production scaleEnemyForDepth(..., { boss: true }); both arms HP 640 / DEF 25; candidate changes only ATK 52→26"
         : dedicatedB30ProductionHpWall
           ? "Production scaleEnemyForDepth(..., { boss: true }); baseline HP 1842 / ATK 52 / DEF 25; candidate changes only HP to 640"
         : "Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0; B30 baseline HP 1280 / ATK 39; candidate HP 640 / ATK 39",
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load",
       actions: dedicatedB30AtkPressure
         ? "B30 baseline and candidate share the recovery opening + opening Fight policy from #1653; candidate removes only generic Tier ATK scaling"
+        : dedicatedB30ProductionAtkPressure
+          ? "B30 baseline and candidate share recovery opening + opening Fight; paired worldSeed, player policy, cycle, Guard, guardian pressure, and special damage unchanged"
         : dedicatedB30ProductionHpWall
           ? "B30 baseline and candidate share recovery opening + opening Fight; paired worldSeed, player policy, cycle, Guard, guardian pressure, and special damage unchanged"
         : "B30 baseline and candidate share the recovery opening + opening Fight policy from #1653; candidate removes only generic Tier HP scaling",
@@ -957,6 +986,8 @@ function buildReport(result, provenance, options) {
       behavior: "production boss template, production isBoss combat path, production boss action / warning / status / Guard resolution",
       status: dedicatedB30AtkPressure
         ? "diagnostic-only; both B30 arms apply the same 0.5 HP multiplier after Phase 2a measurement scaling; candidate also applies a 2/3 ATK multiplier; production monster data and production scaling remain unchanged"
+        : dedicatedB30ProductionAtkPressure
+          ? "diagnostic-only; both arms use production B30 scaling and the same HP 640 override; candidate alone applies ATK 0.5 to reach 26; production code/data/scaling remain unchanged"
         : dedicatedB30ProductionHpWall
           ? "diagnostic-only; production B30 boss scaling remains active in both arms; only candidate HP is reduced to 640; production code/data/scaling remain unchanged"
         : "diagnostic-only; only the B30 candidate applies a 0.5 HP multiplier after Phase 2a measurement scaling; production monster data and production scaling remain unchanged"
@@ -971,8 +1002,11 @@ function format(value) {
 export function buildSummary(report) {
   const dedicatedB30AtkPressure = report.measurementId === "b30-atk-pressure-diagnostic";
   const dedicatedB30ProductionHpWall = report.measurementId === "b30-production-hp-wall-diagnostic";
+  const dedicatedB30ProductionAtkPressure = report.measurementId === "b30-production-atk-pressure-diagnostic";
   const lines = [
-    dedicatedB30ProductionHpWall
+    dedicatedB30ProductionAtkPressure
+      ? "# B30 production scaling ATK pressure diagnostic (#1668)"
+      : dedicatedB30ProductionHpWall
       ? "# B30 production scaling HP wall diagnostic (#1666)"
       : dedicatedB30AtkPressure
       ? "# B30 generic ATK scaling diagnostic (#1664)"
@@ -983,11 +1017,13 @@ export function buildSummary(report) {
     `- runner: ${report.runnerVersion}; schema: ${report.schemaVersion}; source SHA: ${report.measurement.sourceCommit || "not recorded"}`,
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; depths=B${report.configuration.depths.join(", B")}`,
     `- player fixture: ${report.configuration.playerFixture.id}; ${report.configuration.playerFixture.weapon}/${report.configuration.playerFixture.armor}/${report.configuration.playerFixture.shield}; Guard=${report.configuration.playerFixture.guardTiming}; Load=${report.configuration.playerFixture.loadCandidateId}`,
-    dedicatedB30ProductionHpWall
+    dedicatedB30ProductionAtkPressure || dedicatedB30ProductionHpWall
       ? "- scaling: production `scaleEnemyForDepth(..., { boss: true })` in both arms"
       : "- scaling: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
     "- fixed boss encounter: production boss path with `isBoss=true`; no boss tuning or mechanic reimplementation",
-    dedicatedB30ProductionHpWall
+    dedicatedB30ProductionAtkPressure
+      ? "- B30 baseline HP=640 / ATK=52 / DEF=25; candidate HP=640 / ATK=26 / DEF=25. Only candidate ATK changes."
+      : dedicatedB30ProductionHpWall
       ? "- B30 baseline HP=1842 / ATK=52 / DEF=25; candidate HP=640 / ATK=52 / DEF=25. Only candidate HP changes."
       : dedicatedB30AtkPressure
       ? "- B30 baseline and candidate share recovery opening + opening Fight; both use HP 640, while candidate changes only ATK scaling (39→26)."
