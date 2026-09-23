@@ -379,8 +379,8 @@ const PROFILE_LIST = [
     defaults: { runs: 200, minimumRuns: 200, seed: 1613 }
   },
   {
-    id: "b30-hard-wall-diagnostic",
-    label: "B30 hard-wall cause diagnostic",
+    id: "b30-atk-pressure-diagnostic",
+    label: "B30 generic ATK scaling diagnostic",
     family: "milestone-boss",
     floor: 30,
     defaults: { runs: 200, minimumRuns: 200, seed: 1613 }

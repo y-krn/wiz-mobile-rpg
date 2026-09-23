@@ -141,7 +141,7 @@ const ROUTER_CONTRACTS = [
     override: { input: { runs: 201, seed: 1614 }, expected: { runs: 201, seed: 1614 } }
   },
   {
-    id: "b30-hard-wall-diagnostic",
+    id: "b30-atk-pressure-diagnostic",
     runner: "scratch/measurements/milestone_boss_diagnostic.js",
     adapter: "native-manifest",
     defaultRunType: "diagnostic",

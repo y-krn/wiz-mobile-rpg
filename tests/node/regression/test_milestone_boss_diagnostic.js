@@ -25,11 +25,31 @@ const first = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmall
 const second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, allowSmallRunCount: true });
 const b30First = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, floor: 30, allowSmallRunCount: true });
 const b30Second = await runMilestoneBossDiagnostic({ runs: 1, seed: 1613, floor: 30, allowSmallRunCount: true });
+const fullB30 = first.cells.find(cell => cell.floor === 30);
+
+function assertSameObservedSpecialDamage(cell, profile) {
+  for (const special of ["breath", "MADALTO", "TILTOWAIT"]) {
+    for (const defense of ["defendedDamagePerHit", "undefendedDamagePerHit"]) {
+      const baseline = cell.arms.baseline.specialDamageByDefense[special][defense];
+      const candidate = cell.arms.candidate.specialDamageByDefense[special][defense];
+      assert.equal(baseline.count, candidate.count, `${profile} ${special} ${defense} observation counts must match`);
+      if (baseline.count > 0) {
+        assert.notEqual(baseline.average, null, `${profile} ${special} ${defense} baseline must have an observed average`);
+        assert.notEqual(candidate.average, null, `${profile} ${special} ${defense} candidate must have an observed average`);
+        assert.equal(baseline.average, candidate.average, `${profile} ${special} ${defense} damage must stay unchanged`);
+      }
+    }
+  }
+  assert.ok(cell.arms.baseline.specialDamageByDefense.MADALTO.undefendedDamagePerHit.count > 0,
+    `${profile} must observe MADALTO damage`);
+  assert.ok(cell.arms.baseline.specialDamageByDefense.TILTOWAIT.defendedDamagePerHit.count > 0,
+    `${profile} must observe defended TILTOWAIT damage`);
+}
 
 assert.deepEqual(first, second, "milestone boss smoke must be deterministic");
 assert.deepEqual(b30First, b30Second, "B30 diagnostic smoke must be deterministic");
-assert.equal(RUNNER_VERSION, "issue1662-b30-hp-hard-wall-diagnostic-v1");
-assert.equal(SCHEMA_VERSION, 9);
+assert.equal(RUNNER_VERSION, "issue1664-b30-atk-pressure-diagnostic-v1");
+assert.equal(SCHEMA_VERSION, 10);
 assert.equal(first.runnerVersion, RUNNER_VERSION);
 assert.equal(first.measurementId, "milestone-boss-diagnostic");
 assert.deepEqual(first.configuration.depths, [5, 10, 15, 20, 25, 30]);
@@ -42,8 +62,19 @@ assert.deepEqual(first.configuration.playerFixture, {
 assert.equal(first.configuration.reflectPhysicalDiagnosticFreeze, REFLECT_PHYSICAL_DIAGNOSTIC_RATE);
 assert.equal(first.configuration.scaling, "HP = 1 + 0.20 × Tier; ATK = 1 + 0.10 × Tier; DEF = 1.0");
 assert.equal(first.cells.length, BOSS_FIXTURES.length);
+assert.equal(fullB30.arms.baseline.endBossMaxHp.average, 1280);
+assert.equal(fullB30.arms.baseline.bossAtk.average, 39);
+assert.equal(fullB30.arms.candidate.endBossMaxHp.average, 640);
+assert.equal(fullB30.arms.candidate.bossAtk.average, 39);
+for (const armName of ["baseline", "candidate"]) {
+  assert.ok(fullB30.arms[armName].executedFightRounds.average > 0,
+    `milestone-boss-diagnostic ${armName} must exercise opening Fight`);
+  assert.equal(fullB30.arms[armName].recoveryActivations.average, 1);
+}
+assert.equal(fullB30.pairedComparison.pairing.includes("same worldSeed"), true);
+assertSameObservedSpecialDamage(fullB30, "milestone-boss-diagnostic");
 assert.deepEqual(b30First.configuration.depths, [30]);
-assert.equal(b30First.measurementId, "b30-hard-wall-diagnostic");
+assert.equal(b30First.measurementId, "b30-atk-pressure-diagnostic");
 assert.equal(b30First.cells.length, 1);
 assert.equal(b30First.cells[0].runs, 1);
 assert.equal(b30First.cells[0].confidence, "runner-correctness-only");
@@ -59,30 +90,24 @@ for (const armName of ["baseline", "candidate"]) {
   assert.equal(arm.deathEndBossHp.count, arm.deaths);
   assert.equal(arm.deathEndBossHpRate.count, arm.deaths);
   assert.ok(Number.isFinite(arm.executedFightRounds.average));
+  assert.ok(arm.executedFightRounds.average > 0, `${armName} must exercise opening Fight`);
 }
 assert.equal(b30First.cells[0].arms.baseline.deaths, 1, "seed 1613 B30 smoke exercises death remaining HP summary");
-assert.equal(b30First.cells[0].arms.baseline.endBossHp.average, 970);
-assert.equal(b30First.cells[0].arms.baseline.endBossMaxHp.average, 1280);
-assert.equal(b30First.cells[0].arms.baseline.endBossHpRate.average, 970 / 1280);
+assert.equal(b30First.cells[0].arms.baseline.endBossHp.average, 330);
+assert.equal(b30First.cells[0].arms.baseline.endBossMaxHp.average, 640);
+assert.equal(b30First.cells[0].arms.baseline.bossAtk.average, 39);
+assert.equal(b30First.cells[0].arms.candidate.bossAtk.average, 26);
+assert.equal(b30First.cells[0].arms.candidate.endBossMaxHp.average, 640);
+assert.equal(b30First.cells[0].arms.baseline.endBossHpRate.average,
+  330 / 640);
 assert.ok(b30First.cells[0].arms.baseline.deathEndBossHp.average > 0);
 assert.ok(b30First.cells[0].arms.baseline.deathEndBossHpRate.average > 0);
 assert.equal(b30First.cells[0].arms.baseline.recoveryActivations.average, 1);
 assert.ok(b30First.cells[0].arms.candidate.recoveryActivations.average > 0);
 assert.equal(b30First.cells[0].arms.candidate.recoveryActivations.average, 1);
 assert.equal(b30First.cells[0].arms.candidate.endBossMaxHp.average, 640);
-assert.equal(b30First.cells[0].arms.candidate.endBossHp.average, 330);
-assert.equal(b30First.cells[0].arms.candidate.endBossHpRate.average, 330 / 640);
-for (const key of [
-  "roundsDelta",
-  "executedFightRoundsDelta",
-  "damageTakenDelta",
-  "normalActionCountDelta",
-  "recoveryActivationsDelta",
-  "guardianPressureDamageDelta"
-]) {
-  assert.equal(b30First.cells[0].pairedComparison[key].average, 0, `${key} must stay frozen in the seed 1613 smoke`);
-}
-assert.equal(b30First.cells[0].pairedComparison.endBossHpDelta.average, -640);
+assertSameObservedSpecialDamage(b30First.cells[0], "b30-atk-pressure-diagnostic");
+assert.equal(b30First.cells[0].pairedComparison.endBossHpDelta.count, 1);
 assert.equal(
   b30First.cells[0].arms.baseline.queuedSpecialCorrespondence.TILTOWAIT.guardedTurns,
   b30First.cells[0].arms.baseline.queuedSpecialCorrespondence.TILTOWAIT.queuedTurns
@@ -162,13 +187,20 @@ const b30Summary = buildSummary({
   ...b30First,
   measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
 });
-assert.match(b30Summary, /schema: 9/);
-assert.match(b30Summary, /1280→640/);
+assert.match(b30Summary, /schema: 10/);
+assert.equal(b30Summary.split("\n")[0], "# B30 generic ATK scaling diagnostic (#1664)");
+assert.match(b30Summary, /39→26/);
 assert.match(b30Summary, /baseline boss remaining=/);
-assert.match(b30Summary, /"maxHp":\{"count":1,"average":1280/);
+assert.match(b30Summary, /"maxHp":\{"count":1,"average":640/);
 assert.match(b30Summary, /"endBossMaxHp":\{"count":1,"average":640/);
 assert.match(b30Summary, /deathEndBossHp/);
 assert.match(b30Summary, /executedFightRoundsDelta/);
+const milestoneSummary = buildSummary({
+  ...first,
+  measurement: { sourceCommit: "test", productionPaths: [], environmentHash: "test" }
+});
+assert.match(milestoneSummary, /baseline HP=1280 \/ ATK=39, candidate HP=640 \/ ATK=39/);
+assert.equal(milestoneSummary.split("\n")[0], "# milestone Boss decision-pressure diagnostic (#1613)");
 
 assert.deepEqual(BOSS_FIXTURES.map(fixture => fixture.bossName), [
   "デーモンガード",
@@ -298,4 +330,4 @@ const invocation = resolveRunnerInvocation({
 assert.equal(invocation.runner, "scratch/measurements/milestone_boss_diagnostic.js");
 assert.ok(invocation.args.includes("--purpose"));
 
-console.log("[PASS] Issue #1662 B30 HP-scaling diagnostic and paired deltas");
+console.log("[PASS] Issue #1664 B30 ATK-scaling diagnostic and paired deltas");

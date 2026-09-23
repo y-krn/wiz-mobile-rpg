@@ -20,8 +20,8 @@ import { simulateRun } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1662-b30-hp-hard-wall-diagnostic-v1";
-export const SCHEMA_VERSION = 9;
+export const RUNNER_VERSION = "issue1664-b30-atk-pressure-diagnostic-v1";
+export const SCHEMA_VERSION = 10;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1613;
 export const MIN_CONFIDENT_RUNS = 30;
@@ -306,7 +306,8 @@ export function resolveWorldSeed({ seed, floor, runIndex }) {
 
 function createScenario(fixture, actionPlan = null, {
   b30GuardRecoveryCandidate = false,
-  b30GenericHpScalingRemoved = false
+  b30HpScalingRemoved = false,
+  b30AtkScalingRemoved = false
 } = {}) {
   const playerFixture = resolvePlayerFixture(fixture.floor);
   return {
@@ -334,7 +335,13 @@ function createScenario(fixture, actionPlan = null, {
     simDiagnosticLevel: "full",
     fleePolicy: "never",
     consumablesAtDeparture: "none",
-    ...(b30GenericHpScalingRemoved ? { bossOverride: { floor: 30, hpMultiplier: 0.5 } } : {}),
+    ...(fixture.floor === 30 && (b30HpScalingRemoved || b30AtkScalingRemoved) ? {
+      bossOverride: {
+        floor: 30,
+        ...(b30HpScalingRemoved ? { hpMultiplier: 0.5 } : {}),
+        ...(b30AtkScalingRemoved ? { atkMultiplier: 2 / 3 } : {})
+      }
+    } : {}),
     fixedCombat: {
       monsterNames: [fixture.bossName],
       isBoss: true,
@@ -351,6 +358,7 @@ function observeRun(result, fixture) {
   if (!encounter) throw new Error(`B${fixture.floor} missing production encounter diagnostics`);
   const rounds = encounter.rounds || [];
   const bossEndState = encounter.endEnemyHp?.find(monster => monster.name === fixture.bossName) || null;
+  const bossInitialState = encounter.monsters?.find(monster => monster.name === fixture.bossName) || null;
   const endBossHp = bossEndState?.hp ?? null;
   const endBossMaxHp = bossEndState?.maxHp ?? null;
   const endBossHpRate = Number.isFinite(endBossHp) && Number.isFinite(endBossMaxHp) && endBossMaxHp > 0
@@ -575,6 +583,7 @@ function observeRun(result, fixture) {
     endPlayerHp: encounter.hpAfter ?? null,
     endBossHp,
     endBossMaxHp,
+    bossAtk: bossInitialState?.atk ?? null,
     endBossHpRate,
     executedFightRounds: rounds.filter(round => round.action === "fight" && round.playerActionExecuted === true).length,
     trial: encounter.generatedTrial || null,
@@ -660,6 +669,7 @@ function summarizeRows(rows, fixture) {
     damageTaken: summarize(rows.map(row => row.damageTaken)),
     endBossHp: summarize(rows.map(row => row.endBossHp)),
     endBossMaxHp: summarize(rows.map(row => row.endBossMaxHp)),
+    bossAtk: summarize(rows.map(row => row.bossAtk)),
     endBossHpRate: summarize(rows.map(row => row.endBossHpRate)),
     deathEndBossHp: summarize(rows.filter(row => row.outcome === "death").map(row => row.endBossHp)),
     deathEndBossHpRate: summarize(rows.filter(row => row.outcome === "death").map(row => row.endBossHpRate)),
@@ -702,7 +712,8 @@ function runBossArm({
   seed,
   actionPlan,
   b30GuardRecoveryCandidate = false,
-  b30GenericHpScalingRemoved = false
+  b30HpScalingRemoved = false,
+  b30AtkScalingRemoved = false
 }) {
   const rows = [];
   for (let runIndex = 0; runIndex < runs; runIndex++) {
@@ -716,7 +727,8 @@ function runBossArm({
       scoringProfile: null,
       scenario: createScenario(fixture, actionPlan, {
         b30GuardRecoveryCandidate,
-        b30GenericHpScalingRemoved
+        b30HpScalingRemoved,
+        b30AtkScalingRemoved
       }),
       workshop: { ranks: {} },
       worldSeed: resolveWorldSeed({ seed, floor: fixture.floor, runIndex }),
@@ -775,13 +787,14 @@ function pairedComparison(baseline, candidate) {
   };
 }
 
-function runBossCell({ fixture, runs, seed }) {
+function runBossCell({ fixture, runs, seed, dedicatedB30AtkPressure = false }) {
   const baseline = runBossArm({
     fixture,
     runs,
     seed,
     actionPlan: "tiltowait-queued-guard",
-    b30GuardRecoveryCandidate: fixture.floor === 30
+    b30GuardRecoveryCandidate: fixture.floor === 30,
+    b30HpScalingRemoved: fixture.floor === 30 && dedicatedB30AtkPressure
   });
   const candidate = fixture.floor === 30
     ? runBossArm({
@@ -790,7 +803,8 @@ function runBossCell({ fixture, runs, seed }) {
       seed,
       actionPlan: "tiltowait-queued-guard",
       b30GuardRecoveryCandidate: true,
-      b30GenericHpScalingRemoved: true
+      b30HpScalingRemoved: true,
+      b30AtkScalingRemoved: dedicatedB30AtkPressure
     })
     : null;
   return {
@@ -813,7 +827,7 @@ export async function runMilestoneBossDiagnostic({
   return {
     schemaVersion: SCHEMA_VERSION,
     runnerVersion: RUNNER_VERSION,
-    measurementId: floor === 30 ? "b30-hard-wall-diagnostic" : "milestone-boss-diagnostic",
+    measurementId: floor === 30 ? "b30-atk-pressure-diagnostic" : "milestone-boss-diagnostic",
     evidenceScope: "diagnostic",
     confidencePolicy: {
       minimumConfidentRuns: MIN_CONFIDENT_RUNS,
@@ -854,11 +868,17 @@ export async function runMilestoneBossDiagnostic({
         "Heavy run; merge後 Actions N=200 is the bounded diagnostic"
       ]
     },
-    cells: fixtures.map(fixture => runBossCell({ fixture, runs: normalizedRuns, seed: normalizedSeed }))
+    cells: fixtures.map(fixture => runBossCell({
+      fixture,
+      runs: normalizedRuns,
+      seed: normalizedSeed,
+      dedicatedB30AtkPressure: floor === 30
+    }))
   };
 }
 
 function buildReport(result, provenance, options) {
+  const dedicatedB30AtkPressure = result.measurementId === "b30-atk-pressure-diagnostic";
   const environmentHash = printEnvSignatureBanner({
     runnerVersion: RUNNER_VERSION,
     schemaVersion: SCHEMA_VERSION,
@@ -866,8 +886,8 @@ function buildReport(result, provenance, options) {
     seed: result.configuration.seed,
     runs: result.configuration.runs,
     depths: result.configuration.depths
-  }, { label: result.measurementId === "b30-hard-wall-diagnostic"
-      ? "issue1662 B30 generic HP scaling diagnostic env"
+  }, { label: result.measurementId === "b30-atk-pressure-diagnostic"
+      ? "issue1664 B30 generic ATK scaling diagnostic env"
     : "issue1613 milestone boss diagnostic env" });
   return {
     ...result,
@@ -887,12 +907,18 @@ function buildReport(result, provenance, options) {
       environmentHash
     },
     candidatePolicy: {
-      scaling: "baseline Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0; B30 candidate restores template HP 640 after measurement scaling",
+      scaling: dedicatedB30AtkPressure
+        ? "Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0; both B30 arms use HP 640; candidate restores template ATK 26"
+        : "Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0; B30 baseline HP 1280 / ATK 39; candidate HP 640 / ATK 39",
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load",
-      actions: "B30 baseline and candidate share the recovery opening + opening Fight policy from #1653; candidate removes only generic Tier HP scaling",
+      actions: dedicatedB30AtkPressure
+        ? "B30 baseline and candidate share the recovery opening + opening Fight policy from #1653; candidate removes only generic Tier ATK scaling"
+        : "B30 baseline and candidate share the recovery opening + opening Fight policy from #1653; candidate removes only generic Tier HP scaling",
       reflectPhysical: "freeze reference 0.20; no milestone boss template declares reflectPhysical, so no synthetic reflection is applied",
       behavior: "production boss template, production isBoss combat path, production boss action / warning / status / Guard resolution",
-      status: "diagnostic-only; B30 candidate applies a 0.5 HP multiplier after Phase 2a measurement scaling to restore template HP 640; production monster data, production scaling, ATK, DEF, combat mechanics, policy, other enemies, loot, UI, and save unchanged"
+      status: dedicatedB30AtkPressure
+        ? "diagnostic-only; both B30 arms apply the same 0.5 HP multiplier after Phase 2a measurement scaling; candidate also applies a 2/3 ATK multiplier; production monster data and production scaling remain unchanged"
+        : "diagnostic-only; only the B30 candidate applies a 0.5 HP multiplier after Phase 2a measurement scaling; production monster data and production scaling remain unchanged"
     }
   };
 }
@@ -902,8 +928,11 @@ function format(value) {
 }
 
 export function buildSummary(report) {
+  const dedicatedB30AtkPressure = report.measurementId === "b30-atk-pressure-diagnostic";
   const lines = [
-    report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
+    dedicatedB30AtkPressure
+      ? "# B30 generic ATK scaling diagnostic (#1664)"
+      : report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
       ? "# B30 generic Tier HP scaling diagnostic (#1662)"
       : "# milestone Boss decision-pressure diagnostic (#1613)",
     "",
@@ -912,7 +941,9 @@ export function buildSummary(report) {
     `- player fixture: ${report.configuration.playerFixture.id}; ${report.configuration.playerFixture.weapon}/${report.configuration.playerFixture.armor}/${report.configuration.playerFixture.shield}; Guard=${report.configuration.playerFixture.guardTiming}; Load=${report.configuration.playerFixture.loadCandidateId}`,
     "- scaling: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
     "- fixed boss encounter: production boss path with `isBoss=true`; no boss tuning or mechanic reimplementation",
-    "- B30 baseline and candidate share recovery opening + opening Fight; candidate changes only generic Tier HP scaling (1280→640).",
+    dedicatedB30AtkPressure
+      ? "- B30 baseline and candidate share recovery opening + opening Fight; both use HP 640, while candidate changes only ATK scaling (39→26)."
+      : "- B30 baseline and candidate share recovery opening + opening Fight; baseline HP=1280 / ATK=39, candidate HP=640 / ATK=39.",
     ""
   ];
   for (const cell of report.cells) {
@@ -930,7 +961,7 @@ export function buildSummary(report) {
       `damage by action=${JSON.stringify(Object.fromEntries(Object.entries(cell.damageByAction).map(([action, values]) => [action, { totalDamagePerRun: values.totalDamagePerRun.average, defended: values.defendedDamagePerRun.average, undefended: values.undefendedDamagePerRun.average }])))}; ` +
       `special defended/undefended=${JSON.stringify(cell.specialDamageByDefense)}; ` +
       `guardian-pressure overlay=${JSON.stringify(cell.guardianPressureDamage)}; ` +
-      (cell.pairedComparison ? `baseline boss remaining=${JSON.stringify({ hp: cell.arms.baseline.endBossHp, maxHp: cell.arms.baseline.endBossMaxHp, rate: cell.arms.baseline.endBossHpRate, deathHp: cell.arms.baseline.deathEndBossHp, deathRate: cell.arms.baseline.deathEndBossHpRate, executedFightRounds: cell.arms.baseline.executedFightRounds })}; candidate=${JSON.stringify({ outcomes: cell.arms.candidate.outcomes, survivalRate: cell.arms.candidate.survivalRate, deaths: cell.arms.candidate.deaths, lethalActions: cell.arms.candidate.lethalActions, normalActionCount: cell.arms.candidate.normalActionCount, normalLethalRuns: cell.arms.candidate.normalLethalRuns, recoveryActivations: cell.arms.candidate.recoveryActivations, rounds: cell.arms.candidate.rounds, damageTaken: cell.arms.candidate.damageTaken, endBossHp: cell.arms.candidate.endBossHp, endBossMaxHp: cell.arms.candidate.endBossMaxHp, endBossHpRate: cell.arms.candidate.endBossHpRate, deathEndBossHp: cell.arms.candidate.deathEndBossHp, deathEndBossHpRate: cell.arms.candidate.deathEndBossHpRate, executedFightRounds: cell.arms.candidate.executedFightRounds, guard: cell.arms.candidate.guard, damageByAction: cell.arms.candidate.damageByAction, queuedSpecialCorrespondence: cell.arms.candidate.queuedSpecialCorrespondence, specialDamageByDefense: cell.arms.candidate.specialDamageByDefense, guardianPressureDamage: cell.arms.candidate.guardianPressureDamage })}; paired delta=${JSON.stringify(cell.pairedComparison)}; ` : "") +
+      (cell.pairedComparison ? `baseline boss remaining=${JSON.stringify({ hp: cell.arms.baseline.endBossHp, maxHp: cell.arms.baseline.endBossMaxHp, atk: cell.arms.baseline.bossAtk, rate: cell.arms.baseline.endBossHpRate, deathHp: cell.arms.baseline.deathEndBossHp, deathRate: cell.arms.baseline.deathEndBossHpRate, executedFightRounds: cell.arms.baseline.executedFightRounds })}; candidate=${JSON.stringify({ outcomes: cell.arms.candidate.outcomes, survivalRate: cell.arms.candidate.survivalRate, deaths: cell.arms.candidate.deaths, lethalActions: cell.arms.candidate.lethalActions, normalActionCount: cell.arms.candidate.normalActionCount, normalLethalRuns: cell.arms.candidate.normalLethalRuns, recoveryActivations: cell.arms.candidate.recoveryActivations, rounds: cell.arms.candidate.rounds, damageTaken: cell.arms.candidate.damageTaken, endBossHp: cell.arms.candidate.endBossHp, endBossMaxHp: cell.arms.candidate.endBossMaxHp, bossAtk: cell.arms.candidate.bossAtk, endBossHpRate: cell.arms.candidate.endBossHpRate, deathEndBossHp: cell.arms.candidate.deathEndBossHp, deathEndBossHpRate: cell.arms.candidate.deathEndBossHpRate, executedFightRounds: cell.arms.candidate.executedFightRounds, guard: cell.arms.candidate.guard, damageByAction: cell.arms.candidate.damageByAction, queuedSpecialCorrespondence: cell.arms.candidate.queuedSpecialCorrespondence, specialDamageByDefense: cell.arms.candidate.specialDamageByDefense, guardianPressureDamage: cell.arms.candidate.guardianPressureDamage })}; paired delta=${JSON.stringify(cell.pairedComparison)}; ` : "") +
       `confidence=${cell.confidence}`
     );
   }
