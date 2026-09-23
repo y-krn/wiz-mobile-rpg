@@ -59,15 +59,17 @@ export const NAMED_RULES = Object.freeze({
   dragon_scale: Object.freeze({ id: "dragon_scale", baseId: "heavyArmor" })
 });
 
-// Adopted Phase 0 vocabulary only. Values, rarity composition, and production
-// eligibility belong to a later vNext implementation phase.
+// Support vocabulary from the Phase 3a production audit. Values, rarity
+// composition, and production eligibility remain future implementation work.
 export const VNEXT_SUPPORT_IDS = Object.freeze([
-  "hp", "mp",
-  "spellGuard", "statusResistance", "escapeChance",
-  "trapBonus", "trapGuard", "treasureSense", "arcaneSense", "hearRange", "traceRead",
-  "poisonAtk", "bleedingAtk", "followUp", "firstStrike", "firstStrikeFollowUp",
-  "fullHpDamage", "lowHpDamage", "highHpTargetDamage",
-  "killHeal", "followUpMp", "hitFlinch", "stairsHeal",
+  "hp", "mp", "def",
+  "spellGuard", "statusResistance", "escapeChance", "trapBonus", "trapGuard",
+  "treasureSense", "arcaneSense", "hearRange", "traceRead", "followUp",
+  "arcane", "devotion", "guardian", "firstStrike", "physicalAccuracy", "spellAccuracy",
+  "longFightDamage", "frontlineGuard", "rearEvasion", "fullHpDamage", "openingAttack",
+  "firstStrikeDefense", "lowHpDamage", "highHpTargetDamage", "killHeal", "followUpMp",
+  "hitFlinch", "poisonAtk", "bleedingAtk", "stairsHeal", "firstStrikeFollowUp",
+  "identifyDiscount", "materialFind", "contractReward"
 ]);
 
 export const VNEXT_SUPPORTS = Object.freeze(Object.fromEntries(
@@ -77,15 +79,66 @@ export const VNEXT_SUPPORTS = Object.freeze(Object.fromEntries(
 // Candidate vocabulary is intentionally separate from the adopted Phase 0
 // vocabulary. Adoption requires the later Support/Core boundary decision.
 export const VNEXT_SUPPORT_CANDIDATE_IDS = Object.freeze([
-  "poisonWard", "physicalAccuracy", "spellAccuracy",
-  "identifyDiscount", "materialFind", "victoryMaterial", "contractReward",
   "guardCounter", "guardFortify", "guardRuneBoost", "attackRuneBoost", "runeAttackBoost",
-  "longFightDamage", "longFightDefense"
+  "longFightDefense"
 ]);
 
 export const VNEXT_SUPPORT_CANDIDATES = Object.freeze(Object.fromEntries(
   VNEXT_SUPPORT_CANDIDATE_IDS.map(id => [id, Object.freeze({ id })])
 ));
+
+// Production inventory review for Equipment vNext Phase 3a. Design data only:
+// keep this module disconnected from generation, affix calculation, combat,
+// exploration, and economy runtime paths.
+export const VNEXT_SUPPORT_AUDIT = Object.freeze({
+  atk: { productionId: "atk", disposition: "retire", reasonCode: "raw_atk_vertical_upgrade", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js"] },
+  def: { productionId: "def", disposition: "keep", reasonCode: "small_defensive_filler", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js"] },
+  hp: { productionId: "hp", disposition: "keep", reasonCode: "resource_capacity_filler", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js"] },
+  mp: { productionId: "mp", disposition: "keep", reasonCode: "resource_capacity_filler", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js"] },
+  antiUndead: { productionId: "antiUndead", disposition: "retire", reasonCode: "enemy_tag_entry_ticket", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  antiDragon: { productionId: "antiDragon", disposition: "retire", reasonCode: "enemy_tag_entry_ticket", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js", "src/combat_logic/damage.js"] },
+  antiDemon: { productionId: "antiDemon", disposition: "retire", reasonCode: "enemy_tag_entry_ticket", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  poisonWard: { productionId: "poisonWard", disposition: "retire", targetId: "statusResistance", reasonCode: "narrow_resistance_duplicate", currentStatus: "duplicate", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js", "src/chest.js"] },
+  spellGuard: { productionId: "spellGuard", disposition: "keep", reasonCode: "incoming_spell_mitigation", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/damage.js"] },
+  trapBonus: { productionId: "trapBonus", disposition: "keep", reasonCode: "trap_interaction_support", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js", "src/movement.js"] },
+  trapGuard: { productionId: "trapGuard", disposition: "keep", reasonCode: "trap_risk_mitigation", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/systems/traps.js", "src/chest.js"] },
+  treasureSense: { productionId: "treasureSense", disposition: "keep", reasonCode: "exploration_information", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js", "src/chest/chest_domain.ts"] },
+  arcaneSense: { productionId: "arcaneSense", disposition: "keep", reasonCode: "secret_route_information", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/menu/explore_actions.js", "src/state/renderer_view.ts"] },
+  hearRange: { productionId: "hearRange", disposition: "keep", reasonCode: "exploration_information", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/movement.js"] },
+  traceRead: { productionId: "traceRead", disposition: "keep", reasonCode: "exploration_information", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/systems/traps.js"] },
+  followUp: { productionId: "followUp", disposition: "keep", reasonCode: "extra_action_chance", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
+  spellPower: { productionId: "spellPower", disposition: "retire", reasonCode: "broad_spell_power_overlaps_specializations", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js", "src/systems/spell_effects.js"] },
+  arcane: { productionId: "arcane", disposition: "keep", reasonCode: "offensive_spell_specialization", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js", "src/systems/spell_effects.js"] },
+  devotion: { productionId: "devotion", disposition: "keep", reasonCode: "healing_spell_specialization", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js", "src/systems/spell_effects.js"] },
+  guardian: { productionId: "guardian", disposition: "keep", reasonCode: "low_health_defense_condition", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/damage.js"] },
+  firstStrike: { productionId: "firstStrike", disposition: "keep", reasonCode: "initiative_condition", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/turn_order.js"] },
+  physicalAccuracy: { productionId: "physicalAccuracy", disposition: "keep", reasonCode: "evasion_answer", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js"] },
+  escapeChance: { productionId: "escapeChance", disposition: "keep", reasonCode: "retreat_success_support", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/item_resolution.js"] },
+  deepAssault: { productionId: "deepAssault", disposition: "change", targetId: "longFightDamage", reasonCode: "depth_gate_is_not_combat_condition", currentStatus: "legacy", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  frontGuard: { productionId: "frontGuard", disposition: "change", targetId: "frontlineGuard", reasonCode: "position_condition_needs_role_semantic", currentStatus: "legacy", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
+  rearEvasion: { productionId: "rearEvasion", disposition: "keep", reasonCode: "formation_position_defense", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
+  fullHpDamage: { productionId: "fullHpDamage", disposition: "keep", reasonCode: "high_health_damage_condition", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  firstTurnAttack: { productionId: "firstTurnAttack", disposition: "change", targetId: "openingAttack", reasonCode: "turn_index_is_legacy_condition", currentStatus: "legacy", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
+  antiBeast: { productionId: "antiBeast", disposition: "retire", reasonCode: "enemy_tag_entry_ticket", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  antiSpirit: { productionId: "antiSpirit", disposition: "retire", reasonCode: "enemy_tag_entry_ticket", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  firstStrikeDefense: { productionId: "firstStrikeDefense", disposition: "keep", reasonCode: "opening_defense_synergy", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
+  statusResistance: { productionId: "statusResistance", disposition: "keep", reasonCode: "broad_status_mitigation", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  spellAccuracy: { productionId: "spellAccuracy", disposition: "keep", reasonCode: "spell_hit_specialization", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  lowHpDamage: { productionId: "lowHpDamage", disposition: "keep", reasonCode: "low_health_damage_condition", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  highHpTargetDamage: { productionId: "highHpTargetDamage", disposition: "keep", reasonCode: "durable_target_condition", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  bossDamage: { productionId: "bossDamage", disposition: "retire", reasonCode: "boss_only_target_condition", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  killHeal: { productionId: "killHeal", disposition: "keep", reasonCode: "defeat_triggered_recovery", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/damage.js"] },
+  followUpMp: { productionId: "followUpMp", disposition: "keep", reasonCode: "action_resource_exchange", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
+  hitFlinch: { productionId: "hitFlinch", disposition: "keep", reasonCode: "received_hit_control_trigger", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/damage.js"] },
+  poisonAtk: { productionId: "poisonAtk", disposition: "keep", reasonCode: "status_application_trigger", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
+  bleedingAtk: { productionId: "bleedingAtk", disposition: "keep", reasonCode: "status_application_trigger", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
+  victoryMaterial: { productionId: "victoryMaterial", disposition: "retire", reasonCode: "duplicate_material_acquisition", currentStatus: "duplicate", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/rewards.js"] },
+  stairsHeal: { productionId: "stairsHeal", disposition: "keep", reasonCode: "exploration_progress_recovery", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/movement.js"] },
+  firstStrikeFollowUp: { productionId: "firstStrikeFollowUp", disposition: "keep", reasonCode: "opening_action_synergy", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  identifyDiscount: { productionId: "identifyDiscount", disposition: "keep", reasonCode: "equipment_identification_economy", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/systems/identification.ts"] },
+  materialFind: { productionId: "materialFind", disposition: "keep", reasonCode: "material_discovery_economy", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/rewards.js"] },
+  contractReward: { productionId: "contractReward", disposition: "keep", reasonCode: "contract_progress_economy", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/rewards.js", "src/result.js"] }
+});
 
 export const VNEXT_CORE_IDS = Object.freeze([
   "blood_wand",
