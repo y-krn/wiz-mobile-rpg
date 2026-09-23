@@ -4897,6 +4897,8 @@ function createSimulationState(
       enemyHealPotionDropChance,
       measurementInitiative: scenario.measurementInitiative || null,
       measurementCombatPlan: scenario.measurementCombatPlan || null,
+      measurementCrushStrike: scenario.measurementCrushStrike === true,
+      measurementCrushStrikeResponse: scenario.measurementCrushStrikeResponse || null,
       measurementGuardTiming: scenario.measurementGuardTiming || null,
       b30TiltowaitGuardRecoveryCandidate: scenario.b30TiltowaitGuardRecoveryCandidate === true,
       measurementCombatTier: scenario.measurementCombatTier || null,
@@ -8016,6 +8018,14 @@ export function selectCombatAction(state, metrics) {
   );
   const lowestHpIdx = statusTargetIdx >= 0 ? statusTargetIdx : getLowestHpEnemyIndex(monsters);
 
+  if (
+    state.simPolicy.measurementCrushStrike === true &&
+    state.simPolicy.measurementCrushStrikeResponse === "read" &&
+    monsters.some(monster => monster.measurementCrushStrikeQueued?.targetIdx === 0)
+  ) {
+    return { type: "defend", actorIdx: 0 };
+  }
+
   // Diagnostic-only fixed player candidate. The action plan mirrors the
   // Phase 1 freeze candidate; production combat values remain untouched.
   if (
@@ -9016,6 +9026,8 @@ function getLoggedIncomingDamageEvents(logQueue, characterName, groupId = null) 
     while ((match = damagePattern.exec(messages)) !== null) {
       const source = messages.includes("反射")
         ? "reflectPhysical"
+        : messages.includes("砕岩打ち")
+          ? "crushStrike"
         : messages.includes("反撃")
           ? "counterSpell"
           : messages.includes("毒のダメージ")
@@ -9064,6 +9076,7 @@ function buildEnemyActionDetails(roundResult, roundNumber, characterName) {
         traits: [...(observation.monsterTraits || [])],
         tags: [...(observation.monsterTags || [])],
         extraMultiAction: observation.extraMultiAction === true,
+        measurementCrushStrike: observation.measurementCrushStrike || null,
         actionNames,
         conditions,
         traitSources: [...new Set([

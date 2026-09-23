@@ -21,13 +21,13 @@ import { simulateRun } from "../simulations/sim_depth_material_ev.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "issue1670-milestone-boss-profile-cleanup-v1";
-export const SCHEMA_VERSION = 12;
+export const RUNNER_VERSION = "issue1672-b10-crush-strike-diagnostic-v1";
+export const SCHEMA_VERSION = 13;
 export const DEFAULT_RUNS = 200;
 export const DEFAULT_SEED = 1613;
 export const MIN_CONFIDENT_RUNS = 30;
 export const REFLECT_PHYSICAL_DIAGNOSTIC_RATE = 0.20;
-const B30_ACTION_CATEGORIES = Object.freeze(["normal", "breath", "MADALTO", "TILTOWAIT", "guardian-pressure", "round-end-status", "other"]);
+const B30_ACTION_CATEGORIES = Object.freeze(["normal", "breath", "MADALTO", "TILTOWAIT", "砕岩打ち", "guardian-pressure", "round-end-status", "other"]);
 const PRESSURE_STATUS_BEHAVIOR = Object.freeze({
   isPoisonous: "poison",
   isParalyzing: "paralyze",
@@ -313,13 +313,16 @@ export function resolveWorldSeed({ seed, floor, runIndex }) {
 function createScenario(fixture, actionPlan = null, {
   b30GuardRecoveryCandidate = false,
   b30HpScalingRemoved = false,
-  b30AtkScalingRemoved = false
+  b30AtkScalingRemoved = false,
+  crushStrikeResponse = null
 } = {}) {
   const playerFixture = resolvePlayerFixture(fixture.floor);
   return {
     startingKit: playerFixture.startingKit,
     hpBaseBonus: playerFixture.maxHp - 20,
     measurementCombatPlan: actionPlan || playerFixture.actionPlan,
+    measurementCrushStrike: fixture.floor === 10 && crushStrikeResponse !== null,
+    measurementCrushStrikeResponse: crushStrikeResponse,
     measurementGuardTiming: playerFixture.guardTiming,
     b30TiltowaitGuardRecoveryCandidate: b30GuardRecoveryCandidate,
     measurementCombatTier: playerFixture.combatTier,
@@ -411,7 +414,10 @@ function observeRun(result, fixture) {
           ? "MADALTO"
           : action.actionNames.includes("炎の息")
             ? "breath"
-            : event.source === "normal" ? "normal" : "other";
+            : action.actionNames.includes("砕岩打ち")
+              ? "砕岩打ち"
+            : event.source === "crushStrike" ? "砕岩打ち"
+              : event.source === "normal" ? "normal" : "other";
     return {
       category,
       actionName: action.actionNames.join("+") || "通常攻撃",
@@ -522,6 +528,13 @@ function observeRun(result, fixture) {
     statusPayoff: actionNames.filter(action => ["毒喰らい", "目眩まし狙撃"].includes(action)).length,
     customActionCount: customActionObservations.length + countLogs(logs, /装甲が砕けた/)
   };
+  const crushStrikeActions = enemyActions
+    .map(action => action.measurementCrushStrike)
+    .filter(Boolean)
+    .map(event => ({
+      ...event,
+      responseAction: rounds.find(round => round.round === event.round)?.action || null
+    }));
   const nonRawSignals = [
     spellActions.length,
     statusSources.length,
@@ -547,6 +560,14 @@ function observeRun(result, fixture) {
     rounds: rounds.length,
     damageTaken: result.combatDamageHp || 0,
     normalActionCount: actionNames.filter(action => action === "通常攻撃").length,
+    crushStrike: {
+      queued: crushStrikeActions.filter(event => event.phase === "queued").length,
+      resolved: crushStrikeActions.filter(event => event.phase === "resolved").length,
+      guarded: crushStrikeActions.filter(event => event.phase === "resolved" && event.guarded).length,
+      unguarded: crushStrikeActions.filter(event => event.phase === "resolved" && !event.guarded).length,
+      cooldownTurns: crushStrikeActions.filter(event => event.phase === "cooldown").length,
+      events: crushStrikeActions
+    },
     recoveryActivations: actionNames.filter(action => action === "Guard recovery").length,
     survival: Number(result.fixedCombatResult === "victory"),
     bossActionCount: enemyActions.length,
@@ -683,6 +704,14 @@ function summarizeRows(rows, fixture) {
     deathEndBossHpRate: summarize(rows.filter(row => row.outcome === "death").map(row => row.endBossHpRate)),
     executedFightRounds: summarize(rows.map(row => row.executedFightRounds)),
     normalActionCount: summarize(rows.map(row => row.normalActionCount)),
+    crushStrike: {
+      queued: rows.reduce((sum, row) => sum + row.crushStrike.queued, 0),
+      resolved: rows.reduce((sum, row) => sum + row.crushStrike.resolved, 0),
+      guarded: rows.reduce((sum, row) => sum + row.crushStrike.guarded, 0),
+      unguarded: rows.reduce((sum, row) => sum + row.crushStrike.unguarded, 0),
+      cooldownTurns: rows.reduce((sum, row) => sum + row.crushStrike.cooldownTurns, 0),
+      events: rows.flatMap(row => row.crushStrike.events)
+    },
     normalLethalRuns: rows.filter(row => row.lethalAction === "通常攻撃").length,
     recoveryActivations: summarize(rows.map(row => row.recoveryActivations)),
     survivalRate: rows.reduce((sum, row) => sum + row.survival, 0) / rows.length,
@@ -714,14 +743,15 @@ function summarizeRows(rows, fixture) {
   };
 }
 
-function runBossArm({
+export function runBossArm({
   fixture,
   runs,
   seed,
   actionPlan,
   b30GuardRecoveryCandidate = false,
   b30HpScalingRemoved = false,
-  b30AtkScalingRemoved = false
+  b30AtkScalingRemoved = false,
+  crushStrikeResponse = null
 }) {
   const rows = [];
   for (let runIndex = 0; runIndex < runs; runIndex++) {
@@ -736,7 +766,8 @@ function runBossArm({
       scenario: createScenario(fixture, actionPlan, {
         b30GuardRecoveryCandidate,
         b30HpScalingRemoved,
-        b30AtkScalingRemoved
+        b30AtkScalingRemoved,
+        crushStrikeResponse
       }),
       workshop: { ranks: {} },
       worldSeed: resolveWorldSeed({ seed, floor: fixture.floor, runIndex }),
@@ -751,7 +782,7 @@ function runBossArm({
 function pairedComparison(baseline, candidate) {
   const delta = key => summarize(candidate.rows.map((row, index) => row[key] - baseline.rows[index][key]));
   const pairedOutcomes = countBy(candidate.rows.map((row, index) => `${baseline.rows[index].outcome}->${row.outcome}`));
-  const actionDamageDelta = Object.fromEntries(["normal", "breath", "MADALTO", "TILTOWAIT"].map(special => {
+  const actionDamageDelta = Object.fromEntries(["normal", "breath", "MADALTO", "TILTOWAIT", "砕岩打ち"].map(special => {
     const values = key => candidate.rows.map((row, index) => {
       const before = baseline.rows[index].damageByAction[special][key];
       const after = row.damageByAction[special][key];
@@ -796,6 +827,15 @@ function pairedComparison(baseline, candidate) {
 }
 
 function runBossCell({ fixture, runs, seed, dedicatedB30AtkPressure = false }) {
+  if (fixture.floor === 10) {
+    const unread = runBossArm({ fixture, runs, seed, crushStrikeResponse: "unread" });
+    const read = runBossArm({ fixture, runs, seed, crushStrikeResponse: "read" });
+    return {
+      ...unread.summary,
+      arms: { unread: unread.summary, read: read.summary },
+      pairedComparison: pairedComparison(unread, read)
+    };
+  }
   const baseline = runBossArm({
     fixture,
     runs,
@@ -867,6 +907,7 @@ export async function runMilestoneBossDiagnostic({
         "boss action count / normal action count / lethal action / recovery activations",
         ...(fixtures.some(fixture => fixture.floor !== 30) ? ["warning / telegraph count"] : []),
         ...(fixtures.some(fixture => fixture.floor === 30) ? ["queued-special Guard resolution correspondence"] : []),
+        ...(fixtures.some(fixture => fixture.floor === 10) ? ["B10砕岩打ち queue/resolve/Guard/debuff/fixed-cycle correspondence"] : []),
         "spell / status / special action count",
         "Guard mitigation observation",
         "production boss-specific mechanic activation"
@@ -918,15 +959,30 @@ function buildReport(result, provenance, options) {
       diagnosticPaths: [...DIAGNOSTIC_PATHS],
       environmentHash
     },
+    diagnosticMechanic: result.configuration.depths.includes(10)
+      ? {
+          id: "crush-strike",
+          displayName: "砕岩打ち",
+          enabledOnlyByMeasurementOptIn: true,
+          productionDefault: "no-op",
+          b10StoneGuardOnly: true,
+          pairedSeedPolicy: "same worldSeed; both arms enable the mechanic; read response is the only policy difference",
+          arms: ["unread", "read"]
+        }
+      : null,
     candidatePolicy: {
       scaling: "Phase 2a: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
       player: "measurement-only Phase 1 freeze candidate: vanguard=sword/mediumArmor/smallShield; declared Guard; capped half-step Load",
-      actions: dedicatedB30AtkPressure
+      actions: result.configuration.depths.includes(10)
+        ? "B10 unread and read arms share the existing action policy; only queued-target Guard response differs"
+        : dedicatedB30AtkPressure
         ? "B30 baseline and candidate share the recovery opening + opening Fight policy from #1653; candidate removes only generic Tier ATK scaling"
         : "B30 baseline and candidate share the recovery opening + opening Fight policy from #1653; candidate removes only generic Tier HP scaling",
       reflectPhysical: "freeze reference 0.20; no milestone boss template declares reflectPhysical, so no synthetic reflection is applied",
       behavior: "production boss template, production isBoss combat path, production boss action / warning / status / Guard resolution",
-      status: dedicatedB30AtkPressure
+      status: result.configuration.depths.includes(10)
+        ? "diagnostic-only; B10 Stone Guard candidate requires explicit measurement opt-in and production default remains no-op"
+        : dedicatedB30AtkPressure
         ? "diagnostic-only; both B30 arms apply the same 0.5 HP multiplier after Phase 2a measurement scaling; candidate also applies a 2/3 ATK multiplier; production monster data and production scaling remain unchanged"
         : "diagnostic-only; only the B30 candidate applies a 0.5 HP multiplier after Phase 2a measurement scaling; production monster data and production scaling remain unchanged"
     }
@@ -939,9 +995,12 @@ function format(value) {
 
 export function buildSummary(report) {
   const dedicatedB30AtkPressure = report.measurementId === "b30-atk-pressure-diagnostic";
+  const b10Only = report.configuration.depths.length === 1 && report.configuration.depths[0] === 10;
   const lines = [
     dedicatedB30AtkPressure
       ? "# B30 generic ATK scaling diagnostic (#1664)"
+      : b10Only
+        ? "# B10 砕岩打ち correctness diagnostic (#1672)"
       : report.configuration.depths.length === 1 && report.configuration.depths[0] === 30
       ? "# B30 generic Tier HP scaling diagnostic (#1662)"
       : "# milestone Boss decision-pressure diagnostic (#1613)",
@@ -950,15 +1009,23 @@ export function buildSummary(report) {
     `- N=${report.configuration.runs}; seed=${report.configuration.seed}; depths=B${report.configuration.depths.join(", B")}`,
     `- player fixture: ${report.configuration.playerFixture.id}; ${report.configuration.playerFixture.weapon}/${report.configuration.playerFixture.armor}/${report.configuration.playerFixture.shield}; Guard=${report.configuration.playerFixture.guardTiming}; Load=${report.configuration.playerFixture.loadCandidateId}`,
     "- scaling: HP 1 + 0.20 × Tier; ATK 1 + 0.10 × Tier; DEF 1.0",
-    "- fixed boss encounter: production boss path with `isBoss=true`; no boss tuning or mechanic reimplementation",
-    dedicatedB30AtkPressure
+    "- fixed boss encounter: production boss path with `isBoss=true`; diagnostic candidate enabled only by explicit B10 measurement opt-in",
+    b10Only
+      ? "- B10 unread/read arms share the frozen Phase 1 fixture, Phase 2a scaling, and existing policy; only response to the queued target differs."
+      : dedicatedB30AtkPressure
       ? "- B30 baseline and candidate share recovery opening + opening Fight; both use HP 640, while candidate changes only ATK scaling (39→26)."
       : "- B30 baseline and candidate share recovery opening + opening Fight; baseline HP=1280 / ATK=39, candidate HP=640 / ATK=39.",
     ""
   ];
+  const b10Cell = report.cells.find(cell => cell.floor === 10);
+  if (b10Cell) {
+    lines.push(
+      `- B10 paired 砕岩打ち: same seed=${report.configuration.seed}; both arms enabled; unread=${JSON.stringify(b10Cell.arms.unread.crushStrike)}; read=${JSON.stringify(b10Cell.arms.read.crushStrike)}; paired=${JSON.stringify(b10Cell.pairedComparison)}`
+    );
+  }
   for (const cell of report.cells) {
     lines.push(
-      `- B${cell.floor} ${cell.bossName} baseline: outcome=${JSON.stringify(cell.outcomes)}; ` +
+      `- B${cell.floor} ${cell.bossName} ${cell.floor === 10 ? "unread" : "baseline"}: outcome=${JSON.stringify(cell.outcomes)}; ` +
       `rounds=${format(cell.rounds.average)}; damage=${format(cell.damageTaken.average)}; ` +
       `actions=${format(cell.bossActionCount.average)}; normal=${format(cell.normalActionCount.average)}; normal lethal=${cell.normalLethalRuns}; recovery=${format(cell.recoveryActivations.average)}; ` +
       (cell.warningCount ? `warnings=${format(cell.warningCount.average)}; warning before death=${cell.warningBeforeDeathRuns}/${cell.deaths}; matching warning=${cell.deathsWithMatchingWarning}/${cell.deaths}; ` : "") +
@@ -971,7 +1038,7 @@ export function buildSummary(report) {
       `damage by action=${JSON.stringify(Object.fromEntries(Object.entries(cell.damageByAction).map(([action, values]) => [action, { totalDamagePerRun: values.totalDamagePerRun.average, defended: values.defendedDamagePerRun.average, undefended: values.undefendedDamagePerRun.average }])))}; ` +
       `special defended/undefended=${JSON.stringify(cell.specialDamageByDefense)}; ` +
       `guardian-pressure overlay=${JSON.stringify(cell.guardianPressureDamage)}; ` +
-      (cell.pairedComparison ? `baseline boss remaining=${JSON.stringify({ hp: cell.arms.baseline.endBossHp, maxHp: cell.arms.baseline.endBossMaxHp, atk: cell.arms.baseline.bossAtk, rate: cell.arms.baseline.endBossHpRate, deathHp: cell.arms.baseline.deathEndBossHp, deathRate: cell.arms.baseline.deathEndBossHpRate, executedFightRounds: cell.arms.baseline.executedFightRounds })}; candidate=${JSON.stringify({ outcomes: cell.arms.candidate.outcomes, survivalRate: cell.arms.candidate.survivalRate, deaths: cell.arms.candidate.deaths, lethalActions: cell.arms.candidate.lethalActions, normalActionCount: cell.arms.candidate.normalActionCount, normalLethalRuns: cell.arms.candidate.normalLethalRuns, recoveryActivations: cell.arms.candidate.recoveryActivations, rounds: cell.arms.candidate.rounds, damageTaken: cell.arms.candidate.damageTaken, endBossHp: cell.arms.candidate.endBossHp, endBossMaxHp: cell.arms.candidate.endBossMaxHp, bossAtk: cell.arms.candidate.bossAtk, endBossHpRate: cell.arms.candidate.endBossHpRate, deathEndBossHp: cell.arms.candidate.deathEndBossHp, deathEndBossHpRate: cell.arms.candidate.deathEndBossHpRate, executedFightRounds: cell.arms.candidate.executedFightRounds, guard: cell.arms.candidate.guard, damageByAction: cell.arms.candidate.damageByAction, queuedSpecialCorrespondence: cell.arms.candidate.queuedSpecialCorrespondence, specialDamageByDefense: cell.arms.candidate.specialDamageByDefense, guardianPressureDamage: cell.arms.candidate.guardianPressureDamage })}; paired delta=${JSON.stringify(cell.pairedComparison)}; ` : "") +
+      (cell.arms.baseline && cell.arms.candidate ? `baseline boss remaining=${JSON.stringify({ hp: cell.arms.baseline.endBossHp, maxHp: cell.arms.baseline.endBossMaxHp, atk: cell.arms.baseline.bossAtk, rate: cell.arms.baseline.endBossHpRate, deathHp: cell.arms.baseline.deathEndBossHp, deathRate: cell.arms.baseline.deathEndBossHpRate, executedFightRounds: cell.arms.baseline.executedFightRounds })}; candidate=${JSON.stringify({ outcomes: cell.arms.candidate.outcomes, survivalRate: cell.arms.candidate.survivalRate, deaths: cell.arms.candidate.deaths, lethalActions: cell.arms.candidate.lethalActions, normalActionCount: cell.arms.candidate.normalActionCount, normalLethalRuns: cell.arms.candidate.normalLethalRuns, recoveryActivations: cell.arms.candidate.recoveryActivations, rounds: cell.arms.candidate.rounds, damageTaken: cell.arms.candidate.damageTaken, endBossHp: cell.arms.candidate.endBossHp, endBossMaxHp: cell.arms.candidate.endBossMaxHp, bossAtk: cell.arms.candidate.bossAtk, endBossHpRate: cell.arms.candidate.endBossHpRate, deathEndBossHp: cell.arms.candidate.deathEndBossHp, deathEndBossHpRate: cell.arms.candidate.deathEndBossHpRate, executedFightRounds: cell.arms.candidate.executedFightRounds, guard: cell.arms.candidate.guard, damageByAction: cell.arms.candidate.damageByAction, queuedSpecialCorrespondence: cell.arms.candidate.queuedSpecialCorrespondence, specialDamageByDefense: cell.arms.candidate.specialDamageByDefense, guardianPressureDamage: cell.arms.candidate.guardianPressureDamage })}; paired delta=${JSON.stringify(cell.pairedComparison)}; ` : "") +
       `confidence=${cell.confidence}`
     );
   }
@@ -981,7 +1048,10 @@ export function buildSummary(report) {
     "",
     "- Inventory source: production biome boss mapping, monster templates, boss rules, boss actions, round status/spell/Guard path.",
     "- B5: production LAHALITO telegraph / guard-break / four-turn exposure; activation is measured from production logs.",
-    "- B10: guardAdjacent is inventory-only in a fixed single-boss encounter; adjacent-Guard redirect is not exercised.",
+    "- B10 production: guardAdjacent remains inventory-only in a fixed single-boss encounter; adjacent-Guard redirect is not exercised.",
+    "- B10 砕岩打ち: measurement-only opt-in on Stone Guard. It queues after a normal action, resolves on the next boss turn against the queued living target, then waits one normal turn before queuing again. An invalid/dead target clears the queue and falls through to the ordinary action.",
+    "- B10 read Guards the queued target only; unread has no crush-strike response. Both arms use identical Phase 1 fixture, Phase 2a scaling, stats, trial pressure, equipment, Load, and underlying action policy.",
+    "- Guard uses existing physical Guard mitigation and applies no tempDefDown. Unguarded resolution applies +2 tempDefDown, capped at 6.",
     "- B15: `isPoisonous=true` keeps the legacy poison fallback active on the production Boss path; template-defined `poison_payoff` is inactive there. Runtime status observation uses existing `statusSources`.",
     "- B20/B25: production MADALTO path and Guard mitigation are observed when the fixed action schedule reaches them.",
     "- B30 candidate Guards only for existing `tiltowaitQueued === true`; only a fully Guarded TILTOWAIT resolution queues one recovery replacement for the next plain-normal slot. Breath/MADALTO and warning text do not activate it.",
@@ -995,7 +1065,7 @@ export function buildSummary(report) {
     "## Scope and limits",
     "",
     "- Production `runEncounter` / `runCombatRoundCalculation` path is used.",
-    "- No production monster data/scaling, ATK, DEF, combat mechanics, player policy, other enemy, loot, UI, save, or telemetry change; candidate HP adjustment exists only in this measurement scenario.",
+    "- Production default remains no-op. No production monster data/scaling, B10 stats, Phase 1 / Phase 2a, trial pressure, equipment, Load, other Boss, loot, UI, or save change. Only explicit B10 measurement opt-in activates the diagnostic candidate.",
     "- This is a fixed-fixture diagnostic; it does not estimate full-run survival or equalize win rates.",
     "",
     "## Provenance",
@@ -1019,7 +1089,8 @@ function parseArgs(argv) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const runs = positiveInteger(options.runs || DEFAULT_RUNS, "runs", MIN_CONFIDENT_RUNS);
+  const allowSmallRunCount = options["allow-small-run-count"] === "true";
+  const runs = positiveInteger(options.runs || DEFAULT_RUNS, "runs", allowSmallRunCount ? 1 : MIN_CONFIDENT_RUNS);
   const seed = positiveInteger(options.seed || DEFAULT_SEED, "seed");
   if (!options.output || !options.summary) throw new Error("--output and --summary are required");
   const provenance = requireRunnerProvenance({
@@ -1027,7 +1098,7 @@ async function main() {
     measurementRunnerPaths: [...DIAGNOSTIC_PATHS]
   });
   const floor = options.floor ? positiveInteger(options.floor, "floor") : null;
-  const result = await runMilestoneBossDiagnostic({ runs, seed, floor, profile: options.profile || "default" });
+  const result = await runMilestoneBossDiagnostic({ runs, seed, floor, profile: options.profile || "default", allowSmallRunCount });
   const report = buildReport(result, provenance, options);
   fs.writeFileSync(resolve(options.output), `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(resolve(options.summary), buildSummary(report));
