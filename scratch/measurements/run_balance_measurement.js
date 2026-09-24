@@ -228,6 +228,15 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     retentionDays: 14,
     buildArgs: progressionEnemyCandidateArgs
   }),
+  "progression-exp-award-inventory": freezeFamily({
+    runner: "scratch/measurements/progression_exp_award_inventory.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: nativeMeasurementArgs
+  }),
   "equipment-vnext-combat": freezeFamily({
     runner: "scratch/measurements/equipment_vnext_combat_diagnostic.js",
     adapter: "native-manifest",
@@ -403,6 +412,12 @@ const PROFILE_LIST = [
     label: "Progression enemy Guard policy diagnostic",
     family: "progression-enemy-guard-policy",
     defaults: { runs: 200, minimumRuns: 200, seed: 1698 }
+  },
+  {
+    id: "progression-exp-award-inventory",
+    label: "Current production EXP award / prefunded Level inventory",
+    family: "progression-exp-award-inventory",
+    defaults: { runs: 200, minimumRuns: 200, seed: 1703 }
   },
   {
     id: "equipment-vnext-combat-diagnostic",

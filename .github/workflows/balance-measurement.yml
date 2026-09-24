@@ -17,6 +17,7 @@ on:
           - progression-enemy-defense-diagnostic
           - progression-enemy-hp-buffer-diagnostic
           - progression-enemy-guard-policy-diagnostic
+          - progression-exp-award-inventory
           - equipment-vnext-combat-diagnostic
           - depth-scaling-diagnostic
           - trait-scaling-diagnostic
@@ -236,7 +237,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
           )
           touch "$RUNNER_TEMP/balance-measurement.log"
-          if [ "${{ inputs.debug_raw }}" = "true" ]; then stage_args+=(--include-raw); fi
+          if [ "${{ inputs.debug_raw }}" = "true" ] || [ "${{ inputs.measurement }}" = "progression-exp-award-inventory" ]; then stage_args+=(--include-raw); fi
           node scripts/stage_evidence_artifact.js "${stage_args[@]}"
       - name: Upload final CI evidence artifact
         if: always() && steps.evidence.outcome == 'success'
@@ -325,7 +326,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
           )
           touch "$RUNNER_TEMP/balance-measurement.log"
-          if [ "${{ inputs.debug_raw }}" = "true" ]; then stage_args+=(--include-raw); fi
+          if [ "${{ inputs.debug_raw }}" = "true" ] || [ "${{ inputs.measurement }}" = "progression-exp-award-inventory" ]; then stage_args+=(--include-raw); fi
           node scripts/stage_evidence_artifact.js "${stage_args[@]}"
       - name: Upload CI evidence artifact
         if: always() && steps.evidence.outcome == 'success'
