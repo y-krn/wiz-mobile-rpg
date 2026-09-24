@@ -33,6 +33,7 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: "scratch/measurements/progression_enemy_defense_diagnostic.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/progression_enemy_hp_buffer_diagnostic.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/progression_enemy_guard_policy_diagnostic.js", lifecycle: "reusable", scope: "run" },
+  { path: "scratch/measurements/progression_exp_award_inventory.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/simulations/sim_parallel.js", lifecycle: "reusable", scope: "infra" },
   { path: "scratch/simulations/sim_parallel_worker.js", lifecycle: "reusable", scope: "infra" }
 ]);
