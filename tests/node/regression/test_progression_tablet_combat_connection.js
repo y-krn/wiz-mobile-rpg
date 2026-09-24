@@ -98,10 +98,12 @@ function runConnectedPath({ floor, candidate, order }) {
   try {
     function readTablet() {
       const before = snapshot(state.party[0]);
+      const runCombatExpBefore = state.currentRun.expGained;
       const grid = { children: [], appendChild(child) { this.children.push(child); } };
       renderEventTablet(grid, candidate ? { diagnosticContract: CONTRACT } : undefined);
       grid.children[0].trigger("click");
       const after = snapshot(state.party[0]);
+      const runCombatExpDelta = state.currentRun.expGained - runCombatExpBefore;
       trace.push({
         source: "tablet",
         expAwarded: after.exp - before.exp,
@@ -110,8 +112,9 @@ function runConnectedPath({ floor, candidate, order }) {
         levelUps: 0,
         naturalHpGrowth: 0,
         additionalRecovery: 0,
-        runCombatExpDelta: state.currentRun.expGained
+        runCombatExpDelta
       });
+      assert.equal(runCombatExpDelta, 0, "tablet Read does not change currentRun combat EXP");
       assert.equal(state.party[0].level, before.level, "tablet Read does not level immediately");
       assert.equal(state.map[0][0].event, null, "actual successful Read consumes the tablet");
     }
@@ -200,6 +203,9 @@ for (const floor of FLOORS) {
         row.trace.filter(event => event.source === "combat").reduce((sum, event) => sum + event.expAwarded, 0),
       "run EXP is combat-only");
       for (const event of row.trace) {
+        if (event.source === "tablet") {
+          assert.equal(event.runCombatExpDelta, 0, "tablet EXP never enters currentRun combat EXP");
+        }
         if (event.source === "combat" && event.levelUps > 0) {
           assert.equal(event.naturalHpGrowth, 5, "one level grants production natural HP growth");
           assert.ok(event.additionalRecovery >= 0 && event.additionalRecovery <= 5,
