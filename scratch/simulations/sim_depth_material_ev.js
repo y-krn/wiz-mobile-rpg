@@ -14068,7 +14068,33 @@ function finalizeTrapRouteDetour(metrics) {
   metrics.trapRoute.detourActive = false;
 }
 
-function advanceSimulationFloorRoute(route, generated, state, floor, metrics, step) {
+export function createTabletMovementEvent({ moved, enteredCell, x, y }) {
+  if (!moved || enteredCell?.event !== EVENT_TYPES.TABLET) return null;
+  return { x, y, type: EVENT_TYPES.TABLET, milestone: false };
+}
+
+export function recordTabletExposure(tabletExposure, { seriesId, runIndex, runSeed, floor, step, event }) {
+  if (event?.type !== EVENT_TYPES.TABLET) return null;
+  const key = `${floor}:${event.x},${event.y}`;
+  const firstEntry = !tabletExposure._reachedLocationKeys.has(key);
+  tabletExposure._reachedLocationKeys.add(key);
+  tabletExposure.uniqueReachedLocationCount += Number(firstEntry);
+  tabletExposure.revisitEntryCount += Number(!firstEntry);
+  const observation = {
+    run: { seriesId, runIndex, runSeed },
+    floor,
+    step,
+    x: event.x,
+    y: event.y,
+    firstEntry,
+    selection: "leave",
+    consumed: false
+  };
+  tabletExposure.encounters.push(observation);
+  return observation;
+}
+
+export function advanceSimulationFloorRoute(route, generated, state, floor, metrics, step) {
   if (!route.current || step < route.nextMoveAt) return { moved: false };
   route.nextMoveAt += EXPLORATION_FACTOR;
   if (
@@ -14190,10 +14216,16 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
   }
   const candidate = route.targets[route.targetIndex];
   const enteredCell = generated.grid[next.y]?.[next.x];
+  const enteredTablet = createTabletMovementEvent({
+    moved: true,
+    enteredCell,
+    x: next.x,
+    y: next.y
+  });
   const partialEvent = route.partialInformation && enteredCell?.event
     ? { x: next.x, y: next.y, type: enteredCell.event, milestone: enteredCell.milestoneFloor === floor }
     : null;
-  const event = partialEvent || (candidate && candidate.type !== "stairs-down" &&
+  const event = enteredTablet || partialEvent || (candidate && candidate.type !== "stairs-down" &&
     routeKey(candidate) === routeKey(next) &&
     !route.processedEventKeys.has(routeKey(candidate))
     ? candidate
@@ -16060,6 +16092,13 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     steps: metrics.steps,
     routePolicy: metrics.routePolicy,
+    tabletExposure: {
+      generatedCount: metrics.tabletExposure.generatedCount,
+      uniqueReachedLocationCount: metrics.tabletExposure.uniqueReachedLocationCount,
+      revisitEntryCount: metrics.tabletExposure.revisitEntryCount,
+      encounters: structuredClone(metrics.tabletExposure.encounters),
+      coverageGaps: [...metrics.tabletExposure.coverageGaps]
+    },
     equipmentUpdatePolicy: metrics.equipmentUpdatePolicy,
     paretoSafeOverrideCount: (metrics.equipmentTelemetry || [])
       .filter(event => event.type === "swap" && event.paretoSafeOverride).length,
@@ -16744,6 +16783,16 @@ export function simulateRun({
   );
   const metrics = {
     routePolicy: scenario.routePolicy || "omniscient_shortest_route",
+    tabletExposure: {
+      generatedCount: 0,
+      uniqueReachedLocationCount: 0,
+      revisitEntryCount: 0,
+      encounters: [],
+      coverageGaps: [
+        "secret-room tablet traversal is not modeled; generated positions are not counted as exposure"
+      ],
+      _reachedLocationKeys: new Set()
+    },
     equipmentUpdatePolicy: scenario.equipmentUpdatePolicy || CANONICAL_EQUIPMENT_UPDATE_POLICY_ID,
     mpConsumed: 0,
     exploredCells: 0,
@@ -17397,6 +17446,8 @@ export function simulateRun({
       );
     }
     const generated = getRunFloor({ runSeed, floor });
+    metrics.tabletExposure.generatedCount += generated.grid.flat()
+      .filter(cell => cell?.event === EVENT_TYPES.TABLET).length;
     const bossExitPolicy = scenario.routePolicy === "partial_information_exploration"
       ? { kind: "baseline", distance: null }
       : applyBossExitPolicy(generated, floor, scenario.bossExitPolicy || "shortcut-0");
@@ -17859,6 +17910,17 @@ export function simulateRun({
       };
 
       for (const specialEvent of encountersThisStep) {
+        if (specialEvent?.type === EVENT_TYPES.TABLET) {
+          recordTabletExposure(metrics.tabletExposure, {
+            seriesId,
+            runIndex,
+            runSeed,
+            floor,
+            step,
+            event: specialEvent
+          });
+          continue;
+        }
         const isBoss = specialEvent?.type === EVENT_TYPES.BOSS;
         const isMidboss = specialEvent?.type === "midboss";
         const isElite = specialEvent?.type === "elite";
