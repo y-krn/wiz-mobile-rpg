@@ -151,6 +151,32 @@ export function calculateCandidateAward({ floor, kind, monsters = [], encounterS
   };
 }
 
+export function allocateCandidateAward(totalAward, monsters) {
+  if (!Number.isSafeInteger(totalAward) || totalAward < 0) {
+    throw new Error("candidate total award must be a non-negative safe integer");
+  }
+  if (!Array.isArray(monsters) || monsters.length === 0 || monsters.some(monster =>
+    !Number.isFinite(monster.templateExp) || monster.templateExp < 0
+  )) {
+    throw new Error("candidate allocation requires non-negative template EXP for every initial enemy");
+  }
+  const templateExpTotal = monsters.reduce((sum, monster) => sum + monster.templateExp, 0);
+  if (!(templateExpTotal > 0)) throw new Error("candidate allocation requires positive total template EXP");
+  const rows = monsters.map((monster, initialIndex) => {
+    const exactShare = totalAward * monster.templateExp / templateExpTotal;
+    const floorShare = Math.floor(exactShare);
+    return { initialIndex, award: floorShare, remainder: exactShare - floorShare };
+  });
+  let remaining = totalAward - rows.reduce((sum, row) => sum + row.award, 0);
+  const remainderOrder = [...rows].sort((left, right) =>
+    right.remainder - left.remainder || left.initialIndex - right.initialIndex
+  );
+  for (let index = 0; index < remaining; index++) remainderOrder[index].award++;
+  remaining = totalAward - rows.reduce((sum, row) => sum + row.award, 0);
+  if (remaining !== 0) throw new Error("candidate allocation failed to preserve the total award");
+  return rows.map(row => row.award);
+}
+
 function pairRow(row, { boss = false } = {}) {
   const kind = classifyAwardKind({ boss, rare: row.rare });
   const candidate = calculateCandidateAward({

@@ -284,14 +284,36 @@ const b20Connected = simulateRun({
   seriesId: "phase4j-e3-b20-connected-n1",
   scenario: connectedScenario
 });
+const b20Production = simulateRun({
+  ...connectedRunOptions,
+  startFloor: 20,
+  targetDepth: 21,
+  worldSeed: "tablet-e2-20-2",
+  seriesId: "phase4j-e4-b20-production-n1",
+  scenario: { ...connectedScenario, expAwardCandidate: "production" }
+});
 const b20Read = b20Connected.tabletExposure.encounters.find(entry => entry.selection === "read");
 assert.equal(b20Read?.outcome, "success");
 assert.equal(b20Read?.expGained, 90);
 assert.equal(b20Read?.combatLedgerBefore, b20Read?.combatLedgerAfter);
-assert.equal(b20Connected.combatExpCandidate.observations.length, 0,
-  "B20's N=1 run has no eligible single ordinary victory to which B may be applied");
-assert.ok(b20Connected.combatExpCandidate.coverageGaps["initial-encounter-size-not-one"] > 0,
-  "B20 multi-enemy encounter is explicitly recorded as an unsupported coverage gap");
+const b20Combat = b20Connected.combatExpCandidate.observations[0];
+const b20ProductionCombat = b20Production.combatExpCandidate.observations[0];
+assert.ok(b20Combat, "existing B20 natural run reaches an eligible generated ordinary encounter");
+assert.ok([2, 3].includes(b20Combat.initialEncounterSize), "B20 natural fixture uses initial size 2 or 3");
+assert.equal(b20Combat.awardMode, "phase4j-b");
+assert.equal(b20Combat.allocationSum, b20Combat.candidateExp);
+assert.equal(b20Combat.result, "death",
+  "the existing B20 natural encounter is eligible but this natural combat does not reach settlement victory");
+assert.equal(b20Combat.settlementCoverageValid, false,
+  "non-victory natural combat remains explicitly outside valid settlement evidence");
+assert.equal(b20Combat.otherEnemyFieldsUnchanged, true);
+assert.equal(b20Combat.templateUnchanged, true);
+assert.ok(b20ProductionCombat, "matched B20 production control reproduces the natural encounter");
+assert.equal(b20ProductionCombat.initialEncounterSize, b20Combat.initialEncounterSize);
+assert.deepEqual(b20ProductionCombat.initialEnemies.map(enemy => enemy.encounterName),
+  b20Combat.initialEnemies.map(enemy => enemy.encounterName));
+assert.equal(b20Connected.tabletCombatLedgerDelta, 0,
+  "B20 tablet EXP remains outside the combat ledger");
 
 const noReachedTablet = simulateRun({
   ...runOptions,
@@ -390,4 +412,4 @@ for (const floor of [1, 20]) {
   }
 }
 
-console.log("[PASS] Phase 4j-E2 tablet route and Phase 4j-E3 B1 combat connection; B20 single-enemy gap explicit");
+console.log("[PASS] Phase 4j-E2 tablet, E3 B1 single-enemy, E4 B20 natural multi-enemy eligibility/coverage");

@@ -56,7 +56,7 @@ const { getTrialGuardianPressures } = await import("../../src/rules/floor_trials
 const { applyPendingOutcomeRewards } = await import("../../src/combat_ui/outcome_rewards.js");
 const { runCombatRoundCalculation } = await import("../../src/combat_logic.js");
 const { cloneCombatStateForRound } = await import("../../src/combat_logic/round.js");
-const { calculateCandidateAward } = await import("../measurements/progression_exp_award_paired_inventory.js");
+const { allocateCandidateAward, calculateCandidateAward } = await import("../measurements/progression_exp_award_paired_inventory.js");
 const {
   chooseAutoCombatAction,
   getAutoHealTargetIdx,
@@ -9219,6 +9219,7 @@ function runEncounter(
   const fullDiagnostics = diagnosticLevel === "full";
   const compactDiagnostics = diagnosticLevel === "compact";
   let generatedTrial = null;
+  let generatedIsRare = false;
   let generatedBossPressureMetadata = null;
   let monsters;
   if (fixedMonsterNames) {
@@ -9232,6 +9233,7 @@ function runEncounter(
         roamingMonster
       );
       generatedTrial = generatedEncounter.trial || null;
+      generatedIsRare = generatedEncounter.isRare;
       if (generatedEncounter.monsters.length !== fixedMonsterNames.length ||
           generatedEncounter.monsters.some((monster, index) => monster.name !== fixedMonsterNames[index])) {
         throw new Error("fixed diagnostic boss must match the production boss encounter");
@@ -9269,7 +9271,12 @@ function runEncounter(
     );
     monsters = generatedEncounter.monsters;
     generatedTrial = generatedEncounter.trial || null;
+    generatedIsRare = generatedEncounter.isRare;
   }
+  const initialGeneratedMonsters = monsters.map(monster => ({
+    name: monster.name,
+    productionInstanceExp: monster.exp
+  }));
   const generatedCompositionKey = compositionKey(monsters);
   let earlyCompositionCandidateAction = "none";
   let earlyCompositionDeferredKey = null;
@@ -9379,51 +9386,88 @@ function runEncounter(
     const recordGap = reason => {
       diagnostic.coverageGaps[reason] = (diagnostic.coverageGaps[reason] || 0) + 1;
     };
-    if (fixedMonsterNames || isBoss || isMidboss || isElite || roamingMonster ||
+    if (generatedIsRare) {
+      recordGap("rare-encounter");
+    } else if (fixedMonsterNames || isBoss || isMidboss || isElite || roamingMonster ||
         earlyCompositionCandidateAction !== "none") {
       recordGap("special-or-fixed-encounter");
-    } else if (generatedInitialVisibleEnemyCount !== 1 || monsters.length !== 1) {
-      recordGap("initial-encounter-size-not-one");
+    } else if (![1, 2, 3].includes(initialGeneratedMonsters.length) ||
+        generatedInitialVisibleEnemyCount !== initialGeneratedMonsters.length ||
+        monsters.length !== initialGeneratedMonsters.length ||
+        monsters.some((monster, index) => monster.name !== initialGeneratedMonsters[index].name)) {
+      recordGap("initial-encounter-size-or-identity-unsupported");
     } else {
-      const monster = monsters[0];
-      const templateName = monster.name.replace(/\s[A-Z]$/, "");
-      const template = MONSTERS.find(entry => entry.name === templateName);
-      if (!template || !Number.isFinite(template.exp) || template.exp < 0 ||
-          !Number.isFinite(monster.exp) || monster.exp < 0) {
+      const initialTemplates = initialGeneratedMonsters.map(({ name }) => {
+        const templateName = name.replace(/\s[A-Z]$/, "");
+        return { templateName, template: MONSTERS.find(entry => entry.name === templateName) };
+      });
+      const invalidEnemy = monsters.some((monster, index) => {
+        const template = initialTemplates[index].template;
+        return !template || !Number.isFinite(template.exp) || template.exp < 0 ||
+          !Number.isFinite(monster.exp) || monster.exp < 0;
+      });
+      const ineligibleReason = monsters.map((monster, index) => {
+        const template = initialTemplates[index].template;
+        if (monster.isRare || monster.treasureRare || template?.treasureRare) return "rare-encounter";
+        if (monster.hasSplit || monster.split || template?.hasSplit || template?.split ||
+            template?.traits?.some(trait => /split/i.test(String(trait))) ||
+            initialTemplates[index].templateName.includes("分裂")) return "split-encounter";
+        if (monster.isSummoned || monster.summons || template?.summons ||
+            template?.traits?.some(trait => /summon/i.test(String(trait)))) return "summon-encounter";
+        if (monster.fleeChance !== undefined || template?.fleeChance !== undefined) return "flee-chance-encounter";
+        return null;
+      }).find(Boolean);
+      if (invalidEnemy) {
         recordGap("ambiguous-identity-or-invalid-exp");
-      } else if (monster.isRare || monster.treasureRare || template.treasureRare ||
-          monster.hasSplit || monster.isSummoned || monster.split || template.hasSplit ||
-          template.split || template.summons || template.traits?.some(trait => /split|summon/i.test(String(trait))) ||
-          templateName.includes("分裂")) {
-        recordGap("rare-or-special-enemy");
+      } else if (ineligibleReason) {
+        recordGap(ineligibleReason);
       } else {
-        const before = structuredClone(monster);
-        const templateExpBefore = template.exp;
+        const before = monsters.map(monster => structuredClone(monster));
+        const templateExpBefore = initialTemplates.map(({ template }) => template.exp);
+        const candidateMonsters = initialTemplates.map(({ template }) => ({ templateExp: template.exp }));
         const candidate = calculateCandidateAward({
           floor: state.floor,
           kind: "ordinary",
-          monsters: [{ templateExp: template.exp }],
-          encounterSize: 1
+          monsters: candidateMonsters,
+          encounterSize: monsters.length
         });
+        const allocation = allocateCandidateAward(candidate.totalAward, candidateMonsters);
         const applyCandidate = diagnostic.id === "phase4j-b";
-        if (applyCandidate) monster.exp = candidate.totalAward;
-        const otherFieldsUnchanged = Object.keys(before).length === Object.keys(monster).length &&
-          Object.keys(before).every(key => key === "exp" || JSON.stringify(before[key]) === JSON.stringify(monster[key]));
-        if (!otherFieldsUnchanged || template.exp !== templateExpBefore) {
+        if (applyCandidate) monsters.forEach((monster, index) => { monster.exp = allocation[index]; });
+        const otherFieldsUnchanged = before.every((snapshot, index) =>
+          Object.keys(snapshot).length === Object.keys(monsters[index]).length &&
+          Object.keys(snapshot).every(key => key === "exp" || JSON.stringify(snapshot[key]) === JSON.stringify(monsters[index][key]))
+        );
+        if (!otherFieldsUnchanged || initialTemplates.some(({ template }, index) => template.exp !== templateExpBefore[index]) ||
+            allocation.reduce((sum, exp) => sum + exp, 0) !== candidate.totalAward) {
           throw new Error("EXP candidate changed a diagnostic field other than the enemy instance exp");
         }
         expAwardCandidateObservation = {
           floor: state.floor,
-          encounterName: monster.name,
-          templateName,
-          templateExp: template.exp,
-          productionInstanceExp: before.exp,
+          initialEncounterSize: monsters.length,
+          initialEnemies: monsters.map((monster, index) => ({
+            initialIndex: index,
+            encounterName: monster.name,
+            templateName: initialTemplates[index].templateName,
+            templateExp: initialTemplates[index].template.exp,
+            productionInstanceExp: initialGeneratedMonsters[index].productionInstanceExp,
+            candidateAllocation: allocation[index],
+            selectedAwardExp: applyCandidate ? allocation[index] : before[index].exp
+          })),
+          productionTotalAward: initialGeneratedMonsters.reduce((sum, monster) => sum + monster.productionInstanceExp, 0),
           candidateExp: candidate.totalAward,
-          selectedAwardExp: applyCandidate ? candidate.totalAward : before.exp,
+          selectedAwardExp: applyCandidate ? candidate.totalAward : initialGeneratedMonsters.reduce((sum, monster) => sum + monster.productionInstanceExp, 0),
           awardMode: diagnostic.id,
-          candidateAppliedTo: applyCandidate ? "diagnostic-enemy-instance.exp" : null,
+          candidateAppliedTo: applyCandidate
+            ? (monsters.length === 1 ? "diagnostic-enemy-instance.exp" : "diagnostic-enemy-instances.exp")
+            : null,
+          encounterName: monsters.length === 1 ? monsters[0].name : null,
+          templateName: monsters.length === 1 ? initialTemplates[0].templateName : null,
+          templateExp: monsters.length === 1 ? initialTemplates[0].template.exp : null,
+          productionInstanceExp: monsters.length === 1 ? initialGeneratedMonsters[0].productionInstanceExp : null,
+          allocationSum: allocation.reduce((sum, exp) => sum + exp, 0),
           otherEnemyFieldsUnchanged: true,
-          templateUnchanged: template.exp === templateExpBefore,
+          templateUnchanged: true,
           candidate
         };
         diagnostic.observations.push(expAwardCandidateObservation);
@@ -18274,6 +18318,21 @@ export function simulateRun({
           if (expCandidateObservation) {
             const character = state.party[0];
             const combatLedgerDelta = state.currentRun.expGained - combatLedgerBefore;
+            const settledMonsters = state.combatState.monsters || [];
+            const settlementCoverageGaps = [];
+            if (combatResult.result !== "victory") settlementCoverageGaps.push(`non-victory-${combatResult.result}`);
+            if (settledMonsters.length !== expCandidateObservation.initialEncounterSize) {
+              settlementCoverageGaps.push("combat-monster-count-changed");
+            }
+            if (settledMonsters.some(monster => monster.fled)) settlementCoverageGaps.push("flee-during-combat");
+            if (expCandidateObservation.awardMode === "phase4j-b" &&
+                combatResult.result === "victory" && combatLedgerDelta !== expCandidateObservation.candidateExp) {
+              settlementCoverageGaps.push("candidate-settlement-total-drift");
+            }
+            settlementCoverageGaps.forEach(gap => {
+              metrics.expAwardCandidate.coverageGaps[gap] =
+                (metrics.expAwardCandidate.coverageGaps[gap] || 0) + 1;
+            });
             expCandidateObservation.result = combatResult.result;
             expCandidateObservation.rounds = combatResult.rounds;
             expCandidateObservation.combatLedgerBefore = combatLedgerBefore;
@@ -18293,11 +18352,8 @@ export function simulateRun({
             expCandidateObservation.awardMatchedSelectedExp = combatResult.result === "victory"
               ? combatLedgerDelta === expCandidateObservation.selectedAwardExp
               : combatLedgerDelta === 0;
-            if (combatResult.result !== "victory") {
-              const gap = `non-victory-${combatResult.result}`;
-              metrics.expAwardCandidate.coverageGaps[gap] =
-                (metrics.expAwardCandidate.coverageGaps[gap] || 0) + 1;
-            }
+            expCandidateObservation.settlementCoverageGaps = settlementCoverageGaps;
+            expCandidateObservation.settlementCoverageValid = settlementCoverageGaps.length === 0;
           }
           if (isBoss && specialEvent.milestone) {
             metrics.milestoneEventTrace.push({
