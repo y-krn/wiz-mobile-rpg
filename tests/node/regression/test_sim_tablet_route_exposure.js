@@ -12,6 +12,7 @@ const {
   resolveSimulationTabletEncounter,
   simulateRun
 } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
+const { calculateCandidateAward } = await import("../../../scratch/measurements/progression_exp_award_paired_inventory.js");
 
 const runSeed = "tablet-e1-seed-0";
 const scenario = {
@@ -204,6 +205,94 @@ for (const floor of [1, 20]) {
   }
 }
 
+const connectedRunOptions = { ...runOptions };
+delete connectedRunOptions.encounterRateOverride;
+const connectedScenario = {
+  ...readScenario,
+  tabletOutcomeCandidate: "fixed-c",
+  expAwardCandidate: "phase4j-b"
+};
+const b1Connected = simulateRun({
+  ...connectedRunOptions,
+  worldSeed: "phase4j-e3-contiguous-1-9",
+  seriesId: "phase4j-e3-b1-connected-n1",
+  scenario: connectedScenario
+});
+const b1Production = simulateRun({
+  ...connectedRunOptions,
+  worldSeed: "phase4j-e3-contiguous-1-9",
+  seriesId: "phase4j-e3-b1-production-n1",
+  scenario: { ...connectedScenario, expAwardCandidate: "production" }
+});
+const b1Read = b1Connected.tabletExposure.encounters.find(entry => entry.selection === "read");
+const b1ProductionRead = b1Production.tabletExposure.encounters.find(entry => entry.selection === "read");
+const b1Combat = b1Connected.combatExpCandidate.observations.find(entry =>
+  entry.result === "victory" && entry.combatLedgerBefore === 0
+);
+const b1ProductionCombat = b1Production.combatExpCandidate.observations.find(entry =>
+  entry.result === "victory" && entry.combatLedgerBefore === 0
+);
+assert.equal(b1Read?.outcome, "success");
+assert.equal(b1Read?.expGained, 80);
+assert.equal(b1Read?.combatLedgerBefore, b1Read?.combatLedgerAfter,
+  "the production-path Read stays outside the combat-only EXP ledger");
+assert.equal(b1Read?.stateBefore[0]?.level, 1);
+assert.equal(b1Read?.stateAfter[0]?.level, 1,
+  "the tablet Read does not trigger a Level check");
+assert.equal(b1ProductionRead?.outcome, b1Read?.outcome,
+  "the matched production and candidate runs use the same tablet outcome");
+assert.equal(b1ProductionRead?.expGained, b1Read?.expGained);
+assert.equal(b1ProductionRead?.combatLedgerBefore, 0);
+assert.ok(b1Combat, "B1 reaches a later generated single ordinary victory in the same run");
+assert.equal(b1Combat.awardMode, "phase4j-b");
+assert.equal(b1Combat.candidateAppliedTo, "diagnostic-enemy-instance.exp");
+assert.equal(b1Combat.otherEnemyFieldsUnchanged, true);
+assert.equal(b1Combat.templateUnchanged, true);
+assert.equal(b1Combat.candidateExp, calculateCandidateAward({
+  floor: 1,
+  kind: "ordinary",
+  monsters: [{ templateExp: b1Combat.templateExp }],
+  encounterSize: 1
+}).totalAward);
+assert.equal(b1Combat.rounds > 0, true, "the candidate enemy resolves through production combat rounds");
+assert.equal(b1Combat.combatOnlyLedgerDelta, b1Combat.candidateExp,
+  "production reward settlement grants the candidate once");
+assert.equal(b1Combat.awardMatchedSelectedExp, true);
+assert.equal(b1Combat.levelUps, 1, "the following production victory performs the existing Level check");
+assert.ok(b1Combat.levelUpRecoveryHp > 0, "production Level-up recovery is observed");
+assert.ok(b1Combat.rawMaxHpAfter > b1Combat.rawMaxHpBefore,
+  "production Level-up grows raw max HP");
+assert.ok(b1Combat.hpAfterRoundSettlement > b1Combat.hpBefore,
+  "production Level-up recovery raises current HP");
+assert.equal(b1Connected.tabletCombatLedgerDelta, 0);
+assert.equal(b1Connected.characterExpGained,
+  b1Connected.expGainedBySource.combat + b1Connected.expGainedBySource.tablet);
+assert.ok(b1ProductionCombat, "matched baseline reaches the corresponding ordinary victory");
+assert.equal(b1ProductionCombat.encounterName, b1Combat.encounterName);
+assert.equal(b1ProductionCombat.productionInstanceExp, b1Combat.productionInstanceExp);
+assert.equal(b1ProductionCombat.awardMode, "production");
+assert.equal(b1ProductionCombat.candidateAppliedTo, null,
+  "production control records the existing EXP without replacing it");
+assert.equal(b1ProductionCombat.combatOnlyLedgerDelta, b1ProductionCombat.productionInstanceExp);
+assert.equal(b1ProductionCombat.awardMatchedSelectedExp, true);
+
+const b20Connected = simulateRun({
+  ...connectedRunOptions,
+  startFloor: 20,
+  targetDepth: 21,
+  worldSeed: "tablet-e2-20-2",
+  seriesId: "phase4j-e3-b20-connected-n1",
+  scenario: connectedScenario
+});
+const b20Read = b20Connected.tabletExposure.encounters.find(entry => entry.selection === "read");
+assert.equal(b20Read?.outcome, "success");
+assert.equal(b20Read?.expGained, 90);
+assert.equal(b20Read?.combatLedgerBefore, b20Read?.combatLedgerAfter);
+assert.equal(b20Connected.combatExpCandidate.observations.length, 0,
+  "B20's N=1 run has no eligible single ordinary victory to which B may be applied");
+assert.ok(b20Connected.combatExpCandidate.coverageGaps["initial-encounter-size-not-one"] > 0,
+  "B20 multi-enemy encounter is explicitly recorded as an unsupported coverage gap");
+
 const noReachedTablet = simulateRun({
   ...runOptions,
   worldSeed: "e2-1-false-current",
@@ -301,4 +390,4 @@ for (const floor of [1, 20]) {
   }
 }
 
-console.log("[PASS] Phase 4j-E2 N=1 tablet read outcome, route exposure, and EXP ledger");
+console.log("[PASS] Phase 4j-E2 tablet route and Phase 4j-E3 B1 combat connection; B20 single-enemy gap explicit");
