@@ -384,7 +384,7 @@ const PROFILE_LIST = [
     id: "progression-enemy-candidate-diagnostic",
     label: "Progression enemy candidate diagnostic",
     family: "progression-enemy-candidate",
-    defaults: { runs: 200, minimumRuns: 200, seed: 1688 }
+    defaults: { runs: 200, minimumRuns: 200, seed: 1700 }
   },
   {
     id: "progression-enemy-defense-diagnostic",

@@ -10,7 +10,14 @@ import { getCharWeaponAtk } from "../../../src/rules/character_stats.js";
 import { getItemBaseId } from "../../../src/rules/item_rules.js";
 import { getActiveRuneSpellKeys, getEquippedMedium } from "../../../src/rules/magic_rules.js";
 import { applyMeasurementPlayerCandidate, resetSimulationRandom } from "../../../scratch/simulations/sim_depth_material_ev.js";
-import { isPlayerBeforeAnyEnemy } from "../../../scratch/measurements/progression_enemy_candidate_diagnostic.js";
+import {
+  DEFAULT_SEED,
+  FIXTURES,
+  POLICY_VERSION,
+  RUNNER_VERSION,
+  isPlayerBeforeAnyEnemy,
+  runProgressionEnemyCandidateDiagnostic
+} from "../../../scratch/measurements/progression_enemy_candidate_diagnostic.js";
 
 assert.equal(candidate.playerPhysicalMultiplier(0), 1);
 assert.equal(candidate.playerPhysicalMultiplier(5), 1.8);
@@ -21,6 +28,14 @@ assert.equal(candidate.playerRawDefenseMilestoneBonus, 0);
 assert.equal(candidate.enemyHpMultiplier(5), 2);
 assert.equal(candidate.enemyAttackMultiplier(5), 1.5);
 assert.equal(candidate.enemyDefenseMultiplier, 1);
+assert.equal(DEFAULT_SEED, 1700);
+assert.equal(RUNNER_VERSION, "progression-enemy-candidate-diagnostic-v2");
+assert.equal(POLICY_VERSION, "phase4b-progression-enemy-simulation-policy-v2");
+assert.deepEqual(FIXTURES.map(({ id, className, startingKit, actionPlan }) => [id, className, startingKit, actionPlan || null]), [
+  ["physical", "Fighter", "vanguard", null],
+  ["spell", "Mage", "arcana", null],
+  ["defensive", "Priest", "devotion", "attack-only"]
+]);
 
 assert.deepEqual(resolve({
   kind: "pre-milestone",
@@ -108,5 +123,39 @@ assert.equal(isPlayerBeforeAnyEnemy([{
   playerActionExecutionTiming: "after-enemy-action",
   enemyActionEvents: []
 }]), false);
+
+const smoke = await runProgressionEnemyCandidateDiagnostic({ runs: 1, seed: DEFAULT_SEED });
+assert.equal(smoke.runnerVersion, RUNNER_VERSION);
+assert.equal(smoke.policyVersion, POLICY_VERSION);
+assert.equal(smoke.schemaVersion, 2);
+assert.equal(smoke.observations.length, 132);
+assert.equal(smoke.summary.length, 132);
+assert.deepEqual(smoke.configuration.arms, ["current", "candidate"]);
+assert.equal(smoke.configuration.seed, 1700);
+assert.equal(smoke.configuration.phase4cV1.rawDefenseBonus, 0);
+assert.equal(smoke.configuration.phase4cV1.hpBuffer, 0);
+assert.equal(smoke.configuration.guardPolicy, "situational only; excluded from generic defensive viability");
+assert.deepEqual(PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS.map(context => context.floor), [1, 5, 5, 6, 10, 10, 11, 20, 20, 21, 30]);
+assert.equal(PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS.some(context => [15, 25].includes(context.floor)), false);
+for (const context of PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS) for (const level of [1, 2]) {
+  const paired = smoke.observations.filter(row => row.contextId === `${context.kind}-B${context.floor}` && row.level === level);
+  assert.equal(paired.length, 6);
+  assert.equal(new Set(paired.map(row => row.seed)).size, 3, "fixture/run pair seeds remain arm-independent");
+  for (const fixtureId of ["physical", "spell", "defensive"]) {
+    const fixtureRows = paired.filter(row => row.fixtureId === fixtureId);
+    assert.equal(fixtureRows.length, 2);
+    assert.equal(fixtureRows[0].seed, fixtureRows[1].seed, "current and candidate share seed");
+  }
+  for (const row of paired.filter(entry => entry.fixtureId === "defensive")) {
+    assert.equal(row.selectedActions.defend, 0);
+    assert.equal(row.executedActions.defend, 0);
+  }
+  assert.equal(paired.filter(row => row.level === 2).every(row => row.levelSource.includes("production EXP_LEVELS[2]")), true);
+}
+for (const context of PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS) for (const fixtureId of ["physical", "spell", "defensive"]) {
+  const level1 = smoke.observations.find(row => row.contextId === `${context.kind}-B${context.floor}` && row.level === 1 && row.fixtureId === fixtureId && row.arm === "current");
+  const level2 = smoke.observations.find(row => row.contextId === `${context.kind}-B${context.floor}` && row.level === 2 && row.fixtureId === fixtureId && row.arm === "current");
+  assert.equal(level1.seed, level2.seed, "paired seed excludes Level");
+}
 
 console.log("progression enemy candidate diagnostic unit tests passed");

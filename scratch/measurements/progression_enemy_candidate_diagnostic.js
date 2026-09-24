@@ -10,23 +10,38 @@ import { MONSTERS } from "../../src/data/monsters.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "progression-enemy-candidate-diagnostic-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "progression-enemy-candidate-diagnostic-v2";
+export const POLICY_VERSION = "phase4b-progression-enemy-simulation-policy-v2";
+export const SCHEMA_VERSION = 2;
 export const RUNNER_PATH = "scratch/measurements/progression_enemy_candidate_diagnostic.js";
 const DEFAULT_RUNS = 200;
-const DEFAULT_SEED = 1688;
-const FIXTURES = Object.freeze([
-  Object.freeze({ id: "physical", className: "Fighter", startingKit: "vanguard", fixtureId: null, guard: false }),
-  Object.freeze({ id: "spell", className: "Mage", startingKit: "arcana", fixtureId: null, guard: false }),
-  Object.freeze({ id: "defensive-guard", className: "Priest", startingKit: "devotion", fixtureId: null, guard: true })
+export const DEFAULT_SEED = 1700;
+export const FIXTURES = Object.freeze([
+  Object.freeze({ id: "physical", className: "Fighter", startingKit: "vanguard", fixtureId: null }),
+  Object.freeze({ id: "spell", className: "Mage", startingKit: "arcana", fixtureId: null }),
+  Object.freeze({ id: "defensive", className: "Priest", startingKit: "devotion", fixtureId: null, actionPlan: "attack-only" })
 ]);
 const { resetSimulationRandom, simulateRun } = await import("../simulations/sim_depth_material_ev.js");
 
 const MOBS = Object.freeze({
   physical: "コボルトの斥候",
   spell: "ゴブリンの呪術師",
-  "defensive-guard": "錆びた盾兵"
+  defensive: "錆びた盾兵"
 });
+
+function countSelectedAndExecutedActions(rounds) {
+  const counts = {
+    selectedActions: { attack: 0, defend: 0 },
+    executedActions: { attack: 0, defend: 0 }
+  };
+  for (const round of rounds) {
+    const action = round.action === "fight" ? "attack" : round.action === "defend" ? "defend" : null;
+    if (!action) continue;
+    counts.selectedActions[action]++;
+    if (round.playerActionExecuted) counts.executedActions[action]++;
+  }
+  return counts;
+}
 
 function parseArgs(argv) {
   const out = {};
@@ -69,7 +84,7 @@ function describe(result, { context, fixture, arm, seed, runIndex }) {
   const rounds = encounter?.rounds || [];
   if (!identity || !rounds.length) throw new Error("production fixed-combat diagnostic omitted encounter metrics");
   const playerActions = rounds.filter(round => round.playerActionExecuted).length;
-  const guardOpportunities = rounds.filter(round => round.hpBefore > 0 && round.enemyActionEvents?.length > 0).length;
+  const actionCounts = fixture.id === "defensive" ? countSelectedAndExecutedActions(rounds) : null;
   const enemyHpStart = (encounter.monsters || []).reduce((sum, monster) => sum + Number(monster.maxHp || monster.hp || 0), 0);
   const enemyHpEnd = (encounter.endEnemyHp || []).reduce((sum, entry) => sum + Number(entry?.hp || 0), 0);
   const template = MONSTERS.find(monster => monster.name === MOBS[fixture.id]);
@@ -101,8 +116,7 @@ function describe(result, { context, fixture, arm, seed, runIndex }) {
     enemyActions: identity.enemyActions,
     playerActions,
     playerBeforeAnyEnemy: isPlayerBeforeAnyEnemy(rounds),
-    guardOpportunity: fixture.guard ? guardOpportunities : null,
-    guardedActions: fixture.guard ? rounds.filter(round => round.action === "defend" && round.playerActionExecuted).length : null,
+    ...(actionCounts || {}),
     spellActions: rounds.filter(round => round.spellName && round.playerActionExecuted).length,
     mpSpent: identity.mpSpent,
     resolved: {
@@ -144,7 +158,7 @@ export async function runProgressionEnemyCandidateDiagnostic({ runs = DEFAULT_RU
               startingKit: fixture.startingKit,
               fleePolicy: "never",
               consumablesAtDeparture: "none",
-              ...(fixture.guard ? { measurementCombatPlan: "attack-defend", measurementGuardTiming: "declared" } : {}),
+              ...(fixture.actionPlan ? { measurementCombatPlan: fixture.actionPlan, measurementGuardTiming: "declared" } : {}),
               collectEncounterIdentities: true,
               collectStage15Diagnostics: true,
               simDiagnosticLevel: "full",
@@ -186,16 +200,23 @@ export async function runProgressionEnemyCandidateDiagnostic({ runs = DEFAULT_RU
     enemyActions: summarize(rows.map(row => row.enemyActions)),
     playerActions: summarize(rows.map(row => row.playerActions)),
     playerBeforeAnyEnemyRate: rows.filter(row => row.playerBeforeAnyEnemy).length / rows.length,
-    guardOpportunity: summarize(rows.map(row => row.guardOpportunity)),
-    guardedActions: summarize(rows.map(row => row.guardedActions)),
+    selectedActions: rows[0].selectedActions ? {
+      attack: summarize(rows.map(row => row.selectedActions.attack)),
+      defend: summarize(rows.map(row => row.selectedActions.defend))
+    } : null,
+    executedActions: rows[0].executedActions ? {
+      attack: summarize(rows.map(row => row.executedActions.attack)),
+      defend: summarize(rows.map(row => row.executedActions.defend))
+    } : null,
     spellActions: summarize(rows.map(row => row.spellActions)),
     mpSpent: summarize(rows.map(row => row.mpSpent))
   }));
   return {
     runnerVersion: RUNNER_VERSION,
+    policyVersion: POLICY_VERSION,
     schemaVersion: SCHEMA_VERSION,
     status: "diagnostic-only",
-    configuration: { runs: count, seed: rootSeed, pairedSeedKey: ["root seed", "milestone context", "fixture", "runIndex"], pairedArmsShareSeed: true, contexts: PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS, fixtures: FIXTURES, arms: ["current", "candidate"], candidate: CANDIDATE.id },
+    configuration: { runs: count, seed: rootSeed, pairedSeedKey: ["root seed", "milestone context", "fixture", "runIndex"], pairedArmsShareSeed: true, contexts: PROGRESSION_ENEMY_DIAGNOSTIC_CONTEXTS, fixtures: FIXTURES, arms: ["current", "candidate"], candidate: CANDIDATE.id, phase4cV1: { physical: "1 + 0.16 × baseline", spell: "1 + 0.16 × baseline", level1Hp: "20 × (1 + 0.10 × baseline)", rawDefenseBonus: 0, hpBuffer: 0, enemyHp: "1 + 0.20 × band", enemyAttack: "1 + 0.10 × band", enemyDefense: 1.0 }, guardPolicy: "situational only; excluded from generic defensive viability" },
     observations,
     summary
   };
@@ -208,11 +229,13 @@ function makeSummary(report) {
     `- runner: ${RUNNER_VERSION}; seed: ${report.configuration.seed}; N=${report.configuration.runs}`,
     `- candidate: ${CANDIDATE.id}; PR N<30 is correctness evidence only`,
     "- all observations use fixed generic combat; no Boss-authored rules, loot, Support, or Core scaling",
+    "- Phase 4b policy v2: defensive = Priest / devotion / attack-only; Guard is situational and excluded from generic viability",
+    "- Phase 4h evidence: GitHub Actions #35945138644 (N=200, seed=1698; forced attack-defend action cost degraded generic defensive viability)",
     "- Level delta uses the production Leveling contract and is emitted as a separate layer",
     "",
-    "| Context / fixture / arm | N | Survival | Death | Rounds p50 | Damage dealt p50 | Damage taken p50 | Post HP p50 | Enemy actions p50 | Player actions p50 | Player first | Guard opp. | Guarded | Spell actions | MP spent |",
+    "| Context / fixture / arm | N | Survival | Death | Rounds p50 | Damage dealt p50 | Damage taken p50 | Post HP p50 | Enemy actions p50 | Player actions p50 | Player first | Selected attack / defend | Executed attack / defend | Spell actions | MP spent |",
     "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...report.summary.map(row => `| ${row.key} | ${row.n} | ${(row.survivalRate * 100).toFixed(1)}% | ${(row.deathRate * 100).toFixed(1)}% | ${row.rounds.p50 ?? "—"} | ${row.damageDealt.p50 ?? "—"} | ${row.damageTaken.p50 ?? "—"} | ${row.postCombatHp.p50 ?? "—"} | ${row.enemyActions.p50 ?? "—"} | ${row.playerActions.p50 ?? "—"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.guardOpportunity.mean ?? "—"} | ${row.guardedActions.mean ?? "—"} | ${row.spellActions.mean ?? "—"} | ${row.mpSpent.mean ?? "—"} |`),
+    ...report.summary.map(row => `| ${row.key} | ${row.n} | ${(row.survivalRate * 100).toFixed(1)}% | ${(row.deathRate * 100).toFixed(1)}% | ${row.rounds.p50 ?? "—"} | ${row.damageDealt.p50 ?? "—"} | ${row.damageTaken.p50 ?? "—"} | ${row.postCombatHp.p50 ?? "—"} | ${row.enemyActions.p50 ?? "—"} | ${row.playerActions.p50 ?? "—"} | ${(row.playerBeforeAnyEnemyRate * 100).toFixed(1)}% | ${row.selectedActions ? `${row.selectedActions.attack.mean} / ${row.selectedActions.defend.mean}` : "—"} | ${row.executedActions ? `${row.executedActions.attack.mean} / ${row.executedActions.defend.mean}` : "—"} | ${row.spellActions.mean ?? "—"} | ${row.mpSpent.mean ?? "—"} |`),
     "",
     "## Provenance",
     "",
@@ -237,8 +260,8 @@ async function main() {
     measurementRunnerDiffSha256: provenance.measurementRunnerDiffSha256,
     originMainAncestor: provenance.originMainAncestor,
     workingTreeClean: provenance.workingTreeClean,
-    policyVersion: "phase4b-progression-enemy-simulation-policy-v1",
-    candidate: { id: CANDIDATE.id, baseline0to5: [0, 5], enemyBand0to5: [0, 5], physical: "1 + 0.16 × baseline", spell: "1 + 0.16 × baseline", level1MaxHp: "20 × (1 + 0.10 × baseline)", rawDefenseBonus: 0, enemyHp: "1 + 0.20 × band", enemyAttack: "1 + 0.10 × band", enemyDefense: 1 },
+    policyVersion: POLICY_VERSION,
+    candidate: { id: CANDIDATE.id, baseline0to5: [0, 5], enemyBand0to5: [0, 5], physical: "1 + 0.16 × baseline", spell: "1 + 0.16 × baseline", level1MaxHp: "20 × (1 + 0.10 × baseline)", rawDefenseBonus: 0, hpBuffer: 0, enemyHp: "1 + 0.20 × band", enemyAttack: "1 + 0.10 × band", enemyDefense: 1.0 },
     workflow: {
       repository: process.env.MEASUREMENT_REPOSITORY || null,
       runId: process.env.MEASUREMENT_WORKFLOW_RUN_ID || null,
