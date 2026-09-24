@@ -69,6 +69,7 @@ for (const context of contexts) for (const level of [1, 2]) {
   for (const row of paired) {
     assert.equal(row.rawDefense > 0, true);
     assert.equal(row.maxHp, candidate.playerLevel1MaxHp(context.baseline) + (level === 2 ? 5 : 0));
+    assert.equal(typeof row.playerBeforeAnyEnemy, "boolean");
     assert.equal(row.selectedActions.attack + row.selectedActions.defend + row.selectedActions.other, row.rounds);
     assert.equal(row.executedActions.attack + row.executedActions.defend + row.executedActions.other <= row.rounds, true);
     assert.equal(row.guardOpportunities >= row.guardedEnemyActions, true);
