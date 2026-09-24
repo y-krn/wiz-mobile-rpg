@@ -10,6 +10,24 @@ import {
 assert.ok(MONSTERS.length > 0);
 assert.equal(MONSTERS.every(isMonsterTemplate), true, "all static monsters satisfy MonsterTemplate");
 
+for (const monster of MONSTERS) {
+  assert.ok(Number.isFinite(monster.exp) && monster.exp >= 0,
+    `${monster.name} must have finite, non-negative production EXP`);
+  const scaled = scaleEnemyForDepth(monster, 10);
+  assert.ok(Number.isFinite(scaled.exp), `${monster.name} must have finite scaled EXP at B10`);
+}
+
+for (const [name, expectedExp] of [
+  ["煙幕盗賊", 150],
+  ["催眠コウモリ", 150],
+  ["霧の亡霊", 350]
+]) {
+  const monster = MONSTERS.find(entry => entry.name === name);
+  assert.ok(monster, `${name} must exist in production MONSTERS`);
+  assert.equal(monster.exp, expectedExp, `${name} must use same-Level production median EXP`);
+  assert.ok(Number.isFinite(scaleEnemyForDepth(monster, 10).exp), `${name} must scale to finite EXP at B10`);
+}
+
 const template = MONSTERS.find(monster => monster.name === "ストーンガード");
 assert.ok(template);
 assert.equal(isMonsterTemplate(template), true);
