@@ -14125,6 +14125,7 @@ export function applySimulationTabletRead({ state, floor, cell, candidate = "cur
     outcome = "success";
     resultHintIndex = hintIndex;
   } else if (outcomeRoll < 0.70) {
+    outcome = "trap";
     const alive = state.party.filter(character => character.status !== "dead");
     if (alive.length > 0) {
       const target = alive[Math.floor(nextRandom() * alive.length)];
@@ -14146,7 +14147,6 @@ export function applySimulationTabletRead({ state, floor, cell, candidate = "cur
         }
       }
     }
-    outcome = "trap";
   } else {
     outcome = "miss";
   }

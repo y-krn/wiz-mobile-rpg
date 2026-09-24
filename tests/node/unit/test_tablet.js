@@ -179,16 +179,21 @@ Object.defineProperty(globalThis, "localStorage", {
 });
 for (const floor of [1, 20]) {
   for (const candidate of ["current", "fixed-c"]) {
-    for (const outcome of ["success", "trap-survival", "trap-death", "trap-upper", "miss"]) {
+    for (const outcome of ["success", "trap-survival", "trap-death", "trap-upper", "miss",
+      ...(candidate === "fixed-c" ? ["trap-invalid-max-hp"] : [])]) {
       const damage = candidate === "fixed-c" ? 7 : 6 + floor * 3;
       const firstHp = outcome === "trap-death" ? damage : damage + 1;
       const makeParty = () => [
-        { name: "Parity対象", status: "alive", exp: 0, level: 1, hp: firstHp, maxHp: 20 },
+        {
+          name: "Parity対象", status: "alive", exp: 0, level: 1, hp: firstHp,
+          maxHp: outcome === "trap-invalid-max-hp" ? Number.NaN : 20
+        },
         { name: "Parity同行者", status: "alive", exp: 0, level: 1, hp: 100, maxHp: 100 }
       ];
       const randomValues = outcome === "success" ? [0.399, 0.5]
         : outcome === "trap-upper" ? [0.699999, 0]
-        : outcome === "trap-survival" || outcome === "trap-death" ? [0.4, 0]
+        : outcome === "trap-survival" || outcome === "trap-death" || outcome === "trap-invalid-max-hp"
+          ? [0.4, 0]
           : [0.7];
       const productionParty = makeParty();
       const production = runTablet({
@@ -223,6 +228,15 @@ for (const floor of [1, 20]) {
         `${candidate} B${floor} ${outcome}: consumption matches`);
       assert.equal(simulation.randomCalls, production.randomCalls,
         `${candidate} B${floor} ${outcome}: RNG call count matches`);
+      const productionOutcome = production.logs.some(log => log.includes("最大HPが不正"))
+        ? "trap-invalid-max-hp"
+        : production.logs.some(log => log.includes("経験値を獲得"))
+          ? "success"
+          : production.logs.some(log => log.includes("何も読み取れなかった"))
+            ? "miss"
+            : "trap";
+      assert.equal(simulation.outcome, productionOutcome,
+        `${candidate} B${floor} ${outcome}: structured outcome matches actual Read callback`);
       assert.equal(simulationState.currentRun.expGained, 0,
         "tablet EXP never enters the combat-only ledger");
       assert.equal(simulation.expGained, outcome === "success"
@@ -230,6 +244,14 @@ for (const floor of [1, 20]) {
         : 0);
       assert.equal(state.currentRun.expGained, 0,
         "production Read callback leaves the combat-only ledger unchanged");
+      if (outcome === "trap-invalid-max-hp") {
+        assert.equal(simulation.outcome, "trap-invalid-max-hp");
+        assert.ok(production.logs.some(log => log.includes("最大HPが不正")));
+        assert.equal(simulation.damage, 0);
+        assert.equal(simulationState.currentRun.deathLogs.length, 0);
+        assert.equal(production.cell.event, null);
+        assert.equal(simulation.randomCalls, 2, "invalid maxHP consumes outcome and target rolls only");
+      }
     }
   }
 }
