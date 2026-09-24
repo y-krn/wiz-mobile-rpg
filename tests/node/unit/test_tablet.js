@@ -100,7 +100,7 @@ function runTablet({ floor, randomValues, contract, party, action = "read" }) {
   state.floor = floor;
   state.party = party;
   state.logs = [];
-  state.currentRun = { deathLogs: [] };
+  state.currentRun = { expGained: 0, deathLogs: [] };
   state.codex.events.facilities.tablet.read = 0;
   state.maps[floor - 1] = [[{ event: "event_tablet" }]];
   state.x = 0;
@@ -169,6 +169,70 @@ assert.equal(invalidHpChar.hp, 20, "invalid raw maxHP fails closed without HP mu
 assert.equal(Number.isNaN(invalidHpChar.hp), false, "invalid HP does not propagate NaN");
 assert.ok(invalidHpResult.logs.some(log => log.includes("最大HPが不正")), "invalid maxHP is reported");
 assert.equal(invalidHpResult.cell.event, null, "failed closed Read still consumes the cell");
+
+const testLocalStorage = global.localStorage;
+const { applySimulationTabletRead } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
+Object.defineProperty(globalThis, "localStorage", {
+  value: testLocalStorage,
+  configurable: true,
+  writable: true
+});
+for (const floor of [1, 20]) {
+  for (const candidate of ["current", "fixed-c"]) {
+    for (const outcome of ["success", "trap-survival", "trap-death", "trap-upper", "miss"]) {
+      const damage = candidate === "fixed-c" ? 7 : 6 + floor * 3;
+      const firstHp = outcome === "trap-death" ? damage : damage + 1;
+      const makeParty = () => [
+        { name: "Parity対象", status: "alive", exp: 0, level: 1, hp: firstHp, maxHp: 20 },
+        { name: "Parity同行者", status: "alive", exp: 0, level: 1, hp: 100, maxHp: 100 }
+      ];
+      const randomValues = outcome === "success" ? [0.399, 0.5]
+        : outcome === "trap-upper" ? [0.699999, 0]
+        : outcome === "trap-survival" || outcome === "trap-death" ? [0.4, 0]
+          : [0.7];
+      const productionParty = makeParty();
+      const production = runTablet({
+        floor,
+        randomValues,
+        contract: candidate === "fixed-c" ? "phase4j-c-v1" : null,
+        party: productionParty
+      });
+      const simulationParty = makeParty();
+      const simulationCell = { event: "event_tablet" };
+      const simulationState = {
+        floor,
+        party: simulationParty,
+        currentRun: { expGained: 0, deathLogs: [] }
+      };
+      let randomIndex = 0;
+      const simulation = applySimulationTabletRead({
+        state: simulationState,
+        floor,
+        cell: simulationCell,
+        candidate,
+        rng: () => randomValues[randomIndex++] ?? 0
+      });
+      assert.deepEqual(
+        simulationParty.map(({ exp, hp, status }) => ({ exp, hp, status })),
+        productionParty.map(({ exp, hp, status }) => ({ exp, hp, status })),
+        `${candidate} B${floor} ${outcome}: state matches production Read callback`
+      );
+      assert.deepEqual(simulationState.currentRun.deathLogs, state.currentRun.deathLogs,
+        `${candidate} B${floor} ${outcome}: death attribution matches`);
+      assert.equal(simulationCell.event, production.cell.event,
+        `${candidate} B${floor} ${outcome}: consumption matches`);
+      assert.equal(simulation.randomCalls, production.randomCalls,
+        `${candidate} B${floor} ${outcome}: RNG call count matches`);
+      assert.equal(simulationState.currentRun.expGained, 0,
+        "tablet EXP never enters the combat-only ledger");
+      assert.equal(simulation.expGained, outcome === "success"
+        ? (candidate === "fixed-c" ? Math.round(80 * (1 + 0.04 * Math.floor((floor - 1) / 5))) : 100 + floor * 100)
+        : 0);
+      assert.equal(state.currentRun.expGained, 0,
+        "production Read callback leaves the combat-only ledger unchanged");
+    }
+  }
+}
 
 const beforeDefaultSave = global.localStorage.writes;
 const defaultTrapChar = { name: "既定罠", status: "alive", exp: 0, hp: 20, maxHp: 20 };
