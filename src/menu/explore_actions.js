@@ -711,8 +711,9 @@ export function renderEventSpringResult(optGrid) {
   optGrid.appendChild(btnReturn);
 }
 
-export function renderEventTablet(optGrid) {
+export function renderEventTablet(optGrid, { diagnosticContract = null } = {}) {
   document.getElementById("btn-submenu-back").style.display = "none";
+  const usePhase4jCCandidate = diagnosticContract === "phase4j-c-v1";
 
   const btnRead = document.createElement("button");
   btnRead.className = "btn btn-neon btn-block";
@@ -734,7 +735,10 @@ export function renderEventTablet(optGrid) {
         "『さまよう商人は迷宮の奥深くで究極の霊薬エリクサーを売っている。』"
       ];
       const chosenHint = hints[Math.floor(Math.random() * hints.length)];
-      const expGained = 100 + currentFloor * 100;
+      const band = Math.min(5, Math.max(0, Math.floor((currentFloor - 1) / 5)));
+      const expGained = usePhase4jCCandidate
+        ? Math.round(80 * (1 + 0.04 * band))
+        : 100 + currentFloor * 100;
       state.party.forEach(char => {
         if (char.status !== "dead") {
           char.exp += expGained;
@@ -748,18 +752,25 @@ export function renderEventTablet(optGrid) {
       const aliveChars = state.party.filter(char => char.status !== "dead");
       if (aliveChars.length > 0) {
         const target = aliveChars[Math.floor(Math.random() * aliveChars.length)];
-        const trapDmg = 6 + currentFloor * 3;
-        target.hp = Math.max(0, target.hp - trapDmg);
-        clearCharIncapacitationOnDamage(target);
-        if (target.hp === 0) {
-          target.status = "dead";
-          const deathLog = recordCharDeath(state, target, "石碑の罠", { type: "trap", source: "石碑の矢罠" });
-          if (deathLog) addLog(formatCharDeathLog(deathLog));
-        }
-        playSound("hit");
-        addLog(`[!] カチッ…罠が作動した！石碑の隙間から矢が飛び出し、${target.name}に${trapDmg}のダメージ！`);
-        if (target.hp === 0) {
-          addLog(`[!] ${target.name}は力尽きた！`);
+        const rawMaxHp = target.maxHp;
+        if (usePhase4jCCandidate && (!Number.isFinite(rawMaxHp) || rawMaxHp <= 0)) {
+          addLog("[!] 石碑の罠が作動したが、最大HPが不正なためダメージを適用できなかった。");
+        } else {
+          const trapDmg = usePhase4jCCandidate
+            ? Math.max(1, Math.ceil(0.35 * rawMaxHp))
+            : 6 + currentFloor * 3;
+          target.hp = Math.max(0, target.hp - trapDmg);
+          clearCharIncapacitationOnDamage(target);
+          if (target.hp === 0) {
+            target.status = "dead";
+            const deathLog = recordCharDeath(state, target, "石碑の罠", { type: "trap", source: "石碑の矢罠" });
+            if (deathLog) addLog(formatCharDeathLog(deathLog));
+          }
+          playSound("hit");
+          addLog(`[!] カチッ…罠が作動した！石碑の隙間から矢が飛び出し、${target.name}に${trapDmg}のダメージ！`);
+          if (target.hp === 0) {
+            addLog(`[!] ${target.name}は力尽きた！`);
+          }
         }
       }
     } else {
