@@ -53,7 +53,7 @@ function templateFor(instance) {
   return template;
 }
 
-function projectFunding(exp) {
+export function projectFunding(exp) {
   const probe = { level: 1, exp, hp: 20, maxHp: 20 };
   const startingLevel = probe.level;
   const levelUpApplied = checkCharLevelUp(probe);
@@ -75,7 +75,7 @@ function projectFunding(exp) {
   };
 }
 
-function generateRow({ floor, runIndex, worldSeed, boss = false }) {
+export function generateProductionExpAwardRow({ floor, runIndex, worldSeed, boss = false }) {
   const encounterSeed = `${worldSeed}:encounter`;
   const result = generateEncounter(
     { floor, currentRun: { runSeed: worldSeed } },
@@ -204,7 +204,7 @@ export async function runProgressionExpAwardInventory({
   for (const floor of FLOORS) {
     for (let runIndex = 0; runIndex < count; runIndex++) {
       const worldSeed = `progression-exp-award-inventory:${rootSeed}:B${floor}:${runIndex}`;
-      observations.push(generateRow({ floor, runIndex, worldSeed }));
+      observations.push(generateProductionExpAwardRow({ floor, runIndex, worldSeed }));
     }
   }
   const summaries = [];
@@ -214,7 +214,7 @@ export async function runProgressionExpAwardInventory({
       if (rows.length) summaries.push({ floor, encounterKind: kind, ...summarizeRows(rows) });
     }
   }
-  const bossReferences = BOSS_FLOORS.map(floor => generateRow({
+  const bossReferences = BOSS_FLOORS.map(floor => generateProductionExpAwardRow({
     floor,
     runIndex: null,
     worldSeed: `progression-exp-award-inventory:${rootSeed}:B${floor}:boss-reference`,
