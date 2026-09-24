@@ -1,6 +1,7 @@
 // sim-scope: run — paired production and Phase 4j-B EXP award inventory
 /* global console, process */
 
+import "../simulations/simulation_preflight.js";
 import fs from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
