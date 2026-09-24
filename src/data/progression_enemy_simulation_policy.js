@@ -6,11 +6,11 @@ export const PROGRESSION_ENEMY_SIMULATION_POLICY = Object.freeze({
   status: "design-only",
   productionConnected: false,
   contractSource: "PROGRESSION_ENEMY_CONTRACT",
-  candidateValues: "undecided; this policy defines measurement only",
-  priorDiagnosticEvidence: "Phase 1/2a numeric values may inform later measurement only; they are not candidate defaults, production values, or automatic adoption inputs",
+  candidateValues: "Phase 4c v1 fixed: player physical/spell 1 + 0.16 × baseline; Level 1 HP 20 × (1 + 0.10 × baseline); raw DEF bonus 0; HP buffer 0; enemy HP 1 + 0.20 × band; enemy ATK 1 + 0.10 × band; enemy DEF 1.0",
+  priorDiagnosticEvidence: "Phase 4h GitHub Actions #35945138644; N=200, seed=1698, source 512aad1fd33a8339418df7e9e8011a594388a040, 8,800 observations / 4,400 pairs, paired-seed mismatches 0, control delta 0, artifact sha256:6bdf0d2de6e7f3586146f613edab5a205e99c6987cc10686ec4c82db17e668e1; Priest/devotion attack-defend vs attack-only showed forced Guard action cost breaks generic viability despite per-hit mitigation",
   comparison: Object.freeze([
     "current production reference",
-    "one vNext player milestone baseline + generic enemy band scale candidate"
+    "current production vs the fixed Phase 4c v1 player milestone baseline + generic enemy band scale candidate"
   ]),
   contexts: freezeRows([
     {
@@ -59,9 +59,9 @@ export const PROGRESSION_ENEMY_SIMULATION_POLICY = Object.freeze({
       purpose: "isolate milestone baseline and generic enemy raw band scale",
       reuse: "production combat semantics with fixed representative generic enemy and non-specialized equipment",
       fixtures: Object.freeze([
-        Object.freeze({ id: "physical", axis: "physical combat" }),
-        Object.freeze({ id: "spell", axis: "spell combat; record MP spend" }),
-        Object.freeze({ id: "defensive-guard", axis: "defensive / Guard pressure; record Guard opportunities and guarded actions" })
+        Object.freeze({ id: "physical", axis: "Fighter / vanguard; production normal attack" }),
+        Object.freeze({ id: "spell", axis: "Mage / arcana; production spell combat; record MP spend" }),
+        Object.freeze({ id: "defensive", axis: "Priest / devotion attack-only; Guard excluded from generic viability and treated as situational for telegraphs or queued specials" })
       ]),
       holdConstant: Object.freeze([
         "enemy fixture within each paired comparison",
@@ -78,7 +78,7 @@ export const PROGRESSION_ENEMY_SIMULATION_POLICY = Object.freeze({
         "enemy actions",
         "player actions",
         "player-before-any-enemy",
-        "Guard opportunity / guarded actions when applicable",
+        "selected / executed attack and defend actions for defensive fixture; defend must be 0",
         "spell / MP spent when applicable"
       ])
     }),
@@ -91,9 +91,9 @@ export const PROGRESSION_ENEMY_SIMULATION_POLICY = Object.freeze({
   }),
   pairedSeeds: Object.freeze({
     required: true,
-    key: Object.freeze(["milestone context", "fixture", "runIndex"]),
-    cellIdentity: Object.freeze(["policy", "comparison arm", "milestone context", "fixture", "runIndex"]),
-    rule: "current production and vNext candidate share the seed derived from milestone context, fixture, and runIndex; policy is recorded in cell identity / provenance, never in seed derivation"
+    key: Object.freeze(["root seed", "milestone context", "fixture", "runIndex"]),
+    cellIdentity: Object.freeze(["policy", "comparison arm", "milestone context", "fixture", "Level", "runIndex"]),
+    rule: "current production and Phase 4c v1 candidate share the seed derived from root seed, milestone context, fixture, and runIndex; policy, arm, and Level are recorded in cell identity / provenance, never in seed derivation"
   }),
   samplePolicy: Object.freeze({
     below30: "correctness / runner validation only; no balance conclusion",
@@ -112,7 +112,7 @@ export const PROGRESSION_ENEMY_SIMULATION_POLICY = Object.freeze({
     "Boss-authored mechanics remain separate from generic band scale"
   ]),
   exclusions: Object.freeze([
-    "candidate numeric values or automatic adoption of Phase 1/2a values",
+    "additional candidate values or automatic adoption of Phase 1/2a values",
     "production player, enemy, Level, EXP, reward, item, loot, or Boss changes",
     "all-coefficient scans or separate broad player/enemy coefficient sweeps",
     "full build Cartesian product",

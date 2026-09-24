@@ -5,8 +5,9 @@ import { PROGRESSION_ENEMY_CONTRACT as contract } from "../../../src/data/progre
 assert.equal(policy.status, "design-only");
 assert.equal(policy.productionConnected, false);
 assert.equal(policy.contractSource, "PROGRESSION_ENEMY_CONTRACT");
-assert.match(policy.candidateValues, /undecided/);
-assert.match(policy.priorDiagnosticEvidence, /not candidate defaults, production values, or automatic adoption inputs/);
+assert.match(policy.candidateValues, /Phase 4c v1 fixed/);
+assert.match(policy.priorDiagnosticEvidence, /#35945138644/);
+assert.match(policy.priorDiagnosticEvidence, /paired-seed mismatches 0/);
 assert.equal(contract.status, "design-only");
 assert.deepEqual(policy.contexts.map(context => context.id), [
   "pre-milestone", "selected-deep-start", "post-milestone"
@@ -30,20 +31,26 @@ assert.deepEqual(policy.coverage.focusedBoundaryRegression, [
 ]);
 assert.match(contract.verticalPowerOwners.milestoneBaseline.timing, /maximum of that entitlement and the highest defeated milestone in this run/);
 assert.deepEqual(policy.layers.fixedGenericCombat.fixtures.map(({ id }) => id), [
-  "physical", "spell", "defensive-guard"
+  "physical", "spell", "defensive"
 ]);
+assert.match(policy.layers.fixedGenericCombat.fixtures[0].axis, /Fighter \/ vanguard/);
+assert.match(policy.layers.fixedGenericCombat.fixtures[1].axis, /Mage \/ arcana/);
+assert.match(policy.layers.fixedGenericCombat.fixtures[2].axis, /Priest \/ devotion attack-only/);
+assert.match(policy.layers.fixedGenericCombat.fixtures[2].axis, /Guard excluded from generic viability/);
+assert.match(policy.layers.fixedGenericCombat.metrics.join(" "), /selected \/ executed attack and defend actions.*defend must be 0/);
 assert.equal(policy.layers.runLocalLevelDelta.compare, "Level 1 and production-earned run-local Level at the same baseline");
 assert.match(policy.layers.runLocalLevelDelta.levelSource, /production EXP \/ Level contract/);
 assert.equal(policy.pairedSeeds.required, true);
-assert.deepEqual(policy.pairedSeeds.key, ["milestone context", "fixture", "runIndex"]);
-assert.deepEqual(policy.pairedSeeds.cellIdentity, ["policy", "comparison arm", "milestone context", "fixture", "runIndex"]);
-assert.match(policy.pairedSeeds.rule, /current production and vNext candidate share the seed/);
-assert.match(policy.pairedSeeds.rule, /policy is recorded in cell identity \/ provenance, never in seed derivation/);
+assert.deepEqual(policy.pairedSeeds.key, ["root seed", "milestone context", "fixture", "runIndex"]);
+assert.deepEqual(policy.pairedSeeds.cellIdentity, ["policy", "comparison arm", "milestone context", "fixture", "Level", "runIndex"]);
+assert.match(policy.pairedSeeds.rule, /current production and Phase 4c v1 candidate share the seed/);
+assert.match(policy.pairedSeeds.rule, /arm, and Level.*never in seed derivation/);
+assert.match(policy.pairedSeeds.rule, /policy, arm, and Level are recorded in cell identity \/ provenance, never in seed derivation/);
 assert.equal(policy.samplePolicy.below30, "correctness / runner validation only; no balance conclusion");
 assert.match(policy.samplePolicy.postMerge, /GitHub Actions artifact at N=200/);
 assert.equal(policy.samplePolicy.expandN200AcrossEveryMilestone, false);
 assert.equal(policy.layers.fixedGenericCombat.metrics.includes("survival / death"), true);
-assert.equal(policy.layers.fixedGenericCombat.metrics.includes("Guard opportunity / guarded actions when applicable"), true);
+assert.equal(policy.layers.fixedGenericCombat.metrics.includes("selected / executed attack and defend actions for defensive fixture; defend must be 0"), true);
 assert.equal(policy.layers.fixedGenericCombat.metrics.includes("spell / MP spent when applicable"), true);
 assert.equal(policy.layers.runLocalLevelDelta.metrics.includes("baseline source"), true);
 assert.equal(policy.interpretationGates.length, 8);
