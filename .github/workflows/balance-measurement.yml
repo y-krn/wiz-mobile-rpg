@@ -16,6 +16,7 @@ on:
           - progression-enemy-candidate-diagnostic
           - progression-enemy-defense-diagnostic
           - progression-enemy-hp-buffer-diagnostic
+          - progression-enemy-guard-policy-diagnostic
           - equipment-vnext-combat-diagnostic
           - depth-scaling-diagnostic
           - trait-scaling-diagnostic

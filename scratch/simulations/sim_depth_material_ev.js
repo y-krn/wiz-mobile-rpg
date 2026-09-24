@@ -4898,6 +4898,7 @@ function createSimulationState(
       enemyHealPotionDropChance,
       measurementInitiative: scenario.measurementInitiative || null,
       measurementCombatPlan: scenario.measurementCombatPlan || null,
+      measurementFixedCombat: Boolean(scenario.fixedCombat),
       b10CrushStrikeResponse: scenario.b10CrushStrikeResponse || null,
       measurementGuardTiming: scenario.measurementGuardTiming || null,
       b30TiltowaitGuardRecoveryCandidate: scenario.b30TiltowaitGuardRecoveryCandidate === true,
@@ -8017,6 +8018,15 @@ export function selectCombatAction(state, metrics) {
     monster => monster.status && !["ok", "dead"].includes(monster.status)
   );
   const lowestHpIdx = statusTargetIdx >= 0 ? statusTargetIdx : getLowestHpEnemyIndex(monsters);
+
+  // Diagnostic-only fixed-combat control: explicitly Fight every round.
+  if (
+    state.simPolicy.measurementFixedCombat === true &&
+    state.simPolicy.measurementCombatPlan === "attack-only" &&
+    state.simPolicy.measurementGuardTiming === "declared"
+  ) {
+    return { type: "fight", actorIdx: 0, targetIdx: lowestHpIdx };
+  }
 
   if (
     state.simPolicy.b10CrushStrikeResponse === "read" &&
