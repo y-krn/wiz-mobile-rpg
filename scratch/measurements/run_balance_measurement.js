@@ -210,6 +210,15 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     retentionDays: 14,
     buildArgs: progressionEnemyCandidateArgs
   }),
+  "progression-enemy-hp-buffer": freezeFamily({
+    runner: "scratch/measurements/progression_enemy_hp_buffer_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
+    artifactPrefix: "balance-measurement",
+    retentionDays: 14,
+    buildArgs: progressionEnemyCandidateArgs
+  }),
   "equipment-vnext-combat": freezeFamily({
     runner: "scratch/measurements/equipment_vnext_combat_diagnostic.js",
     adapter: "native-manifest",
@@ -373,6 +382,12 @@ const PROFILE_LIST = [
     label: "Progression enemy defensive baseline diagnostic",
     family: "progression-enemy-defensive-baseline",
     defaults: { runs: 200, minimumRuns: 200, seed: 1694 }
+  },
+  {
+    id: "progression-enemy-hp-buffer-diagnostic",
+    label: "Progression enemy HP buffer diagnostic",
+    family: "progression-enemy-hp-buffer",
+    defaults: { runs: 200, minimumRuns: 200, seed: 1696 }
   },
   {
     id: "equipment-vnext-combat-diagnostic",

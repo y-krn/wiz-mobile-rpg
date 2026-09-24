@@ -15,6 +15,7 @@ on:
           - fixed-combat-composition
           - progression-enemy-candidate-diagnostic
           - progression-enemy-defense-diagnostic
+          - progression-enemy-hp-buffer-diagnostic
           - equipment-vnext-combat-diagnostic
           - depth-scaling-diagnostic
           - trait-scaling-diagnostic
