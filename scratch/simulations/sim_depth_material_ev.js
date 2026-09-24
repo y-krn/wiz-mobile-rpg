@@ -56,6 +56,7 @@ const { getTrialGuardianPressures } = await import("../../src/rules/floor_trials
 const { applyPendingOutcomeRewards } = await import("../../src/combat_ui/outcome_rewards.js");
 const { runCombatRoundCalculation } = await import("../../src/combat_logic.js");
 const { cloneCombatStateForRound } = await import("../../src/combat_logic/round.js");
+const { calculateCandidateAward } = await import("../measurements/progression_exp_award_paired_inventory.js");
 const {
   chooseAutoCombatAction,
   getAutoHealTargetIdx,
@@ -9372,6 +9373,63 @@ function runEncounter(
     isMidboss,
     isElite
   });
+  let expAwardCandidateObservation = null;
+  if (metrics?.expAwardCandidate?.enabled) {
+    const diagnostic = metrics.expAwardCandidate;
+    const recordGap = reason => {
+      diagnostic.coverageGaps[reason] = (diagnostic.coverageGaps[reason] || 0) + 1;
+    };
+    if (fixedMonsterNames || isBoss || isMidboss || isElite || roamingMonster ||
+        earlyCompositionCandidateAction !== "none") {
+      recordGap("special-or-fixed-encounter");
+    } else if (generatedInitialVisibleEnemyCount !== 1 || monsters.length !== 1) {
+      recordGap("initial-encounter-size-not-one");
+    } else {
+      const monster = monsters[0];
+      const templateName = monster.name.replace(/\s[A-Z]$/, "");
+      const template = MONSTERS.find(entry => entry.name === templateName);
+      if (!template || !Number.isFinite(template.exp) || template.exp < 0 ||
+          !Number.isFinite(monster.exp) || monster.exp < 0) {
+        recordGap("ambiguous-identity-or-invalid-exp");
+      } else if (monster.isRare || monster.treasureRare || template.treasureRare ||
+          monster.hasSplit || monster.isSummoned || monster.split || template.hasSplit ||
+          template.split || template.summons || template.traits?.some(trait => /split|summon/i.test(String(trait))) ||
+          templateName.includes("分裂")) {
+        recordGap("rare-or-special-enemy");
+      } else {
+        const before = structuredClone(monster);
+        const templateExpBefore = template.exp;
+        const candidate = calculateCandidateAward({
+          floor: state.floor,
+          kind: "ordinary",
+          monsters: [{ templateExp: template.exp }],
+          encounterSize: 1
+        });
+        const applyCandidate = diagnostic.id === "phase4j-b";
+        if (applyCandidate) monster.exp = candidate.totalAward;
+        const otherFieldsUnchanged = Object.keys(before).length === Object.keys(monster).length &&
+          Object.keys(before).every(key => key === "exp" || JSON.stringify(before[key]) === JSON.stringify(monster[key]));
+        if (!otherFieldsUnchanged || template.exp !== templateExpBefore) {
+          throw new Error("EXP candidate changed a diagnostic field other than the enemy instance exp");
+        }
+        expAwardCandidateObservation = {
+          floor: state.floor,
+          encounterName: monster.name,
+          templateName,
+          templateExp: template.exp,
+          productionInstanceExp: before.exp,
+          candidateExp: candidate.totalAward,
+          selectedAwardExp: applyCandidate ? candidate.totalAward : before.exp,
+          awardMode: diagnostic.id,
+          candidateAppliedTo: applyCandidate ? "diagnostic-enemy-instance.exp" : null,
+          otherEnemyFieldsUnchanged: true,
+          templateUnchanged: template.exp === templateExpBefore,
+          candidate
+        };
+        diagnostic.observations.push(expAwardCandidateObservation);
+      }
+    }
+  }
   recordEncounterGroups(metrics, state.floor, monsters);
   monsters.forEach(monster => {
     const baseName = monster.name.replace(/\s[A-Z]$/, "");
@@ -16234,6 +16292,12 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       encounters: structuredClone(metrics.tabletExposure.encounters),
       coverageGaps: [...metrics.tabletExposure.coverageGaps]
     },
+    combatExpCandidate: {
+      id: metrics.expAwardCandidate.id,
+      enabled: metrics.expAwardCandidate.enabled,
+      observations: structuredClone(metrics.expAwardCandidate.observations),
+      coverageGaps: { ...metrics.expAwardCandidate.coverageGaps }
+    },
     equipmentUpdatePolicy: metrics.equipmentUpdatePolicy,
     paretoSafeOverrideCount: (metrics.equipmentTelemetry || [])
       .filter(event => event.type === "swap" && event.paretoSafeOverride).length,
@@ -16927,6 +16991,13 @@ export function simulateRun({
     routePolicy: scenario.routePolicy || "omniscient_shortest_route",
     tabletPolicy: scenario.tabletPolicy === "read-first-reached" ? "read-first-reached" : "leave-on-encounter",
     tabletOutcomeCandidate: scenario.tabletOutcomeCandidate === "fixed-c" ? "fixed-c" : "current",
+    expAwardCandidate: {
+      enabled: ["phase4j-b", "production"].includes(scenario.expAwardCandidate),
+      id: ["phase4j-b", "production"].includes(scenario.expAwardCandidate)
+        ? scenario.expAwardCandidate : null,
+      observations: [],
+      coverageGaps: {}
+    },
     initialCombatExp: state.currentRun.expGained,
     initialCharacterExp: state.party.map(character => character.exp),
     tabletExposure: {
@@ -18177,7 +18248,10 @@ export function simulateRun({
           const levelBeforeCombat = state.party[0].level;
           const expBeforeCombat = state.party[0].exp;
           const maxHpBeforeCombat = getCharMaxHp(state.party[0]);
+          const rawMaxHpBeforeCombat = state.party[0].maxHp;
           const hpBeforeCombat = state.party[0].hp;
+          const combatLedgerBefore = state.currentRun.expGained;
+          const expCandidateObservationIndex = metrics.expAwardCandidate.observations.length;
           const combatResult = runEncounter(
             state,
             metrics.coreObservations,
@@ -18196,6 +18270,35 @@ export function simulateRun({
             }
           );
           state = combatResult.state;
+          const expCandidateObservation = metrics.expAwardCandidate.observations[expCandidateObservationIndex];
+          if (expCandidateObservation) {
+            const character = state.party[0];
+            const combatLedgerDelta = state.currentRun.expGained - combatLedgerBefore;
+            expCandidateObservation.result = combatResult.result;
+            expCandidateObservation.rounds = combatResult.rounds;
+            expCandidateObservation.combatLedgerBefore = combatLedgerBefore;
+            expCandidateObservation.combatLedgerAfter = state.currentRun.expGained;
+            expCandidateObservation.combatOnlyLedgerDelta = combatLedgerDelta;
+            expCandidateObservation.characterExpBefore = expBeforeCombat;
+            expCandidateObservation.characterExpAfter = character.exp;
+            expCandidateObservation.characterExpDelta = character.exp - expBeforeCombat;
+            expCandidateObservation.levelBefore = levelBeforeCombat;
+            expCandidateObservation.levelAfter = character.level;
+            expCandidateObservation.levelUps = character.level - levelBeforeCombat;
+            expCandidateObservation.rawMaxHpBefore = rawMaxHpBeforeCombat;
+            expCandidateObservation.rawMaxHpAfter = character.maxHp;
+            expCandidateObservation.hpBefore = hpBeforeCombat;
+            expCandidateObservation.hpAfterRoundSettlement = character.hp;
+            expCandidateObservation.levelUpRecoveryHp = combatResult.productionLevelUpRecoveryHp;
+            expCandidateObservation.awardMatchedSelectedExp = combatResult.result === "victory"
+              ? combatLedgerDelta === expCandidateObservation.selectedAwardExp
+              : combatLedgerDelta === 0;
+            if (combatResult.result !== "victory") {
+              const gap = `non-victory-${combatResult.result}`;
+              metrics.expAwardCandidate.coverageGaps[gap] =
+                (metrics.expAwardCandidate.coverageGaps[gap] || 0) + 1;
+            }
+          }
           if (isBoss && specialEvent.milestone) {
             metrics.milestoneEventTrace.push({
               floor,
