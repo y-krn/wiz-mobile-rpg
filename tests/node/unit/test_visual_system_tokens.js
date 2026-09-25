@@ -12,10 +12,10 @@ const equipment = readStyle("overlays-equip.css");
 const spell = readStyle("overlays-spell.css");
 const result = readStyle("overlays-result.css");
 
-assert.match(tokens, /--surface-control:\s*#14141a;/);
-assert.match(tokens, /--surface-neutral:\s*#14141a;/);
-assert.match(tokens, /--surface-unavailable:\s*#0c0c0e;/);
-assert.match(tokens, /--surface-meter-track:\s*#0c0c0e;/);
+assert.match(tokens, /--surface-control:\s*#fffaf1;/);
+assert.match(tokens, /--surface-neutral:\s*#f7f0e3;/);
+assert.match(tokens, /--surface-unavailable:\s*#ece5d9;/);
+assert.match(tokens, /--surface-meter-track:\s*#e7dccb;/);
 
 const assertOwner = (source, selector, token) => {
   const selectorPattern = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

@@ -296,18 +296,20 @@ each affected game state. Use browser-driven checks or screenshots at
 360x800, 390x844, and 430x932; include 320x568 or another short viewport when
 vertical pressure is part of the risk.
 
-## Dark Archive visual-system contract
+## Storybook Pixel visual-system contract
 
-This is the durable visual-system contract extracted by Issue #1228. It
-protects the current product language; it is not a redesign brief. When a
-screen differs, classify the difference before changing it as canonical,
-intentional one-off, drift, renderer-owned, or accessibility defect. The
-audit record and evidence are in
-`evidence/results/issue-1228-visual-system.md`.
+This is the durable visual-system contract. It replaced the earlier dark
+"Dark Archive" language (Issue #1228 audit record:
+`evidence/results/issue-1228-visual-system.md`) with a bright storybook
+presentation: cream paper surfaces, ink (`--ink`) outlines, pressable tiles,
+and a pixel-art dungeon. Semantic roles below are unchanged; only their
+values moved. When a screen differs, classify the difference before changing
+it as canonical, intentional one-off, drift, renderer-owned, or accessibility
+defect.
 
 ### Semantic roles
 
-- `--bg-color` / `--panel-bg`: coal-black base shell and persistent shell
+- `--bg-color` / `--panel-bg`: cream paper base shell and persistent shell
   panels. Do not use them to imply selection or recommendation.
 - `--surface-raised`, `--surface-inset`, `--surface-control`,
   `--surface-neutral`, `--surface-deep`, `--surface-unavailable`, and
@@ -326,8 +328,10 @@ audit record and evidence are in
   destructive describes a high-loss action being committed; success describes
   a completed result. Do not leak rarity, curse, or the correct answer from
   unknown game knowledge.
-- Legacy `--neon-*` aliases may remain where their semantic role is correct.
-  Do not rename them as a visual cleanup exercise, and never use success/HP,
+- Legacy `--neon-*` aliases may remain where their semantic role is correct;
+  they now hold saturated mid-tones that keep text contrast on cream, paired
+  with `--tint-*` soft fills for chips, rows, and selected cards. Do not
+  rename them as a visual cleanup exercise, and never use success/HP,
   recommendation, and selection as interchangeable green or glow meanings.
 
 ### Surfaces and type
@@ -338,9 +342,11 @@ destructive confirmation → result/settlement. Action docks and confirmations
 must remain readable and reachable at the mobile tap contract (`--tap-min`),
 but every section is not automatically a card.
 
-Display/Mincho carries location, lore, ritual, and restrained result emphasis;
-sans carries reading, labels, decisions, and most actions; mono carries
-compact values, counts, floor, HP/MP, and other tabular system data. Japanese
+Display (DotGothic16 pixel face) carries location, lore, ritual, primary
+calls to action, and restrained result emphasis; rounded sans (M PLUS Rounded
+1c) carries reading, labels, decisions, and most actions; mono (the pixel
+face) carries compact values, counts, floor, HP/MP, and other tabular system
+data. Japanese
 critical labels wrap when needed. Do not solve density by shrinking text or
 introducing single-line ellipsis on actions, consequences, or unknown labels.
 
@@ -366,12 +372,21 @@ reason. Under `prefers-reduced-motion: reduce`, suppress decorative movement
 while retaining visible selection, damage, result, pending, and completed
 meaning.
 
-Floor themes may change dungeon identity, aura, and floor-specific border or
-glow. They must not redefine shared selected, focus, danger, destructive,
-disabled, text, current-event, or action-dock meanings. Canvas is the default
-Dungeon renderer and Pixi is an opt-in equivalent; renderer pixels, geometry,
-materials, fog, lighting, particles, and movement ownership remain outside
-this DOM/CSS contract.
+Buttons are pressable tiles: a 2px border plus a solid drop edge
+(`--btn-edge`) that collapses on press. Each decision surface has at most one
+filled primary action (forward, attack, departure, next-run preparation);
+back/cancel stays quiet on `--surface-inset`. In Dungeon First mode the world
+fills the screen and HUD pieces float as cream cards; the Action Dock and the
+character HUD read as one bottom sheet.
+
+Floor themes may change dungeon identity (the biome signature color as trim,
+vignette tint, and pastel surface tints) but must not redefine shared
+selected, focus, danger, destructive, disabled, text, current-event, or
+action-dock meanings. Pixi is the Dungeon renderer; it bakes nearest-filtered
+pixel textures per biome (`src/pixi_pixel_art.js`) and maps them onto the
+shared projection with light distance haze instead of darkness. Renderer
+pixels, geometry, materials, fog, lighting, particles, and movement ownership
+remain outside this DOM/CSS contract.
 
 For recurring visual changes, add a browser-computed or visible-outcome guard
 only when the invariant is player-facing and stable. Prefer existing Golden

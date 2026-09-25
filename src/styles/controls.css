@@ -4,7 +4,7 @@
 #controls-panel {
   height: auto;
   min-height: 210px; /* Expanded to fit town controls (4 rows) comfortably */
-  background: linear-gradient(180deg, #121e25 0%, #0e171d 100%);
+  background: var(--bg-color);
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
   padding: 8px;
@@ -20,7 +20,7 @@
   height: 116px; /* Compact height for dungeon exploration */
   min-height: 116px;
   padding: 6px 8px;
-  background: linear-gradient(180deg, #122329 0%, #0e191e 100%);
+  background: var(--surface-control);
 }
 
 #controls-panel.submenu-mode {
@@ -52,7 +52,7 @@
   min-height: 0;
   justify-content: flex-start;
   padding: 8px;
-  background: linear-gradient(180deg, #24191c 0%, #171317 100%);
+  background: var(--surface-control);
 }
 
 /* Combat choice screens are rendered inside the Dock. Let the Dock own the
@@ -86,7 +86,7 @@
   min-height: 0;
   overflow: hidden;
   justify-content: flex-start;
-  background: linear-gradient(180deg, #211d17 0%, #151517 100%);
+  background: var(--bg-color);
 }
 
 #controls-panel.submenu-mode.chest-menu-mode {
@@ -141,7 +141,7 @@
 .dpad .btn-dpad {
   border-color: var(--border-strong);
   color: var(--text-secondary);
-  background: linear-gradient(180deg, rgba(28, 48, 55, 0.94), rgba(16, 29, 35, 0.94));
+  background: var(--surface-raised);
 }
 
 #btn-turn-left {
@@ -160,23 +160,22 @@
 }
 
 #btn-move-forward {
-  border-color: var(--neon-cyan);
-  color: var(--neon-cyan);
-  background: linear-gradient(180deg, rgba(42, 72, 74, 0.98), rgba(18, 38, 42, 0.98));
-  box-shadow: inset 0 1px 0 rgba(155, 215, 210, 0.16), var(--shadow-soft);
+  --btn-edge: #17707e;
+  border-color: #17707e;
+  color: #fff;
+  background: linear-gradient(180deg, #34b0c0, var(--neon-cyan));
   grid-column: 1 / span 2;
   grid-row: 1;
 }
 
 #btn-move-forward:active {
-  background: rgba(155, 215, 210, 0.16);
-  box-shadow: var(--neon-glow-cyan);
+  background: var(--neon-cyan);
 }
 
 #btn-search {
   border-color: var(--neon-amber);
   color: var(--neon-amber);
-  background: linear-gradient(180deg, rgba(57, 47, 31, 0.96), rgba(29, 27, 22, 0.96));
+  background: var(--tint-amber);
   grid-column: 3;
   grid-row: 1;
 }
@@ -190,13 +189,13 @@
 }
 
 .action-grid .btn-action {
-  border-color: rgba(155, 215, 210, 0.58);
-  background: linear-gradient(180deg, rgba(29, 50, 53, 0.94), rgba(17, 31, 35, 0.94));
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
 }
 
 .action-grid .btn-action:active {
   border-color: var(--neon-cyan);
-  box-shadow: var(--neon-glow-cyan);
+  background: var(--tint-cyan);
 }
 
 .town-grid {
@@ -217,10 +216,11 @@
   grid-column: 1 / -1;
   gap: var(--sp-sm);
   min-width: 0;
-  padding: var(--sp-md);
+  padding: var(--sp-lg);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: linear-gradient(180deg, rgba(28, 29, 29, 0.86), rgba(14, 18, 20, 0.94));
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
 }
 
 .town-home-section-heading {
@@ -230,18 +230,22 @@
 }
 
 .town-home-kicker {
+  justify-self: start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--tint-amber);
   color: var(--neon-amber);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
 }
 
 .town-home-section h2 {
   margin: 0;
   color: var(--text-main);
-  font-family: var(--font-display);
-  font-size: var(--fs-lg);
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: var(--fs-xl);
+  font-weight: 800;
   text-wrap: balance;
 }
 
@@ -314,8 +318,22 @@
 }
 
 .town-home-section:last-child .btn-town:last-child {
-  border-color: var(--neon-green);
+  --btn-edge: rgba(47, 158, 98, 0.3);
+  border-color: rgba(47, 158, 98, 0.5);
   color: var(--neon-green);
+  background: linear-gradient(180deg, #fffdf8, var(--tint-green));
+}
+
+/* The next-run preparation is the one primary action on the town home. */
+.town-grid #btn-town-dungeon {
+  --btn-edge: #a85f0f;
+  border-color: #a85f0f;
+  background: linear-gradient(180deg, #f2a74a, var(--neon-amber));
+  color: #fff;
+}
+
+.town-grid #btn-town-dungeon span {
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .workshop-grid {
@@ -757,9 +775,11 @@
 #btn-combat-fight {
   grid-column: 1 / span 2;
   grid-row: 1;
-  border-color: var(--neon-amber);
-  color: var(--neon-amber);
-  background: linear-gradient(180deg, rgba(76, 48, 29, 0.98), rgba(39, 28, 22, 0.98));
+  --btn-edge: #a8352b;
+  border-color: #a8352b;
+  color: #fff;
+  background: linear-gradient(180deg, #ec6a5c, var(--neon-red));
+  text-shadow: 0 2px 0 rgba(140, 40, 30, 0.5);
 }
 
 #btn-combat-spell {
@@ -810,8 +830,7 @@
 }
 
 #btn-combat-fight:active {
-  background: rgba(226, 179, 111, 0.16);
-  box-shadow: var(--neon-glow-amber);
+  background: var(--neon-red);
 }
 
 #btn-combat-cancel {
@@ -819,14 +838,14 @@
   grid-row: 3;
   border-color: var(--border-strong) !important;
   color: var(--text-muted) !important;
-  background: linear-gradient(180deg, rgba(26, 32, 36, 0.96), rgba(17, 23, 27, 0.96));
+  background: var(--surface-inset);
 }
 
 #game-container[data-combat-context="active"] #btn-combat-cancel[hidden] {
   display: none;
 }
 #btn-combat-cancel:active {
-  background-color: rgba(224, 120, 112, 0.15) !important;
+  background-color: rgba(137, 44, 37, 0.15) !important;
   border-color: var(--neon-red) !important;
   color: var(--neon-red) !important;
 }
@@ -835,7 +854,7 @@
   color: var(--neon-purple) !important;
 }
 #btn-combat-auto:active {
-  background-color: rgba(180, 0, 255, 0.12) !important;
+  background-color: rgba(175, 13, 242, 0.12) !important;
   box-shadow: var(--neon-glow-purple) !important;
 }
 
@@ -894,7 +913,7 @@
   width: 4px;
 }
 .submenu-grid::-webkit-scrollbar-track {
-  background: rgba(155, 215, 210, 0.05);
+  background: rgba(47, 106, 101, 0.05);
   border-radius: 2px;
 }
 .submenu-grid::-webkit-scrollbar-thumb {
@@ -907,7 +926,7 @@
   font-size: var(--fs-sm);
   min-height: var(--tap-min); /* keep tap target now that rows use max-content */
   border-color: var(--border-strong);
-  background: linear-gradient(180deg, rgba(28, 42, 49, 0.94), rgba(17, 28, 34, 0.94));
+  background: linear-gradient(180deg, rgba(248, 240, 226, 0.94), rgba(248, 241, 229, 0.94));
 }
 
 .submenu-grid .btn:active {
@@ -962,7 +981,7 @@
   padding: var(--sp-sm);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  background: linear-gradient(180deg, rgba(42, 31, 29, 0.7), rgba(26, 24, 25, 0.7));
+  background: linear-gradient(180deg, rgba(246, 237, 223, 0.7), rgba(248, 241, 230, 0.7));
   color: var(--text-main);
   font-family: var(--font-mono);
   font-size: var(--fs-md);
@@ -974,9 +993,9 @@
   grid-column: 1 / -1;
   gap: var(--sp-xs);
   padding: var(--sp-sm) var(--sp-md);
-  border: 1px solid rgba(226, 179, 111, 0.5);
+  border: 1px solid rgba(138, 96, 35, 0.5);
   border-radius: var(--radius-md);
-  background: linear-gradient(180deg, rgba(58, 44, 28, 0.72), rgba(30, 27, 23, 0.72));
+  background: linear-gradient(180deg, rgba(242, 232, 221, 0.72), rgba(247, 240, 229, 0.72));
   color: var(--text-main);
   font-family: var(--font-mono);
   font-size: var(--fs-md);
@@ -1005,7 +1024,7 @@
   min-width: 0;
   padding: var(--sp-xs);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background-color: rgba(0, 0, 0, 0.18);
+  background-color: rgba(46, 38, 64, 0.099);
 }
 
 .run-stakes-flow span {
@@ -1025,9 +1044,9 @@
   grid-column: 1 / -1;
   gap: var(--sp-xs);
   padding: var(--sp-sm) var(--sp-md);
-  border: 1px solid rgba(155, 215, 210, 0.5);
+  border: 1px solid rgba(47, 106, 101, 0.5);
   border-radius: var(--radius-md);
-  background: linear-gradient(180deg, rgba(28, 47, 49, 0.82), rgba(18, 29, 32, 0.82));
+  background: linear-gradient(180deg, rgba(248, 240, 226, 0.82), rgba(248, 241, 230, 0.82));
 }
 
 .milestone-disclosure-title {
@@ -1057,7 +1076,7 @@
   min-width: 0;
   padding: var(--sp-xs);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background-color: rgba(0, 0, 0, 0.18);
+  background-color: rgba(46, 38, 64, 0.099);
   font-size: var(--fs-xs);
   overflow-wrap: anywhere;
 }
@@ -1083,7 +1102,7 @@
   padding: var(--sp-md) 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  background: linear-gradient(180deg, rgba(24, 37, 43, 0.75), rgba(16, 25, 31, 0.75));
+  background: linear-gradient(180deg, rgba(248, 240, 226, 0.75), rgba(248, 241, 231, 0.75));
   font-family: var(--font-mono);
   font-size: var(--fs-md);
   line-height: 1.35;
@@ -1126,8 +1145,9 @@
 /* Combat prompt */
 #combat-prompt {
   padding: 2px var(--sp-sm);
-  border-left: 2px solid var(--semantic-selected);
-  background: rgba(155, 215, 210, 0.06);
+  border-left: 3px solid var(--semantic-selected);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--tint-yellow);
   font-family: var(--font-display);
   font-size: var(--fs-sm);
   color: var(--text-secondary);
@@ -1145,8 +1165,7 @@
 #game-container[data-combat-context="active"] #btn-combat-defend,
 #game-container[data-combat-context="active"] #btn-combat-run {
   font-size: var(--fs-sm);
-  background: rgba(22, 32, 39, 0.84);
-  box-shadow: none;
+  background: var(--surface-raised);
 }
 
 /* Trap Encounter Panel Style */
@@ -1170,8 +1189,8 @@
   font-size: var(--fs-md);
   line-height: 1.25;
   color: var(--text-primary);
-  background: linear-gradient(180deg, rgba(53, 29, 31, 0.9), rgba(25, 20, 24, 0.94));
-  border: 1px solid rgba(224, 120, 112, 0.48);
+  background: linear-gradient(180deg, rgba(242, 222, 224, 0.9), rgba(248, 242, 231, 0.94));
+  border: 1px solid rgba(137, 44, 37, 0.48);
   border-radius: var(--radius-lg);
   padding: var(--sp-md);
   box-shadow: var(--shadow-soft);
@@ -1222,9 +1241,9 @@
 #btn-trap-force {
   border-color: var(--neon-red) !important;
   color: var(--neon-red) !important;
-  background-color: rgba(224, 120, 112, 0.08);
+  background-color: rgba(137, 44, 37, 0.08);
 }
 #btn-trap-force:active {
-  background-color: rgba(224, 120, 112, 0.25) !important;
+  background-color: rgba(137, 44, 37, 0.25) !important;
   box-shadow: var(--neon-glow-red) !important;
 }

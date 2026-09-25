@@ -1,26 +1,26 @@
 /* Submenu Quick-Action Button Styles */
 .btn-target-enemy {
-  border-color: rgba(255, 59, 48, 0.5);
+  border-color: rgba(197, 20, 10, 0.5);
   color: var(--neon-red);
 }
 .btn-target-enemy:hover, .btn-target-enemy:active {
   border-color: var(--neon-red);
-  background-color: rgba(255, 59, 48, 0.12);
+  background-color: rgba(197, 20, 10, 0.12);
   box-shadow: var(--neon-glow-red);
 }
 
 .btn-target-ally {
-  border-color: rgba(0, 229, 255, 0.5);
+  border-color: rgba(13, 219, 242, 0.5);
   color: var(--neon-cyan);
 }
 .btn-target-ally:hover, .btn-target-ally:active {
   border-color: var(--neon-cyan);
-  background-color: rgba(0, 229, 255, 0.12);
+  background-color: rgba(13, 219, 242, 0.12);
   box-shadow: var(--neon-glow-cyan);
 }
 
 .btn-select-spell {
-  border-color: rgba(191, 90, 242, 0.5);
+  border-color: rgba(112, 21, 157, 0.5);
   color: var(--neon-purple);
   padding: 8px 6px !important;
   font-size: var(--fs-md) !important;
@@ -29,12 +29,12 @@
 }
 .btn-select-spell:hover, .btn-select-spell:active {
   border-color: var(--neon-purple);
-  background-color: rgba(191, 90, 242, 0.12);
+  background-color: rgba(112, 21, 157, 0.12);
   box-shadow: var(--neon-glow-purple);
 }
 
 .btn-select-item {
-  border-color: rgba(255, 179, 0, 0.5);
+  border-color: rgba(242, 174, 13, 0.5);
   color: var(--neon-amber);
   padding: 8px 6px !important;
   font-size: var(--fs-md) !important;
@@ -43,7 +43,7 @@
 }
 .btn-select-item:hover, .btn-select-item:active {
   border-color: var(--neon-amber);
-  background-color: rgba(255, 179, 0, 0.12);
+  background-color: rgba(242, 174, 13, 0.12);
   box-shadow: var(--neon-glow-amber);
 }
 
@@ -53,7 +53,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(12, 12, 14, 0.98);
+  background-color: rgba(250, 245, 237, 0.98);
   backdrop-filter: blur(8px);
   z-index: 100;
   display: flex;
@@ -200,7 +200,7 @@
 
 .equip-organize-entry {
   align-self: stretch;
-  border-color: rgba(226, 179, 111, 0.45);
+  border-color: rgba(138, 96, 35, 0.45);
   color: var(--neon-amber);
   font-size: var(--fs-sm);
   min-height: var(--tap-min);
@@ -211,14 +211,14 @@
 .equip-organize-entry:hover,
 .equip-organize-entry:active,
 .equip-organize-entry:focus-visible {
-  background-color: rgba(226, 179, 111, 0.1);
+  background-color: rgba(138, 96, 35, 0.1);
   border-color: var(--neon-amber);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .equip-organize-controls {
-  background-color: rgba(226, 179, 111, 0.06);
-  border: 1px solid rgba(226, 179, 111, 0.3);
+  background-color: rgba(138, 96, 35, 0.06);
+  border: 1px solid rgba(138, 96, 35, 0.3);
   border-radius: var(--radius-xs);
   display: flex;
   flex-direction: column;
@@ -239,7 +239,7 @@
 }
 
 .equip-organize-count {
-  color: #fff;
+  color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
   font-weight: bold;
@@ -329,7 +329,7 @@
 
 .equip-filter-chip {
   --sel-accent: var(--neon-cyan);
-  --sel-bg: rgba(0, 229, 255, 0.05);
+  --sel-bg: rgba(13, 219, 242, 0.05);
   --sel-color: var(--neon-cyan);
 
   flex-grow: 1;
@@ -379,8 +379,8 @@
 
 .equip-attack-breakdown {
   align-items: stretch;
-  background: rgba(155, 215, 210, 0.05);
-  border: 1px solid rgba(155, 215, 210, 0.25);
+  background: rgba(47, 106, 101, 0.05);
+  border: 1px solid rgba(47, 106, 101, 0.25);
   border-radius: var(--radius-xs);
   display: grid;
   gap: var(--sp-xs);
@@ -427,14 +427,14 @@
 
 .equip-actor-chip {
   --sel-accent: var(--neon-cyan);
-  --sel-bg: rgba(0, 229, 255, 0.08);
-  --sel-color: #fff;
+  --sel-bg: var(--tint-cyan);
+  --sel-color: var(--text-primary);
 
   align-items: flex-start;
   background-color: var(--surface-control);
   border: 1px solid var(--border-control);
   border-radius: 4px;
-  color: #fff;
+  color: var(--text-primary);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -449,6 +449,8 @@
 
 .equip-actor-chip span,
 .equip-actor-chip small {
+  /* Pin line boxes so web-font metrics cannot grow the reserved dock rows. */
+  line-height: 1.25;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -457,7 +459,7 @@
 }
 
 .equip-actor-chip span {
-  color: #fff;
+  color: var(--text-primary);
   font-size: var(--fs-base);
   font-weight: bold;
 }
@@ -514,23 +516,23 @@
 }
 
 .equip-item-row.rarity-magic {
-  background-color: rgba(155, 215, 210, 0.06);
+  background-color: rgba(47, 106, 101, 0.06);
   border-left-color: var(--neon-cyan);
 }
 
 .equip-item-row.rarity-rare {
-  background-color: rgba(226, 179, 111, 0.07);
+  background-color: rgba(138, 96, 35, 0.07);
   border-left-color: var(--neon-amber);
 }
 
 .equip-item-row.rarity-epic {
-  background-color: rgba(188, 167, 220, 0.09);
+  background-color: rgba(70, 47, 106, 0.09);
   border-left-color: var(--neon-purple);
-  box-shadow: 0 0 5px rgba(188, 167, 220, 0.35);
+  box-shadow: 0 0 5px rgba(70, 47, 106, 0.35);
 }
 
 .equip-item-row.equip-equipped-row {
-  background-color: rgba(155, 215, 210, 0.09);
+  background-color: rgba(47, 106, 101, 0.09);
   border-right-color: var(--neon-cyan);
   border-right-width: 3px;
 }
@@ -543,14 +545,14 @@
 
 .equip-item-row.selected {
   border-color: var(--neon-cyan);
-  background-color: rgba(0, 229, 255, 0.05);
+  background-color: rgba(13, 219, 242, 0.05);
   box-shadow: 0 0 6px var(--neon-cyan);
 }
 
 .equip-item-row.discard-selected {
-  background-color: rgba(226, 179, 111, 0.13);
+  background-color: rgba(138, 96, 35, 0.13);
   border-color: var(--neon-amber);
-  box-shadow: 0 0 6px rgba(226, 179, 111, 0.55);
+  box-shadow: 0 0 6px rgba(138, 96, 35, 0.55);
 }
 
 .equip-item-row.equip-equipped-row.is-comparison-target {
@@ -595,7 +597,7 @@
 
 .equip-item-row-name {
   font-size: var(--fs-base);
-  color: #fff;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -639,17 +641,17 @@
 }
 
 .equip-rarity-badge.magic {
-  background-color: rgba(155, 215, 210, 0.12);
+  background-color: rgba(47, 106, 101, 0.12);
   color: var(--neon-cyan);
 }
 
 .equip-rarity-badge.rare {
-  background-color: rgba(226, 179, 111, 0.14);
+  background-color: rgba(138, 96, 35, 0.14);
   color: var(--neon-amber);
 }
 
 .equip-rarity-badge.epic {
-  background-color: rgba(188, 167, 220, 0.16);
+  background-color: rgba(70, 47, 106, 0.16);
   color: var(--neon-purple);
 }
 
@@ -664,17 +666,17 @@
   text-transform: uppercase;
 }
 .equip-row-badge.cant {
-  background-color: rgba(255, 59, 48, 0.15);
+  background-color: rgba(197, 20, 10, 0.15);
   color: var(--neon-red);
   border: 1px solid var(--neon-red);
 }
 .equip-row-badge.up {
-  background-color: rgba(0, 255, 102, 0.15);
+  background-color: rgba(13, 242, 105, 0.15);
   color: var(--neon-green);
   border: 1px solid var(--neon-green);
 }
 .equip-row-badge.down {
-  background-color: rgba(255, 59, 48, 0.15);
+  background-color: rgba(197, 20, 10, 0.15);
   color: var(--neon-red);
   border: 1px solid var(--neon-red);
 }
@@ -688,8 +690,8 @@
 }
 
 .equip-row-badge.equipped {
-  background-color: rgba(155, 215, 210, 0.12);
-  border: 1px solid rgba(155, 215, 210, 0.45);
+  background-color: rgba(47, 106, 101, 0.12);
+  border: 1px solid rgba(47, 106, 101, 0.45);
   color: var(--neon-cyan);
 }
 
@@ -735,7 +737,7 @@
 .equip-detail-name {
   font-size: var(--fs-base);
   font-weight: bold;
-  color: #fff;
+  color: var(--text-primary);
   overflow-wrap: anywhere;
   white-space: normal;
 }
@@ -784,8 +786,8 @@
 }
 
 .equip-workshop-panel {
-  background-color: rgba(226, 179, 111, 0.06);
-  border: 1px solid rgba(226, 179, 111, 0.28);
+  background-color: rgba(138, 96, 35, 0.06);
+  border: 1px solid rgba(138, 96, 35, 0.28);
   border-radius: var(--radius-sm);
   display: flex;
   flex-direction: column;
@@ -801,7 +803,7 @@
 }
 
 .equip-workshop-section {
-  border-top: 1px solid rgba(226, 179, 111, 0.18);
+  border-top: 1px solid rgba(138, 96, 35, 0.18);
   display: flex;
   flex-direction: column;
   gap: var(--sp-xs);
@@ -837,8 +839,8 @@
 }
 
 .equip-material-line {
-  background-color: rgba(0, 255, 102, 0.08);
-  border: 1px solid rgba(0, 255, 102, 0.3);
+  background-color: rgba(13, 242, 105, 0.08);
+  border: 1px solid rgba(13, 242, 105, 0.3);
   border-radius: var(--radius-xs);
   color: var(--neon-green);
   font-family: var(--font-mono);
@@ -847,8 +849,8 @@
 }
 
 .equip-material-line.insufficient {
-  background-color: rgba(255, 59, 48, 0.08);
-  border-color: rgba(255, 59, 48, 0.35);
+  background-color: rgba(197, 20, 10, 0.08);
+  border-color: rgba(197, 20, 10, 0.35);
   color: var(--neon-red);
 }
 
@@ -941,7 +943,7 @@
 }
 
 .equip-exchange-line {
-  background-color: rgba(0, 229, 255, 0.05);
+  background-color: rgba(13, 219, 242, 0.05);
   border: 1px solid var(--border-control);
   border-radius: 4px;
   color: var(--text-muted);
@@ -991,10 +993,10 @@
 }
 
 .equip-slot-choice.active {
-  background-color: rgba(0, 229, 255, 0.08);
+  background-color: rgba(13, 219, 242, 0.08);
   border-color: var(--neon-cyan);
   box-shadow: var(--neon-glow-cyan);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .equip-slot-choice:focus-visible {
@@ -1008,7 +1010,7 @@
 }
 
 .equip-affix-group {
-  background-color: rgba(0, 229, 255, 0.05);
+  background-color: rgba(13, 219, 242, 0.05);
   border: 1px solid var(--border-control);
   border-radius: 4px;
   display: grid;
@@ -1022,7 +1024,7 @@
 }
 
 .equip-affix-group span {
-  color: #eee;
+  color: var(--text-primary);
   font-size: var(--fs-md);
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -1063,7 +1065,7 @@
 }
 
 .equip-stat-pill strong {
-  color: #fff;
+  color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   font-weight: normal;
@@ -1140,7 +1142,7 @@
 }
 
 .equip-transaction-status {
-  border: 1px solid rgba(0, 229, 255, 0.25);
+  border: 1px solid rgba(13, 219, 242, 0.25);
   border-radius: var(--radius-xs);
   color: var(--text-muted);
   font-size: var(--fs-xs);
@@ -1149,15 +1151,15 @@
 }
 
 .equip-transaction-status[data-valid="false"] {
-  border-color: rgba(255, 59, 48, 0.55);
+  border-color: rgba(197, 20, 10, 0.55);
   color: var(--neon-red);
 }
 
 /* Equipment list hierarchy: section headings stay visible while bag types scroll. */
 .equip-section-heading {
   align-items: center;
-  background: linear-gradient(90deg, rgba(155, 215, 210, 0.14), rgba(155, 215, 210, 0.035));
-  border: 1px solid rgba(155, 215, 210, 0.25);
+  background: linear-gradient(90deg, rgba(47, 106, 101, 0.14), rgba(47, 106, 101, 0.035));
+  border: 1px solid rgba(47, 106, 101, 0.25);
   border-left: 3px solid var(--neon-cyan);
   border-radius: var(--radius-xs);
   color: var(--neon-cyan);
@@ -1170,8 +1172,8 @@
 }
 
 .equip-bag-section > .equip-section-heading {
-  background: linear-gradient(90deg, rgba(226, 179, 111, 0.14), rgba(226, 179, 111, 0.035));
-  border-color: rgba(226, 179, 111, 0.25);
+  background: linear-gradient(90deg, rgba(138, 96, 35, 0.14), rgba(138, 96, 35, 0.035));
+  border-color: rgba(138, 96, 35, 0.25);
   border-left-color: var(--neon-amber);
   color: var(--neon-amber);
 }
@@ -1213,7 +1215,7 @@
 .equip-rune-row {
   align-items: center;
   background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(155, 215, 210, 0.22);
+  border: 1px solid rgba(47, 106, 101, 0.22);
   border-radius: var(--radius-xs);
   display: flex;
   gap: var(--sp-sm);
@@ -1223,7 +1225,7 @@
 }
 
 .equip-rune-row.active {
-  border-color: rgba(191, 90, 242, 0.5);
+  border-color: rgba(112, 21, 157, 0.5);
 }
 
 .equip-rune-action {
@@ -1233,7 +1235,7 @@
 }
 
 .equip-type-heading {
-  border-bottom: 1px solid rgba(155, 215, 210, 0.22);
+  border-bottom: 1px solid rgba(47, 106, 101, 0.22);
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
@@ -1265,15 +1267,15 @@
 }
 
 .equip-empty-slot.is-comparison-target {
-  background-color: rgba(0, 229, 255, 0.08);
+  background-color: rgba(13, 219, 242, 0.08);
   border-color: var(--neon-cyan);
-  color: #fff;
+  color: var(--text-primary);
   box-shadow: var(--neon-glow-cyan);
 }
 
 .equip-build-commitment {
-  background: rgba(155, 215, 210, 0.045);
-  border: 1px solid rgba(155, 215, 210, 0.22);
+  background: rgba(47, 106, 101, 0.045);
+  border: 1px solid rgba(47, 106, 101, 0.22);
   border-radius: var(--radius-sm);
   display: flex;
   flex-direction: column;
@@ -1290,7 +1292,7 @@
 }
 
 .equip-build-comparison-heading {
-  border-top: 1px solid rgba(155, 215, 210, 0.18);
+  border-top: 1px solid rgba(47, 106, 101, 0.18);
   padding-top: var(--sp-xs);
 }
 
@@ -1310,7 +1312,7 @@
 }
 
 .equip-build-compare-row {
-  border-top: 1px solid rgba(155, 215, 210, 0.1);
+  border-top: 1px solid rgba(47, 106, 101, 0.1);
   padding-top: 3px;
 }
 
@@ -1338,9 +1340,9 @@
 
 /* --- Equip Overlay Badge Styles --- */
 .equip-row-badge.tool {
-  background-color: rgba(0, 229, 255, 0.1);
+  background-color: rgba(13, 219, 242, 0.1);
   color: var(--neon-cyan);
-  border: 1px solid rgba(0, 229, 255, 0.3);
+  border: 1px solid rgba(13, 219, 242, 0.3);
 }
 
 .equip-row-badge.zero {

@@ -53,9 +53,10 @@ async function readDungeonFirstLayout(page) {
         goalBorderRight: getComputedStyle(document.querySelector('#goal-banner')).borderRightWidth,
         controlsBorderTop: getComputedStyle(document.querySelector('#controls-panel')).borderTopWidth,
         controlsBorderBottom: getComputedStyle(document.querySelector('#controls-panel')).borderBottomWidth,
-        controlsBackground: getComputedStyle(document.querySelector('#controls-panel')).backgroundImage,
+        controlsBackgroundColor: getComputedStyle(document.querySelector('#controls-panel')).backgroundColor,
+        forwardBackground: getComputedStyle(document.querySelector('#btn-move-forward')).backgroundImage,
         forwardShadow: getComputedStyle(document.querySelector('#btn-move-forward')).boxShadow,
-        secondaryShadow: getComputedStyle(document.querySelector('#btn-inspect')).boxShadow,
+        secondaryBackground: getComputedStyle(document.querySelector('#btn-inspect')).backgroundImage,
       },
     };
   });
@@ -96,9 +97,12 @@ for (const renderer of ['pixi']) {
     expect(layout.visualHierarchy.goalBorderRight).toBe('0px');
     expect(layout.visualHierarchy.controlsBorderTop).toBe('0px');
     expect(layout.visualHierarchy.controlsBorderBottom).toBe('0px');
-    expect(layout.visualHierarchy.controlsBackground).toContain('linear-gradient');
+    // The Action Dock is a readable bottom sheet over the world, and forward
+    // is the single filled primary tile; secondary tiles stay unfilled.
+    expect(layout.visualHierarchy.controlsBackgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+    expect(layout.visualHierarchy.forwardBackground).toContain('linear-gradient');
     expect(layout.visualHierarchy.forwardShadow).not.toBe('none');
-    expect(layout.visualHierarchy.secondaryShadow).toBe('none');
+    expect(layout.visualHierarchy.secondaryBackground).toBe('none');
     const screenshot = await page.screenshot({ path: testInfo.outputPath(`issue-1349-${renderer}-explore-390.png`), fullPage: true });
     await testInfo.attach(`issue-1349-${renderer}-explore-390`, { body: screenshot, contentType: 'image/png' });
   });

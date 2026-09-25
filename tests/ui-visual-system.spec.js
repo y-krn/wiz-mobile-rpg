@@ -58,7 +58,7 @@ test('ally spell target cards use availability, not recommendation, as their vis
   expect(cards.map(card => card.statusText)).toEqual(['回復可', '回復可']);
 });
 
-test('pending reward surfaces inherit the Dark Archive surface and tap contracts @e2e @smoke', async ({ page }, testInfo) => {
+test('pending reward surfaces inherit the shared raised surface and tap contracts @e2e @smoke', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto('/');
   await page.evaluate(async () => {
@@ -89,9 +89,9 @@ test('pending reward surfaces inherit the Dark Archive surface and tap contracts
     };
   });
 
-  expect(surface.backgroundColor).toBe('rgb(21, 31, 39)');
-  expect(surface.borderColor).toBe('rgb(38, 52, 61)');
-  expect(surface.borderRadius).toBe('5px');
+  expect(surface.backgroundColor).toBe('rgb(255, 253, 248)');
+  expect(surface.borderColor).toBe('rgb(228, 216, 195)');
+  expect(surface.borderRadius).toBe('7px');
   expect(surface.buttonHeight).toBeGreaterThanOrEqual(44);
   expect(surface.buttonMinHeight).toBe('44px');
 });

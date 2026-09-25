@@ -5,7 +5,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(12, 12, 14, 0.98);
+  background-color: rgba(250, 245, 237, 0.98);
   backdrop-filter: blur(8px);
   z-index: 100;
   display: flex;
@@ -48,7 +48,7 @@
 }
 
 .btn-spell-close:hover, .btn-spell-close:active {
-  background-color: rgba(191, 90, 242, 0.12);
+  background-color: rgba(112, 21, 157, 0.12);
   box-shadow: var(--neon-glow-purple);
 }
 
@@ -66,7 +66,7 @@
 .spell-char-name {
   font-size: var(--fs-base);
   font-weight: bold;
-  color: #fff;
+  color: var(--text-primary);
   text-align: center;
   flex-grow: 1;
   font-family: var(--font-mono);
@@ -121,7 +121,7 @@
 
 .spell-item-row {
   --sel-accent: var(--neon-purple);
-  --sel-bg: rgba(191, 90, 242, 0.05);
+  --sel-bg: rgba(112, 21, 157, 0.05);
   --sel-color: var(--text-main);
 
   background-color: var(--surface-control);
@@ -141,7 +141,7 @@
 .spell-row-name {
   font-size: var(--fs-lg);
   font-weight: bold;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .spell-row-class {
@@ -172,27 +172,27 @@
 
 /* Tag colors */
 .tag-heal {
-  background-color: rgba(0, 255, 102, 0.1);
+  background-color: rgba(13, 242, 105, 0.1);
   color: var(--neon-green);
-  border: 1px solid rgba(0, 255, 102, 0.3);
+  border: 1px solid rgba(13, 242, 105, 0.3);
 }
 
 .tag-utility {
-  background-color: rgba(0, 229, 255, 0.1);
+  background-color: rgba(13, 219, 242, 0.1);
   color: var(--neon-cyan);
-  border: 1px solid rgba(0, 229, 255, 0.3);
+  border: 1px solid rgba(13, 219, 242, 0.3);
 }
 
 .tag-combat {
-  background-color: rgba(191, 90, 242, 0.1);
+  background-color: rgba(112, 21, 157, 0.1);
   color: var(--neon-purple);
-  border: 1px solid rgba(191, 90, 242, 0.3);
+  border: 1px solid rgba(112, 21, 157, 0.3);
 }
 
 .tag-disabled {
-  background-color: rgba(255, 59, 48, 0.1);
+  background-color: rgba(197, 20, 10, 0.1);
   color: var(--neon-red);
-  border: 1px solid rgba(255, 59, 48, 0.3);
+  border: 1px solid rgba(197, 20, 10, 0.3);
 }
 
 .spell-detail-col {
@@ -230,8 +230,8 @@
 .spell-detail-name {
   font-size: var(--fs-xxl);
   font-weight: bold;
-  color: #fff;
-  text-shadow: 0 0 6px rgba(255,255,255,0.2);
+  color: var(--text-primary);
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.2);
 }
 
 .spell-detail-tag {
@@ -280,14 +280,14 @@
 }
 
 .btn-cast-action {
-  border-color: rgba(191, 90, 242, 0.5);
+  border-color: rgba(112, 21, 157, 0.5);
   color: var(--neon-purple);
   min-height: var(--tap-min);
 }
 
 .btn-cast-action:hover, .btn-cast-action:active {
   border-color: var(--neon-purple);
-  background-color: rgba(191, 90, 242, 0.12);
+  background-color: rgba(112, 21, 157, 0.12);
   box-shadow: var(--neon-glow-purple);
 }
 
@@ -296,7 +296,7 @@
   font-size: var(--fs-xs);
   font-weight: bold;
   color: var(--neon-purple);
-  background-color: rgba(191, 90, 242, 0.04);
+  background-color: rgba(112, 21, 157, 0.04);
   padding: 4px 8px;
   margin-top: 8px;
   margin-bottom: 2px;
@@ -316,9 +316,9 @@
 
 .spell-filters .filter-chip {
   --sel-accent: var(--neon-purple);
-  --sel-bg: rgba(191, 90, 242, 0.05);
+  --sel-bg: rgba(112, 21, 157, 0.05);
   --sel-color: var(--neon-purple);
-  --sel-shadow: 0 0 4px rgba(191, 90, 242, 0.2);
+  --sel-shadow: 0 0 4px rgba(112, 21, 157, 0.2);
 }
 
 /* Spell Mini Casters bottom switcher bar */
@@ -331,7 +331,7 @@
 
 .spell-mini-caster-btn {
   --sel-accent: var(--neon-purple);
-  --sel-bg: rgba(191, 90, 242, 0.12);
+  --sel-bg: rgba(112, 21, 157, 0.12);
   --sel-color: var(--text-main);
   --sel-shadow: var(--neon-glow-purple);
 
@@ -360,8 +360,8 @@
 
 /* Spell target summary header styling */
 .spell-target-summary-header {
-  background-color: rgba(191, 90, 242, 0.03);
-  border: 1px solid rgba(191, 90, 242, 0.15);
+  background-color: rgba(112, 21, 157, 0.03);
+  border: 1px solid rgba(112, 21, 157, 0.15);
   border-radius: 6px;
   padding: 10px 12px;
   margin-bottom: 8px;
@@ -411,7 +411,7 @@
   .spell-target-card:not(.disabled):hover,
   .spell-target-card:not(.disabled):active {
     border-color: var(--neon-purple);
-    background-color: rgba(191, 90, 242, 0.08);
+    background-color: rgba(112, 21, 157, 0.08);
     box-shadow: var(--neon-glow-purple);
   }
 }
@@ -419,7 +419,7 @@
 .target-card-name {
   font-size: var(--fs-base);
   font-weight: bold;
-  color: #fff;
+  color: var(--text-primary);
   margin-bottom: 2px;
 }
 
@@ -438,7 +438,7 @@
   color: var(--neon-amber);
   font-weight: bold;
   margin-right: 4px;
-  text-shadow: 0 0 3px rgba(255, 214, 10, 0.4);
+  text-shadow: 0 0 3px rgba(233, 196, 12, 0.4);
 }
 
 /* Spell Selection Grid Layout (2-column) */
@@ -509,7 +509,7 @@
 
 .spell-caster-btn {
   --sel-accent: var(--neon-cyan);
-  --sel-bg: rgba(0, 229, 255, 0.05);
+  --sel-bg: rgba(13, 219, 242, 0.05);
   --sel-color: var(--text-main);
 
   flex: 1;
@@ -539,7 +539,7 @@
 .caster-btn-name {
   font-size: var(--fs-md);
   font-weight: bold;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .caster-btn-meta {
@@ -556,7 +556,7 @@
 /* Spell Card styles for 2-row layout */
 .spell-item-row-card {
   --sel-accent: var(--neon-purple);
-  --sel-bg: rgba(191, 90, 242, 0.05);
+  --sel-bg: rgba(112, 21, 157, 0.05);
   --sel-color: var(--neon-green);
 
   background-color: var(--surface-control);
@@ -589,7 +589,7 @@
 .spell-card-name {
   font-size: var(--fs-base);
   font-weight: bold;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .spell-card-mp {
@@ -624,9 +624,9 @@
 
 /* Tag style mapping */
 .tag-mp-short {
-  background-color: rgba(255, 179, 0, 0.1);
+  background-color: rgba(242, 174, 13, 0.1);
   color: var(--neon-amber);
-  border: 1px solid rgba(255, 179, 0, 0.3);
+  border: 1px solid rgba(242, 174, 13, 0.3);
 }
 
 /* Detail panel layout */
