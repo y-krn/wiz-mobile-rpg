@@ -34,7 +34,7 @@ test('Debug reset clears all progression and persists the initial state', async 
       totalRuns: state.records.totalRuns,
       monsterKills: state.codex.monsters.GOBLIN?.killed || 0,
       visitedFloors: state.dungeonMemory.visitedFloors,
-      metaMaterials: state.metaMaterials,
+      metaMaterialTotal: Object.values(state.metaMaterials).reduce((sum, value) => sum + value, 0),
       workshopRanks: state.workshop.ranks,
     };
   });
@@ -43,7 +43,7 @@ test('Debug reset clears all progression and persists the initial state', async 
     totalRuns: 0,
     monsterKills: 0,
     visitedFloors: [1],
-    metaMaterials: {},
+    metaMaterialTotal: 0,
     workshopRanks: {},
   };
   expect(await readProgress()).toEqual(initialProgress);

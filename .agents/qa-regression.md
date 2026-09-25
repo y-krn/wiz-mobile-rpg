@@ -30,6 +30,9 @@ inventories.
 - `scripts/check_playwright_test_ownership.js` enforces that ownership graph;
   `scripts/check_playwright_test_names.js` enforces stable filenames and test
   titles. These rules are run by `npm run lint:tests`.
+- Tests without `@smoke` or `@visual` run in the browser workflow's
+  `test:browser:untagged` lane. The separate lane keeps them in required PR CI
+  without expanding the smoke selection.
 - Shared browser health and console-error policy belongs in
   `tests/fixtures/browser-health.js`. Browser tests cover user-visible flows;
   rule-only behavior belongs in deterministic unit tests when appropriate.

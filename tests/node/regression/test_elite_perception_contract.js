@@ -53,6 +53,9 @@ const soundNoiseIntent = perceptionFacade.getPerceptionIntent({
 });
 assert.equal(soundNoiseIntent.target, noise);
 assert.equal(soundNoiseIntent.detected, true);
+assert.equal(perceptionFacade.getPerceptionIntent({
+  monster: elite("sound", 6, 6), player, noise: null, playerMoved: true, grid: openGrid
+}).detected, false);
 
 const blindChargeIntent = perceptionFacade.getPerceptionIntent({
   monster: elite("blind_charge", 6, 6), player, noise, playerMoved: false, grid: openGrid
@@ -60,9 +63,11 @@ const blindChargeIntent = perceptionFacade.getPerceptionIntent({
 assert.equal(blindChargeIntent.target, noise);
 assert.equal(blindChargeIntent.speed, 2);
 
-assert.equal(perceptionFacade.getPerceptionIntent({
+const vibrationMovedIntent = perceptionFacade.getPerceptionIntent({
   monster: elite("vibration", 3, 7), player, noise: null, playerMoved: true, grid: openGrid
-}).target, player);
+});
+assert.equal(vibrationMovedIntent.target, player);
+assert.equal(vibrationMovedIntent.detected, true);
 assert.equal(perceptionFacade.getPerceptionIntent({
   monster: elite("vibration", 3, 7), player, noise: null, playerMoved: false, grid: openGrid
 }).detected, false);
@@ -77,6 +82,7 @@ for (const perception of [undefined, "unknown"]) {
 }
 
 assert.equal(perceptionFacade.isInPlayerLineOfSight(player, elite("afterimage"), openGrid), true);
+assert.equal(perceptionFacade.isInPlayerLineOfSight(player, elite("afterimage"), [[{}]]), false);
 const blockedGrid = openGrid.map(row => row.map(cell => ({ walls: [...cell.walls] })));
 blockedGrid[3][3].walls[0] = true;
 assert.equal(perceptionFacade.isInPlayerLineOfSight(player, elite("afterimage"), blockedGrid), false);
