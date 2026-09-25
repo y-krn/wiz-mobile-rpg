@@ -38,6 +38,10 @@ for (const width of [320, 360, 390, 430]) {
 
 for (const vp of VIEWPORTS) {
   test(`Milestone start, merchant, and portal stay thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
+    // One test walks start shortcut, three merchant purchases, and the portal.
+    // CI runs took 15-27s and the 430x932 case hit the 30s budget at varying
+    // steps while Playwright reported the buttons as stable.
+    test.slow();
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
@@ -223,6 +227,9 @@ for (const vp of VIEWPORTS) {
     await heal.click();
 
     const start = page.getByRole('button', { name: /B1Fから開始/ });
+    // Web fonts load per unicode-range subset as new text renders; a late
+    // subset reflows the layout by 1px, so measure after pending loads finish.
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
     const before = await start.boundingBox();
     expect(before).not.toBeNull();
     await page.locator('#submenu-options').evaluate((options) => {

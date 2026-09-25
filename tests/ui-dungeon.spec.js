@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures/browser-health.js';
 import './exploration-survey.cases.js';
-import { VIEWPORTS, startSoloRun, beginPendingOutcomePlayback } from './ui-ux-helpers.js';
+import { VIEWPORTS, startSoloRun, beginPendingOutcomePlayback, waitForAppStart } from './ui-ux-helpers.js';
 
 test('Chest opened immediately after entering the dungeon does not draw the town background', async ({ page }) => {
   await page.goto('/');
@@ -57,6 +57,7 @@ test('Chest opened immediately after entering the dungeon does not draw the town
 test('Renderer and navigation keep modal transitions safe with stale context', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
+  await waitForAppStart(page);
 
   const result = await page.evaluate(async () => {
     const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -674,6 +675,7 @@ for (const vp of VIEWPORTS) {
         localStorage.setItem('mobile_wiz_rpg_autosave', JSON.stringify(data));
       }, { payload: basePayload, partyCase });
       await page.reload();
+      await waitForAppStart(page);
       await page.waitForLoadState('networkidle');
 
       results.push(await page.evaluate(async () => {
@@ -1236,6 +1238,7 @@ test('Combat autosave resumes action selection without persisting resolving phas
   expect(beforeReload.saved).toEqual(beforeReload.live);
 
   await page.reload();
+  await waitForAppStart(page);
 
   const resumed = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -1326,6 +1329,7 @@ test('Round resolution autosave preserves resolved party and monster HP on reloa
   expect(resolved.saved.pendingOutcome).toBeNull();
 
   await page.reload();
+  await waitForAppStart(page);
   const resumed = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return {
@@ -1406,6 +1410,7 @@ test('Victory outcome resumes once with EXP and materials preserved', async ({ p
   expect(awarded.saved.pendingOutcome).toEqual({ kind: 'endCombat' });
 
   await page.reload();
+  await waitForAppStart(page);
   const resumed = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return {
@@ -1433,6 +1438,7 @@ test('giveKey outcome reload before reward log applies missing rewards once', as
   expect(playback.savedPhase).toBe('choose_actions');
 
   await page.reload();
+  await waitForAppStart(page);
   const resumed = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return {
@@ -1473,6 +1479,7 @@ test('giveKey outcome reload after reward log does not duplicate rewards', async
   })).toBe(true);
 
   await page.reload();
+  await waitForAppStart(page);
   const resumed = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return {
@@ -1514,6 +1521,7 @@ test('milestoneVictory outcome reload before reward log applies missing rewards 
   expect(playback.savedPhase).toBe('choose_actions');
 
   await page.reload();
+  await waitForAppStart(page);
   const resumed = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return {
@@ -1550,6 +1558,7 @@ test('milestoneVictory outcome reload after reward log does not duplicate reward
   })).toBe(true);
 
   await page.reload();
+  await waitForAppStart(page);
   const resumed = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return {
@@ -1578,6 +1587,7 @@ test('triggerChest outcome reload enters the dropped chest screen', async ({ pag
   expect(playback.pendingOutcome).toEqual({ kind: 'triggerChest' });
 
   await page.reload();
+  await waitForAppStart(page);
   const resumed = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return {
@@ -1639,6 +1649,7 @@ test('Defeat during battle log playback reloads into game over', async ({ page }
   });
 
   await page.reload();
+  await waitForAppStart(page);
   const resumed = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return {

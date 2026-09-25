@@ -14,8 +14,15 @@ const SOLO_HUD_VIEWPORTS = [
 
 const SOLO_HUD_STATES = ['town', 'explore', 'combat', 'submenu'];
 
+// game.js start() marks #viewport-panel synchronously after the async renderer
+// init, so startup resume and the first draw have finished once it is attached.
+async function waitForAppStart(page) {
+  await expect(page.locator('#viewport-panel[data-renderer]')).toBeAttached();
+}
+
 async function waitForPixiReady(page) {
   await expect(page.locator('#dungeon-canvas[data-renderer="pixi"]')).toBeAttached();
+  await waitForAppStart(page);
   await expect(page.locator('#controls-panel')).toBeVisible();
 }
 
@@ -136,4 +143,5 @@ export {
   openDeparturePreparation,
   beginPendingOutcomePlayback,
   waitForPixiReady,
+  waitForAppStart,
 };

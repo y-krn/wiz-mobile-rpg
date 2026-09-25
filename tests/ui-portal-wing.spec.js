@@ -42,6 +42,8 @@ for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await page.goto('/');
     await seedPortalRun(page);
+    // Revisit buckets compare Date.now() gaps; freeze it so slow CI stays in the immediate bucket.
+    await page.clock.setFixedTime(new Date('2026-01-01T00:00:00Z'));
 
     await expect(page.locator('.milestone-portal-vitals')).toContainText('HP 12/20');
     const expectedMp = await page.evaluate(async () => {
@@ -107,6 +109,8 @@ test('Wing shows every unbanked candidate, includes equipped loot, and cancels s
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await seedPortalRun(page);
+  // Revisit buckets compare Date.now() gaps; freeze it so slow CI stays in the immediate bucket.
+  await page.clock.setFixedTime(new Date('2026-01-01T00:00:00Z'));
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { menuContext, openSubmenu } = await import('/src/navigation.js');
