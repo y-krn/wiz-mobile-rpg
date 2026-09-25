@@ -105,7 +105,8 @@ function projectRun(context, arm, runIndex, worldSeed, result) {
         sourceAccounted,
         initialFledIndices: observation.initialFledIndices,
         descendantCount: observation.descendantCount,
-        descendantCandidateExp: observation.descendantCandidateExp
+        descendantCandidateExp: observation.descendantCandidateExp,
+        descendants: observation.descendantStats || []
       },
       lifecycle: {
         initialCount: observation.initialEncounterSize,
@@ -154,6 +155,27 @@ function projectRun(context, arm, runIndex, worldSeed, result) {
   };
 }
 
+export function comparePreDeathProgress(control, candidate) {
+  const deathCombatNumber = candidate.settlements.find(settlement => settlement.result === "death")?.combatNumber;
+  const summarize = row => row.settlements
+    .filter(settlement => Number.isInteger(deathCombatNumber) && settlement.combatNumber < deathCombatNumber)
+    .reduce((totals, settlement) => ({
+      levels: totals.levels + Math.max(0, settlement.levelAfter - settlement.levelBefore),
+      recoveryHp: totals.recoveryHp + settlement.levelUpRecoveryHp
+    }), { levels: 0, recoveryHp: 0 });
+  const controlBeforeDeath = summarize(control);
+  const candidateBeforeDeath = summarize(candidate);
+  return {
+    deathCombatNumber: Number.isInteger(deathCombatNumber) ? deathCombatNumber : null,
+    controlBeforeDeath,
+    candidateBeforeDeath,
+    controlOnlyProgress: Number.isInteger(deathCombatNumber) && (
+      controlBeforeDeath.levels > candidateBeforeDeath.levels ||
+      controlBeforeDeath.recoveryHp > candidateBeforeDeath.recoveryHp
+    )
+  };
+}
+
 export async function runProgressionExpBFullRunDiagnostic({ runs = 1, seed = DEFAULT_SEED } = {}) {
   const count = positiveInteger(runs, "runs");
   if (![1, 30, 200].includes(count)) throw new Error("runs must be exactly 1 (smoke), 30 (coverage), or 200 (final evidence)");
@@ -198,20 +220,21 @@ export async function runProgressionExpBFullRunDiagnostic({ runs = 1, seed = DEF
     return {
       context: context.id,
       matchedSeedDescriptiveOnly: true,
-      transitions: control.map((row, index) => ({
-        runIndex: index,
-        from: row.outcome,
-        to: candidate[index].outcome,
-        reachedFloorDelta: candidate[index].reachedFloor - row.reachedFloor,
-        finalLevelDelta: candidate[index].finalLevel - row.finalLevel,
-        newDeath: candidate[index].outcome === "death" && row.outcome !== "death",
-        deathAvoided: row.outcome === "death" && candidate[index].outcome !== "death",
-        newDeathHadEarlierControlLevelOrRecovery: candidate[index].outcome === "death" && row.outcome !== "death" &&
-          row.settlements.some(settlement => settlement.floor <= candidate[index].deathFloor &&
-            (settlement.levelAfter > settlement.levelBefore || settlement.levelUpRecoveryHp > 0)) &&
-          !candidate[index].settlements.some(settlement => settlement.floor <= candidate[index].deathFloor &&
-            (settlement.levelAfter > settlement.levelBefore || settlement.levelUpRecoveryHp > 0))
-      }))
+      transitions: control.map((row, index) => {
+        const attribution = comparePreDeathProgress(row, candidate[index]);
+        const newDeath = candidate[index].outcome === "death" && row.outcome !== "death";
+        return {
+          runIndex: index,
+          from: row.outcome,
+          to: candidate[index].outcome,
+          reachedFloorDelta: candidate[index].reachedFloor - row.reachedFloor,
+          finalLevelDelta: candidate[index].finalLevel - row.finalLevel,
+          newDeath,
+          deathAvoided: row.outcome === "death" && candidate[index].outcome !== "death",
+          newDeathHadEarlierControlLevelOrRecovery: newDeath && attribution.controlOnlyProgress,
+          newDeathAttribution: newDeath ? attribution : null
+        };
+      })
     };
   });
   const invalidCandidatePrefund = rows.filter(row => row.arm === "phase4j-b")
@@ -297,6 +320,7 @@ function makeSummary(report) {
         rows.filter(row => row.outcome === outcome).length
       ]));
       const settlements = rows.flatMap(row => row.settlements);
+      const descendants = settlements.flatMap(settlement => settlement.settlement.descendants);
       const levelIds = [...new Set(rows.flatMap(row => Object.keys(row.levelArrivalCombatCount)))].sort((a, b) => Number(a) - Number(b));
       const levelArrivalCombatCount = Object.fromEntries(levelIds.map(level => [
         level,
@@ -313,6 +337,7 @@ function makeSummary(report) {
         `- Level arrival combat count: ${JSON.stringify(levelArrivalCombatCount)}; level-up recovery HP: ${summarize(rows.map(row => row.settlements.reduce((sum, item) => sum + item.levelUpRecoveryHp, 0)))}; cumulative Level-derived raw maxHP: ${summarize(rows.map(row => Math.max(0, ...row.settlements.map(item => item.levelDerivedRawMaxHp))))}.`,
         `- Valid settlements: ${rows.reduce((sum, row) => sum + row.settlementCounts.valid, 0)}; non-victory: ${rows.reduce((sum, row) => sum + row.settlementCounts.nonVictory, 0)}; flee: ${rows.reduce((sum, row) => sum + row.settlementCounts.flee, 0)}; lifecycle gaps: ${rows.reduce((sum, row) => sum + row.settlementCounts.lifecycleGaps, 0)}.`,
         `- Encounter kinds: ${JSON.stringify(kindCounts)}; candidate lifecycle triggers: split=${rows.reduce((sum, row) => sum + row.settlementCounts.splitCapable, 0)}, summon=${rows.reduce((sum, row) => sum + row.settlementCounts.summonCapable, 0)}; candidate prefund violations: ${report.validity.candidatePrefundedLevelViolations.length}; source accounting mismatches: ${report.validity.sourceAccountingMismatches.length}.`,
+        `- Descendant lifecycle: split=${descendants.filter(monster => monster.isSplit).length}; summon=${descendants.filter(monster => monster.isSummoned).length}; summoned generic HP/ATK/DEF captured=${descendants.filter(monster => monster.isSummoned).length}.`,
         ""
       );
     }

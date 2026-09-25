@@ -5,6 +5,7 @@ import {
   DEFAULT_SEED,
   RUNNER_PATH,
   RUNNER_VERSION,
+  comparePreDeathProgress,
   runProgressionExpBFullRunDiagnostic
 } from "../../../scratch/measurements/progression_exp_b_full_run_diagnostic.js";
 import { MEASUREMENT_IDS, resolveRunnerInvocation } from "../../../scratch/measurements/run_balance_measurement.js";
@@ -13,8 +14,17 @@ import {
   classifySimulationRunner,
   SIMULATION_RUNNER_INVENTORY
 } from "../../../scratch/simulations/simulation_manifest.js";
-import { resetSimulationRandom, simulateRun, getScenarioById } from "../../../scratch/simulations/sim_depth_material_ev.js";
+import {
+  applyFloorTransitionHeal,
+  applyPhase4cV1EnemyBaseline,
+  applyPhase4cV1MilestoneEntitlement,
+  applyPhase4cV1SummonedEnemyBaseline,
+  resetSimulationRandom,
+  simulateRun,
+  getScenarioById
+} from "../../../scratch/simulations/sim_depth_material_ev.js";
 import { MONSTERS } from "../../../src/data/monsters.js";
+import { processMonsterDefeat } from "../../../src/combat_logic/monster_traits.js";
 
 assert.equal(RUNNER_VERSION, "progression-exp-b-full-run-diagnostic-v1");
 assert.equal(DEFAULT_SEED, 1735);
@@ -62,6 +72,9 @@ for (const row of report.rows) {
   assert.equal(row.settlements[0].baseline, expectedBaseline);
   assert.equal(row.firstCombat.preRewardState.baseline, expectedBaseline);
   assert.equal(row.firstCombat.preRewardState.rawMaxHp, 20 + 2 * expectedBaseline);
+  assert.equal(row.firstCombat.preRewardState.hp, row.firstCombat.preRewardState.rawMaxHp);
+  if (row.context === "selected-B10") assert.equal(row.firstCombat.preRewardState.rawMaxHp, 24);
+  if (row.context === "selected-B20") assert.equal(row.firstCombat.preRewardState.rawMaxHp, 28);
   for (const enemy of row.firstCombat.preRewardState.enemies.filter(entry => !entry.isBoss)) {
     const template = MONSTERS.find(entry =>
       entry.name === enemy.name.replace(/\s[A-Z]$/, "")
@@ -73,6 +86,96 @@ for (const row of report.rows) {
     assert.equal(enemy.def, Math.max(0, Math.round(template.def)));
   }
 }
+
+const milestoneState = {
+  party: [{ maxHp: 20, hp: 10 }],
+  currentRun: { startFloor: 1, defeatedMilestones: [] },
+  simPolicy: {
+    phase4cV1GeneratedRun: true,
+    phase4cV1AppliedHpBonus: 0,
+    phase4cV1DefeatedMilestones: []
+  }
+};
+assert.equal(applyPhase4cV1MilestoneEntitlement(milestoneState, 5), 2);
+assert.equal(milestoneState.party[0].maxHp, 22);
+assert.equal(milestoneState.party[0].hp, 10, "baseline entitlement does not heal current HP");
+assert.equal(applyFloorTransitionHeal(milestoneState.party[0], 0.5), 11);
+assert.equal(milestoneState.party[0].hp, 21, "subsequent recovery uses updated baseline maxHP");
+
+const splitTemplate = MONSTERS.find(monster => monster.traits?.includes("splitOnDeath"));
+assert.ok(splitTemplate, "a generated generic enemy has split lifecycle");
+const splitParent = structuredClone(splitTemplate);
+applyPhase4cV1EnemyBaseline([splitParent], 10, false);
+splitParent.hp = 0;
+const splitEncounter = [splitParent];
+processMonsterDefeat(splitEncounter, splitParent, []);
+const splitChild = splitEncounter[1];
+assert.ok(splitChild?.hasSplit, "split lifecycle creates a descendant");
+assert.equal(splitChild.maxHp, Math.max(1, Math.floor(splitParent.maxHp * (splitParent.split?.hpRate ?? 0.5))));
+assert.equal(splitChild.hp, splitChild.maxHp);
+assert.equal(splitChild.atk, splitParent.atk);
+assert.equal(splitChild.def, splitParent.def);
+
+const summonTemplate = MONSTERS.find(monster => monster.name === "ゴブリンの呪術師");
+assert.ok(summonTemplate, "the production default summon has a generic template");
+const summonedEnemy = structuredClone(summonTemplate);
+const phase4cEncounter = [...splitEncounter, summonedEnemy];
+const generatedSummons = applyPhase4cV1SummonedEnemyBaseline({
+  floor: 10,
+  simPolicy: { phase4cV1GeneratedRun: true },
+  combatState: { monsters: phase4cEncounter }
+}, splitEncounter.length);
+assert.deepEqual(generatedSummons, [summonedEnemy]);
+assert.equal(summonedEnemy.maxHp, Math.max(1, Math.round(summonTemplate.hp * 1.4)));
+assert.equal(summonedEnemy.hp, summonedEnemy.maxHp);
+assert.equal(summonedEnemy.atk, Math.max(1, Math.round(summonTemplate.atk * 1.2)));
+assert.equal(summonedEnemy.def, Math.max(0, Math.round(summonTemplate.def)));
+assert.equal(summonedEnemy.phase4cV1Summoned, true);
+
+const progressRow = settlements => ({ settlements });
+const progressSettlement = (combatNumber, levelBefore, levelAfter, recoveryHp = 0, result = "victory") => ({
+  combatNumber,
+  levelBefore,
+  levelAfter,
+  levelUpRecoveryHp: recoveryHp,
+  result
+});
+const controlProgress = progressRow([
+  progressSettlement(1, 1, 2, 0),
+  progressSettlement(2, 2, 2, 8),
+  progressSettlement(3, 2, 2, 0),
+  progressSettlement(4, 2, 3, 20)
+]);
+const candidateDeath = progressRow([
+  progressSettlement(1, 1, 2, 0),
+  progressSettlement(2, 2, 2, 0),
+  progressSettlement(3, 2, 2, 0, "death")
+]);
+assert.deepEqual(comparePreDeathProgress(controlProgress, candidateDeath), {
+  deathCombatNumber: 3,
+  controlBeforeDeath: { levels: 1, recoveryHp: 8 },
+  candidateBeforeDeath: { levels: 1, recoveryHp: 0 },
+  controlOnlyProgress: true
+});
+const controlLevelAhead = progressRow([
+  progressSettlement(1, 1, 2),
+  progressSettlement(2, 2, 3),
+  progressSettlement(3, 3, 3, 0),
+  progressSettlement(4, 3, 3, 20)
+]);
+const candidateWithEarlierLevel = progressRow([
+  progressSettlement(1, 1, 2),
+  progressSettlement(2, 2, 2),
+  progressSettlement(3, 2, 2, 0, "death")
+]);
+assert.equal(comparePreDeathProgress(controlLevelAhead, candidateWithEarlierLevel).controlOnlyProgress, true);
+const postDeathOnlyControlProgress = progressRow([
+  progressSettlement(1, 1, 2, 0),
+  progressSettlement(2, 2, 2, 0),
+  progressSettlement(3, 2, 2, 0),
+  progressSettlement(4, 2, 3, 20)
+]);
+assert.equal(comparePreDeathProgress(postDeathOnlyControlProgress, candidateDeath).controlOnlyProgress, false);
 
 const noOptIn = { ...getScenarioById("legacy-no-portal") };
 const explicitNoOp = { ...noOptIn, phase4cV1GeneratedRun: false };
