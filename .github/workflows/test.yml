@@ -81,11 +81,37 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
+  # Required lint depends on this aggregate result. Keep the job name stable.
   browser:
+    needs: browser-suite
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every browser suite to succeed
+        if: ${{ needs.browser-suite.result != 'success' }}
+        run: exit 1
+      - run: echo "All browser suites passed."
+
+  # Each suite gets its own runner. Chromium renders WebGL in software on CI, so
+  # several workers on one 4-vCPU runner slowed every test about fivefold.
+  browser-suite:
+    name: browser (${{ matrix.suite }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: smoke
+            command: npm run test:browser
+          - suite: untagged-1
+            command: npm run test:browser:untagged -- --shard=1/3
+          - suite: untagged-2
+            command: npm run test:browser:untagged -- --shard=2/3
+          - suite: untagged-3
+            command: npm run test:browser:untagged -- --shard=3/3
     steps:
       - uses: actions/checkout@v4
       - name: Detect browser changes
@@ -129,36 +155,32 @@ jobs:
         if: steps.changes.outputs.browser == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
       - run: npx playwright install-deps chromium
         if: steps.changes.outputs.browser == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
-      - name: Run browser smoke tests
+      - name: Run browser ${{ matrix.suite }} tests
         id: browser_test
+        env:
+          BROWSER_SUITE_COMMAND: ${{ matrix.command }}
         run: |
           set -o pipefail
-          npm run test:browser 2>&1 | tee "$RUNNER_TEMP/browser-test.log"
-        if: steps.changes.outputs.browser == 'true'
-      - name: Run untagged browser tests
-        id: browser_untagged_test
-        run: |
-          set -o pipefail
-          npm run test:browser:untagged 2>&1 | tee "$RUNNER_TEMP/browser-untagged-test.log"
+          $BROWSER_SUITE_COMMAND 2>&1 | tee "$RUNNER_TEMP/browser-test.log"
         if: steps.changes.outputs.browser == 'true'
       - name: Run treasure chest visual evidence
         id: treasure_chest_visual
         run: |
           set -o pipefail
           npx playwright test tests/ui-treasure-chest.spec.js --grep @visual 2>&1 | tee "$RUNNER_TEMP/treasure-chest-visual.log"
-        if: steps.changes.outputs.browser == 'true'
+        if: steps.changes.outputs.browser == 'true' && matrix.suite == 'smoke'
       - name: Run dungeon world-object visual evidence
         id: dungeon_world_object_visual
         run: |
           set -o pipefail
           npx playwright test tests/ui-dungeon-world-objects-1417.spec.js tests/ui-dungeon-world-object-depth-1448.spec.js --grep @visual 2>&1 | tee "$RUNNER_TEMP/dungeon-world-object-visual.log"
-        if: steps.changes.outputs.browser == 'true'
+        if: steps.changes.outputs.browser == 'true' && matrix.suite == 'smoke'
       - name: Run browser debug visual evidence
         id: browser_visual
         run: |
           set -o pipefail
           npx playwright test --grep @visual 2>&1 | tee "$RUNNER_TEMP/browser-visual.log"
-        if: always() && steps.changes.outputs.browser == 'true' && inputs.debug_raw == true
+        if: always() && steps.changes.outputs.browser == 'true' && matrix.suite == 'smoke' && inputs.debug_raw == true
       - name: Stage CI evidence artifact
         id: evidence
         if: always() && steps.changes.outputs.browser == 'true'
@@ -168,12 +190,12 @@ jobs:
         run: |
           stage_args=(
             --staging-dir "$RUNNER_TEMP"
-            --status "${{ steps.browser_untagged_test.outcome }}"
+            --status "${{ steps.browser_test.outcome }}"
+            --job-name "browser-${{ matrix.suite }}"
             --visual-dir test-results
             --visual-dir output/playwright
             --diagnostics-dir playwright-report
             --logs "$RUNNER_TEMP/browser-test.log"
-            --logs "$RUNNER_TEMP/browser-untagged-test.log"
             --logs "$RUNNER_TEMP/treasure-chest-visual.log"
             --logs "$RUNNER_TEMP/dungeon-world-object-visual.log"
             --logs "$RUNNER_TEMP/browser-visual.log"
