@@ -6,9 +6,11 @@ import {
   DEFAULT_RUNS,
   DEFAULT_SEED,
   deriveWorldSeed,
+  describeRun,
   distribution,
   RUNNER_PATH,
-  runProgressionExpCombinedRunDiagnostic
+  runProgressionExpCombinedRunDiagnostic,
+  summarizeGroup
 } from "../../../scratch/measurements/progression_exp_combined_run_diagnostic.js";
 import { MEASUREMENT_IDS, resolveRunnerInvocation } from "../../../scratch/measurements/run_balance_measurement.js";
 import {
@@ -44,6 +46,91 @@ assert.equal(resolveRunnerInvocation({
   purpose: "N=1 regression smoke",
   output_dir: "/tmp/progression-exp-combined-run-test"
 }).runner, RUNNER_PATH);
+
+function syntheticResult({
+  outcome = "retreat",
+  deathEncounterType = null,
+  identityOutcome = null,
+  observations = [],
+  tablet = {}
+} = {}) {
+  return {
+    outcome,
+    terminationReason: "target-depth",
+    reachedFloor: 1,
+    deathFloor: outcome === "death" ? 1 : null,
+    deathEncounterType,
+    deathSnapshot: null,
+    finalLevel: 1,
+    characterExpGained: 0,
+    expGainedBySource: { combat: 0, tablet: 0 },
+    tabletCombatLedgerDelta: 0,
+    combatExpCandidate: { observations, coverageGaps: {} },
+    encounterIdentityLog: identityOutcome ? [{ outcome: identityOutcome }] : [],
+    diagnostics: { encounters: [] },
+    tabletExposure: {
+      generatedCount: 0,
+      uniqueReachedLocationCount: 0,
+      readCount: 0,
+      encounters: [],
+      ...tablet
+    }
+  };
+}
+
+const playerFlee = describeRun(syntheticResult({
+  identityOutcome: "flee",
+  observations: [{ initialFledIndices: [] }]
+}), CONTEXTS[0], "combined-b+c", 0, "seed-player-flee");
+assert.equal(playerFlee.lifecycle.playerFleeCount, 1);
+assert.equal(playerFlee.lifecycle.enemyInitialOwnerFleeCount, 0);
+
+const enemyFlee = describeRun(syntheticResult({
+  observations: [{ initialFledIndices: [0, 2] }]
+}), CONTEXTS[0], "combined-b+c", 1, "seed-enemy-flee");
+assert.equal(enemyFlee.lifecycle.enemyInitialOwnerFleeCount, 2);
+const fleeSummary = summarizeGroup([playerFlee, enemyFlee]).lifecycle;
+assert.equal(fleeSummary.enemyInitialOwnerFleeCount, 2);
+assert.equal(fleeSummary.playerFleeCount, 1);
+
+const rawHpDelta = describeRun(syntheticResult({
+  observations: [
+    { initialFledIndices: [], rawMaxHpBefore: 20, rawMaxHpAfter: 25 },
+    { initialFledIndices: [], rawMaxHpBefore: 25, rawMaxHpAfter: 23 }
+  ]
+}), CONTEXTS[0], "combined-b+c", 2, "seed-raw-hp");
+assert.equal(rawHpDelta.levelRawMaxHpIncrease, 3);
+
+const tabletDeath = describeRun(syntheticResult({
+  outcome: "death",
+  deathEncounterType: "tablet-trap",
+  tablet: {
+    generatedCount: 2,
+    uniqueReachedLocationCount: 1,
+    readCount: 1,
+    encounters: [{ selection: "read", outcome: "trap" }]
+  }
+}), CONTEXTS[0], "combined-b+c", 3, "seed-tablet-death");
+const combatDeath = describeRun(syntheticResult({
+  outcome: "death",
+  deathEncounterType: "normal",
+  tablet: {
+    generatedCount: 2,
+    uniqueReachedLocationCount: 2,
+    readCount: 1,
+    encounters: [{ selection: "read", outcome: "success" }]
+  }
+}), CONTEXTS[0], "combined-b+c", 4, "seed-combat-death");
+assert.equal(tabletDeath.tablet.death, true);
+assert.equal(combatDeath.tablet.death, false);
+const tabletSummary = summarizeGroup([tabletDeath, combatDeath]).tablet;
+assert.equal(tabletSummary.reachedRate, 0.75);
+assert.equal(tabletSummary.readRate, 2 / 3);
+assert.equal(tabletSummary.deathCount, 1);
+assert.equal(tabletSummary.deathRate, 0.5);
+assert.deepEqual(summarizeGroup([rawHpDelta]).levelRawMaxHpIncrease, {
+  n: 1, mean: 3, p10: 3, p50: 3, p90: 3
+});
 
 const report = await runProgressionExpCombinedRunDiagnostic({ runs: 1, seed: DEFAULT_SEED, allowSmallRunCount: true });
 const repeated = await runProgressionExpCombinedRunDiagnostic({ runs: 1, seed: DEFAULT_SEED, allowSmallRunCount: true });

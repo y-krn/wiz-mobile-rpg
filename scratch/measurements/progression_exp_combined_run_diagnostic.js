@@ -99,7 +99,7 @@ function relevantIdentityGaps(gaps = {}) {
     /identity|order|unsupported|ambiguous/i.test(reason)));
 }
 
-function describeRun(result, context, armId, runIndex, worldSeed) {
+export function describeRun(result, context, armId, runIndex, worldSeed) {
   const candidateObservations = result.combatExpCandidate?.observations || [];
   const validSettlements = candidateObservations.filter(observation =>
     observation.result === "victory" && observation.settlementCoverageValid === true);
@@ -122,7 +122,9 @@ function describeRun(result, context, armId, runIndex, worldSeed) {
   for (const observation of candidateObservations) increment(expByKind, observation.kind || "unknown");
 
   const encounterRows = result.diagnostics?.encounters || [];
-  const fleeFires = (result.encounterIdentityLog || []).filter(entry => entry.outcome === "flee").length;
+  const enemyInitialOwnerFleeCount = candidateObservations.reduce((sum, observation) =>
+    sum + (Array.isArray(observation.initialFledIndices) ? observation.initialFledIndices.length : 0), 0);
+  const playerFleeCount = (result.encounterIdentityLog || []).filter(entry => entry.outcome === "flee").length;
   const splitFires = encounterRows.reduce((sum, encounter) => {
     const initialCount = Number(encounter.generatedInitialVisibleEnemyCount || encounter.initialVisibleEnemyCount || 0);
     return sum + Number(initialCount > 0 && (encounter.endEnemyHp || []).length > initialCount &&
@@ -132,6 +134,16 @@ function describeRun(result, context, armId, runIndex, worldSeed) {
     (encounter.rounds || []).flatMap(round => round.enemyActionEvents || [])
       .filter(action => action.executed && action.traitSources?.includes("summonAlly")).length, 0);
   const coverageGaps = result.combatExpCandidate?.coverageGaps || {};
+  const tabletDeath = result.outcome === "death" && result.deathEncounterType === "tablet-trap" &&
+    result.tabletExposure.encounters.some(event => event.selection === "read" && event.outcome === "trap");
+  const tabletGenerated = result.tabletExposure.generatedCount;
+  const tabletReached = result.tabletExposure.uniqueReachedLocationCount;
+  const tabletRead = result.tabletExposure.readCount;
+  const rawMaxHpLevelIncrease = candidateObservations.reduce((sum, observation) => {
+    const before = Number(observation.rawMaxHpBefore);
+    const after = Number(observation.rawMaxHpAfter);
+    return Number.isFinite(before) && Number.isFinite(after) ? sum + after - before : sum;
+  }, 0);
 
   return {
     contextId: context.id,
@@ -154,10 +166,14 @@ function describeRun(result, context, armId, runIndex, worldSeed) {
     characterExp: result.characterExpGained,
     levelUpRecoveryHp: candidateObservations.reduce((sum, observation) =>
       sum + Number(observation.levelUpRecoveryHp || 0), 0),
+    levelRawMaxHpIncrease: rawMaxHpLevelIncrease,
     tablet: {
-      generated: result.tabletExposure.generatedCount,
-      reached: result.tabletExposure.uniqueReachedLocationCount,
-      read: result.tabletExposure.readCount,
+      generated: tabletGenerated,
+      reached: tabletReached,
+      read: tabletRead,
+      reachedRate: tabletGenerated > 0 ? tabletReached / tabletGenerated : null,
+      readRate: tabletReached > 0 ? tabletRead / tabletReached : null,
+      death: tabletDeath,
       outcomes: result.tabletExposure.encounters.reduce((counts, event) => {
         if (event.selection === "read") increment(counts, event.outcome || "missing-outcome");
         return counts;
@@ -171,7 +187,8 @@ function describeRun(result, context, armId, runIndex, worldSeed) {
       candidateBudgetMismatch: candidateSettlementMismatches.length
     },
     lifecycle: {
-      fleeFires,
+      enemyInitialOwnerFleeCount,
+      playerFleeCount,
       splitFires,
       summonFires,
       settlementDriftGaps,
@@ -190,7 +207,7 @@ function describeRun(result, context, armId, runIndex, worldSeed) {
   };
 }
 
-function summarizeGroup(rows) {
+export function summarizeGroup(rows) {
   const outcomeCounts = {};
   const reachedCounts = { reached: 0, notReached: 0 };
   const deathFloors = {};
@@ -212,6 +229,7 @@ function summarizeGroup(rows) {
     death: { count: outcomeCounts.death || 0, floors: deathFloors, causes: deathCauses },
     finalLevel: distribution(rows.map(row => row.finalLevel)),
     levelUps: distribution(rows.map(row => row.levelUps)),
+    levelRawMaxHpIncrease: distribution(rows.map(row => row.levelRawMaxHpIncrease)),
     combatExp: distribution(rows.map(row => row.combatExp)),
     tabletExp: distribution(rows.map(row => row.tabletExp)),
     characterExp: distribution(rows.map(row => row.characterExp)),
@@ -220,6 +238,16 @@ function summarizeGroup(rows) {
       generated: rows.reduce((sum, row) => sum + row.tablet.generated, 0),
       reached: rows.reduce((sum, row) => sum + row.tablet.reached, 0),
       read: rows.reduce((sum, row) => sum + row.tablet.read, 0),
+      reachedRate: rows.reduce((sum, row) => sum + row.tablet.generated, 0) > 0
+        ? rows.reduce((sum, row) => sum + row.tablet.reached, 0) /
+          rows.reduce((sum, row) => sum + row.tablet.generated, 0)
+        : null,
+      readRate: rows.reduce((sum, row) => sum + row.tablet.reached, 0) > 0
+        ? rows.reduce((sum, row) => sum + row.tablet.read, 0) /
+          rows.reduce((sum, row) => sum + row.tablet.reached, 0)
+        : null,
+      deathCount: rows.filter(row => row.tablet.death).length,
+      deathRate: rows.length ? rows.filter(row => row.tablet.death).length / rows.length : null,
       outcomes: tabletOutcomes
     },
     bObservations: { total: rows.reduce((sum, row) => sum + row.bObservations.total, 0), byKind: bKinds },
@@ -229,7 +257,8 @@ function summarizeGroup(rows) {
       candidateBudgetMismatch: rows.reduce((sum, row) => sum + row.settlements.candidateBudgetMismatch, 0)
     },
     lifecycle: {
-      fleeFires: rows.reduce((sum, row) => sum + row.lifecycle.fleeFires, 0),
+      enemyInitialOwnerFleeCount: rows.reduce((sum, row) => sum + row.lifecycle.enemyInitialOwnerFleeCount, 0),
+      playerFleeCount: rows.reduce((sum, row) => sum + row.lifecycle.playerFleeCount, 0),
       splitFires: rows.reduce((sum, row) => sum + row.lifecycle.splitFires, 0),
       summonFires: rows.reduce((sum, row) => sum + row.lifecycle.summonFires, 0),
       settlementDriftGaps: rows.reduce((sum, row) => sum + row.lifecycle.settlementDriftGaps.length, 0),
@@ -398,7 +427,7 @@ function summaryMarkdown(report) {
     lines.push(`## ${context.id}`, "");
     for (const arm of Object.keys(ARMS)) {
       const row = report.groups[context.id][arm];
-      lines.push(`- ${arm}: N=${row.n}; outcome=${JSON.stringify(row.outcome.counts)}; reached=${row.reach.counts.reached}; deaths=${row.death.count}; final Level p10/p50/p90=${[row.finalLevel.p10, row.finalLevel.p50, row.finalLevel.p90].join("/")}; combat/tablet/character EXP mean=${[row.combatExp.mean, row.tabletExp.mean, row.characterExp.mean].join("/")}; tablet reads=${row.tablet.read}; B kinds=${JSON.stringify(row.bObservations.byKind)}; valid/non-victory settlements=${row.settlements.valid}/${row.settlements.nonVictory}`);
+      lines.push(`- ${arm}: N=${row.n}; outcome=${JSON.stringify(row.outcome.counts)}; reached=${row.reach.counts.reached}; deaths=${row.death.count}; final Level p10/p50/p90=${[row.finalLevel.p10, row.finalLevel.p50, row.finalLevel.p90].join("/")}; combat/tablet/character EXP mean=${[row.combatExp.mean, row.tabletExp.mean, row.characterExp.mean].join("/")}; raw maxHP delta p10/p50/p90=${[row.levelRawMaxHpIncrease.p10, row.levelRawMaxHpIncrease.p50, row.levelRawMaxHpIncrease.p90].join("/")}; tablet reached/read rate=${row.tablet.reachedRate}/${row.tablet.readRate}; tablet deaths=${row.tablet.deathCount}/${row.tablet.deathRate}; B kinds=${JSON.stringify(row.bObservations.byKind)}; valid/non-victory settlements=${row.settlements.valid}/${row.settlements.nonVictory}; enemy/player flee=${row.lifecycle.enemyInitialOwnerFleeCount}/${row.lifecycle.playerFleeCount}`);
     }
     lines.push(`- Matched-seed transitions: ${JSON.stringify(report.matchedSeed[context.id].outcomeTransition)}`, "");
   }
