@@ -1179,8 +1179,8 @@ function placeSecretRooms(grid, targetCount, requiredKeys, start, protectedRoomK
     if (walkableDirs.length !== 1 || walkableDirs[0] !== OPPOSITE_DIR[candidate.passageDir]) continue;
     if (!setSecretDoor(grid, candidate.passageX, candidate.passageY, candidate.passageDir)) continue;
 
-    // Preserve seeded generation continuity while leaving the room empty.
-    rng();
+    // Keep the existing single draw and CHEST rate; former TABLET rooms stay empty.
+    if (rng() < 0.75) room.event = EVENT_TYPES.CHEST;
     placed++;
   }
   return placed;

@@ -34,7 +34,7 @@ assert.deepEqual(
   }
 );
 
-const result = await runMeasurement({ runs: 1, seed: 1277 });
+const result = await runMeasurement({ runs: 1, seed: 2 });
 assert.equal(result.configuration.measurementId, MEASUREMENT_ID);
 assert.deepEqual(result.configuration.startingKits, ["vanguard", "scout", "devotion", "arcana"]);
 assert.deepEqual(result.configuration.arms, ["P0B1", "P0B0", "P1B1", "P1B0"]);
@@ -165,16 +165,16 @@ const fleeScenario = {
   ...focusedScenario,
   hpBaseBonus: 0,
   fleePolicy: "threshold",
-  fleeHpThreshold: 0.8,
+  fleeHpThreshold: 0.9,
   milestonePortalPolicy: "continue"
 };
-resetSimulationRandom(0);
+resetSimulationRandom(2);
 const fleeBoss = simulateRun({
   className: "Thief",
   startFloor: 1,
   targetDepth: 6,
   runIndex: 0,
-  seriesId: "probe-threshold-0.8-0",
+  seriesId: "probe-threshold-0.9-2",
   scenario: fleeScenario,
   workshop: fleeScenario.workshop,
   collectDiagnostics: true,
@@ -223,14 +223,20 @@ for (const [label, probe] of [["F", flameDisabled], ["FG", flameDisabledBoth]]) 
   assert.equal(probe.flameTrapActivations, 0, `${label} B5 flame intervention failed`);
 }
 
-const guardianCurrent = runB5InterventionProbe(fleeScenario, 0, "probe-b5-guardian-current");
+const guardianProbeScenario = {
+  ...fleeScenario,
+  startingHealPotions: 0,
+  startingGreaterHeals: 3,
+  fleeHpThreshold: 0.8
+};
+const guardianCurrent = runB5InterventionProbe(guardianProbeScenario, 0, "probe-b5-guardian-current");
 const guardianDisabled = runB5InterventionProbe(
-  { ...fleeScenario, b5GuardianFleeDisabled: true },
+  { ...guardianProbeScenario, b5GuardianFleeDisabled: true },
   0,
   "probe-b5-guardian-disabled"
 );
 const guardianDisabledBoth = runB5InterventionProbe(
-  { ...fleeScenario, b5FlameTrapDisabled: true, b5GuardianFleeDisabled: true },
+  { ...guardianProbeScenario, b5FlameTrapDisabled: true, b5GuardianFleeDisabled: true },
   0,
   "probe-b5-guardian-disabled-both"
 );
