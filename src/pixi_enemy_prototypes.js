@@ -386,11 +386,39 @@ const PROCEDURAL_RECIPE_BUILDERS = Object.freeze({
   boss: createFallbackBoss
 });
 
+// A dark silhouette ring separates the enemy from bright walls and floors by
+// shape rather than by hue. The ring reuses the body's geometry contexts, so
+// it adds no tessellation and does not change the recipe's own palette.
+export const ENEMY_OUTLINE_COLOR = 0x0b0910;
+const OUTLINE_OFFSETS = Object.freeze([[-1, 0], [1, 0], [0, -1], [0, 1]]);
+
+function createSilhouetteOutline(body, visualScale) {
+  const outline = new Container();
+  outline.label = "enemy-outline";
+  const offset = Math.max(1.5, 2.2 * visualScale);
+  OUTLINE_OFFSETS.forEach(([dx, dy]) => {
+    const copy = new Container();
+    copy.position.set(dx * offset, dy * offset);
+    body.children.forEach((part) => {
+      const silhouette = new Graphics(part.context);
+      silhouette.alpha = part.alpha;
+      copy.addChild(silhouette);
+    });
+    outline.addChild(copy);
+  });
+  outline.tint = ENEMY_OUTLINE_COLOR;
+  return outline;
+}
+
 export function createProceduralEnemy(recipeKey, visualScale = 1) {
   const container = new Container();
   container.label = "enemy-procedural";
+  const body = new Container();
+  body.label = "enemy-body";
   const builder = PROCEDURAL_RECIPE_BUILDERS[recipeKey] || PROCEDURAL_RECIPE_BUILDERS.small;
-  builder(container, visualScale, ENEMY_RECIPE_PALETTES[recipeKey] || ENEMY_RECIPE_PALETTES.small);
+  builder(body, visualScale, ENEMY_RECIPE_PALETTES[recipeKey] || ENEMY_RECIPE_PALETTES.small);
+  container.addChild(createSilhouetteOutline(body, visualScale));
+  container.addChild(body);
   return container;
 }
 

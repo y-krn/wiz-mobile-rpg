@@ -11,14 +11,19 @@ import { checkCombatStatus } from "./combat_status.js";
 import { triggerGameOver } from "./game_over.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 import {
+  COMBAT_LOG_SIDES,
   getCombatLogDelay,
+  getCombatLogSide,
   groupCombatLogEntries,
   isImportantCombatResult
 } from "./combat_log_presentation.js";
+import { showSoloHudHit } from "../ui/solo_hud.js";
+import { recordRoundEnemyAction, resetRoundEnemyActions } from "./round_enemy_actions.js";
 
 function cleanupCombatState() {
   clearEventObservations({ scopePrefix: "combat:" });
   state.combatState = null;
+  resetRoundEnemyActions();
   state.party.forEach(char => {
     delete char.buffs;
   });
@@ -59,7 +64,10 @@ function openBossExitSubmenu() {
 }
 
 export function playBattleLogs(queue, index) {
-  if (index === 0) queue = groupCombatLogEntries(queue);
+  if (index === 0) {
+    queue = groupCombatLogEntries(queue);
+    resetRoundEnemyActions(state.combatState);
+  }
   if (index >= queue.length) {
     state.transitioning = false;
     checkCombatStatus();
@@ -76,9 +84,19 @@ export function playBattleLogs(queue, index) {
     // Reserve viewport shake for explicitly heavy impacts only.
     if (effect.shake >= 15 && renderer) renderer.triggerShake(Math.min(effect.shake, 20), 180);
     if (effect.flash && renderer) renderer.triggerFlash(200);
-    if (effect.floatText && renderer) renderer.addDamageText(effect.floatText, effect.floatColor);
-    if (effect.floatText && renderer?.triggerHitFeedback) renderer.triggerHitFeedback(220);
+    if (!effect.floatText) return;
+    // A plain number from the enemy side is damage to the party: show it on
+    // the HUD and the view edge instead of over the enemies.
+    const side = effect.side || getCombatLogSide(effect.msg);
+    if (side === COMBAT_LOG_SIDES.ENEMY && /^\d+$/.test(effect.floatText)) {
+      showSoloHudHit(effect.floatText);
+      renderer?.triggerPartyHit?.();
+      return;
+    }
+    if (renderer) renderer.addDamageText(effect.floatText, effect.floatColor, { target: effect.floatTarget });
+    if (renderer?.triggerHitFeedback) renderer.triggerHitFeedback(220, effect.floatTarget);
   });
+  if (log.side === COMBAT_LOG_SIDES.ENEMY) recordRoundEnemyAction(log.msg, state.combatState);
 
   if (isImportantCombatResult(log.msg)) {
     addEventLog(log.msg, {

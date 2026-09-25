@@ -785,8 +785,18 @@
 
 #game-container.dungeon-first-mode #log-content .event-strip-item:last-child,
 #game-container.dungeon-first-mode #log-content .event-strip-item--unresolved,
-#game-container.dungeon-first-mode #log-content .event-strip-item--result {
+#game-container.dungeon-first-mode #log-content .event-strip-item--result,
+#game-container.dungeon-first-mode #log-content .event-strip-item--enemy {
   display: block;
+}
+
+/* This round's enemy actions: two lines at most; the full text stays in the
+   expanded log. */
+#game-container.dungeon-first-mode #log-content .event-strip-item--enemy:not(:last-child) {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 #game-container.dungeon-first-mode #log-content .event-strip-item-label {

@@ -991,7 +991,8 @@ export function runCombatRoundCalculation(
                 sound: "hit",
                 shake: 4,
                 floatText: `${followUpDmg}`,
-                floatColor: finalTarget.color
+                floatColor: finalTarget.color,
+                floatTarget: monsters.indexOf(finalTarget)
               });
             }
           }
@@ -1005,7 +1006,9 @@ export function runCombatRoundCalculation(
           sound,
           shake,
           floatText,
-          floatColor: isBlindMiss ? "#8e8e93" : finalTarget.color
+          floatColor: isBlindMiss ? "#8e8e93" : finalTarget.color,
+          // Presentation-only anchor: the renderer places the number over this enemy.
+          floatTarget: monsters.indexOf(finalTarget)
         });
 
         if (finalTarget.hp === 0) {

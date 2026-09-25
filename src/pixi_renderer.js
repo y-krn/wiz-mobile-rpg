@@ -52,6 +52,13 @@ const LAYER_NAMES = Object.freeze([
   "overlays"
 ]);
 
+// Floating combat numbers are timed in milliseconds so their readable window
+// does not depend on frame rate. Reduced motion keeps the number still and
+// on screen longer instead of dropping it after one frame.
+const FLOATING_TEXT_MS = Object.freeze({ standard: 900, reduced: 1400 });
+const FLOATING_TEXT_RISE = 22;
+const PARTY_HIT_MS = 420;
+
 function prefersReducedMotion() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -202,9 +209,15 @@ export class PixiDungeonRenderer {
     this.shakeIntensity = 0;
     this.flashTime = 0;
     this.hitTime = 0;
+    this.hitTarget = null;
+    this.partyHitTime = 0;
     this.combatEntryTime = 0;
     this.activeRoot = null;
     this.damageTexts = [];
+    // Floating numbers survive the per-draw scene rebuild so each one owns
+    // a single Text for its lifetime instead of being recreated every frame.
+    this.floatingTextLayer = null;
+    this.combatAnchors = new Map();
     this.enemyTextures = new Map();
     this.enemyAssetFailures = new Set();
     this.enemyAssetPromise = null;
@@ -300,6 +313,8 @@ export class PixiDungeonRenderer {
       this.initializationPhase = "mount";
       this.scene = this.createSceneRoot("pixi-current-scene");
       this.app.stage.addChild(this.scene);
+      this.floatingTextLayer = new Container();
+      this.floatingTextLayer.label = "floating-texts";
       this.initializationCostMs = performance.now() - startedAt;
       this.supported = Boolean(this.app.renderer && this.app.canvas === this.canvas);
       this.canvas.dataset.renderer = this.supported ? this.mode : "pixi-unavailable";
@@ -341,13 +356,40 @@ export class PixiDungeonRenderer {
     this.combatEntryTime = Math.max(this.combatEntryTime, duration);
   }
 
-  triggerHitFeedback(duration = 220) {
+  triggerHitFeedback(duration = 220, target = null) {
     if (prefersReducedMotion()) return;
     this.hitTime = Math.max(this.hitTime, duration);
+    this.hitTarget = Number.isInteger(target) && target >= 0 ? target : null;
   }
 
-  addDamageText(text, color = "#ff3b30") {
-    this.damageTexts.push({ text: String(text), color, age: 0, maxAge: prefersReducedMotion() ? 1 : 40 });
+  // The party has no sprite in the first-person view, so a hit on the party
+  // tints the view edges. This is a color change, not motion, and it stays
+  // on under reduced motion so the hit remains visible.
+  triggerPartyHit(duration = PARTY_HIT_MS) {
+    this.partyHitTime = Math.max(this.partyHitTime, duration);
+  }
+
+  /**
+   * @param {string|number} text
+   * @param {string} [color]
+   * @param {{ target?: number|null }} [options] target is the enemy's index in
+   *   combatState.monsters; the number is drawn over that enemy.
+   */
+  addDamageText(text, color = "#ff3b30", { target = null } = {}) {
+    this.damageTexts.push({
+      text: String(text),
+      color,
+      target: Number.isInteger(target) && target >= 0 ? target : null,
+      age: 0,
+      maxAge: prefersReducedMotion() ? FLOATING_TEXT_MS.reduced : FLOATING_TEXT_MS.standard,
+      textObject: null
+    });
+  }
+
+  releaseFloatingText(entry) {
+    if (!entry.textObject) return;
+    entry.textObject.destroy();
+    entry.textObject = null;
   }
 
   update(dt) {
@@ -355,9 +397,15 @@ export class PixiDungeonRenderer {
     this.shakeTime = Math.max(0, this.shakeTime - dt);
     this.flashTime = Math.max(0, this.flashTime - dt);
     this.hitTime = Math.max(0, this.hitTime - dt);
+    if (this.hitTime === 0) this.hitTarget = null;
+    this.partyHitTime = Math.max(0, this.partyHitTime - dt);
     this.combatEntryTime = Math.max(0, this.combatEntryTime - dt);
-    this.damageTexts.forEach((entry) => { entry.age += 1; });
-    this.damageTexts = this.damageTexts.filter((entry) => entry.age < entry.maxAge);
+    this.damageTexts.forEach((entry) => { entry.age += Math.max(0, dt); });
+    this.damageTexts = this.damageTexts.filter((entry) => {
+      if (entry.age < entry.maxAge) return true;
+      this.releaseFloatingText(entry);
+      return false;
+    });
   }
 
   resolveRenderInput(input) {
@@ -404,7 +452,7 @@ export class PixiDungeonRenderer {
   isAnimating(input = null) {
     const renderInput = this.resolveRenderInput(input);
     const environment = renderInput.visual.environment;
-    if (this.shakeTime > 0 || this.flashTime > 0 || this.hitTime > 0 || this.combatEntryTime > 0 || this.damageTexts.length > 0) return true;
+    if (this.shakeTime > 0 || this.flashTime > 0 || this.hitTime > 0 || this.partyHitTime > 0 || this.combatEntryTime > 0 || this.damageTexts.length > 0) return true;
     if (prefersReducedMotion()) return false;
     const cyclePosition = (renderInput.floor - 1) % 5;
     if (environment.animated || environment.animatedCyclePosition === cyclePosition || renderInput.dangerCue.active) return true;
@@ -437,6 +485,9 @@ export class PixiDungeonRenderer {
 
   clearSceneRoot(root) {
     if (!root) return;
+    // The floating-text container survives scene rebuilds; its Text objects
+    // are released individually when their numbers expire.
+    if (root === this.scene) this.floatingTextLayer?.parent?.removeChild(this.floatingTextLayer);
     const children = root.removeChildren();
     children.forEach((child) => child.destroy({ children: true }));
     this.resourceStats.sceneRebuilds += 1;
@@ -496,6 +547,8 @@ export class PixiDungeonRenderer {
       else drawRect(this.layer("overlays"), 0, 0, this.viewport.width, this.viewport.height, "#ffffff", 0.24);
     }
     if (this.hitTime > 0) this.drawHitFeedback(renderInput);
+    if (this.partyHitTime > 0) this.drawPartyHit();
+    this.drawFloatingTexts();
     this.app.render();
     renderMiniMapOverlay(renderInput);
     this.renderCount += 1;
@@ -515,11 +568,11 @@ export class PixiDungeonRenderer {
     } else {
       this.drawCorridors(renderInput);
       if (renderInput.sceneVisibility.showCombat) this.drawMonsters(renderInput);
+      else this.combatAnchors.clear();
       if (renderInput.sceneVisibility.showChest) this.drawChest(renderInput);
     }
     this.drawAtmosphere(renderInput);
     this.drawDangerPulse(renderInput);
-    this.drawFloatingTexts();
     if (renderInput.sceneVisibility.showCombat && this.combatEntryTime > 0) this.drawCombatEntry(renderInput);
     this.activeRoot = previousRoot;
   }
@@ -907,7 +960,7 @@ export class PixiDungeonRenderer {
   }
 
   drawMonsters(renderInput) {
-    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monster, cx, cy, scale, slotWidth, hitRegion, row, column }) => {
+    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monster, monsterIndex, cx, cy, scale, slotWidth, hitRegion, row, column }) => {
       const color = getMonsterColor(monster);
       const actors = this.layer("actors");
       const presentation = this.enemyPresentationMode === "production"
@@ -920,6 +973,9 @@ export class PixiDungeonRenderer {
         (slotWidth * 0.82) / presentation.maxWidth
       );
       const hpY = Math.max(18, floorY - presentation.height * visualScale - 5);
+      // Keep the last drawn position even after the enemy falls, so a killing
+      // blow still shows its number where that enemy stood.
+      this.combatAnchors.set(monsterIndex, { x: cx, y: (hpY + floorY) / 2, scale });
       drawEllipse(actors, cx, floorY, Math.min(42, presentation.width * visualScale * 0.42), 5.5 * scale, "#2e2640", 0.28);
       if (this.enemyPresentationMode === "production") {
         this.drawProceduralEnemy(actors, presentation, cx, floorY, visualScale, color, row, column);
@@ -1002,18 +1058,66 @@ export class PixiDungeonRenderer {
     drawEllipse(this.layer("combat-fx"), 200 * sx, 124 * sy, 42 * sx, 18 * sy, "#ff3b30", 0.035 + pulse * 0.35);
   }
 
+  getFloatingTextPlacement(entry) {
+    const anchor = Number.isInteger(entry.target) ? this.combatAnchors.get(entry.target) : null;
+    if (anchor) return { x: anchor.x, y: anchor.y, scale: Math.max(0.72, anchor.scale) };
+    return { x: this.viewport.width / 2, y: this.viewport.height * 0.38, scale: 1 };
+  }
+
   drawFloatingTexts() {
-    this.damageTexts.forEach((entry) => {
-      const text = new Text({
-        text: entry.text,
-        style: { fill: entry.color, fontFamily: "DotGothic16, sans-serif", fontSize: 20, stroke: { color: "#2e2640", width: 5 } }
-      });
-      text.anchor.set(0.5);
-      text.position.set(this.viewport.width / 2, this.viewport.height * 0.38 - entry.age * this.viewport.height / 260 * 0.9);
-      text.scale.set(1 + Math.max(0, 0.12 - entry.age * 0.008));
-      text.alpha = Math.max(0, 1 - entry.age / entry.maxAge);
-      this.layer("combat-fx").addChild(text);
+    const layer = this.floatingTextLayer;
+    if (!layer) return;
+    // Re-attach on top of this frame's combat effects.
+    this.layer("combat-fx").addChild(layer);
+    const reducedMotion = prefersReducedMotion();
+    // Drop Text left behind by entries that were replaced without expiring.
+    const owned = new Set(this.damageTexts.map((entry) => entry.textObject).filter(Boolean));
+    layer.children.filter((child) => !owned.has(child)).forEach((child) => child.destroy());
+    this.damageTexts.forEach((entry, index) => {
+      const anchored = Number.isInteger(entry.target);
+      if (!entry.textObject) {
+        entry.textObject = new Text({
+          text: entry.text,
+          style: {
+            // Enemy colors can be as dark as the walls; numbers over an enemy
+            // use one light fill so they read on every biome.
+            fill: anchored && /^\d+$/.test(entry.text) ? "#fff4dc" : entry.color,
+            fontFamily: "DotGothic16, sans-serif",
+            fontSize: anchored ? 30 : 24,
+            fontWeight: "700",
+            stroke: { color: "#1b1424", width: 6 }
+          }
+        });
+        entry.textObject.anchor.set(0.5);
+        entry.textObject.label = "floating-text";
+        layer.addChild(entry.textObject);
+      }
+      const text = entry.textObject;
+      const progress = clamp01(entry.age / entry.maxAge);
+      const placement = this.getFloatingTextPlacement(entry);
+      // Numbers that land on the same spot in one burst step upward instead
+      // of printing over each other.
+      const stack = this.damageTexts.slice(0, index)
+        .filter((other) => (other.target ?? null) === (entry.target ?? null)).length;
+      const rise = reducedMotion ? 0 : progress * FLOATING_TEXT_RISE;
+      const pop = reducedMotion ? 0 : Math.max(0, 0.18 - progress * 0.9);
+      text.position.set(placement.x, placement.y - rise - stack * 26 * placement.scale);
+      text.scale.set(placement.scale * (1 + pop));
+      // Hold full opacity for most of the lifetime, then fade.
+      text.alpha = progress < 0.7 ? 1 : Math.max(0, 1 - (progress - 0.7) / 0.3);
     });
+  }
+
+  drawPartyHit() {
+    const progress = clamp01(this.partyHitTime / PARTY_HIT_MS);
+    const { width, height } = this.viewport;
+    const overlays = this.layer("overlays");
+    const edge = Math.max(10, Math.round(Math.min(width, height) * 0.045));
+    const alpha = 0.18 + 0.32 * progress;
+    drawRect(overlays, 0, 0, width, edge, "#ff3b30", alpha);
+    drawRect(overlays, 0, height - edge, width, edge, "#ff3b30", alpha);
+    drawRect(overlays, 0, edge, edge, height - edge * 2, "#ff3b30", alpha);
+    drawRect(overlays, width - edge, edge, edge, height - edge * 2, "#ff3b30", alpha);
   }
 
   drawAtmosphere(renderInput) {
@@ -1051,7 +1155,8 @@ export class PixiDungeonRenderer {
     const progress = clamp01(this.hitTime / 220);
     const color = safeColor(renderInput.visual.wallColor, "#e8f7f4");
     const alpha = 0.12 * progress;
-    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ cx, cy, scale }) => {
+    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monsterIndex, cx, cy, scale }) => {
+      if (this.hitTarget !== null && monsterIndex !== this.hitTarget) return;
       drawEllipse(this.layer("combat-fx"), cx, cy - 20 * scale, 24 * scale + progress * 8, 42 * scale + progress * 12, color, alpha);
       addLine(this.layer("combat-fx"), [
         { x: cx - 17 * scale, y: cy - 18 * scale },
@@ -1074,6 +1179,9 @@ export class PixiDungeonRenderer {
       return;
     }
     this.clearSceneRoot(this.scene);
+    this.damageTexts.forEach((entry) => this.releaseFloatingText(entry));
+    this.damageTexts = [];
+    this.floatingTextLayer?.destroy({ children: true });
     this.destroyPixelSurfaces();
     try {
       this.app.destroy({ removeView: false }, { children: true });
@@ -1083,6 +1191,7 @@ export class PixiDungeonRenderer {
     }
     this.app = null;
     this.scene = null;
+    this.floatingTextLayer = null;
     this.supported = false;
     this.resourceStats.destroyed = true;
   }

@@ -6,6 +6,7 @@ import { renderEquip } from "../equip.js";
 import { renderSpellOverlay } from "../spell_menu.js";
 import { renderCombatOverlay, combatSelection, getRepeatActionStatus } from "../combat.js";
 import { updateSoloHUD } from "./solo_hud.js";
+import { getRoundEnemyActions } from "../combat_ui/round_enemy_actions.js";
 import { updateCombatPrompt } from "./combat_prompt.js";
 import { updateViewportHUD } from "./viewport_hud.js";
 import { renderResultScreen } from "./result_screen.js";
@@ -460,7 +461,7 @@ export function updateUI() {
     if (entry.dataset) entry.dataset.eventKind = kind;
     const label = document.createElement("span");
     label.className = "event-strip-item-label";
-    label.textContent = kind === "unresolved" ? "未解決" : kind === "result" ? "結果" : "直近";
+    label.textContent = kind === "unresolved" ? "未解決" : kind === "result" ? "結果" : kind === "enemy" ? "敵" : "直近";
     if (typeof entry.prepend === "function") {
       entry.prepend(label);
     } else {
@@ -473,6 +474,20 @@ export function updateUI() {
   const persistentEvents = isCombatContext
     ? [...eventEntries.unresolved, ...(eventEntries.results || []).slice(-1)]
     : [...eventEntries.unresolved, ...(eventEntries.results || [])];
+  // Combat keeps a single recent line, so this round's enemy actions get their
+  // own row; lines already visible in another row are not repeated.
+  const visibleTexts = new Set([...persistentEvents, ...eventEntries.transient.slice(-1)].map(({ text }) => text));
+  const enemyDigest = isCombatContext
+    ? getRoundEnemyActions(state.combatState).filter(text => !visibleTexts.has(text))
+    : [];
+  if (enemyDigest.length > 0) {
+    persistentEvents.push({
+      kind: "enemy",
+      text: enemyDigest.join(" / "),
+      side: "enemy",
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
+    });
+  }
   const transientBudget = Math.max(0, RECENT_LOG_LINES - persistentEvents.length);
   [...persistentEvents, ...eventEntries.transient.slice(-transientBudget)]
     .forEach(appendEventEntry);
