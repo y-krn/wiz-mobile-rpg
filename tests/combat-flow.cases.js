@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { waitForAppStart } from './ui-ux-helpers.js';
 
 test('Explore and Combat share the common Dock grammar at 320x568 @e2e @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
@@ -137,6 +138,7 @@ test('combat log presentation keeps normal results quick and important results r
 
 test('combat result observations are cleared at combat boundaries', async ({ page }) => {
   await page.goto('/');
+  await waitForAppStart(page);
   const result = await page.evaluate(async () => {
     const { state, createDefaultCurrentRun, createStartingKitCharacter, addEventLog } = await import('/src/state.js');
     const { startCombat } = await import('/src/combat.js');

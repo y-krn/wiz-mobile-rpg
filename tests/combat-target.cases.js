@@ -282,10 +282,11 @@ test('combat disables recovery spells when no ally is a valid target and skips a
   await page.locator('#btn-combat-item').click();
   await page.locator('#combat-overlay .combat-item-card.item').filter({ hasText: '傷薬' }).click();
 
-  const itemAction = await page.evaluate(async () => {
-    const { combatSelection } = await import('/src/combat.js');
-    return combatSelection.actions[0];
-  });
-  expect(itemAction).toMatchObject({ type: 'item', targetIdx: 0, itemKey: 'HEAL_POTION' });
+  // The sole living actor's choice starts the round at once, and the next
+  // round clears combatSelection.actions; lastActions keeps what was executed.
+  await expect.poll(() => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return state.combatState?.lastActions?.[0] ?? null;
+  })).toMatchObject({ type: 'item', targetIdx: 0, itemKey: 'HEAL_POTION' });
   await expect(page.locator('#combat-overlay')).toBeHidden();
 });
