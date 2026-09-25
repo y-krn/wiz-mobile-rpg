@@ -58,6 +58,7 @@ const { runCombatRoundCalculation } = await import("../../src/combat_logic.js");
 const { cloneCombatStateForRound } = await import("../../src/combat_logic/round.js");
 const { candidateSettlementBudget, createCandidateExpLifecycle, reconcileCandidateExpLifecycle } = await import("../measurements/progression_exp_award_lifecycle.js");
 const { createCandidateExpPlan } = await import("../measurements/progression_exp_award_integration.js");
+const { PROGRESSION_ENEMY_CANDIDATE: PHASE4C_V1 } = await import("../measurements/progression_enemy_candidate_contract.js");
 const {
   chooseAutoCombatAction,
   getAutoHealTargetIdx,
@@ -4901,6 +4902,9 @@ function createSimulationState(
       measurementInitiative: scenario.measurementInitiative || null,
       measurementCombatPlan: scenario.measurementCombatPlan || null,
       measurementFixedCombat: Boolean(scenario.fixedCombat),
+      phase4cV1GeneratedRun: scenario.phase4cV1GeneratedRun === true,
+      phase4cV1AppliedHpBonus: 0,
+      phase4cV1CurrentBaseline: null,
       b10CrushStrikeResponse: scenario.b10CrushStrikeResponse || null,
       measurementGuardTiming: scenario.measurementGuardTiming || null,
       b30TiltowaitGuardRecoveryCandidate: scenario.b30TiltowaitGuardRecoveryCandidate === true,
@@ -9193,7 +9197,60 @@ function summarizeNormalPhysicalContinuation(rounds = []) {
   };
 }
 
-function runEncounter(
+function resolvePhase4cV1Baseline(state) {
+  const startFloor = Number(state.currentRun?.startFloor) || 1;
+  const selected = Math.floor(startFloor / 5);
+  const defeated = (state.currentRun?.defeatedMilestones || [])
+    .filter(floor => Number.isInteger(floor) && floor > 0)
+    .reduce((highest, floor) => Math.max(highest, Math.floor(floor / 5)), 0);
+  return Math.max(0, Math.min(5, selected), Math.min(5, defeated));
+}
+
+function applyPhase4cV1EnemyBaseline(monsters, floor, isBoss) {
+  if (isBoss) return;
+  const band = Math.max(0, Math.min(5, Math.floor(floor / 5)));
+  for (const monster of monsters) {
+    const templateName = monster.name.replace(/\s[A-Z]$/, "");
+    const template = MONSTERS.find(entry => entry.name === templateName);
+    if (!template) throw new Error(`Phase 4c v1 missing generic enemy template: ${monster.name}`);
+    const hp = Math.max(1, Math.round(template.hp * PHASE4C_V1.enemyHpMultiplier(band)));
+    monster.maxHp = hp;
+    monster.hp = hp;
+    monster.atk = Math.max(1, Math.round(template.atk * PHASE4C_V1.enemyAttackMultiplier(band)));
+    monster.def = Math.max(0, Math.round(template.def * PHASE4C_V1.enemyDefenseMultiplier));
+  }
+}
+
+function runEncounter(state, observations, diagnostics = null, metrics = null, options = {}) {
+  if (state.simPolicy?.phase4cV1GeneratedRun !== true) {
+    return runEncounterCore(state, observations, diagnostics, metrics, options);
+  }
+  const baseline = resolvePhase4cV1Baseline(state);
+  const character = state.party[0];
+  const originalWeapon = character.equipment.weapon;
+  const nextHpBonus = PHASE4C_V1.playerLevel1MaxHp(baseline) - PHASE4C_V1.playerLevel1MaxHp(0);
+  const priorHpBonus = Number(state.simPolicy.phase4cV1AppliedHpBonus) || 0;
+  character.maxHp += nextHpBonus - priorHpBonus;
+  state.simPolicy.phase4cV1AppliedHpBonus = nextHpBonus;
+  state.simPolicy.phase4cV1CurrentBaseline = baseline;
+  const restorePlayerCandidate = applyMeasurementPlayerCandidate(character, {
+    physicalPowerMultiplier: PHASE4C_V1.playerPhysicalMultiplier(baseline),
+    spellPowerMultiplier: PHASE4C_V1.playerSpellMultiplier(baseline)
+  });
+  let result;
+  try {
+    result = runEncounterCore(state, observations, diagnostics, metrics, options);
+  } finally {
+    const resultCharacter = result?.state?.party?.[0];
+    if (resultCharacter && resultCharacter !== character) {
+      resultCharacter.equipment.weapon = originalWeapon;
+    }
+    restorePlayerCandidate();
+  }
+  return result;
+}
+
+function runEncounterCore(
   state,
   observations,
   diagnostics = null,
@@ -9273,6 +9330,9 @@ function runEncounter(
     monsters = generatedEncounter.monsters;
     generatedTrial = generatedEncounter.trial || null;
     generatedIsRare = generatedEncounter.isRare;
+  }
+  if (state.simPolicy?.phase4cV1GeneratedRun === true) {
+    applyPhase4cV1EnemyBaseline(monsters, state.floor, isBoss);
   }
   const initialGeneratedMonsters = monsters.map(monster => ({
     name: monster.name,
@@ -9431,6 +9491,25 @@ function runEncounter(
         }
         expAwardCandidateObservation = {
           floor: state.floor,
+          combatNumber: state.currentRun.battles,
+          phase4cV1Baseline: state.simPolicy.phase4cV1CurrentBaseline,
+          phase4cV1EnemyBand: Math.max(0, Math.min(5, Math.floor(state.floor / 5))),
+          preRewardState: {
+            level: state.party[0].level,
+            exp: state.party[0].exp,
+            hp: state.party[0].hp,
+            rawMaxHp: state.party[0].maxHp,
+            enemies: monsters.map(monster => ({
+              name: monster.name,
+              hp: monster.hp,
+              maxHp: monster.maxHp,
+              atk: monster.atk,
+              def: monster.def,
+              isBoss: monster.isBoss === true,
+              hasSplit: Boolean(monster.split),
+              hasSummon: Boolean(monster.summon || (monster.traits || []).includes("summonAlly"))
+            }))
+          },
           kind,
           encounterContext: { isBoss, isElite, isMidboss, isRare: generatedIsRare, roamingMonster: Boolean(roamingMonster) },
           initialEncounterSize: monsters.length,
@@ -9439,6 +9518,8 @@ function runEncounter(
             encounterName: monster.name,
             templateName: initialTemplates[index].templateName,
             templateExp: initialTemplates[index].template.exp,
+            hasSplit: Boolean(monster.split),
+            hasSummon: Boolean(monster.summon || (monster.traits || []).includes("summonAlly")),
             productionInstanceExp: initialGeneratedMonsters[index].productionInstanceExp,
             candidateAllocation: allocation[index],
             selectedAwardExp: applyCandidate ? allocation[index] : before[index].exp
