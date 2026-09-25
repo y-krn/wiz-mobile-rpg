@@ -56,7 +56,8 @@ const { getTrialGuardianPressures } = await import("../../src/rules/floor_trials
 const { applyPendingOutcomeRewards } = await import("../../src/combat_ui/outcome_rewards.js");
 const { runCombatRoundCalculation } = await import("../../src/combat_logic.js");
 const { cloneCombatStateForRound } = await import("../../src/combat_logic/round.js");
-const { allocateCandidateAward, calculateCandidateAward } = await import("../measurements/progression_exp_award_paired_inventory.js");
+const { candidateSettlementBudget, createCandidateExpLifecycle, reconcileCandidateExpLifecycle } = await import("../measurements/progression_exp_award_lifecycle.js");
+const { createCandidateExpPlan } = await import("../measurements/progression_exp_award_integration.js");
 const {
   chooseAutoCombatAction,
   getAutoHealTargetIdx,
@@ -9381,16 +9382,15 @@ function runEncounter(
     isElite
   });
   let expAwardCandidateObservation = null;
+  let expAwardCandidateLifecycle = null;
   if (metrics?.expAwardCandidate?.enabled) {
     const diagnostic = metrics.expAwardCandidate;
     const recordGap = reason => {
       diagnostic.coverageGaps[reason] = (diagnostic.coverageGaps[reason] || 0) + 1;
     };
-    if (generatedIsRare) {
-      recordGap("rare-encounter");
-    } else if (fixedMonsterNames || isBoss || isMidboss || isElite || roamingMonster ||
-        earlyCompositionCandidateAction !== "none") {
-      recordGap("special-or-fixed-encounter");
+    const productionGenerated = !fixedMonsterNames && earlyCompositionCandidateAction === "none";
+    if (!productionGenerated) {
+      recordGap("non-production-generated-initial-roster");
     } else if (![1, 2, 3].includes(initialGeneratedMonsters.length) ||
         generatedInitialVisibleEnemyCount !== initialGeneratedMonsters.length ||
         monsters.length !== initialGeneratedMonsters.length ||
@@ -9406,34 +9406,21 @@ function runEncounter(
         return !template || !Number.isFinite(template.exp) || template.exp < 0 ||
           !Number.isFinite(monster.exp) || monster.exp < 0;
       });
-      const ineligibleReason = monsters.map((monster, index) => {
-        const template = initialTemplates[index].template;
-        if (monster.isRare || monster.treasureRare || template?.treasureRare) return "rare-encounter";
-        if (monster.hasSplit || monster.split || template?.hasSplit || template?.split ||
-            template?.traits?.some(trait => /split/i.test(String(trait))) ||
-            initialTemplates[index].templateName.includes("分裂")) return "split-encounter";
-        if (monster.isSummoned || monster.summons || template?.summons ||
-            template?.traits?.some(trait => /summon/i.test(String(trait)))) return "summon-encounter";
-        if (monster.fleeChance !== undefined || template?.fleeChance !== undefined) return "flee-chance-encounter";
-        return null;
-      }).find(Boolean);
       if (invalidEnemy) {
         recordGap("ambiguous-identity-or-invalid-exp");
-      } else if (ineligibleReason) {
-        recordGap(ineligibleReason);
       } else {
         const before = monsters.map(monster => structuredClone(monster));
         const templateExpBefore = initialTemplates.map(({ template }) => template.exp);
-        const candidateMonsters = initialTemplates.map(({ template }) => ({ templateExp: template.exp }));
-        const candidate = calculateCandidateAward({
+        const plan = createCandidateExpPlan({
           floor: state.floor,
-          kind: "ordinary",
-          monsters: candidateMonsters,
-          encounterSize: monsters.length
+          monsters,
+          templates: initialTemplates.map(({ template }) => template),
+          context: { isBoss, isElite, isMidboss, isRare: generatedIsRare, roamingMonster: Boolean(roamingMonster) }
         });
-        const allocation = allocateCandidateAward(candidate.totalAward, candidateMonsters);
+        const { candidate, allocations: allocation, kind } = plan;
         const applyCandidate = diagnostic.id === "phase4j-b";
         if (applyCandidate) monsters.forEach((monster, index) => { monster.exp = allocation[index]; });
+        if (applyCandidate) expAwardCandidateLifecycle = createCandidateExpLifecycle(monsters, allocation);
         const otherFieldsUnchanged = before.every((snapshot, index) =>
           Object.keys(snapshot).length === Object.keys(monsters[index]).length &&
           Object.keys(snapshot).every(key => key === "exp" || JSON.stringify(snapshot[key]) === JSON.stringify(monsters[index][key]))
@@ -9444,6 +9431,8 @@ function runEncounter(
         }
         expAwardCandidateObservation = {
           floor: state.floor,
+          kind,
+          encounterContext: { isBoss, isElite, isMidboss, isRare: generatedIsRare, roamingMonster: Boolean(roamingMonster) },
           initialEncounterSize: monsters.length,
           initialEnemies: monsters.map((monster, index) => ({
             initialIndex: index,
@@ -10044,6 +10033,7 @@ function runEncounter(
     return {
       result,
       rounds,
+      candidateExpLifecycle: expAwardCandidateLifecycle,
       healPotionsUsed,
       greaterHealPotionsUsed,
       state,
@@ -10447,6 +10437,9 @@ function runEncounter(
     // decisions. Keep that runner-local state attached after the clean combat
     // result is returned; the production combat result itself remains clean.
     state = { ...roundResult.state, simPolicy: simulationPolicy };
+    if (expAwardCandidateLifecycle) {
+      reconcileCandidateExpLifecycle(state.combatState.monsters, expAwardCandidateLifecycle);
+    }
     if (summonScalingPolicy === "phase2a") {
       const newlySummoned = state.combatState.monsters.slice(measurementMonsterCount);
       measurementSummonSnapshots.push(
@@ -18321,13 +18314,13 @@ export function simulateRun({
             const settledMonsters = state.combatState.monsters || [];
             const settlementCoverageGaps = [];
             if (combatResult.result !== "victory") settlementCoverageGaps.push(`non-victory-${combatResult.result}`);
-            if (settledMonsters.length !== expCandidateObservation.initialEncounterSize) {
-              settlementCoverageGaps.push("combat-monster-count-changed");
-            }
-            if (settledMonsters.some(monster => monster.fled)) settlementCoverageGaps.push("flee-during-combat");
-            if (expCandidateObservation.awardMode === "phase4j-b" &&
-                combatResult.result === "victory" && combatLedgerDelta !== expCandidateObservation.candidateExp) {
-              settlementCoverageGaps.push("candidate-settlement-total-drift");
+            const expectedCandidateSettlementBudget = expCandidateObservation.awardMode === "phase4j-b"
+              ? candidateSettlementBudget(settledMonsters, combatResult.candidateExpLifecycle)
+              : null;
+            if (expCandidateObservation.awardMode === "phase4j-b" && combatResult.result === "victory" &&
+                (combatLedgerDelta !== expectedCandidateSettlementBudget ||
+                 character.exp - expBeforeCombat !== expectedCandidateSettlementBudget)) {
+              settlementCoverageGaps.push("candidate-lifecycle-settlement-drift");
             }
             settlementCoverageGaps.forEach(gap => {
               metrics.expAwardCandidate.coverageGaps[gap] =
@@ -18338,6 +18331,16 @@ export function simulateRun({
             expCandidateObservation.combatLedgerBefore = combatLedgerBefore;
             expCandidateObservation.combatLedgerAfter = state.currentRun.expGained;
             expCandidateObservation.combatOnlyLedgerDelta = combatLedgerDelta;
+            expCandidateObservation.characterCombatExpDelta = character.exp - expBeforeCombat;
+            expCandidateObservation.expectedCandidateSettlementBudget = expectedCandidateSettlementBudget;
+            expCandidateObservation.initialFledIndices = settledMonsters
+              .slice(0, expCandidateObservation.initialEncounterSize)
+              .flatMap((monster, index) => monster.fled === true ? [index] : []);
+            expCandidateObservation.descendantCount = Math.max(0,
+              settledMonsters.length - expCandidateObservation.initialEncounterSize);
+            expCandidateObservation.descendantCandidateExp = settledMonsters
+              .slice(expCandidateObservation.initialEncounterSize)
+              .reduce((sum, monster) => sum + (Number.isFinite(monster.exp) ? monster.exp : 0), 0);
             expCandidateObservation.characterExpBefore = expBeforeCombat;
             expCandidateObservation.characterExpAfter = character.exp;
             expCandidateObservation.characterExpDelta = character.exp - expBeforeCombat;
@@ -18353,7 +18356,8 @@ export function simulateRun({
               ? combatLedgerDelta === expCandidateObservation.selectedAwardExp
               : combatLedgerDelta === 0;
             expCandidateObservation.settlementCoverageGaps = settlementCoverageGaps;
-            expCandidateObservation.settlementCoverageValid = settlementCoverageGaps.length === 0;
+            expCandidateObservation.settlementCoverageValid = combatResult.result === "victory" &&
+              settlementCoverageGaps.length === 0;
           }
           if (isBoss && specialEvent.milestone) {
             metrics.milestoneEventTrace.push({
