@@ -63,9 +63,11 @@ const blindChargeIntent = perceptionFacade.getPerceptionIntent({
 assert.equal(blindChargeIntent.target, noise);
 assert.equal(blindChargeIntent.speed, 2);
 
-assert.equal(perceptionFacade.getPerceptionIntent({
+const vibrationMovedIntent = perceptionFacade.getPerceptionIntent({
   monster: elite("vibration", 3, 7), player, noise: null, playerMoved: true, grid: openGrid
-}).target, player);
+});
+assert.equal(vibrationMovedIntent.target, player);
+assert.equal(vibrationMovedIntent.detected, true);
 assert.equal(perceptionFacade.getPerceptionIntent({
   monster: elite("vibration", 3, 7), player, noise: null, playerMoved: false, grid: openGrid
 }).detected, false);
