@@ -633,17 +633,17 @@
   object-fit: contain;
 }
 
-/* The minimap panel (with its 2px frame) occupies x 148-252 / y 6-110 of its
+/* The minimap panel (with its 2px frame) occupies x 136-264 / y 4-132 of its
    400x260 logical canvas. Crop exactly that region into a corner card under
    the compass badge instead of floating it over the vanishing point. */
 #game-container.dungeon-first-mode #dungeon-minimap-overlay {
   inset: auto;
   top: calc(var(--safe-area-top) + 152px);
   right: 12px;
-  width: 104px;
-  height: 104px;
+  width: 128px;
+  height: 128px;
   object-fit: none;
-  object-position: -148px -6px;
+  object-position: -136px -4px;
   image-rendering: pixelated;
   filter: drop-shadow(0 3px 0 rgba(46, 38, 64, 0.12));
 }

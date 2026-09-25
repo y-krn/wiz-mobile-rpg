@@ -197,6 +197,52 @@ for (const renderer of ['pixi']) {
   });
 }
 
+test('Dungeon First keeps minimap clear of HUD, log strip, and controls across phone widths @smoke', async ({ page }, testInfo) => {
+  for (const viewport of [{ width: 360, height: 800 }, VIEWPORT, { width: 430, height: 932 }]) {
+    await page.setViewportSize(viewport);
+    await seedDungeon(page, { map: makeMap('t-junction') });
+    for (const lightTurns of [0, 30]) {
+      await page.evaluate(async (turns) => {
+        const { state } = await import('/src/state.js');
+        const { updateUI } = await import('/src/ui.js');
+        state.lightTurns = turns;
+        state.lightPower = turns > 0 ? 'lomilwa' : null;
+        updateUI();
+        const { dungeonRenderer } = await import('/src/renderer.js');
+        dungeonRenderer.draw();
+      }, lightTurns);
+      await expect(page.locator('#dungeon-minimap-overlay')).toHaveAttribute('data-minimap-visible', 'true');
+      const boxes = await page.evaluate(() => {
+        const box = (selector) => {
+          const element = document.querySelector(selector);
+          if (!element || getComputedStyle(element).display === 'none') return null;
+          const rect = element.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 ? { selector, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom } : null;
+        };
+        return {
+          minimap: box('#dungeon-minimap-overlay'),
+          others: ['#location-label', '#btn-mute', '#goal-banner', '.hud-dir', '#log-panel', '#controls-panel', '#character-panel']
+            .map(box).filter(Boolean),
+          width: window.innerWidth,
+        };
+      });
+      expect(boxes.minimap).not.toBeNull();
+      expect(boxes.minimap.right - boxes.minimap.left).toBeGreaterThanOrEqual(120);
+      expect(boxes.minimap.right).toBeLessThanOrEqual(boxes.width);
+      const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      for (const other of boxes.others) {
+        expect(overlaps(boxes.minimap, other), `minimap overlaps ${other.selector} at ${viewport.width}px (light ${lightTurns})`).toBe(false);
+      }
+      const log = boxes.others.find(({ selector }) => selector === '#log-panel');
+      for (const other of boxes.others.filter(({ selector }) => ['.hud-dir', '#goal-banner', '#controls-panel'].includes(selector))) {
+        expect(overlaps(log, other), `log strip overlaps ${other.selector} at ${viewport.width}px`).toBe(false);
+      }
+    }
+    const screenshot = await page.screenshot({ path: testInfo.outputPath(`issue-1746-minimap-${viewport.width}.png`) });
+    await testInfo.attach(`issue-1746-minimap-${viewport.width}`, { body: screenshot, contentType: 'image/png' });
+  }
+});
+
 test('Portal decision keeps world context, neutral choices, and safe targets at 390x844 @smoke', async ({ page }, testInfo) => {
   await page.setViewportSize(VIEWPORT);
   await seedPortal(page);
