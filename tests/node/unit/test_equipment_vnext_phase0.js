@@ -34,7 +34,7 @@ import { createBuildFixture } from "../../../scratch/measurements/build_fixtures
 assert.equal(CANONICAL_BASE_IDS.length, 14);
 assert.equal(new Set(CANONICAL_BASE_IDS).size, CANONICAL_BASE_IDS.length);
 const equipmentItemIds = Object.values(ITEMS)
-  .filter(item => ["weapon", "armor", "shield", "accessory"].includes(item.type))
+  .filter(item => !item.trialOnly && ["weapon", "armor", "shield", "accessory"].includes(item.type))
   .map(item => item.id);
 assert.equal(Object.keys(ITEM_ID_TO_VNEXT_BASE).length, 48);
 assert.equal(Object.keys(VNEXT_BASE_ITEM_AUDIT).length, 50);

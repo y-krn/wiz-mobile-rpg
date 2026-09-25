@@ -373,7 +373,10 @@ export const VNEXT_DIAGNOSTIC_MODULES = Object.freeze([
 ]);
 
 const VNEXT_DIAGNOSTIC_IMPORT_ALLOWLIST = new Set([
-  "src/rules/diagnostic_build_identity.js"
+  "src/rules/diagnostic_build_identity.js",
+  // The production opt-in Equipment vNext trial consumes the audited data
+  // mapping without changing the ordinary profile or diagnostic runners.
+  "src/rules/equipment_vnext_trial.js"
 ]);
 
 function getSourceEntries({ repoRoot = process.cwd(), sourceByPath = null } = {}) {
