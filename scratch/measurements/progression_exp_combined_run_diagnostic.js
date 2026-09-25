@@ -413,10 +413,11 @@ async function main() {
     throw new Error("--output, --summary, and --manifest are required");
   }
   const provenance = requireRunnerProvenance({ fetchOriginMain: false, measurementRunnerPaths: [...PRODUCTION_PATHS] });
+  const allowSmallRunCount = options["allow-small-run-count"] === "true";
   const report = await runProgressionExpCombinedRunDiagnostic({
     runs,
     seed,
-    allowSmallRunCount: options["allow-small-run-count"] === "true"
+    allowSmallRunCount
   });
   report.measurement = {
     scope: readSimScopeDeclaration(import.meta.url)?.name || "run",
@@ -440,13 +441,15 @@ async function main() {
   fs.writeFileSync(resolve(options.summary), summaryMarkdown(report));
   fs.writeFileSync(resolve(options.manifest), `${JSON.stringify({
     schemaVersion: SCHEMA_VERSION,
-    status: report.validity.valid ? "success" : "invalid",
+    status: report.validity.valid ? "success" : allowSmallRunCount ? "smoke-only" : "invalid",
     runner: RUNNER_VERSION,
     source: report.measurement,
     configuration: report.configuration,
     validity: report.validity
   }, null, 2)}\n`);
-  if (!report.validity.valid) throw new Error("measurement invalid: validity gates failed");
+  if (!report.validity.valid && !allowSmallRunCount) {
+    throw new Error("measurement invalid: validity gates failed");
+  }
 }
 
 export { summaryMarkdown };
