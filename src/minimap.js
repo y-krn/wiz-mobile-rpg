@@ -4,8 +4,11 @@ import { isRenderableCorridorCell } from "./rules/renderer_topology.js";
 
 export const MINIMAP_CANVAS_SIZE = Object.freeze({ width: 400, height: 260 });
 
-const CELL_SIZE = 10;
-const PANEL_SIZE = 96;
+// Ten cells across keeps a first-floor walk legible on a phone without
+// widening what is drawn: only visited, lit, fragment-revealed, or discovered
+// trap cells ever reach the panel.
+const CELL_SIZE = 12;
+const PANEL_SIZE = 120;
 const PANEL_LEFT = (MINIMAP_CANVAS_SIZE.width - PANEL_SIZE) / 2;
 const PANEL_TOP = 8;
 
@@ -202,7 +205,7 @@ export function drawMiniMap(ctx, input = null, options = {}) {
         ctx.lineWidth = 1;
         ctx.setLineDash([2, 2]);
       } else {
-        ctx.fillStyle = "rgba(63, 185, 122, 0.16)";
+        ctx.fillStyle = "rgba(63, 185, 122, 0.26)";
         ctx.fillRect(screenX, screenY, CELL_SIZE, CELL_SIZE);
         ctx.strokeStyle = "#3a3150";
         ctx.lineWidth = 1.5;
@@ -306,7 +309,7 @@ export function drawMiniMap(ctx, input = null, options = {}) {
   const playerY = PANEL_TOP + renderInput.y * CELL_SIZE + CELL_SIZE / 2 + offsetY;
   ctx.fillStyle = "rgba(31, 143, 160, 0.22)";
   ctx.beginPath();
-  ctx.arc(playerX, playerY, 7, 0, Math.PI * 2);
+  ctx.arc(playerX, playerY, 9, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "#1f8fa0";
   ctx.strokeStyle = "#ffffff";
@@ -315,9 +318,9 @@ export function drawMiniMap(ctx, input = null, options = {}) {
   ctx.translate(playerX, playerY);
   ctx.rotate((renderInput.dir * Math.PI) / 2);
   ctx.beginPath();
-  ctx.moveTo(0, -6);
-  ctx.lineTo(-5, 5);
-  ctx.lineTo(5, 5);
+  ctx.moveTo(0, -7);
+  ctx.lineTo(-6, 6);
+  ctx.lineTo(6, 6);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();

@@ -15,6 +15,7 @@ import {
 } from "./rules/renderer_projection.js";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { getVisibleCorridorTopology, isRenderableCorridorCell, isVisibleWorldObjectCell } from "./rules/renderer_topology.js";
+import { getSideOpeningPosts } from "./rules/renderer_openings.js";
 import { renderMiniMapOverlay } from "./minimap.js";
 import { getChestPropGeometry, getChestPropPalette, getChestPropStyle } from "./chest_prop.js";
 import {
@@ -151,6 +152,11 @@ function drawProjectedFrontWall(container, plane, ceilingStyle, color, alpha, st
   container.addChild(graphic);
   return graphic;
 }
+
+// Side walls face across the corridor and stay a step darker than the wall
+// that faces the camera; side passages are darker still (see recess).
+const SIDE_WALL_TINT = Object.freeze({ left: 0xe2dcea, right: 0xd2cbdc });
+const SIDE_PASSAGE_RECESS = 0.45;
 
 function safeColor(value, fallback) {
   return typeof value === "string" && value.length > 0 ? value : fallback;
@@ -674,8 +680,8 @@ export class PixiDungeonRenderer {
     const map = renderInput.map;
     if (!Array.isArray(map)) return;
     const projection = getProjectionPlanes(renderInput.visual.geometry || BASE_GEOMETRY, this.viewport);
-    const topology = new Map(getVisibleCorridorTopology(map, renderInput.x, renderInput.y, renderInput.dir)
-      .map((cell) => [`${cell.z}:${cell.column}`, cell]));
+    const visibleTopology = getVisibleCorridorTopology(map, renderInput.x, renderInput.y, renderInput.dir);
+    const topology = new Map(visibleTopology.map((cell) => [`${cell.z}:${cell.column}`, cell]));
     const palette = this.getScenePalette(renderInput);
     const surfaces = this.getPixelSurfaces(palette);
     const wallColor = palette.accent;
@@ -720,6 +726,13 @@ export class PixiDungeonRenderer {
         ];
         addTexturedQuad(floorLayer, surfaces.ceiling, ceilingCorners);
         addPolygon(floorLayer, ceilingCorners, palette.fog, spanFog);
+        // Side passages sit in shadow so an opening reads by luminance and
+        // depth, not by wall colour alone.
+        const recess = column === 0 ? 0 : SIDE_PASSAGE_RECESS;
+        if (recess > 0) {
+          addPolygon(floorLayer, floorCorners, palette.ink, recess);
+          addPolygon(floorLayer, ceilingCorners, palette.ink, recess);
+        }
         addLine(floorLayer, [floorCorners[3], floorCorners[0], floorCorners[1], floorCorners[2]], edgeStroke(0.22));
 
         if (isVisibleWorldObjectCell(cellTopology)) {
@@ -727,14 +740,14 @@ export class PixiDungeonRenderer {
           this.drawLandmark(cell, objectPlane, renderInput.visual.wallColor, renderInput.visual.landmarks);
         }
 
-        if (cellTopology.leftBlocked) this.drawSideWall(plane, nextPlane, "left", palette, surfaces, spanFog);
+        if (cellTopology.leftBlocked) this.drawSideWall(plane, nextPlane, "left", palette, surfaces, spanFog, recess);
         if (cellTopology.rightBlocked) {
           const mirroredPlane = { ...plane, leftTop: plane.rightTop, rightTop: plane.leftTop, leftBottom: plane.rightBottom, rightBottom: plane.leftBottom };
           const mirroredNext = { ...nextPlane, leftTop: nextPlane.rightTop, rightTop: nextPlane.leftTop, leftBottom: nextPlane.rightBottom, rightBottom: nextPlane.leftBottom };
-          this.drawSideWall(mirroredPlane, mirroredNext, "right", palette, surfaces, spanFog);
+          this.drawSideWall(mirroredPlane, mirroredNext, "right", palette, surfaces, spanFog, recess);
         }
         if (cellTopology.frontBlocked) {
-          this.drawFrontWall(nextPlane, ceilingStyle, palette, surfaces, farFog);
+          this.drawFrontWall(nextPlane, ceilingStyle, palette, surfaces, farFog, recess);
           if (cellTopology.frontOneWayBarrier && column === 0) this.drawOneWayBarrier(nextPlane, wallColor);
         }
 
@@ -743,23 +756,40 @@ export class PixiDungeonRenderer {
         }
       }
     }
+    getSideOpeningPosts(visibleTopology, projection).forEach((post) => this.drawOpeningPost(post, palette, surfaces));
   }
 
-  drawSideWall(plane, nextPlane, side, palette, surfaces, fog) {
+  // A corner post frames each side opening so the gap reads by shape even
+  // when the corridor and the passage share one wall texture.
+  drawOpeningPost({ x, top, bottom, width, z }, palette, surfaces) {
+    const walls = this.layer("structural-walls");
+    const corners = [
+      { x: x - width / 2, y: top },
+      { x: x + width / 2, y: top },
+      { x: x + width / 2, y: bottom },
+      { x: x - width / 2, y: bottom }
+    ];
+    addTexturedQuad(walls, surfaces.wall, corners);
+    addPolygon(walls, corners, palette.fog, getDepthFog(z), { color: palette.ink, width: 2, alpha: 0.85 });
+    addLine(walls, [corners[0], corners[1]], { color: palette.accent, width: 2.5, alpha: 1 });
+  }
+
+  drawSideWall(plane, nextPlane, side, palette, surfaces, fog, recess = 0) {
     const walls = this.layer("structural-walls");
     const near = { top: { x: plane.leftTop, y: plane.top }, bottom: { x: plane.leftBottom, y: plane.bottom } };
     const far = { top: { x: nextPlane.leftTop, y: nextPlane.top }, bottom: { x: nextPlane.leftBottom, y: nextPlane.bottom } };
     const corners = [near.top, far.top, far.bottom, near.bottom];
     // Soft key light from the upper left keeps both walls readable in a
     // bright palette without introducing dark voids.
-    addTexturedQuad(walls, surfaces.wall, corners, side === "left" ? 0xf4f0f6 : 0xe4dfea);
+    addTexturedQuad(walls, surfaces.wall, corners, side === "left" ? SIDE_WALL_TINT.left : SIDE_WALL_TINT.right);
     addPolygon(walls, corners, palette.fog, fog);
+    if (recess > 0) addPolygon(walls, corners, palette.ink, recess);
     addLine(walls, [near.top, far.top], { color: palette.accent, width: 2.5, alpha: 1 });
     addLine(walls, [near.bottom, far.bottom], { color: palette.ink, width: 2, alpha: 0.5 });
     addLine(walls, [far.top, far.bottom], { color: palette.ink, width: 2, alpha: 0.42 });
   }
 
-  drawFrontWall(plane, ceilingStyle, palette, surfaces, fog) {
+  drawFrontWall(plane, ceilingStyle, palette, surfaces, fog, recess = 0) {
     const walls = this.layer("structural-walls");
     const corners = [
       { x: plane.leftTop, y: plane.top },
@@ -771,6 +801,7 @@ export class PixiDungeonRenderer {
     addTexturedQuad(walls, surfaces.wall, corners);
     if (ceilingStyle === "arch") drawProjectedFrontWall(walls, plane, ceilingStyle, palette.fog, fog);
     else addPolygon(walls, corners, palette.fog, fog);
+    if (recess > 0) drawProjectedFrontWall(walls, plane, ceilingStyle, palette.ink, recess);
     drawProjectedFrontWall(walls, plane, ceilingStyle, palette.fog, 0, { color: palette.ink, width: 2, alpha: 0.5 });
     addLine(walls, [corners[0], corners[1]], { color: palette.accent, width: 2.5, alpha: 1 });
   }

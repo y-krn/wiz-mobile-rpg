@@ -121,4 +121,25 @@ const discoveredCommands = draw(discoveredInput);
 assert.equal(calls(discoveredCommands, "fillText").some(command => command.args[0] === "!"), true, "discovered trap marker remains");
 assert.equal(calls(discoveredCommands, "lineTo").length >= 3, true, "one-way marker remains");
 
+// Legible scale: the panel frames ten 12px cells around the player, and the
+// larger view still draws only visited/revealed cells (no hidden info leak).
+const scaleInput = makeInput();
+scaleInput.visitedMap[4][4] = true;
+scaleInput.visitedMap[3][4] = true;
+scaleInput.map[4][4] = makeCell({ walls: [false, true, true, true] });
+scaleInput.map[3][4] = makeCell({ walls: [true, true, false, false] });
+scaleInput.map[3][3] = makeCell({ walls: [true, false, true, true], trap: { state: "hidden" } });
+scaleInput.map[0][0] = makeCell({ walls: [false, false, false, false], type: "stairs-down" });
+const scaleCommands = draw(scaleInput);
+const frame = calls(scaleCommands, "fillRect")[0];
+assert.deepEqual(frame.args.slice(2), [124, 124], "minimap frame is 120px plus its border");
+const cellFills = calls(scaleCommands, "fillRect").filter(command => command.fillStyle === "rgba(63, 185, 122, 0.26)");
+assert.equal(cellFills.length, 2, "only the two visited cells are filled");
+cellFills.forEach(command => assert.deepEqual(command.args.slice(2), [12, 12], "visited cells draw at 12px"));
+assert.equal(calls(scaleCommands, "strokeRect").length, 1, "unvisited stairs stay hidden at the larger scale");
+assert.equal(calls(scaleCommands, "fillText").length, 0, "hidden trap beyond an unvisited side passage stays hidden");
+const [playerX, playerY] = calls(scaleCommands, "translate").at(-1).args;
+assert.ok(playerX > frame.args[0] && playerX < frame.args[0] + frame.args[2], "player arrow stays inside the panel");
+assert.ok(playerY > frame.args[1] && playerY < frame.args[1] + frame.args[3], "player arrow stays inside the panel");
+
 console.log("MINIMAP VISIBILITY TEST PASSED");
