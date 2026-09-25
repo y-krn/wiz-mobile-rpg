@@ -37,13 +37,9 @@ jobs:
         run: node tests/node/regression/test_measurement_provenance.js
 
   unit-heavy-conditional:
-    needs: browser
-    if: ${{ always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     steps:
-      - name: Require browser CI success
-        if: ${{ always() && needs.browser.result != 'success' }}
-        run: exit 1
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -66,8 +62,13 @@ jobs:
       - run: npm run test:unit:main-push
 
   lint:
+    needs: browser
+    if: always()
     runs-on: ubuntu-latest
     steps:
+      - name: Require browser CI success
+        if: ${{ always() && needs.browser.result != 'success' }}
+        run: exit 1
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
