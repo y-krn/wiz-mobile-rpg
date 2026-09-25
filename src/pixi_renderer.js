@@ -1,7 +1,7 @@
 // balance-impact: none — PixiJS screen-space presentation.
 // Pixi is the production-default renderer. This module consumes RendererInput
 // and deliberately stays within the shared screen-space projection contract.
-import { Application, Assets, Container, Graphics, Text } from "pixi.js";
+import { Application, Assets, Container, Graphics, PerspectiveMesh, Text } from "pixi.js";
 import { EVENT_TYPES } from "./data.js";
 import { getEnemyPresentation } from "./enemy_presentation.js";
 import {
@@ -29,6 +29,7 @@ import {
   createProceduralEnemy,
   getEnemyPrototypePresentation
 } from "./pixi_enemy_prototypes.js";
+import { createPixelSurfaceTextures, getDepthFog, getPixelScenePalette } from "./pixi_pixel_art.js";
 
 // Exposed for deterministic visual-gate asset injection; production rendering
 // continues to use the same Pixi Assets singleton.
@@ -39,7 +40,6 @@ export const PIXI_VIEW_H = CANONICAL_VIEW.height;
 export const PIXI_VERSION = "8.19.0";
 
 const COLUMN_ORDER = [-2, 2, -1, 1, 0];
-const FALLBACK_BACKGROUND = "#0c0c0e";
 const LAYER_NAMES = Object.freeze([
   "background",
   "far-environment",
@@ -117,20 +117,22 @@ function drawEllipse(container, x, y, radiusX, radiusY, color, alpha = 1, stroke
   return graphic;
 }
 
-function drawProjectedSideWall(container, plane, nextPlane, side, color, alpha, stroke = null) {
-  const nearTop = side === "left" ? plane.leftTop : plane.rightTop;
-  const farTop = side === "left" ? nextPlane.leftTop : nextPlane.rightTop;
-  const farBottom = side === "left" ? nextPlane.leftBottom : nextPlane.rightBottom;
-  const nearBottom = side === "left" ? plane.leftBottom : plane.rightBottom;
-  const graphic = new Graphics();
-  graphic.moveTo(nearTop, plane.top);
-  graphic.lineTo(farTop, nextPlane.top);
-  graphic.lineTo(farBottom, nextPlane.bottom);
-  graphic.lineTo(nearBottom, plane.bottom);
-  graphic.closePath().fill({ color, alpha });
-  if (stroke) graphic.stroke(stroke);
-  container.addChild(graphic);
-  return graphic;
+// Corners are clockwise from top-left. PerspectiveMesh keeps the nearest
+// filtered pixel texture stable under the shared screen-space projection.
+function addTexturedQuad(container, texture, corners, tint = 0xffffff) {
+  const [topLeft, topRight, bottomRight, bottomLeft] = corners;
+  const mesh = new PerspectiveMesh({
+    texture,
+    verticesX: 6,
+    verticesY: 6,
+    x0: topLeft.x, y0: topLeft.y,
+    x1: topRight.x, y1: topRight.y,
+    x2: bottomRight.x, y2: bottomRight.y,
+    x3: bottomLeft.x, y3: bottomLeft.y
+  });
+  mesh.tint = tint;
+  container.addChild(mesh);
+  return mesh;
 }
 
 function drawProjectedFrontWall(container, plane, ceilingStyle, color, alpha, stroke = null) {
@@ -202,6 +204,8 @@ export class PixiDungeonRenderer {
     this.enemyAssetFailures = new Set();
     this.enemyAssetPromise = null;
     this.enemyPresentationMode = getEnemyPresentationMode();
+    this.scenePalette = null;
+    this.pixelSurfaces = new Map();
     this.resourceStats = {
       sceneRebuilds: 0,
       maxChildren: 0,
@@ -213,7 +217,8 @@ export class PixiDungeonRenderer {
       enemyTextureCount: 0,
       enemyAssetFailureCount: 0,
       enemyPresentationCount: 0,
-      enemyFallbackCount: 0
+      enemyFallbackCount: 0,
+      pixelSurfaceTextureCount: 0
     };
     this.failurePhase = failurePhase;
     this.initializationPhase = null;
@@ -221,7 +226,13 @@ export class PixiDungeonRenderer {
     this.resizeObserver = null;
     this.resize();
     if (typeof ResizeObserver === "function" && this.canvas?.parentElement) {
-      this.resizeObserver = new ResizeObserver(() => this.resize());
+      this.resizeObserver = new ResizeObserver(() => {
+        const previous = this.viewport;
+        this.resize();
+        // Resizing a WebGL canvas clears its backing store; repaint the
+        // current scene so static screens (town) never stay blank.
+        if (this.viewport !== previous && this.app && this.scene) this.draw();
+      });
       this.resizeObserver.observe(this.canvas.parentElement);
     }
   }
@@ -273,8 +284,8 @@ export class PixiDungeonRenderer {
         height: this.viewport.height,
         resolution: 1,
         autoDensity: false,
-        antialias: true,
-        backgroundColor: 0x0c0c0e,
+        antialias: false,
+        backgroundColor: 0xf6efe2,
         autoStart: false,
         preference: "webgl"
       });
@@ -508,19 +519,45 @@ export class PixiDungeonRenderer {
     this.activeRoot = previousRoot;
   }
 
-  drawBackground(renderInput) {
-    const color = safeColor(renderInput.visual.background, FALLBACK_BACKGROUND);
-    const background = this.layer("background");
-    drawRect(background, 0, 0, this.viewport.width, this.viewport.height, color);
+  getScenePalette(renderInput) {
     const wallColor = safeColor(renderInput.visual.wallColor, "#58d6e8");
-    for (let band = 0; band < 7; band += 1) {
-      const amount = band / 6;
-      const top = (band / 7) * this.viewport.height;
-      const bottom = ((band + 1) / 7) * this.viewport.height;
-      addPolygon(background, [
-        { x: 0, y: top }, { x: this.viewport.width, y: top },
-        { x: this.viewport.width, y: bottom }, { x: 0, y: bottom }
-      ], mixColor(color, wallColor, 0.08 + amount * 0.08), 0.11);
+    if (this.scenePalette?.accent !== wallColor) this.scenePalette = getPixelScenePalette(wallColor);
+    return this.scenePalette;
+  }
+
+  getPixelSurfaces(palette) {
+    let surfaces = this.pixelSurfaces.get(palette.accent);
+    if (!surfaces) {
+      surfaces = createPixelSurfaceTextures(palette);
+      this.pixelSurfaces.set(palette.accent, surfaces);
+      this.resourceStats.pixelSurfaceTextureCount = this.pixelSurfaces.size * 3;
+    }
+    return surfaces;
+  }
+
+  getHorizonY(renderInput) {
+    const projection = getProjectionPlanes(renderInput.visual.geometry || BASE_GEOMETRY, this.viewport);
+    const far = projection.yt.length - 1;
+    const horizon = (projection.yt[far] + projection.yb[far]) / 2;
+    return Number.isFinite(horizon) ? horizon : this.viewport.height * 0.46;
+  }
+
+  drawBackground(renderInput) {
+    const background = this.layer("background");
+    const { width, height } = this.viewport;
+    const palette = this.getScenePalette(renderInput);
+    const horizon = renderInput.sceneVisibility?.showTownBackground ? height * 0.5 : this.getHorizonY(renderInput);
+    drawRect(background, 0, 0, width, height, palette.fog);
+    // Posterized bands read as pixel-art gradients: sky above, ground below.
+    const bands = 6;
+    for (let band = 0; band < bands; band += 1) {
+      const t = band / bands;
+      const top = horizon * t;
+      const bottom = horizon * (t + 1 / bands) + 1;
+      drawRect(background, 0, top, width, bottom - top, mixColor(palette.skyTop, palette.skyBottom, t), 1);
+      const groundTop = horizon + (height - horizon) * t;
+      const groundBottom = horizon + (height - horizon) * (t + 1 / bands) + 1;
+      drawRect(background, 0, groundTop, width, groundBottom - groundTop, mixColor(palette.groundTop, palette.groundBottom, t), 1);
     }
     this.drawEdgeAtmosphere(renderInput);
   }
@@ -530,26 +567,11 @@ export class PixiDungeonRenderer {
     if (!edge) return;
 
     const { width, height } = this.viewport;
-    const wallColor = safeColor(renderInput.visual.wallColor, "#58d6e8");
-    const background = safeColor(renderInput.visual.background, FALLBACK_BACKGROUND);
-    const wallTint = mixColor(background, wallColor, 0.58);
+    const palette = this.getScenePalette(renderInput);
     const sideEnd = width * edge.sideFadeEnd;
-    const topEnd = height * edge.topFadeEnd;
-    const bottomStart = height * edge.bottomFadeStart;
     const sideFade = Math.max(0, edge.sideFadeEnd - edge.sideFadeStart);
-    const topFade = Math.max(0, edge.topFadeEnd);
-    const bottomFade = Math.max(0, 1 - edge.bottomFadeStart);
-
-    drawRect(this.layer("background"), 0, 0, sideEnd, height, wallTint, 0.16 * sideFade / edge.sideFadeEnd);
-    drawRect(this.layer("background"), width - sideEnd, 0, sideEnd, height, wallTint, 0.16 * sideFade / edge.sideFadeEnd);
-    drawRect(this.layer("background"), 0, 0, width, topEnd, wallTint, 0.12 * topFade);
-    drawRect(this.layer("background"), 0, bottomStart, width, height - bottomStart, wallTint, 0.12 * bottomFade);
-
-    const vignette = edge.vignetteAlpha;
-    drawRect(this.layer("background"), 0, 0, width * edge.sideFadeStart, height, 0x000000, vignette * 0.42);
-    drawRect(this.layer("background"), width * (1 - edge.sideFadeStart), 0, width * edge.sideFadeStart, height, 0x000000, vignette * 0.42);
-    drawRect(this.layer("background"), 0, 0, width, height * 0.04, 0x000000, vignette * 0.30);
-    drawRect(this.layer("background"), 0, height * 0.96, width, height * 0.04, 0x000000, vignette * 0.30);
+    drawRect(this.layer("background"), 0, 0, sideEnd, height, palette.wall.base, 0.22 * sideFade / edge.sideFadeEnd);
+    drawRect(this.layer("background"), width - sideEnd, 0, sideEnd, height, palette.wall.base, 0.22 * sideFade / edge.sideFadeEnd);
 
     const fx = this.layer("far-environment");
     for (let index = 0; index < edge.particleCount; index += 1) {
@@ -559,37 +581,94 @@ export class PixiDungeonRenderer {
         ? width * (0.02 + ((Math.sin(seed) + 1) / 2) * 0.16)
         : width * (0.82 + ((Math.sin(seed) + 1) / 2) * 0.16);
       const y = height * (0.08 + ((Math.sin(seed * 1.7) + 1) / 2) * 0.84);
-      const radius = 0.7 + ((Math.sin(seed * 2.3) + 1) / 2) * 0.8;
-      drawEllipse(fx, x, y, radius, radius, wallColor, 0.20);
+      const size = 2 + Math.round(((Math.sin(seed * 2.3) + 1) / 2) * 2);
+      drawRect(fx, Math.round(x), Math.round(y), size, size, "#ffffff", 0.7);
     }
   }
 
   drawTownBackground(renderInput) {
-    const color = safeColor(renderInput.visual.wallColor, "#00e5ff");
+    const palette = this.getScenePalette(renderInput);
     const far = this.layer("far-environment");
     const walls = this.layer("structural-walls");
-    const sx = this.viewport.width / PIXI_VIEW_W;
-    const sy = this.viewport.height / PIXI_VIEW_H;
-    const point = (x, y) => ({ x: x * sx, y: y * sy });
-    addLine(far, [point(0, 180), point(80, 150), point(130, 170), point(200, 130), point(280, 165), point(340, 145), point(400, 180)], { color, alpha: 0.35, width: 1 });
-    drawRect(walls, 150 * sx, 110 * sy, 10 * sx, 70 * sy, color, 0, { color, width: 2 });
-    drawRect(walls, 240 * sx, 110 * sy, 10 * sx, 70 * sy, color, 0, { color, width: 2 });
-    drawRect(walls, 160 * sx, 160 * sy, 80 * sx, 20 * sy, color, 0, { color, width: 2 });
-    drawEllipse(walls, 200 * sx, 180 * sy, 20 * sx, 20 * sy, color, 0, { color, width: 2 });
+    const { width, height } = this.viewport;
+    const horizon = height * 0.5;
+    const px = Math.max(3, Math.round(width / 130));
+    const snap = (value) => Math.round(value / px) * px;
+    // Pixel clouds
+    [[0.16, 0.16, 7], [0.64, 0.1, 9], [0.86, 0.26, 5]].forEach(([cx, cy, cells]) => {
+      for (let index = 0; index < cells; index += 1) {
+        const x = snap(width * cx + (index - cells / 2) * px * 2);
+        const lift = index > 0 && index < cells - 1 ? px : 0;
+        drawRect(far, x, snap(height * cy) - lift, px * 2, px * 2 + lift, "#ffffff", 0.9);
+      }
+    });
+    // Rolling hills in stepped rows
+    const hill = mixColor(palette.groundTop, "#8fc79a", 0.55);
+    for (let x = 0; x < width; x += px * 2) {
+      const rise = Math.round((Math.sin(x / width * Math.PI * 2.4) + 1) * 3) * px;
+      drawRect(far, x, horizon - rise - px * 3, px * 2, rise + px * 3, hill, 1);
+    }
+    // Cobbled plaza: stepped rows that widen toward the viewer.
+    const cobble = mixColor(palette.groundTop, "#ffffff", 0.35);
+    const cobbleDark = mixColor(palette.groundBottom, palette.ink, 0.12);
+    for (let row = 0; row < 7; row += 1) {
+      const y = snap(horizon + px * 2 + row * row * px * 0.9 + row * px * 3);
+      if (y > height) break;
+      const tile = px * (2 + row);
+      for (let x = (row % 2) * tile / 2; x < width; x += tile * 1.5) {
+        drawRect(far, snap(x), y, snap(tile), px, row % 2 ? cobble : cobbleDark, 0.55);
+      }
+    }
+    // Trees and flower patches between houses
+    [0.4, 0.6].forEach((cx) => {
+      const x = snap(width * cx);
+      drawRect(far, x - px, snap(horizon - px * 5), px * 2, px * 5, "#8a5a44", 1);
+      drawRect(far, x - px * 4, snap(horizon - px * 11), px * 8, px * 6, "#5fae6e", 1, { color: palette.ink, width: 2 });
+      drawRect(far, x - px * 2, snap(horizon - px * 13), px * 4, px * 2, "#7cc68a", 1);
+    });
+    [[0.14, "#f08aa0"], [0.3, "#f6c85f"], [0.7, "#9b8cf0"], [0.86, "#f08aa0"]].forEach(([cx, color], index) => {
+      const y = snap(horizon + height * (0.2 + (index % 2) * 0.12));
+      for (let petal = 0; petal < 3; petal += 1) {
+        drawRect(far, snap(width * cx + petal * px * 3), y - (petal % 2) * px, px * 2, px * 2, color, 1);
+        drawRect(far, snap(width * cx + petal * px * 3), y + px * 2 - (petal % 2) * px, px * 2, px, "#5fae6e", 1);
+      }
+    });
+    // Houses along the horizon
+    const houses = [0.08, 0.24, 0.72, 0.88];
+    houses.forEach((cx, index) => {
+      const w = snap(width * 0.12);
+      const h = snap(height * (0.13 + (index % 2) * 0.04));
+      const x = snap(width * cx - w / 2);
+      const y = snap(horizon - h);
+      const roof = ["#e07a5f", "#6d9dc5", "#e0a458", "#9c89b8"][index];
+      drawRect(walls, x, y, w, h, "#fbf1dc", 1, { color: palette.ink, width: 2 });
+      addPolygon(walls, [{ x: x - px, y }, { x: x + w / 2, y: y - px * 5 }, { x: x + w + px, y }], roof, 1, { color: palette.ink, width: 2 });
+      drawRect(walls, snap(x + w / 2 - px), y + h - px * 4, px * 2, px * 4, "#8a5a44", 1);
+      drawRect(walls, x + px, y + px * 2, px * 2, px * 2, "#9fd8e6", 1, { color: palette.ink, width: 1 });
+    });
+    // Central fountain in the plaza
+    const cx = width / 2;
+    const basinY = snap(horizon + height * 0.1);
+    const basinW = snap(width * 0.34);
+    drawEllipse(walls, cx, basinY + px * 2, basinW / 2 + px, px * 4, palette.ink, 0.12);
+    drawRect(walls, snap(cx - basinW / 2), basinY - px * 4, basinW, px * 5, "#d8d2c4", 1, { color: palette.ink, width: 2 });
+    drawRect(walls, snap(cx - basinW / 2) + px, basinY - px * 3, basinW - px * 2, px * 2, "#7cc6de", 1);
+    drawRect(walls, snap(cx - px * 2), basinY - px * 12, px * 4, px * 8, "#d8d2c4", 1, { color: palette.ink, width: 2 });
+    drawRect(walls, snap(cx - px), basinY - px * 16, px * 2, px * 4, "#9fd8e6", 1);
+    drawRect(walls, snap(cx - px * 4), basinY - px * 15, px * 2, px * 2, "#bfe6f0", 0.9);
+    drawRect(walls, snap(cx + px * 2), basinY - px * 15, px * 2, px * 2, "#bfe6f0", 0.9);
   }
 
   drawFarEnvironment(renderInput) {
     const far = this.layer("far-environment");
-    const color = safeColor(renderInput.visual.wallColor, "#58d6e8");
     const phase = Number(renderInput.visual.environment?.animatedCyclePosition || 0);
     const sx = this.viewport.width / PIXI_VIEW_W;
     const sy = this.viewport.height / PIXI_VIEW_H;
     for (let index = 0; index < 5; index += 1) {
       const x = (36 + seededUnit(renderInput.floor * 19 + index * 7 + phase) * 328) * sx;
       const y = (32 + seededUnit(renderInput.floor * 29 + index * 11 + phase) * 86) * sy;
-      drawEllipse(far, x, y, 1.4 * sx, 1.4 * sy, color, 0.18);
+      drawRect(far, Math.round(x), Math.round(y), 2, 2, "#ffffff", 0.75);
     }
-    addPolygon(far, [{ x: 150 * sx, y: 0 }, { x: 250 * sx, y: 0 }, { x: 224 * sx, y: 124 * sy }, { x: 176 * sx, y: 124 * sy }], color, 0.025);
   }
 
   drawCorridors(renderInput) {
@@ -598,14 +677,19 @@ export class PixiDungeonRenderer {
     const projection = getProjectionPlanes(renderInput.visual.geometry || BASE_GEOMETRY, this.viewport);
     const topology = new Map(getVisibleCorridorTopology(map, renderInput.x, renderInput.y, renderInput.dir)
       .map((cell) => [`${cell.z}:${cell.column}`, cell]));
-    const background = safeColor(renderInput.visual.background, FALLBACK_BACKGROUND);
-    const wallColor = safeColor(renderInput.visual.wallColor, "#58d6e8");
-    const gridColor = safeColor(renderInput.visual.gridColor, "rgba(88, 214, 232, 0.26)");
+    const palette = this.getScenePalette(renderInput);
+    const surfaces = this.getPixelSurfaces(palette);
+    const wallColor = palette.accent;
     const ceilingStyle = renderInput.visual.geometry?.ceilingStyle || "flat";
-    const environmentOverlay = safeColor(renderInput.visual.environment?.overlay, "rgba(255,255,255,0.03)");
+    const floorLayer = this.layer("floor");
+    const walls = this.layer("structural-walls");
+    const edgeStroke = (alpha) => ({ color: palette.ink, width: 2, alpha });
 
     for (let z = 3; z >= 0; z -= 1) {
       const width = projection.xr[z] - projection.xl[z];
+      const nearFog = getDepthFog(z);
+      const farFog = getDepthFog(z + 1);
+      const spanFog = (nearFog + farFog) / 2;
       for (const column of COLUMN_ORDER) {
         if (Math.abs(column) === 2 && z < 2) continue;
         const cellTopology = topology.get(`${z}:${column}`);
@@ -615,66 +699,43 @@ export class PixiDungeonRenderer {
         const row = map[cellTopology.y];
         const cell = row?.[cellTopology.x];
         if (!isRenderableCorridorCell(cell)) {
-          drawProjectedFrontWall(this.layer("structural-walls"), plane, ceilingStyle, "#0c0c0e", 1, { color: "#ff3b30", width: 2 });
+          drawProjectedFrontWall(walls, plane, ceilingStyle, "#0c0c0e", 1, { color: "#ff3b30", width: 2 });
           continue;
         }
 
-        // Enhancement 1: restrained depth shading on the walkable floor. The
-        // polygon follows the shared projection exactly, so side openings stay
-        // floor, not panels or decorative markers.
-        const depthAlpha = 0.09 + (3 - z) * 0.025;
-        addPolygon(this.layer("floor"), [
-          { x: plane.leftBottom, y: plane.bottom },
-          { x: plane.rightBottom, y: plane.bottom },
+        // Walkable floor and ceiling follow the shared projection exactly, so
+        // side openings stay floor, not panels or decorative markers.
+        const floorCorners = [
+          { x: nextPlane.leftBottom, y: nextPlane.bottom },
           { x: nextPlane.rightBottom, y: nextPlane.bottom },
-          { x: nextPlane.leftBottom, y: nextPlane.bottom }
-        ], wallColor, depthAlpha);
-        this.drawFloorMaterial(plane, nextPlane, wallColor, renderInput.floor, z);
-
-        // A second low-alpha layer supplies a material tint without hiding the
-        // route silhouette or introducing fake perspective cues.
-        addPolygon(this.layer("floor"), [
-          { x: plane.leftTop, y: plane.top },
-          { x: nextPlane.leftTop, y: nextPlane.top },
-          { x: nextPlane.rightTop, y: nextPlane.top },
-          { x: plane.rightTop, y: plane.top },
           { x: plane.rightBottom, y: plane.bottom },
           { x: plane.leftBottom, y: plane.bottom }
-        ], environmentOverlay, 0.45);
-
-        addLine(this.layer("floor"), [
-          { x: plane.leftBottom, y: plane.bottom }, { x: nextPlane.leftBottom, y: nextPlane.bottom },
-          { x: nextPlane.rightBottom, y: nextPlane.bottom }, { x: plane.rightBottom, y: plane.bottom }
-        ], { color: gridColor, width: 1.4, alpha: 0.9 });
-        addLine(this.layer("floor"), [
-          { x: plane.leftTop, y: plane.top }, { x: nextPlane.leftTop, y: nextPlane.top },
-          { x: nextPlane.rightTop, y: nextPlane.top }, { x: plane.rightTop, y: plane.top }
-        ], { color: gridColor, width: 1.1, alpha: 0.76 });
+        ];
+        addTexturedQuad(floorLayer, surfaces.floor, floorCorners);
+        addPolygon(floorLayer, floorCorners, palette.fog, spanFog);
+        const ceilingCorners = [
+          { x: plane.leftTop, y: plane.top },
+          { x: plane.rightTop, y: plane.top },
+          { x: nextPlane.rightTop, y: nextPlane.top },
+          { x: nextPlane.leftTop, y: nextPlane.top }
+        ];
+        addTexturedQuad(floorLayer, surfaces.ceiling, ceilingCorners);
+        addPolygon(floorLayer, ceilingCorners, palette.fog, spanFog);
+        addLine(floorLayer, [floorCorners[3], floorCorners[0], floorCorners[1], floorCorners[2]], edgeStroke(0.22));
 
         if (isVisibleWorldObjectCell(cellTopology)) {
           const objectPlane = getWorldObjectProjection(projection, z, column);
           this.drawLandmark(cell, objectPlane, renderInput.visual.wallColor, renderInput.visual.landmarks);
         }
 
-        if (cellTopology.leftBlocked) {
-          const walls = this.layer("structural-walls");
-          drawProjectedSideWall(walls, plane, nextPlane, "left", background, 0.98);
-          this.drawSideWallMaterial(plane, nextPlane, "left", wallColor, renderInput.floor, z);
-          drawProjectedSideWall(walls, plane, nextPlane, "left", background, 0, { color: wallColor, width: 2, alpha: 0.96 });
-        }
+        if (cellTopology.leftBlocked) this.drawSideWall(plane, nextPlane, "left", palette, surfaces, spanFog);
         if (cellTopology.rightBlocked) {
           const mirroredPlane = { ...plane, leftTop: plane.rightTop, rightTop: plane.leftTop, leftBottom: plane.rightBottom, rightBottom: plane.leftBottom };
           const mirroredNext = { ...nextPlane, leftTop: nextPlane.rightTop, rightTop: nextPlane.leftTop, leftBottom: nextPlane.rightBottom, rightBottom: nextPlane.leftBottom };
-          const walls = this.layer("structural-walls");
-          drawProjectedSideWall(walls, mirroredPlane, mirroredNext, "left", background, 0.98);
-          this.drawSideWallMaterial(mirroredPlane, mirroredNext, "left", wallColor, renderInput.floor, z);
-          drawProjectedSideWall(walls, mirroredPlane, mirroredNext, "left", background, 0, { color: wallColor, width: 2, alpha: 0.96 });
+          this.drawSideWall(mirroredPlane, mirroredNext, "right", palette, surfaces, spanFog);
         }
         if (cellTopology.frontBlocked) {
-          const walls = this.layer("structural-walls");
-          drawProjectedFrontWall(walls, nextPlane, ceilingStyle, background, 0.98);
-          this.drawFrontWallMaterial(nextPlane, wallColor, renderInput.floor, z, ceilingStyle);
-          drawProjectedFrontWall(walls, nextPlane, ceilingStyle, background, 0, { color: wallColor, width: 2, alpha: 0.98 });
+          this.drawFrontWall(nextPlane, ceilingStyle, palette, surfaces, farFog);
           if (cellTopology.frontOneWayBarrier && column === 0) this.drawOneWayBarrier(nextPlane, wallColor);
         }
 
@@ -685,49 +746,34 @@ export class PixiDungeonRenderer {
     }
   }
 
-  drawFloorMaterial(plane, nextPlane, wallColor, floor, depth) {
-    const material = mixColor(wallColor, "#111318", 0.58);
-    const highlight = mixColor(wallColor, "#e8f7f4", 0.42);
-    for (let band = 1; band <= 2; band += 1) {
-      const t = band / 3;
-      const y = plane.bottom + (nextPlane.bottom - plane.bottom) * t;
-      const left = plane.leftBottom + (nextPlane.leftBottom - plane.leftBottom) * t;
-      const right = plane.rightBottom + (nextPlane.rightBottom - plane.rightBottom) * t;
-      addLine(this.layer("floor"), [{ x: left, y }, { x: right, y }], { color: material, width: 1.2, alpha: 0.48 });
-    }
-    const offset = seededUnit(floor * 31 + depth * 13);
-    const left = plane.leftBottom + (nextPlane.leftBottom - plane.leftBottom) * (0.24 + offset * 0.12);
-    const right = plane.rightBottom + (nextPlane.rightBottom - plane.rightBottom) * (0.66 + offset * 0.12);
-    addLine(this.layer("floor"), [{ x: left, y: plane.bottom - 2 }, { x: right, y: nextPlane.bottom + 2 }], { color: highlight, width: 1, alpha: 0.22 });
+  drawSideWall(plane, nextPlane, side, palette, surfaces, fog) {
+    const walls = this.layer("structural-walls");
+    const near = { top: { x: plane.leftTop, y: plane.top }, bottom: { x: plane.leftBottom, y: plane.bottom } };
+    const far = { top: { x: nextPlane.leftTop, y: nextPlane.top }, bottom: { x: nextPlane.leftBottom, y: nextPlane.bottom } };
+    const corners = [near.top, far.top, far.bottom, near.bottom];
+    // Soft key light from the upper left keeps both walls readable in a
+    // bright palette without introducing dark voids.
+    addTexturedQuad(walls, surfaces.wall, corners, side === "left" ? 0xf4f0f6 : 0xe4dfea);
+    addPolygon(walls, corners, palette.fog, fog);
+    addLine(walls, [near.top, far.top], { color: palette.accent, width: 2.5, alpha: 1 });
+    addLine(walls, [near.bottom, far.bottom], { color: palette.ink, width: 2, alpha: 0.5 });
+    addLine(walls, [far.top, far.bottom], { color: palette.ink, width: 2, alpha: 0.42 });
   }
 
-  drawSideWallMaterial(plane, nextPlane, side, wallColor, floor, depth) {
-    const nearTop = side === "left" ? plane.leftTop : plane.rightTop;
-    const farTop = side === "left" ? nextPlane.leftTop : nextPlane.rightTop;
-    const nearBottom = side === "left" ? plane.leftBottom : plane.rightBottom;
-    const farBottom = side === "left" ? nextPlane.leftBottom : nextPlane.rightBottom;
-    const material = mixColor(wallColor, "#101419", 0.5);
-    for (let band = 1; band <= 2; band += 1) {
-      const t = band / 3;
-      const top = { x: nearTop + (farTop - nearTop) * t, y: plane.top + (nextPlane.top - plane.top) * t };
-      const bottom = { x: nearBottom + (farBottom - nearBottom) * t, y: plane.bottom + (nextPlane.bottom - plane.bottom) * t };
-      addLine(this.layer("structural-walls"), [top, bottom], { color: material, width: 1.3, alpha: 0.42 });
-    }
-    if ((floor + depth) % 2 === 0) {
-      addLine(this.layer("structural-walls"), [{ x: nearTop, y: plane.top + 3 }, { x: farTop, y: nextPlane.top + 3 }], { color: wallColor, width: 1, alpha: 0.26 });
-    }
-  }
-
-  drawFrontWallMaterial(plane, wallColor, floor, depth, ceilingStyle) {
-    const material = mixColor(wallColor, "#0b0f14", 0.48);
-    for (let band = 1; band <= 2; band += 1) {
-      const t = band / 3;
-      const y = plane.top + (plane.bottom - plane.top) * t;
-      addLine(this.layer("structural-walls"), [{ x: plane.leftTop + 3, y }, { x: plane.rightTop - 3, y }], { color: material, width: ceilingStyle === "arch" ? 1.6 : 1.2, alpha: 0.40 });
-    }
-    if ((floor + depth) % 2 === 0) {
-      addLine(this.layer("structural-walls"), [{ x: plane.leftTop + 4, y: plane.top + 4 }, { x: plane.rightTop - 4, y: plane.top + 4 }], { color: wallColor, width: 1, alpha: 0.26 });
-    }
+  drawFrontWall(plane, ceilingStyle, palette, surfaces, fog) {
+    const walls = this.layer("structural-walls");
+    const corners = [
+      { x: plane.leftTop, y: plane.top },
+      { x: plane.rightTop, y: plane.top },
+      { x: plane.rightBottom, y: plane.bottom },
+      { x: plane.leftBottom, y: plane.bottom }
+    ];
+    if (ceilingStyle === "arch") drawProjectedFrontWall(walls, plane, ceilingStyle, palette.wall.base, 1);
+    addTexturedQuad(walls, surfaces.wall, corners);
+    if (ceilingStyle === "arch") drawProjectedFrontWall(walls, plane, ceilingStyle, palette.fog, fog);
+    else addPolygon(walls, corners, palette.fog, fog);
+    drawProjectedFrontWall(walls, plane, ceilingStyle, palette.fog, 0, { color: palette.ink, width: 2, alpha: 0.5 });
+    addLine(walls, [corners[0], corners[1]], { color: palette.accent, width: 2.5, alpha: 1 });
   }
 
   drawLandmark(cell, plane, color, landmarks = {}) {
@@ -810,7 +856,7 @@ export class PixiDungeonRenderer {
       addPolygon(worldObjects, points, fill, 1, { color: stroke, width });
     };
 
-    drawEllipse(worldObjects, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, "#000000", 0.38);
+    drawEllipse(worldObjects, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, "#2e2640", 0.26);
     drawEllipse(worldObjects, geometry.centerX, geometry.bodyY + geometry.bodyHeight * 0.42, geometry.width * 0.58, geometry.bodyHeight * 0.78, palette.glow, 0.055);
     polygon(geometry.body, palette.body);
     polygon(geometry.side, "#241a19");
@@ -863,18 +909,18 @@ export class PixiDungeonRenderer {
         (slotWidth * 0.82) / presentation.maxWidth
       );
       const hpY = Math.max(18, floorY - presentation.height * visualScale - 5);
-      drawEllipse(actors, cx, floorY, Math.min(42, presentation.width * visualScale * 0.42), 5.5 * scale, "#05070a", 0.66);
+      drawEllipse(actors, cx, floorY, Math.min(42, presentation.width * visualScale * 0.42), 5.5 * scale, "#2e2640", 0.28);
       if (this.enemyPresentationMode === "production") {
         this.drawProceduralEnemy(actors, presentation, cx, floorY, visualScale, color, row, column);
       } else {
         this.drawEnemyPrototype(actors, monster, cx, floorY, visualScale, color, row, column, this.enemyPresentationMode);
       }
       const hp = Math.max(0, Math.min(1, monster.hp / Math.max(1, monster.maxHp)));
-      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8), 5, "#ffffff", 0.12, { color: "#8e8e93", width: 1 });
+      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8), 5, "#2e2640", 0.55, { color: "#2e2640", width: 1.5 });
       drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
       const enemyLabel = new Text({
         text: monster.name,
-        style: { fill: 0xffffff, fontFamily: "monospace", fontSize: 11, fontWeight: "bold", stroke: { color: 0x081016, width: 3 } }
+        style: { fill: 0xffffff, fontFamily: "DotGothic16, monospace", fontSize: 12, stroke: { color: 0x2e2640, width: 4 } }
       });
       enemyLabel.anchor.set(0.5, 1);
       enemyLabel.position.set(cx, hpY - 3);
@@ -949,7 +995,7 @@ export class PixiDungeonRenderer {
     this.damageTexts.forEach((entry) => {
       const text = new Text({
         text: entry.text,
-        style: { fill: entry.color, fontFamily: "sans-serif", fontSize: 17, fontWeight: "bold", stroke: { color: "#170b0b", width: 4 } }
+        style: { fill: entry.color, fontFamily: "DotGothic16, sans-serif", fontSize: 20, stroke: { color: "#2e2640", width: 5 } }
       });
       text.anchor.set(0.5);
       text.position.set(this.viewport.width / 2, this.viewport.height * 0.38 - entry.age * this.viewport.height / 260 * 0.9);
@@ -960,18 +1006,22 @@ export class PixiDungeonRenderer {
   }
 
   drawAtmosphere(renderInput) {
+    if (renderInput.sceneVisibility?.showTownBackground) return;
     const fx = this.layer("environment-fx");
-    const color = safeColor(renderInput.visual.wallColor, "#58d6e8");
-    const background = safeColor(renderInput.visual.background, FALLBACK_BACKGROUND);
-    const alpha = renderInput.visual.environment?.animated ? 0.055 : 0.035;
+    const palette = this.getScenePalette(renderInput);
+    const alpha = renderInput.visual.environment?.animated ? 0.16 : 0.1;
+    const horizon = this.getHorizonY(renderInput);
+    const band = this.viewport.height * 0.06;
+    drawRect(fx, 0, horizon - band, this.viewport.width, band * 2, palette.fog, alpha);
+    // Light shafts: stepped translucent columns keep the pixel-art cadence.
     const sx = this.viewport.width / PIXI_VIEW_W;
-    const sy = this.viewport.height / PIXI_VIEW_H;
-    addPolygon(fx, [{ x: 0, y: 112 * sy }, { x: this.viewport.width, y: 112 * sy }, { x: this.viewport.width, y: 166 * sy }, { x: 0, y: 166 * sy }], mixColor(background, color, 0.45), alpha);
-    drawEllipse(fx, this.viewport.width / 2, 108 * sy, 88 * sx, 34 * sy, color, 0.025);
-    if (renderInput.visual.geometry?.ceilingStyle === "arch") {
-      addLine(fx, [{ x: 106 * sx, y: 30 * sy }, { x: 128 * sx, y: 22 * sy }, { x: 160 * sx, y: 18 * sy }], { color, width: 1, alpha: 0.25 });
-      addLine(fx, [{ x: 240 * sx, y: 18 * sy }, { x: 272 * sx, y: 22 * sy }, { x: 294 * sx, y: 30 * sy }], { color, width: 1, alpha: 0.25 });
-    }
+    [0.34, 0.58].forEach((position, index) => {
+      const x = Math.round(this.viewport.width * position);
+      addPolygon(fx, [
+        { x, y: 0 }, { x: x + 26 * sx, y: 0 },
+        { x: x + (46 + index * 8) * sx, y: horizon }, { x: x + (18 + index * 8) * sx, y: horizon }
+      ], "#ffffff", 0.07);
+    });
   }
 
   drawCombatEntry(renderInput) {
@@ -999,6 +1049,12 @@ export class PixiDungeonRenderer {
     });
   }
 
+  destroyPixelSurfaces() {
+    this.pixelSurfaces.forEach((surfaces) => Object.values(surfaces).forEach((texture) => texture.destroy(true)));
+    this.pixelSurfaces.clear();
+    this.resourceStats.pixelSurfaceTextureCount = 0;
+  }
+
   dispose() {
     this.resizeObserver?.disconnect?.();
     this.resizeObserver = null;
@@ -1007,6 +1063,7 @@ export class PixiDungeonRenderer {
       return;
     }
     this.clearSceneRoot(this.scene);
+    this.destroyPixelSurfaces();
     try {
       this.app.destroy({ removeView: false }, { children: true });
     } catch {

@@ -4,7 +4,7 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(12, 12, 14, 0.72);
+  background-color: rgba(250, 245, 237, 0.72);
   backdrop-filter: blur(3px);
   z-index: 10;
   display: flex;
@@ -61,6 +61,8 @@
 
 .combat-target-a11y-list {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   padding: 0;
@@ -88,7 +90,7 @@
   padding: var(--sp-xs) var(--sp-sm);
   color: var(--neon-cyan);
   border: 1px solid var(--border-strong);
-  background: rgba(0, 229, 255, 0.06);
+  background: var(--tint-cyan);
   font-family: var(--font-mono);
   text-align: left;
 }
@@ -118,12 +120,12 @@
 }
 
 .combat-target-card.enemy {
-  border-color: rgba(255, 59, 48, 0.3);
+  border-color: rgba(197, 20, 10, 0.3);
 }
 
 .enemy-status.bleeding {
-  color: #ffb3b0;
-  border-left: 2px solid #ff3b30;
+  color: #910d08;
+  border-left: 2px solid #c5140a;
   padding: 2px 4px;
   margin: 3px 0;
   font-size: var(--fs-xs);
@@ -131,8 +133,8 @@
 }
 
 .enemy-status.vulnerable {
-  color: #ffd166;
-  border-left: 2px solid #ffd166;
+  color: #916808;
+  border-left: 2px solid #916808;
   padding: 2px 4px;
   margin: 3px 0;
   font-size: var(--fs-xs);
@@ -141,17 +143,17 @@
 
 .combat-target-card.enemy:hover, .combat-target-card.enemy:active {
   border-color: var(--neon-red);
-  background-color: rgba(255, 59, 48, 0.05);
+  background-color: rgba(197, 20, 10, 0.05);
   box-shadow: 0 0 4px var(--neon-red);
 }
 
 .combat-target-card.ally {
-  border-color: rgba(0, 229, 255, 0.3);
+  border-color: rgba(13, 219, 242, 0.3);
 }
 
 .combat-target-card.ally:hover, .combat-target-card.ally:active {
   border-color: var(--neon-cyan);
-  background-color: rgba(0, 229, 255, 0.05);
+  background-color: rgba(13, 219, 242, 0.05);
   box-shadow: 0 0 4px var(--neon-cyan);
 }
 
@@ -165,13 +167,13 @@
 
 .combat-target-card.blocked {
   opacity: 0.55;
-  border-color: rgba(255, 179, 0, 0.35) !important;
+  border-color: rgba(242, 174, 13, 0.35) !important;
 }
 
 .combat-target-card .card-title {
   font-size: var(--fs-xs);
   font-weight: bold;
-  color: #fff;
+  color: var(--text-primary);
   margin-bottom: 3px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -216,8 +218,8 @@
   gap: 2px;
   margin-top: 2px;
   padding-top: 3px;
-  border-top: 1px dashed #333;
-  color: #ddd;
+  border-top: 1px dashed #f3e8d5;
+  color: var(--text-primary);
   font-size: var(--fs-xs);
   line-height: 1.2;
   min-width: 0;
@@ -250,14 +252,14 @@
   min-height: 0;
   margin-bottom: var(--sp-xs);
   padding: var(--sp-xs);
-  border: 1px solid #333;
-  background: rgba(20, 20, 26, 0.75);
+  border: 1px solid #f3e8d5;
+  background: rgba(248, 242, 231, 0.75);
   overflow-y: auto;
 }
 
 .combat-enemy-info-title {
   margin-bottom: var(--sp-xs);
-  color: #fff;
+  color: var(--text-primary);
   font-size: var(--fs-sm);
   font-weight: bold;
 }
@@ -271,7 +273,7 @@
 .combat-enemy-info-card {
   min-width: 0;
   padding: var(--sp-xs);
-  border: 1px solid #333;
+  border: 1px solid #f3e8d5;
   background: var(--surface-neutral);
 }
 
@@ -280,7 +282,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #fff;
+  color: var(--text-primary);
   font-size: var(--fs-xs);
   font-weight: bold;
 }
@@ -342,7 +344,7 @@
   appearance: none;
   text-align: left;
   background-color: var(--surface-control);
-  border: 1px solid rgba(191, 90, 242, 0.3);
+  border: 1px solid rgba(112, 21, 157, 0.3);
   border-radius: 6px;
   padding: 8px 12px;
   cursor: pointer;
@@ -354,7 +356,7 @@
 }
 
 .combat-item-card.spell {
-  border-color: rgba(191, 90, 242, 0.3);
+  border-color: rgba(112, 21, 157, 0.3);
   min-height: var(--tap-lg); /* パディングと合わせて48px高を確保 */
   padding: 6px 8px;
   box-sizing: border-box;
@@ -362,12 +364,12 @@
 
 .combat-item-card.spell:hover, .combat-item-card.spell:active {
   border-color: var(--neon-purple);
-  background-color: rgba(191, 90, 242, 0.05);
+  background-color: rgba(112, 21, 157, 0.05);
   box-shadow: 0 0 4px var(--neon-purple);
 }
 
 .combat-item-card.item {
-  border-color: rgba(255, 179, 0, 0.3);
+  border-color: rgba(242, 174, 13, 0.3);
   box-sizing: border-box;
   flex-shrink: 0;
   height: auto;
@@ -377,7 +379,7 @@
 
 .combat-item-card.item:hover, .combat-item-card.item:active {
   border-color: var(--neon-amber);
-  background-color: rgba(255, 179, 0, 0.05);
+  background-color: rgba(242, 174, 13, 0.05);
   box-shadow: 0 0 4px var(--neon-amber);
 }
 
@@ -385,16 +387,16 @@
 .combat-item-card.spell.disabled-mp {
   opacity: 0.5;
   cursor: not-allowed;
-  border-color: rgba(255, 69, 58, 0.25) !important;
-  background-color: rgba(255, 69, 58, 0.02) !important;
+  border-color: rgba(187, 20, 10, 0.25) !important;
+  background-color: rgba(187, 20, 10, 0.02) !important;
   box-shadow: none !important;
 }
 
 .combat-item-card.spell.disabled-unavailable {
   opacity: 0.35;
   cursor: not-allowed;
-  border-color: rgba(142, 142, 147, 0.2) !important;
-  background-color: rgba(142, 142, 147, 0.02) !important;
+  border-color: rgba(109, 109, 112, 0.2) !important;
+  background-color: rgba(109, 109, 112, 0.02) !important;
   box-shadow: none !important;
 }
 
@@ -413,7 +415,7 @@
   align-items: center;
   font-size: var(--fs-sm);
   font-weight: bold;
-  color: #fff;
+  color: var(--text-primary);
   line-height: 1.1;
 }
 
@@ -458,51 +460,51 @@
 }
 
 .spell-tag.single {
-  background-color: rgba(255, 69, 58, 0.15);
-  color: #ff453a;
-  border: 1px solid rgba(255, 69, 58, 0.3);
+  background-color: rgba(187, 20, 10, 0.15);
+  color: #bb140a;
+  border: 1px solid rgba(187, 20, 10, 0.3);
 }
 
 .spell-tag.all {
-  background-color: rgba(255, 159, 10, 0.15);
-  color: #ff9f0a;
-  border: 1px solid rgba(255, 159, 10, 0.3);
+  background-color: rgba(233, 146, 12, 0.15);
+  color: #e9920c;
+  border: 1px solid rgba(233, 146, 12, 0.3);
 }
 
 .spell-tag.heal {
-  background-color: rgba(48, 209, 88, 0.15);
-  color: #30d158;
-  border: 1px solid rgba(48, 209, 88, 0.3);
+  background-color: rgba(54, 199, 90, 0.15);
+  color: #36c75a;
+  border: 1px solid rgba(54, 199, 90, 0.3);
 }
 
 .spell-tag.cure {
-  background-color: rgba(100, 210, 255, 0.15);
-  color: #64d2ff;
-  border: 1px solid rgba(100, 210, 255, 0.3);
+  background-color: rgba(8, 107, 147, 0.15);
+  color: #086b93;
+  border: 1px solid rgba(8, 107, 147, 0.3);
 }
 
 .spell-tag.buff {
-  background-color: rgba(191, 90, 242, 0.15);
-  color: #bf5af2;
-  border: 1px solid rgba(191, 90, 242, 0.3);
+  background-color: rgba(112, 21, 157, 0.15);
+  color: #70159d;
+  border: 1px solid rgba(112, 21, 157, 0.3);
 }
 
 .spell-tag.debuff {
-  background-color: rgba(255, 55, 95, 0.15);
-  color: #ff375f;
-  border: 1px solid rgba(255, 55, 95, 0.3);
+  background-color: rgba(190, 10, 46, 0.15);
+  color: #be0a2e;
+  border: 1px solid rgba(190, 10, 46, 0.3);
 }
 
 .spell-tag.utility {
-  background-color: rgba(174, 174, 178, 0.15);
-  color: #aeaea6;
-  border: 1px solid rgba(174, 174, 178, 0.3);
+  background-color: rgba(78, 78, 80, 0.15);
+  color: var(--text-secondary);
+  border: 1px solid rgba(78, 78, 80, 0.3);
 }
 
 .spell-tag.dead {
-  background-color: rgba(142, 142, 147, 0.15);
-  color: #8e8e93;
-  border: 1px solid rgba(142, 142, 147, 0.3);
+  background-color: rgba(109, 109, 112, 0.15);
+  color: var(--text-tertiary);
+  border: 1px solid rgba(109, 109, 112, 0.3);
 }
 
 /* 無効化理由バッジ */
@@ -516,21 +518,21 @@
 }
 
 .disabled-reason-tag.mp-shortage {
-  background-color: rgba(255, 69, 58, 0.2);
-  color: #ff453a;
-  border: 1px solid rgba(255, 69, 58, 0.5);
+  background-color: rgba(187, 20, 10, 0.2);
+  color: #bb140a;
+  border: 1px solid rgba(187, 20, 10, 0.5);
 }
 
 .disabled-reason-tag.unavailable {
-  background-color: rgba(142, 142, 147, 0.2);
-  color: #aeaea6;
-  border: 1px solid rgba(142, 142, 147, 0.5);
+  background-color: rgba(109, 109, 112, 0.2);
+  color: var(--text-secondary);
+  border: 1px solid rgba(109, 109, 112, 0.5);
 }
 
 .item-card-title {
   font-size: var(--fs-md);
   font-weight: bold;
-  color: #fff;
+  color: var(--text-primary);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -561,42 +563,42 @@
   width: 100%;
 }
 .enemy-omen.charge {
-  background-color: rgba(255, 149, 0, 0.15);
-  border: 1px solid rgba(255, 149, 0, 0.4);
-  color: #ff9500;
+  background-color: rgba(242, 147, 13, 0.15);
+  border: 1px solid rgba(242, 147, 13, 0.4);
+  color: #f2930d;
 }
 .enemy-omen.explode {
-  background-color: rgba(255, 59, 48, 0.15);
-  border: 1px solid rgba(255, 59, 48, 0.4);
-  color: #ff3b30;
+  background-color: rgba(197, 20, 10, 0.15);
+  border: 1px solid rgba(197, 20, 10, 0.4);
+  color: #c5140a;
 }
 .enemy-omen.spell {
-  background-color: rgba(175, 82, 222, 0.15);
-  border: 1px solid rgba(175, 82, 222, 0.4);
-  color: #af52de;
+  background-color: rgba(124, 40, 166, 0.15);
+  border: 1px solid rgba(124, 40, 166, 0.4);
+  color: #7c28a6;
 }
 .enemy-omen.spell-boss {
-  background-color: rgba(255, 45, 85, 0.15);
-  border: 1px solid rgba(255, 45, 85, 0.4);
-  color: #ff2d55;
+  background-color: rgba(199, 11, 47, 0.15);
+  border: 1px solid rgba(199, 11, 47, 0.4);
+  color: #c70b2f;
 }
 .enemy-omen.breath {
-  background-color: rgba(255, 59, 48, 0.15);
-  border: 1px solid rgba(255, 59, 48, 0.4);
-  color: #ff3b30;
+  background-color: rgba(197, 20, 10, 0.15);
+  border: 1px solid rgba(197, 20, 10, 0.4);
+  color: #c5140a;
 }
 .enemy-omen.multi {
-  background-color: rgba(90, 200, 250, 0.15);
-  border: 1px solid rgba(90, 200, 250, 0.4);
-  color: #5ac8fa;
+  background-color: rgba(13, 112, 157, 0.15);
+  border: 1px solid rgba(13, 112, 157, 0.4);
+  color: #0d709d;
 }
 .enemy-omen.summon {
-  background-color: rgba(76, 217, 100, 0.15);
-  border: 1px solid rgba(76, 217, 100, 0.4);
-  color: #4cd964;
+  background-color: rgba(45, 172, 67, 0.15);
+  border: 1px solid rgba(45, 172, 67, 0.4);
+  color: #2dac43;
 }
 .enemy-omen.snipe {
-  background-color: rgba(255, 204, 0, 0.15);
-  border: 1px solid rgba(255, 204, 0, 0.4);
-  color: #ffcc00;
+  background-color: rgba(242, 196, 13, 0.15);
+  border: 1px solid rgba(242, 196, 13, 0.4);
+  color: #f2c40d;
 }

@@ -110,7 +110,7 @@ unrelatedInput.map[3][4].event = EVENT_TYPES.BOSS;
 unrelatedInput.map[4][5].event = EVENT_TYPES.MIDBOSS;
 const unrelatedCommands = draw(unrelatedInput);
 assert.equal(calls(unrelatedCommands, "arc").length, 3, "Boss/Midboss proximity cues remain");
-assert.equal(calls(unrelatedCommands, "fill").filter(command => command.fillStyle.startsWith("rgba(255, 59, 48,")).length, 2, "Boss/Midboss red cue remains");
+assert.equal(calls(unrelatedCommands, "fill").filter(command => command.fillStyle.startsWith("rgba(217, 72, 59,")).length, 2, "Boss/Midboss red cue remains");
 
 const discoveredInput = makeInput();
 discoveredInput.map[4][5] = makeCell({

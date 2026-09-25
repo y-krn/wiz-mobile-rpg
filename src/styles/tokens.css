@@ -1,61 +1,74 @@
-/* Game Styling - Arcane observatory theme */
+/* Game Styling - Storybook pixel theme (bright cream surfaces, ink outlines) */
 :root {
-  --bg-color: #0a0e12;
-  --panel-bg: rgba(17, 24, 31, 0.94);
-  --border-color: #26343d;
-  --border-strong: #3a4c56;
-  --surface-raised: #151f27;
-  --surface-inset: #0d141a;
-  /* Repeated dark surfaces retain the current palette while keeping semantic
-     ownership explicit for future audits. */
-  --surface-control: #14141a;
-  --surface-neutral: #14141a;
-  --surface-deep: #101014;
-  --surface-unavailable: #0c0c0e;
-  --surface-meter-track: #0c0c0e;
-  --text-primary: #f1eee5;
-  --text-secondary: #a5b0b3;
-  --vital-hp: #b7dfc1;
-  --vital-mp: #9bd7d2;
+  color-scheme: light;
+  --bg-color: #f6efe2;
+  --panel-bg: rgba(255, 252, 245, 0.96);
+  --border-color: #e4d8c3;
+  --border-strong: #cbb99a;
+  --surface-raised: #fffdf8;
+  --surface-inset: #f3ebdc;
+  /* Repeated surfaces keep semantic ownership explicit for future audits. */
+  --surface-control: #fffaf1;
+  --surface-neutral: #f7f0e3;
+  --surface-deep: #efe6d5;
+  --surface-unavailable: #ece5d9;
+  --surface-meter-track: #e7dccb;
+  --text-primary: #2e2640;
+  --text-secondary: #5c5470;
+  --vital-hp: #3fb97a;
+  --vital-mp: #3d9be9;
   /* Shared semantic palette: color communicates state, never a recommendation. */
   --semantic-life: var(--vital-hp);
   --semantic-magic: var(--vital-mp);
-  --semantic-unknown: #c8b8e6;
-  --semantic-discovery: #e2b36f;
-  --semantic-curse: #d18acb;
-  --semantic-danger: #e07870;
-  --semantic-selected: #f0cf83;
-  --neutral-iron: #83949a;
-  --neutral-brass: #a99270;
-  --text-tertiary: #7f9098;
-  --text-disabled: #5f6c72;
-  --border-control: #22222d;
-  --border-unavailable: #1a1a24;
-  --border-disabled: #3a3a4c;
-  --shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.28);
-  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.035), inset 0 -12px 28px rgba(0, 0, 0, 0.16);
-  
-  /* State accents: glow reserved for selection, danger, and discovery. */
-  --neon-green: #00ff66;
-  --neon-cyan: #9bd7d2;
-  --neon-amber: #e2b36f;
-  --neon-yellow: #f0cf83;
-  --neon-red: #e07870;
-  --neon-purple: #bca7dc;
-  --text-muted: #7f9098;
+  --semantic-unknown: #7a68c9;
+  --semantic-discovery: #d0841b;
+  --semantic-curse: #b54aa6;
+  --semantic-danger: #d9483b;
+  --semantic-selected: #e39a12;
+  --neutral-iron: #6f7f86;
+  --neutral-brass: #9a7a45;
+  --text-tertiary: #857c93;
+  --text-disabled: #b1a8b8;
+  --border-control: #e0d3bd;
+  --border-unavailable: #e6ddd0;
+  --border-disabled: #d6ccbd;
+  --ink: #2e2640;
+  --shadow-soft: 0 2px 0 rgba(46, 38, 64, 0.08), 0 6px 16px rgba(46, 38, 64, 0.08);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -2px 0 rgba(46, 38, 64, 0.05);
+  --shadow-press: 0 3px 0 rgba(46, 38, 64, 0.16);
+  --shadow-float: 0 12px 32px rgba(46, 38, 64, 0.16), 0 2px 0 rgba(46, 38, 64, 0.08);
+
+  /* State accents. Legacy "neon" names now hold saturated mid-tones that
+     keep text contrast on cream surfaces. */
+  --neon-green: #2f9e62;
+  --neon-cyan: #1f8fa0;
+  --neon-amber: #c7771a;
+  --neon-yellow: #d38d0b;
+  --neon-red: #d9483b;
+  --neon-purple: #7c5cd6;
+  --text-muted: #857c93;
   --text-main: var(--text-primary);
-  
-  --font-mono: 'Share Tech Mono', monospace;
-  --font-sans: 'Outfit', sans-serif;
-  --font-display: 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+
+  /* Soft fills paired with each accent for chips, rows and selected cards. */
+  --tint-green: #e3f5ea;
+  --tint-cyan: #ddf2f4;
+  --tint-amber: #fdf0dc;
+  --tint-yellow: #fff4d6;
+  --tint-red: #fde6e2;
+  --tint-purple: #efe9fb;
+
+  --font-mono: 'DotGothic16', 'M PLUS Rounded 1c', monospace;
+  --font-sans: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', sans-serif;
+  --font-display: 'DotGothic16', 'M PLUS Rounded 1c', sans-serif;
 
   --tap-min: 44px;
   --tap-lg: 48px;
 
   /* Motion roles: these are acknowledgement/state timings, not decoration. */
   --motion-tap: 100ms;
-  --motion-state: 150ms;
-  --motion-shell: 200ms;
+  --motion-state: 160ms;
+  --motion-shell: 220ms;
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   --sp-xxs: 2px;
   --sp-xs: 4px;
@@ -74,26 +87,27 @@
   --fs-title: 20px;
   --fs-display: 32px;
 
-  --radius-xs: 3px;
-  --radius-sm: 5px;
-  --radius-md: 7px;
-  --radius-lg: 10px;
-  --radius-xl: 14px;
+  --radius-xs: 4px;
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
 
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
-  
-  --neon-glow-green: 0 0 12px rgba(183, 223, 193, 0.22);
-  --neon-glow-cyan: 0 0 12px rgba(155, 215, 210, 0.22);
-  --neon-glow-amber: 0 0 12px rgba(226, 179, 111, 0.22);
-  --neon-glow-yellow: 0 0 12px rgba(240, 207, 131, 0.22);
-  --neon-glow-red: 0 0 12px rgba(224, 120, 112, 0.24);
-  --neon-glow-purple: 0 0 12px rgba(188, 167, 220, 0.22);
+
+  /* Glows became soft colored halos: selection, danger and discovery only. */
+  --neon-glow-green: 0 0 0 3px rgba(47, 158, 98, 0.18);
+  --neon-glow-cyan: 0 0 0 3px rgba(31, 143, 160, 0.18);
+  --neon-glow-amber: 0 0 0 3px rgba(199, 119, 26, 0.18);
+  --neon-glow-yellow: 0 0 0 3px rgba(211, 141, 11, 0.2);
+  --neon-glow-red: 0 0 0 3px rgba(217, 72, 59, 0.2);
+  --neon-glow-purple: 0 0 0 3px rgba(124, 92, 214, 0.18);
 
   /* HUD frame accents used when no floor theme is active (town/result/gameover).
-     Centralizes the default neon colors so header/party/log stay in sync. */
+     Centralizes the default accent colors so header/party/log stay in sync. */
   --hud-frame: var(--neon-cyan);
   --hud-frame-glow: var(--neon-glow-cyan);
   /* Fill painted into the safe-area strips (status bar / home indicator) */
-  --hud-chrome-bg: #10181e;
+  --hud-chrome-bg: #fffaf1;
 }

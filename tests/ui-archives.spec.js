@@ -242,7 +242,7 @@ test('Archives touch return does not leave a hover state on another row', async 
       const hoverCandidate = page.locator('#archives-overlay .codex-row').nth(5);
       await hoverCandidate.hover();
       await expect.poll(() => hoverCandidate.evaluate((element) => getComputedStyle(element).borderColor))
-        .toBe('rgb(51, 51, 51)');
+        .toBe('rgb(228, 216, 195)');
     } finally {
       await context.close();
     }

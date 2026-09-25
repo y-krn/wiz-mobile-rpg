@@ -43,7 +43,7 @@ test('Combat Auto button exposes its active state @e2e @smoke', async ({ page })
   });
   await expect(autoBtn).toHaveClass(/active/);
   await expect.poll(() => autoBtn.evaluate((element) => getComputedStyle(element).borderColor))
-    .toBe('rgb(0, 255, 102)');
+    .toBe('rgb(47, 158, 98)');
 });
 
 test('Canceled combat choices do not emit decision telemetry @e2e @smoke', async ({ page }) => {

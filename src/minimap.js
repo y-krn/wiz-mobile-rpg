@@ -68,7 +68,7 @@ function drawOneWayMiniMapMarkers(ctx, screenX, screenY, cellS, cell, isLightOnl
   const head = Math.max(2, cellS * 0.12);
 
   ctx.save();
-  ctx.strokeStyle = isLightOnly ? "rgba(0, 229, 255, 0.55)" : "#ffb300";
+  ctx.strokeStyle = isLightOnly ? "rgba(31, 143, 160, 0.6)" : "#c7771a";
   ctx.fillStyle = ctx.strokeStyle;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([]);
@@ -149,8 +149,8 @@ export function drawMiniMap(ctx, input = null, options = {}) {
     if (!Object.hasOwn(map, y) || !Array.isArray(map[y])) return;
   }
 
-  ctx.fillStyle = "rgba(12, 12, 14, 0.78)";
-  ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
+  ctx.fillStyle = "rgba(255, 250, 238, 0.94)";
+  ctx.strokeStyle = "rgba(46, 38, 64, 0.7)";
   ctx.lineWidth = 2;
   ctx.fillRect(PANEL_LEFT - 2, PANEL_TOP - 2, PANEL_SIZE + 4, PANEL_SIZE + 4);
   ctx.strokeRect(PANEL_LEFT - 2, PANEL_TOP - 2, PANEL_SIZE + 4, PANEL_SIZE + 4);
@@ -190,21 +190,21 @@ export function drawMiniMap(ctx, input = null, options = {}) {
       const isFragmentOnly = !isVisited && !isLightRevealed && isFragmentRevealed;
 
       if (isFragmentOnly) {
-        ctx.fillStyle = "rgba(255, 179, 0, 0.04)";
+        ctx.fillStyle = "rgba(199, 119, 26, 0.08)";
         ctx.fillRect(screenX, screenY, CELL_SIZE, CELL_SIZE);
-        ctx.strokeStyle = "rgba(255, 179, 0, 0.4)";
+        ctx.strokeStyle = "rgba(199, 119, 26, 0.55)";
         ctx.lineWidth = 1;
         ctx.setLineDash([2, 2]);
       } else if (isLightOnly) {
-        ctx.fillStyle = "rgba(0, 229, 255, 0.04)";
+        ctx.fillStyle = "rgba(31, 143, 160, 0.08)";
         ctx.fillRect(screenX, screenY, CELL_SIZE, CELL_SIZE);
-        ctx.strokeStyle = "rgba(0, 229, 255, 0.35)";
+        ctx.strokeStyle = "rgba(31, 143, 160, 0.5)";
         ctx.lineWidth = 1;
         ctx.setLineDash([2, 2]);
       } else {
-        ctx.fillStyle = "rgba(0, 255, 102, 0.08)";
+        ctx.fillStyle = "rgba(63, 185, 122, 0.16)";
         ctx.fillRect(screenX, screenY, CELL_SIZE, CELL_SIZE);
-        ctx.strokeStyle = "#00ff66";
+        ctx.strokeStyle = "#3a3150";
         ctx.lineWidth = 1.5;
         ctx.setLineDash([]);
       }
@@ -219,8 +219,8 @@ export function drawMiniMap(ctx, input = null, options = {}) {
       drawOneWayMiniMapMarkers(ctx, screenX, screenY, CELL_SIZE, cell, isLightOnly);
 
       if (cell.type === "stairs-down") {
-        const fill = "255, 179, 0";
-        const stroke = "#ffb300";
+        const fill = "224, 154, 40";
+        const stroke = "#b8680f";
         ctx.fillStyle = isLightOnly ? `rgba(${fill}, 0.2)` : `rgba(${fill}, 0.5)`;
         ctx.fillRect(screenX + 1, screenY + 1, CELL_SIZE - 2, CELL_SIZE - 2);
         ctx.strokeStyle = isLightOnly ? `rgba(${fill}, 0.4)` : stroke;
@@ -231,8 +231,8 @@ export function drawMiniMap(ctx, input = null, options = {}) {
 
       if (cell.trap && cell.trap.state !== "hidden") {
         const isDisabled = cell.trap.state === "disabled";
-        const markerColor = isDisabled ? "#2fd66d" : "#ff3b30";
-        const markerBg = isDisabled ? "rgba(47, 214, 109, 0.22)" : "rgba(255, 59, 48, 0.24)";
+        const markerColor = isDisabled ? "#2f9e62" : "#d9483b";
+        const markerBg = isDisabled ? "rgba(47, 158, 98, 0.2)" : "rgba(217, 72, 59, 0.2)";
         ctx.fillStyle = markerBg;
         ctx.beginPath();
         ctx.arc(screenX + CELL_SIZE / 2, screenY + CELL_SIZE / 2, 4, 0, Math.PI * 2);
@@ -241,7 +241,7 @@ export function drawMiniMap(ctx, input = null, options = {}) {
         ctx.lineWidth = 1.2;
         ctx.stroke();
         ctx.fillStyle = markerColor;
-        ctx.font = "bold 9px monospace";
+        ctx.font = "bold 9px DotGothic16, monospace";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(isDisabled ? "x" : "!", screenX + CELL_SIZE / 2, screenY + CELL_SIZE / 2);
@@ -264,12 +264,12 @@ export function drawMiniMap(ctx, input = null, options = {}) {
       ctx.save();
       if (cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS) {
         const pulse = 0.14 + 0.08 * Math.sin(Date.now() / 200);
-        ctx.fillStyle = `rgba(255, 59, 48, ${pulse})`;
+        ctx.fillStyle = `rgba(217, 72, 59, ${pulse})`;
         ctx.beginPath();
         ctx.arc(screenX + CELL_SIZE / 2, screenY + CELL_SIZE / 2, CELL_SIZE * 1.3, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        ctx.fillStyle = "rgba(191, 90, 242, 0.14)";
+        ctx.fillStyle = "rgba(124, 92, 214, 0.2)";
         ctx.beginPath();
         ctx.arc(screenX + CELL_SIZE / 2, screenY + CELL_SIZE / 2, CELL_SIZE * 0.9, 0, Math.PI * 2);
         ctx.fill();
@@ -287,11 +287,10 @@ export function drawMiniMap(ctx, input = null, options = {}) {
     const ry = PANEL_TOP + roamingMonster.y * CELL_SIZE + CELL_SIZE / 2 + offsetY;
     const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 150);
     ctx.save();
-    const perceptionColors = { sound: "255, 179, 0", blind_charge: "255, 92, 92", vibration: "89, 214, 138", standard: "255, 59, 48", afterimage: "190, 120, 255" };
-    const color = perceptionColors[roamingMonster.perception] || (roamingMonster.kind === "elite" ? "255, 179, 0" : "255, 59, 48");
+    const perceptionColors = { sound: "224, 140, 20", blind_charge: "230, 70, 70", vibration: "47, 158, 98", standard: "217, 72, 59", afterimage: "140, 90, 220" };
+    const color = perceptionColors[roamingMonster.perception] || (roamingMonster.kind === "elite" ? "224, 140, 20" : "217, 72, 59");
     ctx.fillStyle = `rgba(${color}, ${pulse})`;
-    ctx.shadowBlur = 6;
-    ctx.shadowColor = roamingMonster.kind === "elite" ? "#ffb300" : "#ff3b30";
+    ctx.shadowBlur = 0;
     ctx.beginPath();
     ctx.arc(rx, ry, roamingMonster.kind === "elite" ? 4.5 : 3.5, 0, Math.PI * 2);
     ctx.fill();
@@ -305,15 +304,13 @@ export function drawMiniMap(ctx, input = null, options = {}) {
 
   const playerX = PANEL_LEFT + renderInput.x * CELL_SIZE + CELL_SIZE / 2 + offsetX;
   const playerY = PANEL_TOP + renderInput.y * CELL_SIZE + CELL_SIZE / 2 + offsetY;
-  ctx.fillStyle = "rgba(0, 229, 255, 0.25)";
+  ctx.fillStyle = "rgba(31, 143, 160, 0.22)";
   ctx.beginPath();
   ctx.arc(playerX, playerY, 7, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#00e5ff";
+  ctx.fillStyle = "#1f8fa0";
   ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 1;
-  ctx.shadowBlur = 6;
-  ctx.shadowColor = "#00e5ff";
+  ctx.lineWidth = 1.5;
   ctx.save();
   ctx.translate(playerX, playerY);
   ctx.rotate((renderInput.dir * Math.PI) / 2);

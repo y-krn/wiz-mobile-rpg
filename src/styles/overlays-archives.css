@@ -5,7 +5,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(12, 12, 14, 0.98);
+  background-color: rgba(250, 245, 237, 0.98);
   backdrop-filter: blur(8px);
   z-index: 100;
   display: flex;
@@ -53,12 +53,12 @@
 
 .archives-tab {
   --sel-accent: var(--neon-cyan);
-  --sel-bg: #121216;
+  --sel-bg: var(--tint-cyan);
   --sel-color: var(--neon-cyan);
 
   flex: 1;
-  background-color: #1a1a24;
-  border: 1px solid #333;
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-color);
   color: var(--text-muted);
   font-size: var(--fs-xs);
   font-family: var(--font-mono);
@@ -82,9 +82,9 @@
   flex: 1;
   overflow-y: auto;
   padding: 4px;
-  background-color: rgba(20, 20, 26, 0.5);
-  border: 1px solid #222;
-  border-radius: 4px;
+  background-color: var(--surface-inset);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -109,9 +109,9 @@
 }
 
 .codex-row {
-  background-color: #1a1a24;
-  border: 1px solid #333;
-  border-radius: 4px;
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   padding: 10px 12px;
   display: flex;
   justify-content: space-between;
@@ -129,7 +129,7 @@
 .codex-name {
   font-size: var(--fs-md);
   font-weight: bold;
-  color: #fff;
+  color: var(--text-primary);
 }
 .codex-meta {
   font-size: var(--fs-xs);
@@ -137,7 +137,7 @@
 }
 
 .codex-detail {
-  background-color: #14141a;
+  background-color: var(--surface-inset);
   border: 1px solid var(--neon-cyan);
   border-radius: 6px;
   padding: 10px;
@@ -147,7 +147,7 @@
 }
 
 .codex-detail-header {
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 4px;
   margin-bottom: 4px;
   display: flex;
@@ -165,11 +165,11 @@
 .codex-detail-body {
   font-size: var(--fs-md);
   line-height: 1.5;
-  color: #ddd;
+  color: var(--text-primary);
 }
 
 .codex-info-section {
-  border-top: 1px solid #2b2b38;
+  border-top: 1px solid var(--border-color);
   padding-top: 7px;
   margin-top: 8px;
 }
@@ -189,7 +189,7 @@
 }
 
 .codex-item-description {
-  color: #b8b8c7;
+  color: var(--text-secondary);
   margin: 6px 0 0;
 }
 
@@ -217,7 +217,7 @@
 }
 
 .codex-affixes li span {
-  color: #b8b8c7;
+  color: var(--text-secondary);
   font-size: var(--fs-sm);
 }
 
@@ -229,7 +229,7 @@
 }
 
 .codex-tags span {
-  border: 1px solid #52616b;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
   color: var(--neon-yellow);
   font-size: var(--fs-xs);
@@ -253,7 +253,7 @@
 }
 
 .codex-personal-record {
-  color: #c7c7d2;
+  color: var(--text-secondary);
   font-size: var(--fs-sm);
 }
 
@@ -281,13 +281,13 @@
 .codex-observation-list li,
 .codex-floor-history li {
   padding: 4px 6px;
-  background: #1a1a24;
+  background: var(--surface-raised);
   border-left: 2px solid var(--neon-green);
 }
 
 .codex-observation-list .codex-unknown {
   color: var(--text-muted);
-  border-left-color: #555;
+  border-left-color: var(--border-strong);
   letter-spacing: 0.16em;
 }
 
@@ -309,8 +309,8 @@
   justify-content: space-between;
   gap: 4px;
   padding: 5px 6px;
-  background: #1a1a24;
-  border: 1px solid #2b2b38;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-color);
   font-size: var(--fs-sm);
 }
 

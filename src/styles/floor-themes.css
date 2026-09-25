@@ -8,9 +8,9 @@
 #game-container {
   --floor-border: var(--biome-wall-color, var(--neon-cyan));
   --floor-glow: var(--biome-glow, var(--neon-glow-cyan));
-  --floor-bg: var(--biome-background, #0c0c0e);
-  --floor-header-bg: var(--biome-header-background, #101116);
-  --floor-banner-bg: var(--biome-banner-background, #0d1016);
+  --floor-bg: var(--biome-background, #faf5ed);
+  --floor-header-bg: var(--biome-header-background, #f9f3e9);
+  --floor-banner-bg: var(--biome-banner-background, #f9f4ea);
 }
 
 /* Overlay effects for viewport-panel */
@@ -50,7 +50,7 @@
   align-items: center;
   padding: 10px 14px;
   border: 1px solid var(--floor-border, var(--neon-cyan));
-  background: rgba(9, 15, 20, 0.94);
+  background: rgba(250, 245, 236, 0.94);
   box-shadow: var(--shadow-soft), var(--floor-glow, var(--neon-glow-cyan));
   color: var(--text-primary);
   opacity: 0;

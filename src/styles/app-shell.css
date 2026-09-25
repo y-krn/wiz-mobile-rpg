@@ -9,9 +9,9 @@
   margin: 0 auto;
   padding-top: var(--safe-area-top);
   padding-bottom: var(--safe-area-bottom);
-  border-left: 1px solid rgba(155, 215, 210, 0.16);
-  border-right: 1px solid rgba(155, 215, 210, 0.16);
-  background: linear-gradient(180deg, #0d141a 0%, var(--bg-color) 32%, #080c10 100%);
+  border-left: 1px solid rgba(47, 106, 101, 0.16);
+  border-right: 1px solid rgba(47, 106, 101, 0.16);
+  background: linear-gradient(180deg, #f9f3e9 0%, var(--bg-color) 32%, #faf5ee 100%);
   position: relative;
   overflow: hidden;
 }
@@ -47,20 +47,31 @@
   justify-content: space-between;
   align-items: center;
   padding: 0 14px;
-  background: linear-gradient(90deg, rgba(10, 16, 21, 0.98), var(--floor-header-bg, #10181e));
-  border-bottom: 1px solid color-mix(in srgb, var(--floor-border, var(--hud-frame)) 58%, transparent);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+  background: var(--surface-control);
+  border-bottom: 2px solid color-mix(in srgb, var(--floor-border, var(--hud-frame)) 45%, var(--border-color));
+  box-shadow: 0 4px 12px rgba(46, 38, 64, 0.06);
   font-family: var(--font-mono);
   font-size: var(--fs-base);
   letter-spacing: 0.08em;
 }
 
 #location-label {
-  color: var(--floor-border, var(--neon-cyan));
+  color: var(--text-primary);
   font-family: var(--font-display);
   font-size: var(--fs-lg);
   letter-spacing: 0.06em;
   text-shadow: none;
+}
+
+#location-label::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  vertical-align: 0;
+  background: var(--floor-border, var(--hud-frame));
+  box-shadow: 0 0 0 2px var(--ink);
 }
 
 /* Goal HUD Banner */
@@ -73,7 +84,7 @@
   justify-content: center;
   position: relative;
   padding: 6px 14px 6px 18px;
-  background: linear-gradient(90deg, var(--floor-banner-bg, #10171c), rgba(13, 20, 26, 0.78));
+  background: var(--tint-amber);
   border-bottom: 1px solid var(--border-color);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
@@ -117,7 +128,7 @@
   min-height: var(--tap-min);
   line-height: 1;
   border-radius: 4px;
-  background-color: #111a20;
+  background-color: #f8f1e6;
   font-weight: 700;
   transition: color var(--motion-shell) ease, border-color var(--motion-shell) ease, box-shadow var(--motion-shell) ease, background-color var(--motion-shell) ease;
 }
@@ -129,7 +140,7 @@
   box-shadow: none;
 }
 .btn-mute.sound-on:active {
-  background-color: rgba(183, 223, 193, 0.12);
+  background-color: rgba(50, 103, 63, 0.12);
   box-shadow: var(--neon-glow-green);
 }
 
@@ -140,7 +151,7 @@
   box-shadow: none;
 }
 .btn-mute.sound-off:active {
-  background-color: rgba(165, 176, 179, 0.1);
+  background-color: rgba(80, 85, 86, 0.1);
 }
 
 /* Viewport Canvas Panel */
@@ -154,8 +165,8 @@
   flex: 0 1 auto;
   aspect-ratio: 400 / 260;
   min-height: 132px;
-  background: var(--floor-bg, #0a0e12);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035), inset 0 -28px 42px rgba(0, 0, 0, 0.26);
+  background: var(--floor-bg, #faf5ec);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035), inset 0 -28px 42px rgba(46, 38, 64, 0.143);
   position: relative;
   display: flex;
   justify-content: center;
@@ -173,7 +184,7 @@
   padding: var(--sp-sm);
   border: 1px solid color-mix(in srgb, var(--floor-border, var(--neon-cyan)) 38%, transparent);
   border-radius: var(--radius-md);
-  background: rgba(8, 14, 18, 0.88);
+  background: rgba(250, 245, 237, 0.88);
   box-shadow: var(--shadow-soft);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -252,6 +263,7 @@
   height: 100%;
   display: block;
   object-fit: contain; /* keep the active logical projection undistorted */
+  image-rendering: pixelated;
 }
 
 #controls-panel[hidden] {
@@ -266,16 +278,16 @@
   align-content: center;
   gap: var(--sp-md);
   padding: var(--sp-lg);
-  border: 1px solid var(--semantic-danger, #ff3b30);
+  border: 1px solid var(--semantic-danger, #c5140a);
   border-radius: var(--radius-md);
-  background: rgba(8, 14, 18, 0.96);
+  background: rgba(250, 245, 237, 0.96);
   color: var(--text-main);
   text-align: center;
   box-shadow: var(--shadow-soft);
 }
 
 #renderer-safe-ui h2 {
-  color: var(--semantic-danger, #ff3b30);
+  color: var(--semantic-danger, #c5140a);
   font-size: var(--fs-lg);
 }
 
@@ -313,7 +325,7 @@
   flex: 1 1 auto;
   min-height: 56px; /* ~2-3 lines; enough to read the latest events */
   max-height: 160px; /* Never let logs dominate the screen */
-  background: linear-gradient(180deg, var(--floor-banner-bg, #10171c), #0d1419);
+  background: linear-gradient(180deg, var(--floor-banner-bg, #f8f2e7), #f9f3e9);
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
   box-shadow: none;
@@ -338,13 +350,13 @@
   text-align: center;
   font-size: var(--fs-md);
   color: var(--neon-cyan);
-  background-color: rgba(13, 20, 26, 0.94);
+  background-color: rgba(249, 243, 233, 0.94);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   z-index: 3;
 }
 #btn-log-expand:active {
-  background-color: rgba(0, 229, 255, 0.15);
+  background-color: rgba(13, 219, 242, 0.15);
   border-color: var(--neon-cyan);
 }
 
@@ -353,7 +365,7 @@
   position: absolute;
   inset: 0;
   z-index: 30;
-  background-color: rgba(8, 14, 18, 0.97);
+  background-color: rgba(250, 245, 237, 0.97);
   backdrop-filter: blur(6px);
   display: flex;
   flex-direction: column;
@@ -400,7 +412,7 @@
 }
 
 .log-entry {
-  color: #dcdcdc;
+  color: var(--text-primary);
   word-wrap: break-word;
 }
 
@@ -454,14 +466,14 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  background-color: rgba(12, 12, 14, 0.85);
+  background-color: rgba(255, 253, 248, 0.92);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 6px 10px;
+  border-radius: 999px;
+  padding: 6px 12px;
   font-family: var(--font-mono);
   font-size: var(--fs-md);
   color: var(--neon-cyan);
-  text-shadow: var(--neon-glow-cyan);
+  box-shadow: 0 3px 0 rgba(46, 38, 64, 0.1);
   pointer-events: none;
   z-index: 5;
   display: flex;
@@ -555,7 +567,7 @@
   display: block;
   padding-top: 0;
   padding-bottom: 0;
-  background: var(--floor-bg, #0a0e12);
+  background: var(--floor-bg, #faf5ec);
 }
 
 /* The world owns the safe-area strips in Dungeon First mode. HUD content
@@ -585,19 +597,18 @@
     radial-gradient(ellipse at 50% 48%, color-mix(in srgb, var(--floor-border, var(--neon-cyan)) 18%, transparent) 0%, transparent 62%),
     linear-gradient(180deg, transparent 18%, color-mix(in srgb, var(--floor-border, var(--neon-cyan)) 5%, transparent) 42%, color-mix(in srgb, var(--floor-border, var(--neon-cyan)) 5%, transparent) 58%, transparent 82%),
     linear-gradient(180deg,
-      color-mix(in srgb, var(--floor-bg, #0a0e12) 54%, #000) 0%,
-      color-mix(in srgb, var(--floor-bg, #0a0e12) 88%, #000) 24%,
-      var(--floor-bg, #0a0e12) 47%,
-      color-mix(in srgb, var(--floor-bg, #0a0e12) 86%, #000) 72%,
-      color-mix(in srgb, var(--floor-bg, #0a0e12) 48%, #000) 100%);
+      color-mix(in srgb, var(--floor-bg, #faf5ec) 54%, #fcfaf5) 0%,
+      color-mix(in srgb, var(--floor-bg, #faf5ec) 88%, #fcfaf5) 24%,
+      var(--floor-bg, #faf5ec) 47%,
+      color-mix(in srgb, var(--floor-bg, #faf5ec) 86%, #fcfaf5) 72%,
+      color-mix(in srgb, var(--floor-bg, #faf5ec) 48%, #fcfaf5) 100%);
   box-shadow: none;
 }
 
 #game-container.dungeon-first-mode #viewport-panel::after {
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, transparent 25%, transparent 72%, rgba(0, 0, 0, 0.26) 100%),
-    var(--biome-aura, none);
-  opacity: calc(var(--biome-aura-opacity, 0) * 0.62 + (var(--depth-corruption, 0) * 0.04));
+    radial-gradient(ellipse at 50% 46%, transparent 58%, color-mix(in srgb, var(--floor-border, var(--neon-cyan)) 22%, transparent) 100%);
+  opacity: calc(0.7 + (var(--depth-corruption, 0) * 0.04));
 }
 
 #game-container.dungeon-first-mode #dungeon-canvas,
@@ -622,8 +633,19 @@
   object-fit: contain;
 }
 
+/* The minimap panel (with its 2px frame) occupies x 148-252 / y 6-110 of its
+   400x260 logical canvas. Crop exactly that region into a corner card under
+   the compass badge instead of floating it over the vanishing point. */
 #game-container.dungeon-first-mode #dungeon-minimap-overlay {
-  object-fit: contain;
+  inset: auto;
+  top: calc(var(--safe-area-top) + 152px);
+  right: 12px;
+  width: 104px;
+  height: 104px;
+  object-fit: none;
+  object-position: -148px -6px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 3px 0 rgba(46, 38, 64, 0.12));
 }
 
 #game-container.dungeon-first-mode #game-header {
@@ -638,16 +660,17 @@
   padding: 4px 6px;
   border: 0;
   border-radius: 0;
-  background: linear-gradient(90deg, rgba(8, 14, 18, 0.72), rgba(8, 14, 18, 0.18) 62%, transparent 100%);
+  background: none;
   box-shadow: none;
   pointer-events: none;
 }
 
 #game-container.dungeon-first-mode #btn-mute {
   pointer-events: auto;
-  background: rgba(8, 14, 18, 0.42);
-  border-color: color-mix(in srgb, var(--floor-border, var(--hud-frame)) 58%, transparent);
-  box-shadow: none;
+  background: rgba(255, 253, 248, 0.92);
+  border-color: var(--border-strong);
+  box-shadow: 0 3px 0 rgba(46, 38, 64, 0.16);
+  backdrop-filter: blur(6px);
 }
 
 #game-container.dungeon-first-mode #location-label {
@@ -655,7 +678,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-sm);
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.92);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--floor-border, var(--hud-frame)) 55%, #fff), 0 4px 0 rgba(46, 38, 64, 0.12);
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  backdrop-filter: blur(6px);
+}
+
+#game-container.dungeon-first-mode #location-label::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  vertical-align: 1px;
+  background: var(--floor-border, var(--hud-frame));
+  box-shadow: 0 0 0 1.5px var(--ink);
 }
 
 #game-container.dungeon-first-mode #goal-banner {
@@ -670,10 +710,11 @@
   padding: 4px 8px 4px 13px;
   overflow: hidden;
   border: 0;
-  border-left: 1px solid color-mix(in srgb, var(--floor-border, var(--neon-amber)) 56%, transparent);
-  border-radius: 0;
-  background: linear-gradient(90deg, rgba(8, 14, 18, 0.62), rgba(8, 14, 18, 0.16) 72%, transparent 100%);
-  box-shadow: none;
+  border-left: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: rgba(255, 253, 248, 0.88);
+  box-shadow: 0 0 0 1.5px rgba(46, 38, 64, 0.1), 0 6px 16px rgba(46, 38, 64, 0.1);
+  backdrop-filter: blur(6px);
   pointer-events: none;
 }
 
@@ -705,10 +746,11 @@
   padding: 4px 8px;
   overflow: hidden;
   border: 0;
-  border-left: 1px solid color-mix(in srgb, var(--floor-border, var(--border-color)) 48%, transparent);
-  border-radius: 0;
-  background: linear-gradient(90deg, rgba(8, 14, 18, 0.58), rgba(8, 14, 18, 0.12) 76%, transparent 100%);
-  box-shadow: none;
+  border-left: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: rgba(255, 253, 248, 0.9);
+  box-shadow: 0 0 0 1.5px rgba(46, 38, 64, 0.12), 0 6px 16px rgba(46, 38, 64, 0.1);
+  backdrop-filter: blur(6px);
   pointer-events: none;
 }
 
@@ -716,7 +758,6 @@
   max-height: 42px;
   bottom: calc(var(--safe-area-bottom) + 238px);
   padding: 3px 8px;
-  background: linear-gradient(90deg, rgba(8, 14, 18, 0.48), rgba(8, 14, 18, 0.08) 76%, transparent 100%);
 }
 
 #game-container.dungeon-first-mode.event-mode #log-panel {
@@ -747,7 +788,7 @@
   top: 5px;
   right: 5px;
   margin: 0;
-  background-color: rgba(8, 14, 18, 0.86);
+  background-color: var(--surface-raised);
   pointer-events: auto;
 }
 
@@ -775,10 +816,10 @@
   padding: 6px 10px;
   overflow: hidden;
   border: 0;
-  border-radius: 0;
-  background: linear-gradient(180deg, transparent 0%, rgba(8, 14, 18, 0.22) 25%, rgba(8, 14, 18, 0.72) 100%);
-  box-shadow: none;
-  backdrop-filter: blur(4px);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: rgba(255, 250, 241, 0.94);
+  box-shadow: 0 -1.5px 0 rgba(46, 38, 64, 0.1), 0 -10px 28px rgba(46, 38, 64, 0.12);
+  backdrop-filter: blur(8px);
 }
 
 #game-container.dungeon-first-mode #controls-panel .btn {
@@ -789,13 +830,11 @@
 #game-container.dungeon-first-mode #controls-panel.explore-mode {
   height: 116px;
   min-height: 116px;
-  background: linear-gradient(180deg, transparent 0%, rgba(18, 35, 41, 0.18) 24%, rgba(14, 25, 30, 0.66) 100%);
 }
 
 #game-container.dungeon-first-mode #controls-panel.combat-mode {
   height: auto;
   min-height: 0;
-  background: linear-gradient(180deg, transparent 0%, rgba(52, 25, 29, 0.2) 24%, rgba(23, 19, 23, 0.68) 100%);
 }
 
 #game-container.dungeon-first-mode #controls-panel.submenu-mode,
@@ -803,7 +842,6 @@
   height: auto;
   min-height: 0;
   max-height: min(62svh, 520px);
-  background: linear-gradient(180deg, transparent 0%, rgba(8, 14, 18, 0.2) 16%, rgba(8, 14, 18, 0.78) 100%);
 }
 
 #game-container.dungeon-first-mode #controls-panel.combat-overlay-mode {
@@ -830,24 +868,26 @@
 }
 
 #game-container.dungeon-first-mode #explore-controls .dpad .btn {
-  border-color: color-mix(in srgb, var(--border-strong) 62%, transparent);
+  border-color: var(--border-strong);
   color: var(--text-secondary);
-  background: rgba(8, 14, 18, 0.26);
-  box-shadow: none;
+  background: var(--surface-raised);
 }
 
 #game-container.dungeon-first-mode #explore-controls #btn-move-forward {
-  border-color: color-mix(in srgb, var(--neon-cyan) 86%, transparent);
-  color: var(--neon-cyan);
-  background: linear-gradient(180deg, rgba(42, 72, 74, 0.76), rgba(18, 38, 42, 0.62));
-  box-shadow: inset 0 1px 0 rgba(155, 215, 210, 0.14), 0 0 8px rgba(155, 215, 210, 0.1);
+  --btn-edge: #17707e;
+  border-color: #17707e;
+  color: #fff;
+  background: linear-gradient(180deg, #34b0c0, var(--neon-cyan));
+  font-family: var(--font-display);
+  font-size: var(--fs-xxl);
+  text-shadow: 0 2px 0 rgba(23, 112, 126, 0.6);
 }
 
 #game-container.dungeon-first-mode #explore-controls #btn-search {
-  border-color: color-mix(in srgb, var(--neon-amber) 70%, transparent);
+  --btn-edge: rgba(199, 119, 26, 0.35);
+  border-color: rgba(199, 119, 26, 0.6);
   color: var(--neon-amber);
-  background: rgba(57, 47, 31, 0.48);
-  box-shadow: none;
+  background: var(--tint-amber);
 }
 
 #game-container.dungeon-first-mode #explore-controls .action-grid {
@@ -855,15 +895,15 @@
 }
 
 #game-container.dungeon-first-mode #explore-controls .action-grid .btn-action {
-  border-color: color-mix(in srgb, var(--border-strong) 58%, transparent);
+  --btn-edge: rgba(46, 38, 64, 0.16);
+  border-color: var(--border-strong);
   color: var(--text-secondary);
-  background: rgba(8, 14, 18, 0.24);
-  box-shadow: none;
+  background: var(--surface-raised);
   font-size: var(--fs-sm);
 }
 
 #game-container.dungeon-first-mode #controls-panel.combat-overlay-mode > #combat-overlay {
-  background: linear-gradient(180deg, transparent, rgba(12, 12, 14, 0.72));
+  background: none;
   backdrop-filter: none;
 }
 
@@ -877,40 +917,41 @@
   padding: 4px 0 0;
   border: 0;
   border-radius: 0;
-  background: linear-gradient(0deg, rgba(8, 14, 18, 0.56), transparent);
-  box-shadow: none;
+  /* Continue the Action Dock sheet to the screen edge without changing the
+     panel geometry (spread shadows paint outside the box). */
+  background: rgba(255, 250, 241, 0.94);
+  box-shadow: 0 0 0 12px rgba(255, 250, 241, 0.94), 0 -24px 0 12px rgba(255, 250, 241, 0.94), 0 48px 0 12px rgba(255, 250, 241, 0.94);
 }
 
 #game-container[data-combat-context="active"] #character-panel {
   min-height: 48px;
   padding: 2px 12px;
-  background: linear-gradient(0deg, rgba(8, 14, 18, 0.72), transparent);
+  background: none;
 }
 
 #game-container[data-combat-context="active"] #character-panel .character-card {
   min-height: 42px;
   padding: 3px 4px;
   border: 0;
-  border-radius: 0;
-  background: linear-gradient(90deg, rgba(16, 26, 33, 0.68), rgba(16, 26, 33, 0.18));
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
 }
 
 #game-container.dungeon-first-mode #character-panel .character-card {
-  border-color: color-mix(in srgb, var(--floor-border, var(--hud-frame)) 34%, transparent);
-  background: linear-gradient(105deg, rgba(25, 39, 47, 0.62), rgba(16, 26, 33, 0.3));
-  box-shadow: none;
+  border-color: var(--border-color);
+  background: var(--surface-raised);
+  box-shadow: 0 3px 0 rgba(46, 38, 64, 0.08);
 }
 
 #game-container.dungeon-first-mode #submenu-title {
   border-bottom-color: color-mix(in srgb, var(--floor-border, var(--neon-amber)) 28%, transparent);
-  background: linear-gradient(90deg, rgba(8, 14, 18, 0.42), transparent 82%);
+  background: none;
 }
 
 #game-container.dungeon-first-mode #submenu-options .btn,
 #game-container.dungeon-first-mode .milestone-portal-choice-card,
 #game-container.dungeon-first-mode .chest-info-panel {
-  background: rgba(8, 14, 18, 0.48);
-  box-shadow: none;
+  background: var(--surface-raised);
 }
 
 #game-container.dungeon-first-mode .milestone-portal-choice-card {
@@ -918,7 +959,7 @@
 }
 
 #game-container.dungeon-first-mode .milestone-portal-choice {
-  background: rgba(21, 31, 39, 0.58);
+  background: var(--surface-inset);
 }
 
 #game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #log-panel {
@@ -961,4 +1002,45 @@
 
 #game-container[data-combat-entry="compact"] #location-label {
   color: var(--text-tertiary);
+}
+
+/* An empty event strip should not leave a blank card over the world. */
+#game-container.dungeon-first-mode #log-panel:has(#log-content:empty) {
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* The 44px expand control must not turn the compact strip into a scroll
+   container (auto-tail scrolling then hid the only visible entry). */
+#game-container.dungeon-first-mode #log-panel {
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  max-height: 58px;
+  padding-right: 56px;
+  overflow: clip;
+}
+
+#game-container[data-combat-context="active"] #log-panel {
+  min-height: 50px;
+  max-height: 50px;
+}
+
+#game-container.dungeon-first-mode #log-content {
+  flex: 1 1 auto;
+}
+
+#game-container.dungeon-first-mode #btn-log-expand {
+  top: 50%;
+  right: 3px;
+  transform: translateY(-50%);
+}
+
+/* Screen-reader-only HUD content keeps its live region but paints nothing. */
+#game-container.dungeon-first-mode #viewport-hud:not(:has(> :not(.sr-only))) {
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }

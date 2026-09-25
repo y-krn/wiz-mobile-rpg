@@ -1,11 +1,13 @@
-/* Button styles */
+/* Button styles: pressable tiles with an ink outline and a solid drop edge. */
 .btn {
-  background: linear-gradient(180deg, rgba(29, 43, 51, 0.96), rgba(18, 29, 36, 0.96));
-  border: 1px solid var(--border-strong);
+  --btn-edge: rgba(46, 38, 64, 0.2);
+  background: var(--surface-raised);
+  border: 2px solid var(--border-strong);
   color: var(--text-main);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-base);
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   border-radius: var(--radius-lg);
   outline: none;
   display: flex;
@@ -13,19 +15,27 @@
   justify-content: center;
   cursor: pointer;
   transition: transform var(--motion-tap) ease, background-color var(--motion-tap) ease, border-color var(--motion-tap) ease, box-shadow var(--motion-tap) ease;
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 3px 0 var(--btn-edge);
   min-height: var(--tap-min);
+}
+
+@media (hover: hover) {
+  .btn:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 0 var(--btn-edge);
+  }
 }
 
 .btn:focus-visible {
   outline: 2px solid var(--neon-yellow);
   outline-offset: 2px;
-  box-shadow: 0 0 0 3px rgba(240, 207, 131, 0.22);
+  box-shadow: 0 3px 0 var(--btn-edge), var(--neon-glow-yellow);
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
+  background: var(--surface-unavailable) !important;
   border-color: var(--border-disabled) !important;
   color: var(--text-muted) !important;
   box-shadow: none !important;
@@ -33,7 +43,8 @@
 }
 
 .btn:active {
-  transform: scale(0.97);
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--btn-edge);
 }
 
 .btn-neon {
@@ -42,43 +53,42 @@
 }
 
 .btn-neon:active {
-  background-color: rgba(183, 223, 193, 0.12);
+  background-color: var(--tint-green);
   border-color: var(--neon-green);
   color: var(--neon-green);
-  box-shadow: var(--neon-glow-green);
 }
 
 /* Exploration action button colors */
 #explore-controls .btn-action {
-  border-color: var(--neon-cyan);
+  --btn-edge: rgba(31, 143, 160, 0.28);
+  border-color: rgba(31, 143, 160, 0.45);
   color: var(--neon-cyan);
-  background: linear-gradient(180deg, rgba(29, 50, 53, 0.96), rgba(17, 31, 35, 0.96));
+  background: var(--surface-raised);
 }
 #explore-controls .btn-action:active {
-  background-color: rgba(155, 215, 210, 0.12);
-  box-shadow: var(--neon-glow-cyan);
+  background-color: var(--tint-cyan);
 }
 
 /* Town buttons */
 .btn-town {
-  border-color: var(--neon-amber);
+  --btn-edge: rgba(199, 119, 26, 0.3);
+  border-color: rgba(199, 119, 26, 0.5);
   color: var(--neon-amber);
-  background: linear-gradient(180deg, rgba(52, 43, 31, 0.96), rgba(29, 27, 24, 0.96));
+  background: linear-gradient(180deg, #fffdf8, var(--tint-amber));
 }
 .btn-town:active {
-  background-color: rgba(226, 179, 111, 0.12);
-  box-shadow: var(--neon-glow-amber);
+  background: var(--tint-amber);
 }
 
 /* Combat buttons */
 .btn-combat {
-  border-color: var(--neon-red);
+  --btn-edge: rgba(217, 72, 59, 0.26);
+  border-color: rgba(217, 72, 59, 0.45);
   color: var(--neon-red);
-  background: linear-gradient(180deg, rgba(55, 34, 36, 0.96), rgba(29, 24, 27, 0.96));
+  background: var(--surface-raised);
 }
 .btn-combat:active {
-  background-color: rgba(224, 120, 112, 0.12);
-  box-shadow: var(--neon-glow-red);
+  background-color: var(--tint-red);
 }
 
 .archives-tab.active,
@@ -98,7 +108,7 @@
 .btn-combat-auto,
 #btn-combat-auto {
   --sel-accent: var(--neon-green);
-  --sel-bg: rgba(0, 255, 102, 0.12);
+  --sel-bg: var(--tint-green);
   --sel-color: var(--neon-green);
   --sel-shadow: var(--neon-glow-green);
 }
@@ -121,13 +131,15 @@
   font-size: var(--fs-sm);
 }
 
-.btn-danger {
-  background: linear-gradient(180deg, rgba(60, 33, 35, 0.96), rgba(30, 23, 26, 0.96));
-  border-color: var(--neon-red);
+.btn-danger,
+#game-container #submenu-options .btn-danger {
+  --btn-edge: rgba(217, 72, 59, 0.3);
+  background: var(--tint-red);
+  border-color: rgba(217, 72, 59, 0.55);
   color: var(--neon-red);
 }
 .btn-danger:active {
-  background-color: rgba(255, 59, 48, 0.2);
+  background-color: #fbd3cc;
 }
 .btn-block {
   width: 100%;
@@ -142,4 +154,34 @@
 .equip-actor-chip:focus-visible {
   outline: 2px solid var(--neon-cyan) !important;
   outline-offset: 2px !important;
+}
+
+/* One filled primary action per decision surface. */
+.btn-primary,
+#btn-departure-start,
+#btn-result-castle,
+.solo-start-confirm {
+  --btn-edge: #17707e;
+  border-color: #17707e;
+  background: linear-gradient(180deg, #34b0c0, var(--neon-cyan));
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  letter-spacing: 0.08em;
+  text-shadow: 0 2px 0 rgba(23, 112, 126, 0.55);
+}
+
+.btn-primary:active,
+#btn-departure-start:active,
+#btn-result-castle:active {
+  background: var(--neon-cyan);
+}
+
+/* Back / cancel stays quiet so it never competes with the decision. */
+.btn-secondary,
+.dock-action-back {
+  --btn-edge: rgba(46, 38, 64, 0.12);
+  border-color: var(--border-color);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
 }
