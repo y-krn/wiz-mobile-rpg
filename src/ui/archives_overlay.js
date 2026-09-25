@@ -315,7 +315,6 @@ export function getEventsCodexHtml() {
   const fac = ev.facilities || {};
   const spring = fac.spring || { found: 0, used: 0 };
   const merchant = fac.merchant || { found: 0, purchased: 0 };
-  const tablet = fac.tablet || { found: 0, read: 0 };
   const chest = fac.chest || { found: 0, opened: 0 };
   
   html += `
@@ -327,10 +326,6 @@ export function getEventsCodexHtml() {
       <div style="display: flex; justify-content: space-between;">
         <span>👤 さまよう商人</span>
         <span>発見: ${merchant.found} 回 / 購入: ${merchant.purchased} 回</span>
-      </div>
-      <div style="display: flex; justify-content: space-between;">
-        <span>🪦 古代の石碑</span>
-        <span>発見: ${tablet.found} 回 / 解読: ${tablet.read} 回</span>
       </div>
       <div style="display: flex; justify-content: space-between;">
         <span>📦 宝箱</span>

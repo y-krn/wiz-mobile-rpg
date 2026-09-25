@@ -1179,7 +1179,8 @@ function placeSecretRooms(grid, targetCount, requiredKeys, start, protectedRoomK
     if (walkableDirs.length !== 1 || walkableDirs[0] !== OPPOSITE_DIR[candidate.passageDir]) continue;
     if (!setSecretDoor(grid, candidate.passageX, candidate.passageY, candidate.passageDir)) continue;
 
-    room.event = rng() < 0.75 ? EVENT_TYPES.CHEST : EVENT_TYPES.TABLET;
+    // Preserve seeded generation continuity while leaving the room empty.
+    rng();
     placed++;
   }
   return placed;
@@ -2211,19 +2212,11 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     springCount++;
   }
 
-  let tabletCount = 0;
-  for (let i = chestCount + 2; i < Math.min(chestCount + 4, deadEnds.length); i++) {
-    const spot = deadEnds[i];
-    grid[spot.y][spot.x].event = EVENT_TYPES.TABLET;
-    tabletCount++;
-  }
-
   // Fallback if sparse
   let totalChestNeeded = targetChestCount - chestCount;
   let totalSpringNeeded = 2 - springCount;
-  let totalTabletNeeded = 2 - tabletCount;
 
-  if (totalChestNeeded > 0 || totalSpringNeeded > 0 || totalTabletNeeded > 0) {
+  if (totalChestNeeded > 0 || totalSpringNeeded > 0) {
     const passages = [];
     for (let y = 1; y < mapHeight - 1; y++) {
       for (let x = 1; x < mapWidth - 1; x++) {
@@ -2249,10 +2242,6 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     for (let i = 0; i < totalSpringNeeded && pIdx < passages.length; i++) {
       const spot = passages[pIdx++];
       grid[spot.y][spot.x].event = EVENT_TYPES.SPRING;
-    }
-    for (let i = 0; i < totalTabletNeeded && pIdx < passages.length; i++) {
-      const spot = passages[pIdx++];
-      grid[spot.y][spot.x].event = EVENT_TYPES.TABLET;
     }
   }
 

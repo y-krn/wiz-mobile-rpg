@@ -155,6 +155,6 @@ const normalizedIndependentDefeatState = normalizeSavePayload({ ...payload, curr
 assert.equal(normalizedIndependentDefeatState.quests[0].currentValue, 2,
   "save migration does not repair defeats-by-role from quest progress");
 
-assert.equal(SAVE_VERSION, 14, "defeats-by-role migration does not change SAVE_VERSION");
+assert.equal(SAVE_VERSION, 15, "stone-event reset boundary rejects older save versions");
 
 console.log("[PASS] canonical run quest contract, fail-safe normalization, roundtrip, and claim persistence");

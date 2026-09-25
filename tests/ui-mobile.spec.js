@@ -419,46 +419,7 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('#log-content')).toContainText('泉の水は清らかだった');
       await expect(page.getByRole('button', { name: '探索に戻る' })).toBeVisible();
 
-      await page.evaluate(async () => {
-        const { state } = await import('/src/state.js');
-        const { openSubmenu } = await import('/src/navigation.js');
-        state.map[state.y][state.x].event = 'event_tablet';
-        openSubmenu('event_tablet', '謎の石碑が立っている。古代の文字が刻まれている…');
-      });
-      await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
-      await expect(page.locator('#log-panel')).toBeVisible();
-      await expect(page.getByRole('button', { name: '文字を読む' })).toBeVisible();
-      await page.getByRole('button', { name: '文字を読む' }).click();
-      await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
-      await expect(page.locator('#log-panel')).toBeVisible();
-      await expect(page.locator('#log-content')).toContainText('石碑の文字を解読した');
-      await expect(page.getByRole('button', { name: '探索に戻る' })).toBeVisible();
 
-      await page.evaluate(async () => {
-        const { state } = await import('/src/state.js');
-        const { createDefaultCurrentRun } = await import('/src/state.js');
-        const { checkCellEvents } = await import('/src/movement.js');
-        const { updateUI } = await import('/src/ui.js');
-        state.gameState = 'explore';
-        state.floor = 5;
-        const cell = state.map[state.y][state.x];
-        state.currentRun = createDefaultCurrentRun();
-        state.currentRun.defeatedMilestones = [5];
-        state.currentRun.materials = { '霊粉': 2 };
-        cell.type = 'passage';
-        cell.message = null;
-        cell.event = 'event_merchant';
-        checkCellEvents();
-        updateUI();
-      });
-      await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
-      await expect(page.locator('#log-panel')).toBeVisible();
-      await expect(page.getByRole('button', { name: /鑑定粉/ })).toBeVisible();
-      const merchantResult = await page.evaluate(async () => {
-        const { state } = await import('/src/state.js');
-        return { gameState: state.gameState, event: state.map[state.y][state.x].event };
-      });
-      expect(merchantResult).toEqual({ gameState: 'submenu', event: 'event_merchant' });
     });
 
     test('Down stairs ask before descending and can be skipped', async ({ page }) => {

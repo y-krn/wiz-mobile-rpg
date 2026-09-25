@@ -14163,162 +14163,6 @@ function finalizeTrapRouteDetour(metrics) {
   metrics.trapRoute.detourActive = false;
 }
 
-export function createTabletMovementEvent({ moved, enteredCell, x, y }) {
-  if (!moved || enteredCell?.event !== EVENT_TYPES.TABLET) return null;
-  return { x, y, type: EVENT_TYPES.TABLET, milestone: false };
-}
-
-export function recordTabletExposure(tabletExposure, { seriesId, runIndex, runSeed, floor, step, event, selection = "leave", consumed = false }) {
-  if (event?.type !== EVENT_TYPES.TABLET) return null;
-  const key = `${floor}:${event.x},${event.y}`;
-  const firstEntry = !tabletExposure._reachedLocationKeys.has(key);
-  tabletExposure._reachedLocationKeys.add(key);
-  tabletExposure.uniqueReachedLocationCount += Number(firstEntry);
-  tabletExposure.revisitEntryCount += Number(!firstEntry);
-  const observation = {
-    run: { seriesId, runIndex, runSeed },
-    floor,
-    step,
-    x: event.x,
-    y: event.y,
-    firstEntry,
-    selection,
-    consumed
-  };
-  tabletExposure.encounters.push(observation);
-  return observation;
-}
-
-const TABLET_HINTS = [
-  "『光は闇を照らし、ロミルワは永遠のミニマップをもたらす。』",
-  "『いにしえの竜は極大爆裂呪文ティルトウェイトを放つ。十分に対抗せよ。』",
-  "『迷宮では装備と道具の組み合わせが、生存と成果を分ける。』",
-  "『毒針の罠は、解毒薬かラツモフィスの呪文で治療可能である。』",
-  "『地下3階の奥にはデーモンガードが「竜の鍵」を守っているという。』",
-  "『さまよう商人は迷宮の奥深くで究極の霊薬エリクサーを売っている。』"
-];
-
-export function applySimulationTabletRead({ state, floor, cell, candidate = "current", rng = Math.random }) {
-  let randomCalls = 0;
-  const nextRandom = () => { randomCalls++; return rng(); };
-  const outcomeRoll = nextRandom();
-  let outcome;
-  let expGained = 0;
-  let damage = 0;
-  let targetName = null;
-  let resultHintIndex = null;
-  if (outcomeRoll < 0.40) {
-    outcome = "success";
-    const hintIndex = Math.floor(nextRandom() * TABLET_HINTS.length);
-    const band = Math.min(5, Math.max(0, Math.floor((floor - 1) / 5)));
-    expGained = candidate === "fixed-c"
-      ? Math.round(80 * (1 + 0.04 * band))
-      : 100 + floor * 100;
-    state.party.forEach(character => {
-      if (character.status !== "dead") character.exp += expGained;
-    });
-    outcome = "success";
-    resultHintIndex = hintIndex;
-  } else if (outcomeRoll < 0.70) {
-    outcome = "trap";
-    const alive = state.party.filter(character => character.status !== "dead");
-    if (alive.length > 0) {
-      const target = alive[Math.floor(nextRandom() * alive.length)];
-      targetName = target.name;
-      const rawMaxHp = target.maxHp;
-      if (candidate === "fixed-c" && (!Number.isFinite(rawMaxHp) || rawMaxHp <= 0)) {
-        damage = 0;
-        outcome = "trap-invalid-max-hp";
-      } else {
-        const trapDamage = candidate === "fixed-c"
-          ? Math.max(1, Math.ceil(0.35 * rawMaxHp))
-          : 6 + floor * 3;
-        damage = trapDamage;
-        target.hp = Math.max(0, target.hp - trapDamage);
-        clearCharIncapacitationOnDamage(target);
-        if (target.hp === 0) {
-          target.status = "dead";
-          recordCharDeath(state, target, "石碑の罠", { type: "trap", source: "石碑の矢罠" });
-        }
-      }
-    }
-  } else {
-    outcome = "miss";
-  }
-  cell.event = null;
-  return { outcome, outcomeRoll, hintIndex: resultHintIndex, expGained, damage, targetName, randomCalls };
-}
-
-export function resolveSimulationTabletEncounter({
-  state,
-  generated,
-  tabletExposure,
-  event,
-  seriesId,
-  runIndex,
-  runSeed,
-  floor,
-  step,
-  policy = "leave-on-encounter",
-  candidate = "current",
-  rng = Math.random,
-  rngStateBefore = null,
-  getRngState = () => null
-}) {
-  const selection = policy === "read-first-reached" && tabletExposure.readCount === 0
-    ? "read"
-    : "leave";
-  const observation = recordTabletExposure(tabletExposure, {
-    seriesId, runIndex, runSeed, floor, step, event,
-    selection,
-    consumed: selection === "read"
-  });
-  if (selection !== "read") return observation;
-  tabletExposure.readCount++;
-  const combatExpBefore = state.currentRun.expGained;
-  const stateBefore = state.party.map(character => ({
-    name: character.name,
-    level: character.level,
-    hp: character.hp,
-    maxHp: character.maxHp,
-    status: character.status
-  }));
-  const read = applySimulationTabletRead({
-    state,
-    floor,
-    cell: generated.grid[event.y]?.[event.x],
-    candidate,
-    rng
-  });
-  tabletExposure.expGained += read.expGained;
-  tabletExposure.combatLedgerDelta += state.currentRun.expGained - combatExpBefore;
-  Object.assign(observation, {
-    outcome: read.outcome,
-    outcomeRoll: read.outcomeRoll,
-    hintIndex: read.hintIndex,
-    expGained: read.expGained,
-    damage: read.damage,
-    targetName: read.targetName,
-    rngCalls: read.randomCalls,
-    combatLedgerBefore: combatExpBefore,
-    combatLedgerAfter: state.currentRun.expGained,
-    stateBefore,
-    stateAfter: state.party.map(character => ({
-      name: character.name,
-      level: character.level,
-      hp: character.hp,
-      maxHp: character.maxHp,
-      status: character.status,
-      deathCause: state.currentRun.deathLogs?.find(log => log.charName === character.name)?.cause || null
-    })),
-    rngBoundary: {
-      before: rngStateBefore,
-      after: getRngState()
-    }
-  });
-  return observation;
-}
-
 export function advanceSimulationFloorRoute(route, generated, state, floor, metrics, step) {
   if (!route.current || step < route.nextMoveAt) return { moved: false };
   route.nextMoveAt += EXPLORATION_FACTOR;
@@ -14441,16 +14285,10 @@ export function advanceSimulationFloorRoute(route, generated, state, floor, metr
   }
   const candidate = route.targets[route.targetIndex];
   const enteredCell = generated.grid[next.y]?.[next.x];
-  const enteredTablet = createTabletMovementEvent({
-    moved: true,
-    enteredCell,
-    x: next.x,
-    y: next.y
-  });
   const partialEvent = route.partialInformation && enteredCell?.event
     ? { x: next.x, y: next.y, type: enteredCell.event, milestone: enteredCell.milestoneFloor === floor }
     : null;
-  const event = enteredTablet || partialEvent || (candidate && candidate.type !== "stairs-down" &&
+  const event = partialEvent || (candidate && candidate.type !== "stairs-down" &&
     routeKey(candidate) === routeKey(next) &&
     !route.processedEventKeys.has(routeKey(candidate))
     ? candidate
@@ -16317,18 +16155,6 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     steps: metrics.steps,
     routePolicy: metrics.routePolicy,
-    tabletExposure: {
-      generatedCount: metrics.tabletExposure.generatedCount,
-      uniqueReachedLocationCount: metrics.tabletExposure.uniqueReachedLocationCount,
-      revisitEntryCount: metrics.tabletExposure.revisitEntryCount,
-      policy: metrics.tabletPolicy,
-      outcomeCandidate: metrics.tabletOutcomeCandidate,
-      readCount: metrics.tabletExposure.readCount,
-      expGained: metrics.tabletExposure.expGained,
-      combatLedgerDelta: metrics.tabletExposure.combatLedgerDelta,
-      encounters: structuredClone(metrics.tabletExposure.encounters),
-      coverageGaps: [...metrics.tabletExposure.coverageGaps]
-    },
     combatExpCandidate: {
       id: metrics.expAwardCandidate.id,
       enabled: metrics.expAwardCandidate.enabled,
@@ -16382,11 +16208,6 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     expGained: state.currentRun.expGained,
     characterExpGained: state.party.reduce((total, character, index) =>
       total + character.exp - (metrics.initialCharacterExp[index] ?? character.exp), 0),
-    expGainedBySource: {
-      combat: state.currentRun.expGained - metrics.initialCombatExp,
-      tablet: metrics.tabletExposure.expGained
-    },
-    tabletCombatLedgerDelta: metrics.tabletExposure.combatLedgerDelta,
     workshopEffects: state.workshopEffects,
     keyItems: [...state.keyItems],
     unlockedMilestones: [...state.unlockedMilestones],
@@ -17026,8 +16847,6 @@ export function simulateRun({
   );
   const metrics = {
     routePolicy: scenario.routePolicy || "omniscient_shortest_route",
-    tabletPolicy: scenario.tabletPolicy === "read-first-reached" ? "read-first-reached" : "leave-on-encounter",
-    tabletOutcomeCandidate: scenario.tabletOutcomeCandidate === "fixed-c" ? "fixed-c" : "current",
     expAwardCandidate: {
       enabled: ["phase4j-b", "production"].includes(scenario.expAwardCandidate),
       id: ["phase4j-b", "production"].includes(scenario.expAwardCandidate)
@@ -17037,19 +16856,6 @@ export function simulateRun({
     },
     initialCombatExp: state.currentRun.expGained,
     initialCharacterExp: state.party.map(character => character.exp),
-    tabletExposure: {
-      generatedCount: 0,
-      uniqueReachedLocationCount: 0,
-      revisitEntryCount: 0,
-      encounters: [],
-      readCount: 0,
-      expGained: 0,
-      combatLedgerDelta: 0,
-      coverageGaps: [
-        "secret-room tablet traversal is not modeled; generated positions are not counted as exposure"
-      ],
-      _reachedLocationKeys: new Set()
-    },
     equipmentUpdatePolicy: scenario.equipmentUpdatePolicy || CANONICAL_EQUIPMENT_UPDATE_POLICY_ID,
     mpConsumed: 0,
     exploredCells: 0,
@@ -17703,8 +17509,6 @@ export function simulateRun({
       );
     }
     const generated = getRunFloor({ runSeed, floor });
-    metrics.tabletExposure.generatedCount += generated.grid.flat()
-      .filter(cell => cell?.event === EVENT_TYPES.TABLET).length;
     const bossExitPolicy = scenario.routePolicy === "partial_information_exploration"
       ? { kind: "baseline", distance: null }
       : applyBossExitPolicy(generated, floor, scenario.bossExitPolicy || "shortcut-0");
@@ -18167,31 +17971,6 @@ export function simulateRun({
       };
 
       for (const specialEvent of encountersThisStep) {
-        if (specialEvent?.type === EVENT_TYPES.TABLET) {
-          const rngStateBefore = randomState;
-          const tabletObservation = resolveSimulationTabletEncounter({
-            state,
-            generated,
-            tabletExposure: metrics.tabletExposure,
-            event: specialEvent,
-            seriesId,
-            runIndex,
-            runSeed,
-            floor,
-            step,
-            policy: metrics.tabletPolicy,
-            candidate: metrics.tabletOutcomeCandidate,
-            rngStateBefore,
-            getRngState: () => randomState
-          });
-          if (tabletObservation.selection === "read") {
-            if (state.party.every(character => character.status === "dead")) {
-              metrics.deathEncounterType = "tablet-trap";
-              return finishRun(state, "death", metrics, "tablet-trap");
-            }
-          }
-          continue;
-        }
         const isBoss = specialEvent?.type === EVENT_TYPES.BOSS;
         const isMidboss = specialEvent?.type === "midboss";
         const isElite = specialEvent?.type === "elite";

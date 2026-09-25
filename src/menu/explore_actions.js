@@ -1,4 +1,4 @@
-import { state, initNewGame, saveAutosave, addLog, markMapChanged, recordCharDeath, formatCharDeathLog, INVENTORY_CAPACITY } from "../state.js";
+import { state, initNewGame, saveAutosave, addLog, markMapChanged, INVENTORY_CAPACITY } from "../state.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
@@ -9,12 +9,11 @@ import { isSpellcaster } from "../rules/magic_rules.js";
 import { triggerRunResult } from "../result.js";
 import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getCurrentExplorationCell, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
 import { completeCampEntry, getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
-import { startCombat, triggerGameOver } from "../combat.js";
+import { startCombat } from "../combat.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
 import { openWall } from "../map_generator.js";
 import {
   applyStatusEffect,
-  clearCharIncapacitationOnDamage,
   rollExplorationPoisonDuration,
   STATUS_EFFECT_IDS
 } from "../combat_logic/status_effects.js";
@@ -700,110 +699,6 @@ export function renderEventCamp(optGrid) {
 }
 
 export function renderEventSpringResult(optGrid) {
-  document.getElementById("btn-submenu-back").style.display = "none";
-
-  const btnReturn = document.createElement("button");
-  btnReturn.className = "btn btn-neon btn-block";
-  btnReturn.textContent = "探索に戻る";
-  btnReturn.addEventListener("click", () => {
-    closeSubmenu();
-  });
-  optGrid.appendChild(btnReturn);
-}
-
-export function renderEventTablet(optGrid, { diagnosticContract = null } = {}) {
-  document.getElementById("btn-submenu-back").style.display = "none";
-  const usePhase4jCCandidate = diagnosticContract === "phase4j-c-v1";
-
-  const btnRead = document.createElement("button");
-  btnRead.className = "btn btn-neon btn-block";
-  btnRead.textContent = "文字を読む";
-  btnRead.addEventListener("click", () => {
-    trackExplorationDecision("investigate", { state, source: "event_tablet", character: state.party[0] });
-    if (state.codex && state.codex.events && state.codex.events.facilities) {
-      state.codex.events.facilities.tablet.read++;
-    }
-    const rand = Math.random();
-    const currentFloor = state.floor || 1;
-    if (rand < 0.40) {
-      const hints = [
-        "『光は闇を照らし、ロミルワは永遠のミニマップをもたらす。』",
-        "『いにしえの竜は極大爆裂呪文ティルトウェイトを放つ。十分に対抗せよ。』",
-        "『迷宮では装備と道具の組み合わせが、生存と成果を分ける。』",
-        "『毒針の罠は、解毒薬かラツモフィスの呪文で治療可能である。』",
-        "『地下3階の奥にはデーモンガードが「竜の鍵」を守っているという。』",
-        "『さまよう商人は迷宮の奥深くで究極の霊薬エリクサーを売っている。』"
-      ];
-      const chosenHint = hints[Math.floor(Math.random() * hints.length)];
-      const band = Math.min(5, Math.max(0, Math.floor((currentFloor - 1) / 5)));
-      const expGained = usePhase4jCCandidate
-        ? Math.round(80 * (1 + 0.04 * band))
-        : 100 + currentFloor * 100;
-      state.party.forEach(char => {
-        if (char.status !== "dead") {
-          char.exp += expGained;
-        }
-      });
-      playSound("level_up");
-      addLog(`石碑の文字を解読した：`);
-      addLog(`「${chosenHint}」`);
-      addLog(`[!] 古代の叡智に触れ、冒険者は${expGained}の経験値を獲得した！`);
-    } else if (rand < 0.70) {
-      const aliveChars = state.party.filter(char => char.status !== "dead");
-      if (aliveChars.length > 0) {
-        const target = aliveChars[Math.floor(Math.random() * aliveChars.length)];
-        const rawMaxHp = target.maxHp;
-        if (usePhase4jCCandidate && (!Number.isFinite(rawMaxHp) || rawMaxHp <= 0)) {
-          addLog("[!] 石碑の罠が作動したが、最大HPが不正なためダメージを適用できなかった。");
-        } else {
-          const trapDmg = usePhase4jCCandidate
-            ? Math.max(1, Math.ceil(0.35 * rawMaxHp))
-            : 6 + currentFloor * 3;
-          target.hp = Math.max(0, target.hp - trapDmg);
-          clearCharIncapacitationOnDamage(target);
-          if (target.hp === 0) {
-            target.status = "dead";
-            const deathLog = recordCharDeath(state, target, "石碑の罠", { type: "trap", source: "石碑の矢罠" });
-            if (deathLog) addLog(formatCharDeathLog(deathLog));
-          }
-          playSound("hit");
-          addLog(`[!] カチッ…罠が作動した！石碑の隙間から矢が飛び出し、${target.name}に${trapDmg}のダメージ！`);
-          if (target.hp === 0) {
-            addLog(`[!] ${target.name}は力尽きた！`);
-          }
-        }
-      }
-    } else {
-      addLog("石碑の文字は風化しており、何も読み取れなかった。");
-    }
-    const currentCell = state.map[state.y][state.x];
-    if (currentCell.event === "event_tablet") {
-      currentCell.event = null;
-      markMapChanged();
-    }
-    saveAutosave();
-
-    const allPartyDead = state.party.every(c => c.status === "dead");
-    if (allPartyDead) {
-      triggerGameOver();
-    } else {
-      openSubmenu("event_tablet_result", "石碑の結果：");
-    }
-  });
-  optGrid.appendChild(btnRead);
-
-  const btnLeave = document.createElement("button");
-  btnLeave.className = "btn btn-danger btn-block";
-  btnLeave.textContent = "立ち去る";
-  btnLeave.addEventListener("click", () => {
-    trackExplorationDecision("continue", { state, source: "event_tablet" });
-    addLog("石碑には触れず、そのまま立ち去った。");
-    closeSubmenu();
-  });
-  optGrid.appendChild(btnLeave);
-}
-
-export function renderEventTabletResult(optGrid) {
   document.getElementById("btn-submenu-back").style.display = "none";
 
   const btnReturn = document.createElement("button");

@@ -90,11 +90,11 @@ function calls(commands, name) {
 
 const unknownInput = makeInput();
 unknownInput.map[3][4].event = EVENT_TYPES.SPRING;
-unknownInput.map[4][5].event = EVENT_TYPES.TABLET;
+unknownInput.map[4][5].event = "retired_event";
 unknownInput.map[5][4].type = "stairs-down";
 const unknownCommands = draw(unknownInput);
 
-assert.equal(calls(unknownCommands, "arc").length, 1, "unknown spring/tablet/stairs draw no proximity arc; only player halo remains");
+assert.equal(calls(unknownCommands, "arc").length, 1, "unknown event and stairs draw no proximity arc; only player halo remains");
 assert.equal(calls(unknownCommands, "fillText").length, 0, "unknown objects draw no marker text");
 assert.equal(calls(unknownCommands, "strokeRect").length, 1, "unknown stairs draw no normal icon");
 

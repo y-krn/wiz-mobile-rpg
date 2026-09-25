@@ -19,7 +19,6 @@ import { renderMiniMapOverlay } from "./minimap.js";
 import { getChestPropGeometry, getChestPropPalette, getChestPropStyle } from "./chest_prop.js";
 import {
   getDungeonPropPalette,
-  getMonumentPropGeometry,
   getSpringPropGeometry,
   getStairsPropGeometry
 } from "./dungeon_prop.js";
@@ -783,8 +782,6 @@ export class PixiDungeonRenderer {
       this.drawChestProp(plane, getChestPropStyle(landmarks.chestStyle));
     } else if (cell.event === EVENT_TYPES.SPRING) {
       this.drawSpringProp(plane, color);
-    } else if (cell.event === EVENT_TYPES.TABLET) {
-      this.drawMonumentProp(plane, color);
     } else if (cell.trap?.state === "discovered") {
       const cx = (plane.leftBottom + plane.rightBottom) / 2;
       const width = Math.max(8, plane.rightBottom - plane.leftBottom);
@@ -809,23 +806,6 @@ export class PixiDungeonRenderer {
     drawEllipse(worldObjects, geometry.water.x, geometry.water.y, geometry.water.radiusX, geometry.water.radiusY, palette.water, 0.90, { color: palette.highlight, width: Math.max(1, geometry.width * 0.012) });
     addLine(worldObjects, [{ x: geometry.rim.left, y: geometry.rim.y }, { x: geometry.rim.right, y: geometry.rim.y }], { color: palette.highlight, width: Math.max(1, geometry.width * 0.014), alpha: 0.84 });
     addLine(worldObjects, [{ x: geometry.centerX - geometry.width * 0.18, y: geometry.water.y }, { x: geometry.centerX + geometry.width * 0.08, y: geometry.water.y - geometry.width * 0.015 }], { color: palette.highlight, width: Math.max(1, geometry.width * 0.012), alpha: 0.85 });
-  }
-
-  drawMonumentProp(plane, wallColor) {
-    const geometry = getMonumentPropGeometry(plane);
-    const palette = getDungeonPropPalette("monument", wallColor);
-    const worldObjects = this.layer("world-objects");
-    const polygon = (points, fill, stroke = palette.inscription, width = Math.max(1, geometry.width * 0.016)) => {
-      addPolygon(worldObjects, points, fill, 1, { color: stroke, width });
-    };
-    drawEllipse(worldObjects, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, palette.shadow, 0.42);
-    polygon(geometry.plinth, palette.plinth, palette.stone);
-    polygon(geometry.side, palette.side, palette.side);
-    polygon(geometry.face, palette.stone);
-    geometry.inscriptionLines.forEach(line => addLine(worldObjects, [
-      { x: line.left, y: line.y },
-      { x: line.right, y: line.y }
-    ], { color: palette.inscription, width: Math.max(1, geometry.width * 0.012), alpha: 0.82 }));
   }
 
   drawStairsProp(plane, direction, style, wallColor) {

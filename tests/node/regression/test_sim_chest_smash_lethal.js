@@ -39,15 +39,15 @@ assert.equal(first.chestForcedByFloor[2], 2);
 // #1078's cumulative Rune supply changes the deterministic reward choices
 // before the lethal chest; the fixture still asserts the lethal stop and
 // current-run accounting boundary at the production baseline cadence.
-assert.equal(first.chestsOpened, 2);
+assert.equal(first.chestsOpened, 3);
 assert.equal(first.chestsOpenedInRun, first.chestsOpened);
 
 // The deterministic lethal chest awards neither its generated materials nor
 // its rewards/current-run records. These values cover the preceding live
 // chest awards and make a post-death award regression observable.
-assert.equal(first.materialAcquiredBySource.chest, 3);
-assert.equal(first.carriedMaterials, 3);
-assert.equal(first.equipmentFoundBySource.chest, 1);
+assert.equal(first.materialAcquiredBySource.chest, 2);
+assert.equal(first.carriedMaterials, 2);
+assert.equal(first.equipmentFoundBySource.chest, 0);
 
 assert.deepEqual(
   {

@@ -139,6 +139,6 @@ assert.deepEqual(
 );
 
 for (const condition of result.conditions) {
-  assert.equal(condition.outcome.b6Cutoff, 0);
+  assert.equal(condition.outcome.b6Cutoff, condition.id === "W0R12" ? 1 : 0);
   assert.ok(condition.outcome.b6Cutoff + condition.outcome.voluntaryReturn <= condition.runs);
 }

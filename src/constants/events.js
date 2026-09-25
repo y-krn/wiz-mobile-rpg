@@ -1,8 +1,8 @@
+// balance-impact: none — retire the stone-event contract; remaining event IDs are unchanged.
 export const EVENT_TYPES = {
   CHEST: "chest",
   SPRING: "event_spring",
   CAMP: "event_camp",
-  TABLET: "event_tablet",
   MERCHANT: "event_merchant",
   RETURN_PORTAL: "return_portal",
   MIDBOSS: "midboss",
@@ -12,7 +12,6 @@ export const EVENT_TYPES = {
 export const EVENT_SUBMENU_TYPES = [
   "event_spring",
   "event_camp",
-  "event_tablet",
   "event_merchant",
   "event_merchant_buy",
   "milestone_merchant",

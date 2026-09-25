@@ -622,6 +622,40 @@ check("loading a valid primary preserves the older backup generation", () => {
   assert.equal(saveValues.get("mobile_wiz_rpg_backup"), previousPayload);
 });
 
+check("new game save reloads at the current version", () => {
+  saveValues.clear();
+  initNewGame();
+  state.party = [createStartingKitCharacter("vanguard")];
+  state.metaMaterials = { "獣の牙": 4 };
+  saveAutosave();
+  const persisted = JSON.parse(saveValues.get("mobile_wiz_rpg_autosave"));
+  assert.equal(persisted.version, SAVE_VERSION);
+
+  state.party = [];
+  state.metaMaterials = {};
+  loadGame();
+
+  assert.equal(state.party[0].startingKit, "vanguard");
+  assert.deepEqual(state.metaMaterials, normalizeMaterialBalance({ "獣の牙": 4 }));
+  assert.equal(JSON.parse(saveValues.get("mobile_wiz_rpg_autosave")).version, SAVE_VERSION);
+});
+
+check("incompatible old saves reset to a new game", () => {
+  saveValues.clear();
+  const oldSave = JSON.stringify({ version: SAVE_VERSION - 1, seed: "old-stone-save" });
+  saveValues.set("mobile_wiz_rpg_autosave", oldSave);
+  saveValues.set("mobile_wiz_rpg_backup", oldSave);
+  saveValues.set("mobile_wiz_rpg_save", oldSave);
+  loadGame();
+
+  assert.equal(state.gameState, "town");
+  assert.equal(state.currentRun, null);
+  assert.equal(state.maps.length, 5);
+  assert.equal(JSON.parse(saveValues.get("mobile_wiz_rpg_autosave")).version, SAVE_VERSION);
+  assert.equal(JSON.parse(saveValues.get("mobile_wiz_rpg_backup")).version, SAVE_VERSION);
+  assert.equal(saveValues.has("mobile_wiz_rpg_save"), false);
+});
+
 check("legacy event cooldown field is ignored during load", () => {
   const legacyPayload = createSavePayload();
   legacyPayload.eventCooldownTurns = 15;
@@ -643,7 +677,6 @@ check("ordinary cells never become random facilities", () => {
   state.repelTurns = 1;
   state.roamingMonsters = [];
   const springFound = state.codex.events.facilities.spring.found;
-  const tabletFound = state.codex.events.facilities.tablet.found;
 
   try {
     checkCellEvents();
@@ -653,10 +686,9 @@ check("ordinary cells never become random facilities", () => {
 
   assert.equal(state.gameState, "explore");
   assert.equal(state.codex.events.facilities.spring.found, springFound);
-  assert.equal(state.codex.events.facilities.tablet.found, tabletFound);
 });
 
-check("fixed spring and tablet cells still open their facilities", () => {
+check("fixed spring cells still open the spring facility", () => {
   const originalDocument = global.document;
   global.document = {
     getElementById: () => ({ style: {}, textContent: "", className: "", innerHTML: "" })
@@ -672,25 +704,16 @@ check("fixed spring and tablet cells still open their facilities", () => {
     assert.equal(state.gameState, "submenu");
     assert.equal(menuContext.type, EVENT_TYPES.SPRING);
 
-    state.maps[0][0][0].event = EVENT_TYPES.TABLET;
-    state.gameState = "explore";
-    checkCellEvents();
-    assert.equal(state.gameState, "submenu");
-    assert.equal(menuContext.type, EVENT_TYPES.TABLET);
   } finally {
     global.document = originalDocument;
   }
 });
 
-check("supported legacy saves are migrated without class fields", () => {
-  // Historical compatibility boundary; this is intentionally not a current
-  // gameplay fixture.
-  const migrated = migrateSavePayload({
-    version: SAVE_VERSION - 1,
-    party: [{ class: "Mage", spells: ["HALITO"], level: 1, hp: 20, maxHp: 20 }]
-  });
-  assert.equal(Object.hasOwn(migrated.party[0], "class"), false);
-  assert.equal(Object.hasOwn(migrated.party[0], "spells"), false);
+check("previous save versions are rejected", () => {
+  assert.throws(
+    () => migrateSavePayload({ version: SAVE_VERSION - 1, party: [] }),
+    error => error.name === "IncompatibleSaveVersionError"
+  );
 });
 
 check("legacy equipment objects receive stable distinct identities across save/load", () => {
@@ -709,7 +732,7 @@ check("legacy equipment objects receive stable distinct identities across save/l
     discardIndexes: []
   };
 
-  const normalized = migrateSavePayload({ ...payload, version: SAVE_VERSION - 1 });
+  const normalized = migrateSavePayload(payload);
   const ids = [
     normalized.party[0].equipment.weapon.instanceId,
     ...normalized.inventory.map(item => item.instanceId),

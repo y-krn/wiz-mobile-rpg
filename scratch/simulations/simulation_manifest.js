@@ -35,7 +35,6 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: "scratch/measurements/progression_enemy_guard_policy_diagnostic.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/progression_exp_award_inventory.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/measurements/progression_exp_award_paired_inventory.js", lifecycle: "reusable", scope: "run" },
-  { path: "scratch/measurements/progression_exp_combined_run_diagnostic.js", lifecycle: "reusable", scope: "run" },
   { path: "scratch/simulations/sim_parallel.js", lifecycle: "reusable", scope: "infra" },
   { path: "scratch/simulations/sim_parallel_worker.js", lifecycle: "reusable", scope: "infra" }
 ]);
@@ -122,6 +121,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/assets/*.png", domains: [] },
     { pattern: "src/assets/*.svg", domains: [] },
     { pattern: "src/constants/item_categories.js", domains: ["economy"] },
+    { pattern: "src/constants/events.js", domains: ["maps"] },
     { pattern: "src/craft.js", domains: ["workshop", "economy"] },
     { pattern: "src/data/items.js", domains: ["maps", "economy", "traps"] },
     { pattern: "src/data/milestone_merchant.js", domains: ["economy"] },

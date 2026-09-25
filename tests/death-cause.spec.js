@@ -132,43 +132,6 @@ test('spring poison uses the finite exploration lifecycle', async ({ page }) => 
   expect(lifecycle.afterExpiry).toEqual({ status: 'ok', hasPoison: false });
 });
 
-test('stone tablet trap death is recorded instead of using the old fallback', async ({ page }) => {
-  await page.goto('/');
-
-  const death = await page.evaluate(async () => {
-    const { state, createDefaultCurrentRun, createStartingKitCharacter, initNewGame } = await import('/src/state.js');
-    const { renderEventTablet } = await import('/src/menu/explore_actions.js');
-    const { isNormalizedDeathHistoryEntry } = await import('/src/state/death_logs.ts');
-
-    initNewGame();
-    const character = createStartingKitCharacter('vanguard');
-    character.hp = 1;
-    state.party = [character];
-    state.currentRun = createDefaultCurrentRun();
-    state.floor = 1;
-    state.gameState = 'submenu';
-    state.maps[0][state.y][state.x].event = 'event_tablet';
-    Math.random = () => 0.5;
-
-    const options = document.getElementById('submenu-options');
-    options.replaceChildren();
-    renderEventTablet(options);
-    options.querySelector('button').click();
-
-    return {
-      runDeath: state.currentRun.deathLogs.at(-1),
-      deathLog: state.deathLogs.at(-1),
-      canonical: isNormalizedDeathHistoryEntry(state.deathLogs.at(-1)),
-      gameState: state.gameState,
-    };
-  });
-
-  expect(death.gameState).toBe('result');
-  expect(death.runDeath).toMatchObject({ cause: '石碑の罠', type: 'trap', source: '石碑の矢罠' });
-  expect(death.deathLog).toMatchObject({ cause: '石碑の罠', type: 'trap', source: '石碑の矢罠' });
-  expect(death.canonical).toBe(true);
-  expect(death.deathLog.cause).not.toBe('不測の罠またはダメージ');
-});
 
 for (const viewport of [
   { width: 360, height: 800 },

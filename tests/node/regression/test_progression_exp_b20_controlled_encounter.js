@@ -28,7 +28,6 @@ const { generateEncounter } = await import("../../../src/combat_ui/encounter.js"
 const { isEncounterCompositionAllowed } = await import("../../../src/rules/encounter_rules.js");
 const { getBandTrialForFloor } = await import("../../../src/rules/floor_trials.js");
 const { runCombatRoundCalculation } = await import("../../../src/combat_logic/round.js");
-const { renderEventTablet } = await import("../../../src/menu/explore_actions.js");
 const { calculateCandidateAward } = await import("../../../scratch/measurements/progression_exp_award_paired_inventory.js");
 
 const floor = 20;
@@ -38,7 +37,7 @@ const character = {
   characterClass: "Fighter",
   status: "ok",
   level: 1,
-  exp: 0,
+  exp: 980,
   hp: 900,
   maxHp: 1000,
   mp: 0,
@@ -70,26 +69,10 @@ state.combatState = {
   isMidboss: false,
   isRoamingFlack: false
 };
-state.maps[floor - 1] = [[{ event: "event_tablet" }]];
+state.maps[floor - 1] = [[{ event: null }]];
 state.x = 0;
 state.y = 0;
 state.logs = [];
-
-const tabletCell = state.maps[floor - 1][0][0];
-const tabletGrid = { children: [], appendChild(child) { this.children.push(child); } };
-const originalRandom = Math.random;
-let tabletRoll = 0;
-Math.random = () => [0, 0][tabletRoll++] ?? 0;
-try {
-  renderEventTablet(tabletGrid, { diagnosticContract: "phase4j-c-v1" });
-  tabletGrid.children[0].trigger("click");
-} finally {
-  Math.random = originalRandom;
-}
-assert.equal(character.exp, 90, "fixed-C production Read grants B20 tablet EXP");
-assert.equal(character.level, 1, "Read does not perform a Level check");
-assert.equal(state.currentRun.expGained, 0, "tablet EXP is outside the combat-only ledger");
-assert.equal(tabletCell.event, null, "successful production Read consumes the tablet");
 
 const trial = getBandTrialForFloor(runSeed, floor, state.currentRun.trialBands?.[3] || null);
 const floorPool = getEncounterPoolForFloor(floor, { trial });
@@ -171,8 +154,8 @@ const settledCharacter = combatState.party[0];
 assert.equal(combatState.currentRun.expGained, candidate.totalAward,
   "production combat ledger receives the candidate award exactly once");
 assert.equal(settledCharacter.exp - characterExpBefore, candidate.totalAward,
-  "production reward settlement adds only combat candidate EXP after the Read");
-assert.equal(settledCharacter.exp, 90 + candidate.totalAward);
+  "production reward settlement adds the combat candidate EXP");
+assert.equal(settledCharacter.exp, 980 + candidate.totalAward);
 assert.equal(settledCharacter.level, 2, "production reward settlement performs one Level check");
 assert.equal(settledCharacter.maxHp, rawMaxHpBefore + 5, "production Level-up grows raw maxHP");
 assert.ok(settledCharacter.hp > hpBefore, "production Level-up heals current HP");
@@ -181,9 +164,8 @@ assert.equal(levelUpLogs.length, 1, "production performs one Level check and one
 const levelUpLog = levelUpLogs[0];
 assert.equal(levelUpLog.levelUpRecoveryHp, 10, "natural HP growth and extra recovery use production values");
 assert.equal(settledCharacter.hp, hpBefore + levelUpLog.levelUpRecoveryHp);
-assert.equal(state.currentRun.expGained, 0, "the Read remains outside the combat-only EXP ledger");
-assert.equal(settledCharacter.exp - combatState.currentRun.expGained, 90,
-  "tablet and combat sources account for the character EXP total");
+assert.equal(settledCharacter.exp - 980, combatState.currentRun.expGained,
+  "combat candidate accounts for the character EXP total");
 
 console.log(JSON.stringify({
   status: "controlled-production-fixture-only",
@@ -194,7 +176,6 @@ console.log(JSON.stringify({
   generatedEnemy: templateName,
   encounterSize: generated.monsters.length,
   rare: generated.isRare,
-  tabletExp: 90,
   candidateExp: candidate.totalAward,
   combatLedger: combatState.currentRun.expGained,
   characterExp: settledCharacter.exp,

@@ -279,7 +279,7 @@ function makeSummary(report) {
     "- Same production-generated encounter and seed on both award paths; no combat executed.",
     "- Full initially generated encounter is measured before combat. Fled monsters and split-child settlement are outside scope.",
     "- Boss rows are exact EXP references, not Boss survival samples.",
-    "- Tablet EXP from `src/menu/explore_actions.js` remains a separate noncombat source and is unchanged.",
+    "- Retired stone events contribute no EXP; this profile measures combat EXP only.",
     "",
     "| Floor | Kind | N | Production p10 / p50 / p90 / min / max | Candidate p10 / p50 / p90 / min / max | Paired delta p10 / p50 / p90 / min / max |",
     "| --- | --- | ---: | --- | --- | --- |"

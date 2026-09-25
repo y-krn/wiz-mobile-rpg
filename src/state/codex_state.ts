@@ -94,7 +94,6 @@ export interface NormalizedCodexTrapEvent {
 export type NormalizedCodexFacilityEvent =
   | { found: number; used: number }
   | { found: number; purchased: number }
-  | { found: number; read: number }
   | { found: number; opened: number };
 
 export interface NormalizedCodexEvents {
@@ -102,7 +101,6 @@ export interface NormalizedCodexEvents {
   facilities: {
     spring: { found: number; used: number };
     merchant: { found: number; purchased: number };
-    tablet: { found: number; read: number };
     chest: { found: number; opened: number };
   };
 }
@@ -155,7 +153,6 @@ const CODEX_TRAP_FIELDS = ["triggered", "disarmed", "firstFloor"] as const;
 const CODEX_FACILITY_FIELDS = {
   spring: ["found", "used"],
   merchant: ["found", "purchased"],
-  tablet: ["found", "read"],
   chest: ["found", "opened"]
 } as const;
 
@@ -308,7 +305,6 @@ export function isNormalizedCodexEvents(value: unknown): value is NormalizedCode
   return Object.keys(facilities).length === Object.keys(CODEX_FACILITY_FIELDS).length &&
     isNormalizedCodexFacilityRecord(facilities.spring, CODEX_FACILITY_FIELDS.spring) &&
     isNormalizedCodexFacilityRecord(facilities.merchant, CODEX_FACILITY_FIELDS.merchant) &&
-    isNormalizedCodexFacilityRecord(facilities.tablet, CODEX_FACILITY_FIELDS.tablet) &&
     isNormalizedCodexFacilityRecord(facilities.chest, CODEX_FACILITY_FIELDS.chest);
 }
 
@@ -318,7 +314,6 @@ export function createDefaultCodexEvents(): NormalizedCodexEvents {
     facilities: {
       spring: normalizeCodexFacilityRecord(null, "used"),
       merchant: normalizeCodexFacilityRecord(null, "purchased"),
-      tablet: normalizeCodexFacilityRecord(null, "read"),
       chest: normalizeCodexFacilityRecord(null, "opened")
     }
   };
@@ -333,7 +328,6 @@ export function normalizeCodexEvents(value: unknown): NormalizedCodexEvents {
     facilities: {
       spring: normalizeCodexFacilityRecord(rawFacilities.spring, "used"),
       merchant: normalizeCodexFacilityRecord(rawFacilities.merchant, "purchased"),
-      tablet: normalizeCodexFacilityRecord(rawFacilities.tablet, "read"),
       chest: normalizeCodexFacilityRecord(rawFacilities.chest, "opened")
     }
   };

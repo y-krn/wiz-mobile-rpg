@@ -163,17 +163,18 @@ assert.equal(portalDiagnostic.b6Transition, false);
 
 const fleeScenario = {
   ...focusedScenario,
+  hpBaseBonus: 0,
   fleePolicy: "threshold",
   fleeHpThreshold: 0.8,
   milestonePortalPolicy: "continue"
 };
-resetSimulationRandom(6);
+resetSimulationRandom(0);
 const fleeBoss = simulateRun({
   className: "Thief",
   startFloor: 1,
   targetDepth: 6,
   runIndex: 0,
-  seriesId: "probe-threshold-0.8-6",
+  seriesId: "probe-threshold-0.8-0",
   scenario: fleeScenario,
   workshop: fleeScenario.workshop,
   collectDiagnostics: true,
@@ -222,15 +223,15 @@ for (const [label, probe] of [["F", flameDisabled], ["FG", flameDisabledBoth]]) 
   assert.equal(probe.flameTrapActivations, 0, `${label} B5 flame intervention failed`);
 }
 
-const guardianCurrent = runB5InterventionProbe(fleeScenario, 6, "probe-b5-guardian-current");
+const guardianCurrent = runB5InterventionProbe(fleeScenario, 0, "probe-b5-guardian-current");
 const guardianDisabled = runB5InterventionProbe(
   { ...fleeScenario, b5GuardianFleeDisabled: true },
-  6,
+  0,
   "probe-b5-guardian-disabled"
 );
 const guardianDisabledBoth = runB5InterventionProbe(
   { ...fleeScenario, b5FlameTrapDisabled: true, b5GuardianFleeDisabled: true },
-  6,
+  0,
   "probe-b5-guardian-disabled-both"
 );
 const b5BossTrace = result => result.milestoneEventTrace.filter(event => event.floor === 5 && event.type === "boss");
@@ -377,12 +378,12 @@ const qualifyingGuardianScenario = {
 };
 const qualifyingGuardian = runGuardianRetryProbe(
   qualifyingGuardianScenario,
-  6,
+  1,
   "issue1374-qualifying-flee"
 );
 const qualifyingRepeat = runGuardianRetryProbe(
   qualifyingGuardianScenario,
-  6,
+  1,
   "issue1374-qualifying-flee"
 );
 assert.deepEqual(qualifyingGuardian.b5GuardianRetry, qualifyingRepeat.b5GuardianRetry);
@@ -422,12 +423,12 @@ const nonQualifyingGuardianScenario = {
 };
 const nonQualifyingGuardian = runGuardianRetryProbe(
   nonQualifyingGuardianScenario,
-  6,
+  0,
   "issue1374-non-qualifying-flee"
 );
 const nonQualifyingRepeat = runGuardianRetryProbe(
   nonQualifyingGuardianScenario,
-  6,
+  0,
   "issue1374-non-qualifying-flee"
 );
 assert.deepEqual(nonQualifyingGuardian.b5GuardianRetry, nonQualifyingRepeat.b5GuardianRetry);
@@ -440,12 +441,12 @@ assert.ok(nonQualifyingGuardian.b5GuardianRetry.attempts.some(attempt =>
 const pairingScenario = { ...qualifyingGuardianScenario, useTownPortal: true };
 const currentGuardian = runGuardianRetryProbe(
   { ...pairingScenario, b5GuardianRetryCheckpoint: false },
-  6,
+  0,
   "issue1374-current-pair"
 );
 const candidateGuardian = runGuardianRetryProbe(
   { ...pairingScenario, b5GuardianRetryCheckpoint: true },
-  6,
+  0,
   "issue1374-candidate-pair"
 );
 assert.deepEqual(

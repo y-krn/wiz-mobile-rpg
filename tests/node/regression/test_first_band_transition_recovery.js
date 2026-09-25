@@ -37,12 +37,12 @@ assert.equal(result.determinism.pass, true);
 assert.equal(result.observationInvariance.pass, true);
 
 const pitfallScenario = getScenarioById("workshop-complete");
-resetSimulationRandom(16);
+resetSimulationRandom(112);
 const pitfallResult = simulateRun({
   className: "Fighter",
   startFloor: 1,
   targetDepth: 6,
-  runIndex: 16,
+  runIndex: 112,
   seriesId: "issue1336-pitfall-smoke",
   scenario: {
     ...pitfallScenario,
@@ -57,7 +57,7 @@ const pitfallResult = simulateRun({
     collectStage15Diagnostics: true
   },
   workshop: pitfallScenario.workshop,
-  worldSeed: "pitfall:legacy:source:16",
+  worldSeed: "pitfall:legacy:source:112",
   collectDiagnostics: true
 });
 const pitfallEvents = (pitfallResult.floorTransitionRecovery || [])
