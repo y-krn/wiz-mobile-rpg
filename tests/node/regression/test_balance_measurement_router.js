@@ -141,6 +141,16 @@ const ROUTER_CONTRACTS = [
     override: { input: { runs: 201, seed: 1704 }, expected: { runs: 201, seed: 1704 } }
   },
   {
+    id: "progression-exp-b-full-run-diagnostic",
+    runner: "scratch/measurements/progression_exp_b_full_run_diagnostic.js",
+    adapter: "native-manifest",
+    defaultRunType: "diagnostic",
+    allowedRunTypes: ["diagnostic"],
+    defaults: { runs: 30, minimumRuns: 30, seed: 1735 },
+    args: nativeArgs("--ref", "main", "--runs", "30", "--seed", "1735"),
+    override: { input: { runs: 200 }, expected: { runs: 200, seed: 1735 } }
+  },
+  {
     id: "equipment-vnext-combat-diagnostic",
     runner: "scratch/measurements/equipment_vnext_combat_diagnostic.js",
     adapter: "native-manifest",
@@ -406,6 +416,7 @@ assert.deepEqual(Object.keys(MEASUREMENT_FAMILIES), [
   "progression-enemy-guard-policy",
   "progression-exp-award-inventory",
   "progression-exp-award-paired-inventory",
+  "progression-exp-b-full-run-diagnostic",
   "equipment-vnext-combat",
   "depth-scaling",
   "trait-scaling",

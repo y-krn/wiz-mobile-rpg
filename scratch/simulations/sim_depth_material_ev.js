@@ -58,6 +58,7 @@ const { runCombatRoundCalculation } = await import("../../src/combat_logic.js");
 const { cloneCombatStateForRound } = await import("../../src/combat_logic/round.js");
 const { candidateSettlementBudget, createCandidateExpLifecycle, reconcileCandidateExpLifecycle } = await import("../measurements/progression_exp_award_lifecycle.js");
 const { createCandidateExpPlan } = await import("../measurements/progression_exp_award_integration.js");
+const { PROGRESSION_ENEMY_CANDIDATE: PHASE4C_V1 } = await import("../measurements/progression_enemy_candidate_contract.js");
 const {
   chooseAutoCombatAction,
   getAutoHealTargetIdx,
@@ -268,6 +269,7 @@ const {
   SPELLS
 } = await import("../../src/data.js");
 import { applyProductionDiagnosticLevelDelta } from "../measurements/progression_enemy_candidate_level.js";
+const PHASE4C_V1_GENERIC_MONSTER_NAMES = new Set(MONSTERS.map(monster => monster.name));
 const { isEncounterCompositionAllowed } = await import("../../src/rules/encounter_rules.js");
 const { getBandIndexForFloor, getBandTrialForFloor } = await import("../../src/rules/floor_trials.js");
 const { createBuildCharacter: createProductionBuildCharacter } =
@@ -4520,6 +4522,17 @@ function createSimulationState(
     character.maxHp += hpBaseBonus;
     character.hp += hpBaseBonus;
   }
+  const phase4cV1GeneratedRun = scenario.phase4cV1GeneratedRun === true;
+  const phase4cV1InitialBaseline = phase4cV1GeneratedRun
+    ? Math.max(0, Math.min(5, Math.floor(startFloor / 5)))
+    : 0;
+  const phase4cV1InitialHpBonus = phase4cV1GeneratedRun
+    ? PHASE4C_V1.playerLevel1MaxHp(phase4cV1InitialBaseline) - PHASE4C_V1.playerLevel1MaxHp(0)
+    : 0;
+  if (phase4cV1InitialHpBonus > 0) {
+    character.maxHp += phase4cV1InitialHpBonus;
+    character.hp += phase4cV1InitialHpBonus;
+  }
   const workshopGrants = getWorkshopGrants(workshop);
   const identificationPolicy = scenario.identificationPolicy || "powder";
   // legacyは実装外反実仮想として開始粉を使わず、powder/gambleは実runの初期支給を使う。
@@ -4901,6 +4914,10 @@ function createSimulationState(
       measurementInitiative: scenario.measurementInitiative || null,
       measurementCombatPlan: scenario.measurementCombatPlan || null,
       measurementFixedCombat: Boolean(scenario.fixedCombat),
+      phase4cV1GeneratedRun,
+      phase4cV1AppliedHpBonus: phase4cV1InitialHpBonus,
+      phase4cV1CurrentBaseline: phase4cV1GeneratedRun ? phase4cV1InitialBaseline : null,
+      phase4cV1DefeatedMilestones: [],
       b10CrushStrikeResponse: scenario.b10CrushStrikeResponse || null,
       measurementGuardTiming: scenario.measurementGuardTiming || null,
       b30TiltowaitGuardRecoveryCandidate: scenario.b30TiltowaitGuardRecoveryCandidate === true,
@@ -9193,7 +9210,92 @@ function summarizeNormalPhysicalContinuation(rounds = []) {
   };
 }
 
-function runEncounter(
+function resolvePhase4cV1Baseline(state) {
+  const startFloor = Number(state.currentRun?.startFloor) || 1;
+  const selected = Math.floor(startFloor / 5);
+  const defeatedMilestones = [
+    ...(state.currentRun?.defeatedMilestones || []),
+    ...(state.simPolicy?.phase4cV1DefeatedMilestones || [])
+  ];
+  const defeated = defeatedMilestones
+    .filter(floor => Number.isInteger(floor) && floor > 0)
+    .reduce((highest, floor) => Math.max(highest, Math.floor(floor / 5)), 0);
+  return Math.max(0, Math.min(5, selected), Math.min(5, defeated));
+}
+
+function applyPhase4cV1PlayerBaseline(state) {
+  const baseline = resolvePhase4cV1Baseline(state);
+  const character = state.party[0];
+  const nextHpBonus = PHASE4C_V1.playerLevel1MaxHp(baseline) - PHASE4C_V1.playerLevel1MaxHp(0);
+  const priorHpBonus = Number(state.simPolicy.phase4cV1AppliedHpBonus) || 0;
+  const hpBonusDelta = nextHpBonus - priorHpBonus;
+  character.maxHp += hpBonusDelta;
+  state.simPolicy.phase4cV1AppliedHpBonus = nextHpBonus;
+  state.simPolicy.phase4cV1CurrentBaseline = baseline;
+  return { baseline, hpBonusDelta };
+}
+
+export function applyPhase4cV1MilestoneEntitlement(state, floor) {
+  if (state.simPolicy?.phase4cV1GeneratedRun !== true || !Number.isInteger(floor) || floor <= 0) {
+    return 0;
+  }
+  const defeated = state.simPolicy.phase4cV1DefeatedMilestones ||= [];
+  if (!defeated.includes(floor)) defeated.push(floor);
+  return applyPhase4cV1PlayerBaseline(state).hpBonusDelta;
+}
+
+export function applyPhase4cV1EnemyBaseline(monsters, floor, isBoss) {
+  if (isBoss) return;
+  const band = Math.max(0, Math.min(5, Math.floor(floor / 5)));
+  for (const monster of monsters) {
+    if (monster.isBoss === true) continue;
+    const templateName = monster.name.replace(/\s[A-Z]$/, "");
+    const template = MONSTERS.find(entry => entry.name === templateName);
+    if (!template) throw new Error(`Phase 4c v1 missing generic enemy template: ${monster.name}`);
+    const hp = Math.max(1, Math.round(template.hp * PHASE4C_V1.enemyHpMultiplier(band)));
+    monster.maxHp = hp;
+    monster.hp = hp;
+    monster.atk = Math.max(1, Math.round(template.atk * PHASE4C_V1.enemyAttackMultiplier(band)));
+    monster.def = Math.max(0, Math.round(template.def * PHASE4C_V1.enemyDefenseMultiplier));
+  }
+}
+
+export function applyPhase4cV1SummonedEnemyBaseline(state, previousMonsterCount) {
+  if (state.simPolicy?.phase4cV1GeneratedRun !== true) return [];
+  const newlyAdded = state.combatState.monsters.slice(previousMonsterCount);
+  const summonedGeneric = newlyAdded.filter(monster =>
+    monster.isBoss !== true && PHASE4C_V1_GENERIC_MONSTER_NAMES.has(monster.name)
+  );
+  applyPhase4cV1EnemyBaseline(summonedGeneric, state.floor, false);
+  summonedGeneric.forEach(monster => { monster.phase4cV1Summoned = true; });
+  return summonedGeneric;
+}
+
+function runEncounter(state, observations, diagnostics = null, metrics = null, options = {}) {
+  if (state.simPolicy?.phase4cV1GeneratedRun !== true) {
+    return runEncounterCore(state, observations, diagnostics, metrics, options);
+  }
+  const { baseline } = applyPhase4cV1PlayerBaseline(state);
+  const character = state.party[0];
+  const originalWeapon = character.equipment.weapon;
+  const restorePlayerCandidate = applyMeasurementPlayerCandidate(character, {
+    physicalPowerMultiplier: PHASE4C_V1.playerPhysicalMultiplier(baseline),
+    spellPowerMultiplier: PHASE4C_V1.playerSpellMultiplier(baseline)
+  });
+  let result;
+  try {
+    result = runEncounterCore(state, observations, diagnostics, metrics, options);
+  } finally {
+    const resultCharacter = result?.state?.party?.[0];
+    if (resultCharacter && resultCharacter !== character) {
+      resultCharacter.equipment.weapon = originalWeapon;
+    }
+    restorePlayerCandidate();
+  }
+  return result;
+}
+
+function runEncounterCore(
   state,
   observations,
   diagnostics = null,
@@ -9273,6 +9375,9 @@ function runEncounter(
     monsters = generatedEncounter.monsters;
     generatedTrial = generatedEncounter.trial || null;
     generatedIsRare = generatedEncounter.isRare;
+  }
+  if (state.simPolicy?.phase4cV1GeneratedRun === true) {
+    applyPhase4cV1EnemyBaseline(monsters, state.floor, isBoss);
   }
   const initialGeneratedMonsters = monsters.map(monster => ({
     name: monster.name,
@@ -9431,6 +9536,25 @@ function runEncounter(
         }
         expAwardCandidateObservation = {
           floor: state.floor,
+          combatNumber: state.currentRun.battles,
+          phase4cV1Baseline: state.simPolicy.phase4cV1CurrentBaseline,
+          phase4cV1EnemyBand: Math.max(0, Math.min(5, Math.floor(state.floor / 5))),
+          preRewardState: {
+            level: state.party[0].level,
+            exp: state.party[0].exp,
+            hp: state.party[0].hp,
+            rawMaxHp: state.party[0].maxHp,
+            enemies: monsters.map(monster => ({
+              name: monster.name,
+              hp: monster.hp,
+              maxHp: monster.maxHp,
+              atk: monster.atk,
+              def: monster.def,
+              isBoss: monster.isBoss === true,
+              hasSplit: Boolean(monster.split),
+              hasSummon: Boolean(monster.summon || (monster.traits || []).includes("summonAlly"))
+            }))
+          },
           kind,
           encounterContext: { isBoss, isElite, isMidboss, isRare: generatedIsRare, roamingMonster: Boolean(roamingMonster) },
           initialEncounterSize: monsters.length,
@@ -9439,6 +9563,8 @@ function runEncounter(
             encounterName: monster.name,
             templateName: initialTemplates[index].templateName,
             templateExp: initialTemplates[index].template.exp,
+            hasSplit: Boolean(monster.split),
+            hasSummon: Boolean(monster.summon || (monster.traits || []).includes("summonAlly")),
             productionInstanceExp: initialGeneratedMonsters[index].productionInstanceExp,
             candidateAllocation: allocation[index],
             selectedAwardExp: applyCandidate ? allocation[index] : before[index].exp
@@ -10437,6 +10563,7 @@ function runEncounter(
     // decisions. Keep that runner-local state attached after the clean combat
     // result is returned; the production combat result itself remains clean.
     state = { ...roundResult.state, simPolicy: simulationPolicy };
+    applyPhase4cV1SummonedEnemyBaseline(state, monstersBeforeRound.length);
     if (expAwardCandidateLifecycle) {
       reconcileCandidateExpLifecycle(state.combatState.monsters, expAwardCandidateLifecycle);
     }
@@ -12968,7 +13095,7 @@ export function runEquipmentUpgradeFixture({
   return { state, metrics, upgrades };
 }
 
-function applyFloorTransitionHeal(character, recoveryRate = 0.25) {
+export function applyFloorTransitionHeal(character, recoveryRate = 0.25) {
   if (!isAlive(character)) return 0;
   const maxHp = getCharMaxHp(character);
   const healed = Math.min(
@@ -18120,6 +18247,17 @@ export function simulateRun({
             expCandidateObservation.descendantCandidateExp = settledMonsters
               .slice(expCandidateObservation.initialEncounterSize)
               .reduce((sum, monster) => sum + (Number.isFinite(monster.exp) ? monster.exp : 0), 0);
+            expCandidateObservation.descendantStats = settledMonsters
+              .slice(expCandidateObservation.initialEncounterSize)
+              .map(monster => ({
+                name: monster.name,
+                hp: monster.hp,
+                maxHp: monster.maxHp,
+                atk: monster.atk,
+                def: monster.def,
+                isSplit: monster.hasSplit === true,
+                isSummoned: monster.phase4cV1Summoned === true
+              }));
             expCandidateObservation.characterExpBefore = expBeforeCombat;
             expCandidateObservation.characterExpAfter = character.exp;
             expCandidateObservation.characterExpDelta = character.exp - expBeforeCombat;
@@ -18147,6 +18285,9 @@ export function simulateRun({
             });
           }
           if (combatResult.result === "victory") {
+            const phase4cV1MilestoneHpBonus = isBoss && specialEvent?.milestone
+              ? applyPhase4cV1MilestoneEntitlement(state, floor)
+              : 0;
             if (routePlan.partialInformation && isBoss && specialEvent.milestone) {
               floorRoute.bossDefeated = true;
             }
@@ -18156,7 +18297,7 @@ export function simulateRun({
             }
             applySimulationLevelUpRecovery(state, metrics, floor, {
               fromLevel: levelBeforeCombat,
-              fromMaxHp: maxHpBeforeCombat,
+              fromMaxHp: maxHpBeforeCombat + phase4cV1MilestoneHpBonus,
               fromHp: hpBeforeCombat,
               productionLevelUpRecoveryHp: combatResult.productionLevelUpRecoveryHp
             });
