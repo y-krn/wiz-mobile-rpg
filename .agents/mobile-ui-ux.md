@@ -298,12 +298,9 @@ vertical pressure is part of the risk.
 
 ## Storybook Pixel visual-system contract
 
-This is the durable visual-system contract. It replaced the earlier dark
-"Dark Archive" language (Issue #1228 audit record:
-`evidence/results/issue-1228-visual-system.md`) with a bright storybook
-presentation: cream paper surfaces, ink (`--ink`) outlines, pressable tiles,
-and a pixel-art dungeon. Semantic roles below are unchanged; only their
-values moved. When a screen differs, classify the difference before changing
+This is the durable visual-system contract: a bright storybook presentation
+with cream paper surfaces, ink (`--ink`) outlines, pressable tiles, and a
+pixel-art dungeon. When a screen differs, classify the difference before changing
 it as canonical, intentional one-off, drift, renderer-owned, or accessibility
 defect.
 
@@ -329,7 +326,7 @@ defect.
   a completed result. Do not leak rarity, curse, or the correct answer from
   unknown game knowledge.
 - Legacy `--neon-*` aliases may remain where their semantic role is correct;
-  they now hold saturated mid-tones that keep text contrast on cream, paired
+  they hold saturated mid-tones that keep text contrast on cream, paired
   with `--tint-*` soft fills for chips, rows, and selected cards. Do not
   rename them as a visual cleanup exercise, and never use success/HP,
   recommendation, and selection as interchangeable green or glow meanings.
