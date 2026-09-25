@@ -564,6 +564,12 @@
    Dungeon-backed screens keep the existing DOM and renderer, but the viewport
    owns the stage. Other screens retain the ordinary document flow above. */
 #game-container.dungeon-first-mode {
+  /* The event strip sits in the ceiling band under the goal banner (whose
+     max-height ends at safe-top + 134px), clear of the floor band where world
+     objects stand. The orientation badge and minimap stack below it. */
+  --event-strip-top: calc(var(--safe-area-top) + 140px);
+  --event-strip-max-height: 96px; /* one unresolved row + a three-line recent row */
+  --event-strip-bottom: calc(var(--event-strip-top) + var(--event-strip-max-height));
   display: block;
   padding-top: 0;
   padding-bottom: 0;
@@ -638,7 +644,7 @@
    the compass badge instead of floating it over the vanishing point. */
 #game-container.dungeon-first-mode #dungeon-minimap-overlay {
   inset: auto;
-  top: calc(var(--safe-area-top) + 152px);
+  top: calc(var(--event-strip-bottom) + 42px);
   right: 12px;
   width: 128px;
   height: 128px;
@@ -736,8 +742,9 @@
 
 #game-container.dungeon-first-mode #log-panel {
   position: absolute;
+  top: var(--event-strip-top);
   right: 18px;
-  bottom: calc(var(--safe-area-bottom) + 252px);
+  bottom: auto;
   left: 18px;
   z-index: 9;
   width: auto;
@@ -755,8 +762,6 @@
 }
 
 #game-container[data-combat-context="active"] #log-panel {
-  max-height: 42px;
-  bottom: calc(var(--safe-area-bottom) + 238px);
   padding: 3px 8px;
 }
 
@@ -769,18 +774,24 @@
   overflow: hidden;
 }
 
+/* Entries wrap instead of ending in an ellipsis so the latest line stays
+   readable; continuation lines use the width under the kind label. The full
+   history remains behind #btn-log-expand. */
 #game-container.dungeon-first-mode #log-content .event-strip-item {
   display: none;
   min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 #game-container.dungeon-first-mode #log-content .event-strip-item:last-child,
 #game-container.dungeon-first-mode #log-content .event-strip-item--unresolved,
 #game-container.dungeon-first-mode #log-content .event-strip-item--result {
-  display: flex;
+  display: block;
+}
+
+#game-container.dungeon-first-mode #log-content .event-strip-item-label {
+  display: inline-block;
+  margin-right: var(--sp-sm);
 }
 
 #game-container.dungeon-first-mode #btn-log-expand {
@@ -793,15 +804,10 @@
 }
 
 #game-container.dungeon-first-mode #viewport-hud {
-  top: calc(var(--safe-area-top) + 118px);
+  top: calc(var(--event-strip-bottom) + 8px);
   right: 12px;
   bottom: auto;
   z-index: 6;
-}
-
-#game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #viewport-hud {
-  top: calc(var(--safe-area-top) + 118px);
-  bottom: auto;
 }
 
 #game-container.dungeon-first-mode #controls-panel {
@@ -975,9 +981,8 @@
 
 /* Combat enemies stand at ~56% of the full-screen canvas, which is exactly
    where a bottom-anchored strip lands; pin the strip under the header. */
-#game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #log-panel {
-  top: calc(var(--safe-area-top) + 72px);
-  bottom: auto;
+#game-container.dungeon-first-mode[data-dungeon-first-state="combat"] {
+  --event-strip-top: calc(var(--safe-area-top) + 72px);
 }
 
 #game-container.dungeon-first-mode[data-dungeon-first-state="decision"] #log-panel {
@@ -986,11 +991,22 @@
   max-height: 48px;
 }
 
-@media (max-height: 600px) {
-  #game-container.dungeon-first-mode #log-panel {
-    bottom: calc(var(--safe-area-bottom) + 226px);
+/* Narrow screens wrap the recent line once more; short or narrow screens
+   keep the minimap card in the side wall instead of over the corridor. */
+@media (max-width: 340px) {
+  #game-container.dungeon-first-mode {
+    --event-strip-max-height: 116px;
   }
+}
 
+@media (max-height: 600px), (max-width: 340px) {
+  #game-container.dungeon-first-mode #dungeon-minimap-overlay {
+    transform: scale(0.65);
+    transform-origin: top right;
+  }
+}
+
+@media (max-height: 600px) {
   #game-container.dungeon-first-mode #controls-panel {
     bottom: calc(var(--safe-area-bottom) + 70px);
   }
@@ -1022,29 +1038,37 @@
 }
 
 /* The 44px expand control must not turn the compact strip into a scroll
-   container (auto-tail scrolling then hid the only visible entry). */
+   container (auto-tail scrolling then hid the only visible entry). Text flows
+   around a float reserving the control's corner, so wrapped lines below it
+   use the full strip width. */
 #game-container.dungeon-first-mode #log-panel {
   display: flex;
   align-items: center;
   min-height: 50px;
-  max-height: 58px;
-  padding-right: 56px;
+  max-height: var(--event-strip-max-height);
+  padding-right: 8px;
   overflow: clip;
 }
 
-#game-container[data-combat-context="active"] #log-panel {
-  min-height: 50px;
-  max-height: 50px;
-}
-
 #game-container.dungeon-first-mode #log-content {
+  display: block;
   flex: 1 1 auto;
 }
 
+#game-container.dungeon-first-mode #log-content::before {
+  content: "";
+  float: right;
+  width: calc(var(--tap-min) + 2px);
+  height: var(--tap-min);
+}
+
+#game-container.dungeon-first-mode #log-content .event-strip-item + .event-strip-item {
+  margin-top: 4px;
+}
+
 #game-container.dungeon-first-mode #btn-log-expand {
-  top: 50%;
+  top: 3px;
   right: 3px;
-  transform: translateY(-50%);
 }
 
 /* Screen-reader-only HUD content keeps its live region but paints nothing. */
