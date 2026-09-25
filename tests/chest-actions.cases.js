@@ -69,17 +69,27 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { setupChestState, openChestMenu } = await import('/src/chest.js');
+    const { menuContext } = await import('/src/navigation.js');
     setupChestState('poison needle', null, 'HEAL_POTION');
     state.chestState.inspected = true;
     state.chestState.identifiedTrap = 'poison needle';
     openChestMenu();
+    // The resolving phase lasts only until a 1.5s timer; record each phase
+    // change so slow runners cannot miss it between polls.
+    window.__chestPhases = [];
+    let phase = state.chestState.phase;
+    Object.defineProperty(state.chestState, 'phase', {
+      configurable: true,
+      enumerable: true,
+      get: () => phase,
+      set: (next) => {
+        phase = next;
+        window.__chestPhases.push({ phase: next, menuType: menuContext.type });
+      },
+    });
   });
   await page.locator('#btn-chest-disarm').click();
-  await expect.poll(async () => page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    const { menuContext } = await import('/src/navigation.js');
-    return { phase: state.chestState?.phase, menuType: menuContext.type };
-  })).toEqual({ phase: 'resolving', menuType: 'chest_menu' });
+  await expect.poll(() => page.evaluate(() => window.__chestPhases[0])).toEqual({ phase: 'resolving', menuType: 'chest_menu' });
   await expect(page.getByText('罠を解除するキャラクターを選択：')).toHaveCount(0);
   await expect.poll(async () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
