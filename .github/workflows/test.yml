@@ -63,8 +63,12 @@ jobs:
 
   lint:
     needs: browser
+    if: always()
     runs-on: ubuntu-latest
     steps:
+      - name: Require browser CI success
+        if: ${{ always() && needs.browser.result != 'success' }}
+        run: exit 1
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
