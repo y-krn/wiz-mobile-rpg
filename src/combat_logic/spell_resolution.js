@@ -148,7 +148,8 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       sound: "hit",
       shake: 12,
       floatText: `${resolvedDamage}`,
-      floatColor: target.color
+      floatColor: target.color,
+      floatTarget: monsters.indexOf(target)
     });
 
     if (target.hp === 0) {

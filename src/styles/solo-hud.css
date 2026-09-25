@@ -573,3 +573,55 @@
   grid-column: 1 / -1;
   min-height: var(--tap-min);
 }
+
+/* Party hit: red frame on the card plus a damage badge (see showSoloHudHit). */
+#character-hud {
+  position: relative;
+}
+
+#character-hud.is-hit .character-card {
+  box-shadow: 0 0 0 2px var(--neon-red, #ff3b30), var(--shadow-inset);
+  animation: hud-hit-flash 420ms ease-out;
+}
+
+#character-hud.is-hit .hp-row .bar {
+  outline: 2px solid var(--neon-red, #ff3b30);
+  outline-offset: 1px;
+}
+
+#character-hud.is-hit::after {
+  content: attr(data-hit-damage);
+  position: absolute;
+  top: -24px;
+  right: 10px;
+  z-index: 1;
+  padding: 1px 8px;
+  border: 2px solid #1b1424;
+  border-radius: var(--radius-md);
+  background: #d9302a;
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  pointer-events: none;
+  animation: hud-hit-badge 1100ms ease-out forwards;
+}
+
+@keyframes hud-hit-flash {
+  from { background: #ffd9d4; }
+}
+
+@keyframes hud-hit-badge {
+  0% { transform: translateY(6px) scale(1.15); }
+  20% { transform: translateY(0) scale(1); }
+  75% { opacity: 1; }
+  100% { transform: translateY(-4px); opacity: 0.2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #character-hud.is-hit .character-card,
+  #character-hud.is-hit::after {
+    animation: none;
+  }
+}

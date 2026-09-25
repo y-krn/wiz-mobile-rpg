@@ -282,13 +282,13 @@ test('Dungeon First combat strip keeps enemy, name, HP bar and damage text clear
 
   // Damage text rises from its spawn point over its lifetime; check both ends.
   // Draw and measure in one task so the ticker cannot age the text in between.
-  for (const age of [0, 39]) {
+  for (const age of [0, 899]) {
     const damageTexts = await page.evaluate(async (textAge) => {
       const { dungeonRenderer } = await import('/src/renderer.js');
       const canvas = document.querySelector('#dungeon-canvas').getBoundingClientRect();
-      dungeonRenderer.damageTexts = [{ text: '12', color: '#ff3b30', age: textAge, maxAge: 40 }];
+      dungeonRenderer.damageTexts = [{ text: '12', color: '#ff3b30', target: 0, age: textAge, maxAge: 900 }];
       dungeonRenderer.draw();
-      return dungeonRenderer.layer('combat-fx').children
+      return dungeonRenderer.floatingTextLayer.children
         .filter(child => child.text === '12')
         .map(child => child.getBounds())
         .map(({ x, y, width, height }) => ({ x: canvas.x + x, y: canvas.y + y, width, height }));

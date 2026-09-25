@@ -97,3 +97,30 @@ export function updateSoloHUD() {
   }
   hud.appendChild(card);
 }
+
+// A hit on the party shows a damage badge and a red frame on the HUD card, so
+// damage taken reads as an event and not only as a shorter HP bar. The badge
+// lives on the persistent #character-hud element because updateSoloHUD()
+// rebuilds the card on every UI refresh.
+const HUD_HIT_MS = Object.freeze({ standard: 1100, reduced: 1600 });
+let hudHitTimer = null;
+
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+export function showSoloHudHit(amount) {
+  const hud = document.getElementById("character-hud");
+  if (!hud) return;
+  hud.dataset.hitDamage = `-${amount}`;
+  hud.classList.remove("is-hit");
+  // Restart the CSS animation when hits arrive back to back.
+  void hud.offsetWidth;
+  hud.classList.add("is-hit");
+  clearTimeout(hudHitTimer);
+  hudHitTimer = setTimeout(() => {
+    hud.classList.remove("is-hit");
+    delete hud.dataset.hitDamage;
+  }, prefersReducedMotion() ? HUD_HIT_MS.reduced : HUD_HIT_MS.standard);
+}
