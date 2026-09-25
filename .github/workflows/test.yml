@@ -86,6 +86,9 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    env:
+      # ubuntu-latest has 4 vCPUs. Local runs keep the worker-1 default.
+      PLAYWRIGHT_WORKERS: 4
     steps:
       - uses: actions/checkout@v4
       - name: Detect browser changes
