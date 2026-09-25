@@ -10,9 +10,35 @@ const {
   getScenarioById,
   recordTabletExposure,
   resolveSimulationTabletEncounter,
+  getSimulationRandomState,
   simulateRun
 } = await import("../../../scratch/simulations/sim_depth_material_ev.js");
 const { calculateCandidateAward } = await import("../../../scratch/measurements/progression_exp_award_paired_inventory.js");
+const { createCandidateExpPlan } = await import("../../../scratch/measurements/progression_exp_award_integration.js");
+
+for (const [context, expected] of [
+  [{ isRare: true }, "rare"],
+  [{ isMidboss: true, isRare: true }, "midboss"],
+  [{ isElite: true, isMidboss: true }, "elite"],
+  [{ isBoss: true, isElite: true }, "boss"]
+]) {
+  const plan = createCandidateExpPlan({
+    floor: 5,
+    monsters: [{ name: expected }],
+    templates: [{ exp: 10 }],
+    context
+  });
+  assert.equal(plan.kind, expected, "shared full-run planner preserves E5 priority");
+  assert.deepEqual(plan.allocations, [plan.candidate.totalAward]);
+}
+const ordinaryPlan = createCandidateExpPlan({
+  floor: 1,
+  monsters: [{ name: "A" }, { name: "B" }],
+  templates: [{ exp: 10 }, { exp: 30 }]
+});
+assert.equal(ordinaryPlan.kind, "ordinary");
+assert.equal(ordinaryPlan.allocations.reduce((sum, value) => sum + value, 0),
+  ordinaryPlan.candidate.totalAward, "shared planner uses E4 exact-sum allocation");
 
 const runSeed = "tablet-e1-seed-0";
 const scenario = {
@@ -221,9 +247,34 @@ const b1Connected = simulateRun({
 const b1Production = simulateRun({
   ...connectedRunOptions,
   worldSeed: "phase4j-e3-contiguous-1-9",
-  seriesId: "phase4j-e3-b1-production-n1",
+  seriesId: "phase4j-e3-b1-connected-n1",
   scenario: { ...connectedScenario, expAwardCandidate: "production" }
 });
+const b1NoCandidate = simulateRun({
+  ...connectedRunOptions,
+  worldSeed: "phase4j-e3-contiguous-1-9",
+  seriesId: "phase4j-e3-b1-connected-n1",
+  scenario: { ...connectedScenario, expAwardCandidate: undefined }
+});
+const noCandidateRngAfter = getSimulationRandomState();
+const b1ProductionParity = simulateRun({
+  ...connectedRunOptions,
+  worldSeed: "phase4j-e3-contiguous-1-9",
+  seriesId: "phase4j-e3-b1-connected-n1",
+  scenario: { ...connectedScenario, expAwardCandidate: "production" }
+});
+const productionRngAfter = getSimulationRandomState();
+const parityFields = [
+  "outcome", "routePolicy", "steps", "stepsByFloor", "exploredCellsByFloor",
+  "floorTransitionStepByFloor", "stairsDiscoveryStepByFloor", "battles", "combatRounds",
+  "normalCombatTelemetry", "expGained", "characterExpGained", "expGainedBySource",
+  "finalLevel", "finalHp", "finalMaxHp", "tabletExposure"
+];
+assert.deepEqual(Object.fromEntries(parityFields.map(key => [key, b1ProductionParity[key]])),
+  Object.fromEntries(parityFields.map(key => [key, b1NoCandidate[key]])),
+  "production diagnostic arm leaves full-run gameplay and route evidence unchanged");
+assert.equal(productionRngAfter, noCandidateRngAfter,
+  "production diagnostic arm leaves the simulator RNG boundary unchanged");
 const b1Read = b1Connected.tabletExposure.encounters.find(entry => entry.selection === "read");
 const b1ProductionRead = b1Production.tabletExposure.encounters.find(entry => entry.selection === "read");
 const b1Combat = b1Connected.combatExpCandidate.observations.find(entry =>
@@ -259,12 +310,31 @@ assert.equal(b1Combat.combatOnlyLedgerDelta, b1Combat.candidateExp,
   "production reward settlement grants the candidate once");
 assert.equal(b1Combat.awardMatchedSelectedExp, true);
 assert.equal(b1Combat.levelUps, 1, "the following production victory performs the existing Level check");
+assert.equal(b1Combat.kind, "ordinary");
+assert.equal(b1Combat.settlementCoverageValid, true);
+assert.equal(b1Combat.expectedCandidateSettlementBudget, b1Combat.combatOnlyLedgerDelta,
+  "B1 victory ledger matches the E6 lifecycle budget");
+assert.equal(b1Combat.characterCombatExpDelta, b1Combat.expectedCandidateSettlementBudget,
+  "B1 character combat EXP matches the E6 lifecycle budget");
 assert.ok(b1Combat.levelUpRecoveryHp > 0, "production Level-up recovery is observed");
 assert.ok(b1Combat.rawMaxHpAfter > b1Combat.rawMaxHpBefore,
   "production Level-up grows raw max HP");
 assert.ok(b1Combat.hpAfterRoundSettlement > b1Combat.hpBefore,
   "production Level-up recovery raises current HP");
 assert.equal(b1Connected.tabletCombatLedgerDelta, 0);
+assert.equal(b1Connected.expGainedBySource.combat + b1Connected.expGainedBySource.tablet,
+  b1Connected.characterExpGained, "B1 character EXP source accounting reconciles");
+const b1RepeatedCandidate = simulateRun({
+  ...connectedRunOptions,
+  worldSeed: "phase4j-e3-contiguous-1-9",
+  seriesId: "phase4j-e3-b1-connected-n1",
+  scenario: connectedScenario
+});
+assert.deepEqual(b1RepeatedCandidate.tabletExposure.encounters, b1Connected.tabletExposure.encounters,
+  "same-input B+C tablet trace is deterministic");
+assert.deepEqual(b1RepeatedCandidate.combatExpCandidate.observations,
+  b1Connected.combatExpCandidate.observations,
+  "same-input B+C candidate event trace is deterministic");
 assert.equal(b1Connected.characterExpGained,
   b1Connected.expGainedBySource.combat + b1Connected.expGainedBySource.tablet);
 assert.ok(b1ProductionCombat, "matched baseline reaches the corresponding ordinary victory");
@@ -275,6 +345,8 @@ assert.equal(b1ProductionCombat.candidateAppliedTo, null,
   "production control records the existing EXP without replacing it");
 assert.equal(b1ProductionCombat.combatOnlyLedgerDelta, b1ProductionCombat.productionInstanceExp);
 assert.equal(b1ProductionCombat.awardMatchedSelectedExp, true);
+assert.equal(b1Production.expGainedBySource.combat + b1Production.expGainedBySource.tablet,
+  b1Production.characterExpGained, "B1 production-control EXP sources reconcile");
 
 const b20Connected = simulateRun({
   ...connectedRunOptions,
@@ -289,7 +361,7 @@ const b20Production = simulateRun({
   startFloor: 20,
   targetDepth: 21,
   worldSeed: "tablet-e2-20-2",
-  seriesId: "phase4j-e4-b20-production-n1",
+  seriesId: "phase4j-e3-b20-connected-n1",
   scenario: { ...connectedScenario, expAwardCandidate: "production" }
 });
 const b20Read = b20Connected.tabletExposure.encounters.find(entry => entry.selection === "read");
@@ -306,6 +378,10 @@ assert.equal(b20Combat.result, "death",
   "the existing B20 natural encounter is eligible but this natural combat does not reach settlement victory");
 assert.equal(b20Combat.settlementCoverageValid, false,
   "non-victory natural combat remains explicitly outside valid settlement evidence");
+assert.ok(b20Combat.settlementCoverageGaps.includes("non-victory-death"));
+assert.equal(b20Combat.expectedCandidateSettlementBudget, b20Combat.candidateExp,
+  "B20 non-victory records its expected lifecycle budget without counting as settlement proof");
+assert.equal(b20Combat.kind, "ordinary");
 assert.equal(b20Combat.otherEnemyFieldsUnchanged, true);
 assert.equal(b20Combat.templateUnchanged, true);
 assert.ok(b20ProductionCombat, "matched B20 production control reproduces the natural encounter");
@@ -314,6 +390,59 @@ assert.deepEqual(b20ProductionCombat.initialEnemies.map(enemy => enemy.encounter
   b20Combat.initialEnemies.map(enemy => enemy.encounterName));
 assert.equal(b20Connected.tabletCombatLedgerDelta, 0,
   "B20 tablet EXP remains outside the combat ledger");
+assert.equal(b20Connected.expGainedBySource.combat + b20Connected.expGainedBySource.tablet,
+  b20Connected.characterExpGained, "B20 character EXP source accounting reconciles");
+assert.equal(b20Production.expGainedBySource.combat + b20Production.expGainedBySource.tablet,
+  b20Production.characterExpGained, "B20 production-control EXP sources reconcile");
+const specialRouteEvidence = [b1Connected, b20Connected]
+  .flatMap(result => result.combatExpCandidate.observations)
+  .filter(observation => observation.kind !== "ordinary")
+  .map(({ floor, kind, encounterContext, result, settlementCoverageValid }) => ({
+    floor, kind, encounterContext, result, settlementCoverageValid
+  }));
+const runEvidence = result => ({
+  source: result.expGainedBySource,
+  ledger: result.expGained,
+  characterExp: result.characterExpGained,
+  finalLevel: result.finalLevel,
+  finalMaxHp: result.finalMaxHp,
+  finalHp: result.finalHp,
+  tabletExp: result.tabletExposure.expGained
+});
+console.log(`[E7 N=1 evidence] ${JSON.stringify({
+  productionNoopParity: true,
+  b1Candidate: {
+    run: runEvidence(b1Connected),
+    encounterLedger: b1Combat.combatOnlyLedgerDelta,
+    lifecycleBudget: b1Combat.expectedCandidateSettlementBudget,
+    characterExp: b1Combat.characterCombatExpDelta,
+    level: [b1Combat.levelBefore, b1Combat.levelAfter],
+    rawMaxHp: [b1Combat.rawMaxHpBefore, b1Combat.rawMaxHpAfter],
+    hp: [b1Combat.hpBefore, b1Combat.hpAfterRoundSettlement],
+    deterministicRerun: true
+  },
+  b1ProductionControl: {
+    run: runEvidence(b1Production),
+    encounterLedger: b1ProductionCombat.combatOnlyLedgerDelta
+  },
+  b20Candidate: {
+    run: runEvidence(b20Connected),
+    result: b20Combat.result,
+    settlementValid: b20Combat.settlementCoverageValid,
+    gaps: b20Combat.settlementCoverageGaps,
+    lifecycleBudget: b20Combat.expectedCandidateSettlementBudget,
+    ledger: b20Combat.combatOnlyLedgerDelta,
+    characterExp: b20Combat.characterCombatExpDelta,
+    level: [b20Combat.levelBefore, b20Combat.levelAfter],
+    rawMaxHp: [b20Combat.rawMaxHpBefore, b20Combat.rawMaxHpAfter],
+    hp: [b20Combat.hpBefore, b20Combat.hpAfterRoundSettlement]
+  },
+  b20ProductionControl: {
+    run: runEvidence(b20Production),
+    encounterLedger: b20ProductionCombat.combatOnlyLedgerDelta
+  },
+  specialRouteEvidence
+})}`);
 
 const noReachedTablet = simulateRun({
   ...runOptions,
