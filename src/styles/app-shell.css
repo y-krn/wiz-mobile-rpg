@@ -863,8 +863,19 @@
   pointer-events: auto !important;
 }
 
+#game-container.dungeon-first-mode #controls-panel.explore-mode {
+  padding-block: 4px;
+}
+
 #game-container.dungeon-first-mode #explore-controls.active {
   gap: var(--sp-sm);
+}
+
+/* Wider center column and a taller forward row with a clear row gap reduce forward misclicks. */
+#game-container.dungeon-first-mode #explore-controls .dpad {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-rows: 48px var(--tap-min);
+  row-gap: 16px;
 }
 
 #game-container.dungeon-first-mode #explore-controls .dpad .btn {

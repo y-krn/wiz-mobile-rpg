@@ -102,6 +102,13 @@ test('Explore Dock keeps primary movement separated and tappable at required mob
         evidence.buttons[directionId].width * evidence.buttons[directionId].height,
       );
     }
+    // Cross layout: forward stands only above backward, with a clear vertical gap to the turn row.
+    const backward = evidence.buttons['btn-move-backward'];
+    expect(forward.x).toBe(backward.x);
+    expect(forward.right).toBe(backward.right);
+    expect(forward.right).toBeLessThanOrEqual(evidence.buttons['btn-turn-right'].x);
+    expect(forward.x).toBeGreaterThanOrEqual(evidence.buttons['btn-turn-left'].right);
+    expect(backward.top - forward.bottom).toBeGreaterThanOrEqual(12);
     expect(evidence.buttons['btn-search'].top).toBe(forward.top);
     expect(evidence.buttons['btn-turn-left'].top).toBe(evidence.buttons['btn-move-backward'].top);
     expect(evidence.buttons['btn-move-backward'].top).toBe(evidence.buttons['btn-turn-right'].top);
