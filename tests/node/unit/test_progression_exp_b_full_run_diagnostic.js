@@ -132,7 +132,7 @@ assert.equal(summonedEnemy.atk, Math.max(1, Math.round(summonTemplate.atk * 1.2)
 assert.equal(summonedEnemy.def, Math.max(0, Math.round(summonTemplate.def)));
 assert.equal(summonedEnemy.phase4cV1Summoned, true);
 
-const progressRow = settlements => ({ settlements });
+const progressRow = (settlements, { battles = 0, outcome = "return" } = {}) => ({ settlements, battles, outcome });
 const progressSettlement = (combatNumber, levelBefore, levelAfter, recoveryHp = 0, result = "victory") => ({
   combatNumber,
   levelBefore,
@@ -145,14 +145,16 @@ const controlProgress = progressRow([
   progressSettlement(2, 2, 2, 8),
   progressSettlement(3, 2, 2, 0),
   progressSettlement(4, 2, 3, 20)
-]);
+], { battles: 4 });
 const candidateDeath = progressRow([
   progressSettlement(1, 1, 2, 0),
   progressSettlement(2, 2, 2, 0),
   progressSettlement(3, 2, 2, 0, "death")
-]);
+], { battles: 3, outcome: "death" });
 assert.deepEqual(comparePreDeathProgress(controlProgress, candidateDeath), {
   deathCombatNumber: 3,
+  deathBoundary: "combat-exclusive",
+  lastIncludedCombatNumber: 2,
   controlBeforeDeath: { levels: 1, recoveryHp: 8 },
   candidateBeforeDeath: { levels: 1, recoveryHp: 0 },
   controlOnlyProgress: true
@@ -162,20 +164,53 @@ const controlLevelAhead = progressRow([
   progressSettlement(2, 2, 3),
   progressSettlement(3, 3, 3, 0),
   progressSettlement(4, 3, 3, 20)
-]);
+], { battles: 4 });
 const candidateWithEarlierLevel = progressRow([
   progressSettlement(1, 1, 2),
   progressSettlement(2, 2, 2),
   progressSettlement(3, 2, 2, 0, "death")
-]);
+], { battles: 3, outcome: "death" });
 assert.equal(comparePreDeathProgress(controlLevelAhead, candidateWithEarlierLevel).controlOnlyProgress, true);
 const postDeathOnlyControlProgress = progressRow([
   progressSettlement(1, 1, 2, 0),
   progressSettlement(2, 2, 2, 0),
   progressSettlement(3, 2, 2, 0),
   progressSettlement(4, 2, 3, 20)
-]);
+], { battles: 4 });
 assert.equal(comparePreDeathProgress(postDeathOnlyControlProgress, candidateDeath).controlOnlyProgress, false);
+
+const noncombatDeath = progressRow([
+  progressSettlement(1, 1, 2),
+  progressSettlement(2, 2, 2),
+], { battles: 2, outcome: "death" });
+const controlBeforeNoncombatDeath = progressRow([
+  progressSettlement(1, 1, 2),
+  progressSettlement(2, 2, 2, 8),
+  progressSettlement(3, 2, 3, 24)
+], { battles: 3 });
+assert.deepEqual(comparePreDeathProgress(controlBeforeNoncombatDeath, noncombatDeath), {
+  deathCombatNumber: null,
+  deathBoundary: "noncombat-inclusive",
+  lastIncludedCombatNumber: 2,
+  controlBeforeDeath: { levels: 1, recoveryHp: 8 },
+  candidateBeforeDeath: { levels: 1, recoveryHp: 0 },
+  controlOnlyProgress: true
+});
+const controlProgressedAfterNoncombatDeath = progressRow([
+  progressSettlement(1, 1, 2),
+  progressSettlement(2, 2, 2),
+  progressSettlement(3, 2, 3, 24)
+], { battles: 3 });
+assert.equal(comparePreDeathProgress(controlProgressedAfterNoncombatDeath, noncombatDeath).controlOnlyProgress, false);
+const precombatDeath = progressRow([], { battles: 0, outcome: "death" });
+assert.deepEqual(comparePreDeathProgress(controlBeforeNoncombatDeath, precombatDeath), {
+  deathCombatNumber: null,
+  deathBoundary: "noncombat-inclusive",
+  lastIncludedCombatNumber: 0,
+  controlBeforeDeath: { levels: 0, recoveryHp: 0 },
+  candidateBeforeDeath: { levels: 0, recoveryHp: 0 },
+  controlOnlyProgress: false
+});
 
 const noOptIn = { ...getScenarioById("legacy-no-portal") };
 const explicitNoOp = { ...noOptIn, phase4cV1GeneratedRun: false };

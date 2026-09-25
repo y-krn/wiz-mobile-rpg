@@ -157,8 +157,15 @@ function projectRun(context, arm, runIndex, worldSeed, result) {
 
 export function comparePreDeathProgress(control, candidate) {
   const deathCombatNumber = candidate.settlements.find(settlement => settlement.result === "death")?.combatNumber;
+  const deathOccurred = candidate.outcome === "death" || Number.isInteger(deathCombatNumber);
+  // Exclude a combat that caused death; otherwise include all combats completed by death.
+  const lastIncludedCombatNumber = !deathOccurred
+    ? 0
+    : Number.isInteger(deathCombatNumber)
+      ? Math.max(0, deathCombatNumber - 1)
+      : Math.max(0, Number.isInteger(candidate.battles) ? candidate.battles : 0);
   const summarize = row => row.settlements
-    .filter(settlement => Number.isInteger(deathCombatNumber) && settlement.combatNumber < deathCombatNumber)
+    .filter(settlement => settlement.combatNumber <= lastIncludedCombatNumber)
     .reduce((totals, settlement) => ({
       levels: totals.levels + Math.max(0, settlement.levelAfter - settlement.levelBefore),
       recoveryHp: totals.recoveryHp + settlement.levelUpRecoveryHp
@@ -167,9 +174,15 @@ export function comparePreDeathProgress(control, candidate) {
   const candidateBeforeDeath = summarize(candidate);
   return {
     deathCombatNumber: Number.isInteger(deathCombatNumber) ? deathCombatNumber : null,
+    deathBoundary: !deathOccurred
+      ? "none"
+      : Number.isInteger(deathCombatNumber)
+        ? "combat-exclusive"
+        : "noncombat-inclusive",
+    lastIncludedCombatNumber,
     controlBeforeDeath,
     candidateBeforeDeath,
-    controlOnlyProgress: Number.isInteger(deathCombatNumber) && (
+    controlOnlyProgress: deathOccurred && (
       controlBeforeDeath.levels > candidateBeforeDeath.levels ||
       controlBeforeDeath.recoveryHp > candidateBeforeDeath.recoveryHp
     )
