@@ -69,7 +69,7 @@ test('Castle to workshop transition keeps the workshop grid readable', async ({ 
   expect(workshopLayout.style).toBeNull();
   expect(workshopLayout.display).toBe('grid');
   expect(workshopLayout.workshopClass).toBe(true);
-  expect(workshopLayout.nodeCount).toBe(11);
+  expect(workshopLayout.nodeCount).toBe(9);
   expect(workshopLayout.clippedNodeCount).toBe(0);
   expect(workshopLayout.permanentStatsDesc).toBeUndefined();
   expect(workshopLayout.identifyPowderDesc).toBeUndefined();

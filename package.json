@@ -22,6 +22,7 @@
     "compare:balance": "node scratch/measurements/compare_balance.js",
     "test:browser": "npm run test:browser:smoke",
     "test:browser:smoke": "node scripts/dependency-preflight.js && playwright test --grep @smoke --grep-invert @visual",
+    "test:browser:untagged": "node scripts/dependency-preflight.js && playwright test --grep-invert \"@smoke|@visual\"",
     "test:browser:preflight": "node scripts/dependency-preflight.js && node scripts/playwright-preflight.js",
     "test:browser:e2e": "node scripts/dependency-preflight.js && playwright test --grep @e2e",
     "test:browser:visual": "node scripts/dependency-preflight.js && playwright test --grep @visual",

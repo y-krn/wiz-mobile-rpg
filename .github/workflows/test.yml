@@ -62,8 +62,13 @@ jobs:
       - run: npm run test:unit:main-push
 
   lint:
+    needs: browser
+    if: always()
     runs-on: ubuntu-latest
     steps:
+      - name: Require browser CI success
+        if: ${{ always() && needs.browser.result != 'success' }}
+        run: exit 1
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -130,6 +135,12 @@ jobs:
           set -o pipefail
           npm run test:browser 2>&1 | tee "$RUNNER_TEMP/browser-test.log"
         if: steps.changes.outputs.browser == 'true'
+      - name: Run untagged browser tests
+        id: browser_untagged_test
+        run: |
+          set -o pipefail
+          npm run test:browser:untagged 2>&1 | tee "$RUNNER_TEMP/browser-untagged-test.log"
+        if: steps.changes.outputs.browser == 'true'
       - name: Run treasure chest visual evidence
         id: treasure_chest_visual
         run: |
@@ -157,11 +168,12 @@ jobs:
         run: |
           stage_args=(
             --staging-dir "$RUNNER_TEMP"
-            --status "${{ steps.browser_test.outcome }}"
+            --status "${{ steps.browser_untagged_test.outcome }}"
             --visual-dir test-results
             --visual-dir output/playwright
             --diagnostics-dir playwright-report
             --logs "$RUNNER_TEMP/browser-test.log"
+            --logs "$RUNNER_TEMP/browser-untagged-test.log"
             --logs "$RUNNER_TEMP/treasure-chest-visual.log"
             --logs "$RUNNER_TEMP/dungeon-world-object-visual.log"
             --logs "$RUNNER_TEMP/browser-visual.log"

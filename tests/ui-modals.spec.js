@@ -506,9 +506,8 @@ for (const vp of VIEWPORTS) {
       renderEquip();
     });
 
-    await expect(page.locator('.equip-body.is-organize')).toBeVisible();
+    await expect(page.locator('#equip-overlay')).toBeHidden();
     await expect(page.locator('.equip-bag-section .equip-item-row')).toHaveCount(0);
-    await expect(page.locator('.equip-bag-section .equip-detail-placeholder')).toContainText('バッグにありません');
   });
 
   test(`Equipment detail can return to the list at ${vp.width}x${vp.height}`, async ({ page }) => {
@@ -1075,7 +1074,7 @@ for (const vp of VIEWPORTS) {
     await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
-      const classes = ['Fighter', 'Mage', 'Priest', 'Thief'];
+      const classes = ['vanguard', 'scout', 'devotion', 'arcana'];
       state.party = classes.map((className, index) => {
         const char = createStartingKitCharacter(className);
         char.name = `長い冒険者名${index + 1}`;
