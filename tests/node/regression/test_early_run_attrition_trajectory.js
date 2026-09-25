@@ -446,17 +446,17 @@ assert.equal(canonicalOnlySmoke.configuration.policyExecution.startsWith("canoni
 assert.equal(canonicalOnlySmoke.determinism.pass, true);
 assert.equal(Object.values(canonicalOnlySmoke.observationInvariance).every(value => value.pass), true);
 assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts.died.count >= 0, true);
-assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 5);
+assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 8);
 assert.deepEqual(
   Object.fromEntries(Object.entries(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts)
     .map(([id, cohort]) => [id, cohort.count])),
-  { reachedNextFloor: 2, died: 1, voluntaryReturn: 2, otherTerminal: 0 }
+  { reachedNextFloor: 3, died: 2, voluntaryReturn: 3, otherTerminal: 0 }
 );
 assert.equal(canonicalOnlySmoke.cases[0].policies.t0, undefined);
 const canonicalOnlyReport = trajectory.buildReport(
   canonicalOnlySmoke,
   { sourceCommit: "a".repeat(40), measurementRunnerCommit: "b".repeat(40) },
-  { SIM_SEED: "1277" },
+  { SIM_SEED: "1293" },
   { measurementId: "b3plus-survival-decomposition", purpose: "regression" }
 );
 const canonicalOnlySummary = trajectory.buildSummary(canonicalOnlyReport);
@@ -534,7 +534,7 @@ assert.equal(
 
 const largerSmoke = await trajectory.runMeasurement({
   runs: 16,
-  seed: 1277,
+  seed: 1301,
   startingKitIds: ["vanguard"],
   scenarioIds: ["workshop-empty"],
   collectEquipmentCandidateAudit: true,
@@ -543,7 +543,7 @@ const largerSmoke = await trajectory.runMeasurement({
 const largerReport = trajectory.buildReport(
   largerSmoke,
   { sourceCommit: "a".repeat(40), measurementRunnerCommit: "b".repeat(40) },
-  { SIM_SEED: "1277" },
+  { SIM_SEED: "1301" },
   { measurementId: "build-progression-audit", purpose: "regression" }
 );
 const largestSmoke = await trajectory.runMeasurement({

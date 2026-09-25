@@ -1766,7 +1766,6 @@ for (const vp of VIEWPORTS) {
       const eventSubmenuTypes = [
         'event_spring',
         'event_camp',
-        'event_tablet',
         'event_merchant',
         'event_merchant_buy',
         'milestone_merchant',

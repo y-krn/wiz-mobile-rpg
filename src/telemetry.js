@@ -677,7 +677,7 @@ function normalizeDeathCause(cause) {
   if (/毒|poison/i.test(normalized)) return "poison";
   if (/罠|trap|矢|火炎/i.test(normalized)) return "trap";
   if (/戦闘|combat|との戦闘/i.test(normalized)) return "combat";
-  if (/石碑|泉|status|状態/i.test(normalized)) return "event_or_status";
+  if (/泉|status|状態/i.test(normalized)) return "event_or_status";
   return "other";
 }
 

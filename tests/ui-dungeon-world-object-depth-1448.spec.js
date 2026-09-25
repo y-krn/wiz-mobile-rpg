@@ -9,7 +9,6 @@ const VIEWPORTS = [
 const OBJECTS = [
   { id: 'chest', event: 'chest' },
   { id: 'spring', event: 'event_spring' },
-  { id: 'monument', event: 'event_tablet' },
   { id: 'stairs', type: 'stairs-down' },
 ];
 
@@ -21,7 +20,7 @@ async function renderDepth(page, depth, target) {
     const { dungeonRenderer } = await import('/src/renderer.js');
     const { getProjectionPlanes, getWorldObjectProjection } = await import('/src/rules/renderer_projection.js');
     const { getChestPropGeometry } = await import('/src/chest_prop.js');
-    const { getMonumentPropGeometry, getSpringPropGeometry, getStairsPropGeometry } = await import('/src/dungeon_prop.js');
+    const { getSpringPropGeometry, getStairsPropGeometry } = await import('/src/dungeon_prop.js');
 
     const map = Array.from({ length: 12 }, () => Array.from({ length: 12 }, () => ({
       walls: [false, false, false, false],
@@ -61,16 +60,12 @@ async function renderDepth(page, depth, target) {
       ? getChestPropGeometry(plane, input.visual.landmarks?.chestStyle)
       : target.id === 'spring'
       ? getSpringPropGeometry(plane)
-      : target.id === 'monument'
-        ? getMonumentPropGeometry(plane)
-        : getStairsPropGeometry(plane, 'down', input.visual.landmarks?.stairsStyle);
+      : getStairsPropGeometry(plane, 'down', input.visual.landmarks?.stairsStyle);
     const points = target.id === 'chest'
       ? [...geometry.body, ...geometry.side, ...geometry.lid]
       : target.id === 'spring'
       ? [...geometry.fountain, ...geometry.pedestal]
-      : target.id === 'monument'
-        ? [...geometry.face, ...geometry.side, ...geometry.plinth]
-        : [...geometry.well, ...geometry.steps.flatMap(step => step.points)];
+      : [...geometry.well, ...geometry.steps.flatMap(step => step.points)];
     const top = Math.min(...points.map(point => point.y));
     const bottom = Math.max(...points.map(point => point.y));
     const controlsTop = document.querySelector('#controls-panel')?.getBoundingClientRect().top ?? window.innerHeight;

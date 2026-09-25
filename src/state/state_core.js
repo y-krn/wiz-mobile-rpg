@@ -64,7 +64,6 @@ export const state = {
       facilities: {
         spring: { found: 0, used: 0 },
         merchant: { found: 0, purchased: 0 },
-        tablet: { found: 0, read: 0 },
         chest: { found: 0, opened: 0 }
       }
     },

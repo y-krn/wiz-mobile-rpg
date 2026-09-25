@@ -33,7 +33,7 @@ assert.deepEqual(Object.keys(createDefaultCodexEvents().traps).sort(), [
   "flash bomb", "gas bomb", "pitfall", "poison needle", "teleporter"
 ]);
 assert.deepEqual(Object.keys(createDefaultCodexEvents().facilities).sort(), [
-  "chest", "merchant", "spring", "tablet"
+  "chest", "merchant", "spring"
 ]);
 assert.deepEqual(normalizeCodexStats(null), createDefaultCodexStats());
 assert.deepEqual(normalizeCodexEvents(null), createDefaultCodexEvents());

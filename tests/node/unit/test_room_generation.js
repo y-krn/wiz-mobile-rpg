@@ -88,6 +88,10 @@ function countEvents(grid) {
 
 assert(ROOM_SIZES.some(size => size.w === 3 && size.h === 3), "ROOM_SIZES must include 3x3 halls");
 
+let secretRoomCount = 0;
+let secretRoomChestCount = 0;
+let secretRoomEmptyCount = 0;
+
 for (let seedIndex = 0; seedIndex < 100; seedIndex++) {
   const seed = `room-carving-${seedIndex}`;
   let parentStairsCoord = null;
@@ -128,14 +132,45 @@ for (let seedIndex = 0; seedIndex < 100; seedIndex++) {
     }
 
     const events = countEvents(grid);
+    const secretRooms = grid.flat().filter(cell =>
+      cell.walls.every(Boolean) && cell.secretDoor.filter(Boolean).length === 1
+    );
+    for (const secretRoom of secretRooms) {
+      secretRoomCount++;
+      if (secretRoom.event === EVENT_TYPES.CHEST) secretRoomChestCount++;
+      else {
+        assert.equal(secretRoom.event, null, `${label} non-CHEST secret room stays empty`);
+        secretRoomEmptyCount++;
+      }
+    }
     assert((events[EVENT_TYPES.CHEST] || 0) >= 6, `${label} chest count ${events[EVENT_TYPES.CHEST]}`);
     assert.equal(events[EVENT_TYPES.SPRING] || 0, 2, `${label} spring count`);
-    assert((events[EVENT_TYPES.TABLET] || 0) >= 2, `${label} tablet count ${events[EVENT_TYPES.TABLET]}`);
+    assert.equal(events.event_tablet || 0, 0, `${label} retired event absent`);
     assert.equal(events[EVENT_TYPES.MERCHANT] || 0, 0, `${label} retired merchant count`);
 
     parentStairsCoord = generated.stairsDownCoord;
   }
 }
+
+const secretRoomChestRate = secretRoomChestCount / secretRoomCount;
+assert(secretRoomChestCount > 0, "secret-room CHEST draw remains active");
+assert(secretRoomEmptyCount > 0, "former TABLET draw leaves an empty secret room");
+assert(secretRoomChestRate > 0.65 && secretRoomChestRate < 0.85,
+  `secret-room CHEST rate ${secretRoomChestRate} should preserve the 75% draw`);
+
+function getSingleSecretRoomEvent(seed) {
+  const grid = generateRandomMap(1, null, seed).grid;
+  const secretRooms = grid.flat().filter(cell =>
+    cell.walls.every(Boolean) && cell.secretDoor.filter(Boolean).length === 1
+  );
+  assert.equal(secretRooms.length, 1, `${seed} has one secret room`);
+  return secretRooms[0].event;
+}
+
+assert.equal(getSingleSecretRoomEvent("room-carving-0"), EVENT_TYPES.CHEST,
+  "CHEST-side secret-room draw stays CHEST");
+assert.equal(getSingleSecretRoomEvent("room-carving-7"), null,
+  "non-CHEST-side secret-room draw stays empty");
 
 
 const first = generateRandomMap(1, null, "room-repeatability");

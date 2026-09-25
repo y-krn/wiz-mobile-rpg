@@ -69,55 +69,6 @@ export function getSpringPropGeometry(plane) {
   });
 }
 
-export function getMonumentPropGeometry(plane) {
-  const { width, centerX, baseY } = getDungeonPropBase(plane, 0.36);
-  const height = Math.max(12, width * 0.84);
-  const bodyBottom = baseY - width * 0.09;
-  const bodyTop = bodyBottom - height;
-  const bodyHalf = width * 0.24;
-  const shoulder = width * 0.08;
-  const sideDepth = width * 0.06;
-  const face = freezePoints([
-    { x: centerX - bodyHalf + shoulder, y: bodyTop },
-    { x: centerX + bodyHalf - shoulder, y: bodyTop },
-    { x: centerX + bodyHalf, y: bodyTop + shoulder },
-    { x: centerX + bodyHalf * 0.92, y: bodyBottom },
-    { x: centerX - bodyHalf * 0.92, y: bodyBottom },
-    { x: centerX - bodyHalf, y: bodyTop + shoulder }
-  ]);
-  const side = freezePoints([
-    { x: centerX + bodyHalf - shoulder, y: bodyTop },
-    { x: centerX + bodyHalf + sideDepth, y: bodyTop + shoulder },
-    { x: centerX + bodyHalf * 0.98 + sideDepth, y: bodyBottom - width * 0.02 },
-    { x: centerX + bodyHalf * 0.92, y: bodyBottom }
-  ]);
-  const plinth = freezePoints([
-    { x: centerX - width * 0.31, y: bodyBottom },
-    { x: centerX + width * 0.31, y: bodyBottom },
-    { x: centerX + width * 0.36, y: baseY },
-    { x: centerX - width * 0.36, y: baseY }
-  ]);
-  const inscriptionLeft = centerX - bodyHalf * 0.54;
-  const inscriptionRight = centerX + bodyHalf * 0.54;
-  const inscriptionTop = bodyTop + height * 0.31;
-  const inscriptionLines = Object.freeze([0, 1, 2].map(index => Object.freeze({
-    left: inscriptionLeft + (index % 2) * width * 0.02,
-    right: inscriptionRight - (index % 2) * width * 0.02,
-    y: inscriptionTop + index * height * 0.14
-  })));
-  return Object.freeze({
-    centerX,
-    baseY,
-    width,
-    height,
-    face,
-    side,
-    plinth,
-    inscriptionLines,
-    shadow: Object.freeze({ x: centerX, y: baseY + width * 0.045, radiusX: width * 0.43, radiusY: Math.max(1.5, width * 0.085) })
-  });
-}
-
 export function getStairsPropGeometry(plane, direction = "down", style = DEFAULT_STAIR_STYLE) {
   const { width, centerX, baseY } = getDungeonPropBase(plane, 0.62);
   const safeStyle = safeStairStyle(style);
@@ -183,15 +134,6 @@ export function getDungeonPropPalette(kind, wallColor = "#58d6e8", direction = "
       pedestal: mixColor(base, "#1d2630", 0.62),
       water: "#7cecff",
       highlight: "#d7ffff",
-      shadow: "#000000"
-    });
-  }
-  if (kind === "monument") {
-    return Object.freeze({
-      stone: mixColor(base, "#26242c", 0.58),
-      side: mixColor(base, "#090d13", 0.78),
-      plinth: mixColor(base, "#151a20", 0.64),
-      inscription: "#e8f7f4",
       shadow: "#000000"
     });
   }

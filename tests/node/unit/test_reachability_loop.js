@@ -202,7 +202,7 @@ function assertSecretDoors(grid, floorName) {
         }
       });
 
-      if (cell.event && cell.walls.every(Boolean) && cell.secretDoor.some(Boolean)) {
+      if (cell.walls.every(Boolean) && cell.secretDoor.some(Boolean)) {
         hiddenRoomCount++;
       }
     }

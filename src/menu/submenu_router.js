@@ -7,7 +7,7 @@ import { renderRunQuestBoard } from "./run_quest_board.js";
 import { renderMilestoneMerchant } from "./milestone_merchant.js";
 import { renderMilestonePortal } from "./milestone_portal.js";
 import { renderStairsDown } from "./stairs_down.js";
-import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderExploreManagement } from "./explore_actions.js";
+import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderEventSpringResult, renderExploreManagement } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 import { normalizeSubmenuType } from "../state/view_state.js";
 import { openPendingRewardMenu } from "../pending_rewards.js";
@@ -32,8 +32,6 @@ const SUBMENU_RENDERERS = {
   event_spring: (optGrid) => renderEventSpring(optGrid),
   event_camp: (optGrid) => renderEventCamp(optGrid),
   event_spring_result: (optGrid) => renderEventSpringResult(optGrid),
-  event_tablet: (optGrid) => renderEventTablet(optGrid),
-  event_tablet_result: (optGrid) => renderEventTabletResult(optGrid)
 };
 
 export function renderSubmenu(type) {

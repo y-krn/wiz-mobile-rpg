@@ -246,15 +246,6 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     retentionDays: 14,
     buildArgs: nativeMeasurementArgs
   }),
-  "progression-exp-combined-run-diagnostic": freezeFamily({
-    runner: "scratch/measurements/progression_exp_combined_run_diagnostic.js",
-    adapter: "native-manifest",
-    defaultRunType: "diagnostic",
-    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
-    artifactPrefix: "balance-measurement",
-    retentionDays: 14,
-    buildArgs: nativeMeasurementArgs
-  }),
   "equipment-vnext-combat": freezeFamily({
     runner: "scratch/measurements/equipment_vnext_combat_diagnostic.js",
     adapter: "native-manifest",
@@ -442,12 +433,6 @@ const PROFILE_LIST = [
     label: "Paired production / Phase 4j-B EXP award inventory",
     family: "progression-exp-award-paired-inventory",
     defaults: { runs: 200, minimumRuns: 200, seed: 1703 }
-  },
-  {
-    id: "progression-exp-combined-run-diagnostic",
-    label: "Phase 4j-E8 combined B+C full-run diagnostic",
-    family: "progression-exp-combined-run-diagnostic",
-    defaults: { runs: 200, minimumRuns: 200, seed: 1727 }
   },
   {
     id: "equipment-vnext-combat-diagnostic",

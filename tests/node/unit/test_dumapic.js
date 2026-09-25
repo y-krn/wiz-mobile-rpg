@@ -40,7 +40,7 @@ assert.match(baselineLog, /DUMAPIC — B7 \/ 北向き/);
 assert.match(baselineLog, /測量座標 X:1 Y:2/);
 assert.match(baselineLog, /北東のやや遠いに下層へ続く構造を感知した。/);
 assert.match(baselineLog, /近辺の空間にわずかな歪みがある。/);
-assert.doesNotMatch(baselineLog, /宝箱|商人|野営地|泉|石碑|強敵|巨大な気配|罠|secret|隠し扉|危険度/);
+assert.doesNotMatch(baselineLog, /宝箱|商人|野営地|泉|強敵|巨大な気配|罠|secret|隠し扉|危険度/);
 assert.equal((baselineLog.match(/X:\d+ Y:\d+/g) || []).length, 1);
 assert.equal(JSON.stringify(baselineState), before, "DUMAPIC must not mutate the map or visited state");
 assert.equal(Object.hasOwn(baselineState, "dumapicTurns"), false);

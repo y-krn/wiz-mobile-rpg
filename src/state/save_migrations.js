@@ -63,9 +63,8 @@ import { createDefaultWorkshopState, normalizeWorkshopState } from "../systems/w
 
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
 
-// 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
-// MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 14;
+// Exact-version save contract. Incompatible saves reset; no migration path.
+export const SAVE_VERSION = 15;
 
 // Save/apply boundary contract. Unknown keys are deliberately ignored. Keep
 // this list in sync with createSavePayload; runtime-only state must not become
@@ -757,10 +756,7 @@ export function migrateSavePayload(data) {
     throw error;
   }
   const from = typeof data.version === "number" ? data.version : 0;
-  // Version 13 is the immediately previous live schema. Let it pass through
-  // normalization so legacy class/learned-spell fields are discarded instead
-  // of making an otherwise recoverable save restore obsolete ownership.
-  if (from !== SAVE_VERSION && from !== SAVE_VERSION - 1) {
+  if (from !== SAVE_VERSION) {
     const error = new Error(`Save version ${from} is incompatible with solo save version ${SAVE_VERSION}.`);
     error.name = "IncompatibleSaveVersionError";
     throw error;

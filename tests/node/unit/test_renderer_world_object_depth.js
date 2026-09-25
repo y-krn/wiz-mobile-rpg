@@ -1,7 +1,6 @@
 import assert from "assert";
 import { getChestPropGeometry } from "../../../src/chest_prop.js";
 import {
-  getMonumentPropGeometry,
   getSpringPropGeometry,
   getStairsPropGeometry
 } from "../../../src/dungeon_prop.js";
@@ -16,14 +15,12 @@ const VIEWPORTS = [[320, 568], [390, 844], [430, 932]];
 const OBJECTS = [
   ["chest", plane => getChestPropGeometry(plane)],
   ["spring", plane => getSpringPropGeometry(plane)],
-  ["monument", plane => getMonumentPropGeometry(plane)],
   ["stairs", plane => getStairsPropGeometry(plane, "down")]
 ];
 
 function pointsFor(geometry, kind) {
   if (kind === "chest") return [...geometry.body, ...geometry.side, ...geometry.lid];
   if (kind === "spring") return [...geometry.fountain, ...geometry.pedestal];
-  if (kind === "monument") return [...geometry.face, ...geometry.side, ...geometry.plinth];
   return [...geometry.well, ...geometry.steps.flatMap(step => step.points)];
 }
 

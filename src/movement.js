@@ -641,17 +641,6 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     return;
   }
 
-  // Tablet encounter
-  if (cell.event === EVENT_TYPES.TABLET) {
-    recordEliteGreedAction(state, "optional_area", 1, `${state.floor}:${state.x},${state.y}:tablet`);
-    const skin = getFloorTheme(state.floor)?.eventSkins.tablet || "謎の石碑";
-    if (state.codex && state.codex.events && state.codex.events.facilities) {
-      state.codex.events.facilities.tablet.found++;
-    }
-    openGuardedSubmenu(EVENT_TYPES.TABLET, `${skin}が残されている。古い文字が刻まれている…`);
-    return;
-  }
-
   // Merchant encounter
   if (cell.event === EVENT_TYPES.MERCHANT) {
     if (!state.currentRun?.defeatedMilestones?.includes(state.floor)) {

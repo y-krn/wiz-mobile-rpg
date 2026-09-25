@@ -9,7 +9,6 @@ const VIEWPORTS = [
 const OBJECTS = [
   { id: 'chest', event: 'chest' },
   { id: 'spring', event: 'event_spring' },
-  { id: 'monument', event: 'event_tablet' },
   { id: 'stairs', type: 'stairs-down' },
 ];
 
@@ -22,7 +21,7 @@ async function renderObject(page, object) {
     const { getProjectionColumn, getProjectionPlanes, getWorldObjectProjection } = await import('/src/rules/renderer_projection.js');
     const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
     const { getChestPropGeometry } = await import('/src/chest_prop.js');
-    const { getMonumentPropGeometry, getSpringPropGeometry, getStairsPropGeometry } = await import('/src/dungeon_prop.js');
+    const { getSpringPropGeometry, getStairsPropGeometry } = await import('/src/dungeon_prop.js');
     const makeCell = () => ({
       walls: [false, false, false, false],
       blockEnter: [false, false, false, false],
@@ -65,9 +64,7 @@ async function renderObject(page, object) {
       ? getChestPropGeometry(plane, input.visual.landmarks?.chestStyle)
       : target.id === 'spring'
       ? getSpringPropGeometry(plane)
-      : target.id === 'monument'
-        ? getMonumentPropGeometry(plane)
-        : getStairsPropGeometry(plane, 'down', input.visual.landmarks?.stairsStyle);
+      : getStairsPropGeometry(plane, 'down', input.visual.landmarks?.stairsStyle);
     const points = target.id === 'chest'
       ? [...geometry.body, ...geometry.side, ...geometry.lid]
       : target.id === 'spring'
@@ -77,9 +74,7 @@ async function renderObject(page, object) {
         ...geometry.fountain,
         ...geometry.pedestal,
       ]
-      : target.id === 'monument'
-        ? [...geometry.face, ...geometry.side, ...geometry.plinth]
-        : [...geometry.well, ...geometry.steps.flatMap(step => step.points)];
+      : [...geometry.well, ...geometry.steps.flatMap(step => step.points)];
     const objectTop = Math.min(...points.map(point => point.y));
     const objectBottom = Math.max(...points.map(point => point.y));
     const controlsTop = document.querySelector('#controls-panel')?.getBoundingClientRect().top ?? window.innerHeight;
@@ -104,9 +99,7 @@ async function renderObject(page, object) {
           ? geometry.body.length + geometry.lid.length
           : target.id === 'spring'
           ? geometry.pedestal.length + 2
-          : target.id === 'monument'
-            ? geometry.face.length + geometry.inscriptionLines.length
-            : geometry.steps.length,
+          : geometry.steps.length,
         depthScale: plane.worldObject.scale,
         objectTop,
         objectBottom,
@@ -115,7 +108,7 @@ async function renderObject(page, object) {
         visibleSilhouetteHeight: Math.max(0, Math.min(objectBottom, controlsTop) - objectTop),
       },
       activeObjectObservationKeys: Object.keys(state.currentRun.eventObservations)
-        .filter(key => /:(spring|tablet|stairs):/.test(key)),
+        .filter(key => /:(spring|stairs):/.test(key)),
     };
   }, object);
 }
@@ -158,15 +151,14 @@ for (const viewport of VIEWPORTS) {
       body: raw,
       contentType: 'application/json',
     });
-    expect(new Set(OBJECTS.map(object => evidence[object.id].prop.shapeCount)).size).toBe(4);
+    expect(new Set(OBJECTS.map(object => evidence[object.id].prop.shapeCount)).size).toBe(3);
     expect(evidence.chest.activeObjectObservationKeys).toEqual([]);
     expect(evidence.spring.activeObjectObservationKeys).toEqual([]);
-    expect(evidence.monument.activeObjectObservationKeys).toEqual([]);
     expect(evidence.stairs.activeObjectObservationKeys).toEqual([]);
   });
 }
 
-test('spring, monument, and stairs no longer create player-facing aura cues @e2e @smoke', async ({ page }) => {
+test('spring and stairs no longer create player-facing aura cues @e2e @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?renderer=pixi');
   await page.waitForLoadState('networkidle');
@@ -182,7 +174,6 @@ test('spring, monument, and stairs no longer create player-facing aura cues @e2e
     });
     const map = Array.from({ length: 12 }, () => Array.from({ length: 12 }, makeCell));
     map[4][4].event = 'event_spring';
-    map[4][5].event = 'event_tablet';
     map[4][6].type = 'stairs-down';
     state.party = [createStartingKitCharacter('vanguard')];
     state.currentRun = createDefaultCurrentRun();
@@ -204,7 +195,7 @@ test('spring, monument, and stairs no longer create player-facing aura cues @e2e
     } finally {
       Math.random = originalRandom;
     }
-    return Object.keys(state.currentRun.eventObservations).filter(key => /:(spring|tablet|stairs):/.test(key));
+    return Object.keys(state.currentRun.eventObservations).filter(key => /:(spring|stairs):/.test(key));
   });
   expect(observations).toEqual([]);
 });

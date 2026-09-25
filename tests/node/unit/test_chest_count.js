@@ -2,9 +2,7 @@ import { EVENT_TYPES } from "../../../src/data.js";
 import { getFloorTemplate } from "../../../src/data/floor_templates.js";
 import { generateRunFloor } from "../../../src/run_map_generator.js";
 
-// 行き止まりに置かれる宝箱の抽選レンジ。隠し部屋も 75% の確率で宝箱、
-// 25% で石板を追加するため (map_generator.js の placeSecretRooms)、
-// 総数の上限はテンプレの secretDoors.room の分だけ広がる。
+// 行き止まりに置かれる宝箱の抽選レンジ。秘密部屋は報酬を追加しない。
 const MIN_CHESTS = 8;
 const MAX_CHESTS = 12;
 const SAMPLE_FLOORS = [1, 8, 15, 22, 28];
@@ -37,11 +35,9 @@ for (const floor of SAMPLE_FLOORS) {
     }
 
     const springs = countEvent(generated.grid, EVENT_TYPES.SPRING);
-    const tablets = countEvent(generated.grid, EVENT_TYPES.TABLET);
-    const maxTablets = 2 + secretRoomCount;
     if (springs !== 2) failures.push(`${runSeed}: spring count ${springs} expected 2`);
-    if (tablets < 2 || tablets > maxTablets) {
-      failures.push(`${runSeed}: tablet count ${tablets} outside 2-${maxTablets}`);
+    if (countEvent(generated.grid, "event_tablet") !== 0) {
+      failures.push(`${runSeed}: retired event was generated`);
     }
 
     const repeated = generateRunFloor({ runSeed, floor });
