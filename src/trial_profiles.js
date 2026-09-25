@@ -6,6 +6,7 @@ export const TRIAL_PROFILES = Object.freeze({
 
 const TRIAL_QUERY_KEY = "tryout";
 const TRIAL_QUERY_VALUE = "vnext";
+const TRIAL_PROFILE_QUERY_KEY = "trialProfile";
 
 export const TRIAL_SAVE_NAMESPACE = Object.freeze({
   normal: Object.freeze({
@@ -26,6 +27,12 @@ export function isTrialProfile(profile) {
   return profile === TRIAL_PROFILES.PROGRESSION_EXP || profile === TRIAL_PROFILES.PHASE3_EQUIPMENT;
 }
 
+export function getRequestedTrialProfile(search = globalThis.location?.search || "") {
+  if (!isTrialStorageSelected(search)) return TRIAL_PROFILES.NORMAL;
+  const profile = new URLSearchParams(search).get(TRIAL_PROFILE_QUERY_KEY);
+  return isTrialProfile(profile) ? profile : TRIAL_PROFILES.NORMAL;
+}
+
 export function isTrialStorageSelected(search = globalThis.location?.search || "") {
   return new URLSearchParams(search).get(TRIAL_QUERY_KEY) === TRIAL_QUERY_VALUE;
 }
@@ -36,14 +43,17 @@ export function getTrialSaveNamespace({ search, trialProfile } = {}) {
     : TRIAL_SAVE_NAMESPACE.normal;
 }
 
-export function enterTrialStorage() {
+export function enterTrialMode(profile = TRIAL_PROFILES.NORMAL) {
   const url = new URL(globalThis.location.href);
   url.searchParams.set(TRIAL_QUERY_KEY, TRIAL_QUERY_VALUE);
-  globalThis.history.replaceState(null, "", url);
+  if (isTrialProfile(profile)) url.searchParams.set(TRIAL_PROFILE_QUERY_KEY, profile);
+  else url.searchParams.delete(TRIAL_PROFILE_QUERY_KEY);
+  globalThis.location.assign(url);
 }
 
-export function leaveTrialStorage() {
+export function leaveTrialMode() {
   const url = new URL(globalThis.location.href);
   url.searchParams.delete(TRIAL_QUERY_KEY);
+  url.searchParams.delete(TRIAL_PROFILE_QUERY_KEY);
   globalThis.location.assign(url);
 }

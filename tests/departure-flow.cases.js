@@ -1,6 +1,119 @@
 import { test, expect } from './fixtures/browser-health.js';
 import { waitForPixiReady } from './ui-ux-helpers.js';
 
+async function selectTrialProfileFromNormalSave(page) {
+  await page.locator('#btn-town-dungeon').click();
+  await page.locator('.solo-starting-kit-option').first().click();
+  await page.locator('[data-trial-profile="phase3-equipment"]').click();
+  await page.waitForURL(/tryout=vnext/);
+  await waitForPixiReady(page);
+}
+
+async function startPhase3Run(page) {
+  await page.locator('#btn-town-dungeon').click();
+  await page.locator('.solo-starting-kit-option').first().click();
+  await page.locator('[data-trial-profile="phase3-equipment"]').click();
+  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  await page.getByRole('button', { name: '迷宮へ向かう' }).click();
+  await expect(page.locator('#explore-controls')).toBeVisible();
+}
+
+test('Entering trial from normal URL loads an empty isolated save before any new run @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await waitForPixiReady(page);
+  const normalSave = await page.evaluate(() => localStorage.getItem('mobile_wiz_rpg_autosave'));
+  expect(normalSave).toBeTruthy();
+
+  await selectTrialProfileFromNormalSave(page);
+
+  const state = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      currentRun: state.currentRun,
+      url: location.search,
+      trialSave: JSON.parse(localStorage.getItem('mobile_wiz_rpg_vnext_trial_autosave')),
+      normalSave: localStorage.getItem('mobile_wiz_rpg_autosave'),
+    };
+  });
+  expect(state.url).toContain('tryout=vnext');
+  expect(state.url).toContain('trialProfile=phase3-equipment');
+  expect(state.gameState).toBe('town');
+  expect(state.currentRun).toBeNull();
+  expect(state.trialSave.currentRun).toBeNull();
+  expect(state.trialSave.gameState).toBe('town');
+  expect(state.normalSave).toBe(normalSave);
+
+  await startPhase3Run(page);
+  const run = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return { profile: state.currentRun.trialProfile, runSeed: state.currentRun.runSeed };
+  });
+  expect(run.profile).toBe('phase3-equipment');
+  expect(run.runSeed).toBeTruthy();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('mobile_wiz_rpg_autosave'))).toBe(normalSave);
+});
+
+test('Entering trial URL restores an active trial run and confirms replacement @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await waitForPixiReady(page);
+  const normalSave = await page.evaluate(() => localStorage.getItem('mobile_wiz_rpg_autosave'));
+  await selectTrialProfileFromNormalSave(page);
+  await startPhase3Run(page);
+  const originalRunSeed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return state.currentRun.runSeed;
+  });
+  const trialRunSeed = await page.evaluate(() => JSON.parse(
+    localStorage.getItem('mobile_wiz_rpg_vnext_trial_autosave')
+  ).currentRun.runSeed);
+
+  await page.goto('/');
+  await waitForPixiReady(page);
+  await selectTrialProfileFromNormalSave(page);
+  const restored = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return { gameState: state.gameState, runSeed: state.currentRun?.runSeed };
+  });
+  expect(restored.gameState).toBe('explore');
+  expect(restored.runSeed).toBe(originalRunSeed);
+  expect(await page.evaluate(() => JSON.parse(
+    localStorage.getItem('mobile_wiz_rpg_vnext_trial_autosave')
+  ).currentRun.runSeed)).toBe(trialRunSeed);
+
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openSubmenu } = await import('/src/navigation.js');
+    state.gameState = 'town';
+    openSubmenu('solo_start', '単独潜行');
+  });
+  await page.locator('.solo-starting-kit-option').first().click();
+  await page.locator('[data-trial-profile="phase3-equipment"]').click();
+  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  let confirmMessage = '';
+  page.once('dialog', async dialog => {
+    confirmMessage = dialog.message();
+    await dialog.dismiss();
+  });
+  await page.getByRole('button', { name: '迷宮へ向かう' }).click();
+  await expect.poll(() => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return state.currentRun?.runSeed;
+  })).toBe(originalRunSeed);
+  expect(confirmMessage).toContain('試用runを破棄');
+
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: '迷宮へ向かう' }).click();
+  await expect.poll(() => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return state.currentRun?.runSeed;
+  })).not.toBe(originalRunSeed);
+
+  expect(await page.evaluate(() => localStorage.getItem('mobile_wiz_rpg_autosave'))).toBe(normalSave);
+});
+
 test('Primary run path reaches Town again through UI actions @e2e @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 430, height: 932 });
   await page.goto('/');

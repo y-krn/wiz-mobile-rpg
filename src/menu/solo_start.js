@@ -35,16 +35,17 @@ import {
 import { restoreFocusAfterRender } from "../ui/focus_manager.js";
 import {
   TRIAL_PROFILES,
-  enterTrialStorage,
+  enterTrialMode,
+  getRequestedTrialProfile,
   isTrialStorageSelected,
-  leaveTrialStorage
+  leaveTrialMode
 } from "../trial_profiles.js";
 import { getVNextTrialBaseId } from "../rules/equipment_vnext_trial.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
 let selectedStartFloor = null;
-let selectedTrialProfile = TRIAL_PROFILES.NORMAL;
+let selectedTrialProfile = getRequestedTrialProfile();
 const DEPARTURE_BAG_CAPACITY = INVENTORY_CAPACITY;
 const DEPARTURE_ITEM_LIMITS = Object.freeze({ TOWN_PORTAL: 1 });
 
@@ -81,10 +82,19 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
   // exploration surface. Replayed events from the old button must not start
   // another run or charge its preparation choices twice.
   if (state.gameState !== "submenu") return false;
-  if (selectedTrialProfile === TRIAL_PROFILES.NORMAL && isTrialStorageSelected()) {
-    leaveTrialStorage();
+  if (selectedTrialProfile !== TRIAL_PROFILES.NORMAL && !isTrialStorageSelected()) {
+    enterTrialMode(selectedTrialProfile);
     return false;
   }
+  if (selectedTrialProfile === TRIAL_PROFILES.NORMAL && isTrialStorageSelected()) {
+    leaveTrialMode();
+    return false;
+  }
+  if (
+    isTrialStorageSelected() &&
+    state.currentRun?.runSeed &&
+    !globalThis.confirm("保存済みの試用runを破棄して新規runを開始しますか？")
+  ) return false;
   const kit = getStartingKit(startingKitId);
   const character = applyWorkshopToCharacter(createStartingKitCharacter(startingKitId), state.workshop);
   const trialStartingGear = selectedTrialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT
@@ -103,7 +113,6 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
     addLog(`[開始不可] ${handConflict.message}`);
     return;
   }
-  if (selectedTrialProfile !== TRIAL_PROFILES.NORMAL) enterTrialStorage();
   clearDepartureStartFooter();
   const runQuestTemplateIds = consumeSelectedRunQuestTemplateIds();
   const selectedRecipeIds = getSelectedRecipeIds();
@@ -456,6 +465,10 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
     button.append(name, description);
     button.addEventListener("click", () => {
       selectedTrialProfile = profile;
+      if (profile !== TRIAL_PROFILES.NORMAL && !isTrialStorageSelected()) {
+        enterTrialMode(profile);
+        return;
+      }
       renderStartFloorChoices(optGrid, startingKitId, startingGear, `[data-trial-profile="${profile}"]`);
     });
     if (footer) footer.appendChild(button);

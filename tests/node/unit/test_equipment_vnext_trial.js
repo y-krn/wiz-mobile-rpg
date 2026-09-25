@@ -9,7 +9,7 @@ import { ITEMS } from "../../../src/data/items.js";
 import { ACCESSORY_CANDIDATES_BY_FLOOR, EQUIPMENT_CANDIDATES_BY_FLOOR } from "../../../src/data/equipment_tables.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../../../src/systems/equipment_generation.js";
 import { getVNextTrialBaseId, getVNextTrialCandidates, getVNextTrialChestCandidates, isVNextTrialCore, isVNextTrialSupport, VNEXT_CANONICAL_BASE_REPRESENTATIVES } from "../../../src/rules/equipment_vnext_trial.js";
-import { TRIAL_PROFILES, TRIAL_SAVE_NAMESPACE, getTrialSaveNamespace, isTrialProfile, isTrialStorageSelected } from "../../../src/trial_profiles.js";
+import { TRIAL_PROFILES, TRIAL_SAVE_NAMESPACE, getRequestedTrialProfile, getTrialSaveNamespace, isTrialProfile, isTrialStorageSelected } from "../../../src/trial_profiles.js";
 import { getChestItemCandidatesByFloor, rollChestReward } from "../../../src/rules/chest_rules.js";
 
 function lcg(seed) {
@@ -73,6 +73,9 @@ assert.equal(isTrialProfile(TRIAL_PROFILES.PHASE3_EQUIPMENT), true);
 assert.equal(isTrialProfile(TRIAL_PROFILES.NORMAL), false);
 assert.equal(isTrialStorageSelected("?tryout=vnext"), true);
 assert.equal(isTrialStorageSelected(""), false);
+assert.equal(getRequestedTrialProfile("?tryout=vnext&trialProfile=phase3-equipment"), TRIAL_PROFILES.PHASE3_EQUIPMENT);
+assert.equal(getRequestedTrialProfile("?trialProfile=phase3-equipment"), TRIAL_PROFILES.NORMAL);
+assert.equal(getRequestedTrialProfile("?tryout=vnext&trialProfile=unknown"), TRIAL_PROFILES.NORMAL);
 assert.equal(getTrialSaveNamespace({ search: "" }), TRIAL_SAVE_NAMESPACE.normal);
 assert.equal(getTrialSaveNamespace({ search: "?tryout=vnext" }), TRIAL_SAVE_NAMESPACE.trial);
 assert.equal(getTrialSaveNamespace({ search: "", trialProfile: TRIAL_PROFILES.PHASE3_EQUIPMENT }), TRIAL_SAVE_NAMESPACE.trial);
