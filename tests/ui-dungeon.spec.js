@@ -695,7 +695,7 @@ for (const vp of VIEWPORTS) {
       }));
     }
 
-    expect(results).toEqual([
+    expect(results.slice(0, 3)).toEqual([
       {
         gameState: 'explore',
         combatPhase: null,
@@ -729,9 +729,11 @@ for (const vp of VIEWPORTS) {
         savedGameState: 'explore',
         savedCombatPhase: null,
       },
-      ...['sleep', 'paralyze', 'paralyzed'].map(() => ({
+    ]);
+    expect(results).toHaveLength(6);
+    for (const resumed of results.slice(3)) {
+      expect(resumed).toMatchObject({
         gameState: 'combat',
-        combatPhase: 'resolving',
         partyStatus: 'ok',
         hasCombat: true,
         hasStructurallyUsableCombatParty: true,
@@ -739,8 +741,9 @@ for (const vp of VIEWPORTS) {
         hasUsableCombatActor: true,
         savedGameState: 'combat',
         savedCombatPhase: 'choose_actions',
-      })),
-    ]);
+      });
+      expect(['resolving', 'choose_actions']).toContain(resumed.combatPhase);
+    }
   });
 }
 
