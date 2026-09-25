@@ -164,7 +164,8 @@
   border-color: #17707e;
   color: #fff;
   background: linear-gradient(180deg, #34b0c0, var(--neon-cyan));
-  grid-column: 1 / span 2;
+  /* Cross layout: forward sits only above backward, so a low tap never lands on a turn button. */
+  grid-column: 2;
   grid-row: 1;
 }
 
