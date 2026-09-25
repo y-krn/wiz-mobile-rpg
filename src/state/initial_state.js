@@ -22,6 +22,7 @@ export const createDefaultCodex = () => ({
 });
 
 export const createDefaultCurrentRun = () => ({
+  trialProfile: "normal",
   startedAt: 0,
   startFloor: 1,
   startingKit: null,

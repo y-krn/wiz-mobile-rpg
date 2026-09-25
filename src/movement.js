@@ -29,6 +29,7 @@ import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.j
 import { RUN_QUEST_TEMPLATES } from "./data/run_quests.js";
 import { assignRunQuests, createRunQuest, updateRunQuests } from "./systems/run_quests.js";
 import { calculateFloorTrapSuccessRate, resolveTrapAction } from "./rules/trap_rules.js";
+import { TRIAL_PROFILES } from "./trial_profiles.js";
 import {
   applyTrapGuardToEffect,
   B5_FLAME_TRAP_DAMAGE_PROFILE,
@@ -846,13 +847,16 @@ function assignSelectedRunQuests(run, templateIds) {
   updateRunQuests(run);
 }
 
-export function executeEnterDungeon(floor, { departureCraft = [], runQuestTemplateIds = null } = {}) {
+export function executeEnterDungeon(floor, { departureCraft = [], runQuestTemplateIds = null, trialProfile = TRIAL_PROFILES.NORMAL } = {}) {
   state.party = state.party.slice(0, 1);
   state.gameState = "explore";
   menuContext.prevGameState = null;
   state.floor = floor;
   state.sessionMaxFloor = floor; // セッション最深階を初期化
   state.currentRun = createDefaultCurrentRun();
+  state.currentRun.trialProfile = Object.values(TRIAL_PROFILES).includes(trialProfile)
+    ? trialProfile
+    : TRIAL_PROFILES.NORMAL;
   state.silenceTurns = 0;
   state.forcedEncounterSteps = 0;
   state.currentRun.startedAt = Date.now();

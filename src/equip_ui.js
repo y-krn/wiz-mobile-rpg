@@ -30,6 +30,8 @@ import {
   getEquipmentSlotsForType
 } from "./rules/equipment_slots.js";
 import { getDiscardRisk } from "./systems/equipment_discard.js";
+import { TRIAL_PROFILES } from "./trial_profiles.js";
+import { getVNextTrialCanonicalBaseId } from "./rules/equipment_vnext_trial.js";
 import { getItemEquippedStatus } from "./rules/equipment_equipped.js";
 import {
   createEquipmentPreviewChar,
@@ -1266,6 +1268,20 @@ function createDetailPanel(char) {
   name.className = "equip-detail-name";
   name.textContent = `${hidden ? "? " : ""}${item.name}`;
   titleLine.appendChild(name);
+  if (!hidden && state.currentRun?.trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT) {
+    const baseId = getVNextTrialCanonicalBaseId(itemKey?.baseId || itemKey?.id || itemKey);
+    const baseLabels = {
+      dagger: "短剣", sword: "剣", mace: "打撃武器", greatsword: "大剣", wand: "片手杖", staff: "両手杖",
+      lightArmor: "軽装鎧", mediumArmor: "中装鎧", heavyArmor: "重装鎧",
+      smallShield: "小盾", largeShield: "大盾", magicShield: "魔盾", ring: "指輪", amulet: "護符"
+    };
+    if (baseId && baseLabels[baseId]) {
+      const baseBadge = document.createElement("span");
+      baseBadge.className = "equip-vnext-base";
+      baseBadge.textContent = `Base · ${baseLabels[baseId]}`;
+      titleLine.appendChild(baseBadge);
+    }
+  }
   const rarityBadge = createRarityBadge(itemKey, "equip-detail-rarity");
   if (rarityBadge) titleLine.appendChild(rarityBadge);
   appendOwnershipBadge(titleLine, getItemOwnership(itemKey, { state }));

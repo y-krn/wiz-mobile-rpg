@@ -907,6 +907,15 @@
   min-width: 0;
 }
 
+.equip-vnext-base {
+  flex: 0 0 auto;
+  border: 1px solid var(--neon-cyan);
+  border-radius: 999px;
+  color: var(--neon-cyan);
+  font-size: var(--fs-xs);
+  padding: 2px 6px;
+}
+
 .equip-detail-heading.rarity-magic {
   border-left: 3px solid var(--neon-cyan);
   padding-left: 6px;

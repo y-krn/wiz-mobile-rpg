@@ -64,7 +64,8 @@ function applyGiveKeyRewards(stateLike, rng) {
   const rewardEquip = generateRandomEquipment(4, {
     forceRarity: "rare",
     rng,
-    party: stateLike.party
+    party: stateLike.party,
+    trialProfile: stateLike.currentRun?.trialProfile
   });
   if (rewardEquip) {
     rewardEquip.identified = false;
@@ -82,7 +83,8 @@ function applyGiveKeyRewards(stateLike, rng) {
     const rewardAccessory = generateRandomAccessory(4, {
       forceRarity: "rare",
       rng,
-      party: stateLike.party
+      party: stateLike.party,
+      trialProfile: stateLike.currentRun?.trialProfile
     });
     if (rewardAccessory) {
       const added = addCanonicalInventoryItemToState(stateLike, rewardAccessory, { dungeonLoot: true, source: "combat" });

@@ -1,6 +1,8 @@
 import { ITEMS } from "../data/items.js";
 import { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
+import { TRIAL_PROFILES } from "../trial_profiles.js";
+import { getVNextTrialChestCandidates } from "./equipment_vnext_trial.js";
 import { isSpecialOrQuestItem } from "./item_rules.js";
 import { recordRuntimeCall } from "../runtime_diagnostics.js";
 import { getRuneItemIdsByFloor } from "../data/magic.js";
@@ -250,7 +252,7 @@ export function rollChestTrap(floor, rng, runtimeDiagnostics = null) {
   return traps[Math.floor(rng() * traps.length)];
 }
 
-export function rollChestAccessory(floor, rng, party, coreMinFloor = CHEST_ACCESSORY_CORE_MIN_FLOOR) {
+export function rollChestAccessory(floor, rng, party, coreMinFloor = CHEST_ACCESSORY_CORE_MIN_FLOOR, trialProfile = "normal") {
   const chance = floor >= 5 ? 0.16 : (floor === 4 ? 0.14 : (floor === 3 ? 0.12 : 0.08));
   if (rng() >= chance) return null;
   const rarityRoll = rng();
@@ -267,7 +269,8 @@ export function rollChestAccessory(floor, rng, party, coreMinFloor = CHEST_ACCES
     forceRarity: rarity,
     rng,
     party,
-    allowCores: floor >= coreMinFloor
+    allowCores: floor >= coreMinFloor,
+    trialProfile
   });
 }
 
@@ -318,6 +321,7 @@ export function rollChestReward({
       forceRarity: "magic",
       rng,
       party,
+      trialProfile: currentRun?.trialProfile || "normal",
       excludeHighEnd: true,
       allowCores: floor >= coreMinFloor,
       runtimeDiagnostics
@@ -337,6 +341,9 @@ export function rollChestReward({
   }
   if (itemCandidateFilter) {
     candidates = candidates.filter(itemCandidateFilter);
+  }
+  if (currentRun?.trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT) {
+    candidates = getVNextTrialChestCandidates(candidates);
   }
   let item = selectChestItemCandidate(candidates, rng, itemWeights);
 
@@ -368,6 +375,7 @@ export function rollChestReward({
       forceRarity: null,
       rng,
       party,
+      trialProfile: currentRun?.trialProfile || "normal",
       excludeHighEnd: true,
       allowCores: floor >= coreMinFloor,
       runtimeDiagnostics

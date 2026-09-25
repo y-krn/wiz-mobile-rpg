@@ -33,6 +33,7 @@ import {
   toggleExploreHudGoal,
   toggleExploreHudMinimap
 } from "./explore_hud_focus.js";
+import { TRIAL_PROFILES, isTrialStorageSelected } from "../trial_profiles.js";
 
 let floorStingerTimer = null;
 let combatEntryCueTimer = null;
@@ -432,6 +433,26 @@ export function updateUI() {
     locLabel.textContent = "CONGRATULATIONS!";
   } else if (gameState === "gameover") {
     locLabel.textContent = "GAME OVER";
+  }
+  const gameHeader = document.getElementById("game-header");
+  if (gameHeader) {
+    let trialBadge = document.getElementById("trial-mode-badge");
+    if (!trialBadge) {
+      trialBadge = document.createElement("span");
+      trialBadge.id = "trial-mode-badge";
+      trialBadge.className = "trial-mode-badge";
+      trialBadge.setAttribute("role", "status");
+      gameHeader.appendChild(trialBadge);
+    }
+    const profile = state.currentRun?.trialProfile;
+    const trialSelected = isTrialStorageSelected() ||
+      profile === TRIAL_PROFILES.PROGRESSION_EXP || profile === TRIAL_PROFILES.PHASE3_EQUIPMENT;
+    trialBadge.hidden = !trialSelected;
+    trialBadge.textContent = profile === TRIAL_PROFILES.PHASE3_EQUIPMENT
+      ? "試用中 · Phase 3装備"
+      : profile === TRIAL_PROFILES.PROGRESSION_EXP
+        ? "試用中 · 進行・EXP"
+        : "試用セーブ";
   }
   wasCombatContext = isCombatContext;
   

@@ -349,7 +349,15 @@ export function rollChestEncounter({
   const specialItem: ChestLootItem | null = forcedItem === null && !fromDrop
     ? rollChestSpecialReward(floor, rng)
     : null;
-  const accessoryItem: ChestLootItem | null = forcedItem === null ? rollChestAccessory(floor, rng, party) : null;
+  const accessoryItem: ChestLootItem | null = forcedItem === null
+    ? rollChestAccessory(
+      floor,
+      rng,
+      party,
+      undefined,
+      typeof currentRun?.trialProfile === "string" ? currentRun.trialProfile : "normal"
+    )
+    : null;
   return {
     trap,
     item,
