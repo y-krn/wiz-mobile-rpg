@@ -122,6 +122,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/constants/events.js", domains: ["maps"] },
     { pattern: "src/craft.js", domains: ["workshop", "economy"] },
     { pattern: "src/data/items.js", domains: ["maps", "economy", "traps"] },
+    { pattern: "src/rules/equipment_vnext_trial.js", domains: ["chests", "equipment"] },
     { pattern: "src/data/milestone_merchant.js", domains: ["economy"] },
     { pattern: "src/menu/explore_actions.js", domains: ["maps", "traps"] },
     { pattern: "src/movement.js", domains: ["maps", "traps"] },

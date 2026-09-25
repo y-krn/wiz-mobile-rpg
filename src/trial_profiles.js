@@ -1,3 +1,4 @@
+// balance-impact: none — trial profile selection and save namespace only
 export const TRIAL_PROFILES = Object.freeze({
   NORMAL: "normal",
   PROGRESSION_EXP: "progression-exp",

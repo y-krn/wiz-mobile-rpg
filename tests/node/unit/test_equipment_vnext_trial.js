@@ -23,6 +23,11 @@ function lcg(seed) {
 assert.equal(Object.keys(VNEXT_SUPPORT_AUDIT).length, 47);
 assert.equal(Object.keys(VNEXT_CORE_AUDIT).length, 13);
 assert.equal(Object.keys(VNEXT_BASE_ITEM_AUDIT).length, 50);
+assert.deepEqual(
+  Object.values(ITEMS).filter(item => item.trialOnly).map(item => item.id).sort(),
+  ["VNEXT_AMULET", "VNEXT_RING"],
+  "synthetic canonical accessories stay explicitly trial-only"
+);
 assert.equal(Object.keys(VNEXT_CANONICAL_BASE_REPRESENTATIVES).length, 14);
 assert.deepEqual(Object.keys(VNEXT_CANONICAL_BASE_REPRESENTATIVES).sort(), [...CANONICAL_BASE_IDS].sort());
 assert.equal(new Set(Object.values(VNEXT_CANONICAL_BASE_REPRESENTATIVES)).size, 14);
