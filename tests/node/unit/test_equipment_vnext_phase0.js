@@ -199,8 +199,8 @@ for (const file of ["src/rules/affix_rules.js", "src/telemetry.js"]) {
   const source = fs.readFileSync(file, "utf8");
   assert.doesNotMatch(source, /equipment_vnext|diagnostic_build_identity|combat_tier/);
 }
-const equipmentGenerationSource = fs.readFileSync("src/systems/equipment_generation.js", "utf8");
-assert.match(equipmentGenerationSource, /from "\.\.\/rules\/equipment_vnext_trial\.js"/);
-assert.doesNotMatch(equipmentGenerationSource, /from "\.\.\/data\/equipment_vnext\.js"/);
+const equipmentBoundarySource = fs.readFileSync("src/systems/equipment_generation.js", "utf8");
+assert.match(equipmentBoundarySource, /from "\.\.\/rules\/equipment_vnext_trial\.js"/);
+assert.doesNotMatch(equipmentBoundarySource, /from "\.\.\/data\/equipment_vnext\.js"/);
 
 console.log("[PASS] Equipment vNext Phase 3c 50-item audit, diagnostic identity, and production boundary");
