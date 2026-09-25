@@ -122,6 +122,32 @@ for (const renderer of ['pixi']) {
   });
 }
 
+// Mobile Safari with both toolbars leaves ~780px of height, which is where a
+// bottom-anchored combat strip used to land on top of the enemy sprite.
+for (const viewport of [VIEWPORT, { width: 440, height: 780 }, { width: 375, height: 560 }]) {
+  test(`Dungeon First combat strip does not cover enemies at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/?renderer=pixi');
+    await seedDungeonState(page, 'combat');
+    await expect(page.locator('#combat-controls')).toBeVisible();
+
+    const log = await page.locator('#log-panel').boundingBox();
+    expect(log).not.toBeNull();
+    const enemyRegions = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      const { getCombatMonsterLayout } = await import('/src/rules/renderer_projection.js');
+      return getCombatMonsterLayout(state.combatState.monsters, dungeonRenderer.viewport)
+        .map(({ hitRegion }) => hitRegion);
+    });
+    expect(enemyRegions.length).toBeGreaterThan(0);
+    for (const region of enemyRegions) {
+      const overlaps = log.y + log.height > region.y && log.y < region.y + region.height;
+      expect(overlaps, `log ${JSON.stringify(log)} vs enemy ${JSON.stringify(region)}`).toBe(false);
+    }
+  });
+}
+
 test('Dungeon First keeps loot decision over the world at 390x844 @visual', async ({ page }, testInfo) => {
   await page.setViewportSize(VIEWPORT);
   await page.goto('/');

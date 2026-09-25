@@ -973,8 +973,11 @@
   background: var(--surface-inset);
 }
 
+/* Combat enemies stand at ~56% of the full-screen canvas, which is exactly
+   where a bottom-anchored strip lands; pin the strip under the header. */
 #game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #log-panel {
-  bottom: calc(var(--safe-area-bottom) + 274px);
+  top: calc(var(--safe-area-top) + 72px);
+  bottom: auto;
 }
 
 #game-container.dungeon-first-mode[data-dungeon-first-state="decision"] #log-panel {
@@ -990,10 +993,6 @@
 
   #game-container.dungeon-first-mode #controls-panel {
     bottom: calc(var(--safe-area-bottom) + 70px);
-  }
-
-  #game-container.dungeon-first-mode[data-dungeon-first-state="combat"] #log-panel {
-    bottom: calc(var(--safe-area-bottom) + 244px);
   }
 }
 
