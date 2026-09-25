@@ -62,6 +62,7 @@ jobs:
       - run: npm run test:unit:main-push
 
   lint:
+    needs: browser
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
