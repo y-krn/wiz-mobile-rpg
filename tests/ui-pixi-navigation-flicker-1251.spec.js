@@ -45,7 +45,7 @@ async function setExploreState(page) {
   }, makeFixture());
 }
 
-test('ordinary Pixi navigation replaces structural geometry without flicker @smoke @visual', async ({ page }, testInfo) => {
+test('ordinary Pixi navigation moves one scene without cross-fade flicker @smoke @visual', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/?renderer=pixi');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
@@ -79,16 +79,15 @@ test('ordinary Pixi navigation replaces structural geometry without flicker @smo
         const firstChangedFrame = frame();
         dungeonRenderer.update(16);
         dungeonRenderer.draw();
-        const finalFrame = frame();
+        const midFrame = frame();
         const root = dungeonRenderer.scene;
         const transitionRoot = dungeonRenderer.transitionScene;
         samples[action] = {
           beforeFrame,
           firstChangedFrame,
-          finalFrame,
           sceneAlpha: root.alpha,
-          sceneX: root.position.x,
-          sceneY: root.position.y,
+          sceneOffsetX: root.position.x - root.pivot.x,
+          sceneOffsetY: root.position.y - root.pivot.y,
           sceneRotation: root.rotation,
           sceneScaleX: root.scale.x,
           sceneScaleY: root.scale.y,
@@ -104,30 +103,41 @@ test('ordinary Pixi navigation replaces structural geometry without flicker @smo
           hitTime: dungeonRenderer.hitTime,
           combatEntryTime: dungeonRenderer.combatEntryTime,
         };
+        dungeonRenderer.update(1000);
+        dungeonRenderer.draw();
+        samples[action].finalFrame = frame();
+        samples[action].settled = {
+          transitionActive: Boolean(dungeonRenderer.transition),
+          x: root.position.x, y: root.position.y, scaleX: root.scale.x, scaleY: root.scale.y,
+        };
+        samples[action].midFrame = midFrame;
       }
       return samples;
     });
 
     for (const [action, sample] of Object.entries(evidence)) {
-      for (const phase of ['before', 'first-changed', 'final']) {
+      for (const phase of ['before', 'first-changed', 'mid', 'final']) {
         const dataUrl = {
           before: sample.beforeFrame,
           'first-changed': sample.firstChangedFrame,
+          mid: sample.midFrame,
           final: sample.finalFrame,
         }[phase];
         const buffer = Buffer.from(dataUrl.split(',')[1], 'base64');
         await testInfo.attach(`pixi-${action}-${phase}-${viewport.width}`, { body: buffer, contentType: 'image/png' });
         persistEvidence(`pixi-${action}-${phase}-${viewport.width}.png`, buffer);
       }
+      // #1766 navigation motion transforms the one scene root; it never
+      // fades or layers an outgoing corridor over the incoming one.
       expect(sample.sceneAlpha).toBe(1);
-      expect(sample.sceneX).toBe(0);
-      expect(sample.sceneY).toBe(0);
       expect(sample.sceneRotation).toBe(0);
-      expect(sample.sceneScaleX).toBe(1);
-      expect(sample.sceneScaleY).toBe(1);
+      expect(sample.sceneScaleX).toBe(sample.sceneScaleY);
+      expect(sample.sceneScaleX).toBeGreaterThanOrEqual(1);
+      expect(sample.sceneScaleX).toBeLessThanOrEqual(1.1);
+      expect(Math.abs(sample.sceneOffsetY)).toBeLessThanOrEqual(3);
       expect(sample.structuralWallsAlpha).toBe(1);
       expect(sample.floorAlpha).toBe(1);
-      expect(sample.transitionActive).toBe(false);
+      expect(sample.transitionActive).toBe(true);
       expect(sample.transitionVisible).toBe(false);
       expect(sample.transitionChildren).toBe(0);
       expect(sample.stageChildren).toBe(1);
@@ -139,6 +149,8 @@ test('ordinary Pixi navigation replaces structural geometry without flicker @smo
       expect(sample.beforeFrame).toBeTruthy();
       expect(sample.firstChangedFrame).toBeTruthy();
       expect(sample.finalFrame).toBeTruthy();
+      expect(sample.settled).toEqual({ transitionActive: false, x: 0, y: 0, scaleX: 1, scaleY: 1 });
+      delete sample.midFrame;
       delete sample.beforeFrame;
       delete sample.firstChangedFrame;
       delete sample.finalFrame;

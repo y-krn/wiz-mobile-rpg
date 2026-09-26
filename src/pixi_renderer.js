@@ -59,6 +59,21 @@ const FLOATING_TEXT_MS = Object.freeze({ standard: 900, reduced: 1400 });
 const FLOATING_TEXT_RISE = 22;
 const PARTY_HIT_MS = 420;
 
+// Navigation motion is display-only: movement rules resolve synchronously and
+// the view follows. The motion only transforms one scene root (scale >= 1, so
+// the viewport stays covered) and never fades or layers two corridors, which
+// caused the #1251 double-contour flicker. Forward pushes the outgoing view in
+// toward the vanishing point with one small step bob, then cuts. Turns flow the
+// outgoing view toward the turn and settle the incoming view from the other
+// side. Backward cuts first and settles the incoming view back out.
+export const NAVIGATION_MOTION = Object.freeze({
+  durationMs: Object.freeze({ forward: 180, backward: 160, "turn-left": 180, "turn-right": 180 }),
+  pushScale: 0.1,
+  turnScale: 0.1,
+  turnShift: 0.045,
+  bobPx: 3
+});
+
 function prefersReducedMotion() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -212,6 +227,7 @@ export class PixiDungeonRenderer {
     this.hitTarget = null;
     this.partyHitTime = 0;
     this.combatEntryTime = 0;
+    this.transition = null;
     this.activeRoot = null;
     this.damageTexts = [];
     // Floating numbers survive the per-draw scene rebuild so each one owns
@@ -352,6 +368,8 @@ export class PixiDungeonRenderer {
   }
 
   triggerCombatEntry(duration = 320) {
+    // Combat entry owns the view immediately; navigation motion never delays it.
+    this.cancelNavigationTransition();
     if (prefersReducedMotion()) return;
     this.combatEntryTime = Math.max(this.combatEntryTime, duration);
   }
@@ -400,6 +418,10 @@ export class PixiDungeonRenderer {
     if (this.hitTime === 0) this.hitTarget = null;
     this.partyHitTime = Math.max(0, this.partyHitTime - dt);
     this.combatEntryTime = Math.max(0, this.combatEntryTime - dt);
+    if (this.transition) {
+      this.transition.elapsed += Math.max(0, dt);
+      if (this.transition.elapsed >= this.transition.duration) this.transition = null;
+    }
     this.damageTexts.forEach((entry) => { entry.age += Math.max(0, dt); });
     this.damageTexts = this.damageTexts.filter((entry) => {
       if (entry.age < entry.maxAge) return true;
@@ -452,7 +474,7 @@ export class PixiDungeonRenderer {
   isAnimating(input = null) {
     const renderInput = this.resolveRenderInput(input);
     const environment = renderInput.visual.environment;
-    if (this.shakeTime > 0 || this.flashTime > 0 || this.hitTime > 0 || this.partyHitTime > 0 || this.combatEntryTime > 0 || this.damageTexts.length > 0) return true;
+    if (this.transition || this.shakeTime > 0 || this.flashTime > 0 || this.hitTime > 0 || this.partyHitTime > 0 || this.combatEntryTime > 0 || this.damageTexts.length > 0) return true;
     if (prefersReducedMotion()) return false;
     const cyclePosition = (renderInput.floor - 1) % 5;
     if (environment.animated || environment.animatedCyclePosition === cyclePosition || renderInput.dangerCue.active) return true;
@@ -502,20 +524,87 @@ export class PixiDungeonRenderer {
   }
 
   beginNavigationTransition(action, input = null) {
-    // Navigation is intentionally a cut: movement state is rendered as the
-    // new corridor immediately. Keep this hook for the Renderer boundary
-    // used by movement.js without creating an outgoing scene or alpha tween.
-    void action;
-    void input;
-    this.cancelNavigationTransition();
+    // Called before movement mutates state, so the snapshot is the view the
+    // player is leaving. A new move replaces any running motion; the rules
+    // already resolved every earlier move, so nothing is queued or dropped.
+    this.transition = null;
+    const duration = NAVIGATION_MOTION.durationMs[action];
+    if (!duration || prefersReducedMotion() || !this.app || !this.scene) return;
+    const source = this.resolveRenderInput(input);
+    if (!this.isNavigationScene(source)) return;
+    this.transition = { action, elapsed: 0, duration, source };
   }
 
   cancelNavigationTransition() {
+    this.transition = null;
     this.resetMotion(this.scene);
+  }
+
+  isNavigationScene(renderInput) {
+    const visibility = renderInput.sceneVisibility;
+    return renderInput.view.gameState === "explore" &&
+      !visibility.showTownBackground && !visibility.showCombat && !visibility.showChest &&
+      !visibility.showEventScene && !visibility.showItemMenu;
+  }
+
+  // Returns the input to draw this frame. Any event, menu, combat, or floor
+  // change ends the motion at once so the result is never delayed or hidden.
+  resolveNavigationFrame(renderInput) {
+    const transition = this.transition;
+    if (!transition) return renderInput;
+    if (!this.isNavigationScene(renderInput) || renderInput.floor !== transition.source.floor) {
+      this.transition = null;
+      return renderInput;
+    }
+    const progress = clamp01(transition.elapsed / transition.duration);
+    if (transition.action === "forward") return transition.source;
+    if (transition.action === "backward") return renderInput;
+    return progress < 0.5 ? transition.source : renderInput;
+  }
+
+  applyNavigationMotion(root, renderInput) {
+    const transition = this.transition;
+    if (!transition || !root) return;
+    const { width, height } = this.viewport;
+    const progress = clamp01(transition.elapsed / transition.duration);
+    let scale;
+    let pivotX = width / 2;
+    let pivotY = height / 2;
+    let offsetX = 0;
+    let offsetY = 0;
+    if (transition.action === "forward") {
+      const eased = 1 - (1 - progress) ** 2;
+      scale = 1 + NAVIGATION_MOTION.pushScale * eased;
+      pivotY = this.getHorizonY(renderInput);
+      offsetY = NAVIGATION_MOTION.bobPx * Math.sin(Math.PI * progress);
+    } else if (transition.action === "backward") {
+      const eased = (1 - progress) ** 2;
+      scale = 1 + NAVIGATION_MOTION.pushScale * eased;
+      pivotY = this.getHorizonY(renderInput);
+    } else {
+      // Turning left sweeps the view to the right, and the new facing
+      // arrives from the left; turning right mirrors it.
+      const direction = transition.action === "turn-left" ? 1 : -1;
+      const outgoing = progress < 0.5;
+      const phase = outgoing ? progress * 2 : 1 - (progress - 0.5) * 2;
+      const eased = phase ** 2;
+      scale = 1 + NAVIGATION_MOTION.turnScale * eased;
+      offsetX = (outgoing ? 1 : -1) * direction * NAVIGATION_MOTION.turnShift * width * eased;
+    }
+    // Keep every offset inside the margin the zoom adds so the canvas edge
+    // is never exposed.
+    const marginX = Math.min(pivotX, width - pivotX) * (scale - 1);
+    const marginY = Math.min(pivotY, height - pivotY) * (scale - 1);
+    offsetX = Math.max(-marginX, Math.min(marginX, offsetX));
+    offsetY = Math.max(-marginY, Math.min(marginY, offsetY));
+    root.pivot.set(pivotX, pivotY);
+    root.position.set(pivotX + offsetX, pivotY + offsetY);
+    root.scale.set(scale, scale);
   }
 
   resetMotion(root) {
     if (!root) return;
+    root.pivot.set(0, 0);
     root.position.set(0, 0);
     root.scale.set(1, 1);
     root.rotation = 0;
@@ -532,11 +621,13 @@ export class PixiDungeonRenderer {
     if (!this.app || !this.scene) return;
     const renderInput = this.resolveRenderInput(input);
     const startedAt = performance.now();
+    const sceneInput = this.resolveNavigationFrame(renderInput);
     this.clearSceneRoot(this.scene);
-    this.drawScene(renderInput, this.scene);
-    // Navigation is an immediate structural replacement. Combat feedback is
+    this.drawScene(sceneInput, this.scene);
+    // Navigation motion transforms the one scene root; combat feedback is
     // independent and cannot affect exploration navigation.
     this.resetMotion(this.scene);
+    this.applyNavigationMotion(this.scene, sceneInput);
     if (this.shakeTime > 0 && renderInput.view.gameState === "combat") {
       const offset = (Math.sin(this.clockMs * 0.11) * 0.5) * this.shakeIntensity;
       this.scene.position.x += offset;
