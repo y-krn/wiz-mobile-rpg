@@ -10,8 +10,8 @@ import { PROGRESSION_ENEMY_CANDIDATE as PHASE4C_V1 } from "./progression_enemy_c
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "progression-exp-b-full-run-diagnostic-v1";
-export const SCHEMA_VERSION = 1;
+export const RUNNER_VERSION = "progression-exp-b-full-run-diagnostic-v3";
+export const SCHEMA_VERSION = 3;
 export const RUNNER_PATH = "scratch/measurements/progression_exp_b_full_run_diagnostic.js";
 export const DEFAULT_SEED = 1735;
 const PRODUCTION_PATHS = Object.freeze([
@@ -123,7 +123,8 @@ function projectRun(context, arm, runIndex, worldSeed, result) {
     }
   }
   const firstCombat = stableFirstCombat(observations);
-  if (!firstCombat) throw new Error(`${context.id}/${arm}/${runIndex}: no eligible generated combat for first-combat regression`);
+  const battleObservationCount = observations.length;
+  const precombatTermination = result.battles === 0 && battleObservationCount === 0 && Boolean(result.terminationReason);
   return {
     context: context.id,
     arm,
@@ -132,6 +133,11 @@ function projectRun(context, arm, runIndex, worldSeed, result) {
     outcome: result.died ? "death" : /flee/i.test(result.terminationReason || "") ? "flee" : "return",
     targetReached: result.reachedFloor >= context.targetDepth,
     terminationReason: result.terminationReason,
+    battleObservationCount,
+    combatCoverage: {
+      status: precombatTermination ? "terminated-before-first-combat" : battleObservationCount > 0 ? "observed" : "missing-observation-or-reason",
+      precombatTermination
+    },
     reachedFloor: result.reachedFloor,
     deathFloor: result.deathFloor,
     deathCause: result.deathCause,
@@ -189,14 +195,76 @@ export function comparePreDeathProgress(control, candidate) {
   };
 }
 
-export async function runProgressionExpBFullRunDiagnostic({ runs = 1, seed = DEFAULT_SEED } = {}) {
+export function findCombatObservationMismatches(rows) {
+  return rows.filter(row => row.battles !== row.battleObservationCount || !row.terminationReason)
+    .map(row => ({
+      context: row.context,
+      arm: row.arm,
+      runIndex: row.runIndex,
+      battles: row.battles,
+      observations: row.battleObservationCount,
+      terminationReason: row.terminationReason
+    }));
+}
+
+export function compareMatchedArmRuns(control, candidate) {
+  const mismatches = [];
+  if (control.worldSeed !== candidate.worldSeed) {
+    mismatches.push({ reason: "matched-seed-mismatch" });
+  }
+
+  if (Boolean(control.firstCombat) !== Boolean(candidate.firstCombat)) {
+    mismatches.push({ reason: "first-combat-presence-mismatch" });
+  } else if (control.firstCombat && JSON.stringify(control.firstCombat) !== JSON.stringify(candidate.firstCombat)) {
+    mismatches.push({ reason: "first-combat-pre-reward-state-or-outcome-mismatch" });
+  } else if (control.combatCoverage.precombatTermination && candidate.combatCoverage.precombatTermination) {
+    if (control.terminationReason !== candidate.terminationReason ||
+        control.outcome !== candidate.outcome || control.reachedFloor !== candidate.reachedFloor) {
+      mismatches.push({ reason: "matched-precombat-termination-mismatch" });
+    }
+  }
+
+  return { matched: mismatches.length === 0, mismatches };
+}
+
+export function describeMatchedArmDivergence(control, candidate) {
+  return {
+    from: control.outcome,
+    to: candidate.outcome,
+    battles: {
+      control: control.battles,
+      candidate: candidate.battles,
+      delta: candidate.battles - control.battles
+    },
+    battleObservations: {
+      control: control.battleObservationCount,
+      candidate: candidate.battleObservationCount,
+      delta: candidate.battleObservationCount - control.battleObservationCount
+    },
+    terminationReasons: { control: control.terminationReason, candidate: candidate.terminationReason },
+    deathFloors: { control: control.deathFloor, candidate: candidate.deathFloor },
+    reachedFloors: { control: control.reachedFloor, candidate: candidate.reachedFloor },
+    reachedFloorDelta: candidate.reachedFloor - control.reachedFloor,
+    newDeath: candidate.outcome === "death" && control.outcome !== "death",
+    deathAvoided: control.outcome === "death" && candidate.outcome !== "death"
+  };
+}
+
+export async function runProgressionExpBFullRunDiagnostic({ runs = 1, seed = DEFAULT_SEED, contexts = CONTEXTS, runIndices = null } = {}) {
   const count = positiveInteger(runs, "runs");
   if (![1, 30, 200].includes(count)) throw new Error("runs must be exactly 1 (smoke), 30 (coverage), or 200 (final evidence)");
   const rootSeed = positiveInteger(seed, "seed");
   if (rootSeed !== DEFAULT_SEED) throw new Error(`seed is frozen at ${DEFAULT_SEED}`);
+  const indices = runIndices ?? Array.from({ length: count }, (_, index) => index);
+  if (!Array.isArray(indices) || indices.length !== count || indices.some(index => !Number.isInteger(index) || index < 0) || new Set(indices).size !== indices.length) {
+    throw new Error("runIndices must contain exactly one unique non-negative index per run");
+  }
+  if (!Array.isArray(contexts) || contexts.length === 0 || contexts.some(context => !CONTEXTS.some(known => known.id === context.id))) {
+    throw new Error("contexts must be selected from the frozen measurement contexts");
+  }
   const rows = [];
-  for (const context of CONTEXTS) {
-    for (let runIndex = 0; runIndex < count; runIndex++) {
+  for (const context of contexts) {
+    for (const runIndex of indices) {
       const worldSeed = `phase4j-b:${rootSeed}:${context.id}:${runIndex}`;
       for (const arm of ARMS) {
         resetSimulationRandom(worldSeed);
@@ -220,30 +288,32 @@ export async function runProgressionExpBFullRunDiagnostic({ runs = 1, seed = DEF
       }
     }
   }
-  const pairs = CONTEXTS.map(context => {
+  const matchedArmMismatches = [];
+  const pairs = contexts.map(context => {
     const control = rows.filter(row => row.context === context.id && row.arm === "production");
     const candidate = rows.filter(row => row.context === context.id && row.arm === "phase4j-b");
-    if (control.length !== count || candidate.length !== count) throw new Error(`${context.id}: sample count mismatch`);
-    for (let index = 0; index < count; index++) {
-      if (control[index].worldSeed !== candidate[index].worldSeed) throw new Error(`${context.id}: matched-seed mismatch`);
-      if (JSON.stringify(control[index].firstCombat) !== JSON.stringify(candidate[index].firstCombat)) {
-        throw new Error(`${context.id}/${index}: first combat pre-reward state/outcome differs between EXP arms`);
-      }
+    if (control.length !== indices.length || candidate.length !== indices.length) throw new Error(`${context.id}: sample count mismatch`);
+    for (let index = 0; index < indices.length; index++) {
+      const left = control[index];
+      const right = candidate[index];
+      const comparison = compareMatchedArmRuns(left, right);
+      matchedArmMismatches.push(...comparison.mismatches.map(({ reason }) => ({
+        context: context.id,
+        runIndex: left.runIndex,
+        reason
+      })));
     }
     return {
       context: context.id,
       matchedSeedDescriptiveOnly: true,
       transitions: control.map((row, index) => {
         const attribution = comparePreDeathProgress(row, candidate[index]);
-        const newDeath = candidate[index].outcome === "death" && row.outcome !== "death";
+        const divergence = describeMatchedArmDivergence(row, candidate[index]);
+        const newDeath = divergence.newDeath;
         return {
-          runIndex: index,
-          from: row.outcome,
-          to: candidate[index].outcome,
-          reachedFloorDelta: candidate[index].reachedFloor - row.reachedFloor,
+          runIndex: row.runIndex,
+          ...divergence,
           finalLevelDelta: candidate[index].finalLevel - row.finalLevel,
-          newDeath,
-          deathAvoided: row.outcome === "death" && candidate[index].outcome !== "death",
           newDeathHadEarlierControlLevelOrRecovery: newDeath && attribution.controlOnlyProgress,
           newDeathAttribution: newDeath ? attribution : null
         };
@@ -259,6 +329,20 @@ export async function runProgressionExpBFullRunDiagnostic({ runs = 1, seed = DEF
   const sourceMismatches = rows.flatMap(row => row.settlements
     .filter(settlement => !settlement.settlement.sourceAccounted)
     .map(settlement => ({ context: row.context, arm: row.arm, runIndex: row.runIndex, floor: settlement.floor })));
+  const observationMismatches = findCombatObservationMismatches(rows);
+  const coverage = contexts.flatMap(context => ARMS.map(arm => {
+    const armRows = rows.filter(row => row.context === context.id && row.arm === arm);
+    return {
+      context: context.id,
+      arm,
+      runs: armRows.length,
+      runsWithCombatObservations: armRows.filter(row => row.battleObservationCount > 0).length,
+      precombatTerminations: armRows.filter(row => row.combatCoverage.precombatTermination).length,
+      battles: armRows.reduce((sum, row) => sum + row.battles, 0),
+      observations: armRows.reduce((sum, row) => sum + row.battleObservationCount, 0),
+      observed: armRows.some(row => row.battleObservationCount > 0)
+    };
+  }));
   return {
     runnerVersion: RUNNER_VERSION,
     schemaVersion: SCHEMA_VERSION,
@@ -266,7 +350,7 @@ export async function runProgressionExpBFullRunDiagnostic({ runs = 1, seed = DEF
     configuration: {
       runs: count,
       seed: rootSeed,
-      contexts: CONTEXTS,
+      contexts,
       arms: ARMS,
       build: "Mage / arcana",
       phase4cV1: {
@@ -284,11 +368,14 @@ export async function runProgressionExpBFullRunDiagnostic({ runs = 1, seed = DEF
       expThresholds: EXP_LEVELS
     },
     validity: {
-      firstCombatPreRewardStateAndOutcomeMatch: true,
+      firstCombatPreRewardStateAndOutcomeMatch: matchedArmMismatches.length === 0,
       candidatePrefundedLevelViolations: invalidCandidatePrefund,
       invalidCandidateSettlements,
       sourceAccountingMismatches: sourceMismatches,
-      valid: invalidCandidatePrefund.length === 0 && invalidCandidateSettlements.length === 0 && sourceMismatches.length === 0
+      combatObservationMismatches: observationMismatches,
+      matchedArmMismatches,
+      coverage,
+      valid: invalidCandidatePrefund.length === 0 && invalidCandidateSettlements.length === 0 && sourceMismatches.length === 0 && observationMismatches.length === 0 && matchedArmMismatches.length === 0
     },
     rows,
     matchedSeedSummaries: pairs
@@ -347,6 +434,8 @@ function makeSummary(report) {
         `### ${arm}`,
         `- Outcomes: ${JSON.stringify(outcomes)}; target reached=${rows.filter(row => row.targetReached).length}; reached floor: ${summarize(rows.map(row => row.reachedFloor))}; death floor: ${summarize(rows.map(row => row.deathFloor))}.`,
         `- Battles: ${summarize(rows.map(row => row.battles))}; final Level: ${summarize(rows.map(row => row.finalLevel))}; combat EXP: ${summarize(rows.map(row => row.expGained))}; character EXP: ${summarize(rows.map(row => row.characterExpGained))}.`,
+        `- Combat coverage: ${rows.filter(row => row.battleObservationCount > 0).length}/${rows.length} runs observed; ${rows.filter(row => row.combatCoverage.precombatTermination).length} ended before first combat; battles=${rows.reduce((sum, row) => sum + row.battles, 0)}, observations=${rows.reduce((sum, row) => sum + row.battleObservationCount, 0)}.`,
+        `- Termination reasons: ${JSON.stringify(rows.reduce((counts, row) => { counts[row.terminationReason] = (counts[row.terminationReason] || 0) + 1; return counts; }, {}))}.`,
         `- Level arrival combat count: ${JSON.stringify(levelArrivalCombatCount)}; level-up recovery HP: ${summarize(rows.map(row => row.settlements.reduce((sum, item) => sum + item.levelUpRecoveryHp, 0)))}; cumulative Level-derived raw maxHP: ${summarize(rows.map(row => Math.max(0, ...row.settlements.map(item => item.levelDerivedRawMaxHp))))}.`,
         `- Valid settlements: ${rows.reduce((sum, row) => sum + row.settlementCounts.valid, 0)}; non-victory: ${rows.reduce((sum, row) => sum + row.settlementCounts.nonVictory, 0)}; flee: ${rows.reduce((sum, row) => sum + row.settlementCounts.flee, 0)}; lifecycle gaps: ${rows.reduce((sum, row) => sum + row.settlementCounts.lifecycleGaps, 0)}.`,
         `- Encounter kinds: ${JSON.stringify(kindCounts)}; candidate lifecycle triggers: split=${rows.reduce((sum, row) => sum + row.settlementCounts.splitCapable, 0)}, summon=${rows.reduce((sum, row) => sum + row.settlementCounts.summonCapable, 0)}; candidate prefund violations: ${report.validity.candidatePrefundedLevelViolations.length}; source accounting mismatches: ${report.validity.sourceAccountingMismatches.length}.`,
@@ -359,7 +448,7 @@ function makeSummary(report) {
     const transitions = group.transitions;
     lines.push(
       `## Matched-seed description: ${group.context}`,
-      `- Outcome transitions: ${JSON.stringify(transitions.reduce((counts, row) => { const key = `${row.from}->${row.to}`; counts[key] = (counts[key] || 0) + 1; return counts; }, {}))}.`,
+      `- Outcome transitions: ${JSON.stringify(transitions.reduce((counts, row) => { const key = `${row.from}->${row.to}`; counts[key] = (counts[key] || 0) + 1; return counts; }, {}))}; battles delta=${summarize(transitions.map(row => row.battles.delta))}; reached-floor delta=${summarize(transitions.map(row => row.reachedFloorDelta))}.`,
       `- New deaths: ${transitions.filter(row => row.newDeath).length}; deaths avoided: ${transitions.filter(row => row.deathAvoided).length}; new deaths where control had earlier Level/recovery and candidate did not: ${transitions.filter(row => row.newDeathHadEarlierControlLevelOrRecovery).length}.`,
       ""
     );

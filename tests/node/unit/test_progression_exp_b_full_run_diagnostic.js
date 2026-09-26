@@ -5,7 +5,10 @@ import {
   DEFAULT_SEED,
   RUNNER_PATH,
   RUNNER_VERSION,
+  compareMatchedArmRuns,
   comparePreDeathProgress,
+  describeMatchedArmDivergence,
+  findCombatObservationMismatches,
   runProgressionExpBFullRunDiagnostic
 } from "../../../scratch/measurements/progression_exp_b_full_run_diagnostic.js";
 import { MEASUREMENT_IDS, resolveRunnerInvocation } from "../../../scratch/measurements/run_balance_measurement.js";
@@ -26,7 +29,7 @@ import {
 import { MONSTERS } from "../../../src/data/monsters.js";
 import { processMonsterDefeat } from "../../../src/combat_logic/monster_traits.js";
 
-assert.equal(RUNNER_VERSION, "progression-exp-b-full-run-diagnostic-v1");
+assert.equal(RUNNER_VERSION, "progression-exp-b-full-run-diagnostic-v3");
 assert.equal(DEFAULT_SEED, 1735);
 await assert.rejects(runProgressionExpBFullRunDiagnostic({ runs: 31, seed: DEFAULT_SEED }), /exactly 1 .*30 .*200/);
 await assert.rejects(runProgressionExpBFullRunDiagnostic({ runs: 1, seed: DEFAULT_SEED + 1 }), /seed is frozen/);
@@ -59,6 +62,7 @@ assert.deepEqual(report.validity.candidatePrefundedLevelViolations, []);
 assert.deepEqual(report.validity.invalidCandidateSettlements, []);
 assert.deepEqual(report.validity.sourceAccountingMismatches, []);
 assert.equal(report.validity.firstCombatPreRewardStateAndOutcomeMatch, true);
+assert.equal(report.validity.combatObservationMismatches.length, 0);
 for (const row of report.rows) {
   assert.equal(row.combatExpCandidateId, row.arm);
   assert.ok(row.settlements.length > 0, `${row.context}/${row.arm} has an eligible generated combat`);
@@ -86,6 +90,102 @@ for (const row of report.rows) {
     assert.equal(enemy.def, Math.max(0, Math.round(template.def)));
   }
 }
+
+const selectedB20 = CONTEXTS.find(context => context.id === "selected-B20");
+const precombatReproduction = await runProgressionExpBFullRunDiagnostic({
+  runs: 1,
+  seed: DEFAULT_SEED,
+  contexts: [selectedB20],
+  runIndices: [10]
+});
+assert.equal(precombatReproduction.rows.length, ARMS.length);
+assert.deepEqual(precombatReproduction.rows.map(row => [row.arm, row.runIndex]), [
+  ["production", 10],
+  ["phase4j-b", 10]
+]);
+assert.equal(precombatReproduction.validity.valid, true);
+assert.equal(precombatReproduction.validity.firstCombatPreRewardStateAndOutcomeMatch, true);
+assert.deepEqual(precombatReproduction.validity.matchedArmMismatches, []);
+assert.deepEqual(precombatReproduction.rows.map(row => [row.terminationReason, row.battles, row.battleObservationCount]), [
+  ["death", 0, 0],
+  ["death", 0, 0]
+]);
+assert.equal(precombatReproduction.rows[0].combatCoverage.precombatTermination, true);
+assert.equal(precombatReproduction.rows[0].firstCombat, null);
+assert.deepEqual(precombatReproduction.validity.coverage.map(({ arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations }) => [
+  arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations
+]), [
+  ["production", 1, 0, 1, 0, 0],
+  ["phase4j-b", 1, 0, 1, 0, 0]
+]);
+
+const firstCombat = {
+  preRewardState: { floor: 1, baseline: 0, level: 1, exp: 0, hp: 20, rawMaxHp: 20, enemies: [{ name: "Goblin", hp: 10 }] },
+  outcome: "victory"
+};
+const matchedControl = {
+  worldSeed: "phase4j-b:1735:continuous-B1:7",
+  battles: 2,
+  battleObservationCount: 2,
+  terminationReason: "target-depth",
+  outcome: "return",
+  reachedFloor: 21,
+  deathFloor: null,
+  combatCoverage: { precombatTermination: false },
+  firstCombat
+};
+const matchedCandidate = {
+  ...matchedControl,
+  battles: 3,
+  battleObservationCount: 3,
+  terminationReason: "death",
+  outcome: "death",
+  reachedFloor: 19,
+  deathFloor: 19
+};
+assert.deepEqual(compareMatchedArmRuns(matchedControl, matchedCandidate), { matched: true, mismatches: [] });
+assert.deepEqual(describeMatchedArmDivergence(matchedControl, matchedCandidate), {
+  from: "return",
+  to: "death",
+  battles: { control: 2, candidate: 3, delta: 1 },
+  battleObservations: { control: 2, candidate: 3, delta: 1 },
+  terminationReasons: { control: "target-depth", candidate: "death" },
+  deathFloors: { control: null, candidate: 19 },
+  reachedFloors: { control: 21, candidate: 19 },
+  reachedFloorDelta: -2,
+  newDeath: true,
+  deathAvoided: false
+});
+assert.deepEqual(compareMatchedArmRuns(matchedControl, {
+  ...matchedCandidate,
+  firstCombat: { ...firstCombat, preRewardState: { ...firstCombat.preRewardState, hp: 19 } }
+}).mismatches, [{ reason: "first-combat-pre-reward-state-or-outcome-mismatch" }]);
+assert.deepEqual(compareMatchedArmRuns(matchedControl, { ...matchedCandidate, firstCombat: null }).mismatches, [
+  { reason: "first-combat-presence-mismatch" }
+]);
+const missingObservation = { ...matchedControl, arm: "production", battleObservationCount: 1 };
+assert.deepEqual(findCombatObservationMismatches([missingObservation]), [{
+  context: undefined,
+  arm: "production",
+  runIndex: undefined,
+  battles: 2,
+  observations: 1,
+  terminationReason: "target-depth"
+}]);
+const matchingPrecombat = {
+  ...matchedControl,
+  battles: 0,
+  battleObservationCount: 0,
+  terminationReason: "death",
+  outcome: "death",
+  reachedFloor: 20,
+  combatCoverage: { precombatTermination: true },
+  firstCombat: null
+};
+assert.deepEqual(compareMatchedArmRuns(matchingPrecombat, { ...matchingPrecombat }).mismatches, []);
+assert.deepEqual(compareMatchedArmRuns(matchingPrecombat, { ...matchingPrecombat, reachedFloor: 19 }).mismatches, [
+  { reason: "matched-precombat-termination-mismatch" }
+]);
 
 const milestoneState = {
   party: [{ maxHp: 20, hp: 10 }],
