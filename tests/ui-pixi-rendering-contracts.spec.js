@@ -1,13 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { test, expect } from './fixtures/browser-health.js';
 
-const VIEWPORTS = [
-  { width: 320, height: 568 },
-  { width: 360, height: 800 },
-  { width: 390, height: 844 },
-  { width: 430, height: 932 },
-];
-const ARCHETYPES = ['straight-corridor', 'dead-end', 'left-turn', 'right-turn', 't-junction', 'cross-junction'];
 const PRODUCTION_FIXTURE = Object.freeze({ seed: 'ISSUE-1230-B1F-PRODUCTION', floor: 1, x: 6, y: 4, dir: 1 });
 const EVIDENCE_DIR = process.env.PIXI_EVIDENCE_DIR || '';
 
