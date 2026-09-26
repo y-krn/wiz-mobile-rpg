@@ -673,6 +673,11 @@ for (const vp of VIEWPORTS) {
       localStorage.setItem('__issue744PauseAfterReload', '1');
     });
     await page.reload();
+    await expect(page.locator('#dungeon-canvas[data-renderer="pixi"]')).toBeAttached();
+    await expect(page.locator('#controls-panel:not([hidden])')).toBeVisible();
+    await page.waitForFunction(async () => (
+      (await import('/src/renderer_runtime.js')).dungeonRenderer?.mode === 'pixi'
+    ));
     const reloadState = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const { dungeonRenderer } = await import('/src/renderer_runtime.js');
