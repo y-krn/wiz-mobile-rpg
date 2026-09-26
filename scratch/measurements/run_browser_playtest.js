@@ -1,18 +1,18 @@
 /* global console, process, window, document */
 // Seeded browser playtest runner (#1799).
 //
-// Drives the real game in headless Chromium through play_helpers.js. Each
+// Drives the real game in headless Chromium through browser_playtest_driver.js. Each
 // seed gets a fresh browser context (empty trial save), a seeded Math.random,
 // and a fixed run seed, so the same seed replays the same floors and the
 // same combat/loot rolls as long as the bot makes the same choices.
 //
 //   npm run dev -- --port 5173
-//   node scratch/playtest/run_playtest.mjs --url http://localhost:5173 \
+//   node scratch/measurements/run_browser_playtest.js --url http://localhost:5173 \
 //     --seeds 1-10 --kit vanguard --equip greedy --out /tmp/pt.json
 //
 // Before/after comparison on identical maps: start two dev servers from two
 // worktrees (e.g. main and your branch) and pass both:
-//   node scratch/playtest/run_playtest.mjs --url http://localhost:5173 \
+//   node scratch/measurements/run_browser_playtest.js --url http://localhost:5173 \
 //     --compare http://localhost:5174 --seeds 1-10
 //
 // Floors come from runSeed (independent of combat RNG), so both sides see the
@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const HELPER_SOURCE = fs.readFileSync(path.join(here, "play_helpers.js"), "utf8");
+const HELPER_SOURCE = fs.readFileSync(path.join(here, "browser_playtest_driver.js"), "utf8");
 
 function parseArgs(argv) {
   const opts = {

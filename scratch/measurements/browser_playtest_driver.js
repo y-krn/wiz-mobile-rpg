@@ -1,6 +1,6 @@
 /* global window, document, PointerEvent, MouseEvent, setTimeout */
 // Browser-side playtest driver (#1799). Loaded as a module into the running
-// game (Vite dev server) by run_playtest.mjs, or manually from public/.
+// game (Vite dev server) by run_browser_playtest.js, or manually from public/.
 // It drives the real game: movement through handleMove, everything else by
 // clicking the rendered buttons, so combat/traps/chests use production logic.
 //
