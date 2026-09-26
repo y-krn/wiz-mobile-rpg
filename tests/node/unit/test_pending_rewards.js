@@ -52,6 +52,7 @@ assert.equal(hasPendingRewardBundle(state), true);
 assert.deepEqual(state.inventory, originalBag, "pending rewards never use a hidden inventory slot");
 assert.deepEqual(state.currentRun.unbankedObjectLoot, [], "pending rewards are not ledger-owned before resolution");
 assert.equal(bundle.entries.length, 3, "all chest object rewards share one decision state");
+assert.deepEqual(bundle.entries.map(entry => entry.decision), [null, null, null], "overflowing bundles keep explicit choices");
 
 bundle.entries.forEach(entry => { entry.decision = "take"; });
 bundle.discardIndexes = [0, 1, 2];
@@ -61,6 +62,28 @@ assert.equal(resolved.turnCost, 0, "bag-only pickup resolution is free");
 assert.equal(state.inventory.length, 20, "final bag includes every selected reward after explicit discards");
 assert.equal(state.currentRun.unbankedObjectLoot.length, 3, "only adopted rewards enter the run ledger");
 assert.equal(state.currentRun.pendingRewardBundle, null);
+
+resetState(Array.from({ length: 17 }, () => "HEAL_POTION"));
+const roomyBundle = stagePendingRewardBundle(state, [
+  { role: "main", item: "DAGGER" },
+  { role: "special", item: "TOWN_PORTAL" },
+  { role: "accessory", item: "AMULET_HP" }
+]);
+assert.deepEqual(roomyBundle.entries.map(entry => [entry.decision, entry.loadoutAction]),
+  [["take", null], ["take", null], ["take", null]], "rewards that fit default to plain take without loadout actions");
+const roomyResolved = resolvePendingRewardBundle(state);
+assert.equal(roomyResolved.ok, true, "roomy bundles resolve without per-reward choices");
+assert.equal(roomyResolved.turnCost, 0);
+assert.equal(state.inventory.length, 20);
+assert.equal(state.currentRun.unbankedObjectLoot.length, 3);
+
+resetState(["TOWN_PORTAL"]);
+const duplicatePortalBundle = stagePendingRewardBundle(state, [
+  { role: "main", item: "DAGGER" },
+  { role: "special", item: "TOWN_PORTAL" }
+]);
+assert.deepEqual(duplicatePortalBundle.entries.map(entry => entry.decision), ["take", null],
+  "an already-owned Town Portal is never defaulted to take");
 
 resetState(Array.from({ length: 20 }, () => "HEAL_POTION"));
 const rejectedBundle = stagePendingRewardBundle(state, [{ role: "main", item: "DAGGER" }]);

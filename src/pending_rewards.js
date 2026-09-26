@@ -29,6 +29,7 @@ import { createBagCapacitySummary } from "./ui/bag_summary.js";
 import { setDockActionRole } from "./ui/common_shell.js";
 
 export const PENDING_REWARD_MENU = "pending_rewards";
+const BAG_LIMIT = 20;
 
 function getRun(stateLike = state) {
   return stateLike?.currentRun && typeof stateLike.currentRun === "object"
@@ -75,6 +76,7 @@ export function stagePendingRewardBundle(
     .filter(Boolean);
 
   if (entries.length === 0) return null;
+  applyDefaultTakeDecisions(stateLike, entries);
   run.pendingRewardBundle = {
     id: `${entries[0].id}:bundle`,
     source,
@@ -85,6 +87,20 @@ export function stagePendingRewardBundle(
     discardIndexes: []
   };
   return run.pendingRewardBundle;
+}
+
+function isDuplicateTownPortal(inventory, item) {
+  return getItemData(item)?.id === "TOWN_PORTAL" && inventory.some(owned => getItemData(owned)?.id === "TOWN_PORTAL");
+}
+
+// Bag space is not a decision when every reward fits: default to plain "take".
+// Overflowing bundles keep explicit per-reward choices; trial/equip actions are never defaulted.
+function applyDefaultTakeDecisions(stateLike, entries) {
+  const inventory = Array.isArray(stateLike.inventory) ? stateLike.inventory : [];
+  if (inventory.length + entries.length > BAG_LIMIT) return;
+  entries.forEach(entry => {
+    if (!isDuplicateTownPortal(inventory, entry.item)) entry.decision = "take";
+  });
 }
 
 function sameItem(left, right) {
@@ -152,7 +168,7 @@ function validateResolution(stateLike, bundle) {
   }
   const actionError = bundle.entries.map(entry => getPendingActionEntry(bundle, entry)).find(Boolean);
   if (actionError) return { ok: false, reason: actionError.reason };
-  if (taken.some(entry => getItemData(entry.item)?.id === "TOWN_PORTAL" && inventory.some(item => getItemData(item)?.id === "TOWN_PORTAL"))) {
+  if (taken.some(entry => isDuplicateTownPortal(inventory, entry.item))) {
     return { ok: false, reason: "帰還の翼はすでに所持しています。置いていくを選んでください。" };
   }
   const hasLoadoutAction = bundle.entries.some(entry => entry.loadoutAction);
@@ -314,11 +330,12 @@ export function resolvePendingRewardBundle(stateLike = state) {
   };
 }
 
-function createActionButton(text, className, onClick, id = "") {
+function createActionButton(text, className, onClick, id = "", selected = undefined) {
   const button = document.createElement("button");
   button.type = "button";
   if (id) button.id = id;
-  button.className = className;
+  button.className = selected ? `${className} is-selected` : className;
+  if (selected !== undefined) button.setAttribute("aria-pressed", String(selected));
   button.textContent = text;
   button.addEventListener("click", onClick);
   return button;
@@ -364,20 +381,22 @@ function renderPendingRewardMenu() {
     card.appendChild(detail);
     const actions = document.createElement("div");
     actions.className = "pending-reward-actions";
+    const actionType = entry.loadoutAction?.type || null;
+    const isChoice = (decision, type = null) => entry.decision === decision && actionType === type;
     actions.appendChild(createActionButton("持つ", "btn btn-neon", () => {
       entry.decision = "take";
       entry.loadoutAction = null;
       saveAutosave();
       renderPendingRewardMenu();
       updateUI();
-    }));
+    }, "", isChoice("take")));
     actions.appendChild(createActionButton("置いていく", "btn btn-danger", () => {
       entry.decision = "leave";
       entry.loadoutAction = null;
       saveAutosave();
       renderPendingRewardMenu();
       updateUI();
-    }));
+    }, "", isChoice("leave")));
     if (isKnownLoadoutItem(entry.item) && !getRuneSpellKey(entry.item)) {
       actions.appendChild(createActionButton("装備して持つ", "btn btn-neon", () => {
         entry.decision = "take";
@@ -385,7 +404,7 @@ function renderPendingRewardMenu() {
         saveAutosave();
         renderPendingRewardMenu();
         updateUI();
-      }));
+      }, "", isChoice("take", "equip")));
     }
     if (isUntriedLoadoutItem(entry.item)) {
       actions.appendChild(createActionButton("試す（探索時間が進む）", "btn btn-neon", () => {
@@ -394,7 +413,7 @@ function renderPendingRewardMenu() {
         saveAutosave();
         renderPendingRewardMenu();
         updateUI();
-      }));
+      }, "", isChoice("take", "trial")));
     }
     if (isKnownLoadoutItem(entry.item) && getRuneSpellKey(entry.item)) {
       actions.appendChild(createActionButton("装着して持つ", "btn btn-neon", () => {
@@ -403,7 +422,7 @@ function renderPendingRewardMenu() {
         saveAutosave();
         renderPendingRewardMenu();
         updateUI();
-      }));
+      }, "", isChoice("take", "socket")));
     }
     card.appendChild(actions);
     optGrid.appendChild(card);
