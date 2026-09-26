@@ -345,7 +345,7 @@ function renderPendingRewardMenu() {
     className: "pending-reward-bag-status",
     note: projectedCount > 20
       ? `確定後 ${projectedCount}/20枠。既存品を選んで置いてください。`
-      : `確定後 ${projectedCount}/20枠。pending戦果はまだバッグではありません。`
+      : `確定後 ${projectedCount}/20枠。持つ戦果は確定するまでバッグに入りません。`
   }));
 
   bundle.entries.forEach(entry => {
@@ -355,7 +355,7 @@ function renderPendingRewardMenu() {
     card.dataset.rewardId = entry.id;
     const item = getItemData(entry.item);
     const heading = document.createElement("strong");
-    heading.textContent = `${item?.name || "戦果"}（${entry.role}）`;
+    heading.textContent = item?.name || "戦果";
     card.appendChild(heading);
     const detail = document.createElement("small");
     detail.textContent = entry.loadoutAction?.type === "trial"
