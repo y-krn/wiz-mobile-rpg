@@ -45,6 +45,12 @@ function getSpellPowerBonus(caster) {
   return caster ? (1.0 + getCharAffixSum(caster, "spellPower") / 100) : 1.0;
 }
 
+function getPhase4cV1SpellDamageBonus(caster) {
+  if (!Number.isInteger(Number(caster?.phase4cV1Baseline))) return 1.0;
+  const baseline = Math.max(0, Math.min(5, Number(caster.phase4cV1Baseline)));
+  return 1 + 0.16 * baseline;
+}
+
 const DUMAPIC_ONE_WAY_RADIUS = 3;
 
 function getCompassDirection(fromX, fromY, toX, toY) {
@@ -118,9 +124,10 @@ export const SPELL_EFFECTS = {
     const baseRoll = Math.floor(rng() * 11) + 12;
     let dmg = baseRoll;
     const spellPowerBonus = getSpellPowerBonus(caster);
+    const phase4cV1SpellDamageBonus = getPhase4cV1SpellDamageBonus(caster);
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
-    dmg = Math.round(dmg * spellPowerBonus * arcaneBonus * fireRiteBonus);
+    dmg = Math.round(dmg * spellPowerBonus * phase4cV1SpellDamageBonus * arcaneBonus * fireRiteBonus);
     const preAffixDamage = dmg;
     const affixResult = applyOffensiveAffixes(caster, target, dmg, { rng, state, logQueue, measurement });
     dmg = affixResult.damage;
@@ -141,6 +148,7 @@ export const SPELL_EFFECTS = {
       formulaTelemetry: telemetryEnabled ? {
         baseRoll,
         spellPowerBonus,
+        phase4cV1SpellDamageBonus,
         arcaneBonus,
         fireRiteBonus,
         preAffixDamage,
@@ -165,13 +173,14 @@ export const SPELL_EFFECTS = {
   },
   LAHALITO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const spellPowerBonus = getSpellPowerBonus(caster);
+    const phase4cV1SpellDamageBonus = getPhase4cV1SpellDamageBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
       const baseRoll = Math.floor(rng() * 21) + 15;
       let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
-      dmg = Math.round(dmg * spellPowerBonus * arcaneBonus * fireRiteBonus);
+      dmg = Math.round(dmg * spellPowerBonus * phase4cV1SpellDamageBonus * arcaneBonus * fireRiteBonus);
       const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue, measurement });
       dmg = affixResult.damage;
@@ -195,6 +204,7 @@ export const SPELL_EFFECTS = {
         formulaTelemetry: telemetryEnabled ? {
           baseRoll,
           spellPowerBonus,
+          phase4cV1SpellDamageBonus,
           arcaneBonus,
           fireRiteBonus,
           preAffixDamage,
@@ -237,9 +247,10 @@ export const SPELL_EFFECTS = {
     const baseRoll = Math.floor(rng() * 21) + 30;
     let dmg = baseRoll;
     const spellPowerBonus = getSpellPowerBonus(caster);
+    const phase4cV1SpellDamageBonus = getPhase4cV1SpellDamageBonus(caster);
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
-    dmg = Math.round(dmg * spellPowerBonus * arcaneBonus * fireRiteBonus);
+    dmg = Math.round(dmg * spellPowerBonus * phase4cV1SpellDamageBonus * arcaneBonus * fireRiteBonus);
     const preAffixDamage = dmg;
     const affixResult = applyOffensiveAffixes(caster, target, dmg, { rng, state, logQueue, measurement });
     dmg = affixResult.damage;
@@ -260,6 +271,7 @@ export const SPELL_EFFECTS = {
       formulaTelemetry: telemetryEnabled ? {
         baseRoll,
         spellPowerBonus,
+        phase4cV1SpellDamageBonus,
         arcaneBonus,
         fireRiteBonus,
         preAffixDamage,
@@ -277,12 +289,13 @@ export const SPELL_EFFECTS = {
   },
   MADALTO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const spellPowerBonus = getSpellPowerBonus(caster);
+    const phase4cV1SpellDamageBonus = getPhase4cV1SpellDamageBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
       const baseRoll = Math.floor(rng() * 31) + 30;
       let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-      dmg = Math.round(dmg * spellPowerBonus * arcaneBonus);
+      dmg = Math.round(dmg * spellPowerBonus * phase4cV1SpellDamageBonus * arcaneBonus);
       const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue, measurement });
       dmg = affixResult.damage;
@@ -306,6 +319,7 @@ export const SPELL_EFFECTS = {
         formulaTelemetry: telemetryEnabled ? {
           baseRoll,
           spellPowerBonus,
+          phase4cV1SpellDamageBonus,
           arcaneBonus,
           fireRiteBonus: 1,
           preAffixDamage,
@@ -330,12 +344,13 @@ export const SPELL_EFFECTS = {
   },
   TILTOWAIT: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const spellPowerBonus = getSpellPowerBonus(caster);
+    const phase4cV1SpellDamageBonus = getPhase4cV1SpellDamageBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
       const baseRoll = Math.floor(rng() * 51) + 50;
       let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-      dmg = Math.round(dmg * spellPowerBonus * arcaneBonus);
+      dmg = Math.round(dmg * spellPowerBonus * phase4cV1SpellDamageBonus * arcaneBonus);
       const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg, { rng, state, logQueue, measurement });
       dmg = affixResult.damage;
@@ -359,6 +374,7 @@ export const SPELL_EFFECTS = {
         formulaTelemetry: telemetryEnabled ? {
           baseRoll,
           spellPowerBonus,
+          phase4cV1SpellDamageBonus,
           arcaneBonus,
           fireRiteBonus: 1,
           preAffixDamage,
@@ -410,8 +426,9 @@ export const SPELL_EFFECTS = {
     const baseRoll = Math.floor(rng() * 11) + 8;
     let dmg = baseRoll;
     const spellPowerBonus = getSpellPowerBonus(caster);
+    const phase4cV1SpellDamageBonus = getPhase4cV1SpellDamageBonus(caster);
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-    dmg = Math.round(dmg * spellPowerBonus * arcaneBonus);
+    dmg = Math.round(dmg * spellPowerBonus * phase4cV1SpellDamageBonus * arcaneBonus);
     
     const preTargetBonusDamage = dmg;
     const preAffixDamage = dmg;
@@ -441,6 +458,7 @@ export const SPELL_EFFECTS = {
       formulaTelemetry: telemetryEnabled ? {
         baseRoll,
         spellPowerBonus,
+        phase4cV1SpellDamageBonus,
         arcaneBonus,
         fireRiteBonus: 1,
         preTargetBonusDamage,

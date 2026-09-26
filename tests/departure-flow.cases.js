@@ -114,6 +114,81 @@ test('Entering trial URL restores an active trial run and confirms replacement @
   expect(await page.evaluate(() => localStorage.getItem('mobile_wiz_rpg_autosave'))).toBe(normalSave);
 });
 
+test('Normal and both trial profiles start and restore B1/B10/B20 runs @smoke', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const profiles = [
+    { id: 'normal', url: '/', key: 'mobile_wiz_rpg_autosave', expectedHp: { 1: 20, 10: 20, 20: 20 } },
+    { id: 'progression-exp', url: '/?tryout=vnext&trialProfile=progression-exp', key: 'mobile_wiz_rpg_vnext_trial_autosave', expectedHp: { 1: 20, 10: 24, 20: 28 } },
+    { id: 'phase3-equipment', url: '/?tryout=vnext&trialProfile=phase3-equipment', key: 'mobile_wiz_rpg_vnext_trial_autosave', expectedHp: { 1: 20, 10: 24, 20: 28 } },
+  ];
+
+  for (const profile of profiles) {
+    for (const startFloor of [1, 10, 20]) {
+      await page.goto(profile.url);
+      await waitForPixiReady(page);
+      await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { updateUI } = await import('/src/ui.js');
+        state.currentRun = null;
+        state.party = [];
+        state.gameState = 'town';
+        state.floor = 1;
+        state.unlockedMilestones = [5, 10, 15, 20];
+        updateUI();
+      });
+
+      await expect(page.locator('#btn-town-dungeon')).toBeVisible();
+      await page.locator('#btn-town-dungeon').click();
+      await page.locator('.solo-starting-kit-option').first().click();
+      await page.locator(`[data-trial-profile="${profile.id}"]`).click();
+      await page.locator(`[data-start-floor="${startFloor}"]`).click();
+      await page.locator('#btn-departure-start').click();
+      await expect(page.locator('#explore-controls')).toBeVisible();
+
+      const started = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return {
+          profile: state.currentRun.trialProfile,
+          startFloor: state.currentRun.startFloor,
+          baseline: state.currentRun.phase4cV1Baseline,
+          hp: state.party[0].hp,
+          maxHp: state.party[0].maxHp,
+        };
+      });
+      expect(started.profile).toBe(profile.id);
+      expect(started.startFloor).toBe(startFloor);
+      expect(started.maxHp).toBe(profile.expectedHp[startFloor]);
+      expect(started.hp).toBe(profile.expectedHp[startFloor]);
+      if (profile.id === 'normal') expect(started.baseline).toBeUndefined();
+      else expect(started.baseline).toBe(Math.floor(startFloor / 5));
+
+      await expect.poll(() => page.evaluate((key) => {
+        const saved = JSON.parse(localStorage.getItem(key) || 'null');
+        return saved?.currentRun?.startFloor ?? null;
+      }, profile.key)).toBe(startFloor);
+      await page.reload();
+      await waitForPixiReady(page);
+      const restored = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return {
+          gameState: state.gameState,
+          profile: state.currentRun?.trialProfile,
+          startFloor: state.currentRun?.startFloor,
+          baseline: state.currentRun?.phase4cV1Baseline,
+          maxHp: state.party[0]?.maxHp,
+        };
+      });
+      expect(restored.gameState).toBe('explore');
+      expect(restored.profile).toBe(profile.id);
+      expect(restored.startFloor).toBe(startFloor);
+      expect(restored.maxHp).toBe(profile.expectedHp[startFloor]);
+      if (profile.id === 'normal') expect(restored.baseline).toBeUndefined();
+      else expect(restored.baseline).toBe(Math.floor(startFloor / 5));
+    }
+  }
+});
+
 test('Primary run path reaches Town again through UI actions @e2e @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 430, height: 932 });
   await page.goto('/');

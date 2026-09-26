@@ -19,6 +19,7 @@ import {
   getEliteCombatTrait,
   ELITE_COMBAT_TRAIT_LABELS
 } from "../systems/roaming_elites.js";
+import { preparePhase4cV1Encounter } from "../rules/phase4c_v1_trial.js";
 
 export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster = null, rng = Math.random) {
   const monsters = [];
@@ -137,6 +138,7 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
     }
   }
 
+  preparePhase4cV1Encounter(state, monsters);
   return {
     monsters,
     isRare,

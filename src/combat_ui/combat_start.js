@@ -13,6 +13,7 @@ import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 import { trackCombatStart } from "../telemetry.js";
 import { recordEliteGreedAction } from "../systems/roaming_elites.js";
 import { dungeonRenderer as renderer } from "../renderer_runtime.js";
+import { preparePhase4jBEncounter } from "../rules/phase4j_b_trial.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;
@@ -39,6 +40,12 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
   });
 
   const { monsters, isRare, trial, floorRole } = generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster);
+  const trialExp = preparePhase4jBEncounter(state, monsters, {
+    boss: isBoss,
+    elite: isRoamingFlack,
+    midboss: isMidboss,
+    rare: isRare
+  });
 
   if (state.alarmActive) {
     const mult = state.alarmWeakened ? 1.10 : 1.20;
@@ -68,6 +75,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
 
   state.combatState = {
     monsters,
+    ...(trialExp.applied ? { trialExpInitialCount: trialExp.initialCount } : {}),
     phase: "choose_actions",
     isBoss,
     isMidboss,

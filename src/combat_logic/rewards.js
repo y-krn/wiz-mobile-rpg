@@ -7,6 +7,7 @@ import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { createMonsterCodexRecord, recordEquipmentDiscovery, recordMonsterLoot } from "../state/codex_state.js";
 import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js";
+import { settlePhase4jBExpOwnership } from "../rules/phase4j_b_trial.js";
 
 function rollCombatAccessoryDrop(state, rng) {
   const roll = rng();
@@ -28,6 +29,7 @@ function rollCombatAccessoryDrop(state, rng) {
 }
 
 export function applyCombatRewards(state, monsters, logQueue, rng = Math.random, policy = null) {
+  settlePhase4jBExpOwnership(state, monsters);
   const nonFledMonsters = monsters.filter(m => !m.fled);
   const totalExp = nonFledMonsters.reduce((sum, m) => sum + m.exp, 0);
   const livingChars = state.party.filter(c => c.status !== "dead");
