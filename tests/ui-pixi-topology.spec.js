@@ -140,12 +140,11 @@ test('PixiJS preserves combat staging, target mapping, danger cue, resize, and l
   });
   expect(oneWay.frontOneWayBarrier).toBe(true);
   await page.setViewportSize({ width: 430, height: 932 });
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => [canvas.width, canvas.height])).toEqual(expect.arrayContaining([expect.any(Number), expect.any(Number)]));
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.width)).toBeGreaterThanOrEqual(428);
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.height)).toBeGreaterThanOrEqual(930);
+  await expect.poll(() => page.locator('#dungeon-canvas').evaluate((canvas) => canvas.width)).toBeGreaterThanOrEqual(428);
+  await expect.poll(() => page.locator('#dungeon-canvas').evaluate((canvas) => canvas.height)).toBeGreaterThanOrEqual(930);
   await page.setViewportSize({ width: 320, height: 568 });
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.width)).toBeGreaterThanOrEqual(318);
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.height)).toBeGreaterThanOrEqual(566);
+  await expect.poll(() => page.locator('#dungeon-canvas').evaluate((canvas) => canvas.width)).toBeGreaterThanOrEqual(318);
+  await expect.poll(() => page.locator('#dungeon-canvas').evaluate((canvas) => canvas.height)).toBeGreaterThanOrEqual(566);
   await page.setViewportSize({ width: 390, height: 844 });
   const evidence = await page.evaluate(async () => {
     const { dungeonRenderer, getCombatMonsterLayout } = await import('/src/renderer.js');
