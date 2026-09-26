@@ -2,6 +2,7 @@ import { state, saveAutosave, addLog, addEventLog, clearEventObservations, creat
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
+import { showMoveBlockedCue } from "./ui/move_blocked_cue.js";
 import { dungeonRenderer as renderer } from "./renderer_runtime.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
 import { normalizeStartingKitId } from "./state/starting_kit.js";
@@ -161,9 +162,20 @@ function isBlockedByOneWayPassage(x, y, dir) {
   return isMapDirectionBlocked(state.map, x, y, dir) && !state.map?.[y]?.[x]?.walls?.[dir];
 }
 
+function blockWallMove() {
+  playSound("bump");
+  showMoveBlockedCue("wall");
+}
+
 function blockOneWayMove() {
   playSound("bump");
   addLog("見えない力に押し返された。ここは一方通行だ…");
+  showMoveBlockedCue("one-way");
+}
+
+// A blocked step spends no turn and changes no progress, so it skips autosave.
+function finishBlockedMove() {
+  updateUI();
 }
 
 export function getCurrentExplorationCell() {
@@ -225,9 +237,11 @@ export function handleMove(action) {
     advanceRoamingTurn(false);
   } else if (action === "forward") {
     if (currentCell.walls[state.dir]) {
-      playSound("bump");
+      blockWallMove();
+      return finishBlockedMove();
     } else if (isBlockedByOneWayPassage(state.x, state.y, state.dir)) {
       blockOneWayMove();
+      return finishBlockedMove();
     } else {
       // Step forward
       // Traps are route obstacles: decide before entering the cell, so that
@@ -258,9 +272,11 @@ export function handleMove(action) {
   } else if (action === "backward") {
     const backDir = (state.dir + 2) % 4;
     if (currentCell.walls[backDir]) {
-      playSound("bump");
+      blockWallMove();
+      return finishBlockedMove();
     } else if (isBlockedByOneWayPassage(state.x, state.y, backDir)) {
       blockOneWayMove();
+      return finishBlockedMove();
     } else {
       const backX = state.x + DX[backDir];
       const backY = state.y + DY[backDir];
