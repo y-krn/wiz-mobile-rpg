@@ -89,17 +89,73 @@ async function clickCanvasInternalPoint(page, internalPoint) {
 }
 
 for (const viewport of VIEWPORTS) {
-  test(`単体敵の明確なCanvas空白は対象にしない (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
+  test(`生存敵が1体なら攻撃は対象選択を省略して確定する (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    // Keep a second actionable actor so target selection remains observable
-    // before the one-actor round resolver clears the queued action.
+    // Keep a second actionable actor so the queued action stays observable
+    // before the one-actor round resolver clears it.
     await installCombat(page, ['vanguard', 'arcana']);
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const { updateUI } = await import('/src/ui.js');
+      // The dead first enemy proves the shortcut commits the living index.
+      state.combatState.monsters[0].hp = 0;
+      updateUI();
+    });
+
+    await page.locator('#btn-combat-fight').click();
+    await expect(page.locator('#combat-overlay')).toBeHidden();
+    await expect(page.locator('#combat-controls')).toBeVisible();
+    expect(await page.evaluate(async () => {
+      const { combatSelection } = await import('/src/combat.js');
+      const { state } = await import('/src/state.js');
+      return { action: combatSelection.actions[0], charIdx: combatSelection.charIdx, gameState: state.gameState };
+    })).toMatchObject({ action: { type: 'fight', actorIdx: 0, targetIdx: 1 }, charIdx: 1, gameState: 'combat' });
+    expect(await page.evaluate(() => window.__targetTelemetry
+      .filter((event) => event.name.startsWith('ux_decision_')).length)).toBe(0);
+
+    // The auto-committed attack stays repeatable against the same enemy.
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { combatSelection } = await import('/src/combat.js');
+      const { updateUI } = await import('/src/ui.js');
+      state.combatState.lastActions = combatSelection.actions.slice();
+      combatSelection.charIdx = 0;
+      combatSelection.actions = [];
+      updateUI();
+    });
+    await page.locator('#btn-combat-repeat').click();
+    await expect(page.locator('#combat-overlay')).toBeHidden();
+    expect(await page.evaluate(async () => {
+      const { combatSelection } = await import('/src/combat.js');
+      return combatSelection.actions[0];
+    })).toMatchObject({ type: 'fight', actorIdx: 0, targetIdx: 1 });
+  });
+
+  test(`生存敵が1体なら単体攻撃呪文も対象選択を省略する (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await installCombat(page, ['arcana', 'vanguard']);
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { updateUI } = await import('/src/ui.js');
+      state.party[0].mp = state.party[0].maxMp = 10;
       state.combatState.monsters = [state.combatState.monsters[0]];
       updateUI();
     });
+
+    await page.locator('#btn-combat-spell').click();
+    await page.locator('#combat-overlay .combat-item-card.spell', {
+      has: page.locator('.spell-name', { hasText: /^HALITO$/ }),
+    }).click();
+    await expect(page.locator('#combat-overlay')).toBeHidden();
+    expect(await page.evaluate(async () => {
+      const { combatSelection } = await import('/src/combat.js');
+      return combatSelection.actions[0];
+    })).toMatchObject({ type: 'spell', actorIdx: 0, targetIdx: 0, spellName: 'HALITO' });
+  });
+
+  test(`敵2体の明確なCanvas空白は対象にしない (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await installCombat(page, ['vanguard', 'arcana']);
 
     await page.locator('#btn-combat-fight').click();
     await clickCanvasInternalPoint(page, { x: 10, y: 10 });
@@ -174,13 +230,15 @@ test('敵対象Canvasはdead敵をhit-testせず、戻るは行動を確定し�
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     state.combatState.monsters[0].hp = 0;
+    // Two living enemies keep the target screen open around the dead one.
+    state.combatState.monsters.push({ name: '対象C', hp: 60, maxHp: 60, magicResist: 0, tags: [] });
     const { updateUI } = await import('/src/ui.js');
     updateUI();
   });
 
   await page.locator('#btn-combat-fight').click();
-  await expect(page.locator('#combat-overlay .combat-target-a11y')).toHaveCount(1);
-  await expect(page.locator('#combat-overlay .combat-target-a11y')).toContainText('対象B');
+  await expect(page.locator('#combat-overlay .combat-target-a11y')).toHaveCount(2);
+  await expect(page.locator('#combat-overlay .combat-target-a11y')).toContainText(['対象B', '対象C']);
 
   const deadCommit = await page.evaluate(async () => {
     const { commitCombatTarget } = await import('/src/combat_ui/combat_overlay.js');

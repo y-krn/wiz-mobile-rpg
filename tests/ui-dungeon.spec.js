@@ -773,7 +773,8 @@ for (const vp of VIEWPORTS) {
         state.inventory = ['HEAL_POTION'];
         state.combatState = {
           phase: 'choose_actions',
-          monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+          // Two enemies keep the target callback open; a lone enemy is auto-committed.
+          monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }, { name: 'Biter B', hp: 10, maxHp: 10 }],
         };
         state.gameState = 'combat';
         state.transitioning = false;

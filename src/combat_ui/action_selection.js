@@ -106,6 +106,25 @@ function isValidEnemyTarget(targetIdx) {
   return Boolean(monster) && typeof monster === "object" && !Array.isArray(monster) && monster.hp > 0;
 }
 
+function getLivingEnemyIndices() {
+  const monsters = state.combatState?.monsters;
+  if (!Array.isArray(monsters)) return [];
+  return monsters.map((_, idx) => idx).filter(isValidEnemyTarget);
+}
+
+// A single living enemy leaves nothing to choose, so commit it directly
+// instead of opening the target screen (mirrors the single-ally shortcut).
+function chooseEnemyTarget(commit, spellName = null) {
+  const targetIndices = getLivingEnemyIndices();
+  if (targetIndices.length === 1) {
+    if (!canCommitCombatAction()) return;
+    state.gameState = "combat";
+    commit(targetIndices[0]);
+  } else {
+    openCombatTargetMenu("enemy", commit, spellName);
+  }
+}
+
 function isValidAllyTarget(targetIdx, allowedIndices) {
   if (!Array.isArray(state.party) || !Number.isInteger(targetIdx) || !allowedIndices.includes(targetIdx) || !Object.hasOwn(state.party, targetIdx)) return false;
   const actor = state.party[targetIdx];
@@ -194,7 +213,7 @@ export function selectCombatAction(type) {
   if (type === "fight") {
     // Let player choose target monster
     menuContext.actorIdx = charOriginalIdx;
-    openCombatTargetMenu("enemy", (targetIdx) => {
+    chooseEnemyTarget((targetIdx) => {
       if (!canCommitCombatAction() || !isValidEnemyTarget(targetIdx)) return;
       state.gameState = "combat";
       queueCombatAction({
@@ -229,7 +248,7 @@ export function selectCombatAction(type) {
       
       // Determine targets
       if (spell.target === "single_enemy") {
-        openCombatTargetMenu("enemy", (targetIdx) => {
+        chooseEnemyTarget((targetIdx) => {
           if (!canCommitCombatAction() || !isValidEnemyTarget(targetIdx)) return;
           state.gameState = "combat";
           queueCombatAction({

@@ -85,7 +85,8 @@ async function setupCombat(page, { woundedCount = 1, deadSecond = false, spellKe
     state.party = [first, second];
     state.inventory = ['HEAL_POTION'];
     state.combatState = {
-      monsters: [{ name: '検証用モンスター', hp: 20, maxHp: 20 }],
+      // Two enemies keep enemy targeting observable; a lone enemy is auto-committed.
+      monsters: [{ name: '検証用モンスター', hp: 20, maxHp: 20 }, { name: '検証用モンスターB', hp: 20, maxHp: 20 }],
       phase: 'choose_actions',
       isBoss: false,
       isMidboss: false,

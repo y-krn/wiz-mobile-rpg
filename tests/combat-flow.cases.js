@@ -35,8 +35,13 @@ test('Explore and Combat share the common Dock grammar at 320x568 @e2e @smoke', 
   expect(afterCanvasTap).toEqual(explore.before);
 
   await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
     const { startCombat } = await import('/src/combat.js');
+    const { updateUI } = await import('/src/ui.js');
     startCombat(false, false);
+    // A lone enemy skips target selection, so keep a second one on screen.
+    if (state.combatState.monsters.length < 2) state.combatState.monsters.push({ ...state.combatState.monsters[0] });
+    updateUI();
   });
 
   await expect(page.locator('#combat-controls')).toBeVisible();

@@ -173,10 +173,21 @@ test('Dungeon First preserves complete navigation surface across six 390x844 top
   }
 });
 
+// A lone enemy skips target selection, so add a second one to keep the overlay.
+async function addSecondEnemy(page) {
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    state.combatState.monsters.push({ ...state.combatState.monsters[0], name: '検証敵B' });
+    updateUI();
+  });
+}
+
 for (const renderer of ['pixi']) {
   test(`Dungeon First ${renderer} combat canvas target passes through overlay for fight and spell @smoke`, async ({ page }) => {
     await page.setViewportSize(VIEWPORT);
     await seedDungeon(page, { renderer, gameState: 'combat' });
+    await addSecondEnemy(page);
     await page.locator('#btn-combat-fight').click();
     await expect(page.locator('#combat-overlay')).toBeVisible();
     await selectCanvasEnemy(page);
@@ -184,6 +195,7 @@ for (const renderer of ['pixi']) {
     await expect.poll(() => page.evaluate(async () => (await import('/src/combat.js')).combatSelection.actions[0])).toMatchObject({ type: 'fight', targetIdx: 0 });
 
     await seedDungeon(page, { renderer, gameState: 'combat' });
+    await addSecondEnemy(page);
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       state.party[0].mp = state.party[0].maxMp = 10;
