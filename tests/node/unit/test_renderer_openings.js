@@ -71,6 +71,32 @@ assert.deepEqual(
   "posts appear only where a wall turns the corner"
 );
 
+// Occlusion: the left column loops around to centre-lane cells behind the
+// front wall at z=1. Their side openings sit behind that wall, so no post
+// may be drawn over it.
+const loopPaths = [
+  [4, 4, 0], [4, 4, 3], [3, 4, 0], [3, 3, 0], [3, 2, 1],
+  [4, 2, 0], [4, 2, 1], [4, 1, 3], [4, 1, 1]
+];
+const loopTopology = getVisibleCorridorTopology(makeGrid(loopPaths), 4, 4, 0);
+assert.ok(loopTopology.some(({ z, column, valid }) => valid && column === 0 && z >= 2), "the loop reaches centre cells behind the wall");
+assert.deepEqual(
+  getSideOpeningPosts(loopTopology, PROJECTION).map(({ side, z }) => `${side}@${z}`).sort(),
+  ["left@0", "left@1"],
+  "centre cells behind the front wall produce no posts"
+);
+
+// A one-way front barrier occludes deeper posts the same way.
+const oneWayLoop = makeGrid([...loopPaths, [4, 3, 0]]);
+oneWayLoop[2][4].blockEnter[2] = true;
+const oneWayTopology = getVisibleCorridorTopology(oneWayLoop, 4, 4, 0);
+assert.ok(oneWayTopology.some(({ z, column, frontOneWayBarrier }) => z === 1 && column === 0 && frontOneWayBarrier));
+assert.deepEqual(
+  getSideOpeningPosts(oneWayTopology, PROJECTION).map(({ side, z }) => `${side}@${z}`).sort(),
+  ["left@0", "left@1"],
+  "centre cells behind a one-way front produce no posts"
+);
+
 assert.deepEqual(getSideOpeningPosts(null, PROJECTION), []);
 assert.deepEqual(getSideOpeningPosts([{ valid: false, z: 0, column: 0 }], PROJECTION), []);
 
