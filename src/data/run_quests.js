@@ -19,7 +19,7 @@ export const RUN_QUEST_TEMPLATES = Object.freeze([
     id: "disruptor_hunt",
     type: "role_kill",
     name: "妨害役を断つ",
-    description: "disruptorを3体倒す。",
+    description: "パーティを弱体化させる「妨害役」を3体倒す。",
     role: "disruptor",
     target: Object.freeze({ kind: "count", value: 3 }),
     reward: Object.freeze({ materials: Object.freeze({ "毒腺": 3 }) })
@@ -27,8 +27,8 @@ export const RUN_QUEST_TEMPLATES = Object.freeze([
   Object.freeze({
     id: "amplifier_hunt",
     type: "role_kill",
-    name: "増幅役を崩す",
-    description: "amplifierを2体倒す。",
+    name: "支援役を倒す",
+    description: "周りの敵を強化する「支援役」を2体倒す。",
     role: "amplifier",
     target: Object.freeze({ kind: "count", value: 2 }),
     reward: Object.freeze({ materials: Object.freeze({ "霊粉": 3 }) })

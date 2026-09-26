@@ -131,7 +131,8 @@ export function renderChestMenu({
     const lootRow = document.createElement("div");
     lootRow.textContent = "宝気: ";
     const lootLabel = document.createElement("span");
-    lootLabel.style.color = "#fff";
+    lootLabel.style.color = "var(--text-primary)";
+    lootLabel.style.fontWeight = "bold";
     lootLabel.textContent = loot.label;
     lootRow.appendChild(lootLabel);
     const auraRow = document.createElement("div");
