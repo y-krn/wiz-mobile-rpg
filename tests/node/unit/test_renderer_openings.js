@@ -1,5 +1,7 @@
 import assert from "assert";
 import { getSideOpeningPosts } from "../../../src/rules/renderer_openings.js";
+import * as facade from "../../../src/rules/renderer_openings.js";
+import * as owner from "../../../src/rules/renderer_openings.ts";
 import { getVisibleCorridorTopology } from "../../../src/rules/renderer_topology.js";
 import { getProjectionColumn, getProjectionPlanes, getProjectionProfile } from "../../../src/rules/renderer_projection.js";
 
@@ -99,5 +101,58 @@ assert.deepEqual(
 
 assert.deepEqual(getSideOpeningPosts(null, PROJECTION), []);
 assert.deepEqual(getSideOpeningPosts([{ valid: false, z: 0, column: 0 }], PROJECTION), []);
+assert.deepEqual(getSideOpeningPosts({ 0: { valid: true, z: 0, column: 0 } }, PROJECTION), [], "non-array topology is ignored");
+
+assert.deepEqual(Object.keys(facade), ["getSideOpeningPosts"], "facade keeps the existing runtime export surface");
+assert.deepEqual(Object.keys(owner), ["getSideOpeningPosts"], "TS owner keeps the existing runtime export surface");
+assert.equal(facade.getSideOpeningPosts, owner.getSideOpeningPosts, "facade and TS owner share function identity");
+
+const duplicateTopology = [
+  { valid: true, z: 0, column: 0, leftBlocked: false, rightBlocked: false, frontBlocked: true },
+  { valid: true, z: 0, column: -1, backBlocked: true },
+  { valid: true, z: 0, column: 1, backBlocked: true },
+  { valid: true, z: 0, column: -1, backBlocked: true },
+  { valid: true, z: 0, column: 0, leftBlocked: false, rightBlocked: false, frontBlocked: true }
+];
+const duplicatePosts = getSideOpeningPosts(duplicateTopology, PROJECTION);
+assert.deepEqual(duplicatePosts.map(({ side, z }) => `${side}@${z}`), ["left@1", "right@1", "left@0", "right@0"], "duplicate keys keep one post per side in far-to-near order");
+assert.ok(duplicatePosts.every(Object.isFrozen), "each post is frozen");
+assert.equal(Object.isFrozen(duplicatePosts), false, "returned post array remains mutable");
+assert.deepEqual(Object.keys(duplicatePosts[0]).sort(), ["bottom", "side", "top", "width", "x", "z"]);
+assert.deepEqual(
+  getSideOpeningPosts(duplicateTopology, { ...PROJECTION, xl: [0] }).map(({ side, z }) => `${side}@${z}`),
+  ["left@0", "right@0"],
+  "posts outside projection depth are skipped"
+);
+
+const sparseTopology = [];
+sparseTopology[1] = duplicateTopology[0];
+sparseTopology[3] = duplicateTopology[1];
+sparseTopology[5] = duplicateTopology[2];
+assert.deepEqual(
+  getSideOpeningPosts(sparseTopology, PROJECTION).map(({ side, z }) => `${side}@${z}`),
+  ["left@1", "right@1", "left@0", "right@0"],
+  "sparse topology holes are skipped"
+);
+
+const replacedCentreTopology = [
+  ...duplicateTopology,
+  { valid: true, z: 0, column: 0, leftBlocked: true, rightBlocked: true, frontBlocked: true }
+];
+assert.deepEqual(getSideOpeningPosts(replacedCentreTopology, PROJECTION), [], "later duplicate cell replaces the earlier map value");
+
+const getterError = new Error("opening topology getter");
+assert.throws(
+  () => getSideOpeningPosts([{ get valid() { throw getterError; } }], PROJECTION),
+  error => error === getterError,
+  "topology getter exceptions remain visible"
+);
+const proxyError = new Error("opening projection proxy");
+const throwingProjection = new Proxy({}, { get() { throw proxyError; } });
+assert.throws(
+  () => getSideOpeningPosts([], throwingProjection),
+  error => error === proxyError,
+  "projection Proxy exceptions remain visible"
+);
 
 console.log("test_renderer_openings: ok");
