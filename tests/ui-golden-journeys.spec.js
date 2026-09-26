@@ -99,7 +99,11 @@ test('Combat target Back cancels without committing and permits reselect @e2e @s
     state.x = 0; state.y = 0; state.dir = 0;
     state.combatState = {
       phase: 'choose_actions',
-      monsters: [{ name: '対象A', hp: 10, maxHp: 10, magicResist: 0, tags: [] }],
+      // Two enemies keep target selection open; a lone enemy is auto-committed.
+      monsters: [
+        { name: '対象A', hp: 10, maxHp: 10, magicResist: 0, tags: [] },
+        { name: '対象B', hp: 10, maxHp: 10, magicResist: 0, tags: [] },
+      ],
       roundNumber: 1, isAuto: false, pendingOutcome: null,
     };
     state.gameState = 'combat';

@@ -14,7 +14,10 @@ test('combat spell cards expose tags and enter enemy targeting through the cast 
     state.party = [caster];
     state.combatState = {
       phase: 'choose_actions',
-      monsters: [{ name: '検証用モンスター', hp: 100, maxHp: 100, magicResist: 0, tags: [] }],
+      monsters: [
+        { name: '検証用モンスター', hp: 100, maxHp: 100, magicResist: 0, tags: [] },
+        { name: '検証用モンスターB', hp: 100, maxHp: 100, magicResist: 0, tags: [] },
+      ],
       roundNumber: 1,
       isAuto: false,
       pendingOutcome: null
@@ -40,7 +43,7 @@ test('combat spell cards expose tags and enter enemy targeting through the cast 
 
   await halito.click();
   await expect(page.locator('#combat-overlay .combat-target-card.enemy')).toHaveCount(0);
-  await expect(page.locator('#combat-overlay .combat-target-a11y')).toHaveCount(1);
+  await expect(page.locator('#combat-overlay .combat-target-a11y')).toHaveCount(2);
   const point = await page.evaluate(async () => {
     const { dungeonRenderer, getCombatMonsterLayout } = await import('/src/renderer.js');
     const rect = document.querySelector('#dungeon-canvas').getBoundingClientRect();

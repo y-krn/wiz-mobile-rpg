@@ -773,7 +773,8 @@ for (const vp of VIEWPORTS) {
         state.inventory = ['HEAL_POTION'];
         state.combatState = {
           phase: 'choose_actions',
-          monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+          // Two enemies keep the target callback open; a lone enemy is auto-committed.
+          monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }, { name: 'Biter B', hp: 10, maxHp: 10 }],
         };
         state.gameState = 'combat';
         state.transitioning = false;
@@ -1216,8 +1217,13 @@ test('Combat autosave resumes action selection without persisting resolving phas
 
   const beforeReload = await page.evaluate(async () => {
     const { startCombat } = await import('/src/combat.js');
-    const { state } = await import('/src/state.js');
+    const { state, saveAutosave } = await import('/src/state.js');
     startCombat(false, false);
+    // A lone enemy skips target selection, so keep a second one to target.
+    if (state.combatState.monsters.length < 2) {
+      state.combatState.monsters.push({ ...state.combatState.monsters[0] });
+      saveAutosave();
+    }
     const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
     return {
       live: {

@@ -66,6 +66,8 @@ test('Canceled combat choices do not emit decision telemetry @e2e @smoke', async
     state.party = [state.party[0], createStartingKitCharacter('arcana')];
     trackRunStart(state.currentRun, state.party[0], state);
     startCombat(false, false);
+    // A lone enemy skips target selection, so keep a second one to target.
+    if (state.combatState.monsters.length < 2) state.combatState.monsters.push({ ...state.combatState.monsters[0] });
     combatSelection.charIdx = 0;
     combatSelection.actions = [];
 
@@ -118,6 +120,8 @@ for (const vp of COMBAT_OVERLAY_VIEWPORTS) {
       state.gameState = 'explore';
       state.floor = 1;
       startCombat(false, false);
+      // A lone enemy skips target selection, so keep a second one on screen.
+      if (state.combatState.monsters.length < 2) state.combatState.monsters.push({ ...state.combatState.monsters[0] });
     });
 
     const verifyCombatOverlay = async (actionButtonId, overlayType) => {
@@ -135,7 +139,9 @@ for (const vp of COMBAT_OVERLAY_VIEWPORTS) {
           .filter((el) => {
             const style = getComputedStyle(el);
             const rect = el.getBoundingClientRect();
-            return style.visibility !== 'hidden' &&
+            // The clipped screen-reader target list is not visible until focused.
+            return !el.closest('.combat-target-a11y-list:not(:focus-within)') &&
+              style.visibility !== 'hidden' &&
               style.display !== 'none' &&
               rect.width > 0 &&
               rect.height > 0 &&
