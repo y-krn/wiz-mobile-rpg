@@ -93,10 +93,6 @@ export function getCharAffixSum(char, affixType) {
       sum += 10;
     }
   }
-  if (affixType === "spellPower") {
-    const baseline = Math.max(0, Math.min(5, Math.floor(Number(char.phase4cV1Baseline) || 0)));
-    sum += 16 * baseline;
-  }
   if (affixType === "antiUndead" || affixType === "antiDemon") {
     const weaponIdStr = getItemBaseId(getSafeEquipmentValue(char.equipment, "weapon"));
     if (weaponIdStr === "HOLY_BLADE") {

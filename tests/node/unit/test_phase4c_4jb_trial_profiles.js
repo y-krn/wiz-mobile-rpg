@@ -17,6 +17,7 @@ import { applyCombatRewards } from "../../../src/combat_logic/rewards.js";
 import { processMonsterDefeat } from "../../../src/combat_logic/monster_traits.js";
 import { TRIAL_PROFILES } from "../../../src/trial_profiles.js";
 import { calculateCandidateAward } from "../../../scratch/measurements/progression_exp_award_paired_inventory.js";
+import { SPELL_EFFECTS } from "../../../src/systems/spell_effects.js";
 
 function test(name, body) {
   try {
@@ -70,8 +71,37 @@ test("selected B1/B10/B20 Phase 4c baseline grants Level 1 HP entitlement to bot
       assert.equal(state.party[0].maxHp, maxHp);
       assert.equal(state.party[0].hp, maxHp);
       assert.equal(getCharWeaponAtk(state.party[0]), getCharWeaponAtk({ ...state.party[0], phase4cV1Baseline: 0 }) * (1 + 0.16 * baseline));
-      assert.equal(getCharAffixSum(state.party[0], "spellPower"), 16 * baseline);
+      assert.equal(getCharAffixSum(state.party[0], "spellPower"), 0);
     }
+  }
+});
+
+test("Phase 4c independently multiplies attack spells and leaves healing spells unchanged", () => {
+  const makeCaster = baseline => {
+    const state = makeState(TRIAL_PROFILES.PROGRESSION_EXP, baseline * 5 || 1);
+    const caster = state.party[0];
+    caster.equipment.weapon = {
+      baseId: "SHORT_SWORD",
+      identified: true,
+      affixes: [{ type: "spellPower", value: 20 }]
+    };
+    applyPhase4cV1PlayerBaseline(state);
+    return caster;
+  };
+  const targetForHeal = () => ({ name: "対象", hp: 1, maxHp: 1000, status: "ok" });
+  const baseCaster = makeCaster(0);
+  const scaledCaster = makeCaster(4);
+  assert.equal(getCharAffixSum(scaledCaster, "spellPower"), 20, "baseline stays out of equipment spellPower");
+  const baseDamage = SPELL_EFFECTS.HALITO({ caster: baseCaster, target: { name: "敵", hp: 1000, magicResist: 0 }, rng: () => 0 }).damage;
+  const scaledDamage = SPELL_EFFECTS.HALITO({ caster: scaledCaster, target: { name: "敵", hp: 1000, magicResist: 0 }, rng: () => 0 }).damage;
+  assert.equal(baseDamage, 14);
+  assert.equal(scaledDamage, 24, "gear 1.20x stacks with independent baseline 1.64x");
+
+  for (const spellName of ["DIOS", "MADIOS", "DIALMA", "MADI"]) {
+    const options = spellName === "MADI" ? { healMin: 80, healMax: 80 } : {};
+    const baselineZero = SPELL_EFFECTS[spellName]({ caster: baseCaster, target: targetForHeal(), rng: () => 0, ...options }).heal;
+    const baselineFour = SPELL_EFFECTS[spellName]({ caster: scaledCaster, target: targetForHeal(), rng: () => 0, ...options }).heal;
+    assert.equal(baselineFour, baselineZero, `${spellName} recovery ignores Phase 4c spell damage multiplier`);
   }
 });
 
@@ -83,6 +113,12 @@ test("normal mode stays unscaled and a defeated milestone advances trial baselin
   assert.equal(normal.party[0].maxHp, 20);
   assert.equal(getCharWeaponAtk(normal.party[0]), beforeAttack);
   assert.equal(getCharAffixSum(normal.party[0], "spellPower"), 0);
+  const normalSpellDamage = SPELL_EFFECTS.HALITO({
+    caster: normal.party[0],
+    target: { name: "敵", hp: 1000, magicResist: 0 },
+    rng: () => 0
+  }).damage;
+  assert.equal(normalSpellDamage, 12, "normal mode has no Phase 4c spell multiplier");
   const untouchedEnemy = { ...MONSTERS.find(monster => !monster.isBoss), hp: 77, maxHp: 77, atk: 23, def: 4 };
   assert.equal(preparePhase4cV1Encounter(normal, [untouchedEnemy]).applied, false);
   assert.deepEqual([untouchedEnemy.hp, untouchedEnemy.maxHp, untouchedEnemy.atk, untouchedEnemy.def], [77, 77, 23, 4]);
