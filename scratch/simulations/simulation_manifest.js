@@ -276,7 +276,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/rules/item_inventory.js", "src/rules/item_inventory.ts", "src/rules/object_loot_stake.js", "src/rules/object_loot_stake.ts", "src/rules/renderer_projection.js", "src/rules/renderer_openings.js", "src/rules/renderer_openings.ts", "src/rules/enemy_hp_state.js", "src/rules/enemy_hp_state.ts",
     "src/data/equipment_vnext.js", "src/rules/combat_tier.js", "src/rules/diagnostic_build_identity.js",
     "src/combat_logic/combat_action.js", "src/combat_logic/combat_action.ts", "src/combat_ui/combat_state.ts",
-    "src/enemy_presentation.js", "src/enemy_presentation_palette.js", "src/assets/enemies/**",
+    "src/enemy_presentation.js", "src/enemy_presentation_palette.js", "src/enemy_presentation_palette.ts", "src/assets/enemies/**",
     "src/equipment_ui_loader.js", "src/equipment_ui_state.js"
   ]),
   // A one-off no-impact declaration is recognized only when its marker is
