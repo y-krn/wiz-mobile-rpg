@@ -10,8 +10,8 @@ import { PROGRESSION_ENEMY_CANDIDATE as PHASE4C_V1 } from "./progression_enemy_c
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 import { readSimScopeDeclaration } from "./measurement_env_signature.js";
 
-export const RUNNER_VERSION = "progression-exp-b-full-run-diagnostic-v2";
-export const SCHEMA_VERSION = 2;
+export const RUNNER_VERSION = "progression-exp-b-full-run-diagnostic-v3";
+export const SCHEMA_VERSION = 3;
 export const RUNNER_PATH = "scratch/measurements/progression_exp_b_full_run_diagnostic.js";
 export const DEFAULT_SEED = 1735;
 const PRODUCTION_PATHS = Object.freeze([
@@ -195,6 +195,61 @@ export function comparePreDeathProgress(control, candidate) {
   };
 }
 
+export function findCombatObservationMismatches(rows) {
+  return rows.filter(row => row.battles !== row.battleObservationCount || !row.terminationReason)
+    .map(row => ({
+      context: row.context,
+      arm: row.arm,
+      runIndex: row.runIndex,
+      battles: row.battles,
+      observations: row.battleObservationCount,
+      terminationReason: row.terminationReason
+    }));
+}
+
+export function compareMatchedArmRuns(control, candidate) {
+  const mismatches = [];
+  if (control.worldSeed !== candidate.worldSeed) {
+    mismatches.push({ reason: "matched-seed-mismatch" });
+  }
+
+  if (Boolean(control.firstCombat) !== Boolean(candidate.firstCombat)) {
+    mismatches.push({ reason: "first-combat-presence-mismatch" });
+  } else if (control.firstCombat && JSON.stringify(control.firstCombat) !== JSON.stringify(candidate.firstCombat)) {
+    mismatches.push({ reason: "first-combat-pre-reward-state-or-outcome-mismatch" });
+  } else if (control.combatCoverage.precombatTermination && candidate.combatCoverage.precombatTermination) {
+    if (control.terminationReason !== candidate.terminationReason ||
+        control.outcome !== candidate.outcome || control.reachedFloor !== candidate.reachedFloor) {
+      mismatches.push({ reason: "matched-precombat-termination-mismatch" });
+    }
+  }
+
+  return { matched: mismatches.length === 0, mismatches };
+}
+
+export function describeMatchedArmDivergence(control, candidate) {
+  return {
+    from: control.outcome,
+    to: candidate.outcome,
+    battles: {
+      control: control.battles,
+      candidate: candidate.battles,
+      delta: candidate.battles - control.battles
+    },
+    battleObservations: {
+      control: control.battleObservationCount,
+      candidate: candidate.battleObservationCount,
+      delta: candidate.battleObservationCount - control.battleObservationCount
+    },
+    terminationReasons: { control: control.terminationReason, candidate: candidate.terminationReason },
+    deathFloors: { control: control.deathFloor, candidate: candidate.deathFloor },
+    reachedFloors: { control: control.reachedFloor, candidate: candidate.reachedFloor },
+    reachedFloorDelta: candidate.reachedFloor - control.reachedFloor,
+    newDeath: candidate.outcome === "death" && control.outcome !== "death",
+    deathAvoided: control.outcome === "death" && candidate.outcome !== "death"
+  };
+}
+
 export async function runProgressionExpBFullRunDiagnostic({ runs = 1, seed = DEFAULT_SEED, contexts = CONTEXTS, runIndices = null } = {}) {
   const count = positiveInteger(runs, "runs");
   if (![1, 30, 200].includes(count)) throw new Error("runs must be exactly 1 (smoke), 30 (coverage), or 200 (final evidence)");
@@ -241,32 +296,24 @@ export async function runProgressionExpBFullRunDiagnostic({ runs = 1, seed = DEF
     for (let index = 0; index < indices.length; index++) {
       const left = control[index];
       const right = candidate[index];
-      if (left.worldSeed !== right.worldSeed) {
-        matchedArmMismatches.push({ context: context.id, runIndex: left.runIndex, reason: "matched-seed-mismatch" });
-      }
-      if (left.battles !== left.battleObservationCount || right.battles !== right.battleObservationCount) {
-        matchedArmMismatches.push({ context: context.id, runIndex: left.runIndex, reason: "battle-observation-count-mismatch" });
-      }
-      if (left.battles !== right.battles || left.battleObservationCount !== right.battleObservationCount ||
-          left.terminationReason !== right.terminationReason || left.outcome !== right.outcome ||
-          left.reachedFloor !== right.reachedFloor || JSON.stringify(left.firstCombat) !== JSON.stringify(right.firstCombat)) {
-        matchedArmMismatches.push({ context: context.id, runIndex: left.runIndex, reason: "combat-or-precombat-result-differs" });
-      }
+      const comparison = compareMatchedArmRuns(left, right);
+      matchedArmMismatches.push(...comparison.mismatches.map(({ reason }) => ({
+        context: context.id,
+        runIndex: left.runIndex,
+        reason
+      })));
     }
     return {
       context: context.id,
       matchedSeedDescriptiveOnly: true,
       transitions: control.map((row, index) => {
         const attribution = comparePreDeathProgress(row, candidate[index]);
-        const newDeath = candidate[index].outcome === "death" && row.outcome !== "death";
+        const divergence = describeMatchedArmDivergence(row, candidate[index]);
+        const newDeath = divergence.newDeath;
         return {
           runIndex: row.runIndex,
-          from: row.outcome,
-          to: candidate[index].outcome,
-          reachedFloorDelta: candidate[index].reachedFloor - row.reachedFloor,
+          ...divergence,
           finalLevelDelta: candidate[index].finalLevel - row.finalLevel,
-          newDeath,
-          deathAvoided: row.outcome === "death" && candidate[index].outcome !== "death",
           newDeathHadEarlierControlLevelOrRecovery: newDeath && attribution.controlOnlyProgress,
           newDeathAttribution: newDeath ? attribution : null
         };
@@ -282,8 +329,7 @@ export async function runProgressionExpBFullRunDiagnostic({ runs = 1, seed = DEF
   const sourceMismatches = rows.flatMap(row => row.settlements
     .filter(settlement => !settlement.settlement.sourceAccounted)
     .map(settlement => ({ context: row.context, arm: row.arm, runIndex: row.runIndex, floor: settlement.floor })));
-  const observationMismatches = rows.filter(row => row.battles !== row.battleObservationCount || !row.terminationReason)
-    .map(row => ({ context: row.context, arm: row.arm, runIndex: row.runIndex, battles: row.battles, observations: row.battleObservationCount, terminationReason: row.terminationReason }));
+  const observationMismatches = findCombatObservationMismatches(rows);
   const coverage = contexts.flatMap(context => ARMS.map(arm => {
     const armRows = rows.filter(row => row.context === context.id && row.arm === arm);
     return {
@@ -402,7 +448,7 @@ function makeSummary(report) {
     const transitions = group.transitions;
     lines.push(
       `## Matched-seed description: ${group.context}`,
-      `- Outcome transitions: ${JSON.stringify(transitions.reduce((counts, row) => { const key = `${row.from}->${row.to}`; counts[key] = (counts[key] || 0) + 1; return counts; }, {}))}.`,
+      `- Outcome transitions: ${JSON.stringify(transitions.reduce((counts, row) => { const key = `${row.from}->${row.to}`; counts[key] = (counts[key] || 0) + 1; return counts; }, {}))}; battles delta=${summarize(transitions.map(row => row.battles.delta))}; reached-floor delta=${summarize(transitions.map(row => row.reachedFloorDelta))}.`,
       `- New deaths: ${transitions.filter(row => row.newDeath).length}; deaths avoided: ${transitions.filter(row => row.deathAvoided).length}; new deaths where control had earlier Level/recovery and candidate did not: ${transitions.filter(row => row.newDeathHadEarlierControlLevelOrRecovery).length}.`,
       ""
     );
