@@ -95,8 +95,9 @@ function getLocation(stateLike: unknown, item: unknown, usage = createLocationUs
 }
 
 function getAffixSummary(item: unknown) {
-  const affixSource = (item as LegacyRecord | null | undefined)?.affixes;
-  const affixes = Array.isArray(affixSource) ? affixSource as unknown[] : [];
+  const affixes = Array.isArray((item as LegacyRecord | null | undefined)?.affixes)
+    ? (item as LegacyRecord | null | undefined)?.affixes as unknown[]
+    : [];
   return affixes.reduce<AffixSummary>((summary, affix) => {
     const affixRecord = affix as LegacyRecord | null | undefined;
     const definition = getAffixDefinition(affixRecord?.id || affixRecord?.type);

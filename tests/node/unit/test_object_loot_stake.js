@@ -199,6 +199,35 @@ assert.deepEqual(Object.keys(affixSnapshot.details[0]), [
   "identificationStage", "cursed"
 ]);
 
+let changingAffixesReads = 0;
+const changingAffixesItem = { baseId: "UNKNOWN_AFFIX_GETTER_FIXTURE" };
+Object.defineProperty(changingAffixesItem, "affixes", {
+  get() {
+    changingAffixesReads += 1;
+    return changingAffixesReads === 1 ? [] : [{ type: "UNKNOWN_SUPPORT_FIXTURE", kind: "support" }];
+  }
+});
+const changingAffixesSnapshot = buildObjectLootStakeSnapshot({
+  currentRun: { unbankedObjectLoot: [{ item: changingAffixesItem }] }
+});
+assert.equal(changingAffixesReads, 2);
+assert.equal(changingAffixesSnapshot.details[0].supportCount, 1);
+
+const secondAffixesReadError = new Error("second affixes getter read");
+let throwingAffixesReads = 0;
+const throwingAffixesItem = { baseId: "UNKNOWN_AFFIX_GETTER_FIXTURE" };
+Object.defineProperty(throwingAffixesItem, "affixes", {
+  get() {
+    throwingAffixesReads += 1;
+    if (throwingAffixesReads === 2) throw secondAffixesReadError;
+    return [];
+  }
+});
+assert.throws(() => buildObjectLootStakeSnapshot({
+  currentRun: { unbankedObjectLoot: [{ item: throwingAffixesItem }] }
+}), error => error === secondAffixesReadError);
+assert.equal(throwingAffixesReads, 2);
+
 assert.throws(() => buildObjectLootStakeSnapshot({
   party: [], inventory: {}, currentRun: { unbankedObjectLoot: [{ item: "HEAL_POTION" }] }
 }), /findIndex/);
