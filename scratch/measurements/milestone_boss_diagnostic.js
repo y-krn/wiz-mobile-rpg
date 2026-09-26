@@ -5,6 +5,10 @@ import "../simulations/simulation_preflight.js";
 import fs from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createStartingKitCharacter } from "../../src/state/initial_state.js";
+
+// Fixture maxHp is absolute; the sim adds hpBaseBonus to the starting base.
+const STARTING_BASE_MAX_HP = createStartingKitCharacter("vanguard").maxHp;
 
 import { getBiomeForFloor } from "../../src/data/biomes.js";
 import {
@@ -319,7 +323,7 @@ function createScenario(fixture, actionPlan = null, {
   const playerFixture = resolvePlayerFixture(fixture.floor);
   return {
     startingKit: playerFixture.startingKit,
-    hpBaseBonus: playerFixture.maxHp - 20,
+    hpBaseBonus: playerFixture.maxHp - STARTING_BASE_MAX_HP,
     measurementCombatPlan: actionPlan || playerFixture.actionPlan,
     b10CrushStrikeResponse: crushStrikeResponse,
     measurementGuardTiming: playerFixture.guardTiming,

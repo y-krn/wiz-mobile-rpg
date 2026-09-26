@@ -377,7 +377,9 @@ const qualifyingGuardianScenario = {
   fleePolicy: "threshold",
   fleeHpThreshold: 0.8,
   milestonePortalPolicy: "continue",
-  hpBaseBonus: 1000,
+  // #1801: guardian adds share one slot, so at +1000 HP the guardian dies
+  // before the 80% flee threshold is reached; +600 keeps the qualifying flee.
+  hpBaseBonus: 600,
   merchantPolicy: "supply-missing",
   b5GuardianRetryCheckpoint: true,
   b5GuardianRetryObservation: true

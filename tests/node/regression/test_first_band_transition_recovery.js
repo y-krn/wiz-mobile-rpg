@@ -37,7 +37,9 @@ assert.equal(result.determinism.pass, true);
 assert.equal(result.observationInvariance.pass, true);
 
 const pitfallScenario = getScenarioById("workshop-complete");
-resetSimulationRandom(0);
+// #1801 changed the seeded path (solo HP budget); index 1 still falls into a
+// pitfall, which is what this fixture needs to observe.
+resetSimulationRandom(1);
 const pitfallResult = simulateRun({
   className: "Fighter",
   startFloor: 1,
@@ -57,7 +59,7 @@ const pitfallResult = simulateRun({
     collectStage15Diagnostics: true
   },
   workshop: pitfallScenario.workshop,
-  worldSeed: "pitfall:legacy:source:0",
+  worldSeed: "pitfall:legacy:source:1",
   collectDiagnostics: true
 });
 const pitfallEvents = (pitfallResult.floorTransitionRecovery || [])

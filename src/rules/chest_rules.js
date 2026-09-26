@@ -269,7 +269,7 @@ export function rollChestAccessory(floor, rng, party, coreMinFloor = CHEST_ACCES
     forceRarity: rarity,
     rng,
     party,
-    allowCores: floor >= coreMinFloor,
+    allowCores: trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT || floor >= coreMinFloor,
     trialProfile
   });
 }
@@ -292,6 +292,8 @@ export function rollChestReward({
   runtimeDiagnostics = null
 }) {
   recordRuntimeCall(runtimeDiagnostics, "chests.reward-roll", { floor });
+  // Build vNext trial: rule-changing Cores are part of the build seed from B1.
+  if (currentRun?.trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT) coreMinFloor = 1;
   let isGuaranteed = false;
   if (floor === 1) {
     if (currentRun) {

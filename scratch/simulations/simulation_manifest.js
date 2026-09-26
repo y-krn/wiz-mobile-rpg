@@ -260,7 +260,13 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/systems/roaming_elites.js", domains: ["combat", "maps"] },
     { pattern: "src/systems/roaming_elites.ts", domains: ["combat", "maps"] },
     { pattern: "src/systems/elite_perception.js", domains: ["combat", "maps"] },
-    { pattern: "src/systems/elite_perception.ts", domains: ["combat", "maps"] }
+    { pattern: "src/systems/elite_perception.ts", domains: ["combat", "maps"] },
+    // Build vNext (#1801): weapon techniques and trial supply/seed offer.
+    { pattern: "src/data/techniques.js", domains: ["combat"] },
+    { pattern: "src/rules/technique_rules.js", domains: ["combat"] },
+    { pattern: "src/combat_logic/technique_resolution.js", domains: ["combat", "status"] },
+    { pattern: "src/rules/build_vnext_supply.js", domains: ["equipment", "chests"] },
+    { pattern: "src/systems/build_vnext_seed.js", domains: ["equipment", "chests"] }
   ].map(rule => ({ ...rule, domains: Object.freeze([...rule.domains]) }))),
   balanceImpactNone: Object.freeze([
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",

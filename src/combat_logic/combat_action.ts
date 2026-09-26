@@ -7,7 +7,8 @@ export const COMBAT_ACTION_TYPES = Object.freeze([
   "spell",
   "item",
   "defend",
-  "run"
+  "run",
+  "technique"
 ] as const);
 
 export type CombatActionType = typeof COMBAT_ACTION_TYPES[number];
@@ -43,25 +44,35 @@ export interface RunCombatAction {
   actorIdx: number;
 }
 
+// Build vNext weapon technique. targetIdx is -1 for self techniques.
+export interface TechniqueCombatAction {
+  type: "technique";
+  actorIdx: number;
+  targetIdx: number;
+}
+
 export type CombatAction =
   | FightCombatAction
   | SpellCombatAction
   | ItemCombatAction
   | DefendCombatAction
-  | RunCombatAction;
+  | RunCombatAction
+  | TechniqueCombatAction;
 
 export type FightCombatActionDraft = Omit<FightCombatAction, "actorIdx">;
 export type SpellCombatActionDraft = Omit<SpellCombatAction, "actorIdx">;
 export type ItemCombatActionDraft = Omit<ItemCombatAction, "actorIdx">;
 export type DefendCombatActionDraft = Omit<DefendCombatAction, "actorIdx">;
 export type RunCombatActionDraft = Omit<RunCombatAction, "actorIdx">;
+export type TechniqueCombatActionDraft = Omit<TechniqueCombatAction, "actorIdx">;
 
 export type CombatActionDraft =
   | FightCombatActionDraft
   | SpellCombatActionDraft
   | ItemCombatActionDraft
   | DefendCombatActionDraft
-  | RunCombatActionDraft;
+  | RunCombatActionDraft
+  | TechniqueCombatActionDraft;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -104,6 +115,8 @@ export function isCombatAction(value: unknown): value is CombatAction {
     case "defend":
     case "run":
       return hasOnlyKeys(value, ["type", "actorIdx"]);
+    case "technique":
+      return hasOnlyKeys(value, ["type", "actorIdx", "targetIdx"]) && isTargetIndex(value.targetIdx);
   }
 }
 
@@ -124,6 +137,8 @@ export function isCombatActionDraft(value: unknown): value is CombatActionDraft 
     case "defend":
     case "run":
       return hasOnlyKeys(value, ["type"]);
+    case "technique":
+      return hasOnlyKeys(value, ["type", "targetIdx"]) && isTargetIndex(value.targetIdx);
   }
 }
 
@@ -147,6 +162,8 @@ export function assignCombatActor(draft: unknown, actorIdx: unknown): CombatActi
       return { type: "defend", actorIdx };
     case "run":
       return { type: "run", actorIdx };
+    case "technique":
+      return { type: "technique", actorIdx, targetIdx: draft.targetIdx };
   }
 }
 

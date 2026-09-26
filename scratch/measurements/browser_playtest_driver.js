@@ -134,8 +134,27 @@ const castableSpell = () => {
   const runes = p.mediumState.socketedRunes || [];
   return runes.includes('RUNE_HALITO') ? 'HALITO' : null;
 };
+// Build vNext technique button (#1801): use it whenever it is ready and
+// free; self techniques (focusMana) only when MP is missing.
+const techniqueReady = () => {
+  const btn = document.getElementById('btn-combat-technique');
+  if (!btn || btn.hidden || btn.disabled || btn.classList.contains('is-unavailable')) return null;
+  if (/ HP\d+$/.test(btn.textContent.trim())) return null; // Blood cost: keep for emergencies
+  return btn;
+};
 const attackTarget = async (alive, preferHigh = false) => {
   const t = [...alive].sort((a, b) => preferHigh ? b.hp - a.hp : a.hp - b.hp)[0];
+  const tech = techniqueReady();
+  const isSelfTech = tech && /魔力集中/.test(tech.textContent);
+  if (tech && (!isSelfTech || P().mp < DATA.getCharMaxMp(P()))) {
+    tech.click(); await sl(150);
+    if (isSelfTech) { W.__techUses = (W.__techUses || 0) + 1; return W.__act(); }
+    const telegraphing = alive.find(m => ['lahalitoQueued', 'madaltoQueued', 'chargeQueued', 'summonQueued', 'multiActionQueued', 'snipeQueued', 'selfDestructQueued'].some(f => m[f]));
+    const target = telegraphing || t;
+    W.__techUses = (W.__techUses || 0) + 1;
+    if (W.__btns().some(b => b.includes('攻撃対象'))) return W.__act(target.name);
+    return W.__act();
+  }
   const spell = castableSpell();
   if (spell) {
     await W.__click('魔法'); await sl(150);
@@ -181,7 +200,20 @@ W.__chest = async () => {
   else if (W.__btns().some(t => t.includes('宝箱を開ける'))) { await W.__click('宝箱を開ける'); await sl(1000); }
   await sl(300); if (W.__btns().some(t => t.includes('宝箱を開ける'))) { await W.__click('宝箱を開ける'); await sl(1000); }
 };
-W.__take = async () => { await W.__click('この内容で確定する'); await sl(400); };
+// Build seed choice: keep the option the gear score likes best.
+W.__take = async () => {
+  const bundle = st().currentRun?.pendingRewardBundle;
+  if (bundle?.choiceRole) {
+    const choices = bundle.entries.filter(e => e.role === bundle.choiceRole);
+    const scored = choices.map(e => ({ e, score: scoreEquip(P(), e.item) ?? 0 }));
+    const best = W.__equipPolicy === 'none' ? null : scored.sort((a, b) => b.score - a.score)[0];
+    choices.forEach(e => { e.decision = e === best?.e ? 'take' : 'leave'; e.loadoutAction = null; });
+    W.__seedChoice = { offered: choices.map(e => describeItem(e.item)), taken: best ? describeItem(best.e.item) : null };
+    W.__journal.push(`SEED F${st().floor}: ${W.__seedChoice.offered.join(' | ')} -> ${W.__seedChoice.taken}`);
+    const { openPendingRewardMenu } = await import('/src/pending_rewards.js'); openPendingRewardMenu(); await sl(200);
+  }
+  await W.__click('この内容で確定する'); await sl(400);
+};
 
 const EQUIP_TYPES = ['weapon', 'armor', 'shield', 'accessory'];
 const itemType = it => DATA.getItemData?.(it)?.type ?? null;
@@ -195,8 +227,16 @@ const scoreEquip = (char, it) => {
   const preview = PREVIEW.getEquipmentPreview(char, it, null, { floor: st().floor });
   if (!preview) return null;
   let score = preview.rows.reduce((a, r) => a + (typeof r.diff === 'number' ? r.diff * (SCORE_WEIGHTS[r.key] || 0) : 0), 0);
-  if (typeof it === 'object' && (it.affixes || []).some(a => a.kind === 'core')) score += 3;
-  if (typeof it === 'object' && it.identified && it.curseEffectId) score -= 5;
+  const extras = item => {
+    if (!item || typeof item !== 'object') return 0;
+    let v = 0;
+    if ((item.affixes || []).some(a => a.kind === 'core')) v += 3;
+    if (item.identified && item.curseEffectId) v -= 5;
+    return v;
+  };
+  // Relative to what the slot holds now, so two Core items do not flip-flop.
+  const current = preview.slot ? char.equipment?.[preview.slot] : null;
+  score += extras(it) - extras(current);
   return Math.round(score * 10) / 10;
 };
 // Policies: 'none' (never touch gear), 'greedy' (identify with powder when
@@ -220,7 +260,7 @@ W.__manageGear = async () => {
     st().inventory.forEach((it, i) => {
       if (isHidden(it) || !EQUIP_TYPES.includes(itemType(it))) return;
       const score = scoreEquip(char, it);
-      if (score !== null && score > 0 && (!best || score > best.score)) best = { i, score, it };
+      if (score !== null && score >= 0.5 && (!best || score > best.score)) best = { i, score, it };
     });
     if (!best) break;
     const draft = LOADOUT.createLoadoutDraft(st());
@@ -296,6 +336,8 @@ W.__auto = async (policy = { explore: 0.6 }, maxIter = 600) => {
     if (b.some(t => t.includes('この内容で確定する'))) { await W.__take(); continue; }
     if (b.some(t => t.includes('泉の水を飲む'))) { await W.__click('泉の水を飲む'); await sl(600); W.__journal.push('spring F' + s.floor + ': ' + W.__log(1)); continue; }
     if (b.some(t => t.includes('探索に戻る'))) { await W.__click('探索に戻る'); await sl(200); continue; }
+    if (b.some(t => t === '休息する')) { await W.__click('休息する'); await sl(400); W.__journal.push('camp F' + s.floor + ': ' + W.__log(1)); continue; }
+    if (b.some(t => t.includes('休息せず進む'))) { await W.__click('休息せず進む'); await sl(300); continue; }
     if (b.some(t => t.includes('降りずに進む')) && !b.some(t => t.includes('へ降りる'))) {
       // milestone floor with an undefeated guardian: heal up, go fight it
       await W.__click('降りずに進む'); for (let w = 0; w < 30 && s.gameState !== 'explore'; w++) await sl(80);
@@ -343,7 +385,7 @@ W.__startRun = async ({ kit = 'vanguard', seed = null, trialIndex = 2 } = {}) =>
   if (seed !== null) { st().seed = `PT-${seed}`; Date.now = () => 1700000000000; }
   try { await W.__click('迷宮へ向かう'); for (let i = 0; i < 40 && st().gameState !== 'explore'; i++) await sl(100); }
   finally { Date.now = realNow; }
-  W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; seenLoot.clear();
+  W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; seenLoot.clear();
   const run = st().currentRun;
   // Fingerprint of the B1 layout so before/after runs can prove they share maps.
   let h = 2166136261; for (const row of st().map) for (const c of row) for (const w of c.walls) { h ^= w ? 1 : 0; h = Math.imul(h, 16777619) >>> 0; }
@@ -365,6 +407,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, explore = 0.6, maxFloor = 
     level: P()?.level, died: s.gameState === 'result' && (P()?.hp ?? 0) <= 0,
     cause: s.gameState === 'result' ? d?.cause : null,
     finalEquipment: W.__lastEquipment || null,
+    techniqueUses: W.__techUses || 0, seedChoice: W.__seedChoice,
     journal: W.__journal, loot: W.__lootLog, equipLog: W.__equipLog
   };
 };

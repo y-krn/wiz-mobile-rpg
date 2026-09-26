@@ -15,6 +15,7 @@ import { COMBAT_SPELL_TARGETS, getItemAllyTargetIndices, getSpellAllyTargetIndic
 import { getItemBaseId } from "../rules/item_rules.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
 import { assignCombatActor, normalizeCombatActions } from "../combat_logic/combat_action.js";
+import { getTechniqueStatus } from "../rules/technique_rules.js";
 import {
   trackCombatDecisionCancel,
   trackCombatDecisionPending
@@ -42,6 +43,11 @@ function isRepeatableAction(action, actorIdx) {
     return isValidEnemyTarget(action.targetIdx);
   }
   if (action.type === "defend" || action.type === "run") return true;
+  if (action.type === "technique") {
+    const status = getTechniqueStatus(state, actorIdx);
+    if (!status.available || status.hpCost !== null) return false;
+    return status.technique.target === "self" || isValidEnemyTarget(action.targetIdx);
+  }
   if (action.type === "spell") {
     const spell = SPELLS[action.spellName];
     if (!spell || !isUsableSpellForActor(state.party, actorIdx, action.spellName, COMBAT_SPELL_TARGETS) ||
@@ -231,6 +237,25 @@ export function selectCombatAction(type) {
       combatSelection.charIdx++;
       advanceActionSelection();
     });
+  } else if (type === "technique") {
+    const status = getTechniqueStatus(state, charOriginalIdx);
+    if (!status.technique) return;
+    if (!status.available) {
+      addLog(`${status.technique.name}はあと${status.remaining}ターン使えない。`);
+      updateUI();
+      return;
+    }
+    menuContext.actorIdx = charOriginalIdx;
+    const commit = (targetIdx) => {
+      if (!canCommitCombatAction()) return;
+      if (targetIdx !== -1 && !isValidEnemyTarget(targetIdx)) return;
+      state.gameState = "combat";
+      queueCombatAction({ type: "technique", actorIdx: charOriginalIdx, targetIdx });
+      combatSelection.charIdx++;
+      advanceActionSelection();
+    };
+    if (status.technique.target === "self") commit(-1);
+    else chooseEnemyTarget(commit);
   } else if (type === "spell") {
     // Show available caster spells
     if (getActiveSpellKeys(char).length === 0) {

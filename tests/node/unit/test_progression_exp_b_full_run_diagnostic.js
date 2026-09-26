@@ -28,6 +28,9 @@ import {
 } from "../../../scratch/simulations/sim_depth_material_ev.js";
 import { MONSTERS } from "../../../src/data/monsters.js";
 import { processMonsterDefeat } from "../../../src/combat_logic/monster_traits.js";
+import { createStartingKitCharacter } from "../../../src/state/initial_state.js";
+
+const STARTING_BASE_MAX_HP = createStartingKitCharacter("vanguard").maxHp;
 
 assert.equal(RUNNER_VERSION, "progression-exp-b-full-run-diagnostic-v3");
 assert.equal(DEFAULT_SEED, 1735);
@@ -75,10 +78,12 @@ for (const row of report.rows) {
   const expectedBaseline = row.context === "selected-B10" ? 2 : row.context === "selected-B20" ? 4 : 0;
   assert.equal(row.settlements[0].baseline, expectedBaseline);
   assert.equal(row.firstCombat.preRewardState.baseline, expectedBaseline);
-  assert.equal(row.firstCombat.preRewardState.rawMaxHp, 20 + 2 * expectedBaseline);
+  // #1801: the solo starting base is 45; the Phase 4c baseline still adds
+  // round(20 × 0.10 × baseline) on top of it.
+  assert.equal(row.firstCombat.preRewardState.rawMaxHp, STARTING_BASE_MAX_HP + 2 * expectedBaseline);
   assert.equal(row.firstCombat.preRewardState.hp, row.firstCombat.preRewardState.rawMaxHp);
-  if (row.context === "selected-B10") assert.equal(row.firstCombat.preRewardState.rawMaxHp, 24);
-  if (row.context === "selected-B20") assert.equal(row.firstCombat.preRewardState.rawMaxHp, 28);
+  if (row.context === "selected-B10") assert.equal(row.firstCombat.preRewardState.rawMaxHp, STARTING_BASE_MAX_HP + 4);
+  if (row.context === "selected-B20") assert.equal(row.firstCombat.preRewardState.rawMaxHp, STARTING_BASE_MAX_HP + 8);
   for (const enemy of row.firstCombat.preRewardState.enemies.filter(entry => !entry.isBoss)) {
     const template = MONSTERS.find(entry =>
       entry.name === enemy.name.replace(/\s[A-Z]$/, "")
@@ -106,17 +111,20 @@ assert.deepEqual(precombatReproduction.rows.map(row => [row.arm, row.runIndex]),
 assert.equal(precombatReproduction.validity.valid, true);
 assert.equal(precombatReproduction.validity.firstCombatPreRewardStateAndOutcomeMatch, true);
 assert.deepEqual(precombatReproduction.validity.matchedArmMismatches, []);
+// #1801 made floor traps HP-relative: this run index no longer dies to a
+// trap before its first fight (no index in 0..79 does), so the fixture now
+// pins the matched two-battle death and its combat coverage accounting.
 assert.deepEqual(precombatReproduction.rows.map(row => [row.terminationReason, row.battles, row.battleObservationCount]), [
-  ["death", 0, 0],
-  ["death", 0, 0]
+  ["death", 2, 2],
+  ["death", 2, 2]
 ]);
-assert.equal(precombatReproduction.rows[0].combatCoverage.precombatTermination, true);
-assert.equal(precombatReproduction.rows[0].firstCombat, null);
+assert.equal(precombatReproduction.rows[0].combatCoverage.precombatTermination, false);
+assert.notEqual(precombatReproduction.rows[0].firstCombat, null);
 assert.deepEqual(precombatReproduction.validity.coverage.map(({ arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations }) => [
   arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations
 ]), [
-  ["production", 1, 0, 1, 0, 0],
-  ["phase4j-b", 1, 0, 1, 0, 0]
+  ["production", 1, 1, 0, 2, 2],
+  ["phase4j-b", 1, 1, 0, 2, 2]
 ]);
 
 const firstCombat = {

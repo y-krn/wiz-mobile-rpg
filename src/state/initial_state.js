@@ -76,6 +76,8 @@ export const createDefaultCurrentRun = () => ({
   defeatsByRole: {},
   codexRewards: {},
   departureItems: [],
+  // Build vNext (#1801): the first ordinary chest's three-way build seed.
+  buildSeedOffered: false,
   firstKillsBefore: [],
   keyItemsBefore: [],
   codexDiscoveries: [],

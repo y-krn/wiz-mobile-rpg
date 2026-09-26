@@ -46,9 +46,11 @@ function getSpellPowerBonus(caster) {
 }
 
 function getPhase4cV1SpellDamageBonus(caster) {
-  if (!Number.isInteger(Number(caster?.phase4cV1Baseline))) return 1.0;
+  // Build vNext focusMana technique: one-shot boost consumed after the spell.
+  const focus = Number(caster?.focusSpellMultiplier) > 0 ? Number(caster.focusSpellMultiplier) : 1;
+  if (!Number.isInteger(Number(caster?.phase4cV1Baseline))) return focus;
   const baseline = Math.max(0, Math.min(5, Number(caster.phase4cV1Baseline)));
-  return 1 + 0.16 * baseline;
+  return (1 + 0.16 * baseline) * focus;
 }
 
 const DUMAPIC_ONE_WAY_RADIUS = 3;

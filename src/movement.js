@@ -418,9 +418,16 @@ export function applyFloorTransitionHeal() {
   if (!char || char.hp <= 0 || char.status === "dead") return 0;
   const maxHp = getCharMaxHp(char);
   const healed = Math.min(maxHp - char.hp, Math.max(1, Math.floor(maxHp * 0.5)));
-  if (healed <= 0) return 0;
+  // MP gets the same breather so a medium-based run is not one fight long.
+  const maxMp = getCharMaxMp(char);
+  const mpHealed = maxMp > 0 ? Math.min(maxMp - char.mp, Math.max(1, Math.floor(maxMp * 0.5))) : 0;
+  if (mpHealed > 0) char.mp += mpHealed;
+  if (healed <= 0) {
+    if (mpHealed > 0) addLog(`階層移動の小休止でMPが${mpHealed}回復した。`);
+    return 0;
+  }
   char.hp += healed;
-  addLog(`階層移動の小休止でHPが${healed}回復した。`);
+  addLog(`階層移動の小休止でHPが${healed}回復した。${mpHealed > 0 ? `MPも${mpHealed}回復した。` : ""}`);
   return healed;
 }
 

@@ -5,6 +5,10 @@ import "../simulations/simulation_preflight.js";
 import fs from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createStartingKitCharacter } from "../../src/state/initial_state.js";
+
+// Fixture maxHp is absolute; the sim adds hpBaseBonus to the starting base.
+const STARTING_BASE_MAX_HP = createStartingKitCharacter("vanguard").maxHp;
 
 import { MONSTERS } from "../../src/data/monsters.js";
 import { getCombatTierForStartFloor } from "../../src/rules/combat_tier.js";
@@ -149,7 +153,7 @@ function createScenario({ fixture, condition, depth }) {
   const playerFixture = resolvePlayerFixture(depth);
   return {
     startingKit: playerFixture.startingKit,
-    hpBaseBonus: playerFixture.maxHp - 20,
+    hpBaseBonus: playerFixture.maxHp - STARTING_BASE_MAX_HP,
     measurementCombatPlan: playerFixture.actionPlan,
     measurementGuardTiming: playerFixture.guardTiming,
     measurementCombatTier: playerFixture.combatTier,

@@ -26,10 +26,13 @@ function getRetreatPosition() {
   return { x: prevX, y: prevY };
 }
 
+import { clearTechniqueCombatFlags } from "../rules/technique_rules.js";
+
 export const POST_COMBAT_QUIET_STEPS = 4;
 
 export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null) {
   state.encounterQuietSteps = POST_COMBAT_QUIET_STEPS;
+  clearTechniqueCombatFlags(state.party);
   state.gameState = "combat";
   clearEventObservations({ scopePrefix: "combat:" });
   if (state.currentRun) {

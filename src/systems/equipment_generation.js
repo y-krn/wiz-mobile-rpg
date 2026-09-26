@@ -2,6 +2,7 @@ import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { ACCESSORY_CANDIDATES_BY_FLOOR, EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
 import {
   AFFIX_BALANCE,
+  BUILD_VNEXT_CORE_AFFIXES,
   CORE_AFFIXES,
   SUPPORT_AFFIXES,
   getLootBuildRoleForRoll,
@@ -20,6 +21,47 @@ import {
   isVNextTrialCore,
   isVNextTrialSupport
 } from "../rules/equipment_vnext_trial.js";
+import { BUILD_VNEXT_SUPPLY, applyBuildVNextSupply } from "../rules/build_vnext_supply.js";
+
+// Supports that pay out in materials/quests/identification rather than in a
+// fight. The Build vNext trial keeps them possible but rare so early finds
+// read as combat choices.
+const BUILD_VNEXT_ECONOMY_SUPPORTS = new Set([
+  "identifyDiscount", "materialFind", "contractReward", "victoryMaterial"
+]);
+const BUILD_VNEXT_ECONOMY_WEIGHT = 0.25;
+
+function rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId = null) {
+  const budget = getAffixBudget(rarity, floor);
+  const activeUnlocks = Array.isArray(unlockedAffixIds) ? new Set(unlockedAffixIds) : null;
+  const weightedSupports = supportPool.map(affix => BUILD_VNEXT_ECONOMY_SUPPORTS.has(affix.type)
+    ? { ...affix, weight: (affix.weight || 1) * BUILD_VNEXT_ECONOMY_WEIGHT }
+    : affix);
+  const supportCount = rarity === "magic" ? 1 : 2;
+  const supports = rollAffixes(weightedSupports, supportCount, rng, budget, lootRole);
+  if (forceCoreId) {
+    const forced = [...CORE_AFFIXES, ...BUILD_VNEXT_CORE_AFFIXES].find(affix => affix.id === forceCoreId && affix.enabled);
+    if (forced) {
+      return [{ id: forced.id, kind: "core", type: forced.id, value: 1, buildRole: forced.buildRole || null }, ...supports];
+    }
+  }
+  if (!allowCores || floor < BUILD_VNEXT_SUPPLY.coreMinFloor) return supports;
+  const corePool = [...CORE_AFFIXES, ...BUILD_VNEXT_CORE_AFFIXES]
+    .filter(affix => affix.enabled
+      && (affix.trialOnly || isVNextTrialCore(affix.id))
+      && affix.slot === slot
+      && (affix.trialOnly || !WORKSHOP_LOCKED_AFFIX_IDS.has(affix.id) || !activeUnlocks || activeUnlocks.has(affix.id)))
+    .map(affix => ({
+      ...affix,
+      type: affix.id,
+      value: 1,
+      weight: BUILD_VNEXT_SUPPLY.corePoolWeights[affix.poolGroup] || 1
+    }));
+  if (corePool.length === 0) return supports;
+  const coreChance = rarity === "epic" ? 1 : (BUILD_VNEXT_SUPPLY.coreChanceByRarity[rarity] ?? 0);
+  if (rng() >= coreChance) return supports;
+  return [...rollAffixes(corePool, 1, rng, Infinity, lootRole), ...supports];
+}
 
 const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
 // Workshop pool nodes intentionally gate pre-existing core IDs to make the
@@ -122,7 +164,10 @@ function withSupportDefinition(candidate) {
   };
 }
 
-function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null, lootRole = null, phase3Equipment = false) {
+function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null, lootRole = null, phase3Equipment = false, forceCoreId = null) {
+  if (phase3Equipment) {
+    return rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId);
+  }
   const budget = getAffixBudget(rarity, floor);
   const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
     ? AFFIX_BALANCE.corePoolWeights.shallow
@@ -231,7 +276,7 @@ export function buildUnidentifiedMeta(
 }
 
 export function generateRandomEquipment(floor, options) {
-  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null, trialProfile = TRIAL_PROFILES.NORMAL } =
+  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null, trialProfile = TRIAL_PROFILES.NORMAL, forceBaseId = null, forceCoreId = null } =
     requireGenerationOptions(options, "generateRandomEquipment");
   const phase3Equipment = trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT;
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "equipment", floor });
@@ -251,6 +296,7 @@ export function generateRandomEquipment(floor, options) {
   const lootRole = rollLootBuildRole(floor, rng);
   const baseRoll = rng();
   let baseId = baseCandidates[Math.floor(baseRoll * baseCandidates.length)];
+  if (phase3Equipment && forceBaseId && ITEMS[forceBaseId]) baseId = forceBaseId;
   let baseItem = ITEMS[baseId];
   if (!baseItem) return null;
   
@@ -385,7 +431,7 @@ export function generateRandomEquipment(floor, options) {
   addAffix(1, "contractReward", () => 10, 2);
   
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment);
+  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment, phase3Equipment ? forceCoreId : null);
   const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
   const buildRole = getDominantBuildRole(affixes, lootRole);
 
@@ -457,7 +503,7 @@ export function generateRandomEquipment(floor, options) {
   });
   meta.unidentifiedName = `${prefix}${baseItem.name}（未鑑定・${typeName}）`;
 
-  return requireGeneratedEquipment({
+  const generated = {
     kind: "equipment",
     instanceId,
     baseId,
@@ -478,11 +524,13 @@ export function generateRandomEquipment(floor, options) {
     buildRole,
     buildRoles,
     lootRole
-  });
+  };
+  if (phase3Equipment) applyBuildVNextSupply(generated, baseItem.type, floor, rng);
+  return requireGeneratedEquipment(generated);
 }
 
 export function generateRandomAccessory(floor, options) {
-  const { forceRarity = null, rng = Math.random, party = null, allowCores = true, runtimeDiagnostics = null, trialProfile = TRIAL_PROFILES.NORMAL } =
+  const { forceRarity = null, rng = Math.random, party = null, allowCores = true, runtimeDiagnostics = null, trialProfile = TRIAL_PROFILES.NORMAL, forceBaseId = null, forceCoreId = null } =
     requireGenerationOptions(options, "generateRandomAccessory");
   const phase3Equipment = trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT;
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "accessory", floor });
@@ -494,7 +542,8 @@ export function generateRandomAccessory(floor, options) {
 
   const lootRole = rollLootBuildRole(floor, rng);
   const baseRoll = rng();
-  const baseId = baseCandidates[Math.floor(baseRoll * baseCandidates.length)];
+  let baseId = baseCandidates[Math.floor(baseRoll * baseCandidates.length)];
+  if (phase3Equipment && forceBaseId && ITEMS[forceBaseId]) baseId = forceBaseId;
   const baseItem = ITEMS[baseId];
   if (!baseItem) return null;
 
@@ -547,7 +596,7 @@ export function generateRandomAccessory(floor, options) {
     .filter(Boolean);
 
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment);
+  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment, phase3Equipment ? forceCoreId : null);
   const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
   const buildRole = getDominantBuildRole(affixes, lootRole);
   const tags = [...(baseItem.tags || [])];
@@ -601,7 +650,7 @@ export function generateRandomAccessory(floor, options) {
   });
   meta.unidentifiedName = `${baseItem.name}（未鑑定・${typeName}）`;
 
-  return requireGeneratedEquipment({
+  const generated = {
     kind: "equipment",
     instanceId: `eq_${rng().toString(36).substr(2, 9)}`,
     baseId,
@@ -622,5 +671,7 @@ export function generateRandomAccessory(floor, options) {
     buildRole,
     buildRoles,
     lootRole
-  });
+  };
+  if (phase3Equipment) applyBuildVNextSupply(generated, "accessory", floor, rng);
+  return requireGeneratedEquipment(generated);
 }
