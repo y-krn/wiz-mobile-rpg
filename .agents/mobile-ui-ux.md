@@ -372,7 +372,10 @@ meaning.
 Buttons are pressable tiles: a 2px border plus a solid drop edge
 (`--btn-edge`) that collapses on press. Each decision surface has at most one
 filled primary action (forward, attack, departure, next-run preparation);
-back/cancel stays quiet on `--surface-inset`. In Dungeon First mode the world
+back/cancel stays quiet on `--surface-inset`. Combat attack is the only
+filled red command because it deals damage; spell, item, defend, and flee,
+like safe exits such as leaving a chest, stay neutral so red keeps marking
+damage or high-loss choices. In Dungeon First mode the world
 fills the screen and HUD pieces float as cream cards; the Action Dock and the
 character HUD read as one bottom sheet.
 

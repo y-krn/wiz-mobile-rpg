@@ -226,7 +226,7 @@ export function renderChestMenu({
   });
   optGrid.appendChild(smashButton);
   optGrid.appendChild(createButton({
-    className: "btn btn-danger btn-block",
+    className: "btn btn-neon btn-block",
     text: "立ち去る",
     onClick: onLeave,
     role: "back"
