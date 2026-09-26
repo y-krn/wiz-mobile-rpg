@@ -1088,3 +1088,175 @@
   background: transparent;
   box-shadow: none;
 }
+
+/* Explore HUD focus (#1765)
+   Plain exploration folds the goal banner into a one-line pill, clamps the
+   event strip to its newest line, and keeps the minimap compact, so the
+   corridor ahead stays visible. New information re-opens the HUD ("notice");
+   two actions later it folds again ("roam"). Every folded fact stays one tap
+   away: the goal toggle, #btn-log-expand, and #btn-minimap-toggle. */
+#game-container.dungeon-first-mode[data-explore-hud] #goal-banner {
+  min-height: var(--tap-min);
+  pointer-events: auto;
+  isolation: isolate;
+  transition: top 160ms ease-out;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud] .goal-toggle {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud] .goal-toggle:focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: -2px;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud] .goal-row::after {
+  content: "▾";
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+#game-container.dungeon-first-mode[data-goal-expanded="true"] .goal-row::after {
+  content: "▴";
+}
+
+/* Folded goal: a 44px hit area around a 32px pill drawn by ::before. */
+#game-container.dungeon-first-mode[data-goal-expanded="false"] #goal-banner {
+  top: calc(var(--safe-area-top) + 52px);
+  height: var(--tap-min);
+  max-height: var(--tap-min);
+  padding: 0 10px 0 12px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+#game-container.dungeon-first-mode[data-goal-expanded="false"] #goal-banner::before {
+  inset: 6px 0;
+  z-index: -1;
+  width: auto;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.88);
+  box-shadow: 0 0 0 1.5px rgba(46, 38, 64, 0.1), 0 4px 10px rgba(46, 38, 64, 0.08);
+  opacity: 1;
+}
+
+#game-container.dungeon-first-mode[data-goal-expanded="false"] .goal-row {
+  flex-wrap: nowrap;
+  align-items: center;
+  min-width: 0;
+}
+
+#game-container.dungeon-first-mode[data-goal-expanded="false"] .goal-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#game-container.dungeon-first-mode[data-goal-expanded="false"] .goal-stats-container {
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+#game-container.dungeon-first-mode[data-goal-expanded="false"] #goal-banner .quest-hud-list {
+  display: none;
+}
+
+/* Folded event strip: the newest line plus unresolved observations, one line
+   each, directly under the goal pill. */
+#game-container.dungeon-first-mode[data-explore-hud="roam"] {
+  --event-strip-top: calc(var(--safe-area-top) + 100px);
+  --event-strip-max-height: 52px;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud="roam"][data-goal-expanded="true"] {
+  --event-strip-top: calc(var(--safe-area-top) + 140px);
+}
+
+#game-container.dungeon-first-mode[data-explore-hud="roam"] #log-content .event-strip-item--result:not(:last-child) {
+  display: none;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud="roam"] #log-content .event-strip-item--unresolved,
+#game-container.dungeon-first-mode[data-explore-hud="roam"] #log-content .event-strip-item:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compact minimap by default; the transparent toggle tracks its box. */
+#game-container.dungeon-first-mode[data-explore-hud] #dungeon-minimap-overlay {
+  transform-origin: top right;
+  transition: top 160ms ease-out, transform 160ms ease-out;
+}
+
+#game-container.dungeon-first-mode[data-minimap-size="compact"] #dungeon-minimap-overlay {
+  transform: scale(0.65);
+}
+
+#btn-minimap-toggle {
+  display: none;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud] #btn-minimap-toggle:not([hidden]) {
+  position: absolute;
+  top: calc(var(--event-strip-bottom) + 42px);
+  right: 12px;
+  z-index: 3;
+  display: block;
+  width: 128px;
+  height: 128px;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  transition: top 160ms ease-out, width 160ms ease-out, height 160ms ease-out;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud][data-minimap-size="compact"] #btn-minimap-toggle:not([hidden]) {
+  width: 84px;
+  height: 84px;
+}
+
+#game-container.dungeon-first-mode #dungeon-minimap-overlay[data-minimap-visible="false"] ~ #btn-minimap-toggle {
+  display: none;
+}
+
+#game-container.dungeon-first-mode #btn-minimap-toggle:focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 2px;
+}
+
+/* Short or narrow screens already pin the minimap at the compact size. */
+@media (max-height: 600px), (max-width: 340px) {
+  #game-container.dungeon-first-mode[data-explore-hud] #btn-minimap-toggle:not([hidden]) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #game-container.dungeon-first-mode[data-explore-hud] #goal-banner,
+  #game-container.dungeon-first-mode[data-explore-hud] #dungeon-minimap-overlay,
+  #game-container.dungeon-first-mode[data-explore-hud] #btn-minimap-toggle:not([hidden]) {
+    transition: none;
+  }
+}

@@ -26,10 +26,18 @@ import {
   MILESTONE_STRUCTURE_MESSAGE
 } from "./milestone_disclosure.js";
 import { releaseFocusSurface, syncFocusSurface } from "./focus_manager.js";
+import {
+  isExploreHudGoalExpanded,
+  nextExploreHudFocus,
+  suspendExploreHudFocus,
+  toggleExploreHudGoal,
+  toggleExploreHudMinimap
+} from "./explore_hud_focus.js";
 
 let floorStingerTimer = null;
 let combatEntryCueTimer = null;
 let wasCombatContext = false;
+let exploreHudFocus = null;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
 const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, viewport-fit=cover";
 const FLOOR_THEME_STYLE_PROPERTIES = [
@@ -243,6 +251,33 @@ export function getCurrentGoal() {
   return `${getFloorDisplayName(state, state.floor)}: ${getFloorLabel(state, state.floor + 1)}への下り階段を探せ`;
 }
 
+function getExploreGoalSignature() {
+  const quests = (state.currentRun?.quests || [])
+    .map(quest => `${quest.name}:${quest.completed ? 1 : 0}:${formatRunQuestProgress(quest, state.currentRun)}`);
+  return [getCurrentGoal(), ...quests].join("|");
+}
+
+function updateMinimapToggle(isExploreHud) {
+  const toggle = document.getElementById("btn-minimap-toggle");
+  if (!toggle) return;
+  toggle.hidden = !isExploreHud;
+  if (!isExploreHud) return;
+  const expanded = Boolean(exploreHudFocus?.minimapExpanded);
+  const label = expanded ? "地図を縮小" : "地図を拡大";
+  if (typeof toggle.setAttribute === "function") {
+    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+    toggle.setAttribute("aria-label", label);
+  }
+  toggle.title = label;
+  if (!toggle.dataset?.bound && typeof toggle.addEventListener === "function") {
+    toggle.addEventListener("click", () => {
+      exploreHudFocus = toggleExploreHudMinimap(exploreHudFocus);
+      updateUI();
+    });
+    if (toggle.dataset) toggle.dataset.bound = "true";
+  }
+}
+
 export function updateUI() {
   resetViewportZoom();
   updateRecordsStrip();
@@ -278,6 +313,21 @@ export function updateUI() {
       ? "decision"
       : "explore";
 
+  const isExploreHud = isDungeonFirstMode && dungeonFirstState === "explore" && gameState === "explore";
+  if (isExploreHud) {
+    const logs = state.logs || [];
+    const lastLog = logs[logs.length - 1];
+    exploreHudFocus = nextExploreHudFocus(exploreHudFocus, {
+      logSignature: `${logs.length}|${typeof lastLog === "object" && lastLog !== null ? lastLog.text : lastLog}`,
+      goalSignature: getExploreGoalSignature(),
+      poseSignature: `${state.floor},${state.x},${state.y},${state.dir}`,
+      floor: state.floor
+    });
+  } else {
+    exploreHudFocus = suspendExploreHudFocus(exploreHudFocus);
+  }
+  updateMinimapToggle(isExploreHud);
+
   if (gameState === "town") renderTownHome();
 
   // Reset/Apply floor-theme class on #game-container
@@ -299,6 +349,15 @@ export function updateUI() {
     if (container.dataset) {
       if (isDungeonFirstMode) container.dataset.dungeonFirstState = dungeonFirstState;
       else delete container.dataset.dungeonFirstState;
+      if (isExploreHud) {
+        container.dataset.exploreHud = exploreHudFocus.mode;
+        container.dataset.goalExpanded = isExploreHudGoalExpanded(exploreHudFocus) ? "true" : "false";
+        container.dataset.minimapSize = exploreHudFocus.minimapExpanded ? "full" : "compact";
+      } else {
+        delete container.dataset.exploreHud;
+        delete container.dataset.goalExpanded;
+        delete container.dataset.minimapSize;
+      }
       if (isCombatContext) {
         container.dataset.combatPhase = combatPhase;
         container.dataset.combatContext = "active";
@@ -389,6 +448,7 @@ export function updateUI() {
     goalRow.className = "goal-row";
     
     const goalText = document.createElement("span");
+    goalText.className = "goal-text";
     if (gameState === "gameover") {
       goalText.textContent = "🎯 目標: 全滅した。街に戻って立て直せ";
     } else if (gameState === "victory") {
@@ -411,6 +471,23 @@ export function updateUI() {
       goalRow.appendChild(statsContainer);
     }
     goalBanner.appendChild(goalRow);
+    if (isExploreHud) {
+      const goalExpanded = isExploreHudGoalExpanded(exploreHudFocus);
+      const goalToggle = document.createElement("button");
+      goalToggle.type = "button";
+      goalToggle.id = "btn-goal-toggle";
+      goalToggle.className = "goal-toggle";
+      if (typeof goalToggle.setAttribute === "function") {
+        goalToggle.setAttribute("aria-expanded", goalExpanded ? "true" : "false");
+        goalToggle.setAttribute("aria-label", `${goalExpanded ? "目標の詳細を畳む" : "目標の詳細を表示"}: ${goalText.textContent}`);
+      }
+      goalToggle.addEventListener?.("click", () => {
+        exploreHudFocus = toggleExploreHudGoal(exploreHudFocus);
+        updateUI();
+        document.getElementById("btn-goal-toggle")?.focus?.();
+      });
+      goalBanner.appendChild(goalToggle);
+    }
     if (state.currentRun?.quests?.length && !["result", "gameover", "victory"].includes(gameState)) {
       const questList = document.createElement("div");
       questList.className = "quest-hud-list";
