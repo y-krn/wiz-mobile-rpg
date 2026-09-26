@@ -272,7 +272,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/state/initial_state.js", "src/state/records_state.js", "src/state/state_core.js", "src/state/character.js", "src/state/character.ts", "src/state/monster.js", "src/state/monster.ts", "src/result.js", "src/rules/renderer_topology.js", "src/rules/renderer_topology.ts", "src/chest_prop.js", "src/dungeon_prop.js", "src/renderer_selection.js", "src/renderer_runtime.js",
     "src/data/spells.js", "src/data/status_treatments.js", "src/systems/spell_effects.js",
     "src/runtime_diagnostics.js", "src/telemetry.js", "src/systems/traps.js", "src/pixi_renderer.js", "src/pixi_enemy_prototypes.js", "src/pixi_pixel_art.js", "src/minimap.js",
-    "src/rules/item_inventory.js", "src/rules/item_inventory.ts", "src/rules/object_loot_stake.js", "src/rules/renderer_projection.js", "src/rules/renderer_openings.js", "src/rules/enemy_hp_state.js", "src/rules/enemy_hp_state.ts",
+    "src/rules/item_inventory.js", "src/rules/item_inventory.ts", "src/rules/object_loot_stake.js", "src/rules/object_loot_stake.ts", "src/rules/renderer_projection.js", "src/rules/renderer_openings.js", "src/rules/enemy_hp_state.js", "src/rules/enemy_hp_state.ts",
     "src/data/equipment_vnext.js", "src/rules/combat_tier.js", "src/rules/diagnostic_build_identity.js",
     "src/combat_logic/combat_action.js", "src/combat_logic/combat_action.ts", "src/combat_ui/combat_state.ts",
     "src/enemy_presentation.js", "src/enemy_presentation_palette.js", "src/assets/enemies/**",
