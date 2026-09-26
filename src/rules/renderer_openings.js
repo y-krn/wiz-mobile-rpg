@@ -19,9 +19,15 @@ export function getSideOpeningPosts(topology, projection) {
   });
   const depthCount = projection?.xl?.length ?? 0;
   const posts = new Map();
+  // Posts are drawn over every cell, so centre cells hidden behind the front
+  // wall (reachable only by looping around a side column) must not frame any.
+  let lastVisibleDepth = 0;
+  while (cells.has(`${lastVisibleDepth}:0`) && !cells.get(`${lastVisibleDepth}:0`).frontBlocked) {
+    lastVisibleDepth += 1;
+  }
 
   cells.forEach((cell) => {
-    if (cell.column !== 0) return;
+    if (cell.column !== 0 || cell.z > lastVisibleDepth) return;
     const { z } = cell;
     SIDES.forEach(({ side, column, blockedKey, edgeKey }) => {
       if (cell[blockedKey]) return;
