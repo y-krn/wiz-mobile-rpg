@@ -80,15 +80,15 @@
   background: var(--tint-amber);
 }
 
-/* Combat buttons */
+/* Combat buttons: secondary commands stay neutral ink. Only the filled
+   attack command carries red (it deals damage); danger is not a combat default. */
 .btn-combat {
-  --btn-edge: rgba(217, 72, 59, 0.26);
-  border-color: rgba(217, 72, 59, 0.45);
-  color: var(--neon-red);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
   background: var(--surface-raised);
 }
 .btn-combat:active {
-  background-color: var(--tint-red);
+  background-color: var(--surface-inset);
 }
 
 .archives-tab.active,
