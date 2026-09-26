@@ -599,6 +599,10 @@ function normalizeCurrentRun(run, saveFloor) {
   const normalized = normalizeRunOutcome(run);
   const defaults = createDefaultCurrentRun();
 
+  if (!["normal", "progression-exp", "phase3-equipment"].includes(normalized.trialProfile)) {
+    normalized.trialProfile = "normal";
+  }
+
   Object.entries(defaults).forEach(([key, defaultValue]) => {
     if (Array.isArray(defaultValue)) {
       normalized[key] = arrayOr(normalized[key]);

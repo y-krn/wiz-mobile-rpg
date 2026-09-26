@@ -2,7 +2,7 @@ name: Test
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, issue-1753-phase3-trial]
   push:
     branches: [main]
   merge_group:

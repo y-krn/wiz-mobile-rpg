@@ -63,6 +63,23 @@
   text-shadow: none;
 }
 
+.trial-mode-badge {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  padding: 3px 6px;
+  border: 1px solid var(--neon-cyan);
+  border-radius: 999px;
+  color: var(--neon-cyan);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.trial-mode-badge[hidden] {
+  display: none;
+}
+
 #location-label::before {
   content: "";
   display: inline-block;

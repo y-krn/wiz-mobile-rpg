@@ -54,6 +54,8 @@ export const ITEMS = {
   DRAGON_RING: { id: "DRAGON_RING", name: "竜除けの指輪", type: "accessory", affixBonus: { antiDragon: 20 }, desc: "竜への備えを刻んだ指輪。竜特効+20% [全員用]", tags: ["dragon"] },
   HOLY_BAND: { id: "HOLY_BAND", name: "退魔の腕輪", type: "accessory", affixBonus: { antiUndead: 20 }, desc: "不死者を退ける腕輪。不死特効+20% [全員用]", tags: ["holy"] },
   SWIFT_BAND: { id: "SWIFT_BAND", name: "迅雷の帯", type: "accessory", affixBonus: { firstStrike: 5 }, desc: "初動を助ける細帯。先制+5% [全員用]", tags: ["ambush"] },
+  VNEXT_RING: { id: "VNEXT_RING", name: "指輪", type: "accessory", trialOnly: true, desc: "Phase 3試用 Base: 指輪", tags: [] },
+  VNEXT_AMULET: { id: "VNEXT_AMULET", name: "護符", type: "accessory", trialOnly: true, desc: "Phase 3試用 Base: 護符", tags: [] },
 
   // Potions / Quest items
   HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", desc: "使用するとHPを15回復する。" },

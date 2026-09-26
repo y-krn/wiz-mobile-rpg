@@ -102,7 +102,9 @@ export function getCharWeaponAtk(char) {
   }
   // Equipment-owned ATK is already included above. Core ATK is kept as a
   // separate build contribution so Curse Keeper is applied exactly once.
-  return atk + getCurseKeeperBonus(char, "atk");
+  const total = atk + getCurseKeeperBonus(char, "atk");
+  const baseline = Math.max(0, Math.min(5, Math.floor(Number(char.phase4cV1Baseline) || 0)));
+  return total * (1 + 0.16 * baseline);
 }
 
 export function getCharTrapEaterBonus(char) {

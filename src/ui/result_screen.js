@@ -4,6 +4,7 @@ import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
 import { getFloorLabel } from "../data/floor_themes.js";
 import { setRepresentativeItem } from "../systems/run_return.js";
+import { clearPhase4cV1CharacterBaseline } from "../rules/phase4c_v1_trial.js";
 
 const ACHIEVEMENT_LABELS = {
   first_b5_reached: "初めてB5Fへ到達",
@@ -339,6 +340,7 @@ function createReturnProcessingSection(run) {
 function leaveResult(overlay) {
   overlay.style.display = "none";
   state.gameState = "town";
+  clearPhase4cV1CharacterBaseline(state);
   state.currentRun = null;
   state.party = [];
   addLog("街へ戻った。次の潜行に備えよう。");

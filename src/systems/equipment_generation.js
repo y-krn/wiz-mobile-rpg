@@ -14,6 +14,12 @@ import {
 } from "../rules/identification_rules.js";
 import { recordRuntimeCall } from "../runtime_diagnostics.js";
 import { isEquipmentInstance } from "../state/equipment.js";
+import { TRIAL_PROFILES } from "../trial_profiles.js";
+import {
+  getVNextTrialCandidates,
+  isVNextTrialCore,
+  isVNextTrialSupport
+} from "../rules/equipment_vnext_trial.js";
 
 const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
 // Workshop pool nodes intentionally gate pre-existing core IDs to make the
@@ -116,7 +122,7 @@ function withSupportDefinition(candidate) {
   };
 }
 
-function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null, lootRole = null) {
+function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null, lootRole = null, phase3Equipment = false) {
   const budget = getAffixBudget(rarity, floor);
   const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
     ? AFFIX_BALANCE.corePoolWeights.shallow
@@ -137,6 +143,7 @@ function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCo
     : new Set();
   const corePool = allowCores ? CORE_AFFIXES
     .filter(affix => affix.enabled
+      && (!phase3Equipment || isVNextTrialCore(affix.id))
       && affix.slot === slot
       && affix.cost <= budget
       && !reservedReplacements.has(affix.id)
@@ -224,8 +231,9 @@ export function buildUnidentifiedMeta(
 }
 
 export function generateRandomEquipment(floor, options) {
-  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null } =
+  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null, trialProfile = TRIAL_PROFILES.NORMAL } =
     requireGenerationOptions(options, "generateRandomEquipment");
+  const phase3Equipment = trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT;
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "equipment", floor });
   const gambleProfile = getIdentificationGambleProfile(floor);
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
@@ -236,6 +244,7 @@ export function generateRandomEquipment(floor, options) {
   if (excludeHighEnd) {
     baseCandidates = baseCandidates.filter(baseId => !RESTRICTED_CHEST_BASES.includes(baseId));
   }
+  if (phase3Equipment) baseCandidates = getVNextTrialCandidates(baseCandidates);
 
   // Reuse the historical pre-selection roll for the role target so seeded
   // streams stay stable. Candidate selection remains independent of the loadout.
@@ -260,6 +269,7 @@ export function generateRandomEquipment(floor, options) {
   const possibleAffixes = [];
   const addAffix = (minFloor, type, getVal, weight = 3) => {
     if (floor < minFloor) return;
+    if (phase3Equipment && !isVNextTrialSupport(type)) return;
     const candidate = withSupportDefinition({ type, getVal, weight });
     if (candidate) possibleAffixes.push(candidate);
   };
@@ -375,7 +385,7 @@ export function generateRandomEquipment(floor, options) {
   addAffix(1, "contractReward", () => 10, 2);
   
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party, lootRole);
+  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment);
   const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
   const buildRole = getDominantBuildRole(affixes, lootRole);
 
@@ -472,13 +482,15 @@ export function generateRandomEquipment(floor, options) {
 }
 
 export function generateRandomAccessory(floor, options) {
-  const { forceRarity = null, rng = Math.random, party = null, allowCores = true, runtimeDiagnostics = null } =
+  const { forceRarity = null, rng = Math.random, party = null, allowCores = true, runtimeDiagnostics = null, trialProfile = TRIAL_PROFILES.NORMAL } =
     requireGenerationOptions(options, "generateRandomAccessory");
+  const phase3Equipment = trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT;
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "accessory", floor });
   const gambleProfile = getIdentificationGambleProfile(floor);
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
   let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[candidateFloor]
     || ACCESSORY_CANDIDATES_BY_FLOOR[30];
+  if (phase3Equipment) baseCandidates = getVNextTrialCandidates(baseCandidates);
 
   const lootRole = rollLootBuildRole(floor, rng);
   const baseRoll = rng();
@@ -530,12 +542,12 @@ export function generateRandomAccessory(floor, options) {
     { type: "identifyDiscount", getVal: () => 10, weight: 2 },
     { type: "materialFind", getVal: () => 10, weight: 2 },
     { type: "contractReward", getVal: () => 10, weight: 2 }
-  ].filter(aff => aff.weight > 0)
+  ].filter(aff => aff.weight > 0 && (!phase3Equipment || isVNextTrialSupport(aff.type)))
     .map(withSupportDefinition)
     .filter(Boolean);
 
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party, lootRole);
+  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment);
   const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
   const buildRole = getDominantBuildRole(affixes, lootRole);
   const tags = [...(baseItem.tags || [])];

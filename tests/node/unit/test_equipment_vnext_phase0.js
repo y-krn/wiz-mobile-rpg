@@ -34,7 +34,7 @@ import { createBuildFixture } from "../../../scratch/measurements/build_fixtures
 assert.equal(CANONICAL_BASE_IDS.length, 14);
 assert.equal(new Set(CANONICAL_BASE_IDS).size, CANONICAL_BASE_IDS.length);
 const equipmentItemIds = Object.values(ITEMS)
-  .filter(item => ["weapon", "armor", "shield", "accessory"].includes(item.type))
+  .filter(item => !item.trialOnly && ["weapon", "armor", "shield", "accessory"].includes(item.type))
   .map(item => item.id);
 assert.equal(Object.keys(ITEM_ID_TO_VNEXT_BASE).length, 48);
 assert.equal(Object.keys(VNEXT_BASE_ITEM_AUDIT).length, 50);
@@ -193,10 +193,14 @@ assert.equal(diagnostic.identity, getDiagnosticBuildIdentity(diagnostic));
 // Existing production snapshot remains v1 and is not replaced by diagnostic v2.
 assert.equal(resolveBuildSnapshot(createBuildFixture("medium-multi-rune")).schemaVersion, 1);
 
-// vNext vocabulary has no production calculation dependency.
-for (const file of ["src/systems/equipment_generation.js", "src/rules/affix_rules.js", "src/telemetry.js"]) {
+// Diagnostic audit data is reached only through the explicit opt-in trial
+// adapter; normal affix calculations and telemetry stay independent.
+for (const file of ["src/rules/affix_rules.js", "src/telemetry.js"]) {
   const source = fs.readFileSync(file, "utf8");
   assert.doesNotMatch(source, /equipment_vnext|diagnostic_build_identity|combat_tier/);
 }
+const equipmentBoundarySource = fs.readFileSync("src/systems/equipment_generation.js", "utf8");
+assert.match(equipmentBoundarySource, /from "\.\.\/rules\/equipment_vnext_trial\.js"/);
+assert.doesNotMatch(equipmentBoundarySource, /from "\.\.\/data\/equipment_vnext\.js"/);
 
 console.log("[PASS] Equipment vNext Phase 3c 50-item audit, diagnostic identity, and production boundary");

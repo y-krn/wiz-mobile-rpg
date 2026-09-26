@@ -33,10 +33,19 @@ import {
   syncMediumState
 } from "../rules/magic_rules.js";
 import { restoreFocusAfterRender } from "../ui/focus_manager.js";
+import {
+  TRIAL_PROFILES,
+  enterTrialMode,
+  getRequestedTrialProfile,
+  isTrialStorageSelected,
+  leaveTrialMode
+} from "../trial_profiles.js";
+import { getVNextTrialBaseId } from "../rules/equipment_vnext_trial.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
 let selectedStartFloor = null;
+let selectedTrialProfile = getRequestedTrialProfile();
 const DEPARTURE_BAG_CAPACITY = INVENTORY_CAPACITY;
 const DEPARTURE_ITEM_LIMITS = Object.freeze({ TOWN_PORTAL: 1 });
 
@@ -73,11 +82,33 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
   // exploration surface. Replayed events from the old button must not start
   // another run or charge its preparation choices twice.
   if (state.gameState !== "submenu") return false;
+  if (selectedTrialProfile !== TRIAL_PROFILES.NORMAL && !isTrialStorageSelected()) {
+    enterTrialMode(selectedTrialProfile);
+    return false;
+  }
+  if (selectedTrialProfile === TRIAL_PROFILES.NORMAL && isTrialStorageSelected()) {
+    leaveTrialMode();
+    return false;
+  }
+  if (
+    isTrialStorageSelected() &&
+    state.currentRun?.runSeed &&
+    !globalThis.confirm("保存済みの試用runを破棄して新規runを開始しますか？")
+  ) return false;
   const kit = getStartingKit(startingKitId);
   const character = applyWorkshopToCharacter(createStartingKitCharacter(startingKitId), state.workshop);
-  const item = ITEMS[startingGear];
+  const trialStartingGear = selectedTrialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT
+    ? getVNextTrialBaseId(startingGear) || startingGear
+    : startingGear;
+  if (selectedTrialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT) {
+    Object.keys(character.equipment || {}).forEach(slotId => {
+      const productionId = character.equipment[slotId];
+      character.equipment[slotId] = getVNextTrialBaseId(productionId) || productionId;
+    });
+  }
+  const item = ITEMS[trialStartingGear];
   const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
-  const handConflict = slot ? getEquipmentHandConflict(character, startingGear, slot) : null;
+  const handConflict = slot ? getEquipmentHandConflict(character, trialStartingGear, slot) : null;
   if (handConflict) {
     addLog(`[開始不可] ${handConflict.message}`);
     return;
@@ -102,14 +133,14 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
   departureCraftQuantities = new Map();
   if (startingGear) {
     if (slot) {
-      const preserveRunes = startingKitId === "arcana" && isMedium(startingGear);
-      character.equipment[slot] = startingGear;
+      const preserveRunes = startingKitId === "arcana" && isMedium(trialStartingGear);
+      character.equipment[slot] = trialStartingGear;
       syncMediumState(character, { preserveRunes });
     }
   }
   state.party = [character];
   addLog(`${kit.name}で単独潜行を開始する。`);
-  executeEnterDungeon(startFloor, { departureCraft, runQuestTemplateIds });
+  executeEnterDungeon(startFloor, { departureCraft, runQuestTemplateIds, trialProfile: selectedTrialProfile });
 }
 
 function getSelectedRecipeIds() {
@@ -405,6 +436,44 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
 
   renderDepartureCraftOptions(optGrid, startingKitId, startingGear);
 
+  const profileHeading = document.createElement("div");
+  profileHeading.className = "solo-start-floor-heading trial-profile-heading";
+  const profileTitle = document.createElement("strong");
+  profileTitle.textContent = "今回の試用モード";
+  const profileHint = document.createElement("span");
+  profileHint.textContent = "選択は新規runだけに適用。開始後の切替なし。";
+  profileHeading.append(profileTitle, profileHint);
+  if (footer) footer.appendChild(profileHeading);
+
+  const profiles = [
+    [TRIAL_PROFILES.NORMAL, "通常モード", isTrialStorageSelected()
+      ? "通常セーブへ戻る（再読み込み後に開始）"
+      : "現行の進行・EXP・装備"],
+    [TRIAL_PROFILES.PROGRESSION_EXP, "Phase 4c v1＋固定4j-B", "試用候補・採用未決定"],
+    [TRIAL_PROFILES.PHASE3_EQUIPMENT, "Phase 4c v1＋固定4j-B＋Phase 3装備", "14 Base / KEEP Support・Core・候補段階"]
+  ];
+  profiles.forEach(([profile, label, detail]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `btn btn-neon btn-block trial-profile-option${selectedTrialProfile === profile ? " is-selected" : ""}`;
+    button.dataset.trialProfile = profile;
+    button.setAttribute("aria-pressed", String(selectedTrialProfile === profile));
+    const name = document.createElement("strong");
+    name.textContent = label;
+    const description = document.createElement("span");
+    description.textContent = detail;
+    button.append(name, description);
+    button.addEventListener("click", () => {
+      selectedTrialProfile = profile;
+      if (profile !== TRIAL_PROFILES.NORMAL && !isTrialStorageSelected()) {
+        enterTrialMode(profile);
+        return;
+      }
+      renderStartFloorChoices(optGrid, startingKitId, startingGear, `[data-trial-profile="${profile}"]`);
+    });
+    if (footer) footer.appendChild(button);
+  });
+
   const floorHeading = document.createElement("div");
   floorHeading.className = "solo-start-floor-heading";
   const floorTitle = document.createElement("strong");
@@ -463,6 +532,7 @@ export function renderSoloStart(optGrid, focusSelector = null) {
   clearDepartureStartFooter();
   departureCraftQuantities = new Map();
   selectedStartFloor = null;
+  selectedTrialProfile = TRIAL_PROFILES.NORMAL;
 
   STARTING_KITS.forEach(kit => {
     const character = createStartingKitCharacter(kit.id);

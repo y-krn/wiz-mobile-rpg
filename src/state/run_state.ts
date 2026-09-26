@@ -78,6 +78,7 @@ import {
 export type RunOutcome = "" | "retreat" | "death" | "abandon";
 
 export interface NormalizedCurrentRun {
+  trialProfile: "normal" | "progression-exp" | "phase3-equipment";
   startedAt: number;
   startFloor: number;
   startingKit: NormalizedStartingKitId;
@@ -148,6 +149,7 @@ const ITEM_COLLECTION_FIELDS = [
 ] as const;
 
 const REQUIRED_FIELDS = [
+  "trialProfile",
   ...NUMBER_FIELDS,
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
   "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing",
@@ -181,6 +183,7 @@ function isRunOutcome(value: unknown): value is RunOutcome {
 
 export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurrentRun {
   if (!isRecord(value) || !hasRequiredFields(value)) return false;
+  if (!["normal", "progression-exp", "phase3-equipment"].includes(String(value.trialProfile))) return false;
   if (!isNormalizedStartingKitId(value.startingKit)) return false;
   if (!NUMBER_FIELDS.every(field => isFiniteNumber(value[field]))) return false;
   if (!isFiniteNumber(value.lootSequence) || !Number.isInteger(value.lootSequence) || value.lootSequence < 0) {

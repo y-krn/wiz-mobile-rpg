@@ -563,6 +563,30 @@
   gap: 2px;
 }
 
+.trial-profile-heading {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+.trial-profile-option {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-height: var(--tap-min);
+  text-align: left;
+}
+
+.trial-profile-option span {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.trial-profile-option.is-selected {
+  border-color: var(--neon-cyan);
+  box-shadow: var(--neon-glow-cyan);
+}
+
 .solo-start-floor-option.is-selected,
 .solo-start-confirm {
   border-color: var(--neon-cyan);

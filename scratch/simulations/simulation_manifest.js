@@ -121,10 +121,14 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/constants/item_categories.js", domains: ["economy"] },
     { pattern: "src/constants/events.js", domains: ["maps"] },
     { pattern: "src/craft.js", domains: ["workshop", "economy"] },
-    { pattern: "src/data/items.js", domains: ["maps", "economy", "traps"] },
+    { pattern: "src/data/items.js", domains: ["maps", "economy", "traps", "equipment"] },
+    { pattern: "src/rules/equipment_vnext_trial.js", domains: ["chests", "equipment"] },
+    { pattern: "src/rules/phase4c_v1_trial.js", domains: ["combat", "progression"] },
+    { pattern: "src/rules/phase4j_b_trial.js", domains: ["progression"] },
+    { pattern: "src/trial_profiles.js", domains: [] },
     { pattern: "src/data/milestone_merchant.js", domains: ["economy"] },
     { pattern: "src/menu/explore_actions.js", domains: ["maps", "traps"] },
-    { pattern: "src/movement.js", domains: ["maps", "traps"] },
+    { pattern: "src/movement.js", domains: ["maps", "traps", "equipment"] },
     { pattern: "src/state/state_core.js", domains: ["maps"] },
     { pattern: "src/systems/exploration_items.js", domains: ["maps", "traps"] },
     { pattern: "src/systems/exploration_items.ts", domains: ["maps", "traps"] },
@@ -143,7 +147,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/combat_logic/drops.js", domains: ["drops"] },
     { pattern: "src/combat_logic/item_resolution.js", domains: ["combat", "status", "recovery"] },
     { pattern: "src/combat_logic/monster_traits.js", domains: ["combat", "status"] },
-    { pattern: "src/combat_logic/rewards.js", domains: ["drops", "progression"] },
+    { pattern: "src/combat_logic/rewards.js", domains: ["drops", "progression", "equipment"] },
     { pattern: "src/combat_logic/round.js", domains: ["combat", "status"] },
     { pattern: "src/combat_logic/spell_resolution.js", domains: ["combat", "status"] },
     { pattern: "src/combat_logic/status_effects.js", domains: ["status"] },
@@ -373,7 +377,10 @@ export const VNEXT_DIAGNOSTIC_MODULES = Object.freeze([
 ]);
 
 const VNEXT_DIAGNOSTIC_IMPORT_ALLOWLIST = new Set([
-  "src/rules/diagnostic_build_identity.js"
+  "src/rules/diagnostic_build_identity.js",
+  // The production opt-in Equipment vNext trial consumes the audited data
+  // mapping without changing the ordinary profile or diagnostic runners.
+  "src/rules/equipment_vnext_trial.js"
 ]);
 
 function getSourceEntries({ repoRoot = process.cwd(), sourceByPath = null } = {}) {

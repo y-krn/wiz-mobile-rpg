@@ -7,27 +7,29 @@ import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { createMonsterCodexRecord, recordEquipmentDiscovery, recordMonsterLoot } from "../state/codex_state.js";
 import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js";
+import { settlePhase4jBExpOwnership } from "../rules/phase4j_b_trial.js";
 
 function rollCombatAccessoryDrop(state, rng) {
   const roll = rng();
   if (state.combatState.isBoss) {
     return roll > 0 && roll < 0.35
-      ? generateRandomAccessory(state.floor, { forceRarity: "epic", rng, party: state.party })
+      ? generateRandomAccessory(state.floor, { forceRarity: "epic", rng, party: state.party, trialProfile: state.currentRun?.trialProfile })
       : null;
   }
   if (state.combatState.isMidboss || state.combatState.isRoamingFlack) {
     return roll > 0 && roll < 0.25
-      ? generateRandomAccessory(state.floor, { forceRarity: "rare", rng, party: state.party })
+      ? generateRandomAccessory(state.floor, { forceRarity: "rare", rng, party: state.party, trialProfile: state.currentRun?.trialProfile })
       : null;
   }
   const isRare = state.combatState.monsters?.some(m => m.isRare);
   const chance = isRare ? 0.12 : 0.03;
   return roll > 0 && roll < chance
-    ? generateRandomAccessory(state.floor, { forceRarity: null, rng, party: state.party })
+    ? generateRandomAccessory(state.floor, { forceRarity: null, rng, party: state.party, trialProfile: state.currentRun?.trialProfile })
     : null;
 }
 
 export function applyCombatRewards(state, monsters, logQueue, rng = Math.random, policy = null) {
+  settlePhase4jBExpOwnership(state, monsters);
   const nonFledMonsters = monsters.filter(m => !m.fled);
   const totalExp = nonFledMonsters.reduce((sum, m) => sum + m.exp, 0);
   const livingChars = state.party.filter(c => c.status !== "dead");
@@ -250,21 +252,24 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
     dropEquipment = generateRandomEquipment(state.floor, {
       forceRarity: "epic",
       rng,
-      party: state.party
+      party: state.party,
+      trialProfile: state.currentRun?.trialProfile
     });
   } else if (state.combatState.isMidboss) {
     const rarity = rng() < 0.25 ? "epic" : "rare";
     dropEquipment = generateRandomEquipment(state.floor, {
       forceRarity: rarity,
       rng,
-      party: state.party
+      party: state.party,
+      trialProfile: state.currentRun?.trialProfile
     });
   } else if (state.combatState.isRoamingFlack) {
     const rarity = rng() < 0.30 ? "epic" : "rare";
     dropEquipment = generateRandomEquipment(state.floor, {
       forceRarity: rarity,
       rng,
-      party: state.party
+      party: state.party,
+      trialProfile: state.currentRun?.trialProfile
     });
   } else {
     const isRare = state.combatState.monsters && state.combatState.monsters.some(m => m.isRare);
@@ -273,7 +278,8 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
       dropEquipment = generateRandomEquipment(state.floor, {
         forceRarity: null,
         rng,
-        party: state.party
+        party: state.party,
+        trialProfile: state.currentRun?.trialProfile
       });
     }
   }

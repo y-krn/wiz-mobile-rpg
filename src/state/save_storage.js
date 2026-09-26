@@ -2,6 +2,7 @@ import { markMapChanged, markMapCellVisited, state, addLog } from "./state_core.
 import { captureException, captureMessage } from "../sentry.js";
 import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 import { createSavePayload, applySavePayload } from "./save_payload.js";
+import { getTrialSaveNamespace } from "../trial_profiles.js";
 import { migrateSavePayload } from "./save_migrations.js";
 import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";
@@ -10,12 +11,9 @@ import { createDefaultRecords } from "./records_state.js";
 import { findMapCellByType } from "../rules/map_queries.js";
 import { ensureRunFloor, isUsableFloorMap } from "./run_floor_state.js";
 
-const SAVE_KEY = "mobile_wiz_rpg_autosave";
-const OLD_SAVE_KEY = "mobile_wiz_rpg_save";
-// 直前の正常セーブ(1世代)。SAVE_KEYが破損した際の復旧元。
-const BACKUP_KEY = "mobile_wiz_rpg_backup";
-// 読込不能だった生データの退避先。上書きせず調査・手動復旧に残す。
-const CORRUPT_KEY = "mobile_wiz_rpg_corrupt";
+function getSaveKeys() {
+  return getTrialSaveNamespace({ trialProfile: state.currentRun?.trialProfile });
+}
 
 
 export function initNewGame({ preserveSeed = false } = {}) {
@@ -113,14 +111,15 @@ export function saveGame() {
 
 function persistSave({ rotateBackup = true } = {}) {
   try {
+    const keys = getSaveKeys();
     const data = JSON.stringify(createSavePayload());
     if (rotateBackup) {
       // 新規書き込み前に直前の正常セーブをバックアップへローテート。
       // setItemは原子的なので、この時点のSAVE_KEYは前回の正常データ。
-      const prev = localStorage.getItem(SAVE_KEY);
+      const prev = localStorage.getItem(keys.save);
       if (prev) {
         try {
-          localStorage.setItem(BACKUP_KEY, prev);
+          localStorage.setItem(keys.backup, prev);
         } catch (backupErr) {
           // バックアップ失敗は致命ではない(容量超過など)。本体保存を優先。
           captureException(backupErr, {
@@ -131,7 +130,7 @@ function persistSave({ rotateBackup = true } = {}) {
         }
       }
     }
-    localStorage.setItem(SAVE_KEY, data);
+    localStorage.setItem(keys.save, data);
   } catch (err) {
     console.error("Save autosave failed", err);
     // 保存自体の失敗はプレイヤーの進行喪失に直結するため送信する。
@@ -152,10 +151,11 @@ function saveLoadedState() {
 }
 
 export function clearSave() {
-  localStorage.removeItem(SAVE_KEY);
-  localStorage.removeItem(OLD_SAVE_KEY);
-  localStorage.removeItem(BACKUP_KEY);
-  localStorage.removeItem(CORRUPT_KEY);
+  const keys = getSaveKeys();
+  localStorage.removeItem(keys.save);
+  localStorage.removeItem(keys.old);
+  localStorage.removeItem(keys.backup);
+  localStorage.removeItem(keys.corrupt);
   initNewGame();
 }
 
@@ -181,11 +181,12 @@ function recoverActiveRunFloorIfNeeded() {
 }
 
 export function loadGame() {
+  const keys = getSaveKeys();
   // 優先度順に読込元を試す。SAVE_KEYが破損してもBACKUP/旧キーから復旧する。
   const sources = [
-    { key: SAVE_KEY, label: "オートセーブ" },
-    { key: BACKUP_KEY, label: "バックアップ" },
-    { key: OLD_SAVE_KEY, label: "旧セーブ" }
+    { key: keys.save, label: "オートセーブ" },
+    { key: keys.backup, label: "バックアップ" },
+    { key: keys.old, label: "旧セーブ" }
   ];
 
   let firstCorrupt = null;
@@ -196,7 +197,7 @@ export function loadGame() {
     if (!raw) continue;
     try {
       applyRawSave(raw);
-      if (src.key !== SAVE_KEY) {
+      if (src.key !== keys.save) {
         addLog(`セーブデータが破損していたため、${src.label}から復旧しました。`);
       }
       // 復旧内容を正データとして確定(SAVE_KEYへ書き戻し)。
@@ -224,7 +225,7 @@ export function loadGame() {
 
   if (recoveryFailure) {
     try {
-      localStorage.setItem(CORRUPT_KEY, recoveryFailure.raw);
+      localStorage.setItem(keys.corrupt, recoveryFailure.raw);
     } catch (err) {
       captureException(err, {
         level: "warning",
@@ -240,9 +241,9 @@ export function loadGame() {
   }
 
   if (foundIncompatibleSave) {
-    localStorage.removeItem(SAVE_KEY);
-    localStorage.removeItem(BACKUP_KEY);
-    localStorage.removeItem(OLD_SAVE_KEY);
+    localStorage.removeItem(keys.save);
+    localStorage.removeItem(keys.backup);
+    localStorage.removeItem(keys.old);
     initNewGame();
     state.logs = ["旧バージョンのセーブはソロ仕様と互換性がないため破棄しました。開始キットを選んで新しく開始してください。"];
     saveAutosave();
@@ -252,7 +253,7 @@ export function loadGame() {
   // 全滅時のみ新規開始。破損データは上書きせずCORRUPT_KEYへ退避して残す。
   if (firstCorrupt !== null) {
     try {
-      localStorage.setItem(CORRUPT_KEY, firstCorrupt);
+      localStorage.setItem(keys.corrupt, firstCorrupt);
     } catch (err) {
       captureException(err, {
         level: "warning",
@@ -261,7 +262,7 @@ export function loadGame() {
       });
       console.error("Failed to preserve corrupt save", err);
     }
-    console.error("All saves unreadable. Corrupt data preserved under", CORRUPT_KEY);
+    console.error("All saves unreadable. Corrupt data preserved under", keys.corrupt);
     // 全読込元が破損=進行の完全喪失。最重要イベントとして送信する。
     captureMessage("全セーブ読込不能。新規ゲーム開始(進行喪失)", {
       level: "error",
