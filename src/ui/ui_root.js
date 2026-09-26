@@ -449,9 +449,9 @@ export function updateUI() {
       profile === TRIAL_PROFILES.PROGRESSION_EXP || profile === TRIAL_PROFILES.PHASE3_EQUIPMENT;
     trialBadge.hidden = !trialSelected;
     trialBadge.textContent = profile === TRIAL_PROFILES.PHASE3_EQUIPMENT
-      ? "試用中 · Phase 3装備"
+      ? "試用中 · Phase 4c/B・Phase 3装備"
       : profile === TRIAL_PROFILES.PROGRESSION_EXP
-        ? "試用中 · 進行・EXP"
+        ? "試用中 · Phase 4c/B"
         : "試用セーブ";
   }
   wasCombatContext = isCombatContext;

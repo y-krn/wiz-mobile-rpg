@@ -3,6 +3,7 @@ import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { recordEquipmentDiscovery, recordMonsterLoot } from "../state/codex_state.js";
 import { markMapChanged } from "../state/state_core.js";
 import { recordMilestoneVictory } from "../state/run_state.js";
+import { applyPhase4cV1PlayerBaseline } from "../rules/phase4c_v1_trial.js";
 import { getItemData } from "../data.js";
 import {
   KEY_ITEM_LABELS,
@@ -24,6 +25,7 @@ function clearOutcomeCell(stateLike, event, { openBossExitFloor = null } = {}) {
 function applyMilestoneVictoryRewards(stateLike, floor) {
   clearOutcomeCell(stateLike, "boss", { openBossExitFloor: floor });
   const milestone = recordMilestoneVictory(stateLike, floor);
+  applyPhase4cV1PlayerBaseline(stateLike);
   const messages = [`B${floor}F開始を恒久アンロックした。`];
   const keyItem = MILESTONE_KEY_ITEMS[floor];
   if (milestone.unlocked && keyItem) {

@@ -449,8 +449,8 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
     [TRIAL_PROFILES.NORMAL, "通常モード", isTrialStorageSelected()
       ? "通常セーブへ戻る（再読み込み後に開始）"
       : "現行の進行・EXP・装備"],
-    [TRIAL_PROFILES.PROGRESSION_EXP, "進行・EXPのみ", "共通試用基盤"],
-    [TRIAL_PROFILES.PHASE3_EQUIPMENT, "進行・EXP＋Phase 3装備", "14 Base / KEEP Support・Core"]
+    [TRIAL_PROFILES.PROGRESSION_EXP, "Phase 4c v1＋固定4j-B", "試用候補・採用未決定"],
+    [TRIAL_PROFILES.PHASE3_EQUIPMENT, "Phase 4c v1＋固定4j-B＋Phase 3装備", "14 Base / KEEP Support・Core・候補段階"]
   ];
   profiles.forEach(([profile, label, detail]) => {
     const button = document.createElement("button");

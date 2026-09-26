@@ -59,6 +59,7 @@ import {
   processMonsterDefeat,
   getEliteAttackMultiplier
 } from "./monster_traits.js";
+import { preparePhase4cV1Summon } from "../rules/phase4c_v1_trial.js";
 
 import { applyCombatRewards } from "./rewards.js";
 import {
@@ -1244,7 +1245,7 @@ export function runCombatRoundCalculation(
             const template = findMonsterTemplate(mon.summon?.name || "ゴブリンの呪術師");
             if (template) {
               recordAction(mon, "仲間を呼ぶ");
-              monsters.push({ ...template, hp: template.hp, maxHp: template.hp });
+              monsters.push(preparePhase4cV1Summon(state, { ...template, hp: template.hp, maxHp: template.hp }));
               logQueue.push({ msg: `[ 敵 ] ${mon.name}は${template.name}を召喚した！` });
               if (!continueAfterSupportAction) return;
             }
