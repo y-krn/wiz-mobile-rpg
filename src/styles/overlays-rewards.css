@@ -52,3 +52,18 @@
 .pending-reward-confirm:disabled {
   opacity: 0.55;
 }
+
+#game-container #submenu-options .pending-reward-actions .btn.is-selected {
+  border-color: var(--neon-green);
+  background: var(--tint-green);
+  box-shadow: var(--neon-glow-green);
+  color: var(--neon-green);
+  font-weight: 700;
+}
+
+#game-container #submenu-options .pending-reward-actions .btn-danger.is-selected {
+  border-color: var(--neon-red);
+  background: #fbd3cc;
+  box-shadow: 0 0 6px rgba(217, 72, 59, 0.45);
+  color: var(--neon-red);
+}
