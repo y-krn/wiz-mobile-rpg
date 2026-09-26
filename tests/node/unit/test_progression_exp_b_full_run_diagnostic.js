@@ -26,7 +26,7 @@ import {
 import { MONSTERS } from "../../../src/data/monsters.js";
 import { processMonsterDefeat } from "../../../src/combat_logic/monster_traits.js";
 
-assert.equal(RUNNER_VERSION, "progression-exp-b-full-run-diagnostic-v1");
+assert.equal(RUNNER_VERSION, "progression-exp-b-full-run-diagnostic-v2");
 assert.equal(DEFAULT_SEED, 1735);
 await assert.rejects(runProgressionExpBFullRunDiagnostic({ runs: 31, seed: DEFAULT_SEED }), /exactly 1 .*30 .*200/);
 await assert.rejects(runProgressionExpBFullRunDiagnostic({ runs: 1, seed: DEFAULT_SEED + 1 }), /seed is frozen/);
@@ -59,6 +59,7 @@ assert.deepEqual(report.validity.candidatePrefundedLevelViolations, []);
 assert.deepEqual(report.validity.invalidCandidateSettlements, []);
 assert.deepEqual(report.validity.sourceAccountingMismatches, []);
 assert.equal(report.validity.firstCombatPreRewardStateAndOutcomeMatch, true);
+assert.equal(report.validity.combatObservationMismatches.length, 0);
 for (const row of report.rows) {
   assert.equal(row.combatExpCandidateId, row.arm);
   assert.ok(row.settlements.length > 0, `${row.context}/${row.arm} has an eligible generated combat`);
@@ -86,6 +87,34 @@ for (const row of report.rows) {
     assert.equal(enemy.def, Math.max(0, Math.round(template.def)));
   }
 }
+
+const selectedB20 = CONTEXTS.find(context => context.id === "selected-B20");
+const precombatReproduction = await runProgressionExpBFullRunDiagnostic({
+  runs: 1,
+  seed: DEFAULT_SEED,
+  contexts: [selectedB20],
+  runIndices: [10]
+});
+assert.equal(precombatReproduction.rows.length, ARMS.length);
+assert.deepEqual(precombatReproduction.rows.map(row => [row.arm, row.runIndex]), [
+  ["production", 10],
+  ["phase4j-b", 10]
+]);
+assert.equal(precombatReproduction.validity.valid, true);
+assert.equal(precombatReproduction.validity.firstCombatPreRewardStateAndOutcomeMatch, true);
+assert.deepEqual(precombatReproduction.validity.matchedArmMismatches, []);
+assert.deepEqual(precombatReproduction.rows.map(row => [row.terminationReason, row.battles, row.battleObservationCount]), [
+  ["death", 0, 0],
+  ["death", 0, 0]
+]);
+assert.equal(precombatReproduction.rows[0].combatCoverage.precombatTermination, true);
+assert.equal(precombatReproduction.rows[0].firstCombat, null);
+assert.deepEqual(precombatReproduction.validity.coverage.map(({ arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations }) => [
+  arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations
+]), [
+  ["production", 1, 0, 1, 0, 0],
+  ["phase4j-b", 1, 0, 1, 0, 0]
+]);
 
 const milestoneState = {
   party: [{ maxHp: 20, hp: 10 }],
