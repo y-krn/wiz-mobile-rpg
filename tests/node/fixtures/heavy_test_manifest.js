@@ -66,6 +66,12 @@ export const HEAVY_TEST_MANIFEST = [
   entry(regression('test_run_difficulty_policy_sensitivity.js'), 'SCHEDULED', 'simulation'),
   entry(regression('test_first_band_arcana_mp_supply.js'), 'SCHEDULED', 'measurement'),
   entry(regression('test_survival_policy_comparison.js'), 'SCHEDULED', 'simulation'),
+  entry(unit('test_equipment_vnext_combat_diagnostic.js'), 'SCHEDULED', 'measurement'),
+  entry(regression('test_milestone_boss_diagnostic.js'), 'SCHEDULED', 'measurement'),
+  entry(regression('test_trait_scaling_diagnostic.js'), 'SCHEDULED', 'measurement'),
+  entry(regression('test_composition_trait_diagnostic.js'), 'SCHEDULED', 'measurement'),
+  entry(regression('test_fixed_combat_composition_diagnostic.js'), 'SCHEDULED', 'measurement'),
+  entry(unit('test_progression_enemy_candidate_diagnostic.js'), 'SCHEDULED', 'measurement'),
 
   entry(regression('test_early_b1f_composition_diagnostic.js'), 'MANUAL_MEASUREMENT', 'measurement'),
   entry(regression('test_preparation_power_factorial.js'), 'MANUAL_MEASUREMENT', 'measurement'),
@@ -80,7 +86,7 @@ export const MAIN_PUSH_MANIFEST = HEAVY_TEST_MANIFEST.filter(
   entry => entry.ownership === 'MAIN_PUSH',
 );
 
-export const HEAVY_TEST_COUNT = 46;
+export const HEAVY_TEST_COUNT = 52;
 export const SCHEDULED_MANIFEST = HEAVY_TEST_MANIFEST.filter(
   entry => entry.ownership === 'SCHEDULED',
 );
@@ -90,6 +96,6 @@ export const MANUAL_MEASUREMENT_MANIFEST = HEAVY_TEST_MANIFEST.filter(
 export const HEAVY_TEST_OWNERSHIP_COUNTS = {
   PR_CONDITIONAL: 27,
   MAIN_PUSH: 6,
-  SCHEDULED: 6,
+  SCHEDULED: 12,
   MANUAL_MEASUREMENT: 7,
 };
