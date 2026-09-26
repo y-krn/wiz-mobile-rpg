@@ -158,13 +158,13 @@ test('PixiJS motion uses projection continuity, restrained turns, and combat fee
     return { forwardStart, forwardMid, forwardEnd, leftMid, rightMid, forwardMidFrame, leftMidFrame, rightMidFrame };
   });
   for (const sample of [motion.forwardStart, motion.forwardMid, motion.leftMid, motion.rightMid]) {
-    expect(sample.transitionActive).toBe(false);
+    // #1766 navigation motion transforms the one scene root only.
+    expect(sample.transitionActive).toBe(true);
     const root = sample.incomingRoot;
-    expect(root.x).toBe(0);
-    expect(root.y).toBe(0);
     expect(root.rotation).toBe(0);
-    expect(root.scaleX).toBe(1);
-    expect(root.scaleY).toBe(1);
+    expect(root.scaleX).toBe(root.scaleY);
+    expect(root.scaleX).toBeGreaterThanOrEqual(1);
+    expect(root.scaleX).toBeLessThanOrEqual(1.1);
     expect(root.alpha).toBe(1);
     expect(sample.outgoingRoot).toBeNull();
     expect(sample.outgoingLayers).toBeNull();
