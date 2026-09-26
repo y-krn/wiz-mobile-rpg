@@ -55,6 +55,12 @@ const canonicalFiles = [
   'tests/node/regression/test_run_difficulty_policy_sensitivity.js',
   'tests/node/regression/test_first_band_arcana_mp_supply.js',
   'tests/node/regression/test_survival_policy_comparison.js',
+  'tests/node/unit/test_equipment_vnext_combat_diagnostic.js',
+  'tests/node/regression/test_milestone_boss_diagnostic.js',
+  'tests/node/regression/test_trait_scaling_diagnostic.js',
+  'tests/node/regression/test_composition_trait_diagnostic.js',
+  'tests/node/regression/test_fixed_combat_composition_diagnostic.js',
+  'tests/node/unit/test_progression_enemy_candidate_diagnostic.js',
   'tests/node/regression/test_early_b1f_composition_diagnostic.js',
   'tests/node/regression/test_preparation_power_factorial.js',
   'tests/node/regression/test_b5_guardian_flee_ev_diagnostic.js',
@@ -65,13 +71,13 @@ const canonicalFiles = [
 ];
 
 assert.equal(HEAVY_TEST_MANIFEST.length, HEAVY_TEST_COUNT);
-assert.equal(HEAVY_TEST_COUNT, 46);
+assert.equal(HEAVY_TEST_COUNT, 52);
 assert.deepEqual(
   [...new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file))].sort(),
   [...new Set(canonicalFiles)].sort(),
   'manifest must equal the canonical heavy file set',
 );
-assert.equal(new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file)).size, 46);
+assert.equal(new Set(HEAVY_TEST_MANIFEST.map(entry => entry.file)).size, 52);
 
 const ownershipCounts = HEAVY_TEST_MANIFEST.reduce((counts, entry) => {
   counts[entry.ownership] = (counts[entry.ownership] || 0) + 1;

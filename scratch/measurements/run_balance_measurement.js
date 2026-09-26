@@ -111,7 +111,6 @@ const milestoneBossArgs = ({ options, output, profile }) => [
 ];
 
 const equipmentVNextCombatArgs = nativeMeasurementArgs;
-const depthScalingArgs = nativeMeasurementArgs;
 const traitScalingArgs = ({ options, output, profile }) => nativeMeasurementArgs({
   options,
   output,
@@ -201,33 +200,6 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     retentionDays: 14,
     buildArgs: progressionEnemyCandidateArgs
   }),
-  "progression-enemy-defensive-baseline": freezeFamily({
-    runner: "scratch/measurements/progression_enemy_defense_diagnostic.js",
-    adapter: "native-manifest",
-    defaultRunType: "diagnostic",
-    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
-    artifactPrefix: "balance-measurement",
-    retentionDays: 14,
-    buildArgs: progressionEnemyCandidateArgs
-  }),
-  "progression-enemy-hp-buffer": freezeFamily({
-    runner: "scratch/measurements/progression_enemy_hp_buffer_diagnostic.js",
-    adapter: "native-manifest",
-    defaultRunType: "diagnostic",
-    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
-    artifactPrefix: "balance-measurement",
-    retentionDays: 14,
-    buildArgs: progressionEnemyCandidateArgs
-  }),
-  "progression-enemy-guard-policy": freezeFamily({
-    runner: "scratch/measurements/progression_enemy_guard_policy_diagnostic.js",
-    adapter: "native-manifest",
-    defaultRunType: "diagnostic",
-    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
-    artifactPrefix: "balance-measurement",
-    retentionDays: 14,
-    buildArgs: progressionEnemyCandidateArgs
-  }),
   "progression-exp-award-inventory": freezeFamily({
     runner: "scratch/measurements/progression_exp_award_inventory.js",
     adapter: "native-manifest",
@@ -263,15 +235,6 @@ export const MEASUREMENT_FAMILIES = Object.freeze({
     artifactPrefix: "balance-measurement",
     retentionDays: 14,
     buildArgs: equipmentVNextCombatArgs
-  }),
-  "depth-scaling": freezeFamily({
-    runner: "scratch/measurements/depth_scaling_diagnostic.js",
-    adapter: "native-manifest",
-    defaultRunType: "diagnostic",
-    allowedRunTypes: DIAGNOSTIC_ONLY_RUN_TYPES,
-    artifactPrefix: "balance-measurement",
-    retentionDays: 14,
-    buildArgs: depthScalingArgs
   }),
   "trait-scaling": freezeFamily({
     runner: "scratch/measurements/trait_scaling_diagnostic.js",
@@ -414,24 +377,6 @@ const PROFILE_LIST = [
     defaults: { runs: 200, minimumRuns: 200, seed: 1700 }
   },
   {
-    id: "progression-enemy-defense-diagnostic",
-    label: "Progression enemy defensive baseline diagnostic",
-    family: "progression-enemy-defensive-baseline",
-    defaults: { runs: 200, minimumRuns: 200, seed: 1694 }
-  },
-  {
-    id: "progression-enemy-hp-buffer-diagnostic",
-    label: "Progression enemy HP buffer diagnostic",
-    family: "progression-enemy-hp-buffer",
-    defaults: { runs: 200, minimumRuns: 200, seed: 1696 }
-  },
-  {
-    id: "progression-enemy-guard-policy-diagnostic",
-    label: "Progression enemy Guard policy diagnostic",
-    family: "progression-enemy-guard-policy",
-    defaults: { runs: 200, minimumRuns: 200, seed: 1698 }
-  },
-  {
     id: "progression-exp-award-inventory",
     label: "Current production EXP award / prefunded Level inventory",
     family: "progression-exp-award-inventory",
@@ -454,12 +399,6 @@ const PROFILE_LIST = [
     label: "Equipment vNext combat / Guard / load diagnostic",
     family: "equipment-vnext-combat",
     defaults: { runs: 200, minimumRuns: 200, seed: 1544 }
-  },
-  {
-    id: "depth-scaling-diagnostic",
-    label: "Generic enemy depth scaling diagnostic",
-    family: "depth-scaling",
-    defaults: { runs: 200, minimumRuns: 200, seed: 1582 }
   },
   {
     id: "trait-scaling-diagnostic",

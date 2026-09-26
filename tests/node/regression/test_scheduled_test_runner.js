@@ -19,13 +19,19 @@ const expectedPaths = [
   'tests/node/regression/test_run_difficulty_policy_sensitivity.js',
   'tests/node/regression/test_first_band_arcana_mp_supply.js',
   'tests/node/regression/test_survival_policy_comparison.js',
+  'tests/node/unit/test_equipment_vnext_combat_diagnostic.js',
+  'tests/node/regression/test_milestone_boss_diagnostic.js',
+  'tests/node/regression/test_trait_scaling_diagnostic.js',
+  'tests/node/regression/test_composition_trait_diagnostic.js',
+  'tests/node/regression/test_fixed_combat_composition_diagnostic.js',
+  'tests/node/unit/test_progression_enemy_candidate_diagnostic.js',
 ];
 
-assert.equal(SCHEDULED_MANIFEST.length, 6);
+assert.equal(SCHEDULED_MANIFEST.length, 12);
 assert.equal(SCHEDULED_MANIFEST.length, HEAVY_TEST_OWNERSHIP_COUNTS.SCHEDULED);
 assert.deepEqual(SCHEDULED_MANIFEST.map(entry => entry.file), expectedPaths);
 assert.ok(SCHEDULED_MANIFEST.every(entry => entry.ownership === 'SCHEDULED'));
-assert.equal(new Set(SCHEDULED_MANIFEST.map(entry => entry.file)).size, 6);
+assert.equal(new Set(SCHEDULED_MANIFEST.map(entry => entry.file)).size, 12);
 assert.deepEqual(createScheduledTasks().map(task => task.file), expectedPaths);
 
 const scheduledExclusions = [
@@ -36,9 +42,9 @@ const scheduledExclusions = [
 for (const exclusions of scheduledExclusions) {
   for (const file of expectedPaths) assert.ok(exclusions.has(file));
 }
-assert.equal(scheduledExclusions[0].size, 46);
-assert.equal(scheduledExclusions[1].size, 46);
-assert.equal(scheduledExclusions[2].size, 19);
+assert.equal(scheduledExclusions[0].size, 52);
+assert.equal(scheduledExclusions[1].size, 52);
+assert.equal(scheduledExclusions[2].size, 25);
 assert.equal(getUnitExclusions({ unitMode: 'local' }).size, 0);
 
 assert.match(workflow, /schedule:\n\s+- cron: '17 18 \* \* \*'/);
@@ -53,4 +59,4 @@ assert.equal(HEAVY_TEST_MANIFEST.filter(entry => entry.ownership === 'PR_CONDITI
 assert.equal(HEAVY_TEST_MANIFEST.filter(entry => entry.ownership === 'MAIN_PUSH').length, 6);
 assert.equal(HEAVY_TEST_MANIFEST.filter(entry => entry.ownership === 'MANUAL_MEASUREMENT').length, 7);
 
-console.log('[PASS] SCHEDULED exact 6, generated tasks, CI exclusions, local inclusion, and workflow contract');
+console.log('[PASS] SCHEDULED exact 12, generated tasks, CI exclusions, local inclusion, and workflow contract');

@@ -91,36 +91,6 @@ const ROUTER_CONTRACTS = [
     override: { input: { runs: 300, seed: 1689 }, expected: { runs: 300, seed: 1689 } }
   },
   {
-    id: "progression-enemy-defense-diagnostic",
-    runner: "scratch/measurements/progression_enemy_defense_diagnostic.js",
-    adapter: "native-manifest",
-    defaultRunType: "diagnostic",
-    allowedRunTypes: ["diagnostic"],
-    defaults: { runs: 200, minimumRuns: 200, seed: 1694 },
-    args: nativeArgs("--ref", "main", "--runs", "200", "--seed", "1694"),
-    override: { input: { runs: 201, seed: 1691 }, expected: { runs: 201, seed: 1691 } }
-  },
-  {
-    id: "progression-enemy-hp-buffer-diagnostic",
-    runner: "scratch/measurements/progression_enemy_hp_buffer_diagnostic.js",
-    adapter: "native-manifest",
-    defaultRunType: "diagnostic",
-    allowedRunTypes: ["diagnostic"],
-    defaults: { runs: 200, minimumRuns: 200, seed: 1696 },
-    args: nativeArgs("--ref", "main", "--runs", "200", "--seed", "1696"),
-    override: { input: { runs: 201, seed: 1697 }, expected: { runs: 201, seed: 1697 } }
-  },
-  {
-    id: "progression-enemy-guard-policy-diagnostic",
-    runner: "scratch/measurements/progression_enemy_guard_policy_diagnostic.js",
-    adapter: "native-manifest",
-    defaultRunType: "diagnostic",
-    allowedRunTypes: ["diagnostic"],
-    defaults: { runs: 200, minimumRuns: 200, seed: 1698 },
-    args: nativeArgs("--ref", "main", "--runs", "200", "--seed", "1698"),
-    override: { input: { runs: 201, seed: 1699 }, expected: { runs: 201, seed: 1699 } }
-  },
-  {
     id: "progression-exp-award-inventory",
     runner: "scratch/measurements/progression_exp_award_inventory.js",
     adapter: "native-manifest",
@@ -159,16 +129,6 @@ const ROUTER_CONTRACTS = [
     defaults: { runs: 200, minimumRuns: 200, seed: 1544 },
     args: nativeArgs("--ref", "main", "--runs", "200", "--seed", "1544"),
     override: { input: { runs: 201, seed: 1545 }, expected: { runs: 201, seed: 1545 } }
-  },
-  {
-    id: "depth-scaling-diagnostic",
-    runner: "scratch/measurements/depth_scaling_diagnostic.js",
-    adapter: "native-manifest",
-    defaultRunType: "diagnostic",
-    allowedRunTypes: ["diagnostic"],
-    defaults: { runs: 200, minimumRuns: 200, seed: 1582 },
-    args: nativeArgs("--ref", "main", "--runs", "200", "--seed", "1582"),
-    override: { input: { runs: 201, seed: 1583 }, expected: { runs: 201, seed: 1583 } }
   },
   {
     id: "trait-scaling-diagnostic",
@@ -411,14 +371,10 @@ assert.deepEqual(Object.keys(MEASUREMENT_FAMILIES), [
   "early-b1f-composition",
   "fixed-combat-composition",
   "progression-enemy-candidate",
-  "progression-enemy-defensive-baseline",
-  "progression-enemy-hp-buffer",
-  "progression-enemy-guard-policy",
   "progression-exp-award-inventory",
   "progression-exp-award-paired-inventory",
   "progression-exp-b-full-run-diagnostic",
   "equipment-vnext-combat",
-  "depth-scaling",
   "trait-scaling",
   "composition-trait",
   "milestone-boss",
@@ -491,7 +447,6 @@ for (const measurement of [
   "early-b1f-composition",
   "fixed-combat-composition",
   "equipment-load",
-  "depth-scaling-diagnostic",
   "trait-scaling-diagnostic",
   "composition-trait-diagnostic",
   "run-difficulty-policy-sensitivity",
