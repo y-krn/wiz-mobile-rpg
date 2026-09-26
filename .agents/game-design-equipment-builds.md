@@ -34,6 +34,47 @@ battle gear. The Workshop may broaden what can appear in future runs, but it
 does not target a chosen build, raise its appearance rate, or grant a superior
 permanent tier.
 
+## Build vNext contract (#1801, Phase 3 equipment trial)
+
+The Phase 3 equipment trial is where the build redesign is exercised. It
+resolves three structural problems found by play (#1799): finds did not make
+the character stronger, combat had no verbs for "how to fight" to change, and
+finding loot was not a choice. The trial contract is:
+
+1. **Run-local power comes from equipment.** Found weapons, armor, and
+   shields carry an enhancement grade that grows with depth (bounded), so a
+   find can be a real upgrade over the +0 starting kit. Between-run growth
+   stays horizontal; Level stays a small HP durability floor; the milestone
+   baseline remains the floor for selected deep starts. Equipment owning
+   run-local power supersedes the #1536 split "depth power = character,
+   how to fight = equipment" for the trial.
+2. **Each weapon family owns a technique.** A technique is a second combat
+   verb next to the universal attack, keyed by the weapon behavior profile and
+   gated by an encounter-local cooldown, so *when* to spend it is the
+   decision. Techniques interact with enemy telegraphs, defense, and MP (see
+   `.agents/game-design-combat-model.md`).
+3. **Cores change verbs, not numbers.** Technique Cores hook the technique and
+   Guard verbs: chaining a technique into the next attack, shortening the
+   cooldown, turning Guard into a technique reset, or paying HP to act early.
+   They are trial-only and live outside the production Core inventory audit.
+4. **Finds are legible choices.** Ordinary trial finds arrive identified.
+   Only the gamble tier (epic quality or a curse) stays unknown, so "unknown"
+   means "strong or dangerous" rather than "every item". The first ordinary
+   chest of a run offers three identified directions (weapon, defense,
+   accessory), each with a rule-changing Core; the player keeps at most one.
+   The offer is build-blind: it is drawn from a fixed authored table and never
+   reads the loadout, kit, or shortage.
+5. **Combat Cores are reachable in the First Band.** Cores can appear from B1
+   in the trial, weighted toward combat over economy, and non-combat Supports
+   (identification discount, material find, contract reward, victory
+   material) stay possible but rare.
+
+The executable values live in `src/data/techniques.js`,
+`src/rules/technique_rules.js`, `src/rules/build_vnext_supply.js`,
+`src/systems/build_vnext_seed.js`, and `BUILD_VNEXT_CORE_AFFIXES` in
+`src/data/affixes.js`. Normal-profile generation, identification, and Core
+supply are unchanged by this contract.
+
 # Core Types
 
 Cores are rule-changing, meaning-changing, or resource-exchange effects. They
@@ -65,6 +106,15 @@ cap.
 | 野営の達人 | `CORE_CAMP_MASTER` | Increase the recovery returned by choosing to rest at camp, trading the opportunity to continue immediately. |
 | 賞金稼ぎ | `CORE_BOUNTY_HUNTER` | Make selected run-objective target defeats count more, rewarding a deliberate hunt instead of passive depth. |
 | 学者の眼 | `CORE_SCHOLAR_EYE` | Turn an enemy not yet understood into a material opportunity, linking knowledge to exploration without revealing an optimal route. |
+
+## Technique Cores (Build vNext trial only)
+
+| Name | id | Durable role |
+| --- | --- | --- |
+| 連環の型 | `CORE_TECH_CHAIN` | After a technique, the next universal attack is stronger, making the technique the opener of a two-turn rhythm. |
+| 研ぎ澄まし | `CORE_TECH_HONE` | Shorten the technique cooldown and strengthen it, making the technique the main verb. |
+| 返しの構え | `CORE_GUARD_RIPOSTE` | Guard resets the technique cooldown and primes the next attack or technique, turning Guard into offense. |
+| 血の型 | `CORE_BLOOD_TECH` | During the cooldown, the technique can still be used by paying a share of max HP. |
 
 The Core registry must preserve these pool meanings. A rule-changing effect
 should not be copied as several numeric Supports merely to increase supply, and
@@ -116,7 +166,10 @@ semantic boundaries are durable:
 
 ## Equipment knowledge
 
-Unknown equipment follows four player-facing stages:
+In the Build vNext trial, ordinary finds skip straight to full understanding
+and only the gamble tier (epic quality or a curse) uses the stages below; see
+the Build vNext contract above. In the normal profile, unknown equipment
+follows four player-facing stages:
 
 1. **Discovery:** type, quality, and one or two truthful sensory signs.
 2. **Observation:** carrying it or encountering a related situation may add a
@@ -153,9 +206,14 @@ B3-B4 begin to establish run identity, and B5 is the first compound test of
 that build. B1-B5 does not require a finished build, but it is not a build-free
 tutorial. B6+ should deepen transformation through cost conversion, direction
 change, and counterplay rather than only increasing base values.
+In the Build vNext trial, the enhancement grade of a find is the bounded
+run-local power source; it is capped, never carried to the next run, and does
+not replace direction changes as the reason to pick up an item.
 
 Supply is build-blind. Candidate availability and weighting must not inspect the
-equipped loadout, starting choice, current shortage, or desired build. Mediums
+equipped loadout, starting choice, current shortage, or desired build. The Build
+vNext seed offer keeps this rule: it draws each direction from a fixed authored
+table with the run RNG. Mediums
 and Runes are separate choices; supply should not answer their pairing for the
 player. A deep band may make a role more visible, but every meaningful role
 must remain possible and depth must not become a base-stat treadmill.

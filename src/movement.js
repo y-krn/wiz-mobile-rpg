@@ -1037,6 +1037,12 @@ export function moveRoamingMonsters(playerMoved = true) {
 
   state.roamingMonsters.forEach(monster => {
     if (monster.floor !== currentFloor) return;
+    // Lost the player after a flee (see ELITE_FLEE_GRACE_TICKS): hold still.
+    if (monster.fleeGraceTicks > 0) {
+      monster.fleeGraceTicks -= 1;
+      monster.detected = false;
+      return;
+    }
 
     const wasDetected = Boolean(monster.detected);
     const intent = getPerceptionIntent({

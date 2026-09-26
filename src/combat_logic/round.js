@@ -486,7 +486,20 @@ function applyFleePartingAttack(state, monsters, logQueue, rng = Math.random, me
   return true;
 }
 
+// After a flee from a roaming elite, the elite loses the player for a few of
+// its movement ticks (it moves every second player action). Without this a
+// solo character that flees one square is re-engaged immediately and the
+// "optional" elite becomes an unavoidable death (#1801).
+export const ELITE_FLEE_GRACE_TICKS = 6;
+
 function applyFleeRetreat(state) {
+  if (state.combatState?.isRoamingFlack && state.combatState.roamingMonsterId) {
+    const elite = state.roamingMonsters?.find(monster => monster.id === state.combatState.roamingMonsterId);
+    if (elite) {
+      elite.fleeGraceTicks = ELITE_FLEE_GRACE_TICKS;
+      elite.detected = false;
+    }
+  }
   const retreat = state.combatState.retreatPosition;
   if (!retreat) return false;
   state.x = retreat.x;

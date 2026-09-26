@@ -137,14 +137,27 @@ After every step in explore mode:
 1. spend identify powder on unidentified equipment;
 2. equip the best identified item by the game's own equipment preview
    (`attack`/`defense` ×2, `maxHp` ×0.3, `maxMp` ×0.5, …, Core +3, known
-   curse −5) — a crude stand-in for a player, not a balance claim;
+   curse −5, relative to the item already in the slot, change only when the
+   gain is ≥ 0.5) — a crude stand-in for a player, not a balance claim;
 3. try on one unidentified weapon/armor/shield (one exploration turn) and
    revert if visible ATK+DEF dropped;
 4. socket spare Runes into a medium with a free slot.
 
+Build vNext trial (#1801) behavior, in every policy:
+
+- the weapon technique is used whenever it is ready and free (self techniques
+  only when MP is missing), aimed at a telegraphing enemy first;
+- the first chest's pick-one build seed takes the option with the best gear
+  score (`--equip none` leaves all three).
+
 Output per run: deepest floor, guardian result, cause of death, every object
-that entered the bag (`loot`), gear decisions (`equipLog`), the last live
+that entered the bag (`loot`), gear decisions (`equipLog`), technique uses
+(`techniqueUses`), the build seed offer and pick (`seedChoice`), the last live
 equipment, and the full event journal.
+
+Run measurements against a dev server whose source is not being edited (for
+example a separate worktree of a commit): an HMR reload destroys the running
+page. The runner retries a seed once after such a reload.
 
 ### Known shortcuts
 

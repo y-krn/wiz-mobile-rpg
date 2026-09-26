@@ -118,9 +118,9 @@ test('Normal and both trial profiles start and restore B1/B10/B20 runs @smoke', 
   test.setTimeout(180_000);
   await page.setViewportSize({ width: 390, height: 844 });
   const profiles = [
-    { id: 'normal', url: '/', key: 'mobile_wiz_rpg_autosave', expectedHp: { 1: 20, 10: 20, 20: 20 } },
-    { id: 'progression-exp', url: '/?tryout=vnext&trialProfile=progression-exp', key: 'mobile_wiz_rpg_vnext_trial_autosave', expectedHp: { 1: 20, 10: 24, 20: 28 } },
-    { id: 'phase3-equipment', url: '/?tryout=vnext&trialProfile=phase3-equipment', key: 'mobile_wiz_rpg_vnext_trial_autosave', expectedHp: { 1: 20, 10: 24, 20: 28 } },
+    { id: 'normal', url: '/', key: 'mobile_wiz_rpg_autosave', expectedHp: { 1: 45, 10: 45, 20: 45 } },
+    { id: 'progression-exp', url: '/?tryout=vnext&trialProfile=progression-exp', key: 'mobile_wiz_rpg_vnext_trial_autosave', expectedHp: { 1: 45, 10: 49, 20: 53 } },
+    { id: 'phase3-equipment', url: '/?tryout=vnext&trialProfile=phase3-equipment', key: 'mobile_wiz_rpg_vnext_trial_autosave', expectedHp: { 1: 45, 10: 49, 20: 53 } },
   ];
 
   for (const profile of profiles) {
