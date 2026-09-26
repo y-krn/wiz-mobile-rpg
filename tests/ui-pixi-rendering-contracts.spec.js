@@ -1,13 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { test, expect } from './fixtures/browser-health.js';
 
-const VIEWPORTS = [
-  { width: 320, height: 568 },
-  { width: 360, height: 800 },
-  { width: 390, height: 844 },
-  { width: 430, height: 932 },
-];
-const ARCHETYPES = ['straight-corridor', 'dead-end', 'left-turn', 'right-turn', 't-junction', 'cross-junction'];
 const PRODUCTION_FIXTURE = Object.freeze({ seed: 'ISSUE-1230-B1F-PRODUCTION', floor: 1, x: 6, y: 4, dir: 1 });
 const EVIDENCE_DIR = process.env.PIXI_EVIDENCE_DIR || '';
 
@@ -74,35 +67,6 @@ async function hideHud(page) {
   await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
   await page.locator('#viewport-hud').evaluate((element) => { element.style.display = 'none'; });
 }
-
-test('PixiJS 2.5D keeps six navigation archetypes readable at every required width @smoke @visual', async ({ page }, testInfo) => {
-  for (const viewport of VIEWPORTS) {
-    await page.setViewportSize(viewport);
-    await page.goto('/?renderer=pixi');
-    await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
-    await hideHud(page);
-    for (const archetype of ARCHETYPES) {
-      await setState(page, { map: makeSyntheticFixture(archetype) });
-      const evidence = await page.evaluate(async () => {
-        const { dungeonRenderer } = await import('/src/renderer.js');
-        const { state } = await import('/src/state.js');
-        const { getVisibleCorridorTopology } = await import('/src/rules/renderer_topology.js');
-        return {
-          mode: dungeonRenderer.mode,
-          layers: Object.keys(dungeonRenderer.scene.layers),
-          topology: getVisibleCorridorTopology(state.map, state.x, state.y, state.dir),
-          children: dungeonRenderer.scene.children.length,
-        };
-      });
-      expect(evidence.mode).toBe('pixi');
-      expect(evidence.layers).toEqual(['background', 'far-environment', 'floor', 'world-objects', 'structural-walls', 'environment-fx', 'actors', 'combat-fx', 'overlays']);
-      expect(evidence.topology.length).toBeGreaterThan(0);
-      expect(evidence.children).toBe(9);
-      const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`pixi-${archetype}-${viewport.width}.png`) });
-      await testInfo.attach(`pixi-${archetype}-${viewport.width}`, { body: screenshot, contentType: 'image/png' });
-    }
-  }
-});
 
 test('PixiJS motion uses projection continuity, restrained turns, and combat feedback @smoke @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });

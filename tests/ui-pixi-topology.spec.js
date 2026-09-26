@@ -72,12 +72,13 @@ async function configureSynthetic(page, archetype) {
       mode: dungeonRenderer.mode,
       topology: getVisibleCorridorTopology(state.map, state.x, state.y, state.dir),
       canvasSize: [document.querySelector('#dungeon-canvas').width, document.querySelector('#dungeon-canvas').height],
+      layers: Object.keys(dungeonRenderer.scene.layers),
       childCount: dungeonRenderer.scene?.children.length ?? 0,
     };
   });
 }
 
-test('PixiJS 2.5D keeps Canvas screen-space topology readable at supported widths @smoke @visual', async ({ page }, testInfo) => {
+test('PixiJS topology remains readable across supported widths and six navigation archetypes @smoke @visual', async ({ page }, testInfo) => {
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await page.goto('/?renderer=pixi');
@@ -88,9 +89,11 @@ test('PixiJS 2.5D keeps Canvas screen-space topology readable at supported width
     for (const archetype of ARCHETYPES) {
       const evidence = await configureSynthetic(page, archetype);
       expect(evidence.mode).toBe('pixi');
+      expect(evidence.topology.length).toBeGreaterThan(0);
       expect(evidence.canvasSize[0]).toBeGreaterThanOrEqual(viewport.width - 2);
       expect(evidence.canvasSize[1]).toBeGreaterThanOrEqual(viewport.height - 2);
-      expect(evidence.childCount).toBeGreaterThan(0);
+      expect(evidence.layers).toEqual(['background', 'far-environment', 'floor', 'world-objects', 'structural-walls', 'environment-fx', 'actors', 'combat-fx', 'overlays']);
+      expect(evidence.childCount).toBe(9);
       const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`pixi-${archetype}-${viewport.width}px.png`) });
       await testInfo.attach(`pixi-${archetype}-${viewport.width}px`, { body: screenshot, contentType: 'image/png' });
     }
@@ -122,18 +125,6 @@ test('PixiJS keeps production-backed B1F near side opening visible with minimap 
   }
 });
 
-test('Pixi keeps the same state and viewport artifact naming across topology archetypes @smoke @visual', async ({ page }, testInfo) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?renderer=pixi');
-  await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'pixi');
-  await page.locator('#dungeon-minimap-overlay').evaluate((element) => { element.style.display = 'none'; });
-  for (const archetype of ARCHETYPES) {
-    await configureSynthetic(page, archetype);
-    const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`pixi-${archetype}-390px.png`) });
-    await testInfo.attach(`pixi-${archetype}-390px`, { body: screenshot, contentType: 'image/png' });
-  }
-});
-
 test('PixiJS preserves combat staging, target mapping, danger cue, resize, and lifecycle bounds @smoke @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/?renderer=pixi');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
@@ -149,12 +140,11 @@ test('PixiJS preserves combat staging, target mapping, danger cue, resize, and l
   });
   expect(oneWay.frontOneWayBarrier).toBe(true);
   await page.setViewportSize({ width: 430, height: 932 });
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => [canvas.width, canvas.height])).toEqual(expect.arrayContaining([expect.any(Number), expect.any(Number)]));
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.width)).toBeGreaterThanOrEqual(428);
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.height)).toBeGreaterThanOrEqual(930);
+  await expect.poll(() => page.locator('#dungeon-canvas').evaluate((canvas) => canvas.width)).toBeGreaterThanOrEqual(428);
+  await expect.poll(() => page.locator('#dungeon-canvas').evaluate((canvas) => canvas.height)).toBeGreaterThanOrEqual(930);
   await page.setViewportSize({ width: 320, height: 568 });
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.width)).toBeGreaterThanOrEqual(318);
-  expect(await page.locator('#dungeon-canvas').evaluate((canvas) => canvas.height)).toBeGreaterThanOrEqual(566);
+  await expect.poll(() => page.locator('#dungeon-canvas').evaluate((canvas) => canvas.width)).toBeGreaterThanOrEqual(318);
+  await expect.poll(() => page.locator('#dungeon-canvas').evaluate((canvas) => canvas.height)).toBeGreaterThanOrEqual(566);
   await page.setViewportSize({ width: 390, height: 844 });
   const evidence = await page.evaluate(async () => {
     const { dungeonRenderer, getCombatMonsterLayout } = await import('/src/renderer.js');
