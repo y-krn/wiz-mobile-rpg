@@ -871,4 +871,3 @@ function updateTechniqueButton() {
   btn.setAttribute("aria-label", `${name}。${status.technique.desc}${status.available ? "" : `（あと${status.remaining}ターン）`}`);
   btn.title = status.technique.desc;
 }
-
