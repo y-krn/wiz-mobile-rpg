@@ -212,30 +212,38 @@ test('Dungeon First keeps minimap clear of HUD, log strip, and controls across p
         dungeonRenderer.draw();
       }, lightTurns);
       await expect(page.locator('#dungeon-minimap-overlay')).toHaveAttribute('data-minimap-visible', 'true');
-      const boxes = await page.evaluate(() => {
-        const box = (selector) => {
-          const element = document.querySelector(selector);
-          if (!element || getComputedStyle(element).display === 'none') return null;
-          const rect = element.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0 ? { selector, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom } : null;
-        };
-        return {
-          minimap: box('#dungeon-minimap-overlay'),
-          others: ['#location-label', '#btn-mute', '#goal-banner', '.hud-dir', '#log-panel', '#controls-panel', '#character-panel']
-            .map(box).filter(Boolean),
-          width: window.innerWidth,
-        };
-      });
-      expect(boxes.minimap).not.toBeNull();
-      expect(boxes.minimap.right - boxes.minimap.left).toBeGreaterThanOrEqual(120);
-      expect(boxes.minimap.right).toBeLessThanOrEqual(boxes.width);
-      const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-      for (const other of boxes.others) {
-        expect(overlaps(boxes.minimap, other), `minimap overlaps ${other.selector} at ${viewport.width}px (light ${lightTurns})`).toBe(false);
-      }
-      const log = boxes.others.find(({ selector }) => selector === '#log-panel');
-      for (const other of boxes.others.filter(({ selector }) => ['.hud-dir', '#goal-banner', '#controls-panel'].includes(selector))) {
-        expect(overlaps(log, other), `log strip overlaps ${other.selector} at ${viewport.width}px`).toBe(false);
+      // Explore defaults to the compact card (#1765); check it and the full size.
+      for (const size of ['compact', 'full']) {
+        if (await page.locator('#game-container').getAttribute('data-minimap-size') !== size) {
+          await page.locator('#btn-minimap-toggle').click();
+        }
+        await expect(page.locator('#game-container')).toHaveAttribute('data-minimap-size', size);
+        await page.waitForFunction(() => document.getAnimations().every(animation => !(animation instanceof CSSTransition)));
+        const boxes = await page.evaluate(() => {
+          const box = (selector) => {
+            const element = document.querySelector(selector);
+            if (!element || getComputedStyle(element).display === 'none') return null;
+            const rect = element.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0 ? { selector, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom } : null;
+          };
+          return {
+            minimap: box('#dungeon-minimap-overlay'),
+            others: ['#location-label', '#btn-mute', '#goal-banner', '.hud-dir', '#log-panel', '#controls-panel', '#character-panel']
+              .map(box).filter(Boolean),
+            width: window.innerWidth,
+          };
+        });
+        expect(boxes.minimap).not.toBeNull();
+        expect(boxes.minimap.right - boxes.minimap.left).toBeGreaterThanOrEqual(size === 'full' ? 120 : 80);
+        expect(boxes.minimap.right).toBeLessThanOrEqual(boxes.width);
+        const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        for (const other of boxes.others) {
+          expect(overlaps(boxes.minimap, other), `${size} minimap overlaps ${other.selector} at ${viewport.width}px (light ${lightTurns})`).toBe(false);
+        }
+        const log = boxes.others.find(({ selector }) => selector === '#log-panel');
+        for (const other of boxes.others.filter(({ selector }) => ['.hud-dir', '#goal-banner', '#controls-panel'].includes(selector))) {
+          expect(overlaps(log, other), `log strip overlaps ${other.selector} at ${viewport.width}px`).toBe(false);
+        }
       }
     }
     const screenshot = await page.screenshot({ path: testInfo.outputPath(`issue-1746-minimap-${viewport.width}.png`) });
