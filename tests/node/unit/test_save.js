@@ -804,20 +804,22 @@ check("runtime item normalization keeps legacy facts and rejects malformed objec
   assert.equal(Object.hasOwn(roundTrip.inventory[0], "identified"), false);
 });
 
-check("floor transition applies 25 percent solo heal with cap and death guards", () => {
+check("floor transition applies 50 percent solo heal with cap and death guards", () => {
   state.party = [createStartingKitCharacter("vanguard")];
+  const maxHp = state.party[0].maxHp;
+  const half = Math.floor(maxHp * 0.5);
   state.party[0].hp = 10;
   state.logs = [];
   const healed = applyFloorTransitionHeal();
-  assert.equal(healed, 5);
-  assert.equal(state.party[0].hp, 15);
-  assert.match(state.logs.at(-1), /HPが5回復/);
+  assert.equal(healed, half);
+  assert.equal(state.party[0].hp, 10 + half);
+  assert.match(state.logs.at(-1), new RegExp(`HPが${half}回復`));
 
-  state.party[0].hp = 19;
+  state.party[0].hp = maxHp - 1;
   assert.equal(applyFloorTransitionHeal(), 1);
-  assert.equal(state.party[0].hp, 20);
+  assert.equal(state.party[0].hp, maxHp);
 
-  state.party[0].hp = 20;
+  state.party[0].hp = maxHp;
   assert.equal(applyFloorTransitionHeal(), 0);
 
   state.party[0].hp = 0;

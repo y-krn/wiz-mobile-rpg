@@ -1,4 +1,5 @@
 import { MONSTERS } from "../data/monsters.js";
+import { getMilestoneBossStatRule } from "./boss_rules.js";
 import { isTrialProfile } from "../trial_profiles.js";
 
 const clampBaseline = value => Math.max(0, Math.min(5, Math.floor(Number(value) || 0)));
@@ -41,10 +42,36 @@ function templateName(name) {
   return String(name || "").replace(/\s[A-Z]$/, "");
 }
 
+// Milestone guardians are fought on the previous baseline, and the Phase 3
+// equipment trial has no vertical weapon ladder. Production depth-scaled
+// guardian stats (e.g. B5 HP ~230) therefore demanded ~28 baseline hits from
+// a solo character. Size the generic guardian to roughly eight to ten
+// baseline rounds instead. Authored template-stat guardians (B30) keep their
+// own rule.
+export const PHASE4C_V1_GUARDIAN_SOLO_SCALE = Object.freeze({ hp: 0.38, atk: 0.45 });
+
+function applyPhase4cV1GuardianBaseline(monster, template, band) {
+  const hp = Math.max(1, Math.round(template.hp * PHASE4C_V1_GUARDIAN_SOLO_SCALE.hp * (1 + 0.20 * band)));
+  monster.maxHp = hp;
+  monster.hp = hp;
+  monster.atk = Math.max(1, Math.round(template.atk * PHASE4C_V1_GUARDIAN_SOLO_SCALE.atk * (1 + 0.10 * band)));
+  monster.def = Math.max(0, Math.round(template.def));
+  // A summoning guardian keeps at most one add alive at a time.
+  if (monster.traits?.includes("summonAlly")) {
+    monster.summon = { ...(monster.summon || {}), maxAllies: 2 };
+  }
+}
+
 export function applyPhase4cV1EnemyBaseline(monsters, floor) {
   const band = phase4cV1EnemyBand(floor);
   for (const monster of monsters || []) {
-    if (monster.isBoss === true) continue;
+    if (monster.isBoss === true) {
+      const template = MONSTERS.find(entry => entry.name === templateName(monster.name));
+      if (template && !getMilestoneBossStatRule(floor, template.name, { isBoss: true })) {
+        applyPhase4cV1GuardianBaseline(monster, template, band);
+      }
+      continue;
+    }
     const template = MONSTERS.find(entry => entry.name === templateName(monster.name));
     if (!template) throw new Error(`Phase 4c v1 missing generic enemy template: ${monster.name}`);
     const hp = Math.max(1, Math.round(template.hp * (1 + 0.20 * band)));

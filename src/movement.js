@@ -417,7 +417,7 @@ export function applyFloorTransitionHeal() {
   const char = state.party[0];
   if (!char || char.hp <= 0 || char.status === "dead") return 0;
   const maxHp = getCharMaxHp(char);
-  const healed = Math.min(maxHp - char.hp, Math.max(1, Math.floor(maxHp * 0.25)));
+  const healed = Math.min(maxHp - char.hp, Math.max(1, Math.floor(maxHp * 0.5)));
   if (healed <= 0) return 0;
   char.hp += healed;
   addLog(`階層移動の小休止でHPが${healed}回復した。`);
@@ -690,9 +690,14 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // Random Encounter
   const forcedEncounter = state.forcedEncounterSteps > 0;
   if (forcedEncounter) state.forcedEncounterSteps = 0;
+  // After any fight (won or fled) the next few steps are quiet, so a flee
+  // cannot chain into back-to-back ambushes while the player is low. This is
+  // runtime-only: a reload simply clears the grace window.
+  const quietStep = state.encounterQuietSteps > 0;
+  if (quietStep) state.encounterQuietSteps--;
   if (
     forcedEncounter ||
-    ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance)
+    (!quietStep && (!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance)
   ) {
     state.transitioning = true;
     createNoiseEvent(state.x, state.y);

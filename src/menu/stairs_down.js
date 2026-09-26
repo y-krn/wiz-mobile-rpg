@@ -93,6 +93,9 @@ export function renderStairsDown(optGrid) {
     descend.textContent = "守護者を倒すまで降りられない";
   }
   descend.addEventListener("click", () => {
+    // The submenu closes with an animation; a second tap during it must not
+    // start another descent (double floor-transition heal).
+    if (state.transitioning) return;
     trackExplorationDecision("descend", { state, source: "stairs-down" });
     closeSubmenu();
     descendToFloor(nextFloor);

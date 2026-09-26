@@ -3,6 +3,7 @@ import { BIOMES, MONSTERS } from "../../../src/data.js";
 import { getCharAffixSum } from "../../../src/rules/item_rules.js";
 import { getCharWeaponAtk } from "../../../src/rules/character_stats.js";
 import {
+  PHASE4C_V1_GUARDIAN_SOLO_SCALE,
   applyPhase4cV1EnemyBaseline,
   applyPhase4cV1PlayerBaseline,
   preparePhase4cV1Encounter,
@@ -134,17 +135,27 @@ test("normal mode stays unscaled and a defeated milestone advances trial baselin
   assert.equal(trial.party[0].hp, 7);
 });
 
-test("Phase 4c scales generic enemies and summons by band, leaves Boss stats authored, and split children inherit parent scale", () => {
+test("Phase 4c scales generic enemies, summons, and guardians by band, and split children inherit parent scale", () => {
   const state = makeState(TRIAL_PROFILES.PHASE3_EQUIPMENT, 10);
   const template = MONSTERS.find(monster => !monster.isBoss && !monster.isMidboss && !monster.treasureRare);
   const generic = { ...template, name: `${template.name} A`, hp: 999, maxHp: 999, atk: 999, def: 999 };
-  const boss = { ...template, isBoss: true, hp: 321, maxHp: 321, atk: 123, def: 45 };
+  const guardianTemplate = MONSTERS.find(monster => monster.name === "ストーンガード");
+  const boss = { ...guardianTemplate, isBoss: true, hp: 321, maxHp: 321, atk: 123, def: 45 };
   const band = applyPhase4cV1EnemyBaseline([generic, boss], 10);
   assert.equal(band, 2);
   assert.equal(generic.hp, Math.round(template.hp * 1.4));
   assert.equal(generic.atk, Math.round(template.atk * 1.2));
   assert.equal(generic.def, Math.round(template.def));
-  assert.deepEqual([boss.hp, boss.maxHp, boss.atk, boss.def], [321, 321, 123, 45]);
+  const guardianHp = Math.round(guardianTemplate.hp * PHASE4C_V1_GUARDIAN_SOLO_SCALE.hp * 1.4);
+  assert.deepEqual(
+    [boss.hp, boss.maxHp, boss.atk, boss.def],
+    [guardianHp, guardianHp, Math.round(guardianTemplate.atk * PHASE4C_V1_GUARDIAN_SOLO_SCALE.atk * 1.2), guardianTemplate.def]
+  );
+
+  const authoredB30 = MONSTERS.find(monster => monster.name === "いにしえの竜");
+  const b30 = { ...authoredB30, isBoss: true, hp: 640, maxHp: 640, atk: 26, def: 20 };
+  applyPhase4cV1EnemyBaseline([b30], 30);
+  assert.deepEqual([b30.hp, b30.atk, b30.def], [640, 26, 20], "B30 keeps its authored template-stat rule");
 
   const summon = preparePhase4cV1Summon(state, { ...template, hp: template.hp, maxHp: template.hp, exp: template.exp });
   assert.equal(summon.maxHp, Math.round(template.hp * 1.4));

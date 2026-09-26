@@ -1,5 +1,5 @@
 import { FORCE_DAMAGE_MULTIPLIER } from "./trap_rules.js";
-import { getCharMaxMp } from "./character_stats.js";
+import { getCharMaxHp, getCharMaxMp } from "./character_stats.js";
 
 const CHEST_POISON_NEEDLE_DAMAGE = Object.freeze({ full: 12, weakened: 6 });
 const CHEST_GAS_BOMB_RANGE = Object.freeze({
@@ -167,11 +167,26 @@ export function calculateChestTrapExpectedRisk({
   return effect;
 }
 
-export function getFloorTrapDamageRange({ trap, floor } = {}) {
+// Solo HP budget: generic floor traps scale with the victim's max HP so a
+// B1 trap and a B25 trap cost a comparable share of the run's HP. The legacy
+// floor-linear ranges were authored for a party and exceeded a solo
+// character's whole HP pool from mid depth onward.
+const FLOOR_TRAP_MAX_HP_SHARE = Object.freeze({
+  damage: Object.freeze({ min: 0.12, max: 0.25 }),
+  pitfall: Object.freeze({ min: 0.08, max: 0.16 })
+});
+
+export function getFloorTrapDamageRange({ trap, floor, maxHp } = {}) {
   const profile = FLOOR_TRAP_DAMAGE_PROFILES[trap?.damageProfile];
   if (profile) return profile;
 
   const trapType = trap?.type;
+  const share = FLOOR_TRAP_MAX_HP_SHARE[trapType];
+  const hp = Number(maxHp);
+  if (share && Number.isFinite(hp) && hp > 0) {
+    const min = Math.max(1, Math.round(hp * share.min));
+    return { min, max: Math.max(min, Math.round(hp * share.max)) };
+  }
   if (trapType === "damage") {
     return { min: 6 + floor * 2, max: 12 + floor * 4 };
   }
@@ -179,6 +194,11 @@ export function getFloorTrapDamageRange({ trap, floor } = {}) {
     return { min: floor * 2 + 4, max: floor * 2 + 10 };
   }
   return null;
+}
+
+function getVictimTrapDamageRange(trap, floor, char) {
+  const maxHp = char ? getCharMaxHp(char) : undefined;
+  return getFloorTrapDamageRange({ trap, floor, maxHp });
 }
 
 function getFloorTrapPowerMultiplier({ weakened }) {
@@ -193,19 +213,20 @@ export function calculateFloorTrapExpectedDamage({
   party = [],
   weakened = false
 } = {}) {
-  const range = getFloorTrapDamageRange({ trap, floor });
-  if (!range) return party.map(() => 0);
+  if (!getFloorTrapDamageRange({ trap, floor })) return party.map(() => 0);
 
   const powerMultiplier = getFloorTrapPowerMultiplier({
     weakened
   });
-  const rollCount = range.max - range.min + 1;
-  const expectedDamage = Array.from(
-    { length: rollCount },
-    (_, index) => Math.max(1, Math.floor((range.min + index) * powerMultiplier))
-  ).reduce((sum, damage) => sum + damage, 0) / rollCount;
-
-  return party.map(char => char?.status === "dead" ? 0 : expectedDamage);
+  return party.map(char => {
+    if (char?.status === "dead") return 0;
+    const range = getVictimTrapDamageRange(trap, floor, char);
+    const rollCount = range.max - range.min + 1;
+    return Array.from(
+      { length: rollCount },
+      (_, index) => Math.max(1, Math.floor((range.min + index) * powerMultiplier))
+    ).reduce((sum, damage) => sum + damage, 0) / rollCount;
+  });
 }
 
 export function resolveFloorTrapEffect({
@@ -227,10 +248,10 @@ export function resolveFloorTrapEffect({
   });
 
   if (trap?.type === "damage") {
-    const range = getFloorTrapDamageRange({ trap, floor });
-    const rollCount = range.max - range.min + 1;
     effect.partyDamage = party.map(char => {
       if (char?.status === "dead") return 0;
+      const range = getVictimTrapDamageRange(trap, floor, char);
+      const rollCount = range.max - range.min + 1;
       const rawDamage = Math.floor(rng() * rollCount) + range.min;
       return Math.max(1, Math.floor(rawDamage * powerMultiplier));
     });
@@ -244,10 +265,10 @@ export function resolveFloorTrapEffect({
       return Math.max(1, Math.floor(rawDrain * powerMultiplier));
     });
   } else if (trap?.type === "pitfall") {
-    const range = getFloorTrapDamageRange({ trap, floor });
-    const rollCount = range.max - range.min + 1;
     effect.partyDamage = party.map(char => {
       if (char?.status === "dead") return 0;
+      const range = getVictimTrapDamageRange(trap, floor, char);
+      const rollCount = range.max - range.min + 1;
       const rawDamage = Math.floor(rng() * rollCount) + range.min;
       return Math.max(1, Math.floor(rawDamage * powerMultiplier));
     });

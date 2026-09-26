@@ -1576,7 +1576,10 @@ export function runCombatRoundCalculation(
           return;
         } else if (mon.spell === "HALITO") {
           recordAction(mon, "HALITO");
-          let dmg = Math.floor(rng() * 10) + 5;
+          // Solo scale: a caster's bolt is roughly 1-2x its ATK and ignores
+          // armor, instead of a fixed party-era 5-14 roll at every depth.
+          const casterAtk = getEffectiveAtk(mon);
+          let dmg = casterAtk + Math.floor(rng() * (casterAtk + 1));
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           dmg = resolveGuardMitigation(target, dmg, {
             isDefending,
