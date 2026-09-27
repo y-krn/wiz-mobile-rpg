@@ -2,7 +2,7 @@
 // Seeded browser playtest runner (#1799).
 //
 // Drives the real game in headless Chromium through browser_playtest_driver.js. Each
-// seed gets a fresh browser context (empty trial save), a seeded Math.random,
+// seed gets a fresh browser context (empty save), a seeded Math.random,
 // and a fixed run seed, so the same seed replays the same floors and the
 // same combat/loot rolls as long as the bot makes the same choices.
 //
@@ -76,7 +76,7 @@ async function playOne(browser, baseUrl, seed, opts) {
   const page = await context.newPage();
   page.setDefaultTimeout(0);
   await page.addInitScript(initScript, { seed, speed: opts.speed });
-  await page.goto(`${baseUrl}/?tryout=vnext&trialProfile=phase3-equipment`, { waitUntil: "load" });
+  await page.goto(`${baseUrl}/`, { waitUntil: "load" });
   await page.waitForFunction(() => document.body.innerText.includes("準備を整える"), null, { timeout: 30000 });
   await page.addScriptTag({ content: HELPER_SOURCE, type: "module" });
   await page.waitForFunction(() => typeof window.__playRun === "function", null, { timeout: 30000 });
