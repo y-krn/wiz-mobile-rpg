@@ -485,6 +485,7 @@ check("decision events share context and keep action identifiers stable", () => 
       rows: [{ key: "attack", diff: 2 }]
     }
   });
+  assert.equal(events.filter(event => event.name === "build_shift").length, 0);
   trackEquipmentDecision("equip", {
     state: decisionState,
     character: decisionPlayer,
@@ -526,7 +527,13 @@ check("decision events share context and keep action identifiers stable", () => 
   assert.equal(buildShiftEvent.properties.action, "equip");
   assert.equal(buildShiftEvent.properties.fromBuildRole, "convert");
   assert.equal(buildShiftEvent.properties.toBuildRole, "pivot");
+  assert.equal(buildShiftEvent.properties.fromEquipmentId, "WAND");
+  assert.equal(buildShiftEvent.properties.toEquipmentId, "SHORT_SWORD");
   assert.equal(buildShiftEvent.properties.reason, "main_core_axis_changed");
+  assert.equal(Object.hasOwn(buildShiftEvent.properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(buildShiftEvent.properties, "level"), false);
+  assert.equal(Object.hasOwn(buildShiftEvent.properties, "attack"), false);
+  assert.equal(events.filter(event => event.name === "build_shift").length, 1);
 
   trackEquipmentDecision("equip", {
     state: decisionState,
