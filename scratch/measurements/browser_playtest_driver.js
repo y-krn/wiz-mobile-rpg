@@ -18,6 +18,8 @@ const PREVIEW = await import('/src/rules/equipment_preview.js');
 const LOADOUT = await import('/src/rules/loadout_transaction.js');
 const LOADOUT_COMMIT = await import('/src/systems/loadout_transaction.ts');
 const EQUIP_ACTIONS = await import('/src/systems/equipment_actions.ts');
+const HANDS = await import('/src/rules/equipment_hands.ts');
+const REWARDS = await import('/src/pending_rewards.js');
 
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 // Real (unscaled) sleep when the runner accelerates timers.
@@ -85,15 +87,31 @@ W.__bfs = (goal, allowTraps = false) => {
       const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= Wd || ny >= H) continue;
       const t = s.map[ny][nx].trap; if (t && t.state === 'discovered' && !allowTraps && !goal(nx, ny)) continue;
       if (nearElite(nx, ny) && !goal(nx, ny)) continue;
+      if (s.map[ny][nx].event === 'boss' && !goal(nx, ny)) continue;
       if (prev.has(key(nx, ny))) continue; prev.set(key(nx, ny), key(x, y)); q.push([nx, ny]);
     }
   }
   return null;
 };
 const goals = {
-  frontier: (x, y) => !st().visitedMap[y][x],
+  // The guardian's cell is never "exploration": entering it starts the fight,
+  // which only the guardian branch (after healing) should do.
+  frontier: (x, y) => !st().visitedMap[y][x] && st().map[y][x].event !== 'boss',
   stairs: (x, y) => st().map[y][x].type === 'stairs-down',
   boss: (x, y) => st().map[y][x].event === 'boss',
+  // An unused spring or camp (camps rest once per floor per run).
+  heal: (x, y) => {
+    const e = st().map[y][x].event;
+    return e === 'event_spring' || (e === 'event_camp' && !st().currentRun?.campRested?.[st().floor]);
+  },
+  // Any cell except a roaming elite's own: one step of real movement.
+  wander: (x, y) => !(st().roamingMonsters || []).some(m => m.floor === st().floor && m.x === x && m.y === y),
+};
+// A roaming elite on the only way: pace one step instead of turning in place,
+// because some elites only move when the player moves.
+const paceOnce = async () => {
+  const s = st(); const w = await W.__walk('wander', 1);
+  if (w !== 'maxsteps' && w !== 'at wander') { M.handleMove('turn-left'); await sl(20); while (s.transitioning) await sl(20); }
 };
 W.__walk = async (goalName = 'frontier', maxSteps = 200) => {
   const s = st(); let steps = 0;
@@ -215,12 +233,37 @@ W.__take = async () => {
     choices.forEach(e => { e.decision = e === best?.e ? 'take' : 'leave'; e.loadoutAction = null; });
     W.__seedChoice = { offered: choices.map(e => describeItem(e.item)), taken: best ? describeItem(best.e.item) : null };
     W.__journal.push(`SEED F${st().floor}: ${W.__seedChoice.offered.join(' | ')} -> ${W.__seedChoice.taken}`);
-    const { openPendingRewardMenu } = await import('/src/pending_rewards.js'); openPendingRewardMenu(); await sl(200);
   }
+  // When the rewards overflow the bag the game leaves every entry undecided and
+  // the confirm button stays disabled: take the best ones that fit, leave the rest.
+  const undecided = (bundle?.entries || []).filter(e => !['take', 'leave'].includes(e.decision));
+  if (undecided.length) {
+    const inv = st().inventory;
+    const hasPortal = inv.some(it => DATA.getItemData?.(it)?.id === 'TOWN_PORTAL');
+    bundle.discardIndexes ||= [];
+    let free = BAG_LIMIT - inv.length + bundle.discardIndexes.length - bundle.entries.filter(e => e.decision === 'take').length;
+    // Make room like a player would: leave identified gear that is no upgrade
+    // (known curses first) before leaving any new reward behind.
+    const junk = inv.map((it, i) => ({ i, score: scoreEquip(P(), it) ?? -Infinity }))
+      .filter(({ i }) => !bundle.discardIndexes.includes(i) && EQUIP_TYPES.includes(itemType(inv[i])) && !isHidden(inv[i]))
+      .filter(j => j.score < 0.5)
+      .sort((a, b) => a.score - b.score);
+    const dropped = junk.slice(0, Math.max(0, undecided.length - free));
+    dropped.forEach(j => { bundle.discardIndexes.push(j.i); free++; });
+    const value = e => (EQUIP_TYPES.includes(itemType(e.item)) && !isHidden(e.item) ? scoreEquip(P(), e.item) ?? 0 : 0);
+    undecided.sort((a, b) => value(b) - value(a)).forEach(e => {
+      e.loadoutAction = null;
+      e.decision = free > 0 && !(hasPortal && DATA.getItemData?.(e.item)?.id === 'TOWN_PORTAL') ? 'take' : 'leave';
+      if (e.decision === 'take') free--;
+    });
+    W.__journal.push(`BAG FULL F${st().floor}: took ${undecided.filter(e => e.decision === 'take').length}/${undecided.length}, dropped ${dropped.map(j => describeItem(inv[j.i])).join(', ') || 'nothing'}`);
+  }
+  REWARDS.openPendingRewardMenu(); await sl(200);
   await W.__click('この内容で確定する'); await sl(400);
 };
 
 const EQUIP_TYPES = ['weapon', 'armor', 'shield', 'accessory'];
+const BAG_LIMIT = 20; // pending_rewards.js BAG_LIMIT (not exported)
 const itemType = it => DATA.getItemData?.(it)?.type ?? null;
 const isHidden = it => typeof it === 'object' && it && it.identified === false;
 // Score from the game's own equipment preview rows. Combat stats dominate;
@@ -228,15 +271,25 @@ const isHidden = it => typeof it === 'object' && it && it.identified === false;
 // known curses a penalty. The weights are a crude stand-in for a player, not a
 // balance claim.
 const SCORE_WEIGHTS = { attack: 2, defense: 2, maxHp: 0.3, maxMp: 0.5, magic: 1, speed: 0.5, firstStrike: 0.3 };
+const weighRows = rows => rows.reduce((a, r) => a + (typeof r.diff === 'number' ? r.diff * (SCORE_WEIGHTS[r.key] || 0) : 0), 0);
 const scoreEquip = (char, it) => {
+  // A shield cannot go on next to a two-handed weapon (the loadout refuses it),
+  // so it is no upgrade until the weapon changes.
+  if (itemType(it) === 'shield' && HANDS.getEquipmentHands(char.equipment?.weapon) === 2) return null;
+  // A known curse locks the slot; a player does not put it on for stats.
+  if (it && typeof it === 'object' && it.identified && it.curseEffectId) return null;
   const preview = PREVIEW.getEquipmentPreview(char, it, null, { floor: st().floor });
   if (!preview) return null;
-  let score = preview.rows.reduce((a, r) => a + (typeof r.diff === 'number' ? r.diff * (SCORE_WEIGHTS[r.key] || 0) : 0), 0);
+  let score = weighRows(preview.rows);
+  // Equipping a two-handed weapon also takes the shield off; the preview does not.
+  if (preview.slot === 'weapon' && HANDS.getEquipmentHands(it) === 2 && char.equipment?.shield) {
+    const off = PREVIEW.getUnequipPreview(char, 'shield', { floor: st().floor });
+    if (off) score += weighRows(off.rows);
+  }
   const extras = item => {
     if (!item || typeof item !== 'object') return 0;
     let v = 0;
     if ((item.affixes || []).some(a => a.kind === 'core')) v += 3;
-    if (item.identified && item.curseEffectId) v -= 5;
     return v;
   };
   // Relative to what the slot holds now, so two Core items do not flip-flop.
@@ -261,14 +314,17 @@ W.__manageGear = async () => {
   }
   // 2) equip the best identified upgrade per slot, one commit per change
   for (let guard = 0; guard < 6; guard++) {
-    const char = P(); let best = null;
+    const char = P(); const draft = LOADOUT.createLoadoutDraft(st()); let best = null;
     st().inventory.forEach((it, i) => {
       if (isHidden(it) || !EQUIP_TYPES.includes(itemType(it))) return;
       const score = scoreEquip(char, it);
-      if (score !== null && score >= 0.5 && (!best || score > best.score)) best = { i, score, it };
+      if (score === null || score < 0.5 || (best && score <= best.score)) return;
+      // Skip what the loadout would refuse (curse lock, hands) instead of
+      // retrying the same refused item every turn.
+      if (!LOADOUT.getLoadoutEquipAvailability(draft, { actorIdx: 0, item: it }).ok) return;
+      best = { i, score, it };
     });
     if (!best) break;
-    const draft = LOADOUT.createLoadoutDraft(st());
     const staged = LOADOUT.stageEquip(draft, { actorIdx: 0, inventoryIndex: best.i });
     if (!staged?.ok) { W.__equipLog.push(`F${st().floor} cannot equip ${describeItem(best.it)}: ${staged?.reason}`); break; }
     const res = LOADOUT_COMMIT.commitLoadoutDraft(staged.draft, { turnCost: 1, worldAction: 'explore' });
@@ -338,16 +394,20 @@ W.__auto = async (policy = { explore: 0.6 }, maxIter = 600) => {
       await sl(700); W.__journal.push('trap F' + s.floor + ': ' + W.__log(1)); continue;
     }
     if (b.some(t => t.includes('宝箱を開ける'))) { await W.__chest(); continue; }
-    if (b.some(t => t.includes('この内容で確定する'))) { await W.__take(); continue; }
+    if (REWARDS.hasPendingRewardBundle(s)) {
+      await W.__take();
+      if (REWARDS.hasPendingRewardBundle(s)) { W.__journal.push('!! stuck reward ' + b.join('|')); return 'stuck'; }
+      continue;
+    }
     if (b.some(t => t.includes('泉の水を飲む'))) { await W.__click('泉の水を飲む'); await sl(600); W.__journal.push('spring F' + s.floor + ': ' + W.__log(1)); continue; }
     if (b.some(t => t.includes('探索に戻る'))) { await W.__click('探索に戻る'); await sl(200); continue; }
     if (b.some(t => t === '休息する')) { await W.__click('休息する'); await sl(400); W.__journal.push('camp F' + s.floor + ': ' + W.__log(1)); continue; }
     if (b.some(t => t.includes('休息せず進む'))) { await W.__click('休息せず進む'); await sl(300); continue; }
     if (b.some(t => t.includes('降りずに進む')) && !b.some(t => t.includes('へ降りる'))) {
-      // milestone floor with an undefeated guardian: heal up, go fight it
+      // milestone floor with an undefeated guardian: commit to fighting it
+      // (the explore step below walks there, resuming after interruptions)
       await W.__click('降りずに進む'); for (let w = 0; w < 30 && s.gameState !== 'explore'; w++) await sl(80);
-      while (P().hp < DATA.getCharMaxHp(P()) * 0.6 && await W.__useHeal()) await sl(100);
-      const r = await W.__walk('boss', 250); W.__journal.push(`-> guardian: ${r} ${W.__status()}`);
+      W.__guardianFloor = s.floor;
       continue;
     }
     if (b.some(t => t.includes('へ降りる'))) {
@@ -359,18 +419,41 @@ W.__auto = async (policy = { explore: 0.6 }, maxIter = 600) => {
       }
       await W.__click('降りずに進む'); await sl(200); continue;
     }
-    if (s.gameState === 'submenu' && b.some(t => t === '戻る')) { await W.__click('戻る'); await sl(200); if (s.gameState === 'explore') continue; }
+    if (s.gameState === 'submenu' && b.some(t => t === '戻る')) {
+      await W.__click('戻る'); for (let w = 0; w < 20 && s.gameState === 'submenu'; w++) await sl(100);
+      // A menu can reopen another (merchant after a guardian): retry a few times.
+      if (s.gameState !== 'submenu' || (W.__backTries = (W.__backTries || 0) + 1) <= 5) continue;
+      W.__journal.push('!! submenu back x' + W.__backTries + ' ' + W.__log(3));
+    }
     if (s.gameState === 'equip_overlay') { await W.__click('キャンセル'); await W.__click('閉じる'); await sl(200); continue; }
     if (s.gameState !== 'explore') { W.__journal.push('!! stuck gs=' + s.gameState + ' ' + b.join('|')); return 'stuck'; }
+    W.__backTries = 0;
     await W.__manageGear();
+    if (W.__guardianFloor === s.floor && !s.currentRun?.defeatedMilestones?.includes(s.floor)) {
+      const maxHp = DATA.getCharMaxHp(P());
+      while (P().hp < maxHp * 0.6 && await W.__useHeal()) await sl(100);
+      // Out of potions and badly hurt: try an unused spring or camp, at most
+      // twice per floor. Detours cost HP on the way (and springs heal only 40%
+      // of the time), so a looser rule burned runs out before the guardian.
+      const detours = W.__healDetours[s.floor] || 0;
+      if (P().hp < maxHp * 0.35 && detours < 2 && W.__bfs(goals.heal)) {
+        W.__healDetours[s.floor] = detours + 1;
+        const h = await W.__walk('heal', 250); W.__journal.push(`-> heal before guardian: ${h} ${W.__status()}`);
+        continue;
+      }
+      let r = await W.__walk('boss', 250);
+      for (let w = 0; r === 'no path' && w < 40 && s.gameState === 'explore'; w++) { await paceOnce(); r = await W.__walk('boss', 250); }
+      W.__journal.push(`-> guardian: ${r} ${W.__status()}`);
+      if (r === 'no path') { W.__journal.push('!! guardian unreachable'); return 'stuck'; }
+      continue;
+    }
     if (p.hp < DATA.getCharMaxHp(p) * 0.4 && await W.__useHeal()) continue;
     const wantStairs = policy.explore === 0 || p.hp < DATA.getCharMaxHp(p) * policy.explore;
     let r = await W.__walk(wantStairs && W.__bfs(goals.stairs) ? 'stairs' : 'frontier', 150);
     if (r === 'no path') r = await W.__walk('stairs', 150);
     if (r === 'at stairs') { M.handleMove('turn-left'); await sl(100); M.handleMove('turn-right'); await sl(200); }
-    if (r === 'no path' && (W.__waitTurns = (W.__waitTurns || 0) + 1) <= 12) {
-      // Something (usually a roaming elite) blocks the only way: wait in place.
-      M.handleMove('turn-left'); await sl(60); M.handleMove('turn-right'); await sl(60);
+    if (r === 'no path' && (W.__waitTurns = (W.__waitTurns || 0) + 1) <= 40) {
+      await paceOnce();
       continue;
     }
     if (r === 'no path' || r === 'maxsteps' || r.startsWith('blocked')) { W.__journal.push('!! ' + r); return 'stuck'; }
@@ -395,7 +478,7 @@ W.__startRun = async ({ kit = 'vanguard', seed = null } = {}) => {
   if (seed !== null) { st().seed = `PT-${seed}`; Date.now = () => 1700000000000; }
   try { await W.__click('迷宮へ向かう'); for (let i = 0; i < 40 && st().gameState !== 'explore'; i++) await sl(100); }
   finally { Date.now = realNow; }
-  W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; seenLoot.clear();
+  W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; W.__guardianFloor = null; W.__healDetours = {}; seenLoot.clear();
   const run = st().currentRun;
   // Fingerprint of the B1 layout so before/after runs can prove they share maps.
   let h = 2166136261; for (const row of st().map) for (const c of row) for (const w of c.walls) { h ^= w ? 1 : 0; h = Math.imul(h, 16777619) >>> 0; }
