@@ -30,6 +30,15 @@ import { resolveBuildSnapshot } from "./rules/build_snapshot.js";
 import { buildObjectLootStakeSnapshot } from "./rules/object_loot_stake.js";
 import { isStartingKitId } from "./state/starting_kit.js";
 import { isKnownDeathType } from "./state/death_logs.js";
+import {
+  attachTelemetryClient,
+  captureTelemetryEvent,
+  disableTelemetry,
+  isTelemetryAvailable,
+  setTelemetryClientForTests,
+  setTelemetryInitializationForTests,
+  setTelemetryState
+} from "./telemetry_capture.ts";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -43,7 +52,6 @@ const VALID_COMBAT_RESULTS = new Set([
   "gameover",
   "other"
 ]);
-const PRE_INIT_BUFFER_LIMIT = 64;
 const SNAPSHOT_STAT_KEYS = [
   "spellGuard",
   "poisonWard",
@@ -180,9 +188,6 @@ const MAX_ENEMY_SNAPSHOT = 8;
 const MAX_AFFIX_SNAPSHOT = 24;
 const MAX_RESOURCE_VALUE = 1_000_000;
 
-let client = null;
-let telemetryState = "uninitialized";
-let pendingEvents = [];
 let pendingCombatDecisions = [];
 let runId = null;
 let combatId = null;
@@ -221,20 +226,6 @@ function createRuntimeId(prefix) {
 
   fallbackIdCounter += 1;
   return `${prefix}_${Date.now().toString(36)}_${fallbackIdCounter.toString(36)}`;
-}
-
-function removeUndefined(value) {
-  if (Array.isArray(value)) {
-    return value.filter(item => item !== undefined).map(removeUndefined);
-  }
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value)
-        .filter(([, item]) => item !== undefined)
-        .map(([key, item]) => [key, removeUndefined(item)])
-    );
-  }
-  return value;
 }
 
 function finiteOrNull(value) {
@@ -767,11 +758,11 @@ function initializeTelemetry() {
   const configuredHost = typeof env.VITE_POSTHOG_HOST === "string" ? env.VITE_POSTHOG_HOST : "";
   const host = resolvePostHogApiHost(configuredHost);
   if (!key || !configuredHost.trim() || !host) {
-    telemetryState = "disabled";
+    disableTelemetry();
     return;
   }
 
-  telemetryState = "loading";
+  setTelemetryState("loading");
 
   import("posthog-js")
     .then(({ posthog, default: defaultPosthog }) => {
@@ -786,52 +777,15 @@ function initializeTelemetry() {
         disable_surveys: true,
         persistence: "memory"
       });
-      client = sdk;
-      telemetryState = "ready";
-      flushPendingEvents();
+      attachTelemetryClient(sdk);
     })
     .catch(() => {
-      client = null;
-      telemetryState = "disabled";
-      pendingEvents = [];
+      disableTelemetry();
     });
 }
 
-function captureWithClient(eventName, properties) {
-  if (!client) return;
-  try {
-    const result = client.capture(eventName, properties);
-    if (result && typeof result.catch === "function") {
-      result.catch(() => {});
-    }
-  } catch {
-    // Analytics must never affect gameplay.
-  }
-}
-
-function flushPendingEvents() {
-  const events = pendingEvents;
-  pendingEvents = [];
-  events.forEach(({ eventName, properties }) => captureWithClient(eventName, properties));
-}
-
 function capture(eventName, properties) {
-  const normalizedProperties = removeUndefined({
-    schemaVersion: TELEMETRY_SCHEMA_VERSION,
-    ...properties
-  });
-  if (client) {
-    captureWithClient(eventName, normalizedProperties);
-    return;
-  }
-  if (telemetryState !== "loading") return;
-
-  if (pendingEvents.length >= PRE_INIT_BUFFER_LIMIT) pendingEvents.shift();
-  pendingEvents.push({ eventName, properties: normalizedProperties });
-}
-
-function isTelemetryAvailable() {
-  return telemetryState === "loading" || telemetryState === "ready";
+  captureTelemetryEvent(TELEMETRY_SCHEMA_VERSION, eventName, properties);
 }
 
 export function trackEvent(eventName, properties = {}) {
@@ -1562,11 +1516,7 @@ export function trackLoadoutTransaction(action, details = {}) {
 }
 
 export function __setTelemetryClientForTests(testClient) {
-  const queuedEvents = testClient ? pendingEvents : [];
-  pendingEvents = [];
   pendingCombatDecisions = [];
-  client = testClient ?? null;
-  telemetryState = testClient ? "ready" : "disabled";
   runId = null;
   combatId = null;
   combatEnded = false;
@@ -1575,13 +1525,10 @@ export function __setTelemetryClientForTests(testClient) {
   exploredFloorKeys = new Set();
   stairsStepByFloor = new Map();
   uxDecisionStates = new Map();
-  queuedEvents.forEach(({ eventName, properties }) => captureWithClient(eventName, properties));
+  setTelemetryClientForTests(testClient ?? null);
 }
 
 export function __setTelemetryInitializationForTests({ enabled = false } = {}) {
-  client = null;
-  telemetryState = enabled ? "loading" : "disabled";
-  pendingEvents = [];
   pendingCombatDecisions = [];
   runId = null;
   combatId = null;
@@ -1591,6 +1538,7 @@ export function __setTelemetryInitializationForTests({ enabled = false } = {}) {
   exploredFloorKeys = new Set();
   stairsStepByFloor = new Map();
   uxDecisionStates = new Map();
+  setTelemetryInitializationForTests(enabled);
 }
 
 export function __resetTelemetryForTests() {

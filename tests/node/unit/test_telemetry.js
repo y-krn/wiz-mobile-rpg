@@ -127,13 +127,26 @@ check("capture exceptions do not escape into gameplay", () => {
   });
 });
 
-check("properties are normalized and undefined values are removed", () => {
+check("rejected promise-like capture results do not escape into gameplay", () => {
+  __setTelemetryClientForTests({
+    capture() {
+      return { catch: reject => reject(new Error("transport rejected")) };
+    }
+  });
+  assert.doesNotThrow(() => trackEvent("custom", { value: 1 }));
+});
+
+check("capture injects schema version and removes nested and array undefined values while keeping null", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
-  trackEvent("custom", { defined: 1, missing: undefined, nested: { missing: undefined, value: null } });
+  trackEvent("custom", {
+    defined: 1,
+    missing: undefined,
+    nested: { missing: undefined, value: null, list: [undefined, null, { omitted: undefined, kept: 2 }] }
+  });
   assert.deepEqual(events[0], {
     name: "custom",
-    properties: { schemaVersion: 2, defined: 1, nested: { value: null } }
+    properties: { schemaVersion: 2, defined: 1, nested: { value: null, list: [null, { kept: 2 }] } }
   });
 });
 
@@ -1273,8 +1286,7 @@ check("pre-initialization buffer is finite", () => {
   for (let index = 0; index < 80; index++) trackEvent("buffered", { index });
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
   assert.equal(events.length, 64);
-  assert.equal(events[0].properties.index, 16);
-  assert.equal(events.at(-1).properties.index, 79);
+  assert.deepEqual(events.map(event => event.properties.index), Array.from({ length: 64 }, (_, index) => index + 16));
   __resetTelemetryForTests();
 });
 
