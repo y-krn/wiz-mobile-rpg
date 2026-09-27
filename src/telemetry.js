@@ -25,6 +25,7 @@ import {
 import { buildCombatDecisionPayload } from "./telemetry_combat_decision.ts";
 import { buildExplorationDecisionPayload } from "./telemetry_exploration_decision.ts";
 import { buildLoadoutTransactionPayload } from "./telemetry_loadout_transaction.ts";
+import { buildEquipmentDecisionPayload } from "./telemetry_equipment_decision.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -1404,24 +1405,26 @@ export function trackEquipmentDecision(action, details = {}) {
   const buildDecision = isBuildTransition(action, details.candidateKey, details.currentKey ?? preview.oldEq)
     ? "transition"
     : "swap";
-  capture("equipment_decision", {
+  capture("equipment_decision", buildEquipmentDecisionPayload({
     runId,
-    ...safeExplorationContext({ state: details.state, character: details.character }),
-    action: normalizeDecisionAction(action),
+    context: safeExplorationContext({ state: details.state, character: details.character }),
+    action,
     candidateId: getSafeItemId(details.candidateKey),
     currentEquipmentId: getSafeItemId(details.currentKey ?? preview.oldEq),
     candidateBuildRole,
     currentBuildRole,
     buildDecision,
-    slot: normalizeOptionalStableValue(preview.slot, new Set(EQUIPMENT_SLOTS.map(entry => entry.id))),
+    slot: preview.slot,
+    safeEquipmentSlots: new Set(EQUIPMENT_SLOTS.map(entry => entry.id)),
     candidateRarity: details.candidateKey?.identified === true ? normalizeRarity(preview.item?.rarity) : null,
     candidateIdentified: details.candidateKey == null || typeof details.candidateKey !== "object" || details.candidateKey.identified === true,
-    candidateEnhancementLevel: boundedFiniteOrNull(details.candidateKey?.enhanceLevel ?? 0, -MAX_RESOURCE_VALUE),
-    primaryDiff: boundedFiniteOrNull(preview.primaryDiff, -MAX_RESOURCE_VALUE),
-    comparisonStatKeys: diffRows.map(row => normalizeStableValue(row?.key, SAFE_COMPARISON_STAT_KEYS)).slice(0, MAX_AFFIX_SNAPSHOT),
-    comparisonDiffs: diffRows.map(row => boundedFiniteOrNull(row?.diff, -MAX_RESOURCE_VALUE)).slice(0, MAX_AFFIX_SNAPSHOT),
-    comparisonAvailable: diffRows.length > 0
-  });
+    candidateEnhancementLevel: details.candidateKey?.enhanceLevel ?? 0,
+    primaryDiff: preview.primaryDiff,
+    diffRows,
+    safeComparisonStatKeys: SAFE_COMPARISON_STAT_KEYS,
+    maxResourceValue: MAX_RESOURCE_VALUE,
+    maxComparisonRows: MAX_AFFIX_SNAPSHOT
+  }));
   if (buildDecision === "transition") {
     capture("build_shift", {
       runId,

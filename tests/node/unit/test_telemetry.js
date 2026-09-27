@@ -519,6 +519,14 @@ check("decision events share context and keep action identifiers stable", () => 
   assert.equal(transitionEvent.properties.buildDecision, "transition");
   assert.equal(transitionEvent.properties.candidateBuildRole, "pivot");
   assert.equal(transitionEvent.properties.currentBuildRole, "convert");
+  const buildShiftEvent = events.find(event => event.name === "build_shift");
+  assert.deepEqual(events.slice(events.indexOf(transitionEvent), events.indexOf(transitionEvent) + 2).map(event => event.name), [
+    "equipment_decision", "build_shift"
+  ]);
+  assert.equal(buildShiftEvent.properties.action, "equip");
+  assert.equal(buildShiftEvent.properties.fromBuildRole, "convert");
+  assert.equal(buildShiftEvent.properties.toBuildRole, "pivot");
+  assert.equal(buildShiftEvent.properties.reason, "main_core_axis_changed");
 
   trackEquipmentDecision("equip", {
     state: decisionState,
@@ -557,6 +565,31 @@ check("decision events share context and keep action identifiers stable", () => 
     && event.properties.currentEquipmentId === "DAGGER");
   assert.equal(supportSwapEvent.properties.buildDecision, "swap");
   assert.equal(auxiliaryCoreSwapEvent.properties.buildDecision, "swap");
+  assert.equal(events.filter(event => event.name === "build_shift").length, 1);
+});
+
+check("equipment decision keeps strict candidate identification semantics", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  for (const candidateKey of [
+    { baseId: "DAGGER", identified: 1, enhanceLevel: "2.5" },
+    { baseId: "DAGGER", identified: true, enhanceLevel: "2.5" },
+    "DAGGER",
+    null
+  ]) {
+    trackEquipmentDecision("compare", {
+      state: decisionState,
+      character: decisionPlayer,
+      candidateKey,
+      preview: { item: { rarity: "rare" }, slot: null, primaryDiff: "1.25", rows: [] }
+    });
+  }
+  const decisions = events.filter(event => event.name === "equipment_decision");
+  assert.deepEqual(decisions.map(event => event.properties.candidateIdentified), [false, true, true, true]);
+  assert.deepEqual(decisions.map(event => event.properties.candidateRarity), [null, "rare", null, null]);
+  assert.deepEqual(decisions.map(event => event.properties.candidateEnhancementLevel), [2.5, 2.5, 0, 0]);
+  assert.deepEqual(decisions.map(event => event.properties.slot), [null, null, null, null]);
 });
 
 check("vNext telemetry separates lifecycle, exploration, portal, and elite observations", () => {
