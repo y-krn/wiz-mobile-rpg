@@ -664,6 +664,57 @@ check("vNext telemetry separates lifecycle, exploration, portal, and elite obser
   assert.equal(Object.hasOwn(elite.properties, "level"), false);
 });
 
+check("elite decision telemetry preserves production ID, fallback, and enum semantics", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const state = { ...decisionState, floor: 2, currentRun: { ...decisionState.currentRun, unbankedObjectLoot: [] } };
+  trackRunStart(run, decisionPlayer, state);
+  trackEliteDecision("avoid", { state, elite: { id: " RUN_ELITE_B2 ", name: "unknown", floor: 4 }, contactMode: "combat" });
+  trackEliteDecision("invalid", { state, elite: { id: "RUN_ELITE_bad", name: "ゾンビ A", floor: null }, contactMode: " Combat " });
+  trackEliteDecision("avoid", { state, elite: { id: "RUN_ELITE_bad", name: "unlisted enemy", floor: 1 }, contactMode: "combat" });
+  trackEliteDecision("avoid", {
+    state,
+    elite: { id: "RUN_ELITE_B2", name: "unknown", floor: 3, detected: true },
+    floor: null,
+    detected: false,
+    elitePolicy: "unknown"
+  });
+  trackEliteDecision("avoid", { state, elite: { detected: true }, detected: 0, elitePolicy: "" });
+  trackEliteDecision("avoid", { state, elite: { detected: "yes" }, detected: null, elitePolicy: "invalid" });
+
+  const elites = events.filter(event => event.name === "elite_decision");
+  assert.equal(elites.length, 6);
+  assert.deepEqual(elites.map(event => event.properties.eliteId), [
+    "RUN_ELITE_B2", "ゾンビ", "other", "RUN_ELITE_B2", "other", "other"
+  ]);
+  assert.deepEqual(elites.map(event => event.properties.floor), [4, 2, 1, 3, 2, 2]);
+  assert.deepEqual(elites.map(event => event.properties.decision), ["avoid", "other", "avoid", "avoid", "avoid", "avoid"]);
+  assert.deepEqual(elites.map(event => event.properties.contactMode), ["combat", "other", "combat", "other", "other", "other"]);
+  assert.deepEqual(elites.map(event => event.properties.detected), [false, false, false, false, false, true]);
+  assert.deepEqual(elites.map(event => event.properties.elitePolicy), [null, null, null, "unknown", null, "other"]);
+  assert.ok(elites.every(event => event.properties.schemaVersion === 2));
+  assert.deepEqual(events.map(event => event.name), ["run_start", ...Array(6).fill("elite_decision")]);
+});
+
+check("roaming combat end keeps the combat_end then elite_decision event sequence", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const state = { ...decisionState, currentRun: { ...decisionState.currentRun, unbankedObjectLoot: [] } };
+  trackRunStart(run, decisionPlayer, state);
+  const combat = {
+    isRoamingFlack: true,
+    floor: 2,
+    player: decisionPlayer,
+    monsters: [{ id: "RUN_ELITE_B2", name: "unknown", hp: 0, maxHp: 10 }]
+  };
+  trackCombatStart(combat);
+  trackCombatEnd("endCombat", combat, state);
+  trackCombatEnd("endCombat", combat, state);
+  assert.deepEqual(events.map(event => event.name), ["run_start", "combat_start", "combat_end", "elite_decision"]);
+  assert.equal(events.filter(event => event.name === "elite_decision").length, 1);
+  assert.equal(events.at(-1).properties.decision, "clear");
+});
+
 check("return-wing snapshots distinguish the Wing from escape scrolls", () => {
   const resourceSnapshot = buildResourceSnapshot({ inventory: ["TOWN_PORTAL", "ESCAPE_SCROLL"] });
   assert.equal(resourceSnapshot.consumableWingCount, 1);
