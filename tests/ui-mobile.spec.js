@@ -244,6 +244,8 @@ for (const vp of VIEWPORTS) {
         const { openChestMenu } = await import('/src/chest.js');
 
         state.party = [(await import('/src/state.js')).createStartingKitCharacter('arcana')];
+        // A full bag keeps the pending-reward surface on screen (#1835).
+        state.inventory = Array.from({ length: 20 }, () => 'HEAL_POTION');
         state.gameState = 'combat';
         state.floor = 5;
         state.currentRun = createDefaultCurrentRun();

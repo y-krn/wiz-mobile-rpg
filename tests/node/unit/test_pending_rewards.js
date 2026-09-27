@@ -7,7 +7,9 @@ import {
   state
 } from "../../../src/state.js";
 import {
+  canAutoResolvePendingRewardBundle,
   hasPendingRewardBundle,
+  openPendingRewardMenu,
   resolvePendingRewardBundle,
   stagePendingRewardBundle
 } from "../../../src/pending_rewards.js";
@@ -53,6 +55,7 @@ assert.deepEqual(state.inventory, originalBag, "pending rewards never use a hidd
 assert.deepEqual(state.currentRun.unbankedObjectLoot, [], "pending rewards are not ledger-owned before resolution");
 assert.equal(bundle.entries.length, 3, "all chest object rewards share one decision state");
 assert.deepEqual(bundle.entries.map(entry => entry.decision), [null, null, null], "overflowing bundles keep explicit choices");
+assert.equal(canAutoResolvePendingRewardBundle(state), false, "overflowing bundles still need the resolution screen");
 
 bundle.entries.forEach(entry => { entry.decision = "take"; });
 bundle.discardIndexes = [0, 1, 2];
@@ -71,6 +74,7 @@ const roomyBundle = stagePendingRewardBundle(state, [
 ]);
 assert.deepEqual(roomyBundle.entries.map(entry => [entry.decision, entry.loadoutAction]),
   [["take", null], ["take", null], ["take", null]], "rewards that fit default to plain take without loadout actions");
+assert.equal(canAutoResolvePendingRewardBundle(state), true, "rewards that all fit skip the resolution screen");
 const roomyResolved = resolvePendingRewardBundle(state);
 assert.equal(roomyResolved.ok, true, "roomy bundles resolve without per-reward choices");
 assert.equal(roomyResolved.turnCost, 0);
@@ -84,6 +88,23 @@ const duplicatePortalBundle = stagePendingRewardBundle(state, [
 ]);
 assert.deepEqual(duplicatePortalBundle.entries.map(entry => entry.decision), ["take", null],
   "an already-owned Town Portal is never defaulted to take");
+assert.equal(canAutoResolvePendingRewardBundle(state), false, "an undecided duplicate Town Portal keeps the resolution screen");
+
+resetState(Array.from({ length: 5 }, () => "HEAL_POTION"));
+stagePendingRewardBundle(state, [{ role: "main", item: "DAGGER" }]);
+assert.equal(openPendingRewardMenu(), true);
+assert.equal(state.currentRun.pendingRewardBundle, null, "opening a bundle that fits takes it without a screen");
+assert.equal(state.gameState, "explore");
+assert.deepEqual(state.inventory.slice(-1), ["DAGGER"]);
+assert.equal(state.currentRun.unbankedObjectLoot.length, 1, "auto-taken rewards enter the run ledger");
+
+resetState();
+stagePendingRewardBundle(state, [
+  { role: "main", item: "DAGGER" },
+  { role: "seed", item: "SHORT_SWORD" },
+  { role: "seed", item: "AMULET_HP" }
+], { choiceRole: "seed", choiceLimit: 1 });
+assert.equal(canAutoResolvePendingRewardBundle(state), false, "choice groups always keep the resolution screen");
 
 resetState(Array.from({ length: 20 }, () => "HEAL_POTION"));
 const rejectedBundle = stagePendingRewardBundle(state, [{ role: "main", item: "DAGGER" }]);

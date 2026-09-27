@@ -65,7 +65,8 @@ test('pending reward surfaces inherit the shared raised surface and tap contract
     const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
     const { openPendingRewardMenu, stagePendingRewardBundle } = await import('/src/pending_rewards.js');
     state.party = [createStartingKitCharacter('vanguard')];
-    state.inventory = ['HEAL_POTION'];
+    // A full bag keeps the pending-reward surface on screen (#1835).
+    state.inventory = Array.from({ length: 20 }, () => 'HEAL_POTION');
     state.currentRun = createDefaultCurrentRun();
     state.gameState = 'explore';
     stagePendingRewardBundle(state, [{ role: 'main', item: 'DAGGER' }]);
