@@ -68,7 +68,7 @@ const PARTY_HIT_MS = 420;
 // outgoing view toward the turn and settle the incoming view from the other
 // side. Backward cuts first and settles the incoming view back out.
 export const NAVIGATION_MOTION = Object.freeze({
-  durationMs: Object.freeze({ forward: 180, backward: 160, "turn-left": 180, "turn-right": 180 }),
+  durationMs: Object.freeze({ forward: 180, backward: 160, "turn-left": 180, "turn-right": 180, "turn-around": 220 }),
   pushScale: 0.1,
   turnScale: 0.1,
   turnShift: 0.045,
