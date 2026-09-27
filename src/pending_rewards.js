@@ -27,6 +27,7 @@ import { menuContext, resetSubmenuBackButton } from "./navigation.js";
 import { updateUI } from "./ui.js";
 import { createBagCapacitySummary } from "./ui/bag_summary.js";
 import { setDockActionRole } from "./ui/common_shell.js";
+import { showLootToast } from "./ui/loot_toast.js";
 import { isBuildVNextRun } from "./rules/technique_rules.js";
 import { TECHNIQUE_BY_PROFILE } from "./data/techniques.js";
 
@@ -499,8 +500,29 @@ function renderPendingRewardMenu() {
   return true;
 }
 
+// Nothing to decide when every reward already defaults to "take": no choice
+// group, no staged loadout action, and the bag holds them all. Those bundles
+// skip the resolution screen; untried equipment stays triable from the bag.
+export function canAutoResolvePendingRewardBundle(stateLike = state) {
+  const bundle = getBundle(stateLike);
+  if (!bundle || bundle.choiceRole) return false;
+  if (bundle.entries.some(entry => entry.decision !== "take" || entry.loadoutAction)) return false;
+  if (normalizeDiscardIndexes(bundle, stateLike.inventory || []).length > 0) return false;
+  return validateResolution(stateLike, bundle).ok;
+}
+
+function autoResolvePendingRewardBundle() {
+  if (!canAutoResolvePendingRewardBundle(state)) return null;
+  const result = resolvePendingRewardBundle(state);
+  if (!result.ok) return null;
+  const names = result.taken.map(entry => itemName(entry.item)).join("・");
+  showLootToast(`${names}をバッグへ（${state.inventory.length}/${BAG_LIMIT}）`);
+  return result;
+}
+
 export function openPendingRewardMenu() {
   if (!hasPendingRewardBundle()) return false;
+  if (autoResolvePendingRewardBundle()) return true;
   state.gameState = "submenu";
   menuContext.type = PENDING_REWARD_MENU;
   menuContext.prevGameState = "explore";

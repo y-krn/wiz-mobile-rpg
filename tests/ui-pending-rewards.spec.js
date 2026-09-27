@@ -45,7 +45,7 @@ test('chest object rewards resolve as one pending bundle without overflowing the
   })).toEqual({ inventory: 20, pending: null, ledger: 3, gameState: 'explore' });
 });
 
-test('pending rewards that fit the bag default to take and confirm in one tap @smoke', async ({ page }) => {
+test('pending rewards that fit the bag go straight into the bag with a toast @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
@@ -59,14 +59,10 @@ test('pending rewards that fit the bag default to take and confirm in one tap @s
     openPendingRewardMenu();
   });
 
-  const card = page.locator('.pending-reward-card');
-  const takeButton = card.getByRole('button', { name: '持つ', exact: true });
-  const leaveButton = card.getByRole('button', { name: '置いていく', exact: true });
-  await expect(takeButton).toHaveAttribute('aria-pressed', 'true');
-  await expect(takeButton).toHaveClass(/is-selected/);
-  await expect(leaveButton).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.locator('#btn-pending-reward-confirm')).toBeEnabled();
-  await page.locator('#btn-pending-reward-confirm').click();
+  await expect(page.locator('.pending-reward-card')).toHaveCount(0);
+  await expect(page.locator('#loot-toast')).toBeVisible();
+  await expect(page.locator('#loot-toast')).toContainText('をバッグへ（1/20）');
+  await expect(page.locator('#log-content')).toContainText('[戦果解決]');
   await expect.poll(() => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return {
@@ -77,6 +73,7 @@ test('pending rewards that fit the bag default to take and confirm in one tap @s
       gameState: state.gameState,
     };
   })).toEqual({ inventory: ['LEATHER_ARMOR'], pending: null, ledger: 1, steps: 0, gameState: 'explore' });
+  await expect(page.locator('#loot-toast')).toBeHidden({ timeout: 5000 });
 });
 
 test('pending unknown equipment connects directly to one trial turn @smoke', async ({ page }) => {
@@ -88,7 +85,8 @@ test('pending unknown equipment connects directly to one trial turn @smoke', asy
     const character = createStartingKitCharacter('vanguard');
     character.equipment.weapon = 'DAGGER';
     state.party = [character];
-    state.inventory = Array.from({ length: 19 }, () => 'HEAL_POTION');
+    // A full bag keeps the resolution screen, where the trial action lives.
+    state.inventory = Array.from({ length: 20 }, () => 'HEAL_POTION');
     state.currentRun = createDefaultCurrentRun();
     state.gameState = 'explore';
     stagePendingRewardBundle(state, [{
@@ -109,6 +107,8 @@ test('pending unknown equipment connects directly to one trial turn @smoke', asy
     const style = getComputedStyle(element);
     return [style.backgroundColor, style.borderTopColor, style.color].join('|');
   });
+  await expect(takeButton).toHaveAttribute('aria-pressed', 'false');
+  await takeButton.click();
   await expect(takeButton).toHaveAttribute('aria-pressed', 'true');
   const selectedLook = await buttonLook();
   const trialButton = page.getByRole('button', { name: '試す（探索時間が進む）', exact: true });
@@ -118,6 +118,7 @@ test('pending unknown equipment connects directly to one trial turn @smoke', asy
   await expect(takeButton).toHaveAttribute('aria-pressed', 'false');
   expect(await buttonLook()).not.toBe(selectedLook);
   await expect(page.locator('.pending-reward-card')).toContainText('試す（探索時間が進む）');
+  await page.locator('input[data-discard-index="0"]').check();
   await expect(page.locator('#btn-pending-reward-confirm')).toBeEnabled();
   await page.locator('#btn-pending-reward-confirm').click();
 
