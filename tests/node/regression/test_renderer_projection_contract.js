@@ -1,0 +1,107 @@
+import assert from "node:assert/strict";
+import * as facade from "../../../src/rules/renderer_projection.js";
+import * as owner from "../../../src/rules/renderer_projection.ts";
+
+const runtimeExports = [
+  "CANONICAL_VIEW",
+  "PORTRAIT_NEAR_COVERAGE_MIN",
+  "WORLD_OBJECT_CELL_DEPTH",
+  "WORLD_OBJECT_SCALE_EXPONENT",
+  "BASE_PROJECTION",
+  "BASE_GEOMETRY",
+  "getProjectionProfile",
+  "getProjectionPlanes",
+  "getProjectionColumn",
+  "getWorldObjectProjection",
+  "getCombatMonsterLayout"
+];
+
+assert.deepEqual(Object.keys(facade).sort(), [...runtimeExports].sort());
+assert.deepEqual(Object.keys(owner).sort(), [...runtimeExports].sort());
+for (const name of runtimeExports) assert.strictEqual(facade[name], owner[name], `${name} facade identity`);
+
+assert.deepEqual(facade.CANONICAL_VIEW, { width: 400, height: 260 });
+assert.equal(facade.PORTRAIT_NEAR_COVERAGE_MIN, 0.8);
+assert.equal(facade.WORLD_OBJECT_CELL_DEPTH, 0.5);
+assert.equal(facade.WORLD_OBJECT_SCALE_EXPONENT, 0.7);
+assert.deepEqual(Object.keys(facade.BASE_PROJECTION), ["xl", "xr", "yt", "yb"]);
+assert.deepEqual(facade.BASE_GEOMETRY, { corridorWidth: 1, ceilingHeight: 1, wallLean: 0, ceilingStyle: "flat" });
+assert.ok(Object.isFrozen(facade.CANONICAL_VIEW));
+assert.ok(Object.isFrozen(facade.BASE_PROJECTION.xl));
+assert.ok(Object.isFrozen(facade.BASE_GEOMETRY));
+
+for (const [width, height, orientation] of [[400, 260, "wide"], [320, 568, "portrait"], ["390", "844", "portrait"], [0, -1, "wide"]]) {
+  const profile = facade.getProjectionProfile(width, height);
+  assert.equal(profile.orientation, orientation);
+  assert.ok(Object.isFrozen(profile) && Object.isFrozen(profile.base) && Object.isFrozen(profile.coverage));
+  const projection = facade.getProjectionPlanes(facade.BASE_GEOMETRY, profile);
+  assert.strictEqual(projection.viewport, profile);
+  assert.ok(Object.isFrozen(projection) && Object.isFrozen(projection.xl));
+}
+assert.deepEqual(Object.keys(facade.getProjectionProfile()), ["width", "height", "aspect", "orientation", "xScale", "yScale", "vanishingPoint", "coverage", "edgeBlend", "base", "columnLayout"]);
+assert.equal(facade.getProjectionProfile(-320, 568).width, 400);
+
+const portrait = facade.getProjectionProfile(320, 568);
+let conversions = 0;
+const planes = facade.getProjectionPlanes(facade.BASE_GEOMETRY, portrait);
+assert.strictEqual(facade.getProjectionPlanes(undefined, portrait).viewport, portrait);
+assert.equal(Object.isFrozen(planes.columnLayout), false);
+assert.equal(Object.isFrozen(planes.columnLayout[0]), true);
+assert.strictEqual(planes.columnLayout[0].weights, portrait.columnLayout[0].weights);
+assert.ok(Math.abs((facade.getProjectionPlanes({ corridorWidth: 0.2 }, portrait).xr[0] - facade.getProjectionPlanes({ corridorWidth: 0.2 }, portrait).xl[0]) - (portrait.base.xr[0] - portrait.base.xl[0]) * 0.94) < 1e-9);
+assert.equal(facade.getProjectionPlanes({ ceilingStyle: "invalid" }).ceilingStyle, "flat");
+assert.equal(facade.getProjectionPlanes({ ceilingStyle: "arch" }).ceilingStyle, "arch");
+const finiteOrInput = { [Symbol.toPrimitive]() { conversions += 1; return "0.8"; } };
+facade.getProjectionPlanes({ corridorWidth: finiteOrInput }, portrait);
+assert.equal(conversions, 2);
+
+const column = facade.getProjectionColumn(planes, 0, 0);
+assert.deepEqual(Object.keys(column), ["leftTop", "leftBottom", "rightTop", "rightBottom", "top", "bottom", "viewport"]);
+assert.strictEqual(column.viewport, portrait);
+assert.notStrictEqual(column, facade.getProjectionColumn(planes, 0, 0));
+assert.equal(Object.isFrozen(column), false);
+for (const lane of [-1, 1]) assert.ok(facade.getProjectionColumn(planes, 2, lane).rightTop > facade.getProjectionColumn(planes, 2, lane).leftTop);
+const wide = facade.getProjectionProfile(400, 260);
+const widePlanes = facade.getProjectionPlanes(facade.BASE_GEOMETRY, wide);
+assert.equal(widePlanes.columnLayout, null);
+assert.strictEqual(facade.getProjectionColumn(widePlanes, 1).viewport, wide);
+
+const worldObject = facade.getWorldObjectProjection(planes, "99");
+assert.equal(worldObject.worldObject.depth, 3);
+assert.ok(Object.isFrozen(worldObject) && Object.isFrozen(worldObject.worldObject));
+assert.strictEqual(worldObject.viewport, portrait);
+assert.equal(facade.getWorldObjectProjection(planes, -8).worldObject.depth, 0);
+assert.equal(facade.getWorldObjectProjection(planes, 1.9).worldObject.depth, 1);
+assert.notEqual(facade.getWorldObjectProjection(planes, 1, 1).leftBottom, facade.getWorldObjectProjection(planes, 1, 0).leftBottom);
+
+const monsters = [
+  { name: "Biter", hp: 10 },
+  { name: "dead", hp: 0 },
+  { name: "ジャイアント竜", hp: "2" },
+  null,
+  { name: "unknown sprite", spriteType: "unknown", hp: 3 }
+];
+const originalMonsters = JSON.stringify(monsters);
+const layout = facade.getCombatMonsterLayout(monsters, portrait);
+assert.deepEqual(layout.map(entry => entry.monsterIndex), [0, 2, 4]);
+assert.strictEqual(layout[0].monster, monsters[0]);
+assert.equal(layout[0].hitRegion.shape, "ellipse");
+assert.equal(Object.isFrozen(layout), false);
+assert.equal(Object.isFrozen(layout[0]), false);
+assert.equal(layout[0].hitRegion.width, layout[2].hitRegion.width);
+assert.ok(layout[1].hitRegion.width > layout[0].hitRegion.width);
+assert.equal(facade.getCombatMonsterLayout([{ hp: 1 }]).length, 1);
+assert.equal(facade.getCombatMonsterLayout([{ hp: 1 }, { hp: 1 }])[1].cx, 300);
+const fourMonsters = Array.from({ length: 4 }, (_, index) => ({ name: `Biter${index}`, hp: 2 }));
+const fourLayout = facade.getCombatMonsterLayout(fourMonsters);
+assert.deepEqual(fourLayout.map(entry => [entry.row, entry.column]), [[0, 0], [0, 1], [1, 0], [1, 1]]);
+assert.equal(fourLayout[0].scale, 0.52);
+assert.equal(JSON.stringify(monsters), originalMonsters);
+assert.equal(facade.getCombatMonsterLayout(null).length, 0);
+
+conversions = 0;
+const numericInput = { [Symbol.toPrimitive]() { conversions += 1; return "320"; } };
+facade.getProjectionProfile(numericInput, 568);
+assert.equal(conversions, 1);
+
+console.log("[PASS] renderer projection owner/facade runtime and legacy contracts verified");
