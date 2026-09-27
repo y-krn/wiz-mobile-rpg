@@ -312,7 +312,13 @@ for (const vp of VIEWPORTS) {
           optionsClientHeight: document.querySelector('#submenu-options').clientHeight,
           party: rect('#character-panel'),
           buttons: Array.from(document.querySelectorAll('#submenu-options button'))
-            .map((el) => ({ text: el.textContent, rect: el.getBoundingClientRect().toJSON() })),
+            .map((el) => ({
+              text: el.textContent,
+              rect: el.getBoundingClientRect().toJSON(),
+              disabled: el.disabled,
+              recommended: el.dataset.recommended === 'true',
+            })),
+          detailsOpen: document.querySelector('.chest-details')?.open ?? null,
           characterCards: Array.from(document.querySelectorAll('#character-hud .character-card'))
             .map((el) => el.getBoundingClientRect().toJSON()),
           height: window.innerHeight,
@@ -333,12 +339,18 @@ for (const vp of VIEWPORTS) {
         '調査済み', '解除する', 'キットで解除', '宝箱を開ける', '叩き壊す', '立ち去る',
       ]);
       expect(layout.hasHorizontalOverflow, `Chest menu should not create horizontal overflow on ${vp.name}`).toBe(false);
-      for (const button of layout.buttons) {
+      for (const button of layout.buttons.filter(button => !button.disabled)) {
         expect(button.rect.width, `Chest action buttons should remain wide enough to tap on ${vp.name}`).toBeGreaterThanOrEqual(44);
         expect(button.rect.height, `Chest action buttons should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
       }
+      const inspected = layout.buttons.find(button => button.text === '調査済み');
+      expect(inspected.disabled).toBe(true);
+      expect(inspected.rect.height, `Unavailable chest steps should not take a full action row on ${vp.name}`).toBeLessThan(44);
+      expect(layout.buttons.filter(button => button.recommended).map(button => button.text)).toEqual(['解除する']);
+      expect(layout.detailsOpen, `Trap details should start collapsed on ${vp.name}`).toBe(false);
       expect(layout.options.bottom, `Scrollable chest actions should stay within controls on ${vp.name}`).toBeLessThanOrEqual(layout.controls.bottom);
-      expect(layout.optionsScrollHeight, `Worst-case chest actions should scroll on ${vp.name}`).toBeGreaterThan(layout.optionsClientHeight);
+      const recommended = layout.buttons.find(button => button.recommended);
+      expect(recommended.rect.bottom, `Recommended chest action should be visible without scrolling on ${vp.name}`).toBeLessThanOrEqual(layout.options.bottom + 1);
       expect(layout.characterCards).toHaveLength(1);
       for (const card of layout.characterCards) {
         expect(card.bottom, `Character card should remain inside character panel on ${vp.name}`).toBeLessThanOrEqual(layout.party.bottom);
@@ -378,10 +390,12 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('.pending-reward-card')).toBeVisible();
       const rewardLayout = await page.evaluate(() => ({
         controls: document.querySelector('#controls-panel').getBoundingClientRect().toJSON(),
-        buttons: Array.from(document.querySelectorAll('#submenu-options button')).map(button => ({
-          text: button.textContent,
-          rect: button.getBoundingClientRect().toJSON(),
-        })),
+        // Measure each action after scrolling it into view so the result does not
+        // depend on scroll position inherited from the previous chest surface.
+        buttons: Array.from(document.querySelectorAll('#submenu-options button')).map(button => {
+          button.scrollIntoView({ block: 'nearest' });
+          return { text: button.textContent, rect: button.getBoundingClientRect().toJSON() };
+        }),
         hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       }));
       expect(rewardLayout.hasHorizontalOverflow, `Pending reward surface should not overflow on ${vp.name}`).toBe(false);
