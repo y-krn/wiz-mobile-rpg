@@ -1205,13 +1205,49 @@
   padding-top: var(--sp-xs);
 }
 
+.chest-info-panel .bag-capacity-summary {
+  padding: var(--sp-xs) var(--sp-sm);
+}
+
+.chest-details {
+  border-top: 1px solid var(--border-color);
+  margin-top: var(--sp-xs);
+  padding-top: var(--sp-xs);
+}
+
+.chest-details > summary {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
 .chest-help-text {
   color: var(--text-muted);
-  border-top: 1px solid var(--border-color);
-  margin-top: var(--sp-sm);
-  padding-top: var(--sp-xs);
+  margin-top: var(--sp-xs);
   font-size: var(--fs-md);
   line-height: 1.2;
+}
+
+/* Unavailable chest steps read as status, not as competing full-width actions. */
+.chest-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-xs);
+}
+
+#game-container #submenu-options .btn.chest-status-chip {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 2px var(--sp-sm);
+  font-size: var(--fs-xs);
+}
+
+/* One recommended next step per chest state; beats dungeon-first surface resets. */
+#game-container #submenu-options .btn.btn-primary.chest-action-recommended {
+  border-color: #17707e;
+  background: linear-gradient(180deg, #34b0c0, var(--neon-cyan));
+  color: #fff;
+  font-size: var(--fs-md);
 }
 
 

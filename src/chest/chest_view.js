@@ -78,16 +78,62 @@ function getInspectionText(chest) {
   return result;
 }
 
-function createButton({ id, className, text, onClick, title, role = null }) {
+function createButton({ id, className, text, onClick, title, role = null, compact = false }) {
   const button = document.createElement("button");
   if (id) button.id = id;
   button.className = className;
   button.textContent = text;
-  button.style.minHeight = "44px";
+  if (!compact) button.style.minHeight = "44px";
   if (title) button.title = title;
   if (role) setDockActionRole(button, role);
   if (onClick) button.addEventListener("click", onClick);
   return button;
+}
+
+/** Pick the single next action to emphasize; presentation only, no odds change. */
+export function getRecommendedChestAction(chest) {
+  if (!chest.inspected) return "inspect";
+  if (chest.identifiedTrap && chest.identifiedTrap !== "none") return "disarm";
+  return "open";
+}
+
+function createStatusChip({ id, text }) {
+  const chip = createButton({
+    id,
+    className: "btn btn-neon chest-status-chip disabled",
+    text,
+    compact: true
+  });
+  chip.disabled = true;
+  return chip;
+}
+
+function createDetails(full) {
+  const details = document.createElement("details");
+  details.className = "chest-details";
+  const summary = document.createElement("summary");
+  summary.textContent = "罠と操作の説明";
+  details.appendChild(summary);
+  const help = document.createElement("div");
+  help.className = "chest-help-text";
+  help.textContent = "毒針:単体+毒 | ガス:全体ダメ";
+  help.appendChild(document.createElement("br"));
+  const helpSecondLine = document.createElement("span");
+  helpSecondLine.textContent = "テレポ:転移 | 閃光:全体盲目";
+  help.appendChild(helpSecondLine);
+  help.appendChild(document.createElement("br"));
+  const smashHelp = document.createElement("span");
+  smashHelp.style.color = "var(--neon-red)";
+  smashHelp.textContent = "叩き壊す：罠を弱める代わりに、報酬が壊れることがある。";
+  help.appendChild(smashHelp);
+  if (!full) {
+    help.appendChild(document.createElement("br"));
+    const bagNote = document.createElement("span");
+    bagNote.textContent = "装備中の品は枠外。開封後の報酬だけが空き枠を使います。";
+    help.appendChild(bagNote);
+  }
+  details.appendChild(help);
+  return details;
 }
 
 export function renderChestMenu({
@@ -109,11 +155,13 @@ export function renderChestMenu({
   const loot = chest.lootHint;
   const infoPanel = document.createElement("div");
   infoPanel.className = "chest-info-panel";
+  const bagFull = inventory.length >= INVENTORY_CAPACITY;
   infoPanel.appendChild(createBagCapacitySummary(inventory, {
     className: "chest-inventory-status",
-    note: inventory.length >= INVENTORY_CAPACITY
-      ? "満杯。報酬は自動取得されません。開封前に装備画面で整理できます。"
-      : "装備中の品は枠外。開封後の報酬だけが空き枠を使います。"
+    // The heading already states used/free slots; the 20-cell grid stays on bag-management screens.
+    showSlots: false,
+    showNote: bagFull,
+    note: "満杯。報酬は自動取得されません。開封前に装備画面で整理できます。"
   }));
   const risk = getRiskText(floor);
   if (risk) {
@@ -128,74 +176,67 @@ export function renderChestMenu({
   if (loot) {
     const lootHint = document.createElement("div");
     lootHint.className = "chest-loot-hint";
-    const lootRow = document.createElement("div");
-    lootRow.textContent = "宝気: ";
+    const lootPrefix = document.createElement("span");
+    lootPrefix.textContent = "宝気: ";
+    lootHint.appendChild(lootPrefix);
     const lootLabel = document.createElement("span");
     lootLabel.style.color = "var(--text-primary)";
     lootLabel.style.fontWeight = "bold";
     lootLabel.textContent = loot.label;
-    lootRow.appendChild(lootLabel);
-    const auraRow = document.createElement("div");
-    auraRow.textContent = "魔力反応: ";
+    lootHint.appendChild(lootLabel);
+    const auraPrefix = document.createElement("span");
+    auraPrefix.textContent = " / 魔力反応: ";
+    lootHint.appendChild(auraPrefix);
     const aura = document.createElement("span");
     aura.style.fontWeight = "bold";
     aura.style.color = loot.aura === "strong"
       ? "var(--neon-red)"
       : loot.aura === "medium" ? "var(--neon-yellow)" : "var(--text-muted)";
     aura.textContent = loot.aura === "strong" ? "強" : loot.aura === "medium" ? "中" : "弱";
-    auraRow.appendChild(aura);
-    lootHint.appendChild(lootRow);
-    lootHint.appendChild(auraRow);
+    lootHint.appendChild(aura);
     infoPanel.appendChild(lootHint);
   }
-  const help = document.createElement("div");
-  help.className = "chest-help-text";
-  help.textContent = "毒針:単体+毒 | ガス:全体ダメ";
-  help.appendChild(document.createElement("br"));
-  const helpSecondLine = document.createElement("span");
-  helpSecondLine.textContent = "テレポ:転移 | 閃光:全体盲目";
-  help.appendChild(helpSecondLine);
-  help.appendChild(document.createElement("br"));
-  const smashHelp = document.createElement("span");
-  smashHelp.style.color = "var(--neon-red)";
-  smashHelp.textContent = "叩き壊す：罠を弱める代わりに、報酬が壊れることがある。";
-  help.appendChild(smashHelp);
-  infoPanel.appendChild(help);
+  infoPanel.appendChild(createDetails(bagFull));
   optGrid.appendChild(infoPanel);
 
-  const inspectButton = createButton({
-    id: "btn-chest-inspect",
-    className: "btn btn-neon btn-block",
-    text: chest.inspected ? "調査済み" : "調べる",
-    onClick: onInspect
-  });
-  if (chest.inspected) {
-    inspectButton.disabled = true;
-    inspectButton.classList.add("disabled");
-  }
-  optGrid.appendChild(inspectButton);
+  const recommended = getRecommendedChestAction(chest);
+  const markRecommended = (button, action) => {
+    if (action !== recommended) return button;
+    button.classList.add("btn-primary");
+    button.classList.add("chest-action-recommended");
+    if (button.dataset) button.dataset.recommended = "true";
+    return button;
+  };
 
-  let disarmText = "解除する";
-  let disarmHandler = onDisarm;
+  // Unavailable steps collapse into one compact status row instead of full-width buttons.
+  // Every menu state has at least one (調査済み or 解除（要調査）), so the row always renders.
+  const statusRow = document.createElement("div");
+  statusRow.className = "chest-status-row";
+  optGrid.appendChild(statusRow);
+  if (chest.inspected) {
+    statusRow.appendChild(createStatusChip({ id: "btn-chest-inspect", text: "調査済み" }));
+  } else {
+    optGrid.appendChild(markRecommended(createButton({
+      id: "btn-chest-inspect",
+      className: "btn btn-neon btn-block",
+      text: "調べる",
+      onClick: onInspect
+    }), "inspect"));
+  }
+
   if (!chest.inspected) {
-    disarmText = "解除（要調査）";
-    disarmHandler = null;
+    statusRow.appendChild(createStatusChip({ id: "btn-chest-disarm", text: "解除（要調査）" }));
   } else if (!chest.identifiedTrap || chest.identifiedTrap === "none") {
-    disarmText = "解除不要";
-    disarmHandler = null;
+    statusRow.appendChild(createStatusChip({ id: "btn-chest-disarm", text: "解除不要" }));
+  } else {
+    optGrid.appendChild(markRecommended(createButton({
+      id: "btn-chest-disarm",
+      className: "btn btn-neon btn-block",
+      text: "解除する",
+      onClick: onDisarm,
+      role: "confirm"
+    }), "disarm"));
   }
-  const disarmButton = createButton({
-    id: "btn-chest-disarm",
-    className: "btn btn-neon btn-block",
-    text: disarmText,
-    onClick: disarmHandler,
-    role: "confirm"
-  });
-  if (!disarmHandler) {
-    disarmButton.disabled = true;
-    disarmButton.classList.add("disabled");
-  }
-  optGrid.appendChild(disarmButton);
 
   if (inventory.includes("TRAP_KIT")) {
     optGrid.appendChild(createButton({
@@ -206,13 +247,13 @@ export function renderChestMenu({
       role: "confirm"
     }));
   }
-  optGrid.appendChild(createButton({
+  optGrid.appendChild(markRecommended(createButton({
     id: "btn-chest-open",
     className: "btn btn-neon btn-block",
     text: "宝箱を開ける",
     onClick: onOpen,
     role: "confirm"
-  }));
+  }), "open"));
   const smashButton = createButton({
     id: "btn-chest-smash",
     className: "btn btn-danger btn-block",

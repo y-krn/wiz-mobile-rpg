@@ -28,7 +28,7 @@ async function readDungeonFirstLayout(page) {
     const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect().toJSON() || null;
     const container = document.querySelector('#game-container');
     const visibleButtons = Array.from(document.querySelectorAll('#controls-panel button'))
-      .filter((button) => getComputedStyle(button).display !== 'none' && !button.hidden)
+      .filter((button) => getComputedStyle(button).display !== 'none' && !button.hidden && !button.disabled)
       .map((button) => ({ id: button.id, rect: button.getBoundingClientRect().toJSON() }))
       .filter(({ rect }) => rect.width > 0 && rect.height > 0)
     return {

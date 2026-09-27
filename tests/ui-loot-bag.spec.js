@@ -64,7 +64,10 @@ for (const viewport of [
     });
 
     expect(result.item).toMatchObject({ used: '3', slots: 20, occupied: 3 });
-    expect(result.chest).toMatchObject({ used: '3', slots: 20, occupied: 3 });
+    // The chest decision panel keeps the shared used/free count but omits the slot grid (#1834).
+    expect(result.chest).toMatchObject({ used: '3', slots: 0, occupied: 0 });
+    expect(result.chest.text).toContain('バッグ 3/20枠');
+    expect(result.chest.text).toContain('空き17枠');
     expect(result.equip).toMatchObject({ used: '3', slots: 20, occupied: 3 });
     expect(result.item.text).toContain('空き17枠');
     expect(result.ownership).toEqual(['town-confirmed', 'dungeon-unconfirmed']);

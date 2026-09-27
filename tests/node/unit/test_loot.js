@@ -282,6 +282,8 @@ import assert from "assert";
     assert.ok(btnDisarmBefore, "Disarm button should exist");
     assert.strictEqual(btnDisarmBefore.textContent, "解除（要調査）", "Disarm button should say '解除（要調査）' before inspection");
     assert.strictEqual(btnDisarmBefore.disabled, true, "Disarm button should be disabled before inspection");
+    const recommendedBefore = buttons.filter(b => b.className.includes("chest-action-recommended"));
+    assert.deepStrictEqual(recommendedBefore.map(b => b.textContent), ["調べる"], "Only inspect should be recommended before inspection");
 
     console.log("[PASS] Initial UI button states verified.");
 
@@ -313,6 +315,12 @@ import assert from "assert";
       assert.strictEqual(btnDisarmAfter.textContent, "解除する", "Disarm button should say '解除する' if trap identified");
       assert.strictEqual(btnDisarmAfter.disabled, false, "Disarm button should be enabled if trap identified");
     }
+    const recommendedAfter = buttons.filter(b => b.className.includes("chest-action-recommended"));
+    assert.deepStrictEqual(
+      recommendedAfter.map(b => b.textContent),
+      [state.chestState.identifiedTrap === "none" ? "宝箱を開ける" : "解除する"],
+      "Exactly one next action should be recommended after inspection"
+    );
 
     console.log("[PASS] Post-inspection UI button states verified.");
 
