@@ -24,7 +24,7 @@ import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision, trac
 import { applyExplorationItem } from "../systems/exploration_items.js";
 import { calculateSecretDoorSearchChance } from "../rules/exploration_rules.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry, RETURN_WING_SALVAGE_COUNT } from "../state/run_loot.js";
-import { appendOwnershipBadge, getItemOwnership } from "../ui/common_shell.js";
+import { appendOwnershipBadge, getItemOwnership, OWNERSHIP_STATES } from "../ui/common_shell.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
 
 let selectedWingLootIds = new Set();
@@ -141,7 +141,8 @@ export function handleExploreAction(action) {
     menuContext.actorIdx = firstCasterIdx !== -1 ? firstCasterIdx : 0;
     openSubmenu("spell_select", "呪文選択:");
   } else if (action === "tool") {
-    openSubmenu("item_inventory", `共有バッグ (${getUsableInventoryItems(state.inventory).length}個) - 道具を使う:`);
+    inventoryFilter = null;
+    openSubmenu("item_inventory", `共有バッグ (${state.inventory.length}個)`);
   } else if (action === "item" || action === "equip") {
     openEquipOverlay(0);
   }
@@ -176,20 +177,167 @@ export function renderExploreManagement(optGrid) {
   optGrid.appendChild(btnAbandon);
 }
 
+const EQUIPMENT_ITEM_TYPES = new Set(["weapon", "armor", "shield", "accessory"]);
+const INVENTORY_FILTERS = [
+  { id: "tools", label: "道具" },
+  { id: "equipment", label: "装備品" },
+  { id: "materials", label: "素材" }
+];
+let inventoryFilter = null;
+
+function getInventorySections() {
+  const inventory = Array.isArray(state.inventory) ? state.inventory : [];
+  const equipment = [];
+  const otherItems = [];
+  inventory.forEach((itemKey, idx) => {
+    const item = getItemData(itemKey);
+    if (EQUIPMENT_ITEM_TYPES.has(item?.type)) equipment.push({ itemKey, idx, item });
+    else if (item?.type !== "usable") otherItems.push({ itemKey, idx, item });
+  });
+  const runMaterials = state.currentRun?.materials || {};
+  const materials = Object.entries(runMaterials)
+    .map(([name, count]) => ({ name, count: Math.max(0, Math.floor(Number(count) || 0)) }))
+    .filter(({ count }) => count > 0);
+  return {
+    usable: getUsableInventoryItems(inventory),
+    otherItems,
+    equipment,
+    materials,
+    identifyTickets: Math.max(0, Math.floor(Number(state.identifyTickets) || 0))
+  };
+}
+
+// Town items are the safe default; the bag only flags items that can still be lost.
+function appendBagOwnershipBadge(row, ownership) {
+  if (ownership === OWNERSHIP_STATES.TOWN_CONFIRMED) return;
+  appendOwnershipBadge(row, ownership);
+}
+
+function getInventoryFilterCount(sections, filterId) {
+  if (filterId === "tools") return sections.usable.length + sections.otherItems.length;
+  if (filterId === "equipment") return sections.equipment.length;
+  return sections.materials.length + (sections.identifyTickets > 0 ? 1 : 0);
+}
+
+function openEquipFromInventory() {
+  closeSubmenu();
+  openEquipOverlay(0);
+}
+
+function appendInventoryNote(list, text) {
+  const note = document.createElement("div");
+  note.className = "detail-placeholder inventory-filter-note";
+  note.textContent = text;
+  list.appendChild(note);
+}
+
+function appendEquipLinkButton(list, label) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn btn-block inventory-equip-link";
+  btn.textContent = label;
+  btn.addEventListener("click", openEquipFromInventory);
+  list.appendChild(btn);
+}
+
+function renderEquipmentFilter(list, sections) {
+  if (sections.equipment.length === 0) {
+    appendInventoryNote(list, "バッグに装備品はありません。");
+    return;
+  }
+  const unidentified = sections.equipment.filter(({ itemKey }) => itemKey?.identified === false).length;
+  sections.equipment.forEach(({ itemKey, item }) => {
+    const row = document.createElement("div");
+    row.className = "ownership-aware-row";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-block inventory-equipment-row";
+    btn.textContent = itemKey?.identified === false && !item.name.includes("未鑑定") ? `${item.name}（未鑑定）` : item.name;
+    const ownership = getItemOwnership(itemKey, { state });
+    btn.dataset.ownership = ownership;
+    btn.addEventListener("click", openEquipFromInventory);
+    row.appendChild(btn);
+    appendBagOwnershipBadge(row, ownership);
+    list.appendChild(row);
+  });
+  appendEquipLinkButton(list, unidentified > 0 && sections.identifyTickets > 0
+    ? `装備画面で鑑定する（未鑑定${unidentified} / 鑑定粉${sections.identifyTickets}）`
+    : "装備画面で装備・整理する");
+}
+
+function renderMaterialsFilter(list, sections) {
+  appendInventoryNote(list, "素材と鑑定粉はバッグ枠を使いません。");
+  if (sections.identifyTickets > 0) {
+    const row = document.createElement("div");
+    row.className = "inventory-material-row";
+    row.textContent = `鑑定粉 ×${sections.identifyTickets}`;
+    list.appendChild(row);
+    appendEquipLinkButton(list, "鑑定粉は装備画面で使う");
+  }
+  sections.materials.forEach(({ name, count }) => {
+    const row = document.createElement("div");
+    row.className = "inventory-material-row";
+    row.textContent = `${name} ×${count}`;
+    list.appendChild(row);
+  });
+  if (sections.materials.length === 0 && sections.identifyTickets === 0) {
+    appendInventoryNote(list, "今回の潜行で拾った素材はまだありません。");
+  }
+}
+
 export function renderItemInventory(optGrid) {
   optGrid.appendChild(createBagCapacitySummary(state.inventory, {
     className: "inventory-capacity-status",
     note: state.inventory.length >= INVENTORY_CAPACITY
       ? "満杯。拾得物は自動取得されません。必要なら装備画面の整理モードへ。"
-      : "道具を使う画面。装備品は装備画面で確認します。"
+      : "道具・装備品・素材を切り替えて確認できます。"
   }));
-  const usableItems = getUsableInventoryItems(state.inventory);
+  const sections = getInventorySections();
+  if (!INVENTORY_FILTERS.some(({ id }) => id === inventoryFilter)) {
+    inventoryFilter = INVENTORY_FILTERS.find(({ id }) => getInventoryFilterCount(sections, id) > 0)?.id || "tools";
+  }
+
+  const tabs = document.createElement("div");
+  tabs.className = "inventory-filter-tabs";
+  tabs.setAttribute("role", "tablist");
+  tabs.setAttribute("aria-label", "持ち物の種類");
+  INVENTORY_FILTERS.forEach(({ id, label }) => {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = `btn inventory-filter-tab${id === inventoryFilter ? " active" : ""}`;
+    tab.dataset.filter = id;
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(id === inventoryFilter));
+    tab.textContent = `${label} ${getInventoryFilterCount(sections, id)}`;
+    tab.addEventListener("click", () => {
+      inventoryFilter = id;
+      optGrid.replaceChildren();
+      renderItemInventory(optGrid);
+    });
+    tabs.appendChild(tab);
+  });
+  optGrid.appendChild(tabs);
+
+  const list = document.createElement("div");
+  list.className = "inventory-item-list";
+  list.dataset.filter = inventoryFilter;
+  list.setAttribute("role", "tabpanel");
+  optGrid.appendChild(list);
+
+  if (inventoryFilter === "equipment") {
+    renderEquipmentFilter(list, sections);
+    return;
+  }
+  if (inventoryFilter === "materials") {
+    renderMaterialsFilter(list, sections);
+    return;
+  }
+
+  const usableItems = sections.usable;
   if (usableItems.length === 0) {
-    const btn = document.createElement("button");
-    btn.className = "btn btn-block";
-    btn.textContent = "使える道具がありません";
-    btn.disabled = true;
-    optGrid.appendChild(btn);
+    appendInventoryNote(list, sections.equipment.length > 0
+      ? `使える道具はありません。装備品${sections.equipment.length}個は「装備品」で確認できます。`
+      : "使える道具はありません。");
   } else {
     usableItems.forEach(({ itemKey, idx, item }) => {
       const row = document.createElement("div");
@@ -200,7 +348,7 @@ export function renderItemInventory(optGrid) {
       const ownership = getItemOwnership(item, { state });
       btn.dataset.ownership = ownership;
       row.appendChild(btn);
-      appendOwnershipBadge(row, ownership);
+      appendBagOwnershipBadge(row, ownership);
       btn.addEventListener("click", () => {
         menuContext.itemKey = itemKey;
         menuContext.itemIdx = idx;
@@ -210,9 +358,15 @@ export function renderItemInventory(optGrid) {
         }
         openSubmenu(item.exploreDirectional ? "item_direction_select" : "item_target_select", item.exploreDirectional ? `${item.name}を投げる方向:` : `${item.name}の対象を選択:`);
       });
-      optGrid.appendChild(row);
+      list.appendChild(row);
     });
   }
+  sections.otherItems.forEach(({ itemKey, item }) => {
+    const row = document.createElement("div");
+    row.className = "inventory-material-row";
+    row.textContent = `${item?.name || String(itemKey)}（持ち帰り品）`;
+    list.appendChild(row);
+  });
 }
 
 function useExplorationItem(itemKey, itemIdx, item) {

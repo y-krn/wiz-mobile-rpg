@@ -40,8 +40,8 @@ for (const viewport of VIEWPORTS) {
 
       const grid = document.createElement('div');
       renderItemInventory(grid);
-      const labels = Array.from(grid.querySelectorAll('button')).map(button => button.textContent);
-      const greaterButton = Array.from(grid.querySelectorAll('button')).find(button => button.textContent === '上薬');
+      const labels = Array.from(grid.querySelectorAll('.inventory-item-list button')).map(button => button.textContent);
+      const greaterButton = Array.from(grid.querySelectorAll('.inventory-item-list button')).find(button => button.textContent === '上薬');
       greaterButton?.click();
       const exploreSelection = {
         itemKey: menuContext.itemKey,
