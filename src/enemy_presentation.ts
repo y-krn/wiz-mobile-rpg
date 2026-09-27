@@ -8,7 +8,9 @@ type EnemyArchetype = "small" | "humanoid" | "brute" | "caster" | "boss";
 type EnemyRecipeKey =
   | "flash-bat" | "powder-bat" | "biter" | "mud-slime" | "split-slime"
   | "rat-pack" | "sleep-spore" | "mud-cursed-child" | "kobold-scout"
-  | "goblin-caster" | "rusted-shield" | EnemyArchetype;
+  | "goblin-caster" | "rusted-shield"
+  | "skeleton" | "zombie" | "orc" | "ghost" | "wisp" | "spider" | "rabbit" | "demon" | "dragon"
+  | EnemyArchetype;
 type IncludesLike = { includes(value: string): unknown };
 type EnemyPresentationInput = {
   name?: unknown;
@@ -42,6 +44,15 @@ export const ENEMY_RECIPE_KEYS = Object.freeze({
   koboldScout: "kobold-scout",
   goblinCaster: "goblin-caster",
   rustedShield: "rusted-shield",
+  skeleton: "skeleton",
+  zombie: "zombie",
+  orc: "orc",
+  ghost: "ghost",
+  wisp: "wisp",
+  spider: "spider",
+  rabbit: "rabbit",
+  demon: "demon",
+  dragon: "dragon",
   small: "small",
   humanoid: "humanoid",
   brute: "brute",
@@ -90,6 +101,35 @@ const HUMANOID_TYPES = new Set(["skeleton", "zombie", "orc", "kobold"]);
 const CASTER_TYPES = new Set(["mage", "spirit", "wisp"]);
 const SMALL_TYPES = new Set(["biter", "bat", "rabbit", "spider"]);
 
+// Unnamed enemies keep their archetype's size profile but borrow a creature
+// family silhouette from their sprite type, so a zombie, an orc, and a ghost do
+// not all collapse into the same generic archetype shape.
+const SPRITE_FAMILY_RECIPES: Readonly<Record<string, EnemyRecipeKey>> = Object.freeze({
+  skeleton: ENEMY_RECIPE_KEYS.skeleton,
+  zombie: ENEMY_RECIPE_KEYS.zombie,
+  orc: ENEMY_RECIPE_KEYS.orc,
+  spirit: ENEMY_RECIPE_KEYS.ghost,
+  wisp: ENEMY_RECIPE_KEYS.wisp,
+  spider: ENEMY_RECIPE_KEYS.spider,
+  rabbit: ENEMY_RECIPE_KEYS.rabbit,
+  bat: ENEMY_RECIPE_KEYS.flashBat,
+  flack: ENEMY_RECIPE_KEYS.demon,
+  dragon: ENEMY_RECIPE_KEYS.dragon
+});
+const CASTER_FAMILY_TYPES = new Set(["spirit", "wisp"]);
+const GOLEM_BODY_TYPES = new Set(["zombie", "skeleton", "orc", "kobold"]);
+
+function resolveFamilyRecipe(archetype: EnemyArchetype, spriteType: unknown): EnemyRecipeKey {
+  const type = typeof spriteType === "string" ? spriteType : "";
+  const family = Object.prototype.hasOwnProperty.call(SPRITE_FAMILY_RECIPES, type) ? SPRITE_FAMILY_RECIPES[type] : null;
+  // Giants, golems, statues, and armor read as the brute golem. Creature
+  // families whose name merely says "giant" (a giant spider) keep their body.
+  if (archetype === "brute") return family && !GOLEM_BODY_TYPES.has(type) ? family : ENEMY_ARCHETYPES.brute.recipe;
+  // Spell users keep the robed caster silhouette; ghosts and wisps keep theirs.
+  if (archetype === "caster" && !CASTER_FAMILY_TYPES.has(type)) return ENEMY_ARCHETYPES.caster.recipe;
+  return family || ENEMY_ARCHETYPES[archetype].recipe;
+}
+
 function includesAny(value: string, words: string[]): boolean {
   return words.some(word => value.includes(word));
 }
@@ -117,8 +157,8 @@ export function getEnemyPresentation(monster: EnemyPresentationInput = {}) {
   const archetype = getEnemyArchetype(monster);
   const base = ENEMY_ARCHETYPES[archetype];
   const unique = typeof monster.name === "string" ? resolveUniqueRecipe(monster.name) : null;
-  const recipe = unique?.recipe || base.recipe;
-  const profile = unique ? { ...PRESENTATION_DEFAULTS, label: recipe, recipe } : base;
+  const recipe = unique?.recipe || resolveFamilyRecipe(archetype, monster.spriteType);
+  const profile = unique ? { ...PRESENTATION_DEFAULTS, label: recipe, recipe } : { ...base, recipe };
   return {
     ...profile,
     archetype,
