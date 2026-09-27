@@ -169,6 +169,8 @@ W.__fight = async () => {
   while (s.gameState === 'combat' && r++ < 40) {
     const alive = s.combatState.monsters.filter(m => m.hp > 0 && !m.fled);
     const enemyHp = alive.reduce((a, m) => a + m.hp, 0);
+    // A roaming elite is an optional risk: leave at once, like a player would.
+    if (s.combatState.isRoamingFlack) { await W.__act('逃走'); note += ' [flee-elite]'; continue; }
     if (P().hp <= DATA.getCharMaxHp(P()) * 0.3) {
       if (await W.__useHeal()) { note += ' [heal]'; continue; }
       if (enemyHp > 12) { await W.__act('逃走'); note += ' [flee]'; continue; }
