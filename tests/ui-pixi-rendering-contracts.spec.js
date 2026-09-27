@@ -50,7 +50,8 @@ async function setState(page, { map, floor = 1, x = 4, y = 4, dir = 0, combatMon
     state.gameState = combatMonsters ? 'combat' : 'explore';
     state.transitioning = false;
     state.combatState = combatMonsters ? { phase: 'choose_actions', monsters: combatMonsters } : null;
-    state.roamingMonsters = danger ? [{ floor, x, y: Math.max(0, y - 1), kind: 'elite', perception: 'visible' }] : [];
+    const elite = typeof danger === 'object' && danger ? danger : { x, y: Math.max(0, y - 1) };
+    state.roamingMonsters = danger ? [{ floor, ...elite, kind: 'elite', perception: 'visible' }] : [];
     if (targetSelection && state.combatState) {
       state.gameState = 'submenu';
       menuContext.type = 'combat_target'; menuContext.targetType = 'enemy'; menuContext.prevGameState = 'combat';
@@ -180,6 +181,42 @@ test('PixiJS motion uses projection continuity, restrained turns, and combat fee
   expect(combat.damageTexts).toBe(1);
   const combatFrame = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath('pixi-combat-entry-hit-danger-390.png') });
   await testInfo.attach('pixi-combat-entry-hit-danger-390', { body: combatFrame, contentType: 'image/png' });
+});
+
+test('PixiJS strong-enemy warning is an amber edge vignette distinct from trap markers @smoke', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?renderer=pixi');
+  await expect(page.locator('#viewport-panel')).toHaveAttribute('data-renderer', 'pixi');
+  const fixture = makeSyntheticFixture('straight-corridor');
+  fixture.map[3][4].trap = { state: 'discovered' };
+  const readDangerLayers = () => page.evaluate(async () => {
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const input = dungeonRenderer.getRenderInput();
+    dungeonRenderer.draw(input);
+    const { layers } = dungeonRenderer.scene;
+    return { cue: input.dangerCue, overlays: layers.overlays.children.length, worldObjects: layers['world-objects'].children.length };
+  });
+
+  await setState(page, { map: fixture });
+  const trapOnly = await readDangerLayers();
+  // Elite two cells behind the party: near enough to warn, not drawn in the forward view.
+  await setState(page, { map: fixture, danger: { x: 4, y: 6 } });
+  const trapAndDanger = await readDangerLayers();
+  expect(trapOnly.cue.active).toBe(false);
+  expect(trapAndDanger.cue).toEqual({ active: true, source: 'roaming' });
+  // The warning lives in the screen overlay, not on the floor where trap markers are drawn.
+  expect(trapAndDanger.overlays).toBeGreaterThan(trapOnly.overlays);
+  expect(trapAndDanger.worldObjects).toBe(trapOnly.worldObjects);
+  const frame = await page.screenshot({ path: testInfo.outputPath('pixi-trap-and-danger-390x844.png') });
+  await testInfo.attach('pixi-trap-and-danger-390x844', { body: frame, contentType: 'image/png' });
+  persistEvidence('pixi-trap-and-danger-390x844.png', frame);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const reduced = await readDangerLayers();
+  expect(reduced.overlays).toBe(trapAndDanger.overlays);
+  const reducedFrame = await page.screenshot({ path: testInfo.outputPath('pixi-trap-and-danger-reduced-390x844.png') });
+  await testInfo.attach('pixi-trap-and-danger-reduced-390x844', { body: reducedFrame, contentType: 'image/png' });
+  persistEvidence('pixi-trap-and-danger-reduced-390x844.png', reducedFrame);
 });
 
 test('Pixi keeps deterministic exploration evidence for representative states @smoke @visual', async ({ page }, testInfo) => {
