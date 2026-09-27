@@ -31,6 +31,7 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
   });
 
   // 2. One tap opens the chest; no actor-selection submenu is rendered.
+  // A reward that fits the bag goes straight in without a resolution screen (#1835).
   await page.locator('#btn-chest-open').click();
   await expect.poll(async () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -44,26 +45,15 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
       pending: Boolean(state.currentRun?.pendingRewardBundle),
     };
   })).toEqual({
-      gameState: 'submenu',
+      gameState: 'explore',
       transitioning: false,
       hasChest: false,
-      menuType: 'pending_rewards',
-      potionCount: 0,
-      pending: true,
+      menuType: '',
+      potionCount: 1,
+      pending: false,
     });
   await expect(page.getByText('宝箱を開けるキャラクターを選択：')).toHaveCount(0);
-  await page.locator('.pending-reward-card').getByRole('button', { name: '持つ', exact: true }).click();
-  await page.locator('#btn-pending-reward-confirm').click();
-  await expect.poll(async () => page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    const { menuContext } = await import('/src/navigation.js');
-    return {
-      gameState: state.gameState,
-      menuType: menuContext.type,
-      potionCount: state.inventory.filter(item => item === 'HEAL_POTION').length,
-      pending: Boolean(state.currentRun?.pendingRewardBundle),
-    };
-  })).toEqual({ gameState: 'explore', menuType: '', potionCount: 1, pending: false });
+  await expect(page.locator('#loot-toast')).toBeVisible();
 
   // 3. A trapped chest enters disarm resolution directly from the chest menu.
   await page.evaluate(async () => {
@@ -102,11 +92,11 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
       pending: Boolean(state.currentRun?.pendingRewardBundle),
     };
   }), { timeout: 5000 }).toEqual({
-    gameState: 'submenu',
+    gameState: 'explore',
     transitioning: false,
     hasChest: false,
-    menuType: 'pending_rewards',
-    pending: true,
+    menuType: '',
+    pending: false,
   });
 
 });
