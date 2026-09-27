@@ -153,6 +153,20 @@
   align-content: start;
 }
 
+.solo-start-floor-section {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(var(--tap-min), auto);
+  gap: var(--sp-xs);
+}
+
+.solo-start-craft-empty {
+  margin: 0;
+  padding: var(--sp-xs) var(--sp-xxs);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
 .solo-start-floor-heading {
   display: grid;
   grid-column: 1 / -1;

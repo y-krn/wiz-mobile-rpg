@@ -202,6 +202,14 @@ for (const vp of VIEWPORTS) {
     await heal.click();
     await heal.click();
 
+    const confirm = page.getByRole('button', { name: '迷宮へ向かう' });
+    const confirmBox = await confirm.boundingBox();
+    expect(confirmBox).not.toBeNull();
+    expect(confirmBox.y + confirmBox.height, `Confirm must fit in the viewport on ${vp.name}`).toBeLessThanOrEqual(vp.height);
+    expect(confirmBox.height, `Confirm must stay tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
+
+    // Floor choices share the one scrolling surface; bring them back into view.
+    await page.locator('#submenu-options').evaluate((options) => { options.scrollTop = 0; });
     const starts = page.locator('.solo-start-floor-option');
     await expect(starts).toHaveCount(3);
     for (let index = 0; index < await starts.count(); index++) {
@@ -226,7 +234,7 @@ for (const vp of VIEWPORTS) {
     await heal.click();
     await heal.click();
 
-    const start = page.getByRole('button', { name: /B1Fから開始/ });
+    const start = page.getByRole('button', { name: '迷宮へ向かう' });
     // Web fonts load per unicode-range subset as new text renders; a late
     // subset reflows the layout by 1px, so measure after pending loads finish.
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
@@ -331,7 +339,7 @@ for (const vp of VIEWPORTS) {
       const floors = [...document.querySelectorAll('.solo-start-floor-option')];
       return {
         craft: button.getBoundingClientRect().toJSON(),
-        lowestFloorTop: Math.min(...floors.map((floor) => floor.getBoundingClientRect().top)),
+        lowestFloorBottom: Math.max(...floors.map((floor) => floor.getBoundingClientRect().bottom)),
         hasHorizontalOverflow:
           document.documentElement.scrollWidth > document.documentElement.clientWidth,
       };
@@ -340,7 +348,7 @@ for (const vp of VIEWPORTS) {
     expect(layout.craft.height, 'Departure craft choice stays tappable').toBeGreaterThanOrEqual(44);
     expect(layout.craft.left).toBeGreaterThanOrEqual(0);
     expect(layout.craft.right).toBeLessThanOrEqual(vp.width);
-    expect(layout.craft.top).toBeLessThan(layout.lowestFloorTop);
+    expect(layout.craft.top).toBeGreaterThan(layout.lowestFloorBottom);
     await expect(page.locator('#btn-submenu-back')).toBeVisible();
     const backBox = await page.locator('#btn-submenu-back').boundingBox();
     expect(backBox.height, 'Departure back button stays tappable').toBeGreaterThanOrEqual(44);
@@ -416,9 +424,9 @@ test('Departure craft allows empty-handed departure without materials', async ({
   });
 
   await page.locator('.solo-starting-kit-option').first().click();
-  const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
-  await expect(heal).toBeDisabled();
-  await expect(heal).toContainText('あと0個・素材不足');
+  // No affordable recipe collapses the craft list into a single hint.
+  await expect(page.locator('.solo-start-craft-option')).toHaveCount(0);
+  await expect(page.locator('.solo-start-craft-empty')).toHaveText('持ち込める道具はまだない。素材を集めると作れる。');
   await expect(page.locator('.solo-start-craft-balance')).toHaveCount(0);
   await expect(page.locator('.solo-start-floor-option').first()).toBeEnabled();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
@@ -537,6 +545,39 @@ test('Preparation explains bag cap and Return Wing individual limit', async ({ p
   await expect(heal).toBeDisabled();
   await expect(heal).toContainText('あと0個・バッグ上限（20枠）');
 });
+
+for (const vp of [
+  { width: 390, height: 844, name: '390x844' },
+  { width: 375, height: 667, name: '375x667' },
+]) {
+  test(`Preparation uses one scroll surface with a pinned departure at ${vp.name}`, async ({ page }) => {
+    await openDeparturePreparation(page, vp, [5]);
+    const readLayout = () => page.evaluate(() => {
+      const scrollers = [...document.querySelectorAll('#submenu-controls *')].filter((element) => {
+        const { overflowY } = getComputedStyle(element);
+        return ['auto', 'scroll'].includes(overflowY) && element.scrollHeight > element.clientHeight + 1;
+      }).map((element) => element.id || element.className);
+      const confirm = document.getElementById('btn-departure-start').getBoundingClientRect();
+      return {
+        scrollers,
+        documentScrolls: document.documentElement.scrollHeight > document.documentElement.clientHeight,
+        floorsInScroller: [...document.querySelectorAll('.solo-start-floor-option')]
+          .every((floor) => Boolean(floor.closest('#submenu-options'))),
+        confirm: { top: confirm.top, bottom: confirm.bottom, height: confirm.height },
+      };
+    });
+    const before = await readLayout();
+    expect(before.documentScrolls).toBe(false);
+    expect(before.scrollers.every((name) => name === 'submenu-options')).toBe(true);
+    expect(before.floorsInScroller).toBe(true);
+    expect(before.confirm.bottom).toBeLessThanOrEqual(vp.height);
+    expect(before.confirm.height).toBeGreaterThanOrEqual(44);
+
+    await page.locator('#submenu-options').evaluate((options) => { options.scrollTop = options.scrollHeight; });
+    const after = await readLayout();
+    expect(after.confirm.top).toBeCloseTo(before.confirm.top, 3);
+  });
+}
 
 test('Preparation remains usable at 320x568', async ({ page }) => {
   await openDeparturePreparation(page, { width: 320, height: 568, name: 'small phone' }, [5, 10]);

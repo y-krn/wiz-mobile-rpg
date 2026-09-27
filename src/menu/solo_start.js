@@ -346,7 +346,20 @@ function renderDepartureCraftOptions(optGrid, startingKitId, startingGear) {
   craftHeading.textContent = "持ち込む道具を選ぶ";
   optGrid.appendChild(craftHeading);
 
-  getSortedCraftRecipes(CRAFT_RECIPES).forEach(recipe => {
+  const recipes = getSortedCraftRecipes(CRAFT_RECIPES);
+  // With nothing selected and nothing affordable, every row would read
+  // "0個・素材不足"; collapse them into one hint instead.
+  const hasNoCraftableRecipe = selectedRecipeIds.length === 0 &&
+    recipes.every(recipe => getCraftSelectionBlockReason(recipe, selectedRecipeIds));
+  if (hasNoCraftableRecipe) {
+    const emptyNote = document.createElement("p");
+    emptyNote.className = "solo-start-craft-empty";
+    emptyNote.textContent = "持ち込める道具はまだない。素材を集めると作れる。";
+    optGrid.appendChild(emptyNote);
+    return;
+  }
+
+  recipes.forEach(recipe => {
     const quantity = getDepartureCraftQuantity(recipe.resultId);
     const availability = getCraftAvailability(recipe, selectedRecipeIds);
     const canAdd = !getCraftSelectionBlockReason(recipe, selectedRecipeIds);
@@ -412,8 +425,11 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
   changeKit.addEventListener("click", () => renderSoloStart(optGrid, ".solo-starting-kit-option"));
   optGrid.appendChild(changeKit);
 
-  renderDepartureCraftOptions(optGrid, startingKitId, startingGear);
-
+  // Floor choices live in the single scrolling surface; only the confirm
+  // action stays pinned in the footer so it is always reachable.
+  const floorSection = document.createElement("section");
+  floorSection.className = "solo-start-floor-section";
+  floorSection.setAttribute("aria-label", "開始階選択");
   const floorHeading = document.createElement("div");
   floorHeading.className = "solo-start-floor-heading";
   const floorTitle = document.createElement("strong");
@@ -421,7 +437,7 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
   const floorHint = document.createElement("span");
   floorHint.textContent = "深度帯を主情報に、素材倍率は補足表示";
   floorHeading.append(floorTitle, floorHint);
-  if (footer) footer.appendChild(floorHeading);
+  floorSection.appendChild(floorHeading);
 
   const floors = [1, ...(state.unlockedMilestones || [])];
   floors.forEach(floor => {
@@ -446,8 +462,11 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
         `[data-start-floor="${floor}"]`
       );
     });
-    if (footer) footer.appendChild(button);
+    floorSection.appendChild(button);
   });
+  optGrid.appendChild(floorSection);
+
+  renderDepartureCraftOptions(optGrid, startingKitId, startingGear);
 
   const startButton = document.createElement("button");
   startButton.id = "btn-departure-start";
