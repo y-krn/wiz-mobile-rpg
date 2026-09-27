@@ -25,6 +25,7 @@ import { buildLoadoutTransactionPayload } from "./telemetry_loadout_transaction.
 import { buildEquipmentDecisionPayload } from "./telemetry_equipment_decision.ts";
 import { buildBuildShiftPayload } from "./telemetry_build_shift.ts";
 import { buildEliteDecisionPayload } from "./telemetry_elite_decision.ts";
+import { buildPortalDecisionPayload } from "./telemetry_portal_decision.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -999,26 +1000,28 @@ export function trackValuableLocation(locationType, action, details = {}) {
 
 export function trackPortalDecision(decision, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
-  const normalizedDecision = decision === "continue" ? "push" : normalizeStableValue(decision, SAFE_PORTAL_DECISIONS);
   const stateSnapshot = details.state || null;
   const summary = getUnbankedLootSummary(stateSnapshot);
-  capture("portal_decision", {
+  const payload = buildPortalDecisionPayload({
     runId,
-    ...safeExplorationContext({ state: stateSnapshot, character: details.character }),
-    portalType: normalizeStableValue(details.portalType, SAFE_PORTAL_TYPES),
-    decision: normalizedDecision,
-    hpRate: boundedFiniteOrNull(details.hpRate ?? safeExplorationContext({ state: stateSnapshot, character: details.character }).hpRate, 0, 1),
-    mpRate: boundedFiniteOrNull(details.mpRate ?? safeExplorationContext({ state: stateSnapshot, character: details.character }).mpRate, 0, 1),
+    context: safeExplorationContext({ state: stateSnapshot, character: details.character }),
+    portalType: details.portalType,
+    decision,
+    hpRate: details.hpRate ?? safeExplorationContext({ state: stateSnapshot, character: details.character }).hpRate,
+    mpRate: details.mpRate ?? safeExplorationContext({ state: stateSnapshot, character: details.character }).mpRate,
     freeInventorySlots: buildResourceSnapshot(stateSnapshot).inventoryFreeSlots,
     unbankedObjectLootCount: summary.count,
     unbankedObjectLootValueProxy: summary.valueProxy,
     wingOwned: details.wingOwned ?? getReturnWingCount(stateSnapshot) > 0,
-    wingSalvageCount: boundedFiniteOrNull(details.wingSalvageCount, 0, 2),
-    nextBandMainId: normalizeOptionalStableValue(details.nextBandMainId, SAFE_BAND_TRIAL_IDS),
-    nextBandSubId: normalizeOptionalStableValue(details.nextBandSubId, SAFE_BAND_TRIAL_IDS),
-    stakeSnapshotPoint: "portal_decision",
-    ...buildStakeSnapshotFields(stateSnapshot)
+    wingSalvageCount: details.wingSalvageCount,
+    nextBandMainId: details.nextBandMainId,
+    nextBandSubId: details.nextBandSubId,
+    stakeSnapshotFields: buildStakeSnapshotFields(stateSnapshot),
+    safePortalTypes: SAFE_PORTAL_TYPES,
+    safePortalDecisions: SAFE_PORTAL_DECISIONS,
+    safeBandTrialIds: SAFE_BAND_TRIAL_IDS
   });
+  capture("portal_decision", payload);
 }
 
 export function trackEliteDecision(decision, details = {}) {

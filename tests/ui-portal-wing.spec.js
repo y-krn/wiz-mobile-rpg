@@ -102,6 +102,9 @@ for (const viewport of VIEWPORTS) {
       { name: 'ux_decision_opened', surface: 'portal', resolution: undefined, revisit: 'immediate' },
       { name: 'ux_decision_resolved', surface: 'portal', resolution: 'commit', revisit: undefined },
     ]);
+    expect(await page.evaluate(() => window.__portalTelemetry
+      .filter((event) => event.name === 'portal_decision')
+      .map((event) => event.properties.decision))).toEqual(['push', 'return']);
   });
 }
 
@@ -168,6 +171,11 @@ test('Wing shows every unbanked candidate, includes equipped loot, and cancels s
     ['ux_decision_resolved', 'cancel', undefined],
     ['ux_decision_opened', undefined, 'immediate'],
     ['ux_decision_resolved', 'commit', undefined],
+  ]);
+  expect(await page.evaluate(() => window.__portalTelemetry
+    .filter((event) => event.name === 'portal_decision')
+    .map((event) => [event.properties.portalType, event.properties.decision, event.properties.wingSalvageCount]))).toEqual([
+    ['return_wing', 'return', 2],
   ]);
 });
 
