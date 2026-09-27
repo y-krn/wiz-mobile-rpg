@@ -53,7 +53,11 @@ for (const vp of VIEWPORTS) {
     await expect(viewportHud).toContainText('方角:');
     await expect(viewportHud).not.toContainText(/X:\d+|Y:\d+|DUMAPIC/);
 
-    const logText = await page.locator('#log-content').textContent();
+    // The explore strip shows only the newest line (#1832); the survey is read
+    // in full from the log overlay.
+    await page.click('#btn-log-expand');
+    const logText = await page.locator('#log-overlay-body').textContent();
+    await page.click('#btn-log-overlay-close');
     expect(logText).toMatch(/DUMAPIC — B1 \/ .+向き/);
     expect(logText).toMatch(/測量座標 X:\d+ Y:\d+/);
     expect((logText.match(/X:\d+ Y:\d+/g) || [])).toHaveLength(1);

@@ -28,6 +28,7 @@ import {
 } from "./milestone_disclosure.js";
 import { releaseFocusSurface, syncFocusSurface } from "./focus_manager.js";
 import {
+  EXPLORE_HUD_LOG_LINGER_MS,
   isExploreHudGoalExpanded,
   nextExploreHudFocus,
   suspendExploreHudFocus,
@@ -39,6 +40,10 @@ let floorStingerTimer = null;
 let combatEntryCueTimer = null;
 let wasCombatContext = false;
 let exploreHudFocus = null;
+// The newest log line lingers on the explore HUD, then clears (#1832).
+let exploreLogLingerTimer = null;
+let exploreLogLingerSignature = null;
+let exploreLogFresh = false;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
 const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, viewport-fit=cover";
 const FLOOR_THEME_STYLE_PROPERTIES = [
@@ -252,6 +257,18 @@ export function getCurrentGoal() {
   return `${getFloorDisplayName(state, state.floor)}: ${getFloorLabel(state, state.floor + 1)}への下り階段を探せ`;
 }
 
+// A goal-row stat whose label hides while the explore goal is folded (#1832).
+function createGoalStat(icon, label, value) {
+  const stat = document.createElement("span");
+  [[icon + " ", ""], [label, "goal-stat-label"], [value, ""]].forEach(([text, className]) => {
+    const part = document.createElement("span");
+    if (className) part.className = className;
+    part.textContent = text;
+    stat.appendChild(part);
+  });
+  return stat;
+}
+
 function getExploreGoalSignature() {
   const quests = (state.currentRun?.quests || [])
     .map(quest => `${quest.name}:${quest.completed ? 1 : 0}:${formatRunQuestProgress(quest, state.currentRun)}`);
@@ -318,8 +335,18 @@ export function updateUI() {
   if (isExploreHud) {
     const logs = state.logs || [];
     const lastLog = logs[logs.length - 1];
+    const logSignature = `${logs.length}|${typeof lastLog === "object" && lastLog !== null ? lastLog.text : lastLog}`;
+    if (logSignature !== exploreLogLingerSignature) {
+      exploreLogLingerSignature = logSignature;
+      exploreLogFresh = true;
+      clearTimeout(exploreLogLingerTimer);
+      exploreLogLingerTimer = setTimeout(() => {
+        exploreLogFresh = false;
+        updateUI();
+      }, EXPLORE_HUD_LOG_LINGER_MS);
+    }
     exploreHudFocus = nextExploreHudFocus(exploreHudFocus, {
-      logSignature: `${logs.length}|${typeof lastLog === "object" && lastLog !== null ? lastLog.text : lastLog}`,
+      logSignature,
       goalSignature: getExploreGoalSignature(),
       poseSignature: `${state.floor},${state.x},${state.y},${state.dir}`,
       floor: state.floor
@@ -466,9 +493,14 @@ export function updateUI() {
       
       const statsContainer = document.createElement("span");
       statsContainer.className = "goal-stats-container";
-      const statsText = document.createElement("span");
-      statsText.textContent = `🗺️ 探索率: ${expRate}%`;
-      statsContainer.appendChild(statsText);
+      statsContainer.appendChild(createGoalStat("🗺️", "探索率: ", `${expRate}%`));
+      const quests = state.currentRun?.quests || [];
+      if (isExploreHud && quests.length > 0) {
+        // The folded one-line goal still carries run-quest progress (#1832).
+        const questSummary = createGoalStat("📜", "依頼 ", `${quests.filter(quest => quest.completed).length}/${quests.length}`);
+        questSummary.className = "goal-quest-summary";
+        statsContainer.appendChild(questSummary);
+      }
       goalRow.appendChild(statsContainer);
     }
     goalBanner.appendChild(goalRow);
@@ -566,9 +598,20 @@ export function updateUI() {
       presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
     });
   }
-  const transientBudget = Math.max(0, RECENT_LOG_LINES - persistentEvents.length);
-  [...persistentEvents, ...eventEntries.transient.slice(-transientBudget)]
-    .forEach(appendEventEntry);
+  if (isExploreHud) {
+    // Explore keeps unresolved observations and the latest result, plus the
+    // newest line until EXPLORE_HUD_LOG_LINGER_MS passes (#1832). The full
+    // history stays behind #btn-log-expand.
+    const exploreEvents = [...eventEntries.unresolved, ...(eventEntries.results || []).slice(-1)];
+    const newestText = flattenLogLines(getLogEntries()).at(-1)?.text;
+    const newest = exploreEvents.some(({ text }) => text === newestText) ? null : eventEntries.transient.at(-1);
+    exploreEvents.forEach(appendEventEntry);
+    if (exploreLogFresh && newest) appendEventEntry(newest);
+  } else {
+    const transientBudget = Math.max(0, RECENT_LOG_LINES - persistentEvents.length);
+    [...persistentEvents, ...eventEntries.transient.slice(-transientBudget)]
+      .forEach(appendEventEntry);
+  }
   restoreScrollState(logPanel, logScrollState);
 
   // Keep the full-log overlay content fresh if it happens to be open

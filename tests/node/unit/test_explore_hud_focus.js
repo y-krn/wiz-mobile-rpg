@@ -18,7 +18,8 @@ const step = (focus, patch) => nextExploreHudFocus(focus, { ...base, ...patch })
 // Explore start or reload opens the HUD.
 let focus = nextExploreHudFocus(null, base);
 assert.equal(focus.mode, EXPLORE_HUD_MODES.NOTICE);
-assert.equal(isExploreHudGoalExpanded(focus), true);
+// The goal starts folded to one line even on a notice (#1832).
+assert.equal(isExploreHudGoalExpanded(focus), false);
 assert.equal(focus.minimapExpanded, false);
 
 // Re-rendering without a pose change (wall bump, menu refresh) is not an action.
@@ -60,14 +61,15 @@ focus = step(focus, { logSignature: "5|x", poseSignature: "1,4,1,1" });
 assert.equal(focus.mode, EXPLORE_HUD_MODES.ROAM);
 assert.equal(isExploreHudGoalExpanded(focus), true);
 
-// A manual collapse during notice yields to the next notice.
-let collapsed = toggleExploreHudGoal(nextExploreHudFocus(null, base));
-assert.equal(isExploreHudGoalExpanded(collapsed), false);
-assert.equal(collapsed.mode, EXPLORE_HUD_MODES.NOTICE);
-collapsed = step(collapsed, {});
-assert.equal(isExploreHudGoalExpanded(collapsed), false);
-collapsed = step(collapsed, { logSignature: "9|next" });
-assert.equal(isExploreHudGoalExpanded(collapsed), true);
+// New information does not re-open the folded goal; a manual expansion
+// survives it.
+let folded = step(focus, { ...roamPose, logSignature: "9|next", goalSignature: "goal|quest:2" });
+assert.equal(folded.mode, EXPLORE_HUD_MODES.NOTICE);
+assert.equal(isExploreHudGoalExpanded(folded), true);
+folded = toggleExploreHudGoal(folded);
+assert.equal(isExploreHudGoalExpanded(folded), false);
+folded = step(folded, { ...roamPose, logSignature: "10|next" });
+assert.equal(isExploreHudGoalExpanded(folded), false);
 
 // The minimap toggle is independent of the mode and survives leaving explore.
 focus = toggleExploreHudMinimap(focus);
@@ -81,8 +83,9 @@ assert.equal(resumed.minimapExpanded, true);
 assert.equal(suspendExploreHudFocus(null), null);
 assert.equal(toggleExploreHudMinimap(null).minimapExpanded, true);
 
-// The legacy JavaScript path remains a seven-export identity facade.
+// The legacy JavaScript path remains an eight-export identity facade.
 assert.deepEqual(Object.keys(facade), [
+  "EXPLORE_HUD_LOG_LINGER_MS",
   "EXPLORE_HUD_MODES",
   "EXPLORE_HUD_ROAM_AFTER_ACTIONS",
   "isExploreHudGoalExpanded",
@@ -96,6 +99,7 @@ for (const key of Object.keys(facade)) assert.strictEqual(facade[key], owner[key
 assert.equal(Object.isFrozen(EXPLORE_HUD_MODES), true);
 assert.deepEqual(EXPLORE_HUD_MODES, { NOTICE: "notice", ROAM: "roam" });
 assert.equal(EXPLORE_HUD_ROAM_AFTER_ACTIONS, 2);
+assert.equal(facade.EXPLORE_HUD_LOG_LINGER_MS, 4000);
 
 // Focus copies stay fresh, keep extensions, and never mutate input.
 const extended = { ...focus, custom: { value: 1 } };
@@ -119,11 +123,12 @@ assert.deepEqual(Object.keys(toggledExtended), [
   "floor", "mode", "actionsSinceNotice", "custom"
 ]);
 
-// Nullish goal values follow mode; explicit booleans override it.
+// Nullish goal values stay folded in every mode; explicit booleans override it.
 for (const goalExpanded of [null, undefined]) {
   assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.ROAM, goalExpanded }), false);
-  assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.NOTICE, goalExpanded }), true);
+  assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.NOTICE, goalExpanded }), false);
 }
+assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.NOTICE, goalExpanded: true }), true);
 assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.ROAM, goalExpanded: false }), false);
 assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.ROAM, goalExpanded: true }), true);
 
@@ -133,7 +138,7 @@ assert.deepEqual(Object.keys(partial), ["goalExpanded", "minimapExpanded"]);
 assert.deepEqual(partial, { goalExpanded: false, minimapExpanded: true });
 const resumedPartial = nextExploreHudFocus(partial, base);
 assert.equal(resumedPartial.mode, EXPLORE_HUD_MODES.NOTICE);
-assert.equal(resumedPartial.goalExpanded, null);
+assert.equal(resumedPartial.goalExpanded, false);
 assert.equal(resumedPartial.minimapExpanded, true);
 assert.deepEqual(Object.keys(resumedPartial), [
   "logSignature", "goalSignature", "poseSignature", "floor",

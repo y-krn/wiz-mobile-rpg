@@ -372,7 +372,10 @@ import assert from "assert";
     assert.strictEqual(state.party[1].status, "poisoned", "Selected opener should take poison needle");
     assert.ok(state.party[1].hp < 15 && state.party[1].hp >= 0, "Selected opener should take positive poison needle damage");
     assert.strictEqual(state.currentRun.trapsTriggered, 1, "Trap trigger count should increment");
-    assert.strictEqual(scheduledTimeouts.length, 0, "Surviving party should return without a result delay");
+    // The explore HUD's newest-log linger timer (#1832) is not a result delay.
+    const { EXPLORE_HUD_LOG_LINGER_MS } = await import("../../../src/ui/explore_hud_focus.js");
+    const resultDelays = scheduledTimeouts.filter(({ delay }) => delay !== EXPLORE_HUD_LOG_LINGER_MS);
+    assert.strictEqual(resultDelays.length, 0, "Surviving party should return without a result delay");
     assert.strictEqual(state.chestState, null, "Successful chest opening should clear chestState immediately");
     assert.strictEqual(state.gameState, "explore", "Successful chest opening should return to explore immediately");
     assert.strictEqual(state.transitioning, false, "Successful chest opening should end the transition immediately");
