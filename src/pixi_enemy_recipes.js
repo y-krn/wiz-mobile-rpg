@@ -689,6 +689,106 @@ function createDragon(container, scale, palette = DEFAULT_PALETTE) {
   pen.circle(46, -70, 2.4, 0xffe080, 1);
 }
 
+function createWerewolf(container, scale, palette = DEFAULT_PALETTE) {
+  const pen = createPen(container, scale, palette);
+  // Bushy tail
+  pen.blob([-14, -34, -40, -30, -56, -44, -52, -54, -40, -42, -16, -44], palette.main, 1);
+  pen.blob([-44, -40, -54, -46, -50, -52, -42, -46], palette.secondary, 0.8);
+  // Digitigrade legs with clawed feet
+  pen.line([-12, -32, -22, -16, -14, -2], palette.main, 9);
+  pen.line([12, -32, 22, -16, 16, -2], palette.main, 9);
+  pen.ellipse(-16, -1, 9, 4, palette.main, 1);
+  pen.ellipse(18, -1, 9, 4, palette.main, 1);
+  [-22, -16, -10].forEach(x => pen.poly([x - 2, 0, x + 2, 0, x - 1, 5], IVORY, 1));
+  [12, 18, 24].forEach(x => pen.poly([x - 2, 0, x + 2, 0, x + 1, 5], IVORY, 1));
+  // Ragged breeches
+  pen.poly([-26, -40, 26, -40, 24, -26, 16, -32, 8, -24, 0, -30, -8, -24, -16, -32, -24, -26], palette.material, 1);
+  // Hunched, broad torso with a pale chest
+  pen.blob([-28, -36, -36, -64, -18, -82, 18, -82, 36, -64, 28, -36], palette.main, 1);
+  pen.blob([-16, -40, -20, -62, 0, -72, 20, -62, 16, -40, 0, -46], palette.secondary, 0.85);
+  // Arms raised to strike, hooked claws
+  pen.line([-28, -68, -48, -56, -56, -74], palette.main, 9);
+  pen.line([28, -68, 48, -56, 56, -74], palette.main, 9);
+  pen.circle(-56, -76, 6, palette.main, 1);
+  pen.circle(56, -76, 6, palette.main, 1);
+  [-64, -58, -52].forEach(x => pen.poly([x - 2, -80, x + 2, -80, x - 2, -90], IVORY, 1));
+  [52, 58, 64].forEach(x => pen.poly([x - 2, -80, x + 2, -80, x + 2, -90], IVORY, 1));
+  // Shaggy mane behind the head
+  pen.poly([
+    -30, -80, -38, -92, -28, -96, -34, -108, -20, -106, -18, -118, 0, -110,
+    18, -118, 20, -106, 34, -108, 28, -96, 38, -92, 30, -80, 0, -72
+  ], palette.material, 1);
+  // Tall pointed ears
+  pen.poly([-20, -100, -26, -130, -6, -108], palette.main, 1);
+  pen.poly([20, -100, 26, -130, 6, -108], palette.main, 1);
+  pen.poly([-18, -104, -22, -122, -10, -108], palette.secondary, 0.9);
+  pen.poly([18, -104, 22, -122, 10, -108], palette.secondary, 0.9);
+  // Wolf head: broad skull, cheek tufts, short front-facing muzzle
+  pen.circle(0, -94, 22, palette.main, 1);
+  pen.poly([-20, -94, -30, -84, -18, -84], palette.main, 1);
+  pen.poly([20, -94, 30, -84, 18, -84], palette.main, 1);
+  pen.blob([-14, -86, 0, -90, 14, -86, 12, -72, 0, -68, -12, -72], palette.secondary, 1);
+  pen.ellipse(0, -87, 5, 3.4, palette.dark, 1);
+  eyePair(pen, 0, -98, 10, 4.8, { brow: palette.main });
+  // Snarling maw
+  pen.blob([-10, -80, 0, -82, 10, -80, 6, -70, -6, -70], palette.dark, 1);
+  fangs(pen, 0, -81, 18, 4, 5);
+  upFangs(pen, -6, -71, 5, 1, 5);
+  upFangs(pen, 6, -71, 5, 1, 5);
+}
+
+function createLivingArmor(container, scale, palette = DEFAULT_PALETTE) {
+  const pen = createPen(container, scale, palette);
+  // Cursed glow that animates the empty suit
+  pen.ellipse(0, -62, 52, 64, palette.accent, 0.1);
+  // Greatsword planted beside it
+  pen.line([44, -4, 44, -98], palette.rim, 5);
+  pen.line([44, -8, 44, -94], palette.secondary, 1.6, 0.8);
+  pen.line([34, -80, 54, -80], palette.material, 4);
+  pen.circle(44, -104, 4, palette.material, 1);
+  // Greaves and sabatons
+  pen.poly([-26, -36, -10, -36, -8, -6, -28, -6], palette.main, 1);
+  pen.poly([10, -36, 26, -36, 28, -6, 8, -6], palette.main, 1);
+  pen.circle(-18, -24, 5, palette.secondary, 1);
+  pen.circle(18, -24, 5, palette.secondary, 1);
+  pen.blob([-32, 0, -30, -8, -8, -8, -6, 0], palette.secondary, 1);
+  pen.blob([32, 0, 30, -8, 8, -8, 6, 0], palette.secondary, 1);
+  // Tattered tabard between the plates
+  pen.poly([-22, -46, 22, -46, 18, -24, 10, -30, 4, -18, -4, -28, -12, -20, -18, -28], palette.material, 1);
+  // Glowing seam at the waist
+  pen.ellipse(0, -46, 24, 3, palette.accent, 0.7);
+  // Breastplate with a central ridge
+  pen.blob([-30, -46, -36, -74, -22, -88, 22, -88, 36, -74, 30, -46], palette.main, 1);
+  pen.line([0, -86, 0, -50], palette.secondary, 3, 0.9);
+  pen.curve([-24, -80, 0, -86, 24, -80], palette.rim, 2, 0.8);
+  // Layered pauldrons
+  pen.blob([-50, -70, -48, -86, -30, -94, -22, -80, -32, -70], palette.secondary, 1);
+  pen.blob([50, -70, 48, -86, 30, -94, 22, -80, 32, -70], palette.secondary, 1);
+  pen.curve([-46, -76, -40, -86, -28, -90], palette.rim, 1.8, 0.9);
+  pen.curve([46, -76, 40, -86, 28, -90], palette.rim, 1.8, 0.9);
+  // Arms: left grips a battered kite shield, right rests on the sword hilt
+  pen.line([36, -72, 42, -84], palette.main, 8);
+  pen.circle(44, -86, 6, palette.secondary, 1);
+  pen.blob([-60, -74, -26, -74, -24, -48, -42, -24, -58, -44], palette.main, 1);
+  pen.blob([-54, -70, -30, -70, -30, -50, -42, -32, -54, -48], palette.secondary, 0.75);
+  pen.line([-42, -68, -42, -36], palette.material, 3.4);
+  pen.line([-52, -56, -32, -56], palette.material, 3.4);
+  // Hollow neck: darkness with cursed wisps leaking out
+  pen.ellipse(0, -90, 12, 5, palette.dark, 1);
+  pen.circle(-10, -96, 2.4, palette.accent, 0.7);
+  pen.circle(12, -100, 2, palette.accent, 0.6);
+  // Great helm with a plume and a T-visor lit from inside
+  pen.curve([4, -124, 18, -136, 30, -128, 34, -116], palette.material, 6);
+  pen.blob([-17, -92, -19, -116, 0, -126, 19, -116, 17, -92, 0, -88], palette.main, 1);
+  pen.blob([-12, -112, 0, -120, 10, -114, -2, -108], palette.rim, 0.5);
+  pen.poly([-14, -108, 14, -108, 14, -103, 3, -103, 3, -94, -3, -94, -3, -103, -14, -103], palette.dark, 1);
+  pen.ellipse(-7, -105.5, 5, 3, palette.accent, 0.35);
+  pen.ellipse(7, -105.5, 5, 3, palette.accent, 0.35);
+  pen.ellipse(-7, -105.5, 2.6, 1.7, palette.accent, 1);
+  pen.ellipse(7, -105.5, 2.6, 1.7, palette.accent, 1);
+  [-10, -4, 4, 10].forEach(x => pen.circle(x, -97, 1, palette.rim, 0.8));
+}
+
 // ---------------------------------------------------------------------------
 // Archetype fallbacks
 // ---------------------------------------------------------------------------
@@ -826,6 +926,8 @@ export const PROCEDURAL_RECIPE_BUILDERS = Object.freeze({
   rabbit: createRabbit,
   demon: createDemon,
   dragon: createDragon,
+  werewolf: createWerewolf,
+  ["living-armor"]: createLivingArmor,
   small: createFallbackSmall,
   humanoid: createFallbackHumanoid,
   brute: createFallbackBrute,

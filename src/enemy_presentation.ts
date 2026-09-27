@@ -10,6 +10,7 @@ type EnemyRecipeKey =
   | "rat-pack" | "sleep-spore" | "mud-cursed-child" | "kobold-scout"
   | "goblin-caster" | "rusted-shield"
   | "skeleton" | "zombie" | "orc" | "ghost" | "wisp" | "spider" | "rabbit" | "demon" | "dragon"
+  | "werewolf" | "living-armor"
   | EnemyArchetype;
 type IncludesLike = { includes(value: string): unknown };
 type EnemyPresentationInput = {
@@ -53,6 +54,8 @@ export const ENEMY_RECIPE_KEYS = Object.freeze({
   rabbit: "rabbit",
   demon: "demon",
   dragon: "dragon",
+  werewolf: "werewolf",
+  livingArmor: "living-armor",
   small: "small",
   humanoid: "humanoid",
   brute: "brute",
@@ -119,7 +122,17 @@ const SPRITE_FAMILY_RECIPES: Readonly<Record<string, EnemyRecipeKey>> = Object.f
 const CASTER_FAMILY_TYPES = new Set(["spirit", "wisp"]);
 const GOLEM_BODY_TYPES = new Set(["zombie", "skeleton", "orc", "kobold"]);
 
-function resolveFamilyRecipe(archetype: EnemyArchetype, spriteType: unknown): EnemyRecipeKey {
+// A few creatures share a sprite type with an unrelated body (a werewolf is
+// data-typed as an orc; haunted armor as a zombie). Their names carry the
+// intended body, so these name cues win over the sprite-type family.
+const NAME_FAMILY_RECIPES: ReadonlyArray<readonly [readonly string[], EnemyRecipeKey]> = Object.freeze([
+  Object.freeze([Object.freeze(["ワーウルフ", "ウェアウルフ", "人狼"]), ENEMY_RECIPE_KEYS.werewolf] as const),
+  Object.freeze([Object.freeze(["アーマー", "鎧"]), ENEMY_RECIPE_KEYS.livingArmor] as const)
+]);
+
+function resolveFamilyRecipe(archetype: EnemyArchetype, spriteType: unknown, name: string): EnemyRecipeKey {
+  const named = NAME_FAMILY_RECIPES.find(([words]) => words.some(word => name.includes(word)));
+  if (named) return named[1];
   const type = typeof spriteType === "string" ? spriteType : "";
   const family = Object.prototype.hasOwnProperty.call(SPRITE_FAMILY_RECIPES, type) ? SPRITE_FAMILY_RECIPES[type] : null;
   // Giants, golems, statues, and armor read as the brute golem. Creature
@@ -156,8 +169,9 @@ function resolveUniqueRecipe(name: string): { name: string; recipe: EnemyRecipeK
 export function getEnemyPresentation(monster: EnemyPresentationInput = {}) {
   const archetype = getEnemyArchetype(monster);
   const base = ENEMY_ARCHETYPES[archetype];
-  const unique = typeof monster.name === "string" ? resolveUniqueRecipe(monster.name) : null;
-  const recipe = unique?.recipe || resolveFamilyRecipe(archetype, monster.spriteType);
+  const name = typeof monster.name === "string" ? monster.name : "";
+  const unique = name ? resolveUniqueRecipe(name) : null;
+  const recipe = unique?.recipe || resolveFamilyRecipe(archetype, monster.spriteType, name);
   const profile = unique ? { ...PRESENTATION_DEFAULTS, label: recipe, recipe } : { ...base, recipe };
   return {
     ...profile,

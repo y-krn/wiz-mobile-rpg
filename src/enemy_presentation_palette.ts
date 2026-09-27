@@ -52,6 +52,8 @@ export const ENEMY_RECIPE_PALETTES = Object.freeze({
   rabbit: Object.freeze({ main: 0x9a8f84, secondary: 0xb4aa9c, rim: 0x8a8078, accent: 0xe0584c, material: 0xb07a7a, dark: BLACK }),
   demon: Object.freeze({ main: 0x6a3a44, secondary: 0x8a5058, rim: 0x9a6a70, accent: 0xffb040, material: 0x3a3030, dark: BLACK }),
   dragon: Object.freeze({ main: 0x6a3a34, secondary: 0xa88a5a, rim: 0x8a5a4a, accent: 0xffc040, material: 0xd8c8a0, dark: BLACK }),
+  werewolf: Object.freeze({ main: 0x5a5048, secondary: 0x7a6e62, rim: 0x938778, accent: 0xf0c050, material: 0x3e3630, dark: BLACK }),
+  ["living-armor"]: Object.freeze({ main: 0x5d6670, secondary: 0x8591a0, rim: 0xa9b6c2, accent: 0xff6a5a, material: 0x6a2c38, dark: BLACK }),
   small: Object.freeze({ main: 0x3f464c, secondary: 0x5d6870, rim: 0x70858a, accent: 0x9bb7b6, material: 0x62676b, dark: BLACK }),
   humanoid: Object.freeze({ main: 0x3f4546, secondary: 0x5d6362, rim: 0x71807e, accent: 0x9aa9a1, material: 0x64615a, dark: BLACK }),
   brute: Object.freeze({ main: 0x4b4742, secondary: 0x676057, rim: 0x787d77, accent: 0x9b8068, material: 0x765846, dark: BLACK }),
