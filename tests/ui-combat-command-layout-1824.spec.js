@@ -166,6 +166,9 @@ test('Unavailable combat commands stay visible, disabled, and explain why @e2e @
   await expect(repeat).toBeEnabled();
   await expect(repeat).not.toHaveAttribute('data-reason', /./);
 
+  await applyTurn(page, TURNS[5]);
+  await expect(page.locator('#btn-combat-technique')).not.toHaveAttribute('data-reason', /./);
+
   await applyTurn(page, TURNS[1]);
   await expect(cancel).toBeEnabled();
   await expect(cancel).not.toHaveAttribute('data-reason', /./);
@@ -175,7 +178,8 @@ test('Unavailable combat commands stay visible, disabled, and explain why @e2e @
   await applyTurn(page, TURNS[6]);
   const technique = page.locator('#btn-combat-technique');
   await expect(technique).toBeVisible();
-  await expect(technique).toContainText('あと3');
+  await expect(technique).toHaveText('見切り斬り');
+  await expect(technique).toHaveAttribute('data-reason', 'あと3ターン');
   await expect(technique).toHaveClass(/is-unavailable/);
   expect(Number(await technique.evaluate(el => getComputedStyle(el).opacity))).toBeLessThan(1);
   expect(Number(await cancel.evaluate(el => getComputedStyle(el).opacity))).toBeLessThan(1);
