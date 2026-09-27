@@ -31,6 +31,13 @@ import { buildObjectLootStakeSnapshot } from "./rules/object_loot_stake.js";
 import { isStartingKitId } from "./state/starting_kit.js";
 import { isKnownDeathType } from "./state/death_logs.js";
 import {
+  boundedFiniteOrNull,
+  MAX_TELEMETRY_RESOURCE_VALUE as MAX_RESOURCE_VALUE,
+  normalizeBoundedEnumArray,
+  normalizeOptionalStableValue,
+  normalizeStableValue
+} from "./telemetry_normalization.ts";
+import {
   attachTelemetryClient,
   captureTelemetryEvent,
   disableTelemetry,
@@ -186,7 +193,6 @@ const SAFE_RUNE_SUPPLY_BANDS = new Set([
 const LOOT_VALUE_BY_RARITY = Object.freeze({ common: 1, magic: 2, rare: 4, epic: 7, legendary: 12 });
 const MAX_ENEMY_SNAPSHOT = 8;
 const MAX_AFFIX_SNAPSHOT = 24;
-const MAX_RESOURCE_VALUE = 1_000_000;
 
 let pendingCombatDecisions = [];
 let runId = null;
@@ -228,33 +234,8 @@ function createRuntimeId(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${fallbackIdCounter.toString(36)}`;
 }
 
-function finiteOrNull(value) {
-  return Number.isFinite(Number(value)) ? Number(value) : null;
-}
-
-function boundedFiniteOrNull(value, min = 0, max = MAX_RESOURCE_VALUE) {
-  const normalized = finiteOrNull(value);
-  if (normalized === null) return null;
-  return Math.min(max, Math.max(min, normalized));
-}
-
 function normalizeStatus(status) {
   return SAFE_STATUSES.has(status) ? status : "other";
-}
-
-function normalizeStableValue(value, allowedValues) {
-  return allowedValues.has(value) ? value : "other";
-}
-
-function normalizeBoundedEnumArray(value, allowedValues, cap = MAX_AFFIX_SNAPSHOT) {
-  return Array.isArray(value)
-    ? value.slice(0, cap).map(item => normalizeStableValue(item, allowedValues))
-    : [];
-}
-
-function normalizeOptionalStableValue(value, allowedValues) {
-  if (value === null || value === undefined || value === "") return null;
-  return normalizeStableValue(value, allowedValues);
 }
 
 function normalizeRarity(value) {
