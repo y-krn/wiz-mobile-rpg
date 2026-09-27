@@ -156,7 +156,7 @@ test.describe('Common UI vNext shell @smoke', () => {
       state.inventory = [townItem, dungeonItem];
       const grid = document.createElement('div');
       renderItemInventory(grid);
-      return Array.from(grid.querySelectorAll('button')).map(button => ({
+      return Array.from(grid.querySelectorAll('button[data-ownership]')).map(button => ({
         ownership: button.dataset.ownership,
         badge: button.parentElement.querySelector('.ownership-badge')?.textContent,
       }));

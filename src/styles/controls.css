@@ -1199,6 +1199,39 @@
   color: var(--neon-cyan);
 }
 
+.inventory-filter-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-xs);
+  margin-bottom: var(--sp-xs);
+}
+
+.inventory-filter-tab {
+  min-height: 44px;
+  min-width: 0;
+  padding: var(--sp-xs);
+  white-space: nowrap;
+}
+
+.inventory-filter-tab.active {
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+}
+
+.inventory-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+  min-width: 0;
+}
+
+.inventory-material-row {
+  padding: var(--sp-xs) var(--sp-sm);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+}
+
 .chest-loot-hint {
   border-top: 1px dashed var(--border-strong);
   margin-top: var(--sp-xs);

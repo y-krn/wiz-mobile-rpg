@@ -314,7 +314,9 @@ export function renderCombatOverlay() {
     if (usableItems.length === 0) {
       const emptyMsg = document.createElement("div");
       emptyMsg.className = "detail-placeholder";
-      emptyMsg.textContent = "使える道具がありません";
+      emptyMsg.textContent = state.inventory.length > 0
+        ? `戦闘で使える道具はありません。バッグの他の${state.inventory.length}個は戦闘後にバッグで確認できます。`
+        : "使える道具がありません";
       itemGrid.appendChild(emptyMsg);
     } else {
       usableItems.forEach(({ itemKey, idx, item }) => {

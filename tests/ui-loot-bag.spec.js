@@ -126,3 +126,57 @@ test('equipped dungeon gear keeps its unconfirmed ownership badge @smoke', async
   await expect(equippedRow.locator('.ownership-badge')).toContainText('まだ持ち帰っていない品');
   await expect(equippedRow.locator('.equip-row-badge.equipped')).toHaveText('装備中');
 });
+
+test('unified bag shows equipment and materials instead of an empty tool list at 390x844 @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+
+  const result = await page.evaluate(async () => {
+    const { createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
+    const { executeEnterDungeon } = await import('/src/movement.js');
+    const { handleExploreAction } = await import('/src/menu/explore_actions.js');
+    const { updateUI } = await import('/src/ui.js');
+
+    initNewGame();
+    state.party = [createStartingKitCharacter('vanguard')];
+    executeEnterDungeon(1);
+    state.inventory = [{
+      kind: 'equipment', instanceId: 'bag-unidentified', baseId: 'DAGGER',
+      rarity: 'rare', level: 1, identified: false, knowledgeStage: 'discovery',
+      tags: ['blade'], hintTags: ['blade'], observedHintTags: [], affixes: [],
+    }];
+    state.identifyTickets = 2;
+    state.currentRun.materials = { ...state.currentRun.materials, '獣の牙': 3 };
+    updateUI();
+    handleExploreAction('tool');
+
+    const grid = document.querySelector('#submenu-options');
+    const read = () => ({
+      filter: grid.querySelector('.inventory-item-list')?.dataset.filter,
+      tabs: [...grid.querySelectorAll('.inventory-filter-tab')].map(tab => tab.textContent),
+      text: grid.querySelector('.inventory-item-list')?.textContent || '',
+      buttons: [...grid.querySelectorAll('.inventory-item-list button')].map(button => button.textContent),
+    });
+    const equipment = read();
+    grid.querySelector('.inventory-filter-tab[data-filter="tools"]').click();
+    const tools = read();
+    grid.querySelector('.inventory-filter-tab[data-filter="materials"]').click();
+    const materials = read();
+    grid.querySelector('.inventory-filter-tab[data-filter="equipment"]').click();
+    return { equipment, tools, materials, title: document.querySelector('#submenu-title')?.textContent };
+  });
+
+  expect(result.title).toBe('共有バッグ (1個)');
+  expect(result.equipment.filter).toBe('equipment');
+  expect(result.equipment.tabs).toEqual(['道具 0', '装備品 1', '素材 2']);
+  expect(result.equipment.buttons).toContain('未鑑定の装備品');
+  expect(result.equipment.buttons).toContain('装備画面で鑑定する（未鑑定1 / 鑑定粉2）');
+  expect(result.tools.text).toContain('装備品1個は「装備品」で確認できます');
+  expect(result.materials.text).toContain('鑑定粉 ×2');
+  expect(result.materials.text).toContain('獣の牙 ×3');
+
+  await page.screenshot({ path: test.info().outputPath('unified-bag-390x844.png') });
+  await page.locator('#submenu-options .inventory-equip-link').click();
+  await expect(page.locator('#equip-overlay')).toBeVisible();
+});
