@@ -404,18 +404,10 @@ W.__auto = async (policy = { explore: 0.6 }, maxIter = 600) => {
     if (b.some(t => t === '休息する')) { await W.__click('休息する'); await sl(400); W.__journal.push('camp F' + s.floor + ': ' + W.__log(1)); continue; }
     if (b.some(t => t.includes('休息せず進む'))) { await W.__click('休息せず進む'); await sl(300); continue; }
     if (b.some(t => t.includes('降りずに進む')) && !b.some(t => t.includes('へ降りる'))) {
-      // milestone floor with an undefeated guardian: heal up, go fight it
+      // milestone floor with an undefeated guardian: commit to fighting it
+      // (the explore step below walks there, resuming after interruptions)
       await W.__click('降りずに進む'); for (let w = 0; w < 30 && s.gameState !== 'explore'; w++) await sl(80);
-      while (P().hp < DATA.getCharMaxHp(P()) * 0.6 && await W.__useHeal()) await sl(100);
-      // Out of potions: use an unused spring or camp on this floor first. The
-      // next stairs visit comes back here, so this repeats until none is left.
-      if (P().hp < DATA.getCharMaxHp(P()) * 0.6 && W.__bfs(goals.heal)) {
-        const h = await W.__walk('heal', 250); W.__journal.push(`-> heal before guardian: ${h} ${W.__status()}`);
-        continue;
-      }
-      let r = await W.__walk('boss', 250);
-      for (let w = 0; r === 'no path' && w < 40 && s.gameState === 'explore'; w++) { await paceOnce(); r = await W.__walk('boss', 250); }
-      W.__journal.push(`-> guardian: ${r} ${W.__status()}`);
+      W.__guardianFloor = s.floor;
       continue;
     }
     if (b.some(t => t.includes('へ降りる'))) {
@@ -427,10 +419,34 @@ W.__auto = async (policy = { explore: 0.6 }, maxIter = 600) => {
       }
       await W.__click('降りずに進む'); await sl(200); continue;
     }
-    if (s.gameState === 'submenu' && b.some(t => t === '戻る')) { await W.__click('戻る'); await sl(200); if (s.gameState === 'explore') continue; }
+    if (s.gameState === 'submenu' && b.some(t => t === '戻る')) {
+      await W.__click('戻る'); for (let w = 0; w < 20 && s.gameState === 'submenu'; w++) await sl(100);
+      // A menu can reopen another (merchant after a guardian): retry a few times.
+      if (s.gameState !== 'submenu' || (W.__backTries = (W.__backTries || 0) + 1) <= 5) continue;
+      W.__journal.push('!! submenu back x' + W.__backTries + ' ' + W.__log(3));
+    }
     if (s.gameState === 'equip_overlay') { await W.__click('キャンセル'); await W.__click('閉じる'); await sl(200); continue; }
     if (s.gameState !== 'explore') { W.__journal.push('!! stuck gs=' + s.gameState + ' ' + b.join('|')); return 'stuck'; }
+    W.__backTries = 0;
     await W.__manageGear();
+    if (W.__guardianFloor === s.floor && !s.currentRun?.defeatedMilestones?.includes(s.floor)) {
+      const maxHp = DATA.getCharMaxHp(P());
+      while (P().hp < maxHp * 0.6 && await W.__useHeal()) await sl(100);
+      // Out of potions and badly hurt: try an unused spring or camp, at most
+      // twice per floor. Detours cost HP on the way (and springs heal only 40%
+      // of the time), so a looser rule burned runs out before the guardian.
+      const detours = W.__healDetours[s.floor] || 0;
+      if (P().hp < maxHp * 0.35 && detours < 2 && W.__bfs(goals.heal)) {
+        W.__healDetours[s.floor] = detours + 1;
+        const h = await W.__walk('heal', 250); W.__journal.push(`-> heal before guardian: ${h} ${W.__status()}`);
+        continue;
+      }
+      let r = await W.__walk('boss', 250);
+      for (let w = 0; r === 'no path' && w < 40 && s.gameState === 'explore'; w++) { await paceOnce(); r = await W.__walk('boss', 250); }
+      W.__journal.push(`-> guardian: ${r} ${W.__status()}`);
+      if (r === 'no path') { W.__journal.push('!! guardian unreachable'); return 'stuck'; }
+      continue;
+    }
     if (p.hp < DATA.getCharMaxHp(p) * 0.4 && await W.__useHeal()) continue;
     const wantStairs = policy.explore === 0 || p.hp < DATA.getCharMaxHp(p) * policy.explore;
     let r = await W.__walk(wantStairs && W.__bfs(goals.stairs) ? 'stairs' : 'frontier', 150);
@@ -462,7 +478,7 @@ W.__startRun = async ({ kit = 'vanguard', seed = null } = {}) => {
   if (seed !== null) { st().seed = `PT-${seed}`; Date.now = () => 1700000000000; }
   try { await W.__click('迷宮へ向かう'); for (let i = 0; i < 40 && st().gameState !== 'explore'; i++) await sl(100); }
   finally { Date.now = realNow; }
-  W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; seenLoot.clear();
+  W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; W.__guardianFloor = null; W.__healDetours = {}; seenLoot.clear();
   const run = st().currentRun;
   // Fingerprint of the B1 layout so before/after runs can prove they share maps.
   let h = 2166136261; for (const row of st().map) for (const c of row) for (const w of c.walls) { h ^= w ? 1 : 0; h = Math.imul(h, 16777619) >>> 0; }
