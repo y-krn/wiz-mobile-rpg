@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import {
   EXPLORE_HUD_MODES,
+  EXPLORE_HUD_ROAM_AFTER_ACTIONS,
   isExploreHudGoalExpanded,
   nextExploreHudFocus,
   suspendExploreHudFocus,
   toggleExploreHudGoal,
   toggleExploreHudMinimap
 } from "../../../src/ui/explore_hud_focus.js";
+import * as facade from "../../../src/ui/explore_hud_focus.js";
+import * as owner from "../../../src/ui/explore_hud_focus.ts";
+import { exerciseExploreHudFocusTypes } from "../fixtures/typescript/explore_hud_focus_inputs.ts";
 
 const base = { logSignature: "3|入場", goalSignature: "goal", poseSignature: "1,4,4,0", floor: 1 };
 const step = (focus, patch) => nextExploreHudFocus(focus, { ...base, ...patch });
@@ -76,5 +80,78 @@ assert.equal(resumed.mode, EXPLORE_HUD_MODES.NOTICE);
 assert.equal(resumed.minimapExpanded, true);
 assert.equal(suspendExploreHudFocus(null), null);
 assert.equal(toggleExploreHudMinimap(null).minimapExpanded, true);
+
+// The legacy JavaScript path remains a seven-export identity facade.
+assert.deepEqual(Object.keys(facade), [
+  "EXPLORE_HUD_MODES",
+  "EXPLORE_HUD_ROAM_AFTER_ACTIONS",
+  "isExploreHudGoalExpanded",
+  "nextExploreHudFocus",
+  "suspendExploreHudFocus",
+  "toggleExploreHudGoal",
+  "toggleExploreHudMinimap"
+]);
+assert.deepEqual(Object.keys(owner), Object.keys(facade));
+for (const key of Object.keys(facade)) assert.strictEqual(facade[key], owner[key]);
+assert.equal(Object.isFrozen(EXPLORE_HUD_MODES), true);
+assert.deepEqual(EXPLORE_HUD_MODES, { NOTICE: "notice", ROAM: "roam" });
+assert.equal(EXPLORE_HUD_ROAM_AFTER_ACTIONS, 2);
+
+// Focus copies stay fresh, keep extensions, and never mutate input.
+const extended = { ...focus, custom: { value: 1 } };
+const extendedBefore = structuredClone(extended);
+const samePose = step(extended, {
+  logSignature: extended.logSignature,
+  goalSignature: extended.goalSignature,
+  poseSignature: extended.poseSignature,
+  floor: extended.floor
+});
+assert.notStrictEqual(samePose, extended);
+assert.deepEqual(extended, extendedBefore);
+assert.strictEqual(samePose.custom, extended.custom);
+assert.deepEqual(Object.keys(samePose), Object.keys(extended));
+const toggledExtended = toggleExploreHudGoal(extended);
+assert.notStrictEqual(toggledExtended, extended);
+assert.deepEqual(extended, extendedBefore);
+assert.strictEqual(toggledExtended.custom, extended.custom);
+assert.deepEqual(Object.keys(toggledExtended), [
+  "goalExpanded", "minimapExpanded", "logSignature", "goalSignature", "poseSignature",
+  "floor", "mode", "actionsSinceNotice", "custom"
+]);
+
+// Nullish goal values follow mode; explicit booleans override it.
+for (const goalExpanded of [null, undefined]) {
+  assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.ROAM, goalExpanded }), false);
+  assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.NOTICE, goalExpanded }), true);
+}
+assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.ROAM, goalExpanded: false }), false);
+assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.ROAM, goalExpanded: true }), true);
+
+// A suspended partial state resumes with a notice and retains its toggles.
+const partial = suspendExploreHudFocus({ goalExpanded: false, minimapExpanded: true, extra: "kept only before suspend" });
+assert.deepEqual(Object.keys(partial), ["goalExpanded", "minimapExpanded"]);
+assert.deepEqual(partial, { goalExpanded: false, minimapExpanded: true });
+const resumedPartial = nextExploreHudFocus(partial, base);
+assert.equal(resumedPartial.mode, EXPLORE_HUD_MODES.NOTICE);
+assert.equal(resumedPartial.goalExpanded, null);
+assert.equal(resumedPartial.minimapExpanded, true);
+assert.deepEqual(Object.keys(resumedPartial), [
+  "logSignature", "goalSignature", "poseSignature", "floor",
+  "goalExpanded", "minimapExpanded", "mode", "actionsSinceNotice"
+]);
+
+// Preserve native getter access order and short-circuit behavior.
+const reads = [];
+const orderedPrev = Object.defineProperties({}, {
+  goalExpanded: { get() { reads.push("goalExpanded"); return null; } },
+  minimapExpanded: { get() { reads.push("minimapExpanded"); return false; } },
+  logSignature: { get() { reads.push("logSignature"); return "changed"; } },
+  goalSignature: { get() { reads.push("goalSignature"); return "unused"; } },
+  floor: { get() { reads.push("floor"); return -1; } }
+});
+nextExploreHudFocus(orderedPrev, base);
+assert.deepEqual(reads, ["goalExpanded", "minimapExpanded", "logSignature"]);
+
+exerciseExploreHudFocusTypes();
 
 console.log("test_explore_hud_focus: ok");
