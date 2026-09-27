@@ -24,7 +24,9 @@ const expectedRecipeKeys = [
   ["mudSlime", "mud-slime"], ["splitSlime", "split-slime"], ["ratPack", "rat-pack"],
   ["sleepSpore", "sleep-spore"], ["mudCursedChild", "mud-cursed-child"],
   ["koboldScout", "kobold-scout"], ["goblinCaster", "goblin-caster"],
-  ["rustedShield", "rusted-shield"], ["small", "small"], ["humanoid", "humanoid"],
+  ["rustedShield", "rusted-shield"], ["skeleton", "skeleton"], ["zombie", "zombie"],
+  ["orc", "orc"], ["ghost", "ghost"], ["wisp", "wisp"], ["spider", "spider"],
+  ["rabbit", "rabbit"], ["demon", "demon"], ["dragon", "dragon"], ["small", "small"], ["humanoid", "humanoid"],
   ["brute", "brute"], ["caster", "caster"], ["boss", "boss"]
 ];
 assertStrict.deepEqual(Object.entries(ENEMY_RECIPE_KEYS), expectedRecipeKeys);
@@ -77,8 +79,9 @@ assertStrict.equal(getEnemyPresentation({ name: "フラッシュバットの分�
 const fallbackPresentation = getEnemyPresentation({ name: "unknown", spriteType: "orc" });
 assertStrict.equal(fallbackPresentation.width, ENEMY_ARCHETYPES.humanoid.width);
 assertStrict.equal(fallbackPresentation.height, ENEMY_ARCHETYPES.humanoid.height);
-assertStrict.equal(fallbackPresentation.recipe, ENEMY_RECIPE_KEYS.humanoid);
-assertStrict.equal(fallbackPresentation.assetKey, `recipe:${ENEMY_RECIPE_KEYS.humanoid}`);
+assertStrict.equal(fallbackPresentation.label, ENEMY_ARCHETYPES.humanoid.label);
+assertStrict.equal(fallbackPresentation.recipe, ENEMY_RECIPE_KEYS.orc);
+assertStrict.equal(fallbackPresentation.assetKey, `recipe:${ENEMY_RECIPE_KEYS.orc}`);
 assertStrict.equal(fallbackPresentation.asset, null);
 assertStrict.equal(fallbackPresentation.uniqueName, null);
 const input = Object.freeze({ name: "unknown", spriteType: "biter" });
@@ -140,7 +143,37 @@ assert.equal(getEnemyRecipeKey({ name: "分裂スライムの分裂体1", sprite
 assert.equal(getEnemyRecipeKey({ name: "不明な敵", spriteType: "biter" }), ENEMY_RECIPE_KEYS.small);
 
 assert.equal(getEnemyPresentation({ name: "unknown-small" }).recipe, ENEMY_RECIPE_KEYS.small);
-assert.equal(getEnemyPresentation({ name: "unknown-humanoid", spriteType: "orc" }).recipe, ENEMY_RECIPE_KEYS.humanoid);
+assert.equal(getEnemyPresentation({ name: "unknown-humanoid", spriteType: "orc" }).recipe, ENEMY_RECIPE_KEYS.orc);
+assert.equal(getEnemyPresentation({ name: "unknown-humanoid", spriteType: "kobold" }).recipe, ENEMY_RECIPE_KEYS.humanoid);
+
+// Unnamed enemies get a creature-family silhouette while keeping the size
+// profile of their archetype.
+const familyCases = [
+  [{ name: "ゾンビ", spriteType: "zombie" }, "zombie", "humanoid"],
+  [{ name: "ガイコツ戦士", spriteType: "skeleton" }, "skeleton", "humanoid"],
+  [{ name: "マッドゴースト", spriteType: "spirit" }, "ghost", "caster"],
+  [{ name: "ウィル・オー・ウィスプ", spriteType: "wisp" }, "wisp", "caster"],
+  [{ name: "キラーラビット", spriteType: "rabbit" }, "rabbit", "small"],
+  [{ name: "ジャイアントスパイダー", spriteType: "spider" }, "spider", "brute"],
+  [{ name: "フラック", spriteType: "flack" }, "demon", "small"],
+  [{ name: "ドラゴンパピー", spriteType: "dragon" }, "dragon", "boss"],
+  [{ name: "デーモンガード", spriteType: "flack", isBoss: true }, "demon", "boss"],
+  [{ name: "ブラッドバット群", spriteType: "bat" }, "flash-bat", "small"],
+  [{ name: "アイアンゴーレム", spriteType: "zombie" }, "brute", "brute"],
+  [{ name: "リビングアーマー", spriteType: "zombie" }, "brute", "brute"],
+  [{ name: "はぐれ魔術師", spriteType: "mage", spell: "HALITO" }, "caster", "caster"],
+  [{ name: "オークの呪医", spriteType: "orc", spell: "DIOS" }, "caster", "caster"],
+  [{ name: "鉄皮のゴブリン", spriteType: "kobold" }, "humanoid", "humanoid"],
+  [{ name: "針甲虫", spriteType: "biter" }, "small", "small"]
+];
+for (const [monster, recipe, archetype] of familyCases) {
+  const presentation = getEnemyPresentation(monster);
+  assert.equal(presentation.recipe, recipe, `${monster.name} family recipe`);
+  assert.equal(presentation.archetype, archetype, `${monster.name} archetype`);
+  assert.equal(presentation.width, ENEMY_ARCHETYPES[archetype].width, `${monster.name} keeps archetype size`);
+  assert.equal(presentation.label, ENEMY_ARCHETYPES[archetype].label);
+}
+assert.equal(ENEMY_ARCHETYPES.humanoid.recipe, ENEMY_RECIPE_KEYS.humanoid, "family lookup does not mutate archetype profiles");
 assert.equal(getEnemyPresentation({ name: "unknown-brute", nameHint: "巨躯" }).recipe, ENEMY_RECIPE_KEYS.small);
 assert.equal(getEnemyPresentation({ name: "巨躯" }).recipe, ENEMY_RECIPE_KEYS.brute);
 assert.equal(getEnemyPresentation({ name: "unknown-caster", spriteType: "mage" }).recipe, ENEMY_RECIPE_KEYS.caster);

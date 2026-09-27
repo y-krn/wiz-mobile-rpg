@@ -41,6 +41,17 @@ export const ENEMY_RECIPE_PALETTES = Object.freeze({
   ["kobold-scout"]: Object.freeze({ main: 0x493a34, secondary: 0x685047, rim: 0x816653, accent: 0xb27b57, material: 0x865d46, dark: BLACK }),
   ["goblin-caster"]: Object.freeze({ main: 0x294147, secondary: 0x5a5062, rim: 0x65928e, accent: CYAN, material: 0x665366, dark: BLACK }),
   ["rusted-shield"]: Object.freeze({ main: 0x4b4743, secondary: 0x6a625b, rim: 0x718a87, accent: CYAN, material: 0x855a43, dark: BLACK }),
+  // Family recipes: mid-value bodies with one saturated eye/cue color so the
+  // deformed silhouettes read as creatures against the bright corridor.
+  skeleton: Object.freeze({ main: 0x9a937c, secondary: 0xb3ab92, rim: 0x7d8a86, accent: CYAN, material: 0x7e5a44, dark: BLACK }),
+  zombie: Object.freeze({ main: 0x5f6e52, secondary: 0x7c8a68, rim: 0x8a9a7c, accent: 0xd9e36a, material: 0x4f4660, dark: BLACK }),
+  orc: Object.freeze({ main: 0x4f6040, secondary: 0x6b7d56, rim: 0x8a9aa0, accent: 0xf0c050, material: 0x6e4f3a, dark: BLACK }),
+  ghost: Object.freeze({ main: 0x7a7f9c, secondary: 0x9ca2bd, rim: 0x8c93b3, accent: 0x9fe8ff, material: 0x5c6080, dark: BLACK }),
+  wisp: Object.freeze({ main: 0x3f8f96, secondary: 0x8be6df, rim: 0x6fc4c4, accent: CYAN, material: 0x2f6a70, dark: BLACK }),
+  spider: Object.freeze({ main: 0x3b3440, secondary: 0x5a5062, rim: 0x6e6478, accent: 0xe0584c, material: 0xa0503c, dark: BLACK }),
+  rabbit: Object.freeze({ main: 0x9a8f84, secondary: 0xb4aa9c, rim: 0x8a8078, accent: 0xe0584c, material: 0xb07a7a, dark: BLACK }),
+  demon: Object.freeze({ main: 0x6a3a44, secondary: 0x8a5058, rim: 0x9a6a70, accent: 0xffb040, material: 0x3a3030, dark: BLACK }),
+  dragon: Object.freeze({ main: 0x6a3a34, secondary: 0xa88a5a, rim: 0x8a5a4a, accent: 0xffc040, material: 0xd8c8a0, dark: BLACK }),
   small: Object.freeze({ main: 0x3f464c, secondary: 0x5d6870, rim: 0x70858a, accent: 0x9bb7b6, material: 0x62676b, dark: BLACK }),
   humanoid: Object.freeze({ main: 0x3f4546, secondary: 0x5d6362, rim: 0x71807e, accent: 0x9aa9a1, material: 0x64615a, dark: BLACK }),
   brute: Object.freeze({ main: 0x4b4742, secondary: 0x676057, rim: 0x787d77, accent: 0x9b8068, material: 0x765846, dark: BLACK }),
