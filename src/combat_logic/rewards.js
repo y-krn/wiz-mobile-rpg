@@ -1,5 +1,5 @@
 import {
-  getItemData, checkCharLevelUp,
+  getItemData, checkCharLevelUp, getCharMaxHp,
   getPartyMaxAffix, getPartyCoreParams, getContractProgressIncrement, getCoreLogText
 } from "../data.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
@@ -169,6 +169,17 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
     logQueue.push({ msg: `[拾得] 勝利の跡から${mat}を見つけた！`, sound: "item" });
   }
 
+  // Presentation-only digest of this victory (#1840). It rides on the victory
+  // log entry and is filled in below as level-ups and drops resolve.
+  const victorySummary = {
+    exp: expShare + bonusExpShare,
+    materials: { ...runMats },
+    firstKillMaterials: { ...firstKilledMats },
+    bonusTickets,
+    levelUps: [],
+    items: []
+  };
+
   logQueue.push({ msg: "======================================" });
   if (nonFledMonsters.length > 0) {
     let msg = "戦闘に勝利した！";
@@ -177,7 +188,8 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
     }
     logQueue.push({
       msg,
-      sound: "level_up"
+      sound: "level_up",
+      victorySummary
     });
 
     if (Object.keys(runMats).length > 0) {
@@ -230,9 +242,18 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
   livingChars.forEach(c => {
     c.exp += (expShare + bonusExpShare);
     const hpBeforeLevelUp = c.hp;
+    const levelBefore = c.level;
+    const maxHpBefore = getCharMaxHp(c);
     const lvlUp = checkCharLevelUp(c);
     if (lvlUp) {
       const levelUpRecoveryHp = Math.max(0, c.hp - hpBeforeLevelUp);
+      victorySummary.levelUps.push({
+        name: c.name,
+        levelBefore,
+        level: c.level,
+        maxHpBefore,
+        maxHp: getCharMaxHp(c)
+      });
       logQueue.push({
         msg: `[★] レベルアップ！${c.name}はレベル${c.level}になった！HPが${levelUpRecoveryHp}回復した。`,
         sound: "level_up",
@@ -292,6 +313,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
         state.currentRun.equipmentFound.push(dropEquipment);
       }
       const eqData = getItemData(dropEquipment);
+      victorySummary.items.push(eqData.name);
       if (nonFledMonsters.length === 1) {
         recordMonsterLoot(nonFledMonsters[0], eqData.name, state);
       }
@@ -316,6 +338,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
         state.currentRun.equipmentFound.push(dropAccessory);
       }
       const itemData = getItemData(dropAccessory);
+      victorySummary.items.push(itemData.name);
       if (nonFledMonsters.length === 1) {
         recordMonsterLoot(nonFledMonsters[0], itemData.name, state);
       }

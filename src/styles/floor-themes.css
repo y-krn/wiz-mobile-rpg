@@ -144,6 +144,51 @@
 
 .loot-toast[hidden] { display: none; }
 
+.victory-toast {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  z-index: 26;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 320px;
+  max-width: calc(100% - 32px); /* tap-token-guard: allow — 16px side gutters, not a tap size */
+  min-height: var(--tap-min);
+  padding: 8px 12px;
+  border: 1px solid var(--floor-border, var(--neon-cyan));
+  background: rgba(250, 245, 236, 0.95);
+  box-shadow: var(--shadow-soft);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transform: translateX(-50%);
+  animation: victory-toast-in 180ms ease-out;
+}
+
+.victory-toast[hidden] { display: none; }
+
+.victory-toast.has-level-up { border-color: #ffb300; }
+
+.victory-toast-title { font-size: 15px; font-weight: 700; }
+
+.victory-toast-level { margin-top: 2px; color: #a86b00; font-weight: 700; }
+
+.victory-toast-stat { padding-left: 1.2em; font-weight: 600; }
+
+@keyframes victory-toast-in {
+  from { opacity: 0; transform: translate(-50%, -6px); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .victory-toast { animation: none; }
+}
+
 @keyframes move-blocked-nudge {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-5px); }
