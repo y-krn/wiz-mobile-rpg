@@ -157,11 +157,9 @@ assert.equal(unidentified.identified, true);
 assert.equal(state.identifyTickets, 0);
 assert.ok(saveValues.has("mobile_wiz_rpg_autosave"), "identify action must autosave");
 
-const originalConfirm = globalThis.confirm;
-globalThis.confirm = () => true;
-try {
+{
   resetState({ inventory: [candidate] });
-  const discardResult = discardEquipmentAt(0, candidate, { actorIdx: 0 });
+  const discardResult = discardEquipmentAt(0, candidate, { actorIdx: 0, confirm: () => true });
   assert.equal(discardResult.ok, true);
   assert.deepEqual(state.inventory, []);
   assert.ok(saveValues.has("mobile_wiz_rpg_autosave"), "discard action must autosave");
@@ -169,12 +167,10 @@ try {
   const firstSelected = makeEquipment("SHORT_SWORD", { instanceId: "selection-first" });
   const secondSelected = makeEquipment("LEATHER_ARMOR", { instanceId: "selection-second" });
   resetState({ inventory: [firstSelected, secondSelected] });
-  const selectionResult = discardEquipmentSelection([1, 0], { actorIdx: 0 });
+  const selectionResult = discardEquipmentSelection([1, 0], { actorIdx: 0, confirm: () => true });
   assert.equal(selectionResult.ok, true);
   assert.equal(selectionResult.count, 2);
   assert.deepEqual(state.inventory, []);
-} finally {
-  globalThis.confirm = originalConfirm;
 }
 
 console.log("[PASS] equipment preview and action boundaries preserve state and inventory behavior");

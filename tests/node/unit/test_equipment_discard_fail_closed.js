@@ -40,9 +40,8 @@ configureSentry({
   }
 }, true);
 
-const originalConfirm = globalThis.confirm;
 let confirmCalled = false;
-globalThis.confirm = () => {
+const confirmDiscard = () => {
   confirmCalled = true;
   return true;
 };
@@ -85,7 +84,7 @@ try {
   assert.equal(malformedValuesCheck.scope, "character-equipment");
   assert.equal(captured.length, 0, "equipment failures must not report from the pure check");
 
-  const result = discardEquipmentItems([{ index: 0, expectedItemKey: "SHORT_SWORD" }], { stateLike });
+  const result = discardEquipmentItems([{ index: 0, expectedItemKey: "SHORT_SWORD" }], { stateLike, confirm: confirmDiscard });
 
   assert.deepEqual(result, { ok: false, count: 0 });
   assert.equal(confirmCalled, false, "unsafe discard must be blocked before confirmation");
@@ -123,7 +122,7 @@ try {
   confirmCalled = false;
   const malformedPartyResult = discardEquipmentItems(
     [{ index: 0, expectedItemKey: "SHORT_SWORD" }],
-    { stateLike: malformedPartyState }
+    { stateLike: malformedPartyState, confirm: confirmDiscard }
   );
   assert.deepEqual(malformedPartyResult, { ok: false, count: 0 });
   assert.equal(confirmCalled, false, "malformed party must stop before confirmation");
@@ -138,8 +137,6 @@ try {
   });
 } finally {
   configureSentry(null, false);
-  if (originalConfirm === undefined) delete globalThis.confirm;
-  else globalThis.confirm = originalConfirm;
 }
 
 console.log("[PASS] equipment discard fails closed and reports malformed equipment state");

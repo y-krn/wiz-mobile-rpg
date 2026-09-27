@@ -1,0 +1,56 @@
+/* In-app confirmation dialog (replaces native window.confirm). */
+.confirm-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: var(--sp-lg);
+  background: rgba(46, 38, 64, 0.45);
+  overscroll-behavior: contain;
+}
+
+.confirm-dialog {
+  box-sizing: border-box;
+  width: min(100%, 360px);
+  padding: var(--sp-lg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.confirm-dialog--danger {
+  border-color: var(--semantic-danger);
+  border-top-width: 4px;
+}
+
+.confirm-dialog-title {
+  margin: 0 0 var(--sp-sm);
+  font-size: var(--fs-xl);
+}
+
+.confirm-dialog--danger .confirm-dialog-title {
+  color: var(--semantic-danger);
+}
+
+.confirm-dialog-message {
+  margin: 0 0 var(--sp-lg);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.confirm-dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-sm);
+}
+
+.confirm-dialog-actions .btn {
+  min-height: var(--tap-min);
+}

@@ -109,7 +109,7 @@ type IdentifyEquipmentAtBoundary = (
 type RevealEquipmentAtBoundary = (item: unknown) => { revealed: boolean; cursed: boolean };
 type DiscardEquipmentItemsAtBoundary = (
   entries: DiscardEntry[],
-  options: { character: EquipmentCharacter }
+  options: { character: EquipmentCharacter; confirm?: (message: string) => boolean }
 ) => ActionResult;
 type FindRunObjectLootEntryAtBoundary = (
   stateLike: EquipmentActionState,
@@ -292,24 +292,28 @@ export function polishEquipment(target: unknown, affixIndex: unknown) {
   return executePolishAtBoundary(target, affixIndex);
 }
 
-export function discardEquipmentAt(index: number, expectedItemKey: unknown, { actorIdx = 0, requestedSlot = null }: {
+export function discardEquipmentAt(index: number, expectedItemKey: unknown, { actorIdx = 0, requestedSlot = null, confirm }: {
   actorIdx?: number;
   requestedSlot?: string | null;
+  confirm?: (message: string) => boolean;
 } = {}) {
   const character = actionState.party[actorIdx];
   return discardEquipmentItemsAtBoundary([{
     index,
     expectedItemKey,
     preview: getPreviewForDiscard(character, expectedItemKey, requestedSlot)
-  }], { character });
+  }], { character, confirm });
 }
 
-export function discardEquipmentSelection(indices: Iterable<number>, { actorIdx = 0 }: { actorIdx?: number } = {}) {
+export function discardEquipmentSelection(indices: Iterable<number>, { actorIdx = 0, confirm }: {
+  actorIdx?: number;
+  confirm?: (message: string) => boolean;
+} = {}) {
   const character = actionState.party[actorIdx];
   const entries = [...indices].map((index) => ({
     index,
     expectedItemKey: actionState.inventory[index],
     preview: getPreviewForDiscard(character, actionState.inventory[index])
   }));
-  return discardEquipmentItemsAtBoundary(entries, { character });
+  return discardEquipmentItemsAtBoundary(entries, { character, confirm });
 }

@@ -51,13 +51,40 @@ for (const vp of VIEWPORTS) {
       state.currentRun.deepestFloor = 4;
     });
 
-    let cancelMessage = '';
-    page.once('dialog', async dialog => {
-      cancelMessage = dialog.message();
+    let nativeDialogs = 0;
+    page.on('dialog', async dialog => {
+      nativeDialogs += 1;
       await dialog.dismiss();
     });
+    const confirmDialog = page.getByRole('alertdialog', { name: '冒険を諦める' });
+    const cancelButton = confirmDialog.getByRole('button', { name: 'キャンセル' });
+    const acceptButton = confirmDialog.getByRole('button', { name: '諦める' });
+
     await page.locator('#btn-abandon-run').click();
-    expect(cancelMessage).toContain('死亡時と同じ扱い');
+    await expect(confirmDialog).toBeVisible();
+    await expect(confirmDialog).toHaveAttribute('aria-modal', 'true');
+    await expect(confirmDialog).toContainText('死亡時と同じ扱い');
+    await expect(cancelButton).toBeFocused();
+    await expect(acceptButton).toHaveClass(/btn-danger/);
+    for (const button of [cancelButton, acceptButton]) {
+      expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    }
+    // Focus stays inside the dialog while the game behind it is inert.
+    await page.keyboard.press('Tab');
+    await expect(acceptButton).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(cancelButton).toBeFocused();
+    await expect(page.locator('#game-container')).toHaveJSProperty('inert', true);
+
+    await page.keyboard.press('Escape');
+    await expect(confirmDialog).toHaveCount(0);
+    await expect(page.locator('#game-container')).toHaveJSProperty('inert', false);
+    await expect(page.locator('#btn-abandon-run')).toBeFocused();
+
+    await page.locator('#btn-abandon-run').click();
+    await expect(cancelButton).toBeFocused();
+    await cancelButton.click();
+    await expect(confirmDialog).toHaveCount(0);
     await expect(page.locator('#submenu-controls')).toBeVisible();
     const afterCancel = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -83,9 +110,14 @@ for (const vp of VIEWPORTS) {
     await expect(page.locator('#explore-controls')).toBeVisible();
 
     await page.locator('#btn-explore-management').click();
-    page.once('dialog', dialog => dialog.accept());
     await page.locator('#btn-abandon-run').click();
+    await expect(cancelButton).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(acceptButton).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(confirmDialog).toHaveCount(0);
     await expect(page.locator('#result-overlay')).toBeVisible();
+    expect(nativeDialogs).toBe(0);
     const afterConfirm = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return {

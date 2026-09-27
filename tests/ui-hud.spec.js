@@ -18,12 +18,14 @@ test('Debug reset clears all progression and persists the initial state', async 
   const resetButton = page.getByRole('button', { name: 'デバッグ: データ全初期化' });
   await expect(resetButton).toBeVisible();
 
-  page.once('dialog', dialog => dialog.dismiss());
+  const confirmDialog = page.getByRole('alertdialog', { name: 'デバッグ: データ全初期化' });
   await resetButton.click();
+  await confirmDialog.getByRole('button', { name: 'キャンセル' }).click();
+  await expect(confirmDialog).toHaveCount(0);
   expect(await page.evaluate(async () => (await import('/src/state.js')).state.records.totalRuns)).toBe(9);
 
-  page.once('dialog', dialog => dialog.accept());
   await resetButton.click();
+  await confirmDialog.getByRole('button', { name: '初期化する' }).click();
   await expect(page.locator('#town-controls')).toBeVisible();
   await expect(page.locator('#log-content')).toContainText('開始キットを選び、ひとりで迷宮へ潜ろう。');
 

@@ -4,6 +4,7 @@ import { openArchivesOverlay, updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu } from "../navigation.js";
 import { getItemBaseId } from "../data.js";
 import { getAdventureRecordsHtml } from "../ui/adventure_history.js";
+import { requestConfirmation } from "../ui/confirm_dialog.js";
 
 function isDebugMode() {
   return import.meta.env.DEV || new URLSearchParams(location.search).has("debug");
@@ -77,13 +78,17 @@ export function renderCastleMain(optGrid) {
     const debugReset = document.createElement("button");
     debugReset.className = "btn btn-danger btn-block";
     debugReset.textContent = "デバッグ: データ全初期化";
-    debugReset.addEventListener("click", () => {
-      if (confirm("【デバッグ】全データを初期化します。よろしいですか？")) {
-        clearSave();
-        state.gameState = "town";
-        closeSubmenu();
-        updateUI();
-      }
+    debugReset.addEventListener("click", async () => {
+      const confirmed = await requestConfirmation({
+        title: "デバッグ: データ全初期化",
+        message: "【デバッグ】全データを初期化します。よろしいですか？",
+        confirmLabel: "初期化する"
+      });
+      if (!confirmed) return;
+      clearSave();
+      state.gameState = "town";
+      closeSubmenu();
+      updateUI();
     });
     optGrid.appendChild(debugReset);
   }

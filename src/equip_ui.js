@@ -55,6 +55,7 @@ import {
 } from "./telemetry.js";
 import { appendOwnershipBadge, getItemOwnership, setDockActionRole } from "./ui/common_shell.js";
 import { createBagCapacitySummary } from "./ui/bag_summary.js";
+import { requestConfirmation } from "./ui/confirm_dialog.js";
 import {
   getActiveRuneSpellKeys,
   getEquippedMedium,
@@ -333,35 +334,59 @@ function isItemEquipped(itemKey) {
   }, itemKey).equipped;
 }
 
-function discardEquipment(itemIdx, expectedItemKey) {
-  if (equipState.draft) {
+function confirmDiscard(message) {
+  return requestConfirmation({ title: "装備を破棄", message, confirmLabel: "破棄する" });
+}
+
+// The system discard owns validation and the confirmation text but needs a
+// synchronous answer. Read its message first, ask in-app, then run it again
+// accepting only the same message so a changed bag is never discarded blindly.
+async function confirmSystemDiscard(runDiscard) {
+  let message = "";
+  runDiscard(text => {
+    message = text;
+    return false;
+  });
+  if (!message || !await confirmDiscard(message)) return { ok: false };
+  return runDiscard(text => text === message);
+}
+
+async function discardEquipment(itemIdx, expectedItemKey) {
+  const draft = equipState.draft;
+  if (draft) {
     const itemName = getItemData(expectedItemKey)?.name || "装備品";
-    if (!confirm(`この${itemName}を破棄しますか？この変更は確定時に反映されます。`)) return false;
-    const staged = stageDiscardInventoryItem(equipState.draft, itemIdx);
+    if (!await confirmDiscard(`この${itemName}を破棄しますか？この変更は確定時に反映されます。`)) return false;
+    if (equipState.draft !== draft) return false;
+    const staged = stageDiscardInventoryItem(draft, itemIdx);
     if (!staged.ok) return false;
     equipState.draft = staged.draft;
     clearSelection();
     renderEquip();
     return true;
   }
-  const result = discardEquipmentAt(itemIdx, expectedItemKey, {
-    actorIdx: equipState.actorIdx,
-    requestedSlot: equipState.selectedSlot
-  });
+  const actorIdx = equipState.actorIdx;
+  const requestedSlot = equipState.selectedSlot;
+  const result = await confirmSystemDiscard(confirm => discardEquipmentAt(itemIdx, expectedItemKey, {
+    actorIdx,
+    requestedSlot,
+    confirm
+  }));
   if (!result.ok) return false;
   clearSelection();
   updateUI();
   return true;
 }
 
-function discardSelectedEquipment() {
+async function discardSelectedEquipment() {
   const pendingUnequip = equipState.pendingUnequip;
   if (pendingUnequip && equipState.selectedDiscardIndices.size !== 1) {
     addLog("装備を外す前に、バッグから破棄する装備を1件選んでください。");
     return false;
   }
+  const selectedIndices = [...equipState.selectedDiscardIndices];
   if (equipState.draft) {
-    const selectedItems = [...equipState.selectedDiscardIndices]
+    const draftBefore = equipState.draft;
+    const selectedItems = selectedIndices
       .map(index => getDraftInventory()[index])
       .filter(Boolean);
     const risks = selectedItems.flatMap(item => getDiscardRisk(item));
@@ -372,9 +397,11 @@ function discardSelectedEquipment() {
     const warning = Object.entries(riskCounts).length > 0
       ? ` 注意: ${Object.entries(riskCounts).map(([risk, count]) => `${risk} ${count}件`).join("、")}`
       : "";
-    if (!confirm(`選択した${equipState.selectedDiscardIndices.size}件の装備を破棄しますか？${warning}この変更は確定時に反映されます。`)) return false;
-    let draft = equipState.draft;
-    [...equipState.selectedDiscardIndices]
+    if (!await confirmDiscard(`選択した${selectedIndices.length}件の装備を破棄しますか？${warning}この変更は確定時に反映されます。`)) return false;
+    // The overlay may have been closed or re-drafted while the dialog was open.
+    if (equipState.draft !== draftBefore || equipState.pendingUnequip !== pendingUnequip) return false;
+    let draft = draftBefore;
+    [...selectedIndices]
       .sort((a, b) => b - a)
       .forEach(index => {
         const staged = stageDiscardInventoryItem(draft, index);
@@ -389,9 +416,11 @@ function discardSelectedEquipment() {
     }
     equipState.draft = draft;
   } else {
-    const result = discardEquipmentSelection(equipState.selectedDiscardIndices, {
-      actorIdx: equipState.actorIdx
-    });
+    const actorIdx = equipState.actorIdx;
+    const result = await confirmSystemDiscard(confirm => discardEquipmentSelection(selectedIndices, {
+      actorIdx,
+      confirm
+    }));
     if (!result.ok) return false;
   }
   if (pendingUnequip && !equipState.draft) {
