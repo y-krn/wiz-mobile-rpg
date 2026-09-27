@@ -20,11 +20,10 @@ import {
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
 import {
-  normalizeDecisionAction,
-  normalizeDirection,
-  normalizeTargetIndex
+  normalizeDecisionAction
 } from "./telemetry_decision_normalization.ts";
 import { buildCombatDecisionPayload } from "./telemetry_combat_decision.ts";
+import { buildExplorationDecisionPayload } from "./telemetry_exploration_decision.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -1376,18 +1375,23 @@ export function trackExplorationDecision(action, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
   const spellId = getSafeSpellId(details.spellName);
   const spellTarget = spellId && spellId !== "other" ? SPELLS[spellId]?.target : null;
-  capture("exploration_decision", {
+  capture("exploration_decision", buildExplorationDecisionPayload({
     runId,
-    ...safeExplorationContext({ state: details.state, character: details.character }),
-    action: normalizeDecisionAction(action),
-    source: normalizeStableValue(details.source, SAFE_CELL_EVENTS),
+    context: safeExplorationContext({ state: details.state, character: details.character }),
+    action,
+    source: details.source,
+    safeCellEvents: SAFE_CELL_EVENTS,
     spellId,
-    targetIndex: normalizeTargetIndex(details.targetIdx, details.state?.party?.length),
-    targetType: normalizeOptionalStableValue(details.targetType ?? spellTarget, SAFE_SPELL_TARGET_TYPES),
+    targetIdx: details.targetIdx,
+    partySize: details.state?.party?.length,
+    targetType: details.targetType,
+    spellTarget,
+    safeSpellTargetTypes: SAFE_SPELL_TARGET_TYPES,
     itemId: getSafeItemId(details.itemKey),
     itemCategory: getItemCategory(details.itemKey),
-    direction: normalizeDirection(details.direction, SAFE_DIRECTIONS)
-  });
+    direction: details.direction,
+    safeDirections: SAFE_DIRECTIONS
+  }));
 }
 
 export function trackEquipmentDecision(action, details = {}) {
