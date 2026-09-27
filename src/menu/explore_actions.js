@@ -24,7 +24,7 @@ import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision, trac
 import { applyExplorationItem } from "../systems/exploration_items.js";
 import { calculateSecretDoorSearchChance } from "../rules/exploration_rules.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry, RETURN_WING_SALVAGE_COUNT } from "../state/run_loot.js";
-import { appendOwnershipBadge, getItemOwnership } from "../ui/common_shell.js";
+import { appendOwnershipBadge, getItemOwnership, OWNERSHIP_STATES } from "../ui/common_shell.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
 
 let selectedWingLootIds = new Set();
@@ -207,6 +207,12 @@ function getInventorySections() {
   };
 }
 
+// Town items are the safe default; the bag only flags items that can still be lost.
+function appendBagOwnershipBadge(row, ownership) {
+  if (ownership === OWNERSHIP_STATES.TOWN_CONFIRMED) return;
+  appendOwnershipBadge(row, ownership);
+}
+
 function getInventoryFilterCount(sections, filterId) {
   if (filterId === "tools") return sections.usable.length + sections.otherItems.length;
   if (filterId === "equipment") return sections.equipment.length;
@@ -251,7 +257,7 @@ function renderEquipmentFilter(list, sections) {
     btn.dataset.ownership = ownership;
     btn.addEventListener("click", openEquipFromInventory);
     row.appendChild(btn);
-    appendOwnershipBadge(row, ownership);
+    appendBagOwnershipBadge(row, ownership);
     list.appendChild(row);
   });
   appendEquipLinkButton(list, unidentified > 0 && sections.identifyTickets > 0
@@ -342,7 +348,7 @@ export function renderItemInventory(optGrid) {
       const ownership = getItemOwnership(item, { state });
       btn.dataset.ownership = ownership;
       row.appendChild(btn);
-      appendOwnershipBadge(row, ownership);
+      appendBagOwnershipBadge(row, ownership);
       btn.addEventListener("click", () => {
         menuContext.itemKey = itemKey;
         menuContext.itemIdx = idx;
