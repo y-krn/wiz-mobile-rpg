@@ -82,6 +82,18 @@ const normalRoamingInput = getRendererInput({
 }, null);
 assert.deepEqual(normalRoamingInput.dangerCue, { active: false, source: "none" }, "normal roaming enemies do not become danger identity cues");
 
+const roamingEliteCue = (monster, extra = {}) => getRendererInput({
+  ...stateLike,
+  gameState: "explore",
+  combatState: null,
+  ...extra,
+  roamingMonsters: [{ floor: 2, kind: "elite", perception: "visible", ...monster }]
+}, null).dangerCue;
+assert.deepEqual(roamingEliteCue({ x: 12, y: 9 }), { active: false, source: "none" }, "a distant elite on the same floor does not light the danger cue");
+assert.deepEqual(roamingEliteCue({ x: 4, y: 1 }), { active: true, source: "roaming" }, "an elite within Manhattan distance 4 lights the danger cue");
+assert.deepEqual(roamingEliteCue({ x: 5, y: 1 }), { active: false, source: "none" }, "an elite at Manhattan distance 5 stays outside the danger radius");
+assert.deepEqual(roamingEliteCue({ x: 1, y: 1, perception: "afterimage" }), { active: false, source: "none" }, "a nearby afterimage elite needs arcane sense");
+
 const staleEnemyTargetInput = getRendererInput(
   { ...stateLike, gameState: "submenu" },
   { type: "combat_spell", targetType: "enemy", prevGameState: "combat" }

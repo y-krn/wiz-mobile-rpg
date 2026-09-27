@@ -40,6 +40,7 @@ export const PIXI_VIEW_H = CANONICAL_VIEW.height;
 export const PIXI_VERSION = "8.19.0";
 
 const COLUMN_ORDER = [-2, 2, -1, 1, 0];
+const DANGER_VIGNETTE_COLOR = "#e08c14";
 const LAYER_NAMES = Object.freeze([
   "background",
   "far-environment",
@@ -1140,13 +1141,21 @@ export class PixiDungeonRenderer {
     this.drawChestProp(plane, getChestPropStyle(renderInput.visual.landmarks?.chestStyle));
   }
 
+  // Strong-enemy warning is an amber screen-edge vignette (the minimap's elite
+  // color), not a floor ellipse, so it never reads as a trap marker or points
+  // at a specific cell. Reduced motion keeps the same frame at a fixed alpha.
   drawDangerPulse(renderInput) {
-    if (!renderInput.dangerCue?.active || prefersReducedMotion()) return;
-    const pulse = 0.05 + 0.03 * (Math.sin(this.clockMs / 220) + 1);
-    const sx = this.viewport.width / PIXI_VIEW_W;
-    const sy = this.viewport.height / PIXI_VIEW_H;
-    drawEllipse(this.layer("environment-fx"), 200 * sx, 174 * sy, 150 * sx, 22 * sy, "#ff3b30", pulse, { color: "#ff3b30", width: 1.3, alpha: 0.48 });
-    drawEllipse(this.layer("combat-fx"), 200 * sx, 124 * sy, 42 * sx, 18 * sy, "#ff3b30", 0.035 + pulse * 0.35);
+    if (!renderInput.dangerCue?.active) return;
+    const pulse = prefersReducedMotion() ? 0.5 : 0.5 + 0.5 * Math.sin(this.clockMs / 260);
+    const { width, height } = this.viewport;
+    const bandWidth = Math.max(4, Math.min(width, height) * 0.035);
+    const graphic = new Graphics();
+    for (let band = 0; band < 4; band += 1) {
+      const inset = bandWidth * (band + 0.5);
+      graphic.rect(inset, inset, width - inset * 2, height - inset * 2)
+        .stroke({ color: DANGER_VIGNETTE_COLOR, width: bandWidth, alpha: (0.42 + pulse * 0.18) * (1 - band / 4) });
+    }
+    this.layer("overlays").addChild(graphic);
   }
 
   getFloatingTextPlacement(entry) {

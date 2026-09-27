@@ -104,6 +104,8 @@ function getSceneVisibility(view: ScreenViewSnapshot): SceneVisibility {
   return Object.freeze({ showTownBackground, showCombat, showChest, showEventScene, showItemMenu });
 }
 
+const DANGER_CUE_RADIUS = 4;
+
 function getDangerCue({
   view,
   map,
@@ -133,14 +135,14 @@ function getDangerCue({
   const playerX = typeof x === "number" && Number.isInteger(x) ? x : 0;
   const playerY = typeof y === "number" && Number.isInteger(y) ? y : 0;
   if (map) {
-    const minY = Math.max(0, playerY - 4);
-    const maxY = Math.min(map.length - 1, playerY + 4);
+    const minY = Math.max(0, playerY - DANGER_CUE_RADIUS);
+    const maxY = Math.min(map.length - 1, playerY + DANGER_CUE_RADIUS);
     for (let mapY = minY; mapY <= maxY && !nearbyMapThreat; mapY += 1) {
       const row = map[mapY] ?? [];
-      const minX = Math.max(0, playerX - 4);
-      const maxX = Math.min(row.length - 1, playerX + 4);
+      const minX = Math.max(0, playerX - DANGER_CUE_RADIUS);
+      const maxX = Math.min(row.length - 1, playerX + DANGER_CUE_RADIUS);
       for (let mapX = minX; mapX <= maxX; mapX += 1) {
-        if (Math.abs(mapX - playerX) + Math.abs(mapY - playerY) > 4) continue;
+        if (Math.abs(mapX - playerX) + Math.abs(mapY - playerY) > DANGER_CUE_RADIUS) continue;
         const cell = row[mapX];
         const event = isRecord(cell) ? cell.event : undefined;
         if (event === EVENT_TYPES.BOSS || event === EVENT_TYPES.MIDBOSS) {
@@ -153,7 +155,13 @@ function getDangerCue({
   const nearbyRoamingThreat = roamingMonsters.some((monster) => {
     if (!isRecord(monster) || monster.floor !== floor) return false;
     if (monster.perception === "afterimage" && !hasArcaneSense) return false;
-    return monster.kind === "elite";
+    if (monster.kind !== "elite") return false;
+    // Same Manhattan radius as the boss-cell scan: the pulse has no direction,
+    // so it must mean "near", not "somewhere on this floor" (minimap owns that).
+    const monsterX = Number(monster.x);
+    const monsterY = Number(monster.y);
+    if (!Number.isFinite(monsterX) || !Number.isFinite(monsterY)) return false;
+    return Math.abs(monsterX - playerX) + Math.abs(monsterY - playerY) <= DANGER_CUE_RADIUS;
   });
 
   return Object.freeze({
