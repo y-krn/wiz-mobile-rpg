@@ -24,6 +24,7 @@ import {
 } from "./telemetry_decision_normalization.ts";
 import { buildCombatDecisionPayload } from "./telemetry_combat_decision.ts";
 import { buildExplorationDecisionPayload } from "./telemetry_exploration_decision.ts";
+import { buildLoadoutTransactionPayload } from "./telemetry_loadout_transaction.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -1437,16 +1438,18 @@ export function trackEquipmentDecision(action, details = {}) {
 
 export function trackLoadoutTransaction(action, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
-  capture("loadout_transaction", {
+  capture("loadout_transaction", buildLoadoutTransactionPayload({
     runId,
-    ...safeExplorationContext({ state: details.state, character: details.character }),
-    action: normalizeDecisionAction(action),
-    equipmentChangeCount: boundedFiniteOrNull(details.equipmentChanges, 0, EQUIPMENT_SLOTS.length * 8),
-    runeChangeCount: boundedFiniteOrNull(details.runeChanges, 0, EQUIPMENT_SLOTS.length * 8),
-    discardedItemCount: boundedFiniteOrNull(details.discardedItems, 0, INVENTORY_CAPACITY),
-    mode: normalizeStableValue(details.mode, new Set(["loadout", "trial"])),
-    turnCost: boundedFiniteOrNull(details.turnCost, 0, 1)
-  });
+    context: safeExplorationContext({ state: details.state, character: details.character }),
+    action,
+    equipmentChanges: details.equipmentChanges,
+    runeChanges: details.runeChanges,
+    discardedItems: details.discardedItems,
+    mode: details.mode,
+    turnCost: details.turnCost,
+    equipmentChangeCountMax: EQUIPMENT_SLOTS.length * 8,
+    discardedItemCountMax: INVENTORY_CAPACITY
+  }));
 }
 
 export function __setTelemetryClientForTests(testClient) {
