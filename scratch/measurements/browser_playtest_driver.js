@@ -18,6 +18,8 @@ const PREVIEW = await import('/src/rules/equipment_preview.js');
 const LOADOUT = await import('/src/rules/loadout_transaction.js');
 const LOADOUT_COMMIT = await import('/src/systems/loadout_transaction.ts');
 const EQUIP_ACTIONS = await import('/src/systems/equipment_actions.ts');
+const HANDS = await import('/src/rules/equipment_hands.ts');
+const REWARDS = await import('/src/pending_rewards.js');
 
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 // Real (unscaled) sleep when the runner accelerates timers.
@@ -94,6 +96,8 @@ const goals = {
   frontier: (x, y) => !st().visitedMap[y][x],
   stairs: (x, y) => st().map[y][x].type === 'stairs-down',
   boss: (x, y) => st().map[y][x].event === 'boss',
+  // Any cell except a roaming elite's own: one step of real movement.
+  wander: (x, y) => !(st().roamingMonsters || []).some(m => m.floor === st().floor && m.x === x && m.y === y),
 };
 W.__walk = async (goalName = 'frontier', maxSteps = 200) => {
   const s = st(); let steps = 0;
@@ -215,12 +219,28 @@ W.__take = async () => {
     choices.forEach(e => { e.decision = e === best?.e ? 'take' : 'leave'; e.loadoutAction = null; });
     W.__seedChoice = { offered: choices.map(e => describeItem(e.item)), taken: best ? describeItem(best.e.item) : null };
     W.__journal.push(`SEED F${st().floor}: ${W.__seedChoice.offered.join(' | ')} -> ${W.__seedChoice.taken}`);
-    const { openPendingRewardMenu } = await import('/src/pending_rewards.js'); openPendingRewardMenu(); await sl(200);
   }
+  // When the rewards overflow the bag the game leaves every entry undecided and
+  // the confirm button stays disabled: take the best ones that fit, leave the rest.
+  const undecided = (bundle?.entries || []).filter(e => !['take', 'leave'].includes(e.decision));
+  if (undecided.length) {
+    const inv = st().inventory;
+    const hasPortal = inv.some(it => DATA.getItemData?.(it)?.id === 'TOWN_PORTAL');
+    let free = BAG_LIMIT - inv.length + (bundle.discardIndexes?.length || 0) - bundle.entries.filter(e => e.decision === 'take').length;
+    const value = e => (EQUIP_TYPES.includes(itemType(e.item)) && !isHidden(e.item) ? scoreEquip(P(), e.item) ?? 0 : 0);
+    undecided.sort((a, b) => value(b) - value(a)).forEach(e => {
+      e.loadoutAction = null;
+      e.decision = free > 0 && !(hasPortal && DATA.getItemData?.(e.item)?.id === 'TOWN_PORTAL') ? 'take' : 'leave';
+      if (e.decision === 'take') free--;
+    });
+    W.__journal.push(`BAG FULL F${st().floor}: took ${undecided.filter(e => e.decision === 'take').length}/${undecided.length}`);
+  }
+  REWARDS.openPendingRewardMenu(); await sl(200);
   await W.__click('この内容で確定する'); await sl(400);
 };
 
 const EQUIP_TYPES = ['weapon', 'armor', 'shield', 'accessory'];
+const BAG_LIMIT = 20; // pending_rewards.js BAG_LIMIT (not exported)
 const itemType = it => DATA.getItemData?.(it)?.type ?? null;
 const isHidden = it => typeof it === 'object' && it && it.identified === false;
 // Score from the game's own equipment preview rows. Combat stats dominate;
@@ -228,10 +248,19 @@ const isHidden = it => typeof it === 'object' && it && it.identified === false;
 // known curses a penalty. The weights are a crude stand-in for a player, not a
 // balance claim.
 const SCORE_WEIGHTS = { attack: 2, defense: 2, maxHp: 0.3, maxMp: 0.5, magic: 1, speed: 0.5, firstStrike: 0.3 };
+const weighRows = rows => rows.reduce((a, r) => a + (typeof r.diff === 'number' ? r.diff * (SCORE_WEIGHTS[r.key] || 0) : 0), 0);
 const scoreEquip = (char, it) => {
+  // A shield cannot go on next to a two-handed weapon (the loadout refuses it),
+  // so it is no upgrade until the weapon changes.
+  if (itemType(it) === 'shield' && HANDS.getEquipmentHands(char.equipment?.weapon) === 2) return null;
   const preview = PREVIEW.getEquipmentPreview(char, it, null, { floor: st().floor });
   if (!preview) return null;
-  let score = preview.rows.reduce((a, r) => a + (typeof r.diff === 'number' ? r.diff * (SCORE_WEIGHTS[r.key] || 0) : 0), 0);
+  let score = weighRows(preview.rows);
+  // Equipping a two-handed weapon also takes the shield off; the preview does not.
+  if (preview.slot === 'weapon' && HANDS.getEquipmentHands(it) === 2 && char.equipment?.shield) {
+    const off = PREVIEW.getUnequipPreview(char, 'shield', { floor: st().floor });
+    if (off) score += weighRows(off.rows);
+  }
   const extras = item => {
     if (!item || typeof item !== 'object') return 0;
     let v = 0;
@@ -261,14 +290,17 @@ W.__manageGear = async () => {
   }
   // 2) equip the best identified upgrade per slot, one commit per change
   for (let guard = 0; guard < 6; guard++) {
-    const char = P(); let best = null;
+    const char = P(); const draft = LOADOUT.createLoadoutDraft(st()); let best = null;
     st().inventory.forEach((it, i) => {
       if (isHidden(it) || !EQUIP_TYPES.includes(itemType(it))) return;
       const score = scoreEquip(char, it);
-      if (score !== null && score >= 0.5 && (!best || score > best.score)) best = { i, score, it };
+      if (score === null || score < 0.5 || (best && score <= best.score)) return;
+      // Skip what the loadout would refuse (curse lock, hands) instead of
+      // retrying the same refused item every turn.
+      if (!LOADOUT.getLoadoutEquipAvailability(draft, { actorIdx: 0, item: it }).ok) return;
+      best = { i, score, it };
     });
     if (!best) break;
-    const draft = LOADOUT.createLoadoutDraft(st());
     const staged = LOADOUT.stageEquip(draft, { actorIdx: 0, inventoryIndex: best.i });
     if (!staged?.ok) { W.__equipLog.push(`F${st().floor} cannot equip ${describeItem(best.it)}: ${staged?.reason}`); break; }
     const res = LOADOUT_COMMIT.commitLoadoutDraft(staged.draft, { turnCost: 1, worldAction: 'explore' });
@@ -338,7 +370,11 @@ W.__auto = async (policy = { explore: 0.6 }, maxIter = 600) => {
       await sl(700); W.__journal.push('trap F' + s.floor + ': ' + W.__log(1)); continue;
     }
     if (b.some(t => t.includes('宝箱を開ける'))) { await W.__chest(); continue; }
-    if (b.some(t => t.includes('この内容で確定する'))) { await W.__take(); continue; }
+    if (REWARDS.hasPendingRewardBundle(s)) {
+      await W.__take();
+      if (REWARDS.hasPendingRewardBundle(s)) { W.__journal.push('!! stuck reward ' + b.join('|')); return 'stuck'; }
+      continue;
+    }
     if (b.some(t => t.includes('泉の水を飲む'))) { await W.__click('泉の水を飲む'); await sl(600); W.__journal.push('spring F' + s.floor + ': ' + W.__log(1)); continue; }
     if (b.some(t => t.includes('探索に戻る'))) { await W.__click('探索に戻る'); await sl(200); continue; }
     if (b.some(t => t === '休息する')) { await W.__click('休息する'); await sl(400); W.__journal.push('camp F' + s.floor + ': ' + W.__log(1)); continue; }
@@ -368,9 +404,11 @@ W.__auto = async (policy = { explore: 0.6 }, maxIter = 600) => {
     let r = await W.__walk(wantStairs && W.__bfs(goals.stairs) ? 'stairs' : 'frontier', 150);
     if (r === 'no path') r = await W.__walk('stairs', 150);
     if (r === 'at stairs') { M.handleMove('turn-left'); await sl(100); M.handleMove('turn-right'); await sl(200); }
-    if (r === 'no path' && (W.__waitTurns = (W.__waitTurns || 0) + 1) <= 12) {
-      // Something (usually a roaming elite) blocks the only way: wait in place.
-      M.handleMove('turn-left'); await sl(60); M.handleMove('turn-right'); await sl(60);
+    if (r === 'no path' && (W.__waitTurns = (W.__waitTurns || 0) + 1) <= 40) {
+      // Something (usually a roaming elite) blocks the only way. Pace instead
+      // of turning in place: some elites only move when the player moves.
+      const w = await W.__walk('wander', 1);
+      if (w !== 'maxsteps' && w !== 'at wander') { M.handleMove('turn-left'); await sl(20); while (s.transitioning) await sl(20); }
       continue;
     }
     if (r === 'no path' || r === 'maxsteps' || r.startsWith('blocked')) { W.__journal.push('!! ' + r); return 'stuck'; }
