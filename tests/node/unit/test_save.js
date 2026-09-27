@@ -3,6 +3,8 @@ import { applySavePayload, createSavePayload } from "../../../src/state/save_pay
 import { SAVE_PAYLOAD_FIELDS, SAVE_VERSION, migrateSavePayload, normalizeSavePayload } from "../../../src/state/save_migrations.js";
 import { isRuntimeItemCollection } from "../../../src/state/item.js";
 import { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, loadGame, saveAutosave, state } from "../../../src/state.js";
+import { clearSave, initNewGame as initNewGameFacade, loadGame as loadGameFacade, saveAutosave as saveAutosaveFacade, saveGame as saveGameFacade } from "../../../src/state/save_storage.js";
+import { clearSave as clearSaveOwner, initNewGame as initNewGameOwner, loadGame as loadGameOwner, saveAutosave as saveAutosaveOwner, saveGame as saveGameOwner } from "../../../src/state/save_storage.ts";
 import { menuContext, menuHistory, openGuardedSubmenu } from "../../../src/navigation.js";
 import { equipState } from "../../../src/equip.js";
 import { EVENT_TYPES } from "../../../src/data.js";
@@ -32,6 +34,14 @@ function check(label, test) {
     console.error(error);
   }
 }
+
+check("save storage JavaScript facade preserves all five owner function identities", () => {
+  assert.strictEqual(initNewGameFacade, initNewGameOwner);
+  assert.strictEqual(saveGameFacade, saveGameOwner);
+  assert.strictEqual(saveAutosaveFacade, saveAutosaveOwner);
+  assert.strictEqual(clearSave, clearSaveOwner);
+  assert.strictEqual(loadGameFacade, loadGameOwner);
+});
 
 check("all starting kits create one fresh Lv1 character", () => {
   for (const kitId of ["vanguard", "scout", "devotion", "arcana"]) {
@@ -565,6 +575,74 @@ check("malformed primary save falls back to a valid backup", () => {
   loadGame();
 
   assert.equal(Object.hasOwn(state.party[0], "class"), false);
+});
+
+check("load fallback tries autosave, backup, then old save", () => {
+  saveValues.clear();
+  const makePayload = material => JSON.stringify({
+    ...createSavePayload(),
+    metaMaterials: normalizeMaterialBalance({ "獣の牙": material })
+  });
+  const oldSave = makePayload(3);
+  saveValues.set("mobile_wiz_rpg_autosave", "{not-json");
+  saveValues.set("mobile_wiz_rpg_backup", "{not-json");
+  saveValues.set("mobile_wiz_rpg_save", oldSave);
+
+  loadGame();
+
+  assert.deepEqual(state.metaMaterials, normalizeMaterialBalance({ "獣の牙": 3 }));
+  assert.equal(saveValues.get("mobile_wiz_rpg_save"), oldSave);
+});
+
+check("RunFloorRecoveryError preserves the active-run save and stops fallback", () => {
+  saveValues.clear();
+  const activeRunPayload = {
+    ...createSavePayload(),
+    currentRun: { ...createDefaultCurrentRun(), runSeed: "recoverable-test-run" },
+    gameState: "explore",
+    maps: [],
+    visitedMaps: []
+  };
+  const raw = JSON.stringify(activeRunPayload);
+  const backup = JSON.stringify(createSavePayload());
+  saveValues.set("mobile_wiz_rpg_autosave", raw);
+  saveValues.set("mobile_wiz_rpg_backup", backup);
+
+  loadGame();
+
+  assert.equal(saveValues.get("mobile_wiz_rpg_corrupt"), raw);
+  assert.equal(saveValues.get("mobile_wiz_rpg_backup"), backup);
+  assert.equal(state.gameState, "town");
+  assert.match(state.logs.at(-1), /セーブデータは保持されています/);
+});
+
+check("total save loss preserves the first corrupt raw payload", () => {
+  saveValues.clear();
+  const firstCorrupt = "{broken autosave";
+  saveValues.set("mobile_wiz_rpg_autosave", firstCorrupt);
+  saveValues.set("mobile_wiz_rpg_backup", "{broken backup");
+  saveValues.set("mobile_wiz_rpg_save", "{broken old save");
+
+  loadGame();
+
+  assert.equal(saveValues.get("mobile_wiz_rpg_corrupt"), firstCorrupt);
+  assert.equal(state.gameState, "town");
+  assert.match(state.logs[0], /破損データは保管されています/);
+});
+
+check("clearSave removes the same save keys and initializes a new autosave", () => {
+  saveValues.clear();
+  for (const key of ["mobile_wiz_rpg_autosave", "mobile_wiz_rpg_save", "mobile_wiz_rpg_backup", "mobile_wiz_rpg_corrupt"]) {
+    saveValues.set(key, "stale");
+  }
+
+  clearSave();
+
+  assert.equal(saveValues.has("mobile_wiz_rpg_save"), false);
+  assert.equal(saveValues.has("mobile_wiz_rpg_backup"), false);
+  assert.equal(saveValues.has("mobile_wiz_rpg_corrupt"), false);
+  assert.equal(JSON.parse(saveValues.get("mobile_wiz_rpg_autosave")).version, SAVE_VERSION);
+  assert.deepEqual(state.party, []);
 });
 
 check("a single save rotates the previous primary into the backup", () => {
