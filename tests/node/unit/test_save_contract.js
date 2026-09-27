@@ -10,6 +10,8 @@ globalThis.localStorage = {
 const { state } = await import("../../../src/state/state_core.js");
 const { createDefaultCurrentRun, createStartingKitCharacter } = await import("../../../src/state/initial_state.js");
 const { applySavePayload, createSavePayload } = await import("../../../src/state/save_payload.js");
+const { applySavePayload: applySavePayloadOwner, createSavePayload: createSavePayloadOwner } =
+  await import("../../../src/state/save_payload.ts");
 const {
   SAVE_PAYLOAD_FIELDS,
   TRANSIENT_STATE_FIELDS,
@@ -18,6 +20,9 @@ const {
 const {
   isNormalizedSavePayload
 } = await import("../../../src/state/save_contract.js");
+
+assert.strictEqual(createSavePayload, createSavePayloadOwner, "JS facade delegates to the canonical create owner");
+assert.strictEqual(applySavePayload, applySavePayloadOwner, "JS facade delegates to the canonical apply owner");
 const { isNormalizedCurrentRun } = await import("../../../src/state/run_state.js");
 const { MATERIAL_TYPES } = await import("../../../src/data/materials.js");
 
