@@ -767,7 +767,9 @@
 
 .combat-grid {
   grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: var(--tap-lg); /* Fixed row height — no vertical stretch */
+  /* #1824: three fixed rows and explicit slots so no command moves between
+     turns when another one becomes unavailable. */
+  grid-template-rows: repeat(3, var(--tap-lg));
   height: auto;
   width: 100%;
   gap: var(--sp-xs);
@@ -804,13 +806,34 @@
   color: var(--semantic-selected);
 }
 
-#btn-combat-repeat:disabled {
+#btn-combat-technique {
+  grid-column: 1 / span 2;
+  grid-row: 3;
+  white-space: nowrap;
+}
+
+#btn-combat-repeat:disabled,
+#btn-combat-cancel:disabled,
+#btn-combat-technique.is-unavailable {
   opacity: 0.42;
+}
+
+#btn-combat-repeat:disabled,
+#btn-combat-cancel:disabled {
   cursor: not-allowed;
 }
 
-#game-container[data-combat-context="active"] #btn-combat-repeat.is-unavailable {
-  display: none;
+/* Short visible reason for a disabled command (mobile has no tooltip). */
+.combat-grid .btn[data-reason] {
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.1;
+}
+
+.combat-grid .btn[data-reason]::after {
+  content: attr(data-reason);
+  font-size: var(--fs-xs);
+  font-weight: normal;
 }
 
 #btn-combat-auto {
@@ -835,16 +858,13 @@
 }
 
 #btn-combat-cancel {
-  grid-column: 1 / -1;
+  grid-column: 3 / span 2;
   grid-row: 3;
   border-color: var(--border-strong) !important;
   color: var(--text-muted) !important;
   background: var(--surface-inset);
 }
 
-#game-container[data-combat-context="active"] #btn-combat-cancel[hidden] {
-  display: none;
-}
 #btn-combat-cancel:active {
   background-color: rgba(137, 44, 37, 0.15) !important;
   border-color: var(--neon-red) !important;

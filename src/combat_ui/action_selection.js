@@ -72,12 +72,12 @@ function isRepeatableAction(action, actorIdx) {
 }
 
 export function getRepeatActionStatus() {
-  if (!canActInCombat()) return { available: false, reason: "戦闘中ではありません" };
+  if (!canActInCombat()) return { available: false, reason: "戦闘中ではありません", shortReason: "戦闘外" };
   const current = getCurrentSelectionActor();
   const action = getLastActionForCurrentActor();
-  if (!current || !action) return { available: false, reason: "前回の行動がありません" };
+  if (!current || !action) return { available: false, reason: "前回の行動がありません", shortReason: "前回なし" };
   if (!isRepeatableAction(action, current.index)) {
-    return { available: false, reason: "前回の行動は現在の条件では成立しません" };
+    return { available: false, reason: "前回の行動は現在の条件では成立しません", shortReason: "条件不成立" };
   }
   return { available: true, action, actorIdx: current.index };
 }
