@@ -433,8 +433,71 @@ export const CORE_AFFIXES = [
   }
 ];
 
+// Build vNext technique Cores (#1801). They hook the weapon technique / Guard
+// verbs that exist only in the Phase 3 equipment trial, so they are kept out of
+// the production CORE_AFFIXES inventory (and its audit) and are only offered
+// by trial generation.
+export const BUILD_VNEXT_CORE_AFFIXES = [
+  {
+    id: "CORE_TECH_CHAIN",
+    kind: "core",
+    jpName: "連環の型",
+    desc: "技を使った後、次の通常攻撃が1.6倍になる。",
+    slot: "weapon",
+    cost: 10,
+    params: { nextAttackMultiplier: 1.6 },
+    buildRole: "pivot",
+    buildAxis: "main",
+    poolGroup: "combat",
+    enabled: true,
+    trialOnly: true
+  },
+  {
+    id: "CORE_TECH_HONE",
+    kind: "core",
+    jpName: "研ぎ澄まし",
+    desc: "技の再使用までが1ターン短くなり、技の威力が1.15倍になる。",
+    slot: "weapon",
+    cost: 10,
+    params: { cooldownReduction: 1, damageMultiplier: 1.15 },
+    buildRole: "reinforce",
+    buildAxis: "main",
+    poolGroup: "combat",
+    enabled: true,
+    trialOnly: true
+  },
+  {
+    id: "CORE_GUARD_RIPOSTE",
+    kind: "core",
+    jpName: "返しの構え",
+    desc: "防御すると技が即座に再使用可能になり、次の攻撃か技が1.5倍になる。",
+    slot: "shield",
+    cost: 10,
+    params: { nextAttackMultiplier: 1.5 },
+    buildRole: "pivot",
+    buildAxis: "main",
+    poolGroup: "combat",
+    enabled: true,
+    trialOnly: true
+  },
+  {
+    id: "CORE_BLOOD_TECH",
+    kind: "core",
+    jpName: "血の型",
+    desc: "技の再使用待ち中でも、最大HPの12%を払えば技を使える。",
+    slot: "armor",
+    cost: 10,
+    params: { maxHpShare: 0.12 },
+    buildRole: "convert",
+    buildAxis: "main",
+    poolGroup: "combat",
+    enabled: true,
+    trialOnly: true
+  }
+];
+
 const AFFIX_BY_ID = new Map(
-  [...SUPPORT_AFFIXES, ...CORE_AFFIXES].map(affix => [affix.id, affix])
+  [...SUPPORT_AFFIXES, ...CORE_AFFIXES, ...BUILD_VNEXT_CORE_AFFIXES].map(affix => [affix.id, affix])
 );
 
 export function getAffixDefinition(affixOrId) {

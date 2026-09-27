@@ -1,3 +1,4 @@
+import { BUILD_SEED_CHOICE_ROLE, generateBuildSeedOffer, shouldOfferBuildSeed } from "./systems/build_vnext_seed.js";
 import { state, saveAutosave, addLog, addEventLog, clearEventObservations, recordEquipmentDiscovery, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
 import { MAP_WIDTH, MAP_HEIGHT, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import {
@@ -765,14 +766,28 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
         }
       }
     });
-    const pendingBundle = stagePendingRewardBundle(state, objectRewards, {
+    // Build vNext: the run's first ordinary chest also offers three
+    // rule-changing directions; the player keeps at most one.
+    const seedOffer = shouldOfferBuildSeed(state, { fromDrop: chest.fromDrop })
+      ? generateBuildSeedOffer(state, rng)
+      : [];
+    if (seedOffer.length > 0) {
+      state.currentRun.buildSeedOffered = true;
+      seedOffer.forEach(item => recordEquipmentDiscovery(item));
+      addLog("宝箱の奥に、戦い方を変えそうな品が3つ並んでいる。1つだけ持っていける。");
+    }
+    const pendingBundle = stagePendingRewardBundle(state, [
+      ...objectRewards,
+      ...seedOffer.map(item => ({ item, role: BUILD_SEED_CHOICE_ROLE }))
+    ], {
       source: chest.fromDrop ? "combat" : "chest",
       floor: state.floor,
       x: chest.x,
-      y: chest.y
+      y: chest.y,
+      ...(seedOffer.length > 0 ? { choiceRole: BUILD_SEED_CHOICE_ROLE, choiceLimit: 1 } : {})
     });
     if (pendingBundle) {
-      addLog(`戦果 ${objectRewards.length}件をまとめて解決する。`);
+      addLog(`戦果 ${pendingBundle.entries.length}件をまとめて解決する。`);
     }
 
     // Clear the original chest cell even if a trap moved the party.

@@ -205,12 +205,38 @@ Enemy roles are readable through behavior and counterplay rather than uniform
 stat inflation. An aggressor creates direct damage pressure, a disruptor creates
 status or action pressure, and an amplifier changes the priority of other
 enemies. A roaming elite is an optional risk attached to value-seeking
-exploration, not a mandatory flat-stat tax. Its trait should be explained in
+exploration, not a mandatory flat-stat tax. Fleeing from it must actually
+end the contact: after a flee the elite loses the player for a few of its
+movement ticks, so a solo character is not re-engaged on the next step. Its trait should be explained in
 the encounter and recognizable through behavior.
 
 Milestone guardians may telegraph a counter window that rewards the build or
 resource choice the band has been teaching. A counter window must not silently
 rewrite ordinary floor damage, rewards, or the meaning of depth.
+
+## Weapon techniques (Build vNext trial)
+
+In the Phase 3 equipment trial each weapon behavior profile owns one
+technique next to the universal attack. A technique reuses the shared physical
+formula with an authored multiplier (or a self effect), so displayed and
+effective units stay the same as the universal attack. It is gated by an
+encounter-local cooldown; the decision is when to spend it, not whether the
+character may use it.
+
+- light: two strikes at reduced power with better hit stability (answers
+  evasive targets);
+- blade: a stronger cut that is stronger still against a telegraphing target
+  and interrupts an ordinary enemy's telegraph; a guardian's telegraph is
+  exploited but not cancelled, so authored counter windows keep their meaning;
+- impact: a hit that ignores DEF and leaves a temporary DEF reduction;
+- heavy: a high single-hit multiplier with the longest cooldown;
+- medium: a self action that restores MP and strengthens the next spell.
+
+Technique Cores may shorten the cooldown, chain a technique into the next
+universal attack, turn Guard into a cooldown reset plus a primed hit, or let
+the technique be used early for an HP payment. These are one-shot, encounter-
+local modifiers applied at the melee-modifier stage; they never become a
+hidden second damage formula. Normal-profile combat has no technique action.
 
 ## Initiative and equipment load
 
@@ -233,8 +259,12 @@ enemies still roll initiative individually, but the earliest ordinary enemy
 actor owns one shared ordinary action slot for the round. Other ordinary enemy
 turns are skipped without banking into a later round. An explicit trait-generated
 extra action remains attached to the slot owner and is recorded separately;
-summons and other trait grammar do not silently become ordinary slots. Bosses,
-midbosses, and roaming elites retain independent enemy scheduling.
+summons and other trait grammar do not silently become ordinary slots.
+Midbosses and roaming elites retain independent enemy scheduling. In a
+milestone guardian fight the guardian keeps its own turn (and any authored
+extra action), while the adds it brings or summons share one ordinary slot,
+mirroring the ordinary-encounter rule; a solo character must not face a full
+extra action per summon every round.
 
 ## Status-effect grammar
 

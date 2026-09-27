@@ -95,6 +95,8 @@
           <div id="combat-prompt" role="status" aria-live="polite">行動を選択してください</div>
           <div class="combat-grid">
             <button id="btn-combat-fight" class="btn btn-neon btn-combat" data-command-tier="primary" aria-label="攻撃。敵を選択">攻撃</button>
+            <!-- Build vNext weapon technique; only shown when the equipped weapon owns one. -->
+            <button id="btn-combat-technique" class="btn btn-neon btn-combat" data-command-tier="secondary" hidden>技</button>
             <button id="btn-combat-spell" class="btn btn-neon btn-combat" data-command-tier="secondary">魔法</button>
             <button id="btn-combat-item" class="btn btn-neon btn-combat" data-command-tier="secondary">道具</button>
             <button id="btn-combat-repeat" class="btn btn-neon btn-combat" disabled>↻ 前回の行動</button>

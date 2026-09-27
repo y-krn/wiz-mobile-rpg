@@ -141,6 +141,21 @@ export function buildCombatTurnQueue(
     }
     turns.splice(0, turns.length, ...turns.filter(Boolean));
   }
+  // Guardian fights: the guardian keeps its own turn(s), and any adds it
+  // brings or summons share one ordinary slot, mirroring the ordinary
+  // encounter rule. A solo character otherwise faces a full extra action per
+  // summon every round.
+  if (!ordinaryEncounter && state.combatState?.isBoss === true && !measurementDisableSharedNormalEnemyActionSlot) {
+    const addOwner = turns.find(turn =>
+      turn.type === "monster" && turn.mon?.isBoss !== true && !turn.measurementExtraMultiAction
+    )?.idx;
+    for (let index = 0; index < turns.length; index++) {
+      const turn = turns[index];
+      if (turn?.type !== "monster" || turn.mon?.isBoss === true) continue;
+      if (turn.idx !== addOwner) turns[index] = null;
+    }
+    turns.splice(0, turns.length, ...turns.filter(Boolean));
+  }
   // Existing upper-bound measurement cap. The cap applies to total monster
   // turns, so it includes ordinary actions and trait-generated extra actions
   // alike while preserving the original monster objects, traits, and

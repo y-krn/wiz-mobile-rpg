@@ -106,6 +106,9 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
       character.equipment[slotId] = getVNextTrialBaseId(productionId) || productionId;
     });
   }
+  // A medium raises max MP; start the run with that capacity filled, as the
+  // kit card (HP / MP max) promises.
+  character.mp = getCharMaxMp(character);
   const item = ITEMS[trialStartingGear];
   const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
   const handConflict = slot ? getEquipmentHandConflict(character, trialStartingGear, slot) : null;

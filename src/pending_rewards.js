@@ -27,6 +27,8 @@ import { menuContext, resetSubmenuBackButton } from "./navigation.js";
 import { updateUI } from "./ui.js";
 import { createBagCapacitySummary } from "./ui/bag_summary.js";
 import { setDockActionRole } from "./ui/common_shell.js";
+import { isBuildVNextRun } from "./rules/technique_rules.js";
+import { TECHNIQUE_BY_PROFILE } from "./data/techniques.js";
 
 export const PENDING_REWARD_MENU = "pending_rewards";
 const BAG_LIMIT = 20;
@@ -54,7 +56,7 @@ function isBankableObject(item) {
 export function stagePendingRewardBundle(
   stateLike = state,
   rewards = [],
-  { source = "chest", floor = stateLike.floor, x = stateLike.x, y = stateLike.y } = {}
+  { source = "chest", floor = stateLike.floor, x = stateLike.x, y = stateLike.y, choiceRole = null, choiceLimit = null } = {}
 ) {
   const run = getRun(stateLike);
   if (!run || hasPendingRewardBundle(stateLike)) return null;
@@ -77,6 +79,10 @@ export function stagePendingRewardBundle(
 
   if (entries.length === 0) return null;
   applyDefaultTakeDecisions(stateLike, entries);
+  const hasChoice = typeof choiceRole === "string" && Number.isInteger(choiceLimit) && choiceLimit > 0;
+  // A choice group ("pick N of these") starts with every option left behind
+  // so the pick is an explicit decision rather than a default.
+  if (hasChoice) entries.filter(entry => entry.role === choiceRole).forEach(entry => { entry.decision = "leave"; });
   run.pendingRewardBundle = {
     id: `${entries[0].id}:bundle`,
     source,
@@ -84,7 +90,8 @@ export function stagePendingRewardBundle(
     x: Number.isInteger(x) ? x : null,
     y: Number.isInteger(y) ? y : null,
     entries,
-    discardIndexes: []
+    discardIndexes: [],
+    ...(hasChoice ? { choiceRole, choiceLimit } : {})
   };
   return run.pendingRewardBundle;
 }
@@ -159,12 +166,19 @@ function getPendingActionEntry(bundle, entry) {
   return null;
 }
 
+function isChoiceEntry(bundle, entry) {
+  return Boolean(bundle?.choiceRole) && entry.role === bundle.choiceRole;
+}
+
 function validateResolution(stateLike, bundle) {
   const inventory = Array.isArray(stateLike.inventory) ? stateLike.inventory : [];
   const discardIndexes = normalizeDiscardIndexes(bundle, inventory);
   const taken = getTakenEntries(bundle);
   if (bundle.entries.some(entry => !["take", "leave"].includes(entry.decision))) {
     return { ok: false, reason: "すべての戦果を持つか置いていくか選んでください。" };
+  }
+  if (bundle.choiceRole && taken.filter(entry => isChoiceEntry(bundle, entry)).length > (bundle.choiceLimit || 1)) {
+    return { ok: false, reason: `戦い方の芽は${bundle.choiceLimit || 1}つだけ選べます。` };
   }
   const actionError = bundle.entries.map(entry => getPendingActionEntry(bundle, entry)).find(Boolean);
   if (actionError) return { ok: false, reason: actionError.reason };
@@ -383,7 +397,22 @@ function renderPendingRewardMenu() {
     actions.className = "pending-reward-actions";
     const actionType = entry.loadoutAction?.type || null;
     const isChoice = (decision, type = null) => entry.decision === decision && actionType === type;
+    const leaveOtherChoices = () => {
+      if (!isChoiceEntry(bundle, entry)) return;
+      bundle.entries.filter(other => other !== entry && isChoiceEntry(bundle, other)).forEach(other => {
+        other.decision = "leave";
+        other.loadoutAction = null;
+      });
+    };
+    if (isChoiceEntry(bundle, entry) || isBuildVNextRun(state)) {
+      const desc = document.createElement("small");
+      desc.className = "pending-reward-desc";
+      const technique = item?.type === "weapon" ? TECHNIQUE_BY_PROFILE[item.behaviorProfile] : null;
+      desc.textContent = `${isChoiceEntry(bundle, entry) ? "【戦い方の芽・1つだけ選べる】" : ""}${technique ? `技「${technique.name}」: ${technique.desc} ` : ""}${item?.desc || ""}`;
+      card.appendChild(desc);
+    }
     actions.appendChild(createActionButton("持つ", "btn btn-neon", () => {
+      leaveOtherChoices();
       entry.decision = "take";
       entry.loadoutAction = null;
       saveAutosave();
@@ -399,6 +428,7 @@ function renderPendingRewardMenu() {
     }, "", isChoice("leave")));
     if (isKnownLoadoutItem(entry.item) && !getRuneSpellKey(entry.item)) {
       actions.appendChild(createActionButton("装備して持つ", "btn btn-neon", () => {
+        leaveOtherChoices();
         entry.decision = "take";
         entry.loadoutAction = { type: "equip", actorIdx: 0, requestedSlot: null };
         saveAutosave();
@@ -408,6 +438,7 @@ function renderPendingRewardMenu() {
     }
     if (isUntriedLoadoutItem(entry.item)) {
       actions.appendChild(createActionButton("試す（探索時間が進む）", "btn btn-neon", () => {
+        leaveOtherChoices();
         entry.decision = "take";
         entry.loadoutAction = { type: "trial", actorIdx: 0, requestedSlot: null };
         saveAutosave();
@@ -417,6 +448,7 @@ function renderPendingRewardMenu() {
     }
     if (isKnownLoadoutItem(entry.item) && getRuneSpellKey(entry.item)) {
       actions.appendChild(createActionButton("装着して持つ", "btn btn-neon", () => {
+        leaveOtherChoices();
         entry.decision = "take";
         entry.loadoutAction = { type: "socket", actorIdx: 0 };
         saveAutosave();

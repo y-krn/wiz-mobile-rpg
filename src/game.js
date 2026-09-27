@@ -376,6 +376,7 @@ function bindButtons() {
     });
   };
   bindCombatAction("btn-combat-fight", () => selectCombatAction("fight"));
+  bindCombatAction("btn-combat-technique", () => selectCombatAction("technique"));
   bindCombatAction("btn-combat-spell", () => selectCombatAction("spell"));
   bindCombatAction("btn-combat-item", () => selectCombatAction("item"));
   bindCombatAction("btn-combat-repeat", () => repeatLastCombatAction());

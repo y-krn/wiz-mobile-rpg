@@ -5,6 +5,7 @@ import { menuContext } from "../navigation.js";
 import { renderEquip } from "../equip.js";
 import { renderSpellOverlay } from "../spell_menu.js";
 import { renderCombatOverlay, combatSelection, getRepeatActionStatus } from "../combat.js";
+import { getTechniqueStatus } from "../rules/technique_rules.js";
 import { updateSoloHUD } from "./solo_hud.js";
 import { getRoundEnemyActions } from "../combat_ui/round_enemy_actions.js";
 import { updateCombatPrompt } from "./combat_prompt.js";
@@ -687,6 +688,7 @@ export function updateUI() {
       
       const actionButtons = [
         "btn-combat-fight",
+        "btn-combat-technique",
         "btn-combat-spell",
         "btn-combat-item",
         "btn-combat-defend",
@@ -725,6 +727,7 @@ export function updateUI() {
           autoBtn.textContent = "オート";
         }
       }
+      updateTechniqueButton();
       const repeatBtn = document.getElementById("btn-combat-repeat");
       if (repeatBtn) {
         const repeatStatus = getRepeatActionStatus();
@@ -839,4 +842,32 @@ export function updateUI() {
 
   // Update Viewport accessibility Text HUD
   updateViewportHUD();
+}
+
+// Build vNext technique button: hidden unless the current actor's weapon owns
+// a technique; shows the remaining cooldown or the Blood cost when relevant.
+function updateTechniqueButton() {
+  const btn = document.getElementById("btn-combat-technique");
+  if (!btn) return;
+  const living = (state.party || [])
+    .map((char, index) => ({ char, index }))
+    .filter(({ char }) => char && ["ok", "poisoned", "blind"].includes(char.status));
+  const actor = living[combatSelection.charIdx];
+  const status = actor ? getTechniqueStatus(state, actor.index) : { technique: null };
+  if (!status.technique) {
+    btn.hidden = true;
+    return;
+  }
+  btn.hidden = false;
+  const name = status.technique.name;
+  if (status.remaining > 0 && status.hpCost !== null) {
+    btn.textContent = `${name} HP${status.hpCost}`;
+  } else if (status.remaining > 0) {
+    btn.textContent = `${name} あと${status.remaining}`;
+  } else {
+    btn.textContent = name;
+  }
+  btn.classList.toggle("is-unavailable", !status.available);
+  btn.setAttribute("aria-label", `${name}。${status.technique.desc}${status.available ? "" : `（あと${status.remaining}ターン）`}`);
+  btn.title = status.technique.desc;
 }

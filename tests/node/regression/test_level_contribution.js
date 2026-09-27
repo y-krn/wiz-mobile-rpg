@@ -27,8 +27,9 @@ const levelledCharacters = STARTING_KITS.map(kit => {
     stats: Object.fromEntries(["str", "int", "pie", "vit", "agi", "luk"].map(stat => [stat, character[stat]])),
     mp: character.mp,
   };
+  const startingMaxHp = character.maxHp;
   levelUpTo(character, 6);
-  assert.equal(character.maxHp, 45, `${kit.id} gets five universal HP gains`);
+  assert.equal(character.maxHp, startingMaxHp + 25, `${kit.id} gets five universal HP gains`);
   assert.deepEqual(
     Object.fromEntries(["str", "int", "pie", "vit", "agi", "luk"].map(stat => [stat, character[stat]])),
     initial.stats,
@@ -43,25 +44,26 @@ levelledCharacters.slice(1).forEach(character => {
   assert.equal(character.maxHp, levelledCharacters[0].maxHp, "all starting kits share HP growth");
 });
 
+const BASE_MAX_HP = createStartingKitCharacter("vanguard").maxHp;
 const sufficientlyInjured = createStartingKitCharacter("vanguard");
 sufficientlyInjured.hp = 10;
 sufficientlyInjured.exp = Number.MAX_SAFE_INTEGER;
 assert.equal(checkCharLevelUp(sufficientlyInjured), true);
-assert.equal(sufficientlyInjured.maxHp, 25);
+assert.equal(sufficientlyInjured.maxHp, BASE_MAX_HP + 5);
 assert.equal(sufficientlyInjured.hp, 20, "natural +5 and extra +5 recovery both apply");
-assert.ok(sufficientlyInjured.hp <= 25, "level-up recovery must not exceed new max HP");
+assert.ok(sufficientlyInjured.hp <= BASE_MAX_HP + 5, "level-up recovery must not exceed new max HP");
 
 const nearMax = createStartingKitCharacter("vanguard");
-nearMax.hp = 18;
+nearMax.hp = BASE_MAX_HP - 2;
 nearMax.exp = Number.MAX_SAFE_INTEGER;
 assert.equal(checkCharLevelUp(nearMax), true);
-assert.equal(nearMax.hp, 25, "extra recovery caps at the remaining 2 HP");
+assert.equal(nearMax.hp, BASE_MAX_HP + 5, "extra recovery caps at the remaining 2 HP");
 
 const fullHp = createStartingKitCharacter("vanguard");
 fullHp.exp = Number.MAX_SAFE_INTEGER;
 assert.equal(checkCharLevelUp(fullHp), true);
 assert.equal(fullHp.hp, fullHp.maxHp, "full HP receives natural growth to the new maximum only");
-assert.equal(fullHp.hp, 25);
+assert.equal(fullHp.hp, BASE_MAX_HP + 5);
 
 const noLevelUp = createStartingKitCharacter("vanguard");
 assert.equal(checkCharLevelUp(noLevelUp), false);

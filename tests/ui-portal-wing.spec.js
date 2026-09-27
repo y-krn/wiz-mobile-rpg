@@ -45,7 +45,7 @@ for (const viewport of VIEWPORTS) {
     // Revisit buckets compare Date.now() gaps; freeze it so slow CI stays in the immediate bucket.
     await page.clock.setFixedTime(new Date('2026-01-01T00:00:00Z'));
 
-    await expect(page.locator('.milestone-portal-vitals')).toContainText('HP 12/20');
+    await expect(page.locator('.milestone-portal-vitals')).toContainText('HP 12/45');
     const expectedMp = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const { getCharMaxMp } = await import('/src/data.js');

@@ -417,10 +417,17 @@ export function applyFloorTransitionHeal() {
   const char = state.party[0];
   if (!char || char.hp <= 0 || char.status === "dead") return 0;
   const maxHp = getCharMaxHp(char);
-  const healed = Math.min(maxHp - char.hp, Math.max(1, Math.floor(maxHp * 0.25)));
-  if (healed <= 0) return 0;
+  const healed = Math.min(maxHp - char.hp, Math.max(1, Math.floor(maxHp * 0.5)));
+  // MP gets the same breather so a medium-based run is not one fight long.
+  const maxMp = getCharMaxMp(char);
+  const mpHealed = maxMp > 0 ? Math.min(maxMp - char.mp, Math.max(1, Math.floor(maxMp * 0.5))) : 0;
+  if (mpHealed > 0) char.mp += mpHealed;
+  if (healed <= 0) {
+    if (mpHealed > 0) addLog(`階層移動の小休止でMPが${mpHealed}回復した。`);
+    return 0;
+  }
   char.hp += healed;
-  addLog(`階層移動の小休止でHPが${healed}回復した。`);
+  addLog(`階層移動の小休止でHPが${healed}回復した。${mpHealed > 0 ? `MPも${mpHealed}回復した。` : ""}`);
   return healed;
 }
 
@@ -690,9 +697,14 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // Random Encounter
   const forcedEncounter = state.forcedEncounterSteps > 0;
   if (forcedEncounter) state.forcedEncounterSteps = 0;
+  // After any fight (won or fled) the next few steps are quiet, so a flee
+  // cannot chain into back-to-back ambushes while the player is low. This is
+  // runtime-only: a reload simply clears the grace window.
+  const quietStep = state.encounterQuietSteps > 0;
+  if (quietStep) state.encounterQuietSteps--;
   if (
     forcedEncounter ||
-    ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance)
+    (!quietStep && (!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance)
   ) {
     state.transitioning = true;
     createNoiseEvent(state.x, state.y);
@@ -1025,6 +1037,12 @@ export function moveRoamingMonsters(playerMoved = true) {
 
   state.roamingMonsters.forEach(monster => {
     if (monster.floor !== currentFloor) return;
+    // Lost the player after a flee (see ELITE_FLEE_GRACE_TICKS): hold still.
+    if (monster.fleeGraceTicks > 0) {
+      monster.fleeGraceTicks -= 1;
+      monster.detected = false;
+      return;
+    }
 
     const wasDetected = Boolean(monster.detected);
     const intent = getPerceptionIntent({

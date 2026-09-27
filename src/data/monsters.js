@@ -151,7 +151,7 @@ const MONSTER_DATA = [
   { name: "ワイバーン", level: 5, hp: 130, atk: 17, def: 7, exp: 1200, spriteType: "dragon", spell: "LAHALITO", spellChance: 0.10, tags: ["dragon"], color: "#ffa500" },
   { name: "レッドドラゴン", level: 7, hp: 200, atk: 22, def: 10, exp: 3500, spriteType: "dragon", spell: "MADALTO", spellChance: 0.12, tags: ["dragon"], color: "#ff3b30" },
   { name: "アイアンゴーレム", level: 3, hp: 64, atk: 10, def: 14, exp: 350, spriteType: "zombie", physResist: 0.5, magicResist: -0.5, color: "#8e8e93" },
-  { name: "マッドスライム", level: 1, hp: 48, atk: 4, def: 1, exp: 120, spriteType: "biter", physResist: 0.4, magicResist: -0.5, color: "#ff9500" },
+  { name: "マッドスライム", level: 1, hp: 32, atk: 4, def: 1, exp: 120, spriteType: "biter", physResist: 0.4, magicResist: -0.5, color: "#ff9500" },
   { name: "メタルパピー", level: 4, hp: 16, atk: 5, def: 10, exp: 600, spriteType: "biter", fleeChance: 0.50, color: "#ffd700", isRare: true, treasureRare: true },
   { name: "オークの呪医", level: 2, hp: 44, atk: 5, def: 3, exp: 200, spriteType: "orc", spell: "DIOS", spellChance: 0.3, color: "#34c759" },
   { name: "プリーストデーモン", level: 5, hp: 120, atk: 12, def: 6, exp: 800, spriteType: "flack", spell: "DIALMA", spellChance: 0.3, tags: ["demon"], color: "#34c759" },

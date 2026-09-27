@@ -348,6 +348,14 @@ resource timing, and build counterplay.
 - Healing exists through consumables, safe transitions, and build effects, but
   in-combat healing must compete with the resources and actions needed to
   descend.
+- The HP budget is solo-scale (#1799): the single character's HP pool must
+  absorb a floor's ordinary fights with a meaningful but not run-ending share
+  lost per fight. Generic floor-trap damage scales with the victim's max HP
+  instead of a party-era floor-linear roll; ordinary enemy spell damage scales
+  with the caster's attack; the floor transition breather restores a large
+  share of HP and MP; and a won or fled fight is followed by a few quiet steps
+  so a flee cannot chain into back-to-back ambushes. Exact values stay in
+  source.
 - Live combat and deterministic simulation share action-selection and combat
   resolution semantics. Simulation-only policies such as retreat thresholds
   remain measurement policy, not hidden game rules.

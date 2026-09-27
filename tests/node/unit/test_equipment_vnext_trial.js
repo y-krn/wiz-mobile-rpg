@@ -11,6 +11,9 @@ import { generateRandomAccessory, generateRandomEquipment } from "../../../src/s
 import { getVNextTrialBaseId, getVNextTrialCandidates, getVNextTrialChestCandidates, isVNextTrialCore, isVNextTrialSupport, VNEXT_CANONICAL_BASE_REPRESENTATIVES } from "../../../src/rules/equipment_vnext_trial.js";
 import { TRIAL_PROFILES, TRIAL_SAVE_NAMESPACE, getRequestedTrialProfile, getTrialSaveNamespace, isTrialProfile, isTrialStorageSelected } from "../../../src/trial_profiles.js";
 import { getChestItemCandidatesByFloor, rollChestReward } from "../../../src/rules/chest_rules.js";
+import { BUILD_VNEXT_CORE_AFFIXES } from "../../../src/data/affixes.js";
+
+const BUILD_VNEXT_CORE_IDS = new Set(BUILD_VNEXT_CORE_AFFIXES.map(core => core.id));
 
 function lcg(seed) {
   let value = seed;
@@ -93,7 +96,7 @@ for (let seed = 1; seed <= 80; seed += 1) {
   assert.ok(Object.values(VNEXT_CANONICAL_BASE_REPRESENTATIVES).includes(equipment.baseId));
   assert.ok(["VNEXT_RING", "VNEXT_AMULET"].includes(accessory.baseId));
   for (const affix of [...equipment.affixes, ...accessory.affixes]) {
-    if (affix.kind === "core") assert.equal(isVNextTrialCore(affix.id), true, affix.id);
+    if (affix.kind === "core") assert.ok(isVNextTrialCore(affix.id) || BUILD_VNEXT_CORE_IDS.has(affix.id), affix.id);
     else assert.equal(isVNextTrialSupport(affix.type), true, affix.type);
   }
 }

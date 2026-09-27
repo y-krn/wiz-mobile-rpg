@@ -446,11 +446,13 @@ assert.equal(canonicalOnlySmoke.configuration.policyExecution.startsWith("canoni
 assert.equal(canonicalOnlySmoke.determinism.pass, true);
 assert.equal(Object.values(canonicalOnlySmoke.observationInvariance).every(value => value.pass), true);
 assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts.died.count >= 0, true);
-assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 8);
+// #1801 solo HP budget: two of the eight seeded runs now return before B3 and
+// none of the B3 entrants die at B3.
+assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 6);
 assert.deepEqual(
   Object.fromEntries(Object.entries(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts)
     .map(([id, cohort]) => [id, cohort.count])),
-  { reachedNextFloor: 3, died: 2, voluntaryReturn: 3, otherTerminal: 0 }
+  { reachedNextFloor: 4, died: 0, voluntaryReturn: 2, otherTerminal: 0 }
 );
 assert.equal(canonicalOnlySmoke.cases[0].policies.t0, undefined);
 const canonicalOnlyReport = trajectory.buildReport(

@@ -45,7 +45,7 @@ const levelledCharacters = STARTING_KITS.map(kit => {
 });
 levelledCharacters.slice(1).forEach(character => assert.deepEqual(character, levelledCharacters[0], "kit choice must not change level growth"));
 assert.equal(levelledCharacters[0].level, 3);
-assert.equal(levelledCharacters[0].maxHp, 30, "level 2→3 uses the universal +5 HP baseline");
+assert.equal(levelledCharacters[0].maxHp, createStartingKitCharacter(STARTING_KITS[0].id).maxHp + 10, "level 2→3 uses the universal +5 HP baseline");
 assert.equal(levelledCharacters[0].mp, 1, "level up must not grow universal base MP");
 
 const fighter = createStartingKitCharacter("vanguard");

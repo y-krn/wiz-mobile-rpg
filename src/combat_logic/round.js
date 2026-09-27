@@ -81,6 +81,8 @@ import {
 } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
 import { resolvePlayerSpell } from "./spell_resolution.js";
+import { resolvePlayerTechnique } from "./technique_resolution.js";
+import { onGuardChosen, takeNextAttackMultiplier, tickTechniqueCooldowns } from "../rules/technique_rules.js";
 import {
   getFollowUpChance,
   getStatusEffectChance,
@@ -484,7 +486,20 @@ function applyFleePartingAttack(state, monsters, logQueue, rng = Math.random, me
   return true;
 }
 
+// After a flee from a roaming elite, the elite loses the player for a few of
+// its movement ticks (it moves every second player action). Without this a
+// solo character that flees one square is re-engaged immediately and the
+// "optional" elite becomes an unavoidable death (#1801).
+export const ELITE_FLEE_GRACE_TICKS = 6;
+
 function applyFleeRetreat(state) {
+  if (state.combatState?.isRoamingFlack && state.combatState.roamingMonsterId) {
+    const elite = state.roamingMonsters?.find(monster => monster.id === state.combatState.roamingMonsterId);
+    if (elite) {
+      elite.fleeGraceTicks = ELITE_FLEE_GRACE_TICKS;
+      elite.detected = false;
+    }
+  }
   const retreat = state.combatState.retreatPosition;
   if (!retreat) return false;
   state.x = retreat.x;
@@ -772,7 +787,7 @@ export function runCombatRoundCalculation(
           const trapEaterBonus = getCharTrapEaterBonus(char);
           const buffAtk = getBuffTotal(char, "atk");
           const randRoll = rollCharWeaponPhysicalRandom(char, rng);
-          const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
+          const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue }) * takeNextAttackMultiplier(char);
           const def = getEffectiveDef(finalTarget);
           const physicalMitigation = getBuffTotal(finalTarget, "physicalMitigation");
           const weaponAttack = resolveMeasurementWeaponAttack({
@@ -1027,6 +1042,11 @@ export function runCombatRoundCalculation(
           measurement,
           onBleedingClear: (target, reason) => recordBleed("cleared", target, { reason })
         });
+        delete char.focusSpellMultiplier;
+      } else if (act.type === "technique") {
+        actionObservation.executed = true;
+        actionObservation.hpBeforeExecution = char.hp;
+        resolvePlayerTechnique(char, act, state, monsters, logQueue, { rng });
       } else if (act.type === "item") {
         const res = resolvePlayerItem(char, act, state, logQueue, { rng });
         if (res.escaped) {
@@ -1037,6 +1057,12 @@ export function runCombatRoundCalculation(
         actionObservation.executed = true;
         actionObservation.hpBeforeExecution = char.hp;
         logQueue.push({ msg: `[味方] ${char.name}は身を固めて防御している。` });
+        if (onGuardChosen(state, char, act.actorIdx)) {
+          logQueue.push({
+            msg: `[味方] ${char.name}は返しの構えを取った！（技が再使用可能・次の一撃が強まる）`,
+            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
+          });
+        }
       } else if (act.type === "run") {
         actionObservation.executed = true;
         actionObservation.hpBeforeExecution = char.hp;
@@ -1576,7 +1602,10 @@ export function runCombatRoundCalculation(
           return;
         } else if (mon.spell === "HALITO") {
           recordAction(mon, "HALITO");
-          let dmg = Math.floor(rng() * 10) + 5;
+          // Solo scale: a caster's bolt is roughly 1-2x its ATK and ignores
+          // armor, instead of a fixed party-era 5-14 roll at every depth.
+          const casterAtk = getEffectiveAtk(mon);
+          let dmg = casterAtk + Math.floor(rng() * (casterAtk + 1));
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           dmg = resolveGuardMitigation(target, dmg, {
             isDefending,
@@ -1903,6 +1932,7 @@ export function runCombatRoundCalculation(
     onVulnerableExpire: target => recordVulnerableExpiry(state, target, measurement)
   });
   tickCharBuffs(state.party);
+  tickTechniqueCooldowns(state.combatState);
   state.party.forEach(char => {
     if (char.tempDefDown) char.tempDefDown = Math.max(0, char.tempDefDown - 1);
     if (char.magicVulnerableTurns) char.magicVulnerableTurns = Math.max(0, char.magicVulnerableTurns - 1);

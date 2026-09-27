@@ -30,7 +30,7 @@ test('HEAL_POTION use in the explore menu returns to the usable item list @e2e @
   // HUD (body) に開始キットの HP が 5 であることを確認
   const body = page.locator('body');
   await expect(body).toContainText('冒険者');
-  await expect(body).toContainText('5/20');
+  await expect(body).toContainText('5/45');
 
   // 2. 「調べる」（実際には「道具」を起動するボタン）をクリック
   const inspectBtn = page.locator('#btn-inspect');
@@ -51,8 +51,8 @@ test('HEAL_POTION use in the explore menu returns to the usable item list @e2e @
   await targetBtn.click();
 
   // 5. 回復結果の確認
-  // 開始キットの HP が 20 に回復しているか ("H 20")
-  await expect(body).toContainText('20/20');
+  // 傷薬は15回復する: 5 → 20（最大HPは45）
+  await expect(body).toContainText('20/45');
 
   // ログに回復メッセージが出ているか
   await expect(body).toContainText('冒険者は傷薬を使い、HPが15回復した。');

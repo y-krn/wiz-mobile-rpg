@@ -23,8 +23,9 @@ const runConfig = {
     trapPolicy: "disabled",
     // The #1009 role-targeted affix supply changes the deterministic loot
     // path; keep the fixture's purpose (a lethal chest trap) at the new
-    // threshold rather than restoring the old affix selection.
-    hpBaseBonus: -12
+    // threshold rather than restoring the old affix selection. #1801 raised
+    // the solo starting HP from 20 to 45; the offset keeps the same 8 HP.
+    hpBaseBonus: -37
   },
   encounterRateOverride: () => 0
 };

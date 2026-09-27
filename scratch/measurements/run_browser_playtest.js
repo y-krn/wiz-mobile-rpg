@@ -10,6 +10,9 @@
 //   node scratch/measurements/run_browser_playtest.js --url http://localhost:5173 \
 //     --seeds 1-10 --kit vanguard --equip greedy --out /tmp/pt.json
 //
+// Measure against a dev server whose source is not being edited (e.g. a
+// separate worktree of a commit): an HMR reload destroys the running page.
+//
 // Before/after comparison on identical maps: start two dev servers from two
 // worktrees (e.g. main and your branch) and pass both:
 //   node scratch/measurements/run_browser_playtest.js --url http://localhost:5173 \
@@ -104,7 +107,14 @@ try {
   for (const url of targets) {
     all[url] = [];
     for (const seed of seeds) {
-      const r = await playOne(browser, url, seed, opts);
+      let r;
+      // A dev-server reload (source edit) destroys the page mid-run; retry once.
+      try {
+        r = await playOne(browser, url, seed, opts);
+      } catch (error) {
+        console.log(`${url} seed ${seed}: retry after ${String(error.message || error).split("\n")[0]}`);
+        r = await playOne(browser, url, seed, opts);
+      }
       all[url].push(r);
       const line = opts.boss
         ? `${url} seed ${seed}: ${r.result || r.error}`

@@ -589,7 +589,10 @@ function normalizePendingRewardBundle(bundle) {
     y: Number.isInteger(bundle.y) ? bundle.y : null,
     entries,
     discardIndexes: [...new Set(arrayOr(bundle.discardIndexes)
-      .filter(index => Number.isInteger(index) && index >= 0))]
+      .filter(index => Number.isInteger(index) && index >= 0))],
+    ...(typeof bundle.choiceRole === "string" && Number.isInteger(bundle.choiceLimit) && bundle.choiceLimit > 0
+      ? { choiceRole: bundle.choiceRole, choiceLimit: bundle.choiceLimit }
+      : {})
   };
 }
 
