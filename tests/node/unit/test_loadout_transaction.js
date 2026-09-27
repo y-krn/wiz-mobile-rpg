@@ -173,6 +173,7 @@ telemetryCharacter.equipment.weapon = "DAGGER";
 resetState(telemetryCharacter, ["SHORT_SWORD"]);
 state.gameState = "explore";
 trackRunStart({ characterClass: "Fighter", startFloor: 1 }, telemetryCharacter, state);
+const exploreCommitStart = telemetryEvents.length;
 draft = createLoadoutDraft(state);
 staged = stageEquip(draft, { actorIdx: 0, inventoryIndex: 0, requestedSlot: "weapon" });
 assert.equal(staged.ok, true);
@@ -183,6 +184,22 @@ assert.equal(
   1,
   "explore commits must report their actual turn cost"
 );
+const exploreCommitEvents = telemetryEvents.slice(exploreCommitStart);
+assert.equal(exploreCommitEvents.filter(event => event.name === "loadout_transaction").length, 1);
+assert.equal(exploreCommitEvents.at(-1)?.properties.action, "commit");
+assert.equal(exploreCommitEvents.at(-1)?.properties.schemaVersion, 2);
+assert.equal(exploreCommitEvents.at(-1)?.properties.equipmentChangeCount, 1);
+assert.equal(exploreCommitEvents.at(-1)?.properties.runeChangeCount, 0);
+assert.equal(exploreCommitEvents.at(-1)?.properties.discardedItemCount, 0);
+assert.equal(Object.hasOwn(exploreCommitEvents.at(-1).properties, "combatId"), false);
+assert.deepEqual(
+  Object.keys(exploreCommitEvents.at(-1).properties).slice(-6),
+  ["action", "equipmentChangeCount", "runeChangeCount", "discardedItemCount", "mode", "turnCost"]
+);
+assert.equal(exploreCommitEvents.at(-1).properties.mode, "loadout");
+for (const forbiddenContextKey of ["characterClass", "level", "attack", "defense", "magic"]) {
+  assert.equal(Object.hasOwn(exploreCommitEvents.at(-1).properties, forbiddenContextKey), false);
+}
 
 resetState(createStartingKitCharacter("vanguard"), ["DAGGER"]);
 state.gameState = "town";
@@ -198,6 +215,7 @@ assert.equal(
   "non-explore commits must report zero turn cost"
 );
 const transactionCount = telemetryEvents.filter(event => event.name === "loadout_transaction").length;
+const noOpEventCount = telemetryEvents.length;
 const noOpCommit = commitLoadoutDraft(createLoadoutDraft(state), { stateLike: state, turnCost: 1 });
 assert.equal(noOpCommit.turnCost, 0);
 assert.equal(
@@ -205,11 +223,13 @@ assert.equal(
   transactionCount,
   "no-op commits must not emit a paid transaction"
 );
+assert.equal(telemetryEvents.length, noOpEventCount, "no-op commits emit no telemetry event");
 const invalidDraft = createLoadoutDraft(state);
 invalidDraft.inventory = Array.from({ length: 21 }, (_, index) => `invalid-${index}`);
 const invalidPartyBefore = state.party;
 const invalidInventoryBefore = state.inventory;
 const invalidErrors = validateLoadoutDraft(invalidDraft).errors;
+const invalidEventCount = telemetryEvents.length;
 const invalidCommit = commitLoadoutDraft(invalidDraft, { stateLike: state, turnCost: 1 });
 assert.equal(invalidCommit.ok, false);
 assert.equal(invalidCommit.reason, "invalid_draft");
@@ -222,6 +242,7 @@ assert.equal(
   transactionCount,
   "invalid commits must not emit a paid transaction"
 );
+assert.equal(telemetryEvents.length, invalidEventCount, "invalid commits emit no telemetry event");
 
 const unknownTrial = {
   kind: "equipment",
@@ -252,6 +273,7 @@ assert.equal(staged.ok, true);
 assert.equal(state.party[0].equipment.weapon, "DAGGER", "trial staging does not mutate live equipment");
 assert.equal(staged.draft.trialAction.item, unknownTrial);
 assert.equal(validateLoadoutDraft(staged.draft).ok, true);
+const trialCommitStart = telemetryEvents.length;
 const trialCommit = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: 1 });
 assert.equal(trialCommit.ok, true);
 assert.equal(state.party[0].equipment.weapon, unknownTrial);
@@ -262,6 +284,15 @@ assert.equal(telemetryEvents.filter(event => event.name === "equipment_decision"
 assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at(-1)?.properties.lifecycleStage, "tried");
 assert.equal(telemetryEvents.filter(event => event.name === "loot_lifecycle").at(-1)?.properties.lootSequence, 7);
 assert.equal(telemetryEvents.filter(event => event.name === "loadout_transaction").at(-1)?.properties.mode, "trial");
+assert.equal(
+  telemetryEvents.slice(trialCommitStart).filter(event => event.name === "loadout_transaction").length,
+  1,
+  "trial commits emit exactly one loadout transaction"
+);
+assert.deepEqual(
+  telemetryEvents.slice(trialCommitStart).map(event => event.name),
+  ["equipment_decision", "loot_lifecycle", "loadout_transaction"]
+);
 assert.equal(state.logs.at(-1), "試用を確定した。ダガー → 未鑑定の装備品（試用済）（探索時間が進む）");
 assert.ok(state.logs.includes("[呪い装備] 未鑑定の装備品（試用済）は外せない。"));
 
