@@ -216,7 +216,7 @@ rewrite ordinary floor damage, rewards, or the meaning of depth.
 
 ## Weapon techniques (Build vNext trial)
 
-In the Phase 3 equipment trial each weapon behavior profile owns one
+In the Phase 3 equipment rules (every new run since #1815) each weapon behavior profile owns one
 technique next to the universal attack. A technique reuses the shared physical
 formula with an authored multiplier (or a self effect), so displayed and
 effective units stay the same as the universal attack. It is gated by an

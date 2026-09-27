@@ -4,56 +4,18 @@ export const TRIAL_PROFILES = Object.freeze({
   PHASE3_EQUIPMENT: "phase3-equipment"
 });
 
-const TRIAL_QUERY_KEY = "tryout";
-const TRIAL_QUERY_VALUE = "vnext";
-const TRIAL_PROFILE_QUERY_KEY = "trialProfile";
+// Every new run uses the Phase 4c v1 + fixed 4j-B + Phase 3 equipment rules
+// (#1815). NORMAL and PROGRESSION_EXP remain only so saved in-progress runs
+// finish under the rules they started with.
+export const DEFAULT_RUN_PROFILE = TRIAL_PROFILES.PHASE3_EQUIPMENT;
 
-export const TRIAL_SAVE_NAMESPACE = Object.freeze({
-  normal: Object.freeze({
-    save: "mobile_wiz_rpg_autosave",
-    old: "mobile_wiz_rpg_save",
-    backup: "mobile_wiz_rpg_backup",
-    corrupt: "mobile_wiz_rpg_corrupt"
-  }),
-  trial: Object.freeze({
-    save: "mobile_wiz_rpg_vnext_trial_autosave",
-    old: "mobile_wiz_rpg_vnext_trial_save",
-    backup: "mobile_wiz_rpg_vnext_trial_backup",
-    corrupt: "mobile_wiz_rpg_vnext_trial_corrupt"
-  })
+export const SAVE_KEYS = Object.freeze({
+  save: "mobile_wiz_rpg_autosave",
+  old: "mobile_wiz_rpg_save",
+  backup: "mobile_wiz_rpg_backup",
+  corrupt: "mobile_wiz_rpg_corrupt"
 });
 
 export function isTrialProfile(profile) {
   return profile === TRIAL_PROFILES.PROGRESSION_EXP || profile === TRIAL_PROFILES.PHASE3_EQUIPMENT;
-}
-
-export function getRequestedTrialProfile(search = globalThis.location?.search || "") {
-  if (!isTrialStorageSelected(search)) return TRIAL_PROFILES.NORMAL;
-  const profile = new URLSearchParams(search).get(TRIAL_PROFILE_QUERY_KEY);
-  return isTrialProfile(profile) ? profile : TRIAL_PROFILES.NORMAL;
-}
-
-export function isTrialStorageSelected(search = globalThis.location?.search || "") {
-  return new URLSearchParams(search).get(TRIAL_QUERY_KEY) === TRIAL_QUERY_VALUE;
-}
-
-export function getTrialSaveNamespace({ search, trialProfile } = {}) {
-  return isTrialStorageSelected(search) || isTrialProfile(trialProfile)
-    ? TRIAL_SAVE_NAMESPACE.trial
-    : TRIAL_SAVE_NAMESPACE.normal;
-}
-
-export function enterTrialMode(profile = TRIAL_PROFILES.NORMAL) {
-  const url = new URL(globalThis.location.href);
-  url.searchParams.set(TRIAL_QUERY_KEY, TRIAL_QUERY_VALUE);
-  if (isTrialProfile(profile)) url.searchParams.set(TRIAL_PROFILE_QUERY_KEY, profile);
-  else url.searchParams.delete(TRIAL_PROFILE_QUERY_KEY);
-  globalThis.location.assign(url);
-}
-
-export function leaveTrialMode() {
-  const url = new URL(globalThis.location.href);
-  url.searchParams.delete(TRIAL_QUERY_KEY);
-  url.searchParams.delete(TRIAL_PROFILE_QUERY_KEY);
-  globalThis.location.assign(url);
 }

@@ -29,7 +29,7 @@ import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.j
 import { RUN_QUEST_TEMPLATES } from "./data/run_quests.js";
 import { assignRunQuests, createRunQuest, updateRunQuests } from "./systems/run_quests.js";
 import { calculateFloorTrapSuccessRate, resolveTrapAction } from "./rules/trap_rules.js";
-import { TRIAL_PROFILES } from "./trial_profiles.js";
+import { DEFAULT_RUN_PROFILE, TRIAL_PROFILES } from "./trial_profiles.js";
 import { applyPhase4cV1PlayerBaseline } from "./rules/phase4c_v1_trial.js";
 import {
   applyTrapGuardToEffect,
@@ -860,7 +860,7 @@ function assignSelectedRunQuests(run, templateIds) {
   updateRunQuests(run);
 }
 
-export function executeEnterDungeon(floor, { departureCraft = [], runQuestTemplateIds = null, trialProfile = TRIAL_PROFILES.NORMAL } = {}) {
+export function executeEnterDungeon(floor, { departureCraft = [], runQuestTemplateIds = null, trialProfile = DEFAULT_RUN_PROFILE } = {}) {
   state.party = state.party.slice(0, 1);
   state.gameState = "explore";
   menuContext.prevGameState = null;
@@ -869,7 +869,7 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   state.currentRun = createDefaultCurrentRun();
   state.currentRun.trialProfile = Object.values(TRIAL_PROFILES).includes(trialProfile)
     ? trialProfile
-    : TRIAL_PROFILES.NORMAL;
+    : DEFAULT_RUN_PROFILE;
   state.silenceTurns = 0;
   state.forcedEncounterSteps = 0;
   state.currentRun.startedAt = Date.now();
