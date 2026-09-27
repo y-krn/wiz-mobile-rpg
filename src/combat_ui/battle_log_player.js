@@ -18,6 +18,7 @@ import {
   isImportantCombatResult
 } from "./combat_log_presentation.js";
 import { showSoloHudHit } from "../ui/solo_hud.js";
+import { showVictoryToast } from "../ui/victory_toast.js";
 import { recordRoundEnemyAction, resetRoundEnemyActions } from "./round_enemy_actions.js";
 
 function cleanupCombatState() {
@@ -97,6 +98,7 @@ export function playBattleLogs(queue, index) {
     if (renderer?.triggerHitFeedback) renderer.triggerHitFeedback(220, effect.floatTarget);
   });
   if (log.side === COMBAT_LOG_SIDES.ENEMY) recordRoundEnemyAction(log.msg, state.combatState);
+  if (log.victorySummary) showVictoryToast(log.victorySummary);
 
   if (isImportantCombatResult(log.msg)) {
     addEventLog(log.msg, {
