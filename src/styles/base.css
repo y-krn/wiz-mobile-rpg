@@ -7,6 +7,12 @@
   touch-action: manipulation; /* Disable double-tap to zoom, improve response */
 }
 
+/* The UA `[hidden] { display: none }` loses to any author `display` rule
+   (e.g. `.btn { display: flex }`), so enforce it globally (#1819). */
+[hidden] {
+  display: none !important;
+}
+
 #controls-panel,
 #character-panel,
 #viewport-panel,
