@@ -26,7 +26,8 @@ const expectedRecipeKeys = [
   ["koboldScout", "kobold-scout"], ["goblinCaster", "goblin-caster"],
   ["rustedShield", "rusted-shield"], ["skeleton", "skeleton"], ["zombie", "zombie"],
   ["orc", "orc"], ["ghost", "ghost"], ["wisp", "wisp"], ["spider", "spider"],
-  ["rabbit", "rabbit"], ["demon", "demon"], ["dragon", "dragon"], ["small", "small"], ["humanoid", "humanoid"],
+  ["rabbit", "rabbit"], ["demon", "demon"], ["dragon", "dragon"], ["werewolf", "werewolf"],
+  ["livingArmor", "living-armor"], ["small", "small"], ["humanoid", "humanoid"],
   ["brute", "brute"], ["caster", "caster"], ["boss", "boss"]
 ];
 assertStrict.deepEqual(Object.entries(ENEMY_RECIPE_KEYS), expectedRecipeKeys);
@@ -160,7 +161,12 @@ const familyCases = [
   [{ name: "デーモンガード", spriteType: "flack", isBoss: true }, "demon", "boss"],
   [{ name: "ブラッドバット群", spriteType: "bat" }, "flash-bat", "small"],
   [{ name: "アイアンゴーレム", spriteType: "zombie" }, "brute", "brute"],
-  [{ name: "リビングアーマー", spriteType: "zombie" }, "brute", "brute"],
+  [{ name: "リビングアーマー", spriteType: "zombie" }, "living-armor", "brute"],
+  [{ name: "反逆の鎧", spriteType: "zombie" }, "living-armor", "humanoid"],
+  [{ name: "ストーンガード", spriteType: "zombie" }, "brute", "brute"],
+  [{ name: "石像兵", spriteType: "zombie" }, "brute", "brute"],
+  [{ name: "ワーウルフ", spriteType: "orc" }, "werewolf", "humanoid"],
+  [{ name: "オークの戦士", spriteType: "orc" }, "orc", "humanoid"],
   [{ name: "はぐれ魔術師", spriteType: "mage", spell: "HALITO" }, "caster", "caster"],
   [{ name: "オークの呪医", spriteType: "orc", spell: "DIOS" }, "caster", "caster"],
   [{ name: "鉄皮のゴブリン", spriteType: "kobold" }, "humanoid", "humanoid"],
