@@ -6,9 +6,16 @@ const EVIDENCE_DIR = resolve(process.env.ISSUE_1539_EVIDENCE_DIR || 'output/play
 
 const VIEWPORTS = [
   { width: 320, height: 568 },
+  { width: 375, height: 667 },
   { width: 390, height: 844 },
   { width: 430, height: 932 },
+  { width: 844, height: 390 },
 ];
+
+const MENU_IDS = ['btn-inspect', 'btn-cast', 'btn-item', 'btn-explore-management'];
+const MOVE_IDS = ['btn-turn-around', 'btn-move-forward', 'btn-search', 'btn-turn-left', 'btn-move-backward', 'btn-turn-right'];
+// Short screens keep the 116px side-by-side dock so the minimap stays clear (#1826).
+const isShortViewport = (viewport) => viewport.height <= 600;
 
 async function seedExplore(page) {
   await page.evaluate(async () => {
@@ -80,8 +87,9 @@ test('Explore Dock keeps primary movement separated and tappable at required mob
     });
     expect(evidence.visible).toBe(true);
     expect(evidence.overlaps).toEqual([]);
-    expect(evidence.panel.height).toBeLessThanOrEqual(116);
-    expect(evidence.panel.height).toBeGreaterThanOrEqual(115);
+    const expectedPanelHeight = isShortViewport(viewport) ? 116 : 176;
+    expect(evidence.panel.height).toBeLessThanOrEqual(expectedPanelHeight);
+    expect(evidence.panel.height).toBeGreaterThanOrEqual(expectedPanelHeight - 1);
     expect(evidence.dungeonView.y).toBeLessThanOrEqual(1);
     expect(evidence.dungeonView.height).toBeGreaterThanOrEqual(viewport.height - 1);
 
@@ -114,6 +122,29 @@ test('Explore Dock keeps primary movement separated and tappable at required mob
     expect(evidence.buttons['btn-move-backward'].top).toBe(evidence.buttons['btn-turn-right'].top);
     expect(evidence.buttons['btn-turn-left'].x).toBeLessThan(evidence.buttons['btn-move-backward'].x);
     expect(evidence.buttons['btn-move-backward'].x).toBeLessThan(evidence.buttons['btn-turn-right'].x);
+
+    // #1826: menus never share a row or column edge with movement; a clear
+    // divider gap separates the two groups.
+    const menus = MENU_IDS.map((id) => evidence.buttons[id]);
+    const moves = MOVE_IDS.map((id) => evidence.buttons[id]);
+    const menuBox = {
+      top: Math.min(...menus.map((box) => box.top)), bottom: Math.max(...menus.map((box) => box.bottom)),
+      x: Math.min(...menus.map((box) => box.x)), right: Math.max(...menus.map((box) => box.right)),
+    };
+    const moveBox = {
+      top: Math.min(...moves.map((box) => box.top)), bottom: Math.max(...moves.map((box) => box.bottom)),
+      x: Math.min(...moves.map((box) => box.x)), right: Math.max(...moves.map((box) => box.right)),
+    };
+    if (isShortViewport(viewport)) {
+      expect(menuBox.x - moveBox.right).toBeGreaterThanOrEqual(16);
+    } else {
+      // Movement owns the bottom-center thumb zone; menus sit in one strip above it.
+      expect(moveBox.top - menuBox.bottom).toBeGreaterThanOrEqual(12);
+      for (const menu of menus) expect(menu.top).toBe(menus[0].top);
+      const moveCenter = (moveBox.x + moveBox.right) / 2;
+      const panelCenter = evidence.panel.x + evidence.panel.width / 2;
+      expect(Math.abs(moveCenter - panelCenter)).toBeLessThanOrEqual(2);
+    }
 
     const raw = Buffer.from(JSON.stringify(evidence, null, 2));
     mkdirSync(EVIDENCE_DIR, { recursive: true });

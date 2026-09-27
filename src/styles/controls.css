@@ -17,8 +17,8 @@
 }
 
 #controls-panel.explore-mode {
-  height: 116px; /* Compact height for dungeon exploration */
-  min-height: 116px;
+  height: 176px; /* Menu strip above the movement pad (#1826) */
+  min-height: 176px;
   padding: 6px 8px;
   background: var(--surface-control);
 }
@@ -107,7 +107,9 @@
   display: flex;
 }
 
-/* Explore layout: D-pad on left, actions on right */
+/* Explore layout: a one-row menu strip on top, movement pad alone in the
+   bottom-center thumb zone. The divider and gap keep a low movement tap from
+   landing on a menu (#1826). */
 #explore-controls {
   display: none;
   gap: 8px;
@@ -115,8 +117,53 @@
 
 #explore-controls.active {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "menu"
+    "move";
+  justify-items: center;
   gap: var(--sp-md);
+}
+
+#explore-controls .action-grid {
+  grid-area: menu;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  padding-bottom: var(--sp-sm);
+  border-bottom: 1px solid var(--border-color);
+}
+
+#explore-controls .dpad {
+  grid-area: move;
+  width: 100%;
+  max-width: 320px;
+}
+
+/* Short screens (landscape, 320x568) cannot afford the stacked height without
+   covering the minimap: movement stays left, menus move right behind a
+   vertical divider. */
+@media (max-height: 600px) {
+  #controls-panel.explore-mode {
+    height: 116px;
+    min-height: 116px;
+  }
+
+  #explore-controls.active {
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+    grid-template-areas: "move menu";
+    gap: var(--sp-lg);
+  }
+
+  #explore-controls .action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0 0 0 var(--sp-lg);
+    border-bottom: 0;
+    border-left: 1px solid var(--border-color);
+  }
+
+  #explore-controls .dpad {
+    max-width: none;
+  }
 }
 
 #controls-panel.explore-mode #explore-controls.active {

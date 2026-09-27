@@ -843,9 +843,17 @@
   min-height: var(--tap-min);
 }
 
+/* Menu strip (44) + divider + movement pad (48 + 16 + 44) stacked (#1826). */
 #game-container.dungeon-first-mode #controls-panel.explore-mode {
-  height: 116px;
-  min-height: 116px;
+  height: 176px;
+  min-height: 176px;
+}
+
+@media (max-height: 600px) {
+  #game-container.dungeon-first-mode #controls-panel.explore-mode {
+    height: 116px;
+    min-height: 116px;
+  }
 }
 
 #game-container.dungeon-first-mode #controls-panel.combat-mode {

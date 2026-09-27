@@ -158,11 +158,12 @@ for (const vp of VIEWPORTS) {
       await page.getByRole('button', { name: '迷宮へ向かう' }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
 
+      // #1826 stacks a menu strip above the movement pad (176px on tall screens).
       const panelBox = await page.locator('#controls-panel').boundingBox();
-      expect(panelBox.height, `Explore controls panel should stay compact on ${vp.name}`).toBeLessThanOrEqual(130);
+      expect(panelBox.height, `Explore controls panel should stay compact on ${vp.name}`).toBeLessThanOrEqual(180);
 
       const exploreButtons = await page.locator('#explore-controls button:visible').all();
-      expect(exploreButtons.length).toBe(9);
+      expect(exploreButtons.length).toBe(10);
       for (const btn of exploreButtons) {
         const box = await btn.boundingBox();
         const text = (await btn.textContent()).trim();
