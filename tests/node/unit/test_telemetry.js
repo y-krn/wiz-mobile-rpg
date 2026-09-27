@@ -1039,6 +1039,39 @@ check("exploration spell telemetry preserves target shape", () => {
   assert.equal(spellEvents[1].properties.targetType, "all_allies");
 });
 
+check("exploration decision facade preserves fallback and invalid target semantics", () => {
+  const events = [];
+  const state = { ...decisionState, gameState: "explore", party: [decisionPlayer, { ...decisionPlayer }, { ...decisionPlayer }] };
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, state);
+
+  for (const targetType of [null, undefined, "", "invalid", "all_allies"]) {
+    trackExplorationDecision("spell", {
+      state,
+      character: decisionPlayer,
+      source: "unknown-event",
+      spellName: "DIOS",
+      targetIdx: -1,
+      targetType
+    });
+  }
+  trackExplorationDecision("item", { state, character: decisionPlayer, itemKey: null });
+  trackExplorationDecision("spell", { state, character: decisionPlayer, spellName: "UNKNOWN_SPELL" });
+
+  const decisions = events.filter(event => event.name === "exploration_decision").map(event => event.properties);
+  assert.deepEqual(decisions.slice(0, 5).map(event => event.targetType), ["single_ally", "single_ally", null, "other", "all_allies"]);
+  assert.deepEqual(decisions.map(event => event.targetIndex), [null, null, null, null, null, null, null]);
+  assert.deepEqual(decisions.slice(0, 5).map(event => event.source), ["other", "other", "other", "other", "other"]);
+  assert.equal(decisions[0].spellId, "DIOS");
+  assert.equal(decisions[5].itemId, null);
+  assert.equal(decisions[5].itemCategory, "other");
+  assert.equal(decisions[6].spellId, "other");
+  assert.equal(decisions[6].itemId, null);
+  assert.equal(Object.hasOwn(decisions[0], "playerClass"), false);
+  assert.equal(Object.hasOwn(decisions[0], "level"), false);
+  assert.equal(Object.hasOwn(decisions[0], "attack"), false);
+});
+
 check("exploration item telemetry identifies the selected ally", () => {
   const events = [];
   const state = {
