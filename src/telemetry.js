@@ -20,11 +20,11 @@ import {
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
 import {
-  normalizeCombatIndex,
   normalizeDecisionAction,
   normalizeDirection,
   normalizeTargetIndex
 } from "./telemetry_decision_normalization.ts";
+import { buildCombatDecisionPayload } from "./telemetry_combat_decision.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -1330,38 +1330,23 @@ export function trackRunEnd(run, outcome, stateSnapshot = null) {
 export function trackCombatDecision(action, details = {}) {
   if (!isTelemetryAvailable() || !runId || !combatId) return;
   const combat = details.combat || details.state?.combatState || null;
-  const monsters = combat?.monsters || [];
-  const normalizedAction = normalizeDecisionAction(action);
   const spellId = getSafeSpellId(details.spellName);
   const spellTarget = spellId && spellId !== "other" ? SPELLS[spellId]?.target : null;
-  const isAllyTarget = normalizedAction === "item" ||
-    normalizedAction === "spell" && spellTarget === "single_ally";
-  const isEnemyTarget = normalizedAction === "attack" ||
-    normalizedAction === "spell" && ["single_enemy", "all_enemies"].includes(spellTarget);
-  const targetCollectionSize = isAllyTarget
-    ? details.state?.party?.length
-    : isEnemyTarget
-      ? monsters.length
-      : 0;
-  const target = isEnemyTarget && Number.isInteger(details.targetIdx)
-    ? monsters[details.targetIdx]
-    : null;
-  capture("combat_decision", {
+  capture("combat_decision", buildCombatDecisionPayload({
     runId,
     combatId,
-    ...safeDecisionContext({ state: details.state, character: details.character, combat }),
-    action: normalizedAction,
-    actorIndex: normalizeCombatIndex(details.actorIdx, details.state?.party?.length),
-    targetIndex: normalizeCombatIndex(
-      details.targetIdx,
-      targetCollectionSize,
-      normalizedAction === "spell" && ["all_enemies", "all_allies"].includes(spellTarget)
-    ),
-    targetEnemyId: target ? normalizeEnemyId(target.name) : null,
+    action,
+    actorIdx: details.actorIdx,
+    targetIdx: details.targetIdx,
+    partySize: details.state?.party?.length,
+    monsters: combat?.monsters || [],
+    context: safeDecisionContext({ state: details.state, character: details.character, combat }),
     spellId,
+    spellTarget,
     itemId: getSafeItemId(details.itemKey),
-    itemCategory: getItemCategory(details.itemKey)
-  });
+    itemCategory: getItemCategory(details.itemKey),
+    normalizeEnemyId
+  }));
 }
 
 export function trackCombatDecisionPending(action, details = {}) {

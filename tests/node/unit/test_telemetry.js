@@ -425,13 +425,25 @@ check("combat decision targets use production collection semantics", () => {
     targetIdx: -1,
     spellName: "MABARRIER"
   });
+  trackCombatDecision("spell", {
+    state,
+    character: decisionPlayer,
+    combat: decisionCombat,
+    actorIdx: 0,
+    targetIdx: -1,
+    spellName: "UNKNOWN_SPELL",
+    itemKey: "UNKNOWN_ITEM"
+  });
 
   const decisions = events.filter(event => event.name === "combat_decision");
-  assert.deepEqual(decisions.map(event => event.properties.targetIndex), [0, 2, 1, -1]);
+  assert.deepEqual(decisions.map(event => event.properties.targetIndex), [0, 2, 1, -1, null]);
   assert.deepEqual(
     decisions.map(event => event.properties.targetEnemyId),
-    [null, null, "いにしえの竜", null]
+    [null, null, "いにしえの竜", null, null]
   );
+  assert.equal(decisions[4].properties.spellId, "other");
+  assert.equal(decisions[4].properties.itemId, "other");
+  assert.equal(decisions[4].properties.itemCategory, "other");
 });
 
 check("canonical legendary rarity remains allowlisted", () => {
