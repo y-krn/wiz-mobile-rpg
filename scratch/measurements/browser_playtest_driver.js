@@ -66,8 +66,11 @@ W.__tap = async (t) => {
 W.__bfs = (goal, allowTraps = false) => {
   const s = st(); const H = s.map.length, Wd = s.map[0].length; const prev = new Map();
   const key = (x, y) => y * Wd + x; const q = [[s.x, s.y]]; prev.set(key(s.x, s.y), null);
-  const elites = allowTraps ? [] : (s.roamingMonsters || []).filter(m => m.floor === s.floor && m.hp !== 0 && !m.defeated);
-  const nearElite = (x, y) => elites.some(m => Math.abs(m.x - x) + Math.abs(m.y - y) <= 2);
+  // Keep two cells from roaming elites; the fallback search (allowTraps) still
+  // refuses to step onto an elite's own cell.
+  const elites = (s.roamingMonsters || []).filter(m => m.floor === s.floor && m.hp !== 0 && !m.defeated);
+  const eliteRadius = allowTraps ? 0 : 2;
+  const nearElite = (x, y) => elites.some(m => Math.abs(m.x - x) + Math.abs(m.y - y) <= eliteRadius);
   while (q.length) {
     const [x, y] = q.shift();
     if (!(x === s.x && y === s.y) && goal(x, y)) {
@@ -365,7 +368,13 @@ W.__auto = async (policy = { explore: 0.6 }, maxIter = 600) => {
     let r = await W.__walk(wantStairs && W.__bfs(goals.stairs) ? 'stairs' : 'frontier', 150);
     if (r === 'no path') r = await W.__walk('stairs', 150);
     if (r === 'at stairs') { M.handleMove('turn-left'); await sl(100); M.handleMove('turn-right'); await sl(200); }
+    if (r === 'no path' && (W.__waitTurns = (W.__waitTurns || 0) + 1) <= 12) {
+      // Something (usually a roaming elite) blocks the only way: wait in place.
+      M.handleMove('turn-left'); await sl(60); M.handleMove('turn-right'); await sl(60);
+      continue;
+    }
     if (r === 'no path' || r === 'maxsteps' || r.startsWith('blocked')) { W.__journal.push('!! ' + r); return 'stuck'; }
+    W.__waitTurns = 0;
   }
   return 'maxIter';
 };
