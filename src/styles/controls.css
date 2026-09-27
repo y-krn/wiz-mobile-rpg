@@ -144,6 +144,11 @@
   background: var(--surface-raised);
 }
 
+#btn-turn-around {
+  grid-column: 1;
+  grid-row: 1;
+}
+
 #btn-turn-left {
   grid-column: 1;
   grid-row: 2;

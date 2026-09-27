@@ -43,7 +43,7 @@ test('Explore Dock keeps primary movement separated and tappable at required mob
 
     const evidence = await page.evaluate(() => {
       const selectors = [
-        '#btn-move-forward', '#btn-turn-left', '#btn-move-backward', '#btn-turn-right', '#btn-search',
+        '#btn-move-forward', '#btn-turn-left', '#btn-move-backward', '#btn-turn-right', '#btn-search', '#btn-turn-around',
         '#btn-inspect', '#btn-cast', '#btn-item', '#btn-explore-management',
       ];
       const rect = (selector) => {

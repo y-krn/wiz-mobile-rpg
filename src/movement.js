@@ -237,6 +237,12 @@ export function handleMove(action) {
     renderer?.beginNavigationTransition?.(action);
     state.dir = (state.dir + 1) % 4;
     advanceRoamingTurn(false);
+  } else if (action === "turn-around") {
+    // One input for the two quarter turns it replaces; the world advances
+    // exactly as far as it would for two presses of ◀.
+    renderer?.beginNavigationTransition?.(action);
+    state.dir = (state.dir + 2) % 4;
+    if (!advanceRoamingTurn(false) && state.gameState === "explore") advanceRoamingTurn(false);
   } else if (action === "forward") {
     if (currentCell.walls[state.dir]) {
       blockWallMove();

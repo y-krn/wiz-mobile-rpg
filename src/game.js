@@ -354,6 +354,7 @@ function bindButtons() {
   bindPress("btn-move-forward", "forward");
   bindPress("btn-turn-right", "turn-right");
   bindPress("btn-move-backward", "backward");
+  bindPress("btn-turn-around", "turn-around");
 
   document.getElementById("btn-search").addEventListener("click", () => handleExploreAction("search"));
   document.getElementById("btn-inspect").addEventListener("click", () => handleExploreAction("tool"));
@@ -451,6 +452,7 @@ function bindButtons() {
         ArrowDown: ["move", "backward"], s: ["move", "backward"],
         ArrowLeft: ["move", "turn-left"], a: ["move", "turn-left"],
         ArrowRight: ["move", "turn-right"], d: ["move", "turn-right"],
+        q: ["move", "turn-around"],
         f: ["action", "search"],
       };
       const entry = keyMap[e.key];
@@ -459,6 +461,7 @@ function bindButtons() {
       if (e.key === "ArrowDown" || e.key === "s") handleMove("backward");
       if (e.key === "ArrowLeft" || e.key === "a") handleMove("turn-left");
       if (e.key === "ArrowRight" || e.key === "d") handleMove("turn-right");
+      if (e.key === "q") handleMove("turn-around");
       if (e.key === "f") handleExploreAction("search");
     }
   });
