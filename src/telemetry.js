@@ -19,6 +19,12 @@ import {
 } from "./data/affixes.js";
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
+import {
+  normalizeCombatIndex,
+  normalizeDecisionAction,
+  normalizeDirection,
+  normalizeTargetIndex
+} from "./telemetry_decision_normalization.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -279,16 +285,6 @@ function getSafeSpellId(spellKey) {
   return typeof spellKey === "string" && Object.hasOwn(SPELLS, spellKey) ? spellKey : "other";
 }
 
-function normalizeTargetIndex(value, partySize) {
-  const boundedPartySize = Math.min(MAX_ENEMY_SNAPSHOT, Math.max(0, Number(partySize) || 0));
-  return Number.isInteger(value) && value >= 0 && value < boundedPartySize ? value : null;
-}
-
-function normalizeCombatIndex(value, collectionSize, allowAllTarget = false) {
-  if (allowAllTarget && value === -1) return -1;
-  return normalizeTargetIndex(value, collectionSize);
-}
-
 function normalizeBleedingBuildKey(value) {
   if (typeof value !== "string") return "other";
   const match = value.match(/^bleedingAtk:(-?\d+(?:\.\d+)?)$/);
@@ -299,10 +295,6 @@ function normalizeBleedingBuildKey(value) {
 
 function normalizeVulnerableBuildKey(value) {
   return value === "VULNERA" ? value : "other";
-}
-
-function normalizeDirection(value) {
-  return Number.isInteger(value) && SAFE_DIRECTIONS.has(value) ? value : null;
 }
 
 function getItemCategory(itemKey) {
@@ -703,34 +695,6 @@ function buildDefenseBreakdown(character, finalDef, damage) {
   } catch {
     return null;
   }
-}
-
-function normalizeDecisionAction(action) {
-  return {
-    fight: "attack",
-    attack: "attack",
-    spell: "spell",
-    item: "item",
-    defend: "defend",
-    run: "flee",
-    flee: "flee",
-    heal: "heal",
-    cure: "cure",
-    rest: "heal",
-    drink: "heal",
-    return: "return",
-    continue: "continue",
-    descend: "descend",
-    compare: "compare",
-    commit: "commit",
-    cancel: "cancel",
-    equip: "equip",
-    trial: "trial",
-    unequip: "unequip",
-    discard: "discard",
-    identify: "identify",
-    investigate: "investigate"
-  }[action] || "other";
 }
 
 function initializeTelemetry() {
@@ -1437,7 +1401,7 @@ export function trackExplorationDecision(action, details = {}) {
     targetType: normalizeOptionalStableValue(details.targetType ?? spellTarget, SAFE_SPELL_TARGET_TYPES),
     itemId: getSafeItemId(details.itemKey),
     itemCategory: getItemCategory(details.itemKey),
-    direction: normalizeDirection(details.direction)
+    direction: normalizeDirection(details.direction, SAFE_DIRECTIONS)
   });
 }
 
