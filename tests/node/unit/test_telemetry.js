@@ -8,6 +8,7 @@ import {
   buildEquipmentSnapshot,
   buildPlayerSnapshot,
   buildResourceSnapshot,
+  buildExplorationContext,
   normalizeCombatResult,
   normalizeDeathType,
   normalizeEnemyId,
@@ -664,6 +665,60 @@ check("vNext telemetry separates lifecycle, exploration, portal, and elite obser
   assert.equal(Object.hasOwn(elite.properties, "level"), false);
 });
 
+check("portal decision telemetry keeps production snapshots, nullish fallbacks, and exact property precedence", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const player = { ...decisionPlayer, hp: 30, mp: 0 };
+  const state = {
+    ...decisionState,
+    gameState: "explore",
+    inventory: ["TOWN_PORTAL"],
+    party: [player],
+    currentRun: {
+      ...decisionState.currentRun,
+      unbankedObjectLoot: [{ id: "portal-loot", item: { baseId: "DAGGER", identified: true, rarity: "rare" } }]
+    }
+  };
+  trackRunStart(run, player, state);
+  for (const [wingOwned, hpRate, mpRate] of [
+    [false, 0, false],
+    [0, false, ""],
+    ["", "", null],
+    ["owned", null, undefined],
+    [null, undefined, undefined]
+  ]) {
+    trackPortalDecision("continue", {
+      state,
+      portalType: "milestone_portal",
+      hpRate,
+      mpRate,
+      wingOwned,
+      wingSalvageCount: "5",
+      nextBandMainId: "short_battle",
+      nextBandSubId: ""
+    });
+  }
+  const portals = events.filter(event => event.name === "portal_decision");
+  assert.equal(portals.length, 5);
+  assert.deepEqual(portals.map(event => event.properties.decision), Array(5).fill("push"));
+  assert.deepEqual(portals.map(event => event.properties.wingOwned), [false, 0, "", "owned", true]);
+  const explorationContext = buildExplorationContext({ state, character: player });
+  assert.deepEqual(portals.map(event => event.properties.hpRate), [0, 0, 0, explorationContext.hpRate, explorationContext.hpRate]);
+  assert.deepEqual(portals.map(event => event.properties.mpRate), [0, 0, 0, explorationContext.mpRate, explorationContext.mpRate]);
+  assert.ok(portals.every(event => event.properties.wingSalvageCount === 2));
+  assert.ok(portals.every(event => event.properties.nextBandMainId === "short_battle"));
+  assert.ok(portals.every(event => event.properties.nextBandSubId === null));
+  assert.ok(portals.every(event => event.properties.stakeSnapshotPoint === "portal_decision"));
+  assert.ok(portals.every(event => event.properties.inventoryFreeSlots === buildResourceSnapshot(state).inventoryFreeSlots));
+  const properties = portals[0].properties;
+  assert.equal(typeof properties.runId, "string");
+  assert.equal(properties.portalType, "milestone_portal");
+  assert.equal(properties.unbankedObjectLootCount, 1);
+  assert.equal(Object.hasOwn(properties, "playerClass"), false);
+  assert.equal(Object.hasOwn(properties, "level"), false);
+  assert.ok(Object.keys(properties).indexOf("unconfirmedObjectDetails") > Object.keys(properties).indexOf("stakeSnapshotPoint"));
+});
+
 check("elite decision telemetry preserves production ID, fallback, and enum semantics", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
@@ -744,6 +799,7 @@ check("combat Wing use is recorded as a return-wing decision", () => {
   assert.equal(portal.decision, "return");
   assert.equal(portal.wingSalvageCount, 0);
   assert.equal(combatState.inventory.length, 0);
+  assert.equal(events.filter(event => event.name === "portal_decision").length, 1);
   assert.equal(events.filter(event => event.name === "loot_lifecycle").length, 0, "Town-owned item use must not emit a null loot lifecycle");
 });
 
