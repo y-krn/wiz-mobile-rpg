@@ -19,13 +19,11 @@ import {
 } from "./data/affixes.js";
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
-import {
-  normalizeDecisionAction
-} from "./telemetry_decision_normalization.ts";
 import { buildCombatDecisionPayload } from "./telemetry_combat_decision.ts";
 import { buildExplorationDecisionPayload } from "./telemetry_exploration_decision.ts";
 import { buildLoadoutTransactionPayload } from "./telemetry_loadout_transaction.ts";
 import { buildEquipmentDecisionPayload } from "./telemetry_equipment_decision.ts";
+import { buildBuildShiftPayload } from "./telemetry_build_shift.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -1426,16 +1424,15 @@ export function trackEquipmentDecision(action, details = {}) {
     maxComparisonRows: MAX_AFFIX_SNAPSHOT
   }));
   if (buildDecision === "transition") {
-    capture("build_shift", {
+    capture("build_shift", buildBuildShiftPayload({
       runId,
-      ...safeExplorationContext({ state: details.state, character: details.character }),
-      action: normalizeDecisionAction(action),
+      context: safeExplorationContext({ state: details.state, character: details.character }),
+      action,
       fromBuildRole: currentBuildRole,
       toBuildRole: candidateBuildRole,
       fromEquipmentId: getSafeItemId(details.currentKey ?? preview.oldEq),
-      toEquipmentId: getSafeItemId(details.candidateKey),
-      reason: "main_core_axis_changed"
-    });
+      toEquipmentId: getSafeItemId(details.candidateKey)
+    }));
   }
 }
 
