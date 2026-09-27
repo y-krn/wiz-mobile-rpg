@@ -34,12 +34,16 @@ battle gear. The Workshop may broaden what can appear in future runs, but it
 does not target a chosen build, raise its appearance rate, or grant a superior
 permanent tier.
 
-## Build vNext contract (#1801, Phase 3 equipment trial)
+## Build vNext contract (#1801, default run rules since #1815)
 
-The Phase 3 equipment trial is where the build redesign is exercised. It
-resolves three structural problems found by play (#1799): finds did not make
+Since #1815 every new run uses the Phase 3 equipment rules together with the
+Phase 4c v1 baseline and fixed 4j-B EXP (`trialProfile: phase3-equipment`).
+There is no run-mode selection. The legacy `normal` and `progression-exp`
+profiles remain only so saved in-progress runs finish under the rules they
+started with. The rules below still say "trial" where they name the
+historical profile. The contract resolves three structural problems found by play (#1799): finds did not make
 the character stronger, combat had no verbs for "how to fight" to change, and
-finding loot was not a choice. The trial contract is:
+finding loot was not a choice. The contract is:
 
 1. **Run-local power comes from equipment.** Found weapons, armor, and
    shields carry an enhancement grade that grows with depth (bounded), so a
@@ -72,8 +76,8 @@ finding loot was not a choice. The trial contract is:
 The executable values live in `src/data/techniques.js`,
 `src/rules/technique_rules.js`, `src/rules/build_vnext_supply.js`,
 `src/systems/build_vnext_seed.js`, and `BUILD_VNEXT_CORE_AFFIXES` in
-`src/data/affixes.js`. Normal-profile generation, identification, and Core
-supply are unchanged by this contract.
+`src/data/affixes.js`. Legacy normal-profile generation, identification, and
+Core supply are kept only for saved in-progress runs.
 
 # Core Types
 
@@ -168,7 +172,7 @@ semantic boundaries are durable:
 
 In the Build vNext trial, ordinary finds skip straight to full understanding
 and only the gamble tier (epic quality or a curse) uses the stages below; see
-the Build vNext contract above. In the normal profile, unknown equipment
+the Build vNext contract above. In the legacy normal profile, unknown equipment
 follows four player-facing stages:
 
 1. **Discovery:** type, quality, and one or two truthful sensory signs.

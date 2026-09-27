@@ -9,7 +9,7 @@ import { ITEMS } from "../../../src/data/items.js";
 import { ACCESSORY_CANDIDATES_BY_FLOOR, EQUIPMENT_CANDIDATES_BY_FLOOR } from "../../../src/data/equipment_tables.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../../../src/systems/equipment_generation.js";
 import { getVNextTrialBaseId, getVNextTrialCandidates, getVNextTrialChestCandidates, isVNextTrialCore, isVNextTrialSupport, VNEXT_CANONICAL_BASE_REPRESENTATIVES } from "../../../src/rules/equipment_vnext_trial.js";
-import { TRIAL_PROFILES, TRIAL_SAVE_NAMESPACE, getRequestedTrialProfile, getTrialSaveNamespace, isTrialProfile, isTrialStorageSelected } from "../../../src/trial_profiles.js";
+import { DEFAULT_RUN_PROFILE, SAVE_KEYS, TRIAL_PROFILES, isTrialProfile } from "../../../src/trial_profiles.js";
 import { getChestItemCandidatesByFloor, rollChestReward } from "../../../src/rules/chest_rules.js";
 import { BUILD_VNEXT_CORE_AFFIXES } from "../../../src/data/affixes.js";
 
@@ -74,16 +74,9 @@ assert.equal(ITEMS.VNEXT_AMULET.hpBonus, undefined);
 assert.equal(ITEMS.VNEXT_AMULET.mpBonus, undefined);
 assert.equal(isTrialProfile(TRIAL_PROFILES.PHASE3_EQUIPMENT), true);
 assert.equal(isTrialProfile(TRIAL_PROFILES.NORMAL), false);
-assert.equal(isTrialStorageSelected("?tryout=vnext"), true);
-assert.equal(isTrialStorageSelected(""), false);
-assert.equal(getRequestedTrialProfile("?tryout=vnext&trialProfile=phase3-equipment"), TRIAL_PROFILES.PHASE3_EQUIPMENT);
-assert.equal(getRequestedTrialProfile("?trialProfile=phase3-equipment"), TRIAL_PROFILES.NORMAL);
-assert.equal(getRequestedTrialProfile("?tryout=vnext&trialProfile=unknown"), TRIAL_PROFILES.NORMAL);
-assert.equal(getTrialSaveNamespace({ search: "" }), TRIAL_SAVE_NAMESPACE.normal);
-assert.equal(getTrialSaveNamespace({ search: "?tryout=vnext" }), TRIAL_SAVE_NAMESPACE.trial);
-assert.equal(getTrialSaveNamespace({ search: "", trialProfile: TRIAL_PROFILES.PHASE3_EQUIPMENT }), TRIAL_SAVE_NAMESPACE.trial);
-assert.notEqual(TRIAL_SAVE_NAMESPACE.normal.save, TRIAL_SAVE_NAMESPACE.trial.save);
-assert.notEqual(TRIAL_SAVE_NAMESPACE.normal.backup, TRIAL_SAVE_NAMESPACE.trial.backup);
+assert.equal(DEFAULT_RUN_PROFILE, TRIAL_PROFILES.PHASE3_EQUIPMENT);
+assert.equal(SAVE_KEYS.save, "mobile_wiz_rpg_autosave");
+assert.equal(SAVE_KEYS.backup, "mobile_wiz_rpg_backup");
 
 for (let seed = 1; seed <= 80; seed += 1) {
   const options = { rng: lcg(seed), forceRarity: "epic", trialProfile: TRIAL_PROFILES.PHASE3_EQUIPMENT };

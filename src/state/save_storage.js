@@ -2,7 +2,7 @@ import { markMapChanged, markMapCellVisited, state, addLog } from "./state_core.
 import { captureException, captureMessage } from "../sentry.js";
 import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 import { createSavePayload, applySavePayload } from "./save_payload.js";
-import { getTrialSaveNamespace } from "../trial_profiles.js";
+import { SAVE_KEYS } from "../trial_profiles.js";
 import { migrateSavePayload } from "./save_migrations.js";
 import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";
@@ -10,11 +10,6 @@ import { applyDungeonMemoryToMaps } from "./dungeon_state.js";
 import { createDefaultRecords } from "./records_state.js";
 import { findMapCellByType } from "../rules/map_queries.js";
 import { ensureRunFloor, isUsableFloorMap } from "./run_floor_state.js";
-
-function getSaveKeys() {
-  return getTrialSaveNamespace({ trialProfile: state.currentRun?.trialProfile });
-}
-
 
 export function initNewGame({ preserveSeed = false } = {}) {
   state.x = START_X;
@@ -111,7 +106,7 @@ export function saveGame() {
 
 function persistSave({ rotateBackup = true } = {}) {
   try {
-    const keys = getSaveKeys();
+    const keys = SAVE_KEYS;
     const data = JSON.stringify(createSavePayload());
     if (rotateBackup) {
       // 新規書き込み前に直前の正常セーブをバックアップへローテート。
@@ -151,7 +146,7 @@ function saveLoadedState() {
 }
 
 export function clearSave() {
-  const keys = getSaveKeys();
+  const keys = SAVE_KEYS;
   localStorage.removeItem(keys.save);
   localStorage.removeItem(keys.old);
   localStorage.removeItem(keys.backup);
@@ -181,7 +176,7 @@ function recoverActiveRunFloorIfNeeded() {
 }
 
 export function loadGame() {
-  const keys = getSaveKeys();
+  const keys = SAVE_KEYS;
   // 優先度順に読込元を試す。SAVE_KEYが破損してもBACKUP/旧キーから復旧する。
   const sources = [
     { key: keys.save, label: "オートセーブ" },
