@@ -25,6 +25,8 @@ export type DiscardCharacterLike = Record<string, unknown>;
 export interface DiscardEquipmentOptions {
   stateLike?: DiscardStateLike;
   character?: DiscardCharacterLike | null;
+  /** Synchronous player confirmation; absent means fail closed. */
+  confirm?: (message: string) => boolean;
 }
 
 interface RiskItemKey {
@@ -157,7 +159,7 @@ function createDiscardConfirmation(entries: ResolvedDiscardEntry[]): string {
 
 export function discardEquipmentItems(
   entries: DiscardEntry[],
-  { stateLike = state, character = null }: DiscardEquipmentOptions = {}
+  { stateLike = state, character = null, confirm: confirmDiscard }: DiscardEquipmentOptions = {}
 ): { ok: boolean; count: number } {
   if (!Array.isArray(entries) || entries.length === 0) {
     return { ok: false, count: 0 };
@@ -184,7 +186,7 @@ export function discardEquipmentItems(
     return { ok: false, count: 0 };
   }
 
-  if (typeof globalThis.confirm !== "function" || !globalThis.confirm(createDiscardConfirmation(validEntries))) {
+  if (typeof confirmDiscard !== "function" || !confirmDiscard(createDiscardConfirmation(validEntries))) {
     return { ok: false, count: 0 };
   }
 

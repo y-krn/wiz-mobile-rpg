@@ -27,12 +27,11 @@ assert.deepEqual(
 assert.equal(discardEntriesFixture[0].index, 0);
 assert.equal(discardOptionsFixture.stateLike.inventory[0], "DAGGER");
 
-const originalConfirm = globalThis.confirm;
+let confirmDiscard = () => true;
 const previousLogs = state.logs;
 const previousLogEntries = state.logEntries;
 const previousLocalStorage = globalThis.localStorage;
 const capturedEvents = [];
-globalThis.confirm = () => true;
 globalThis.localStorage = {
   getItem: () => null,
   setItem() {},
@@ -63,13 +62,13 @@ try {
   trackRunStart({ startFloor: 1 }, { level: 1, equipment: {} }, { inventory: [], party: [] });
 
   let confirmMessage = "";
-  globalThis.confirm = message => {
+  confirmDiscard = message => {
     confirmMessage = message;
     return false;
   };
   const staleState = createState([equipment("DAGGER")]);
   assert.deepEqual(
-    discardFacade.discardEquipmentItems([{ index: 0, expectedItemKey: "OTHER" }], { stateLike: staleState }),
+    discardFacade.discardEquipmentItems([{ index: 0, expectedItemKey: "OTHER" }], { confirm: confirmDiscard, stateLike: staleState }),
     { ok: false, count: 0 }
   );
   assert.equal(confirmMessage, "");
@@ -77,34 +76,41 @@ try {
 
   const nonEquipmentState = createState(["HEAL_POTION"]);
   assert.deepEqual(
-    discardFacade.discardEquipmentItems([{ index: 0, expectedItemKey: "HEAL_POTION" }], { stateLike: nonEquipmentState }),
+    discardFacade.discardEquipmentItems([{ index: 0, expectedItemKey: "HEAL_POTION" }], { confirm: confirmDiscard, stateLike: nonEquipmentState }),
     { ok: false, count: 0 }
   );
   assert.equal(confirmMessage, "");
 
   const missingConfirmState = createState([equipment("DAGGER")]);
-  delete globalThis.confirm;
+  confirmDiscard = undefined;
+  // The native dialog is never a fallback: without an injected confirmation
+  // the discard fails closed even when window.confirm would accept.
+  const originalGlobalConfirm = globalThis.confirm;
+  globalThis.confirm = () => true;
   assert.deepEqual(
     discardFacade.discardEquipmentItems([{ index: 0, expectedItemKey: missingConfirmState.inventory[0] }], {
+      confirm: confirmDiscard,
       stateLike: missingConfirmState
     }),
     { ok: false, count: 0 }
   );
   assert.equal(missingConfirmState.inventory.length, 1);
-  globalThis.confirm = () => true;
+  if (originalGlobalConfirm === undefined) delete globalThis.confirm;
+  else globalThis.confirm = originalGlobalConfirm;
+  confirmDiscard = () => true;
 
   assert.deepEqual(
-    discardFacade.discardEquipmentItems([], { stateLike: missingConfirmState }),
+    discardFacade.discardEquipmentItems([], { confirm: confirmDiscard, stateLike: missingConfirmState }),
     { ok: false, count: 0 }
   );
   assert.deepEqual(
-    discardFacade.discardEquipmentItems([{ index: 0 }], { stateLike: { inventory: "broken" } }),
+    discardFacade.discardEquipmentItems([{ index: 0 }], { confirm: confirmDiscard, stateLike: { inventory: "broken" } }),
     { ok: false, count: 0 }
   );
 
   const duplicateItem = equipment("DAGGER");
   const duplicateState = createState([duplicateItem]);
-  globalThis.confirm = message => {
+  confirmDiscard = message => {
     confirmMessage = message;
     return true;
   };
@@ -112,7 +118,7 @@ try {
     discardFacade.discardEquipmentItems([
       { index: 0, expectedItemKey: "STALE" },
       { index: 0, expectedItemKey: duplicateItem }
-    ], { stateLike: duplicateState }),
+    ], { confirm: confirmDiscard, stateLike: duplicateState }),
     { ok: true, count: 1 }
   );
   assert.equal(confirmMessage, "「ダガー」を破棄しますか？この操作は取り消せません。");
@@ -122,6 +128,7 @@ try {
   const stringIndexState = createState([stringIndexItem]);
   assert.deepEqual(
     discardFacade.discardEquipmentItems([{ index: "0", expectedItemKey: stringIndexItem }], {
+      confirm: confirmDiscard,
       stateLike: stringIndexState
     }),
     { ok: true, count: 1 }
@@ -135,7 +142,7 @@ try {
     affixes: [{}]
   });
   const multiState = createState([unidentified, equipment("SHORT_SWORD"), equipment("ROBE")]);
-  globalThis.confirm = message => {
+  confirmDiscard = message => {
     confirmMessage = message;
     return false;
   };
@@ -143,7 +150,7 @@ try {
     discardFacade.discardEquipmentItems([
       { index: 0, expectedItemKey: unidentified },
       { index: 2, expectedItemKey: multiState.inventory[2] }
-    ], { stateLike: multiState }),
+    ], { confirm: confirmDiscard, stateLike: multiState }),
     { ok: false, count: 0 }
   );
   assert.equal(
@@ -160,12 +167,12 @@ try {
   state.logs = [];
   state.logEntries = [];
   capturedEvents.length = 0;
-  globalThis.confirm = () => true;
+  confirmDiscard = () => true;
   assert.deepEqual(
     discardFacade.discardEquipmentItems([
       { index: 0, expectedItemKey: first },
       { index: 2, expectedItemKey: third }
-    ], { stateLike: successState }),
+    ], { confirm: confirmDiscard, stateLike: successState }),
     { ok: true, count: 2 }
   );
   assert.deepEqual(successState.inventory, [second]);
@@ -181,7 +188,7 @@ try {
   });
   const throwState = createState([equipment("DAGGER")]);
   assert.deepEqual(
-    discardFacade.discardEquipmentItems([{ index: 0, expectedItemKey: throwState.inventory[0] }], { stateLike: throwState }),
+    discardFacade.discardEquipmentItems([{ index: 0, expectedItemKey: throwState.inventory[0] }], { confirm: confirmDiscard, stateLike: throwState }),
     { ok: true, count: 1 }
   );
   assert.deepEqual(throwState.inventory, []);
@@ -191,8 +198,6 @@ try {
   state.logEntries = previousLogEntries;
   if (previousLocalStorage === undefined) delete globalThis.localStorage;
   else globalThis.localStorage = previousLocalStorage;
-  if (originalConfirm === undefined) delete globalThis.confirm;
-  else globalThis.confirm = originalConfirm;
 }
 
 console.log("[PASS] equipment discard facade, risk, validation, identity, multi-delete, and telemetry-throw contracts");

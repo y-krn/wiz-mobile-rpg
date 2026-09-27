@@ -7,6 +7,7 @@ import { getItemData } from "../rules/item_rules.js";
 import { ITEM_EFFECTS } from "../systems/item_effects.js";
 import { isSpellcaster } from "../rules/magic_rules.js";
 import { triggerRunResult } from "../result.js";
+import { requestConfirmation } from "../ui/confirm_dialog.js";
 import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getCurrentExplorationCell, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
 import { completeCampEntry, getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
 import { startCombat } from "../combat.js";
@@ -146,17 +147,24 @@ export function handleExploreAction(action) {
   }
 }
 
-function confirmAbandonRun() {
-  const isAllowedContext = state.gameState === "explore"
+function isAbandonAllowedContext() {
+  return state.gameState === "explore"
     || (state.gameState === "submenu" && menuContext.type === "explore_management");
-  if (!isAllowedContext) return false;
+}
 
-  if (confirm("この冒険を諦めますか？持ち帰っていない戦利品や素材は、死亡時と同じ扱いになります。")) {
-    trackExplorationDecision("return", { state, source: "explore_management" });
-    triggerRunResult("abandon");
-    return true;
-  }
-  return false;
+async function confirmAbandonRun() {
+  if (!isAbandonAllowedContext()) return false;
+
+  const confirmed = await requestConfirmation({
+    title: "冒険を諦める",
+    message: "この冒険を諦めますか？持ち帰っていない戦利品や素材は、死亡時と同じ扱いになります。",
+    confirmLabel: "諦める"
+  });
+  // The run may have ended while the dialog was open; never settle it twice.
+  if (!confirmed || !isAbandonAllowedContext()) return false;
+  trackExplorationDecision("return", { state, source: "explore_management" });
+  triggerRunResult("abandon");
+  return true;
 }
 
 export function renderExploreManagement(optGrid) {
@@ -560,13 +568,17 @@ export function renderGameOverMain(optGrid) {
   const btnRestart = document.createElement("button");
   btnRestart.className = "btn btn-danger btn-block";
   btnRestart.textContent = "最初からやり直す（新規データ）";
-  btnRestart.addEventListener("click", () => {
-    if (confirm("本当に最初からやり直しますか？現在のセーブデータは消去されます。")) {
-      initNewGame();
-      state.gameState = "town";
-      closeSubmenu();
-      updateUI();
-    }
+  btnRestart.addEventListener("click", async () => {
+    const confirmed = await requestConfirmation({
+      title: "最初からやり直す",
+      message: "本当に最初からやり直しますか？現在のセーブデータは消去されます。",
+      confirmLabel: "消去してやり直す"
+    });
+    if (!confirmed) return;
+    initNewGame();
+    state.gameState = "town";
+    closeSubmenu();
+    updateUI();
   });
   optGrid.appendChild(btnRestart);
 }

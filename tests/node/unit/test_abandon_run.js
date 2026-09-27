@@ -69,18 +69,22 @@ function roundTripOutcome(expected) {
 }
 
 setupRun();
-let confirmCalls = 0;
-global.confirm = () => {
-  confirmCalls++;
+const confirmRequests = [];
+const { __setConfirmationPresenterForTests } = await import("../../../src/ui/confirm_dialog.js");
+__setConfirmationPresenterForTests(request => {
+  confirmRequests.push(request);
   return false;
-};
+});
 const { handleExploreAction } = await import("../../../src/menu/explore_actions.js");
 handleExploreAction("abandon");
-assert.equal(confirmCalls, 1);
+await new Promise(resolve => setTimeout(resolve, 0));
+assert.equal(confirmRequests.length, 1);
+assert.match(confirmRequests[0].message, /死亡時と同じ扱い/, "confirmation keeps the death-equivalent warning");
+assert.equal(confirmRequests[0].tone, "danger");
 assert.equal(state.gameState, "explore", "cancel leaves the active run in place");
 assert.equal(state.currentRun.returnReason, "", "cancel does not assign an ending");
+__setConfirmationPresenterForTests(null);
 
-global.confirm = () => true;
 localStorage.resetPrimarySaveWrites();
 triggerRunResult("abandon");
 assert.equal(localStorage.getPrimarySaveWrites(), 1, "run result persistence commits once");

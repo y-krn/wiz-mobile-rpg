@@ -348,11 +348,11 @@ for (const vp of VIEWPORTS) {
     await expect(discardButton).toBeVisible();
     expect((await discardButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
 
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('ショートソード');
-      await dialog.dismiss();
-    });
+    const discardDialog = page.getByRole('alertdialog', { name: '装備を破棄' });
     await discardButton.click();
+    await expect(discardDialog).toContainText('ショートソード');
+    await discardDialog.getByRole('button', { name: 'キャンセル' }).click();
+    await expect(discardDialog).toHaveCount(0);
     await expect.poll(() => page.evaluate(async () => (await import('/src/state.js')).state.inventory.length)).toBe(2);
     expect(await page.evaluate(() => window.__discardTelemetry.filter(event => event.name === 'equipment_decision' && event.properties.action === 'discard'))).toEqual([]);
 
@@ -370,10 +370,8 @@ for (const vp of VIEWPORTS) {
         }
       });
     });
-    page.once('dialog', async (dialog) => {
-      await dialog.accept();
-    });
     await discardButton.click();
+    await discardDialog.getByRole('button', { name: '破棄する' }).click();
     await page.getByRole('button', { name: /確定する（探索時間が進む）/ }).click();
     await expect.poll(() => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -459,14 +457,12 @@ for (const vp of VIEWPORTS) {
     await expect(bulkDiscard).toBeEnabled();
     expect((await bulkDiscard.boundingBox()).height).toBeGreaterThanOrEqual(44);
 
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('3件');
-      expect(dialog.message()).toContain('破棄');
-      expect(dialog.message()).toContain('未鑑定');
-      expect(dialog.message()).toContain('Rare以上');
-      await dialog.accept();
-    });
+    const discardDialog = page.getByRole('alertdialog', { name: '装備を破棄' });
     await bulkDiscard.click();
+    for (const text of ['3件', '破棄', '未鑑定', 'Rare以上']) {
+      await expect(discardDialog).toContainText(text);
+    }
+    await discardDialog.getByRole('button', { name: '破棄する' }).click();
     await page.getByRole('button', { name: /確定する（探索時間が進む）/ }).click();
 
     await expect.poll(() => page.evaluate(async () => {
