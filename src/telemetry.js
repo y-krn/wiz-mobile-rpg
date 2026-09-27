@@ -24,6 +24,7 @@ import { buildExplorationDecisionPayload } from "./telemetry_exploration_decisio
 import { buildLoadoutTransactionPayload } from "./telemetry_loadout_transaction.ts";
 import { buildEquipmentDecisionPayload } from "./telemetry_equipment_decision.ts";
 import { buildBuildShiftPayload } from "./telemetry_build_shift.ts";
+import { buildEliteDecisionPayload } from "./telemetry_elite_decision.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -1024,18 +1025,21 @@ export function trackEliteDecision(decision, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
   const stateSnapshot = details.state || null;
   const elite = details.elite || details.monster || null;
-  capture("elite_decision", {
+  const payload = buildEliteDecisionPayload({
     runId,
-    ...safeExplorationContext({ state: stateSnapshot, character: details.character }),
-    floor: boundedFiniteOrNull(details.floor ?? elite?.floor ?? stateSnapshot?.floor),
-    decision: normalizeStableValue(decision, SAFE_ELITE_DECISIONS),
+    context: safeExplorationContext({ state: stateSnapshot, character: details.character }),
+    floor: details.floor ?? elite?.floor ?? stateSnapshot?.floor,
+    decision,
     eliteId: normalizeEliteId(elite),
-    contactMode: normalizeStableValue(details.contactMode, SAFE_ELITE_CONTACT_MODES),
-    distance: boundedFiniteOrNull(details.distance, 0, 100),
+    contactMode: details.contactMode,
+    distance: details.distance,
     detected: Boolean(details.detected ?? elite?.detected),
-    elitePolicy: normalizeOptionalStableValue(details.elitePolicy, new Set(["engage", "avoid", "adaptive", "unknown"])),
-    unbankedObjectLootCount: getUnbankedLootSummary(stateSnapshot).count
+    elitePolicy: details.elitePolicy,
+    unbankedObjectLootCount: getUnbankedLootSummary(stateSnapshot).count,
+    safeDecisions: SAFE_ELITE_DECISIONS,
+    safeContactModes: SAFE_ELITE_CONTACT_MODES
   });
+  capture("elite_decision", payload);
 }
 
 export function trackBleedingEvent(event, details = {}) {
