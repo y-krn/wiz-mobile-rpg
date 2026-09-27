@@ -1,8 +1,11 @@
 // UI-only, non-persistent focus state for the explore HUD (#1765).
-// The runtime contract intentionally preserves the legacy JavaScript behavior.
+// The goal banner stays folded to one line unless the player expands it
+// (#1832); new information no longer re-opens it.
 
 export const EXPLORE_HUD_MODES = Object.freeze({ NOTICE: "notice", ROAM: "roam" });
 export const EXPLORE_HUD_ROAM_AFTER_ACTIONS = 2;
+/** How long the newest log line stays on the explore HUD before it clears (#1832). */
+export const EXPLORE_HUD_LOG_LINGER_MS = 4000;
 
 type ExploreHudMode = typeof EXPLORE_HUD_MODES[keyof typeof EXPLORE_HUD_MODES];
 
@@ -45,7 +48,6 @@ export function nextExploreHudFocus(
     prev.goalSignature !== goalSignature ||
     prev.floor !== floor;
   if (isNotice) {
-    if (toggles.goalExpanded === false) toggles.goalExpanded = null;
     return { ...signatures, ...toggles, mode: EXPLORE_HUD_MODES.NOTICE, actionsSinceNotice: 0 };
   }
   if (prev.poseSignature === poseSignature) return { ...prev, ...toggles };
@@ -65,7 +67,7 @@ export function suspendExploreHudFocus(prev: ExploreHudFocusState | null | undef
 }
 
 export function isExploreHudGoalExpanded(focus: ExploreHudFocusState | null | undefined): boolean {
-  return focus?.goalExpanded ?? focus?.mode !== EXPLORE_HUD_MODES.ROAM;
+  return focus?.goalExpanded ?? false;
 }
 
 export function toggleExploreHudGoal(prev: ExploreHudFocusState | null | undefined): ExploreHudFocusState {

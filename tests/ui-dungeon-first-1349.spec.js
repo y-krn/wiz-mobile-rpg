@@ -206,6 +206,7 @@ async function readEventStrip(page) {
           label: item.querySelector('.event-strip-item-label')?.textContent,
           text: item.textContent,
           textOverflow: getComputedStyle(item).textOverflow,
+          whiteSpace: getComputedStyle(item).whiteSpace,
           fitsWidth: item.scrollWidth <= item.clientWidth + 1,
           insidePanel: rect.top >= panel.top - 1 && rect.bottom <= panel.bottom + 1,
         };
@@ -215,7 +216,8 @@ async function readEventStrip(page) {
 }
 
 // The event strip lives in the ceiling band, so the world object one cell
-// ahead stays visible and the latest line wraps instead of ending in "…".
+// ahead stays visible. Explore rows are one line each (#1832); the complete
+// latest line stays in the DOM and in the full-log overlay.
 for (const viewport of [VIEWPORT, { width: 360, height: 800 }, { width: 430, height: 932 }, { width: 320, height: 568 }]) {
   test(`Dungeon First event strip keeps world objects and the recent line readable at ${viewport.width}x${viewport.height} @smoke`, async ({ page }) => {
     await page.setViewportSize(viewport);
@@ -252,11 +254,12 @@ for (const viewport of [VIEWPORT, { width: 360, height: 800 }, { width: 430, hei
     expect(strip.expandVisible).toBe(true);
     expect(strip.items.map(({ kind, label }) => [kind, label])).toEqual([['unresolved', '未解決'], ['transient', '直近']]);
     for (const item of strip.items) {
-      expect(item.textOverflow).not.toBe('ellipsis');
-      expect(item.fitsWidth, item.text).toBe(true);
+      expect(item.whiteSpace).toBe('nowrap');
       expect(item.insidePanel, item.text).toBe(true);
     }
     expect(strip.items[1].text).toContain(LONG_RECENT_LINE);
+    await page.locator('#btn-log-expand').click();
+    await expect(page.locator('#log-overlay-body')).toContainText(LONG_RECENT_LINE);
   });
 }
 

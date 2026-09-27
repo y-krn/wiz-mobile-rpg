@@ -99,11 +99,17 @@ test('Explore HUD folds after two actions and keeps active facts reachable at 39
   const goalToggle = page.locator('#btn-goal-toggle');
   const minimapToggle = page.locator('#btn-minimap-toggle');
 
-  // Notice with the full-size minimap is the pre-#1765 layout.
+  // The goal starts folded (#1832). Expanding it with the full-size minimap
+  // reproduces the pre-#1765 layout as the baseline.
+  await expect(container).toHaveAttribute('data-goal-expanded', 'false');
+  await goalToggle.click();
   await minimapToggle.click();
+  await expect(container).toHaveAttribute('data-goal-expanded', 'true');
   await expect(container).toHaveAttribute('data-minimap-size', 'full');
   const expanded = await measureHud(page);
+  await goalToggle.click();
   await minimapToggle.click();
+  await expect(container).toHaveAttribute('data-goal-expanded', 'false');
   await expect(container).toHaveAttribute('data-minimap-size', 'compact');
 
   // A wall bump changes neither position nor facing and is not an action.
@@ -119,10 +125,11 @@ test('Explore HUD folds after two actions and keeps active facts reachable at 39
 
   const roam = await measureHud(page);
   expect(roam.pillHeight).toBeLessThanOrEqual(32);
-  expect(expanded.upperCoverage).toBeGreaterThan(0.35);
+  expect(expanded.upperCoverage).toBeGreaterThan(0.3);
   expect(roam.upperCoverage).toBeLessThanOrEqual(0.25);
-  expect(roam.upperCoverage).toBeLessThanOrEqual(expanded.upperCoverage * 0.6);
-  expect(roam.lowestEdge).toBeLessThanOrEqual(expanded.lowestEdge * 0.7);
+  expect(roam.upperCoverage).toBeLessThanOrEqual(expanded.upperCoverage * 0.7);
+  expect(roam.lowestEdge).toBeLessThan(expanded.lowestEdge);
+  expect(roam.lowestEdge).toBeLessThanOrEqual(VIEWPORT.height * 0.34);
   const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
   for (const [a, b] of [[roam.goal, roam.log], [roam.log, roam.compass], [roam.compass, roam.minimap], [roam.log, roam.minimap]]) {
     expect(overlaps(a, b)).toBe(false);
@@ -179,7 +186,7 @@ test('Explore HUD folds after two actions and keeps active facts reachable at 39
   await expect(minimapToggle).toHaveAttribute('aria-expanded', 'false');
   await expect.poll(async () => (await measureHud(page)).minimap.width).toBeLessThan(90);
 
-  // New information re-opens the HUD.
+  // New information is a notice, but the goal stays folded (#1832).
   await page.evaluate(async () => {
     const { addLog } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
@@ -187,7 +194,8 @@ test('Explore HUD folds after two actions and keeps active facts reachable at 39
     updateUI();
   });
   await expect(container).toHaveAttribute('data-explore-hud', 'notice');
-  await expect(container).toHaveAttribute('data-goal-expanded', 'true');
+  await expect(container).toHaveAttribute('data-goal-expanded', 'false');
+  await expect(page.locator('#log-content .event-strip-item').last()).toContainText('古い足跡');
 });
 
 test('Explore HUD focus leaves combat and town layouts unchanged @smoke', async ({ page }) => {

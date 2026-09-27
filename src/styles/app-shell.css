@@ -1097,12 +1097,13 @@
   box-shadow: none;
 }
 
-/* Explore HUD focus (#1765)
-   Plain exploration folds the goal banner into a one-line pill, clamps the
-   event strip to its newest line, and keeps the minimap compact, so the
-   corridor ahead stays visible. New information re-opens the HUD ("notice");
-   two actions later it folds again ("roam"). Every folded fact stays one tap
-   away: the goal toggle, #btn-log-expand, and #btn-minimap-toggle. */
+/* Explore HUD focus (#1765, #1832)
+   Exploration keeps the goal, exploration rate, and quest progress in a
+   one-line pill, clamps the event strip to unresolved observations plus the
+   newest line (which clears after a few seconds), and keeps the minimap
+   compact, so the corridor ahead stays visible even at 375x667. Every folded
+   fact stays one tap away: the goal toggle, #btn-log-expand, and
+   #btn-minimap-toggle. */
 #game-container.dungeon-first-mode[data-explore-hud] #goal-banner {
   min-height: var(--tap-min);
   pointer-events: auto;
@@ -1181,30 +1182,55 @@
   white-space: nowrap;
 }
 
-#game-container.dungeon-first-mode[data-goal-expanded="false"] #goal-banner .quest-hud-list {
+#game-container.dungeon-first-mode[data-goal-expanded="false"] #goal-banner .quest-hud-list,
+#game-container.dungeon-first-mode[data-goal-expanded="true"] .goal-quest-summary {
   display: none;
 }
 
-/* Folded event strip: the newest line plus unresolved observations, one line
-   each, directly under the goal pill. */
-#game-container.dungeon-first-mode[data-explore-hud="roam"] {
+/* Folded event strip, directly under the goal pill: unresolved observations,
+   the latest result, and the newest line until it clears, one line each. */
+#game-container.dungeon-first-mode[data-explore-hud] {
   --event-strip-top: calc(var(--safe-area-top) + 100px);
   --event-strip-max-height: 52px;
 }
 
-#game-container.dungeon-first-mode[data-explore-hud="roam"][data-goal-expanded="true"] {
+#game-container.dungeon-first-mode[data-explore-hud][data-goal-expanded="true"] {
   --event-strip-top: calc(var(--safe-area-top) + 140px);
 }
 
-#game-container.dungeon-first-mode[data-explore-hud="roam"] #log-content .event-strip-item--result:not(:last-child) {
-  display: none;
-}
-
-#game-container.dungeon-first-mode[data-explore-hud="roam"] #log-content .event-strip-item--unresolved,
-#game-container.dungeon-first-mode[data-explore-hud="roam"] #log-content .event-strip-item:last-child {
+#game-container.dungeon-first-mode[data-explore-hud] #log-content .event-strip-item {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* One-line rows need no 44px-tall strip: the expand control keeps its 44px
+   hit area but paints a 28px chip that overhangs the strip's corner. */
+#game-container.dungeon-first-mode[data-explore-hud] #log-panel {
+  min-height: 32px;
+  overflow: visible;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud] #log-content {
+  overflow: hidden;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud] #log-content::before {
+  width: 30px;
+  height: 20px;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud] #btn-log-expand {
+  top: -6px;
+  right: -6px;
+  border: 0;
+  background:
+    radial-gradient(circle, var(--surface-raised) 0 13px, var(--border-color) 13px 14px, transparent 14.5px);
+}
+
+/* Folded goal: short labels leave room for the goal text. */
+#game-container.dungeon-first-mode[data-goal-expanded="false"] .goal-stat-label {
+  display: none;
 }
 
 /* Compact minimap by default; the transparent toggle tracks its box. */
