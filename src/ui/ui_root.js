@@ -681,17 +681,19 @@ export function updateUI() {
           btn.style.opacity = "0.3";
         });
       } else {
+        // Clear the resolving overrides so disabled/unavailable styling shows.
         actionButtons.forEach(btn => {
-          btn.style.pointerEvents = "auto";
-          btn.style.opacity = "1";
+          btn.style.pointerEvents = "";
+          btn.style.opacity = "";
         });
         
+        // #1824: keep every command in its slot; unusable ones are disabled
+        // with a short visible reason instead of collapsing the grid.
         const cancelBtn = document.getElementById("btn-combat-cancel");
         if (cancelBtn) {
           const canCancel = combatSelection.charIdx > 0;
-          cancelBtn.hidden = !canCancel;
-          cancelBtn.style.opacity = canCancel ? "1" : "0.3";
-          cancelBtn.style.pointerEvents = canCancel ? "auto" : "none";
+          cancelBtn.disabled = !canCancel;
+          setCombatCommandReason(cancelBtn, canCancel ? "" : "最初の仲間");
         }
       }
 
@@ -711,8 +713,8 @@ export function updateUI() {
       if (repeatBtn) {
         const repeatStatus = getRepeatActionStatus();
         repeatBtn.disabled = !repeatStatus.available;
-        repeatBtn.hidden = !repeatStatus.available;
         repeatBtn.classList.toggle("is-unavailable", !repeatStatus.available);
+        setCombatCommandReason(repeatBtn, repeatStatus.available ? "" : repeatStatus.shortReason);
         repeatBtn.title = repeatStatus.available
           ? "前回の行動をこのターンに1回だけ再実行"
           : repeatStatus.reason;
@@ -821,6 +823,11 @@ export function updateUI() {
 
   // Update Viewport accessibility Text HUD
   updateViewportHUD();
+}
+
+function setCombatCommandReason(btn, reason) {
+  if (reason) btn.setAttribute("data-reason", reason);
+  else btn.removeAttribute?.("data-reason");
 }
 
 // Build vNext technique button: hidden unless the current actor's weapon owns

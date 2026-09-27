@@ -71,8 +71,9 @@ async function expectCombatFocus(page, height = 844) {
   await expect(page.locator('#btn-combat-item')).toBeVisible();
   await expect(page.locator('#btn-combat-defend')).toBeVisible();
   await expect(page.locator('#btn-combat-run')).toBeVisible();
-  await expect(page.locator('#btn-combat-repeat')).toBeHidden();
-  await expect(page.locator('#btn-combat-cancel')).toBeHidden();
+  // #1824: unavailable commands keep their slot as disabled buttons.
+  await expect(page.locator('#btn-combat-repeat')).toBeDisabled();
+  await expect(page.locator('#btn-combat-cancel')).toBeDisabled();
   await expect(page.locator('#character-hud')).toContainText('HP');
   await expect(page.locator('#character-hud')).toContainText('MP');
   const layout = await page.evaluate(() => ({
@@ -84,7 +85,7 @@ async function expectCombatFocus(page, height = 844) {
     canvas: document.querySelector('#dungeon-canvas').getBoundingClientRect().toJSON(),
   }));
   expect(layout.overflow).toBe(false);
-  expect(layout.combatButtons).toHaveLength(5);
+  expect(layout.combatButtons).toHaveLength(7);
   for (const button of layout.combatButtons) {
     expect(button.width).toBeGreaterThanOrEqual(44);
     expect(button.height).toBeGreaterThanOrEqual(44);
