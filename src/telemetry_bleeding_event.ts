@@ -57,7 +57,7 @@ export function buildBleedingEventTelemetry(input: BleedingEventInput): Bleeding
   const eventName = "bleeding_" + normalizedEvent;
   const floor = boundedFiniteOrNull(input.getFloor());
   const character = input.getCharacter();
-  const buildSnapshot = character ? input.getBuildSnapshotFields(character) : undefined;
+  const buildSnapshot = character ? input.getBuildSnapshotFields(input.getCharacter()) : undefined;
   const enemyId = input.getEnemyId();
   const isBoss = Boolean(input.getIsBoss());
   const isMidboss = Boolean(input.getIsMidboss());
