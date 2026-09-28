@@ -15,9 +15,17 @@ export interface LootStakeSnapshotPayloadInput {
   get stakeSnapshotFields(): Record<string, unknown>;
 }
 
-const SAFE_SETTLEMENT_OUTCOMES = new Set(["retreat", "wing", "death", "abandon"]);
+type LootStakeSettlementOutcome = "retreat" | "wing" | "death" | "abandon";
+
+const SAFE_SETTLEMENT_OUTCOMES = new Set<LootStakeSettlementOutcome>([
+  "retreat", "wing", "death", "abandon"
+]);
 
 export interface LootStakeSnapshotPayload {
+  runId: unknown;
+  snapshotPoint: string | "other";
+  settlementOutcome: LootStakeSettlementOutcome | "other" | null;
+  selectedLootCount: number | null;
   [key: string]: unknown;
 }
 
