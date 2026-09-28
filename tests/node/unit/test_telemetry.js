@@ -43,6 +43,7 @@ import {
 import { recordReceivedDamage } from "../../../src/combat_logic/damage.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic/round.js";
 import { resolvePlayerItem } from "../../../src/combat_logic/item_resolution.js";
+import { resolveBuildSnapshot } from "../../../src/rules/build_snapshot.js";
 
 let failures = 0;
 
@@ -315,6 +316,65 @@ check("legacy bleeding telemetry is bounded and typed", () => {
   assert.equal(valid.properties.enemyId, "いにしえの竜");
   assert.equal(valid.properties.reason, "duration");
   assert.equal(valid.properties.buildKey, "bleedingAtk:12");
+});
+
+check("bleeding telemetry keeps lazy snapshot and legacy capture semantics", () => {
+  const events = [];
+  __setTelemetryInitializationForTests({ enabled: true });
+  const falseyReads = [];
+  trackBleedingEvent(" APPLIED ", {
+    floor: 2,
+    get character() { falseyReads.push("character"); return null; },
+    get state() { falseyReads.push("state"); throw new Error("falsey character must not read state"); },
+    enemyId: "いにしえの竜 B",
+    isBoss: "yes",
+    isMidboss: 0,
+    remainingTurns: 1,
+    payoffDamage: 3
+  });
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].name, "bleeding_other");
+  assert.equal(events[0].properties.schemaVersion, 2);
+  assert.equal(events[0].properties.enemyId, "いにしえの竜");
+  assert.equal(events[0].properties.isBoss, true);
+  assert.equal(events[0].properties.isMidboss, false);
+  assert.equal(Object.hasOwn(events[0].properties, "buildSnapshot"), false);
+  assert.equal(Object.hasOwn(events[0].properties, "runId"), false);
+  assert.deepEqual(falseyReads, ["character"]);
+  const reads = [];
+  const firstCharacter = new Proxy({}, { get() { throw new Error("first character must only be truth-tested"); } });
+  const snapshotCharacter = {};
+  trackBleedingEvent("applied", {
+    get floor() { reads.push("floor"); return 2; },
+    get character() {
+      reads.push("character:" + (reads.filter(read => read.startsWith("character:")).length + 1));
+      return reads.filter(read => read.startsWith("character:")).length === 1 ? firstCharacter : snapshotCharacter;
+    },
+    get state() {
+      reads.push("state");
+      return { get party() { reads.push("party"); return []; } };
+    },
+    get enemyId() { reads.push("enemyId"); return "いにしえの竜 B"; },
+    get isBoss() { reads.push("isBoss"); return false; },
+    get isMidboss() { reads.push("isMidboss"); return false; },
+    get remainingTurns() { reads.push("remainingTurns"); return 1; },
+    get payoffDamage() { reads.push("payoffDamage"); return 2; },
+    get reason() { reads.push("reason"); return "duration"; },
+    get source() { reads.push("source"); return "bleedingAtk"; },
+    get buildKey() { reads.push("buildKey"); return "bleedingAtk:12"; },
+    get damageContribution() { reads.push("damageContribution"); return 2; },
+    get directDamage() { reads.push("directDamage"); return 1; }
+  });
+  assert.equal(events.length, 2);
+  assert.deepEqual(reads, [
+    "floor", "character:1", "character:2", "state", "party", "enemyId", "isBoss",
+    "isMidboss", "remainingTurns", "payoffDamage", "reason", "source", "buildKey",
+    "damageContribution", "directDamage"
+  ]);
+  assert.equal(typeof events[1].properties.buildSnapshot, "object");
+  assert.deepEqual(events[1].properties.buildSnapshot, resolveBuildSnapshot(snapshotCharacter, { party: [] }));
+  assert.equal(Object.hasOwn(events[1].properties, "runId"), false);
 });
 
 check("vulnerable telemetry records bounded burst fields", () => {
