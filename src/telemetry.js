@@ -40,6 +40,7 @@ import { buildBleedingEventTelemetry } from "./telemetry_bleeding_event.ts";
 import { buildVulnerableEventTelemetry } from "./telemetry_vulnerable_event.ts";
 import { buildChestSmashResultPayload } from "./telemetry_chest_smash_result.ts";
 import { buildChestActionPayload } from "./telemetry_chest_action.ts";
+import { buildTrapResolutionPayload } from "./telemetry_trap_resolution.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -1141,34 +1142,20 @@ export function trackTrapResolution(outcome, details = {}) {
   if (hasSemanticEvent(semanticKey)) return;
 
   const build = buildTrapBuildSnapshot(stateSnapshot, details.character);
-  capture("trap_resolution", {
+  capture("trap_resolution", buildTrapResolutionPayload({
     runId,
-    ...safeExplorationContext({ state: stateSnapshot, character: details.character }),
+    context: safeExplorationContext({ state: stateSnapshot, character: details.character }),
     floor,
     source,
     trapType,
     outcome: normalizedOutcome,
-    action: normalizeStableValue(details.action, SAFE_TRAP_ACTIONS),
-    successRate: boundedFiniteOrNull(details.successRate, 0, 100),
-    trapDifficulty: boundedFiniteOrNull(details.trap?.difficulty ?? details.trapDifficulty, 0, 1000),
-    partialSuccess: details.partialSuccess === undefined ? undefined : Boolean(details.partialSuccess),
-    identified: details.identified === undefined ? undefined : Boolean(details.identified),
+    details,
+    safeActions: SAFE_TRAP_ACTIONS,
+    safeToolIds: SAFE_TRAP_TOOL_IDS,
     x,
     y,
-    toolId: normalizeOptionalStableValue(details.toolId, SAFE_TRAP_TOOL_IDS),
-    toolUsed: Boolean(details.toolUsed),
-    trapBonus: build.trapBonus,
-    trapGuard: build.trapGuard,
-    detectionSupport: build.detectionSupport,
-    treasureSense: build.treasureSense,
-    hearRange: build.hearRange,
-    traceRead: build.traceRead,
-    trapKitCount: build.trapKitCount,
-    availableToolIds: build.availableToolIds,
-    coreIds: build.coreIds,
-    coreTrapEater: build.coreTrapEater,
-    coreTombRaider: build.coreTombRaider
-  });
+    build
+  }));
 }
 
 export function trackChestSmashResult(chest, details = {}) {
