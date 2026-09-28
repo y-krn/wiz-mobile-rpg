@@ -50,6 +50,36 @@ try {
   assert.equal(stairs.stepsBeforeDiscovery, 9, "stairs pre-discovery steps must use the same floor-local basis");
   assert.equal(exploration.stepsBeforeStairs, 9);
   assert.equal(exploration.stepsAfterStairs, 3);
+
+  const duplicateExploration = { floor: "2" };
+  for (const key of [
+    "state", "character", "stepsBeforeStairs", "stepsAfterStairs", "stairsDiscovered",
+    "floorCompleted", "chestsDiscovered", "chestsSkipped", "explorationMode"
+  ]) {
+    Object.defineProperty(duplicateExploration, key, {
+      get() { throw new Error(`duplicate exploration evaluated ${key}`); }
+    });
+  }
+  assert.doesNotThrow(() => trackFloorExploration(duplicateExploration));
+  assert.equal(events.filter(event => event.name === "floor_exploration").length, 1);
+
+  for (const [floor, explicitValue, discoverySteps] of [
+    [3, false, 8],
+    [4, 0, 9],
+    [5, "", 10]
+  ]) {
+    state.currentRun.floorSteps[String(floor)] = discoverySteps + 5;
+    trackStairsDiscovery({ state, floor, stairsType: "stairs-down", stepsAtDiscovery: discoverySteps });
+    trackFloorExploration({
+      state,
+      floor,
+      stepsBeforeStairs: explicitValue,
+      stepsAfterStairs: explicitValue
+    });
+    const explicitExploration = events.filter(event => event.name === "floor_exploration").at(-1).properties;
+    assert.equal(explicitExploration.stepsBeforeStairs, 0);
+    assert.equal(explicitExploration.stepsAfterStairs, 0);
+  }
   console.log("[PASS] B2+ stairs telemetry uses floor-local exploration steps");
 } finally {
   __resetTelemetryForTests();

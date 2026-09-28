@@ -34,6 +34,7 @@ import {
   buildStairsDiscoveryPayload,
   normalizeStairsDiscoveryIdentity
 } from "./telemetry_stairs_discovery.ts";
+import { buildFloorExplorationPayload } from "./telemetry_floor_exploration.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -969,25 +970,26 @@ export function trackFloorExploration(details = {}) {
   const key = String(floor);
   if (exploredFloorKeys.has(key)) return;
   exploredFloorKeys.add(key);
-  capture("floor_exploration", {
+  const context = safeExplorationContext({ state: details.state, character: details.character });
+  capture("floor_exploration", buildFloorExplorationPayload({
     runId,
-    ...safeExplorationContext({ state: details.state, character: details.character }),
+    context,
     floor,
-    stepsBeforeStairs: boundedFiniteOrNull(details.stepsBeforeStairs ?? stairsStepByFloor.get(key)),
-    stepsAfterStairs: boundedFiniteOrNull(
-      details.stepsAfterStairs ?? (
+    get stepsBeforeStairs() { return details.stepsBeforeStairs ?? stairsStepByFloor.get(key); },
+    get stepsAfterStairs() {
+      return details.stepsAfterStairs ?? (
         Number.isFinite(Number(details.state?.currentRun?.floorSteps?.[key])) &&
         Number.isFinite(Number(stairsStepByFloor.get(key)))
           ? Number(details.state.currentRun.floorSteps[key]) - Number(stairsStepByFloor.get(key))
           : null
-      )
-    ),
-    stairsDiscovered: Boolean(details.stairsDiscovered),
-    floorCompleted: Boolean(details.floorCompleted),
-    chestsDiscovered: boundedFiniteOrNull(details.chestsDiscovered),
-    chestsSkipped: boundedFiniteOrNull(details.chestsSkipped),
-    explorationMode: normalizeOptionalStableValue(details.explorationMode, new Set(["discovery", "known_route", "unknown"]))
-  });
+      );
+    },
+    get stairsDiscovered() { return details.stairsDiscovered; },
+    get floorCompleted() { return details.floorCompleted; },
+    get chestsDiscovered() { return details.chestsDiscovered; },
+    get chestsSkipped() { return details.chestsSkipped; },
+    get explorationMode() { return details.explorationMode; }
+  }));
 }
 
 export function trackValuableLocation(locationType, action, details = {}) {
