@@ -224,12 +224,8 @@ test('Dungeon First keeps minimap clear of HUD, log strip, and controls across p
         dungeonRenderer.draw();
       }, lightTurns);
       await expect(page.locator('#dungeon-minimap-overlay')).toHaveAttribute('data-minimap-visible', 'true');
-      // Explore defaults to the compact card (#1765); check it and the full size.
-      for (const size of ['compact', 'full']) {
-        if (await page.locator('#game-container').getAttribute('data-minimap-size') !== size) {
-          await page.locator('#btn-minimap-toggle').click();
-        }
-        await expect(page.locator('#game-container')).toHaveAttribute('data-minimap-size', size);
+      // Explore keeps the compact card (#1765); a tap opens the full-floor map (#1833).
+      for (const size of ['compact']) {
         await page.waitForFunction(() => document.getAnimations().every(animation => !(animation instanceof CSSTransition)));
         const boxes = await page.evaluate(() => {
           const box = (selector) => {
@@ -246,7 +242,7 @@ test('Dungeon First keeps minimap clear of HUD, log strip, and controls across p
           };
         });
         expect(boxes.minimap).not.toBeNull();
-        expect(boxes.minimap.right - boxes.minimap.left).toBeGreaterThanOrEqual(size === 'full' ? 120 : 80);
+        expect(boxes.minimap.right - boxes.minimap.left).toBeGreaterThanOrEqual(80);
         expect(boxes.minimap.right).toBeLessThanOrEqual(boxes.width);
         const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
         for (const other of boxes.others) {

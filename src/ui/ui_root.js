@@ -28,13 +28,13 @@ import {
   MILESTONE_STRUCTURE_MESSAGE
 } from "./milestone_disclosure.js";
 import { releaseFocusSurface, syncFocusSurface } from "./focus_manager.js";
+import { closeFullMap, isFullMapOpen, openFullMap } from "./full_map_overlay.js";
 import {
   EXPLORE_HUD_LOG_LINGER_MS,
   isExploreHudGoalExpanded,
   nextExploreHudFocus,
   suspendExploreHudFocus,
   toggleExploreHudGoal,
-  toggleExploreHudMinimap
 } from "./explore_hud_focus.js";
 
 let floorStingerTimer = null;
@@ -276,23 +276,15 @@ function getExploreGoalSignature() {
   return [getCurrentGoal(), ...quests].join("|");
 }
 
+// The minimap opens the full-floor map (#1833); it closes when explore ends.
 function updateMinimapToggle(isExploreHud) {
+  if (!isExploreHud && isFullMapOpen()) closeFullMap();
   const toggle = document.getElementById("btn-minimap-toggle");
   if (!toggle) return;
   toggle.hidden = !isExploreHud;
   if (!isExploreHud) return;
-  const expanded = Boolean(exploreHudFocus?.minimapExpanded);
-  const label = expanded ? "地図を縮小" : "地図を拡大";
-  if (typeof toggle.setAttribute === "function") {
-    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
-    toggle.setAttribute("aria-label", label);
-  }
-  toggle.title = label;
   if (!toggle.dataset?.bound && typeof toggle.addEventListener === "function") {
-    toggle.addEventListener("click", () => {
-      exploreHudFocus = toggleExploreHudMinimap(exploreHudFocus);
-      updateUI();
-    });
+    toggle.addEventListener("click", () => openFullMap());
     if (toggle.dataset) toggle.dataset.bound = "true";
   }
 }
@@ -384,11 +376,9 @@ export function updateUI() {
       if (isExploreHud) {
         container.dataset.exploreHud = exploreHudFocus.mode;
         container.dataset.goalExpanded = isExploreHudGoalExpanded(exploreHudFocus) ? "true" : "false";
-        container.dataset.minimapSize = exploreHudFocus.minimapExpanded ? "full" : "compact";
       } else {
         delete container.dataset.exploreHud;
         delete container.dataset.goalExpanded;
-        delete container.dataset.minimapSize;
       }
       if (isCombatContext) {
         container.dataset.combatPhase = combatPhase;

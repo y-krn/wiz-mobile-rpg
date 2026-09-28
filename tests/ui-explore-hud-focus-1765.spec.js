@@ -99,18 +99,17 @@ test('Explore HUD folds after two actions and keeps active facts reachable at 39
   const goalToggle = page.locator('#btn-goal-toggle');
   const minimapToggle = page.locator('#btn-minimap-toggle');
 
-  // The goal starts folded (#1832). Expanding it with the full-size minimap
-  // reproduces the pre-#1765 layout as the baseline.
+  // The goal starts folded (#1832). Expanding it with the unscaled minimap
+  // card reproduces the pre-#1765 layout as the baseline; the minimap itself
+  // stays compact since #1833 (a tap opens the full-floor map instead).
   await expect(container).toHaveAttribute('data-goal-expanded', 'false');
   await goalToggle.click();
-  await minimapToggle.click();
   await expect(container).toHaveAttribute('data-goal-expanded', 'true');
-  await expect(container).toHaveAttribute('data-minimap-size', 'full');
+  const baselineStyle = await page.addStyleTag({ content: '#game-container.dungeon-first-mode #dungeon-minimap-overlay { transform: none !important; }' });
   const expanded = await measureHud(page);
+  await baselineStyle.evaluate(element => element.remove());
   await goalToggle.click();
-  await minimapToggle.click();
   await expect(container).toHaveAttribute('data-goal-expanded', 'false');
-  await expect(container).toHaveAttribute('data-minimap-size', 'compact');
 
   // A wall bump changes neither position nor facing and is not an action.
   await page.keyboard.press("ArrowUp");
@@ -174,17 +173,13 @@ test('Explore HUD folds after two actions and keeps active facts reachable at 39
   await goalToggle.click();
   await expect(goalToggle).toHaveAttribute('aria-expanded', 'false');
 
-  // Minimap: one tap to 128px and back.
-  await expect(minimapToggle).toHaveAttribute('aria-label', '地図を拡大');
+  // Minimap: one tap opens the full-floor map and one tap returns (#1833).
+  await expect(minimapToggle).toHaveAttribute('aria-label', '全体地図を開く');
   await minimapToggle.click();
-  await expect(minimapToggle).toHaveAttribute('aria-label', '地図を縮小');
-  await expect(minimapToggle).toHaveAttribute('aria-expanded', 'true');
-  const full = await measureHud(page);
-  expect(full.minimap.width).toBeCloseTo(128, 0);
-  expect(full.minimapToggle.width).toBeCloseTo(128, 0);
-  await minimapToggle.click();
-  await expect(minimapToggle).toHaveAttribute('aria-expanded', 'false');
-  await expect.poll(async () => (await measureHud(page)).minimap.width).toBeLessThan(90);
+  await expect(page.locator('#full-map-overlay')).toBeVisible();
+  await page.locator('#btn-full-map-back').click();
+  await expect(page.locator('#full-map-overlay')).toBeHidden();
+  expect((await measureHud(page)).minimap.width).toBeLessThan(90);
 
   // New information is a notice, but the goal stays folded (#1832).
   await page.evaluate(async () => {
@@ -210,7 +205,6 @@ test('Explore HUD focus leaves combat and town layouts unchanged @smoke', async 
   const container = page.locator('#game-container');
   await expect(container).toHaveAttribute('data-dungeon-first-state', 'combat');
   await expect(container).not.toHaveAttribute('data-explore-hud', /.*/);
-  await expect(container).not.toHaveAttribute('data-minimap-size', /.*/);
   await expect(page.locator('#btn-minimap-toggle')).toBeHidden();
   await expect(page.locator('#btn-goal-toggle')).toHaveCount(0);
   const transform = await page.locator('#dungeon-minimap-overlay').evaluate(element => getComputedStyle(element).transform);

@@ -5,8 +5,7 @@ import {
   isExploreHudGoalExpanded,
   nextExploreHudFocus,
   suspendExploreHudFocus,
-  toggleExploreHudGoal,
-  toggleExploreHudMinimap
+  toggleExploreHudGoal
 } from "../../../src/ui/explore_hud_focus.js";
 import * as facade from "../../../src/ui/explore_hud_focus.js";
 import * as owner from "../../../src/ui/explore_hud_focus.ts";
@@ -20,7 +19,7 @@ let focus = nextExploreHudFocus(null, base);
 assert.equal(focus.mode, EXPLORE_HUD_MODES.NOTICE);
 // The goal starts folded to one line even on a notice (#1832).
 assert.equal(isExploreHudGoalExpanded(focus), false);
-assert.equal(focus.minimapExpanded, false);
+assert.equal("minimapExpanded" in focus, false);
 
 // Re-rendering without a pose change (wall bump, menu refresh) is not an action.
 focus = step(focus, {});
@@ -71,19 +70,15 @@ assert.equal(isExploreHudGoalExpanded(folded), false);
 folded = step(folded, { ...roamPose, logSignature: "10|next" });
 assert.equal(isExploreHudGoalExpanded(folded), false);
 
-// The minimap toggle is independent of the mode and survives leaving explore.
-focus = toggleExploreHudMinimap(focus);
-assert.equal(focus.minimapExpanded, true);
-assert.equal(focus.mode, EXPLORE_HUD_MODES.ROAM);
+// The goal toggle survives leaving explore.
 const suspended = suspendExploreHudFocus(focus);
-assert.equal(suspended.minimapExpanded, true);
+assert.equal(suspended.goalExpanded, true);
 const resumed = nextExploreHudFocus(suspended, { ...base, ...roamPose, logSignature: "5|x" });
 assert.equal(resumed.mode, EXPLORE_HUD_MODES.NOTICE);
-assert.equal(resumed.minimapExpanded, true);
+assert.equal(resumed.goalExpanded, true);
 assert.equal(suspendExploreHudFocus(null), null);
-assert.equal(toggleExploreHudMinimap(null).minimapExpanded, true);
 
-// The legacy JavaScript path remains an eight-export identity facade.
+// The legacy JavaScript path remains a seven-export identity facade.
 assert.deepEqual(Object.keys(facade), [
   "EXPLORE_HUD_LOG_LINGER_MS",
   "EXPLORE_HUD_MODES",
@@ -91,8 +86,7 @@ assert.deepEqual(Object.keys(facade), [
   "isExploreHudGoalExpanded",
   "nextExploreHudFocus",
   "suspendExploreHudFocus",
-  "toggleExploreHudGoal",
-  "toggleExploreHudMinimap"
+  "toggleExploreHudGoal"
 ]);
 assert.deepEqual(Object.keys(owner), Object.keys(facade));
 for (const key of Object.keys(facade)) assert.strictEqual(facade[key], owner[key]);
@@ -119,7 +113,7 @@ assert.notStrictEqual(toggledExtended, extended);
 assert.deepEqual(extended, extendedBefore);
 assert.strictEqual(toggledExtended.custom, extended.custom);
 assert.deepEqual(Object.keys(toggledExtended), [
-  "goalExpanded", "minimapExpanded", "logSignature", "goalSignature", "poseSignature",
+  "goalExpanded", "logSignature", "goalSignature", "poseSignature",
   "floor", "mode", "actionsSinceNotice", "custom"
 ]);
 
@@ -133,29 +127,27 @@ assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.ROAM, goalExpand
 assert.equal(isExploreHudGoalExpanded({ mode: EXPLORE_HUD_MODES.ROAM, goalExpanded: true }), true);
 
 // A suspended partial state resumes with a notice and retains its toggles.
-const partial = suspendExploreHudFocus({ goalExpanded: false, minimapExpanded: true, extra: "kept only before suspend" });
-assert.deepEqual(Object.keys(partial), ["goalExpanded", "minimapExpanded"]);
-assert.deepEqual(partial, { goalExpanded: false, minimapExpanded: true });
+const partial = suspendExploreHudFocus({ goalExpanded: false, extra: "kept only before suspend" });
+assert.deepEqual(Object.keys(partial), ["goalExpanded"]);
+assert.deepEqual(partial, { goalExpanded: false });
 const resumedPartial = nextExploreHudFocus(partial, base);
 assert.equal(resumedPartial.mode, EXPLORE_HUD_MODES.NOTICE);
 assert.equal(resumedPartial.goalExpanded, false);
-assert.equal(resumedPartial.minimapExpanded, true);
 assert.deepEqual(Object.keys(resumedPartial), [
   "logSignature", "goalSignature", "poseSignature", "floor",
-  "goalExpanded", "minimapExpanded", "mode", "actionsSinceNotice"
+  "goalExpanded", "mode", "actionsSinceNotice"
 ]);
 
 // Preserve native getter access order and short-circuit behavior.
 const reads = [];
 const orderedPrev = Object.defineProperties({}, {
   goalExpanded: { get() { reads.push("goalExpanded"); return null; } },
-  minimapExpanded: { get() { reads.push("minimapExpanded"); return false; } },
   logSignature: { get() { reads.push("logSignature"); return "changed"; } },
   goalSignature: { get() { reads.push("goalSignature"); return "unused"; } },
   floor: { get() { reads.push("floor"); return -1; } }
 });
 nextExploreHudFocus(orderedPrev, base);
-assert.deepEqual(reads, ["goalExpanded", "minimapExpanded", "logSignature"]);
+assert.deepEqual(reads, ["goalExpanded", "logSignature"]);
 
 exerciseExploreHudFocusTypes();
 
