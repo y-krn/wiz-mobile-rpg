@@ -1647,6 +1647,76 @@ check("chest action fields preserve valid values and coerce malformed input", ()
   );
 });
 
+check("chest action guard avoids input getters and facade preserves context evaluation order", () => {
+  const guardTrap = () => { throw new Error("guard must not evaluate telemetry inputs"); };
+  const guardedChest = Object.defineProperties({}, {
+    fromDrop: { get: guardTrap },
+    inspected: { get: guardTrap },
+    lootHint: { get: guardTrap }
+  });
+  const guardedDetails = Object.defineProperties({}, {
+    state: { get: guardTrap },
+    character: { get: guardTrap },
+    floor: { get: guardTrap }
+  });
+  __setTelemetryInitializationForTests({ enabled: false });
+  assert.doesNotThrow(() => trackChestAction(guardedChest, "open", guardedDetails));
+  __setTelemetryInitializationForTests({ enabled: true });
+  assert.doesNotThrow(() => trackChestAction(guardedChest, "open", guardedDetails));
+
+  const order = [];
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => {
+    order.push("capture");
+    events.push({ name, properties });
+  } });
+  trackRunStart(run, decisionPlayer, decisionState);
+  order.length = 0;
+  const details = {
+    get state() { order.push("state"); return {}; },
+    get character() {
+      order.push("character");
+      return { get hp() { order.push("context"); return 10; } };
+    },
+    get floor() { order.push("floor"); return 2; }
+  };
+  const chest = {
+    reads: 0,
+    get fromDrop() { order.push(`fromDrop${++this.reads}`); return this.reads === 1 ? "drop" : 0; },
+    get inspected() { order.push("inspected"); return true; },
+    get lootHint() { order.push("lootHint"); return { aura: "strong" }; }
+  };
+  trackChestAction(chest, "open", details);
+  assert.deepEqual(order, [
+    "state", "character", "context", "context", "context", "floor", "fromDrop1", "fromDrop2",
+    "inspected", "lootHint", "capture"
+  ]);
+  assert.equal(chest.reads, 2);
+  const keys = Object.keys(events.find(event => event.name === "chest_action").properties);
+  assert.equal(keys[0], "schemaVersion");
+  assert.equal(keys[1], "runId");
+  assert.ok(keys.indexOf("floor") < keys.indexOf("chestSource"));
+  assert.deepEqual(keys.slice(keys.indexOf("chestSource")), [
+    "chestSource", "fromDrop", "action", "trap", "inspected",
+    "hasTrapKit", "rewardCount", "rewardCategories", "lootAura"
+  ]);
+  assert.ok(keys.indexOf("inventoryCount") < keys.indexOf("chestSource"));
+
+  const failingContextState = new Proxy({}, {
+    get(_target, key) {
+      if (key === "floor") throw new Error("production context failed");
+      return undefined;
+    }
+  });
+  trackChestAction({}, "open", { state: failingContextState, floor: 3 });
+  const fallbackEvent = events.filter(event => event.name === "chest_action").at(-1);
+  assert.equal(fallbackEvent.properties.floor, 3);
+  assert.equal(Object.hasOwn(fallbackEvent.properties, "gameState"), false);
+  assert.throws(() => trackChestAction({}, "open", {
+    get state() { throw new Error("input getter failed before context wrapper"); }
+  }), /input getter failed before context wrapper/);
+});
+
 check("UX decision boundaries are bounded, semantic, and deduplicated", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
