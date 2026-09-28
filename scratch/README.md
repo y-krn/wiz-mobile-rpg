@@ -62,6 +62,8 @@ enforces these directory and naming boundaries.
    | `--boss` | B5 守護者に直接ワープして戦う（`--bossLevel 3 --bossMaxHp 55 --bossHp 40`） |
    | `--headed` | ブラウザを表示して見る |
    | `--speed 1` | 演出を実時間で再生（既定 0.1 = 10倍速） |
+   | `--seedTimeout 900` | 1シードの上限秒数（`0` で無制限）。超えたらその時点の状態（`snapshot`）を残して1回だけ再試行し、それでも失敗したら `error` として記録して次のシードへ進む |
+   | `--allowHmr` | Vite の HMR リロードを遮断しない（既定では遮断する。下の注意を参照） |
 
 4. 修正前後を同じマップで比べる。比較したい ref を別の worktree で別ポートに起動し、`--compare` で並べる。
 
@@ -79,6 +81,10 @@ enforces these directory and naming boundaries.
    ```bash
    node --import tsx/esm scratch/measurements/sample_chest_loot.js
    ```
+
+注意（dev サーバのリロード）: Vite はリポジトリ内のファイル（`src/` の編集やブランチ切替など）が変わると、開いている全ページをフルリロードする。実行中のランが破棄されないよう、ランナーは既定でブラウザ側の HMR メッセージを捨てる。遮断したシードには `hmrSuppressed` が付き、最後に `source changed during seeds [...]` と表示される（以降のシードは新しいコードで動いている）。比較用の計測は、編集されない別 worktree の dev サーバで回すのが確実。
+
+`--out` はシードが終わるたびに書き直され、Ctrl-C で中断したときもそこまでの結果を `complete: false` で残す。ゲーム側の例外（クリック処理内のエラーなど）は各ランの `pageErrors` に記録され、最後に件数付きで表示される。
 
 注意: 経路探索はマップ全体を見ている、通常戦でガードしない、HP30%以下で回復薬→なければ逃走、など人間とは違う近道がある（下の Known shortcuts）。結果は傾向として扱う。
 
@@ -111,6 +117,15 @@ Options:
 - `--boss` (+ `--bossLevel --bossMaxHp --bossHp`) — warp to the B5 guardian
   with a fixed Lv/HP instead of a full run
 - `--headed` — watch the browser
+- `--seedTimeout 900` — wall-clock limit per seed in seconds (`0` = none). A
+  failed seed is retried once, then recorded with `error` (and a `snapshot` of
+  where the bot was) and the run moves on
+- `--allowHmr` — let Vite HMR reload the page. By default the runner drops HMR
+  messages in the browser so a source edit or branch switch does not destroy a
+  running seed; affected seeds carry `hmrSuppressed`
+
+`--out` is rewritten after every seed and on Ctrl-C (`complete: false` until
+all seeds finish). Uncaught page exceptions are kept per seed in `pageErrors`.
 
 #### Before/after on identical maps
 
