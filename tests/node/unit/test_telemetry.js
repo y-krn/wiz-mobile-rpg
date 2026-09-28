@@ -631,6 +631,10 @@ check("vNext telemetry separates lifecycle, exploration, portal, and elite obser
   assert.ok(names.includes("stairs_discovered"));
   assert.ok(names.includes("floor_exploration"));
   assert.ok(names.includes("valuable_location"));
+  assert.deepEqual(
+    events.filter(event => event.name === "valuable_location").map(event => event.properties.action),
+    ["discovered", "skipped"]
+  );
   assert.ok(names.includes("portal_decision"));
   assert.ok(names.includes("elite_decision"));
   assert.equal(events.filter(event => event.name === "loot_lifecycle" && event.properties.lifecycleStage === "bagged").length, 1);
@@ -663,6 +667,56 @@ check("vNext telemetry separates lifecycle, exploration, portal, and elite obser
   assert.equal(elite.properties.elitePolicy, "avoid");
   assert.equal(Object.hasOwn(elite.properties, "playerClass"), false);
   assert.equal(Object.hasOwn(elite.properties, "level"), false);
+});
+
+check("valuable location telemetry deduplicates before building exploration context", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  let contextReads = 0;
+  const state = {
+    floor: 2,
+    x: 4,
+    y: 5,
+    get party() {
+      contextReads++;
+      return [];
+    }
+  };
+
+  trackValuableLocation("chest", "discovered", { state, distanceFromStart: "12.5" });
+  const firstContextReads = contextReads;
+  trackValuableLocation("chest", "discovered", {
+    state,
+    floor: null,
+    x: null,
+    y: undefined,
+    distanceFromStart: "invalid",
+    source: "invalid"
+  });
+  assert.equal(contextReads, firstContextReads);
+  trackValuableLocation("chest", "skipped", { state });
+
+  const valuableEvents = events.filter(event => event.name === "valuable_location");
+  assert.deepEqual(valuableEvents.map(event => event.properties.action), ["discovered", "skipped"]);
+  assert.equal(valuableEvents[0].properties.distanceFromStart, 12.5);
+  assert.equal(valuableEvents[0].properties.source, "dungeon");
+  assert.deepEqual(Object.keys(valuableEvents[0].properties).slice(0, 3), ["schemaVersion", "runId", "buildSnapshot"]);
+  assert.equal(Object.hasOwn(valuableEvents[0].properties, "x"), false);
+  assert.equal(Object.hasOwn(valuableEvents[0].properties, "y"), false);
+
+  trackValuableLocation("merchant", "visited", { state, floor: 0, x: 0, y: 0 });
+  trackValuableLocation("merchant", "opened", { state: { floor: "3.5", x: "6.25", y: "7.5" } });
+  trackValuableLocation("merchant", "used", { state, floor: false, x: "", y: false });
+  trackValuableLocation("merchant", "used", { state });
+  const allValuableEvents = events.filter(event => event.name === "valuable_location");
+  const explicitZero = allValuableEvents[2].properties;
+  const nullishFallback = allValuableEvents[3].properties;
+  const falseyExplicit = allValuableEvents[4].properties;
+  assert.equal(allValuableEvents.length, 6);
+  assert.deepEqual([explicitZero.floor, nullishFallback.floor], [0, 3.5]);
+  assert.equal(falseyExplicit.floor, 0);
+  assert.deepEqual([nullishFallback.locationType, nullishFallback.action], ["merchant", "opened"]);
 });
 
 check("portal decision telemetry keeps production snapshots, nullish fallbacks, and exact property precedence", () => {

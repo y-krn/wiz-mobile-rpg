@@ -26,6 +26,10 @@ import { buildEquipmentDecisionPayload } from "./telemetry_equipment_decision.ts
 import { buildBuildShiftPayload } from "./telemetry_build_shift.ts";
 import { buildEliteDecisionPayload } from "./telemetry_elite_decision.ts";
 import { buildPortalDecisionPayload } from "./telemetry_portal_decision.ts";
+import {
+  buildValuableLocationPayload,
+  normalizeValuableLocationIdentity
+} from "./telemetry_valuable_location.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -980,22 +984,26 @@ export function trackFloorExploration(details = {}) {
 
 export function trackValuableLocation(locationType, action, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
-  const floor = boundedFiniteOrNull(details.floor ?? details.state?.floor);
-  const x = boundedFiniteOrNull(details.x ?? details.state?.x, 0, 1000);
-  const y = boundedFiniteOrNull(details.y ?? details.state?.y, 0, 1000);
-  const normalizedType = normalizeStableValue(locationType, SAFE_LOCATION_TYPES);
-  const normalizedAction = normalizeStableValue(action, SAFE_LOCATION_ACTIONS);
-  const semanticKey = `location:${floor}:${x}:${y}:${normalizedType}:${normalizedAction}`;
-  if (hasSemanticEvent(semanticKey)) return;
-  capture("valuable_location", {
-    runId,
-    ...safeExplorationContext({ state: details.state, character: details.character }),
-    floor,
-    locationType: normalizedType,
-    action: normalizedAction,
-    distanceFromStart: boundedFiniteOrNull(details.distanceFromStart, 0, 1000),
-    source: normalizeLootSource(details.source || "dungeon")
+  const identity = normalizeValuableLocationIdentity({
+    floor: details.floor ?? details.state?.floor,
+    x: details.x ?? details.state?.x,
+    y: details.y ?? details.state?.y,
+    locationType,
+    action,
+    safeLocationTypes: SAFE_LOCATION_TYPES,
+    safeLocationActions: SAFE_LOCATION_ACTIONS
   });
+  const semanticKey = `location:${identity.floor}:${identity.x}:${identity.y}:${identity.locationType}:${identity.action}`;
+  if (hasSemanticEvent(semanticKey)) return;
+  const context = safeExplorationContext({ state: details.state, character: details.character });
+  capture("valuable_location", buildValuableLocationPayload({
+    runId,
+    context,
+    ...identity,
+    distanceFromStart: details.distanceFromStart,
+    source: details.source,
+    safeLootSources: SAFE_LOOT_SOURCES
+  }));
 }
 
 export function trackPortalDecision(decision, details = {}) {
