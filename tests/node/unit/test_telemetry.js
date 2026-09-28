@@ -405,6 +405,89 @@ check("vulnerable telemetry records bounded burst fields", () => {
   assert.equal(event.properties.latencyTurns, 2);
 });
 
+check("vulnerable telemetry preserves legacy reads, order, and capture payload", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const falseyReads = [];
+  trackVulnerableEvent("attempt", {
+    get character() { falseyReads.push("character"); return null; },
+    get state() { throw new Error("falsey character must not read state"); }
+  });
+  assert.deepEqual(falseyReads, ["character"]);
+  assert.equal(events[0].name, "vulnerable_attempt");
+  assert.equal(Object.hasOwn(events[0].properties, "buildSnapshot"), false);
+  assert.equal(Object.hasOwn(events[0].properties, "runId"), false);
+  assert.equal(events[0].properties.schemaVersion, 2);
+  assert.deepEqual(Object.keys(events[0].properties).filter(key => key !== "schemaVersion"), [
+    "floor", "enemyId", "isBoss", "isMidboss", "remainingTurns", "multiplier", "reason", "source",
+    "buildKey", "qualifyingHitType", "latencyTurns", "damageContribution", "directDamage"
+  ]);
+
+  const reads = [];
+  const firstCharacter = {};
+  const snapshotCharacter = {};
+  const party = [];
+  trackVulnerableEvent("applied", {
+    get floor() { reads.push("floor"); return "2.5"; },
+    get character() {
+      reads.push("character:" + (reads.filter(read => read.startsWith("character:")).length + 1));
+      return reads.filter(read => read.startsWith("character:")).length === 1 ? firstCharacter : snapshotCharacter;
+    },
+    get state() {
+      reads.push("state");
+      return { get party() { reads.push("party"); return party; } };
+    },
+    get enemyId() { reads.push("enemyId"); return "いにしえの竜 B"; },
+    get isBoss() { reads.push("isBoss"); return "yes"; },
+    get isMidboss() { reads.push("isMidboss"); return 0; },
+    get remainingTurns() { reads.push("remainingTurns"); return -2.5; },
+    get multiplier() { reads.push("multiplier"); return 10.5; },
+    get reason() { reads.push("reason"); return "duration"; },
+    get source() { reads.push("source"); return "VULNERA"; },
+    get buildKey() { reads.push("buildKey"); return "vulnera"; },
+    get qualifyingHitType() { reads.push("qualifyingHitType"); return "spell"; },
+    get latencyTurns() { reads.push("latencyTurns"); return 101; },
+    get damageContribution() { reads.push("damageContribution"); return "4.25"; },
+    get directDamage() { reads.push("directDamage"); return Infinity; }
+  });
+  assert.deepEqual(reads, [
+    "floor", "character:1", "character:2", "state", "party", "enemyId", "isBoss", "isMidboss",
+    "remainingTurns", "multiplier", "reason", "source", "buildKey", "qualifyingHitType", "latencyTurns",
+    "damageContribution", "directDamage"
+  ]);
+  const captured = events[1];
+  assert.equal(captured.name, "vulnerable_applied");
+  assert.deepEqual(Object.keys(captured.properties).filter(key => key !== "schemaVersion"), [
+    "floor", "buildSnapshot", "enemyId", "isBoss", "isMidboss", "remainingTurns", "multiplier", "reason",
+    "source", "buildKey", "qualifyingHitType", "latencyTurns", "damageContribution", "directDamage"
+  ]);
+  assert.deepEqual(captured.properties.buildSnapshot, resolveBuildSnapshot(snapshotCharacter, { party }));
+  assert.equal(captured.properties.floor, 2.5);
+  assert.equal(captured.properties.enemyId, "いにしえの竜");
+  assert.equal(captured.properties.isBoss, true);
+  assert.equal(captured.properties.isMidboss, false);
+  assert.equal(captured.properties.remainingTurns, 0);
+  assert.equal(captured.properties.multiplier, 10);
+  assert.equal(captured.properties.reason, "duration");
+  assert.equal(captured.properties.source, "VULNERA");
+  assert.equal(captured.properties.buildKey, "other");
+  assert.equal(captured.properties.qualifyingHitType, "spell");
+  assert.equal(captured.properties.latencyTurns, 100);
+  assert.equal(captured.properties.damageContribution, 4.25);
+  assert.equal(captured.properties.directDamage, null);
+  assert.equal(Object.hasOwn(captured.properties, "runId"), false);
+
+  for (const [event, expected] of [
+    ["attempt", "vulnerable_attempt"], ["applied", "vulnerable_applied"], ["refresh", "vulnerable_refresh"],
+    ["consumed", "vulnerable_consumed"], ["expired", "vulnerable_expired"], ["cleared", "vulnerable_cleared"],
+    ["APPLIED", "vulnerable_other"], [" applied ", "vulnerable_other"], ["unknown", "vulnerable_other"],
+    [null, "vulnerable_other"]
+  ]) {
+    trackVulnerableEvent(event);
+    assert.equal(events.at(-1).name, expected);
+  }
+});
+
 check("combat decision indexes stay within production targets", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });

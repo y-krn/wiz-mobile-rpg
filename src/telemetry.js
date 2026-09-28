@@ -37,6 +37,7 @@ import {
 import { buildFloorExplorationPayload } from "./telemetry_floor_exploration.ts";
 import { buildLootStakeSnapshotPayload } from "./telemetry_loot_stake_snapshot.ts";
 import { buildBleedingEventTelemetry } from "./telemetry_bleeding_event.ts";
+import { buildVulnerableEventTelemetry } from "./telemetry_vulnerable_event.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -295,10 +296,6 @@ function getLootSupplyFields(itemKey, floor = null) {
 function getSafeSpellId(spellKey) {
   if (spellKey === null || spellKey === undefined || spellKey === "") return null;
   return typeof spellKey === "string" && Object.hasOwn(SPELLS, spellKey) ? spellKey : "other";
-}
-
-function normalizeVulnerableBuildKey(value) {
-  return value === "VULNERA" ? value : "other";
 }
 
 function getItemCategory(itemKey) {
@@ -1084,23 +1081,29 @@ export function trackBleedingEvent(event, details = {}) {
 }
 
 export function trackVulnerableEvent(event, details = {}) {
-  const normalizedEvent = normalizeStableValue(event, SAFE_VULNERABLE_EVENTS);
-  capture(`vulnerable_${normalizedEvent}`, {
-    floor: boundedFiniteOrNull(details.floor),
-    ...(details.character ? { buildSnapshot: resolveBuildSnapshot(details.character, { party: details.state?.party }) } : {}),
-    enemyId: normalizeEnemyId(details.enemyId),
-    isBoss: Boolean(details.isBoss),
-    isMidboss: Boolean(details.isMidboss),
-    remainingTurns: boundedFiniteOrNull(details.remainingTurns),
-    multiplier: boundedFiniteOrNull(details.multiplier, 1, 10),
-    reason: normalizeOptionalStableValue(details.reason, SAFE_VULNERABLE_REASONS),
-    source: normalizeOptionalStableValue(details.source, SAFE_VULNERABLE_SOURCES),
-    buildKey: normalizeVulnerableBuildKey(details.buildKey),
-    qualifyingHitType: normalizeOptionalStableValue(details.qualifyingHitType, SAFE_VULNERABLE_HIT_TYPES),
-    latencyTurns: boundedFiniteOrNull(details.latencyTurns, 0, 100),
-    damageContribution: boundedFiniteOrNull(details.damageContribution),
-    directDamage: boundedFiniteOrNull(details.directDamage)
+  const { eventName, payload } = buildVulnerableEventTelemetry({
+    event,
+    safeEvents: SAFE_VULNERABLE_EVENTS,
+    safeReasons: SAFE_VULNERABLE_REASONS,
+    safeSources: SAFE_VULNERABLE_SOURCES,
+    safeHitTypes: SAFE_VULNERABLE_HIT_TYPES,
+    getFloor: () => details.floor,
+    getCharacter: () => details.character,
+    getBuildSnapshotFields: character => resolveBuildSnapshot(character, { party: details.state?.party }),
+    getEnemyId: () => normalizeEnemyId(details.enemyId),
+    getIsBoss: () => details.isBoss,
+    getIsMidboss: () => details.isMidboss,
+    getRemainingTurns: () => details.remainingTurns,
+    getMultiplier: () => details.multiplier,
+    getReason: () => details.reason,
+    getSource: () => details.source,
+    getBuildKey: () => details.buildKey,
+    getQualifyingHitType: () => details.qualifyingHitType,
+    getLatencyTurns: () => details.latencyTurns,
+    getDamageContribution: () => details.damageContribution,
+    getDirectDamage: () => details.directDamage
   });
+  capture(eventName, payload);
 }
 
 export function trackChestAction(chest, action, details = {}) {
