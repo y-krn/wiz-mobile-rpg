@@ -241,6 +241,16 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* The shell itself scrolls here, so an absolute bottom safe-area strip would
+   scroll up with the cards and float mid-screen over them and the dock. */
+#game-container.town-home-mode::after {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  width: min(100%, 450px);
+  transform: translateX(-50%);
+}
+
 #game-container.town-home-mode > * {
   flex-shrink: 0;
 }
