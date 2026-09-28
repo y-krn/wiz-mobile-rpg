@@ -317,6 +317,43 @@ check("legacy bleeding telemetry is bounded and typed", () => {
   assert.equal(valid.properties.buildKey, "bleedingAtk:12");
 });
 
+check("bleeding telemetry keeps lazy snapshot and legacy capture semantics", () => {
+  const events = [];
+  __setTelemetryInitializationForTests({ enabled: true });
+  trackBleedingEvent(" APPLIED ", {
+    floor: 2,
+    character: null,
+    get state() { throw new Error("falsey character must not read state"); },
+    enemyId: "いにしえの竜 B",
+    isBoss: "yes",
+    isMidboss: 0,
+    remainingTurns: 1,
+    payoffDamage: 3
+  });
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].name, "bleeding_other");
+  assert.equal(events[0].properties.schemaVersion, 2);
+  assert.equal(events[0].properties.enemyId, "いにしえの竜");
+  assert.equal(events[0].properties.isBoss, true);
+  assert.equal(events[0].properties.isMidboss, false);
+  assert.equal(Object.hasOwn(events[0].properties, "buildSnapshot"), false);
+  assert.equal(Object.hasOwn(events[0].properties, "runId"), false);
+  let partyRead = false;
+  trackBleedingEvent("applied", {
+    floor: 2,
+    character: {},
+    get state() {
+      return { get party() { partyRead = true; return []; } };
+    },
+    enemyId: "いにしえの竜 B"
+  });
+  assert.equal(events.length, 2);
+  assert.equal(partyRead, true);
+  assert.equal(typeof events[1].properties.buildSnapshot, "object");
+  assert.equal(Object.hasOwn(events[1].properties, "runId"), false);
+});
+
 check("vulnerable telemetry records bounded burst fields", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });

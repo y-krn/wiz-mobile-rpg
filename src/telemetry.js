@@ -36,6 +36,7 @@ import {
 } from "./telemetry_stairs_discovery.ts";
 import { buildFloorExplorationPayload } from "./telemetry_floor_exploration.ts";
 import { buildLootStakeSnapshotPayload } from "./telemetry_loot_stake_snapshot.ts";
+import { buildBleedingEventTelemetry } from "./telemetry_bleeding_event.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -294,14 +295,6 @@ function getLootSupplyFields(itemKey, floor = null) {
 function getSafeSpellId(spellKey) {
   if (spellKey === null || spellKey === undefined || spellKey === "") return null;
   return typeof spellKey === "string" && Object.hasOwn(SPELLS, spellKey) ? spellKey : "other";
-}
-
-function normalizeBleedingBuildKey(value) {
-  if (typeof value !== "string") return "other";
-  const match = value.match(/^bleedingAtk:(-?\d+(?:\.\d+)?)$/);
-  if (!match) return "other";
-  const affixValue = boundedFiniteOrNull(match[1], 0, 100);
-  return affixValue === null ? "other" : `bleedingAtk:${affixValue}`;
 }
 
 function normalizeVulnerableBuildKey(value) {
@@ -1068,21 +1061,26 @@ export function trackEliteDecision(decision, details = {}) {
 }
 
 export function trackBleedingEvent(event, details = {}) {
-  const normalizedEvent = normalizeStableValue(event, SAFE_BLEEDING_EVENTS);
-  capture(`bleeding_${normalizedEvent}`, {
-    floor: boundedFiniteOrNull(details.floor),
-    ...(details.character ? { buildSnapshot: resolveBuildSnapshot(details.character, { party: details.state?.party }) } : {}),
-    enemyId: normalizeEnemyId(details.enemyId),
-    isBoss: Boolean(details.isBoss),
-    isMidboss: Boolean(details.isMidboss),
-    remainingTurns: boundedFiniteOrNull(details.remainingTurns),
-    payoffDamage: boundedFiniteOrNull(details.payoffDamage),
-    reason: normalizeOptionalStableValue(details.reason, SAFE_BLEEDING_REASONS),
-    source: normalizeOptionalStableValue(details.source, SAFE_BLEEDING_SOURCES),
-    buildKey: normalizeBleedingBuildKey(details.buildKey),
-    damageContribution: boundedFiniteOrNull(details.damageContribution),
-    directDamage: boundedFiniteOrNull(details.directDamage)
+  const { eventName, payload } = buildBleedingEventTelemetry({
+    event,
+    safeEvents: SAFE_BLEEDING_EVENTS,
+    safeReasons: SAFE_BLEEDING_REASONS,
+    safeSources: SAFE_BLEEDING_SOURCES,
+    getFloor: () => details.floor,
+    getCharacter: () => details.character,
+    getBuildSnapshotFields: character => resolveBuildSnapshot(character, { party: details.state?.party }),
+    getEnemyId: () => normalizeEnemyId(details.enemyId),
+    getIsBoss: () => details.isBoss,
+    getIsMidboss: () => details.isMidboss,
+    getRemainingTurns: () => details.remainingTurns,
+    getPayoffDamage: () => details.payoffDamage,
+    getReason: () => details.reason,
+    getSource: () => details.source,
+    getBuildKey: () => details.buildKey,
+    getDamageContribution: () => details.damageContribution,
+    getDirectDamage: () => details.directDamage
   });
+  capture(eventName, payload);
 }
 
 export function trackVulnerableEvent(event, details = {}) {
