@@ -35,6 +35,7 @@ import {
   normalizeStairsDiscoveryIdentity
 } from "./telemetry_stairs_discovery.ts";
 import { buildFloorExplorationPayload } from "./telemetry_floor_exploration.ts";
+import { buildLootStakeSnapshotPayload } from "./telemetry_loot_stake_snapshot.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -928,14 +929,17 @@ export function trackLootLifecycle(stage, details = {}) {
 export function trackLootStakeSnapshot(snapshotPoint, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
   const stateSnapshot = details.state || null;
-  capture("loot_stake_snapshot", {
+  const context = safeDecisionContext({ state: stateSnapshot, character: details.character });
+  capture("loot_stake_snapshot", buildLootStakeSnapshotPayload({
     runId,
-    ...safeDecisionContext({ state: stateSnapshot, character: details.character }),
-    snapshotPoint: normalizeStableValue(snapshotPoint, SAFE_LOOT_SNAPSHOT_POINTS),
-    settlementOutcome: normalizeOptionalStableValue(details.settlementOutcome, new Set(["retreat", "wing", "death", "abandon"])),
-    selectedLootCount: boundedFiniteOrNull(details.selectedLootIds?.length, 0, INVENTORY_CAPACITY),
-    ...buildStakeSnapshotFields(stateSnapshot)
-  });
+    context,
+    get snapshotPoint() { return snapshotPoint; },
+    safeSnapshotPoints: SAFE_LOOT_SNAPSHOT_POINTS,
+    get settlementOutcome() { return details.settlementOutcome; },
+    get selectedLootCount() { return details.selectedLootIds?.length; },
+    inventoryCapacity: INVENTORY_CAPACITY,
+    get stakeSnapshotFields() { return buildStakeSnapshotFields(stateSnapshot); }
+  }));
 }
 
 export function trackStairsDiscovery(details = {}) {

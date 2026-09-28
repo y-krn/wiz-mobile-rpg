@@ -101,6 +101,51 @@ assert.equal(stake.properties.bagFreeSlots, 17);
 assert.equal(stake.properties.unconfirmedObjectDetails[1].lootSequence, 2);
 assert.equal(stake.properties.unconfirmedObjectDetails[1].runeSupplyBand, "shallow");
 
+const evaluationOrder = [];
+const orderedState = {
+  party: [],
+  inventory: [],
+  get currentRun() {
+    evaluationOrder.push("stakeSnapshot");
+    return { unbankedObjectLoot: [] };
+  }
+};
+evaluationOrder.length = 0;
+trackLootStakeSnapshot("portal_decision", {
+  state: orderedState,
+  get selectedLootIds() {
+    evaluationOrder.length = 0;
+    evaluationOrder.push("selectedLootIds");
+    return { get length() { evaluationOrder.push("selectedLootIds.length"); return "3"; } };
+  }
+});
+assert.ok(evaluationOrder.indexOf("selectedLootIds") < evaluationOrder.indexOf("selectedLootIds.length"));
+assert.ok(evaluationOrder.indexOf("selectedLootIds.length") < evaluationOrder.indexOf("stakeSnapshot"));
+const orderedStake = events.filter(event => event.name === "loot_stake_snapshot").at(-1);
+assert.equal(orderedStake.properties.selectedLootCount, 3);
+assert.equal(Object.keys(orderedStake.properties).at(-1), "unconfirmedObjectDetails");
+
+for (const selectedLootIds of [null, undefined]) {
+  trackLootStakeSnapshot("portal_decision", { state, selectedLootIds });
+  assert.equal(events.at(-1).properties.selectedLootCount, null);
+}
+trackLootStakeSnapshot("portal_decision", { state, selectedLootIds: [] });
+assert.equal(events.at(-1).properties.selectedLootCount, 0);
+trackLootStakeSnapshot("portal_decision", { state, selectedLootIds: "x" });
+assert.equal(events.at(-1).properties.selectedLootCount, 1);
+for (const snapshotPoint of [" portal_decision", "PORTAL_DECISION", "portal_decision "]) {
+  trackLootStakeSnapshot(snapshotPoint, { state });
+  assert.equal(events.at(-1).properties.snapshotPoint, "other");
+}
+for (const settlementOutcome of [null, undefined, ""]) {
+  trackLootStakeSnapshot("portal_decision", { state, settlementOutcome });
+  assert.equal(events.at(-1).properties.settlementOutcome, null);
+}
+trackLootStakeSnapshot("portal_decision", { state, settlementOutcome: "wing" });
+assert.equal(events.at(-1).properties.settlementOutcome, "wing");
+trackLootStakeSnapshot("portal_decision", { state, settlementOutcome: " wing " });
+assert.equal(events.at(-1).properties.settlementOutcome, "other");
+
 for (const input of [undefined, null, 0, "state", false, {}]) {
   assert.equal(buildObjectLootStakeSnapshot(input).unconfirmedObjectCount, 0);
 }
