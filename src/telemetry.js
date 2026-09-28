@@ -30,6 +30,10 @@ import {
   buildValuableLocationPayload,
   normalizeValuableLocationIdentity
 } from "./telemetry_valuable_location.ts";
+import {
+  buildStairsDiscoveryPayload,
+  normalizeStairsDiscoveryIdentity
+} from "./telemetry_stairs_discovery.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -935,24 +939,28 @@ export function trackLootStakeSnapshot(snapshotPoint, details = {}) {
 
 export function trackStairsDiscovery(details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
-  const floor = boundedFiniteOrNull(details.floor);
-  const stairsType = normalizeStableValue(details.stairsType || "stairs-down", new Set(["stairs-up", "stairs-down"]));
+  const identity = normalizeStairsDiscoveryIdentity({
+    floor: details.floor,
+    stairsType: details.stairsType || "stairs-down"
+  });
+  const { floor, stairsType } = identity;
   const key = `${floor}:${stairsType}`;
   if (discoveredStairKeys.has(key)) return;
   discoveredStairKeys.add(key);
   stairsStepByFloor.set(String(floor), boundedFiniteOrNull(details.stepsAtDiscovery));
-  capture("stairs_discovered", {
+  const context = safeExplorationContext({ state: details.state, character: details.character });
+  capture("stairs_discovered", buildStairsDiscoveryPayload({
     runId,
-    ...safeExplorationContext({ state: details.state, character: details.character }),
+    context,
     floor,
     stairsType,
-    stepsAtDiscovery: boundedFiniteOrNull(details.stepsAtDiscovery),
-    stepsBeforeDiscovery: boundedFiniteOrNull(details.stepsBeforeDiscovery),
-    hpRate: boundedFiniteOrNull(details.hpRate, 0, 1),
-    mpRate: boundedFiniteOrNull(details.mpRate, 0, 1),
-    explorationMode: normalizeOptionalStableValue(details.explorationMode, new Set(["discovery", "known_route", "unknown"])),
-    unbankedObjectLootCount: getUnbankedLootSummary(details.state).count
-  });
+    get stepsAtDiscovery() { return details.stepsAtDiscovery; },
+    get stepsBeforeDiscovery() { return details.stepsBeforeDiscovery; },
+    get hpRate() { return details.hpRate; },
+    get mpRate() { return details.mpRate; },
+    get explorationMode() { return details.explorationMode; },
+    get unbankedObjectLootCount() { return getUnbankedLootSummary(details.state).count; }
+  }));
 }
 
 export function trackFloorExploration(details = {}) {
