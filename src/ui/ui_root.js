@@ -18,6 +18,7 @@ import { renderTownHome } from "./town_home.js";
 import { getScreenViewState } from "../state/view_state.js";
 import {
   getDockStateForView,
+  fitEventStripRows,
   getEventStripEntries,
   setActionDockState,
   setDockActionRole
@@ -615,6 +616,7 @@ export function updateUI() {
     [...persistentEvents, ...eventEntries.transient.slice(-transientBudget)]
       .forEach(appendEventEntry);
   }
+  fitEventStripRows(isDungeonFirstMode ? logPanel : null, logContent, document.getElementById("btn-log-expand"));
   restoreScrollState(logPanel, logScrollState);
 
   // Keep the full-log overlay content fresh if it happens to be open
