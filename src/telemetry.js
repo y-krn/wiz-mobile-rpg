@@ -38,6 +38,7 @@ import { buildFloorExplorationPayload } from "./telemetry_floor_exploration.ts";
 import { buildLootStakeSnapshotPayload } from "./telemetry_loot_stake_snapshot.ts";
 import { buildBleedingEventTelemetry } from "./telemetry_bleeding_event.ts";
 import { buildVulnerableEventTelemetry } from "./telemetry_vulnerable_event.ts";
+import { buildChestSmashResultPayload } from "./telemetry_chest_smash_result.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -1181,21 +1182,13 @@ export function trackTrapResolution(outcome, details = {}) {
 export function trackChestSmashResult(chest, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
 
-  capture("chest_smash_result", {
+  capture("chest_smash_result", buildChestSmashResultPayload({
     runId,
-    floor: boundedFiniteOrNull(details.floor),
-    chestSource: chest?.fromDrop ? "fromDrop" : "ordinary",
-    fromDrop: Boolean(chest?.fromDrop),
-    trapFired: Boolean(details.trapFired),
-    partyDied: Boolean(details.partyDied),
-    rewardCount: boundedFiniteOrNull(details.rewardCount),
-    lostRewardCount: boundedFiniteOrNull(details.lostRewardCount),
-    lostRewardRoles: normalizeBoundedEnumArray(details.lostRewardRoles, SAFE_CHEST_REWARD_ROLES),
-    lostRewardCategories: normalizeBoundedEnumArray(details.lostRewardCategories, SAFE_CHEST_REWARD_CATEGORIES),
-    remainingRewardCount: boundedFiniteOrNull(details.remainingRewardCount),
-    awardedRewardCount: boundedFiniteOrNull(details.awardedRewardCount),
-    unawardedRewardCount: boundedFiniteOrNull(details.unawardedRewardCount)
-  });
+    chest,
+    details,
+    safeRewardRoles: SAFE_CHEST_REWARD_ROLES,
+    safeRewardCategories: SAFE_CHEST_REWARD_CATEGORIES
+  }));
 }
 
 export function trackRunStart(run, character, stateSnapshot = null) {

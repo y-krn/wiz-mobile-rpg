@@ -1281,6 +1281,59 @@ check("legacy chest, combat, and run fields stay bounded", () => {
   assert.equal(runEnd.properties.durationMs, 1_000_000);
 });
 
+check("chest smash facade preserves field, getter, and capture order", () => {
+  const order = [];
+  let captured;
+  __setTelemetryClientForTests({ capture: (name, properties) => {
+    order.push("capture");
+    captured = { name, properties };
+  } });
+  trackRunStart(run, decisionPlayer, decisionState);
+  order.length = 0;
+
+  const chest = {
+    reads: 0,
+    get fromDrop() {
+      const read = ++this.reads;
+      order.push(`fromDrop${read}`);
+      return read === 1 ? "drop" : 0;
+    }
+  };
+  const details = {};
+  const values = {
+    floor: 2,
+    trapFired: 1,
+    partyDied: 0,
+    rewardCount: 3,
+    lostRewardCount: 1,
+    lostRewardRoles: ["main"],
+    lostRewardCategories: ["usable"],
+    remainingRewardCount: 1,
+    awardedRewardCount: 2,
+    unawardedRewardCount: 1
+  };
+  for (const [key, value] of Object.entries(values)) {
+    Object.defineProperty(details, key, { get() { order.push(key); return value; } });
+  }
+
+  trackChestSmashResult(chest, details);
+  assert.deepEqual(order, [
+    "floor", "fromDrop1", "fromDrop2", "trapFired", "partyDied", "rewardCount", "lostRewardCount",
+    "lostRewardRoles", "lostRewardCategories", "remainingRewardCount", "awardedRewardCount",
+    "unawardedRewardCount", "capture"
+  ]);
+  assert.equal(chest.reads, 2);
+  assert.equal(captured.name, "chest_smash_result");
+  assert.deepEqual(Object.keys(captured.properties).filter(key => key !== "schemaVersion"), [
+    "runId", "floor", "chestSource", "fromDrop", "trapFired", "partyDied", "rewardCount",
+    "lostRewardCount", "lostRewardRoles", "lostRewardCategories", "remainingRewardCount",
+    "awardedRewardCount", "unawardedRewardCount"
+  ]);
+  assert.equal(captured.properties.schemaVersion, 2);
+  assert.equal(captured.properties.chestSource, "fromDrop");
+  assert.equal(captured.properties.fromDrop, false);
+});
+
 check("production cell and run result enums are preserved", () => {
   const events = [];
   const stateWithProductionEnums = {
