@@ -124,6 +124,59 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
   };
 }
 
+// Rows the strip shortens, then leaves out, first when its height budget runs
+// out; unresolved threats and traps go last.
+const EVENT_STRIP_FIT_ORDER = ["transient", "result", "enemy", "unresolved"];
+
+// The event strip has a fixed height budget. Instead of letting the panel
+// clip rows mid-line (#1823), shorten rows to one line ending in an ellipsis
+// (older rows, then the newest, then unresolved ones), and only then leave out
+// whole rows. The full text stays behind #btn-log-expand, which shows how many
+// rows were left out. Returns that number.
+export function fitEventStripRows(panel, content, expandButton = null) {
+  const dropped = fitEventStripRowsToBudget(panel, content);
+  if (expandButton?.dataset) {
+    if (dropped > 0) expandButton.dataset.hiddenCount = `+${dropped}`;
+    else delete expandButton.dataset.hiddenCount;
+  }
+  return dropped;
+}
+
+function fitEventStripRowsToBudget(panel, content) {
+  if (typeof getComputedStyle !== "function" || typeof panel?.getBoundingClientRect !== "function" || !content?.children) return 0;
+  const rows = Array.from(content.children).filter(row => getComputedStyle(row).display !== "none");
+  const newest = rows.at(-1);
+  if (!newest) return 0;
+  const panelStyle = getComputedStyle(panel);
+  const overflows = () => {
+    const bottom = panel.getBoundingClientRect().bottom
+      - parseFloat(panelStyle.paddingBottom || 0) - parseFloat(panelStyle.borderBottomWidth || 0);
+    return newest.getBoundingClientRect().bottom > bottom + 0.5;
+  };
+  const older = EVENT_STRIP_FIT_ORDER.flatMap(kind => rows.filter(row => row !== newest && row.dataset.eventKind === kind));
+  const clamp = (row, lines) => {
+    row.classList.add("event-strip-item--clamped");
+    row.style.setProperty("--event-strip-lines", String(lines));
+  };
+  const steps = [
+    ...older.filter(row => row.dataset.eventKind !== "unresolved").map(row => [row, 1]),
+    [newest, 2],
+    [newest, 1],
+    ...older.filter(row => row.dataset.eventKind === "unresolved").map(row => [row, 1])
+  ];
+  for (const [row, lines] of steps) {
+    if (!overflows()) return 0;
+    clamp(row, lines);
+  }
+  let dropped = 0;
+  for (const row of older) {
+    if (!overflows()) break;
+    row.remove();
+    dropped++;
+  }
+  return dropped;
+}
+
 export function setActionDockState(element, dockState) {
   const nextState = Object.values(DOCK_STATES).includes(dockState)
     ? dockState

@@ -1096,7 +1096,7 @@
    use the full strip width. */
 #game-container.dungeon-first-mode #log-panel {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   min-height: 50px;
   max-height: var(--event-strip-max-height);
   padding-right: 8px;
@@ -1117,6 +1117,35 @@
 
 #game-container.dungeon-first-mode #log-content .event-strip-item + .event-strip-item {
   margin-top: 4px;
+}
+
+#game-container.dungeon-first-mode #log-content .event-strip-item--unresolved {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+/* Over-budget rows are shortened or left out whole by fitEventStripRows
+   (#1823) instead of being clipped mid-line; #btn-log-expand has the rest. */
+#game-container.dungeon-first-mode #log-content .event-strip-item.event-strip-item--clamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--event-strip-lines, 1);
+}
+
+#game-container.dungeon-first-mode #btn-log-expand[data-hidden-count]::after {
+  content: attr(data-hidden-count);
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  padding: 0 3px;
+  border-radius: var(--radius-xs);
+  background: var(--neon-cyan);
+  color: var(--surface-raised);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+  pointer-events: none;
 }
 
 #game-container.dungeon-first-mode #btn-log-expand {
