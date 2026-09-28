@@ -1,6 +1,7 @@
 // UI-only, non-persistent focus state for the explore HUD (#1765).
 // The goal banner stays folded to one line unless the player expands it
-// (#1832); new information no longer re-opens it.
+// (#1832); new information no longer re-opens it. The minimap stays compact;
+// tapping it opens the full-floor map instead (#1833).
 
 export const EXPLORE_HUD_MODES = Object.freeze({ NOTICE: "notice", ROAM: "roam" });
 export const EXPLORE_HUD_ROAM_AFTER_ACTIONS = 2;
@@ -15,7 +16,6 @@ export interface ExploreHudFocusState {
   poseSignature?: string;
   floor?: number;
   goalExpanded?: boolean | null;
-  minimapExpanded?: boolean;
   mode?: ExploreHudMode;
   actionsSinceNotice?: number;
   [key: string]: unknown;
@@ -28,12 +28,11 @@ export interface ExploreHudFocusInput {
   floor: number;
 }
 
-const DEFAULT_TOGGLES = Object.freeze({ goalExpanded: null, minimapExpanded: false });
+const DEFAULT_TOGGLES = Object.freeze({ goalExpanded: null });
 
-function getToggles(prev: ExploreHudFocusState | null | undefined): Pick<ExploreHudFocusState, "goalExpanded" | "minimapExpanded"> {
+function getToggles(prev: ExploreHudFocusState | null | undefined): Pick<ExploreHudFocusState, "goalExpanded"> {
   return {
-    goalExpanded: prev?.goalExpanded ?? DEFAULT_TOGGLES.goalExpanded,
-    minimapExpanded: prev?.minimapExpanded ?? DEFAULT_TOGGLES.minimapExpanded
+    goalExpanded: prev?.goalExpanded ?? DEFAULT_TOGGLES.goalExpanded
   };
 }
 
@@ -72,8 +71,4 @@ export function isExploreHudGoalExpanded(focus: ExploreHudFocusState | null | un
 
 export function toggleExploreHudGoal(prev: ExploreHudFocusState | null | undefined): ExploreHudFocusState {
   return { ...getToggles(prev), ...prev, goalExpanded: !isExploreHudGoalExpanded(prev) };
-}
-
-export function toggleExploreHudMinimap(prev: ExploreHudFocusState | null | undefined): ExploreHudFocusState {
-  return { ...getToggles(prev), ...prev, minimapExpanded: !(prev?.minimapExpanded ?? false) };
 }

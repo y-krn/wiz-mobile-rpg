@@ -5,6 +5,5 @@ export {
   nextExploreHudFocus,
   suspendExploreHudFocus,
   isExploreHudGoalExpanded,
-  toggleExploreHudGoal,
-  toggleExploreHudMinimap
+  toggleExploreHudGoal
 } from "./explore_hud_focus.ts";

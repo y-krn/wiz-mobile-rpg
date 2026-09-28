@@ -19,6 +19,7 @@ import {
 
 // Import modules for re-export and button bindings
 import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
+import { isFullMapOpen } from "./ui/full_map_overlay.js";
 import { handleMove, enterDungeon, resumePendingCampEntry } from "./movement.js";
 import { handleExploreAction, handleTownOption } from "./menu.js";
 import { selectCombatAction, cancelCombatAction, toggleCombatAuto, repeatLastCombatAction, resumeCombat } from "./combat.js";
@@ -444,7 +445,7 @@ function bindButtons() {
 
   // Keyboard navigation for desktop testing
   window.addEventListener("keydown", (e) => {
-    if (state.transitioning) return;
+    if (state.transitioning || isFullMapOpen()) return;
     if (getScreenViewState(state, null).gameState === "explore") {
       // キーボード操作はSDKのui.click breadcrumbに乗らないため手動記録する
       const keyMap = {
