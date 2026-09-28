@@ -938,6 +938,18 @@
   gap: var(--sp-sm);
   min-height: 0;
 }
+/* Transition input guard (#1829): taps are swallowed for CONTROLS_GUARD_MS
+   after a guarded transition, so the buttons look unavailable until then.
+   The capture listener, not pointer-events, blocks input so a tap can never
+   fall through to the dungeon canvas underneath. */
+#submenu-controls[data-input-guard="active"] button,
+#trap-controls[data-input-guard="active"] button {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+  cursor: wait;
+  transform: none;
+  box-shadow: none;
+}
 #departure-start-footer {
   display: none;
   flex: 0 0 auto;
