@@ -150,6 +150,38 @@ test('Town home is organized as previous run, next descent, and accumulated know
   await expect(page.locator('#btn-town-workshop')).toContainText('広がった可能性を見る');
 });
 
+test('Town home without a recorded run offers the castle as a records visit', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    state.gameState = 'town';
+    state.currentRun = null;
+    state.party = [];
+    state.runHistory = [];
+    updateUI();
+  });
+
+  const lastRun = page.locator('.town-home-last-run');
+  await expect(lastRun).toHaveAttribute('data-empty', 'true');
+  await expect(lastRun).toContainText('まだ冒険の記録はありません');
+  await expect(page.locator('#town-last-run-title')).toBeHidden();
+  await expect(page.locator('#btn-town-castle')).toContainText('おしろを訪ねる');
+  await expect(page.locator('#btn-town-castle')).not.toContainText('冒険記録を見る');
+  await expect(page.locator('#character-panel')).toBeHidden();
+  await expect(page.locator('#btn-town-dungeon')).toBeInViewport();
+
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    state.runHistory = [{ outcome: 'retreat', returnReason: 'milestone_portal', deepestFloor: 3 }];
+    updateUI();
+  });
+  await expect(lastRun).toHaveAttribute('data-empty', 'false');
+  await expect(page.locator('#btn-town-castle')).toContainText('冒険記録を見る');
+});
+
 test('Castle presents death causes as facts with preparation choices', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

@@ -176,6 +176,10 @@ for (const vp of SOLO_HUD_VIEWPORTS) {
           menuContext.prevGameState = 'explore';
           updateUI();
         }, gameState);
+        if (gameState === 'town') {
+          // Town home is one page scroll (#1830); the solo HUD follows the town cards.
+          await page.locator('#game-container').evaluate(el => { el.scrollTop = el.scrollHeight; });
+        }
 
         const hud = await page.evaluate(() => {
           const panel = document.querySelector('#character-panel').getBoundingClientRect();

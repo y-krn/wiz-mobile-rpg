@@ -756,47 +756,44 @@ for (const vp of VIEWPORTS) {
       expect(afterContinue).toEqual({ gameState: 'explore', pending: null, completed: [6, 11] });
     });
 
-    test('Standalone safe-area town menu is scroll-contained above solo HUD @visual', async ({ page }) => {
+    test('Standalone safe-area town home is one page scroll with a pinned primary action @visual', async ({ page }) => {
       await page.addStyleTag({
         content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,
       });
       await expect(page.locator('#town-controls')).toBeVisible();
+      await expect(page.locator('#character-panel')).toBeHidden();
 
-      const initialLayout = await page.evaluate(() => {
-        const rect = (selector) => {
-          const el = document.querySelector(selector);
-          return el ? el.getBoundingClientRect().toJSON() : null;
-        };
-        const grid = document.querySelector('.town-grid');
+      const measure = () => page.evaluate(() => {
+        const container = document.getElementById('game-container');
+        const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect().toJSON() ?? null;
+        const nestedScrollers = Array.from(container.querySelectorAll('*'))
+          .filter((el) => el.offsetParent && /(auto|scroll)/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 1)
+          .map((el) => el.id || el.className);
         return {
-          controls: rect('#controls-panel'),
-          party: rect('#character-panel'),
-          grid: rect('.town-grid'),
-          scrollHeight: grid ? grid.scrollHeight : 0,
-          clientHeight: grid ? grid.clientHeight : 0,
+          viewportHeight: window.innerHeight,
+          scrollTop: container.scrollTop,
+          scrollable: container.scrollHeight > container.clientHeight,
+          nestedScrollers,
+          primary: rect('#btn-town-dungeon'),
+          last: rect('#btn-town-workshop'),
+          dock: rect('.town-primary-dock'),
         };
       });
 
-      expect(initialLayout.controls.bottom, `Town controls should not overlap solo HUD on ${vp.name}`).toBeLessThanOrEqual(initialLayout.party.top);
-      expect(initialLayout.grid.bottom, `Town grid should be clipped inside controls panel on ${vp.name}`).toBeLessThanOrEqual(initialLayout.controls.bottom);
+      const initial = await measure();
+      expect(initial.nestedScrollers, `Town home should not nest a second scroll area on ${vp.name}`).toEqual([]);
+      expect(initial.primary.bottom, `Primary town action should be reachable without scrolling on ${vp.name}`).toBeLessThanOrEqual(initial.viewportHeight);
+      expect(initial.primary.top).toBeGreaterThanOrEqual(0);
 
-      await page.locator('.town-grid').evaluate((el) => {
+      await page.locator('#game-container').evaluate((el) => {
         el.scrollTop = el.scrollHeight;
       });
+      await expect(page.locator('#btn-town-workshop')).toBeVisible();
 
-      const lastButton = page.locator('#btn-town-archives');
-      await expect(lastButton).toBeVisible();
-      const scrolledLayout = await page.evaluate(() => {
-        const grid = document.querySelector('.town-grid');
-        const last = document.querySelector('#btn-town-archives');
-        return {
-          grid: grid ? grid.getBoundingClientRect().toJSON() : null,
-          last: last ? last.getBoundingClientRect().toJSON() : null,
-        };
-      });
-
-      expect(scrolledLayout.last.bottom, `Last town button should be reachable inside scrolled town grid on ${vp.name}`).toBeLessThanOrEqual(scrolledLayout.grid.bottom + 1);
-      expect(scrolledLayout.last.top, `Last town button should remain below the top of the town grid on ${vp.name}`).toBeGreaterThanOrEqual(scrolledLayout.grid.top - 1);
+      const scrolled = await measure();
+      expect(scrolled.scrollTop > 0 || !scrolled.scrollable).toBe(true);
+      expect(scrolled.primary.bottom, `Primary town action should stay pinned after scrolling on ${vp.name}`).toBeLessThanOrEqual(scrolled.viewportHeight);
+      expect(scrolled.last.bottom, `Last town card should clear the pinned primary dock on ${vp.name}`).toBeLessThanOrEqual(scrolled.dock.top + 1);
     });
 
     test('Starting kit selection starts exactly one Lv1 solo character', async ({ page }) => {

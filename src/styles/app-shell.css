@@ -231,6 +231,41 @@
   display: none;
 }
 
+/* Town home is one page scroll (#1830): the town picture, stats and latest log
+   scroll away with the town cards instead of pinning the cards into a nested
+   scroll box. The primary action is pinned by .town-primary-dock. */
+#game-container.town-home-mode {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+#game-container.town-home-mode > * {
+  flex-shrink: 0;
+}
+
+#game-container.town-home-mode #viewport-panel {
+  flex: 0 0 auto;
+  aspect-ratio: auto;
+  height: clamp(132px, 26svh, 220px);
+}
+
+/* Latest lines only; the expand button opens the full log. The panel still
+   follows its tail programmatically, but never becomes a second scroll area. */
+#game-container.town-home-mode #log-panel {
+  flex: 0 0 auto;
+  height: 56px;
+  min-height: 0;
+  overflow-y: hidden;
+  touch-action: auto;
+}
+
+/* No adventurer is selected in town before the first departure. */
+#game-container.town-home-mode #character-panel:has(#character-hud > .list-empty) {
+  display: none;
+}
+
 #game-container.result-mode #viewport-panel {
   flex: 1 1 auto;
   aspect-ratio: auto;

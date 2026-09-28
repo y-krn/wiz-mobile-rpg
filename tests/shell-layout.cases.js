@@ -24,8 +24,10 @@ async function seedState(page, mode) {
     menuContext.prevGameState = null;
 
     if (nextMode === 'town') {
+      // Returning to town clears the party, so town never shows a solo HUD.
       state.gameState = 'town';
       state.currentRun = null;
+      state.party = [];
       updateUI();
     } else if (nextMode === 'explore') {
       updateUI();
@@ -102,6 +104,7 @@ async function readLayout(page) {
       header: rect('#game-header'),
       controls: rect('#controls-panel'),
       party: rect('#character-panel'),
+      townPrimary: rect('#btn-town-dungeon'),
       overlay: activeOverlay?.getBoundingClientRect().toJSON() || null,
       buttons,
       overflow,
@@ -130,10 +133,14 @@ for (const viewport of VIEWPORTS) {
         expect(button.rect.height, `${mode} ${button.id || button.text} tap height`).toBeGreaterThanOrEqual(44);
       }
       expect(layout.header.top, `${mode} header clears safe area`).toBeGreaterThanOrEqual(59);
-      if (!layout.overlay) {
+      if (mode === 'town') {
+        // Town home is one page scroll (#1830): no pinned HUD, primary action pinned instead.
+        expect(layout.party.height, 'town hides the empty solo HUD').toBe(0);
+        expect(layout.townPrimary.bottom, 'town primary action clears home indicator').toBeLessThanOrEqual(viewport.height - 34 + 1);
+      } else if (!layout.overlay) {
         expect(layout.party.bottom, `${mode} party clears home indicator`).toBeLessThanOrEqual(viewport.height - 34 + 1);
       }
-      if (layout.controls && !layout.overlay) {
+      if (mode !== 'town' && layout.controls && !layout.overlay) {
         expect(layout.controls.bottom, `${mode} controls stay above party HUD`).toBeLessThanOrEqual(layout.party.top + 1);
       }
 
@@ -142,9 +149,19 @@ for (const viewport of VIEWPORTS) {
         expect(region.rect.right, `${mode} ${region.selector} scroll region right edge`).toBeLessThanOrEqual(viewport.width + 1);
       }
 
-      if (mode === 'town' || mode === 'inventory') {
-        const selector = mode === 'town' ? '.town-grid' : '#submenu-options';
-        const region = page.locator(selector);
+      if (mode === 'town') {
+        const lastTownButton = page.locator('.town-grid button').last();
+        await expect(lastTownButton).toBeVisible();
+        await page.locator('#game-container').evaluate(element => { element.scrollTop = element.scrollHeight; });
+        await expect.poll(async () => {
+          const lastButtonBox = await lastTownButton.boundingBox();
+          const dockBox = await page.locator('.town-primary-dock').boundingBox();
+          return lastButtonBox && dockBox ? lastButtonBox.y + lastButtonBox.height - dockBox.y : null;
+        }, { message: 'town last card action clears the primary dock' }).toBeLessThanOrEqual(1);
+      }
+
+      if (mode === 'inventory') {
+        const region = page.locator('#submenu-options');
         await region.evaluate(element => { element.scrollTop = element.scrollHeight; });
         const lastButton = region.locator('button').last();
         const lastButtonBox = await lastButton.boundingBox();
