@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { buildTrapResolutionPayload } from "../../../src/telemetry_trap_resolution.ts";
-import { trapResolutionPayloadInputFixture } from "../fixtures/typescript/telemetry_trap_resolution_input.ts";
+import {
+  trapResolutionPayloadFixture,
+  trapResolutionPayloadInputFixture
+} from "../fixtures/typescript/telemetry_trap_resolution_input.ts";
 
 const fixturePayload = buildTrapResolutionPayload(trapResolutionPayloadInputFixture);
+assert.deepEqual(fixturePayload, trapResolutionPayloadFixture);
 assert.deepEqual(Object.keys(fixturePayload), [
   "runId", "contextOnly", "floor", "trapBonus", "source", "trapType", "outcome", "action",
   "successRate", "trapDifficulty", "partialSuccess", "identified", "x", "y", "toolId", "toolUsed",

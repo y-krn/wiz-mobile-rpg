@@ -16,17 +16,17 @@ export interface TrapResolutionDetails {
 }
 
 export interface TrapBuildSnapshot {
-  trapBonus: unknown;
-  trapGuard: unknown;
-  detectionSupport: unknown;
-  treasureSense: unknown;
-  hearRange: unknown;
-  traceRead: unknown;
-  trapKitCount: unknown;
-  availableToolIds: unknown;
-  coreIds: unknown;
-  coreTrapEater: unknown;
-  coreTombRaider: unknown;
+  trapBonus: number | null;
+  trapGuard: number | null;
+  detectionSupport: number | null;
+  treasureSense: number | null;
+  hearRange: number | null;
+  traceRead: number | null;
+  trapKitCount: number | null;
+  availableToolIds: string[];
+  coreIds: string[];
+  coreTrapEater: boolean;
+  coreTombRaider: boolean;
 }
 
 export interface TrapResolutionPayloadInput {
@@ -44,12 +44,40 @@ export interface TrapResolutionPayloadInput {
   build: TrapBuildSnapshot;
 }
 
+export interface TrapResolutionPayload extends Record<string, unknown> {
+  runId: string;
+  floor: number | null;
+  source: string;
+  trapType: string;
+  outcome: string;
+  action: string;
+  successRate: number | null;
+  trapDifficulty: number | null;
+  partialSuccess: boolean | undefined;
+  identified: boolean | undefined;
+  x: number | null;
+  y: number | null;
+  toolId: string | null;
+  toolUsed: boolean;
+  trapBonus: number | null;
+  trapGuard: number | null;
+  detectionSupport: number | null;
+  treasureSense: number | null;
+  hearRange: number | null;
+  traceRead: number | null;
+  trapKitCount: number | null;
+  availableToolIds: string[];
+  coreIds: string[];
+  coreTrapEater: boolean;
+  coreTombRaider: boolean;
+}
+
 function optionalTrapDifficulty(trap: unknown): unknown {
   if (trap === null || trap === undefined) return undefined;
   return (Object(trap) as { difficulty?: unknown }).difficulty;
 }
 
-export function buildTrapResolutionPayload(input: TrapResolutionPayloadInput): Record<string, unknown> {
+export function buildTrapResolutionPayload(input: TrapResolutionPayloadInput): TrapResolutionPayload {
   const { details, build } = input;
   return {
     runId: input.runId,

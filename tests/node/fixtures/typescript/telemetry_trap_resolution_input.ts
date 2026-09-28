@@ -1,4 +1,8 @@
-import type { TrapResolutionPayloadInput } from "../../../../src/telemetry_trap_resolution.js";
+import {
+  buildTrapResolutionPayload,
+  type TrapResolutionPayload,
+  type TrapResolutionPayloadInput
+} from "../../../../src/telemetry_trap_resolution.js";
 
 export const trapResolutionPayloadInputFixture: TrapResolutionPayloadInput = {
   runId: "run-fixture",
@@ -34,3 +38,6 @@ export const trapResolutionPayloadInputFixture: TrapResolutionPayloadInput = {
     coreTombRaider: false
   }
 };
+
+export const trapResolutionPayloadFixture: TrapResolutionPayload =
+  buildTrapResolutionPayload(trapResolutionPayloadInputFixture);
