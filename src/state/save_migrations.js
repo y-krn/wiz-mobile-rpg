@@ -930,13 +930,7 @@ export function normalizeSavePayload(data) {
 
     normalized.logs = [...normalized.logs, "マップデータが新しいバージョンに更新され、スタート地点に戻されました。"];
 
-    normalized.visitedMaps = [
-      Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-      Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-      Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-      Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-      Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
-    ];
+    normalized.visitedMaps = createDefaultVisitedMaps(loadedMaps);
     normalized.visitedMaps[0][migratedStart.y][migratedStart.x] = true;
   } else {
     normalized.visitedMaps = activeRunMap

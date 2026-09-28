@@ -4,7 +4,7 @@ import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 import { createSavePayload, applySavePayload } from "./save_payload.js";
 import { SAVE_KEYS } from "../trial_profiles.js";
 import { migrateSavePayload } from "./save_migrations.js";
-import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
+import { START_X, START_Y, DIR_N } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";
 import { applyDungeonMemoryToMaps } from "./dungeon_state.js";
 import { createDefaultRecords } from "./records_state.js";
@@ -114,13 +114,7 @@ export function initNewGame({ preserveSeed = false }: InitNewGameOptions = {}): 
   state.noiseEvents = [];
   state.roamingMonsters = [];
   applyDungeonMemoryToMaps();
-  state.visitedMaps = [
-    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
-  ];
+  state.visitedMaps = state.maps.map(grid => (grid ?? []).map(row => (row ?? []).map(() => false)));
 
   // Mark initial coordinate as visited
   markMapCellVisited(state.x, state.y);

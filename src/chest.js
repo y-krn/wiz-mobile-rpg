@@ -1,6 +1,6 @@
 import { BUILD_SEED_CHOICE_ROLE, generateBuildSeedOffer, shouldOfferBuildSeed } from "./systems/build_vnext_seed.js";
 import { state, saveAutosave, addLog, addEventLog, clearEventObservations, recordEquipmentDiscovery, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
-import { MAP_WIDTH, MAP_HEIGHT, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
+import { getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import {
   getChestSmashRewardCategory,
   resolveChestSmashRewardLosses
@@ -493,9 +493,13 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random, acti
     // Teleport to random coordinates inside map paths
     // Find empty spots (must not be isolated "stone/wall" cells - i.e. must have at least one open wall)
     const emptySpots = [];
-    for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-      for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        const cell = state.map[y][x];
+    // Floors are sized per depth band, so bound the scan by the current map.
+    const mapHeight = state.map?.length ?? 0;
+    for (let y = 1; y < mapHeight - 1; y++) {
+      const row = state.map[y] ?? [];
+      for (let x = 1; x < row.length - 1; x++) {
+        const cell = row[x];
+        if (!cell) continue;
         const isPassable = cell.walls.some(closed => !closed);
         const isCurrentPosition = x === state.x && y === state.y;
         if (isPassable && cell.event !== "boss" && !isCurrentPosition) {
