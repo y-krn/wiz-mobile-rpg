@@ -119,7 +119,7 @@
               </div>
               <div id="town-last-run-summary" class="town-last-run-summary" aria-live="polite"></div>
               <button id="btn-town-castle" class="btn btn-neon btn-town">
-                <strong>冒険記録を見る</strong><span>おしろ — 何が起きたか</span>
+                <strong data-town-castle-label>冒険記録を見る</strong><span data-town-castle-detail>おしろ — 何が起きたか</span>
               </button>
             </section>
 
@@ -129,9 +129,6 @@
                 <h2 id="town-next-run-title">次の潜行に備える</h2>
               </div>
               <div class="town-home-actions">
-                <button id="btn-town-dungeon" class="btn btn-neon btn-town">
-                  <strong>準備を整える</strong><span>開始キットと開始地点を選ぶ</span>
-                </button>
                 <button id="btn-town-quest-board" class="btn btn-neon btn-town">
                   <strong>今回の依頼を選ぶ</strong><span>この潜行の目的を決める</span>
                 </button>
@@ -152,6 +149,12 @@
                 </button>
               </div>
             </section>
+          </div>
+          <!-- The next-run preparation stays pinned to the bottom of the town scroll. -->
+          <div class="town-primary-dock">
+            <button id="btn-town-dungeon" class="btn btn-neon btn-town" aria-describedby="town-next-run-title">
+              <strong>準備を整える</strong><span>開始キットと開始地点を選ぶ</span>
+            </button>
           </div>
         </div>
 

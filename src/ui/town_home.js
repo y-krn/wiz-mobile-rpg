@@ -58,9 +58,29 @@ function getLastRunSummary(run) {
   return fragment;
 }
 
+// Without a recorded run there is no adventure record to read yet, so the
+// castle entry is presented as the records/settings visit it still is.
+const CASTLE_ENTRY_COPY = {
+  record: { label: "冒険記録を見る", detail: "おしろ — 何が起きたか" },
+  empty: { label: "おしろを訪ねる", detail: "通算記録と設定" },
+};
+
+function renderCastleEntry(hasRecord) {
+  const castle = document.getElementById("btn-town-castle");
+  if (typeof castle?.querySelector !== "function") return;
+  const copy = hasRecord ? CASTLE_ENTRY_COPY.record : CASTLE_ENTRY_COPY.empty;
+  const label = castle.querySelector("[data-town-castle-label]");
+  const detail = castle.querySelector("[data-town-castle-detail]");
+  if (label) label.textContent = copy.label;
+  if (detail) detail.textContent = copy.detail;
+}
+
 export function renderTownHome() {
   const summary = document.getElementById("town-last-run-summary");
   if (!summary) return;
   const lastRun = Array.isArray(state.runHistory) ? state.runHistory[0] : null;
   summary.replaceChildren(getLastRunSummary(lastRun));
+  const section = typeof summary.closest === "function" ? summary.closest(".town-home-last-run") : null;
+  if (section?.dataset) section.dataset.empty = lastRun ? "false" : "true";
+  renderCastleEntry(Boolean(lastRun));
 }

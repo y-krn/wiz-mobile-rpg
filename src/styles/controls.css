@@ -81,12 +81,20 @@
   min-height: 0;
 }
 
+/* Town home content scrolls with #game-container.town-home-mode; overflow stays
+   visible so the sticky primary dock binds to that single page scroll. */
 #controls-panel.town-mode {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   justify-content: flex-start;
+  padding-bottom: 0;
   background: var(--bg-color);
+}
+
+#town-controls.active {
+  flex-direction: column;
+  gap: var(--sp-sm);
 }
 
 #controls-panel.submenu-mode.chest-menu-mode {
@@ -259,9 +267,7 @@
   align-content: start;
   min-height: 0;
   height: auto;
-  flex: 1 1 auto;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  flex: 0 0 auto;
 }
 
 .town-home-section {
@@ -346,8 +352,9 @@
   white-space: nowrap;
 }
 
-.town-grid .btn-town {
+#town-controls .btn-town {
   display: flex;
+  width: 100%;
   min-height: var(--tap-min);
   flex-direction: column;
   align-items: flex-start;
@@ -358,13 +365,13 @@
   white-space: normal;
 }
 
-.town-grid .btn-town strong,
-.town-grid .btn-town span {
+#town-controls .btn-town strong,
+#town-controls .btn-town span {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.town-grid .btn-town span {
+#town-controls .btn-town span {
   color: var(--text-muted);
   font-size: var(--fs-xs);
   font-weight: 400;
@@ -377,15 +384,38 @@
   background: linear-gradient(180deg, #fffdf8, var(--tint-green));
 }
 
+/* Without a recorded run the previous-run card collapses to the empty note and
+   a compact castle entry. */
+.town-home-last-run[data-empty="true"] h2 {
+  display: none;
+}
+
+.town-home-last-run[data-empty="true"] #btn-town-castle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: none;
+}
+
+.town-primary-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 0 calc(-1 * var(--sp-md));
+  padding: var(--sp-sm) var(--sp-md) max(var(--sp-sm), var(--safe-area-bottom));
+  border-top: 1px solid var(--border-color);
+  background: rgba(250, 245, 237, 0.97);
+}
+
 /* The next-run preparation is the one primary action on the town home. */
-.town-grid #btn-town-dungeon {
+#town-controls #btn-town-dungeon {
   --btn-edge: #a85f0f;
   border-color: #a85f0f;
   background: linear-gradient(180deg, #f2a74a, var(--neon-amber));
   color: #fff;
 }
 
-.town-grid #btn-town-dungeon span {
+#town-controls #btn-town-dungeon span {
   color: rgba(255, 255, 255, 0.88);
 }
 

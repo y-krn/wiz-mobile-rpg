@@ -373,6 +373,7 @@ export function updateUI() {
     container.classList.toggle("departure-mode", departurePrepSubmenu);
     container.classList.toggle("workshop-mode", workshopSubmenu);
     container.classList.toggle("town-submenu-mode", townSubmenu);
+    container.classList.toggle("town-home-mode", gameState === "town");
     container.classList.toggle("dungeon-first-mode", isDungeonFirstMode);
     if (container.dataset) {
       if (isDungeonFirstMode) container.dataset.dungeonFirstState = dungeonFirstState;
