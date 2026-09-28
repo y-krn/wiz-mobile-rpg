@@ -68,6 +68,24 @@ assert.deepEqual(Object.keys(firstTrapEvent.properties).slice(-11), [
 assert.deepEqual([firstTrapEvent.properties.floor, firstTrapEvent.properties.source, firstTrapEvent.properties.trapType,
   firstTrapEvent.properties.outcome, firstTrapEvent.properties.x, firstTrapEvent.properties.y], [2, "floor", "damage", "triggered", 4, 5]);
 
+trackTrapResolution("free text", {
+  state,
+  floor: "invalid",
+  x: "1001",
+  y: "-1",
+  source: "migrated-source",
+  trapType: "migrated-trap"
+});
+const normalizedTrapEvent = events.filter(event => event.name === "trap_resolution")[1];
+assert.deepEqual([
+  normalizedTrapEvent.properties.floor,
+  normalizedTrapEvent.properties.source,
+  normalizedTrapEvent.properties.trapType,
+  normalizedTrapEvent.properties.outcome,
+  normalizedTrapEvent.properties.x,
+  normalizedTrapEvent.properties.y
+], [null, "other", "other", "other", 1000, 0]);
+
 const beforeDuplicate = { characterReads, actionReads, successRateReads, count: events.filter(event => event.name === "trap_resolution").length };
 trackTrapResolution("triggered", {
   state,
