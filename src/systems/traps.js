@@ -5,7 +5,7 @@ import { triggerGameOver } from "../combat.js";
 import { dungeonRenderer as renderer } from "../renderer_runtime.js";
 import { createRng } from "../seed_rng.js";
 import { descendToFloor, findCellCoordsByType } from "../movement.js";
-import { MAP_WIDTH, MAP_HEIGHT, DX, DY, getPartyMaxAffix, getCharAffixSum, getCharTrapBonus } from "../data.js";
+import { DX, DY, getPartyMaxAffix, getCharAffixSum, getCharTrapBonus } from "../data.js";
 import { armControlsGuard } from "../controls_guard.js";
 import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
 import {
@@ -164,8 +164,9 @@ export function triggerPitfall(trap, isPartialSuccess = false, action = "trigger
   const nextMap = ensureRunFloor(state, nextFloor);
   
   const candidates = [];
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < nextMap.length - 1; y++) {
+    const rowWidth = nextMap[y]?.length ?? 0;
+    for (let x = 1; x < rowWidth - 1; x++) {
       const cell = nextMap[y]?.[x];
       if (!cell) continue;
       const isPassable = cell.walls && cell.walls.some(w => !w);
