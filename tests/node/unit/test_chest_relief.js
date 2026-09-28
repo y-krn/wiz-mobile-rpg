@@ -501,6 +501,30 @@ await test("現在地しか転移先候補がない場合はその場に留ま�
   assert.ok(state.logs.includes("テレポーターは行き先を見つけられず、その場に留まった。"));
 });
 
+await test("24x24の浅層でもテレポート先はその階の範囲内の通行可能セル", () => {
+  const char = makeCharacter();
+  resetChest({ trap: "teleporter", party: [char] });
+  // B1-B10 floors are 24x24, smaller than MAP_WIDTH/MAP_HEIGHT (#1819).
+  state.maps[state.floor - 1] = state.map.slice(0, 24).map(row => row.slice(0, 24));
+  assert.equal(state.map.length, 24);
+  const origin = { x: 2, y: 2 };
+  state.x = origin.x;
+  state.y = origin.y;
+  state.map.forEach(row => row.forEach(cell => {
+    cell.walls = [false, false, false, false];
+    cell.event = null;
+  }));
+
+  // An upper-bound roll selects the last candidate, which is the far corner.
+  assert.doesNotThrow(() => triggerChestTrap(char, false, () => 0.999));
+
+  assert.notDeepEqual({ x: state.x, y: state.y }, origin);
+  assert.ok(state.y >= 1 && state.y < state.map.length - 1);
+  assert.ok(state.x >= 1 && state.x < state.map[state.y].length - 1);
+  assert.ok(state.map[state.y][state.x].walls.some(closed => !closed));
+  assert.deepEqual({ x: state.x, y: state.y }, { x: 22, y: 22 });
+});
+
 await test("テレポート罠付き宝箱を叩き壊しても探索へ復帰する", () => {
   const char = makeCharacter();
   resetChest({ trap: "teleporter", party: [char] });

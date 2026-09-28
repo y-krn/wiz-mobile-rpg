@@ -1,6 +1,6 @@
 import { state, saveAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
-import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum } from "./data.js";
+import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
 import { showMoveBlockedCue } from "./ui/move_blocked_cue.js";
 import { dungeonRenderer as renderer } from "./renderer_runtime.js";
@@ -312,14 +312,17 @@ export function handleMove(action) {
 }
 
 export function findCellCoordsByType(grid, type) {
-  for (let y = 0; y < MAP_HEIGHT; y++) {
-    for (let x = 0; x < MAP_WIDTH; x++) {
-      if (grid[y] && grid[y][x] && grid[y][x].type === type) {
+  const height = grid?.length ?? 0;
+  for (let y = 0; y < height; y++) {
+    const rowWidth = grid[y]?.length ?? 0;
+    for (let x = 0; x < rowWidth; x++) {
+      if (grid[y][x] && grid[y][x].type === type) {
         return { x, y };
       }
     }
   }
-  return { x: MAP_WIDTH - 2, y: 1 }; // Default fallback coordinate
+  // Default fallback coordinate, kept inside this floor's own bounds.
+  return { x: Math.max(0, (grid?.[1]?.length ?? MAP_WIDTH) - 2), y: 1 };
 }
 
 export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false, onLanding = null) {
@@ -462,9 +465,9 @@ function checkSensoryAura() {
   let minDistMerchant = 999;
   let minDistChest = 999;
 
-  for (let y = 0; y < MAP_HEIGHT; y++) {
+  for (let y = 0; y < state.map.length; y++) {
     if (!state.map[y]) continue;
-    for (let x = 0; x < MAP_WIDTH; x++) {
+    for (let x = 0; x < state.map[y].length; x++) {
       if (x === px && y === py) continue; // Skip current cell
       if (!state.map[y][x]) continue;
 
