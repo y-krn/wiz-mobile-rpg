@@ -374,6 +374,8 @@ export function updateUI() {
     container.classList.toggle("workshop-mode", workshopSubmenu);
     container.classList.toggle("town-submenu-mode", townSubmenu);
     container.classList.toggle("town-home-mode", gameState === "town");
+    // Only the town home scrolls the shell; never carry its offset into other screens.
+    if (gameState !== "town" && container.scrollTop) container.scrollTop = 0;
     container.classList.toggle("dungeon-first-mode", isDungeonFirstMode);
     if (container.dataset) {
       if (isDungeonFirstMode) container.dataset.dungeonFirstState = dungeonFirstState;
