@@ -777,6 +777,7 @@ for (const vp of VIEWPORTS) {
           primary: rect('#btn-town-dungeon'),
           last: rect('#btn-town-workshop'),
           dock: rect('.town-primary-dock'),
+          safeBottomStrip: getComputedStyle(container, '::after').position,
         };
       });
 
@@ -794,6 +795,8 @@ for (const vp of VIEWPORTS) {
       expect(scrolled.scrollTop > 0 || !scrolled.scrollable).toBe(true);
       expect(scrolled.primary.bottom, `Primary town action should stay pinned after scrolling on ${vp.name}`).toBeLessThanOrEqual(scrolled.viewportHeight);
       expect(scrolled.last.bottom, `Last town card should clear the pinned primary dock on ${vp.name}`).toBeLessThanOrEqual(scrolled.dock.top + 1);
+      // An absolute safe-area strip would scroll into the middle of the page.
+      expect(scrolled.safeBottomStrip, `Safe-area strip should stay pinned to the viewport on ${vp.name}`).toBe('fixed');
     });
 
     test('Starting kit selection starts exactly one Lv1 solo character', async ({ page }) => {
