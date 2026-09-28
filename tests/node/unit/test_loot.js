@@ -61,7 +61,7 @@ import assert from "assert";
       configurable: true
     });
 
-    (async () => {
+    await (async () => {
       const { state, initNewGame } = await import("../../../src/state.js");
       const { setupChestState } = await import("../../../src/chest.js");
       const { generateRandomEquipment, ITEMS } = await import("../../../src/data.js");
@@ -487,7 +487,7 @@ import assert from "assert";
       configurable: true
     });
 
-    (async () => {
+    await (async () => {
       const { state, initNewGame } = await import("../../../src/state.js");
       const { generateRandomEquipment, getItemData } = await import("../../../src/data.js");
       const { SPELL_EFFECTS } = await import("../../../src/systems/spell_effects.js");
