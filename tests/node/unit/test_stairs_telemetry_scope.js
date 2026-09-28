@@ -5,6 +5,7 @@ import {
   __resetTelemetryForTests,
   __setTelemetryClientForTests,
   trackFloorExploration,
+  trackStairsDiscovery,
   trackRunStart
 } from "../../../src/telemetry.js";
 
@@ -33,6 +34,13 @@ try {
   trackRunStart(state.currentRun, character, state);
 
   applyStairsHeal({ type: "stairs-down" });
+  trackStairsDiscovery({
+    state,
+    floor: 2,
+    stairsType: "stairs-down",
+    stepsAtDiscovery: 1,
+    stepsBeforeDiscovery: 1
+  });
   state.currentRun.floorSteps["2"] = 12;
   trackFloorExploration({ state, floor: 2, stairsDiscovered: true, floorCompleted: true });
 
