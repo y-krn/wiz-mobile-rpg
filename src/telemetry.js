@@ -39,6 +39,7 @@ import { buildLootStakeSnapshotPayload } from "./telemetry_loot_stake_snapshot.t
 import { buildBleedingEventTelemetry } from "./telemetry_bleeding_event.ts";
 import { buildVulnerableEventTelemetry } from "./telemetry_vulnerable_event.ts";
 import { buildChestSmashResultPayload } from "./telemetry_chest_smash_result.ts";
+import { buildChestActionPayload } from "./telemetry_chest_action.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -53,7 +54,6 @@ import { isKnownDeathType } from "./state/death_logs.js";
 import {
   boundedFiniteOrNull,
   MAX_TELEMETRY_RESOURCE_VALUE as MAX_RESOURCE_VALUE,
-  normalizeBoundedEnumArray,
   normalizeOptionalStableValue,
   normalizeStableValue
 } from "./telemetry_normalization.ts";
@@ -1110,28 +1110,20 @@ export function trackVulnerableEvent(event, details = {}) {
 export function trackChestAction(chest, action, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
 
-  capture("chest_action", {
+  capture("chest_action", buildChestActionPayload({
     runId,
-    ...safeExplorationContext({
+    context: safeExplorationContext({
       state: details.state,
       character: details.character
     }),
-    floor: boundedFiniteOrNull(details.floor),
-    chestSource: chest?.fromDrop ? "fromDrop" : "ordinary",
-    fromDrop: Boolean(chest?.fromDrop),
-    action: normalizeStableValue(action, SAFE_CHEST_ACTIONS),
-    trap: normalizeStableValue(details.trap ?? "none", SAFE_CHEST_TRAPS),
-    inspected: Boolean(chest?.inspected),
-    inventoryCount: boundedFiniteOrNull(details.inventoryCount),
-    hasTrapKit: Boolean(details.hasTrapKit),
-    rewardCount: boundedFiniteOrNull(details.rewardCount),
-    rewardCategories: normalizeBoundedEnumArray(
-      details.rewardCategories,
-      SAFE_CHEST_REWARD_CATEGORIES,
-      SAFE_CHEST_REWARD_CATEGORIES.size
-    ),
-    lootAura: normalizeOptionalStableValue(chest?.lootHint?.aura, SAFE_CHEST_AURAS)
-  });
+    chest,
+    action,
+    details,
+    safeActions: SAFE_CHEST_ACTIONS,
+    safeTraps: SAFE_CHEST_TRAPS,
+    safeRewardCategories: SAFE_CHEST_REWARD_CATEGORIES,
+    safeAuras: SAFE_CHEST_AURAS
+  }));
 }
 
 export function trackTrapResolution(outcome, details = {}) {
