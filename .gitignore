@@ -39,3 +39,6 @@ cclens.db
 
 # Codex run logs (JSONL + last message)
 .codex-log/
+
+# Vercel CLI local project link (created by `vercel link` / `vercel deploy`)
+.vercel
