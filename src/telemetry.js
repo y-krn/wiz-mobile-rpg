@@ -41,6 +41,7 @@ import { buildVulnerableEventTelemetry } from "./telemetry_vulnerable_event.ts";
 import { buildChestSmashResultPayload } from "./telemetry_chest_smash_result.ts";
 import { buildChestActionPayload } from "./telemetry_chest_action.ts";
 import { buildTrapResolutionPayload } from "./telemetry_trap_resolution.ts";
+import { buildCombatStartPayload } from "./telemetry_combat_start.ts";
 import {
   buildLootLifecyclePayload,
   normalizeLootStage
@@ -1190,18 +1191,15 @@ export function trackCombatStart(combat, stateSnapshot = null) {
   combatId = createRuntimeId("combat");
   combatEnded = false;
 
-  capture("combat_start", {
+  const context = safeDecisionContext({ state: stateSnapshot, character: combat?.player, combat });
+  capture("combat_start", buildCombatStartPayload({
     runId,
     combatId,
-    ...safeDecisionContext({ state: stateSnapshot, character: combat?.player, combat }),
-    floor: boundedFiniteOrNull(combat?.floor),
-    playerHp: boundedFiniteOrNull(combat?.player?.hp),
-    playerMp: boundedFiniteOrNull(combat?.player?.mp),
-    enemyIds: (combat?.monsters ?? []).slice(0, MAX_ENEMY_SNAPSHOT).map(monster => normalizeEnemyId(monster?.name)),
-    isBoss: Boolean(combat?.isBoss),
-    isMidboss: Boolean(combat?.isMidboss),
-    isRoamingFlack: Boolean(combat?.isRoamingFlack)
-  });
+    context,
+    combat,
+    maxEnemySnapshot: MAX_ENEMY_SNAPSHOT,
+    normalizeEnemyId
+  }));
 }
 
 export function trackDamageReceived(damage) {
