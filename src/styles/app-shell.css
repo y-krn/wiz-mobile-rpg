@@ -251,6 +251,20 @@
   transform: translateX(-50%);
 }
 
+/* Same for full-shell overlays: an absolute inset would cover only the
+   shell's first screen, leaving scrolled town cards and the dock visible
+   below them. Pin them to the viewport, clamped to the shell's column. */
+#game-container.town-home-mode .log-overlay-container,
+#game-container.town-home-mode .archives-overlay-container,
+#game-container.town-home-mode .equip-overlay-container,
+#game-container.town-home-mode .spell-overlay-container {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  width: min(100%, 450px);
+  transform: translateX(-50%);
+}
+
 #game-container.town-home-mode > * {
   flex-shrink: 0;
 }
