@@ -41,6 +41,10 @@ import { buildVulnerableEventTelemetry } from "./telemetry_vulnerable_event.ts";
 import { buildChestSmashResultPayload } from "./telemetry_chest_smash_result.ts";
 import { buildChestActionPayload } from "./telemetry_chest_action.ts";
 import { buildTrapResolutionPayload } from "./telemetry_trap_resolution.ts";
+import {
+  buildLootLifecyclePayload,
+  normalizeLootStage
+} from "./telemetry_loot_lifecycle.ts";
 import { buildDamageReceivedPayload } from "./telemetry_damage_received.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
@@ -728,18 +732,6 @@ export function trackEvent(eventName, properties = {}) {
   capture(eventName, properties);
 }
 
-function normalizeLootStage(stage) {
-  return normalizeStableValue(stage, SAFE_LOOT_STAGES);
-}
-
-function normalizeLootSource(source) {
-  return normalizeStableValue(source, SAFE_LOOT_SOURCES);
-}
-
-function normalizeLootOwnership(ownership) {
-  return normalizeStableValue(ownership, SAFE_LOOT_OWNERSHIPS);
-}
-
 function normalizeLootSequence(lootId, lootSequence) {
   const direct = Number.isInteger(lootSequence) ? lootSequence : null;
   if (direct !== null) return boundedFiniteOrNull(direct, 0, 100000);
@@ -879,7 +871,7 @@ export function trackUxDecisionResolved(surface, resolution) {
 
 export function trackLootLifecycle(stage, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
-  const normalizedStage = normalizeLootStage(stage);
+  const normalizedStage = normalizeLootStage(stage, SAFE_LOOT_STAGES);
   const lootSequence = normalizeLootSequence(details.lootId, details.lootSequence);
   const semanticKey = lootSequence === null
     ? null
@@ -887,23 +879,27 @@ export function trackLootLifecycle(stage, details = {}) {
   if (hasSemanticEvent(semanticKey)) return;
   const stateSnapshot = details.state || null;
   const summary = getUnbankedLootSummary(stateSnapshot);
-  capture("loot_lifecycle", {
+  const context = safeExplorationContext({ state: stateSnapshot, character: details.character });
+  const payload = buildLootLifecyclePayload({
     runId,
-    ...safeExplorationContext({ state: stateSnapshot, character: details.character }),
+    context,
     lifecycleStage: normalizedStage,
     lootSequence,
-    itemId: getSafeItemId(details.itemKey),
-    itemCategory: getItemCategory(details.itemKey),
-    source: normalizeLootSource(details.source || "dungeon"),
-    ownership: normalizeLootOwnership(details.ownership || (normalizedStage === "banked" ? "town" : "unbanked")),
-    identified: details.itemKey == null || typeof details.itemKey !== "object" || details.itemKey.identified === true,
-    rarity: details.itemKey?.identified === true ? normalizeRarity(details.itemKey?.rarity) : null,
-    buildRole: getEquipmentBuildRole(details.itemKey),
-    ...getLootSupplyFields(details.itemKey, stateSnapshot?.floor),
-    valueProxy: getLootValueProxy(details.itemKey),
-    unbankedObjectLootCount: summary.count,
-    unbankedObjectLootValueProxy: summary.valueProxy
+    safeSources: SAFE_LOOT_SOURCES,
+    safeOwnerships: SAFE_LOOT_OWNERSHIPS,
+    getItemKey() { return details.itemKey; },
+    get source() { return details.source; },
+    get ownership() { return details.ownership; },
+    getStateFloor() { return stateSnapshot?.floor; },
+    getSafeItemId,
+    getItemCategory,
+    getEquipmentBuildRole,
+    getLootSupplyFields,
+    getLootValueProxy,
+    normalizeRarity,
+    summary
   });
+  capture("loot_lifecycle", payload);
 }
 
 export function trackLootStakeSnapshot(snapshotPoint, details = {}) {

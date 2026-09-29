@@ -812,6 +812,78 @@ check("vNext telemetry separates lifecycle, exploration, portal, and elite obser
   assert.equal(Object.hasOwn(elite.properties, "level"), false);
 });
 
+check("loot lifecycle preserves dedupe short-circuit, getter reads, fallbacks, and payload key order", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  const reads = [];
+  const item = { baseId: "DAGGER", identified: true, rarity: "rare" };
+  const details = {
+    get lootId() { reads.push("lootId"); return "run:loot:21"; },
+    get lootSequence() { reads.push("lootSequence"); return null; },
+    get state() { reads.push("state"); return decisionState; },
+    get character() { reads.push("character"); return decisionPlayer; },
+    get itemKey() { reads.push("itemKey"); return item; },
+    get source() { reads.push("source"); return ""; },
+    get ownership() { reads.push("ownership"); return ""; }
+  };
+
+  trackLootLifecycle("banked", details);
+  assert.deepEqual(reads.slice(0, 3), ["lootId", "lootSequence", "state"]);
+  assert.ok(reads.indexOf("state") < reads.indexOf("character"));
+  assert.ok(reads.lastIndexOf("character") < reads.indexOf("itemKey"));
+  const firstEvent = events.find(event => event.name === "loot_lifecycle");
+  assert.equal(firstEvent.properties.lifecycleStage, "banked");
+  assert.equal(firstEvent.properties.source, "dungeon");
+  assert.equal(firstEvent.properties.ownership, "town");
+  assert.equal(firstEvent.properties.identified, true);
+  assert.equal(firstEvent.properties.rarity, "rare");
+  assert.equal(reads.filter(read => read === "itemKey").length, 10);
+  assert.deepEqual(
+    Object.keys(firstEvent.properties).slice(Object.keys(firstEvent.properties).indexOf("lifecycleStage")),
+    [
+      "lifecycleStage", "lootSequence", "itemId", "itemCategory", "source", "ownership",
+      "identified", "rarity", "buildRole", "lootRole", "lootTier", "runeSupplyBand",
+      "valueProxy", "unbankedObjectLootCount", "unbankedObjectLootValueProxy"
+    ]
+  );
+
+  const beforeDuplicate = reads.slice();
+  trackLootLifecycle("banked", details);
+  assert.deepEqual(reads.slice(beforeDuplicate.length), ["lootId", "lootSequence"]);
+  assert.equal(events.filter(event => event.name === "loot_lifecycle").length, 1);
+
+  trackLootLifecycle("invalid-stage", { itemKey: null });
+  trackLootLifecycle("invalid-stage", { itemKey: null });
+  assert.deepEqual(
+    events.filter(event => event.name === "loot_lifecycle").map(event => event.properties.lifecycleStage),
+    ["banked", "other", "other"]
+  );
+});
+
+check("loot lifecycle guard avoids reading details before telemetry is available", () => {
+  __resetTelemetryForTests();
+  let reads = 0;
+  trackLootLifecycle("found", {
+    get lootId() { reads++; return "run:loot:22"; },
+    get lootSequence() { reads++; return 22; },
+    get state() { reads++; return decisionState; },
+    get character() { reads++; return decisionPlayer; },
+    get itemKey() { reads++; return null; }
+  });
+  assert.equal(reads, 0);
+
+  __setTelemetryClientForTests({ capture() {} });
+  trackLootLifecycle("found", {
+    get lootId() { reads++; return "run:loot:23"; },
+    get lootSequence() { reads++; return 23; },
+    get state() { reads++; return decisionState; },
+    get character() { reads++; return decisionPlayer; },
+    get itemKey() { reads++; return null; }
+  });
+  assert.equal(reads, 0);
+});
+
 check("valuable location telemetry deduplicates before building exploration context", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
