@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { runCombatRoundCalculation } from "../../../src/combat_logic/round.js";
+import { processMonsterDefeat, triggerEliteSpellEater } from "../../../src/combat_logic/monster_traits.js";
 import {
   COMBAT_LOG_DELAYS,
   COMBAT_LOG_SIDES,
@@ -178,6 +179,23 @@ const mixed = groupCombatLogEntries([
 assert.equal(mixed[0].side, COMBAT_LOG_SIDES.NEUTRAL);
 assert.equal(mixed[0].presentationKind, COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL);
 
+// Enemy narration (split, spell-eat) inside an ally action group keeps the dealt-damage color.
+const allyKillWithSplit = groupCombatLogEntries([
+  {
+    msg: "[味方] 冒険者の攻撃！分裂スライムに10のダメージ。",
+    groupId: "action:split",
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT
+  },
+  ...(() => {
+    const splitLogs = [];
+    processMonsterDefeat([], { name: "分裂スライム", hp: 0, maxHp: 20, exp: 4, traits: ["splitOnDeath"] }, splitLogs);
+    triggerEliteSpellEater({ name: "分裂スライム", hp: 1, combatTrait: "spell_eater" }, splitLogs);
+    assert.equal(splitLogs.length, 2);
+    return splitLogs.map(entry => ({ ...entry, groupId: "action:split" }));
+  })()
+]);
+assert.equal(allyKillWithSplit[0].presentationKind, COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT);
+
 const poisonSemantics = groupCombatLogEntries([
   {
     msg: "[ 敵 ] [!] 毒のダメージ！コボルトは3のダメージを受けた。",
@@ -262,4 +280,23 @@ assert.equal(
   COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
 );
 
+
+// The shared enemy slot is announced at its owner's turn; a defeated owner reports the lost action.
+function createSharedSlotState(ownerHp) {
+  const sharedState = createCombatState();
+  sharedState.combatState.enemyActionScheduling = "shared-normal-slot";
+  sharedState.combatState.monsters = [
+    { name: "ゴブリンの呪術師", hp: ownerHp, maxHp: 20, atk: 2, def: 0, status: "ok" },
+    { name: "分裂スライム", hp: 30, maxHp: 30, atk: 2, def: 0, status: "ok" }
+  ];
+  return sharedState;
+}
+const sharedSlotLogs = ownerHp => groupCombatLogEntries(runCombatRoundCalculation(createSharedSlotState(ownerHp), {
+  actions: [{ actorIdx: 0, type: "fight", targetIdx: 0 }]
+}, { rng: () => 0.1 }).logQueue).map(entry => entry.msg);
+const ownerActs = sharedSlotLogs(100);
+assert.equal(ownerActs[0], "ゴブリンの呪術師に一撃を加えた。1ダメージ。");
+assert.equal(ownerActs[1], "敵は連携して通常行動を1回にまとめた。");
+assert.match(ownerActs[2], /^ゴブリンの呪術師の一撃を受けた。/);
+assert.deepEqual(sharedSlotLogs(1).slice(1), ["連携の要のゴブリンの呪術師が倒れ、敵は動けなかった。"]);
 console.log("[PASS] combat log presentation pacing, wording, and grouping");

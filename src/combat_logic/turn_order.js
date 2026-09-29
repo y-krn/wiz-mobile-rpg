@@ -127,9 +127,6 @@ export function buildCombatTurnQueue(
     const ordinaryEnemyCount = new Set(turns
       .filter(turn => turn.type === "monster" && !turn.measurementExtraMultiAction)
       .map(turn => turn.idx)).size;
-    if (slotOwner !== undefined && ordinaryEnemyCount > 1) {
-      logQueue.push({ msg: "[ 敵 ] 敵は連携して通常行動を1回にまとめた。" });
-    }
     for (let index = 0; index < turns.length; index++) {
       const turn = turns[index];
       if (turn.type !== "monster") continue;
@@ -138,6 +135,11 @@ export function buildCombatTurnQueue(
         continue;
       }
       turn.measurementSharedNormalSlot = true;
+      // The round runner announces the shared slot at the owner's ordinary
+      // turn, so the log reads in the order the enemy side actually acts.
+      if (ordinaryEnemyCount > 1 && !turn.measurementExtraMultiAction) {
+        turn.sharedSlotAnnouncement = true;
+      }
     }
     turns.splice(0, turns.length, ...turns.filter(Boolean));
   }

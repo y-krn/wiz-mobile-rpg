@@ -1,4 +1,5 @@
 import { addMonsterBuff } from "./status_effects.js";
+import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 
 export function hasTrait(mon, trait) {
   return mon.traits?.includes(trait);
@@ -18,7 +19,12 @@ export function getEliteAttackMultiplier(mon, target) {
 export function triggerEliteSpellEater(mon, logQueue) {
   if (mon?.combatTrait !== "spell_eater" || mon.hp <= 0) return false;
   addMonsterBuff(mon, "atk", 4, 2);
-  logQueue.push({ msg: `[ 敵 ] ${mon.name}は呪文を喰らい、攻撃力を一時的に高めた！`, sound: "cast_spell" });
+  // Enemy-side narration inside the ally action group must not recolor the ally's dealt damage.
+  logQueue.push({
+    msg: `[ 敵 ] ${mon.name}は呪文を喰らい、攻撃力を一時的に高めた！`,
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL,
+    sound: "cast_spell"
+  });
   return true;
 }
 
@@ -42,5 +48,8 @@ export function processMonsterDefeat(monsters, mon, logQueue) {
       fled: false
     });
   }
-  logQueue.push({ msg: `[ 敵 ] ${mon.name}は崩れ落ち、${count}体に分裂した！` });
+  logQueue.push({
+    msg: `[ 敵 ] ${mon.name}は崩れ落ち、${count}体に分裂した！`,
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
+  });
 }
