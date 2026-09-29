@@ -29,6 +29,7 @@ import {
   MILESTONE_STRUCTURE_MESSAGE
 } from "./milestone_disclosure.js";
 import { releaseFocusSurface, syncFocusSurface } from "./focus_manager.js";
+import { lockShellScroll, unlockShellScroll } from "./shell_scroll_lock.js";
 import { closeFullMap, isFullMapOpen, openFullMap } from "./full_map_overlay.js";
 import {
   EXPLORE_HUD_LOG_LINGER_MS,
@@ -200,6 +201,7 @@ export function renderLogOverlay() {
 export function openLogOverlay() {
   const overlay = document.getElementById("log-overlay");
   if (!overlay) return;
+  lockShellScroll("log-overlay");
   overlay.style.display = "flex";
   renderLogOverlay();
   const body = document.getElementById("log-overlay-body");
@@ -210,6 +212,7 @@ export function openLogOverlay() {
 export function closeLogOverlay() {
   const overlay = document.getElementById("log-overlay");
   if (overlay) overlay.style.display = "none";
+  unlockShellScroll("log-overlay");
   releaseFocusSurface("log-overlay", "#btn-log");
 }
 

@@ -1,6 +1,7 @@
 import { state, createDefaultCodex, getStartingKit } from "../state.js";
 import { getMonsterResistanceStatus, getAffixDefinition, MONSTERS, ITEMS } from "../data.js";
 import { updateUI } from "./ui_root.js";
+import { lockShellScroll, unlockShellScroll } from "./shell_scroll_lock.js";
 import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
 import { CODEX_INSIGHT_DEFINITIONS } from "../state/codex_state.js";
 
@@ -451,6 +452,7 @@ export function openArchivesOverlay() {
   
   const overlay = document.getElementById("archives-overlay");
   if (overlay) {
+    lockShellScroll("archives-overlay");
     overlay.removeAttribute("style");
     overlay.classList.remove("is-hidden");
   }
@@ -663,6 +665,7 @@ export function renderArchives() {
     overlay.classList.add("is-hidden");
     state.gameState = "town";
     updateUI();
+    unlockShellScroll("archives-overlay");
   });
   closeRow.appendChild(btnClose);
   footer.appendChild(closeRow);
