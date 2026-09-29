@@ -725,7 +725,10 @@ export function runCombatRoundCalculation(
         let finalTarget = monsters[act.targetIdx];
         const guard = findAdjacentGuard(monsters, act.targetIdx, rng);
         if (guard) {
-          logQueue.push({ msg: `[ 敵 ] ${guard.mon.name}が${finalTarget.name}を庇った！` });
+          logQueue.push({
+            msg: `[ 敵 ] ${guard.mon.name}が${finalTarget.name}を庇った！`,
+            presentationKind: COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
+          });
           act.targetIdx = guard.idx;
           finalTarget = guard.mon;
         }

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { runCombatRoundCalculation } from "../../../src/combat_logic/round.js";
+import { processMonsterDefeat, triggerEliteSpellEater } from "../../../src/combat_logic/monster_traits.js";
 import {
   COMBAT_LOG_DELAYS,
   COMBAT_LOG_SIDES,
@@ -177,6 +178,23 @@ const mixed = groupCombatLogEntries([
 ]);
 assert.equal(mixed[0].side, COMBAT_LOG_SIDES.NEUTRAL);
 assert.equal(mixed[0].presentationKind, COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL);
+
+// Enemy narration (split, spell-eat) inside an ally action group keeps the dealt-damage color.
+const allyKillWithSplit = groupCombatLogEntries([
+  {
+    msg: "[味方] 冒険者の攻撃！分裂スライムに10のダメージ。",
+    groupId: "action:split",
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT
+  },
+  ...(() => {
+    const splitLogs = [];
+    processMonsterDefeat([], { name: "分裂スライム", hp: 0, maxHp: 20, exp: 4, traits: ["splitOnDeath"] }, splitLogs);
+    triggerEliteSpellEater({ name: "分裂スライム", hp: 1, combatTrait: "spell_eater" }, splitLogs);
+    assert.equal(splitLogs.length, 2);
+    return splitLogs.map(entry => ({ ...entry, groupId: "action:split" }));
+  })()
+]);
+assert.equal(allyKillWithSplit[0].presentationKind, COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT);
 
 const poisonSemantics = groupCombatLogEntries([
   {
