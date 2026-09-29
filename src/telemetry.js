@@ -41,6 +41,7 @@ import { buildVulnerableEventTelemetry } from "./telemetry_vulnerable_event.ts";
 import { buildChestSmashResultPayload } from "./telemetry_chest_smash_result.ts";
 import { buildChestActionPayload } from "./telemetry_chest_action.ts";
 import { buildTrapResolutionPayload } from "./telemetry_trap_resolution.ts";
+import { buildDamageReceivedPayload } from "./telemetry_damage_received.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
@@ -656,19 +657,6 @@ function safeDecisionContext(options) {
   }
 }
 
-function normalizeDefenseBreakdown(breakdown) {
-  if (!breakdown || typeof breakdown !== "object") return {};
-  const normalize = value => boundedFiniteOrNull(value, -MAX_RESOURCE_VALUE);
-  return {
-    baseDef: normalize(breakdown.baseDef ?? breakdown.equipmentDef),
-    equipmentDef: normalize(breakdown.equipmentDef),
-    buffDef: normalize(breakdown.buffDef),
-    frontGuardDef: normalize(breakdown.frontGuardDef),
-    firstStrikeDefense: normalize(breakdown.firstStrikeDefense),
-    tempDefDown: normalize(breakdown.tempDefDown)
-  };
-}
-
 function buildDefenseBreakdown(character, finalDef, damage) {
   if (!character || typeof character !== "object" || !Number.isFinite(Number(finalDef))) return null;
   const attackType = damage?.attackType;
@@ -1225,26 +1213,17 @@ export function trackDamageReceived(damage) {
 
   const defenseBreakdown = damage?.defenseBreakdown
     ?? buildDefenseBreakdown(damage?.character, damage?.finalDef, damage);
-  capture("damage_received", {
+  const payload = buildDamageReceivedPayload({
     runId,
     combatId,
-    floor: boundedFiniteOrNull(damage?.floor),
-    ...(damage?.character ? { buildSnapshot: resolveBuildSnapshot(damage.character) } : {}),
-    enemyId: normalizeEnemyId(damage?.enemyId),
-    attackType: normalizeStableValue(damage?.attackType, SAFE_ATTACK_TYPES),
-    rawDamage: boundedFiniteOrNull(damage?.rawDamage),
-    preDefDamage: boundedFiniteOrNull(damage?.preDefDamage),
-    postDefDamage: boundedFiniteOrNull(damage?.postDefDamage),
-    finalDamage: boundedFiniteOrNull(damage?.finalDamage),
-    finalDef: boundedFiniteOrNull(damage?.finalDef),
-    defResistance: boundedFiniteOrNull(damage?.defResistance, -1, 1),
-    ...normalizeDefenseBreakdown(defenseBreakdown),
-    playerHpBefore: boundedFiniteOrNull(damage?.playerHpBefore),
-    playerHpAfter: boundedFiniteOrNull(damage?.playerHpAfter),
-    playerMp: boundedFiniteOrNull(damage?.playerMp),
-    isDefending: Boolean(damage?.isDefending),
-    guardProfileId: normalizeStableValue(damage?.guardProfileId, SAFE_GUARD_PROFILE_IDS)
+    defenseBreakdown,
+    safeAttackTypes: SAFE_ATTACK_TYPES,
+    safeGuardProfileIds: SAFE_GUARD_PROFILE_IDS,
+    readDamageField: field => damage?.[field],
+    normalizeEnemyId,
+    resolveBuildSnapshot
   });
+  capture("damage_received", payload);
 }
 
 export function trackCombatEnd(result, combat, stateSnapshot = null) {
