@@ -81,7 +81,7 @@ export function buildLootLifecyclePayload(input: LootLifecyclePayloadInput): Loo
     ),
     identified: input.getItemKey() == null
       || typeof input.getItemKey() !== "object"
-      || (input.getItemKey() as { identified?: unknown } | null | undefined)?.identified === true,
+      || (input.getItemKey() as { identified?: unknown }).identified === true,
     rarity: (input.getItemKey() as { identified?: unknown } | null | undefined)?.identified === true
       ? input.normalizeRarity(
         (input.getItemKey() as { rarity?: unknown } | null | undefined)?.rarity

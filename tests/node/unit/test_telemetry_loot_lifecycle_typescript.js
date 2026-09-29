@@ -75,4 +75,34 @@ assert.deepEqual(
   ]
 );
 
+for (const nullish of [null, undefined]) {
+  let itemKeyReads = 0;
+  const statefulInput = {
+    runId: "run-stateful-fixture",
+    context: {},
+    lifecycleStage: "found",
+    lootSequence: null,
+    safeSources,
+    safeOwnerships,
+    getItemKey() {
+      itemKeyReads++;
+      if (itemKeyReads <= 2) return null;
+      if (itemKeyReads <= 4) return itemKey;
+      return nullish;
+    },
+    source: "dungeon",
+    ownership: "unbanked",
+    getStateFloor: () => 1,
+    getSafeItemId: () => null,
+    getItemCategory: () => "other",
+    getEquipmentBuildRole: () => null,
+    getLootSupplyFields: () => ({ lootRole: null, lootTier: null, runeSupplyBand: null }),
+    getLootValueProxy: () => null,
+    normalizeRarity: () => null,
+    summary: { count: 0, valueProxy: 0 }
+  };
+  assert.throws(() => buildLootLifecyclePayload(statefulInput), TypeError);
+  assert.equal(itemKeyReads, 5);
+}
+
 console.log("[PASS] loot lifecycle typed payload preserves evaluation order and output shape");
