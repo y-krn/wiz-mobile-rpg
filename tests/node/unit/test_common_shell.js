@@ -6,7 +6,8 @@ import {
   getDockStateForView,
   getEventStripEntries,
   getItemOwnership,
-  getOwnershipLabel
+  getOwnershipLabel,
+  orderEventStripRowsByLog
 } from "../../../src/ui/common_shell.js";
 import { state, addEventLog, resolveEventObservation } from "../../../src/state.js";
 
@@ -20,6 +21,29 @@ const events = getEventStripEntries([
 ]);
 assert.deepEqual(events.unresolved.map(entry => entry.text), ["【痕跡】隣接する床に罠の気配がある。"]);
 assert.equal(events.transient.at(-1).text, "通常ログ 20");
+
+// Strip rows follow log order (oldest at top), matching the expanded log.
+const stripLog = [
+  "【気配】古い気配。",
+  { text: "ゴブリンの一撃を受けた。2ダメージ。" },
+  "スライムの一撃を受けた。1ダメージ。",
+  "ゴブリンを倒した！ ×2",
+  "直近の行。"
+];
+assert.deepEqual(orderEventStripRowsByLog([
+  { kind: "unresolved", text: "【気配】消えた気配。" },
+  { kind: "result", text: "ゴブリンを倒した！" },
+  { kind: "enemy", text: "ゴブリンの一撃を受けた。2ダメージ。 / スライムの一撃を受けた。1ダメージ。",
+    sourceTexts: ["ゴブリンの一撃を受けた。2ダメージ。", "スライムの一撃を受けた。1ダメージ。"] },
+  { kind: "transient", text: "直近の行。" },
+  { kind: "unresolved", text: "【気配】古い気配。" }
+], stripLog).map(row => row.text), [
+  "【気配】消えた気配。",
+  "【気配】古い気配。",
+  "ゴブリンの一撃を受けた。2ダメージ。 / スライムの一撃を受けた。1ダメージ。",
+  "ゴブリンを倒した！",
+  "直近の行。"
+]);
 
 const observation = {
   "aura:1:boss:4:4": {

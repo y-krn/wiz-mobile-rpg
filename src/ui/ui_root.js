@@ -20,6 +20,7 @@ import {
   getDockStateForView,
   fitEventStripRows,
   getEventStripEntries,
+  orderEventStripRowsByLog,
   setActionDockState,
   setDockActionRole
 } from "./common_shell.js";
@@ -588,6 +589,7 @@ export function updateUI() {
     persistentEvents.push({
       kind: "enemy",
       text: enemyDigest.join(" / "),
+      sourceTexts: enemyDigest,
       side: "enemy",
       presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN
     });
@@ -599,11 +601,11 @@ export function updateUI() {
     const exploreEvents = [...eventEntries.unresolved, ...(eventEntries.results || []).slice(-1)];
     const newestText = flattenLogLines(getLogEntries()).at(-1)?.text;
     const newest = exploreEvents.some(({ text }) => text === newestText) ? null : eventEntries.transient.at(-1);
-    exploreEvents.forEach(appendEventEntry);
-    if (exploreLogFresh && newest) appendEventEntry(newest);
+    orderEventStripRowsByLog([...exploreEvents, ...(exploreLogFresh && newest ? [newest] : [])], getLogEntries())
+      .forEach(appendEventEntry);
   } else {
     const transientBudget = Math.max(0, RECENT_LOG_LINES - persistentEvents.length);
-    [...persistentEvents, ...eventEntries.transient.slice(-transientBudget)]
+    orderEventStripRowsByLog([...persistentEvents, ...eventEntries.transient.slice(-transientBudget)], getLogEntries())
       .forEach(appendEventEntry);
   }
   fitEventStripRows(isDungeonFirstMode ? logPanel : null, logContent, document.getElementById("btn-log-expand"));

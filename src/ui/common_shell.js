@@ -124,6 +124,30 @@ export function getEventStripEntries(logs, { unresolvedLimit = 4, transientLimit
   };
 }
 
+// Keep the strip's rows in the order their lines entered the log, so the
+// strip reads top-to-bottom in the same direction as the expanded log. A row
+// may list `sourceTexts` (e.g. a digest of several lines) and is placed at its
+// newest source; rows whose line already left the history keep their relative
+// order at the top. Returns a new array.
+export function orderEventStripRowsByLog(rows, logs) {
+  const positions = new Map();
+  (Array.isArray(logs) ? logs : []).forEach((entry, index) => {
+    const text = typeof entry === "object" && entry !== null ? String(entry.text ?? "") : String(entry ?? "");
+    text.split("\n").forEach(line => {
+      if (!line) return;
+      positions.set(line, index);
+      // A repeated line is stored as "text ×n"; its observation keeps the bare text.
+      positions.set(line.replace(/ ×\d+$/, ""), index);
+    });
+  });
+  const positionOf = row => Math.max(-1, ...(row.sourceTexts || [row.text])
+    .map(text => positions.get(text) ?? -1));
+  return rows
+    .map((row, order) => ({ row, order, position: positionOf(row) }))
+    .sort((a, b) => (a.position - b.position) || (a.order - b.order))
+    .map(({ row }) => row);
+}
+
 // Rows the strip shortens, then leaves out, first when its height budget runs
 // out; unresolved threats and traps go last.
 const EVENT_STRIP_FIT_ORDER = ["transient", "result", "enemy", "unresolved"];

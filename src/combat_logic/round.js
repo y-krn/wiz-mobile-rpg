@@ -1084,6 +1084,18 @@ export function runCombatRoundCalculation(
       }
     } else {
       const mon = turn.mon;
+      if (turn.sharedSlotAnnouncement
+        && monsters.some(other => other.hp > 0)
+        && state.party.some(char => char.status !== "dead")) {
+        // Own group so the announcement stays a separate line from the owner's action.
+        logQueue.push({
+          msg: mon.hp <= 0
+            ? `[ 敵 ] 連携の要の${mon.name}が倒れ、敵は動けなかった。`
+            : "[ 敵 ] 敵は連携して通常行動を1回にまとめた。",
+          groupId: `${groupId}:shared-slot`,
+          presentationKind: COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
+        });
+      }
       if (mon.hp <= 0) return;
 
       actionObservation.executed = true;
