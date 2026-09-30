@@ -20,6 +20,7 @@ import {
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
 import { buildCombatDecisionPayload } from "./telemetry_combat_decision.ts";
+import { buildCombatEndPayload } from "./telemetry_combat_end.ts";
 import { buildExplorationDecisionPayload } from "./telemetry_exploration_decision.ts";
 import { buildLoadoutTransactionPayload } from "./telemetry_loadout_transaction.ts";
 import { buildEquipmentDecisionPayload } from "./telemetry_equipment_decision.ts";
@@ -1225,20 +1226,15 @@ export function trackCombatEnd(result, combat, stateSnapshot = null) {
   combatEnded = true;
 
   const normalizedResult = normalizeCombatResult(result);
-  capture("combat_end", {
+  const context = safeDecisionContext({ state: stateSnapshot, character: combat?.player, combat });
+  capture("combat_end", buildCombatEndPayload({
     runId,
     combatId,
-    ...safeDecisionContext({ state: stateSnapshot, character: combat?.player, combat }),
-    floor: boundedFiniteOrNull(combat?.floor),
+    context,
+    combat,
     result: normalizedResult,
-    turns: boundedFiniteOrNull(combat?.turns),
-    playerHp: boundedFiniteOrNull(combat?.player?.hp),
-    playerMp: boundedFiniteOrNull(combat?.player?.mp),
-    enemiesDefeated: (combat?.monsters ?? [])
-      .slice(0, MAX_ENEMY_SNAPSHOT)
-      .filter(monster => monster?.hp <= 0 && !monster?.fled)
-      .length
-  });
+    maxEnemySnapshot: MAX_ENEMY_SNAPSHOT
+  }));
   if (combat?.isRoamingFlack) {
     const eliteDecision = normalizedResult === "victory"
       ? "clear"
