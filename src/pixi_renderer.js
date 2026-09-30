@@ -4,6 +4,7 @@
 import { Application, Assets, Container, Graphics, PerspectiveMesh, Text } from "pixi.js";
 import { EVENT_TYPES } from "./data.js";
 import { getEnemyPresentation } from "./enemy_presentation.js";
+import { TELEGRAPH_FLAGS } from "./data/techniques.js";
 import {
   BASE_GEOMETRY,
   CANONICAL_VIEW,
@@ -41,6 +42,9 @@ export const PIXI_VERSION = "8.19.0";
 
 const COLUMN_ORDER = [-2, 2, -1, 1, 0];
 const DANGER_VIGNETTE_COLOR = "#e08c14";
+// Telegraphed enemy attacks use the shared danger role (--semantic-danger):
+// the warning is about incoming damage or loss, not a recommendation.
+const TELEGRAPH_COLOR = "#d9483b";
 const LAYER_NAMES = Object.freeze([
   "background",
   "far-environment",
@@ -190,9 +194,7 @@ function getMonsterColor(monster) {
 }
 
 function getQueuedThreat(monster) {
-  return Boolean(monster?.chargeQueued || monster?.selfDestructQueued || monster?.lahalitoQueued ||
-    monster?.madaltoQueued || monster?.tiltowaitQueued || monster?.dragonBreathQueued ||
-    monster?.multiActionQueued || monster?.summonQueued || monster?.snipeQueued || monster?.statusPayoffQueued);
+  return Boolean(monster) && monster.hp > 0 && TELEGRAPH_FLAGS.some((flag) => Boolean(monster[flag]));
 }
 
 function getEnemyPresentationMode() {
@@ -235,6 +237,7 @@ export class PixiDungeonRenderer {
     // a single Text for its lifetime instead of being recreated every frame.
     this.floatingTextLayer = null;
     this.combatAnchors = new Map();
+    this.telegraphMarkers = [];
     this.enemyTextures = new Map();
     this.enemyAssetFailures = new Set();
     this.enemyAssetPromise = null;
@@ -479,6 +482,7 @@ export class PixiDungeonRenderer {
     if (prefersReducedMotion()) return false;
     const cyclePosition = (renderInput.floor - 1) % 5;
     if (environment.animated || environment.animatedCyclePosition === cyclePosition || renderInput.dangerCue.active) return true;
+    if (renderInput.sceneVisibility.showCombat && renderInput.combatMonsters.some(getQueuedThreat)) return true;
     return false;
   }
 
@@ -653,6 +657,7 @@ export class PixiDungeonRenderer {
   drawScene(renderInput, root) {
     const previousRoot = this.activeRoot;
     this.activeRoot = root;
+    this.telegraphMarkers = [];
     this.drawBackground(renderInput);
     this.drawFarEnvironment(renderInput);
     if (renderInput.sceneVisibility.showTownBackground) {
@@ -1085,12 +1090,38 @@ export class PixiDungeonRenderer {
       enemyLabel.position.set(cx, hpY - 3);
       enemyLabel.scale.set(Math.min(1, Math.max(0.64, slotWidth / 120)));
       actors.addChild(enemyLabel);
-      if (getQueuedThreat(monster)) {
-        const pulse = 0.48 + 0.18 * Math.sin(this.clockMs / 180);
-        drawEllipse(this.layer("combat-fx"), cx, cy - 10 * scale, 31 * scale, 31 * scale, "#ffcc00", 0, { color: "#ffcc00", width: 2, alpha: pulse });
-      }
+      if (getQueuedThreat(monster)) this.drawTelegraphMarker(monsterIndex, cx, cy, hpY - 3 - enemyLabel.height, scale);
       if (renderInput.combatTargetSelection?.active) this.drawTargetMarker(hitRegion, cx, cy, scale, color);
     });
+  }
+
+  // A telegraphed action shows a "! 予告" badge above the enemy name plus a ring
+  // around the sprite, so the warning is readable even when the log line is
+  // clipped. The badge shape and text carry the meaning; blinking only adds
+  // urgency and is replaced by a steady full-strength frame under reduced
+  // motion.
+  drawTelegraphMarker(monsterIndex, cx, cy, labelTop, scale) {
+    const reducedMotion = prefersReducedMotion();
+    const blink = reducedMotion ? 1 : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(this.clockMs / 150));
+    const fx = this.layer("combat-fx");
+    drawEllipse(fx, cx, cy - 10 * scale, 31 * scale, 31 * scale, TELEGRAPH_COLOR, 0, { color: TELEGRAPH_COLOR, width: 2.5, alpha: reducedMotion ? 0.9 : 0.35 + 0.5 * blink });
+    const label = new Text({
+      text: "! 予告",
+      style: { fill: 0xffffff, fontFamily: "DotGothic16, monospace", fontSize: 13, fontWeight: "bold" }
+    });
+    label.anchor.set(0.5, 0.5);
+    const halfWidth = label.width / 2 + 7;
+    const radius = label.height / 2 + 3;
+    const badgeY = Math.max(radius + 2, labelTop - radius - 2);
+    const badge = new Container();
+    badge.label = `telegraph-${monsterIndex}`;
+    badge.position.set(cx, badgeY);
+    badge.alpha = blink;
+    const pill = new Graphics();
+    pill.roundRect(-halfWidth, -radius, halfWidth * 2, radius * 2, radius).fill({ color: TELEGRAPH_COLOR }).stroke({ color: 0xffffff, width: 2 });
+    badge.addChild(pill, label);
+    fx.addChild(badge);
+    this.telegraphMarkers.push({ monsterIndex, x: cx, y: badgeY, radius, alpha: blink });
   }
 
   drawEnemyPrototype(actors, monster, cx, floorY, visualScale, color, row, column, mode) {
