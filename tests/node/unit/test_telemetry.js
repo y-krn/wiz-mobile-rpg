@@ -100,6 +100,13 @@ const run = {
 
 check("telemetry without a client is a complete no-op", () => {
   __resetTelemetryForTests();
+  let guardedCombatReads = 0;
+  const guardedCombat = new Proxy({}, {
+    get() {
+      guardedCombatReads += 1;
+      throw new Error("guarded combat must not be read");
+    }
+  });
   assert.doesNotThrow(() => {
     trackEvent("run_start", { value: undefined });
     trackRunStart(run, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
@@ -107,9 +114,10 @@ check("telemetry without a client is a complete no-op", () => {
     trackUxDecisionResolved("equipment", "cancel");
     trackCombatStart({ floor: 1, player: {}, monsters: [] });
     trackDamageReceived({ enemyId: "Goblin A", rawDamage: 1, finalDamage: 1 });
-    trackCombatEnd("endCombat", { monsters: [] });
+    trackCombatEnd("endCombat", guardedCombat);
     trackRunEnd(run, "death");
   });
+  assert.equal(guardedCombatReads, 0);
 });
 
 check("capture exceptions do not escape into gameplay", () => {
@@ -1037,6 +1045,98 @@ check("roaming combat end keeps the combat_end then elite_decision event sequenc
   assert.deepEqual(events.map(event => event.name), ["run_start", "combat_start", "combat_end", "elite_decision"]);
   assert.equal(events.filter(event => event.name === "elite_decision").length, 1);
   assert.equal(events.at(-1).properties.decision, "clear");
+});
+
+check("combat end keeps post-capture roaming and monster reads independent", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const state = { ...decisionState, currentRun: { ...decisionState.currentRun, unbankedObjectLoot: [] } };
+  trackRunStart(run, decisionPlayer, state);
+  const firstMonster = { id: "RUN_ELITE_B2", name: "unknown", hp: 1, maxHp: 10 };
+  const eliteMonster = { id: "RUN_ELITE_B2", name: "unknown", hp: 1, maxHp: 10 };
+  let monsterReads = 0;
+  let roamingReads = 0;
+  const combat = {
+    floor: 2,
+    player: decisionPlayer,
+    get monsters() {
+      monsterReads += 1;
+      return monsterReads === 1 ? [firstMonster] : [eliteMonster];
+    },
+    get isRoamingFlack() {
+      roamingReads += 1;
+      return roamingReads === 1 ? false : true;
+    }
+  };
+  trackCombatStart(combat, state);
+  monsterReads = 0;
+  roamingReads = 0;
+  trackCombatEnd("fleeCombat", combat, state);
+  assert.deepEqual(events.slice(-2).map(event => event.name), ["combat_end", "elite_decision"]);
+  assert.equal(events.at(-2).properties.result, "fled");
+  assert.equal(events.at(-2).properties.enemiesDefeated, 0);
+  assert.equal(events.at(-1).properties.decision, "flee");
+  assert.equal(monsterReads, 3);
+  assert.equal(roamingReads, 2);
+});
+
+check("combat_end context and HP/MP read combat.player independently", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  const playerReads = [];
+  const players = [null, { hp: 11 }, { mp: 12 }];
+  const combat = {
+    get player() {
+      const value = players.shift();
+      playerReads.push(value);
+      return value;
+    },
+    monsters: []
+  };
+  trackCombatStart({ player: decisionPlayer, monsters: [] }, decisionState);
+  trackCombatEnd("endCombat", combat, null);
+  const payload = events.find(event => event.name === "combat_end").properties;
+  assert.equal(payload.playerHp, 11);
+  assert.equal(payload.playerMp, 12);
+  assert.equal(playerReads.length, 3);
+});
+
+check("combat_end marks the lifecycle ended before context or payload failures", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackCombatStart({ player: decisionPlayer, monsters: [] }, decisionState);
+  let playerReads = 0;
+  const combat = {
+    get player() {
+      playerReads += 1;
+      throw new Error("context player read failed");
+    }
+  };
+  assert.throws(() => trackCombatEnd("endCombat", combat, null), /context player read failed/);
+  assert.doesNotThrow(() => trackCombatEnd("endCombat", combat, null));
+  assert.equal(playerReads, 1);
+  assert.equal(events.filter(event => event.name === "combat_end").length, 0);
+});
+
+check("roaming combat results keep elite decision mapping", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const state = { ...decisionState, currentRun: { ...decisionState.currentRun, unbankedObjectLoot: [] } };
+  trackRunStart(run, decisionPlayer, state);
+  for (const [result, decision] of [["gameover", "death"], ["escapeToTown", "contact"]]) {
+    const combat = {
+      floor: 2,
+      player: decisionPlayer,
+      monsters: [{ id: "RUN_ELITE_B2", name: "unknown", hp: 1, maxHp: 10 }],
+      isRoamingFlack: true
+    };
+    trackCombatStart(combat, state);
+    trackCombatEnd(result, combat, state);
+    assert.deepEqual(events.slice(-2).map(event => event.name), ["combat_end", "elite_decision"]);
+    assert.equal(events.at(-1).properties.decision, decision);
+  }
 });
 
 check("return-wing snapshots distinguish the Wing from escape scrolls", () => {
