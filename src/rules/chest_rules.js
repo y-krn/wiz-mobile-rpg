@@ -184,7 +184,18 @@ export function rollChestSpecialReward(floor, rng) {
   return chance > 0 && rng() < chance ? "TOWN_PORTAL" : null;
 }
 
-const DANGEROUS_TRAPS = ["poison needle", "gas bomb", "teleporter"];
+// Each chest trap costs a different resource for the solo character:
+// poison needle (HP and poison), flash bomb (sight), corrosion (one carried
+// consumable), teleporter (position), and mimic (a forced fight).
+export const CHEST_TRAP_IDS = Object.freeze([
+  "poison needle",
+  "flash bomb",
+  "corrosion",
+  "teleporter",
+  "mimic"
+]);
+
+const DANGEROUS_TRAPS = ["poison needle", "teleporter", "mimic"];
 
 // The chest menu shows a trap tier, never a trap kind.
 export const CHEST_TRAP_SIGNS = Object.freeze({
@@ -216,16 +227,19 @@ export function rollChestTrap(floor, rng, runtimeDiagnostics = null) {
     return "none";
   }
 
-  let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
+  // Teleporters start on B3 and mimics on B4; every pool keeps one draw.
+  let traps = ["poison needle", "corrosion", "teleporter", "flash bomb", "none"];
   if (floor === 2) {
-    // B2F: 毒針を中程度（約28%）に抑える
-    traps = ["poison needle", "poison needle", "gas bomb", "teleporter", "flash bomb", "none", "none"];
+    // B2F: 毒針を中程度（約28%）に抑え、転移はまだ置かない
+    traps = ["poison needle", "poison needle", "corrosion", "flash bomb", "flash bomb", "none", "none"];
   } else if (floor === 4) {
-    // B4F: テレポーター・ガス爆弾を増やし、none は 12.5%(1/8)
-    traps = ["gas bomb", "gas bomb", "teleporter", "teleporter", "flash bomb", "poison needle", "poison needle", "none"];
+    // B4F: テレポーター・腐食を増やし、ミミックが現れ始める
+    traps = ["corrosion", "corrosion", "teleporter", "teleporter", "flash bomb", "poison needle", "poison needle", "mimic", "none"];
   } else if (floor === 5) {
-    // B5F: 極めて危険。テレポーター偏重で none は 8.3%(1/12)
-    traps = ["gas bomb", "gas bomb", "teleporter", "teleporter", "teleporter", "teleporter", "poison needle", "poison needle", "flash bomb", "flash bomb", "flash bomb", "none"];
+    // B5F: 極めて危険。テレポーター偏重で none は 1/13
+    traps = ["corrosion", "corrosion", "teleporter", "teleporter", "teleporter", "teleporter", "poison needle", "poison needle", "flash bomb", "flash bomb", "flash bomb", "mimic", "none"];
+  } else if (floor >= 6) {
+    traps = ["poison needle", "poison needle", "corrosion", "corrosion", "teleporter", "teleporter", "flash bomb", "flash bomb", "mimic", "none", "none"];
   }
   return traps[Math.floor(rng() * traps.length)];
 }
@@ -249,6 +263,23 @@ export function rollChestAccessory(floor, rng, party, coreMinFloor = CHEST_ACCES
     party,
     allowCores: trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT || floor >= coreMinFloor,
     trialProfile
+  });
+}
+
+// A defeated mimic leaves its chest behind, and its main reward is always at
+// least a rare piece of equipment for the floor.
+export function upgradeMimicChestReward(item, { floor, rng = Math.random, party = [], trialProfile = "normal" } = {}) {
+  if (item && typeof item === "object" && item.kind === "equipment" &&
+      (item.rarity === "rare" || item.rarity === "epic")) {
+    return item;
+  }
+  return generateRandomEquipment(floor, {
+    forceRarity: "rare",
+    rng,
+    party,
+    trialProfile,
+    excludeHighEnd: true,
+    allowCores: floor >= CHEST_EQUIPMENT_CORE_MIN_FLOOR
   });
 }
 

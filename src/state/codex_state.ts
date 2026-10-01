@@ -79,9 +79,14 @@ export interface NormalizedCodexStats {
   totalChests: number;
 }
 
-export const CODEX_TRAP_IDS = Object.freeze([
-  "poison needle", "gas bomb", "teleporter", "flash bomb", "pitfall"
-] as const);
+export {
+  CODEX_CHEST_TRAP_IDS,
+  CODEX_FLOOR_TRAP_IDS,
+  CODEX_TRAP_IDS,
+  getChestTrapCodexId,
+  getFloorTrapCodexId
+} from "./codex_trap_ids.js";
+import { CODEX_TRAP_IDS } from "./codex_trap_ids.js";
 
 export type CodexTrapId = typeof CODEX_TRAP_IDS[number];
 

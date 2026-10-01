@@ -160,8 +160,10 @@ assert.equal(firstChest.consumedFirstChestGuarantee, true);
 // Trap sign: a tier, never a trap kind. Dangerous traps read as "danger".
 assert.equal(getChestTrapSignTier("none"), CHEST_TRAP_SIGNS.NONE);
 assert.equal(getChestTrapSignTier(undefined), CHEST_TRAP_SIGNS.NONE);
-assert.equal(getChestTrapSignTier("flash bomb"), CHEST_TRAP_SIGNS.TRAP);
-for (const trap of ["poison needle", "gas bomb", "teleporter"]) {
+for (const trap of ["flash bomb", "corrosion"]) {
+  assert.equal(getChestTrapSignTier(trap), CHEST_TRAP_SIGNS.TRAP, trap);
+}
+for (const trap of ["poison needle", "teleporter", "mimic"]) {
   assert.equal(getChestTrapSignTier(trap), CHEST_TRAP_SIGNS.DANGER, trap);
 }
 
@@ -202,7 +204,7 @@ assert.equal(
 );
 
 const accurateSign = resolveChestTrapSign({
-  trap: "gas bomb",
+  trap: "teleporter",
   character: plainReader,
   rng: () => 0.69
 });
@@ -211,8 +213,8 @@ assert.deepEqual(
   { sign: CHEST_TRAP_SIGNS.DANGER, accurate: true }
 );
 for (const [trap, roll, expected] of [
-  ["gas bomb", 0.70, CHEST_TRAP_SIGNS.NONE],
-  ["gas bomb", 0.99, CHEST_TRAP_SIGNS.TRAP],
+  ["teleporter", 0.70, CHEST_TRAP_SIGNS.NONE],
+  ["teleporter", 0.99, CHEST_TRAP_SIGNS.TRAP],
   ["none", 0.70, CHEST_TRAP_SIGNS.TRAP],
   ["none", 0.99, CHEST_TRAP_SIGNS.DANGER]
 ]) {
@@ -222,6 +224,15 @@ for (const [trap, roll, expected] of [
   assert.equal(misread.sign, expected, `${trap} misread with ${roll}`);
   assert.equal(draws, 1, "the sign consumes exactly one draw");
 }
+
+// A mimic always reads as danger, even on a roll that would misread.
+for (const roll of [0, 0.7, 0.99]) {
+  const mimicSign = resolveChestTrapSign({ trap: "mimic", character: plainReader, rng: () => roll });
+  assert.equal(mimicSign.sign, CHEST_TRAP_SIGNS.DANGER, `mimic sign with ${roll}`);
+}
+// A monster's dropped chest is never a mimic; a dungeon chest can be.
+assert.equal(rollChestEncounter({ floor: 5, x: 1, y: 1, forcedTrap: "mimic", fromDrop: true, customRng: () => 0.5 }).trap, "none");
+assert.equal(rollChestEncounter({ floor: 5, x: 1, y: 1, forcedTrap: "mimic", customRng: () => 0.5 }).trap, "mimic");
 
 const lootHint = createChestLootHint({
   item: { kind: "equipment", rarity: "rare", affixes: [{ type: "arcane" }] },

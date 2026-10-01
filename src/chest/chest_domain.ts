@@ -284,7 +284,8 @@ export function resolveChestTrapSign({
   const { accuracy, lightBonus } = calculateChestTrapSignAccuracy({ character, lightPower, lightTurns });
   const trueSign = getChestTrapSignTier(trap);
   const roll = rng();
-  if (roll < accuracy) {
+  // A mimic always reads as danger, so the danger sign never hides a fight.
+  if (roll < accuracy || trap === "mimic") {
     return { sign: trueSign, accurate: true, accuracy, lightBonus };
   }
   const wrongSigns = CHEST_TRAP_SIGN_ORDER.filter(sign => sign !== trueSign);
@@ -351,7 +352,9 @@ export function rollChestEncounter({
 }: ChestEncounterInput = {}): ChestEncounterResult {
   const chestSeed = `${seed}:chest:B${floor}:${x},${y}`;
   const rng: ChestRng = customRng || (seed ? createRng(chestSeed) : Math.random);
-  const trap: string = forcedTrap !== null ? forcedTrap : rollChestTrap(floor, rng);
+  const rolledTrap: string = forcedTrap !== null ? forcedTrap : rollChestTrap(floor, rng);
+  // A monster's dropped chest is never itself a monster.
+  const trap: string = fromDrop && rolledTrap === "mimic" ? "none" : rolledTrap;
   const rewardParty: ChestRewardParty = character ? [character] : [];
   let item: ChestLootItem | null;
   let consumedFirstChestGuarantee = false;

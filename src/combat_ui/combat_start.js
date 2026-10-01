@@ -8,7 +8,7 @@ import { getCharCoreParams, getCoreLogText, getEquippedCurseCount } from "../dat
 import { updateUI } from "../ui.js";
 import { resetSubmenuBackButton } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
-import { setupChestState } from "../chest.js";
+import { setupPostCombatChest } from "../chest.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 import { trackCombatStart } from "../telemetry.js";
 import { recordEliteGreedAction } from "../systems/roaming_elites.js";
@@ -30,14 +30,15 @@ import { clearTechniqueCombatFlags } from "../rules/technique_rules.js";
 
 export const POST_COMBAT_QUIET_STEPS = 4;
 
-export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null) {
+export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null, { mimicChest = null } = {}) {
+  const isMimic = Boolean(mimicChest);
   state.encounterQuietSteps = POST_COMBAT_QUIET_STEPS;
   clearTechniqueCombatFlags(state.party);
   state.gameState = "combat";
   clearEventObservations({ scopePrefix: "combat:" });
   if (state.currentRun) {
     state.currentRun.battles++;
-    if (!isBoss && !isMidboss && !isRoamingFlack) recordEliteGreedAction(state, "battle");
+    if (!isBoss && !isMidboss && !isRoamingFlack && !isMimic) recordEliteGreedAction(state, "battle");
   }
 
   state.party.forEach(char => {
@@ -45,10 +46,16 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     delete char.mabarrierTurns;
   });
 
-  const { monsters, isRare, trial, floorRole } = generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster);
+  const { monsters, isRare, trial, floorRole } = generateEncounter(
+    state,
+    isBoss,
+    isMidboss,
+    isRoamingFlack,
+    isMimic ? { mimic: true } : roamingMonster
+  );
   const trialExp = preparePhase4jBEncounter(state, monsters, {
     boss: isBoss,
-    elite: isRoamingFlack,
+    elite: isRoamingFlack || isMimic,
     midboss: isMidboss,
     rare: isRare
   });
@@ -66,7 +73,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
 
 
 
-  if (isBoss || isMidboss || isRoamingFlack) {
+  if (isBoss || isMidboss || isRoamingFlack || isMimic) {
     addLog("【⚠️強敵遭遇！】周囲の空気が張り詰める...！");
     if (isBoss && trial) {
       addLog("【帯の決算】これまでに見た気配が、階層守護者に集約されている…！");
@@ -86,7 +93,9 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     isBoss,
     isMidboss,
     isRoamingFlack,
-    enemyActionScheduling: !isBoss && !isMidboss && !isRoamingFlack
+    isMimic,
+    mimicChest,
+    enemyActionScheduling: !isBoss && !isMidboss && !isRoamingFlack && !isMimic
       ? "shared-normal-slot"
       : "independent",
     roamingMonsterId: roamingMonster?.id ?? null,
@@ -185,13 +194,14 @@ export function resumeCombat() {
     }
 
     if (pendingOutcome.kind === "triggerChest") {
+      const mimicChest = state.combatState.mimicChest ?? null;
       state.gameState = "chest";
       state.combatState.pendingOutcome = null;
       state.combatState = null;
       state.party.forEach(char => {
         delete char.buffs;
       });
-      setupChestState(null, null, null, null, { fromDrop: true });
+      setupPostCombatChest(mimicChest);
       saveAutosave();
       updateUI();
       return;

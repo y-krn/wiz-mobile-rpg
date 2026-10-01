@@ -331,6 +331,33 @@ to open is weighed against current HP, consumables, position, and the rest of
 the run, not against a lookup table. The opportunity costs are bag space,
 equipment slots, affix slots, and consumables.
 
+The game is solo, so a chest trap never distinguishes one target from a
+party. Each trap instead costs a different resource, so which one hurts
+depends on the run's state rather than on a counter-verb table:
+
+| Trap | Costs | From | Sign |
+| --- | --- | --- | --- |
+| Poison needle | HP and poison over time | B2 | danger |
+| Flash bomb | sight (blind) | B2 | rigged |
+| Corrosion | one carried consumable | B2 | rigged |
+| Teleporter | position | B3 | danger |
+| Mimic | a forced fight | B4 | danger, always |
+
+Corrosion destroys one usable item from the bag; it never takes the retreat
+item, special, quest, or progression items, or equipment, and does nothing
+when nothing qualifies. `trapGuard` does not reduce it. A mimic cannot be
+disarmed by the automatic roll or a kit (the kit is kept); only leaving
+avoids it. It fights with the floor elite's depth-scaled body, ordinary flee
+rules apply, and a fled mimic takes its chest with it. A defeated mimic leaves
+its chest with the main reward upgraded to at least rare equipment. Its sign
+is always danger, but danger also covers the other dangerous traps, so the
+sign alone never confirms a mimic. A monster's dropped chest is never a
+mimic. Leaving is therefore a real choice on deep floors, where a danger sign
+pairs the strongest risks with the better expected reward.
+
+The trap codex records floor and chest traps under separate IDs
+(`floor:<type>`, `chest:<trap>`); the pre-#1939 trap codex was reset.
+
 ### Unknown equipment
 
 Unknown equipment has four knowledge stages:

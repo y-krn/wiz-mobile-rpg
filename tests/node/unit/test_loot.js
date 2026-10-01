@@ -535,7 +535,7 @@ import assert from "assert";
       state.firstChestUnidentifiedGuaranteed = true;
 
       // Setup chest state with no item or usable item
-      setupChestState("gas bomb", 100, "HEAL_POTION", Math.random);
+      setupChestState("corrosion", 100, "HEAL_POTION", Math.random);
       assert.strictEqual(state.chestState.lootHint.hasEquipmentSignal, false, "HEAL_POTION should not signal equipment");
       assert.strictEqual(state.chestState.lootHint.aura, "weak", "HEAL_POTION should have weak aura");
 

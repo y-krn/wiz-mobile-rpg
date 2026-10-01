@@ -366,6 +366,15 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
       sound: "item",
       giveKey: true
     });
+  } else if (state.combatState.isMimic) {
+    logQueue.push({
+      msg: "ミミックを倒した！抱え込んでいた宝が残っている。",
+      sound: "item"
+    });
+    logQueue.push({
+      msg: "ミミックの残骸から宝を回収する。",
+      triggerChest: true
+    });
   } else if (state.combatState.isRoamingFlack) {
     const defeatedId = state.combatState.roamingMonsterId;
     const eliteName = state.combatState.monsters?.[0]?.name || "強敵";

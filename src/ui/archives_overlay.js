@@ -277,6 +277,18 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
   return html;
 }
 
+const TRAP_CODEX_LABELS = Object.freeze({
+  "chest:poison needle": "宝箱：毒針",
+  "chest:flash bomb": "宝箱：閃光弾",
+  "chest:corrosion": "宝箱：腐食",
+  "chest:teleporter": "宝箱：テレポーター",
+  "chest:mimic": "宝箱：ミミック",
+  "floor:damage": "床：ダメージ罠",
+  "floor:mpDrain": "床：魔力吸収",
+  "floor:alarm": "床：警報",
+  "floor:pitfall": "床：落とし穴"
+});
+
 export function getEventsCodexHtml() {
   const ev = state.codex?.events || createDefaultCodex().events;
   
@@ -295,11 +307,7 @@ export function getEventsCodexHtml() {
     const record = ev.traps[k];
     const hasRecord = record.disarmed > 0 || record.triggered > 0;
     const firstFloorLabel = record.firstFloor > 0 ? `B${record.firstFloor}F` : (hasRecord ? "記録なし" : "未発見");
-    const nameJp = k === "poison needle" ? "毒針" :
-                   k === "gas bomb" ? "ガス爆弾" :
-                   k === "teleporter" ? "テレポーター" :
-                   k === "flash bomb" ? "閃光弾" :
-                   k === "pitfall" ? "落とし穴" : k;
+    const nameJp = TRAP_CODEX_LABELS[k] || k;
     html += `
       <div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between;">
         <span><strong>${escapeHtml(nameJp)}</strong> (初発見: ${firstFloorLabel})</span>

@@ -133,8 +133,8 @@ attribute, or level permission.
 Tools and rule-changing build effects may exchange a resource for a condition
 or a deterministic response. They must not silently grant a universal bypass,
 plain-disarm success, or generic trap-damage immunity. HP-only trap mitigation
-must remain separate from status, MP, teleport, alarm, discovery, and disarm
-rules. The detailed route and information contract lives in the core-loop canon.
+must remain separate from status, MP, teleport, alarm, item loss (corrosion),
+forced fights (mimic), discovery, and disarm rules. The detailed route and information contract lives in the core-loop canon.
 
 ## Run value and object ownership
 

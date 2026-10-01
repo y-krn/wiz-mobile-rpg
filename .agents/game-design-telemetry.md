@@ -21,6 +21,9 @@ or identifiers that are not needed for the observation.
 | `chest_action` | The single chest decision | open/leave/kit, shown trap sign, actual trap, loot aura, kit availability, reward categories |
 | `trap_resolution` | Trap observation, response, and resource exchange | source kind, trap kind, outcome, action, success/risk, build capability band, tool/resource use |
 
+Telemetry schema v3 (#1939) changed the chest trap kinds (gas bomb retired;
+corrosion and mimic added). Events before v3 are not comparable on trap kind.
+
 The event names are stable domain observations. Exact property names and
 normalization limits remain owned by the telemetry source so a data-shape
 change does not become a design change.

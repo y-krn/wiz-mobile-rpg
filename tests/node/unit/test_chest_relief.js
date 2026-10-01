@@ -77,6 +77,7 @@ const {
   openChest,
   openChestMenu,
   setupChestState,
+  setupPostCombatChest,
   triggerChestTrap
 } = await import("../../../src/chest.js");
 const { resolvePendingRewardBundle } = await import("../../../src/pending_rewards.js");
@@ -475,8 +476,8 @@ await test("開封・自動解除成功・解除失敗・キット開封はど�
   assert.equal(state.inventory.includes("HEAL_POTION"), true);
   assert.equal(state.inventory.includes("AMULET_HP"), true);
 
-  resetChest({ trap: "gas bomb", item: "HEAL_POTION", accessoryItem: "AMULET_HP" });
-  openAndResolve(sequence([0.99, 0, 0.99]));
+  resetChest({ trap: "poison needle", item: "HEAL_POTION", accessoryItem: "AMULET_HP" });
+  openAndResolve(sequence([0.99, 0.99]));
   assert.ok(state.party[0].hp < state.party[0].maxHp, "the failed disarm fires the trap");
   assert.equal(state.inventory.includes("HEAL_POTION"), true);
   assert.equal(state.inventory.includes("AMULET_HP"), true);
@@ -526,8 +527,10 @@ await test("宝箱の選択を1回だけ記録し、表示中の罠の気配と�
 await test("fromDrop の実生成・dispatch 経路は開封を source 分離して記録する", () => {
   const combatStart = readFileSync(new URL("../../../src/combat_ui/combat_start.js", import.meta.url), "utf8");
   const battleLogPlayer = readFileSync(new URL("../../../src/combat_ui/battle_log_player.js", import.meta.url), "utf8");
-  assert.match(combatStart, /setupChestState\(null, null, null, null, \{ fromDrop: true \}\)/);
-  assert.match(battleLogPlayer, /setupChestState\(null, null, null, null, \{ fromDrop: true \}\)/);
+  const chestSource = readFileSync(new URL("../../../src/chest.js", import.meta.url), "utf8");
+  assert.match(combatStart, /setupPostCombatChest\(mimicChest\)/);
+  assert.match(battleLogPlayer, /setupPostCombatChest\(mimicChest\)/);
+  assert.match(chestSource, /setupChestState\(null, null, null, null, \{ fromDrop: true \}\)/);
 
   resetChest({ trap: "none" });
   setupChestState("none", null, "DAGGER", () => 0.99, { fromDrop: true });
@@ -620,6 +623,52 @@ await test("開封時の自動解除率はクラスによらず0.25", () => {
   openChest(() => 0.25);
   assert.equal(state.currentRun.trapsDisarmed, 0);
   assert.equal(state.currentRun.trapsTriggered, 1);
+});
+
+await test("腐食の罠は手持ちの消耗品を1つ壊し、帰還手段は守る", () => {
+  resetChest({ trap: "corrosion" });
+  state.inventory = ["TOWN_PORTAL", "ANTIDOTE"];
+  const char = state.party[0];
+  const hpBefore = char.hp;
+  triggerChestTrap(char, () => 0);
+  assert.deepEqual(state.inventory, ["TOWN_PORTAL"]);
+  assert.equal(char.hp, hpBefore, "corrosion deals no HP damage");
+  assert.ok(state.logs.some(log => log.includes("腐り落ちた")));
+  assert.equal(state.codex.events.traps["chest:corrosion"].triggered, 1);
+
+  resetChest({ trap: "corrosion" });
+  state.inventory = ["TOWN_PORTAL"];
+  triggerChestTrap(state.party[0], () => 0);
+  assert.deepEqual(state.inventory, ["TOWN_PORTAL"]);
+  assert.ok(state.logs.some(log => log.includes("腐らせる物は持っていなかった")));
+});
+
+await test("ミミックは解除もキットも効かず、戦闘になる。勝てば強化された宝箱が残る", () => {
+  resetChest({ trap: "mimic", item: "HEAL_POTION", accessoryItem: "AMULET_HP" });
+  state.floor = 4;
+  state.inventory = ["TRAP_KIT"];
+  assert.equal(openChest(() => 0, { useKit: true }), true);
+  assert.equal(state.gameState, "combat");
+  assert.equal(state.inventory.includes("TRAP_KIT"), true, "a kit is not spent on a mimic");
+  assert.equal(state.chestState, null);
+  assert.equal(state.map[state.y][state.x].event, null, "the mimic chest cannot be reopened");
+  assert.equal(state.combatState.isMimic, true);
+  assert.equal(state.combatState.isRoamingFlack, false);
+  assert.equal(state.combatState.monsters[0].name, "ミミック");
+  assert.equal(state.combatState.mimicChest.item, "HEAL_POTION");
+  assert.equal(state.currentRun.trapsDisarmed, 0);
+  assert.equal(state.currentRun.trapsTriggered, 1);
+  assert.equal(state.codex.events.traps["chest:mimic"].triggered, 1);
+
+  const mimicChest = state.combatState.mimicChest;
+  state.combatState = null;
+  state.gameState = "chest";
+  setupPostCombatChest(mimicChest);
+  assert.equal(state.chestState.trap, "none");
+  assert.equal(state.chestState.fromDrop, true, "the restored chest persists like a dropped chest");
+  assert.equal(typeof state.chestState.item, "object");
+  assert.ok(["rare", "epic"].includes(state.chestState.item.rarity), "the main reward is upgraded");
+  assert.equal(state.chestState.accessoryItem, "AMULET_HP");
 });
 
 await test("罠外しキットの定義と商人在庫", () => {

@@ -48,7 +48,7 @@ import {
 } from "./telemetry_loot_lifecycle.ts";
 import { buildDamageReceivedPayload } from "./telemetry_damage_received.ts";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
-import { CHEST_REWARD_CATEGORIES, CHEST_TRAP_SIGNS } from "./rules/chest_rules.js";
+import { CHEST_REWARD_CATEGORIES, CHEST_TRAP_IDS, CHEST_TRAP_SIGNS } from "./rules/chest_rules.js";
 import { getBuffTotal } from "./combat_logic/status_effects.js";
 import { INVENTORY_CAPACITY } from "./rules/item_inventory.js";
 import { getWeaponBehaviorProfile } from "./data/weapon_behavior_profiles.js";
@@ -76,7 +76,8 @@ import {
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
-export const TELEMETRY_SCHEMA_VERSION = 2;
+// v3 (#1939): chest trap kinds changed (gas bomb -> corrosion, + mimic).
+export const TELEMETRY_SCHEMA_VERSION = 3;
 
 const VALID_OUTCOMES = new Set(["death", "retreat", "abandon"]);
 const VALID_COMBAT_RESULTS = new Set([
@@ -159,7 +160,7 @@ const SAFE_DIRECTIONS = new Set(DIR_NAMES.map((_, index) => index));
 const SAFE_CHEST_REWARD_CATEGORIES = new Set(CHEST_REWARD_CATEGORIES);
 const SAFE_CHEST_ACTIONS = new Set(["open", "leave", "trap_kit"]);
 const SAFE_CHEST_TRAP_SIGNS = new Set(Object.values(CHEST_TRAP_SIGNS));
-const SAFE_CHEST_TRAPS = new Set(["none", "poison needle", "gas bomb", "teleporter", "flash bomb"]);
+const SAFE_CHEST_TRAPS = new Set(["none", ...CHEST_TRAP_IDS]);
 const SAFE_TRAP_OUTCOMES = new Set(["observed", "disarmed", "avoided", "triggered"]);
 const SAFE_TRAP_SOURCES = new Set(["floor", "chest", "flame"]);
 const SAFE_TRAP_ACTIONS = new Set([
@@ -167,7 +168,7 @@ const SAFE_TRAP_ACTIONS = new Set([
 ]);
 const SAFE_TRAP_TYPES = new Set([
   "none", "damage", "mpDrain", "alarm", "pitfall",
-  "poison needle", "gas bomb", "teleporter", "flash bomb"
+  ...CHEST_TRAP_IDS
 ]);
 const SAFE_TRAP_TOOL_IDS = new Set(["TRAP_KIT", "TRAP_SENSE_STONE"]);
 const SAFE_CORE_IDS = new Set(CORE_AFFIXES.map(affix => affix.id));

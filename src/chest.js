@@ -1,12 +1,13 @@
 import { BUILD_SEED_CHOICE_ROLE, generateBuildSeedOffer, shouldOfferBuildSeed } from "./systems/build_vnext_seed.js";
 import { state, saveAutosave, addLog, clearEventObservations, recordEquipmentDiscovery, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
-import { getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
-import { canChestHaveTrap, getChestRewardCategory } from "./rules/chest_rules.js";
+import { getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText, ITEMS } from "./data.js";
+import { canChestHaveTrap, getChestRewardCategory, upgradeMimicChestReward } from "./rules/chest_rules.js";
+import { getChestTrapCodexId } from "./state/codex_trap_ids.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer_runtime.js";
 import { updateUI } from "./ui.js";
 import { menuContext, resetSubmenuBackButton } from "./navigation.js";
-import { triggerGameOver } from "./combat.js";
+import { startCombat, triggerGameOver } from "./combat.js";
 import { increaseChestTrapTier } from "./systems/traps.js";
 import {
   applyStatusEffect,
@@ -28,6 +29,7 @@ import {
   getChestOpener,
   getChestRewardEntries,
   isChestActionAllowed,
+  createChestLootHint,
   resolveChestTrapSign,
   rollChestEncounter
 } from "./chest/chest_domain.js";
@@ -61,8 +63,9 @@ function getSoloCharacter() {
 
 function translateTrap(trap) {
   if (trap === "poison needle") return "毒針";
-  if (trap === "gas bomb") return "ガス爆弾";
+  if (trap === "corrosion") return "腐食";
   if (trap === "teleporter") return "テレポーター";
+  if (trap === "mimic") return "ミミック";
   if (trap === "flash bomb") return "閃光弾";
   return "なし";
 }
@@ -96,31 +99,52 @@ export function applyTombRaiderTrapTier(chest, opener) {
   return true;
 }
 
+function createRestoredMimicEncounter(restored) {
+  const character = getSoloCharacter();
+  const item = upgradeMimicChestReward(restored.item, {
+    floor: state.floor,
+    rng: Math.random,
+    party: character ? [character] : [],
+    trialProfile: state.currentRun?.trialProfile || "normal"
+  });
+  return {
+    trap: "none",
+    item,
+    specialItem: restored.specialItem ?? null,
+    accessoryItem: restored.accessoryItem ?? null,
+    consumedFirstChestGuarantee: false,
+    lootHint: createChestLootHint({ item, accessoryItem: restored.accessoryItem ?? null, character })
+  };
+}
+
 export function setupChestState(forcedTrap = null, _legacyReward = null, forcedItem = null, customRng = null, options = {}) {
   void _legacyReward;
-  if (state.codex && state.codex.events && state.codex.events.facilities) {
+  const restored = options.restoredChest || null;
+  if (!restored && state.codex && state.codex.events && state.codex.events.facilities) {
     if (!state.codex.events.facilities.chest) {
       state.codex.events.facilities.chest = { found: 0, opened: 0 };
     }
     state.codex.events.facilities.chest.found++;
   }
 
-  if (state.floor === 1 && state.currentRun) {
+  if (!restored && state.floor === 1 && state.currentRun) {
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
   }
-  const encounter = rollChestEncounter({
-    floor: state.floor,
-    x: state.x,
-    y: state.y,
-    seed: state.seed,
-    character: getSoloCharacter(),
-    currentRun: state.currentRun,
-    firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
-    forcedTrap,
-    forcedItem,
-    customRng,
-    fromDrop: options.fromDrop ?? false
-  });
+  const encounter = restored
+    ? createRestoredMimicEncounter(restored)
+    : rollChestEncounter({
+      floor: state.floor,
+      x: state.x,
+      y: state.y,
+      seed: state.seed,
+      character: getSoloCharacter(),
+      currentRun: state.currentRun,
+      firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
+      forcedTrap,
+      forcedItem,
+      customRng,
+      fromDrop: options.fromDrop ?? false
+    });
   if (encounter.consumedFirstChestGuarantee) {
     state.firstChestUnidentifiedGuaranteed = true;
   }
@@ -262,16 +286,18 @@ function markChestProcessed(chest) {
   }
 }
 
+function recordChestTrapCodex(trap, field) {
+  const record = state.codex?.events?.traps?.[getChestTrapCodexId(trap)];
+  if (!record) return;
+  record[field]++;
+  if (record.firstFloor === 0) record.firstFloor = state.floor;
+}
+
 // A kit removes the trap without a disarm roll, so it is not counted as a
 // disarm in the run record or the codex; CORE_TRAP_EATER rewards both.
 function recordChestTrapDisarmed(char, trap, action, extra = {}) {
   if (action !== "trap_kit") {
-    if (state.codex?.events?.traps?.[trap]) {
-      state.codex.events.traps[trap].disarmed++;
-      if (state.codex.events.traps[trap].firstFloor === 0) {
-        state.codex.events.traps[trap].firstFloor = state.floor;
-      }
-    }
+    recordChestTrapCodex(trap, "disarmed");
     if (state.currentRun) state.currentRun.trapsDisarmed++;
   }
   trackTrapResolution("disarmed", {
@@ -325,6 +351,7 @@ export function openChest(rng = Math.random, { useKit = false } = {}) {
   try {
     applyTombRaiderTrapTier(chest, opener);
     const trap = chest.trap;
+    if (trap === "mimic") return startMimicCombat(chest, opener, useKit);
     if (useKit) {
       if (trap && trap !== "none") {
         recordChestTrapDisarmed(opener, trap, "trap_kit", {
@@ -373,20 +400,14 @@ export function triggerChestTrap(char, rng = Math.random, action = "open", extra
     y: state.chestState.y,
     ...extra
   });
-  if (state.codex && state.codex.events && state.codex.events.traps) {
-    if (state.codex.events.traps[trap]) {
-      state.codex.events.traps[trap].triggered++;
-      if (state.codex.events.traps[trap].firstFloor === 0) {
-        state.codex.events.traps[trap].firstFloor = state.floor;
-      }
-    }
-  }
+  recordChestTrapCodex(trap, "triggered");
   state.chestState.trap = "none";
   playSound("chest_trap");
 
   const effect = applyTrapGuardToEffect(resolveChestTrapEffect({
     trap,
     character: char,
+    inventory: state.inventory,
     poisonWard: getCharAffixSum(char, "poisonWard"),
     rng
   }), {
@@ -419,19 +440,16 @@ export function triggerChestTrap(char, rng = Math.random, action = "open", extra
       addLog("毒はそれほど深くない。やがて体から抜けるだろう。");
     }
     if (renderer) renderer.addDamageText(String(damage), "#ff3b30");
-  } else if (trap === "gas bomb") {
-    addLog("ガス爆弾が作動！冒険者はガスに包まれた！");
-    const dmg = effect.damage;
-    if (dmg > 0) {
-      char.hp = Math.max(0, char.hp - dmg);
-      clearCharIncapacitationOnDamage(char);
-      let deathLog = null;
-      if (char.hp === 0) {
-        char.status = "dead";
-        deathLog = recordCharDeath(state, char, "宝箱の罠「ガス爆弾」", { type: "trap", source: "宝箱のガス爆弾" });
-      }
-      addLog(`${char.name}は${dmg}のガスダメージを受けた。`);
-      if (deathLog) addLog(formatCharDeathLog(deathLog));
+  } else if (trap === "corrosion") {
+    if (effect.corrodedIndex >= 0) {
+      const item = effect.corrodedItem;
+      state.inventory.splice(effect.corrodedIndex, 1);
+      const lootId = findRunObjectLootEntry(state, item)?.id;
+      consumeRunObjectLoot(state, item);
+      if (lootId) trackLootLifecycle("lost", { state, itemKey: item, lootId, source: "dungeon" });
+      addLog(`腐食の罠が作動！${ITEMS[item]?.name || item}が腐り落ちた。`);
+    } else {
+      addLog("腐食の罠が作動したが、腐らせる物は持っていなかった。");
     }
   } else if (trap === "teleporter") {
     // Teleport to random coordinates inside map paths
@@ -482,6 +500,47 @@ export function triggerChestTrap(char, rng = Math.random, action = "open", extra
       addLog(`${char.name}は光に目がくらみ、盲目状態になった！`);
     }
   }
+}
+
+// A mimic cannot be disarmed by roll or kit; opening it starts a fight. The
+// chest's contents ride on the combat state and return as a chest on victory.
+function startMimicCombat(chest, opener, usedKit) {
+  if (usedKit) addLog("罠外しキットはミミックには通じない。キットは無事だ。");
+  addLog("宝箱が牙をむいた！ミミックだ！");
+  trackTrapResolution("triggered", {
+    state,
+    character: opener,
+    source: "chest",
+    trap: "mimic",
+    action: usedKit ? "trap_kit" : "open",
+    x: chest.x,
+    y: chest.y
+  });
+  recordChestTrapCodex("mimic", "triggered");
+  if (state.currentRun) state.currentRun.trapsTriggered++;
+  const mimicChest = {
+    item: chest.item ?? null,
+    specialItem: chest.specialItem ?? null,
+    accessoryItem: chest.accessoryItem ?? null
+  };
+  playSound("chest_trap");
+  markChestProcessed(chest);
+  finishChest(chest);
+  state.transitioning = false;
+  resetSubmenuBackButton();
+  startCombat(false, false, false, null, { mimicChest });
+  return true;
+}
+
+// After a won fight, a dropped chest appears; a defeated mimic leaves its own
+// chest with the main reward upgraded. The restored chest is persisted like
+// any dropped chest so a reload cannot lose it.
+export function setupPostCombatChest(mimicChest = null) {
+  if (!mimicChest) {
+    setupChestState(null, null, null, null, { fromDrop: true });
+    return;
+  }
+  setupChestState("none", null, null, null, { fromDrop: true, restoredChest: mimicChest });
 }
 
 // Rewards resolve after the trap step even when a fired trap killed the
