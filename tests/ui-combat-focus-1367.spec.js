@@ -103,7 +103,7 @@ for (const renderer of ['pixi']) {
     await expect(page.locator('#viewport-hud .combat-enemy-semantic')).toHaveCount(1);
     await attachScreenshot(page, testInfo, `issue-1367-${renderer}-choose-action-390`);
 
-    await page.locator('#btn-combat-fight').click();
+    await page.locator('#btn-combat-fight').press('Enter');
     await expect(page.locator('#game-container')).toHaveAttribute('data-combat-phase', 'choose_target');
     await expect(page.locator('#combat-controls')).toBeHidden();
     await expect(page.locator('#combat-overlay .btn-combat-back')).toBeVisible();
@@ -177,7 +177,7 @@ for (const viewport of COMBAT_VIEWPORTS) {
     await seedCombat(page, 'pixi');
     await expectCombatFocus(page, viewport.height);
     await attachScreenshot(page, testInfo, `issue-1367-pixi-choose-action-${viewport.width}x${viewport.height}`);
-    await page.locator('#btn-combat-fight').click();
+    await page.locator('#btn-combat-fight').press('Enter');
     await expect(page.locator('#game-container')).toHaveAttribute('data-combat-phase', 'choose_target');
     await expect(page.locator('#combat-overlay .btn-combat-back')).toBeVisible();
     await attachScreenshot(page, testInfo, `issue-1133-canvas-choose-target-${viewport.width}x${viewport.height}`);

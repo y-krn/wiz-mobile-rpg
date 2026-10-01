@@ -125,7 +125,9 @@ for (const vp of COMBAT_OVERLAY_VIEWPORTS) {
     });
 
     const verifyCombatOverlay = async (actionButtonId, overlayType) => {
-      await page.locator(actionButtonId).click();
+      // Enter reaches the attack command too, which is folded away for touch
+      // (enemies are struck by touching them).
+      await page.locator(actionButtonId).press('Enter');
       await expect(page.locator('#combat-overlay')).toBeVisible();
       await expect(page.locator(`body:has(#combat-overlay[style*="flex"])`)).toBeVisible();
       await expect(page.locator('#controls-panel .controls-group.active')).toHaveCount(0);

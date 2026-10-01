@@ -188,7 +188,7 @@ for (const renderer of ['pixi']) {
     await page.setViewportSize(VIEWPORT);
     await seedDungeon(page, { renderer, gameState: 'combat' });
     await addSecondEnemy(page);
-    await page.locator('#btn-combat-fight').click();
+    await page.locator('#btn-combat-fight').press('Enter');
     await expect(page.locator('#combat-overlay')).toBeVisible();
     await selectCanvasEnemy(page);
     await expect(page.locator('#combat-overlay')).toBeHidden();

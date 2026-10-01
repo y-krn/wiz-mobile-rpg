@@ -8,6 +8,11 @@
    ========================================================================== */
 
 #game-container.dungeon-first-mode {
+  --combat-icon-item: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M4 0h4v1h-4zM4 1h1v1h-1zM7 1h1v1h-1zM5 2h2v1h-2zM4 3h4v1h-4zM3 4h6v1h-6zM2 5h2v1h-2zM8 5h2v1h-2zM2 6h1v1h-1zM4 6h4v1h-4zM9 6h1v1h-1zM2 7h1v1h-1zM4 7h4v1h-4zM9 7h1v1h-1zM2 8h2v1h-2zM8 8h2v1h-2zM3 9h6v1h-6z'/%3E%3C/svg%3E");
+  --combat-icon-defend: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M1 0h10v1h-10zM1 1h1v1h-1zM10 1h1v1h-1zM1 2h1v1h-1zM3 2h6v1h-6zM10 2h1v1h-1zM1 3h1v1h-1zM3 3h6v1h-6zM10 3h1v1h-1zM1 4h1v1h-1zM3 4h6v1h-6zM10 4h1v1h-1zM1 5h1v1h-1zM3 5h6v1h-6zM10 5h1v1h-1zM2 6h1v1h-1zM4 6h4v1h-4zM9 6h1v1h-1zM2 7h1v1h-1zM4 7h4v1h-4zM9 7h1v1h-1zM3 8h1v1h-1zM5 8h2v1h-2zM8 8h1v1h-1zM4 9h1v1h-1zM7 9h1v1h-1zM5 10h2v1h-2z'/%3E%3C/svg%3E");
+  --combat-icon-run: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M7 0h2v1h-2zM7 1h2v1h-2zM5 2h4v1h-4zM4 3h2v1h-2zM7 3h2v1h-2zM3 4h1v1h-1zM6 4h3v1h-3zM5 5h2v1h-2zM8 5h2v1h-2zM4 6h2v1h-2zM9 6h1v1h-1zM3 7h2v1h-2zM9 7h1v1h-1zM1 8h3v1h-3zM10 8h1v1h-1zM1 9h1v1h-1z'/%3E%3C/svg%3E");
+  --combat-icon-repeat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M3 0h6v1h-6zM2 1h2v1h-2zM8 1h2v1h-2zM1 2h2v1h-2zM9 2h1v1h-1zM1 3h1v1h-1zM1 4h1v1h-1zM9 4h3v1h-3zM1 5h1v1h-1zM10 5h1v1h-1zM1 6h2v1h-2zM2 7h2v1h-2zM8 7h2v1h-2zM3 8h6v1h-6z'/%3E%3C/svg%3E");
+  --combat-icon-technique: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h-1zM10 0h2v1h-2zM1 1h1v1h-1zM9 1h3v1h-3zM2 2h1v1h-1zM8 2h3v1h-3zM3 3h1v1h-1zM7 3h3v1h-3zM4 4h1v1h-1zM6 4h3v1h-3zM5 5h3v1h-3zM4 6h3v1h-3zM8 6h1v1h-1zM3 7h3v1h-3zM9 7h1v1h-1zM2 8h3v1h-3zM10 8h1v1h-1zM1 9h3v1h-3zM1 10h2v1h-2z'/%3E%3C/svg%3E");
   --dock-icon-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M5 1h1v1h-1zM4 2h2v1h-2zM3 3h3v1h-3zM2 4h10v1h-10zM1 5h11v1h-11zM1 6h11v1h-11zM2 7h10v1h-10zM3 8h3v1h-3zM4 9h2v1h-2zM5 10h1v1h-1z'/%3E%3C/svg%3E");
   --dock-icon-bag: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M4 0h4v1h-4zM3 1h1v1h-1zM8 1h1v1h-1zM3 2h6v1h-6zM2 3h8v1h-8zM1 4h10v1h-10zM1 5h3v1h-3zM8 5h3v1h-3zM1 6h4v1h-4zM7 6h4v1h-4zM1 7h10v1h-10zM1 8h10v1h-10zM1 9h10v1h-10zM2 10h8v1h-8z'/%3E%3C/svg%3E");
   --dock-icon-magic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M5 0h1v1h-1zM5 1h1v1h-1zM4 2h3v1h-3zM0 3h5v1h-5zM6 3h5v1h-5zM4 4h3v1h-3zM5 5h1v1h-1zM9 5h1v1h-1zM5 6h1v1h-1zM8 6h3v1h-3zM9 7h1v1h-1zM2 8h1v1h-1zM1 9h3v1h-3zM2 10h1v1h-1z'/%3E%3C/svg%3E");
@@ -164,6 +169,154 @@
   touch-action: none;
 }
 
+/* ---------- Combat: strike by touching the enemy ----------
+   Attacking is a touch on the enemy itself (game.js bindCanvasTargeting).
+   The remaining commands are a row of fixed chips under a short prompt, so
+   no command ever moves between turns (#1824); technique and "back" float
+   above the prompt where they cannot shift the row. The attack button stays
+   in the DOM for keyboard and assistive input. */
+#game-container.dungeon-first-mode #controls-panel.combat-mode {
+  padding: 0 12px 8px;
+  overflow: visible;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode #combat-controls.active {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-sm);
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode #combat-controls .combat-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: 64px;
+  gap: var(--sp-sm);
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode #combat-controls .combat-grid > .btn {
+  pointer-events: auto;
+}
+
+#game-container.dungeon-first-mode #combat-prompt {
+  align-self: center;
+  max-width: 100%;
+  padding: 6px 14px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-soft);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  text-align: center;
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode #combat-prompt[data-phase="choose"]::after {
+  content: "敵に触れて攻撃";
+  margin-left: 4px;
+  color: var(--neon-red);
+}
+
+/* Command chips: icon over label, fixed slots. */
+#game-container.dungeon-first-mode #combat-controls #btn-combat-spell { grid-column: 1; grid-row: 1; --chip-icon: var(--dock-icon-magic); }
+#game-container.dungeon-first-mode #combat-controls #btn-combat-item { grid-column: 2; grid-row: 1; --chip-icon: var(--combat-icon-item); }
+#game-container.dungeon-first-mode #combat-controls #btn-combat-defend { grid-column: 3; grid-row: 1; --chip-icon: var(--combat-icon-defend); }
+#game-container.dungeon-first-mode #combat-controls #btn-combat-run { grid-column: 4; grid-row: 1; --chip-icon: var(--combat-icon-run); }
+#game-container.dungeon-first-mode #combat-controls #btn-combat-repeat { grid-column: 5; grid-row: 1; --chip-icon: var(--combat-icon-repeat); }
+
+#game-container.dungeon-first-mode #combat-controls .combat-grid > .btn:not(#btn-combat-technique, #btn-combat-cancel, #btn-combat-fight) {
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 6px 2px;
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-sm);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+#game-container.dungeon-first-mode #combat-controls .combat-grid > .btn:not(#btn-combat-technique, #btn-combat-cancel, #btn-combat-fight)::before {
+  content: "";
+  flex: 0 0 auto;
+  width: calc(var(--tap-min) * 0.42);
+  height: calc(var(--tap-min) * 0.42);
+  background-color: currentColor;
+  -webkit-mask: var(--chip-icon) center / contain no-repeat;
+  mask: var(--chip-icon) center / contain no-repeat;
+}
+
+/* A disabled reason rides under the label in small type. */
+#game-container.dungeon-first-mode #combat-controls .combat-grid > .btn[data-reason]::after {
+  font-size: 9px;
+}
+
+/* Technique and back float over the world above the prompt. */
+/* Fixed widths keep both tabs in place whether or not they carry a short
+   reason line (cooldown, "最初の仲間"). */
+#game-container.dungeon-first-mode #combat-controls #btn-combat-technique,
+#game-container.dungeon-first-mode #combat-controls #btn-combat-cancel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  flex-direction: column;
+  gap: 0;
+  min-height: var(--tap-min);
+  height: var(--tap-min);
+  padding: 0 10px;
+  border-radius: var(--radius-lg);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+#game-container.dungeon-first-mode #combat-controls #btn-combat-technique {
+  right: 0;
+  width: 46%;
+  border-color: var(--neon-amber);
+  color: var(--neon-amber);
+  background: var(--tint-amber);
+}
+
+#game-container.dungeon-first-mode #combat-controls #btn-combat-cancel {
+  left: 0;
+  width: 30%;
+  font-size: var(--fs-sm);
+}
+
+/* The attack button is folded away like the exploration pad. */
+#game-container.dungeon-first-mode #combat-controls #btn-combat-fight {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  height: var(--tap-min);
+  padding: 0 16px;
+  clip-path: inset(50%);
+  transform: translateX(-50%);
+}
+
+#game-container.dungeon-first-mode #combat-controls #btn-combat-fight:focus-visible {
+  clip-path: none;
+}
+
+#game-container.dungeon-first-mode[data-combat-context="active"] #character-panel {
+  background: none;
+  box-shadow: none;
+}
+
+.world-touch--strike {
+  width: 96px;
+  height: 96px;
+  margin: -48px 0 0 -48px;
+  border: 3px solid var(--neon-red);
+  background: radial-gradient(circle, rgba(255, 253, 248, 0.7), rgba(217, 72, 59, 0.2) 50%, transparent 70%);
+  animation: world-touch-tap 360ms ease-out forwards;
+}
+
 /* ---------- Touch answers from the world ---------- */
 .world-touch {
   position: absolute;
@@ -317,6 +470,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .world-touch,
+  .world-touch--strike,
   .world-coach,
   #game-container.dungeon-first-mode[data-satchel="open"] #explore-controls #explore-satchel {
     animation: none;

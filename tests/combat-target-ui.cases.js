@@ -102,7 +102,7 @@ for (const viewport of VIEWPORTS) {
       updateUI();
     });
 
-    await page.locator('#btn-combat-fight').click();
+    await page.locator('#btn-combat-fight').press('Enter');
     await expect(page.locator('#combat-overlay')).toBeHidden();
     await expect(page.locator('#combat-controls')).toBeVisible();
     expect(await page.evaluate(async () => {
@@ -157,7 +157,7 @@ for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await installCombat(page, ['vanguard', 'arcana']);
 
-    await page.locator('#btn-combat-fight').click();
+    await page.locator('#btn-combat-fight').press('Enter');
     await clickCanvasInternalPoint(page, { x: 10, y: 10 });
     await expect(page.locator('#combat-overlay')).toBeVisible();
     await expect.poll(() => page.evaluate(async () => {
@@ -179,11 +179,30 @@ for (const viewport of VIEWPORTS) {
     ]);
   });
 
+  test(`敵に直接触れると攻撃と対象が一度に決まる (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await installCombat(page, ['vanguard', 'arcana']);
+    await expect(page.locator('#combat-prompt')).toHaveAttribute('data-phase', 'choose');
+
+    // A touch on the world that misses every enemy chooses nothing.
+    await clickCanvasInternalPoint(page, { x: 10, y: 10 });
+    await expect(page.locator('#combat-overlay')).toBeHidden();
+    expect(await page.evaluate(async () => (await import('/src/combat.js')).combatSelection.actions.length)).toBe(0);
+
+    // A touch on an enemy is the attack on that enemy, with no command first.
+    const targetIndex = await clickCanvasMonster(page, 1);
+    await expect(page.locator('#combat-overlay')).toBeHidden();
+    await expect.poll(() => page.evaluate(async () => {
+      const { combatSelection } = await import('/src/combat.js');
+      return combatSelection.actions[0];
+    }), { timeout: 15_000 }).toMatchObject({ type: 'fight', actorIdx: 0, targetIdx: targetIndex });
+  });
+
   test(`攻撃後にCanvasの敵タップで行動を確定できる (${viewport.width}px) @e2e @smoke`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await installCombat(page, ['vanguard', 'arcana']);
 
-    await page.locator('#btn-combat-fight').click();
+    await page.locator('#btn-combat-fight').press('Enter');
     const overlay = page.locator('#combat-overlay');
     await expect(overlay).toBeVisible();
     await expect(overlay.locator('.combat-target-selection-message')).toHaveText('敵をタップして対象を選択');
@@ -236,7 +255,7 @@ test('敵対象Canvasはdead敵をhit-testせず、戻るは行動を確定し�
     updateUI();
   });
 
-  await page.locator('#btn-combat-fight').click();
+  await page.locator('#btn-combat-fight').press('Enter');
   await expect(page.locator('#combat-overlay .combat-target-a11y')).toHaveCount(2);
   await expect(page.locator('#combat-overlay .combat-target-a11y')).toContainText(['対象B', '対象C']);
 

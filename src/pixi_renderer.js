@@ -493,9 +493,13 @@ export class PixiDungeonRenderer {
     return false;
   }
 
-  getCombatTargetAtClientPoint(clientX, clientY, input = null) {
+  // Enemy under a screen point. During target selection only; with
+  // { duringSelection: false } any visible combat scene answers, which lets a
+  // tap on an enemy choose the attack and its target in one touch.
+  getCombatTargetAtClientPoint(clientX, clientY, input = null, { duringSelection = true } = {}) {
     const renderInput = this.resolveRenderInput(input);
-    if (!renderInput.combatTargetSelection?.active || !this.canvas) return null;
+    const active = duringSelection ? renderInput.combatTargetSelection?.active : renderInput.sceneVisibility?.showCombat;
+    if (!active || !this.canvas) return null;
     const rect = this.canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
     const { width, height } = this.viewport;

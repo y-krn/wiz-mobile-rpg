@@ -53,6 +53,12 @@ function spawnMark(className, x, y, host) {
   return mark;
 }
 
+// A touch answer drawn on the world at a screen point (used by combat too).
+export function markWorldTouch(className, x, y) {
+  const host = document.getElementById("viewport-panel");
+  if (host) spawnMark(className, x, y, host);
+}
+
 function bindWorldGestures({ canvas, host, onMove, onSearch }) {
   let press = null;
 

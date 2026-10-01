@@ -111,7 +111,7 @@ test('Combat target Back cancels without committing and permits reselect @e2e @s
     updateUI();
   });
   await recordJourneyStep(page, 'combat');
-  await page.locator('#btn-combat-fight').click();
+  await page.locator('#btn-combat-fight').press('Enter');
   await expect(page.locator('#combat-overlay')).toBeVisible();
   await recordJourneyStep(page, 'target-selection');
   await page.locator('#combat-overlay .btn-combat-back').click();
@@ -122,7 +122,7 @@ test('Combat target Back cancels without committing and permits reselect @e2e @s
     return { actionCount: combatSelection.actions.length, gameState: state.gameState };
   });
   expect(afterBack).toEqual({ actionCount: 0, gameState: 'combat' });
-  await page.locator('#btn-combat-fight').click();
+  await page.locator('#btn-combat-fight').press('Enter');
   await expect(page.locator('#combat-overlay')).toBeVisible();
   await recordJourneyStep(page, 'target-reselected');
   const evidence = await readJourneyEvidence(page);

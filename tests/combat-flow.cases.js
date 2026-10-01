@@ -49,7 +49,7 @@ test('Explore and Combat share the common Dock grammar at 320x568 @e2e @smoke', 
   await expect(page.locator('#btn-combat-repeat')).toBeDisabled();
   await expect(page.locator('#controls-panel')).toHaveAttribute('data-dock-state', 'decision');
 
-  await page.locator('#btn-combat-fight').click();
+  await page.locator('#btn-combat-fight').press('Enter');
   await expect(page.locator('#combat-overlay')).toBeVisible();
   await expect(page.locator('#combat-overlay .combat-target-selection-message')).toHaveText('敵をタップして対象を選択');
   await expect(page.locator('#combat-overlay .combat-target-card.enemy')).toHaveCount(0);
