@@ -32,6 +32,7 @@ const gameState = page => page.evaluate(async () => (await import('/src/state.js
 test('Bag, back, and equip each open with a single tap on mobile @smoke', async ({ page }) => {
   await seedExplore(page);
 
+  await tapOnce(page, '#character-panel');
   await tapOnce(page, '#btn-inspect');
   await expect(page.locator('#submenu-controls')).toBeVisible();
   expect(await gameState(page)).toBe('submenu');
@@ -41,6 +42,7 @@ test('Bag, back, and equip each open with a single tap on mobile @smoke', async 
   await expect(page.locator('#explore-controls')).toBeVisible();
   expect(await gameState(page)).toBe('explore');
 
+  await tapOnce(page, '#character-panel');
   await tapOnce(page, '#btn-item');
   await expect(page.locator('#equip-overlay')).toBeVisible();
   await expect.poll(() => gameState(page)).toBe('equip_overlay');

@@ -323,7 +323,7 @@ for (const viewport of [{ width: 320, height: 568 }, { width: 430, height: 932 }
       const container = document.querySelector('#game-container');
       const canvas = document.querySelector('#dungeon-canvas').getBoundingClientRect();
       const character = document.querySelector('#character-panel').getBoundingClientRect();
-    const buttons = [...document.querySelectorAll('#controls-panel button')].filter(button => getComputedStyle(button).display !== 'none').map(button => button.getBoundingClientRect().toJSON()).filter(button => button.width > 0 && button.height > 0);
+    const buttons = [...document.querySelectorAll('#controls-panel button')].filter(button => getComputedStyle(button).display !== 'none' && !button.closest('[data-assistive-pad]')).map(button => button.getBoundingClientRect().toJSON()).filter(button => button.width > 0 && button.height > 0);
       return {
         canvas, character,
         safeTop: getComputedStyle(container, '::before').backgroundColor,

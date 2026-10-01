@@ -41,8 +41,9 @@ test.describe('Common UI vNext shell @smoke', () => {
         unresolved: document.querySelectorAll('#log-content [data-event-kind="unresolved"]').length,
         unresolvedText: document.querySelector('#log-content [data-event-kind="unresolved"]')?.textContent,
         historyLines: document.querySelectorAll('#log-overlay-body .log-entry').length,
-        buttons: Array.from(document.querySelectorAll('#explore-controls button'))
-          .filter(button => getComputedStyle(button).display !== 'none')
+        buttons: Array.from(document.querySelectorAll('#character-panel, #explore-controls button'))
+          .filter(button => getComputedStyle(button).display !== 'none' && !button.closest('[data-assistive-pad]'))
+          .filter(button => button.getBoundingClientRect().width > 0)
           .map(button => {
             const box = document.querySelector(`#${button.id}`).getBoundingClientRect();
             return { width: box.width, height: box.height };

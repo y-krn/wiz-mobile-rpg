@@ -38,8 +38,11 @@
   }
 }
 
+/* The group stays a measurable, active layer (it hosts the satchel) even
+   while everything in it is folded away. */
 #game-container.dungeon-first-mode #explore-controls.active {
   display: block;
+  min-height: 2px;
 }
 
 /* Visually hidden, still focusable for keyboard and screen readers. */
@@ -159,14 +162,6 @@
 /* ---------- The world is the controller ---------- */
 #game-container.dungeon-first-mode[data-explore-hud] #dungeon-canvas {
   touch-action: none;
-  /* Standing still is not frozen: the view rises and settles with each breath. */
-  transform-origin: 50% 45%;
-  animation: explorer-breath 4.6s ease-in-out infinite;
-}
-
-@keyframes explorer-breath {
-  0%, 100% { transform: scale(1.012) translateY(0); }
-  50% { transform: scale(1.016) translateY(-2px); }
 }
 
 /* ---------- Touch answers from the world ---------- */
@@ -242,20 +237,31 @@
 /* ---------- First steps: how to move without a pad ---------- */
 .world-coach {
   position: absolute;
-  inset: 0;
-  z-index: 40;
+  top: 50%;
+  left: 50%;
+  z-index: 8;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 18px;
-  padding: 24px;
-  background: rgba(255, 250, 241, 0.92);
-  backdrop-filter: blur(4px);
+  gap: 14px;
+  width: min(88%, 340px);
+  padding: 18px 18px 20px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-float);
   color: var(--text-primary);
   font-family: var(--font-display);
   text-align: center;
-  animation: satchel-open 360ms ease-out both;
+  transform: translate(-50%, -50%);
+  /* A hint, not a gate: touches go straight through to the world. */
+  pointer-events: none;
+  animation: world-coach-in 360ms ease-out both;
+}
+
+@keyframes world-coach-in {
+  from { opacity: 0; transform: translate(-50%, -46%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
 }
 
 .world-coach-title {
@@ -309,17 +315,9 @@
   border-radius: var(--radius-sm);
 }
 
-.world-coach-dismiss {
-  margin: 8px 0 0;
-  color: var(--text-tertiary);
-  font-size: 12px;
-  letter-spacing: 0.2em;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .world-touch,
   .world-coach,
-  #game-container.dungeon-first-mode[data-explore-hud] #dungeon-canvas,
   #game-container.dungeon-first-mode[data-satchel="open"] #explore-controls #explore-satchel {
     animation: none;
   }

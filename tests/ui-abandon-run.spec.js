@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures/browser-health.js';
 import { VIEWPORTS } from './ui-ux-helpers.js';
+import { satchelAction } from './explore-input-helpers.js';
 
 for (const vp of VIEWPORTS) {
   test(`abandon run confirmation is cancelable and death-equivalent at ${vp.width}x${vp.height} @e2e @smoke`, async ({ page }) => {
@@ -10,29 +11,29 @@ for (const vp of VIEWPORTS) {
     await page.getByRole('button', { name: /B1Fから開始/ }).click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#btn-abandon-run')).toHaveCount(0);
-    await expect(page.locator('#explore-controls .action-grid button')).toHaveText([
-      'バッグ', '魔法', '装備', '冒険管理'
-    ]);
-    const actionLayout = await page.locator('#explore-controls .action-grid button').evaluateAll((buttons) => buttons.map((button) => {
-      const rect = button.getBoundingClientRect();
-      return { id: button.id, height: rect.height, tabIndex: button.tabIndex };
-    }));
-    expect(actionLayout).toEqual([
-      { id: 'btn-inspect', height: 44, tabIndex: 0 },
-      { id: 'btn-cast', height: 44, tabIndex: 0 },
-      { id: 'btn-item', height: 44, tabIndex: 0 },
-      { id: 'btn-explore-management', height: 44, tabIndex: 0 },
-    ]);
+    // Keyboard reach: the folded pad still takes focus, and the adventurer's
+    // card is the control that opens the satchel.
     await page.locator('#btn-move-forward').focus();
     const focusOrder = [await page.evaluate(() => document.activeElement?.id)];
-    for (let i = 0; i < 8; i += 1) {
+    for (let i = 0; i < 4; i += 1) {
       await page.keyboard.press('Tab');
       focusOrder.push(await page.evaluate(() => document.activeElement?.id));
     }
     expect(focusOrder).toEqual([
-      'btn-move-forward', 'btn-search', 'btn-turn-left', 'btn-move-backward', 'btn-turn-right',
-      'btn-inspect', 'btn-cast', 'btn-item', 'btn-explore-management',
+      'btn-move-forward', 'btn-turn-left', 'btn-move-backward', 'btn-turn-right', 'character-panel',
     ]);
+    await expect(page.locator('#character-panel')).toHaveAttribute('role', 'button');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#character-panel')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#explore-satchel button')).toHaveText([
+      '調べる', 'バッグ', '魔法', '装備', '冒険管理'
+    ]);
+    const actionLayout = await page.locator('#explore-satchel button').evaluateAll((buttons) => buttons.map((button) => {
+      const rect = button.getBoundingClientRect();
+      return { id: button.id, tall: rect.height >= 44, wide: rect.width >= 44, tabIndex: button.tabIndex };
+    }));
+    expect(actionLayout).toEqual(['btn-search', 'btn-inspect', 'btn-cast', 'btn-item', 'btn-explore-management']
+      .map((id) => ({ id, tall: true, wide: true, tabIndex: 0 })));
 
     await page.locator('#btn-explore-management').click();
     await expect(page.locator('#submenu-title')).toHaveText('冒険管理');
@@ -109,7 +110,7 @@ for (const vp of VIEWPORTS) {
     await page.locator('#btn-submenu-back').click();
     await expect(page.locator('#explore-controls')).toBeVisible();
 
-    await page.locator('#btn-explore-management').click();
+    await (await satchelAction(page, '#btn-explore-management')).click();
     await page.locator('#btn-abandon-run').click();
     await expect(cancelButton).toBeFocused();
     await page.keyboard.press('Tab');

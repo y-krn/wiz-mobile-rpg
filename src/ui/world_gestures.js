@@ -2,7 +2,8 @@
 //   tap the corridor ............ step forward
 //   tap near the left/right edge  turn that way
 //   swipe ........................ drag the view: up walks on, down steps
-//                                  back, sideways looks the other way
+//                                  back, sideways looks the other way, and
+//                                  a long sideways sweep turns right round
 //   press and hold ............... search the spot (a ring of light fills)
 //   tap the adventurer's card .... open or close the satchel
 // The classic controls stay in the DOM, visually hidden, so keyboard and
@@ -13,7 +14,9 @@ const SWIPE_MIN_PX = 28;
 const HOLD_MS = 520;
 const HOLD_SLOP_PX = 12;
 const EDGE_ZONE = 0.24;
+const TURN_AROUND_SWEEP = 0.55;
 const COACH_KEY = "mobile_wiz_rpg_world_gesture_coach_v1";
+const COACH_MS = 9000;
 
 function getContainer() {
   return document.getElementById("game-container");
@@ -31,9 +34,10 @@ export function setSatchelOpen(open) {
   const container = getContainer();
   const panel = document.getElementById("character-panel");
   if (!container) return;
+  if (open) dismissWorldCoach();
   if (open) container.dataset.satchel = "open";
   else delete container.dataset.satchel;
-  panel?.setAttribute("aria-expanded", open ? "true" : "false");
+  if (isExploring()) panel?.setAttribute("aria-expanded", open ? "true" : "false");
 }
 
 function spawnMark(className, x, y, host) {
@@ -107,7 +111,10 @@ function bindWorldGestures({ canvas, host, onMove, onSearch }) {
     const dx = event.clientX - origin.x;
     const dy = event.clientY - origin.y;
     if (Math.max(Math.abs(dx), Math.abs(dy)) >= SWIPE_MIN_PX) {
-      if (Math.abs(dx) > Math.abs(dy) * 1.2) onMove(dx < 0 ? "turn-right" : "turn-left");
+      const width = canvas.getBoundingClientRect().width || 1;
+      if (Math.abs(dx) > Math.abs(dy) * 1.2) {
+        onMove(Math.abs(dx) >= width * TURN_AROUND_SWEEP ? "turn-around" : dx < 0 ? "turn-right" : "turn-left");
+      }
       else if (Math.abs(dy) > Math.abs(dx) * 1.2) onMove(dy < 0 ? "forward" : "backward");
       return;
     }
@@ -123,7 +130,6 @@ function bindSatchel() {
   const panel = document.getElementById("character-panel");
   const satchel = document.getElementById("explore-satchel");
   if (!panel || !satchel) return;
-  panel.setAttribute("aria-expanded", "false");
   panel.addEventListener("click", () => {
     if (!isExploring()) return;
     setSatchelOpen(!isSatchelOpen());
@@ -137,53 +143,88 @@ function bindSatchel() {
   satchel.addEventListener("click", () => setSatchelOpen(false));
 }
 
+// A first-descent hint that never takes input: the first touch already
+// plays, and the hint leaves once the player has moved or after a while.
+let coachTimer = null;
+
+export function dismissWorldCoach() {
+  const coach = document.querySelector(".world-coach");
+  if (!coach) return;
+  try {
+    localStorage.setItem(COACH_KEY, "1");
+  } catch {
+    // Private mode: the hint simply shows again next visit.
+  }
+  clearTimeout(coachTimer);
+  coach.remove();
+}
+
 function showCoachOnce(host) {
   try {
     if (localStorage.getItem(COACH_KEY) === "1") return;
   } catch {
-    // Storage blocked: show the coach; it is dismissed for this page only.
+    // Storage blocked: show the hint for this page only.
   }
   const coach = document.createElement("div");
   coach.className = "world-coach";
-  coach.setAttribute("role", "dialog");
+  coach.setAttribute("role", "note");
   coach.setAttribute("aria-label", "迷宮での動き方");
   coach.innerHTML = `
     <p class="world-coach-title">迷宮では、景色に触れて進む</p>
     <ul class="world-coach-list">
       <li><span class="world-coach-glyph" data-glyph="tap"></span>通路をタップ<em>一歩進む</em></li>
-      <li><span class="world-coach-glyph" data-glyph="edge"></span>左右の端をタップ / 横にスワイプ<em>振り向く</em></li>
+      <li><span class="world-coach-glyph" data-glyph="edge"></span>左右の端をタップ / 横にスワイプ<em>振り向く（大きく払うと後ろを向く）</em></li>
       <li><span class="world-coach-glyph" data-glyph="down"></span>下にスワイプ<em>一歩下がる</em></li>
       <li><span class="world-coach-glyph" data-glyph="hold"></span>長押し<em>その場を調べる</em></li>
       <li><span class="world-coach-glyph" data-glyph="satchel"></span>自分の札をタップ<em>持ち物・魔法・装備</em></li>
-    </ul>
-    <p class="world-coach-dismiss">触れて始める</p>`;
-  const dismiss = () => {
-    try {
-      localStorage.setItem(COACH_KEY, "1");
-    } catch {
-      // Private mode: the coach simply shows again next time.
-    }
-    coach.remove();
-  };
-  coach.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    dismiss();
-  });
+    </ul>`;
   host.appendChild(coach);
+  coachTimer = setTimeout(dismissWorldCoach, COACH_MS);
 }
 
 export function initWorldGestures({ onMove, onSearch }) {
   const canvas = document.getElementById("dungeon-canvas");
   const host = document.getElementById("viewport-panel");
   if (!canvas || !host) return;
-  bindWorldGestures({ canvas, host, onMove, onSearch });
+  bindWorldGestures({
+    canvas,
+    host,
+    onMove: (action) => {
+      dismissWorldCoach();
+      onMove(action);
+    },
+    onSearch: () => {
+      dismissWorldCoach();
+      onSearch();
+    }
+  });
   bindSatchel();
   // The coach appears the first time the world takes gestures.
   const container = getContainer();
   if (!container || typeof MutationObserver !== "function") return;
+  const panel = document.getElementById("character-panel");
+  // The card is a control only while exploring; elsewhere it is plain status.
+  const syncCardRole = () => {
+    if (!panel) return;
+    if (isExploring()) {
+      panel.setAttribute("role", "button");
+      panel.setAttribute("tabindex", "0");
+      panel.setAttribute("aria-controls", "explore-satchel");
+      panel.setAttribute("aria-label", "冒険者の状態。持ち物袋を開く");
+    } else {
+      panel.removeAttribute("role");
+      panel.removeAttribute("tabindex");
+      panel.removeAttribute("aria-controls");
+      panel.removeAttribute("aria-expanded");
+      panel.setAttribute("aria-label", "冒険者の状態");
+    }
+  };
+  syncCardRole();
   const observer = new MutationObserver(() => {
+    syncCardRole();
     if (!isExploring()) {
       if (isSatchelOpen()) setSatchelOpen(false);
+      document.querySelector(".world-coach")?.remove();
       host.querySelectorAll(".world-touch").forEach((mark) => mark.remove());
       return;
     }

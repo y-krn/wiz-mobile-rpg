@@ -52,12 +52,20 @@ if (typeof document !== "undefined" && typeof document.addEventListener === "fun
   unlockEvents.forEach(e => document.addEventListener(e, unlockAudio, { passive: true }));
 }
 
+// Presentation-only jitter. Sound must never consume Math.random, which the
+// game rules (encounters, roaming, loot) draw from.
+let soundSeed = 0x2f6b1d;
+function soundRandom() {
+  soundSeed = (Math.imul(soundSeed, 1664525) + 1013904223) >>> 0;
+  return soundSeed / 0x100000000;
+}
+
 let noiseBuffer = null;
 function createNoiseSource(ctx, seconds) {
   if (!noiseBuffer || noiseBuffer.sampleRate !== ctx.sampleRate) {
     noiseBuffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.5), ctx.sampleRate);
     const data = noiseBuffer.getChannelData(0);
-    for (let index = 0; index < data.length; index += 1) data[index] = Math.random() * 2 - 1;
+    for (let index = 0; index < data.length; index += 1) data[index] = soundRandom() * 2 - 1;
   }
   const source = ctx.createBufferSource();
   source.buffer = noiseBuffer;
@@ -80,7 +88,7 @@ export const playSound = (type) => {
           const grit = createNoiseSource(ctx, 0.09);
           const filter = ctx.createBiquadFilter();
           filter.type = "lowpass";
-          filter.frequency.setValueAtTime(700 + Math.random() * 500, at);
+          filter.frequency.setValueAtTime(700 + soundRandom() * 500, at);
           const gritGain = ctx.createGain();
           gritGain.gain.setValueAtTime(0.0001, at);
           gritGain.gain.exponentialRampToValueAtTime(0.22 * level, at + 0.008);
@@ -94,7 +102,7 @@ export const playSound = (type) => {
           const thud = ctx.createOscillator();
           const thudGain = ctx.createGain();
           thud.type = "sine";
-          thud.frequency.setValueAtTime(95 + Math.random() * 20, at);
+          thud.frequency.setValueAtTime(95 + soundRandom() * 20, at);
           thud.frequency.exponentialRampToValueAtTime(45, at + 0.08);
           thudGain.gain.setValueAtTime(0.18 * level, at);
           thudGain.gain.exponentialRampToValueAtTime(0.0001, at + 0.09);

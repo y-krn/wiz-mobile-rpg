@@ -12,10 +12,8 @@ const VIEWPORTS = [
   { width: 844, height: 390 },
 ];
 
-const MENU_IDS = ['btn-inspect', 'btn-cast', 'btn-item', 'btn-explore-management'];
-const MOVE_IDS = ['btn-turn-around', 'btn-move-forward', 'btn-search', 'btn-turn-left', 'btn-move-backward', 'btn-turn-right'];
-// Short screens keep the 116px side-by-side dock so the minimap stays clear (#1826).
-const isShortViewport = (viewport) => viewport.height <= 600;
+const SATCHEL_IDS = ['btn-search', 'btn-inspect', 'btn-cast', 'btn-item', 'btn-explore-management'];
+const PAD_IDS = ['btn-turn-around', 'btn-move-forward', 'btn-turn-left', 'btn-move-backward', 'btn-turn-right'];
 
 async function seedExplore(page) {
   await page.evaluate(async () => {
@@ -30,39 +28,35 @@ async function seedExplore(page) {
     const { dungeonRenderer } = await import('/src/renderer.js');
     dungeonRenderer?.draw?.();
   });
-  await expect(page.locator('#explore-controls')).toBeVisible();
+  await expect(page.locator('#game-container')).toHaveAttribute('data-explore-hud', /.+/);
 }
 
-function gapBetween(first, second) {
-  return Math.max(
-    second.top - first.bottom,
-    first.top - second.bottom,
-    second.x - first.right,
-    first.x - second.right,
-  );
-}
-
-test('Explore Dock keeps primary movement separated and tappable at required mobile sizes @smoke', async ({ page }, testInfo) => {
+// Exploring is played on the world (#1539 successor): the dungeon fills the
+// screen, movement is touch on the view, and every other action sits in the
+// satchel opened from the adventurer's card.
+test('World play keeps the view clear and every exploration action tappable at required mobile sizes @smoke', async ({ page }, testInfo) => {
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await page.goto('/?renderer=pixi');
     await seedExplore(page);
 
-    const evidence = await page.evaluate(() => {
-      const selectors = [
-        '#btn-move-forward', '#btn-turn-left', '#btn-move-backward', '#btn-turn-right', '#btn-search', '#btn-turn-around',
-        '#btn-inspect', '#btn-cast', '#btn-item', '#btn-explore-management',
-      ];
+    // The classic pad stays in the DOM for keyboard and assistive input but
+    // takes no space on screen.
+    for (const id of PAD_IDS) await expect(page.locator(`[data-assistive-pad] #${id}`)).toBeAttached();
+    const pad = await page.locator('[data-assistive-pad]').boundingBox();
+    expect(pad === null || pad.width * pad.height <= 1, 'assistive pad folded off screen').toBe(true);
+    await expect(page.locator('#explore-satchel')).toBeHidden();
+
+    await page.locator('#character-panel').click();
+    await expect(page.locator('#explore-satchel')).toBeVisible();
+    await expect(page.locator('#character-panel')).toHaveAttribute('aria-expanded', 'true');
+
+    const evidence = await page.evaluate((ids) => {
       const rect = (selector) => {
-        const element = document.querySelector(selector);
-        const box = element?.getBoundingClientRect();
-        return box ? {
-          x: box.x, y: box.y, top: box.top, right: box.right, bottom: box.bottom,
-          width: box.width, height: box.height,
-        } : null;
+        const box = document.querySelector(selector)?.getBoundingClientRect();
+        return box ? { x: box.x, y: box.y, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height } : null;
       };
-      const buttons = Object.fromEntries(selectors.map((selector) => [selector.slice(1), rect(selector)]));
-      const visible = Object.values(buttons).every((box) => box && box.width > 0 && box.height > 0);
+      const buttons = Object.fromEntries(ids.map((id) => [id, rect(`#${id}`)]));
       const overlaps = [];
       const entries = Object.entries(buttons);
       for (let index = 0; index < entries.length; index += 1) {
@@ -74,27 +68,24 @@ test('Explore Dock keeps primary movement separated and tappable at required mob
           if (overlapX > 0 && overlapY > 0) overlaps.push([firstId, secondId]);
         }
       }
-      const panel = document.querySelector('#controls-panel')?.getBoundingClientRect();
-      const dungeonView = document.querySelector('#viewport-panel')?.getBoundingClientRect();
       return {
         viewport: { width: window.innerWidth, height: window.innerHeight },
-        panel: panel ? { x: panel.x, y: panel.y, width: panel.width, height: panel.height } : null,
-        dungeonView: dungeonView ? { x: dungeonView.x, y: dungeonView.y, width: dungeonView.width, height: dungeonView.height } : null,
+        dungeonView: rect('#viewport-panel'),
+        satchel: rect('#explore-satchel'),
+        card: rect('#character-panel'),
         buttons,
-        visible,
         overlaps,
+        scrollWidth: document.documentElement.scrollWidth,
       };
-    });
-    expect(evidence.visible).toBe(true);
-    expect(evidence.overlaps).toEqual([]);
-    const expectedPanelHeight = isShortViewport(viewport) ? 116 : 176;
-    expect(evidence.panel.height).toBeLessThanOrEqual(expectedPanelHeight);
-    expect(evidence.panel.height).toBeGreaterThanOrEqual(expectedPanelHeight - 1);
+    }, SATCHEL_IDS);
+
     expect(evidence.dungeonView.y).toBeLessThanOrEqual(1);
     expect(evidence.dungeonView.height).toBeGreaterThanOrEqual(viewport.height - 1);
-
-    const buttons = Object.values(evidence.buttons);
-    for (const button of buttons) {
+    expect(evidence.scrollWidth).toBeLessThanOrEqual(viewport.width + 1);
+    expect(evidence.overlaps).toEqual([]);
+    // The satchel opens from the card and never covers it.
+    expect(evidence.satchel.bottom).toBeLessThanOrEqual(evidence.card.top + 1);
+    for (const button of Object.values(evidence.buttons)) {
       expect(button.x).toBeGreaterThanOrEqual(0);
       expect(button.y).toBeGreaterThanOrEqual(0);
       expect(button.right).toBeLessThanOrEqual(viewport.width);
@@ -103,60 +94,31 @@ test('Explore Dock keeps primary movement separated and tappable at required mob
       expect(button.height).toBeGreaterThanOrEqual(44);
     }
 
-    const forward = evidence.buttons['btn-move-forward'];
-    for (const directionId of ['btn-turn-left', 'btn-move-backward', 'btn-turn-right']) {
-      expect(gapBetween(forward, evidence.buttons[directionId])).toBeGreaterThan(0);
-      expect(forward.width * forward.height).toBeGreaterThan(
-        evidence.buttons[directionId].width * evidence.buttons[directionId].height,
-      );
-    }
-    // Cross layout: forward stands only above backward, with a clear vertical gap to the turn row.
-    const backward = evidence.buttons['btn-move-backward'];
-    expect(forward.x).toBe(backward.x);
-    expect(forward.right).toBe(backward.right);
-    expect(forward.right).toBeLessThanOrEqual(evidence.buttons['btn-turn-right'].x);
-    expect(forward.x).toBeGreaterThanOrEqual(evidence.buttons['btn-turn-left'].right);
-    expect(backward.top - forward.bottom).toBeGreaterThanOrEqual(12);
-    expect(evidence.buttons['btn-search'].top).toBe(forward.top);
-    expect(evidence.buttons['btn-turn-left'].top).toBe(evidence.buttons['btn-move-backward'].top);
-    expect(evidence.buttons['btn-move-backward'].top).toBe(evidence.buttons['btn-turn-right'].top);
-    expect(evidence.buttons['btn-turn-left'].x).toBeLessThan(evidence.buttons['btn-move-backward'].x);
-    expect(evidence.buttons['btn-move-backward'].x).toBeLessThan(evidence.buttons['btn-turn-right'].x);
+    // Touching the world puts the satchel away without moving.
+    const before = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return { x: state.x, y: state.y, dir: state.dir };
+    });
+    const view = await page.locator('#dungeon-canvas').boundingBox();
+    await page.mouse.click(view.x + view.width / 2, view.y + view.height * 0.4);
+    await expect(page.locator('#explore-satchel')).toBeHidden();
+    expect(await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return { x: state.x, y: state.y, dir: state.dir };
+    })).toEqual(before);
 
-    // #1826: menus never share a row or column edge with movement; a clear
-    // divider gap separates the two groups.
-    const menus = MENU_IDS.map((id) => evidence.buttons[id]);
-    const moves = MOVE_IDS.map((id) => evidence.buttons[id]);
-    const menuBox = {
-      top: Math.min(...menus.map((box) => box.top)), bottom: Math.max(...menus.map((box) => box.bottom)),
-      x: Math.min(...menus.map((box) => box.x)), right: Math.max(...menus.map((box) => box.right)),
-    };
-    const moveBox = {
-      top: Math.min(...moves.map((box) => box.top)), bottom: Math.max(...moves.map((box) => box.bottom)),
-      x: Math.min(...moves.map((box) => box.x)), right: Math.max(...moves.map((box) => box.right)),
-    };
-    if (isShortViewport(viewport)) {
-      expect(menuBox.x - moveBox.right).toBeGreaterThanOrEqual(16);
-    } else {
-      // Movement owns the bottom-center thumb zone; menus sit in one strip above it.
-      expect(moveBox.top - menuBox.bottom).toBeGreaterThanOrEqual(12);
-      for (const menu of menus) expect(menu.top).toBe(menus[0].top);
-      const moveCenter = (moveBox.x + moveBox.right) / 2;
-      const panelCenter = evidence.panel.x + evidence.panel.width / 2;
-      expect(Math.abs(moveCenter - panelCenter)).toBeLessThanOrEqual(2);
-    }
-
+    await page.locator('#character-panel').click();
     const raw = Buffer.from(JSON.stringify(evidence, null, 2));
     mkdirSync(EVIDENCE_DIR, { recursive: true });
-    const rawPath = join(EVIDENCE_DIR, `issue-1539-explore-dock-${viewport.width}x${viewport.height}-raw.json`);
+    const rawPath = join(EVIDENCE_DIR, `issue-1539-world-play-${viewport.width}x${viewport.height}-raw.json`);
     writeFileSync(rawPath, raw);
-    await testInfo.attach(`issue-1539-explore-dock-${viewport.width}x${viewport.height}-raw`, {
+    await testInfo.attach(`issue-1539-world-play-${viewport.width}x${viewport.height}-raw`, {
       path: rawPath,
       contentType: 'application/json',
     });
-    const screenshotPath = join(EVIDENCE_DIR, `issue-1539-explore-dock-${viewport.width}x${viewport.height}.png`);
+    const screenshotPath = join(EVIDENCE_DIR, `issue-1539-world-play-${viewport.width}x${viewport.height}.png`);
     await page.screenshot({ path: screenshotPath, fullPage: true });
-    await testInfo.attach(`issue-1539-explore-dock-${viewport.width}x${viewport.height}`, {
+    await testInfo.attach(`issue-1539-world-play-${viewport.width}x${viewport.height}`, {
       path: screenshotPath,
       contentType: 'image/png',
     });

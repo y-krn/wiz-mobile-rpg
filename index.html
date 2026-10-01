@@ -93,7 +93,7 @@
       <div id="controls-panel" class="action-dock" data-shell-region="action-dock" data-dock-state="compact" aria-label="操作">
         <!-- Explortaion D-pad controls (shown in explore mode) -->
         <div id="explore-controls" class="controls-group active">
-          <div class="dpad">
+          <div class="dpad" data-assistive-pad aria-label="移動（キーボード・支援技術用）">
             <button id="btn-turn-around" class="btn btn-neon btn-dpad" title="後ろを向く (Q)" aria-label="後ろを向く">反転</button>
             <button id="btn-move-forward" class="btn btn-neon btn-dpad" title="前進" aria-label="前進" data-primary-action="forward">進む</button>
             <button id="btn-turn-left" class="btn btn-neon btn-dpad" title="左を向く" aria-label="左を向く">◀</button>
@@ -211,7 +211,7 @@
       </div>
 
       <!-- Solo character HUD (Bottom) -->
-      <footer id="character-panel" data-shell-region="minimal-hud" aria-label="冒険者の状態" aria-controls="explore-satchel">
+      <footer id="character-panel" data-shell-region="minimal-hud" aria-label="冒険者の状態">
         <div id="character-hud"></div>
       </footer>
     </div>

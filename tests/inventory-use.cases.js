@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { satchelAction } from './explore-input-helpers.js';
 
 test('HEAL_POTION use in the explore menu returns to the usable item list @e2e @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -32,8 +33,8 @@ test('HEAL_POTION use in the explore menu returns to the usable item list @e2e @
   await expect(body).toContainText('冒険者');
   await expect(body).toContainText('5/45');
 
-  // 2. 「調べる」（実際には「道具」を起動するボタン）をクリック
-  const inspectBtn = page.locator('#btn-inspect');
+  // 2. 冒険者の札から持ち物袋を開き、「バッグ」をクリック
+  const inspectBtn = await satchelAction(page, '#btn-inspect');
   await expect(inspectBtn).toBeVisible();
   await inspectBtn.click();
   await expect(page.locator('#submenu-controls')).toBeVisible();
