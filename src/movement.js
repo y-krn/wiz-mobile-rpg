@@ -214,7 +214,6 @@ export function getCurrentExplorationCell() {
 
 export function handleMove(action) {
   if (state.transitioning || state.gameState !== "explore" || hasPendingRewardBundle(state)) return;
-  playSound("move");
   
   state.prevX = state.x;
   state.prevY = state.y;
@@ -231,16 +230,19 @@ export function handleMove(action) {
   
   if (action === "turn-left") {
     renderer?.beginNavigationTransition?.(action);
+    playSound("turn");
     state.dir = (state.dir + 3) % 4;
     advanceRoamingTurn(false);
   } else if (action === "turn-right") {
     renderer?.beginNavigationTransition?.(action);
+    playSound("turn");
     state.dir = (state.dir + 1) % 4;
     advanceRoamingTurn(false);
   } else if (action === "turn-around") {
     // One input for the two quarter turns it replaces; the world advances
     // exactly as far as it would for two presses of ◀.
     renderer?.beginNavigationTransition?.(action);
+    playSound("turn");
     state.dir = (state.dir + 2) % 4;
     if (!advanceRoamingTurn(false) && state.gameState === "explore") advanceRoamingTurn(false);
   } else if (action === "forward") {
@@ -264,6 +266,7 @@ export function handleMove(action) {
         return;
       }
       renderer?.beginNavigationTransition?.(action);
+      playSound("step");
       recordAdjacentTrapAvoidance(nextX, nextY);
       state.x = nextX;
       state.y = nextY;
@@ -296,6 +299,7 @@ export function handleMove(action) {
         return;
       }
       renderer?.beginNavigationTransition?.(action);
+      playSound("step");
       recordAdjacentTrapAvoidance(backX, backY);
       state.x = backX;
       state.y = backY;

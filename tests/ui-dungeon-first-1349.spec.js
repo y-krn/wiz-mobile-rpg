@@ -28,7 +28,8 @@ async function readDungeonFirstLayout(page) {
     const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect().toJSON() || null;
     const container = document.querySelector('#game-container');
     const visibleButtons = Array.from(document.querySelectorAll('#controls-panel button'))
-      .filter((button) => getComputedStyle(button).display !== 'none' && !button.hidden && !button.disabled)
+      // The assistive pad is folded off screen for keyboard and screen readers only.
+      .filter((button) => getComputedStyle(button).display !== 'none' && !button.hidden && !button.disabled && !button.closest('[data-assistive-pad]'))
       .map((button) => ({ id: button.id, rect: button.getBoundingClientRect().toJSON() }))
       .filter(({ rect }) => rect.width > 0 && rect.height > 0)
     return {
@@ -97,9 +98,10 @@ for (const renderer of ['pixi']) {
     expect(layout.visualHierarchy.goalBorderRight).toBe('0px');
     expect(layout.visualHierarchy.controlsBorderTop).toBe('0px');
     expect(layout.visualHierarchy.controlsBorderBottom).toBe('0px');
-    // The Action Dock is a readable bottom sheet over the world, and forward
-    // is the single filled primary tile; secondary tiles stay unfilled.
-    expect(layout.visualHierarchy.controlsBackgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+    // Exploring leaves the world unobstructed: the dock lays no sheet over it
+    // (movement is touch on the view). The folded assistive pad keeps forward
+    // as its single filled primary tile; secondary tiles stay unfilled.
+    expect(layout.visualHierarchy.controlsBackgroundColor).toBe('rgba(0, 0, 0, 0)');
     expect(layout.visualHierarchy.forwardBackground).toContain('linear-gradient');
     expect(layout.visualHierarchy.forwardShadow).not.toBe('none');
     expect(layout.visualHierarchy.secondaryBackground).toBe('none');

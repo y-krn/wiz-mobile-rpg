@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { exploreMove } from './explore-input-helpers.js';
 
 async function prepareTeleporterChest(page) {
   return page.evaluate(async () => {
@@ -44,7 +45,9 @@ async function expectExplorationReady(page, origin) {
       gameState: state.gameState,
       transitioning: state.transitioning,
       hasChest: Boolean(state.chestState),
-      pointerEvents: getComputedStyle(document.querySelector('#controls-panel')).pointerEvents,
+      // Exploration input lives on the world; it must take touches again.
+      pointerEvents: getComputedStyle(document.querySelector('#dungeon-canvas')).pointerEvents,
+      exploring: document.querySelector('#game-container').dataset.exploreHud !== undefined,
       originEvent: state.map[window.__chestOrigin.y][window.__chestOrigin.x].event,
     };
   }), { timeout: 5000 }).toEqual({
@@ -52,10 +55,11 @@ async function expectExplorationReady(page, origin) {
     transitioning: false,
     hasChest: false,
     pointerEvents: 'auto',
+    exploring: true,
     originEvent: null,
   });
 
-  await page.getByRole('button', { name: '左を向く' }).click();
+  await exploreMove(page, 'turn-left');
   await expect.poll(async () => page.evaluate(() => window.__stateModule.state.dir)).toBe(3);
   void origin;
 }

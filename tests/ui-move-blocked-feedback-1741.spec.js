@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { exploreMove, skipWorldCoach } from './explore-input-helpers.js';
 
 const VIEWPORT = { width: 390, height: 844 };
 
@@ -22,6 +23,9 @@ function makeMap(oneWay) {
 
 async function seedExplore(page, { oneWay = false } = {}) {
   await page.setViewportSize(VIEWPORT);
+  // The first-descent hint stores a preference when it leaves; keep it out of
+  // the persistence count below.
+  await skipWorldCoach(page);
   await page.goto('/?renderer=pixi');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
   await page.evaluate(async (map) => {
@@ -76,7 +80,7 @@ test('Wall bump shows a visible cue without spending a turn or saving at 390x844
   const cue = page.locator('#move-blocked-cue');
   const before = await snapshot(page);
 
-  await page.locator('#btn-move-forward').click();
+  await exploreMove(page, 'forward');
   await expect(cue).toBeVisible();
   await expect(cue).toHaveText('壁に阻まれた');
   await expect(cue).toHaveAttribute('role', 'status');

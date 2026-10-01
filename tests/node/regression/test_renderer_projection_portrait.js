@@ -53,9 +53,14 @@ for (const [width, height] of [[320, 568], [390, 844], [430, 932], [1024, 768]])
     }
 
     if (width < height) {
+      // The camera cell is the screen frame: its walls fill the screen edge to
+      // edge and its side openings sit off-screen, as in the wide view.
+      const near = getProjectionColumn(projection, 0, 0);
+      assert.ok(near.leftTop <= 1 && near.rightTop >= width - 1, "near plane fills the screen width");
       for (const z of [0, 1, 2, 3]) {
         for (const column of [-2, -1, 0, 1, 2]) {
           if (Math.abs(column) === 2 && z < 2) continue;
+          if (z === 0) continue;
           const plane = getProjectionColumn(projection, z, column);
           assert.ok(plane.leftTop >= -1 && plane.rightTop <= width + 1, `${z}:${column} top clipped`);
           assert.ok(plane.leftBottom >= -1 && plane.rightBottom <= width + 1, `${z}:${column} bottom clipped`);

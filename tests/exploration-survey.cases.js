@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { satchelAction } from './explore-input-helpers.js';
 
 const VIEWPORTS = [
   { width: 360, height: 800, name: 'Galaxy_S20' },
@@ -30,7 +31,7 @@ for (const vp of VIEWPORTS) {
     });
 
     // 3. Open Spell overlay
-    await page.click('#btn-cast');
+    await (await satchelAction(page, '#btn-cast')).click();
     await expect(page.locator('#spell-overlay')).toBeVisible();
 
     // Select the first available caster. Starting-kit characters intentionally

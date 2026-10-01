@@ -50,6 +50,6 @@ test('jumping into a discovered pitfall descends from a lazily generated floor @
     return location;
   }).toContain('B2F');
   await expect(page.locator('#explore-controls')).toBeVisible();
-  await expect(page.locator('#btn-move-forward')).toBeVisible();
+  await expect(page.locator('#game-container')).toHaveAttribute('data-explore-hud', /.+/);
   await expect(page.locator('#trap-controls')).toBeHidden();
 });

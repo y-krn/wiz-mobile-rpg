@@ -208,7 +208,7 @@ test('Combat target selection exposes the player-known equivalent and restores c
   await expect(page.locator('#combat-overlay')).toBeHidden();
   expect(await readFocusEvidence(page)).toMatchObject({ id: 'btn-combat-fight', visible: true, inViewport: true });
   await assertNoHiddenSurfaceFocus(page, HIDDEN_SURFACES);
-  await page.locator('#btn-combat-fight').click();
+  await page.locator('#btn-combat-fight').press('Enter');
   const keyboardTarget = page.locator('.combat-target-a11y').first();
   await keyboardTarget.focus();
   await keyboardTarget.press('Enter');
@@ -229,7 +229,7 @@ for (const viewport of ENEMY_HP_VIEWPORTS) {
     await expect(page.locator('#viewport-hud .combat-enemy-semantic')).toContainText('対象B、健在、攻撃対象');
     await attachEnemyHpEvidence(page, testInfo, `issue-1404-pixi-${viewport.width}x${viewport.height}-combat`);
 
-    await page.locator('#btn-combat-fight').click();
+    await page.locator('#btn-combat-fight').press('Enter');
     await expect(page.locator('.combat-target-a11y')).toHaveCount(2);
     const targetLabels = await page.locator('.combat-target-a11y').allTextContents();
     expect(targetLabels.every(label => !/HP\s*\d+\s*\/\s*\d+/.test(label))).toBe(true);

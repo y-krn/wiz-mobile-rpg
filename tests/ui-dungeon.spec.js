@@ -1260,7 +1260,7 @@ test('Combat autosave resumes action selection without persisting resolving phas
   expect(resumed.monsters).toEqual(beforeReload.live.monsters);
   await expect(page.locator('#combat-controls')).toHaveClass(/active/);
 
-  await page.locator('#btn-combat-fight').click();
+  await page.locator('#btn-combat-fight').press('Enter');
   await expect(page.locator('#combat-overlay')).toBeVisible();
   const target = page.locator('#combat-overlay .combat-target-a11y').first();
   await target.focus();

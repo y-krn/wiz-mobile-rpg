@@ -93,15 +93,15 @@
       <div id="controls-panel" class="action-dock" data-shell-region="action-dock" data-dock-state="compact" aria-label="操作">
         <!-- Explortaion D-pad controls (shown in explore mode) -->
         <div id="explore-controls" class="controls-group active">
-          <div class="dpad">
+          <div class="dpad" data-assistive-pad aria-label="移動（キーボード・支援技術用）">
             <button id="btn-turn-around" class="btn btn-neon btn-dpad" title="後ろを向く (Q)" aria-label="後ろを向く">反転</button>
             <button id="btn-move-forward" class="btn btn-neon btn-dpad" title="前進" aria-label="前進" data-primary-action="forward">進む</button>
-            <button id="btn-search" class="btn btn-neon btn-dpad" title="調べる" aria-label="調べる">調べる</button>
             <button id="btn-turn-left" class="btn btn-neon btn-dpad" title="左を向く" aria-label="左を向く">◀</button>
             <button id="btn-move-backward" class="btn btn-neon btn-dpad" title="後退" aria-label="後退">▼</button>
             <button id="btn-turn-right" class="btn btn-neon btn-dpad" title="右を向く" aria-label="右を向く">▶</button>
           </div>
-          <div class="action-grid">
+          <div id="explore-satchel" class="action-grid" aria-label="持ち物袋">
+            <button id="btn-search" class="btn btn-neon btn-action" title="調べる" aria-label="調べる">調べる</button>
             <button id="btn-inspect" class="btn btn-neon btn-action" aria-label="バッグ">バッグ</button>
             <button id="btn-cast" class="btn btn-neon btn-action" aria-label="魔法">魔法</button>
             <button id="btn-item" class="btn btn-neon btn-action">装備</button>
@@ -118,7 +118,7 @@
             <button id="btn-combat-technique" class="btn btn-neon btn-combat" data-command-tier="secondary" hidden>技</button>
             <button id="btn-combat-spell" class="btn btn-neon btn-combat" data-command-tier="secondary">魔法</button>
             <button id="btn-combat-item" class="btn btn-neon btn-combat" data-command-tier="secondary">道具</button>
-            <button id="btn-combat-repeat" class="btn btn-neon btn-combat" disabled>↻ 前回の行動</button>
+            <button id="btn-combat-repeat" class="btn btn-neon btn-combat" aria-label="前回の行動を1ターン再実行" disabled>くり返す</button>
             <!-- Kept as a compatibility hook for saved/test state; Auto is not a visible combat action. -->
             <button id="btn-combat-auto" class="btn btn-neon btn-combat" hidden aria-hidden="true">オート</button>
             <button id="btn-combat-defend" class="btn btn-neon btn-combat" data-command-tier="secondary">防御</button>

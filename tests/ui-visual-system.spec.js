@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { satchelAction } from './explore-input-helpers.js';
 
 async function seedAllySpellTargetSelection(page) {
   await page.evaluate(async () => {
@@ -22,7 +23,7 @@ async function seedAllySpellTargetSelection(page) {
     state.gameState = 'explore';
     updateUI();
   });
-  await page.locator('#btn-cast').click();
+  await (await satchelAction(page, '#btn-cast')).click();
   await page.getByRole('button', { name: /^DIOS MP/ }).click();
   await page.locator('#btn-spell-cast-action').click();
   await expect(page.locator('#spell-overlay .spell-target-card:not(.disabled)')).toHaveCount(2);

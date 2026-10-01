@@ -223,23 +223,24 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
       scaleX: dungeonRenderer.scene.scale.x,
       scaleY: dungeonRenderer.scene.scale.y
     });
+    // Each sample is taken after its motion has fully played out.
     const forwardRenderMs = [];
     for (let index = 0; index < 20; index += 1) {
       dungeonRenderer.beginNavigationTransition('forward', input);
-      dungeonRenderer.update(250); dungeonRenderer.draw(input);
+      dungeonRenderer.update(1000); dungeonRenderer.draw(input);
       recordRootTransform();
       forwardRenderMs.push(dungeonRenderer.lastRenderMs);
     }
     const turnRenderMs = [];
     for (let index = 0; index < 20; index += 1) {
       dungeonRenderer.beginNavigationTransition('turn-left', input);
-      dungeonRenderer.update(250); dungeonRenderer.draw(input);
+      dungeonRenderer.update(1000); dungeonRenderer.draw(input);
       recordRootTransform();
       turnRenderMs.push(dungeonRenderer.lastRenderMs);
     }
     for (let index = 0; index < 20; index += 1) {
       dungeonRenderer.beginNavigationTransition('turn-right', input);
-      dungeonRenderer.update(250); dungeonRenderer.draw(input);
+      dungeonRenderer.update(1000); dungeonRenderer.draw(input);
       recordRootTransform();
     }
     dungeonRenderer.beginNavigationTransition('turn-left', input);

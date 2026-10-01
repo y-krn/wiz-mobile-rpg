@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { exploreMove } from './explore-input-helpers.js';
 
 const VIEWPORT = { width: 390, height: 844 };
 
@@ -61,33 +62,29 @@ async function snapshot(page) {
   });
 }
 
-test('Turn-around button faces back in one tap and backward still steps without turning at 390x844 @smoke', async ({ page }) => {
+test('A long sideways sweep turns around in one gesture and swiping down still steps back without turning at 390x844 @smoke', async ({ page }) => {
   await seedDeadEnd(page);
-  const turnAround = page.locator('#btn-turn-around');
-  await expect(turnAround).toBeVisible();
-  await expect(turnAround).toHaveAttribute('aria-label', '後ろを向く');
-  const box = await turnAround.boundingBox();
-  expect(box.width).toBeGreaterThanOrEqual(44);
-  expect(box.height).toBeGreaterThanOrEqual(44);
+  // The classic control stays available to keyboard and assistive input.
+  await expect(page.locator('#btn-turn-around')).toHaveAttribute('aria-label', '後ろを向く');
 
   // Backward keeps its step-back contract: position changes, facing does not.
-  await page.locator('#btn-move-backward').click();
+  await exploreMove(page, 'backward');
   expect(await snapshot(page)).toMatchObject({ x: 4, y: 5, dir: 0, gameState: 'explore' });
-  await page.locator('#btn-move-forward').click();
+  await exploreMove(page, 'forward');
   expect(await snapshot(page)).toMatchObject({ x: 4, y: 4, dir: 0 });
 
   const before = await snapshot(page);
-  await turnAround.click();
+  await exploreMove(page, 'turn-around');
   const after = await snapshot(page);
   expect(after).toMatchObject({ x: 4, y: 4, dir: 2, gameState: 'explore' });
   // Same world time as the two quarter turns it replaces.
   expect(after.roamingSteps - before.roamingSteps).toBe(2);
 
   // Now facing the open south side, forward leaves the dead end.
-  await page.locator('#btn-move-forward').click();
+  await exploreMove(page, 'forward');
   expect(await snapshot(page)).toMatchObject({ x: 4, y: 5, dir: 2 });
 
-  await turnAround.click();
+  await exploreMove(page, 'turn-around');
   expect(await snapshot(page)).toMatchObject({ x: 4, y: 5, dir: 0 });
 });
 
