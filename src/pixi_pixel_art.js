@@ -1,6 +1,7 @@
 // balance-impact: none — PixiJS presentation palette and procedural pixel textures.
-// Derives a bright, storybook-style palette from each biome's signature color
-// and bakes small nearest-filtered textures for walls, floors, and ceilings.
+// Derives a bright, storybook-style palette (town) or a torchlit palette
+// (dungeon) from each biome's signature color and bakes small
+// nearest-filtered textures for walls, floors, and ceilings.
 import { CanvasSource, Texture } from "pixi.js";
 
 const CREAM = "#fff8ec";
@@ -39,13 +40,19 @@ export function hexToNumber(value) {
  * Bright scene palette for one biome. The signature wall color remains the
  * accent (trim, sparkles, props) while surfaces are pastel tints of it.
  */
-export function getPixelScenePalette(wallColor) {
+export function getPixelScenePalette(wallColor, mode = "day") {
   const accent = typeof wallColor === "string" && /^#[0-9a-f]{6}$/i.test(wallColor) ? wallColor : "#58d6e8";
+  if (mode === "torch") return getTorchScenePalette(accent);
   const wallBase = mixHex(accent, "#e9d8bb", 0.66);
   const floorBase = mixHex(accent, "#c7a882", 0.78);
   const ceilingBase = mixHex(accent, "#fbf3e2", 0.7);
   return Object.freeze({
+    mode: "day",
     accent,
+    trim: accent,
+    mote: "#ffffff",
+    background: "#f6efe2",
+    depthFog: DAY_DEPTH_FOG,
     ink: mixHex(accent, INK, 0.8),
     fog: mixHex(accent, CREAM, 0.8),
     skyTop: mixHex(accent, "#fffdf6", 0.62),
@@ -70,6 +77,59 @@ export function getPixelScenePalette(wallColor) {
       light: mixHex(ceilingBase, "#ffffff", 0.5),
       dark: mixHex(ceilingBase, INK, 0.14),
       beam: mixHex(ceilingBase, INK, 0.3)
+    })
+  });
+}
+
+const DAY_DEPTH_FOG = Object.freeze([0, 0.12, 0.26, 0.4, 0.52]);
+// Torchlight reaches about two cells; beyond that the corridor drowns in dark.
+const TORCH_DEPTH_FOG = Object.freeze([0, 0.34, 0.62, 0.82, 0.93]);
+const TORCH_STONE = "#8f8270";
+const TORCH_FLAME = "#ffb35c";
+const DARK = "#060507";
+
+/**
+ * Dungeon palette lit by the party's own torch: warm, mid-dark stone near the
+ * camera that falls off into a biome-tinted black. The signature colour only
+ * stains the stone and the darkness, so every floor still reads differently.
+ */
+function getTorchScenePalette(accent) {
+  const stone = mixHex(mixHex(TORCH_STONE, accent, 0.18), TORCH_FLAME, 0.12);
+  const wallBase = stone;
+  const floorBase = mixHex(stone, "#3a2f24", 0.42);
+  const ceilingBase = mixHex(stone, "#1c1712", 0.62);
+  const dark = mixHex(accent, DARK, 0.9);
+  return Object.freeze({
+    mode: "torch",
+    accent,
+    trim: mixHex(accent, wallBase, 0.72),
+    mote: "#ffcf8a",
+    background: dark,
+    depthFog: TORCH_DEPTH_FOG,
+    ink: mixHex(accent, DARK, 0.94),
+    fog: dark,
+    skyTop: mixHex(accent, DARK, 0.95),
+    skyBottom: mixHex(accent, DARK, 0.88),
+    groundTop: mixHex(accent, DARK, 0.88),
+    groundBottom: mixHex(floorBase, DARK, 0.7),
+    wall: Object.freeze({
+      base: wallBase,
+      light: mixHex(wallBase, "#ffe2b0", 0.32),
+      dark: mixHex(wallBase, DARK, 0.3),
+      mortar: mixHex(wallBase, DARK, 0.62),
+      moss: mixHex(accent, "#3d5a2e", 0.55)
+    }),
+    floor: Object.freeze({
+      base: floorBase,
+      light: mixHex(floorBase, "#ffd9a0", 0.22),
+      dark: mixHex(floorBase, DARK, 0.28),
+      grout: mixHex(floorBase, DARK, 0.6)
+    }),
+    ceiling: Object.freeze({
+      base: ceilingBase,
+      light: mixHex(ceilingBase, "#ffd9a0", 0.16),
+      dark: mixHex(ceilingBase, DARK, 0.3),
+      beam: mixHex(ceilingBase, DARK, 0.55)
     })
   });
 }
@@ -187,6 +247,7 @@ function bakeTexture(painter, tones, seed) {
  */
 export function createPixelSurfaceTextures(palette) {
   const seed = hashString(palette.accent);
+  // Same layout per biome in either light; only the tones differ.
   return Object.freeze({
     wall: bakeTexture(paintBricks, palette.wall, seed),
     floor: bakeTexture(paintFloor, palette.floor, seed ^ 0x9e3779b9),
@@ -194,8 +255,9 @@ export function createPixelSurfaceTextures(palette) {
   });
 }
 
-// Distance haze in a bright scene lifts far surfaces toward the fog color
-// instead of darkening them into a void.
-export function getDepthFog(depth) {
-  return [0, 0.12, 0.26, 0.4, 0.52][Math.max(0, Math.min(4, depth))];
+// Distance falloff toward the palette's fog colour: a light haze in daylight
+// scenes, torchlight dying into darkness in the dungeon.
+export function getDepthFog(depth, palette = null) {
+  const table = palette?.depthFog || DAY_DEPTH_FOG;
+  return table[Math.max(0, Math.min(table.length - 1, depth))];
 }

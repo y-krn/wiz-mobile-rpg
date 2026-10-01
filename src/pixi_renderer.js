@@ -65,19 +65,26 @@ const FLOATING_TEXT_RISE = 22;
 const PARTY_HIT_MS = 420;
 
 // Navigation motion is display-only: movement rules resolve synchronously and
-// the view follows. The motion only transforms one scene root (scale >= 1, so
-// the viewport stays covered) and never fades or layers two corridors, which
-// caused the #1251 double-contour flicker. Forward pushes the outgoing view in
-// toward the vanishing point with one small step bob, then cuts. Turns flow the
-// outgoing view toward the turn and settle the incoming view from the other
-// side. Backward cuts first and settles the incoming view back out.
+// the view follows. The motion only transforms one scene root and never
+// layers two corridors, which caused the #1251 double-contour flicker.
+// Forward is a walk: the outgoing view dollies in until the next cell's frame
+// fills the screen exactly where the new view's camera cell will be, with a
+// footfall dip and sway, so the cut lands on a matching picture. Backward is
+// the same dolly in reverse on the incoming view. Turns swing the head: the
+// outgoing view sweeps off toward the turn into darkness and the new facing
+// swings in from the other side.
 export const NAVIGATION_MOTION = Object.freeze({
-  durationMs: Object.freeze({ forward: 180, backward: 160, "turn-left": 180, "turn-right": 180, "turn-around": 220 }),
-  pushScale: 0.1,
-  turnScale: 0.1,
-  turnShift: 0.045,
-  bobPx: 3
+  durationMs: Object.freeze({ forward: 340, backward: 320, "turn-left": 280, "turn-right": 280, "turn-around": 420 }),
+  turnScale: 0.08,
+  turnSweep: 0.62,
+  turnDim: 0.55,
+  bobRatio: 0.018,
+  swayRatio: 0.006
 });
+
+function easeInOut(value) {
+  return value < 0.5 ? 2 * value * value : 1 - ((-2 * value + 2) ** 2) / 2;
+}
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
@@ -567,44 +574,58 @@ export class PixiDungeonRenderer {
     return progress < 0.5 ? transition.source : renderInput;
   }
 
+  // Scale and pivot that carry the camera cell's far frame (plane 1) onto the
+  // screen frame (plane 0): the picture one step further down the corridor.
+  getStepDolly(renderInput) {
+    const projection = getProjectionPlanes(renderInput.visual.geometry || BASE_GEOMETRY, this.viewport);
+    const kx = (projection.xr[0] - projection.xl[0]) / Math.max(1, projection.xr[1] - projection.xl[1]);
+    const ky = (projection.yb[0] - projection.yt[0]) / Math.max(1, projection.yb[1] - projection.yt[1]);
+    const pivot = (near, far, k) => (Math.abs(1 - k) < 1e-6 ? near : (near - k * far) / (1 - k));
+    return {
+      kx,
+      ky,
+      pivotX: pivot(projection.xl[0], projection.xl[1], kx),
+      pivotY: pivot(projection.yt[0], projection.yt[1], ky)
+    };
+  }
+
   applyNavigationMotion(root, renderInput) {
     const transition = this.transition;
     if (!transition || !root) return;
     const { width, height } = this.viewport;
     const progress = clamp01(transition.elapsed / transition.duration);
-    let scale;
-    let pivotX = width / 2;
-    let pivotY = height / 2;
-    let offsetX = 0;
-    let offsetY = 0;
-    if (transition.action === "forward") {
-      const eased = 1 - (1 - progress) ** 2;
-      scale = 1 + NAVIGATION_MOTION.pushScale * eased;
-      pivotY = this.getHorizonY(renderInput);
-      offsetY = NAVIGATION_MOTION.bobPx * Math.sin(Math.PI * progress);
-    } else if (transition.action === "backward") {
-      const eased = (1 - progress) ** 2;
-      scale = 1 + NAVIGATION_MOTION.pushScale * eased;
-      pivotY = this.getHorizonY(renderInput);
-    } else {
-      // Turning left sweeps the view to the right, and the new facing
-      // arrives from the left; turning right mirrors it.
-      const direction = transition.action === "turn-left" ? 1 : -1;
-      const outgoing = progress < 0.5;
-      const phase = outgoing ? progress * 2 : 1 - (progress - 0.5) * 2;
-      const eased = phase ** 2;
-      scale = 1 + NAVIGATION_MOTION.turnScale * eased;
-      offsetX = (outgoing ? 1 : -1) * direction * NAVIGATION_MOTION.turnShift * width * eased;
+    if (transition.action === "forward" || transition.action === "backward") {
+      const { kx, ky, pivotX, pivotY } = this.getStepDolly(renderInput);
+      const walked = transition.action === "forward" ? easeInOut(progress) : 1 - easeInOut(progress);
+      const scaleX = 1 + (kx - 1) * walked;
+      const scaleY = 1 + (ky - 1) * walked;
+      const footfall = Math.sin(Math.PI * progress);
+      // The dip and sway stay inside the margin the dolly adds, so the canvas
+      // edge is never exposed mid-step.
+      const marginX = Math.min(pivotX, width - pivotX) * (scaleX - 1);
+      const marginY = Math.min(pivotY, height - pivotY) * (scaleY - 1);
+      const offsetX = Math.max(-marginX, Math.min(marginX, NAVIGATION_MOTION.swayRatio * width * footfall));
+      const offsetY = Math.max(-marginY, Math.min(marginY, NAVIGATION_MOTION.bobRatio * height * footfall));
+      root.pivot.set(pivotX, pivotY);
+      root.position.set(pivotX + offsetX, pivotY + offsetY);
+      root.scale.set(scaleX, scaleY);
+      return;
     }
-    // Keep every offset inside the margin the zoom adds so the canvas edge
-    // is never exposed.
-    const marginX = Math.min(pivotX, width - pivotX) * (scale - 1);
-    const marginY = Math.min(pivotY, height - pivotY) * (scale - 1);
-    offsetX = Math.max(-marginX, Math.min(marginX, offsetX));
-    offsetY = Math.max(-marginY, Math.min(marginY, offsetY));
+    // Turning left sweeps the view to the right, and the new facing arrives
+    // from the left; turning right mirrors it. The gap opened mid-turn is the
+    // dark beyond the torchlight, not a second corridor.
+    const direction = transition.action === "turn-right" ? -1 : 1;
+    const outgoing = progress < 0.5;
+    const phase = outgoing ? progress * 2 : 1 - (progress - 0.5) * 2;
+    const eased = outgoing ? phase ** 2 : phase ** 1.6;
+    const sweep = NAVIGATION_MOTION.turnSweep * (transition.action === "turn-around" ? 1.3 : 1);
+    const scale = 1 + NAVIGATION_MOTION.turnScale * eased;
+    const pivotX = width / 2;
+    const pivotY = this.getHorizonY(renderInput);
     root.pivot.set(pivotX, pivotY);
-    root.position.set(pivotX + offsetX, pivotY + offsetY);
+    root.position.set(pivotX + (outgoing ? 1 : -1) * direction * sweep * width * eased, pivotY);
     root.scale.set(scale, scale);
+    root.alpha = 1 - NAVIGATION_MOTION.turnDim * eased;
   }
 
   resetMotion(root) {
@@ -627,6 +648,8 @@ export class PixiDungeonRenderer {
     const renderInput = this.resolveRenderInput(input);
     const startedAt = performance.now();
     const sceneInput = this.resolveNavigationFrame(renderInput);
+    const background = this.app.renderer?.background;
+    if (background) background.color = this.getScenePalette(sceneInput).background;
     this.clearSceneRoot(this.scene);
     this.drawScene(sceneInput, this.scene);
     // Navigation motion transforms the one scene root; combat feedback is
@@ -676,15 +699,20 @@ export class PixiDungeonRenderer {
 
   getScenePalette(renderInput) {
     const wallColor = safeColor(renderInput.visual.wallColor, "#58d6e8");
-    if (this.scenePalette?.accent !== wallColor) this.scenePalette = getPixelScenePalette(wallColor);
+    // The town is daylight; everywhere below it is lit by the party's torch.
+    const mode = renderInput.sceneVisibility?.showTownBackground ? "day" : "torch";
+    if (this.scenePalette?.accent !== wallColor || this.scenePalette?.mode !== mode) {
+      this.scenePalette = getPixelScenePalette(wallColor, mode);
+    }
     return this.scenePalette;
   }
 
   getPixelSurfaces(palette) {
-    let surfaces = this.pixelSurfaces.get(palette.accent);
+    const key = `${palette.mode}:${palette.accent}`;
+    let surfaces = this.pixelSurfaces.get(key);
     if (!surfaces) {
       surfaces = createPixelSurfaceTextures(palette);
-      this.pixelSurfaces.set(palette.accent, surfaces);
+      this.pixelSurfaces.set(key, surfaces);
       this.resourceStats.pixelSurfaceTextureCount = this.pixelSurfaces.size * 3;
     }
     return surfaces;
@@ -737,7 +765,7 @@ export class PixiDungeonRenderer {
         : width * (0.82 + ((Math.sin(seed) + 1) / 2) * 0.16);
       const y = height * (0.08 + ((Math.sin(seed * 1.7) + 1) / 2) * 0.84);
       const size = 2 + Math.round(((Math.sin(seed * 2.3) + 1) / 2) * 2);
-      drawRect(fx, Math.round(x), Math.round(y), size, size, "#ffffff", 0.7);
+      drawRect(fx, Math.round(x), Math.round(y), size, size, palette.mote, palette.mode === "torch" ? 0.32 : 0.7);
     }
   }
 
@@ -842,8 +870,8 @@ export class PixiDungeonRenderer {
 
     for (let z = 3; z >= 0; z -= 1) {
       const width = projection.xr[z] - projection.xl[z];
-      const nearFog = getDepthFog(z);
-      const farFog = getDepthFog(z + 1);
+      const nearFog = getDepthFog(z, palette);
+      const farFog = getDepthFog(z + 1, palette);
       const spanFog = (nearFog + farFog) / 2;
       for (const column of COLUMN_ORDER) {
         if (Math.abs(column) === 2 && z < 2) continue;
@@ -920,8 +948,8 @@ export class PixiDungeonRenderer {
       { x: x - width / 2, y: bottom }
     ];
     addTexturedQuad(walls, surfaces.wall, corners);
-    addPolygon(walls, corners, palette.fog, getDepthFog(z), { color: palette.ink, width: 2, alpha: 0.85 });
-    addLine(walls, [corners[0], corners[1]], { color: palette.accent, width: 2.5, alpha: 1 });
+    addPolygon(walls, corners, palette.fog, getDepthFog(z, palette), { color: palette.ink, width: 2, alpha: 0.85 });
+    addLine(walls, [corners[0], corners[1]], { color: palette.trim, width: 2.5, alpha: 1 });
   }
 
   drawSideWall(plane, nextPlane, side, palette, surfaces, fog, recess = 0) {
@@ -934,7 +962,7 @@ export class PixiDungeonRenderer {
     addTexturedQuad(walls, surfaces.wall, corners, side === "left" ? SIDE_WALL_TINT.left : SIDE_WALL_TINT.right);
     addPolygon(walls, corners, palette.fog, fog);
     if (recess > 0) addPolygon(walls, corners, palette.ink, recess);
-    addLine(walls, [near.top, far.top], { color: palette.accent, width: 2.5, alpha: 1 });
+    addLine(walls, [near.top, far.top], { color: palette.trim, width: 2.5, alpha: 1 });
     addLine(walls, [near.bottom, far.bottom], { color: palette.ink, width: 2, alpha: 0.5 });
     addLine(walls, [far.top, far.bottom], { color: palette.ink, width: 2, alpha: 0.42 });
   }
@@ -953,7 +981,7 @@ export class PixiDungeonRenderer {
     else addPolygon(walls, corners, palette.fog, fog);
     if (recess > 0) drawProjectedFrontWall(walls, plane, ceilingStyle, palette.ink, recess);
     drawProjectedFrontWall(walls, plane, ceilingStyle, palette.fog, 0, { color: palette.ink, width: 2, alpha: 0.5 });
-    addLine(walls, [corners[0], corners[1]], { color: palette.accent, width: 2.5, alpha: 1 });
+    addLine(walls, [corners[0], corners[1]], { color: palette.trim, width: 2.5, alpha: 1 });
   }
 
   drawLandmark(cell, plane, color, landmarks = {}) {
@@ -1260,6 +1288,8 @@ export class PixiDungeonRenderer {
     const band = this.viewport.height * 0.06;
     drawRect(fx, 0, horizon - band, this.viewport.width, band * 2, palette.fog, alpha);
     // Light shafts: stepped translucent columns keep the pixel-art cadence.
+    // Underground there is no sky to cast them.
+    if (palette.mode === "torch") return;
     const sx = this.viewport.width / PIXI_VIEW_W;
     [0.34, 0.58].forEach((position, index) => {
       const x = Math.round(this.viewport.width * position);

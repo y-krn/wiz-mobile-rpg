@@ -52,6 +52,19 @@ if (typeof document !== "undefined" && typeof document.addEventListener === "fun
   unlockEvents.forEach(e => document.addEventListener(e, unlockAudio, { passive: true }));
 }
 
+let noiseBuffer = null;
+function createNoiseSource(ctx, seconds) {
+  if (!noiseBuffer || noiseBuffer.sampleRate !== ctx.sampleRate) {
+    noiseBuffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.5), ctx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let index = 0; index < data.length; index += 1) data[index] = Math.random() * 2 - 1;
+  }
+  const source = ctx.createBufferSource();
+  source.buffer = noiseBuffer;
+  source.loop = seconds > 0.5;
+  return source;
+}
+
 export const playSound = (type) => {
   if (isMuted) return;
   try {
@@ -60,6 +73,59 @@ export const playSound = (type) => {
     const now = ctx.currentTime;
 
     switch (type) {
+      case "step": {
+        // A boot on stone: a short filtered grit burst over a low thud, then
+        // the same footfall coming back off the corridor walls.
+        const footfall = (at, level) => {
+          const grit = createNoiseSource(ctx, 0.09);
+          const filter = ctx.createBiquadFilter();
+          filter.type = "lowpass";
+          filter.frequency.setValueAtTime(700 + Math.random() * 500, at);
+          const gritGain = ctx.createGain();
+          gritGain.gain.setValueAtTime(0.0001, at);
+          gritGain.gain.exponentialRampToValueAtTime(0.22 * level, at + 0.008);
+          gritGain.gain.exponentialRampToValueAtTime(0.0001, at + 0.09);
+          grit.connect(filter);
+          filter.connect(gritGain);
+          gritGain.connect(ctx.destination);
+          grit.start(at);
+          grit.stop(at + 0.1);
+
+          const thud = ctx.createOscillator();
+          const thudGain = ctx.createGain();
+          thud.type = "sine";
+          thud.frequency.setValueAtTime(95 + Math.random() * 20, at);
+          thud.frequency.exponentialRampToValueAtTime(45, at + 0.08);
+          thudGain.gain.setValueAtTime(0.18 * level, at);
+          thudGain.gain.exponentialRampToValueAtTime(0.0001, at + 0.09);
+          thud.connect(thudGain);
+          thudGain.connect(ctx.destination);
+          thud.start(at);
+          thud.stop(at + 0.1);
+        };
+        footfall(now + 0.06, 1);
+        footfall(now + 0.24, 0.22);
+        break;
+      }
+      case "turn": {
+        // Cloak and boots scraping round: a soft band-passed swish.
+        const swish = createNoiseSource(ctx, 0.2);
+        const filter = ctx.createBiquadFilter();
+        filter.type = "bandpass";
+        filter.Q.setValueAtTime(0.8, now);
+        filter.frequency.setValueAtTime(1800, now);
+        filter.frequency.exponentialRampToValueAtTime(700, now + 0.18);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.07, now + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+        swish.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        swish.start(now);
+        swish.stop(now + 0.21);
+        break;
+      }
       case "move": {
         // Short soft blip
         const osc = ctx.createOscillator();
