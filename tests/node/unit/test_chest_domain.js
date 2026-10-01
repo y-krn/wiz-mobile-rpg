@@ -11,7 +11,10 @@ import {
   isChestActionAllowed,
   isEligibleChestCharacter,
   rollChestEncounter,
-  resolveChestInspection
+  calculateChestTrapSignAccuracy,
+  CHEST_TRAP_SIGNS,
+  getChestTrapSignTier,
+  resolveChestTrapSign
 } from "../../../src/chest/chest_domain.js";
 import * as chestDomainOwner from "../../../src/chest/chest_domain.ts";
 import { rollChestTrap } from "../../../src/rules/chest_rules.js";
@@ -153,18 +156,71 @@ assert.equal(forcedRolls.length, 0, "forced trap/item do not add RNG draws");
 const firstChest = rollChestEncounter({ floor: 1, x: 0, y: 0, party: [], customRng: () => 0 });
 assert.equal(firstChest.consumedFirstChestGuarantee, true);
 
-const inspection = resolveChestInspection({
-  chest: { trap: "gas bomb" },
-  party: [{ status: "ok" }],
-  lightPower: "lomilwa",
-  rng: (() => {
-    const rolls = [0.54, 0];
-    return () => rolls.shift() ?? 0;
-  })()
+// Trap sign: a tier, never a trap kind. Dangerous traps read as "danger".
+assert.equal(getChestTrapSignTier("none"), CHEST_TRAP_SIGNS.NONE);
+assert.equal(getChestTrapSignTier(undefined), CHEST_TRAP_SIGNS.NONE);
+assert.equal(getChestTrapSignTier("flash bomb"), CHEST_TRAP_SIGNS.TRAP);
+for (const trap of ["poison needle", "gas bomb", "teleporter"]) {
+  assert.equal(getChestTrapSignTier(trap), CHEST_TRAP_SIGNS.DANGER, trap);
+}
+
+const plainReader = { status: "ok", equipment: {} };
+const senseReader = {
+  status: "ok",
+  equipment: {
+    accessory: {
+      kind: "equipment",
+      baseId: "AMULET_HP",
+      identified: true,
+      affixes: [{ id: "treasureSense", type: "treasureSense", value: 10 }]
+    }
+  }
+};
+const plainAccuracy = calculateChestTrapSignAccuracy({ character: plainReader }).accuracy;
+assert.equal(plainAccuracy, 0.70, "the base sign misreads about 30% of the time");
+assert.ok(
+  calculateChestTrapSignAccuracy({ character: senseReader }).accuracy > plainAccuracy,
+  "treasureSense sharpens the trap sign"
+);
+const lightAccuracy = calculateChestTrapSignAccuracy({ character: plainReader, lightTurns: 3 });
+assert.equal(lightAccuracy.lightBonus, 0.15);
+assert.ok(lightAccuracy.accuracy > plainAccuracy, "a light spell sharpens the trap sign");
+assert.ok(
+  calculateChestTrapSignAccuracy({ character: plainReader, lightPower: "lomilwa" }).accuracy >
+    lightAccuracy.accuracy,
+  "lomilwa sharpens the sign more than an ordinary light"
+);
+assert.ok(
+  calculateChestTrapSignAccuracy({ character: { ...plainReader, status: "blind" } }).accuracy < plainAccuracy,
+  "a blind reader misreads more often"
+);
+assert.equal(
+  calculateChestTrapSignAccuracy({ character: senseReader, lightPower: "lomilwa" }).accuracy,
+  0.95,
+  "accuracy is capped below certainty"
+);
+
+const accurateSign = resolveChestTrapSign({
+  trap: "gas bomb",
+  character: plainReader,
+  rng: () => 0.69
 });
-assert.equal(inspection.chance, 0.55);
-assert.equal(inspection.lightBonus, 0.25);
-assert.equal(inspection.identifiedTrap, "gas bomb");
+assert.deepEqual(
+  { sign: accurateSign.sign, accurate: accurateSign.accurate },
+  { sign: CHEST_TRAP_SIGNS.DANGER, accurate: true }
+);
+for (const [trap, roll, expected] of [
+  ["gas bomb", 0.70, CHEST_TRAP_SIGNS.NONE],
+  ["gas bomb", 0.99, CHEST_TRAP_SIGNS.TRAP],
+  ["none", 0.70, CHEST_TRAP_SIGNS.TRAP],
+  ["none", 0.99, CHEST_TRAP_SIGNS.DANGER]
+]) {
+  let draws = 0;
+  const misread = resolveChestTrapSign({ trap, character: plainReader, rng: () => { draws++; return roll; } });
+  assert.equal(misread.accurate, false);
+  assert.equal(misread.sign, expected, `${trap} misread with ${roll}`);
+  assert.equal(draws, 1, "the sign consumes exactly one draw");
+}
 
 const lootHint = createChestLootHint({
   item: { kind: "equipment", rarity: "rare", affixes: [{ type: "arcane" }] },

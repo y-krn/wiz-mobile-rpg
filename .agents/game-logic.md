@@ -181,7 +181,7 @@ medium, and socketed Runes.
 
 Active spells are derived only from the equipped medium and its socketed Runes.
 Mana items are available to any character with positive maximum MP. Trap
-detection, disarm, chest inspection, critical, barehanded attack, and evasion
+detection, disarm, chest trap signs, critical, barehanded attack, and evasion
 use universal rules plus equipment/affixes; they do not branch on a class name.
 
 Save normalization drops legacy `class` and `spells` fields from current

@@ -1,13 +1,11 @@
 const {
-  calculateChestDisarmActionEv,
-  calculateChestDisarmEvThreshold,
   calculateChestDisarmChance,
+  calculateChestOpenActionEv,
   calculateDisarmRate,
   calculateFloorDisarmEvThreshold,
   calculateFloorTrapActionExpectedDamage,
   calculateFloorTrapAvoidanceEv,
   calculateDetectRate,
-  CHEST_WEAKENED_RISK_MULTIPLIER,
   FORCE_DAMAGE_MULTIPLIER,
   PARTIAL_SUCCESS_BAND,
   PITFALL_EDGE_BONUS
@@ -81,47 +79,29 @@ assertClose(
   "pitfall threshold without scout"
 );
 assertClose(
-  calculateChestDisarmEvThreshold(),
-  1 - CHEST_WEAKENED_RISK_MULTIPLIER,
-  "chest representative threshold"
-);
-assertClose(
-  calculateChestDisarmEvThreshold({
-    fullRiskMultiplier: 1,
-    weakenedRiskMultiplier: 0.5,
-    contentValue: 1,
-    forcedContentLossRate: 0.30
-  }),
-  0.20,
-  "usable content loss lowers chest threshold"
+  calculateChestOpenActionEv({ successRate: 0.25, fullRisk: 1 }).openExpectedLoss,
+  0.75,
+  "opening risks the full trap on a failed automatic disarm"
 );
 assertEqual(
-  calculateChestDisarmActionEv({
-    successRate: 0.25,
-    fullRisk: 1,
-    weakenedRisk: 0.5,
-    contentValue: 1,
-    forcedContentLossRate: 0.30
-  }).action,
-  "direct",
-  "content EV can select direct below representative threshold"
+  calculateChestOpenActionEv({ successRate: 0.25, fullRisk: 1 }).action,
+  "open",
+  "without a kit the chest is opened"
 );
 assertEqual(
-  calculateChestDisarmActionEv({
+  calculateChestOpenActionEv({
     successRate: 0.85,
     fullRisk: 1,
-    weakenedRisk: 0.5,
     kitCount: 1,
     futureChestCount: 1
   }).action,
-  "direct",
+  "open",
   "single kit is reserved for the next chest"
 );
 assertEqual(
-  calculateChestDisarmActionEv({
+  calculateChestOpenActionEv({
     successRate: 0.25,
     fullRisk: 1,
-    weakenedRisk: 0.5,
     kitCount: 1,
     futureChestCount: 0
   }).action,
@@ -129,15 +109,24 @@ assertEqual(
   "kit is used when no future chest remains"
 );
 assertEqual(
-  calculateChestDisarmActionEv({
+  calculateChestOpenActionEv({
     successRate: 0.25,
     fullRisk: 1,
-    weakenedRisk: 0.5,
     kitCount: 2,
     futureChestCount: 1
   }).action,
   "kit",
   "surplus kit can be spent"
+);
+assertEqual(
+  calculateChestOpenActionEv({
+    successRate: 1,
+    fullRisk: 1,
+    kitCount: 2,
+    futureChestCount: 0
+  }).action,
+  "open",
+  "a certain automatic disarm never spends a kit"
 );
 
 console.log("\n[6] Trap action and avoidance EV:");

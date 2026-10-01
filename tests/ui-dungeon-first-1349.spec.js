@@ -318,15 +318,14 @@ test('Dungeon First keeps loot decision over the world at 390x844 @visual', asyn
       x: state.x,
       y: state.y,
       trap: 'none',
-      identifiedTrap: 'none',
-      inspected: true,
-      inspectChance: 1,
+      trapSign: 'none',
+      trapSignAccuracy: 0.95,
       item: 'HEAL_POTION',
       lootHint: { label: '古い魔力', aura: 'medium' },
     };
     openChestMenu();
   });
-  await expect(page.getByRole('button', { name: '宝箱を開ける' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '開ける', exact: true })).toBeVisible();
 
   const layout = await readDungeonFirstLayout(page);
   expectDungeonFirstShell(layout, 'decision');

@@ -1,14 +1,11 @@
 import { FORCE_DAMAGE_MULTIPLIER } from "./trap_rules.js";
 import { getCharMaxHp, getCharMaxMp } from "./character_stats.js";
 
-const CHEST_POISON_NEEDLE_DAMAGE = Object.freeze({ full: 12, weakened: 6 });
-const CHEST_GAS_BOMB_RANGE = Object.freeze({
-  full: Object.freeze({ min: 5, range: 8 }),
-  weakened: Object.freeze({ min: 2, range: 5 })
-});
-const CHEST_POISON_WEAKENED_TRIGGER_CHANCE = 0.50;
-const CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE = 0.50;
-const CHEST_FLASH_BLIND_CHANCE = Object.freeze({ full: 0.60, weakened: 0.30 });
+// Chest traps resolve at full strength only: a chest is either disarmed
+// automatically on opening, disarmed with a kit, or its trap fires.
+const CHEST_POISON_NEEDLE_DAMAGE = 12;
+const CHEST_GAS_BOMB_RANGE = Object.freeze({ min: 5, range: 8 });
+const CHEST_FLASH_BLIND_CHANCE = 0.60;
 export const B5_FLAME_TRAP_DAMAGE_PROFILE = "b5-flame";
 const FLOOR_TRAP_DAMAGE_PROFILES = Object.freeze({
   [B5_FLAME_TRAP_DAMAGE_PROFILE]: Object.freeze({ min: 8, max: 16 })
@@ -40,7 +37,6 @@ export function applyTrapGuardToEffect(
 
 export function resolveChestTrapEffect({
   trap,
-  weakened = false,
   party = [],
   targetIndex = 0,
   poisonWard = 0,
@@ -53,35 +49,27 @@ export function resolveChestTrapEffect({
     targetPoisonResisted: false,
     partyDamage: party.map(() => 0),
     partyBlind: party.map(() => false),
-    teleported: false,
-    teleporterFailed: false
+    teleported: false
   };
 
   if (trap === "poison needle") {
     const target = party[targetIndex] || party[0];
-    effect.targetDamage = CHEST_POISON_NEEDLE_DAMAGE[weakened ? "weakened" : "full"];
-    effect.targetPoisonTriggered = !weakened ||
-      rng() < CHEST_POISON_WEAKENED_TRIGGER_CHANCE;
+    effect.targetDamage = CHEST_POISON_NEEDLE_DAMAGE;
+    effect.targetPoisonTriggered = true;
     const hpAfter = Math.max(0, (target?.hp || 0) - effect.targetDamage);
     effect.targetPoisonResisted = hpAfter > 0 && effect.targetPoisonTriggered &&
       poisonWard > 0 && rng() * 100 < poisonWard;
   } else if (trap === "gas bomb") {
-    const rangeData = CHEST_GAS_BOMB_RANGE[weakened ? "weakened" : "full"];
-    const { min, range } = rangeData;
+    const { min, range } = CHEST_GAS_BOMB_RANGE;
     effect.partyDamage = party.map(char => {
       if (char?.status === "dead") return 0;
       return Math.floor(rng() * range) + min;
     });
   } else if (trap === "teleporter") {
-    if (weakened && rng() < CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE) {
-      effect.teleporterFailed = true;
-    } else {
-      effect.teleported = true;
-    }
+    effect.teleported = true;
   } else if (trap === "flash bomb") {
-    const blindChance = CHEST_FLASH_BLIND_CHANCE[weakened ? "weakened" : "full"];
     effect.partyBlind = party.map(char =>
-      char?.status === "ok" && rng() < blindChance
+      char?.status === "ok" && rng() < CHEST_FLASH_BLIND_CHANCE
     );
   }
 
@@ -103,7 +91,6 @@ function uniformAtLeastProbability(min, range, hp) {
 // 換算できないため、HP割合・致死・各状態/転送確率の最大成分を採用する保守近似。
 export function calculateChestTrapExpectedRisk({
   trap,
-  weakened = false,
   party = [],
   targetIndex = 0,
   poisonWard = 0
@@ -127,17 +114,16 @@ export function calculateChestTrapExpectedRisk({
   if (trap === "poison needle") {
     const target = party[targetIndex] || party[0];
     if (isLivingCharacter(target)) {
-      const damage = CHEST_POISON_NEEDLE_DAMAGE[weakened ? "weakened" : "full"];
+      const damage = CHEST_POISON_NEEDLE_DAMAGE;
       const hpAfter = Math.max(0, target.hp - damage);
       effect.expectedDamageHp = damage;
       effect.poisonProbability = hpAfter > 0
-        ? (weakened ? CHEST_POISON_WEAKENED_TRIGGER_CHANCE : 1) *
-          (1 - Math.max(0, Math.min(100, Number(poisonWard) || 0)) / 100)
+        ? 1 - Math.max(0, Math.min(100, Number(poisonWard) || 0)) / 100
         : 0;
       effect.fatalityProbability = hpAfter <= 0 && living.length === 1 ? 1 : 0;
     }
   } else if (trap === "gas bomb") {
-    const { min, range } = CHEST_GAS_BOMB_RANGE[weakened ? "weakened" : "full"];
+    const { min, range } = CHEST_GAS_BOMB_RANGE;
     const expectedDamage = min + (range - 1) / 2;
     effect.expectedDamageHp = living.length * expectedDamage;
     effect.fatalityProbability = living.reduce(
@@ -145,13 +131,10 @@ export function calculateChestTrapExpectedRisk({
       living.length > 0 ? 1 : 0
     );
   } else if (trap === "teleporter") {
-    effect.teleportProbability = weakened
-      ? 1 - CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE
-      : 1;
+    effect.teleportProbability = 1;
   } else if (trap === "flash bomb") {
     const eligible = party.filter(char => char?.status === "ok" && isLivingCharacter(char));
-    const blindChance = CHEST_FLASH_BLIND_CHANCE[weakened ? "weakened" : "full"];
-    effect.blindProbability = 1 - Math.pow(1 - blindChance, eligible.length);
+    effect.blindProbability = 1 - Math.pow(1 - CHEST_FLASH_BLIND_CHANCE, eligible.length);
   }
 
   const damageRisk = effect.partyMaxHp > 0

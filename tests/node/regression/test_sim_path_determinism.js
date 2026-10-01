@@ -63,9 +63,9 @@ const dropRun = simulateRun({
   className: "Fighter",
   startFloor: 1,
   targetDepth: 6,
-  // The universal exploration resolver changes the old fixed fixture path;
-  // this adjacent deterministic run still exercises the fromDrop branch.
-  runIndex: 4,
+  // The open/leave chest rule (#1938) changes the old fixed fixture path;
+  // this deterministic run still exercises the fromDrop branch.
+  runIndex: 6,
   seriesId: "issue-894-drop",
   scoringProfile: null,
   scenario: { chestTrapPolicy: "legacy" }
@@ -73,7 +73,7 @@ const dropRun = simulateRun({
 assert.ok(dropRun.chestDropGenerated > 0);
 assert.equal(dropRun.chestDropGenerated, dropRun.chestPath.fromDrop.generated);
 assert.equal(dropRun.chestPath.fromDrop.specialTownPortalRewards, 0);
-for (const action of ["inspect", "open", "disarm", "trap_kit", "smash", "leave"]) {
+for (const action of ["open", "trap_kit", "leave"]) {
   assert.equal(typeof dropRun.chestPath.fromDrop.actions[action], "number");
 }
 

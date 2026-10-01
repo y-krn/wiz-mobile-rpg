@@ -49,7 +49,7 @@ const {
   getCharCoreParams,
   getTrapEaterBonusAfterDisarm
 } = await import("../../../src/rules/affix_rules.js");
-const { CHEST_PHASES, setupChestState, executeDisarm, useTrapKit } = await import("../../../src/chest.js");
+const { CHEST_PHASES, setupChestState, openChest } = await import("../../../src/chest.js");
 const { handleTrapAction } = await import("../../../src/systems/traps.js");
 const { triggerRunResult } = await import("../../../src/result.js");
 
@@ -129,14 +129,22 @@ await test("bonus uses +2 per successful disarm and caps at +20", () => {
   assert.equal(getTrapEaterBonusAfterDisarm(char, bonus), 20);
 });
 
-await test("successful chest disarm triggers the bonus for eligible class", async () => {
+await test("successful automatic chest disarm triggers the bonus", () => {
   prepareState(makeChar());
   setupChestState("poison needle", null, "HEAL_POTION");
   state.chestState.phase = CHEST_PHASES.MENU;
-  assert.equal(executeDisarm(state.party[0], () => 0), true);
+  assert.equal(openChest(() => 0), true);
   assert.equal(state.party[0].runTrapAttackBonus, 2);
-  state.chestState = null;
-  await new Promise(resolve => setTimeout(resolve, 1600));
+  assert.equal(state.party[0].hp, state.party[0].maxHp, "a disarmed trap must not fire");
+});
+
+await test("failed automatic chest disarm fires the trap without the bonus", () => {
+  prepareState(makeChar());
+  setupChestState("poison needle", null, "HEAL_POTION");
+  state.chestState.phase = CHEST_PHASES.MENU;
+  assert.equal(openChest(() => 0.99), true);
+  assert.equal(state.party[0].runTrapAttackBonus || 0, 0);
+  assert.ok(state.party[0].hp < state.party[0].maxHp, "a failed disarm fires the trap");
 });
 
 await test("TRAP_KIT chest disarm triggers the same bonus", () => {
@@ -145,9 +153,10 @@ await test("TRAP_KIT chest disarm triggers the same bonus", () => {
   state.inventory = ["TRAP_KIT"];
   setupChestState("poison needle", null, "HEAL_POTION");
   state.chestState.phase = CHEST_PHASES.MENU;
-  assert.equal(useTrapKit(), true);
+  assert.equal(openChest(() => 0.99, { useKit: true }), true);
   assert.equal(char.runTrapAttackBonus, 2);
-  assert.deepEqual(state.inventory, []);
+  assert.equal(state.inventory.includes("TRAP_KIT"), false);
+  assert.equal(char.hp, char.maxHp, "a kit disarm must not fire the trap");
 });
 
 await test("floor-trap disarm does not trigger CORE_TRAP_EATER", () => {

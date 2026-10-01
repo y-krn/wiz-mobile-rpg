@@ -18,6 +18,7 @@ or identifiers that are not needed for the observation.
 | `equipment_decision` / `build_shift` | Ordinary equipment changes versus meaningful direction changes | action, old/new category, decision kind, role transition |
 | `portal_decision` | Push, return, or Wing choice | portal kind, decision, resource band, free slots, unconfirmed count, rescued subset |
 | `elite_decision` | Approach, avoidance, contact, and result of optional threats | decision, contact mode, distance band, detection state, floor, unconfirmed count |
+| `chest_action` | The single chest decision | open/leave/kit, shown trap sign, actual trap, loot aura, kit availability, reward categories |
 | `trap_resolution` | Trap observation, response, and resource exchange | source kind, trap kind, outcome, action, success/risk, build capability band, tool/resource use |
 
 The event names are stable domain observations. Exact property names and

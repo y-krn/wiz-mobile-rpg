@@ -46,7 +46,7 @@ global.localStorage = {
 
 const { state } = await import("../../../src/state.js");
 const { createDefaultCurrentRun } = await import("../../../src/state/initial_state.js");
-const { CHEST_PHASES, setupChestState, executeDisarm } = await import("../../../src/chest.js");
+const { CHEST_PHASES, setupChestState, openChest } = await import("../../../src/chest.js");
 
 const failures = [];
 
@@ -78,10 +78,6 @@ function prepareChest() {
   state.transitioning = false;
 }
 
-function waitForChestTransition() {
-  return new Promise(resolve => setTimeout(resolve, 1600));
-}
-
 async function test(name, fn) {
   try {
     await fn();
@@ -92,13 +88,12 @@ async function test(name, fn) {
   }
 }
 
-await test("successful disarm leaves transition state and returns to exploration", async () => {
+await test("automatic disarm on opening leaves transition state and returns to exploration", () => {
   prepareChest();
   setupChestState("poison needle", null, "HEAL_POTION");
   state.chestState.phase = CHEST_PHASES.MENU;
 
-  assert.equal(executeDisarm(state.party[0], () => 0), true);
-  await waitForChestTransition();
+  assert.equal(openChest(() => 0), true);
 
   assert.equal(state.transitioning, false);
   // Rewards that fit the bag are taken without a resolution screen (#1835).
@@ -108,17 +103,17 @@ await test("successful disarm leaves transition state and returns to exploration
   assert.equal(state.chestState, null);
 });
 
-await test("cleared chest state during delayed resolution cannot lock the controls", async () => {
+await test("opening without an eligible opener cannot lock the controls", () => {
   prepareChest();
   setupChestState("poison needle", null, "HEAL_POTION");
   state.chestState.phase = CHEST_PHASES.MENU;
+  state.party[0].status = "dead";
 
-  assert.equal(executeDisarm(state.party[0], () => 0), true);
-  state.chestState = null;
-  await waitForChestTransition();
+  assert.equal(openChest(() => 0), false);
 
   assert.equal(state.transitioning, false);
-  assert.equal(state.gameState, "explore");
+  assert.equal(state.chestState.phase, CHEST_PHASES.MENU);
+  assert.equal(state.chestState.trap, "poison needle");
 });
 
 if (failures.length > 0) {

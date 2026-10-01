@@ -19,7 +19,7 @@ export interface ChestActionInput {
   context: Record<string, unknown>;
   chest: {
     fromDrop?: unknown;
-    inspected?: unknown;
+    trapSign?: unknown;
     lootHint?: { aura?: unknown } | null;
   } | null | undefined;
   action: unknown;
@@ -28,6 +28,7 @@ export interface ChestActionInput {
   safeTraps: ReadonlySet<string>;
   safeRewardCategories: ReadonlySet<string>;
   safeAuras: ReadonlySet<string>;
+  safeTrapSigns: ReadonlySet<string>;
 }
 
 export interface ChestActionPayload extends Record<string, unknown> {
@@ -37,7 +38,7 @@ export interface ChestActionPayload extends Record<string, unknown> {
   fromDrop: boolean;
   action: string | "other";
   trap: string | "other";
-  inspected: boolean;
+  trapSign: string | "other" | null;
   inventoryCount: number | null;
   hasTrapKit: boolean;
   rewardCount: number | null;
@@ -54,7 +55,7 @@ export function buildChestActionPayload(input: ChestActionInput): ChestActionPay
     fromDrop: Boolean(input.chest?.fromDrop),
     action: normalizeStableValue(input.action, input.safeActions),
     trap: normalizeStableValue(input.details.trap ?? "none", input.safeTraps),
-    inspected: Boolean(input.chest?.inspected),
+    trapSign: normalizeOptionalStableValue(input.chest?.trapSign, input.safeTrapSigns),
     inventoryCount: boundedFiniteOrNull(input.details.inventoryCount),
     hasTrapKit: Boolean(input.details.hasTrapKit),
     rewardCount: boundedFiniteOrNull(input.details.rewardCount),
