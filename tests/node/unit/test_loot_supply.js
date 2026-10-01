@@ -20,7 +20,7 @@ import {
   rollChestReward,
   selectChestItemCandidate
 } from "../../../src/rules/chest_rules.js";
-import { calculateChestInspectionChance, createChestLootHint } from "../../../src/chest/chest_domain.js";
+import { calculateChestTrapSignAccuracy, createChestLootHint } from "../../../src/chest/chest_domain.js";
 import { ITEMS } from "../../../src/data/items.js";
 
 const roleIds = new Set(Object.values(LOOT_BUILD_ROLES));
@@ -193,14 +193,14 @@ function createBuildVariant({ startingKit, treasureSense, hp, mp }) {
 
 const buildA = createBuildVariant({ startingKit: "arcana", treasureSense: 5, hp: 1, mp: 0 });
 const buildB = createBuildVariant({ startingKit: "vanguard", treasureSense: 0, hp: 100, mp: 20 });
-const sensedInspection = calculateChestInspectionChance({ party: buildA });
-const baselineInspection = calculateChestInspectionChance({ party: buildB });
+const sensedSign = calculateChestTrapSignAccuracy({ character: buildA[0] });
+const baselineSign = calculateChestTrapSignAccuracy({ character: buildB[0] });
 assert.ok(
-  sensedInspection.chance > baselineInspection.chance,
-  "treasureSense must improve chest trap inspection reliability"
+  sensedSign.accuracy > baselineSign.accuracy,
+  "treasureSense must improve chest trap sign reliability"
 );
-assert.equal(baselineInspection.chance, 0.30);
-assert.equal(sensedInspection.chance, 0.35);
+assert.equal(baselineSign.accuracy, 0.70);
+assert.equal(sensedSign.accuracy, 0.75);
 
 const hintedEquipment = {
   kind: "equipment",

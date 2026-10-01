@@ -5,13 +5,14 @@ import { chestActionInputFixture } from "../fixtures/typescript/telemetry_chest_
 const fixturePayload = buildChestActionPayload(chestActionInputFixture);
 assert.deepEqual(Object.keys(fixturePayload), [
   "runId", "contextOnly", "floor", "inventoryCount", "chestSource", "fromDrop", "action", "trap",
-  "inspected", "hasTrapKit", "rewardCount", "rewardCategories", "lootAura"
+  "trapSign", "hasTrapKit", "rewardCount", "rewardCategories", "lootAura"
 ]);
 assert.equal(fixturePayload.floor, 2);
 assert.equal(fixturePayload.inventoryCount, 4.5);
 assert.equal(fixturePayload.chestSource, "fromDrop");
 assert.equal(fixturePayload.fromDrop, true);
 assert.equal(fixturePayload.trap, "poison needle");
+assert.equal(fixturePayload.trapSign, "danger");
 assert.equal(fixturePayload.rewardCount, 0);
 assert.deepEqual(fixturePayload.rewardCategories, ["weapon", "other"]);
 assert.equal(fixturePayload.lootAura, "strong");
@@ -38,7 +39,7 @@ const chest = {
     order.push(`fromDrop${++fromDropReads}`);
     return fromDropReads === 1 ? "drop" : 0;
   },
-  get inspected() { order.push("inspected"); return 1; },
+  get trapSign() { order.push("trapSign"); return "hidden"; },
   get lootHint() { order.push("lootHint"); return { get aura() { order.push("aura"); return "moved"; } }; }
 };
 const ordered = buildChestActionPayload({
@@ -49,7 +50,7 @@ const ordered = buildChestActionPayload({
   details
 });
 assert.deepEqual(order, [
-  "floor", "fromDrop1", "fromDrop2", "trap", "inspected", "inventoryCount", "hasTrapKit", "rewardCount",
+  "floor", "fromDrop1", "fromDrop2", "trap", "trapSign", "inventoryCount", "hasTrapKit", "rewardCount",
   "rewardCategories", "lootHint", "aura"
 ]);
 assert.equal(fromDropReads, 2);
@@ -59,7 +60,7 @@ assert.equal(ordered.floor, 0);
 assert.equal(ordered.runId, "context run");
 assert.equal(ordered.action, "other");
 assert.equal(ordered.trap, "none");
-assert.equal(ordered.inspected, true);
+assert.equal(ordered.trapSign, "other");
 assert.equal(ordered.inventoryCount, 0);
 assert.equal(ordered.hasTrapKit, true);
 assert.equal(ordered.rewardCount, null);
@@ -105,10 +106,12 @@ for (const aura of [null, undefined, ""]) {
   }).lootAura, null);
 }
 for (const chestValue of [null, undefined]) {
-  assert.equal(buildChestActionPayload({
+  const payload = buildChestActionPayload({
     ...chestActionInputFixture,
     chest: chestValue
-  }).lootAura, null);
+  });
+  assert.equal(payload.lootAura, null);
+  assert.equal(payload.trapSign, null);
 }
 
 console.log("[PASS] TypeScript chest action owner preserves payload order and normalization");

@@ -303,7 +303,7 @@ test('Dungeon First evidence captures Explore Combat Loot and Portal at 390x844 
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { openChestMenu } = await import('/src/chest.js');
-    state.chestState = { x: state.x, y: state.y, trap: 'none', identifiedTrap: 'none', inspected: true, inspectChance: 1, item: 'HEAL_POTION', lootHint: { label: '古い魔力', aura: 'medium' } };
+    state.chestState = { x: state.x, y: state.y, trap: 'none', trapSign: 'none', trapSignAccuracy: 0.95, item: 'HEAL_POTION', lootHint: { label: '古い魔力', aura: 'medium' } };
     openChestMenu();
   });
   captures.push(['loot', testInfo.outputPath('issue-1349-after-loot-390.png'), await page.screenshot({ path: testInfo.outputPath('issue-1349-after-loot-390.png'), fullPage: true })]);

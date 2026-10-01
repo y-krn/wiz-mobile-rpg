@@ -95,7 +95,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
         "production run-floor generation", "round combat and reward resolution",
         "equipment generation and upgrade path", "chest opening and material rewards",
         "hidden-door search, revealed secret-room reward reachability, and search-step cost",
-        "fromDrop chest pool and inspect/open/disarm/trap-kit/smash/leave policy outcomes",
+        "fromDrop chest pool and trap-sign/open/trap-kit/leave policy outcomes",
         "production recovery effect", "production chest-trap roll",
         "production enhance/polish actions with explicit standard and omitted policies"
       ]),
@@ -1124,14 +1124,14 @@ const CALL_EXPRESSION = /\b(?:[A-Za-z_$][A-Za-z0-9_$]*\s*\.\s*)?[A-Za-z_$][A-Za-
 const CONTROL_KEYWORDS = new Set(["if", "while", "switch", "for", "catch"]);
 const KNOWN_BOUNDARY_CALLS = new Set([
   "transitionChestPhase", "getChestPhase", "chestActionAllowed",
-  "clearChestInspectionState", "finishChest", "isUsableCombatScreen",
+  "finishChest", "isUsableCombatScreen",
   "hasUsableCombatActor", "isUsableSpellForActor", "getScreenViewState",
   "bindCombatCallback"
 ]);
-const STATE_BOUNDARY_HELPERS = /\b(?:CHEST_PHASES|CHEST_PHASE_TRANSITIONS|transitionChestPhase|getChestPhase|chestActionAllowed|isEligibleChestCharacter|clearChestInspectionState|finishChest|openChestMenu|executeDisarm|smashChest|openChestDirectly)\b/;
-const STATE_BOUNDARY_LOCALS = /\b(?:currentPhase|allowedPhases|persistedChestState|recordAction|allowTransition|fromDisarm|smashTrapFired)\b/;
+const STATE_BOUNDARY_HELPERS = /\b(?:CHEST_PHASES|CHEST_PHASE_TRANSITIONS|transitionChestPhase|getChestPhase|chestActionAllowed|isEligibleChestCharacter|finishChest|openChestMenu)\b/;
+const STATE_BOUNDARY_LOCALS = /\b(?:currentPhase|allowedPhases|persistedChestState|recordAction|allowTransition)\b/;
 const STATE_BOUNDARY_PROPERTIES = new Set([
-  "phase", "fromDrop", "smashTelemetry", "inspected", "identifiedTrap", "inspectChance"
+  "phase", "fromDrop"
 ]);
 const LITERAL_ONLY_DECLARATION = /^(?:const|let|var)\s+[A-Za-z_$][A-Za-z0-9_$]*\s*=\s*(?:"\s*"|'\s*'|`\s*`|\/\s*\/[A-Za-z]*)\s*;?$/;
 
@@ -1184,17 +1184,16 @@ function isAllowedStateBoundaryLine(text, file) {
   if (BOUNDARY_COMPUTED_ACCESS.test(classificationText)) return false;
   if (AGGREGATE_MUTATOR_CALL.test(classificationText)) return false;
   if (COMPUTED_AGGREGATE_ACCESS.test(classificationText)) return false;
-  if (/^(?:state\.party\.includes\((?:char|opener)\)\s*&&|if \(options\.fromDisarm === true && !state\.party\.includes\(opener\)\) return false;)$/.test(classificationText)) return true;
+  if (/^state\.party\.includes\((?:char|opener)\)\s*&&$/.test(classificationText)) return true;
   if ([...classificationText.matchAll(STATE_ROOT_ACCESS)].some(([, root]) => !ALLOWED_STATE_ROOTS.has(root))) return false;
   if (/^\["ok",\s*"poisoned",\s*"blind"\]\.includes\(char\.status\)$/.test(text)) return true;
   if (/^(?:MENU|DISARM_SELECT|OPEN_SELECT|RESOLVING|REWARD|TERMINAL):\s*"[a-z_]+",?$/.test(text)) return true;
-  if (/^smash:\s*true,?$/.test(classificationText)) return true;
   if (/^:\s*(?:null|state\.chestState)/.test(classificationText)) return true;
   if (/^(?:if|while|switch)\s*\($/.test(classificationText)) return true;
   if (/^\)\s*return\s+(?:false|true|undefined);$/.test(classificationText)) return true;
   if (/^(?:char\s*&&|return\s+Boolean\(|[{}),;]+|return(?:\s+(?:true|false|undefined))?;?)$/.test(classificationText)) return true;
   if (file === "src/state/save_payload.js" && /^\?\s*\{\s*\.\.\.data\.chestState,\s*phase:\s*"menu"\s*\}$/.test(text)) return true;
-  if (/^(?:delete\s+)?chest\.(?:phase|inspected|identifiedTrap|inspectChance)\b/.test(classificationText)) return true;
+  if (/^(?:delete\s+)?chest\.phase\b/.test(classificationText)) return true;
   if (/^const\s+(?:currentPhase|allowedPhases|persistedChestState)\b/.test(classificationText)) return true;
   if ((STATE_BOUNDARY_LOCALS.test(classificationText) || STATE_BOUNDARY_HELPERS.test(classificationText)) && !/\bstate\./.test(classificationText)) return true;
   if (STATE_BOUNDARY_ROOTS.test(classificationText)) {

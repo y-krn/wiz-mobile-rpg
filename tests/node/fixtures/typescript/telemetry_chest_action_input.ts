@@ -3,7 +3,7 @@ import type { ChestActionInput } from "../../../../src/telemetry_chest_action.js
 export const chestActionInputFixture: ChestActionInput = {
   runId: "run-fixture",
   context: { contextOnly: "kept", floor: 99, inventoryCount: "context value" },
-  chest: { fromDrop: true, inspected: "yes", lootHint: { aura: "strong" } },
+  chest: { fromDrop: true, trapSign: "danger", lootHint: { aura: "strong" } },
   action: "open",
   details: {
     floor: 2,
@@ -16,5 +16,6 @@ export const chestActionInputFixture: ChestActionInput = {
   safeActions: new Set(["open", "leave"]),
   safeTraps: new Set(["none", "poison needle"]),
   safeRewardCategories: new Set(["weapon", "usable", "armor"]),
-  safeAuras: new Set(["weak", "medium", "strong"])
+  safeAuras: new Set(["weak", "medium", "strong"]),
+  safeTrapSigns: new Set(["none", "trap", "danger"])
 };

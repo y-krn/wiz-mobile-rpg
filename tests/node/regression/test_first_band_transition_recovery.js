@@ -37,8 +37,9 @@ assert.equal(result.determinism.pass, true);
 assert.equal(result.observationInvariance.pass, true);
 
 const pitfallScenario = getScenarioById("workshop-complete");
-// #1801 changed the seeded path (solo HP budget); index 1 still falls into a
-// pitfall, which is what this fixture needs to observe.
+// The fixture observes pitfall transition accounting, so chest-trap effects
+// are disabled to keep the seeded path independent of chest rules (#1938);
+// this world falls into a pitfall.
 resetSimulationRandom(1);
 const pitfallResult = simulateRun({
   className: "Fighter",
@@ -54,12 +55,13 @@ const pitfallResult = simulateRun({
     startingGuardPotions: 1,
     startingTownPortals: 1,
     trapPolicy: "legacy",
+    chestTrapPolicy: "disabled",
     floorTrapDetection: "source",
     equipmentUpdatePolicy: "fixed",
     collectStage15Diagnostics: true
   },
   workshop: pitfallScenario.workshop,
-  worldSeed: "pitfall:legacy:source:1",
+  worldSeed: "pitfall:legacy:source:38",
   collectDiagnostics: true
 });
 const pitfallEvents = (pitfallResult.floorTransitionRecovery || [])

@@ -218,10 +218,9 @@ W.__bossFight = async () => {
 // ---------- loot & equipment policy ----------
 W.__chest = async () => {
   if (['paralyzed', 'paralyze', 'sleep'].includes(P().status)) { await W.__click('立ち去る'); await sl(200); W.__journal.push('chest skipped: incapacitated'); return; }
-  if (W.__btns().includes('調べる')) { await W.__click('調べる'); await sl(400); }
-  if (W.__btns().some(t => t === '解除する')) { await W.__click('解除する'); await sl(1000); }
-  else if (W.__btns().some(t => t.includes('宝箱を開ける'))) { await W.__click('宝箱を開ける'); await sl(1000); }
-  await sl(300); if (W.__btns().some(t => t.includes('宝箱を開ける'))) { await W.__click('宝箱を開ける'); await sl(1000); }
+  // The chest menu offers open, an optional kit open, and leave; opening
+  // disarms automatically, so the driver always opens.
+  if (W.__btns().includes('開ける')) { await W.__click(/^開ける$/); await sl(1000); }
 };
 // Build seed choice: keep the option the gear score likes best.
 W.__take = async () => {
@@ -393,7 +392,7 @@ W.__auto = async (policy = { explore: 0.6 }, maxIter = 600) => {
       await W.__click(b.includes('解除する') ? '解除する' : b.includes('縁を伝う') ? '縁を伝う' : b.find(t => !/ON|⛶/.test(t) && t));
       await sl(700); W.__journal.push('trap F' + s.floor + ': ' + W.__log(1)); continue;
     }
-    if (b.some(t => t.includes('宝箱を開ける'))) { await W.__chest(); continue; }
+    if (b.includes('開ける') && b.includes('立ち去る')) { await W.__chest(); continue; }
     if (REWARDS.hasPendingRewardBundle(s)) {
       await W.__take();
       if (REWARDS.hasPendingRewardBundle(s)) { W.__journal.push('!! stuck reward ' + b.join('|')); return 'stuck'; }

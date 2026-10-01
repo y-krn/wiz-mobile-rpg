@@ -76,23 +76,22 @@ test.describe('Danger color is limited to high-risk actions @smoke', () => {
     await testInfo.attach('issue-1743-combat-dock-390', { body: await page.screenshot({ path }), contentType: 'image/png' });
   });
 
-  test('chest panel keeps leave neutral and smash as danger', async ({ page }, testInfo) => {
+  test('chest panel keeps open, kit, and leave neutral', async ({ page }, testInfo) => {
     await page.evaluate(async () => {
       const { state, createStartingKitCharacter } = await import('/src/state.js');
       const { createDefaultCurrentRun } = await import('/src/state/initial_state.js');
       const { openChestMenu } = await import('/src/chest.js');
       state.party = [createStartingKitCharacter('arcana')];
       state.gameState = 'combat';
-      state.floor = 1;
+      state.floor = 2;
       state.currentRun = createDefaultCurrentRun();
-      state.inventory = [];
+      state.inventory = ['TRAP_KIT'];
       state.chestState = {
         x: state.x,
         y: state.y,
         trap: 'poison needle',
-        identifiedTrap: 'poison needle',
-        inspected: true,
-        inspectChance: 0.3,
+        trapSign: 'danger',
+        trapSignAccuracy: 0.7,
         item: 'HEAL_POTION',
       };
       openChestMenu();
@@ -101,8 +100,8 @@ test.describe('Danger color is limited to high-risk actions @smoke', () => {
 
     const buttons = await readButtonStyles(page, '#submenu-options button');
     const byText = Object.fromEntries(buttons.map(b => [b.text, b]));
-    expect(byText['叩き壊す'].dangerText, 'smash keeps danger text').toBe(true);
-    for (const text of ['立ち去る', '宝箱を開ける', '解除する']) {
+    expect(Object.keys(byText).sort()).toEqual(['キットを使って開ける', '立ち去る', '開ける'].sort());
+    for (const text of ['立ち去る', '開ける', 'キットを使って開ける']) {
       expect(byText[text].dangerText, `${text} text must not use danger color`).toBe(false);
       expect(byText[text].dangerBorder, `${text} border must not use danger color`).toBe(false);
     }

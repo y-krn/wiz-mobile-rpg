@@ -75,20 +75,22 @@ test.afterEach(async ({ page }) => {
   await restoreRandom(page);
 });
 
-test('smashing a teleporter chest returns to usable exploration controls', async ({ page }) => {
+test('a failed automatic disarm on a teleporter chest returns to usable exploration controls', async ({ page }) => {
   const origin = await prepareTeleporterChest(page);
   await page.evaluate((chestOrigin) => { window.__chestOrigin = chestOrigin; }, origin);
-  await forceRandomSequence(page, [0.50, 0.10, 0, 0, 0, 0.99]);
+  await forceRandomSequence(page, [0.99, 0.10, 0, 0, 0, 0.99]);
 
-  await page.getByRole('button', { name: '叩き壊す' }).click();
+  await page.getByRole('button', { name: '開ける', exact: true }).click();
   await expectExplorationReady(page, origin);
+  expect(await page.evaluate(() => window.__stateModule.state.currentRun.trapsTriggered)).toBe(1);
 });
 
-test('smashing an interrupted teleporter chest still returns to usable exploration controls', async ({ page }) => {
+test('a successful automatic disarm on a teleporter chest returns to usable exploration controls', async ({ page }) => {
   const origin = await prepareTeleporterChest(page);
   await page.evaluate((chestOrigin) => { window.__chestOrigin = chestOrigin; }, origin);
-  await forceRandomSequence(page, [0.49, 0, 0, 0.99]);
+  await forceRandomSequence(page, [0, 0, 0, 0.99]);
 
-  await page.getByRole('button', { name: '叩き壊す' }).click();
+  await page.getByRole('button', { name: '開ける', exact: true }).click();
   await expectExplorationReady(page, origin);
+  expect(await page.evaluate(() => window.__stateModule.state.currentRun.trapsDisarmed)).toBe(1);
 });

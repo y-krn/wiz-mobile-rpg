@@ -17,25 +17,20 @@ import { getRuneItemIdsByFloor } from "../data/magic.js";
 // 宝箱の装身具は B2、本体装備は B3 から core を解禁する（#270）。
 export const CHEST_ACCESSORY_CORE_MIN_FLOOR = 2;
 export const CHEST_EQUIPMENT_CORE_MIN_FLOOR = 3;
-// src/chest.js の smashChest と real-run sim の内容損失判定で共有する。
-// 役割ごとに独立して判定し、特殊報酬・quest・進行必須報酬は保護する。
-export const CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY = Object.freeze({
-  weapon: 0.25,
-  armor: 0.25,
-  shield: 0.25,
-  accessory: 0.25,
-  usable: 0.50,
-  special: 0,
-  quest: 0,
-  progression: 0
-});
+// Telemetry reward categories for chest_action. Special, quest, and
+// progression rewards stay distinct from ordinary equipment and usables.
+export const CHEST_REWARD_CATEGORIES = Object.freeze([
+  "weapon",
+  "armor",
+  "shield",
+  "accessory",
+  "usable",
+  "special",
+  "quest",
+  "progression"
+]);
 
-// Backward-compatible name for the trap EV helper and existing callers. The
-// value is the usable rate in the new smash rule, not a separate percentage.
-export const CHEST_USABLE_BREAK_CHANCE =
-  CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY.usable;
-
-const CHEST_SMASH_PROTECTED_ITEM_IDS = new Set([
+const CHEST_SPECIAL_REWARD_ITEM_IDS = new Set([
   "TOWN_PORTAL",
   "LEGENDARY_SWORD",
   "LEGENDARY_SHIELD"
@@ -61,14 +56,14 @@ function getChestItemData(item) {
   return ITEMS[itemId] || (typeof item === "object" ? item : null);
 }
 
-export function getChestSmashRewardCategory(item, role = null) {
+export function getChestRewardCategory(item, role = null) {
   if (!item) return null;
   const itemId = typeof item === "object"
     ? item.baseId || item.key || item.id
     : item;
   if (
     role === "special" ||
-    CHEST_SMASH_PROTECTED_ITEM_IDS.has(itemId) ||
+    CHEST_SPECIAL_REWARD_ITEM_IDS.has(itemId) ||
     isSpecialOrQuestItem(itemId)
   ) {
     return "special";
@@ -80,41 +75,6 @@ export function getChestSmashRewardCategory(item, role = null) {
   }
   if (type === "quest") return "quest";
   return "progression";
-}
-
-export function getChestSmashRewardLossChance(item, role = null) {
-  const category = getChestSmashRewardCategory(item, role);
-  return category ? CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY[category] : 0;
-}
-
-export function rollChestSmashRewardLoss(item, rng = Math.random, role = null) {
-  const chance = getChestSmashRewardLossChance(item, role);
-  return chance > 0 && rng() < chance;
-}
-
-// Reward roles are intentionally explicit so a main item, accessory, and
-// special reward each consume their own roll. Zero-rate protected rewards do
-// not consume RNG, preserving the old stream whenever no destructive roll is
-// possible.
-export function resolveChestSmashRewardLosses(rewards = [], rng = Math.random) {
-  return rewards.reduce((losses, reward) => {
-    if (!reward?.item) return losses;
-    const role = reward.role || "main";
-    if (rollChestSmashRewardLoss(reward.item, rng, role)) {
-      losses.push({ role, category: getChestSmashRewardCategory(reward.item, role) });
-    }
-    return losses;
-  }, []);
-}
-
-// item品質を共通通貨へ換算する既存ルールはないため、生成済みmain itemの存在を
-// 1 content unitとして扱う。内容の有無とusable破損率だけを方針へ渡す。
-export function calculateChestMainItemExpectedValue(item) {
-  return getChestItemData(item) ? 1 : 0;
-}
-
-export function calculateChestMainItemForcedLossRate(item) {
-  return getChestSmashRewardLossChance(item);
 }
 
 export const CHEST_ITEM_CANDIDATES_BY_FLOOR = {
@@ -225,6 +185,24 @@ export function rollChestSpecialReward(floor, rng) {
 }
 
 const DANGEROUS_TRAPS = ["poison needle", "gas bomb", "teleporter"];
+
+// The chest menu shows a trap tier, never a trap kind.
+export const CHEST_TRAP_SIGNS = Object.freeze({
+  NONE: "none",
+  TRAP: "trap",
+  DANGER: "danger"
+});
+
+// Dangerous traps raise the equipment upgrade chance below and read as the
+// "danger" trap sign, so the visible sign carries the reward/risk link.
+export function isDangerousChestTrap(trap) {
+  return DANGEROUS_TRAPS.includes(trap);
+}
+
+// B1F chests never roll a trap; every deeper floor has a trap pool.
+export function canChestHaveTrap(floor) {
+  return floor !== 1;
+}
 
 export function rollChestTrap(floor, rng, runtimeDiagnostics = null) {
   recordRuntimeCall(runtimeDiagnostics, "traps.chest-roll", { floor });
@@ -354,7 +332,7 @@ export function rollChestReward({
     return { item, consumedFirstChestGuarantee: false };
   }
 
-  const isDangerousTrap = DANGEROUS_TRAPS.includes(trap);
+  const isDangerousTrap = isDangerousChestTrap(trap);
   let randChance;
   if (balanceFloor === 4) {
     randChance = isDangerousTrap ? 0.80 : 0.70;

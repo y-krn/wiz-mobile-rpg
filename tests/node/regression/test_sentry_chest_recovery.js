@@ -16,15 +16,6 @@ function functionBody(name, nextName) {
 
 assert.match(source, /import \{ captureException \} from "\.\/sentry\.js";/);
 
-const disarmRecovery = functionBody("recoverChestDisarmTransition", "recoverChestOpenTransition");
-assert.match(disarmRecovery, /captureException\(error,/);
-assert.match(disarmRecovery, /op: "disarm-transition"/);
-assert.match(disarmRecovery, /recovery: "return-to-menu"/);
-assert.ok(
-  disarmRecovery.indexOf("captureException(error") < disarmRecovery.indexOf("state.transitioning = false"),
-  "disarm recovery must capture the pre-recovery state"
-);
-
 const openRecovery = functionBody("recoverChestOpenTransition", "trackChestChoice");
 assert.match(openRecovery, /captureException\(error,/);
 assert.match(openRecovery, /op: "open-transition"/);
@@ -33,5 +24,10 @@ assert.ok(
   openRecovery.indexOf("captureException(error") < openRecovery.indexOf("state.transitioning = false"),
   "open recovery must capture the pre-recovery state"
 );
+
+// Opening (with or without a kit) recovers through the open-transition path.
+const openChestBody = functionBody("openChest", "triggerChestTrap");
+assert.match(openChestBody, /recoverChestOpenTransition\(error, chest\)/);
+assert.equal(source.includes("recoverChestDisarmTransition"), false, "the retired disarm transition must not return");
 
 console.log("[PASS] chest recovery failures remain observable in Sentry");

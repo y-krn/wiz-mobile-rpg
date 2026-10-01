@@ -125,8 +125,8 @@ not a free replacement for carrying treatment.
 
 ## Exploration resource ownership
 
-The player-facing exploration verbs are shared: inspect, detect, disarm, avoid,
-and force a known risk when necessary. Exploration success and information
+The player-facing exploration verbs are shared: read signs, detect, disarm,
+avoid, and force a known risk when necessary. Exploration success and information
 belong to the run-local equipment/support/tool build, not to a class label, raw
 attribute, or level permission.
 

@@ -58,13 +58,17 @@ const poison = resolveChestTrapEffect({
 check("full poison needle damage", poison.targetDamage, 12);
 check("full poison needle poison roll", poison.targetPoisonTriggered, true);
 
-const weakenedGas = resolveChestTrapEffect({
+const fullGas = resolveChestTrapEffect({
   trap: "gas bomb",
-  weakened: true,
   party: [soloFighter],
   rng: () => 0.99
 });
-check("weakened gas damage", weakenedGas.partyDamage[0], 6);
+check("full gas max damage", fullGas.partyDamage[0], 12);
+check(
+  "chest traps ignore a legacy weakened input",
+  resolveChestTrapEffect({ trap: "gas bomb", weakened: true, party: [soloFighter], rng: () => 0.99 }).partyDamage[0],
+  12
+);
 
 const fighterDamage = resolveFloorTrapEffect({
   trap: { type: "damage" },
@@ -137,15 +141,6 @@ check(
     party: [soloFighter]
   }).expectedDamageHp,
   8.5
-);
-check(
-  "expected weakened gas risk uses source range",
-  calculateChestTrapExpectedRisk({
-    trap: "gas bomb",
-    weakened: true,
-    party: [soloFighter]
-  }).expectedDamageHp,
-  4
 );
 
 check(

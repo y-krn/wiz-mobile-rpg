@@ -312,8 +312,23 @@ and follows the game rules; it does not define new rules to fit a metric.
 
 The player-facing surface shows facts, signs, success, risk, and resource state.
 Internal route diagnostics never become answer choices or trap attributes.
-Chest traps retain a meaningful risk/reward branch: inspect, leave, accept a
-weakened smash path, or spend a tool. The opportunity costs are bag space,
+Chest traps are one decision: is this chest worth opening now? The chest
+offers only open, leave, and, when the player carries a trap kit on a floor
+where traps exist, open with the kit. Opening attempts the disarm
+automatically with the run-local `trapBonus`; a failure fires the trap at full
+strength before the rewards. A kit removes the trap with certainty and is not
+spent on a trapless chest. There is no inspect step and no weakened or
+partial-loss path: a step that only reveals an answer the player then looks up,
+or that scales every trap by the same factor, adds taps without adding a
+decision.
+
+On arrival the chest shows a fuzzy trap sign (no sign, something is rigged, or
+danger) beside the existing loot aura and the automatic-disarm chance. The sign
+reads a tier, never a trap kind, and can be wrong; `treasureSense` and light
+sharpen it. Dangerous traps also raise the equipment upgrade chance, so a
+danger sign signals both a larger risk and a better expected reward. Whether
+to open is weighed against current HP, consumables, position, and the rest of
+the run, not against a lookup table. The opportunity costs are bag space,
 equipment slots, affix slots, and consumables.
 
 ### Unknown equipment
