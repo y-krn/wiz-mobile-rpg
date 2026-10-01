@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { satchelAction } from './explore-input-helpers.js';
 
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
 const OTHER_MOBILE_VIEWPORTS = [
@@ -109,7 +110,7 @@ test('explore skips a single valid target and keeps caster HP visible before cas
   await openApp(page);
   await setupExplore(page, { partySize: 1, fullHp: false });
 
-  await page.locator('#btn-cast').click();
+  await (await satchelAction(page, '#btn-cast')).click();
   await page.getByRole('button', { name: /^DIOS MP/ }).click();
 
   await expect(page.locator('#spell-overlay .spell-detail-caster-row')).toContainText('HP:');
@@ -142,7 +143,7 @@ test('explore disables recovery when every ally is at full HP', async ({ page })
   await openApp(page);
   await setupExplore(page, { partySize: 1, fullHp: true });
 
-  await page.locator('#btn-cast').click();
+  await (await satchelAction(page, '#btn-cast')).click();
   await page.getByRole('button', { name: /^DIOS MP/ }).click();
   await expect(page.locator('#btn-spell-cast-action')).toBeDisabled();
   await expect(page.locator('#spell-overlay')).toContainText('対象なし');
@@ -152,7 +153,7 @@ test('explore disables MABARRIER while combat keeps it available and resets stal
   await openApp(page);
   await setupExplore(page, { partySize: 1, spellKeys: ['MABARRIER'] });
 
-  await page.locator('#btn-cast').click();
+  await (await satchelAction(page, '#btn-cast')).click();
   const exploreBarrier = page.locator('#spell-overlay .spell-item-row-card').filter({ hasText: 'MABARRIER' });
   await expect(exploreBarrier).toHaveClass(/disabled/);
   await expect(page.locator('#spell-overlay .spell-detail-placeholder')).toBeVisible();
@@ -190,7 +191,7 @@ for (const viewport of OTHER_MOBILE_VIEWPORTS) {
     await page.setViewportSize(viewport);
     await setupExplore(page, { partySize: 1, fullHp: false });
 
-    await page.locator('#btn-cast').click();
+    await (await satchelAction(page, '#btn-cast')).click();
     await page.getByRole('button', { name: /^DIOS MP/ }).click();
     const metrics = await page.evaluate(() => {
       const detail = document.querySelector('#spell-detail-panel').getBoundingClientRect();
@@ -209,7 +210,7 @@ test('explore keeps the target screen when two valid allies remain', async ({ pa
   await openApp(page);
   await setupExplore(page, { partySize: 2, fullHp: false });
 
-  await page.locator('#btn-cast').click();
+  await (await satchelAction(page, '#btn-cast')).click();
   await page.getByRole('button', { name: /^DIOS MP/ }).click();
   await page.locator('#btn-spell-cast-action').click();
 

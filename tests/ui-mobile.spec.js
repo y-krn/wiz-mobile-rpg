@@ -160,9 +160,9 @@ for (const vp of VIEWPORTS) {
 
       // Exploring is touch on the world; every other action is in the satchel
       // opened from the adventurer's card.
-      await expect(page.locator('#explore-controls button:visible')).toHaveCount(0);
+      await expect(page.locator('#explore-satchel button:visible')).toHaveCount(0);
       await page.locator('#character-panel').click();
-      const exploreButtons = await page.locator('#explore-controls button:visible').all();
+      const exploreButtons = await page.locator('#explore-satchel button:visible').all();
       expect(exploreButtons.length).toBe(5);
       for (const btn of exploreButtons) {
         const box = await btn.boundingBox();
