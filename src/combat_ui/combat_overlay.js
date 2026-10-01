@@ -84,6 +84,35 @@ function createCombatEnemyInfoPanel() {
   return panel;
 }
 
+// Hand-of-cards presentation: who a spell reaches and the glyph its card
+// shows. Wording only; targeting rules live in rules/spell_targeting.
+const SPELL_REACH = Object.freeze({
+  single_enemy: { label: "敵ひとり", tone: "foe" },
+  all_enemies: { label: "敵すべて", tone: "foe" },
+  single_ally: { label: "味方ひとり", tone: "ally" },
+  all_allies: { label: "味方すべて", tone: "ally" },
+  utility: { label: "探索", tone: "utility" }
+});
+const SPELL_GLYPHS = [["火", "火"], ["氷", "氷"], ["爆", "爆"], ["聖", "聖"], ["回復", "癒"], ["全体睡眠", "眠"], ["毒", "解"], ["魔法軽減", "護"]];
+
+function getSpellGlyph(summary, spell) {
+  const effect = String(summary?.effect || "");
+  const match = SPELL_GLYPHS.find(([needle]) => effect.includes(needle));
+  if (match) return match[1];
+  if (summary?.category === "cure") return "治";
+  if (spell?.target === "utility") return "灯";
+  return "術";
+}
+
+function getOverlayHint(type) {
+  if (type === "combat_spell") return "カードに触れる";
+  if (type === "combat_item") return "小瓶に触れる";
+  if (type === "combat_target" && menuContext.targetType === "enemy") {
+    return menuContext.spellName ? `敵に触れて${SPELLS[menuContext.spellName]?.name || menuContext.spellName}を放つ` : "敵に触れて攻撃";
+  }
+  return "仲間に触れる";
+}
+
 export function renderCombatOverlay() {
   const overlay = document.getElementById("combat-overlay");
   if (!overlay) return;
@@ -114,6 +143,14 @@ export function renderCombatOverlay() {
   title.className = "combat-overlay-title";
   title.textContent = titleText;
   header.appendChild(title);
+  // What to touch next, said where the eye already is.
+  const hint = document.createElement("span");
+  hint.className = "combat-overlay-hint";
+  hint.textContent = getOverlayHint(type);
+  header.appendChild(hint);
+  overlay.dataset.overlayType = type;
+  if (type === "combat_target") overlay.dataset.targetType = menuContext.targetType || "";
+  else delete overlay.dataset.targetType;
   overlay.appendChild(header);
 
   // 2. Create scrollable body
@@ -129,6 +166,20 @@ export function renderCombatOverlay() {
       instructions.setAttribute("aria-live", "polite");
       instructions.textContent = "敵をタップして対象を選択";
       body.appendChild(instructions);
+
+      // The chosen spell stays in hand while the player aims.
+      if (menuContext.spellName && SPELLS[menuContext.spellName]) {
+        const aimed = SPELLS[menuContext.spellName];
+        const aimSummary = getSpellCombatSummary(menuContext.spellName);
+        const aimCard = document.createElement("div");
+        aimCard.className = "combat-aim-card";
+        const aimName = document.createElement("strong");
+        aimName.textContent = aimed.name;
+        const aimMeta = document.createElement("small");
+        aimMeta.textContent = `${aimed.cost}MP・${aimSummary.effect}`;
+        aimCard.append(aimName, aimMeta);
+        body.appendChild(aimCard);
+      }
 
       const accessibilityList = document.createElement("div");
       accessibilityList.className = "combat-target-a11y-list";
@@ -256,6 +307,17 @@ export function renderCombatOverlay() {
         reasonClass = "unavailable";
       }
 
+      const reach = SPELL_REACH[spell.target] || { label: summary.tag, tone: "utility" };
+      card.dataset.reach = reach.tone;
+      const glyph = document.createElement("span");
+      glyph.className = "spell-glyph";
+      glyph.setAttribute("aria-hidden", "true");
+      glyph.textContent = getSpellGlyph(summary, spell);
+      card.appendChild(glyph);
+      const reachTag = document.createElement("span");
+      reachTag.className = "spell-reach";
+      reachTag.textContent = reach.label;
+
       const top = document.createElement("div");
       top.className = "spell-card-top";
       const spellName = document.createElement("span");
@@ -285,6 +347,7 @@ export function renderCombatOverlay() {
         bottom.appendChild(reason);
       }
       card.appendChild(top);
+      card.appendChild(reachTag);
       card.appendChild(bottom);
       card.setAttribute("aria-label", `${spell.name}、${payment.resource === "hp" ? `${payment.cost}HP` : `${spell.cost}MP`}、${summary.effect}${disabled ? "、使用不可" : ""}`);
 
@@ -319,10 +382,18 @@ export function renderCombatOverlay() {
         : "使える道具がありません";
       itemGrid.appendChild(emptyMsg);
     } else {
-      usableItems.forEach(({ itemKey, idx, item }) => {
+      // One vial per kind with a count; using it consumes the first copy.
+      const grouped = [];
+      usableItems.forEach((entry) => {
+        const existing = grouped.find(group => group.itemKey === entry.itemKey);
+        if (existing) existing.count += 1;
+        else grouped.push({ ...entry, count: 1 });
+      });
+      grouped.forEach(({ itemKey, idx, item, count }) => {
         const card = document.createElement("button");
         card.type = "button";
         card.className = "btn combat-item-card item";
+        card.dataset.count = String(count);
 
         const usableCheck = item.campOnly;
         if (usableCheck) {
@@ -336,9 +407,14 @@ export function renderCombatOverlay() {
         const itemDescription = document.createElement("div");
         itemDescription.className = "item-card-desc";
         itemDescription.textContent = item.desc || "消費アイテム";
+        const countBadge = document.createElement("span");
+        countBadge.className = "item-count";
+        countBadge.textContent = `×${count}`;
+        countBadge.setAttribute("aria-hidden", "true");
+        card.appendChild(countBadge);
         card.appendChild(itemName);
         card.appendChild(itemDescription);
-        card.setAttribute("aria-label", `${item.name}${usableCheck ? "、戦闘中は使用不可" : "、使用する"}`);
+        card.setAttribute("aria-label", `${item.name}、${count}個${usableCheck ? "、戦闘中は使用不可" : "、使用する"}`);
 
         if (!usableCheck) {
           card.addEventListener("click", () => {
