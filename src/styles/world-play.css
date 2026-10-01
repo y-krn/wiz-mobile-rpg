@@ -1,0 +1,325 @@
+/* ==========================================================================
+   World play — exploring without a control pad
+   The dungeon fills the screen. Movement, turning, and searching are touches
+   on the world (src/ui/world_gestures.js); the satchel of actions opens from
+   the adventurer's own card. The classic pad stays in the DOM for keyboard
+   and assistive input but takes no space on screen.
+   ========================================================================== */
+
+#game-container.dungeon-first-mode {
+  --world-bottom: 0px;
+}
+
+@media (max-height: 600px) {
+  #game-container.dungeon-first-mode {
+    --world-bottom: 0px;
+  }
+}
+
+/* ---------- The dock dissolves while exploring ---------- */
+#game-container.dungeon-first-mode #controls-panel.explore-mode {
+  bottom: calc(var(--safe-area-bottom) + 84px);
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 0 12px;
+  overflow: visible;
+  background: none;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+@media (max-height: 600px) {
+  #game-container.dungeon-first-mode #controls-panel.explore-mode {
+    height: auto;
+    min-height: 0;
+  }
+}
+
+#game-container.dungeon-first-mode #explore-controls.active {
+  display: block;
+}
+
+/* Visually hidden, still focusable for keyboard and screen readers. */
+#game-container.dungeon-first-mode #explore-controls .dpad {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  transform: none;
+  white-space: nowrap;
+}
+
+#game-container.dungeon-first-mode #explore-controls .dpad:focus-within {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  pointer-events: auto;
+}
+
+/* ---------- The satchel, opened from the adventurer's card ---------- */
+#game-container.dungeon-first-mode #explore-controls #explore-satchel {
+  display: none;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  width: 100%;
+  margin: 0;
+  padding: 6px 4px;
+  pointer-events: auto;
+  transform-origin: 50% 100%;
+}
+
+#game-container.dungeon-first-mode[data-satchel="open"] #explore-controls #explore-satchel {
+  display: grid;
+  animation: satchel-open var(--motion-shell) var(--ease-pop) both;
+}
+
+#game-container.dungeon-first-mode #explore-controls #explore-satchel .btn-action {
+  flex-direction: column;
+  gap: 4px;
+  min-height: 64px;
+  padding: 6px 2px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--dock-parchment);
+  background: none;
+  box-shadow: none;
+  font-size: var(--fs-sm);
+}
+
+#game-container.dungeon-first-mode #explore-controls #explore-satchel .btn-action::before {
+  width: calc(var(--tap-min) * 0.5);
+  height: calc(var(--tap-min) * 0.5);
+}
+
+#game-container.dungeon-first-mode #explore-controls #explore-satchel #btn-search {
+  color: var(--dock-torch);
+}
+
+@keyframes satchel-open {
+  from { opacity: 0; transform: translateY(12px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- The adventurer's card is the handle ---------- */
+#game-container.dungeon-first-mode[data-explore-hud] #character-panel {
+  background: none;
+  box-shadow: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud] #character-panel .character-card {
+  border: 1px solid var(--hud-smoke-edge);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(40, 28, 16, 0.82), rgba(18, 12, 7, 0.86));
+  box-shadow: inset 0 1px 0 rgba(255, 220, 170, 0.14), 0 6px 18px rgba(0, 0, 0, 0.5);
+  color: var(--hud-smoke-ink);
+}
+
+#game-container.dungeon-first-mode[data-explore-hud] #character-panel .character-card * {
+  color: inherit;
+}
+
+/* A leather tab on the card says it opens. */
+#game-container.dungeon-first-mode[data-explore-hud] #character-panel::before {
+  content: "持ち物";
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  z-index: 1;
+  padding: 2px 14px 3px;
+  border: 1px solid var(--hud-smoke-edge);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: rgba(40, 28, 16, 0.92);
+  color: var(--dock-torch);
+  font-family: var(--font-display);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.1em;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+#game-container.dungeon-first-mode[data-explore-hud][data-satchel="open"] #character-panel::before {
+  content: "しまう";
+}
+
+#game-container.dungeon-first-mode[data-explore-hud] #character-panel:focus-visible {
+  outline: 2px solid var(--dock-torch);
+  outline-offset: 2px;
+}
+
+/* The floor at your feet sinks into shadow under the card. */
+#game-container.dungeon-first-mode #viewport-panel::before {
+  background:
+    radial-gradient(ellipse 95% 60% at 50% 46%, rgba(20, 12, 4, 0) 40%, rgba(20, 12, 4, 0.36) 72%, rgba(10, 6, 2, 0.72) 100%),
+    linear-gradient(180deg, rgba(10, 6, 2, 0.5), rgba(10, 6, 2, 0) 22%, rgba(10, 6, 2, 0) 76%, rgba(6, 5, 7, 0.7) 100%);
+}
+
+/* ---------- Combat keeps its commands, floating over the same full world ---------- */
+#game-container.dungeon-first-mode #controls-panel.combat-mode {
+  background: linear-gradient(180deg, rgba(6, 5, 7, 0) 0%, rgba(6, 5, 7, 0.6) 24%, rgba(6, 5, 7, 0.82) 100%);
+  box-shadow: none;
+}
+
+#game-container.dungeon-first-mode[data-combat-context="active"] #character-panel {
+  background: rgba(6, 5, 7, 0.82);
+  box-shadow: 0 0 0 12px rgba(6, 5, 7, 0.82), 0 48px 0 12px rgba(6, 5, 7, 0.82);
+}
+
+/* ---------- Touch answers from the world ---------- */
+.world-touch {
+  position: absolute;
+  z-index: 6;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.world-touch--tap {
+  border: 2px solid rgba(255, 196, 120, 0.85);
+  box-shadow: 0 0 18px rgba(255, 170, 80, 0.55), inset 0 0 12px rgba(255, 170, 80, 0.35);
+  animation: world-touch-tap 380ms ease-out forwards;
+}
+
+.world-touch--turn-left::after,
+.world-touch--turn-right::after,
+.world-touch--forward::after {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  background: rgba(255, 214, 160, 0.95);
+  -webkit-mask: var(--dock-icon-left) center / contain no-repeat;
+  mask: var(--dock-icon-left) center / contain no-repeat;
+}
+
+.world-touch--turn-right::after { transform: scaleX(-1); }
+.world-touch--forward::after { transform: rotate(90deg); }
+
+.world-touch--hold {
+  border: 2px solid rgba(255, 196, 120, 0.25);
+  background: conic-gradient(rgba(255, 190, 110, 0.85) var(--hold, 0%), transparent 0);
+  -webkit-mask: radial-gradient(circle, transparent 26px, #000 27px);
+  mask: radial-gradient(circle, transparent 26px, #000 27px);
+  opacity: 0;
+  animation: world-touch-hold 520ms linear 120ms forwards;
+}
+
+@property --hold {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+.world-touch--search {
+  width: 160px;
+  height: 160px;
+  margin: -80px 0 0 -80px;
+  background: radial-gradient(circle, rgba(255, 210, 140, 0.55), rgba(255, 170, 80, 0.18) 45%, transparent 70%);
+  animation: world-touch-search 640ms ease-out forwards;
+}
+
+@keyframes world-touch-tap {
+  from { opacity: 1; transform: scale(0.5); }
+  to { opacity: 0; transform: scale(1.25); }
+}
+
+@keyframes world-touch-hold {
+  0% { opacity: 1; --hold: 0%; }
+  100% { opacity: 1; --hold: 100%; }
+}
+
+@keyframes world-touch-search {
+  from { opacity: 1; transform: scale(0.3); }
+  to { opacity: 0; transform: scale(1.4); }
+}
+
+/* ---------- First steps: how to move without a pad ---------- */
+.world-coach {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+  background: radial-gradient(ellipse at 50% 45%, rgba(10, 6, 2, 0.72), rgba(4, 3, 2, 0.92));
+  color: #ecdcb8;
+  font-family: var(--font-display);
+  text-align: center;
+  animation: satchel-open 360ms ease-out both;
+}
+
+.world-coach-title {
+  margin: 0;
+  color: var(--dock-torch, #f2b24a);
+  font-size: 18px;
+  letter-spacing: 0.08em;
+}
+
+.world-coach-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  font-size: 14px;
+}
+
+.world-coach-list li {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  align-items: center;
+}
+
+.world-coach-list em {
+  grid-column: 2;
+  color: #c9a36b;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.world-coach-glyph {
+  grid-row: 1 / span 2;
+  width: 36px;
+  height: 36px;
+  border: 2px solid rgba(255, 196, 120, 0.7);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(255, 170, 80, 0.4);
+}
+
+.world-coach-glyph[data-glyph="hold"] {
+  background: conic-gradient(rgba(255, 190, 110, 0.85) 70%, transparent 0);
+  -webkit-mask: radial-gradient(circle, transparent 12px, #000 13px);
+  mask: radial-gradient(circle, transparent 12px, #000 13px);
+}
+
+.world-coach-glyph[data-glyph="satchel"] {
+  border-radius: 6px;
+}
+
+.world-coach-dismiss {
+  margin: 8px 0 0;
+  color: #8a7a5e;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  animation: torch-breath 2.8s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-touch,
+  .world-coach,
+  .world-coach-dismiss,
+  #game-container.dungeon-first-mode[data-satchel="open"] #explore-controls #explore-satchel {
+    animation: none;
+  }
+}

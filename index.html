@@ -96,12 +96,12 @@
           <div class="dpad">
             <button id="btn-turn-around" class="btn btn-neon btn-dpad" title="後ろを向く (Q)" aria-label="後ろを向く">反転</button>
             <button id="btn-move-forward" class="btn btn-neon btn-dpad" title="前進" aria-label="前進" data-primary-action="forward">進む</button>
-            <button id="btn-search" class="btn btn-neon btn-dpad" title="調べる" aria-label="調べる">調べる</button>
             <button id="btn-turn-left" class="btn btn-neon btn-dpad" title="左を向く" aria-label="左を向く">◀</button>
             <button id="btn-move-backward" class="btn btn-neon btn-dpad" title="後退" aria-label="後退">▼</button>
             <button id="btn-turn-right" class="btn btn-neon btn-dpad" title="右を向く" aria-label="右を向く">▶</button>
           </div>
-          <div class="action-grid">
+          <div id="explore-satchel" class="action-grid" aria-label="持ち物袋">
+            <button id="btn-search" class="btn btn-neon btn-action" title="調べる" aria-label="調べる">調べる</button>
             <button id="btn-inspect" class="btn btn-neon btn-action" aria-label="バッグ">バッグ</button>
             <button id="btn-cast" class="btn btn-neon btn-action" aria-label="魔法">魔法</button>
             <button id="btn-item" class="btn btn-neon btn-action">装備</button>
@@ -211,7 +211,7 @@
       </div>
 
       <!-- Solo character HUD (Bottom) -->
-      <footer id="character-panel" data-shell-region="minimal-hud" aria-label="冒険者の状態">
+      <footer id="character-panel" data-shell-region="minimal-hud" aria-label="冒険者の状態" aria-controls="explore-satchel">
         <div id="character-hud"></div>
       </footer>
     </div>

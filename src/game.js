@@ -22,6 +22,7 @@ import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
 import { isFullMapOpen } from "./ui/full_map_overlay.js";
 import { handleMove, enterDungeon, resumePendingCampEntry } from "./movement.js";
 import { handleExploreAction, handleTownOption } from "./menu.js";
+import { initWorldGestures } from "./ui/world_gestures.js";
 import { selectCombatAction, cancelCombatAction, toggleCombatAuto, repeatLastCombatAction, resumeCombat } from "./combat.js";
 import { commitCombatTarget } from "./combat_ui/combat_overlay.js";
 
@@ -327,32 +328,6 @@ function bindCanvasTargeting(canvas) {
   });
 }
 
-// Exploration swipes on the world itself: drag the view the way you want to
-// look, push it up to walk on, pull it down to step back. Only the plain
-// exploration view takes swipes; menus, events, and combat keep their own input.
-const SWIPE_MIN_PX = 28;
-function bindExploreSwipes(canvas) {
-  if (!canvas) return;
-  let start = null;
-  canvas.addEventListener("pointerdown", (event) => {
-    if (!event.isPrimary) return;
-    start = { x: event.clientX, y: event.clientY, id: event.pointerId };
-  });
-  canvas.addEventListener("pointercancel", () => { start = null; });
-  canvas.addEventListener("pointerup", (event) => {
-    const origin = start;
-    start = null;
-    if (!origin || origin.id !== event.pointerId) return;
-    if (document.getElementById("game-container")?.dataset.exploreHud === undefined) return;
-    const dx = event.clientX - origin.x;
-    const dy = event.clientY - origin.y;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_MIN_PX) return;
-    event.preventDefault();
-    if (Math.abs(dx) > Math.abs(dy) * 1.2) handleMove(dx < 0 ? "turn-right" : "turn-left");
-    else if (Math.abs(dy) > Math.abs(dx) * 1.2) handleMove(dy < 0 ? "forward" : "backward");
-  });
-}
-
 function bindButtons() {
   if (buttonsBound) return;
   buttonsBound = true;
@@ -360,7 +335,7 @@ function bindButtons() {
   document.getElementById("trap-controls").addEventListener("click", blockGuardedControlsEvent, true);
 
   bindCanvasTargeting(document.getElementById("dungeon-canvas"));
-  bindExploreSwipes(document.getElementById("dungeon-canvas"));
+  initWorldGestures({ onMove: handleMove, onSearch: () => handleExploreAction("search") });
 
   // Exploration (pointerdown for touch/mouse, keydown for keyboard focus space/enter)
   const bindPress = (id, action) => {
