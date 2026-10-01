@@ -71,13 +71,13 @@ const PARTY_HIT_MS = 420;
 // fills the screen exactly where the new view's camera cell will be, with a
 // footfall dip and sway, so the cut lands on a matching picture. Backward is
 // the same dolly in reverse on the incoming view. Turns swing the head: the
-// outgoing view sweeps off toward the turn into darkness and the new facing
-// swings in from the other side.
+// outgoing view sweeps off toward the turn and the new facing swings in from
+// the other side.
 export const NAVIGATION_MOTION = Object.freeze({
   durationMs: Object.freeze({ forward: 340, backward: 320, "turn-left": 280, "turn-right": 280, "turn-around": 420 }),
   turnScale: 0.08,
   turnSweep: 0.62,
-  turnDim: 0.55,
+  turnDim: 0.35,
   bobRatio: 0.018,
   swayRatio: 0.006
 });
@@ -612,8 +612,8 @@ export class PixiDungeonRenderer {
       return;
     }
     // Turning left sweeps the view to the right, and the new facing arrives
-    // from the left; turning right mirrors it. The gap opened mid-turn is the
-    // dark beyond the torchlight, not a second corridor.
+    // from the left; turning right mirrors it. The gap opened mid-turn shows
+    // the renderer background, never a second corridor.
     const direction = transition.action === "turn-right" ? -1 : 1;
     const outgoing = progress < 0.5;
     const phase = outgoing ? progress * 2 : 1 - (progress - 0.5) * 2;
@@ -648,8 +648,6 @@ export class PixiDungeonRenderer {
     const renderInput = this.resolveRenderInput(input);
     const startedAt = performance.now();
     const sceneInput = this.resolveNavigationFrame(renderInput);
-    const background = this.app.renderer?.background;
-    if (background) background.color = this.getScenePalette(sceneInput).background;
     this.clearSceneRoot(this.scene);
     this.drawScene(sceneInput, this.scene);
     // Navigation motion transforms the one scene root; combat feedback is
@@ -699,20 +697,15 @@ export class PixiDungeonRenderer {
 
   getScenePalette(renderInput) {
     const wallColor = safeColor(renderInput.visual.wallColor, "#58d6e8");
-    // The town is daylight; everywhere below it is lit by the party's torch.
-    const mode = renderInput.sceneVisibility?.showTownBackground ? "day" : "torch";
-    if (this.scenePalette?.accent !== wallColor || this.scenePalette?.mode !== mode) {
-      this.scenePalette = getPixelScenePalette(wallColor, mode);
-    }
+    if (this.scenePalette?.accent !== wallColor) this.scenePalette = getPixelScenePalette(wallColor);
     return this.scenePalette;
   }
 
   getPixelSurfaces(palette) {
-    const key = `${palette.mode}:${palette.accent}`;
-    let surfaces = this.pixelSurfaces.get(key);
+    let surfaces = this.pixelSurfaces.get(palette.accent);
     if (!surfaces) {
       surfaces = createPixelSurfaceTextures(palette);
-      this.pixelSurfaces.set(key, surfaces);
+      this.pixelSurfaces.set(palette.accent, surfaces);
       this.resourceStats.pixelSurfaceTextureCount = this.pixelSurfaces.size * 3;
     }
     return surfaces;
@@ -765,7 +758,7 @@ export class PixiDungeonRenderer {
         : width * (0.82 + ((Math.sin(seed) + 1) / 2) * 0.16);
       const y = height * (0.08 + ((Math.sin(seed * 1.7) + 1) / 2) * 0.84);
       const size = 2 + Math.round(((Math.sin(seed * 2.3) + 1) / 2) * 2);
-      drawRect(fx, Math.round(x), Math.round(y), size, size, palette.mote, palette.mode === "torch" ? 0.32 : 0.7);
+      drawRect(fx, Math.round(x), Math.round(y), size, size, "#ffffff", 0.7);
     }
   }
 
@@ -870,8 +863,8 @@ export class PixiDungeonRenderer {
 
     for (let z = 3; z >= 0; z -= 1) {
       const width = projection.xr[z] - projection.xl[z];
-      const nearFog = getDepthFog(z, palette);
-      const farFog = getDepthFog(z + 1, palette);
+      const nearFog = getDepthFog(z);
+      const farFog = getDepthFog(z + 1);
       const spanFog = (nearFog + farFog) / 2;
       for (const column of COLUMN_ORDER) {
         if (Math.abs(column) === 2 && z < 2) continue;
@@ -948,8 +941,8 @@ export class PixiDungeonRenderer {
       { x: x - width / 2, y: bottom }
     ];
     addTexturedQuad(walls, surfaces.wall, corners);
-    addPolygon(walls, corners, palette.fog, getDepthFog(z, palette), { color: palette.ink, width: 2, alpha: 0.85 });
-    addLine(walls, [corners[0], corners[1]], { color: palette.trim, width: 2.5, alpha: 1 });
+    addPolygon(walls, corners, palette.fog, getDepthFog(z), { color: palette.ink, width: 2, alpha: 0.85 });
+    addLine(walls, [corners[0], corners[1]], { color: palette.accent, width: 2.5, alpha: 1 });
   }
 
   drawSideWall(plane, nextPlane, side, palette, surfaces, fog, recess = 0) {
@@ -962,7 +955,7 @@ export class PixiDungeonRenderer {
     addTexturedQuad(walls, surfaces.wall, corners, side === "left" ? SIDE_WALL_TINT.left : SIDE_WALL_TINT.right);
     addPolygon(walls, corners, palette.fog, fog);
     if (recess > 0) addPolygon(walls, corners, palette.ink, recess);
-    addLine(walls, [near.top, far.top], { color: palette.trim, width: 2.5, alpha: 1 });
+    addLine(walls, [near.top, far.top], { color: palette.accent, width: 2.5, alpha: 1 });
     addLine(walls, [near.bottom, far.bottom], { color: palette.ink, width: 2, alpha: 0.5 });
     addLine(walls, [far.top, far.bottom], { color: palette.ink, width: 2, alpha: 0.42 });
   }
@@ -981,7 +974,7 @@ export class PixiDungeonRenderer {
     else addPolygon(walls, corners, palette.fog, fog);
     if (recess > 0) drawProjectedFrontWall(walls, plane, ceilingStyle, palette.ink, recess);
     drawProjectedFrontWall(walls, plane, ceilingStyle, palette.fog, 0, { color: palette.ink, width: 2, alpha: 0.5 });
-    addLine(walls, [corners[0], corners[1]], { color: palette.trim, width: 2.5, alpha: 1 });
+    addLine(walls, [corners[0], corners[1]], { color: palette.accent, width: 2.5, alpha: 1 });
   }
 
   drawLandmark(cell, plane, color, landmarks = {}) {
@@ -1288,8 +1281,6 @@ export class PixiDungeonRenderer {
     const band = this.viewport.height * 0.06;
     drawRect(fx, 0, horizon - band, this.viewport.width, band * 2, palette.fog, alpha);
     // Light shafts: stepped translucent columns keep the pixel-art cadence.
-    // Underground there is no sky to cast them.
-    if (palette.mode === "torch") return;
     const sx = this.viewport.width / PIXI_VIEW_W;
     [0.34, 0.58].forEach((position, index) => {
       const x = Math.round(this.viewport.width * position);

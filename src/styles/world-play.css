@@ -3,17 +3,17 @@
    The dungeon fills the screen. Movement, turning, and searching are touches
    on the world (src/ui/world_gestures.js); the satchel of actions opens from
    the adventurer's own card. The classic pad stays in the DOM for keyboard
-   and assistive input but takes no space on screen.
+   and assistive input but takes no space on screen. Colours are the shared
+   storybook tokens; this file only changes layout and interaction.
    ========================================================================== */
 
 #game-container.dungeon-first-mode {
-  --world-bottom: 0px;
-}
-
-@media (max-height: 600px) {
-  #game-container.dungeon-first-mode {
-    --world-bottom: 0px;
-  }
+  --dock-icon-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M5 1h1v1h-1zM4 2h2v1h-2zM3 3h3v1h-3zM2 4h10v1h-10zM1 5h11v1h-11zM1 6h11v1h-11zM2 7h10v1h-10zM3 8h3v1h-3zM4 9h2v1h-2zM5 10h1v1h-1z'/%3E%3C/svg%3E");
+  --dock-icon-bag: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M4 0h4v1h-4zM3 1h1v1h-1zM8 1h1v1h-1zM3 2h6v1h-6zM2 3h8v1h-8zM1 4h10v1h-10zM1 5h3v1h-3zM8 5h3v1h-3zM1 6h4v1h-4zM7 6h4v1h-4zM1 7h10v1h-10zM1 8h10v1h-10zM1 9h10v1h-10zM2 10h8v1h-8z'/%3E%3C/svg%3E");
+  --dock-icon-magic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M5 0h1v1h-1zM5 1h1v1h-1zM4 2h3v1h-3zM0 3h5v1h-5zM6 3h5v1h-5zM4 4h3v1h-3zM5 5h1v1h-1zM9 5h1v1h-1zM5 6h1v1h-1zM8 6h3v1h-3zM9 7h1v1h-1zM2 8h1v1h-1zM1 9h3v1h-3zM2 10h1v1h-1z'/%3E%3C/svg%3E");
+  --dock-icon-equip: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M10 0h2v1h-2zM9 1h3v1h-3zM8 2h3v1h-3zM7 3h3v1h-3zM6 4h3v1h-3zM1 5h1v1h-1zM5 5h3v1h-3zM2 6h1v1h-1zM4 6h3v1h-3zM3 7h3v1h-3zM3 8h2v1h-2zM2 9h1v1h-1zM5 9h1v1h-1zM1 10h1v1h-1zM0 11h1v1h-1z'/%3E%3C/svg%3E");
+  --dock-icon-manage: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M1 0h10v1h-10zM0 1h1v1h-1zM11 1h1v1h-1zM1 2h9v1h-9zM1 3h1v1h-1zM9 3h1v1h-1zM1 4h1v1h-1zM3 4h5v1h-5zM9 4h1v1h-1zM1 5h1v1h-1zM9 5h1v1h-1zM1 6h1v1h-1zM3 6h4v1h-4zM9 6h1v1h-1zM1 7h1v1h-1zM9 7h1v1h-1zM1 8h1v1h-1zM3 8h5v1h-5zM9 8h1v1h-1zM1 9h1v1h-1zM9 9h1v1h-1zM0 10h11v1h-11z'/%3E%3C/svg%3E");
+  --dock-icon-search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M2 0h4v1h-4zM1 1h1v1h-1zM6 1h1v1h-1zM0 2h1v1h-1zM3 2h1v1h-1zM7 2h1v1h-1zM0 3h1v1h-1zM2 3h1v1h-1zM7 3h1v1h-1zM0 4h1v1h-1zM7 4h1v1h-1zM0 5h1v1h-1zM7 5h1v1h-1zM1 6h1v1h-1zM6 6h1v1h-1zM2 7h5v1h-5zM6 8h3v1h-3zM7 9h3v1h-3zM8 10h3v1h-3zM9 11h2v1h-2z'/%3E%3C/svg%3E");
 }
 
 /* ---------- The dock dissolves while exploring ---------- */
@@ -26,11 +26,13 @@
   overflow: visible;
   background: none;
   box-shadow: none;
+  backdrop-filter: none;
   pointer-events: none;
 }
 
 @media (max-height: 600px) {
   #game-container.dungeon-first-mode #controls-panel.explore-mode {
+    bottom: calc(var(--safe-area-bottom) + 78px);
     height: auto;
     min-height: 0;
   }
@@ -47,7 +49,6 @@
   height: 1px;
   overflow: hidden;
   clip-path: inset(50%);
-  transform: none;
   white-space: nowrap;
 }
 
@@ -63,9 +64,14 @@
 #game-container.dungeon-first-mode #explore-controls #explore-satchel {
   display: none;
   grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sp-xs);
   width: 100%;
   margin: 0;
-  padding: 6px 4px;
+  padding: var(--sp-sm);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-float);
   pointer-events: auto;
   transform-origin: 50% 100%;
 }
@@ -80,21 +86,30 @@
   gap: 4px;
   min-height: 64px;
   padding: 6px 2px;
-  border: 0;
-  border-radius: 6px;
-  color: var(--dock-parchment);
-  background: none;
-  box-shadow: none;
   font-size: var(--fs-sm);
 }
 
 #game-container.dungeon-first-mode #explore-controls #explore-satchel .btn-action::before {
-  width: calc(var(--tap-min) * 0.5);
-  height: calc(var(--tap-min) * 0.5);
+  content: "";
+  flex: 0 0 auto;
+  width: calc(var(--tap-min) * 0.45);
+  height: calc(var(--tap-min) * 0.45);
+  background-color: currentColor;
+  -webkit-mask: var(--world-icon) center / contain no-repeat;
+  mask: var(--world-icon) center / contain no-repeat;
 }
 
+#game-container.dungeon-first-mode #btn-search { --world-icon: var(--dock-icon-search); }
+#game-container.dungeon-first-mode #btn-inspect { --world-icon: var(--dock-icon-bag); }
+#game-container.dungeon-first-mode #btn-cast { --world-icon: var(--dock-icon-magic); }
+#game-container.dungeon-first-mode #btn-item { --world-icon: var(--dock-icon-equip); }
+#game-container.dungeon-first-mode #btn-explore-management { --world-icon: var(--dock-icon-manage); }
+
 #game-container.dungeon-first-mode #explore-controls #explore-satchel #btn-search {
-  color: var(--dock-torch);
+  --btn-edge: rgba(199, 119, 26, 0.35);
+  border-color: rgba(199, 119, 26, 0.6);
+  color: var(--neon-amber);
+  background: var(--tint-amber);
 }
 
 @keyframes satchel-open {
@@ -103,6 +118,8 @@
 }
 
 /* ---------- The adventurer's card is the handle ---------- */
+/* With no dock above it, the card no longer continues a sheet: the floor
+   runs on behind it. */
 #game-container.dungeon-first-mode[data-explore-hud] #character-panel {
   background: none;
   box-shadow: none;
@@ -110,31 +127,19 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-#game-container.dungeon-first-mode[data-explore-hud] #character-panel .character-card {
-  border: 1px solid var(--hud-smoke-edge);
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(40, 28, 16, 0.82), rgba(18, 12, 7, 0.86));
-  box-shadow: inset 0 1px 0 rgba(255, 220, 170, 0.14), 0 6px 18px rgba(0, 0, 0, 0.5);
-  color: var(--hud-smoke-ink);
-}
-
-#game-container.dungeon-first-mode[data-explore-hud] #character-panel .character-card * {
-  color: inherit;
-}
-
-/* A leather tab on the card says it opens. */
+/* A tab on the card says it opens. */
 #game-container.dungeon-first-mode[data-explore-hud] #character-panel::before {
   content: "持ち物";
   position: absolute;
-  top: -12px;
+  top: -10px;
   left: 50%;
   z-index: 1;
   padding: 2px 14px 3px;
-  border: 1px solid var(--hud-smoke-edge);
+  border: 1.5px solid var(--border-strong);
   border-bottom: 0;
-  border-radius: 6px 6px 0 0;
-  background: rgba(40, 28, 16, 0.92);
-  color: var(--dock-torch);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--surface-raised);
+  color: var(--neon-cyan);
   font-family: var(--font-display);
   font-size: var(--fs-xs);
   letter-spacing: 0.1em;
@@ -147,26 +152,21 @@
 }
 
 #game-container.dungeon-first-mode[data-explore-hud] #character-panel:focus-visible {
-  outline: 2px solid var(--dock-torch);
+  outline: 2px solid var(--neon-cyan);
   outline-offset: 2px;
 }
 
-/* The floor at your feet sinks into shadow under the card. */
-#game-container.dungeon-first-mode #viewport-panel::before {
-  background:
-    radial-gradient(ellipse 95% 60% at 50% 46%, rgba(20, 12, 4, 0) 40%, rgba(20, 12, 4, 0.36) 72%, rgba(10, 6, 2, 0.72) 100%),
-    linear-gradient(180deg, rgba(10, 6, 2, 0.5), rgba(10, 6, 2, 0) 22%, rgba(10, 6, 2, 0) 76%, rgba(6, 5, 7, 0.7) 100%);
+/* ---------- The world is the controller ---------- */
+#game-container.dungeon-first-mode[data-explore-hud] #dungeon-canvas {
+  touch-action: none;
+  /* Standing still is not frozen: the view rises and settles with each breath. */
+  transform-origin: 50% 45%;
+  animation: explorer-breath 4.6s ease-in-out infinite;
 }
 
-/* ---------- Combat keeps its commands, floating over the same full world ---------- */
-#game-container.dungeon-first-mode #controls-panel.combat-mode {
-  background: linear-gradient(180deg, rgba(6, 5, 7, 0) 0%, rgba(6, 5, 7, 0.6) 24%, rgba(6, 5, 7, 0.82) 100%);
-  box-shadow: none;
-}
-
-#game-container.dungeon-first-mode[data-combat-context="active"] #character-panel {
-  background: rgba(6, 5, 7, 0.82);
-  box-shadow: 0 0 0 12px rgba(6, 5, 7, 0.82), 0 48px 0 12px rgba(6, 5, 7, 0.82);
+@keyframes explorer-breath {
+  0%, 100% { transform: scale(1.012) translateY(0); }
+  50% { transform: scale(1.016) translateY(-2px); }
 }
 
 /* ---------- Touch answers from the world ---------- */
@@ -181,8 +181,9 @@
 }
 
 .world-touch--tap {
-  border: 2px solid rgba(255, 196, 120, 0.85);
-  box-shadow: 0 0 18px rgba(255, 170, 80, 0.55), inset 0 0 12px rgba(255, 170, 80, 0.35);
+  border: 2px solid var(--neon-cyan);
+  background: rgba(255, 253, 248, 0.35);
+  box-shadow: 0 0 0 3px rgba(255, 253, 248, 0.7), var(--neon-glow-cyan);
   animation: world-touch-tap 380ms ease-out forwards;
 }
 
@@ -192,7 +193,7 @@
   content: "";
   position: absolute;
   inset: 18px;
-  background: rgba(255, 214, 160, 0.95);
+  background: var(--neon-cyan);
   -webkit-mask: var(--dock-icon-left) center / contain no-repeat;
   mask: var(--dock-icon-left) center / contain no-repeat;
 }
@@ -201,8 +202,8 @@
 .world-touch--forward::after { transform: rotate(90deg); }
 
 .world-touch--hold {
-  border: 2px solid rgba(255, 196, 120, 0.25);
-  background: conic-gradient(rgba(255, 190, 110, 0.85) var(--hold, 0%), transparent 0);
+  border: 2px solid rgba(31, 143, 160, 0.25);
+  background: conic-gradient(var(--neon-cyan) var(--hold, 0%), rgba(255, 253, 248, 0.6) 0);
   -webkit-mask: radial-gradient(circle, transparent 26px, #000 27px);
   mask: radial-gradient(circle, transparent 26px, #000 27px);
   opacity: 0;
@@ -219,7 +220,7 @@
   width: 160px;
   height: 160px;
   margin: -80px 0 0 -80px;
-  background: radial-gradient(circle, rgba(255, 210, 140, 0.55), rgba(255, 170, 80, 0.18) 45%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 253, 248, 0.8), rgba(31, 143, 160, 0.22) 45%, transparent 70%);
   animation: world-touch-search 640ms ease-out forwards;
 }
 
@@ -249,8 +250,9 @@
   justify-content: center;
   gap: 18px;
   padding: 24px;
-  background: radial-gradient(ellipse at 50% 45%, rgba(10, 6, 2, 0.72), rgba(4, 3, 2, 0.92));
-  color: #ecdcb8;
+  background: rgba(255, 250, 241, 0.92);
+  backdrop-filter: blur(4px);
+  color: var(--text-primary);
   font-family: var(--font-display);
   text-align: center;
   animation: satchel-open 360ms ease-out both;
@@ -258,7 +260,7 @@
 
 .world-coach-title {
   margin: 0;
-  color: var(--dock-torch, #f2b24a);
+  color: var(--neon-cyan);
   font-size: 18px;
   letter-spacing: 0.08em;
 }
@@ -283,7 +285,7 @@
 
 .world-coach-list em {
   grid-column: 2;
-  color: #c9a36b;
+  color: var(--text-secondary);
   font-size: 12px;
   font-style: normal;
 }
@@ -292,33 +294,32 @@
   grid-row: 1 / span 2;
   width: 36px;
   height: 36px;
-  border: 2px solid rgba(255, 196, 120, 0.7);
+  border: 2px solid var(--neon-cyan);
   border-radius: 50%;
-  box-shadow: 0 0 12px rgba(255, 170, 80, 0.4);
+  background: var(--tint-cyan);
 }
 
 .world-coach-glyph[data-glyph="hold"] {
-  background: conic-gradient(rgba(255, 190, 110, 0.85) 70%, transparent 0);
+  background: conic-gradient(var(--neon-cyan) 70%, var(--tint-cyan) 0);
   -webkit-mask: radial-gradient(circle, transparent 12px, #000 13px);
   mask: radial-gradient(circle, transparent 12px, #000 13px);
 }
 
 .world-coach-glyph[data-glyph="satchel"] {
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .world-coach-dismiss {
   margin: 8px 0 0;
-  color: #8a7a5e;
+  color: var(--text-tertiary);
   font-size: 12px;
   letter-spacing: 0.2em;
-  animation: torch-breath 2.8s steps(1, end) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .world-touch,
   .world-coach,
-  .world-coach-dismiss,
+  #game-container.dungeon-first-mode[data-explore-hud] #dungeon-canvas,
   #game-container.dungeon-first-mode[data-satchel="open"] #explore-controls #explore-satchel {
     animation: none;
   }

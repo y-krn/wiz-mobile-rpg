@@ -74,8 +74,6 @@ to verify the change.
 | Archives and codex overlays | `src/styles/overlays-archives.css` |
 | Full-floor map overlay | `src/styles/overlays-map.css` |
 | Touch behavior and bottom action bars | `src/styles/mobile-touch.css` |
-| Explore dock dungeon skin (stone, belt, torch plate) | `src/styles/explore-dock.css` |
-| Dungeon HUD skin (sign, parchment, compass, vignette, combat stone) | `src/styles/dungeon-hud.css` |
 | Floor themes and viewport effects | `src/styles/floor-themes.css` |
 
 ## Implementation Lookup
