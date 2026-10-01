@@ -1,11 +1,27 @@
 import { FORCE_DAMAGE_MULTIPLIER } from "./trap_rules.js";
 import { getCharMaxHp, getCharMaxMp } from "./character_stats.js";
+import { ITEMS } from "../data/items.js";
+import { isSpecialOrQuestItem } from "./item_rules.js";
 
 // Chest traps resolve at full strength only: a chest is either disarmed
 // automatically on opening, disarmed with a kit, or its trap fires.
 const CHEST_POISON_NEEDLE_DAMAGE = 12;
-const CHEST_GAS_BOMB_RANGE = Object.freeze({ min: 5, range: 8 });
 const CHEST_FLASH_BLIND_CHANCE = 0.60;
+// Corrosion never takes the retreat item or special/quest/progression items.
+const CORROSION_PROTECTED_ITEM_IDS = new Set(["TOWN_PORTAL"]);
+
+// Corrosion destroys one carried consumable. Only plain usable item keys in
+// the bag are candidates; equipment is never touched.
+export function getCorrosionCandidateIndexes(inventory = []) {
+  const indexes = [];
+  (Array.isArray(inventory) ? inventory : []).forEach((entry, index) => {
+    if (typeof entry !== "string") return;
+    if (CORROSION_PROTECTED_ITEM_IDS.has(entry) || isSpecialOrQuestItem(entry)) return;
+    if (ITEMS[entry]?.type !== "usable") return;
+    indexes.push(index);
+  });
+  return indexes;
+}
 export const B5_FLAME_TRAP_DAMAGE_PROFILE = "b5-flame";
 const FLOOR_TRAP_DAMAGE_PROFILES = Object.freeze({
   [B5_FLAME_TRAP_DAMAGE_PROFILE]: Object.freeze({ min: 8, max: 16 })
@@ -31,6 +47,7 @@ export function applyTrapGuardToEffect(effect, { trapGuard = 0 } = {}) {
 export function resolveChestTrapEffect({
   trap,
   character = null,
+  inventory = [],
   poisonWard = 0,
   rng = Math.random
 }) {
@@ -40,7 +57,10 @@ export function resolveChestTrapEffect({
     poisonTriggered: false,
     poisonResisted: false,
     blinded: false,
-    teleported: false
+    teleported: false,
+    corrodedIndex: -1,
+    corrodedItem: null,
+    mimic: false
   };
 
   if (trap === "poison needle") {
@@ -48,13 +68,17 @@ export function resolveChestTrapEffect({
     effect.poisonTriggered = true;
     const hpAfter = Math.max(0, (character?.hp || 0) - effect.damage);
     effect.poisonResisted = hpAfter > 0 && poisonWard > 0 && rng() * 100 < poisonWard;
-  } else if (trap === "gas bomb") {
-    const { min, range } = CHEST_GAS_BOMB_RANGE;
-    if (character && character.status !== "dead") {
-      effect.damage = Math.floor(rng() * range) + min;
+  } else if (trap === "corrosion") {
+    const candidates = getCorrosionCandidateIndexes(inventory);
+    if (candidates.length > 0) {
+      const index = candidates[Math.min(candidates.length - 1, Math.floor(rng() * candidates.length))];
+      effect.corrodedIndex = index;
+      effect.corrodedItem = inventory[index];
     }
   } else if (trap === "teleporter") {
     effect.teleported = true;
+  } else if (trap === "mimic") {
+    effect.mimic = true;
   } else if (trap === "flash bomb") {
     effect.blinded = character?.status === "ok" && rng() < CHEST_FLASH_BLIND_CHANCE;
   }
@@ -66,18 +90,12 @@ function isLivingCharacter(char) {
   return char?.status !== "dead" && Number(char?.hp) > 0;
 }
 
-function uniformAtLeastProbability(min, range, hp) {
-  const max = min + range - 1;
-  if (hp <= min) return 1;
-  if (hp > max) return 0;
-  return (max - hp + 1) / range;
-}
-
 // 宝箱罠効果を乱数消費なしで期待値化する。riskは異種効果を共通通貨へ
 // 換算できないため、HP割合・致死・各状態/転送確率の最大成分を採用する保守近似。
 export function calculateChestTrapExpectedRisk({
   trap,
   character = null,
+  inventory = [],
   poisonWard = 0
 } = {}) {
   const effect = {
@@ -86,6 +104,8 @@ export function calculateChestTrapExpectedRisk({
     poisonProbability: 0,
     blindProbability: 0,
     teleportProbability: 0,
+    itemLossProbability: 0,
+    combatProbability: 0,
     fatalityProbability: 0,
     maxHp: 0,
     risk: 0
@@ -105,14 +125,13 @@ export function calculateChestTrapExpectedRisk({
         : 0;
       effect.fatalityProbability = hpAfter <= 0 ? 1 : 0;
     }
-  } else if (trap === "gas bomb") {
-    if (alive) {
-      const { min, range } = CHEST_GAS_BOMB_RANGE;
-      effect.expectedDamageHp = min + (range - 1) / 2;
-      effect.fatalityProbability = uniformAtLeastProbability(min, range, character.hp);
-    }
+  } else if (trap === "corrosion") {
+    effect.itemLossProbability = getCorrosionCandidateIndexes(inventory).length > 0 ? 1 : 0;
   } else if (trap === "teleporter") {
     effect.teleportProbability = 1;
+  } else if (trap === "mimic") {
+    // The fight's outcome is not a trap formula; the caller weighs it.
+    effect.combatProbability = 1;
   } else if (trap === "flash bomb") {
     effect.blindProbability = alive && character.status === "ok" ? CHEST_FLASH_BLIND_CHANCE : 0;
   }
@@ -125,6 +144,8 @@ export function calculateChestTrapExpectedRisk({
     effect.poisonProbability,
     effect.blindProbability,
     effect.teleportProbability,
+    effect.itemLossProbability,
+    effect.combatProbability,
     effect.fatalityProbability
   ));
   return effect;

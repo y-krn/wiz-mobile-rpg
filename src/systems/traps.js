@@ -6,6 +6,7 @@ import { dungeonRenderer as renderer } from "../renderer_runtime.js";
 import { createRng } from "../seed_rng.js";
 import { descendToFloor, findCellCoordsByType } from "../movement.js";
 import { DX, DY, getCharAffixSum, getCharTrapBonus } from "../data.js";
+import { getFloorTrapCodexId } from "../state/codex_trap_ids.js";
 import { armControlsGuard } from "../controls_guard.js";
 import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
 import {
@@ -17,7 +18,7 @@ import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "../rules/trap_ef
 import { ensureRunFloor } from "../state/run_floor_state.js";
 import { trackTrapResolution } from "../telemetry.js";
 
-const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
+const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "corrosion", "teleporter"];
 
 function getTrapObservationKey(trap) {
   return trap?.position
@@ -74,7 +75,7 @@ function resolveSoloFloorTrapEffect(trap, weakened) {
 }
 
 function recordTrapCodex(type, field) {
-  const record = state.codex?.events?.traps?.[type];
+  const record = state.codex?.events?.traps?.[getFloorTrapCodexId(type)];
   if (!record) return;
   record[field]++;
   if (record.firstFloor === 0) {
@@ -416,9 +417,7 @@ export function handleTrapAction(action) {
       return;
     }
 
-    const codexTrapType = trap.type === "damage"
-      ? "poison needle"
-      : (trap.type === "mpDrain" ? "gas bomb" : "flash bomb");
+    const codexTrapType = trap.type;
 
     if (resolution.outcome === "disarmed") {
       addLog("[味方] 【解除成功】罠の機能を完全に停止した！");

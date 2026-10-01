@@ -30,7 +30,8 @@ assert.deepEqual(Object.keys(createDefaultCodexStats()), [
   "totalRuns", "totalDeaths", "deepestFloor", "totalKills", "totalChests"
 ]);
 assert.deepEqual(Object.keys(createDefaultCodexEvents().traps).sort(), [
-  "flash bomb", "gas bomb", "pitfall", "poison needle", "teleporter"
+  "chest:corrosion", "chest:flash bomb", "chest:mimic", "chest:poison needle", "chest:teleporter",
+  "floor:alarm", "floor:damage", "floor:mpDrain", "floor:pitfall"
 ]);
 assert.deepEqual(Object.keys(createDefaultCodexEvents().facilities).sort(), [
   "chest", "merchant", "spring"
@@ -56,7 +57,10 @@ assert.equal(isNormalizedCodexStats({ ...createDefaultCodexStats(), deepestFloor
 
 const malformedEvents = normalizeCodexEvents({
   traps: {
-    "poison needle": { triggered: -1, disarmed: 1.5, firstFloor: 2, extra: true },
+    "chest:poison needle": { triggered: -1, disarmed: 1.5, firstFloor: 2, extra: true },
+    // A pre-#1939 save keyed chest traps by bare name; those records reset.
+    "poison needle": { triggered: 5, disarmed: 5, firstFloor: 3 },
+    "gas bomb": { triggered: 5, disarmed: 5, firstFloor: 3 },
     unknown: { triggered: 99 }
   },
   facilities: {
@@ -67,7 +71,10 @@ const malformedEvents = normalizeCodexEvents({
   omens: { retired: true },
   extra: true
 });
-assert.deepEqual(malformedEvents.traps["poison needle"], { triggered: 0, disarmed: 0, firstFloor: 2 });
+assert.deepEqual(malformedEvents.traps["chest:poison needle"], { triggered: 0, disarmed: 0, firstFloor: 2 });
+assert.equal(Object.hasOwn(malformedEvents.traps, "poison needle"), false);
+assert.equal(Object.hasOwn(malformedEvents.traps, "gas bomb"), false);
+assert.deepEqual(malformedEvents.traps["floor:pitfall"], { triggered: 0, disarmed: 0, firstFloor: 0 });
 assert.deepEqual(malformedEvents.facilities.spring, { found: 1, used: 0 });
 assert.equal(Object.hasOwn(malformedEvents.traps, "unknown"), false);
 assert.equal(Object.hasOwn(malformedEvents.facilities, "unknown"), false);

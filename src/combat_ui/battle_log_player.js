@@ -6,7 +6,7 @@ import { openGuardedSubmenu, resetSubmenuBackButton } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
 
 // balance-impact: none — combat result presentation only; resolution remains in combat_logic.
-import { setupChestState } from "../chest.js";
+import { setupPostCombatChest } from "../chest.js";
 import { checkCombatStatus } from "./combat_status.js";
 import { triggerGameOver } from "./game_over.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
@@ -213,12 +213,13 @@ export function playBattleLogs(queue, index) {
 
   if (log.triggerChest) {
     state.transitioning = true;
+    const mimicChest = state.combatState?.mimicChest ?? null;
     setTimeout(() => {
       state.gameState = "chest";
       clearPendingOutcome();
       cleanupCombatState();
       state.transitioning = false;
-      setupChestState(null, null, null, null, { fromDrop: true });
+      setupPostCombatChest(mimicChest);
       saveAutosave();
     }, getCombatLogDelay(log, { isAuto }));
     return;

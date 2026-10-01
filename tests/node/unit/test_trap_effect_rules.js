@@ -6,6 +6,7 @@ import {
 import {
   applyTrapGuardToEffect,
   B5_FLAME_TRAP_DAMAGE_PROFILE,
+  getCorrosionCandidateIndexes,
   calculateChestTrapExpectedRisk,
   calculateFloorTrapExpectedDamage,
   resolveChestTrapEffect,
@@ -58,16 +59,29 @@ const poison = resolveChestTrapEffect({
 check("full poison needle damage", poison.damage, 12);
 check("full poison needle poison roll", poison.poisonTriggered, true);
 
-const fullGas = resolveChestTrapEffect({
-  trap: "gas bomb",
+const corrosion = resolveChestTrapEffect({
+  trap: "corrosion",
   character: soloFighter,
+  inventory: ["TOWN_PORTAL", { kind: "equipment", baseId: "DAGGER" }, "HEAL_POTION", "ANTIDOTE", "DRAGON_KEY"],
   rng: () => 0.99
 });
-check("full gas max damage", fullGas.damage, 12);
+check("corrosion destroys one carried consumable", corrosion.corrodedItem, "ANTIDOTE");
+check("corrosion reports the bag index", corrosion.corrodedIndex, 3);
+check("corrosion deals no HP damage", corrosion.damage, 0);
 check(
-  "chest traps ignore a legacy weakened input",
-  resolveChestTrapEffect({ trap: "gas bomb", weakened: true, character: soloFighter, rng: () => 0.99 }).damage,
-  12
+  "corrosion never takes the retreat item, equipment, or key items",
+  JSON.stringify(getCorrosionCandidateIndexes(["TOWN_PORTAL", { kind: "equipment" }, "DRAGON_KEY", "HEAL_POTION"])),
+  JSON.stringify([3])
+);
+check(
+  "corrosion with nothing to corrode consumes no roll",
+  resolveChestTrapEffect({ trap: "corrosion", character: soloFighter, inventory: ["TOWN_PORTAL"], rng: () => { throw new Error("rng"); } }).corrodedIndex,
+  -1
+);
+check(
+  "a mimic is a fight, not an effect roll",
+  resolveChestTrapEffect({ trap: "mimic", character: soloFighter, rng: () => { throw new Error("rng"); } }).mimic,
+  true
 );
 
 const fighterDamage = resolveFloorTrapEffect({
@@ -135,12 +149,13 @@ check("B5 flame full failure min is 8", flameFullMin.damage, 8);
 check("B5 flame full failure max is 16", flameFullMax.damage, 16);
 check("B5 flame partial success is weaker", flamePartialMin.damage < flameFullMin.damage, true);
 check(
-  "expected full gas risk uses source range",
-  calculateChestTrapExpectedRisk({
-    trap: "gas bomb",
-    character: soloFighter
-  }).expectedDamageHp,
-  8.5
+  "corrosion risk is item loss only when something can corrode",
+  JSON.stringify([
+    calculateChestTrapExpectedRisk({ trap: "corrosion", character: soloFighter, inventory: ["HEAL_POTION"] }).itemLossProbability,
+    calculateChestTrapExpectedRisk({ trap: "corrosion", character: soloFighter, inventory: [] }).itemLossProbability,
+    calculateChestTrapExpectedRisk({ trap: "corrosion", character: soloFighter, inventory: ["HEAL_POTION"] }).expectedDamageHp
+  ]),
+  JSON.stringify([1, 0, 0])
 );
 
 check(
@@ -149,9 +164,9 @@ check(
   JSON.stringify({ damage: 6, blinded: true })
 );
 check(
-  "a dead character takes no gas or floor damage and consumes no roll",
+  "a dead character takes no flash or floor effect and consumes no roll",
   JSON.stringify([
-    resolveChestTrapEffect({ trap: "gas bomb", character: { ...soloFighter, status: "dead" }, rng: () => { throw new Error("rng"); } }).damage,
+    resolveChestTrapEffect({ trap: "flash bomb", character: { ...soloFighter, status: "dead" }, rng: () => { throw new Error("rng"); } }).damage,
     resolveFloorTrapEffect({ trap: { type: "damage" }, floor: 1, character: { ...soloFighter, status: "dead" }, rng: () => { throw new Error("rng"); } }).damage
   ]),
   JSON.stringify([0, 0])

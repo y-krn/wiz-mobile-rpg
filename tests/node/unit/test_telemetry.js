@@ -155,7 +155,7 @@ check("capture injects schema version and removes nested and array undefined val
   });
   assert.deepEqual(events[0], {
     name: "custom",
-    properties: { schemaVersion: 2, defined: 1, nested: { value: null, list: [null, { kept: 2 }] } }
+    properties: { schemaVersion: 3, defined: 1, nested: { value: null, list: [null, { kept: 2 }] } }
   });
 });
 
@@ -342,7 +342,7 @@ check("bleeding telemetry keeps lazy snapshot and legacy capture semantics", () 
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
   assert.equal(events.length, 1);
   assert.equal(events[0].name, "bleeding_other");
-  assert.equal(events[0].properties.schemaVersion, 2);
+  assert.equal(events[0].properties.schemaVersion, 3);
   assert.equal(events[0].properties.enemyId, "いにしえの竜");
   assert.equal(events[0].properties.isBoss, true);
   assert.equal(events[0].properties.isMidboss, false);
@@ -424,7 +424,7 @@ check("vulnerable telemetry preserves legacy reads, order, and capture payload",
   assert.equal(events[0].name, "vulnerable_attempt");
   assert.equal(Object.hasOwn(events[0].properties, "buildSnapshot"), false);
   assert.equal(Object.hasOwn(events[0].properties, "runId"), false);
-  assert.equal(events[0].properties.schemaVersion, 2);
+  assert.equal(events[0].properties.schemaVersion, 3);
   assert.deepEqual(Object.keys(events[0].properties).filter(key => key !== "schemaVersion"), [
     "floor", "enemyId", "isBoss", "isMidboss", "remainingTurns", "multiplier", "reason", "source",
     "buildKey", "qualifyingHitType", "latencyTurns", "damageContribution", "directDamage"
@@ -1023,7 +1023,7 @@ check("elite decision telemetry preserves production ID, fallback, and enum sema
   assert.deepEqual(elites.map(event => event.properties.contactMode), ["combat", "other", "combat", "other", "other", "other"]);
   assert.deepEqual(elites.map(event => event.properties.detected), [false, false, false, false, false, true]);
   assert.deepEqual(elites.map(event => event.properties.elitePolicy), [null, null, null, "unknown", null, "other"]);
-  assert.ok(elites.every(event => event.properties.schemaVersion === 2));
+  assert.ok(elites.every(event => event.properties.schemaVersion === 3));
   assert.deepEqual(events.map(event => event.name), ["run_start", ...Array(6).fill("elite_decision")]);
 });
 
@@ -1839,7 +1839,7 @@ check("UX decision boundaries are bounded, semantic, and deduplicated", () => {
     "ux_decision_opened",
     "ux_decision_resolved"
   ]);
-  assert.equal(uxEvents[0].properties.schemaVersion, 2);
+  assert.equal(uxEvents[0].properties.schemaVersion, 3);
   assert.equal(uxEvents[0].properties.surface, "equipment");
   assert.equal(uxEvents[0].properties.revisitBucket, "none");
   assert.equal(uxEvents[1].properties.resolution, "cancel");

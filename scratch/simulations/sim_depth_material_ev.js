@@ -172,7 +172,8 @@ const {
   rollChestAccessory,
   rollChestReward,
   rollChestTrap,
-  rollChestSpecialReward
+  rollChestSpecialReward,
+  upgradeMimicChestReward
 } = await import("../../src/rules/chest_rules.js");
 const {
   calculateChestDisarmChance,
@@ -9298,6 +9299,7 @@ function runEncounterCore(
     isBoss = false,
     isMidboss = false,
     isElite = false,
+    isMimic = false,
     roamingMonster = null,
     fixedMonsterNames = null,
     scalingPolicy = "production",
@@ -9595,7 +9597,8 @@ function runEncounterCore(
     initialLivingMonsterCount: monsters.filter(monster => monster.hp > 0).length,
     isBoss,
     isMidboss,
-    isRoamingFlack: isElite,
+    isRoamingFlack: isElite && !isMimic,
+    isMimic,
     enemyActionScheduling: state.simPolicy.productionSharedNormalEnemyActionSlot === true &&
       !isBoss && !isMidboss && !isElite
       ? "shared-normal-slot"
@@ -11249,6 +11252,7 @@ function applyChestTrapEffect(state, trap, metrics) {
   const effect = resolveChestTrapEffect({
     trap,
     character,
+    inventory: state.inventory,
     poisonWard: getCharAffixSum(character, "poisonWard"),
     rng: Math.random
   });
@@ -11306,20 +11310,16 @@ function applyChestTrapEffect(state, trap, metrics) {
       });
       metrics.chestTrapDamageHpByBlindStatus[blindStatus] += effect.damage;
     }
-  } else if (trap === "gas bomb") {
-    const damage = effect.damage;
-    if (damage > 0 && !suppressCost) {
-      const hpBefore = character.hp;
-      character.hp = Math.max(0, character.hp - damage);
-      clearCharIncapacitationOnDamage(character);
-      if (character.hp === 0) character.status = "dead";
-      costAudit.appliedDamageHp += damage;
-      recordTrapDamage(metrics, "chest", trap, damage, state.floor, state, {
-        hpBefore,
-        hpAfter: character.hp,
-        maxHp: getCharMaxHp(character)
-      });
-      metrics.chestTrapDamageHpByBlindStatus[blindStatus] += damage;
+  } else if (trap === "corrosion") {
+    if (effect.corrodedIndex >= 0 && !suppressCost) {
+      const item = effect.corrodedItem;
+      state.inventory.splice(effect.corrodedIndex, 1);
+      consumeSimulationObjectLoot(state, metrics, item);
+      dropCorrodedItemProvenance(state, metrics, item);
+      metrics.chestTrapOutcomes.corrosionItemsLost[item] =
+        (metrics.chestTrapOutcomes.corrosionItemsLost[item] || 0) + 1;
+    } else if (effect.corrodedIndex < 0) {
+      metrics.chestTrapOutcomes.corrosionNoTarget++;
     }
   } else if (trap === "teleporter") {
     metrics.trapTeleports += Number(effect.teleported);
@@ -13719,6 +13719,36 @@ function createChestPathMetrics() {
   ]));
 }
 
+// A corroded item leaves the bag without being used: keep each provenance
+// ledger in step with the inventory, but do not count it as a use.
+const CORRODED_ITEM_SOURCE_QUEUES = Object.freeze({
+  HEAL_POTION: "simHealPotionSources",
+  GREATER_HEAL: "simGreaterHealSources",
+  TRAP_KIT: "simTrapKitSources",
+  MANA_POTION: "simManaPotionSources",
+  HOLY_WATER: "simHolyWaterSources"
+});
+
+function dropCorrodedItemProvenance(state, metrics, item) {
+  const queue = CORRODED_ITEM_SOURCE_QUEUES[item];
+  if (queue && Array.isArray(state[queue])) state[queue].shift();
+  if (STATUS_CURE_ITEM_IDS.has(item)) recordStatusCureItemDepletion(state, metrics);
+}
+
+// Simulated-player policy, not a game rule: fight a mimic only above this HP.
+const MIMIC_FIGHT_MIN_HP_RATE = 0.5;
+
+// #1939: per-run chest decision outcomes for the trap-resource measurement.
+function createChestTrapOutcomeMetrics() {
+  return {
+    leaveByFloor: Array(41).fill(0),
+    decisionsByFloor: Array(41).fill(0),
+    corrosionItemsLost: {},
+    corrosionNoTarget: 0,
+    mimic: { encounters: 0, left: 0, fights: 0, victories: 0, flees: 0, deaths: 0 }
+  };
+}
+
 function recordChestPathAction(metrics, source, action) {
   const path = metrics.chestPath?.[source];
   if (!path || path.actions[action] === undefined) return;
@@ -14747,7 +14777,7 @@ function resolveChestTrapForSimulation(
   sign,
   observations,
   metrics,
-  { futureChestCount = 0, rng = Math.random, chestSource = "ordinary" } = {}
+  { futureChestCount = 0, rng = Math.random, chestSource = "ordinary", canFightMimic = true } = {}
 ) {
   const character = state.party[0];
   const trapId = `chest:${chestSource}:${floor}:${metrics.chestsOpened}`;
@@ -14770,11 +14800,44 @@ function resolveChestTrapForSimulation(
     return { action: "open" };
   }
 
+  if (trap === "mimic") {
+    // A mimic always shows the danger sign and ignores disarm and kits. The
+    // simulated player fights only with at least half HP, and only on paths
+    // whose caller can run a fight (the secret-room helper cannot).
+    const mimic = metrics.chestTrapOutcomes.mimic;
+    mimic.encounters++;
+    const hpRate = character.hp / Math.max(1, getCharMaxHp(character));
+    if (!canFightMimic || hpRate < MIMIC_FIGHT_MIN_HP_RATE) {
+      mimic.left++;
+      recordChestPathAction(metrics, chestSource, "leave");
+      recordSimulationTrapResolution(metrics, "avoided", {
+        state,
+        trap,
+        source: "chest",
+        trapId,
+        action: "leave"
+      });
+      return { action: "leave" };
+    }
+    recordChestPathAction(metrics, chestSource, "open");
+    recordSimulationTrapResolution(metrics, "triggered", {
+      state,
+      trap,
+      source: "chest",
+      trapId,
+      action: "open"
+    });
+    state.currentRun.trapsTriggered++;
+    recordTrapActivation(metrics, "chest", trap);
+    return { action: "open", mimic: true };
+  }
+
   const kitCount = state.inventory.filter(item => item === "TRAP_KIT").length;
   const kitIndex = state.inventory.indexOf("TRAP_KIT");
   const expectedRisk = calculateChestTrapExpectedRisk({
     trap,
     character,
+    inventory: state.inventory,
     poisonWard: getCharAffixSum(character, "poisonWard")
   });
   const fullRisk = expectedRisk.risk;
@@ -14889,7 +14952,9 @@ function rollChestItems(
 ) {
   const chestPath = metrics?.chestPath?.[chestSource];
   if (chestPath) chestPath.generated++;
-  const trap = rollChestTrap(floor, rng, metrics?.runtimeDiagnostics);
+  const rolledTrap = rollChestTrap(floor, rng, metrics?.runtimeDiagnostics);
+  // Match rollChestEncounter: a monster's dropped chest is never a mimic.
+  const trap = fromDrop && rolledTrap === "mimic" ? "none" : rolledTrap;
   maybeAcquireChestIdentificationPowder(state, metrics, rng);
   if (floor === 1) {
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
@@ -15028,15 +15093,20 @@ function rollChestItems(
       sign,
       observations,
       metrics,
-      { futureChestCount, rng: trapRng, chestSource }
+      { futureChestCount, rng: trapRng, chestSource, canFightMimic: chestSource !== "secretRoom" }
     );
   if (chestPath) {
     chestPath.trapsTriggered += Number(trapResult.disarmed === false);
+  }
+  if (metrics?.chestTrapOutcomes) {
+    metrics.chestTrapOutcomes.decisionsByFloor[floor]++;
+    if (trapResult.action === "leave") metrics.chestTrapOutcomes.leaveByFloor[floor]++;
   }
   return {
     items,
     trap,
     left: trapResult.action === "leave",
+    mimic: trapResult.mimic === true,
     mainItem: mainRewardItem,
     mainItemIndex: itemIndices.main ?? -1,
     specialItem,
@@ -15132,12 +15202,42 @@ function resolveSimulationChest({
   );
   recordChestLootEvent(metrics, state, floor, source, chestItems);
   if (chestItems.left) {
-    // Match src/chest.js leaveChest: a left chest grants no materials or rewards.
+    // Match src/chest.js leaveChest: a left chest grants no materials or
+    // rewards. Leaving is not a death, so the caller continues the run.
     chestItems.items.forEach((item, itemIndex) => {
       recordUnadoptedObjectLoot(state, metrics, item, "left", source, chestRewardRole(chestItems, itemIndex));
     });
-    return false;
+    return true;
   }
+  // A mimic is fought by the caller, which can replace the run state.
+  if (chestItems.mimic) {
+    return { mimic: true, pending: { chestItems, chestMaterials, tombRaider, source } };
+  }
+  return awardSimulationChest({
+    state,
+    floor,
+    metrics,
+    scenario,
+    scoringProfile,
+    source,
+    chestItems,
+    chestMaterials,
+    tombRaider
+  });
+}
+
+function awardSimulationChest({
+  state,
+  floor,
+  metrics,
+  scenario,
+  scoringProfile,
+  source,
+  chestItems,
+  chestMaterials,
+  tombRaider
+}) {
+  const chestPath = metrics.chestPath[source];
   if (tombRaider) {
     metrics.coreObservations.coreOpportunityCounts.CORE_TOMB_RAIDER++;
     metrics.coreObservations.tombRaiderMaterialBonusTotal += tombRaider.materialBonus || 0;
@@ -15217,6 +15317,48 @@ function resolveSimulationChest({
   syncObjectLootLifecycle(metrics, state);
   captureObjectLootStake(metrics, state, "pending_reward_resolution");
   return true;
+}
+
+// Production startMimicCombat: the mimic fights with the floor elite's body
+// and, when defeated, leaves its chest with the main reward upgraded.
+function resolveSimulationMimicFight(state, metrics, { floor, scenario, scoringProfile, pending }) {
+  const mimic = metrics.chestTrapOutcomes.mimic;
+  mimic.fights++;
+  const combatResult = runEncounter(state, metrics.coreObservations, metrics.diagnostics, metrics, {
+    isElite: true,
+    isMimic: true,
+    roamingMonster: { mimic: true },
+    encounterCoord: { x: state.x, y: state.y }
+  });
+  const next = combatResult.state;
+  metrics.combatDamageHp += combatResult.telemetry.incomingDamage;
+  if (combatResult.result === "victory") {
+    mimic.victories++;
+    applyPostCombatRecovery(next, metrics);
+    addRecoveryPotionUse(metrics, useHealPotionIfNeeded(next, metrics));
+    const { chestItems } = pending;
+    const upgraded = upgradeMimicChestReward(
+      chestItems.mainItemIndex >= 0 ? chestItems.items[chestItems.mainItemIndex] : null,
+      { floor, rng: Math.random, party: next.party }
+    );
+    if (chestItems.mainItemIndex >= 0) {
+      chestItems.items[chestItems.mainItemIndex] = upgraded;
+    } else {
+      chestItems.mainItemIndex = chestItems.items.length;
+      chestItems.items.push(upgraded);
+    }
+    chestItems.mainItem = upgraded;
+    awardSimulationChest({ state: next, floor, metrics, scenario, scoringProfile, ...pending });
+    return { state: next, alive: isAlive(next.party[0]) };
+  }
+  if (combatResult.result === "flee") {
+    mimic.flees++;
+    applyPostCombatRecovery(next, metrics);
+    addRecoveryPotionUse(metrics, useHealPotionIfNeeded(next, metrics));
+    return { state: next, alive: isAlive(next.party[0]) };
+  }
+  mimic.deaths++;
+  return { state: next, alive: false };
 }
 
 function resolveSecretRoomSearch({
@@ -16491,6 +16633,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     trapDetectionRateCounts: { ...metrics.trapDetectionRateCounts },
     trapDetectionCapHits: metrics.trapDetectionCapHits,
     trapTeleports: metrics.trapTeleports,
+    chestTrapOutcomes: structuredClone(metrics.chestTrapOutcomes),
     finalHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
     finalManaPotions: state.inventory.filter(item => item === "MANA_POTION").length,
     finalGreaterHeals: state.inventory.filter(item => item === "GREATER_HEAL").length,
@@ -17089,6 +17232,7 @@ export function simulateRun({
     trapEncounterBySource: { chest: 0, floor: 0 },
     chestsOpened: 0,
     chestPath: createChestPathMetrics(),
+    chestTrapOutcomes: createChestTrapOutcomeMetrics(),
     secretDoorCandidates: 0,
     secretSearchAttempts: 0,
     secretSearchSuccesses: 0,
@@ -17820,6 +17964,20 @@ export function simulateRun({
           });
           continue;
         }
+        if (chestItems.mimic) {
+          const fight = resolveSimulationMimicFight(state, metrics, {
+            floor,
+            scenario,
+            scoringProfile,
+            pending: { chestItems, chestMaterials, tombRaider, source: "ordinary" }
+          });
+          state = fight.state;
+          if (!fight.alive) {
+            metrics.deathEncounterType = "chest-mimic";
+            return finishRun(state, "death", metrics);
+          }
+          continue;
+        }
         if (tombRaider) {
           metrics.coreObservations.coreOpportunityCounts.CORE_TOMB_RAIDER++;
           metrics.coreObservations.tombRaiderMaterialBonusTotal +=
@@ -17986,6 +18144,20 @@ export function simulateRun({
             scoringProfile,
             source: "ordinary"
           });
+          if (opened?.mimic) {
+            const fight = resolveSimulationMimicFight(state, metrics, {
+              floor,
+              scenario,
+              scoringProfile,
+              pending: opened.pending
+            });
+            state = fight.state;
+            if (!fight.alive) {
+              metrics.deathEncounterType = "chest-mimic";
+              return finishRun(state, "death", metrics);
+            }
+            continue;
+          }
           if (!opened || !isAlive(state.party[0])) {
             metrics.deathEncounterType = "chest-trap";
             return finishRun(state, "death", metrics);
